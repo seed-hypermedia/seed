@@ -1,0 +1,293 @@
+syntax = "proto3";
+
+package com.seed.entities.v1alpha;
+
+import "google/protobuf/timestamp.proto";
+
+import "google/protobuf/empty.proto";
+
+option go_package = "seed/backend/genproto/entities/v1alpha;entities";
+
+// Provides functionality to query information about Hypermedia Entities.
+service Entities {
+  // Gets a change by ID.
+  rpc GetChange(GetChangeRequest) returns (Change);
+
+  // Gets the DAG of changes for an entity.
+  rpc GetEntityTimeline(GetEntityTimelineRequest) returns (EntityTimeline);
+
+  // Triggers a best-effort discovery of an entity.
+  rpc DiscoverEntity(DiscoverEntityRequest) returns (DiscoverEntityResponse);
+
+  // Finds the list of local entities whose titles match the input string.
+  // A fuzzy search is performed among documents, groups and accounts.
+  // For groups and documents, we match the title, while we match alias in accounts.
+  rpc SearchEntities(SearchEntitiesRequest) returns (SearchEntitiesResponse);
+
+  // Deletes an entity from the local node. It removes all the patches corresponding to it, including comments.
+  rpc DeleteEntity(DeleteEntityRequest) returns (google.protobuf.Empty);
+
+  // Lists deleted entities.
+  rpc ListDeletedEntities(ListDeletedEntitiesRequest) returns (ListDeletedEntitiesResponse);
+
+  // Undo the entity delition by removing the entity from the deleted list. That entity, if available
+  // will be synced back in the next syncing round (or manually discovered).
+  rpc UndeleteEntity(UndeleteEntityRequest) returns (google.protobuf.Empty);
+
+  // List mentions of a given Entity across the locally-available content.
+  rpc ListEntityMentions(ListEntityMentionsRequest) returns (ListEntityMentionsResponse);
+}
+
+// Request to get a change by ID.
+message GetChangeRequest {
+  // ID of the change.
+  string id = 1;
+}
+
+// Request to get the timeline of an entity.
+message GetEntityTimelineRequest {
+  // The entity ID to get the timeline for.
+  string id = 1;
+
+  // Flag to include draft changes in the timeline,
+  // otherwise they are omitted by default.
+  bool include_drafts = 2;
+}
+
+// Request to discover an entity.
+message DiscoverEntityRequest {
+  // Required. The entity ID to discover.
+  string id = 1;
+
+  // Optional. Version of the entity to discover.
+  string version = 2;
+}
+
+// Response to discover an entity.
+message DiscoverEntityResponse {
+  // TODO(burdiyan): add summary of the discovery process.
+  // Or maybe even make this call streaming?
+}
+
+// A change to an entity.
+message Change {
+  // ID of the change.
+  string id = 1;
+
+  // Author of the change.
+  string author = 2;
+
+  // Timestamp when the change was created.
+  google.protobuf.Timestamp create_time = 3;
+
+  // IDs of other changes this change depends on.
+  repeated string deps = 4;
+
+  // IDs of other changes that depend on this change.
+  repeated string children = 6;
+
+  // Indicates whether this changes comes from a trusted peer of ours.
+  bool is_trusted = 5;
+
+  // Indicates whether this change is a draft.
+  bool is_draft = 7;
+}
+
+// The timeline of an entity.
+message EntityTimeline {
+  // The ID of the entity.
+  string id = 1;
+
+  // Account ID of the owner of the entity.
+  string owner = 2;
+
+  // The set of changes for the entity keyed by change ID.
+  map<string, Change> changes = 3;
+
+  // The sorted list of change IDs by time.
+  repeated string changes_by_time = 4;
+
+  // The set of changes that has no dependencies.
+  // Normally there should only be one root,
+  // but just in case it's defined as a list.
+  repeated string roots = 5;
+
+  // The set of leaf changes considering the entire DAG.
+  repeated string heads = 6;
+
+  // The set of author versions/variants sorted by timestamp.
+  repeated AuthorVersion author_versions = 7;
+}
+
+// Set of heads from a given author.
+message AuthorVersion {
+  // Account ID of the author.
+  string author = 1;
+
+  // The set of leaf changes from that author.
+  repeated string heads = 2;
+
+  // The version string corresponding to the author's variant.
+  // I.e. same as heads but concatenated with a '.' delimiter.
+  string version = 3;
+
+  // The timestamp of the author's version.
+  // For compound versions the greatest timestamp is used.
+  google.protobuf.Timestamp version_time = 4;
+}
+
+// A change to an entity.
+message Entity {
+  // EID of the entity.
+  string id = 1;
+
+  // Title of the entity, depending on the type:
+  // Alias in the case of account.
+  // Title in the case of groups and documents
+  // Empty in the case of comments.
+  string title = 2;
+
+  // The owner of the entity
+  string owner = 3;
+}
+
+// Publication that has been deleted
+message DeletedEntity {
+  // EID of the deleted entity.
+  string id = 1;
+
+  // When the entity was deleted.
+  google.protobuf.Timestamp delete_time = 2;
+
+  // Reason why this entity was deleted.
+  string deleted_reason = 3;
+
+  // Further metadata about the deleted entity, title, etc ...
+  string metadata = 4;
+}
+// Request to
+message SearchEntitiesRequest {
+  // Query to find. Since we use
+  // Fuzzy search, a single query may return multiple
+  // entities.
+  string query = 1;
+}
+
+// A list of entities matching the request.
+message SearchEntitiesResponse {
+  // Entities matching the input title
+  repeated Entity entities = 1;
+
+  // Token for the next page if there's any.
+  string next_page_token = 2;
+}
+
+// Request for deleting an entity.
+message DeleteEntityRequest {
+  // Entity ID of the entity to be removed.
+  // All versions will also be removed.
+  string id = 1;
+
+  // Optional. Reason why the user wants to delete that entity.
+  string reason = 2;
+}
+
+// Request for listing deleted entities.
+message ListDeletedEntitiesRequest {
+  // Optional. Number of results per page. Default is defined by the server.
+  int32 page_size = 1;
+
+  // Optional. Value from next_page_token obtains from a previous response.
+  string page_token = 2;
+}
+
+// Response with list of deleted entities.
+message ListDeletedEntitiesResponse {
+  // List of deleted entities.
+  repeated DeletedEntity deleted_entities = 1;
+
+  // Token for the next page if there're more results.
+  string next_page_token = 2;
+}
+
+// Request for restoring an entity.
+message UndeleteEntityRequest {
+  // Entity ID of the entity to be restored.
+  // All versions will also be restored.
+  string id = 1;
+}
+
+// Request to list mentions of an entity.
+message ListEntityMentionsRequest {
+  // Required. ID of the entity to list mentions for.
+  string id = 1;
+
+  // Optional. The size of the page to return by the server.
+  // The server may ignore this, and return a bigger response.
+  int32 page_size = 2;
+
+  // Optional. The page token to continue the pagination.
+  string page_token = 3;
+
+  // Optional. Whether to return the results in descending order (newest-first).
+  // By default mentions are listed in the chronological order,
+  // according to the *locally perceived* order of the blobs that contain the mentions.
+  //
+  // I.e. we sort the links according to the time we receive the blobs, not according to the time blobs claim to have been created.
+  // This is to prevent losing new mentions in case of receiving out-of-date blobs.
+  //
+  // This flag must remain the same when paginating through the results.
+  bool reverse_order = 4;
+}
+
+// Response to list mentions of an entity.
+message ListEntityMentionsResponse {
+  // Required. The list of mentions for the entity.
+  repeated Mention mentions = 1;
+
+  // Optional. Token for the next page if there's any.
+  string next_page_token = 2;
+}
+
+// Mention of an Entity.
+// Source means the place where the mention was found.
+// Target means the entity being mentioned.
+message Mention {
+  // Information about a structural blob that contains the mention.
+  message BlobInfo {
+    // The CID-formatted hash of the blob.
+    string cid = 1;
+
+    // The Account ID of the author of the blob.
+    string author = 2;
+
+    // The timestamp of the blob.
+    google.protobuf.Timestamp create_time = 3;
+
+    // Specifies whether the blob is a draft.
+    bool is_draft = 4;
+  }
+
+  // Required. The ID of the source where the mention was found.
+  string source = 1;
+
+  // Optional. Context can mean different things depending on the type of the source:
+  // it can be the block ID when source is a Document or Comment,
+  // it can be a pretty-path when source is a Group that mentions a Document,
+  // it can also be empty.
+  string source_context = 2;
+
+  // Required. Information about the blob where the mention was found.
+  BlobInfo source_blob = 3;
+
+  // Optional. The version of the target Entity the link points to,
+  // if one is specified in the link.
+  string target_version = 4;
+
+  // Required. Specifies whether the link points to the exact/pinned version of the target document,
+  // or if the target version is a *suggested* minimum version, and a later one should be preferred if exists.
+  bool is_exact_version = 5;
+
+  // Optional. The fragment portion of the link.
+  string target_fragment = 6;
+}

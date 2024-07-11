@@ -1,0 +1,363 @@
+syntax = "proto3";
+
+package com.seed.documents.v1alpha;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "seed/backend/genproto/documents/v1alpha;documents";
+
+// === Draft Service ===
+
+// Drafts service exposes the functionality
+service Drafts {
+  // Creates a new draft with a new permanent document ID.
+  rpc CreateDraft(CreateDraftRequest) returns (Document);
+
+  // Deletes a draft by its document ID.
+  rpc DeleteDraft(DeleteDraftRequest) returns (google.protobuf.Empty);
+
+  // Gets a single draft if exists.
+  rpc GetDraft(GetDraftRequest) returns (Document);
+
+  // Updates a draft using granular update operations.
+  rpc UpdateDraft(UpdateDraftRequest) returns (UpdateDraftResponse);
+
+  // List currently stored drafts.
+  rpc ListDrafts(ListDraftsRequest) returns (ListDraftsResponse);
+
+  // Lists drafts for a given document.
+  rpc ListDocumentDrafts(ListDocumentDraftsRequest) returns (ListDocumentDraftsResponse);
+
+  // Publishes a draft. I.e. draft will become a publication, and will no longer appear in drafts section.
+  rpc PublishDraft(PublishDraftRequest) returns (Publication);
+}
+
+// Request to create a new draft.
+message CreateDraftRequest {
+  // Optional. Existing Document ID can be specified to update
+  // previously published document. A draft will be created
+  // with the content of the most recent known version.
+  string existing_document_id = 1;
+
+  // Optional. Version of the existing document to create draft from.
+  // If version is specified existing_document_id must also be specified.
+  string version = 2;
+}
+
+// Request to delete an existing draft.
+message DeleteDraftRequest {
+  // ID of the document whose draft needs to be deleted. Only one
+  string document_id = 1;
+}
+
+// Request to get a single draft.
+message GetDraftRequest {
+  // ID of the document for which draft was previously created.
+  string document_id = 1;
+}
+
+// Request to update an existing draft using granular operations.
+message UpdateDraftRequest {
+  // ID of the document to be updated.
+  string document_id = 3;
+
+  // List of document changes that must be applied to the existing document.
+  repeated DocumentChange changes = 4;
+}
+
+// Response after draft is updated.
+message UpdateDraftResponse {
+  // The ID of the change representing the draft version after the update is processed.
+  string change_id = 1;
+
+  // The state of the document after the update.
+  Document updated_document = 2;
+}
+
+// Granular document change.
+message DocumentChange {
+  // Operation to move an existing block to a different place in the document.
+  // Move and Create operations are both expressed with this.
+  // Conceptually new blocks are moved out of nowhere into the document.
+  message MoveBlock {
+    // ID of the block to move.
+    string block_id = 1;
+
+    // ID of the new parent for the block being moved.
+    string parent = 2;
+
+    // ID of the new left sibling for the block being moved.
+    string left_sibling = 3;
+  }
+
+  oneof op {
+    // New title to set on the document.
+    string set_title = 1;
+
+    // Move operation that creates/moves a block within the document hierarchy.
+    MoveBlock move_block = 3;
+
+    // New block state that replaces an existing block.
+    Block replace_block = 4;
+
+    // ID of a block to delete.
+    string delete_block = 5;
+  }
+}
+
+// Request to list stored drafts.
+message ListDraftsRequest {
+  // Optional. Number of results per page.
+  int32 page_size = 1;
+
+  // Optional. Token for the page to return.
+  string page_token = 2;
+}
+
+// Response for listing drafts.
+message ListDraftsResponse {
+  // Drafts matching the list request.
+  // Content is omitted.
+  repeated Document documents = 1;
+
+  // Token for the next page if there's any.
+  string next_page_token = 2;
+}
+
+// Request to list document drafts.
+message ListDocumentDraftsRequest {
+  // ID of the document to list drafts for.
+  string document_id = 1;
+}
+
+// Response with the list of drafts for a given document ID.
+message ListDocumentDraftsResponse {
+  // Drafts come without content, only metadata,
+  // similar to the rest of list responses.
+  repeated Document drafts = 1;
+}
+
+// Request to publish a draft.
+message PublishDraftRequest {
+  // ID of the document which current draft needs to be published.
+  string document_id = 1;
+}
+
+// === Publication Service ===
+
+// Publications service provides access to published documents.
+service Publications {
+  // Gets a single publication.
+  rpc GetPublication(GetPublicationRequest) returns (Publication);
+
+  // Lists stored publications. Only the most recent versions show up.
+  rpc ListPublications(ListPublicationsRequest) returns (ListPublicationsResponse);
+
+  // Push Local publication to the gateway.
+  rpc PushPublication(PushPublicationRequest) returns (google.protobuf.Empty);
+
+  // Lists publications owned by a given account.
+  rpc ListAccountPublications(ListAccountPublicationsRequest) returns (ListPublicationsResponse);
+}
+
+// Request for getting a single publication.
+message GetPublicationRequest {
+  // Required. ID of the published document.
+  string document_id = 1;
+
+  // Optional. Specific version of the published document. If empty, the latest one is returned.
+  string version = 2;
+
+  // Optional. If true, only local publications will be found. False by default.
+  // Deprecated: use [Entities.DiscoverEntity] API explicitly instead.
+  bool local_only = 3;
+}
+
+// Request for getting a single publication.
+message PushPublicationRequest {
+  // Required. ID of the published document to be pushed.
+  string document_id = 1;
+
+  // Required. URL of the gateway to push to. Multiaddress format accepted (comma separated).
+  string url = 2;
+}
+
+// Request for listing publications.
+message ListPublicationsRequest {
+  // Optional. Number of results per page. Default is defined by the server.
+  int32 page_size = 1;
+
+  // Optional. Value from next_page_token obtains from a previous response.
+  string page_token = 2;
+
+  // Optional. When provided, the response will only contain
+  // publications *owned* (created) by trusted accounts of this node.
+  // By default, it returns all the publications (trusted_only = false)
+  bool trusted_only = 3;
+}
+
+// Response with list of publications.
+message ListPublicationsResponse {
+  // List of publications matching the request.
+  // Only most recent versions are returned.
+  // Content is omitted, only metadata is present.
+  repeated Publication publications = 1;
+
+  // Token for the next page if there're more results.
+  string next_page_token = 2;
+}
+
+// Request for listing publications owned by a given account.
+message ListAccountPublicationsRequest {
+  // Optional. Number of results per page. Default is defined by the server.
+  int32 page_size = 1;
+
+  // Optional. Value from next_page_token obtains from a previous response.
+  string page_token = 2;
+
+  // Required. Account ID to list publications for.
+  string account_id = 3;
+}
+
+
+// === Merge Service ===
+
+// Merge service provides access to merge documents.
+service Merge {
+  // Merge changes and publishes.
+  rpc MergeChanges(MergeChangesRequest) returns (Publication);
+
+  // Rebase changes
+  rpc RebaseChanges(RebaseChangesRequest) returns (Document);
+}
+
+// Request for merging changes in a document.
+message MergeChangesRequest {
+  // Required. Document ID from which versions are going to be taken.
+  string id = 1;  
+
+  // Required. Versions to be merged.
+  repeated string versions = 2;  
+}
+
+// Request for rebasing changes in a document.
+message RebaseChangesRequest {
+  // Required. Draft ID to be rebased.
+  string base_draft_id = 1;  
+
+  // Required. Versions to be applied applied on top of the base document.
+  repeated string versions = 3;  
+}
+
+// === Types ===
+
+// State of the document after publication.
+// Deprecated: use the Document message instead,
+// it has all the same fields.
+message Publication {
+  // Version points to the state of the publication at some point in time.
+  // Deprecated: use the version field of the Document message instead.
+  string version = 1;
+
+  // Published document.
+  Document document = 2;
+}
+
+// Document represents metadata and content of a draft or publication.
+message Document {
+  // Permanent ID of the document.
+  string id = 1;
+
+  // Title of the document.
+  string title = 2;
+
+  // Output only. Author ID of the document.
+  string author = 4;
+
+  // Output only. Account IDs of all the editors of the document.
+  // Includes the original author as well.
+  repeated string editors = 11;
+
+  // This is WIP feature for block-aware API. It will supersede the `content` field.
+  repeated BlockNode children = 9;
+
+  // Output only. Time when document was created.
+  google.protobuf.Timestamp create_time = 6;
+
+  // Output only. Time when document was updated.
+  google.protobuf.Timestamp update_time = 7;
+
+  // Output only. Time when this version was published. Not present in drafts.
+  google.protobuf.Timestamp publish_time = 8;
+
+  // Output only. Current version of the document.
+  string version = 12;
+
+  // Output only. Previous version of the document,
+  // unless this is the first version.
+  string previous_version = 13;
+}
+
+// Content block with children.
+message BlockNode {
+  // Content block.
+  Block block = 1;
+
+  // Child blocks.
+  repeated BlockNode children = 2;
+}
+
+// Content block.
+message Block {
+  // Block ID. Must be unique within the document.
+  string id = 1;
+
+  // Type of the block. Specific to the renderer.
+  string type = 2;
+
+  // Text of the content block.
+  string text = 3;
+
+  // Optional. The hyperlink to an external resource.
+  // Must be a valid URL.
+  string ref = 7;
+
+  // Arbitrary attributes of the block.
+  map<string, string> attributes = 4;
+
+  // Annotation "layers" of the block.
+  repeated Annotation annotations = 5;
+
+  // Output only. Current revision of the block. It's the ID of the last Change that modified this block.
+  // Additional information about the Change can be obtained using the Changes service.
+  string revision = 6;
+}
+
+// Conceptual annotation "layer" that is applied to arbitrary spans of block text.
+// An "identity" of the layer should be derived deterministically based on its type
+// attributes. Spans inside the same annotation can't overlap.
+//
+// Spans are stored inside the Annotation in a "columnar" format,
+// i.e. StructureOfArrays instead of ArrayOfStructures. See: https://en.wikipedia.org/wiki/AoS_and_SoA.
+// This is useful to reduce the number of allocations and offers more compact serialization, because
+// protobuf is able to "pack" primitive repeated fields more efficiently.
+message Annotation {
+  // Type of the annotation.
+  string type = 1;
+
+  // Optional. A hyperlink to an external resource.
+  // Must be a valid URL.
+  string ref = 5;
+
+  // Arbitrary key-value attributes of the annotation.
+  map<string, string> attributes = 2;
+
+  // Start offsets of possibly disjoint spans of text for which this annotation is applied.
+  // Must be sorted and have the same number of items as `ends` list.
+  repeated int32 starts = 3;
+
+  // End offsets of possibly disjoint spans of text for which this annotation is applied.
+  // Must be sorted and have the same number of items as `starts` list.
+  repeated int32 ends = 4;
+}

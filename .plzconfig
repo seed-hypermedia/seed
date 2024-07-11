@@ -1,0 +1,28 @@
+[please]
+SelfUpdate = false
+
+[parse]
+BlacklistDirs = "node_modules"
+BlacklistDirs = "target"
+BlacklistDirs = "third_party"
+BuildDefsDir = "build/rules"
+BuildFileName = "BUILD.plz"
+GitFunctions = true
+
+[build]
+PassUnsafeEnv = "WORKSPACE" ; This is expected to be set via nix-shell to point to the absolute path to the workspace. Needed to do some nasty but useful work around.
+ExitOnError = true
+PassUnsafeEnv = "NIX_SSL_CERT_FILE"
+PassUnsafeEnv = "NIX_PATH"
+Path = "/bin:/usr/bin"
+
+[cache]
+Dir = ".plz-cache"
+DirCacheHighWaterMark = "8GiB"
+DirCacheLowWaterMark = "5GiB"
+DirClean = true
+
+[buildconfig]
+go-tool = //build/nix:go
+md5sum-tool = //build/nix:md5sum
+yarn-tool = //build/nix:yarn

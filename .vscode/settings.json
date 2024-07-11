@@ -1,0 +1,98 @@
+{
+  "files.exclude": {
+    "**/.git": true,
+    "**/.svn": true,
+    "**/.hg": true,
+    "**/CVS": true,
+    "**/.DS_Store": true,
+    "**/*.env": true,
+    ".git/**": true
+  },
+
+  "spellright.ignoreFiles": [
+    "**/.gitignore",
+    "**/.spellignore",
+    "whats-new.txt"
+  ],
+  "files.watcherExclude": {
+    ".bazel/**": true,
+    "plz-out/**": true,
+    ".plz-cache/**": true,
+    ".git/**": true
+  },
+  "files.associations": {
+    "*.plz": "starlark",
+    "*.build_defs": "starlark"
+  },
+  "files.readonlyInclude": {
+    "frontend/node_modules/**": true,
+    "node_modules/**": true,
+  },
+  "search.exclude": {
+    ".bazel/**": true,
+    "plz-out/**": true,
+    "**/.yarn": true,
+    "**/.pnp.*": true,
+    ".git/**": true,
+    "**/node_modules/**": true,
+    "node_modules/**": true,
+    "**/out/**": true,
+    "**/dist/**": true
+  },
+  "editor.formatOnPaste": false,
+  // Please, don't set global editor tab size!
+  // Keep the default and use per-language settings otherwise.
+  // Don't set tab size for Go here. Go uses TAB for tabs, not spaces, so everyone
+  // is willing to chose their preffered width in their local settings without disrupting the file contents.
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "[terraform]": {
+    "editor.defaultFormatter": "hashicorp.terraform"
+  },
+  "[markdown]": {
+    "editor.unicodeHighlight.ambiguousCharacters": false,
+    "editor.unicodeHighlight.invisibleCharacters": false,
+    "diffEditor.ignoreTrimWhitespace": false,
+    "editor.wordWrap": "on",
+    "editor.wordWrapColumn": 80,
+    "editor.quickSuggestions": {
+      "comments": "off",
+      "strings": "off",
+      "other": "off"
+    }
+  },
+  "[shellscript]": {
+    "editor.detectIndentation": false,
+    "editor.insertSpaces": false,
+  },
+  "gopls": {
+    "build.directoryFilters": [
+      "-",
+      "-plz-out",
+      "+backend",
+      "+third_party",
+      "+proto",
+      "+build"
+    ]
+  },
+  "go.lintTool": "golangci-lint",
+  "prettier.bracketSpacing": false,
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit"
+  },
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter"
+  },
+  "nandorojo-tamagui.configPath": "./frontend/packages/ui/src/tamagui.config.ts"
+}

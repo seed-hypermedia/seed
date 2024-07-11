@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+
+# This script is an entrypoint for all developer activities in this project.
+
+import argparse
+import os
+import subprocess
+import sys
+
+
+def cmd(cmds: argparse._SubParsersAction, name: str, help: str):
+    """Decorator that registers subcommands as functions to be executed."""
+
+    def wrapper(func):
+        p = cmds.add_parser(name, help=help)
+        p.set_defaults(func=func)
+
+    return wrapper
+
+
+def run(cmd: str, args: list = None, capture_output=False, env: dict = None):
+    """Helper to run cmd in a shell."""
+    if args:
+        if args[0] == "--":
+            args = args[1:]
+        cmd += " -- " + " ".join(args)
+    return subprocess.run(
+        cmd, check=True, shell=True, capture_output=capture_output, env=env
+    )
+
+
+def main():
+    if not os.getenv("DIRENV_DIR"):
+        print("Direnv is not enabled. Fix it first! See README.md for instructions.")
+        sys.exit(1)
+
+    cli = argparse.ArgumentParser(
+        usage="./dev COMMAND [FLAGS...]",
+        description="CLI for developing Seed Hyper Media. Provides commands for most common developer tasks in this project.",
+    )
+
+    cmds = cli.add_subparsers(
+        title="commands",
+        # This is ugly, but otherwise argparse prints the redundant list of subcommands.
+        # And if we just use an empty string it messes up help message alignment for some subcommands.
+        metavar="                                                     ",
+    )
+
+    @cmd(
+        cmds,
+        "gen",
+        "Check all the generated code is up to date. Otherwise run the code generation process to fix it.",
+    )
+    def gen(args):
+        targets_to_check = (
+            run(
+                f"plz query filter -i 'generated:check' {str.join(' ', args)}",
+                capture_output=True,
+            )
+            .stdout.decode("utf-8")
+            .split("\n")
+        )
+
+        out = run(f"plz run parallel {' '.join(targets_to_check)}", capture_output=True)
+
+        targets_to_gen = []
+        for line in out.stdout.decode("utf-8").split("\n"):
+            idx = line.find("plz run")
+            if idx == -1:
+                continue
+            targets_to_gen.append(line[idx + 7 : -1])  # 7 is length of 'plz run'
+
+        if len(targets_to_gen) == 0:
+            return
+        return run("plz run parallel " + " ".join(targets_to_gen))
+
+    @cmd(cmds, "run-desktop", "Run frontend desktop app for development.")
+    def run_desktop(args):
+        run("./scripts/cleanup-desktop.sh")
+        run("yarn install")
+        run("yarn workspace @shm/ui generate")
+        run("plz build //backend:seed-daemon //:yarn")
+
+        testnet_var = "SEED_P2P_TESTNET_NAME"
+        if testnet_var not in os.environ:
+            os.environ[testnet_var] = "dev"
+
+        return run("VITE_DESKTOP_APPDATA=Seed.dev yarn desktop", args=args)
+
+    @cmd(cmds, "build-desktop", "Builds the desktop app for the current platform.")
+    def build_desktop(args):
+        run("./scripts/cleanup-frontend.sh")
+        run("./scripts/cleanup-desktop.sh")
+        run("yarn install")
+        run("plz build //backend:seed-daemon //:yarn")
+
+        testnet_var = "SEED_P2P_TESTNET_NAME"
+        if testnet_var not in os.environ:
+            os.environ[testnet_var] = "dev"
+
+        run("VITE_DESKTOP_APPDATA=Seed.local yarn desktop:make")
+
+    @cmd(cmds, "test-desktop", "Run frontend desktop tests.")
+    def test_desktop(args):
+        run("yarn workspace @shm/ui generate")
+        run("plz build //backend:seed-daemon //:yarn")
+
+        testnet_var = "SEED_P2P_TESTNET_NAME"
+        if testnet_var not in os.environ:
+            os.environ[testnet_var] = "dev"
+
+        return run("yarn desktop:test", args=args)
+
+    @cmd(cmds, "run-site", "Run sites app for development.")
+    def run_site(args):
+        run("./scripts/cleanup-site.sh")
+        run("yarn install")
+        run("plz build //:yarn")
+        return run(
+            "yarn site",
+            args=args,
+            env={**os.environ, "HM_BASE_URL": "http://localhost:3000"},
+        )
+
+    @cmd(cmds, "build-site", "Build site app for production.")
+    def build_site(args):
+        run("./scripts/cleanup-frontend.sh")
+        run("./scripts/cleanup-site.sh")
+        run("yarn install")
+        run("plz build //:yarn")
+        return run(
+            "yarn site:prod",
+            args=args,
+            # env={**os.environ, "HM_BASE_URL": "http://localhost:3000"},
+        )
+
+    @cmd(cmds, "frontend-validate", "Formats, Validates")
+    def frontend_validate(args):
+        run("yarn validate")
+
+    @cmd(
+        cmds,
+        "run-backend",
+        "Build and run seed-daemon binary for the current platform.",
+    )
+    def run_backend(args):
+        return run("plz run //backend:seed-daemon", args=args)
+
+    @cmd(cmds, "build-backend", "Build seed-daemon binary for the current platform.")
+    def build_backend(args):
+        return run("plz build //backend:seed-daemon")
+
+    @cmd(cmds, "run-gw-backend", "Build and run backend for seed web gateway.")
+    def run_gateway(args):
+        return run("plz run //backend:seed-gateway", args=args)
+
+    @cmd(cmds, "ping-p2p", "Execute ping utility to check visibility.")
+    def ping_p2p(args):
+        return run("plz run //backend:pingp2p", args=args)
+
+    @cmd(
+        cmds,
+        "release",
+        "Create a new Release. this will create a new tag and push it to the remote repository",
+    )
+    def release(args):
+        # run("yarn validate")
+        # run("yarn test")
+        run("node scripts/tag.mjs")
+
+    if len(sys.argv) == 1:
+        cli.print_help()
+        return
+
+    namespace, args = cli.parse_known_args()
+
+    try:
+        namespace.func(args)
+    except ValueError as err:
+        print(str(err))
+        sys.exit(1)
+    except (subprocess.CalledProcessError, KeyboardInterrupt):
+        return
+
+
+if __name__ == "__main__":
+    main()

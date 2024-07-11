@@ -1,0 +1,11 @@
+.node-inline-embed,
+.inline-embed-token {
+  display: inline;
+  padding-inline: 1px;
+  border-bottom: 3px solid transparent;
+}
+
+.inline-embed-token.selected {
+  border-color: var(--mint11);
+  border-bottom: 3px solid var(--mint11);
+}

@@ -1,0 +1,35 @@
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.window-drag {
+  -webkit-app-region: drag;
+}
+
+.no-window-drag {
+  -webkit-app-region: no-drag;
+}
+
+.split-view-view {
+  height: 100%;
+}
+
+/* ::-webkit-scrollbar {
+  display: none;
+} */
+#scroll-page-wrapper::-webkit-scrollbar {
+  display: auto;
+}
+
+.main-scroll-wrapper::-webkit-scrollbar {
+  display: auto;
+}

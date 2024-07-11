@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "strictNullChecks": true,
+    "noUncheckedIndexedAccess": true,
+    "paths": {
+      // "@shm/ui/*": ["./frontend/packages/ui/*"],
+      // "@shm/shared/*": ["./frontend/packages/shared/*"]
+    },
+    "plugins": [
+      {
+        // docs: https://github.com/nderscore/tamagui-typescript-plugin#readme
+        "name": "@nderscore/tamagui-typescript-plugin",
+        "pathToApp": "frontend/apps/site"
+      },
+      {
+        // docs: https://github.com/nderscore/tamagui-typescript-plugin#readme
+        "name": "@nderscore/tamagui-typescript-plugin",
+        "pathToApp": "frontend/apps/desktop"
+      }
+    ]
+  }
+  // "extends": "expo/tsconfig.base"
+}

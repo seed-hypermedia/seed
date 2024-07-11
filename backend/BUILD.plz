@@ -1,0 +1,57 @@
+subinclude("//build/rules/go:defs", "//build/rules/codegen:defs")
+
+# Builds the seed-daemon binary. It depends on all the non-test
+# Go files inside the `backend` directory.
+go_binary(
+    name = "seed-daemon",
+    srcs = glob(
+        ["**/*.go"],
+        exclude = ["**/*_test.go"],
+    ) + [
+        "//backend/daemon/storage:go_library",
+        "//backend/daemon/storage2:go_library",
+        "//backend/hyper/hypersql:go_library",
+        "//backend/lndhub/lndhubsql:go_library",
+        "//backend/wallet/walletsql:go_library",
+    ],
+    out = "seed-daemon-" + target_platform_triple(),
+    cgo = True,
+    gomod = "//:gomod",
+    package = "./cmd/seed-daemon",
+    visibility = ["PUBLIC"],
+    deps = [
+        "//third_party:sqlite",
+    ],
+)
+
+go_binary(
+    name = "pingp2p",
+    srcs = glob(["./cmd/pingp2p/*.go"]),
+    out = "pingp2p-" + target_platform_triple(),
+    cgo = True,
+    gomod = "//:gomod",
+    package = "./cmd/pingp2p",
+    visibility = ["PUBLIC"],
+)
+
+go_binary(
+    name = "seed-gateway",
+    srcs = glob(
+        ["**/*.go"],
+        exclude = ["**/*_test.go"],
+    ) + [
+        "//backend/daemon/storage:go_library",
+        "//backend/daemon/storage2:go_library",
+        "//backend/hyper/hypersql:go_library",
+        "//backend/lndhub/lndhubsql:go_library",
+        "//backend/wallet/walletsql:go_library",
+    ],
+    out = "seed-gateway-" + target_platform_triple(),
+    cgo = True,
+    gomod = "//:gomod",
+    package = "./cmd/seed-gateway",
+    visibility = ["PUBLIC"],
+    deps = [
+        "//third_party:sqlite",
+    ],
+)

@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    // "target": "ESNext",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "commonjs",
+    "baseUrl": ".",
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "site"
+      },
+      // {
+      //   // docs: https://github.com/nderscore/tamagui-typescript-plugin#readme
+      //   "name": "@nderscore/tamagui-typescript-plugin",
+      //   "pathToApp": "."
+      // }
+    ],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@shm/ui": ["../../packages/ui/src/index.tsx"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}
