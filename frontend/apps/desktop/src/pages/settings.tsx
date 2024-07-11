@@ -31,7 +31,7 @@ import {
 import {useWalletOptIn} from '@/models/wallet'
 import {trpc} from '@/trpc'
 import {getAvatarUrl} from '@/utils/account-url'
-import {hmId, LightningWallet, State, VERSION} from '@shm/shared'
+import {hmId, LightningWallet, VERSION} from '@shm/shared'
 import {
   AlertDialog,
   ArrowDownRight,
@@ -127,7 +127,7 @@ export default function Settings() {
       </TabsContent>
       <TabsContent value="app-info">
         <AppSettings />
-        <DevicesInfo />
+        {/* <DevicesInfo /> */}
       </TabsContent>
       <TabsContent value="wallets">
         <WalletsSettings />
@@ -515,33 +515,33 @@ function AccountKeys() {
   )
 }
 
-function DevicesInfo() {
-  const {data: deviceInfo} = useDaemonInfo()
-  return (
-    <YStack gap="$3">
-      <Heading>My Device</Heading>
+// function DevicesInfo() {
+//   const {data: deviceInfo} = useDaemonInfo()
+//   return (
+//     <YStack gap="$3">
+//       <Heading>My Device</Heading>
 
-      {deviceInfo ? (
-        <table>
-          <tbody>
-            <tr>
-              <td>peerId</td>
-              <td>{deviceInfo.peerId}</td>
-            </tr>
-            <tr>
-              <td>state</td>
-              <td>{State[deviceInfo.state]}</td>
-            </tr>
-            <tr>
-              <td>startTime</td>
-              <td>{JSON.stringify(deviceInfo.startTime)}</td>
-            </tr>
-          </tbody>
-        </table>
-      ) : null}
-    </YStack>
-  )
-}
+//       {deviceInfo ? (
+//         <table>
+//           <tbody>
+//             <tr>
+//               <td>peerId</td>
+//               <td>{deviceInfo.}</td>
+//             </tr>
+//             <tr>
+//               <td>state</td>
+//               <td>{State[deviceInfo.state]}</td>
+//             </tr>
+//             <tr>
+//               <td>startTime</td>
+//               <td>{JSON.stringify(deviceInfo.startTime)}</td>
+//             </tr>
+//           </tbody>
+//         </table>
+//       ) : null}
+//     </YStack>
+//   )
+// }
 
 export function ExperimentSection({
   experiment,
@@ -640,7 +640,6 @@ function GatewaySettings({}: {}) {
 
   return (
     <YStack gap="$3">
-      <Heading>Gateway Settings</Heading>
       {gatewayUrl.data ? (
         <TableList>
           <InfoListHeader title="URL" />
@@ -755,7 +754,6 @@ function ExperimentsSettings({}: {}) {
   const writeExperiments = useWriteExperiments()
   return (
     <YStack gap="$3">
-      <Heading>Experimental Features</Heading>
       <YStack space marginVertical="$4" alignSelf="stretch">
         {EXPERIMENTS.map((experiment) => {
           return (
@@ -833,9 +831,33 @@ function AppSettings() {
   } else if (daemonInfo?.daemonVersion) {
     goBuildInfo = daemonInfo.daemonVersion
   }
+  const {data: deviceInfo} = useDaemonInfo()
+  const peer = usePeerInfo(deviceInfo?.peerId)
+  const addrs = peer.data?.addrs?.join(',')
   return (
     <YStack gap="$5">
-      <Heading>Application Settings</Heading>
+      <TableList>
+        <InfoListHeader
+          title="Peer Info"
+          right={
+            addrs ? (
+              <Tooltip content="Copy routing info so others can connect to you">
+                <Button
+                  size="$2"
+                  icon={Copy}
+                  onPress={() => {
+                    copyTextToClipboard(addrs)
+                    toast.success('Copied Routing Address successfully')
+                  }}
+                >
+                  Copy Routing Address
+                </Button>
+              </Tooltip>
+            ) : null
+          }
+        />
+        <InfoListItem label="Peer ID" value={deviceInfo?.peerId} />
+      </TableList>
       <TableList>
         <InfoListHeader title="Settings" />
         <TableList.Item ai="center">
@@ -965,7 +987,6 @@ function ExistingWallets({wallets}: {wallets: LightningWallet[]}) {
   const {data: invoices} = useInvoicesBywallet(wallet)
   return (
     <YStack gap="$5">
-      <Heading>Sponsorship Wallets</Heading>
       <ScrollView horizontal>
         <XStack gap="$6" overflow="visible">
           {wallets?.map((cw) => (
@@ -1072,7 +1093,6 @@ function NoWallets() {
   const isLoading = optIn.isLoading || walletCheck.isLoading
   return (
     <YStack gap="$4">
-      <Heading>Sponsorship Wallets</Heading>
       {isLoading ? (
         <Spinner />
       ) : (
