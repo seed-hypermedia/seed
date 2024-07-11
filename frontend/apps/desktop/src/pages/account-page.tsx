@@ -1,9 +1,12 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {Avatar} from '@/components/avatar'
 import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
+import {DialogTitle, useAppDialog} from '@/components/dialog'
 import {DocumentListItem} from '@/components/document-list-item'
 import {FavoriteButton} from '@/components/favoriting'
 import Footer, {FooterButton} from '@/components/footer'
+import {FormInput} from '@/components/form-input'
+import {FormField} from '@/components/forms'
 import {MainWrapperNoScroll} from '@/components/main-wrapper'
 import {useProfileWithDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
@@ -12,18 +15,26 @@ import {useEntity} from '@/models/entities'
 import {getAvatarUrl} from '@/utils/account-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
+import {zodResolver} from '@hookform/resolvers/zod'
 import {DocContent, HMDocument, createHmId, hmId} from '@shm/shared'
 import {
   BlockQuote,
+  Button,
+  Form,
+  H3,
   MainWrapper,
   Section,
+  Separator,
   SizableText,
   Spinner,
   XStack,
 } from '@shm/ui'
 import {PageContainer} from '@shm/ui/src/container'
 import {RadioButtons} from '@shm/ui/src/radio-buttons'
+import {FilePlus} from '@tamagui/lucide-icons'
 import React, {ReactNode} from 'react'
+import {SubmitHandler, useForm} from 'react-hook-form'
+import {z} from 'zod'
 import {EntityCitationsAccessory} from '../components/citations'
 import {CopyReferenceButton} from '../components/titlebar-common'
 import {AppDocContentProvider} from './document-content-provider'
@@ -269,7 +280,8 @@ function AccountPageProfile({
   blockId?: string
   isBlockFocused?: boolean
 }) {
-  const profile = useEntity(hmId('a', accountId))
+  const docId = hmId('a', accountId)
+  const profile = useEntity(docId)
   if (profile.isLoading) return <Spinner />
   if (!profile.data?.document) return null
   return (
@@ -279,8 +291,85 @@ function AccountPageProfile({
           document={profile.data?.document}
           focusBlockId={isBlockFocused ? blockId : undefined}
         />
+        <Separator />
+        <H3 marginTop="$4">Index</H3>
+        <XStack paddingVertical="$4">
+          <NewSubDocumentButton parentDocId={docId.qid} />
+        </XStack>
       </AppDocContentProvider>
     </PageContainer>
+  )
+}
+
+const newSubDocumentSchema = z.object({
+  pathName: z.string(),
+})
+type NewSubDocumentFields = z.infer<typeof newSubDocumentSchema>
+
+function NewDocumentDialog({
+  input,
+  onClose,
+}: {
+  input: string
+  onClose: () => void
+}) {
+  const navigate = useNavigate()
+  const onSubmit: SubmitHandler<NewSubDocumentFields> = (data) => {
+    // console.log('NewDocument', id)
+    const id = `${input}/${data.pathName}`
+    onClose()
+    navigate({
+      key: 'draft',
+      id,
+    })
+  }
+  const {
+    control,
+    handleSubmit,
+    setFocus,
+    formState: {errors},
+  } = useForm<NewSubDocumentFields>({
+    resolver: zodResolver(newSubDocumentSchema),
+    defaultValues: {
+      pathName: '',
+    },
+  })
+  return (
+    <>
+      <DialogTitle>New Document</DialogTitle>
+      {/* <DialogDescription>description</DialogDescription> */}
+      <Form onSubmit={handleSubmit(onSubmit)} gap="$4">
+        <FormField name="pathName" label="Path Name" errors={errors}>
+          <FormInput
+            control={control}
+            name="pathName"
+            placeholder="my-document"
+          />
+        </FormField>
+        <XStack space="$3" justifyContent="flex-end">
+          <Form.Trigger asChild>
+            <Button>Create Document</Button>
+          </Form.Trigger>
+        </XStack>
+      </Form>
+    </>
+  )
+}
+
+function NewSubDocumentButton({parentDocId}: {parentDocId: string}) {
+  const {open, content} = useAppDialog<string>(NewDocumentDialog)
+  return (
+    <>
+      <Button
+        icon={FilePlus}
+        onPress={() => {
+          open(parentDocId)
+        }}
+      >
+        Create Document
+      </Button>
+      {content}
+    </>
   )
 }
 
