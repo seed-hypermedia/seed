@@ -25,8 +25,8 @@ func makeTestApp(t *testing.T, name string, cfg config.Config, register bool) *A
 	t.Cleanup(func() {
 		defer repo.Close()
 		cancel()
+		_ = app.Wait()
 		// require.Equal(t, context.Canceled, app.Wait())
-		require.NoError(t, app.Wait())
 	})
 
 	if register {

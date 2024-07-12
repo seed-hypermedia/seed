@@ -50,7 +50,7 @@ CREATE TABLE structural_blobs (
     -- this is the public key of the author.
     author INTEGER REFERENCES public_keys (id),
     -- For blobs that mutate a resource, this is a reference to the genesis blob.
-    genesis_blob INTEGER REFERENCES blobs (id),
+    genesis_blob INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE,
     -- Some blobs are associated with a single resource.
     resource INTEGER REFERENCES resources (id),
     -- Additional attributes extracted from the blob's content.
@@ -70,7 +70,7 @@ CREATE TABLE resources (
     id INTEGER PRIMARY KEY,
     iri TEXT UNIQUE NOT NULL,
     owner INTEGER REFERENCES public_keys (id),
-    genesis_blob INTEGER REFERENCES blobs (id),
+    genesis_blob INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE,
     -- For resource that we can infer a creation time.
     -- Stored as unix timestamp in *seconds*.
     create_time INTEGER

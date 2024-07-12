@@ -17,6 +17,8 @@ import (
 
 	"seed/backend/daemon/index"
 
+	"container/list"
+
 	"crawshaw.io/sqlite"
 	"crawshaw.io/sqlite/sqlitex"
 	"github.com/ipfs/boxo/blockstore"
@@ -500,7 +502,7 @@ func syncPeerRbsr(
 		return err
 	}
 
-	var allWants [][]byte
+	allWants := list.New()
 
 	var rounds int
 	for msg != nil {
@@ -518,36 +520,48 @@ func syncPeerRbsr(
 		if err != nil {
 			return err
 		}
-
-		allWants = append(allWants, wants...)
+		for _, want := range wants {
+			allWants.PushBack(want)
+		}
 	}
 
-	if len(allWants) == 0 {
+	if allWants.Len() == 0 {
 		return nil
 	}
 
-	MSyncingWantedBlobs.WithLabelValues("syncing").Add(float64(len(allWants)))
-	defer MSyncingWantedBlobs.WithLabelValues("syncing").Sub(float64(len(allWants)))
+	MSyncingWantedBlobs.WithLabelValues("syncing").Add(float64(allWants.Len()))
+	defer MSyncingWantedBlobs.WithLabelValues("syncing").Sub(float64(allWants.Len()))
 
 	log = log.With(
 		zap.String("peer", pid.String()),
 	)
-
-	for _, cBytes := range allWants {
-		cid, err := cid.Cast(cBytes)
+	var failed int
+	for allWants.Len() > 0 {
+		c := allWants.Front()
+		if failed == allWants.Len() {
+			return fmt.Errorf("could not sync all content")
+		}
+		cid, err := cid.Cast(c.Value.([]byte))
 		if err != nil {
 			return err
 		}
 		blk, err := sess.GetBlock(ctx, cid)
 		if err != nil {
 			log.Debug("FailedToGetWantedBlob", zap.String("cid", cid.String()), zap.Error(err))
+			allWants.MoveAfter(c, allWants.Back())
+			failed++
 			continue
 		}
 
 		if err := idx.Put(ctx, blk); err != nil {
 			log.Debug("FailedToSaveWantedBlob", zap.String("cid", cid.String()), zap.Error(err))
+			allWants.MoveAfter(c, allWants.Back())
+			fmt.Println(err)
+			failed++
 			continue
 		}
+		failed = 0
+		allWants.Remove(c)
 	}
 
 	return nil

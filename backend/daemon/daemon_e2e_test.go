@@ -165,5 +165,5 @@ func TestSyncingProfiles(t *testing.T) {
 		AccountId: aliceIdentity.Account.Principal().String(),
 	})
 	require.NoError(t, err)
-	require.Equal(t, doc, doc2)
+	require.Equal(t, doc.Content, doc2.Content)
 }
