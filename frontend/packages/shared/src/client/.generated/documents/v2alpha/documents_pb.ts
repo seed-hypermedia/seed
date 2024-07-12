@@ -1843,13 +1843,6 @@ export class Document extends Message<Document> {
   metadata: { [key: string]: string } = {};
 
   /**
-   * Output only. Set to account ID if this is a profile document.
-   *
-   * @generated from field: string profile_account_id = 4;
-   */
-  profileAccountId = "";
-
-  /**
    * Output only. Every account ID who has modified the document.
    * Includes the original author as well.
    *
@@ -1921,7 +1914,6 @@ export class Document extends Message<Document> {
     { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "owner", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "metadata", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "scalar", T: 9 /* ScalarType.STRING */} },
-    { no: 4, name: "profile_account_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 5, name: "authors", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 6, name: "content", kind: "message", T: BlockNode, repeated: true },
     { no: 7, name: "index", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "scalar", T: 9 /* ScalarType.STRING */} },

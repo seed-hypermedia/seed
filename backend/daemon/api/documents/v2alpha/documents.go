@@ -53,19 +53,6 @@ func (srv *Server) GetProfileDocument(ctx context.Context, in *documents.GetProf
 	if err != nil {
 		return nil, err
 	}
-	kp, err := core.NewKeyPairRandom()
-	if err != nil {
-		return nil, err
-	}
-	pk, err := acc.Libp2pKey()
-	if err != nil {
-		return nil, err
-	}
-	pubKey, err := core.NewPublicKey(pk)
-	if err != nil {
-		return nil, err
-	}
-	kp.PublicKey = pubKey
 
 	adoc := index.IRI("hm://a/" + acc.String())
 
@@ -78,7 +65,7 @@ func (srv *Server) GetProfileDocument(ctx context.Context, in *documents.GetProf
 		return nil, err
 	}
 
-	doc, err := docmodel.New(e, kp, clock.MustNow())
+	doc, err := docmodel.New(e, clock.MustNow())
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +108,7 @@ func (srv *Server) ChangeProfileDocument(ctx context.Context, in *documents.Chan
 		return nil, err
 	}
 
-	doc, err := docmodel.New(e, kp, clock.MustNow())
+	doc, err := docmodel.New(e, clock.MustNow())
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +140,7 @@ func (srv *Server) ChangeProfileDocument(ctx context.Context, in *documents.Chan
 		}
 	}
 
-	if _, err := doc.Commit(ctx, srv.idx); err != nil {
+	if _, err := doc.Commit(ctx, kp, srv.idx); err != nil {
 		return nil, err
 	}
 

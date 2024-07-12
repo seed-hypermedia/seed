@@ -27,7 +27,6 @@ import (
 // Document is a mutable document.
 type Document struct {
 	e       *Entity
-	signer  core.KeyPair
 	tree    *treeCRDT
 	mut     *treeMutation
 	patch   map[string]any
@@ -41,10 +40,9 @@ type Document struct {
 }
 
 // New creates a new mutable document.
-func New(e *Entity, signer core.KeyPair, nextHLC hlc.Timestamp) (*Document, error) {
+func New(e *Entity, nextHLC hlc.Timestamp) (*Document, error) {
 	dm := &Document{
 		e:             e,
-		signer:        signer,
 		tree:          newTreeCRDT(),
 		patch:         map[string]any{},
 		origins:       make(map[string]cid.Cid),
@@ -172,7 +170,7 @@ func (dm *Document) ensureMutation() *treeMutation {
 }
 
 // Change creates a change.
-func (dm *Document) Change() (hb index.EncodedBlob[*index.Change], err error) {
+func (dm *Document) Change(kp core.KeyPair) (hb index.EncodedBlob[*index.Change], err error) {
 	// TODO(burdiyan): we should make them reusable.
 	if dm.done {
 		return hb, fmt.Errorf("using already committed mutation")
@@ -197,19 +195,19 @@ func (dm *Document) Change() (hb index.EncodedBlob[*index.Change], err error) {
 		delete(dm.patch, "isDraft")
 	}
 
-	return dm.e.CreateChange(action, dm.nextHLC, dm.signer, dm.patch)
+	return dm.e.CreateChange(action, dm.nextHLC, kp, dm.patch)
 }
 
 // Commit commits a change.
-func (dm *Document) Commit(ctx context.Context, bs blockstore.Blockstore) (ebc index.EncodedBlob[*index.Change], err error) {
-	ebc, err = dm.Change()
+func (dm *Document) Commit(ctx context.Context, kp core.KeyPair, bs blockstore.Blockstore) (ebc index.EncodedBlob[*index.Change], err error) {
+	ebc, err = dm.Change(kp)
 	if err != nil {
 		return ebc, err
 	}
 
 	// TODO(hm24): make genesis detection more reliable.
 	genesis := dm.e.cids[0]
-	ebr, err := index.NewRef(dm.signer, genesis, dm.e.id, []cid.Cid{ebc.Cid()}, ebc.Decoded.Ts)
+	ebr, err := index.NewRef(kp, genesis, dm.e.id, []cid.Cid{ebc.Cid()}, ebc.Decoded.Ts)
 	if err != nil {
 		return ebc, err
 	}
@@ -292,10 +290,6 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 		Owner:           first.Author.String(), // TODO(hm24): take owner from the Ref blob instead!
 		Version:         e.Version().String(),
 		PreviousVersion: hyper.NewVersion(e.Deps()...).String(),
-	}
-
-	if strings.HasPrefix(string(dm.e.id), "hm://a/") {
-		docpb.ProfileAccountId = dm.signer.Principal().String()
 	}
 
 	docpb.UpdateTime = timestamppb.New(e.LastChangeTime().Time())

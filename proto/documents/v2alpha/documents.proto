@@ -459,9 +459,6 @@ message Document {
   // Metadata values for a document.
   map<string, string> metadata = 3;
 
-  // Output only. Set to account ID if this is a profile document.
-  string profile_account_id = 4;
-
   // Output only. Every account ID who has modified the document.
   // Includes the original author as well.
   repeated string authors = 5;
