@@ -549,7 +549,7 @@ export function useDraftEditor({id}: {id: string | undefined}) {
         deps: [],
         metadata: {
           name: input.name,
-          avatar: input.avatar,
+          thumbnail: input.thumbnail,
         },
         members: {},
         index: {},
@@ -562,7 +562,7 @@ export function useDraftEditor({id}: {id: string | undefined}) {
         metadata: {
           ...input.draft.metadata,
           name: input.name,
-          avatar: input.avatar,
+          thumbnail: input.thumbnail,
         },
         signingAccount,
       }

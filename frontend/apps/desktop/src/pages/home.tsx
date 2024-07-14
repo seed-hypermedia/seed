@@ -5,7 +5,7 @@ import {MainWrapper} from '@/components/main-wrapper'
 import {useProfileWithDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
 import {trpc} from '@/trpc'
-import {getAvatarUrl} from '@/utils/account-url'
+import {getFileUrl} from '@/utils/account-url'
 import {useOpenDraft} from '@/utils/open-draft'
 import {useNavigate} from '@/utils/useNavigate'
 import {createHmId} from '@shm/shared'
@@ -67,8 +67,8 @@ function AccountKeyItem({accountId}: {accountId: string}) {
         <Avatar
           size={40}
           url={
-            profile?.metadata.avatar
-              ? getAvatarUrl(profile.metadata.avatar)
+            profile?.metadata.thumbnail
+              ? getFileUrl(profile.metadata.thumbnail)
               : ''
           }
         />

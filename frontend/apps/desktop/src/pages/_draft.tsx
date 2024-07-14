@@ -379,7 +379,7 @@ export default function DraftPage() {
                   </XStack>
                 ) : null} */}
                 <YStack
-                  id="editor-title"
+                  id="editor-header-content"
                   onPress={(e) => {
                     e.stopPropagation()
                   }}

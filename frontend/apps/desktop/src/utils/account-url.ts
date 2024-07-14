@@ -1,6 +1,6 @@
 import {API_FILE_URL} from '@shm/shared'
 
-export function getAvatarUrl(image?: string) {
+export function getFileUrl(image?: string) {
   if (image) {
     return `${API_FILE_URL}/${extractIpfsUrlCid(image)}`
   }

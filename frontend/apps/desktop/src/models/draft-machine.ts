@@ -8,7 +8,8 @@ export const draftMachine = setup({
   types: {
     context: {} as {
       name: string
-      avatar: string
+      thumbnail: string
+      cover: string
       draft: null | HMDraft
       document: null | HMDocument
       errorMessage: string
@@ -17,7 +18,7 @@ export const draftMachine = setup({
       hasChangedWhileSaving: boolean
     },
     events: {} as
-      | {type: 'CHANGE'; name?: string; avatar?: string}
+      | {type: 'CHANGE'; name?: string; thumbnail?: string; cover?: string}
       | {type: 'RESET.DRAFT'}
       | {type: 'RESTORE.DRAFT'}
       | {type: 'RESET.CORRUPT.DRAFT'}
@@ -60,19 +61,35 @@ export const draftMachine = setup({
         return context.name
       },
     }),
-    setAvatar: assign({
-      avatar: ({context, event}) => {
+    setThumbnail: assign({
+      thumbnail: ({context, event}) => {
         if (event.type == 'GET.DRAFT.SUCCESS') {
           if (event.draft) {
-            return event.draft.metadata.avatar
+            return event.draft.metadata.thumbnail
           } else if (event.document) {
-            return event.document.metadata.avatar
+            return event.document.metadata.thumbnail
           }
         }
-        if (event.type == 'CHANGE' && event.avatar) {
-          return event.avatar
+        if (event.type == 'CHANGE' && event.thumbnail) {
+          return event.thumbnail
         }
-        return context.avatar
+        return context.thumbnail
+      },
+    }),
+    setCover: assign({
+      cover: ({context, event}) => {
+        // TODO: enable cover when ready
+        // if (event.type == 'GET.DRAFT.SUCCESS') {
+        //   if (event.draft) {
+        //     return event.draft.metadata.cover
+        //   } else if (event.document) {
+        //     return event.document.metadata.cover
+        //   }
+        // }
+        // if (event.type == 'CHANGE' && event.cover) {
+        //   return event.cover
+        // }
+        return context.cover
       },
     }),
     setErrorMessage: assign({
@@ -116,7 +133,8 @@ export const draftMachine = setup({
   id: 'Draft',
   context: {
     name: '',
-    avatar: '',
+    thumbnail: '',
+    cover: '',
     draft: null,
     document: null,
     errorMessage: '',
@@ -138,7 +156,8 @@ export const draftMachine = setup({
               {type: 'setDraft'},
               {type: 'setDocument'},
               {type: 'setName'},
-              {type: 'setAvatar'},
+              {type: 'setThumbnail'},
+              {type: 'setCover'},
             ],
           },
         ],
@@ -172,10 +191,9 @@ export const draftMachine = setup({
             CHANGE: {
               target: 'changed',
               actions: [
-                {
-                  type: 'setName',
-                },
-                {type: 'setAvatar'},
+                {type: 'setName'},
+                {type: 'setThumbnail'},
+                {type: 'setCover'},
               ],
             },
           },
@@ -191,10 +209,9 @@ export const draftMachine = setup({
             CHANGE: {
               target: 'changed',
               actions: [
-                {
-                  type: 'setName',
-                },
-                {type: 'setAvatar'},
+                {type: 'setName'},
+                {type: 'setThumbnail'},
+                {type: 'setCover'},
               ],
               reenter: true,
             },
@@ -219,13 +236,10 @@ export const draftMachine = setup({
             CHANGE: {
               target: 'saving',
               actions: [
-                {
-                  type: 'setHasChangedWhileSaving',
-                },
-                {
-                  type: 'setName',
-                },
-                {type: 'setAvatar'},
+                {type: 'setHasChangedWhileSaving'},
+                {type: 'setName'},
+                {type: 'setThumbnail'},
+                {type: 'setCover'},
               ],
               reenter: false,
             },
@@ -233,7 +247,7 @@ export const draftMachine = setup({
           invoke: {
             input: ({context}) => ({
               name: context.name,
-              avatar: context.avatar,
+              thumbnail: context.thumbnail,
               currentDraft: context.draft,
             }),
             id: 'createOrUpdateDraft',
@@ -259,7 +273,8 @@ export const draftMachine = setup({
                   },
                   {type: 'setDraft'},
                   {type: 'setName'},
-                  {type: 'setAvatar'},
+                  {type: 'setThumbnail'},
+                  {type: 'setCover'},
                   {type: 'replaceRouteifNeeded'},
                   {
                     type: 'setDraftStatus',

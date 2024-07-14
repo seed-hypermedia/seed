@@ -12,7 +12,7 @@ import {useProfileWithDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
 import {useAccountDocuments} from '@/models/documents'
 import {useEntity} from '@/models/entities'
-import {getAvatarUrl} from '@/utils/account-url'
+import {getFileUrl} from '@/utils/account-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {zodResolver} from '@hookform/resolvers/zod'
@@ -227,8 +227,8 @@ function AccountPageHeader() {
                 size={60}
                 label={accountName}
                 url={
-                  profile?.metadata.avatar
-                    ? getAvatarUrl(profile?.metadata.avatar)
+                  profile?.metadata.thumbnail
+                    ? getFileUrl(profile?.metadata.thumbnail)
                     : ''
                 }
               />

@@ -41,7 +41,7 @@ import {
 import {YStackProps} from 'tamagui'
 import {useAccounts} from '../models/accounts'
 import {useComment} from '../models/comments'
-import {getAvatarUrl} from '../utils/account-url'
+import {getFileUrl} from '../utils/account-url'
 import {useNavRoute} from '../utils/navigation'
 import {getRouteContext, useOpenInContext} from '../utils/route-context'
 import {useNavigate} from '../utils/useNavigate'
@@ -593,7 +593,7 @@ function AvatarComponent({accountId}: {accountId: string}) {
     <Avatar
       label={account?.profile?.alias}
       id={accountId}
-      url={getAvatarUrl(account?.profile?.avatar)}
+      url={getFileUrl(account?.profile?.avatar)}
     />
   )
 }

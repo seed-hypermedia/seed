@@ -30,7 +30,7 @@ import {
 } from '@/models/payments'
 import {useWalletOptIn} from '@/models/wallet'
 import {trpc} from '@/trpc'
-import {getAvatarUrl} from '@/utils/account-url'
+import {getFileUrl} from '@/utils/account-url'
 import {hmId, LightningWallet, VERSION} from '@shm/shared'
 import {
   AlertDialog,
@@ -265,7 +265,7 @@ export function ProfileForm({
   profile,
   accountId,
 }: {
-  profile: Profile
+  profile: any // TODO: protile type
   accountId: string
 }) {
   const editProfileDialog = useEditProfileDialog()
@@ -277,11 +277,7 @@ export function ProfileForm({
     <>
       <XStack gap="$4">
         <YStack flex={0} alignItems="center" flexGrow={0}>
-          <AvatarForm
-            disabled
-            onAvatarUpload={async (avatar) => {}}
-            url={getAvatarUrl(profile?.avatar)}
-          />
+          <AvatarForm url={getFileUrl(profile?.thumbnail)} />
         </YStack>
         <YStack flex={1} space>
           <YStack>

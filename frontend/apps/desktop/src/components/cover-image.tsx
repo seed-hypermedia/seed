@@ -1,30 +1,26 @@
-import {Avatar} from '@/components/avatar'
 import {fileUpload} from '@/utils/file-upload'
-import {Stack, Tooltip} from '@shm/ui'
+import {Stack, Tooltip, XStack} from '@shm/ui'
 import {ChangeEvent} from 'react'
 import appError from '../errors'
 
-export function AvatarForm({
+export function CoverImage({
   url,
   label,
   id,
-  size = 140,
-  onAvatarUpload,
+  onCoverUpload,
 }: {
   label?: string
   id?: string
   url?: string
-  size?: number
-  onAvatarUpload?: (avatar: string) => Awaited<void>
+  onCoverUpload?: (avatar: string) => Awaited<void>
 }) {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const fileList = event.target.files
     const file = fileList?.[0]
-    if (!file) return
-    if (!onAvatarUpload) return
+    if (!file || !onCoverUpload) return
     fileUpload(file)
       .then((data) => {
-        onAvatarUpload(data)
+        onCoverUpload(data)
       })
       .catch((error) => {
         appError(`Failed to upload avatar: ${e.message}`, {error})
@@ -34,13 +30,11 @@ export function AvatarForm({
       })
   }
 
-  const avatarImage = (
-    <Avatar label={label} id={id} size={size} url={url} color="$blue12" />
-  )
-  if (!onAvatarUpload) return avatarImage
+  const coverImage = <XStack bg="black" height="25vh" width="100%" />
+  if (!onCoverUpload) return coverImage
   return (
-    <Tooltip content="Click or Drag to Set Image">
-      <Stack hoverStyle={{opacity: 0.7}} position="relative">
+    <Tooltip content="Click or Drag to Set Cover Image">
+      <Stack hoverStyle={{opacity: 0.7}}>
         <input
           type="file"
           onChange={handleFileChange}
@@ -56,7 +50,7 @@ export function AvatarForm({
             cursor: 'pointer',
           }}
         />
-        {avatarImage}
+        {coverImage}
       </Stack>
     </Tooltip>
   )

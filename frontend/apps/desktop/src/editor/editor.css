@@ -1,10 +1,15 @@
-#editor-title,
+#editor-header-content,
 .editor {
   --text-unit: 18;
   --layout-unit: 24;
   max-width: calc(90ch + 108px);
   width: 100%;
-  margin: 0px auto;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#editor-header-content {
+  padding: 0 54px;
 }
 
 .editor {
@@ -15,7 +20,7 @@
   margin-left: 0;
 }
 
-#editor-title textarea {
+#editor-header-content textarea {
   border-color: transparent !important;
   outline: none !important;
 }

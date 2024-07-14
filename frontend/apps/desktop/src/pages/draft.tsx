@@ -1,11 +1,12 @@
 import {AvatarForm} from '@/components/avatar-form'
+import {CoverImage} from '@/components/cover-image'
 import {HMEditorContainer, HyperMediaEditorView} from '@/components/editor'
 import {MainWrapper} from '@/components/main-wrapper'
 import {BlockNoteEditor, getBlockInfoFromPos} from '@/editor'
 import {useDraftEditor} from '@/models/documents'
 import {draftMachine} from '@/models/draft-machine'
 import {trpc} from '@/trpc'
-import {getAvatarUrl} from '@/utils/account-url'
+import {getFileUrl} from '@/utils/account-url'
 import {
   chromiumSupportedImageMimeTypes,
   chromiumSupportedVideoMimeTypes,
@@ -15,20 +16,20 @@ import {
 import {useNavRoute} from '@/utils/navigation'
 import {
   BlockRange,
-  blockStyles,
   createPublicWebHmUrl,
   ExpandedBlockRange,
   unpackDocId,
   useDocContentContext,
-  useHeadingMarginStyles,
   useHeadingTextStyles,
 } from '@shm/shared'
-import {copyUrlToClipboardWithFeedback, Input, XStack} from '@shm/ui'
+import {Button, copyUrlToClipboardWithFeedback, Input, XStack} from '@shm/ui'
+import {Image, Smile} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
 import {useEffect, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {YStack} from 'tamagui'
 import {ActorRefFrom} from 'xstate'
+import {useShowTitle} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'
 
 export default function DraftPage() {
@@ -72,19 +73,12 @@ export default function DraftPage() {
             onCopyBlock={onCopyBlock}
             importWebFile={importWebFile}
           >
-            <YStack
-              id="editor-title"
-              // @ts-expect-error
-              onPress={(e) => {
-                e.stopPropagation()
-              }}
-            >
-              <DraftNameInput
-                draftActor={data.actor}
-                onEnter={() => {}}
-                disabled={!data.state.matches('ready')}
-              />
-            </YStack>
+            <DraftHeader
+              draftActor={data.actor}
+              onEnter={() => {}}
+              disabled={!data.state.matches('ready')}
+            />
+
             <HMEditorContainer>
               {data.editor ? (
                 <HyperMediaEditorView editable={true} editor={data.editor} />
@@ -229,7 +223,7 @@ export default function DraftPage() {
   }
 }
 
-export function DraftNameInput({
+export function DraftHeader({
   onEnter,
   draftActor,
   disabled = false,
@@ -240,16 +234,23 @@ export function DraftNameInput({
 }) {
   const route = useNavRoute()
   const {textUnit, layoutUnit} = useDocContentContext()
+  const [showThumbnail, setShowThumbnail] = useState(false)
+  const [showCover, setShowCover] = useState(false)
   let headingTextStyles = useHeadingTextStyles(1, textUnit)
   const name = useSelector(draftActor, (s) => {
     return s.context.name
   })
-  const avatar = useSelector(draftActor, (s) => {
-    return s.context.avatar
-  })
-  const input = useRef<HTMLTextAreaElement | null>(null)
-  const headingMarginStyles = useHeadingMarginStyles(2, layoutUnit)
 
+  const thumbnail = useSelector(draftActor, (s) => {
+    return s.context.thumbnail
+  })
+
+  const cover = useSelector(draftActor, (s) => {
+    return s.context.cover
+  })
+
+  const input = useRef<HTMLTextAreaElement | null>(null)
+  useShowTitle(input.current)
   useEffect(() => {
     // handle the initial size of the title
     const target = input.current
@@ -268,6 +269,20 @@ export function DraftNameInput({
   }, [name])
 
   useEffect(() => {
+    let val = !!cover
+    if (val != showCover) {
+      setShowCover(val)
+    }
+  }, [cover])
+
+  useEffect(() => {
+    let val = !!thumbnail
+    if (val != showThumbnail) {
+      setShowThumbnail(val)
+    }
+  }, [thumbnail])
+
+  useEffect(() => {
     handleResize()
 
     window.addEventListener('resize', handleResize)
@@ -284,64 +299,106 @@ export function DraftNameInput({
   }, [input.current])
 
   return (
-    <XStack
-      flex="none"
-      {...blockStyles}
-      marginBottom={layoutUnit}
-      paddingBottom={layoutUnit / 2}
-      borderBottomColor="$color6"
-      borderBottomWidth={1}
-      paddingHorizontal={54}
-      {...headingMarginStyles}
-      gap="$4"
+    <YStack
+      // @ts-expect-error
+      onPress={(e) => {
+        e.stopPropagation()
+      }}
     >
-      <AvatarForm
-        size={80}
-        id={route.key == 'draft' ? route.id : 'document-avatar'}
-        label={name}
-        url={avatar ? getAvatarUrl(avatar) : ''}
-        onAvatarUpload={(avatar) => {
-          if (avatar) {
-            draftActor.send({type: 'CHANGE', avatar: `ipfs://${avatar}`})
-          }
-        }}
-      />
-      <Input
-        disabled={disabled}
-        // we use multiline so that we can avoid horizontal scrolling for long titles
-        multiline
-        ref={input}
-        onKeyPress={(e: any) => {
-          if (e.nativeEvent.key == 'Enter') {
-            e.preventDefault()
-            onEnter()
-          }
-        }}
-        size="$9"
-        borderRadius="$1"
-        borderWidth={0}
-        overflow="hidden" // trying to hide extra content that flashes when pasting multi-line text into the title
-        flex={1}
-        backgroundColor="$color2"
-        fontWeight="bold"
-        fontFamily="$body"
-        onChange={(e: any) => {
-          applyTitleResize(e.target as HTMLTextAreaElement)
-        }}
-        outlineColor="transparent"
-        borderColor="transparent"
-        paddingLeft={9.6}
-        defaultValue={name?.trim() || ''} // this is still a controlled input because of the value comparison in useLayoutEffect
-        // value={title}
-        onChangeText={(name: string) => {
-          // TODO: change title here
-          draftActor.send({type: 'CHANGE', name})
-        }}
-        placeholder="Untitled Document"
-        {...headingTextStyles}
-        padding={0}
-      />
-    </XStack>
+      {showCover ? (
+        <CoverImage
+          onCoverUpload={(cover) => {}}
+          url={cover ? getFileUrl(cover) : ''}
+        />
+      ) : null}
+      <YStack
+        id="editor-header-content"
+        marginTop={showCover ? -60 : 60}
+        group="header"
+        gap="$2"
+      >
+        {showThumbnail ? (
+          <AvatarForm
+            size={100}
+            id={route.key == 'draft' ? route.id : 'document-avatar'}
+            label={name}
+            url={thumbnail ? getFileUrl(thumbnail) : ''}
+            onAvatarUpload={(thumbnail) => {
+              if (thumbnail) {
+                draftActor.send({
+                  type: 'CHANGE',
+                  thumbnail: `ipfs://${thumbnail}`,
+                })
+              }
+            }}
+          />
+        ) : null}
+
+        <XStack
+          gap="$2"
+          $group-header-hover={{
+            opacity: 1,
+          }}
+          opacity={0}
+        >
+          {!showThumbnail ? (
+            <Button
+              icon={Smile}
+              size="$2"
+              chromeless
+              onPress={() => setShowThumbnail(true)}
+            >
+              Add Thumbnail
+            </Button>
+          ) : null}
+          {!showCover ? (
+            <Button
+              icon={Image}
+              size="$2"
+              chromeless
+              onPress={() => setShowCover(true)}
+            >
+              Add Cover
+            </Button>
+          ) : null}
+        </XStack>
+        <Input
+          disabled={disabled}
+          // we use multiline so that we can avoid horizontal scrolling for long titles
+          multiline
+          ref={input}
+          onKeyPress={(e: any) => {
+            if (e.nativeEvent.key == 'Enter') {
+              e.preventDefault()
+              onEnter()
+            }
+          }}
+          size="$9"
+          borderRadius="$1"
+          borderWidth={0}
+          overflow="hidden" // trying to hide extra content that flashes when pasting multi-line text into the title
+          flex={1}
+          backgroundColor="$color2"
+          fontWeight="bold"
+          fontFamily="$body"
+          onChange={(e: any) => {
+            applyTitleResize(e.target as HTMLTextAreaElement)
+          }}
+          outlineColor="transparent"
+          borderColor="transparent"
+          paddingLeft={9.6}
+          defaultValue={name?.trim() || ''} // this is still a controlled input because of the value comparison in useLayoutEffect
+          // value={title}
+          onChangeText={(name: string) => {
+            // TODO: change title here
+            draftActor.send({type: 'CHANGE', name})
+          }}
+          placeholder="Untitled Document"
+          {...headingTextStyles}
+          padding={0}
+        />
+      </YStack>
+    </YStack>
   )
 }
 

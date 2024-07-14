@@ -5,7 +5,7 @@ import {useNavigate} from '@/utils/useNavigate'
 import {Account} from '@shm/shared'
 import {Button, FontSizeTokens, Tooltip, YStack} from '@shm/ui'
 import {AlertCircle} from '@tamagui/lucide-icons'
-import {getAvatarUrl} from '../utils/account-url'
+import {getFileUrl} from '../utils/account-url'
 
 export function ErrorDot() {
   return (
@@ -62,7 +62,7 @@ export function BaseAccountLinkAvatar({
       size={size}
       label={account.profile.alias}
       id={account.id}
-      url={getAvatarUrl(account.profile.avatar)}
+      url={getFileUrl(account.profile.avatar)}
     />
   ) : (
     <>

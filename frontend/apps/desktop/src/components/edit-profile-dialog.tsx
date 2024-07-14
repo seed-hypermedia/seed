@@ -4,7 +4,7 @@ import {useEffect} from 'react'
 import {Control, useController, useForm} from 'react-hook-form'
 import {z} from 'zod'
 import {useSetProfile_deprecated} from '../models/accounts'
-import {getAvatarUrl} from '../utils/account-url'
+import {getFileUrl} from '../utils/account-url'
 import {AvatarForm} from './avatar-form'
 import {useAppDialog} from './dialog'
 import {FormError, FormInput} from './form-input'
@@ -30,7 +30,7 @@ function AvatarInput({control}: {control: Control<ProfileFields>}) {
   return (
     <AvatarForm
       onAvatarUpload={c.field.onChange}
-      url={c.field.value ? getAvatarUrl(c.field.value) : undefined}
+      url={c.field.value ? getFileUrl(c.field.value) : undefined}
     />
   )
 }
