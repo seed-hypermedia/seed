@@ -1348,6 +1348,55 @@ export class PushDocumentRequest extends Message<PushDocumentRequest> {
 }
 
 /**
+ * Request for listing profile documents.
+ *
+ * @generated from message com.seed.documents.v2alpha.ListProfileDocumentsRequest
+ */
+export class ListProfileDocumentsRequest extends Message<ListProfileDocumentsRequest> {
+  /**
+   * Optional. Number of results per page. Default is defined by the server.
+   *
+   * @generated from field: int32 page_size = 1;
+   */
+  pageSize = 0;
+
+  /**
+   * Optional. Value from next_page_token obtains from a previous response.
+   *
+   * @generated from field: string page_token = 2;
+   */
+  pageToken = "";
+
+  constructor(data?: PartialMessage<ListProfileDocumentsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v2alpha.ListProfileDocumentsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 2, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListProfileDocumentsRequest {
+    return new ListProfileDocumentsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListProfileDocumentsRequest {
+    return new ListProfileDocumentsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListProfileDocumentsRequest {
+    return new ListProfileDocumentsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListProfileDocumentsRequest | PlainMessage<ListProfileDocumentsRequest> | undefined, b: ListProfileDocumentsRequest | PlainMessage<ListProfileDocumentsRequest> | undefined): boolean {
+    return proto3.util.equals(ListProfileDocumentsRequest, a, b);
+  }
+}
+
+/**
  * Request for listing documents.
  *
  * @generated from message com.seed.documents.v2alpha.ListDocumentsRequest
@@ -1444,6 +1493,55 @@ export class ListDocumentsResponse extends Message<ListDocumentsResponse> {
 
   static equals(a: ListDocumentsResponse | PlainMessage<ListDocumentsResponse> | undefined, b: ListDocumentsResponse | PlainMessage<ListDocumentsResponse> | undefined): boolean {
     return proto3.util.equals(ListDocumentsResponse, a, b);
+  }
+}
+
+/**
+ * Response with list of documents.
+ *
+ * @generated from message com.seed.documents.v2alpha.ListProfileDocumentsResponse
+ */
+export class ListProfileDocumentsResponse extends Message<ListProfileDocumentsResponse> {
+  /**
+   * List of documents available.
+   *
+   * @generated from field: repeated com.seed.documents.v2alpha.Document documents = 1;
+   */
+  documents: Document[] = [];
+
+  /**
+   * Token for the next page if there're more results.
+   *
+   * @generated from field: string next_page_token = 2;
+   */
+  nextPageToken = "";
+
+  constructor(data?: PartialMessage<ListProfileDocumentsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v2alpha.ListProfileDocumentsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "documents", kind: "message", T: Document, repeated: true },
+    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListProfileDocumentsResponse {
+    return new ListProfileDocumentsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListProfileDocumentsResponse {
+    return new ListProfileDocumentsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListProfileDocumentsResponse {
+    return new ListProfileDocumentsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListProfileDocumentsResponse | PlainMessage<ListProfileDocumentsResponse> | undefined, b: ListProfileDocumentsResponse | PlainMessage<ListProfileDocumentsResponse> | undefined): boolean {
+    return proto3.util.equals(ListProfileDocumentsResponse, a, b);
   }
 }
 

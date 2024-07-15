@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { Branch, ChangeDocumentRequest, ChangeProfileDocumentRequest, CreateBranchDraftRequest, CreateDraftRequest, CreateIndexDraftRequest, CreateProfileDraftRequest, DeleteDraftRequest, Document, Draft, GetDocumentIndexRequest, GetDocumentIndexResponse, GetDocumentRequest, GetDraftRequest, GetProfileDocumentRequest, GetProfileDraftRequest, ListAccountDocumentsRequest, ListDocumentBranchesRequest, ListDocumentBranchesResponse, ListDocumentDraftsRequest, ListDocumentDraftsResponse, ListDocumentsRequest, ListDocumentsResponse, ListDraftsRequest, ListDraftsResponse, MergeChangesRequest, PublishDraftRequest, PushDocumentRequest, RebaseChangesRequest, UpdateDraftRequest, UpdateDraftResponse } from "./documents_pb";
+import { Branch, ChangeDocumentRequest, ChangeProfileDocumentRequest, CreateBranchDraftRequest, CreateDraftRequest, CreateIndexDraftRequest, CreateProfileDraftRequest, DeleteDraftRequest, Document, Draft, GetDocumentIndexRequest, GetDocumentIndexResponse, GetDocumentRequest, GetDraftRequest, GetProfileDocumentRequest, GetProfileDraftRequest, ListAccountDocumentsRequest, ListDocumentBranchesRequest, ListDocumentBranchesResponse, ListDocumentDraftsRequest, ListDocumentDraftsResponse, ListDocumentsRequest, ListDocumentsResponse, ListDraftsRequest, ListDraftsResponse, ListProfileDocumentsRequest, ListProfileDocumentsResponse, MergeChangesRequest, PublishDraftRequest, PushDocumentRequest, RebaseChangesRequest, UpdateDraftRequest, UpdateDraftResponse } from "./documents_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -48,7 +48,7 @@ export const Drafts = {
       kind: MethodKind.Unary,
     },
     /**
-     * Create a draft for a profile document. Thows if a draft already exists for this profile.
+     * Create a draft for a profile document. Shows if a draft already exists for this profile.
      *
      * @generated from rpc com.seed.documents.v2alpha.Drafts.CreateProfileDraft
      */
@@ -169,6 +169,28 @@ export const Documents = {
       kind: MethodKind.Unary,
     },
     /**
+     * Immediately changes an account's profile document
+     *
+     * @generated from rpc com.seed.documents.v2alpha.Documents.ChangeProfileDocument
+     */
+    changeProfileDocument: {
+      name: "ChangeProfileDocument",
+      I: ChangeProfileDocumentRequest,
+      O: Document,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Lists all profile documents.
+     *
+     * @generated from rpc com.seed.documents.v2alpha.Documents.ListProfileDocuments
+     */
+    listProfileDocuments: {
+      name: "ListProfileDocuments",
+      I: ListProfileDocumentsRequest,
+      O: ListProfileDocumentsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
      * Gets a document within the index(es) of other documents
      *
      * @generated from rpc com.seed.documents.v2alpha.Documents.GetDocumentIndex
@@ -187,17 +209,6 @@ export const Documents = {
     changeDocument: {
       name: "ChangeDocument",
       I: ChangeDocumentRequest,
-      O: Document,
-      kind: MethodKind.Unary,
-    },
-    /**
-     * Immediately changes an account's profile document
-     *
-     * @generated from rpc com.seed.documents.v2alpha.Documents.ChangeProfileDocument
-     */
-    changeProfileDocument: {
-      name: "ChangeProfileDocument",
-      I: ChangeProfileDocumentRequest,
       O: Document,
       kind: MethodKind.Unary,
     },

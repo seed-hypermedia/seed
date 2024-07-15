@@ -20,7 +20,7 @@ service Drafts {
   // Creates a draft for an index branch. Thows if a draft already exists for this index.
   rpc CreateIndexDraft(CreateIndexDraftRequest) returns (Draft);
 
-  // Create a draft for a profile document. Thows if a draft already exists for this profile.
+  // Create a draft for a profile document. Shows if a draft already exists for this profile.
   rpc CreateProfileDraft(CreateProfileDraftRequest) returns (Draft);
 
   // Deletes a draft by its document ID.
@@ -255,14 +255,17 @@ service Documents {
   // Gets an account's profile document.
   rpc GetProfileDocument(GetProfileDocumentRequest) returns (Document);
 
+  // Immediately changes an account's profile document
+  rpc ChangeProfileDocument(ChangeProfileDocumentRequest) returns (Document);
+
+  // Lists all profile documents.
+  rpc ListProfileDocuments(ListProfileDocumentsRequest) returns (ListProfileDocumentsResponse);
+
   // Gets a document within the index(es) of other documents
   rpc GetDocumentIndex(GetDocumentIndexRequest) returns (GetDocumentIndexResponse);
 
   // Immediately changes a document
   rpc ChangeDocument(ChangeDocumentRequest) returns (Document);
-
-  // Immediately changes an account's profile document
-  rpc ChangeProfileDocument(ChangeProfileDocumentRequest) returns (Document);
 
   // Lists all documents. Only the most recent versions show up.
   rpc ListDocuments(ListDocumentsRequest) returns (ListDocumentsResponse);
@@ -343,6 +346,15 @@ message PushDocumentRequest {
   string url = 2;
 }
 
+// Request for listing profile documents.
+message ListProfileDocumentsRequest {
+  // Optional. Number of results per page. Default is defined by the server.
+  int32 page_size = 1;
+
+  // Optional. Value from next_page_token obtains from a previous response.
+  string page_token = 2;
+}
+
 // Request for listing documents.
 message ListDocumentsRequest {
   // Optional. Number of results per page. Default is defined by the server.
@@ -357,6 +369,15 @@ message ListDocumentsResponse {
   // List of documents matching the request.
   // Only most recent versions are returned.
   // Content is omitted, only metadata is present.
+  repeated Document documents = 1;
+
+  // Token for the next page if there're more results.
+  string next_page_token = 2;
+}
+
+// Response with list of documents.
+message ListProfileDocumentsResponse {
+  // List of documents available.
   repeated Document documents = 1;
 
   // Token for the next page if there're more results.

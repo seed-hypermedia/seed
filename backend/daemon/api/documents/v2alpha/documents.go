@@ -3,11 +3,18 @@ package documents
 
 import (
 	"context"
+	"math"
 	"seed/backend/core"
 	"seed/backend/daemon/api/documents/v2alpha/docmodel"
+	"seed/backend/daemon/apiutil"
 	"seed/backend/daemon/index"
 	documents "seed/backend/genproto/documents/v2alpha"
 	"seed/backend/hlc"
+	"seed/backend/pkg/dqb"
+	"strings"
+
+	"crawshaw.io/sqlite"
+	"crawshaw.io/sqlite/sqlitex"
 
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
@@ -23,13 +30,15 @@ type Server struct {
 
 	keys core.KeyStore
 	idx  *index.Index
+	db   *sqlitex.Pool
 }
 
 // NewServer creates a new Documents API v2 server.
-func NewServer(keys core.KeyStore, idx *index.Index) *Server {
+func NewServer(keys core.KeyStore, idx *index.Index, db *sqlitex.Pool) *Server {
 	return &Server{
 		keys: keys,
 		idx:  idx,
+		db:   db,
 	}
 }
 
@@ -147,6 +156,78 @@ func (srv *Server) ChangeProfileDocument(ctx context.Context, in *documents.Chan
 	return srv.GetProfileDocument(ctx, &documents.GetProfileDocumentRequest{
 		AccountId: in.AccountId,
 	})
+}
+
+var qListProfileDocuments = dqb.Str(`
+	SELECT
+		iri,
+		id
+	FROM resources 
+	WHERE id < :last_cursor
+	ORDER BY id DESC LIMIT :page_size + 1;
+`)
+
+// ListProfileDocuments implements Documents API v2.
+func (srv *Server) ListProfileDocuments(ctx context.Context, in *documents.ListProfileDocumentsRequest) (*documents.ListProfileDocumentsResponse, error) {
+	out := documents.ListProfileDocumentsResponse{
+		Documents: []*documents.Document{},
+	}
+
+	conn, cancel, err := srv.db.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer cancel()
+
+	type Cursor struct {
+		ID       int64  `json:"i"`
+		Resource string `json:"r"`
+	}
+	var (
+		count      int32
+		lastCursor Cursor
+	)
+	if in.PageSize <= 0 {
+		in.PageSize = 30
+	}
+	if in.PageToken == "" {
+		lastCursor.ID = math.MaxInt64
+		lastCursor.Resource = string([]rune{0xFFFF}) // Max string.
+	} else {
+		if err := apiutil.DecodePageToken(in.PageToken, &lastCursor, nil); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
+	}
+	if err = sqlitex.Exec(conn, qListProfileDocuments(), func(stmt *sqlite.Stmt) error {
+		if count == in.PageSize {
+			var err error
+			out.NextPageToken, err = apiutil.EncodePageToken(lastCursor, nil)
+			return err
+		}
+		count++
+
+		var (
+			iri = stmt.ColumnText(0)
+			id  = stmt.ColumnInt64(1)
+		)
+		acc := strings.Trim(iri, "hm://a/")
+		lastCursor.ID = id
+		lastCursor.Resource = acc
+		doc, err := srv.GetProfileDocument(ctx, &documents.GetProfileDocumentRequest{
+			AccountId: acc,
+		})
+		if err != nil {
+			return err
+		}
+		out.Documents = append(out.Documents, doc)
+
+		return nil
+	}, lastCursor.ID, in.PageSize); err != nil {
+		return nil, err
+	}
+
+	return &out, nil
+
 }
 
 func (srv *Server) getKey(ctx context.Context, account core.Principal) (kp core.KeyPair, err error) {

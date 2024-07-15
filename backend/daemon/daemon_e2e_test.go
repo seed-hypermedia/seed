@@ -116,7 +116,7 @@ func TestSyncingProfiles(t *testing.T) {
 	ctx := context.Background()
 	aliceIdentity := coretest.NewTester("alice")
 	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
-	//bobIdentity := coretest.NewTester("bob")
+	bobIdentity := coretest.NewTester("bob")
 	doc, err := alice.RPC.DocumentsV2.ChangeProfileDocument(ctx, &documents.ChangeProfileDocumentRequest{
 		AccountId: aliceIdentity.Account.Principal().String(),
 		Changes: []*documents.DocumentChange{
@@ -166,4 +166,31 @@ func TestSyncingProfiles(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, doc.Content, doc2.Content)
+
+	bobsProfile, err := bob.RPC.DocumentsV2.ChangeProfileDocument(ctx, &documents.ChangeProfileDocumentRequest{
+		AccountId: bobIdentity.Account.Principal().String(),
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Bob's land"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	docs, err := bob.RPC.DocumentsV2.ListProfileDocuments(ctx, &documents.ListProfileDocumentsRequest{})
+	require.NoError(t, err)
+	require.Len(t, docs.Documents, 2)
+	docs, err = bob.RPC.DocumentsV2.ListProfileDocuments(ctx, &documents.ListProfileDocumentsRequest{
+		PageSize:  1,
+		PageToken: "",
+	})
+	require.NoError(t, err)
+	require.Len(t, docs.Documents, 1)
+	require.Equal(t, bobsProfile.Content, docs.Documents[0].Content)
+	docs, err = bob.RPC.DocumentsV2.ListProfileDocuments(ctx, &documents.ListProfileDocumentsRequest{
+		PageSize:  1,
+		PageToken: docs.NextPageToken,
+	})
+	require.NoError(t, err)
+	require.Len(t, docs.Documents, 1)
+	require.Equal(t, doc.Content, docs.Documents[0].Content)
 }
