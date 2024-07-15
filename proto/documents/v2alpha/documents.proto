@@ -255,16 +255,16 @@ service Documents {
   // Gets an account's profile document.
   rpc GetProfileDocument(GetProfileDocumentRequest) returns (Document);
 
-  // Immediately changes an account's profile document
+  // Immediately changes an account's profile document.
   rpc ChangeProfileDocument(ChangeProfileDocumentRequest) returns (Document);
 
   // Lists all profile documents.
   rpc ListProfileDocuments(ListProfileDocumentsRequest) returns (ListProfileDocumentsResponse);
 
-  // Gets a document within the index(es) of other documents
+  // Gets a document within the index(es) of other documents.
   rpc GetDocumentIndex(GetDocumentIndexRequest) returns (GetDocumentIndexResponse);
 
-  // Immediately changes a document
+  // Immediately changes a document.
   rpc ChangeDocument(ChangeDocumentRequest) returns (Document);
 
   // Lists all documents. Only the most recent versions show up.

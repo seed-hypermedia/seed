@@ -169,7 +169,7 @@ export const Documents = {
       kind: MethodKind.Unary,
     },
     /**
-     * Immediately changes an account's profile document
+     * Immediately changes an account's profile document.
      *
      * @generated from rpc com.seed.documents.v2alpha.Documents.ChangeProfileDocument
      */
@@ -191,7 +191,7 @@ export const Documents = {
       kind: MethodKind.Unary,
     },
     /**
-     * Gets a document within the index(es) of other documents
+     * Gets a document within the index(es) of other documents.
      *
      * @generated from rpc com.seed.documents.v2alpha.Documents.GetDocumentIndex
      */
@@ -202,7 +202,7 @@ export const Documents = {
       kind: MethodKind.Unary,
     },
     /**
-     * Immediately changes a document
+     * Immediately changes a document.
      *
      * @generated from rpc com.seed.documents.v2alpha.Documents.ChangeDocument
      */

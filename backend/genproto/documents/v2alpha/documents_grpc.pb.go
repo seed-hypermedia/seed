@@ -493,13 +493,13 @@ type DocumentsClient interface {
 	GetDocument(ctx context.Context, in *GetDocumentRequest, opts ...grpc.CallOption) (*Document, error)
 	// Gets an account's profile document.
 	GetProfileDocument(ctx context.Context, in *GetProfileDocumentRequest, opts ...grpc.CallOption) (*Document, error)
-	// Immediately changes an account's profile document
+	// Immediately changes an account's profile document.
 	ChangeProfileDocument(ctx context.Context, in *ChangeProfileDocumentRequest, opts ...grpc.CallOption) (*Document, error)
 	// Lists all profile documents.
 	ListProfileDocuments(ctx context.Context, in *ListProfileDocumentsRequest, opts ...grpc.CallOption) (*ListProfileDocumentsResponse, error)
-	// Gets a document within the index(es) of other documents
+	// Gets a document within the index(es) of other documents.
 	GetDocumentIndex(ctx context.Context, in *GetDocumentIndexRequest, opts ...grpc.CallOption) (*GetDocumentIndexResponse, error)
-	// Immediately changes a document
+	// Immediately changes a document.
 	ChangeDocument(ctx context.Context, in *ChangeDocumentRequest, opts ...grpc.CallOption) (*Document, error)
 	// Lists all documents. Only the most recent versions show up.
 	ListDocuments(ctx context.Context, in *ListDocumentsRequest, opts ...grpc.CallOption) (*ListDocumentsResponse, error)
@@ -617,13 +617,13 @@ type DocumentsServer interface {
 	GetDocument(context.Context, *GetDocumentRequest) (*Document, error)
 	// Gets an account's profile document.
 	GetProfileDocument(context.Context, *GetProfileDocumentRequest) (*Document, error)
-	// Immediately changes an account's profile document
+	// Immediately changes an account's profile document.
 	ChangeProfileDocument(context.Context, *ChangeProfileDocumentRequest) (*Document, error)
 	// Lists all profile documents.
 	ListProfileDocuments(context.Context, *ListProfileDocumentsRequest) (*ListProfileDocumentsResponse, error)
-	// Gets a document within the index(es) of other documents
+	// Gets a document within the index(es) of other documents.
 	GetDocumentIndex(context.Context, *GetDocumentIndexRequest) (*GetDocumentIndexResponse, error)
-	// Immediately changes a document
+	// Immediately changes a document.
 	ChangeDocument(context.Context, *ChangeDocumentRequest) (*Document, error)
 	// Lists all documents. Only the most recent versions show up.
 	ListDocuments(context.Context, *ListDocumentsRequest) (*ListDocumentsResponse, error)
