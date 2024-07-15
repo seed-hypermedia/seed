@@ -15,15 +15,15 @@ import {
   formattedDateLong,
   unpackHmId,
 } from '@shm/shared'
-import {UnpackedHypermediaId} from '@shm/shared/src/utils/entity-id-url'
+import {hmId, UnpackedHypermediaId} from '@shm/shared/src/utils/entity-id-url'
 import {
   ButtonText,
   Copy,
+  copyUrlToClipboardWithFeedback,
   SizableText,
   Theme,
   XStack,
   YStack,
-  copyUrlToClipboardWithFeedback,
 } from '@shm/ui'
 import {ArrowUpRight} from '@tamagui/lucide-icons'
 
@@ -84,7 +84,7 @@ function ChangeItem({
   const navigate = useNavigate()
   const openAccount = (e) => {
     e.stopPropagation()
-    navigate({key: 'account', accountId: change.author})
+    navigate({key: 'document', id: hmId('a', change.author)})
   }
   const navRoute = useNavRoute()
   const isActive = new Set(activeVersion?.split('.') || []).has(change.id)
@@ -95,7 +95,6 @@ function ChangeItem({
       {change.createTime ? formattedDateLong(change.createTime) : null}
     </SizableText>
   )
-  const variants = navRoute.key === 'document' ? navRoute.variants : undefined
   const topRow = shouldDisplayAuthorName ? (
     <XStack paddingTop="$2" gap="$2">
       <AccountLinkAvatar accountId={author?.data?.id} size={24} />
@@ -128,7 +127,6 @@ function ChangeItem({
     createPublicWebHmUrl(parsedEntityId?.type, parsedEntityId?.eid, {
       version: change.id,
       hostname: gwUrl.data,
-      variants,
     })
   const menuItems: MenuItemType[] = []
   if (publicWebUrl) {

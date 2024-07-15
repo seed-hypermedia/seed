@@ -1,12 +1,15 @@
+import {z} from 'zod'
 import {StateStream} from './stream'
 
 export const HYPERMEDIA_PUBLIC_WEB_GATEWAY = 'https://hyper.media'
 
 export const HYPERMEDIA_SCHEME = 'hm'
+
 export const HYPERMEDIA_ENTITY_TYPES = {
   a: 'Account',
   d: 'Document',
   c: 'Comment',
+  draft: 'Local Draft',
 } as const
 
 export type HMEntityType = keyof typeof HYPERMEDIA_ENTITY_TYPES
@@ -115,19 +118,47 @@ function inKeys<V extends string>(
   return null
 }
 
-export type UnpackedHypermediaId = {
-  id: string
-  type: keyof typeof HYPERMEDIA_ENTITY_TYPES
-  eid: string
-  qid: string
-  indexPath: string | null
-  version: string | null
-  blockRef: string | null
-  blockRange?: BlockRange | ExpandedBlockRange | null
-  hostname: string | null
-  scheme: string | null
-  latest?: boolean | null
-}
+export const unpackedHmIdSchema = z.object({
+  id: z.string(),
+  type: z.union([
+    z.literal('a'),
+    z.literal('d'),
+    z.literal('c'),
+    z.literal('draft'),
+  ]),
+  eid: z.string(),
+  qid: z.string(),
+  indexPath: z.string().nullable(),
+  version: z.string().nullable(),
+  blockRef: z.string().nullable(),
+  blockRange: z
+    .object({start: z.number(), end: z.number()})
+    .or(
+      z.object({
+        expanded: z.boolean(),
+      }),
+    )
+    .nullable(),
+  hostname: z.string().nullable(),
+  scheme: z.string().nullable(),
+  latest: z.boolean().nullable().optional(),
+})
+
+export type UnpackedHypermediaId = z.infer<typeof unpackedHmIdSchema>
+
+// export type UnpackedHypermediaId = {
+//   id: string
+//   type: keyof typeof HYPERMEDIA_ENTITY_TYPES
+//   eid: string
+//   qid: string
+//   indexPath: string | null
+//   version: string | null
+//   blockRef: string | null
+//   blockRange?: BlockRange | ExpandedBlockRange | null
+//   hostname: string | null
+//   scheme: string | null
+//   latest?: boolean | null
+// }
 
 export function hmId(
   type: keyof typeof HYPERMEDIA_ENTITY_TYPES,
@@ -141,6 +172,7 @@ export function hmId(
     hostname?: string | null
   } = {},
 ): UnpackedHypermediaId {
+  if (!eid) throw new Error('eid is required')
   return {
     id: createHmId(type, eid, opts),
     type,

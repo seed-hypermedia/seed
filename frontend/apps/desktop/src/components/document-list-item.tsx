@@ -95,8 +95,7 @@ export const DocumentListItem = React.memo(function DocumentListItem({
                 navigate(
                   {
                     key: 'draft',
-                    draftId: hasDraft.id,
-                    contextRoute: route,
+                    id: hasDraft.id,
                   },
                   e,
                 )

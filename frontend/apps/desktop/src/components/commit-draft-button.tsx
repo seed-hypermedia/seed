@@ -4,7 +4,7 @@ import {useNavRoute} from '@/utils/navigation'
 import {DraftRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {PlainMessage} from '@bufbuild/protobuf'
-import {Document, unpackHmId} from '@shm/shared'
+import {Document, hmId, unpackHmId} from '@shm/shared'
 import {
   AlertCircle,
   Button,
@@ -46,14 +46,16 @@ export default function CommitDraftButton() {
           previous: prevProfile.profile as PlainMessage<Document>,
         })
         .then((res) => {
+          const resultDocId = unpackHmId(res.id)
           deleteDraft.mutateAsync(res.id).finally(() => {
             if (draftRoute?.id) {
               invalidate(['trpc.drafts.get'])
               if (draftRoute?.id.startsWith('hm://a/')) {
                 const accountId = unpackHmId(draftRoute.id)?.eid
-                accountId && navigate({key: 'account', accountId})
-              } else {
-                navigate({key: 'document', documentId: res.id})
+                accountId &&
+                  navigate({key: 'document', id: hmId('a', accountId)})
+              } else if (resultDocId) {
+                navigate({key: 'document', id: resultDocId})
               }
             } else {
               console.error(`can't navigate to account`)

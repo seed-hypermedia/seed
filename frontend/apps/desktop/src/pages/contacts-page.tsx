@@ -15,7 +15,7 @@ import {
 import {useFavorite} from '@/models/favorites'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {getFileUrl} from '@/utils/account-url'
-import {AccountRoute} from '@/utils/routes'
+import {DocumentRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {HMAccount, createHmId, hmId} from '@shm/shared'
 import {
@@ -47,7 +47,7 @@ export function ContactItem({
   const gwUrl = useGatewayUrl()
   const accountId = account.id
   if (!accountId) throw new Error('Account ID is required')
-  const openRoute: AccountRoute = {key: 'account', accountId}
+  const openRoute: DocumentRoute = {key: 'document', id: hmId('a', accountId)}
   const menuItems: (MenuItemType | null)[] = [
     {
       key: 'spawn',
@@ -123,7 +123,7 @@ function ErrorPage({}: {error: any}) {
 }
 
 export default function ContactsPage() {
-  const contacts = useAllAccounts(true)
+  const contacts = useAllAccounts()
   const myAccount = useMyAccount_deprecated()
   const allAccounts = contacts.data?.accounts || []
   const trustedAccounts = allAccounts.filter(

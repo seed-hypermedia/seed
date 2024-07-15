@@ -12,6 +12,7 @@ import {
   BlocksContent,
   ExpandedBlockRange,
   HYPERMEDIA_SCHEME,
+  UnpackedHypermediaId,
   formattedDateMedium,
   getDocumentTitle,
   pluralS,
@@ -245,7 +246,11 @@ export function DocCitationsAccessory({docId}: {docId?: string}) {
   )
 }
 
-export function EntityCitationsAccessory({entityId}: {entityId?: string}) {
+export function EntityCitationsAccessory({
+  entityId,
+}: {
+  entityId?: UnpackedHypermediaId
+}) {
   const mentions = useEntityMentions(entityId)
   if (!entityId) return null
   const count = mentions?.data?.mentions?.length || 0

@@ -13,6 +13,7 @@ import {
   Account,
   getBlockNode,
   HMBlockNode,
+  hmId,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {
@@ -366,7 +367,7 @@ export function MyAccountItem({
           appError('Account has not loaded.')
           return
         }
-        onRoute({key: 'account', accountId: account?.id})
+        onRoute({key: 'document', id: hmId('a', account.id)})
       }}
       icon={
         <Avatar

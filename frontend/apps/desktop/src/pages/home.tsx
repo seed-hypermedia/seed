@@ -8,7 +8,7 @@ import {trpc} from '@/trpc'
 import {getFileUrl} from '@/utils/account-url'
 import {useOpenDraft} from '@/utils/open-draft'
 import {useNavigate} from '@/utils/useNavigate'
-import {createHmId} from '@shm/shared'
+import {createHmId, hmId} from '@shm/shared'
 import {Add, Button, Form, Input, toast} from '@shm/ui'
 import {dispatchWizardEvent} from 'src/app-account'
 import {Label, SizableText, XStack, YStack} from 'tamagui'
@@ -56,8 +56,8 @@ function AccountKeyItem({accountId}: {accountId: string}) {
 
   function openProfile() {
     navigate({
-      key: 'account',
-      accountId,
+      key: 'document',
+      id: hmId('a', accountId),
     })
   }
   const accountDraftId = createHmId('a', accountId)

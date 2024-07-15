@@ -1,4 +1,4 @@
-import {createHmId} from '@shm/shared'
+import {unpackedHmIdSchema} from '@shm/shared'
 import {z} from 'zod'
 
 export const defaultRoute: NavRoute = {key: 'home'}
@@ -43,21 +43,12 @@ export type DocumentCommentsAccessory = z.infer<
   typeof documentCommentsAccessorySchema
 >
 
-export const baseDocumentRouteSchema = z.object({
+export const documentRouteSchema = z.object({
   key: z.literal('document'),
-  documentId: z.string(),
-  versionId: z.string().optional(),
-  blockId: z.string().optional(),
-  isProfileDocument: z.boolean().optional(),
+  id: unpackedHmIdSchema,
   isBlockFocused: z.boolean().optional(),
-  blockRange: z
-    .object({
-      start: z.number().optional(),
-      end: z.number().optional(),
-      expanded: z.boolean().optional(),
-    })
-    .optional(),
   immediatelyPromptPush: z.boolean().optional(),
+  tab: z.enum(['home', 'documents', 'activity', 'contacts']).optional(), // home is the default
   accessory: z
     .discriminatedUnion('key', [
       entityVersionsAccessorySchema,
@@ -67,45 +58,14 @@ export const baseDocumentRouteSchema = z.object({
     .nullable()
     .optional(),
 })
-export type BaseDocumentRoute = z.infer<typeof baseDocumentRouteSchema>
+export type DocumentRoute = z.infer<typeof documentRouteSchema>
 
-export const baseAccountRouteSchema = z.object({
-  key: z.literal('account'),
-  accountId: z.string(),
-  versionId: z.string().optional(),
-  blockId: z.string().optional(),
-  isBlockFocused: z.boolean().optional(),
-  accessory: z
-    .discriminatedUnion('key', [entityCitationsAccessorySchema])
-    .nullable()
-    .optional(),
-})
-export type BaseAccountRoute = z.infer<typeof baseAccountRouteSchema>
-
-export const baseDraftRouteSchema = z.object({
+export const draftRouteSchema = z.object({
   key: z.literal('draft'),
   id: z.string().optional(),
   deps: z.array(z.string()).optional(),
 })
-export type BaseDraftRoute = z.infer<typeof baseDraftRouteSchema>
-
-export const baseEntityRouteSchema = z.discriminatedUnion('key', [
-  baseDocumentRouteSchema,
-  baseAccountRouteSchema,
-  baseDraftRouteSchema,
-])
-export type BaseEntityRoute = z.infer<typeof baseEntityRouteSchema>
-
-export const accountRouteSchema = baseAccountRouteSchema.extend({
-  context: z.array(baseEntityRouteSchema).optional(),
-  tab: z.enum(['profile', 'documents', 'activity', 'contacts']).optional(), // profile is the default
-})
-export type AccountRoute = z.infer<typeof accountRouteSchema>
-
-export const DocumentRouteSchema = baseDocumentRouteSchema.extend({
-  context: z.array(baseEntityRouteSchema).optional(),
-})
-export type DocumentRoute = z.infer<typeof DocumentRouteSchema>
+export type DraftRoute = z.infer<typeof draftRouteSchema>
 
 export const favoritesSchema = z.object({
   key: z.literal('favorites'),
@@ -141,13 +101,6 @@ export const draftRebaseRouteSchema = z.object({
 })
 export type DeletedContentRoute = z.infer<typeof deletedContentRouteSchema>
 
-export const draftRouteSchema = baseDraftRouteSchema.extend({
-  contextRoute: z
-    .discriminatedUnion('key', [DocumentRouteSchema, accountRouteSchema])
-    .optional(),
-})
-export type DraftRoute = z.infer<typeof draftRouteSchema>
-
 export const contentRouteSchema = z.object({
   key: z.literal('content'),
 })
@@ -157,9 +110,8 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   feedRouteSchema,
   contentRouteSchema,
   contactsRouteSchema,
-  accountRouteSchema,
   settingsRouteSchema,
-  DocumentRouteSchema,
+  documentRouteSchema,
   draftRouteSchema,
   draftRebaseRouteSchema,
   commentRouteSchema,
@@ -173,8 +125,7 @@ export type NavRoute = z.infer<typeof navRouteSchema>
 
 export function getRecentsRouteEntityUrl(route: NavRoute) {
   // this is used to uniquely identify an item for the recents list. So it references the entity without specifying version
-  if (route.key === 'account') return createHmId('a', route.accountId)
-  if (route.key === 'document') return route.documentId
+  if (route.key === 'document') return route.id.qid
   // comments do not show up in the recents list, we do not know how to display them
   return null
 }

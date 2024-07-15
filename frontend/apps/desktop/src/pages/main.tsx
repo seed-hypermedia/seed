@@ -19,7 +19,6 @@ import './polyfills'
 var Feed = lazy(() => import('./feed'))
 var Home = lazy(() => import('./home'))
 var Settings = lazy(() => import('./settings'))
-var Account = lazy(() => import('./account-page'))
 var Contacts = lazy(() => import('./contacts-page'))
 var Document = lazy(() => import('./document'))
 var Draft = lazy(() => import('./draft'))
@@ -116,11 +115,6 @@ function getPageComponent(navRoute: NavRoute) {
     case 'contacts':
       return {
         PageComponent: Contacts,
-        Fallback: BaseLoading,
-      }
-    case 'account':
-      return {
-        PageComponent: Account,
         Fallback: BaseLoading,
       }
     case 'document':

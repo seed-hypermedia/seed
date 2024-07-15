@@ -40,21 +40,21 @@ export function updateRecents(updater: (state: RecentsState) => RecentsState) {
 async function getRouteTitles(route: NavRoute) {
   let subtitle: undefined | string = undefined
   let title = '?'
-  if (route.key === 'account') {
-    const account = await grpcClient.accounts.getAccount({
-      id: route.accountId,
-    })
-    title = account.profile?.alias || account.id
-    subtitle = 'Account'
-  } else if (route.key === 'document') {
-    const document = await grpcClient.documents.getDocument({
-      documentId: route.documentId,
-      version: route.versionId,
-    })
-    if (document?.metadata?.name) {
-      title = document?.metadata.name
+  if (route.key === 'document') {
+    if (route.id.type === 'd') {
+      console.log('aa 2')
+      const document = await grpcClient.documents.getDocument({
+        documentId: route.id.qid,
+        version: route.id.version || undefined,
+      })
+      if (document?.metadata?.name) {
+        title = document?.metadata.name
+      }
+      subtitle = 'Document'
     }
-    subtitle = 'Document'
+    if (route.id.type === 'a') {
+      throw new Error('Not implemented getRouteTitles for account')
+    }
   }
   return {
     title,

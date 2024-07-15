@@ -23,11 +23,10 @@ import {useNavigate} from '@/utils/useNavigate'
 import {
   BlockRange,
   ExpandedBlockRange,
+  HYPERMEDIA_ENTITY_TYPES,
   createHmId,
   createPublicWebHmUrl,
   getDocumentTitle,
-  hmId,
-  unpackHmId,
 } from '@shm/shared'
 import {
   Back,
@@ -65,26 +64,19 @@ export function DocOptionsButton() {
     throw new Error(
       'DocOptionsButton can only be rendered on publication route',
     )
-  const docId = unpackHmId(route.documentId)
-  if (!docId) throw new Error('Invalid document ID')
   const gwHost = useGatewayHost()
   const push = usePushPublication()
   const deleteEntity = useDeleteDialog()
   const [copyContent, onCopy, host] = useCopyGatewayReference()
-  const doc = useEntity({...docId, version: route.versionId || null})
+  const doc = useEntity(route.id)
   const menuItems: MenuItemType[] = [
     {
       key: 'link',
       label: `Copy ${host} URL`,
       icon: Link,
       onPress: () => {
-        const id = unpackHmId(route.documentId)
-        if (!id) {
-          toast.error('Failed to identify document URL')
-          return
-        }
         onCopy({
-          ...id,
+          ...route.id,
         })
       },
     },
@@ -93,7 +85,7 @@ export function DocOptionsButton() {
       label: 'Push to Gateway',
       icon: UploadCloud,
       onPress: () => {
-        toast.promise(push.mutateAsync(route.documentId), {
+        toast.promise(push.mutateAsync(route.id.id), {
           loading: 'Pushing...',
           success: `Pushed to ${gwHost}`,
           error: (err) => `Could not push to ${gwHost}: ${err.message}`,
@@ -106,7 +98,7 @@ export function DocOptionsButton() {
       icon: Trash,
       onPress: () => {
         deleteEntity.open({
-          id: route.documentId,
+          id: route.id.id,
           title: getDocumentTitle(doc.data?.document),
           onSuccess: () => {
             dispatch({type: 'pop'})
@@ -115,9 +107,9 @@ export function DocOptionsButton() {
       },
     },
   ]
-  const docUrl = docId
-    ? createHmId('d', docId.eid, {
-        version: route.versionId,
+  const docUrl = route.id
+    ? createHmId('d', route.id.eid, {
+        version: route.id.version,
       })
     : null
   menuItems.push(useFavoriteMenuItem(docUrl))
@@ -183,17 +175,17 @@ export function AccountOptionsButton() {
 
 function EditAccountButton() {
   const route = useNavRoute()
-  if (route.key !== 'account')
+  if (route.key !== 'document' || route.id.type !== 'a')
     throw new Error(
-      'AccountOptionsButton can only be rendered on account route',
+      'AccountOptionsButton can only be rendered on document route with account',
     )
   const myAccountIds = useMyAccountIds()
   const navigate = useNavigate()
-  const {draft} = useProfileWithDraft(route.accountId)
-  if (!myAccountIds.data?.includes(route.accountId)) {
+  const {draft} = useProfileWithDraft(route.id.eid)
+  if (!myAccountIds.data?.includes(route.id.eid)) {
     return null
   }
-  if (route.tab !== 'profile' && route.tab) return null
+  if (route.tab !== 'home' && route.tab) return null
   const hasExistingDraft = !!draft
   return (
     <>
@@ -204,7 +196,7 @@ function EditAccountButton() {
           onPress={() => {
             navigate({
               key: 'draft',
-              id: hmId('a', route.accountId).qid,
+              id: route.id.qid,
             })
           }}
           icon={Pencil}
@@ -225,17 +217,16 @@ export function useFullReferenceUrl(route: NavRoute): {
   ) => void
   content: ReactNode
 } | null {
-  const pubRoute = route.key === 'document' ? route : null
-  const pub = useEntity(unpackHmId(pubRoute?.documentId))
+  const docRoute = route.key === 'document' ? route : null
+  const pub = useEntity(docRoute?.id)
   const gwUrl = useGatewayUrl()
   const [copyDialogContent, onCopyPublic] = useCopyGatewayReference()
 
-  if (pubRoute) {
-    const docId = unpackHmId(pubRoute.documentId)
-    if (!docId) return null
+  if (docRoute) {
+    if (!docRoute.id) return null
     let hostname = gwUrl.data
     return {
-      url: createPublicWebHmUrl('d', docId.eid, {
+      url: createPublicWebHmUrl('d', docRoute.id.eid, {
         version: pub.data?.document?.version,
         hostname,
       }),
@@ -245,32 +236,15 @@ export function useFullReferenceUrl(route: NavRoute): {
         blockId: string | undefined,
         blockRange?: BlockRange | ExpandedBlockRange | null,
       ) => {
-        const focusBlockId = pubRoute.isBlockFocused ? pubRoute.blockId : null
+        const focusBlockId = docRoute.isBlockFocused
+          ? docRoute.id.blockRef
+          : null
         onCopyPublic({
-          ...docId,
+          ...docRoute.id,
           hostname: hostname || null,
           version: pub.data?.document?.version || null,
           blockRef: blockId || focusBlockId || null,
           blockRange,
-        })
-      },
-    }
-  }
-
-  if (route.key === 'account') {
-    const accountId = hmId('a', route.accountId)
-    const focusBlockId = route.isBlockFocused ? route.blockId : null
-    return {
-      label: 'Account',
-      url: createPublicWebHmUrl('a', route.accountId, {
-        hostname: gwUrl.data,
-      }),
-      content: copyDialogContent,
-      onCopy: () => {
-        onCopyPublic({
-          ...accountId,
-          hostname: gwUrl.data || null,
-          blockRef: focusBlockId || null,
         })
       },
     }
@@ -293,26 +267,13 @@ function getReferenceUrlOfRoute(
   exactVersion?: string | undefined,
 ) {
   if (route.key === 'document') {
-    const docId = unpackHmId(route.documentId)
-    if (!docId || docId.type !== 'd') return null
-    const url = createPublicWebHmUrl('d', docId.eid, {
-      version: exactVersion || route.versionId,
+    const url = createPublicWebHmUrl(route.id.type, route.id.eid, {
+      version: exactVersion || route.id.version,
       hostname,
     })
     if (!url) return null
     return {
-      label: 'Doc',
-      url,
-    }
-  }
-  if (route.key === 'account') {
-    const url = createPublicWebHmUrl('a', route.accountId, {
-      hostname,
-      version: exactVersion,
-    })
-    if (!url) return null
-    return {
-      label: 'Account',
+      label: HYPERMEDIA_ENTITY_TYPES[route.id.type],
       url,
     }
   }
@@ -388,13 +349,13 @@ export function PageActionButtons(props: TitleBarProps) {
       <ContactsPrompt key="addContact" />,
       <CreateDropdown key="create" />,
     ]
-  } else if (route.key === 'document') {
+  } else if (route.key === 'document' && route.id.type === 'd') {
     buttonGroup = [
       <VersionContext key="versionContext" route={route} />,
       <CreateDropdown key="create" />,
       <DocOptionsButton key="options" />,
     ]
-  } else if (route.key === 'account') {
+  } else if (route.key === 'document' && route.id.type === 'a') {
     buttonGroup = [
       <EditAccountButton key="editAccount" />,
       // <CreateDropdown key="create" />,

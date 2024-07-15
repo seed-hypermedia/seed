@@ -8,8 +8,7 @@ import {
 import {useFavorites} from '@/models/favorites'
 import {getProfileName} from '@/pages/account-page'
 import {appRouteOfId, getRouteKey, useNavRoute} from '@/utils/navigation'
-import {getRouteContext} from '@/utils/route-context'
-import {BaseAccountRoute, BaseEntityRoute, NavRoute} from '@/utils/routes'
+import {BaseAccountRoute, DocumentRoute, NavRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   HMBlockNode,
@@ -17,6 +16,7 @@ import {
   UnpackedHypermediaId,
   getBlockNodeById,
   getDocumentTitle,
+  hmId,
   unpackHmId,
 } from '@shm/shared'
 import {Tooltip} from '@shm/ui'
@@ -45,9 +45,9 @@ function _SidebarNeo() {
   const [collapseFavorites, setCollapseFavorites] = useState(true)
   const [collapseStandalone, setCollapseStandalone] = useState(false)
   const myAccount = useMyAccount_deprecated()
-  const myAccountRoute = useMemo(() => {
+  const myAccountRoute: DocumentRoute | null = useMemo(() => {
     return myAccount
-      ? ({key: 'account', accountId: myAccount} as BaseAccountRoute)
+      ? ({key: 'document', id: hmId('a', myAccount)} as BaseAccountRoute)
       : null
   }, [myAccount])
   const navigate = useNavigate()
@@ -63,8 +63,9 @@ function _SidebarNeo() {
   const isMyAccountActive =
     isMyAccountDraftActive ||
     (firstEntityRoute &&
-      firstEntityRoute.key === 'account' &&
-      firstEntityRoute.accountId === myAccount)
+      firstEntityRoute.key === 'document' &&
+      firstEntityRoute.id.type === 'a' &&
+      firstEntityRoute.id.eid === myAccount)
   // const [collapseMe, setCollapseMe] = useState(!isMyAccountActive)
   // const entityContents = useRouteEntities(
   //   myAccountRoute ? [myAccountRoute, ...entityRoutes] : entityRoutes,
@@ -261,7 +262,7 @@ function ContextItems({
   active?: boolean
   isCollapsed?: boolean
   onSetCollapsed?: (collapse: boolean) => void
-  route: BaseEntityRoute
+  route: DocumentRoute
   onNavigate: (route: NavRoute) => void
 }) {
   if (!info) return null
@@ -325,12 +326,12 @@ function RouteSection({
   entityContents,
   active,
 }: {
-  routes: BaseEntityRoute[]
+  routes: DocumentRoute[]
   activeRoute: NavRoute
   collapse?: boolean
   setCollapse?: (collapse: boolean) => void
   onNavigate: (route: NavRoute, doReplace?: boolean) => void
-  entityContents?: {route: BaseEntityRoute; entity?: HMEntityContent}[]
+  entityContents?: {route: DocumentRoute; entity?: HMEntityContent}[]
   active?: boolean
 }) {
   const thisRoute = routes.at(-1)
@@ -479,13 +480,14 @@ function _SidebarEmbedOutlineItem({
                 key="focus"
                 onPress={() => {
                   if (!destRoute) return
-                  if (
-                    destRoute.key === 'document' ||
-                    destRoute.key === 'account'
-                  ) {
+                  if (destRoute.key === 'document') {
                     navigate({
                       ...destRoute,
-                      context: getRouteContext(route, blockId),
+                      id: {
+                        ...destRoute.id,
+                        blockRef: blockId,
+                      },
+                      isBlockFocused: true,
                     })
                   } else navigate(destRoute)
                 }}
@@ -501,15 +503,14 @@ function _SidebarEmbedOutlineItem({
               destRoute
                 ? (childBlockId) => {
                     if (!destRoute) return
-                    if (
-                      destRoute.key === 'document' ||
-                      destRoute.key === 'account'
-                    ) {
+                    if (destRoute.key === 'document') {
                       navigate({
                         ...destRoute,
-                        blockId: childBlockId,
+                        id: {
+                          ...destRoute.id,
+                          blockRef: childBlockId,
+                        },
                         isBlockFocused: true,
-                        context: getRouteContext(route, blockId),
                       })
                     } else navigate(destRoute)
                   }
@@ -728,10 +729,14 @@ function FavoriteAccountItem({
   if (!accountId) return null
   return (
     <SidebarItem
-      active={route.key === 'account' && route.accountId === accountId}
+      active={
+        route.key === 'document' &&
+        route.id.type === 'a' &&
+        route.id.eid === accountId
+      }
       indented
       onPress={() => {
-        onNavigate({key: 'account', accountId})
+        onNavigate({key: 'document', id: hmId('a', accountId)})
       }}
       title={getProfileName(data?.document)}
     />
@@ -753,12 +758,15 @@ function FavoritePublicationItem({
   return (
     <SidebarItem
       indented
-      active={route.key === 'document' && route.documentId === documentId}
+      active={
+        route.key === 'document' &&
+        route.id.type === 'd' &&
+        route.id.qid === documentId
+      }
       onPress={() => {
         onNavigate({
           key: 'document',
-          documentId,
-          versionId: id?.version || undefined,
+          id,
         })
       }}
       title={getDocumentTitle(doc.data?.document)}

@@ -2,7 +2,7 @@ import {Avatar} from '@/components/avatar'
 import appError from '@/errors'
 import {useAccount_deprecated} from '@/models/accounts'
 import {useNavigate} from '@/utils/useNavigate'
-import {Account} from '@shm/shared'
+import {Account, hmId} from '@shm/shared'
 import {Button, FontSizeTokens, Tooltip, YStack} from '@shm/ui'
 import {AlertCircle} from '@tamagui/lucide-icons'
 import {getFileUrl} from '../utils/account-url'
@@ -85,7 +85,7 @@ export function BaseAccountLinkAvatar({
           e.preventDefault()
           e.stopPropagation()
           if (!accountId) return appError('No account ready to load')
-          navigate({key: 'account', accountId})
+          navigate({key: 'document', id: hmId('a', accountId)})
         }}
         position="relative"
         height={size}

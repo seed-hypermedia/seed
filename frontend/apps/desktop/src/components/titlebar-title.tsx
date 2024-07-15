@@ -3,7 +3,7 @@ import {useDraftName} from '@/models/documents'
 import {useRouteBreadcrumbRoutes, useRouteEntities} from '@/models/entities'
 import {showTitleEvent} from '@/pages/app-title'
 import {useNavRoute} from '@/utils/navigation'
-import {AccountRoute, DocumentRoute, DraftRoute, NavRoute} from '@/utils/routes'
+import {DocumentRoute, DraftRoute, NavRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   Button,
@@ -83,7 +83,7 @@ export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
     )
   }
 
-  if (route.key === 'account' || route.key === 'document') {
+  if (route.key === 'document') {
     return <BreadcrumbTitle route={route} />
   }
   if (route.key === 'draft') {
@@ -102,7 +102,7 @@ type CrumbDetails = {
   crumbKey: string
 }
 
-function BreadcrumbTitle({route}: {route: DocumentRoute | AccountRoute}) {
+function BreadcrumbTitle({route}: {route: DocumentRoute}) {
   const entityRoutes = useRouteBreadcrumbRoutes(route)
   const entityContents = useRouteEntities(entityRoutes)
   const [collapsedCount, setCollapsedCount] = useState(0)

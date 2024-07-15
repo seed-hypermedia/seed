@@ -15,6 +15,7 @@ import {
   formattedDateMedium,
   getBlockNodeById,
   getDocumentTitle,
+  hmId,
   unpackHmId,
   useDocContentContext,
 } from '@shm/shared'
@@ -43,7 +44,6 @@ import {useAccounts} from '../models/accounts'
 import {useComment} from '../models/comments'
 import {getFileUrl} from '../utils/account-url'
 import {useNavRoute} from '../utils/navigation'
-import {getRouteContext, useOpenInContext} from '../utils/route-context'
 import {useNavigate} from '../utils/useNavigate'
 import {BaseAccountLinkAvatar} from './account-link-avatar'
 import {Avatar} from './avatar'
@@ -69,7 +69,6 @@ function EmbedWrapper({
     routeParams,
   } = useDocContentContext()
   const route = useNavRoute()
-  const open = useOpenInContext()
   const navigate = useNavigate('replace')
   const unpackRef = unpackHmId(hmRef)
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -174,20 +173,7 @@ function EmbedWrapper({
       onPress={
         !disableEmbedClick
           ? () => {
-              if (comment) {
-                if (
-                  route.key == 'document' &&
-                  unpackRef?.qid == route.documentId
-                ) {
-                  navigate({
-                    ...route,
-                    blockId: unpackRef?.blockRef!,
-                    versionId: unpackRef?.version!,
-                  })
-                }
-              } else {
-                open(hmRef, parentBlockId)
-              }
+              throw new Error('EmbedWrapper onPress not implemented')
             }
           : undefined
       }
@@ -441,9 +427,7 @@ export function EmbedDocContent(props: EntityComponentProps) {
             if (!props.qid) return
             navigate({
               key: 'document',
-              documentId: props.qid,
-              versionId: props.version || undefined,
-              context: getRouteContext(route, props.parentBlockId || undefined),
+              id: props,
             })
           }}
         >
@@ -618,7 +602,7 @@ function AccountInlineEmbed(props: InlineEmbedComponentProps) {
   return (
     <InlineEmbedButton
       dataRef={props?.id}
-      onPress={() => navigate({key: 'account', accountId})}
+      onPress={() => navigate({key: 'document', id: hmId('a', accountId)})}
     >
       {(accountId &&
         accountQuery.status == 'success' &&

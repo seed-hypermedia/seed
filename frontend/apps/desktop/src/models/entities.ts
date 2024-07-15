@@ -2,7 +2,6 @@ import {toPlainMessage} from '@bufbuild/protobuf'
 import {
   GRPCClient,
   HMEntityContent,
-  hmId,
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
@@ -15,7 +14,7 @@ import {
 } from '@tanstack/react-query'
 import {useMemo} from 'react'
 import {useGRPCClient, useQueryInvalidator} from '../app-context'
-import {BaseEntityRoute, NavRoute} from '../utils/routes'
+import {DocumentRoute, NavRoute} from '../utils/routes'
 import {queryKeys} from './query-keys'
 import {useDeleteRecent} from './recents'
 
@@ -111,28 +110,20 @@ export function useUndeleteEntity(
   })
 }
 
-function getRouteBreadrumbRoutes(route: NavRoute): BaseEntityRoute[] {
+function getRouteBreadrumbRoutes(route: NavRoute): DocumentRoute[] {
   if (route.key === 'document') {
-    const {context, ...baseRoute} = route
-    if (context) return [...context, baseRoute]
-    return [baseRoute]
-  }
-  if (route.key === 'account') {
-    const {context, tab, ...baseRoute} = route
-    if (context) return [...context, baseRoute]
-    return [baseRoute]
+    // TODO, determine breadcrumbs based on route.id
+    return [route]
   }
   if (route.key === 'draft') {
-    const {contextRoute, ...draftRoute} = route
-    const entityRoutes = contextRoute
-      ? getRouteBreadrumbRoutes(contextRoute).slice(1)
-      : []
-    return [...entityRoutes, draftRoute]
+    const draftRoute = route
+    // TODO, determine breadcrumbs based on route.id
+    return []
   }
   return []
 }
 
-export function useRouteBreadcrumbRoutes(route: NavRoute): BaseEntityRoute[] {
+export function useRouteBreadcrumbRoutes(route: NavRoute): DocumentRoute[] {
   return useMemo(() => {
     return getRouteBreadrumbRoutes(route)
   }, [route])
@@ -177,6 +168,7 @@ export function queryEntity(
         }
       }
       if (type === 'd') {
+        console.log('aa 3', qid, version)
         const document = await grpcClient.documents.getDocument({
           documentId: qid,
           version: version || undefined,
@@ -208,15 +200,11 @@ export function useEntities(
 }
 
 export function useRouteEntities(
-  routes: BaseEntityRoute[],
-): {route: BaseEntityRoute; entity?: HMEntityContent}[] {
+  routes: DocumentRoute[],
+): {route: DocumentRoute; entity?: HMEntityContent}[] {
   return useEntities(
     routes.map((r) => {
-      if (r.key === 'document')
-        return hmId('d', r.documentId, {version: r.versionId})
-      if (r.key === 'account') {
-        return hmId('a', r.accountId, {version: r.versionId})
-      }
+      if (r.key === 'document') return r.id
       return null
     }),
   ).map((result, i) => {

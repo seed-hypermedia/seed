@@ -507,6 +507,7 @@ async function fetchEntityTitle(
   grpcClient: GRPCClient,
 ) {
   if (hmId.type == 'd') {
+    console.log('aa 1')
     const doc = await grpcClient.documents.getDocument({
       documentId: hmId.qid,
       version: hmId.version ? hmId.version : undefined,

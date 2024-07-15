@@ -1,5 +1,5 @@
 import {useOpenUrl} from '@/open-url'
-import {Account, API_FILE_URL, PeerInfo} from '@shm/shared'
+import {Account, API_FILE_URL, hmId, PeerInfo} from '@shm/shared'
 import {
   ArrowUpRight,
   Button,
@@ -151,7 +151,7 @@ const PeerRow = React.memo(function PeerRow({
   function handlePress() {
     if (isSite && account?.profile?.alias) openUrl(account?.profile?.alias)
     else if (!isSite && account?.id)
-      spawn({key: 'account', accountId: account.id})
+      spawn({key: 'document', id: hmId('a', account.id)})
     else toast.error('Could not open account')
   }
   function handleCopyPeerId() {

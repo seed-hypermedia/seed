@@ -1,361 +1,416 @@
-import {EntityVersionsAccessory} from '@/changes-list'
 import {AccessoryLayout} from '@/components/accessory-sidebar'
-import {BaseAccountLinkAvatar} from '@/components/account-link-avatar'
-import {CitationsProvider} from '@/components/citations-context'
-import {EntityCommentsAccessory} from '@/components/comments'
-import {PushToGatewayDialog} from '@/components/copy-gateway-reference'
-import {useAppDialog} from '@/components/dialog'
+import {Avatar} from '@/components/avatar'
+import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
+import {DialogTitle, useAppDialog} from '@/components/dialog'
+import {DocumentListItem} from '@/components/document-list-item'
 import {FavoriteButton} from '@/components/favoriting'
 import Footer, {FooterButton} from '@/components/footer'
-import {MainWrapper} from '@/components/main-wrapper'
-import {useAccounts} from '@/models/accounts'
-import {useDocHistory} from '@/models/changes'
-import {useAllPublicationComments, useCreateComment} from '@/models/comments'
-import {useEntityMentions} from '@/models/content-graph'
+import {FormInput} from '@/components/form-input'
+import {FormField} from '@/components/forms'
+import {MainWrapperNoScroll} from '@/components/main-wrapper'
+import {useMyAccountIds} from '@/models/daemon'
+import {useAccountDocuments} from '@/models/documents'
 import {useEntity} from '@/models/entities'
-import {useGatewayHost} from '@/models/gateway-settings'
+import {getFileUrl} from '@/utils/account-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {
-  DocContent,
-  DocHeading,
-  HMDocument,
-  createHmId,
-  formattedDateMedium,
-  getDocumentTitle,
-  pluralS,
-  unpackHmId,
-} from '@shm/shared'
+import {zodResolver} from '@hookform/resolvers/zod'
+import {DocContent, HMDocument, hmId, UnpackedHypermediaId} from '@shm/shared'
 import {
   BlockQuote,
-  ButtonText,
+  Button,
+  Form,
+  H3,
+  MainWrapper,
+  Section,
+  Separator,
   SizableText,
-  Text,
+  Spinner,
   XStack,
-  YStack,
 } from '@shm/ui'
-import {History, MessageSquare} from '@tamagui/lucide-icons'
-import 'allotment/dist/style.css'
-import {ReactNode, useEffect, useRef} from 'react'
-import {ErrorBoundary} from 'react-error-boundary'
-import {AppErrorPage} from '../components/app-error'
+import {PageContainer} from '@shm/ui/src/container'
+import {RadioButtons} from '@shm/ui/src/radio-buttons'
+import {FilePlus} from '@tamagui/lucide-icons'
+import React, {ReactNode} from 'react'
+import {SubmitHandler, useForm} from 'react-hook-form'
+import {z} from 'zod'
 import {EntityCitationsAccessory} from '../components/citations'
 import {CopyReferenceButton} from '../components/titlebar-common'
-import {getProfileName} from './account-page'
 import {AppDocContentProvider} from './document-content-provider'
 
-export default function PublicationPage() {
+export function getProfileName(profile: HMDocument | null | undefined) {
+  return profile?.metadata?.name || 'Untitled Account'
+}
+
+export default function DocumentPage() {
   const route = useNavRoute()
-  if (route.key !== 'document')
-    throw new Error('Publication page expects publication route')
+  const docId = route.key === 'document' && route.id
+  if (!docId) throw new Error('Invalid route, no document id')
 
-  const docId = unpackHmId(route?.documentId)
-  const accessory = route?.accessory
-  const accessoryKey = accessory?.key
+  const accessoryKey = route.accessory?.key
   const replace = useNavigate('replace')
-  if (!docId)
-    throw new Error(
-      `Document route does not contain docId: ${JSON.stringify(route)}`,
-    )
-  const document = useEntity({...docId, version: route.versionId || null})
-
-  const mentions = useEntityMentions(
-    document.status == 'success' ? docId.qid : undefined,
-  )
-
-  const createComment = useCreateComment()
-  const pushToGatewayDialog = useAppDialog(PushToGatewayDialog, {
-    onClose: () => {
-      if (route.immediatelyPromptPush) {
-        replace({...route, immediatelyPromptPush: false})
-      }
-    },
-  })
-  const gwHost = useGatewayHost()
-  useEffect(() => {
-    if (docId && route.immediatelyPromptPush)
-      pushToGatewayDialog.open({
-        context: 'publish',
-        host: gwHost,
-        ...docId,
-      })
-  }, [docId, gwHost, route.immediatelyPromptPush])
-
-  // const [rangeState, rangeSend, rangeActor] = useRangeSelection()
-  const rangeRef = useRef<HTMLDivElement>(null)
-
-  if (document.data) {
-    let accessory: ReactNode | null = null
-
-    if (accessoryKey == 'versions') {
-      accessory = (
-        <EntityVersionsAccessory
-          id={docId}
-          // variantVersion={publication.data?.variantVersion}
-          activeVersion={document.data?.version}
-        />
-      )
-    } else if (accessoryKey == 'citations') {
-      accessory = <EntityCitationsAccessory entityId={docId} />
-    } else if (accessoryKey == 'comments' && id && document.data?.version) {
-      accessory = (
-        <EntityCommentsAccessory
-          id={docId}
-          activeVersion={document.data?.version}
-        />
-      )
-    }
-    return (
-      <ErrorBoundary
-        FallbackComponent={AppErrorPage}
-        onReset={() => document.refetch()}
-      >
-        {pushToGatewayDialog.content}
-        <CitationsProvider
-          documentId={docId}
-          onCitationsOpen={() => {
-            // todo, pass active citations into route
+  const [copyDialogContent, onCopy] = useCopyGatewayReference()
+  let accessory: ReactNode = null
+  if (accessoryKey === 'citations') {
+    accessory = <EntityCitationsAccessory entityId={docId} />
+  }
+  return (
+    <>
+      <AccessoryLayout accessory={accessory}>
+        <MainWrapperNoScroll>
+          <MainDocumentPage />
+        </MainWrapperNoScroll>
+      </AccessoryLayout>
+      <Footer>
+        <FooterButton
+          active={accessoryKey === 'citations'}
+          label={'Citations'}
+          icon={BlockQuote}
+          onPress={() => {
+            if (route.accessory?.key === 'citations')
+              return replace({...route, accessory: null})
             replace({...route, accessory: {key: 'citations'}})
           }}
-        >
-          <AccessoryLayout accessory={accessory}>
-            <MainWrapper>
-              <YStack
-                paddingVertical="$7"
-                width="100%"
-                maxWidth="90ch"
-                alignSelf="center"
-              >
-                <AppDocContentProvider
-                  citations={mentions.data?.mentions}
-                  onCitationClick={() => {
-                    if (route.accessory?.key === 'citations')
-                      return replace({...route, accessory: null})
-                    replace({...route, accessory: {key: 'citations'}})
-                  }}
-                  onBlockComment={(blockId, blockRange) => {
-                    replace({...route, accessory: {key: 'comments'}})
-                    const version = document.data?.version
-                    if (!docId) throw new Error('invalid doc id')
-                    if (!version)
-                      throw new Error('no publication version for commenting')
-                    createComment(
-                      docId.eid,
-                      version,
-                      undefined,
-                      createHmId('d', docId.eid, {
-                        version,
-                        blockRef: blockId,
-                        blockRange,
-                      }),
-                    )
-                  }}
-                >
-                  <DocHeading
-                    right={
-                      <XStack
-                        gap="$2"
-                        // opacity={0}
-                        // $group-header-hover={{opacity: 1}}
-                      >
-                        {docId && (
-                          <FavoriteButton
-                            url={createHmId('d', docId.eid, {})}
-                          />
-                        )}
-                        <CopyReferenceButton />
-                      </XStack>
-                    }
-                  >
-                    {getDocumentTitle(document.data?.document)}
-                  </DocHeading>
-                  {document.data?.document ? (
-                    <>
-                      <DocumentPageMeta document={document.data.document} />
-                      <DocContent
-                        ref={rangeRef}
-                        document={document.data.document}
-                        focusBlockId={
-                          route?.isBlockFocused ? route.blockId : undefined
-                        }
-                      />
-                    </>
-                  ) : null}
-                </AppDocContentProvider>
-              </YStack>
-              {/* {route.versionId && (
-                    <OutOfDateBanner docId={docId} version={route.versionId} />
-                  )} */}
-            </MainWrapper>
-          </AccessoryLayout>
-          <Footer>
-            {document.data && (
-              <DocumentVersionsFooterButton
-                variantVersion={document.data?.document?.version}
-              />
-            )}
+        />
+      </Footer>
+    </>
+  )
+}
 
-            {mentions.data?.mentions?.length ? (
-              <FooterButton
-                active={accessoryKey === 'citations'}
-                label={`${mentions.data?.mentions?.length} ${pluralS(
-                  mentions.data?.mentions?.length,
-                  'Citation',
-                )}`}
-                icon={BlockQuote}
-                onPress={() => {
-                  if (route.accessory?.key === 'citations')
-                    return replace({...route, accessory: null})
-                  replace({...route, accessory: {key: 'citations'}})
-                }}
-              />
-            ) : null}
+function MainDocumentPage() {
+  const route = useNavRoute()
+  if (route.key !== 'document')
+    throw new Error('Invalid route for MainDocumentPage')
+  if (!route.id) throw new Error('MainDocumentPage requires id')
 
-            <PublicationCommentaryButton />
-          </Footer>
-        </CitationsProvider>
-      </ErrorBoundary>
+  let content: null | React.ReactElement = (
+    <DocumentPageContent docId={route.id} />
+  )
+  if (route.tab === 'activity') {
+    content = null // todo
+  } else if (route.tab === 'contacts') {
+    content = null // todo
+  } else if (route.tab === 'home') {
+    content = (
+      <DocumentPageContent
+        docId={route.id}
+        isBlockFocused={route.isBlockFocused}
+      />
     )
-  }
-
-  return null
-  // TODO: show loading only if it takes more than 1 second to load the publication
-  // return <DocumentPlaceholder />
-}
-
-function PublicationCommentaryButton() {
-  const route = useNavRoute()
-  if (route.key !== 'document')
-    throw new Error('Document page expects document route')
-
-  const docId = route?.documentId ? unpackHmId(route?.documentId) : null
-  const accessory = route?.accessory
-  const accessoryKey = accessory?.key
-  const replace = useNavigate('replace')
-  let label = 'Comment'
-  const comments = useAllPublicationComments(docId?.eid)
-  if (comments.data?.length) {
-    label = `${comments.data.length} ${pluralS(
-      comments.data.length,
-      'Comment',
-    )}`
+  } else if (route.tab === 'documents') {
+    content = <AccountPageDocuments id={route.id} />
   }
   return (
-    <FooterButton
-      label={label}
-      icon={MessageSquare}
-      active={accessoryKey === 'comments'}
-      onPress={() => {
-        if (route.accessory?.key === 'comments')
-          return replace({...route, accessory: null})
-        replace({...route, accessory: {key: 'comments'}})
-      }}
-    />
+    <MainWrapper>
+      <AccountPageHeader />
+      {content}
+    </MainWrapper>
   )
 }
+//   return (
+//     <>
+//       <List
+//         ref={scrollRef}
+//         header={<AccountPageHeader />}
+//         footer={
+//           route.tab === 'activity' ? <FeedPageFooter feedQuery={feed} /> : null
+//         }
+//         items={items}
+//         onEndReached={() => {
+//           if (route.tab === 'activity') feed.fetchNextPage()
+//         }}
+//         renderItem={({ item }) => {
+//           if (item === 'profile') {
+//             return <ProfileDoc />
+//           }
+//           if (item.key === 'document' && item.document) {
+//             const docId = item.document?.id
+//             return (
+//               <DocumentListItem
+//                 key={docId}
+//                 document={item.document}
+//                 author={item.author}
+//                 editors={item.editors}
+//                 hasDraft={undefined}
+//                 menuItems={() => [
+//                   copyLinkMenuItem(() => {
+//                     const id = unpackDocId(docId)
+//                     if (!id) return
+//                     onCopyId({
+//                       ...id,
+//                       version: item.document.version || null,
+//                     })
+//                   }, 'Document'),
+//                   {
+//                     label: 'Delete Document',
+//                     key: 'delete',
+//                     icon: Trash,
+//                     onPress: () => {
+//                       openDelete({
+//                         id: docId,
+//                         title: getDocumentTitle(item.document),
+//                       })
+//                     },
+//                   },
+//                 ]}
+//                 openRoute={{
+//                   key: 'document',
+//                   documentId: docId,
+//                   versionId: item.document.version,
+//                 }}
+//               />
+//             )
+//           } else if (item.key === 'event') {
+//             return <FeedItem event={item.event} />
+//           } else if (item.key === 'draft') {
+//             return (
+//               <ListItem
+//                 title={getDocumentTitle(item.document)}
+//                 onPress={() => {
+//                   navigate({
+//                     key: 'draft',
+//                     draftId: item.document.id,
+//                   })
+//                 }}
+//                 theme="yellow"
+//                 backgroundColor="$color3"
+//                 accessory={
+//                   <Button disabled onPress={() => { }} size="$1">
+//                     Draft
+//                   </Button>
+//                 }
+//               />
+//             )
+//           }
+//           console.log('unrecognized item', item)
+//         }}
+//       />
+//       {deleteDialog}
+//       {copyDialogContent}
+//       {route.tab === 'activity' && feed.hasNewItems && (
+//         <NewUpdatesButton
+//           onPress={() => {
+//             scrollRef.current?.scrollTo({ top: 0 })
+//             feed.refetch()
+//           }}
+//         />
+//       )}
+//     </>
+//   )
+// }
 
-function DocumentVersionsFooterButton({
-  variantVersion,
-}: {
-  variantVersion: string
-}) {
+function AccountPageHeader() {
   const route = useNavRoute()
-  if (route.key !== 'document')
-    throw new Error('Document page expects document route')
-  const docId = route?.documentId
-  const accessory = route?.accessory
-  const accessoryKey = accessory?.key
   const replace = useNavigate('replace')
-  const changes = useDocHistory(docId, variantVersion)
+  const docId = route.key === 'document' && route.id
+  if (!docId) throw new Error('Invalid route, no doc id')
+  const myAccountIds = useMyAccountIds()
+  const doc = useEntity(docId)
+  const isMyAccount = myAccountIds.data?.includes(docId)
+  const accountName = getProfileName(doc.data?.document)
   return (
-    <FooterButton
-      active={accessoryKey === 'versions'}
-      label={`${changes?.length} ${pluralS(changes?.length, 'Version')}`}
-      icon={History}
-      onPress={() => {
-        if (route.accessory?.key === 'versions')
-          return replace({...route, accessory: null})
-        replace({...route, accessory: {key: 'versions'}})
-      }}
-    />
-  )
-}
+    <>
+      <PageContainer marginTop="$6">
+        <Section
+          paddingVertical={0}
+          gap="$2"
+          marginBottom={route.tab !== 'home' ? '$4' : undefined}
+        >
+          <XStack gap="$4" alignItems="center" justifyContent="space-between">
+            <XStack gap="$4" alignItems="center">
+              <Avatar
+                id={docId.eid}
+                size={60}
+                label={accountName}
+                url={
+                  doc.data?.document?.metadata.avatar
+                    ? getFileUrl(doc.data?.document?.metadata.avatar)
+                    : ''
+                }
+              />
+              <SizableText
+                whiteSpace="nowrap"
+                overflow="hidden"
+                textOverflow="ellipsis"
+                size="$5"
+                fontWeight="700"
+              >
+                {accountName}
+              </SizableText>
+            </XStack>
 
-function DocumentPageMeta({document}: {document: HMDocument}) {
-  const editors = useAccounts(document?.authors || [])
-  const navigate = useNavigate()
-
-  return (
-    <YStack
-      ai="flex-start"
-      paddingHorizontal="$2"
-      borderBottomColor="$color6"
-      borderBottomWidth={1}
-      paddingBottom="$2"
-      userSelect="none"
-    >
-      <XStack flexWrap="wrap">
-        <XStack marginHorizontal="$4" gap="$2" ai="center" paddingVertical="$2">
-          <XStack ai="center">
-            {editors
-              .map((editor) => editor.data)
-              .filter(Boolean)
-              .map(
-                (editorAccount, idx) =>
-                  editorAccount?.id && (
-                    <XStack
-                      zIndex={idx + 1}
-                      key={editorAccount?.id}
-                      borderColor="$background"
-                      backgroundColor="$background"
-                      borderWidth={2}
-                      borderRadius={100}
-                      marginLeft={-8}
-                    >
-                      <BaseAccountLinkAvatar
-                        account={editorAccount}
-                        accountId={editorAccount?.id}
-                      />
-                    </XStack>
-                  ),
-              )}
+            <XStack space="$2">
+              {isMyAccount ? null : <FavoriteButton id={docId} />}
+              <CopyReferenceButton />
+            </XStack>
           </XStack>
-          <SizableText flexWrap="wrap">
-            {editors
-              .map((editor) => editor.data)
-              .filter(Boolean)
-              .map((account, index) => [
-                account ? (
-                  <ButtonText
-                    key={account.id}
-                    fontWeight={'bold'}
-                    onPress={() => {
-                      navigate({key: 'account', accountId: account.id})
-                    }}
-                    hoverStyle={{
-                      textDecorationLine: 'underline',
-                    }}
-                  >
-                    {getProfileName(account.profile)}
-                  </ButtonText>
-                ) : null,
-                index !== editors.length - 1 ? (
-                  index === editors.length - 2 ? (
-                    <Text fontWeight={'bold'}>{' & '}</Text>
-                  ) : (
-                    <Text fontWeight={'bold'}>{', '}</Text>
-                  )
-                ) : null,
-              ])
-              .filter(Boolean)}
-          </SizableText>
-        </XStack>
-        <XStack ai="center">
-          <Text marginHorizontal="$4" color="$color10">
-            {formattedDateMedium(document?.publishTime)}
-          </Text>
-        </XStack>
-      </XStack>
-    </YStack>
+          <XStack>
+            <RadioButtons
+              key={route.tab}
+              value={route.tab || 'home'}
+              options={
+                [
+                  {key: 'home', label: 'Home'},
+                  {key: 'documents', label: 'Documents'},
+                  {key: 'activity', label: 'Activity'},
+                  {key: 'contacts', label: 'Contacts'},
+                ] as const
+              }
+              onValue={(tab) => {
+                replace({...route, tab})
+              }}
+            />
+          </XStack>
+        </Section>
+      </PageContainer>
+    </>
   )
+}
+
+function DocumentPageContent({
+  docId,
+  isBlockFocused,
+}: {
+  docId: UnpackedHypermediaId
+  blockId?: string
+  isBlockFocused?: boolean
+}) {
+  const profile = useEntity(docId)
+  if (profile.isLoading) return <Spinner />
+  if (!profile.data?.document) return null
+  const blockId = docId.blockRef
+  return (
+    <PageContainer>
+      <AppDocContentProvider routeParams={{blockRef: blockId}}>
+        <DocContent
+          document={profile.data?.document}
+          focusBlockId={isBlockFocused ? blockId : undefined}
+        />
+        <Separator />
+        <H3 marginTop="$4">Index</H3>
+        <XStack paddingVertical="$4">
+          <NewSubDocumentButton parentDocId={docId.qid} />
+        </XStack>
+      </AppDocContentProvider>
+    </PageContainer>
+  )
+}
+
+const newSubDocumentSchema = z.object({
+  pathName: z.string(),
+})
+type NewSubDocumentFields = z.infer<typeof newSubDocumentSchema>
+
+function NewDocumentDialog({
+  input,
+  onClose,
+}: {
+  input: string
+  onClose: () => void
+}) {
+  const navigate = useNavigate()
+  const onSubmit: SubmitHandler<NewSubDocumentFields> = (data) => {
+    // console.log('NewDocument', id)
+    const id = `${input}/${data.pathName}`
+    onClose()
+    navigate({
+      key: 'draft',
+      id,
+    })
+  }
+  const {
+    control,
+    handleSubmit,
+    setFocus,
+    formState: {errors},
+  } = useForm<NewSubDocumentFields>({
+    resolver: zodResolver(newSubDocumentSchema),
+    defaultValues: {
+      pathName: '',
+    },
+  })
+  return (
+    <>
+      <DialogTitle>New Document</DialogTitle>
+      {/* <DialogDescription>description</DialogDescription> */}
+      <Form onSubmit={handleSubmit(onSubmit)} gap="$4">
+        <FormField name="pathName" label="Path Name" errors={errors}>
+          <FormInput
+            control={control}
+            name="pathName"
+            placeholder="my-document"
+          />
+        </FormField>
+        <XStack space="$3" justifyContent="flex-end">
+          <Form.Trigger asChild>
+            <Button>Create Document</Button>
+          </Form.Trigger>
+        </XStack>
+      </Form>
+    </>
+  )
+}
+
+function NewSubDocumentButton({parentDocId}: {parentDocId: string}) {
+  const {open, content} = useAppDialog<string>(NewDocumentDialog)
+  return (
+    <>
+      <Button
+        icon={FilePlus}
+        onPress={() => {
+          open(parentDocId)
+        }}
+      >
+        Create Document
+      </Button>
+      {content}
+    </>
+  )
+}
+
+function AccountPageDocuments({id}: {id: UnpackedHypermediaId}) {
+  const docs = useAccountDocuments(id.eid)
+  return (
+    <PageContainer>
+      {docs.data?.documents.map((doc) => {
+        return (
+          <DocumentListItem
+            key={doc.id}
+            document={doc}
+            author={[]}
+            editors={[]}
+            hasDraft={undefined}
+            menuItems={() => [
+              // copyLinkMenuItem(() => {
+              //   const id = unpackDocId(docId)
+              //   if (!id) return
+              //   onCopyId({
+              //     ...id,
+              //     version: item.document.version || null,
+              //   })
+              // }, 'Document'),
+              // {
+              //   label: 'Delete Document',
+              //   key: 'delete',
+              //   icon: Trash,
+              //   onPress: () => {
+              //     openDelete({
+              //       id: docId,
+              //       title: getDocumentTitle(item.document),
+              //     })
+              //   },
+              // },
+            ]}
+            openRoute={{
+              key: 'document',
+              id: hmId('d', doc.id, {
+                version: doc.version,
+              }),
+            }}
+          />
+        )
+      })}
+    </PageContainer>
+  )
+  return null
 }
