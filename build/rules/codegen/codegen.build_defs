@@ -45,11 +45,13 @@ def generated(
         env = {
             "gen_outs": " ".join(outs),
             "macro_name": name,
+            "OUT_DIR": out_dir,
         },
         cmd = """
 cat > $OUT <<EOF
 export SRCS="$SRCS"
 export OUTS="$gen_outs"
+export OUT_DIR="$OUT_DIR"
 export PKG="$PKG"
 export NAME="$macro_name"
 export CHECKSUM_FILE="$PKG/$macro_name.gensum"

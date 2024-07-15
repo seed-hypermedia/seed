@@ -8,6 +8,7 @@ def mtt_go_proto(name, srcs):
         srcs = srcs,
         outs = pbouts + grpcouts,
         cmd = """
+rm -f $OUT_DIR/*.pb.go
 $TOOLS_PROTOC -I proto \
 --plugin=protoc-gen-go=$TOOLS_PROTOC_GEN_GO \
 --plugin=protoc-gen-go-grpc=$TOOLS_PROTOC_GEN_GO_GRPC \
@@ -29,6 +30,7 @@ def mtt_js_proto(name, srcs):
         srcs = srcs,
         outs = [x.replace(".proto", "_pb.ts") for x in srcs] + [x.replace(".proto", "_connect.ts") for x in srcs],
         cmd = """
+rm -f $OUT_DIR/*_connect.ts $OUT_DIR/*_pb.ts
 $TOOLS_PROTOC -I proto \
 --plugin=protoc-gen-es=$TOOLS_PROTOC_GEN_ES \
 --plugin=protoc-gen-connect-es=$TOOLS_PROTOC_GEN_CONNECT_ES \
