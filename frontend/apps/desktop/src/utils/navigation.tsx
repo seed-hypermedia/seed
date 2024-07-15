@@ -238,6 +238,14 @@ export async function resolveHmIdToAppRoute(
         blockId: hmIds.blockRef || undefined,
       },
     }
+  } else if (hmIds?.type === 'a') {
+    return {
+      ...hmIds,
+      navRoute: {
+        key: 'document',
+        id: {...hmIds, version: null},
+      },
+    }
   }
   if (!hmIds) return null
   const navRoute = appRouteOfId(hmIds)
