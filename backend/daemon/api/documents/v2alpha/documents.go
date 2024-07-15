@@ -24,7 +24,6 @@ import (
 
 // Server implements Documents API v2.
 type Server struct {
-	documents.UnimplementedDraftsServer
 	documents.UnimplementedDocumentsServer
 
 	keys core.KeyStore
@@ -43,7 +42,6 @@ func NewServer(keys core.KeyStore, idx *index.Index, db *sqlitex.Pool) *Server {
 
 // RegisterServer registers the server with the gRPC server.
 func (srv *Server) RegisterServer(rpc grpc.ServiceRegistrar) {
-	documents.RegisterDraftsServer(rpc, srv)
 	documents.RegisterDocumentsServer(rpc, srv)
 }
 
