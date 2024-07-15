@@ -15,7 +15,6 @@ import (
 
 	"crawshaw.io/sqlite"
 	"crawshaw.io/sqlite/sqlitex"
-
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"google.golang.org/grpc"
@@ -57,6 +56,9 @@ func (srv *Server) GetProfileDocument(ctx context.Context, in *documents.GetProf
 	if in.AccountId == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "account_id is required")
 	}
+
+	// Extract the ID if it's a full IRI.
+	in.AccountId = strings.TrimPrefix(in.AccountId, "hm://a/")
 
 	acc, err := core.DecodePrincipal(in.AccountId)
 	if err != nil {
