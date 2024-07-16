@@ -122,6 +122,14 @@ CREATE TABLE resource_links (
 CREATE INDEX resource_links_by_source ON resource_links (source, is_pinned, target);
 CREATE INDEX resource_links_by_target ON resource_links (target, source);
 
+-- Stores seed peers we know about.
+CREATE TABLE peers (
+    -- Index
+    id INTEGER PRIMARY KEY,
+    -- List of addresses in multiaddress format (comma separated)
+    address TEXT UNIQUE NOT NULL
+);
+
 -- Stores Lightning wallets both externals (imported wallets like bluewallet
 -- based on lndhub) and internals (based on the LND embedded node).
 CREATE TABLE wallets (
