@@ -1,7 +1,7 @@
 import {ScrollView, SizableText, Tooltip, XStack, YStack} from '@shm/ui'
 import {ComponentProps} from 'react'
 import {Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
-import {Button, useTheme, View} from 'tamagui'
+import {Button, useTheme} from 'tamagui'
 
 export function AccessoryContainer({
   children,
@@ -58,9 +58,9 @@ export function AccessoryLayout<
   return (
     <PanelGroup direction="horizontal">
       <Panel minSize={50}>
-        <View position="relative">
-          {children}
-          <YStack position="absolute" right={0} top={0} padding="$3" gap="$2">
+        <XStack>
+          <YStack f={1}>{children}</YStack>
+          <YStack padding="$3" gap="$2">
             {accessoryOptions.map((option) => {
               const isActive = accessoryKey === option.key
               return (
@@ -96,18 +96,24 @@ export function AccessoryLayout<
               )
             })}
           </YStack>
-        </View>
+        </XStack>
       </Panel>
-      {accessory ? (
-        <>
-          <PanelResizeHandle
-            style={{backgroundColor: theme.color6.val, width: 4}}
-          />
-          <Panel maxSize={50} minSize={10} defaultSize={20}>
-            {accessory}
-          </Panel>
-        </>
-      ) : null}
+      <PanelResizeHandle
+        style={{backgroundColor: theme.color6.val, width: 4}}
+      />
+      <Panel
+        collapsible
+        hidden={accessoryKey === undefined}
+        onCollapse={() => {
+          onAccessorySelect(undefined)
+        }}
+        collapsedSize={1}
+        maxSize={50}
+        minSize={20}
+        defaultSize={20}
+      >
+        {accessory}
+      </Panel>
     </PanelGroup>
   )
 }
