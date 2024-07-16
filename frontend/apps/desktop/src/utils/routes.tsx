@@ -1,13 +1,7 @@
 import {unpackedHmIdSchema} from '@shm/shared'
 import {z} from 'zod'
 
-export const defaultRoute: NavRoute = {key: 'home'}
-
-export const homeRouteSchema = z.object({
-  key: z.literal('home'),
-})
-
-export type HomeRoute = z.infer<typeof homeRouteSchema>
+export const defaultRoute: NavRoute = {key: 'library'}
 
 export const feedRouteSchema = z.object({
   key: z.literal('feed'),
@@ -117,14 +111,14 @@ export const draftRebaseRouteSchema = z.object({
 })
 export type DeletedContentRoute = z.infer<typeof deletedContentRouteSchema>
 
-export const contentRouteSchema = z.object({
-  key: z.literal('content'),
+export const libraryRouteSchema = z.object({
+  key: z.literal('library'),
 })
-export type ContentRoute = z.infer<typeof contentRouteSchema>
+export type LibraryRoute = z.infer<typeof libraryRouteSchema>
 
 export const navRouteSchema = z.discriminatedUnion('key', [
   feedRouteSchema,
-  contentRouteSchema,
+  libraryRouteSchema,
   contactsRouteSchema,
   settingsRouteSchema,
   documentRouteSchema,
@@ -135,7 +129,6 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   exploreRouteSchema,
   favoritesSchema,
   deletedContentRouteSchema,
-  homeRouteSchema,
 ])
 export type NavRoute = z.infer<typeof navRouteSchema>
 

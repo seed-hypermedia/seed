@@ -1,6 +1,5 @@
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {Home} from '@shm/ui'
 import {Contact, File, Sparkles} from '@tamagui/lucide-icons'
 import {memo} from 'react'
 import {GenericSidebarContainer, SidebarItem} from './sidebar-base'
@@ -14,7 +13,7 @@ export function MainAppSidebar() {
 
   return (
     <GenericSidebarContainer>
-      <SidebarItem
+      {/* <SidebarItem
         active={route.key == 'home'}
         onPress={() => {
           navigate({key: 'home'})
@@ -22,8 +21,8 @@ export function MainAppSidebar() {
         title="Home"
         bold
         icon={Home}
-      />
-      <SidebarItem
+      /> */}
+      {/* <SidebarItem
         active={route.key == 'feed'}
         onPress={() => {
           navigate({key: 'feed'})
@@ -31,13 +30,13 @@ export function MainAppSidebar() {
         title="Feed"
         bold
         icon={Home}
-      />
+      /> */}
       <SidebarItem
-        active={route.key == 'content'}
+        active={route.key == 'library'}
         onPress={() => {
-          navigate({key: 'content'})
+          navigate({key: 'library'})
         }}
-        title="My Content"
+        title="Library"
         bold
         icon={File}
         rightHover={[]}

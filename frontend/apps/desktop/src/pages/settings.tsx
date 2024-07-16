@@ -1,4 +1,4 @@
-import {useIPC} from '@/app-context'
+import {useIPC, useQueryInvalidator} from '@/app-context'
 
 import {Avatar} from '@/components/avatar'
 import {AvatarForm} from '@/components/avatar-form'
@@ -345,6 +345,8 @@ export function ProfileInfo() {
 function AccountKeys() {
   const deleteKey = useDeleteKey()
   const keys = useMyAccountIds()
+  const deleteWords = trpc.secureStorage.delete.useMutation()
+  const invalidate = useQueryInvalidator()
   const [selectedAccount, setSelectedAccount] = useState<undefined | string>(
     () => {
       if (keys.data && keys.data.length == 1) {
@@ -362,19 +364,30 @@ function AccountKeys() {
 
   function handleDeleteCurrentAccount() {
     if (!selectedAccount) return
-    deleteKey.mutateAsync({accountId: selectedAccount}).then(() => {})
+    deleteKey.mutateAsync({accountId: selectedAccount}).then(() => {
+      setSelectedAccount(undefined)
+      toast.success('Profile removed correctly')
+    })
   }
 
   const {data: profile} = useEntity(
     selectedAccount ? hmId('a', selectedAccount) : undefined,
   )
 
+  console.log('=== selectedAccount', selectedAccount)
+
   const mnemonics = useSavedMnemonics()
   const [showWords, setShowWords] = useState<boolean>(false)
 
-  return (
+  function handleDeleteWords() {
+    deleteWords.mutateAsync('main').then(() => {
+      invalidate(['trpc.secureStorage.get'])
+    })
+  }
+
+  return keys.data?.length && selectedAccount ? (
     <XStack style={{flex: 1, height: '100%'}} gap="$4">
-      <YStack f={1} borderColor="$color7" borderWidth={1}>
+      <YStack f={1} maxWidth="25%" borderColor="$color7" borderWidth={1}>
         <YStack f={1}>
           {keys.data?.map((key) => (
             <ListItem
@@ -472,41 +485,99 @@ function AccountKeys() {
           </YStack>
         </XStack>
         {mnemonics ? (
-          <XStack gap="$3">
-            <Field label="Secret Words" id="words">
-              <TextArea
-                borderColor="$colorTransparent"
-                borderWidth={0}
-                f={1}
-                disabled
-                value={
-                  showWords
-                    ? mnemonics.join(', ')
-                    : '**** **** **** **** **** **** **** **** **** **** **** ****'
-                }
-              />
-            </Field>
+          <YStack>
+            <XStack gap="$3">
+              <Field label="Secret Words" id="words">
+                <TextArea
+                  borderColor="$colorTransparent"
+                  borderWidth={0}
+                  f={1}
+                  disabled
+                  value={
+                    showWords
+                      ? mnemonics.join(', ')
+                      : '**** **** **** **** **** **** **** **** **** **** **** ****'
+                  }
+                />
+              </Field>
 
-            <YStack gap="$2">
-              <Button
-                size="$2"
-                icon={showWords ? EyeOff : Eye}
-                onPress={() => setShowWords((v) => !v)}
-              />
-              <Button
-                size="$2"
-                icon={Copy}
-                onPress={() => {
-                  copyTextToClipboard(mnemonics.join(', '))
-                  toast.success('Words copied to clipboard')
-                }}
-              />
-            </YStack>
-          </XStack>
+              <YStack gap="$2">
+                <Button
+                  size="$2"
+                  icon={showWords ? EyeOff : Eye}
+                  onPress={() => setShowWords((v) => !v)}
+                />
+                <Button
+                  size="$2"
+                  icon={Copy}
+                  onPress={() => {
+                    copyTextToClipboard(mnemonics.join(', '))
+                    toast.success('Words copied to clipboard')
+                  }}
+                />
+              </YStack>
+            </XStack>
+            <AlertDialog native>
+              <AlertDialog.Trigger asChild>
+                <Button chromeless size="$2">
+                  Delete Words from this device
+                </Button>
+              </AlertDialog.Trigger>
+              <AlertDialog.Portal>
+                <AlertDialog.Overlay
+                  key="overlay"
+                  animation="quick"
+                  opacity={0.5}
+                  enterStyle={{opacity: 0}}
+                  exitStyle={{opacity: 0}}
+                />
+                <AlertDialog.Content
+                  bordered
+                  elevate
+                  key="content"
+                  animation={[
+                    'quick',
+                    {
+                      opacity: {
+                        overshootClamping: true,
+                      },
+                    },
+                  ]}
+                  enterStyle={{x: 0, y: -20, opacity: 0, scale: 0.9}}
+                  exitStyle={{x: 0, y: 10, opacity: 0, scale: 0.95}}
+                  x={0}
+                  scale={1}
+                  opacity={1}
+                  y={0}
+                >
+                  <AlertDialog.Title>Delete Words</AlertDialog.Title>
+                  <AlertDialog.Description>
+                    {`Are you really sure? you cant recover the secret words after you delete them. please save them securely in another place before you delete`}
+                  </AlertDialog.Description>
+                  <XStack gap="$3" justifyContent="flex-end">
+                    <AlertDialog.Cancel asChild>
+                      <Button>Cancel</Button>
+                    </AlertDialog.Cancel>
+                    <AlertDialog.Action asChild>
+                      <Button theme="active" onPress={handleDeleteWords}>
+                        Accept
+                      </Button>
+                    </AlertDialog.Action>
+                  </XStack>
+                </AlertDialog.Content>
+              </AlertDialog.Portal>
+            </AlertDialog>
+          </YStack>
         ) : null}
 
         {/* <SizableText>{JSON.stringify(account, null, 4)}</SizableText> */}
       </YStack>
+    </XStack>
+  ) : (
+    <XStack style={{flex: 1, height: '100%'}} gap="$4" ai="center" jc="center">
+      <Button onPress={() => dispatchWizardEvent(true)}>
+        Create a new Profile
+      </Button>
     </XStack>
   )
 }

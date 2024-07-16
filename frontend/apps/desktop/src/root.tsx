@@ -209,6 +209,9 @@ function MainApp({
           utils.drafts.get.invalidate()
         } else if (value[0] == 'trpc.drafts.list') {
           utils.drafts.list.invalidate()
+        } else if (value[0] == 'trpc.secureStorage.get') {
+          utils.secureStorage.invalidate()
+          utils.secureStorage.read.invalidate()
         } else if (queryClient.client) {
           queryClient.client.invalidateQueries(value)
         }

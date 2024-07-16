@@ -25,4 +25,7 @@ export const secureStorageApi = t.router({
     const plainText = safeStorage.decryptString(Buffer.from(encrypted))
     return JSON.parse(plainText)
   }),
+  delete: t.procedure.input(z.string()).mutation(({input}) => {
+    secureStore.delete(input)
+  }),
 })

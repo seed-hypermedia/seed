@@ -19,6 +19,7 @@ import {
   createPublicWebHmUrl,
   ExpandedBlockRange,
   unpackDocId,
+  unpackHmId,
   useDocContentContext,
   useHeadingTextStyles,
 } from '@shm/shared'
@@ -29,7 +30,7 @@ import {useEffect, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {YStack} from 'tamagui'
 import {ActorRefFrom} from 'xstate'
-import {useShowTitle} from './app-title'
+import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'
 
 export default function DraftPage() {
@@ -38,6 +39,10 @@ export default function DraftPage() {
   const importWebFile = trpc.webImporting.importWebFile.useMutation()
   const [isDragging, setIsDragging] = useState(false)
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
+
+  const unpacked = unpackHmId(route.id)
+  console.log('INDEXPATH OUTSIDE USEENTITY', route, unpacked)
+  // return null
 
   let data = useDraftEditor({
     id: route.id,
@@ -250,7 +255,7 @@ export function DraftHeader({
   })
 
   const input = useRef<HTMLTextAreaElement | null>(null)
-  useShowTitle(input.current)
+  useShowTitleObserver(input.current)
   useEffect(() => {
     // handle the initial size of the title
     const target = input.current

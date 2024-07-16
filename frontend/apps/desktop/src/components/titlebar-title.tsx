@@ -1,7 +1,7 @@
 import {useSizeObserver} from '@/components/app-embeds'
 import {useDraftName} from '@/models/documents'
 import {useRouteBreadcrumbRoutes, useRouteEntities} from '@/models/entities'
-import {showTitleEvent} from '@/pages/app-title'
+import {useShowTitle} from '@/pages/app-title'
 import {useNavRoute} from '@/utils/navigation'
 import {DocumentRoute, DraftRoute, NavRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
@@ -12,6 +12,7 @@ import {
   FontSizeTokens,
   Home,
   Popover,
+  TextProps,
   TitleText,
   XStack,
   YStack,
@@ -24,7 +25,11 @@ import {getItemDetails} from './sidebar-neo'
 
 export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
   const route = useNavRoute()
-
+  const titleProps: TextProps = {
+    size,
+    fontWeight: 'bold',
+    'data-testid': 'titlebar-title',
+  }
   useEffect(() => {
     async function getTitleOfRoute(route: NavRoute): Promise<string> {
       if (route.key === 'contacts') return 'Contacts'
@@ -42,9 +47,7 @@ export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
     return (
       <>
         <Home size={12} />
-        <TitleText size={size} fontWeight="bold" data-testid="titlebar-title">
-          Home Feed
-        </TitleText>
+        <TitleText {...titleProps}>Feed</TitleText>
       </>
     )
   }
@@ -52,9 +55,7 @@ export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
     return (
       <>
         <Contact size={12} />
-        <TitleText data-testid="titlebar-title" size={size}>
-          Contacts
-        </TitleText>
+        <TitleText {...titleProps}>Contacts</TitleText>
       </>
     )
   }
@@ -62,7 +63,7 @@ export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
     return (
       <>
         <Sparkles size={12} />
-        <TitleText size={size}>Explore</TitleText>
+        <TitleText {...titleProps}>Explore</TitleText>
       </>
     )
   }
@@ -70,15 +71,15 @@ export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
     return (
       <>
         <Star size={12} />
-        <TitleText size={size}>Favorites</TitleText>
+        <TitleText {...titleProps}>Favorites</TitleText>
       </>
     )
   }
-  if (route.key === 'content') {
+  if (route.key === 'library') {
     return (
       <>
         <File size={12} />
-        <TitleText size={size}>My Content</TitleText>
+        <TitleText {...titleProps}>Library</TitleText>
       </>
     )
   }
@@ -395,18 +396,14 @@ function DraftName({
   const title = useDraftName({
     documentId: route.id,
   })
-  const [show, setShow] = useState(false)
+  const {show} = useShowTitle('titlebar')
   const realTitle = title ?? 'Untitled Document'
   // const fixedTitle = useFixedDraftTitle(route)
   // TODO: check wtf is this
   const fixedTitle = undefined
   const displayTitle = fixedTitle || realTitle
   useWindowTitle(displayTitle ? `Draft: ${displayTitle}` : undefined)
-  useEffect(() => {
-    showTitleEvent.subscribe((value) => {
-      setShow(value == 'titlebar')
-    })
-  }, [])
+
   return show ? (
     <>
       <TitleText data-testid="titlebar-title" size={size}>

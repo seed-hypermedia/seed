@@ -128,7 +128,7 @@ export const unpackedHmIdSchema = z.object({
   ]),
   eid: z.string(),
   qid: z.string(),
-  indexPath: z.string().nullable(),
+  indexPath: z.string(),
   version: z.string().nullable(),
   blockRef: z.string().nullable(),
   blockRange: z
@@ -191,7 +191,9 @@ export function hmId(
 export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
   if (!hypermediaId) return null
   const parsed = parseCustomURL(hypermediaId)
+
   if (!parsed) return null
+  console.log(`== ~ unpackHmId ~ parsed:`, parsed)
   if (parsed.scheme === HYPERMEDIA_SCHEME) {
     const type = inKeys(parsed?.path[0], HYPERMEDIA_ENTITY_TYPES)
     const eid = parsed.path[1]

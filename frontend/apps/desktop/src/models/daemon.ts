@@ -120,10 +120,8 @@ export function useDeleteKey(
   const invalidate = useQueryInvalidator()
   return useMutation({
     mutationFn: async ({accountId}) => {
-      console.log('is deleting key', accountId)
       const keys = await grpcClient.daemon.listKeys({})
       const keyToDelete = keys.keys.find((key) => accountId === key.publicKey)
-      console.log(keys.keys, keyToDelete)
       if (!keyToDelete) throw new Error('Key not found')
       return grpcClient.daemon.deleteKey({name: keyToDelete.name})
     },

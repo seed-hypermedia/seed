@@ -1,11 +1,12 @@
 import {eventStream} from '@shm/shared'
-import {useEffect, useRef} from 'react'
+import {useEffect, useRef, useState} from 'react'
 
-export const [dispatchShowTitleEvent, showTitleEvent] = eventStream<
-  'page' | 'titlebar'
->()
+type TitlebatKeys = 'page' | 'titlebar'
 
-export function useShowTitle(ref: HTMLElement | null) {
+export const [dispatchShowTitleEvent, showTitleEvent] =
+  eventStream<TitlebatKeys>()
+
+export function useShowTitleObserver(ref: HTMLElement | null) {
   const triggered = useRef(false)
   const observer = new IntersectionObserver((entries) => {
     entries.forEach((entry) => {
@@ -24,4 +25,19 @@ export function useShowTitle(ref: HTMLElement | null) {
       triggered.current = true
     }
   }, [ref])
+}
+
+export function useShowTitle(key: TitlebatKeys) {
+  const [show, setShow] = useState(false)
+
+  useEffect(() => {
+    showTitleEvent.subscribe((value) => {
+      setShow(value == key)
+    })
+  }, [])
+
+  return {
+    show,
+    setShow,
+  }
 }

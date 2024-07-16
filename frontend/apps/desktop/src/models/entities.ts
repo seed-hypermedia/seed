@@ -14,7 +14,7 @@ import {
 } from '@tanstack/react-query'
 import {useMemo} from 'react'
 import {useGRPCClient, useQueryInvalidator} from '../app-context'
-import {DocumentRoute, NavRoute} from '../utils/routes'
+import {DocumentRoute, DraftRoute, NavRoute} from '../utils/routes'
 import {queryKeys} from './query-keys'
 import {useDeleteRecent} from './recents'
 
@@ -110,20 +110,23 @@ export function useUndeleteEntity(
   })
 }
 
-function getRouteBreadrumbRoutes(route: NavRoute): DocumentRoute[] {
+function getRouteBreadrumbRoutes(
+  route: NavRoute,
+): Array<DocumentRoute | DraftRoute> {
   if (route.key === 'document') {
     // TODO, determine breadcrumbs based on route.id
     return [route]
   }
   if (route.key === 'draft') {
-    const draftRoute = route
-    // TODO, determine breadcrumbs based on route.id
-    return []
+    // TODO: eric determine breadcrumbs based on route.id
+    return [route]
   }
   return []
 }
 
-export function useRouteBreadcrumbRoutes(route: NavRoute): DocumentRoute[] {
+export function useRouteBreadcrumbRoutes(
+  route: NavRoute,
+): Array<DocumentRoute | DraftRoute> {
   return useMemo(() => {
     return getRouteBreadrumbRoutes(route)
   }, [route])
@@ -146,35 +149,44 @@ export function queryEntity(
   return {
     ...options,
     enabled: options?.enabled ?? !!id,
-    queryKey: [queryKeys.ENTITY, id?.qid, id?.version],
+    queryKey: [queryKeys.ENTITY, id, id?.version],
     queryFn: async (): Promise<HMEntityContent | null> => {
       if (!id) return null
-      const {type, qid, version, eid} = id
-      if (type === 'a') {
-        const [account, profile] = await Promise.all([
-          catchNotFound(grpcClient.accounts.getAccount({id: eid})),
-          catchNotFound(
-            grpcClient.documents.getProfileDocument({
-              accountId: eid,
-              version: version || undefined,
-            }),
-          ),
-        ])
-        return {
-          type: 'a',
-          id,
-          document: profile ? toPlainMessage(profile) : null,
-          account: account ? toPlainMessage(account) : null,
+      const {type, qid, version, eid, indexPath} = id
+      if (indexPath) {
+        // TODO: horacio wait for backend implementation of GetDocument
+        // const document = await grpcClient.documents.getDocument({
+        //   documentId: rawId,
+        //   version: version || undefined,
+        // })
+        // return {type: 'd', id, document: toPlainMessage(document)}
+      } else {
+        if (type === 'd') {
+          const document = await grpcClient.documents.getDocument({
+            documentId: qid,
+            version: version || undefined,
+          })
+          return {type: 'd', id, document: toPlainMessage(document)}
+        }
+        if (type === 'a') {
+          const [account, profile] = await Promise.all([
+            catchNotFound(grpcClient.accounts.getAccount({id: eid})),
+            catchNotFound(
+              grpcClient.documents.getProfileDocument({
+                accountId: eid,
+                version: version || undefined,
+              }),
+            ),
+          ])
+          return {
+            type: 'a',
+            id,
+            document: profile ? toPlainMessage(profile) : null,
+            account: account ? toPlainMessage(account) : null,
+          }
         }
       }
-      if (type === 'd') {
-        console.log('aa 3', qid, version)
-        const document = await grpcClient.documents.getDocument({
-          documentId: qid,
-          version: version || undefined,
-        })
-        return {type: 'd', id, document: toPlainMessage(document)}
-      }
+
       return null
     },
   }

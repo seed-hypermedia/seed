@@ -17,7 +17,6 @@ import {DocumentPlaceholder} from './document-placeholder'
 import './polyfills'
 
 var Feed = lazy(() => import('./feed'))
-var Home = lazy(() => import('./home'))
 var Settings = lazy(() => import('./settings'))
 var Contacts = lazy(() => import('./contacts-page'))
 var Document = lazy(() => import('./document'))
@@ -25,7 +24,7 @@ var Draft = lazy(() => import('./draft'))
 var Comment = lazy(() => import('./comment'))
 var CommentDraft = lazy(() => import('./comment-draft'))
 var Explore = lazy(() => import('./explore'))
-var Content = lazy(() => import('./content'))
+var Library = lazy(() => import('./library'))
 var Favorites = lazy(() => import('./favorites'))
 var DeletedContent = lazy(() => import('./deleted-content'))
 var DraftRebase = lazy(() => import('./draft-rebase'))
@@ -97,11 +96,6 @@ export default function Main({className}: {className?: string}) {
 
 function getPageComponent(navRoute: NavRoute) {
   switch (navRoute.key) {
-    case 'home':
-      return {
-        PageComponent: Home,
-        Fallback: BaseLoading,
-      }
     case 'feed':
       return {
         PageComponent: Feed,
@@ -132,9 +126,9 @@ function getPageComponent(navRoute: NavRoute) {
         PageComponent: Settings,
         Fallback: BaseLoading,
       }
-    case 'content': {
+    case 'library': {
       return {
-        PageComponent: Content,
+        PageComponent: Library,
         Fallback: BaseLoading,
       }
     }
