@@ -76,7 +76,7 @@ func New(
 		Activity:    activity.NewServer(db),
 		Daemon:      daemon.NewServer(repo, blobs, wallet, doSync),
 		Documents:   documentsSrv,
-		Networking:  networking.NewServer(blobs, node),
+		Networking:  networking.NewServer(blobs, node, db),
 		Entities:    entities.NewServer(blobs, &lazyDiscoverer{}),
 		DocumentsV2: documentsv2.NewServer(repo.KeyStore(), idx, db),
 		Syncing:     sync,

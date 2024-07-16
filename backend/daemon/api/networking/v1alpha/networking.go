@@ -3,12 +3,18 @@ package networking
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/netip"
+	"seed/backend/daemon/apiutil"
 	networking "seed/backend/genproto/networking/v1alpha"
 	"seed/backend/hyper"
 	"seed/backend/ipfs"
 	"seed/backend/mttnet"
+	"seed/backend/pkg/dqb"
 	"strings"
+
+	"crawshaw.io/sqlite"
+	"crawshaw.io/sqlite/sqlitex"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/grpc"
@@ -20,13 +26,15 @@ import (
 type Server struct {
 	blobs *hyper.Storage
 	net   *mttnet.Node
+	db    *sqlitex.Pool
 }
 
 // NewServer returns a new networking API server.
-func NewServer(blobs *hyper.Storage, node *mttnet.Node) *Server {
+func NewServer(blobs *hyper.Storage, node *mttnet.Node, db *sqlitex.Pool) *Server {
 	return &Server{
 		blobs: blobs,
 		net:   node,
+		db:    db,
 	}
 }
 
@@ -59,46 +67,90 @@ func (srv *Server) Connect(ctx context.Context, in *networking.ConnectRequest) (
 	return &networking.ConnectResponse{}, nil
 }
 
+var qListPeers = dqb.Str(`
+	SELECT 
+		id,
+		addresses
+	FROM peers
+	WHERE id < :last_cursor
+	ORDER BY id DESC LIMIT :page_size + 1;
+`)
+
 // ListPeers filters peers by status. If no status provided, it lists all peers.
 func (srv *Server) ListPeers(ctx context.Context, in *networking.ListPeersRequest) (*networking.ListPeersResponse, error) {
 	net := srv.net
 
 	out := &networking.ListPeersResponse{}
 
-	pids := net.Libp2p().Peerstore().Peers()
+	conn, release, err := srv.db.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	type Cursor struct {
+		ID   int64  `json:"i"`
+		Addr string `json:"a"`
+	}
+	var (
+		count      int32
+		lastCursor Cursor
+	)
+	peersInfo := []peer.AddrInfo{}
+	if in.PageSize <= 0 {
+		in.PageSize = 30
+	}
+	if in.PageToken == "" {
+		lastCursor.ID = math.MaxInt64
+		lastCursor.Addr = string([]rune{0xFFFF}) // Max string.
+	} else {
+		if err := apiutil.DecodePageToken(in.PageToken, &lastCursor, nil); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
+	}
+	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
+		if count == in.PageSize {
+			var err error
+			out.NextPageToken, err = apiutil.EncodePageToken(lastCursor, nil)
+			return err
+		}
+		count++
+		id := stmt.ColumnInt64(0)
+		maStr := stmt.ColumnText(1)
+		lastCursor.ID = id
+		lastCursor.Addr = maStr
+		maList := strings.Split(strings.Trim(maStr, " "), ",")
+		info, err := mttnet.AddrInfoFromStrings(maList...)
+		if err != nil {
+			return err
+		}
+		peersInfo = append(peersInfo, info)
+		return nil
+	}, lastCursor.ID, in.PageSize); err != nil {
+		return nil, err
+	}
 
-	out.Peers = make([]*networking.PeerInfo, 0, len(pids))
+	out.Peers = make([]*networking.PeerInfo, 0, len(peersInfo))
 
-	for _, pid := range pids {
-
+	for _, peer := range peersInfo {
 		// Skip our own peer.
-		if pid == net.Libp2p().ID() {
+		if peer.ID == net.Libp2p().ID() {
 			continue
 		}
 
-		// Skip non-seed peers
-		if !net.Libp2p().ConnManager().IsProtected(pid, mttnet.ProtocolSupportKey) {
-			continue
-		}
 		var aidString string
-		pids := pid.String()
-		aid, err := net.AccountForDevice(ctx, pid)
+		pids := peer.ID.String()
+		addrs := mttnet.AddrInfoToStrings(peer)
+		aid, err := net.AccountForDevice(ctx, peer.ID)
 		if err == nil {
 			aidString = aid.String()
 		}
 
-		addrinfo := net.Libp2p().Peerstore().PeerInfo(pid)
-		mas, err := peer.AddrInfoToP2pAddrs(&addrinfo)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get device addrs: %w", err)
-		}
-
-		connectedness := net.Libp2p().Network().Connectedness(pid)
+		connectedness := net.Libp2p().Network().Connectedness(peer.ID)
 
 		out.Peers = append(out.Peers, &networking.PeerInfo{
 			Id:               pids,
 			AccountId:        aidString,
-			Addrs:            ipfs.StringAddrs(mas),
+			Addrs:            addrs,
 			ConnectionStatus: networking.ConnectionStatus(connectedness), // ConnectionStatus is a 1-to-1 mapping for the libp2p connectedness.
 		})
 	}

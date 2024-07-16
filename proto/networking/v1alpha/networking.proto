@@ -23,12 +23,21 @@ message GetPeerInfoRequest {
 }
 
 // Request to get peer's addresses.
-message ListPeersRequest {}
+message ListPeersRequest {
+  // Optional. Number of results per page. Default is defined by the server.
+  int32 page_size = 1;
+
+  // Optional. Value from next_page_token obtains from a previous response.
+  string page_token = 2;
+}
 
 // Various details about a list of peers.
 message ListPeersResponse {
   // List of known Hyper Media peers.
   repeated PeerInfo peers = 1;
+
+  // Token for the next page if there're more results.
+  string next_page_token = 2;
 }
 
 // Request for connecting to a peer explicitly.

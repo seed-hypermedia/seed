@@ -76,6 +76,20 @@ const (
 	C_KVValue = "kv.value"
 )
 
+// Table peers.
+const (
+	Peers        sqlitegen.Table  = "peers"
+	PeersAddress sqlitegen.Column = "peers.address"
+	PeersID      sqlitegen.Column = "peers.id"
+)
+
+// Table peers. Plain strings.
+const (
+	T_Peers        = "peers"
+	C_PeersAddress = "peers.address"
+	C_PeersID      = "peers.id"
+)
+
 // Table public_keys.
 const (
 	PublicKeys          sqlitegen.Table  = "public_keys"
@@ -214,6 +228,8 @@ var Schema = sqlitegen.Schema{
 		DeletedResourcesReason:     {Table: DeletedResources, SQLType: "TEXT"},
 		KVKey:                      {Table: KV, SQLType: "TEXT"},
 		KVValue:                    {Table: KV, SQLType: "TEXT"},
+		PeersAddress:               {Table: Peers, SQLType: "TEXT"},
+		PeersID:                    {Table: Peers, SQLType: "INTEGER"},
 		PublicKeysID:               {Table: PublicKeys, SQLType: "INTEGER"},
 		PublicKeysPrincipal:        {Table: PublicKeys, SQLType: "BLOB"},
 		ResourceLinksExtraAttrs:    {Table: ResourceLinks, SQLType: "JSONB"},

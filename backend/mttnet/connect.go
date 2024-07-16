@@ -6,8 +6,13 @@ import (
 	"fmt"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hyper"
+	"seed/backend/pkg/dqb"
 	"strings"
+
 	"time"
+
+	"crawshaw.io/sqlite"
+	"crawshaw.io/sqlite/sqlitex"
 
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
@@ -46,6 +51,12 @@ func (n *Node) ForceConnect(ctx context.Context, info peer.AddrInfo) error {
 	return n.connect(ctx, info, true)
 }
 
+var qGetPeer = dqb.Str(`
+	SELECT 
+		pid
+	FROM peers WHERE pid =:pid LIMIT 1;
+`)
+
 func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err error) {
 	mConnectsInFlight.Inc()
 	defer mConnectsInFlight.Dec()
@@ -55,7 +66,27 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	}
 
 	isConnected := n.p2p.Host.Network().Connectedness(info.ID) == network.Connected
-	didHandshake := n.p2p.ConnManager().IsProtected(info.ID, ProtocolSupportKey)
+
+	conn, release, err := n.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+	didHandshake := false
+	if err = sqlitex.Exec(conn, qGetPeer(), func(stmt *sqlite.Stmt) error {
+		pidStr := stmt.ColumnText(0)
+		pid, err := peer.Decode(pidStr)
+		if err != nil {
+			return err
+		}
+		if pid.String() != info.ID.String() {
+			return fmt.Errorf("found PID does not equal provided PID")
+		}
+		didHandshake = true
+		return nil
+	}, info.ID); err != nil {
+		return err
+	}
 
 	if isConnected && didHandshake {
 		return nil
@@ -86,8 +117,9 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	if err := n.checkHyperMediaProtocolVersion(ctx, info.ID, n.protocol.version); err != nil {
 		return err
 	}
-	n.p2p.ConnManager().Protect(info.ID, ProtocolSupportKey)
-	return nil
+
+	addrsStr := AddrInfoToStrings(info)
+	return sqlitex.Exec(conn, "INSERT OR REPLACE INTO peers (pid, addresses) VALUES (?, ?);", nil, info.ID.String(), strings.Join(addrsStr, ","))
 	//TODO(hm24): Handshake still valid?
 	/*
 		c, err := n.client.Dial(ctx, info.ID)

@@ -124,10 +124,12 @@ CREATE INDEX resource_links_by_target ON resource_links (target, source);
 
 -- Stores seed peers we know about.
 CREATE TABLE peers (
-    -- Index
+    -- Internal index used for pagination
     id INTEGER PRIMARY KEY,
+    -- Network unique peer identifier.
+    pid TEXT UNIQUE NOT NULL,
     -- List of addresses in multiaddress format (comma separated)
-    address TEXT UNIQUE NOT NULL
+    addresses TEXT UNIQUE NOT NULL
 );
 
 -- Stores Lightning wallets both externals (imported wallets like bluewallet

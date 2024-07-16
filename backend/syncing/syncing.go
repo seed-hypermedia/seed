@@ -171,12 +171,29 @@ func (s *Service) Start(ctx context.Context) (err error) {
 	}
 }
 
+var qListPeers = dqb.Str(`
+	SELECT 
+		pid
+	FROM peers;
+`)
+
 func (s *Service) refreshWorkers(ctx context.Context) error {
 	peers := make(map[peer.ID]struct{}, int(float64(len(s.workers))*1.5)) // arbitrary multiplier to avoid map resizing.
-	for _, pid := range s.host.Peerstore().Peers() {
-		if s.host.ConnManager().IsProtected(pid, mttnet.ProtocolSupportKey) {
-			peers[pid] = struct{}{}
+	conn, release, err := s.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
+		pidStr := stmt.ColumnText(0)
+		pid, err := peer.Decode(pidStr)
+		if err != nil {
+			return err
 		}
+		peers[pid] = struct{}{}
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	var workersDiff int
@@ -258,12 +275,23 @@ func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
 	}
 	defer s.mu.Unlock()
 
-	allPeers := s.host.Peerstore().Peers()
 	seedPeers := []peer.ID{}
-	for _, peer := range allPeers {
-		if s.host.ConnManager().IsProtected(peer, mttnet.ProtocolSupportKey) {
-			seedPeers = append(seedPeers, peer)
+
+	conn, release, err := s.db.Conn(ctx)
+	if err != nil {
+		return res, err
+	}
+	defer release()
+	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
+		pidStr := stmt.ColumnText(0)
+		pid, err := peer.Decode(pidStr)
+		if err != nil {
+			return err
 		}
+		seedPeers = append(seedPeers, pid)
+		return nil
+	}); err != nil {
+		return res, err
 	}
 	res.Peers = make([]peer.ID, len(seedPeers))
 	res.Errs = make([]error, len(seedPeers))

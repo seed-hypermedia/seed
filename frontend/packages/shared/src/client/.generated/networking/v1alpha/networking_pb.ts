@@ -97,6 +97,20 @@ export class GetPeerInfoRequest extends Message<GetPeerInfoRequest> {
  * @generated from message com.seed.networking.v1alpha.ListPeersRequest
  */
 export class ListPeersRequest extends Message<ListPeersRequest> {
+  /**
+   * Optional. Number of results per page. Default is defined by the server.
+   *
+   * @generated from field: int32 page_size = 1;
+   */
+  pageSize = 0;
+
+  /**
+   * Optional. Value from next_page_token obtains from a previous response.
+   *
+   * @generated from field: string page_token = 2;
+   */
+  pageToken = "";
+
   constructor(data?: PartialMessage<ListPeersRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -105,6 +119,8 @@ export class ListPeersRequest extends Message<ListPeersRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.networking.v1alpha.ListPeersRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 2, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListPeersRequest {
@@ -137,6 +153,13 @@ export class ListPeersResponse extends Message<ListPeersResponse> {
    */
   peers: PeerInfo[] = [];
 
+  /**
+   * Token for the next page if there're more results.
+   *
+   * @generated from field: string next_page_token = 2;
+   */
+  nextPageToken = "";
+
   constructor(data?: PartialMessage<ListPeersResponse>) {
     super();
     proto3.util.initPartial(data, this);
@@ -146,6 +169,7 @@ export class ListPeersResponse extends Message<ListPeersResponse> {
   static readonly typeName = "com.seed.networking.v1alpha.ListPeersResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "peers", kind: "message", T: PeerInfo, repeated: true },
+    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListPeersResponse {
@@ -173,7 +197,7 @@ export class ListPeersResponse extends Message<ListPeersResponse> {
 export class ConnectRequest extends Message<ConnectRequest> {
   /**
    * A list of multiaddrs for the same peer ID to attempt p2p connection.
-   * For example `/ip4/10.0.0.1/tcp/56000/p2p/QmDeadBeef`.
+   * For example `/ip4/10.0.0.1/tcp/55000/p2p/QmDeadBeef`.
    *
    * @generated from field: repeated string addrs = 1;
    */
