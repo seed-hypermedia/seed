@@ -8,8 +8,8 @@ import (
 	documents "seed/backend/genproto/documents/v2alpha"
 	networking "seed/backend/genproto/networking/v1alpha"
 	"seed/backend/mttnet"
-	"seed/backend/pkg/debugx"
 	"seed/backend/pkg/must"
+	"seed/backend/testutil"
 	"testing"
 	"time"
 
@@ -106,7 +106,37 @@ func TestDaemonUpdateProfile(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	debugx.Dump(doc)
+	// Step 1 & 3: Define and construct the expected document structure
+	want := &documents.Document{
+		Metadata: map[string]string{
+			"title": "Alice from the Wonderland",
+		},
+		Owner:   alice.Account.Principal().String(),
+		Authors: []string{alice.Account.Principal().String()},
+		Content: []*documents.BlockNode{
+			{
+				Block: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Hello",
+				},
+				Children: []*documents.BlockNode{
+					{
+						Block: &documents.Block{
+							Id:   "b2",
+							Type: "paragraph",
+							Text: "World!",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	testutil.StructsEqual(want, doc).
+		IgnoreFields(documents.Block{}, "Revision").
+		IgnoreFields(documents.Document{}, "Id", "CreateTime", "UpdateTime", "Version", "PreviousVersion").
+		Compare(t, "profile document must match")
 }
 
 func TestSyncingProfiles(t *testing.T) {
