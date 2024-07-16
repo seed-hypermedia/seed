@@ -261,8 +261,8 @@ function AccountPageHeader() {
                 size={60}
                 label={accountName}
                 url={
-                  doc.data?.document?.metadata.avatar
-                    ? getFileUrl(doc.data?.document?.metadata.avatar)
+                  doc.data?.document?.metadata.thumbnail
+                    ? getFileUrl(doc.data?.document?.metadata.thumbnail)
                     : ''
                 }
               />

@@ -3,7 +3,7 @@ import {Avatar} from '@/components/avatar'
 import Footer from '@/components/footer'
 import {MainWrapper} from '@/components/main-wrapper'
 import {useProfileWithDraft} from '@/models/accounts'
-import {useMyAccountIds} from '@/models/daemon'
+import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
 import {trpc} from '@/trpc'
 import {getFileUrl} from '@/utils/account-url'
 import {useOpenDraft} from '@/utils/open-draft'
@@ -51,6 +51,7 @@ export default function HomePage() {
 function AccountKeyItem({accountId}: {accountId: string}) {
   const openDraft = useOpenDraft('push')
   const {draft, profile} = useProfileWithDraft(accountId)
+  const deleteKey = useDeleteKey()
 
   const navigate = useNavigate('push')
 
@@ -83,6 +84,9 @@ function AccountKeyItem({accountId}: {accountId: string}) {
         </YStack>
       </XStack>
 
+      <Button onPress={() => deleteKey.mutate({accountId: accountId})}>
+        Delete Key
+      </Button>
       {draft ? (
         <Button onPress={() => openDraft({id: accountDraftId})}>
           Resume editing

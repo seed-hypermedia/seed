@@ -295,5 +295,5 @@ export type HMDraft = {
   members: any //HMDocument['members']
   index: HMDocument['index']
   deps: Array<string>
-  signingAccount: string
+  signingProfile: string
 }

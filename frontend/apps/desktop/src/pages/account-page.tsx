@@ -1,5 +1,4 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
-import {Avatar} from '@/components/avatar'
 import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
 import {DialogTitle, useAppDialog} from '@/components/dialog'
 import {DocumentListItem} from '@/components/document-list-item'
@@ -12,11 +11,10 @@ import {useProfileWithDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
 import {useAccountDocuments} from '@/models/documents'
 import {useEntity} from '@/models/entities'
-import {getFileUrl} from '@/utils/account-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {zodResolver} from '@hookform/resolvers/zod'
-import {DocContent, HMDocument, createHmId, hmId} from '@shm/shared'
+import {HMDocument, createHmId, hmId} from '@shm/shared'
 import {
   BlockQuote,
   Button,
@@ -212,6 +210,7 @@ function AccountPageHeader() {
   const isMyAccount = myAccountIds.data?.includes(accountId)
   const accountEntityUrl = createHmId('a', accountId)
   const accountName = getProfileName(profile)
+  console.log('== thumbnail', profile?.metadata.thumbnail)
   return (
     <>
       <PageContainer marginTop="$6">
@@ -222,7 +221,7 @@ function AccountPageHeader() {
         >
           <XStack gap="$4" alignItems="center" justifyContent="space-between">
             <XStack gap="$4" alignItems="center">
-              <Avatar
+              {/* <Avatar
                 id={accountId}
                 size={60}
                 label={accountName}
@@ -231,7 +230,7 @@ function AccountPageHeader() {
                     ? getFileUrl(profile?.metadata.thumbnail)
                     : ''
                 }
-              />
+              /> */}
               <SizableText
                 whiteSpace="nowrap"
                 overflow="hidden"

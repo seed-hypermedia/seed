@@ -249,7 +249,7 @@ export function usePublishDraft(
 
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
       try {
-        if (draft.signingAccount) {
+        if (draft.signingProfile) {
           const allProfileChanges = [
             ...Object.entries(draft.metadata).map(([key, value]) => {
               return new DocumentChange({
@@ -274,8 +274,8 @@ export function usePublishDraft(
           ]
           // TODO: @horacio we might need a warning here if the user wants to publish a profile update with a different accountId when we have multiple accounts
           const publish = await grpcClient.documents.changeProfileDocument({
-            accountId: draft.signingAccount
-              ? draft.signingAccount
+            accountId: draft.signingProfile
+              ? draft.signingProfile
               : unpacked?.eid,
             changes: allProfileChanges,
           })
@@ -466,7 +466,7 @@ export function useDraftEditor({id}: {id: string | undefined}) {
   ).current
   const saveDraft = trpc.drafts.write.useMutation()
 
-  const signingAccount = useMemo(() => {
+  const signingProfile = useMemo(() => {
     return keys.data?.length == 1 ? keys.data[0] : undefined // TODO: @horacio need to add a "key selector" here
   }, [keys.data])
 
@@ -553,7 +553,7 @@ export function useDraftEditor({id}: {id: string | undefined}) {
         },
         members: {},
         index: {},
-        signingAccount,
+        signingProfile,
       }
     } else {
       inputData = {
@@ -564,7 +564,7 @@ export function useDraftEditor({id}: {id: string | undefined}) {
           name: input.name,
           thumbnail: input.thumbnail,
         },
-        signingAccount,
+        signingProfile,
       }
     }
     const res = await saveDraft.mutateAsync({id: draftId, draft: inputData})
