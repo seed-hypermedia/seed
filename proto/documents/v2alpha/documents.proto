@@ -15,16 +15,20 @@ service Documents {
   // Gets an account's profile document.
   rpc GetProfileDocument(GetProfileDocumentRequest) returns (Document);
 
-  // Immediately changes an account's profile document.
-  rpc ChangeProfileDocument(ChangeProfileDocumentRequest) returns (Document);
-
-  // Lists all profile documents.
-  rpc ListProfileDocuments(ListProfileDocumentsRequest) returns (ListProfileDocumentsResponse);
-
   // Gets a document within the index(es) of other documents.
   rpc GetDocumentIndex(GetDocumentIndexRequest) returns (GetDocumentIndexResponse);
 
+  // Creates a new Document Change.
+  rpc CreateDocumentChange(CreateDocumentChangeRequest) returns (Document);
+
+  // Immediately changes an account's profile document.
+  //
+  // Deprecated: Use CreateDocumentChange instead.
+  rpc ChangeProfileDocument(ChangeProfileDocumentRequest) returns (Document);
+
   // Immediately changes a document.
+  //
+  // Deprecated: Use CreateDocumentChange instead.
   rpc ChangeDocument(ChangeDocumentRequest) returns (Document);
 
   // Lists all documents. Only the most recent versions show up.
@@ -32,6 +36,9 @@ service Documents {
 
   // Lists branches of a document. Includes standalone and index branches, and any drafts for these branches
   rpc ListDocumentBranches(ListDocumentBranchesRequest) returns (ListDocumentBranchesResponse);
+
+  // Lists all profile documents.
+  rpc ListProfileDocuments(ListProfileDocumentsRequest) returns (ListProfileDocumentsResponse);
 
   // Push Local document to the gateway.
   rpc PushDocument(PushDocumentRequest) returns (google.protobuf.Empty);
@@ -79,6 +86,25 @@ message GetDocumentIndexResponse {
 
   // the document at the given path
   Document document = 4;
+}
+
+// Request to create a new document change.
+message CreateDocumentChangeRequest {
+  // Required. ID of the document to create a change for.
+  // It can be one of the following:
+  // – Empty string. In this case a new standalone document will be created.
+  // – ID of an existing standalone document.
+  // – ID of a subdocument, such as `<parent-doc-id>/<index-path>`. The parent document must exist.
+  string document_id = 1;
+
+  // Required. Changes to be applied to the document.
+  repeated DocumentChange changes = 2;
+
+  // Required if document_id is non-empty.
+  // The version of the document to apply the changes to.
+  // This is used for optimistic concurrency control,
+  // to avoid overwriting or depending on the unseen changes that might have happened in the background.
+  string base_version = 3;
 }
 
 message ChangeDocumentRequest {
@@ -208,6 +234,7 @@ message RebaseChangesRequest {
 // Document represents metadata and content of a document.
 message Document {
   // Permanent ID of the document.
+  // Either a standalone document ID or a subdocument ID (`<parent-doc-id>/<index-path>`).
   string id = 1;
 
   // Output only. Owner's Account ID.

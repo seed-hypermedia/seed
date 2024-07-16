@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { ChangeDocumentRequest, ChangeProfileDocumentRequest, Document, GetDocumentIndexRequest, GetDocumentIndexResponse, GetDocumentRequest, GetProfileDocumentRequest, ListAccountDocumentsRequest, ListDocumentBranchesRequest, ListDocumentBranchesResponse, ListDocumentsRequest, ListDocumentsResponse, ListProfileDocumentsRequest, ListProfileDocumentsResponse, MergeChangesRequest, PushDocumentRequest, RebaseChangesRequest } from "./documents_pb";
+import { ChangeDocumentRequest, ChangeProfileDocumentRequest, CreateDocumentChangeRequest, Document, GetDocumentIndexRequest, GetDocumentIndexResponse, GetDocumentRequest, GetProfileDocumentRequest, ListAccountDocumentsRequest, ListDocumentBranchesRequest, ListDocumentBranchesResponse, ListDocumentsRequest, ListDocumentsResponse, ListProfileDocumentsRequest, ListProfileDocumentsResponse, MergeChangesRequest, PushDocumentRequest, RebaseChangesRequest } from "./documents_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -37,28 +37,6 @@ export const Documents = {
       kind: MethodKind.Unary,
     },
     /**
-     * Immediately changes an account's profile document.
-     *
-     * @generated from rpc com.seed.documents.v2alpha.Documents.ChangeProfileDocument
-     */
-    changeProfileDocument: {
-      name: "ChangeProfileDocument",
-      I: ChangeProfileDocumentRequest,
-      O: Document,
-      kind: MethodKind.Unary,
-    },
-    /**
-     * Lists all profile documents.
-     *
-     * @generated from rpc com.seed.documents.v2alpha.Documents.ListProfileDocuments
-     */
-    listProfileDocuments: {
-      name: "ListProfileDocuments",
-      I: ListProfileDocumentsRequest,
-      O: ListProfileDocumentsResponse,
-      kind: MethodKind.Unary,
-    },
-    /**
      * Gets a document within the index(es) of other documents.
      *
      * @generated from rpc com.seed.documents.v2alpha.Documents.GetDocumentIndex
@@ -70,7 +48,33 @@ export const Documents = {
       kind: MethodKind.Unary,
     },
     /**
+     * Creates a new Document Change.
+     *
+     * @generated from rpc com.seed.documents.v2alpha.Documents.CreateDocumentChange
+     */
+    createDocumentChange: {
+      name: "CreateDocumentChange",
+      I: CreateDocumentChangeRequest,
+      O: Document,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Immediately changes an account's profile document.
+     *
+     * Deprecated: Use CreateDocumentChange instead.
+     *
+     * @generated from rpc com.seed.documents.v2alpha.Documents.ChangeProfileDocument
+     */
+    changeProfileDocument: {
+      name: "ChangeProfileDocument",
+      I: ChangeProfileDocumentRequest,
+      O: Document,
+      kind: MethodKind.Unary,
+    },
+    /**
      * Immediately changes a document.
+     *
+     * Deprecated: Use CreateDocumentChange instead.
      *
      * @generated from rpc com.seed.documents.v2alpha.Documents.ChangeDocument
      */
@@ -100,6 +104,17 @@ export const Documents = {
       name: "ListDocumentBranches",
       I: ListDocumentBranchesRequest,
       O: ListDocumentBranchesResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Lists all profile documents.
+     *
+     * @generated from rpc com.seed.documents.v2alpha.Documents.ListProfileDocuments
+     */
+    listProfileDocuments: {
+      name: "ListProfileDocuments",
+      I: ListProfileDocumentsRequest,
+      O: ListProfileDocumentsResponse,
       kind: MethodKind.Unary,
     },
     /**

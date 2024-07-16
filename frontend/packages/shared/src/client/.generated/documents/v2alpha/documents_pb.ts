@@ -267,6 +267,70 @@ export class GetDocumentIndexResponse extends Message<GetDocumentIndexResponse> 
 }
 
 /**
+ * Request to create a new document change.
+ *
+ * @generated from message com.seed.documents.v2alpha.CreateDocumentChangeRequest
+ */
+export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeRequest> {
+  /**
+   * Required. ID of the document to create a change for.
+   * It can be one of the following:
+   * – Empty string. In this case a new standalone document will be created.
+   * – ID of an existing standalone document.
+   * – ID of a subdocument, such as `<parent-doc-id>/<index-path>`. The parent document must exist.
+   *
+   * @generated from field: string document_id = 1;
+   */
+  documentId = "";
+
+  /**
+   * Required. Changes to be applied to the document.
+   *
+   * @generated from field: repeated com.seed.documents.v2alpha.DocumentChange changes = 2;
+   */
+  changes: DocumentChange[] = [];
+
+  /**
+   * Required if document_id is non-empty.
+   * The version of the document to apply the changes to.
+   * This is used for optimistic concurrency control,
+   * to avoid overwriting or depending on the unseen changes that might have happened in the background.
+   *
+   * @generated from field: string base_version = 3;
+   */
+  baseVersion = "";
+
+  constructor(data?: PartialMessage<CreateDocumentChangeRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v2alpha.CreateDocumentChangeRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "document_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "changes", kind: "message", T: DocumentChange, repeated: true },
+    { no: 3, name: "base_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateDocumentChangeRequest {
+    return new CreateDocumentChangeRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateDocumentChangeRequest {
+    return new CreateDocumentChangeRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateDocumentChangeRequest {
+    return new CreateDocumentChangeRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CreateDocumentChangeRequest | PlainMessage<CreateDocumentChangeRequest> | undefined, b: CreateDocumentChangeRequest | PlainMessage<CreateDocumentChangeRequest> | undefined): boolean {
+    return proto3.util.equals(CreateDocumentChangeRequest, a, b);
+  }
+}
+
+/**
  * @generated from message com.seed.documents.v2alpha.ChangeDocumentRequest
  */
 export class ChangeDocumentRequest extends Message<ChangeDocumentRequest> {
@@ -904,6 +968,7 @@ export class RebaseChangesRequest extends Message<RebaseChangesRequest> {
 export class Document extends Message<Document> {
   /**
    * Permanent ID of the document.
+   * Either a standalone document ID or a subdocument ID (`<parent-doc-id>/<index-path>`).
    *
    * @generated from field: string id = 1;
    */

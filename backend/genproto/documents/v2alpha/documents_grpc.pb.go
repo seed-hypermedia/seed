@@ -27,18 +27,24 @@ type DocumentsClient interface {
 	GetDocument(ctx context.Context, in *GetDocumentRequest, opts ...grpc.CallOption) (*Document, error)
 	// Gets an account's profile document.
 	GetProfileDocument(ctx context.Context, in *GetProfileDocumentRequest, opts ...grpc.CallOption) (*Document, error)
-	// Immediately changes an account's profile document.
-	ChangeProfileDocument(ctx context.Context, in *ChangeProfileDocumentRequest, opts ...grpc.CallOption) (*Document, error)
-	// Lists all profile documents.
-	ListProfileDocuments(ctx context.Context, in *ListProfileDocumentsRequest, opts ...grpc.CallOption) (*ListProfileDocumentsResponse, error)
 	// Gets a document within the index(es) of other documents.
 	GetDocumentIndex(ctx context.Context, in *GetDocumentIndexRequest, opts ...grpc.CallOption) (*GetDocumentIndexResponse, error)
+	// Creates a new Document Change.
+	CreateDocumentChange(ctx context.Context, in *CreateDocumentChangeRequest, opts ...grpc.CallOption) (*Document, error)
+	// Immediately changes an account's profile document.
+	//
+	// Deprecated: Use CreateDocumentChange instead.
+	ChangeProfileDocument(ctx context.Context, in *ChangeProfileDocumentRequest, opts ...grpc.CallOption) (*Document, error)
 	// Immediately changes a document.
+	//
+	// Deprecated: Use CreateDocumentChange instead.
 	ChangeDocument(ctx context.Context, in *ChangeDocumentRequest, opts ...grpc.CallOption) (*Document, error)
 	// Lists all documents. Only the most recent versions show up.
 	ListDocuments(ctx context.Context, in *ListDocumentsRequest, opts ...grpc.CallOption) (*ListDocumentsResponse, error)
 	// Lists branches of a document. Includes standalone and index branches, and any drafts for these branches
 	ListDocumentBranches(ctx context.Context, in *ListDocumentBranchesRequest, opts ...grpc.CallOption) (*ListDocumentBranchesResponse, error)
+	// Lists all profile documents.
+	ListProfileDocuments(ctx context.Context, in *ListProfileDocumentsRequest, opts ...grpc.CallOption) (*ListProfileDocumentsResponse, error)
 	// Push Local document to the gateway.
 	PushDocument(ctx context.Context, in *PushDocumentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Lists documents owned by a given account.
@@ -71,27 +77,27 @@ func (c *documentsClient) GetProfileDocument(ctx context.Context, in *GetProfile
 	return out, nil
 }
 
-func (c *documentsClient) ChangeProfileDocument(ctx context.Context, in *ChangeProfileDocumentRequest, opts ...grpc.CallOption) (*Document, error) {
-	out := new(Document)
-	err := c.cc.Invoke(ctx, "/com.seed.documents.v2alpha.Documents/ChangeProfileDocument", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *documentsClient) ListProfileDocuments(ctx context.Context, in *ListProfileDocumentsRequest, opts ...grpc.CallOption) (*ListProfileDocumentsResponse, error) {
-	out := new(ListProfileDocumentsResponse)
-	err := c.cc.Invoke(ctx, "/com.seed.documents.v2alpha.Documents/ListProfileDocuments", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *documentsClient) GetDocumentIndex(ctx context.Context, in *GetDocumentIndexRequest, opts ...grpc.CallOption) (*GetDocumentIndexResponse, error) {
 	out := new(GetDocumentIndexResponse)
 	err := c.cc.Invoke(ctx, "/com.seed.documents.v2alpha.Documents/GetDocumentIndex", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *documentsClient) CreateDocumentChange(ctx context.Context, in *CreateDocumentChangeRequest, opts ...grpc.CallOption) (*Document, error) {
+	out := new(Document)
+	err := c.cc.Invoke(ctx, "/com.seed.documents.v2alpha.Documents/CreateDocumentChange", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *documentsClient) ChangeProfileDocument(ctx context.Context, in *ChangeProfileDocumentRequest, opts ...grpc.CallOption) (*Document, error) {
+	out := new(Document)
+	err := c.cc.Invoke(ctx, "/com.seed.documents.v2alpha.Documents/ChangeProfileDocument", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -125,6 +131,15 @@ func (c *documentsClient) ListDocumentBranches(ctx context.Context, in *ListDocu
 	return out, nil
 }
 
+func (c *documentsClient) ListProfileDocuments(ctx context.Context, in *ListProfileDocumentsRequest, opts ...grpc.CallOption) (*ListProfileDocumentsResponse, error) {
+	out := new(ListProfileDocumentsResponse)
+	err := c.cc.Invoke(ctx, "/com.seed.documents.v2alpha.Documents/ListProfileDocuments", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *documentsClient) PushDocument(ctx context.Context, in *PushDocumentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/com.seed.documents.v2alpha.Documents/PushDocument", in, out, opts...)
@@ -151,18 +166,24 @@ type DocumentsServer interface {
 	GetDocument(context.Context, *GetDocumentRequest) (*Document, error)
 	// Gets an account's profile document.
 	GetProfileDocument(context.Context, *GetProfileDocumentRequest) (*Document, error)
-	// Immediately changes an account's profile document.
-	ChangeProfileDocument(context.Context, *ChangeProfileDocumentRequest) (*Document, error)
-	// Lists all profile documents.
-	ListProfileDocuments(context.Context, *ListProfileDocumentsRequest) (*ListProfileDocumentsResponse, error)
 	// Gets a document within the index(es) of other documents.
 	GetDocumentIndex(context.Context, *GetDocumentIndexRequest) (*GetDocumentIndexResponse, error)
+	// Creates a new Document Change.
+	CreateDocumentChange(context.Context, *CreateDocumentChangeRequest) (*Document, error)
+	// Immediately changes an account's profile document.
+	//
+	// Deprecated: Use CreateDocumentChange instead.
+	ChangeProfileDocument(context.Context, *ChangeProfileDocumentRequest) (*Document, error)
 	// Immediately changes a document.
+	//
+	// Deprecated: Use CreateDocumentChange instead.
 	ChangeDocument(context.Context, *ChangeDocumentRequest) (*Document, error)
 	// Lists all documents. Only the most recent versions show up.
 	ListDocuments(context.Context, *ListDocumentsRequest) (*ListDocumentsResponse, error)
 	// Lists branches of a document. Includes standalone and index branches, and any drafts for these branches
 	ListDocumentBranches(context.Context, *ListDocumentBranchesRequest) (*ListDocumentBranchesResponse, error)
+	// Lists all profile documents.
+	ListProfileDocuments(context.Context, *ListProfileDocumentsRequest) (*ListProfileDocumentsResponse, error)
 	// Push Local document to the gateway.
 	PushDocument(context.Context, *PushDocumentRequest) (*emptypb.Empty, error)
 	// Lists documents owned by a given account.
@@ -179,14 +200,14 @@ func (UnimplementedDocumentsServer) GetDocument(context.Context, *GetDocumentReq
 func (UnimplementedDocumentsServer) GetProfileDocument(context.Context, *GetProfileDocumentRequest) (*Document, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetProfileDocument not implemented")
 }
-func (UnimplementedDocumentsServer) ChangeProfileDocument(context.Context, *ChangeProfileDocumentRequest) (*Document, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ChangeProfileDocument not implemented")
-}
-func (UnimplementedDocumentsServer) ListProfileDocuments(context.Context, *ListProfileDocumentsRequest) (*ListProfileDocumentsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListProfileDocuments not implemented")
-}
 func (UnimplementedDocumentsServer) GetDocumentIndex(context.Context, *GetDocumentIndexRequest) (*GetDocumentIndexResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDocumentIndex not implemented")
+}
+func (UnimplementedDocumentsServer) CreateDocumentChange(context.Context, *CreateDocumentChangeRequest) (*Document, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateDocumentChange not implemented")
+}
+func (UnimplementedDocumentsServer) ChangeProfileDocument(context.Context, *ChangeProfileDocumentRequest) (*Document, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ChangeProfileDocument not implemented")
 }
 func (UnimplementedDocumentsServer) ChangeDocument(context.Context, *ChangeDocumentRequest) (*Document, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ChangeDocument not implemented")
@@ -196,6 +217,9 @@ func (UnimplementedDocumentsServer) ListDocuments(context.Context, *ListDocument
 }
 func (UnimplementedDocumentsServer) ListDocumentBranches(context.Context, *ListDocumentBranchesRequest) (*ListDocumentBranchesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDocumentBranches not implemented")
+}
+func (UnimplementedDocumentsServer) ListProfileDocuments(context.Context, *ListProfileDocumentsRequest) (*ListProfileDocumentsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListProfileDocuments not implemented")
 }
 func (UnimplementedDocumentsServer) PushDocument(context.Context, *PushDocumentRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PushDocument not implemented")
@@ -251,42 +275,6 @@ func _Documents_GetProfileDocument_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Documents_ChangeProfileDocument_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ChangeProfileDocumentRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DocumentsServer).ChangeProfileDocument(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/com.seed.documents.v2alpha.Documents/ChangeProfileDocument",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DocumentsServer).ChangeProfileDocument(ctx, req.(*ChangeProfileDocumentRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Documents_ListProfileDocuments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListProfileDocumentsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DocumentsServer).ListProfileDocuments(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/com.seed.documents.v2alpha.Documents/ListProfileDocuments",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DocumentsServer).ListProfileDocuments(ctx, req.(*ListProfileDocumentsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _Documents_GetDocumentIndex_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetDocumentIndexRequest)
 	if err := dec(in); err != nil {
@@ -301,6 +289,42 @@ func _Documents_GetDocumentIndex_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DocumentsServer).GetDocumentIndex(ctx, req.(*GetDocumentIndexRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Documents_CreateDocumentChange_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateDocumentChangeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).CreateDocumentChange(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/com.seed.documents.v2alpha.Documents/CreateDocumentChange",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).CreateDocumentChange(ctx, req.(*CreateDocumentChangeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Documents_ChangeProfileDocument_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChangeProfileDocumentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).ChangeProfileDocument(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/com.seed.documents.v2alpha.Documents/ChangeProfileDocument",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).ChangeProfileDocument(ctx, req.(*ChangeProfileDocumentRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -359,6 +383,24 @@ func _Documents_ListDocumentBranches_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Documents_ListProfileDocuments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListProfileDocumentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).ListProfileDocuments(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/com.seed.documents.v2alpha.Documents/ListProfileDocuments",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).ListProfileDocuments(ctx, req.(*ListProfileDocumentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Documents_PushDocument_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(PushDocumentRequest)
 	if err := dec(in); err != nil {
@@ -411,16 +453,16 @@ var Documents_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Documents_GetProfileDocument_Handler,
 		},
 		{
-			MethodName: "ChangeProfileDocument",
-			Handler:    _Documents_ChangeProfileDocument_Handler,
-		},
-		{
-			MethodName: "ListProfileDocuments",
-			Handler:    _Documents_ListProfileDocuments_Handler,
-		},
-		{
 			MethodName: "GetDocumentIndex",
 			Handler:    _Documents_GetDocumentIndex_Handler,
+		},
+		{
+			MethodName: "CreateDocumentChange",
+			Handler:    _Documents_CreateDocumentChange_Handler,
+		},
+		{
+			MethodName: "ChangeProfileDocument",
+			Handler:    _Documents_ChangeProfileDocument_Handler,
 		},
 		{
 			MethodName: "ChangeDocument",
@@ -433,6 +475,10 @@ var Documents_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListDocumentBranches",
 			Handler:    _Documents_ListDocumentBranches_Handler,
+		},
+		{
+			MethodName: "ListProfileDocuments",
+			Handler:    _Documents_ListProfileDocuments_Handler,
 		},
 		{
 			MethodName: "PushDocument",
