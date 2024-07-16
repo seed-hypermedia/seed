@@ -1,10 +1,13 @@
-import {AccessoryLayout} from '@/components/accessory-sidebar'
+import {
+  AccessoryContainer,
+  AccessoryLayout,
+} from '@/components/accessory-sidebar'
 import {Avatar} from '@/components/avatar'
 import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
 import {DialogTitle, useAppDialog} from '@/components/dialog'
 import {DocumentListItem} from '@/components/document-list-item'
 import {FavoriteButton} from '@/components/favoriting'
-import Footer, {FooterButton} from '@/components/footer'
+import Footer from '@/components/footer'
 import {FormInput} from '@/components/form-input'
 import {FormField} from '@/components/forms'
 import {MainWrapperNoScroll} from '@/components/main-wrapper'
@@ -17,15 +20,19 @@ import {useNavigate} from '@/utils/useNavigate'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {DocContent, HMDocument, hmId, UnpackedHypermediaId} from '@shm/shared'
 import {
-  BlockQuote,
   Button,
+  CitationsIcon,
+  CollaboratorsIcon,
+  CommentsIcon,
   Form,
   H3,
+  HistoryIcon,
   MainWrapper,
   Section,
   Separator,
   SizableText,
   Spinner,
+  SuggestedChangesIcon,
   XStack,
 } from '@shm/ui'
 import {PageContainer} from '@shm/ui/src/container'
@@ -53,26 +60,57 @@ export default function DocumentPage() {
   let accessory: ReactNode = null
   if (accessoryKey === 'citations') {
     accessory = <EntityCitationsAccessory entityId={docId} />
+  } else if (accessoryKey === 'versions') {
+    accessory = <AccessoryContainer title="Versions" />
+  } else if (accessoryKey === 'collaborators') {
+    accessory = <AccessoryContainer title="Collaborators" />
+  } else if (accessoryKey === 'suggested-changes') {
+    accessory = <AccessoryContainer title="Suggested Changes" />
+  } else if (accessoryKey === 'comments') {
+    accessory = <AccessoryContainer title="Comments" />
   }
+
   return (
     <>
-      <AccessoryLayout accessory={accessory}>
+      <AccessoryLayout
+        accessory={accessory}
+        accessoryKey={accessoryKey}
+        onAccessorySelect={(key: typeof accessoryKey) => {
+          if (key === accessoryKey || key === undefined)
+            return replace({...route, accessory: null})
+          replace({...route, accessory: {key}})
+        }}
+        accessoryOptions={
+          [
+            {key: 'versions', label: 'Version History', icon: HistoryIcon},
+            {
+              key: 'collaborators',
+              label: 'Collaborators',
+              icon: CollaboratorsIcon,
+            },
+            {
+              key: 'suggested-changes',
+              label: 'Suggested Changes',
+              icon: SuggestedChangesIcon,
+            },
+            {
+              key: 'comments',
+              label: 'Comments',
+              icon: CommentsIcon,
+            },
+            {
+              key: 'citations',
+              label: 'Citations',
+              icon: CitationsIcon,
+            },
+          ] as const
+        }
+      >
         <MainWrapperNoScroll>
           <MainDocumentPage />
         </MainWrapperNoScroll>
       </AccessoryLayout>
-      <Footer>
-        <FooterButton
-          active={accessoryKey === 'citations'}
-          label={'Citations'}
-          icon={BlockQuote}
-          onPress={() => {
-            if (route.accessory?.key === 'citations')
-              return replace({...route, accessory: null})
-            replace({...route, accessory: {key: 'citations'}})
-          }}
-        />
-      </Footer>
+      <Footer></Footer>
     </>
   )
 }

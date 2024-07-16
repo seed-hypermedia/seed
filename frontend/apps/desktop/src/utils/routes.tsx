@@ -22,18 +22,32 @@ export type ExploreRoute = z.infer<typeof exploreRouteSchema>
 export const contactsRouteSchema = z.object({key: z.literal('contacts')})
 export type ContactsRoute = z.infer<typeof contactsRouteSchema>
 
-export const entityVersionsAccessorySchema = z.object({
+export const documentVersionsAccessorySchema = z.object({
   key: z.literal('versions'),
 })
-export type EntityVersionsAccessory = z.infer<
-  typeof entityVersionsAccessorySchema
+export type DocumentVersionsAccessory = z.infer<
+  typeof documentVersionsAccessorySchema
 >
 
-export const entityCitationsAccessorySchema = z.object({
+export const documentCitationsAccessorySchema = z.object({
   key: z.literal('citations'),
 })
-export type EntityCitationsAccessory = z.infer<
-  typeof entityCitationsAccessorySchema
+export type DocumentCitationsAccessory = z.infer<
+  typeof documentCitationsAccessorySchema
+>
+
+export const documentCollaboratorsAccessorySchema = z.object({
+  key: z.literal('collaborators'),
+})
+export type DocumentCollaboratorsAccessory = z.infer<
+  typeof documentCollaboratorsAccessorySchema
+>
+
+export const documentSuggestedChangesAccessorySchema = z.object({
+  key: z.literal('suggested-changes'),
+})
+export type DocumentSuggestedChangesAccessory = z.infer<
+  typeof documentSuggestedChangesAccessorySchema
 >
 
 export const documentCommentsAccessorySchema = z.object({
@@ -51,8 +65,10 @@ export const documentRouteSchema = z.object({
   tab: z.enum(['home', 'documents', 'activity', 'contacts']).optional(), // home is the default
   accessory: z
     .discriminatedUnion('key', [
-      entityVersionsAccessorySchema,
-      entityCitationsAccessorySchema,
+      documentVersionsAccessorySchema,
+      documentCitationsAccessorySchema,
+      documentCollaboratorsAccessorySchema,
+      documentSuggestedChangesAccessorySchema,
       documentCommentsAccessorySchema,
     ])
     .nullable()

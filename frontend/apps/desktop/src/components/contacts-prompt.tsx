@@ -137,7 +137,14 @@ export function ContactsPrompt() {
   return (
     <AppDialog
       TriggerComponent={AddConnectionButton}
+      triggerComponentProps={{}}
       ContentComponent={AddConnectionForm}
+      contentComponentProps={
+        {
+          input: true,
+          onClose() {},
+        } as const
+      }
     />
   )
 }

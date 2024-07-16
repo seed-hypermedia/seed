@@ -32,7 +32,6 @@ export const DialogContent = styled(YStack, {
   backgroundColor: '$base-background-normal',
   borderRadius: 6,
   boxShadow: dialogBoxShadow,
-  // @ts-expect-error
   position: 'fixed',
   width: '90vw',
   maxWidth: '500px',

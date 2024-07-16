@@ -11,6 +11,9 @@ export function useEntityMentions(entityId?: UnpackedHypermediaId) {
   const grpcClient = useGRPCClient()
   return useQuery({
     queryFn: async () => {
+      return {
+        mentions: [],
+      }
       const result = await grpcClient.entities.listEntityMentions({
         id: entityId,
         pageSize: 400000000,
