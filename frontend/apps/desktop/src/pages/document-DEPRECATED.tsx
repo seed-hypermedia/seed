@@ -35,7 +35,6 @@ import {
   YStack,
 } from '@shm/ui'
 import {History, MessageSquare} from '@tamagui/lucide-icons'
-import 'allotment/dist/style.css'
 import {ReactNode, useEffect, useRef} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {AppErrorPage} from '../components/app-error'

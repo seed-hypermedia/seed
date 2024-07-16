@@ -1,7 +1,7 @@
 import {ScrollView, SizableText, Tooltip, XStack, YStack} from '@shm/ui'
-import {Allotment} from 'allotment'
 import {ComponentProps} from 'react'
-import {Button, useTheme} from 'tamagui'
+import {Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
+import {Button, useTheme, View} from 'tamagui'
 
 export function AccessoryContainer({
   children,
@@ -14,24 +14,22 @@ export function AccessoryContainer({
   title?: string
 } & ComponentProps<typeof YStack>) {
   return (
-    <Allotment.Pane preferredSize="35%" maxSize={400} minSize={300}>
-      <YStack height="100%" {...props}>
-        {title ? (
-          <XStack
-            paddingHorizontal="$4"
-            paddingVertical="$3"
-            borderBottomColor="$borderColor"
-            borderBottomWidth={1}
-          >
-            <SizableText userSelect="none">{title}</SizableText>
-          </XStack>
-        ) : null}
-        <ScrollView f={1}>
-          <YStack>{children}</YStack>
-        </ScrollView>
-        {footer}
-      </YStack>
-    </Allotment.Pane>
+    <YStack height="100%" {...props}>
+      {title ? (
+        <XStack
+          paddingHorizontal="$4"
+          paddingVertical="$3"
+          borderBottomColor="$borderColor"
+          borderBottomWidth={1}
+        >
+          <SizableText userSelect="none">{title}</SizableText>
+        </XStack>
+      ) : null}
+      <ScrollView f={1}>
+        <YStack>{children}</YStack>
+      </ScrollView>
+      {footer}
+    </YStack>
   )
 }
 
@@ -58,15 +56,19 @@ export function AccessoryLayout<
 }) {
   const theme = useTheme()
   return (
-    <Allotment defaultSizes={accessory ? [65, 35] : [100]}>
-      <Allotment.Pane>
-        <YStack height="100%">
+    <PanelGroup direction="horizontal">
+      <Panel minSize={50}>
+        <View position="relative">
           {children}
           <YStack position="absolute" right={0} top={0} padding="$3" gap="$2">
             {accessoryOptions.map((option) => {
               const isActive = accessoryKey === option.key
               return (
-                <Tooltip key={option.key} content={option.label}>
+                <Tooltip
+                  key={option.key}
+                  placement="left"
+                  content={option.label}
+                >
                   <Button
                     size="$2"
                     backgroundColor={
@@ -94,9 +96,18 @@ export function AccessoryLayout<
               )
             })}
           </YStack>
-        </YStack>
-      </Allotment.Pane>
-      {accessory}
-    </Allotment>
+        </View>
+      </Panel>
+      {accessory ? (
+        <>
+          <PanelResizeHandle
+            style={{backgroundColor: theme.color6.val, width: 4}}
+          />
+          <Panel maxSize={50} minSize={10} defaultSize={20}>
+            {accessory}
+          </Panel>
+        </>
+      ) : null}
+    </PanelGroup>
   )
 }
