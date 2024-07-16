@@ -1174,3 +1174,14 @@ export function useDraftRebase({
     newVersion,
   }
 }
+
+export function useListProfileDocuments() {
+  const grpcClient = useGRPCClient()
+
+  return useQuery({
+    queryFn: () => {
+      return grpcClient.documents.listProfileDocuments({})
+    },
+    queryKey: [queryKeys.LIST_PROFILE_DOCUMENTS],
+  })
+}

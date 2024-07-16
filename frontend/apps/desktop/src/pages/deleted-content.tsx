@@ -24,7 +24,7 @@ export default function DeletedContent() {
             gap="$2"
             ai="center"
             paddingHorizontal="$4"
-            maxWidth={900}
+            maxWidth={600}
             group="item"
           >
             <Tooltip content={`Reason: ${item.deletedReason}`}>

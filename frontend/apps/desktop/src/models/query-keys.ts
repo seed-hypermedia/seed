@@ -36,6 +36,7 @@ export const queryKeys = {
   ACCOUNT_DOCUMENTS: 'ACCOUNT_DOCUMENTS', //, accountId: string
   DOCUMENT_LIST: 'DOCUMENT_LIST', // 'trusted' | 'global'
   DRAFT: 'DRAFT', // , id: string
+  LIST_PROFILE_DOCUMENTS: 'LIST_PROFILE_DOCUMENTS', //
 
   ENTITY: 'ENTITY',
 

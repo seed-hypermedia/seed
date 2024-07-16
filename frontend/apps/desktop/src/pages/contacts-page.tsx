@@ -1,17 +1,12 @@
 import {Avatar} from '@/components/avatar'
-import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
-import {useDeleteDialog} from '@/components/delete-dialog'
 import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
 import {OnlineIndicator} from '@/components/indicator'
 import {ListItem, copyLinkMenuItem} from '@/components/list-item'
 import {MainWrapper, MainWrapperNoScroll} from '@/components/main-wrapper'
 import {MenuItemType} from '@/components/options-dropdown'
-import {
-  useAccountIsConnected,
-  useAllAccounts,
-  useMyAccount_deprecated,
-} from '@/models/accounts'
+import {useAccountIsConnected} from '@/models/accounts'
+import {useListProfileDocuments} from '@/models/documents'
 import {useFavorite} from '@/models/favorites'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {getFileUrl} from '@/utils/account-url'
@@ -21,9 +16,12 @@ import {HMAccount, createHmId, hmId} from '@shm/shared'
 import {
   ArrowUpRight,
   Container,
+  H2,
   List,
+  SizableText,
   Spinner,
   Text,
+  View,
   XStack,
   YStack,
 } from '@shm/ui'
@@ -123,17 +121,8 @@ function ErrorPage({}: {error: any}) {
 }
 
 export default function ContactsPage() {
-  const contacts = useAllAccounts()
-  const myAccount = useMyAccount_deprecated()
-  const allAccounts = contacts.data?.accounts || []
-  const trustedAccounts = allAccounts.filter(
-    (account) => account.isTrusted && account.id !== myAccount.data?.id,
-  )
-  const untrustedAccounts = allAccounts.filter(
-    (account) => !account.isTrusted && !!account.profile?.alias, // hide contacts without an alias because this is confusing for users
-  )
-  const deleteEntity = useDeleteDialog()
-  const [copyDialogContent, onCopy] = useCopyGatewayReference()
+  const contacts = useListProfileDocuments()
+  const navigate = useNavigate('push')
   if (contacts.isLoading) {
     return (
       <MainWrapper>
@@ -146,7 +135,7 @@ export default function ContactsPage() {
   if (contacts.error) {
     return <ErrorPage error={contacts.error} />
   }
-  if (allAccounts.length === 0) {
+  if (contacts.data?.documents.length === 0) {
     return (
       <>
         <MainWrapper>
@@ -166,23 +155,43 @@ export default function ContactsPage() {
     <>
       <MainWrapperNoScroll>
         <List
-          items={[...trustedAccounts, ...untrustedAccounts]}
+          header={
+            <Container>
+              <H2>Contacts</H2>
+            </Container>
+          }
+          items={contacts.data!.documents}
           renderItem={({item}) => {
             return (
-              <ContactItem
-                key={item.id}
-                account={item}
-                onCopy={() => {
-                  onCopy(hmId('a', item.id))
-                }}
-                onDelete={deleteEntity.open}
-              />
+              <XStack
+                paddingVertical="$1.5"
+                w="100%"
+                gap="$2"
+                ai="center"
+                paddingHorizontal="$4"
+                maxWidth={600}
+                group="item"
+              >
+                <SizableText
+                  onPress={() => {
+                    navigate({
+                      key: 'document',
+                      id: item.id,
+                    })
+                  }}
+                  fontWeight={'bold'}
+                >
+                  {item.metadata.name || 'Untitled Profile'}
+                </SizableText>
+
+                <View f={1} />
+              </XStack>
             )
           }}
         />
       </MainWrapperNoScroll>
-      {copyDialogContent}
-      {deleteEntity.content}
+      {/* {copyDialogContent}
+      {deleteEntity.content} */}
       <Footer />
     </>
   )

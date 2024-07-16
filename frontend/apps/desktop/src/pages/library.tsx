@@ -80,7 +80,7 @@ export default function ContentPage() {
                   gap="$2"
                   ai="center"
                   paddingHorizontal="$4"
-                  maxWidth={900}
+                  maxWidth={600}
                   group="item"
                 >
                   <SizableText
