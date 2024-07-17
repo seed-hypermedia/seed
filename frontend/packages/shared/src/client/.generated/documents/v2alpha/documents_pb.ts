@@ -300,6 +300,14 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
    */
   baseVersion = "";
 
+  /**
+   * Required. Name of the key to use for signing.
+   * Use the Daemon API to list and manage keys.
+   *
+   * @generated from field: string signing_key_name = 4;
+   */
+  signingKeyName = "";
+
   constructor(data?: PartialMessage<CreateDocumentChangeRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -311,6 +319,7 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
     { no: 1, name: "document_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "changes", kind: "message", T: DocumentChange, repeated: true },
     { no: 3, name: "base_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateDocumentChangeRequest {

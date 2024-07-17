@@ -105,6 +105,10 @@ message CreateDocumentChangeRequest {
   // This is used for optimistic concurrency control,
   // to avoid overwriting or depending on the unseen changes that might have happened in the background.
   string base_version = 3;
+
+  // Required. Name of the key to use for signing.
+  // Use the Daemon API to list and manage keys.
+  string signing_key_name = 4;
 }
 
 message ChangeDocumentRequest {
