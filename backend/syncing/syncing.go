@@ -506,7 +506,7 @@ func syncPeerRbsr(
 	`)
 	conn, release, err := db.Conn(ctx)
 	if err != nil {
-		return fmt.Errorf("Could not get connection", zap.Error(err))
+		return fmt.Errorf("Could not get connection: %w", err)
 	}
 	defer release()
 
@@ -515,14 +515,13 @@ func syncPeerRbsr(
 		hash := stmt.ColumnBytesUnsafe(1)
 		ts := stmt.ColumnInt64(2)
 		c := cid.NewCidV1(uint64(codec), hash)
-		store.Insert(ts, c.Bytes())
-		return nil
+		return store.Insert(ts, c.Bytes())
 	}); err != nil {
-		return fmt.Errorf("Could not list ", zap.Error(err))
+		return fmt.Errorf("Could not list blobs: %w", err)
 	}
 
 	if err = store.Seal(); err != nil {
-		return fmt.Errorf("Failed to seal store", zap.Error(err))
+		return fmt.Errorf("Failed to seal store: %w", err)
 	}
 
 	msg, err := ne.Initiate()
