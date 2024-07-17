@@ -22,11 +22,6 @@ func OpenSQLite(uri string, flags sqlite.OpenFlags, poolSize int) (*sqlitex.Pool
 		"PRAGMA foreign_keys = ON;",
 		"PRAGMA synchronous = NORMAL;",
 		"PRAGMA journal_mode = WAL;",
-
-		// Setting up some in-memory tables for materializing some query results temporarily.
-		"ATTACH DATABASE ':memory:' AS mem;",
-		"CREATE TABLE mem.changes (id INTEGER PRIMARY KEY);",
-		"CREATE TABLE mem.change_deps (child INTEGER, parent INTEGER, PRIMARY KEY (child, parent), UNIQUE (parent, child)) WITHOUT ROWID;",
 	)
 }
 
