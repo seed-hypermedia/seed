@@ -22,6 +22,8 @@ func OpenSQLite(uri string, flags sqlite.OpenFlags, poolSize int) (*sqlitex.Pool
 		"PRAGMA foreign_keys = ON;",
 		"PRAGMA synchronous = NORMAL;",
 		"PRAGMA journal_mode = WAL;",
+		// "PRAGMA cache_size = -20000;",
+		"PRAGMA temp_store = MEMORY;",
 	)
 }
 
