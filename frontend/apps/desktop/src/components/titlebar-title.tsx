@@ -1,7 +1,6 @@
 import {useSizeObserver} from '@/components/app-embeds'
 import {useDraftName} from '@/models/documents'
 import {useRouteBreadcrumbRoutes, useRouteEntities} from '@/models/entities'
-import {useShowTitle} from '@/pages/app-title'
 import {useNavRoute} from '@/utils/navigation'
 import {DocumentRoute, DraftRoute, NavRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
@@ -397,7 +396,6 @@ function DraftName({
   const title = useDraftName({
     documentId: route.id,
   })
-  const {show} = useShowTitle('titlebar')
   const realTitle = title ?? 'Untitled Document'
   // const fixedTitle = useFixedDraftTitle(route)
   // TODO: check wtf is this
@@ -405,13 +403,13 @@ function DraftName({
   const displayTitle = fixedTitle || realTitle
   useWindowTitle(displayTitle ? `Draft: ${displayTitle}` : undefined)
 
-  return show ? (
+  return (
     <>
       <TitleText data-testid="titlebar-title" size={size}>
         {displayTitle}
       </TitleText>
     </>
-  ) : null
+  )
 }
 
 function useWindowTitle(title?: string) {

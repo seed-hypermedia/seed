@@ -6,6 +6,7 @@ import {useGatewayHost} from '@/models/gateway-settings'
 import {useRecents} from '@/models/recents'
 import {useSearch} from '@/models/search'
 import {fetchWebLink} from '@/models/web-links'
+import {useShowTitle} from '@/pages/app-title'
 import {trpc} from '@/trpc'
 import {
   appRouteOfId,
@@ -46,6 +47,9 @@ import {Title} from './titlebar-title'
 export function TitlebarSearch() {
   const [state, setState] = useState<'search' | 'title'>('search')
   const [showLauncher, setShowLauncher] = useState(false)
+  const {show} = useShowTitle('titlebar')
+
+  console.log(`== ~ TitlebarSearch ~ show:`, show)
   const route = useNavRoute()
   useListenAppEvent('openLauncher', () => {
     setState('search')
@@ -53,8 +57,8 @@ export function TitlebarSearch() {
   })
 
   useEffect(() => {
-    setState('title')
-  }, [route.key])
+    setState(show ? 'title' : 'search')
+  }, [route.key, show])
 
   return (
     <XStack ai="center" className="no-window-drag" position="relative" gap="$2">

@@ -145,97 +145,6 @@ function MainDocumentPage() {
     </MainWrapper>
   )
 }
-//   return (
-//     <>
-//       <List
-//         ref={scrollRef}
-//         header={<AccountPageHeader />}
-//         footer={
-//           route.tab === 'activity' ? <FeedPageFooter feedQuery={feed} /> : null
-//         }
-//         items={items}
-//         onEndReached={() => {
-//           if (route.tab === 'activity') feed.fetchNextPage()
-//         }}
-//         renderItem={({ item }) => {
-//           if (item === 'profile') {
-//             return <ProfileDoc />
-//           }
-//           if (item.key === 'document' && item.document) {
-//             const docId = item.document?.id
-//             return (
-//               <DocumentListItem
-//                 key={docId}
-//                 document={item.document}
-//                 author={item.author}
-//                 editors={item.editors}
-//                 hasDraft={undefined}
-//                 menuItems={() => [
-//                   copyLinkMenuItem(() => {
-//                     const id = unpackDocId(docId)
-//                     if (!id) return
-//                     onCopyId({
-//                       ...id,
-//                       version: item.document.version || null,
-//                     })
-//                   }, 'Document'),
-//                   {
-//                     label: 'Delete Document',
-//                     key: 'delete',
-//                     icon: Trash,
-//                     onPress: () => {
-//                       openDelete({
-//                         id: docId,
-//                         title: getDocumentTitle(item.document),
-//                       })
-//                     },
-//                   },
-//                 ]}
-//                 openRoute={{
-//                   key: 'document',
-//                   documentId: docId,
-//                   versionId: item.document.version,
-//                 }}
-//               />
-//             )
-//           } else if (item.key === 'event') {
-//             return <FeedItem event={item.event} />
-//           } else if (item.key === 'draft') {
-//             return (
-//               <ListItem
-//                 title={getDocumentTitle(item.document)}
-//                 onPress={() => {
-//                   navigate({
-//                     key: 'draft',
-//                     draftId: item.document.id,
-//                   })
-//                 }}
-//                 theme="yellow"
-//                 backgroundColor="$color3"
-//                 accessory={
-//                   <Button disabled onPress={() => { }} size="$1">
-//                     Draft
-//                   </Button>
-//                 }
-//               />
-//             )
-//           }
-//           console.log('unrecognized item', item)
-//         }}
-//       />
-//       {deleteDialog}
-//       {copyDialogContent}
-//       {route.tab === 'activity' && feed.hasNewItems && (
-//         <NewUpdatesButton
-//           onPress={() => {
-//             scrollRef.current?.scrollTo({ top: 0 })
-//             feed.refetch()
-//           }}
-//         />
-//       )}
-//     </>
-//   )
-// }
 
 function AccountPageHeader() {
   const route = useNavRoute()
@@ -246,6 +155,7 @@ function AccountPageHeader() {
   const doc = useEntity(docId)
   const isMyAccount = myAccountIds.data?.includes(docId)
   const accountName = getProfileName(doc.data?.document)
+
   return (
     <>
       <PageContainer marginTop="$6">

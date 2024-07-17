@@ -6631,6 +6631,7 @@ __metadata:
     jsdom: 22.1.0
     katex: ^0.16.9
     linkifyjs: 4.1.1
+    lodash: ^4.17.21
     loglevel: 1.8.1
     lowlight: 3.1.0
     lz-string: 1.5.0
@@ -9234,14 +9235,14 @@ __metadata:
   linkType: hard
 
 "@tiptap/extension-bubble-menu@npm:^2.0.3":
-  version: 2.5.3
-  resolution: "@tiptap/extension-bubble-menu@npm:2.5.3"
+  version: 2.5.4
+  resolution: "@tiptap/extension-bubble-menu@npm:2.5.4"
   dependencies:
     tippy.js: ^6.3.7
   peerDependencies:
-    "@tiptap/core": ^2.5.3
-    "@tiptap/pm": ^2.5.3
-  checksum: 85a918d882deb4a520a438b36bda1838ed5eeb18e505aa398626320e4554940aa957d14aeff5358dc921313f3c71ae09bbc00c92cc116bc57c4bd7acfd328aed
+    "@tiptap/core": ^2.5.4
+    "@tiptap/pm": ^2.5.4
+  checksum: 23d3968610dc636530f5c5a8caa03291f342fdbfa0b273ed67074eecebc0b3fe23b61cbd18b476eb8c6e8d64e121efdebda6c6a6ad6de346385e3034ff91b716
   languageName: node
   linkType: hard
 
@@ -9286,14 +9287,14 @@ __metadata:
   linkType: hard
 
 "@tiptap/extension-floating-menu@npm:^2.0.3":
-  version: 2.5.3
-  resolution: "@tiptap/extension-floating-menu@npm:2.5.3"
+  version: 2.5.4
+  resolution: "@tiptap/extension-floating-menu@npm:2.5.4"
   dependencies:
     tippy.js: ^6.3.7
   peerDependencies:
-    "@tiptap/core": ^2.5.3
-    "@tiptap/pm": ^2.5.3
-  checksum: 184f94cb8eb4993334eb24737e2d12160b6214a304ce4dd5c6a2946f901925510a6f89c244647589488a8c5dfddc379a54b70171f9d80db69a9aae25b4d87e82
+    "@tiptap/core": ^2.5.4
+    "@tiptap/pm": ^2.5.4
+  checksum: 3cafa035f6f0d50dfd5b096d5c6df79d95878e253e0db558f9d8732dd366fe8648cda8f13bd5ec442fd08ece56db77ed413323094d2041a3c89bbf09777027e9
   languageName: node
   linkType: hard
 

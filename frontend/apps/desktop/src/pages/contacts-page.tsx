@@ -26,6 +26,8 @@ import {
   YStack,
 } from '@shm/ui'
 import {Trash} from '@tamagui/lucide-icons'
+import {useRef} from 'react'
+import {useShowTitleObserver} from './app-title'
 
 export function ContactItem({
   account,
@@ -123,6 +125,8 @@ function ErrorPage({}: {error: any}) {
 export default function ContactsPage() {
   const contacts = useListProfileDocuments()
   const navigate = useNavigate('push')
+  const ref = useRef(null)
+  useShowTitleObserver(ref.current)
   if (contacts.isLoading) {
     return (
       <MainWrapper>
@@ -157,7 +161,7 @@ export default function ContactsPage() {
         <List
           header={
             <Container>
-              <H2>Contacts</H2>
+              <H2 ref={ref}>Contacts</H2>
             </Container>
           }
           items={contacts.data!.documents}
