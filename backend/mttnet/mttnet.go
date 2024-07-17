@@ -30,6 +30,7 @@ import (
 	"github.com/libp2p/go-libp2p"
 	gostream "github.com/libp2p/go-libp2p-gostream"
 	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
@@ -111,23 +112,24 @@ type rpcMux struct {
 
 // Node is a Seed P2P node.
 type Node struct {
-	log      *zap.Logger
-	blobs    *hyper.Storage
-	db       *sqlitex.Pool
-	device   core.KeyPair
-	keys     core.KeyStore
-	cfg      config.P2P
-	invoicer Invoicer
-	client   *Client
-
-	protocol  protocolInfo
-	p2p       *ipfs.Libp2p
-	bitswap   *ipfs.Bitswap
-	providing provider.System
-	grpc      *grpc.Server
-	quit      io.Closer
-	ready     chan struct{}
-	ctx       context.Context // will be set after calling Start()
+	log                    *zap.Logger
+	blobs                  *hyper.Storage
+	db                     *sqlitex.Pool
+	device                 core.KeyPair
+	keys                   core.KeyStore
+	cfg                    config.P2P
+	invoicer               Invoicer
+	client                 *Client
+	connectionCallback     func(context.Context, event.EvtPeerConnectednessChanged)
+	identificationCallback func(context.Context, event.EvtPeerIdentificationCompleted)
+	protocol               protocolInfo
+	p2p                    *ipfs.Libp2p
+	bitswap                *ipfs.Bitswap
+	providing              provider.System
+	grpc                   *grpc.Server
+	quit                   io.Closer
+	ready                  chan struct{}
+	ctx                    context.Context // will be set after calling Start()
 }
 
 // New creates a new P2P Node. The users must call Start() before using the node, and can use Ready() to wait
@@ -185,6 +187,28 @@ func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool
 		quit:      &clean,
 		ready:     make(chan struct{}),
 	}
+	n.connectionCallback = n.defaultConnectionCallback
+	n.identificationCallback = n.defaultIdentificationCallback
+	sub, err := host.EventBus().Subscribe([]interface{}{new(event.EvtPeerIdentificationCompleted), new(event.EvtPeerConnectednessChanged)})
+	if err != nil {
+		return nil, err
+	}
+	clean.Add(sub)
+
+	go func() {
+		for e := range sub.Out() {
+			switch event := e.(type) {
+			case event.EvtPeerConnectednessChanged:
+				if n.connectionCallback != nil {
+					n.connectionCallback(n.ctx, event)
+				}
+			case event.EvtPeerIdentificationCompleted:
+				if n.identificationCallback != nil {
+					n.identificationCallback(n.ctx, event)
+				}
+			}
+		}
+	}()
 
 	rpc := &rpcMux{Node: n}
 	p2p.RegisterP2PServer(n.grpc, rpc)
@@ -202,10 +226,27 @@ func (n *Node) Provider() provider.System {
 	return n.providing
 }
 
+// GetProtocolInfo returns the current protocol info for convenience.
+func (n *Node) GetProtocolVersion() string {
+	return n.protocol.version
+}
+
 // RegisterRPCService allows registering additional gRPC services to be exposed over libp2p.
 // This function must be called before calling Start().
 func (n *Node) RegisterRPCService(fn func(grpc.ServiceRegistrar)) {
 	fn(n.grpc)
+}
+
+// SetConnectionCallback allows registering a callback to be called any peer of ours changes its
+// connectivity status. This is called when a known peer goes offline of when we get a new peer.
+func (n *Node) SetConnectionCallback(fn func(context.Context, event.EvtPeerConnectednessChanged)) {
+	n.connectionCallback = fn
+}
+
+// SetIdentificationCallback allows registering a callback to be called when initial identification
+// round for a peer is completed.
+func (n *Node) SetIdentificationCallback(fn func(context.Context, event.EvtPeerIdentificationCompleted)) {
+	n.identificationCallback = fn
 }
 
 // ProvideCID notifies the providing system to provide the given CID on the DHT.
@@ -384,7 +425,9 @@ func (n *Node) Start(ctx context.Context) (err error) {
 	if err := n.startLibp2p(ctx); err != nil {
 		return err
 	}
-
+	if err := n.p2p.Peerstore().AddProtocols(n.client.host.ID(), n.protocol.ID); err != nil {
+		return fmt.Errorf("failed to add seed protocol: %w", err)
+	}
 	lis, err := gostream.Listen(n.p2p.Host, n.protocol.ID)
 	if err != nil {
 		return fmt.Errorf("failed to start listener: %w", err)

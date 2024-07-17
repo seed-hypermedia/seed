@@ -11,6 +11,7 @@ import (
 	"seed/backend/mttnet"
 	"seed/backend/pkg/dqb"
 	"seed/backend/syncing/rbsr"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -24,7 +25,9 @@ import (
 	"github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/boxo/exchange"
 	"github.com/ipfs/go-cid"
+	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -98,8 +101,14 @@ type bitswap interface {
 	NewSession(context.Context) exchange.Fetcher
 	FindProvidersAsync(context.Context, cid.Cid, int) <-chan peer.AddrInfo
 }
-
-// Service manages syncing of Seed objects among peers.
+type Storage interface {
+	DB() *sqlitex.Pool
+	// Service manages syncing of Seed objects among peers.
+}
+type protocolChecker struct {
+	checker func(context.Context, peer.ID, string) error
+	version string
+}
 type Service struct {
 	cfg     config.Syncing
 	log     *zap.Logger
@@ -108,8 +117,8 @@ type Service struct {
 	bitswap bitswap
 	client  netDialFunc
 	host    host.Host
-
-	mu sync.Mutex // Ensures only one sync loop is running at a time.
+	pc      protocolChecker
+	mu      sync.Mutex // Ensures only one sync loop is running at a time.
 
 	wg        sync.WaitGroup
 	workers   map[peer.ID]*worker
@@ -135,7 +144,11 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer *
 		workers:   make(map[peer.ID]*worker),
 		semaphore: make(chan struct{}, peerRoutingConcurrency),
 	}
-
+	svc.pc = protocolChecker{
+		checker: net.CheckHyperMediaProtocolVersion,
+		version: net.GetProtocolVersion(),
+	}
+	net.SetIdentificationCallback(svc.syncBack)
 	return svc
 }
 
@@ -354,6 +367,58 @@ func (s *Service) SyncWithPeer(ctx context.Context, pid peer.ID) error {
 
 	//return syncPeer(ctx, pid, c, bs, bswap, s.db, s.log)
 	return syncPeerRbsr(ctx, pid, c, s.indexer, bswap, s.db, s.log)
+}
+
+func (s *Service) syncBack(ctx context.Context, event event.EvtPeerIdentificationCompleted) {
+	if s.host.Network().Connectedness(event.Peer) != network.Connected {
+		return
+	}
+
+	if err := s.pc.checker(ctx, event.Peer, s.pc.version); err != nil {
+		return
+	}
+	info := s.host.Peerstore().PeerInfo(event.Peer)
+
+	if info.ID == s.host.Network().LocalPeer() {
+		return
+	}
+	addrsStr := mttnet.AddrInfoToStrings(info)
+	conn, cancel, err := s.db.Conn(ctx)
+	if err != nil {
+		s.log.Error("Could not get connection")
+	}
+	defer cancel()
+
+	const q = "SELECT addresses FROM peers WHERE pid = ?;"
+	var addresses string
+	if err := sqlitex.WithTx(conn, func() error {
+		if err := sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
+			addresses = stmt.ColumnText(0)
+			return nil
+		}, info.ID.String()); err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return
+	}
+	var foundInfo peer.AddrInfo
+	foundAddressesStr := strings.Split(strings.Trim(addresses, " "), ",")
+	if len(foundAddressesStr) != 0 && len(foundAddressesStr[0]) != 0 {
+		foundInfo, err = mttnet.AddrInfoFromStrings(foundAddressesStr...)
+		if err != nil {
+			return
+		}
+	}
+	if foundInfo.String() != info.String() {
+		if err := sqlitex.Exec(conn, "INSERT OR REPLACE INTO peers (pid, addresses) VALUES (?, ?);", nil, info.ID.String(), strings.Join(addrsStr, ",")); err != nil {
+			s.log.Warn("Could not store peer", zap.Error(err))
+		} else {
+			s.log.Info("Syncing back", zap.String("PeerID", info.ID.String()))
+			go s.SyncWithPeer(ctx, info.ID)
+		}
+	}
 
 }
 

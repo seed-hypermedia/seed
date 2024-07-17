@@ -177,19 +177,19 @@ func TestSyncingProfiles(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = bob.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
-		Addrs: mttnet.AddrInfoToStrings(alice.Net.AddrInfo()),
+	_, err = alice.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
+		Addrs: mttnet.AddrInfoToStrings(bob.Net.AddrInfo()),
 	})
 	require.NoError(t, err)
 
-	//require.NoError(t, alice.Blobs.SetAccountTrust(ctx, bobIdentity.Account.Principal()))
-	//require.NoError(t, bob.Blobs.SetAccountTrust(ctx, aliceIdentity.Account.Principal()))
-	_, err = bob.RPC.DocumentsV2.GetProfileDocument(ctx, &documents.GetProfileDocumentRequest{
-		AccountId: aliceIdentity.Account.Principal().String(),
-	})
-	require.Error(t, err)
-	_, err = bob.RPC.Daemon.ForceSync(ctx, &daemon.ForceSyncRequest{})
-	require.NoError(t, err)
+	// _, err = bob.RPC.DocumentsV2.GetProfileDocument(ctx, &documents.GetProfileDocumentRequest{
+	//	AccountId: aliceIdentity.Account.Principal().String(),
+	// })
+	// require.Error(t, err)
+	// Since bob implements a syncback policy triggered when Alice connected to him, we don't need
+	// to force any syncing just wait for bob to instantly syncs content right after connection.
+	//_, err = bob.RPC.Daemon.ForceSync(ctx, &daemon.ForceSyncRequest{})
+	//require.NoError(t, err)
 	time.Sleep(time.Millisecond * 100)
 	doc2, err := bob.RPC.DocumentsV2.GetProfileDocument(ctx, &documents.GetProfileDocumentRequest{
 		AccountId: aliceIdentity.Account.Principal().String(),

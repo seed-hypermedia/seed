@@ -16,6 +16,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
+	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
@@ -114,7 +115,7 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 		return fmt.Errorf("failed to connect to peer %s: %w", info.ID, err)
 	}
 
-	if err := n.checkHyperMediaProtocolVersion(ctx, info.ID, n.protocol.version); err != nil {
+	if err := n.CheckHyperMediaProtocolVersion(ctx, info.ID, n.protocol.version); err != nil {
 		return err
 	}
 
@@ -146,7 +147,22 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	*/
 }
 
-func (n *Node) checkHyperMediaProtocolVersion(ctx context.Context, pid peer.ID, desiredVersion string) (err error) {
+func (n *Node) defaultConnectionCallback(_ context.Context, event event.EvtPeerConnectednessChanged) {
+	n.log.Debug(event.Peer.String(), zap.String("Connectedness", event.Connectedness.String()))
+}
+
+func (n *Node) defaultIdentificationCallback(_ context.Context, event event.EvtPeerIdentificationCompleted) {
+	connectedness := n.Libp2p().Network().Connectedness(event.Peer)
+	n.log.Debug(event.Peer.String(), zap.String("Connectedness", connectedness.String()))
+	protocols, err := n.Libp2p().Peerstore().GetProtocols(event.Peer)
+	if err != nil {
+		n.log.Warn("Could not get protocols")
+	}
+	protocolsStr := protocol.ConvertToStrings(protocols)
+	n.log.Debug(event.Peer.String(), zap.String("Protocols", strings.Join(protocolsStr, ",")))
+}
+
+func (n *Node) CheckHyperMediaProtocolVersion(ctx context.Context, pid peer.ID, desiredVersion string) (err error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 
@@ -243,7 +259,7 @@ func (srv *rpcMux) Handshake(ctx context.Context, in *p2p.HandshakeInfo) (*p2p.H
 
 	log := n.log.With(zap.String("peer", pid.String()))
 
-	if err := n.checkHyperMediaProtocolVersion(ctx, pid, srv.Node.protocol.version); err != nil {
+	if err := n.CheckHyperMediaProtocolVersion(ctx, pid, srv.Node.protocol.version); err != nil {
 		return nil, err
 	}
 
