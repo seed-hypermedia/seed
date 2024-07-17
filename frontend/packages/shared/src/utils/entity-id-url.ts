@@ -128,7 +128,7 @@ export const unpackedHmIdSchema = z.object({
   ]),
   eid: z.string(),
   qid: z.string(),
-  indexPath: z.string(),
+  indexPath: z.string().nullable(),
   version: z.string().nullable(),
   blockRef: z.string().nullable(),
   blockRange: z
@@ -195,8 +195,8 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
   if (!parsed) return null
   console.log(`== ~ unpackHmId ~ parsed:`, parsed)
   if (parsed.scheme === HYPERMEDIA_SCHEME) {
-    const type = inKeys(parsed?.path[0], HYPERMEDIA_ENTITY_TYPES)
-    const eid = parsed.path[1]
+    const [rawType, eid, ...path] = parsed.path
+    const type = inKeys(rawType, HYPERMEDIA_ENTITY_TYPES)
     const version = parsed.query.get('v')
     const latest = parsed.query.has('l')
     if (!type) return null
@@ -222,7 +222,7 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
       qid,
       type,
       eid,
-      indexPath: parsed.path[2] || null,
+      indexPath: path.join('/') || null,
       version,
       blockRef: fragment ? fragment.blockId : null,
       blockRange,
