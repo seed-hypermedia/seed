@@ -15,7 +15,7 @@ import {
   NavigationButtons,
   PageActionButtons,
 } from './titlebar-common'
-import {Title} from './titlebar-title'
+import {TitlebarSearch} from './titlebar-search'
 import './titlebar-windows-linux.css'
 import {SystemMenu} from './windows-linux-titlebar'
 
@@ -46,7 +46,7 @@ export default function TitleBarWindows(props: TitleBarProps) {
           <NavigationButtons />
         </XStack>
       }
-      title={<Title />}
+      title={<TitlebarSearch />}
     />
   )
 }

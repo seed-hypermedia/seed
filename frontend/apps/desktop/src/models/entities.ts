@@ -155,11 +155,18 @@ export function queryEntity(
       const {type, qid, version, eid, indexPath} = id
       if (indexPath) {
         // TODO: horacio wait for backend implementation of GetDocument
-        // const document = await grpcClient.documents.getDocument({
-        //   documentId: rawId,
-        //   version: version || undefined,
+        // const subDocument = await grpcClient.documents.getDocumentIndex({
+        //   documentId: qid,
+        //   path: indexPath,
         // })
-        // return {type: 'd', id, document: toPlainMessage(document)}
+        // if (subDocument.document)
+        //   return {
+        //     type: 'd',
+        //     id,
+        //     document: subDocument.document
+        //       ? toPlainMessage(subDocument.document)
+        //       : undefined,
+        //   }
       } else {
         if (type === 'd') {
           const document = await grpcClient.documents.getDocument({

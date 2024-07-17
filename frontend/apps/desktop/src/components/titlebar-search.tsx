@@ -1,11 +1,10 @@
 import {useAppContext, useGRPCClient} from '@/app-context'
-import {dialogBoxShadow, useAppDialog} from '@/components/dialog'
+import {dialogBoxShadow} from '@/components/dialog'
 import appError from '@/errors'
 import {useConnectPeer} from '@/models/contacts'
 import {useGatewayHost} from '@/models/gateway-settings'
 import {useRecents} from '@/models/recents'
 import {useSearch} from '@/models/search'
-import {importWebCapture} from '@/models/web-importer'
 import {fetchWebLink} from '@/models/web-links'
 import {trpc} from '@/trpc'
 import {
@@ -13,9 +12,11 @@ import {
   isHttpUrl,
   resolveHmIdToAppRoute,
   useHmIdToAppRouteResolver,
+  useNavRoute,
 } from '@/utils/navigation'
 import {NavRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
+import {useListenAppEvent} from '@/utils/window-events'
 import {
   GRPCClient,
   HYPERMEDIA_ENTITY_TYPES,
@@ -30,14 +31,59 @@ import {
   Button,
   Input,
   ScrollView,
+  Search,
   SizableText,
   Spinner,
+  Theme,
   XStack,
   YStack,
   toast,
 } from '@shm/ui'
 import {useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {AppQueryClient} from '../query-client'
+import {Title} from './titlebar-title'
+
+export function TitlebarSearch() {
+  const [state, setState] = useState<'search' | 'title'>('search')
+  const [showLauncher, setShowLauncher] = useState(false)
+  const route = useNavRoute()
+  useListenAppEvent('openLauncher', () => {
+    setState('search')
+    setShowLauncher(true)
+  })
+
+  useEffect(() => {
+    setState('title')
+  }, [route.key])
+
+  return (
+    <XStack ai="center" className="no-window-drag" position="relative" gap="$2">
+      <Button
+        chromeless
+        size="$2"
+        icon={Search}
+        hoverStyle={{
+          cursor: 'text !important',
+        }}
+        onPress={() => {
+          setState('search')
+          setShowLauncher((v) => !v)
+        }}
+      >
+        {state == 'search' ? 'Open Hypermedia Document...' : undefined}
+      </Button>
+      {state == 'title' ? <Title /> : null}
+      {showLauncher ? (
+        <LauncherContent
+          onClose={() => {
+            console.log('closing launcher')
+            setShowLauncher(false)
+          }}
+        />
+      ) : null}
+    </XStack>
+  )
+}
 
 function useURLHandler() {
   const experiments = trpc.experiments.get.useQuery()
@@ -73,17 +119,17 @@ function useURLHandler() {
         return null
       }
       toast('Importing from the web')
-      const imported = await importWebCapture(webResult, grpcClient)
-      const documentId = imported.published.document?.id
-      const ownerId = imported.published.document?.author
-      if (!documentId)
-        throw new Error('Conversion succeeded but documentId is not here')
-      if (!ownerId)
-        throw new Error('Conversion succeeded but ownerId is not here')
-      return {
-        key: 'document',
-        documentId,
-      }
+      //   const imported = await importWebCapture(webResult, grpcClient)
+      //   const documentId = imported.published.document?.id
+      //   const ownerId = imported.published.document?.author
+      //   if (!documentId)
+      //     throw new Error('Conversion succeeded but documentId is not here')
+      //   if (!ownerId)
+      //     throw new Error('Conversion succeeded but ownerId is not here')
+      //   return {
+      //     key: 'document',
+      //     documentId,
+      //   }
     } else {
       const result = await fetchWebLink(queryClient, httpSearch)
       const parsedUrl = parseCustomURL(httpSearch)
@@ -103,13 +149,13 @@ function useURLHandler() {
   }
 }
 
-type SwitcherItem = {
+type LauncherItemType = {
   key: string
   title: string
   subtitle?: string
   onSelect: () => void
 }
-function LauncherContent({onClose}: {input: {}; onClose: () => void}) {
+function LauncherContent({onClose}: {onClose: () => void}) {
   const [search, setSearch] = useState('')
   const navigate = useNavigate()
   const grpcClient = useGRPCClient()
@@ -119,7 +165,7 @@ function LauncherContent({onClose}: {input: {}; onClose: () => void}) {
   const handleUrl = useURLHandler()
   const recents = useRecents()
   const searchResults = useSearch(search, {})
-  let queryItem: null | SwitcherItem = null
+  let queryItem: null | LauncherItemType = null
   if (
     isHypermediaScheme(search) ||
     search.startsWith('http://') ||
@@ -163,7 +209,7 @@ function LauncherContent({onClose}: {input: {}; onClose: () => void}) {
     }
   }
 
-  const searchItems: SwitcherItem[] =
+  const searchItems: LauncherItemType[] =
     searchResults.data
       ?.map((item) => {
         const id = unpackHmId(item.id)
@@ -285,50 +331,58 @@ function LauncherContent({onClose}: {input: {}; onClose: () => void}) {
     )
   }
   return (
-    <YStack height="80%">
-      <YStack
-        backgroundColor="$background"
-        borderBottomEndRadius={0}
-        borderBottomStartRadius={0}
-        borderTopRightRadius={6}
-        borderTopLeftRadius={6}
-        boxShadow={dialogBoxShadow}
-        padding="$3"
-        paddingBottom={0}
-      >
-        <Input
-          autoFocus
-          minHeight={42}
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Query URL, Search Documents, Groups, Accounts..."
-          disabled={!!actionPromise}
-          onKeyPress={(e) => {
-            if (e.nativeEvent.key === 'Escape') {
-              onClose()
-            }
-            if (e.nativeEvent.key === 'Enter') {
-              const item = activeItems[focusedIndex]
-              if (item) {
-                item.onSelect()
-              }
-            }
-            if (e.nativeEvent.key === 'ArrowDown') {
-              e.preventDefault()
-              setFocusedIndex((prev) => (prev + 1) % activeItems.length)
-            }
-            if (e.nativeEvent.key === 'ArrowUp') {
-              e.preventDefault()
-              setFocusedIndex(
-                (prev) => (prev - 1 + activeItems.length) % activeItems.length,
-              )
-            }
-          }}
-        />
-      </YStack>
+    <Theme inverse>
+      <YStack height="80%" position="absolute" top={0} left={0}>
+        <YStack
+          // bg="green"
+          bg="$background"
+          boxShadow={dialogBoxShadow}
+          borderRadius="$4"
+          padding="$2"
+          // paddingBottom={0}
+        >
+          <XStack ai="center" gap="$2">
+            <Search size={16} />
+            {/* <Theme inverse> */}
+            <Input
+              minWidth={240}
+              autoFocus
+              //   minHeight={42}
+              size="$2"
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Open Hypermedia Document..."
+              disabled={!!actionPromise}
+              onKeyPress={(e: any) => {
+                if (e.nativeEvent.key === 'Escape') {
+                  onClose()
+                }
+                if (e.nativeEvent.key === 'Enter') {
+                  const item = activeItems[focusedIndex]
+                  if (item) {
+                    item.onSelect()
+                  }
+                }
+                if (e.nativeEvent.key === 'ArrowDown') {
+                  e.preventDefault()
+                  setFocusedIndex((prev) => (prev + 1) % activeItems.length)
+                }
+                if (e.nativeEvent.key === 'ArrowUp') {
+                  e.preventDefault()
+                  setFocusedIndex(
+                    (prev) =>
+                      (prev - 1 + activeItems.length) % activeItems.length,
+                  )
+                }
+              }}
+            />
+            {/* </Theme> */}
+          </XStack>
+        </YStack>
 
-      {content}
-    </YStack>
+        {content}
+      </YStack>
+    </Theme>
   )
 }
 
@@ -350,6 +404,7 @@ export function LauncherItem({item, selected = false, onFocus, onMouseEnter}) {
       hoverStyle={{
         backgroundColor: selected ? '$blue4' : undefined,
       }}
+      size="$2"
       onFocus={onFocus}
       onMouseEnter={onMouseEnter}
     >
@@ -360,19 +415,4 @@ export function LauncherItem({item, selected = false, onFocus, onMouseEnter}) {
       </XStack>
     </Button>
   )
-}
-
-export function Launcher() {
-  const launcher = useAppDialog(LauncherContent, {
-    contentProps: {
-      backgroundColor: '$colorTransparent',
-      padding: 0,
-      boxShadow: 'none',
-      height: '75%',
-    },
-  })
-  // useListenAppEvent('openLauncher', () => {
-  //   launcher.open({})
-  // })
-  return launcher.content
 }

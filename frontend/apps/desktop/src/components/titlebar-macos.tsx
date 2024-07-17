@@ -5,7 +5,7 @@ import {
   NavigationButtons,
   PageActionButtons,
 } from './titlebar-common'
-import {Title} from './titlebar-title'
+import {TitlebarSearch} from './titlebar-search'
 
 export default function TitleBarMacos(props: TitleBarProps) {
   if (props.clean) {
@@ -53,8 +53,9 @@ export default function TitleBarMacos(props: TitleBarProps) {
             <NavigationButtons />
           </XStack>
         </XStack>
-        <XStack flex={1} alignItems="center">
-          <Title />
+        <XStack flex={1} alignItems="center" paddingHorizontal="$2">
+          {/* <Title /> */}
+          <TitlebarSearch />
         </XStack>
         <XStack
           className="window-drag"

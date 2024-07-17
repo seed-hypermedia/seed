@@ -375,11 +375,12 @@ export function Title({size}: {size?: FontSizeTokens}) {
     <XStack
       gap="$2"
       alignItems="flex-start"
-      marginVertical={0}
-      paddingHorizontal="$4"
+      // marginVertical={0}
+      // paddingHorizontal="$4"
       justifyContent="flex-start"
       ai="center"
-      width="100%"
+      // width="100%"
+      minWidth={240}
     >
       <TitleContent size={size} />
     </XStack>
