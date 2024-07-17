@@ -3,7 +3,9 @@ package documents
 
 import (
 	"context"
+	"fmt"
 	"math"
+	"regexp"
 	"seed/backend/core"
 	"seed/backend/daemon/api/documents/v2alpha/docmodel"
 	"seed/backend/daemon/apiutil"
@@ -80,6 +82,73 @@ func (srv *Server) GetProfileDocument(ctx context.Context, in *documents.GetProf
 	}
 
 	return doc.Hydrate(ctx)
+}
+
+type resourceID struct {
+	Type byte // a or d
+	UID  string
+	Path string
+}
+
+func (rid resourceID) String() string {
+	var sb strings.Builder
+	sb.WriteString("hm://")
+	sb.WriteByte(rid.Type)
+	sb.WriteByte('/')
+	sb.WriteString(rid.UID)
+	if rid.Path != "" {
+		sb.WriteByte('/')
+		sb.WriteString(rid.Path)
+	}
+	return sb.String()
+}
+
+var (
+	groupType = getGroupID("type")
+	groupUID  = getGroupID("uid")
+	groupPath = getGroupID("path")
+)
+
+func getGroupID(groupName string) int {
+	idx := resourceIDRegexp.SubexpIndex(groupName)
+	if idx <= 0 {
+		panic("BUG: no such regex group name: " + groupName)
+	}
+
+	return idx
+}
+
+func parseResourceID(raw string) (rid resourceID, err error) {
+	matches := resourceIDRegexp.FindStringSubmatch(raw)
+	if matches == nil {
+		return resourceID{}, fmt.Errorf("invalid resource ID: %q", raw)
+	}
+
+	rid = resourceID{
+		Type: matches[groupType][0],
+		UID:  matches[groupUID],
+		Path: matches[groupPath],
+	}
+
+	return rid, err
+}
+
+var resourceIDRegexp = regexp.MustCompile(`^(?P<scheme>hm:\/\/)?(?P<type>a|d)\/(?P<uid>[a-zA-Z0-9]+)(?:\/(?P<path>[a-zA-Z0-9\-._~!$&'()*+,;=:@]+))?$`)
+
+// CreateDocumentChange implements Documents API v2.
+func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.CreateDocumentChangeRequest) (*documents.Document, error) {
+	if in.DocumentId == "" {
+		return nil, status.Errorf(codes.Unimplemented, "creating document changes without document ID is not implemented yet")
+	}
+
+	if strings.HasPrefix(in.DocumentId, "hm://a/") {
+		return srv.ChangeProfileDocument(ctx, &documents.ChangeProfileDocumentRequest{
+			AccountId: in.DocumentId,
+			Changes:   in.Changes,
+		})
+	}
+
+	panic("TODO")
 }
 
 // ChangeProfileDocument implements Documents API v2.
