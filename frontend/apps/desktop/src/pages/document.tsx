@@ -18,7 +18,13 @@ import {getFileUrl} from '@/utils/account-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {zodResolver} from '@hookform/resolvers/zod'
-import {DocContent, HMDocument, hmId, UnpackedHypermediaId} from '@shm/shared'
+import {
+  DocContent,
+  HMDocument,
+  hmId,
+  UnpackedHypermediaId,
+  unpackHmId,
+} from '@shm/shared'
 import {
   Button,
   CitationsIcon,
@@ -152,7 +158,8 @@ function AccountPageHeader() {
   const docId = route.key === 'document' && route.id
   if (!docId) throw new Error('Invalid route, no doc id')
   const myAccountIds = useMyAccountIds()
-  const doc = useEntity(docId)
+  const doc = useEntity(unpackHmId(docId))
+
   const isMyAccount = myAccountIds.data?.includes(docId)
   const accountName = getProfileName(doc.data?.document)
 
