@@ -16,12 +16,10 @@ import {HMAccount, createHmId, hmId} from '@shm/shared'
 import {
   ArrowUpRight,
   Container,
-  H2,
   List,
-  SizableText,
+  PageHeading,
   Spinner,
   Text,
-  View,
   XStack,
   YStack,
 } from '@shm/ui'
@@ -161,35 +159,28 @@ export default function ContactsPage() {
         <List
           header={
             <Container>
-              <H2 ref={ref}>Contacts</H2>
+              <PageHeading ref={ref}>Contacts</PageHeading>
             </Container>
           }
           items={contacts.data!.documents}
           renderItem={({item}) => {
             return (
-              <XStack
-                paddingVertical="$1.5"
-                w="100%"
-                gap="$2"
-                ai="center"
-                paddingHorizontal="$4"
-                maxWidth={600}
-                group="item"
-              >
-                <SizableText
-                  onPress={() => {
-                    navigate({
-                      key: 'document',
-                      id: item.id,
-                    })
-                  }}
-                  fontWeight={'bold'}
-                >
-                  {item.metadata.name || 'Untitled Profile'}
-                </SizableText>
-
-                <View f={1} />
-              </XStack>
+              <ListItem
+                title={item.metadata.name}
+                icon={
+                  <Avatar
+                    url={item.metadata.thumbnail}
+                    label={item.metadata.name}
+                    size={24}
+                  />
+                }
+                onPress={() => {
+                  navigate({
+                    key: 'document',
+                    id: item.id,
+                  })
+                }}
+              />
             )
           }}
         />

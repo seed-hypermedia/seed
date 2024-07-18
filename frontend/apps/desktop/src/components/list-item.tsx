@@ -28,7 +28,7 @@ export function ListItem({
     typeof menuItems === 'function' ? undefined : menuItems,
   )
   return (
-    <XStack paddingVertical="$1.5" w="100%" maxWidth={600} group="item">
+    <XStack paddingVertical="$1.5" w="100%" maxWidth={900} group="item">
       <Button
         theme={theme}
         backgroundColor={backgroundColor}

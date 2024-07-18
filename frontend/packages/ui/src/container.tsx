@@ -1,10 +1,10 @@
-import {ComponentProps} from 'react'
-import {XStack, YStack, styled} from 'tamagui'
+import {ComponentProps} from "react";
+import {XStack, YStack, styled} from "tamagui";
 
 const variants = {
   hide: {
     true: {
-      pointerEvents: 'none',
+      pointerEvents: "none",
       opacity: 0,
     },
   },
@@ -13,7 +13,7 @@ const variants = {
       paddingVertical: 0,
     },
   },
-} as const
+} as const;
 
 export function PageContainer({
   children,
@@ -31,50 +31,50 @@ export function PageContainer({
         {children}
       </YStack>
     </XStack>
-  )
+  );
 }
 
 export const ContainerDefault = styled(YStack, {
-  marginHorizontal: 'auto',
-  paddingHorizontal: '$4',
-  paddingVertical: '$6',
-  width: '100%',
+  marginHorizontal: "auto",
+  paddingHorizontal: "$4",
+  paddingVertical: "$6",
+  width: "100%",
   $gtSm: {
     maxWidth: 700,
-    paddingRight: '$2',
+    paddingRight: "$2",
   },
 
   $gtMd: {
     maxWidth: 740,
-    paddingRight: '$2',
+    paddingRight: "$2",
   },
 
   $gtLg: {
     maxWidth: 800,
-    paddingRight: '$10',
+    paddingRight: "$10",
   },
 
   variants,
-})
+});
 
 export const ContainerLarge = styled(YStack, {
-  marginHorizontal: 'auto',
-  paddingHorizontal: '$4',
-  paddingVertical: '$6',
-  width: '100%',
+  marginHorizontal: "auto",
+  paddingHorizontal: "$4",
+  paddingVertical: "$6",
+  width: "100%",
   maxWidth: 760,
-  flexShrink: 'unset',
+  flexShrink: "unset",
   $gtLg: {
     maxWidth: 940,
   },
   variants,
-})
+});
 
 export const ContainerXL = styled(YStack, {
-  marginHorizontal: 'auto',
-  paddingHorizontal: '$4',
-  paddingVertical: '$6',
-  width: '100%',
+  marginHorizontal: "auto",
+  paddingHorizontal: "$4",
+  paddingVertical: "$6",
+  width: "100%",
   $gtSm: {
     maxWidth: 980,
   },
@@ -88,7 +88,7 @@ export const ContainerXL = styled(YStack, {
   },
 
   variants,
-})
+});
 
-export const AppContainer = ContainerLarge
-export const Container = ContainerLarge
+export const AppContainer = ContainerLarge;
+export const Container = ContainerLarge;

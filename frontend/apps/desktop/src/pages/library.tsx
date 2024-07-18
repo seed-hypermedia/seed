@@ -1,5 +1,6 @@
 import {dispatchWizardEvent} from '@/app-account'
 import {useQueryInvalidator} from '@/app-context'
+import {Avatar} from '@/components/avatar'
 import {MainWrapper} from '@/components/main-wrapper'
 import {useProfileWithDraft} from '@/models/accounts'
 import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
@@ -11,12 +12,11 @@ import {useNavigate} from '@/utils/useNavigate'
 import {createHmId, hmId} from '@shm/shared'
 import {
   Add,
-  Avatar,
   Button,
   Container,
   Footer,
-  H2,
   List,
+  PageHeading,
   SizableText,
   toast,
   View,
@@ -42,13 +42,7 @@ export default function ContentPage() {
   return (
     <>
       <MainWrapper>
-        <YStack
-          gap="$4"
-          maxWidth={600}
-          paddingVertical="$4"
-          alignSelf="center"
-          width="100%"
-        >
+        <Container>
           {keys.data?.length ? (
             <YStack>
               {keys.data.map((key) => (
@@ -60,14 +54,14 @@ export default function ContentPage() {
               Add account
             </Button>
           )}
-        </YStack>
+        </Container>
         <View height="100vh" alignSelf="stretch">
           <List
             items={draftList.data || []}
             fixedItemHeight={52}
             header={
               <Container>
-                <H2>Library</H2>
+                <PageHeading>Library</PageHeading>
               </Container>
             }
             footer={<View height={20} />}
@@ -80,7 +74,6 @@ export default function ContentPage() {
                   gap="$2"
                   ai="center"
                   paddingHorizontal="$4"
-                  maxWidth={600}
                   group="item"
                 >
                   <SizableText
@@ -110,6 +103,8 @@ export default function ContentPage() {
 function AccountKeyItem({accountId}: {accountId: string}) {
   const openDraft = useOpenDraft('push')
   const {draft, profile} = useProfileWithDraft(accountId)
+
+  console.log(`== ~ AccountKeyItem ~ profile:`, profile)
   const deleteKey = useDeleteKey()
   const navigate = useNavigate('push')
 
@@ -123,14 +118,13 @@ function AccountKeyItem({accountId}: {accountId: string}) {
   return (
     <XStack>
       <XStack f={1} ai="center" gap="$2">
-        <Avatar
-          size={40}
-          url={
-            profile?.metadata.thumbnail
-              ? getFileUrl(profile.metadata.thumbnail)
-              : ''
-          }
-        />
+        {profile?.metadata.thumbnail ? (
+          <Avatar
+            size={40}
+            label={profile?.metadata.name}
+            url={getFileUrl(profile.metadata.thumbnail)}
+          />
+        ) : null}
         <YStack f={1}>
           <p
             style={{

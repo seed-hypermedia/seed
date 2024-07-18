@@ -7,7 +7,7 @@ import {useAllAccounts} from '@/models/accounts'
 import {useEntity} from '@/models/entities'
 import {FavoriteItem, useFavorites} from '@/models/favorites'
 import {HMAccount, UnpackedHypermediaId} from '@shm/shared'
-import {List} from '@shm/ui'
+import {Container, List, PageHeading} from '@shm/ui'
 import {ContactItem} from './contacts-page'
 
 export default function FavoritesPage() {
@@ -19,6 +19,11 @@ export default function FavoritesPage() {
     <>
       <MainWrapperNoScroll>
         <List
+          header={
+            <Container>
+              <PageHeading>Favorites</PageHeading>
+            </Container>
+          }
           items={favorites}
           //   header={header}
           fixedItemHeight={52}
