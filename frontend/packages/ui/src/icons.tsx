@@ -160,34 +160,34 @@ export function TwitterXIcon(props) {
 export function CitationsIcon({color = "black"}) {
   return (
     <svg fill="currentColor" viewBox="0 0 20 21" width="20" height="21">
-      <g clip-path="url(#clip0_2880_24551)">
+      <g clipPath="url(#clip0_2880_24551)">
         <path
           d="M3.33313 10.832C2.22229 9.28703 2.22229 7.37703 3.33313 5.83203"
           stroke={color}
-          stroke-width="1.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+          strokeWidth="1.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
         />
         <path
           d="M6.66711 10.832C5.55628 9.28703 5.55628 7.37703 6.66711 5.83203"
           stroke={color}
-          stroke-width="1.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+          strokeWidth="1.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
         />
         <path
           d="M13.334 15.832C14.4448 14.287 14.4448 12.377 13.334 10.832"
           stroke={color}
-          stroke-width="1.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+          strokeWidth="1.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
         />
         <path
           d="M16.666 15.832C17.7768 14.287 17.7768 12.377 16.666 10.832"
           stroke={color}
-          stroke-width="1.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+          strokeWidth="1.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
         />
       </g>
       <defs>
@@ -207,20 +207,20 @@ export function CitationsIcon({color = "black"}) {
 export function HistoryIcon({color = DefaultIconColor}) {
   return (
     <svg width="21" height="20" viewBox="0 0 21 20" fill="none">
-      <g clip-path="url(#clip0_1114_10118)">
+      <g clipPath="url(#clip0_1114_10118)">
         <path
           d="M10.832 6.98242V9.9918L12.3367 11.4965"
           stroke={color}
-          stroke-width="1.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+          strokeWidth="1.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
         />
         <path
           d="M4.09766 9.24117C4.26625 7.58606 5.03828 6.05095 6.26646 4.92871C7.49464 3.80648 9.09299 3.17569 10.7566 3.15669C12.4201 3.13769 14.0325 3.73181 15.286 4.82569C16.5394 5.91958 17.3463 7.43666 17.5527 9.08749C17.759 10.7383 17.3504 12.4073 16.4048 13.7761C15.4591 15.1449 14.0426 16.1176 12.4256 16.5087C10.8085 16.8998 9.10406 16.6818 7.63743 15.8965C6.1708 15.1111 5.04465 13.8132 4.47383 12.2505M4.09766 16.0123V12.2505H7.85937"
           stroke={color}
-          stroke-width="1.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+          strokeWidth="1.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
         />
       </g>
       <defs>
@@ -245,38 +245,38 @@ export function CollaboratorsIcon({color = DefaultIconColor}) {
         cy="6.78917"
         r="2.56847"
         stroke={color}
-        stroke-width="1.2"
-        stroke-linecap="round"
+        strokeWidth="1.2"
+        strokeLinecap="round"
       />
       <path
         d="M6.33677 14.2816C6.74574 12.3388 8.67939 11.2832 10.6647 11.2832V11.2832C12.6501 11.2832 14.5837 12.3388 14.9927 14.2816C15.0385 14.4989 15.0769 14.7215 15.1053 14.947C15.1628 15.4036 14.7865 15.778 14.3262 15.778H7.00326C6.54302 15.778 6.16665 15.4036 6.22418 14.947C6.25258 14.7215 6.29102 14.4989 6.33677 14.2816Z"
         stroke={color}
-        stroke-width="1.2"
-        stroke-linecap="round"
+        strokeWidth="1.2"
+        strokeLinecap="round"
       />
       <path
         d="M6.17266 8.86289C5.07413 8.86289 4.18359 7.97236 4.18359 6.87383C4.18359 5.7753 5.07413 4.88477 6.17266 4.88477"
         stroke={color}
-        stroke-width="1.2"
-        stroke-linecap="round"
+        strokeWidth="1.2"
+        strokeLinecap="round"
       />
       <path
         d="M6.17032 10.8945V10.8945C4.63283 10.8945 3.13538 11.712 2.81866 13.2165C2.78339 13.3841 2.75372 13.5557 2.73175 13.7295C2.68691 14.0844 2.9794 14.3754 3.33708 14.3754H4.42988"
         stroke={color}
-        stroke-width="1.2"
-        stroke-linecap="round"
+        strokeWidth="1.2"
+        strokeLinecap="round"
       />
       <path
         d="M15.1594 8.86289C16.2579 8.86289 17.1484 7.97236 17.1484 6.87383C17.1484 5.7753 16.2579 4.88477 15.1594 4.88477"
         stroke={color}
-        stroke-width="1.2"
-        stroke-linecap="round"
+        strokeWidth="1.2"
+        strokeLinecap="round"
       />
       <path
         d="M15.1617 10.8945V10.8945C16.6992 10.8945 18.1967 11.712 18.5134 13.2165C18.5486 13.3841 18.5783 13.5557 18.6003 13.7295C18.6451 14.0844 18.3526 14.3754 17.995 14.3754H16.9021"
         stroke={color}
-        stroke-width="1.2"
-        stroke-linecap="round"
+        strokeWidth="1.2"
+        strokeLinecap="round"
       />
     </svg>
   );
@@ -285,34 +285,34 @@ export function CollaboratorsIcon({color = DefaultIconColor}) {
 export function SuggestedChangesIcon({color = DefaultIconColor}) {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <g clip-path="url(#clip0_2096_15694)">
+      <g clipPath="url(#clip0_2096_15694)">
         <path
           d="M3.36719 14.9773C3.36719 15.4172 3.54196 15.8392 3.85307 16.1503C4.16418 16.4614 4.58612 16.6362 5.02609 16.6362C5.46606 16.6362 5.88801 16.4614 6.19912 16.1503C6.51022 15.8392 6.685 15.4172 6.685 14.9773C6.685 14.5373 6.51022 14.1153 6.19912 13.8042C5.88801 13.4931 5.46606 13.3184 5.02609 13.3184C4.58612 13.3184 4.16418 13.4931 3.85307 13.8042C3.54196 14.1153 3.36719 14.5373 3.36719 14.9773Z"
           stroke={color}
-          stroke-width="1.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+          strokeWidth="1.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
         />
         <path
           d="M13.3203 14.9773C13.3203 15.4172 13.4951 15.8392 13.8062 16.1503C14.1173 16.4614 14.5392 16.6362 14.9792 16.6362C15.4192 16.6362 15.8411 16.4614 16.1522 16.1503C16.4633 15.8392 16.6381 15.4172 16.6381 14.9773C16.6381 14.5373 16.4633 14.1153 16.1522 13.8042C15.8411 13.4931 15.4192 13.3184 14.9792 13.3184C14.5392 13.3184 14.1173 13.4931 13.8062 13.8042C13.4951 14.1153 13.3203 14.5373 13.3203 14.9773Z"
           stroke={color}
-          stroke-width="1.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+          strokeWidth="1.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
         />
         <path
           d="M5.02539 10.0009V8.34195C5.02539 7.02204 5.54972 5.7562 6.48304 4.82288C7.41635 3.88957 8.6822 3.36523 10.0021 3.36523C11.322 3.36523 12.5879 3.88957 13.5212 4.82288C14.4545 5.7562 14.9788 7.02204 14.9788 8.34195V10.0009"
           stroke={color}
-          stroke-width="1.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+          strokeWidth="1.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
         />
         <path
           d="M12.4902 7.51172L14.9786 10.0001L17.467 7.51172"
           stroke={color}
-          stroke-width="1.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+          strokeWidth="1.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
         />
       </g>
       <defs>
