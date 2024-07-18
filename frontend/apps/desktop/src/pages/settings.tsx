@@ -4,7 +4,7 @@ import {Avatar} from '@/components/avatar'
 import {AvatarForm} from '@/components/avatar-form'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import appError from '@/errors'
-import {useMyAccount_deprecated} from '@/models/accounts'
+import {useMyAccount_deprecated, useProfileWithDraft} from '@/models/accounts'
 import {useAutoUpdatePreference} from '@/models/app-settings'
 import {
   useDaemonInfo,
@@ -80,7 +80,6 @@ import {
   Eye,
   EyeOff,
   Info,
-  Minus,
   Plus,
   RadioTower,
   Trash,
@@ -374,8 +373,6 @@ function AccountKeys() {
     selectedAccount ? hmId('a', selectedAccount) : undefined,
   )
 
-  console.log('=== selectedAccount', selectedAccount)
-
   const mnemonics = useSavedMnemonics()
   const [showWords, setShowWords] = useState<boolean>(false)
 
@@ -390,81 +387,31 @@ function AccountKeys() {
       <YStack f={1} maxWidth="25%" borderColor="$color7" borderWidth={1}>
         <YStack f={1}>
           {keys.data?.map((key) => (
-            <ListItem
-              title={selectedAccount}
-              hoverTheme
-              pressTheme
-              bg={selectedAccount == selectedAccount ? '$color5' : undefined}
-              onPress={() => setSelectedAccount(selectedAccount)}
+            <KeyItem
+              item={key}
+              isActive={key == selectedAccount}
+              onSelect={() => setSelectedAccount(selectedAccount)}
             />
           ))}
         </YStack>
-        <Separator />
         <XStack p="$1">
           <Button
+            f={1}
             icon={Plus}
             onPress={() => dispatchWizardEvent(true)}
-            chromeless
-            size="$2"
-          />
-          <AlertDialog native>
-            <AlertDialog.Trigger asChild>
-              <Button
-                disabled={!selectedAccount}
-                icon={Minus}
-                chromeless
-                size="$2"
-              />
-            </AlertDialog.Trigger>
-            <AlertDialog.Portal>
-              <AlertDialog.Overlay
-                key="overlay"
-                animation="quick"
-                opacity={0.5}
-                enterStyle={{opacity: 0}}
-                exitStyle={{opacity: 0}}
-              />
-              <AlertDialog.Content
-                bordered
-                elevate
-                key="content"
-                animation={[
-                  'quick',
-                  {
-                    opacity: {
-                      overshootClamping: true,
-                    },
-                  },
-                ]}
-                enterStyle={{x: 0, y: -20, opacity: 0, scale: 0.9}}
-                exitStyle={{x: 0, y: 10, opacity: 0, scale: 0.95}}
-                x={0}
-                scale={1}
-                opacity={1}
-                y={0}
-              >
-                <AlertDialog.Title>Delete Account</AlertDialog.Title>
-                <AlertDialog.Description>
-                  {`Are you really sure youc ant to delete ${selectedAccount} account?`}
-                </AlertDialog.Description>
-                <XStack space="$3" justifyContent="flex-end">
-                  <AlertDialog.Cancel asChild>
-                    <Button>Cancel</Button>
-                  </AlertDialog.Cancel>
-                  <AlertDialog.Action asChild>
-                    <Button theme="active" onPress={handleDeleteCurrentAccount}>
-                      Accept
-                    </Button>
-                  </AlertDialog.Action>
-                </XStack>
-              </AlertDialog.Content>
-            </AlertDialog.Portal>
-          </AlertDialog>
+            theme="blue"
+          >
+            Add a Profile
+          </Button>
         </XStack>
       </YStack>
       <YStack f={3} borderColor="$color7" borderWidth={1} p="$4">
-        <XStack marginBottom="$4">
-          <Avatar size={80} url={undefined} />
+        <XStack marginBottom="$4" gap="$4">
+          <Avatar
+            size={80}
+            url={getFileUrl(profile?.document?.metadata.thumbnail)}
+            label={profile?.document?.metadata.name}
+          />
           <YStack f={1} gap="$3">
             <Field id="username" label="Profile name">
               <Input
@@ -485,7 +432,7 @@ function AccountKeys() {
           </YStack>
         </XStack>
         {mnemonics ? (
-          <YStack>
+          <YStack gap="$2">
             <XStack gap="$3">
               <Field label="Secret Words" id="words">
                 <TextArea
@@ -515,58 +462,63 @@ function AccountKeys() {
                     toast.success('Words copied to clipboard')
                   }}
                 />
+
+                <AlertDialog native>
+                  <Tooltip content="Delete words from device">
+                    <AlertDialog.Trigger asChild>
+                      <Button size="$2" theme="red" icon={Trash} />
+                    </AlertDialog.Trigger>
+                  </Tooltip>
+                  <AlertDialog.Portal>
+                    <AlertDialog.Overlay
+                      key="overlay"
+                      animation="quick"
+                      opacity={0.5}
+                      enterStyle={{opacity: 0}}
+                      exitStyle={{opacity: 0}}
+                    />
+                    <AlertDialog.Content
+                      bordered
+                      elevate
+                      key="content"
+                      animation={[
+                        'quick',
+                        {
+                          opacity: {
+                            overshootClamping: true,
+                          },
+                        },
+                      ]}
+                      enterStyle={{x: 0, y: -20, opacity: 0, scale: 0.9}}
+                      exitStyle={{x: 0, y: 10, opacity: 0, scale: 0.95}}
+                      x={0}
+                      scale={1}
+                      opacity={1}
+                      y={0}
+                      maxWidth={600}
+                      gap="$4"
+                    >
+                      <AlertDialog.Title>Delete Words</AlertDialog.Title>
+                      <AlertDialog.Description>
+                        Are you really sure? you cant recover the secret words
+                        after you delete them. please save them securely in
+                        another place before you delete
+                      </AlertDialog.Description>
+                      <XStack gap="$3" justifyContent="flex-end">
+                        <AlertDialog.Cancel asChild>
+                          <Button chromeless>Cancel</Button>
+                        </AlertDialog.Cancel>
+                        <AlertDialog.Action asChild>
+                          <Button theme="red" onPress={handleDeleteWords}>
+                            Delete Permanently
+                          </Button>
+                        </AlertDialog.Action>
+                      </XStack>
+                    </AlertDialog.Content>
+                  </AlertDialog.Portal>
+                </AlertDialog>
               </YStack>
             </XStack>
-            <AlertDialog native>
-              <AlertDialog.Trigger asChild>
-                <Button chromeless size="$2">
-                  Delete Words from this device
-                </Button>
-              </AlertDialog.Trigger>
-              <AlertDialog.Portal>
-                <AlertDialog.Overlay
-                  key="overlay"
-                  animation="quick"
-                  opacity={0.5}
-                  enterStyle={{opacity: 0}}
-                  exitStyle={{opacity: 0}}
-                />
-                <AlertDialog.Content
-                  bordered
-                  elevate
-                  key="content"
-                  animation={[
-                    'quick',
-                    {
-                      opacity: {
-                        overshootClamping: true,
-                      },
-                    },
-                  ]}
-                  enterStyle={{x: 0, y: -20, opacity: 0, scale: 0.9}}
-                  exitStyle={{x: 0, y: 10, opacity: 0, scale: 0.95}}
-                  x={0}
-                  scale={1}
-                  opacity={1}
-                  y={0}
-                >
-                  <AlertDialog.Title>Delete Words</AlertDialog.Title>
-                  <AlertDialog.Description>
-                    {`Are you really sure? you cant recover the secret words after you delete them. please save them securely in another place before you delete`}
-                  </AlertDialog.Description>
-                  <XStack gap="$3" justifyContent="flex-end">
-                    <AlertDialog.Cancel asChild>
-                      <Button>Cancel</Button>
-                    </AlertDialog.Cancel>
-                    <AlertDialog.Action asChild>
-                      <Button theme="active" onPress={handleDeleteWords}>
-                        Accept
-                      </Button>
-                    </AlertDialog.Action>
-                  </XStack>
-                </AlertDialog.Content>
-              </AlertDialog.Portal>
-            </AlertDialog>
           </YStack>
         ) : null}
 
@@ -579,6 +531,37 @@ function AccountKeys() {
         Create a new Profile
       </Button>
     </XStack>
+  )
+}
+
+function KeyItem({
+  item,
+  isActive,
+  onSelect,
+}: {
+  item: string
+  isActive: boolean
+  onSelect: () => void
+}) {
+  const {profile} = useProfileWithDraft(item)
+
+  console.log(`== ~ profile:`, item, profile)
+  return (
+    <ListItem
+      icon={
+        <Avatar
+          size={24}
+          id={item}
+          url={getFileUrl(profile?.metadata.thumbnail)}
+        />
+      }
+      title={profile?.metadata.name || item}
+      subTitle={item.substring(item.length - 8)}
+      hoverTheme
+      pressTheme
+      bg={isActive ? '$color5' : undefined}
+      onPress={onSelect}
+    />
   )
 }
 
