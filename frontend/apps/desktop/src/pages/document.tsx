@@ -16,15 +16,10 @@ import {useAccountDocuments} from '@/models/documents'
 import {useEntity} from '@/models/entities'
 import {getFileUrl} from '@/utils/account-url'
 import {useNavRoute} from '@/utils/navigation'
+import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {zodResolver} from '@hookform/resolvers/zod'
-import {
-  DocContent,
-  HMDocument,
-  hmId,
-  UnpackedHypermediaId,
-  unpackHmId,
-} from '@shm/shared'
+import {DocContent, HMDocument, hmId, UnpackedHypermediaId} from '@shm/shared'
 import {
   Button,
   CitationsIcon,
@@ -158,9 +153,9 @@ function AccountPageHeader() {
   const docId = route.key === 'document' && route.id
   if (!docId) throw new Error('Invalid route, no doc id')
   const myAccountIds = useMyAccountIds()
-  const doc = useEntity(unpackHmId(docId))
+  const doc = useEntity(docId)
 
-  const isMyAccount = myAccountIds.data?.includes(docId)
+  const isMyAccount = myAccountIds.data?.includes(docId.id)
   const accountName = getProfileName(doc.data?.document)
 
   return (
@@ -252,7 +247,7 @@ function DocumentPageContent({
 }
 
 const newSubDocumentSchema = z.object({
-  pathName: z.string(),
+  name: z.string(),
 })
 type NewSubDocumentFields = z.infer<typeof newSubDocumentSchema>
 
@@ -266,11 +261,13 @@ function NewDocumentDialog({
   const navigate = useNavigate()
   const onSubmit: SubmitHandler<NewSubDocumentFields> = (data) => {
     // console.log('NewDocument', id)
-    const id = `${input}/${data.pathName}`
+    const indexPath = pathNameify(data.name)
+    const id = `${input}/${indexPath}`
     onClose()
     navigate({
       key: 'draft',
       id,
+      name: data.name,
     })
   }
   const {
@@ -281,7 +278,7 @@ function NewDocumentDialog({
   } = useForm<NewSubDocumentFields>({
     resolver: zodResolver(newSubDocumentSchema),
     defaultValues: {
-      pathName: '',
+      name: '',
     },
   })
   return (
@@ -289,11 +286,11 @@ function NewDocumentDialog({
       <DialogTitle>New Document</DialogTitle>
       {/* <DialogDescription>description</DialogDescription> */}
       <Form onSubmit={handleSubmit(onSubmit)} gap="$4">
-        <FormField name="pathName" label="Path Name" errors={errors}>
+        <FormField name="name" label="Title" errors={errors}>
           <FormInput
             control={control}
-            name="pathName"
-            placeholder="my-document"
+            name="name"
+            placeholder="Document Title"
           />
         </FormField>
         <XStack space="$3" justifyContent="flex-end">

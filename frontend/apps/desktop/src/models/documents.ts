@@ -553,6 +553,7 @@ export function useDraftEditor({id}: {id: string | undefined}) {
         },
         members: {},
         index: {},
+        indexPath: input.indexPath,
         signingProfile,
       }
     } else {
@@ -564,6 +565,7 @@ export function useDraftEditor({id}: {id: string | undefined}) {
           name: input.name,
           thumbnail: input.thumbnail,
         },
+        indexPath: input.indexPath,
         signingProfile,
       }
     }
@@ -642,6 +644,16 @@ export function useDraftEditor({id}: {id: string | undefined}) {
             ? backendDocument.data?.document
             : null,
       })
+      if (route.key == 'draft' && !!route?.name) {
+        send({
+          type: 'CHANGE',
+          name: !backendDraft.data?.name ? route.name : undefined,
+          indexPath: !backendDraft.data?.indexPath
+            ? pathNameify(route.name)
+            : undefined,
+        })
+        replaceRoute({...route, name: ''})
+      }
     }
     if (backendDraft.status == 'error') {
       send({type: 'GET.DRAFT.ERROR', error: backendDraft.error})

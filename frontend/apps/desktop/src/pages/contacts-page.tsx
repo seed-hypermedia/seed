@@ -12,7 +12,7 @@ import {useGatewayUrl} from '@/models/gateway-settings'
 import {getFileUrl} from '@/utils/account-url'
 import {DocumentRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
-import {HMAccount, createHmId, hmId} from '@shm/shared'
+import {HMAccount, HMDocument, createHmId, hmId, unpackHmId} from '@shm/shared'
 import {
   ArrowUpRight,
   Container,
@@ -163,7 +163,8 @@ export default function ContactsPage() {
             </Container>
           }
           items={contacts.data!.documents}
-          renderItem={({item}) => {
+          // @ts-expect-error
+          renderItem={({item}: {item: HMDocument; containerWidth: number}) => {
             return (
               <ListItem
                 title={item.metadata.name}
@@ -177,7 +178,7 @@ export default function ContactsPage() {
                 onPress={() => {
                   navigate({
                     key: 'document',
-                    id: item.id,
+                    id: unpackHmId(item.id),
                   })
                 }}
               />

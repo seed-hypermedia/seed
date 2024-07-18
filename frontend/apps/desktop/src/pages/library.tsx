@@ -103,8 +103,6 @@ export default function ContentPage() {
 function AccountKeyItem({accountId}: {accountId: string}) {
   const openDraft = useOpenDraft('push')
   const {draft, profile} = useProfileWithDraft(accountId)
-
-  console.log(`== ~ AccountKeyItem ~ profile:`, profile)
   const deleteKey = useDeleteKey()
   const navigate = useNavigate('push')
 

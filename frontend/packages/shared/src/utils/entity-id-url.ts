@@ -193,7 +193,6 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
   const parsed = parseCustomURL(hypermediaId)
 
   if (!parsed) return null
-  console.log(`== ~ unpackHmId ~ parsed:`, parsed)
   if (parsed.scheme === HYPERMEDIA_SCHEME) {
     const [rawType, eid, ...path] = parsed.path
     const type = inKeys(rawType, HYPERMEDIA_ENTITY_TYPES)

@@ -296,4 +296,5 @@ export type HMDraft = {
   index: HMDocument['index']
   deps: Array<string>
   signingProfile: string
+  indexPath: string
 }

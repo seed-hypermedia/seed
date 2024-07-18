@@ -73,6 +73,7 @@ export type DocumentRoute = z.infer<typeof documentRouteSchema>
 export const draftRouteSchema = z.object({
   key: z.literal('draft'),
   id: z.string().optional(),
+  name: z.string().optional(),
   deps: z.array(z.string()).optional(),
 })
 export type DraftRoute = z.infer<typeof draftRouteSchema>

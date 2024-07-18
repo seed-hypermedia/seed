@@ -14,12 +14,12 @@ import {
   handleDragMedia,
 } from '@/utils/media-drag'
 import {useNavRoute} from '@/utils/navigation'
+import {pathNameify} from '@/utils/path'
 import {
   BlockRange,
   createPublicWebHmUrl,
   ExpandedBlockRange,
   unpackDocId,
-  unpackHmId,
   useDocContentContext,
   useHeadingTextStyles,
 } from '@shm/shared'
@@ -39,10 +39,6 @@ export default function DraftPage() {
   const importWebFile = trpc.webImporting.importWebFile.useMutation()
   const [isDragging, setIsDragging] = useState(false)
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
-
-  const unpacked = unpackHmId(route.id)
-  console.log('INDEXPATH OUTSIDE USEENTITY', route, unpacked)
-  // return null
 
   let data = useDraftEditor({
     id: route.id,
@@ -238,7 +234,7 @@ export function DraftHeader({
   disabled?: boolean
 }) {
   const route = useNavRoute()
-  const {textUnit, layoutUnit} = useDocContentContext()
+  const {textUnit} = useDocContentContext()
   const [showThumbnail, setShowThumbnail] = useState(false)
   const [showCover, setShowCover] = useState(false)
   let headingTextStyles = useHeadingTextStyles(1, textUnit)
@@ -252,6 +248,10 @@ export function DraftHeader({
 
   const cover = useSelector(draftActor, (s) => {
     return s.context.cover
+  })
+
+  const indexPath = useSelector(draftActor, (s) => {
+    return s.context.indexPath
   })
 
   const input = useRef<HTMLTextAreaElement | null>(null)
@@ -367,6 +367,13 @@ export function DraftHeader({
             </Button>
           ) : null}
         </XStack>
+        <Input
+          value={indexPath}
+          onChangeText={(text: string) =>
+            draftActor.send({type: 'CHANGE', indexPath: pathNameify(text)})
+          }
+          placeholder="path"
+        />
         <Input
           disabled={disabled}
           // we use multiline so that we can avoid horizontal scrolling for long titles
