@@ -394,37 +394,6 @@ var qBlobsListKnown = dqb.Str(`
 	ORDER BY blobs.id
 `)
 
-func dbBlobsHave(conn *sqlite.Conn, blobsMultihash []byte) (int64, error) {
-	var out int64
-
-	before := func(stmt *sqlite.Stmt) {
-		stmt.SetBytes(":blobsMultihash", blobsMultihash)
-	}
-
-	onStep := func(i int, stmt *sqlite.Stmt) error {
-		if i > 1 {
-			return errors.New("BlobsHave: more than one result return for a single-kind query")
-		}
-
-		out = stmt.ColumnInt64(0)
-		return nil
-	}
-
-	err := sqlitegen.ExecStmt(conn, qBlobsHave(), before, onStep)
-	if err != nil {
-		err = fmt.Errorf("failed query: BlobsHave: %w", err)
-	}
-
-	return out, err
-}
-
-var qBlobsHave = dqb.Str(`
-	SELECT 1 AS have
-	FROM blobs INDEXED BY blobs_metadata_by_hash
-	WHERE blobs.multihash = :blobsMultihash
-	AND blobs.size >= 0
-`)
-
 type blobsGetResult struct {
 	BlobsID        int64
 	BlobsMultihash []byte

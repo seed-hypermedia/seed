@@ -161,6 +161,12 @@ func (dm *Document) MoveBlock(block, parent, left string) error {
 	return nil
 }
 
+// SetIndexHeads sets the index heads.
+func (dm *Document) SetIndexHeads(key string, value []cid.Cid) error {
+	colx.ObjectSet(dm.patch, []string{"index", key}, value)
+	return nil
+}
+
 func (dm *Document) ensureMutation() *treeMutation {
 	if dm.mut == nil {
 		dm.mut = dm.tree.mutate()
@@ -198,6 +204,21 @@ func (dm *Document) Change(kp core.KeyPair) (hb index.EncodedBlob[*index.Change]
 	return dm.e.CreateChange(action, dm.nextHLC, kp, dm.patch)
 }
 
+// Ref creates a Ref blob for the current heads.
+func (dm *Document) Ref(kp core.KeyPair) (ref index.EncodedBlob[*index.Ref], err error) {
+	// TODO(hm24): make genesis detection more reliable.
+	genesis := dm.e.cids[0]
+
+	if len(dm.e.heads) != 1 {
+		return ref, fmt.Errorf("TODO: creating refs for multiple heads is not supported yet")
+	}
+
+	headCID := dm.e.cids[len(dm.e.cids)-1]
+	head := dm.e.changes[len(dm.e.cids)-1]
+
+	return index.NewRef(kp, genesis, dm.e.id, []cid.Cid{headCID}, head.Ts)
+}
+
 // Commit commits a change.
 func (dm *Document) Commit(ctx context.Context, kp core.KeyPair, bs blockstore.Blockstore) (ebc index.EncodedBlob[*index.Change], err error) {
 	ebc, err = dm.Change(kp)
@@ -205,9 +226,7 @@ func (dm *Document) Commit(ctx context.Context, kp core.KeyPair, bs blockstore.B
 		return ebc, err
 	}
 
-	// TODO(hm24): make genesis detection more reliable.
-	genesis := dm.e.cids[0]
-	ebr, err := index.NewRef(kp, genesis, dm.e.id, []cid.Cid{ebc.Cid()}, ebc.Decoded.Ts)
+	ebr, err := dm.Ref(kp)
 	if err != nil {
 		return ebc, err
 	}
@@ -286,6 +305,7 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 	docpb := &documents.Document{
 		Id:              string(e.ID()),
 		Metadata:        make(map[string]string),
+		Index:           make(map[string]string),
 		CreateTime:      timestamppb.New(hlc.Timestamp(first.Ts).Time()),
 		Owner:           first.Author.String(), // TODO(hm24): take owner from the Ref blob instead!
 		Version:         e.Version().String(),
@@ -298,6 +318,16 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 		v, ok := e.state.Get("metadata", key)
 		if ok {
 			docpb.Metadata[key] = v.(string)
+		}
+	}
+
+	for _, key := range e.state.Keys("index") {
+		v, ok := e.state.GetAny("index", key).([]any)
+		if ok {
+			heads := colx.SliceMap(v, func(v any) cid.Cid {
+				return v.(cid.Cid)
+			})
+			docpb.Index[key] = NewVersion(heads...).String()
 		}
 	}
 

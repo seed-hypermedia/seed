@@ -85,6 +85,11 @@ func (m *Map) setNode(time int64, origin string, path []string, vt mapValueType,
 	m.state.Set(mn)
 }
 
+func (m *Map) GetAny(path ...string) (value any) {
+	value, _ = m.Get(path...)
+	return value
+}
+
 func (m *Map) Get(path ...string) (value any, ok bool) {
 	pivot := newPivot(path, true)
 

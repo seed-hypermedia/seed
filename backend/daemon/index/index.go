@@ -12,6 +12,7 @@ import (
 	"seed/backend/ipfs"
 	"seed/backend/pkg/dqb"
 	"seed/backend/pkg/maybe"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +26,8 @@ import (
 	"github.com/ipld/go-ipld-prime/traversal"
 	"github.com/multiformats/go-multicodec"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -219,7 +222,47 @@ func (idx *Index) indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change)
 		}
 	}
 
+	index, ok := v.Payload["index"].(map[string]any)
+	if ok {
+		for key, v := range index {
+			heads, ok := v.([]cid.Cid)
+			if !ok {
+				continue
+			}
+			for _, head := range heads {
+				sb.AddBlobLink("index/"+key, head)
+			}
+		}
+	}
+
 	return ictx.SaveBlob(id, sb)
+}
+
+// CanEditResource checks whether author can edit the resource.
+func (idx *Index) CanEditResource(ctx context.Context, resource IRI, author core.Principal) (ok bool, err error) {
+	conn, release, err := idx.db.Conn(ctx)
+	if err != nil {
+		return ok, err
+	}
+	defer release()
+
+	res, err := dbEntitiesLookupID(conn, string(resource))
+	if err != nil {
+		return ok, err
+	}
+	if res.ResourcesID == 0 {
+		return ok, status.Errorf(codes.NotFound, "resource %s not found", resource)
+	}
+
+	dbAuthor, err := dbPublicKeysLookupID(conn, author)
+	if err != nil {
+		return ok, err
+	}
+	if dbAuthor == 0 {
+		return ok, status.Errorf(codes.NotFound, "author %s not found", author)
+	}
+
+	return res.ResourcesOwner == dbAuthor, nil
 }
 
 func (idx *Index) WalkChanges(ctx context.Context, resource IRI, author core.Principal, fn func(cid.Cid, *Change) error) error {
@@ -289,6 +332,96 @@ var qWalkChanges = dqb.Str(`
 	JOIN changes c ON c.id = b.id
 	ORDER BY sb.ts
 `)
+
+func (idx *Index) WalkChangesFromHeads(ctx context.Context, resource IRI, heads []cid.Cid, fn func(cid.Cid, *Change) error) error {
+	conn, release, err := idx.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+
+	headsIDs := make([]int64, 0, len(heads))
+	for _, head := range heads {
+		dbres, err := dbBlobsGetSize(conn, head.Hash())
+		if err != nil {
+			return err
+		}
+		if dbres.BlobsID == 0 || dbres.BlobsSize < 0 {
+			return fmt.Errorf("missing head %s for resource %s", head, resource)
+		}
+
+		headsIDs = append(headsIDs, dbres.BlobsID)
+	}
+
+	headsJSON := headsToJSON(headsIDs)
+
+	buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
+	if err := sqlitex.Exec(conn, qWalkChangesFromHeads(), func(stmt *sqlite.Stmt) error {
+		var (
+			codec = stmt.ColumnInt64(0)
+			hash  = stmt.ColumnBytesUnsafe(1)
+			data  = stmt.ColumnBytesUnsafe(2)
+		)
+
+		buf, err = idx.bs.decoder.DecodeAll(data, buf)
+		if err != nil {
+			return err
+		}
+
+		chcid := cid.NewCidV1(uint64(codec), hash)
+		ch := &Change{}
+		if err := cbornode.DecodeInto(buf, ch); err != nil {
+			return fmt.Errorf("WalkChangesFromHeads: failed to decode change %s for entity %s: %w", chcid, resource, err)
+		}
+
+		if err := fn(chcid, ch); err != nil {
+			return err
+		}
+
+		buf = buf[:0] // reset the slice reusing the backing array
+
+		return nil
+	}, headsJSON); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var qWalkChangesFromHeads = dqb.Str(`
+	WITH RECURSIVE
+	changes (id) AS (
+		SELECT value FROM json_each(:heads)
+
+		UNION
+
+		SELECT bl.target
+		FROM blob_links bl
+		JOIN changes c ON c.id = bl.source
+		WHERE bl.type = 'change/dep'
+	)
+	SELECT
+		codec,
+		multihash,
+		data
+	FROM blobs b
+	JOIN structural_blobs sb ON sb.id = b.id
+	JOIN changes c ON c.id = b.id
+	ORDER BY sb.ts
+`)
+
+func headsToJSON(heads []int64) string {
+	var sb strings.Builder
+	sb.WriteByte('[')
+	for i, h := range heads {
+		if i > 0 {
+			sb.WriteByte(',')
+		}
+		sb.WriteString(strconv.FormatInt(h, 10))
+	}
+	sb.WriteByte(']')
+	return sb.String()
+}
 
 type BlobType string
 

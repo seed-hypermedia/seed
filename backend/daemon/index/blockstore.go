@@ -69,16 +69,15 @@ func (b *blockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
 }
 
 func (b *blockStore) has(conn *sqlite.Conn, c cid.Cid) (bool, error) {
-	res, err := dbBlobsHave(conn, c.Hash())
+	res, err := dbBlobsGetSize(conn, c.Hash())
 	if err != nil {
 		return false, err
 	}
-
-	if res == 1 {
-		return true, nil
+	if res.BlobsID == 0 || res.BlobsSize < 0 {
+		return false, nil
 	}
 
-	return false, nil
+	return true, nil
 }
 
 // Get implements blockstore.Blockstore interface.

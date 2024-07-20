@@ -47,6 +47,91 @@ func (srv *Server) RegisterServer(rpc grpc.ServiceRegistrar) {
 	documents.RegisterDocumentsServer(rpc, srv)
 }
 
+func (srv *Server) GetDocument(ctx context.Context, in *documents.GetDocumentRequest) (*documents.Document, error) {
+	rid, err := parseResourceID(in.DocumentId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid document ID %s: %v", in.DocumentId, err)
+	}
+
+	if in.Version != "" {
+		return nil, status.Error(codes.Unimplemented, "getting docs by version is not implemented yet")
+	}
+
+	if rid.Path == "" && rid.Type == resourceTypeAccount {
+		return srv.GetProfileDocument(ctx, &documents.GetProfileDocumentRequest{
+			AccountId: rid.UID,
+			Version:   in.Version,
+		})
+	}
+
+	if rid.Type != resourceTypeAccount {
+		return nil, status.Errorf(codes.Unimplemented, "only profiles and profile subdocs are implemented now, requested: %s", in.DocumentId)
+	}
+
+	rootAcc, err := core.DecodePrincipal(rid.UID)
+	if err != nil {
+		return nil, err
+	}
+
+	if rid.Path != "" {
+		// Load parent document.
+		clock := hlc.NewClock()
+		e := docmodel.NewEntityWithClock(rid.ParentIRI(), clock)
+
+		if err := srv.idx.WalkChanges(ctx, rid.ParentIRI(), rootAcc, func(c cid.Cid, ch *index.Change) error {
+			return e.ApplyChange(c, ch)
+		}); err != nil {
+			return nil, err
+		}
+
+		v, ok := e.Get("index", rid.Path)
+		if !ok || v == nil {
+			return nil, status.Errorf(codes.NotFound, "subdocument '%s' not found for parent '%s'", rid.Path, rid.ParentIRI())
+		}
+
+		var heads []cid.Cid
+		{
+			vv, ok := v.([]any)
+			if !ok {
+				return nil, status.Errorf(codes.Internal, "invalid index heads type: %T", v)
+			}
+
+			heads = make([]cid.Cid, len(vv))
+			for i, v := range vv {
+				heads[i], ok = v.(cid.Cid)
+				if !ok {
+					return nil, fmt.Errorf("head is not a CID: %v", v)
+				}
+			}
+		}
+
+		if len(heads) == 0 {
+			return nil, status.Errorf(codes.NotFound, "subdocument '%s' for parent '%s' has empty heads", rid.Path, rid.ParentIRI())
+		}
+
+		// Load subdocument.
+		{
+			clock := hlc.NewClock()
+			e := docmodel.NewEntityWithClock(rid.IRI(), clock)
+
+			if err := srv.idx.WalkChangesFromHeads(ctx, rid.IRI(), heads, func(c cid.Cid, ch *index.Change) error {
+				return e.ApplyChange(c, ch)
+			}); err != nil {
+				return nil, err
+			}
+
+			subdoc, err := docmodel.New(e, clock.MustNow())
+			if err != nil {
+				return nil, err
+			}
+
+			return subdoc.Hydrate(ctx)
+		}
+	}
+
+	return nil, status.Error(codes.Unimplemented, "getting standalone documents is not supported yet")
+}
+
 func (srv *Server) GetProfileDocument(ctx context.Context, in *documents.GetProfileDocumentRequest) (*documents.Document, error) {
 	if in.Version != "" {
 		// TODO(hm24): Implement this.
@@ -90,6 +175,23 @@ type resourceID struct {
 	Path string
 }
 
+const (
+	resourceTypeAccount  = 'a'
+	resourceTypeDocument = 'd'
+)
+
+func (rid resourceID) ParentString() string {
+	return "hm://" + string(rid.Type) + "/" + rid.UID
+}
+
+func (rid resourceID) ParentIRI() index.IRI {
+	return index.IRI(rid.ParentString())
+}
+
+func (rid resourceID) IRI() index.IRI {
+	return index.IRI(rid.String())
+}
+
 func (rid resourceID) String() string {
 	var sb strings.Builder
 	sb.WriteString("hm://")
@@ -121,7 +223,7 @@ func getGroupID(groupName string) int {
 func parseResourceID(raw string) (rid resourceID, err error) {
 	matches := resourceIDRegexp.FindStringSubmatch(raw)
 	if matches == nil {
-		return resourceID{}, fmt.Errorf("invalid resource ID: %q", raw)
+		return resourceID{}, fmt.Errorf("resource ID '%s' doesn't match the regexp '%s'", raw, resourceIDRegexp)
 	}
 
 	rid = resourceID{
@@ -137,18 +239,115 @@ var resourceIDRegexp = regexp.MustCompile(`^(?P<scheme>hm:\/\/)?(?P<type>a|d)\/(
 
 // CreateDocumentChange implements Documents API v2.
 func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.CreateDocumentChangeRequest) (*documents.Document, error) {
+
 	if in.DocumentId == "" {
-		return nil, status.Errorf(codes.Unimplemented, "creating document changes without document ID is not implemented yet")
+		return nil, status.Errorf(codes.Unimplemented, "TODO: creating document changes without document ID is not implemented yet")
 	}
 
-	if strings.HasPrefix(in.DocumentId, "hm://a/") {
+	if in.SigningKeyName == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "signing_key_name is required")
+	}
+
+	rid, err := parseResourceID(in.DocumentId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid document ID: %v", err)
+	}
+
+	if (rid.Type != resourceTypeAccount && rid.Path == "") && in.DocumentId != "" && in.BaseVersion == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "base_version is required when document_id is provided")
+	}
+
+	if rid.Type == resourceTypeAccount && rid.Path == "" {
 		return srv.ChangeProfileDocument(ctx, &documents.ChangeProfileDocumentRequest{
-			AccountId: in.DocumentId,
+			AccountId: rid.UID,
 			Changes:   in.Changes,
 		})
 	}
 
-	panic("TODO")
+	if rid.Path == "" {
+		return nil, status.Errorf(codes.Unimplemented, "TODO: only creating subdocuments is supported for now: %s", in.DocumentId)
+	}
+
+	kp, err := srv.keys.GetKey(ctx, in.SigningKeyName)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: implement updating subdocs. Currently can only create new.
+	if _, err := srv.idx.CanEditResource(ctx, rid.IRI(), kp.Principal()); err == nil {
+		return nil, status.Errorf(codes.Unimplemented, "TODO: updating existing subdocuments is not implemented yet")
+	}
+
+	ok, err := srv.idx.CanEditResource(ctx, rid.ParentIRI(), kp.Principal())
+	if err != nil {
+		if s, ok := status.FromError(err); ok && s.Code() == codes.NotFound {
+			return nil, status.Errorf(codes.NotFound, "parent document '%s' is not found to create subdocument '%s'", rid.ParentIRI(), rid.Path)
+		}
+
+		return nil, err
+	}
+
+	if !ok {
+		return nil, status.Errorf(codes.PermissionDenied, "account %s is not allowed to edit document %s", kp.Principal(), in.DocumentId)
+	}
+
+	clock := hlc.NewClock()
+	e := docmodel.NewEntityWithClock(rid.IRI(), clock)
+	doc, err := docmodel.New(e, clock.MustNow())
+	if err != nil {
+		return nil, err
+	}
+
+	if err := applyChanges(doc, in.Changes); err != nil {
+		return nil, err
+	}
+
+	subChange, err := doc.Change(kp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create subdoc change: %w", err)
+	}
+
+	// Store subdoc head in the parent's index.
+	var parentVersion docmodel.Version
+	{
+		pe := docmodel.NewEntityWithClock(rid.ParentIRI(), clock)
+		if err := srv.idx.WalkChanges(ctx, rid.ParentIRI(), kp.Principal(), func(c cid.Cid, ch *index.Change) error {
+			return pe.ApplyChange(c, ch)
+		}); err != nil {
+			return nil, fmt.Errorf("failed to load parent document: %w", err)
+		}
+
+		pdoc, err := docmodel.New(pe, clock.MustNow())
+		if err != nil {
+			return nil, fmt.Errorf("failed to init parent document: %w", err)
+		}
+
+		if err := pdoc.SetIndexHeads(rid.Path, []cid.Cid{subChange.CID}); err != nil {
+			return nil, fmt.Errorf("failed to set index heads: %w", err)
+		}
+
+		parentChange, err := pdoc.Change(kp)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create parent document change: %w", err)
+		}
+
+		parentRef, err := pdoc.Ref(kp)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create parent ref: %w", err)
+		}
+
+		if err := srv.idx.PutMany(ctx, []blocks.Block{subChange, parentChange, parentRef}); err != nil {
+			return nil, fmt.Errorf("failed to put blocks", err)
+		}
+
+		parentVersion = pdoc.Entity().Version()
+	}
+
+	_ = parentVersion // TODO: get the document by version.
+	return srv.GetDocument(ctx, &documents.GetDocumentRequest{
+		DocumentId: in.DocumentId,
+		// Version:    parentVersion.String(),
+	})
 }
 
 // ChangeProfileDocument implements Documents API v2.
@@ -191,31 +390,8 @@ func (srv *Server) ChangeProfileDocument(ctx context.Context, in *documents.Chan
 		return nil, err
 	}
 
-	for _, op := range in.Changes {
-		switch o := op.Op.(type) {
-		case *documents.DocumentChange_SetMetadata_:
-			if err := doc.SetMetadata(o.SetMetadata.Key, o.SetMetadata.Value); err != nil {
-				return nil, err
-			}
-		case *documents.DocumentChange_MoveBlock_:
-			if err := doc.MoveBlock(o.MoveBlock.BlockId, o.MoveBlock.Parent, o.MoveBlock.LeftSibling); err != nil {
-				return nil, err
-			}
-		case *documents.DocumentChange_DeleteBlock:
-			if err := doc.DeleteBlock(o.DeleteBlock); err != nil {
-				return nil, err
-			}
-		case *documents.DocumentChange_ReplaceBlock:
-			if err := doc.ReplaceBlock(o.ReplaceBlock); err != nil {
-				return nil, err
-			}
-		case *documents.DocumentChange_SetIndex_:
-			return nil, status.Errorf(codes.Unimplemented, "setting index is not implemented yet")
-		case *documents.DocumentChange_UpdateMember_:
-			return nil, status.Errorf(codes.InvalidArgument, "updating members is not supported on profile documents")
-		default:
-			return nil, status.Errorf(codes.Unimplemented, "unknown operation %T", o)
-		}
+	if err := applyChanges(doc, in.Changes); err != nil {
+		return nil, err
 	}
 
 	if _, err := doc.Commit(ctx, kp, srv.idx); err != nil {
@@ -225,6 +401,37 @@ func (srv *Server) ChangeProfileDocument(ctx context.Context, in *documents.Chan
 	return srv.GetProfileDocument(ctx, &documents.GetProfileDocumentRequest{
 		AccountId: in.AccountId,
 	})
+}
+
+func applyChanges(doc *docmodel.Document, ops []*documents.DocumentChange) error {
+	for _, op := range ops {
+		switch o := op.Op.(type) {
+		case *documents.DocumentChange_SetMetadata_:
+			if err := doc.SetMetadata(o.SetMetadata.Key, o.SetMetadata.Value); err != nil {
+				return err
+			}
+		case *documents.DocumentChange_MoveBlock_:
+			if err := doc.MoveBlock(o.MoveBlock.BlockId, o.MoveBlock.Parent, o.MoveBlock.LeftSibling); err != nil {
+				return err
+			}
+		case *documents.DocumentChange_DeleteBlock:
+			if err := doc.DeleteBlock(o.DeleteBlock); err != nil {
+				return err
+			}
+		case *documents.DocumentChange_ReplaceBlock:
+			if err := doc.ReplaceBlock(o.ReplaceBlock); err != nil {
+				return err
+			}
+		case *documents.DocumentChange_SetIndex_:
+			return status.Errorf(codes.Unimplemented, "setting index is not implemented yet")
+		case *documents.DocumentChange_UpdateMember_:
+			return status.Errorf(codes.InvalidArgument, "updating members is not supported on profile documents")
+		default:
+			return status.Errorf(codes.Unimplemented, "unknown operation %T", o)
+		}
+	}
+
+	return nil
 }
 
 var qListProfileDocuments = dqb.Str(`

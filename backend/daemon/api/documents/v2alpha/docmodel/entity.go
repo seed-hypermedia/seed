@@ -144,9 +144,10 @@ func (e *Entity) ApplyChange(c cid.Cid, ch *index.Change) error {
 
 	e.vectorClock[actor] = ch.Ts
 
-	if ch.Ts < int64(e.maxClock.Max()) {
-		return fmt.Errorf("applying change %s out of causal order", c)
-	}
+	// TODO(hm24): is this check necessary?
+	// if ch.Ts < int64(e.maxClock.Max()) {
+	// 	return fmt.Errorf("applying change '%s' out of causal order", c)
+	// }
 
 	deps := make([]int, len(ch.Deps))
 

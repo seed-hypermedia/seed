@@ -4,6 +4,7 @@ import (
 	"context"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
+	"seed/backend/daemon/api/documents/v2alpha/docmodel"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	documents "seed/backend/genproto/documents/v2alpha"
 	networking "seed/backend/genproto/networking/v1alpha"
@@ -137,6 +138,49 @@ func TestDaemonUpdateProfile(t *testing.T) {
 		IgnoreFields(documents.Block{}, "Revision").
 		IgnoreFields(documents.Document{}, "Id", "CreateTime", "UpdateTime", "Version", "PreviousVersion").
 		Compare(t, "profile document must match")
+}
+
+func TestSubdocuments(t *testing.T) {
+	t.Parallel()
+
+	dmn := makeTestApp(t, "alice", makeTestConfig(t), true)
+	ctx := context.Background()
+	alice := coretest.NewTester("alice")
+
+	parent, err := dmn.RPC.DocumentsV2.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		DocumentId: "hm://a/" + alice.Account.Principal().String(),
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice from the Wonderland"},
+			}},
+		},
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, parent)
+
+	subdoc, err := dmn.RPC.DocumentsV2.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		DocumentId: "hm://a/" + alice.Account.Principal().String() + "/subdoc",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice's subdoc"},
+			}},
+		},
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, subdoc)
+
+	// Check parent document has index item.
+	parent, err = dmn.RPC.DocumentsV2.GetDocument(ctx, &documents.GetDocumentRequest{
+		DocumentId: "hm://a/" + alice.Account.Principal().String(),
+	})
+	require.NoError(t, err)
+
+	require.NotEmpty(t, parent.Index["subdoc"], "parent must have subdoc index entry")
+	_, err = docmodel.Version(parent.Index["subdoc"]).Parse()
+	require.NoError(t, err, "subdoc entry must have version as value")
+	require.Equal(t, subdoc.Version, parent.Index["subdoc"], "subdoc version must match")
 }
 
 func TestSyncingProfiles(t *testing.T) {
