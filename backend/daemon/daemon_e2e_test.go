@@ -16,7 +16,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 )
 
 func TestDaemonRegisterKey(t *testing.T) {
@@ -107,11 +109,11 @@ func TestDaemonUpdateProfile(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Step 1 & 3: Define and construct the expected document structure
 	want := &documents.Document{
 		Metadata: map[string]string{
 			"title": "Alice from the Wonderland",
 		},
+		Index:   map[string]string{},
 		Owner:   alice.Account.Principal().String(),
 		Authors: []string{alice.Account.Principal().String()},
 		Content: []*documents.BlockNode{
@@ -140,6 +142,125 @@ func TestDaemonUpdateProfile(t *testing.T) {
 		Compare(t, "profile document must match")
 }
 
+func TestDaemonUpdateProfileCompat(t *testing.T) {
+	t.Parallel()
+
+	dmn := makeTestApp(t, "alice", makeTestConfig(t), true)
+	ctx := context.Background()
+	alice := coretest.NewTester("alice")
+
+	doc, err := dmn.RPC.DocumentsV2.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		DocumentId: "hm://a/" + alice.Account.Principal().String(),
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice from the Wonderland"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Hello",
+				},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "b1", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b2",
+					Type: "paragraph",
+					Text: "World!",
+				},
+			}},
+		},
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+
+	want := &documents.Document{
+		Id: "hm://a/" + alice.Account.Principal().String(),
+		Metadata: map[string]string{
+			"title": "Alice from the Wonderland",
+		},
+		Index:   map[string]string{},
+		Owner:   alice.Account.Principal().String(),
+		Authors: []string{alice.Account.Principal().String()},
+		Content: []*documents.BlockNode{
+			{
+				Block: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Hello",
+				},
+				Children: []*documents.BlockNode{
+					{
+						Block: &documents.Block{
+							Id:   "b2",
+							Type: "paragraph",
+							Text: "World!",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	testutil.StructsEqual(want, doc).
+		IgnoreFields(documents.Block{}, "Revision").
+		IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version", "PreviousVersion").
+		Compare(t, "profile document must match")
+
+	// Do another update.
+	{
+		doc, err := dmn.RPC.DocumentsV2.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+			DocumentId: "hm://a/" + alice.Account.Principal().String(),
+			Changes: []*documents.DocumentChange{
+				{Op: &documents.DocumentChange_SetMetadata_{
+					SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Just Alice"},
+				}},
+			},
+			SigningKeyName: "main",
+		})
+		require.NoError(t, err)
+
+		want := &documents.Document{
+			Id: "hm://a/" + alice.Account.Principal().String(),
+			Metadata: map[string]string{
+				"title": "Just Alice",
+			},
+			Index:   map[string]string{},
+			Owner:   alice.Account.Principal().String(),
+			Authors: []string{alice.Account.Principal().String()},
+			Content: []*documents.BlockNode{
+				{
+					Block: &documents.Block{
+						Id:   "b1",
+						Type: "paragraph",
+						Text: "Hello",
+					},
+					Children: []*documents.BlockNode{
+						{
+							Block: &documents.Block{
+								Id:   "b2",
+								Type: "paragraph",
+								Text: "World!",
+							},
+						},
+					},
+				},
+			},
+		}
+
+		testutil.StructsEqual(want, doc).
+			IgnoreFields(documents.Block{}, "Revision").
+			IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version", "PreviousVersion").
+			Compare(t, "profile document must match")
+	}
+}
+
 func TestSubdocuments(t *testing.T) {
 	t.Parallel()
 
@@ -165,22 +286,123 @@ func TestSubdocuments(t *testing.T) {
 			{Op: &documents.DocumentChange_SetMetadata_{
 				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice's subdoc"},
 			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Hello",
+				},
+			}},
 		},
 		SigningKeyName: "main",
 	})
 	require.NoError(t, err)
-	require.NotNil(t, subdoc)
+
+	want := &documents.Document{
+		Id: "hm://a/" + alice.Account.Principal().String() + "/subdoc",
+		Metadata: map[string]string{
+			"title": "Alice's subdoc",
+		},
+		Index:   map[string]string{},
+		Owner:   alice.Account.Principal().String(),
+		Authors: []string{alice.Account.Principal().String()},
+		Content: []*documents.BlockNode{
+			{
+				Block: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Hello",
+				},
+			},
+		},
+	}
+
+	testutil.StructsEqual(want, subdoc).
+		IgnoreFields(documents.Block{}, "Revision").
+		IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version", "PreviousVersion").
+		Compare(t, "subdoc must match")
 
 	// Check parent document has index item.
-	parent, err = dmn.RPC.DocumentsV2.GetDocument(ctx, &documents.GetDocumentRequest{
-		DocumentId: "hm://a/" + alice.Account.Principal().String(),
-	})
-	require.NoError(t, err)
+	{
+		parent, err = dmn.RPC.DocumentsV2.GetDocument(ctx, &documents.GetDocumentRequest{
+			DocumentId: "hm://a/" + alice.Account.Principal().String(),
+		})
+		require.NoError(t, err)
 
-	require.NotEmpty(t, parent.Index["subdoc"], "parent must have subdoc index entry")
-	_, err = docmodel.Version(parent.Index["subdoc"]).Parse()
-	require.NoError(t, err, "subdoc entry must have version as value")
-	require.Equal(t, subdoc.Version, parent.Index["subdoc"], "subdoc version must match")
+		require.NotEmpty(t, parent.Index["subdoc"], "parent must have subdoc index entry")
+		_, err = docmodel.Version(parent.Index["subdoc"]).Parse()
+		require.NoError(t, err, "subdoc entry must have version as value")
+		require.Equal(t, subdoc.Version, parent.Index["subdoc"], "subdoc version must match")
+	}
+
+	// Try updating subdocument.
+	{
+		subdoc, err = dmn.RPC.DocumentsV2.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+			DocumentId: "hm://a/" + alice.Account.Principal().String() + "/subdoc",
+			Changes: []*documents.DocumentChange{
+				{Op: &documents.DocumentChange_SetMetadata_{
+					SetMetadata: &documents.DocumentChange_SetMetadata{Key: "abstract", Value: "Just some new value to see the update."},
+				}},
+			},
+			SigningKeyName: "main",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, subdoc)
+
+		want := &documents.Document{
+			Id: "hm://a/" + alice.Account.Principal().String() + "/subdoc",
+			Metadata: map[string]string{
+				"title":    "Alice's subdoc",
+				"abstract": "Just some new value to see the update.",
+			},
+			Index:   map[string]string{},
+			Owner:   alice.Account.Principal().String(),
+			Authors: []string{alice.Account.Principal().String()},
+			Content: []*documents.BlockNode{
+				{
+					Block: &documents.Block{
+						Id:   "b1",
+						Type: "paragraph",
+						Text: "Hello",
+					},
+				},
+			},
+		}
+
+		testutil.StructsEqual(want, subdoc).
+			IgnoreFields(documents.Block{}, "Revision").
+			IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version", "PreviousVersion").
+			Compare(t, "subdoc must match")
+	}
+
+	// Remove index entry from parent.
+	{
+		parent, err := dmn.RPC.DocumentsV2.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+			DocumentId: "hm://a/" + alice.Account.Principal().String(),
+			Changes: []*documents.DocumentChange{
+				{Op: &documents.DocumentChange_SetIndex_{SetIndex: &documents.DocumentChange_SetIndex{
+					Key:   "subdoc",
+					Value: "",
+				}}},
+			},
+			SigningKeyName: "main",
+		})
+		require.NoError(t, err)
+
+		if _, ok := parent.Index["subdoc"]; ok {
+			t.Fatal("parent must not have subdoc index entry after removal")
+		}
+
+		// Getting subdocument after removal should fail.
+		_, err = dmn.RPC.DocumentsV2.GetDocument(ctx, &documents.GetDocumentRequest{
+			DocumentId: "hm://a/" + alice.Account.Principal().String() + "/subdoc",
+		})
+		require.Error(t, err)
+		require.Equal(t, codes.NotFound, status.Code(err), "subdoc must be not found after removal")
+	}
 }
 
 func TestSyncingProfiles(t *testing.T) {

@@ -26,6 +26,7 @@ import (
 
 // Document is a mutable document.
 type Document struct {
+	parent  *Document
 	e       *Entity
 	tree    *treeCRDT
 	mut     *treeMutation
@@ -37,6 +38,17 @@ type Document struct {
 	createdBlocks map[string]struct{}
 	// Blocks that we've deleted in this change.
 	deletedBlocks map[string]struct{}
+}
+
+func (doc *Document) Parent() *Document {
+	return doc.parent
+}
+
+func (doc *Document) SetParent(parent *Document) {
+	if doc.parent != nil {
+		panic("BUG: parent doc is already set")
+	}
+	doc.parent = parent
 }
 
 // New creates a new mutable document.
@@ -164,6 +176,12 @@ func (dm *Document) MoveBlock(block, parent, left string) error {
 // SetIndexHeads sets the index heads.
 func (dm *Document) SetIndexHeads(key string, value []cid.Cid) error {
 	colx.ObjectSet(dm.patch, []string{"index", key}, value)
+	return nil
+}
+
+// RemoveIndex removes an index.
+func (dmn *Document) RemoveIndex(key string) error {
+	colx.ObjectSet(dmn.patch, []string{"index", key}, nil)
 	return nil
 }
 

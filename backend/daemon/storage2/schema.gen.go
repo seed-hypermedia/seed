@@ -78,16 +78,18 @@ const (
 
 // Table peers.
 const (
-	Peers        sqlitegen.Table  = "peers"
-	PeersAddress sqlitegen.Column = "peers.address"
-	PeersID      sqlitegen.Column = "peers.id"
+	Peers          sqlitegen.Table  = "peers"
+	PeersAddresses sqlitegen.Column = "peers.addresses"
+	PeersID        sqlitegen.Column = "peers.id"
+	PeersPid       sqlitegen.Column = "peers.pid"
 )
 
 // Table peers. Plain strings.
 const (
-	T_Peers        = "peers"
-	C_PeersAddress = "peers.address"
-	C_PeersID      = "peers.id"
+	T_Peers          = "peers"
+	C_PeersAddresses = "peers.addresses"
+	C_PeersID        = "peers.id"
+	C_PeersPid       = "peers.pid"
 )
 
 // Table public_keys.
@@ -102,6 +104,26 @@ const (
 	T_PublicKeys          = "public_keys"
 	C_PublicKeysID        = "public_keys.id"
 	C_PublicKeysPrincipal = "public_keys.principal"
+)
+
+// Table resource_heads.
+const (
+	ResourceHeads           sqlitegen.Table  = "resource_heads"
+	ResourceHeadsAuthor     sqlitegen.Column = "resource_heads.author"
+	ResourceHeadsHeads      sqlitegen.Column = "resource_heads.heads"
+	ResourceHeadsResource   sqlitegen.Column = "resource_heads.resource"
+	ResourceHeadsSourceBlob sqlitegen.Column = "resource_heads.source_blob"
+	ResourceHeadsTs         sqlitegen.Column = "resource_heads.ts"
+)
+
+// Table resource_heads. Plain strings.
+const (
+	T_ResourceHeads           = "resource_heads"
+	C_ResourceHeadsAuthor     = "resource_heads.author"
+	C_ResourceHeadsHeads      = "resource_heads.heads"
+	C_ResourceHeadsResource   = "resource_heads.resource"
+	C_ResourceHeadsSourceBlob = "resource_heads.source_blob"
+	C_ResourceHeadsTs         = "resource_heads.ts"
 )
 
 // Table resource_links.
@@ -228,10 +250,16 @@ var Schema = sqlitegen.Schema{
 		DeletedResourcesReason:     {Table: DeletedResources, SQLType: "TEXT"},
 		KVKey:                      {Table: KV, SQLType: "TEXT"},
 		KVValue:                    {Table: KV, SQLType: "TEXT"},
-		PeersAddress:               {Table: Peers, SQLType: "TEXT"},
+		PeersAddresses:             {Table: Peers, SQLType: "TEXT"},
 		PeersID:                    {Table: Peers, SQLType: "INTEGER"},
+		PeersPid:                   {Table: Peers, SQLType: "TEXT"},
 		PublicKeysID:               {Table: PublicKeys, SQLType: "INTEGER"},
 		PublicKeysPrincipal:        {Table: PublicKeys, SQLType: "BLOB"},
+		ResourceHeadsAuthor:        {Table: ResourceHeads, SQLType: "INTEGER"},
+		ResourceHeadsHeads:         {Table: ResourceHeads, SQLType: "JSONB"},
+		ResourceHeadsResource:      {Table: ResourceHeads, SQLType: "INTEGER"},
+		ResourceHeadsSourceBlob:    {Table: ResourceHeads, SQLType: "INTEGER"},
+		ResourceHeadsTs:            {Table: ResourceHeads, SQLType: "INTEGER"},
 		ResourceLinksExtraAttrs:    {Table: ResourceLinks, SQLType: "JSONB"},
 		ResourceLinksID:            {Table: ResourceLinks, SQLType: "INTEGER"},
 		ResourceLinksIsPinned:      {Table: ResourceLinks, SQLType: "INTEGER"},

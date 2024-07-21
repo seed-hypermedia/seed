@@ -291,20 +291,10 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
   changes: DocumentChange[] = [];
 
   /**
-   * Required if document_id is non-empty.
-   * The version of the document to apply the changes to.
-   * This is used for optimistic concurrency control,
-   * to avoid overwriting or depending on the unseen changes that might have happened in the background.
-   *
-   * @generated from field: string base_version = 3;
-   */
-  baseVersion = "";
-
-  /**
    * Required. Name of the key to use for signing.
    * Use the Daemon API to list and manage keys.
    *
-   * @generated from field: string signing_key_name = 4;
+   * @generated from field: string signing_key_name = 3;
    */
   signingKeyName = "";
 
@@ -318,8 +308,7 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "document_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "changes", kind: "message", T: DocumentChange, repeated: true },
-    { no: 3, name: "base_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateDocumentChangeRequest {

@@ -76,6 +76,20 @@ CREATE TABLE resources (
     create_time INTEGER
 );
 
+-- Stores the heads for a given resource.
+-- Heads are the latest changes to a given resource.
+-- Heads are derived from Ref blobs or from Change blobs that update the index of a parent document.
+CREATE TABLE resource_heads (
+    -- Resource ID for which the head is for.
+    resource INTEGER REFERENCES resources (id) ON DELETE CASCADE ON UPDATE CASCADE NOT NULL,
+    -- Blob that introduces the head.
+    source_blob INTEGER REFERENCES blobs (id) ON DELETE CASCADE ON UPDATE CASCADE NOT NULL,
+    -- The JSON array of head blob IDs.
+    heads JSONB NOT NULL,
+    author INTEGER REFERENCES public_keys (id) NOT NULL,
+    ts INTEGER NOT NULL
+);
+
 CREATE INDEX resources_by_owner ON resources (owner) WHERE owner IS NOT NULL;
 
 -- Stores deleted hypermedia resources.
