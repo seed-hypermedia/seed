@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hyper"
 	"seed/backend/pkg/dqb"
@@ -120,6 +121,27 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	}
 
 	addrsStr := AddrInfoToStrings(info)
+
+	c, err := n.client.Dial(ctx, info.ID)
+	if err != nil {
+		return fmt.Errorf("Could not get p2p client: %w", err)
+	}
+	res, err := c.ListPeers(ctx, &p2p.ListPeersRequest{PageSize: math.MaxInt32})
+	if err != nil {
+		return fmt.Errorf("Could not get list of peers: %w", err)
+	}
+	if len(res.Peers) > 0 {
+		vals := []interface{}{}
+		sqlStr := "INSERT OR REPLACE INTO peers (pid, addresses) VALUES "
+		for _, peer := range res.Peers {
+			sqlStr += "(?, ?),"
+			vals = append(vals, peer.Id, strings.Join(peer.Addrs, ","))
+		}
+		sqlStr = sqlStr[0 : len(sqlStr)-1]
+
+		return sqlitex.Exec(conn, sqlStr, nil, vals...)
+	}
+
 	return sqlitex.Exec(conn, "INSERT OR REPLACE INTO peers (pid, addresses) VALUES (?, ?);", nil, info.ID.String(), strings.Join(addrsStr, ","))
 	//TODO(hm24): Handshake still valid?
 	/*

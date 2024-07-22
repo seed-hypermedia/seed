@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"seed/backend/config"
 	"seed/backend/core"
 	p2p "seed/backend/genproto/p2p/v1alpha"
@@ -110,15 +111,16 @@ type protocolChecker struct {
 	version string
 }
 type Service struct {
-	cfg     config.Syncing
-	log     *zap.Logger
-	db      *sqlitex.Pool
-	indexer *index.Index
-	bitswap bitswap
-	client  netDialFunc
-	host    host.Host
-	pc      protocolChecker
-	mu      sync.Mutex // Ensures only one sync loop is running at a time.
+	cfg        config.Syncing
+	log        *zap.Logger
+	db         *sqlitex.Pool
+	indexer    *index.Index
+	bitswap    bitswap
+	rbsrClient netDialFunc
+	p2pClient  func(context.Context, peer.ID) (p2p.P2PClient, error)
+	host       host.Host
+	pc         protocolChecker
+	mu         sync.Mutex // Ensures only one sync loop is running at a time.
 
 	wg        sync.WaitGroup
 	workers   map[peer.ID]*worker
@@ -134,15 +136,16 @@ const peerRoutingConcurrency = 3 // how many concurrent requests for peer routin
 // NewService creates a new syncing service. Users should call Start() to start the periodic syncing.
 func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer *index.Index, net *mttnet.Node) *Service {
 	svc := &Service{
-		cfg:       cfg,
-		log:       log,
-		db:        db,
-		indexer:   indexer,
-		bitswap:   net.Bitswap(),
-		client:    net.RbsrClient,
-		host:      net.Libp2p().Host,
-		workers:   make(map[peer.ID]*worker),
-		semaphore: make(chan struct{}, peerRoutingConcurrency),
+		cfg:        cfg,
+		log:        log,
+		db:         db,
+		indexer:    indexer,
+		bitswap:    net.Bitswap(),
+		rbsrClient: net.RbsrClient,
+		p2pClient:  net.Client,
+		host:       net.Libp2p().Host,
+		workers:    make(map[peer.ID]*worker),
+		semaphore:  make(chan struct{}, peerRoutingConcurrency),
 	}
 	svc.pc = protocolChecker{
 		checker: net.CheckHyperMediaProtocolVersion,
@@ -214,7 +217,7 @@ func (s *Service) refreshWorkers(ctx context.Context) error {
 	// Starting workers for newly added trusted peers.
 	for pid := range peers {
 		if _, ok := s.workers[pid]; !ok {
-			w := newWorker(s.cfg, pid, s.log, s.client, s.host, s.indexer, s.bitswap, s.db, s.semaphore)
+			w := newWorker(s.cfg, pid, s.log, s.rbsrClient, s.host, s.indexer, s.bitswap, s.db, s.semaphore)
 			s.wg.Add(1)
 			go w.start(ctx, &s.wg, s.cfg.Interval)
 			workersDiff++
@@ -352,7 +355,7 @@ func (s *Service) SyncWithPeer(ctx context.Context, pid peer.ID) error {
 		defer cancel()
 	}
 
-	c, err := s.client(ctx, pid)
+	c, err := s.rbsrClient(ctx, pid)
 	if err != nil {
 		return err
 	}
@@ -377,17 +380,44 @@ func (s *Service) syncBack(ctx context.Context, event event.EvtPeerIdentificatio
 	if err := s.pc.checker(ctx, event.Peer, s.pc.version); err != nil {
 		return
 	}
+
+	conn, cancel, err := s.db.Conn(ctx)
+	if err != nil {
+		s.log.Error("Could not get connection")
+	}
+	defer cancel()
+
+	c, err := s.p2pClient(ctx, event.Peer)
+	if err != nil {
+		s.log.Warn("Could not get p2p client", zap.Error(err))
+		return
+	}
+	res, err := c.ListPeers(ctx, &p2p.ListPeersRequest{PageSize: math.MaxInt32})
+	if err != nil {
+		s.log.Warn("Could not get list of peers", zap.Error(err))
+		return
+	}
+	if len(res.Peers) > 0 {
+		vals := []interface{}{}
+		sqlStr := "INSERT OR REPLACE INTO peers (pid, addresses) VALUES "
+		for _, peer := range res.Peers {
+			sqlStr += "(?, ?),"
+			vals = append(vals, peer.Id, strings.Join(peer.Addrs, ","))
+		}
+		sqlStr = sqlStr[0 : len(sqlStr)-1]
+
+		if err := sqlitex.Exec(conn, sqlStr, nil, vals...); err != nil {
+			s.log.Warn("Could not insert the remote list of peers: %w", zap.Error(err))
+			return
+		}
+	}
+
 	info := s.host.Peerstore().PeerInfo(event.Peer)
 
 	if info.ID == s.host.Network().LocalPeer() {
 		return
 	}
 	addrsStr := mttnet.AddrInfoToStrings(info)
-	conn, cancel, err := s.db.Conn(ctx)
-	if err != nil {
-		s.log.Error("Could not get connection")
-	}
-	defer cancel()
 
 	const q = "SELECT addresses FROM peers WHERE pid = ?;"
 	var addresses string

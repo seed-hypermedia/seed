@@ -32,6 +32,7 @@ type P2PClient interface {
 	// and only asking for what's new since then in the next request.
 	// Clients must treat the cursor as an opaque string.
 	ListBlobs(ctx context.Context, in *ListBlobsRequest, opts ...grpc.CallOption) (P2P_ListBlobsClient, error)
+	ListPeers(ctx context.Context, in *ListPeersRequest, opts ...grpc.CallOption) (*ListPeersResponse, error)
 	// Request a peer to issue a lightning BOLT-11 invoice
 	RequestInvoice(ctx context.Context, in *RequestInvoiceRequest, opts ...grpc.CallOption) (*RequestInvoiceResponse, error)
 }
@@ -85,6 +86,15 @@ func (x *p2PListBlobsClient) Recv() (*Blob, error) {
 	return m, nil
 }
 
+func (c *p2PClient) ListPeers(ctx context.Context, in *ListPeersRequest, opts ...grpc.CallOption) (*ListPeersResponse, error) {
+	out := new(ListPeersResponse)
+	err := c.cc.Invoke(ctx, "/com.seed.p2p.v1alpha.P2P/ListPeers", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *p2PClient) RequestInvoice(ctx context.Context, in *RequestInvoiceRequest, opts ...grpc.CallOption) (*RequestInvoiceResponse, error) {
 	out := new(RequestInvoiceResponse)
 	err := c.cc.Invoke(ctx, "/com.seed.p2p.v1alpha.P2P/RequestInvoice", in, out, opts...)
@@ -108,6 +118,7 @@ type P2PServer interface {
 	// and only asking for what's new since then in the next request.
 	// Clients must treat the cursor as an opaque string.
 	ListBlobs(*ListBlobsRequest, P2P_ListBlobsServer) error
+	ListPeers(context.Context, *ListPeersRequest) (*ListPeersResponse, error)
 	// Request a peer to issue a lightning BOLT-11 invoice
 	RequestInvoice(context.Context, *RequestInvoiceRequest) (*RequestInvoiceResponse, error)
 }
@@ -121,6 +132,9 @@ func (UnimplementedP2PServer) Handshake(context.Context, *HandshakeInfo) (*Hands
 }
 func (UnimplementedP2PServer) ListBlobs(*ListBlobsRequest, P2P_ListBlobsServer) error {
 	return status.Errorf(codes.Unimplemented, "method ListBlobs not implemented")
+}
+func (UnimplementedP2PServer) ListPeers(context.Context, *ListPeersRequest) (*ListPeersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListPeers not implemented")
 }
 func (UnimplementedP2PServer) RequestInvoice(context.Context, *RequestInvoiceRequest) (*RequestInvoiceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RequestInvoice not implemented")
@@ -176,6 +190,24 @@ func (x *p2PListBlobsServer) Send(m *Blob) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _P2P_ListPeers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPeersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(P2PServer).ListPeers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/com.seed.p2p.v1alpha.P2P/ListPeers",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(P2PServer).ListPeers(ctx, req.(*ListPeersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _P2P_RequestInvoice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RequestInvoiceRequest)
 	if err := dec(in); err != nil {
@@ -204,6 +236,10 @@ var P2P_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Handshake",
 			Handler:    _P2P_Handshake_Handler,
+		},
+		{
+			MethodName: "ListPeers",
+			Handler:    _P2P_ListPeers_Handler,
 		},
 		{
 			MethodName: "RequestInvoice",
