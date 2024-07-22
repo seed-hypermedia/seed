@@ -487,3 +487,23 @@ export function serializeBlockRange(
 
   return res
 }
+
+export function getParentIds(entityId: string): string[] {
+  const unpacked = unpackHmId(entityId)
+  const pathTerms: string[] = []
+  const parentIds: string[] = []
+  if (unpacked) {
+    parentIds.push(createHmId(unpacked.type, unpacked.eid))
+    const indexPathTerms = unpacked.indexPath?.split('/')
+    indexPathTerms?.forEach((pathTerm, index) => {
+      if (index === indexPathTerms.length - 1) return
+      pathTerms.push(pathTerm)
+      parentIds.push(
+        createHmId(unpacked.type, unpacked.eid, {
+          indexPath: pathTerms.join('/'),
+        }),
+      )
+    })
+  }
+  return parentIds
+}

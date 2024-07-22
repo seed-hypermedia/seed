@@ -10,6 +10,7 @@ import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
 import {FormInput} from '@/components/form-input'
 import {FormField} from '@/components/forms'
+import {ListItem} from '@/components/list-item'
 import {MainWrapperNoScroll} from '@/components/main-wrapper'
 import {useMyAccountIds} from '@/models/daemon'
 import {useAccountDocuments} from '@/models/documents'
@@ -19,7 +20,12 @@ import {useNavRoute} from '@/utils/navigation'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {zodResolver} from '@hookform/resolvers/zod'
-import {DocContent, HMDocument, hmId, UnpackedHypermediaId} from '@shm/shared'
+import {
+  DocContent,
+  getProfileName,
+  hmId,
+  UnpackedHypermediaId,
+} from '@shm/shared'
 import {
   Button,
   CitationsIcon,
@@ -35,6 +41,7 @@ import {
   Spinner,
   SuggestedChangesIcon,
   XStack,
+  YStack,
 } from '@shm/ui'
 import {PageContainer} from '@shm/ui/src/container'
 import {RadioButtons} from '@shm/ui/src/radio-buttons'
@@ -45,10 +52,6 @@ import {z} from 'zod'
 import {EntityCitationsAccessory} from '../components/citations'
 import {CopyReferenceButton} from '../components/titlebar-common'
 import {AppDocContentProvider} from './document-content-provider'
-
-export function getProfileName(profile: HMDocument | null | undefined) {
-  return profile?.metadata?.name || 'Untitled Account'
-}
 
 export default function DocumentPage() {
   const route = useNavRoute()
@@ -225,22 +228,45 @@ function DocumentPageContent({
   blockId?: string
   isBlockFocused?: boolean
 }) {
-  const profile = useEntity(docId)
-  if (profile.isLoading) return <Spinner />
-  if (!profile.data?.document) return null
+  const entity = useEntity(docId)
+  const navigate = useNavigate()
+  if (entity.isLoading) return <Spinner />
+  if (!entity.data?.document) return null
   const blockId = docId.blockRef
   return (
     <PageContainer>
       <AppDocContentProvider routeParams={{blockRef: blockId}}>
         <DocContent
-          document={profile.data?.document}
+          document={entity.data?.document}
           focusBlockId={isBlockFocused ? blockId : undefined}
         />
         <Separator />
         <H3 marginTop="$4">Index</H3>
-        <XStack paddingVertical="$4">
-          <NewSubDocumentButton parentDocId={docId.qid} />
-        </XStack>
+        <YStack>
+          {Object.keys(entity.data?.document?.index).map((key) => {
+            return (
+              <ListItem
+                key={key}
+                title={key}
+                onPress={() => {
+                  const id = hmId(docId.type, docId.eid, {
+                    indexPath: docId.indexPath
+                      ? `${docId.indexPath}/${key}`
+                      : key,
+                  })
+                  console.log('navigate', id)
+                  navigate({
+                    key: 'document',
+                    id,
+                  })
+                }}
+              />
+            )
+          })}
+          <XStack paddingVertical="$4">
+            <NewSubDocumentButton parentDocId={docId.qid} />
+          </XStack>
+        </YStack>
       </AppDocContentProvider>
     </PageContainer>
   )

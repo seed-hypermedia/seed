@@ -2,11 +2,10 @@ import {useAppContext} from '@/app-context'
 import {ContactsPrompt} from '@/components/contacts-prompt'
 import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
 import {useDeleteDialog} from '@/components/delete-dialog'
-import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {useFavoriteMenuItem} from '@/components/favoriting'
 import {MenuItemType, OptionsDropdown} from '@/components/options-dropdown'
-import {DraftPublicationButtons, VersionContext} from '@/components/variants'
-import {useAccount_deprecated, useProfileWithDraft} from '@/models/accounts'
+import {DraftPublicationButtons} from '@/components/variants'
+import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
 import {usePushPublication} from '@/models/documents'
 import {useEntity} from '@/models/entities'
@@ -54,7 +53,8 @@ import {
   UploadCloud,
 } from '@tamagui/lucide-icons'
 import {ReactNode, useState} from 'react'
-import {getProfileName} from '../pages/account-page'
+import DiscardDraftButton from './discard-draft-button'
+import PublishDraftButton from './publish-draft-button'
 import {TitleBarProps} from './titlebar'
 
 export function DocOptionsButton() {
@@ -123,70 +123,18 @@ export function DocOptionsButton() {
   )
 }
 
-export function AccountOptionsButton() {
+function EditDocButton() {
   const route = useNavRoute()
-  if (route.key !== 'account')
-    throw new Error(
-      'AccountOptionsButton can only be rendered on account route',
-    )
-  const menuItems: MenuItemType[] = []
-  const accountUrl = createHmId('a', route.accountId)
-  menuItems.push(useFavoriteMenuItem(accountUrl))
-  const account = useAccount_deprecated(route.accountId)
-  const dispatch = useNavigationDispatch()
-  const deleteEntity = useDeleteDialog()
-  const editProfileDialog = useEditProfileDialog()
-  const myAccountIds = useMyAccountIds()
-  const {profile} = useProfileWithDraft(route.accountId)
-  const isMyAccount = myAccountIds.data?.includes(route.accountId)
-  if (isMyAccount) {
-    menuItems.push({
-      key: 'edit-account',
-      label: 'Edit Account Info',
-      icon: Pencil,
-      onPress: () => {
-        editProfileDialog.open(route.accountId)
-      },
-    })
-  }
-  menuItems.push({
-    key: 'delete',
-    label: 'Delete Account',
-    icon: Trash,
-
-    onPress: () => {
-      deleteEntity.open({
-        id: createHmId('a', route.accountId),
-        title: getProfileName(profile),
-        onSuccess: () => {
-          dispatch({type: 'pop'})
-        },
-      })
-    },
-  })
-  return (
-    <>
-      <OptionsDropdown menuItems={menuItems} />
-      {deleteEntity.content}
-      {editProfileDialog.content}
-    </>
-  )
-}
-
-function EditAccountButton() {
-  const route = useNavRoute()
-  if (route.key !== 'document' || route.id.type !== 'a')
-    throw new Error(
-      'AccountOptionsButton can only be rendered on document route with account',
-    )
+  if (route.key !== 'document')
+    throw new Error('EditDocButton can only be rendered on document route')
   const myAccountIds = useMyAccountIds()
   const navigate = useNavigate()
-  const {draft} = useProfileWithDraft(route.id.eid)
-  if (!myAccountIds.data?.includes(route.id.eid)) {
+  const draft = useDraft(route.id.id)
+  if (route.id.type === 'a' && !myAccountIds.data?.includes(route.id.eid)) {
     return null
   }
   if (route.tab !== 'home' && route.tab) return null
-  const hasExistingDraft = !!draft
+  const hasExistingDraft = !!draft.data
   return (
     <>
       <Tooltip content={hasExistingDraft ? 'Resume Editing' : 'Edit Account'}>
@@ -196,7 +144,7 @@ function EditAccountButton() {
           onPress={() => {
             navigate({
               key: 'draft',
-              id: route.id.qid,
+              id: route.id.id,
             })
           }}
           icon={Pencil}
@@ -351,16 +299,13 @@ export function PageActionButtons(props: TitleBarProps) {
     ]
   } else if (route.key === 'document' && route.id.type === 'd') {
     buttonGroup = [
-      <VersionContext key="versionContext" route={route} />,
+      <EditDocButton key="editDoc" />,
+      // <VersionContext key="versionContext" route={route} />,
       <CreateDropdown key="create" />,
       <DocOptionsButton key="options" />,
     ]
   } else if (route.key === 'document' && route.id.type === 'a') {
-    buttonGroup = [
-      <EditAccountButton key="editAccount" />,
-      // <CreateDropdown key="create" />,
-      // <AccountOptionsButton key="accountOptions" />,
-    ]
+    buttonGroup = [<EditDocButton key="editDoc" />]
   }
   return <TitlebarSection>{buttonGroup}</TitlebarSection>
 }
@@ -400,6 +345,15 @@ export function NavigationButtons() {
         </XGroup.Item>
       </XGroup>
     </XStack>
+  )
+}
+
+export function DraftPublicationButtons() {
+  return (
+    <>
+      <PublishDraftButton />
+      <DiscardDraftButton />
+    </>
   )
 }
 

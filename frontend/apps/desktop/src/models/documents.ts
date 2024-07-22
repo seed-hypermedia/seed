@@ -1,7 +1,7 @@
 import {dispatchWizardEvent} from '@/app-account'
 import {useAppContext, useGRPCClient, useQueryInvalidator} from '@/app-context'
 import {createHypermediaDocLinkPlugin} from '@/editor'
-import {useDraft, useMyAccount_deprecated} from '@/models/accounts'
+import {useDraft} from '@/models/accounts'
 import {queryKeys} from '@/models/query-keys'
 import {useOpenUrl} from '@/open-url'
 import {slashMenuItems} from '@/slash-menu-items'
@@ -9,7 +9,6 @@ import {trpc} from '@/trpc'
 import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
 import {
-  Document,
   DocumentChange,
   GRPCClient,
   HMAccount,
@@ -19,6 +18,7 @@ import {
   HMDraft,
   UnpackedHypermediaId,
   fromHMBlock,
+  getParentIds,
   hmDocument,
   toHMBlock,
   unpackDocId,
@@ -102,23 +102,16 @@ export function useDraftList() {
 export function useDeleteDraft(
   opts: UseMutationOptions<void, unknown, string>,
 ) {
-  const {queryClient} = useAppContext()
-  const grpcClient = useGRPCClient()
   const invalidate = useQueryInvalidator()
-  return useMutation({
+  const deleteDraft = trpc.drafts.delete.useMutation({
     ...opts,
-    mutationFn: async (draftId) => {
-      await grpcClient.drafts.deleteDraft({draftId})
-    },
-    onSuccess: (response, documentId, context) => {
-      setTimeout(() => {
-        invalidate([queryKeys.ENTITY_TIMELINE, documentId])
-        invalidate([queryKeys.DRAFT, documentId])
-        queryClient.client.removeQueries([queryKeys.DRAFT, documentId])
-      }, 200)
-      opts?.onSuccess?.(response, documentId, context)
+    onSuccess: (data, input, ctx) => {
+      invalidate(['trpc.drafts.get', input])
+      invalidate(['trpc.drafts.list'])
+      opts.onSuccess?.(data, input, ctx)
     },
   })
+  return deleteDraft
 }
 
 type ListedEmbed = {
@@ -233,24 +226,31 @@ export function usePublishDraft(
   opts?: UseMutationOptions<
     HMDocument,
     unknown,
-    {draft: HMDraft; previous: HMDocument | undefined}
+    {
+      draft: HMDraft
+      previous: HMDocument | undefined
+      id: UnpackedHypermediaId | undefined
+    }
   >,
 ) {
   const invalidate = useQueryInvalidator()
   return useMutation<
     HMDocument,
     any,
-    {draft: HMDraft; previous: HMDocument | undefined}
+    {
+      draft: HMDraft
+      previous: HMDocument | undefined
+      id: UnpackedHypermediaId | undefined
+    }
   >({
-    mutationFn: async ({draft, previous}) => {
-      const unpacked = unpackHmId(accountId)
+    mutationFn: async ({draft, previous, id}) => {
       const blocksMap = previous ? createBlocksMap(previous.content, '') : {}
       const changes = compareBlocksWithMap(blocksMap, draft.content, '')
 
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
       try {
-        if (draft.signingProfile) {
-          const allProfileChanges = [
+        if (draft.signingProfile && id?.id) {
+          const allChanges = [
             ...Object.entries(draft.metadata).map(([key, value]) => {
               return new DocumentChange({
                 op: {
@@ -262,25 +262,25 @@ export function usePublishDraft(
                 },
               })
             }),
-            // TODO: @horacio uncomment when setting index is implemented
-            // new DocumentChange({
-            //   op: {
-            //     case: 'setIndex',
-            //     value: draft.index,
-            //   },
-            // }),
             ...changes.changes,
             ...deleteChanges,
           ]
-          // TODO: @horacio we might need a warning here if the user wants to publish a profile update with a different accountId when we have multiple accounts
-          const publish = await grpcClient.documents.changeProfileDocument({
-            accountId: draft.signingProfile
-              ? draft.signingProfile
-              : unpacked?.eid,
-            changes: allProfileChanges,
+          const accts = await grpcClient.daemon.listKeys({})
+          const signingKeyName = accts.keys.find(
+            (key) => key.publicKey === draft.signingProfile,
+          )?.name
+          if (!signingKeyName)
+            throw new Error(
+              'Can not determine signing key name for draft signingProfile ' +
+                draft.signingProfile,
+            )
+          const publishedDoc = await grpcClient.documents.createDocumentChange({
+            signingKeyName,
+            documentId: id.id,
+            changes: allChanges,
           })
 
-          return publish
+          return toPlainMessage(publishedDoc)
         } else {
           dispatchWizardEvent(true)
         }
@@ -293,80 +293,9 @@ export function usePublishDraft(
       const documentId = result.id
       opts?.onSuccess?.(result, variables, context)
       invalidate([queryKeys.ENTITY, documentId])
-    },
-  })
-}
-
-export function _usePublishDraft(
-  opts?: UseMutationOptions<
-    {
-      pub: Document
-      isFirstPublish: boolean
-      isProfileDocument: boolean
-    },
-    unknown,
-    {
-      draftId: string
-    }
-  >,
-) {
-  const queryClient = useAppContext().queryClient
-  const markDocPublish = trpc.welcoming.markDocPublish.useMutation()
-  const grpcClient = useGRPCClient()
-  const route = useNavRoute()
-  const draftRoute = route.key === 'draft' ? route : undefined
-  const myAccount = useMyAccount_deprecated()
-  const isProfileDocument = false
-
-  const {client, invalidate} = queryClient
-  const diagnosis = useDraftDiagnosis()
-  return useMutation({
-    ...opts,
-    mutationFn: async ({
-      draftId,
-    }: {
-      draftId: string
-    }): Promise<{
-      pub: Document
-      isFirstPublish: boolean
-      isProfileDocument: boolean
-    }> => {
-      const branch = toPlainMessage(
-        await grpcClient.drafts.publishDraft({draftId}),
-      )
-      await diagnosis.complete(draftId, {
-        key: 'did.publishDraft',
-        value: branch,
+      getParentIds(documentId).forEach((id) => {
+        invalidate([queryKeys.ENTITY, id])
       })
-      const isFirstPublish = await markDocPublish.mutateAsync(draftId)
-      const publishedId = branch.documentId
-      if (!publishedId)
-        throw new Error('Could not get ID of published document')
-      if (isProfileDocument) {
-        if (myAccount.data?.profile?.rootDocument !== publishedId) {
-          await grpcClient.accounts.updateProfile({
-            ...myAccount.data?.profile,
-            rootDocument: publishedId,
-          })
-        }
-      }
-      return {isFirstPublish, pub, isProfileDocument}
-    },
-    onSuccess: (result, variables, context) => {
-      const documentId = result.pub.document?.id
-      opts?.onSuccess?.(result, variables, context)
-      invalidate([queryKeys.FEED_LATEST_EVENT])
-      invalidate([queryKeys.RESOURCE_FEED_LATEST_EVENT])
-      invalidate([queryKeys.DOCUMENT_LIST])
-      invalidate([queryKeys.ENTITY, documentId])
-      invalidate([queryKeys.ENTITY_TIMELINE, documentId])
-      invalidate([queryKeys.LIST_ACCOUNTS]) // accounts invalidate because profile doc may be updated
-      invalidate([queryKeys.ENTITY, myAccount])
-      invalidate([queryKeys.ENTITY_CITATIONS])
-      setTimeout(() => {
-        client.removeQueries([queryKeys.DRAFT, documentId])
-        // otherwise it will re-query for a draft that no longer exists and an error happens
-      }, 250)
     },
   })
 }

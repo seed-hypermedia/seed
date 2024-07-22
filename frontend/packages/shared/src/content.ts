@@ -35,3 +35,7 @@ export function getDocumentTitle(document?: HMDocument | null) {
   let res = document?.metadata?.name || 'Untitled Document'
   return res
 }
+
+export function getProfileName(profile: HMDocument | null | undefined) {
+  return profile?.metadata?.name || 'Untitled Account'
+}

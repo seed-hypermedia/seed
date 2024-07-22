@@ -1,7 +1,6 @@
 import {useEntity} from '@/models/entities'
-import {getProfileName} from '@/pages/account-page'
 import {AccessURLRow} from '@/url'
-import {hmId, HYPERMEDIA_PUBLIC_WEB_GATEWAY} from '@shm/shared'
+import {getProfileName, hmId, HYPERMEDIA_PUBLIC_WEB_GATEWAY} from '@shm/shared'
 import {Button, Spinner, TextArea, toast, XStack} from '@shm/ui'
 import {UserPlus} from '@tamagui/lucide-icons'
 import {compressToEncodedURIComponent} from 'lz-string'

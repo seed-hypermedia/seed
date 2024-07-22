@@ -3,7 +3,6 @@ import {Avatar} from '@/components/avatar'
 import {MenuItemType, OptionsDropdown} from '@/components/options-dropdown'
 import appError from '@/errors'
 import {EmbedsContent} from '@/models/documents'
-import {getProfileName} from '@/pages/account-page'
 import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
 import {getFileUrl} from '@/utils/account-url'
 import {NavRoute} from '@/utils/routes'
@@ -355,7 +354,7 @@ export function MyAccountItem({
             cursor={active ? 'not-allowed' : 'pointer'}
             userSelect="none"
           >
-            {getProfileName(account?.profile)}
+            Not implemented (getProfileName)
           </SizableText>
           <SizableText size="$1" color="$9">
             My Account

@@ -31,7 +31,7 @@ import {
 import {useWalletOptIn} from '@/models/wallet'
 import {trpc} from '@/trpc'
 import {getFileUrl} from '@/utils/account-url'
-import {hmId, LightningWallet, VERSION} from '@shm/shared'
+import {getProfileName, hmId, LightningWallet, VERSION} from '@shm/shared'
 import {
   AlertDialog,
   ArrowDownRight,
@@ -87,7 +87,6 @@ import {
 import copyTextToClipboard from 'copy-text-to-clipboard'
 import React, {useEffect, useId, useMemo, useState} from 'react'
 import {dispatchWizardEvent} from 'src/app-account'
-import {getProfileName} from './account-page'
 
 export default function Settings() {
   return (

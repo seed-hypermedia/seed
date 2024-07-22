@@ -7,7 +7,7 @@ import {useNavigationDispatch} from '../utils/navigation'
 export default function DiscardDraftButton() {
   const route = useNavRoute()
   const dispatch = useNavigationDispatch()
-  const draftId = route.key == 'draft' ? route.draftId : null
+  const draftId = route.key == 'draft' ? route.id : null
   const deleteDialog = useDeleteDraftDialog()
   if (route.key != 'draft' || !draftId) return null
   return (
@@ -16,7 +16,7 @@ export default function DiscardDraftButton() {
       <Tooltip content="Discard Draft">
         <Button
           size="$2"
-          theme="orange"
+          theme="red"
           onPress={() =>
             deleteDialog.open({
               draftId,

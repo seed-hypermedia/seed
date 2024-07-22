@@ -149,52 +149,19 @@ export function queryEntity(
   return {
     ...options,
     enabled: options?.enabled ?? !!id,
-    queryKey: [queryKeys.ENTITY, id, id?.version],
+    queryKey: [queryKeys.ENTITY, id?.id, id?.version],
     queryFn: async (): Promise<HMEntityContent | null> => {
       if (!id) return null
-      const {type, qid, version, eid, indexPath} = id
-      if (indexPath) {
-        // TODO: horacio wait for backend implementation of GetDocument
-        // const subDocument = await grpcClient.documents.getDocumentIndex({
-        //   documentId: qid,
-        //   path: indexPath,
-        // })
-        // if (subDocument.document)
-        //   return {
-        //     type: 'd',
-        //     id,
-        //     document: subDocument.document
-        //       ? toPlainMessage(subDocument.document)
-        //       : undefined,
-        //   }
-      } else {
-        if (type === 'd') {
-          const document = await grpcClient.documents.getDocument({
-            documentId: qid,
-            version: version || undefined,
-          })
-          return {type: 'd', id, document: toPlainMessage(document)}
-        }
-        if (type === 'a') {
-          const [account, profile] = await Promise.all([
-            catchNotFound(grpcClient.accounts.getAccount({id: eid})),
-            catchNotFound(
-              grpcClient.documents.getProfileDocument({
-                accountId: eid,
-                version: version || undefined,
-              }),
-            ),
-          ])
-          return {
-            type: 'a',
-            id,
-            document: profile ? toPlainMessage(profile) : null,
-            account: account ? toPlainMessage(account) : null,
-          }
-        }
+      const {version} = id
+      try {
+        const document = await grpcClient.documents.getDocument({
+          documentId: id.id,
+          version: version || undefined,
+        })
+        return {id, document: toPlainMessage(document)}
+      } catch (e) {
+        return null
       }
-
-      return null
     },
   }
 }

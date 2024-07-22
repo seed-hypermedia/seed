@@ -6,9 +6,8 @@ import {
   useRouteEntities,
 } from '@/models/entities'
 import {useFavorites} from '@/models/favorites'
-import {getProfileName} from '@/pages/account-page'
 import {appRouteOfId, getRouteKey, useNavRoute} from '@/utils/navigation'
-import {BaseAccountRoute, DocumentRoute, NavRoute} from '@/utils/routes'
+import {DocumentRoute, NavRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   HMBlockNode,
@@ -16,6 +15,7 @@ import {
   UnpackedHypermediaId,
   getBlockNodeById,
   getDocumentTitle,
+  getProfileName,
   hmId,
   unpackHmId,
 } from '@shm/shared'
@@ -47,7 +47,7 @@ function _SidebarNeo() {
   const myAccount = useMyAccount_deprecated()
   const myAccountRoute: DocumentRoute | null = useMemo(() => {
     return myAccount
-      ? ({key: 'document', id: hmId('a', myAccount)} as BaseAccountRoute)
+      ? ({key: 'document', id: hmId('a', myAccount)} as DocumentRoute)
       : null
   }, [myAccount])
   const navigate = useNavigate()
@@ -197,15 +197,15 @@ export function getItemDetails(
   let icon: IconDefinition | undefined = undefined
   let isDraft = false
   if (!entity) return null
-  if (entity.type === 'a') {
+  if (entity.id.type === 'a') {
     title = getProfileName(entity.document)
     icon = Contact
   }
-  if (entity.type === 'd') {
+  if (entity.id.type === 'd') {
     title = getDocumentTitle(entity.document)
     icon = FileText
   }
-  if (entity.type === 'd-draft') {
+  if (entity.id.type === 'draft') {
     title = '<draft>'
     icon = FilePen
     isDraft = true

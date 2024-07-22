@@ -1,10 +1,11 @@
 import {DraftStatus, draftStatus} from '@/draft-status'
+import {useEntity} from '@/models/entities'
 import {trpc} from '@/trpc'
 import {useNavRoute} from '@/utils/navigation'
 import {DraftRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {PlainMessage} from '@bufbuild/protobuf'
-import {Document, hmId, unpackHmId} from '@shm/shared'
+import {Document, unpackHmId} from '@shm/shared'
 import {
   AlertCircle,
   Button,
@@ -18,49 +19,52 @@ import {Check} from '@tamagui/lucide-icons'
 import {PropsWithChildren, useEffect, useState} from 'react'
 import {createMachine} from 'xstate'
 import {useGRPCClient, useQueryInvalidator} from '../app-context'
-import {useMyAccount_deprecated, useProfileWithDraft} from '../models/accounts'
+import {useDraft, useMyAccount_deprecated} from '../models/accounts'
 import {usePublishDraft, usePushPublication} from '../models/documents'
 import {useGatewayHost, usePushOnPublish} from '../models/gateway-settings'
 import {useMediaDialog} from './media-dialog'
 
-export default function CommitDraftButton() {
+export default function PublishDraftButton() {
   const route = useNavRoute()
   const navigate = useNavigate('replace')
   const grpcClient = useGRPCClient()
   const draftRoute: DraftRoute | null = route.key === 'draft' ? route : null
   if (!draftRoute)
     throw new Error('DraftPublicationButtons requires draft route')
+  const draftId = draftRoute.id
   const unpackedDraftId = unpackHmId(draftRoute.id)
-  const prevProfile = useProfileWithDraft(
-    unpackedDraftId?.type === 'a' ? unpackedDraftId.eid : undefined,
+  const draft = useDraft(draftRoute.id)
+  const prevEntity = useEntity(
+    unpackedDraftId?.type !== 'draft' ? unpackedDraftId : undefined,
   )
-  // TODO: add also previous document here
-  const deleteDraft = trpc.drafts.delete.useMutation()
-  const publish = usePublishDraft(grpcClient, draftRoute.id)
   const invalidate = useQueryInvalidator()
+  const deleteDraft = trpc.drafts.delete.useMutation({
+    onSuccess: () => {
+      invalidate(['trpc.drafts.get'])
+    },
+  })
+  const publish = usePublishDraft(grpcClient, draftRoute.id)
   function handlePublish() {
-    if (prevProfile.draft) {
+    if (draft.data && unpackedDraftId) {
       publish
         .mutateAsync({
-          draft: prevProfile?.draft,
-          previous: prevProfile.profile as PlainMessage<Document>,
+          draft: draft.data,
+          previous: prevEntity.data?.document as
+            | PlainMessage<Document>
+            | undefined,
+          id: unpackedDraftId.type === 'draft' ? undefined : unpackedDraftId,
         })
-        .then((res) => {
+        .then(async (res) => {
           const resultDocId = unpackHmId(res.id)
-          deleteDraft.mutateAsync(res.id).finally(() => {
-            if (draftRoute?.id) {
-              invalidate(['trpc.drafts.get'])
-              if (draftRoute?.id.startsWith('hm://a/')) {
-                const accountId = unpackHmId(draftRoute.id)?.eid
-                accountId &&
-                  navigate({key: 'document', id: hmId('a', accountId)})
-              } else if (resultDocId) {
-                navigate({key: 'document', id: resultDocId})
-              }
-            } else {
-              console.error(`can't navigate to account`)
-            }
-          })
+          if (draftId)
+            await deleteDraft.mutateAsync(draftId).catch((e) => {
+              console.error('Failed to delete draft', e)
+            })
+          if (resultDocId) {
+            navigate({key: 'document', id: resultDocId})
+          } else {
+            console.error(`can't navigate to document`)
+          }
         })
     }
   }
@@ -75,7 +79,7 @@ export default function CommitDraftButton() {
   )
 }
 
-export function _CommitDraftButton() {
+export function _PublishDraftButton() {
   const route = useNavRoute()
   const draftRoute = route.key === 'draft' ? route : null
   if (!draftRoute)
