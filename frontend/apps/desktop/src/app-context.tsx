@@ -1,11 +1,10 @@
-import { GRPCClient } from '@shm/shared'
-import { createContext, useContext, useEffect } from 'react'
+import {GRPCClient} from '@shm/shared'
+import {createContext, useContext, useEffect} from 'react'
 
-import { AppIPC, Event, EventCallback } from './app-ipc'
+import {AppIPC, Event, EventCallback} from './app-ipc'
 
-import { WindowUtils } from './models/window-utils'
-import { AppQueryClient } from './query-client'
-
+import {WindowUtils} from './models/window-utils'
+import {AppQueryClient} from './query-client'
 
 export type AppPlatform = typeof process.platform
 
@@ -15,12 +14,12 @@ export type AppContext = {
   queryClient: AppQueryClient
   ipc: AppIPC
   externalOpen: (url: string) => Promise<void>
+  openMarkdownFile: () => Promise<unknown>
   windowUtils: WindowUtils
   saveCidAsFile: (cid: string, name: string) => Promise<void>
 }
 
 export const AppContext = createContext<AppContext | null>(null)
-
 
 export function useAppContext() {
   const context = useContext(AppContext)
@@ -68,7 +67,7 @@ export function useListen<T = unknown>(
   handler: EventCallback<T>,
   deps: React.DependencyList = [],
 ) {
-  const { listen } = useIPC()
+  const {listen} = useIPC()
   useEffect(() => {
     if (!listen) {
       throw new Error('useListen called before listen is defined')

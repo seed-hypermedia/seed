@@ -1,19 +1,7 @@
-import {
-  Block,
-  BlockNoteEditor,
-  BlockSchema,
-  getBlockInfoFromPos,
-  hmBlockSchema,
-  nodeToBlock,
-  setGroupTypes,
-} from '@/editor'
+import {BlockNoteEditor, getBlockInfoFromPos, setGroupTypes} from '@/editor'
 import {Extension} from '@tiptap/core'
-import {DOMParser as ProseMirrorDOMParser} from '@tiptap/pm/model'
 import {Plugin} from 'prosemirror-state'
-import rehypeStringify from 'rehype-stringify'
-import remarkParse from 'remark-parse'
-import remarkRehype from 'remark-rehype'
-import {unified} from 'unified'
+import {MarkdownToBlocks} from './MarkdownToBlocks'
 
 const markdownRegex = new RegExp(
   [
@@ -42,7 +30,8 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
       return [
         new Plugin({
           props: {
-            handlePaste: (view, event, slice) => {
+            // @ts-ignore
+            handlePaste: async (view, event, slice) => {
               const pastedText = event.clipboardData!.getData('text/plain')
               const pastedHtml = event.clipboardData!.getData('text/html')
 
@@ -237,87 +226,23 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
               //     console.error('Error processing pasted text:', error)
               //   })
 
-              const blocks: Block<BlockSchema>[] = []
+              const {state} = view
+              const {selection} = state
 
-              unified()
-                .use(remarkParse)
-                .use(remarkRehype)
-                .use(rehypeStringify)
-                .process(pastedText)
-                .then((file) => {
-                  const parser = new DOMParser()
-                  const doc = parser.parseFromString(
-                    file.value.toString(),
-                    'text/html',
-                  )
+              const organizedBlocks = await MarkdownToBlocks(
+                pastedText,
+                bnEditor,
+              )
 
-                  // Get ProseMirror fragment from pasted markdown, previously converted to HTML
-                  const fragment = ProseMirrorDOMParser.fromSchema(
-                    view.state.schema,
-                  ).parse(doc.body)
+              const blockInfo = getBlockInfoFromPos(state.doc, selection.from)
 
-                  const {state} = view
-                  const {selection} = state
+              bnEditor.replaceBlocks(
+                [blockInfo.node.attrs.id],
+                // @ts-ignore
+                organizedBlocks,
+              )
 
-                  fragment.firstChild!.content.forEach((node) => {
-                    if (node.type.name !== 'blockContainer') {
-                      return false
-                    }
-                    blocks.push(nodeToBlock(node, hmBlockSchema))
-                  })
-
-                  // Function to determine heading level
-                  const getHeadingLevel = (block: Block<BlockSchema>) => {
-                    if (block.type.startsWith('heading')) {
-                      return parseInt(block.props.level, 10)
-                    }
-                    return 0
-                  }
-
-                  const organizedBlocks: Block<BlockSchema>[] = []
-                  // Stack to track heading levels for hierarchy
-                  const stack: {level: number; block: Block<BlockSchema>}[] = []
-
-                  blocks.forEach((block) => {
-                    const headingLevel = getHeadingLevel(block)
-
-                    if (headingLevel > 0) {
-                      while (
-                        stack.length &&
-                        stack[stack.length - 1].level >= headingLevel
-                      ) {
-                        stack.pop()
-                      }
-
-                      if (stack.length) {
-                        stack[stack.length - 1].block.children.push(block)
-                      } else {
-                        organizedBlocks.push(block)
-                      }
-
-                      stack.push({level: headingLevel, block})
-                    } else {
-                      if (stack.length) {
-                        stack[stack.length - 1].block.children.push(block)
-                      } else {
-                        organizedBlocks.push(block)
-                      }
-                    }
-                  })
-
-                  const blockInfo = getBlockInfoFromPos(
-                    state.doc,
-                    selection.from,
-                  )
-
-                  bnEditor.replaceBlocks(
-                    [blockInfo.node.attrs.id],
-                    // @ts-ignore
-                    organizedBlocks,
-                  )
-
-                  setGroupTypes(bnEditor._tiptapEditor, organizedBlocks)
-                })
+              setGroupTypes(bnEditor._tiptapEditor, organizedBlocks)
 
               return true
             },

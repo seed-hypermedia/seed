@@ -5,6 +5,7 @@ import {
   BrowserWindow,
   Menu,
   app,
+  dialog,
   globalShortcut,
   ipcMain,
   nativeTheme,
@@ -25,6 +26,7 @@ import {createAppMenu} from './app-menu'
 import {startMetricsServer} from './app-metrics'
 import {initPaths} from './app-paths'
 
+import fs from 'fs'
 import {APP_AUTO_UPDATE_PREFERENCE} from './app-settings'
 import {appStore} from './app-store'
 import autoUpdate from './auto-update'
@@ -86,6 +88,152 @@ if (IS_PROD_DESKTOP) {
   })
 }
 
+ipcMain.on('open-markdown-file-dialog', (event) => {
+  const focusedWindow = BrowserWindow.getFocusedWindow()
+  if (!focusedWindow) {
+    console.error('No focused window found.')
+    return
+  }
+
+  const options = {
+    title: 'Select a Markdown file',
+    filters: [{name: 'Markdown Files', extensions: ['md']}],
+    properties: ['openFile'],
+  }
+
+  dialog
+    .showOpenDialog(focusedWindow, options)
+    .then((result) => {
+      if (!result.canceled) {
+        const filePath = result.filePaths[0]
+        fs.readFile(filePath, 'utf-8', (err, data) => {
+          if (err) {
+            console.error('Error reading file:', err)
+            event.sender.send('file-content-response', {
+              success: false,
+              error: err.message,
+            })
+            return
+          }
+          event.sender.send('file-content-response', {success: true, data})
+        })
+      } else {
+        event.sender.send('file-content-response', {
+          success: false,
+          error: 'File selection was canceled',
+        })
+      }
+    })
+    .catch((err) => {
+      console.error('Error selecting file:', err)
+      event.sender.send('file-content-response', {
+        success: false,
+        error: err.message,
+      })
+    })
+})
+
+// function handleOpenMarkdown(event: any) {
+//   const focusedWindow = BrowserWindow.getFocusedWindow()
+//   if (!focusedWindow) {
+//     console.error('No focused window found.')
+//     return
+//   }
+
+//   const options = {
+//     title: 'Select a Markdown file',
+//     filters: [{name: 'Markdown Files', extensions: ['md']}],
+//     properties: ['openFile'],
+//   }
+
+//   dialog
+//     .showOpenDialog(focusedWindow, options)
+//     .then((result) => {
+//       if (!result.canceled) {
+//         const filePath = result.filePaths[0]
+//         fs.readFile(filePath, 'utf-8', (err, data) => {
+//           if (err) {
+//             console.error('Error reading file:', err)
+//             // event.sender.send('file-content-response', {
+//             //   success: false,
+//             //   error: err.message,
+//             // })
+//             return err.message
+//           }
+//           console.log(data)
+//           // event.sender.send('file-content-response', {success: true, data})
+//           return data
+//         })
+//       } else {
+//         // event.sender.send('file-content-response', {
+//         //   success: false,
+//         //   error: 'File selection was canceled',
+//         // })
+//         return 'File selection was candeled'
+//       }
+//     })
+//     .catch((err) => {
+//       console.error('Error selecting file:', err)
+//       // event.sender.send('file-content-response', {
+//       //   success: false,
+//       //   error: err.message,
+//       // })
+//       return err.message
+//     })
+// }
+
+// ipcMain.on('open-markdown-file-dialog', openMarkdownFileDialog);
+
+// async function handleOpenMarkdown(event: any) {
+//   const focusedWindow = BrowserWindow.getFocusedWindow()
+//   console.log(focusedWindow)
+//   if (!focusedWindow) {
+//     console.error('~~~~~~~~~~~~~~~~~~No focused window found.')
+//     return
+//   }
+
+//   const options = {
+//     title: 'Select a Markdown file',
+//     filters: [{name: 'Markdown Files', extensions: ['md']}],
+//     buttonLabel: 'Select',
+//     properties: ['openFile'],
+//   }
+
+//   dialog
+//     .showOpenDialog(focusedWindow, options)
+//     .then((result) => {
+//       if (!result.canceled) {
+//         const filePath = result.filePaths[0]
+//         fs.readFile(filePath, 'utf-8', (err, data) => {
+//           if (err) {
+//             console.error('~~~~~~~~~~~Error reading file:', err)
+//             // event.sender.send('file-content-response', {
+//             //   success: false,
+//             //   error: err.message,
+//             // })
+//             return err.message
+//           }
+//           return data
+//         })
+//       } else {
+//         console.log('~~~~~~~~~~File selection was canceled')
+//         // event.sender.send('file-content-response', {
+//         //   success: false,
+//         //   error: 'File selection was canceled',
+//         // })
+//         return 'File selection was canceled'
+//       }
+//     })
+//     .catch((err) => {
+//       console.error('~~~~~~~~~~Error selecting file:', err)
+//       // event.sender.send('file-content-response', {
+//       //   success: false,
+//       //   error: err.message,
+//       // })
+//       return err.message
+//     })
+// }
+
 startMainDaemon()
 
 Menu.setApplicationMenu(createAppMenu())
@@ -130,6 +278,12 @@ ipcMain.handle('dark-mode:toggle', () => {
 ipcMain.handle('dark-mode:system', () => {
   nativeTheme.themeSource = 'system'
 })
+
+// ipcMain.on('open-markdown-file-dialog', (event, args) => {
+//   ipcMain.handle('dialog:openFile', handleOpenMarkdown)
+// })
+// ipcMain.on('open-markdown-file-dialog', handleOpenMarkdown)
+// ipcMain.handle('dialog:openMdFile', handleOpenMarkdown)
 
 ipcMain.on('save-file', saveCidAsFile)
 ipcMain.on('open-external-link', (_event, linkUrl) => {

@@ -222,6 +222,23 @@ function MainApp({
     }
   }, [queryClient.client, utils])
 
+  // const openMarkdownFile = () => {
+  //   return new Promise((resolve, reject) => {
+  //     ipc.listen('file-content-response', (event, response) => {
+  //       if (response.success) {
+  //         resolve(response.data)
+  //       } else {
+  //         reject(response.error)
+  //       }
+  //     })
+  //     ipc.send('open-markdown-file-dialog')
+  //   })
+  // }
+  const openMarkdownFile = () => {
+    // @ts-ignore
+    return window.fileOpen.openMarkdownFile()
+  }
+
   useEffect(() => {
     // @ts-expect-error
     window.windowIsReady()
@@ -240,6 +257,7 @@ function MainApp({
         saveCidAsFile={async (cid: string, name: string) => {
           ipc.send?.('save-file', {cid, name})
         }}
+        openMarkdownFile={openMarkdownFile}
         windowUtils={windowUtils}
         darkMode={darkMode}
       >

@@ -60,6 +60,21 @@ const routeHandlers = new Set<(route: any) => void>()
 
 contextBridge.exposeInMainWorld('routeHandlers', routeHandlers)
 
+contextBridge.exposeInMainWorld('fileOpen', {
+  openMarkdownFile: () => {
+    return new Promise((resolve, reject) => {
+      ipcRenderer.once('file-content-response', (event, response) => {
+        if (response.success) {
+          resolve(response.data)
+        } else {
+          reject(response.error)
+        }
+      })
+      ipcRenderer.send('open-markdown-file-dialog')
+    })
+  },
+})
+
 ipcRenderer.addListener('openRoute', (info, route) => {
   routeHandlers.forEach((handler) => handler(route))
 })
