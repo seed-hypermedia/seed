@@ -205,7 +205,13 @@ function CommentCitationItem({mention}: {mention: Mention}) {
   )
 }
 
-export function DocCitationsAccessory({docId}: {docId?: string}) {
+export function DocCitationsAccessory({
+  docId,
+  onClose,
+}: {
+  docId?: string
+  onClose: () => void
+}) {
   const mentions = useEntityMentions(docId)
   if (!docId) return null
   const count = mentions.data?.mentions?.length || 0
@@ -235,7 +241,10 @@ export function DocCitationsAccessory({docId}: {docId?: string}) {
   // }).filter(item => item !== null);
 
   return (
-    <AccessoryContainer title={`${count} ${pluralS(count, 'Citation')}`}>
+    <AccessoryContainer
+      title={`${count} ${pluralS(count, 'Citation')}`}
+      onClose={onClose}
+    >
       {distinctMentions?.map((mention, index) => (
         <CitationItem
           key={`${mention.source}${mention.targetVersion}${mention.targetFragment}`}
@@ -248,8 +257,10 @@ export function DocCitationsAccessory({docId}: {docId?: string}) {
 
 export function EntityCitationsAccessory({
   entityId,
+  onClose,
 }: {
   entityId?: UnpackedHypermediaId
+  onClose: () => void
 }) {
   const mentions = useEntityMentions(entityId)
   if (!entityId) return null
@@ -265,7 +276,10 @@ export function EntityCitationsAccessory({
   })
 
   return (
-    <AccessoryContainer title={`${count} ${pluralS(count, 'Citation')}`}>
+    <AccessoryContainer
+      title={`${count} ${pluralS(count, 'Citation')}`}
+      onClose={onClose}
+    >
       {distinctMentions?.map((mention, index) => (
         <CitationItem
           key={`${mention.source}${mention.targetVersion}${mention.targetFragment}`}

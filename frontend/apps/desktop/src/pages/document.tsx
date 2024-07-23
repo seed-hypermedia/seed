@@ -61,17 +61,28 @@ export default function DocumentPage() {
   const accessoryKey = route.accessory?.key
   const replace = useNavigate('replace')
   const [copyDialogContent, onCopy] = useCopyGatewayReference()
+
+  function handleClose() {
+    if (route.key !== 'document') return
+    replace({...route, accessory: null})
+  }
   let accessory: ReactNode = null
   if (accessoryKey === 'citations') {
-    accessory = <EntityCitationsAccessory entityId={docId} />
+    accessory = (
+      <EntityCitationsAccessory entityId={docId} onClose={handleClose} />
+    )
   } else if (accessoryKey === 'versions') {
-    accessory = <AccessoryContainer title="Versions" />
+    accessory = <AccessoryContainer title="Versions" onClose={handleClose} />
   } else if (accessoryKey === 'collaborators') {
-    accessory = <AccessoryContainer title="Collaborators" />
+    accessory = (
+      <AccessoryContainer title="Collaborators" onClose={handleClose} />
+    )
   } else if (accessoryKey === 'suggested-changes') {
-    accessory = <AccessoryContainer title="Suggested Changes" />
+    accessory = (
+      <AccessoryContainer title="Suggested Changes" onClose={handleClose} />
+    )
   } else if (accessoryKey === 'comments') {
-    accessory = <AccessoryContainer title="Comments" />
+    accessory = <AccessoryContainer title="Comments" onClose={handleClose} />
   }
 
   return (
