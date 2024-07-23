@@ -587,7 +587,7 @@ func syncPeerRbsr(
 	ne, err := rbsr.NewSession(store, 50000)
 
 	if err != nil {
-		return fmt.Errorf("Failed to Init Syncing Session", zap.Error(err))
+		return fmt.Errorf("Failed to Init Syncing Session: %w", err)
 	}
 
 	var qListBlobs = dqb.Str(`

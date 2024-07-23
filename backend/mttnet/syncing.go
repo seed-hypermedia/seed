@@ -7,8 +7,6 @@ import (
 	"seed/backend/pkg/dqb"
 	"seed/backend/syncing/rbsr"
 
-	"go.uber.org/zap"
-
 	"crawshaw.io/sqlite"
 	"crawshaw.io/sqlite/sqlitex"
 	"github.com/ipfs/go-cid"
@@ -33,7 +31,7 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 `)
 	conn, release, err := srv.Node.db.Conn(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("Could not get connection", zap.Error(err))
+		return nil, fmt.Errorf("Could not get connection: %w", err)
 	}
 	defer release()
 
@@ -45,7 +43,7 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 		store.Insert(ts, c.Bytes())
 		return nil
 	}); err != nil {
-		return nil, fmt.Errorf("Could not list ", zap.Error(err))
+		return nil, fmt.Errorf("Could not list: %w", err)
 	}
 
 	if err = store.Seal(); err != nil {
