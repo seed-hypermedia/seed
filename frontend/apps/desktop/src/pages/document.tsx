@@ -264,7 +264,7 @@ function DocumentPageContent({
             )
           })}
           <XStack paddingVertical="$4">
-            <NewSubDocumentButton parentDocId={docId.qid} />
+            <NewSubDocumentButton parentDocId={docId} />
           </XStack>
         </YStack>
       </AppDocContentProvider>
@@ -281,14 +281,14 @@ function NewDocumentDialog({
   input,
   onClose,
 }: {
-  input: string
+  input: UnpackedHypermediaId
   onClose: () => void
 }) {
   const navigate = useNavigate()
   const onSubmit: SubmitHandler<NewSubDocumentFields> = (data) => {
     // console.log('NewDocument', id)
     const indexPath = pathNameify(data.name)
-    const id = `${input}/${indexPath}`
+    const id = `${input.id}/${indexPath}`
     onClose()
     navigate({
       key: 'draft',
@@ -329,8 +329,12 @@ function NewDocumentDialog({
   )
 }
 
-function NewSubDocumentButton({parentDocId}: {parentDocId: string}) {
-  const {open, content} = useAppDialog<string>(NewDocumentDialog)
+function NewSubDocumentButton({
+  parentDocId,
+}: {
+  parentDocId: UnpackedHypermediaId
+}) {
+  const {open, content} = useAppDialog<UnpackedHypermediaId>(NewDocumentDialog)
   return (
     <>
       <Button
