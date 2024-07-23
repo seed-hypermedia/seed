@@ -366,7 +366,6 @@ func (n *Node) ArePrivateIPsAllowed() bool {
 // AccountForDevice returns the linked AccountID of a given device.
 func (n *Node) AccountForDevice(ctx context.Context, pid peer.ID) (core.Principal, error) {
 	// TODO(hm24): How to know the public key of other peers?
-	fmt.Println(n.p2p.Network().LocalPeer())
 	if n.p2p.Network().LocalPeer() == pid {
 		pk, err := n.keys.GetKey(ctx, "main")
 		if err != nil {

@@ -678,7 +678,6 @@ func syncPeerRbsr(
 		if err := idx.Put(ctx, blk); err != nil {
 			log.Debug("FailedToSaveWantedBlob", zap.String("cid", cid.String()), zap.Error(err))
 			allWants.MoveAfter(c, allWants.Back())
-			fmt.Println(err)
 			failed++
 			continue
 		}
