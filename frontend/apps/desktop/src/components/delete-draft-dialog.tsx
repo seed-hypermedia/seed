@@ -14,7 +14,7 @@ function DeleteDraftDialog({
   input: {draftId: string; onSuccess?: () => void}
 }) {
   const deleteDraft = useDeleteDraft({
-    onSuccess: input.onSuccess,
+    onSettled: input.onSuccess,
   })
   return (
     <YStack gap="$4" padding="$4" borderRadius="$3">

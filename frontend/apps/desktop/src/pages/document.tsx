@@ -5,7 +5,6 @@ import {
 import {Avatar} from '@/components/avatar'
 import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
 import {DialogTitle, useAppDialog} from '@/components/dialog'
-import {DocumentListItem} from '@/components/document-list-item'
 import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
 import {FormInput} from '@/components/form-input'
@@ -13,7 +12,6 @@ import {FormField} from '@/components/forms'
 import {ListItem} from '@/components/list-item'
 import {MainWrapperNoScroll} from '@/components/main-wrapper'
 import {useMyAccountIds} from '@/models/daemon'
-import {useAccountDocuments} from '@/models/documents'
 import {useEntity} from '@/models/entities'
 import {getFileUrl} from '@/utils/account-url'
 import {useNavRoute} from '@/utils/navigation'
@@ -32,7 +30,6 @@ import {
   CollaboratorsIcon,
   CommentsIcon,
   Form,
-  H3,
   HistoryIcon,
   MainWrapper,
   Section,
@@ -46,12 +43,25 @@ import {
 import {PageContainer} from '@shm/ui/src/container'
 import {RadioButtons} from '@shm/ui/src/radio-buttons'
 import {FilePlus} from '@tamagui/lucide-icons'
-import React, {ReactNode} from 'react'
+import {ReactNode, useState} from 'react'
 import {SubmitHandler, useForm} from 'react-hook-form'
 import {z} from 'zod'
 import {EntityCitationsAccessory} from '../components/citations'
 import {CopyReferenceButton} from '../components/titlebar-common'
 import {AppDocContentProvider} from './document-content-provider'
+
+type DocAccessoryOption = {
+  key:
+    | 'versions'
+    | 'collaborators'
+    | 'suggested-changes'
+    | 'comments'
+    | 'citations'
+    | 'contacts'
+    | 'all-documents'
+  label: string
+  icon: null | React.FC<{color: string}>
+}
 
 export default function DocumentPage() {
   const route = useNavRoute()
@@ -83,8 +93,55 @@ export default function DocumentPage() {
     )
   } else if (accessoryKey === 'comments') {
     accessory = <AccessoryContainer title="Comments" onClose={handleClose} />
+  } else if (accessoryKey === 'all-documents') {
+    accessory = (
+      <AccessoryContainer title="All Documents" onClose={handleClose} />
+    )
+  } else if (accessoryKey === 'contacts') {
+    accessory = <AccessoryContainer title="Contacts" onClose={handleClose} />
   }
 
+  const accessoryOptions: DocAccessoryOption[] = []
+
+  accessoryOptions.push({
+    key: 'versions',
+    label: 'Version History',
+    icon: HistoryIcon,
+  })
+  if (docId.type === 'd') {
+    accessoryOptions.push({
+      key: 'collaborators',
+      label: 'Collaborators',
+      icon: CollaboratorsIcon,
+    })
+    accessoryOptions.push({
+      key: 'suggested-changes',
+      label: 'Suggested Changes',
+      icon: SuggestedChangesIcon,
+    })
+  }
+  accessoryOptions.push({
+    key: 'comments',
+    label: 'Comments',
+    icon: CommentsIcon,
+  })
+  accessoryOptions.push({
+    key: 'citations',
+    label: 'Citations',
+    icon: CitationsIcon,
+  })
+  if (docId.type === 'a' && !docId.indexPath) {
+    accessoryOptions.push({
+      key: 'all-documents',
+      label: 'All Documents',
+      icon: null,
+    })
+    accessoryOptions.push({
+      key: 'contacts',
+      label: 'Contacts',
+      icon: null,
+    })
+  }
   return (
     <>
       <AccessoryLayout
@@ -95,31 +152,7 @@ export default function DocumentPage() {
             return replace({...route, accessory: null})
           replace({...route, accessory: {key}})
         }}
-        accessoryOptions={
-          [
-            {key: 'versions', label: 'Version History', icon: HistoryIcon},
-            {
-              key: 'collaborators',
-              label: 'Collaborators',
-              icon: CollaboratorsIcon,
-            },
-            {
-              key: 'suggested-changes',
-              label: 'Suggested Changes',
-              icon: SuggestedChangesIcon,
-            },
-            {
-              key: 'comments',
-              label: 'Comments',
-              icon: CommentsIcon,
-            },
-            {
-              key: 'citations',
-              label: 'Citations',
-              icon: CitationsIcon,
-            },
-          ] as const
-        }
+        accessoryOptions={accessoryOptions}
       >
         <MainWrapperNoScroll>
           <MainDocumentPage />
@@ -136,32 +169,16 @@ function MainDocumentPage() {
     throw new Error('Invalid route for MainDocumentPage')
   if (!route.id) throw new Error('MainDocumentPage requires id')
 
-  let content: null | React.ReactElement = (
-    <DocumentPageContent docId={route.id} />
-  )
-  if (route.tab === 'activity') {
-    content = null // todo
-  } else if (route.tab === 'contacts') {
-    content = null // todo
-  } else if (route.tab === 'home') {
-    content = (
-      <DocumentPageContent
-        docId={route.id}
-        isBlockFocused={route.isBlockFocused}
-      />
-    )
-  } else if (route.tab === 'documents') {
-    content = <AccountPageDocuments id={route.id} />
-  }
   return (
     <MainWrapper>
-      <AccountPageHeader />
-      {content}
+      <DocPageHeader />
+      <DocPageContent docId={route.id} isBlockFocused={route.isBlockFocused} />
+      <DocPageAppendix docId={route.id} />
     </MainWrapper>
   )
 }
 
-function AccountPageHeader() {
+function DocPageHeader() {
   const route = useNavRoute()
   const replace = useNavigate('replace')
   const docId = route.key === 'document' && route.id
@@ -208,30 +225,13 @@ function AccountPageHeader() {
               <CopyReferenceButton />
             </XStack>
           </XStack>
-          <XStack>
-            <RadioButtons
-              key={route.tab}
-              value={route.tab || 'home'}
-              options={
-                [
-                  {key: 'home', label: 'Home'},
-                  {key: 'documents', label: 'Documents'},
-                  {key: 'activity', label: 'Activity'},
-                  {key: 'contacts', label: 'Contacts'},
-                ] as const
-              }
-              onValue={(tab) => {
-                replace({...route, tab})
-              }}
-            />
-          </XStack>
         </Section>
       </PageContainer>
     </>
   )
 }
 
-function DocumentPageContent({
+function DocPageContent({
   docId,
   isBlockFocused,
 }: {
@@ -252,34 +252,69 @@ function DocumentPageContent({
           focusBlockId={isBlockFocused ? blockId : undefined}
         />
         <Separator />
-        <H3 marginTop="$4">Index</H3>
-        <YStack>
-          {Object.keys(entity.data?.document?.index).map((key) => {
-            return (
-              <ListItem
-                key={key}
-                title={key}
-                onPress={() => {
-                  const id = hmId(docId.type, docId.eid, {
-                    indexPath: docId.indexPath
-                      ? `${docId.indexPath}/${key}`
-                      : key,
-                  })
-                  console.log('navigate', id)
-                  navigate({
-                    key: 'document',
-                    id,
-                  })
-                }}
-              />
-            )
-          })}
-          <XStack paddingVertical="$4">
-            <NewSubDocumentButton parentDocId={docId} />
-          </XStack>
-        </YStack>
       </AppDocContentProvider>
     </PageContainer>
+  )
+}
+
+function DocPageAppendix({docId}: {docId: UnpackedHypermediaId}) {
+  const [tab, setTab] = useState<'discussion' | 'index'>('discussion')
+  let content = null
+  if (tab === 'index') {
+    content = <DocIndex docId={docId} />
+  }
+  return (
+    <PageContainer>
+      <XStack>
+        <RadioButtons
+          value={tab}
+          options={
+            [
+              {key: 'discussion', label: 'Discussion'},
+              {key: 'index', label: 'Index'},
+            ] as const
+          }
+          onValue={(value) => {
+            setTab(value)
+          }}
+        />
+      </XStack>
+      {content}
+    </PageContainer>
+  )
+}
+
+function DocIndex({docId}: {docId: UnpackedHypermediaId}) {
+  const entity = useEntity(docId)
+  const navigate = useNavigate()
+  const indexContent = entity.data?.document?.index
+  return (
+    <YStack>
+      {indexContent &&
+        Object.keys(indexContent).map((key) => {
+          return (
+            <ListItem
+              key={key}
+              title={key}
+              onPress={() => {
+                const id = hmId(docId.type, docId.eid, {
+                  indexPath: docId.indexPath
+                    ? `${docId.indexPath}/${key}`
+                    : key,
+                })
+                console.log('navigate', id)
+                navigate({
+                  key: 'document',
+                  id,
+                })
+              }}
+            />
+          )
+        })}
+      <XStack paddingVertical="$4">
+        <NewSubDocumentButton parentDocId={docId} />
+      </XStack>
+    </YStack>
   )
 }
 
@@ -359,51 +394,4 @@ function NewSubDocumentButton({
       {content}
     </>
   )
-}
-
-function AccountPageDocuments({id}: {id: UnpackedHypermediaId}) {
-  const docs = useAccountDocuments(id.eid)
-  return (
-    <PageContainer>
-      {docs.data?.documents.map((doc) => {
-        return (
-          <DocumentListItem
-            key={doc.id}
-            document={doc}
-            author={[]}
-            editors={[]}
-            hasDraft={undefined}
-            menuItems={() => [
-              // copyLinkMenuItem(() => {
-              //   const id = unpackDocId(docId)
-              //   if (!id) return
-              //   onCopyId({
-              //     ...id,
-              //     version: item.document.version || null,
-              //   })
-              // }, 'Document'),
-              // {
-              //   label: 'Delete Document',
-              //   key: 'delete',
-              //   icon: Trash,
-              //   onPress: () => {
-              //     openDelete({
-              //       id: docId,
-              //       title: getDocumentTitle(item.document),
-              //     })
-              //   },
-              // },
-            ]}
-            openRoute={{
-              key: 'document',
-              id: hmId('d', doc.id, {
-                version: doc.version,
-              }),
-            }}
-          />
-        )
-      })}
-    </PageContainer>
-  )
-  return null
 }

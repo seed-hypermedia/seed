@@ -30,6 +30,20 @@ export type DocumentCitationsAccessory = z.infer<
   typeof documentCitationsAccessorySchema
 >
 
+export const documentAllDocumentsAccessorySchema = z.object({
+  key: z.literal('all-documents'),
+})
+export type DocumentAllDocumentsAccessory = z.infer<
+  typeof documentAllDocumentsAccessorySchema
+>
+
+export const documentContactsAccessorySchema = z.object({
+  key: z.literal('contacts'),
+})
+export type DocumentContactsAccessory = z.infer<
+  typeof documentContactsAccessorySchema
+>
+
 export const documentCollaboratorsAccessorySchema = z.object({
   key: z.literal('collaborators'),
 })
@@ -64,6 +78,8 @@ export const documentRouteSchema = z.object({
       documentCollaboratorsAccessorySchema,
       documentSuggestedChangesAccessorySchema,
       documentCommentsAccessorySchema,
+      documentAllDocumentsAccessorySchema,
+      documentContactsAccessorySchema,
     ])
     .nullable()
     .optional(),

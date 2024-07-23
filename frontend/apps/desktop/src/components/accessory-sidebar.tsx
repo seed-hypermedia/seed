@@ -64,7 +64,7 @@ export function AccessoryLayout<
   Options extends {
     key: string
     label: string
-    icon?: React.FC<{color: string}>
+    icon?: null | React.FC<{color: string}>
   }[],
 >({
   children,
