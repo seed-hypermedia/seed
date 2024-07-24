@@ -14,7 +14,6 @@ import {
   handleDragMedia,
 } from '@/utils/media-drag'
 import {useNavRoute} from '@/utils/navigation'
-import {pathNameify} from '@/utils/path'
 import {
   BlockRange,
   createPublicWebHmUrl,
@@ -250,10 +249,6 @@ export function DraftHeader({
     return s.context.cover
   })
 
-  const indexPath = useSelector(draftActor, (s) => {
-    return s.context.indexPath
-  })
-
   const input = useRef<HTMLTextAreaElement | null>(null)
   useShowTitleObserver(input.current)
   useEffect(() => {
@@ -367,13 +362,6 @@ export function DraftHeader({
             </Button>
           ) : null}
         </XStack>
-        <Input
-          value={indexPath}
-          onChangeText={(text: string) =>
-            draftActor.send({type: 'CHANGE', indexPath: pathNameify(text)})
-          }
-          placeholder="path"
-        />
         <Input
           disabled={disabled}
           // we use multiline so that we can avoid horizontal scrolling for long titles
