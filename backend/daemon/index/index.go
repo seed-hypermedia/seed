@@ -234,7 +234,27 @@ func (idx *Index) indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change)
 			}
 		}
 	}
+	type meta struct {
+		Title string `json:"title"`
+	}
 
+	attrs, ok := v.Payload["metadata"].(map[string]any)
+	if ok {
+		title, ok := attrs["title"]
+		if !ok {
+			alias, ok := attrs["alias"]
+			if ok {
+				sb.Meta = meta{Title: alias.(string)}
+			} else {
+				name, ok := attrs["name"]
+				if ok {
+					sb.Meta = meta{Title: name.(string)}
+				}
+			}
+		} else {
+			sb.Meta = meta{Title: title.(string)}
+		}
+	}
 	return ictx.SaveBlob(id, sb)
 }
 

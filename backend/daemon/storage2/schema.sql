@@ -61,6 +61,44 @@ CREATE TABLE structural_blobs (
 
 -- TODO(hm24): Create necessary table for the feed API.
 
+
+-- View blobs metadata It returns the latest non null title or the 
+-- latest blob in case of untitled meta.
+CREATE VIEW meta_view AS
+WITH RankedBlobs AS (
+    SELECT 
+        sb.id, 
+        sb.extra_attrs, 
+        sb.author, 
+        sb.resource, 
+        sb.ts, 
+        ROW_NUMBER() OVER (
+            PARTITION BY sb.resource 
+            ORDER BY 
+                (CASE WHEN sb.extra_attrs IS NOT NULL THEN 0 ELSE 1 END), 
+                sb.ts DESC
+        ) AS rank
+    FROM structural_blobs sb
+    WHERE sb.type = 'Change'
+),
+LatestBlobs AS (
+    SELECT 
+        rb.id,
+        rb.extra_attrs, 
+        rb.author, 
+        rb.resource, 
+        rb.ts
+    FROM RankedBlobs rb
+    WHERE rb.rank = 1
+)
+SELECT 
+    lb.extra_attrs, 
+    res.iri, 
+    pk.principal
+FROM LatestBlobs lb
+JOIN resources res ON res.id = (SELECT resource from structural_blobs where ts = lb.ts and resource IS NOT NULL LIMIT 1)
+JOIN public_keys pk ON pk.id = lb.author;
+
 -- Stores hypermedia resources.
 -- All resources are identified by an IRI[iri],
 -- might have an owner identified by a public key.

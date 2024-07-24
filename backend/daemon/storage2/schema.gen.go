@@ -76,6 +76,22 @@ const (
 	C_KVValue = "kv.value"
 )
 
+// Table meta_view.
+const (
+	MetaView           sqlitegen.Table  = "meta_view"
+	MetaViewExtraAttrs sqlitegen.Column = "meta_view.extra_attrs"
+	MetaViewIRI        sqlitegen.Column = "meta_view.iri"
+	MetaViewPrincipal  sqlitegen.Column = "meta_view.principal"
+)
+
+// Table meta_view. Plain strings.
+const (
+	T_MetaView           = "meta_view"
+	C_MetaViewExtraAttrs = "meta_view.extra_attrs"
+	C_MetaViewIRI        = "meta_view.iri"
+	C_MetaViewPrincipal  = "meta_view.principal"
+)
+
 // Table peers.
 const (
 	Peers          sqlitegen.Table  = "peers"
@@ -250,6 +266,9 @@ var Schema = sqlitegen.Schema{
 		DeletedResourcesReason:     {Table: DeletedResources, SQLType: "TEXT"},
 		KVKey:                      {Table: KV, SQLType: "TEXT"},
 		KVValue:                    {Table: KV, SQLType: "TEXT"},
+		MetaViewExtraAttrs:         {Table: MetaView, SQLType: "JSONB"},
+		MetaViewIRI:                {Table: MetaView, SQLType: "TEXT"},
+		MetaViewPrincipal:          {Table: MetaView, SQLType: "BLOB"},
 		PeersAddresses:             {Table: Peers, SQLType: "TEXT"},
 		PeersID:                    {Table: Peers, SQLType: "INTEGER"},
 		PeersPid:                   {Table: Peers, SQLType: "TEXT"},

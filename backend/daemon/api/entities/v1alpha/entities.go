@@ -379,9 +379,16 @@ func (api *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	var iris []string
 	var owners []string
 	const limit = 30
+	type meta struct {
+		Title string `json:"title"`
+	}
 	if err := api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, qGetEntityTitles(), func(stmt *sqlite.Stmt) error {
-			titles = append(titles, stmt.ColumnText(0))
+			var attr meta
+			if err := json.Unmarshal(stmt.ColumnBytes(0), &attr); err != nil {
+				return err
+			}
+			titles = append(titles, attr.Title)
 			iris = append(iris, stmt.ColumnText(1))
 			ownerID := core.Principal(stmt.ColumnBytes(2)).String()
 			owners = append(owners, ownerID)
@@ -528,7 +535,7 @@ func (api *Server) ListDeletedEntities(ctx context.Context, _ *entities.ListDele
 }
 
 var qGetEntityTitles = dqb.Str(`
-	SELECT meta, iri, principal
+	SELECT extra_attrs, iri, principal
 	FROM meta_view;`)
 
 // ListEntityMentions implements listing mentions of an entity in other resources.
