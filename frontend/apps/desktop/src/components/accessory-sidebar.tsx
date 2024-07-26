@@ -83,12 +83,8 @@ export function AccessoryLayout<
   return (
     <XStack f={1}>
       <PanelGroup direction="horizontal">
-        <Panel minSize={50}>
-          <XStack>
-            <YStack f={1}>{children}</YStack>
-          </XStack>
-        </Panel>
-        <PanelResizeHandle style={{width: 4}} />
+        <Panel minSize={50}>{children}</Panel>
+        <PanelResizeHandle />
         <Panel
           hidden={accessoryKey === undefined}
           maxSize={50}

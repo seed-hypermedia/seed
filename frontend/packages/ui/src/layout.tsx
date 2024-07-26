@@ -1,5 +1,5 @@
-import {forwardRef} from 'react'
-import {ScrollView, YStack, YStackProps} from 'tamagui'
+import {forwardRef} from "react";
+import {ScrollView, YStack, YStackProps} from "tamagui";
 
 export const MainWrapper = forwardRef(function MainWrapper(
   {
@@ -7,12 +7,11 @@ export const MainWrapper = forwardRef(function MainWrapper(
     noScroll = false,
     ...props
   }: YStackProps & {
-    noScroll?: boolean
+    noScroll?: boolean;
   },
-  ref,
+  ref
 ) {
   return (
-    // @ts-expect-error
     <YStack flex={1} className="content-wrapper" {...props} ref={ref}>
       {noScroll ? (
         children
@@ -21,5 +20,5 @@ export const MainWrapper = forwardRef(function MainWrapper(
         <ScrollView id="scroll-page-wrapper">{children}</ScrollView>
       )}
     </YStack>
-  )
-})
+  );
+});

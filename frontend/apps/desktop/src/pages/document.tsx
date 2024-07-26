@@ -10,7 +10,6 @@ import Footer from '@/components/footer'
 import {FormInput} from '@/components/form-input'
 import {FormField} from '@/components/forms'
 import {ListItem} from '@/components/list-item'
-import {MainWrapperNoScroll} from '@/components/main-wrapper'
 import {useMyAccountIds} from '@/models/daemon'
 import {useEntity} from '@/models/entities'
 import {getFileUrl} from '@/utils/account-url'
@@ -154,9 +153,7 @@ export default function DocumentPage() {
         }}
         accessoryOptions={accessoryOptions}
       >
-        <MainWrapperNoScroll>
-          <MainDocumentPage />
-        </MainWrapperNoScroll>
+        <MainDocumentPage />
       </AccessoryLayout>
       <Footer></Footer>
     </>
