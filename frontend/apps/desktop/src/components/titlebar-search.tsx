@@ -292,7 +292,7 @@ function LauncherContent({onClose}: {onClose: () => void}) {
     }
   }, [])
   let content = (
-    <ScrollView>
+    <ScrollView minHeight={300}>
       <YStack
         gap="$2"
         paddingVertical="$3"
@@ -336,22 +336,19 @@ function LauncherContent({onClose}: {onClose: () => void}) {
   }
   return (
     <Theme inverse>
-      <YStack height="80%" position="absolute" top={0} left={0}>
+      <YStack height="80%" position="absolute" top={0} left={0} zi={10_000}>
         <YStack
-          // bg="green"
           bg="$background"
           boxShadow={dialogBoxShadow}
-          borderRadius="$4"
           padding="$2"
-          // paddingBottom={0}
+          borderTopLeftRadius={6}
+          borderTopRightRadius={6}
         >
           <XStack ai="center" gap="$2">
             <Search size={16} />
-            {/* <Theme inverse> */}
             <Input
               minWidth={240}
               autoFocus
-              //   minHeight={42}
               size="$2"
               value={search}
               onChangeText={setSearch}
@@ -380,7 +377,6 @@ function LauncherContent({onClose}: {onClose: () => void}) {
                 }
               }}
             />
-            {/* </Theme> */}
           </XStack>
         </YStack>
 

@@ -10,6 +10,7 @@ import Footer from '@/components/footer'
 import {FormInput} from '@/components/form-input'
 import {FormField} from '@/components/forms'
 import {ListItem} from '@/components/list-item'
+import {MainWrapper} from '@/components/main-wrapper'
 import {useMyAccountIds} from '@/models/daemon'
 import {useEntity} from '@/models/entities'
 import {getFileUrl} from '@/utils/account-url'
@@ -30,7 +31,6 @@ import {
   CommentsIcon,
   Form,
   HistoryIcon,
-  MainWrapper,
   Section,
   Separator,
   SizableText,

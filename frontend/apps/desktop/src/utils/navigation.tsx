@@ -176,17 +176,10 @@ export type NavMode = 'push' | 'replace' | 'spawn' | 'backplace'
 
 export function appRouteOfId(id: UnpackedHypermediaId): NavRoute | undefined {
   let navRoute: NavRoute | undefined = undefined
-  if (id?.type === 'd') {
+  if (id?.type === 'd' || id?.type === 'a') {
     navRoute = {
       key: 'document',
-      documentId: createHmId('d', id.eid),
-      versionId: id.version || undefined,
-      blockId: id.blockRef || undefined,
-    }
-  } else if (id?.type === 'a') {
-    navRoute = {
-      key: 'account',
-      accountId: id.eid,
+      id,
     }
   } else if (id?.type === 'c') {
     navRoute = {

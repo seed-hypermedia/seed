@@ -1,3 +1,4 @@
+import {toPlainMessage} from '@bufbuild/protobuf'
 import {
   Entity,
   HYPERMEDIA_ENTITY_TYPES,
@@ -21,9 +22,7 @@ export function useSearch(query: string, opts: UseQueryOptions<Entity[]>) {
       const result = await grpcClient.entities.searchEntities({
         query,
       })
-      const entities = result.entities.filter((entity) => {
-        return entity.title !== '(HIDDEN) Group Navigation'
-      })
+      const entities = result.entities.map(toPlainMessage)
       return entities
     },
   })
