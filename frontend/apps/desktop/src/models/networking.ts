@@ -76,18 +76,22 @@ export function useIsGatewayConnected() {
 
 export function usePeers(
   filterConnected: boolean,
-  options: UseQueryOptions<PeerInfo[], ConnectError> = {},
+  options: UseQueryOptions<PeerInfo[] | null, ConnectError> = {},
 ) {
   const client = useGRPCClient()
-  return useQuery<PeerInfo[], ConnectError>({
+  return useQuery<PeerInfo[] | null, ConnectError>({
     queryKey: [queryKeys.PEERS, filterConnected],
     queryFn: async () => {
-      const listed = await client.networking.listPeers({})
-      if (filterConnected)
-        return listed.peers.filter((info) => {
-          return info.connectionStatus === ConnectionStatus.CONNECTED
-        })
-      return listed.peers
+      try {
+        const listed = await client.networking.listPeers({})
+        if (filterConnected)
+          return listed.peers.filter((info) => {
+            return info.connectionStatus === ConnectionStatus.CONNECTED
+          })
+        return listed.peers
+      } catch (e) {
+        return null
+      }
     },
     enabled: true,
     ...options,
