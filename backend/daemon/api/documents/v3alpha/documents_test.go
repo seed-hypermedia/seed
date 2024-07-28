@@ -158,17 +158,66 @@ func TestListRootDocuments(t *testing.T) {
 	require.Len(t, roots.Documents, 2)
 	require.Equal(t, "", roots.NextPageToken, "must have no page token for a single item")
 
-	wantAlicesRoot := &documents.DocumentListItem{
-		Namespace:  alice.me.Account.Principal().String(),
-		Path:       "/",
-		Title:      "Alice's profile",
-		Authors:    []string{alice.me.Account.Principal().String()},
-		CreateTime: profile.CreateTime,
-		UpdateTime: profile.UpdateTime,
-		Version:    profile.Version,
-	}
+	wantAlicesRoot := docToListItem(profile)
 	testutil.StructsEqual(bobsRoot, roots.Documents[0]).Compare(t, "bobs root document must match and be first")
 	testutil.StructsEqual(wantAlicesRoot, roots.Documents[1]).Compare(t, "alice's root document must match and be second")
+}
+
+func TestListDocument(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	profile, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Namespace:      alice.me.Account.Principal().String(),
+		Path:           "/",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice's profile"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, profile)
+
+	// Create a named doc for Alice to make sure we have things to list.
+	namedDoc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Namespace:      alice.me.Account.Principal().String(),
+		Path:           "/named",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Named document"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, namedDoc)
+
+	namedDoc2, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Namespace:      alice.me.Account.Principal().String(),
+		Path:           "/named2",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Named document 2"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, namedDoc2)
+
+	list, err := alice.ListDocuments(ctx, &documents.ListDocumentsRequest{Namespace: alice.me.Account.Principal().String()})
+	require.NoError(t, err)
+
+	want := []*documents.DocumentListItem{docToListItem(namedDoc2), docToListItem(namedDoc), docToListItem(profile)}
+	require.Len(t, list.Documents, len(want))
+
+	testutil.StructsEqual(want[0], list.Documents[0]).Compare(t, "named2 must be the first doc in the list")
+	testutil.StructsEqual(want[1], list.Documents[1]).Compare(t, "named must be the second doc in the list")
+	testutil.StructsEqual(want[2], list.Documents[2]).Compare(t, "profile doc must be the last element in the list")
 }
 
 type testServer struct {

@@ -81,6 +81,7 @@ func New(
 		Networking:  networking.NewServer(blobs, node, db),
 		Entities:    entities.NewServer(blobs, &lazyDiscoverer{}),
 		DocumentsV2: documentsv2.NewServer(repo.KeyStore(), idx, db),
+		DocumentsV3: documentsv3.NewServer(repo.KeyStore(), idx, db),
 		Syncing:     sync,
 	}
 }
@@ -94,20 +95,7 @@ func (s Server) Register(srv *grpc.Server) {
 	s.Networking.RegisterServer(srv)
 	s.Entities.RegisterServer(srv)
 	s.DocumentsV2.RegisterServer(srv)
-}
-
-type lazyGwClient struct {
-	net *future.ReadOnly[*mttnet.Node]
-}
-
-// Connect connects to a remote gateway. Necessary here for the grpc server to add a site
-// that needs to connect to the site under the hood.
-func (ld *lazyGwClient) GatewayClient(ctx context.Context, url string) (mttnet.GatewayClient, error) {
-	node, ok := ld.net.Get()
-	if !ok {
-		return nil, fmt.Errorf("p2p node is not yet initialized")
-	}
-	return node.GatewayClient(ctx, url)
+	s.DocumentsV3.RegisterServer(srv)
 }
 
 type lazyDiscoverer struct {
