@@ -98,10 +98,6 @@ func (idx *Index) indexDagPB(ictx *indexingCtx, id int64, c cid.Cid, v ipld.Node
 }
 
 func (idx *Index) indexRef(ictx *indexingCtx, id int64, c cid.Cid, v *Ref) error {
-	if !strings.HasPrefix(string(v.Resource), "hm://a") {
-		return fmt.Errorf("refs are only implemented for profile docs, got %s", v.Resource)
-	}
-
 	// TODO(hm24): more validation and refs for docs.
 
 	var sb StructuralBlob

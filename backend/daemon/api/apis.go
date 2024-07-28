@@ -9,6 +9,7 @@ import (
 	daemon "seed/backend/daemon/api/daemon/v1alpha"
 	documents "seed/backend/daemon/api/documents/v1alpha"
 	documentsv2 "seed/backend/daemon/api/documents/v2alpha"
+	documentsv3 "seed/backend/daemon/api/documents/v3alpha"
 	entities "seed/backend/daemon/api/entities/v1alpha"
 	networking "seed/backend/daemon/api/networking/v1alpha"
 	"seed/backend/daemon/index"
@@ -34,6 +35,7 @@ type Server struct {
 	Activity    *activity.Server
 	Syncing     *syncing.Service
 	DocumentsV2 *documentsv2.Server
+	DocumentsV3 *documentsv3.Server
 }
 
 type Storage interface {
