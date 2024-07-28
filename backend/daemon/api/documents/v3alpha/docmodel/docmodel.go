@@ -308,6 +308,7 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 	e := dm.e
 
 	first := e.changes[0]
+	last := e.changes[len(e.changes)-1]
 
 	// TODO(burdiyan): this is ugly and needs to be refactored.
 	u, err := url.Parse(string(e.ID()))
@@ -330,7 +331,7 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 		PreviousVersion: hyper.NewVersion(e.Deps()...).String(),
 	}
 
-	docpb.UpdateTime = timestamppb.New(e.LastChangeTime().Time())
+	docpb.UpdateTime = timestamppb.New(hlc.Timestamp(last.Ts).Time())
 
 	for _, key := range e.state.Keys("metadata") {
 		v, ok := e.state.GetAny("metadata", key).(string)
