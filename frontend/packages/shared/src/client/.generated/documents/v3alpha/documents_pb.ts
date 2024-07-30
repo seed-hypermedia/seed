@@ -21,7 +21,7 @@ export class GetDocumentRequest extends Message<GetDocumentRequest> {
 
   /**
    * Required. Path of the document.
-   * Path "/" means the root document.
+   * Empty string is used for root documents.
    *
    * @generated from field: string path = 2;
    */

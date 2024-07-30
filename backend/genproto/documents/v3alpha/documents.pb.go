@@ -31,7 +31,7 @@ type GetDocumentRequest struct {
 	// Required. The ID of the namespace where the document is located.
 	Namespace string `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	// Required. Path of the document.
-	// Path "/" means the root document.
+	// Empty string is used for root documents.
 	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
 	// Optional. Exact version of the document to retrieve.
 	Version string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`

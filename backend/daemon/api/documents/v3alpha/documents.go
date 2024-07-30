@@ -335,6 +335,7 @@ var qListDocuments = dqb.Str(`
 	LIMIT :page_size + 1;
 `)
 
+// DeleteDocument implements Documents API v3.
 func (srv *Server) DeleteDocument(ctx context.Context, in *documents.DeleteDocumentRequest) (*emptypb.Empty, error) {
 	return nil, status.Error(codes.Unimplemented, "DeleteDocument is not implemented yet")
 }

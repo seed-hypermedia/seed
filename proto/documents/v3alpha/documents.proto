@@ -18,7 +18,7 @@ service Documents {
   // Deletes a document.
   rpc DeleteDocument(DeleteDocumentRequest) returns (google.protobuf.Empty);
 
-  // Lists all documents. Only the most recent versions show up.
+  // Lists documents within the namespace. Only the most recent versions show up.
   rpc ListDocuments(ListDocumentsRequest) returns (ListDocumentsResponse);
 
   // Lists all the root documents that we know about.
@@ -31,7 +31,7 @@ message GetDocumentRequest {
   string namespace = 1;
 
   // Required. Path of the document.
-  // Path "/" means the root document.
+  // Empty string is used for root documents.
   string path = 2;
 
   // Optional. Exact version of the document to retrieve.

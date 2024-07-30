@@ -48,7 +48,7 @@ export const Documents = {
       kind: MethodKind.Unary,
     },
     /**
-     * Lists all documents. Only the most recent versions show up.
+     * Lists documents within the namespace. Only the most recent versions show up.
      *
      * @generated from rpc com.seed.documents.v3alpha.Documents.ListDocuments
      */
