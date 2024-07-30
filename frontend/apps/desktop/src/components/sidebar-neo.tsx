@@ -193,28 +193,32 @@ export function getItemDetails(
   entity: HMEntityContent | undefined,
   blockId?: string,
 ) {
-  let title: string | undefined = undefined
+  let name: string | undefined = undefined
   let icon: IconDefinition | undefined = undefined
   let isDraft = false
   if (!entity) return null
+  console.log(`== ~ entity.id:`, entity.id)
   if (entity.id.type === 'a') {
-    title = getProfileName(entity.document)
+    name = getProfileName(entity.document)
     icon = Contact
   }
-  if (entity.id.type === 'd') {
-    title = getDocumentTitle(entity.document)
-    icon = FileText
-  }
+
   if (entity.id.type === 'draft') {
-    title = '<draft>'
+    name = '<draft>'
     icon = FilePen
     isDraft = true
+  }
+
+  if (entity.id.path?.[0] != '') {
+    console.log('--- ENTITY WITH PATH', entity)
+    name = getDocumentTitle(entity.document)
+    icon = FileText
   }
 
   const headings = getBlockHeadings(entity.document?.content, blockId)
   return {
     id: entity.id,
-    title,
+    name,
     icon,
     headings,
     isDraft,

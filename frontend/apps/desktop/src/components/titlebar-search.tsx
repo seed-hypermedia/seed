@@ -45,7 +45,7 @@ import {AppQueryClient} from '../query-client'
 import {Title} from './titlebar-title'
 
 export function TitlebarSearch() {
-  const [state, setState] = useState<'search' | 'title'>('search')
+  const [state, setState] = useState<'search' | 'title'>('title')
   const [showLauncher, setShowLauncher] = useState(false)
   const {show} = useShowTitle('titlebar')
 

@@ -112,8 +112,15 @@ function getRouteBreadrumbRoutes(
   route: NavRoute,
 ): Array<DocumentRoute | DraftRoute> {
   if (route.key === 'document') {
-    // TODO, determine breadcrumbs based on route.id
-    return [route]
+    return route.id.path?.length
+      ? route.id.path.map((path) => ({
+          ...route,
+          id: {
+            ...route.id,
+            path: [path],
+          },
+        }))
+      : [route]
   }
   if (route.key === 'draft') {
     // TODO: eric determine breadcrumbs based on route.id
@@ -185,8 +192,8 @@ export function useEntities(
 }
 
 export function useRouteEntities(
-  routes: DocumentRoute[],
-): {route: DocumentRoute; entity?: HMEntityContent}[] {
+  routes: Array<DocumentRoute | DraftRoute>,
+): {route: DocumentRoute | DraftRoute; entity?: HMEntityContent}[] {
   return useEntities(
     routes.map((r) => {
       if (r.key === 'document') return r.id

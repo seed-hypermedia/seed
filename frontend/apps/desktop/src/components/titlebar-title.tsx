@@ -97,13 +97,14 @@ export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
 }
 
 type CrumbDetails = {
-  title?: string
+  name?: string
   route: NavRoute
   crumbKey: string
 }
 
 function BreadcrumbTitle({route}: {route: DocumentRoute}) {
   const entityRoutes = useRouteBreadcrumbRoutes(route)
+
   const entityContents = useRouteEntities(entityRoutes)
   const [collapsedCount, setCollapsedCount] = useState(0)
   const widthInfo = useRef({} as Record<string, number>)
@@ -123,10 +124,12 @@ function BreadcrumbTitle({route}: {route: DocumentRoute}) {
     () =>
       entityRoutes.flatMap((route, routeIndex) => {
         const details = entityRoutesDetails[routeIndex]
+
+        console.log(`== ~ entityRoutes.flatMap ~ details:`, details)
         if (!details) return null
         return [
           {
-            title: details.title,
+            name: details.name,
             route: {
               ...route,
               blockId: undefined,
@@ -139,7 +142,7 @@ function BreadcrumbTitle({route}: {route: DocumentRoute}) {
             ?.filter((heading) => !!heading.text && !heading.embedId)
             .map((heading, headingIndex) => {
               return {
-                title: heading.text,
+                name: heading.text,
                 route: {
                   ...route,
                   blockId: heading.id,
@@ -301,7 +304,7 @@ function BreadcrumbEllipsis({
                   navigate(crumb.route)
                 }}
               >
-                {crumb?.title}
+                {crumb?.name}
               </TitleTextButton>
             )
           })}
@@ -330,11 +333,11 @@ function BreadcrumbItem({
 }) {
   const navigate = useNavigate()
   const observerRef = useSizeObserver(onSize)
-  if (!details?.title) return null
+  if (!details?.name) return null
   if (isActive) {
     return (
       <TitleText ref={observerRef} fontWeight="bold">
-        {details.title}
+        {details.name}
       </TitleText>
     )
   }
@@ -347,7 +350,7 @@ function BreadcrumbItem({
       }}
       fontWeight={isActive ? 'bold' : 'normal'}
     >
-      {details.title}
+      {details.name}
     </TitleTextButton>
   )
 }
@@ -393,14 +396,14 @@ function DraftName({
   route: DraftRoute
   size?: FontSizeTokens
 }) {
-  const title = useDraftName({
+  const name = useDraftName({
     documentId: route.id,
   })
-  const realTitle = title ?? 'Untitled Document'
-  // const fixedTitle = useFixedDraftTitle(route)
+  const realTitle = name ?? 'Untitled Document'
+  // const fixedName = useFixedDraftTitle(route)
   // TODO: check wtf is this
-  const fixedTitle = undefined
-  const displayTitle = fixedTitle || realTitle
+  const fixedName = undefined
+  const displayTitle = fixedName || realTitle
   useWindowTitle(displayTitle ? `Draft: ${displayTitle}` : undefined)
 
   return (
