@@ -245,7 +245,7 @@ export function usePublishDraft(
           const publishedDoc = await grpcClient.documents.createDocumentChange({
             signingKeyName,
             namespace: id.eid,
-            path: id.path?.length ? `/${id.path.join('/')}` : '/',
+            path: id.path?.length ? `${id.path.join('/')}` : '',
             changes: allChanges,
           })
 

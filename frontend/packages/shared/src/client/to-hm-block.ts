@@ -18,7 +18,6 @@ import {
   HMStyles,
 } from '../hm-types'
 import {getCIDFromIPFSUrl} from '../utils'
-import {Annotation} from './.generated/documents/v1alpha/documents_pb'
 // import {Annotation, Block, BlockNode, HMTextAnnotation} from '@shm/shared'
 // import {hmBlockSchema} from './schema'
 

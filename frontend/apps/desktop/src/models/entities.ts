@@ -154,7 +154,7 @@ export function queryEntity(
       try {
         const document = await grpcClient.documents.getDocument({
           namespace: id.eid,
-          path: id.path?.length ? id.path.join('/') : '/',
+          path: id.path?.length ? id.path.join('/') : '',
           // version: version || undefined,
         })
         return {id, document: toPlainMessage(document)}
