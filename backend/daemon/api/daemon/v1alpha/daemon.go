@@ -94,7 +94,7 @@ func (srv *Server) RegisterKey(ctx context.Context, req *daemon.RegisterKeyReque
 	return &daemon.NamedKey{
 		PublicKey: acc.Principal().String(),
 		Name:      req.Name,
-		AccountId: "hm://a/" + acc.Principal().String(),
+		AccountId: acc.Principal().String(),
 	}, nil
 }
 
@@ -121,7 +121,7 @@ func (srv *Server) ListKeys(ctx context.Context, req *daemon.ListKeysRequest) (*
 		out.Keys = append(out.Keys, &daemon.NamedKey{
 			Name:      key.Name,
 			PublicKey: key.PublicKey.String(),
-			AccountId: "hm://a/" + key.PublicKey.String(),
+			AccountId: key.PublicKey.String(),
 		})
 	}
 	return out, nil
@@ -141,7 +141,7 @@ func (srv *Server) UpdateKey(ctx context.Context, req *daemon.UpdateKeyRequest) 
 	return &daemon.NamedKey{
 		PublicKey: kp.PublicKey.String(),
 		Name:      req.NewName,
-		AccountId: "hm://a/" + kp.PublicKey.String(),
+		AccountId: kp.PublicKey.String(),
 	}, nil
 }
 

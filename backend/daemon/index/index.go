@@ -608,7 +608,7 @@ func (idx *indexingCtx) ensureAccount(key core.Principal) (aid, kid int64, err e
 		return 0, 0, err
 	}
 
-	accountResource := IRI("hm://a/" + key.String())
+	accountResource := IRI("hm://" + key.String())
 
 	aid, err = idx.ensureResource(accountResource)
 	if err != nil {
