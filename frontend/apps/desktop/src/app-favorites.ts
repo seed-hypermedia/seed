@@ -1,17 +1,6 @@
-import {createHmId, unpackHmId} from '@shm/shared'
 import z from 'zod'
 import {appStore} from './app-store'
 import {t} from './app-trpc'
-
-// legacy pins storage
-const PINS_STORAGE_KEY = 'Pins-v003'
-type PinsState = {
-  accounts: string[]
-  documents: {
-    docId: string
-    authors: string[]
-  }[]
-}
 
 const FAVORITES_STORAGE_KEY = 'Favorites-v001'
 
@@ -21,35 +10,9 @@ type FavoritesState = {
   }[]
 }
 
-function getDefaultOrLegacyFavorites() {
-  // handle migration from legacy pins
-  const pins = appStore.get(PINS_STORAGE_KEY) as PinsState
-  if (!pins) {
-    return {
-      favorites: [],
-    }
-  }
-  const favorites: {url: string}[] = []
-  pins.documents.forEach((doc) => {
-    const id = unpackHmId(doc.docId)
-    if (!id) return
-    favorites.push({
-      url: createHmId('d', id.eid, {
-        variants: doc.authors.map((author) => ({key: 'author', author})),
-      }),
-    })
-  })
-  pins.accounts.forEach((accountId) => {
-    favorites.push({url: createHmId('a', accountId)})
-  })
-  // console.log('Migrating favorites', favorites)
-  appStore.set(FAVORITES_STORAGE_KEY, {favorites}) // this completes the migration
-  return {favorites}
-}
-
-let state: FavoritesState =
-  (appStore.get(FAVORITES_STORAGE_KEY) as FavoritesState) ||
-  getDefaultOrLegacyFavorites()
+let state: FavoritesState = (appStore.get(
+  FAVORITES_STORAGE_KEY,
+) as FavoritesState) || {favorites: []}
 
 async function writeFavorites(newState: FavoritesState) {
   state = newState

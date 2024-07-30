@@ -5,7 +5,7 @@ import {useNavRoute} from '@/utils/navigation'
 import {DraftRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {PlainMessage} from '@bufbuild/protobuf'
-import {Document, unpackHmId} from '@shm/shared'
+import {Document, hmId, unpackHmId} from '@shm/shared'
 import {
   AlertCircle,
   Button,
@@ -52,7 +52,7 @@ export default function PublishDraftButton() {
           id: unpackedDraftId.type === 'draft' ? undefined : unpackedDraftId,
         })
         .then(async (res) => {
-          const resultDocId = unpackHmId(res.id)
+          const resultDocId = hmId('a', unpackedDraftId.eid)
           if (draftId)
             await deleteDraft.mutateAsync(draftId).catch((e) => {
               console.error('Failed to delete draft', e)

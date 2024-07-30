@@ -183,16 +183,6 @@ export type HMDocument = PlainMessage<Document>
 
 export type HMDeletedEntity = PlainMessage<DeletedEntity>
 
-export type HMEntity =
-  | {
-      type: 'a'
-      account: HMAccount
-    }
-  | {
-      type: 'd'
-      document: HMDocument
-    }
-
 export type HMEntityContent = {
   id: UnpackedHypermediaId
   document?: HMDocument | null
@@ -279,8 +269,7 @@ export type HMDraft = {
   content: Array<Block<typeof hmBlockSchema>>
   metadata: HMMetadata
   members: any //HMDocument['members']
-  index: HMDocument['index']
   deps: Array<string>
   signingProfile: string
-  indexPath: string
+  previousId: UnpackedHypermediaId | null // null if new document. Used to handle drafts that are moving
 }

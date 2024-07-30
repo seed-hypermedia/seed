@@ -18,7 +18,7 @@ import {
   BlockRange,
   createPublicWebHmUrl,
   ExpandedBlockRange,
-  unpackDocId,
+  unpackHmId,
   useDocContentContext,
   useHeadingTextStyles,
 } from '@shm/shared'
@@ -210,10 +210,10 @@ export default function DraftPage() {
   ) {
     if (route.key != 'draft') throw new Error('DraftPage must have draft route')
     if (!route.id) throw new Error('draft route id is missing')
-    const id = unpackDocId(route.id)
+    const id = unpackHmId(route.id)
     if (!id?.eid) throw new Error('eid could not be extracted from draft route')
     copyUrlToClipboardWithFeedback(
-      createPublicWebHmUrl('d', id.eid, {
+      createPublicWebHmUrl(id.type, id.eid, {
         blockRef: blockId,
         blockRange,
         hostname: gwUrl.data,

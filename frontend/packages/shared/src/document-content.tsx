@@ -1427,9 +1427,7 @@ export function BlockContentEmbed(props: BlockContentProps) {
   const id = unpackHmId(props.block.ref)
   if (id?.type == 'a') {
     return <EmbedTypes.Account {...props} {...id} />
-  }
-  if (id?.type == 'd') {
-    return <EmbedTypes.Document {...props} {...id} />
+    // return <EmbedTypes.Document {...props} {...id} /> // todo, bring back the document embed. the id.type=d type is no longer here
   }
   if (id?.type == 'c') {
     return <EmbedTypes.Comment {...props} {...id} />

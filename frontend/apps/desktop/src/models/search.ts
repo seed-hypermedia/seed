@@ -23,6 +23,7 @@ export function useSearch(query: string, opts: UseQueryOptions<Entity[]>) {
         query,
       })
       const entities = result.entities.map(toPlainMessage)
+      console.log({entities})
       return entities
     },
   })

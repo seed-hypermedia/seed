@@ -6,9 +6,7 @@ import {
   ContentGraph,
   Daemon,
   Documents,
-  Drafts,
   Entities,
-  Merge,
   Networking,
 } from './client'
 
@@ -19,10 +17,8 @@ export type GRPCClient = {
   contentGraph: PromiseClient<typeof ContentGraph>
   daemon: PromiseClient<typeof Daemon>
   documents: PromiseClient<typeof Documents>
-  drafts: PromiseClient<typeof Drafts>
   entities: PromiseClient<typeof Entities>
   networking: PromiseClient<typeof Networking>
-  merge: PromiseClient<typeof Merge>
 }
 
 export function createGRPCClient(transport: any): GRPCClient {
@@ -33,9 +29,7 @@ export function createGRPCClient(transport: any): GRPCClient {
     contentGraph: createPromiseClient(ContentGraph, transport),
     daemon: createPromiseClient(Daemon, transport),
     documents: createPromiseClient(Documents, transport),
-    drafts: createPromiseClient(Drafts, transport),
     entities: createPromiseClient(Entities, transport),
     networking: createPromiseClient(Networking, transport),
-    merge: createPromiseClient(Merge, transport),
   } as const
 }

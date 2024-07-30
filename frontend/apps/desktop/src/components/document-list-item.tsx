@@ -6,7 +6,6 @@ import {
   HMDocument,
   createHmId,
   getDocumentTitle,
-  unpackDocId,
 } from '@shm/shared'
 import {
   ArrowUpRight,
@@ -53,9 +52,7 @@ export const DocumentListItem = React.memo(function DocumentListItem({
   const docId = document.id
   const route = useNavRoute()
   const docRoute = openRoute.key === 'document' ? openRoute : null
-  const docHmId = docRoute?.documentId
-    ? unpackDocId(docRoute.documentId)
-    : undefined
+  const docHmId = docRoute?.id
   const docUrl =
     docHmId && docRoute
       ? createHmId('d', docHmId.eid, {

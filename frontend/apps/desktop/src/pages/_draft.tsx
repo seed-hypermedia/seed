@@ -24,7 +24,7 @@ import {
   blockStyles,
   createPublicWebHmUrl,
   formattedDateMedium,
-  unpackDocId,
+  unpackHmId,
   useDocContentContext,
   useHeadingMarginStyles,
   useHeadingTextStyles,
@@ -280,7 +280,7 @@ export default function DraftPage() {
                     throw new Error('DraftPage must have draft route')
                   if (!route.draftId)
                     throw new Error('draft route draftId is missing')
-                  const id = unpackDocId(route.draftId)
+                  const id = unpackHmId(route.draftId)
                   if (!id?.eid)
                     throw new Error(
                       'eid could not be extracted from draft route',

@@ -1,6 +1,5 @@
 import {NavRoute, getRecentsRouteEntityUrl} from '@/utils/routes'
 import {z} from 'zod'
-import {grpcClient} from './app-grpc'
 import {invalidateQueries} from './app-invalidation'
 import {appStore} from './app-store'
 import {t} from './app-trpc'
@@ -37,53 +36,13 @@ export function updateRecents(updater: (state: RecentsState) => RecentsState) {
   }
 }
 
-async function getRouteTitles(route: NavRoute) {
-  let subtitle: undefined | string = undefined
-  let title = '?'
-  if (route.key === 'document') {
-    if (route.id.type === 'd') {
-      console.log('aa 2')
-      const document = await grpcClient.documents.getDocument({
-        documentId: route.id.qid,
-        version: route.id.version || undefined,
-      })
-      if (document?.metadata?.name) {
-        title = document?.metadata.name
-      }
-      subtitle = 'Document'
-    }
-    if (route.id.type === 'a') {
-      throw new Error('Not implemented getRouteTitles for account')
-    }
-  }
-  return {
-    title,
-    subtitle,
-  }
-}
-
 export async function updateRecentRoute(route: NavRoute) {
   const url = getRecentsRouteEntityUrl(route)
   const type: RecentEntry['type'] = route.key === 'draft' ? 'draft' : 'entity'
   const time = Date.now()
-  const titles = await getRouteTitles(route)
   updateRecents((state: RecentsState): RecentsState => {
     let recents = state.recents
-    if (url) {
-      recents = [
-        {
-          type,
-          url,
-          time,
-          ...titles,
-        },
-        ...state.recents
-          .filter((item) => {
-            return item.url !== url || item.type !== type
-          })
-          .slice(0, MAX_RECENTS),
-      ]
-    }
+    console.log('warning: recents updating not implemented')
     return {
       recents,
     }

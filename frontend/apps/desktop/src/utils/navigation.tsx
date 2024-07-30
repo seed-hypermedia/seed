@@ -1,4 +1,4 @@
-import {GRPCClient, StateStream, hmDocument} from '@shm/shared'
+import {GRPCClient, StateStream} from '@shm/shared'
 import {
   UnpackedHypermediaId,
   createHmId,
@@ -40,9 +40,9 @@ export type NavigationContext = {
 }
 
 export function getRouteKey(route: NavRoute): string {
-  if (route.key === 'account') return `account:${route.accountId}`
-  if (route.key === 'draft') return `draft:${route.draftId}`
-  if (route.key === 'document') return `document:${route.documentId}` // version changes and publication page remains mounted
+  if (route.key === 'draft') return `draft:${route.id}`
+  if (route.key === 'document')
+    return `document:${route.id.eid}:${route.id.path?.join(':')}` // version changes and publication page remains mounted
   return route.key
 }
 
@@ -212,26 +212,7 @@ export async function resolveHmIdToAppRoute(
   grpcClient: GRPCClient,
 ): Promise<null | (UnpackedHypermediaId & {navRoute?: NavRoute})> {
   const hmIds = unpackHmId(hmId)
-  if (hmIds?.type === 'd') {
-    const docId = createHmId('d', hmIds.eid)
-    console.log('aa 4')
-    const doc = hmDocument(
-      await grpcClient.documents.getDocument({
-        documentId: docId,
-        // no version because we are only looking for the publication author
-      }),
-    )
-    if (!doc) return null
-    return {
-      ...hmIds,
-      navRoute: {
-        key: 'document',
-        documentId: docId,
-        versionId: hmIds.latest ? undefined : hmIds.version || undefined,
-        blockId: hmIds.blockRef || undefined,
-      },
-    }
-  } else if (hmIds?.type === 'a') {
+  if (hmIds?.type === 'a') {
     return {
       ...hmIds,
       navRoute: {
