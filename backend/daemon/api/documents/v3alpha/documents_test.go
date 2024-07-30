@@ -158,7 +158,7 @@ func TestListRootDocuments(t *testing.T) {
 	require.Len(t, roots.Documents, 2)
 	require.Equal(t, "", roots.NextPageToken, "must have no page token for a single item")
 
-	wantAlicesRoot := docToListItem(profile)
+	wantAlicesRoot := DocumentToListItem(profile)
 	testutil.StructsEqual(bobsRoot, roots.Documents[0]).Compare(t, "bobs root document must match and be first")
 	testutil.StructsEqual(wantAlicesRoot, roots.Documents[1]).Compare(t, "alice's root document must match and be second")
 }
@@ -212,7 +212,7 @@ func TestListDocument(t *testing.T) {
 	list, err := alice.ListDocuments(ctx, &documents.ListDocumentsRequest{Namespace: alice.me.Account.Principal().String()})
 	require.NoError(t, err)
 
-	want := []*documents.DocumentListItem{docToListItem(namedDoc2), docToListItem(namedDoc), docToListItem(profile)}
+	want := []*documents.DocumentListItem{DocumentToListItem(namedDoc2), DocumentToListItem(namedDoc), DocumentToListItem(profile)}
 	require.Len(t, list.Documents, len(want))
 
 	testutil.StructsEqual(want[0], list.Documents[0]).Compare(t, "named2 must be the first doc in the list")

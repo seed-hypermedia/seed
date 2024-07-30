@@ -4,9 +4,9 @@ import (
 	"context"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
-	"seed/backend/daemon/api/documents/v2alpha/docmodel"
+	documentsimpl "seed/backend/daemon/api/documents/v3alpha"
 	daemon "seed/backend/genproto/daemon/v1alpha"
-	documents "seed/backend/genproto/documents/v2alpha"
+	documents "seed/backend/genproto/documents/v3alpha"
 	networking "seed/backend/genproto/networking/v1alpha"
 	"seed/backend/mttnet"
 	"seed/backend/pkg/must"
@@ -16,9 +16,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/status"
 )
 
 func TestDaemonRegisterKey(t *testing.T) {
@@ -79,78 +77,9 @@ func TestDaemonUpdateProfile(t *testing.T) {
 	ctx := context.Background()
 	alice := coretest.NewTester("alice")
 
-	doc, err := dmn.RPC.DocumentsV2.ChangeProfileDocument(ctx, &documents.ChangeProfileDocumentRequest{
-		AccountId: alice.Account.Principal().String(),
-		Changes: []*documents.DocumentChange{
-			{Op: &documents.DocumentChange_SetMetadata_{
-				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice from the Wonderland"},
-			}},
-			{Op: &documents.DocumentChange_MoveBlock_{
-				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
-			}},
-			{Op: &documents.DocumentChange_ReplaceBlock{
-				ReplaceBlock: &documents.Block{
-					Id:   "b1",
-					Type: "paragraph",
-					Text: "Hello",
-				},
-			}},
-			{Op: &documents.DocumentChange_MoveBlock_{
-				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "b1", LeftSibling: ""},
-			}},
-			{Op: &documents.DocumentChange_ReplaceBlock{
-				ReplaceBlock: &documents.Block{
-					Id:   "b2",
-					Type: "paragraph",
-					Text: "World!",
-				},
-			}},
-		},
-	})
-	require.NoError(t, err)
-
-	want := &documents.Document{
-		Metadata: map[string]string{
-			"title": "Alice from the Wonderland",
-		},
-		Index:   map[string]string{},
-		Owner:   alice.Account.Principal().String(),
-		Authors: []string{alice.Account.Principal().String()},
-		Content: []*documents.BlockNode{
-			{
-				Block: &documents.Block{
-					Id:   "b1",
-					Type: "paragraph",
-					Text: "Hello",
-				},
-				Children: []*documents.BlockNode{
-					{
-						Block: &documents.Block{
-							Id:   "b2",
-							Type: "paragraph",
-							Text: "World!",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	testutil.StructsEqual(want, doc).
-		IgnoreFields(documents.Block{}, "Revision").
-		IgnoreFields(documents.Document{}, "Id", "CreateTime", "UpdateTime", "Version", "PreviousVersion").
-		Compare(t, "profile document must match")
-}
-
-func TestDaemonUpdateProfileCompat(t *testing.T) {
-	t.Parallel()
-
-	dmn := makeTestApp(t, "alice", makeTestConfig(t), true)
-	ctx := context.Background()
-	alice := coretest.NewTester("alice")
-
-	doc, err := dmn.RPC.DocumentsV2.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
-		DocumentId: "hm://a/" + alice.Account.Principal().String(),
+	doc, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Namespace: alice.Account.Principal().String(),
+		Path:      "",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
 				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice from the Wonderland"},
@@ -181,12 +110,11 @@ func TestDaemonUpdateProfileCompat(t *testing.T) {
 	require.NoError(t, err)
 
 	want := &documents.Document{
-		Id: "hm://a/" + alice.Account.Principal().String(),
+		Namespace: alice.Account.Principal().String(),
+		Path:      "",
 		Metadata: map[string]string{
 			"title": "Alice from the Wonderland",
 		},
-		Index:   map[string]string{},
-		Owner:   alice.Account.Principal().String(),
 		Authors: []string{alice.Account.Principal().String()},
 		Content: []*documents.BlockNode{
 			{
@@ -215,8 +143,9 @@ func TestDaemonUpdateProfileCompat(t *testing.T) {
 
 	// Do another update.
 	{
-		doc, err := dmn.RPC.DocumentsV2.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
-			DocumentId: "hm://a/" + alice.Account.Principal().String(),
+		doc, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+			Namespace: alice.Account.Principal().String(),
+			Path:      "",
 			Changes: []*documents.DocumentChange{
 				{Op: &documents.DocumentChange_SetMetadata_{
 					SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Just Alice"},
@@ -227,12 +156,11 @@ func TestDaemonUpdateProfileCompat(t *testing.T) {
 		require.NoError(t, err)
 
 		want := &documents.Document{
-			Id: "hm://a/" + alice.Account.Principal().String(),
+			Namespace: alice.Account.Principal().String(),
+			Path:      "",
 			Metadata: map[string]string{
 				"title": "Just Alice",
 			},
-			Index:   map[string]string{},
-			Owner:   alice.Account.Principal().String(),
 			Authors: []string{alice.Account.Principal().String()},
 			Content: []*documents.BlockNode{
 				{
@@ -261,150 +189,6 @@ func TestDaemonUpdateProfileCompat(t *testing.T) {
 	}
 }
 
-func TestSubdocuments(t *testing.T) {
-	t.Parallel()
-
-	dmn := makeTestApp(t, "alice", makeTestConfig(t), true)
-	ctx := context.Background()
-	alice := coretest.NewTester("alice")
-
-	parent, err := dmn.RPC.DocumentsV2.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
-		DocumentId: "hm://a/" + alice.Account.Principal().String(),
-		Changes: []*documents.DocumentChange{
-			{Op: &documents.DocumentChange_SetMetadata_{
-				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice from the Wonderland"},
-			}},
-		},
-		SigningKeyName: "main",
-	})
-	require.NoError(t, err)
-	require.NotNil(t, parent)
-
-	subdoc, err := dmn.RPC.DocumentsV2.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
-		DocumentId: "hm://a/" + alice.Account.Principal().String() + "/subdoc",
-		Changes: []*documents.DocumentChange{
-			{Op: &documents.DocumentChange_SetMetadata_{
-				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice's subdoc"},
-			}},
-			{Op: &documents.DocumentChange_MoveBlock_{
-				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
-			}},
-			{Op: &documents.DocumentChange_ReplaceBlock{
-				ReplaceBlock: &documents.Block{
-					Id:   "b1",
-					Type: "paragraph",
-					Text: "Hello",
-				},
-			}},
-		},
-		SigningKeyName: "main",
-	})
-	require.NoError(t, err)
-
-	want := &documents.Document{
-		Id: "hm://a/" + alice.Account.Principal().String() + "/subdoc",
-		Metadata: map[string]string{
-			"title": "Alice's subdoc",
-		},
-		Index:   map[string]string{},
-		Owner:   alice.Account.Principal().String(),
-		Authors: []string{alice.Account.Principal().String()},
-		Content: []*documents.BlockNode{
-			{
-				Block: &documents.Block{
-					Id:   "b1",
-					Type: "paragraph",
-					Text: "Hello",
-				},
-			},
-		},
-	}
-
-	testutil.StructsEqual(want, subdoc).
-		IgnoreFields(documents.Block{}, "Revision").
-		IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version", "PreviousVersion").
-		Compare(t, "subdoc must match")
-
-	// Check parent document has index item.
-	{
-		parent, err = dmn.RPC.DocumentsV2.GetDocument(ctx, &documents.GetDocumentRequest{
-			DocumentId: "hm://a/" + alice.Account.Principal().String(),
-		})
-		require.NoError(t, err)
-
-		require.NotEmpty(t, parent.Index["subdoc"], "parent must have subdoc index entry")
-		_, err = docmodel.Version(parent.Index["subdoc"]).Parse()
-		require.NoError(t, err, "subdoc entry must have version as value")
-		require.Equal(t, subdoc.Version, parent.Index["subdoc"], "subdoc version must match")
-	}
-
-	// Try updating subdocument.
-	{
-		subdoc, err = dmn.RPC.DocumentsV2.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
-			DocumentId: "hm://a/" + alice.Account.Principal().String() + "/subdoc",
-			Changes: []*documents.DocumentChange{
-				{Op: &documents.DocumentChange_SetMetadata_{
-					SetMetadata: &documents.DocumentChange_SetMetadata{Key: "abstract", Value: "Just some new value to see the update."},
-				}},
-			},
-			SigningKeyName: "main",
-		})
-		require.NoError(t, err)
-		require.NotNil(t, subdoc)
-
-		want := &documents.Document{
-			Id: "hm://a/" + alice.Account.Principal().String() + "/subdoc",
-			Metadata: map[string]string{
-				"title":    "Alice's subdoc",
-				"abstract": "Just some new value to see the update.",
-			},
-			Index:   map[string]string{},
-			Owner:   alice.Account.Principal().String(),
-			Authors: []string{alice.Account.Principal().String()},
-			Content: []*documents.BlockNode{
-				{
-					Block: &documents.Block{
-						Id:   "b1",
-						Type: "paragraph",
-						Text: "Hello",
-					},
-				},
-			},
-		}
-
-		testutil.StructsEqual(want, subdoc).
-			IgnoreFields(documents.Block{}, "Revision").
-			IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version", "PreviousVersion").
-			Compare(t, "subdoc must match")
-	}
-
-	// Remove index entry from parent.
-	{
-		parent, err := dmn.RPC.DocumentsV2.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
-			DocumentId: "hm://a/" + alice.Account.Principal().String(),
-			Changes: []*documents.DocumentChange{
-				{Op: &documents.DocumentChange_SetIndex_{SetIndex: &documents.DocumentChange_SetIndex{
-					Key:   "subdoc",
-					Value: "",
-				}}},
-			},
-			SigningKeyName: "main",
-		})
-		require.NoError(t, err)
-
-		if _, ok := parent.Index["subdoc"]; ok {
-			t.Fatal("parent must not have subdoc index entry after removal")
-		}
-
-		// Getting subdocument after removal should fail.
-		_, err = dmn.RPC.DocumentsV2.GetDocument(ctx, &documents.GetDocumentRequest{
-			DocumentId: "hm://a/" + alice.Account.Principal().String() + "/subdoc",
-		})
-		require.Error(t, err)
-		require.Equal(t, codes.NotFound, status.Code(err), "subdoc must be not found after removal")
-	}
-}
-
 func TestSyncingProfiles(t *testing.T) {
 	t.Parallel()
 
@@ -413,8 +197,10 @@ func TestSyncingProfiles(t *testing.T) {
 	aliceIdentity := coretest.NewTester("alice")
 	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
 	bobIdentity := coretest.NewTester("bob")
-	doc, err := alice.RPC.DocumentsV2.ChangeProfileDocument(ctx, &documents.ChangeProfileDocumentRequest{
-		AccountId: aliceIdentity.Account.Principal().String(),
+	doc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Namespace:      aliceIdentity.Account.Principal().String(),
+		Path:           "",
+		SigningKeyName: "main",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
 				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice from the Wonderland"},
@@ -448,7 +234,7 @@ func TestSyncingProfiles(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// _, err = bob.RPC.DocumentsV2.GetProfileDocument(ctx, &documents.GetProfileDocumentRequest{
+	// _, err = bob.RPC.DocumentsV3.GetProfileDocument(ctx, &documents.GetProfileDocumentRequest{
 	//	AccountId: aliceIdentity.Account.Principal().String(),
 	// })
 	// require.Error(t, err)
@@ -456,15 +242,18 @@ func TestSyncingProfiles(t *testing.T) {
 	// to force any syncing just wait for bob to instantly syncs content right after connection.
 	//_, err = bob.RPC.Daemon.ForceSync(ctx, &daemon.ForceSyncRequest{})
 	//require.NoError(t, err)
-	time.Sleep(time.Millisecond * 100)
-	doc2, err := bob.RPC.DocumentsV2.GetProfileDocument(ctx, &documents.GetProfileDocumentRequest{
-		AccountId: aliceIdentity.Account.Principal().String(),
+	time.Sleep(time.Millisecond * 200)
+	doc2, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Namespace: aliceIdentity.Account.Principal().String(),
+		Path:      "",
 	})
 	require.NoError(t, err)
 	require.Equal(t, doc.Content, doc2.Content)
 
-	bobsProfile, err := bob.RPC.DocumentsV2.ChangeProfileDocument(ctx, &documents.ChangeProfileDocumentRequest{
-		AccountId: bobIdentity.Account.Principal().String(),
+	bobsProfile, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Namespace:      bobIdentity.Account.Principal().String(),
+		Path:           "",
+		SigningKeyName: "main",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
 				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Bob's land"},
@@ -472,21 +261,21 @@ func TestSyncingProfiles(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	docs, err := bob.RPC.DocumentsV2.ListProfileDocuments(ctx, &documents.ListProfileDocumentsRequest{})
+	docs, err := bob.RPC.DocumentsV3.ListRootDocuments(ctx, &documents.ListRootDocumentsRequest{})
 	require.NoError(t, err)
 	require.Len(t, docs.Documents, 2)
-	docs, err = bob.RPC.DocumentsV2.ListProfileDocuments(ctx, &documents.ListProfileDocumentsRequest{
+	docs, err = bob.RPC.DocumentsV3.ListRootDocuments(ctx, &documents.ListRootDocumentsRequest{
 		PageSize:  1,
 		PageToken: "",
 	})
 	require.NoError(t, err)
 	require.Len(t, docs.Documents, 1)
-	require.Equal(t, bobsProfile.Content, docs.Documents[0].Content)
-	docs, err = bob.RPC.DocumentsV2.ListProfileDocuments(ctx, &documents.ListProfileDocumentsRequest{
+	testutil.StructsEqual(documentsimpl.DocumentToListItem(bobsProfile), docs.Documents[0]).Compare(t, "list item must match")
+	docs, err = bob.RPC.DocumentsV3.ListRootDocuments(ctx, &documents.ListRootDocumentsRequest{
 		PageSize:  1,
 		PageToken: docs.NextPageToken,
 	})
 	require.NoError(t, err)
 	require.Len(t, docs.Documents, 1)
-	require.Equal(t, doc.Content, docs.Documents[0].Content)
+	require.Equal(t, documentsimpl.DocumentToListItem(doc), docs.Documents[0])
 }

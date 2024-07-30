@@ -208,7 +208,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 		}
 
 		// TODO: use indexed data instead of loading the entire document.
-		out.Documents = append(out.Documents, docToListItem(doc))
+		out.Documents = append(out.Documents, DocumentToListItem(doc))
 
 		return nil
 	}, lastCursor.ID, in.PageSize); err != nil {
@@ -307,7 +307,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		}
 
 		// TODO: use indexed data instead of loading the entire document.
-		out.Documents = append(out.Documents, docToListItem(doc))
+		out.Documents = append(out.Documents, DocumentToListItem(doc))
 
 		return nil
 	}, lastCursor.ID, namespaceGlob, in.PageSize); err != nil {
@@ -432,7 +432,8 @@ func (srv *Server) checkWriteAccess(_ context.Context, namespace core.Principal,
 	return status.Errorf(codes.PermissionDenied, "key %s is not allowed to edit namespace %s", kp.Principal(), namespace)
 }
 
-func docToListItem(doc *documents.Document) *documents.DocumentListItem {
+// DocumentToListItem converts a document to a document list item.
+func DocumentToListItem(doc *documents.Document) *documents.DocumentListItem {
 	return &documents.DocumentListItem{
 		Namespace:  doc.Namespace,
 		Path:       doc.Path,
