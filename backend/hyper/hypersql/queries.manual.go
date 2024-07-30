@@ -126,7 +126,7 @@ var qCheckEntityHasChanges = dqb.Str(`
 `)
 
 // StructuralBlobsInsert inserts a structural blob.
-func StructuralBlobsInsert(conn *sqlite.Conn, id int64, blobType string, author, resource, ts maybe.Value[int64], meta maybe.Value[string]) error {
+func StructuralBlobsInsert(conn *sqlite.Conn, id int64, blobType string, author, resource, ts maybe.Value[int64], meta maybe.Value[[]byte]) error {
 	if id == 0 {
 		return fmt.Errorf("must specify blob ID")
 	}
@@ -135,7 +135,7 @@ func StructuralBlobsInsert(conn *sqlite.Conn, id int64, blobType string, author,
 }
 
 var qStructuralBlobsInsert = dqb.Str(`
-	INSERT INTO structural_blobs (id, type, author, resource, ts, meta)
+	INSERT INTO structural_blobs (id, type, author, resource, ts, extra_attrs)
 	VALUES (?, ?, ?, ?, ?, ?);
 `)
 

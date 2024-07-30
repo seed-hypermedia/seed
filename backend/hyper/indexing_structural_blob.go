@@ -34,7 +34,7 @@ type structuralBlob struct {
 	}
 	BlobLinks     []blobLink
 	ResourceLinks []resourceLink
-	Meta          string
+	Meta          any
 }
 
 func newStructuralBlob(id cid.Cid, blobType string, author core.Principal, ts time.Time, resource IRI, resourceOwner core.Principal, resourceTimestamp time.Time) structuralBlob {
@@ -99,7 +99,7 @@ func (idx *indexingCtx) SaveBlob(id int64, b structuralBlob) error {
 		blobAuthor   maybe.Value[int64]
 		blobResource maybe.Value[int64]
 		blobTime     maybe.Value[int64]
-		title        maybe.Value[string]
+		title        maybe.Value[[]byte]
 	)
 
 	if b.Author != nil {
@@ -134,8 +134,12 @@ func (idx *indexingCtx) SaveBlob(id int64, b structuralBlob) error {
 		}
 	}
 
-	if b.Meta != "" {
-		title = maybe.New(b.Meta)
+	if b.Meta != nil {
+		data, err := json.Marshal(b.Meta)
+		if err != nil {
+			return err
+		}
+		title = maybe.New(data)
 	}
 
 	if !b.Time.IsZero() {
