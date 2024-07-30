@@ -23,7 +23,7 @@ func TestCreateDocumentChange(t *testing.T) {
 	doc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
 		Namespace:      alice.me.Account.Principal().String(),
-		Path:           "/",
+		Path:           "",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
 				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice from the Wonderland"},
@@ -54,7 +54,7 @@ func TestCreateDocumentChange(t *testing.T) {
 
 	want := &documents.Document{
 		Namespace: alice.me.Account.Principal().String(),
-		Path:      "/",
+		Path:      "",
 		Metadata: map[string]string{
 			"title": "Alice from the Wonderland",
 		},
@@ -95,7 +95,7 @@ func TestListRootDocuments(t *testing.T) {
 	profile, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
 		Namespace:      alice.me.Account.Principal().String(),
-		Path:           "/",
+		Path:           "",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
 				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice's profile"},
@@ -108,7 +108,7 @@ func TestListRootDocuments(t *testing.T) {
 	namedDoc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
 		Namespace:      alice.me.Account.Principal().String(),
-		Path:           "/named",
+		Path:           "/named/foo",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
 				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Named document"},
@@ -125,7 +125,7 @@ func TestListRootDocuments(t *testing.T) {
 		_, err = bob.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 			SigningKeyName: "main",
 			Namespace:      bob.me.Account.Principal().String(),
-			Path:           "/",
+			Path:           "",
 			Changes: []*documents.DocumentChange{
 				{Op: &documents.DocumentChange_SetMetadata_{
 					SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Bob's profile"},
@@ -172,7 +172,7 @@ func TestListDocument(t *testing.T) {
 	profile, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
 		Namespace:      alice.me.Account.Principal().String(),
-		Path:           "/",
+		Path:           "",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
 				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice's profile"},
@@ -186,7 +186,7 @@ func TestListDocument(t *testing.T) {
 	namedDoc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
 		Namespace:      alice.me.Account.Principal().String(),
-		Path:           "/named",
+		Path:           "/named/foo",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
 				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Named document"},
@@ -199,7 +199,7 @@ func TestListDocument(t *testing.T) {
 	namedDoc2, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
 		Namespace:      alice.me.Account.Principal().String(),
-		Path:           "/named2",
+		Path:           "/named/bar",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
 				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Named document 2"},

@@ -14,7 +14,6 @@ import (
 	"seed/backend/hlc"
 	"seed/backend/pkg/dqb"
 	"seed/backend/pkg/errutil"
-	"strings"
 
 	"crawshaw.io/sqlite"
 	"crawshaw.io/sqlite/sqlitex"
@@ -54,10 +53,6 @@ func (srv *Server) GetDocument(ctx context.Context, in *documents.GetDocumentReq
 			return nil, errutil.MissingArgument("namespace")
 		}
 
-		if in.Path == "" {
-			return nil, errutil.MissingArgument("path")
-		}
-
 		if in.Version != "" {
 			return nil, status.Error(codes.Unimplemented, "getting docs by version is not implemented yet")
 		}
@@ -83,10 +78,6 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 			return nil, errutil.MissingArgument("namespace")
 		}
 
-		if in.Path == "" {
-			return nil, errutil.MissingArgument("path")
-		}
-
 		if in.SigningKeyName == "" {
 			return nil, errutil.MissingArgument("signing_key_name")
 		}
@@ -110,7 +101,7 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 		return nil, err
 	}
 
-	if in.Path == "/" {
+	if in.Path == "" {
 		if err := srv.ensureProfileGenesis(ctx, kp); err != nil {
 			return nil, err
 		}
@@ -197,7 +188,12 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 			iri = stmt.ColumnText(1)
 		)
 
-		ns, err := core.DecodePrincipal(strings.Trim(iri, "hm://"))
+		u, err := url.Parse(iri)
+		if err != nil {
+			return err
+		}
+
+		ns, err := core.DecodePrincipal(u.Host)
 		if err != nil {
 			return err
 		}
@@ -205,7 +201,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 
 		doc, err := srv.GetDocument(ctx, &documents.GetDocumentRequest{
 			Namespace: ns.String(),
-			Path:      "/",
+			Path:      "",
 		})
 		if err != nil {
 			return err
@@ -301,9 +297,6 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		}
 
 		path := u.Path
-		if path == "" {
-			path = "/"
-		}
 
 		doc, err := srv.GetDocument(ctx, &documents.GetDocumentRequest{
 			Namespace: u.Host,
@@ -346,7 +339,12 @@ func (srv *Server) ensureProfileGenesis(ctx context.Context, kp core.KeyPair) er
 		return err
 	}
 
-	ebr, err := index.NewRef(kp, ebc.CID, index.IRI("hm://a/"+kp.Principal().String()), []cid.Cid{ebc.CID}, index.ProfileGenesisEpoch)
+	iri, err := makeIRI(kp.Principal(), "")
+	if err != nil {
+		return err
+	}
+
+	ebr, err := index.NewRef(kp, ebc.CID, iri, []cid.Cid{ebc.CID}, index.ProfileGenesisEpoch)
 	if err != nil {
 		return err
 	}
@@ -359,16 +357,14 @@ func (srv *Server) ensureProfileGenesis(ctx context.Context, kp core.KeyPair) er
 }
 
 func makeIRI(namespace core.Principal, path string) (index.IRI, error) {
-	if path == "" {
-		return "", fmt.Errorf("path is required")
-	}
+	if path != "" {
+		if path[0] != '/' {
+			return "", fmt.Errorf("path must start with a slash: %s", path)
+		}
 
-	if path == "/" {
-		return index.IRI("hm://" + namespace.String()), nil
-	}
-
-	if path[0] != '/' {
-		return "", fmt.Errorf("path must start with a slash: %s", path)
+		if path[len(path)-1] == '/' {
+			return "", fmt.Errorf("path must not end with a slash: %s", path)
+		}
 	}
 
 	return index.IRI("hm://" + namespace.String() + path), nil

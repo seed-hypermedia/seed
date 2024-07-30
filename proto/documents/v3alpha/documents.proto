@@ -31,7 +31,7 @@ message GetDocumentRequest {
   string namespace = 1;
 
   // Required. Path of the document.
-  // Empty string is used for root documents.
+  // Empty string means root document.
   string path = 2;
 
   // Optional. Exact version of the document to retrieve.
@@ -45,6 +45,7 @@ message CreateDocumentChangeRequest {
 
   // Required. Path of the document to create change for.
   // If document doesn't exist it will be created.
+  // Empty string means root document.
   string path = 2;
 
   // Required. Changes to be applied to the document.
@@ -109,6 +110,7 @@ message DocumentListItem {
   string namespace = 1;
 
   // Path of the document within the namespace.
+  // Empty string means root document.
   string path = 2;
 
   // Title of the document.
@@ -133,6 +135,7 @@ message Document {
   string namespace = 1;
 
   // Path of the document within the namespace.
+  // Empty string means root document.
   string path = 2;
 
   // Metadata values for a document.

@@ -318,9 +318,6 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 
 	namespace := u.Host
 	path := u.Path
-	if path == "" {
-		path = "/"
-	}
 
 	docpb := &documents.Document{
 		Namespace:       namespace,
