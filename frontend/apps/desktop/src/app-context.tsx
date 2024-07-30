@@ -14,7 +14,17 @@ export type AppContext = {
   queryClient: AppQueryClient
   ipc: AppIPC
   externalOpen: (url: string) => Promise<void>
-  openMarkdownFile: () => Promise<unknown>
+  openMarkdownDirectories: () => Promise<
+    {
+      markdownContent: string
+      mediaFiles: {
+        name: string
+        content: string
+        type: string
+      }[]
+    }[]
+  >
+  readMediaFile: () => Promise<unknown>
   windowUtils: WindowUtils
   saveCidAsFile: (cid: string, name: string) => Promise<void>
 }

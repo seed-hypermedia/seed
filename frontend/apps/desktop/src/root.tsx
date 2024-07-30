@@ -222,21 +222,14 @@ function MainApp({
     }
   }, [queryClient.client, utils])
 
-  // const openMarkdownFile = () => {
-  //   return new Promise((resolve, reject) => {
-  //     ipc.listen('file-content-response', (event, response) => {
-  //       if (response.success) {
-  //         resolve(response.data)
-  //       } else {
-  //         reject(response.error)
-  //       }
-  //     })
-  //     ipc.send('open-markdown-file-dialog')
-  //   })
-  // }
-  const openMarkdownFile = () => {
+  const openMarkdownDirectories = () => {
     // @ts-ignore
-    return window.fileOpen.openMarkdownFile()
+    return window.fileOpen.openMarkdownDirectories()
+  }
+
+  const readMediaFile = (filePath) => {
+    // @ts-ignore
+    return window.fileOpen.readMediaFile(filePath)
   }
 
   useEffect(() => {
@@ -257,7 +250,9 @@ function MainApp({
         saveCidAsFile={async (cid: string, name: string) => {
           ipc.send?.('save-file', {cid, name})
         }}
-        openMarkdownFile={openMarkdownFile}
+        // openMarkdownFile={openMarkdownFile}
+        openMarkdownDirectories={openMarkdownDirectories}
+        readMediaFile={readMediaFile}
         windowUtils={windowUtils}
         darkMode={darkMode}
       >

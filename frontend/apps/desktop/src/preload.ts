@@ -61,16 +61,32 @@ const routeHandlers = new Set<(route: any) => void>()
 contextBridge.exposeInMainWorld('routeHandlers', routeHandlers)
 
 contextBridge.exposeInMainWorld('fileOpen', {
-  openMarkdownFile: () => {
+  openMarkdownDirectories: () => {
     return new Promise((resolve, reject) => {
-      ipcRenderer.once('file-content-response', (event, response) => {
+      ipcRenderer.once('directories-content-response', (event, response) => {
         if (response.success) {
-          resolve(response.data)
+          resolve(response.documents)
         } else {
           reject(response.error)
         }
       })
-      ipcRenderer.send('open-markdown-file-dialog')
+      ipcRenderer.on('directory-error', (event, error) => {
+        console.error(error)
+        // toast.error('Invalid directory')
+      })
+      ipcRenderer.send('open-markdown-directories-dialog')
+    })
+  },
+  readMediaFile: (filePath) => {
+    return new Promise((resolve, reject) => {
+      ipcRenderer.once('media-file-content', (event, response) => {
+        if (response.success) {
+          resolve(response)
+        } else {
+          reject(response.error)
+        }
+      })
+      ipcRenderer.send('read-media-file', filePath)
     })
   },
 })

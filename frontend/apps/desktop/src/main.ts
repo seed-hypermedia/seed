@@ -27,6 +27,7 @@ import {startMetricsServer} from './app-metrics'
 import {initPaths} from './app-paths'
 
 import fs from 'fs'
+import mime from 'mime'
 import {APP_AUTO_UPDATE_PREFERENCE} from './app-settings'
 import {appStore} from './app-store'
 import autoUpdate from './auto-update'
@@ -88,7 +89,66 @@ if (IS_PROD_DESKTOP) {
   })
 }
 
-ipcMain.on('open-markdown-file-dialog', (event) => {
+// ipcMain.on('open-markdown-file-dialog', async (event) => {
+//   const focusedWindow = BrowserWindow.getFocusedWindow()
+//   if (!focusedWindow) {
+//     console.error('No focused window found.')
+//     return
+//   }
+
+//   const options = {
+//     title: 'Select a directory containing the Markdown file and media',
+//     properties: ['openDirectory'],
+//   }
+
+//   try {
+//     const result = await dialog.showOpenDialog(focusedWindow, options)
+//     if (!result.canceled && result.filePaths.length > 0) {
+//       const dirPath = result.filePaths[0]
+
+//       // Find the markdown file in the selected directory
+//       const files = fs.readdirSync(dirPath)
+//       const markdownFile = files.find((file) => file.endsWith('.md'))
+//       if (!markdownFile) {
+//         throw new Error('No Markdown file found in the selected directory')
+//       }
+
+//       const markdownFilePath = path.join(dirPath, markdownFile)
+//       const mediaDir = path.join(dirPath, 'media') // Assume media files are in a folder named 'media'
+
+//       fs.readFile(markdownFilePath, 'utf-8', (err, data) => {
+//         if (err) {
+//           console.error('Error reading file:', err)
+//           event.sender.send('file-content-response', {
+//             success: false,
+//             error: err.message,
+//           })
+//           return
+//         }
+
+//         // Send the markdown content along with the media directory path
+//         event.sender.send('file-content-response', {
+//           success: true,
+//           data,
+//           mediaDir,
+//         })
+//       })
+//     } else {
+//       event.sender.send('file-content-response', {
+//         success: false,
+//         error: 'Directory selection was canceled',
+//       })
+//     }
+//   } catch (err) {
+//     console.error('Error selecting directory:', err)
+//     event.sender.send('file-content-response', {
+//       success: false,
+//       error: err.message,
+//     })
+//   }
+// })
+
+ipcMain.on('open-markdown-directories-dialog', async (event) => {
   const focusedWindow = BrowserWindow.getFocusedWindow()
   if (!focusedWindow) {
     console.error('No focused window found.')
@@ -96,41 +156,80 @@ ipcMain.on('open-markdown-file-dialog', (event) => {
   }
 
   const options = {
-    title: 'Select a Markdown file',
-    filters: [{name: 'Markdown Files', extensions: ['md']}],
-    properties: ['openFile'],
+    title: 'Select directories containing Markdown files and media',
+    properties: ['openDirectory', 'multiSelections'],
   }
 
-  dialog
-    .showOpenDialog(focusedWindow, options)
-    .then((result) => {
-      if (!result.canceled) {
-        const filePath = result.filePaths[0]
-        fs.readFile(filePath, 'utf-8', (err, data) => {
-          if (err) {
-            console.error('Error reading file:', err)
-            event.sender.send('file-content-response', {
-              success: false,
-              error: err.message,
-            })
-            return
-          }
-          event.sender.send('file-content-response', {success: true, data})
-        })
-      } else {
-        event.sender.send('file-content-response', {
-          success: false,
-          error: 'File selection was canceled',
-        })
+  try {
+    const result = await dialog.showOpenDialog(focusedWindow, options)
+    if (!result.canceled && result.filePaths.length > 0) {
+      const directories = result.filePaths
+      const validDocuments = []
+
+      for (const dirPath of directories) {
+        const files = fs.readdirSync(dirPath)
+        const markdownFile = files.find((file) => file.endsWith('.md'))
+        const mediaDir = path.join(dirPath, 'media')
+
+        if (
+          markdownFile &&
+          fs.existsSync(mediaDir) &&
+          fs.lstatSync(mediaDir).isDirectory()
+        ) {
+          const markdownFilePath = path.join(dirPath, markdownFile)
+          const markdownContent = fs.readFileSync(markdownFilePath, 'utf-8')
+          const mediaFiles = fs.readdirSync(mediaDir).map((file) => {
+            const filePath = path.join(mediaDir, file)
+            const content = fs.readFileSync(filePath)
+            const mimeType = mime.lookup(filePath) || 'application/octet-stream'
+            const extension = mime.extension(mimeType)
+            return {
+              name: file.split('.').length > 1 ? file : `${file}/${extension}`, // Add the extension to the file name if it doesn't have it already
+              // name: file,
+              content: Buffer.from(content).toString('base64'), // Convert to base64 string
+              type: mimeType, // Use the determined MIME type
+            }
+          })
+          validDocuments.push({markdownContent, mediaFiles})
+        } else {
+          event.sender.send('directory-error', `Invalid directory: ${dirPath}`)
+        }
       }
-    })
-    .catch((err) => {
-      console.error('Error selecting file:', err)
-      event.sender.send('file-content-response', {
-        success: false,
-        error: err.message,
+
+      event.sender.send('directories-content-response', {
+        success: true,
+        documents: validDocuments,
       })
+    } else {
+      event.sender.send('directories-content-response', {
+        success: false,
+        error: 'Directory selection was canceled',
+      })
+    }
+  } catch (err) {
+    console.error('Error selecting directories:', err)
+    event.sender.send('directories-content-response', {
+      success: false,
+      error: err.message,
     })
+  }
+})
+
+ipcMain.on('read-media-file', async (event, filePath) => {
+  try {
+    const fileContent = fs.readFileSync(filePath)
+    event.sender.send('media-file-content', {
+      success: true,
+      filePath,
+      fileContent,
+    })
+  } catch (error) {
+    console.error('Error reading media file:', error)
+    event.sender.send('media-file-content', {
+      success: false,
+      error: error.message,
+    })
+  }
 })
 
 // function handleOpenMarkdown(event: any) {
