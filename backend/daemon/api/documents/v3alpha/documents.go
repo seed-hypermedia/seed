@@ -26,14 +26,14 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-// Server implements Documents API v2.
+// Server implements Documents API v3.
 type Server struct {
 	keys core.KeyStore
 	idx  *index.Index
 	db   *sqlitex.Pool
 }
 
-// NewServer creates a new Documents API v2 server.
+// NewServer creates a new Documents API v3 server.
 func NewServer(keys core.KeyStore, idx *index.Index, db *sqlitex.Pool) *Server {
 	return &Server{
 		keys: keys,
