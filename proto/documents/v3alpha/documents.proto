@@ -113,8 +113,8 @@ message DocumentListItem {
   // Empty string means root document.
   string path = 2;
 
-  // Title of the document.
-  string title = 3;
+  // User-defined metadata attributes of the document.
+  map<string, string> metadata = 3;
 
   // Every author ID who has modified this document's version.
   repeated string authors = 4;

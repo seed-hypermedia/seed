@@ -436,7 +436,7 @@ func docToListItem(doc *documents.Document) *documents.DocumentListItem {
 	return &documents.DocumentListItem{
 		Namespace:  doc.Namespace,
 		Path:       doc.Path,
-		Title:      doc.Metadata["name"],
+		Metadata:   doc.Metadata,
 		Authors:    doc.Authors,
 		CreateTime: doc.CreateTime,
 		UpdateTime: doc.UpdateTime,

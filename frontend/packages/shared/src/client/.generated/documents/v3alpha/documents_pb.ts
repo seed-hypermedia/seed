@@ -21,7 +21,7 @@ export class GetDocumentRequest extends Message<GetDocumentRequest> {
 
   /**
    * Required. Path of the document.
-   * Empty string is used for root documents.
+   * Empty string means root document.
    *
    * @generated from field: string path = 2;
    */
@@ -80,6 +80,7 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
   /**
    * Required. Path of the document to create change for.
    * If document doesn't exist it will be created.
+   * Empty string means root document.
    *
    * @generated from field: string path = 2;
    */
@@ -398,17 +399,18 @@ export class DocumentListItem extends Message<DocumentListItem> {
 
   /**
    * Path of the document within the namespace.
+   * Empty string means root document.
    *
    * @generated from field: string path = 2;
    */
   path = "";
 
   /**
-   * Title of the document.
+   * User-defined metadata attributes of the document.
    *
-   * @generated from field: string title = 3;
+   * @generated from field: map<string, string> metadata = 3;
    */
-  title = "";
+  metadata: { [key: string]: string } = {};
 
   /**
    * Every author ID who has modified this document's version.
@@ -448,7 +450,7 @@ export class DocumentListItem extends Message<DocumentListItem> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "namespace", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "title", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "metadata", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "scalar", T: 9 /* ScalarType.STRING */} },
     { no: 4, name: "authors", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 5, name: "create_time", kind: "message", T: Timestamp },
     { no: 6, name: "update_time", kind: "message", T: Timestamp },
@@ -487,6 +489,7 @@ export class Document extends Message<Document> {
 
   /**
    * Path of the document within the namespace.
+   * Empty string means root document.
    *
    * @generated from field: string path = 2;
    */
