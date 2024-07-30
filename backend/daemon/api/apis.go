@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"seed/backend/core"
-	accounts "seed/backend/daemon/api/accounts/v1alpha"
 	activity "seed/backend/daemon/api/activity/v1alpha"
 	daemon "seed/backend/daemon/api/daemon/v1alpha"
 	documentsv3 "seed/backend/daemon/api/documents/v3alpha"
@@ -25,7 +24,6 @@ import (
 
 // Server combines all the daemon API services into one thing.
 type Server struct {
-	Accounts    *accounts.Server
 	Daemon      *daemon.Server
 	Networking  *networking.Server
 	Entities    *entities.Server
@@ -66,7 +64,6 @@ func New(
 	idx := index.NewIndex(db, logging.New("seed/index", LogLevel))
 
 	return Server{
-		Accounts:    accounts.NewServer(repo.KeyStore(), blobs),
 		Activity:    activity.NewServer(db),
 		Daemon:      daemon.NewServer(repo, blobs, wallet, doSync),
 		Networking:  networking.NewServer(blobs, node, db),
@@ -78,7 +75,6 @@ func New(
 
 // Register API services on the given gRPC server.
 func (s Server) Register(srv *grpc.Server) {
-	s.Accounts.RegisterServer(srv)
 	s.Daemon.RegisterServer(srv)
 	s.Activity.RegisterServer(srv)
 	s.Networking.RegisterServer(srv)
