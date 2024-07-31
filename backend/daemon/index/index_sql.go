@@ -435,3 +435,52 @@ var qBlobsGet = dqb.Str(`
 	FROM blobs
 	WHERE blobs.multihash = :blobsMultihash AND blobs.size >= 0
 `)
+
+func dbSetReindexTime(conn *sqlite.Conn, kvValue string) error {
+	const query = `INSERT OR REPLACE INTO kv (key, value)
+VALUES ('last_reindex_time', :kvValue)
+`
+
+	before := func(stmt *sqlite.Stmt) {
+		stmt.SetText(":kvValue", kvValue)
+	}
+
+	onStep := func(i int, stmt *sqlite.Stmt) error {
+		return nil
+	}
+
+	err := sqlitegen.ExecStmt(conn, query, before, onStep)
+	if err != nil {
+		err = fmt.Errorf("failed query: SetReindexTime: %w", err)
+	}
+
+	return err
+}
+
+func dbGetReindexTime(conn *sqlite.Conn) (string, error) {
+	const query = `SELECT kv.value
+FROM kv
+WHERE kv.key = 'last_reindex_time'
+LIMIT 1`
+
+	var out string
+
+	before := func(stmt *sqlite.Stmt) {
+	}
+
+	onStep := func(i int, stmt *sqlite.Stmt) error {
+		if i > 1 {
+			return errors.New("GetReindexTime: more than one result return for a single-kind query")
+		}
+
+		out = stmt.ColumnText(0)
+		return nil
+	}
+
+	err := sqlitegen.ExecStmt(conn, query, before, onStep)
+	if err != nil {
+		err = fmt.Errorf("failed query: GetReindexTime: %w", err)
+	}
+
+	return out, err
+}
