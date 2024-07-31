@@ -3,8 +3,8 @@ package relay
 import (
 	"encoding/hex"
 	"fmt"
-	"seed/backend/pkg/libp2px"
-	"seed/backend/pkg/must"
+	"seed/backend/util/libp2px"
+	"seed/backend/util/must"
 	"strconv"
 
 	"github.com/libp2p/go-libp2p"

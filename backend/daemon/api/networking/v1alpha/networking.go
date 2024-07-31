@@ -9,7 +9,7 @@ import (
 	networking "seed/backend/genproto/networking/v1alpha"
 	"seed/backend/ipfs"
 	"seed/backend/mttnet"
-	"seed/backend/pkg/dqb"
+	"seed/backend/util/dqb"
 	"strings"
 
 	"crawshaw.io/sqlite"

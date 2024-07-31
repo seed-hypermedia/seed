@@ -11,7 +11,7 @@ import (
 	"seed/backend/lndhub/lndhubsql"
 	"seed/backend/logging"
 	"seed/backend/mttnet"
-	"seed/backend/pkg/future"
+	"seed/backend/util/future"
 	"seed/backend/wallet/walletsql"
 	"testing"
 	"time"

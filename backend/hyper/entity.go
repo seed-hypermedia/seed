@@ -12,8 +12,8 @@ import (
 	"seed/backend/hlc"
 	"seed/backend/hyper/hypersql"
 	"seed/backend/ipfs"
-	"seed/backend/pkg/dqb"
-	"seed/backend/pkg/strbytes"
+	"seed/backend/util/dqb"
+	"seed/backend/util/strbytes"
 	"sort"
 	"strings"
 

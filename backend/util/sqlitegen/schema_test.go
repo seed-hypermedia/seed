@@ -85,7 +85,7 @@ func TestCodegenSchema(t *testing.T) {
 package testschema
 
 import (
-	"seed/backend/pkg/sqlitegen"
+	"seed/backend/util/sqlitegen"
 )
 
 // Table users.

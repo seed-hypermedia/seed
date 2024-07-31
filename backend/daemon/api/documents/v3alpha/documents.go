@@ -12,8 +12,8 @@ import (
 	"seed/backend/daemon/index"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/hlc"
-	"seed/backend/pkg/dqb"
-	"seed/backend/pkg/errutil"
+	"seed/backend/util/dqb"
+	"seed/backend/util/errutil"
 
 	"crawshaw.io/sqlite"
 	"crawshaw.io/sqlite/sqlitex"

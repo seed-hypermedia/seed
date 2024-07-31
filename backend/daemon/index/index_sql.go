@@ -3,9 +3,9 @@ package index
 import (
 	"errors"
 	"fmt"
-	"seed/backend/pkg/dqb"
-	"seed/backend/pkg/maybe"
-	"seed/backend/pkg/sqlitegen"
+	"seed/backend/util/dqb"
+	"seed/backend/util/maybe"
+	"seed/backend/util/sqlitegen"
 
 	"crawshaw.io/sqlite"
 	"crawshaw.io/sqlite/sqlitex"

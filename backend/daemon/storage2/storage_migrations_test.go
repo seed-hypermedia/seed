@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
-	"seed/backend/pkg/must"
-	"seed/backend/pkg/sqlitedbg"
-	"seed/backend/pkg/sqlitegen"
+	"seed/backend/util/must"
+	"seed/backend/util/sqlitedbg"
+	"seed/backend/util/sqlitegen"
 	"strings"
 	"testing"
 

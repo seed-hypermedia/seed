@@ -6,7 +6,7 @@ import (
 	"seed/backend/core"
 	"seed/backend/hyper/hypersql"
 	"seed/backend/ipfs"
-	"seed/backend/pkg/maybe"
+	"seed/backend/util/maybe"
 	"time"
 
 	"crawshaw.io/sqlite"

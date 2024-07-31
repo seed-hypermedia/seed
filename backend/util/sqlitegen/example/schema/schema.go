@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"seed/backend/pkg/sqlitegen"
+	"seed/backend/util/sqlitegen"
 
 	"crawshaw.io/sqlite"
 	"crawshaw.io/sqlite/sqlitex"

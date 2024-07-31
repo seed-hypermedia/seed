@@ -7,8 +7,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"seed/backend/pkg/cleanup"
-	"seed/backend/pkg/must"
+	"seed/backend/util/cleanup"
+	"seed/backend/util/must"
 
 	"github.com/ipfs/boxo/ipns"
 	"github.com/ipfs/go-datastore"

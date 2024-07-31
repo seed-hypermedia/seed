@@ -16,9 +16,9 @@ import (
 	"seed/backend/daemon/index"
 	"seed/backend/logging"
 	"seed/backend/mttnet"
-	"seed/backend/pkg/cleanup"
-	"seed/backend/pkg/future"
 	"seed/backend/syncing"
+	"seed/backend/util/cleanup"
+	"seed/backend/util/future"
 	"seed/backend/wallet"
 
 	"crawshaw.io/sqlite/sqlitex"

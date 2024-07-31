@@ -4,8 +4,8 @@ import (
 	"context"
 	"net"
 	"seed/backend/core/coretest"
-	"seed/backend/pkg/libp2px"
-	"seed/backend/pkg/must"
+	"seed/backend/util/libp2px"
+	"seed/backend/util/must"
 	"testing"
 	"time"
 

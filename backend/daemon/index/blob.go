@@ -2,7 +2,7 @@ package index
 
 import (
 	"fmt"
-	"seed/backend/pkg/must"
+	"seed/backend/util/must"
 	"time"
 
 	"github.com/fxamacker/cbor/v2"

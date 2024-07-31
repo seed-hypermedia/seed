@@ -3,8 +3,8 @@ package walletsql
 import (
 	"io/ioutil"
 	"seed/backend/daemon/storage"
-	"seed/backend/pkg/sqlitegen"
-	"seed/backend/pkg/sqlitegen/qb"
+	"seed/backend/util/sqlitegen"
+	"seed/backend/util/sqlitegen/qb"
 )
 
 var _ = generateQueries

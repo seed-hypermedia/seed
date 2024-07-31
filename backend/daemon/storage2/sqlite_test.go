@@ -2,7 +2,7 @@ package storage
 
 import (
 	"os"
-	"seed/backend/pkg/sqlitedbg"
+	"seed/backend/util/sqlitedbg"
 	"testing"
 
 	"github.com/stretchr/testify/require"

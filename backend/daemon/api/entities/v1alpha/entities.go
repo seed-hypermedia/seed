@@ -9,7 +9,7 @@ import (
 	"seed/backend/core"
 	"seed/backend/daemon/index"
 	entities "seed/backend/genproto/entities/v1alpha"
-	"seed/backend/pkg/dqb"
+	"seed/backend/util/dqb"
 	"sort"
 	"strings"
 

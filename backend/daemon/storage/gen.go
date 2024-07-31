@@ -6,7 +6,7 @@ package storage
 import (
 	"context"
 	"io/ioutil"
-	"seed/backend/pkg/sqlitegen"
+	"seed/backend/util/sqlitegen"
 )
 
 func init() {

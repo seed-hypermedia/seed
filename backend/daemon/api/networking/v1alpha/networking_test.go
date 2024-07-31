@@ -10,7 +10,7 @@ import (
 	"seed/backend/hyper"
 	"seed/backend/logging"
 	"seed/backend/mttnet"
-	"seed/backend/pkg/must"
+	"seed/backend/util/must"
 	"testing"
 
 	"github.com/stretchr/testify/require"

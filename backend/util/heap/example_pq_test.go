@@ -3,7 +3,7 @@ package heap_test
 
 import (
 	"fmt"
-	"seed/backend/pkg/heap"
+	"seed/backend/util/heap"
 )
 
 // An Item is something we manage in a priority queue.

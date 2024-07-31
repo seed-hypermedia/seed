@@ -2,7 +2,7 @@ package sqlitedbg_test
 
 import (
 	"os"
-	"seed/backend/pkg/sqlitedbg"
+	"seed/backend/util/sqlitedbg"
 
 	"crawshaw.io/sqlite"
 )

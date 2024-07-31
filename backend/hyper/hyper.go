@@ -8,8 +8,8 @@ import (
 	"seed/backend/core"
 	"seed/backend/hyper/hypersql"
 	"seed/backend/ipfs"
-	"seed/backend/pkg/dqb"
-	"seed/backend/pkg/must"
+	"seed/backend/util/dqb"
+	"seed/backend/util/must"
 
 	"crawshaw.io/sqlite"
 	"crawshaw.io/sqlite/sqlitex"

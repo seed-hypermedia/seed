@@ -2,7 +2,7 @@ package qb
 
 import (
 	"fmt"
-	"seed/backend/pkg/sqlitegen"
+	"seed/backend/util/sqlitegen"
 	"testing"
 )
 

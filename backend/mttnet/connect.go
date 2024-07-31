@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math"
 	p2p "seed/backend/genproto/p2p/v1alpha"
-	"seed/backend/pkg/dqb"
+	"seed/backend/util/dqb"
 	"strings"
 
 	"time"

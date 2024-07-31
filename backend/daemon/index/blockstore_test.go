@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"seed/backend/daemon/storage"
 	"seed/backend/ipfs"
-	"seed/backend/pkg/must"
+	"seed/backend/util/must"
 	"testing"
 
 	"crawshaw.io/sqlite/sqlitex"

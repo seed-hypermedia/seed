@@ -27,7 +27,7 @@ import (
 	"errors"
 
 	"crawshaw.io/sqlite"
-	"seed/backend/pkg/sqlitegen"
+	"seed/backend/util/sqlitegen"
 )
 
 var _ = errors.New

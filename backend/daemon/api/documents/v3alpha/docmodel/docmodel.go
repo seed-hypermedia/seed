@@ -10,7 +10,7 @@ import (
 	"seed/backend/daemon/index"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/hlc"
-	"seed/backend/pkg/colx"
+	"seed/backend/util/colx"
 	"sort"
 	"strings"
 

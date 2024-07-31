@@ -204,7 +204,7 @@ func CodegenSchema(pkgName string, s Schema) ([]byte, error) {
 package {{.PkgName}}
 
 import (
-	"seed/backend/pkg/sqlitegen"
+	"seed/backend/util/sqlitegen"
 )
 
 {{range $table, $cols := .Schema -}}

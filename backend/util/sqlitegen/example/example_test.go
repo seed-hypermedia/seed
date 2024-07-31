@@ -1,7 +1,7 @@
 package example
 
 import (
-	"seed/backend/pkg/sqlitegen/example/schema"
+	"seed/backend/util/sqlitegen/example/schema"
 	"testing"
 
 	"github.com/stretchr/testify/require"

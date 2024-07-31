@@ -3,7 +3,7 @@ package heap_test
 
 import (
 	"fmt"
-	"seed/backend/pkg/heap"
+	"seed/backend/util/heap"
 )
 
 // An IntHeap is a min-heap of ints.

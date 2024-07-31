@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"seed/backend/ipfs"
-	"seed/backend/pkg/dqb"
+	"seed/backend/util/dqb"
 
 	"crawshaw.io/sqlite"
 	"crawshaw.io/sqlite/sqlitex"

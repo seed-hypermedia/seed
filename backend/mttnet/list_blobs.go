@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	p2p "seed/backend/genproto/p2p/v1alpha"
-	"seed/backend/pkg/dqb"
+	"seed/backend/util/dqb"
 
 	"crawshaw.io/sqlite"
 	"crawshaw.io/sqlite/sqlitex"

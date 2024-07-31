@@ -3,7 +3,7 @@
 package storage
 
 import (
-	"seed/backend/pkg/sqlitegen"
+	"seed/backend/util/sqlitegen"
 )
 
 // Table blob_links.

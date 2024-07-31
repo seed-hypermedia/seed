@@ -3,7 +3,7 @@ package core
 import (
 	"bytes"
 	"fmt"
-	"seed/backend/pkg/slip10"
+	"seed/backend/util/slip10"
 	"strings"
 
 	"github.com/libp2p/go-libp2p/core/crypto"

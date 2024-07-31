@@ -2,7 +2,7 @@ package index
 
 import (
 	storage "seed/backend/daemon/storage2"
-	"seed/backend/pkg/dqb"
+	"seed/backend/util/dqb"
 	"testing"
 
 	"github.com/stretchr/testify/require"

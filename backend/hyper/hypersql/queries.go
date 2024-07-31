@@ -5,8 +5,8 @@ import (
 	"io/ioutil"
 	"seed/backend/daemon/storage"
 	s "seed/backend/daemon/storage"
-	sgen "seed/backend/pkg/sqlitegen"
-	"seed/backend/pkg/sqlitegen/qb"
+	sgen "seed/backend/util/sqlitegen"
+	"seed/backend/util/sqlitegen/qb"
 )
 
 //go:generate gorun generateQueries

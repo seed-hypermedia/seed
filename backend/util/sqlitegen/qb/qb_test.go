@@ -1,8 +1,8 @@
 package qb_test
 
 import (
-	"seed/backend/pkg/sqlitegen"
-	. "seed/backend/pkg/sqlitegen/qb"
+	"seed/backend/util/sqlitegen"
+	. "seed/backend/util/sqlitegen/qb"
 	"testing"
 
 	"github.com/stretchr/testify/require"

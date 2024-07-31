@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"seed/backend/hyper/hypersql"
 	"seed/backend/ipfs"
-	"seed/backend/pkg/dqb"
+	"seed/backend/util/dqb"
 
 	"crawshaw.io/sqlite"
 	"crawshaw.io/sqlite/sqlitex"

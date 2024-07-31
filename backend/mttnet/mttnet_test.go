@@ -9,8 +9,8 @@ import (
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hyper"
 	"seed/backend/logging"
-	"seed/backend/pkg/future"
-	"seed/backend/pkg/must"
+	"seed/backend/util/future"
+	"seed/backend/util/must"
 	"testing"
 
 	"github.com/stretchr/testify/require"

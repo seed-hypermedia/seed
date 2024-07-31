@@ -2,7 +2,7 @@ package qb
 
 import (
 	"html/template"
-	"seed/backend/pkg/sqlitegen"
+	"seed/backend/util/sqlitegen"
 	"strings"
 	"sync"
 )

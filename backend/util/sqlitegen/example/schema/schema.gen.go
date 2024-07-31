@@ -3,7 +3,7 @@
 package schema
 
 import (
-	"seed/backend/pkg/sqlitegen"
+	"seed/backend/util/sqlitegen"
 )
 
 // Table users.

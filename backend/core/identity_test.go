@@ -2,7 +2,7 @@ package core
 
 import (
 	"encoding/hex"
-	"seed/backend/pkg/slip10"
+	"seed/backend/util/slip10"
 	"testing"
 
 	"github.com/stretchr/testify/require"

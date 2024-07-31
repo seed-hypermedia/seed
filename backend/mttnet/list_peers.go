@@ -5,7 +5,7 @@ import (
 	"math"
 	"seed/backend/daemon/apiutil"
 	p2p "seed/backend/genproto/p2p/v1alpha"
-	"seed/backend/pkg/dqb"
+	"seed/backend/util/dqb"
 	"strings"
 
 	"crawshaw.io/sqlite"

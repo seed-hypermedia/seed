@@ -9,8 +9,8 @@ import (
 	documents "seed/backend/genproto/documents/v3alpha"
 	networking "seed/backend/genproto/networking/v1alpha"
 	"seed/backend/mttnet"
-	"seed/backend/pkg/must"
 	"seed/backend/testutil"
+	"seed/backend/util/must"
 	"testing"
 	"time"
 

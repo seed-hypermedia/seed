@@ -9,9 +9,9 @@ import (
 	"seed/backend/core"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/ipfs"
-	"seed/backend/pkg/cleanup"
-	"seed/backend/pkg/libp2px"
-	"seed/backend/pkg/must"
+	"seed/backend/util/cleanup"
+	"seed/backend/util/libp2px"
+	"seed/backend/util/must"
 	"time"
 
 	"crawshaw.io/sqlite/sqlitex"

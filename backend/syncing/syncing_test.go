@@ -11,8 +11,8 @@ import (
 	"seed/backend/hyper/hypersql"
 	"seed/backend/logging"
 	"seed/backend/mttnet"
-	"seed/backend/pkg/future"
-	"seed/backend/pkg/must"
+	"seed/backend/util/future"
+	"seed/backend/util/must"
 	"testing"
 
 	"crawshaw.io/sqlite"

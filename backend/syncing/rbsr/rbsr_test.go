@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	p2p "seed/backend/genproto/p2p/v1alpha"
-	"seed/backend/pkg/must"
+	"seed/backend/util/must"
 	"strconv"
 	"testing"
 
