@@ -1,7 +1,7 @@
 package daemon
 
 import (
-	storage "seed/backend/daemon/storage2"
+	storage "seed/backend/storage2"
 	"seed/backend/util/dqb"
 	"testing"
 

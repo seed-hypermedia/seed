@@ -7,7 +7,7 @@ import (
 	"math/rand"
 	"net/http"
 	"seed/backend/core"
-	"seed/backend/daemon/storage"
+	"seed/backend/storage"
 	"seed/backend/wallet/walletsql"
 	"strings"
 	"testing"

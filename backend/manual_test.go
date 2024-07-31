@@ -3,8 +3,8 @@ package backend
 import (
 	"context"
 	"seed/backend/core"
-	"seed/backend/daemon/index"
-	storage "seed/backend/daemon/storage2"
+	"seed/backend/index"
+	storage "seed/backend/storage2"
 	"seed/backend/testutil"
 	"seed/backend/util/must"
 	"testing"

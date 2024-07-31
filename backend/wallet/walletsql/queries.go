@@ -2,7 +2,7 @@ package walletsql
 
 import (
 	"io/ioutil"
-	"seed/backend/daemon/storage"
+	"seed/backend/storage"
 	"seed/backend/util/sqlitegen"
 	"seed/backend/util/sqlitegen/qb"
 )

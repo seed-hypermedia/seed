@@ -2,9 +2,9 @@ package daemon
 
 import (
 	"context"
+	documentsimpl "seed/backend/api/documents/v3alpha"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
-	documentsimpl "seed/backend/daemon/api/documents/v3alpha"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	documents "seed/backend/genproto/documents/v3alpha"
 	networking "seed/backend/genproto/networking/v1alpha"

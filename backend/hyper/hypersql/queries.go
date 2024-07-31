@@ -3,8 +3,8 @@ package hypersql
 
 import (
 	"io/ioutil"
-	"seed/backend/daemon/storage"
-	s "seed/backend/daemon/storage"
+	"seed/backend/storage"
+	s "seed/backend/storage"
 	sgen "seed/backend/util/sqlitegen"
 	"seed/backend/util/sqlitegen/qb"
 )

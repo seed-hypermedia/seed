@@ -5,7 +5,7 @@ import (
 	"seed/backend/config"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
-	storage "seed/backend/daemon/storage2"
+	storage "seed/backend/storage2"
 	"seed/backend/testutil"
 	"testing"
 

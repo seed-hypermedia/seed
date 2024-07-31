@@ -17,7 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"seed/backend/daemon/index"
+	"seed/backend/index"
 
 	"container/list"
 

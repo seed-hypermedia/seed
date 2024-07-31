@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"seed/backend/daemon/index"
+	"seed/backend/index"
 
 	"crawshaw.io/sqlite/sqlitex"
 	"github.com/libp2p/go-libp2p/core/host"

@@ -2,7 +2,7 @@ package walletsql
 
 import (
 	"context"
-	"seed/backend/daemon/storage"
+	storage "seed/backend/storage2"
 	"strings"
 	"testing"
 

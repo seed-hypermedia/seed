@@ -5,12 +5,13 @@ import (
 	"encoding/hex"
 	"seed/backend/config"
 	"seed/backend/core/coretest"
-	"seed/backend/daemon/storage"
 	"seed/backend/hyper"
 	"seed/backend/lndhub"
 	"seed/backend/lndhub/lndhubsql"
 	"seed/backend/logging"
 	"seed/backend/mttnet"
+	"seed/backend/storage"
+	"seed/backend/testutil"
 	"seed/backend/util/future"
 	"seed/backend/wallet/walletsql"
 	"testing"
@@ -21,7 +22,7 @@ import (
 )
 
 func TestModifyWallets(t *testing.T) {
-	//t.Skip("Uncomment skip to run integration tests with BlueWallet")
+	testutil.Manual(t)
 
 	alice := makeTestService(t, "alice")
 
@@ -55,7 +56,8 @@ func TestModifyWallets(t *testing.T) {
 }
 
 func TestRequestLndHubInvoice(t *testing.T) {
-	//t.Skip("Uncomment skip to run integration tests with BlueWallet")
+	testutil.Manual(t)
+
 	var err error
 	alice := makeTestService(t, "alice")
 	bob := makeTestService(t, "bob")
@@ -101,7 +103,7 @@ func TestRequestLndHubInvoice(t *testing.T) {
 }
 
 func TestRequestP2PInvoice(t *testing.T) {
-	t.Skip("Uncomment skip to run integration tests")
+	testutil.Manual(t)
 
 	alice := makeTestService(t, "alice")
 	bob := makeTestService(t, "bob")

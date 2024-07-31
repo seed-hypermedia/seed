@@ -1,5 +1,7 @@
-// Package daemon assembles everything to boot the seed-daemon program. It's like main, but made a separate package
-// to be importable and testable by other packages, because package main can't be imported.
+// Package daemon provides the entrypoint initialization code to boot the seed-daemon program.
+// It's like package main, but made as separate package
+// to be importable and testable by other packages.
+// That's because package main is not importable.
 package daemon
 
 import (
@@ -9,11 +11,11 @@ import (
 	"strconv"
 	"time"
 
+	"seed/backend/api"
+	daemon "seed/backend/api/daemon/v1alpha"
 	"seed/backend/config"
 	"seed/backend/core"
-	"seed/backend/daemon/api"
-	daemon "seed/backend/daemon/api/daemon/v1alpha"
-	"seed/backend/daemon/index"
+	"seed/backend/index"
 	"seed/backend/logging"
 	"seed/backend/mttnet"
 	"seed/backend/syncing"
