@@ -18,8 +18,7 @@ import {
 } from '@shm/ui'
 import {useMutation} from '@tanstack/react-query'
 import {useEffect, useMemo, useRef, useState} from 'react'
-import {useQueryInvalidator} from './app-context'
-import {grpcClient} from './app-grpc'
+import {useGRPCClient, useQueryInvalidator} from './app-context'
 import {useMnemonics, useMyAccountIds, useRegisterKey} from './models/daemon'
 import {trpc} from './trpc'
 import {useOpenDraft} from './utils/open-draft'
@@ -49,6 +48,7 @@ export function AccountWizardDialog() {
   const inputWords = useRef<HTMLTextAreaElement | null>(null)
 
   const saveWords = trpc.secureStorage.write.useMutation()
+  const grpcClient = useGRPCClient()
 
   const {data: genWords, refetch: refetchWords} = useMnemonics()
 
