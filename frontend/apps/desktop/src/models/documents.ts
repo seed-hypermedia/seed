@@ -18,7 +18,6 @@ import {
   HMDraft,
   UnpackedHypermediaId,
   fromHMBlock,
-  getParentIds,
   hmDocument,
   toHMBlock,
   unpackHmId,
@@ -68,7 +67,7 @@ export function useDraftList() {
 }
 
 export function useDeleteDraft(
-  opts: UseMutationOptions<void, unknown, string>,
+  opts?: UseMutationOptions<void, unknown, string>,
 ) {
   const invalidate = useQueryInvalidator()
   const deleteDraft = trpc.drafts.delete.useMutation({
@@ -76,7 +75,7 @@ export function useDeleteDraft(
     onSuccess: (data, input, ctx) => {
       invalidate(['trpc.drafts.get', input])
       invalidate(['trpc.drafts.list'])
-      opts.onSuccess?.(data, input, ctx)
+      opts?.onSuccess?.(data, input, ctx)
     },
   })
   return deleteDraft
@@ -109,7 +108,6 @@ function extractRefs(
     }
   }
   children.forEach(extractRefsFromBlock)
-  // console.log('extractRefs', children, refs)
   return refs
 }
 
@@ -159,7 +157,7 @@ export function getDefaultShortname(
   docId: string,
 ) {
   const unpackedId = unpackHmId(docId)
-  const idShortname = unpackedId ? unpackedId.eid.slice(0, 5).toLowerCase() : ''
+  const idShortname = unpackedId ? unpackedId.uid.slice(0, 5).toLowerCase() : ''
   const kebabName = docTitle ? pathNameify(docTitle) : idShortname
   const shortName =
     kebabName.length > 40 ? kebabName.substring(0, 40) : kebabName
@@ -244,8 +242,8 @@ export function usePublishDraft(
             )
           const publishedDoc = await grpcClient.documents.createDocumentChange({
             signingKeyName,
-            namespace: id.eid,
-            path: id.path?.length ? `${id.path.join('/')}` : '',
+            namespace: id.uid,
+            path: id.path?.length ? `/${id.path.join('/')}` : '',
             changes: allChanges,
           })
 
@@ -259,13 +257,11 @@ export function usePublishDraft(
       }
     },
     onSuccess: (result, variables, context) => {
-      const documentId = variables.id?.qid
+      const documentId = variables.id?.id
       opts?.onSuccess?.(result, variables, context)
       if (documentId) {
         invalidate([queryKeys.ENTITY, documentId])
-        getParentIds(documentId).forEach((id) => {
-          invalidate([queryKeys.ENTITY, id])
-        })
+        invalidate([queryKeys.DOC_LIST_DIRECTORY, variables.id?.uid])
       }
     },
   })
@@ -507,12 +503,17 @@ export function useDraftEditor({id}: {id: string | undefined}) {
           event: {output: OutputFrom<typeof createOrUpdateDraft>}
         }) => {
           if (event.output.id) {
-            replaceRoute({...route, id: event.output.id})
+            const id = unpackHmId(event.output.id)
+            if (!id) throw new Error('Draft save resulted in invalid hm ID')
+            if (route.key !== 'draft')
+              throw new Error('Invalid route, draft expected.')
+            replaceRoute({...route, id})
           }
         },
         onSaveSuccess: function () {
           invalidate([queryKeys.DRAFT, id])
           invalidate(['trpc.drafts.get'])
+          invalidate(['trpc.drafts.list'])
           invalidate([queryKeys.ENTITY, id])
         },
       },
@@ -707,12 +708,17 @@ export function usePushPublication() {
 export function useListDirectory(id: UnpackedHypermediaId) {
   const grpcClient = useGRPCClient()
   return useQuery({
-    queryKey: [queryKeys.DOC_LIST_DIRECTORY, id.eid],
+    queryKey: [queryKeys.DOC_LIST_DIRECTORY, id.uid],
     queryFn: async () => {
       const res = await grpcClient.documents.listDocuments({
-        namespace: id.eid,
+        namespace: id.uid,
       })
-      const docs = res.documents.map(toPlainMessage)
+      const docs = res.documents
+        .map(toPlainMessage)
+        .filter((doc) => doc.path !== '')
+        .map((doc) => {
+          return {...doc, path: doc.path.slice(1).split('/')}
+        })
       return docs
     },
   })
@@ -1012,13 +1018,13 @@ function observeBlocks(
 export function useAccountDocuments(id?: UnpackedHypermediaId) {
   const grpcClient = useGRPCClient()
   return useQuery({
-    queryKey: [queryKeys.ACCOUNT_DOCUMENTS, id?.eid],
-    enabled: !!id?.eid,
+    queryKey: [queryKeys.ACCOUNT_DOCUMENTS, id?.uid],
+    enabled: !!id?.uid,
     queryFn: async () => {
-      const namespace = id?.eid
+      const namespace = id?.uid
       if (!namespace) return {documents: []}
       const result = await grpcClient.documents.listDocuments({
-        namespace: id?.eid,
+        namespace: id?.uid,
       })
       const documents = result.documents.map((response) =>
         toPlainMessage(response),

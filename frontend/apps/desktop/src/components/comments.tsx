@@ -11,9 +11,10 @@ import {
   HMComment,
   StateStream,
   UnpackedHypermediaId,
-  createHmId,
   formattedDateMedium,
   getDocumentTitle,
+  hmId,
+  packHmId,
   serializeBlockRange,
   unpackHmId,
 } from '@shm/shared'
@@ -49,11 +50,11 @@ import {WindowsLinuxWindowControls} from './window-controls'
 
 export function CommentGroup({
   group,
-  targetDocEid,
+  targetDocUid,
   targetDocVersion,
 }: {
   group: CommentGroup
-  targetDocEid: string
+  targetDocUid: string
   targetDocVersion: string
 }) {
   const createComment = useCreateComment()
@@ -81,7 +82,7 @@ export function CommentGroup({
                 label: 'Reply',
                 icon: Reply,
                 onPress: () => {
-                  createComment(targetDocEid, targetDocVersion, comment.id)
+                  createComment(targetDocUid, targetDocVersion, comment.id)
                 },
               },
               {
@@ -111,12 +112,14 @@ export function CommentGroup({
               const quotingCommentId = unpackHmId(comment.id)
               if (!targetId || !quotingCommentId) return
               createComment(
-                targetDocEid,
+                targetDocUid,
                 targetDocVersion,
                 lastComment.id,
-                createHmId('c', quotingCommentId.eid, {
-                  blockRef: blockId,
-                }),
+                packHmId(
+                  hmId('comment', quotingCommentId.uid, {
+                    blockRef: blockId,
+                  }),
+                ),
               )
             }}
           />
@@ -148,7 +151,7 @@ export function CommentGroup({
             onPress={() => {
               const lastComment = group.comments.at(-1)
               if (!lastComment) return
-              createComment(targetDocEid, targetDocVersion, lastComment.id)
+              createComment(targetDocUid, targetDocVersion, lastComment.id)
             }}
             icon={Reply}
           >
@@ -162,14 +165,14 @@ export function CommentGroup({
 
 export function CommentThread({
   targetCommentId,
-  targetDocEid,
+  targetDocUid,
   onReplyBlock,
 }: {
   targetCommentId: string
-  targetDocEid: string
+  targetDocUid: string
   onReplyBlock: (commentId: string, blockId: string) => void
 }) {
-  const thread = useCommentReplies(targetCommentId, targetDocEid)
+  const thread = useCommentReplies(targetCommentId, targetDocUid)
   return (
     <>
       <YStack borderBottomWidth={1} borderColor="$borderColor">
@@ -198,7 +201,7 @@ export function EntityCommentsAccessory({
   activeVersion: string
 }) {
   const navigate = useNavigate()
-  const commentGroups = useDocumentCommentGroups(id.eid)
+  const commentGroups = useDocumentCommentGroups(id.uid)
   const createComment = trpc.comments.createCommentDraft.useMutation()
   return (
     <AccessoryContainer
@@ -211,7 +214,7 @@ export function EntityCommentsAccessory({
             onPress={() => {
               createComment
                 .mutateAsync({
-                  targetDocEid: id.eid,
+                  targetDocUid: id.uid,
                   targetDocVersion: activeVersion,
                   targetCommentId: null,
                 })
@@ -233,7 +236,7 @@ export function EntityCommentsAccessory({
           <CommentGroup
             group={group}
             key={group.id}
-            targetDocEid={id.eid}
+            targetDocUid={id.uid}
             targetDocVersion={activeVersion}
           />
         ))}

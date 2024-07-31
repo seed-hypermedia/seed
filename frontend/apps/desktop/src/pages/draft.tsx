@@ -18,7 +18,7 @@ import {
   BlockRange,
   createPublicWebHmUrl,
   ExpandedBlockRange,
-  unpackHmId,
+  packHmId,
   useDocContentContext,
   useHeadingTextStyles,
 } from '@shm/shared'
@@ -40,7 +40,7 @@ export default function DraftPage() {
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
 
   let data = useDraftEditor({
-    id: route.id,
+    id: route.id ? packHmId(route.id) : undefined,
   })
 
   // if (data.state.matches('idle')) {
@@ -210,10 +210,11 @@ export default function DraftPage() {
   ) {
     if (route.key != 'draft') throw new Error('DraftPage must have draft route')
     if (!route.id) throw new Error('draft route id is missing')
-    const id = unpackHmId(route.id)
-    if (!id?.eid) throw new Error('eid could not be extracted from draft route')
+
+    if (!route.id?.uid)
+      throw new Error('uid could not be extracted from draft route')
     copyUrlToClipboardWithFeedback(
-      createPublicWebHmUrl(id.type, id.eid, {
+      createPublicWebHmUrl(route.id.type, route.id.uid, {
         blockRef: blockId,
         blockRange,
         hostname: gwUrl.data,
@@ -233,6 +234,8 @@ export function DraftHeader({
   disabled?: boolean
 }) {
   const route = useNavRoute()
+  if (route.key !== 'draft')
+    throw new Error('DraftHeader must have draft route')
   const {textUnit} = useDocContentContext()
   const [showThumbnail, setShowThumbnail] = useState(false)
   const [showCover, setShowCover] = useState(false)
@@ -320,7 +323,7 @@ export function DraftHeader({
         {showThumbnail ? (
           <AvatarForm
             size={100}
-            id={route.key == 'draft' ? route.id : 'document-avatar'}
+            id={route.id ? route.id.uid : 'document-avatar'}
             label={name}
             url={thumbnail ? getFileUrl(thumbnail) : ''}
             onAvatarUpload={(thumbnail) => {

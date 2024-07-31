@@ -104,7 +104,6 @@ type CrumbDetails = {
 
 function BreadcrumbTitle({route}: {route: DocumentRoute}) {
   const entityRoutes = useRouteBreadcrumbRoutes(route)
-
   const entityContents = useRouteEntities(entityRoutes)
   const [collapsedCount, setCollapsedCount] = useState(0)
   const widthInfo = useRef({} as Record<string, number>)
@@ -124,8 +123,6 @@ function BreadcrumbTitle({route}: {route: DocumentRoute}) {
     () =>
       entityRoutes.flatMap((route, routeIndex) => {
         const details = entityRoutesDetails[routeIndex]
-
-        console.log(`== ~ entityRoutes.flatMap ~ details:`, details)
         if (!details) return null
         return [
           {

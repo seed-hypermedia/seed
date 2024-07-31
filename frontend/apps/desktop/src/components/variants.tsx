@@ -32,7 +32,7 @@ export function VersionContext({route}: {route: NavRoute}) {
   // fullUrl =
   //   unpackedId &&
   //   exactVersion &&
-  //   createPublicWebHmUrl(unpackedId.type, unpackedId.eid, {
+  //   createPublicWebHmUrl(unpackedId.type, unpackedId.uid, {
   //     version: exactVersion,
   //     hostname: gwUrl.data,
   //   })

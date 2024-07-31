@@ -1,4 +1,4 @@
-import {createHmDocLink, unpackHmId} from '@shm/shared'
+import {createHmDocLink_DEPRECATED, unpackHmId} from '@shm/shared'
 import {
   Button,
   Check,
@@ -107,8 +107,8 @@ export function HypermediaLinkToolbar(
                 key={_latest}
                 value={_latest}
                 onCheckedChange={(newValue) => {
-                  let newUrl = createHmDocLink({
-                    documentId: unpackedRef?.qid,
+                  let newUrl = createHmDocLink_DEPRECATED({
+                    documentId: unpackedRef?.id,
                     version: unpackedRef?.version,
                     blockRef: unpackedRef?.blockRef,
                     variants: unpackedRef?.variants,

@@ -1,7 +1,6 @@
 import {GRPCClient, StateStream} from '@shm/shared'
 import {
   UnpackedHypermediaId,
-  createHmId,
   unpackHmId,
 } from '@shm/shared/src/utils/entity-id-url'
 import {useStream, useStreamSelector} from '@shm/ui'
@@ -40,9 +39,10 @@ export type NavigationContext = {
 }
 
 export function getRouteKey(route: NavRoute): string {
-  if (route.key === 'draft') return `draft:${route.id}`
+  if (route.key === 'draft')
+    return `draft:${route.id?.uid}:${route.id?.path?.join(':')}`
   if (route.key === 'document')
-    return `document:${route.id.eid}:${route.id.path?.join(':')}` // version changes and publication page remains mounted
+    return `document:${route.id.uid}:${route.id.path?.join(':')}` // version changes and publication page remains mounted
   return route.key
 }
 
@@ -176,15 +176,15 @@ export type NavMode = 'push' | 'replace' | 'spawn' | 'backplace'
 
 export function appRouteOfId(id: UnpackedHypermediaId): NavRoute | undefined {
   let navRoute: NavRoute | undefined = undefined
-  if (id?.type === 'd' || id?.type === 'a') {
+  if (id?.type === 'd') {
     navRoute = {
       key: 'document',
       id,
     }
-  } else if (id?.type === 'c') {
+  } else if (id?.type === 'comment') {
     navRoute = {
       key: 'comment',
-      commentId: createHmId('c', id.eid),
+      commentId: id,
     }
   }
   return navRoute
@@ -212,7 +212,7 @@ export async function resolveHmIdToAppRoute(
   grpcClient: GRPCClient,
 ): Promise<null | (UnpackedHypermediaId & {navRoute?: NavRoute})> {
   const hmIds = unpackHmId(hmId)
-  if (hmIds?.type === 'a') {
+  if (hmIds?.type === 'd') {
     return {
       ...hmIds,
       navRoute: {

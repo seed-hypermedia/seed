@@ -6,8 +6,10 @@ import {client, trpc} from '@/trpc'
 import {
   HMComment,
   HMCommentDraft,
-  createHmId,
+  UnpackedHypermediaId,
   fromHMBlock,
+  hmId,
+  packHmId,
   toHMBlock,
   unpackHmId,
   writeableStateStream,
@@ -113,9 +115,9 @@ export function useCommentGroups(
 
 export function useCommentReplies(
   targetCommentId: string,
-  targetDocEid: string,
+  targetDocUid: string,
 ) {
-  const comments = useAllPublicationComments(targetDocEid)
+  const comments = useAllPublicationComments(targetDocUid)
   return useMemo(() => {
     let comment = comments.data?.find((c) => c.id === targetCommentId)
     const thread = [comment]
@@ -138,7 +140,7 @@ export function useCommentDraft(commentId: string, opts?: UseQueryOptions) {
 }
 
 export function useComment(
-  commentId: string | null | undefined,
+  id: UnpackedHypermediaId | null | undefined,
   opts?: UseQueryOptions<HMComment>,
 ) {
   const grpcClient = useGRPCClient()
@@ -157,27 +159,27 @@ export function useComment(
   })
 }
 
-export function useAllPublicationComments(docEid: string | undefined) {
+export function useAllPublicationComments(docUid: string | undefined) {
   const grpcClient = useGRPCClient()
   return useQuery({
     queryFn: async () => {
-      if (!docEid) return []
+      if (!docUid) return []
       let res = await grpcClient.comments.listComments({
-        target: createHmId('d', docEid),
+        target: packHmId(hmId('d', docUid)),
       })
       return res.comments as unknown as HMComment[]
     },
-    enabled: !!docEid,
+    enabled: !!docUid,
     refetchInterval: 10_000,
-    queryKey: [queryKeys.PUBLICATION_COMMENTS, docEid],
+    queryKey: [queryKeys.PUBLICATION_COMMENTS, docUid],
   })
 }
 
 export function useDocumentCommentGroups(
-  docEid: string | undefined,
+  docUid: string | undefined,
   commentId: string | null = null,
 ) {
-  const comments = useAllPublicationComments(docEid)
+  const comments = useAllPublicationComments(docUid)
   return useCommentGroups(comments.data, commentId)
 }
 
@@ -220,7 +222,6 @@ export function useCommentEditor(opts: {onDiscard?: () => void} = {}) {
     const draft = initCommentDraft.current
     if (!readyEditor.current || !draft) return
     const editor = readyEditor.current
-    console.log('comment draft mmokay')
     const editorBlocks = toHMBlock(draft.blocks)
     editor.removeBlocks(editor.topLevelBlocks)
     editor.replaceBlocks(editor.topLevelBlocks, editorBlocks)
@@ -302,7 +303,7 @@ export function useCommentEditor(opts: {onDiscard?: () => void} = {}) {
           throw new Error('no valid draft in route for getCommentDraft')
         initCommentDraft.current = draft
         streams.current.targetCommentId[0](draft.targetCommentId)
-        const docId = createHmId('d', draft.targetDocEid)
+        const docId = packHmId(hmId('d', draft.targetDocUid))
         streams.current.targetDocId[0](docId)
         initDraft()
       },
@@ -319,7 +320,7 @@ export function useCommentEditor(opts: {onDiscard?: () => void} = {}) {
   //         throw new Error('no valid draft in route for getCommentDraft')
   //       initCommentDraft.current = draft
   //       setTargetCommentId(draft.targetCommentId)
-  //       setTargetDocId(createHmId('d', draft.targetDocEid))
+  //       setTargetDocId(packHmId(hmId('d', draft.targetDocUid)))
   //       initDraft()
   //     })
   // }, [editCommentId])
@@ -347,7 +348,7 @@ export function useCommentEditor(opts: {onDiscard?: () => void} = {}) {
         ? unpackHmId(newComment.target)
         : null
       targetDocId &&
-        invalidate([queryKeys.PUBLICATION_COMMENTS, targetDocId.eid])
+        invalidate([queryKeys.PUBLICATION_COMMENTS, targetDocId.uid])
       invalidate(['trpc.comments.getCommentDrafts'])
       invalidate([queryKeys.FEED_LATEST_EVENT])
       invalidate([queryKeys.RESOURCE_FEED_LATEST_EVENT])
@@ -382,9 +383,11 @@ export function useCommentEditor(opts: {onDiscard?: () => void} = {}) {
       })
       publishComment.mutate({
         content: contentWithoutLastEmptyBlock,
-        targetDocId: createHmId('d', draft.targetDocEid, {
-          version: draft.targetDocVersion,
-        }),
+        targetDocId: packHmId(
+          hmId('d', draft.targetDocUid, {
+            version: draft.targetDocVersion,
+          }),
+        ),
         targetCommentId: draft.targetCommentId,
       })
     }
@@ -398,7 +401,9 @@ export function useCommentEditor(opts: {onDiscard?: () => void} = {}) {
           {
             type: 'embed',
             props: {
-              ref: createHmId('c', commentId.eid, {blockRef: blockId}),
+              ref: packHmId(
+                hmId('comment', commentId.uid, {blockRef: blockId}),
+              ),
               textAlignment: 'left',
               childrenType: 'group',
             },
@@ -435,7 +440,7 @@ export function useCreateComment() {
   const navigate = useNavigate()
   const createComment = trpc.comments.createCommentDraft.useMutation()
   return (
-    targetDocEid: string,
+    targetDocUid: string,
     targetDocVersion: string,
     targetCommentId?: string,
     embedRef?: string,
@@ -455,7 +460,7 @@ export function useCreateComment() {
       : [{type: 'paragraph', text: '', attributes: {}, children: []}]
     createComment
       .mutateAsync({
-        targetDocEid,
+        targetDocUid,
         targetCommentId: targetCommentId || null,
         targetDocVersion,
         blocks: content,

@@ -151,7 +151,7 @@ const PeerRow = React.memo(function PeerRow({
   function handlePress() {
     if (isSite && account?.profile?.alias) openUrl(account?.profile?.alias)
     else if (!isSite && account?.id)
-      spawn({key: 'document', id: hmId('a', account.id)})
+      spawn({key: 'document', id: hmId('d', account.id)})
     else toast.error('Could not open account')
   }
   function handleCopyPeerId() {

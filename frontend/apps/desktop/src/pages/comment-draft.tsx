@@ -1,29 +1,29 @@
-import { getBlockInfoFromPos } from '@/editor'
-import { StateStream, unpackHmId } from '@shm/shared'
-import { Button, ChevronUp, SizableText, YStack, useStream } from '@shm/ui'
+import {getBlockInfoFromPos} from '@/editor'
+import {StateStream, unpackHmId} from '@shm/shared'
+import {Button, ChevronUp, SizableText, YStack, useStream} from '@shm/ui'
 
 import {
   CommentPageTitlebarWithDocId,
   CommentPresentation,
   CommentThread,
 } from '@/components/comments'
-import { useDeleteCommentDraftDialog } from '@/components/delete-comment-draft-dialog'
-import { MainWrapperStandalone } from '@/components/main-wrapper'
-import { useComment, useCommentEditor } from '@/models/comments'
+import {useDeleteCommentDraftDialog} from '@/components/delete-comment-draft-dialog'
+import {MainWrapperStandalone} from '@/components/main-wrapper'
+import {useComment, useCommentEditor} from '@/models/comments'
 import {
   chromiumSupportedImageMimeTypes,
   chromiumSupportedVideoMimeTypes,
   generateBlockId,
   handleDragMedia,
 } from '@/utils/media-drag'
-import { useEffect, useState } from 'react'
-import { XStack } from 'tamagui'
+import {useEffect, useState} from 'react'
+import {XStack} from 'tamagui'
 
-import { useNavRoute } from '@/utils/navigation'
-import { useNavigate } from '@/utils/useNavigate'
-import { HMEditorContainer, HyperMediaEditorView } from 'src/components/editor'
+import {useNavRoute} from '@/utils/navigation'
+import {useNavigate} from '@/utils/useNavigate'
+import {HMEditorContainer, HyperMediaEditorView} from 'src/components/editor'
 import './comment-draft.css'
-import { AppDocContentProvider } from './document-content-provider'
+import {AppDocContentProvider} from './document-content-provider'
 
 function CommitBar({
   onSubmit,
@@ -94,14 +94,14 @@ function TargetComment({
       {route.showThread && comment.data?.repliedComment ? (
         <CommentThread
           targetCommentId={comment.data?.repliedComment}
-          targetDocEid={targetDocId.eid}
+          targetDocUid={targetDocId.uid}
           onReplyBlock={onReplyBlock}
         />
       ) : comment.data?.repliedComment ? (
         <XStack jc="center">
           <Button
             onPress={() => {
-              replace({ ...route, showThread: true })
+              replace({...route, showThread: true})
             }}
             icon={ChevronUp}
             chromeless
@@ -204,7 +204,7 @@ export default function CommentDraftPage() {
                       return handleDragMedia(file).then((props) => {
                         if (!props) return false
 
-                        const { state } = ttEditor.view
+                        const {state} = ttEditor.view
                         let blockNode
                         const newId = generateBlockId()
 
@@ -293,7 +293,7 @@ export default function CommentDraftPage() {
       <CommitBar
         isSaved={isSaved}
         onSubmit={onSubmit}
-        onDiscard={() => discardComment.open({ onConfirm: onDiscard })}
+        onDiscard={() => discardComment.open({onConfirm: onDiscard})}
         targetCommentId={targetCommentId}
       />
       {discardComment.content}

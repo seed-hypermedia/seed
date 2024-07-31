@@ -2,6 +2,7 @@ import {toPlainMessage} from '@bufbuild/protobuf'
 import {
   GRPCClient,
   HMEntityContent,
+  hmId,
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
@@ -36,13 +37,12 @@ export function useDeleteEntity(
       context,
     ) => {
       const hmId = unpackHmId(variables.id)
-      if (hmId?.type === 'a') {
+      if (hmId?.type === 'd') {
         invalidate([queryKeys.ENTITY, variables.id])
         invalidate([queryKeys.ACCOUNT_DOCUMENTS])
-        invalidate([queryKeys.DOCUMENT_LIST])
         invalidate([queryKeys.LIST_ACCOUNTS])
-        invalidate([queryKeys.ACCOUNT, hmId.eid])
-      } else if (hmId?.type === 'c') {
+        invalidate([queryKeys.ACCOUNT, hmId.uid])
+      } else if (hmId?.type === 'comment') {
         invalidate([queryKeys.ENTITY, variables.id])
         invalidate([queryKeys.COMMENT, variables.id])
         invalidate([queryKeys.PUBLICATION_COMMENTS])
@@ -88,11 +88,9 @@ export function useUndeleteEntity(
       if (hmId?.type === 'd') {
         invalidate([queryKeys.ENTITY, variables.id])
         invalidate([queryKeys.ACCOUNT_DOCUMENTS])
-        invalidate([queryKeys.DOCUMENT_LIST])
-      } else if (hmId?.type === 'a') {
         invalidate([queryKeys.LIST_ACCOUNTS])
-        invalidate([queryKeys.ACCOUNT, hmId.eid])
-      } else if (hmId?.type === 'c') {
+        invalidate([queryKeys.ACCOUNT, hmId.uid])
+      } else if (hmId?.type === 'comment') {
         invalidate([queryKeys.COMMENT, variables.id])
         invalidate([queryKeys.PUBLICATION_COMMENTS])
       }
@@ -115,10 +113,9 @@ function getRouteBreadrumbRoutes(
     return route.id.path?.length
       ? route.id.path.map((path) => ({
           ...route,
-          id: {
-            ...route.id,
+          id: hmId(route.id.type, route.id.uid, {
             path: [path],
-          },
+          }),
         }))
       : [route]
   }
@@ -133,7 +130,8 @@ export function useRouteBreadcrumbRoutes(
   route: NavRoute,
 ): Array<DocumentRoute | DraftRoute> {
   return useMemo(() => {
-    return getRouteBreadrumbRoutes(route)
+    const routes = getRouteBreadrumbRoutes(route)
+    return routes
   }, [route])
 }
 
@@ -154,15 +152,13 @@ export function queryEntity(
   return {
     ...options,
     enabled: options?.enabled ?? !!id,
-    queryKey: [queryKeys.ENTITY, id?.id, id?.version],
+    queryKey: [queryKeys.ENTITY, id?.id],
     queryFn: async (): Promise<HMEntityContent | null> => {
       if (!id) return null
-      const {version} = id
       try {
         const document = await grpcClient.documents.getDocument({
-          namespace: id.eid,
-          path: id.path?.length ? id.path.join('/') : '',
-          // version: version || undefined,
+          namespace: id.uid,
+          path: id.path?.length ? `/${id.path.join('/')}` : '',
         })
         return {id, document: toPlainMessage(document)}
       } catch (e) {

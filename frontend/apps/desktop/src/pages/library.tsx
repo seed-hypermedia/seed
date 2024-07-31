@@ -1,15 +1,13 @@
 import {dispatchWizardEvent} from '@/app-account'
-import {useQueryInvalidator} from '@/app-context'
 import {Avatar} from '@/components/avatar'
 import {MainWrapper} from '@/components/main-wrapper'
 import {useProfileWithDraft} from '@/models/accounts'
 import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
-import {useDraftList} from '@/models/documents'
-import {trpc} from '@/trpc'
+import {useDeleteDraft, useDraftList} from '@/models/documents'
 import {getFileUrl} from '@/utils/account-url'
 import {useOpenDraft} from '@/utils/open-draft'
 import {useNavigate} from '@/utils/useNavigate'
-import {createHmId, hmId} from '@shm/shared'
+import {hmId, unpackHmId} from '@shm/shared'
 import {
   Add,
   Button,
@@ -28,14 +26,10 @@ export default function ContentPage() {
   const draftList = useDraftList()
   const openDraft = useOpenDraft('push')
   const keys = useMyAccountIds()
-  const invalidate = useQueryInvalidator()
-  const deleteDraft = trpc.drafts.delete.useMutation()
-
+  const deleteDraft = useDeleteDraft()
   function handleDelete(id: string) {
     deleteDraft.mutateAsync(id).then(() => {
       toast.success('Draft Deleted Successfully')
-      invalidate(['trpc.drafts.list'])
-      invalidate(['trpc.drafts.get', id])
     })
   }
 
@@ -67,6 +61,8 @@ export default function ContentPage() {
             footer={<View height={20} />}
             renderItem={({item}: {item: string}) => {
               if (!item) return <View height={1} />
+              const id = unpackHmId(item)
+              if (!id) return null
               return (
                 <XStack
                   paddingVertical="$1.5"
@@ -78,7 +74,7 @@ export default function ContentPage() {
                 >
                   <SizableText
                     onPress={() => {
-                      openDraft({id: item})
+                      openDraft({id})
                     }}
                     fontWeight={'bold'}
                   >
@@ -104,17 +100,16 @@ function AccountKeyItem({accountId}: {accountId: string}) {
   const openDraft = useOpenDraft('push')
   const {draft, profile} = useProfileWithDraft(accountId)
 
-  console.log(`== ~ AccountKeyItem ~ {draft, profile}:`, {draft, profile})
   const deleteKey = useDeleteKey()
   const navigate = useNavigate('push')
 
   function openProfile() {
     navigate({
       key: 'document',
-      id: hmId('a', accountId),
+      id: hmId('d', accountId),
     })
   }
-  const accountDraftId = createHmId('a', accountId)
+  const accountDraftId = hmId('d', accountId)
   return (
     <XStack>
       <XStack f={1} ai="center" gap="$2">

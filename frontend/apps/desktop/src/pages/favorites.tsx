@@ -68,7 +68,7 @@ function FavoriteItem({
   }
   return (
     <DocumentListItem
-      key={id.qid}
+      key={id.id}
       document={doc.data?.document}
       hasDraft={undefined}
       author={findAccount(doc.data?.document?.owner)}
@@ -80,7 +80,7 @@ function FavoriteItem({
       menuItems={() => [copyLinkMenuItem(onCopy, 'Document')]}
       openRoute={{
         key: 'document',
-        documentId: id.qid,
+        documentId: id.id,
         versionId: id.version || undefined,
       }}
     />

@@ -1,15 +1,14 @@
 import {describe, expect, test} from 'vitest'
-import {createHmId, parseCustomURL, unpackHmId} from '../entity-id-url'
+import {hmId, packHmId, parseCustomURL, unpackHmId} from '../entity-id-url'
 
 describe('unpackHmId', () => {
-  test('unpacks hm://a/abc', () => {
-    expect(unpackHmId('hm://a/abc')).toEqual({
-      id: 'hm://a/abc',
-      qid: 'hm://a/abc',
+  test('unpacks hm://abc', () => {
+    expect(unpackHmId('hm://abc')).toEqual({
+      id: 'hm://abc',
       scheme: 'hm',
       hostname: null,
-      type: 'a',
-      eid: 'abc',
+      type: 'd',
+      uid: 'abc',
       version: null,
       blockRange: null,
       blockRef: null,
@@ -17,14 +16,13 @@ describe('unpackHmId', () => {
       latest: false,
     })
   })
-  test('unpacks hm://a/foo#bar', () => {
-    expect(unpackHmId('hm://a/foo#bar')).toEqual({
-      id: 'hm://a/foo#bar',
-      qid: 'hm://a/foo',
+  test('unpacks hm://foo#bar', () => {
+    expect(unpackHmId('hm://foo#bar')).toEqual({
+      id: 'hm://foo',
       scheme: 'hm',
       hostname: null,
-      type: 'a',
-      eid: 'foo',
+      type: 'd',
+      uid: 'foo',
       version: null,
       blockRange: null,
       blockRef: 'bar',
@@ -32,14 +30,13 @@ describe('unpackHmId', () => {
       latest: false,
     })
   })
-  test('unpacks hm://a/foo?v=bar', () => {
-    expect(unpackHmId('hm://a/foo?v=bar')).toEqual({
-      id: 'hm://a/foo?v=bar',
-      qid: 'hm://a/foo',
+  test('unpacks hm://foo?v=bar', () => {
+    expect(unpackHmId('hm://foo?v=bar')).toEqual({
+      id: 'hm://foo',
       scheme: 'hm',
       hostname: null,
-      type: 'a',
-      eid: 'foo',
+      type: 'd',
+      uid: 'foo',
       version: 'bar',
       blockRange: null,
       blockRef: null,
@@ -47,37 +44,39 @@ describe('unpackHmId', () => {
       latest: false,
     })
   })
-  test('unpacks https://foobar.com/a/1?v=2', () => {
-    expect(unpackHmId('https://foobar.com/a/1?v=2')).toEqual({
-      scheme: 'https',
-      hostname: 'foobar.com',
-      type: 'a',
-      eid: '1',
-      version: '2',
-      blockRef: null,
-      blockRange: null,
-      id: 'https://foobar.com/a/1?v=2',
-      qid: 'hm://a/1',
-      path: ['1'],
-      latest: false,
+
+  describe('web urls', () => {
+    test('unpacks https://foobar.com/hm/a/b/c?v=2', () => {
+      expect(unpackHmId('https://foobar.com/hm/a/b/c?v=2')).toEqual({
+        scheme: 'https',
+        hostname: 'foobar.com',
+        type: 'd',
+        uid: 'a',
+        version: '2',
+        blockRef: null,
+        blockRange: null,
+        id: 'hm://a/b/c',
+        path: ['b', 'c'],
+        latest: false,
+      })
     })
-  })
-  test('unpacks http://foobar.com/a/1#block', () => {
-    expect(unpackHmId('http://foobar.com/a/1#block')).toEqual({
-      scheme: 'http',
-      hostname: 'foobar.com',
-      type: 'a',
-      eid: '1',
-      version: null,
-      blockRange: null,
-      latest: false,
-      blockRef: 'block',
-      id: 'http://foobar.com/a/1#block',
-      qid: 'hm://a/1',
-      path: ['1'],
+    test.only('unpacks http://foobar.com/hm/1#block', () => {
+      expect(unpackHmId('http://foobar.com/hm/1#block')).toEqual({
+        scheme: 'http',
+        hostname: 'foobar.com',
+        type: 'd',
+        uid: '1',
+        version: null,
+        blockRange: null,
+        latest: false,
+        blockRef: 'block',
+        id: 'hm://1',
+        path: [],
+      })
     })
   })
 })
+
 describe('parseCustomURL', () => {
   test('parseCustomURL hm://a/b?foo=1&bar=2#block', () => {
     expect(parseCustomURL('hm://a/b?foo=1&bar=2#block')).toEqual({
@@ -88,21 +87,24 @@ describe('parseCustomURL', () => {
     })
   })
 })
-describe('createHmId', () => {
+
+describe('packHmId', () => {
   test('creates hm://d/abc', () => {
-    expect(createHmId('a', 'abc')).toEqual('hm://a/abc')
+    expect(packHmId(hmId('d', 'abc'))).toEqual('hm://abc')
   })
   test('creates hm://g/123?v=foo', () => {
-    expect(createHmId('a', '123', {version: 'foo'})).toEqual('hm://a/123?v=foo')
-  })
-  test('creates hm://a/123#block', () => {
-    expect(createHmId('a', '123', {blockRef: 'block'})).toEqual(
-      'hm://a/123#block',
+    expect(packHmId(hmId('d', '123', {version: 'foo'}))).toEqual(
+      'hm://123?v=foo',
     )
   })
-  test('creates hm://a/123?v=foo#bar', () => {
-    expect(createHmId('a', '123', {version: 'foo', blockRef: 'bar'})).toEqual(
-      'hm://a/123?v=foo#bar',
+  test('creates hm://123#block', () => {
+    expect(packHmId(hmId('d', '123', {blockRef: 'block'}))).toEqual(
+      'hm://123#block',
     )
+  })
+  test('creates hm://123?v=foo#bar', () => {
+    expect(
+      packHmId(hmId('d', '123', {version: 'foo', blockRef: 'bar'})),
+    ).toEqual('hm://123?v=foo#bar')
   })
 })

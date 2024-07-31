@@ -35,7 +35,7 @@ export const diagnosisApi = t.router({
     .mutation(async ({input}) => {
       const id = unpackHmId(input.draftId)
       if (!id) throw new Error('Invalid draftId')
-      const draftPath = draftFilePath(id.eid)
+      const draftPath = draftFilePath(id.uid)
       // @ts-ignore
       const logExist: boolean = await exists(draftPath)
       if (!logExist) {
@@ -54,16 +54,16 @@ export const diagnosisApi = t.router({
     .mutation(async ({input}) => {
       const id = unpackHmId(input.draftId)
       if (!id) throw new Error('Invalid draftId')
-      const draftPath = draftFilePath(id.eid)
+      const draftPath = draftFilePath(id.uid)
       await appendFile(draftPath, JSON.stringify(input.event) + '\n')
-      const pubFilePath = createPubFilePath(id.eid)
+      const pubFilePath = createPubFilePath(id.uid)
       await move(draftPath, pubFilePath)
       return pubFilePath
     }),
   openDraftLog: t.procedure.input(z.string()).mutation(async ({input}) => {
     const id = unpackHmId(input)
     if (!id) throw new Error('Invalid draftId')
-    await open(draftFilePath(id.eid))
+    await open(draftFilePath(id.uid))
   }),
   openDraftLogFolder: t.procedure.mutation(async () => {
     await open(`${userDataPath}/DraftLog`)

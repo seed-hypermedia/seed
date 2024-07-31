@@ -19,11 +19,11 @@ export const commentsApi = t.router({
   getCommentDrafts: t.procedure
     .input(
       z.object({
-        docEid: z.string(),
+        docUid: z.string(),
       }),
     )
     .query(({input}) => {
-      const result = commentDraftStore.get(`Doc-${input.docEid}`)
+      const result = commentDraftStore.get(`Doc-${input.docUid}`)
       if (!result) return []
       const commentIds = Object.keys(result)
       return commentIds
@@ -40,7 +40,7 @@ export const commentsApi = t.router({
   createCommentDraft: t.procedure
     .input(
       z.object({
-        targetDocEid: z.string(),
+        targetDocUid: z.string(),
         targetDocVersion: z.string(),
         targetCommentId: z.string().or(z.null()),
         blocks: z.array(z.any()).optional(),
@@ -48,14 +48,14 @@ export const commentsApi = t.router({
     )
     .mutation(async ({input}) => {
       const draftId = Math.random().toString(36).slice(2)
-      const prevIndex = commentDraftStore.get(`Doc-${input.targetDocEid}`) || {}
-      commentDraftStore.set(`Doc-${input.targetDocEid}`, {
+      const prevIndex = commentDraftStore.get(`Doc-${input.targetDocUid}`) || {}
+      commentDraftStore.set(`Doc-${input.targetDocUid}`, {
         ...prevIndex,
         [draftId]: true,
       })
       commentDraftStore.set(`Comment-${draftId}`, {
         blocks: input.blocks || [],
-        targetDocEid: input.targetDocEid,
+        targetDocUid: input.targetDocUid,
         targetDocVersion: input.targetDocVersion,
         targetCommentId: input.targetCommentId,
       })
@@ -82,7 +82,7 @@ export const commentsApi = t.router({
     .input(
       z.object({
         commentId: z.string(),
-        // targetDocEid: z.string(),
+        // targetDocUid: z.string(),
       }),
     )
     .mutation(async ({input}) => {
@@ -90,9 +90,9 @@ export const commentsApi = t.router({
       const comment = commentDraftStore.get(`Comment-${commentId}`)
       if (!comment) throw new Error('Comment with this commentId not found')
       commentDraftStore.delete(`Comment-${commentId}`)
-      const index = commentDraftStore.get(`Doc-${comment.targetDocEid}`)
+      const index = commentDraftStore.get(`Doc-${comment.targetDocUid}`)
       if (!index) throw new Error('Comment index not found')
-      commentDraftStore.set(`Doc-${comment.targetDocEid}`, {
+      commentDraftStore.set(`Doc-${comment.targetDocUid}`, {
         ...index,
         [commentId]: undefined,
       })

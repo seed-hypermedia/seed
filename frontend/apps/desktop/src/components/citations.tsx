@@ -64,7 +64,7 @@ function PublicationCitationItem({mention}: {mention: Mention}) {
   const docTextContent = useDocTextContent(doc.data?.document)
   const destRoute: DocumentRoute = {
     key: 'document',
-    documentId: unpackedSource!.qid,
+    documentId: unpackedSource!.id,
     versionId: mention.sourceBlob?.cid,
     blockId: mention.sourceContext,
   }
@@ -149,7 +149,7 @@ function CommentCitationItem({mention}: {mention: Mention}) {
                 if (commentTarget) {
                   spawn({
                     key: 'document',
-                    documentId: commentTarget.qid,
+                    documentId: commentTarget.id,
                     versionId: commentTarget.version || undefined,
                   })
                 }

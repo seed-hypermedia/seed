@@ -1,5 +1,5 @@
 import {createStyles} from '@mantine/core'
-import {createHmDocLink} from '@shm/shared'
+import {createHmDocLink_DEPRECATED} from '@shm/shared'
 import {
   Button,
   Check,
@@ -77,8 +77,8 @@ export const EditHyperlinkMenu = forwardRef<
                 size="$2"
                 defaultChecked={!!unpackedRef.latest}
                 onCheckedChange={(newValue) => {
-                  let newUrl = createHmDocLink({
-                    documentId: unpackedRef?.qid,
+                  let newUrl = createHmDocLink_DEPRECATED({
+                    documentId: unpackedRef?.id,
                     version: unpackedRef?.version,
                     blockRef: unpackedRef?.blockRef,
                     variants: unpackedRef?.variants,

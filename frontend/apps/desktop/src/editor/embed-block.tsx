@@ -1,11 +1,11 @@
-import { useAppContext } from '@/app-context'
-import { useGatewayUrlStream } from '@/models/gateway-settings'
-import { fetchWebLink } from '@/models/web-links'
-import { useOpenUrl } from '@/open-url'
-import { usePopoverState } from '@/use-popover-state'
+import {useAppContext} from '@/app-context'
+import {useGatewayUrlStream} from '@/models/gateway-settings'
+import {fetchWebLink} from '@/models/web-links'
+import {useOpenUrl} from '@/open-url'
+import {usePopoverState} from '@/use-popover-state'
 import {
   BlockContentEmbed,
-  createHmDocLink,
+  createHmDocLink_DEPRECATED,
   hmIdWithVersion,
   isHypermediaScheme,
   isPublicGatewayLink,
@@ -13,7 +13,7 @@ import {
   unpackHmId,
   useHover,
 } from '@shm/shared'
-import { ErrorBlock } from '@shm/shared/src/document-content'
+import {ErrorBlock} from '@shm/shared/src/document-content'
 import {
   Button,
   Check,
@@ -29,13 +29,13 @@ import {
   XStack,
   YGroup,
 } from '@shm/ui'
-import { Fragment } from '@tiptap/pm/model'
-import { useCallback, useMemo } from 'react'
-import { ErrorBoundary } from 'react-error-boundary'
-import { Block, BlockNoteEditor, HMBlockSchema } from '.'
-import { createReactBlockSpec } from './blocknote/react'
-import { MediaContainer } from './media-container'
-import { DisplayComponentProps, MediaRender, MediaType } from './media-render'
+import {Fragment} from '@tiptap/pm/model'
+import {useCallback, useMemo} from 'react'
+import {ErrorBoundary} from 'react-error-boundary'
+import {Block, BlockNoteEditor, HMBlockSchema} from '.'
+import {createReactBlockSpec} from './blocknote/react'
+import {MediaContainer} from './media-container'
+import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
 
 function EmbedError() {
   return <ErrorBlock message="Failed to load this Embedded document" />
@@ -81,7 +81,7 @@ const Render = (
   block: Block<HMBlockSchema>,
   editor: BlockNoteEditor<HMBlockSchema>,
 ) => {
-  const { queryClient } = useAppContext()
+  const {queryClient} = useAppContext()
   const gwUrl = useGatewayUrlStream()
   const submitEmbed = async (
     url: string,
@@ -92,7 +92,7 @@ const Render = (
     if (isPublicGatewayLink(url, gwUrl) || isHypermediaScheme(url)) {
       const hmLink = normalizeHmId(url, gwUrl)
       const newUrl = hmLink ? hmLink : url
-      assign({ props: { url: newUrl } } as MediaType)
+      assign({props: {url: newUrl}} as MediaType)
       const cursorPosition = editor.getTextCursorPosition()
       editor.focus()
       if (cursorPosition.block.id === block.id) {
@@ -100,7 +100,7 @@ const Render = (
           editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
         else {
           editor.insertBlocks(
-            [{ type: 'paragraph', content: '' }],
+            [{type: 'paragraph', content: ''}],
             block.id,
             'after',
           )
@@ -120,7 +120,7 @@ const Render = (
             res?.blockRef,
           )
           if (fullHmId) {
-            assign({ props: { url: fullHmId } } as MediaType)
+            assign({props: {url: fullHmId}} as MediaType)
             const cursorPosition = editor.getTextCursorPosition()
             editor.focus()
             if (cursorPosition.block.id === block.id) {
@@ -128,7 +128,7 @@ const Render = (
                 editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
               else {
                 editor.insertBlocks(
-                  [{ type: 'paragraph', content: '' }],
+                  [{type: 'paragraph', content: ''}],
                   block.id,
                   'after',
                 )
@@ -190,8 +190,8 @@ const display = ({
           <BlockContentEmbed
             expanded={
               unpackedId &&
-                unpackedId.blockRange &&
-                'expanded' in unpackedId.blockRange
+              unpackedId.blockRange &&
+              'expanded' in unpackedId.blockRange
                 ? true
                 : false
             }
@@ -244,7 +244,7 @@ function EmbedControl({
 
   const handleViewSelect = useCallback((view: 'content' | 'card') => {
     return () => {
-      assign({ props: { view } })
+      assign({props: {view}})
       popoverViewState.onOpenChange(false)
     }
   }, [])
@@ -267,8 +267,8 @@ function EmbedControl({
         if (unpackedRef) {
           assign({
             props: {
-              url: createHmDocLink({
-                documentId: unpackedRef?.qid,
+              url: createHmDocLink_DEPRECATED({
+                documentId: unpackedRef?.id,
                 version: unpackedRef?.version,
                 blockRef: unpackedRef?.blockRef,
                 latest: versionMode === 'latest',
@@ -287,8 +287,8 @@ function EmbedControl({
     if (unpackedRef) {
       assign({
         props: {
-          url: createHmDocLink({
-            documentId: unpackedRef?.qid,
+          url: createHmDocLink_DEPRECATED({
+            documentId: unpackedRef?.id,
             version: unpackedRef?.version,
             blockRef: unpackedRef?.blockRef,
             latest: unpackedRef?.latest || undefined,
@@ -311,7 +311,7 @@ function EmbedControl({
       opacity={popoverState.open ? 1 : 0}
       padding="$2"
       gap="$2"
-      $group-item-hover={{ opacity: 1 }}
+      $group-item-hover={{opacity: 1}}
     >
       <Tooltip content="Open in a new window">
         <Button
@@ -340,14 +340,14 @@ function EmbedControl({
                   ? ChevronRight
                   : ChevronDown
                 : expandButtonHover.hover
-                  ? ChevronDown
-                  : ChevronRight
+                ? ChevronDown
+                : ChevronRight
             }
             backgroundColor="$backgroundStrong"
             onPress={(e) => {
               e.stopPropagation()
-              let url = createHmDocLink({
-                documentId: hmId?.qid,
+              let url = createHmDocLink_DEPRECATED({
+                documentId: hmId?.id,
                 version: hmId?.version,
                 latest: !!hmId?.latest,
                 blockRef: hmId?.blockRef,
@@ -369,8 +369,8 @@ function EmbedControl({
                 ? 'Collapse'
                 : 'Expand'
               : expandButtonHover.hover
-                ? 'Expand'
-                : 'Collapse'}
+              ? 'Expand'
+              : 'Collapse'}
           </Button>
         </Tooltip>
       ) : null}
@@ -490,8 +490,8 @@ function EmbedControl({
                 },
               },
             ]}
-            enterStyle={{ y: -10, opacity: 0 }}
-            exitStyle={{ y: -10, opacity: 0 }}
+            enterStyle={{y: -10, opacity: 0}}
+            exitStyle={{y: -10, opacity: 0}}
             elevate={true}
           >
             <YGroup>
@@ -503,7 +503,7 @@ function EmbedControl({
                       handleBlockToDocument()
                     }}
                     title="Convert to Document Embed"
-                  // icon={item.icon}
+                    // icon={item.icon}
                   />
                 ) : null}
               </YGroup.Item>

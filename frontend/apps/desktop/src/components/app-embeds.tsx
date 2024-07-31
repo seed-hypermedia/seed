@@ -11,11 +11,11 @@ import {
   EntityComponentProps,
   InlineEmbedComponentProps,
   UnpackedHypermediaId,
-  createHmId,
   formattedDateMedium,
   getBlockNodeById,
   getDocumentTitle,
   hmId,
+  packHmId,
   unpackHmId,
   useDocContentContext,
 } from '@shm/shared'
@@ -80,7 +80,7 @@ function EmbedWrapper({
 
   useEffect(() => {
     const val =
-      (routeParams?.documentId == unpackRef?.qid &&
+      (routeParams?.documentId == unpackRef?.id &&
         routeParams?.version == unpackRef?.version &&
         comment) ||
       false
@@ -96,7 +96,7 @@ function EmbedWrapper({
     routeParams?.documentId,
     routeParams?.version,
     comment,
-    unpackRef?.qid,
+    unpackRef?.id,
     unpackRef?.version,
   ])
 
@@ -424,7 +424,7 @@ export function EmbedDocContent(props: EntityComponentProps) {
           size="$2"
           icon={ArrowUpRightSquare}
           onPress={() => {
-            if (!props.qid) return
+            if (!props.id) return
             navigate({
               key: 'document',
               id: props,
@@ -439,7 +439,7 @@ export function EmbedDocContent(props: EntityComponentProps) {
 }
 
 export function EmbedDocumentCard(props: EntityComponentProps) {
-  const docId = props.type == 'd' ? createHmId('d', props.eid) : undefined
+  const docId = props.type == 'd' ? packHmId(hmId('d', props.uid)) : undefined
   const doc = useEntity(props)
   let textContent = useMemo(() => {
     if (doc.data?.document?.content) {
@@ -472,13 +472,10 @@ export function EmbedAccount(
   props: EntityComponentProps,
   parentBlockId: string | null,
 ) {
-  const profile = useEntity(props)
+  const entity = useEntity(props)
 
-  if (profile.status == 'success') {
-    const account =
-      profile.data?.type === 'a' ? profile.data?.account : undefined
-    if (!account) return null
-    if (props.block?.attributes?.view == 'content' && profile.data) {
+  if (entity.status == 'success') {
+    if (props.block?.attributes?.view == 'content' && entity.data) {
       return <EmbedDocContent {...props} />
     } else if (props.block?.attributes?.view == 'card') {
       return (
@@ -511,9 +508,9 @@ export function EmbedAccount(
 }
 
 export function EmbedComment(props: EntityComponentProps) {
-  if (props?.type !== 'c')
+  if (props?.type !== 'comment')
     throw new Error('Invalid props as ref for EmbedComment')
-  const comment = useComment(createHmId('c', props.eid), {
+  const comment = useComment(hmId('comment', props.uid), {
     enabled: !!props,
   })
   let embedBlocks = useMemo(() => {
@@ -583,10 +580,8 @@ function AvatarComponent({accountId}: {accountId: string}) {
 }
 
 export function EmbedInline(props: InlineEmbedComponentProps) {
-  if (props?.type == 'a') {
-    return <AccountInlineEmbed {...props} />
-  } else if (props?.type == 'd') {
-    return <PublicationInlineEmbed {...props} />
+  if (props?.type == 'd') {
+    return <DocInlineEmbed {...props} />
   } else {
     console.error('Inline Embed Error', JSON.stringify(props))
     return <InlineEmbedButton>??</InlineEmbedButton>
@@ -594,7 +589,7 @@ export function EmbedInline(props: InlineEmbedComponentProps) {
 }
 
 function AccountInlineEmbed(props: InlineEmbedComponentProps) {
-  const accountId = props?.type == 'a' ? props.eid : undefined
+  const accountId = props?.type == 'd' ? props.uid : undefined
   if (!accountId)
     throw new Error('Invalid props at AccountInlineEmbed (accountId)')
   const accountQuery = useAccount_deprecated(accountId)
@@ -602,7 +597,7 @@ function AccountInlineEmbed(props: InlineEmbedComponentProps) {
   return (
     <InlineEmbedButton
       dataRef={props?.id}
-      onPress={() => navigate({key: 'document', id: hmId('a', accountId)})}
+      onPress={() => navigate({key: 'document', id: hmId('d', accountId)})}
     >
       {(accountId &&
         accountQuery.status == 'success' &&
@@ -612,9 +607,9 @@ function AccountInlineEmbed(props: InlineEmbedComponentProps) {
   )
 }
 
-function PublicationInlineEmbed(props: InlineEmbedComponentProps) {
-  const pubId = props?.type == 'd' ? props.qid : undefined
-  if (!pubId) throw new Error('Invalid props at PublicationInlineEmbed (pubId)')
+function DocInlineEmbed(props: InlineEmbedComponentProps) {
+  const pubId = props?.type == 'd' ? props.id : undefined
+  if (!pubId) throw new Error('Invalid props at DocInlineEmbed (pubId)')
   const doc = useEntity(props)
   const navigate = useNavigate()
   return (

@@ -88,7 +88,7 @@ function InlineEmbedNodeComponent(props: any) {
 export function MentionToken(props: {value: string; selected?: boolean}) {
   const unpackedRef = unpackHmId(props.value)
 
-  if (unpackedRef?.type == 'a') {
+  if (unpackedRef?.type == 'd') {
     // todo, remove and merge <DocumentMention unpackedRef={unpackedRef} {...props} />. this was removed when the id.type=d was removed
     return <AccountMention unpackedRef={unpackedRef} {...props} />
   } else {
@@ -104,11 +104,11 @@ function AccountMention({
   unpackedRef: UnpackedHypermediaId
   selected?: boolean
 }) {
-  const account = useAccount_deprecated(unpackedRef.eid)
+  const account = useAccount_deprecated(unpackedRef.uid)
 
   return (
     <MentionText selected={selected}>
-      @{account.data?.profile?.alias || unpackedRef.eid}
+      @{account.data?.profile?.alias || unpackedRef.uid}
     </MentionText>
   )
 }
@@ -130,7 +130,7 @@ function DocumentMention({
     <MentionText selected={selected}>
       {doc.data?.document
         ? getDocumentTitle(doc.data.document)
-        : unpackedRef.qid}
+        : unpackedRef.id}
     </MentionText>
   )
 }

@@ -15,19 +15,11 @@ import {
   UnpackedHypermediaId,
   getBlockNodeById,
   getDocumentTitle,
-  getProfileName,
   hmId,
   unpackHmId,
 } from '@shm/shared'
 import {Tooltip} from '@shm/ui'
-import {
-  Contact,
-  FilePen,
-  FileText,
-  Hash,
-  Pencil,
-  Star,
-} from '@tamagui/lucide-icons'
+import {FilePen, FileText, Hash, Pencil, Star} from '@tamagui/lucide-icons'
 import {ReactNode, memo, useCallback, useMemo, useState} from 'react'
 import {Button, SizableText, Spinner, View} from 'tamagui'
 import {
@@ -47,7 +39,7 @@ function _SidebarNeo() {
   const myAccount = useMyAccount_deprecated()
   const myAccountRoute: DocumentRoute | null = useMemo(() => {
     return myAccount
-      ? ({key: 'document', id: hmId('a', myAccount)} as DocumentRoute)
+      ? ({key: 'document', id: hmId('d', myAccount)} as DocumentRoute)
       : null
   }, [myAccount])
   const navigate = useNavigate()
@@ -64,8 +56,8 @@ function _SidebarNeo() {
     isMyAccountDraftActive ||
     (firstEntityRoute &&
       firstEntityRoute.key === 'document' &&
-      firstEntityRoute.id.type === 'a' &&
-      firstEntityRoute.id.eid === myAccount)
+      firstEntityRoute.id.type === 'd' &&
+      firstEntityRoute.id.uid === myAccount)
   // const [collapseMe, setCollapseMe] = useState(!isMyAccountActive)
   // const entityContents = useRouteEntities(
   //   myAccountRoute ? [myAccountRoute, ...entityRoutes] : entityRoutes,
@@ -197,12 +189,10 @@ export function getItemDetails(
   let icon: IconDefinition | undefined = undefined
   let isDraft = false
   if (!entity) return null
-  console.log(`== ~ entity.id:`, entity.id)
-  if (entity.id.type === 'a') {
-    name = getProfileName(entity.document)
-    icon = Contact
+  if (entity.id.type === 'd') {
+    name = getDocumentTitle(entity.document)
+    icon = FileText
   }
-
   if (entity.id.type === 'draft') {
     name = '<draft>'
     icon = FilePen
@@ -210,7 +200,6 @@ export function getItemDetails(
   }
 
   if (entity.id.path?.[0] != '') {
-    console.log('--- ENTITY WITH PATH', entity)
     name = getDocumentTitle(entity.document)
     icon = FileText
   }
@@ -279,7 +268,7 @@ function ContextItems({
       <SidebarItem
         active={active && !info?.headings?.length}
         {...(info.headings?.length ? {} : collapsedProps)}
-        title={info.title}
+        title={info.name}
         icon={info.icon}
         onPress={() => {
           if (route.key === 'draft') return
@@ -670,19 +659,8 @@ function SidebarFavorites({
   if (!collapse) {
     items = favorites.map((fav) => {
       const {key, url} = fav
-      if (key === 'account') {
-        return (
-          <FavoriteAccountItem key={url} url={url} onNavigate={onNavigate} />
-        )
-      }
       if (key === 'document') {
-        return (
-          <FavoritePublicationItem
-            key={url}
-            url={url}
-            onNavigate={onNavigate}
-          />
-        )
+        return <FavoriteItem key={url} url={url} onNavigate={onNavigate} />
       }
       return null
     })
@@ -719,35 +697,7 @@ function SidebarFavorites({
   )
 }
 
-function FavoriteAccountItem({
-  url,
-  onNavigate,
-}: {
-  url: string
-  onNavigate: (route: NavRoute) => void
-}) {
-  const id = unpackHmId(url)
-  const route = useNavRoute()
-  const accountId = id?.eid
-  const {data} = useEntity(id)
-  if (!accountId) return null
-  return (
-    <SidebarItem
-      active={
-        route.key === 'document' &&
-        route.id.type === 'a' &&
-        route.id.eid === accountId
-      }
-      indented
-      onPress={() => {
-        onNavigate({key: 'document', id: hmId('a', accountId)})
-      }}
-      title={getProfileName(data?.document)}
-    />
-  )
-}
-
-function FavoritePublicationItem({
+function FavoriteItem({
   url,
   onNavigate,
 }: {
@@ -757,7 +707,7 @@ function FavoritePublicationItem({
   const id = unpackHmId(url)
   const route = useNavRoute()
   const doc = useEntity(id)
-  const documentId = id?.qid
+  const documentId = id?.id
   if (!documentId) return null
   return (
     <SidebarItem
@@ -765,7 +715,7 @@ function FavoritePublicationItem({
       active={
         route.key === 'document' &&
         route.id.type === 'd' &&
-        route.id.qid === documentId
+        route.id.id === documentId
       }
       onPress={() => {
         onNavigate({

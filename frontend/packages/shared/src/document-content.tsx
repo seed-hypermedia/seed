@@ -132,7 +132,7 @@ export const docContentContext = createContext<DocContentContextValue | null>(
 
 export type EntityComponentProps = BlockContentProps & UnpackedHypermediaId
 
-export type InlineEmbedComponentProps = ReturnType<typeof unpackHmId>
+export type InlineEmbedComponentProps = UnpackedHypermediaId
 
 export function DocContentProvider({
   children,
@@ -1425,7 +1425,7 @@ export function BlockContentEmbed(props: BlockContentProps) {
   if (props.block.type !== 'embed')
     throw new Error('BlockContentEmbed requires an embed block type')
   const id = unpackHmId(props.block.ref)
-  if (id?.type == 'a') {
+  if (id?.type == 'd') {
     return <EmbedTypes.Account {...props} {...id} />
     // return <EmbedTypes.Document {...props} {...id} /> // todo, bring back the document embed. the id.type=d type is no longer here
   }
@@ -1608,7 +1608,7 @@ export function ContentEmbed({
               blockNode={{
                 block: {
                   type: 'heading',
-                  id: `heading-${props.eid}`,
+                  id: `heading-${props.uid}`,
                   text: pub?.document?.title,
                   attributes: {
                     childrenType: 'group',

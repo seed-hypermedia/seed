@@ -6,12 +6,13 @@ import {
   GRPCClient,
   StateStream,
   UnpackedHypermediaId,
-  createHmId,
   extractBlockRefOfUrl,
+  hmId,
   hmIdWithVersion,
   isHypermediaScheme,
   isPublicGatewayLink,
   normalizeHmId,
+  packHmId,
   unpackHmId,
 } from '@shm/shared'
 import {Editor} from '@tiptap/core'
@@ -149,20 +150,17 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           return false
         }
 
-        if (selection.empty && unpackedHmId?.eid && unpackedHmId.type) {
+        if (selection.empty && unpackedHmId?.uid && unpackedHmId.type) {
           let tr = view.state.tr
 
           let pos = tr.selection.from
-          const normalizedHmUrl = createHmId(
-            unpackedHmId.type,
-            unpackedHmId.eid,
-            {
+          const normalizedHmUrl = packHmId(
+            hmId(unpackedHmId.type, unpackedHmId.uid, {
               blockRef: unpackedHmId.blockRef,
               blockRange: unpackedHmId.blockRange,
               version: unpackedHmId.version,
-              variants: unpackedHmId.variants,
               latest: unpackedHmId.latest,
-            },
+            }),
           )
 
           fetchEntityTitle(unpackedHmId, options.grpcClient)
@@ -507,25 +505,13 @@ async function fetchEntityTitle(
   grpcClient: GRPCClient,
 ) {
   if (hmId.type == 'd') {
-    console.log('aa 1')
-    const doc = await grpcClient.documents.getDocument({
-      documentId: hmId.qid,
-      version: hmId.version ? hmId.version : undefined,
-    })
     return {
-      title: doc.metadata?.name || null,
+      title: 'broken-title-code' || null,
     }
-  } else if (hmId.type == 'a') {
-    const profile = await grpcClient.documents.getProfileDocument({
-      accountId: hmId.eid,
-    })
-    return {
-      title: profile.metadata?.name || null,
-    }
-  } else if (hmId.type == 'c') {
+  } else if (hmId.type == 'comment') {
     try {
       const comment = await grpcClient.comments.getComment({
-        id: hmId.qid,
+        id: hmId.id,
       })
 
       if (comment) {

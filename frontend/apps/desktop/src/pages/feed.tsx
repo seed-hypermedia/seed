@@ -216,7 +216,7 @@ function FeedItemHeader({
       />
       <YStack f={1}>
         <SizableText size="$3">
-          <EntityLink id={hmId('a', author)}>
+          <EntityLink id={hmId('d', author)}>
             {account.data?.profile?.alias || 'Unknown'}
           </EntityLink>{' '}
           {message}
@@ -287,7 +287,7 @@ function HMLinkButton({
 
 function DocChangeFeedItem({id, eventTime, cid, author}: ChangeFeedItemProps) {
   const doc = useEntity({...id, version: cid})
-  const linkId = hmId('d', id.eid, {
+  const linkId = hmId('d', id.uid, {
     version: cid,
   })
   return (
@@ -399,7 +399,7 @@ function AccountChangeFeedItem({
 }
 
 function CommentFeedItem({id, eventTime, cid, author}: CommentFeedItemProps) {
-  const comment = useComment(id.qid)
+  const comment = useComment(id.id)
   const targetDocId =
     comment.data?.target == null ? null : unpackHmId(comment.data?.target)
   const targetDoc = useEntity(targetDocId)
@@ -463,10 +463,10 @@ export const FeedItem = React.memo(function FeedItem({
     if (hmId?.type === 'd' && blobType === 'Change') {
       return <DocChangeFeedItem {...genericEvent} id={hmId} />
     }
-    if (hmId?.type === 'a' && blobType === 'Change') {
+    if (hmId?.type === 'd' && blobType === 'Change') {
       return <AccountChangeFeedItem {...genericEvent} id={hmId} />
     }
-    if (hmId?.type === 'c' && blobType === 'Comment') {
+    if (hmId?.type === 'comment' && blobType === 'Comment') {
       return <CommentFeedItem {...genericEvent} id={hmId} />
     }
     if (blobType === 'Change') {

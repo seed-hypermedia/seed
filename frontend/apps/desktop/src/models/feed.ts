@@ -42,8 +42,8 @@ export function useFeedWithLatest(trustedOnly: boolean = false) {
 function feedFilterFromId(id?: string): PartialMessage<ListEventsRequest> {
   const hmId = id ? unpackHmId(id) : null
   return {
-    filterResource: !id || hmId?.type === 'a' ? undefined : [id],
-    filterUsers: hmId?.type === 'a' ? [hmId.eid] : undefined,
+    filterResource: !id || hmId?.type === 'd' ? undefined : [id],
+    filterUsers: hmId?.type === 'd' ? [hmId.uid] : undefined,
   }
 }
 export function useResourceFeedWithLatest(id?: string) {
@@ -134,7 +134,7 @@ export function useFeed(trustedOnly: boolean = false) {
       const {eventTime} = event
       const id = unpackHmId(event.data.value.resource)
       updateCidTypes.set(event.data.value.cid, id?.type)
-      updateEids.set(event.data.value.cid, id?.eid)
+      updateEids.set(event.data.value.cid, id?.uid)
       if (id?.type === 'g') {
         groupUpdateCids.push(event.data.value.cid)
         groupUpdateTimes.set(event.data.value.cid, eventTime)
@@ -154,7 +154,7 @@ export function useFeed(trustedOnly: boolean = false) {
         const contentItemId = unpackHmId(value)
         const time = groupUpdateTimes.get(cid)
         if (contentItemId?.type === 'd' && time) {
-          timeMap.set(`${contentItemId.eid}-${contentItemId.version}`, time)
+          timeMap.set(`${contentItemId.uid}-${contentItemId.version}`, time)
         }
       }
     }
@@ -167,10 +167,10 @@ export function useFeed(trustedOnly: boolean = false) {
         if (event.data.value.blobType === 'KeyDelegation') return false
         if (event.data.value.blobType === 'Change') {
           const type = updateCidTypes.get(event.data.value.cid)
-          const eid = updateEids.get(event.data.value.cid)
-          if (eid && type === 'd') {
+          const uid = updateEids.get(event.data.value.cid)
+          if (uid && type === 'd') {
             const groupContentUpdateTime = timeMap.get(
-              `${eid}-${event.data.value.cid}`,
+              `${uid}-${event.data.value.cid}`,
             )
             const groupUpdateTimeIsNear =
               !!groupContentUpdateTime &&

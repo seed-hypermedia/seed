@@ -42,7 +42,7 @@ export const queryKeys = {
 
   // comments
   COMMENT: 'COMMENT', //, commentId: string
-  PUBLICATION_COMMENTS: 'PUBLICATION_COMMENTS', //, docEid: string
+  PUBLICATION_COMMENTS: 'PUBLICATION_COMMENTS', //, docUid: string
 
   // content-graph
   ENTITY_CITATIONS: 'ENTITY_CITATIONS', //, entityId: string

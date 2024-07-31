@@ -6,8 +6,8 @@ export const HYPERMEDIA_PUBLIC_WEB_GATEWAY = 'https://hyper.media'
 export const HYPERMEDIA_SCHEME = 'hm'
 
 export const HYPERMEDIA_ENTITY_TYPES = {
-  a: 'Account',
-  c: 'Comment',
+  d: 'Document', // the default type
+  comment: 'Comment',
   draft: 'Local Draft',
 } as const
 
@@ -15,7 +15,7 @@ export type HMEntityType = keyof typeof HYPERMEDIA_ENTITY_TYPES
 
 export function createPublicWebHmUrl(
   type: keyof typeof HYPERMEDIA_ENTITY_TYPES,
-  eid: string,
+  uid: string,
   {
     version,
     blockRef,
@@ -30,7 +30,7 @@ export function createPublicWebHmUrl(
     latest?: boolean | null
   } = {},
 ) {
-  const webPath = `/${type}/${eid}`
+  const webPath = `/${type}/${uid}`
   const urlHost =
     hostname === undefined
       ? HYPERMEDIA_PUBLIC_WEB_GATEWAY
@@ -53,45 +53,36 @@ export function createPublicWebHmUrl(
   return res
 }
 
-export function createHmId(
-  type: keyof typeof HYPERMEDIA_ENTITY_TYPES,
-  id: string,
-  opts: {
-    version?: string | null
-    blockRef?: string | null
-    blockRange?: BlockRange | ExpandedBlockRange | null
-    id?: string
-    path?: string[] | null
-    latest?: boolean | null
-  } = {},
-): string {
-  let path = `${type}/${id}`
-  if (opts?.path) path += `/${opts.path.join('/')}`
-  let url = new URL(`${HYPERMEDIA_SCHEME}://${path}`)
-  let responseUrl = url.toString()
+function packBaseId(
+  type: UnpackedHypermediaId['type'],
+  uid: string,
+  path?: string[] | null,
+) {
+  const restPath = path?.length ? `/${path.join('/')}` : ''
+  if (type === 'd') return `${HYPERMEDIA_SCHEME}://${uid}${restPath}`
+  return `${HYPERMEDIA_SCHEME}://${type}/${uid}${restPath}`
+}
+
+export function packHmId(hmId: UnpackedHypermediaId): string {
+  const {type, path, version, latest, blockRef, blockRange, uid} = hmId
+  if (!uid) throw new Error('uid is required')
+  let responseUrl = packBaseId(type, uid, path)
   const query: Record<string, string | null> = {}
-  if (opts.version) {
-    query.v = opts.version
+  if (version) {
+    query.v = version
   }
-  if (opts.latest) {
+  if (latest) {
     query.l = null
   }
   responseUrl += serializeQueryString(query)
-  if (opts?.blockRef) {
-    responseUrl += `#${opts.blockRef}${serializeBlockRange(opts.blockRange)}`
+  if (blockRef) {
+    responseUrl += `#${blockRef}${serializeBlockRange(blockRange)}`
   }
-
   return responseUrl
 }
 
-export function serializeHmId(hmId: UnpackedHypermediaId): string {
-  return createHmId(hmId.type, hmId.eid, {
-    version: hmId.version,
-    blockRef: hmId.blockRef,
-    blockRange: hmId.blockRange,
-    latest: hmId.latest,
-    path: hmId.path,
-  })
+export function hmDocId(uid: string, opts?: Parameters<typeof hmId>[2]) {
+  return hmId('d', uid, opts)
 }
 
 type ParsedURL = {
@@ -129,9 +120,8 @@ function inKeys<V extends string>(
 
 export const unpackedHmIdSchema = z.object({
   id: z.string(),
-  type: z.union([z.literal('a'), z.literal('c'), z.literal('draft')]),
-  eid: z.string(),
-  qid: z.string(),
+  type: z.union([z.literal('d'), z.literal('comment'), z.literal('draft')]),
+  uid: z.string(),
   path: z.array(z.string()).nullable(),
   version: z.string().nullable(),
   blockRef: z.string().nullable(),
@@ -152,7 +142,7 @@ export type UnpackedHypermediaId = z.infer<typeof unpackedHmIdSchema>
 
 export function hmId(
   type: keyof typeof HYPERMEDIA_ENTITY_TYPES,
-  eid: string,
+  uid: string,
   opts: {
     version?: string | null
     blockRef?: string | null
@@ -162,12 +152,11 @@ export function hmId(
     hostname?: string | null
   } = {},
 ): UnpackedHypermediaId {
-  if (!eid) throw new Error('eid is required')
+  if (!uid) throw new Error('uid is required')
   return {
-    id: createHmId(type, eid, opts),
     type,
-    eid,
-    qid: createHmId(type, eid),
+    uid,
+    id: packBaseId(type, uid, opts.path),
     path: opts.path || null,
     version: opts.version || null,
     blockRef: opts.blockRef || null,
@@ -183,81 +172,58 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
   const parsed = parseCustomURL(hypermediaId)
 
   if (!parsed) return null
-  if (parsed.scheme === HYPERMEDIA_SCHEME) {
-    const [rawType, eid, ...path] = parsed.path
-    const type = inKeys(rawType, HYPERMEDIA_ENTITY_TYPES)
-    const version = parsed.query.v || null
-    const latest = parsed.query.l !== undefined
-    if (!type) return null
-    const qid = createHmId(type, eid)
-    const fragment = parseFragment(parsed.fragment)
+  let uidOrType, path
+  let hostname = null
+  if (parsed.scheme === 'https' || parsed.scheme === 'http') {
+    if (parsed.path[1] !== 'hm') return null
+    hostname = parsed.path[0]
+    uidOrType = parsed.path[2]
+    path = parsed.path.slice(3)
+  } else if (parsed.scheme === HYPERMEDIA_SCHEME) {
+    uidOrType = parsed.path[0]
+    path = parsed.path.slice(1)
+  } else {
+    return null
+  }
+  let type = inKeys(uidOrType, HYPERMEDIA_ENTITY_TYPES)
+  let restPath = path
+  let uid
+  if (type) {
+    uid = path[0]
+    restPath = path.slice(1)
+  } else {
+    uid = uidOrType
+    type = 'd'
+  }
+  const version = parsed.query.v || null
+  const latest = parsed.query.l !== undefined
+  const fragment = parseFragment(parsed.fragment)
 
-    let blockRange = null
-    if (fragment) {
-      if ('start' in fragment) {
-        blockRange = {
-          start: fragment.start,
-          end: fragment.end,
-        }
-      } else if ('expanded' in fragment) {
-        blockRange = {
-          expanded: fragment.expanded,
-        }
+  let blockRange = null
+  if (fragment) {
+    if ('start' in fragment) {
+      blockRange = {
+        start: fragment.start,
+        end: fragment.end,
+      }
+    } else if ('expanded' in fragment) {
+      blockRange = {
+        expanded: fragment.expanded,
       }
     }
-
-    return {
-      id: hypermediaId,
-      qid,
-      type,
-      eid,
-      path: path || null,
-      version,
-      blockRef: fragment ? fragment.blockId : null,
-      blockRange,
-      hostname: null,
-      latest,
-      scheme: parsed.scheme,
-    }
   }
-  if (parsed?.scheme === 'https' || parsed?.scheme === 'http') {
-    const type = inKeys(parsed.path[1], HYPERMEDIA_ENTITY_TYPES)
-    const eid = parsed.path[2]
-    const version = parsed.query.v || null
-    const latest = parsed.query.l !== undefined
-    let hostname = parsed.path[0]
-    if (!type) return null
-    const qid = createHmId(type, eid)
-    const fragment = parseFragment(parsed.fragment)
-
-    let blockRange = null
-    if (fragment) {
-      if ('start' in fragment) {
-        blockRange = {
-          start: fragment.start,
-          end: fragment.end,
-        }
-      } else if ('expanded' in fragment) {
-        blockRange = {
-          expanded: fragment.expanded,
-        }
-      }
-    }
-    return {
-      id: hypermediaId,
-      qid,
-      type,
-      eid,
-      path: parsed.path.slice(2) || null,
-      version,
-      blockRef: fragment ? fragment.blockId : null,
-      blockRange,
-      hostname,
-      latest,
-      scheme: parsed.scheme,
-    }
+  return {
+    id: packBaseId(type, uid, restPath),
+    type,
+    uid,
+    path: restPath || null,
+    version,
+    blockRef: fragment ? fragment.blockId : null,
+    blockRange,
+    hostname,
+    latest,
+    scheme: parsed.scheme,
   }
-  return null
 }
 
 export function isHypermediaScheme(url?: string) {
@@ -284,7 +250,7 @@ export function idToUrl(
 ) {
   const unpacked = unpackHmId(hmId)
   if (!unpacked?.type) return null
-  return createPublicWebHmUrl(unpacked.type, unpacked.eid, {
+  return createPublicWebHmUrl(unpacked.type, unpacked.uid, {
     version: version || unpacked.version,
     blockRef: blockRef || unpacked.blockRef,
     blockRange: blockRange || unpacked.blockRange,
@@ -299,21 +265,21 @@ export function normalizeHmId(
   if (isHypermediaScheme(urlMaybe)) return urlMaybe
   if (isPublicGatewayLink(urlMaybe, gwUrl)) {
     const unpacked = unpackHmId(urlMaybe)
-
-    console.log(`== ~ unpacked:`, urlMaybe, unpacked)
-
-    if (unpacked?.eid && unpacked.type) {
-      return createHmId(unpacked.type, unpacked.eid, {
-        blockRange: unpacked.blockRange,
-        blockRef: unpacked.blockRef,
-        version: unpacked.version,
-      })
+    if (unpacked?.uid && unpacked.type) {
+      return packHmId(
+        hmId(unpacked.type, unpacked.uid, {
+          blockRange: unpacked.blockRange,
+          blockRef: unpacked.blockRef,
+          version: unpacked.version,
+        }),
+      )
     }
     return undefined
   }
 }
 
-export function createHmDocLink({
+// TODO: migrate to existing ID functions
+export function createHmDocLink_DEPRECATED({
   documentId,
   version,
   blockRef,
@@ -356,20 +322,22 @@ export function labelOfEntityType(type: keyof typeof HYPERMEDIA_ENTITY_TYPES) {
 }
 
 export function hmIdWithVersion(
-  hmId: string | null | undefined,
+  id: string | null | undefined,
   version: string | null | undefined,
   blockRef?: string | null | undefined,
   blockRange?: BlockRange | ExpandedBlockRange | null,
 ) {
-  if (!hmId) return null
-  const unpacked = unpackHmId(hmId)
+  if (!id) return null
+  const unpacked = unpackHmId(id)
   if (!unpacked) return null
-  return createHmId(unpacked.type, unpacked.eid, {
-    path: unpacked.path,
-    version: version || unpacked.version,
-    blockRef,
-    blockRange,
-  })
+  return packHmId(
+    hmId(unpacked.type, unpacked.uid, {
+      path: unpacked.path,
+      version: version || unpacked.version,
+      blockRef,
+      blockRange,
+    }),
+  )
 }
 
 export function extractBlockRefOfUrl(
@@ -460,23 +428,4 @@ export function serializeBlockRange(
   }
 
   return res
-}
-
-export function getParentIds(entityId: string): string[] {
-  const unpacked = unpackHmId(entityId)
-  const parentIds: string[] = []
-  if (unpacked) {
-    parentIds.push(createHmId(unpacked.type, unpacked.eid))
-    const pathTerms = unpacked.path
-    pathTerms?.forEach((pathTerm, index) => {
-      if (index === pathTerms.length - 1) return
-      pathTerms.push(pathTerm)
-      parentIds.push(
-        createHmId(unpacked.type, unpacked.eid, {
-          path: pathTerms,
-        }),
-      )
-    })
-  }
-  return parentIds
 }

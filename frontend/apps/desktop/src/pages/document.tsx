@@ -108,7 +108,7 @@ export default function DocumentPage() {
     label: 'Version History',
     icon: HistoryIcon,
   })
-  if (docId.type === 'a') {
+  if (docId.type === 'd') {
     accessoryOptions.push({
       key: 'collaborators',
       label: 'Collaborators',
@@ -130,7 +130,7 @@ export default function DocumentPage() {
     label: 'Citations',
     icon: CitationsIcon,
   })
-  if (docId.type === 'a' && !docId.path?.length) {
+  if (docId.type === 'd' && !docId.path?.length) {
     accessoryOptions.push({
       key: 'all-documents',
       label: 'All Documents',
@@ -166,7 +166,6 @@ function MainDocumentPage() {
   if (route.key !== 'document')
     throw new Error('Invalid route for MainDocumentPage')
   if (!route.id) throw new Error('MainDocumentPage requires id')
-
   return (
     <MainWrapper>
       <DocPageHeader />
@@ -183,7 +182,6 @@ function DocPageHeader() {
   if (!docId) throw new Error('Invalid route, no doc id')
   const myAccountIds = useMyAccountIds()
   const doc = useEntity(docId)
-
   const isMyAccount = myAccountIds.data?.includes(docId.id)
   const accountName = getProfileName(doc.data?.document)
 
@@ -198,7 +196,7 @@ function DocPageHeader() {
           <XStack gap="$4" alignItems="center" justifyContent="space-between">
             <XStack gap="$4" alignItems="center">
               <Avatar
-                id={docId.eid}
+                id={docId.uid}
                 size={60}
                 label={accountName}
                 url={
@@ -256,7 +254,7 @@ function DocPageContent({
 }
 
 function DocPageAppendix({docId}: {docId: UnpackedHypermediaId}) {
-  const [tab, setTab] = useState<'discussion' | 'directory'>('discussion')
+  const [tab, setTab] = useState<'discussion' | 'directory'>('directory')
   let content = null
   if (tab === 'directory') {
     content = <DocDirectory docId={docId} />
@@ -288,24 +286,30 @@ function DocDirectory({docId}: {docId: UnpackedHypermediaId}) {
   return (
     <YStack>
       {dir.data &&
-        dir.data.map((item) => {
-          return (
-            <ListItem
-              key={item.path}
-              title={item.path + ' - ' + item.title}
-              onPress={() => {
-                const id = hmId(docId.type, docId.eid, {
-                  path: item.path.split('/'),
-                })
-                console.log('navigate', id)
-                navigate({
-                  key: 'document',
-                  id,
-                })
-              }}
-            />
-          )
-        })}
+        dir.data
+          .filter((item) => {
+            const level = docId.path?.length || 0
+            if (item.path.length !== level + 1) return false
+            let pathPrefix = (docId.path || []).join('/')
+            return item.path.join('/').startsWith(pathPrefix)
+          })
+          .map((item) => {
+            return (
+              <ListItem
+                key={item.path.join('/')}
+                title={item.metadata.name}
+                onPress={() => {
+                  const id = hmId(docId.type, docId.uid, {
+                    path: item.path,
+                  })
+                  navigate({
+                    key: 'document',
+                    id,
+                  })
+                }}
+              />
+            )
+          })}
       <XStack paddingVertical="$4">
         <NewSubDocumentButton parentDocId={docId} />
       </XStack>
@@ -327,13 +331,11 @@ function NewDocumentDialog({
 }) {
   const navigate = useNavigate()
   const onSubmit: SubmitHandler<NewSubDocumentFields> = (data) => {
-    // console.log('NewDocument', id)
     const path = pathNameify(data.name)
-    const id = `${input.id}/${path}`
     onClose()
     navigate({
       key: 'draft',
-      id,
+      id: {...input, path: [...(input.path || []), path]},
       name: data.name,
     })
   }

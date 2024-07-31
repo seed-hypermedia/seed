@@ -5,7 +5,7 @@ import {queryKeys} from '@/models/query-keys'
 import {client, trpc} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
-import {createHmId, GRPCClient, HMAccount, HMDraft, hmId} from '@shm/shared'
+import {GRPCClient, HMAccount, HMDraft, hmId, packHmId} from '@shm/shared'
 import {useQueries, useQuery, UseQueryOptions} from '@tanstack/react-query'
 import {useEntities, useEntity} from './entities'
 import {useConnectedPeers} from './networking'
@@ -59,7 +59,7 @@ export function useAllAccounts() {
 export function useAllAccountProfiles() {
   const allAccounts = useAllAccounts()
   const allProfiles = useEntities(
-    allAccounts.data?.accounts.map((a) => hmId('a', a.id)) || [],
+    allAccounts.data?.accounts.map((a) => hmId('d', a.id)) || [],
     {enabled: !!allAccounts.data},
   )
   return allProfiles.map((query) => {
@@ -103,25 +103,9 @@ export function useDrafts(draftIds: string[]) {
 }
 
 export function useProfileWithDraft(accountId?: string) {
-  const profile = useEntity(accountId ? hmId('a', accountId) : undefined)
-  const draft = useDraft(accountId ? createHmId('a', accountId) : undefined)
+  const profile = useEntity(accountId ? hmId('d', accountId) : undefined)
+  const draft = useDraft(accountId ? packHmId(hmId('d', accountId)) : undefined)
   return {profile: profile.data?.document, draft: draft?.data}
-}
-
-export function useProfilesWithDrafts(accountIds: string[]) {
-  const profiles = useEntities(accountIds.map((uid) => hmId('a', uid)))
-  const drafts = useDrafts(accountIds)
-  return accountIds.map((accountId, index) => {
-    const profile = profiles[index]
-    const draft = drafts[index]
-    if (profile.data?.type !== 'a') return null
-    return {
-      accountId,
-      account: profile.data?.account,
-      document: profile.data?.document,
-      draft: draft.data,
-    }
-  })
 }
 
 export function queryDraft({
@@ -141,9 +125,6 @@ export function queryDraft({
       if (!draftId) return null
       try {
         const draftReq = await client.drafts.get.query(draftId)
-
-        console.log(`== ~ queryFn: ~ draft:`, draftReq)
-
         draft = draftReq
       } catch (error) {
         const connectErr = ConnectError.from(error)

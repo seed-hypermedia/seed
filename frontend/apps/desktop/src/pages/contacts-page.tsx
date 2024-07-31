@@ -80,7 +80,7 @@ export default function ContactsPage() {
                 onPress={() => {
                   navigate({
                     key: 'document',
-                    id: hmId('a', item.namespace, {
+                    id: hmId('d', item.namespace, {
                       path: item.path.split('/'),
                     }),
                   })

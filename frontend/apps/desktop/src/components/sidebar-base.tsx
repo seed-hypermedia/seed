@@ -31,7 +31,6 @@ import {
   ArrowDownRight,
   ChevronDown,
   ChevronRight,
-  Contact,
   FileText,
   Hash,
   Search,
@@ -366,7 +365,7 @@ export function MyAccountItem({
           appError('Account has not loaded.')
           return
         }
-        onRoute({key: 'document', id: hmId('a', account.id)})
+        onRoute({key: 'document', id: hmId('d', account.id)})
       }}
       icon={
         <Avatar
@@ -422,14 +421,6 @@ export function getDocOutline(
           parentBlockId,
           icon: FileText,
         })
-      } else if (embed?.type === 'a') {
-        outline.push({
-          id: child.block.id,
-          title: embed?.data?.profile?.alias || 'Untitled Account',
-          entityId: embed.query.refId,
-          parentBlockId,
-          icon: Contact,
-        })
       }
     } else if (child.block.type === 'embed' && embeds[child.block.id]) {
       const embed = embeds[child.block.id]
@@ -447,14 +438,6 @@ export function getDocOutline(
             children &&
             getDocOutline(children, embeds, embed.query.refId, child.block.id),
           icon: FileText,
-        })
-      } else if (embed?.type === 'a') {
-        outline.push({
-          id: child.block.id,
-          title: embed?.data?.profile?.alias || 'Untitled Account',
-          entityId: embed.query.refId,
-          parentBlockId,
-          icon: Contact,
         })
       }
     } else if (child.children) {

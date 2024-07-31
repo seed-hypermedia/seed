@@ -28,8 +28,8 @@ export function useFavorites() {
     })
     const accounts: string[] = []
     unpackedIds?.forEach((id) => {
-      if (id?.type === 'a') {
-        accounts.push(id.eid)
+      if (id?.type === 'd') {
+        accounts.push(id.uid)
       }
     })
     return {
@@ -42,9 +42,9 @@ export function useFavorites() {
   const favoriteItems: FavoriteItem[] = []
   favorites?.forEach((id, favoriteIndex) => {
     const url = favoriteUrls[favoriteIndex]
-    if (id?.type === 'a' && url) {
+    if (id?.type === 'd' && url) {
       const accountQ = accountsQuery.find(
-        (account) => account.data?.id === id.eid,
+        (account) => account.data?.id === id.uid,
       )
       const account = accountQ?.data
       if (account) {
@@ -52,7 +52,7 @@ export function useFavorites() {
           key: 'account',
           id,
           url,
-          accountId: id.qid,
+          accountId: id.id,
           account,
         })
       }

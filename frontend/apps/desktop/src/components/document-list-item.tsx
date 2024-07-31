@@ -4,8 +4,9 @@ import {
   Document,
   HMAccount,
   HMDocument,
-  createHmId,
   getDocumentTitle,
+  hmId,
+  packHmId,
 } from '@shm/shared'
 import {
   ArrowUpRight,
@@ -55,9 +56,11 @@ export const DocumentListItem = React.memo(function DocumentListItem({
   const docHmId = docRoute?.id
   const docUrl =
     docHmId && docRoute
-      ? createHmId('d', docHmId.eid, {
-          version: docRoute.versionId,
-        })
+      ? packHmId(
+          hmId('d', docHmId.uid, {
+            version: docRoute.versionId,
+          }),
+        )
       : undefined
   const favorite = useFavorite(docUrl)
 
@@ -89,13 +92,13 @@ export const DocumentListItem = React.memo(function DocumentListItem({
               theme="yellow"
               zIndex="$zIndex.5"
               onPress={(e) => {
-                navigate(
-                  {
-                    key: 'draft',
-                    id: hasDraft.id,
-                  },
-                  e,
-                )
+                // navigate(
+                //   {
+                //     key: 'draft',
+                //     id: hasDraft.id, // todo use unpacked ID here
+                //   },
+                //   e,
+                // )
               }}
               size="$1"
             >

@@ -35,7 +35,7 @@ function AddConnectionForm({
   const [peerText, setPeer] = useState('')
   const daemonInfo = useDaemonInfo()
   const account = useMyAccount_deprecated()
-  const profile = useEntity(account ? hmId('a', account) : undefined)
+  const profile = useEntity(account ? hmId('d', account) : undefined)
   const deviceId = daemonInfo.data?.peerId
   const peerInfo = usePeerInfo(deviceId)
   console.log('peerInfo', peerInfo.data, deviceId)

@@ -88,7 +88,7 @@ export type DocumentRoute = z.infer<typeof documentRouteSchema>
 
 export const draftRouteSchema = z.object({
   key: z.literal('draft'),
-  id: z.string().optional(),
+  id: unpackedHmIdSchema.optional(),
   name: z.string().optional(),
   deps: z.array(z.string()).optional(),
 })
@@ -101,7 +101,7 @@ export type FavoritesRoute = z.infer<typeof favoritesSchema>
 
 export const commentRouteSchema = z.object({
   key: z.literal('comment'),
-  commentId: z.string().optional(),
+  commentId: unpackedHmIdSchema,
   showThread: z.boolean().optional(),
 })
 export type CommentRoute = z.infer<typeof commentRouteSchema>
@@ -151,7 +151,7 @@ export type NavRoute = z.infer<typeof navRouteSchema>
 
 export function getRecentsRouteEntityUrl(route: NavRoute) {
   // this is used to uniquely identify an item for the recents list. So it references the entity without specifying version
-  if (route.key === 'document') return route.id.qid
+  if (route.key === 'document') return route.id.id
   // comments do not show up in the recents list, we do not know how to display them
   return null
 }

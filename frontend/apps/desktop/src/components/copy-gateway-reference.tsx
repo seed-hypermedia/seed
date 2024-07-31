@@ -6,8 +6,9 @@ import {
   writeableStateStream,
 } from '@shm/shared'
 import {
-  createHmId,
   createPublicWebHmUrl,
+  hmId,
+  packHmId,
 } from '@shm/shared/src/utils/entity-id-url'
 import {
   Button,
@@ -49,11 +50,10 @@ export function useCopyGatewayReference() {
   const pushOnCopy = usePushOnCopy()
   const push = usePushPublication()
   function onCopy(input: UnpackedHypermediaId) {
-    const publicUrl = createPublicWebHmUrl(input.type, input.eid, {
+    const publicUrl = createPublicWebHmUrl(input.type, input.uid, {
       version: input.version,
       blockRef: input.blockRef,
       blockRange: input.blockRange,
-      variants: input.variants,
       hostname: gatewayUrl.data,
     })
     const [setIsPublished, isPublished] =
@@ -63,7 +63,7 @@ export function useCopyGatewayReference() {
     fetchWebLinkMeta(publicUrl)
       .then((meta) => {
         // toast.success(JSON.stringify(meta))
-        const destId = createHmId(input.type, input.eid)
+        const destId = packHmId(hmId(input.type, input.uid))
         const correctId = meta?.hmId === destId
         const correctVersion =
           !input.version || meta?.hmVersion === input.version
@@ -100,7 +100,7 @@ export function useCopyGatewayReference() {
         host={gatewayHost}
         isPublished={isPublished}
         pushingState={pushingState}
-        hmId={createHmId(input.type, input.eid)}
+        hmId={packHmId(input)}
       />,
       {duration: 8000},
     )
@@ -216,7 +216,7 @@ export function PushToGatewayDialog({
           onPress={() => {
             if (shouldDoAlways) setDoEveryTime('always')
             push
-              .mutateAsync(createHmId(input.type, input.eid))
+              .mutateAsync(packHmId(input))
               .then(() => {
                 onClose()
                 toast.success(`Pushed to ${input.host}`)

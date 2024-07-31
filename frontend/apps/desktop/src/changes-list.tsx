@@ -10,9 +10,9 @@ import {NavRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   Change,
-  createHmId,
   createPublicWebHmUrl,
   formattedDateLong,
+  packHmId,
   unpackHmId,
 } from '@shm/shared'
 import {hmId, UnpackedHypermediaId} from '@shm/shared/src/utils/entity-id-url'
@@ -84,7 +84,7 @@ function ChangeItem({
   const navigate = useNavigate()
   const openAccount = (e) => {
     e.stopPropagation()
-    navigate({key: 'document', id: hmId('a', change.author)})
+    navigate({key: 'document', id: hmId('d', change.author)})
   }
   const navRoute = useNavRoute()
   const isActive = new Set(activeVersion?.split('.') || []).has(change.id)
@@ -124,7 +124,7 @@ function ChangeItem({
   const gwUrl = useGatewayUrl()
   const publicWebUrl =
     parsedEntityId &&
-    createPublicWebHmUrl(parsedEntityId?.type, parsedEntityId?.eid, {
+    createPublicWebHmUrl(parsedEntityId?.type, parsedEntityId?.uid, {
       version: change.id,
       hostname: gwUrl.data,
     })
@@ -146,9 +146,11 @@ function ChangeItem({
       icon: ArrowUpRight,
       onPress: () => {
         open(
-          createHmId(parsedEntityId.type, parsedEntityId.eid, {
-            version: change.id,
-          }),
+          packHmId(
+            hmId(parsedEntityId.type, parsedEntityId.uid, {
+              version: change.id,
+            }),
+          ),
           true,
         )
       },

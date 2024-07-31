@@ -5,7 +5,7 @@ import {useNavRoute} from '@/utils/navigation'
 import {DraftRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {PlainMessage} from '@bufbuild/protobuf'
-import {Document, hmId, unpackHmId} from '@shm/shared'
+import {Document, hmId, packHmId} from '@shm/shared'
 import {
   AlertCircle,
   Button,
@@ -29,34 +29,38 @@ export default function PublishDraftButton() {
   if (!draftRoute)
     throw new Error('DraftPublicationButtons requires draft route')
   const draftId = draftRoute.id
-  const unpackedDraftId = unpackHmId(draftRoute.id)
-  const draft = useDraft(draftRoute.id)
-  const prevEntity = useEntity(
-    unpackedDraftId?.type !== 'draft' ? unpackedDraftId : undefined,
-  )
+  const packedDraftId = draftId ? packHmId(draftId) : undefined
+  const draft = useDraft(packedDraftId)
+  const prevEntity = useEntity(draftId?.type !== 'draft' ? draftId : undefined)
   const invalidate = useQueryInvalidator()
   const deleteDraft = trpc.drafts.delete.useMutation({
     onSuccess: () => {
       invalidate(['trpc.drafts.get'])
     },
   })
-  const publish = usePublishDraft(grpcClient, draftRoute.id)
+  const publish = usePublishDraft(grpcClient, packedDraftId)
   function handlePublish() {
-    if (draft.data && unpackedDraftId) {
+    if (draft.data && draftId) {
       publish
         .mutateAsync({
           draft: draft.data,
           previous: prevEntity.data?.document as
             | PlainMessage<Document>
             | undefined,
-          id: unpackedDraftId.type === 'draft' ? undefined : unpackedDraftId,
+          id: draftId.type === 'draft' ? undefined : draftId,
         })
         .then(async (res) => {
-          const resultDocId = hmId('a', unpackedDraftId.eid)
+          const resultDocId = hmId('d', draftId.uid, {path: draftId.path})
           if (draftId)
-            await deleteDraft.mutateAsync(draftId).catch((e) => {
-              console.error('Failed to delete draft', e)
-            })
+            await deleteDraft
+              .mutateAsync(packHmId(draftId))
+              .catch((e) => {
+                console.error('Failed to delete draft', e)
+              })
+              .then(() => {
+                invalidate(['trpc.drafts.get']) // todo, invalidate the specific draft id
+                invalidate(['trpc.drafts.list'])
+              })
           if (resultDocId) {
             navigate({key: 'document', id: resultDocId})
           } else {

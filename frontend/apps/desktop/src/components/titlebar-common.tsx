@@ -22,9 +22,10 @@ import {
   BlockRange,
   ExpandedBlockRange,
   HYPERMEDIA_ENTITY_TYPES,
-  createHmId,
   createPublicWebHmUrl,
   getDocumentTitle,
+  hmId,
+  packHmId,
 } from '@shm/shared'
 import {
   Back,
@@ -107,9 +108,11 @@ export function DocOptionsButton() {
     },
   ]
   const docUrl = route.id
-    ? createHmId('d', route.id.eid, {
-        version: route.id.version,
-      })
+    ? packHmId(
+        hmId('d', route.id.uid, {
+          version: route.id.version,
+        }),
+      )
     : null
   menuItems.push(useFavoriteMenuItem(docUrl))
 
@@ -129,21 +132,18 @@ function EditDocButton() {
   const myAccountIds = useMyAccountIds()
   const navigate = useNavigate()
   const draft = useDraft(route.id.id)
-  if (route.id.type === 'a' && !myAccountIds.data?.includes(route.id.eid)) {
-    return null
-  }
   if (route.tab !== 'home' && route.tab) return null
   const hasExistingDraft = !!draft.data
   return (
     <>
-      <Tooltip content={hasExistingDraft ? 'Resume Editing' : 'Edit Account'}>
+      <Tooltip content={hasExistingDraft ? 'Resume Editing' : 'Edit'}>
         <Button
           size="$2"
           theme={hasExistingDraft ? 'yellow' : undefined}
           onPress={() => {
             navigate({
               key: 'draft',
-              id: route.id.id,
+              id: route.id,
             })
           }}
           icon={Pencil}
@@ -173,7 +173,7 @@ export function useFullReferenceUrl(route: NavRoute): {
     if (!docRoute.id) return null
     let hostname = gwUrl.data
     return {
-      url: createPublicWebHmUrl('d', docRoute.id.eid, {
+      url: createPublicWebHmUrl('d', docRoute.id.uid, {
         version: pub.data?.document?.version,
         hostname,
       }),
@@ -214,7 +214,7 @@ function getReferenceUrlOfRoute(
   exactVersion?: string | undefined,
 ) {
   if (route.key === 'document') {
-    const url = createPublicWebHmUrl(route.id.type, route.id.eid, {
+    const url = createPublicWebHmUrl(route.id.type, route.id.uid, {
       version: exactVersion || route.id.version,
       hostname,
     })
@@ -303,8 +303,6 @@ export function PageActionButtons(props: TitleBarProps) {
       <CreateDropdown key="create" />,
       <DocOptionsButton key="options" />,
     ]
-  } else if (route.key === 'document' && route.id.type === 'a') {
-    buttonGroup = [<EditDocButton key="editDoc" />]
   }
   return <TitlebarSection>{buttonGroup}</TitlebarSection>
 }

@@ -369,7 +369,7 @@ function AccountKeys() {
   }
 
   const {data: profile} = useEntity(
-    selectedAccount ? hmId('a', selectedAccount) : undefined,
+    selectedAccount ? hmId('d', selectedAccount) : undefined,
   )
 
   const mnemonics = useSavedMnemonics()

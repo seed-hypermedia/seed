@@ -85,7 +85,7 @@ export function BaseAccountLinkAvatar({
           e.preventDefault()
           e.stopPropagation()
           if (!accountId) return appError('No account ready to load')
-          navigate({key: 'document', id: hmId('a', accountId)})
+          navigate({key: 'document', id: hmId('d', accountId)})
         }}
         position="relative"
         height={size}
