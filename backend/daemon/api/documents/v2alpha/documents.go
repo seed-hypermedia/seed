@@ -12,6 +12,7 @@ import (
 	"seed/backend/daemon/index"
 	documents "seed/backend/genproto/documents/v2alpha"
 	"seed/backend/hlc"
+	"seed/backend/hyper"
 	"seed/backend/pkg/colx"
 	"seed/backend/pkg/dqb"
 	"strings"
@@ -25,20 +26,27 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// Provider is a subset of the syncing service that
+// is able to provide a document to the DHT.
+type Provider interface {
+	ProvideCID(cid.Cid) error
+}
+
 // Server implements Documents API v2.
 type Server struct {
 	documents.UnimplementedDocumentsServer
-
+	prov Provider
 	keys core.KeyStore
 	idx  *index.Index
 	db   *sqlitex.Pool
 }
 
 // NewServer creates a new Documents API v2 server.
-func NewServer(keys core.KeyStore, idx *index.Index, db *sqlitex.Pool) *Server {
+func NewServer(keys core.KeyStore, idx *index.Index, prov Provider, db *sqlitex.Pool) *Server {
 	return &Server{
 		keys: keys,
 		idx:  idx,
+		prov: prov,
 		db:   db,
 	}
 }
@@ -369,7 +377,17 @@ func (srv *Server) ChangeProfileDocument(ctx context.Context, in *documents.Chan
 	if _, err := doc.Commit(ctx, kp, srv.idx); err != nil {
 		return nil, err
 	}
+	if srv.prov != nil {
+		eid := hyper.EntityID(doc.Entity().ID())
 
+		oid, err := eid.CID()
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert document to CID: %w", err)
+		}
+		if err := srv.prov.ProvideCID(oid); err != nil {
+			return nil, err
+		}
+	}
 	return srv.GetProfileDocument(ctx, &documents.GetProfileDocumentRequest{
 		AccountId: in.AccountId,
 	})
