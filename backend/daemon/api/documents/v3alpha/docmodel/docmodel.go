@@ -10,7 +10,6 @@ import (
 	"seed/backend/daemon/index"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/hlc"
-	"seed/backend/hyper"
 	"seed/backend/pkg/colx"
 	"sort"
 	"strings"
@@ -18,6 +17,7 @@ import (
 	"github.com/ipfs/boxo/blockstore"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multibase"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -52,6 +52,20 @@ func (doc *Document) SetParent(parent *Document) {
 	doc.parent = parent
 }
 
+// originFromCID creates a CRDT origin from the last 8 chars of the hash.
+// Most of the time it's not needed, because HLC is very unlikely to collide.
+func originFromCID(c cid.Cid) string {
+	if !c.Defined() {
+		return ""
+	}
+
+	str, err := c.StringOfBase(multibase.Base58BTC)
+	if err != nil {
+		panic(err)
+	}
+	return str[len(str)-9:]
+}
+
 // New creates a new mutable document.
 func New(e *Entity, nextHLC hlc.Timestamp) (*Document, error) {
 	dm := &Document{
@@ -65,7 +79,7 @@ func New(e *Entity, nextHLC hlc.Timestamp) (*Document, error) {
 	}
 
 	for _, c := range e.cids {
-		o := hyper.OriginFromCID(c)
+		o := originFromCID(c)
 		dm.origins[o] = c
 	}
 
@@ -325,7 +339,7 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 		Metadata:        make(map[string]string),
 		CreateTime:      timestamppb.New(hlc.Timestamp(first.Ts).Time()),
 		Version:         e.Version().String(),
-		PreviousVersion: hyper.NewVersion(e.Deps()...).String(),
+		PreviousVersion: NewVersion(e.Deps()...).String(),
 	}
 
 	docpb.UpdateTime = timestamppb.New(hlc.Timestamp(last.Ts).Time())
