@@ -7,7 +7,6 @@ import (
 	"net/netip"
 	"seed/backend/daemon/apiutil"
 	networking "seed/backend/genproto/networking/v1alpha"
-	"seed/backend/hyper"
 	"seed/backend/ipfs"
 	"seed/backend/mttnet"
 	"seed/backend/pkg/dqb"
@@ -24,17 +23,15 @@ import (
 
 // Server implements the networking API.
 type Server struct {
-	blobs *hyper.Storage
-	net   *mttnet.Node
-	db    *sqlitex.Pool
+	net *mttnet.Node
+	db  *sqlitex.Pool
 }
 
 // NewServer returns a new networking API server.
-func NewServer(blobs *hyper.Storage, node *mttnet.Node, db *sqlitex.Pool) *Server {
+func NewServer(node *mttnet.Node, db *sqlitex.Pool) *Server {
 	return &Server{
-		blobs: blobs,
-		net:   node,
-		db:    db,
+		net: node,
+		db:  db,
 	}
 }
 

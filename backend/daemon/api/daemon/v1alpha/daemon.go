@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"seed/backend/core"
 	daemon "seed/backend/genproto/daemon/v1alpha"
-	"seed/backend/hyper"
 	sync "sync"
 	"time"
 
@@ -32,7 +31,6 @@ type Wallet interface {
 // Server implements the Daemon gRPC API.
 type Server struct {
 	store     Storage
-	blobs     *hyper.Storage
 	startTime time.Time
 	wallet    Wallet
 
@@ -42,10 +40,9 @@ type Server struct {
 }
 
 // NewServer creates a new Server.
-func NewServer(store Storage, blobs *hyper.Storage, w Wallet, syncFunc func() error) *Server {
+func NewServer(store Storage, w Wallet, syncFunc func() error) *Server {
 	return &Server{
 		store:     store,
-		blobs:     blobs,
 		startTime: time.Now(),
 		// wallet:        w, // TODO(hm24): Put the wallet back.
 		forceSyncFunc: syncFunc,

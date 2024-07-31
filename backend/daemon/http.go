@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"runtime/debug"
-	"seed/backend/hyper"
 	"seed/backend/pkg/cleanup"
 	"strconv"
 	"time"
@@ -51,14 +50,14 @@ func setupIPFSFileHandlers(r *Router, h IPFSFileHandler) {
 }
 
 // setupDebugHandlers sets up the debug endpoints.
-func setupDebugHandlers(r *Router, blobs *hyper.Storage) {
+func setupDebugHandlers(r *Router, blobs blockstore.Blockstore) {
 	r.Handle("/debug/metrics", promhttp.Handler(), RouteNav)
 	r.Handle("/debug/pprof", http.DefaultServeMux, RoutePrefix|RouteNav)
 	r.Handle("/debug/vars", http.DefaultServeMux, RoutePrefix|RouteNav)
 	r.Handle("/debug/grpc", grpcLogsHandler(), RouteNav)
 	r.Handle("/debug/buildinfo", buildInfoHandler(), RouteNav)
 	r.Handle("/debug/version", gitVersionHandler(), RouteNav)
-	r.Handle("/debug/cid/{cid}", corsMiddleware(makeBlobDebugHandler(blobs.IPFSBlockstore())), 0)
+	r.Handle("/debug/cid/{cid}", corsMiddleware(makeBlobDebugHandler(blobs)), 0)
 	r.Handle("/debug/traces", eztrc.Handler(), RouteNav)
 }
 
@@ -133,7 +132,7 @@ func initHTTP(
 	rpc *grpc.Server,
 	clean *cleanup.Stack,
 	g *errgroup.Group,
-	blobs *hyper.Storage,
+	blobs blockstore.Blockstore,
 	wallet any, // TODO(hm24) put the wallet back in.
 	ipfsHandler IPFSFileHandler,
 	extraHandlers ...func(*Router),

@@ -5,10 +5,7 @@ import (
 	"seed/backend/core"
 	"seed/backend/core/coretest"
 	"seed/backend/daemon/daemontest"
-	"seed/backend/daemon/storage"
 	daemon "seed/backend/genproto/daemon/v1alpha"
-	"seed/backend/hyper"
-	"seed/backend/logging"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -91,10 +88,8 @@ func TestGetInfo_Ready(t *testing.T) {
 func newTestServer(t *testing.T, name string) *Server {
 	u := coretest.NewTester(name)
 	repo := daemontest.MakeTestRepo(t, u)
-	db := storage.MakeTestDB(t)
-	blobs := hyper.NewStorage(db, logging.New("seed/hyper", "debug"))
 
-	return NewServer(repo, blobs, nil, nil)
+	return NewServer(repo, nil, nil)
 }
 
 type mockedWallet struct {

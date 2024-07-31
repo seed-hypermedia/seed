@@ -9,7 +9,6 @@ import (
 	entities "seed/backend/daemon/api/entities/v1alpha"
 	networking "seed/backend/daemon/api/networking/v1alpha"
 	"seed/backend/daemon/index"
-	"seed/backend/hyper"
 	"seed/backend/logging"
 	"seed/backend/mttnet"
 	"seed/backend/syncing"
@@ -40,7 +39,6 @@ func New(
 	ctx context.Context,
 	repo Storage,
 	db *sqlitex.Pool,
-	blobs *hyper.Storage,
 	node *mttnet.Node,
 	wallet daemon.Wallet,
 	sync *syncing.Service,
@@ -61,8 +59,8 @@ func New(
 
 	return Server{
 		Activity:    activity.NewServer(db),
-		Daemon:      daemon.NewServer(repo, blobs, wallet, doSync),
-		Networking:  networking.NewServer(blobs, node, db),
+		Daemon:      daemon.NewServer(repo, wallet, doSync),
+		Networking:  networking.NewServer(node, db),
 		Entities:    entities.NewServer(idx, nil), // TOOD(hm24): provide a discoverer.
 		DocumentsV3: documentsv3.NewServer(repo.KeyStore(), idx, db),
 		Syncing:     sync,

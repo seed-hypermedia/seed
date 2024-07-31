@@ -14,7 +14,6 @@ import (
 	"seed/backend/daemon/api"
 	daemon "seed/backend/daemon/api/daemon/v1alpha"
 	"seed/backend/daemon/index"
-	"seed/backend/hyper"
 	"seed/backend/logging"
 	"seed/backend/mttnet"
 	"seed/backend/pkg/cleanup"
@@ -23,6 +22,7 @@ import (
 	"seed/backend/wallet"
 
 	"crawshaw.io/sqlite/sqlitex"
+	"github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/boxo/exchange"
 	"github.com/ipfs/boxo/exchange/offline"
 	"go.opentelemetry.io/otel"
@@ -50,7 +50,6 @@ type App struct {
 	RPC          api.Server
 	Net          *mttnet.Node
 	Syncing      *syncing.Service
-	Blobs        *hyper.Storage
 	Indexer      *index.Index
 	Wallet       *wallet.Service
 }
@@ -154,18 +153,18 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 
 	otel.SetTracerProvider(tp)
 
-	a.Blobs = hyper.NewStorage(a.Storage.DB(), logging.New("seed/hyper", cfg.LogLevel))
-
 	// TODO(hm24): Get rid of hyper entirely.
 	// if err := a.Blobs.MaybeReindex(ctx); err != nil {
 	// 	return nil, fmt.Errorf("failed to reindex database: %w", err)
 	// }
 
-	a.Net, err = initNetwork(&a.clean, a.g, a.Storage, cfg.P2P, a.Blobs, cfg.LogLevel, opts.extraP2PServices...)
+	a.Indexer = index.NewIndex(a.Storage.DB(), logging.New("seed/Indexing", cfg.LogLevel))
+
+	a.Net, err = initNetwork(&a.clean, a.g, a.Storage, cfg.P2P, a.Indexer, cfg.LogLevel, opts.extraP2PServices...)
 	if err != nil {
 		return nil, err
 	}
-	a.Indexer = index.NewIndex(a.Storage.DB(), logging.New("seed/Indexing", cfg.LogLevel))
+
 	a.Syncing, err = initSyncing(cfg.Syncing, &a.clean, a.g, a.Storage.DB(), a.Indexer, a.Net, cfg.LogLevel)
 	if err != nil {
 		return nil, err
@@ -173,7 +172,7 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 
 	a.Wallet = wallet.New(ctx, logging.New("seed/wallet", cfg.LogLevel), a.Storage.DB(), a.Storage.KeyStore(), "main", a.Net, cfg.Lndhub.Mainnet)
 
-	a.GRPCServer, a.GRPCListener, a.RPC, err = initGRPC(ctx, cfg.GRPC.Port, &a.clean, a.g, a.Storage, a.Storage.DB(), a.Blobs, a.Net,
+	a.GRPCServer, a.GRPCListener, a.RPC, err = initGRPC(ctx, cfg.GRPC.Port, &a.clean, a.g, a.Storage, a.Storage.DB(), a.Net,
 		a.Syncing,
 		a.Wallet,
 		cfg.LogLevel, opts.grpc)
@@ -183,7 +182,7 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 
 	var fm *mttnet.FileManager
 	{
-		bs := a.Blobs.IPFSBlockstore()
+		bs := a.Indexer
 		var e exchange.Interface = a.Net.Bitswap()
 		if cfg.Syncing.NoDiscovery {
 			e = offline.Exchange(bs)
@@ -192,7 +191,7 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 		fm = mttnet.NewFileManager(logging.New("seed/file-manager", cfg.LogLevel), bs, e, a.Net.Provider())
 	}
 
-	a.HTTPServer, a.HTTPListener, err = initHTTP(cfg.HTTP.Port, a.GRPCServer, &a.clean, a.g, a.Blobs,
+	a.HTTPServer, a.HTTPListener, err = initHTTP(cfg.HTTP.Port, a.GRPCServer, &a.clean, a.g, a.Indexer,
 		a.Wallet,
 		fm, opts.extraHTTPHandlers...)
 	if err != nil {
@@ -280,7 +279,7 @@ func initNetwork(
 	g *errgroup.Group,
 	store Storage,
 	cfg config.P2P,
-	blobs *hyper.Storage,
+	blobs blockstore.Blockstore,
 	LogLevel string,
 	extraServers ...func(grpc.ServiceRegistrar),
 ) (*mttnet.Node, error) {
@@ -301,7 +300,7 @@ func initNetwork(
 		}
 	})
 
-	n, err := mttnet.New(cfg, store.Device(), store.KeyStore(), store.DB(), blobs.IPFSBlockstore(), logging.New("seed/network", LogLevel))
+	n, err := mttnet.New(cfg, store.Device(), store.KeyStore(), store.DB(), blobs, logging.New("seed/network", LogLevel))
 	if err != nil {
 		return nil, err
 	}
@@ -364,7 +363,6 @@ func initGRPC(
 	g *errgroup.Group,
 	repo Storage,
 	pool *sqlitex.Pool,
-	blobs *hyper.Storage,
 	node *mttnet.Node,
 	sync *syncing.Service,
 	wallet daemon.Wallet,
@@ -378,7 +376,7 @@ func initGRPC(
 
 	srv = grpc.NewServer(opts.serverOptions...)
 
-	rpc = api.New(ctx, repo, pool, blobs, node, wallet, sync, LogLevel)
+	rpc = api.New(ctx, repo, pool, node, wallet, sync, LogLevel)
 	rpc.Register(srv)
 	reflection.Register(srv)
 
