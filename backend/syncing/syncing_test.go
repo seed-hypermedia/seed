@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"seed/backend/config"
 	"seed/backend/core"
-	"seed/backend/core/coretest"
-	daemon "seed/backend/daemon/api/daemon/v1alpha"
 	"seed/backend/daemon/storage"
 	"seed/backend/hyper"
 	"seed/backend/hyper/hypersql"
@@ -16,7 +14,6 @@ import (
 	"seed/backend/pkg/future"
 	"seed/backend/pkg/must"
 	"testing"
-	"time"
 
 	"crawshaw.io/sqlite"
 	"github.com/ipfs/go-cid"
@@ -56,12 +53,9 @@ func TestSync(t *testing.T) {
 }
 
 func makeTestNode(t *testing.T, name string) testNode {
-	u := coretest.NewTester(name)
 	db := storage.MakeTestDB(t)
 
 	blobs := hyper.NewStorage(db, logging.New("seed/hyper", "debug"))
-	_, err := daemon.Register(context.Background(), blobs, u.Account, u.Device.PublicKey, time.Now())
-	require.NoError(t, err)
 
 	cfg := config.Default()
 	cfg.P2P.Port = 0
@@ -69,7 +63,7 @@ func makeTestNode(t *testing.T, name string) testNode {
 	cfg.P2P.BootstrapPeers = nil
 	cfg.P2P.NoMetrics = true
 	store := storage.MakeTestRepo(t)
-	n, err := mttnet.New(cfg.P2P, store.Device(), store.KeyStore(), store.DB(), blobs, must.Do2(zap.NewDevelopment()).Named(name))
+	n, err := mttnet.New(cfg.P2P, store.Device(), store.KeyStore(), store.DB(), blobs.IPFSBlockstore(), must.Do2(zap.NewDevelopment()).Named(name))
 	require.NoError(t, err)
 
 	errc := make(chan error, 1)

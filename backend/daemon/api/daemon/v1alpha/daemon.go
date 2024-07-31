@@ -11,7 +11,6 @@ import (
 	sync "sync"
 	"time"
 
-	"github.com/ipfs/go-cid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -164,25 +163,6 @@ func (srv *Server) RegisterAccount(ctx context.Context, name string, kp core.Key
 		}
 	}
 	return nil
-}
-
-// Register creates key delegation from account to device.
-func Register(ctx context.Context, bs *hyper.Storage, account core.KeyPair, device core.PublicKey, at time.Time) (cid.Cid, error) {
-	kd, err := hyper.NewKeyDelegation(account, device, time.Now().UTC())
-	if err != nil {
-		return cid.Undef, err
-	}
-
-	blob := kd.Blob()
-
-	if err := bs.SaveBlob(ctx, blob); err != nil {
-		return cid.Undef, err
-	}
-
-	if err = bs.SetAccountTrust(ctx, account.Principal()); err != nil {
-		return blob.CID, fmt.Errorf("could not set own account to trusted: " + err.Error())
-	}
-	return blob.CID, nil
 }
 
 // GetInfo implements the corresponding gRPC method.

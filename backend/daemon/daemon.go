@@ -301,7 +301,7 @@ func initNetwork(
 		}
 	})
 
-	n, err := mttnet.New(cfg, store.Device(), store.KeyStore(), store.DB(), blobs, logging.New("seed/network", LogLevel))
+	n, err := mttnet.New(cfg, store.Device(), store.KeyStore(), store.DB(), blobs.IPFSBlockstore(), logging.New("seed/network", LogLevel))
 	if err != nil {
 		return nil, err
 	}

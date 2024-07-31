@@ -5,7 +5,6 @@ import (
 	"seed/backend/config"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
-	daemon "seed/backend/daemon/api/daemon/v1alpha"
 	"seed/backend/daemon/storage"
 	networking "seed/backend/genproto/networking/v1alpha"
 	"seed/backend/hyper"
@@ -13,7 +12,6 @@ import (
 	"seed/backend/mttnet"
 	"seed/backend/pkg/must"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -38,8 +36,6 @@ func TestNetworkingGetPeerInfo(t *testing.T) {
 func makeTestServer(t *testing.T, u coretest.Tester) *Server {
 	db := storage.MakeTestDB(t)
 	blobs := hyper.NewStorage(db, logging.New("seed/hyper", "debug"))
-	_, err := daemon.Register(context.Background(), blobs, u.Account, u.Device.PublicKey, time.Now())
-	require.NoError(t, err)
 
 	cfg := config.Default().P2P
 	cfg.Port = 0
@@ -50,7 +46,7 @@ func makeTestServer(t *testing.T, u coretest.Tester) *Server {
 	ks := core.NewMemoryKeyStore()
 	must.Do(ks.StoreKey(context.Background(), "main", u.Account))
 
-	n, err := mttnet.New(cfg, u.Device, ks, db, blobs, zap.NewNop())
+	n, err := mttnet.New(cfg, u.Device, ks, db, blobs.IPFSBlockstore(), zap.NewNop())
 	require.NoError(t, err)
 
 	errc := make(chan error, 1)

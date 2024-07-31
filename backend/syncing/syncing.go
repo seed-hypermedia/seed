@@ -141,7 +141,7 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer *
 		db:         db,
 		indexer:    indexer,
 		bitswap:    net.Bitswap(),
-		rbsrClient: net.RbsrClient,
+		rbsrClient: net.SyncingClient,
 		p2pClient:  net.Client,
 		host:       net.Libp2p().Host,
 		workers:    make(map[peer.ID]*worker),

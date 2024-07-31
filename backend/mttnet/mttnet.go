@@ -5,20 +5,17 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
 	"seed/backend/config"
 	"seed/backend/core"
-	groups_proto "seed/backend/genproto/groups/v1alpha"
 	p2p "seed/backend/genproto/p2p/v1alpha"
-	"seed/backend/hyper"
 	"seed/backend/ipfs"
 	"seed/backend/pkg/cleanup"
 	"seed/backend/pkg/libp2px"
 	"seed/backend/pkg/must"
-	"strings"
 	"time"
 
 	"crawshaw.io/sqlite/sqlitex"
+	blockstore "github.com/ipfs/boxo/blockstore"
 	provider "github.com/ipfs/boxo/provider"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -40,7 +37,6 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 const ProtocolSupportKey = "seed-support" // This is what we use as a key to protect the connection in ConnManager.
@@ -51,24 +47,6 @@ const (
 )
 
 var userAgent = "seed/<dev>"
-
-// GatewayClient is the bridge to talk to the gateway.
-type GatewayClient interface {
-	// PublishBlobs pushes given blobs to the gateway.
-	PublishBlobs(context.Context, *groups_proto.PublishBlobsRequest, ...grpc.CallOption) (*groups_proto.PublishBlobsResponse, error)
-}
-
-// WebsiteClient is the bridge to talk to remote sites.
-type WebsiteClient interface {
-	// InitializeServer instruct the website that starts serving a given group.
-	InitializeServer(context.Context, *groups_proto.InitializeServerRequest, ...grpc.CallOption) (*groups_proto.InitializeServerResponse, error)
-
-	// GetSiteInfo gets public site information, to be also found in /.well-known/hypermedia-site
-	GetSiteInfo(context.Context, *groups_proto.GetSiteInfoRequest, ...grpc.CallOption) (*groups_proto.PublicSiteInfo, error)
-
-	// PublishBlobs pushes given blobs to the site.
-	PublishBlobs(context.Context, *groups_proto.PublishBlobsRequest, ...grpc.CallOption) (*groups_proto.PublishBlobsResponse, error)
-}
 
 // DefaultRelays bootstrap seed-owned relays so they can reserve slots to do holepunch.
 func DefaultRelays() []peer.AddrInfo {
@@ -113,7 +91,7 @@ type rpcMux struct {
 // Node is a Seed P2P node.
 type Node struct {
 	log                    *zap.Logger
-	blobs                  *hyper.Storage
+	blobs                  blockstore.Blockstore
 	db                     *sqlitex.Pool
 	device                 core.KeyPair
 	keys                   core.KeyStore
@@ -134,7 +112,7 @@ type Node struct {
 
 // New creates a new P2P Node. The users must call Start() before using the node, and can use Ready() to wait
 // for when the node is ready to use.
-func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool, blobs *hyper.Storage, log *zap.Logger) (*Node, error) {
+func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool, blobs blockstore.Blockstore, log *zap.Logger) (*Node, error) {
 	var clean cleanup.Stack
 
 	host, closeHost, err := newLibp2p(cfg, device.Wrapped())
@@ -143,7 +121,7 @@ func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool
 	}
 	clean.Add(closeHost)
 
-	bitswap, err := ipfs.NewBitswap(host, host.Routing, blobs.IPFSBlockstore())
+	bitswap, err := ipfs.NewBitswap(host, host.Routing, blobs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start bitswap: %w", err)
 	}
@@ -275,21 +253,8 @@ func (n *Node) Client(ctx context.Context, pid peer.ID) (p2p.P2PClient, error) {
 	return n.client.Dial(ctx, pid)
 }
 
-// SiteClient opens a connection with a remote website.
-func (n *Node) SiteClient(ctx context.Context, pid peer.ID) (WebsiteClient, error) {
-	if err := n.Connect(ctx, n.p2p.Peerstore().PeerInfo(pid)); err != nil {
-		return nil, err
-	}
-
-	conn, err := n.client.dialPeer(ctx, pid)
-	if err != nil {
-		return nil, err
-	}
-	return groups_proto.NewWebsiteClient(conn), nil
-}
-
-// RbsrClient opens a connection with a remote node for syncing using RBSR algorithm.
-func (n *Node) RbsrClient(ctx context.Context, pid peer.ID) (p2p.SyncingClient, error) {
+// SyncingClient opens a connection with a remote node for syncing using RBSR algorithm.
+func (n *Node) SyncingClient(ctx context.Context, pid peer.ID) (p2p.SyncingClient, error) {
 	if err := n.Connect(ctx, n.p2p.Peerstore().PeerInfo(pid)); err != nil {
 		return nil, err
 	}
@@ -299,63 +264,6 @@ func (n *Node) RbsrClient(ctx context.Context, pid peer.ID) (p2p.SyncingClient, 
 		return nil, err
 	}
 	return p2p.NewSyncingClient(conn), nil
-}
-
-// GatewayClient opens a connection with the remote production gateway.
-func (n *Node) GatewayClient(ctx context.Context, url string) (cli GatewayClient, err error) {
-	var maStr []string
-	var ma []multiaddr.Multiaddr
-	if url == "" {
-		return nil, fmt.Errorf("URL cannot be empty")
-	}
-	if strings.Contains(ipfs.TestGateway, url) {
-		maStr = []string{ipfs.TestGateway}
-		ma, err = ipfs.ParseMultiaddrs(maStr)
-	} else if strings.Contains(ipfs.ProductionGateway, url) {
-		maStr = []string{ipfs.ProductionGateway}
-		ma, err = ipfs.ParseMultiaddrs(maStr)
-	} else {
-		noSpaces := strings.Replace(url, " ", "", -1)
-		maStr = strings.Split(noSpaces, ",")
-		ma, err = ipfs.ParseMultiaddrs(maStr)
-		if err != nil { // The user did not enter valid multiaddress, so we have to get the address by the well known url
-			siteURL := url
-			if url[len(url)-1] == '/' {
-				siteURL = url[0 : len(url)-1]
-			}
-			var info *groups_proto.PublicSiteInfo
-			info, err = getSiteInfoHTTP(ctx, nil, siteURL)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get site info: %w", err)
-			}
-			maStr = []string{}
-			for _, addr := range info.PeerInfo.Addrs {
-				maStr = append(maStr, addr+"/p2p/"+info.PeerInfo.PeerId)
-			}
-			ma, err = ipfs.ParseMultiaddrs(maStr)
-		}
-	}
-	if err != nil {
-		return nil, fmt.Errorf("Could not parse gateway address: %w", err)
-	}
-	info, err := peer.AddrInfosFromP2pAddrs(ma...)
-	if err != nil {
-		return nil, fmt.Errorf("Could not get ID from ma: %w", err)
-	}
-	gwInfo := peer.AddrInfo{
-		ID:    info[0].ID,
-		Addrs: ma,
-	}
-
-	if err := n.Connect(ctx, gwInfo); err != nil {
-		return nil, err
-	}
-
-	conn, err := n.client.dialPeer(ctx, gwInfo.ID)
-	if err != nil {
-		return nil, err
-	}
-	return groups_proto.NewWebsiteClient(conn), err
 }
 
 // ArePrivateIPsAllowed check if private IPs (local) are allowed to connect.
@@ -676,42 +584,4 @@ func newProtocolInfo(prefix, version string) protocolInfo {
 		prefix:  prefix,
 		version: version,
 	}
-}
-
-func getSiteInfoHTTP(ctx context.Context, client *http.Client, siteURL string) (*groups_proto.PublicSiteInfo, error) {
-	if client == nil {
-		client = http.DefaultClient
-	}
-
-	if siteURL[len(siteURL)-1] == '/' {
-		return nil, fmt.Errorf("site URL must not have trailing slash: %s", siteURL)
-	}
-
-	requestURL := siteURL + "/.well-known/hypermedia-site"
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("could not create request to well-known site: %w ", err)
-	}
-
-	res, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("could not contact to provided site [%s]: %w ", requestURL, err)
-	}
-	defer res.Body.Close()
-
-	data, err := io.ReadAll(res.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	if res.StatusCode < 200 || res.StatusCode > 299 {
-		return nil, fmt.Errorf("site info url %q not working, status code: %d, response body: %s", requestURL, res.StatusCode, data)
-	}
-	resp := &groups_proto.PublicSiteInfo{}
-	if err := protojson.Unmarshal(data, resp); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal JSON body: %w", err)
-	}
-
-	return resp, nil
 }

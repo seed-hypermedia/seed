@@ -5,7 +5,6 @@ import (
 	"seed/backend/config"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
-	daemon "seed/backend/daemon/api/daemon/v1alpha"
 	"seed/backend/daemon/storage"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hyper"
@@ -13,7 +12,6 @@ import (
 	"seed/backend/pkg/future"
 	"seed/backend/pkg/must"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -44,8 +42,6 @@ func makeTestPeer(t *testing.T, name string) (*Node, context.CancelFunc) {
 	db := storage.MakeTestDB(t)
 
 	blobs := hyper.NewStorage(db, logging.New("seed/hyper", "debug"))
-	_, err := daemon.Register(context.Background(), blobs, u.Account, u.Device.PublicKey, time.Now())
-	require.NoError(t, err)
 
 	cfg := config.Default().P2P
 	cfg.Port = 0
@@ -56,7 +52,7 @@ func makeTestPeer(t *testing.T, name string) (*Node, context.CancelFunc) {
 	ks := core.NewMemoryKeyStore()
 	require.NoError(t, ks.StoreKey(context.Background(), "main", u.Account))
 
-	n, err := New(cfg, u.Device, ks, db, blobs, must.Do2(zap.NewDevelopment()).Named(name))
+	n, err := New(cfg, u.Device, ks, db, blobs.IPFSBlockstore(), must.Do2(zap.NewDevelopment()).Named(name))
 	require.NoError(t, err)
 
 	errc := make(chan error, 1)

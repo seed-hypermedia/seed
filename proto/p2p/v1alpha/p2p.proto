@@ -6,10 +6,6 @@ option go_package = "seed/backend/genproto/p2p/v1alpha;p2p";
 
 // Seed P2P API.
 service P2P {
-  // Handshake gets called whenever two Seed peers connect to each other.
-  // No matter who initiates the connect, this will make sure both peers exchange their information.
-  rpc Handshake(HandshakeInfo) returns (HandshakeInfo);
-
   // ListBlobs returns a stream of blobs that the peer has.
   // It's assumed that all peers have a way to list their blobs in a monotonic order,
   // i.e. blobs that a peer receives later will have a higher index/cursor.
@@ -22,16 +18,6 @@ service P2P {
 
   // Request a peer to issue a lightning BOLT-11 invoice
   rpc RequestInvoice(RequestInvoiceRequest) returns (RequestInvoiceResponse);
-
-
-}
-
-message HandshakeInfo {
-  // The CID of the key delegation blob.
-  bytes key_delegation_cid = 1;
-
-  // The bytes of the key delegation blob.
-  bytes key_delegation_data = 2;
 }
 
 // Request to list blobs.
@@ -42,7 +28,7 @@ message ListBlobsRequest {
 
 // Request to list te peer list.
 message ListPeersRequest {
-   // Optional. Maximum number of peers to return.
+  // Optional. Maximum number of peers to return.
   int32 page_size = 1;
 
   // Optional. Page token to continue listing peers from.
