@@ -142,14 +142,13 @@ func (srv *Server) UpdateKey(ctx context.Context, req *daemon.UpdateKeyRequest) 
 }
 
 func (srv *Server) RegisterAccount(ctx context.Context, name string, kp core.KeyPair) error {
+	if kp, err := srv.store.KeyStore().GetKey(ctx, name); err == nil || kp.PeerID() != "" {
+		return status.Errorf(codes.AlreadyExists, "key with name %s already exists: %v", name, err)
+	}
+
 	if err := srv.store.KeyStore().StoreKey(ctx, name, kp); err != nil {
 		return err
 	}
-
-	// TODO(hm24): Get rid of this Register function entirely.
-	// if _, err := Register(ctx, srv.blobs, kp, kp.PublicKey, time.Now().UTC()); err != nil {
-	// 	return err
-	// }
 
 	// TODO(hm24): we don't need to do this here since now we have the keys always accessible, unless the user
 	// chooses not to store the keys... Do this at the time of creating the seed wallet (new method not insert

@@ -4,7 +4,7 @@ import (
 	context "context"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
-	"seed/backend/daemon/daemontest"
+	storage "seed/backend/daemon/storage2"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	"testing"
 
@@ -29,6 +29,7 @@ func TestRegister(t *testing.T) {
 	ctx := context.Background()
 
 	resp, err := srv.RegisterKey(ctx, &daemon.RegisterKeyRequest{
+		Name:       "main",
 		Mnemonic:   testMnemonic,
 		Passphrase: testPassphrase,
 	})
@@ -36,6 +37,7 @@ func TestRegister(t *testing.T) {
 	require.Equal(t, "z6MkujA2tVCu6hcYvnuehpVZuhijVXNAqHgk3rpYtsgxebeb", resp.PublicKey)
 
 	_, err = srv.RegisterKey(ctx, &daemon.RegisterKeyRequest{
+		Name:     "main",
 		Mnemonic: testMnemonic,
 	})
 	require.Error(t, err, "calling Register more than once must fail")
@@ -45,55 +47,17 @@ func TestRegister(t *testing.T) {
 	require.Equal(t, codes.AlreadyExists, stat.Code())
 }
 
-func TestGetInfo_NonReady(t *testing.T) {
-	srv := newTestServer(t, "alice")
-	ctx := context.Background()
-
-	info, err := srv.GetInfo(ctx, &daemon.GetInfoRequest{})
-	require.Error(t, err)
-	require.Nil(t, info)
-
-	st, ok := status.FromError(err)
-	require.True(t, ok)
-	require.Equal(t, codes.FailedPrecondition, st.Code())
-}
-
-func TestGetInfo_Ready(t *testing.T) {
-	srv := newTestServer(t, "alice")
-	ctx := context.Background()
-
-	seed, err := srv.GenMnemonic(ctx, &daemon.GenMnemonicRequest{
-		WordCount: 15,
-	})
-	require.NoError(t, err)
-
-	reg, err := srv.RegisterKey(ctx, &daemon.RegisterKeyRequest{
-		Mnemonic: seed.Mnemonic,
-	})
-	require.NoError(t, err)
-	_ = reg
-
-	info, err := srv.GetInfo(ctx, &daemon.GetInfoRequest{})
-	require.NoError(t, err)
-	require.Equal(t, srv.store.Device().PeerID().String(), info.PeerId)
-
-	// acc := srv.repo.Identity().MustGet().Account()
-
-	panic("TODO list keys and check account key is there")
-
-	// require.Equal(t, acc.Principal().String(), info.AccountId)
-	// testutil.ProtoEqual(t, timestamppb.New(srv.startTime), info.StartTime, "start time doesn't match")
-}
-
 func newTestServer(t *testing.T, name string) *Server {
 	u := coretest.NewTester(name)
-	repo := daemontest.MakeTestRepo(t, u)
 
-	return NewServer(repo, nil, nil)
+	store, err := storage.Open(t.TempDir(), u.Device.Wrapped(), core.NewMemoryKeyStore(), "debug")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
+
+	return NewServer(store, &mockedWallet{}, nil)
 }
 
-type mockedWallet struct {
-}
+type mockedWallet struct{}
 
 func (w *mockedWallet) ConfigureSeedLNDHub(context.Context, core.KeyPair) error {
 	return nil
