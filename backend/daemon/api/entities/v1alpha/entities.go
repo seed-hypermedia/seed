@@ -5,50 +5,40 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"math"
 	"seed/backend/core"
+	"seed/backend/daemon/index"
 	entities "seed/backend/genproto/entities/v1alpha"
-	"seed/backend/hlc"
-	"seed/backend/hyper"
-	"seed/backend/hyper/hypersql"
-	"seed/backend/pkg/colx"
 	"seed/backend/pkg/dqb"
-	"seed/backend/pkg/errutil"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/lithammer/fuzzysearch/fuzzy"
 
 	"crawshaw.io/sqlite"
 	"crawshaw.io/sqlite/sqlitex"
-	"github.com/ipfs/go-cid"
 	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Discoverer is an interface for discovering objects.
 type Discoverer interface {
-	DiscoverObject(context.Context, hyper.EntityID, hyper.Version) error
+	DiscoverObject(ctx context.Context, entityID, version string) error
 }
 
 // Server implements Entities API.
 type Server struct {
-	blobs *hyper.Storage
-	disc  Discoverer
+	entities.UnimplementedEntitiesServer
+
+	idx  *index.Index
+	disc Discoverer
 }
 
 // NewServer creates a new entities server.
-func NewServer(blobs *hyper.Storage, disc Discoverer) *Server {
+func NewServer(idx *index.Index, disc Discoverer) *Server {
 	return &Server{
-		blobs: blobs,
-		disc:  disc,
+		idx:  idx,
+		disc: disc,
 	}
 }
 
@@ -57,219 +47,219 @@ func (srv *Server) RegisterServer(rpc grpc.ServiceRegistrar) {
 	entities.RegisterEntitiesServer(rpc, srv)
 }
 
-// GetChange implements the Changes server.
-func (api *Server) GetChange(ctx context.Context, in *entities.GetChangeRequest) (out *entities.Change, err error) {
-	if in.Id == "" {
-		return nil, errutil.MissingArgument("id")
-	}
+// // GetChange implements the Changes server.
+// func (api *Server) GetChange(ctx context.Context, in *entities.GetChangeRequest) (out *entities.Change, err error) {
+// 	if in.Id == "" {
+// 		return nil, errutil.MissingArgument("id")
+// 	}
 
-	c, err := cid.Decode(in.Id)
-	if err != nil {
-		return nil, errutil.ParseError("id", in.Id, c, err)
-	}
+// 	c, err := cid.Decode(in.Id)
+// 	if err != nil {
+// 		return nil, errutil.ParseError("id", in.Id, c, err)
+// 	}
 
-	if err := api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
-		size, err := hypersql.BlobsGetSize(conn, c.Hash())
-		if err != nil {
-			return err
-		}
-		if size.BlobsSize < 0 {
-			return errutil.NotFound("no such change %s", c)
-		}
+// 	if err := api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
+// 		size, err := hypersql.BlobsGetSize(conn, c.Hash())
+// 		if err != nil {
+// 			return err
+// 		}
+// 		if size.BlobsSize < 0 {
+// 			return errutil.NotFound("no such change %s", c)
+// 		}
 
-		out, err = getChange(conn, c, size.BlobsID)
-		if err != nil {
-			return err
-		}
-		return nil
-	}); err != nil {
-		return nil, err
-	}
+// 		out, err = getChange(conn, c, size.BlobsID)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		return nil
+// 	}); err != nil {
+// 		return nil, err
+// 	}
 
-	return out, nil
-}
+// 	return out, nil
+// }
 
-func getChange(conn *sqlite.Conn, c cid.Cid, id int64) (*entities.Change, error) {
-	var out *entities.Change
-	info, err := hypersql.ChangesGetInfo(conn, id)
-	if err != nil {
-		return nil, err
-	}
+// func getChange(conn *sqlite.Conn, c cid.Cid, id int64) (*entities.Change, error) {
+// 	var out *entities.Change
+// 	info, err := hypersql.ChangesGetInfo(conn, id)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	out = &entities.Change{
-		Id:         c.String(),
-		Author:     core.Principal(info.PublicKeysPrincipal).String(),
-		CreateTime: timestamppb.New(hlc.Timestamp(info.StructuralBlobsTs).Time()),
-		IsTrusted:  info.IsTrusted > 0,
-	}
+// 	out = &entities.Change{
+// 		Id:         c.String(),
+// 		Author:     core.Principal(info.PublicKeysPrincipal).String(),
+// 		CreateTime: timestamppb.New(hlc.Timestamp(info.StructuralBlobsTs).Time()),
+// 		IsTrusted:  info.IsTrusted > 0,
+// 	}
 
-	deps, err := hypersql.ChangesGetDeps(conn, info.StructuralBlobsID)
-	if err != nil {
-		return nil, err
-	}
-	if len(deps) > 0 {
-		out.Deps = make([]string, len(deps))
-		for i, d := range deps {
-			out.Deps[i] = cid.NewCidV1(uint64(d.BlobsCodec), d.BlobsMultihash).String()
-		}
-	}
+// 	deps, err := hypersql.ChangesGetDeps(conn, info.StructuralBlobsID)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	if len(deps) > 0 {
+// 		out.Deps = make([]string, len(deps))
+// 		for i, d := range deps {
+// 			out.Deps[i] = cid.NewCidV1(uint64(d.BlobsCodec), d.BlobsMultihash).String()
+// 		}
+// 	}
 
-	return out, nil
-}
+// 	return out, nil
+// }
 
 // GetEntityTimeline implements the Entities server.
-func (api *Server) GetEntityTimeline(ctx context.Context, in *entities.GetEntityTimelineRequest) (*entities.EntityTimeline, error) {
-	if in.Id == "" {
-		return nil, errutil.MissingArgument("id")
-	}
+// func (api *Server) GetEntityTimeline(ctx context.Context, in *entities.GetEntityTimelineRequest) (*entities.EntityTimeline, error) {
+// 	if in.Id == "" {
+// 		return nil, errutil.MissingArgument("id")
+// 	}
 
-	// Prepare the response that will be filled in later.
-	out := &entities.EntityTimeline{
-		Id:      in.Id,
-		Changes: make(map[string]*entities.Change),
-	}
+// 	// Prepare the response that will be filled in later.
+// 	out := &entities.EntityTimeline{
+// 		Id:      in.Id,
+// 		Changes: make(map[string]*entities.Change),
+// 	}
 
-	// Initialize some lookup tables and indexes.
-	var (
-		// Lookup for short database IDs to CID strings.
-		changeLookup = make(map[int64]string)
+// 	// Initialize some lookup tables and indexes.
+// 	var (
+// 		// Lookup for short database IDs to CID strings.
+// 		changeLookup = make(map[int64]string)
 
-		// Lookup for short database IDs to account IDs.
-		accountLookup = make(map[int64]string)
+// 		// Lookup for short database IDs to account IDs.
+// 		accountLookup = make(map[int64]string)
 
-		accounts colx.SmallSet[string]
+// 		accounts colx.SmallSet[string]
 
-		// Set of leaf changes in the entire DAG.
-		heads colx.SmallSet[string]
+// 		// Set of leaf changes in the entire DAG.
+// 		heads colx.SmallSet[string]
 
-		headsByAuthor = make(map[string]*colx.SmallSet[string])
+// 		headsByAuthor = make(map[string]*colx.SmallSet[string])
 
-		// Queue for doing tree traversal to find author heads.
-		queue [][]string
-	)
+// 		// Queue for doing tree traversal to find author heads.
+// 		queue [][]string
+// 	)
 
-	if err := api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
-		edb, err := hypersql.EntitiesLookupID(conn, in.Id)
-		if err != nil {
-			return err
-		}
-		if edb.ResourcesID == 0 {
-			return errutil.NotFound("no such entity %s", in.Id)
-		}
+// 	if err := api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
+// 		edb, err := hypersql.EntitiesLookupID(conn, in.Id)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		if edb.ResourcesID == 0 {
+// 			return errutil.NotFound("no such entity %s", in.Id)
+// 		}
 
-		// Process all the changes and their deps.
-		if err := sqlitex.Exec(conn, qGetEntityTimeline(), func(stmt *sqlite.Stmt) error {
-			var (
-				idShort     = stmt.ColumnInt64(0)
-				codec       = stmt.ColumnInt64(1)
-				hash        = stmt.ColumnBytesUnsafe(2)
-				ts          = stmt.ColumnInt64(3)
-				isTrusted   = stmt.ColumnInt(4)
-				authorID    = stmt.ColumnInt64(5)
-				authorBytes = stmt.ColumnBytesUnsafe(6)
-				deps        = stmt.ColumnText(7)
-				isDraft     = stmt.ColumnInt(8)
-			)
+// 		// Process all the changes and their deps.
+// 		if err := sqlitex.Exec(conn, qGetEntityTimeline(), func(stmt *sqlite.Stmt) error {
+// 			var (
+// 				idShort     = stmt.ColumnInt64(0)
+// 				codec       = stmt.ColumnInt64(1)
+// 				hash        = stmt.ColumnBytesUnsafe(2)
+// 				ts          = stmt.ColumnInt64(3)
+// 				isTrusted   = stmt.ColumnInt(4)
+// 				authorID    = stmt.ColumnInt64(5)
+// 				authorBytes = stmt.ColumnBytesUnsafe(6)
+// 				deps        = stmt.ColumnText(7)
+// 				isDraft     = stmt.ColumnInt(8)
+// 			)
 
-			idLong := cid.NewCidV1(uint64(codec), hash).String()
-			changeLookup[idShort] = idLong
+// 			idLong := cid.NewCidV1(uint64(codec), hash).String()
+// 			changeLookup[idShort] = idLong
 
-			// The database query already sorts by timestamp,
-			// so we can just append.
-			out.ChangesByTime = append(out.ChangesByTime, idLong)
+// 			// The database query already sorts by timestamp,
+// 			// so we can just append.
+// 			out.ChangesByTime = append(out.ChangesByTime, idLong)
 
-			author, ok := accountLookup[authorID]
-			if !ok {
-				author = core.Principal(authorBytes).String()
-				accountLookup[authorID] = author
-			}
+// 			author, ok := accountLookup[authorID]
+// 			if !ok {
+// 				author = core.Principal(authorBytes).String()
+// 				accountLookup[authorID] = author
+// 			}
 
-			accounts.Put(author)
+// 			accounts.Put(author)
 
-			if _, ok := headsByAuthor[author]; !ok {
-				headsByAuthor[author] = &colx.SmallSet[string]{}
-			}
+// 			if _, ok := headsByAuthor[author]; !ok {
+// 				headsByAuthor[author] = &colx.SmallSet[string]{}
+// 			}
 
-			change := &entities.Change{
-				Id:         idLong,
-				Author:     author,
-				CreateTime: timestamppb.New(hlc.Timestamp(ts).Time()),
-				IsTrusted:  isTrusted > 0,
-				IsDraft:    isDraft > 0,
-			}
+// 			change := &entities.Change{
+// 				Id:         idLong,
+// 				Author:     author,
+// 				CreateTime: timestamppb.New(hlc.Timestamp(ts).Time()),
+// 				IsTrusted:  isTrusted > 0,
+// 				IsDraft:    isDraft > 0,
+// 			}
 
-			if deps == "" {
-				out.Roots = append(out.Roots, idLong)
-			} else {
-				depsShort := strings.Fields(deps)
-				change.Deps = make([]string, len(depsShort))
-				for i, depShort := range depsShort {
-					depInt, err := strconv.Atoi(depShort)
-					if err != nil {
-						return fmt.Errorf("failed to parse dep %q as int: %w", depShort, err)
-					}
-					depLong, ok := changeLookup[int64(depInt)]
-					if !ok {
-						return fmt.Errorf("missing causal dependency lookup %q for change %q", depShort, idLong)
-					}
+// 			if deps == "" {
+// 				out.Roots = append(out.Roots, idLong)
+// 			} else {
+// 				depsShort := strings.Fields(deps)
+// 				change.Deps = make([]string, len(depsShort))
+// 				for i, depShort := range depsShort {
+// 					depInt, err := strconv.Atoi(depShort)
+// 					if err != nil {
+// 						return fmt.Errorf("failed to parse dep %q as int: %w", depShort, err)
+// 					}
+// 					depLong, ok := changeLookup[int64(depInt)]
+// 					if !ok {
+// 						return fmt.Errorf("missing causal dependency lookup %q for change %q", depShort, idLong)
+// 					}
 
-					change.Deps[i] = depLong
-					out.Changes[depLong].Children = append(out.Changes[depLong].Children, idLong)
-					heads.Delete(depLong)
-				}
-			}
+// 					change.Deps[i] = depLong
+// 					out.Changes[depLong].Children = append(out.Changes[depLong].Children, idLong)
+// 					heads.Delete(depLong)
+// 				}
+// 			}
 
-			heads.Put(idLong)
-			out.Changes[idLong] = change
+// 			heads.Put(idLong)
+// 			out.Changes[idLong] = change
 
-			// Iterate over author heads, and find path to the current change
-			// if found remove the head
-			// in the end add this change to the authors head
-			authorHeads := headsByAuthor[author]
-			for _, head := range authorHeads.Slice() {
-				if isDescendant(out, queue, head, idLong) {
-					authorHeads.Delete(head)
-				}
-			}
+// 			// Iterate over author heads, and find path to the current change
+// 			// if found remove the head
+// 			// in the end add this change to the authors head
+// 			authorHeads := headsByAuthor[author]
+// 			for _, head := range authorHeads.Slice() {
+// 				if isDescendant(out, queue, head, idLong) {
+// 					authorHeads.Delete(head)
+// 				}
+// 			}
 
-			authorHeads.Put(idLong)
-			return nil
-		}, edb.ResourcesID, in.IncludeDrafts); err != nil {
-			return err
-		}
+// 			authorHeads.Put(idLong)
+// 			return nil
+// 		}, edb.ResourcesID, in.IncludeDrafts); err != nil {
+// 			return err
+// 		}
 
-		// Sometimes we know about a document from a link,
-		// but don't have any changes for it. We don't want this to be an error,
-		// so we just stop further processing and return an empty timeline.
-		if len(changeLookup) == 0 {
-			return nil
-		}
+// 		// Sometimes we know about a document from a link,
+// 		// but don't have any changes for it. We don't want this to be an error,
+// 		// so we just stop further processing and return an empty timeline.
+// 		if len(changeLookup) == 0 {
+// 			return nil
+// 		}
 
-		owner, ok := accountLookup[edb.ResourcesOwner]
-		if !ok {
-			return fmt.Errorf("BUG: missing owner for entity %q after processing the timeline", in.Id)
-		}
+// 		owner, ok := accountLookup[edb.ResourcesOwner]
+// 		if !ok {
+// 			return fmt.Errorf("BUG: missing owner for entity %q after processing the timeline", in.Id)
+// 		}
 
-		out.Owner = owner
-		out.Heads = sortChanges(out, heads.Slice())
+// 		out.Owner = owner
+// 		out.Heads = sortChanges(out, heads.Slice())
 
-		for _, author := range accounts.Slice() {
-			av := &entities.AuthorVersion{
-				Author: author,
-				Heads:  sortChanges(out, headsByAuthor[author].Slice()),
-			}
-			av.Version = strings.Join(av.Heads, ".")
-			av.VersionTime = out.Changes[av.Heads[len(av.Heads)-1]].CreateTime
-			out.AuthorVersions = append(out.AuthorVersions, av)
-		}
+// 		for _, author := range accounts.Slice() {
+// 			av := &entities.AuthorVersion{
+// 				Author: author,
+// 				Heads:  sortChanges(out, headsByAuthor[author].Slice()),
+// 			}
+// 			av.Version = strings.Join(av.Heads, ".")
+// 			av.VersionTime = out.Changes[av.Heads[len(av.Heads)-1]].CreateTime
+// 			out.AuthorVersions = append(out.AuthorVersions, av)
+// 		}
 
-		return nil
-	}); err != nil {
-		return nil, err
-	}
+// 		return nil
+// 	}); err != nil {
+// 		return nil, err
+// 	}
 
-	return out, nil
-}
+// 	return out, nil
+// }
 
 var qGetEntityTimeline = dqb.Str(`
 	SELECT
@@ -340,38 +330,38 @@ func isDescendant(timeline *entities.EntityTimeline, queue [][]string, parent, d
 }
 
 // DiscoverEntity implements the Entities server.
-func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEntityRequest) (*entities.DiscoverEntityResponse, error) {
-	if api.disc == nil {
-		return nil, status.Errorf(codes.FailedPrecondition, "discovery is not enabled")
-	}
+// func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEntityRequest) (*entities.DiscoverEntityResponse, error) {
+// 	if api.disc == nil {
+// 		return nil, status.Errorf(codes.FailedPrecondition, "discovery is not enabled")
+// 	}
 
-	if in.Id == "" {
-		return nil, errutil.MissingArgument("id")
-	}
+// 	if in.Id == "" {
+// 		return nil, errutil.MissingArgument("id")
+// 	}
 
-	ver := hyper.Version(in.Version)
+// 	ver := hyper.Version(in.Version)
 
-	heads, err := ver.Parse()
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid version %q: %v", in.Version, err)
-	}
+// 	heads, err := ver.Parse()
+// 	if err != nil {
+// 		return nil, status.Errorf(codes.InvalidArgument, "invalid version %q: %v", in.Version, err)
+// 	}
 
-	if err := api.disc.DiscoverObject(ctx, hyper.EntityID(in.Id), ver); err != nil {
-		return nil, err
-	}
+// 	if err := api.disc.DiscoverObject(ctx, hyper.EntityID(in.Id), ver); err != nil {
+// 		return nil, err
+// 	}
 
-	for _, h := range heads {
-		ok, err := api.blobs.IPFSBlockstore().Has(ctx, h)
-		if err != nil {
-			return nil, fmt.Errorf("failed to check if block %s exists: %w", h, err)
-		}
-		if !ok {
-			return nil, status.Errorf(codes.Unavailable, "discovery attempt failed: couldn't find the desired version %q", in.Version)
-		}
-	}
+// 	for _, h := range heads {
+// 		ok, err := api.blobs.IPFSBlockstore().Has(ctx, h)
+// 		if err != nil {
+// 			return nil, fmt.Errorf("failed to check if block %s exists: %w", h, err)
+// 		}
+// 		if !ok {
+// 			return nil, status.Errorf(codes.Unavailable, "discovery attempt failed: couldn't find the desired version %q", in.Version)
+// 		}
+// 	}
 
-	return &entities.DiscoverEntityResponse{}, nil
-}
+// 	return &entities.DiscoverEntityResponse{}, nil
+// }
 
 // SearchEntities implements the Fuzzy search of entities.
 func (api *Server) SearchEntities(ctx context.Context, in *entities.SearchEntitiesRequest) (*entities.SearchEntitiesResponse, error) {
@@ -382,7 +372,7 @@ func (api *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	type meta struct {
 		Title string `json:"title"`
 	}
-	if err := api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
+	if err := api.idx.Query(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, qGetEntityTitles(), func(stmt *sqlite.Stmt) error {
 			var attr meta
 			if err := json.Unmarshal(stmt.ColumnBytes(0), &attr); err != nil {
@@ -415,227 +405,227 @@ func (api *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 }
 
 // DeleteEntity implements the corresponding gRPC method.
-func (api *Server) DeleteEntity(ctx context.Context, in *entities.DeleteEntityRequest) (*emptypb.Empty, error) {
-	var meta string
-	var qGetResourceMetadata = dqb.Str(`
-  	SELECT meta from meta_view
-	WHERE iri = :eid
-	`)
+// func (api *Server) DeleteEntity(ctx context.Context, in *entities.DeleteEntityRequest) (*emptypb.Empty, error) {
+// 	var meta string
+// 	var qGetResourceMetadata = dqb.Str(`
+//   	SELECT meta from meta_view
+// 	WHERE iri = :eid
+// 	`)
 
-	if in.Id == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "must specify entity ID to delete")
-	}
+// 	if in.Id == "" {
+// 		return nil, status.Errorf(codes.InvalidArgument, "must specify entity ID to delete")
+// 	}
 
-	eid := hyper.EntityID(in.Id)
+// 	eid := hyper.EntityID(in.Id)
 
-	err := api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, qGetResourceMetadata(), func(stmt *sqlite.Stmt) error {
-			meta = stmt.ColumnText(0)
-			return nil
-		}, in.Id)
-	})
-	if err != nil {
-		return nil, err
-	}
-	err = api.blobs.ForEachComment(ctx, eid.String(), func(c cid.Cid, cmt hyper.Comment, conn *sqlite.Conn) error {
-		referencedDocument := strings.Split(cmt.Target, "?v=")[0]
-		if referencedDocument == eid.String() {
-			_, err = hypersql.BlobsDelete(conn, c.Hash())
-			if err != nil {
-				if err = hypersql.BlobsEmptyByHash(conn, c.Hash()); err != nil {
-					return err
-				}
-			}
-			if cmt.RepliedComment.String() != "" {
-				_, err = hypersql.BlobsDelete(conn, cmt.RepliedComment.Hash())
-				if err != nil {
-					if err = hypersql.BlobsEmptyByHash(conn, cmt.RepliedComment.Hash()); err != nil {
-						return err
-					}
-				}
-			}
+// 	err := api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
+// 		return sqlitex.Exec(conn, qGetResourceMetadata(), func(stmt *sqlite.Stmt) error {
+// 			meta = stmt.ColumnText(0)
+// 			return nil
+// 		}, in.Id)
+// 	})
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	err = api.blobs.ForEachComment(ctx, eid.String(), func(c cid.Cid, cmt hyper.Comment, conn *sqlite.Conn) error {
+// 		referencedDocument := strings.Split(cmt.Target, "?v=")[0]
+// 		if referencedDocument == eid.String() {
+// 			_, err = hypersql.BlobsDelete(conn, c.Hash())
+// 			if err != nil {
+// 				if err = hypersql.BlobsEmptyByHash(conn, c.Hash()); err != nil {
+// 					return err
+// 				}
+// 			}
+// 			if cmt.RepliedComment.String() != "" {
+// 				_, err = hypersql.BlobsDelete(conn, cmt.RepliedComment.Hash())
+// 				if err != nil {
+// 					if err = hypersql.BlobsEmptyByHash(conn, cmt.RepliedComment.Hash()); err != nil {
+// 						return err
+// 					}
+// 				}
+// 			}
 
-			return nil
-		}
-		return nil
-	})
+// 			return nil
+// 		}
+// 		return nil
+// 	})
 
-	err = api.blobs.DeleteEntity(ctx, eid)
-	if err != nil {
-		if errors.Is(err, hyper.ErrEntityNotFound) {
-			return nil, err
-		}
+// 	err = api.blobs.DeleteEntity(ctx, eid)
+// 	if err != nil {
+// 		if errors.Is(err, hyper.ErrEntityNotFound) {
+// 			return nil, err
+// 		}
 
-		_, err = &emptypb.Empty{}, api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
-			return hypersql.BlobsEmptyByEID(conn, in.Id)
-		})
-		if err != nil {
-			return &emptypb.Empty{}, err
-		}
+// 		_, err = &emptypb.Empty{}, api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
+// 			return hypersql.BlobsEmptyByEID(conn, in.Id)
+// 		})
+// 		if err != nil {
+// 			return &emptypb.Empty{}, err
+// 		}
 
-		_, err = &emptypb.Empty{}, api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
-			return hypersql.BlobsStructuralDelete(conn, in.Id)
-		})
-		if err != nil {
-			return &emptypb.Empty{}, err
-		}
-	}
-	_, err = &emptypb.Empty{}, api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.WithTx(conn, func() error {
-			res, err := hypersql.EntitiesInsertRemovedRecord(conn, eid.String(), in.Reason, meta)
-			if err != nil {
-				return err
-			}
-			if res.ResourceEID != eid.String() {
-				return fmt.Errorf("%w: %s", hyper.ErrEntityNotFound, eid)
-			}
+// 		_, err = &emptypb.Empty{}, api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
+// 			return hypersql.BlobsStructuralDelete(conn, in.Id)
+// 		})
+// 		if err != nil {
+// 			return &emptypb.Empty{}, err
+// 		}
+// 	}
+// 	_, err = &emptypb.Empty{}, api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
+// 		return sqlitex.WithTx(conn, func() error {
+// 			res, err := hypersql.EntitiesInsertRemovedRecord(conn, eid.String(), in.Reason, meta)
+// 			if err != nil {
+// 				return err
+// 			}
+// 			if res.ResourceEID != eid.String() {
+// 				return fmt.Errorf("%w: %s", hyper.ErrEntityNotFound, eid)
+// 			}
 
-			return nil
-		})
-	})
-	return &emptypb.Empty{}, err
-}
+// 			return nil
+// 		})
+// 	})
+// 	return &emptypb.Empty{}, err
+// }
 
 // UndeleteEntity implements the corresponding gRPC method.
-func (api *Server) UndeleteEntity(ctx context.Context, in *entities.UndeleteEntityRequest) (*emptypb.Empty, error) {
-	if in.Id == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "must specify entity ID to restore")
-	}
+// func (api *Server) UndeleteEntity(ctx context.Context, in *entities.UndeleteEntityRequest) (*emptypb.Empty, error) {
+// 	if in.Id == "" {
+// 		return nil, status.Errorf(codes.InvalidArgument, "must specify entity ID to restore")
+// 	}
 
-	eid := hyper.EntityID(in.Id)
+// 	eid := hyper.EntityID(in.Id)
 
-	return &emptypb.Empty{}, api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
-		return hypersql.EntitiesDeleteRemovedRecord(conn, eid.String())
-	})
-}
+// 	return &emptypb.Empty{}, api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
+// 		return hypersql.EntitiesDeleteRemovedRecord(conn, eid.String())
+// 	})
+// }
 
 // ListDeletedEntities implements the corresponding gRPC method.
-func (api *Server) ListDeletedEntities(ctx context.Context, _ *entities.ListDeletedEntitiesRequest) (*entities.ListDeletedEntitiesResponse, error) {
-	resp := &entities.ListDeletedEntitiesResponse{
-		DeletedEntities: make([]*entities.DeletedEntity, 0),
-	}
+// func (api *Server) ListDeletedEntities(ctx context.Context, _ *entities.ListDeletedEntitiesRequest) (*entities.ListDeletedEntitiesResponse, error) {
+// 	resp := &entities.ListDeletedEntitiesResponse{
+// 		DeletedEntities: make([]*entities.DeletedEntity, 0),
+// 	}
 
-	err := api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
-		list, err := hypersql.EntitiesListRemovedRecords(conn)
-		if err != nil {
-			return err
-		}
-		for _, entity := range list {
-			resp.DeletedEntities = append(resp.DeletedEntities, &entities.DeletedEntity{
-				Id:            entity.DeletedResourcesIRI,
-				DeleteTime:    &timestamppb.Timestamp{Seconds: entity.DeletedResourcesDeleteTime},
-				DeletedReason: entity.DeletedResourcesReason,
-				Metadata:      entity.DeletedResourcesMeta,
-			})
-		}
-		return nil
-	})
+// 	err := api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
+// 		list, err := hypersql.EntitiesListRemovedRecords(conn)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		for _, entity := range list {
+// 			resp.DeletedEntities = append(resp.DeletedEntities, &entities.DeletedEntity{
+// 				Id:            entity.DeletedResourcesIRI,
+// 				DeleteTime:    &timestamppb.Timestamp{Seconds: entity.DeletedResourcesDeleteTime},
+// 				DeletedReason: entity.DeletedResourcesReason,
+// 				Metadata:      entity.DeletedResourcesMeta,
+// 			})
+// 		}
+// 		return nil
+// 	})
 
-	return resp, err
-}
+// 	return resp, err
+// }
 
 var qGetEntityTitles = dqb.Str(`
 	SELECT extra_attrs, iri, principal
 	FROM meta_view;`)
 
 // ListEntityMentions implements listing mentions of an entity in other resources.
-func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEntityMentionsRequest) (*entities.ListEntityMentionsResponse, error) {
-	if in.Id == "" {
-		return nil, errutil.MissingArgument("id")
-	}
+// func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEntityMentionsRequest) (*entities.ListEntityMentionsResponse, error) {
+// 	if in.Id == "" {
+// 		return nil, errutil.MissingArgument("id")
+// 	}
 
-	var cursor mentionsCursor
-	if in.PageToken != "" {
-		if err := cursor.FromString(in.PageToken); err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "failed to decode page token: %v", err)
-		}
-	}
+// 	var cursor mentionsCursor
+// 	if in.PageToken != "" {
+// 		if err := cursor.FromString(in.PageToken); err != nil {
+// 			return nil, status.Errorf(codes.InvalidArgument, "failed to decode page token: %v", err)
+// 		}
+// 	}
 
-	// Without this querying in reverse order wouldn't ever return any results.
-	if in.ReverseOrder && in.PageToken == "" {
-		cursor.BlobID = math.MaxInt64
-		cursor.LinkID = math.MaxInt64
-	}
+// 	// Without this querying in reverse order wouldn't ever return any results.
+// 	if in.ReverseOrder && in.PageToken == "" {
+// 		cursor.BlobID = math.MaxInt64
+// 		cursor.LinkID = math.MaxInt64
+// 	}
 
-	// Arbitrary default page size.
-	if in.PageSize == 0 {
-		in.PageSize = 10
-	}
+// 	// Arbitrary default page size.
+// 	if in.PageSize == 0 {
+// 		in.PageSize = 10
+// 	}
 
-	resp := &entities.ListEntityMentionsResponse{}
+// 	resp := &entities.ListEntityMentionsResponse{}
 
-	if err := api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
-		edb, err := hypersql.EntitiesLookupID(conn, in.Id)
-		if err != nil {
-			return err
-		}
-		if edb.ResourcesID == 0 {
-			return status.Errorf(codes.NotFound, "entity '%s' is not found", in.Id)
-		}
+// 	if err := api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
+// 		edb, err := hypersql.EntitiesLookupID(conn, in.Id)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		if edb.ResourcesID == 0 {
+// 			return status.Errorf(codes.NotFound, "entity '%s' is not found", in.Id)
+// 		}
 
-		var lastCursor mentionsCursor
+// 		var lastCursor mentionsCursor
 
-		var count int32
-		if err := sqlitex.Exec(conn, qListMentions(in.ReverseOrder), func(stmt *sqlite.Stmt) error {
-			// We query for pageSize + 1 items to know if there's more items on the next page,
-			// because if not we don't need to return the page token in the response.
-			if count == in.PageSize {
-				resp.NextPageToken = lastCursor.String()
-				return nil
-			}
+// 		var count int32
+// 		if err := sqlitex.Exec(conn, qListMentions(in.ReverseOrder), func(stmt *sqlite.Stmt) error {
+// 			// We query for pageSize + 1 items to know if there's more items on the next page,
+// 			// because if not we don't need to return the page token in the response.
+// 			if count == in.PageSize {
+// 				resp.NextPageToken = lastCursor.String()
+// 				return nil
+// 			}
 
-			count++
+// 			count++
 
-			var (
-				source        = stmt.ColumnText(0)
-				sourceBlob    = cid.NewCidV1(uint64(stmt.ColumnInt64(1)), stmt.ColumnBytesUnsafe(2)).String()
-				author        = core.Principal(stmt.ColumnBytesUnsafe(3)).String()
-				ts            = hlc.Timestamp(stmt.ColumnInt64(4)).Time()
-				blobType      = hyper.BlobType(stmt.ColumnText(5))
-				isDraft       = stmt.ColumnInt(6) > 0
-				isPinned      = stmt.ColumnInt(7) > 0
-				anchor        = stmt.ColumnText(8)
-				targetVersion = stmt.ColumnText(9)
-				fragment      = stmt.ColumnText(10)
-			)
+// 			var (
+// 				source        = stmt.ColumnText(0)
+// 				sourceBlob    = cid.NewCidV1(uint64(stmt.ColumnInt64(1)), stmt.ColumnBytesUnsafe(2)).String()
+// 				author        = core.Principal(stmt.ColumnBytesUnsafe(3)).String()
+// 				ts            = hlc.Timestamp(stmt.ColumnInt64(4)).Time()
+// 				blobType      = hyper.BlobType(stmt.ColumnText(5))
+// 				isDraft       = stmt.ColumnInt(6) > 0
+// 				isPinned      = stmt.ColumnInt(7) > 0
+// 				anchor        = stmt.ColumnText(8)
+// 				targetVersion = stmt.ColumnText(9)
+// 				fragment      = stmt.ColumnText(10)
+// 			)
 
-			lastCursor.BlobID = stmt.ColumnInt64(11)
-			lastCursor.LinkID = stmt.ColumnInt64(12)
+// 			lastCursor.BlobID = stmt.ColumnInt64(11)
+// 			lastCursor.LinkID = stmt.ColumnInt64(12)
 
-			if source == "" && blobType != hyper.TypeComment {
-				return fmt.Errorf("BUG: missing source for mention of type '%s'", blobType)
-			}
+// 			if source == "" && blobType != hyper.TypeComment {
+// 				return fmt.Errorf("BUG: missing source for mention of type '%s'", blobType)
+// 			}
 
-			if blobType == hyper.TypeComment {
-				source = "hm://c/" + sourceBlob
-			}
+// 			if blobType == hyper.TypeComment {
+// 				source = "hm://c/" + sourceBlob
+// 			}
 
-			resp.Mentions = append(resp.Mentions, &entities.Mention{
-				Source:        source,
-				SourceContext: anchor,
-				SourceBlob: &entities.Mention_BlobInfo{
-					Cid:        sourceBlob,
-					Author:     author,
-					CreateTime: timestamppb.New(ts),
-					IsDraft:    isDraft,
-				},
-				TargetVersion:  targetVersion,
-				IsExactVersion: isPinned,
-				TargetFragment: fragment,
-			})
+// 			resp.Mentions = append(resp.Mentions, &entities.Mention{
+// 				Source:        source,
+// 				SourceContext: anchor,
+// 				SourceBlob: &entities.Mention_BlobInfo{
+// 					Cid:        sourceBlob,
+// 					Author:     author,
+// 					CreateTime: timestamppb.New(ts),
+// 					IsDraft:    isDraft,
+// 				},
+// 				TargetVersion:  targetVersion,
+// 				IsExactVersion: isPinned,
+// 				TargetFragment: fragment,
+// 			})
 
-			return nil
-		}, edb.ResourcesID, cursor.BlobID, cursor.BlobID, in.PageSize); err != nil {
-			return err
-		}
+// 			return nil
+// 		}, edb.ResourcesID, cursor.BlobID, cursor.BlobID, in.PageSize); err != nil {
+// 			return err
+// 		}
 
-		return nil
-	}); err != nil {
-		return nil, err
-	}
+// 		return nil
+// 	}); err != nil {
+// 		return nil, err
+// 	}
 
-	return resp, nil
-}
+// 	return resp, nil
+// }
 
 const qListMentionsTpl = `
 	SELECT

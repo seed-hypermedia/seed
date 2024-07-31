@@ -823,3 +823,26 @@ func isIndexable[T multicodec.Code | cid.Cid](v T) bool {
 
 	return code == multicodec.DagCbor || code == multicodec.DagPb
 }
+
+// Query allows to execute raw SQLite queries.
+func (idx *Index) Query(ctx context.Context, fn func(conn *sqlite.Conn) error) (err error) {
+	conn, release, err := idx.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+
+	// TODO(burdiyan): make the main database read-only.
+	// This is commented because we want to allow writing into an attached in-memory database
+	// while keeping the main database read-only. Apparently this is not possible in SQLite.
+	// There're a bunch of other ways to achieve this but there's currently no time for implementing them.
+	//
+	// if err := sqlitex.ExecTransient(conn, "PRAGMA query_only = on;", nil); err != nil {
+	// 	return err
+	// }
+	// defer func() {
+	// 	err = multierr.Combine(err, sqlitex.ExecTransient(conn, "PRAGMA query_only = off;", nil))
+	// }()
+
+	return fn(conn)
+}

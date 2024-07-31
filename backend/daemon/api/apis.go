@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"seed/backend/core"
 	activity "seed/backend/daemon/api/activity/v1alpha"
 	daemon "seed/backend/daemon/api/daemon/v1alpha"
@@ -13,12 +12,9 @@ import (
 	"seed/backend/hyper"
 	"seed/backend/logging"
 	"seed/backend/mttnet"
-	"seed/backend/pkg/future"
 	"seed/backend/syncing"
 
 	"crawshaw.io/sqlite/sqlitex"
-	"github.com/ipfs/go-cid"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/grpc"
 )
 
@@ -67,7 +63,7 @@ func New(
 		Activity:    activity.NewServer(db),
 		Daemon:      daemon.NewServer(repo, blobs, wallet, doSync),
 		Networking:  networking.NewServer(blobs, node, db),
-		Entities:    entities.NewServer(blobs, &lazyDiscoverer{}),
+		Entities:    entities.NewServer(idx, nil), // TOOD(hm24): provide a discoverer.
 		DocumentsV3: documentsv3.NewServer(repo.KeyStore(), idx, db),
 		Syncing:     sync,
 	}
@@ -80,54 +76,4 @@ func (s Server) Register(srv *grpc.Server) {
 	s.Networking.RegisterServer(srv)
 	s.Entities.RegisterServer(srv)
 	s.DocumentsV3.RegisterServer(srv)
-}
-
-type lazyDiscoverer struct {
-	net *future.ReadOnly[*mttnet.Node]
-}
-
-// DiscoverObject attempts to discover a given Seed Object with an optional version specified.
-// If no version is specified it tries to find whatever is possible.
-func (ld *lazyDiscoverer) DiscoverObject(ctx context.Context, obj hyper.EntityID, v hyper.Version) error {
-	return fmt.Errorf("TODO(hm24): implement discovery")
-
-	// svc, err := ld.sync.Await(ctx)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// return svc.DiscoverObject(ctx, obj, v)
-}
-
-// ProvideCID notifies the providing system to provide the given CID on the DHT.
-func (ld *lazyDiscoverer) ProvideCID(c cid.Cid) error {
-	node, ok := ld.net.Get()
-	if !ok {
-		return fmt.Errorf("p2p node is not yet initialized")
-	}
-
-	return node.ProvideCID(c)
-}
-
-// Connect connects to a remote peer. Necessary here for the grpc server to add a site
-// that needs to connect to the site under the hood.
-func (ld *lazyDiscoverer) Connect(ctx context.Context, peerInfo peer.AddrInfo) error {
-	node, ok := ld.net.Get()
-	if !ok {
-		return fmt.Errorf("p2p node is not yet initialized")
-	}
-	return node.Connect(ctx, peerInfo)
-}
-
-// Connect connects to a remote peer. Necessary here for the grpc server to add a site
-// that needs to connect to the site under the hood.
-func (ld *lazyDiscoverer) SyncWithPeer(ctx context.Context, deviceID peer.ID) error {
-	return fmt.Errorf("TODO(hm24): implement sync with peer")
-
-	// svc, ok := ld.sync.Get()
-	// if !ok {
-	// 	return fmt.Errorf("sync not ready yet")
-	// }
-
-	// return svc.SyncWithPeer(ctx, deviceID)
 }
