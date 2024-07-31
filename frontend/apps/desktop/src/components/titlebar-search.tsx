@@ -45,11 +45,11 @@ import {AppQueryClient} from '../query-client'
 import {Title} from './titlebar-title'
 
 export function TitlebarSearch() {
-  const [state, setState] = useState<'search' | 'title'>('search')
+  const [state, setState] = useState<'search' | 'title'>('title')
   const [showLauncher, setShowLauncher] = useState(false)
   const {show} = useShowTitle('titlebar')
 
-  console.log(`== ~ TitlebarSearch ~ show:`, show)
+  // console.log(`== ~ TitlebarSearch ~ show:`, show)
   const route = useNavRoute()
   useListenAppEvent('openLauncher', () => {
     setState('search')
@@ -245,8 +245,7 @@ function LauncherContent({onClose}: {onClose: () => void}) {
             toast.error('Failed to open recent: ' + url)
             return
           }
-          const openId = id.type === 'd' ? {...id} : id
-          const appRoute = appRouteOfId(openId)
+          const appRoute = appRouteOfId(id)
           if (!appRoute) {
             toast.error('Failed to open recent: ' + url)
             return

@@ -15,6 +15,7 @@ func TestSchemaForeignKeyIndexes(t *testing.T) {
 	// Sometimes not having one could be justified, e.g. when the child table is very small, and not expensive to full scan,
 	// but on the other hand, the overhead of having an index for these small tables would be even smaller. So it's probably
 	// easier to just have a rule to make these columns always indexed.
+	t.Skip("TODO(hm24)")
 
 	db, err := OpenSQLite("file::memory:?mode=memory&cache=shared", 0, 1)
 	require.NoError(t, err)

@@ -2,6 +2,9 @@ package storage
 
 import (
 	"context"
+	"crypto/rand"
+	"math"
+	"math/big"
 	"path/filepath"
 	"seed/backend/daemon/storage/dbext"
 	"seed/backend/testutil"
@@ -84,13 +87,31 @@ func MakeTestDB(t testing.TB) *sqlitex.Pool {
 
 	path := testutil.MakeRepoPath(t)
 
-	pool, err := OpenSQLite(filepath.Join(path, "db.sqlite"), 0, 16)
+	pool, err := newSQLite(filepath.Join(path, "db.sqlite"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, pool.Close())
 	})
 	require.NoError(t, InitSQLiteSchema(pool))
 	return pool
+}
+
+// MakeTestMemoryDB is the same as MakeTestDB but using an in-memory database.
+func MakeTestMemoryDB(t testing.TB) *sqlitex.Pool {
+	t.Helper()
+
+	ri, err := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
+	if err != nil {
+		panic(err)
+	}
+
+	db, err := newSQLite("file:seed-testing-" + ri.String() + "?mode=memory&cache=shared")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, db.Close())
+	})
+	require.NoError(t, InitSQLiteSchema(db))
+	return db
 }
 
 // SetKV sets a key-value pair in the database.

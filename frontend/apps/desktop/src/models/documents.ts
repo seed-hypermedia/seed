@@ -21,7 +21,6 @@ import {
   getParentIds,
   hmDocument,
   toHMBlock,
-  unpackDocId,
   unpackHmId,
   writeableStateStream,
 } from '@shm/shared'
@@ -29,7 +28,6 @@ import {
   UseInfiniteQueryOptions,
   UseMutationOptions,
   UseQueryOptions,
-  useInfiniteQuery,
   useMutation,
   useQuery,
 } from '@tanstack/react-query'
@@ -61,37 +59,7 @@ export function useDocumentList(
     documents: HMDocument
   }> & {},
 ) {
-  const {...queryOpts} = opts || {}
-  const grpcClient = useGRPCClient()
-  const pubListQuery = useInfiniteQuery({
-    ...queryOpts,
-    queryKey: [queryKeys.DOCUMENT_LIST],
-    refetchOnMount: true,
-    queryFn: async (context) => {
-      const result = await grpcClient.documents.listDocuments({
-        pageSize: 50,
-        pageToken: context.pageParam,
-      })
-      const documents = result.documents.map(toPlainMessage) || []
-      return {
-        nextPageToken: result.nextPageToken,
-        documents,
-      }
-    },
-    getNextPageParam: (lastPage) => {
-      return lastPage.nextPageToken
-    },
-  })
-
-  const allDocuments =
-    pubListQuery.data?.pages.flatMap((page) => page.documents) || []
-  return {
-    ...pubListQuery,
-    data: {
-      ...pubListQuery.data,
-      documents: allDocuments,
-    },
-  }
+  throw new Error('No API implemented for useDocumentList')
 }
 
 export function useDraftList() {
@@ -190,7 +158,7 @@ export function getDefaultShortname(
   docTitle: string | undefined,
   docId: string,
 ) {
-  const unpackedId = unpackDocId(docId)
+  const unpackedId = unpackHmId(docId)
   const idShortname = unpackedId ? unpackedId.eid.slice(0, 5).toLowerCase() : ''
   const kebabName = docTitle ? pathNameify(docTitle) : idShortname
   const shortName =
@@ -276,7 +244,8 @@ export function usePublishDraft(
             )
           const publishedDoc = await grpcClient.documents.createDocumentChange({
             signingKeyName,
-            documentId: id.id,
+            namespace: id.eid,
+            path: id.path?.length ? `${id.path.join('/')}` : '',
             changes: allChanges,
           })
 
@@ -290,12 +259,14 @@ export function usePublishDraft(
       }
     },
     onSuccess: (result, variables, context) => {
-      const documentId = result.id
+      const documentId = variables.id?.qid
       opts?.onSuccess?.(result, variables, context)
-      invalidate([queryKeys.ENTITY, documentId])
-      getParentIds(documentId).forEach((id) => {
-        invalidate([queryKeys.ENTITY, id])
-      })
+      if (documentId) {
+        invalidate([queryKeys.ENTITY, documentId])
+        getParentIds(documentId).forEach((id) => {
+          invalidate([queryKeys.ENTITY, id])
+        })
+      }
     },
   })
 }
@@ -481,8 +452,6 @@ export function useDraftEditor({id}: {id: string | undefined}) {
           thumbnail: input.thumbnail,
         },
         members: {},
-        index: {},
-        indexPath: input.indexPath,
         signingProfile,
       }
     } else {
@@ -494,7 +463,6 @@ export function useDraftEditor({id}: {id: string | undefined}) {
           name: input.name,
           thumbnail: input.thumbnail,
         },
-        indexPath: input.indexPath,
         signingProfile,
       }
     }
@@ -569,7 +537,7 @@ export function useDraftEditor({id}: {id: string | undefined}) {
         type: 'GET.DRAFT.SUCCESS',
         draft: backendDraft.data,
         document:
-          backendDocument.status != 'error'
+          backendDocument.status != 'error' && backendDocument.data?.document
             ? backendDocument.data?.document
             : null,
       })
@@ -577,9 +545,6 @@ export function useDraftEditor({id}: {id: string | undefined}) {
         send({
           type: 'CHANGE',
           name: !backendDraft.data?.name ? route.name : undefined,
-          indexPath: !backendDraft.data?.indexPath
-            ? pathNameify(route.name)
-            : undefined,
         })
         replaceRoute({...route, name: ''})
       }
@@ -731,10 +696,24 @@ export function usePushPublication() {
     mutationFn: async (docId: string) => {
       if (!gatewayUrl.data) throw new Error('Cannot determine Gateway URL')
 
-      await grpcClient.documents.pushDocument({
-        documentId: docId,
-        url: gatewayUrl.data,
+      // await grpcClient.documents.pushDocument({
+      //   documentId: docId,
+      //   url: gatewayUrl.data,
+      // })
+    },
+  })
+}
+
+export function useListDirectory(id: UnpackedHypermediaId) {
+  const grpcClient = useGRPCClient()
+  return useQuery({
+    queryKey: [queryKeys.DOC_LIST_DIRECTORY, id.eid],
+    queryFn: async () => {
+      const res = await grpcClient.documents.listDocuments({
+        namespace: id.eid,
       })
+      const docs = res.documents.map(toPlainMessage)
+      return docs
     },
   })
 }
@@ -1030,29 +1009,20 @@ function observeBlocks(
   })
 }
 
-export function useAccountDocuments(accountId?: string | undefined) {
+export function useAccountDocuments(id?: UnpackedHypermediaId) {
   const grpcClient = useGRPCClient()
   return useQuery({
-    queryKey: [queryKeys.ACCOUNT_DOCUMENTS, accountId],
-    enabled: !!accountId,
+    queryKey: [queryKeys.ACCOUNT_DOCUMENTS, id?.eid],
+    enabled: !!id?.eid,
     queryFn: async () => {
-      const result = await grpcClient.documents.listAccountDocuments({
-        accountId,
+      const namespace = id?.eid
+      if (!namespace) return {documents: []}
+      const result = await grpcClient.documents.listDocuments({
+        namespace: id?.eid,
       })
-      const documents =
-        result.documents
-          .map((doc) => hmDocument(doc))
-          .filter((d) => !!d)
-          .sort((a, b) => {
-            const aTime = a?.updateTime?.seconds
-              ? new Date(Number(a.updateTime.seconds) * 1000)
-              : 0
-            const bTime = b?.updateTime?.seconds
-              ? new Date(Number(b.updateTime.seconds) * 1000)
-              : 0
-            if (!aTime || !bTime) return 0
-            return bTime.getTime() - aTime.getTime()
-          }) || []
+      const documents = result.documents.map((response) =>
+        toPlainMessage(response),
+      )
       return {
         documents,
       }
@@ -1120,9 +1090,10 @@ export function useListProfileDocuments() {
   const grpcClient = useGRPCClient()
 
   return useQuery({
-    queryFn: () => {
-      return grpcClient.documents.listProfileDocuments({})
+    queryFn: async () => {
+      const res = await grpcClient.documents.listRootDocuments({})
+      return res.documents.map(toPlainMessage)
     },
-    queryKey: [queryKeys.LIST_PROFILE_DOCUMENTS],
+    queryKey: [queryKeys.LIST_ROOT_DOCUMENTS],
   })
 }

@@ -7,7 +7,6 @@ export const HYPERMEDIA_SCHEME = 'hm'
 
 export const HYPERMEDIA_ENTITY_TYPES = {
   a: 'Account',
-  d: 'Document',
   c: 'Comment',
   draft: 'Local Draft',
 } as const
@@ -62,12 +61,12 @@ export function createHmId(
     blockRef?: string | null
     blockRange?: BlockRange | ExpandedBlockRange | null
     id?: string
-    indexPath?: string | null
+    path?: string[] | null
     latest?: boolean | null
   } = {},
-) {
+): string {
   let path = `${type}/${id}`
-  if (opts?.indexPath) path += `/${opts.indexPath}`
+  if (opts?.path) path += `/${opts.path.join('/')}`
   let url = new URL(`${HYPERMEDIA_SCHEME}://${path}`)
   let responseUrl = url.toString()
   const query: Record<string, string | null> = {}
@@ -85,10 +84,20 @@ export function createHmId(
   return responseUrl
 }
 
+export function serializeHmId(hmId: UnpackedHypermediaId): string {
+  return createHmId(hmId.type, hmId.eid, {
+    version: hmId.version,
+    blockRef: hmId.blockRef,
+    blockRange: hmId.blockRange,
+    latest: hmId.latest,
+    path: hmId.path,
+  })
+}
+
 type ParsedURL = {
   scheme: string | null
   path: string[]
-  query: URLSearchParams
+  query: Record<string, string>
   fragment: string | null
 }
 
@@ -97,13 +106,13 @@ export function parseCustomURL(url: string): ParsedURL | null {
   const [scheme, rest] = url.split('://')
   if (!rest) return null
   const [pathAndQuery, fragment = null] = rest.split('#')
-
   const [path, queryString] = pathAndQuery.split('?')
   const query = new URLSearchParams(queryString)
+  const queryObject = Object.fromEntries(query.entries())
   return {
     scheme,
     path: path.split('/'),
-    query,
+    query: queryObject,
     fragment,
   }
 }
@@ -120,15 +129,10 @@ function inKeys<V extends string>(
 
 export const unpackedHmIdSchema = z.object({
   id: z.string(),
-  type: z.union([
-    z.literal('a'),
-    z.literal('d'),
-    z.literal('c'),
-    z.literal('draft'),
-  ]),
+  type: z.union([z.literal('a'), z.literal('c'), z.literal('draft')]),
   eid: z.string(),
   qid: z.string(),
-  indexPath: z.string().nullable(),
+  path: z.array(z.string()).nullable(),
   version: z.string().nullable(),
   blockRef: z.string().nullable(),
   blockRange: z
@@ -146,20 +150,6 @@ export const unpackedHmIdSchema = z.object({
 
 export type UnpackedHypermediaId = z.infer<typeof unpackedHmIdSchema>
 
-// export type UnpackedHypermediaId = {
-//   id: string
-//   type: keyof typeof HYPERMEDIA_ENTITY_TYPES
-//   eid: string
-//   qid: string
-//   indexPath: string | null
-//   version: string | null
-//   blockRef: string | null
-//   blockRange?: BlockRange | ExpandedBlockRange | null
-//   hostname: string | null
-//   scheme: string | null
-//   latest?: boolean | null
-// }
-
 export function hmId(
   type: keyof typeof HYPERMEDIA_ENTITY_TYPES,
   eid: string,
@@ -167,7 +157,7 @@ export function hmId(
     version?: string | null
     blockRef?: string | null
     blockRange?: BlockRange | ExpandedBlockRange | null
-    indexPath?: string | null
+    path?: string[] | null
     latest?: boolean | null
     hostname?: string | null
   } = {},
@@ -178,7 +168,7 @@ export function hmId(
     type,
     eid,
     qid: createHmId(type, eid),
-    indexPath: opts.indexPath || null,
+    path: opts.path || null,
     version: opts.version || null,
     blockRef: opts.blockRef || null,
     blockRange: opts.blockRange || null,
@@ -196,8 +186,8 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
   if (parsed.scheme === HYPERMEDIA_SCHEME) {
     const [rawType, eid, ...path] = parsed.path
     const type = inKeys(rawType, HYPERMEDIA_ENTITY_TYPES)
-    const version = parsed.query.get('v')
-    const latest = parsed.query.has('l')
+    const version = parsed.query.v || null
+    const latest = parsed.query.l !== undefined
     if (!type) return null
     const qid = createHmId(type, eid)
     const fragment = parseFragment(parsed.fragment)
@@ -221,7 +211,7 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
       qid,
       type,
       eid,
-      indexPath: path.join('/') || null,
+      path: path || null,
       version,
       blockRef: fragment ? fragment.blockId : null,
       blockRange,
@@ -233,8 +223,8 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
   if (parsed?.scheme === 'https' || parsed?.scheme === 'http') {
     const type = inKeys(parsed.path[1], HYPERMEDIA_ENTITY_TYPES)
     const eid = parsed.path[2]
-    const version = parsed.query.get('v')
-    const latest = parsed.query.has('l')
+    const version = parsed.query.v || null
+    const latest = parsed.query.l !== undefined
     let hostname = parsed.path[0]
     if (!type) return null
     const qid = createHmId(type, eid)
@@ -258,7 +248,7 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
       qid,
       type,
       eid,
-      indexPath: parsed.path[3] || null,
+      path: parsed.path.slice(2) || null,
       version,
       blockRef: fragment ? fragment.blockId : null,
       blockRange,
@@ -268,22 +258,6 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
     }
   }
   return null
-}
-
-export type UnpackedDocId = UnpackedHypermediaId & {docId: string}
-
-export function unpackDocId(inputUrl: string): UnpackedDocId | null {
-  const unpackedHm = unpackHmId(inputUrl)
-  if (!unpackedHm?.eid) return null
-  if (unpackedHm.type !== 'd') {
-    throw new Error('URL is expected to be a document ID: ' + inputUrl)
-  }
-  return {
-    ...unpackedHm,
-    id: inputUrl,
-    type: 'd',
-    docId: createHmId('d', unpackedHm.eid),
-  }
 }
 
 export function isHypermediaScheme(url?: string) {
@@ -391,7 +365,7 @@ export function hmIdWithVersion(
   const unpacked = unpackHmId(hmId)
   if (!unpacked) return null
   return createHmId(unpacked.type, unpacked.eid, {
-    indexPath: unpacked.indexPath,
+    path: unpacked.path,
     version: version || unpacked.version,
     blockRef,
     blockRange,
@@ -490,17 +464,16 @@ export function serializeBlockRange(
 
 export function getParentIds(entityId: string): string[] {
   const unpacked = unpackHmId(entityId)
-  const pathTerms: string[] = []
   const parentIds: string[] = []
   if (unpacked) {
     parentIds.push(createHmId(unpacked.type, unpacked.eid))
-    const indexPathTerms = unpacked.indexPath?.split('/')
-    indexPathTerms?.forEach((pathTerm, index) => {
-      if (index === indexPathTerms.length - 1) return
+    const pathTerms = unpacked.path
+    pathTerms?.forEach((pathTerm, index) => {
+      if (index === pathTerms.length - 1) return
       pathTerms.push(pathTerm)
       parentIds.push(
         createHmId(unpacked.type, unpacked.eid, {
-          indexPath: pathTerms.join('/'),
+          path: pathTerms,
         }),
       )
     })

@@ -57,13 +57,6 @@ export function useFavorites() {
         })
       }
     }
-    if (id?.type === 'd' && url) {
-      favoriteItems.push({
-        key: 'document',
-        id,
-        url,
-      })
-    }
   })
 
   return favoriteItems

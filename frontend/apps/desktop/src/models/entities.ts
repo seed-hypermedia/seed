@@ -36,14 +36,12 @@ export function useDeleteEntity(
       context,
     ) => {
       const hmId = unpackHmId(variables.id)
-      if (hmId?.type === 'd') {
+      if (hmId?.type === 'a') {
         invalidate([queryKeys.ENTITY, variables.id])
         invalidate([queryKeys.ACCOUNT_DOCUMENTS])
         invalidate([queryKeys.DOCUMENT_LIST])
-      } else if (hmId?.type === 'a') {
         invalidate([queryKeys.LIST_ACCOUNTS])
         invalidate([queryKeys.ACCOUNT, hmId.eid])
-        invalidate([queryKeys.ENTITY, variables.id])
       } else if (hmId?.type === 'c') {
         invalidate([queryKeys.ENTITY, variables.id])
         invalidate([queryKeys.COMMENT, variables.id])
@@ -114,8 +112,15 @@ function getRouteBreadrumbRoutes(
   route: NavRoute,
 ): Array<DocumentRoute | DraftRoute> {
   if (route.key === 'document') {
-    // TODO, determine breadcrumbs based on route.id
-    return [route]
+    return route.id.path?.length
+      ? route.id.path.map((path) => ({
+          ...route,
+          id: {
+            ...route.id,
+            path: [path],
+          },
+        }))
+      : [route]
   }
   if (route.key === 'draft') {
     // TODO: eric determine breadcrumbs based on route.id
@@ -155,8 +160,9 @@ export function queryEntity(
       const {version} = id
       try {
         const document = await grpcClient.documents.getDocument({
-          documentId: id.id,
-          version: version || undefined,
+          namespace: id.eid,
+          path: id.path?.length ? id.path.join('/') : '',
+          // version: version || undefined,
         })
         return {id, document: toPlainMessage(document)}
       } catch (e) {
@@ -186,8 +192,8 @@ export function useEntities(
 }
 
 export function useRouteEntities(
-  routes: DocumentRoute[],
-): {route: DocumentRoute; entity?: HMEntityContent}[] {
+  routes: Array<DocumentRoute | DraftRoute>,
+): {route: DocumentRoute | DraftRoute; entity?: HMEntityContent}[] {
   return useEntities(
     routes.map((r) => {
       if (r.key === 'document') return r.id

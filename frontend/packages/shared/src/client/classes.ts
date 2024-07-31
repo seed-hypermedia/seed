@@ -1,4 +1,4 @@
-import {Annotation} from './.generated/documents/v1alpha/documents_pb'
+import {Annotation} from './.generated/documents/v3alpha/documents_pb'
 
 // AnnotationSet wraps multiple annotations in a single structure.
 export class AnnotationSet {

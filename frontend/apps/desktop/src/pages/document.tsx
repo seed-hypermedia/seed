@@ -12,6 +12,7 @@ import {FormField} from '@/components/forms'
 import {ListItem} from '@/components/list-item'
 import {MainWrapper} from '@/components/main-wrapper'
 import {useMyAccountIds} from '@/models/daemon'
+import {useListDirectory} from '@/models/documents'
 import {useEntity} from '@/models/entities'
 import {getFileUrl} from '@/utils/account-url'
 import {useNavRoute} from '@/utils/navigation'
@@ -107,7 +108,7 @@ export default function DocumentPage() {
     label: 'Version History',
     icon: HistoryIcon,
   })
-  if (docId.type === 'd') {
+  if (docId.type === 'a') {
     accessoryOptions.push({
       key: 'collaborators',
       label: 'Collaborators',
@@ -129,7 +130,7 @@ export default function DocumentPage() {
     label: 'Citations',
     icon: CitationsIcon,
   })
-  if (docId.type === 'a' && !docId.indexPath) {
+  if (docId.type === 'a' && !docId.path?.length) {
     accessoryOptions.push({
       key: 'all-documents',
       label: 'All Documents',
@@ -255,10 +256,10 @@ function DocPageContent({
 }
 
 function DocPageAppendix({docId}: {docId: UnpackedHypermediaId}) {
-  const [tab, setTab] = useState<'discussion' | 'index'>('discussion')
+  const [tab, setTab] = useState<'discussion' | 'directory'>('discussion')
   let content = null
-  if (tab === 'index') {
-    content = <DocIndex docId={docId} />
+  if (tab === 'directory') {
+    content = <DocDirectory docId={docId} />
   }
   return (
     <PageContainer>
@@ -268,7 +269,7 @@ function DocPageAppendix({docId}: {docId: UnpackedHypermediaId}) {
           options={
             [
               {key: 'discussion', label: 'Discussion'},
-              {key: 'index', label: 'Index'},
+              {key: 'directory', label: 'Directory'},
             ] as const
           }
           onValue={(value) => {
@@ -281,23 +282,20 @@ function DocPageAppendix({docId}: {docId: UnpackedHypermediaId}) {
   )
 }
 
-function DocIndex({docId}: {docId: UnpackedHypermediaId}) {
-  const entity = useEntity(docId)
+function DocDirectory({docId}: {docId: UnpackedHypermediaId}) {
   const navigate = useNavigate()
-  const indexContent = entity.data?.document?.index
+  const dir = useListDirectory(docId)
   return (
     <YStack>
-      {indexContent &&
-        Object.keys(indexContent).map((key) => {
+      {dir.data &&
+        dir.data.map((item) => {
           return (
             <ListItem
-              key={key}
-              title={key}
+              key={item.path}
+              title={item.path + ' - ' + item.title}
               onPress={() => {
                 const id = hmId(docId.type, docId.eid, {
-                  indexPath: docId.indexPath
-                    ? `${docId.indexPath}/${key}`
-                    : key,
+                  path: item.path.split('/'),
                 })
                 console.log('navigate', id)
                 navigate({
@@ -330,8 +328,8 @@ function NewDocumentDialog({
   const navigate = useNavigate()
   const onSubmit: SubmitHandler<NewSubDocumentFields> = (data) => {
     // console.log('NewDocument', id)
-    const indexPath = pathNameify(data.name)
-    const id = `${input.id}/${indexPath}`
+    const path = pathNameify(data.name)
+    const id = `${input.id}/${path}`
     onClose()
     navigate({
       key: 'draft',

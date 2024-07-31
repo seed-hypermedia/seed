@@ -89,9 +89,8 @@ export function MentionToken(props: {value: string; selected?: boolean}) {
   const unpackedRef = unpackHmId(props.value)
 
   if (unpackedRef?.type == 'a') {
+    // todo, remove and merge <DocumentMention unpackedRef={unpackedRef} {...props} />. this was removed when the id.type=d was removed
     return <AccountMention unpackedRef={unpackedRef} {...props} />
-  } else if (unpackedRef?.type == 'd') {
-    return <DocumentMention unpackedRef={unpackedRef} {...props} />
   } else {
     console.log('=== MENTION ERROR', props)
     return <MentionText>ERROR</MentionText>

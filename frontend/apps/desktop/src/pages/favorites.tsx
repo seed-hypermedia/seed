@@ -8,7 +8,6 @@ import {useEntity} from '@/models/entities'
 import {FavoriteItem, useFavorites} from '@/models/favorites'
 import {HMAccount, UnpackedHypermediaId} from '@shm/shared'
 import {Container, List, PageHeading} from '@shm/ui'
-import {ContactItem} from './contacts-page'
 
 export default function FavoritesPage() {
   const favorites = useFavorites()
@@ -50,7 +49,7 @@ export default function FavoritesPage() {
   )
 }
 
-function DocumentFavoriteItem({
+function FavoriteItem({
   url,
   id,
   onCopy,
@@ -97,18 +96,13 @@ function FavoriteListItem({
   onCopy: () => void
   allAccounts?: HMAccount[]
 }) {
-  if (item.key === 'account') {
-    return <ContactItem account={item.account} onCopy={onCopy} />
-  }
-  if (item.key === 'document') {
-    return (
-      <DocumentFavoriteItem
-        url={item.url}
-        id={item.id}
-        allAccounts={allAccounts}
-        onCopy={onCopy}
-      />
-    )
-  }
+  return (
+    <FavoriteItem
+      url={item.url}
+      id={item.id}
+      allAccounts={allAccounts}
+      onCopy={onCopy}
+    />
+  )
   return null
 }

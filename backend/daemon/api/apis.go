@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 	"seed/backend/core"
-	accounts "seed/backend/daemon/api/accounts/v1alpha"
 	activity "seed/backend/daemon/api/activity/v1alpha"
 	daemon "seed/backend/daemon/api/daemon/v1alpha"
-	documents "seed/backend/daemon/api/documents/v1alpha"
-	documentsv2 "seed/backend/daemon/api/documents/v2alpha"
+	documentsv3 "seed/backend/daemon/api/documents/v3alpha"
 	entities "seed/backend/daemon/api/entities/v1alpha"
 	networking "seed/backend/daemon/api/networking/v1alpha"
 	"seed/backend/daemon/index"
@@ -26,14 +24,12 @@ import (
 
 // Server combines all the daemon API services into one thing.
 type Server struct {
-	Accounts    *accounts.Server
 	Daemon      *daemon.Server
-	Documents   *documents.Server
 	Networking  *networking.Server
 	Entities    *entities.Server
 	Activity    *activity.Server
 	Syncing     *syncing.Service
-	DocumentsV2 *documentsv2.Server
+	DocumentsV3 *documentsv3.Server
 }
 
 type Storage interface {
@@ -67,45 +63,23 @@ func New(
 
 	idx := index.NewIndex(db, logging.New("seed/index", LogLevel))
 
-	documentsSrv := documents.NewServer(repo.KeyStore(), db,
-		nil, // TODO(hm24): add discovery back
-		nil, // TODO(hm24): add gateway client back
-		LogLevel)
 	return Server{
-		Accounts:    accounts.NewServer(repo.KeyStore(), blobs),
 		Activity:    activity.NewServer(db),
 		Daemon:      daemon.NewServer(repo, blobs, wallet, doSync),
-		Documents:   documentsSrv,
 		Networking:  networking.NewServer(blobs, node, db),
 		Entities:    entities.NewServer(blobs, &lazyDiscoverer{}),
-		DocumentsV2: documentsv2.NewServer(repo.KeyStore(), idx, node, db),
+		DocumentsV3: documentsv3.NewServer(repo.KeyStore(), idx, db),
 		Syncing:     sync,
 	}
 }
 
 // Register API services on the given gRPC server.
 func (s Server) Register(srv *grpc.Server) {
-	s.Accounts.RegisterServer(srv)
 	s.Daemon.RegisterServer(srv)
-	s.Documents.RegisterServer(srv)
 	s.Activity.RegisterServer(srv)
 	s.Networking.RegisterServer(srv)
 	s.Entities.RegisterServer(srv)
-	s.DocumentsV2.RegisterServer(srv)
-}
-
-type lazyGwClient struct {
-	net *future.ReadOnly[*mttnet.Node]
-}
-
-// Connect connects to a remote gateway. Necessary here for the grpc server to add a site
-// that needs to connect to the site under the hood.
-func (ld *lazyGwClient) GatewayClient(ctx context.Context, url string) (mttnet.GatewayClient, error) {
-	node, ok := ld.net.Get()
-	if !ok {
-		return nil, fmt.Errorf("p2p node is not yet initialized")
-	}
-	return node.GatewayClient(ctx, url)
+	s.DocumentsV3.RegisterServer(srv)
 }
 
 type lazyDiscoverer struct {

@@ -1,5 +1,5 @@
 import {dispatchDraftStatus, DraftStatus} from '@/draft-status'
-import {HMDocument, HMDraft, unpackHmId} from '@shm/shared'
+import {HMDocument, HMDraft} from '@shm/shared'
 import {assign, setup, StateFrom} from 'xstate'
 
 export type DraftMachineState = StateFrom<typeof draftMachine>
@@ -10,7 +10,6 @@ export const draftMachine = setup({
       name: string
       thumbnail: string
       cover: string
-      indexPath: string
       draft: null | HMDraft
       document: null | HMDocument
       errorMessage: string
@@ -24,7 +23,6 @@ export const draftMachine = setup({
           name?: string
           thumbnail?: string
           cover?: string
-          indexPath?: string
         }
       | {type: 'RESET.DRAFT'}
       | {type: 'RESTORE.DRAFT'}
@@ -99,23 +97,6 @@ export const draftMachine = setup({
         return context.cover
       },
     }),
-    setIndexPath: assign({
-      indexPath: ({context, event}) => {
-        if (event.type == 'GET.DRAFT.SUCCESS') {
-          if (event.draft && event.draft.indexPath) {
-            return event.draft.indexPath
-          } else if (event.document) {
-            const unpacked = unpackHmId(event.document.id)
-            return unpacked?.indexPath || ''
-          }
-        }
-
-        if (event.type == 'CHANGE' && event.indexPath) {
-          return event.indexPath
-        }
-        return context.indexPath
-      },
-    }),
     setErrorMessage: assign({
       errorMessage: ({context, event}) => {
         if (event.type == 'GET.DRAFT.ERROR') {
@@ -182,7 +163,6 @@ export const draftMachine = setup({
               {type: 'setName'},
               {type: 'setThumbnail'},
               {type: 'setCover'},
-              {type: 'setIndexPath'},
             ],
           },
         ],
@@ -219,7 +199,6 @@ export const draftMachine = setup({
                 {type: 'setName'},
                 {type: 'setThumbnail'},
                 {type: 'setCover'},
-                {type: 'setIndexPath'},
               ],
             },
           },
@@ -238,7 +217,6 @@ export const draftMachine = setup({
                 {type: 'setName'},
                 {type: 'setThumbnail'},
                 {type: 'setCover'},
-                {type: 'setIndexPath'},
               ],
               reenter: true,
             },
@@ -267,7 +245,6 @@ export const draftMachine = setup({
                 {type: 'setName'},
                 {type: 'setThumbnail'},
                 {type: 'setCover'},
-                {type: 'setIndexPath'},
               ],
               reenter: false,
             },
@@ -277,7 +254,6 @@ export const draftMachine = setup({
               name: context.name,
               thumbnail: context.thumbnail,
               currentDraft: context.draft,
-              indexPath: context.indexPath,
               cover: context.cover,
             }),
             id: 'createOrUpdateDraft',
@@ -305,7 +281,6 @@ export const draftMachine = setup({
                   {type: 'setName'},
                   {type: 'setThumbnail'},
                   {type: 'setCover'},
-                  {type: 'setIndexPath'},
                   {type: 'replaceRouteifNeeded'},
                   {
                     type: 'setDraftStatus',
