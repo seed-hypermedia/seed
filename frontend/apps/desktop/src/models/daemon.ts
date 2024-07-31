@@ -16,7 +16,12 @@ import {
   UseMutationOptions,
   UseQueryOptions,
 } from '@tanstack/react-query'
-import {NamedKey} from 'src/app-account'
+
+export type NamedKey = {
+  name: string
+  accountId: string
+  publicKey: string
+}
 
 function queryDaemonInfo(
   grpcClient: GRPCClient,

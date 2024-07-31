@@ -263,6 +263,7 @@ export type HMMetadata = {
   name?: string
   thumbnail?: string
   cover?: string
+  accountType?: 'author' | 'publisher'
 }
 
 export type HMDraft = {

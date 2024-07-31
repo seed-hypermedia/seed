@@ -1,5 +1,5 @@
 import {queryKeys} from '@/models/query-keys'
-import {eventStream} from '@shm/shared'
+import {eventStream, HMDraft} from '@shm/shared'
 import {
   Button,
   CheckboxField,
@@ -19,29 +19,28 @@ import {
 import {useMutation} from '@tanstack/react-query'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {useQueryInvalidator} from './app-context'
-import {useMnemonics, useRegisterKey} from './models/daemon'
+import {grpcClient} from './app-grpc'
+import {useMnemonics, useMyAccountIds, useRegisterKey} from './models/daemon'
 import {trpc} from './trpc'
 import {useOpenDraft} from './utils/open-draft'
-
-export type NamedKey = {
-  name: string
-  accountId: string
-  publicKey: string
-}
 
 const onboardingColor = '#755EFF'
 
 export const [dispatchWizardEvent, wizardEvents] = eventStream<boolean>()
 export const [dispatchNewKeyEvent, newKeyEvent] = eventStream<boolean>()
 
-type AccountStep = 'create' | 'complete'
-
+type AccountStep = 'type' | 'create' | 'members' | 'complete'
 export function AccountWizardDialog() {
+  const createDraft = trpc.drafts.write.useMutation()
   const invalidate = useQueryInvalidator()
   const [open, setOpen] = useState(false)
   const [newAccount, setNewAccount] = useState<null | boolean>(true)
-  const [step, setStep] = useState<AccountStep>('create')
+  const [step, setStep] = useState<AccountStep>('type')
   const [existingWords, setExistingWords] = useState<string>('')
+  const accounts = useMyAccountIds()
+  const [accountType, setAccountType] = useState<'author' | 'publisher' | null>(
+    null,
+  )
   const [isSaveWords, setSaveWords] = useState<null | boolean>(true)
   const [isUserSavingWords, setUserSaveWords] = useState<null | boolean>(null)
   const [isExistingWordsSave, setExistingWordsSave] = useState<boolean>(false)
@@ -79,6 +78,48 @@ export function AccountWizardDialog() {
     },
   })
 
+  async function handleAccountCreation() {
+    const hasAccounts = accounts.data?.length != 0
+    const name = hasAccounts ? `temp-${accountType}` : 'main'
+    try {
+      const createdAccount = await register.mutateAsync({
+        mnemonic: words as Array<string>,
+        name,
+      })
+
+      if (hasAccounts) {
+        await grpcClient.daemon.updateKey({
+          currentName: name,
+          newName: createdAccount.accountId,
+        })
+      }
+      if (isSaveWords) {
+        saveWords.mutate({key: 'main', value: words})
+      }
+
+      await createDraft.mutateAsync({
+        id: createdAccount.accountId,
+        draft: {
+          signingProfile: createdAccount.accountId,
+          content: [],
+          metadata: {
+            accountType,
+          },
+          members: [],
+          previousId: null,
+          deps: [],
+        } as HMDraft,
+      })
+      invalidate([queryKeys.LOCAL_ACCOUNT_ID_LIST])
+      setCreatedAccount(createdAccount.accountId)
+
+      setStep(accountType == 'publisher' ? 'members' : 'complete')
+    } catch (error) {
+      console.error('REGISTER ERROR', error)
+      toast.error(`REGISTER ERROR: ${error}`)
+    }
+  }
+
   const words = useMemo(() => {
     if (newAccount) {
       return genWords
@@ -105,7 +146,7 @@ export function AccountWizardDialog() {
       open={open}
       onOpenChange={(val: boolean) => {
         setNewAccount(true)
-        setStep('create')
+        setStep('type')
         dispatchWizardEvent(val)
       }}
       defaultValue={false}
@@ -138,11 +179,44 @@ export function AccountWizardDialog() {
           enterStyle={{y: -10, opacity: 0}}
           exitStyle={{y: -10, opacity: 0}}
         >
+          {step == 'type' ? (
+            <Onboarding.Wrapper>
+              <Onboarding.MainSection>
+                <Onboarding.Title>
+                  What account type you want to create?
+                </Onboarding.Title>
+                <YStack gap="$2">
+                  <Button
+                    onPress={() => {
+                      setAccountType('author')
+                      setStep('create')
+                    }}
+                  >
+                    Personal
+                  </Button>
+                  <Button
+                    onPress={() => {
+                      setAccountType('publisher')
+                      setStep('create')
+                    }}
+                  >
+                    Publisher
+                  </Button>
+                </YStack>
+              </Onboarding.MainSection>
+            </Onboarding.Wrapper>
+          ) : null}
           {step == 'create' && newAccount ? (
             <Onboarding.Wrapper>
               <MarketingSection />
               <Onboarding.MainSection>
-                <Onboarding.Title>Create a New Account</Onboarding.Title>
+                <Onboarding.Title>{`Create your new ${
+                  accountType == 'author'
+                    ? 'Personal'
+                    : accountType == 'publisher'
+                    ? 'Publisher'
+                    : ''
+                } Account`}</Onboarding.Title>
                 <YStack gap="$2">
                   {words?.length ? (
                     <Field id="words" label="Secret Words">
@@ -215,21 +289,7 @@ export function AccountWizardDialog() {
                     f={1}
                     disabled={!isSaveWords && !isUserSavingWords}
                     opacity={!isSaveWords && !isUserSavingWords ? 0.4 : 1}
-                    onPress={() => {
-                      register
-                        .mutateAsync({
-                          mnemonic: words as Array<string>,
-                          name: 'main',
-                        })
-                        .then((res) => {
-                          if (isSaveWords) {
-                            saveWords.mutate({key: 'main', value: words})
-                          }
-                          invalidate([queryKeys.LOCAL_ACCOUNT_ID_LIST])
-                          setCreatedAccount(res.accountId)
-                          setStep('complete')
-                        })
-                    }}
+                    onPress={handleAccountCreation}
                   >
                     Create new Account
                   </Button>
@@ -318,6 +378,16 @@ export function AccountWizardDialog() {
               </Onboarding.MainSection>
             </Onboarding.Wrapper>
           ) : null}
+          {step == 'members' && accountType == 'publisher' ? (
+            <Onboarding.Wrapper>
+              <MarketingSection />
+              <Onboarding.MainSection>
+                <Onboarding.Title>Add Members</Onboarding.Title>
+                <Onboarding.Text>Add members COPY. TODO</Onboarding.Text>
+                <YStack gap="$2"></YStack>
+              </Onboarding.MainSection>
+            </Onboarding.Wrapper>
+          ) : null}
           {step == 'complete' ? (
             <Onboarding.Wrapper>
               <Onboarding.MainSection ai="center">
@@ -335,7 +405,7 @@ export function AccountWizardDialog() {
                       if (createdAccount) {
                         dispatchWizardEvent(false)
                         setNewAccount(true)
-                        setStep('create')
+                        setStep('type')
                         openDraft({id: createdAccount})
                       }
                     }}
