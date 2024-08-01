@@ -231,8 +231,8 @@ func TestSyncingProfiles(t *testing.T) {
 	require.NoError(t, err)
 	fmt.Println("Alice Info", alice.Net.AddrInfo())
 	fmt.Println("Bob Info", bob.Net.AddrInfo())
-	_, err = alice.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
-		Addrs: mttnet.AddrInfoToStrings(bob.Net.AddrInfo()),
+	_, err = bob.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
+		Addrs: mttnet.AddrInfoToStrings(alice.Net.AddrInfo()),
 	})
 	require.NoError(t, err)
 
