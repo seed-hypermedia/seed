@@ -1,10 +1,6 @@
 import {focusDraftBlock} from '@/draft-focusing'
-import {useMyAccount_deprecated} from '@/models/accounts'
-import {
-  useEntity,
-  useRouteBreadcrumbRoutes,
-  useRouteEntities,
-} from '@/models/entities'
+import {useMyAccountIds} from '@/models/daemon'
+import {useEntity, useRouteEntities} from '@/models/entities'
 import {useFavorites} from '@/models/favorites'
 import {appRouteOfId, getRouteKey, useNavRoute} from '@/utils/navigation'
 import {DocumentRoute, NavRoute} from '@/utils/routes'
@@ -34,105 +30,51 @@ type IconDefinition = React.FC<{size: any; color: any}>
 export const SidebarNeo = memo(_SidebarNeo)
 function _SidebarNeo() {
   const route = useNavRoute()
-  const [collapseFavorites, setCollapseFavorites] = useState(true)
-  const [collapseStandalone, setCollapseStandalone] = useState(false)
-  // TODO: eric remove the use of this in the sidebar
-  const myAccount = useMyAccount_deprecated()
-  const myAccountRoute: DocumentRoute | null = useMemo(() => {
-    return myAccount
-      ? ({key: 'document', id: hmId('d', myAccount)} as DocumentRoute)
-      : null
-  }, [myAccount])
+  const myAccountUids = useMyAccountIds()
+  const myAccountRoutes: DocumentRoute[] | undefined = useMemo(() => {
+    return myAccountUids.data?.map(
+      (uid) => ({key: 'document', id: hmId('d', uid)}) as DocumentRoute,
+    )
+  }, [myAccountUids.data])
   const navigate = useNavigate()
   const replace = useNavigate('replace')
-  let myAccountSection: ReactNode = null
-  let standaloneSection: ReactNode = null
-  const entityRoutes = useRouteBreadcrumbRoutes(route)
-  const firstEntityRoute = entityRoutes[0]
-  const isMyAccountDraftActive = route.key === 'draft' && route.id === myAccount
   const accountEntities = useRouteEntities(
-    myAccountRoute ? [myAccountRoute] : [],
+    myAccountRoutes ? myAccountRoutes : [],
   )
-  const isMyAccountActive =
-    isMyAccountDraftActive ||
-    (firstEntityRoute &&
-      firstEntityRoute.key === 'document' &&
-      firstEntityRoute.id.type === 'd' &&
-      firstEntityRoute.id.uid === myAccount)
-  // const [collapseMe, setCollapseMe] = useState(!isMyAccountActive)
-  // const entityContents = useRouteEntities(
-  //   myAccountRoute ? [myAccountRoute, ...entityRoutes] : entityRoutes,
-  // )
   const handleNavigate = useCallback(function handleNavigate(
     route: NavRoute,
     doReplace?: boolean,
   ) {
     if (doReplace) replace(route)
     else navigate(route)
-    // const firstEntityRoute = destEntityRoutes[0]
-    // const isMyAccountActive =
-    //   firstEntityRoute &&
-    //   firstEntityRoute.key === 'account' &&
-    //   firstEntityRoute.accountId === myAccount
-    // setCollapseFavorites(true)
-    // setCollapseMe(isMyAccountActive ? false : true)
-    // setCollapseStandalone(isMyAccountActive ? true : false)
   }, [])
 
-  // if (isMyAccountActive) {
-  //   // the active route is under myAccount section
-  //   myAccountSection = (
-  //     <RouteSection
-  //       onNavigate={handleNavigate}
-  //       collapse={collapseMe}
-  //       setCollapse={setCollapseMe}
-  //       routes={entityRoutes}
-  //       activeRoute={route}
-  //       entityContents={entityContents}
-  //       active
-  //     />
-  //   )
-  // } else {
-  //   if (myAccountRoute) {
-  //     myAccountSection = (
-  //       <RouteSection
-  //         onNavigate={handleNavigate}
-  //         collapse={collapseMe}
-  //         setCollapse={setCollapseMe}
-  //         routes={[myAccountRoute]}
-  //         activeRoute={route}
-  //         entityContents={entityContents}
-  //       />
-  //     )
-  //   }
-  //   standaloneSection = (
-  //     <RouteSection
-  //       onNavigate={handleNavigate}
-  //       collapse={collapseStandalone}
-  //       setCollapse={setCollapseStandalone}
-  //       routes={entityRoutes}
-  //       activeRoute={route}
-  //       entityContents={entityContents}
-  //       active
-  //     />
-  //   )
-  // }
   return (
     <>
-      {myAccountRoute ? (
-        <>
-          <SidebarDivider />
-          <RouteSection
-            onNavigate={handleNavigate}
-            collapse={false}
-            setCollapse={() => {}}
-            routes={[myAccountRoute]}
-            activeRoute={route}
-            entityContents={accountEntities}
-            active={isMyAccountActive}
-          />
-        </>
-      ) : null}
+      {myAccountRoutes?.map((accountRoute, accountRouteIndex) => {
+        const entity = accountEntities[accountRouteIndex]
+        console.log(accountRoute, entity)
+        if (!entity) return null
+        return (
+          <>
+            <SidebarDivider />
+            <RouteSection
+              onNavigate={handleNavigate}
+              collapse={false}
+              setCollapse={() => {}}
+              routes={[accountRoute]}
+              activeRoute={route}
+              entityContents={[entity]}
+              active={
+                route.key === 'document' &&
+                route.id.type === 'd' &&
+                route.id.uid === accountRoute.id.uid &&
+                !route.id.path?.length
+              }
+            />
+          </>
+        )
+      })}
       <SidebarDivider />
       {/* <SidebarFavorites
         collapse={collapseFavorites}
