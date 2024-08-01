@@ -30,7 +30,7 @@ export function createPublicWebHmUrl(
     latest?: boolean | null
   } = {},
 ) {
-  const webPath = `/${type}/${uid}`
+  const webPath = type === 'd' ? `/${uid}` : `/${type}/${uid}`
   const urlHost =
     hostname === undefined
       ? HYPERMEDIA_PUBLIC_WEB_GATEWAY

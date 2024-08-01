@@ -1,10 +1,5 @@
-import {toPlainMessage} from '@bufbuild/protobuf'
-import {
-  Entity,
-  HYPERMEDIA_ENTITY_TYPES,
-  SearchEntitiesResponse,
-  unpackHmId,
-} from '@shm/shared'
+import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
+import {Entity, HYPERMEDIA_ENTITY_TYPES, unpackHmId} from '@shm/shared'
 import {UseQueryOptions, useQuery} from '@tanstack/react-query'
 import {useCallback, useMemo, useState} from 'react'
 import {useGRPCClient} from '../app-context'
@@ -32,7 +27,7 @@ export function useSearch(query: string, opts: UseQueryOptions<Entity[]>) {
 export function useInlineMentions() {
   const recents = useRecents()
   const grpcClient = useGRPCClient()
-  const [queryResult, setQueryResult] = useState<any>(null)
+  const [queryResult, setQueryResult] = useState<PlainMessage<Entity>[]>([])
   let emptyRespose = {
     Accounts: [],
     Groups: [],
@@ -44,8 +39,9 @@ export function useInlineMentions() {
       if (!query) {
         return emptyRespose
       }
-      let resp = await grpcClient.entities.searchEntities({query})
-      setQueryResult(resp.entities)
+      const resp = await grpcClient.entities.searchEntities({query})
+      const entities = resp.entities.map(toPlainMessage)
+      setQueryResult(entities)
     },
     [grpcClient],
   )
@@ -53,19 +49,7 @@ export function useInlineMentions() {
   const result = useMemo(() => {
     if (!queryResult?.length) return emptyRespose
     return queryResult.reduce((acc: GroupResults, entity) => {
-      if (entity.id.startsWith('hm://a/')) {
-        acc.Accounts.push({
-          title: entity.title,
-          value: entity.id,
-          subtitle: 'Account',
-        })
-      } else if (entity.id.startsWith('hm://g/')) {
-        acc.Groups.push({
-          title: entity.title,
-          subtitle: 'Group',
-          value: entity.id,
-        })
-      } else if (entity.id.startsWith('hm://d/')) {
+      if (entity.id.startsWith('hm://')) {
         acc.Documents.push({
           title: entity.title,
           subtitle: 'Document',
@@ -95,36 +79,6 @@ type GroupResults = {
   Accounts: Array<InlineMentionsResult>
   Groups: Array<InlineMentionsResult>
   Documents: Array<InlineMentionsResult>
-}
-
-export function _useSearchMentions(
-  query: string,
-  opts: UseQueryOptions<SearchEntitiesResponse>,
-) {
-  const grpcClient = useGRPCClient()
-  const searchQuery = useQuery({
-    queryKey: [queryKeys.SEARCH_MENTIONS, query],
-    keepPreviousData: true,
-    enabled: !!query,
-    queryFn: () =>
-      grpcClient.entities.searchEntities({
-        query,
-      }),
-    ...opts,
-  })
-
-  return useMemo(() => {
-    if (!searchQuery.data?.entities.length) return []
-    let sorted = searchQuery.data?.entities.sort((a, b) => {
-      const prefixOrder = {'hm://a/': 0, 'hm://g/': 1, 'hm://d/': 2}
-      const prefixA = a.id.substring(0, 7) // Extract the prefix of id
-      const prefixB = b.id.substring(0, 7)
-
-      // Compare prefixes based on their order in prefixOrder object
-      return prefixOrder[prefixA] - prefixOrder[prefixB]
-    })
-    return sorted
-  }, [searchQuery.data, searchQuery.status])
 }
 
 interface SearchItem {

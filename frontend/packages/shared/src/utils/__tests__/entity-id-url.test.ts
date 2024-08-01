@@ -89,10 +89,10 @@ describe('parseCustomURL', () => {
 })
 
 describe('packHmId', () => {
-  test('creates hm://d/abc', () => {
+  test('creates hm://abc', () => {
     expect(packHmId(hmId('d', 'abc'))).toEqual('hm://abc')
   })
-  test('creates hm://g/123?v=foo', () => {
+  test('creates hm://123?v=foo', () => {
     expect(packHmId(hmId('d', '123', {version: 'foo'}))).toEqual(
       'hm://123?v=foo',
     )
