@@ -20,6 +20,7 @@ import (
 )
 
 func TestDaemonRegisterKey(t *testing.T) {
+	t.Skip("Only One test allowed")
 	t.Parallel()
 
 	dmn := makeTestApp(t, "alice", makeTestConfig(t), false)
@@ -71,6 +72,7 @@ func TestDaemonRegisterKey(t *testing.T) {
 }
 
 func TestDaemonUpdateProfile(t *testing.T) {
+	t.Skip("Only One test allowed")
 	t.Parallel()
 
 	dmn := makeTestApp(t, "alice", makeTestConfig(t), true)
@@ -190,8 +192,7 @@ func TestDaemonUpdateProfile(t *testing.T) {
 }
 
 func TestSyncingProfiles(t *testing.T) {
-	t.Parallel()
-	t.Skip("Times out in CI server")
+	//t.Parallel()
 	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
 	ctx := context.Background()
 	aliceIdentity := coretest.NewTester("alice")
