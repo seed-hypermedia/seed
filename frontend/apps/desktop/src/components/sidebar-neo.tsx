@@ -133,11 +133,11 @@ function _SidebarNeo() {
         </>
       ) : null}
       <SidebarDivider />
-      <SidebarFavorites
+      {/* <SidebarFavorites
         collapse={collapseFavorites}
         setCollapse={setCollapseFavorites}
         onNavigate={handleNavigate}
-      />
+      /> */}
     </>
   )
 }

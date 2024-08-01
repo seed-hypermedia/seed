@@ -2,7 +2,6 @@ import {useAppContext} from '@/app-context'
 import {ContactsPrompt} from '@/components/contacts-prompt'
 import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
 import {useDeleteDialog} from '@/components/delete-dialog'
-import {useFavoriteMenuItem} from '@/components/favoriting'
 import {MenuItemType, OptionsDropdown} from '@/components/options-dropdown'
 // import {DraftPublicationButtons} from '@/components/variants'
 import {useDraft} from '@/models/accounts'
@@ -115,7 +114,7 @@ export function DocOptionsButton() {
         }),
       )
     : null
-  menuItems.push(useFavoriteMenuItem(docUrl))
+  // menuItems.push(useFavoriteMenuItem(docUrl))
 
   return (
     <>

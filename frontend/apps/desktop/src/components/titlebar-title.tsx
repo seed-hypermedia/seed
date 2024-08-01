@@ -87,6 +87,7 @@ export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
     return <BreadcrumbTitle route={route} />
   }
   if (route.key === 'draft') {
+    return null // todo: fix error in DraftName when re-opening draft
     return (
       <>
         <DraftName route={route} />

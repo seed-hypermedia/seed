@@ -5,15 +5,15 @@ import {
 import {Avatar} from '@/components/avatar'
 import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
 import {DialogTitle, useAppDialog} from '@/components/dialog'
-import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
 import {FormInput} from '@/components/form-input'
 import {FormField} from '@/components/forms'
 import {ImportButton} from '@/components/import-doc-button'
 import {ListItem} from '@/components/list-item'
 import {MainWrapper} from '@/components/main-wrapper'
+import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
-import {useListDirectory} from '@/models/documents'
+import {useDraftList, useListDirectory} from '@/models/documents'
 import {useEntity} from '@/models/entities'
 import {getFileUrl} from '@/utils/account-url'
 import {useNavRoute} from '@/utils/navigation'
@@ -24,7 +24,9 @@ import {
   DocContent,
   getProfileName,
   hmId,
+  packHmId,
   UnpackedHypermediaId,
+  unpackHmId,
 } from '@shm/shared'
 import {
   Button,
@@ -218,7 +220,7 @@ function DocPageHeader() {
             </XStack>
 
             <XStack space="$2">
-              {isMyAccount ? null : <FavoriteButton id={docId} />}
+              {/* {isMyAccount ? null : <FavoriteButton id={docId} />} */}
               <CopyReferenceButton />
             </XStack>
           </XStack>
@@ -281,38 +283,108 @@ function DocPageAppendix({docId}: {docId: UnpackedHypermediaId}) {
   )
 }
 
+function DraftListItem({id}: {id: UnpackedHypermediaId}) {
+  const navigate = useNavigate()
+
+  const draft = useDraft(packHmId(id))
+  return (
+    <ListItem
+      key={id.id}
+      backgroundColor={'$yellow3'}
+      title={draft.data?.metadata.name || 'Untitled'}
+      accessory={
+        <Button size="$2" disabled theme="yellow">
+          New Draft
+        </Button>
+      }
+      onPress={() => {
+        navigate({
+          key: 'draft',
+          id,
+        })
+      }}
+    />
+  )
+}
+
 function DocDirectory({docId}: {docId: UnpackedHypermediaId}) {
   const navigate = useNavigate()
   const dir = useListDirectory(docId)
+  const drafts = useDraftList()
+  let draftsForShow = drafts.data
+  const dirList =
+    dir.data &&
+    dir.data
+      .filter((item) => {
+        const level = docId.path?.length || 0
+        if (item.path.length !== level + 1) return false
+        let pathPrefix = (docId.path || []).join('/')
+        return item.path.join('/').startsWith(pathPrefix)
+      })
+      .map((dirItem) => {
+        const id = hmId(docId.type, docId.uid, {
+          path: dirItem.path,
+        })
+        const hasDraft = draftsForShow?.includes(id.id)
+        if (hasDraft) {
+          draftsForShow = draftsForShow?.filter((draftId) => draftId !== id.id)
+        }
+        return {
+          ...dirItem,
+          id,
+          hasDraft,
+        }
+      })
   return (
     <YStack>
-      {dir.data &&
-        dir.data
-          .filter((item) => {
-            const level = docId.path?.length || 0
-            if (item.path.length !== level + 1) return false
-            let pathPrefix = (docId.path || []).join('/')
-            return item.path.join('/').startsWith(pathPrefix)
-          })
-          .map((item) => {
-            return (
-              <ListItem
-                key={item.path.join('/')}
-                title={item.metadata.name}
-                onPress={() => {
-                  const id = hmId(docId.type, docId.uid, {
-                    path: item.path,
-                  })
-                  navigate({
-                    key: 'document',
-                    id,
-                  })
-                }}
-              />
-            )
-          })}
+      {draftsForShow
+        ?.map((draftId) => {
+          const id = unpackHmId(draftId)
+          if (!id) return null
+          return id
+        })
+        .filter((id) => {
+          if (!id) return false
+          const level = docId.path?.length || 0
+          if (id.path?.length !== level + 1) return false
+          let pathPrefix = (docId.path || []).join('/')
+          return id.path.join('/').startsWith(pathPrefix)
+        })
+        ?.map((id) => {
+          if (!id) return null
+          return <DraftListItem id={id} />
+        })}
+      {dirList?.map((item) => {
+        return (
+          <ListItem
+            key={item.path.join('/')}
+            title={item.metadata.name}
+            accessory={
+              item.hasDraft ? (
+                <Button
+                  size="$2"
+                  theme="yellow"
+                  onPress={(e) => {
+                    e.stopPropagation()
+                    navigate({key: 'draft', id: item.id})
+                  }}
+                >
+                  Resume Editing
+                </Button>
+              ) : undefined
+            }
+            onPress={() => {
+              navigate({
+                key: 'document',
+                id: item.id,
+              })
+            }}
+          />
+        )
+      })}
       <XStack paddingVertical="$4">
         <NewSubDocumentButton parentDocId={docId} />
+        <ImportButton input={docId} />
       </XStack>
     </YStack>
   )
@@ -367,7 +439,6 @@ function NewDocumentDialog({
           <Form.Trigger asChild>
             <Button>Create Document</Button>
           </Form.Trigger>
-          <ImportButton input={input} />
         </XStack>
       </Form>
     </>

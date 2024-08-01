@@ -1,75 +1,20 @@
 import {useGRPCClient} from '@/app-context'
-import appError from '@/errors'
 import {useMyAccountIds} from '@/models/daemon'
 import {queryKeys} from '@/models/query-keys'
 import {client, trpc} from '@/trpc'
-import {toPlainMessage} from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
-import {GRPCClient, HMAccount, HMDraft, hmId, packHmId} from '@shm/shared'
-import {useQueries, useQuery, UseQueryOptions} from '@tanstack/react-query'
-import {useEntities, useEntity} from './entities'
-import {useConnectedPeers} from './networking'
+import {GRPCClient, HMDraft, hmId, packHmId} from '@shm/shared'
+import {useQueries, UseQueryOptions} from '@tanstack/react-query'
+import {useEntity} from './entities'
 
-export function useAccount_deprecated(accountId?: string) {
-  const grpcClient = useGRPCClient()
-  return useQuery<HMAccount | null, ConnectError>(
-    getAccountQuery(grpcClient, accountId),
-  )
+export function useAccount_deprecated() {
+  throw new Error('accounts are gone')
 }
-
-export function useAccounts(accountIds: string[]) {
-  const grpcClient = useGRPCClient()
-  return useQueries({
-    queries: accountIds.map((id) => getAccountQuery(grpcClient, id)),
-  })
+export function useAccounts() {
+  throw new Error('accounts are gone')
 }
-
-function getAccountQuery(grpcClient: GRPCClient, accountId?: string) {
-  return {
-    enabled: !!accountId,
-    queryKey: [queryKeys.ACCOUNT, accountId],
-    queryFn: async () => {
-      return null
-    },
-    useErrorBoundary: () => false,
-  }
-}
-
 export function useAllAccounts() {
-  const grpcClient = useGRPCClient()
-  const contacts = useQuery<{accounts: Array<HMAccount>}, ConnectError>({
-    queryKey: [queryKeys.LIST_ACCOUNTS],
-    queryFn: async () => {
-      try {
-        const listed = toPlainMessage(
-          await grpcClient.accounts.listAccounts({}),
-        )
-        return listed
-      } catch (e) {
-        return {accounts: []}
-      }
-    },
-    onError: (err) => {
-      appError(`useAllAccounts Error ${err.code}: ${err.message}`, err.metadata)
-    },
-  })
-  return contacts
-}
-
-export function useAllAccountProfiles() {
-  const allAccounts = useAllAccounts()
-  const allProfiles = useEntities(
-    allAccounts.data?.accounts.map((a) => hmId('d', a.id)) || [],
-    {enabled: !!allAccounts.data},
-  )
-  return allProfiles.map((query) => {
-    return query.data
-  })
-}
-
-export function useAccountIsConnected(account: HMAccount) {
-  const peers = useConnectedPeers()
-  return !!peers.data?.find((peer) => peer.accountId == account.id)
+  throw new Error('accounts are gone')
 }
 
 /*

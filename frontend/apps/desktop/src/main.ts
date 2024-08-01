@@ -111,12 +111,9 @@ ipcMain.on('open-markdown-directory-dialog', async (event) => {
         const files = fs.readdirSync(dirPath)
         const markdownFile = files.find((file) => file.endsWith('.md'))
         const mediaDir = path.join(dirPath, 'media')
-
-        if (
-          markdownFile &&
-          fs.existsSync(mediaDir) &&
-          fs.lstatSync(mediaDir).isDirectory()
-        ) {
+        const isDirectory = fs.lstatSync(dirPath).isDirectory()
+        const exists = fs.existsSync(mediaDir)
+        if (markdownFile && exists && isDirectory) {
           const markdownFilePath = path.join(dirPath, markdownFile)
           const markdownContent = fs.readFileSync(markdownFilePath, 'utf-8')
           const mediaFiles = fs.readdirSync(mediaDir).map((file) => {
@@ -144,7 +141,14 @@ ipcMain.on('open-markdown-directory-dialog', async (event) => {
             title,
           })
         } else {
-          event.sender.send('directory-error', `Invalid directory: ${dirPath}`)
+          event.sender.send(
+            'directory-error',
+            `Invalid directory: ${dirPath}, ${JSON.stringify({
+              markdownFile,
+              isDirectory,
+              exists,
+            })}`,
+          )
         }
       }
 
