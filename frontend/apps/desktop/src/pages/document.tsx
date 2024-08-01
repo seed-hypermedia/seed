@@ -197,17 +197,15 @@ function DocPageHeader() {
           marginBottom={route.tab !== 'home' ? '$4' : undefined}
         >
           <XStack gap="$4" alignItems="center" justifyContent="space-between">
-            <XStack gap="$4" alignItems="center">
-              <Avatar
-                id={docId.uid}
-                size={60}
-                label={accountName}
-                url={
-                  doc.data?.document?.metadata.thumbnail
-                    ? getFileUrl(doc.data?.document?.metadata.thumbnail)
-                    : ''
-                }
-              />
+            <XStack gap="$4" alignItems="center" minHeight={60}>
+              {doc.data?.document?.metadata.thumbnail ? (
+                <Avatar
+                  id={docId.uid}
+                  size={60}
+                  label={accountName}
+                  url={getFileUrl(doc.data?.document?.metadata.thumbnail)}
+                />
+              ) : null}
               <SizableText
                 whiteSpace="nowrap"
                 overflow="hidden"

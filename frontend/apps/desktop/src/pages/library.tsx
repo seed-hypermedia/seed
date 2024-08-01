@@ -43,11 +43,10 @@ export default function ContentPage() {
                 <AccountKeyItem accountId={key} key={key} />
               ))}
             </YStack>
-          ) : (
-            <Button onPress={() => dispatchWizardEvent(true)} icon={Add}>
-              Add account
-            </Button>
-          )}
+          ) : null}
+          <Button onPress={() => dispatchWizardEvent(true)} icon={Add}>
+            Add account
+          </Button>
         </Container>
         <View height="100vh" alignSelf="stretch">
           <List

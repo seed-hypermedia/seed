@@ -80,7 +80,7 @@ export function AccountWizardDialog() {
 
   async function handleAccountCreation() {
     const hasAccounts = accounts.data?.length != 0
-    const name = hasAccounts ? `temp-${accountType}` : 'main'
+    const name = hasAccounts ? `temp${accountType}` : 'main'
     try {
       const createdAccount = await register.mutateAsync({
         mnemonic: words as Array<string>,
@@ -90,7 +90,7 @@ export function AccountWizardDialog() {
       if (hasAccounts) {
         await grpcClient.daemon.updateKey({
           currentName: name,
-          newName: createdAccount.accountId,
+          newName: createdAccount.publicKey,
         })
       }
       if (isSaveWords) {
@@ -100,7 +100,7 @@ export function AccountWizardDialog() {
       await createDraft.mutateAsync({
         id: createdAccount.accountId,
         draft: {
-          signingProfile: createdAccount.accountId,
+          signingAccount: createdAccount.accountId,
           content: [],
           metadata: {
             accountType,

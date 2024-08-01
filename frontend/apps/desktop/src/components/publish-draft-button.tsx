@@ -15,7 +15,7 @@ import {
   YStackProps,
 } from '@shm/ui'
 import {Check} from '@tamagui/lucide-icons'
-import {PropsWithChildren, useEffect, useState} from 'react'
+import {PropsWithChildren, useEffect, useMemo, useState} from 'react'
 import {createMachine} from 'xstate'
 import {useGRPCClient, useQueryInvalidator} from '../app-context'
 import {useDraft} from '../models/accounts'
@@ -39,6 +39,10 @@ export default function PublishDraftButton() {
     },
   })
   const publish = usePublishDraft(grpcClient, packedDraftId)
+  const hasSigningAccountSelected = useMemo(
+    () => !!draft.data?.signingAccount,
+    [draft.data],
+  )
   function handlePublish() {
     if (draft.data && draftId) {
       publish
@@ -73,7 +77,12 @@ export default function PublishDraftButton() {
   return (
     <>
       <SaveIndicatorStatus />
-      <Button size="$2" onPress={handlePublish}>
+      <Button
+        size="$2"
+        onPress={handlePublish}
+        disabled={!hasSigningAccountSelected}
+        opacity={hasSigningAccountSelected ? 1 : 0.3}
+      >
         Publish
       </Button>
     </>

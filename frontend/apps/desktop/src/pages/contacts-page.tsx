@@ -66,6 +66,7 @@ export default function ContactsPage() {
           }
           items={contacts.data!}
           renderItem={({item}: {item: PlainMessage<DocumentListItem>}) => {
+            console.log(`== ~ ContactsPage ~ item:`, item)
             return (
               <ListItem
                 title={item.account}
@@ -80,9 +81,7 @@ export default function ContactsPage() {
                 onPress={() => {
                   navigate({
                     key: 'document',
-                    id: hmId('d', item.account, {
-                      path: item.path.split('/'),
-                    }),
+                    id: hmId('d', item.account),
                   })
                 }}
               />

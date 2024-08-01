@@ -271,6 +271,6 @@ export type HMDraft = {
   metadata: HMMetadata
   members: any //HMDocument['members']
   deps: Array<string>
-  signingProfile: string
+  signingAccount: string
   previousId: UnpackedHypermediaId | null // null if new document. Used to handle drafts that are moving
 }

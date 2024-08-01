@@ -30,8 +30,8 @@ import {useMemo, useState} from 'react'
 export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
   const {openMarkdownDirectories, openMarkdownFiles} = useAppContext()
   const keys = useMyAccountIds()
-  const signingProfile = useMemo(() => {
-    return keys.data?.length === 1 ? keys.data[0] : undefined // TODO: @horacio need to add a "key selector" here
+  const signingAccount = useMemo(() => {
+    return keys.data?.length ? keys.data[0] : undefined // TODO: @horacio need to add a "key selector" here
   }, [keys.data])
   const navigate = useNavigate()
   const saveDraft = trpc.drafts.write.useMutation()
@@ -100,7 +100,7 @@ export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
               name: title,
             },
             members: {},
-            signingProfile,
+            signingAccount,
           }
 
           console.log(input.id, path, title)

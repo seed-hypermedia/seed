@@ -6,6 +6,7 @@ import {queryKeys} from '@/models/query-keys'
 import {useOpenUrl} from '@/open-url'
 import {slashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
+import {DraftRoute} from '@/utils/routes'
 import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
 import {
@@ -215,7 +216,7 @@ export function usePublishDraft(
 
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
       try {
-        if (draft.signingProfile && id?.id) {
+        if (draft.signingAccount && id?.id) {
           const allChanges = [
             ...Object.entries(draft.metadata).map(([key, value]) => {
               return new DocumentChange({
@@ -233,13 +234,19 @@ export function usePublishDraft(
           ]
           const accts = await grpcClient.daemon.listKeys({})
           const signingKeyName = accts.keys.find(
-            (key) => key.publicKey === draft.signingProfile,
+            (key) => key.publicKey === draft.signingAccount,
           )?.name
           if (!signingKeyName)
             throw new Error(
-              'Can not determine signing key name for draft signingProfile ' +
-                draft.signingProfile,
+              'Can not determine signing key name for draft signingAccount ' +
+                draft.signingAccount,
             )
+          console.log('--=- CREATE THIS DOCUMENT', {
+            signingKeyName,
+            account: id.uid,
+            path: id.path?.length ? `/${id.path.join('/')}` : '',
+            changes: allChanges,
+          })
           const publishedDoc = await grpcClient.documents.createDocumentChange({
             signingKeyName,
             account: id.uid,
@@ -249,7 +256,13 @@ export function usePublishDraft(
 
           return toPlainMessage(publishedDoc)
         } else {
+          const accts = await grpcClient.daemon.listKeys({})
+          const signingKeyName = accts.keys.find(
+            (key) => key.publicKey === draft.signingAccount,
+          )?.name
+          console.log('--- publish no account', signingKeyName)
           dispatchWizardEvent(true)
+          throw new Error('no signing account selected')
         }
       } catch (error) {
         const connectErr = ConnectError.from(error)
@@ -257,6 +270,7 @@ export function usePublishDraft(
       }
     },
     onSuccess: (result, variables, context) => {
+      console.log('--- SUCCESS??')
       const documentId = variables.id?.id
       opts?.onSuccess?.(result, variables, context)
       if (documentId) {
@@ -362,9 +376,15 @@ export function useDraftEditor({id}: {id: string | undefined}) {
   ).current
   const saveDraft = trpc.drafts.write.useMutation()
 
-  const signingProfile = useMemo(() => {
-    return keys.data?.length == 1 ? keys.data[0] : undefined // TODO: @horacio need to add a "key selector" here
+  const signingAccount = useMemo(() => {
+    const key = keys.data?.length
+      ? keys.data.find((a) => a == (route as DraftRoute).id?.uid)
+      : undefined
+
+    return key ? key : undefined
   }, [keys.data])
+
+  console.log(`== ~ signingAccount ~ signingAccount:`, signingAccount)
 
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
@@ -448,7 +468,7 @@ export function useDraftEditor({id}: {id: string | undefined}) {
           thumbnail: input.thumbnail,
         },
         members: {},
-        signingProfile,
+        signingAccount,
       }
     } else {
       inputData = {
@@ -459,7 +479,7 @@ export function useDraftEditor({id}: {id: string | undefined}) {
           name: input.name,
           thumbnail: input.thumbnail,
         },
-        signingProfile,
+        signingAccount,
       }
     }
     const res = await saveDraft.mutateAsync({id: draftId, draft: inputData})
