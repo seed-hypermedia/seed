@@ -67,24 +67,30 @@ CREATE TABLE structural_blobs (
 CREATE VIEW meta_view AS
 WITH RankedBlobs AS (
     SELECT 
-        sb.id, 
-        sb.extra_attrs, 
-        sb.author, 
-        sb.resource, 
-        sb.ts, 
+        change_sb.id, 
+        change_sb.extra_attrs AS meta, 
+        change_sb.author, 
+        ref_sb.resource, 
+        change_sb.ts, 
         ROW_NUMBER() OVER (
-            PARTITION BY sb.resource 
+            PARTITION BY ref_sb.resource 
             ORDER BY 
-                (CASE WHEN sb.extra_attrs IS NOT NULL THEN 0 ELSE 1 END), 
-                sb.ts DESC
+                ref_sb.ts DESC
         ) AS rank
-    FROM structural_blobs sb
-    WHERE sb.type = 'Change'
+    FROM 
+        structural_blobs change_sb
+    JOIN 
+        structural_blobs ref_sb
+    ON 
+        change_sb.ts = ref_sb.ts
+    WHERE 
+        change_sb.type = 'Change' 
+        AND ref_sb.type = 'Ref'
 ),
 LatestBlobs AS (
     SELECT 
         rb.id,
-        rb.extra_attrs, 
+        rb.meta, 
         rb.author, 
         rb.resource, 
         rb.ts
@@ -92,11 +98,11 @@ LatestBlobs AS (
     WHERE rb.rank = 1
 )
 SELECT 
-    lb.extra_attrs, 
+    lb.meta AS extra_attrs, 
     res.iri, 
     pk.principal
 FROM LatestBlobs lb
-JOIN resources res ON res.id = (SELECT resource from structural_blobs where ts = lb.ts and resource IS NOT NULL LIMIT 1)
+JOIN resources res ON res.id = lb.resource
 JOIN public_keys pk ON pk.id = lb.author;
 
 -- Stores hypermedia resources.
