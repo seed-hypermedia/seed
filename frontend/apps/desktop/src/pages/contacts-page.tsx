@@ -68,7 +68,7 @@ export default function ContactsPage() {
           renderItem={({item}: {item: PlainMessage<DocumentListItem>}) => {
             return (
               <ListItem
-                title={item.namespace}
+                title={item.account}
                 icon={
                   // <Avatar
                   //   url={item.metadata.thumbnail}
@@ -80,7 +80,7 @@ export default function ContactsPage() {
                 onPress={() => {
                   navigate({
                     key: 'document',
-                    id: hmId('d', item.namespace, {
+                    id: hmId('d', item.account, {
                       path: item.path.split('/'),
                     }),
                   })

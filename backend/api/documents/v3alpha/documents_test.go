@@ -22,7 +22,7 @@ func TestCreateDocumentChange(t *testing.T) {
 
 	doc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Namespace:      alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.Principal().String(),
 		Path:           "",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
@@ -53,8 +53,8 @@ func TestCreateDocumentChange(t *testing.T) {
 	require.NoError(t, err)
 
 	want := &documents.Document{
-		Namespace: alice.me.Account.Principal().String(),
-		Path:      "",
+		Account: alice.me.Account.Principal().String(),
+		Path:    "",
 		Metadata: map[string]string{
 			"title": "Alice from the Wonderland",
 		},
@@ -94,7 +94,7 @@ func TestListRootDocuments(t *testing.T) {
 	// Create root document for Alice.
 	profile, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Namespace:      alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.Principal().String(),
 		Path:           "",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
@@ -107,7 +107,7 @@ func TestListRootDocuments(t *testing.T) {
 	// Create a named doc for Alice to make sure only roots are returned in list requests.
 	namedDoc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Namespace:      alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.Principal().String(),
 		Path:           "/named/foo",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
@@ -124,7 +124,7 @@ func TestListRootDocuments(t *testing.T) {
 		bob := newTestDocsAPI(t, "bob")
 		_, err = bob.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 			SigningKeyName: "main",
-			Namespace:      bob.me.Account.Principal().String(),
+			Account:        bob.me.Account.Principal().String(),
 			Path:           "",
 			Changes: []*documents.DocumentChange{
 				{Op: &documents.DocumentChange_SetMetadata_{
@@ -171,7 +171,7 @@ func TestListDocument(t *testing.T) {
 
 	profile, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Namespace:      alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.Principal().String(),
 		Path:           "",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
@@ -185,7 +185,7 @@ func TestListDocument(t *testing.T) {
 	// Create a named doc for Alice to make sure we have things to list.
 	namedDoc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Namespace:      alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.Principal().String(),
 		Path:           "/named/foo",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
@@ -198,7 +198,7 @@ func TestListDocument(t *testing.T) {
 
 	namedDoc2, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Namespace:      alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.Principal().String(),
 		Path:           "/named/bar",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
@@ -209,7 +209,7 @@ func TestListDocument(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, namedDoc2)
 
-	list, err := alice.ListDocuments(ctx, &documents.ListDocumentsRequest{Namespace: alice.me.Account.Principal().String()})
+	list, err := alice.ListDocuments(ctx, &documents.ListDocumentsRequest{Account: alice.me.Account.Principal().String()})
 	require.NoError(t, err)
 
 	want := []*documents.DocumentListItem{DocumentToListItem(namedDoc2), DocumentToListItem(namedDoc), DocumentToListItem(profile)}

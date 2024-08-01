@@ -29,7 +29,7 @@ type DocumentsClient interface {
 	CreateDocumentChange(ctx context.Context, in *CreateDocumentChangeRequest, opts ...grpc.CallOption) (*Document, error)
 	// Deletes a document.
 	DeleteDocument(ctx context.Context, in *DeleteDocumentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Lists documents within the namespace. Only the most recent versions show up.
+	// Lists documents within the account. Only the most recent versions show up.
 	ListDocuments(ctx context.Context, in *ListDocumentsRequest, opts ...grpc.CallOption) (*ListDocumentsResponse, error)
 	// Lists all the root documents that we know about.
 	ListRootDocuments(ctx context.Context, in *ListRootDocumentsRequest, opts ...grpc.CallOption) (*ListRootDocumentsResponse, error)
@@ -98,7 +98,7 @@ type DocumentsServer interface {
 	CreateDocumentChange(context.Context, *CreateDocumentChangeRequest) (*Document, error)
 	// Deletes a document.
 	DeleteDocument(context.Context, *DeleteDocumentRequest) (*emptypb.Empty, error)
-	// Lists documents within the namespace. Only the most recent versions show up.
+	// Lists documents within the account. Only the most recent versions show up.
 	ListDocuments(context.Context, *ListDocumentsRequest) (*ListDocumentsResponse, error)
 	// Lists all the root documents that we know about.
 	ListRootDocuments(context.Context, *ListRootDocumentsRequest) (*ListRootDocumentsResponse, error)

@@ -13,11 +13,11 @@ import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
  */
 export class GetDocumentRequest extends Message<GetDocumentRequest> {
   /**
-   * Required. The ID of the namespace where the document is located.
+   * Required. The ID of the account where the document is located.
    *
-   * @generated from field: string namespace = 1;
+   * @generated from field: string account = 1;
    */
-  namespace = "";
+  account = "";
 
   /**
    * Required. Path of the document.
@@ -42,7 +42,7 @@ export class GetDocumentRequest extends Message<GetDocumentRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.documents.v3alpha.GetDocumentRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "namespace", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
@@ -71,11 +71,11 @@ export class GetDocumentRequest extends Message<GetDocumentRequest> {
  */
 export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeRequest> {
   /**
-   * Required. The ID of the namespace where the document is located.
+   * Required. The ID of the account where the document is located.
    *
-   * @generated from field: string namespace = 1;
+   * @generated from field: string account = 1;
    */
-  namespace = "";
+  account = "";
 
   /**
    * Required. Path of the document to create change for.
@@ -109,7 +109,7 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.documents.v3alpha.CreateDocumentChangeRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "namespace", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "changes", kind: "message", T: DocumentChange, repeated: true },
     { no: 4, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
@@ -137,11 +137,11 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
  */
 export class DeleteDocumentRequest extends Message<DeleteDocumentRequest> {
   /**
-   * Required. ID of the namespace to delete the document from.
+   * Required. ID of the account to delete the document from.
    *
-   * @generated from field: string namespace = 1;
+   * @generated from field: string account = 1;
    */
-  namespace = "";
+  account = "";
 
   /**
    * Required. Path of the document to delete.
@@ -158,7 +158,7 @@ export class DeleteDocumentRequest extends Message<DeleteDocumentRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.documents.v3alpha.DeleteDocumentRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "namespace", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
@@ -284,11 +284,11 @@ export class ListRootDocumentsResponse extends Message<ListRootDocumentsResponse
  */
 export class ListDocumentsRequest extends Message<ListDocumentsRequest> {
   /**
-   * Required. ID of the namespace to list documents for.
+   * Required. ID of the account to list documents for.
    *
-   * @generated from field: string namespace = 1;
+   * @generated from field: string account = 1;
    */
-  namespace = "";
+  account = "";
 
   /**
    * Optional. Number of results per page. Default is defined by the server.
@@ -312,7 +312,7 @@ export class ListDocumentsRequest extends Message<ListDocumentsRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.documents.v3alpha.ListDocumentsRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "namespace", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 3, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
@@ -391,14 +391,14 @@ export class ListDocumentsResponse extends Message<ListDocumentsResponse> {
  */
 export class DocumentListItem extends Message<DocumentListItem> {
   /**
-   * Namespace to which the document belongs.
+   * Account to which the document belongs.
    *
-   * @generated from field: string namespace = 1;
+   * @generated from field: string account = 1;
    */
-  namespace = "";
+  account = "";
 
   /**
-   * Path of the document within the namespace.
+   * Path of the document within the account.
    * Empty string means root document.
    *
    * @generated from field: string path = 2;
@@ -448,7 +448,7 @@ export class DocumentListItem extends Message<DocumentListItem> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.documents.v3alpha.DocumentListItem";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "namespace", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "metadata", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "scalar", T: 9 /* ScalarType.STRING */} },
     { no: 4, name: "authors", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
@@ -481,14 +481,14 @@ export class DocumentListItem extends Message<DocumentListItem> {
  */
 export class Document extends Message<Document> {
   /**
-   * Namespace to which the document belongs.
+   * Account to which the document belongs.
    *
-   * @generated from field: string namespace = 1;
+   * @generated from field: string account = 1;
    */
-  namespace = "";
+  account = "";
 
   /**
-   * Path of the document within the namespace.
+   * Path of the document within the account.
    * Empty string means root document.
    *
    * @generated from field: string path = 2;
@@ -554,7 +554,7 @@ export class Document extends Message<Document> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.documents.v3alpha.Document";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "namespace", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "metadata", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "scalar", T: 9 /* ScalarType.STRING */} },
     { no: 5, name: "authors", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },

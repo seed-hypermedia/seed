@@ -157,7 +157,7 @@ export function queryEntity(
       if (!id) return null
       try {
         const document = await grpcClient.documents.getDocument({
-          namespace: id.uid,
+          account: id.uid,
           path: id.path?.length ? `/${id.path.join('/')}` : '',
         })
         return {id, document: toPlainMessage(document)}

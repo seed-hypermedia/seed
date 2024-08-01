@@ -78,8 +78,8 @@ func TestDaemonUpdateProfile(t *testing.T) {
 	alice := coretest.NewTester("alice")
 
 	doc, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
-		Namespace: alice.Account.Principal().String(),
-		Path:      "",
+		Account: alice.Account.Principal().String(),
+		Path:    "",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
 				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice from the Wonderland"},
@@ -110,8 +110,8 @@ func TestDaemonUpdateProfile(t *testing.T) {
 	require.NoError(t, err)
 
 	want := &documents.Document{
-		Namespace: alice.Account.Principal().String(),
-		Path:      "",
+		Account: alice.Account.Principal().String(),
+		Path:    "",
 		Metadata: map[string]string{
 			"title": "Alice from the Wonderland",
 		},
@@ -144,8 +144,8 @@ func TestDaemonUpdateProfile(t *testing.T) {
 	// Do another update.
 	{
 		doc, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
-			Namespace: alice.Account.Principal().String(),
-			Path:      "",
+			Account: alice.Account.Principal().String(),
+			Path:    "",
 			Changes: []*documents.DocumentChange{
 				{Op: &documents.DocumentChange_SetMetadata_{
 					SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Just Alice"},
@@ -156,8 +156,8 @@ func TestDaemonUpdateProfile(t *testing.T) {
 		require.NoError(t, err)
 
 		want := &documents.Document{
-			Namespace: alice.Account.Principal().String(),
-			Path:      "",
+			Account: alice.Account.Principal().String(),
+			Path:    "",
 			Metadata: map[string]string{
 				"title": "Just Alice",
 			},
@@ -198,7 +198,7 @@ func TestSyncingProfiles(t *testing.T) {
 	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
 	bobIdentity := coretest.NewTester("bob")
 	doc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
-		Namespace:      aliceIdentity.Account.Principal().String(),
+		Account:        aliceIdentity.Account.Principal().String(),
 		Path:           "",
 		SigningKeyName: "main",
 		Changes: []*documents.DocumentChange{
@@ -244,14 +244,14 @@ func TestSyncingProfiles(t *testing.T) {
 	//require.NoError(t, err)
 	time.Sleep(time.Millisecond * 200)
 	doc2, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
-		Namespace: aliceIdentity.Account.Principal().String(),
-		Path:      "",
+		Account: aliceIdentity.Account.Principal().String(),
+		Path:    "",
 	})
 	require.NoError(t, err)
 	require.Equal(t, doc.Content, doc2.Content)
 
 	bobsProfile, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
-		Namespace:      bobIdentity.Account.Principal().String(),
+		Account:        bobIdentity.Account.Principal().String(),
 		Path:           "",
 		SigningKeyName: "main",
 		Changes: []*documents.DocumentChange{

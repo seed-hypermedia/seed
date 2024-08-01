@@ -49,8 +49,8 @@ func (srv *Server) RegisterServer(rpc grpc.ServiceRegistrar) {
 // GetDocument implements Documents API v3.
 func (srv *Server) GetDocument(ctx context.Context, in *documents.GetDocumentRequest) (*documents.Document, error) {
 	{
-		if in.Namespace == "" {
-			return nil, errutil.MissingArgument("namespace")
+		if in.Account == "" {
+			return nil, errutil.MissingArgument("account")
 		}
 
 		if in.Version != "" {
@@ -58,7 +58,7 @@ func (srv *Server) GetDocument(ctx context.Context, in *documents.GetDocumentReq
 		}
 	}
 
-	ns, err := core.DecodePrincipal(in.Namespace)
+	ns, err := core.DecodePrincipal(in.Account)
 	if err != nil {
 		return nil, err
 	}
@@ -74,8 +74,8 @@ func (srv *Server) GetDocument(ctx context.Context, in *documents.GetDocumentReq
 // CreateDocumentChange implements Documents API v3.
 func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.CreateDocumentChangeRequest) (*documents.Document, error) {
 	{
-		if in.Namespace == "" {
-			return nil, errutil.MissingArgument("namespace")
+		if in.Account == "" {
+			return nil, errutil.MissingArgument("account")
 		}
 
 		if in.SigningKeyName == "" {
@@ -87,9 +87,9 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 		}
 	}
 
-	ns, err := core.DecodePrincipal(in.Namespace)
+	ns, err := core.DecodePrincipal(in.Account)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to decode namespace %s: %v", in.Namespace, err)
+		return nil, status.Errorf(codes.InvalidArgument, "failed to decode account %s: %v", in.Account, err)
 	}
 
 	kp, err := srv.keys.GetKey(ctx, in.SigningKeyName)
@@ -135,8 +135,8 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 	}
 
 	return srv.GetDocument(ctx, &documents.GetDocumentRequest{
-		Namespace: in.Namespace,
-		Path:      in.Path,
+		Account: in.Account,
+		Path:    in.Path,
 		// TODO implement getting specific version. Or do we want latest always?
 		// Version:    parentVersion.String(),
 	})
@@ -200,8 +200,8 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 		lastCursor.ID = id
 
 		doc, err := srv.GetDocument(ctx, &documents.GetDocumentRequest{
-			Namespace: ns.String(),
-			Path:      "",
+			Account: ns.String(),
+			Path:    "",
 		})
 		if err != nil {
 			return err
@@ -232,14 +232,14 @@ var qListRootDocuments = dqb.Str(`
 // ListDocuments implements Documents API v3.
 func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocumentsRequest) (*documents.ListDocumentsResponse, error) {
 	{
-		if in.Namespace == "" {
-			return nil, errutil.MissingArgument("namespace")
+		if in.Account == "" {
+			return nil, errutil.MissingArgument("account")
 		}
 	}
 
-	ns, err := core.DecodePrincipal(in.Namespace)
+	ns, err := core.DecodePrincipal(in.Account)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode namespace: %w", err)
+		return nil, fmt.Errorf("failed to decode account: %w", err)
 	}
 
 	type Cursor struct {
@@ -290,7 +290,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 
 		lastCursor.ID = id
 
-		// TODO(burdiyan): This is a hack to get the namespace from the IRI.
+		// TODO(burdiyan): This is a hack to get the account from the IRI.
 		u, err := url.Parse(iri)
 		if err != nil {
 			return err
@@ -299,8 +299,8 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		path := u.Path
 
 		doc, err := srv.GetDocument(ctx, &documents.GetDocumentRequest{
-			Namespace: u.Host,
-			Path:      path,
+			Account: u.Host,
+			Path:    path,
 		})
 		if err != nil {
 			return err
@@ -356,7 +356,7 @@ func (srv *Server) ensureProfileGenesis(ctx context.Context, kp core.KeyPair) er
 	return nil
 }
 
-func makeIRI(namespace core.Principal, path string) (index.IRI, error) {
+func makeIRI(account core.Principal, path string) (index.IRI, error) {
 	if path != "" {
 		if path[0] != '/' {
 			return "", fmt.Errorf("path must start with a slash: %s", path)
@@ -367,18 +367,18 @@ func makeIRI(namespace core.Principal, path string) (index.IRI, error) {
 		}
 	}
 
-	return index.IRI("hm://" + namespace.String() + path), nil
+	return index.IRI("hm://" + account.String() + path), nil
 }
 
-func (srv *Server) loadDocument(ctx context.Context, namespace core.Principal, path string, ensurePath bool) (*docmodel.Document, error) {
-	iri, err := makeIRI(namespace, path)
+func (srv *Server) loadDocument(ctx context.Context, account core.Principal, path string, ensurePath bool) (*docmodel.Document, error) {
+	iri, err := makeIRI(account, path)
 	if err != nil {
 		return nil, err
 	}
 
 	clock := hlc.NewClock()
 	entity := docmodel.NewEntityWithClock(iri, clock)
-	if err := srv.idx.WalkChanges(ctx, iri, namespace, func(c cid.Cid, ch *index.Change) error {
+	if err := srv.idx.WalkChanges(ctx, iri, account, func(c cid.Cid, ch *index.Change) error {
 		return entity.ApplyChange(c, ch)
 	}); err != nil {
 		return nil, err
@@ -423,19 +423,19 @@ func applyChanges(doc *docmodel.Document, ops []*documents.DocumentChange) error
 	return nil
 }
 
-func (srv *Server) checkWriteAccess(_ context.Context, namespace core.Principal, _ string, kp core.KeyPair) error {
-	if namespace.Equal(kp.Principal()) {
+func (srv *Server) checkWriteAccess(_ context.Context, account core.Principal, _ string, kp core.KeyPair) error {
+	if account.Equal(kp.Principal()) {
 		return nil
 	}
 
 	// TODO(burdiyan): check capability delegations.
-	return status.Errorf(codes.PermissionDenied, "key %s is not allowed to edit namespace %s", kp.Principal(), namespace)
+	return status.Errorf(codes.PermissionDenied, "key %s is not allowed to edit account %s", kp.Principal(), account)
 }
 
 // DocumentToListItem converts a document to a document list item.
 func DocumentToListItem(doc *documents.Document) *documents.DocumentListItem {
 	return &documents.DocumentListItem{
-		Namespace:  doc.Namespace,
+		Account:    doc.Account,
 		Path:       doc.Path,
 		Metadata:   doc.Metadata,
 		Authors:    doc.Authors,

@@ -330,11 +330,11 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 		return nil, err
 	}
 
-	namespace := u.Host
+	account := u.Host
 	path := u.Path
 
 	docpb := &documents.Document{
-		Namespace:       namespace,
+		Account:         account,
 		Path:            path,
 		Metadata:        make(map[string]string),
 		CreateTime:      timestamppb.New(hlc.Timestamp(first.Ts).Time()),

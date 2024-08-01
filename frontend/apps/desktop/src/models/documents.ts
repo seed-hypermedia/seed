@@ -242,7 +242,7 @@ export function usePublishDraft(
             )
           const publishedDoc = await grpcClient.documents.createDocumentChange({
             signingKeyName,
-            namespace: id.uid,
+            account: id.uid,
             path: id.path?.length ? `/${id.path.join('/')}` : '',
             changes: allChanges,
           })
@@ -711,7 +711,7 @@ export function useListDirectory(id: UnpackedHypermediaId) {
     queryKey: [queryKeys.DOC_LIST_DIRECTORY, id.uid],
     queryFn: async () => {
       const res = await grpcClient.documents.listDocuments({
-        namespace: id.uid,
+        account: id.uid,
       })
       const docs = res.documents
         .map(toPlainMessage)
@@ -1021,10 +1021,10 @@ export function useAccountDocuments(id?: UnpackedHypermediaId) {
     queryKey: [queryKeys.ACCOUNT_DOCUMENTS, id?.uid],
     enabled: !!id?.uid,
     queryFn: async () => {
-      const namespace = id?.uid
-      if (!namespace) return {documents: []}
+      const account = id?.uid
+      if (!account) return {documents: []}
       const result = await grpcClient.documents.listDocuments({
-        namespace: id?.uid,
+        account: id?.uid,
       })
       const documents = result.documents.map((response) =>
         toPlainMessage(response),
