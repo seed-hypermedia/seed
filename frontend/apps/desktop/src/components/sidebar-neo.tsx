@@ -36,6 +36,7 @@ function _SidebarNeo() {
   const route = useNavRoute()
   const [collapseFavorites, setCollapseFavorites] = useState(true)
   const [collapseStandalone, setCollapseStandalone] = useState(false)
+  // TODO: eric remove the use of this in the sidebar
   const myAccount = useMyAccount_deprecated()
   const myAccountRoute: DocumentRoute | null = useMemo(() => {
     return myAccount

@@ -24,8 +24,8 @@ export function useMyAccount_deprecated() {
   const accountKeys = useMyAccountIds()
   if (!accountKeys.data) return null
   if (!accountKeys.data.length) return null
-  if (accountKeys.data.length > 1)
-    throw new Error('Not supporting multiple accounts yet.')
+  // if (accountKeys.data.length > 1)
+  //   throw new Error('Not supporting multiple accounts yet.')
   const accountId = accountKeys.data[0]
   if (!accountId) return null
   return accountId

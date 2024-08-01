@@ -137,9 +137,9 @@ export function useDeleteKey(
   })
 }
 
-export function useSavedMnemonics() {
+export function useSavedMnemonics(name: NamedKey['name']) {
   // todo support multi-account
-  return trpc.secureStorage.read.useQuery('main').data as
-    | Array<string>
-    | undefined
+  return trpc.secureStorage.read.useQuery(name, {
+    enabled: !!name,
+  }).data as Array<string> | undefined
 }

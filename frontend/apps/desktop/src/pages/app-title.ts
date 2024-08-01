@@ -9,12 +9,13 @@ export const [dispatchShowTitleEvent, showTitleEvent] =
 export function useShowTitleObserver(ref: HTMLElement | null) {
   const triggered = useRef(false)
   const observer = new IntersectionObserver((entries) => {
+    dispatchShowTitleEvent('titlebar')
     entries.forEach((entry) => {
-      if (entry.isIntersecting) {
-        dispatchShowTitleEvent('page')
-      } else {
-        dispatchShowTitleEvent('titlebar')
-      }
+      // if (entry.isIntersecting) {
+      //   dispatchShowTitleEvent('page')
+      // } else {
+      //   dispatchShowTitleEvent('titlebar')
+      // }
     })
   })
 

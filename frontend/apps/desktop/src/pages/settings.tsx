@@ -343,22 +343,24 @@ export function ProfileInfo() {
 function AccountKeys() {
   const deleteKey = useDeleteKey()
   const keys = useMyAccountIds()
+
+  console.log(`== ~ AccountKeys ~ keys:`, keys)
   const deleteWords = trpc.secureStorage.delete.useMutation()
   const invalidate = useQueryInvalidator()
   const [selectedAccount, setSelectedAccount] = useState<undefined | string>(
     () => {
-      if (keys.data && keys.data.length == 1) {
+      if (keys.data && keys.data.length) {
         return keys.data[0]
       }
       return undefined
     },
   )
 
-  useEffect(() => {
-    if (keys.data && keys.data.length == 1) {
-      setSelectedAccount(keys.data[0])
-    }
-  }, [keys.data])
+  // useEffect(() => {
+  //   if (keys.data && keys.data.length) {
+  //     setSelectedAccount(keys.data[0])
+  //   }
+  // }, [keys.data])
 
   function handleDeleteCurrentAccount() {
     if (!selectedAccount) return
@@ -389,7 +391,7 @@ function AccountKeys() {
             <KeyItem
               item={key}
               isActive={key == selectedAccount}
-              onSelect={() => setSelectedAccount(selectedAccount)}
+              onSelect={() => setSelectedAccount(key)}
             />
           ))}
         </YStack>
@@ -400,7 +402,7 @@ function AccountKeys() {
             onPress={() => dispatchWizardEvent(true)}
             theme="blue"
           >
-            Add a Profile
+            New Account
           </Button>
         </XStack>
       </YStack>
