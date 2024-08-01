@@ -19,7 +19,7 @@ export default function DiscardDraftButton() {
           theme="red"
           onPress={() =>
             deleteDialog.open({
-              draftId,
+              draftId: draftId.id,
               onSuccess: () => {
                 dispatch({type: 'closeBack'})
               },
