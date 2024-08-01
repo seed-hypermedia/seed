@@ -1,6 +1,5 @@
-import {Avatar} from '@/components/avatar'
 import {fileUpload} from '@/utils/file-upload'
-import {Stack, Tooltip} from '@shm/ui'
+import {Stack, Tooltip, UIAvatar} from '@shm/ui'
 import {ChangeEvent} from 'react'
 import appError from '../errors'
 
@@ -35,7 +34,7 @@ export function AvatarForm({
   }
 
   const avatarImage = (
-    <Avatar label={label} id={id} size={size} url={url} color="$blue12" />
+    <UIAvatar label={label} id={id} size={size} url={url} color="$blue12" />
   )
   if (!onAvatarUpload) return avatarImage
   return (

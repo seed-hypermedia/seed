@@ -1,5 +1,4 @@
 import {dispatchWizardEvent} from '@/app-account'
-import {Avatar} from '@/components/avatar'
 import {MainWrapper} from '@/components/main-wrapper'
 import {useProfileWithDraft} from '@/models/accounts'
 import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
@@ -17,6 +16,7 @@ import {
   PageHeading,
   SizableText,
   toast,
+  UIAvatar,
   View,
   XStack,
   YStack,
@@ -113,7 +113,7 @@ function AccountKeyItem({accountId}: {accountId: string}) {
     <XStack>
       <XStack f={1} ai="center" gap="$2">
         {profile?.metadata.thumbnail ? (
-          <Avatar
+          <UIAvatar
             size={40}
             label={profile?.metadata.name}
             url={getFileUrl(profile.metadata.thumbnail)}

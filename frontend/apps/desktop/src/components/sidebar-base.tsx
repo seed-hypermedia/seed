@@ -1,5 +1,4 @@
 import {useAppContext} from '@/app-context'
-import {Avatar} from '@/components/avatar'
 import {MenuItemType, OptionsDropdown} from '@/components/options-dropdown'
 import appError from '@/errors'
 import {EmbedsContent} from '@/models/documents'
@@ -22,6 +21,7 @@ import {
   Separator,
   SizableText,
   Tooltip,
+  UIAvatar,
   useStream,
   View,
   XStack,
@@ -368,7 +368,7 @@ export function MyAccountItem({
         onRoute({key: 'document', id: hmId('d', account.id)})
       }}
       icon={
-        <Avatar
+        <UIAvatar
           size={36}
           label={account?.profile?.alias}
           id={account?.id}

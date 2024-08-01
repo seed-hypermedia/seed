@@ -1,9 +1,8 @@
-import {Avatar} from '@/components/avatar'
 import appError from '@/errors'
 import {useAccount_deprecated} from '@/models/accounts'
 import {useNavigate} from '@/utils/useNavigate'
 import {Account, hmId} from '@shm/shared'
-import {Button, FontSizeTokens, Tooltip, YStack} from '@shm/ui'
+import {Button, FontSizeTokens, Tooltip, UIAvatar, YStack} from '@shm/ui'
 import {AlertCircle} from '@tamagui/lucide-icons'
 import {getFileUrl} from '../utils/account-url'
 
@@ -58,7 +57,7 @@ export function BaseAccountLinkAvatar({
 }) {
   const navigate = useNavigate()
   let content = account?.profile ? (
-    <Avatar
+    <UIAvatar
       size={size}
       label={account.profile.alias}
       id={account.id}
@@ -66,7 +65,7 @@ export function BaseAccountLinkAvatar({
     />
   ) : (
     <>
-      <Avatar size={size} label={'?'} id={accountId!} />
+      <UIAvatar size={size} label={'?'} id={accountId!} />
       {error ? <ErrorDot /> : null}
     </>
   )

@@ -2,7 +2,6 @@ import {
   AccessoryContainer,
   AccessoryLayout,
 } from '@/components/accessory-sidebar'
-import {Avatar} from '@/components/avatar'
 import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
 import {DialogTitle, useAppDialog} from '@/components/dialog'
 import Footer from '@/components/footer'
@@ -40,6 +39,7 @@ import {
   SizableText,
   Spinner,
   SuggestedChangesIcon,
+  UIAvatar,
   XStack,
   YStack,
 } from '@shm/ui'
@@ -199,7 +199,7 @@ function DocPageHeader() {
           <XStack gap="$4" alignItems="center" justifyContent="space-between">
             <XStack gap="$4" alignItems="center" minHeight={60}>
               {doc.data?.document?.metadata.thumbnail ? (
-                <Avatar
+                <UIAvatar
                   id={docId.uid}
                   size={60}
                   label={accountName}

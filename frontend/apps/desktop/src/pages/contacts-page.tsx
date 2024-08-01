@@ -2,10 +2,19 @@ import Footer from '@/components/footer'
 import {ListItem} from '@/components/list-item'
 import {MainWrapper, MainWrapperNoScroll} from '@/components/main-wrapper'
 import {useListProfileDocuments} from '@/models/documents'
+import {getFileUrl} from '@/utils/account-url'
 import {useNavigate} from '@/utils/useNavigate'
 import {PlainMessage} from '@bufbuild/protobuf'
 import {DocumentListItem, hmId} from '@shm/shared'
-import {Container, List, PageHeading, Spinner, Text, YStack} from '@shm/ui'
+import {
+  Container,
+  List,
+  PageHeading,
+  Spinner,
+  Text,
+  UIAvatar,
+  YStack,
+} from '@shm/ui'
 import {useRef} from 'react'
 import {useShowTitleObserver} from './app-title'
 
@@ -66,17 +75,19 @@ export default function ContactsPage() {
           }
           items={contacts.data!}
           renderItem={({item}: {item: PlainMessage<DocumentListItem>}) => {
-            console.log(`== ~ ContactsPage ~ item:`, item)
+            console.log(
+              `== ~ ContactsPageasdkjahds kajsdh  ~ item:`,
+              getFileUrl(item.metadata.thumbnail),
+            )
             return (
               <ListItem
-                title={item.account}
+                title={item.metadata.name}
                 icon={
-                  // <Avatar
-                  //   url={item.metadata.thumbnail}
-                  //   label={item.metadata.name}
-                  //   size={24}
-                  // />
-                  undefined
+                  <UIAvatar
+                    url={getFileUrl(item.metadata.thumbnail)}
+                    label={item.metadata.name}
+                    size={24}
+                  />
                 }
                 onPress={() => {
                   navigate({

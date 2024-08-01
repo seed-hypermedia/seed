@@ -46,7 +46,6 @@ import {getFileUrl} from '../utils/account-url'
 import {useNavRoute} from '../utils/navigation'
 import {useNavigate} from '../utils/useNavigate'
 import {BaseAccountLinkAvatar} from './account-link-avatar'
-import {Avatar} from './avatar'
 
 function EmbedWrapper({
   hmRef,
@@ -571,7 +570,7 @@ export function EmbedComment(props: EntityComponentProps) {
 function AvatarComponent({accountId}: {accountId: string}) {
   let {data: account} = useAccount_deprecated(accountId)
   return (
-    <Avatar
+    <UIAvatar
       label={account?.profile?.alias}
       id={accountId}
       url={getFileUrl(account?.profile?.avatar)}

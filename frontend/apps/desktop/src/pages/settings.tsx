@@ -1,6 +1,4 @@
 import {useIPC, useQueryInvalidator} from '@/app-context'
-
-import {Avatar} from '@/components/avatar'
 import {AvatarForm} from '@/components/avatar-form'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import appError from '@/errors'
@@ -67,6 +65,7 @@ import {
   TextArea,
   toast,
   Tooltip,
+  UIAvatar,
   View,
   XGroup,
   XStack,
@@ -408,7 +407,7 @@ function AccountKeys() {
       </YStack>
       <YStack f={3} borderColor="$color7" borderWidth={1} p="$4">
         <XStack marginBottom="$4" gap="$4">
-          <Avatar
+          <UIAvatar
             size={80}
             url={getFileUrl(profile?.document?.metadata.thumbnail)}
             label={profile?.document?.metadata.name}
@@ -550,7 +549,7 @@ function KeyItem({
   return (
     <ListItem
       icon={
-        <Avatar
+        <UIAvatar
           size={24}
           id={item}
           url={getFileUrl(profile?.metadata.thumbnail)}
