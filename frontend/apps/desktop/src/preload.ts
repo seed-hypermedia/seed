@@ -70,14 +70,30 @@ contextBridge.exposeInMainWorld('fileOpen', {
           reject(response.error)
         }
       })
+
       ipcRenderer.on('directory-error', (event, error) => {
         console.error(error)
-        // toast.error('Invalid directory')
       })
-      ipcRenderer.send('open-markdown-directories-dialog')
+
+      ipcRenderer.send('open-markdown-directory-dialog')
     })
   },
-  readMediaFile: (filePath) => {
+
+  openMarkdownFiles: () => {
+    return new Promise((resolve, reject) => {
+      ipcRenderer.once('files-content-response', (event, response) => {
+        if (response.success) {
+          resolve(response.documents)
+        } else {
+          reject(response.error)
+        }
+      })
+
+      ipcRenderer.send('open-markdown-file-dialog')
+    })
+  },
+
+  readMediaFile: (filePath: string) => {
     return new Promise((resolve, reject) => {
       ipcRenderer.once('media-file-content', (event, response) => {
         if (response.success) {

@@ -222,12 +222,16 @@ function MainApp({
     }
   }, [queryClient.client, utils])
 
+  const openMarkdownFiles = () => {
+    // @ts-ignore
+    return window.fileOpen.openMarkdownFiles()
+  }
   const openMarkdownDirectories = () => {
     // @ts-ignore
     return window.fileOpen.openMarkdownDirectories()
   }
 
-  const readMediaFile = (filePath) => {
+  const readMediaFile = (filePath: string) => {
     // @ts-ignore
     return window.fileOpen.readMediaFile(filePath)
   }
@@ -250,7 +254,7 @@ function MainApp({
         saveCidAsFile={async (cid: string, name: string) => {
           ipc.send?.('save-file', {cid, name})
         }}
-        // openMarkdownFile={openMarkdownFile}
+        openMarkdownFiles={openMarkdownFiles}
         openMarkdownDirectories={openMarkdownDirectories}
         readMediaFile={readMediaFile}
         windowUtils={windowUtils}

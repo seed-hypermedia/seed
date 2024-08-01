@@ -22,9 +22,21 @@ export type AppContext = {
         content: string
         type: string
       }[]
+      title: string
     }[]
   >
-  readMediaFile: () => Promise<unknown>
+  openMarkdownFiles: () => Promise<
+    {
+      markdownContent: string
+      mediaFiles: {
+        name: string
+        content: string
+        type: string
+      }[]
+      title: string
+    }[]
+  >
+  readMediaFile: (filePath: string) => Promise<unknown>
   windowUtils: WindowUtils
   saveCidAsFile: (cid: string, name: string) => Promise<void>
 }

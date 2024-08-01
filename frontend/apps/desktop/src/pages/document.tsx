@@ -9,6 +9,7 @@ import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
 import {FormInput} from '@/components/form-input'
 import {FormField} from '@/components/forms'
+import {ImportButton} from '@/components/import-doc-button'
 import {ListItem} from '@/components/list-item'
 import {MainWrapper} from '@/components/main-wrapper'
 import {useMyAccountIds} from '@/models/daemon'
@@ -366,6 +367,7 @@ function NewDocumentDialog({
           <Form.Trigger asChild>
             <Button>Create Document</Button>
           </Form.Trigger>
+          <ImportButton input={input} />
         </XStack>
       </Form>
     </>

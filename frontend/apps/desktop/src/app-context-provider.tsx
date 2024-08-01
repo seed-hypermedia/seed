@@ -19,6 +19,7 @@ export function AppContextProvider({
   queryClient,
   ipc,
   externalOpen,
+  openMarkdownFiles,
   openMarkdownDirectories,
   readMediaFile,
   windowUtils,
@@ -31,6 +32,17 @@ export function AppContextProvider({
   queryClient: AppQueryClient
   ipc: AppIPC
   externalOpen: (url: string) => Promise<void>
+  openMarkdownFiles: () => Promise<
+    {
+      markdownContent: string
+      mediaFiles: {
+        name: string
+        content: string
+        type: string
+      }[]
+      title: string
+    }[]
+  >
   openMarkdownDirectories: () => Promise<
     {
       markdownContent: string
@@ -39,9 +51,10 @@ export function AppContextProvider({
         content: string
         type: string
       }[]
+      title: string
     }[]
   >
-  readMediaFile: () => Promise<unknown>
+  readMediaFile: (filePath: string) => Promise<unknown>
   windowUtils: WindowUtils
   saveCidAsFile: (cid: string, name: string) => Promise<void>
   darkMode: boolean
@@ -54,6 +67,7 @@ export function AppContextProvider({
       queryClient,
       ipc,
       externalOpen,
+      openMarkdownFiles,
       openMarkdownDirectories,
       readMediaFile,
       windowUtils,

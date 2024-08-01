@@ -10,6 +10,7 @@ import {Block, BlockNoteEditor, BlockSchema, nodeToBlock} from '../..'
 
 const fileRegex = /\[([^\]]+)\]\((http:\/\/[^\s]*ipfs[^\s]*) "size=(\d+)"\)/
 const videoRegex = /!\[([^\]]+)\]\((http:\/\/[^\s]*ipfs[^\s]*) "width=(\d*)"\)/
+const mathRegex = /\$\$(.*?)\$\$/
 
 const uploadToIpfs = async (file: File): Promise<string> => {
   if (file.size <= 62914560) {
@@ -107,10 +108,18 @@ const removeMarkdownBlock = (markdownContent: string, mediaFile: string) => {
 export const MarkdownToBlocks = async (
   markdown: string,
   editor: BlockNoteEditor,
+  mediaFilesAttached: boolean,
 ) => {
   const blocks: Block<BlockSchema>[] = []
   const organizedBlocks: Block<BlockSchema>[] = []
-  // const markdownWithMedia = uploadAndReplaceMediaUrls()
+
+  // If no media files are attached, remove media blocks with URLs starting with 'media/'
+  if (!mediaFilesAttached) {
+    const mediaRegex = /media\/([^\s)]+)/g
+    markdown = markdown.replace(mediaRegex, (match) => {
+      return removeMarkdownBlock(markdown, match)
+    })
+  }
 
   const file = await unified()
     .use(remarkParse)
@@ -123,7 +132,6 @@ export const MarkdownToBlocks = async (
 
   const {view} = editor._tiptapEditor
   const {state} = view
-  const {selection} = state
 
   // Get ProseMirror fragment from pasted markdown, previously converted to HTML
   const fragment = ProseMirrorDOMParser.fromSchema(view.state.schema).parse(
@@ -172,9 +180,7 @@ export const MarkdownToBlocks = async (
               block.content[0].text
 
         if (blockContent.startsWith('!')) {
-          console.log(blockContent)
           const videoMatch = blockContent.match(videoRegex)
-          console.log(videoMatch)
           if (videoMatch) {
             const videoProps = {
               name: videoMatch[1],
@@ -188,13 +194,9 @@ export const MarkdownToBlocks = async (
               content: [],
               children: [],
             }
-          } else {
-            console.error('Video match not found:', blockContent)
           }
         } else if (blockContent.startsWith('[')) {
-          console.log(blockContent)
           const fileMatch = blockContent.match(fileRegex)
-          console.log(fileMatch)
           if (fileMatch) {
             const fileProps = {
               name: fileMatch[1],
@@ -208,8 +210,26 @@ export const MarkdownToBlocks = async (
               content: [],
               children: [],
             }
-          } else {
-            console.error('File match not found:', blockContent)
+          }
+        } else if (mathRegex.test(blockContent)) {
+          const mathMatch = blockContent.match(mathRegex)
+          if (mathMatch) {
+            const mathContent = mathMatch[1]
+            blockToInsert = {
+              id: block.id,
+              type: 'math',
+              content: [
+                {
+                  text: mathContent,
+                  type: 'text',
+                  styles: {},
+                },
+              ],
+              children: [],
+              props: {
+                childrenType: 'group',
+              },
+            }
           }
         }
       }

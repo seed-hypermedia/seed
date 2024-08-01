@@ -13,24 +13,27 @@ import {useMyAccountIds} from '@/models/daemon'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
-import {useNavRoute} from '@/utils/navigation'
+import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
-import {HMDraft} from '@shm/shared'
-import {Button} from '@shm/ui'
+import {HMDraft, UnpackedHypermediaId} from '@shm/shared'
+import {
+  Button,
+  Popover,
+  PopoverContent,
+  SizableText,
+  XStack,
+  YStack,
+} from '@shm/ui'
 import {Extension} from '@tiptap/core'
-import {nanoid} from 'nanoid'
-import {useMemo} from 'react'
+import {useMemo, useState} from 'react'
 
-export const ImportButton = () => {
-  // const {openMarkdownFile} = useAppContext()
-  const {openMarkdownDirectories} = useAppContext()
+export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
+  const {openMarkdownDirectories, openMarkdownFiles} = useAppContext()
   const keys = useMyAccountIds()
   const signingProfile = useMemo(() => {
-    return keys.data?.length == 1 ? keys.data[0] : undefined // TODO: @horacio need to add a "key selector" here
+    return keys.data?.length === 1 ? keys.data[0] : undefined // TODO: @horacio need to add a "key selector" here
   }, [keys.data])
-  const route = useNavRoute()
   const navigate = useNavigate()
-  const replaceRoute = useNavigate('replace')
   const saveDraft = trpc.drafts.write.useMutation()
   const {queryClient, grpcClient} = useAppContext()
   const openUrl = useOpenUrl()
@@ -38,7 +41,9 @@ export const ImportButton = () => {
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
   const showNostr = trpc.experiments.get.useQuery().data?.nostr
 
-  const importDocuments = async () => {
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false)
+
+  const importDocuments = async (type: 'directory' | 'file') => {
     const editor = new BlockNoteEditor<BlockSchema>({
       linkExtensionOptions: {
         openOnClick: false,
@@ -65,44 +70,99 @@ export const ImportButton = () => {
       },
     })
 
-    openMarkdownDirectories()
+    const openFunction =
+      type === 'directory' ? openMarkdownDirectories : openMarkdownFiles
+
+    if (typeof openFunction !== 'function') {
+      console.error(`The function for type '${type}' is not defined correctly.`)
+      return
+    }
+
+    openFunction()
       .then(async (documents) => {
-        for (const {markdownContent, mediaFiles} of documents) {
+        for (const {markdownContent, mediaFiles, title} of documents) {
+          console.log(title)
           const updatedMarkdownContent = await uploadAndReplaceMediaUrls(
             markdownContent,
             mediaFiles,
           )
-          const blocks = await MarkdownToBlocks(updatedMarkdownContent, editor)
+          const blocks = await MarkdownToBlocks(
+            updatedMarkdownContent,
+            editor,
+            mediaFiles.length > 0, // Pass true if mediaFiles is provided, otherwise false
+          )
+          const path = pathNameify(title)
           let inputData: Partial<HMDraft> = {}
-          const draftId = `hm://draft/${nanoid()}`
           inputData = {
             content: blocks,
             deps: [],
             metadata: {
-              name: 'Imported Document',
+              name: title,
             },
             members: {},
-            index: {},
             signingProfile,
           }
 
+          console.log(input.id, path, title)
+
           const draft = await saveDraft.mutateAsync({
-            id: draftId,
+            id: input.id + '/' + path,
             draft: inputData,
           })
-          // navigate({key: 'draft', id: draft.id})
-          console.log(draft, route)
+          // navigate({key: 'draft', id: draft.id}) // Uncomment this line to navigate to the newly created draft
         }
       })
       .catch((error) => {
         console.error('Error importing documents:', error)
         // Show a toast or notification for the error
       })
+      .finally(() => {
+        setIsPopoverOpen(false)
+      })
   }
 
   return (
-    <Button size="$2" onPress={importDocuments}>
-      Import Draft
-    </Button>
+    <YStack>
+      <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+        <Popover.Trigger>
+          <Button onPress={() => setIsPopoverOpen(true)}>
+            Import Document
+          </Button>
+        </Popover.Trigger>
+
+        {isPopoverOpen && (
+          <PopoverContent padding="$4">
+            <SizableText size="$4" fontWeight="bold">
+              Import from
+            </SizableText>
+            <SizableText size="$2">Select the source:</SizableText>
+            <XStack marginTop="$2" space="$3" justifyContent="center">
+              <Button
+                size="$2"
+                onPress={() => importDocuments('file')}
+                style={{
+                  whiteSpace: 'pre-wrap',
+                  textAlign: 'center',
+                  height: 'auto',
+                }}
+              >
+                External Source
+              </Button>
+              <Button
+                size="$2"
+                onPress={() => importDocuments('directory')}
+                style={{
+                  whiteSpace: 'pre-wrap',
+                  textAlign: 'center',
+                  height: 'auto',
+                }}
+              >
+                Mintter App
+              </Button>
+            </XStack>
+          </PopoverContent>
+        )}
+      </Popover>
+    </YStack>
   )
 }

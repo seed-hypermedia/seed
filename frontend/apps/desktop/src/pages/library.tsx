@@ -1,6 +1,5 @@
 import {dispatchWizardEvent} from '@/app-account'
 import {Avatar} from '@/components/avatar'
-import {ImportButton} from '@/components/import-doc-button'
 import {MainWrapper} from '@/components/main-wrapper'
 import {useProfileWithDraft} from '@/models/accounts'
 import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
@@ -138,7 +137,6 @@ function AccountKeyItem({accountId}: {accountId: string}) {
       >
         Delete Key
       </Button>
-      <ImportButton />
       {draft ? (
         <Button size="$2" onPress={() => openDraft({id: accountDraftId})}>
           Resume editing
