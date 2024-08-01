@@ -40,7 +40,7 @@ const (
 var (
 	errEmptyEnvironment = errors.New("no keys in this environment yet")
 	errKeyNotFound      = errors.New("named key not found")
-	nameFormat          = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
+	nameFormat          = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 )
 
 // NewOSKeyStore creates a new key store backed by the operating system keyring.
