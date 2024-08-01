@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"fmt"
 	documentsimpl "seed/backend/api/documents/v3alpha"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
@@ -191,7 +192,7 @@ func TestDaemonUpdateProfile(t *testing.T) {
 
 func TestSyncingProfiles(t *testing.T) {
 	t.Parallel()
-	t.Skip()
+
 	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
 	ctx := context.Background()
 	aliceIdentity := coretest.NewTester("alice")
@@ -228,7 +229,8 @@ func TestSyncingProfiles(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-
+	fmt.Println("Alice Info", alice.Net.AddrInfo())
+	fmt.Println("Bob Info", bob.Net.AddrInfo())
 	_, err = alice.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
 		Addrs: mttnet.AddrInfoToStrings(bob.Net.AddrInfo()),
 	})
