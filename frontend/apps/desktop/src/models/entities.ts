@@ -106,18 +106,26 @@ export function useUndeleteEntity(
   })
 }
 
+function getParentPaths(path?: string[] | null): string[][] {
+  if (!path) return [[]]
+  let walkParentPaths: string[] = []
+  return [
+    [],
+    ...path.map((term) => {
+      walkParentPaths = [...walkParentPaths, term]
+      return walkParentPaths
+    }),
+  ]
+}
+
 function getRouteBreadrumbRoutes(
   route: NavRoute,
 ): Array<DocumentRoute | DraftRoute> {
   if (route.key === 'document') {
-    return route.id.path?.length
-      ? route.id.path.map((path) => ({
-          ...route,
-          id: hmId(route.id.type, route.id.uid, {
-            path: [path],
-          }),
-        }))
-      : [route]
+    return getParentPaths(route.id.path).map((path) => ({
+      key: 'document',
+      id: hmId(route.id.type, route.id.uid, {path}),
+    }))
   }
   if (route.key === 'draft') {
     // TODO: eric determine breadcrumbs based on route.id

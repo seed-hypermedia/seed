@@ -6,14 +6,12 @@ import {useGatewayHost} from '@/models/gateway-settings'
 import {useRecents} from '@/models/recents'
 import {useSearch} from '@/models/search'
 import {fetchWebLink} from '@/models/web-links'
-import {useShowTitle} from '@/pages/app-title'
 import {trpc} from '@/trpc'
 import {
   appRouteOfId,
   isHttpUrl,
   resolveHmIdToAppRoute,
   useHmIdToAppRouteResolver,
-  useNavRoute,
 } from '@/utils/navigation'
 import {NavRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
@@ -45,21 +43,10 @@ import {AppQueryClient} from '../query-client'
 import {Title} from './titlebar-title'
 
 export function TitlebarSearch() {
-  const [state, setState] = useState<'search' | 'title'>('title')
   const [showLauncher, setShowLauncher] = useState(false)
-  const {show} = useShowTitle('titlebar')
-
-  // console.log(`== ~ TitlebarSearch ~ show:`, show)
-  const route = useNavRoute()
   useListenAppEvent('openLauncher', () => {
-    setState('search')
     setShowLauncher(true)
   })
-
-  useEffect(() => {
-    setState(show ? 'title' : 'search')
-  }, [route.key, show])
-
   return (
     <XStack ai="center" className="no-window-drag" position="relative" gap="$2">
       <Button
@@ -70,13 +57,10 @@ export function TitlebarSearch() {
           cursor: 'text !important',
         }}
         onPress={() => {
-          setState('search')
           setShowLauncher((v) => !v)
         }}
-      >
-        {state == 'search' ? 'Open Hypermedia Document...' : undefined}
-      </Button>
-      {state == 'title' ? <Title /> : null}
+      ></Button>
+      <Title />
       {showLauncher ? (
         <LauncherContent
           onClose={() => {

@@ -1,5 +1,5 @@
 import {queryKeys} from '@/models/query-keys'
-import {eventStream, HMDraft} from '@shm/shared'
+import {eventStream, HMDraft, hmId} from '@shm/shared'
 import {
   Button,
   CheckboxField,
@@ -406,7 +406,7 @@ export function AccountWizardDialog() {
                         dispatchWizardEvent(false)
                         setNewAccount(true)
                         setStep('type')
-                        openDraft({id: createdAccount})
+                        openDraft({id: hmId('d', createdAccount)})
                       }
                     }}
                   >

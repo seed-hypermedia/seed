@@ -53,7 +53,6 @@ function _SidebarNeo() {
     <>
       {myAccountRoutes?.map((accountRoute, accountRouteIndex) => {
         const entity = accountEntities[accountRouteIndex]
-        console.log(accountRoute, entity)
         if (!entity) return null
         return (
           <>

@@ -384,8 +384,6 @@ export function useDraftEditor({id}: {id: string | undefined}) {
     return key ? key : undefined
   }, [keys.data])
 
-  console.log(`== ~ signingAccount ~ signingAccount:`, signingAccount)
-
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
       if (!gotEdited.current) {
