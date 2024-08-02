@@ -19,7 +19,6 @@ import {
   HMDraft,
   UnpackedHypermediaId,
   fromHMBlock,
-  hmDocument,
   toHMBlock,
   unpackHmId,
   writeableStateStream,
@@ -335,7 +334,7 @@ export function queryDraft({
       try {
         let serverDraft = null
         // const doc = serverDraft
-        const doc = serverDraft ? hmDocument(serverDraft) : null
+        const doc = serverDraft ? toPlainMessage(serverDraft) : null
 
         diagnosis?.append(draftId!, {
           key: 'getDraft',

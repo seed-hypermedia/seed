@@ -1,10 +1,5 @@
 import {useAppContext} from '@/app-context'
-import {
-  EmbedAccount,
-  EmbedComment,
-  EmbedDocument,
-  EmbedInline,
-} from '@/components/app-embeds'
+import {EmbedComment, EmbedDocument, EmbedInline} from '@/components/app-embeds'
 import {useExperiments} from '@/models/experiments'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
@@ -39,7 +34,6 @@ export function AppDocContentProvider({
         textUnit={contentTextUnit}
         debug={false}
         entityComponents={{
-          Account: EmbedAccount,
           Document: EmbedDocument,
           Comment: EmbedComment,
           Inline: EmbedInline,
@@ -64,15 +58,7 @@ export function AppDocContentProvider({
         }
         ipfsBlobPrefix={`${API_FILE_URL}/`}
         saveCidAsFile={saveCidAsFile}
-        routeParams={
-          route.key == 'document'
-            ? {
-                documentId: route.documentId,
-                version: route.versionId,
-                blockRef: route.blockId,
-              }
-            : {}
-        }
+        routeParams={{}}
         {...overrides}
       >
         {children}

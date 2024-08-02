@@ -3,18 +3,17 @@ import {useMyAccountIds} from '@/models/daemon'
 import {queryKeys} from '@/models/query-keys'
 import {client, trpc} from '@/trpc'
 import {Code, ConnectError} from '@connectrpc/connect'
-import {GRPCClient, HMDraft, hmId, packHmId} from '@shm/shared'
+import {GRPCClient, HMDraft} from '@shm/shared'
 import {useQueries, UseQueryOptions} from '@tanstack/react-query'
-import {useEntity} from './entities'
 
 export function useAccount_deprecated() {
-  throw new Error('accounts are gone')
+  throw new Error('useAccount_deprecated is fully broken')
 }
 export function useAccounts() {
-  throw new Error('accounts are gone')
+  throw new Error('useAccounts is fully broken')
 }
 export function useAllAccounts() {
-  throw new Error('accounts are gone')
+  throw new Error('useAllAccounts is fully broken')
 }
 
 /*
@@ -45,12 +44,6 @@ export function useDrafts(draftIds: string[]) {
   return useQueries({
     queries: draftIds.map((draftId) => queryDraft({grpcClient, draftId})),
   })
-}
-
-export function useProfileWithDraft(accountId?: string) {
-  const profile = useEntity(accountId ? hmId('d', accountId) : undefined)
-  const draft = useDraft(accountId ? packHmId(hmId('d', accountId)) : undefined)
-  return {profile: profile.data?.document, draft: draft?.data}
 }
 
 export function queryDraft({

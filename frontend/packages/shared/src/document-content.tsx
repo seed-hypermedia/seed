@@ -16,6 +16,7 @@ import {
   formatBytes,
   formattedDate,
   getCIDFromIPFSUrl,
+  getDocumentTitle,
   idToUrl,
   isHypermediaScheme,
   pluralS,
@@ -49,7 +50,6 @@ import {
   TextProps,
   Theme,
   Tooltip,
-  UIAvatar,
   Undo2,
   XPostNotFound,
   XPostSkeleton,
@@ -86,14 +86,12 @@ import {
 } from 'react-tweet'
 import {contentLayoutUnit, contentTextUnit} from './document-content-constants'
 import './document-content.css'
-import {HMAccount} from './hm-types'
 import {useRangeSelection} from './range-selection'
 
 export type EntityComponentsRecord = {
-  Account: React.FC<EntityComponentProps>
   Document: React.FC<EntityComponentProps>
   Comment: React.FC<EntityComponentProps>
-  Inline: React.FC<InlineEmbedComponentProps>
+  Inline: React.FC<UnpackedHypermediaId>
 }
 
 export type DocContentContextValue = {
@@ -131,8 +129,6 @@ export const docContentContext = createContext<DocContentContextValue | null>(
 )
 
 export type EntityComponentProps = BlockContentProps & UnpackedHypermediaId
-
-export type InlineEmbedComponentProps = UnpackedHypermediaId
 
 export function DocContentProvider({
   children,
@@ -180,14 +176,12 @@ export function DocContentProvider({
           <CheckboxWithLabel
             label="debug"
             checked={debug}
-            // @ts-expect-error
             onCheckedChange={setDebug}
             size="$1"
           />
           <CheckboxWithLabel
             label="body sans-serif"
             checked={ffSerif}
-            // @ts-expect-error
             onCheckedChange={toggleSerif}
             size="$1"
           />
@@ -1427,40 +1421,12 @@ export function BlockContentEmbed(props: BlockContentProps) {
     throw new Error('BlockContentEmbed requires an embed block type')
   const id = unpackHmId(props.block.ref)
   if (id?.type == 'd') {
-    return <EmbedTypes.Account {...props} {...id} />
-    // return <EmbedTypes.Document {...props} {...id} /> // todo, bring back the document embed. the id.type=d type is no longer here
+    return <EmbedTypes.Document {...props} {...id} />
   }
-  if (id?.type == 'c') {
+  if (id?.type == 'comment') {
     return <EmbedTypes.Comment {...props} {...id} />
   }
   return <BlockContentUnknown {...props} />
-}
-
-export function EmbedAccountContent({account}: {account: HMAccount}) {
-  const {ipfsBlobPrefix} = useDocContentContext()
-  return (
-    <XStack gap="$3" padding="$2" alignItems="flex-start">
-      <XStack paddingVertical="$3">
-        <UIAvatar
-          id={account.id}
-          size={40}
-          label={account.profile?.alias}
-          url={`${ipfsBlobPrefix}${account.profile?.avatar}`}
-        />
-      </XStack>
-      <YStack justifyContent="center" flex={1}>
-        <SizableText size="$1" opacity={0.5} flex={0}>
-          Account
-        </SizableText>
-        <YStack gap="$2">
-          <SizableText size="$6" fontWeight="bold">
-            {account?.profile?.alias}
-          </SizableText>
-          <SizableText size="$2">{account.profile?.bio}</SizableText>
-        </YStack>
-      </YStack>
-    </XStack>
-  )
 }
 
 export function ErrorBlock({
@@ -1602,7 +1568,6 @@ export function ContentEmbed({
         <BlockNodeList childrenType="group">
           {!props.blockRef && document?.metadata?.name ? (
             <BlockNodeContent
-              key={`title-${pub.document.id}`}
               isFirstChild
               depth={props.depth}
               expanded
@@ -1610,7 +1575,7 @@ export function ContentEmbed({
                 block: {
                   type: 'heading',
                   id: `heading-${props.uid}`,
-                  text: pub?.document?.title,
+                  text: getDocumentTitle(document),
                   attributes: {
                     childrenType: 'group',
                   },
@@ -2158,13 +2123,13 @@ export function DocumentCardView({
   title,
   textContent,
   editors,
-  AvatarComponent,
+  ThumbnailComponent,
   date,
 }: {
   title?: string
   textContent?: string
   editors?: Array<string>
-  AvatarComponent: React.FC<{accountId?: string}>
+  ThumbnailComponent: React.FC<{accountId?: string}>
   date?: HMTimestamp
 }) {
   return (
@@ -2186,7 +2151,10 @@ export function DocumentCardView({
           <SizableText>{textContent}</SizableText>
         </YStack>
         <XStack gap="$3" ai="center">
-          <EditorsAvatars editors={editors} AvatarComponent={AvatarComponent} />
+          <EditorsAvatars
+            editors={editors}
+            ThumbnailComponent={ThumbnailComponent}
+          />
           {date ? (
             <SizableText size="$1">{formattedDate(date)}</SizableText>
           ) : null}
@@ -2213,10 +2181,10 @@ export function getBlockNode(
 
 function EditorsAvatars({
   editors,
-  AvatarComponent,
+  ThumbnailComponent,
 }: {
   editors?: Array<string>
-  AvatarComponent: React.FC<{accountId?: string}>
+  ThumbnailComponent: React.FC<{accountId?: string}>
 }) {
   return (
     <XStack marginLeft={6}>
@@ -2231,7 +2199,7 @@ function EditorsAvatars({
           marginLeft={-8}
           animation="fast"
         >
-          <AvatarComponent accountId={editor} />
+          <ThumbnailComponent accountId={editor} />
         </XStack>
       ))}
     </XStack>

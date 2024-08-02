@@ -2,7 +2,6 @@ import {
   AutocompletePopup,
   createAutoCompletePlugin,
 } from '@/editor/autocomplete'
-import {useAccount_deprecated} from '@/models/accounts'
 import {useEntity} from '@/models/entities'
 import {getDocumentTitle, UnpackedHypermediaId, unpackHmId} from '@shm/shared'
 import {SizableText} from '@shm/ui'
@@ -104,11 +103,10 @@ function AccountMention({
   unpackedRef: UnpackedHypermediaId
   selected?: boolean
 }) {
-  const account = useAccount_deprecated(unpackedRef.uid)
-
+  const entity = useEntity(unpackedRef)
   return (
     <MentionText selected={selected}>
-      @{account.data?.profile?.alias || unpackedRef.uid}
+      @{getDocumentTitle(entity.data?.document)}
     </MentionText>
   )
 }

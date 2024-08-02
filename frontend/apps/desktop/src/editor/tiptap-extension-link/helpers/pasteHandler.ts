@@ -1,12 +1,15 @@
 import {getLinkMenuItems} from '@/editor/blocknote/core'
 import {linkMenuPluginKey} from '@/editor/blocknote/core/extensions/LinkMenu/LinkMenuPlugin'
+import {hmIdPathToEntityQueryPath} from '@/models/entities'
 import {fetchWebLink} from '@/models/web-links'
 import type {AppQueryClient} from '@/query-client'
+import {toPlainMessage} from '@bufbuild/protobuf'
 import {
   GRPCClient,
   StateStream,
   UnpackedHypermediaId,
   extractBlockRefOfUrl,
+  getDocumentTitle,
   hmId,
   hmIdWithVersion,
   isHypermediaScheme,
@@ -505,8 +508,14 @@ async function fetchEntityTitle(
   grpcClient: GRPCClient,
 ) {
   if (hmId.type == 'd') {
+    const document = await grpcClient.documents.getDocument({
+      account: hmId.uid,
+      path: hmIdPathToEntityQueryPath(hmId.path),
+    })
+    const doc = toPlainMessage(document)
+    const title = getDocumentTitle(doc)
     return {
-      title: 'broken-title-code' || null,
+      title,
     }
   } else if (hmId.type == 'comment') {
     try {

@@ -1,9 +1,10 @@
 import {dispatchWizardEvent} from '@/components/create-account'
 import {MainWrapper} from '@/components/main-wrapper'
-import {useProfileWithDraft} from '@/models/accounts'
+import {Thumbnail} from '@/components/thumbnail'
+import {useDraft} from '@/models/accounts'
 import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
 import {useDeleteDraft, useDraftList} from '@/models/documents'
-import {getFileUrl} from '@/utils/account-url'
+import {useEntity} from '@/models/entities'
 import {useOpenDraft} from '@/utils/open-draft'
 import {useNavigate} from '@/utils/useNavigate'
 import {hmId, unpackHmId} from '@shm/shared'
@@ -16,7 +17,6 @@ import {
   PageHeading,
   SizableText,
   toast,
-  UIAvatar,
   View,
   XStack,
   YStack,
@@ -97,28 +97,23 @@ export default function ContentPage() {
 
 function AccountKeyItem({accountId}: {accountId: string}) {
   const openDraft = useOpenDraft('push')
-  const {draft, profile} = useProfileWithDraft(accountId)
-
+  const id = hmId('d', accountId)
+  const draft = useDraft(id.id)
+  const doc = useEntity(id)
   const deleteKey = useDeleteKey()
   const navigate = useNavigate('push')
 
   function openProfile() {
     navigate({
       key: 'document',
-      id: hmId('d', accountId),
+      id,
     })
   }
   const accountDraftId = hmId('d', accountId)
   return (
     <XStack>
       <XStack f={1} ai="center" gap="$2">
-        {profile?.metadata.thumbnail ? (
-          <UIAvatar
-            size={40}
-            label={profile?.metadata.name}
-            url={getFileUrl(profile.metadata.thumbnail)}
-          />
-        ) : null}
+        <Thumbnail id={id} document={doc.data?.document} size={40} />
         <YStack f={1}>
           <p
             style={{
@@ -136,17 +131,17 @@ function AccountKeyItem({accountId}: {accountId: string}) {
       >
         Delete Key
       </Button>
-      {draft ? (
+      {draft.data ? (
         <Button size="$2" onPress={() => openDraft({id: accountDraftId})}>
           Resume editing
         </Button>
       ) : (
         <Button size="$2" onPress={() => openDraft({id: accountDraftId})}>
-          {profile ? 'Edit Profile' : 'Create Draft'}
+          {doc.data ? 'Edit Profile' : 'Create Draft'}
         </Button>
       )}
 
-      {profile ? (
+      {doc.data ? (
         <Button size="$2" onPress={openProfile}>
           See Profile
         </Button>

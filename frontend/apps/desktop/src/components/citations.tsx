@@ -1,5 +1,5 @@
 import {AccessoryContainer} from '@/components/accessory-sidebar'
-import {AccountLinkAvatar} from '@/components/account-link-avatar'
+import {EntityLinkThumbnail} from '@/components/account-link-thumbnail'
 import {useAccount_deprecated} from '@/models/accounts'
 import {useComment} from '@/models/comments'
 import {useEntityMentions} from '@/models/content-graph'
@@ -80,7 +80,7 @@ function PublicationCitationItem({mention}: {mention: Mention}) {
         }
       }}
       avatar={
-        <AccountLinkAvatar accountId={doc.data?.document?.owner} size={24} />
+        <EntityLinkThumbnail accountId={doc.data?.document?.owner} size={24} />
       }
     />
   )
@@ -89,7 +89,7 @@ function PublicationCitationItem({mention}: {mention: Mention}) {
 function CommentCitationItem({mention}: {mention: Mention}) {
   const spawn = useNavigate('spawn')
   const unpackedSource = unpackHmId(mention.source)
-  const {data: comment} = useComment(unpackedSource?.id, {
+  const {data: comment} = useComment(unpackedSource, {
     enabled: !!mention.source && !!unpackedSource,
   })
 
@@ -128,7 +128,7 @@ function CommentCitationItem({mention}: {mention: Mention}) {
       }}
     >
       <XStack gap="$2" ai="center">
-        <AccountLinkAvatar accountId={comment?.author} size={24} />
+        <EntityLinkThumbnail accountId={comment?.author} size={24} />
         <SizableText size="$2" fontWeight="600">
           {account?.profile?.alias || '...'}
         </SizableText>
@@ -188,20 +188,6 @@ function CommentCitationItem({mention}: {mention: Mention}) {
         </AppDocContentProvider>
       </YStack>
     </YStack>
-    // <PanelCard
-    //   title={pub.data?.document?.title}
-    //   content={docTextContent}
-    //   author={account}
-    //   date={formattedDateMedium(pub.data?.document?.createTime)}
-    //   onPress={() => {
-    //     if (unpackedSource) {
-    //       spawn(destRoute)
-    //     }
-    //   }}
-    //   avatar={
-    //     <AccountLinkAvatar accountId={pub.data?.document?.author} size={24} />
-    //   }
-    // />
   )
 }
 

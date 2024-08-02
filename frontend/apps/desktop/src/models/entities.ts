@@ -152,6 +152,10 @@ function catchNotFound<Result>(
   })
 }
 
+export function hmIdPathToEntityQueryPath(path: string[] | null) {
+  return path?.length ? `/${path.join('/')}` : ''
+}
+
 export function queryEntity(
   grpcClient: GRPCClient,
   id: UnpackedHypermediaId | null | undefined,
@@ -166,7 +170,7 @@ export function queryEntity(
       try {
         const document = await grpcClient.documents.getDocument({
           account: id.uid,
-          path: id.path?.length ? `/${id.path.join('/')}` : '',
+          path: hmIdPathToEntityQueryPath(id.path),
         })
         return {id, document: toPlainMessage(document)}
       } catch (e) {

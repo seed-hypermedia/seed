@@ -63,6 +63,7 @@ export function getLinkMenuItems({
   if (isLoading) {
     const loadingItem = {
       name: 'Checking link...',
+      // hm://z6Mkj5NQAYGQSLRAV2L6g4R2LC8D2FL47XW5miJsPaRvkerg?v=bafy2bzacecwv74orbeuwfdzyvnbyzqnwzdn3gorznjku7ythcyyj6aqqktcqu
       icon: <Spinner size="small" />,
       disabled: true,
       execute: (editor, ref) => {},

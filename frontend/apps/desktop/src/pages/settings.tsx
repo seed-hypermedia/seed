@@ -1,8 +1,8 @@
 import {useIPC, useQueryInvalidator} from '@/app-context'
 import {AvatarForm} from '@/components/avatar-form'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
+import {Thumbnail} from '@/components/thumbnail'
 import appError from '@/errors'
-import {useMyAccount_deprecated, useProfileWithDraft} from '@/models/accounts'
 import {useAutoUpdatePreference} from '@/models/app-settings'
 import {
   useDaemonInfo,
@@ -65,7 +65,6 @@ import {
   TextArea,
   toast,
   Tooltip,
-  UIAvatar,
   View,
   XGroup,
   XStack,
@@ -320,25 +319,6 @@ export function ProfileForm({
   )
 }
 
-export function ProfileInfo() {
-  const account = useMyAccount_deprecated()
-  const profile = account?.profile
-  const accountId = account.data?.id
-
-  if (profile && accountId) {
-    return (
-      <>
-        <Heading>
-          Profile Information{profile.alias ? ` – ${profile.alias}` : null}
-        </Heading>
-        <ProfileForm profile={profile} accountId={accountId} />
-      </>
-    )
-  }
-
-  return null
-}
-
 function AccountKeys() {
   const deleteKey = useDeleteKey()
   const keys = useMyAccountIds()
@@ -368,10 +348,11 @@ function AccountKeys() {
       toast.success('Profile removed correctly')
     })
   }
+  const selectedAccountId = selectedAccount
+    ? hmId('d', selectedAccount)
+    : undefined
 
-  const {data: profile} = useEntity(
-    selectedAccount ? hmId('d', selectedAccount) : undefined,
-  )
+  const {data: profile} = useEntity(selectedAccountId)
 
   const mnemonics = useSavedMnemonics()
   const [showWords, setShowWords] = useState<boolean>(false)
@@ -407,11 +388,13 @@ function AccountKeys() {
       </YStack>
       <YStack f={3} borderColor="$color7" borderWidth={1} p="$4">
         <XStack marginBottom="$4" gap="$4">
-          <UIAvatar
-            size={80}
-            url={getFileUrl(profile?.document?.metadata.thumbnail)}
-            label={profile?.document?.metadata.name}
-          />
+          {selectedAccountId ? (
+            <Thumbnail
+              id={selectedAccountId}
+              document={profile?.document}
+              size={80}
+            />
+          ) : null}
           <YStack f={1} gap="$3">
             <Field id="username" label="Profile name">
               <Input
@@ -543,19 +526,12 @@ function KeyItem({
   isActive: boolean
   onSelect: () => void
 }) {
-  const {profile} = useProfileWithDraft(item)
-
-  console.log(`== ~ profile:`, item, profile)
+  const id = hmId('d', item)
+  const entity = useEntity(id)
   return (
     <ListItem
-      icon={
-        <UIAvatar
-          size={24}
-          id={item}
-          url={getFileUrl(profile?.metadata.thumbnail)}
-        />
-      }
-      title={profile?.metadata.name || item}
+      icon={<Thumbnail id={id} document={entity.data?.document} size={24} />}
+      title={entity.data?.document?.metadata.name || item}
       subTitle={item.substring(item.length - 8)}
       hoverTheme
       pressTheme

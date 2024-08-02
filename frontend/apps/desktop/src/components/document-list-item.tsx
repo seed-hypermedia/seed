@@ -19,7 +19,7 @@ import React from 'react'
 import {useFavorite} from '../models/favorites'
 import {NavRoute} from '../utils/routes'
 import {useNavigate} from '../utils/useNavigate'
-import {BaseAccountLinkAvatar} from './account-link-avatar'
+import {LinkThumbnail} from './account-link-thumbnail'
 import {FavoriteButton} from './favoriting'
 import {ListItem, TimeAccessory} from './list-item'
 import {MenuItemType} from './options-dropdown'
@@ -152,10 +152,7 @@ export const DocumentListItem = React.memo(function DocumentListItem({
                       marginLeft={-8}
                       animation="fast"
                     >
-                      <BaseAccountLinkAvatar
-                        accountId={editorId}
-                        account={account}
-                      />
+                      <LinkThumbnail accountId={editorId} account={account} />
                     </XStack>
                   )
                 })

@@ -1,5 +1,5 @@
 import {AccessoryContainer} from '@/components/accessory-sidebar'
-import {AccountLinkAvatar} from '@/components/account-link-avatar'
+import {EntityLinkThumbnail} from '@/components/account-link-thumbnail'
 import {MenuItemType, OptionsDropdown} from '@/components/options-dropdown'
 import {useAccount_deprecated} from '@/models/accounts'
 import {TimelineChange, useDocHistory} from '@/models/changes'
@@ -97,7 +97,7 @@ function ChangeItem({
   )
   const topRow = shouldDisplayAuthorName ? (
     <XStack paddingTop="$2" gap="$2">
-      <AccountLinkAvatar accountId={author?.data?.id} size={24} />
+      <EntityLinkThumbnail accountId={author?.data?.id} size={24} />
       <ButtonText
         onPress={openAccount}
         hoverStyle={{
