@@ -3,14 +3,16 @@ package mttnet
 import (
 	"context"
 	"math/rand"
-	"seed/backend/hyper"
 	"seed/backend/hyper/hypersql"
 	"seed/backend/logging"
 	"time"
 
+	"seed/backend/ipfs"
+
 	"crawshaw.io/sqlite/sqlitex"
 	"github.com/ipfs/boxo/provider"
 	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multicodec"
 	"go.uber.org/zap"
 )
 
@@ -49,9 +51,9 @@ func makeProvidingStrategy(db *sqlitex.Pool, logLevel string) provider.KeyChanFu
 			r := rand.New(randSrc) //nolint:gosec
 			r.Shuffle(len(entities), func(i, j int) { entities[i], entities[j] = entities[j], entities[i] })
 			for _, e := range entities {
-				c, err := hyper.EntityID(e.ResourcesIRI).CID()
+				c, err := ipfs.NewCID(uint64(multicodec.Raw), uint64(multicodec.Identity), []byte(e.ResourcesIRI))
 				if err != nil {
-					log.Warn("BadEntityID", zap.Error(err), zap.String("entity", e.ResourcesIRI))
+					log.Warn("failed to convert entity ID into CID", zap.Error(err), zap.String("entity", e.ResourcesIRI))
 					return
 				}
 

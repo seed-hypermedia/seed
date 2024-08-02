@@ -6,7 +6,7 @@ import (
 	"seed/backend/core"
 	"seed/backend/core/coretest"
 	networking "seed/backend/genproto/networking/v1alpha"
-	"seed/backend/hyper"
+	"seed/backend/index"
 	"seed/backend/logging"
 	"seed/backend/mttnet"
 	"seed/backend/storage"
@@ -35,7 +35,7 @@ func TestNetworkingGetPeerInfo(t *testing.T) {
 
 func makeTestServer(t *testing.T, u coretest.Tester) *Server {
 	db := storage.MakeTestDB(t)
-	blobs := hyper.NewStorage(db, logging.New("seed/hyper", "debug"))
+	idx := index.NewIndex(db, logging.New("seed/hyper", "debug"))
 
 	cfg := config.Default().P2P
 	cfg.Port = 0
@@ -46,7 +46,7 @@ func makeTestServer(t *testing.T, u coretest.Tester) *Server {
 	ks := core.NewMemoryKeyStore()
 	must.Do(ks.StoreKey(context.Background(), "main", u.Account))
 
-	n, err := mttnet.New(cfg, u.Device, ks, db, blobs.IPFSBlockstore(), zap.NewNop())
+	n, err := mttnet.New(cfg, u.Device, ks, db, idx, zap.NewNop())
 	require.NoError(t, err)
 
 	errc := make(chan error, 1)

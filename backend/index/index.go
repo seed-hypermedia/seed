@@ -18,6 +18,7 @@ import (
 
 	"crawshaw.io/sqlite"
 	"crawshaw.io/sqlite/sqlitex"
+	blockstore "github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	dagpb "github.com/ipld/go-codec-dagpb"
@@ -47,6 +48,10 @@ func NewIndex(db *sqlitex.Pool, log *zap.Logger) *Index {
 		db:  db,
 		log: log,
 	}
+}
+
+func (idx *Index) IPFSBlockstore() blockstore.Blockstore {
+	return idx.bs
 }
 
 // indexBlob is an uber-function that knows about all types of blobs we want to index.

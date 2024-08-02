@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"seed/backend/config"
 	"seed/backend/core/coretest"
-	"seed/backend/hyper"
+	"seed/backend/index"
 	"seed/backend/lndhub"
 	"seed/backend/lndhub/lndhubsql"
 	"seed/backend/logging"
@@ -158,13 +158,13 @@ func makeTestService(t *testing.T, name string) *Service {
 }
 
 func makeTestPeer(t *testing.T, u coretest.Tester, store *storage.Store) (*mttnet.Node, context.CancelFunc) {
-	blobs := hyper.NewStorage(store.DB(), logging.New("seed/hyper", "debug"))
+	idx := index.NewIndex(store.DB(), logging.New("seed/hyper", "debug"))
 
 	n, err := mttnet.New(config.P2P{
 		NoRelay:        true,
 		BootstrapPeers: nil,
 		NoMetrics:      true,
-	}, store.Device(), store.KeyStore(), store.DB(), blobs.IPFSBlockstore(), zap.NewNop())
+	}, store.Device(), store.KeyStore(), store.DB(), idx, zap.NewNop())
 	require.NoError(t, err)
 
 	errc := make(chan error, 1)

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"seed/backend/config"
 	"seed/backend/core"
-	"seed/backend/hyper"
 	"seed/backend/hyper/hypersql"
+	"seed/backend/index"
 	"seed/backend/logging"
 	"seed/backend/mttnet"
 	"seed/backend/storage"
@@ -23,39 +23,42 @@ import (
 
 func TestSync(t *testing.T) {
 	t.Skip("TODO(hm24): include back when delegations substitutes and changes are implemented")
-	t.Parallel()
+	/*
+	   t.Parallel()
 
-	alice := makeTestNode(t, "alice")
-	bob := makeTestNode(t, "bob")
-	ctx := context.Background()
+	   alice := makeTestNode(t, "alice")
+	   bob := makeTestNode(t, "bob")
+	   ctx := context.Background()
 
-	require.NoError(t, alice.Connect(ctx, bob.AddrInfo()))
+	   require.NoError(t, alice.Connect(ctx, bob.AddrInfo()))
 
-	entity := hyper.NewEntity("foo")
+	   entity := hyper.NewEntity("foo")
 
-	blob, err := entity.CreateChange(entity.NextTimestamp(), alice.Account, getDelegation(ctx, alice.Device, alice.Blobs), map[string]any{
-		"name": "alice",
-	})
-	require.NoError(t, err)
-	require.NoError(t, alice.Blobs.SaveBlob(ctx, blob))
+	   	blob, err := entity.CreateChange(entity.NextTimestamp(), alice.Account, getDelegation(ctx, alice.Device, alice.Blobs), map[string]any{
+	   		"name": "alice",
+	   	})
 
-	res, err := bob.Syncer.SyncAll(ctx)
-	require.NoError(t, err)
-	require.Equalf(t, int64(0), res.NumSyncFailed, "unexpected number of sync failures: %v", res.Errs)
-	require.Equal(t, int64(1), res.NumSyncOK, "unexpected number of successful syncs")
+	   require.NoError(t, err)
+	   require.NoError(t, alice.Blobs.SaveBlob(ctx, blob))
 
-	{
-		blk, err := bob.Blobs.IPFSBlockstoreReader().Get(ctx, blob.CID)
-		require.NoError(t, err)
+	   res, err := bob.Syncer.SyncAll(ctx)
+	   require.NoError(t, err)
+	   require.Equalf(t, int64(0), res.NumSyncFailed, "unexpected number of sync failures: %v", res.Errs)
+	   require.Equal(t, int64(1), res.NumSyncOK, "unexpected number of successful syncs")
 
-		require.Equal(t, blob.Data, blk.RawData(), "bob must sync alice's change intact")
-	}
+	   	{
+	   		blk, err := bob.Blobs.IPFSBlockstoreReader().Get(ctx, blob.CID)
+	   		require.NoError(t, err)
+
+	   		require.Equal(t, blob.Data, blk.RawData(), "bob must sync alice's change intact")
+	   	}
+	*/
 }
 
 func makeTestNode(t *testing.T, name string) testNode {
 	db := storage.MakeTestDB(t)
 
-	blobs := hyper.NewStorage(db, logging.New("seed/hyper", "debug"))
+	idx := index.NewIndex(db, logging.New("seed/hyper", "debug"))
 
 	cfg := config.Default()
 	cfg.P2P.Port = 0
@@ -63,7 +66,7 @@ func makeTestNode(t *testing.T, name string) testNode {
 	cfg.P2P.BootstrapPeers = nil
 	cfg.P2P.NoMetrics = true
 	store := storage.MakeTestRepo(t)
-	n, err := mttnet.New(cfg.P2P, store.Device(), store.KeyStore(), store.DB(), blobs.IPFSBlockstore(), must.Do2(zap.NewDevelopment()).Named(name))
+	n, err := mttnet.New(cfg.P2P, store.Device(), store.KeyStore(), store.DB(), idx, must.Do2(zap.NewDevelopment()).Named(name))
 	require.NoError(t, err)
 
 	errc := make(chan error, 1)
@@ -94,17 +97,17 @@ func makeTestNode(t *testing.T, name string) testNode {
 	return testNode{
 		Node:    n,
 		Account: accountKey,
-		Blobs:   blobs,
+		Index:   idx,
 		Device:  identity,
 		Syncer:  NewService(cfg.Syncing, must.Do2(zap.NewDevelopment()).Named(name), db, nil, n), // TODO(hm24): add indexer here.
 	}
 }
 
-func getDelegation(ctx context.Context, me core.Identity, blobs *hyper.Storage) cid.Cid {
+func getDelegation(ctx context.Context, me core.Identity, idx *index.Index) cid.Cid {
 	var out cid.Cid
 
 	// TODO(burdiyan): need to cache this. Makes no sense to always do this.
-	if err := blobs.Query(ctx, func(conn *sqlite.Conn) error {
+	if err := idx.Query(ctx, func(conn *sqlite.Conn) error {
 		acc := me.Account().Principal()
 		dev := me.DeviceKey().Principal()
 
@@ -136,6 +139,6 @@ type testNode struct {
 	*mttnet.Node
 	Account core.KeyPair
 	Device  core.Identity
-	Blobs   *hyper.Storage
+	Index   *index.Index
 	Syncer  *Service
 }

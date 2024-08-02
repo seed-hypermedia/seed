@@ -6,7 +6,7 @@ import (
 	"seed/backend/core"
 	"seed/backend/core/coretest"
 	p2p "seed/backend/genproto/p2p/v1alpha"
-	"seed/backend/hyper"
+	"seed/backend/index"
 	"seed/backend/logging"
 	"seed/backend/storage"
 	"seed/backend/util/future"
@@ -41,7 +41,7 @@ func makeTestPeer(t *testing.T, name string) (*Node, context.CancelFunc) {
 
 	db := storage.MakeTestDB(t)
 
-	blobs := hyper.NewStorage(db, logging.New("seed/hyper", "debug"))
+	idx := index.NewIndex(db, logging.New("seed/hyper", "debug"))
 
 	cfg := config.Default().P2P
 	cfg.Port = 0
@@ -52,7 +52,7 @@ func makeTestPeer(t *testing.T, name string) (*Node, context.CancelFunc) {
 	ks := core.NewMemoryKeyStore()
 	require.NoError(t, ks.StoreKey(context.Background(), "main", u.Account))
 
-	n, err := New(cfg, u.Device, ks, db, blobs.IPFSBlockstore(), must.Do2(zap.NewDevelopment()).Named(name))
+	n, err := New(cfg, u.Device, ks, db, idx, must.Do2(zap.NewDevelopment()).Named(name))
 	require.NoError(t, err)
 
 	errc := make(chan error, 1)

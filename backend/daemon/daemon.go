@@ -24,7 +24,6 @@ import (
 	"seed/backend/wallet"
 
 	"crawshaw.io/sqlite/sqlitex"
-	"github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/boxo/exchange"
 	"github.com/ipfs/boxo/exchange/offline"
 	"go.opentelemetry.io/otel"
@@ -52,7 +51,7 @@ type App struct {
 	RPC          api.Server
 	Net          *mttnet.Node
 	Syncing      *syncing.Service
-	Indexer      *index.Index
+	Index        *index.Index
 	Wallet       *wallet.Service
 }
 
@@ -155,19 +154,13 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 
 	otel.SetTracerProvider(tp)
 
-	// TODO(hm24): Get rid of hyper entirely.
-	// if err := a.Blobs.MaybeReindex(ctx); err != nil {
-	// 	return nil, fmt.Errorf("failed to reindex database: %w", err)
-	// }
+	a.Index = index.NewIndex(a.Storage.DB(), logging.New("seed/Indexing", cfg.LogLevel))
 
-	a.Indexer = index.NewIndex(a.Storage.DB(), logging.New("seed/Indexing", cfg.LogLevel))
-
-	a.Net, err = initNetwork(&a.clean, a.g, a.Storage, cfg.P2P, a.Indexer, cfg.LogLevel, opts.extraP2PServices...)
+	a.Net, err = initNetwork(&a.clean, a.g, a.Storage, cfg.P2P, a.Index, cfg.LogLevel, opts.extraP2PServices...)
 	if err != nil {
 		return nil, err
 	}
-
-	a.Syncing, err = initSyncing(cfg.Syncing, &a.clean, a.g, a.Storage.DB(), a.Indexer, a.Net, cfg.LogLevel)
+	a.Syncing, err = initSyncing(cfg.Syncing, &a.clean, a.g, a.Storage.DB(), a.Index, a.Net, cfg.LogLevel)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +177,7 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 
 	var fm *mttnet.FileManager
 	{
-		bs := a.Indexer
+		bs := a.Index.IPFSBlockstore()
 		var e exchange.Interface = a.Net.Bitswap()
 		if cfg.Syncing.NoDiscovery {
 			e = offline.Exchange(bs)
@@ -193,7 +186,7 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 		fm = mttnet.NewFileManager(logging.New("seed/file-manager", cfg.LogLevel), bs, e, a.Net.Provider())
 	}
 
-	a.HTTPServer, a.HTTPListener, err = initHTTP(cfg.HTTP.Port, a.GRPCServer, &a.clean, a.g, a.Indexer,
+	a.HTTPServer, a.HTTPListener, err = initHTTP(cfg.HTTP.Port, a.GRPCServer, &a.clean, a.g, a.Index,
 		a.Wallet,
 		fm, opts.extraHTTPHandlers...)
 	if err != nil {
@@ -281,7 +274,7 @@ func initNetwork(
 	g *errgroup.Group,
 	store Storage,
 	cfg config.P2P,
-	blobs blockstore.Blockstore,
+	index *index.Index,
 	LogLevel string,
 	extraServers ...func(grpc.ServiceRegistrar),
 ) (*mttnet.Node, error) {
@@ -302,7 +295,7 @@ func initNetwork(
 		}
 	})
 
-	n, err := mttnet.New(cfg, store.Device(), store.KeyStore(), store.DB(), blobs, logging.New("seed/network", LogLevel))
+	n, err := mttnet.New(cfg, store.Device(), store.KeyStore(), store.DB(), index, logging.New("seed/network", LogLevel))
 	if err != nil {
 		return nil, err
 	}

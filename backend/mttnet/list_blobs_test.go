@@ -9,8 +9,8 @@ import (
 	"net"
 	"seed/backend/core"
 	p2p "seed/backend/genproto/p2p/v1alpha"
-	"seed/backend/hyper"
 	"seed/backend/hyper/hypersql"
+	"seed/backend/index"
 	"testing"
 
 	"crawshaw.io/sqlite"
@@ -112,11 +112,11 @@ func flattenBlobStream(t *testing.T, ctx context.Context, lis *bufconn.Listener,
 	return out
 }
 
-func getDelegation(ctx context.Context, me core.Identity, blobs *hyper.Storage) (cid.Cid, error) {
+func getDelegation(ctx context.Context, me core.Identity, idx *index.Index) (cid.Cid, error) {
 	var out cid.Cid
 
 	// TODO(burdiyan): need to cache this. Makes no sense to always do this.
-	if err := blobs.Query(ctx, func(conn *sqlite.Conn) error {
+	if err := idx.Query(ctx, func(conn *sqlite.Conn) error {
 		acc := me.Account().Principal()
 		dev := me.DeviceKey().Principal()
 

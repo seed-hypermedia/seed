@@ -8,6 +8,7 @@ import (
 	"seed/backend/config"
 	"seed/backend/core"
 	p2p "seed/backend/genproto/p2p/v1alpha"
+	"seed/backend/index"
 	"seed/backend/ipfs"
 	"seed/backend/util/cleanup"
 	"seed/backend/util/libp2px"
@@ -15,7 +16,6 @@ import (
 	"time"
 
 	"crawshaw.io/sqlite/sqlitex"
-	blockstore "github.com/ipfs/boxo/blockstore"
 	provider "github.com/ipfs/boxo/provider"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -91,7 +91,7 @@ type rpcMux struct {
 // Node is a Seed P2P node.
 type Node struct {
 	log                    *zap.Logger
-	blobs                  blockstore.Blockstore
+	index                  *index.Index
 	db                     *sqlitex.Pool
 	device                 core.KeyPair
 	keys                   core.KeyStore
@@ -112,7 +112,7 @@ type Node struct {
 
 // New creates a new P2P Node. The users must call Start() before using the node, and can use Ready() to wait
 // for when the node is ready to use.
-func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool, blobs blockstore.Blockstore, log *zap.Logger) (*Node, error) {
+func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool, index *index.Index, log *zap.Logger) (*Node, error) {
 	var clean cleanup.Stack
 
 	host, closeHost, err := newLibp2p(cfg, device.Wrapped())
@@ -121,7 +121,7 @@ func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool
 	}
 	clean.Add(closeHost)
 
-	bitswap, err := ipfs.NewBitswap(host, host.Routing, blobs)
+	bitswap, err := ipfs.NewBitswap(host, host.Routing, index.IPFSBlockstore())
 	if err != nil {
 		return nil, fmt.Errorf("failed to start bitswap: %w", err)
 	}
@@ -151,7 +151,7 @@ func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool
 
 	n := &Node{
 		log:       log,
-		blobs:     blobs,
+		index:     index,
 		db:        db,
 		device:    device,
 		keys:      ks,
