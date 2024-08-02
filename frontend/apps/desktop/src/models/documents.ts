@@ -1,5 +1,5 @@
-import {dispatchWizardEvent} from '@/app-account'
 import {useAppContext, useGRPCClient, useQueryInvalidator} from '@/app-context'
+import {dispatchWizardEvent} from '@/components/create-account'
 import {createHypermediaDocLinkPlugin} from '@/editor'
 import {useDraft} from '@/models/accounts'
 import {queryKeys} from '@/models/query-keys'
@@ -217,6 +217,7 @@ export function usePublishDraft(
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
       try {
         if (draft.signingAccount && id?.id) {
+          console.log('draft.metadata', draft.metadata)
           const allChanges = [
             ...Object.entries(draft.metadata).map(([key, value]) => {
               return new DocumentChange({
@@ -241,12 +242,6 @@ export function usePublishDraft(
               'Can not determine signing key name for draft signingAccount ' +
                 draft.signingAccount,
             )
-          console.log('--=- CREATE THIS DOCUMENT', {
-            signingKeyName,
-            account: id.uid,
-            path: id.path?.length ? `/${id.path.join('/')}` : '',
-            changes: allChanges,
-          })
           const publishedDoc = await grpcClient.documents.createDocumentChange({
             signingKeyName,
             account: id.uid,

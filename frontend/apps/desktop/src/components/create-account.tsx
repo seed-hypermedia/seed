@@ -1,5 +1,12 @@
 import {queryKeys} from '@/models/query-keys'
-import {eventStream, HMDraft, hmId} from '@shm/shared'
+import {
+  API_FILE_URL,
+  DocumentChange,
+  eventStream,
+  HMDraft,
+  hmId,
+  packHmId,
+} from '@shm/shared'
 import {
   Button,
   CheckboxField,
@@ -7,6 +14,7 @@ import {
   copyTextToClipboard,
   Dialog,
   Field,
+  Input,
   Link,
   Onboarding,
   Reload,
@@ -17,33 +25,44 @@ import {
   YStack,
 } from '@shm/ui'
 import {useMutation} from '@tanstack/react-query'
+import {nanoid} from 'nanoid'
 import {useEffect, useMemo, useRef, useState} from 'react'
-import {useGRPCClient, useQueryInvalidator} from './app-context'
-import {useMnemonics, useMyAccountIds, useRegisterKey} from './models/daemon'
-import {trpc} from './trpc'
-import {useOpenDraft} from './utils/open-draft'
+import {useGRPCClient, useQueryInvalidator} from '../app-context'
+import {
+  NamedKey,
+  useMnemonics,
+  useMyAccountIds,
+  useRegisterKey,
+} from '../models/daemon'
+import {trpc} from '../trpc'
+import {useOpenDraft} from '../utils/open-draft'
+import {AvatarForm} from './avatar-form'
 
 const onboardingColor = '#755EFF'
 
 export const [dispatchWizardEvent, wizardEvents] = eventStream<boolean>()
 export const [dispatchNewKeyEvent, newKeyEvent] = eventStream<boolean>()
 
-type AccountStep = 'type' | 'create' | 'members' | 'complete'
+type AccountStep = 'type' | 'create' | 'name' | 'members' | 'complete'
+
 export function AccountWizardDialog() {
+  const accounts = useMyAccountIds()
   const createDraft = trpc.drafts.write.useMutation()
   const invalidate = useQueryInvalidator()
   const [open, setOpen] = useState(false)
   const [newAccount, setNewAccount] = useState<null | boolean>(true)
   const [step, setStep] = useState<AccountStep>('type')
   const [existingWords, setExistingWords] = useState<string>('')
-  const accounts = useMyAccountIds()
+  const [thumbnail, setThumbnail] = useState('')
+  const [name, setName] = useState('')
+  const [error, setError] = useState('')
   const [accountType, setAccountType] = useState<'author' | 'publisher' | null>(
     null,
   )
   const [isSaveWords, setSaveWords] = useState<null | boolean>(true)
   const [isUserSavingWords, setUserSaveWords] = useState<null | boolean>(null)
   const [isExistingWordsSave, setExistingWordsSave] = useState<boolean>(false)
-  const [createdAccount, setCreatedAccount] = useState<string | null>(null)
+  const [createdAccount, setCreatedAccount] = useState<NamedKey | null>(null)
   const openDraft = useOpenDraft('push')
   const inputWords = useRef<HTMLTextAreaElement | null>(null)
 
@@ -53,6 +72,27 @@ export function AccountWizardDialog() {
   const {data: genWords, refetch: refetchWords} = useMnemonics()
 
   const register = useRegisterKey()
+
+  useEffect(() => {
+    wizardEvents.subscribe((val) => {
+      setOpen(val)
+    })
+  }, [])
+
+  useEffect(() => {
+    console.log('accounts.data?.keys', accounts.data?.keys)
+    if (accounts.data?.length == 0) {
+      setAccountType('author')
+      setStep('create')
+    }
+  }, [accounts.data])
+
+  useEffect(() => {
+    if (step == 'create' && !newAccount) {
+      // Focus the textarea when changing to this step (better UX!)
+      inputWords.current?.focus()
+    }
+  }, [step, newAccount])
 
   const addExistingAccount = useMutation({
     mutationFn: async () => {
@@ -72,7 +112,7 @@ export function AccountWizardDialog() {
       }
       let res = await register.mutateAsync({
         mnemonic: input,
-        name: 'main',
+        name,
       })
       return res
     },
@@ -80,21 +120,20 @@ export function AccountWizardDialog() {
 
   async function handleAccountCreation() {
     const hasAccounts = accounts.data?.length != 0
-    const name = hasAccounts ? `temp${accountType}` : 'main'
+    const name = `temp${accountType}${nanoid(8)}`
     try {
       const createdAccount = await register.mutateAsync({
         mnemonic: words as Array<string>,
         name,
       })
 
-      if (hasAccounts) {
-        await grpcClient.daemon.updateKey({
-          currentName: name,
-          newName: createdAccount.publicKey,
-        })
-      }
+      const renamedKey = await grpcClient.daemon.updateKey({
+        currentName: name,
+        newName: createdAccount.accountId,
+      })
+
       if (isSaveWords) {
-        saveWords.mutate({key: 'main', value: words})
+        saveWords.mutate({key: name, value: words})
       }
 
       await createDraft.mutateAsync({
@@ -111,12 +150,59 @@ export function AccountWizardDialog() {
         } as HMDraft,
       })
       invalidate([queryKeys.LOCAL_ACCOUNT_ID_LIST])
-      setCreatedAccount(createdAccount.accountId)
+      setCreatedAccount(renamedKey)
 
-      setStep(accountType == 'publisher' ? 'members' : 'complete')
+      setStep('name')
     } catch (error) {
-      console.error('REGISTER ERROR', error)
       toast.error(`REGISTER ERROR: ${error}`)
+    }
+  }
+
+  async function handleDocEdit() {
+    // TODO: horacio create home document with name and thumbnail data
+    if (!name) {
+      toast.error('Name is required. Please add one')
+    } else {
+      console.log('== KEYS', createdAccount, accounts)
+      try {
+        let changes = [
+          new DocumentChange({
+            op: {
+              case: 'setMetadata',
+              value: {
+                key: 'name',
+                value: name,
+              },
+            },
+          }),
+        ]
+
+        if (thumbnail) {
+          changes.push(
+            new DocumentChange({
+              op: {
+                case: 'setMetadata',
+                value: {
+                  key: 'thumbnail',
+                  value: `ipfs://${thumbnail}`,
+                },
+              },
+            }),
+          )
+        }
+
+        const doc = await grpcClient.documents.createDocumentChange({
+          account: createdAccount?.accountId,
+          signingKeyName: createdAccount?.publicKey,
+          changes,
+        })
+
+        if (doc) {
+          setStep('complete')
+        }
+      } catch (error) {
+        toast.error(`Updating Home document Error: ${JSON.stringify(error)}`)
+      }
     }
   }
 
@@ -127,19 +213,6 @@ export function AccountWizardDialog() {
       return existingWords
     }
   }, [genWords, existingWords, newAccount])
-
-  useEffect(() => {
-    wizardEvents.subscribe((val) => {
-      setOpen(val)
-    })
-  }, [])
-
-  useEffect(() => {
-    if (step == 'create' && !newAccount) {
-      // Focus the textarea when changing to this step (better UX!)
-      inputWords.current?.focus()
-    }
-  }, [step, newAccount])
 
   return (
     <Dialog
@@ -190,14 +263,16 @@ export function AccountWizardDialog() {
                     onPress={() => {
                       setAccountType('author')
                       setStep('create')
+                      refetchWords()
                     }}
                   >
-                    Personal
+                    Author
                   </Button>
                   <Button
                     onPress={() => {
                       setAccountType('publisher')
                       setStep('create')
+                      refetchWords()
                     }}
                   >
                     Publisher
@@ -212,7 +287,7 @@ export function AccountWizardDialog() {
               <Onboarding.MainSection>
                 <Onboarding.Title>{`Create your new ${
                   accountType == 'author'
-                    ? 'Personal'
+                    ? 'Author'
                     : accountType == 'publisher'
                     ? 'Publisher'
                     : ''
@@ -286,6 +361,13 @@ export function AccountWizardDialog() {
                       color: '$color1',
                       borderColor: '$colorTransparent',
                     }}
+                    color="$color1"
+                    borderColor="$colorTransparent"
+                    hoverStyle={{
+                      bg: onboardingColor,
+                      color: '$color1',
+                      borderColor: '$colorTransparent',
+                    }}
                     f={1}
                     disabled={!isSaveWords && !isUserSavingWords}
                     opacity={!isSaveWords && !isUserSavingWords ? 0.4 : 1}
@@ -310,8 +392,7 @@ export function AccountWizardDialog() {
                 </YStack>
               </Onboarding.MainSection>
             </Onboarding.Wrapper>
-          ) : null}
-          {step == 'create' && !newAccount ? (
+          ) : step == 'create' && !newAccount ? (
             <Onboarding.Wrapper>
               <MarketingSection />
               <Onboarding.MainSection>
@@ -346,13 +427,20 @@ export function AccountWizardDialog() {
                       color: '$color1',
                       borderColor: '$colorTransparent',
                     }}
+                    color="$color1"
+                    borderColor="$colorTransparent"
+                    hoverStyle={{
+                      bg: onboardingColor,
+                      color: '$color1',
+                      borderColor: '$colorTransparent',
+                    }}
                     f={1}
                     opacity={!isExistingWordsSave ? 0.4 : 1}
                     disabled={!isExistingWordsSave}
                     onPress={() => {
                       addExistingAccount.mutateAsync().then((res) => {
                         invalidate([queryKeys.LOCAL_ACCOUNT_ID_LIST])
-                        setCreatedAccount(res.accountId)
+                        setCreatedAccount(res)
                         setStep('complete')
                       })
                     }}
@@ -378,7 +466,45 @@ export function AccountWizardDialog() {
               </Onboarding.MainSection>
             </Onboarding.Wrapper>
           ) : null}
-          {step == 'members' && accountType == 'publisher' ? (
+          {step == 'name' ? (
+            <Onboarding.Wrapper>
+              <MarketingSection />
+              <Onboarding.MainSection>
+                <Onboarding.Title>Account Information</Onboarding.Title>
+                <YStack gap="$2">
+                  <AvatarForm
+                    url={`${API_FILE_URL}/thumbnail`}
+                    onAvatarUpload={(d) => {
+                      console.log('avatar upload, ', d)
+                      setThumbnail(d)
+                    }}
+                  />
+                  <Input
+                    value={name}
+                    onChangeText={setName}
+                    placeholder="Name"
+                  />
+                </YStack>
+                <XStack gap="$4" marginTop="auto">
+                  <Button
+                    alignSelf="flex-end"
+                    bg={onboardingColor}
+                    color="$color1"
+                    borderColor="$colorTransparent"
+                    hoverStyle={{
+                      bg: onboardingColor,
+                      color: '$color1',
+                      borderColor: '$colorTransparent',
+                    }}
+                    onPress={handleDocEdit}
+                  >
+                    Next
+                  </Button>
+                </XStack>
+              </Onboarding.MainSection>
+            </Onboarding.Wrapper>
+          ) : null}
+          {/* {step == 'members' && accountType == 'publisher' ? (
             <Onboarding.Wrapper>
               <MarketingSection />
               <Onboarding.MainSection>
@@ -387,7 +513,7 @@ export function AccountWizardDialog() {
                 <YStack gap="$2"></YStack>
               </Onboarding.MainSection>
             </Onboarding.Wrapper>
-          ) : null}
+          ) : null} */}
           {step == 'complete' ? (
             <Onboarding.Wrapper>
               <Onboarding.MainSection ai="center">
@@ -406,18 +532,20 @@ export function AccountWizardDialog() {
                         dispatchWizardEvent(false)
                         setNewAccount(true)
                         setStep('type')
-                        openDraft({id: hmId('d', createdAccount)})
+                        openDraft({id: hmId('d', createdAccount.accountId)})
                       }
                     }}
                   >
-                    Update my profile
+                    Update my Home Document
                   </Button>
                   <Button
                     size="$3"
                     f={1}
                     onPress={() => {
                       if (createdAccount) {
-                        copyTextToClipboard(createdAccount).then(() => {
+                        copyTextToClipboard(
+                          packHmId(hmId('d', createdAccount.accountId)),
+                        ).then(() => {
                           toast.success('Copied account successfully')
                         })
                       }

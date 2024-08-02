@@ -367,20 +367,21 @@ export function BlocksContent({
   if (!blocks) return null
   return (
     <BlockNodeList childrenType={'group'}>
-      {blocks?.length &&
-        blocks?.map((bn, idx) => (
-          <BlockNodeContent
-            parentBlockId={parentBlockId}
-            isFirstChild={idx == 0}
-            key={bn.block?.id}
-            blockNode={bn}
-            depth={1}
-            childrenType={bn.block.attributes?.childrenType}
-            start={bn.block.attributes?.start}
-            listLevel={bn.block.attributes?.listLevel}
-            index={idx}
-          />
-        ))}
+      {blocks?.length
+        ? blocks?.map((bn, idx) => (
+            <BlockNodeContent
+              parentBlockId={parentBlockId}
+              isFirstChild={idx == 0}
+              key={bn.block?.id}
+              blockNode={bn}
+              depth={1}
+              childrenType={bn.block.attributes?.childrenType}
+              start={bn.block.attributes?.start}
+              listLevel={bn.block.attributes?.listLevel}
+              index={idx}
+            />
+          ))
+        : null}
     </BlockNodeList>
   )
 }

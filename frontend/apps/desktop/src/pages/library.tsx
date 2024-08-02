@@ -1,4 +1,4 @@
-import {dispatchWizardEvent} from '@/app-account'
+import {dispatchWizardEvent} from '@/components/create-account'
 import {MainWrapper} from '@/components/main-wrapper'
 import {useProfileWithDraft} from '@/models/accounts'
 import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
