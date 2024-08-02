@@ -81,7 +81,6 @@ export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
     openFunction()
       .then(async (documents) => {
         for (const {markdownContent, mediaFiles, title} of documents) {
-          console.log(title)
           const updatedMarkdownContent = await uploadAndReplaceMediaUrls(
             markdownContent,
             mediaFiles,
@@ -103,9 +102,7 @@ export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
             signingAccount,
           }
 
-          console.log(input.id, path, title)
-
-          const draft = await saveDraft.mutateAsync({
+          await saveDraft.mutateAsync({
             id: input.id + '/' + path,
             draft: inputData,
           })

@@ -6,7 +6,6 @@ import {queryKeys} from '@/models/query-keys'
 import {useOpenUrl} from '@/open-url'
 import {slashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
-import {DraftRoute} from '@/utils/routes'
 import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
 import {
@@ -18,11 +17,13 @@ import {
   HMDocument,
   HMDraft,
   UnpackedHypermediaId,
+  eventStream,
   fromHMBlock,
   toHMBlock,
   unpackHmId,
   writeableStateStream,
 } from '@shm/shared'
+import {toast} from '@shm/ui'
 import {
   UseInfiniteQueryOptions,
   UseMutationOptions,
@@ -51,6 +52,11 @@ import {draftMachine} from './draft-machine'
 import {setGroupTypes} from './editor-utils'
 import {useEntities, useEntity} from './entities'
 import {useGatewayUrl, useGatewayUrlStream} from './gateway-settings'
+
+export const [draftDispatch, draftEvents] = eventStream<{
+  type: 'CHANGE'
+  signingAccount: string
+}>()
 
 export function useDocumentList(
   opts?: UseInfiniteQueryOptions<{
@@ -200,6 +206,7 @@ export function usePublishDraft(
   >,
 ) {
   const invalidate = useQueryInvalidator()
+  const accts = useMyAccountIds()
   return useMutation<
     HMDocument,
     any,
@@ -214,57 +221,47 @@ export function usePublishDraft(
       const changes = compareBlocksWithMap(blocksMap, draft.content, '')
 
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
-      try {
-        if (draft.signingAccount && id?.id) {
-          console.log('draft.metadata', draft.metadata)
-          const allChanges = [
-            ...Object.entries(draft.metadata).map(([key, value]) => {
-              return new DocumentChange({
-                op: {
-                  case: 'setMetadata',
-                  value: {
-                    key,
-                    value,
+      if (accts.data?.length == 0) {
+        dispatchWizardEvent(true)
+      } else {
+        try {
+          if (draft.signingAccount && id?.id) {
+            const allChanges = [
+              ...Object.entries(draft.metadata).map(([key, value]) => {
+                return new DocumentChange({
+                  op: {
+                    case: 'setMetadata',
+                    value: {
+                      key,
+                      value,
+                    },
                   },
-                },
-              })
-            }),
-            ...changes.changes,
-            ...deleteChanges,
-          ]
-          const accts = await grpcClient.daemon.listKeys({})
-          const signingKeyName = accts.keys.find(
-            (key) => key.publicKey === draft.signingAccount,
-          )?.name
-          if (!signingKeyName)
-            throw new Error(
-              'Can not determine signing key name for draft signingAccount ' +
-                draft.signingAccount,
-            )
-          const publishedDoc = await grpcClient.documents.createDocumentChange({
-            signingKeyName,
-            account: id.uid,
-            path: id.path?.length ? `/${id.path.join('/')}` : '',
-            changes: allChanges,
-          })
+                })
+              }),
+              ...changes.changes,
+              ...deleteChanges,
+            ]
 
-          return toPlainMessage(publishedDoc)
-        } else {
-          const accts = await grpcClient.daemon.listKeys({})
-          const signingKeyName = accts.keys.find(
-            (key) => key.publicKey === draft.signingAccount,
-          )?.name
-          console.log('--- publish no account', signingKeyName)
-          dispatchWizardEvent(true)
-          throw new Error('no signing account selected')
+            const publishedDoc =
+              await grpcClient.documents.createDocumentChange({
+                signingKeyName: draft.signingAccount,
+                account: id.uid,
+                path: id.path?.length ? `/${id.path.join('/')}` : '',
+                changes: allChanges,
+              })
+
+            return toPlainMessage(publishedDoc)
+          } else {
+            // dispatchWizardEvent(true)
+            toast.error('PUBLISH ERROR: Please select an account to sign first')
+          }
+        } catch (error) {
+          const connectErr = ConnectError.from(error)
+          throw Error(connectErr.message)
         }
-      } catch (error) {
-        const connectErr = ConnectError.from(error)
-        throw Error(connectErr.message)
       }
     },
     onSuccess: (result, variables, context) => {
-      console.log('--- SUCCESS??')
       const documentId = variables.id?.id
       opts?.onSuccess?.(result, variables, context)
       if (documentId) {
@@ -370,14 +367,6 @@ export function useDraftEditor({id}: {id: string | undefined}) {
   ).current
   const saveDraft = trpc.drafts.write.useMutation()
 
-  const signingAccount = useMemo(() => {
-    const key = keys.data?.length
-      ? keys.data.find((a) => a == (route as DraftRoute).id?.uid)
-      : undefined
-
-    return key ? key : undefined
-  }, [keys.data])
-
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
       if (!gotEdited.current) {
@@ -460,7 +449,7 @@ export function useDraftEditor({id}: {id: string | undefined}) {
           thumbnail: input.thumbnail,
         },
         members: {},
-        signingAccount,
+        signingAccount: input.signingAccount || undefined,
       }
     } else {
       inputData = {
@@ -471,7 +460,7 @@ export function useDraftEditor({id}: {id: string | undefined}) {
           name: input.name,
           thumbnail: input.thumbnail,
         },
-        signingAccount,
+        signingAccount: input.signingAccount || undefined,
       }
     }
     const res = await saveDraft.mutateAsync({id: draftId, draft: inputData})
@@ -538,8 +527,6 @@ export function useDraftEditor({id}: {id: string | undefined}) {
   const backendDraft = useDraft(id)
   const backendDocument = useEntity(unpackHmId(id))
 
-  console.log(`== ~ useDraftEditor ~ backendDocument:`, id, backendDocument)
-
   useEffect(() => {
     if (backendDraft.status == 'loading' && typeof id == 'undefined') {
       send({type: 'EMPTY.ID'})
@@ -586,6 +573,16 @@ export function useDraftEditor({id}: {id: string | undefined}) {
     return () => {
       window.removeEventListener('keydown', handleSelectAll)
     }
+  }, [])
+
+  useEffect(() => {
+    draftEvents.subscribe(
+      (value: {type: 'CHANGE'; signingAccount: string} | null) => {
+        if (value) {
+          send(value)
+        }
+      },
+    )
   }, [])
 
   return {editor, handleFocusAtMousePos, state, send, actor}

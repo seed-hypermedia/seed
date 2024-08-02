@@ -7,6 +7,7 @@ import {trpc} from '@/trpc'
 import {
   GenMnemonicResponse,
   GRPCClient,
+  hmId,
   Info,
   RegisterKeyRequest,
 } from '@shm/shared'
@@ -16,6 +17,7 @@ import {
   UseMutationOptions,
   UseQueryOptions,
 } from '@tanstack/react-query'
+import {useEntities} from './entities'
 
 export type NamedKey = {
   name: string
@@ -96,6 +98,11 @@ export function useMyAccountIds() {
       }
     },
   })
+}
+
+export function useMyAccounts() {
+  const {data = []} = useMyAccountIds()
+  return useEntities(data?.map((k) => hmId('d', k)))
 }
 
 export function useRegisterKey(

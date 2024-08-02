@@ -84,7 +84,7 @@ import {
 } from '@tamagui/lucide-icons'
 import copyTextToClipboard from 'copy-text-to-clipboard'
 import React, {useEffect, useId, useMemo, useState} from 'react'
-import {dispatchWizardEvent} from 'src/app-account'
+import {dispatchWizardEvent} from 'src/components/create-account'
 
 export default function Settings() {
   return (
@@ -322,8 +322,6 @@ export function ProfileForm({
 function AccountKeys() {
   const deleteKey = useDeleteKey()
   const keys = useMyAccountIds()
-
-  console.log(`== ~ AccountKeys ~ keys:`, keys)
   const deleteWords = trpc.secureStorage.delete.useMutation()
   const invalidate = useQueryInvalidator()
   const [selectedAccount, setSelectedAccount] = useState<undefined | string>(

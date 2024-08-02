@@ -80,7 +80,6 @@ export function AccountWizardDialog() {
   }, [])
 
   useEffect(() => {
-    console.log('accounts.data?.keys', accounts.data?.keys)
     if (accounts.data?.length == 0) {
       setAccountType('author')
       setStep('create')
@@ -415,13 +414,6 @@ export function AccountWizardDialog() {
                 <YStack gap="$2" marginTop="auto">
                   <Button
                     bg={onboardingColor}
-                    color="$color1"
-                    borderColor="$colorTransparent"
-                    hoverStyle={{
-                      bg: onboardingColor,
-                      color: '$color1',
-                      borderColor: '$colorTransparent',
-                    }}
                     color="$color1"
                     borderColor="$colorTransparent"
                     hoverStyle={{

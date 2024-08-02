@@ -10,6 +10,7 @@ export const draftMachine = setup({
       name: string
       thumbnail: string
       cover: string
+      signingAccount: null | string
       draft: null | HMDraft
       document: null | HMDocument
       errorMessage: string
@@ -23,6 +24,7 @@ export const draftMachine = setup({
           name?: string
           thumbnail?: string
           cover?: string
+          signingAccount?: string
         }
       | {type: 'RESET.DRAFT'}
       | {type: 'RESTORE.DRAFT'}
@@ -97,6 +99,23 @@ export const draftMachine = setup({
         return context.cover
       },
     }),
+    setSigningAccount: assign({
+      signingAccount: ({event, context}) => {
+        if (event.type == 'GET.DRAFT.SUCCESS') {
+          if (event.draft) {
+            return event.draft.signingAccount
+          }
+          // TODO: horacio: where should we get the signingaccount from document?
+          //  else if (event.document) {
+          //   return event.document.metadata.thumbnail
+          // }
+        }
+        if (event.type == 'CHANGE' && event.signingAccount) {
+          return event.signingAccount
+        }
+        return context.signingAccount
+      },
+    }),
     setErrorMessage: assign({
       errorMessage: ({context, event}) => {
         if (event.type == 'GET.DRAFT.ERROR') {
@@ -141,6 +160,7 @@ export const draftMachine = setup({
     thumbnail: '',
     cover: '',
     draft: null,
+    signingAccount: null,
     document: null,
     errorMessage: '',
     restoreTries: 0,
@@ -163,6 +183,7 @@ export const draftMachine = setup({
               {type: 'setName'},
               {type: 'setThumbnail'},
               {type: 'setCover'},
+              {type: 'setSigningAccount'},
             ],
           },
         ],
@@ -199,6 +220,7 @@ export const draftMachine = setup({
                 {type: 'setName'},
                 {type: 'setThumbnail'},
                 {type: 'setCover'},
+                {type: 'setSigningAccount'},
               ],
             },
           },
@@ -217,6 +239,7 @@ export const draftMachine = setup({
                 {type: 'setName'},
                 {type: 'setThumbnail'},
                 {type: 'setCover'},
+                {type: 'setSigningAccount'},
               ],
               reenter: true,
             },
@@ -245,6 +268,7 @@ export const draftMachine = setup({
                 {type: 'setName'},
                 {type: 'setThumbnail'},
                 {type: 'setCover'},
+                {type: 'setSigningAccount'},
               ],
               reenter: false,
             },
@@ -255,6 +279,7 @@ export const draftMachine = setup({
               thumbnail: context.thumbnail,
               currentDraft: context.draft,
               cover: context.cover,
+              signingAccount: context.signingAccount,
             }),
             id: 'createOrUpdateDraft',
             src: 'createOrUpdateDraft',
@@ -281,6 +306,7 @@ export const draftMachine = setup({
                   {type: 'setName'},
                   {type: 'setThumbnail'},
                   {type: 'setCover'},
+                  {type: 'setSigningAccount'},
                   {type: 'replaceRouteifNeeded'},
                   {
                     type: 'setDraftStatus',

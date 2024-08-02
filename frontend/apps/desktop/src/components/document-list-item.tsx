@@ -19,10 +19,10 @@ import React from 'react'
 import {useFavorite} from '../models/favorites'
 import {NavRoute} from '../utils/routes'
 import {useNavigate} from '../utils/useNavigate'
-import {LinkThumbnail} from './account-link-thumbnail'
 import {FavoriteButton} from './favoriting'
 import {ListItem, TimeAccessory} from './list-item'
 import {MenuItemType} from './options-dropdown'
+import {LinkThumbnail} from './thumbnail'
 
 export const DocumentListItem = React.memo(function DocumentListItem({
   document,

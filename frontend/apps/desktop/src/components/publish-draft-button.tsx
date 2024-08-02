@@ -1,25 +1,29 @@
 import {DraftStatus, draftStatus} from '@/draft-status'
+import {useMyAccounts} from '@/models/daemon'
 import {useEntity} from '@/models/entities'
 import {trpc} from '@/trpc'
+import {getFileUrl} from '@/utils/account-url'
 import {useNavRoute} from '@/utils/navigation'
 import {DraftRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {PlainMessage} from '@bufbuild/protobuf'
-import {Document, hmId, packHmId} from '@shm/shared'
+import {Document, HMEntityContent, hmId, packHmId} from '@shm/shared'
 import {
   AlertCircle,
   Button,
   Spinner,
   Tooltip,
+  UIAvatar,
   YStack,
   YStackProps,
 } from '@shm/ui'
-import {Check} from '@tamagui/lucide-icons'
-import {PropsWithChildren, useEffect, useMemo, useState} from 'react'
+import {Check, ChevronDown} from '@tamagui/lucide-icons'
+import {PropsWithChildren, useEffect, useState} from 'react'
 import {createMachine} from 'xstate'
 import {useGRPCClient, useQueryInvalidator} from '../app-context'
 import {useDraft} from '../models/accounts'
-import {usePublishDraft} from '../models/documents'
+import {draftDispatch, usePublishDraft} from '../models/documents'
+import {OptionsDropdown} from './options-dropdown'
 
 export default function PublishDraftButton() {
   const route = useNavRoute()
@@ -33,18 +37,41 @@ export default function PublishDraftButton() {
   const draft = useDraft(packedDraftId)
   const prevEntity = useEntity(draftId?.type !== 'draft' ? draftId : undefined)
   const invalidate = useQueryInvalidator()
+  const [signingAccount, setSigningAccount] = useState<HMEntityContent | null>(
+    null,
+  )
   const deleteDraft = trpc.drafts.delete.useMutation({
     onSuccess: () => {
       invalidate(['trpc.drafts.get'])
     },
   })
+  const accts = useMyAccounts()
   const publish = usePublishDraft(grpcClient, packedDraftId)
-  const hasSigningAccountSelected = useMemo(
-    () => !draft.data || !!draft.data?.signingAccount,
-    [draft.data],
-  )
+
+  useEffect(() => {
+    if (signingAccount) {
+      draftDispatch({type: 'CHANGE', signingAccount: signingAccount.id.uid})
+    }
+  }, [signingAccount])
+
+  useEffect(() => {
+    if (accts.length == 1 && accts[0].data) {
+      setSigningAccount(accts[0].data)
+    }
+  }, [accts])
+
+  useEffect(() => {
+    if (draft.data?.signingAccount) {
+      const acc = accts.find((c) => c.data?.id.uid == draft.data.signingAccount)
+      if (acc?.data) {
+        setSigningAccount(acc.data)
+      }
+    }
+  }, [draft.data])
+
   function handlePublish() {
     if (!draftId) throw new Error('No Draft ID?!')
+
     if (draft.data) {
       publish
         .mutateAsync({
@@ -82,11 +109,41 @@ export default function PublishDraftButton() {
       <Button
         size="$2"
         onPress={handlePublish}
-        disabled={!hasSigningAccountSelected}
-        opacity={hasSigningAccountSelected ? 1 : 0.3}
+        // disabled={!hassigningKeySelected}
+        // opacity={hassigningKeySelected ? 1 : 0.3}
+        icon={
+          signingAccount?.document?.metadata.thumbnail ? (
+            <UIAvatar
+              url={getFileUrl(signingAccount?.document?.metadata.thumbnail)}
+            />
+          ) : undefined
+        }
       >
         Publish
       </Button>
+      <OptionsDropdown
+        button={<Button size="$2" icon={ChevronDown} />}
+        menuItems={accts.map((acc) => {
+          if (acc.data) {
+            return {
+              key: acc.data.id.uid,
+              label: acc.data.document?.metadata.name || acc.data?.id.uid,
+              icon: acc.data.document?.metadata.thumbnail ? (
+                <UIAvatar
+                  url={getFileUrl(acc.data.document?.metadata.thumbnail)}
+                />
+              ) : null,
+              onPress: () => {
+                if (acc.data?.id.uid) {
+                  setSigningAccount(acc.data)
+                }
+              },
+            }
+          } else {
+            return null
+          }
+        })}
+      />
     </>
   )
 }
