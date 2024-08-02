@@ -1,9 +1,14 @@
 import {useSizeObserver} from '@/components/app-embeds'
 import {useDraftName} from '@/models/documents'
-import {useRouteBreadcrumbRoutes, useRouteEntities} from '@/models/entities'
+import {
+  useEntity,
+  useRouteBreadcrumbRoutes,
+  useRouteEntities,
+} from '@/models/entities'
 import {useNavRoute} from '@/utils/navigation'
 import {DocumentRoute, DraftRoute, NavRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
+import {getDocumentTitle} from '@shm/shared'
 import {
   Button,
   ButtonText,
@@ -87,23 +92,24 @@ export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
     return <BreadcrumbTitle route={route} />
   }
   if (route.key === 'draft') {
-    return null // todo: fix error in DraftName when re-opening draft
-    return (
-      <>
-        <DraftName route={route} />
-      </>
-    )
+    return <DraftTitle route={route} />
   }
   return null
 }
 
 type CrumbDetails = {
   name?: string
-  route: NavRoute
+  route: NavRoute | null
   crumbKey: string
 }
 
-function BreadcrumbTitle({route}: {route: DocumentRoute}) {
+function BreadcrumbTitle({
+  route,
+  overwriteActiveTitle,
+}: {
+  route: DocumentRoute
+  overwriteActiveTitle?: string
+}) {
   const entityRoutes = useRouteBreadcrumbRoutes(route)
   const entityContents = useRouteEntities(entityRoutes)
   const [collapsedCount, setCollapsedCount] = useState(0)
@@ -193,7 +199,9 @@ function BreadcrumbTitle({route}: {route: DocumentRoute}) {
     widthInfo.current.container = width
     updateWidths()
   })
-  const activeItem = crumbDetails[crumbDetails.length - 1]
+  const activeItem: CrumbDetails | null = overwriteActiveTitle
+    ? {crumbKey: 'active', route: null, name: overwriteActiveTitle}
+    : crumbDetails[crumbDetails.length - 1]
   const firstInactiveDetail =
     crumbDetails[0] === activeItem ? null : crumbDetails[0]
   if (!activeItem) return null
@@ -299,7 +307,7 @@ function BreadcrumbEllipsis({
             return (
               <TitleTextButton
                 onPress={() => {
-                  navigate(crumb.route)
+                  if (crumb.route) navigate(crumb.route)
                 }}
               >
                 {crumb?.name}
@@ -344,7 +352,7 @@ function BreadcrumbItem({
       ref={observerRef}
       className="no-window-drag"
       onPress={() => {
-        navigate(details.route)
+        if (details.route) navigate(details.route)
       }}
       fontWeight={isActive ? 'bold' : 'normal'}
     >
@@ -387,29 +395,21 @@ export function Title({size}: {size?: FontSizeTokens}) {
   )
 }
 
-function DraftName({
-  route,
-  size = '$4',
-}: {
-  route: DraftRoute
-  size?: FontSizeTokens
-}) {
+function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
   const name = useDraftName({
-    documentId: route.id,
+    draftId: route.id?.id,
   })
-  const realTitle = name ?? 'Untitled Document'
-  // const fixedName = useFixedDraftTitle(route)
-  // TODO: check wtf is this
+  const entity = useEntity(route.id)
+  const realTitle = name ?? getDocumentTitle(entity.data?.document)
   const fixedName = undefined
   const displayTitle = fixedName || realTitle
   useWindowTitle(displayTitle ? `Draft: ${displayTitle}` : undefined)
-
+  if (!route.id || route.id.type === 'draft') return null // todo: include location picker
   return (
-    <>
-      <TitleText data-testid="titlebar-title" size={size}>
-        {displayTitle}
-      </TitleText>
-    </>
+    <BreadcrumbTitle
+      route={{key: 'document', id: route.id}}
+      overwriteActiveTitle={name}
+    />
   )
 }
 

@@ -40,11 +40,12 @@ export default function PublishDraftButton() {
   })
   const publish = usePublishDraft(grpcClient, packedDraftId)
   const hasSigningAccountSelected = useMemo(
-    () => !!draft.data?.signingAccount,
+    () => !draft.data || !!draft.data?.signingAccount,
     [draft.data],
   )
   function handlePublish() {
-    if (draft.data && draftId) {
+    if (!draftId) throw new Error('No Draft ID?!')
+    if (draft.data) {
       publish
         .mutateAsync({
           draft: draft.data,
@@ -72,6 +73,7 @@ export default function PublishDraftButton() {
           }
         })
     }
+    navigate({key: 'document', id: draftId})
   }
 
   return (

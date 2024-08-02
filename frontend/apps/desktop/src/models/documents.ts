@@ -291,10 +291,10 @@ export type EditorDraftState = {
 }
 
 export function useDraftName(
-  input: UseQueryOptions<EditorDraftState> & {documentId?: string | undefined},
+  input: UseQueryOptions<EditorDraftState> & {draftId?: string | undefined},
 ) {
-  const draft = useDraft(input.documentId)
-  return draft.data?.metadata?.name || undefined
+  const draft = useDraft(input.draftId)
+  return (draft.data?.metadata?.name || undefined) as string | undefined
 }
 
 type DraftChangesState = {
