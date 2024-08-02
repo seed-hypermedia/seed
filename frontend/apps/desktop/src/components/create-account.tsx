@@ -119,7 +119,6 @@ export function AccountWizardDialog() {
   })
 
   async function handleAccountCreation() {
-    const hasAccounts = accounts.data?.length != 0
     const name = `temp${accountType}${nanoid(8)}`
     try {
       const createdAccount = await register.mutateAsync({
@@ -163,7 +162,6 @@ export function AccountWizardDialog() {
     if (!name) {
       toast.error('Name is required. Please add one')
     } else {
-      console.log('== KEYS', createdAccount, accounts)
       try {
         let changes = [
           new DocumentChange({
@@ -198,6 +196,10 @@ export function AccountWizardDialog() {
         })
 
         if (doc) {
+          invalidate([
+            queryKeys.ENTITY,
+            hmId('d', createdAccount!.accountId).id,
+          ])
           setStep('complete')
         }
       } catch (error) {
@@ -361,13 +363,6 @@ export function AccountWizardDialog() {
                       color: '$color1',
                       borderColor: '$colorTransparent',
                     }}
-                    color="$color1"
-                    borderColor="$colorTransparent"
-                    hoverStyle={{
-                      bg: onboardingColor,
-                      color: '$color1',
-                      borderColor: '$colorTransparent',
-                    }}
                     f={1}
                     disabled={!isSaveWords && !isUserSavingWords}
                     opacity={!isSaveWords && !isUserSavingWords ? 0.4 : 1}
@@ -473,9 +468,8 @@ export function AccountWizardDialog() {
                 <Onboarding.Title>Account Information</Onboarding.Title>
                 <YStack gap="$2">
                   <AvatarForm
-                    url={`${API_FILE_URL}/thumbnail`}
+                    url={`${API_FILE_URL}/${thumbnail}`}
                     onAvatarUpload={(d) => {
-                      console.log('avatar upload, ', d)
                       setThumbnail(d)
                     }}
                   />
@@ -532,6 +526,9 @@ export function AccountWizardDialog() {
                         dispatchWizardEvent(false)
                         setNewAccount(true)
                         setStep('type')
+                        setName('')
+                        setThumbnail('')
+
                         openDraft({id: hmId('d', createdAccount.accountId)})
                       }
                     }}

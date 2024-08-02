@@ -539,6 +539,8 @@ export function useDraftEditor({id}: {id: string | undefined}) {
   const backendDraft = useDraft(id)
   const backendDocument = useEntity(unpackHmId(id))
 
+  console.log(`== ~ useDraftEditor ~ backendDocument:`, id, backendDocument)
+
   useEffect(() => {
     if (backendDraft.status == 'loading' && typeof id == 'undefined') {
       send({type: 'EMPTY.ID'})
