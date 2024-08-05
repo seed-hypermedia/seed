@@ -1,6 +1,5 @@
 import {hmBlockSchema} from '@/editor/schema'
 import {API_FILE_UPLOAD_URL, API_FILE_URL} from '@shm/shared'
-import {toast} from '@shm/ui'
 import {DOMParser as ProseMirrorDOMParser} from '@tiptap/pm/model'
 import rehypeStringify from 'rehype-stringify'
 import remarkParse from 'remark-parse'
@@ -8,8 +7,8 @@ import remarkRehype from 'remark-rehype'
 import {unified} from 'unified'
 import {Block, BlockNoteEditor, BlockSchema, nodeToBlock} from '../..'
 
-const fileRegex = /\[([^\]]+)\]\((http:\/\/[^\s]*ipfs[^\s]*) "size=(\d+)"\)/
-const videoRegex = /!\[([^\]]+)\]\((http:\/\/[^\s]*ipfs[^\s]*) "width=(\d*)"\)/
+const fileRegex = /\[([^\]]+)\]\(([^)]*) "size=(\d+)"\)/
+const videoRegex = /!\[([^\]]+)\]\(([^)]*) "width=(\d*)"\)/
 const mathRegex = /\$\$(.*?)\$\$/
 
 const uploadToIpfs = async (file: File): Promise<string> => {
@@ -26,7 +25,7 @@ const uploadToIpfs = async (file: File): Promise<string> => {
         throw new Error('Failed to upload to IPFS')
       }
       const data = await response.text()
-      return data // The IPFS URL
+      return data
     } catch (error) {
       console.error('Failed to upload to IPFS:', error)
       throw new Error('Failed to upload to IPFS')
@@ -36,71 +35,78 @@ const uploadToIpfs = async (file: File): Promise<string> => {
   }
 }
 
-export const uploadAndReplaceMediaUrls = async (
-  markdownContent: string,
-  mediaFiles: {name: string; content: string; type: string}[],
-) => {
-  const mediaRegex = /media\/([^\s)]+)/g
-  const mediaMatches = markdownContent.match(mediaRegex)
+const isWebUrl = (url: string | undefined) => {
+  if (!url) return false
+  try {
+    new URL(url)
+    return true
+  } catch (_) {
+    return false
+  }
+}
 
-  if (mediaMatches) {
-    for (const mediaFile of mediaMatches) {
-      const fileName = mediaFile.replace('media/', '')
-      const fileData = mediaFiles.find(
-        (file) => file.name.split('.')[0] === fileName,
-      )
-      if (fileData) {
-        const fileContent = Uint8Array.from(atob(fileData.content), (c) =>
+const readMediaFile = async (filePath: string) => {
+  try {
+    // @ts-ignore
+    const response = await window.fileOpen.readMediaFile(filePath)
+    return response
+  } catch (error) {
+    console.error('Error reading media file:', error)
+    return
+  }
+}
+
+export const processMediaMarkdown = async (
+  markdownContent: string,
+  directoryPath: string,
+) => {
+  const filePattern = /\[([^\]]+)\]\\\(([^\s]+\.[^\s]+) "size=(\d+)"\)/g
+  const videoPattern = /!\\\[([^\]]+)\]\\\(([^\s]+\.[^\s]+) "width=(\d*)"\)/g
+  const imagePattern = /!\[([^\]]*)\]\(([^\s]+\.[^\s]+)(?: "([^"]*)")?\)/g
+
+  const mediaMatches = []
+  const mediaRegex = new RegExp(
+    `${filePattern.source}|${videoPattern.source}|${imagePattern.source}`,
+    'g',
+  )
+  let match
+  while ((match = mediaRegex.exec(markdownContent)) !== null) {
+    mediaMatches.push(match)
+  }
+
+  for (const match of mediaMatches) {
+    let url
+    if (match[2]) {
+      // File pattern
+      url = match[2]
+    } else if (match[5]) {
+      // Video pattern
+      url = match[5]
+    } else if (match[8]) {
+      // Image pattern
+      url = match[8]
+    }
+    if (url && !isWebUrl(url)) {
+      try {
+        const filePath = directoryPath + '/' + url
+        const fileResponse = await readMediaFile(filePath)
+        const fileContent = Uint8Array.from(atob(fileResponse.content), (c) =>
           c.charCodeAt(0),
-        ) // Decode base64
-        const file = new File([fileContent], fileData.name, {
-          type: fileData.type,
-        }) // Use the file content and name
-        // console.log(file)
-        try {
-          const ipfsCid = await uploadToIpfs(file)
-          markdownContent = markdownContent.replace(
-            mediaFile,
-            `${API_FILE_URL}/${ipfsCid}`,
-          )
-        } catch (err) {
-          toast.error(
-            `Error uploading file ${fileName}. Removing this file from the markdown content.`,
-          )
-          markdownContent = removeMarkdownBlock(markdownContent, mediaFile)
-        }
+        )
+        const file = new File([fileContent], fileResponse.fileName, {
+          type: fileResponse.mimeType,
+        })
+        const ipfsUrl = await uploadToIpfs(file)
+        markdownContent = markdownContent.replace(
+          url,
+          `${API_FILE_URL}/${ipfsUrl}`,
+        )
+      } catch (error) {
+        console.error(`Error processing file ${url}:`, error)
+        markdownContent = markdownContent.replace(url, '')
       }
     }
   }
-
-  console.log(markdownContent)
-
-  return markdownContent
-}
-
-const removeMarkdownBlock = (markdownContent: string, mediaFile: string) => {
-  // Escape special characters in mediaFile
-  const escapedMediaFile = mediaFile.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')
-
-  // Define regex patterns for different types of media blocks with 'media/' in the URL
-  const imagePattern = new RegExp(
-    `!\\[[^\\]]*\\]\\(${escapedMediaFile}(?: ".*")?\\)`,
-    'g',
-  )
-  const videoPattern = new RegExp(
-    `!\\[[^\\]]*\\]\\(${escapedMediaFile}.*\\)`,
-    'g',
-  )
-
-  const filePattern = new RegExp(
-    `\\[[^\\]]*\\]\\(${escapedMediaFile} "size=(\\d+)"\\)`,
-    'g',
-  )
-
-  // Remove the markdown block based on the media file pattern
-  markdownContent = markdownContent.replace(imagePattern, '')
-  markdownContent = markdownContent.replace(videoPattern, '')
-  markdownContent = markdownContent.replace(filePattern, '')
 
   return markdownContent
 }
@@ -108,18 +114,9 @@ const removeMarkdownBlock = (markdownContent: string, mediaFile: string) => {
 export const MarkdownToBlocks = async (
   markdown: string,
   editor: BlockNoteEditor,
-  mediaFilesAttached: boolean,
 ) => {
   const blocks: Block<BlockSchema>[] = []
   const organizedBlocks: Block<BlockSchema>[] = []
-
-  // If no media files are attached, remove media blocks with URLs starting with 'media/'
-  if (!mediaFilesAttached) {
-    const mediaRegex = /media\/([^\s)]+)/g
-    markdown = markdown.replace(mediaRegex, (match) => {
-      return removeMarkdownBlock(markdown, match)
-    })
-  }
 
   const file = await unified()
     .use(remarkParse)
@@ -172,6 +169,9 @@ export const MarkdownToBlocks = async (
       stack.push({level: headingLevel, block})
     } else {
       let blockToInsert = block
+      if (block.type === 'image' && block.props.src.length == 0) {
+        blockToInsert.props = {}
+      }
       if (block.content.length > 0) {
         const blockContent =
           block.content[0].type === 'link'
@@ -182,10 +182,13 @@ export const MarkdownToBlocks = async (
         if (blockContent.startsWith('!')) {
           const videoMatch = blockContent.match(videoRegex)
           if (videoMatch) {
-            const videoProps = {
-              name: videoMatch[1],
-              url: videoMatch[2],
-              width: videoMatch[3] || '',
+            let videoProps = {}
+            if (videoMatch[2].startsWith(API_FILE_URL)) {
+              videoProps = {
+                name: videoMatch[1],
+                url: videoMatch[2],
+                width: videoMatch[3] || '',
+              }
             }
             blockToInsert = {
               id: block.id,
@@ -198,10 +201,13 @@ export const MarkdownToBlocks = async (
         } else if (blockContent.startsWith('[')) {
           const fileMatch = blockContent.match(fileRegex)
           if (fileMatch) {
-            const fileProps = {
-              name: fileMatch[1],
-              url: fileMatch[2],
-              size: fileMatch[3],
+            let fileProps = {}
+            if (fileMatch[2].startsWith(API_FILE_URL)) {
+              fileProps = {
+                name: fileMatch[1],
+                url: fileMatch[2],
+                size: fileMatch[3],
+              }
             }
             blockToInsert = {
               id: block.id,

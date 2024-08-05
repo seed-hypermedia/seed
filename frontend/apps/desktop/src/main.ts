@@ -4,6 +4,7 @@ import {ELECTRON_HTTP_PORT, IS_PROD_DESKTOP} from '@shm/shared'
 import {
   BrowserWindow,
   Menu,
+  OpenDialogOptions,
   app,
   dialog,
   globalShortcut,
@@ -96,7 +97,7 @@ ipcMain.on('open-markdown-directory-dialog', async (event) => {
     return
   }
 
-  const options = {
+  const options: OpenDialogOptions = {
     title: 'Select directories containing Markdown files and media',
     properties: ['openDirectory', 'multiSelections'],
   }
@@ -110,35 +111,19 @@ ipcMain.on('open-markdown-directory-dialog', async (event) => {
       for (const dirPath of directories) {
         const files = fs.readdirSync(dirPath)
         const markdownFile = files.find((file) => file.endsWith('.md'))
-        const mediaDir = path.join(dirPath, 'media')
         const isDirectory = fs.lstatSync(dirPath).isDirectory()
-        const exists = fs.existsSync(mediaDir)
-        if (markdownFile && exists && isDirectory) {
+        if (markdownFile && isDirectory) {
           const markdownFilePath = path.join(dirPath, markdownFile)
           const markdownContent = fs.readFileSync(markdownFilePath, 'utf-8')
-          const mediaFiles = fs.readdirSync(mediaDir).map((file) => {
-            const filePath = path.join(mediaDir, file)
-            const content = fs.readFileSync(filePath)
-            const mimeType = mime.lookup(filePath) || 'application/octet-stream'
-            const extension = mime.extension(mimeType)
-            return {
-              name: file.split('.').length > 1 ? file : `${file}.${extension}`, // Add the extension to the file name if it doesn't have it already
-              content: Buffer.from(content).toString('base64'), // Convert to base64 string
-              type: mimeType, // Use the determined MIME type
-            }
-          })
 
           // Extract and format title from directory name
           const dirName = path.basename(dirPath)
-          const title = dirName
-            .replace(/([a-z])([A-Z])/g, '$1 $2')
-            .replace(/[-_]/g, ' ')
-            .replace(/\b\w/g, (char) => char.toUpperCase())
+          const title = formatTitle(dirName)
 
           validDocuments.push({
             markdownContent,
-            mediaFiles,
             title,
+            directoryPath: dirPath,
           })
         } else {
           event.sender.send(
@@ -146,7 +131,6 @@ ipcMain.on('open-markdown-directory-dialog', async (event) => {
             `Invalid directory: ${dirPath}, ${JSON.stringify({
               markdownFile,
               isDirectory,
-              exists,
             })}`,
           )
         }
@@ -171,6 +155,14 @@ ipcMain.on('open-markdown-directory-dialog', async (event) => {
   }
 })
 
+const formatTitle = (fileName: string) => {
+  return fileName
+    .replace(/\.md$/, '') // Remove .md extension
+    .replace(/([a-z])([A-Z])/g, '$1 $2') // Add space between camel case words
+    .replace(/[-_]/g, ' ') // Replace dashes and underscores with spaces
+    .replace(/\b\w/g, (char) => char.toUpperCase()) // Capitalize each word
+}
+
 ipcMain.on('open-markdown-file-dialog', async (event) => {
   const focusedWindow = BrowserWindow.getFocusedWindow()
   if (!focusedWindow) {
@@ -178,8 +170,8 @@ ipcMain.on('open-markdown-file-dialog', async (event) => {
     return
   }
 
-  const options = {
-    title: 'Select a Markdown file',
+  const options: OpenDialogOptions = {
+    title: 'Select Markdown files',
     properties: ['openFile', 'multiSelections'],
     filters: [{name: 'Markdown Files', extensions: ['md']}],
   }
@@ -196,11 +188,12 @@ ipcMain.on('open-markdown-file-dialog', async (event) => {
           const markdownContent = fs.readFileSync(filePath, 'utf-8')
           // Extract and format title from directory name
           const dirName = path.basename(filePath)
-          const title = dirName
-            .replace(/([a-z])([A-Z])/g, '$1 $2')
-            .replace(/[-_]/g, ' ')
-            .replace(/\b\w/g, (char) => char.toUpperCase())
-          validDocuments.push({markdownContent, mediaFiles: [], title})
+          const title = formatTitle(dirName)
+          validDocuments.push({
+            markdownContent,
+            title,
+            directoryPath: path.dirname(filePath),
+          })
         }
       }
 
@@ -219,6 +212,29 @@ ipcMain.on('open-markdown-file-dialog', async (event) => {
     event.sender.send('files-content-response', {
       success: false,
       error: err.message,
+    })
+  }
+})
+
+ipcMain.on('read-media-file', async (event, filePath) => {
+  try {
+    const absoluteFilePath = path.resolve(filePath)
+
+    const fileContent = fs.readFileSync(absoluteFilePath)
+    const mimeType = mime.lookup(filePath) || 'application/octet-stream'
+    const fileName = path.basename(filePath)
+    event.sender.send('media-file-content', {
+      success: true,
+      filePath,
+      content: Buffer.from(fileContent).toString('base64'),
+      mimeType,
+      fileName,
+    })
+  } catch (error) {
+    console.error('Error reading media file:', error)
+    event.sender.send('media-file-content', {
+      success: false,
+      error: error.message,
     })
   }
 })

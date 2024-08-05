@@ -1,4 +1,4 @@
-import {useAppContext} from '@/app-context'
+import {useAppContext, useQueryInvalidator} from '@/app-context'
 import {
   BlockNoteEditor,
   BlockSchema,
@@ -7,7 +7,7 @@ import {
 } from '@/editor'
 import {
   MarkdownToBlocks,
-  uploadAndReplaceMediaUrls,
+  processMediaMarkdown,
 } from '@/editor/blocknote/core/extensions/Markdown/MarkdownToBlocks'
 import {useMyAccountIds} from '@/models/daemon'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
@@ -40,6 +40,7 @@ export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
   const gwUrl = useGatewayUrlStream()
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
   const showNostr = trpc.experiments.get.useQuery().data?.nostr
+  const invalidate = useQueryInvalidator()
 
   const [isPopoverOpen, setIsPopoverOpen] = useState(false)
 
@@ -74,22 +75,17 @@ export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
       type === 'directory' ? openMarkdownDirectories : openMarkdownFiles
 
     if (typeof openFunction !== 'function') {
-      console.error(`The function for type '${type}' is not defined correctly.`)
       return
     }
 
     openFunction()
       .then(async (documents) => {
-        for (const {markdownContent, mediaFiles, title} of documents) {
-          const updatedMarkdownContent = await uploadAndReplaceMediaUrls(
+        for (const {markdownContent, title, directoryPath} of documents) {
+          const updatedMarkdownContent = await processMediaMarkdown(
             markdownContent,
-            mediaFiles,
+            directoryPath,
           )
-          const blocks = await MarkdownToBlocks(
-            updatedMarkdownContent,
-            editor,
-            mediaFiles.length > 0, // Pass true if mediaFiles is provided, otherwise false
-          )
+          const blocks = await MarkdownToBlocks(updatedMarkdownContent, editor)
           const path = pathNameify(title)
           let inputData: Partial<HMDraft> = {}
           inputData = {
@@ -108,6 +104,7 @@ export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
           })
           // navigate({key: 'draft', id: draft.id}) // Uncomment this line to navigate to the newly created draft
         }
+        invalidate(['trpc.drafts.list'])
       })
       .catch((error) => {
         console.error('Error importing documents:', error)
@@ -143,7 +140,7 @@ export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
                   height: 'auto',
                 }}
               >
-                External Source
+                Import Markdown File
               </Button>
               <Button
                 size="$2"
@@ -154,7 +151,7 @@ export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
                   height: 'auto',
                 }}
               >
-                Mintter App
+                Import Directory
               </Button>
             </XStack>
           </PopoverContent>
