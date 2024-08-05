@@ -273,4 +273,5 @@ export type HMDraft = {
   deps: Array<string>
   signingAccount: string
   previousId: UnpackedHypermediaId | null // null if new document. Used to handle drafts that are moving
+  lastUpdateTime: number // ms
 }

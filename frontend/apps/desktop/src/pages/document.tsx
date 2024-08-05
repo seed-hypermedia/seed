@@ -22,6 +22,7 @@ import {useNavigate} from '@/utils/useNavigate'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {
   DocContent,
+  formattedDateMedium,
   getProfileName,
   hmId,
   packHmId,
@@ -282,7 +283,6 @@ function DocPageAppendix({docId}: {docId: UnpackedHypermediaId}) {
 
 function DraftListItem({id}: {id: UnpackedHypermediaId}) {
   const navigate = useNavigate()
-
   const draft = useDraft(packHmId(id))
   return (
     <ListItem
@@ -291,7 +291,7 @@ function DraftListItem({id}: {id: UnpackedHypermediaId}) {
       title={draft.data?.metadata.name || 'Untitled'}
       accessory={
         <Button size="$2" disabled theme="yellow">
-          New Draft
+          {formattedDateMedium(new Date(draft.data?.lastUpdateTime))}
         </Button>
       }
       onPress={() => {

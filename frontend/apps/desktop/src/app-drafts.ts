@@ -68,7 +68,10 @@ export const draftsApi = t.router({
         draftIdList?.push(input.id)
       }
       try {
-        await fs.writeFile(draftPath, JSON.stringify(input.draft, null, 2))
+        await fs.writeFile(
+          draftPath,
+          JSON.stringify({...input.draft, lastUpdateTime: Date.now()}, null, 2),
+        )
         return input
       } catch (error) {
         throw Error(
