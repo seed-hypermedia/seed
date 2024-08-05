@@ -16,16 +16,15 @@ import {
   FontSizeTokens,
   Home,
   Popover,
+  styled,
   TextProps,
   TitleText,
   XStack,
   YStack,
-  styled,
 } from '@shm/ui'
 import {File, Sparkles, Star} from '@tamagui/lucide-icons'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {AiOutlineEllipsis} from 'react-icons/ai'
-import {getItemDetails} from './sidebar-neo'
 
 export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
   const route = useNavRoute()
@@ -114,26 +113,13 @@ function BreadcrumbTitle({
   const entityContents = useRouteEntities(entityRoutes)
   const [collapsedCount, setCollapsedCount] = useState(0)
   const widthInfo = useRef({} as Record<string, number>)
-  const entityRoutesDetails = useMemo(
-    () =>
-      entityRoutes.map((route) => {
-        if (route.key === 'draft') return null // draft should not appear in context
-        const details = getItemDetails(
-          entityContents?.find((c) => c.route === route)?.entity,
-          route.blockId,
-        )
-        return details
-      }),
-    [entityRoutes, entityContents],
-  )
   const crumbDetails: (CrumbDetails | null)[] = useMemo(
     () =>
       entityRoutes.flatMap((route, routeIndex) => {
-        const details = entityRoutesDetails[routeIndex]
-        if (!details) return null
+        const contents = entityContents[routeIndex]
         return [
           {
-            name: details.name,
+            name: getDocumentTitle(contents.entity?.document),
             route: {
               ...route,
               blockId: undefined,
@@ -142,22 +128,8 @@ function BreadcrumbTitle({
             },
             crumbKey: `r-${routeIndex}`,
           },
-          ...(details.headings
-            ?.filter((heading) => !!heading.text && !heading.embedId)
-            .map((heading, headingIndex) => {
-              return {
-                name: heading.text,
-                route: {
-                  ...route,
-                  blockId: heading.id,
-                  isBlockFocused: true,
-                },
-                crumbKey: `r-${routeIndex}-${headingIndex}`,
-              }
-            }) || []),
         ]
       }),
-
     [entityRoutes, entityContents],
   )
 
