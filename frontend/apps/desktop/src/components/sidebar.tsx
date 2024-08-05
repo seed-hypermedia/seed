@@ -120,6 +120,7 @@ function FavoritesSection() {
   const favoriteEntities = useEntities(favorites || [])
   const navigate = useNavigate()
   const route = useNavRoute()
+  if (!favoriteEntities.length) return null
   return (
     <SidebarSection title="Favorites">
       {favoriteEntities?.map((favorite) => {

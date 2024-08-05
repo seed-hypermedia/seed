@@ -230,9 +230,8 @@ export function SidebarItem({
         focusTheme
         minHeight={minHeight || 32}
         paddingVertical={paddingVertical || '$1'}
-        paddingHorizontal="$2"
         size="$2"
-        paddingLeft={Math.max(0, indent - 1) * 22 + 28}
+        paddingLeft={Math.max(0, indent - 1) * 22 + 12}
         textAlign="left"
         outlineColor="transparent"
         backgroundColor={active ? activeBg : '$colorTransparent'}
