@@ -168,7 +168,11 @@ function EmbedWrapper({
       onPress={
         !disableEmbedClick
           ? () => {
-              throw new Error('EmbedWrapper onPress not implemented')
+              if (!unpackRef) return
+              navigate({
+                key: 'document',
+                id: unpackRef,
+              })
             }
           : undefined
       }
@@ -180,6 +184,7 @@ function EmbedWrapper({
           sidePos={sidePos}
           ref={sideannotationRef}
           id={hmRef}
+          disableEmbedClick={disableEmbedClick}
         />
       ) : null}
     </YStack>
@@ -209,8 +214,8 @@ export function useSizeObserver(onRect: (rect: DOMRect) => void) {
 
 const EmbedSideAnnotation = forwardRef<
   HTMLDivElement,
-  {id: string; sidePos: 'bottom' | 'right'}
->(function EmbedSideAnnotation({id, sidePos}, ref) {
+  {id: string; sidePos: 'bottom' | 'right'; disableEmbedClick?: boolean}
+>(function EmbedSideAnnotation({id, sidePos, disableEmbedClick}, ref) {
   const unpacked = unpackHmId(id)
 
   const sideStyles: YStackProps =
@@ -283,14 +288,16 @@ const EmbedSideAnnotation = forwardRef<
             )}
         </XStack>
       </XStack>
-      <SizableText
-        size="$1"
-        color="$blue9"
-        opacity={0}
-        $group-item-hover={{opacity: 1}}
-      >
-        Go to Document →
-      </SizableText>
+      {disableEmbedClick ? null : (
+        <SizableText
+          size="$1"
+          color="$blue9"
+          opacity={0}
+          $group-item-hover={{opacity: 1}}
+        >
+          Go to Document →
+        </SizableText>
+      )}
     </YStack>
   )
 })
@@ -374,7 +381,7 @@ const CommentSideAnnotation = forwardRef(function CommentSideAnnotation(
           opacity={0}
           $group-item-hover={{opacity: 1}}
         >
-          Go to Document →
+          Go to Comment →
         </SizableText>
       </YStack>
     )
@@ -394,7 +401,6 @@ export function EmbedDocument(props: EntityComponentProps) {
 export function EmbedDocContent(props: EntityComponentProps) {
   const [showReferenced, setShowReferenced] = useState(false)
   const doc = useEntity(props)
-  const route = useNavRoute()
   const navigate = useNavigate()
   return (
     <ContentEmbed
