@@ -14,7 +14,6 @@ import {
   hmIdWithVersion,
   isHypermediaScheme,
   isPublicGatewayLink,
-  normalizeHmId,
   packHmId,
   unpackHmId,
 } from '@shm/shared'
@@ -100,13 +99,6 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
         const link = find(textContent).find(
           (item) => item.isLink && item.value === textContent,
         )
-
-        const nativeHyperLink =
-          isHypermediaScheme(textContent) ||
-          isPublicGatewayLink(textContent, options.gwUrl)
-            ? normalizeHmId(textContent, options.gwUrl)
-            : null
-
         const unpackedHmId =
           isHypermediaScheme(textContent) ||
           isPublicGatewayLink(textContent, options.gwUrl)
@@ -114,11 +106,13 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
             : null
 
         if (!selection.empty && options.linkOnPaste) {
-          const pastedLink =
-            nativeHyperLink ||
-            (hasPastedLink ? pastedLinkMarks[0].attrs.href : link?.href || null)
+          const pastedLink = unpackedHmId
+            ? packHmId(unpackedHmId)
+            : hasPastedLink
+            ? pastedLinkMarks[0].attrs.href
+            : link?.href || null
           if (pastedLink) {
-            if (nativeHyperLink) {
+            if (unpackedHmId) {
               options.editor
                 .chain()
                 .setMark(options.type, {
@@ -167,7 +161,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           )
 
           fetchEntityTitle(unpackedHmId, options.grpcClient)
-            .then(({title, frontPage}) => {
+            .then(({title}) => {
               if (title) {
                 view.dispatch(
                   tr.insertText(title, pos).addMark(

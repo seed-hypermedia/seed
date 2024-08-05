@@ -30,7 +30,7 @@ export function createPublicWebHmUrl(
     latest?: boolean | null
   } = {},
 ) {
-  const webPath = type === 'd' ? `/${uid}` : `/${type}/${uid}`
+  const webPath = type === 'd' ? `/hm/${uid}` : `/hm/${type}/${uid}`
   const urlHost =
     hostname === undefined
       ? HYPERMEDIA_PUBLIC_WEB_GATEWAY
@@ -170,7 +170,6 @@ export function hmId(
 export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
   if (!hypermediaId) return null
   const parsed = parseCustomURL(hypermediaId)
-
   if (!parsed) return null
   let uidOrType, path
   let hostname = null

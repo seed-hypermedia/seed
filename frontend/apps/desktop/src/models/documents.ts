@@ -409,7 +409,7 @@ export function useDraftEditor({id}: {id: string | undefined}) {
       grpcClient,
       gwUrl,
       openUrl,
-      checkWebUrl: checkWebUrl.mutate,
+      checkWebUrl: checkWebUrl.mutateAsync,
     },
     onMentionsQuery: (query: string) => {
       // inlineMentionsQuery(query)
