@@ -1,9 +1,10 @@
 import {useMyAccountIds} from '@/models/daemon'
 import {useEntities, useEntity} from '@/models/entities'
 import {useFavorites} from '@/models/favorites'
-import {useNavRoute} from '@/utils/navigation'
+import {appRouteOfId, useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {
+  getBlockNodeById,
   getDocumentTitle,
   HMBlockNode,
   hmId,
@@ -11,8 +12,8 @@ import {
   unpackHmId,
 } from '@shm/shared'
 import {Contact, File, Hash, Sparkles} from '@tamagui/lucide-icons'
-import React, {memo, ReactNode} from 'react'
-import {SizableText, View, YStack} from 'tamagui'
+import React, {memo, ReactNode, useState} from 'react'
+import {SizableText, Spinner, View, YStack} from 'tamagui'
 import {
   FocusButton,
   GenericSidebarContainer,
@@ -201,6 +202,13 @@ function OutlineSection({id}: {id: UnpackedHypermediaId}) {
             id: hmId(id.type, id.uid, {blockRef: blockId}),
           })
         }}
+        onFocusBlock={(blockId) => {
+          navigate({
+            key: 'document',
+            isBlockFocused: true,
+            id: hmId(id.type, id.uid, {blockRef: blockId}),
+          })
+        }}
       />
     </>
   )
@@ -226,18 +234,18 @@ function _SidebarOutline({
       const childrenOutline = item.children
         ? getOutline(item.children, level + 1)
         : null
-      if (item.embedId) return <SizableText>Coming Soon!?!</SizableText>
-      // return (
-      //   <SidebarEmbedOutlineItem
-      //     activeBlock={activeBlock}
-      //     id={item.embedId}
-      //     key={item.id}
-      //     blockId={item.id}
-      //     indent={1 + level}
-      //     onActivateBlock={onActivateBlock}
-      //     onFocusBlock={onFocusBlock}
-      //   />
-      // )
+      if (item.embedId)
+        return (
+          <SidebarEmbedOutlineItem
+            activeBlock={activeBlock}
+            id={item.embedId}
+            key={item.id}
+            blockId={item.id}
+            indent={1 + level}
+            onActivateBlock={onActivateBlock}
+            onFocusBlock={onFocusBlock}
+          />
+        )
       return (
         <SidebarGroupItem
           key={item.id}
@@ -327,4 +335,111 @@ function getNodesOutline(
     }
   })
   return outline
+}
+
+const SidebarEmbedOutlineItem = memo(_SidebarEmbedOutlineItem)
+function _SidebarEmbedOutlineItem({
+  indent,
+  id,
+  blockId,
+  activeBlock,
+  onActivateBlock,
+  onFocusBlock,
+}: {
+  indent: number
+  id: UnpackedHypermediaId
+  blockId: string
+  activeBlock?: string
+  onActivateBlock: (blockId: string) => void
+  onFocusBlock: ((blockId: string) => void) | null
+}) {
+  const route = useNavRoute()
+  const [collapse, setCollapse] = useState(true)
+  const loadedEntity = useEntity(id)
+  const navigate = useNavigate()
+  if (loadedEntity === undefined)
+    return <SidebarItem indented={indent} icon={() => <Spinner />} />
+  const doc = loadedEntity?.data?.document
+  const singleBlockNode =
+    id.blockRef && doc?.content
+      ? getBlockNodeById(doc.content, id.blockRef)
+      : null
+  const title = singleBlockNode
+    ? singleBlockNode.block.text
+    : getDocumentTitle(doc)
+  const childrenNodes = singleBlockNode
+    ? singleBlockNode.children
+    : doc?.content
+  const outlineNodes = childrenNodes?.filter(
+    (node) => node.block?.type === 'heading' || node.block?.type === 'embed',
+  )
+  const canCollapse = !!outlineNodes?.length
+  const destRoute = appRouteOfId(id)
+  if (doc)
+    return (
+      <>
+        <SidebarItem
+          indented={indent}
+          title={title}
+          icon={<Thumbnail id={id} document={doc} size={20} />}
+          isCollapsed={canCollapse ? collapse : undefined}
+          onSetCollapsed={canCollapse ? setCollapse : undefined}
+          active={activeBlock === blockId}
+          activeBgColor={'$yellow4'}
+          onPress={() => {
+            onActivateBlock(blockId)
+          }}
+          rightHover={[
+            destRoute ? (
+              <FocusButton
+                key="focus"
+                onPress={() => {
+                  if (!destRoute) return
+                  if (destRoute.key === 'document') {
+                    navigate({
+                      ...destRoute,
+                      id: {
+                        ...destRoute.id,
+                        blockRef: blockId,
+                      },
+                      isBlockFocused: true,
+                    })
+                  } else navigate(destRoute)
+                }}
+              />
+            ) : null,
+          ]}
+        />
+        {collapse ? null : (
+          <SidebarOutline
+            activeBlock={activeBlock}
+            onActivateBlock={onActivateBlock}
+            onFocusBlock={
+              destRoute
+                ? (childBlockId) => {
+                    if (!destRoute) return
+                    if (destRoute.key === 'document') {
+                      navigate({
+                        ...destRoute,
+                        id: {
+                          ...destRoute.id,
+                          blockRef: childBlockId,
+                        },
+                        isBlockFocused: true,
+                      })
+                    } else navigate(destRoute)
+                  }
+                : null
+            }
+            nodes={outlineNodes}
+            indent={indent}
+          />
+        )}
+      </>
+    )
+  return (
+    <SizableText margin="$2" size="$1" theme="red">
+      Failed to Load Embed
+    </SizableText>
+  )
 }
