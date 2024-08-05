@@ -2,7 +2,6 @@ import {DraftStatus, draftStatus} from '@/draft-status'
 import {useMyAccounts} from '@/models/daemon'
 import {useEntity} from '@/models/entities'
 import {trpc} from '@/trpc'
-import {getFileUrl} from '@/utils/account-url'
 import {useNavRoute} from '@/utils/navigation'
 import {DraftRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
@@ -13,7 +12,7 @@ import {
   Button,
   Spinner,
   Tooltip,
-  UIAvatar,
+  XGroup,
   YStack,
   YStackProps,
 } from '@shm/ui'
@@ -24,6 +23,7 @@ import {useGRPCClient, useQueryInvalidator} from '../app-context'
 import {useDraft} from '../models/accounts'
 import {draftDispatch, usePublishDraft} from '../models/documents'
 import {OptionsDropdown} from './options-dropdown'
+import {Thumbnail} from './thumbnail'
 
 export default function PublishDraftButton() {
   const route = useNavRoute()
@@ -106,44 +106,59 @@ export default function PublishDraftButton() {
   return (
     <>
       <SaveIndicatorStatus />
-      <Button
-        size="$2"
-        onPress={handlePublish}
-        // disabled={!hassigningKeySelected}
-        // opacity={hassigningKeySelected ? 1 : 0.3}
-        icon={
-          signingAccount?.document?.metadata.thumbnail ? (
-            <UIAvatar
-              url={getFileUrl(signingAccount?.document?.metadata.thumbnail)}
-            />
-          ) : undefined
-        }
-      >
-        Publish
-      </Button>
-      <OptionsDropdown
-        button={<Button size="$2" icon={ChevronDown} />}
-        menuItems={accts.map((acc) => {
-          if (acc.data) {
-            return {
-              key: acc.data.id.uid,
-              label: acc.data.document?.metadata.name || acc.data?.id.uid,
-              icon: acc.data.document?.metadata.thumbnail ? (
-                <UIAvatar
-                  url={getFileUrl(acc.data.document?.metadata.thumbnail)}
-                />
-              ) : null,
-              onPress: () => {
-                if (acc.data?.id.uid) {
-                  setSigningAccount(acc.data)
+      <XGroup borderRadius="$2" overflow="hidden">
+        <XGroup.Item>
+          <Tooltip
+            content={`publish as ${signingAccount?.document?.metadata.name}`}
+          >
+            <Button
+              size="$2"
+              onPress={handlePublish}
+              borderRadius={0}
+              // disabled={!hassigningKeySelected}
+              // opacity={hassigningKeySelected ? 1 : 0.3}
+              icon={
+                signingAccount ? (
+                  <Thumbnail
+                    id={signingAccount.id}
+                    document={signingAccount.document}
+                    size={20}
+                  />
+                ) : null
+              }
+            >
+              Publish
+            </Button>
+          </Tooltip>
+        </XGroup.Item>
+        <XGroup.Item>
+          <OptionsDropdown
+            button={<Button borderRadius={0} size="$2" icon={ChevronDown} />}
+            menuItems={accts.map((acc) => {
+              if (acc.data) {
+                return {
+                  key: acc.data.id.uid,
+                  label: acc.data.document?.metadata.name || acc.data?.id.uid,
+                  icon: (
+                    <Thumbnail
+                      size={20}
+                      id={acc.data.id}
+                      document={acc.data.document}
+                    />
+                  ),
+                  onPress: () => {
+                    if (acc.data?.id.uid) {
+                      setSigningAccount(acc.data)
+                    }
+                  },
                 }
-              },
-            }
-          } else {
-            return null
-          }
-        })}
-      />
+              } else {
+                return null
+              }
+            })}
+          />
+        </XGroup.Item>
+      </XGroup>
     </>
   )
 }
