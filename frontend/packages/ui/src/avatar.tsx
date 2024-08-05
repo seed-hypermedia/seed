@@ -1,9 +1,9 @@
 import {useMemo} from "react";
-import {FontSizeTokens, SizableText, XStack} from "tamagui";
+import {SizableText, XStack} from "tamagui";
 
 export type UIAvatarProps = {
   url?: string;
-  size?: FontSizeTokens | number;
+  size?: number;
   color?: string;
   label?: string;
   id?: string;
@@ -32,8 +32,7 @@ export function UIAvatar({
 }: UIAvatarProps) {
   let avatarColor = useMemo(() => {
     if (color) return color;
-    let idx = Math.floor(Math.random() * colors.length);
-    return `$${colors[idx]}6`;
+    return getRandomColor(id || "untitled");
   }, [id, color]);
 
   let text = label ? label[0] : id ? id[0] : "?";

@@ -11,11 +11,11 @@ import {FormField} from '@/components/forms'
 import {ImportButton} from '@/components/import-doc-button'
 import {ListItem} from '@/components/list-item'
 import {MainWrapper} from '@/components/main-wrapper'
+import {Thumbnail} from '@/components/thumbnail'
 import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
 import {useDraftList, useListDirectory} from '@/models/documents'
 import {useEntity} from '@/models/entities'
-import {getFileUrl} from '@/utils/account-url'
 import {useNavRoute} from '@/utils/navigation'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
@@ -40,7 +40,6 @@ import {
   SizableText,
   Spinner,
   SuggestedChangesIcon,
-  UIAvatar,
   XStack,
   YStack,
 } from '@shm/ui'
@@ -183,11 +182,11 @@ function DocPageHeader() {
   const route = useNavRoute()
   const replace = useNavigate('replace')
   const docId = route.key === 'document' && route.id
-  if (!docId) throw new Error('Invalid route, no doc id')
+  if (!docId) throw new Error('Invalid route, no entity id')
   const myAccountIds = useMyAccountIds()
-  const doc = useEntity(docId)
+  const entity = useEntity(docId)
   const isMyAccount = myAccountIds.data?.includes(docId.id)
-  const accountName = getProfileName(doc.data?.document)
+  const accountName = getProfileName(entity.data?.document)
 
   return (
     <>
@@ -199,12 +198,11 @@ function DocPageHeader() {
         >
           <XStack gap="$4" alignItems="center" justifyContent="space-between">
             <XStack gap="$4" alignItems="center" minHeight={60}>
-              {doc.data?.document?.metadata.thumbnail ? (
-                <UIAvatar
-                  id={docId.uid}
-                  size={60}
-                  label={accountName}
-                  url={getFileUrl(doc.data?.document?.metadata.thumbnail)}
+              {entity.data?.id ? (
+                <Thumbnail
+                  size={64}
+                  id={entity.data?.id}
+                  document={entity.data?.document}
                 />
               ) : null}
               <SizableText
