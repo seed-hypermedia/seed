@@ -8,12 +8,14 @@ import {
   packHmId,
 } from '@shm/shared'
 import {
+  AccountTypeButton,
   Button,
   CheckboxField,
   Copy,
   copyTextToClipboard,
   Dialog,
   Field,
+  Info,
   Input,
   Link,
   Onboarding,
@@ -21,12 +23,13 @@ import {
   SizableText,
   TextArea,
   toast,
+  Tooltip,
   XStack,
   YStack,
 } from '@shm/ui'
 import {useMutation} from '@tanstack/react-query'
 import {nanoid} from 'nanoid'
-import {useEffect, useMemo, useRef, useState} from 'react'
+import {SVGProps, useEffect, useMemo, useRef, useState} from 'react'
 import {useGRPCClient, useQueryInvalidator} from '../app-context'
 import {
   NamedKey,
@@ -237,7 +240,7 @@ export function AccountWizardDialog() {
         />
         <Dialog.Content
           overflow="hidden"
-          h={460}
+          h={step == 'type' ? 300 : 460}
           w="100%"
           maxWidth={600}
           p={0}
@@ -259,26 +262,58 @@ export function AccountWizardDialog() {
                 <Onboarding.Title>
                   What account type you want to create?
                 </Onboarding.Title>
-                <YStack gap="$2">
-                  <Button
+                <XStack gap="$4" ai="center" jc="center" f={1}>
+                  <AccountTypeButton
                     onPress={() => {
                       setAccountType('author')
                       setStep('create')
                       refetchWords()
                     }}
                   >
-                    Author
-                  </Button>
-                  <Button
+                    <AuthorIcon />
+                    <XStack>
+                      <Tooltip
+                        placement="top"
+                        content="Author account info <COPY>"
+                      >
+                        <Button
+                          icon={Info}
+                          size="$1"
+                          chromeless
+                          hoverStyle={{bg: 'transparent'}}
+                        />
+                      </Tooltip>
+                      <SizableText fontWeight="600" textAlign="center" f={1}>
+                        Author
+                      </SizableText>
+                    </XStack>
+                  </AccountTypeButton>
+                  <AccountTypeButton
                     onPress={() => {
                       setAccountType('publisher')
                       setStep('create')
                       refetchWords()
                     }}
                   >
-                    Publisher
-                  </Button>
-                </YStack>
+                    <PublisherIcon />
+                    <XStack>
+                      <Tooltip
+                        placement="top"
+                        content="Publisher account info <COPY>"
+                      >
+                        <Button
+                          icon={Info}
+                          size="$1"
+                          chromeless
+                          hoverStyle={{bg: 'transparent'}}
+                        />
+                      </Tooltip>
+                      <SizableText fontWeight="600" textAlign="center" f={1}>
+                        Publisher
+                      </SizableText>
+                    </XStack>
+                  </AccountTypeButton>
+                </XStack>
               </Onboarding.MainSection>
             </Onboarding.Wrapper>
           ) : null}
@@ -587,5 +622,62 @@ function MarketingSection() {
         passionate about innovation and shared knowledge.
       </Onboarding.Text>
     </Onboarding.AccentSection>
+  )
+}
+
+function AuthorIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={102}
+      height={102}
+      fill="none"
+      {...props}
+    >
+      <rect
+        width={86.326}
+        height={86.325}
+        x={14.254}
+        y={1.517}
+        stroke={onboardingColor}
+        strokeWidth={2}
+        rx={1.34}
+      />
+      <path
+        stroke={onboardingColor}
+        strokeWidth={2}
+        d="M1.428 12.191v85.986a2.34 2.34 0 0 0 2.34 2.34h85.986M74.995 37.198c0 9.71-7.871 17.58-17.58 17.58-9.71 0-17.581-7.87-17.581-17.58 0-9.71 7.87-17.581 17.58-17.581 9.71 0 17.581 7.871 17.581 17.58Z"
+      />
+      <path
+        stroke={onboardingColor}
+        strokeWidth={2}
+        d="M88.79 87.754c0-14.799-10.247-31.184-24.033-34.489m-38.713 34.49c0-14.8 10.246-31.185 24.032-34.49"
+      />
+    </svg>
+  )
+}
+
+function PublisherIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" {...props}>
+      <path
+        stroke={onboardingColor}
+        strokeLinecap="round"
+        strokeWidth={2.022}
+        d="M48.721 38.774h11.334M48.721 45.514h11.334M48.721 52.254h11.334M48.721 58.994h47.627M48.721 65.734h47.627M48.721 72.473h47.627"
+      />
+      <path
+        stroke={onboardingColor}
+        strokeWidth={2}
+        d="M41.14 13.754H18.894c-1.284 0-2.25-1.185-1.895-2.42 1.71-5.958 4.856-9.817 10.686-9.817M41.14 13.754c0-4.65-2.87-12.237-13.455-12.237M41.14 13.754v70.713c0 6.971 4.835 12.924 10.17 12.924m0 0h56.783c8.758 0 12.329-3.65 12.855-10.901.081-1.114-.836-2.023-1.952-2.023h-16.941M51.31 97.39c9.217 0 12.698-6.687 13.55-10.919.22-1.094 1.127-2.005 2.244-2.005h34.951m-74.37-82.95h59.856c8.095 0 14.514 6.104 14.514 14.514v68.436"
+      />
+      <path
+        stroke={onboardingColor}
+        strokeLinecap="round"
+        strokeWidth={2}
+        d="M22.375 88.038c1.689-.28 3.612-.472 5.404-.944M21.92 70.883l-2.293-16.75c-.256-2.944 1.07-4.92 2.888-5.742m0 0c2.954-1.336 7.209.377 8.083 5.935 0 0 2.151 12.53 3.322 22.679.794 6.873-2.384 9.099-6.142 10.09M22.516 48.39l9.617-14.018c4.563-6.363-5.422-11.535-8.97-6.403L11.085 46.125c-1.897 2.663-2.245 3.888-2.263 5.866l1.195 42.295c-.001 2.833.795 3.46 2.642 3.827l11.028 2.186c3.472.688 4.286.172 4.337-2.443.052-2.615-.245-10.762-.245-10.762M73.452 46.217l4.007-10.934M89.71 46.217l-4.122-10.934m-8.129 0 3.384-9.232a.674.674 0 0 1 1.263-.006l3.482 9.238m-8.129 0h8.13M67.715 52.398h27.96a.674.674 0 0 0 .673-.674V19.642a.674.674 0 0 0-.674-.674h-27.96a.674.674 0 0 0-.673.674v32.083c0 .372.301.673.674.673ZM50.173 31.554h8.433M50.173 19.28h8.433"
+      />
+      <path stroke={onboardingColor} strokeWidth={2} d="M54.389 19.28v12.2" />
+    </svg>
   )
 }

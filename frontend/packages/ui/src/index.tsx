@@ -8,6 +8,7 @@ export {
   Tooltip as TTooltip,
 } from "tamagui";
 export * from "./avatar";
+export * from "./button";
 export {Button} from "./button";
 export * from "./checkbox-field";
 export * from "./container";
