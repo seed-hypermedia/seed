@@ -3,38 +3,20 @@ import {
   AccessoryLayout,
 } from '@/components/accessory-sidebar'
 import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
-import {DialogTitle, useAppDialog} from '@/components/dialog'
+import {Directory} from '@/components/directory'
 import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
-import {FormInput} from '@/components/form-input'
-import {FormField} from '@/components/forms'
-import {ImportButton} from '@/components/import-doc-button'
-import {ListItem} from '@/components/list-item'
 import {MainWrapper} from '@/components/main-wrapper'
 import {Thumbnail} from '@/components/thumbnail'
-import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
-import {useDraftList, useListDirectory} from '@/models/documents'
 import {useEntity} from '@/models/entities'
 import {useNavRoute} from '@/utils/navigation'
-import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
-import {zodResolver} from '@hookform/resolvers/zod'
+import {DocContent, getProfileName, UnpackedHypermediaId} from '@shm/shared'
 import {
-  DocContent,
-  formattedDateMedium,
-  getProfileName,
-  hmId,
-  packHmId,
-  UnpackedHypermediaId,
-  unpackHmId,
-} from '@shm/shared'
-import {
-  Button,
   CitationsIcon,
   CollaboratorsIcon,
   CommentsIcon,
-  Form,
   HistoryIcon,
   Section,
   Separator,
@@ -42,14 +24,10 @@ import {
   Spinner,
   SuggestedChangesIcon,
   XStack,
-  YStack,
 } from '@shm/ui'
 import {PageContainer} from '@shm/ui/src/container'
 import {RadioButtons} from '@shm/ui/src/radio-buttons'
-import {FilePlus} from '@tamagui/lucide-icons'
 import {ReactNode, useState} from 'react'
-import {SubmitHandler, useForm} from 'react-hook-form'
-import {z} from 'zod'
 import {EntityCitationsAccessory} from '../components/citations'
 import {CopyReferenceButton} from '../components/titlebar-common'
 import {AppDocContentProvider} from './document-content-provider'
@@ -258,7 +236,7 @@ function DocPageAppendix({docId}: {docId: UnpackedHypermediaId}) {
   const [tab, setTab] = useState<'discussion' | 'directory'>('directory')
   let content = null
   if (tab === 'directory') {
-    content = <DocDirectory docId={docId} />
+    content = <Directory docId={docId} />
   }
   return (
     <PageContainer>
@@ -278,187 +256,5 @@ function DocPageAppendix({docId}: {docId: UnpackedHypermediaId}) {
       </XStack>
       {content}
     </PageContainer>
-  )
-}
-
-function DraftListItem({id}: {id: UnpackedHypermediaId}) {
-  const navigate = useNavigate()
-  const draft = useDraft(packHmId(id))
-  return (
-    <ListItem
-      key={id.id}
-      backgroundColor={'$yellow3'}
-      title={draft.data?.metadata.name || 'Untitled'}
-      accessory={
-        <Button size="$2" disabled theme="yellow">
-          {formattedDateMedium(new Date(draft.data?.lastUpdateTime))}
-        </Button>
-      }
-      onPress={() => {
-        navigate({
-          key: 'draft',
-          id,
-        })
-      }}
-    />
-  )
-}
-
-function DocDirectory({docId}: {docId: UnpackedHypermediaId}) {
-  const navigate = useNavigate()
-  const dir = useListDirectory(docId)
-  const drafts = useDraftList()
-  let draftsForShow = drafts.data
-  const dirList =
-    dir.data &&
-    dir.data
-      .filter((item) => {
-        const level = docId.path?.length || 0
-        if (item.path.length !== level + 1) return false
-        let pathPrefix = (docId.path || []).join('/')
-        return item.path.join('/').startsWith(pathPrefix)
-      })
-      .map((dirItem) => {
-        const id = hmId(docId.type, docId.uid, {
-          path: dirItem.path,
-        })
-        const hasDraft = draftsForShow?.includes(id.id)
-        if (hasDraft) {
-          draftsForShow = draftsForShow?.filter((draftId) => draftId !== id.id)
-        }
-        return {
-          ...dirItem,
-          id,
-          hasDraft,
-        }
-      })
-  return (
-    <YStack>
-      {draftsForShow
-        ?.map((draftId) => {
-          const id = unpackHmId(draftId)
-          if (!id) return null
-          return id
-        })
-        .filter((id) => {
-          if (!id) return false
-          const level = docId.path?.length || 0
-          if (id.path?.length !== level + 1) return false
-          let pathPrefix = (docId.path || []).join('/')
-          return id.path.join('/').startsWith(pathPrefix)
-        })
-        ?.map((id) => {
-          if (!id) return null
-          return <DraftListItem id={id} />
-        })}
-      {dirList?.map((item) => {
-        return (
-          <ListItem
-            key={item.path.join('/')}
-            title={item.metadata.name}
-            accessory={
-              item.hasDraft ? (
-                <Button
-                  size="$2"
-                  theme="yellow"
-                  onPress={(e) => {
-                    e.stopPropagation()
-                    navigate({key: 'draft', id: item.id})
-                  }}
-                >
-                  Resume Editing
-                </Button>
-              ) : undefined
-            }
-            onPress={() => {
-              navigate({
-                key: 'document',
-                id: item.id,
-              })
-            }}
-          />
-        )
-      })}
-      <XStack paddingVertical="$4">
-        <NewSubDocumentButton parentDocId={docId} />
-        <ImportButton input={docId} />
-      </XStack>
-    </YStack>
-  )
-}
-
-const newSubDocumentSchema = z.object({
-  name: z.string(),
-})
-type NewSubDocumentFields = z.infer<typeof newSubDocumentSchema>
-
-function NewDocumentDialog({
-  input,
-  onClose,
-}: {
-  input: UnpackedHypermediaId
-  onClose: () => void
-}) {
-  const navigate = useNavigate()
-  const onSubmit: SubmitHandler<NewSubDocumentFields> = (data) => {
-    const path = pathNameify(data.name)
-    onClose()
-    navigate({
-      key: 'draft',
-      id: {...input, path: [...(input.path || []), path]},
-      name: data.name,
-    })
-  }
-  const {
-    control,
-    handleSubmit,
-    setFocus,
-    formState: {errors},
-  } = useForm<NewSubDocumentFields>({
-    resolver: zodResolver(newSubDocumentSchema),
-    defaultValues: {
-      name: '',
-    },
-  })
-  return (
-    <>
-      <DialogTitle>New Document</DialogTitle>
-      {/* <DialogDescription>description</DialogDescription> */}
-      <Form onSubmit={handleSubmit(onSubmit)} gap="$4">
-        <FormField name="name" label="Title" errors={errors}>
-          <FormInput
-            control={control}
-            name="name"
-            placeholder="Document Title"
-          />
-        </FormField>
-        <XStack space="$3" justifyContent="flex-end">
-          <Form.Trigger asChild>
-            <Button>Create Document</Button>
-          </Form.Trigger>
-        </XStack>
-      </Form>
-    </>
-  )
-}
-
-function NewSubDocumentButton({
-  parentDocId,
-}: {
-  parentDocId: UnpackedHypermediaId
-}) {
-  const {open, content} = useAppDialog<UnpackedHypermediaId>(NewDocumentDialog)
-  return (
-    <>
-      <Button
-        icon={FilePlus}
-        onPress={() => {
-          open(parentDocId)
-        }}
-      >
-        Create Document
-      </Button>
-      {content}
-    </>
   )
 }

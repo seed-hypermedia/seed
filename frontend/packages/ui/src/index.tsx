@@ -13,6 +13,7 @@ export {Button} from "./button";
 export * from "./checkbox-field";
 export * from "./container";
 export * from "./copy-to-clipboard";
+export * from "./datatable";
 export * from "./footer";
 export * from "./form-fields";
 export * from "./icons";
