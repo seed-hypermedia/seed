@@ -171,9 +171,7 @@ function BreadcrumbTitle({
     widthInfo.current.container = width
     updateWidths()
   })
-  const activeItem: CrumbDetails | null = overwriteActiveTitle
-    ? {crumbKey: 'active', route: null, name: overwriteActiveTitle}
-    : crumbDetails[crumbDetails.length - 1]
+  const activeItem: CrumbDetails | null = crumbDetails[crumbDetails.length - 1]
   const firstInactiveDetail =
     crumbDetails[0] === activeItem ? null : crumbDetails[0]
   if (!activeItem) return null
@@ -219,7 +217,11 @@ function BreadcrumbTitle({
   displayItems.push(...remainderItems)
   displayItems.push(
     <BreadcrumbItem
-      details={activeItem}
+      details={
+        overwriteActiveTitle
+          ? {...activeItem, name: overwriteActiveTitle}
+          : activeItem
+      }
       key={activeItem.crumbKey}
       isActive
       onSize={({width}: DOMRect) => {
