@@ -1,4 +1,4 @@
-import {useHover} from '@shm/shared'
+import {UnpackedHypermediaId, useHover} from '@shm/shared'
 import {Button, Star, StarFull, Tooltip} from '@shm/ui'
 
 import {ComponentProps} from 'react'
@@ -26,8 +26,8 @@ function RemoveFavoriteButton({
   )
 }
 
-export function FavoriteButton({url}: {url: string}) {
-  const favorite = useFavorite(url)
+export function FavoriteButton({id}: {id: UnpackedHypermediaId}) {
+  const favorite = useFavorite(id)
   if (favorite.isFavorited) {
     return (
       <RemoveFavoriteButton

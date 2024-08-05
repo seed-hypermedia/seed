@@ -32,7 +32,7 @@ export function clipContentBlocks(
 }
 
 export function getDocumentTitle(document?: HMDocument | null) {
-  let res = document?.metadata?.name || 'Untitled Document'
+  let res = document?.metadata?.name || 'Untitled'
   return res
 }
 

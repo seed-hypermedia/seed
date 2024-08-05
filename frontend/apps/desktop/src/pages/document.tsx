@@ -4,6 +4,7 @@ import {
 } from '@/components/accessory-sidebar'
 import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
 import {DialogTitle, useAppDialog} from '@/components/dialog'
+import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
 import {FormInput} from '@/components/form-input'
 import {FormField} from '@/components/forms'
@@ -218,7 +219,7 @@ function DocPageHeader() {
             </XStack>
 
             <XStack space="$2">
-              {/* {isMyAccount ? null : <FavoriteButton id={docId} />} */}
+              {isMyAccount ? null : <FavoriteButton id={docId} />}
               <CopyReferenceButton />
             </XStack>
           </XStack>

@@ -174,7 +174,7 @@ export function queryEntity(
         })
         return {id, document: toPlainMessage(document)}
       } catch (e) {
-        return null
+        return {id, document: undefined}
       }
     },
   }
