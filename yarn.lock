@@ -5908,9 +5908,9 @@ __metadata:
   linkType: hard
 
 "@react-native/normalize-colors@npm:^0.74.1":
-  version: 0.74.86
-  resolution: "@react-native/normalize-colors@npm:0.74.86"
-  checksum: 10081f56139e6b87f212a11e18a5c693eb9cd166c70a82840be8beb617ff815051850507c9910f9953d5ee37beafcb3ee4b5b944ea7aaba499c0b46cbeecf0ad
+  version: 0.74.87
+  resolution: "@react-native/normalize-colors@npm:0.74.87"
+  checksum: 903f9cd8a0fdcb26f4f621b260b9f48e703ca183ac4ee363b6dea4f424e23a254adebe36ce3d560e6e909f58b1c568bafe596e5858fadf51b5be080f401446c7
   languageName: node
   linkType: hard
 

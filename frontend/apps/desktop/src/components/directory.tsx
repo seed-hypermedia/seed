@@ -8,8 +8,24 @@ import {useDraftList, useListDirectory} from '@/models/documents'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {zodResolver} from '@hookform/resolvers/zod'
-import {hmId, packHmId, UnpackedHypermediaId, unpackHmId} from '@shm/shared'
-import {Button, DataTable, Form, SizableText, XStack, YStack} from '@shm/ui'
+import {
+  formattedDate,
+  formattedDateLong,
+  HMDocument,
+  hmId,
+  packHmId,
+  UnpackedHypermediaId,
+  unpackHmId,
+} from '@shm/shared'
+import {
+  Button,
+  DataTable,
+  Form,
+  SizableText,
+  Tooltip,
+  XStack,
+  YStack,
+} from '@shm/ui'
 import {Copy, FilePlus} from '@tamagui/lucide-icons'
 import {useMemo} from 'react'
 import {SubmitHandler, useForm} from 'react-hook-form'
@@ -70,7 +86,7 @@ export function Directory({docId}: {docId: UnpackedHypermediaId}) {
       <DataTable.Root>
         <DataTable.Head>
           <DataTable.Row borderBottomWidth={10}>
-            <DataTable.HeaderCell>
+            <DataTable.HeaderCell width="50%">
               <SizableText size="$1" f={1} textAlign="left">
                 Document name
               </SizableText>
@@ -214,7 +230,15 @@ function DraftListItem({id}: {id: UnpackedHypermediaId}) {
         </XStack>
       </DataTable.Cell>
       <DataTable.Cell>
-        <SizableText>TODO</SizableText>
+        <Tooltip
+          content={`Last update: ${formattedDateLong(
+            new Date(draft.data?.lastUpdateTime),
+          )}`}
+        >
+          <SizableText size="$1">
+            {formattedDate(new Date(draft.data?.lastUpdateTime))}
+          </SizableText>
+        </Tooltip>
       </DataTable.Cell>
       <DataTable.Cell>
         <SizableText>Authors...</SizableText>
@@ -243,7 +267,11 @@ function DraftListItem({id}: {id: UnpackedHypermediaId}) {
 }
 
 // TODO: update types
-function DirectoryItem({item}: {item: any}) {
+function DirectoryItem({
+  item,
+}: {
+  item: HMDocument & {id: UnpackedHypermediaId}
+}) {
   return (
     <DataTable.Row>
       <DataTable.Cell>
@@ -284,7 +312,9 @@ function DirectoryItem({item}: {item: any}) {
         </XStack>
       </DataTable.Cell>
       <DataTable.Cell>
-        <SizableText>TODO</SizableText>
+        <Tooltip content={`Last update: ${formattedDateLong(item.updateTime)}`}>
+          <SizableText size="$1">{formattedDate(item.updateTime)}</SizableText>
+        </Tooltip>
       </DataTable.Cell>
       <DataTable.Cell>
         <SizableText>Authors...</SizableText>
