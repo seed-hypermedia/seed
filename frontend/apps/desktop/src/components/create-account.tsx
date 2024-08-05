@@ -280,7 +280,8 @@ export function AccountWizardDialog() {
                           icon={Info}
                           size="$1"
                           chromeless
-                          hoverStyle={{bg: 'transparent'}}
+                          bg="$colorTransparent"
+                          hoverStyle={{bg: '$colorTransparent'}}
                         />
                       </Tooltip>
                       <SizableText fontWeight="600" textAlign="center" f={1}>
@@ -305,7 +306,8 @@ export function AccountWizardDialog() {
                           icon={Info}
                           size="$1"
                           chromeless
-                          hoverStyle={{bg: 'transparent'}}
+                          bg="$colorTransparent"
+                          hoverStyle={{bg: '$colorTransparent'}}
                         />
                       </Tooltip>
                       <SizableText fontWeight="600" textAlign="center" f={1}>

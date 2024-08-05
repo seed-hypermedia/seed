@@ -257,7 +257,8 @@ export function usePublishDraft(
           }
         } catch (error) {
           const connectErr = ConnectError.from(error)
-          throw Error(connectErr.message)
+          toast.error(`Publish error: ${connectErr.rawMessage}`)
+          throw Error(connectErr.rawMessage)
         }
       }
     },

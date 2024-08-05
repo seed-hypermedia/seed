@@ -57,11 +57,15 @@ export default function PublishDraftButton() {
   useEffect(() => {
     if (accts.length == 1 && accts[0].data) {
       setSigningAccount(accts[0].data)
+      draftDispatch({type: 'CHANGE', signingAccount: accts[0].data.id.uid})
     }
   }, [accts])
 
   useEffect(() => {
-    if (draft.data?.signingAccount) {
+    if (
+      draft.data?.signingAccount &&
+      draft.data?.signingAccount != signingAccount
+    ) {
       const acc = accts.find((c) => c.data?.id.uid == draft.data.signingAccount)
       if (acc?.data) {
         setSigningAccount(acc.data)
@@ -100,7 +104,6 @@ export default function PublishDraftButton() {
           }
         })
     }
-    navigate({key: 'document', id: draftId})
   }
 
   return (
@@ -131,33 +134,35 @@ export default function PublishDraftButton() {
             </Button>
           </Tooltip>
         </XGroup.Item>
-        <XGroup.Item>
-          <OptionsDropdown
-            button={<Button borderRadius={0} size="$2" icon={ChevronDown} />}
-            menuItems={accts.map((acc) => {
-              if (acc.data) {
-                return {
-                  key: acc.data.id.uid,
-                  label: acc.data.document?.metadata.name || acc.data?.id.uid,
-                  icon: (
-                    <Thumbnail
-                      size={20}
-                      id={acc.data.id}
-                      document={acc.data.document}
-                    />
-                  ),
-                  onPress: () => {
-                    if (acc.data?.id.uid) {
-                      setSigningAccount(acc.data)
-                    }
-                  },
+        {accts.length > 1 ? (
+          <XGroup.Item>
+            <OptionsDropdown
+              button={<Button borderRadius={0} size="$2" icon={ChevronDown} />}
+              menuItems={accts.map((acc) => {
+                if (acc.data) {
+                  return {
+                    key: acc.data.id.uid,
+                    label: acc.data.document?.metadata.name || acc.data?.id.uid,
+                    icon: (
+                      <Thumbnail
+                        size={20}
+                        id={acc.data.id}
+                        document={acc.data.document}
+                      />
+                    ),
+                    onPress: () => {
+                      if (acc.data?.id.uid) {
+                        setSigningAccount(acc.data)
+                      }
+                    },
+                  }
+                } else {
+                  return null
                 }
-              } else {
-                return null
-              }
-            })}
-          />
-        </XGroup.Item>
+              })}
+            />
+          </XGroup.Item>
+        ) : null}
       </XGroup>
     </>
   )
