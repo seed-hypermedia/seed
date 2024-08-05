@@ -1,12 +1,9 @@
 package syncing
 
 import (
-	"bytes"
 	"context"
-	"fmt"
 	"seed/backend/config"
 	"seed/backend/core"
-	"seed/backend/hyper/hypersql"
 	"seed/backend/index"
 	"seed/backend/logging"
 	"seed/backend/mttnet"
@@ -15,8 +12,6 @@ import (
 	"seed/backend/util/must"
 	"testing"
 
-	"crawshaw.io/sqlite"
-	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -101,38 +96,6 @@ func makeTestNode(t *testing.T, name string) testNode {
 		Device:  identity,
 		Syncer:  NewService(cfg.Syncing, must.Do2(zap.NewDevelopment()).Named(name), db, nil, n), // TODO(hm24): add indexer here.
 	}
-}
-
-func getDelegation(ctx context.Context, me core.Identity, idx *index.Index) cid.Cid {
-	var out cid.Cid
-
-	// TODO(burdiyan): need to cache this. Makes no sense to always do this.
-	if err := idx.Query(ctx, func(conn *sqlite.Conn) error {
-		acc := me.Account().Principal()
-		dev := me.DeviceKey().Principal()
-
-		list, err := hypersql.KeyDelegationsList(conn, acc)
-		if err != nil {
-			panic(err)
-		}
-
-		for _, res := range list {
-			if bytes.Equal(dev, res.KeyDelegationsViewDelegate) {
-				out = cid.NewCidV1(uint64(res.KeyDelegationsViewBlobCodec), res.KeyDelegationsViewBlobMultihash)
-				return nil
-			}
-		}
-
-		return nil
-	}); err != nil {
-		panic(err)
-	}
-
-	if !out.Defined() {
-		panic(fmt.Errorf("BUG: failed to find our own key delegation"))
-	}
-
-	return out
 }
 
 type testNode struct {

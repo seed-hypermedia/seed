@@ -3,16 +3,13 @@ package mttnet
 import (
 	"context"
 	"math/rand"
-	"seed/backend/hyper/hypersql"
 	"seed/backend/logging"
 	"time"
 
-	"seed/backend/ipfs"
-
+	"crawshaw.io/sqlite"
 	"crawshaw.io/sqlite/sqlitex"
 	"github.com/ipfs/boxo/provider"
 	"github.com/ipfs/go-cid"
-	"github.com/multiformats/go-multicodec"
 	"go.uber.org/zap"
 )
 
@@ -33,40 +30,39 @@ func makeProvidingStrategy(db *sqlitex.Pool, logLevel string) provider.KeyChanFu
 
 			conn, release, err := db.Conn(ctx)
 			if err != nil {
-				log.Error("Failed to open db connection", zap.Error(err))
+				log.Error("Failed to open db connection: %w", zap.Error(err))
 				return
 			}
-
+			release()
 			// We want to provide all the entity IDs, so we convert them into raw CIDs,
 			// similar to how libp2p discovery service is doing.
-
-			entities, err := hypersql.EntitiesListByPrefix(conn, "*")
-			release()
-			if err != nil {
-				log.Error("Failed to list entities", zap.Error(err))
+			cids := []cid.Cid{}
+			if err = sqlitex.Exec(conn, qListBlobs(), func(stmt *sqlite.Stmt) error {
+				codec := stmt.ColumnInt64(0)
+				hash := stmt.ColumnBytesUnsafe(1)
+				c := cid.NewCidV1(uint64(codec), hash)
+				cids = append(cids, c)
+				return nil
+			}); err != nil {
+				log.Error("Could not list: %w", zap.Error(err))
 				return
 			}
-			log.Info("Start reproviding", zap.Int("Number of entities", len(entities)))
+
+			log.Info("Start reproviding", zap.Int("Number of CIDs", len(cids)))
 			// Since reproviding takes long AND is has throttle limits, we are better off randomizing it.
 			r := rand.New(randSrc) //nolint:gosec
-			r.Shuffle(len(entities), func(i, j int) { entities[i], entities[j] = entities[j], entities[i] })
-			for _, e := range entities {
-				c, err := ipfs.NewCID(uint64(multicodec.Raw), uint64(multicodec.Identity), []byte(e.ResourcesIRI))
-				if err != nil {
-					log.Warn("failed to convert entity ID into CID", zap.Error(err), zap.String("entity", e.ResourcesIRI))
-					return
-				}
-
+			r.Shuffle(len(cids), func(i, j int) { cids[i], cids[j] = cids[j], cids[i] })
+			for _, c := range cids {
 				select {
 				case <-ctx.Done():
 					log.Info("Reproviding context cancelled")
 					return
 				case ch <- c:
 					// Send
-					log.Debug("Reproviding", zap.String("entity", e.ResourcesIRI), zap.String("CID", c.String()))
+					log.Debug("Reproviding", zap.String("CID", c.String()))
 				}
 			}
-			log.Info("Finish reproviding", zap.Int("Number of entities", len(entities)))
+			log.Info("Finish reproviding", zap.Int("Number of cids", len(cids)))
 		}()
 		return ch, nil
 	}

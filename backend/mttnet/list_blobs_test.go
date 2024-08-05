@@ -1,20 +1,13 @@
 package mttnet
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net"
-	"seed/backend/core"
 	p2p "seed/backend/genproto/p2p/v1alpha"
-	"seed/backend/hyper/hypersql"
-	"seed/backend/index"
 	"testing"
 
-	"crawshaw.io/sqlite"
-	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
@@ -110,36 +103,4 @@ func flattenBlobStream(t *testing.T, ctx context.Context, lis *bufconn.Listener,
 	}
 
 	return out
-}
-
-func getDelegation(ctx context.Context, me core.Identity, idx *index.Index) (cid.Cid, error) {
-	var out cid.Cid
-
-	// TODO(burdiyan): need to cache this. Makes no sense to always do this.
-	if err := idx.Query(ctx, func(conn *sqlite.Conn) error {
-		acc := me.Account().Principal()
-		dev := me.DeviceKey().Principal()
-
-		list, err := hypersql.KeyDelegationsList(conn, acc)
-		if err != nil {
-			return err
-		}
-
-		for _, res := range list {
-			if bytes.Equal(dev, res.KeyDelegationsViewDelegate) {
-				out = cid.NewCidV1(uint64(res.KeyDelegationsViewBlobCodec), res.KeyDelegationsViewBlobMultihash)
-				return nil
-			}
-		}
-
-		return nil
-	}); err != nil {
-		return cid.Undef, err
-	}
-
-	if !out.Defined() {
-		return out, fmt.Errorf("BUG: failed to find our own key delegation")
-	}
-
-	return out, nil
 }

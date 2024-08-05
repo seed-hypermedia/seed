@@ -9,8 +9,6 @@ import (
 	"net/http"
 	"regexp"
 	"seed/backend/core"
-	p2p "seed/backend/genproto/p2p/v1alpha"
-	"seed/backend/hyper/hypersql"
 	"seed/backend/lndhub"
 	"seed/backend/lndhub/lndhubsql"
 	"seed/backend/mttnet"
@@ -18,7 +16,6 @@ import (
 	wallet "seed/backend/wallet/walletsql"
 	"strings"
 
-	"crawshaw.io/sqlite"
 	"crawshaw.io/sqlite/sqlitex"
 	"github.com/ipfs/go-cid"
 	"go.uber.org/zap"
@@ -129,63 +126,66 @@ type InvoiceRequest struct {
 // inbound liquidity) we ask the next device. We return in the first device that
 // can issue the invoice. If none of them can, then an error is raised.
 func (srv *Service) P2PInvoiceRequest(ctx context.Context, account core.Principal, request InvoiceRequest) (string, error) {
-	me, err := srv.keyStore.GetKey(ctx, srv.keyName)
-	if err != nil {
-		return "", err
-	}
-	if me.String() == account.String() {
-		err := fmt.Errorf("cannot remotely issue an invoice to myself")
-		srv.log.Debug(err.Error())
-		return "", err
-	}
-
-	var dels []hypersql.KeyDelegationsListResult
-	if err := srv.pool.Query(ctx, func(conn *sqlite.Conn) error {
-		list, err := hypersql.KeyDelegationsList(conn, account)
+	return "", fmt.Errorf("Hm-24. Not implemented")
+	/*
+		me, err := srv.keyStore.GetKey(ctx, srv.keyName)
 		if err != nil {
-			return err
+			return "", err
 		}
-		if len(list) == 0 {
-			return fmt.Errorf("request invoice: can't find devices for account %s", account)
-		}
-
-		dels = list
-
-		return nil
-	}); err != nil {
-		return "", err
-	}
-
-	for _, del := range dels {
-		pid, err := core.Principal(del.KeyDelegationsViewDelegate).PeerID()
-		if err != nil {
-			return "", fmt.Errorf("failed to extract peer ID: %w", err)
-		}
-		p2pc, err := srv.net.Client(ctx, pid)
-		if err != nil {
-			continue
+		if me.String() == account.String() {
+			err := fmt.Errorf("cannot remotely issue an invoice to myself")
+			srv.log.Debug(err.Error())
+			return "", err
 		}
 
-		remoteInvoice, err := p2pc.RequestInvoice(ctx, &p2p.RequestInvoiceRequest{
-			AmountSats:   request.AmountSats,
-			Memo:         request.Memo,
-			HoldInvoice:  request.HoldInvoice,
-			PreimageHash: request.PreimageHash,
-		})
+		var dels []hypersql.KeyDelegationsListResult
+		if err := srv.pool.Query(ctx, func(conn *sqlite.Conn) error {
+			list, err := hypersql.KeyDelegationsList(conn, account)
+			if err != nil {
+				return err
+			}
+			if len(list) == 0 {
+				return fmt.Errorf("request invoice: can't find devices for account %s", account)
+			}
 
-		if err != nil {
-			srv.log.Debug("p2p invoice request failed", zap.String("msg", err.Error()))
-			return "", fmt.Errorf("p2p invoice request failed")
+			dels = list
+
+			return nil
+		}); err != nil {
+			return "", err
 		}
 
-		if remoteInvoice.PayReq == "" {
-			return "", fmt.Errorf("received an empty invoice from remote peer")
+		for _, del := range dels {
+			pid, err := core.Principal(del.KeyDelegationsViewDelegate).PeerID()
+			if err != nil {
+				return "", fmt.Errorf("failed to extract peer ID: %w", err)
+			}
+			p2pc, err := srv.net.Client(ctx, pid)
+			if err != nil {
+				continue
+			}
+
+			remoteInvoice, err := p2pc.RequestInvoice(ctx, &p2p.RequestInvoiceRequest{
+				AmountSats:   request.AmountSats,
+				Memo:         request.Memo,
+				HoldInvoice:  request.HoldInvoice,
+				PreimageHash: request.PreimageHash,
+			})
+
+			if err != nil {
+				srv.log.Debug("p2p invoice request failed", zap.String("msg", err.Error()))
+				return "", fmt.Errorf("p2p invoice request failed")
+			}
+
+			if remoteInvoice.PayReq == "" {
+				return "", fmt.Errorf("received an empty invoice from remote peer")
+			}
+
+			return remoteInvoice.PayReq, nil
 		}
 
-		return remoteInvoice.PayReq, nil
-	}
-
-	return "", fmt.Errorf("couldn't get remote invoice from any peer")
+		return "", fmt.Errorf("couldn't get remote invoice from any peer")
+	*/
 }
 
 // InsertWallet first tries to connect to the wallet with the provided credentials. On
