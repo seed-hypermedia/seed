@@ -103,7 +103,7 @@ export const processMediaMarkdown = async (
         )
       } catch (error) {
         console.error(`Error processing file ${url}:`, error)
-        markdownContent = markdownContent.replace(url, '')
+        markdownContent = markdownContent.replace(url, 'null')
       }
     }
   }
@@ -169,7 +169,8 @@ export const MarkdownToBlocks = async (
       stack.push({level: headingLevel, block})
     } else {
       let blockToInsert = block
-      if (block.type === 'image' && block.props.src.length == 0) {
+      console.log(block)
+      if (block.type === 'image' && block.props.src == 'null') {
         blockToInsert.props = {}
       }
       if (block.content.length > 0) {
