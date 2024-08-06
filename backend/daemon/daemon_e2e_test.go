@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"fmt"
 	documentsimpl "seed/backend/api/documents/v3alpha"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
@@ -229,8 +228,6 @@ func TestSyncingProfiles(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	fmt.Println("Alice Info", alice.Net.AddrInfo())
-	fmt.Println("Bob Info", bob.Net.AddrInfo())
 	_, err = bob.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
 		Addrs: mttnet.AddrInfoToStrings(alice.Net.AddrInfo()),
 	})
