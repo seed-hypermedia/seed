@@ -78,11 +78,12 @@ func (srv *Server) ListPeers(ctx context.Context, in *networking.ListPeersReques
 	net := srv.net
 
 	out := &networking.ListPeersResponse{}
-
+	fmt.Println("ListPeers Called!!!")
 	conn, release, err := srv.db.Conn(ctx)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("ListPeers after conn")
 	defer release()
 	type Cursor struct {
 		ID   int64  `json:"i"`
@@ -125,7 +126,7 @@ func (srv *Server) ListPeers(ctx context.Context, in *networking.ListPeersReques
 	}, lastCursor.ID, in.PageSize); err != nil {
 		return nil, err
 	}
-
+	fmt.Println("ListPeers after query")
 	out.Peers = make([]*networking.PeerInfo, 0, len(peersInfo))
 
 	for _, peer := range peersInfo {
