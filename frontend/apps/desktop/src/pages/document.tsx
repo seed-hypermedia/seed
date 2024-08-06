@@ -27,7 +27,7 @@ import {
 } from '@shm/ui'
 import {PageContainer} from '@shm/ui/src/container'
 import {RadioButtons} from '@shm/ui/src/radio-buttons'
-import {ReactNode, useState} from 'react'
+import {ReactNode} from 'react'
 import {EntityCitationsAccessory} from '../components/citations'
 import {CopyReferenceButton} from '../components/titlebar-common'
 import {AppDocContentProvider} from './document-content-provider'
@@ -233,16 +233,19 @@ function DocPageContent({
 }
 
 function DocPageAppendix({docId}: {docId: UnpackedHypermediaId}) {
-  const [tab, setTab] = useState<'discussion' | 'directory'>('directory')
+  const replace = useNavigate('replace')
+  const route = useNavRoute()
+  if (route.key !== 'document')
+    throw new Error('DocPageAppendix must be in Doc route')
   let content = null
-  if (tab === 'directory') {
+  if (route.tab === 'directory' || !route.tab) {
     content = <Directory docId={docId} />
   }
   return (
     <PageContainer>
       <XStack>
         <RadioButtons
-          value={tab}
+          value={route.tab || 'directory'}
           options={
             [
               {key: 'discussion', label: 'Discussion'},
@@ -250,7 +253,7 @@ function DocPageAppendix({docId}: {docId: UnpackedHypermediaId}) {
             ] as const
           }
           onValue={(value) => {
-            setTab(value)
+            replace({...route, tab: value})
           }}
         />
       </XStack>

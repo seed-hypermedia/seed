@@ -70,7 +70,7 @@ export const documentRouteSchema = z.object({
   id: unpackedHmIdSchema,
   isBlockFocused: z.boolean().optional(),
   immediatelyPromptPush: z.boolean().optional(),
-  tab: z.enum(['home', 'documents', 'activity', 'contacts']).optional(), // home is the default
+  tab: z.enum(['directory', 'discussion']).optional(), // directory is the default
   accessory: z
     .discriminatedUnion('key', [
       documentVersionsAccessorySchema,

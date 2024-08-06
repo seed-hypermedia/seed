@@ -12,7 +12,15 @@ import {
   unpackHmId,
 } from '@shm/shared'
 import {Button, Tooltip} from '@shm/ui'
-import {Contact, Hash, Library, Plus, UserPlus2} from '@tamagui/lucide-icons'
+import {
+  Contact,
+  Folder,
+  Hash,
+  Library,
+  MessageCircle,
+  Plus,
+  UserPlus2,
+} from '@tamagui/lucide-icons'
 import React, {memo, ReactNode, useState} from 'react'
 import {SizableText, Spinner, View, XStack, YStack} from 'tamagui'
 import {openAddAccountWizard} from './create-account'
@@ -209,7 +217,11 @@ function AccountsSection() {
 
 function OutlineSection({id}: {id: UnpackedHypermediaId}) {
   const entity = useEntity(id)
+  const route = useNavRoute()
+  const replace = useNavigate('replace')
   const navigate = useNavigate()
+  if (route.key !== 'document') return null
+  const {tab} = route
   if (!entity?.data) return null
   const {document} = entity.data
   return (
@@ -240,6 +252,24 @@ function OutlineSection({id}: {id: UnpackedHypermediaId}) {
             isBlockFocused: true,
             id: hmId(id.type, id.uid, {blockRef: blockId}),
           })
+        }}
+      />
+      <SidebarItem
+        indented={1}
+        icon={MessageCircle}
+        active={tab === 'discussion'}
+        title="Discussion"
+        onPress={() => {
+          replace({...route, tab: 'discussion'})
+        }}
+      />
+      <SidebarItem
+        indented={1}
+        icon={Folder}
+        active={tab === 'directory' || !tab}
+        title="Directory"
+        onPress={() => {
+          replace({...route, tab: 'directory'})
         }}
       />
     </>
