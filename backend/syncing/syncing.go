@@ -5,14 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"seed/backend/config"
 	"seed/backend/core"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/mttnet"
 	"seed/backend/syncing/rbsr"
 	"seed/backend/util/dqb"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -151,7 +149,7 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer *
 		checker: net.CheckHyperMediaProtocolVersion,
 		version: net.GetProtocolVersion(),
 	}
-	//net.SetIdentificationCallback(svc.syncBack)
+	net.SetIdentificationCallback(svc.syncBack)
 	return svc
 }
 
@@ -381,81 +379,82 @@ func (s *Service) syncBack(ctx context.Context, event event.EvtPeerIdentificatio
 		return
 	}
 
-	conn, cancel, err := s.db.Conn(ctx)
+	_, cancel, err := s.db.Conn(ctx)
 	if err != nil {
 		s.log.Error("Could not get connection")
 	}
 	defer cancel()
+	return
+	/*
+		c, err := s.p2pClient(ctx, event.Peer)
+		if err != nil {
+			s.log.Warn("Could not get p2p client", zap.Error(err))
+			return
+		}
+		res, err := c.ListPeers(ctx, &p2p.ListPeersRequest{PageSize: math.MaxInt32})
+		if err != nil {
+			s.log.Warn("Could not get list of peers", zap.Error(err))
+			return
+		}
+		if len(res.Peers) > 0 {
+			vals := []interface{}{}
+			sqlStr := "INSERT OR REPLACE INTO peers (pid, addresses) VALUES "
+			for _, peer := range res.Peers {
+				if len(peer.Addrs) > 0 {
+					sqlStr += "(?, ?),"
+					vals = append(vals, peer.Id, strings.Join(peer.Addrs, ","))
+				}
 
-	c, err := s.p2pClient(ctx, event.Peer)
-	if err != nil {
-		s.log.Warn("Could not get p2p client", zap.Error(err))
-		return
-	}
-	res, err := c.ListPeers(ctx, &p2p.ListPeersRequest{PageSize: math.MaxInt32})
-	if err != nil {
-		s.log.Warn("Could not get list of peers", zap.Error(err))
-		return
-	}
-	if len(res.Peers) > 0 {
-		vals := []interface{}{}
-		sqlStr := "INSERT OR REPLACE INTO peers (pid, addresses) VALUES "
-		for _, peer := range res.Peers {
-			if len(peer.Addrs) > 0 {
-				sqlStr += "(?, ?),"
-				vals = append(vals, peer.Id, strings.Join(peer.Addrs, ","))
+			}
+			sqlStr = sqlStr[0 : len(sqlStr)-1]
+
+			if err := sqlitex.Exec(conn, sqlStr, nil, vals...); err != nil {
+				s.log.Warn("Could not insert the remote list of peers: %w", zap.Error(err))
+				return
+			}
+		}
+
+		info := s.host.Peerstore().PeerInfo(event.Peer)
+
+		if info.ID == s.host.Network().LocalPeer() {
+			return
+		}
+		if len(info.Addrs) == 0 {
+			return
+		}
+		addrsStr := mttnet.AddrInfoToStrings(info)
+
+		const q = "SELECT addresses FROM peers WHERE pid = ?;"
+		var addresses string
+		if err := sqlitex.WithTx(conn, func() error {
+			if err := sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
+				addresses = stmt.ColumnText(0)
+				return nil
+			}, info.ID.String()); err != nil {
+				return err
 			}
 
-		}
-		sqlStr = sqlStr[0 : len(sqlStr)-1]
-
-		if err := sqlitex.Exec(conn, sqlStr, nil, vals...); err != nil {
-			s.log.Warn("Could not insert the remote list of peers: %w", zap.Error(err))
-			return
-		}
-	}
-
-	info := s.host.Peerstore().PeerInfo(event.Peer)
-
-	if info.ID == s.host.Network().LocalPeer() {
-		return
-	}
-	if len(info.Addrs) == 0 {
-		return
-	}
-	addrsStr := mttnet.AddrInfoToStrings(info)
-
-	const q = "SELECT addresses FROM peers WHERE pid = ?;"
-	var addresses string
-	if err := sqlitex.WithTx(conn, func() error {
-		if err := sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
-			addresses = stmt.ColumnText(0)
 			return nil
-		}, info.ID.String()); err != nil {
-			return err
-		}
-
-		return nil
-	}); err != nil {
-		return
-	}
-	var foundInfo peer.AddrInfo
-	foundAddressesStr := strings.Split(strings.Trim(addresses, " "), ",")
-	if len(foundAddressesStr) != 0 && len(foundAddressesStr[0]) != 0 {
-		foundInfo, err = mttnet.AddrInfoFromStrings(foundAddressesStr...)
-		if err != nil {
+		}); err != nil {
 			return
 		}
-	}
-	if foundInfo.String() != info.String() {
-		if err := sqlitex.Exec(conn, "INSERT OR REPLACE INTO peers (pid, addresses) VALUES (?, ?);", nil, info.ID.String(), strings.Join(addrsStr, ",")); err != nil {
-			s.log.Warn("Could not store peer", zap.Error(err))
-		} else {
-			s.log.Info("Syncing back", zap.String("PeerID", info.ID.String()))
-			go s.SyncWithPeer(ctx, info.ID)
+		var foundInfo peer.AddrInfo
+		foundAddressesStr := strings.Split(strings.Trim(addresses, " "), ",")
+		if len(foundAddressesStr) != 0 && len(foundAddressesStr[0]) != 0 {
+			foundInfo, err = mttnet.AddrInfoFromStrings(foundAddressesStr...)
+			if err != nil {
+				return
+			}
 		}
-	}
-
+		if foundInfo.String() != info.String() {
+			if err := sqlitex.Exec(conn, "INSERT OR REPLACE INTO peers (pid, addresses) VALUES (?, ?);", nil, info.ID.String(), strings.Join(addrsStr, ",")); err != nil {
+				s.log.Warn("Could not store peer", zap.Error(err))
+			} else {
+				s.log.Info("Syncing back", zap.String("PeerID", info.ID.String()))
+				go s.SyncWithPeer(ctx, info.ID)
+			}
+		}
+	*/
 }
 
 func syncPeer(
