@@ -22,7 +22,7 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {File, Sparkles, Star} from '@tamagui/lucide-icons'
+import {Library, Sparkles, Star} from '@tamagui/lucide-icons'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {AiOutlineEllipsis} from 'react-icons/ai'
 
@@ -81,7 +81,7 @@ export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
   if (route.key === 'library') {
     return (
       <>
-        <File size={12} />
+        <Library size={12} />
         <TitleText {...titleProps}>Library</TitleText>
       </>
     )

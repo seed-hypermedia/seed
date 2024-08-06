@@ -12,7 +12,7 @@ import {
   unpackHmId,
 } from '@shm/shared'
 import {Button, Tooltip} from '@shm/ui'
-import {Contact, File, Hash, Plus, UserPlus2} from '@tamagui/lucide-icons'
+import {Contact, Hash, Library, Plus, UserPlus2} from '@tamagui/lucide-icons'
 import React, {memo, ReactNode, useState} from 'react'
 import {SizableText, Spinner, View, XStack, YStack} from 'tamagui'
 import {openAddAccountWizard} from './create-account'
@@ -57,7 +57,7 @@ export function MainAppSidebar() {
         }}
         title="Library"
         bold
-        icon={File}
+        icon={Library}
         rightHover={[]}
       />
       {/* <SidebarItem
@@ -97,8 +97,8 @@ function SidebarSection({
 }) {
   const [collapsed, setCollapsed] = React.useState(false)
   return (
-    <YStack marginTop="$4">
-      <XStack paddingHorizontal="$3" jc="space-between">
+    <YStack marginTop="$4" group="section">
+      <XStack paddingHorizontal="$3" ai="center" jc="space-between">
         <SizableText
           fontWeight="bold"
           fontSize="$1"
@@ -115,7 +115,9 @@ function SidebarSection({
         >
           {title}
         </SizableText>
-        {accessory}
+        <View opacity={0} $group-section-hover={{opacity: 1}}>
+          {accessory}
+        </View>
       </XStack>
       {collapsed ? null : children}
     </YStack>
