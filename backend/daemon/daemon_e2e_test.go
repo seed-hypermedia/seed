@@ -191,7 +191,7 @@ func TestDaemonUpdateProfile(t *testing.T) {
 
 func TestSyncingProfiles(t *testing.T) {
 	t.Parallel()
-	t.Skip("Times out in CI server")
+
 	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
 	ctx := context.Background()
 	aliceIdentity := coretest.NewTester("alice")
@@ -228,9 +228,8 @@ func TestSyncingProfiles(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-
-	_, err = alice.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
-		Addrs: mttnet.AddrInfoToStrings(bob.Net.AddrInfo()),
+	_, err = bob.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
+		Addrs: mttnet.AddrInfoToStrings(alice.Net.AddrInfo()),
 	})
 	require.NoError(t, err)
 
@@ -242,7 +241,7 @@ func TestSyncingProfiles(t *testing.T) {
 	// to force any syncing just wait for bob to instantly syncs content right after connection.
 	//_, err = bob.RPC.Daemon.ForceSync(ctx, &daemon.ForceSyncRequest{})
 	//require.NoError(t, err)
-	time.Sleep(time.Millisecond * 200)
+	time.Sleep(time.Millisecond * 300)
 	doc2, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: aliceIdentity.Account.Principal().String(),
 		Path:    "",

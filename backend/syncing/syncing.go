@@ -381,12 +381,6 @@ func (s *Service) syncBack(ctx context.Context, event event.EvtPeerIdentificatio
 		return
 	}
 
-	conn, cancel, err := s.db.Conn(ctx)
-	if err != nil {
-		s.log.Error("Could not get connection")
-	}
-	defer cancel()
-
 	c, err := s.p2pClient(ctx, event.Peer)
 	if err != nil {
 		s.log.Warn("Could not get p2p client", zap.Error(err))
@@ -397,6 +391,11 @@ func (s *Service) syncBack(ctx context.Context, event event.EvtPeerIdentificatio
 		s.log.Warn("Could not get list of peers", zap.Error(err))
 		return
 	}
+	conn, cancel, err := s.db.Conn(ctx)
+	if err != nil {
+		s.log.Error("Could not get connection")
+	}
+	defer cancel()
 	if len(res.Peers) > 0 {
 		vals := []interface{}{}
 		sqlStr := "INSERT OR REPLACE INTO peers (pid, addresses) VALUES "

@@ -28,7 +28,6 @@ var qListPeers = dqb.Str(`
 func (srv *rpcMux) ListPeers(ctx context.Context, in *p2p.ListPeersRequest) (*p2p.ListPeersResponse, error) {
 	net := srv.Node
 	out := &p2p.ListPeersResponse{}
-
 	conn, release, err := srv.Node.db.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -75,7 +74,6 @@ func (srv *rpcMux) ListPeers(ctx context.Context, in *p2p.ListPeersRequest) (*p2
 	}, lastCursor.ID, in.PageSize); err != nil {
 		return nil, err
 	}
-
 	out.Peers = make([]*p2p.PeerInfo, 0, len(peersInfo))
 
 	for _, peer := range peersInfo {
