@@ -16,22 +16,17 @@ import {trpc} from '@/trpc'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {HMDraft, UnpackedHypermediaId} from '@shm/shared'
-import {
-  Button,
-  Popover,
-  PopoverContent,
-  SizableText,
-  XStack,
-  YStack,
-} from '@shm/ui'
+import {Button, File} from '@shm/ui'
+import {Folder, Upload} from '@tamagui/lucide-icons'
 import {Extension} from '@tiptap/core'
-import {useMemo, useState} from 'react'
+import {useMemo} from 'react'
+import {MenuItemType, OptionsDropdown} from './options-dropdown'
 
 export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
   const {openMarkdownDirectories, openMarkdownFiles} = useAppContext()
   const keys = useMyAccountIds()
   const signingAccount = useMemo(() => {
-    return keys.data?.length ? keys.data[0] : undefined // TODO: @horacio need to add a "key selector" here
+    return keys.data?.length ? keys.data[0] : undefined
   }, [keys.data])
   const navigate = useNavigate()
   const saveDraft = trpc.drafts.write.useMutation()
@@ -39,10 +34,7 @@ export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
   const openUrl = useOpenUrl()
   const gwUrl = useGatewayUrlStream()
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
-  const showNostr = trpc.experiments.get.useQuery().data?.nostr
   const invalidate = useQueryInvalidator()
-
-  const [isPopoverOpen, setIsPopoverOpen] = useState(false)
 
   const importDocuments = async (type: 'directory' | 'file') => {
     const editor = new BlockNoteEditor<BlockSchema>({
@@ -98,7 +90,7 @@ export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
             signingAccount,
           }
 
-          await saveDraft.mutateAsync({
+          const draft = await saveDraft.mutateAsync({
             id: input.id + '/' + path,
             draft: inputData,
           })
@@ -110,53 +102,32 @@ export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
         console.error('Error importing documents:', error)
         // Show a toast or notification for the error
       })
-      .finally(() => {
-        setIsPopoverOpen(false)
-      })
   }
 
-  return (
-    <YStack>
-      <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
-        <Popover.Trigger>
-          <Button onPress={() => setIsPopoverOpen(true)}>
-            Import Document
-          </Button>
-        </Popover.Trigger>
+  const menuItems: MenuItemType[] = [
+    {
+      key: 'importFile',
+      icon: File,
+      onPress: () => importDocuments('file'),
+      label: 'Import Markdown File',
+    },
+    {
+      key: 'importDir',
+      icon: Folder,
+      onPress: () => importDocuments('directory'),
+      label: 'Import Directory',
+    },
+  ]
 
-        {isPopoverOpen && (
-          <PopoverContent padding="$4">
-            <SizableText size="$4" fontWeight="bold">
-              Import from
-            </SizableText>
-            <SizableText size="$2">Select the source:</SizableText>
-            <XStack marginTop="$2" space="$3" justifyContent="center">
-              <Button
-                size="$2"
-                onPress={() => importDocuments('file')}
-                style={{
-                  whiteSpace: 'pre-wrap',
-                  textAlign: 'center',
-                  height: 'auto',
-                }}
-              >
-                Import Markdown File
-              </Button>
-              <Button
-                size="$2"
-                onPress={() => importDocuments('directory')}
-                style={{
-                  whiteSpace: 'pre-wrap',
-                  textAlign: 'center',
-                  height: 'auto',
-                }}
-              >
-                Import Directory
-              </Button>
-            </XStack>
-          </PopoverContent>
-        )}
-      </Popover>
-    </YStack>
+  const TriggerButton = (
+    <Button icon={Upload} marginLeft="$2">
+      Import Document
+    </Button>
+  )
+
+  return (
+    <>
+      <OptionsDropdown menuItems={menuItems} button={TriggerButton} />
+    </>
   )
 }
