@@ -103,8 +103,8 @@ SELECT
     pk.principal
 FROM LatestBlobs lb
 JOIN resources res ON res.id = lb.resource
-JOIN public_keys pk ON pk.id = lb.author;
-
+JOIN public_keys pk ON pk.id = lb.author
+WHERE extra_attrs IS NOT NULL;
 -- Stores hypermedia resources.
 -- All resources are identified by an IRI[iri],
 -- might have an owner identified by a public key.
