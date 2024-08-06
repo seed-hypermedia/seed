@@ -384,13 +384,14 @@ func (s *Service) syncBack(ctx context.Context, event event.EvtPeerIdentificatio
 		s.log.Error("Could not get connection")
 	}
 	defer cancel()
+
+	_, err = s.p2pClient(ctx, event.Peer)
+	if err != nil {
+		s.log.Warn("Could not get p2p client", zap.Error(err))
+		return
+	}
 	return
 	/*
-		c, err := s.p2pClient(ctx, event.Peer)
-		if err != nil {
-			s.log.Warn("Could not get p2p client", zap.Error(err))
-			return
-		}
 		res, err := c.ListPeers(ctx, &p2p.ListPeersRequest{PageSize: math.MaxInt32})
 		if err != nil {
 			s.log.Warn("Could not get list of peers", zap.Error(err))
