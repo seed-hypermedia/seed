@@ -52,6 +52,7 @@ import {draftMachine} from './draft-machine'
 import {setGroupTypes} from './editor-utils'
 import {useEntities, useEntity} from './entities'
 import {useGatewayUrl, useGatewayUrlStream} from './gateway-settings'
+import {useInlineMentions} from './search'
 
 export const [draftDispatch, draftEvents] = eventStream<{
   type: 'CHANGE'
@@ -367,6 +368,7 @@ export function useDraftEditor({id}: {id: string | undefined}) {
     writeableStateStream<any>(null),
   ).current
   const saveDraft = trpc.drafts.write.useMutation()
+  const {inlineMentionsQuery, inlineMentionsData} = useInlineMentions()
 
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
@@ -412,7 +414,7 @@ export function useDraftEditor({id}: {id: string | undefined}) {
       checkWebUrl: checkWebUrl.mutateAsync,
     },
     onMentionsQuery: (query: string) => {
-      // inlineMentionsQuery(query)
+      inlineMentionsQuery(query)
     },
     blockSchema: hmBlockSchema,
     slashMenuItems: !showNostr
@@ -433,6 +435,12 @@ export function useDraftEditor({id}: {id: string | undefined}) {
       ],
     },
   })
+
+  useEffect(() => {
+    if (inlineMentionsData) {
+      editor?.setInlineEmbedOptions(inlineMentionsData)
+    }
+  }, [inlineMentionsData])
 
   const createOrUpdateDraft = fromPromise<
     HMDraft & {id?: string},

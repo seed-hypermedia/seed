@@ -88,27 +88,11 @@ export function MentionToken(props: {value: string; selected?: boolean}) {
   const unpackedRef = unpackHmId(props.value)
 
   if (unpackedRef?.type == 'd') {
-    // todo, remove and merge <DocumentMention unpackedRef={unpackedRef} {...props} />. this was removed when the id.type=d was removed
-    return <AccountMention unpackedRef={unpackedRef} {...props} />
+    return <DocumentMention unpackedRef={unpackedRef} {...props} />
   } else {
     console.log('=== MENTION ERROR', props)
     return <MentionText>ERROR</MentionText>
   }
-}
-
-function AccountMention({
-  unpackedRef,
-  selected,
-}: {
-  unpackedRef: UnpackedHypermediaId
-  selected?: boolean
-}) {
-  const entity = useEntity(unpackedRef)
-  return (
-    <MentionText selected={selected}>
-      @{getDocumentTitle(entity.data?.document)}
-    </MentionText>
-  )
 }
 
 function DocumentMention({
@@ -118,16 +102,12 @@ function DocumentMention({
   unpackedRef: UnpackedHypermediaId
   selected?: boolean
 }) {
-  const doc = useEntity(unpackedRef)
-
-  if (doc.status == 'loading') {
-    return <MentionText>...</MentionText>
-  }
-
+  const entity = useEntity(unpackedRef)
   return (
     <MentionText selected={selected}>
-      {doc.data?.document
-        ? getDocumentTitle(doc.data.document)
+      @
+      {entity.data?.document
+        ? getDocumentTitle(entity.data?.document)
         : unpackedRef.id}
     </MentionText>
   )
