@@ -1,15 +1,13 @@
-import {openAddAccountWizard} from '@/components/create-account'
 import {MainWrapper} from '@/components/main-wrapper'
 import {Thumbnail} from '@/components/thumbnail'
 import {useDraft} from '@/models/accounts'
-import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
+import {useDeleteKey} from '@/models/daemon'
 import {useDeleteDraft, useDraftList} from '@/models/documents'
 import {useEntity} from '@/models/entities'
 import {useOpenDraft} from '@/utils/open-draft'
 import {useNavigate} from '@/utils/useNavigate'
 import {hmId, unpackHmId} from '@shm/shared'
 import {
-  Add,
   Button,
   Container,
   Footer,
@@ -25,7 +23,6 @@ import {
 export default function ContentPage() {
   const draftList = useDraftList()
   const openDraft = useOpenDraft('push')
-  const keys = useMyAccountIds()
   const deleteDraft = useDeleteDraft()
   function handleDelete(id: string) {
     deleteDraft.mutateAsync(id).then(() => {
@@ -36,18 +33,6 @@ export default function ContentPage() {
   return (
     <>
       <MainWrapper>
-        <Container>
-          {keys.data?.length ? (
-            <YStack>
-              {keys.data.map((key) => (
-                <AccountKeyItem accountId={key} key={key} />
-              ))}
-            </YStack>
-          ) : null}
-          <Button onPress={() => openAddAccountWizard()} icon={Add}>
-            Add account
-          </Button>
-        </Container>
         <View height="100vh" alignSelf="stretch">
           <List
             items={draftList.data || []}
@@ -115,13 +100,7 @@ function AccountKeyItem({accountId}: {accountId: string}) {
       <XStack f={1} ai="center" gap="$2">
         <Thumbnail id={id} document={doc.data?.document} size={40} />
         <YStack f={1}>
-          <p
-            style={{
-              display: 'block',
-            }}
-          >
-            public key: {accountId.substring(accountId.length - 12)}
-          </p>
+          <SizableText>{doc.data?.document?.metadata.name}</SizableText>
         </YStack>
       </XStack>
 

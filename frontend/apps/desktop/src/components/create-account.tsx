@@ -134,7 +134,7 @@ export function AccountWizardDialog() {
       })
 
       if (isSaveWords) {
-        saveWords.mutate({key: name, value: words})
+        saveWords.mutate({key: renamedKey.name, value: words})
       }
 
       await createDraft.mutateAsync({
@@ -148,6 +148,7 @@ export function AccountWizardDialog() {
           members: [],
           previousId: null,
           deps: [],
+          lastUpdateTime: Date.now(),
         } as HMDraft,
       })
       invalidate([queryKeys.LOCAL_ACCOUNT_ID_LIST])

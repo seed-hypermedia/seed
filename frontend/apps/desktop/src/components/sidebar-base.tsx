@@ -223,79 +223,77 @@ export function SidebarItem({
   const indent = indented ? (typeof indented === 'number' ? indented : 1) : 0
   const activeBg = activeBgColor || '$blue4'
   return (
-    <View>
-      <ListItem
-        hoverTheme
-        pressTheme
-        focusTheme
-        minHeight={minHeight || 32}
-        paddingVertical={paddingVertical || '$1'}
-        size="$2"
-        paddingLeft={Math.max(0, indent) * 22 + 12}
-        textAlign="left"
-        outlineColor="transparent"
-        backgroundColor={active ? activeBg : '$colorTransparent'}
-        hoverStyle={active ? {backgroundColor: activeBg} : {}}
-        userSelect="none"
-        gap="$2"
-        group="item"
-        color={color || '$gray12'}
-        cursor={active ? undefined : 'pointer'}
-        title={undefined}
-        iconAfter={
-          iconAfter || (
-            <>
-              <XStack opacity={0} $group-item-hover={{opacity: 1}}>
-                {rightHover}
-              </XStack>
-              {menuItems ? (
-                <OptionsDropdown hiddenUntilItemHover menuItems={menuItems} />
-              ) : null}
-            </>
-          )
-        }
-        {...props}
-      >
-        <XStack gap="$2" jc="center" f={1}>
-          {isValidElement(icon) ? (
-            icon
-          ) : icon ? (
-            <View width={18}>{createElement(icon, {size: 18})}</View>
-          ) : (
-            <View width={18} />
-          )}
-          {children}
-          <SizableText
-            f={1}
-            textOverflow="ellipsis"
-            whiteSpace="nowrap"
-            width="100%"
-            overflow="hidden"
-            fontSize="$3"
-            color={color || '$gray12'}
-            cursor={active ? undefined : 'pointer'}
-            fontWeight={bold ? 'bold' : undefined}
-            userSelect="none"
-          >
-            {title}
-          </SizableText>
-          {isCollapsed != null ? (
-            <Button
-              position="absolute"
-              left={-24}
-              size="$1"
-              chromeless
-              backgroundColor={'$colorTransparent'}
-              onPress={(e) => {
-                e.stopPropagation()
-                onSetCollapsed?.(!isCollapsed)
-              }}
-              icon={isCollapsed ? ChevronRight : ChevronDown}
-            />
-          ) : null}
-        </XStack>
-      </ListItem>
-    </View>
+    <ListItem
+      hoverTheme
+      pressTheme
+      focusTheme
+      minHeight={minHeight || 32}
+      paddingVertical={paddingVertical || '$1'}
+      size="$2"
+      paddingLeft={Math.max(0, indent) * 22 + 12}
+      textAlign="left"
+      outlineColor="transparent"
+      backgroundColor={active ? activeBg : '$colorTransparent'}
+      hoverStyle={active ? {backgroundColor: activeBg} : {}}
+      userSelect="none"
+      gap="$2"
+      group="item"
+      color={color || '$gray12'}
+      cursor={active ? undefined : 'pointer'}
+      title={undefined}
+      iconAfter={
+        iconAfter || (
+          <>
+            <XStack opacity={0} $group-item-hover={{opacity: 1}}>
+              {rightHover}
+            </XStack>
+            {menuItems ? (
+              <OptionsDropdown hiddenUntilItemHover menuItems={menuItems} />
+            ) : null}
+          </>
+        )
+      }
+      {...props}
+    >
+      <XStack gap="$2" jc="center" f={1}>
+        {isValidElement(icon) ? (
+          icon
+        ) : icon ? (
+          <View width={18}>{createElement(icon, {size: 18})}</View>
+        ) : (
+          <View width={18} />
+        )}
+        {children}
+        <SizableText
+          f={1}
+          textOverflow="ellipsis"
+          whiteSpace="nowrap"
+          width="100%"
+          overflow="hidden"
+          fontSize="$3"
+          color={color || '$gray12'}
+          cursor={active ? undefined : 'pointer'}
+          fontWeight={bold ? 'bold' : undefined}
+          userSelect="none"
+        >
+          {title}
+        </SizableText>
+        {isCollapsed != null ? (
+          <Button
+            position="absolute"
+            left={-24}
+            size="$1"
+            chromeless
+            backgroundColor={'$colorTransparent'}
+            onPress={(e) => {
+              e.stopPropagation()
+              onSetCollapsed?.(!isCollapsed)
+            }}
+            icon={isCollapsed ? ChevronRight : ChevronDown}
+          />
+        ) : null}
+      </XStack>
+    </ListItem>
   )
 }
 

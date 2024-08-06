@@ -333,11 +333,28 @@ function AccountKeys() {
     },
   )
 
-  // useEffect(() => {
-  //   if (keys.data && keys.data.length) {
-  //     setSelectedAccount(keys.data[0])
-  //   }
-  // }, [keys.data])
+  const {data: mnemonics, refetch: mnemonicsRefetch} =
+    useSavedMnemonics(selectedAccount)
+
+  const selectedAccountId = selectedAccount
+    ? hmId('d', selectedAccount)
+    : undefined
+
+  const {data: profile} = useEntity(selectedAccountId)
+
+  const [showWords, setShowWords] = useState<boolean>(false)
+
+  useEffect(() => {
+    if (keys.data && keys.data.length) {
+      setSelectedAccount(keys.data[0])
+    }
+  }, [keys.data])
+
+  useEffect(() => {
+    if (selectedAccount) {
+      mnemonicsRefetch()
+    }
+  }, [selectedAccount])
 
   function handleDeleteCurrentAccount() {
     if (!selectedAccount) return
@@ -346,14 +363,6 @@ function AccountKeys() {
       toast.success('Profile removed correctly')
     })
   }
-  const selectedAccountId = selectedAccount
-    ? hmId('d', selectedAccount)
-    : undefined
-
-  const {data: profile} = useEntity(selectedAccountId)
-
-  const mnemonics = useSavedMnemonics()
-  const [showWords, setShowWords] = useState<boolean>(false)
 
   function handleDeleteWords() {
     deleteWords.mutateAsync('main').then(() => {

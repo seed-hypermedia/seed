@@ -1,4 +1,4 @@
-import {useMyAccountIds} from '@/models/daemon'
+import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
 import {useEntities, useEntity} from '@/models/entities'
 import {useFavorites} from '@/models/favorites'
 import {appRouteOfId, useNavRoute} from '@/utils/navigation'
@@ -19,6 +19,7 @@ import {
   Library,
   MessageCircle,
   Plus,
+  Trash,
   UserPlus2,
 } from '@tamagui/lucide-icons'
 import React, {memo, ReactNode, useState} from 'react'
@@ -106,7 +107,7 @@ function SidebarSection({
   const [collapsed, setCollapsed] = React.useState(false)
   return (
     <YStack marginTop="$4" group="section">
-      <XStack paddingHorizontal="$3" ai="center" jc="space-between">
+      <XStack paddingHorizontal="$2" ai="center" jc="space-between">
         <SizableText
           fontWeight="bold"
           fontSize="$1"
@@ -123,9 +124,9 @@ function SidebarSection({
         >
           {title}
         </SizableText>
-        <View opacity={0} $group-section-hover={{opacity: 1}}>
+        <XStack opacity={0} $group-section-hover={{opacity: 1}}>
           {accessory}
-        </View>
+        </XStack>
       </XStack>
       {collapsed ? null : children}
     </YStack>
@@ -167,6 +168,7 @@ function AccountsSection() {
   const hasAccounts = !!accountIds.data?.length
   const route = useNavRoute()
   const navigate = useNavigate()
+  const deleteKey = useDeleteKey()
   return (
     <SidebarSection
       title="Accounts"
@@ -176,7 +178,7 @@ function AccountsSection() {
             <Button
               bg="$colorTransparent"
               chromeless
-              size="$2"
+              size="$1"
               icon={Plus}
               onPress={openAddAccountWizard}
             />
@@ -200,6 +202,23 @@ function AccountsSection() {
               route.id.uid === id.uid &&
               !route.id.path?.length
             }
+            rightHover={[
+              <Tooltip content="Delete Account Key from this device">
+                <Button
+                  size="$1"
+                  theme="red"
+                  icon={Trash}
+                  onPress={
+                    account.data?.id.id
+                      ? () =>
+                          deleteKey.mutateAsync({
+                            accountId: account.data!.id.uid,
+                          })
+                      : undefined
+                  }
+                />
+              </Tooltip>,
+            ]}
           />
         )
       })}

@@ -8,25 +8,27 @@ import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
 import {MainWrapper} from '@/components/main-wrapper'
 import {Thumbnail} from '@/components/thumbnail'
-import {useMyAccountIds} from '@/models/daemon'
+import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
 import {useEntity} from '@/models/entities'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {DocContent, getProfileName, UnpackedHypermediaId} from '@shm/shared'
 import {
+  Button,
   CitationsIcon,
   CollaboratorsIcon,
   CommentsIcon,
   HistoryIcon,
   Section,
-  Separator,
   SizableText,
   Spinner,
   SuggestedChangesIcon,
+  Tooltip,
   XStack,
 } from '@shm/ui'
 import {PageContainer} from '@shm/ui/src/container'
 import {RadioButtons} from '@shm/ui/src/radio-buttons'
+import {Trash} from '@tamagui/lucide-icons'
 import {ReactNode} from 'react'
 import {EntityCitationsAccessory} from '../components/citations'
 import {CopyReferenceButton} from '../components/titlebar-common'
@@ -164,18 +166,19 @@ function DocPageHeader() {
   if (!docId) throw new Error('Invalid route, no entity id')
   const myAccountIds = useMyAccountIds()
   const entity = useEntity(docId)
-  const isMyAccount = myAccountIds.data?.includes(docId.id)
+  const isMyAccount = myAccountIds.data?.includes(docId.uid)
   const accountName = getProfileName(entity.data?.document)
 
   return (
     <>
       <PageContainer marginTop="$6">
-        <Section
-          paddingVertical={0}
-          gap="$2"
-          marginBottom={route.tab !== 'home' ? '$4' : undefined}
-        >
-          <XStack gap="$4" alignItems="center" justifyContent="space-between">
+        <Section paddingVertical={0} gap="$2" marginBottom="$4">
+          <XStack
+            gap="$4"
+            alignItems="center"
+            justifyContent="space-between"
+            paddingVertical="$4"
+          >
             <XStack gap="$4" alignItems="center" minHeight={60}>
               {entity.data?.id ? (
                 <Thumbnail
@@ -195,14 +198,33 @@ function DocPageHeader() {
               </SizableText>
             </XStack>
 
-            <XStack space="$2">
-              {isMyAccount ? null : <FavoriteButton id={docId} />}
+            <XStack gap="$2">
+              {isMyAccount ? (
+                <DeleteKey accountId={docId.id} />
+              ) : (
+                <FavoriteButton id={docId} />
+              )}
               <CopyReferenceButton />
             </XStack>
           </XStack>
         </Section>
       </PageContainer>
     </>
+  )
+}
+
+function DeleteKey({accountId}: {accountId: string}) {
+  const deleteKey = useDeleteKey()
+
+  return (
+    <Tooltip content="Delete Account Key from this device">
+      <Button
+        size="$2"
+        onPress={() => deleteKey.mutateAsync({accountId})}
+        icon={Trash}
+        theme="red"
+      />
+    </Tooltip>
   )
 }
 
@@ -221,13 +243,14 @@ function DocPageContent({
   const blockId = docId.blockRef
   return (
     <PageContainer>
-      <AppDocContentProvider routeParams={{blockRef: blockId}}>
-        <DocContent
-          document={entity.data?.document}
-          focusBlockId={isBlockFocused ? blockId : undefined}
-        />
-        <Separator />
-      </AppDocContentProvider>
+      <Section>
+        <AppDocContentProvider routeParams={{blockRef: blockId}}>
+          <DocContent
+            document={entity.data?.document}
+            focusBlockId={isBlockFocused ? blockId : undefined}
+          />
+        </AppDocContentProvider>
+      </Section>
     </PageContainer>
   )
 }
