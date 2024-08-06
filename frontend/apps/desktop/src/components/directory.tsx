@@ -188,9 +188,14 @@ function DraftListItem({id}: {id: UnpackedHypermediaId}) {
   const navigate = useNavigate()
 
   const draft = useDraft(packHmId(id))
+
+  function goToDraft() {
+    navigate({key: 'draft', id})
+  }
+
   return (
     <DataTable.Row>
-      <DataTable.Cell>
+      <DataTable.Cell onPress={goToDraft}>
         <XStack gap="$2">
           <Thumbnail size={20} id={id} document={draft.data} />
           <SizableText fontWeight="600">
@@ -198,71 +203,28 @@ function DraftListItem({id}: {id: UnpackedHypermediaId}) {
           </SizableText>
         </XStack>
       </DataTable.Cell>
-      <DataTable.Cell>
-        <XStack
-          group="pathitem"
-          ai="center"
-          gap="$2"
-          f={1}
-          onPress={() => {
-            console.log('-- cliekd!')
-          }}
-        >
-          <SizableText
-            color="$blue10"
-            size="$2"
-            fontWeight="500"
-            $group-pathitem-hover={{
-              color: '$blue11',
-            }}
-          >
-            {`/${id.path?.at(-1)}`}
-          </SizableText>
-          <Copy
-            size={12}
-            color="$blue10"
-            opacity={0}
-            $group-pathitem-hover={{
-              opacity: 1,
-              color: '$blue11',
-            }}
-          />
-        </XStack>
+      <DataTable.Cell onPress={goToDraft}>
+        <PathButton path={id.path || []} onCopy={() => {}} />
       </DataTable.Cell>
-      <DataTable.Cell>
+      <DataTable.Cell onPress={goToDraft}>
         <Tooltip
-          content={`Last update: ${formattedDateLong(
-            new Date(draft.data?.lastUpdateTime),
-          )}`}
+          content={
+            draft.data?.lastUpdateTime
+              ? `Last update: ${formattedDateLong(
+                  new Date(draft.data.lastUpdateTime),
+                )}`
+              : ''
+          }
         >
           <SizableText size="$1">
             {formattedDate(new Date(draft.data?.lastUpdateTime))}
           </SizableText>
         </Tooltip>
       </DataTable.Cell>
-      <DataTable.Cell>
+      <DataTable.Cell onPress={goToDraft}>
         <SizableText>Authors...</SizableText>
       </DataTable.Cell>
     </DataTable.Row>
-  )
-
-  return (
-    <ListItem
-      key={id.id}
-      backgroundColor={'$yellow3'}
-      title={draft.data?.metadata.name || 'Untitled'}
-      accessory={
-        <Button size="$2" disabled theme="yellow">
-          New Draft
-        </Button>
-      }
-      onPress={() => {
-        navigate({
-          key: 'draft',
-          id,
-        })
-      }}
-    />
   )
 }
 
@@ -270,53 +232,42 @@ function DraftListItem({id}: {id: UnpackedHypermediaId}) {
 function DirectoryItem({
   item,
 }: {
-  item: HMDocument & {id: UnpackedHypermediaId}
+  item: HMDocument & {id: UnpackedHypermediaId; hasDraft: boolean}
 }) {
+  const navigate = useNavigate('push')
+
+  function goToDocument() {
+    navigate({key: 'document', id: item.id})
+  }
   return (
     <DataTable.Row>
-      <DataTable.Cell>
+      <DataTable.Cell onPress={goToDocument}>
         <XStack gap="$2">
           <Thumbnail size={20} id={item.id} document={item} />
           <SizableText fontWeight="600">{item.metadata.name}</SizableText>
+          {item.hasDraft ? (
+            <Button
+              size="$1"
+              theme="yellow"
+              onPress={(e) => {
+                e.stopPropagation()
+                navigate({key: 'draft', id: item.id})
+              }}
+            >
+              Resume Editing
+            </Button>
+          ) : null}
         </XStack>
       </DataTable.Cell>
-      <DataTable.Cell noPadding>
-        <XStack
-          group="pathitem"
-          ai="center"
-          gap="$2"
-          f={1}
-          onPress={() => {
-            console.log('-- cliekd!')
-          }}
-        >
-          <SizableText
-            color="$blue10"
-            size="$2"
-            fontWeight="500"
-            $group-pathitem-hover={{
-              color: '$blue11',
-            }}
-          >
-            {`/${item.path?.at(-1)}`}
-          </SizableText>
-          <Copy
-            size={12}
-            color="$blue10"
-            opacity={0}
-            $group-pathitem-hover={{
-              opacity: 1,
-              color: '$blue11',
-            }}
-          />
-        </XStack>
+      <DataTable.Cell noPadding onPress={goToDocument}>
+        <PathButton path={item.path} onCopy={() => {}} />
       </DataTable.Cell>
-      <DataTable.Cell>
+      <DataTable.Cell onPress={goToDocument}>
         <Tooltip content={`Last update: ${formattedDateLong(item.updateTime)}`}>
           <SizableText size="$1">{formattedDate(item.updateTime)}</SizableText>
         </Tooltip>
       </DataTable.Cell>
-      <DataTable.Cell>
+      <DataTable.Cell onPress={goToDocument}>
         <SizableText>Authors...</SizableText>
       </DataTable.Cell>
     </DataTable.Row>
@@ -396,5 +347,46 @@ function NewSubDocumentButton({
       </Button>
       {content}
     </>
+  )
+}
+
+function PathButton({
+  path,
+  onCopy,
+}: {
+  path: UnpackedHypermediaId['path'] | HMDocument['path']
+  onCopy: () => void
+}) {
+  return (
+    <XStack
+      group="pathitem"
+      ai="center"
+      gap="$2"
+      f={1}
+      onPress={(e) => {
+        e.stopPropagation()
+        onCopy()
+      }}
+    >
+      <SizableText
+        color="$blue10"
+        size="$2"
+        fontWeight="500"
+        $group-pathitem-hover={{
+          color: '$blue11',
+        }}
+      >
+        {path ? `/${path.at(-1)}` : ''}
+      </SizableText>
+      <Copy
+        size={12}
+        color="$blue10"
+        opacity={0}
+        $group-pathitem-hover={{
+          opacity: 1,
+          color: '$blue11',
+        }}
+      />
+    </XStack>
   )
 }
