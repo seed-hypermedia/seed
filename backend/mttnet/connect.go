@@ -70,7 +70,6 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 		return err
 	}
 	fmt.Println("DBG 2")
-	defer release()
 	didHandshake := false
 	if err = sqlitex.Exec(conn, qGetPeer(), func(stmt *sqlite.Stmt) error {
 		pidStr := stmt.ColumnText(0)
@@ -84,8 +83,10 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 		didHandshake = true
 		return nil
 	}, info.ID); err != nil {
+		release()
 		return err
 	}
+	release()
 	fmt.Println("DBG 3")
 	if isConnected && didHandshake {
 		return nil
@@ -129,6 +130,11 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 		return fmt.Errorf("Could not get list of peers: %w", err)
 	}
 	fmt.Println("DBG 8")
+	conn, release, err = n.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
 	if len(res.Peers) > 0 {
 		vals := []interface{}{}
 		sqlStr := "INSERT OR REPLACE INTO peers (pid, addresses) VALUES "
