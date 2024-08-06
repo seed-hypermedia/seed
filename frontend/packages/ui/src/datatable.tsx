@@ -5,6 +5,7 @@ const Root = styled(View, {
   display: "table",
   userSelect: "none",
   tableLayout: "fixed",
+  width: "100%",
 });
 
 const THead = styled(View, {

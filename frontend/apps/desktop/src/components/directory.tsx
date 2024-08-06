@@ -82,7 +82,11 @@ export function Directory({docId}: {docId: UnpackedHypermediaId}) {
 
   return (
     <YStack paddingVertical="$4">
-      <DataTable.Root>
+      <DataTable.Root
+        style={{
+          tableLayout: 'fixed',
+        }}
+      >
         <DataTable.Head>
           <DataTable.Row borderBottomWidth={10}>
             <DataTable.HeaderCell width="50%">
@@ -157,7 +161,12 @@ function DraftListItem({id}: {id: UnpackedHypermediaId}) {
       <DataTable.Cell onPress={goToDraft}>
         <XStack gap="$2">
           <Thumbnail size={20} id={id} document={draft.data} />
-          <SizableText fontWeight="600">
+          <SizableText
+            fontWeight="600"
+            textOverflow="ellipsis"
+            whiteSpace="nowrap"
+            overflow="hidden"
+          >
             {draft.data?.metadata.name || 'Untitled'}
           </SizableText>
         </XStack>
@@ -201,13 +210,21 @@ function DirectoryItem({
   return (
     <DataTable.Row>
       <DataTable.Cell onPress={goToDocument}>
-        <XStack gap="$2">
+        <XStack gap="$2" f={1}>
           <Thumbnail size={20} id={item.id} document={item} />
-          <SizableText fontWeight="600">{item.metadata.name}</SizableText>
+          <SizableText
+            textOverflow="ellipsis"
+            whiteSpace="nowrap"
+            overflow="hidden"
+          >
+            {item.metadata.name}
+          </SizableText>
           {item.hasDraft ? (
             <Button
               size="$1"
               theme="yellow"
+              flexShrink={0}
+              flexGrow={0}
               onPress={(e) => {
                 e.stopPropagation()
                 navigate({key: 'draft', id: item.id})
@@ -335,10 +352,15 @@ function PathButton({
         $group-pathitem-hover={{
           color: '$blue11',
         }}
+        textOverflow="ellipsis"
+        whiteSpace="nowrap"
+        overflow="hidden"
       >
         {path ? `/${path.at(-1)}` : ''}
       </SizableText>
       <Copy
+        flexGrow={0}
+        flexShrink={0}
         size={12}
         color="$blue10"
         opacity={0}
