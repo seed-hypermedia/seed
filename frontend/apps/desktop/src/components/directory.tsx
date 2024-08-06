@@ -2,7 +2,6 @@ import {DialogTitle, useAppDialog} from '@/components/dialog'
 import {FormInput} from '@/components/form-input'
 import {FormField} from '@/components/forms'
 import {ImportButton} from '@/components/import-doc-button'
-import {ListItem} from '@/components/list-item'
 import {useDraft} from '@/models/accounts'
 import {useDraftList, useListDirectory} from '@/models/documents'
 import {pathNameify} from '@/utils/path'
@@ -136,47 +135,7 @@ export function Directory({docId}: {docId: UnpackedHypermediaId}) {
           ))}
         </DataTable.Body>
       </DataTable.Root>
-      <XStack paddingVertical="$4">
-        <NewSubDocumentButton parentDocId={docId} />
-        <ImportButton input={docId} />
-      </XStack>
-    </YStack>
-  )
-  return (
-    <YStack>
-      {drafts.map((id) => {
-        if (!id) return null
-        return <DraftListItem key={id.id} id={id} />
-      })}
-      {directory?.map((item) => {
-        return (
-          <ListItem
-            key={item.path.join('/')}
-            title={item.metadata.name}
-            accessory={
-              item.hasDraft ? (
-                <Button
-                  size="$2"
-                  theme="yellow"
-                  onPress={(e) => {
-                    e.stopPropagation()
-                    navigate({key: 'draft', id: item.id})
-                  }}
-                >
-                  Resume Editing
-                </Button>
-              ) : undefined
-            }
-            onPress={() => {
-              navigate({
-                key: 'document',
-                id: item.id,
-              })
-            }}
-          />
-        )
-      })}
-      <XStack paddingVertical="$4">
+      <XStack paddingVertical="$4" gap="$3">
         <NewSubDocumentButton parentDocId={docId} />
         <ImportButton input={docId} />
       </XStack>
@@ -342,6 +301,7 @@ function NewSubDocumentButton({
         onPress={() => {
           open(parentDocId)
         }}
+        size="$3"
       >
         Create Document
       </Button>

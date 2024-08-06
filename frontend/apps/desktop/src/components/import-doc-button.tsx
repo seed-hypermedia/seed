@@ -16,11 +16,11 @@ import {trpc} from '@/trpc'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {HMDraft, UnpackedHypermediaId} from '@shm/shared'
-import {Button, File} from '@shm/ui'
-import {Folder, Upload} from '@tamagui/lucide-icons'
+import {Button} from '@shm/ui'
+import {FileInput, FolderInput, Import} from '@tamagui/lucide-icons'
 import {Extension} from '@tiptap/core'
 import {useMemo} from 'react'
-import {MenuItemType, OptionsDropdown} from './options-dropdown'
+import {OptionsDropdown} from './options-dropdown'
 
 export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
   const {openMarkdownDirectories, openMarkdownFiles} = useAppContext()
@@ -104,30 +104,27 @@ export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
       })
   }
 
-  const menuItems: MenuItemType[] = [
-    {
-      key: 'importFile',
-      icon: File,
-      onPress: () => importDocuments('file'),
-      label: 'Import Markdown File',
-    },
-    {
-      key: 'importDir',
-      icon: Folder,
-      onPress: () => importDocuments('directory'),
-      label: 'Import Directory',
-    },
-  ]
-
-  const TriggerButton = (
-    <Button icon={Upload} marginLeft="$2">
-      Import Document
-    </Button>
-  )
-
   return (
-    <>
-      <OptionsDropdown menuItems={menuItems} button={TriggerButton} />
-    </>
+    <OptionsDropdown
+      button={
+        <Button size="$3" icon={Import}>
+          Import Document
+        </Button>
+      }
+      menuItems={[
+        {
+          key: 'file',
+          label: 'Import Markdown File',
+          onPress: () => importDocuments('file'),
+          icon: FileInput,
+        },
+        {
+          key: 'directory',
+          label: 'Import Markdown Directory',
+          onPress: () => importDocuments('directory'),
+          icon: FolderInput,
+        },
+      ]}
+    />
   )
 }

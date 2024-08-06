@@ -3,7 +3,6 @@ import {ContactsPrompt} from '@/components/contacts-prompt'
 import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
 import {useDeleteDialog} from '@/components/delete-dialog'
 import {MenuItemType, OptionsDropdown} from '@/components/options-dropdown'
-// import {DraftPublicationButtons} from '@/components/variants'
 import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
 import {usePushPublication} from '@/models/documents'
@@ -22,6 +21,7 @@ import {
   BlockRange,
   ExpandedBlockRange,
   HYPERMEDIA_ENTITY_TYPES,
+  UnpackedHypermediaId,
   createPublicWebHmUrl,
   getDocumentTitle,
   hmId,
@@ -270,14 +270,16 @@ export function CopyReferenceButton() {
   )
 }
 
-function CreateDropdown({}: {}) {
+function CreateDropdown({location}: {location: UnpackedHypermediaId}) {
   const openDraft = useOpenDraft('push')
   return (
     <Button
       size="$2"
       icon={FilePlus2}
       onPress={() => {
-        openDraft()
+        openDraft({
+          id: location,
+        })
       }}
     >
       Create
@@ -288,19 +290,18 @@ function CreateDropdown({}: {}) {
 export function PageActionButtons(props: TitleBarProps) {
   const route = useNavRoute()
 
-  let buttonGroup: ReactNode[] = [<CreateDropdown key="create" />]
+  let buttonGroup: ReactNode[] = []
   if (route.key === 'draft') {
-    buttonGroup = [<DraftPublicationButtons key="draftPublication" />]
-  } else if (route.key == 'contacts') {
     buttonGroup = [
-      <ContactsPrompt key="addContact" />,
-      <CreateDropdown key="create" />,
+      <PublishDraftButton key="publish-draft" />,
+      <DiscardDraftButton key="discard-draft" />,
     ]
+  } else if (route.key == 'contacts') {
+    buttonGroup = [<ContactsPrompt key="addContact" />]
   } else if (route.key === 'document' && route.id.type === 'd') {
     buttonGroup = [
       <EditDocButton key="editDoc" />,
-      // <VersionContext key="versionContext" route={route} />,
-      <CreateDropdown key="create" />,
+      // <CreateDropdown key="create" location={route.id} />, // TODO, new path selection workflow
       <DocOptionsButton key="options" />,
     ]
   }
@@ -346,12 +347,7 @@ export function NavigationButtons() {
 }
 
 export function DraftPublicationButtons() {
-  return (
-    <>
-      <PublishDraftButton />
-      <DiscardDraftButton />
-    </>
-  )
+  return <></>
 }
 
 export function NavMenuButton({left}: {left?: ReactNode}) {
