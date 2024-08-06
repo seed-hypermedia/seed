@@ -1,4 +1,4 @@
-import {dispatchWizardEvent} from '@/components/create-account'
+import {openAddAccountWizard} from '@/components/create-account'
 import {MainWrapper} from '@/components/main-wrapper'
 import {Thumbnail} from '@/components/thumbnail'
 import {useDraft} from '@/models/accounts'
@@ -44,7 +44,7 @@ export default function ContentPage() {
               ))}
             </YStack>
           ) : null}
-          <Button onPress={() => dispatchWizardEvent(true)} icon={Add}>
+          <Button onPress={() => openAddAccountWizard()} icon={Add}>
             Add account
           </Button>
         </Container>

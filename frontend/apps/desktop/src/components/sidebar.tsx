@@ -11,9 +11,11 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
-import {Contact, File, Hash} from '@tamagui/lucide-icons'
+import {Button, Tooltip} from '@shm/ui'
+import {Contact, File, Hash, Plus, UserPlus2} from '@tamagui/lucide-icons'
 import React, {memo, ReactNode, useState} from 'react'
-import {SizableText, Spinner, View, YStack} from 'tamagui'
+import {SizableText, Spinner, View, XStack, YStack} from 'tamagui'
+import {openAddAccountWizard} from './create-account'
 import {
   FocusButton,
   GenericSidebarContainer,
@@ -87,30 +89,34 @@ export function MainAppSidebar() {
 function SidebarSection({
   title,
   children,
+  accessory,
 }: {
   title: string
   children: React.ReactNode
+  accessory?: React.ReactNode
 }) {
   const [collapsed, setCollapsed] = React.useState(false)
   return (
     <YStack marginTop="$4">
-      <SizableText
-        fontWeight="bold"
-        paddingHorizontal="$3"
-        fontSize="$1"
-        color="$color11"
-        cursor="pointer"
-        hoverStyle={{
-          color: '$color12',
-        }}
-        textTransform="capitalize"
-        userSelect="none"
-        onPress={() => {
-          setCollapsed(!collapsed)
-        }}
-      >
-        {title}
-      </SizableText>
+      <XStack paddingHorizontal="$3" jc="space-between">
+        <SizableText
+          fontWeight="bold"
+          fontSize="$1"
+          color="$color11"
+          cursor="pointer"
+          hoverStyle={{
+            color: '$color12',
+          }}
+          textTransform="capitalize"
+          userSelect="none"
+          onPress={() => {
+            setCollapsed(!collapsed)
+          }}
+        >
+          {title}
+        </SizableText>
+        {accessory}
+      </XStack>
       {collapsed ? null : children}
     </YStack>
   )
@@ -148,10 +154,26 @@ function AccountsSection() {
   const accounts = useEntities(
     accountIds.data?.map((uid) => hmId('d', uid)) || [],
   )
+  const hasAccounts = !!accountIds.data?.length
   const route = useNavRoute()
   const navigate = useNavigate()
   return (
-    <SidebarSection title="Accounts">
+    <SidebarSection
+      title="Accounts"
+      accessory={
+        hasAccounts ? (
+          <Tooltip content="Add Account">
+            <Button
+              bg="$colorTransparent"
+              chromeless
+              size="$2"
+              icon={Plus}
+              onPress={openAddAccountWizard}
+            />
+          </Tooltip>
+        ) : undefined
+      }
+    >
       {accounts.map((account) => {
         if (!account.data) return null
         const {id, document} = account.data
@@ -171,6 +193,14 @@ function AccountsSection() {
           />
         )
       })}
+      {hasAccounts ? null : (
+        <SidebarItem
+          key="add-account"
+          title="Add Account"
+          onPress={openAddAccountWizard}
+          icon={UserPlus2}
+        />
+      )}
     </SidebarSection>
   )
 }

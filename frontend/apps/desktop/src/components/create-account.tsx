@@ -683,3 +683,7 @@ function PublisherIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function openAddAccountWizard() {
+  dispatchWizardEvent(true)
+}
