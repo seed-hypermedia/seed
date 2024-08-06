@@ -2,7 +2,6 @@ package mttnet
 
 import (
 	"context"
-	"fmt"
 	"math"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/util/apiutil"
@@ -29,12 +28,10 @@ var qListPeers = dqb.Str(`
 func (srv *rpcMux) ListPeers(ctx context.Context, in *p2p.ListPeersRequest) (*p2p.ListPeersResponse, error) {
 	net := srv.Node
 	out := &p2p.ListPeersResponse{}
-	fmt.Println("ListPeers Called!!!")
 	conn, release, err := srv.Node.db.Conn(ctx)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("ListPeers after connection")
 	defer release()
 	type Cursor struct {
 		ID   int64  `json:"i"`
@@ -77,7 +74,6 @@ func (srv *rpcMux) ListPeers(ctx context.Context, in *p2p.ListPeersRequest) (*p2
 	}, lastCursor.ID, in.PageSize); err != nil {
 		return nil, err
 	}
-	fmt.Println("ListPeers after query")
 	out.Peers = make([]*p2p.PeerInfo, 0, len(peersInfo))
 
 	for _, peer := range peersInfo {

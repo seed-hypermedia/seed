@@ -64,12 +64,10 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	}
 
 	isConnected := n.p2p.Host.Network().Connectedness(info.ID) == network.Connected
-	fmt.Println("DBG 1")
 	conn, release, err := n.db.Conn(ctx)
 	if err != nil {
 		return err
 	}
-	fmt.Println("DBG 2")
 	didHandshake := false
 	if err = sqlitex.Exec(conn, qGetPeer(), func(stmt *sqlite.Stmt) error {
 		pidStr := stmt.ColumnText(0)
@@ -87,7 +85,6 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 		return err
 	}
 	release()
-	fmt.Println("DBG 3")
 	if isConnected && didHandshake {
 		return nil
 	}
@@ -109,27 +106,22 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 			sw.Backoff().Clear(info.ID)
 		}
 	}
-	fmt.Println("DBG 4")
 	if err := n.p2p.Host.Connect(ctx, info); err != nil {
 		return fmt.Errorf("failed to connect to peer %s: %w", info.ID, err)
 	}
-	fmt.Println("DBG 5")
 	if err := n.CheckHyperMediaProtocolVersion(ctx, info.ID, n.protocol.version); err != nil {
 		return err
 	}
 
 	addrsStr := AddrInfoToStrings(info)
-	fmt.Println("DBG 6")
 	c, err := n.client.Dial(ctx, info.ID)
 	if err != nil {
 		return fmt.Errorf("Could not get p2p client: %w", err)
 	}
-	fmt.Println("DBG 7")
 	res, err := c.ListPeers(ctx, &p2p.ListPeersRequest{PageSize: math.MaxInt32})
 	if err != nil {
 		return fmt.Errorf("Could not get list of peers: %w", err)
 	}
-	fmt.Println("DBG 8")
 	conn, release, err = n.db.Conn(ctx)
 	if err != nil {
 		return err
@@ -148,7 +140,6 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 
 		return sqlitex.Exec(conn, sqlStr, nil, vals...)
 	}
-	fmt.Println("DBG 9")
 	return sqlitex.Exec(conn, "INSERT OR REPLACE INTO peers (pid, addresses) VALUES (?, ?);", nil, info.ID.String(), strings.Join(addrsStr, ","))
 }
 
