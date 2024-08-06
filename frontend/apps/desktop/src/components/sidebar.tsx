@@ -11,7 +11,7 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
-import {Contact, File, Hash, Sparkles} from '@tamagui/lucide-icons'
+import {Contact, File, Hash} from '@tamagui/lucide-icons'
 import React, {memo, ReactNode, useState} from 'react'
 import {SizableText, Spinner, View, YStack} from 'tamagui'
 import {
@@ -58,7 +58,7 @@ export function MainAppSidebar() {
         icon={File}
         rightHover={[]}
       />
-      <SidebarItem
+      {/* <SidebarItem
         active={route.key == 'explore'}
         onPress={() => {
           navigate({key: 'explore'})
@@ -67,7 +67,7 @@ export function MainAppSidebar() {
         bold
         icon={Sparkles}
         rightHover={[]}
-      />
+      /> */}
       <SidebarItem
         active={route.key == 'contacts'}
         onPress={() => {
