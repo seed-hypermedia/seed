@@ -55,7 +55,12 @@ export default function PublishDraftButton() {
   }, [signingAccount])
 
   useEffect(() => {
-    if (accts.length == 1 && accts[0].data && signingAccount == null) {
+    if (
+      accts.length == 1 &&
+      accts[0].data &&
+      signingAccount == null &&
+      signingAccount != accts[0].data.id.uid
+    ) {
       setSigningAccount(accts[0].data)
       draftDispatch({type: 'CHANGE', signingAccount: accts[0].data.id.uid})
     }
