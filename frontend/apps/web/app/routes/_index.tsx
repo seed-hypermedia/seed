@@ -1,6 +1,8 @@
 import {toPlainMessage} from "@bufbuild/protobuf";
 import type {MetaFunction} from "@remix-run/node";
 import {useLoaderData} from "@remix-run/react";
+import {UIAvatar} from "@shm/ui/src/avatar";
+import {Button} from "@tamagui/button";
 import {Text} from "@tamagui/core";
 import {YStack} from "@tamagui/stacks";
 import {queryClient} from "../client";
@@ -22,6 +24,7 @@ export default function Index() {
 
   return (
     <YStack>
+      <UIAvatar />
       {l.entities.map((entity) => {
         return (
           <Text key={entity.id}>
@@ -29,6 +32,7 @@ export default function Index() {
           </Text>
         );
       })}
+      <Button onPress={() => alert("pressed")}>Press me</Button>
     </YStack>
   );
 }

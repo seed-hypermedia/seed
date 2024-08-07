@@ -1,5 +1,6 @@
+import {XStack} from "@tamagui/stacks";
+import {SizableText} from "@tamagui/text";
 import {useMemo} from "react";
-import {SizableText, XStack} from "tamagui";
 
 export type UIAvatarProps = {
   url?: string;

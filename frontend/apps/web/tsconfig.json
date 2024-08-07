@@ -23,6 +23,7 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
+      "@shm/ui": ["../../packages/ui/src/index.tsx"],
       "~/*": ["./app/*"]
     },
     "noEmit": true

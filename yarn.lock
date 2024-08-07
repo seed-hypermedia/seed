@@ -6733,7 +6733,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@shm/ui@0.1.0, @shm/ui@workspace:frontend/packages/ui":
+"@shm/ui@*, @shm/ui@0.1.0, @shm/ui@workspace:frontend/packages/ui":
   version: 0.0.0-use.local
   resolution: "@shm/ui@workspace:frontend/packages/ui"
   dependencies:
@@ -27941,6 +27941,8 @@ __metadata:
     "@remix-run/node": ^2.10.3
     "@remix-run/react": ^2.10.3
     "@remix-run/serve": ^2.10.3
+    "@shm/shared": "*"
+    "@shm/ui": "*"
     "@tamagui/config": 1.108.2
     "@tamagui/core": 1.108.2
     "@tamagui/vite-plugin": 1.108.2
