@@ -1,6 +1,9 @@
 import {vitePlugin as remix} from "@remix-run/dev";
+import {tamaguiPlugin} from "@tamagui/vite-plugin";
 import {defineConfig} from "vite";
+import commonjs from "vite-plugin-commonjs";
 import tsconfigPaths from "vite-tsconfig-paths";
+
 const extensions = [
   ".web.tsx",
   ".tsx",
@@ -22,6 +25,14 @@ export default defineConfig({
     extensions,
   },
   plugins: [
+    tamaguiPlugin({
+      components: ["@shm/ui", "tamagui"],
+      config: "./tamagui.config.ts",
+      themeBuilder: {
+        input: "../../packages/ui/src/themes/theme.ts",
+        output: "../../packages/ui/src/themes-generated.ts",
+      },
+    }) as any,
     remix({
       future: {
         v3_fetcherPersist: true,
@@ -30,6 +41,13 @@ export default defineConfig({
       },
     }),
     tsconfigPaths(),
+    commonjs({
+      filter(id) {
+        if (id.includes("node_modules/@react-native/normalize-color")) {
+          return true;
+        }
+      },
+    }),
     // {
     //   name: "log-files",
     //   transform(code, id) {

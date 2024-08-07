@@ -1,25 +1,25 @@
-import { toPlainMessage } from "@bufbuild/protobuf";
-import type { MetaFunction } from "@remix-run/node";
-import { useLoaderData } from "@remix-run/react";
-import { queryClient } from "../client";
+import type {MetaFunction} from "@remix-run/node";
+import {useLoaderData} from "@remix-run/react";
+import {Text} from "@tamagui/core";
 
 export const meta: MetaFunction = () => {
   return [
-    { title: "New Remix App" },
-    { name: "description", content: "Welcome to Remix!" },
+    {title: "New Remix App"},
+    {name: "description", content: "Welcome to Remix!"},
   ];
 };
 
 export const loader = async () => {
-  const siteInfo = await queryClient.website.getSiteInfo({})
+  // const siteInfo = await queryClient.website.getSiteInfo({})
   // const foo = await grpcClient.daemon.getInfo({})
-  return { message: "Hello from loader data!" + JSON.stringify(toPlainMessage(siteInfo)) };
-}
+  return {message: "Hello from loader data!"};
+};
 
 export default function Index() {
-  const l = useLoaderData<typeof loader>()
+  const l = useLoaderData<typeof loader>();
   return (
     <div className="font-sans p-4">
+      <Text>Hello</Text>
       <h1 className="text-3xl">{l.message}</h1>
       <ul className="list-disc mt-4 pl-6 space-y-2">
         <li>
