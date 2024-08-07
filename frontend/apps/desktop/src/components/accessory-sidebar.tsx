@@ -83,7 +83,9 @@ export function AccessoryLayout<
   return (
     <XStack f={1}>
       <PanelGroup direction="horizontal">
-        <Panel minSize={50}>{children}</Panel>
+        <Panel minSize={50} style={{overflowY: 'scroll'}}>
+          {children}
+        </Panel>
         <PanelResizeHandle />
         <Panel
           hidden={accessoryKey === undefined}
