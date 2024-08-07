@@ -1,33 +1,34 @@
-import type { MetaFunction } from '@remix-run/node'
-import { Text } from '@tamagui/core'
+import {toPlainMessage} from "@bufbuild/protobuf";
+import type {MetaFunction} from "@remix-run/node";
+import {useLoaderData} from "@remix-run/react";
+import {Text} from "@tamagui/core";
+import {YStack} from "@tamagui/stacks";
+import {queryClient} from "../client";
 
 export const meta: MetaFunction = () => {
   return [
-    { title: 'New Remix App' },
-    { name: 'description', content: 'Welcome to Remix!' },
-  ]
-}
+    {title: "Seed Hypermedia"},
+    // {name: "description", content: "Welcome to Remix!"},
+  ];
+};
+
+export const loader = async () => {
+  const allEntities = await queryClient.entities.searchEntities({});
+  return {entities: toPlainMessage(allEntities).entities};
+};
 
 export default function Index() {
+  const l = useLoaderData<typeof loader>();
+
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', lineHeight: '1.8' }}>
-      <Text>Tamagui + Remix</Text>
-      <ul>
-        <li>
-          <a
-            target="_blank"
-            href="https://developers.cloudflare.com/pages/framework-guides/deploy-a-remix-site/"
-            rel="noreferrer"
-          >
-            Cloudflare Pages Docs - Remix guide
-          </a>
-        </li>
-        <li>
-          <a target="_blank" href="https://remix.run/docs" rel="noreferrer">
-            Remix Docs
-          </a>
-        </li>
-      </ul>
-    </div>
-  )
+    <YStack>
+      {l.entities.map((entity) => {
+        return (
+          <Text key={entity.id}>
+            {entity.title} - {entity.id}
+          </Text>
+        );
+      })}
+    </YStack>
+  );
 }

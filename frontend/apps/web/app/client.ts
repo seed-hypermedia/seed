@@ -2,7 +2,7 @@ import {createGrpcWebTransport} from "@connectrpc/connect-node";
 import {createGRPCClient} from "@shm/shared/src/grpc-client";
 
 const IS_PROD = process.env.NODE_ENV == "production";
-
+console.log("HELLO!?!");
 function getGRPCHost() {
   if (process.env.GRPC_HOST) {
     return process.env.GRPC_HOST;

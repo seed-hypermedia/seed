@@ -1,6 +1,8 @@
+import {toPlainMessage} from "@bufbuild/protobuf";
 import type {MetaFunction} from "@remix-run/node";
 import {useLoaderData} from "@remix-run/react";
 import {Text} from "@tamagui/core";
+import {queryClient} from "../client";
 
 export const meta: MetaFunction = () => {
   return [
@@ -11,7 +13,8 @@ export const meta: MetaFunction = () => {
 
 export const loader = async () => {
   // const siteInfo = await queryClient.website.getSiteInfo({})
-  // const foo = await grpcClient.daemon.getInfo({})
+  const foo = await queryClient.entities.searchEntities({});
+  console.log(toPlainMessage(foo));
   return {message: "Hello from loader data!"};
 };
 
