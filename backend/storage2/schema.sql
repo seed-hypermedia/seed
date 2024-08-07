@@ -86,6 +86,7 @@ WITH RankedBlobs AS (
     WHERE 
         change_sb.type = 'Change' 
         AND ref_sb.type = 'Ref'
+        AND change_sb.extra_attrs IS NOT NULL
 ),
 LatestBlobs AS (
     SELECT 
