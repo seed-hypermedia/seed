@@ -1,67 +1,32 @@
-import {vitePlugin as remix} from "@remix-run/dev";
-import {tamaguiPlugin} from "@tamagui/vite-plugin";
-import {defineConfig} from "vite";
-import commonjs from "vite-plugin-commonjs";
-import tsconfigPaths from "vite-tsconfig-paths";
+import { vitePlugin as remix } from '@remix-run/dev'
+import { defineConfig } from 'vite'
+import { installGlobals } from '@remix-run/node'
+import tsconfigPaths from 'vite-tsconfig-paths'
+import { tamaguiPlugin, tamaguiExtractPlugin } from '@tamagui/vite-plugin'
+import commonjs from 'vite-plugin-commonjs'
+import { analyzer } from 'vite-bundle-analyzer'
 
-const extensions = [
-  ".web.tsx",
-  ".tsx",
-  ".web.ts",
-  ".ts",
-  ".web.jsx",
-  ".jsx",
-  ".web.js",
-  ".js",
-  ".css",
-  ".json",
-  ".mjs",
-];
+installGlobals()
+
 export default defineConfig({
-  resolve: {
-    // Some libs that can run in both Web and Node.js, such as `axios`, we need to tell Vite to build them in Node.js.
-    // browserField: false,
-    mainFields: ["module", "jsnext:main", "jsnext"],
-    extensions,
-  },
+  clearScreen: false,
   plugins: [
-    tamaguiPlugin({
-      components: ["@shm/ui", "tamagui"],
-      config: "./tamagui.config.ts",
-      themeBuilder: {
-        input: "../../packages/ui/src/themes/theme.ts",
-        output: "../../packages/ui/src/themes-generated.ts",
-      },
-    }) as any,
-    remix({
-      future: {
-        v3_fetcherPersist: true,
-        v3_relativeSplatPath: true,
-        v3_throwAbortReason: true,
-      },
+    tamaguiPlugin() as any,
+    tamaguiExtractPlugin({
+      logTimings: true,
     }),
+    remix(),
     tsconfigPaths(),
     commonjs({
       filter(id) {
-        if (id.includes("node_modules/@react-native/normalize-color")) {
-          return true;
+        if (id.includes('node_modules/@react-native/normalize-color')) {
+          return true
         }
       },
     }),
-    // {
-    //   name: "log-files",
-    //   transform(code, id) {
-    //     console.log("Processing file:", id);
-    //     return code;
-    //   },
-    // },
+    analyzer({
+      analyzerMode: 'static',
+      fileName: 'report',
+    }),
   ],
-  optimizeDeps: {
-    esbuildOptions: {
-      resolveExtensions: extensions,
-    },
-  },
-  build: {
-    target: "esnext",
-  },
-});
+})

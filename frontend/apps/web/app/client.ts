@@ -1,8 +1,9 @@
 import {createGrpcWebTransport} from "@connectrpc/connect-node";
 import {createGRPCClient} from "@shm/shared/src/grpc-client";
 
+console.log("lol");
 const IS_PROD = process.env.NODE_ENV == "production";
-console.log("HELLO!?!");
+
 function getGRPCHost() {
   if (process.env.GRPC_HOST) {
     return process.env.GRPC_HOST;
@@ -12,11 +13,11 @@ function getGRPCHost() {
     return "https://hyper.media";
   }
 
-  return "http://127.0.0.1:57001";
+  return "http://localhost:57001";
 }
 
 export const transport = createGrpcWebTransport({
-  baseUrl: getGRPCHost(),
+  baseUrl: "http://localhost:57001",
   httpVersion: "1.1",
   // interceptors: IS_DEV ? DEV_INTERCEPTORS : [prodInter],
 });
