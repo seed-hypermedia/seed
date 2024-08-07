@@ -154,12 +154,13 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 
 	otel.SetTracerProvider(tp)
 
-	a.Index = index.NewIndex(a.Storage.DB(), logging.New("seed/Indexing", cfg.LogLevel))
+	a.Index = index.NewIndex(a.Storage.DB(), logging.New("seed/Indexing", cfg.LogLevel), nil)
 
 	a.Net, err = initNetwork(&a.clean, a.g, a.Storage, cfg.P2P, a.Index, cfg.LogLevel, opts.extraP2PServices...)
 	if err != nil {
 		return nil, err
 	}
+	a.Index.SetProvider(a.Net.Provider())
 	a.Syncing, err = initSyncing(cfg.Syncing, &a.clean, a.g, a.Storage.DB(), a.Index, a.Net, cfg.LogLevel)
 	if err != nil {
 		return nil, err

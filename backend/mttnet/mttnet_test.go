@@ -41,7 +41,7 @@ func makeTestPeer(t *testing.T, name string) (*Node, context.CancelFunc) {
 
 	db := storage.MakeTestDB(t)
 
-	idx := index.NewIndex(db, logging.New("seed/hyper", "debug"))
+	idx := index.NewIndex(db, logging.New("seed/hyper", "debug"), nil)
 
 	cfg := config.Default().P2P
 	cfg.Port = 0

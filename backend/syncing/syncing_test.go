@@ -53,7 +53,7 @@ func TestSync(t *testing.T) {
 func makeTestNode(t *testing.T, name string) testNode {
 	db := storage.MakeTestDB(t)
 
-	idx := index.NewIndex(db, logging.New("seed/hyper", "debug"))
+	idx := index.NewIndex(db, logging.New("seed/hyper", "debug"), nil)
 
 	cfg := config.Default()
 	cfg.P2P.Port = 0

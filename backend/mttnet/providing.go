@@ -7,7 +7,6 @@ import (
 	"seed/backend/ipfs"
 	"seed/backend/logging"
 	"seed/backend/util/dqb"
-	"strings"
 	"time"
 
 	"crawshaw.io/sqlite"
@@ -49,7 +48,7 @@ func makeProvidingStrategy(db *sqlitex.Pool, logLevel string) provider.KeyChanFu
 			cids := []cid.Cid{}
 			if err = sqlitex.Exec(conn, qListResources(), func(stmt *sqlite.Stmt) error {
 				eid := stmt.ColumnText(0)
-				c, err := ipfs.NewCID(uint64(multicodec.Raw), uint64(multicodec.Identity), []byte(strings.Trim(eid, "hm://")))
+				c, err := ipfs.NewCID(uint64(multicodec.Raw), uint64(multicodec.Identity), []byte(eid))
 				if err != nil {
 					return fmt.Errorf("failed to convert entity ID %s into CID: %w", eid, err)
 				}

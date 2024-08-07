@@ -55,7 +55,7 @@ func New(
 
 	}
 
-	idx := index.NewIndex(db, logging.New("seed/index", LogLevel))
+	idx := index.NewIndex(db, logging.New("seed/index", LogLevel), node.Provider())
 
 	return Server{
 		Activity:    activity.NewServer(db),

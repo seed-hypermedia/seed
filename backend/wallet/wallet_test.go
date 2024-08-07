@@ -158,7 +158,7 @@ func makeTestService(t *testing.T, name string) *Service {
 }
 
 func makeTestPeer(t *testing.T, u coretest.Tester, store *storage.Store) (*mttnet.Node, context.CancelFunc) {
-	idx := index.NewIndex(store.DB(), logging.New("seed/hyper", "debug"))
+	idx := index.NewIndex(store.DB(), logging.New("seed/hyper", "debug"), nil)
 
 	n, err := mttnet.New(config.P2P{
 		NoRelay:        true,

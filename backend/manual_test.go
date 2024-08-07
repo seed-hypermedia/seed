@@ -27,6 +27,6 @@ func TestDBMigrateManual(t *testing.T) {
 
 	log := must.Do2(zap.NewDevelopment())
 
-	blobs := index.NewIndex(db, log)
+	blobs := index.NewIndex(db, log, nil)
 	require.NoError(t, blobs.Reindex(context.Background()))
 }

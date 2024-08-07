@@ -19,6 +19,7 @@ import (
 	"crawshaw.io/sqlite"
 	"crawshaw.io/sqlite/sqlitex"
 	blockstore "github.com/ipfs/boxo/blockstore"
+	"github.com/ipfs/boxo/provider"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	dagpb "github.com/ipld/go-codec-dagpb"
@@ -37,17 +38,26 @@ var errNotHyperBlob = errors.New("not a hyper blob")
 type IRI string
 
 type Index struct {
-	bs  *blockStore
-	db  *sqlitex.Pool
-	log *zap.Logger
+	bs       *blockStore
+	db       *sqlitex.Pool
+	log      *zap.Logger
+	provider provider.Provider
 }
 
-func NewIndex(db *sqlitex.Pool, log *zap.Logger) *Index {
+func NewIndex(db *sqlitex.Pool, log *zap.Logger, prov provider.Provider) *Index {
 	return &Index{
-		bs:  newBlockstore(db),
-		db:  db,
-		log: log,
+		bs:       newBlockstore(db),
+		db:       db,
+		log:      log,
+		provider: prov,
 	}
+}
+
+func (idx *Index) SetProvider(prov provider.Provider) {
+	if prov != nil {
+		idx.provider = prov
+	}
+
 }
 
 func (idx *Index) IPFSBlockstore() blockstore.Blockstore {
@@ -58,7 +68,7 @@ func (idx *Index) IPFSBlockstore() blockstore.Blockstore {
 // This is probably a bad idea to put here, but for now it's easier to work with that way.
 // TODO(burdiyan): eventually we might want to make this package agnostic to blob types.
 func (idx *Index) indexBlob(conn *sqlite.Conn, id int64, c cid.Cid, blobData any) error {
-	ictx := newCtx(conn)
+	ictx := newCtx(conn, idx.provider, idx.log)
 
 	switch v := blobData.(type) {
 	case ipld.Node:
@@ -486,7 +496,9 @@ func (eb EncodedBlob[T]) Loggable() map[string]interface{} {
 }
 
 type indexingCtx struct {
-	conn *sqlite.Conn
+	conn     *sqlite.Conn
+	provider provider.Provider
+	log      *zap.Logger
 
 	// Lookup tables for internal database IDs.
 	pubKeys   map[string]int64
@@ -494,9 +506,11 @@ type indexingCtx struct {
 	blobs     map[cid.Cid]int64
 }
 
-func newCtx(conn *sqlite.Conn) *indexingCtx {
+func newCtx(conn *sqlite.Conn, provider provider.Provider, log *zap.Logger) *indexingCtx {
 	return &indexingCtx{
-		conn: conn,
+		conn:     conn,
+		provider: provider,
+		log:      log,
 		// Setting arbitrary size for maps, to avoid dynamic resizing in most cases.
 		pubKeys:   make(map[string]int64, 16),
 		resources: make(map[IRI]int64, 16),
@@ -708,6 +722,16 @@ func (idx *indexingCtx) ensureResource(r IRI) (int64, error) {
 
 		if ins <= 0 {
 			panic("BUG: failed to insert resource for some reason")
+		}
+		if idx.provider != nil {
+			c, err := ipfs.NewCID(uint64(multicodec.Raw), uint64(multicodec.Identity), []byte(string(r)))
+			if err != nil {
+				idx.log.Warn("failed to convert entit into CID", zap.String("eid", string(r)), zap.Error(err))
+			}
+			if err = idx.provider.Provide(c); err != nil {
+				idx.log.Warn("Failed to provide entity", zap.String("eid", string(r)), zap.Error(err))
+			}
+			idx.log.Debug("Providing resource", zap.String("eid", string(r)), zap.String("CID", c.String()))
 		}
 
 		id = ins
