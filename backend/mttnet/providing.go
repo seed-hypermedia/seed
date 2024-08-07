@@ -2,25 +2,27 @@ package mttnet
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
+	"seed/backend/ipfs"
 	"seed/backend/logging"
 	"seed/backend/util/dqb"
+	"strings"
 	"time"
 
 	"crawshaw.io/sqlite"
 	"crawshaw.io/sqlite/sqlitex"
 	"github.com/ipfs/boxo/provider"
 	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multicodec"
 	"go.uber.org/zap"
 )
 
 var randSrc = rand.NewSource(time.Now().UnixNano())
-var qListCids = dqb.Str(`
+var qListResources = dqb.Str(`
 	SELECT
-		blobs.codec,
-		blobs.multihash
-	FROM blobs INDEXED BY blobs_metadata
-	WHERE blobs.size > 0;
+		iri
+	FROM resources;
 `)
 
 func makeProvidingStrategy(db *sqlitex.Pool, logLevel string) provider.KeyChanFunc {
@@ -45,10 +47,12 @@ func makeProvidingStrategy(db *sqlitex.Pool, logLevel string) provider.KeyChanFu
 			// We want to provide all the entity IDs, so we convert them into raw CIDs,
 			// similar to how libp2p discovery service is doing.
 			cids := []cid.Cid{}
-			if err = sqlitex.Exec(conn, qListCids(), func(stmt *sqlite.Stmt) error {
-				codec := stmt.ColumnInt64(0)
-				hash := stmt.ColumnBytesUnsafe(1)
-				c := cid.NewCidV1(uint64(codec), hash)
+			if err = sqlitex.Exec(conn, qListResources(), func(stmt *sqlite.Stmt) error {
+				eid := stmt.ColumnText(0)
+				c, err := ipfs.NewCID(uint64(multicodec.Raw), uint64(multicodec.Identity), []byte(strings.Trim(eid, "hm://")))
+				if err != nil {
+					return fmt.Errorf("failed to convert entity ID %s into CID: %w", eid, err)
+				}
 				cids = append(cids, c)
 				return nil
 			}); err != nil {

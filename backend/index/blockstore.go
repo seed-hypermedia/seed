@@ -13,6 +13,7 @@ import (
 	"github.com/ipfs/go-cid"
 	format "github.com/ipfs/go-ipld-format"
 	"github.com/klauspost/compress/zstd"
+	"github.com/multiformats/go-multicodec"
 	"github.com/multiformats/go-multihash"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -59,13 +60,22 @@ func newBlockstore(db *sqlitex.Pool) *blockStore {
 func (b *blockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
 	mCallsTotal.WithLabelValues("Has").Inc()
 
-	conn, release, err := b.db.Conn(ctx)
+	eid, err := EntityIDFromCID(c)
+	if err != nil {
+		conn, release, err := b.db.Conn(ctx)
+		if err != nil {
+			return false, err
+		}
+		defer release()
+
+		return b.has(conn, c)
+	}
+	ok, err := b.checkEntityExists(ctx, eid)
 	if err != nil {
 		return false, err
 	}
-	defer release()
 
-	return b.has(conn, c)
+	return ok, nil
 }
 
 func (b *blockStore) has(conn *sqlite.Conn, c cid.Cid) (bool, error) {
@@ -79,6 +89,33 @@ func (b *blockStore) has(conn *sqlite.Conn, c cid.Cid) (bool, error) {
 
 	return true, nil
 }
+
+func (b *blockStore) checkEntityExists(ctx context.Context, eid string) (exists bool, err error) {
+	conn, release, err := b.db.Conn(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer release()
+
+	res, err := dbEntitiesLookupID(conn, eid)
+	if err != nil || res.ResourcesID == 0 {
+		return false, nil
+	}
+
+	var hasChanges bool
+	if err := sqlitex.Exec(conn, qCheckEntityHasChanges(), func(stmt *sqlite.Stmt) error {
+		hasChanges = true
+		return nil
+	}, eid); err != nil {
+		return false, err
+	}
+
+	return hasChanges, nil
+}
+
+var qCheckEntityHasChanges = dqb.Str(`
+	SELECT 1 FROM structural_blobs WHERE resource = ? AND structural_blobs.type = 'Change' LIMIT 1;
+`)
 
 // Get implements blockstore.Blockstore interface.
 func (b *blockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) {
@@ -325,4 +362,23 @@ func (b *blockStore) withConn(ctx context.Context, fn func(*sqlite.Conn) error) 
 	defer release()
 
 	return fn(conn)
+}
+
+func EntityIDFromCID(c cid.Cid) (string, error) {
+	codec, hash := ipfs.DecodeCID(c)
+
+	if multicodec.Code(codec) != multicodec.Raw {
+		return "", fmt.Errorf("failed to convert CID %s into entity ID: unsupported codec %s", c, multicodec.Code(codec))
+	}
+
+	mh, err := multihash.Decode(hash)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode multihash from CID %q: %w", c, err)
+	}
+
+	if multicodec.Code(mh.Code) != multicodec.Identity {
+		return "", fmt.Errorf("failed to convert CID %s into entity ID: unsupported hash %s", c, multicodec.Code(mh.Code))
+	}
+
+	return string(mh.Digest), nil
 }
