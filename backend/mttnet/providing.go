@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/rand"
 	"seed/backend/logging"
+	"seed/backend/util/dqb"
 	"time"
 
 	"crawshaw.io/sqlite"
@@ -14,6 +15,13 @@ import (
 )
 
 var randSrc = rand.NewSource(time.Now().UnixNano())
+var qListCids = dqb.Str(`
+	SELECT
+		blobs.codec,
+		blobs.multihash
+	FROM blobs INDEXED BY blobs_metadata
+	WHERE blobs.size > 0;
+`)
 
 func makeProvidingStrategy(db *sqlitex.Pool, logLevel string) provider.KeyChanFunc {
 	// This providing strategy returns all the CID known to the blockstore
@@ -33,21 +41,22 @@ func makeProvidingStrategy(db *sqlitex.Pool, logLevel string) provider.KeyChanFu
 				log.Error("Failed to open db connection: %w", zap.Error(err))
 				return
 			}
-			release()
+
 			// We want to provide all the entity IDs, so we convert them into raw CIDs,
 			// similar to how libp2p discovery service is doing.
 			cids := []cid.Cid{}
-			if err = sqlitex.Exec(conn, qListBlobs(), func(stmt *sqlite.Stmt) error {
+			if err = sqlitex.Exec(conn, qListCids(), func(stmt *sqlite.Stmt) error {
 				codec := stmt.ColumnInt64(0)
 				hash := stmt.ColumnBytesUnsafe(1)
 				c := cid.NewCidV1(uint64(codec), hash)
 				cids = append(cids, c)
 				return nil
 			}); err != nil {
-				log.Error("Could not list: %w", zap.Error(err))
+				release()
+				log.Error("Could not list CIDs: ", zap.Error(err))
 				return
 			}
-
+			release()
 			log.Info("Start reproviding", zap.Int("Number of CIDs", len(cids)))
 			// Since reproviding takes long AND is has throttle limits, we are better off randomizing it.
 			r := rand.New(randSrc) //nolint:gosec
