@@ -6,6 +6,7 @@ import remarkParse from 'remark-parse'
 import remarkRehype from 'remark-rehype'
 import {unified} from 'unified'
 import {Block, BlockNoteEditor, BlockSchema, nodeToBlock} from '../..'
+import {remarkCodeClass} from './RemarkCodeClass'
 
 const fileRegex = /\[([^\]]+)\]\(([^)]*) "size=(\d+)"\)/
 const videoRegex = /!\[([^\]]+)\]\(([^)]*) "width=(\d*)"\)/
@@ -120,6 +121,7 @@ export const MarkdownToBlocks = async (
 
   const file = await unified()
     .use(remarkParse)
+    .use(remarkCodeClass)
     .use(remarkRehype)
     .use(rehypeStringify)
     .process(markdown)
@@ -134,10 +136,12 @@ export const MarkdownToBlocks = async (
   const fragment = ProseMirrorDOMParser.fromSchema(view.state.schema).parse(
     doc.body,
   )
+
   fragment.firstChild!.content.forEach((node) => {
     if (node.type.name !== 'blockContainer') {
       return false
     }
+
     blocks.push(nodeToBlock(node, hmBlockSchema))
   })
 
@@ -169,7 +173,6 @@ export const MarkdownToBlocks = async (
       stack.push({level: headingLevel, block})
     } else {
       let blockToInsert = block
-      console.log(block)
       if (block.type === 'image' && block.props.src == 'null') {
         blockToInsert.props = {}
       }

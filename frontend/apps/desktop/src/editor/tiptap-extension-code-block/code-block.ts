@@ -65,10 +65,12 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
         default: '',
         parseHTML: (element) => {
           const {languageClassPrefix} = this.options
+          const getClassNames = (classList: DOMTokenList) =>
+            Array.from(classList || [])
+
           const classNames = [
-            ...(element.classList ||
-              element.firstElementChild?.classList ||
-              []),
+            ...getClassNames(element.classList),
+            ...getClassNames(element.firstElementChild?.classList || []),
           ]
           const languages = classNames
             .filter((className) => className.startsWith(languageClassPrefix))
