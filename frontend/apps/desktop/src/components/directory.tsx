@@ -66,7 +66,10 @@ export function Directory({docId}: {docId: UnpackedHypermediaId}) {
         : [],
       drafts: draftsForShow
         ?.map((draftId) => {
+          console.log(`== ~ ?.map ~ draftId:`, draftId)
           const id = unpackHmId(draftId)
+
+          console.log(`== ~ ?.map ~ id:`, id)
           if (!id) return null
           return id
         })

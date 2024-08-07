@@ -1,27 +1,39 @@
-import {MainWrapper} from '@/components/main-wrapper'
-import {Thumbnail} from '@/components/thumbnail'
-import {useDraft} from '@/models/accounts'
-import {useDeleteKey} from '@/models/daemon'
+import {MainWrapperNoScroll} from '@/components/main-wrapper'
 import {useDeleteDraft, useDraftList} from '@/models/documents'
-import {useEntity} from '@/models/entities'
 import {useOpenDraft} from '@/utils/open-draft'
-import {useNavigate} from '@/utils/useNavigate'
-import {hmId, unpackHmId} from '@shm/shared'
+import {HMDocument, UnpackedHypermediaId, unpackHmId} from '@shm/shared'
 import {
   Button,
   Container,
   Footer,
-  List,
-  PageHeading,
-  SizableText,
+  Search,
   toast,
-  View,
+  Tooltip,
   XStack,
   YStack,
 } from '@shm/ui'
+import {ArrowDownUp, LayoutGrid, List, Settings2} from '@tamagui/lucide-icons'
+import {useMemo, useState} from 'react'
 
 export default function ContentPage() {
-  const draftList = useDraftList()
+  const [listType, setListType] = useState<'list' | 'cards'>('cards')
+  const backendDrafts = useDraftList()
+
+  const draftList = useMemo<Array<UnpackedHypermediaId>>(() => {
+    return (
+      backendDrafts.data
+        ?.map((draftId) => {
+          const id = unpackHmId(draftId)
+          if (!id) return null
+          return id
+        })
+        .filter((id) => {
+          if (!id) return false
+          return true
+        }) || []
+    )
+  }, [backendDrafts.data])
+
   const openDraft = useOpenDraft('push')
   const deleteDraft = useDeleteDraft()
   function handleDelete(id: string) {
@@ -32,99 +44,71 @@ export default function ContentPage() {
 
   return (
     <>
-      <MainWrapper>
-        <View height="100vh" alignSelf="stretch">
-          <List
-            items={draftList.data || []}
-            fixedItemHeight={52}
-            header={
-              <Container>
-                <PageHeading>Library</PageHeading>
-              </Container>
-            }
-            footer={<View height={20} />}
-            renderItem={({item}: {item: string}) => {
-              if (!item) return <View height={1} />
-              const id = unpackHmId(item)
-              if (!id) return null
-              return (
-                <XStack
-                  paddingVertical="$1.5"
-                  w="100%"
-                  gap="$2"
-                  ai="center"
-                  paddingHorizontal="$4"
-                  group="item"
-                >
-                  <SizableText
-                    onPress={() => {
-                      openDraft({id})
-                    }}
-                    fontWeight={'bold'}
-                  >
-                    Draft {item}
-                  </SizableText>
-
-                  <View f={1} />
-                  <Button size="$2" onPress={() => handleDelete(item)}>
-                    Delete
-                  </Button>
-                </XStack>
-              )
-            }}
-          />
-        </View>
-      </MainWrapper>
+      <MainWrapperNoScroll>
+        <Container>
+          <XStack f={1} flexGrow={0}>
+            <XStack gap="$2" w="100%">
+              <XStack f={1} />
+              <LibrarySearch />
+              <Button size="$2" icon={Settings2} />
+              <Button size="$2" icon={ArrowDownUp} />
+              <Tooltip
+                content={`Show items as ${
+                  listType == 'cards' ? 'lists' : 'cards'
+                }`}
+              >
+                <Button
+                  onPress={() => {
+                    setListType((v) => (v == 'cards' ? 'list' : 'cards'))
+                  }}
+                  size="$2"
+                  icon={listType == 'cards' ? List : LayoutGrid}
+                />
+              </Tooltip>
+            </XStack>
+          </XStack>
+          <YStack>
+            {listType == 'list' ? (
+              <EntityList drafts={draftList} documents={[]} />
+            ) : listType == 'cards' ? (
+              <EntityCards drafts={draftList} documents={[]} />
+            ) : null}
+          </YStack>
+        </Container>
+      </MainWrapperNoScroll>
       <Footer></Footer>
     </>
   )
 }
 
-function AccountKeyItem({accountId}: {accountId: string}) {
-  const openDraft = useOpenDraft('push')
-  const id = hmId('d', accountId)
-  const draft = useDraft(id.id)
-  const doc = useEntity(id)
-  const deleteKey = useDeleteKey()
-  const navigate = useNavigate('push')
+function LibrarySearch() {
+  return <Button size="$2" icon={Search} />
+}
 
-  function openProfile() {
-    navigate({
-      key: 'document',
-      id,
-    })
-  }
-  const accountDraftId = hmId('d', accountId)
-  return (
-    <XStack>
-      <XStack f={1} ai="center" gap="$2">
-        <Thumbnail id={id} document={doc.data?.document} size={40} />
-        <YStack f={1}>
-          <SizableText>{doc.data?.document?.metadata.name}</SizableText>
-        </YStack>
-      </XStack>
+function EntityCards({
+  drafts,
+  documents,
+}: {
+  documents: Array<{
+    document?: HMDocument
+    id: UnpackedHypermediaId
+    hasDraft: boolean
+  }>
+  drafts?: Array<UnpackedHypermediaId>
+}) {
+  return null
+}
 
-      <Button
-        size="$2"
-        onPress={() => deleteKey.mutate({accountId: accountId})}
-      >
-        Delete Key
-      </Button>
-      {draft.data ? (
-        <Button size="$2" onPress={() => openDraft({id: accountDraftId})}>
-          Resume editing
-        </Button>
-      ) : (
-        <Button size="$2" onPress={() => openDraft({id: accountDraftId})}>
-          {doc.data ? 'Edit Profile' : 'Create Draft'}
-        </Button>
-      )}
-
-      {doc.data ? (
-        <Button size="$2" onPress={openProfile}>
-          See Profile
-        </Button>
-      ) : null}
-    </XStack>
-  )
+function EntityList({
+  drafts,
+  documents,
+}: {
+  documents: Array<{
+    document?: HMDocument
+    id: UnpackedHypermediaId
+    hasDraft: boolean
+  }>
+  drafts?: Array<UnpackedHypermediaId>
+}) {
+  return null
 }

@@ -6,7 +6,6 @@ import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
 import {Directory} from '@/components/directory'
 import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
-import {MainWrapper} from '@/components/main-wrapper'
 import {Thumbnail} from '@/components/thumbnail'
 import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
 import {useEntity} from '@/models/entities'
@@ -151,11 +150,11 @@ function MainDocumentPage() {
     throw new Error('Invalid route for MainDocumentPage')
   if (!route.id) throw new Error('MainDocumentPage requires id')
   return (
-    <MainWrapper>
+    <>
       <DocPageHeader />
       <DocPageContent docId={route.id} isBlockFocused={route.isBlockFocused} />
       <DocPageAppendix docId={route.id} />
-    </MainWrapper>
+    </>
   )
 }
 
@@ -166,7 +165,7 @@ function DocPageHeader() {
   if (!docId) throw new Error('Invalid route, no entity id')
   const myAccountIds = useMyAccountIds()
   const entity = useEntity(docId)
-  const isMyAccount = myAccountIds.data?.includes(docId.uid)
+  const isMyAccount = myAccountIds.data?.includes(docId.id)
   const accountName = getProfileName(entity.data?.document)
 
   return (

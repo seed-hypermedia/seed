@@ -1,7 +1,7 @@
 import {styled, Button as TButton, ThemeableStack} from "tamagui";
 
 export const Button = styled(TButton, {
-  bg: "$color4",
+  // bg: "$color4",
   borderWidth: 2,
 });
 
