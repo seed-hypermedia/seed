@@ -6,9 +6,11 @@ import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
 import {Directory} from '@/components/directory'
 import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
+import {MainWrapper} from '@/components/main-wrapper'
 import {Thumbnail} from '@/components/thumbnail'
 import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
 import {useEntity} from '@/models/entities'
+import {getFileUrl} from '@/utils/account-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {DocContent, getProfileName, UnpackedHypermediaId} from '@shm/shared'
@@ -50,7 +52,6 @@ export default function DocumentPage() {
   const route = useNavRoute()
   const docId = route.key === 'document' && route.id
   if (!docId) throw new Error('Invalid route, no document id')
-
   const accessoryKey = route.accessory?.key
   const replace = useNavigate('replace')
   const [copyDialogContent, onCopy] = useCopyGatewayReference()
@@ -126,7 +127,7 @@ export default function DocumentPage() {
     })
   }
   return (
-    <>
+    <MainWrapper>
       <AccessoryLayout
         accessory={accessory}
         accessoryKey={accessoryKey}
@@ -140,7 +141,7 @@ export default function DocumentPage() {
         <MainDocumentPage />
       </AccessoryLayout>
       <Footer></Footer>
-    </>
+    </MainWrapper>
   )
 }
 
@@ -151,6 +152,7 @@ function MainDocumentPage() {
   if (!route.id) throw new Error('MainDocumentPage requires id')
   return (
     <>
+      <DocumentCover docId={route.id} />
       <DocPageHeader />
       <DocPageContent docId={route.id} isBlockFocused={route.isBlockFocused} />
       <DocPageAppendix docId={route.id} />
@@ -224,6 +226,29 @@ function DeleteKey({accountId}: {accountId: string}) {
         theme="red"
       />
     </Tooltip>
+  )
+}
+
+function DocumentCover({docId}: {docId: UnpackedHypermediaId}) {
+  const entity = useEntity(docId)
+  if (!entity.data?.document) return null
+  if (!entity.data.document.metadata.cover) return null
+
+  return (
+    <XStack bg="black" height="25vh" width="100%" position="relative">
+      <img
+        src={getFileUrl(entity.data.document.metadata.cover)}
+        title={'cover image'}
+        style={{
+          width: '100%',
+          height: '100%',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          objectFit: 'cover',
+        }}
+      />
+    </XStack>
   )
 }
 

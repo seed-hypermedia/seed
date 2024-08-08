@@ -30,7 +30,22 @@ export function CoverImage({
       })
   }
 
-  const coverImage = <XStack bg="black" height="25vh" width="100%" />
+  const coverImage = (
+    <XStack bg="black" height="25vh" width="100%" position="relative">
+      <img
+        src={url}
+        title={label}
+        style={{
+          width: '100%',
+          height: '100%',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          objectFit: 'cover',
+        }}
+      />
+    </XStack>
+  )
   if (!onCoverUpload) return coverImage
   return (
     <Tooltip content="Click or Drag to Set Cover Image">

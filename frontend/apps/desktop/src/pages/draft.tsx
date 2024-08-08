@@ -310,13 +310,21 @@ export function DraftHeader({
     >
       {showCover ? (
         <CoverImage
-          onCoverUpload={(cover) => {}}
+          onCoverUpload={(cover) => {
+            if (cover) {
+              draftActor.send({
+                type: 'CHANGE',
+                cover: `ipfs://${cover}`,
+              })
+            }
+          }}
           url={cover ? getFileUrl(cover) : ''}
         />
       ) : null}
       <YStack
         id="editor-header-content"
         marginTop={showCover ? -60 : 60}
+        bg="$background"
         group="header"
         gap="$2"
       >

@@ -24,7 +24,7 @@ export function PageContainer({
       <YStack
         f={1}
         paddingHorizontal="$4"
-        maxWidth={898}
+        maxWidth="100ch"
         alignSelf="center"
         {...props}
       >

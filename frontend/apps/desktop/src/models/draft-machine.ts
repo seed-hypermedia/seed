@@ -85,17 +85,16 @@ export const draftMachine = setup({
     }),
     setCover: assign({
       cover: ({context, event}) => {
-        // TODO: enable cover when ready
-        // if (event.type == 'GET.DRAFT.SUCCESS') {
-        //   if (event.draft) {
-        //     return event.draft.metadata.cover
-        //   } else if (event.document) {
-        //     return event.document.metadata.cover
-        //   }
-        // }
-        // if (event.type == 'CHANGE' && event.cover) {
-        //   return event.cover
-        // }
+        if (event.type == 'GET.DRAFT.SUCCESS') {
+          if (event.draft) {
+            return event.draft.metadata.cover
+          } else if (event.document) {
+            return event.document.metadata.cover
+          }
+        }
+        if (event.type == 'CHANGE' && event.cover) {
+          return event.cover
+        }
         return context.cover
       },
     }),

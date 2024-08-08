@@ -456,6 +456,7 @@ export function useDraftEditor({id}: {id: string | undefined}) {
         metadata: {
           name: input.name,
           thumbnail: input.thumbnail,
+          cover: input.cover,
         },
         members: {},
         signingAccount: input.signingAccount || undefined,
