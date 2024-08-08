@@ -48,7 +48,14 @@ export function TitlebarSearch() {
     setShowLauncher(true)
   })
   return (
-    <XStack ai="center" className="no-window-drag" position="relative" gap="$2">
+    <XStack
+      ai="center"
+      className="no-window-drag"
+      position="relative"
+      gap="$2"
+      w="100%"
+      overflow="hidden"
+    >
       <Button
         chromeless
         size="$2"
@@ -59,7 +66,7 @@ export function TitlebarSearch() {
         onPress={() => {
           setShowLauncher((v) => !v)
         }}
-      ></Button>
+      />
       <Title />
       {showLauncher ? (
         <LauncherContent

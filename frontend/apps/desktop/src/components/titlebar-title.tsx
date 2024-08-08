@@ -361,7 +361,7 @@ export function Title({size}: {size?: FontSizeTokens}) {
       // paddingHorizontal="$4"
       justifyContent="flex-start"
       ai="center"
-      // width="100%"
+      width="100%"
       minWidth={240}
     >
       <TitleContent size={size} />
