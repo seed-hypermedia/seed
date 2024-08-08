@@ -2,6 +2,7 @@ import {Block, BlockNoteEditor, HMBlockSchema} from '@/editor'
 import {updateGroup} from '@/editor/block-utils'
 import {Box, Menu} from '@mantine/core'
 import {Forward, RefreshCcw, XStack} from '@shm/ui'
+import * as _ from 'lodash'
 import {useCallback, useRef, useState} from 'react'
 import {
   RiHeading,
@@ -46,6 +47,34 @@ function TurnIntoMenu(props: DragHandleMenuProps<HMBlockSchema>) {
     setOpened(true)
   }, [])
 
+  const groups = _.groupBy(turnIntoItems, (i) => i.group)
+  const renderedItems: any[] = []
+  let index = 0
+
+  _.forEach(groups, (groupedItems) => {
+    renderedItems.push(
+      <Menu.Label key={groupedItems[0].group}>
+        {groupedItems[0].group}
+      </Menu.Label>,
+    )
+
+    for (const item of groupedItems) {
+      renderedItems.push(
+        <Menu.Item
+          key={item.label}
+          onClick={() => {
+            item.onClick(props)
+          }}
+          component="div"
+          icon={<item.Icon size={12} />}
+        >
+          {item.label}
+        </Menu.Item>,
+      )
+      index++
+    }
+  })
+
   if (!props.block.type) {
     return null
   }
@@ -70,18 +99,7 @@ function TurnIntoMenu(props: DragHandleMenuProps<HMBlockSchema>) {
           onMouseOver={stopMenuCloseTimer}
           style={{marginLeft: '5px'}}
         >
-          {turnIntoItems.map(({Icon, label, onClick}) => (
-            <Menu.Item
-              key={label}
-              onClick={() => {
-                onClick(props)
-              }}
-              component="div"
-              icon={<Icon size={12} />}
-            >
-              {label}
-            </Menu.Item>
-          ))}
+          {renderedItems}
         </Menu.Dropdown>
       </Menu>
     </DragHandleMenuItem>
@@ -91,7 +109,7 @@ function TurnIntoMenu(props: DragHandleMenuProps<HMBlockSchema>) {
 var turnIntoItems = [
   {
     label: 'Paragraph',
-    // group: 'Block operations',
+    group: 'Block operations',
     Icon: RiText,
     onClick: ({
       block,
@@ -109,7 +127,7 @@ var turnIntoItems = [
   },
   {
     label: 'Heading',
-    // group: 'Block operations',
+    group: 'Block operations',
     Icon: RiHeading,
     onClick: ({
       block,
@@ -127,7 +145,7 @@ var turnIntoItems = [
   },
   {
     label: 'Bullet item',
-    // group: 'Group operations',
+    group: 'Group operations',
     Icon: RiListUnordered,
     onClick: ({
       block,
@@ -142,7 +160,7 @@ var turnIntoItems = [
   },
   {
     label: 'Numbered item',
-    // group: 'Group operations',
+    group: 'Group operations',
     Icon: RiListOrdered,
     onClick: ({
       block,
@@ -157,7 +175,7 @@ var turnIntoItems = [
   },
   {
     label: 'Group item',
-    // group: 'Group operations',
+    group: 'Group operations',
     Icon: RiMenuLine,
     onClick: ({
       block,
