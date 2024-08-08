@@ -318,6 +318,13 @@ export function DraftHeader({
               })
             }
           }}
+          onRemoveCover={() => {
+            setShowCover(false)
+            draftActor.send({
+              type: 'CHANGE',
+              cover: undefined,
+            })
+          }}
           url={cover ? getFileUrl(cover) : ''}
         />
       ) : null}
@@ -325,6 +332,7 @@ export function DraftHeader({
         id="editor-header-content"
         marginTop={showCover ? -60 : 60}
         bg="$background"
+        borderRadius="$2"
         group="header"
         gap="$2"
       >
@@ -334,6 +342,7 @@ export function DraftHeader({
             id={route.id ? route.id.uid : 'document-avatar'}
             label={name}
             url={thumbnail ? getFileUrl(thumbnail) : ''}
+            marginTop={-50}
             onAvatarUpload={(thumbnail) => {
               if (thumbnail) {
                 draftActor.send({

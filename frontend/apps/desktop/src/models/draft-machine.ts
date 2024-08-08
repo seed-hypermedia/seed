@@ -92,8 +92,12 @@ export const draftMachine = setup({
             return event.document.metadata.cover
           }
         }
-        if (event.type == 'CHANGE' && event.cover) {
-          return event.cover
+        if (event.type == 'CHANGE') {
+          if (event.cover) {
+            return event.cover
+          } else if (typeof event.cover == 'undefined') {
+            return ''
+          }
         }
         return context.cover
       },
