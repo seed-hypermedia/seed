@@ -342,7 +342,7 @@ export function DraftHeader({
             id={route.id ? route.id.uid : 'document-avatar'}
             label={name}
             url={thumbnail ? getFileUrl(thumbnail) : ''}
-            marginTop={-50}
+            marginTop={cover ? -50 : 0}
             onAvatarUpload={(thumbnail) => {
               if (thumbnail) {
                 draftActor.send({

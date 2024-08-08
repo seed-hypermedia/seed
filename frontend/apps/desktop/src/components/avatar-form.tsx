@@ -48,6 +48,7 @@ export function AvatarForm({
       h={size}
       borderRadius={size / 2}
       overflow="hidden"
+      {...props}
     >
       <input
         type="file"

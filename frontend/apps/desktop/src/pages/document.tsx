@@ -2,37 +2,39 @@ import {
   AccessoryContainer,
   AccessoryLayout,
 } from '@/components/accessory-sidebar'
+import {AvatarForm} from '@/components/avatar-form'
 import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
 import {Directory} from '@/components/directory'
 import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
 import {MainWrapper} from '@/components/main-wrapper'
-import {Thumbnail} from '@/components/thumbnail'
+import {CopyReferenceButton} from '@/components/titlebar-common'
+import '@/editor/editor.css'
 import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
 import {useEntity} from '@/models/entities'
 import {getFileUrl} from '@/utils/account-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {DocContent, getProfileName, UnpackedHypermediaId} from '@shm/shared'
+import {DocContent, getProfileName} from '@shm/shared'
 import {
   Button,
   CitationsIcon,
   CollaboratorsIcon,
   CommentsIcon,
+  H1,
   HistoryIcon,
   Section,
-  SizableText,
   Spinner,
   SuggestedChangesIcon,
   Tooltip,
   XStack,
+  YStack,
 } from '@shm/ui'
 import {PageContainer} from '@shm/ui/src/container'
 import {RadioButtons} from '@shm/ui/src/radio-buttons'
 import {Trash} from '@tamagui/lucide-icons'
-import {ReactNode} from 'react'
+import {ReactNode, useMemo} from 'react'
 import {EntityCitationsAccessory} from '../components/citations'
-import {CopyReferenceButton} from '../components/titlebar-common'
 import {AppDocContentProvider} from './document-content-provider'
 
 type DocAccessoryOption = {
@@ -152,7 +154,6 @@ function MainDocumentPage() {
   if (!route.id) throw new Error('MainDocumentPage requires id')
   return (
     <>
-      <DocumentCover docId={route.id} />
       <DocPageHeader />
       <DocPageContent docId={route.id} isBlockFocused={route.isBlockFocused} />
       <DocPageAppendix docId={route.id} />
@@ -169,48 +170,51 @@ function DocPageHeader() {
   const entity = useEntity(docId)
   const isMyAccount = myAccountIds.data?.includes(docId.id)
   const accountName = getProfileName(entity.data?.document)
+  const hasCover = useMemo(
+    () => !!entity.data?.document?.metadata.cover,
+    [entity.data],
+  )
+  const hasThumbnail = useMemo(
+    () => !!entity.data?.document?.metadata.thumbnail,
+    [entity.data],
+  )
 
   return (
-    <>
-      <PageContainer marginTop="$6">
-        <Section paddingVertical={0} gap="$2" marginBottom="$4">
-          <XStack
-            gap="$4"
-            alignItems="center"
-            justifyContent="space-between"
-            paddingVertical="$4"
-          >
-            <XStack gap="$4" alignItems="center" minHeight={60}>
-              {entity.data?.id ? (
-                <Thumbnail
-                  size={64}
-                  id={entity.data?.id}
-                  document={entity.data?.document}
-                />
-              ) : null}
-              <SizableText
-                whiteSpace="nowrap"
-                overflow="hidden"
-                textOverflow="ellipsis"
-                size="$5"
-                fontWeight="700"
-              >
-                {accountName}
-              </SizableText>
-            </XStack>
-
-            <XStack gap="$2">
-              {isMyAccount ? (
-                <DeleteKey accountId={docId.id} />
-              ) : (
-                <FavoriteButton id={docId} />
-              )}
-              <CopyReferenceButton />
-            </XStack>
+    <YStack>
+      <DocumentCover docId={docId} />
+      <YStack
+        id="editor-header-content"
+        marginTop={hasCover ? -60 : 60}
+        bg="$background"
+        borderRadius="$2"
+        group="header"
+        gap="$4"
+      >
+        {hasThumbnail ? (
+          <XStack marginTop={hasCover ? -50 : 0}>
+            <AvatarForm
+              size={100}
+              id={docId.uid || 'document-thumbnail'}
+              label={entity.data?.document?.metadata.name}
+              url={getFileUrl(entity.data!.document!.metadata.thumbnail)}
+            />
           </XStack>
-        </Section>
-      </PageContainer>
-    </>
+        ) : null}
+        <XStack>
+          <H1 size="$9" f={1} style={{fontWeight: 'bold'}}>
+            {accountName}
+          </H1>
+          <XStack gap="$2">
+            {isMyAccount ? (
+              <DeleteKey accountId={docId.id} />
+            ) : (
+              <FavoriteButton id={docId} />
+            )}
+            <CopyReferenceButton />
+          </XStack>
+        </XStack>
+      </YStack>
+    </YStack>
   )
 }
 

@@ -23,7 +23,7 @@ export const draftMachine = setup({
           type: 'CHANGE'
           name?: string
           thumbnail?: string
-          cover?: string
+          cover?: string | null
           signingAccount?: string
         }
       | {type: 'RESET.DRAFT'}
@@ -95,7 +95,7 @@ export const draftMachine = setup({
         if (event.type == 'CHANGE') {
           if (event.cover) {
             return event.cover
-          } else if (typeof event.cover == 'undefined') {
+          } else if (event.cover === null) {
             return ''
           }
         }
