@@ -1,4 +1,4 @@
-import {BlockNoteEditor, HMBlockSchema} from '@/editor'
+import {Block, BlockNoteEditor, HMBlockSchema} from '@/editor'
 import {updateGroup} from '@/editor/block-utils'
 import {Box, Menu} from '@mantine/core'
 import {Forward, RefreshCcw, XStack} from '@shm/ui'
@@ -91,12 +91,13 @@ function TurnIntoMenu(props: DragHandleMenuProps<HMBlockSchema>) {
 var turnIntoItems = [
   {
     label: 'Paragraph',
+    // group: 'Block operations',
     Icon: RiText,
     onClick: ({
       block,
       editor,
     }: {
-      block: BlockNoteEditor<HMBlockSchema>
+      block: Block<HMBlockSchema>
       editor: BlockNoteEditor<HMBlockSchema>
     }) => {
       editor.focus()
@@ -108,12 +109,13 @@ var turnIntoItems = [
   },
   {
     label: 'Heading',
+    // group: 'Block operations',
     Icon: RiHeading,
     onClick: ({
       block,
       editor,
     }: {
-      block: BlockNoteEditor<HMBlockSchema>
+      block: Block<HMBlockSchema>
       editor: BlockNoteEditor<HMBlockSchema>
     }) => {
       editor.focus()
@@ -125,12 +127,13 @@ var turnIntoItems = [
   },
   {
     label: 'Bullet item',
+    // group: 'Group operations',
     Icon: RiListUnordered,
     onClick: ({
       block,
       editor,
     }: {
-      block: BlockNoteEditor<HMBlockSchema>
+      block: Block<HMBlockSchema>
       editor: BlockNoteEditor<HMBlockSchema>
     }) => {
       editor.focus()
@@ -139,12 +142,13 @@ var turnIntoItems = [
   },
   {
     label: 'Numbered item',
+    // group: 'Group operations',
     Icon: RiListOrdered,
     onClick: ({
       block,
       editor,
     }: {
-      block: BlockNoteEditor<HMBlockSchema>
+      block: Block<HMBlockSchema>
       editor: BlockNoteEditor<HMBlockSchema>
     }) => {
       editor.focus()
@@ -153,12 +157,13 @@ var turnIntoItems = [
   },
   {
     label: 'Group item',
+    // group: 'Group operations',
     Icon: RiMenuLine,
     onClick: ({
       block,
       editor,
     }: {
-      block: BlockNoteEditor<HMBlockSchema>
+      block: Block<HMBlockSchema>
       editor: BlockNoteEditor<HMBlockSchema>
     }) => {
       editor.focus()

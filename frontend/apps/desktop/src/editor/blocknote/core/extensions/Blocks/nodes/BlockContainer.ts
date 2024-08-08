@@ -263,6 +263,7 @@ declare module '@tiptap/core' {
         tab: boolean,
         start?: string,
         isSank?: boolean,
+        turnInto?: boolean,
       ) => ReturnType
     }
   }
@@ -718,7 +719,7 @@ export const BlockContainer = Node.create<{
         },
       // Updates a block group at a given position.
       UpdateGroup:
-        (posInBlock, listType, tab, start, isSank = false) =>
+        (posInBlock, listType, tab, start, isSank = false, turnInto = false) =>
         ({state, dispatch}) => {
           // Find block group, block container and depth it is at
           const {
@@ -802,7 +803,8 @@ export const BlockContainer = Node.create<{
             group.attrs.listType !== 'div' &&
             group.attrs.listType !== listType &&
             container &&
-            !tab
+            !tab &&
+            !turnInto
           ) {
             setTimeout(() => {
               this.editor
