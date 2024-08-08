@@ -58,7 +58,10 @@ export function CoverImage({
         <XStack
           opacity={0}
           jc="end"
-          paddingHorizontal={54}
+          paddingHorizontal={34}
+          $gtMd={{
+            paddingHorizontal: 54,
+          }}
           paddingVertical={20}
           position="absolute"
           top={0}

@@ -9,7 +9,13 @@
 }
 
 #editor-header-content {
-  padding: 0 54px;
+  padding: 0 34px;
+}
+
+@media (min-width: 1021px) {
+  #editor-header-content {
+    padding: 0 54px;
+  }
 }
 
 .editor {
