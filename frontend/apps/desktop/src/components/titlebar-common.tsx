@@ -176,6 +176,7 @@ export function useFullReferenceUrl(route: NavRoute): {
       url: createPublicWebHmUrl('d', docRoute.id.uid, {
         version: pub.data?.document?.version,
         hostname,
+        path: docRoute.id.path,
       }),
       label: hostname ? 'Site Version' : 'Doc Version',
       content: copyDialogContent,
@@ -191,7 +192,8 @@ export function useFullReferenceUrl(route: NavRoute): {
           hostname: hostname || null,
           version: pub.data?.document?.version || null,
           blockRef: blockId || focusBlockId || null,
-          blockRange,
+          blockRange: blockRange || null,
+          path: docRoute.id.path,
         })
       },
     }

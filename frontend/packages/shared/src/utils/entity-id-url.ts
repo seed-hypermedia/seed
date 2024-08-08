@@ -22,12 +22,14 @@ export function createPublicWebHmUrl(
     blockRange,
     hostname,
     latest,
+    path,
   }: {
     version?: string | null | undefined
     blockRef?: string | null | undefined
     blockRange?: BlockRange | ExpandedBlockRange | null
     hostname?: string | null | undefined
     latest?: boolean | null
+    path?: string[] | null
   } = {},
 ) {
   const webPath = type === 'd' ? `/hm/${uid}` : `/hm/${type}/${uid}`
@@ -38,6 +40,9 @@ export function createPublicWebHmUrl(
       ? ''
       : hostname
   let res = `${urlHost}${webPath}`
+  if (path) {
+    res += `/${path.join('/')}`
+  }
   const query: Record<string, string | null> = {}
   if (version) {
     query.v = version

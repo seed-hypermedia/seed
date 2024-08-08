@@ -55,6 +55,7 @@ export function useCopyGatewayReference() {
       blockRef: input.blockRef,
       blockRange: input.blockRange,
       hostname: gatewayUrl.data,
+      path: input.path,
     })
     const [setIsPublished, isPublished] =
       writeableStateStream<IsPublishedState>(null)
