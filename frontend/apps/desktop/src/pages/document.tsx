@@ -7,7 +7,7 @@ import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
 import {Directory} from '@/components/directory'
 import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
-import {MainWrapper} from '@/components/main-wrapper'
+import {SidebarSpacer} from '@/components/main-wrapper'
 import {CopyReferenceButton} from '@/components/titlebar-common'
 import '@/editor/editor.css'
 import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
@@ -47,7 +47,7 @@ type DocAccessoryOption = {
     | 'contacts'
     | 'all-documents'
   label: string
-  icon: null | React.FC<{color: string}>
+  icon: null | React.FC<{color: string; size?: number}>
 }
 
 export default function DocumentPage() {
@@ -129,21 +129,24 @@ export default function DocumentPage() {
     })
   }
   return (
-    <MainWrapper>
-      <AccessoryLayout
-        accessory={accessory}
-        accessoryKey={accessoryKey}
-        onAccessorySelect={(key: typeof accessoryKey) => {
-          if (key === accessoryKey || key === undefined)
-            return replace({...route, accessory: null})
-          replace({...route, accessory: {key}})
-        }}
-        accessoryOptions={accessoryOptions}
-      >
-        <MainDocumentPage />
-      </AccessoryLayout>
-      <Footer></Footer>
-    </MainWrapper>
+    <>
+      <XStack flex={1}>
+        <SidebarSpacer />
+        <AccessoryLayout
+          accessory={accessory}
+          accessoryKey={accessoryKey}
+          onAccessorySelect={(key: typeof accessoryKey) => {
+            if (key === accessoryKey || key === undefined)
+              return replace({...route, accessory: null})
+            replace({...route, accessory: {key}})
+          }}
+          accessoryOptions={accessoryOptions}
+        >
+          <MainDocumentPage />
+        </AccessoryLayout>
+      </XStack>
+      <Footer />
+    </>
   )
 }
 

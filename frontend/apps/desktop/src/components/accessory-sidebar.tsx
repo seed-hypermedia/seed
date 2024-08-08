@@ -1,5 +1,4 @@
 import {ScrollView, SizableText, Tooltip, XStack, YStack} from '@shm/ui'
-import {X} from '@tamagui/lucide-icons'
 import {ComponentProps} from 'react'
 import {Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
 import {Button, useTheme} from 'tamagui'
@@ -19,36 +18,24 @@ export function AccessoryContainer({
   onClose?: () => void
 } & ComponentProps<typeof YStack>) {
   return (
-    <YStack height="100%" {...props} paddingVertical="$3">
-      <YStack f={1} backgroundColor="$color4" borderRadius="$4">
-        <XStack
-          paddingVertical="$2"
-          borderBottomColor="$color7"
-          borderBottomWidth={1}
-          alignItems="center"
+    <YStack
+      height="100%"
+      {...props}
+      paddingVertical="$3"
+      backgroundColor="$color4"
+    >
+      {title ? (
+        <SizableText
+          userSelect="none"
+          f={1}
+          size="$3"
+          fontWeight="600"
+          marginHorizontal="$4"
         >
-          {title ? (
-            <SizableText
-              userSelect="none"
-              f={1}
-              fontSize="$6"
-              marginHorizontal="$4"
-            >
-              {title}
-            </SizableText>
-          ) : null}
-          <Button
-            icon={X}
-            onPress={onClose}
-            size="$2"
-            padding="$3"
-            marginRight="$2"
-            chromeless
-            width={CloseButtonSize}
-            height={CloseButtonSize}
-            borderRadius={CloseButtonSize / 2}
-          />
-        </XStack>
+          {title}
+        </SizableText>
+      ) : null}
+      <YStack f={1} borderRadius="$4">
         <ScrollView f={1}>
           <YStack>{children}</YStack>
         </ScrollView>
@@ -58,13 +45,13 @@ export function AccessoryContainer({
   )
 }
 
-const AccessoryButtonSize = 50
+const AccessoryButtonSize = 60
 
 export function AccessoryLayout<
   Options extends {
     key: string
     label: string
-    icon?: null | React.FC<{color: string}>
+    icon?: null | React.FC<{color: string; size?: number}>
   }[],
 >({
   children,
@@ -83,7 +70,10 @@ export function AccessoryLayout<
   return (
     <XStack f={1}>
       <PanelGroup direction="horizontal">
-        <Panel minSize={50} style={{overflowY: 'scroll'}}>
+        <Panel
+          minSize={50}
+          style={{overflowY: 'scroll', borderRight: '1px solid var(--color7)'}}
+        >
           {children}
         </Panel>
         <PanelResizeHandle />
@@ -92,33 +82,45 @@ export function AccessoryLayout<
           maxSize={50}
           minSize={20}
           defaultSize={20}
+          style={{
+            overflowY: 'scroll',
+            borderRight:
+              accessoryKey === undefined
+                ? undefined
+                : '1px solid var(--color7)',
+          }}
         >
           {accessory}
         </Panel>
       </PanelGroup>
-      <YStack padding="$3" gap="$2">
+      <YStack>
         {accessoryOptions.map((option) => {
           const isActive = accessoryKey === option.key
           return (
             <Tooltip key={option.key} placement="left" content={option.label}>
               <Button
-                size="$2"
-                backgroundColor={isActive ? theme.blue10.val : theme.color1.val}
-                hoverStyle={{
-                  backgroundColor: isActive
-                    ? theme.blue10.val
-                    : theme.color2.val,
-                }}
+                size="$4"
+                // hoverStyle={{
+                //   backgroundColor: isActive
+                //     ? theme.blue10.val
+                //     : theme.color2.val,
+                // }}
                 onPress={() => {
                   onAccessorySelect(option.key)
                 }}
                 width={AccessoryButtonSize}
                 height={AccessoryButtonSize}
-                borderRadius={AccessoryButtonSize / 2}
+                padding={0}
+                outlineColor="$colorTransparent"
+                borderColor="$colorTransparent"
+                hoverStyle={{
+                  borderColor: '$colorTransparent',
+                }}
               >
                 {option.icon ? (
                   <option.icon
-                    color={isActive ? theme.color1.val : theme.color12.val}
+                    size={32}
+                    color={isActive ? theme.blue10.val : theme.color.val}
                   />
                 ) : null}
               </Button>
