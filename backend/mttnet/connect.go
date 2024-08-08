@@ -112,7 +112,10 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	if err := n.CheckHyperMediaProtocolVersion(ctx, info.ID, n.protocol.version); err != nil {
 		return err
 	}
-
+	// TODO(juligasa): If transient then return
+	// if transient {
+	// 	return nil
+	// }
 	addrsStr := AddrInfoToStrings(info)
 	c, err := n.client.Dial(ctx, info.ID)
 	if err != nil {

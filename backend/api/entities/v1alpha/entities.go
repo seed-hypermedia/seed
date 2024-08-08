@@ -10,10 +10,13 @@ import (
 	entities "seed/backend/genproto/entities/v1alpha"
 	"seed/backend/index"
 	"seed/backend/util/dqb"
+	"seed/backend/util/errutil"
 	"sort"
 	"strings"
 
 	"github.com/lithammer/fuzzysearch/fuzzy"
+	"google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 
 	"crawshaw.io/sqlite"
 	"crawshaw.io/sqlite/sqlitex"
@@ -330,38 +333,38 @@ func isDescendant(timeline *entities.EntityTimeline, queue [][]string, parent, d
 }
 
 // DiscoverEntity implements the Entities server.
-// func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEntityRequest) (*entities.DiscoverEntityResponse, error) {
-// 	if api.disc == nil {
-// 		return nil, status.Errorf(codes.FailedPrecondition, "discovery is not enabled")
-// 	}
+func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEntityRequest) (*entities.DiscoverEntityResponse, error) {
+	if api.disc == nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "discovery is not enabled")
+	}
 
-// 	if in.Id == "" {
-// 		return nil, errutil.MissingArgument("id")
-// 	}
+	if in.Id == "" {
+		return nil, errutil.MissingArgument("id")
+	}
 
-// 	ver := hyper.Version(in.Version)
+	// 	ver := hyper.Version(in.Version)
 
-// 	heads, err := ver.Parse()
-// 	if err != nil {
-// 		return nil, status.Errorf(codes.InvalidArgument, "invalid version %q: %v", in.Version, err)
-// 	}
+	// 	heads, err := ver.Parse()
+	// 	if err != nil {
+	// 		return nil, status.Errorf(codes.InvalidArgument, "invalid version %q: %v", in.Version, err)
+	// 	}
 
-// 	if err := api.disc.DiscoverObject(ctx, hyper.EntityID(in.Id), ver); err != nil {
-// 		return nil, err
-// 	}
+	if err := api.disc.DiscoverObject(ctx, in.Id, in.Version); err != nil {
+		return nil, err
+	}
 
-// 	for _, h := range heads {
-// 		ok, err := api.blobs.IPFSBlockstore().Has(ctx, h)
-// 		if err != nil {
-// 			return nil, fmt.Errorf("failed to check if block %s exists: %w", h, err)
-// 		}
-// 		if !ok {
-// 			return nil, status.Errorf(codes.Unavailable, "discovery attempt failed: couldn't find the desired version %q", in.Version)
-// 		}
-// 	}
+	// 	for _, h := range heads {
+	// 		ok, err := api.blobs.IPFSBlockstore().Has(ctx, h)
+	// 		if err != nil {
+	// 			return nil, fmt.Errorf("failed to check if block %s exists: %w", h, err)
+	// 		}
+	// 		if !ok {
+	// 			return nil, status.Errorf(codes.Unavailable, "discovery attempt failed: couldn't find the desired version %q", in.Version)
+	// 		}
+	// 	}
 
-// 	return &entities.DiscoverEntityResponse{}, nil
-// }
+	return &entities.DiscoverEntityResponse{}, nil
+}
 
 // SearchEntities implements the Fuzzy search of entities.
 func (api *Server) SearchEntities(ctx context.Context, in *entities.SearchEntitiesRequest) (*entities.SearchEntitiesResponse, error) {

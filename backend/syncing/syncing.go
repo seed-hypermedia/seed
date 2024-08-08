@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"seed/backend/config"
 	"seed/backend/core"
@@ -23,7 +22,6 @@ import (
 
 	"crawshaw.io/sqlite"
 	"crawshaw.io/sqlite/sqlitex"
-	"github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/boxo/exchange"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/event"
@@ -330,7 +328,7 @@ func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
 
 			res.Peers[i] = pid
 
-			if xerr := s.SyncWithPeer(ctx, pid); xerr != nil {
+			if xerr := s.SyncWithPeer(ctx, pid, ""); xerr != nil {
 				err = errors.Join(err, fmt.Errorf("failed to sync objects: %w", xerr))
 			}
 		}(i, pid)
@@ -342,8 +340,8 @@ func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
 }
 
 // SyncWithPeer syncs all documents from a given peer. given no initial objectsOptionally.
-// if a list a list of initialObjects is provided, then only syncs objects from that list.
-func (s *Service) SyncWithPeer(ctx context.Context, pid peer.ID) error {
+// if a non empty entity is provided, then only syncs blobs related to that entity
+func (s *Service) SyncWithPeer(ctx context.Context, pid peer.ID, eid string) error {
 	// Can't sync with self.
 	if s.host.Network().LocalPeer() == pid {
 		return nil
@@ -368,7 +366,9 @@ func (s *Service) SyncWithPeer(ctx context.Context, pid peer.ID) error {
 
 	bswap := s.bitswap.NewSession(ctx)
 
-	//return syncPeer(ctx, pid, c, bs, bswap, s.db, s.log)
+	if eid != "" {
+		return syncEntity(ctx, pid, c, s.indexer, bswap, s.db, s.log, eid)
+	}
 	return syncPeerRbsr(ctx, pid, c, s.indexer, bswap, s.db, s.log)
 }
 
@@ -451,20 +451,21 @@ func (s *Service) syncBack(ctx context.Context, event event.EvtPeerIdentificatio
 			s.log.Warn("Could not store peer", zap.Error(err))
 		} else {
 			s.log.Info("Syncing back", zap.String("PeerID", info.ID.String()))
-			go s.SyncWithPeer(ctx, info.ID)
+			go s.SyncWithPeer(ctx, info.ID, "")
 		}
 	}
 
 }
 
-func syncPeer(
+func syncEntity(
 	ctx context.Context,
 	pid peer.ID,
-	c p2p.P2PClient,
-	bs blockstore.Blockstore,
+	c p2p.SyncingClient,
+	idx *index.Index,
 	sess exchange.Fetcher,
 	db *sqlitex.Pool,
 	log *zap.Logger,
+	eid string,
 ) (err error) {
 	mSyncsInFlight.Inc()
 	defer func() {
@@ -476,91 +477,82 @@ func syncPeer(
 	}()
 
 	if _, ok := ctx.Deadline(); !ok {
-		panic("BUG: syncPeer must have timeout")
+		return fmt.Errorf("BUG: syncEntity must have timeout")
 	}
 
-	stream, err := c.ListBlobs(ctx, &p2p.ListBlobsRequest{})
+	// If we know what we want, it's a 1 way syncing so we don't share anything
+	store := rbsr.NewSliceStore()
+	ne, err := rbsr.NewSession(store, 50000)
+
+	if err != nil {
+		return fmt.Errorf("Failed to Init Syncing Session: %w", err)
+	}
+
+	msg, err := ne.Initiate()
 	if err != nil {
 		return err
 	}
 
-	pk, err := pid.ExtractPublicKey()
-	if err != nil {
-		return fmt.Errorf("failed to extract public key from peer id %s: %w", pid, err)
-	}
+	allWants := list.New()
 
-	remotePrincipal := core.PrincipalFromPubKey(pk)
-
-	type wantBlob struct {
-		cid    cid.Cid
-		cursor string
-	}
-
-	var want []wantBlob
-	for {
-		obj, err := stream.Recv()
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			return err
+	var rounds int
+	for msg != nil {
+		rounds++
+		if rounds > 1000 {
+			return fmt.Errorf("Too many rounds of interactive syncing")
 		}
-
-		c, err := cid.Cast(obj.Cid)
+		res, err := c.ReconcileBlobs(ctx, &p2p.ReconcileBlobsRequest{Ranges: msg, Filter: &p2p.Filter{Resource: eid}})
 		if err != nil {
 			return err
 		}
-
-		ok, err := bs.Has(ctx, c)
+		msg = res.Ranges
+		var haves, wants [][]byte
+		msg, err = ne.ReconcileWithIDs(msg, &haves, &wants)
 		if err != nil {
-			return fmt.Errorf("failed to check if we have blob %s: %w", c, err)
+			return err
 		}
-
-		if !ok {
-			want = append(want, wantBlob{cid: c, cursor: obj.Cursor})
-			mWantedBlobsTotal.Inc()
+		for _, want := range wants {
+			allWants.PushBack(want)
 		}
 	}
 
-	if len(want) == 0 {
+	if allWants.Len() == 0 {
 		return nil
 	}
 
-	MSyncingWantedBlobs.WithLabelValues("syncing").Add(float64(len(want)))
-	defer MSyncingWantedBlobs.WithLabelValues("syncing").Sub(float64(len(want)))
+	MSyncingWantedBlobs.WithLabelValues("syncing").Add(float64(allWants.Len()))
+	defer MSyncingWantedBlobs.WithLabelValues("syncing").Sub(float64(allWants.Len()))
 
 	log = log.With(
 		zap.String("peer", pid.String()),
 	)
 
-	var lastSavedCursor string
-	for i, c := range want {
-		blk, err := sess.GetBlock(ctx, c.cid)
+	var failed int
+	for allWants.Len() > 0 {
+		item := allWants.Front()
+		if failed == allWants.Len() {
+			return fmt.Errorf("could not sync all content")
+		}
+		blobCid, err := cid.Cast(item.Value.([]byte))
 		if err != nil {
-			log.Debug("FailedToGetWantedBlob", zap.String("cid", c.cid.String()), zap.Error(err))
-			continue
-		}
-
-		if err := bs.Put(ctx, blk); err != nil {
-			log.Debug("FailedToSaveWantedBlob", zap.String("cid", c.cid.String()), zap.Error(err))
-			continue
-		}
-
-		// Save the cursor every N blobs instead of after every blob.
-		if i%50 == 0 {
-			if err := SaveCursor(ctx, db, remotePrincipal, c.cursor); err != nil {
-				return err
-			}
-			lastSavedCursor = c.cursor
-		}
-	}
-
-	lastCursor := want[len(want)-1].cursor
-
-	if lastSavedCursor != lastCursor {
-		if err := SaveCursor(ctx, db, remotePrincipal, lastCursor); err != nil {
 			return err
 		}
+		blk, err := sess.GetBlock(ctx, blobCid)
+		if err != nil {
+			log.Debug("FailedToGetWantedBlob", zap.String("cid", blobCid.String()), zap.Error(err))
+			allWants.MoveAfter(item, allWants.Back())
+			failed++
+			continue
+		}
+
+		if err := idx.Put(ctx, blk); err != nil {
+			log.Debug("FailedToSaveWantedBlob", zap.String("cid", blobCid.String()), zap.Error(err))
+			allWants.MoveAfter(item, allWants.Back())
+			failed++
+			continue
+		}
+		failed = 0
+		allWants.Remove(item)
 	}
 
 	return nil
@@ -614,12 +606,11 @@ func syncPeerRbsr(
 		codec := stmt.ColumnInt64(0)
 		hash := stmt.ColumnBytesUnsafe(1)
 		ts := stmt.ColumnInt64(2)
-		c := cid.NewCidV1(uint64(codec), hash)
-		return store.Insert(ts, c.Bytes())
+		rawCid := cid.NewCidV1(uint64(codec), hash)
+		return store.Insert(ts, rawCid.Bytes())
 	}); err != nil {
 		return fmt.Errorf("Could not list blobs: %w", err)
 	}
-
 	if err = store.Seal(); err != nil {
 		return fmt.Errorf("Failed to seal store: %w", err)
 	}
@@ -664,30 +655,30 @@ func syncPeerRbsr(
 	)
 	var failed int
 	for allWants.Len() > 0 {
-		c := allWants.Front()
+		item := allWants.Front()
 		if failed == allWants.Len() {
 			return fmt.Errorf("could not sync all content")
 		}
-		cid, err := cid.Cast(c.Value.([]byte))
+		blockCid, err := cid.Cast(item.Value.([]byte))
 		if err != nil {
 			return err
 		}
-		blk, err := sess.GetBlock(ctx, cid)
+		blk, err := sess.GetBlock(ctx, blockCid)
 		if err != nil {
-			log.Debug("FailedToGetWantedBlob", zap.String("cid", cid.String()), zap.Error(err))
-			allWants.MoveAfter(c, allWants.Back())
+			log.Debug("FailedToGetWantedBlob", zap.String("cid", blockCid.String()), zap.Error(err))
+			allWants.MoveAfter(item, allWants.Back())
 			failed++
 			continue
 		}
 
 		if err := idx.Put(ctx, blk); err != nil {
-			log.Debug("FailedToSaveWantedBlob", zap.String("cid", cid.String()), zap.Error(err))
-			allWants.MoveAfter(c, allWants.Back())
+			log.Debug("FailedToSaveWantedBlob", zap.String("cid", blockCid.String()), zap.Error(err))
+			allWants.MoveAfter(item, allWants.Back())
 			failed++
 			continue
 		}
 		failed = 0
-		allWants.Remove(c)
+		allWants.Remove(item)
 	}
 
 	return nil

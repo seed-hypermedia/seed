@@ -20,7 +20,7 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 		return nil, err
 	}
 
-	var qListBlobs = dqb.Str(`
+	var qListAllBlobs = dqb.Str(`
 	SELECT
 		blobs.codec,
 		blobs.multihash,
@@ -29,13 +29,27 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 	WHERE blobs.size >= 0 
 	ORDER BY sb.ts, blobs.multihash;
 `)
+	var qListrelatedBlobs = dqb.Str(`
+	SELECT
+		blobs.codec,
+		blobs.multihash,
+		blobs.insert_time
+	FROM blobs INDEXED BY blobs_metadata 
+	LEFT JOIN structural_blobs sb ON sb.id = blobs.id
+	JOIN resources res ON sb.resource = res.id
+	WHERE blobs.size >= 0 AND res.iri = ?
+	ORDER BY sb.ts, blobs.multihash;
+`)
 	conn, release, err := srv.Node.db.Conn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("Could not get connection: %w", err)
 	}
 	defer release()
-
-	if err = sqlitex.Exec(conn, qListBlobs(), func(stmt *sqlite.Stmt) error {
+	query := qListAllBlobs
+	if in.Filter != nil && in.Filter.Resource != "" {
+		query = qListrelatedBlobs
+	}
+	if err = sqlitex.Exec(conn, query(), func(stmt *sqlite.Stmt) error {
 		codec := stmt.ColumnInt64(0)
 		hash := stmt.ColumnBytesUnsafe(1)
 		ts := stmt.ColumnInt64(2)

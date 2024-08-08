@@ -17,7 +17,6 @@ import (
 
 	"crawshaw.io/sqlite/sqlitex"
 	provider "github.com/ipfs/boxo/provider"
-	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
 	manet "github.com/multiformats/go-multiaddr/net"
@@ -199,11 +198,6 @@ func (n *Node) SetInvoicer(inv Invoicer) {
 	n.invoicer = inv
 }
 
-// Provider returns the underlying providing system for convenience.
-func (n *Node) Provider() provider.System {
-	return n.providing
-}
-
 // GetProtocolInfo returns the current protocol info for convenience.
 func (n *Node) GetProtocolVersion() string {
 	return n.protocol.version
@@ -225,18 +219,6 @@ func (n *Node) SetConnectionCallback(fn func(context.Context, event.EvtPeerConne
 // round for a peer is completed.
 func (n *Node) SetIdentificationCallback(fn func(context.Context, event.EvtPeerIdentificationCompleted)) {
 	n.identificationCallback = fn
-}
-
-// ProvideCID notifies the providing system to provide the given CID on the DHT.
-func (n *Node) ProvideCID(c cid.Cid) error {
-	n.log.Debug("Providing to the DHT", zap.String("CID", c.String()))
-	err := n.providing.Provide(c)
-	if err != nil {
-		n.log.Warn("Provided Failed", zap.String("CID", c.String()), zap.Error(err))
-		return err
-	}
-	n.log.Debug("Provided Succeeded!", zap.String("CID", c.String()))
-	return nil
 }
 
 // Bitswap returns the underlying Bitswap service.

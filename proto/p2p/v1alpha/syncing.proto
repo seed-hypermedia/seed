@@ -9,12 +9,6 @@ service Syncing {
 }
 
 message ReconcileBlobsRequest {
-  // Filter describes which blobs to select for reconciliation.
-  message Filter {
-    // Selects only blobs related to the given resource.
-    string resource = 1;
-  }
-
   // Optional. Filter to narrow down the blobs to reconcile.
   // If not set, all public blobs are reconciled.
   Filter filter = 1;
@@ -25,6 +19,12 @@ message ReconcileBlobsRequest {
 
 message ReconcileBlobsResponse {
   repeated SetReconciliationRange ranges = 1;
+}
+
+// Filter describes which blobs to select for reconciliation.
+message Filter {
+  // Selects only blobs related to the given resource.
+  string resource = 1;
 }
 
 message SetReconciliationRange {

@@ -61,7 +61,7 @@ func New(
 		Activity:    activity.NewServer(db),
 		Daemon:      daemon.NewServer(repo, wallet, doSync),
 		Networking:  networking.NewServer(node, db),
-		Entities:    entities.NewServer(idx, nil), // TOOD(hm24): provide a discoverer.
+		Entities:    entities.NewServer(idx, sync),
 		DocumentsV3: documentsv3.NewServer(repo.KeyStore(), idx, db),
 		Syncing:     sync,
 	}

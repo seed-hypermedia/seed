@@ -7,6 +7,7 @@ import (
 	"seed/backend/core/coretest"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	documents "seed/backend/genproto/documents/v3alpha"
+	entities "seed/backend/genproto/entities/v1alpha"
 	networking "seed/backend/genproto/networking/v1alpha"
 	"seed/backend/mttnet"
 	"seed/backend/testutil"
@@ -272,6 +273,134 @@ func TestSyncingProfiles(t *testing.T) {
 	testutil.StructsEqual(documentsimpl.DocumentToListItem(bobsProfile), docs.Documents[0]).Compare(t, "list item must match")
 	docs, err = bob.RPC.DocumentsV3.ListRootDocuments(ctx, &documents.ListRootDocumentsRequest{
 		PageSize:  1,
+		PageToken: docs.NextPageToken,
+	})
+	require.NoError(t, err)
+	require.Len(t, docs.Documents, 1)
+	require.Equal(t, documentsimpl.DocumentToListItem(doc), docs.Documents[0])
+}
+
+func TestSyncingEntity(t *testing.T) {
+	t.Parallel()
+	t.Skip("Under construction")
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	ctx := context.Background()
+	aliceIdentity := coretest.NewTester("alice")
+	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
+	bobIdentity := coretest.NewTester("bob")
+	doc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceIdentity.Account.Principal().String(),
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice from the Wonderland"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Hello",
+				},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "b1", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b2",
+					Type: "paragraph",
+					Text: "World!",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	doc2, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceIdentity.Account.Principal().String(),
+		Path:           "/new-doc",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Regular Doc"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Not an awesome",
+				},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "b1", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b2",
+					Type: "paragraph",
+					Text: "Quote anyways",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	_, err = bob.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+		Id: "hm://" + doc2.Account + doc2.Path,
+	})
+	require.NoError(t, err)
+
+	// _, err = bob.RPC.DocumentsV3.GetProfileDocument(ctx, &documents.GetProfileDocumentRequest{
+	//	AccountId: aliceIdentity.Account.Principal().String(),
+	// })
+	// require.Error(t, err)
+	// Since bob implements a syncback policy triggered when Alice connected to him, we don't need
+	// to force any syncing just wait for bob to instantly syncs content right after connection.
+	//_, err = bob.RPC.Daemon.ForceSync(ctx, &daemon.ForceSyncRequest{})
+	//require.NoError(t, err)
+	time.Sleep(time.Millisecond * 300)
+	docGotten, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: aliceIdentity.Account.Principal().String(),
+		Path:    "",
+	})
+	require.NoError(t, err)
+	require.Equal(t, doc.Content, docGotten.Content)
+	doc2Gotten, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: aliceIdentity.Account.Principal().String(),
+		Path:    "/new-doc",
+	})
+	require.NoError(t, err)
+	require.Equal(t, doc2.Content, doc2Gotten.Content)
+
+	bobsProfile, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        bobIdentity.Account.Principal().String(),
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Bob's land"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	docs, err := bob.RPC.DocumentsV3.ListRootDocuments(ctx, &documents.ListRootDocumentsRequest{})
+	require.NoError(t, err)
+	require.Len(t, docs.Documents, 2)
+	docs, err = bob.RPC.DocumentsV3.ListRootDocuments(ctx, &documents.ListRootDocumentsRequest{
+		PageSize:  1,
+		PageToken: "",
+	})
+	require.NoError(t, err)
+	require.Len(t, docs.Documents, 1)
+	testutil.StructsEqual(documentsimpl.DocumentToListItem(bobsProfile), docs.Documents[0]).Compare(t, "list item must match")
+	docs, err = bob.RPC.DocumentsV3.ListRootDocuments(ctx, &documents.ListRootDocumentsRequest{
+		PageSize:  2,
 		PageToken: docs.NextPageToken,
 	})
 	require.NoError(t, err)
