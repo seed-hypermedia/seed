@@ -258,7 +258,7 @@ log.initialize({
 })
 
 app.on('did-become-active', () => {
-  log.debug('[MAIN]: Seed active')
+  // log.debug('[MAIN]: Seed active')
   if (BrowserWindow.getAllWindows().length === 0) {
     log.debug('[MAIN]: will open the home window')
     trpc.createAppWindow({
@@ -267,7 +267,7 @@ app.on('did-become-active', () => {
   }
 })
 app.on('did-resign-active', () => {
-  log.debug('[MAIN]: Seed no longer active')
+  // log.debug('[MAIN]: Seed no longer active')
 })
 
 // dark mode support: https://www.electronjs.org/docs/latest/tutorial/dark-mode

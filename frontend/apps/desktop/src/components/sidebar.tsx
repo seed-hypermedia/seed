@@ -262,14 +262,14 @@ function OutlineSection({id}: {id: UnpackedHypermediaId}) {
         onActivateBlock={(blockId) => {
           navigate({
             key: 'document',
-            id: hmId(id.type, id.uid, {blockRef: blockId}),
+            id: hmId(id.type, id.uid, {blockRef: blockId, path: id.path}),
           })
         }}
         onFocusBlock={(blockId) => {
           navigate({
             key: 'document',
             isBlockFocused: true,
-            id: hmId(id.type, id.uid, {blockRef: blockId}),
+            id: hmId(id.type, id.uid, {blockRef: blockId, path: id.path}),
           })
         }}
       />

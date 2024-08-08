@@ -39,7 +39,6 @@ export function AppDocContentProvider({
           Inline: EmbedInline,
         }}
         onLinkClick={(href, e) => {
-          debugger
           e.preventDefault()
           e.stopPropagation()
           openUrl(href, e.metaKey)
