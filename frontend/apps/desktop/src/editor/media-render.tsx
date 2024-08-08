@@ -9,7 +9,13 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {ChangeEvent, FunctionComponent, useEffect, useState} from 'react'
+import {
+  ChangeEvent,
+  FunctionComponent,
+  SetStateAction,
+  useEffect,
+  useState,
+} from 'react'
 import {RiUpload2Fill} from 'react-icons/ri'
 import {Block, BlockNoteEditor, getBlockInfoFromPos} from './blocknote'
 import {MaxFileSizeB, MaxFileSizeMB} from './file'
@@ -45,9 +51,9 @@ interface RenderProps {
   mediaType: string
   submit?: (
     url: string,
-    assign,
-    setFileName,
-    setLoading,
+    assign: any,
+    setFileName: any,
+    setLoading: any,
   ) => Promise<void> | void | undefined
   icon: JSX.Element | FunctionComponent<{color?: string; size?: number}>
   DisplayComponent: React.ComponentType<DisplayComponentProps>
@@ -95,16 +101,18 @@ export const MediaRender: React.FC<RenderProps> = ({
       }
       setUploading(true)
 
-      importWebFile.mutateAsync(block.props.src).then(({cid, size}) => {
-        setUploading(false)
-        editor.updateBlock(block, {
-          props: {
-            url: `ipfs://${cid}`,
-            size: size.toString(),
-            src: '',
-          },
+      importWebFile
+        .mutateAsync(block.props.src)
+        .then(({cid, size}: {cid: string; size: number}) => {
+          setUploading(false)
+          editor.updateBlock(block, {
+            props: {
+              url: `ipfs://${cid}`,
+              size: size.toString(),
+              src: '',
+            },
+          })
         })
-      })
     }
   }, [hasSrc, block, uploading, editor])
 
@@ -205,9 +213,9 @@ function MediaForm({
   mediaType: string
   submit?: (
     url: string,
-    assign,
-    setFileName,
-    setLoading,
+    assign: any,
+    setFileName: any,
+    setLoading: any,
   ) => Promise<void> | void | undefined
   icon: JSX.Element | FunctionComponent<{color?: string; size?: number}> | null
 }) {
@@ -359,8 +367,8 @@ function MediaForm({
   return (
     <YStack
       position="relative"
-      borderWidth={2.5}
-      borderColor={drag ? '$color12' : '$color6'}
+      borderWidth={2}
+      borderColor={drag ? '$color12' : selected ? '$color12' : '$color6'}
       borderRadius="$2"
       borderStyle={drag ? 'dashed' : 'solid'}
       outlineWidth={0}
@@ -418,7 +426,9 @@ function MediaForm({
                 focusStyle={{
                   borderColor: '$color11',
                 }}
-                onChange={(e) => {
+                onChange={(e: {
+                  nativeEvent: {text: SetStateAction<string>}
+                }) => {
                   setUrl(e.nativeEvent.text)
                   if (fileName.color)
                     setFileName({

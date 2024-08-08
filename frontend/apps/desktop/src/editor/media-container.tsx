@@ -187,7 +187,7 @@ export const MediaContainer = ({
       <YStack
         backgroundColor={selected ? '$color4' : '$color3'}
         borderColor={selected ? '$color8' : 'transparent'}
-        borderWidth={2}
+        borderWidth={4}
         borderRadius="$2"
         // overflow="hidden"
         hoverStyle={{
