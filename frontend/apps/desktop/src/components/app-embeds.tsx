@@ -2,29 +2,29 @@ import {useAccount_deprecated} from '@/models/accounts'
 import {useEntities, useEntity} from '@/models/entities'
 import {
   API_FILE_URL,
-  BlockContentUnknown,
-  BlockNodeContent,
-  BlockNodeList,
-  ContentEmbed,
-  DocumentCardView,
-  EntityComponentProps,
   UnpackedHypermediaId,
   formattedDateMedium,
-  getBlockNodeById,
   getDocumentTitle,
   hmId,
   unpackHmId,
-  useDocContentContext,
 } from '@shm/shared'
-import {blockStyles} from '@shm/shared/src/document-content'
 import {
+  BlockContentUnknown,
+  BlockNodeContent,
+  BlockNodeList,
   Button,
   ButtonText,
+  ContentEmbed,
+  DocumentCardView,
+  EntityComponentProps,
   SizableText,
   Spinner,
   UIAvatar,
   XStack,
   YStack,
+  blockStyles,
+  getBlockNodeById,
+  useDocContentContext,
 } from '@shm/ui'
 import {ArrowUpRightSquare} from '@tamagui/lucide-icons'
 import {

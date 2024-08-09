@@ -43,7 +43,7 @@ export function OptionsDropdown({
               size="$1"
               circular
               data-trigger
-              onPress={(e) => {
+              onPress={(e: MouseEvent) => {
                 // because we are nested in the outer button, we need to stop propagation or else onPress is triggered by parent button
                 e.stopPropagation()
               }}
@@ -72,7 +72,7 @@ export function OptionsDropdown({
                 item && (
                   <YGroup.Item key={item.key}>
                     <MenuItem
-                      onPress={(e) => {
+                      onPress={(e: MouseEvent) => {
                         e.stopPropagation()
                         popoverState.onOpenChange(false)
                         item.onPress()

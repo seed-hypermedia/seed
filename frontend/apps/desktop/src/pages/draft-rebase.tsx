@@ -61,7 +61,10 @@ export default function DraftRebase() {
   return (
     <YStack>
       <AppDocContentProvider disableEmbedClick>
-        <YStack id="editor-header-content" onPress={(e) => e.stopPropagation()}>
+        <YStack
+          id="editor-header-content"
+          onPress={(e: MouseEvent) => e.stopPropagation()}
+        >
           <YStack className="editor" paddingLeft={32}>
             {editor && timer && editor.topLevelBlocks.length ? (
               <HyperMediaEditorView editable={true} editor={editor} />

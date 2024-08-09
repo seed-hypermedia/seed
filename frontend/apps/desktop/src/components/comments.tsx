@@ -6,7 +6,6 @@ import {useNavigate} from '@/utils/useNavigate'
 import {
   API_FILE_URL,
   BlockRange,
-  BlocksContent,
   ExpandedBlockRange,
   HMComment,
   StateStream,
@@ -19,6 +18,7 @@ import {
   unpackHmId,
 } from '@shm/shared'
 import {
+  BlocksContent,
   Button,
   ButtonText,
   SizableText,

@@ -105,7 +105,7 @@ export function AppDialog<
 }: {
   TriggerComponent: React.FC<
     {
-      onPress?: (e: any) => void
+      onPress?: (e: MouseEvent) => void
       children: React.ReactNode
     } & TriggerComponentProps
   >

@@ -146,7 +146,7 @@ export const MediaContainer = ({
       alignSelf="center"
       onPress={
         onPress
-          ? (e) => {
+          ? (e: MouseEvent) => {
               e.preventDefault()
               e.stopPropagation()
               onPress(e)

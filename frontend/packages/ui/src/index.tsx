@@ -14,6 +14,8 @@ export * from "./checkbox-field";
 export * from "./container";
 export * from "./copy-to-clipboard";
 export * from "./datatable";
+export * from "./document-content";
+export * from "./document-content-constants";
 export * from "./footer";
 export * from "./form-fields";
 export * from "./icons";

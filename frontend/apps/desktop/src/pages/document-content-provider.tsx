@@ -4,15 +4,13 @@ import {useExperiments} from '@/models/experiments'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {useNavRoute} from '@/utils/navigation'
+import {API_FILE_URL, BlockRange, ExpandedBlockRange} from '@shm/shared'
 import {
-  API_FILE_URL,
-  BlockRange,
   DocContentContextValue,
   DocContentProvider,
-  ExpandedBlockRange,
   contentLayoutUnit,
   contentTextUnit,
-} from '@shm/shared'
+} from '@shm/ui'
 import {useFullReferenceUrl} from '../components/titlebar-common'
 
 export function AppDocContentProvider({

@@ -4,7 +4,6 @@ import {fetchWebLink} from '@/models/web-links'
 import {useOpenUrl} from '@/open-url'
 import {usePopoverState} from '@/use-popover-state'
 import {
-  BlockContentEmbed,
   createHmDocLink_DEPRECATED,
   hmIdWithVersion,
   isHypermediaScheme,
@@ -13,12 +12,13 @@ import {
   unpackHmId,
   useHover,
 } from '@shm/shared'
-import {ErrorBlock} from '@shm/shared/src/document-content'
 import {
+  BlockContentEmbed,
   Button,
   Check,
   ChevronDown,
   Forward as ChevronRight,
+  ErrorBlock,
   ExternalLink,
   ListItem,
   MenuItem,
@@ -344,7 +344,7 @@ function EmbedControl({
                 : ChevronRight
             }
             backgroundColor="$backgroundStrong"
-            onPress={(e) => {
+            onPress={(e: MouseEvent) => {
               e.stopPropagation()
               let url = createHmDocLink_DEPRECATED({
                 documentId: hmId?.id,
@@ -475,7 +475,7 @@ function EmbedControl({
             <Button
               icon={MoreHorizontal}
               size="$1"
-              onPress={(e) => e.stopPropagation()}
+              onPress={(e: MouseEvent) => e.stopPropagation()}
               circular
             />
           </Popover.Trigger>
@@ -498,7 +498,7 @@ function EmbedControl({
               <YGroup.Item>
                 {hmId?.blockRef ? (
                   <MenuItem
-                    onPress={(e) => {
+                    onPress={(e: MouseEvent) => {
                       e.stopPropagation()
                       handleBlockToDocument()
                     }}

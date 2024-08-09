@@ -1,19 +1,11 @@
 import {useAppContext} from '@/app-context'
 import {MenuItemType, OptionsDropdown} from '@/components/options-dropdown'
-import appError from '@/errors'
 import {EmbedsContent} from '@/models/documents'
 import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
-import {getFileUrl} from '@/utils/account-url'
 import {NavRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {useTriggerWindowEvent} from '@/utils/window-events'
-import {
-  Account,
-  getBlockNode,
-  HMBlockNode,
-  hmId,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {UnpackedHypermediaId} from '@shm/shared'
 import {
   Button,
   ListItem,
@@ -21,7 +13,6 @@ import {
   Separator,
   SizableText,
   Tooltip,
-  UIAvatar,
   useStream,
   View,
   XStack,
@@ -31,7 +22,6 @@ import {
   ArrowDownRight,
   ChevronDown,
   ChevronRight,
-  FileText,
   Hash,
   Search,
   Settings,
@@ -285,7 +275,7 @@ export function SidebarItem({
             size="$1"
             chromeless
             backgroundColor={'$colorTransparent'}
-            onPress={(e) => {
+            onPress={(e: MouseEvent) => {
               e.stopPropagation()
               onSetCollapsed?.(!isCollapsed)
             }}
@@ -318,64 +308,6 @@ export function SidebarGroupItem({
   )
 }
 
-export function MyAccountItem({
-  account,
-  onRoute,
-  active,
-}: {
-  account?: Account
-  onRoute: (route: NavRoute) => void
-  active: boolean
-}) {
-  return (
-    <ListItem
-      hoverTheme
-      pressTheme
-      focusTheme
-      paddingVertical="$2"
-      minHeight={70}
-      paddingHorizontal="$4"
-      textAlign="left"
-      outlineColor="transparent"
-      space="$2"
-      userSelect="none"
-      backgroundColor={active ? '$blue4' : '$colorTransparent'}
-      hoverStyle={active ? {backgroundColor: '$blue4'} : {}}
-      cursor={active ? undefined : 'pointer'}
-      title={
-        <YStack>
-          <SizableText
-            fontSize="$2"
-            fontWeight={'bold'}
-            cursor={active ? 'not-allowed' : 'pointer'}
-            userSelect="none"
-          >
-            Not implemented (getProfileName)
-          </SizableText>
-          <SizableText size="$1" color="$9">
-            My Account
-          </SizableText>
-        </YStack>
-      }
-      onPress={() => {
-        if (!account?.id) {
-          appError('Account has not loaded.')
-          return
-        }
-        onRoute({key: 'document', id: hmId('d', account.id)})
-      }}
-      icon={
-        <UIAvatar
-          size={36}
-          label={account?.profile?.alias}
-          id={account?.id}
-          url={getFileUrl(account?.profile?.avatar)}
-        />
-      }
-    ></ListItem>
-  )
-}
-
 type DocOutlineSection = {
   title: string
   id: string
@@ -383,67 +315,6 @@ type DocOutlineSection = {
   parentBlockId?: string
   children?: DocOutlineSection[]
   icon?: FC<ComponentProps<typeof Hash>>
-}
-type DocOutline = DocOutlineSection[]
-
-export function getDocOutline(
-  children: HMBlockNode[],
-  embeds: EmbedsContent,
-  parentEntityId?: UnpackedHypermediaId,
-  parentBlockId?: string,
-): DocOutline {
-  const outline: DocOutline = []
-  children.forEach((child) => {
-    if (child.block.type === 'heading') {
-      outline.push({
-        id: child.block.id,
-        title: child.block.text,
-        entityId: parentEntityId,
-        parentBlockId,
-        children:
-          child.children &&
-          getDocOutline(child.children, embeds, parentEntityId, parentBlockId),
-      })
-    } else if (
-      child.block.type === 'embed' &&
-      child.block.attributes?.view === 'card' &&
-      embeds[child.block.id]
-    ) {
-      const embed = embeds[child.block.id]
-      if (embed?.type === 'd') {
-        outline.push({
-          id: child.block.id,
-          title: embed?.data?.document?.title || 'Untitled Document',
-          entityId: embed.query.refId,
-          parentBlockId,
-          icon: FileText,
-        })
-      }
-    } else if (child.block.type === 'embed' && embeds[child.block.id]) {
-      const embed = embeds[child.block.id]
-      if (embed?.type === 'd') {
-        const children = embed.query.refId.blockRef
-          ? getBlockNode(
-              embed?.data?.document?.children,
-              embed.query.refId.blockRef,
-            )?.children
-          : embed?.data?.document?.children
-        outline.push({
-          id: child.block.id,
-          title: embed?.data?.document?.title || 'Untitled Group',
-          children:
-            children &&
-            getDocOutline(children, embeds, embed.query.refId, child.block.id),
-          icon: FileText,
-        })
-      }
-    } else if (child.children) {
-      outline.push(
-        ...getDocOutline(child.children, embeds, parentEntityId, parentBlockId),
-      )
-    }
-  })
-  return outline
 }
 
 export function FocusButton({
@@ -457,7 +328,7 @@ export function FocusButton({
     <Tooltip content={label ? `Focus ${label}` : 'Focus'}>
       <Button
         icon={ArrowDownRight}
-        onPress={(e) => {
+        onPress={(e: MouseEvent) => {
           e.stopPropagation()
           onPress()
         }}

@@ -43,7 +43,7 @@ export function HMEditorContainer({children}: {children: React.ReactNode}) {
   return (
     <YStack
       className="editor"
-      onPress={(e) => {
+      onPress={(e: MouseEvent) => {
         e.stopPropagation()
       }}
     >

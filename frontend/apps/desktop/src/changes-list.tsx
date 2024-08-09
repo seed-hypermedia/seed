@@ -82,7 +82,7 @@ function ChangeItem({
 }) {
   const author = useAccount_deprecated(change.author)
   const navigate = useNavigate()
-  const openAccount = (e) => {
+  const openAccount = (e: MouseEvent) => {
     e.stopPropagation()
     navigate({key: 'document', id: hmId('d', change.author)})
   }

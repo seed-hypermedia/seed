@@ -19,10 +19,15 @@ import {
   createPublicWebHmUrl,
   ExpandedBlockRange,
   packHmId,
+} from '@shm/shared'
+import {
+  Button,
+  copyUrlToClipboardWithFeedback,
+  Input,
   useDocContentContext,
   useHeadingTextStyles,
-} from '@shm/shared'
-import {Button, copyUrlToClipboardWithFeedback, Input, XStack} from '@shm/ui'
+  XStack,
+} from '@shm/ui'
 import {Image, Smile} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
 import {useEffect, useRef, useState} from 'react'
@@ -303,8 +308,7 @@ export function DraftHeader({
 
   return (
     <YStack
-      // @ts-expect-error
-      onPress={(e) => {
+      onPress={(e: MouseEvent) => {
         e.stopPropagation()
       }}
     >

@@ -31,7 +31,7 @@ export function FavoriteButton({id}: {id: UnpackedHypermediaId}) {
   if (favorite.isFavorited) {
     return (
       <RemoveFavoriteButton
-        onPress={(e) => {
+        onPress={(e: MouseEvent) => {
           e.stopPropagation()
           favorite.removeFavorite()
         }}
@@ -43,7 +43,7 @@ export function FavoriteButton({id}: {id: UnpackedHypermediaId}) {
       <Button
         icon={Star}
         size="$2"
-        onPress={(e) => {
+        onPress={(e: MouseEvent) => {
           e.stopPropagation()
           favorite.addFavorite()
         }}

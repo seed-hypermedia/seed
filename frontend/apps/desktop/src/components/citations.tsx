@@ -9,7 +9,6 @@ import {DocumentRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   BlockRange,
-  BlocksContent,
   ExpandedBlockRange,
   HYPERMEDIA_SCHEME,
   UnpackedHypermediaId,
@@ -21,6 +20,7 @@ import {
 } from '@shm/shared'
 import {Mention} from '@shm/shared/src/client/.generated/entities/v1alpha/entities_pb'
 import {
+  BlocksContent,
   ButtonText,
   PanelCard,
   SizableText,

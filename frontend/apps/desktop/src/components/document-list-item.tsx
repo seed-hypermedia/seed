@@ -113,7 +113,7 @@ export const DocumentListItem = React.memo(function DocumentListItem({
               flex={1}
               size="$2"
               color="$color9"
-              onPress={(e) => {
+              onPress={(e: MouseEvent) => {
                 if (onPathNamePress) {
                   e.stopPropagation()
                   onPathNamePress()

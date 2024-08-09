@@ -51,7 +51,7 @@ export function ListItem({
       >
         {icon}
         <ButtonText
-          onPress={(e) => {
+          onPress={(e: MouseEvent) => {
             e.stopPropagation()
             onPress?.(e)
           }}

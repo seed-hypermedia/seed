@@ -10,9 +10,6 @@ import {useNavigate} from '@/utils/useNavigate'
 import {Timestamp} from '@bufbuild/protobuf'
 import {
   API_FILE_URL,
-  ActivityEvent,
-  BlocksContent,
-  DocContent,
   HMComment,
   HMDocument,
   UnpackedHypermediaId,
@@ -23,8 +20,10 @@ import {
   unpackHmId,
 } from '@shm/shared'
 import {
+  BlocksContent,
   Button,
   ButtonText,
+  DocContent,
   List,
   PageContainer,
   SizableText,
@@ -164,7 +163,7 @@ function EntityLink({
     <ButtonText
       style={{whiteSpace: 'break-spaces'}}
       fontWeight={'bold'}
-      onPress={(e) => {
+      onPress={(e: MouseEvent) => {
         e.stopPropagation()
         const route = appRouteOfId(id)
         if (route) {
@@ -270,7 +269,7 @@ function HMLinkButton({
       chromeless
       icon={ArrowRight}
       size="$2"
-      onPress={(e) => {
+      onPress={(e: MouseEvent) => {
         e.stopPropagation()
         const route = appRouteOfId(to)
         if (route) {

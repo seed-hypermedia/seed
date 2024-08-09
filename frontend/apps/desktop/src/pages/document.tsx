@@ -15,12 +15,13 @@ import {useEntity} from '@/models/entities'
 import {getFileUrl} from '@/utils/account-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {DocContent, getProfileName} from '@shm/shared'
+import {getProfileName} from '@shm/shared'
 import {
   Button,
   CitationsIcon,
   CollaboratorsIcon,
   CommentsIcon,
+  DocContent,
   H1,
   HistoryIcon,
   Section,

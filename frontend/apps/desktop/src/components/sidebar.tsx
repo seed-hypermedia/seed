@@ -4,14 +4,13 @@ import {useFavorites} from '@/models/favorites'
 import {appRouteOfId, useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {
-  getBlockNodeById,
   getDocumentTitle,
   HMBlockNode,
   hmId,
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
-import {Button, Tooltip} from '@shm/ui'
+import {Button, getBlockNodeById, Tooltip} from '@shm/ui'
 import {
   Contact,
   Folder,

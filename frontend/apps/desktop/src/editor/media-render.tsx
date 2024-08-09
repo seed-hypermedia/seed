@@ -1,4 +1,4 @@
-import {API_FILE_UPLOAD_URL, useDocContentContext} from '@shm/shared'
+import {API_FILE_UPLOAD_URL} from '@shm/shared'
 import {
   Button,
   Form,
@@ -8,6 +8,7 @@ import {
   Spinner,
   XStack,
   YStack,
+  useDocContentContext,
 } from '@shm/ui'
 import {
   ChangeEvent,

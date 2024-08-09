@@ -226,7 +226,7 @@ function DirectoryItem({
               theme="yellow"
               flexShrink={0}
               flexGrow={0}
-              onPress={(e) => {
+              onPress={(e: MouseEvent) => {
                 e.stopPropagation()
                 navigate({key: 'draft', id: item.id})
               }}
@@ -341,7 +341,7 @@ function PathButton({
       ai="center"
       gap="$2"
       f={1}
-      onPress={(e) => {
+      onPress={(e: MouseEvent) => {
         e.stopPropagation()
         onCopy()
       }}
