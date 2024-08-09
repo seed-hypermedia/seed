@@ -555,7 +555,12 @@ function LibraryListItem({entry}: {entry: LibraryData[0]}) {
         />
         <YStack f={1} gap="$1.5">
           <XStack ai="center" gap="$2" paddingLeft={4}>
-            <SizableText fontWeight="bold">
+            <SizableText
+              fontWeight="bold"
+              textOverflow="ellipsis"
+              whiteSpace="nowrap"
+              overflow="hidden"
+            >
               {getMetadataTitle(metadata)}
             </SizableText>
             {isUnpublished && (
@@ -639,7 +644,7 @@ function LibraryEntryLocation({
 }) {
   const [space, ...names] = location
   return (
-    <XStack gap="$2">
+    <XStack gap="$2" w="100%" overflow="hidden">
       <Button
         theme="purple"
         color="$purple8"
