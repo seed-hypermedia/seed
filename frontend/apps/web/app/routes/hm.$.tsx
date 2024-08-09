@@ -42,7 +42,7 @@ export default function HypermediaDocument() {
           Comment: () => null,
           Inline: () => null,
         }}
-        ipfsBlobPrefix="lol"
+        ipfsBlobPrefix="http://localhost:57001/ipfs/"
         onLinkClick={(href, e) => {}}
         onCopyBlock={(blockId, blockRange) => {}}
         saveCidAsFile={async (cid, name) => {}}
