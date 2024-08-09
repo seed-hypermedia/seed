@@ -20,6 +20,7 @@ import {
   Search,
   Separator,
   SizableText,
+  SizeTokens,
   Tooltip,
   View,
   XStack,
@@ -27,6 +28,7 @@ import {
   YStack,
 } from '@shm/ui'
 import {
+  Archive,
   ArrowDownUp,
   Check,
   LayoutGrid,
@@ -34,6 +36,7 @@ import {
   Pencil,
   Settings2,
   Star,
+  User2,
   X,
 } from '@tamagui/lucide-icons'
 import {ComponentProps, useState} from 'react'
@@ -192,15 +195,24 @@ function TagXButton({onPress}: {onPress: () => void}) {
     />
   )
 }
+
+const roleFilterOptions: Readonly<{label: string; value: FilterItem}[]> = [
+  {label: 'Owner', value: 'owner'},
+  {label: 'Editor', value: 'editor'},
+  {label: 'Writer', value: 'writer'},
+] as const
+
+const allRoleFilterOptions = roleFilterOptions.map((option) => option.value)
+
 const filterOptions: Readonly<
   {
     label: string
     value: FilterItem
-    icon: React.ComponentType | null
+    icon: React.FC<{size: SizeTokens}> | null
   }[]
 > = [
-  {label: 'Drafts', value: 'drafts', icon: null},
-  {label: 'Subscribed', value: 'subscribed', icon: null},
+  {label: 'Drafts', value: 'drafts', icon: Pencil},
+  {label: 'Subscribed', value: 'subscribed', icon: Archive},
   {label: 'Favorites', value: 'favorites', icon: Star},
 ] as const
 
@@ -218,7 +230,16 @@ function FilterControl({
       return filterOptions.find((option) => option.value === key)
     })
     .filter((f) => !!f)
+  const activeRoleFilters = Object.entries(filter)
+    .filter(([key, value]) => value)
+    .map(([key, value]) => {
+      return roleFilterOptions.find((option) => option.value === key)
+    })
+    .filter((f) => !!f)
   const isEmptyFilter = activeFilters.length === 0
+  const allEditorialRolesSelected = allRoleFilterOptions.every(
+    (role) => filter[role],
+  )
   return (
     <Popover {...popoverState} placement="bottom-start">
       <Popover.Trigger asChild>
@@ -231,52 +252,136 @@ function FilterControl({
             borderColor: isEmptyFilter ? undefined : '$blue6',
           }}
         >
-          {activeFilters.map((activeFilter) => (
-            <XStack key={activeFilter.value}>
-              <SizableText>{activeFilter.label}</SizableText>
-              <TagXButton
-                onPress={() =>
-                  onFilter({...filter, [activeFilter.value]: false})
-                }
+          {allEditorialRolesSelected ? (
+            <SelectedFilterTag
+              label="Editorial Role"
+              onX={() => {
+                onFilter({
+                  ...filter,
+                  ...Object.fromEntries(
+                    allRoleFilterOptions.map((role) => [role, false]),
+                  ),
+                })
+              }}
+            />
+          ) : (
+            activeRoleFilters.map((activeFilter) => (
+              <SelectedFilterTag
+                label={activeFilter.label}
+                key={activeFilter.value}
+                onX={() => onFilter({...filter, [activeFilter.value]: false})}
               />
-            </XStack>
+            ))
+          )}
+          {activeFilters.map((activeFilter) => (
+            <SelectedFilterTag
+              label={activeFilter.label}
+              key={activeFilter.value}
+              onX={() => onFilter({...filter, [activeFilter.value]: false})}
+            />
           ))}
         </Button>
       </Popover.Trigger>
       <Popover.Content {...commonPopoverProps}>
         <YGroup separator={<Separator />}>
-          {filterOptions.map((option) => (
-            <Button
+          <RoleFilterOption
+            option={{label: 'Editorial Role', icon: User2}}
+            checked={allEditorialRolesSelected}
+            onCheckedChange={(newValue) => {
+              onFilter({
+                ...filter,
+                ...Object.fromEntries(
+                  allRoleFilterOptions.map((role) => [role, !!newValue]),
+                ),
+              })
+            }}
+            onPress={() => {
+              onFilter({
+                ...Object.fromEntries(
+                  allRoleFilterOptions.map((role) => [role, true]),
+                ),
+              })
+              popoverState.onOpenChange(false)
+            }}
+          />
+          {roleFilterOptions.map((option) => (
+            <RoleFilterOption
+              key={option.value}
+              option={option}
+              checked={!!filter[option.value]}
+              onCheckedChange={(newValue) => {
+                onFilter({...filter, [option.value]: !!newValue})
+              }}
               onPress={() => {
                 onFilter({[option.value]: true})
                 popoverState.onOpenChange(false)
               }}
+            />
+          ))}
+          {filterOptions.map((option) => (
+            <RoleFilterOption
               key={option.value}
-              paddingLeft={option.icon ? undefined : '$9'}
-              icon={option.icon}
-              justifyContent="space-between"
-            >
-              <SizableText>{option.label}</SizableText>
-              <Checkbox
-                id="link-latest"
-                size="$2"
-                checked={!!filter[option.value]}
-                onPress={(e: MouseEvent) => {
-                  e.stopPropagation()
-                }}
-                onCheckedChange={(newValue) => {
-                  onFilter({...filter, [option.value]: !!newValue})
-                }}
-              >
-                <Checkbox.Indicator>
-                  <Check />
-                </Checkbox.Indicator>
-              </Checkbox>
-            </Button>
+              option={option}
+              checked={!!filter[option.value]}
+              onCheckedChange={(newValue) => {
+                onFilter({...filter, [option.value]: !!newValue})
+              }}
+              onPress={() => {
+                onFilter({[option.value]: true})
+                popoverState.onOpenChange(false)
+              }}
+            />
           ))}
         </YGroup>
       </Popover.Content>
     </Popover>
+  )
+}
+
+function SelectedFilterTag({label, onX}: {label: string; onX: () => void}) {
+  return (
+    <XStack>
+      <SizableText>{label}</SizableText>
+      <TagXButton onPress={onX} />
+    </XStack>
+  )
+}
+
+function RoleFilterOption({
+  option,
+  onCheckedChange,
+  onPress,
+  checked,
+}: {
+  option: {
+    label: string
+    value?: FilterItem
+    icon?: React.FC<{size: SizeTokens}> | null
+  }
+  onCheckedChange: (newValue: boolean) => void
+  onPress: () => void
+  checked: boolean
+}) {
+  return (
+    <Button onPress={onPress} key={option.value} justifyContent="space-between">
+      <XStack paddingLeft={option.icon ? undefined : '$6'} gap="$2">
+        {option.icon ? <option.icon size="$1" /> : null}
+        <SizableText>{option.label}</SizableText>
+      </XStack>
+      <Checkbox
+        id="link-latest"
+        size="$4"
+        checked={checked}
+        onPress={(e: MouseEvent) => {
+          e.stopPropagation()
+        }}
+        onCheckedChange={onCheckedChange}
+      >
+        <Checkbox.Indicator>
+          <Check />
+        </Checkbox.Indicator>
+      </Checkbox>
+    </Button>
   )
 }
 
