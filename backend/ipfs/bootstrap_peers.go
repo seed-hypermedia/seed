@@ -10,7 +10,7 @@ package ipfs
 // import dependency issue. TODO: move this into a config/default/ package.
 const (
 	ProductionGateway = "/dns4/hyper.media/tcp/55001/p2p/12D3KooWK1LhXM89HHbTFVVbxuGf6NNuZNPWZ4SN4nwMNXkUouTS"
-	TestGateway       = "/dns4/mintter.xyz/tcp/55001/p2p/12D3KooWSTPg42qfgeHdjqxLM3mWSaXVUefkPNXrm1knfaB568dW"
+	TestGateway       = "/dns4/mintter.xyz/tcp/55001/p2p/12D3KooWEiTFkbrXKNT1d87cbr4cMCFrJG8aEcdo6cGdkDLJKMEW"
 )
 
 // DefaultBootstrapAddresses are the addresses to use as a gate to the network.
