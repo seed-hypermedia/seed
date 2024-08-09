@@ -91,7 +91,12 @@ export default function PublishDraftButton() {
           id: draftId.type === 'draft' ? undefined : draftId,
         })
         .then(async (res) => {
-          const resultDocId = hmId('d', draftId.uid, {path: draftId.path})
+          const resultDocId = hmId('d', draftId.uid, {
+            path: res.path
+              ? res.path?.split('/').filter(Boolean)
+              : draftId.path,
+          })
+
           if (draftId)
             await deleteDraft
               .mutateAsync(packHmId(draftId))

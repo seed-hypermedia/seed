@@ -247,7 +247,18 @@ export function usePublishDraft(
               await grpcClient.documents.createDocumentChange({
                 signingKeyName: draft.signingAccount,
                 account: id.uid,
-                path: id.path?.length ? `/${id.path.join('/')}` : '',
+                path: id.path?.length
+                  ? `/${id.path
+                      .map((p, idx) =>
+                        idx == id.path!.length - 1
+                          ? p.startsWith('_') && draft.metadata.name
+                            ? pathNameify(draft.metadata.name)
+                            : p.replace('_', '')
+                          : p.replace('_', ''),
+                      )
+                      .join('/')}`
+                  : '',
+                documentId: id.id!,
                 changes: allChanges,
               })
 
