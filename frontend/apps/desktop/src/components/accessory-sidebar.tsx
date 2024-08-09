@@ -3,8 +3,6 @@ import {ComponentProps} from 'react'
 import {Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
 import {Button, useTheme} from 'tamagui'
 
-const CloseButtonSize = 40
-
 export function AccessoryContainer({
   children,
   footer,

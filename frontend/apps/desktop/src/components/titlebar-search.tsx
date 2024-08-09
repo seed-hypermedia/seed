@@ -54,7 +54,6 @@ export function TitlebarSearch() {
       position="relative"
       gap="$2"
       w="100%"
-      overflow="hidden"
     >
       <Button
         chromeless
