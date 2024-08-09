@@ -517,10 +517,7 @@ function LibraryCards({library}: {library: LibraryData}) {
 
 function LibraryList({library}: {library: LibraryData}) {
   return (
-    <YStack paddingVertical="$4" marginHorizontal="-$2">
-      {library.map((entry) => {
-        return <LibraryListItem key={entry.id.id} entry={entry} />
-      })}
+    <YStack paddingVertical="$4" marginHorizontal={-8}>
       {library.map((entry) => {
         return <LibraryListItem key={entry.id.id} entry={entry} />
       })}
@@ -539,20 +536,23 @@ function LibraryListItem({entry}: {entry: LibraryData[0]}) {
       hoverStyle={{
         bg: '$color5',
       }}
-      paddingHorizontal="$2"
+      paddingHorizontal={16}
       paddingVertical="$1"
       h="auto"
       onPress={() => {
         if (isUnpublished) navigate({key: 'draft', id: entry.id})
         else navigate({key: 'document', id: entry.id})
       }}
-    >
-      <XStack gap="$3" ai="center" f={1} paddingVertical="$2">
+      h={60}
+      icon={
         <Thumbnail
           size={32}
           id={entry.id}
           metadata={entry.document?.metadata || entry.draft?.metadata}
         />
+      }
+    >
+      <XStack gap="$3" ai="center" f={1} paddingVertical="$2">
         <YStack f={1} gap="$1.5">
           <XStack ai="center" gap="$2" paddingLeft={4}>
             <SizableText
