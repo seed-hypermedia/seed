@@ -1,0 +1,137 @@
+syntax = "proto3";
+
+package com.seed.documents.v3alpha;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "seed/backend/genproto/documents/v3alpha;documents";
+
+// Access Control service provides management API for issuing and revoking Capabilities.
+service AccessControl {
+  // Lists existing capabilities.
+  rpc ListCapabilities(ListCapabilitiesRequest) returns (ListCapabilitiesResponse);
+
+  // Creates a new capability.
+  rpc CreateCapability(CreateCapabilityRequest) returns (Capability);
+
+  // Get a single capability by ID.
+  rpc GetCapability(GetCapabilityRequest) returns (Capability);
+
+  // TODO: implement capability revocation.
+  //
+  // rpc RevokeCapability(RevokeCapabilityRequest) returns (Revocation);
+}
+
+// Request to list capabilities.
+message ListCapabilitiesRequest {
+  // Required. Account for which to list the capabilities.
+  string account = 1;
+
+  // Required. Path within the account to list the capabilities for.
+  // Empty string means root document.
+  // String "*" means all documents.
+  string path = 2;
+
+  // Optional. By default all capabilities that match the path are returned,
+  // even if they were issued for some parent path.
+  // If this field is true, only capabilities that match the path exactly are returned.
+  bool ignore_inherited = 3;
+
+  // Optional. Number of capabilities to return in the response.
+  int32 page_size = 4;
+
+  // Optional. Page token to continue listing capabilities.
+  string page_token = 5;
+}
+
+// Response to list capabilities.
+message ListCapabilitiesResponse {
+  // List of capabilities.
+  repeated Capability capabilities = 1;
+
+  // Token for the next page, if any.
+  string next_page_token = 2;
+}
+
+// Request to create a new capability.
+message CreateCapabilityRequest {
+  // Required. Name of the key to use for signing the capability.
+  string signing_key_name = 1;
+
+  // Required. Account ID to which this capability is delegated.
+  string delegate = 2;
+
+  // Required. Account ID to which this capability gives access.
+  string account = 3;
+
+  // Required. Path within the account that this capability grants access to.
+  // Empty string means root document.
+  string path = 4;
+
+  // Optional. By default capabilities give access to the path recursively.
+  // This flag can be used to restrict the capability only to specific path.
+  bool no_recursive = 5;
+}
+
+// Request to get a single capability.
+message GetCapabilityRequest {
+  // Required. ID of the capability to get.
+  string id = 1;
+}
+
+// Capability is an unforgeable token that grants access to a specific path within an account.
+message Capability {
+  // ID of this capability.
+  string id = 1;
+
+  // ID of the account that issued the capability.
+  string issuer = 2;
+
+  // ID of the account that the capability is delegated to.
+  string delegate = 3;
+
+  // Account ID that capability grants access to.
+  // This is the same as issuer when it's a first-grade capability,
+  // but issuer can be different if the capability is delegated further down.
+  string account = 4;
+
+  // Path within the account which the capability grants access to.
+  string path = 5;
+
+  // Role that the capability grants to the delegate.
+  Role role = 6;
+
+  // Normally capabilities are applied recursively (i.e. path + all the subpaths),
+  // but it can be limited to only to the exact path match.
+  bool is_exact = 7;
+
+  // IDs of parent capabilities, unless it's a first-grade capability,
+  // in which case it has no parents.
+  repeated string parents = 8;
+
+  // IDs of children capabilities
+  // if this capability was ever delegated further down.
+  repeated string children = 9;
+
+  // Timestamp when this capability was issued.
+  google.protobuf.Timestamp create_time = 10;
+
+  // Local timestamp when we have discovered this capability.
+  google.protobuf.Timestamp local_time = 11;
+}
+
+enum Role {
+  // Invalid default value.
+  ROLE_UNSPECIFIED = 0;
+
+  // TODO: Implement the editor role.
+  //
+  // EDITOR = 1;
+
+  // Has write access to the document
+  WRITER = 2;
+
+  // TODO: implement the collaborator role.
+  //
+  // COLLABORATOR = 3;
+}
