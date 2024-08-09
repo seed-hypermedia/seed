@@ -3,24 +3,33 @@ import {EmbedComment, EmbedDocument, EmbedInline} from '@/components/app-embeds'
 import {useExperiments} from '@/models/experiments'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
-import {useNavRoute} from '@/utils/navigation'
-import {API_FILE_URL, BlockRange, ExpandedBlockRange} from '@shm/shared'
+import {
+  API_FILE_URL,
+  BlockRange,
+  ExpandedBlockRange,
+  UnpackedHypermediaId,
+} from '@shm/shared'
 import {
   DocContentContextValue,
   DocContentProvider,
   contentLayoutUnit,
   contentTextUnit,
 } from '@shm/ui'
-import {useFullReferenceUrl} from '../components/titlebar-common'
+import {useDocumentUrl} from '../components/titlebar-common'
 
 export function AppDocContentProvider({
   children,
+  docId,
+  isBlockFocused,
+
   ...overrides
-}: React.PropsWithChildren<Partial<DocContentContextValue>>) {
+}: React.PropsWithChildren<Partial<DocContentContextValue>> & {
+  docId: UnpackedHypermediaId
+  isBlockFocused: boolean
+}) {
   const {saveCidAsFile} = useAppContext()
   const openUrl = useOpenUrl()
-  const route = useNavRoute()
-  const reference = useFullReferenceUrl(route)
+  const reference = useDocumentUrl(docId, isBlockFocused)
   const experiments = useExperiments()
   const importWebFile = trpc.webImporting.importWebFile.useMutation()
   return (

@@ -34,7 +34,11 @@ export function useRangeSelection() {
     } else {
       setCoords({top: -9999, left: -9999})
     }
-  }, [wrapper.current, state])
+  }, [
+    wrapper.current,
+    state.matches({active: 'selected'}),
+    state.context.selection,
+  ])
 
   useEffect(function rangeSelectionEffect() {
     document.addEventListener('selectionchange', handleSelectionChange)

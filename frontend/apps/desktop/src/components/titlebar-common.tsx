@@ -14,13 +14,10 @@ import {
   useNavigationDispatch,
   useNavigationState,
 } from '@/utils/navigation'
-import {useOpenDraft} from '@/utils/open-draft'
-import {NavRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   BlockRange,
   ExpandedBlockRange,
-  HYPERMEDIA_ENTITY_TYPES,
   UnpackedHypermediaId,
   createPublicWebHmUrl,
   getDocumentTitle,
@@ -38,7 +35,6 @@ import {
   View,
   XGroup,
   XStack,
-  copyUrlToClipboardWithFeedback,
   toast,
   useStream,
 } from '@shm/ui'
@@ -46,7 +42,6 @@ import {
   ArrowLeftFromLine,
   ArrowRightFromLine,
   ExternalLink,
-  FilePlus2,
   Link,
   Pencil,
   Trash,
@@ -132,7 +127,6 @@ function EditDocButton() {
   const myAccountIds = useMyAccountIds()
   const navigate = useNavigate()
   const draft = useDraft(route.id.id)
-  if (route.tab !== 'home' && route.tab) return null
   const hasExistingDraft = !!draft.data
   return (
     <>
@@ -155,7 +149,10 @@ function EditDocButton() {
   )
 }
 
-export function useFullReferenceUrl(route: NavRoute): {
+export function useDocumentUrl(
+  docId: UnpackedHypermediaId,
+  isBlockFocused: boolean,
+): {
   label: string
   url: string
   onCopy: (
@@ -164,75 +161,44 @@ export function useFullReferenceUrl(route: NavRoute): {
   ) => void
   content: ReactNode
 } | null {
-  const docRoute = route.key === 'document' ? route : null
-  const pub = useEntity(docRoute?.id)
+  const pub = useEntity(docId)
   const gwUrl = useGatewayUrl()
   const [copyDialogContent, onCopyPublic] = useCopyGatewayReference()
-
-  if (docRoute) {
-    if (!docRoute.id) return null
-    let hostname = gwUrl.data
-    return {
-      url: createPublicWebHmUrl('d', docRoute.id.uid, {
-        version: pub.data?.document?.version,
-        hostname,
-        path: docRoute.id.path,
-      }),
-      label: hostname ? 'Site Version' : 'Doc Version',
-      content: copyDialogContent,
-      onCopy: (
-        blockId: string | undefined,
-        blockRange?: BlockRange | ExpandedBlockRange | null,
-      ) => {
-        const focusBlockId = docRoute.isBlockFocused
-          ? docRoute.id.blockRef
-          : null
-        onCopyPublic({
-          ...docRoute.id,
-          hostname: hostname || null,
-          version: pub.data?.document?.version || null,
-          blockRef: blockId || focusBlockId || null,
-          blockRange: blockRange || null,
-          path: docRoute.id.path,
-        })
-      },
-    }
-  }
-
-  const reference = getReferenceUrlOfRoute(route, gwUrl.data)
-  if (!reference) return null
+  const hostname = gwUrl.data
   return {
-    ...reference,
-    content: null,
-    onCopy: () => {
-      copyUrlToClipboardWithFeedback(reference.url, reference.label)
+    url: createPublicWebHmUrl('d', docId.uid, {
+      version: pub.data?.document?.version,
+      hostname,
+      path: docId.path,
+    }),
+    label: hostname ? 'Site Version' : 'Doc Version',
+    content: copyDialogContent,
+    onCopy: (
+      blockId: string | undefined,
+      blockRange?: BlockRange | ExpandedBlockRange | null,
+    ) => {
+      const focusBlockId = isBlockFocused ? docId.blockRef : null
+      onCopyPublic({
+        ...docId,
+        hostname: hostname || null,
+        version: pub.data?.document?.version || null,
+        blockRef: blockId || focusBlockId || null,
+        blockRange: blockRange || null,
+        path: docId.path,
+      })
     },
   }
 }
 
-function getReferenceUrlOfRoute(
-  route: NavRoute,
-  hostname?: string | undefined,
-  exactVersion?: string | undefined,
-) {
-  if (route.key === 'document') {
-    const url = createPublicWebHmUrl(route.id.type, route.id.uid, {
-      version: exactVersion || route.id.version,
-      hostname,
-    })
-    if (!url) return null
-    return {
-      label: HYPERMEDIA_ENTITY_TYPES[route.id.type],
-      url,
-    }
-  }
-  return null
-}
-
-export function CopyReferenceButton() {
+export function CopyReferenceButton({
+  docId,
+  isBlockFocused,
+}: {
+  docId: UnpackedHypermediaId
+  isBlockFocused: boolean
+}) {
   const [shouldOpen, setShouldOpen] = useState(false)
-  const route = useNavRoute()
-  const reference = useFullReferenceUrl(route)
+  const reference = useDocumentUrl(docId, isBlockFocused)
   const {externalOpen} = useAppContext()
   if (!reference) return null
   return (
@@ -269,23 +235,6 @@ export function CopyReferenceButton() {
       </Tooltip>
       {reference.content}
     </>
-  )
-}
-
-function CreateDropdown({location}: {location: UnpackedHypermediaId}) {
-  const openDraft = useOpenDraft('push')
-  return (
-    <Button
-      size="$2"
-      icon={FilePlus2}
-      onPress={() => {
-        openDraft({
-          id: location,
-        })
-      }}
-    >
-      Create
-    </Button>
   )
 }
 

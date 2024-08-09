@@ -15,7 +15,7 @@ import {useEntity} from '@/models/entities'
 import {getFileUrl} from '@/utils/account-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {getProfileName} from '@shm/shared'
+import {getProfileName, UnpackedHypermediaId} from '@shm/shared'
 import {
   Button,
   CitationsIcon,
@@ -34,7 +34,7 @@ import {
 import {PageContainer} from '@shm/ui/src/container'
 import {RadioButtons} from '@shm/ui/src/radio-buttons'
 import {Trash} from '@tamagui/lucide-icons'
-import {ReactNode, useMemo} from 'react'
+import React, {ReactNode, useMemo} from 'react'
 import {EntityCitationsAccessory} from '../components/citations'
 import {AppDocContentProvider} from './document-content-provider'
 
@@ -143,7 +143,10 @@ export default function DocumentPage() {
           }}
           accessoryOptions={accessoryOptions}
         >
-          <MainDocumentPage />
+          <MainDocumentPage
+            id={route.id}
+            isBlockFocused={route.isBlockFocused || false}
+          />
         </AccessoryLayout>
       </XStack>
       <Footer />
@@ -151,25 +154,30 @@ export default function DocumentPage() {
   )
 }
 
-function MainDocumentPage() {
-  const route = useNavRoute()
-  if (route.key !== 'document')
-    throw new Error('Invalid route for MainDocumentPage')
-  if (!route.id) throw new Error('MainDocumentPage requires id')
+function _MainDocumentPage({
+  id,
+  isBlockFocused,
+}: {
+  id: UnpackedHypermediaId
+  isBlockFocused: boolean
+}) {
   return (
     <>
-      <DocPageHeader />
-      <DocPageContent docId={route.id} isBlockFocused={route.isBlockFocused} />
-      <DocPageAppendix docId={route.id} />
+      <DocPageHeader docId={id} isBlockFocused={isBlockFocused} />
+      <DocPageContent docId={id} isBlockFocused={isBlockFocused} />
+      <DocPageAppendix docId={id} />
     </>
   )
 }
+const MainDocumentPage = React.memo(_MainDocumentPage)
 
-function DocPageHeader() {
-  const route = useNavRoute()
-  const replace = useNavigate('replace')
-  const docId = route.key === 'document' && route.id
-  if (!docId) throw new Error('Invalid route, no entity id')
+function DocPageHeader({
+  docId,
+  isBlockFocused,
+}: {
+  docId: UnpackedHypermediaId
+  isBlockFocused: boolean
+}) {
   const myAccountIds = useMyAccountIds()
   const entity = useEntity(docId)
   const isMyAccount = myAccountIds.data?.includes(docId.id)
@@ -214,7 +222,10 @@ function DocPageHeader() {
             ) : (
               <FavoriteButton id={docId} />
             )}
-            <CopyReferenceButton />
+            <CopyReferenceButton
+              docId={docId}
+              isBlockFocused={isBlockFocused}
+            />
           </XStack>
         </XStack>
       </YStack>
@@ -266,20 +277,23 @@ function DocPageContent({
 }: {
   docId: UnpackedHypermediaId
   blockId?: string
-  isBlockFocused?: boolean
+  isBlockFocused: boolean
 }) {
   const entity = useEntity(docId)
-  const navigate = useNavigate()
   if (entity.isLoading) return <Spinner />
   if (!entity.data?.document) return null
   const blockId = docId.blockRef
   return (
     <PageContainer>
       <Section>
-        <AppDocContentProvider routeParams={{blockRef: blockId}}>
+        <AppDocContentProvider
+          routeParams={{blockRef: blockId || undefined}}
+          docId={docId}
+          isBlockFocused={isBlockFocused}
+        >
           <DocContent
             document={entity.data?.document}
-            focusBlockId={isBlockFocused ? blockId : undefined}
+            focusBlockId={isBlockFocused ? blockId || undefined : undefined}
           />
         </AppDocContentProvider>
       </Section>

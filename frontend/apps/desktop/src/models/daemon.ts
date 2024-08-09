@@ -86,7 +86,6 @@ export function useMyAccountIds() {
     queryFn: async () => {
       try {
         const q = await client.daemon.listKeys({})
-        console.log('q', q)
         return q?.keys.map((k) => k.publicKey)
       } catch (e) {
         const connectError = ConnectError.from(e)

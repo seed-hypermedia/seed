@@ -26,7 +26,6 @@ import {
   useLowlight,
 } from "@shm/shared";
 
-import {useRangeSelection} from "@shm/shared/src/range-selection";
 import {
   AlertCircle,
   Check,
@@ -87,7 +86,7 @@ import {
 } from "tamagui";
 import {contentLayoutUnit, contentTextUnit} from "./document-content-constants";
 import "./document-content.css";
-import {BlockQuote} from "./icons";
+import {BlockQuote, Comment} from "./icons";
 import {Tooltip} from "./tooltip";
 import {XPostNotFound, XPostSkeleton} from "./x-components";
 
@@ -263,7 +262,7 @@ export function DocContent({
   maxBlockCount?: number;
   marginVertical?: any;
 }) {
-  const {wrapper, bubble, coords, state, send} = useRangeSelection();
+  // const {wrapper, bubble, coords, state, send} = useRangeSelection();
 
   const {layoutUnit, onCopyBlock, onBlockComment} = useDocContentContext();
   const allBlocks = document?.content || [];
@@ -276,9 +275,9 @@ export function DocContent({
     function handleSelectAll(event: KeyboardEvent) {
       if (event.key == "a" && event.metaKey) {
         event.preventDefault();
-        if (wrapper.current) {
-          window.getSelection()?.selectAllChildren(wrapper.current);
-        }
+        // if (wrapper.current) {
+        //   window.getSelection()?.selectAllChildren(wrapper.current);
+        // }
       }
     }
 
@@ -291,15 +290,15 @@ export function DocContent({
 
   return (
     <YStack
-      ref={wrapper}
+      // ref={wrapper}
       paddingHorizontal={layoutUnit / 3}
       $gtMd={{paddingHorizontal: layoutUnit / 2}}
       marginVertical={marginVertical}
       {...props}
     >
       <XStack
-        ref={bubble}
-        {...coords}
+        // ref={bubble}
+        // {...coords}
         zIndex={99999}
         position="absolute"
         elevation="$4"
@@ -311,18 +310,18 @@ export function DocContent({
               size="$2"
               icon={Link}
               onPress={() => {
-                onCopyBlock(
-                  state.context.blockId,
-                  typeof state.context.rangeStart == "number" &&
-                    typeof state.context.rangeEnd == "number"
-                    ? {
-                        start: state.context.rangeStart,
-                        end: state.context.rangeEnd,
-                      }
-                    : {
-                        expanded: true,
-                      }
-                );
+                // onCopyBlock(
+                //   state.context.blockId,
+                //   typeof state.context.rangeStart == "number" &&
+                //     typeof state.context.rangeEnd == "number"
+                //     ? {
+                //         start: state.context.rangeStart,
+                //         end: state.context.rangeEnd,
+                //       }
+                //     : {
+                //         expanded: true,
+                //       }
+                // );
               }}
             />
           </Tooltip>
@@ -333,17 +332,17 @@ export function DocContent({
               size="$2"
               icon={Comment}
               onPress={() => {
-                send({type: "CREATE_COMMENT"});
-                onBlockComment(
-                  state.context.blockId,
-                  typeof state.context.rangeStart == "number" &&
-                    typeof state.context.rangeEnd == "number"
-                    ? {
-                        start: state.context.rangeStart,
-                        end: state.context.rangeEnd,
-                      }
-                    : undefined
-                );
+                // send({type: "CREATE_COMMENT"});
+                // onBlockComment(
+                //   state.context.blockId,
+                //   typeof state.context.rangeStart == "number" &&
+                //     typeof state.context.rangeEnd == "number"
+                //     ? {
+                //         start: state.context.rangeStart,
+                //         end: state.context.rangeEnd,
+                //       }
+                //     : undefined
+                // );
               }}
             />
           </Tooltip>
