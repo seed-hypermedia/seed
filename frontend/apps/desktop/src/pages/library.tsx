@@ -16,6 +16,7 @@ import {
   Checkbox,
   Container,
   Footer,
+  Input,
   Popover,
   Search,
   Separator,
@@ -39,7 +40,7 @@ import {
   User2,
   X,
 } from '@tamagui/lucide-icons'
-import {ComponentProps, useState} from 'react'
+import {ComponentProps, useRef, useState} from 'react'
 
 const defaultSort: LibraryQueryState['sort'] = 'lastUpdate'
 
@@ -115,7 +116,15 @@ function LibraryQueryBar({
           }))
         }}
       />
-      <LibrarySearch />
+      <LibrarySearch
+        search={queryState.filterString}
+        onSearch={(filterString: string) => {
+          setQueryState((v) => ({
+            ...v,
+            filterString,
+          }))
+        }}
+      />
     </XStack>
   )
 }
@@ -236,7 +245,8 @@ function FilterControl({
       return roleFilterOptions.find((option) => option.value === key)
     })
     .filter((f) => !!f)
-  const isEmptyFilter = activeFilters.length === 0
+  const isEmptyFilter =
+    activeFilters.length === 0 && activeRoleFilters.length === 0
   const allEditorialRolesSelected = allRoleFilterOptions.every(
     (role) => filter[role],
   )
@@ -401,8 +411,66 @@ const commonPopoverProps: ComponentProps<typeof Popover.Content> = {
   elevate: true,
 }
 
-function LibrarySearch() {
-  return <Button size="$2" icon={Search} />
+function LibrarySearch({
+  search,
+  onSearch,
+}: {
+  search: string
+  onSearch: (search: string) => void
+}) {
+  const [isOpened, setIsOpened] = useState(!!search)
+  const inputRef = useRef<HTMLInputElement>(null)
+  return (
+    <XStack>
+      <Input
+        borderColor="$colorTransparent"
+        placeholder="Filter Library..."
+        value={search}
+        size="$2"
+        onChangeText={onSearch}
+        display={isOpened ? 'flex' : 'none'}
+        ref={inputRef}
+        width={250}
+        paddingLeft="$6"
+      />
+      <Button
+        position="absolute"
+        size="$2"
+        icon={Search}
+        onPress={() => {
+          if (search === '' && isOpened) {
+            setIsOpened(false)
+          } else {
+            setIsOpened(true)
+            setTimeout(() => inputRef.current?.focus(), 10)
+          }
+        }}
+        bg="$colorTransparent"
+        hoverStyle={{borderColor: isOpened ? '$colorTransparent' : undefined}}
+      />
+      <XStack
+        position="absolute"
+        right={0}
+        display={isOpened ? 'flex' : 'none'}
+        top={0}
+        bottom={0}
+        ai="center"
+        paddingHorizontal="$1"
+      >
+        <Button
+          size="$1"
+          chromeless
+          bg="$colorTransparent"
+          onPress={(e: MouseEvent) => {
+            e.stopPropagation()
+            onSearch('')
+            setIsOpened(false)
+          }}
+          icon={X}
+        />
+      </XStack>
+    </XStack>
+  )
 }
 
 function LibraryCards({library}: {library: LibraryData}) {
