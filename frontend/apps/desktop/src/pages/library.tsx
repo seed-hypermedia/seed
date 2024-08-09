@@ -40,7 +40,7 @@ import {
   User2,
   X,
 } from '@tamagui/lucide-icons'
-import {ComponentProps, useEffect, useRef, useState} from 'react'
+import {ComponentProps, useRef, useState} from 'react'
 
 const defaultSort: LibraryQueryState['sort'] = 'lastUpdate'
 
@@ -439,21 +439,6 @@ function LibrarySearch({
 }) {
   const [isOpened, setIsOpened] = useState(!!search)
   const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    document.addEventListener('keyup', handleEscape)
-
-    return () => {
-      document.removeEventListener('keyup', handleEscape)
-    }
-
-    function handleEscape(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        setIsOpened(false)
-      }
-    }
-  }, [])
   return (
     <XStack
       borderWidth={2}
@@ -461,6 +446,13 @@ function LibrarySearch({
       borderColor={isOpened ? '$color5' : '$colorTransparent'}
       borderRadius="$2"
       animation="fast"
+      onKeyUp={(e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          setIsOpened(false)
+          onSearch('')
+        }
+      }}
     >
       <Button
         size="$2"
