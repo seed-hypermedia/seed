@@ -6,6 +6,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/multiformats/go-multicodec"
 	multihash "github.com/multiformats/go-multihash"
 )
 
@@ -44,7 +45,7 @@ func PubKeyAsCID(key crypto.PubKey) (cid.Cid, error) {
 }
 
 // DecodeCID reads the CID multicodec and the multihash part of it.
-func DecodeCID(c cid.Cid) (codec uint64, mh multihash.Multihash) {
+func DecodeCID(c cid.Cid) (multicodec.Code, multihash.Multihash) {
 	data := c.Bytes()
 
 	if c.Version() == 0 {
@@ -56,8 +57,8 @@ func DecodeCID(c cid.Cid) (codec uint64, mh multihash.Multihash) {
 	_, n := binary.Uvarint(data) // read CID version
 	pos += n
 
-	codec, n = binary.Uvarint(data[pos:])
+	codec, n := binary.Uvarint(data[pos:])
 	pos += n
 
-	return codec, data[pos:]
+	return multicodec.Code(codec), data[pos:]
 }

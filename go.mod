@@ -10,7 +10,7 @@ require (
 	github.com/btcsuite/btcd v0.23.3
 	github.com/btcsuite/btcd/btcutil v1.1.2
 	github.com/burdiyan/go/mainutil v0.0.0-20200124222818-6f87e0e684b6
-	github.com/fxamacker/cbor/v2 v2.4.0
+	github.com/fxamacker/cbor/v2 v2.7.0
 	github.com/getsentry/sentry-go v0.16.0
 	github.com/google/go-cmp v0.6.0
 	github.com/gorilla/mux v1.8.1
@@ -39,7 +39,6 @@ require (
 	github.com/peterbourgon/ff/v3 v3.3.0
 	github.com/peterbourgon/trc v0.0.3
 	github.com/planetscale/vtprotobuf v0.3.0
-	github.com/polydawn/refmt v0.89.0
 	github.com/prometheus/client_golang v1.18.0
 	github.com/sanity-io/litter v1.5.5
 	github.com/sethvargo/go-retry v0.2.4
@@ -67,13 +66,14 @@ require (
 	github.com/alessio/shellescape v1.4.1 // indirect
 	github.com/danieljoos/wincred v1.2.0 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
+	github.com/polydawn/refmt v0.89.0 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 )
 
 require (
 	github.com/alecthomas/units v0.0.0-20231202071711-9a357b53e9c9 // indirect
 	github.com/crackcomm/go-gitignore v0.0.0-20231225121904-e25f5bc08668 // indirect
-	github.com/hashicorp/golang-lru/v2 v2.0.7
+	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/ipfs/go-bitfield v1.1.0 // indirect
 	github.com/quic-go/qpack v0.4.0 // indirect
 	github.com/quic-go/qtls-go1-20 v0.4.1 // indirect

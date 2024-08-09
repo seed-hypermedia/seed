@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"net/url"
 	"seed/backend/core"
-	documents "seed/backend/genproto/documents/v1alpha"
-	"seed/backend/hlc"
 	"seed/backend/ipfs"
 	"seed/backend/util/dqb"
 	"seed/backend/util/maybe"
@@ -22,15 +20,10 @@ import (
 	"github.com/ipfs/boxo/provider"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
-	dagpb "github.com/ipld/go-codec-dagpb"
-	"github.com/ipld/go-ipld-prime"
-	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
-	"github.com/ipld/go-ipld-prime/traversal"
 	"github.com/multiformats/go-multicodec"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 var errNotHyperBlob = errors.New("not a hyper blob")
@@ -54,10 +47,13 @@ func NewIndex(db *sqlitex.Pool, log *zap.Logger, prov provider.Provider) *Index 
 }
 
 func (idx *Index) SetProvider(prov provider.Provider) {
+	// TODO(hm24): Providing doesn't really belong here,
+	// we should extract it into a separate component/subsystem.
+	// Indexing has no business caring about providing.
+
 	if prov != nil {
 		idx.provider = prov
 	}
-
 }
 
 func (idx *Index) IPFSBlockstore() blockstore.Blockstore {
@@ -67,206 +63,16 @@ func (idx *Index) IPFSBlockstore() blockstore.Blockstore {
 // indexBlob is an uber-function that knows about all types of blobs we want to index.
 // This is probably a bad idea to put here, but for now it's easier to work with that way.
 // TODO(burdiyan): eventually we might want to make this package agnostic to blob types.
-func (idx *Index) indexBlob(conn *sqlite.Conn, id int64, c cid.Cid, blobData any) error {
+func (idx *Index) indexBlob(conn *sqlite.Conn, id int64, c cid.Cid, data []byte) error {
 	ictx := newCtx(conn, idx.provider, idx.log)
 
-	switch v := blobData.(type) {
-	case ipld.Node:
-		return idx.indexDagPB(ictx, id, c, v)
-	case *Change:
-		return idx.indexChange(ictx, id, c, v)
-	case *Ref:
-		return idx.indexRef(ictx, id, c, v)
+	for _, fn := range indexersList {
+		if err := fn(ictx, id, c, data); err != nil {
+			return err
+		}
 	}
 
 	return nil
-}
-
-func (idx *Index) indexDagPB(ictx *indexingCtx, id int64, c cid.Cid, v ipld.Node) error {
-	sb := newSimpleStructuralBlob(c, string(BlobTypeDagPB))
-
-	if err := traversal.WalkLocal(v, func(prog traversal.Progress, n ipld.Node) error {
-		pblink, ok := n.(dagpb.PBLink)
-		if !ok {
-			return nil
-		}
-
-		target, ok := pblink.Hash.Link().(cidlink.Link)
-		if !ok {
-			return fmt.Errorf("link is not CID: %v", pblink.Hash)
-		}
-
-		linkType := "dagpb/chunk"
-		if pblink.Name.Exists() {
-			if name := pblink.Name.Must().String(); name != "" {
-				linkType = "dagpb/" + name
-			}
-		}
-
-		sb.AddBlobLink(linkType, target.Cid)
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	return ictx.SaveBlob(id, sb)
-}
-
-func (idx *Index) indexRef(ictx *indexingCtx, id int64, c cid.Cid, v *Ref) error {
-	// TODO(hm24): more validation and refs for docs.
-
-	var sb StructuralBlob
-	if v.Ts == ProfileGenesisEpoch {
-		sb = newStructuralBlob(c, string(BlobTypeRef), v.Author, hlc.Timestamp(v.Ts).Time(), v.Resource, v.GenesisBlob, v.Author, hlc.Timestamp(v.Ts).Time())
-	} else {
-		sb = newStructuralBlob(c, string(BlobTypeRef), v.Author, hlc.Timestamp(v.Ts).Time(), v.Resource, v.GenesisBlob, nil, time.Time{})
-	}
-
-	if len(v.Heads) == 0 {
-		return fmt.Errorf("ref blob must have heads")
-	}
-
-	for _, head := range v.Heads {
-		sb.AddBlobLink("ref/head", head)
-	}
-
-	return ictx.SaveBlob(id, sb)
-}
-
-func (idx *Index) indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
-	// TODO(burdiyan): ensure there's only one change that brings an entity into life.
-
-	author := v.Author
-
-	var sb StructuralBlob
-	{
-		var resourceTime time.Time
-		if v.Action == "Create" {
-			resourceTime = hlc.Timestamp(v.Ts).Time()
-		}
-		sb = newStructuralBlob(c, string(BlobTypeChange), author, hlc.Timestamp(v.Ts).Time(), "", cid.Undef, author, resourceTime)
-	}
-
-	// TODO(burdiyan): ensure deps are indexed, not just known.
-	// Although in practice deps must always be indexed first, but need to make sure.
-	for _, dep := range v.Deps {
-		if err := ictx.AssertBlobData(dep); err != nil {
-			return fmt.Errorf("missing causal dependency %s of change %s", dep, c)
-		}
-
-		sb.AddBlobLink("change/dep", dep)
-	}
-
-	// TODO(burdiyan): remove this when all the tests are fixed. Sometimes CBOR codec decodes into
-	// different types than what was encoded, and we might not have accounted for that during indexing.
-	// So we re-encode the patch here to make sure.
-	// This is of course very wasteful.
-	// EDIT: actually re-encoding is probably not a bad idea to enforce the canonical encoding, and hash correctness.
-	// But it would probably need to happen in some other layer, and more generalized.
-	{
-		data, err := cbornode.DumpObject(v.Payload)
-		if err != nil {
-			return err
-		}
-		v.Payload = nil
-
-		if err := cbornode.DecodeInto(data, &v.Payload); err != nil {
-			return err
-		}
-	}
-
-	if v.Payload["metadata"] != nil {
-		for k, v := range v.Payload["metadata"].(map[string]any) {
-			vs, ok := v.(string)
-			if !ok {
-				continue
-			}
-
-			u, err := url.Parse(vs)
-			if err != nil {
-				continue
-			}
-
-			if u.Scheme != "ipfs" {
-				continue
-			}
-
-			c, err := cid.Decode(u.Host)
-			if err != nil {
-				continue
-			}
-
-			sb.AddBlobLink("metadata/"+k, c)
-
-			// TODO(hm24): index other relevant metadata for list response and so on.
-		}
-	}
-
-	blocks, ok := v.Payload["blocks"].(map[string]any)
-	if ok {
-		for id, blk := range blocks {
-			v, ok := blk.(map[string]any)["#map"]
-			if !ok {
-				continue
-			}
-			// This is a very bad way to convert an opaque map into a block struct.
-			// TODO(burdiyan): we should do better than this. This is ugly as hell.
-			data, err := json.Marshal(v)
-			if err != nil {
-				return err
-			}
-			blk := &documents.Block{}
-			if err := protojson.Unmarshal(data, blk); err != nil {
-				return err
-			}
-			blk.Id = id
-			blk.Revision = c.String()
-			if err := indexURL(&sb, idx.log, blk.Id, "doc/"+blk.Type, blk.Ref); err != nil {
-				return err
-			}
-
-			for _, ann := range blk.Annotations {
-				if err := indexURL(&sb, idx.log, blk.Id, "doc/"+ann.Type, ann.Ref); err != nil {
-					return err
-				}
-			}
-		}
-	}
-
-	index, ok := v.Payload["index"].(map[string]any)
-	if ok {
-		for key, v := range index {
-			heads, ok := v.([]cid.Cid)
-			if !ok {
-				continue
-			}
-			for _, head := range heads {
-				sb.AddBlobLink("index/"+key, head)
-			}
-		}
-	}
-	type meta struct {
-		Title string `json:"title"`
-	}
-
-	attrs, ok := v.Payload["metadata"].(map[string]any)
-	if ok {
-		title, ok := attrs["title"]
-		if !ok {
-			alias, ok := attrs["alias"]
-			if ok {
-				sb.Meta = meta{Title: alias.(string)}
-			} else {
-				name, ok := attrs["name"]
-				if ok {
-					sb.Meta = meta{Title: name.(string)}
-				}
-			}
-		} else {
-			sb.Meta = meta{Title: title.(string)}
-		}
-	}
-	return ictx.SaveBlob(id, sb)
 }
 
 // CanEditResource checks whether author can edit the resource.
@@ -454,7 +260,7 @@ func headsToJSON(heads []int64) string {
 	return sb.String()
 }
 
-type BlobType string
+type blobType string
 
 type EncodedBlob[T any] struct {
 	CID     cid.Cid
@@ -462,7 +268,7 @@ type EncodedBlob[T any] struct {
 	Decoded T
 }
 
-func EncodeBlob[T any](v T) (eb EncodedBlob[T], err error) {
+func encodeBlob[T any](v T) (eb EncodedBlob[T], err error) {
 	data, err := cbornode.DumpObject(v)
 	if err != nil {
 		return eb, err

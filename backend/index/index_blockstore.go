@@ -19,7 +19,7 @@ func (idx *Index) Put(ctx context.Context, blk blocks.Block) error {
 
 	return sqlitex.WithTx(conn, func() error {
 		codec, hash := ipfs.DecodeCID(blk.Cid())
-		id, exists, err := idx.bs.putBlock(conn, 0, codec, hash, blk.RawData())
+		id, exists, err := idx.bs.putBlock(conn, 0, uint64(codec), hash, blk.RawData())
 		if err != nil {
 			return err
 		}
@@ -28,11 +28,7 @@ func (idx *Index) Put(ctx context.Context, blk blocks.Block) error {
 			return nil
 		}
 
-		hb, err := DecodeBlob(blk.Cid(), blk.RawData())
-		if err != nil {
-			return err
-		}
-		return idx.indexBlob(conn, id, hb.CID, hb.Decoded)
+		return idx.indexBlob(conn, id, blk.Cid(), blk.RawData())
 	})
 }
 
@@ -46,7 +42,7 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 	return sqlitex.WithTx(conn, func() error {
 		for _, blk := range blks {
 			codec, hash := ipfs.DecodeCID(blk.Cid())
-			id, exists, err := idx.bs.putBlock(conn, 0, codec, hash, blk.RawData())
+			id, exists, err := idx.bs.putBlock(conn, 0, uint64(codec), hash, blk.RawData())
 			if err != nil {
 				return err
 			}
@@ -55,12 +51,7 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 				continue
 			}
 
-			hb, err := DecodeBlob(blk.Cid(), blk.RawData())
-			if err != nil {
-				return err
-			}
-
-			if err := idx.indexBlob(conn, id, hb.CID, hb.Decoded); err != nil {
+			if err := idx.indexBlob(conn, id, blk.Cid(), blk.RawData()); err != nil {
 				return err
 			}
 		}

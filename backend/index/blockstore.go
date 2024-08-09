@@ -192,7 +192,7 @@ func (b *blockStore) Put(ctx context.Context, block blocks.Block) error {
 	return b.withConn(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.WithTx(conn, func() error {
 			codec, hash := ipfs.DecodeCID(block.Cid())
-			_, _, err := b.putBlock(conn, 0, codec, hash, block.RawData())
+			_, _, err := b.putBlock(conn, 0, uint64(codec), hash, block.RawData())
 			return err
 		})
 	})
@@ -206,7 +206,7 @@ func (b *blockStore) PutMany(ctx context.Context, blocks []blocks.Block) error {
 		return sqlitex.WithTx(conn, func() error {
 			for _, blk := range blocks {
 				codec, hash := ipfs.DecodeCID(blk.Cid())
-				if _, _, err := b.putBlock(conn, 0, codec, hash, blk.RawData()); err != nil {
+				if _, _, err := b.putBlock(conn, 0, uint64(codec), hash, blk.RawData()); err != nil {
 					return err
 				}
 			}

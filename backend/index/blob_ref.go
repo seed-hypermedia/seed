@@ -1,14 +1,19 @@
 package index
 
 import (
+	"bytes"
 	"fmt"
 	"seed/backend/core"
+	"seed/backend/hlc"
+	"seed/backend/ipfs"
+	"time"
 
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
+	"github.com/multiformats/go-multicodec"
 )
 
-const BlobTypeRef BlobType = "Ref"
+const blobTypeRef blobType = "Ref"
 
 func init() {
 	cbornode.RegisterCborType(Ref{})
@@ -22,7 +27,7 @@ type Ref struct {
 
 func NewRef(kp core.KeyPair, genesis cid.Cid, rid IRI, heads []cid.Cid, ts int64) (eb EncodedBlob[*Ref], err error) {
 	ru := RefUnsigned{
-		Type:        BlobTypeRef,
+		Type:        blobTypeRef,
 		Resource:    rid,
 		GenesisBlob: genesis,
 		Heads:       heads,
@@ -35,11 +40,11 @@ func NewRef(kp core.KeyPair, genesis cid.Cid, rid IRI, heads []cid.Cid, ts int64
 		return eb, err
 	}
 
-	return EncodeBlob(cc)
+	return encodeBlob(cc)
 }
 
 type RefUnsigned struct {
-	Type        BlobType       `refmt:"@type"`
+	Type        blobType       `refmt:"@type"`
 	Resource    IRI            `refmt:"resource"`
 	GenesisBlob cid.Cid        `refmt:"genesisBlob"`
 	Heads       []cid.Cid      `refmt:"heads"`
@@ -66,4 +71,46 @@ func (r *RefUnsigned) Sign(kp core.KeyPair) (rr *Ref, err error) {
 		RefUnsigned: *r,
 		Sig:         sig,
 	}, nil
+}
+
+func init() {
+	matcher := makeCBORTypeMatch(blobTypeRef)
+
+	registerIndexer(blobTypeRef,
+		func(c cid.Cid, data []byte) (*Ref, error) {
+			codec, _ := ipfs.DecodeCID(c)
+			if codec != multicodec.DagCbor || !bytes.Contains(data, matcher) {
+				return nil, errSkipIndexing
+			}
+
+			v := &Ref{}
+			if err := cbornode.DecodeInto(data, v); err != nil {
+				return nil, err
+			}
+
+			return v, nil
+		},
+		indexRef,
+	)
+}
+
+func indexRef(ictx *indexingCtx, id int64, c cid.Cid, v *Ref) error {
+	// TODO(hm24): more validation and refs for docs.
+
+	var sb StructuralBlob
+	if v.Ts == ProfileGenesisEpoch {
+		sb = newStructuralBlob(c, string(blobTypeRef), v.Author, hlc.Timestamp(v.Ts).Time(), v.Resource, v.GenesisBlob, v.Author, hlc.Timestamp(v.Ts).Time())
+	} else {
+		sb = newStructuralBlob(c, string(blobTypeRef), v.Author, hlc.Timestamp(v.Ts).Time(), v.Resource, v.GenesisBlob, nil, time.Time{})
+	}
+
+	if len(v.Heads) == 0 {
+		return fmt.Errorf("ref blob must have heads")
+	}
+
+	for _, head := range v.Heads {
+		sb.AddBlobLink("ref/head", head)
+	}
+
+	return ictx.SaveBlob(id, sb)
 }
