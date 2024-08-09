@@ -61,36 +61,36 @@ jobs:
           text: ${{ github.ref }}
           regex: 'refs/tags/[0-9]{4}\.[0-9]+\.[0-9]+-rc[0-9]+$'
 
-      - name: Build and push edge nextjs
-        if: ${{ github.ref == 'refs/heads/main' }}
-        uses: docker/build-push-action@v4
-        with:
-          push: true
-          file: frontend/apps/site/Dockerfile
-          tags: seedhypermedia/gateway:main
-          build-args: |
-            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
-            SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
-      - name: Build and push rc nextjs
-        if: (startsWith(github.ref, 'refs/tags/') && (steps.release-candidate-tag.outputs.match || steps.release-tag.outputs.match)) || startsWith(github.ref, 'refs/heads/release/')
-        uses: docker/build-push-action@v4
-        with:
-          push: true
-          file: frontend/apps/site/Dockerfile
-          tags: seedhypermedia/gateway:rc
-          build-args: |
-            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
-            SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
-      - name: Build and push stable nextjs
-        if: startsWith(github.ref, 'refs/tags/') && steps.release-tag.outputs.match
-        uses: docker/build-push-action@v4
-        with:
-          push: true
-          file: frontend/apps/site/Dockerfile
-          tags: seedhypermedia/gateway:latest
-          build-args: |
-            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
-            SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
+#      - name: Build and push edge nextjs
+#        if: ${{ github.ref == 'refs/heads/main' }}
+#        uses: docker/build-push-action@v4
+#        with:
+#          push: true
+#          file: frontend/apps/site/Dockerfile
+#          tags: seedhypermedia/gateway:main
+#          build-args: |
+#            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+#            SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
+#      - name: Build and push rc nextjs
+#        if: (startsWith(github.ref, 'refs/tags/') && (steps.release-candidate-tag.outputs.match || steps.release-tag.outputs.match)) || startsWith(github.ref, 'refs/heads/release/')
+#        uses: docker/build-push-action@v4
+#        with:
+#          push: true
+#          file: frontend/apps/site/Dockerfile
+#          tags: seedhypermedia/gateway:rc
+#          build-args: |
+#            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+#            SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
+#      - name: Build and push stable nextjs
+#        if: startsWith(github.ref, 'refs/tags/') && steps.release-tag.outputs.match
+#        uses: docker/build-push-action@v4
+#        with:
+#          push: true
+#          file: frontend/apps/site/Dockerfile
+#          tags: seedhypermedia/gateway:latest
+#          build-args: |
+#            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+#            SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
 
       - name: Build and push edge seed-site
         if: ${{ github.ref == 'refs/heads/main' }}
