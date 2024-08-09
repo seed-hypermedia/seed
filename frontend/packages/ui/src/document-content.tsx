@@ -27,6 +27,11 @@ import {
   useRangeSelection,
 } from "@shm/shared";
 
+import {Button, ButtonFrame} from "@tamagui/button";
+import {Checkbox, CheckboxProps} from "@tamagui/checkbox";
+import {SizeTokens, Text, TextProps, Theme} from "@tamagui/core";
+import {ColorProp} from "@tamagui/helpers-tamagui";
+import {Label} from "@tamagui/label";
 import {
   AlertCircle,
   Check,
@@ -40,6 +45,9 @@ import {
   Reply,
   Undo2,
 } from "@tamagui/lucide-icons";
+import {RadioGroup} from "@tamagui/radio-group";
+import {XStack, XStackProps, YStack, YStackProps} from "@tamagui/stacks";
+import {SizableText, SizableTextProps} from "@tamagui/text";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 import {common} from "lowlight";
@@ -55,41 +63,21 @@ import {
   useState,
 } from "react";
 import {RiCheckFill, RiCloseCircleLine, RiRefreshLine} from "react-icons/ri";
-import {
-  QuotedTweet,
-  TweetBody,
-  TweetHeader,
-  TweetInReplyTo,
-  TweetInfo,
-  TweetMedia,
-  enrichTweet,
-  useTweet,
-} from "react-tweet";
-import {
-  Button,
-  ButtonFrame,
-  Checkbox,
-  CheckboxProps,
-  ColorProp,
-  Label,
-  RadioGroup,
-  SizableText,
-  SizableTextProps,
-  SizeTokens,
-  Spinner,
-  Text,
-  TextProps,
-  Theme,
-  XStack,
-  XStackProps,
-  YStack,
-  YStackProps,
-} from "tamagui";
+// import {
+//   QuotedTweet,
+//   TweetBody,
+//   TweetHeader,
+//   TweetInReplyTo,
+//   TweetInfo,
+//   TweetMedia,
+//   enrichTweet,
+//   useTweet,
+// } from "react-tweet";
 import {contentLayoutUnit, contentTextUnit} from "./document-content-constants";
 import "./document-content.css";
-import {BlockQuote, Comment} from "./icons";
+import {Comment} from "./icons";
+import {Spinner} from "./spinner";
 import {Tooltip} from "./tooltip";
-import {XPostNotFound, XPostSkeleton} from "./x-components";
 
 export type EntityComponentsRecord = {
   Document: React.FC<EntityComponentProps>;
@@ -702,7 +690,7 @@ export function BlockNodeContent({
                 onPress={() => onCitationClick?.()}
               >
                 <XStack gap="$2" ai="center">
-                  <BlockQuote size={layoutUnit / 2} color="$blue11" />
+                  {/* <BlockQuote size={layoutUnit / 2} color="$blue11" />  TODO FIX ME*/}
                   <SizableText color="$blue11" size="$2">
                     {String(citations.length)}
                   </SizableText>
@@ -876,9 +864,9 @@ function BlockContent(props: BlockContentProps) {
     }
   }
 
-  if (props.block.type == "web-embed") {
-    return <BlockContentXPost {...props} {...dataProps} />;
-  }
+  // if (props.block.type == "web-embed") {
+  //   return <BlockContentXPost {...props} {...dataProps} />;
+  // }
 
   if (props.block.type == "embed") {
     return <BlockContentEmbed {...props} {...dataProps} />;
@@ -1894,62 +1882,62 @@ export function BlockContentNostr({
   );
 }
 
-export function BlockContentXPost({
-  block,
-  parentBlockId,
-  ...props
-}: BlockContentProps) {
-  const {layoutUnit, onLinkClick} = useDocContentContext();
-  const urlArray = block.ref?.split("/");
-  const xPostId = urlArray?.[urlArray.length - 1].split("?")[0];
-  const {data, error, isLoading} = useTweet(xPostId);
+// export function BlockContentXPost({
+//   block,
+//   parentBlockId,
+//   ...props
+// }: BlockContentProps) {
+//   const {layoutUnit, onLinkClick} = useDocContentContext();
+//   const urlArray = block.ref?.split("/");
+//   const xPostId = urlArray?.[urlArray.length - 1].split("?")[0];
+//   const {data, error, isLoading} = useTweet(xPostId);
 
-  let xPostContent;
+//   let xPostContent;
 
-  if (isLoading) xPostContent = <XPostSkeleton />;
-  else if (error || !data) {
-    xPostContent = <XPostNotFound error={error} />;
-  } else {
-    const xPost = enrichTweet(data);
-    xPostContent = (
-      <YStack width="100%">
-        <TweetHeader tweet={xPost} />
-        {xPost.in_reply_to_status_id_str && <TweetInReplyTo tweet={xPost} />}
-        <TweetBody tweet={xPost} />
-        {xPost.mediaDetails?.length ? <TweetMedia tweet={xPost} /> : null}
-        {xPost.quoted_tweet && <QuotedTweet tweet={xPost.quoted_tweet} />}
-        <TweetInfo tweet={xPost} />
-      </YStack>
-    );
-  }
+//   if (isLoading) xPostContent = <XPostSkeleton />;
+//   else if (error || !data) {
+//     xPostContent = <XPostNotFound error={error} />;
+//   } else {
+//     const xPost = enrichTweet(data);
+//     xPostContent = (
+//       <YStack width="100%">
+//         <TweetHeader tweet={xPost} />
+//         {xPost.in_reply_to_status_id_str && <TweetInReplyTo tweet={xPost} />}
+//         <TweetBody tweet={xPost} />
+//         {xPost.mediaDetails?.length ? <TweetMedia tweet={xPost} /> : null}
+//         {xPost.quoted_tweet && <QuotedTweet tweet={xPost.quoted_tweet} />}
+//         <TweetInfo tweet={xPost} />
+//       </YStack>
+//     );
+//   }
 
-  return (
-    <YStack
-      {...blockStyles}
-      {...props}
-      borderColor="$color6"
-      backgroundColor="$color4"
-      borderWidth={1}
-      borderRadius={layoutUnit / 4}
-      padding={layoutUnit / 2}
-      overflow="hidden"
-      width="100%"
-      marginHorizontal={(-1 * layoutUnit) / 2}
-      className="x-post-container"
-      data-content-type="web-embed"
-      data-url={block.ref}
-      onPress={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (block.ref) {
-          onLinkClick(block.ref, e);
-        }
-      }}
-    >
-      {xPostContent}
-    </YStack>
-  );
-}
+//   return (
+//     <YStack
+//       {...blockStyles}
+//       {...props}
+//       borderColor="$color6"
+//       backgroundColor="$color4"
+//       borderWidth={1}
+//       borderRadius={layoutUnit / 4}
+//       padding={layoutUnit / 2}
+//       overflow="hidden"
+//       width="100%"
+//       marginHorizontal={(-1 * layoutUnit) / 2}
+//       className="x-post-container"
+//       data-content-type="web-embed"
+//       data-url={block.ref}
+//       onPress={(e) => {
+//         e.preventDefault();
+//         e.stopPropagation();
+//         if (block.ref) {
+//           onLinkClick(block.ref, e);
+//         }
+//       }}
+//     >
+//       {xPostContent}
+//     </YStack>
+//   );
+// }
 
 export function BlockContentCode({
   block,

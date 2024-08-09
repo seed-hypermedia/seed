@@ -1,6 +1,6 @@
-// @ts-nocheck
-import React from 'react'
-import {Tooltip as TTooltip, Text, Theme, TooltipProps} from 'tamagui'
+import {Text, Theme} from "@tamagui/core";
+import {Tooltip as TTooltip, TooltipProps} from "@tamagui/tooltip";
+import React from "react";
 
 export function Tooltip({
   children,
@@ -8,10 +8,10 @@ export function Tooltip({
   placement,
   delay = 100,
 }: {
-  children: React.ReactNode
-  content: string | React.ReactElement
-  placement?: TooltipProps['placement']
-  delay?: number
+  children: React.ReactNode;
+  content: string | React.ReactElement;
+  placement?: TooltipProps["placement"];
+  delay?: number;
 }) {
   return (
     <TTooltip placement={placement} delay={delay}>
@@ -28,7 +28,7 @@ export function Tooltip({
           paddingVertical="$1"
           paddingHorizontal="$2"
           animation={[
-            'fast',
+            "fast",
             {
               opacity: {
                 overshootClamping: true,
@@ -49,5 +49,5 @@ export function Tooltip({
         </TTooltip.Content>
       </Theme>
     </TTooltip>
-  )
+  );
 }

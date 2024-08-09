@@ -6743,6 +6743,7 @@ __metadata:
     "@tamagui/animations-moti": 1.108.2
     "@tamagui/animations-react-native": 1.108.2
     "@tamagui/build": 1.108.2
+    "@tamagui/checkbox": 1.108.2
     "@tamagui/cli": 1.108.2
     "@tamagui/config": 1.108.2
     "@tamagui/create-theme": 1.108.2
@@ -6751,6 +6752,8 @@ __metadata:
     "@tamagui/lucide-icons": 1.108.2
     "@tamagui/react-native-media-driver": 1.108.2
     "@tamagui/shorthands": 1.108.2
+    "@tamagui/stacks": 1.108.2
+    "@tamagui/text": 1.108.2
     "@tamagui/theme-builder": 1.108.2
     "@tamagui/themes": 1.108.2
     "@tamagui/use-did-finish-ssr": ^1.100.5
@@ -27149,6 +27152,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"superjson@npm:^2.2.1":
+  version: 2.2.1
+  resolution: "superjson@npm:2.2.1"
+  dependencies:
+    copy-anything: ^3.0.2
+  checksum: 42f327474a9de80165a70641d66c2afd9ce7f0eb241c32af7e2d5777f893aac6defa6c1584bd35f022658dbdfd2b7bcf0d170acfe62a07e7d1d01238cf5b4a57
+  languageName: node
+  linkType: hard
+
 "supports-color@npm:^5.3.0":
   version: 5.5.0
   resolution: "supports-color@npm:5.5.0"
@@ -27951,6 +27963,7 @@ __metadata:
     isbot: ^4.1.0
     react: ^18.2.0 || ^19.0.0
     react-dom: ^18.2.0 || ^19.0.0
+    superjson: ^2.2.1
     tamagui: 1.108.2
     typescript: ^5.5.2
     vite: 6.0.0-alpha.18

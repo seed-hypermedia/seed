@@ -32,7 +32,7 @@ export default function Index() {
           </Text>
         );
       })}
-      <Button onPress={() => alert("pressed")}>Press me</Button>
+      <Button onPress={() => alert("pressed")}>Press m1e</Button>
     </YStack>
   );
 }

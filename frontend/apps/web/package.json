@@ -23,7 +23,8 @@
     "@tamagui/core": "1.108.2",
     "isbot": "^4.1.0",
     "react": "^18.2.0 || ^19.0.0",
-    "react-dom": "^18.2.0 || ^19.0.0"
+    "react-dom": "^18.2.0 || ^19.0.0",
+    "superjson": "^2.2.1"
   },
   "devDependencies": {
     "@remix-run/dev": "^2.10.3",
