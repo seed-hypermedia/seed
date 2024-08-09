@@ -195,11 +195,23 @@ export function useLibrary(query: LibraryQueryState): LibraryData {
 }
 
 function alphabeticalSort(library: LibraryData) {
-  // todo
+  library.sort((a, b) => {
+    const aName = a.document?.metadata?.name || a.draft?.metadata?.name || ''
+    const bName = b.document?.metadata?.name || b.draft?.metadata?.name || ''
+    return aName.localeCompare(bName)
+  })
   return library
 }
 
 function lastUpdateSort(library: LibraryData) {
-  // todo
+  library.sort((a, b) => {
+    return lastUpdateOfEntry(b) - lastUpdateOfEntry(a)
+  })
   return library
+}
+
+function lastUpdateOfEntry(entry: LibraryData[number]) {
+  return entry.document?.updateTime?.seconds
+    ? Number(entry.document?.updateTime?.seconds)
+    : (entry.draft?.lastUpdateTime || 0) / 1000
 }
