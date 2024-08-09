@@ -524,7 +524,9 @@ function ThumbnailComponent({accountId}: {accountId?: string}) {
   const id = accountId ? hmId('d', accountId) : undefined
   const entity = useEntity(id)
   if (!id) return null
-  return <Thumbnail id={id} document={entity.data?.document} size={40} />
+  return (
+    <Thumbnail id={id} metadata={entity.data?.document?.metadata} size={40} />
+  )
 }
 
 export function EmbedInline(props: UnpackedHypermediaId) {

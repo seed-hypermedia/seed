@@ -1,23 +1,23 @@
-import {createThemeBuilder} from '@tamagui/theme-builder'
+import {createThemeBuilder} from "@tamagui/theme-builder";
 
-import {masks} from './masks'
-import {palettes} from './palettes'
-import {shadows} from './shadows'
-import {templates} from './templates'
-import {darkColors, lightColors} from './token-colors'
+import {masks} from "./masks";
+import {palettes} from "./palettes";
+import {shadows} from "./shadows";
+import {templates} from "./templates";
+import {darkColors, lightColors} from "./token-colors";
 
 const colorThemeDefinition = (colorName: string) => [
   {
-    parent: 'light',
+    parent: "light",
     palette: colorName,
-    template: 'colorLight',
+    template: "colorLight",
   },
   {
-    parent: 'dark',
+    parent: "dark",
     palette: colorName,
-    template: 'base',
+    template: "base",
   },
-]
+];
 
 const themesBuilder = createThemeBuilder()
   .addPalettes(palettes)
@@ -25,16 +25,16 @@ const themesBuilder = createThemeBuilder()
   .addMasks(masks)
   .addThemes({
     light: {
-      template: 'base',
-      palette: 'light',
+      template: "base",
+      palette: "light",
       nonInheritedValues: {
         ...lightColors,
         ...shadows.light,
       },
     },
     dark: {
-      template: 'base',
-      palette: 'dark',
+      template: "base",
+      palette: "dark",
       nonInheritedValues: {
         ...darkColors,
         ...shadows.dark,
@@ -43,14 +43,14 @@ const themesBuilder = createThemeBuilder()
   })
   .addChildThemes({
     // orange: colorThemeDefinition('orange'),
-    yellow: colorThemeDefinition('yellow'),
-    green: colorThemeDefinition('green'),
-    blue: colorThemeDefinition('blue'),
-    mint: colorThemeDefinition('mint'),
-    // purple: colorThemeDefinition('purple'),
+    yellow: colorThemeDefinition("yellow"),
+    green: colorThemeDefinition("green"),
+    blue: colorThemeDefinition("blue"),
+    mint: colorThemeDefinition("mint"),
+    purple: colorThemeDefinition("purple"),
     // pink: colorThemeDefinition('pink'),
-    red: colorThemeDefinition('red'),
-  })
+    red: colorThemeDefinition("red"),
+  });
 // .addChildThemes({
 //   alt1: {
 //     mask: 'soften',
@@ -72,4 +72,4 @@ const themesBuilder = createThemeBuilder()
 //   // avoidNestingWithin: ['alt1', 'alt2'],
 // })
 
-export const themes = themesBuilder.build()
+export const themes = themesBuilder.build();

@@ -129,7 +129,7 @@ export default function PublishDraftButton() {
                 signingAccount ? (
                   <Thumbnail
                     id={signingAccount.id}
-                    document={signingAccount.document}
+                    metadata={signingAccount.document?.metadata}
                     size={20}
                   />
                 ) : null
@@ -152,7 +152,7 @@ export default function PublishDraftButton() {
                       <Thumbnail
                         size={20}
                         id={acc.data.id}
-                        document={acc.data.document}
+                        metadata={acc.data.document?.metadata}
                       />
                     ),
                     onPress: () => {

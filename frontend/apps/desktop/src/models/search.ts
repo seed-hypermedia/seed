@@ -6,13 +6,16 @@ import {useGRPCClient} from '../app-context'
 import {queryKeys} from './query-keys'
 import {useRecents} from './recents'
 
-export function useSearch(query: string, opts: UseQueryOptions<Entity[]>) {
+export function useSearch(
+  query: string | undefined,
+  opts: UseQueryOptions<Entity[]>,
+) {
   const grpcClient = useGRPCClient()
   return useQuery({
     ...opts,
     queryKey: [queryKeys.SEARCH, query],
     keepPreviousData: true,
-    enabled: !!query,
+    enabled: query !== undefined,
     queryFn: async () => {
       const result = await grpcClient.entities.searchEntities({
         query,

@@ -32,8 +32,11 @@ export function clipContentBlocks(
 }
 
 export function getDocumentTitle(document?: HMDocument | null) {
-  let res = document?.metadata?.name || 'Untitled'
-  return res
+  return getMetadataTitle(document?.metadata)
+}
+
+export function getMetadataTitle(metadata?: HMDocument['metadata'] | null) {
+  return metadata?.name || 'Untitled'
 }
 
 export function getProfileName(profile: HMDocument | null | undefined) {

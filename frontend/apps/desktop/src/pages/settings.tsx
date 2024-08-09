@@ -322,6 +322,7 @@ export function ProfileForm({
 function AccountKeys() {
   const deleteKey = useDeleteKey()
   const keys = useMyAccountIds()
+  console.log({keys})
   const deleteWords = trpc.secureStorage.delete.useMutation()
   const invalidate = useQueryInvalidator()
   const [selectedAccount, setSelectedAccount] = useState<undefined | string>(
@@ -398,7 +399,7 @@ function AccountKeys() {
           {selectedAccountId ? (
             <Thumbnail
               id={selectedAccountId}
-              document={profile?.document}
+              metadata={profile?.document?.metadata}
               size={80}
             />
           ) : null}
@@ -537,7 +538,13 @@ function KeyItem({
   const entity = useEntity(id)
   return (
     <ListItem
-      icon={<Thumbnail id={id} document={entity.data?.document} size={24} />}
+      icon={
+        <Thumbnail
+          id={id}
+          metadata={entity.data?.document?.metadata}
+          size={24}
+        />
+      }
       title={entity.data?.document?.metadata.name || item}
       subTitle={item.substring(item.length - 8)}
       hoverTheme

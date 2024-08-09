@@ -75,10 +75,6 @@ export default function ContactsPage() {
           }
           items={contacts.data!}
           renderItem={({item}: {item: PlainMessage<DocumentListItem>}) => {
-            console.log(
-              `== ~ ContactsPageasdkjahds kajsdh  ~ item:`,
-              getFileUrl(item.metadata.thumbnail),
-            )
             return (
               <ListItem
                 title={item.metadata.name}

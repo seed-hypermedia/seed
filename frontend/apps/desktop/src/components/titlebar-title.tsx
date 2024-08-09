@@ -209,6 +209,7 @@ function BreadcrumbTitle({
   if (collapsedCount) {
     displayItems.push(
       <BreadcrumbEllipsis
+        key="ellipsis"
         crumbDetails={crumbDetails}
         collapsedCount={collapsedCount}
       />,
@@ -246,7 +247,7 @@ function BreadcrumbTitle({
           return [
             item,
             itemIndex < displayItems.length - 1 ? (
-              <BreadcrumbSeparator />
+              <BreadcrumbSeparator key={`seperator-${itemIndex}`} />
             ) : null,
           ]
         })}

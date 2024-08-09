@@ -148,7 +148,7 @@ function FavoritesSection() {
           <SidebarItem
             key={id.id}
             title={getDocumentTitle(document)}
-            icon={<Thumbnail id={id} document={document} size={20} />}
+            icon={<Thumbnail id={id} metadata={document?.metadata} size={20} />}
             active={route.key === 'document' && route.id.id === id.id}
             onPress={() => {
               navigate({key: 'document', id})
@@ -193,7 +193,7 @@ function AccountsSection() {
           <SidebarItem
             key={id.uid}
             title={getDocumentTitle(document)}
-            icon={<Thumbnail id={id} document={document} size={20} />}
+            icon={<Thumbnail id={id} metadata={document?.metadata} size={20} />}
             onPress={() => {
               navigate({key: 'document', id})
             }}
@@ -203,7 +203,10 @@ function AccountsSection() {
               !route.id.path?.length
             }
             rightHover={[
-              <Tooltip content="Delete Account Key from this device">
+              <Tooltip
+                key="delete"
+                content="Delete Account Key from this device"
+              >
                 <Button
                   size="$1"
                   theme="red"
@@ -249,7 +252,7 @@ function OutlineSection({id}: {id: UnpackedHypermediaId}) {
         marginTop="$4"
         key={id.uid}
         title={getDocumentTitle(document)}
-        icon={<Thumbnail id={id} document={document} size={20} />}
+        icon={<Thumbnail id={id} metadata={document?.metadata} size={20} />}
         onPress={() => {
           navigate({key: 'document', id: hmId(id.type, id.uid)})
         }}
@@ -462,7 +465,7 @@ function _SidebarEmbedOutlineItem({
         <SidebarItem
           indented={indent}
           title={title}
-          icon={<Thumbnail id={id} document={doc} size={20} />}
+          icon={<Thumbnail id={id} metadata={doc.metadata} size={20} />}
           isCollapsed={canCollapse ? collapse : undefined}
           onSetCollapsed={canCollapse ? setCollapse : undefined}
           active={activeBlock === blockId}

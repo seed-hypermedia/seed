@@ -106,7 +106,7 @@ export function useUndeleteEntity(
   })
 }
 
-function getParentPaths(path?: string[] | null): string[][] {
+export function getParentPaths(path?: string[] | null): string[][] {
   if (!path) return [[]]
   let walkParentPaths: string[] = []
   return [
@@ -118,7 +118,7 @@ function getParentPaths(path?: string[] | null): string[][] {
   ]
 }
 
-function getRouteBreadrumbRoutes(
+function getRouteBreadcrumbRoutes(
   route: NavRoute,
 ): Array<DocumentRoute | DraftRoute> {
   if (route.key === 'document') {
@@ -138,7 +138,7 @@ export function useRouteBreadcrumbRoutes(
   route: NavRoute,
 ): Array<DocumentRoute | DraftRoute> {
   return useMemo(() => {
-    const routes = getRouteBreadrumbRoutes(route)
+    const routes = getRouteBreadcrumbRoutes(route)
     return routes
   }, [route])
 }

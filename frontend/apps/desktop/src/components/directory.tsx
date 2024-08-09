@@ -66,10 +66,8 @@ export function Directory({docId}: {docId: UnpackedHypermediaId}) {
         : [],
       drafts: draftsForShow
         ?.map((draftId) => {
-          console.log(`== ~ ?.map ~ draftId:`, draftId)
           const id = unpackHmId(draftId)
 
-          console.log(`== ~ ?.map ~ id:`, id)
           if (!id) return null
           return id
         })
@@ -163,7 +161,7 @@ function DraftListItem({id}: {id: UnpackedHypermediaId}) {
     <DataTable.Row>
       <DataTable.Cell onPress={goToDraft}>
         <XStack gap="$2">
-          <Thumbnail size={20} id={id} document={draft.data} />
+          <Thumbnail size={20} id={id} metadata={draft.data?.metadata} />
           <SizableText
             fontWeight="600"
             textOverflow="ellipsis"
@@ -214,7 +212,7 @@ function DirectoryItem({
     <DataTable.Row>
       <DataTable.Cell onPress={goToDocument}>
         <XStack gap="$2" f={1}>
-          <Thumbnail size={20} id={item.id} document={item} />
+          <Thumbnail size={20} id={item.id} metadata={item.metadata} />
           <SizableText
             textOverflow="ellipsis"
             whiteSpace="nowrap"

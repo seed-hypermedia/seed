@@ -1,49 +1,49 @@
 import {getFileUrl} from '@/utils/account-url'
 import {useNavigate} from '@/utils/useNavigate'
-import {getDocumentTitle, HMDocument, UnpackedHypermediaId} from '@shm/shared'
+import {getMetadataTitle, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
 import {AlertCircle, Tooltip, UIAvatar} from '@shm/ui'
 import {Button, FontSizeTokens, YStack} from 'tamagui'
 
 export function Thumbnail({
   id,
-  document,
+  metadata,
   size,
 }: {
   id: UnpackedHypermediaId
-  document?: HMDocument | null
+  metadata?: HMMetadata | null
   size?: FontSizeTokens | number
 }) {
   return (
     <UIAvatar
       size={size || 40}
       id={id.path?.at(-1) || id.uid.slice(2)}
-      label={document?.metadata.name}
-      url={getFileUrl(document?.metadata.thumbnail)}
+      label={metadata?.name}
+      url={getFileUrl(metadata?.thumbnail)}
     />
   )
 }
 
 export function LinkThumbnail({
   id,
-  document,
+  metadata,
   size,
   error,
 }: {
   id: UnpackedHypermediaId
-  document?: HMDocument | null
+  metadata?: HMMetadata | null
   size?: FontSizeTokens | number
   error?: boolean
 }) {
   const navigate = useNavigate()
   let content = (
     <>
-      <Thumbnail id={id} size={size} document={document} />
+      <Thumbnail id={id} size={size} metadata={metadata} />
       {error ? <ErrorDot /> : null}
     </>
   )
 
   return (
-    <Tooltip content={getDocumentTitle(document)}>
+    <Tooltip content={getMetadataTitle(metadata)}>
       <Button
         id="avatar"
         className="no-window-drag"
@@ -53,7 +53,7 @@ export function LinkThumbnail({
         minWidth={20}
         minHeight={20}
         padding={0}
-        onPress={(e) => {
+        onPress={(e: MouseEvent) => {
           e.preventDefault()
           e.stopPropagation()
           navigate({key: 'document', id})

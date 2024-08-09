@@ -14,7 +14,7 @@ export function EntityLinkThumbnail({
   if (!id) return null
   return (
     <LinkThumbnail
-      document={entity.data?.document}
+      metadata={entity.data?.document?.metadata}
       size={size}
       id={id}
       error={!!entity.error}
