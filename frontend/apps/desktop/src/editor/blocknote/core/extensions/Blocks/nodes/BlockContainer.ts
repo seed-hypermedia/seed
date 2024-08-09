@@ -951,6 +951,7 @@ export const BlockContainer = Node.create<{
             }
             return false
           }),
+        // Convert a list into a normal group if the selection is at the start of the list
         () =>
           commands.command(({state, view}) => {
             const {group, container, depth, $pos} = getGroupInfoFromPos(
@@ -989,7 +990,7 @@ export const BlockContainer = Node.create<{
           }),
         // If previous block is media, node select it
         () =>
-          commands.command(({state, view}) => {
+          commands.command(({state, dispatch, view}) => {
             const blockInfo = getBlockInfoFromPos(
               state.doc,
               state.selection.from,
@@ -1017,20 +1018,26 @@ export const BlockContainer = Node.create<{
                 }
                 if (!prevBlockInfo) return false
                 if (
-                  ['file', 'embed', 'video'].includes(
-                    prevBlockInfo.contentType.name,
-                  ) ||
+                  [
+                    'file',
+                    'embed',
+                    'video',
+                    'web-embed',
+                    'equation',
+                    'math',
+                  ].includes(prevBlockInfo.contentType.name) ||
                   (prevBlockInfo.contentType.name === 'image' &&
                     prevBlockInfo.contentNode.attrs.url.length === 0)
                 ) {
-                  let tr = state.tr
-                  const selection = NodeSelection.create(
-                    state.doc,
-                    prevBlockInfo.startPos,
-                  )
-                  tr = tr.setSelection(selection)
-                  view.dispatch(tr)
-                  return true
+                  if (dispatch) {
+                    const {startPos, contentNode} = blockInfo
+                    state.tr
+                      .setSelection(
+                        NodeSelection.create(state.doc, prevBlockInfo.startPos),
+                      )
+                      .deleteRange(startPos, startPos + contentNode.nodeSize)
+                    return true
+                  }
                 }
               } else {
                 return commands.BNUpdateBlock(state.selection.from, {
@@ -1074,7 +1081,7 @@ export const BlockContainer = Node.create<{
             }
             return false
           }),
-        //
+        // Merge blocks if a block is in the middle of a list
         () =>
           commands.command(({state, chain}) => {
             const blockData = getBlockInfoFromPos(
