@@ -126,27 +126,27 @@ jobs:
 #          file: backend/cmd/seed-site/Dockerfile
 #          tags: seedhypermedia/site:latest
 
-      - name: Build and push edge monitord
-        if: ${{ github.ref == 'refs/heads/main' }}
-        uses: docker/build-push-action@v4
-        with:
-          push: true
-          file: backend/cmd/monitord/Dockerfile
-          tags: seedhypermedia/monitord:main
-      - name: Build and push rc monitord
-        if: (startsWith(github.ref, 'refs/tags/') && (steps.release-candidate-tag.outputs.match || steps.release-tag.outputs.match)) || startsWith(github.ref, 'refs/heads/release/')
-        uses: docker/build-push-action@v4
-        with:
-          push: true
-          file: backend/cmd/monitord/Dockerfile
-          tags: seedhypermedia/monitord:rc
-      - name: Build and push stable monitord
-        if: startsWith(github.ref, 'refs/tags/') && steps.release-tag.outputs.match
-        uses: docker/build-push-action@v4
-        with:
-          push: true
-          file: backend/cmd/monitord/Dockerfile
-          tags: seedhypermedia/monitord:latest
+#      - name: Build and push edge monitord
+#        if: ${{ github.ref == 'refs/heads/main' }}
+#        uses: docker/build-push-action@v4
+#        with:
+#          push: true
+#          file: backend/cmd/monitord/Dockerfile
+#          tags: seedhypermedia/monitord:main
+#      - name: Build and push rc monitord
+#        if: (startsWith(github.ref, 'refs/tags/') && (steps.release-candidate-tag.outputs.match || steps.release-tag.outputs.match)) || startsWith(github.ref, 'refs/heads/release/')
+#        uses: docker/build-push-action@v4
+#        with:
+#          push: true
+#          file: backend/cmd/monitord/Dockerfile
+#          tags: seedhypermedia/monitord:rc
+#      - name: Build and push stable monitord
+#        if: startsWith(github.ref, 'refs/tags/') && steps.release-tag.outputs.match
+#        uses: docker/build-push-action@v4
+#        with:
+#          push: true
+#          file: backend/cmd/monitord/Dockerfile
+#          tags: seedhypermedia/monitord:latest
 
       - name: Build and push edge relay
         if: ${{ github.ref == 'refs/heads/main' }}
