@@ -724,14 +724,17 @@ func (idx *indexingCtx) ensureResource(r IRI) (int64, error) {
 			panic("BUG: failed to insert resource for some reason")
 		}
 		if idx.provider != nil {
-			c, err := ipfs.NewCID(uint64(multicodec.Raw), uint64(multicodec.Identity), []byte(string(r)))
-			if err != nil {
-				idx.log.Warn("failed to convert entit into CID", zap.String("eid", string(r)), zap.Error(err))
-			}
-			if err = idx.provider.Provide(c); err != nil {
-				idx.log.Warn("Failed to provide entity", zap.String("eid", string(r)), zap.Error(err))
-			}
-			idx.log.Debug("Providing resource", zap.String("eid", string(r)), zap.String("CID", c.String()))
+			go func() {
+				c, err := ipfs.NewCID(uint64(multicodec.Raw), uint64(multicodec.Identity), []byte(string(r)))
+				if err != nil {
+					idx.log.Warn("failed to convert entit into CID", zap.String("eid", string(r)), zap.Error(err))
+				}
+				if err = idx.provider.Provide(c); err != nil {
+					idx.log.Warn("Failed to provide entity", zap.String("eid", string(r)), zap.Error(err))
+				}
+				idx.log.Debug("Providing resource", zap.String("eid", string(r)), zap.String("CID", c.String()))
+				return
+			}()
 		}
 
 		id = ins
