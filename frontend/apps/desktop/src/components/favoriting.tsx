@@ -26,7 +26,13 @@ function RemoveFavoriteButton({
   )
 }
 
-export function FavoriteButton({id}: {id: UnpackedHypermediaId}) {
+export function FavoriteButton({
+  id,
+  hideUntilItemHover,
+}: {
+  id: UnpackedHypermediaId
+  hideUntilItemHover?: boolean
+}) {
   const favorite = useFavorite(id)
   if (favorite.isFavorited) {
     return (
@@ -43,6 +49,8 @@ export function FavoriteButton({id}: {id: UnpackedHypermediaId}) {
       <Button
         icon={Star}
         size="$2"
+        opacity={hideUntilItemHover ? 0 : 1}
+        $group-item-hover={{opacity: 1}}
         onPress={(e: MouseEvent) => {
           e.stopPropagation()
           favorite.addFavorite()

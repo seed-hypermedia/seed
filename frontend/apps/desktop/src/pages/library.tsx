@@ -1,3 +1,4 @@
+import {FavoriteButton} from '@/components/favoriting'
 import {MainWrapper} from '@/components/main-wrapper'
 import {LinkThumbnail, Thumbnail} from '@/components/thumbnail'
 import {
@@ -521,16 +522,17 @@ function LibraryListItem({entry}: {entry: LibraryData[0]}) {
   const navigate = useNavigate()
   const metadata = entry.document?.metadata || entry.draft?.metadata
   const isUnpublished = !!entry.draft && !entry.document
+  const isFavorite = !isUnpublished && entry.isFavorite
   return (
     <Button
       size="$4"
+      group="item"
       borderWidth={0}
       hoverStyle={{
         bg: '$color5',
       }}
       paddingHorizontal={16}
       paddingVertical="$1"
-      h="auto"
       onPress={() => {
         if (isUnpublished) navigate({key: 'draft', id: entry.id})
         else navigate({key: 'document', id: entry.id})
@@ -538,7 +540,7 @@ function LibraryListItem({entry}: {entry: LibraryData[0]}) {
       h={60}
       icon={
         <Thumbnail
-          size={32}
+          size={42}
           id={entry.id}
           metadata={entry.document?.metadata || entry.draft?.metadata}
         />
@@ -579,6 +581,9 @@ function LibraryListItem({entry}: {entry: LibraryData[0]}) {
         </YStack>
       </XStack>
       <XStack gap="$3" ai="center">
+        {isUnpublished ? null : (
+          <FavoriteButton id={entry.id} hideUntilItemHover />
+        )}
         {entry.hasDraft && !isUnpublished ? (
           <Button
             theme="yellow"

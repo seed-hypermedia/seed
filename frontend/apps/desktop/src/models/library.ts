@@ -9,6 +9,7 @@ import {
 import {useDrafts} from './accounts'
 import {useDraftList} from './documents'
 import {getParentPaths, useEntities} from './entities'
+import {useFavorites} from './favorites'
 import {useSearch} from './search'
 
 export type FilterItem =
@@ -37,10 +38,12 @@ export type LibraryData = Array<{
   draft?: HMDraft
   location: LibraryDependentData[]
   authors: LibraryDependentData[]
+  isFavorite: boolean
 }>
 
 export function useLibrary(query: LibraryQueryState): LibraryData {
   const search = useSearch(query.filterString, {})
+  const favorites = useFavorites()
   const draftList = useDraftList()
   const searchedIds =
     search.data?.map((entity) => unpackHmId(entity.id)).filter((id) => !!id) ||
@@ -50,6 +53,9 @@ export function useLibrary(query: LibraryQueryState): LibraryData {
       search.data?.findIndex((searchResult) => searchResult.id === draftId) ===
       -1,
   )
+  const selectedFilters = Object.entries(query.filter)
+    .filter(([filterKey, value]) => value)
+    .map(([filterKey]) => filterKey as FilterItem)
   const entities = useEntities(searchedIds)
   const alreadyFetchingIds = new Set<string>()
   searchedIds.forEach((id) => {
@@ -150,7 +156,7 @@ export function useLibrary(query: LibraryQueryState): LibraryData {
       .filter((location) => !!location)
   }
   const dependentEntities = useEntities(dependentEntityIds)
-  const results: LibraryData = [
+  let results: LibraryData = [
     ...(draftQueryList
       ?.map((draftId) => {
         const id = unpackHmId(draftId)
@@ -166,6 +172,7 @@ export function useLibrary(query: LibraryQueryState): LibraryData {
           document: undefined,
           location: getLocation(id),
           authors: getAuthors(draft ? [draft.signingAccount] : []),
+          isFavorite: false,
         }
       })
       .filter((result) => !!result) || []),
@@ -185,10 +192,34 @@ export function useLibrary(query: LibraryQueryState): LibraryData {
           hasDraft,
           location: getLocation(id),
           authors: getAuthors(entity?.data?.document?.authors || []),
+          isFavorite:
+            favorites?.findIndex((fav) => fav && fav.id === id.id) !== -1,
         }
       })
       .filter((result) => !!result) || []),
   ]
+  if (selectedFilters.length) {
+    results = results.filter((result) => {
+      return selectedFilters.some((filter) => {
+        switch (filter) {
+          case 'drafts':
+            return result.hasDraft
+          case 'favorites':
+            return result.isFavorite
+          default:
+            return false
+        }
+      })
+    })
+  }
+  if (query.filterString) {
+    // even though the filter string was passed to search, drafts are not filtered out yet. we had to load them because we don't know their title after listDrafts
+    results = results.filter((result) => {
+      const name =
+        result.document?.metadata?.name || result.draft?.metadata?.name || ''
+      return name.toLowerCase().includes(query.filterString.toLowerCase())
+    })
+  }
   if (query.sort === 'alphabetical') return alphabeticalSort(results)
   if (query.sort === 'lastUpdate') return lastUpdateSort(results)
   return results
