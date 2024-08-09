@@ -20,16 +20,15 @@ import {useDocumentUrl} from '../components/titlebar-common'
 export function AppDocContentProvider({
   children,
   docId,
-  isBlockFocused,
-
+  isBlockFocused = false,
   ...overrides
 }: React.PropsWithChildren<Partial<DocContentContextValue>> & {
-  docId: UnpackedHypermediaId
-  isBlockFocused: boolean
+  docId?: UnpackedHypermediaId
+  isBlockFocused?: boolean
 }) {
   const {saveCidAsFile} = useAppContext()
   const openUrl = useOpenUrl()
-  const reference = useDocumentUrl(docId, isBlockFocused)
+  const reference = useDocumentUrl({docId, isBlockFocused})
   const experiments = useExperiments()
   const importWebFile = trpc.webImporting.importWebFile.useMutation()
   return (

@@ -57,7 +57,6 @@ export default function DraftRebase() {
     setTimer(true)
     return res
   }, [])
-
   return (
     <YStack>
       <AppDocContentProvider disableEmbedClick>

@@ -172,6 +172,7 @@ function CommentCitationItem({mention}: {mention: Mention}) {
       </XStack>
       <YStack gap="$2" flex={1} marginHorizontal="$-2">
         <AppDocContentProvider
+          docId={doc.data?.id}
           comment
           // onReplyBlock={onReplyBlock}
           onCopyBlock={(

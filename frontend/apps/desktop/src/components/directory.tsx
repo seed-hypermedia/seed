@@ -26,6 +26,7 @@ import {
   YStack,
 } from '@shm/ui'
 import {Copy, FilePlus} from '@tamagui/lucide-icons'
+import {nanoid} from 'nanoid'
 import {useMemo} from 'react'
 import {SubmitHandler, useForm} from 'react-hook-form'
 import {z} from 'zod'
@@ -312,12 +313,21 @@ function NewSubDocumentButton({
   parentDocId: UnpackedHypermediaId
 }) {
   const {open, content} = useAppDialog<UnpackedHypermediaId>(NewDocumentDialog)
+  const navigate = useNavigate('push')
   return (
     <>
       <Button
         icon={FilePlus}
         onPress={() => {
-          open(parentDocId)
+          const id = {
+            ...parentDocId,
+            path: [...(parentDocId.path || []), `_${pathNameify(nanoid(10))}`],
+          }
+          console.log(`== ~ id:`, id)
+          navigate({
+            key: 'draft',
+            id,
+          })
         }}
         size="$3"
       >

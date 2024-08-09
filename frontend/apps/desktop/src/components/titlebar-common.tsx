@@ -1,20 +1,20 @@
-import {useAppContext} from '@/app-context'
-import {ContactsPrompt} from '@/components/contacts-prompt'
-import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
-import {useDeleteDialog} from '@/components/delete-dialog'
-import {MenuItemType, OptionsDropdown} from '@/components/options-dropdown'
-import {useDraft} from '@/models/accounts'
-import {useMyAccountIds} from '@/models/daemon'
-import {usePushPublication} from '@/models/documents'
-import {useEntity} from '@/models/entities'
-import {useGatewayHost, useGatewayUrl} from '@/models/gateway-settings'
-import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
+import { useAppContext } from '@/app-context'
+import { ContactsPrompt } from '@/components/contacts-prompt'
+import { useCopyGatewayReference } from '@/components/copy-gateway-reference'
+import { useDeleteDialog } from '@/components/delete-dialog'
+import { MenuItemType, OptionsDropdown } from '@/components/options-dropdown'
+import { useDraft } from '@/models/accounts'
+import { useMyAccountIds } from '@/models/daemon'
+import { usePushPublication } from '@/models/documents'
+import { useEntity } from '@/models/entities'
+import { useGatewayHost, useGatewayUrl } from '@/models/gateway-settings'
+import { SidebarWidth, useSidebarContext } from '@/sidebar-context'
 import {
   useNavRoute,
   useNavigationDispatch,
   useNavigationState,
 } from '@/utils/navigation'
-import {useNavigate} from '@/utils/useNavigate'
+import { useNavigate } from '@/utils/useNavigate'
 import {
   BlockRange,
   ExpandedBlockRange,
@@ -47,10 +47,10 @@ import {
   Trash,
   UploadCloud,
 } from '@tamagui/lucide-icons'
-import {ReactNode, useState} from 'react'
+import { ReactNode, useState } from 'react'
 import DiscardDraftButton from './discard-draft-button'
 import PublishDraftButton from './publish-draft-button'
-import {TitleBarProps} from './titlebar'
+import { TitleBarProps } from './titlebar'
 
 export function DocOptionsButton() {
   const route = useNavRoute()
@@ -149,10 +149,13 @@ function EditDocButton() {
   )
 }
 
-export function useDocumentUrl(
-  docId: UnpackedHypermediaId,
-  isBlockFocused: boolean,
-): {
+export function useDocumentUrl({
+  docId,
+  isBlockFocused,
+}: {
+  docId?: UnpackedHypermediaId
+  isBlockFocused: boolean
+}): {
   label: string
   url: string
   onCopy: (
@@ -165,6 +168,7 @@ export function useDocumentUrl(
   const gwUrl = useGatewayUrl()
   const [copyDialogContent, onCopyPublic] = useCopyGatewayReference()
   const hostname = gwUrl.data
+
   return {
     url: createPublicWebHmUrl('d', docId.uid, {
       version: pub.data?.document?.version,
@@ -198,7 +202,7 @@ export function CopyReferenceButton({
   isBlockFocused: boolean
 }) {
   const [shouldOpen, setShouldOpen] = useState(false)
-  const reference = useDocumentUrl(docId, isBlockFocused)
+  const reference = useDocumentUrl({docId, isBlockFocused})
   const {externalOpen} = useAppContext()
   if (!reference) return null
   return (

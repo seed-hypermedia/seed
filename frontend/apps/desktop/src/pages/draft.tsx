@@ -77,6 +77,7 @@ export default function DraftPage() {
             disableEmbedClick
             onCopyBlock={onCopyBlock}
             importWebFile={importWebFile}
+            docId={route.id}
           >
             <DraftHeader
               draftActor={data.actor}
