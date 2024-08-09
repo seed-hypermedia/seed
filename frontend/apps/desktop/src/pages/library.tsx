@@ -23,7 +23,6 @@ import {
   SizableText,
   SizeTokens,
   Tooltip,
-  View,
   XStack,
   YGroup,
   YStack,
@@ -36,11 +35,12 @@ import {
   List,
   Pencil,
   Settings2,
+  Square,
   Star,
   User2,
   X,
 } from '@tamagui/lucide-icons'
-import {ComponentProps, useRef, useState} from 'react'
+import {ComponentProps, useEffect, useRef, useState} from 'react'
 
 const defaultSort: LibraryQueryState['sort'] = 'lastUpdate'
 
@@ -166,7 +166,7 @@ function SortControl({
         >
           {activeOption && !isDefault ? (
             <XStack>
-              <SizableText>{activeOption.label}</SizableText>
+              <SizableText size="$2">{activeOption.label}</SizableText>
               <TagXButton onPress={() => onSort(defaultSort)} />
             </XStack>
           ) : null}
@@ -176,6 +176,7 @@ function SortControl({
         <YGroup separator={<Separator />}>
           {sortOptions.map((option) => (
             <Button
+              size="$2"
               onPress={select(option.value)}
               key={option.value}
               iconAfter={sort === option.value ? Check : null}
@@ -195,7 +196,11 @@ function TagXButton({onPress}: {onPress: () => void}) {
     <Button
       size="$1"
       chromeless
-      bg="$colorTransparent"
+      // bg="$colorTransparent"
+      hoverStyle={{
+        bg: '$colorTransparent',
+        borderColor: '$colorTransparent',
+      }}
       onPress={(e: MouseEvent) => {
         e.stopPropagation()
         onPress()
@@ -255,6 +260,7 @@ function FilterControl({
       <Popover.Trigger asChild>
         <Button
           size="$2"
+          paddingVertical={0}
           icon={Settings2}
           bg={isEmptyFilter ? undefined : '$blue5'}
           hoverStyle={{
@@ -350,8 +356,8 @@ function FilterControl({
 
 function SelectedFilterTag({label, onX}: {label: string; onX: () => void}) {
   return (
-    <XStack>
-      <SizableText>{label}</SizableText>
+    <XStack ai="center">
+      <SizableText size="$1">{label}</SizableText>
       <TagXButton onPress={onX} />
     </XStack>
   )
@@ -373,24 +379,37 @@ function RoleFilterOption({
   checked: boolean
 }) {
   return (
-    <Button onPress={onPress} key={option.value} justifyContent="space-between">
-      <XStack paddingLeft={option.icon ? undefined : '$6'} gap="$2">
-        {option.icon ? <option.icon size="$1" /> : null}
-        <SizableText>{option.label}</SizableText>
-      </XStack>
-      <Checkbox
-        id="link-latest"
-        size="$4"
-        checked={checked}
-        onPress={(e: MouseEvent) => {
-          e.stopPropagation()
-        }}
-        onCheckedChange={onCheckedChange}
-      >
-        <Checkbox.Indicator>
-          <Check />
-        </Checkbox.Indicator>
-      </Checkbox>
+    <Button
+      onPress={onPress}
+      key={option.value}
+      size="$2"
+      justifyContent="space-between"
+      icon={
+        option.icon ? (
+          <option.icon size={12} />
+        ) : (
+          <Square color="$colorTransparent" size={12} />
+        )
+      }
+      iconAfter={
+        <Checkbox
+          id="link-latest"
+          size="$2"
+          checked={checked}
+          onPress={(e: MouseEvent) => {
+            e.stopPropagation()
+          }}
+          onCheckedChange={onCheckedChange}
+        >
+          <Checkbox.Indicator>
+            <Check />
+          </Checkbox.Indicator>
+        </Checkbox>
+      }
+    >
+      <SizableText f={1} size="$1">
+        {option.label}
+      </SizableText>
     </Button>
   )
 }
@@ -420,22 +439,33 @@ function LibrarySearch({
 }) {
   const [isOpened, setIsOpened] = useState(!!search)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    document.addEventListener('keyup', handleEscape)
+
+    return () => {
+      document.removeEventListener('keyup', handleEscape)
+    }
+
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setIsOpened(false)
+      }
+    }
+  }, [])
   return (
-    <XStack>
-      <Input
-        borderColor="$colorTransparent"
-        placeholder="Filter Library..."
-        value={search}
-        size="$2"
-        onChangeText={onSearch}
-        display={isOpened ? 'flex' : 'none'}
-        ref={inputRef}
-        width={250}
-        paddingLeft="$6"
-      />
+    <XStack
+      borderWidth={2}
+      ai="center"
+      borderColor={isOpened ? '$color5' : '$colorTransparent'}
+      borderRadius="$2"
+      animation="fast"
+    >
       <Button
-        position="absolute"
         size="$2"
+        borderColor="$colorTransparent"
+        outlineColor="$colorTransparent"
         icon={Search}
         onPress={() => {
           if (search === '' && isOpened) {
@@ -448,27 +478,35 @@ function LibrarySearch({
         bg="$colorTransparent"
         hoverStyle={{borderColor: isOpened ? '$colorTransparent' : undefined}}
       />
-      <XStack
-        position="absolute"
-        right={0}
-        display={isOpened ? 'flex' : 'none'}
-        top={0}
-        bottom={0}
-        ai="center"
-        paddingHorizontal="$1"
-      >
-        <Button
-          size="$1"
-          chromeless
-          bg="$colorTransparent"
-          onPress={(e: MouseEvent) => {
-            e.stopPropagation()
-            onSearch('')
-            setIsOpened(false)
-          }}
-          icon={X}
-        />
-      </XStack>
+      {isOpened ? (
+        <>
+          <Input
+            borderWidth={0}
+            outline="none"
+            unstyled
+            placeholder="Filter Library..."
+            value={search}
+            size="$2"
+            onChangeText={onSearch}
+            ref={inputRef}
+            width={250}
+          />
+          <Button
+            size="$2"
+            chromeless
+            bg="$colorTransparent"
+            onPress={(e: MouseEvent) => {
+              e.stopPropagation()
+              onSearch('')
+              setIsOpened(false)
+            }}
+            icon={X}
+            hoverStyle={{
+              bg: '$color4',
+            }}
+          />
+        </>
+      ) : null}
     </XStack>
   )
 }
@@ -479,7 +517,10 @@ function LibraryCards({library}: {library: LibraryData}) {
 
 function LibraryList({library}: {library: LibraryData}) {
   return (
-    <YStack marginVertical="$4">
+    <YStack paddingVertical="$4" marginHorizontal="-$2">
+      {library.map((entry) => {
+        return <LibraryListItem key={entry.id.id} entry={entry} />
+      })}
       {library.map((entry) => {
         return <LibraryListItem key={entry.id.id} entry={entry} />
       })}
@@ -493,35 +534,43 @@ function LibraryListItem({entry}: {entry: LibraryData[0]}) {
   const isUnpublished = !!entry.draft && !entry.document
   return (
     <Button
+      size="$4"
+      borderWidth={0}
+      hoverStyle={{
+        bg: '$color5',
+      }}
+      paddingHorizontal="$2"
+      paddingVertical="$1"
+      h="auto"
       onPress={() => {
         if (isUnpublished) navigate({key: 'draft', id: entry.id})
         else navigate({key: 'document', id: entry.id})
       }}
-      height={60}
-      jc="space-between"
     >
-      <XStack gap="$3" ai="center">
+      <XStack gap="$3" ai="center" f={1} paddingVertical="$2">
         <Thumbnail
-          size={36}
+          size={32}
           id={entry.id}
           metadata={entry.document?.metadata || entry.draft?.metadata}
         />
-        <YStack>
-          <XStack ai="center" gap="$3" paddingLeft={4}>
+        <YStack f={1} gap="$1.5">
+          <XStack ai="center" gap="$2" paddingLeft={4}>
             <SizableText fontWeight="bold">
               {getMetadataTitle(metadata)}
             </SizableText>
             {isUnpublished && (
-              <View
-                bg="$yellow3"
-                borderRadius="$1"
+              <SizableText
+                size="$1"
+                color="$yellow11"
                 paddingHorizontal="$2"
                 paddingVertical="$1"
+                bg="$yellow3"
+                borderRadius="$1"
+                borderColor="$yellow10"
+                borderWidth={1}
               >
-                <SizableText size="$2" color="$yellow12">
-                  Unpublished
-                </SizableText>
-              </View>
+                Unpublished
+              </SizableText>
             )}
           </XStack>
           {entry.location.length ? (
@@ -532,7 +581,7 @@ function LibraryListItem({entry}: {entry: LibraryData[0]}) {
           ) : null}
         </YStack>
       </XStack>
-      <XStack gap="$3">
+      <XStack gap="$3" ai="center">
         {entry.hasDraft && !isUnpublished ? (
           <Button
             theme="yellow"
@@ -554,7 +603,7 @@ function LibraryListItem({entry}: {entry: LibraryData[0]}) {
               key={author.id.id}
               id={author.id}
               metadata={author.metadata}
-              size={24}
+              size={20}
             />
           ))}
         </XStack>
@@ -565,11 +614,15 @@ function LibraryListItem({entry}: {entry: LibraryData[0]}) {
 
 function LibraryEntryTime({entry}: {entry: LibraryData[0]}) {
   if (entry.document?.updateTime) {
-    return <SizableText>{formattedDate(entry.document.updateTime)}</SizableText>
+    return (
+      <SizableText size="$1">
+        {formattedDate(entry.document.updateTime)}
+      </SizableText>
+    )
   }
   if (entry.draft?.lastUpdateTime) {
     return (
-      <SizableText>
+      <SizableText size="$1">
         {formattedDate(new Date(entry.draft.lastUpdateTime))}
       </SizableText>
     )
@@ -584,22 +637,66 @@ function LibraryEntryLocation({
   location: LibraryDependentData[]
   onNavigate: (route: DocumentRoute) => void
 }) {
+  const [space, ...names] = location
   return (
-    <XStack>
-      {location.map(({id, metadata}) => (
-        <Button
-          key={id.id}
-          size="$1"
-          onPress={(e: MouseEvent) => {
-            e.stopPropagation()
-            onNavigate({key: 'document', id})
-          }}
-        >
-          {metadata
-            ? getMetadataTitle(metadata)
-            : id.path?.at(-1) || 'Untitled'}
-        </Button>
-      ))}
+    <XStack gap="$2">
+      <Button
+        theme="purple"
+        color="$purple8"
+        fontWeight="600"
+        size="$1"
+        borderWidth={0}
+        bg="$colorTransparent"
+        hoverStyle={{
+          color: '$purple11',
+          bg: '$colorTransparent',
+          textDecorationLine: 'underline',
+        }}
+        onPress={(e: MouseEvent) => {
+          e.stopPropagation()
+          onNavigate({key: 'document', id: space.id})
+        }}
+      >
+        {getMetadataTitle(space.metadata)}
+      </Button>
+
+      {names.length ? (
+        <>
+          <SizableText size="$1" color="$color9">
+            |
+          </SizableText>
+          <XStack ai="center" gap="$0.5">
+            {names.map(({id, metadata}, idx) => (
+              <>
+                {idx != 0 ? (
+                  <SizableText color="$color10" size="$1">
+                    /
+                  </SizableText>
+                ) : null}
+                <Button
+                  key={id.id}
+                  size="$1"
+                  borderWidth={0}
+                  bg="$colorTransparent"
+                  color="$color10"
+                  hoverStyle={{
+                    bg: '$colorTransparent',
+                    textDecorationLine: 'underline',
+                  }}
+                  onPress={(e: MouseEvent) => {
+                    e.stopPropagation()
+                    onNavigate({key: 'document', id})
+                  }}
+                >
+                  {metadata
+                    ? getMetadataTitle(metadata)
+                    : id.path?.at(-1) || 'Untitled'}
+                </Button>
+              </>
+            ))}
+          </XStack>
+        </>
+      ) : null}
     </XStack>
   )
 }
