@@ -7,16 +7,8 @@ import {DraftRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {PlainMessage} from '@bufbuild/protobuf'
 import {Document, HMEntityContent, hmId, packHmId} from '@shm/shared'
-import {
-  AlertCircle,
-  Button,
-  Spinner,
-  Tooltip,
-  XGroup,
-  YStack,
-  YStackProps,
-} from '@shm/ui'
-import {Check, ChevronDown} from '@tamagui/lucide-icons'
+import {Button, Spinner, Tooltip, XGroup, YStack, YStackProps} from '@shm/ui'
+import {AlertCircle, Check, ChevronDown} from '@tamagui/lucide-icons'
 import {PropsWithChildren, useEffect, useState} from 'react'
 import {createMachine} from 'xstate'
 import {useGRPCClient, useQueryInvalidator} from '../app-context'

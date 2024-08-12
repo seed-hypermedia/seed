@@ -2,7 +2,6 @@ export {
   Medal as Acknowledgements,
   Plus as Add,
   PlusSquare as AddSquare,
-  AlertCircle,
   ArrowDownRight,
   ArrowRight,
   ArrowUpRight,

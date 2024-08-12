@@ -23,7 +23,11 @@ import {
   verifySignature,
 } from 'nostr-tools'
 import {useEffect, useState} from 'react'
-import {RiCheckFill, RiCloseCircleLine, RiRefreshLine} from 'react-icons/ri'
+import {
+  RiCheckFill,
+  RiCloseCircleLine,
+  RiRefreshLine,
+} from 'react-icons/ri/index.js'
 import {
   Block,
   BlockNoteEditor,

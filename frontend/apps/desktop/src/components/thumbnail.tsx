@@ -1,7 +1,8 @@
 import {getFileUrl} from '@/utils/account-url'
 import {useNavigate} from '@/utils/useNavigate'
 import {getMetadataTitle, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
-import {AlertCircle, Tooltip, UIAvatar} from '@shm/ui'
+import {Tooltip, UIAvatar} from '@shm/ui'
+import {AlertCircle} from '@tamagui/lucide-icons'
 import {Button, FontSizeTokens, YStack} from 'tamagui'
 
 export function Thumbnail({

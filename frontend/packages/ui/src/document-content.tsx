@@ -62,7 +62,11 @@ import {
   useRef,
   useState,
 } from "react";
-import {RiCheckFill, RiCloseCircleLine, RiRefreshLine} from "react-icons/ri";
+import {
+  RiCheckFill,
+  RiCloseCircleLine,
+  RiRefreshLine,
+} from "react-icons/ri/index.js";
 // import {
 //   QuotedTweet,
 //   TweetBody,
