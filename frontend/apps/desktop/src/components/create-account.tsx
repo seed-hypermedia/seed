@@ -155,6 +155,7 @@ export function AccountWizardDialog() {
       })
       invalidate([queryKeys.LOCAL_ACCOUNT_ID_LIST])
       setCreatedAccount(renamedKey)
+      console.log('CREATED', existing)
       setStep(existing ? 'complete' : 'name')
     } catch (error) {
       toast.error(`REGISTER ERROR: ${error}`)
@@ -404,7 +405,7 @@ export function AccountWizardDialog() {
                     f={1}
                     disabled={!isSaveWords && !isUserSavingWords}
                     opacity={!isSaveWords && !isUserSavingWords ? 0.4 : 1}
-                    onPress={handleAccountCreation}
+                    onPress={() => handleAccountCreation()}
                   >
                     Create new Account
                   </Button>
