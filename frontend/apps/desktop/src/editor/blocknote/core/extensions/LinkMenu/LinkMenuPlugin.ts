@@ -298,20 +298,18 @@ export const setupLinkMenu = <
           // Selects an item and closes the menu.
           if (event.key === 'Enter') {
             deactivate(view)
-            editor._tiptapEditor
-              .chain()
-              .focus()
-              // .deleteRange({
-              //   from: queryStartPos! - triggerCharacter!.length,
-              //   to: editor._tiptapEditor.state.selection.from,
-              // })
-              .run()
+            editor._tiptapEditor.chain().focus().run()
             items[keyboardHoveredItemIndex].execute(editor, ref)
           }
 
           // Closes the menu.
           if (event.key === 'Escape') {
             deactivate(view)
+          }
+
+          if ((event.ctrlKey || event.metaKey) && event.key === 'z') {
+            deactivate(view)
+            return false
           }
 
           return true
