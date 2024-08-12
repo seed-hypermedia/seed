@@ -85,9 +85,11 @@ export function Directory({docId}: {docId: UnpackedHypermediaId}) {
   return (
     <YStack paddingVertical="$4">
       <DataTable.Root
-        style={{
-          tableLayout: 'fixed',
-        }}
+        style={
+          {
+            // tableLayout: 'fixed',
+          }
+        }
       >
         <DataTable.Head>
           <DataTable.Row borderBottomWidth={10}>

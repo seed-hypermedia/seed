@@ -9,16 +9,16 @@ function RemoveFavoriteButton({
 }: {
   onPress: ComponentProps<typeof Button>['onPress']
 }) {
-  const hover = useHover()
+  const {hover, ...hoverProps} = useHover()
   return (
     <Tooltip content="Remove from Favorites">
       <Button
-        {...hover}
+        {...hoverProps}
         size="$2"
-        icon={hover.hover ? Star : StarFull}
+        icon={hover ? Star : StarFull}
         onPress={onPress}
-        color={hover.hover ? undefined : '$yellow10'}
-        theme={hover.hover ? 'red' : undefined}
+        color={hover ? undefined : '$yellow10'}
+        theme={hover ? 'red' : undefined}
         chromeless
         backgroundColor="$colorTransparent"
       />

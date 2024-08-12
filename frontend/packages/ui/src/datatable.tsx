@@ -4,7 +4,7 @@ const Root = styled(View, {
   tag: "table",
   display: "table",
   userSelect: "none",
-  tableLayout: "fixed",
+  // tableLayout: "fixed",
   width: "100%",
 });
 
@@ -45,7 +45,7 @@ const Cell = styled(View, {
 const HCell = styled(View, {
   display: "table-cell",
   tag: "td",
-  textAlign: "left !important",
+  // textAlign: "left !important",
   hoverStyle: {
     bg: "$color6",
   },
