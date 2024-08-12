@@ -12,6 +12,7 @@ import {CopyReferenceButton} from '@/components/titlebar-common'
 import '@/editor/editor.css'
 import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
 import {useEntity} from '@/models/entities'
+import {useOpenUrl} from '@/open-url'
 import {getFileUrl} from '@/utils/account-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
@@ -26,6 +27,7 @@ import {
   H1,
   HistoryIcon,
   Section,
+  Separator,
   Spinner,
   SuggestedChangesIcon,
   Tooltip,
@@ -229,15 +231,28 @@ function DocPageHeader({
             />
           </XStack>
         </XStack>
+        <XStack marginTop="$4">
+          <SiteURLButton siteUrl={entity.data?.document?.metadata.siteUrl} />
+        </XStack>
+        <Separator />
       </YStack>
-      <XStack>
-        {entity.data?.document?.metadata.siteUrl ? (
-          <ButtonText theme="blue" onPress={() => {}}>
-            {entity.data.document.metadata.siteUrl}
-          </ButtonText>
-        ) : null}
-      </XStack>
     </YStack>
+  )
+}
+
+function SiteURLButton({siteUrl}: {siteUrl?: string}) {
+  const open = useOpenUrl()
+  if (!siteUrl) return null
+  return (
+    <ButtonText
+      color="$blue10"
+      hoverStyle={{textDecoration: 'underline'}}
+      onPress={() => {
+        open(siteUrl)
+      }}
+    >
+      {siteUrl}
+    </ButtonText>
   )
 }
 

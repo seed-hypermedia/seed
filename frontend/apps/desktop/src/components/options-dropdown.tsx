@@ -16,6 +16,7 @@ export type MenuItemType = {
   subLabel?: string
   icon: FC
   onPress: () => void
+  color?: string
 }
 
 export function OptionsDropdown({
@@ -80,6 +81,7 @@ export function OptionsDropdown({
                       subTitle={item.subLabel}
                       title={item.label}
                       icon={item.icon}
+                      color={item.color}
                     />
                   </YGroup.Item>
                 ),

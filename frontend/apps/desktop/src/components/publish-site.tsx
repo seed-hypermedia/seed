@@ -1,13 +1,14 @@
 import {useEntity} from '@/models/entities'
-import {useSiteRegistration} from '@/models/site'
+import {useRemoveSite, useSiteRegistration} from '@/models/site'
 import {useNavigate} from '@/utils/useNavigate'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {getDocumentTitle, UnpackedHypermediaId} from '@shm/shared'
 import {Button} from '@shm/ui'
 import {Spinner} from '@shm/ui/src/spinner'
+import {UploadCloud} from '@tamagui/lucide-icons'
 import {useEffect} from 'react'
 import {SubmitHandler, useForm} from 'react-hook-form'
-import {Form, SizableText, XStack} from 'tamagui'
+import {AlertDialog, Form, SizableText, XStack, YStack} from 'tamagui'
 import {z} from 'zod'
 import {DialogTitle, useAppDialog} from './dialog'
 import {FormInput} from './form-input'
@@ -15,6 +16,53 @@ import {FormField} from './forms'
 
 export function usePublishSite() {
   return useAppDialog(PublishSiteDialog)
+}
+
+export function useRemoveSiteDialog() {
+  return useAppDialog(RemoveSiteDialog, {isAlert: true})
+}
+
+function RemoveSiteDialog({
+  onClose,
+  input,
+}: {
+  onClose: () => void
+  input: UnpackedHypermediaId
+}) {
+  const removeSite = useRemoveSite()
+  return (
+    <YStack gap="$4" padding="$4" borderRadius="$3">
+      <AlertDialog.Title>Remove Site</AlertDialog.Title>
+      <AlertDialog.Description>
+        Remove this site URL from the entity? Your site will still exist until
+        you delete the server.
+      </AlertDialog.Description>
+
+      <XStack gap="$3" justifyContent="flex-end">
+        <AlertDialog.Cancel asChild>
+          <Button
+            onPress={() => {
+              onClose()
+            }}
+            chromeless
+          >
+            Cancel
+          </Button>
+        </AlertDialog.Cancel>
+        <AlertDialog.Action asChild>
+          <Button
+            theme="red"
+            onPress={() => {
+              removeSite.mutate(input)
+              onClose()
+            }}
+          >
+            Remove Site
+          </Button>
+        </AlertDialog.Action>
+      </XStack>
+    </YStack>
+  )
 }
 
 const publishSiteSchema = z.object({
@@ -71,10 +119,12 @@ function PublishSiteDialog({
             placeholder="https://mysite.com/hm/register?..."
           />
         </FormField>
-        <XStack space="$3" justifyContent="flex-end">
+        <XStack space="$3" justifyContent="flex-end" gap="$4">
           {register.isLoading ? <Spinner /> : null}
           <Form.Trigger asChild>
-            <Button>Publish</Button>
+            <Button icon={UploadCloud} theme="green">
+              Publish Site
+            </Button>
           </Form.Trigger>
         </XStack>
       </Form>

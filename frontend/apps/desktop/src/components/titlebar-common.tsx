@@ -41,6 +41,7 @@ import {
 import {
   ArrowLeftFromLine,
   ArrowRightFromLine,
+  CloudOff,
   ExternalLink,
   Link,
   Pencil,
@@ -50,7 +51,7 @@ import {
 import {ReactNode, useState} from 'react'
 import DiscardDraftButton from './discard-draft-button'
 import PublishDraftButton from './publish-draft-button'
-import {usePublishSite} from './publish-site'
+import {usePublishSite, useRemoveSiteDialog} from './publish-site'
 import {TitleBarProps} from './titlebar'
 
 export function DocOptionsButton() {
@@ -65,6 +66,7 @@ export function DocOptionsButton() {
   const deleteEntity = useDeleteDialog()
   const [copyContent, onCopy, host] = useCopyGatewayReference()
   const doc = useEntity(route.id)
+  const removeSite = useRemoveSiteDialog()
   const publishSite = usePublishSite()
   const canEditDoc = true // todo: check permissions
   const menuItems: MenuItemType[] = [
@@ -106,14 +108,25 @@ export function DocOptionsButton() {
     },
   ]
   if (!route.id.path?.length && canEditDoc) {
-    menuItems.push({
-      key: 'publish-site',
-      label: 'Publish Site',
-      icon: UploadCloud,
-      onPress: () => {
-        publishSite.open(route.id)
-      },
-    })
+    if (doc.data?.document?.metadata?.siteUrl)
+      menuItems.push({
+        key: 'publish-site',
+        label: 'Remove Site from Publication',
+        icon: CloudOff,
+        color: '$red10',
+        onPress: () => {
+          removeSite.open(route.id)
+        },
+      })
+    else
+      menuItems.push({
+        key: 'publish-site',
+        label: 'Publish Site',
+        icon: UploadCloud,
+        onPress: () => {
+          publishSite.open(route.id)
+        },
+      })
   }
   const docUrl = route.id
     ? packHmId(
@@ -129,6 +142,7 @@ export function DocOptionsButton() {
       {copyContent}
       {deleteEntity.content}
       {publishSite.content}
+      {removeSite.content}
       <OptionsDropdown menuItems={menuItems} />
     </>
   )
