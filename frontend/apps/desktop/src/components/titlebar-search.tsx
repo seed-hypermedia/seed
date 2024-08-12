@@ -50,7 +50,7 @@ export function TitlebarSearch() {
   return (
     <XStack
       ai="center"
-      className="no-window-drag"
+      className="window-drag"
       position="relative"
       gap="$2"
       w="100%"
