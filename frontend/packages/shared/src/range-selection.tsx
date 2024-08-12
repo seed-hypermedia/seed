@@ -42,17 +42,17 @@ export function useRangeSelection() {
 
   useEffect(function rangeSelectionEffect() {
     document.addEventListener('selectionchange', handleSelectionChange)
-    document.addEventListener('mousedown', handleMouseDown(true))
-    document.addEventListener('touchstart', handleMouseDown(true))
-    document.addEventListener('mouseup', handleMouseDown(false))
-    document.addEventListener('touchend', handleMouseDown(false))
+    wrapper.current?.addEventListener('mousedown', handleMouseDown(true))
+    wrapper.current?.addEventListener('touchstart', handleMouseDown(true))
+    wrapper.current?.addEventListener('mouseup', handleMouseDown(false))
+    wrapper.current?.addEventListener('touchend', handleMouseDown(false))
 
     return () => {
       document.removeEventListener('selectionchange', handleSelectionChange)
-      document.removeEventListener('mousedown', handleMouseDown(true))
-      document.removeEventListener('touchstart', handleMouseDown(true))
-      document.removeEventListener('mouseup', handleMouseDown(false))
-      document.removeEventListener('touchend', handleMouseDown(false))
+      wrapper.current?.removeEventListener('mousedown', handleMouseDown(true))
+      wrapper.current?.removeEventListener('touchstart', handleMouseDown(true))
+      wrapper.current?.removeEventListener('mouseup', handleMouseDown(false))
+      wrapper.current?.removeEventListener('touchend', handleMouseDown(false))
     }
 
     function handleSelectionChange(e: any) {
