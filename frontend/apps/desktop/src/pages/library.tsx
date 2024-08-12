@@ -1,4 +1,5 @@
 import {FavoriteButton} from '@/components/favoriting'
+import Footer from '@/components/footer'
 import {MainWrapper} from '@/components/main-wrapper'
 import {LinkThumbnail, Thumbnail} from '@/components/thumbnail'
 import {
@@ -16,7 +17,6 @@ import {
   Button,
   Checkbox,
   Container,
-  Footer,
   Input,
   Popover,
   Search,
