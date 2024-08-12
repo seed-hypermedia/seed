@@ -178,7 +178,8 @@ export function getLinkMenuItems({
           ...linkMenuItems,
         ]
       }
-    } else if (media) {
+    } else if (false) {
+      // DISABLE TWITTER/X EMBEDS BECAUSE IT DOES NOT WORK ON WEB
       const mediaItem = {
         name: `Convert to ${
           media === 'twitter'

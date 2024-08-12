@@ -1,4 +1,3 @@
-import { TwitterXIcon } from '@shm/ui'
 import {
   RiArticleFill,
   RiCodeBoxFill,
@@ -26,9 +25,9 @@ export const slashMenuItems = [
     execute: (editor) => {
       insertOrUpdateBlock(editor, {
         type: 'heading',
-        props: { level: '2' },
+        props: {level: '2'},
       } as PartialBlock<HMBlockSchema>)
-      const { state, view } = editor._tiptapEditor
+      const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },
   },
@@ -41,7 +40,7 @@ export const slashMenuItems = [
       insertOrUpdateBlock(editor, {
         type: 'paragraph',
       } as PartialBlock<HMBlockSchema>)
-      const { state, view } = editor._tiptapEditor
+      const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },
   },
@@ -58,7 +57,7 @@ export const slashMenuItems = [
           language: '',
         },
       } as PartialBlock<HMBlockSchema>)
-      const { state, view } = editor._tiptapEditor
+      const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },
   },
@@ -80,7 +79,7 @@ export const slashMenuItems = [
         } as PartialBlock<HMBlockSchema>,
         true,
       )
-      const { state, view } = editor._tiptapEditor
+      const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },
   },
@@ -102,7 +101,7 @@ export const slashMenuItems = [
         } as PartialBlock<HMBlockSchema>,
         true,
       )
-      const { state, view } = editor._tiptapEditor
+      const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },
   },
@@ -124,7 +123,7 @@ export const slashMenuItems = [
         } as PartialBlock<HMBlockSchema>,
         true,
       )
-      const { state, view } = editor._tiptapEditor
+      const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },
   },
@@ -145,7 +144,7 @@ export const slashMenuItems = [
         } as PartialBlock<HMBlockSchema>,
         true,
       )
-      const { state, view } = editor._tiptapEditor
+      const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },
   },
@@ -163,7 +162,7 @@ export const slashMenuItems = [
         } as PartialBlock<HMBlockSchema>,
         true,
       )
-      const { state, view } = editor._tiptapEditor
+      const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },
   },
@@ -184,29 +183,30 @@ export const slashMenuItems = [
         } as PartialBlock<HMBlockSchema>,
         true,
       )
-      const { state, view } = editor._tiptapEditor
+      const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },
   },
-  {
-    name: 'X Post',
-    aliases: ['tweet', 'twitter', 'x'],
-    group: 'Web embeds',
-    icon: <TwitterXIcon width={18} height={18} />,
-    hint: 'Insert an X Post embed',
-    execute: (editor) => {
-      insertOrUpdateBlock(
-        editor,
-        {
-          type: 'web-embed',
-          props: {
-            url: '',
-          },
-        } as PartialBlock<HMBlockSchema>,
-        true,
-      )
-      const { state, view } = editor._tiptapEditor
-      view.dispatch(state.tr.scrollIntoView())
-    },
-  },
+  // DISABLE TWITTER/X EMBEDS BECAUSE IT DOES NOT WORK ON WEB
+  // {
+  //   name: 'X Post',
+  //   aliases: ['tweet', 'twitter', 'x'],
+  //   group: 'Web embeds',
+  //   icon: <TwitterXIcon width={18} height={18} />,
+  //   hint: 'Insert an X Post embed',
+  //   execute: (editor) => {
+  //     insertOrUpdateBlock(
+  //       editor,
+  //       {
+  //         type: 'web-embed',
+  //         props: {
+  //           url: '',
+  //         },
+  //       } as PartialBlock<HMBlockSchema>,
+  //       true,
+  //     )
+  //     const { state, view } = editor._tiptapEditor
+  //     view.dispatch(state.tr.scrollIntoView())
+  //   },
+  // },
 ]
