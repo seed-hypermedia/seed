@@ -111,25 +111,25 @@ def main():
 
         return run("yarn desktop:test", args=args)
 
-    @cmd(cmds, "run-site", "Run sites app for development.")
-    def run_site(args):
-        run("./scripts/cleanup-site.sh")
+    @cmd(cmds, "run-web", "Run Web app for development.")
+    def run_web(args):
+        run("./scripts/cleanup-web.sh")
         run("yarn install")
         run("plz build //:yarn")
         return run(
-            "yarn site",
+            "yarn web",
             args=args,
             env={**os.environ, "HM_BASE_URL": "http://localhost:3000"},
         )
 
-    @cmd(cmds, "build-site", "Build site app for production.")
-    def build_site(args):
+    @cmd(cmds, "build-web", "Build web app for production.")
+    def build_web(args):
         run("./scripts/cleanup-frontend.sh")
-        run("./scripts/cleanup-site.sh")
+        run("./scripts/cleanup-web.sh")
         run("yarn install")
         run("plz build //:yarn")
         return run(
-            "yarn site:prod",
+            "yarn web:prod",
             args=args,
             # env={**os.environ, "HM_BASE_URL": "http://localhost:3000"},
         )

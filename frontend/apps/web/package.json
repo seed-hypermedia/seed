@@ -1,11 +1,11 @@
 {
-  "name": "tui48",
+  "name": "@shm/web",
   "private": true,
   "sideEffects": false,
   "type": "module",
   "scripts": {
     "upgrade:tamagui": "yarn up '@tamagui/*'@latest",
-    "build:production": "remix vite:build",
+    "build": "remix vite:build",
     "dev": "remix vite:dev",
     "start": "remix-serve ./build/server/index.js",
     "typecheck": "tsc"

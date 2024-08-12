@@ -16,7 +16,7 @@ services:
     networks:
       - internal_network
     environment:
-      - "MTT_SITE_HOSTNAME=${MTT_SITE_HOSTNAME:-http://nextjs}"
+      - "MTT_SITE_HOSTNAME=${MTT_SITE_HOSTNAME:-http://remix}"
       - "MTT_SITE_BACKEND_GRPCWEB_PORT=${MTT_SITE_BACKEND_GRPCWEB_PORT:-56001}"
       - "MTT_SITE_LOCAL_PORT=${MTT_SITE_LOCAL_PORT:-3000}"
     volumes:
@@ -24,8 +24,8 @@ services:
       - ${MTT_SITE_WORKSPACE:-~/.mtt-site}/proxy/config:/config
       - ${MTT_SITE_WORKSPACE:-~/.mtt-site}/proxy/CaddyFile:/etc/caddy/Caddyfile
 
-  nextjs:
-    container_name: ${MTT_SITE_NEXTJS_CONTAINER_NAME:-nextjs}
+  remix:
+    container_name: ${MTT_SITE_REMIX_CONTAINER_NAME:-remix}
     image: seedhypermedia/gateway:${MTT_SITE_TAG:-latest}
     depends_on:
       - seed-site
@@ -35,9 +35,9 @@ services:
       - "${MTT_SITE_LOCAL_PORT:-3000}:${MTT_SITE_LOCAL_PORT:-3000}"
     restart: unless-stopped
     volumes:
-      - ${MTT_SITE_WORKSPACE:-~/.mtt-site}/nextjs:/data:rw
+      - ${MTT_SITE_WORKSPACE:-~/.mtt-site}/remix:/data:rw
     environment:
-      - "SEED_BASE_URL=${MTT_SITE_HOSTNAME:-http://nextjs}"
+      - "SEED_BASE_URL=${MTT_SITE_HOSTNAME:-http://remix}"
       - "GRPC_HOST=http://seed-site:${MTT_SITE_BACKEND_GRPCWEB_PORT:-56001}"
       - "NEXT_PUBLIC_LN_HOST=${MTT_SITE_LN_HOST:-https://ln.mintter.com}"
 
@@ -59,7 +59,7 @@ services:
     command: >
       sh -c "rsync -a /monitoring/prometheus/ /exported_prometheus &&
              rsync -a /monitoring/grafana/ /exported_grafana && 
-             seed-site -data-dir=/.mtt-site -lndhub.mainnet -p2p.port=56000 --http.port=${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001} -syncing.allow-push=${SEED_SITE_ALLOW_PUSH:-false} -grpc.port=56002 -syncing.no-discovery=${SEED_SITE_NO_DISCOVERY:-true} -syncing.no-pull=${SEED_SITE_NO_PULL:-true} ${SEED_SITE_HOSTNAME:-http://nextjs}"
+             seed-site -data-dir=/.mtt-site -lndhub.mainnet -p2p.port=56000 --http.port=${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001} -syncing.allow-push=${SEED_SITE_ALLOW_PUSH:-false} -grpc.port=56002 -syncing.no-discovery=${SEED_SITE_NO_DISCOVERY:-true} -syncing.no-pull=${SEED_SITE_NO_PULL:-true} ${SEED_SITE_HOSTNAME:-http://remix}"
 
   prometheus:
     image: prom/prometheus:latest
