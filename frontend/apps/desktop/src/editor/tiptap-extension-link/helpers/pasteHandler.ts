@@ -157,6 +157,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
               blockRange: unpackedHmId.blockRange,
               version: unpackedHmId.version,
               latest: unpackedHmId.latest,
+              path: unpackedHmId.path,
             }),
           )
 
