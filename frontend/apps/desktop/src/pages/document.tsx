@@ -18,6 +18,7 @@ import {useNavigate} from '@/utils/useNavigate'
 import {getProfileName, UnpackedHypermediaId} from '@shm/shared'
 import {
   Button,
+  ButtonText,
   CitationsIcon,
   CollaboratorsIcon,
   CommentsIcon,
@@ -229,6 +230,13 @@ function DocPageHeader({
           </XStack>
         </XStack>
       </YStack>
+      <XStack>
+        {entity.data?.document?.metadata.siteUrl ? (
+          <ButtonText theme="blue" onPress={() => {}}>
+            {entity.data.document.metadata.siteUrl}
+          </ButtonText>
+        ) : null}
+      </XStack>
     </YStack>
   )
 }

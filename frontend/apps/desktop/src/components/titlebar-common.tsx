@@ -1,20 +1,20 @@
-import { useAppContext } from '@/app-context'
-import { ContactsPrompt } from '@/components/contacts-prompt'
-import { useCopyGatewayReference } from '@/components/copy-gateway-reference'
-import { useDeleteDialog } from '@/components/delete-dialog'
-import { MenuItemType, OptionsDropdown } from '@/components/options-dropdown'
-import { useDraft } from '@/models/accounts'
-import { useMyAccountIds } from '@/models/daemon'
-import { usePushPublication } from '@/models/documents'
-import { useEntity } from '@/models/entities'
-import { useGatewayHost, useGatewayUrl } from '@/models/gateway-settings'
-import { SidebarWidth, useSidebarContext } from '@/sidebar-context'
+import {useAppContext} from '@/app-context'
+import {ContactsPrompt} from '@/components/contacts-prompt'
+import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
+import {useDeleteDialog} from '@/components/delete-dialog'
+import {MenuItemType, OptionsDropdown} from '@/components/options-dropdown'
+import {useDraft} from '@/models/accounts'
+import {useMyAccountIds} from '@/models/daemon'
+import {usePushPublication} from '@/models/documents'
+import {useEntity} from '@/models/entities'
+import {useGatewayHost, useGatewayUrl} from '@/models/gateway-settings'
+import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
 import {
   useNavRoute,
   useNavigationDispatch,
   useNavigationState,
 } from '@/utils/navigation'
-import { useNavigate } from '@/utils/useNavigate'
+import {useNavigate} from '@/utils/useNavigate'
 import {
   BlockRange,
   ExpandedBlockRange,
@@ -47,10 +47,11 @@ import {
   Trash,
   UploadCloud,
 } from '@tamagui/lucide-icons'
-import { ReactNode, useState } from 'react'
+import {ReactNode, useState} from 'react'
 import DiscardDraftButton from './discard-draft-button'
 import PublishDraftButton from './publish-draft-button'
-import { TitleBarProps } from './titlebar'
+import {usePublishSite} from './publish-site'
+import {TitleBarProps} from './titlebar'
 
 export function DocOptionsButton() {
   const route = useNavRoute()
@@ -64,6 +65,8 @@ export function DocOptionsButton() {
   const deleteEntity = useDeleteDialog()
   const [copyContent, onCopy, host] = useCopyGatewayReference()
   const doc = useEntity(route.id)
+  const publishSite = usePublishSite()
+  const canEditDoc = true // todo: check permissions
   const menuItems: MenuItemType[] = [
     {
       key: 'link',
@@ -102,6 +105,16 @@ export function DocOptionsButton() {
       },
     },
   ]
+  if (!route.id.path?.length && canEditDoc) {
+    menuItems.push({
+      key: 'publish-site',
+      label: 'Publish Site',
+      icon: UploadCloud,
+      onPress: () => {
+        publishSite.open(route.id)
+      },
+    })
+  }
   const docUrl = route.id
     ? packHmId(
         hmId('d', route.id.uid, {
@@ -115,6 +128,7 @@ export function DocOptionsButton() {
     <>
       {copyContent}
       {deleteEntity.content}
+      {publishSite.content}
       <OptionsDropdown menuItems={menuItems} />
     </>
   )
