@@ -3,6 +3,7 @@ import {CoverImage} from '@/components/cover-image'
 import {HMEditorContainer, HyperMediaEditorView} from '@/components/editor'
 import {MainWrapper} from '@/components/main-wrapper'
 import {BlockNoteEditor, getBlockInfoFromPos} from '@/editor'
+import {useDraft} from '@/models/accounts'
 import {useDraftEditor} from '@/models/documents'
 import {draftMachine} from '@/models/draft-machine'
 import {trpc} from '@/trpc'
@@ -14,23 +15,26 @@ import {
   handleDragMedia,
 } from '@/utils/media-drag'
 import {useNavRoute} from '@/utils/navigation'
+import {useNavigate} from '@/utils/useNavigate'
 import {
   BlockRange,
   createPublicWebHmUrl,
   ExpandedBlockRange,
+  hmId,
   packHmId,
 } from '@shm/shared'
 import {
   Button,
   copyUrlToClipboardWithFeedback,
   Input,
+  SizableText,
   useDocContentContext,
   useHeadingTextStyles,
   XStack,
 } from '@shm/ui'
 import {Image, Smile} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
-import {useEffect, useRef, useState} from 'react'
+import {useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {YStack} from 'tamagui'
 import {ActorRefFrom} from 'xstate'
@@ -387,6 +391,7 @@ export function DraftHeader({
             </Button>
           ) : null}
         </XStack>
+        <PathDraft draftActor={draftActor} />
         <Input
           disabled={disabled}
           // we use multiline so that we can avoid horizontal scrolling for long titles
@@ -433,4 +438,171 @@ function applyTitleResize(target: HTMLTextAreaElement) {
 
   // here is the actual auto-resize
   target.style.height = `${target.scrollHeight}px`
+}
+
+function PathDraft({
+  draftActor,
+}: {
+  draftActor: ActorRefFrom<typeof draftMachine>
+}) {
+  const route = useNavRoute()
+  if (route.key != 'draft') throw new Error('not a draft')
+  const replaceRoute = useNavigate('replace')
+  const name = useSelector(draftActor, (state) => state.context.name)
+  const draftContext = useSelector(draftActor, (s) => s.context)
+  const routePath = useMemo(() => route.id?.path, [route])
+  const [isDirty, setDirty] = useState(false)
+  const [isEditing, setEditing] = useState(false)
+  const [paths, currentPath] = useMemo(
+    () => separateLastItem(routePath),
+    [routePath],
+  )
+  const {data: draft} = useDraft(packHmId(route.id))
+  const createDraft = trpc.drafts.write.useMutation()
+  const deleteDraft = trpc.drafts.delete.useMutation()
+
+  useEffect(() => {
+    if (isDirty) return
+    if (!!name && currentPath?.startsWith('_')) {
+      setPath(handlePathChange(name))
+    }
+  }, [name, isDirty])
+
+  const [path, setPath] = useState('')
+
+  function handlePathChange(newPath: string) {
+    // Remove spaces
+    let formatted = newPath.replace(/\s+/g, '-')
+
+    // Remove consecutive dashes
+    formatted = formatted.replace(/-+/g, '-')
+
+    // Only allow valid URL path characters
+    formatted = formatted.replace(/[^a-zA-Z0-9/_-]/g, '')
+
+    // Remove consecutive slashes
+    formatted = formatted.replace(/\/{2,}/g, '/')
+
+    // // Ensure it starts with a single slash
+    // if (!formatted.startsWith('/')) {
+    //   formatted = '/' + formatted
+    // }
+
+    // Remove trailing dashes
+    // formatted = formatted.replace(/-+$/, '')
+
+    return formatted
+  }
+
+  async function handleDraftChange() {
+    if (route.key != 'draft' && !route.id) return
+    const newId = hmId('draft', route.id.uid, {path: [...paths, path]})
+    console.log(`== ~ handleDraftChange ~ newId:`, newId)
+    const packedId = packHmId(newId)
+
+    console.log(`== ~ handleDraftChange ~ packedId:`, packedId)
+    let newContent = {
+      metadata: {
+        name: draftContext.name,
+        cover: draftContext.cover,
+        thumbnail: draftContext.thumbnail,
+      },
+      signingAccount: draftContext.signingAccount,
+      content: draft?.content || [],
+    } as HMDraft
+    console.log(`== ~ handleDraftChange ~ newContent:`, newContent)
+    console.log(`== ~ handleDraftChange ~ draftContext:`, draftContext)
+
+    const newDraft = await createDraft.mutateAsync({
+      id: packedId,
+      draft: newContent,
+    })
+
+    console.log('== NEW DRAFT', newDraft)
+    await deleteDraft.mutateAsync(packHmId(route.id))
+    console.log('== DRAFT DELETED', packHmId(route.id))
+    console.log('=== REPLACE ROUTE', newId)
+    replaceRoute({...route, id: newId})
+    setEditing(false)
+  }
+
+  return (
+    <XStack ai="center" gap="$2">
+      <SizableText size="$1">Path:</SizableText>
+      {isEditing ? (
+        <>
+          <XStack ai="center">
+            {paths.map((p) => (
+              <SizableText size="$2">/{p}</SizableText>
+            ))}
+          </XStack>
+          <Input
+            size="$2"
+            value={path}
+            onChangeText={(t: string) => setPath(handlePathChange(t))}
+          />
+          <SizableText
+            size="$2"
+            color="$blue9"
+            userSelect="none"
+            hoverStyle={{textDecorationLine: 'underline', cursor: 'pointer'}}
+            onPress={handleDraftChange}
+          >
+            Apply
+          </SizableText>
+          <SizableText
+            size="$2"
+            color="$red9"
+            userSelect="none"
+            hoverStyle={{textDecorationLine: 'underline', cursor: 'pointer'}}
+            onPress={() => {
+              if (!!name && path.startsWith('_')) {
+                setPath(handlePathChange(name))
+              } else {
+                setPath(currentPath || '')
+              }
+              setDirty(false)
+              setEditing(false)
+            }}
+          >
+            Cancel
+          </SizableText>
+        </>
+      ) : (
+        <>
+          <XStack ai="center">
+            {paths?.map((p) => <SizableText size="$2">/{p}</SizableText>)}
+            <SizableText size="$2">/{path || currentPath}</SizableText>
+          </XStack>
+          <SizableText
+            size="$2"
+            color="$blue9"
+            userSelect="none"
+            hoverStyle={{textDecorationLine: 'underline', cursor: 'pointer'}}
+            onPress={() => {
+              setDirty(true)
+              setEditing(true)
+            }}
+          >
+            Edit
+          </SizableText>
+        </>
+      )}
+    </XStack>
+  )
+}
+
+function separateLastItem(
+  arr: string[] | null | undefined,
+): [string[], string | undefined] {
+  if (arr?.length == 0) {
+    return [[], undefined]
+  } else if (arr?.length == 1) {
+    return [[], arr[0]]
+  } else {
+    const allButLast = arr!.slice(0, -1) // All elements except the last one
+    const lastItem = arr![arr!.length - 1] // The last element
+
+    return [allButLast, lastItem]
+  }
 }

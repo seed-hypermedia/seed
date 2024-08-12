@@ -365,7 +365,6 @@ export function queryDraft({
 }
 
 export function useDraftEditor({id}: {id: string | undefined}) {
-  const keys = useMyAccountIds()
   const {queryClient, grpcClient} = useAppContext()
   const openUrl = useOpenUrl()
   const route = useNavRoute()
