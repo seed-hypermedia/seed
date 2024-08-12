@@ -120,11 +120,13 @@ export function AccountWizardDialog() {
     },
   })
 
-  async function handleAccountCreation() {
+  async function handleAccountCreation(existing?: boolean) {
     const name = `temp${accountType}${nanoid(8)}`
     try {
       const createdAccount = await register.mutateAsync({
-        mnemonic: words as Array<string>,
+        mnemonic: existing
+          ? extractWords(existingWords)
+          : (words as Array<string>),
         name,
       })
 
@@ -153,8 +155,7 @@ export function AccountWizardDialog() {
       })
       invalidate([queryKeys.LOCAL_ACCOUNT_ID_LIST])
       setCreatedAccount(renamedKey)
-
-      setStep('name')
+      setStep(existing ? 'complete' : 'name')
     } catch (error) {
       toast.error(`REGISTER ERROR: ${error}`)
     }
@@ -463,11 +464,7 @@ export function AccountWizardDialog() {
                     opacity={!isExistingWordsSave ? 0.4 : 1}
                     disabled={!isExistingWordsSave}
                     onPress={() => {
-                      addExistingAccount.mutateAsync().then((res) => {
-                        invalidate([queryKeys.LOCAL_ACCOUNT_ID_LIST])
-                        setCreatedAccount(res)
-                        setStep('complete')
-                      })
+                      handleAccountCreation(true)
                     }}
                   >
                     Add Existing account
