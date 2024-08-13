@@ -1,6 +1,7 @@
 import {AvatarForm} from '@/components/avatar-form'
 import {CoverImage} from '@/components/cover-image'
 import {HMEditorContainer, HyperMediaEditorView} from '@/components/editor'
+import Footer from '@/components/footer'
 import {MainWrapper} from '@/components/main-wrapper'
 import {BlockNoteEditor, getBlockInfoFromPos} from '@/editor'
 import {useDraft} from '@/models/accounts'
@@ -96,6 +97,7 @@ export default function DraftPage() {
             </HMEditorContainer>
           </AppDocContentProvider>
         </MainWrapper>
+        <Footer />
       </ErrorBoundary>
     )
   }
