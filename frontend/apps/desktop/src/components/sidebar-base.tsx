@@ -23,7 +23,6 @@ import {
   ChevronDown,
   ChevronRight,
   Hash,
-  Search,
   Settings,
 } from '@tamagui/lucide-icons'
 import {
@@ -110,17 +109,6 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
           borderTopWidth={1}
           borderColor="$borderColor"
         >
-          <Tooltip content="Search / Open">
-            <Button
-              size="$3"
-              backgroundColor={'$colorTransparent'}
-              chromeless
-              onPress={() => {
-                triggerFocusedWindow('openLauncher')
-              }}
-              icon={Search}
-            />
-          </Tooltip>
           <Tooltip content="App Settings">
             <Button
               size="$3"
