@@ -391,7 +391,7 @@ export function DraftHeader({
             </Button>
           ) : null}
         </XStack>
-        <PathDraft draftActor={draftActor} />
+        {route.id?.path?.length ? <PathDraft draftActor={draftActor} /> : null}
         <Input
           disabled={disabled}
           // we use multiline so that we can avoid horizontal scrolling for long titles
@@ -497,7 +497,6 @@ function PathDraft({
   async function handleDraftChange() {
     if (route.key != 'draft' && !route.id) return
     const newId = hmId('draft', route.id.uid, {path: [...paths, path]})
-    console.log(`== ~ handleDraftChange ~ newId:`, newId)
     const packedId = packHmId(newId)
 
     console.log(`== ~ handleDraftChange ~ packedId:`, packedId)
