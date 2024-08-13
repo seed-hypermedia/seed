@@ -2,22 +2,14 @@ import type {MetaFunction} from "@remix-run/node";
 import {LoaderFunction} from "@remix-run/node";
 import {useLoaderData} from "@remix-run/react";
 import {HMDocument} from "@shm/shared";
-import {UIAvatar} from "@shm/ui/src/avatar";
 import {Button} from "@tamagui/button";
-import {Text} from "@tamagui/core";
-import {YStack} from "@tamagui/stacks";
 import {deserialize} from "superjson";
 import {getConfig} from "~/config";
 import {DocumentPage} from "~/document";
 import {loadHMDocument} from "~/loaders";
-import {queryClient} from "../client";
 
-// Remove these if you want the error:
-queryClient;
-UIAvatar;
+// Remove this if you want the error:
 Button;
-Text;
-YStack;
 // seriously, wtf
 
 export const meta: MetaFunction = ({data}) => {
