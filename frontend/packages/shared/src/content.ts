@@ -32,13 +32,13 @@ export function clipContentBlocks(
 }
 
 export function getDocumentTitle(document?: HMDocument | null) {
-  return getMetadataTitle(document?.metadata)
+  return getMetadataName(document?.metadata)
 }
 
-export function getMetadataTitle(metadata?: HMDocument['metadata'] | null) {
+export function getMetadataName(metadata?: HMDocument['metadata'] | null) {
   return metadata?.name || 'Untitled'
 }
 
-export function getProfileName(profile: HMDocument | null | undefined) {
+export function getAccountName(profile: HMDocument | null | undefined) {
   return profile?.metadata?.name || 'Untitled Account'
 }

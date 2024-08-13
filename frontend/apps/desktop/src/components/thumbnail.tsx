@@ -1,6 +1,6 @@
 import {getFileUrl} from '@/utils/account-url'
 import {useNavigate} from '@/utils/useNavigate'
-import {getMetadataTitle, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
+import {getMetadataName, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
 import {Tooltip, UIAvatar} from '@shm/ui'
 import {AlertCircle} from '@tamagui/lucide-icons'
 import {Button, FontSizeTokens, YStack} from 'tamagui'
@@ -44,9 +44,8 @@ export function LinkThumbnail({
   )
 
   return (
-    <Tooltip content={getMetadataTitle(metadata)}>
+    <Tooltip content={getMetadataName(metadata)}>
       <Button
-        id="avatar"
         className="no-window-drag"
         size="$1"
         backgroundColor="transparent"

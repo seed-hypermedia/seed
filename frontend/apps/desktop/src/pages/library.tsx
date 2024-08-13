@@ -12,7 +12,7 @@ import {
 import {usePopoverState} from '@/use-popover-state'
 import {DocumentRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
-import {formattedDate, getMetadataTitle} from '@shm/shared'
+import {formattedDate, getMetadataName} from '@shm/shared'
 import {
   Button,
   Checkbox,
@@ -552,7 +552,7 @@ function LibraryListItem({entry}: {entry: LibraryData[0]}) {
               whiteSpace="nowrap"
               overflow="hidden"
             >
-              {getMetadataTitle(metadata)}
+              {getMetadataName(metadata)}
             </SizableText>
             {isUnpublished && (
               <SizableText
@@ -656,7 +656,7 @@ function LibraryEntryLocation({
           onNavigate({key: 'document', id: space.id})
         }}
       >
-        {getMetadataTitle(space.metadata)}
+        {getMetadataName(space.metadata)}
       </Button>
 
       {names.length ? (
@@ -688,7 +688,7 @@ function LibraryEntryLocation({
                   }}
                 >
                   {metadata
-                    ? getMetadataTitle(metadata)
+                    ? getMetadataName(metadata)
                     : id.path?.at(-1) || 'Untitled'}
                 </Button>
               </>

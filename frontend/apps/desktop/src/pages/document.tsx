@@ -5,6 +5,7 @@ import {
 import {AvatarForm} from '@/components/avatar-form'
 import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
 import {Directory} from '@/components/directory'
+import {LinkNameComponent} from '@/components/document-name'
 import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
 import {SidebarSpacer} from '@/components/main-wrapper'
@@ -16,7 +17,12 @@ import {useOpenUrl} from '@/open-url'
 import {getFileUrl} from '@/utils/account-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {getProfileName, UnpackedHypermediaId} from '@shm/shared'
+import {
+  formattedDateLong,
+  formattedDateMedium,
+  getAccountName,
+  UnpackedHypermediaId,
+} from '@shm/shared'
 import {
   Button,
   ButtonText,
@@ -27,16 +33,17 @@ import {
   H1,
   HistoryIcon,
   Section,
-  Separator,
+  SizableText,
   Spinner,
   SuggestedChangesIcon,
   Tooltip,
+  Separator as TSeparator,
   XStack,
   YStack,
 } from '@shm/ui'
 import {PageContainer} from '@shm/ui/src/container'
 import {RadioButtons} from '@shm/ui/src/radio-buttons'
-import {Trash} from '@tamagui/lucide-icons'
+import {Link, Trash} from '@tamagui/lucide-icons'
 import React, {ReactNode, useMemo} from 'react'
 import {EntityCitationsAccessory} from '../components/citations'
 import {AppDocContentProvider} from './document-content-provider'
@@ -184,7 +191,7 @@ function DocPageHeader({
   const myAccountIds = useMyAccountIds()
   const entity = useEntity(docId)
   const isMyAccount = myAccountIds.data?.includes(docId.id)
-  const accountName = getProfileName(entity.data?.document)
+  const accountName = getAccountName(entity.data?.document)
   const hasCover = useMemo(
     () => !!entity.data?.document?.metadata.cover,
     [entity.data],
@@ -193,6 +200,8 @@ function DocPageHeader({
     () => !!entity.data?.document?.metadata.thumbnail,
     [entity.data],
   )
+
+  const authors = useMemo(() => entity.data?.document?.authors, [entity.data])
 
   return (
     <YStack>
@@ -231,14 +240,68 @@ function DocPageHeader({
             />
           </XStack>
         </XStack>
-        <XStack marginTop="$4">
-          <SiteURLButton siteUrl={entity.data?.document?.metadata.siteUrl} />
+
+        <XStack marginTop="$4" gap="$3" ai="center">
+          {entity.data?.document?.path.length ? (
+            <>
+              <XStack ai="center">
+                {authors
+                  ?.map((a, index) => [
+                    <LinkNameComponent key={a} accountId={a} />,
+                    index !== authors.length - 1 ? (
+                      index === authors.length - 2 ? (
+                        <SizableText size="$1" fontWeight={'bold'}>
+                          {' & '}
+                        </SizableText>
+                      ) : (
+                        <SizableText fontWeight={'bold'}>{', '}</SizableText>
+                      )
+                    ) : null,
+                  ])
+                  .filter(Boolean)}
+              </XStack>
+              <Separator />
+            </>
+          ) : null}
+          <Tooltip
+            content={`Update time: ${formattedDateLong(
+              entity.data?.document?.updateTime,
+            )}`}
+          >
+            <SizableText size="$1">
+              {formattedDateMedium(entity.data?.document?.updateTime)}
+            </SizableText>
+          </Tooltip>
+          {entity.data?.document?.metadata.siteUrl ? (
+            <>
+              <Separator />
+              <SiteURLButton
+                siteUrl={entity.data?.document?.metadata.siteUrl}
+              />
+            </>
+          ) : null}
+          <Separator />
+          <Button
+            borderColor="$colorTransparent"
+            outlineColor="$colorTransparent"
+            hoverStyle={{
+              borderColor: '$colorTransparent',
+              background: '$blue7',
+            }}
+            color="$blue11"
+            size="$1"
+            icon={Link}
+          >
+            Share
+          </Button>
         </XStack>
-        <Separator />
+        <TSeparator borderColor="$color8" />
       </YStack>
     </YStack>
   )
 }
+
+const Separator = () => <TSeparator borderColor="$color8" vertical h={20} />
 
 function SiteURLButton({siteUrl}: {siteUrl?: string}) {
   const open = useOpenUrl()

@@ -1,6 +1,6 @@
 import {useEntity} from '@/models/entities'
 import {AccessURLRow} from '@/url'
-import {getProfileName, hmId, HYPERMEDIA_PUBLIC_WEB_GATEWAY} from '@shm/shared'
+import {getAccountName, hmId, HYPERMEDIA_PUBLIC_WEB_GATEWAY} from '@shm/shared'
 import {Button, Spinner, TextArea, toast, XStack} from '@shm/ui'
 import {UserPlus} from '@tamagui/lucide-icons'
 import {compressToEncodedURIComponent} from 'lz-string'
@@ -53,7 +53,7 @@ function AddConnectionForm({
       appError(`Connect to peer error: ${error?.rawMessage}`, {error})
     },
   })
-  const myName = getProfileName(profile.data?.document)
+  const myName = getAccountName(profile.data?.document)
   const connectInfo = useMemo(() => {
     if (!deviceId || !peerInfo.data?.addrs?.length) return null
     return compressToEncodedURIComponent(

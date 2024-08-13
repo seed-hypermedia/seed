@@ -28,6 +28,7 @@ import {
   Button,
   copyUrlToClipboardWithFeedback,
   Input,
+  Separator,
   SizableText,
   useDocContentContext,
   useHeadingTextStyles,
@@ -364,36 +365,6 @@ export function DraftHeader({
             }}
           />
         ) : null}
-
-        <XStack
-          gap="$2"
-          $group-header-hover={{
-            opacity: 1,
-          }}
-          opacity={0}
-        >
-          {!showThumbnail ? (
-            <Button
-              icon={Smile}
-              size="$2"
-              chromeless
-              onPress={() => setShowThumbnail(true)}
-            >
-              Add Thumbnail
-            </Button>
-          ) : null}
-          {!showCover ? (
-            <Button
-              icon={Image}
-              size="$2"
-              chromeless
-              onPress={() => setShowCover(true)}
-            >
-              Add Cover
-            </Button>
-          ) : null}
-        </XStack>
-        {route.id?.path?.length ? <PathDraft draftActor={draftActor} /> : null}
         <Input
           disabled={disabled}
           // we use multiline so that we can avoid horizontal scrolling for long titles
@@ -429,6 +400,34 @@ export function DraftHeader({
           {...headingTextStyles}
           padding={0}
         />
+        <XStack marginTop="$4" gap="$3">
+          {route.id?.path?.length ? (
+            <PathDraft draftActor={draftActor} />
+          ) : null}
+          {!showThumbnail ? (
+            <Button
+              icon={Smile}
+              size="$2"
+              chromeless
+              hoverStyle={{bg: '$color5'}}
+              onPress={() => setShowThumbnail(true)}
+            >
+              Add Thumbnail
+            </Button>
+          ) : null}
+          {!showCover ? (
+            <Button
+              hoverStyle={{bg: '$color5'}}
+              icon={Image}
+              size="$2"
+              chromeless
+              onPress={() => setShowCover(true)}
+            >
+              Add Cover
+            </Button>
+          ) : null}
+        </XStack>
+        <Separator borderColor="$color8" />
       </YStack>
     </YStack>
   )

@@ -4,6 +4,7 @@ import {
   API_FILE_URL,
   UnpackedHypermediaId,
   formattedDateMedium,
+  getAccountName,
   getDocumentTitle,
   hmId,
   unpackHmId,
@@ -36,7 +37,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import {YStackProps} from 'tamagui'
+import {SizableTextProps, YStackProps} from 'tamagui'
 import {useComment} from '../models/comments'
 import {useNavRoute} from '../utils/navigation'
 import {useNavigate} from '../utils/useNavigate'
@@ -526,6 +527,20 @@ function ThumbnailComponent({accountId}: {accountId?: string}) {
   if (!id) return null
   return (
     <Thumbnail id={id} metadata={entity.data?.document?.metadata} size={40} />
+  )
+}
+
+function NameComponent({
+  accountId,
+  ...props
+}: SizableTextProps & {accountId?: string}) {
+  const id = accountId ? hmId('d', accountId) : undefined
+  const entity = useEntity(id)
+  if (!id) return null
+  return (
+    <SizableText {...props}>
+      {getAccountName(entity.data?.document)}
+    </SizableText>
   )
 }
 

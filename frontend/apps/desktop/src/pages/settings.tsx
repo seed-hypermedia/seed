@@ -29,7 +29,7 @@ import {
 import {useWalletOptIn} from '@/models/wallet'
 import {trpc} from '@/trpc'
 import {getFileUrl} from '@/utils/account-url'
-import {getProfileName, hmId, LightningWallet, VERSION} from '@shm/shared'
+import {getAccountName, hmId, LightningWallet, VERSION} from '@shm/shared'
 import {
   AlertDialog,
   ArrowDownRight,
@@ -409,7 +409,7 @@ function AccountKeys() {
                 borderColor="$colorTransparent"
                 borderWidth={0}
                 disabled
-                value={getProfileName(profile?.document)}
+                value={getAccountName(profile?.document)}
               />
             </Field>
             <Field id="accountid" label="Account Id">
