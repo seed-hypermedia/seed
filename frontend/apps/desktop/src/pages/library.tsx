@@ -23,7 +23,6 @@ import {
   Separator,
   SizableText,
   SizeTokens,
-  Tooltip,
   XStack,
   YGroup,
   YStack,
@@ -32,8 +31,6 @@ import {
   Archive,
   ArrowDownUp,
   Check,
-  LayoutGrid,
-  List,
   Pencil,
   Settings2,
   Square,
@@ -83,7 +80,7 @@ function LibraryQueryBar({
 }) {
   return (
     <XStack gap="$2" w="100%">
-      <Tooltip
+      {/* <Tooltip
         content={`Show items as ${
           queryState.display == 'cards' ? 'list' : 'cards'
         }`}
@@ -98,7 +95,7 @@ function LibraryQueryBar({
           size="$2"
           icon={queryState.display == 'cards' ? LayoutGrid : List}
         />
-      </Tooltip>
+      </Tooltip> */}
       <SortControl
         sort={queryState.sort}
         onSort={(sort) => {
