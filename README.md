@@ -70,8 +70,9 @@ either deploy a site on a production server or run it locally in dev mode
 
 To deploy a group into a site, make sure you have a domain name and
 a server with the following requirements:
+
 1. At least 2GB RAM
-2. Al least 512MB free space in root partition. 
+2. Al least 512MB free space in root partition.
 3. Port 56000 open so the p2p connections can reach the server.
 
 After checking that, run the following command in the server:
@@ -84,7 +85,7 @@ replacing `https://example.com` by your <`address`> If everything went well,
 after some seconds, you should be watching a final output line like
 `https://example.com/secret-invite/XXXX`. You should paste that link back into
 the owner's application to register the newly created site and start publihing.
-The site deployment workspace will default to `~/.mtt-site`.
+The site deployment workspace will default to `~/.seed-site`.
 
 #### Auto-Update a Site
 
@@ -98,16 +99,17 @@ sh <(curl -sL https://go.hyper.media/website_deployment.sh) https://example.com 
 #### Replace Site
 
 If you want to replace an old site with a new site in a different domain in the same machine,
-you need to redeploy the site from scratch. Note that old content will be available as long as 
+you need to redeploy the site from scratch. Note that old content will be available as long as
 the owner of the site is synced with the site at the moment of the replacement. On the server:
 
 ```shell
 docker stop seedsite
-mv ~/.mtt-site ~/.mtt-site.bak
+mv ~/.seed-site ~/.seed-site.bak
 docker start seedsite
 ```
+
 Get the new secret link from the command line after starting the `seedsite` container
-Now in the Seed App, the Owner of the site can go to the group he/she wants to (re)deploy 
+Now in the Seed App, the Owner of the site can go to the group he/she wants to (re)deploy
 and click on the three dots, and publish group to site. Enter the new secret and the old content
-should be now available in the new site. If there is no new content (A completely new group), then 
+should be now available in the new site. If there is no new content (A completely new group), then
 the site will be empty ready to accept documents

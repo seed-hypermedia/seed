@@ -3,7 +3,7 @@ import fs from "fs/promises";
 import {join} from "path";
 import {z} from "zod";
 
-const configPath = join(process.cwd(), "config.json");
+const configPath = join(process.env.DATA_DIR || process.cwd(), "config.json");
 
 const configSchema = z.object({
   availableRegistrationSecret: z.string().optional(),

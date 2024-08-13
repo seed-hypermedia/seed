@@ -61,7 +61,7 @@ hostname="${hostname%/}"
 mkdir -p ${workspace}
 rm -f ${workspace}/deployment.log
 touch ${workspace}/deployment.log
-curl -s -o ${workspace}/hmsite.yml https://raw.githubusercontent.com/MintterHypermedia/mintter/main/docker-compose.yml
+curl -s -o ${workspace}/hmsite.yml https://raw.githubusercontent.com/seed-hypermedia/seed/main/docker-compose.yml
 
 install_docker
 if [ -n "$profile" ]; then
@@ -72,15 +72,15 @@ if [ -n "$profile" ]; then
 	mkdir -p ${workspace}/monitoring/grafana/provisioning/datasources
 	mkdir -p ${workspace}/monitoring/prometheus
 fi
-docker stop nextjs hmsite proxy grafana prometheus 2> ${workspace}/deployment.log 1> ${workspace}/deployment.log || true
-docker rm nextjs hmsite proxy grafana prometheus 2> ${workspace}/deployment.log 1> ${workspace}/deployment.log || true
+docker stop seed-site seed-daemon proxy grafana prometheus 2> ${workspace}/deployment.log 1> ${workspace}/deployment.log || true
+docker rm seed-site seed-daemon proxy grafana prometheus 2> ${workspace}/deployment.log 1> ${workspace}/deployment.log || true
 
-dns=$(echo "MTT_SITE_HOSTNAME=${hostname}" | sed -n 's/.*MTT_SITE_HOSTNAME=http[s]*:\/\/\([^/]*\).*/\1/p')
+dns=$(echo "SEED_SITE_HOSTNAME=${hostname}" | sed -n 's/.*SEED_SITE_HOSTNAME=http[s]*:\/\/\([^/]*\).*/\1/p')
 
 mkdir -p ${workspace}/proxy
 
 cat << BLOCK > ${workspace}/proxy/CaddyFile
-{\$MTT_SITE_HOSTNAME}
+{\$SEED_SITE_HOSTNAME}
 
 @ipfsget {
 	method GET HEAD OPTIONS
@@ -99,7 +99,7 @@ cat << BLOCK > ${workspace}/proxy/CaddyFile
 
 reverse_proxy @wellknown hmsite:{\$HM_SITE_BACKEND_GRPCWEB_PORT:56001}
 
-reverse_proxy /.metrics* grafana:{\$MTT_SITE_MONITORING_PORT:3001}
+reverse_proxy /.metrics* grafana:{\$SEED_SITE_MONITORING_PORT:3001}
 
 route @version {
     rewrite /.well-known/hypermedia-site/version /debug/version
@@ -108,7 +108,7 @@ route @version {
 
 reverse_proxy @ipfsget hmsite:{\$HM_SITE_BACKEND_GRPCWEB_PORT:56001}
 
-reverse_proxy * nextjs:{\$MTT_SITE_LOCAL_PORT:3000}
+reverse_proxy * nextjs:{\$SEED_SITE_LOCAL_PORT:3000}
 BLOCK
 
 if [ $auto_update -eq 1 ]; then
@@ -120,10 +120,10 @@ if [ $auto_update -eq 1 ]; then
   docker run -d --restart unless-stopped --name autoupdater -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower --include-restarting -i 300 nextjs hmsite >/dev/null 2>&1
 fi
 
-MTT_SITE_DNS="$dns" MTT_SITE_TAG="$tag" MTT_SITE_ALLOW_PUSH="$allow_push" MTT_SITE_HOSTNAME="$hostname" MTT_SITE_PROXY_CONTAINER_NAME="proxy" MTT_SITE_NEXTJS_CONTAINER_NAME="nextjs" MTT_SITE_DAEMON_CONTAINER_NAME="hmsite" MTT_SITE_MONITORING_WORKDIR="${workspace}/monitoring" MTT_SITE_MONITORING_PORT="$MTT_SITE_MONITORING_PORT" docker compose -f ${workspace}/hmsite.yml --profile "$profile" up -d --pull always --quiet-pull 2> ${workspace}/deployment.log || true
-# MTT_SITE_DNS="$dns" MTT_SITE_HOSTNAME="$hostname" MTT_SITE_PROXY_CONTAINER_NAME="proxy" MTT_SITE_NEXTJS_CONTAINER_NAME="nextjs" MTT_SITE_DAEMON_CONTAINER_NAME="hmsite" docker compose -f ${workspace}/hmsite.yml up -d --pull always --quiet-pull 2> ${workspace}/deployment.log || true
+mkdir -p ~/.seed-site/web
+echo '{"availableRegistrationSecret": "123"}' > ~/.seed-site/web/config.json
 
-timeout 15 docker logs -f hmsite 2> /dev/null | sed '/Site Invitation secret token: / q' | awk -F ': ' '{print $2}'
+SEED_SITE_DNS="$dns" SEED_SITE_TAG="$tag" SEED_SITE_ALLOW_PUSH="$allow_push" SEED_SITE_HOSTNAME="$hostname" SEED_SITE_PROXY_CONTAINER_NAME="proxy"  SEED_SITE_MONITORING_WORKDIR="${workspace}/monitoring" SEED_SITE_MONITORING_PORT="$SEED_SITE_MONITORING_PORT" docker compose -f ${workspace}/hmsite.yml --profile "$profile" up -d --pull always --quiet-pull 2> ${workspace}/deployment.log || true
 
 rm -f ${workspace}/hmsite.yml
 exit 0
