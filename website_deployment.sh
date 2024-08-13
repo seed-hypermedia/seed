@@ -20,7 +20,7 @@ tag="latest"
 auto_update=0
 profile=""
 allow_push="false"
-clean_images_cron="0 3 * * * docker rmi \$(docker images | grep -E 'seedhypermedia/site|hyper-media/gateway' | awk '{print \$3}') # seed site cleanup"
+clean_images_cron="0 3 * * * docker rmi \$(docker images | grep -E 'seedhypermedia/' | awk '{print \$3}') # seed site cleanup"
 
 usage()
 {
