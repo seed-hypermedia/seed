@@ -87,26 +87,14 @@ cat << BLOCK > ${workspace}/proxy/CaddyFile
 	path /ipfs/*
 }
 
-@wellknown {
-	method GET HEAD OPTIONS
-	path /.well-known/hypermedia-site
-}
-
-@version {
-	method GET HEAD OPTIONS
-	path /.well-known/hypermedia-site/version
-}
-
-reverse_proxy @wellknown hmsite:{\$HM_SITE_BACKEND_GRPCWEB_PORT:56001}
-
 reverse_proxy /.metrics* grafana:{\$SEED_SITE_MONITORING_PORT:3001}
 
 route @version {
     rewrite /.well-known/hypermedia-site/version /debug/version
-    reverse_proxy hmsite:{\$HM_SITE_BACKEND_GRPCWEB_PORT:56001}
+    reverse_proxy seed-daemon:{\$HM_SITE_BACKEND_GRPCWEB_PORT:56001}
 }
 
-reverse_proxy @ipfsget hmsite:{\$HM_SITE_BACKEND_GRPCWEB_PORT:56001}
+reverse_proxy @ipfsget seed-daemon:{\$HM_SITE_BACKEND_GRPCWEB_PORT:56001}
 
 reverse_proxy * nextjs:{\$SEED_SITE_LOCAL_PORT:3000}
 BLOCK

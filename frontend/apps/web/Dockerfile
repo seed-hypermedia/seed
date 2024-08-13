@@ -35,4 +35,5 @@ EXPOSE 3000
 
 ENV PORT 3000
 
-CMD ["node", "frontend/apps/web/build/server/index.js"]
+WORKDIR /app/frontend/apps/web
+CMD ["npm", "start"]
