@@ -5,7 +5,7 @@ import (
 	"seed/backend/core"
 	"seed/backend/core/coretest"
 	daemon "seed/backend/genproto/daemon/v1alpha"
-	storage "seed/backend/storage2"
+	"seed/backend/storage"
 	"testing"
 
 	"github.com/stretchr/testify/require"

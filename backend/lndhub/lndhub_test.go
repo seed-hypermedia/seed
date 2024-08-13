@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"seed/backend/core"
 	"seed/backend/storage"
+	"seed/backend/testutil"
 	"seed/backend/wallet/walletsql"
 	"strings"
 	"testing"
@@ -26,7 +27,7 @@ const (
 )
 
 func TestCreate(t *testing.T) {
-	//t.Skip("Uncomment skip to run integration tests with seed lndhub.go")
+	testutil.Manual(t)
 
 	const invoiceAmt = 12543
 	const invoiceMemo = "test invoice go"

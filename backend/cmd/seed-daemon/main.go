@@ -14,7 +14,7 @@ import (
 	"seed/backend/core"
 	"seed/backend/daemon"
 	"seed/backend/logging"
-	storage "seed/backend/storage2"
+	"seed/backend/storage"
 
 	"github.com/burdiyan/go/mainutil"
 	"github.com/getsentry/sentry-go"

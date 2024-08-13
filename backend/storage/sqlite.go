@@ -2,9 +2,11 @@ package storage
 
 import (
 	"context"
+	"crypto/rand"
+	"math"
+	"math/big"
 	"path/filepath"
-	"seed/backend/core"
-	"seed/backend/storage2/dbext"
+	"seed/backend/storage/dbext"
 	"seed/backend/testutil"
 	"testing"
 	"time"
@@ -23,11 +25,8 @@ func OpenSQLite(uri string, flags sqlite.OpenFlags, poolSize int) (*sqlitex.Pool
 		"PRAGMA foreign_keys = ON;",
 		"PRAGMA synchronous = NORMAL;",
 		"PRAGMA journal_mode = WAL;",
-
-		// Setting up some in-memory tables for materializing some query results temporarily.
-		"ATTACH DATABASE ':memory:' AS mem;",
-		"CREATE TABLE mem.changes (id INTEGER PRIMARY KEY);",
-		"CREATE TABLE mem.change_deps (child INTEGER, parent INTEGER, PRIMARY KEY (child, parent), UNIQUE (parent, child)) WITHOUT ROWID;",
+		// "PRAGMA cache_size = -20000;",
+		"PRAGMA temp_store = MEMORY;",
 	)
 }
 
@@ -88,29 +87,31 @@ func MakeTestDB(t testing.TB) *sqlitex.Pool {
 
 	path := testutil.MakeRepoPath(t)
 
-	pool, err := OpenSQLite(filepath.Join(path, "db.sqlite"), 0, 16)
+	pool, err := newSQLite(filepath.Join(path, "db.sqlite"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, pool.Close())
 	})
 	require.NoError(t, InitSQLiteSchema(pool))
 	return pool
-
 }
 
-// MakeTestRepo is a test helper to use our database schema in tests.
-func MakeTestRepo(t testing.TB) *Store {
+// MakeTestMemoryDB is the same as MakeTestDB but using an in-memory database.
+func MakeTestMemoryDB(t testing.TB) *sqlitex.Pool {
 	t.Helper()
 
-	path := testutil.MakeRepoPath(t)
+	ri, err := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
+	if err != nil {
+		panic(err)
+	}
 
-	//u := coretest.NewTester("alice")
-
-	repo, err := Open(path, nil, core.NewMemoryKeyStore(), "debug")
+	db, err := newSQLite("file:seed-testing-" + ri.String() + "?mode=memory&cache=shared")
 	require.NoError(t, err)
-
-	return repo
-
+	t.Cleanup(func() {
+		require.NoError(t, db.Close())
+	})
+	require.NoError(t, InitSQLiteSchema(db))
+	return db
 }
 
 // SetKV sets a key-value pair in the database.

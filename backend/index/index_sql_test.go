@@ -1,7 +1,7 @@
 package index
 
 import (
-	storage "seed/backend/storage2"
+	"seed/backend/storage"
 	"seed/backend/util/dqb"
 	"testing"
 

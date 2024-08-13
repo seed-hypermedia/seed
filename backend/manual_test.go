@@ -4,7 +4,7 @@ import (
 	"context"
 	"seed/backend/core"
 	"seed/backend/index"
-	storage "seed/backend/storage2"
+	"seed/backend/storage"
 	"seed/backend/testutil"
 	"seed/backend/util/must"
 	"testing"

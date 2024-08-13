@@ -3,7 +3,7 @@ package index
 import (
 	"context"
 	"fmt"
-	storage "seed/backend/storage2"
+	"seed/backend/storage"
 	"slices"
 	"time"
 

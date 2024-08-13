@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"seed/backend/config"
+	"seed/backend/core"
 	"seed/backend/core/coretest"
 	"seed/backend/index"
 	"seed/backend/lndhub"
@@ -17,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"crawshaw.io/sqlite/sqlitex"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -133,10 +135,11 @@ func TestRequestP2PInvoice(t *testing.T) {
 
 func makeTestService(t *testing.T, name string) *Service {
 	u := coretest.NewTester(name)
+	db := storage.MakeTestMemoryDB(t)
+	device := u.Device
+	ks := core.NewMemoryKeyStore()
 
-	repo := storage.MakeTestRepo(t)
-	db := repo.DB()
-	node, closenode := makeTestPeer(t, u, repo)
+	node, closenode := makeTestPeer(t, u, device, ks, db)
 	t.Cleanup(closenode)
 
 	conn, release, err := db.Conn(context.Background())
@@ -151,20 +154,20 @@ func makeTestService(t *testing.T, name string) *Service {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	t.Cleanup(cancel)
-	require.NoError(t, repo.KeyStore().StoreKey(ctx, "main", u.Account))
-	srv := New(ctx, logging.New("seed/wallet", "debug"), repo.DB(), repo.KeyStore(), "main", node, false)
+	require.NoError(t, ks.StoreKey(ctx, "main", u.Account))
+	srv := New(ctx, logging.New("seed/wallet", "debug"), db, ks, "main", node, false)
 
 	return srv
 }
 
-func makeTestPeer(t *testing.T, u coretest.Tester, store *storage.Store) (*mttnet.Node, context.CancelFunc) {
-	idx := index.NewIndex(store.DB(), logging.New("seed/hyper", "debug"), nil)
+func makeTestPeer(t *testing.T, u coretest.Tester, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool) (*mttnet.Node, context.CancelFunc) {
+	idx := index.NewIndex(db, logging.New("seed/hyper", "debug"), nil)
 
 	n, err := mttnet.New(config.P2P{
 		NoRelay:        true,
 		BootstrapPeers: nil,
 		NoMetrics:      true,
-	}, store.Device(), store.KeyStore(), store.DB(), idx, zap.NewNop())
+	}, device, ks, db, idx, zap.NewNop())
 	require.NoError(t, err)
 
 	errc := make(chan error, 1)

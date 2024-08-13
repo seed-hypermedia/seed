@@ -48,9 +48,18 @@ type migration struct {
 var migrations = []migration{
 	// New beginning. While we're doing the HM24 migration we can still make some breaking changes.
 	// TODO(burdiyan): add a real version when we are ready to release.
-	{Version: "2024-07-12.hm24-dev-1", Run: func(d *Store, conn *sqlite.Conn) error {
+	{Version: "2024-08-07.hm24-dev-1", Run: func(d *Store, conn *sqlite.Conn) error {
 		return nil
 	}},
+}
+
+func desiredVersion() string {
+	ver := migrations[len(migrations)-1].Version
+	if ver == "" {
+		panic("BUG: couldn't find the desired storage schema version")
+	}
+
+	return ver
 }
 
 const (
@@ -61,54 +70,6 @@ const (
 
 	versionFilename = "VERSION"
 )
-
-func (s *Store) init() (currentVersion string, err error) {
-	dirs := [...]string{
-		filepath.Join(s.path, keysDir),
-		filepath.Join(s.path, dbDir),
-	}
-
-	currentVersion = migrations[len(migrations)-1].Version
-	if currentVersion == "" {
-		panic("BUG: couldn't find current data directory version")
-	}
-
-	for _, d := range dirs {
-		if err := os.MkdirAll(d, 0700); err != nil {
-			return "", fmt.Errorf("failed to create dir %s: %w", d, err)
-		}
-	}
-
-	if s.db != nil {
-		panic("BUG: db must not be set when calling init()")
-	}
-
-	if err := s.initDB(); err != nil {
-		return "", err
-	}
-
-	if err := InitSQLiteSchema(s.db); err != nil {
-		return "", fmt.Errorf("failed to initialize SQLite database: %w", err)
-	}
-
-	if s.device.Wrapped() == nil {
-		kp, err := core.NewKeyPairRandom()
-		if err != nil {
-			return "", fmt.Errorf("failed to generate random device key: %w", err)
-		}
-		s.device = kp
-	}
-
-	if err := writeDeviceKeyFile(s.path, s.device.Wrapped()); err != nil {
-		return "", err
-	}
-
-	if err := writeVersionFile(s.path, currentVersion); err != nil {
-		return "", fmt.Errorf("failed to write version file to init data directory: %w", err)
-	}
-
-	return currentVersion, nil
-}
 
 func (s *Store) migrate(currentVersion string) error {
 	desiredVersion := migrations[len(migrations)-1].Version
@@ -179,7 +140,7 @@ func (s *Store) migrate(currentVersion string) error {
 
 	// Preparing the device key.
 	{
-		kp, err := loadDeviceKeyFromFile(s.path)
+		kp, err := readDeviceKeyFile(s.path)
 		if err != nil {
 			return fmt.Errorf("failed to load device key from file: %w", err)
 		}
@@ -218,7 +179,7 @@ func writeDeviceKeyFile(dir string, pk crypto.PrivKey) error {
 	return os.WriteFile(filepath.Join(dir, devicePrivateKeyPath), data, 0600)
 }
 
-func loadDeviceKeyFromFile(dir string) (kp core.KeyPair, err error) {
+func readDeviceKeyFile(dir string) (kp core.KeyPair, err error) {
 	data, err := os.ReadFile(filepath.Join(dir, devicePrivateKeyPath))
 	if err != nil {
 		return kp, fmt.Errorf("failed to read the file: %w", err)

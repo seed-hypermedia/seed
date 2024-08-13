@@ -15,13 +15,9 @@ CREATE TABLE public_keys (
 -- Stores the content of IPFS blobs.
 CREATE TABLE blobs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    -- Original multihash of the IPFS blob.
-    -- We don't store CIDs, this is what most blockstore
-    -- implementations are doing.
-    -- We don't want to store the content more than once,
-    -- so UNIQUE constraint is needed here.
-    -- We don't use multihash as a primary key to reduce the database size,
-    -- as there're multiple other tables referencing records from this table.
+    -- The multihash of the IPFS blob.
+    -- We don't store CIDs, which is what most blockstore implementations do.
+    -- We don't use multihash as a primary key to reduce the database size when using foreign keys.
     multihash BLOB UNIQUE NOT NULL,
     -- Multicodec describing the data stored in the blob.
     codec INTEGER NOT NULL,
@@ -53,52 +49,44 @@ CREATE TABLE structural_blobs (
     -- For structural blobs that have a clear author,
     -- this is the public key of the author.
     author INTEGER REFERENCES public_keys (id),
-    -- For blobs that refer to some hypermedia resource
-    -- this is the reference to the resource.
+    -- For blobs that mutate a resource, this is a reference to the genesis blob.
+    genesis_blob INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE,
+    -- Some blobs are associated with a single resource.
     resource INTEGER REFERENCES resources (id),
-    -- Metadata about the content of the blob.
-    -- The title of the document or group. The bio of the Account.
-    meta TEXT
+    -- Additional attributes extracted from the blob's content.
+    extra_attrs JSONB
 ) WITHOUT ROWID;
 
-CREATE INDEX structural_blobs_by_author ON structural_blobs (author, resource) WHERE author IS NOT NULL;
-CREATE INDEX structural_blobs_by_resource ON structural_blobs (resource, author) WHERE resource IS NOT NULL;
-CREATE INDEX structural_blobs_by_ts ON structural_blobs(ts, resource) WHERE ts IS NOT NULL;
+-- TODO(hm24): Create necessary indexes for structural blobs.
 
--- View of structural blobs with dereferences foreign keys.
-CREATE VIEW structural_blobs_view AS
-SELECT
-    structural_blobs.type AS blob_type,
-    structural_blobs.id AS blob_id,
-    structural_blobs.resource AS resource_id,
-    structural_blobs.ts AS ts,
-    resources.iri AS resource,
-    blobs.codec AS codec,
-    blobs.multihash AS multihash,
-    blobs.data AS data,
-    blobs.size AS size
-FROM structural_blobs
-JOIN blobs ON blobs.id = structural_blobs.id
-JOIN resources ON structural_blobs.resource = resources.id;
+-- TODO(hm24): Create necessary table for the feed API.
+
 
 -- View blobs metadata It returns the latest non null title or the 
 -- latest blob in case of untitled meta.
 CREATE VIEW meta_view AS
 WITH RankedBlobs AS (
     SELECT 
-        sb.id, 
-        sb.meta, 
-        sb.author, 
-        sb.resource, 
-        sb.ts, 
+        change_sb.id, 
+        change_sb.extra_attrs AS meta, 
+        change_sb.author, 
+        ref_sb.resource, 
+        change_sb.ts, 
         ROW_NUMBER() OVER (
-            PARTITION BY sb.resource 
+            PARTITION BY ref_sb.resource 
             ORDER BY 
-                (CASE WHEN sb.meta IS NOT NULL THEN 0 ELSE 1 END), 
-                sb.ts DESC
+                ref_sb.ts DESC
         ) AS rank
-    FROM structural_blobs sb
-    WHERE sb.type = 'Change'
+    FROM 
+        structural_blobs change_sb
+    JOIN 
+        structural_blobs ref_sb
+    ON 
+        change_sb.ts = ref_sb.ts
+    WHERE 
+        change_sb.type = 'Change' 
+        AND ref_sb.type = 'Ref'
+        AND change_sb.extra_attrs IS NOT NULL
 ),
 LatestBlobs AS (
     SELECT 
@@ -111,35 +99,13 @@ LatestBlobs AS (
     WHERE rb.rank = 1
 )
 SELECT 
-    lb.meta, 
+    lb.meta AS extra_attrs, 
     res.iri, 
     pk.principal
 FROM LatestBlobs lb
 JOIN resources res ON res.id = lb.resource
-JOIN public_keys pk ON pk.id = lb.author;
-
--- Stores extra information for key delegation blobs.
-CREATE TABLE key_delegations (
-    id INTEGER PRIMARY KEY REFERENCES blobs (id) ON UPDATE CASCADE NOT NULL,
-    issuer INTEGER REFERENCES public_keys (id),
-    delegate INTEGER REFERENCES public_keys (id)
-) WITHOUT ROWID;
-
-CREATE INDEX key_delegations_by_issuer ON key_delegations (issuer, delegate);
-CREATE INDEX key_delegations_by_delegate ON key_delegations (delegate, issuer);
-
-CREATE VIEW key_delegations_view AS
-SELECT
-    kd.id AS blob,
-    blobs.codec AS blob_codec,
-    blobs.multihash AS blob_multihash,
-    iss.principal AS issuer,
-    del.principal AS delegate
-FROM key_delegations kd
-JOIN blobs INDEXED BY blobs_metadata ON blobs.id = kd.id
-JOIN public_keys iss ON iss.id = kd.issuer
-JOIN public_keys del ON del.id = kd.delegate;
-
+JOIN public_keys pk ON pk.id = lb.author
+WHERE extra_attrs IS NOT NULL;
 -- Stores hypermedia resources.
 -- All resources are identified by an IRI[iri],
 -- might have an owner identified by a public key.
@@ -149,9 +115,24 @@ CREATE TABLE resources (
     id INTEGER PRIMARY KEY,
     iri TEXT UNIQUE NOT NULL,
     owner INTEGER REFERENCES public_keys (id),
+    genesis_blob INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE,
     -- For resource that we can infer a creation time.
     -- Stored as unix timestamp in *seconds*.
     create_time INTEGER
+);
+
+-- Stores the heads for a given resource.
+-- Heads are the latest changes to a given resource.
+-- Heads are derived from Ref blobs or from Change blobs that update the index of a parent document.
+CREATE TABLE resource_heads (
+    -- Resource ID for which the head is for.
+    resource INTEGER REFERENCES resources (id) ON DELETE CASCADE ON UPDATE CASCADE NOT NULL,
+    -- Blob that introduces the head.
+    source_blob INTEGER REFERENCES blobs (id) ON DELETE CASCADE ON UPDATE CASCADE NOT NULL,
+    -- The JSON array of head blob IDs.
+    heads JSONB NOT NULL,
+    author INTEGER REFERENCES public_keys (id) NOT NULL,
+    ts INTEGER NOT NULL
 );
 
 CREATE INDEX resources_by_owner ON resources (owner) WHERE owner IS NOT NULL;
@@ -165,8 +146,9 @@ CREATE TABLE deleted_resources (
     iri TEXT PRIMARY KEY,
     delete_time INTEGER DEFAULT (strftime('%s', 'now')) NOT NULL,
     reason TEXT,
-    -- Extra metadata can be stored like the title, probably in JSON format.
-    meta TEXT
+    -- Additional attributes extracted from the blob's content,
+    -- that might be relevant to keep in order to undelete the resource at some point.
+    extra_attrs JSONB
 );
 
 -- Stores content-addressable links between blobs.
@@ -192,49 +174,22 @@ CREATE TABLE resource_links (
     target INTEGER REFERENCES resources (id) NOT NULL,
     type TEXT NOT NULL,
     is_pinned INTEGER NOT NULL DEFAULT (0),
-    meta BLOB
+    -- Additional attributes to be kept with the link.
+    extra_attrs JSONB
 );
 
 CREATE INDEX resource_links_by_source ON resource_links (source, is_pinned, target);
 CREATE INDEX resource_links_by_target ON resource_links (target, source);
 
--- Stores the accounts that used marked as trusted.
-CREATE TABLE trusted_accounts (
-    id INTEGER PRIMARY KEY REFERENCES public_keys (id) NOT NULL
-) WITHOUT ROWID;
-
--- Draft changes. Only one draft is allowed for now.
-CREATE TABLE drafts (
-    resource INTEGER REFERENCES resources (id) NOT NULL,
-    blob INTEGER REFERENCES blobs (id) ON DELETE CASCADE NOT NULL,
-    PRIMARY KEY (resource, blob)
-) WITHOUT ROWID;
-
-CREATE INDEX drafts_by_blob ON drafts (blob);
-
--- Index to ensure only one draft is allowed. Defining it separately,
--- so it's easier to drop eventually without a complex migration.
-CREATE UNIQUE INDEX drafts_unique ON drafts (resource);
-
--- View of drafts with dereferenced foreign keys.
-CREATE VIEW drafts_view AS
-SELECT
-    drafts.resource AS resource_id,
-    drafts.blob AS blob_id,
-    resources.iri AS resource,
-    blobs.codec AS codec,
-    blobs.multihash AS multihash
-FROM drafts
-JOIN resources ON resources.id = drafts.resource
-JOIN blobs INDEXED BY blobs_metadata ON blobs.id = drafts.blob;
-
--- View for dependency links between changes.
-CREATE VIEW change_deps AS
-SELECT
-    source AS child,
-    target AS parent
-FROM blob_links
-WHERE type = 'change/dep';
+-- Stores seed peers we know about.
+CREATE TABLE peers (
+    -- Internal index used for pagination
+    id INTEGER PRIMARY KEY,
+    -- Network unique peer identifier.
+    pid TEXT UNIQUE NOT NULL,
+    -- List of addresses in multiaddress format (comma separated)
+    addresses TEXT UNIQUE NOT NULL
+);
 
 -- Stores Lightning wallets both externals (imported wallets like bluewallet
 -- based on lndhub) and internals (based on the LND embedded node).
@@ -259,23 +214,3 @@ CREATE TABLE wallets (
     -- The balance in satoshis
     balance INTEGER DEFAULT 0
 );
-
--- Stores data for syncing groups that are known to be published to a site.
-CREATE TABLE group_sites (
-    group_id TEXT NOT NULL,
-    url TEXT NOT NULL,
-    hlc_time INTEGER NOT NULL,
-    hlc_origin TEXT NOT NULL,
-    -- Bellow this line are cached/derived values.
-    remote_version TEXT NOT NULL DEFAULT (''),
-    last_sync_time INTEGER NOT NULL DEFAULT (0),
-    last_ok_sync_time INTEGER NOT NULL DEFAULT (0),
-    last_sync_error TEXT NOT NULL DEFAULT (''),
-    PRIMARY KEY (group_id)
-);
-
--- Stores offset cursors for syncing all blobs with peers.
-CREATE TABLE syncing_cursors (
-    peer INTEGER PRIMARY KEY REFERENCES public_keys (id) ON DELETE CASCADE NOT NULL,
-    cursor TEXT NOT NULL
-) WITHOUT ROWID;

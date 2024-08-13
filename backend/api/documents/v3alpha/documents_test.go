@@ -7,7 +7,7 @@ import (
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/index"
 	"seed/backend/logging"
-	storage "seed/backend/storage2"
+	"seed/backend/storage"
 	"seed/backend/testutil"
 	"testing"
 

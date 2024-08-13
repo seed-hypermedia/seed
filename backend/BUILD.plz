@@ -10,7 +10,6 @@ go_binary(
     ) + [
         "//backend/lndhub/lndhubsql:go_library",
         "//backend/storage:go_library",
-        "//backend/storage2:go_library",
         "//backend/wallet/walletsql:go_library",
     ],
     out = "seed-daemon-" + target_platform_triple(),
@@ -41,7 +40,6 @@ go_binary(
     ) + [
         "//backend/lndhub/lndhubsql:go_library",
         "//backend/storage:go_library",
-        "//backend/storage2:go_library",
         "//backend/wallet/walletsql:go_library",
     ],
     out = "seed-gateway-" + target_platform_triple(),
