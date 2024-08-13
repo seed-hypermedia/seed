@@ -20,26 +20,27 @@ services:
       - "MTT_SITE_BACKEND_GRPCWEB_PORT=${MTT_SITE_BACKEND_GRPCWEB_PORT:-56001}"
       - "MTT_SITE_LOCAL_PORT=${MTT_SITE_LOCAL_PORT:-3000}"
     volumes:
-      - ${MTT_SITE_WORKSPACE:-~/.mtt-site}/proxy/data:/data
-      - ${MTT_SITE_WORKSPACE:-~/.mtt-site}/proxy/config:/config
-      - ${MTT_SITE_WORKSPACE:-~/.mtt-site}/proxy/CaddyFile:/etc/caddy/Caddyfile
+      - ${MTT_SITE_WORKSPACE:-~/.seed-site}/proxy/data:/data
+      - ${MTT_SITE_WORKSPACE:-~/.seed-site}/proxy/config:/config
+      - ${MTT_SITE_WORKSPACE:-~/.seed-site}/proxy/CaddyFile:/etc/caddy/Caddyfile
 
-  remix:
-    container_name: ${MTT_SITE_REMIX_CONTAINER_NAME:-remix}
-    image: seedhypermedia/gateway:${MTT_SITE_TAG:-latest}
+  web:
+    container_name: ${MTT_SITE_REMIX_CONTAINER_NAME:-web}
+    image: seedhypermedia/web:${MTT_SITE_TAG:-latest}
     depends_on:
-      - seed-site
+      - seed-daemon
     networks:
       - internal_network
     ports:
       - "${MTT_SITE_LOCAL_PORT:-3000}:${MTT_SITE_LOCAL_PORT:-3000}"
     restart: unless-stopped
     volumes:
-      - ${MTT_SITE_WORKSPACE:-~/.mtt-site}/remix:/data:rw
+      - ${MTT_SITE_WORKSPACE:-~/.seed-site}/web:/data:rw
     environment:
-      - "SEED_BASE_URL=${MTT_SITE_HOSTNAME:-http://remix}"
+      - "SEED_BASE_URL=${MTT_SITE_HOSTNAME:-http://web}"
       - "GRPC_HOST=http://seed-site:${MTT_SITE_BACKEND_GRPCWEB_PORT:-56001}"
       - "NEXT_PUBLIC_LN_HOST=${MTT_SITE_LN_HOST:-https://ln.mintter.com}"
+      - "DATA_DIR=/data"
 
   seed-site:
     image: seedhypermedia/site:${MTT_SITE_TAG:-latest}
@@ -53,13 +54,13 @@ services:
     environment:
       - "SENTRY_DSN=${MTT_SITE_SENTRY_DSN:-https://47c66bd7a6d64db68a59c03f2337e475@o4504088793841664.ingest.sentry.io/4505527493328896}"
     volumes:
-      - ${MTT_SITE_WORKSPACE:-~/.mtt-site}/backend:/.mtt-site:rw
+      - ${MTT_SITE_WORKSPACE:-~/.seed-site}/backend:/.seed-site:rw
       - ${MTT_SITE_MONITORING_WORKDIR:-./monitoring}/grafana:/exported_grafana:rw
       - ${MTT_SITE_MONITORING_WORKDIR:-./monitoring}/prometheus:/exported_prometheus:rw
     command: >
       sh -c "rsync -a /monitoring/prometheus/ /exported_prometheus &&
              rsync -a /monitoring/grafana/ /exported_grafana && 
-             seed-site -data-dir=/.mtt-site -lndhub.mainnet -p2p.port=56000 --http.port=${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001} -syncing.allow-push=${SEED_SITE_ALLOW_PUSH:-false} -grpc.port=56002 -syncing.no-discovery=${SEED_SITE_NO_DISCOVERY:-true} -syncing.no-pull=${SEED_SITE_NO_PULL:-true} ${SEED_SITE_HOSTNAME:-http://remix}"
+             seed-site -data-dir=/.seed-site -lndhub.mainnet -p2p.port=56000 --http.port=${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001} -syncing.allow-push=${SEED_SITE_ALLOW_PUSH:-false} -grpc.port=56002 -syncing.no-discovery=${SEED_SITE_NO_DISCOVERY:-true} -syncing.no-pull=${SEED_SITE_NO_PULL:-true} ${SEED_SITE_HOSTNAME:-http://remix}"
 
   prometheus:
     image: prom/prometheus:latest

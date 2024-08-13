@@ -15,6 +15,7 @@ ENV NEXT_PUBLIC_LN_HOST https://ln.mintter.com
 ENV GRPC_HOST http://minttersite:56001
 ENV SENTRY_AUTH_TOKEN $SENTRY_AUTH_TOKEN
 ENV SITE_SENTRY_DSN $SITE_SENTRY_DSN
+
 RUN yarn install 
 RUN yarn web:prod
 

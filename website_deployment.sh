@@ -14,7 +14,7 @@ install_docker() {
 }
 
 userid=$(id -u)
-workspace="${HOME}/.mtt-site"
+workspace="${HOME}/.seed-site"
 hostname=""
 tag="latest"
 auto_update=0
