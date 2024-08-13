@@ -1,4 +1,3 @@
-version: "3.8"
 networks:
   internal_network:
     driver: bridge # the default
@@ -8,7 +7,7 @@ services:
     image: caddy:2.6.4
     depends_on:
       - seed-daemon
-      - web
+      - seed-web
     ports:
       - "80:80"
       - "443:443"
@@ -98,7 +97,7 @@ services:
       GF_SERVER_HTTP_PORT: ${SEED_SITE_MONITORING_PORT:-3001}
       GF_SERVER_PROTOCOL: "http"
       GF_SERVER_DOMAIN: ${SEED_SITE_DNS:-localhost:3001}
-      GF_SERVER_ROOT_URL: ${SEED_SITE_HOSTNAME}/.metrics
+      GF_SERVER_ROOT_URL: ${SEED_SITE_HOSTNAME:-http}/.metrics
       GF_SERVER_SERVE_FROM_SUB_PATH: True
 
 volumes:

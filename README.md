@@ -78,7 +78,7 @@ a server with the following requirements:
 After checking that, run the following command in the server:
 
 ```shell
-sh <(curl -sL https://go.hyper.media/website_deployment.sh) https://example.com
+sh <(curl -sL https://raw.githubusercontent.com/seed-hypermedia/seed/main/website_deployment.sh) https://example.com
 ```
 
 replacing `https://example.com` by your <`address`> If everything went well,
@@ -93,7 +93,7 @@ If you want the site to auto update to latest stable images when they are pushed
 just execute the installation command with the `--auto-update` flag. Ex:
 
 ```shell
-sh <(curl -sL https://go.hyper.media/website_deployment.sh) https://example.com --auto-update
+sh <(curl -sL https://raw.githubusercontent.com/seed-hypermedia/seed/main/website_deployment.sh) https://example.com --auto-update
 ```
 
 #### Replace Site
