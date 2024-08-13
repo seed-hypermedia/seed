@@ -144,6 +144,7 @@ export const MediaContainer = ({
       maxWidth="100%"
       width={width}
       alignSelf="center"
+      borderWidth={0}
       onPress={
         onPress
           ? (e: MouseEvent) => {
@@ -186,10 +187,9 @@ export const MediaContainer = ({
       ) : null}
       <YStack
         backgroundColor={selected ? '$color4' : '$color3'}
-        borderColor={selected ? '$color8' : 'transparent'}
+        borderColor={selected ? '$color8' : '$color6'}
         borderWidth={4}
         borderRadius="$2"
-        // overflow="hidden"
         hoverStyle={{
           backgroundColor: '$color4',
         }}

@@ -74,6 +74,7 @@ const display = ({
       assign={assign}
     >
       <Button
+        borderWidth={0}
         borderRadius={1}
         size="$5"
         fontSize="$4"

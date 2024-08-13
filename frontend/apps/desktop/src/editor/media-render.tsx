@@ -1,11 +1,11 @@
 import {API_FILE_UPLOAD_URL} from '@shm/shared'
 import {
   Button,
-  Form,
   Input,
   Label,
   SizableText,
   Spinner,
+  Tooltip,
   XStack,
   YStack,
   useDocContentContext,
@@ -368,12 +368,11 @@ function MediaForm({
   return (
     <YStack
       position="relative"
-      borderWidth={2}
-      borderColor={drag ? '$color12' : selected ? '$color12' : '$color6'}
+      borderColor={drag ? '$color8' : selected ? '$color8' : '$color6'}
+      borderWidth={4}
       borderRadius="$2"
       borderStyle={drag ? 'dashed' : 'solid'}
       outlineWidth={0}
-      // @ts-ignore
       contentEditable={false}
       {...(isEmbed ? {} : dragProps)}
     >
@@ -400,16 +399,8 @@ function MediaForm({
         borderRadius="$2"
       >
         {mediaType !== 'file' ? (
-          <Form
-            width="100%"
-            onSubmit={() => {
-              if (submit !== undefined) {
-                submit(url, assign, setFileName, setLoading)
-              }
-            }}
-            borderWidth={0}
-          >
-            <XStack flex={1} gap="$3">
+          <YStack flex={1}>
+            <XStack flex={1} gap="$3" width="100%">
               <Input
                 unstyled
                 borderColor="$color8"
@@ -439,31 +430,94 @@ function MediaForm({
                 }}
                 autoFocus={true}
               />
-              <Form.Trigger asChild>
+              {['image', 'video'].includes(mediaType) ? (
+                <>
+                  <Tooltip
+                    content="Select file if the input is empty"
+                    placement="top"
+                  >
+                    <Button
+                      alignItems="center"
+                      justifyContent="center"
+                      width="$12"
+                      borderRadius="$2"
+                      fontWeight="normal"
+                      size="$3"
+                      backgroundColor={
+                        fileName.color === 'red' ? '$color5' : '$color7'
+                      }
+                      disabled={fileName.color === 'red'}
+                      hoverStyle={
+                        fileName.color !== 'red'
+                          ? {
+                              backgroundColor: '$color5',
+                              cursor: 'pointer',
+                            }
+                          : {cursor: 'auto'}
+                      }
+                      onClick={(event: any) => {
+                        if (url) {
+                          // Submit the form if the input is not empty
+                          submit!(url, assign, setFileName, setLoading)
+                        } else {
+                          // Trigger the file picker dialog if input is empty
+                          document
+                            .getElementById('file-upload' + block.id)
+                            ?.click()
+                        }
+                      }}
+                    >
+                      {loading ? (
+                        <Spinner
+                          size="small"
+                          color="$green9"
+                          paddingHorizontal="$3"
+                        />
+                      ) : (
+                        'UPLOAD'
+                      )}
+                    </Button>
+                  </Tooltip>
+                  <input
+                    id={'file-upload' + block.id}
+                    type="file"
+                    multiple
+                    accept={mediaType !== 'file' ? `${mediaType}/*` : undefined}
+                    style={{
+                      display: 'none',
+                    }}
+                    onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                      if (event.target.files) {
+                        handleUpload(Array.from(event.target.files))
+                      }
+                    }}
+                  />
+                </>
+              ) : (
                 <Button
-                  unstyled
                   alignItems="center"
                   justifyContent="center"
                   width="$12"
-                  flex={0}
-                  flexShrink={0}
-                  borderWidth="0"
                   borderRadius="$2"
+                  fontWeight="normal"
                   size="$3"
-                  fontWeight="bold"
                   backgroundColor={
-                    fileName.color === 'red' ? '$color10' : '$color12'
+                    fileName.color === 'red' ? '$color5' : '$color7'
                   }
-                  color="$color1"
-                  disabled={fileName.color === 'red' ? true : false}
+                  disabled={fileName.color === 'red'}
                   hoverStyle={
                     fileName.color !== 'red'
                       ? {
-                          backgroundColor: '$color11',
+                          backgroundColor: '$color5',
                           cursor: 'pointer',
                         }
                       : {cursor: 'auto'}
                   }
+                  onClick={(event: any) => {
+                    if (url) {
+                      submit!(url, assign, setFileName, setLoading)
+                    }
+                  }}
                 >
                   {loading ? (
                     <Spinner
@@ -475,48 +529,14 @@ function MediaForm({
                     'UPLOAD'
                   )}
                 </Button>
-              </Form.Trigger>
-              {!isEmbed && (
-                <>
-                  <Label
-                    htmlFor={'file-upload' + block.id}
-                    borderColor="$color8"
-                    borderRadius="$2"
-                    borderWidth="$0.5"
-                    width="$8"
-                    justifyContent="center"
-                    hoverStyle={{
-                      backgroundColor: '$borderColorHover',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <RiUpload2Fill />
-                  </Label>
-                  <input
-                    id={'file-upload' + block.id}
-                    type="file"
-                    multiple
-                    accept={mediaType !== 'file' ? `${mediaType}/*` : undefined}
-                    style={{
-                      background: 'white',
-                      padding: '0 2px',
-                      display: 'none',
-                    }}
-                    onChange={(event: ChangeEvent<HTMLInputElement>) => {
-                      if (event.target.files) {
-                        handleUpload(Array.from(event.target.files))
-                      }
-                    }}
-                  />
-                </>
               )}
             </XStack>
-            {fileName.name != 'Upload File' && (
+            {fileName.name !== 'Upload File' && (
               <SizableText size="$2" color={fileName.color} paddingTop="$2">
                 {fileName.name}
               </SizableText>
             )}
-          </Form>
+          </YStack>
         ) : (
           <XStack
             alignItems="center"
