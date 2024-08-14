@@ -120,7 +120,7 @@ export function MentionText(props) {
       paddingHorizontal={1}
       style={{
         display: 'inline-block',
-        fontFamily: 'inherit !important',
+        fontFamily: 'inherit',
       }}
       color="$mint11"
       outlineColor="$mint11"
