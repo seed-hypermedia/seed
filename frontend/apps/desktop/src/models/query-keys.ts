@@ -40,6 +40,8 @@ export const queryKeys = {
 
   ENTITY: 'ENTITY',
 
+  CAPABILITIES: 'CAPABILITIES', //, id.uid: string, ...id.path
+
   // comments
   COMMENT: 'COMMENT', //, commentId: string
   PUBLICATION_COMMENTS: 'PUBLICATION_COMMENTS', //, docUid: string

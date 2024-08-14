@@ -3,8 +3,8 @@ import {ContactsPrompt} from '@/components/contacts-prompt'
 import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
 import {useDeleteDialog} from '@/components/delete-dialog'
 import {MenuItemType, OptionsDropdown} from '@/components/options-dropdown'
+import {useMyCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
-import {useMyAccountIds} from '@/models/daemon'
 import {usePushPublication} from '@/models/documents'
 import {useEntity} from '@/models/entities'
 import {useGatewayHost, useGatewayUrl} from '@/models/gateway-settings'
@@ -152,10 +152,12 @@ function EditDocButton() {
   const route = useNavRoute()
   if (route.key !== 'document')
     throw new Error('EditDocButton can only be rendered on document route')
-  const myAccountIds = useMyAccountIds()
+  const capability = useMyCapability(route.id, 'writer')
+  // const myAccountIds = useMyAccountIds() // TODO, enable when API is fixed
   const navigate = useNavigate()
   const draft = useDraft(route.id.id)
   const hasExistingDraft = !!draft.data
+  // if (!capability) return null // TODO, enable when API is fixed
   return (
     <>
       <Tooltip content={hasExistingDraft ? 'Resume Editing' : 'Edit'}>
@@ -196,7 +198,7 @@ export function useDocumentUrl({
   const gwUrl = useGatewayUrl()
   const [copyDialogContent, onCopyPublic] = useCopyGatewayReference()
   const hostname = gwUrl.data
-
+  if (!docId) return null
   return {
     url: createPublicWebHmUrl('d', docId.uid, {
       version: pub.data?.document?.version,

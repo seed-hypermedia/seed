@@ -25,10 +25,10 @@ export function AccessoryContainer({
       {title ? (
         <SizableText
           userSelect="none"
-          f={1}
           size="$3"
           fontWeight="600"
           marginHorizontal="$4"
+          paddingBottom="$4"
         >
           {title}
         </SizableText>

@@ -3,6 +3,7 @@ import {
   AccessoryLayout,
 } from '@/components/accessory-sidebar'
 import {AvatarForm} from '@/components/avatar-form'
+import {CollaboratorsPanel} from '@/components/collaborators-panel'
 import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
 import {Directory} from '@/components/directory'
 import {LinkNameComponent} from '@/components/document-name'
@@ -81,9 +82,7 @@ export default function DocumentPage() {
   } else if (accessoryKey === 'versions') {
     accessory = <AccessoryContainer title="Versions" onClose={handleClose} />
   } else if (accessoryKey === 'collaborators') {
-    accessory = (
-      <AccessoryContainer title="Collaborators" onClose={handleClose} />
-    )
+    accessory = <CollaboratorsPanel route={route} onClose={handleClose} />
   } else if (accessoryKey === 'suggested-changes') {
     accessory = (
       <AccessoryContainer title="Suggested Changes" onClose={handleClose} />
