@@ -7,8 +7,10 @@ import {
   Popover,
   SizeTokens,
   Theme,
+  Tooltip,
   Unlink,
   XGroup,
+  XStack,
 } from '@shm/ui'
 import {useCallback, useEffect, useState} from 'react'
 import {usePopoverState} from '../use-popover-state'
@@ -64,7 +66,12 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
             />
           </Popover.Trigger>
         </Theme>
-        <Popover.Content p="$2">
+        <Popover.Content
+          p="$1"
+          elevation="$4"
+          borderColor="$color4"
+          borderWidth="$1"
+        >
           <AddHyperlink
             url={url}
             setLink={(_url: string) => {
@@ -98,45 +105,54 @@ function AddHyperlink({
   const [_url, setUrl] = useState<string>(url)
 
   return (
-    <XGroup bg="$backgroundFocus" elevation="$4">
-      <XGroup.Item>
-        <Input
-          value={_url}
-          onChangeText={setUrl}
-          minWidth="15rem"
-          size="$2"
-          borderWidth={0}
-          placeholder="Enter a link"
-          onKeyPress={(e: KeyboardEvent) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
+    <XStack elevation="$4" padding="$2" borderRadius="$4" space>
+      <Input
+        value={_url}
+        onChangeText={setUrl}
+        minWidth="15rem"
+        size="$2"
+        bg="$color3"
+        borderWidth={0}
+        placeholder="Enter a link"
+        onKeyPress={(e: KeyboardEvent) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            setLink(_url)
+          }
+        }}
+        flex={1}
+      />
+
+      <XGroup borderRadius="$4">
+        <XGroup.Item>
+          <Button
+            size="$2"
+            bg="$color3"
+            icon={Check}
+            disabled={!_url}
+            borderRadius={0}
+            onClick={() => {
               setLink(_url)
-            }
-          }}
-        />
-      </XGroup.Item>
-      <XGroup.Item>
-        <Button
-          size="$2"
-          icon={Check}
-          disabled={!url}
-          borderRadius={0}
-          onClick={() => {
-            setLink(url)
-          }}
-        />
-      </XGroup.Item>
-      <XGroup.Item>
-        <Button
-          size="$2"
-          icon={Unlink}
-          chromeless
-          onPress={() => deleteHyperlink()}
-        />
-      </XGroup.Item>
-      <XGroup.Item>
-        <Button size="$2" icon={Close} chromeless onPress={onCancel} />
-      </XGroup.Item>
-    </XGroup>
+            }}
+          />
+        </XGroup.Item>
+
+        <XGroup.Item>
+          <Tooltip content="Delete Link" placement="top">
+            <Button
+              size="$2"
+              bg="$color3"
+              icon={Unlink}
+              onPress={deleteHyperlink}
+              borderRadius={0}
+            />
+          </Tooltip>
+        </XGroup.Item>
+
+        <XGroup.Item>
+          <Button size="$2" bg="$color3" icon={Close} onPress={onCancel} />
+        </XGroup.Item>
+      </XGroup>
+    </XStack>
   )
 }
