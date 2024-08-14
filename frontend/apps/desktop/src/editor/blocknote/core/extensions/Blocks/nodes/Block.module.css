@@ -310,6 +310,7 @@ NESTED BLOCKS
     'Liberation Mono', monospace;
   font-size: 0.85em;
   white-space: pre;
+  padding: 0;
 }
 
 /* LISTS */

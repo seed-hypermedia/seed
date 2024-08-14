@@ -101,7 +101,7 @@ export const SlashMenuPositioner = <
       interactive={true}
       visible={show}
       animation={'fade'}
-      placement={'bottom-start'}
+      placement={'auto'}
     />
   )
 }
