@@ -288,6 +288,7 @@ export function DocContent({
       $gtMd={{paddingHorizontal: layoutUnit / 2}}
       marginVertical={marginVertical}
       {...props}
+      className="editor"
     >
       <XStack
         ref={bubble}

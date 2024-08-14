@@ -117,7 +117,7 @@ export function AccessoryLayout<
               >
                 {option.icon ? (
                   <option.icon
-                    size={32}
+                    size={28}
                     color={isActive ? theme.blue10.val : theme.color.val}
                   />
                 ) : null}

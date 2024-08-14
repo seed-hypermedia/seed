@@ -2,21 +2,21 @@
 .editor {
   --text-unit: 18;
   --layout-unit: 24;
-  max-width: calc(90ch + 108px);
+  max-width: calc(75ch + 108px);
   width: 100%;
   margin-left: auto;
   margin-right: auto;
 }
 
-#editor-header-content {
+/* #editor-header-content {
   padding: 0 34px;
-}
+} */
 
-@media (min-width: 1021px) {
+/* @media (min-width: 1021px) {
   #editor-header-content {
     padding: 0 54px;
   }
-}
+} */
 
 .editor {
   margin-bottom: 60px;
