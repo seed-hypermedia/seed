@@ -111,7 +111,7 @@ function AddHyperlink({
         onChangeText={setUrl}
         minWidth="15rem"
         size="$2"
-        bg="$color3"
+        bg="$color4"
         borderWidth={0}
         placeholder="Enter a link"
         onKeyPress={(e: KeyboardEvent) => {
@@ -127,7 +127,7 @@ function AddHyperlink({
         <XGroup.Item>
           <Button
             size="$2"
-            bg="$color3"
+            bg="$color4"
             icon={Check}
             disabled={!_url}
             borderRadius={0}
@@ -141,7 +141,7 @@ function AddHyperlink({
           <Tooltip content="Delete Link" placement="top">
             <Button
               size="$2"
-              bg="$color3"
+              bg="$color4"
               icon={Unlink}
               onPress={deleteHyperlink}
               borderRadius={0}
@@ -150,7 +150,7 @@ function AddHyperlink({
         </XGroup.Item>
 
         <XGroup.Item>
-          <Button size="$2" bg="$color3" icon={Close} onPress={onCancel} />
+          <Button size="$2" bg="$color4" icon={Close} onPress={onCancel} />
         </XGroup.Item>
       </XGroup>
     </XStack>
