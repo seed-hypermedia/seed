@@ -6,6 +6,7 @@ import {AvatarForm} from '@/components/avatar-form'
 import {CollaboratorsPanel} from '@/components/collaborators-panel'
 import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
 import {Directory} from '@/components/directory'
+import {Discussion} from '@/components/discussion'
 import {LinkNameComponent} from '@/components/document-name'
 import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
@@ -243,7 +244,7 @@ function DocPageHeader({
         <XStack marginTop="$4" gap="$3" ai="center">
           {entity.data?.document?.path.length || authors?.length !== 1 ? (
             <>
-              <XStack ai="center">
+              <XStack ai="center" gap={0}>
                 {authors
                   ?.map((a, index) => [
                     <LinkNameComponent key={a} accountId={a} />,
@@ -391,9 +392,10 @@ function DocPageAppendix({docId}: {docId: UnpackedHypermediaId}) {
   const route = useNavRoute()
   if (route.key !== 'document')
     throw new Error('DocPageAppendix must be in Doc route')
-  let content = null
-  if (route.tab === 'directory' || !route.tab) {
-    content = <Directory docId={docId} />
+  let content = <Directory docId={docId} />
+
+  if (route.tab === 'discussion') {
+    content = <Discussion docId={docId} />
   }
   return (
     <PageContainer>

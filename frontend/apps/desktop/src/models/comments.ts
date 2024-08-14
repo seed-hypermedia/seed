@@ -22,7 +22,6 @@ import {useGRPCClient, useQueryInvalidator} from '../app-context'
 import {hmBlockSchema, useBlockNote} from '../editor'
 import type {Block, BlockNoteEditor} from '../editor/blocknote'
 import appError from '../errors'
-import {useNavRoute} from '../utils/navigation'
 import {useNavigate} from '../utils/useNavigate'
 import {getBlockGroup, setGroupTypes} from './editor-utils'
 import {useGatewayUrlStream} from './gateway-settings'
@@ -117,7 +116,7 @@ export function useCommentReplies(
   targetCommentId: string,
   targetDocUid: string,
 ) {
-  const comments = useAllPublicationComments(targetDocUid)
+  const comments = useAllDocumentComments(targetDocUid)
   return useMemo(() => {
     let comment = comments.data?.find((c) => c.id === targetCommentId)
     const thread = [comment]
@@ -159,7 +158,11 @@ export function useComment(
   })
 }
 
-export function useAllPublicationComments(docUid: string | undefined) {
+export function useCommentDraftId(docId: UnpackedHypermediaId | undefined) {
+  if (!docId) return null
+}
+
+export function useAllDocumentComments(docUid: string | undefined) {
   const grpcClient = useGRPCClient()
   return useQuery({
     queryFn: async () => {
@@ -179,19 +182,16 @@ export function useDocumentCommentGroups(
   docUid: string | undefined,
   commentId: string | null = null,
 ) {
-  const comments = useAllPublicationComments(docUid)
+  const comments = useAllDocumentComments(docUid)
   return useCommentGroups(comments.data, commentId)
 }
 
-export function useCommentEditor(opts: {onDiscard?: () => void} = {}) {
-  const route = useNavRoute()
+export function useCommentEditor(
+  draftId: string,
+  opts: {onDiscard?: () => void} = {},
+) {
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
   const showNostr = trpc.experiments.get.useQuery().data?.nostr
-  if (route.key !== 'comment-draft')
-    throw new Error('useCommentEditor must be used in comment route')
-  if (!route.commentId)
-    throw new Error('useCommentEditor requires route.commentId')
-  const editCommentId = route.commentId
   const queryClient = useAppContext().queryClient
   const write = trpc.comments.writeCommentDraft.useMutation({
     onError: (err) => {
@@ -241,7 +241,7 @@ export function useCommentEditor(opts: {onDiscard?: () => void} = {}) {
         write
           .mutateAsync({
             blocks,
-            commentId: editCommentId,
+            commentId: draftId,
           })
           .then((savedDraftId) => {
             clearTimeout(saveTimeoutRef.current)
@@ -293,7 +293,7 @@ export function useCommentEditor(opts: {onDiscard?: () => void} = {}) {
 
   trpc.comments.getCommentDraft.useQuery(
     {
-      commentDraftId: editCommentId,
+      commentDraftId: draftId,
     },
     {
       onError: (err) =>
@@ -303,7 +303,7 @@ export function useCommentEditor(opts: {onDiscard?: () => void} = {}) {
           throw new Error('no valid draft in route for getCommentDraft')
         initCommentDraft.current = draft
         streams.current.targetCommentId[0](draft.targetCommentId)
-        const docId = packHmId(hmId('d', draft.targetDocUid))
+        const docId = packHmId(hmId('d', draft.targetDocId))
         streams.current.targetDocId[0](docId)
         initDraft()
       },
@@ -352,8 +352,6 @@ export function useCommentEditor(opts: {onDiscard?: () => void} = {}) {
       invalidate(['trpc.comments.getCommentDrafts'])
       invalidate([queryKeys.FEED_LATEST_EVENT])
       invalidate([queryKeys.RESOURCE_FEED_LATEST_EVENT])
-      if (route.key !== 'comment-draft')
-        throw new Error('not in comment-draft route')
       replace({
         key: 'comment',
         showThread: true,
@@ -363,7 +361,7 @@ export function useCommentEditor(opts: {onDiscard?: () => void} = {}) {
   })
   return useMemo(() => {
     function onSubmit() {
-      if (!editCommentId) throw new Error('no editCommentId')
+      if (!draftId) throw new Error('no draftId')
       const draft = initCommentDraft.current
       if (!draft) throw new Error('no draft found to publish')
       const content = serverBlockNodesFromEditorBlocks(
@@ -384,7 +382,7 @@ export function useCommentEditor(opts: {onDiscard?: () => void} = {}) {
       publishComment.mutate({
         content: contentWithoutLastEmptyBlock,
         targetDocId: packHmId(
-          hmId('d', draft.targetDocUid, {
+          hmId('d', draft.targetDocId, {
             version: draft.targetDocVersion,
           }),
         ),
@@ -415,10 +413,10 @@ export function useCommentEditor(opts: {onDiscard?: () => void} = {}) {
       )
     }
     function onDiscard() {
-      if (!editCommentId) throw new Error('no editCommentId')
+      if (!draftId) throw new Error('no comment draftId')
       removeDraft
         .mutateAsync({
-          commentId: editCommentId,
+          commentId: draftId,
         })
         .then(() => {
           client.closeAppWindow.mutate(window.windowId)
@@ -437,39 +435,18 @@ export function useCommentEditor(opts: {onDiscard?: () => void} = {}) {
 }
 
 export function useCreateComment() {
-  const navigate = useNavigate()
   const createComment = trpc.comments.createCommentDraft.useMutation()
   return (
-    targetDocUid: string,
+    targetDocId: string,
     targetDocVersion: string,
     targetCommentId?: string,
     embedRef?: string,
   ) => {
-    const content = embedRef
-      ? [
-          {
-            block: {
-              type: 'embed',
-              attributes: {},
-              ref: embedRef,
-            },
-            children: [],
-          },
-          {block: {type: 'paragraph', text: '', attributes: {}}, children: []},
-        ]
-      : [{type: 'paragraph', text: '', attributes: {}, children: []}]
-    createComment
-      .mutateAsync({
-        targetDocUid,
-        targetCommentId: targetCommentId || null,
-        targetDocVersion,
-        blocks: content,
-      })
-      .then((commentId) => {
-        navigate({
-          key: 'comment-draft',
-          commentId,
-        })
-      })
+    return createComment.mutateAsync({
+      targetDocId,
+      targetCommentId: targetCommentId || null,
+      targetDocVersion,
+      blocks: [],
+    })
   }
 }

@@ -251,7 +251,7 @@ export type HMTextAnnotation =
 
 export type HMCommentDraft = {
   blocks: HMBlockNode[]
-  targetDocUid: string
+  targetDocId: string
   targetDocVersion: string
   targetCommentId: string | null
   publishTime: number | null

@@ -307,3 +307,22 @@ export function CommentsIcon({
     </svg>
   );
 }
+
+export function ReplyArrow({color = DefaultIconColor, size = "1em", ...props}) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 20 20"
+      width={size}
+      height={size}
+      fill="none"
+      {...props}
+    >
+      <path
+        fill="currentColor"
+        fillRule="evenodd"
+        d="m4.766 12.794-.425-.425-.424.425.424.424.425-.424Zm3.271-7.798a.6.6 0 0 0 0 1.2v-1.2Zm-.424 4.102-3.272 3.271.849.849 3.272-3.272-.849-.848Zm-3.272 4.12 3.272 3.272.849-.849L5.19 12.37l-.849.849Zm.425.176h6.87v-1.2h-6.87v1.2Zm6.87-8.398H8.037v1.2h3.6v-1.2Zm4.2 4.199a4.199 4.199 0 0 0-4.2-4.2v1.2a2.999 2.999 0 0 1 3 3h1.2Zm-4.2 4.199a4.199 4.199 0 0 0 4.2-4.2h-1.2a2.999 2.999 0 0 1-3 3v1.2Z"
+      />
+    </svg>
+  );
+}

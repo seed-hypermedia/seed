@@ -33,7 +33,6 @@ import {z} from 'zod'
 import {Thumbnail} from './thumbnail'
 
 export function Directory({docId}: {docId: UnpackedHypermediaId}) {
-  const navigate = useNavigate()
   const dir = useListDirectory(docId)
   const backendDrafts = useDraftList()
 

@@ -1,7 +1,7 @@
 import {useEntity} from '@/models/entities'
 import {useNavigate} from '@/utils/useNavigate'
 import {getAccountName, hmId} from '@shm/shared'
-import {Button, ButtonProps, SizableText, SizableTextProps} from '@shm/ui'
+import {ButtonProps, ButtonText, SizableText, SizableTextProps} from '@shm/ui'
 
 export function NameComponent({
   accountId,
@@ -26,11 +26,12 @@ export function LinkNameComponent({
   const navigate = useNavigate('push')
   if (!id) return null
   return (
-    <Button
+    <ButtonText
       borderColor="$colorTransparent"
       outlineColor="$colorTransparent"
       hoverStyle={{
         borderColor: '$colorTransparent',
+        textDecorationLine: 'underline',
       }}
       size="$2"
       {...props}
@@ -40,6 +41,6 @@ export function LinkNameComponent({
       }}
     >
       {getAccountName(entity.data?.document)}
-    </Button>
+    </ButtonText>
   )
 }
