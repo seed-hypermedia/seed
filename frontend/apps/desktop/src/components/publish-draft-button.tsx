@@ -46,6 +46,12 @@ export default function PublishDraftButton() {
   }, [signingAccount])
 
   useEffect(() => {
+    if (signingAccount && signingAccount.id.uid) {
+      draftDispatch({type: 'CHANGE', signingAccount: signingAccount.id.uid})
+    }
+  }, [signingAccount])
+
+  useEffect(() => {
     if (
       accts.length == 1 &&
       accts[0].data &&
@@ -53,12 +59,7 @@ export default function PublishDraftButton() {
       signingAccount != accts[0].data.id.uid
     ) {
       setSigningAccount(accts[0].data)
-      draftDispatch({type: 'CHANGE', signingAccount: accts[0].data.id.uid})
-    }
-  }, [accts])
-
-  useEffect(() => {
-    if (
+    } else if (
       draft.data?.signingAccount &&
       draft.data?.signingAccount != signingAccount
     ) {
@@ -67,7 +68,7 @@ export default function PublishDraftButton() {
         setSigningAccount(acc.data)
       }
     }
-  }, [draft.data])
+  }, [accts, draft.data])
 
   function handlePublish() {
     if (!draftId) throw new Error('No Draft ID?!')

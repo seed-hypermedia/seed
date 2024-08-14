@@ -105,18 +105,21 @@ export const draftMachine = setup({
     setSigningAccount: assign({
       signingAccount: ({event, context}) => {
         if (event.type == 'GET.DRAFT.SUCCESS') {
-          if (event.draft) {
+          if (event.draft && event.draft.signingAccount) {
             return event.draft.signingAccount
+          } else {
+            return context.signingAccount
           }
-          // TODO: horacio: where should we get the signingaccount from document?
-          //  else if (event.document) {
-          //   return event.document.metadata.thumbnail
-          // }
-        }
-        if (event.type == 'CHANGE' && event.signingAccount) {
+        } else if (event.type == 'CHANGE' && event.signingAccount) {
           return event.signingAccount
+        } else if (
+          event.type == 'xstate.done.actor.createOrUpdateDraft' &&
+          event.output.draft.signingAccount
+        ) {
+          return event.output.draft.signingAccount
+        } else {
+          return context.signingAccount
         }
-        return context.signingAccount
       },
     }),
     setErrorMessage: assign({
@@ -193,6 +196,9 @@ export const draftMachine = setup({
         'GET.DRAFT.ERROR': {
           target: 'error',
           actions: [{type: 'setErrorMessage'}],
+        },
+        CHANGE: {
+          actions: [{type: 'setSigningAccount'}],
         },
       },
     },
