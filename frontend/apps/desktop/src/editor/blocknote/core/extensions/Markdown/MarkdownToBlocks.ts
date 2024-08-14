@@ -9,7 +9,7 @@ import {Block, BlockNoteEditor, BlockSchema, nodeToBlock} from '../..'
 import {remarkCodeClass} from './RemarkCodeClass'
 
 const fileRegex = /\[([^\]]+)\]\(([^)]*) "size=(\d+)"\)/
-const videoRegex = /!\[([^\]]+)\]\(([^)]*) "width=(\d*)"\)/
+const videoRegex = /!\[([^\]]*)\]\(([^)]*) "width=(\d*)"\)/
 const mathRegex = /\$\$(.*?)\$\$/
 
 const uploadToIpfs = async (file: File): Promise<string> => {
@@ -38,8 +38,12 @@ const uploadToIpfs = async (file: File): Promise<string> => {
 
 const isWebUrl = (url: string | undefined) => {
   if (!url) return false
+
+  // Remove backslashes from the URL if present
+  const cleanedUrl = url.replace(/\\/g, '')
+
   try {
-    new URL(url)
+    new URL(cleanedUrl)
     return true
   } catch (_) {
     return false
@@ -62,7 +66,7 @@ export const processMediaMarkdown = async (
   directoryPath: string,
 ) => {
   const filePattern = /\[([^\]]+)\]\\\(([^\s]+\.[^\s]+) "size=(\d+)"\)/g
-  const videoPattern = /!\\\[([^\]]+)\]\\\(([^\s]+\.[^\s]+) "width=(\d*)"\)/g
+  const videoPattern = /!\\\[([^\]]*)\]\\\(([^\s]+) "width=(\d*)"\)/g
   const imagePattern = /!\[([^\]]*)\]\(([^\s]+\.[^\s]+)(?: "([^"]*)")?\)/g
 
   const mediaMatches = []
@@ -187,7 +191,12 @@ export const MarkdownToBlocks = async (
           const videoMatch = blockContent.match(videoRegex)
           if (videoMatch) {
             let videoProps = {}
-            if (videoMatch[2].startsWith(API_FILE_URL)) {
+            if (
+              videoMatch[2].startsWith(API_FILE_URL) ||
+              videoMatch[2].includes('youtube') ||
+              videoMatch[2].includes('youtu.be') ||
+              videoMatch[2].includes('vimeo')
+            ) {
               videoProps = {
                 name: videoMatch[1],
                 url: videoMatch[2],
