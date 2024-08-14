@@ -18,6 +18,7 @@ func TestCapabilities_Smoke(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
 
+	// Create the initial home document.
 	_, err := alice.CreateDocumentChange(ctx, &CreateDocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.Principal().String(),
@@ -28,6 +29,7 @@ func TestCapabilities_Smoke(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Try to create document with bob's key. It must fail.
 	{
 		_, err := alice.CreateDocumentChange(ctx, &CreateDocumentChangeRequest{
 			SigningKeyName: "bob",
@@ -40,6 +42,7 @@ func TestCapabilities_Smoke(t *testing.T) {
 		require.Error(t, err, "bob must not be allowed to sign for alice")
 	}
 
+	// Alice creates document about cars.
 	cars, err := alice.CreateDocumentChange(ctx, &CreateDocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.Principal().String(),
@@ -50,6 +53,7 @@ func TestCapabilities_Smoke(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Alice issued capability to bob for everything under /cars.
 	cpb, err := alice.CreateCapability(ctx, &CreateCapabilityRequest{
 		SigningKeyName: "main",
 		Delegate:       bob.Account.Principal().String(),
@@ -60,6 +64,7 @@ func TestCapabilities_Smoke(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, cpb)
 
+	// Bob creates a document under /cars.
 	{
 		jp, err := alice.CreateDocumentChange(ctx, &CreateDocumentChangeRequest{
 			SigningKeyName: "bob",
@@ -74,6 +79,7 @@ func TestCapabilities_Smoke(t *testing.T) {
 		require.NotNil(t, jp)
 	}
 
+	// Listing caps for descendant path of /cars should return inherited ones.
 	list, err := alice.ListCapabilities(ctx, &ListCapabilitiesRequest{
 		Account: alice.me.Account.String(),
 		Path:    "/cars/jp/foo",
