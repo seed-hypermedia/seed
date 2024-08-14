@@ -92,15 +92,21 @@ export function useMyCapability(
   return null
 }
 
-export function useMyAccountsWithCapability(
+export function useMyAccountsWithWriteAccess(
   id: UnpackedHypermediaId | undefined,
 ) {
   const myAccounts = useMyAccountIds()
   const capabilities = useAllDocumentCapabilities(id)
+
   const myAccountIdsWithCapability = myAccounts.data?.filter((accountUid) => {
     return !!capabilities.data?.find((cap) => cap.delegate === accountUid)
   })
-  return useEntities(myAccountIdsWithCapability?.map((k) => hmId('d', k)) || [])
+  let accountsWithCapabilities =
+    myAccountIdsWithCapability?.map((k) => hmId('d', k)) || []
+  if (id && myAccounts.data?.includes(id.uid)) {
+    accountsWithCapabilities = [...accountsWithCapabilities, hmId('d', id.uid)]
+  }
+  return useEntities(accountsWithCapabilities)
 }
 
 export function useAllDocumentCapabilities(

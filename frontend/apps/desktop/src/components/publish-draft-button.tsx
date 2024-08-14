@@ -1,5 +1,5 @@
 import {DraftStatus, draftStatus} from '@/draft-status'
-import {useMyAccountsWithCapability} from '@/models/access-control'
+import {useMyAccountsWithWriteAccess} from '@/models/access-control'
 import {useEntity} from '@/models/entities'
 import {trpc} from '@/trpc'
 import {useNavRoute} from '@/utils/navigation'
@@ -36,22 +36,19 @@ export default function PublishDraftButton() {
       invalidate(['trpc.drafts.get'])
     },
   })
-  const accts = useMyAccountsWithCapability(draftId)
+  const accts = useMyAccountsWithWriteAccess(draftId)
   const publish = usePublishDraft()
 
   useEffect(() => {
-    if (signingAccount) {
-      draftDispatch({type: 'CHANGE', signingAccount: signingAccount.id.uid})
-    }
-  }, [signingAccount])
-
-  useEffect(() => {
+    console.log('=== CHANGE SIGNING ACCOUNT', signingAccount)
     if (signingAccount && signingAccount.id.uid) {
       draftDispatch({type: 'CHANGE', signingAccount: signingAccount.id.uid})
     }
   }, [signingAccount])
 
   useEffect(() => {
+    console.log('=== ACCOUNTS', accts, signingAccount)
+
     if (
       accts.length == 1 &&
       accts[0].data &&
@@ -61,6 +58,7 @@ export default function PublishDraftButton() {
       setSigningAccount(accts[0].data)
     } else if (
       draft.data?.signingAccount &&
+      signingAccount == null &&
       draft.data?.signingAccount != signingAccount
     ) {
       const acc = accts.find((c) => c.data?.id.uid == draft.data.signingAccount)
