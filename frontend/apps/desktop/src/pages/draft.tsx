@@ -85,17 +85,19 @@ export default function DraftPage() {
             importWebFile={importWebFile}
             docId={route.id}
           >
-            <DraftHeader
-              draftActor={data.actor}
-              onEnter={() => {}}
-              disabled={!data.state.matches('ready')}
-            />
+            <YStack marginLeft="$4" paddingHorizontal="$3">
+              <DraftHeader
+                draftActor={data.actor}
+                onEnter={() => {}}
+                disabled={!data.state.matches('ready')}
+              />
 
-            <HMEditorContainer>
-              {data.editor ? (
-                <HyperMediaEditorView editable={true} editor={data.editor} />
-              ) : null}
-            </HMEditorContainer>
+              <HMEditorContainer>
+                {data.editor ? (
+                  <HyperMediaEditorView editable={true} editor={data.editor} />
+                ) : null}
+              </HMEditorContainer>
+            </YStack>
           </AppDocContentProvider>
         </MainWrapper>
         <Footer />
