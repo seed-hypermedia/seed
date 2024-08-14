@@ -153,11 +153,10 @@ function EditDocButton() {
   if (route.key !== 'document')
     throw new Error('EditDocButton can only be rendered on document route')
   const capability = useMyCapability(route.id, 'writer')
-  // const myAccountIds = useMyAccountIds() // TODO, enable when API is fixed
   const navigate = useNavigate()
   const draft = useDraft(route.id.id)
   const hasExistingDraft = !!draft.data
-  // if (!capability) return null // TODO, enable when API is fixed
+  if (!capability) return null
   return (
     <>
       <Tooltip content={hasExistingDraft ? 'Resume Editing' : 'Edit'}>

@@ -28,8 +28,8 @@ export function useAddCapabilities(id: UnpackedHypermediaId) {
         collaboratorAccountIds.map(
           async (collaboratorAccountId) =>
             await grpcClient.accessControl.createCapability({
-              account: collaboratorAccountId,
-              delegate: id.uid,
+              account: id.uid,
+              delegate: collaboratorAccountId,
               role,
               path: hmIdPathToEntityQueryPath(id.path),
               signingKeyName: myCapability.accountUid,
@@ -45,6 +45,12 @@ export function useAddCapabilities(id: UnpackedHypermediaId) {
 }
 
 type CapabilityType = 'admin' | 'owner' | 'writer'
+
+export function getRoleName(role: Role) {
+  if (role === Role.WRITER) return 'Writer'
+  if (role === Role.ROLE_UNSPECIFIED) return 'None'
+  return 'None'
+}
 
 type HMCapability = {
   accountUid: string

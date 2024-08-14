@@ -1,14 +1,25 @@
 import {
+  getRoleName,
   useAddCapabilities,
   useAllDocumentCapabilities,
   useMyCapability,
 } from '@/models/access-control'
+import {useEntity} from '@/models/entities'
 import {useSearch} from '@/models/search'
 import {DocumentRoute} from '@/utils/routes'
-import {Role, UnpackedHypermediaId, unpackHmId} from '@shm/shared'
-import {Button, Input, Label, SizableText, Text} from '@shm/ui'
+import {PlainMessage} from '@bufbuild/protobuf'
+import {
+  Capability,
+  getDocumentTitle,
+  hmId,
+  Role,
+  UnpackedHypermediaId,
+  unpackHmId,
+} from '@shm/shared'
+import {Button, Input, Label, SizableText, XStack} from '@shm/ui'
 import {useState} from 'react'
 import {AccessoryContainer} from './accessory-sidebar'
+import {Thumbnail} from './thumbnail'
 
 export function CollaboratorsPanel({
   route,
@@ -37,6 +48,7 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
   const [selectedCollaborators, setSelectedCollaborators] = useState<
     SearchResult[]
   >([])
+  const capabilities = useAllDocumentCapabilities(id)
   const [search, setSearch] = useState('')
   const searchResults = useSearch(search, {})
   if (!myCapability) return null
@@ -53,7 +65,7 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
           setSearch(searchText)
         }}
       />
-      {searchResults.data
+      {(search ? searchResults.data : [])
         ?.map((result) => {
           const id = unpackHmId(result.id)
           if (!id) return null
@@ -63,6 +75,12 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
           if (!result) return false // probably id was not parsed correctly
           if (result.id.path?.length) return false // this is a directory document, not an account
           if (result.id.uid === id.uid) return false // this account is already the owner, cannot be added
+          if (
+            capabilities.data?.find(
+              (capability) => capability.delegate === result.id.uid,
+            )
+          )
+            return false // already added
           if (
             selectedCollaborators.find(
               (collab) => collab.id.id === result.id.id,
@@ -85,20 +103,21 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
         )}
       {/* <SelectDropdown options={RoleOptions} onSelect={() = > {}} /> // not relevant yet because we can only add writers
        */}
-      <Text>{JSON.stringify(myCapability)}</Text>
-      <Button
-        onPress={() => {
-          addCapabilities.mutate({
-            myCapability: myCapability,
-            collaboratorAccountIds: selectedCollaborators.map(
-              (collab) => collab.id.uid,
-            ),
-            role: Role.WRITER,
-          })
-        }}
-      >
-        Add Writers
-      </Button>
+      {selectedCollaborators.length ? (
+        <Button
+          onPress={() => {
+            addCapabilities.mutate({
+              myCapability: myCapability,
+              collaboratorAccountIds: selectedCollaborators.map(
+                (collab) => collab.id.uid,
+              ),
+              role: Role.WRITER,
+            })
+          }}
+        >
+          Add Writers
+        </Button>
+      ) : null}
     </>
   )
 }
@@ -116,11 +135,26 @@ function SearchResultItem({
 function CollaboratorsList({id}: {id: UnpackedHypermediaId}) {
   const capabilities = useAllDocumentCapabilities(id)
   return capabilities.data?.map((capability) => {
-    return (
-      <SizableText>
-        {capability.account} - {capability.role}
-      </SizableText>
-    )
+    return <CollaboratorItem key={capability.account} capability={capability} />
   })
-  return null
+}
+
+function CollaboratorItem({
+  capability,
+}: {
+  capability: PlainMessage<Capability>
+}) {
+  const collaboratorId = hmId('d', capability.delegate)
+  const entity = useEntity(collaboratorId)
+  return (
+    <XStack ai="center" gap="$2" padding="$2">
+      <Thumbnail
+        metadata={entity.data?.document?.metadata}
+        id={collaboratorId}
+        size={32}
+      />
+      <SizableText f={1}>{getDocumentTitle(entity.data?.document)}</SizableText>
+      <SizableText color="$color9">{getRoleName(capability.role)}</SizableText>
+    </XStack>
+  )
 }
