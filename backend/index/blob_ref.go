@@ -47,6 +47,7 @@ type RefUnsigned struct {
 	Type        blobType       `refmt:"@type"`
 	Resource    IRI            `refmt:"resource"`
 	GenesisBlob cid.Cid        `refmt:"genesisBlob"`
+	Capability  cid.Cid        `refmt:"capability,omitempty"`
 	Heads       []cid.Cid      `refmt:"heads"`
 	Author      core.Principal `refmt:"author"`
 	Ts          int64          `refmt:"ts"`
@@ -110,6 +111,10 @@ func indexRef(ictx *indexingCtx, id int64, c cid.Cid, v *Ref) error {
 
 	for _, head := range v.Heads {
 		sb.AddBlobLink("ref/head", head)
+	}
+
+	if v.Capability.Defined() {
+		sb.AddBlobLink("ref/capability", v.Capability)
 	}
 
 	return ictx.SaveBlob(id, sb)

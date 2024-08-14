@@ -101,6 +101,14 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
    */
   signingKeyName = "";
 
+  /**
+   * Optional. ID of the capability that allows signing key to write on behalf of the account
+   * for this particular path.
+   *
+   * @generated from field: string capability = 5;
+   */
+  capability = "";
+
   constructor(data?: PartialMessage<CreateDocumentChangeRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -113,6 +121,7 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
     { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "changes", kind: "message", T: DocumentChange, repeated: true },
     { no: 4, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateDocumentChangeRequest {

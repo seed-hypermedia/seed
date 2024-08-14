@@ -4,17 +4,16 @@ package sqlitedbg
 import (
 	"context"
 	"encoding/base64"
-	"fmt"
 	"io"
 	"os"
-	"text/tabwriter"
 
 	"crawshaw.io/sqlite"
 	"crawshaw.io/sqlite/sqlitex"
+	"github.com/jedib0t/go-pretty/v6/table"
 )
 
 // Exec a query and print the results into w.
-func Exec[T *sqlitex.Pool | *sqlite.Conn](db T, w io.Writer, query string) {
+func Exec[T *sqlitex.Pool | *sqlite.Conn](db T, w io.Writer, query string, args ...any) {
 	if w == nil {
 		w = os.Stdout
 	}
@@ -33,13 +32,34 @@ func Exec[T *sqlitex.Pool | *sqlite.Conn](db T, w io.Writer, query string) {
 		conn = c
 	}
 
-	tw := tabwriter.NewWriter(w, 0, 0, 1, '.', tabwriter.TabIndent|tabwriter.Debug)
+	tw := table.NewWriter()
+	tw.SetOutputMirror(os.Stdout)
+	tw.SetStyle(table.StyleLight)
 
-	var rows int
-	err := sqlitex.Exec(conn, query, func(stmt *sqlite.Stmt) error {
-		rows++
-		cols := stmt.ColumnCount()
-		for n := 0; n < cols; n++ {
+	stmt, _, err := conn.PrepareTransient(query)
+	if err != nil {
+		panic(err)
+	}
+
+	header := make(table.Row, stmt.ColumnCount())
+	for i := 0; i < len(header); i++ {
+		header[i] = stmt.ColumnName(i)
+	}
+	tw.AppendHeader(header)
+
+	sqlitex.BindArgs(stmt, args...)
+
+	for {
+		hasRow, err := stmt.Step()
+		if err != nil {
+			panic(err)
+		}
+		if !hasRow {
+			break
+		}
+
+		row := make(table.Row, len(header))
+		for n := 0; n < len(header); n++ {
 			var txt string
 			if stmt.ColumnType(n) == sqlite.SQLITE_BLOB {
 				data := stmt.ColumnBytes(n)
@@ -47,24 +67,16 @@ func Exec[T *sqlitex.Pool | *sqlite.Conn](db T, w io.Writer, query string) {
 			} else {
 				txt = stmt.ColumnText(n)
 			}
-
-			fmt.Fprintf(w, "%s", txt)
-			if n == cols-1 {
-				fmt.Fprintf(w, "\n")
-			} else {
-				fmt.Fprintf(w, "\t")
-			}
+			row[n] = txt
 		}
+		tw.AppendRow(row)
+	}
 
-		return nil
-	})
-	if err != nil {
+	if err := stmt.Finalize(); err != nil {
 		panic(err)
 	}
 
-	if err := tw.Flush(); err != nil {
-		panic(err)
-	}
+	tw.Render()
 }
 
 // ExecPool is the same as Exec but uses the connection pool.

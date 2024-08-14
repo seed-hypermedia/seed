@@ -19,6 +19,14 @@ func ExampleExec() {
 	sqlitedbg.Exec(conn, os.Stdout, "SELECT * FROM foo")
 
 	// Output:
-	// 1
-	// 1	hello
+	// ┌────┐
+	// │ ID │
+	// ├────┤
+	// │ 1  │
+	// └────┘
+	// ┌────┬───────┐
+	// │ ID │ NAME  │
+	// ├────┼───────┤
+	// │ 1  │ hello │
+	// └────┴───────┘
 }

@@ -82,7 +82,6 @@ func (c *ChangeUnsigned) Sign(kp core.KeyPair) (cc *Change, err error) {
 
 func init() {
 	matcher := makeCBORTypeMatch(blobTypeChange)
-
 	registerIndexer(blobTypeChange,
 		func(c cid.Cid, data []byte) (*Change, error) {
 			codec, _ := ipfs.DecodeCID(c)

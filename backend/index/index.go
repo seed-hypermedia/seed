@@ -30,6 +30,21 @@ var errNotHyperBlob = errors.New("not a hyper blob")
 
 type IRI string
 
+// NewIRI creates a new IRI from account and path.
+func NewIRI(account core.Principal, path string) (IRI, error) {
+	if path != "" {
+		if path[0] != '/' {
+			return "", fmt.Errorf("path must start with a slash: %s", path)
+		}
+
+		if path[len(path)-1] == '/' {
+			return "", fmt.Errorf("path must not end with a slash: %s", path)
+		}
+	}
+
+	return IRI("hm://" + account.String() + path), nil
+}
+
 type Index struct {
 	bs       *blockStore
 	db       *sqlitex.Pool
@@ -135,7 +150,7 @@ func (idx *Index) WalkChanges(ctx context.Context, resource IRI, author core.Pri
 		buf = buf[:0] // reset the slice reusing the backing array
 
 		return nil
-	}, resource, author); err != nil {
+	}, resource, author, author, resource); err != nil {
 		return err
 	}
 
@@ -144,14 +159,27 @@ func (idx *Index) WalkChanges(ctx context.Context, resource IRI, author core.Pri
 
 var qWalkChanges = dqb.Str(`
 	WITH RECURSIVE
+	refs (id) AS (
+		SELECT id
+		FROM structural_blobs
+		WHERE type = 'Ref'
+		-- resource
+		AND resource = (SELECT id FROM resources WHERE iri = ?)
+		-- author
+		AND (author = (SELECT id FROM public_keys WHERE principal = ?) OR author IN (
+			SELECT DISTINCT extra_attrs->>'del'
+			FROM structural_blobs
+			WHERE type = 'Capability'
+			-- author
+			AND author = (SELECT id FROM public_keys WHERE principal = ?)
+			-- iri
+			AND resource IN (SELECT id FROM resources WHERE ? BETWEEN iri AND iri || '~~~~~~')
+		))
+	),
 	changes (id) AS (
 		SELECT bl.target
 		FROM blob_links bl
-		JOIN structural_blobs sb ON sb.id = bl.source
-		WHERE sb.type = 'Ref'
-		AND sb.resource = (SELECT id FROM resources WHERE iri = :resource)
-		AND sb.author = (SELECT id FROM public_keys WHERE principal = :author)
-		AND bl.type = 'ref/head'
+		JOIN refs r ON r.id = bl.source AND bl.type = 'ref/head'
 
 		UNION
 
@@ -167,6 +195,59 @@ var qWalkChanges = dqb.Str(`
 	FROM blobs b
 	JOIN structural_blobs sb ON sb.id = b.id
 	JOIN changes c ON c.id = b.id
+	ORDER BY sb.ts
+`)
+
+func (idx *Index) WalkCapabilities(ctx context.Context, resource IRI, author core.Principal, fn func(cid.Cid, *Capability) error) error {
+	conn, release, err := idx.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+
+	buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
+	if err := sqlitex.Exec(conn, qWalkCapabilities(), func(stmt *sqlite.Stmt) error {
+		var (
+			codec = stmt.ColumnInt64(0)
+			hash  = stmt.ColumnBytesUnsafe(1)
+			data  = stmt.ColumnBytesUnsafe(2)
+		)
+
+		buf, err = idx.bs.decoder.DecodeAll(data, buf)
+		if err != nil {
+			return err
+		}
+
+		chcid := cid.NewCidV1(uint64(codec), hash)
+		cpb := &Capability{}
+		if err := cbornode.DecodeInto(buf, cpb); err != nil {
+			return fmt.Errorf("WalkChanges: failed to decode change %s for entity %s: %w", chcid, resource, err)
+		}
+
+		if err := fn(chcid, cpb); err != nil {
+			return err
+		}
+
+		buf = buf[:0] // reset the slice reusing the backing array
+
+		return nil
+	}, resource, author); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var qWalkCapabilities = dqb.Str(`
+	SELECT
+		b.codec,
+		b.multihash,
+		b.data
+	FROM structural_blobs sb
+	JOIN blobs b ON b.id = sb.id
+	WHERE sb.type = 'Capability'
+	AND sb.resource IN (SELECT id FROM resources WHERE :iri BETWEEN iri AND iri || '~~~~~~')
+	AND sb.author = (SELECT id FROM public_keys WHERE principal = :author)
 	ORDER BY sb.ts
 `)
 

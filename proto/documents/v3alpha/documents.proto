@@ -54,6 +54,10 @@ message CreateDocumentChangeRequest {
   // Required. Name of the key to use for signing.
   // Use the Daemon API to list and manage keys.
   string signing_key_name = 4;
+
+  // Optional. ID of the capability that allows signing key to write on behalf of the account
+  // for this particular path.
+  string capability = 5;
 }
 
 message DeleteDocumentRequest {

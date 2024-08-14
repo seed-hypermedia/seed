@@ -192,10 +192,18 @@ export class CreateCapabilityRequest extends Message<CreateCapabilityRequest> {
   path = "";
 
   /**
+   * Required. Role that this capability grants to the delegate.
+   * If capability is nested, the role cannot be higher than the role of any ancestor capability.
+   *
+   * @generated from field: com.seed.documents.v3alpha.Role role = 5;
+   */
+  role = Role.ROLE_UNSPECIFIED;
+
+  /**
    * Optional. By default capabilities give access to the path recursively.
    * This flag can be used to restrict the capability only to specific path.
    *
-   * @generated from field: bool no_recursive = 5;
+   * @generated from field: bool no_recursive = 6;
    */
   noRecursive = false;
 
@@ -211,7 +219,8 @@ export class CreateCapabilityRequest extends Message<CreateCapabilityRequest> {
     { no: 2, name: "delegate", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "no_recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 5, name: "role", kind: "enum", T: proto3.getEnumType(Role) },
+    { no: 6, name: "no_recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateCapabilityRequest {
@@ -331,34 +340,11 @@ export class Capability extends Message<Capability> {
   isExact = false;
 
   /**
-   * IDs of parent capabilities, unless it's a first-grade capability,
-   * in which case it has no parents.
-   *
-   * @generated from field: repeated string parents = 8;
-   */
-  parents: string[] = [];
-
-  /**
-   * IDs of children capabilities
-   * if this capability was ever delegated further down.
-   *
-   * @generated from field: repeated string children = 9;
-   */
-  children: string[] = [];
-
-  /**
    * Timestamp when this capability was issued.
    *
-   * @generated from field: google.protobuf.Timestamp create_time = 10;
+   * @generated from field: google.protobuf.Timestamp create_time = 8;
    */
   createTime?: Timestamp;
-
-  /**
-   * Local timestamp when we have discovered this capability.
-   *
-   * @generated from field: google.protobuf.Timestamp local_time = 11;
-   */
-  localTime?: Timestamp;
 
   constructor(data?: PartialMessage<Capability>) {
     super();
@@ -375,10 +361,7 @@ export class Capability extends Message<Capability> {
     { no: 5, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 6, name: "role", kind: "enum", T: proto3.getEnumType(Role) },
     { no: 7, name: "is_exact", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 8, name: "parents", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-    { no: 9, name: "children", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-    { no: 10, name: "create_time", kind: "message", T: Timestamp },
-    { no: 11, name: "local_time", kind: "message", T: Timestamp },
+    { no: 8, name: "create_time", kind: "message", T: Timestamp },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Capability {

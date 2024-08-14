@@ -19,6 +19,7 @@ import (
 	"crawshaw.io/sqlite/sqlitex"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
+	cbornode "github.com/ipfs/go-ipld-cbor"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -97,7 +98,15 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 		return nil, err
 	}
 
-	if err := srv.checkWriteAccess(ctx, ns, in.Path, kp); err != nil {
+	var capc cid.Cid
+	if in.Capability != "" {
+		capc, err = cid.Decode(in.Capability)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if err := srv.checkWriteAccess(ctx, ns, in.Path, kp, capc); err != nil {
 		return nil, err
 	}
 
@@ -357,17 +366,7 @@ func (srv *Server) ensureProfileGenesis(ctx context.Context, kp core.KeyPair) er
 }
 
 func makeIRI(account core.Principal, path string) (index.IRI, error) {
-	if path != "" {
-		if path[0] != '/' {
-			return "", fmt.Errorf("path must start with a slash: %s", path)
-		}
-
-		if path[len(path)-1] == '/' {
-			return "", fmt.Errorf("path must not end with a slash: %s", path)
-		}
-	}
-
-	return index.IRI("hm://" + account.String() + path), nil
+	return index.NewIRI(account, path)
 }
 
 func (srv *Server) loadDocument(ctx context.Context, account core.Principal, path string, ensurePath bool) (*docmodel.Document, error) {
@@ -423,13 +422,52 @@ func applyChanges(doc *docmodel.Document, ops []*documents.DocumentChange) error
 	return nil
 }
 
-func (srv *Server) checkWriteAccess(_ context.Context, account core.Principal, _ string, kp core.KeyPair) error {
+func (srv *Server) checkWriteAccess(ctx context.Context, account core.Principal, path string, kp core.KeyPair, capc cid.Cid) error {
 	if account.Equal(kp.Principal()) {
 		return nil
 	}
 
-	// TODO(burdiyan): check capability delegations.
-	return status.Errorf(codes.PermissionDenied, "key %s is not allowed to edit account %s", kp.Principal(), account)
+	if !capc.Defined() {
+		return status.Errorf(codes.PermissionDenied, "key %s is not allowed to edit account %s", kp.Principal(), account)
+	}
+
+	blk, err := srv.idx.Get(ctx, capc)
+	if err != nil {
+		return err
+	}
+
+	cpb := &index.Capability{}
+	if err := cbornode.DecodeInto(blk.RawData(), cpb); err != nil {
+		return err
+	}
+
+	if !cpb.Account.Equal(account) {
+		return status.Errorf(codes.PermissionDenied, "capability %s is not from account %s", capc, account)
+	}
+
+	if !cpb.Delegate.Equal(kp.Principal()) {
+		return status.Errorf(codes.PermissionDenied, "capability %s is not delegated to key %s", capc, kp.Principal())
+	}
+
+	grantedIRI, err := makeIRI(cpb.Account, cpb.Path)
+	if err != nil {
+		return err
+	}
+
+	wantIRI, err := makeIRI(account, path)
+	if err != nil {
+		return err
+	}
+
+	if !(wantIRI >= grantedIRI && wantIRI < grantedIRI+"~~~~~~~") {
+		return status.Errorf(codes.PermissionDenied, "capability %s grants path '%s' which doesn't cover '%s'", capc, grantedIRI, wantIRI)
+	}
+
+	if documents.Role(documents.Role_value[cpb.Role]) != documents.Role_WRITER {
+		return status.Errorf(codes.PermissionDenied, "capability role %s is not allowed to write", cpb.Role)
+	}
+
+	return nil
 }
 
 // DocumentToListItem converts a document to a document list item.

@@ -68,9 +68,13 @@ message CreateCapabilityRequest {
   // Empty string means root document.
   string path = 4;
 
+  // Required. Role that this capability grants to the delegate.
+  // If capability is nested, the role cannot be higher than the role of any ancestor capability.
+  Role role = 5;
+
   // Optional. By default capabilities give access to the path recursively.
   // This flag can be used to restrict the capability only to specific path.
-  bool no_recursive = 5;
+  bool no_recursive = 6;
 }
 
 // Request to get a single capability.
@@ -105,19 +109,8 @@ message Capability {
   // but it can be limited to only to the exact path match.
   bool is_exact = 7;
 
-  // IDs of parent capabilities, unless it's a first-grade capability,
-  // in which case it has no parents.
-  repeated string parents = 8;
-
-  // IDs of children capabilities
-  // if this capability was ever delegated further down.
-  repeated string children = 9;
-
   // Timestamp when this capability was issued.
-  google.protobuf.Timestamp create_time = 10;
-
-  // Local timestamp when we have discovered this capability.
-  google.protobuf.Timestamp local_time = 11;
+  google.protobuf.Timestamp create_time = 8;
 }
 
 enum Role {
