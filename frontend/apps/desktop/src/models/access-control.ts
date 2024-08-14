@@ -1,9 +1,13 @@
 import {useGRPCClient, useQueryInvalidator} from '@/app-context'
 import {toPlainMessage} from '@bufbuild/protobuf'
-import {Role, UnpackedHypermediaId} from '@shm/shared'
+import {hmId, Role, UnpackedHypermediaId} from '@shm/shared'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {useMyAccountIds} from './daemon'
-import {getParentPaths, hmIdPathToEntityQueryPath} from './entities'
+import {
+  getParentPaths,
+  hmIdPathToEntityQueryPath,
+  useEntities,
+} from './entities'
 import {queryKeys} from './query-keys'
 
 export function useDocumentCollaborators(id: UnpackedHypermediaId) {
@@ -52,6 +56,11 @@ export function getRoleName(role: Role) {
   return 'None'
 }
 
+function getRoleCapabilityType(role: Role): CapabilityType | null {
+  if (role === Role.WRITER) return 'writer'
+  return null
+}
+
 type HMCapability = {
   accountUid: string
   role: CapabilityType
@@ -69,17 +78,39 @@ export function useMyCapability(
   const capabilities = useAllDocumentCapabilities(id)
   // todo!
   if (myAccounts.data?.indexOf(id.uid) !== -1) {
-    // owner. no capability needed
     return {accountUid: id.uid, role: 'owner'}
+  }
+  const myCapability = capabilities.data?.find((cap) => {
+    return !!myAccounts.data?.find(
+      (myAccountUid) => myAccountUid === cap.delegate,
+    )
+  })
+  if (myCapability) {
+    const role = getRoleCapabilityType(myCapability.role)
+    if (role) return {accountUid: myCapability.delegate, role: 'writer'}
   }
   return null
 }
 
-export function useAllDocumentCapabilities(id: UnpackedHypermediaId) {
+export function useMyAccountsWithCapability(
+  id: UnpackedHypermediaId | undefined,
+) {
+  const myAccounts = useMyAccountIds()
+  const capabilities = useAllDocumentCapabilities(id)
+  const myAccountIdsWithCapability = myAccounts.data?.filter((accountUid) => {
+    return !!capabilities.data?.find((cap) => cap.delegate === accountUid)
+  })
+  return useEntities(myAccountIdsWithCapability?.map((k) => hmId('d', k)) || [])
+}
+
+export function useAllDocumentCapabilities(
+  id: UnpackedHypermediaId | undefined,
+) {
   const grpcClient = useGRPCClient()
   return useQuery({
-    queryKey: [queryKeys.CAPABILITIES, id.uid, ...(id.path || [])],
+    queryKey: [queryKeys.CAPABILITIES, id?.uid, ...(id?.path || [])],
     queryFn: async () => {
+      if (!id) return []
       const result = await grpcClient.accessControl.listCapabilities({
         account: id.uid,
         path: hmIdPathToEntityQueryPath(id.path),

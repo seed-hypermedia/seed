@@ -10,7 +10,6 @@ import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
 import {
   DocumentChange,
-  GRPCClient,
   HMAccount,
   HMBlock,
   HMBlockNode,
@@ -50,7 +49,7 @@ import {useNavigate} from '../utils/useNavigate'
 import {useMyAccountIds} from './daemon'
 import {draftMachine} from './draft-machine'
 import {setGroupTypes} from './editor-utils'
-import {useEntities, useEntity} from './entities'
+import {hmIdPathToEntityQueryPath, useEntities, useEntity} from './entities'
 import {useGatewayUrl, useGatewayUrlStream} from './gateway-settings'
 import {useInlineMentions} from './search'
 
@@ -194,8 +193,6 @@ function changesToJSON(changes: DocumentChange[]) {
 }
 
 export function usePublishDraft(
-  grpcClient: GRPCClient,
-  accountId?: string,
   opts?: UseMutationOptions<
     HMDocument,
     unknown,
@@ -206,6 +203,7 @@ export function usePublishDraft(
     }
   >,
 ) {
+  const grpcClient = useGRPCClient()
   const invalidate = useQueryInvalidator()
   const accts = useMyAccountIds()
   return useMutation<
@@ -242,6 +240,22 @@ export function usePublishDraft(
               ...changes.changes,
               ...deleteChanges,
             ]
+            let capabilityId = ''
+            if (draft.signingAccount !== id.uid) {
+              const capabilities =
+                await grpcClient.accessControl.listCapabilities({
+                  account: id.uid,
+                  path: hmIdPathToEntityQueryPath(id.path),
+                })
+              const capability = capabilities.capabilities.find(
+                (cap) => cap.delegate === draft.signingAccount,
+              )
+              if (!capability)
+                throw new Error(
+                  'Could not find capability for this draft signing account',
+                )
+              capabilityId = capability.id
+            }
 
             const publishedDoc =
               await grpcClient.documents.createDocumentChange({
@@ -258,8 +272,8 @@ export function usePublishDraft(
                       )
                       .join('/')}`
                   : '',
-                documentId: id.id!,
                 changes: allChanges,
+                capability: capabilityId,
               })
 
             return toPlainMessage(publishedDoc)

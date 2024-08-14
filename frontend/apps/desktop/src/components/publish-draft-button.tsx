@@ -1,5 +1,5 @@
 import {DraftStatus, draftStatus} from '@/draft-status'
-import {useMyAccounts} from '@/models/daemon'
+import {useMyAccountsWithCapability} from '@/models/access-control'
 import {useEntity} from '@/models/entities'
 import {trpc} from '@/trpc'
 import {useNavRoute} from '@/utils/navigation'
@@ -11,7 +11,7 @@ import {Button, Spinner, Tooltip, XGroup, YStack, YStackProps} from '@shm/ui'
 import {AlertCircle, Check, ChevronDown} from '@tamagui/lucide-icons'
 import {PropsWithChildren, useEffect, useState} from 'react'
 import {createMachine} from 'xstate'
-import {useGRPCClient, useQueryInvalidator} from '../app-context'
+import {useQueryInvalidator} from '../app-context'
 import {useDraft} from '../models/accounts'
 import {draftDispatch, usePublishDraft} from '../models/documents'
 import {OptionsDropdown} from './options-dropdown'
@@ -20,7 +20,6 @@ import {Thumbnail} from './thumbnail'
 export default function PublishDraftButton() {
   const route = useNavRoute()
   const navigate = useNavigate('replace')
-  const grpcClient = useGRPCClient()
   const draftRoute: DraftRoute | null = route.key === 'draft' ? route : null
   if (!draftRoute)
     throw new Error('DraftPublicationButtons requires draft route')
@@ -37,8 +36,8 @@ export default function PublishDraftButton() {
       invalidate(['trpc.drafts.get'])
     },
   })
-  const accts = useMyAccounts()
-  const publish = usePublishDraft(grpcClient, packedDraftId)
+  const accts = useMyAccountsWithCapability(draftId)
+  const publish = usePublishDraft()
 
   useEffect(() => {
     if (signingAccount) {
