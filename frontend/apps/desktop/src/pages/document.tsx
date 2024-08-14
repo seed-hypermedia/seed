@@ -241,7 +241,7 @@ function DocPageHeader({
         </XStack>
 
         <XStack marginTop="$4" gap="$3" ai="center">
-          {entity.data?.document?.path.length ? (
+          {entity.data?.document?.path.length || authors?.length !== 1 ? (
             <>
               <XStack ai="center">
                 {authors
