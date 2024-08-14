@@ -45,6 +45,7 @@ func NewServer(keys core.KeyStore, idx *index.Index, db *sqlitex.Pool) *Server {
 // RegisterServer registers the server with the gRPC server.
 func (srv *Server) RegisterServer(rpc grpc.ServiceRegistrar) {
 	documents.RegisterDocumentsServer(rpc, srv)
+	documents.RegisterAccessControlServer(rpc, srv)
 }
 
 // GetDocument implements Documents API v3.
