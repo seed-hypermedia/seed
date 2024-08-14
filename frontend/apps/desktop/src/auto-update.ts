@@ -22,7 +22,7 @@ export function linuxCheckForUpdates() {
     try {
       // TODO: change this to fetch THE LATEST version and compare it with `app.getVersion()`
       fetch(
-        `https://update.electronjs.org/MintterHypermedia/mintter/darwin-x64/${app.getVersion()}`,
+        `https://update.electronjs.org/seed-hypermedia/seed/darwin-x64/${app.getVersion()}`,
       ).then((res) => {
         if (res) {
           log.debug('[MAIN][AUTO-UPDATE]: LINUX NEED TO UPDATE', res)
@@ -39,7 +39,7 @@ export function linuxCheckForUpdates() {
             log.debug('[MAIN][AUTO-UPDATE]: Quit and Install')
             if (returnValue.response === 0)
               shell.openExternal(
-                'https://github.com/MintterHypermedia/mintter/releases/latest',
+                'https://github.com/seed-hypermedia/seed/releases/latest',
               )
           })
         } else {
@@ -99,7 +99,7 @@ function setup() {
    * - adopt the `feedback` variable to show/hide dialogs
    */
 
-  const updateUrl = `https://update.electronjs.org/MintterHypermedia/mintter/${
+  const updateUrl = `https://update.electronjs.org/seed-hypermedia/seed/${
     process.platform
   }-${process.arch}/${app.getVersion()}`
 
@@ -155,7 +155,7 @@ function setup() {
 }
 
 // fetch(
-//   `https://update.electronjs.org/MintterHypermedia/mintter/darwin-x64/2023.11.4`,
+//   `https://update.electronjs.org/seed-hypermedia/seed/darwin-x64/2023.11.4`,
 // )
 //   .then((res) => {
 //     console.log('== AUTOUPDATE THEN', res.body)
