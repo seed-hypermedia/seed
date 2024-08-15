@@ -21,8 +21,6 @@ var Settings = lazy(() => import('./settings'))
 var Contacts = lazy(() => import('./contacts-page'))
 var Document = lazy(() => import('./document'))
 var Draft = lazy(() => import('./draft'))
-var Comment = lazy(() => import('./comment'))
-var CommentDraft = lazy(() => import('./comment-draft'))
 var Explore = lazy(() => import('./explore'))
 var Library = lazy(() => import('./library'))
 var Favorites = lazy(() => import('./favorites'))
@@ -135,16 +133,6 @@ function getPageComponent(navRoute: NavRoute) {
     case 'deleted-content':
       return {
         PageComponent: DeletedContent,
-        Fallback: BaseLoading,
-      }
-    case 'comment':
-      return {
-        PageComponent: Comment,
-        Fallback: BaseLoading,
-      }
-    case 'comment-draft':
-      return {
-        PageComponent: CommentDraft,
         Fallback: BaseLoading,
       }
     case 'favorites':
