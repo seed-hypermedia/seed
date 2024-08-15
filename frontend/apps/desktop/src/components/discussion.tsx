@@ -25,7 +25,7 @@ import {Thumbnail} from './thumbnail'
 
 export function Discussion({docId}: {docId: UnpackedHypermediaId}) {
   return (
-    <YStack p="$4" gap="$4">
+    <YStack paddingVertical="$6" gap="$4">
       <CommentDraft docId={docId} />
       <YStack>
         <XStack gap="$2" padding="$2">
@@ -96,6 +96,8 @@ function CommentDraftEditor({
       borderWidth={2}
       borderColor="$color8"
       minHeight={80}
+      paddingBottom="$2"
+      paddingLeft="$10"
     >
       <YStack
         f={1}
@@ -107,18 +109,32 @@ function CommentDraftEditor({
         <AppDocContentProvider disableEmbedClick>
           <HyperMediaEditorView editor={editor} editable />
         </AppDocContentProvider>
-        <XStack jc="flex-end" gap="$3" ai="center">
+        <XStack jc="flex-end" gap="$1" ai="center" paddingVertical="$2">
           <AutosaveIndicator isSaved={isSaved} />
           <SelectAccountDropdown
             accounts={accounts}
             account={account}
             onSetAccount={onSetAccount}
           />
-          <Button size="$2" theme="blue" onPress={onSubmit} disabled={!isSaved}>
-            Publish Comment
+          <Button
+            size="$2"
+            bg="$blue8"
+            borderColor="$blue8"
+            color="$color1"
+            hoverStyle={{bg: '$blue9', borderColor: '$blue9'}}
+            onPress={onSubmit}
+            disabled={!isSaved}
+          >
+            Publish
           </Button>
           <Tooltip content="Discard Comment Draft">
-            <Button size="$2" onPress={onDiscard} theme="red" icon={Trash} />
+            <Button
+              marginLeft="$2"
+              size="$2"
+              onPress={onDiscard}
+              theme="red"
+              icon={Trash}
+            />
           </Tooltip>
         </XStack>
       </YStack>
