@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"seed/backend/core"
-	documents "seed/backend/genproto/documents/v1alpha"
+	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/hlc"
 	"seed/backend/ipfs"
 	"seed/backend/util/must"
