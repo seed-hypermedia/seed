@@ -29,6 +29,7 @@ export * from "./radio-buttons";
 export * from "./radio-option-section";
 export * from "./resize-handle";
 export {Section} from "./section";
+export * from "./select-dropdown";
 export * from "./step-wrapper";
 export * from "./table-list";
 export * from "./titlebar";

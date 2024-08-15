@@ -2,10 +2,12 @@ import {useAppContext} from '@/app-context'
 import {createHypermediaDocLinkPlugin} from '@/editor'
 import {useOpenUrl} from '@/open-url'
 import {slashMenuItems} from '@/slash-menu-items'
-import {client, trpc} from '@/trpc'
+import {trpc} from '@/trpc'
 import {
+  HMBlockNode,
   HMComment,
   HMCommentDraft,
+  HMEntityContent,
   UnpackedHypermediaId,
   fromHMBlock,
   hmId,
@@ -31,7 +33,7 @@ import {useInlineMentions} from './search'
 function serverBlockNodesFromEditorBlocks(
   editor: BlockNoteEditor,
   editorBlocks: Block[],
-) {
+): HMBlockNode[] {
   if (!editorBlocks) return []
   return editorBlocks.map((block: Block) => {
     const childGroup = getBlockGroup(editor, block.id) || {}
@@ -128,16 +130,6 @@ export function useCommentReplies(
   }, [comments.data, targetCommentId])
 }
 
-export function useCommentDraft(commentId: string, opts?: UseQueryOptions) {
-  const comment = trpc.comments.getCommentDraft.useQuery(
-    {
-      commentDraftId: commentId,
-    },
-    opts,
-  )
-  return comment
-}
-
 export function useComment(
   id: UnpackedHypermediaId | null | undefined,
   opts?: UseQueryOptions<HMComment>,
@@ -145,21 +137,17 @@ export function useComment(
   const grpcClient = useGRPCClient()
   return useQuery({
     ...opts,
-    enabled: opts?.enabled !== false && !!commentId,
+    enabled: opts?.enabled !== false && !!id?.id,
     queryFn: async () => {
-      if (!commentId) return null
+      if (!id?.id) return null
       let res = await grpcClient.comments.getComment({
-        id: commentId,
+        id: id.id,
       })
       const comment = res as unknown as HMComment
       return comment
     },
-    queryKey: [queryKeys.COMMENT, commentId],
+    queryKey: [queryKeys.COMMENT, id?.id],
   })
-}
-
-export function useCommentDraftId(docId: UnpackedHypermediaId | undefined) {
-  if (!docId) return null
 }
 
 export function useAllDocumentComments(docUid: string | undefined) {
@@ -187,8 +175,8 @@ export function useDocumentCommentGroups(
 }
 
 export function useCommentEditor(
-  draftId: string,
-  opts: {onDiscard?: () => void} = {},
+  targetDocId: UnpackedHypermediaId,
+  accounts: HMEntityContent[],
 ) {
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
   const showNostr = trpc.experiments.get.useQuery().data?.nostr
@@ -198,23 +186,14 @@ export function useCommentEditor(
       toast.error(err.message)
     },
   })
-  const removeDraft = trpc.comments.removeCommentDraft.useMutation({
-    onError: (err) => {
-      opts.onDiscard?.()
-    },
-  })
+  const removeDraft = trpc.comments.removeCommentDraft.useMutation({})
   const openUrl = useOpenUrl()
   const [setIsSaved, isSaved] = writeableStateStream<boolean>(true)
-  const saveTimeoutRef = useRef<number | undefined>()
+  const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>()
   const readyEditor = useRef<BlockNoteEditor>()
   const initCommentDraft = useRef<HMCommentDraft | null | undefined>()
-  const streams = useRef<{
-    targetCommentId: ReturnType<typeof writeableStateStream>
-    targetDocId: ReturnType<typeof writeableStateStream>
-  }>({
-    targetCommentId: writeableStateStream<string | null>(null),
-    targetDocId: writeableStateStream<string | null>(null),
-  })
+  const accountRef = useRef(writeableStateStream<string | null>(null))
+  const [setAccountStream, account] = accountRef.current
   const grpcClient = useGRPCClient()
   const replace = useNavigate('replace')
   const {inlineMentionsData, inlineMentionsQuery} = useInlineMentions()
@@ -227,26 +206,28 @@ export function useCommentEditor(
     editor.replaceBlocks(editor.topLevelBlocks, editorBlocks)
     setGroupTypes(editor._tiptapEditor, editorBlocks)
   }
-
+  async function writeDraft() {
+    setIsSaved(false)
+    const blocks = serverBlockNodesFromEditorBlocks(
+      editor,
+      editor.topLevelBlocks,
+    )
+    await write.mutateAsync({
+      blocks,
+      targetDocId: targetDocId.id,
+      account: account.get()!,
+    })
+    setIsSaved(true)
+  }
   const gwUrl = useGatewayUrlStream()
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
       setIsSaved(false)
       clearTimeout(saveTimeoutRef.current)
       saveTimeoutRef.current = setTimeout(() => {
-        const blocks = serverBlockNodesFromEditorBlocks(
-          editor,
-          editor.topLevelBlocks,
-        )
-        write
-          .mutateAsync({
-            blocks,
-            commentId: draftId,
-          })
-          .then((savedDraftId) => {
-            clearTimeout(saveTimeoutRef.current)
-            setIsSaved(true)
-          })
+        writeDraft().then(() => {
+          clearTimeout(saveTimeoutRef.current)
+        })
       }, 500)
     },
     linkExtensionOptions: {
@@ -293,55 +274,44 @@ export function useCommentEditor(
 
   trpc.comments.getCommentDraft.useQuery(
     {
-      commentDraftId: draftId,
+      targetDocId: targetDocId.id,
     },
     {
       onError: (err) =>
         appError(`Could not load comment draft: ${err.message}`),
       onSuccess: (draft) => {
-        if (!draft)
-          throw new Error('no valid draft in route for getCommentDraft')
-        initCommentDraft.current = draft
-        streams.current.targetCommentId[0](draft.targetCommentId)
-        const docId = packHmId(hmId('d', draft.targetDocId))
-        streams.current.targetDocId[0](docId)
+        if (draft) {
+          initCommentDraft.current = draft
+          setAccountStream(draft.account)
+        } else {
+          const account: string = accounts[0]!.id.uid
+          initCommentDraft.current = {
+            account,
+            blocks: [],
+          }
+          setAccountStream(account)
+        }
         initDraft()
       },
     },
   )
-  // useEffect(() => {
-  //   if (!editCommentId) return
-  //   client.comments.getCommentDraft
-  //     .query({
-  //       commentDraftId: editCommentId,
-  //     })
-  //     .then((draft) => {
-  //       if (!draft)
-  //         throw new Error('no valid draft in route for getCommentDraft')
-  //       initCommentDraft.current = draft
-  //       setTargetCommentId(draft.targetCommentId)
-  //       setTargetDocId(packHmId(hmId('d', draft.targetDocUid)))
-  //       initDraft()
-  //     })
-  // }, [editCommentId])
   const invalidate = useQueryInvalidator()
   const publishComment = useMutation({
     mutationFn: async ({
       content,
       targetDocId,
-      targetCommentId,
     }: {
-      content: any
+      content: HMBlockNode[]
       targetDocId: string
-      targetCommentId: string | null
     }) => {
-      const resultComment = await grpcClient.comments.createComment({
-        content,
-        target: targetDocId,
-        repliedComment: targetCommentId || undefined,
-      })
-      if (!resultComment) throw new Error('no resultComment')
-      return resultComment
+      throw new Error('No Comment API yet')
+      // const resultComment = await grpcClient.comments.createComment({
+      //   content,
+      //   target: targetDocId,
+      //   repliedComment: targetCommentId || undefined,
+      // })
+      // if (!resultComment) throw new Error('no resultComment')
+      // return resultComment
     },
     onSuccess: (newComment: HMComment) => {
       const targetDocId = newComment.target
@@ -361,7 +331,7 @@ export function useCommentEditor(
   })
   return useMemo(() => {
     function onSubmit() {
-      if (!draftId) throw new Error('no draftId')
+      if (!targetDocId.id) throw new Error('no targetDocId.id')
       const draft = initCommentDraft.current
       if (!draft) throw new Error('no draft found to publish')
       const content = serverBlockNodesFromEditorBlocks(
@@ -379,74 +349,32 @@ export function useCommentEditor(
           return false
         return true
       })
+      toast.error('Publishing comments is not yet supported by the API')
       publishComment.mutate({
         content: contentWithoutLastEmptyBlock,
-        targetDocId: packHmId(
-          hmId('d', draft.targetDocId, {
-            version: draft.targetDocVersion,
-          }),
-        ),
-        targetCommentId: draft.targetCommentId,
+        targetDocId: targetDocId.id,
       })
     }
-    function addReplyEmbed(replyBlockCommentId: string, blockId: string) {
-      const editor = readyEditor.current
-      const commentId = unpackHmId(replyBlockCommentId)
-      if (!commentId) throw new Error('Invalid commentId')
-      if (!editor) throw new Error('Editor not ready yet')
-      editor.insertBlocks(
-        [
-          {
-            type: 'embed',
-            props: {
-              ref: packHmId(
-                hmId('comment', commentId.uid, {blockRef: blockId}),
-              ),
-              textAlignment: 'left',
-              childrenType: 'group',
-            },
-          },
-          {type: 'paragraph', text: '', props: {}},
-        ],
-        editor.topLevelBlocks.at(-1),
-        'after',
-      )
-    }
     function onDiscard() {
-      if (!draftId) throw new Error('no comment draftId')
+      if (!targetDocId.id) throw new Error('no comment targetDocId.id')
       removeDraft
         .mutateAsync({
-          commentId: draftId,
+          targetDocId: targetDocId.id,
         })
-        .then(() => {
-          client.closeAppWindow.mutate(window.windowId)
-        })
+        .then(() => {})
+    }
+
+    function onSetAccount(accountId: string) {
+      setAccountStream(accountId)
+      writeDraft()
     }
     return {
       editor,
       onSubmit,
       onDiscard,
       isSaved,
-      targetCommentId: streams.current.targetCommentId[1],
-      targetDocId: streams.current.targetDocId[1],
-      addReplyEmbed,
+      account,
+      onSetAccount,
     }
-  }, [])
-}
-
-export function useCreateComment() {
-  const createComment = trpc.comments.createCommentDraft.useMutation()
-  return (
-    targetDocId: string,
-    targetDocVersion: string,
-    targetCommentId?: string,
-    embedRef?: string,
-  ) => {
-    return createComment.mutateAsync({
-      targetDocId,
-      targetCommentId: targetCommentId || null,
-      targetDocVersion,
-      blocks: [],
-    })
-  }
+  }, [targetDocId.id])
 }

@@ -251,11 +251,12 @@ export type HMTextAnnotation =
 
 export type HMCommentDraft = {
   blocks: HMBlockNode[]
-  targetDocId: string
-  targetDocVersion: string
-  targetCommentId: string | null
-  publishTime: number | null
-  commentId: string
+  // targetDocId: string
+  // targetDocVersion: string
+  // targetCommentId: string | null
+  // publishTime: number | null
+  // commentId: string
+  account: string
 }
 
 // todo, adopt this type:
