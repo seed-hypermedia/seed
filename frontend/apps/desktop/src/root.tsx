@@ -193,8 +193,8 @@ function MainApp({
           utils.experiments.get.invalidate()
         } else if (value[0] === 'trpc.favorites.get') {
           utils.favorites.get.invalidate()
-        } else if (value[0] === 'trpc.comments.getCommentDrafts') {
-          utils.comments.getCommentDrafts.invalidate()
+        } else if (value[0] === 'trpc.comments.getCommentDraft') {
+          utils.comments.getCommentDraft.invalidate()
         } else if (value[0] === 'trpc.gatewaySettings.getGatewayUrl') {
           utils.gatewaySettings.getGatewayUrl.invalidate()
         } else if (value[0] === 'trpc.gatewaySettings.getPushOnCopy') {

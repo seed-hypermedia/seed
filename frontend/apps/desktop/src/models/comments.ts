@@ -191,9 +191,6 @@ export function useCommentEditor(
   const [setIsSaved, isSaved] = writeableStateStream<boolean>(true)
   const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>()
   const readyEditor = useRef<BlockNoteEditor>()
-  const initCommentDraft = useRef<HMCommentDraft | null | undefined>()
-  const accountRef = useRef(writeableStateStream<string | null>(null))
-  const [setAccountStream, account] = accountRef.current
   const grpcClient = useGRPCClient()
   const replace = useNavigate('replace')
   const {inlineMentionsData, inlineMentionsQuery} = useInlineMentions()
@@ -217,6 +214,7 @@ export function useCommentEditor(
       targetDocId: targetDocId.id,
       account: account.get()!,
     })
+    invalidate(['trpc.comments.getCommentDraft'])
     setIsSaved(true)
   }
   const gwUrl = useGatewayUrlStream()
@@ -272,7 +270,7 @@ export function useCommentEditor(
     }
   }, [inlineMentionsData])
 
-  trpc.comments.getCommentDraft.useQuery(
+  const draftQuery = trpc.comments.getCommentDraft.useQuery(
     {
       targetDocId: targetDocId.id,
     },
@@ -280,6 +278,7 @@ export function useCommentEditor(
       onError: (err) =>
         appError(`Could not load comment draft: ${err.message}`),
       onSuccess: (draft) => {
+        if (initCommentDraft.current) return
         if (draft) {
           initCommentDraft.current = draft
           setAccountStream(draft.account)
@@ -295,6 +294,14 @@ export function useCommentEditor(
       },
     },
   )
+  const initCommentDraft = useRef<HMCommentDraft | null | undefined>(
+    draftQuery.data,
+  )
+  const accountRef = useRef(
+    writeableStateStream<string | null>(draftQuery.data?.account || null),
+  )
+  const [setAccountStream, account] = accountRef.current
+
   const invalidate = useQueryInvalidator()
   const publishComment = useMutation({
     mutationFn: async ({
