@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+package com.seed.documents.v3alpha;
+
+import "documents/v3alpha/documents.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "seed/backend/genproto/documents/v3alpha;documents";
+
+// Comments service allows users to add comments to documents.
+service Comments {
+  // Creates a new comment.
+  rpc CreateComment(CreateCommentRequest) returns (Comment);
+
+  // Gets a single comment by ID.
+  rpc GetComment(GetCommentRequest) returns (Comment);
+
+  // Lists comments for a given target.
+  rpc ListComments(ListCommentsRequest) returns (ListCommentsResponse);
+}
+
+// Request to create a comment.
+message CreateCommentRequest {
+  // Requred. Account ID to which the comment is applied.
+  string target_account = 1;
+
+  // Required. Path within the account where the comment is applied.
+  string target_path = 2;
+
+  // Required. Version of the document at the time of the comment.
+  string target_version = 3;
+
+  // Optional. When current comment is a reply to another comment,
+  // this must be the ID of the comment being replied to.
+  // Account and path of the parent comment must be the same as the current comment.
+  string reply_parent = 4;
+
+  // Required. Content of the comment.
+  repeated BlockNode content = 5;
+
+  // Required. Name of the key to use for signing the comment.
+  string signing_key_name = 6;
+
+  // Optional. ID of the capability that allows publishing comments for the target account and path.
+  // Anyone can create comments to anything, but having a capability to comment makes sure your comments are propagated along with the content.
+  string capability = 7;
+}
+
+// Request to get a comment.
+message GetCommentRequest {
+  // Required. ID of the comment to retrieve.
+  string id = 1;
+}
+
+// Request to list comments.
+message ListCommentsRequest {
+  // Required. Account ID to list the comments for.
+  string target_accout = 1;
+
+  // Required. Path within the account to list the comments for.
+  string target_path = 2;
+
+  // Optional. The maximum number of comments to return.
+  int32 page_size = 3;
+
+  // Optional. The page token obtained from a previous request (if any).
+  string page_token = 4;
+}
+
+// Response with a list of comments.
+message ListCommentsResponse {
+  // List of comments.
+  repeated Comment comments = 1;
+
+  // Token to retrieve the next page of comments (if necessary).
+  string next_page_token = 2;
+}
+
+// Comment is a unit of discussion.
+message Comment {
+  // ID of the current comment.
+  string id = 1;
+
+  // Account ID that this comment targets.
+  string target_account = 2;
+
+  // Path within the account this comment targets.
+  string target_path = 3;
+
+  // Version of the document this comment targets.
+  string target_version = 4;
+
+  // Optional. The ID of the top-level non-reply comment of the conversation thread.
+  string thread_root = 5;
+
+  // Optional. The ID of the comment to which this comment is a direct reply.
+  // For initial comments this field is empty.
+  string reply_parent = 6;
+
+  // Account ID of the author of the comment.
+  string author = 7;
+
+  // Content of the comment.
+  repeated BlockNode content = 8;
+
+  // Timestamp when the comment was created.
+  google.protobuf.Timestamp create_time = 9;
+
+  // Optional. ID of the capability this comment was created with, if any.
+  string capability = 10;
+}
