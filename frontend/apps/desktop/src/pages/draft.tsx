@@ -349,7 +349,7 @@ export function DraftHeader({
           url={cover ? getFileUrl(cover) : ''}
         />
       ) : null}
-      <Container>
+      <Container paddingTop={!showCover ? 60 : '$6'}>
         <YStack
           // marginTop={showCover ? -60 : 60}
           bg="$background"

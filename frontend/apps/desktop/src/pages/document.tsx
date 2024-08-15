@@ -205,7 +205,7 @@ function DocPageHeader({
   return (
     <YStack>
       <DocumentCover docId={docId} />
-      <Container>
+      <Container paddingTop={!hasCover ? 60 : '$6'}>
         <YStack
           // marginTop={hasCover ? -60 : 60}
           bg="$background"
