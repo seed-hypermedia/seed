@@ -70,13 +70,9 @@ const CapabilityInheritance: Readonly<CapabilityType[]> =
   // used to determine when one capability can be used in place of another. all owners are writers, for example
   ['owner', 'admin', 'writer']
 
-export function useMyCapability(
-  id: UnpackedHypermediaId,
-  capability: 'admin' | 'owner' | 'writer',
-): HMCapability | null {
+export function useMyCapability(id: UnpackedHypermediaId): HMCapability | null {
   const myAccounts = useMyAccountIds()
   const capabilities = useAllDocumentCapabilities(id)
-  // todo!
   if (myAccounts.data?.indexOf(id.uid) !== -1) {
     return {accountUid: id.uid, role: 'owner'}
   }

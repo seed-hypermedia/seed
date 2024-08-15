@@ -1,12 +1,9 @@
-import {DialogTitle, useAppDialog} from '@/components/dialog'
-import {FormInput} from '@/components/form-input'
-import {FormField} from '@/components/forms'
 import {ImportButton} from '@/components/import-doc-button'
+import {useMyCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useDraftList, useListDirectory} from '@/models/documents'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
-import {zodResolver} from '@hookform/resolvers/zod'
 import {
   formattedDate,
   formattedDateLong,
@@ -16,20 +13,10 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
-import {
-  Button,
-  DataTable,
-  Form,
-  SizableText,
-  Tooltip,
-  XStack,
-  YStack,
-} from '@shm/ui'
+import {Button, DataTable, SizableText, Tooltip, XStack, YStack} from '@shm/ui'
 import {Copy, FilePlus} from '@tamagui/lucide-icons'
 import {nanoid} from 'nanoid'
 import {useMemo} from 'react'
-import {SubmitHandler, useForm} from 'react-hook-form'
-import {z} from 'zod'
 import {Thumbnail} from './thumbnail'
 
 export function Directory({docId}: {docId: UnpackedHypermediaId}) {
@@ -142,11 +129,19 @@ export function Directory({docId}: {docId: UnpackedHypermediaId}) {
           ))}
         </DataTable.Body>
       </DataTable.Root>
-      <XStack paddingVertical="$4" gap="$3">
-        <NewSubDocumentButton parentDocId={docId} />
-        <ImportButton input={docId} />
-      </XStack>
+      <DocCreation id={docId} />
     </YStack>
+  )
+}
+
+function DocCreation({id}: {id: UnpackedHypermediaId}) {
+  const capability = useMyCapability(id)
+  if (!capability) return null
+  return (
+    <XStack paddingVertical="$4" gap="$3">
+      <NewSubDocumentButton parentDocId={id} />
+      <ImportButton input={id} />
+    </XStack>
   )
 }
 
@@ -253,67 +248,11 @@ function DirectoryItem({
   )
 }
 
-const newSubDocumentSchema = z.object({
-  name: z.string(),
-})
-type NewSubDocumentFields = z.infer<typeof newSubDocumentSchema>
-
-function NewDocumentDialog({
-  input,
-  onClose,
-}: {
-  input: UnpackedHypermediaId
-  onClose: () => void
-}) {
-  const navigate = useNavigate()
-  const onSubmit: SubmitHandler<NewSubDocumentFields> = (data) => {
-    const path = pathNameify(data.name)
-    onClose()
-    navigate({
-      key: 'draft',
-      id: {...input, path: [...(input.path || []), path]},
-      name: data.name,
-    })
-  }
-  const {
-    control,
-    handleSubmit,
-    setFocus,
-    formState: {errors},
-  } = useForm<NewSubDocumentFields>({
-    resolver: zodResolver(newSubDocumentSchema),
-    defaultValues: {
-      name: '',
-    },
-  })
-  return (
-    <>
-      <DialogTitle>New Document</DialogTitle>
-      {/* <DialogDescription>description</DialogDescription> */}
-      <Form onSubmit={handleSubmit(onSubmit)} gap="$4">
-        <FormField name="name" label="Title" errors={errors}>
-          <FormInput
-            control={control}
-            name="name"
-            placeholder="Document Title"
-          />
-        </FormField>
-        <XStack space="$3" justifyContent="flex-end">
-          <Form.Trigger asChild>
-            <Button>Create Document</Button>
-          </Form.Trigger>
-        </XStack>
-      </Form>
-    </>
-  )
-}
-
 function NewSubDocumentButton({
   parentDocId,
 }: {
   parentDocId: UnpackedHypermediaId
 }) {
-  const {open, content} = useAppDialog<UnpackedHypermediaId>(NewDocumentDialog)
   const navigate = useNavigate('push')
   return (
     <>
@@ -334,7 +273,6 @@ function NewSubDocumentButton({
       >
         Create Document
       </Button>
-      {content}
     </>
   )
 }
