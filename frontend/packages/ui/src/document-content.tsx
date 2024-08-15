@@ -255,7 +255,7 @@ export function DocContent({
   maxBlockCount?: number;
   marginVertical?: any;
 }) {
-  const {wrapper, bubble, coords, state, send} = useRangeSelection();
+  const {wrapper, bubble, coords, state} = useRangeSelection();
 
   const {layoutUnit, onCopyBlock, onBlockComment} = useDocContentContext();
   const allBlocks = document?.content || [];

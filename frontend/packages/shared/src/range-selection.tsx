@@ -56,7 +56,16 @@ export function useRangeSelection() {
     }
 
     function handleSelectionChange(e: any) {
-      actor.send({type: 'SELECT'})
+      if (wrapper.current) {
+        const selection = window.getSelection()
+        if (
+          selection &&
+          wrapper.current.contains(selection.anchorNode) &&
+          wrapper.current.contains(selection.focusNode)
+        ) {
+          actor.send({type: 'SELECT'})
+        }
+      }
     }
 
     function handleMouseDown(mouseDown: boolean) {

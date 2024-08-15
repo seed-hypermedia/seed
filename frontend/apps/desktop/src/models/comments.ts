@@ -270,6 +270,24 @@ export function useCommentEditor(
     }
   }, [inlineMentionsData])
 
+  useEffect(() => {
+    function handleSelectAll(event: KeyboardEvent) {
+      if (event.key == 'a' && event.metaKey) {
+        if (editor) {
+          event.preventDefault()
+          editor._tiptapEditor.commands.focus()
+          editor._tiptapEditor.commands.selectAll()
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleSelectAll)
+
+    return () => {
+      window.removeEventListener('keydown', handleSelectAll)
+    }
+  }, [])
+
   const draftQuery = trpc.comments.getCommentDraft.useQuery(
     {
       targetDocId: targetDocId.id,
