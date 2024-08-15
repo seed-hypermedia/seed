@@ -130,6 +130,19 @@ export function useCommentReplies(
   }, [comments.data, targetCommentId])
 }
 
+export function useCommentDraft(
+  targetDocId: UnpackedHypermediaId,
+  opts?: Parameters<typeof trpc.comments.getCommentDraft.useQuery>[1],
+) {
+  const comment = trpc.comments.getCommentDraft.useQuery(
+    {
+      targetDocId: targetDocId.id,
+    },
+    opts,
+  )
+  return comment
+}
+
 export function useComment(
   id: UnpackedHypermediaId | null | undefined,
   opts?: UseQueryOptions<HMComment>,
@@ -177,6 +190,7 @@ export function useDocumentCommentGroups(
 export function useCommentEditor(
   targetDocId: UnpackedHypermediaId,
   accounts: HMEntityContent[],
+  {onDiscardDraft}: {onDiscardDraft?: () => void} = {},
 ) {
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
   const showNostr = trpc.experiments.get.useQuery().data?.nostr
@@ -186,7 +200,13 @@ export function useCommentEditor(
       toast.error(err.message)
     },
   })
-  const removeDraft = trpc.comments.removeCommentDraft.useMutation({})
+  const invalidate = useQueryInvalidator()
+  const removeDraft = trpc.comments.removeCommentDraft.useMutation({
+    onSuccess: () => {
+      invalidate(['trpc.comments.getCommentDraft'])
+      onDiscardDraft?.()
+    },
+  })
   const openUrl = useOpenUrl()
   const [setIsSaved, isSaved] = writeableStateStream<boolean>(true)
   const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>()
@@ -209,6 +229,9 @@ export function useCommentEditor(
       editor,
       editor.topLevelBlocks,
     )
+    console.log('blocks', blocks)
+    console.log('targetDocId.id', targetDocId.id)
+    console.log('account.get()!', account.get()!)
     await write.mutateAsync({
       blocks,
       targetDocId: targetDocId.id,
@@ -295,13 +318,14 @@ export function useCommentEditor(
     {
       onError: (err) =>
         appError(`Could not load comment draft: ${err.message}`),
-      onSuccess: (draft) => {
+      onSuccess: (draft: HMCommentDraft | null) => {
         if (initCommentDraft.current) return
         if (draft) {
           initCommentDraft.current = draft
           setAccountStream(draft.account)
         } else {
           const account: string = accounts[0]!.id.uid
+          console.log('asdfgggg', account)
           initCommentDraft.current = {
             account,
             blocks: [],
@@ -316,11 +340,12 @@ export function useCommentEditor(
     draftQuery.data,
   )
   const accountRef = useRef(
-    writeableStateStream<string | null>(draftQuery.data?.account || null),
+    writeableStateStream<string | null>(
+      draftQuery.data?.account || accounts[0]?.id.uid || null,
+    ),
   )
   const [setAccountStream, account] = accountRef.current
 
-  const invalidate = useQueryInvalidator()
   const publishComment = useMutation({
     mutationFn: async ({
       content,
@@ -382,11 +407,9 @@ export function useCommentEditor(
     }
     function onDiscard() {
       if (!targetDocId.id) throw new Error('no comment targetDocId.id')
-      removeDraft
-        .mutateAsync({
-          targetDocId: targetDocId.id,
-        })
-        .then(() => {})
+      removeDraft.mutate({
+        targetDocId: targetDocId.id,
+      })
     }
 
     function onSetAccount(accountId: string) {

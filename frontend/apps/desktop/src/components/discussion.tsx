@@ -1,4 +1,4 @@
-import {useCommentEditor} from '@/models/comments'
+import {useCommentDraft, useCommentEditor} from '@/models/comments'
 import {useMyAccounts} from '@/models/daemon'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {
@@ -12,6 +12,7 @@ import {
   ReplyArrow,
   SelectDropdown,
   SizableText,
+  Text,
   Tooltip,
   UIAvatar,
   useStream,
@@ -19,7 +20,8 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {ChevronRight, Trash} from '@tamagui/lucide-icons'
+import {ChevronRight, MessageSquare, Trash} from '@tamagui/lucide-icons'
+import {useEffect, useState} from 'react'
 import {HyperMediaEditorView} from './editor'
 import {Thumbnail} from './thumbnail'
 
@@ -77,68 +79,116 @@ export function Discussion({docId}: {docId: UnpackedHypermediaId}) {
 function CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
   const myAccountsQuery = useMyAccounts()
   const accounts = myAccountsQuery.map((query) => query.data).filter((a) => !!a)
+  const draft = useCommentDraft(docId)
+  let content = null
+  let onPress = undefined
+  const [isStartingComment, setIsStartingComment] = useState(false)
   if (!accounts?.length) return null
-  return <CommentDraftEditor docId={docId} accounts={accounts} />
-}
-
-function CommentDraftEditor({
-  docId,
-  accounts,
-}: {
-  docId: UnpackedHypermediaId
-  accounts: HMEntityContent[]
-}) {
-  const {editor, onSubmit, onDiscard, isSaved, account, onSetAccount} =
-    useCommentEditor(docId, accounts)
+  if (draft.data || isStartingComment) {
+    content = (
+      <CommentDraftEditor
+        docId={docId}
+        accounts={accounts}
+        autoFocus={isStartingComment}
+        onDiscardDraft={() => {
+          setIsStartingComment(false)
+        }}
+      />
+    )
+  } else {
+    content = (
+      <XStack marginTop={30} marginBottom={22} gap="$3" marginHorizontal="$5">
+        <MessageSquare color="$color10" />
+        <Text color="$color10" fontStyle="italic" fontSize={16}>
+          Start a Discussion...
+        </Text>
+      </XStack>
+    )
+    onPress = () => {
+      setIsStartingComment(true)
+    }
+  }
   return (
     <XStack
       borderRadius="$4"
       borderWidth={2}
       borderColor="$color8"
-      minHeight={80}
+      // minHeight={80}
       paddingBottom="$2"
-      paddingLeft="$10"
+      onPress={onPress}
     >
-      <YStack
-        f={1}
-        onPress={(e: MouseEvent) => {
-          e.stopPropagation()
-          editor._tiptapEditor.commands.focus()
-        }}
-      >
-        <AppDocContentProvider disableEmbedClick>
-          <HyperMediaEditorView editor={editor} editable />
-        </AppDocContentProvider>
-        <XStack jc="flex-end" gap="$1" ai="center" paddingVertical="$2">
-          <AutosaveIndicator isSaved={isSaved} />
-          <SelectAccountDropdown
-            accounts={accounts}
-            account={account}
-            onSetAccount={onSetAccount}
-          />
-          <Button
-            size="$2"
-            bg="$blue8"
-            borderColor="$blue8"
-            color="$color1"
-            hoverStyle={{bg: '$blue9', borderColor: '$blue9'}}
-            onPress={onSubmit}
-            disabled={!isSaved}
-          >
-            Publish
-          </Button>
-          <Tooltip content="Discard Comment Draft">
-            <Button
-              marginLeft="$2"
-              size="$2"
-              onPress={onDiscard}
-              theme="red"
-              icon={Trash}
-            />
-          </Tooltip>
-        </XStack>
-      </YStack>
+      {content}
     </XStack>
+  )
+}
+
+function CommentDraftEditor({
+  docId,
+  accounts,
+  onDiscardDraft,
+  autoFocus,
+}: {
+  docId: UnpackedHypermediaId
+  accounts: HMEntityContent[]
+  onDiscardDraft?: () => void
+  autoFocus?: boolean
+}) {
+  const {editor, onSubmit, onDiscard, isSaved, account, onSetAccount} =
+    useCommentEditor(docId, accounts, {
+      onDiscardDraft,
+    })
+  useEffect(() => {
+    if (autoFocus) editor._tiptapEditor.commands.focus()
+  }, [autoFocus, editor])
+  return (
+    <YStack
+      f={1}
+      marginTop="$3"
+      paddingLeft="$10"
+      onPress={(e: MouseEvent) => {
+        e.stopPropagation()
+        editor._tiptapEditor.commands.focus()
+      }}
+    >
+      <AppDocContentProvider disableEmbedClick>
+        <HyperMediaEditorView editor={editor} editable />
+      </AppDocContentProvider>
+      <XStack
+        jc="flex-end"
+        gap="$2"
+        ai="center"
+        paddingVertical="$2"
+        marginHorizontal="$4"
+        marginTop="$4"
+      >
+        <AutosaveIndicator isSaved={isSaved} />
+        <SelectAccountDropdown
+          accounts={accounts}
+          account={account}
+          onSetAccount={onSetAccount}
+        />
+        <Button
+          size="$2"
+          bg="$blue8"
+          borderColor="$blue8"
+          color="$color1"
+          hoverStyle={{bg: '$blue9', borderColor: '$blue9'}}
+          onPress={onSubmit}
+          disabled={!isSaved}
+        >
+          Publish
+        </Button>
+        <Tooltip content="Discard Comment Draft">
+          <Button
+            marginLeft="$2"
+            size="$2"
+            onPress={onDiscard}
+            theme="red"
+            icon={Trash}
+          />
+        </Tooltip>
+      </XStack>
+    </YStack>
   )
 }
 
