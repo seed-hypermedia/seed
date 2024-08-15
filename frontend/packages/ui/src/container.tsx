@@ -21,13 +21,7 @@ export function PageContainer({
 }: ComponentProps<typeof YStack>) {
   return (
     <XStack jc="center" f={1}>
-      <YStack
-        f={1}
-        paddingHorizontal="$4"
-        maxWidth="100ch"
-        alignSelf="center"
-        {...props}
-      >
+      <YStack f={1} paddingHorizontal="$4" alignSelf="center" {...props}>
         {children}
       </YStack>
     </XStack>
@@ -60,13 +54,10 @@ export const ContainerDefault = styled(YStack, {
 export const ContainerLarge = styled(YStack, {
   marginHorizontal: "auto",
   paddingHorizontal: "$4",
-  paddingVertical: "$6",
+  paddingTop: "$6",
   width: "100%",
-  maxWidth: 760,
+  maxWidth: "calc(85ch + 1em)",
   flexShrink: "unset",
-  $gtLg: {
-    maxWidth: 940,
-  },
   variants,
 });
 

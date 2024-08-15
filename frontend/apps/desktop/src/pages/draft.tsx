@@ -1,6 +1,6 @@
 import {AvatarForm} from '@/components/avatar-form'
 import {CoverImage} from '@/components/cover-image'
-import {HMEditorContainer, HyperMediaEditorView} from '@/components/editor'
+import {HyperMediaEditorView} from '@/components/editor'
 import Footer from '@/components/footer'
 import {MainWrapper} from '@/components/main-wrapper'
 import {BlockNoteEditor, getBlockInfoFromPos} from '@/editor'
@@ -26,6 +26,7 @@ import {
 } from '@shm/shared'
 import {
   Button,
+  Container,
   copyUrlToClipboardWithFeedback,
   Input,
   Separator,
@@ -85,19 +86,25 @@ export default function DraftPage() {
             importWebFile={importWebFile}
             docId={route.id}
           >
-            <YStack marginLeft="$4" paddingHorizontal="$3">
-              <DraftHeader
-                draftActor={data.actor}
-                onEnter={() => {}}
-                disabled={!data.state.matches('ready')}
-              />
-
-              <HMEditorContainer>
-                {data.editor ? (
-                  <HyperMediaEditorView editable={true} editor={data.editor} />
-                ) : null}
-              </HMEditorContainer>
-            </YStack>
+            <DraftHeader
+              draftActor={data.actor}
+              onEnter={() => {}}
+              disabled={!data.state.matches('ready')}
+            />
+            <Container
+              paddingLeft="$10"
+              $gtSm={{
+                paddingLeft: '$4',
+              }}
+              onPress={(e: MouseEvent) => {
+                e.stopPropagation()
+                data.editor?._tiptapEditor.commands.focus()
+              }}
+            >
+              {data.editor ? (
+                <HyperMediaEditorView editable={true} editor={data.editor} />
+              ) : null}
+            </Container>
           </AppDocContentProvider>
         </MainWrapper>
         <Footer />
@@ -342,95 +349,99 @@ export function DraftHeader({
           url={cover ? getFileUrl(cover) : ''}
         />
       ) : null}
-      <YStack
-        id="editor-header-content"
-        marginTop={showCover ? -60 : 60}
-        bg="$background"
-        borderRadius="$2"
-        group="header"
-        gap="$2"
-      >
-        {showThumbnail ? (
-          <AvatarForm
-            size={100}
-            id={route.id ? route.id.uid : 'document-avatar'}
-            label={name}
-            url={thumbnail ? getFileUrl(thumbnail) : ''}
-            marginTop={cover ? -50 : 0}
-            onAvatarUpload={(thumbnail) => {
-              if (thumbnail) {
-                draftActor.send({
-                  type: 'CHANGE',
-                  thumbnail: `ipfs://${thumbnail}`,
-                })
+      <Container>
+        <YStack
+          // marginTop={showCover ? -60 : 60}
+          bg="$background"
+          borderRadius="$2"
+          group="header"
+          gap="$2"
+        >
+          {showThumbnail ? (
+            <AvatarForm
+              size={100}
+              id={route.id ? route.id.uid : 'document-avatar'}
+              label={name}
+              url={thumbnail ? getFileUrl(thumbnail) : ''}
+              marginTop={showCover ? -80 : 0}
+              onAvatarUpload={(thumbnail) => {
+                if (thumbnail) {
+                  draftActor.send({
+                    type: 'CHANGE',
+                    thumbnail: `ipfs://${thumbnail}`,
+                  })
+                }
+              }}
+            />
+          ) : null}
+          <Input
+            disabled={disabled}
+            // we use multiline so that we can avoid horizontal scrolling for long titles
+            multiline
+            ref={input}
+            onKeyPress={(e: any) => {
+              if (e.nativeEvent.key == 'Enter') {
+                e.preventDefault()
+                onEnter()
               }
             }}
+            size="$9"
+            borderRadius="$1"
+            borderWidth={0}
+            overflow="hidden" // trying to hide extra content that flashes when pasting multi-line text into the title
+            flex={1}
+            backgroundColor="$color2"
+            fontWeight="bold"
+            fontFamily="$body"
+            onChange={(e: any) => {
+              applyTitleResize(e.target as HTMLTextAreaElement)
+            }}
+            outlineColor="transparent"
+            borderColor="transparent"
+            paddingLeft={9.6}
+            defaultValue={name?.trim() || ''} // this is still a controlled input because of the value comparison in useLayoutEffect
+            // value={title}
+            onChangeText={(name: string) => {
+              // TODO: change title here
+              draftActor.send({type: 'CHANGE', name})
+            }}
+            placeholder="Untitled Document"
+            {...headingTextStyles}
+            padding={0}
           />
-        ) : null}
-        <Input
-          disabled={disabled}
-          // we use multiline so that we can avoid horizontal scrolling for long titles
-          multiline
-          ref={input}
-          onKeyPress={(e: any) => {
-            if (e.nativeEvent.key == 'Enter') {
-              e.preventDefault()
-              onEnter()
-            }
-          }}
-          size="$9"
-          borderRadius="$1"
-          borderWidth={0}
-          overflow="hidden" // trying to hide extra content that flashes when pasting multi-line text into the title
-          flex={1}
-          backgroundColor="$color2"
-          fontWeight="bold"
-          fontFamily="$body"
-          onChange={(e: any) => {
-            applyTitleResize(e.target as HTMLTextAreaElement)
-          }}
-          outlineColor="transparent"
-          borderColor="transparent"
-          paddingLeft={9.6}
-          defaultValue={name?.trim() || ''} // this is still a controlled input because of the value comparison in useLayoutEffect
-          // value={title}
-          onChangeText={(name: string) => {
-            // TODO: change title here
-            draftActor.send({type: 'CHANGE', name})
-          }}
-          placeholder="Untitled Document"
-          {...headingTextStyles}
-          padding={0}
-        />
-        <XStack marginTop="$4" gap="$3">
-          {route.id?.path?.length ? (
-            <PathDraft draftActor={draftActor} />
+          {route.id?.path?.length || !showThumbnail || !showCover ? (
+            <XStack marginTop="$4" gap="$3">
+              {route.id?.path?.length ? (
+                <PathDraft draftActor={draftActor} />
+              ) : null}
+              {!showThumbnail ? (
+                <Button
+                  icon={Smile}
+                  size="$2"
+                  chromeless
+                  hoverStyle={{bg: '$color5'}}
+                  onPress={() => setShowThumbnail(true)}
+                >
+                  Add Thumbnail
+                </Button>
+              ) : null}
+              {!showCover ? (
+                <Button
+                  hoverStyle={{bg: '$color5'}}
+                  icon={Image}
+                  size="$2"
+                  chromeless
+                  onPress={() => setShowCover(true)}
+                >
+                  Add Cover
+                </Button>
+              ) : null}
+            </XStack>
           ) : null}
-          {!showThumbnail ? (
-            <Button
-              icon={Smile}
-              size="$2"
-              chromeless
-              hoverStyle={{bg: '$color5'}}
-              onPress={() => setShowThumbnail(true)}
-            >
-              Add Thumbnail
-            </Button>
-          ) : null}
-          {!showCover ? (
-            <Button
-              hoverStyle={{bg: '$color5'}}
-              icon={Image}
-              size="$2"
-              chromeless
-              onPress={() => setShowCover(true)}
-            >
-              Add Cover
-            </Button>
-          ) : null}
-        </XStack>
-        <Separator borderColor="$color8" />
-      </YStack>
+
+          <Separator borderColor="$color8" />
+        </YStack>
+      </Container>
     </YStack>
   )
 }
@@ -520,10 +531,7 @@ function PathDraft({
       draft: newContent,
     })
 
-    console.log('== NEW DRAFT', newDraft)
     await deleteDraft.mutateAsync(packHmId(route.id))
-    console.log('== DRAFT DELETED', packHmId(route.id))
-    console.log('=== REPLACE ROUTE', newId)
     replaceRoute({...route, id: newId})
     setEditing(false)
   }

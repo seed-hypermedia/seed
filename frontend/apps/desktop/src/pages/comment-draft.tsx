@@ -21,7 +21,7 @@ import {XStack} from 'tamagui'
 
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {HMEditorContainer, HyperMediaEditorView} from 'src/components/editor'
+import {HyperMediaEditorView} from 'src/components/editor'
 import './comment-draft.css'
 import {AppDocContentProvider} from './document-content-provider'
 
@@ -278,14 +278,13 @@ export default function CommentDraftPage() {
           <YStack
             f={1}
             className="comment-draft"
-            onPress={() => {
+            onPress={(e: MouseEvent) => {
+              e.stopPropagation()
               editor._tiptapEditor.commands.focus()
             }}
           >
             <AppDocContentProvider disableEmbedClick>
-              <HMEditorContainer>
-                <HyperMediaEditorView editor={editor} editable />
-              </HMEditorContainer>
+              <HyperMediaEditorView editor={editor} editable />
             </AppDocContentProvider>
           </YStack>
         </YStack>

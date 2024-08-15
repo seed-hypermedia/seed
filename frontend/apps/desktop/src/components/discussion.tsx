@@ -20,7 +20,7 @@ import {
   YStack,
 } from '@shm/ui'
 import {ChevronRight, Trash} from '@tamagui/lucide-icons'
-import {HMEditorContainer, HyperMediaEditorView} from './editor'
+import {HyperMediaEditorView} from './editor'
 import {Thumbnail} from './thumbnail'
 
 export function Discussion({docId}: {docId: UnpackedHypermediaId}) {
@@ -92,7 +92,6 @@ function CommentDraftEditor({
     useCommentEditor(docId, accounts)
   return (
     <XStack
-      padding="$4"
       borderRadius="$4"
       borderWidth={2}
       borderColor="$color8"
@@ -100,14 +99,13 @@ function CommentDraftEditor({
     >
       <YStack
         f={1}
-        onPress={() => {
+        onPress={(e: MouseEvent) => {
+          e.stopPropagation()
           editor._tiptapEditor.commands.focus()
         }}
       >
         <AppDocContentProvider disableEmbedClick>
-          <HMEditorContainer>
-            <HyperMediaEditorView editor={editor} editable />
-          </HMEditorContainer>
+          <HyperMediaEditorView editor={editor} editable />
         </AppDocContentProvider>
         <XStack jc="flex-end" gap="$3" ai="center">
           <AutosaveIndicator isSaved={isSaved} />

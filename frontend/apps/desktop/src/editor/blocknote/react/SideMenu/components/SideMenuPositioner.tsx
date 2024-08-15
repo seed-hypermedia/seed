@@ -46,10 +46,16 @@ export const SideMenuPositioner = <
   }, [props.editor])
 
   useEffect(() => {
-    scrollEvents.subscribe(() => {
+    scrollEvents.subscribe(handleHide)
+    window.addEventListener('resize', handleHide)
+    return () => {
+      window.removeEventListener('resize', handleHide)
+    }
+
+    function handleHide() {
       props.editor.sideMenu.unfreezeMenu()
       setShow(false)
-    })
+    }
   }, [])
 
   const getReferenceClientRect = useMemo(

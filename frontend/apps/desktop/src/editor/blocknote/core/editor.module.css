@@ -2,7 +2,7 @@
 
 .bnEditor {
   outline: none;
-  padding-inline: 54px;
+  /* padding-inline: 54px; */
 
   /* Define a set of colors to be used throughout the app for consistency
   see https://atlassian.design/foundations/color for more info */

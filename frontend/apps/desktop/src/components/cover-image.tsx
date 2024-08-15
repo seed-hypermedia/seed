@@ -54,15 +54,12 @@ export function CoverImage({
   if (!onCoverUpload) return coverImage
   return (
     <Stack group="cover">
-      <Container p={0}>
+      <Container clearVerticalSpace>
         <XStack
           opacity={0}
           jc="end"
-          paddingHorizontal={34}
-          $gtMd={{
-            paddingHorizontal: 54,
-          }}
-          paddingVertical={20}
+          paddingHorizontal="$4"
+          paddingTop="$6"
           position="absolute"
           top={0}
           left={0}

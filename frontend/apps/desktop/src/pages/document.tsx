@@ -31,10 +31,10 @@ import {
   CitationsIcon,
   CollaboratorsIcon,
   CommentsIcon,
+  Container,
   DocContent,
   H1,
   HistoryIcon,
-  Section,
   SizableText,
   Spinner,
   SuggestedChangesIcon,
@@ -43,7 +43,6 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {PageContainer} from '@shm/ui/src/container'
 import {RadioButtons} from '@shm/ui/src/radio-buttons'
 import {Link, Trash} from '@tamagui/lucide-icons'
 import React, {ReactNode, useMemo} from 'react'
@@ -206,97 +205,98 @@ function DocPageHeader({
   return (
     <YStack>
       <DocumentCover docId={docId} />
-      <YStack
-        id="editor-header-content"
-        marginTop={hasCover ? -60 : 60}
-        bg="$background"
-        borderRadius="$2"
-        group="header"
-        gap="$4"
-      >
-        {hasThumbnail ? (
-          <XStack marginTop={hasCover ? -50 : 0}>
-            <AvatarForm
-              size={100}
-              id={docId.uid || 'document-thumbnail'}
-              label={entity.data?.document?.metadata.name}
-              url={getFileUrl(entity.data!.document!.metadata.thumbnail)}
-            />
-          </XStack>
-        ) : null}
-        <XStack>
-          <H1 size="$9" f={1} style={{fontWeight: 'bold'}}>
-            {accountName}
-          </H1>
-          <XStack gap="$2">
-            {isMyAccount ? (
-              <DeleteKey accountId={docId.id} />
-            ) : (
-              <FavoriteButton id={docId} />
-            )}
-            <CopyReferenceButton
-              docId={docId}
-              isBlockFocused={isBlockFocused}
-            />
-          </XStack>
-        </XStack>
-
-        <XStack marginTop="$4" gap="$3" ai="center">
-          {entity.data?.document?.path.length || authors?.length !== 1 ? (
-            <>
-              <XStack ai="center" gap={0}>
-                {authors
-                  ?.map((a, index) => [
-                    <LinkNameComponent key={a} accountId={a} />,
-                    index !== authors.length - 1 ? (
-                      index === authors.length - 2 ? (
-                        <SizableText size="$1" fontWeight={'bold'}>
-                          {' & '}
-                        </SizableText>
-                      ) : (
-                        <SizableText fontWeight={'bold'}>{', '}</SizableText>
-                      )
-                    ) : null,
-                  ])
-                  .filter(Boolean)}
-              </XStack>
-              <Separator />
-            </>
-          ) : null}
-          <Tooltip
-            content={`Update time: ${formattedDateLong(
-              entity.data?.document?.updateTime,
-            )}`}
-          >
-            <SizableText size="$1">
-              {formattedDateMedium(entity.data?.document?.updateTime)}
-            </SizableText>
-          </Tooltip>
-          {entity.data?.document?.metadata.siteUrl ? (
-            <>
-              <Separator />
-              <SiteURLButton
-                siteUrl={entity.data?.document?.metadata.siteUrl}
+      <Container>
+        <YStack
+          // marginTop={hasCover ? -60 : 60}
+          bg="$background"
+          borderRadius="$2"
+          group="header"
+          gap="$4"
+        >
+          {hasThumbnail ? (
+            <XStack marginTop={hasCover ? -80 : 0}>
+              <AvatarForm
+                size={100}
+                id={docId.uid || 'document-thumbnail'}
+                label={entity.data?.document?.metadata.name}
+                url={getFileUrl(entity.data!.document!.metadata.thumbnail)}
               />
-            </>
+            </XStack>
           ) : null}
-          <Separator />
-          <Button
-            borderColor="$colorTransparent"
-            outlineColor="$colorTransparent"
-            hoverStyle={{
-              borderColor: '$colorTransparent',
-              background: '$blue7',
-            }}
-            color="$blue11"
-            size="$1"
-            icon={Link}
-          >
-            Share
-          </Button>
-        </XStack>
-        <TSeparator borderColor="$color8" />
-      </YStack>
+          <XStack>
+            <H1 size="$9" f={1} style={{fontWeight: 'bold'}}>
+              {accountName}
+            </H1>
+            <XStack gap="$2">
+              {isMyAccount ? (
+                <DeleteKey accountId={docId.id} />
+              ) : (
+                <FavoriteButton id={docId} />
+              )}
+              <CopyReferenceButton
+                docId={docId}
+                isBlockFocused={isBlockFocused}
+              />
+            </XStack>
+          </XStack>
+
+          <XStack marginTop="$4" gap="$3" ai="center">
+            {entity.data?.document?.path.length || authors?.length !== 1 ? (
+              <>
+                <XStack ai="center" gap={0}>
+                  {authors
+                    ?.map((a, index) => [
+                      <LinkNameComponent key={a} accountId={a} />,
+                      index !== authors.length - 1 ? (
+                        index === authors.length - 2 ? (
+                          <SizableText size="$1" fontWeight={'bold'}>
+                            {' & '}
+                          </SizableText>
+                        ) : (
+                          <SizableText fontWeight={'bold'}>{', '}</SizableText>
+                        )
+                      ) : null,
+                    ])
+                    .filter(Boolean)}
+                </XStack>
+                <Separator />
+              </>
+            ) : null}
+            <Tooltip
+              content={`Update time: ${formattedDateLong(
+                entity.data?.document?.updateTime,
+              )}`}
+            >
+              <SizableText size="$1" hoverStyle={{cursor: 'default'}}>
+                {formattedDateMedium(entity.data?.document?.updateTime)}
+              </SizableText>
+            </Tooltip>
+            {entity.data?.document?.metadata.siteUrl ? (
+              <>
+                <Separator />
+                <SiteURLButton
+                  siteUrl={entity.data?.document?.metadata.siteUrl}
+                />
+              </>
+            ) : null}
+            <Separator />
+            <Button
+              borderColor="$colorTransparent"
+              outlineColor="$colorTransparent"
+              hoverStyle={{
+                borderColor: '$colorTransparent',
+                background: '$blue7',
+              }}
+              color="$blue11"
+              size="$1"
+              icon={Link}
+            >
+              Share
+            </Button>
+          </XStack>
+          <TSeparator borderColor="$color8" />
+        </YStack>
+      </Container>
     </YStack>
   )
 }
@@ -370,20 +370,18 @@ function DocPageContent({
   if (!entity.data?.document) return null
   const blockId = docId.blockRef
   return (
-    <PageContainer>
-      <Section>
-        <AppDocContentProvider
-          routeParams={{blockRef: blockId || undefined}}
-          docId={docId}
-          isBlockFocused={isBlockFocused}
-        >
-          <DocContent
-            document={entity.data?.document}
-            focusBlockId={isBlockFocused ? blockId || undefined : undefined}
-          />
-        </AppDocContentProvider>
-      </Section>
-    </PageContainer>
+    <Container clearVerticalSpace padding={0}>
+      <AppDocContentProvider
+        routeParams={{blockRef: blockId || undefined}}
+        docId={docId}
+        isBlockFocused={isBlockFocused}
+      >
+        <DocContent
+          document={entity.data?.document}
+          focusBlockId={isBlockFocused ? blockId || undefined : undefined}
+        />
+      </AppDocContentProvider>
+    </Container>
   )
 }
 
@@ -398,7 +396,7 @@ function DocPageAppendix({docId}: {docId: UnpackedHypermediaId}) {
     content = <Discussion docId={docId} />
   }
   return (
-    <PageContainer>
+    <Container>
       <XStack>
         <RadioButtons
           value={route.tab || 'directory'}
@@ -414,6 +412,6 @@ function DocPageAppendix({docId}: {docId: UnpackedHypermediaId}) {
         />
       </XStack>
       {content}
-    </PageContainer>
+    </Container>
   )
 }

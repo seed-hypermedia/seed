@@ -12,7 +12,6 @@ import {HMFormattingToolbar} from '@/editor/hm-formatting-toolbar'
 import {HypermediaLinkToolbar} from '@/editor/hyperlink-toolbar'
 import {HyperDocsEditor} from '@/models/documents'
 import {useOpenUrl} from '@/open-url'
-import {YStack} from '@shm/ui'
 
 export function HyperMediaEditorView({
   editor,
@@ -36,18 +35,5 @@ export function HyperMediaEditorView({
       <SideMenuPositioner editor={editor} placement="left" />
       <LinkMenuPositioner editor={editor} />
     </BlockNoteView>
-  )
-}
-
-export function HMEditorContainer({children}: {children: React.ReactNode}) {
-  return (
-    <YStack
-      className="editor"
-      onPress={(e: MouseEvent) => {
-        e.stopPropagation()
-      }}
-    >
-      {children}
-    </YStack>
   )
 }

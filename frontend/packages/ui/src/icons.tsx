@@ -308,7 +308,14 @@ export function CommentsIcon({
   );
 }
 
-export function ReplyArrow({color = DefaultIconColor, size = "1em", ...props}) {
+export function ReplyArrow({
+  color = DefaultIconColor,
+  size = "1em",
+  ...props
+}: {
+  color: string;
+  size?: string | number;
+}) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
