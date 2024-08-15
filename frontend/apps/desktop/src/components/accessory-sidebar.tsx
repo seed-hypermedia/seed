@@ -1,3 +1,4 @@
+import {dispatchScroll} from '@/editor/editor-on-scroll-stream'
 import {ScrollView, SizableText, Tooltip, XStack, YStack} from '@shm/ui'
 import {ComponentProps} from 'react'
 import {Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
@@ -70,7 +71,13 @@ export function AccessoryLayout<
       <PanelGroup direction="horizontal">
         <Panel
           minSize={50}
-          style={{overflowY: 'scroll', borderRight: '1px solid var(--color7)'}}
+          style={{
+            overflowY: 'scroll',
+            borderRight: '1px solid var(--color7)',
+          }}
+          onScroll={() => {
+            dispatchScroll(true)
+          }}
         >
           {children}
         </Panel>

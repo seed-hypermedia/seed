@@ -1,3 +1,4 @@
+import {dispatchScroll} from '@/editor/editor-on-scroll-stream'
 import {ScrollView, View, XStack, YStackProps, useStream} from '@shm/ui'
 import {SidebarWidth, useSidebarContext} from '../sidebar-context'
 
@@ -14,7 +15,15 @@ export function MainWrapper({children, ...props}: YStackProps & {}) {
       <SidebarSpacer />
       {/* TODO: we cannot remove this ID here because the SlashMenu is referencing
       this! */}
-      <ScrollView id="scroll-page-wrapper">{children}</ScrollView>
+      <ScrollView
+        id="scroll-page-wrapper"
+        scrollEventThrottle={1000}
+        onScroll={() => {
+          dispatchScroll('scroll')
+        }}
+      >
+        {children}
+      </ScrollView>
     </XStack>
   )
 }
@@ -24,7 +33,15 @@ export function MainWrapperStandalone({children, ...props}: YStackProps & {}) {
     <XStack flex={1} {...props}>
       {/* TODO: we cannot remove this ID here because the SlashMenu is referencing
       this! */}
-      <ScrollView id="scroll-page-wrapper">{children}</ScrollView>
+      <ScrollView
+        id="scroll-page-wrapper"
+        scrollEventThrottle={1000}
+        onScroll={() => {
+          dispatchScroll('scroll')
+        }}
+      >
+        {children}
+      </ScrollView>
     </XStack>
   )
 }

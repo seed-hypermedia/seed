@@ -5,6 +5,7 @@ import {
   DefaultBlockSchema,
   SideMenuProsemirrorPlugin,
 } from '@/editor/blocknote/core'
+import {scrollEvents} from '@/editor/editor-on-scroll-stream'
 import Tippy from '@tippyjs/react'
 import {FC, useEffect, useMemo, useRef, useState} from 'react'
 import {DefaultSideMenu} from './DefaultSideMenu'
@@ -35,7 +36,6 @@ export const SideMenuPositioner = <
   const [block, setBlock] = useState<Block<BSchema>>()
   const referencePos = useRef<DOMRect>()
   const [lh, setLh] = useState('')
-
   useEffect(() => {
     return props.editor.sideMenu.onUpdate((sideMenuState) => {
       setShow(sideMenuState.show)
@@ -44,6 +44,13 @@ export const SideMenuPositioner = <
       setLh(sideMenuState.lineHeight)
     })
   }, [props.editor])
+
+  useEffect(() => {
+    scrollEvents.subscribe(() => {
+      props.editor.sideMenu.unfreezeMenu()
+      setShow(false)
+    })
+  }, [])
 
   const getReferenceClientRect = useMemo(
     () => {
@@ -100,7 +107,7 @@ export const SideMenuPositioner = <
       interactive={true}
       visible={show}
       animation={'fade'}
-      offset={[topOffset, 32]}
+      offset={[topOffset, 8]}
       placement={props.placement}
       popperOptions={popperOptions}
     />

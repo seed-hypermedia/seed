@@ -151,7 +151,7 @@ function CommentDraft({
   const draft = useCommentDraft(draftId)
 
   return (
-    <XStack>
+    <XStack f={1}>
       {/* <SizableText>comment draft here</SizableText> */}
       <YStack
         f={1}
