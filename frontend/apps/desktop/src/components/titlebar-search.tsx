@@ -58,6 +58,7 @@ export function TitlebarSearch() {
       <Button
         chromeless
         size="$2"
+        className="no-window-drag"
         icon={Search}
         hoverStyle={{
           cursor: 'text !important',
