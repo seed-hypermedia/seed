@@ -127,11 +127,13 @@ export function useCommentReplies(
 
 export function useCommentDraft(
   targetDocId: UnpackedHypermediaId,
+  replyCommentId: string | undefined,
   opts?: Parameters<typeof trpc.comments.getCommentDraft.useQuery>[1],
 ) {
   const comment = trpc.comments.getCommentDraft.useQuery(
     {
       targetDocId: targetDocId.id,
+      replyCommentId,
     },
     opts,
   )
@@ -259,7 +261,10 @@ export function useDocumentCommentGroups(
 export function useCommentEditor(
   targetDocId: UnpackedHypermediaId,
   accounts: HMEntityContent[],
-  {onDiscardDraft}: {onDiscardDraft?: () => void} = {},
+  {
+    onDiscardDraft,
+    replyCommentId,
+  }: {onDiscardDraft?: () => void; replyCommentId?: string} = {},
 ) {
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
   const showNostr = trpc.experiments.get.useQuery().data?.nostr
@@ -304,6 +309,7 @@ export function useCommentEditor(
     await write.mutateAsync({
       blocks,
       targetDocId: targetDocId.id,
+      replyCommentId,
       account: account.get()!,
     })
     invalidate(['trpc.comments.getCommentDraft'])
@@ -383,6 +389,7 @@ export function useCommentEditor(
   const draftQuery = trpc.comments.getCommentDraft.useQuery(
     {
       targetDocId: targetDocId.id,
+      replyCommentId,
     },
     {
       onError: (err) =>
@@ -477,6 +484,7 @@ export function useCommentEditor(
       if (!targetDocId.id) throw new Error('no comment targetDocId.id')
       removeDraft.mutate({
         targetDocId: targetDocId.id,
+        replyCommentId,
       })
     }
 

@@ -1,5 +1,4 @@
 import {
-  HMCommentGroup,
   useCommentDraft,
   useCommentEditor,
   useDocumentCommentGroups,
@@ -14,6 +13,7 @@ import {
   formattedDateMedium,
   getDocumentTitle,
   HMComment,
+  HMCommentGroup,
   HMEntityContent,
   hmId,
   serializeBlockRange,
@@ -94,8 +94,10 @@ function Comment({
   replyCount?: number
 }) {
   const [showReplies, setShowReplies] = useState(false)
+  const [isReplying, setIsReplying] = useState(false)
   const authorId = hmId('d', comment.author)
   const {data: author} = useEntity(authorId)
+  const draft = useCommentDraft(docId, comment.id)
 
   return (
     <YStack>
@@ -155,18 +157,53 @@ function Comment({
               size="$1"
               theme="blue"
               icon={<ReplyArrow size={16} />}
+              onPress={() => setIsReplying(true)}
             >
               Reply
             </Button>
           </XStack>
         </YStack>
       </XStack>
+      <RepliesEditor
+        isReplying={isReplying || !!draft.data}
+        docId={docId}
+        replyCommentId={comment.id}
+        onDiscardDraft={() => {
+          setIsReplying(false)
+        }}
+      />
       {showReplies ? (
         <YStack paddingLeft={20}>
           <CommentReplies docId={docId} replyCommentId={comment.id} />
         </YStack>
       ) : null}
     </YStack>
+  )
+}
+
+function RepliesEditor({
+  isReplying,
+  replyCommentId,
+  docId,
+  onDiscardDraft,
+}: {
+  isReplying: boolean
+  docId: UnpackedHypermediaId
+  replyCommentId: string
+  onDiscardDraft: () => void
+}) {
+  const myAccountsQuery = useMyAccounts()
+  const accounts = myAccountsQuery.map((query) => query.data).filter((a) => !!a)
+  if (accounts.length === 0) return null
+  if (!isReplying) return null
+  return (
+    <CommentDraftEditor
+      docId={docId}
+      replyCommentId={replyCommentId}
+      accounts={accounts}
+      autoFocus={isReplying}
+      onDiscardDraft={onDiscardDraft}
+    />
   )
 }
 
@@ -193,7 +230,7 @@ function CommentReplies({
 function CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
   const myAccountsQuery = useMyAccounts()
   const accounts = myAccountsQuery.map((query) => query.data).filter((a) => !!a)
-  const draft = useCommentDraft(docId)
+  const draft = useCommentDraft(docId, undefined)
   let content = null
   let onPress = undefined
   const [isStartingComment, setIsStartingComment] = useState(false)
@@ -256,15 +293,18 @@ function CommentDraftEditor({
   accounts,
   onDiscardDraft,
   autoFocus,
+  replyCommentId,
 }: {
   docId: UnpackedHypermediaId
   accounts: HMEntityContent[]
   onDiscardDraft?: () => void
   autoFocus?: boolean
+  replyCommentId?: string
 }) {
   const {editor, onSubmit, onDiscard, isSaved, account, onSetAccount} =
     useCommentEditor(docId, accounts, {
       onDiscardDraft,
+      replyCommentId,
     })
   useEffect(() => {
     if (autoFocus) editor._tiptapEditor.commands.focus()
