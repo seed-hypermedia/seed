@@ -163,7 +163,7 @@ function Comment({
       </XStack>
       {showReplies ? (
         <YStack paddingLeft={20}>
-          <SizableText>replies here</SizableText>
+          <CommentReplies docId={docId} replyCommentId={comment.id} />
         </YStack>
       ) : null}
     </YStack>
