@@ -173,7 +173,7 @@ function Comment({
         }}
       />
       {showReplies ? (
-        <YStack paddingLeft={20}>
+        <YStack paddingLeft={32}>
           <CommentReplies docId={docId} replyCommentId={comment.id} />
         </YStack>
       ) : null}

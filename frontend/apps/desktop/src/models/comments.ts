@@ -252,7 +252,7 @@ export function useDocumentCommentGroups(
           capability: '',
         },
       ],
-      moreCommentsCount: 2,
+      moreCommentsCount: 7,
       id: 'g1',
     },
   ]
