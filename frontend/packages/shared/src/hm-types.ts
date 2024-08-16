@@ -177,8 +177,6 @@ export type HMEntityContent = {
   document?: HMDocument | null
 }
 
-export type HMComment = PlainMessage<Comment>
-
 export type InlineEmbedAnnotation = BaseAnnotation & {
   type: 'inline-embed'
   ref: string // 'hm://... with #BlockRef
@@ -265,4 +263,12 @@ export type HMDraft = {
   signingAccount: string
   previousId: UnpackedHypermediaId | null // null if new document. Used to handle drafts that are moving
   lastUpdateTime: number // ms
+}
+
+export type HMComment = PlainMessage<Comment>
+
+export type HMCommentGroup = {
+  comments: HMComment[]
+  moreCommentsCount: number
+  id: string
 }

@@ -313,7 +313,7 @@ export function ReplyArrow({
   size = "1em",
   ...props
 }: {
-  color: string;
+  color?: string;
   size?: string | number;
 }) {
   return (

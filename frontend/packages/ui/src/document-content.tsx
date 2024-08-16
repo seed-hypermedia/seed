@@ -149,7 +149,7 @@ export function DocContentProvider({
       value={{
         ...PubContentContext,
         layoutUnit: lUnit,
-        textUnit: comment ? tUnit * 0.9 : tUnit,
+        textUnit: comment ? tUnit * 0.8 : tUnit,
         debug,
         ffSerif,
         comment,
@@ -918,9 +918,12 @@ export function BlockContentHeading({
   parentBlockId,
   ...props
 }: BlockContentProps) {
-  const {textUnit, debug, ffSerif} = useDocContentContext();
+  const {textUnit, debug, ffSerif, comment} = useDocContentContext();
   let inline = useMemo(() => toHMInlineContent(new Block(block)), [block]);
-  let headingTextStyles = useHeadingTextStyles(depth, textUnit);
+  let headingTextStyles = useHeadingTextStyles(
+    depth,
+    comment ? textUnit * 0.8 : textUnit
+  );
   let tag = `h${depth}`;
 
   return (

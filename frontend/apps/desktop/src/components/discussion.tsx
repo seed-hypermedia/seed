@@ -5,80 +5,44 @@ import {
   useDocumentCommentGroups,
 } from '@/models/comments'
 import {useMyAccounts} from '@/models/daemon'
+import {useEntity} from '@/models/entities'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {
+  BlockRange,
+  ExpandedBlockRange,
+  formattedDateLong,
+  formattedDateMedium,
   getDocumentTitle,
   HMComment,
   HMEntityContent,
+  hmId,
+  serializeBlockRange,
   StateStream,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {
+  BlocksContent,
   Button,
+  copyUrlToClipboardWithFeedback,
   ReplyArrow,
   SelectDropdown,
   SizableText,
-  Text,
   Tooltip,
-  UIAvatar,
   useStream,
   View,
   XStack,
   YStack,
 } from '@shm/ui'
-import {ChevronRight, Trash} from '@tamagui/lucide-icons'
+import {ChevronDown, ChevronRight, Trash} from '@tamagui/lucide-icons'
 import {useEffect, useState} from 'react'
 import {HyperMediaEditorView} from './editor'
 import {Thumbnail} from './thumbnail'
 
 export function Discussion({docId}: {docId: UnpackedHypermediaId}) {
   return (
-    <YStack paddingVertical="$6" gap="$4">
+    <YStack paddingVertical="$6" marginBottom={100} gap="$4">
       <CommentDraft docId={docId} />
       <DiscussionComments docId={docId} />
-      <YStack>
-        <XStack gap="$2" padding="$2">
-          <UIAvatar label="Foo" size={20} />
-          <YStack f={1} gap="$2">
-            <XStack minHeight={20} ai="center" gap="$2">
-              <SizableText size="$2" fontWeight="bold">
-                Alice
-              </SizableText>
-              <SizableText color="$color8" size="$1">
-                1 day ago
-              </SizableText>
-            </XStack>
-            <XStack>
-              <SizableText>
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ornare
-                rutrum amet, a nunc mi lacinia in iaculis. Pharetra ut integer
-                nibh urna. Placerat ut adipiscing nulla lectus vulputate massa,
-                scelerisque. Netus nisl nulla placerat dignissim ipsum arcu.
-              </SizableText>
-            </XStack>
-            <XStack ai="center" gap="$2" marginLeft={-4} paddingVertical="$1">
-              <Button
-                chromeless
-                color="$blue11"
-                size="$1"
-                theme="blue"
-                icon={ChevronRight}
-              >
-                Replies (3)
-              </Button>
-              <Button
-                chromeless
-                color="$blue11"
-                size="$1"
-                theme="blue"
-                icon={<ReplyArrow size={16} />}
-              >
-                Reply
-              </Button>
-            </XStack>
-          </YStack>
-        </XStack>
-      </YStack>
     </YStack>
   )
 }
@@ -130,7 +94,8 @@ function Comment({
   replyCount?: number
 }) {
   const [showReplies, setShowReplies] = useState(false)
-
+  const authorId = hmId('d', comment.author)
+  const {data: author} = useEntity(authorId)
   // // old comment presentation code from comments.tsx:
   // <AppDocContentProvider
   //   comment
@@ -148,14 +113,85 @@ function Comment({
   //   <BlocksContent blocks={comment.content} parentBlockId={null} />
   // </AppDocContentProvider>
 
+  // return (
+  //   <YStack>
+  //     <Text>{JSON.stringify(comment)}</Text>
+  //     <Button onPress={() => setShowReplies((show) => !show)}>
+  //       {replyCount || '0'} Replies
+  //     </Button>
+  //     {showReplies ? (
+  //       <CommentReplies docId={docId} replyCommentId={comment.id} />
+  //     ) : null}
+  //   </YStack>
+  // )
   return (
     <YStack>
-      <Text>{JSON.stringify(comment)}</Text>
-      <Button onPress={() => setShowReplies((show) => !show)}>
-        {replyCount || '0'} Replies
-      </Button>
+      <XStack gap="$2" padding="$2">
+        <Thumbnail
+          id={authorId}
+          metadata={author?.document?.metadata}
+          size={20}
+        />
+        <YStack f={1} gap="$2">
+          <XStack minHeight={20} ai="center" gap="$2">
+            <SizableText size="$2" fontWeight="bold">
+              {author?.document?.metadata.name || '...'}
+            </SizableText>
+            <Tooltip content={formattedDateLong(comment.createTime)}>
+              <SizableText color="$color8" size="$1">
+                {formattedDateMedium(comment.createTime)}
+              </SizableText>
+            </Tooltip>
+          </XStack>
+          <XStack marginLeft={-8}>
+            <AppDocContentProvider
+              comment
+              // onReplyBlock={onReplyBlock}
+              onReplyBlock={() => {}}
+              onCopyBlock={(
+                blockId: string,
+                blockRange: BlockRange | ExpandedBlockRange | undefined,
+              ) => {
+                const url = `${comment.id}#${blockId}${serializeBlockRange(
+                  blockRange,
+                )}`
+                copyUrlToClipboardWithFeedback(url, 'Comment Block')
+              }}
+            >
+              <BlocksContent blocks={comment.content} parentBlockId={null} />
+            </AppDocContentProvider>
+          </XStack>
+          <XStack ai="center" gap="$2" marginLeft={-4} paddingVertical="$1">
+            {replyCount ? (
+              <Button
+                chromeless
+                color="$blue11"
+                size="$1"
+                theme="blue"
+                icon={showReplies ? ChevronDown : ChevronRight}
+                onPress={() => setShowReplies(!showReplies)}
+              >
+                <SizableText size="$1" color="$blue11">
+                  Replies ({replyCount})
+                </SizableText>
+              </Button>
+            ) : null}
+            <Button
+              chromeless
+              color="$blue11"
+              size="$1"
+              theme="blue"
+              icon={<ReplyArrow size={16} />}
+            >
+              Reply
+            </Button>
+          </XStack>
+        </YStack>
+      </XStack>
       {showReplies ? (
-        <CommentReplies docId={docId} replyCommentId={comment.id} />
+        <YStack paddingLeft={20} bg="red">
+          <SizableText>replies here</SizableText>
+        </YStack>
       ) : null}
     </YStack>
   )
