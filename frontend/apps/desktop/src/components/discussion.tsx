@@ -1,8 +1,14 @@
-import {useCommentDraft, useCommentEditor} from '@/models/comments'
+import {
+  HMCommentGroup,
+  useCommentDraft,
+  useCommentEditor,
+  useDocumentCommentGroups,
+} from '@/models/comments'
 import {useMyAccounts} from '@/models/daemon'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {
   getDocumentTitle,
+  HMComment,
   HMEntityContent,
   StateStream,
   UnpackedHypermediaId,
@@ -29,6 +35,7 @@ export function Discussion({docId}: {docId: UnpackedHypermediaId}) {
   return (
     <YStack paddingVertical="$6" gap="$4">
       <CommentDraft docId={docId} />
+      <DiscussionComments docId={docId} />
       <YStack>
         <XStack gap="$2" padding="$2">
           <UIAvatar label="Foo" size={20} />
@@ -74,6 +81,104 @@ export function Discussion({docId}: {docId: UnpackedHypermediaId}) {
       </YStack>
     </YStack>
   )
+}
+
+function DiscussionComments({docId}: {docId: UnpackedHypermediaId}) {
+  const comments = useDocumentCommentGroups(docId)
+  return comments.map((commentGroup) => {
+    return (
+      <CommentGroup
+        key={commentGroup.id}
+        docId={docId}
+        commentGroup={commentGroup}
+      />
+    )
+  })
+}
+
+// this is a LINEARIZED set of comments, where one comment is directly replying to another. the commentGroup.moreCommentsCount should be the number of replies to the last comment in the group.
+function CommentGroup({
+  docId,
+  commentGroup,
+}: {
+  docId: UnpackedHypermediaId
+  commentGroup: HMCommentGroup
+}) {
+  const lastComment = commentGroup.comments.at(-1)
+  return commentGroup.comments.map((comment) => {
+    const isLastCommentInGroup = !!lastComment && comment === lastComment
+    return (
+      <Comment
+        key={comment.id}
+        docId={docId}
+        comment={comment}
+        replyCount={
+          isLastCommentInGroup ? commentGroup.moreCommentsCount : undefined
+        }
+      />
+    )
+  })
+}
+
+function Comment({
+  docId,
+  comment,
+  replyCount,
+}: {
+  docId: UnpackedHypermediaId
+  comment: HMComment
+  replyCount?: number
+}) {
+  const [showReplies, setShowReplies] = useState(false)
+
+  // // old comment presentation code from comments.tsx:
+  // <AppDocContentProvider
+  //   comment
+  //   onReplyBlock={onReplyBlock}
+  //   onCopyBlock={(
+  //     blockId: string,
+  //     blockRange: BlockRange | ExpandedBlockRange | undefined,
+  //   ) => {
+  //     const url = `${comment.id}#${blockId}${serializeBlockRange(
+  //       blockRange,
+  //     )}`
+  //     copyUrlToClipboardWithFeedback(url, 'Comment Block')
+  //   }}
+  // >
+  //   <BlocksContent blocks={comment.content} parentBlockId={null} />
+  // </AppDocContentProvider>
+
+  return (
+    <YStack>
+      <Text>{JSON.stringify(comment)}</Text>
+      <Button onPress={() => setShowReplies((show) => !show)}>
+        {replyCount || '0'} Replies
+      </Button>
+      {showReplies ? (
+        <CommentReplies docId={docId} replyCommentId={comment.id} />
+      ) : null}
+    </YStack>
+  )
+}
+
+function CommentReplies({
+  docId,
+  replyCommentId,
+}: {
+  docId: UnpackedHypermediaId
+  replyCommentId: string
+}) {
+  const comments = useDocumentCommentGroups(docId, replyCommentId)
+  // todo, indentation, etc..
+  return comments.map((commentGroup) => {
+    return (
+      <CommentGroup
+        key={commentGroup.id}
+        docId={docId}
+        commentGroup={commentGroup}
+      />
+    )
+  })
 }
 
 function CommentDraft({docId}: {docId: UnpackedHypermediaId}) {

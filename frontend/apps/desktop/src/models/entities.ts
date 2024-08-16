@@ -45,7 +45,7 @@ export function useDeleteEntity(
       } else if (hmId?.type === 'comment') {
         invalidate([queryKeys.ENTITY, variables.id])
         invalidate([queryKeys.COMMENT, variables.id])
-        invalidate([queryKeys.PUBLICATION_COMMENTS])
+        invalidate([queryKeys.DOCUMENT_COMMENTS])
       }
       invalidate([queryKeys.FEED])
       invalidate([queryKeys.FEED_LATEST_EVENT])
@@ -92,7 +92,7 @@ export function useUndeleteEntity(
         invalidate([queryKeys.ACCOUNT, hmId.uid])
       } else if (hmId?.type === 'comment') {
         invalidate([queryKeys.COMMENT, variables.id])
-        invalidate([queryKeys.PUBLICATION_COMMENTS])
+        invalidate([queryKeys.DOCUMENT_COMMENTS])
       }
       invalidate([queryKeys.FEED])
       invalidate([queryKeys.FEED_LATEST_EVENT])

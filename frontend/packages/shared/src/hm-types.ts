@@ -5,28 +5,17 @@ import {
   hmBlockSchema,
 } from '@shm/desktop/src/editor'
 import type {
-  Account,
-  ChangeInfo,
   Comment,
   DeletedEntity,
   Document,
-  Link,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {HMTimestamp} from './utils'
 
-export type ServerChangeInfo = ChangeInfo
-export type HMChangeInfo = {
-  id?: string
-  author?: string
-  createTime?: HMTimestamp
-  version?: string
-  deps?: string[]
-}
+export type HMChangeInfo = any // deprecated
 
-export type HMAccount = PlainMessage<Account>
+export type HMAccount = any // deprecated
 
-export type HMLink = PlainMessage<Link>
+export type HMLink = any // deprecated
 
 export type HMBlockChildrenType = 'group' | 'ol' | 'ul' | 'div' | 'blockquote'
 export type HMEmbedDisplay = 'content' | 'card'

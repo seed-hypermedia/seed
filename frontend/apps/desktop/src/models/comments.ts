@@ -3,6 +3,7 @@ import {createHypermediaDocLinkPlugin} from '@/editor'
 import {useOpenUrl} from '@/open-url'
 import {slashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
+import {toPlainMessage} from '@bufbuild/protobuf'
 import {
   HMBlockNode,
   HMComment,
@@ -10,8 +11,6 @@ import {
   HMEntityContent,
   UnpackedHypermediaId,
   fromHMBlock,
-  hmId,
-  packHmId,
   toHMBlock,
   unpackHmId,
   writeableStateStream,
@@ -26,6 +25,7 @@ import type {Block, BlockNoteEditor} from '../editor/blocknote'
 import appError from '../errors'
 import {useNavigate} from '../utils/useNavigate'
 import {getBlockGroup, setGroupTypes} from './editor-utils'
+import {hmIdPathToEntityQueryPath} from './entities'
 import {useGatewayUrlStream} from './gateway-settings'
 import {queryKeys} from './query-keys'
 import {useInlineMentions} from './search'
@@ -56,7 +56,7 @@ function serverBlockNodesFromEditorBlocks(
   })
 }
 
-export type CommentGroup = {
+export type HMCommentGroup = {
   comments: HMComment[]
   moreCommentsCount: number
   id: string
@@ -65,13 +65,13 @@ export type CommentGroup = {
 export function useCommentGroups(
   comments: HMComment[] | undefined,
   targetCommentId: string | null,
-): CommentGroup[] {
+): HMCommentGroup[] {
   return useMemo(() => {
-    const groups: CommentGroup[] = []
+    const groups: HMCommentGroup[] = []
     comments?.forEach((comment) => {
       if (
-        comment.repliedComment === targetCommentId ||
-        (!targetCommentId && comment.repliedComment === '')
+        comment.replyParent === targetCommentId ||
+        (!targetCommentId && comment.replyParent === '')
       ) {
         groups.push({
           comments: [comment],
@@ -84,7 +84,7 @@ export function useCommentGroups(
       let comment: HMComment | null = group.comments[0]
       while (comment) {
         const nextComments = comments?.filter(
-          (c) => c.repliedComment === comment?.id,
+          (c) => c.replyParent === comment?.id,
         )
         if (nextComments?.length === 1) {
           comment = nextComments[0]
@@ -102,8 +102,7 @@ export function useCommentGroups(
         walkMoreCommentIds = new Set<string>(
           comments
             .filter(
-              (c) =>
-                c.repliedComment && walkMoreCommentIds.has(c.repliedComment),
+              (c) => c.replyParent && walkMoreCommentIds.has(c.replyParent),
             )
             .map((comment) => comment.id),
         )
@@ -116,14 +115,14 @@ export function useCommentGroups(
 
 export function useCommentReplies(
   targetCommentId: string,
-  targetDocUid: string,
+  targetDocId: UnpackedHypermediaId,
 ) {
-  const comments = useAllDocumentComments(targetDocUid)
+  const comments = useAllDocumentComments(targetDocId)
   return useMemo(() => {
     let comment = comments.data?.find((c) => c.id === targetCommentId)
     const thread = [comment]
     while (comment) {
-      comment = comments.data?.find((c) => c.id === comment?.repliedComment)
+      comment = comments.data?.find((c) => c.id === comment?.replyParent)
       thread.unshift(comment)
     }
     return thread
@@ -145,45 +144,48 @@ export function useCommentDraft(
 
 export function useComment(
   id: UnpackedHypermediaId | null | undefined,
-  opts?: UseQueryOptions<HMComment>,
+  opts?: UseQueryOptions<HMComment | null>,
 ) {
   const grpcClient = useGRPCClient()
   return useQuery({
     ...opts,
+    queryKey: [queryKeys.COMMENT, id?.id],
     enabled: opts?.enabled !== false && !!id?.id,
     queryFn: async () => {
       if (!id?.id) return null
-      let res = await grpcClient.comments.getComment({
+      const comment = await grpcClient.comments.getComment({
         id: id.id,
       })
-      const comment = res as unknown as HMComment
-      return comment
+      return toPlainMessage(comment)
     },
-    queryKey: [queryKeys.COMMENT, id?.id],
   })
 }
 
-export function useAllDocumentComments(docUid: string | undefined) {
+export function useAllDocumentComments(
+  docId: UnpackedHypermediaId | undefined,
+) {
   const grpcClient = useGRPCClient()
   return useQuery({
     queryFn: async () => {
-      if (!docUid) return []
+      return [] // UNCOMMENT WHEN API STOPS RETURNING ERRORS
+      if (!docId) return []
       let res = await grpcClient.comments.listComments({
-        target: packHmId(hmId('d', docUid)),
+        targetAccout: docId.uid,
+        targetPath: hmIdPathToEntityQueryPath(docId.path),
       })
       return res.comments as unknown as HMComment[]
     },
-    enabled: !!docUid,
+    enabled: !!docId,
     refetchInterval: 10_000,
-    queryKey: [queryKeys.PUBLICATION_COMMENTS, docUid],
+    queryKey: [queryKeys.DOCUMENT_COMMENTS, docId?.id],
   })
 }
 
 export function useDocumentCommentGroups(
-  docUid: string | undefined,
+  docId: UnpackedHypermediaId | undefined,
   commentId: string | null = null,
 ) {
-  const comments = useAllDocumentComments(docUid)
+  const comments = useAllDocumentComments(docId)
   return useCommentGroups(comments.data, commentId)
 }
 
@@ -367,8 +369,7 @@ export function useCommentEditor(
       const targetDocId = newComment.target
         ? unpackHmId(newComment.target)
         : null
-      targetDocId &&
-        invalidate([queryKeys.PUBLICATION_COMMENTS, targetDocId.uid])
+      targetDocId && invalidate([queryKeys.DOCUMENT_COMMENTS, targetDocId.uid])
       invalidate(['trpc.comments.getCommentDrafts'])
       invalidate([queryKeys.FEED_LATEST_EVENT])
       invalidate([queryKeys.RESOURCE_FEED_LATEST_EVENT])

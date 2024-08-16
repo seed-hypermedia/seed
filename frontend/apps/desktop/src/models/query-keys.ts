@@ -44,7 +44,7 @@ export const queryKeys = {
 
   // comments
   COMMENT: 'COMMENT', //, commentId: string
-  PUBLICATION_COMMENTS: 'PUBLICATION_COMMENTS', //, docUid: string
+  DOCUMENT_COMMENTS: 'DOCUMENT_COMMENTS', //, docUid: string
 
   // content-graph
   ENTITY_CITATIONS: 'ENTITY_CITATIONS', //, entityId: string
@@ -111,7 +111,7 @@ export function labelOfQueryKey(key: QueryKey) {
     // comments
     case queryKeys.COMMENT:
       return 'Comment'
-    case queryKeys.PUBLICATION_COMMENTS:
+    case queryKeys.DOCUMENT_COMMENTS:
       return 'Publication Comments'
 
     // content-graph
