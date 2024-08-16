@@ -96,34 +96,7 @@ function Comment({
   const [showReplies, setShowReplies] = useState(false)
   const authorId = hmId('d', comment.author)
   const {data: author} = useEntity(authorId)
-  // // old comment presentation code from comments.tsx:
-  // <AppDocContentProvider
-  //   comment
-  //   onReplyBlock={onReplyBlock}
-  //   onCopyBlock={(
-  //     blockId: string,
-  //     blockRange: BlockRange | ExpandedBlockRange | undefined,
-  //   ) => {
-  //     const url = `${comment.id}#${blockId}${serializeBlockRange(
-  //       blockRange,
-  //     )}`
-  //     copyUrlToClipboardWithFeedback(url, 'Comment Block')
-  //   }}
-  // >
-  //   <BlocksContent blocks={comment.content} parentBlockId={null} />
-  // </AppDocContentProvider>
 
-  // return (
-  //   <YStack>
-  //     <Text>{JSON.stringify(comment)}</Text>
-  //     <Button onPress={() => setShowReplies((show) => !show)}>
-  //       {replyCount || '0'} Replies
-  //     </Button>
-  //     {showReplies ? (
-  //       <CommentReplies docId={docId} replyCommentId={comment.id} />
-  //     ) : null}
-  //   </YStack>
-  // )
   return (
     <YStack>
       <XStack gap="$2" padding="$2">
@@ -132,7 +105,7 @@ function Comment({
           metadata={author?.document?.metadata}
           size={20}
         />
-        <YStack f={1} gap="$2">
+        <YStack f={1}>
           <XStack minHeight={20} ai="center" gap="$2">
             <SizableText size="$2" fontWeight="bold">
               {author?.document?.metadata.name || '...'}
@@ -189,7 +162,7 @@ function Comment({
         </YStack>
       </XStack>
       {showReplies ? (
-        <YStack paddingLeft={20} bg="red">
+        <YStack paddingLeft={20}>
           <SizableText>replies here</SizableText>
         </YStack>
       ) : null}
@@ -239,17 +212,18 @@ function CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
   } else {
     content = (
       <Button
-        paddingTop={39}
+        paddingTop={31}
         paddingHorizontal={56}
-        // bg="red"
         f={1}
         textAlign="left"
         jc="flex-start"
+        ai="flex-start"
         margin={0}
         chromeless
         color="$color7"
         fontSize={18}
         fontStyle="italic"
+        h="auto"
         // icon={
         //   <>
         //     <Plus color="$color7" size={20} />
