@@ -21,6 +21,7 @@ import {
 import {
   Button,
   ListItem,
+  RadioButtons,
   Separator,
   SizableText,
   UIAvatar,
@@ -147,6 +148,7 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
           <XGroup.Item>
             <Button
               size="$2"
+              h="auto"
               onPress={() => {
                 setSearch('')
                 addCapabilities.mutate({
@@ -158,8 +160,10 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
                 })
               }}
               bg="#DED9FF"
+              borderColor="#DED9FF"
               hoverStyle={{
-                bg: '#FFDED9',
+                bg: '#BCB1FF',
+                borderColor: '#BCB1FF',
               }}
               iconAfter={ArrowRight}
             />
@@ -176,15 +180,63 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
 
 function CollaboratorsList({id}: {id: UnpackedHypermediaId}) {
   const capabilities = useAllDocumentCapabilities(id)
+  const [tab, setTab] = useState<'granted' | 'pending'>('granted')
+  let content = <GrantedCollabs capabilities={capabilities.data || []} />
+
+  if (tab == 'pending') {
+    content = <PendingCollabs capabilities={capabilities.data || []} />
+  }
+
+  return (
+    <YStack gap="$2">
+      <XStack>
+        <RadioButtons
+          activeColor="$blue11"
+          size="$2"
+          options={[
+            {key: 'granted', label: 'Granted'},
+            {key: 'pending', label: 'Pending'},
+          ]}
+          value={tab}
+          onValue={setTab}
+        />
+      </XStack>
+      {content}
+    </YStack>
+  )
+}
+
+function GrantedCollabs({
+  capabilities = [],
+}: {
+  capabilities: Array<PlainMessage<Capability>>
+}) {
   return (
     <YStack marginHorizontal={-8}>
-      {capabilities.data?.map((capability) => {
+      {capabilities?.map((capability) => {
         return (
           <CollaboratorItem key={capability.account} capability={capability} />
         )
       })}
     </YStack>
   )
+}
+
+function PendingCollabs({
+  capabilities = [],
+}: {
+  capabilities: Array<PlainMessage<Capability>>
+}) {
+  // return (
+  //   <YStack marginHorizontal={-8}>
+  //     {capabilities?.map((capability) => {
+  //       return (
+  //         <CollaboratorItem key={capability.account} capability={capability} />
+  //       )
+  //     })}
+  //   </YStack>
+  // )
+  return null
 }
 
 function CollaboratorItem({

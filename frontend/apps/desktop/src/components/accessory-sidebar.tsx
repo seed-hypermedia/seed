@@ -32,7 +32,7 @@ export function AccessoryContainer({
       ) : null}
       <YStack f={1}>
         <ScrollView f={1}>
-          <YStack>{children}</YStack>
+          <YStack gap="$5">{children}</YStack>
         </ScrollView>
         {footer}
       </YStack>
