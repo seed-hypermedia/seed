@@ -183,9 +183,9 @@ function CollaboratorsList({id}: {id: UnpackedHypermediaId}) {
   const [tab, setTab] = useState<'granted' | 'pending'>('granted')
   let content = <GrantedCollabs capabilities={capabilities.data || []} />
 
-  if (tab == 'pending') {
-    content = <PendingCollabs capabilities={capabilities.data || []} />
-  }
+  // if (tab == 'pending') {
+  //   content = <PendingCollabs capabilities={capabilities.data || []} />
+  // }
 
   return (
     <YStack gap="$2">
@@ -195,10 +195,11 @@ function CollaboratorsList({id}: {id: UnpackedHypermediaId}) {
           size="$2"
           options={[
             {key: 'granted', label: 'Granted'},
-            {key: 'pending', label: 'Pending'},
+            // {key: 'pending', label: 'Pending'},
           ]}
           value={tab}
-          onValue={setTab}
+          // onValue={setTab}
+          onValue={() => {}}
         />
       </XStack>
       {content}
