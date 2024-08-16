@@ -197,13 +197,20 @@ function RepliesEditor({
   if (accounts.length === 0) return null
   if (!isReplying) return null
   return (
-    <CommentDraftEditor
-      docId={docId}
-      replyCommentId={replyCommentId}
-      accounts={accounts}
-      autoFocus={isReplying}
-      onDiscardDraft={onDiscardDraft}
-    />
+    <XStack
+      borderRadius="$4"
+      borderWidth={2}
+      borderColor="$color8"
+      minHeight={130}
+    >
+      <CommentDraftEditor
+        docId={docId}
+        replyCommentId={replyCommentId}
+        accounts={accounts}
+        autoFocus={isReplying}
+        onDiscardDraft={onDiscardDraft}
+      />
+    </XStack>
   )
 }
 
