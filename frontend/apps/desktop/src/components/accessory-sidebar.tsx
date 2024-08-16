@@ -22,19 +22,15 @@ export function AccessoryContainer({
       {...props}
       paddingVertical="$3"
       backgroundColor="$color4"
+      paddingHorizontal="$4"
+      gap="$4"
     >
       {title ? (
-        <SizableText
-          userSelect="none"
-          size="$3"
-          fontWeight="600"
-          marginHorizontal="$4"
-          paddingBottom="$4"
-        >
+        <SizableText userSelect="none" size="$3" fontWeight="600">
           {title}
         </SizableText>
       ) : null}
-      <YStack f={1} borderRadius="$4">
+      <YStack f={1}>
         <ScrollView f={1}>
           <YStack>{children}</YStack>
         </ScrollView>
