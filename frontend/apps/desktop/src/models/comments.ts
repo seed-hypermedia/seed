@@ -252,7 +252,7 @@ export function useDocumentCommentGroups(
           capability: '',
         },
       ],
-      moreCommentsCount: 7,
+      moreCommentsCount: 2,
       id: 'g1',
     },
   ]
@@ -371,7 +371,7 @@ export function useCommentEditor(
   useEffect(() => {
     function handleSelectAll(event: KeyboardEvent) {
       if (event.key == 'a' && event.metaKey) {
-        if (editor) {
+        if (editor && editor._tiptapEditor.isFocused) {
           event.preventDefault()
           editor._tiptapEditor.commands.focus()
           editor._tiptapEditor.commands.selectAll()
