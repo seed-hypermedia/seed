@@ -21,6 +21,7 @@ import {
   BlockRange,
   createPublicWebHmUrl,
   ExpandedBlockRange,
+  HMDraft,
   hmId,
   packHmId,
 } from '@shm/shared'
@@ -410,7 +411,7 @@ export function DraftHeader({
             padding={0}
           />
           {route.id?.path?.length || !showThumbnail || !showCover ? (
-            <XStack marginTop="$4" gap="$3">
+            <XStack marginTop="$4" gap="$3" bg="red">
               {route.id?.path?.length ? (
                 <PathDraft draftActor={draftActor} />
               ) : null}
@@ -523,8 +524,6 @@ function PathDraft({
       signingAccount: draftContext.signingAccount,
       content: draft?.content || [],
     } as HMDraft
-    console.log(`== ~ handleDraftChange ~ newContent:`, newContent)
-    console.log(`== ~ handleDraftChange ~ draftContext:`, draftContext)
 
     const newDraft = await createDraft.mutateAsync({
       id: packedId,

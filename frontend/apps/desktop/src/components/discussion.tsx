@@ -26,7 +26,7 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {ChevronRight, MessageSquare, Trash} from '@tamagui/lucide-icons'
+import {ChevronRight, Trash} from '@tamagui/lucide-icons'
 import {useEffect, useState} from 'react'
 import {HyperMediaEditorView} from './editor'
 import {Thumbnail} from './thumbnail'
@@ -202,24 +202,38 @@ function CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
     )
   } else {
     content = (
-      <XStack marginTop={30} marginBottom={22} gap="$3" marginHorizontal="$5">
-        <MessageSquare color="$color10" />
-        <Text color="$color10" fontStyle="italic" fontSize={16}>
-          Start a Discussion...
-        </Text>
-      </XStack>
+      <Button
+        paddingTop={39}
+        paddingHorizontal={56}
+        // bg="red"
+        f={1}
+        textAlign="left"
+        jc="flex-start"
+        margin={0}
+        chromeless
+        color="$color7"
+        fontSize={18}
+        fontStyle="italic"
+        // icon={
+        //   <>
+        //     <Plus color="$color7" size={20} />
+        //     <GripVertical color="$color7" size={20} />
+        //   </>
+        // }
+        onPress={() => {
+          setIsStartingComment(true)
+        }}
+      >
+        Enter text or type '/' for commands
+      </Button>
     )
-    onPress = () => {
-      setIsStartingComment(true)
-    }
   }
   return (
     <XStack
       borderRadius="$4"
       borderWidth={2}
       borderColor="$color8"
-      // minHeight={80}
-      paddingBottom="$2"
+      minHeight={130}
       onPress={onPress}
     >
       {content}
