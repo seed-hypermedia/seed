@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	"crawshaw.io/iox/ioxtest"
-	"crawshaw.io/sqlite"
+	"seed/backend/util/sqlite"
 )
 
 func TestBuffer(t *testing.T) {

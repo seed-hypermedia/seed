@@ -80,7 +80,6 @@
       "-",
       "-plz-out",
       "+backend",
-      "+third_party",
       "+proto",
       "+build"
     ]

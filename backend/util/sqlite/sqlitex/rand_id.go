@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"crawshaw.io/sqlite"
+	"seed/backend/util/sqlite"
 )
 
 // InsertRandID executes stmt with a random value in the range [min, max) for $param.

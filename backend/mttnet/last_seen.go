@@ -4,7 +4,8 @@ import (
 	"math/rand"
 	"time"
 
-	"crawshaw.io/sqlite/sqlitex"
+	"seed/backend/util/sqlite/sqlitex"
+
 	"github.com/libp2p/go-libp2p/core/host"
 )
 

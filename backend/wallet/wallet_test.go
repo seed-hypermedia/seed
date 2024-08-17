@@ -18,7 +18,8 @@ import (
 	"testing"
 	"time"
 
-	"crawshaw.io/sqlite/sqlitex"
+	"seed/backend/util/sqlite/sqlitex"
+
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )

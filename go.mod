@@ -5,7 +5,7 @@ go 1.23
 toolchain go1.23.0
 
 require (
-	crawshaw.io/sqlite v0.3.2
+	crawshaw.io/iox v0.0.0-20181124134642-c51c3df30797
 	github.com/99designs/gqlgen v0.17.22
 	github.com/btcsuite/btcd v0.23.3
 	github.com/btcsuite/btcd/btcutil v1.1.2
@@ -232,8 +232,6 @@ require (
 	lukechampine.com/blake3 v1.2.1 // indirect
 	nhooyr.io/websocket v1.8.7 // indirect
 )
-
-replace crawshaw.io/sqlite => ./third_party/sqlite
 
 replace roci.dev/fracdex => github.com/rocicorp/fracdex v0.0.0-20231009204907-ebc26eac9486
 

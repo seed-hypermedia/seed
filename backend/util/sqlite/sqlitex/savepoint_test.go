@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"crawshaw.io/sqlite"
+	"seed/backend/util/sqlite"
 )
 
 func TestExec(t *testing.T) {

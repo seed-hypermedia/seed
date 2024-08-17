@@ -7,8 +7,8 @@ import (
 	"seed/backend/util/maybe"
 	"seed/backend/util/sqlitegen"
 
-	"crawshaw.io/sqlite"
-	"crawshaw.io/sqlite/sqlitex"
+	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
 )
 
 // dbStructuralBlobsInsert inserts a structural blob.

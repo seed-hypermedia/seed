@@ -2,7 +2,6 @@
 FROM golang:1.23.0-alpine AS builder
 WORKDIR /code
 COPY go.mod go.sum ./
-COPY third_party ./third_party
 RUN go mod download
 COPY backend ./backend
 RUN go install ./backend/cmd/relayd/

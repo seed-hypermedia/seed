@@ -9,8 +9,9 @@ import (
 	"seed/backend/util/dqb"
 	"time"
 
-	"crawshaw.io/sqlite"
-	"crawshaw.io/sqlite/sqlitex"
+	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
+
 	"github.com/ipfs/boxo/provider"
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multicodec"

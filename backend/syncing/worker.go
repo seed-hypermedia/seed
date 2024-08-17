@@ -9,7 +9,8 @@ import (
 
 	"seed/backend/index"
 
-	"crawshaw.io/sqlite/sqlitex"
+	"seed/backend/util/sqlite/sqlitex"
+
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"

@@ -4,7 +4,6 @@ SelfUpdate = false
 [parse]
 BlacklistDirs = "node_modules"
 BlacklistDirs = "target"
-BlacklistDirs = "third_party"
 BuildDefsDir = "build/rules"
 BuildFileName = "BUILD.plz"
 GitFunctions = true

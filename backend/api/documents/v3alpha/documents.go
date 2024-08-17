@@ -15,8 +15,9 @@ import (
 	"seed/backend/util/dqb"
 	"seed/backend/util/errutil"
 
-	"crawshaw.io/sqlite"
-	"crawshaw.io/sqlite/sqlitex"
+	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
+
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"

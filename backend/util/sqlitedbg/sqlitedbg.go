@@ -7,9 +7,9 @@ import (
 	"io"
 	"os"
 
-	"crawshaw.io/sqlite"
-	"crawshaw.io/sqlite/sqlitex"
 	"github.com/jedib0t/go-pretty/v6/table"
+	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
 )
 
 // Exec a query and print the results into w.

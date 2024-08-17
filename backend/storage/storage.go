@@ -10,9 +10,9 @@ import (
 	"seed/backend/core"
 	"seed/backend/logging"
 
-	"crawshaw.io/sqlite/sqlitex"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"go.uber.org/zap"
+	"seed/backend/util/sqlite/sqlitex"
 )
 
 // Store is a storage directory on a filesystem.

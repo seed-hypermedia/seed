@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"seed/backend/core"
 
-	"crawshaw.io/sqlite"
-	"crawshaw.io/sqlite/sqlitex"
 	"github.com/libp2p/go-libp2p/core/crypto"
+	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
 
 	"golang.org/x/exp/slices"
 )

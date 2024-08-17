@@ -7,9 +7,9 @@ import (
 
 	"seed/backend/util/sqlitegen"
 
-	"crawshaw.io/sqlite"
-	"crawshaw.io/sqlite/sqlitex"
 	"go.uber.org/multierr"
+	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
 )
 
 var _ = generateSchema

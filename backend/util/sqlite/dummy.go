@@ -1,3 +1,4 @@
+//go:build dummy
 // +build dummy
 
 // This file is part of a workaround for `go mod vendor` which won't vendor
@@ -14,5 +15,5 @@
 package sqlite
 
 import (
-	_ "crawshaw.io/sqlite/c"
+	_ "seed/backend/util/sqlite/c"
 )

@@ -18,7 +18,7 @@ import (
 	"errors"
 	"io"
 
-	"crawshaw.io/sqlite"
+	"seed/backend/util/sqlite"
 )
 
 // A Buffer is a variable-sized bytes buffer backed by SQLite blobs.

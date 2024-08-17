@@ -13,7 +13,8 @@ import (
 	"seed/backend/mttnet"
 	"seed/backend/syncing"
 
-	"crawshaw.io/sqlite/sqlitex"
+	"seed/backend/util/sqlite/sqlitex"
+
 	"google.golang.org/grpc"
 )
 

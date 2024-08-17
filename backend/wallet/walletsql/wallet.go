@@ -6,7 +6,7 @@ import (
 	"seed/backend/lndhub/lndhubsql"
 	"strings"
 
-	"crawshaw.io/sqlite"
+	"seed/backend/util/sqlite"
 )
 
 const (

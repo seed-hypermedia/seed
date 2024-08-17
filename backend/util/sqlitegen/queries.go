@@ -26,7 +26,7 @@ import (
 	"fmt"
 	"errors"
 
-	"crawshaw.io/sqlite"
+	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlitegen"
 )
 

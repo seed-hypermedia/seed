@@ -5,7 +5,8 @@ import (
 	activity "seed/backend/genproto/activity/v1alpha"
 	"time"
 
-	"crawshaw.io/sqlite/sqlitex"
+	"seed/backend/util/sqlite/sqlitex"
+
 	"google.golang.org/grpc"
 )
 

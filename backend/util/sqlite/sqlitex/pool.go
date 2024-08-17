@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	"crawshaw.io/sqlite"
+	"seed/backend/util/sqlite"
 )
 
 // Pool is a pool of SQLite connections.

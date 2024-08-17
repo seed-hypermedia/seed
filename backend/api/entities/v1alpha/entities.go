@@ -18,8 +18,9 @@ import (
 	"google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
 
-	"crawshaw.io/sqlite"
-	"crawshaw.io/sqlite/sqlitex"
+	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
+
 	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 )

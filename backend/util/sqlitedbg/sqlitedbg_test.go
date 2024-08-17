@@ -4,7 +4,7 @@ import (
 	"os"
 	"seed/backend/util/sqlitedbg"
 
-	"crawshaw.io/sqlite"
+	"seed/backend/util/sqlite"
 )
 
 func ExampleExec() {

@@ -23,7 +23,8 @@ import (
 	"seed/backend/util/future"
 	"seed/backend/wallet"
 
-	"crawshaw.io/sqlite/sqlitex"
+	"seed/backend/util/sqlite/sqlitex"
+
 	"github.com/ipfs/boxo/exchange"
 	"github.com/ipfs/boxo/exchange/offline"
 	"go.opentelemetry.io/otel"

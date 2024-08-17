@@ -16,7 +16,8 @@ import (
 	wallet "seed/backend/wallet/walletsql"
 	"strings"
 
-	"crawshaw.io/sqlite/sqlitex"
+	"seed/backend/util/sqlite/sqlitex"
+
 	"github.com/ipfs/go-cid"
 	"go.uber.org/zap"
 )

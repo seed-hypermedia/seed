@@ -3,7 +3,7 @@ package sqlitex
 import (
 	"errors"
 
-	"crawshaw.io/sqlite"
+	"seed/backend/util/sqlite"
 )
 
 var errNoResults = errors.New("sqlite: statement has no results")

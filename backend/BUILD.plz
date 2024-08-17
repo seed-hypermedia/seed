@@ -5,7 +5,11 @@ subinclude("//build/rules/go:defs", "//build/rules/codegen:defs")
 go_binary(
     name = "seed-daemon",
     srcs = glob(
-        ["**/*.go"],
+        [
+            "**/*.go",
+            "**/*.c",
+            "**/*.h",
+        ],
         exclude = ["**/*_test.go"],
     ) + [
         "//backend/lndhub/lndhubsql:go_library",
@@ -17,9 +21,6 @@ go_binary(
     gomod = "//:gomod",
     package = "./cmd/seed-daemon",
     visibility = ["PUBLIC"],
-    deps = [
-        "//third_party:sqlite",
-    ],
 )
 
 go_binary(
@@ -35,7 +36,11 @@ go_binary(
 go_binary(
     name = "seed-gateway",
     srcs = glob(
-        ["**/*.go"],
+        [
+            "**/*.go",
+            "**/*.c",
+            "**/*.h",
+        ],
         exclude = ["**/*_test.go"],
     ) + [
         "//backend/lndhub/lndhubsql:go_library",
@@ -47,7 +52,4 @@ go_binary(
     gomod = "//:gomod",
     package = "./cmd/seed-gateway",
     visibility = ["PUBLIC"],
-    deps = [
-        "//third_party:sqlite",
-    ],
 )

@@ -17,8 +17,8 @@ package sqlitex_test
 import (
 	"testing"
 
-	"crawshaw.io/sqlite"
-	"crawshaw.io/sqlite/sqlitex"
+	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
 )
 
 func TestRandID(t *testing.T) {

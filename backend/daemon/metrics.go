@@ -3,7 +3,8 @@ package daemon
 import (
 	"runtime"
 
-	"crawshaw.io/sqlite"
+	"seed/backend/util/sqlite"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promauto"

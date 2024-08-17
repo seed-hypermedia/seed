@@ -15,7 +15,8 @@ import (
 	"seed/backend/util/must"
 	"time"
 
-	"crawshaw.io/sqlite/sqlitex"
+	"seed/backend/util/sqlite/sqlitex"
+
 	provider "github.com/ipfs/boxo/provider"
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"

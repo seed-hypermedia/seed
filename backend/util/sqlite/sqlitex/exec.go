@@ -13,7 +13,7 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 // Package sqlitex provides utilities for working with SQLite.
-package sqlitex // import "crawshaw.io/sqlite/sqlitex"
+package sqlitex // import "seed/backend/util/sqlite/sqlitex"
 
 import (
 	"errors"
@@ -21,7 +21,7 @@ import (
 	"reflect"
 	"strings"
 
-	"crawshaw.io/sqlite"
+	"seed/backend/util/sqlite"
 )
 
 // Exec executes an SQLite query.

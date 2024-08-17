@@ -20,8 +20,9 @@ import (
 
 	"container/list"
 
-	"crawshaw.io/sqlite"
-	"crawshaw.io/sqlite/sqlitex"
+	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
+
 	"github.com/ipfs/boxo/exchange"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/event"

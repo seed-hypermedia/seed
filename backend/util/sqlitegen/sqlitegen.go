@@ -5,10 +5,10 @@ import (
 	"context"
 	"strings"
 
-	"crawshaw.io/sqlite"
 	"go.uber.org/multierr"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	"seed/backend/util/sqlite"
 )
 
 var initialisms = map[string]string{

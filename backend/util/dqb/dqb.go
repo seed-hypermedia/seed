@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"sync"
 
-	"crawshaw.io/sqlite/sqlitex"
+	"seed/backend/util/sqlite/sqlitex"
 )
 
 // GlobalQueries is a global storage of SQL queries.

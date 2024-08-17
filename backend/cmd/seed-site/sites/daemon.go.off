@@ -17,7 +17,7 @@ import (
 	"seed/backend/pkg/future"
 	"seed/backend/pkg/libp2px"
 
-	"crawshaw.io/sqlite/sqlitex"
+	"seed/backend/util/sqlite/sqlitex"
 	"github.com/multiformats/go-multiaddr"
 	"google.golang.org/grpc"
 )

@@ -1,7 +1,7 @@
 // Package dbext provides our custom extensions for SQLite.
 package dbext
 
-// #cgo CFLAGS: -I ../../../third_party/sqlite
+// #cgo CFLAGS: -I ../../util/sqlite
 // #cgo CFLAGS: -DSQLITE_CORE
 // #include "dbext.h"
 import "C"

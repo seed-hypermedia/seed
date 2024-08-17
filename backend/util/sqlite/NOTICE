@@ -1,0 +1,3 @@
+This package started as a copy of https://github.com/crawshaw/sqlite, which appears inactive and unmaintained.
+
+Modifications were made to this package to the point that it made sense to adopt it directly into our code base, breaking ties with the original.

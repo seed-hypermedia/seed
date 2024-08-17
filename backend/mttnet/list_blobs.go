@@ -7,8 +7,9 @@ import (
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/util/dqb"
 
-	"crawshaw.io/sqlite"
-	"crawshaw.io/sqlite/sqlitex"
+	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
+
 	"github.com/ipfs/go-cid"
 	"go.uber.org/zap"
 )

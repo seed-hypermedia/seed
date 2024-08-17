@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"crawshaw.io/sqlite"
+	"seed/backend/util/sqlite"
 )
 
 const (

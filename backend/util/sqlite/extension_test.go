@@ -24,7 +24,7 @@ import (
 	"strings"
 	"testing"
 
-	"crawshaw.io/sqlite"
+	"seed/backend/util/sqlite"
 )
 
 const (

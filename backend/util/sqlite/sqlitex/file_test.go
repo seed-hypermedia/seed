@@ -18,8 +18,9 @@ import (
 	"io/ioutil"
 	"testing"
 
+	"seed/backend/util/sqlite"
+
 	"crawshaw.io/iox/ioxtest"
-	"crawshaw.io/sqlite"
 )
 
 func TestFileRand(t *testing.T) {

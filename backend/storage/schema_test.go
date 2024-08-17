@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"testing"
 
-	"crawshaw.io/sqlite"
-	"crawshaw.io/sqlite/sqlitex"
 	"github.com/stretchr/testify/require"
+	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
 )
 
 func TestSchemaForeignKeyIndexes(t *testing.T) {
