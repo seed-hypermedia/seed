@@ -1,5 +1,5 @@
 # Build from the root with `docker build . -f ./backend/cmd/seed-daemon/Dockerfile`.
-FROM golang:1.22.3-alpine AS builder
+FROM golang:1.23.0-alpine AS builder
 WORKDIR /code
 ARG COMMIT_HASH
 ARG BRANCH

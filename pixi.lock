@@ -1,4 +1,4 @@
-version: 4
+version: 5
 environments:
   default:
     channels:
@@ -14,8 +14,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/ca-certificates-2024.2.2-hbcca054_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/gcc_impl_linux-64-12.3.0-he2b93b0_5.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/gcc_linux-64-12.3.0-h6477408_3.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-64/go-1.22.1-h1df1444_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-64/go-cgo-1.22.1-h86c9cdb_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/go-1.23.0-hc8ff2bb_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/go-cgo-1.23.0-h86c9cdb_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/icu-73.2-h59595ed_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/kernel-headers_linux-64-3.10.0-h4a8ded7_14.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/ld_impl_linux-64-2.40-h41732ed_0.conda
@@ -43,8 +43,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-64/clangxx-16.0.6-default_h7151d67_5.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/compiler-rt-16.0.6-ha38d28d_2.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/compiler-rt_osx-64-16.0.6-ha38d28d_2.conda
-      - conda: https://conda.anaconda.org/conda-forge/osx-64/go-1.22.1-hb60353b_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/osx-64/go-cgo-1.22.1-hc45aab5_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/osx-64/go-1.23.0-hf0dc8f5_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/osx-64/go-cgo-1.23.0-h1803460_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/icu-73.2-hf5e326d_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/ld64_osx-64-711-ha20a434_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/libclang-cpp16-16.0.6-default_h7151d67_5.conda
@@ -76,8 +76,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/clangxx-16.0.6-default_h4cf2255_5.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/compiler-rt-16.0.6-h3808999_2.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/compiler-rt_osx-arm64-16.0.6-h3808999_2.conda
-      - conda: https://conda.anaconda.org/conda-forge/osx-arm64/go-1.22.1-h793346b_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/osx-arm64/go-cgo-1.22.1-he0ac0e1_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/osx-arm64/go-1.23.0-hc24e2ac_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/osx-arm64/go-cgo-1.23.0-h4fe1239_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/icu-73.2-hc8870d7_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/ld64_osx-arm64-711-ha4bd21c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/libclang-cpp16-16.0.6-default_he012953_5.conda
@@ -100,8 +100,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/zstd-1.5.5-h4f39d0f_0.conda
       win-64:
       - conda: https://conda.anaconda.org/conda-forge/win-64/_go_select-2.3.0-cgo.tar.bz2
-      - conda: https://conda.anaconda.org/conda-forge/win-64/go-1.22.1-hf68ea12_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/win-64/go-cgo-1.22.1-h06338d3_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/win-64/go-1.23.0-h66af5be_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/win-64/go-cgo-1.23.0-h06338d3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/m2w64-binutils-2.25.1-5.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/win-64/m2w64-bzip2-1.0.6-6.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/win-64/m2w64-crt-git-5.0.0.4636.2595836-2.tar.bz2
@@ -624,80 +624,12 @@ packages:
   timestamp: 1710260096918
 - kind: conda
   name: go
-  version: 1.22.1
-  build: h1df1444_0
-  subdir: linux-64
-  url: https://conda.anaconda.org/conda-forge/linux-64/go-1.22.1-h1df1444_0.conda
-  sha256: 20cbcc99975722ebd1942b7c672f7426ba2349b3c12e73fd0e5836f7c710a96d
-  md5: 9a2ad7f229cda521f810e2d76f32e631
-  depends:
-  - __glibc >=2.17,<3.0.a0
-  - _go_select ==2.3.0 cgo
-  - libgcc-ng >=12
-  - libgfortran-ng
-  - libgfortran5 >=12.3.0
-  - libstdcxx-ng >=12
-  - sysroot_linux-64 2.17.*
-  constrains:
-  - gxx_linux-64 12.*
-  - gcc_linux-64 12.*
-  - gfortran_linux-64 12.*
-  license: BSD-3-Clause
-  license_family: BSD
-  size: 56304300
-  timestamp: 1709764183225
-- kind: conda
-  name: go
-  version: 1.22.1
-  build: h793346b_0
-  subdir: osx-arm64
-  url: https://conda.anaconda.org/conda-forge/osx-arm64/go-1.22.1-h793346b_0.conda
-  sha256: ac4343575cab1b9e1cf083cd4cf9208db50053e49bf289b1c7b6bee7d7e308c4
-  md5: 50ef216edfddb9846b140800c7cae8f5
-  depends:
-  - _go_select ==2.3.0 cgo
-  - libcxx >=16
-  - libgfortran 5.*
-  - libgfortran5 >=12.3.0
-  constrains:
-  - __osx >=11.0
-  - clangxx_osx-arm64 16.*
-  - clang_osx-arm64 16.*
-  - gfortran_osx-arm64 12.*
-  license: BSD-3-Clause
-  license_family: BSD
-  size: 87181682
-  timestamp: 1709764817223
-- kind: conda
-  name: go
-  version: 1.22.1
-  build: hb60353b_0
-  subdir: osx-64
-  url: https://conda.anaconda.org/conda-forge/osx-64/go-1.22.1-hb60353b_0.conda
-  sha256: 6bba383cbdb1e422c5a929efd24f4675dc4f263cd3dda439859b8d1179028802
-  md5: 5f2dafde363d976155704989319bf51b
-  depends:
-  - _go_select ==2.3.0 cgo
-  - libcxx >=16
-  - libgfortran 5.*
-  - libgfortran5 >=12.3.0
-  constrains:
-  - clang_osx-64 16.*
-  - gfortran_osx-64 12.*
-  - clangxx_osx-64 16.*
-  - __osx >=10.14
-  license: BSD-3-Clause
-  license_family: BSD
-  size: 57090902
-  timestamp: 1709764684298
-- kind: conda
-  name: go
-  version: 1.22.1
-  build: hf68ea12_0
+  version: 1.23.0
+  build: h66af5be_0
   subdir: win-64
-  url: https://conda.anaconda.org/conda-forge/win-64/go-1.22.1-hf68ea12_0.conda
-  sha256: dc7a87d6481ae2435c40db04602ba52be9f1fed055717b15bb68961b4d061ea2
-  md5: 5e7d15aad86cefff3e6fae4aeb327fe7
+  url: https://conda.anaconda.org/conda-forge/win-64/go-1.23.0-h66af5be_0.conda
+  sha256: a617561e465ffa9735b644ad68a77f6e50d1075fb7e811cc2b666b1c68e7372f
+  md5: 6c3c583c51b944834badc930a5b0a01f
   depends:
   - _go_select ==2.3.0 cgo
   - m2w64-gcc-libs
@@ -706,68 +638,135 @@ packages:
   - m2w64-toolchain_win-64 >=2.5.0,<3.0a0
   license: BSD-3-Clause
   license_family: BSD
-  size: 55698425
-  timestamp: 1709765267503
+  size: 61429472
+  timestamp: 1723705760265
+- kind: conda
+  name: go
+  version: 1.23.0
+  build: hc24e2ac_0
+  subdir: osx-arm64
+  url: https://conda.anaconda.org/conda-forge/osx-arm64/go-1.23.0-hc24e2ac_0.conda
+  sha256: 6c7c1fa5524d21580d44c951b8cbeab5a02a1424c2a61882dd702faf9494e06c
+  md5: a445436fb098ff78192c804160916697
+  depends:
+  - __osx >=11.0
+  - _go_select ==2.3.0 cgo
+  - libcxx >=16
+  - libgfortran 5.*
+  - libgfortran5 >=12.3.0
+  constrains:
+  - clangxx_osx-arm64 16.*
+  - gfortran_osx-arm64 12.*
+  - clang_osx-arm64 16.*
+  license: BSD-3-Clause
+  license_family: BSD
+  size: 92693657
+  timestamp: 1723705239383
+- kind: conda
+  name: go
+  version: 1.23.0
+  build: hc8ff2bb_0
+  subdir: linux-64
+  url: https://conda.anaconda.org/conda-forge/linux-64/go-1.23.0-hc8ff2bb_0.conda
+  sha256: dd580af44b1383a8c02b4842217eb32ea9eedb310df55c640f354454a94aa2cd
+  md5: d6745f1e015c3c9ef256c4b281dcf8c9
+  depends:
+  - __glibc >=2.17,<3.0.a0
+  - _go_select ==2.3.0 cgo
+  - libgcc-ng >=12
+  - libgfortran-ng
+  - libgfortran5 >=12.4.0
+  - libstdcxx-ng >=12
+  constrains:
+  - gfortran_linux-64 12.*
+  - gxx_linux-64 12.*
+  - gcc_linux-64 12.*
+  license: BSD-3-Clause
+  license_family: BSD
+  size: 58392641
+  timestamp: 1723705027936
+- kind: conda
+  name: go
+  version: 1.23.0
+  build: hf0dc8f5_0
+  subdir: osx-64
+  url: https://conda.anaconda.org/conda-forge/osx-64/go-1.23.0-hf0dc8f5_0.conda
+  sha256: e40a8a4708934611fc327c397e75ef43f0bbdc3a564878720d9392f2f5800340
+  md5: e0d8e6024148135229f0435705cee34e
+  depends:
+  - __osx >=10.14
+  - _go_select ==2.3.0 cgo
+  - libcxx >=16
+  - libgfortran 5.*
+  - libgfortran5 >=12.3.0
+  constrains:
+  - clangxx_osx-64 16.*
+  - gfortran_osx-64 12.*
+  - clang_osx-64 16.*
+  license: BSD-3-Clause
+  license_family: BSD
+  size: 58394399
+  timestamp: 1723704980177
 - kind: conda
   name: go-cgo
-  version: 1.22.1
+  version: 1.23.0
   build: h06338d3_0
   subdir: win-64
-  url: https://conda.anaconda.org/conda-forge/win-64/go-cgo-1.22.1-h06338d3_0.conda
-  sha256: 945f9935c7e9517abe4f2b0d69f778e7be82ad8b6916e5e5290af85e0dfd9988
-  md5: d0c4d8184f982c22c97c70193021c83a
+  url: https://conda.anaconda.org/conda-forge/win-64/go-cgo-1.23.0-h06338d3_0.conda
+  sha256: 5c476f626eaa55c0f324bee50f63cfab6835a24bb78600d0fc8cce86f266f1a2
+  md5: 864b341d426fb2c266d1ff5462716588
   depends:
-  - go 1.22.1 hf68ea12_0
+  - go 1.23.0 h66af5be_0
   - m2w64-toolchain_win-64
   license: BSD-3-Clause
   license_family: BSD
-  size: 19769
-  timestamp: 1709765432039
+  size: 19811
+  timestamp: 1723705916846
 - kind: conda
   name: go-cgo
-  version: 1.22.1
-  build: h86c9cdb_0
-  subdir: linux-64
-  url: https://conda.anaconda.org/conda-forge/linux-64/go-cgo-1.22.1-h86c9cdb_0.conda
-  sha256: 685a174054559f90a190371ae52e11702a945aabf47fc6b28d5dc03f50edae05
-  md5: 767fecf720b2b675a5f828154535fd21
-  depends:
-  - gcc_linux-64 12.*
-  - go 1.22.1 h1df1444_0
-  license: BSD-3-Clause
-  license_family: BSD
-  size: 19024
-  timestamp: 1709764299562
-- kind: conda
-  name: go-cgo
-  version: 1.22.1
-  build: hc45aab5_0
+  version: 1.23.0
+  build: h1803460_0
   subdir: osx-64
-  url: https://conda.anaconda.org/conda-forge/osx-64/go-cgo-1.22.1-hc45aab5_0.conda
-  sha256: 864f4b4c8a986083f2a79c4227e9bfe41feabacdd6d1580828dc36e3ddd72b66
-  md5: fc663537080450ba8598a59abeaf668a
+  url: https://conda.anaconda.org/conda-forge/osx-64/go-cgo-1.23.0-h1803460_0.conda
+  sha256: 868b44520b62571a35e4b5861814835d331428312064b9608574acaeae5fb11e
+  md5: a4c90662a954250f5c12943f1004d751
   depends:
   - clang_osx-64 16.*
-  - go 1.22.1 hb60353b_0
+  - go 1.23.0 hf0dc8f5_0
   license: BSD-3-Clause
   license_family: BSD
-  size: 19320
-  timestamp: 1709764807008
+  size: 19260
+  timestamp: 1723705084523
 - kind: conda
   name: go-cgo
-  version: 1.22.1
-  build: he0ac0e1_0
+  version: 1.23.0
+  build: h4fe1239_0
   subdir: osx-arm64
-  url: https://conda.anaconda.org/conda-forge/osx-arm64/go-cgo-1.22.1-he0ac0e1_0.conda
-  sha256: 08b341baeb6c2a34b93032acf10a9224ca96fe469ce7b3599141d1b99411a523
-  md5: 6fe52a183bbb2f004a9a9424797261c6
+  url: https://conda.anaconda.org/conda-forge/osx-arm64/go-cgo-1.23.0-h4fe1239_0.conda
+  sha256: 834f96c917fe4ceb4c44d384483b3e96b02390711c2507780875e856ff0e3fc6
+  md5: a7e757baa8aaf717a39e1ae2dd72cfe6
   depends:
   - clang_osx-arm64 16.*
-  - go 1.22.1 h793346b_0
+  - go 1.23.0 hc24e2ac_0
   license: BSD-3-Clause
   license_family: BSD
-  size: 19335
-  timestamp: 1709765128157
+  size: 19263
+  timestamp: 1723705385078
+- kind: conda
+  name: go-cgo
+  version: 1.23.0
+  build: h86c9cdb_0
+  subdir: linux-64
+  url: https://conda.anaconda.org/conda-forge/linux-64/go-cgo-1.23.0-h86c9cdb_0.conda
+  sha256: 08537746834c34aafce61f26768a6def2d5c1145980150da4a4ca683ee070adc
+  md5: 9dba5d35334f62731d37f4e9c5f34040
+  depends:
+  - gcc_linux-64 12.*
+  - go 1.23.0 hc8ff2bb_0
+  license: BSD-3-Clause
+  license_family: BSD
+  size: 18938
+  timestamp: 1723705156050
 - kind: conda
   name: icu
   version: '73.2'

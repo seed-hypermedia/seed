@@ -25,7 +25,7 @@ load("@rules_impure//:defs.bzl", "tool")
 tool(
     name = "go",
     version_command = "version",
-    version_match = "1.22.3",
+    version_match = "1.23.0",
 )
 
 tool(

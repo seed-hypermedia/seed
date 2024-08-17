@@ -1,8 +1,8 @@
 module seed
 
-go 1.21
+go 1.23
 
-toolchain go1.22.3
+toolchain go1.23.0
 
 require (
 	crawshaw.io/sqlite v0.3.2
