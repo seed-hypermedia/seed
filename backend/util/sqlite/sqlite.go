@@ -14,7 +14,6 @@
 
 package sqlite
 
-// // !!! UPDATE THE Makefile WITH THESE DEFINES !!!
 // #cgo CFLAGS: -DSQLITE_THREADSAFE=2
 // #cgo CFLAGS: -DSQLITE_DEFAULT_WAL_SYNCHRONOUS=1
 // #cgo CFLAGS: -DSQLITE_ENABLE_UNLOCK_NOTIFY
@@ -39,7 +38,6 @@ package sqlite
 // #cgo openbsd CFLAGS: -std=c99
 // #cgo freebsd LDFLAGS: -lm
 // #cgo freebsd CFLAGS: -std=c99
-// // !!! UPDATE THE Makefile WITH THESE DEFINES !!!
 //
 // #include <blocking_step.h>
 // #include <sqlite3.h>
