@@ -25,7 +25,7 @@ import {hmBlockSchema, useBlockNote} from '../editor'
 import type {Block, BlockNoteEditor} from '../editor/blocknote'
 import appError from '../errors'
 import {getBlockGroup, setGroupTypes} from './editor-utils'
-import {hmIdPathToEntityQueryPath} from './entities'
+import {hmIdPathToEntityQueryPath, useEntity} from './entities'
 import {useGatewayUrlStream} from './gateway-settings'
 import {queryKeys} from './query-keys'
 import {useInlineMentions} from './search'
@@ -263,6 +263,7 @@ export function useCommentEditor(
     replyCommentId,
   }: {onDiscardDraft?: () => void; replyCommentId?: string} = {},
 ) {
+  const targetEntity = useEntity(targetDocId)
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
   const showNostr = trpc.experiments.get.useQuery().data?.nostr
   const queryClient = useAppContext().queryClient
@@ -397,7 +398,6 @@ export function useCommentEditor(
           setAccountStream(draft.account)
         } else {
           const account: string = accounts[0]!.id.uid
-          console.log('asdfgggg', account)
           initCommentDraft.current = {
             account,
             blocks: [],
@@ -432,6 +432,7 @@ export function useCommentEditor(
         targetAccount: targetDocId.uid,
         targetPath: hmIdPathToEntityQueryPath(targetDocId.path),
         signingKeyName,
+        targetVersion: targetEntity.data?.document?.version!,
       })
       if (!resultComment) throw new Error('no resultComment')
       return resultComment
