@@ -592,7 +592,7 @@ function InlineEmbedButton({
       unstyled
       style={{
         display: 'inline-block',
-        lineHeight: 1,
+        // lineHeight: 1, // react was throwing an error about this
         border: 'none',
       }}
     >

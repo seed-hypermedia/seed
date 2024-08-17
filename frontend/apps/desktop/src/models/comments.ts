@@ -14,7 +14,6 @@ import {
   UnpackedHypermediaId,
   fromHMBlock,
   toHMBlock,
-  unpackHmId,
   writeableStateStream,
 } from '@shm/shared'
 import {toast} from '@shm/ui'
@@ -25,7 +24,6 @@ import {useGRPCClient, useQueryInvalidator} from '../app-context'
 import {hmBlockSchema, useBlockNote} from '../editor'
 import type {Block, BlockNoteEditor} from '../editor/blocknote'
 import appError from '../errors'
-import {useNavigate} from '../utils/useNavigate'
 import {getBlockGroup, setGroupTypes} from './editor-utils'
 import {hmIdPathToEntityQueryPath} from './entities'
 import {useGatewayUrlStream} from './gateway-settings'
@@ -165,7 +163,6 @@ export function useAllDocumentComments(
   const grpcClient = useGRPCClient()
   return useQuery({
     queryFn: async () => {
-      return [] // UNCOMMENT WHEN API STOPS RETURNING ERRORS
       if (!docId) return []
       let res = await grpcClient.comments.listComments({
         targetAccount: docId.uid,
@@ -183,8 +180,8 @@ export function useDocumentCommentGroups(
   docId: UnpackedHypermediaId | undefined,
   commentId: string | null = null,
 ) {
-  // const comments = useAllDocumentComments(docId)
-  // return useCommentGroups(comments.data, commentId)
+  const comments = useAllDocumentComments(docId)
+  return useCommentGroups(comments.data, commentId)
   return [
     {
       comments: [
@@ -286,7 +283,6 @@ export function useCommentEditor(
   const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>()
   const readyEditor = useRef<BlockNoteEditor>()
   const grpcClient = useGRPCClient()
-  const replace = useNavigate('replace')
   const {inlineMentionsData, inlineMentionsQuery} = useInlineMentions()
   function initDraft() {
     const draft = initCommentDraft.current
@@ -425,33 +421,33 @@ export function useCommentEditor(
   const publishComment = useMutation({
     mutationFn: async ({
       content,
-      targetDocId,
+      signingKeyName,
     }: {
       content: HMBlockNode[]
-      targetDocId: string
+      signingKeyName: string
     }) => {
-      throw new Error('No Comment API yet')
-      // const resultComment = await grpcClient.comments.createComment({
-      //   content,
-      //   target: targetDocId,
-      //   repliedComment: targetCommentId || undefined,
-      // })
-      // if (!resultComment) throw new Error('no resultComment')
-      // return resultComment
+      const resultComment = await grpcClient.comments.createComment({
+        content,
+        replyParent: replyCommentId || undefined,
+        targetAccount: targetDocId.uid,
+        targetPath: hmIdPathToEntityQueryPath(targetDocId.path),
+        signingKeyName,
+      })
+      if (!resultComment) throw new Error('no resultComment')
+      return resultComment
     },
     onSuccess: (newComment: HMComment) => {
-      const targetDocId = newComment.target
-        ? unpackHmId(newComment.target)
-        : null
-      targetDocId && invalidate([queryKeys.DOCUMENT_COMMENTS, targetDocId.uid])
-      invalidate(['trpc.comments.getCommentDrafts'])
+      removeDraft.mutate({
+        targetDocId: targetDocId.id,
+        replyCommentId,
+      })
+      invalidate([
+        queryKeys.DOCUMENT_COMMENTS,
+        targetDocId.uid,
+        ...(targetDocId.path || []),
+      ])
       invalidate([queryKeys.FEED_LATEST_EVENT])
       invalidate([queryKeys.RESOURCE_FEED_LATEST_EVENT])
-      replace({
-        key: 'comment',
-        showThread: true,
-        commentId: newComment.id,
-      })
     },
   })
   return useMemo(() => {
@@ -474,10 +470,9 @@ export function useCommentEditor(
           return false
         return true
       })
-      toast.error('Publishing comments is not yet supported by the API')
       publishComment.mutate({
         content: contentWithoutLastEmptyBlock,
-        targetDocId: targetDocId.id,
+        signingKeyName: account.get()!,
       })
     }
     function onDiscard() {
@@ -500,5 +495,5 @@ export function useCommentEditor(
       account,
       onSetAccount,
     }
-  }, [targetDocId.id])
+  }, [targetDocId])
 }

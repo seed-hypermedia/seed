@@ -249,11 +249,17 @@ function DocPageHeader({
                       <LinkNameComponent key={a} accountId={a} />,
                       index !== authors.length - 1 ? (
                         index === authors.length - 2 ? (
-                          <SizableText size="$1" fontWeight={'bold'}>
+                          <SizableText
+                            key={`${a}-and`}
+                            size="$1"
+                            fontWeight={'bold'}
+                          >
                             {' & '}
                           </SizableText>
                         ) : (
-                          <SizableText fontWeight={'bold'}>{', '}</SizableText>
+                          <SizableText key={`${a}-comma`} fontWeight={'bold'}>
+                            {', '}
+                          </SizableText>
                         )
                       ) : null,
                     ])

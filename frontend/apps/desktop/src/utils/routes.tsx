@@ -99,20 +99,6 @@ export const favoritesSchema = z.object({
 })
 export type FavoritesRoute = z.infer<typeof favoritesSchema>
 
-export const commentRouteSchema = z.object({
-  key: z.literal('comment'),
-  commentId: unpackedHmIdSchema,
-  showThread: z.boolean().optional(),
-})
-export type CommentRoute = z.infer<typeof commentRouteSchema>
-
-export const commentDraftRouteSchema = z.object({
-  key: z.literal('comment-draft'),
-  commentId: z.string().optional(),
-  showThread: z.boolean().optional(),
-})
-export type CommentDraftRoute = z.infer<typeof commentDraftRouteSchema>
-
 export const settingsRouteSchema = z.object({key: z.literal('settings')})
 export type SettingsRoute = z.infer<typeof settingsRouteSchema>
 
@@ -141,8 +127,6 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   documentRouteSchema,
   draftRouteSchema,
   draftRebaseRouteSchema,
-  commentRouteSchema,
-  commentDraftRouteSchema,
   exploreRouteSchema,
   favoritesSchema,
   deletedContentRouteSchema,
