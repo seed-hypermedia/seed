@@ -149,9 +149,9 @@ export class ListCommentsRequest extends Message<ListCommentsRequest> {
   /**
    * Required. Account ID to list the comments for.
    *
-   * @generated from field: string target_accout = 1;
+   * @generated from field: string target_account = 1;
    */
-  targetAccout = "";
+  targetAccount = "";
 
   /**
    * Required. Path within the account to list the comments for.
@@ -182,7 +182,7 @@ export class ListCommentsRequest extends Message<ListCommentsRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.documents.v3alpha.ListCommentsRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "target_accout", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 1, name: "target_account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "target_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 4, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },

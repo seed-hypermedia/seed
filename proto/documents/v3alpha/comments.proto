@@ -55,7 +55,7 @@ message GetCommentRequest {
 // Request to list comments.
 message ListCommentsRequest {
   // Required. Account ID to list the comments for.
-  string target_accout = 1;
+  string target_account = 1;
 
   // Required. Path within the account to list the comments for.
   string target_path = 2;

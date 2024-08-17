@@ -3,8 +3,7 @@ package documents
 import (
 	"context"
 	"seed/backend/core/coretest"
-	. "seed/backend/genproto/documents/v3alpha"
-	documents "seed/backend/genproto/documents/v3alpha"
+	pb "seed/backend/genproto/documents/v3alpha"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -19,60 +18,60 @@ func TestCapabilities_Smoke(t *testing.T) {
 	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
 
 	// Create the initial home document.
-	_, err := alice.CreateDocumentChange(ctx, &CreateDocumentChangeRequest{
+	_, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.Principal().String(),
 		Path:           "",
-		Changes: []*DocumentChange{
-			{Op: &DocumentChange_SetMetadata_{SetMetadata: &DocumentChange_SetMetadata{Key: "title", Value: "Alice's Home Page"}}},
+		Changes: []*pb.DocumentChange{
+			{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Alice's Home Page"}}},
 		},
 	})
 	require.NoError(t, err)
 
 	// Try to create document with bob's key. It must fail.
 	{
-		_, err := alice.CreateDocumentChange(ctx, &CreateDocumentChangeRequest{
+		_, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
 			SigningKeyName: "bob",
 			Account:        alice.me.Account.Principal().String(),
 			Path:           "/cars",
-			Changes: []*DocumentChange{
-				{Op: &DocumentChange_SetMetadata_{SetMetadata: &DocumentChange_SetMetadata{Key: "title", Value: "Document about cars"}}},
+			Changes: []*pb.DocumentChange{
+				{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Document about cars"}}},
 			},
 		})
 		require.Error(t, err, "bob must not be allowed to sign for alice")
 	}
 
 	// Alice creates document about cars.
-	cars, err := alice.CreateDocumentChange(ctx, &CreateDocumentChangeRequest{
+	cars, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.Principal().String(),
 		Path:           "/cars",
-		Changes: []*DocumentChange{
-			{Op: &DocumentChange_SetMetadata_{SetMetadata: &DocumentChange_SetMetadata{Key: "title", Value: "Document about cars"}}},
+		Changes: []*pb.DocumentChange{
+			{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Document about cars"}}},
 		},
 	})
 	require.NoError(t, err)
 
 	// Alice issued capability to bob for everything under /cars.
-	cpb, err := alice.CreateCapability(ctx, &CreateCapabilityRequest{
+	cpb, err := alice.CreateCapability(ctx, &pb.CreateCapabilityRequest{
 		SigningKeyName: "main",
 		Delegate:       bob.Account.Principal().String(),
 		Account:        cars.Account,
 		Path:           cars.Path,
-		Role:           documents.Role_WRITER,
+		Role:           pb.Role_WRITER,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, cpb)
 
 	// Bob creates a document under /cars.
 	{
-		jp, err := alice.CreateDocumentChange(ctx, &CreateDocumentChangeRequest{
+		jp, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
 			SigningKeyName: "bob",
 			Capability:     cpb.Id,
 			Account:        alice.me.Account.Principal().String(),
 			Path:           "/cars/jp",
-			Changes: []*DocumentChange{
-				{Op: &DocumentChange_SetMetadata_{SetMetadata: &DocumentChange_SetMetadata{Key: "title", Value: "Catalogue of Japanese cars"}}},
+			Changes: []*pb.DocumentChange{
+				{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Catalogue of Japanese cars"}}},
 			},
 		})
 		require.NoError(t, err, "bob must be allowed to sign for alice with the capability")
@@ -80,7 +79,7 @@ func TestCapabilities_Smoke(t *testing.T) {
 	}
 
 	// Listing caps for descendant path of /cars should return inherited ones.
-	list, err := alice.ListCapabilities(ctx, &ListCapabilitiesRequest{
+	list, err := alice.ListCapabilities(ctx, &pb.ListCapabilitiesRequest{
 		Account: alice.me.Account.String(),
 		Path:    "/cars/jp/foo",
 	})

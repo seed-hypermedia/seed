@@ -168,7 +168,7 @@ export function useAllDocumentComments(
       return [] // UNCOMMENT WHEN API STOPS RETURNING ERRORS
       if (!docId) return []
       let res = await grpcClient.comments.listComments({
-        targetAccout: docId.uid,
+        targetAccount: docId.uid,
         targetPath: hmIdPathToEntityQueryPath(docId.path),
       })
       return res.comments as unknown as HMComment[]

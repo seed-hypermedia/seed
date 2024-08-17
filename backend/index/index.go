@@ -251,6 +251,58 @@ var qWalkCapabilities = dqb.Str(`
 	ORDER BY sb.ts
 `)
 
+func (idx *Index) WalkComments(ctx context.Context, resource IRI, fn func(cid.Cid, *Comment) error) error {
+	conn, release, err := idx.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+
+	buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
+	if err := sqlitex.Exec(conn, qWalkComments(), func(stmt *sqlite.Stmt) error {
+		var (
+			codec = stmt.ColumnInt64(0)
+			hash  = stmt.ColumnBytesUnsafe(1)
+			data  = stmt.ColumnBytesUnsafe(2)
+		)
+
+		buf, err = idx.bs.decoder.DecodeAll(data, buf)
+		if err != nil {
+			return err
+		}
+
+		chcid := cid.NewCidV1(uint64(codec), hash)
+		cmt := &Comment{}
+		if err := cbornode.DecodeInto(buf, cmt); err != nil {
+			return fmt.Errorf("WalkChanges: failed to decode change %s for entity %s: %w", chcid, resource, err)
+		}
+
+		if err := fn(chcid, cmt); err != nil {
+			return err
+		}
+
+		buf = buf[:0] // reset the slice reusing the backing array
+
+		return nil
+	}, resource); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var qWalkComments = dqb.Str(`
+	SELECT
+		b.codec,
+		b.multihash,
+		b.data
+	FROM structural_blobs sb
+	JOIN blobs b ON b.id = sb.id
+	WHERE sb.type = 'Comment'
+	AND sb.resource = (SELECT id FROM resources WHERE iri = :iri)
+	ORDER BY sb.ts
+`)
+
 func (idx *Index) WalkChangesFromHeads(ctx context.Context, resource IRI, heads []cid.Cid, fn func(cid.Cid, *Change) error) error {
 	conn, release, err := idx.db.Conn(ctx)
 	if err != nil {
