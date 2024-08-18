@@ -53,6 +53,7 @@ services:
       - internal_network
     environment:
       - "SENTRY_DSN=${SEED_SITE_SENTRY_DSN:-https://47c66bd7a6d64db68a59c03f2337e475@o4504088793841664.ingest.sentry.io/4505527493328896}"
+      - SEED_P2P_TESTNET_NAME=${SEED_P2P_TESTNET_NAME}
     volumes:
       - ${SEED_SITE_WORKSPACE}/daemon:/data:rw
       - ${SEED_SITE_MONITORING_WORKDIR:-./monitoring}/grafana:/exported_grafana:rw

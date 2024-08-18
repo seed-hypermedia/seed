@@ -21,6 +21,8 @@ auto_update=0
 profile=""
 allow_push="false"
 clean_images_cron="0 3 * * * docker rmi \$(docker images | grep -E 'seedhypermedia/' | awk '{print \$3}') # seed site cleanup"
+testnet_name=""
+password=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 10)
 
 usage()
 {
@@ -47,6 +49,8 @@ while [ "$1" != "" ]; do
                                 ;;
         -t | --tag )            shift
                                 tag="$1"
+                                ;;
+        --testnet )             testnet_name="dev"
                                 ;;
         * )                     hostname="$1"
     esac
@@ -104,9 +108,20 @@ if [ $auto_update -eq 1 ]; then
 fi
 
 mkdir -p ~/.seed-site/web
-echo '{"availableRegistrationSecret": "123"}' > ~/.seed-site/web/config.json
+echo "{\"availableRegistrationSecret\": \"$registration_secret\"}" > ~/.seed-site/web/config.json
 
-SEED_SITE_DNS="$dns" SEED_SITE_TAG="$tag" SEED_SITE_WORKSPACE="${workspace}" SEED_SITE_ALLOW_PUSH="$allow_push" SEED_SITE_HOSTNAME="$hostname" SEED_SITE_MONITORING_WORKDIR="${workspace}/monitoring" SEED_SITE_MONITORING_PORT="$SEED_SITE_MONITORING_PORT" docker compose -f ${workspace}/hmsite.yml --profile "$profile" up -d --pull always --quiet-pull 2> ${workspace}/deployment.log || true
+SEED_P2P_TESTNET_NAME="$testnet_name" SEED_SITE_DNS="$dns" SEED_SITE_TAG="$tag" SEED_SITE_WORKSPACE="${workspace}" SEED_SITE_ALLOW_PUSH="$allow_push" SEED_SITE_HOSTNAME="$hostname" SEED_SITE_MONITORING_WORKDIR="${workspace}/monitoring" SEED_SITE_MONITORING_PORT="$SEED_SITE_MONITORING_PORT" docker compose -f ${workspace}/hmsite.yml --profile "$profile" up -d --pull always --quiet-pull 2> ${workspace}/deployment.log || true
+
+echo "Deployment done. Your secret registration URL is:"
+echo "${hostname}/hm/register?secret=${password}"
 
 # rm -f ${workspace}/hmsite.yml
 exit 0
+
+# to test this script:
+
+# sh <(curl -sL https://raw.githubusercontent.com/seed-hypermedia/seed/main/website_deployment.sh) https://seed.verse.link --tag main --auto-update --testnet
+
+# to clean the server for new testing, clean up all docker containers, and wipe the workspace:
+# docker rm -f $(docker ps -a -q)
+# rm -rf ~/.seed-site
