@@ -72,8 +72,8 @@ if [ -n "$profile" ]; then
 	mkdir -p ${workspace}/monitoring/grafana/provisioning/datasources
 	mkdir -p ${workspace}/monitoring/prometheus
 fi
-docker stop seed-site seed-daemon proxy grafana prometheus 2> ${workspace}/deployment.log 1> ${workspace}/deployment.log || true
-docker rm seed-site seed-daemon proxy grafana prometheus 2> ${workspace}/deployment.log 1> ${workspace}/deployment.log || true
+docker stop seed-site seed-daemon seed-proxy grafana prometheus 2> ${workspace}/deployment.log 1> ${workspace}/deployment.log || true
+docker rm seed-site seed-daemon seed-proxy grafana prometheus 2> ${workspace}/deployment.log 1> ${workspace}/deployment.log || true
 
 dns=$(echo "SEED_SITE_HOSTNAME=${hostname}" | sed -n 's/.*SEED_SITE_HOSTNAME=http[s]*:\/\/\([^/]*\).*/\1/p')
 
@@ -89,14 +89,9 @@ cat << BLOCK > ${workspace}/proxy/CaddyFile
 
 reverse_proxy /.metrics* grafana:{\$SEED_SITE_MONITORING_PORT:3001}
 
-route @version {
-    rewrite /.well-known/hypermedia-site/version /debug/version
-    reverse_proxy seed-daemon:{\$HM_SITE_BACKEND_GRPCWEB_PORT:56001}
-}
-
 reverse_proxy @ipfsget seed-daemon:{\$HM_SITE_BACKEND_GRPCWEB_PORT:56001}
 
-reverse_proxy * nextjs:{\$SEED_SITE_LOCAL_PORT:3000}
+reverse_proxy * seed-web:{\$SEED_SITE_LOCAL_PORT:3000}
 BLOCK
 
 if [ $auto_update -eq 1 ]; then
@@ -105,13 +100,13 @@ if [ $auto_update -eq 1 ]; then
     # Remove any existing cron job for this task, add the new cron job, and install the new crontab
     { crontab -l 2>/dev/null || true; echo "$clean_images_cron"; } | crontab -
   fi
-  docker run -d --restart unless-stopped --name autoupdater -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower --include-restarting -i 300 nextjs hmsite >/dev/null 2>&1
+  docker run -d --restart unless-stopped --name autoupdater -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower --include-restarting -i 300 seed-web seed-daemon >/dev/null 2>&1
 fi
 
 mkdir -p ~/.seed-site/web
 echo '{"availableRegistrationSecret": "123"}' > ~/.seed-site/web/config.json
 
-SEED_SITE_DNS="$dns" SEED_SITE_TAG="$tag" SEED_SITE_ALLOW_PUSH="$allow_push" SEED_SITE_HOSTNAME="$hostname" SEED_SITE_PROXY_CONTAINER_NAME="proxy"  SEED_SITE_MONITORING_WORKDIR="${workspace}/monitoring" SEED_SITE_MONITORING_PORT="$SEED_SITE_MONITORING_PORT" docker compose -f ${workspace}/hmsite.yml --profile "$profile" up -d --pull always --quiet-pull 2> ${workspace}/deployment.log || true
+SEED_SITE_DNS="$dns" SEED_SITE_TAG="$tag" SEED_SITE_WORKSPACE="${workspace}" SEED_SITE_ALLOW_PUSH="$allow_push" SEED_SITE_HOSTNAME="$hostname" SEED_SITE_MONITORING_WORKDIR="${workspace}/monitoring" SEED_SITE_MONITORING_PORT="$SEED_SITE_MONITORING_PORT" docker compose -f ${workspace}/hmsite.yml --profile "$profile" up -d --pull always --quiet-pull 2> ${workspace}/deployment.log || true
 
-rm -f ${workspace}/hmsite.yml
+# rm -f ${workspace}/hmsite.yml
 exit 0
