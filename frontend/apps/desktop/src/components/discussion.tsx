@@ -69,19 +69,23 @@ function CommentGroup({
   commentGroup: HMCommentGroup
 }) {
   const lastComment = commentGroup.comments.at(-1)
-  return commentGroup.comments.map((comment) => {
-    const isLastCommentInGroup = !!lastComment && comment === lastComment
-    return (
-      <Comment
-        key={comment.id}
-        docId={docId}
-        comment={comment}
-        replyCount={
-          isLastCommentInGroup ? commentGroup.moreCommentsCount : undefined
-        }
-      />
-    )
-  })
+  return (
+    <YStack borderBottomWidth={1} paddingBottom="$3" borderColor="$color8">
+      {commentGroup.comments.map((comment) => {
+        const isLastCommentInGroup = !!lastComment && comment === lastComment
+        return (
+          <Comment
+            key={comment.id}
+            docId={docId}
+            comment={comment}
+            replyCount={
+              isLastCommentInGroup ? commentGroup.moreCommentsCount : undefined
+            }
+          />
+        )
+      })}
+    </YStack>
+  )
 }
 
 function Comment({

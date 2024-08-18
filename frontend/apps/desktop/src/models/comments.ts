@@ -33,26 +33,24 @@ import {useInlineMentions} from './search'
 function serverBlockNodesFromEditorBlocks(
   editor: BlockNoteEditor,
   editorBlocks: Block[],
-): HMBlockNode[] {
+): BlockNode[] {
   if (!editorBlocks) return []
   return editorBlocks.map((block: Block) => {
     const childGroup = getBlockGroup(editor, block.id) || {}
     const serverBlock = fromHMBlock(block)
     if (childGroup) {
-      // @ts-expect-error
       serverBlock.attributes.childrenType = childGroup.type
         ? childGroup.type
         : 'group'
-      // @ts-expect-error
-      serverBlock.attributes.listLevel = childGroup.listLevel
-      // @ts-expect-error
+      if (childGroup.listLevel)
+        serverBlock.attributes.listLevel = childGroup.listLevel
       if (childGroup.start)
         serverBlock.attributes.start = childGroup.start.toString()
     }
-    return {
+    return new BlockNode({
       block: serverBlock,
       children: serverBlockNodesFromEditorBlocks(editor, block.children),
-    }
+    })
   })
 }
 
@@ -168,7 +166,7 @@ export function useAllDocumentComments(
         targetAccount: docId.uid,
         targetPath: hmIdPathToEntityQueryPath(docId.path),
       })
-      return res.comments as unknown as HMComment[]
+      return res.comments.map(toPlainMessage) as HMComment[]
     },
     enabled: !!docId,
     refetchInterval: 10_000,
