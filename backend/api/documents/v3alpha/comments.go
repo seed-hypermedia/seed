@@ -135,15 +135,17 @@ func (srv *Server) ListComments(ctx context.Context, in *documents.ListCommentsR
 	// TODO(burdiyan): implement pagination.
 	resp := &documents.ListCommentsResponse{}
 
-	if err := srv.idx.WalkComments(ctx, iri, func(c cid.Cid, cp *index.Comment) error {
+	comments, errs := srv.idx.IterComments(ctx, iri)
+	for c, cp := range comments {
 		pb, err := commentToProto(c, cp)
 		if err != nil {
-			return err
+			errs.Add(err)
+			break
 		}
 		resp.Comments = append(resp.Comments, pb)
-		return nil
-	}); err != nil {
-		return nil, err
+	}
+	if errs.Check() != nil {
+		return nil, errs.Check()
 	}
 
 	return resp, nil
