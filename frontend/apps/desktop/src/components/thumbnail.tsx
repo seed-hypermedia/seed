@@ -1,7 +1,7 @@
 import {getFileUrl} from '@/utils/account-url'
 import {useNavigate} from '@/utils/useNavigate'
 import {getMetadataName, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
-import {Tooltip, UIAvatar} from '@shm/ui'
+import {Tooltip, UIAvatar, UIAvatarProps} from '@shm/ui'
 import {AlertCircle} from '@tamagui/lucide-icons'
 import {Button, YStack} from 'tamagui'
 
@@ -9,7 +9,8 @@ export function Thumbnail({
   id,
   metadata,
   size = 32,
-}: {
+  ...props
+}: UIAvatarProps & {
   id: UnpackedHypermediaId
   metadata?: HMMetadata | null
   size?: number

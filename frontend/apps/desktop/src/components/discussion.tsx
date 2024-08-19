@@ -38,6 +38,9 @@ import {useEffect, useState} from 'react'
 import {HyperMediaEditorView} from './editor'
 import {Thumbnail} from './thumbnail'
 
+const lineColor = '$blue11'
+const lineWidth = 2
+
 export function Discussion({docId}: {docId: UnpackedHypermediaId}) {
   return (
     <YStack paddingVertical="$6" marginBottom={100} gap="$4">
@@ -49,6 +52,8 @@ export function Discussion({docId}: {docId: UnpackedHypermediaId}) {
 
 function DiscussionComments({docId}: {docId: UnpackedHypermediaId}) {
   const comments = useDocumentCommentGroups(docId)
+
+  console.log(`== ~ DiscussionComments:`, comments)
   return comments.map((commentGroup) => {
     return (
       <CommentGroup
@@ -64,17 +69,22 @@ function DiscussionComments({docId}: {docId: UnpackedHypermediaId}) {
 function CommentGroup({
   docId,
   commentGroup,
+  isNested = false,
 }: {
   docId: UnpackedHypermediaId
   commentGroup: HMCommentGroup
+  isNested?: boolean
 }) {
   const lastComment = commentGroup.comments.at(-1)
   return (
-    <YStack borderBottomWidth={1} paddingBottom="$3" borderColor="$color8">
-      {commentGroup.comments.map((comment) => {
+    <YStack>
+      {commentGroup.comments.map((comment, idx) => {
         const isLastCommentInGroup = !!lastComment && comment === lastComment
         return (
           <Comment
+            isFirst={idx == 0}
+            isLast={isLastCommentInGroup}
+            isNested={isNested}
             key={comment.id}
             docId={docId}
             comment={comment}
@@ -92,10 +102,16 @@ function Comment({
   docId,
   comment,
   replyCount,
+  isFirst = false,
+  isLast = false,
+  isNested = false,
 }: {
   docId: UnpackedHypermediaId
   comment: HMComment
   replyCount?: number
+  isFirst?: boolean
+  isLast?: boolean
+  isNested?: boolean
 }) {
   const [showReplies, setShowReplies] = useState(false)
   const [isReplying, setIsReplying] = useState(false)
@@ -105,6 +121,31 @@ function Comment({
 
   return (
     <YStack>
+      <View
+        width={lineWidth}
+        height={isLast && !showReplies ? 20 : '100%'}
+        position="absolute"
+        top={isFirst ? 8 : 0}
+        left={16}
+        bg={lineColor}
+      />
+      {isFirst && isNested ? (
+        <View
+          position="absolute"
+          top={0}
+          left={-6}
+          width={20}
+          height={20}
+          borderLeftWidth={lineWidth}
+          borderBottomWidth={lineWidth}
+          borderLeftColor={lineColor}
+          borderBottomColor={lineColor}
+          borderRadius={25}
+          borderTopLeftRadius={0}
+          borderBottomRightRadius={0}
+        />
+      ) : null}
+
       <XStack gap="$2" padding="$2">
         <Thumbnail
           id={authorId}
@@ -177,7 +218,10 @@ function Comment({
         }}
       />
       {showReplies ? (
-        <YStack paddingLeft={32}>
+        <YStack
+          paddingLeft={22}
+          // bg="$background"
+        >
           <CommentReplies docId={docId} replyCommentId={comment.id} />
         </YStack>
       ) : null}
@@ -206,6 +250,7 @@ function RepliesEditor({
       borderWidth={2}
       borderColor="$color8"
       minHeight={130}
+      bg="$background"
     >
       <CommentDraftEditor
         docId={docId}
@@ -230,6 +275,7 @@ function CommentReplies({
   return comments.map((commentGroup) => {
     return (
       <CommentGroup
+        isNested
         key={commentGroup.id}
         docId={docId}
         commentGroup={commentGroup}

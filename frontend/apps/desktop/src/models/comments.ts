@@ -3,7 +3,7 @@ import {createHypermediaDocLinkPlugin} from '@/editor'
 import {useOpenUrl} from '@/open-url'
 import {slashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
-import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
+import {toPlainMessage} from '@bufbuild/protobuf'
 import {
   BlockNode,
   HMBlockNode,
@@ -180,77 +180,6 @@ export function useDocumentCommentGroups(
 ) {
   const comments = useAllDocumentComments(docId)
   return useCommentGroups(comments.data, commentId)
-  return [
-    {
-      comments: [
-        {
-          id: 'c1',
-          targetAccount: 'z6MktiKP3Ge6v2S4KC7ETN4gig6qtxYhHh8JYP7deei8wWW9',
-          targetPath: '/foo',
-          targetVersion: '',
-          threadRoot: '',
-          replyParent: '',
-          author: 'z6MkqYME8XHQpnxBLVjDWxCkEwbjKQ4ghxpUB8stgzBCNSwD',
-          content: [
-            {
-              block: {
-                id: 'b1',
-                text: `hello I'm a heading comment`,
-                annotations: [],
-                attributes: {},
-                type: 'heading',
-                ref: '',
-                revision: '',
-              },
-              children: [
-                {
-                  block: {
-                    id: 'b1',
-                    text: `hello I'm a comment paragraph`,
-                    annotations: [],
-                    attributes: {},
-                    type: 'paragraph',
-                    ref: '',
-                    revision: '',
-                  },
-                  children: [],
-                },
-              ],
-            },
-          ] as Array<PlainMessage<BlockNode>>,
-          createTime: Date.now() as any,
-          capability: '',
-        } as HMComment,
-        {
-          id: 'c2',
-          targetAccount: 'z6MktiKP3Ge6v2S4KC7ETN4gig6qtxYhHh8JYP7deei8wWW9',
-          targetPath: '/foo',
-          targetVersion: '',
-          threadRoot: '',
-          replyParent: '',
-          author: 'z6MkqYME8XHQpnxBLVjDWxCkEwbjKQ4ghxpUB8stgzBCNSwD',
-          content: [
-            {
-              block: {
-                id: 'b1',
-                text: `hello I'm ANOTHER comment`,
-                annotations: [],
-                attributes: {},
-                type: 'paragraph',
-                ref: '',
-                revision: '',
-              },
-              children: [],
-            },
-          ] as Array<PlainMessage<BlockNode>>,
-          createTime: Date.now() as any,
-          capability: '',
-        },
-      ],
-      moreCommentsCount: 7,
-      id: 'g1',
-    },
-  ]
 }
 
 export function useCommentEditor(

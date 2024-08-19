@@ -2,7 +2,7 @@ import {XStack, XStackProps} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import {useMemo} from "react";
 
-export type UIAvatarProps = {
+export type UIAvatarProps = XStackProps & {
   url?: string;
   size?: number;
   color?: string;
