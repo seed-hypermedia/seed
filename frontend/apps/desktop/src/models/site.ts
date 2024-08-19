@@ -1,4 +1,5 @@
 import {useGRPCClient, useQueryInvalidator} from '@/app-context'
+import {trpc} from '@/trpc'
 import {DocumentChange, hmId, UnpackedHypermediaId} from '@shm/shared'
 import {useMutation} from '@tanstack/react-query'
 import {queryKeys} from './query-keys'
@@ -6,6 +7,8 @@ import {queryKeys} from './query-keys'
 export function useSiteRegistration() {
   const grpcClient = useGRPCClient()
   const invalidate = useQueryInvalidator()
+
+  const registerSite = trpc.sites.registerSite.useMutation()
   return useMutation({
     mutationFn: async (input: {url: string; accountUid: string}) => {
       // http://localhost:5175/hm/register?secret=abc
@@ -17,18 +20,17 @@ export function useSiteRegistration() {
       const peerInfo = await grpcClient.networking.getPeerInfo({
         deviceId: daemonInfo.peerId,
       })
-      const resp = await fetch(registerUrl, {
-        method: 'POST',
-        body: JSON.stringify({
+      const registerResult = await registerSite.mutateAsync({
+        url: registerUrl,
+        payload: {
           registrationSecret: secret,
           accountUid: input.accountUid,
           peerId: daemonInfo.peerId,
           addrs: peerInfo.addrs,
-        }),
+        },
       })
-      if (resp.status !== 200) {
-        throw new Error(`Failed to register`)
-      }
+      console.log(registerResult)
+
       await grpcClient.documents.createDocumentChange({
         account: input.accountUid,
         signingKeyName: input.accountUid,

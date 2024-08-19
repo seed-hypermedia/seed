@@ -25,8 +25,10 @@ import {grpcClient} from './app-grpc'
 import {invalidateQueries, queryInvalidation} from './app-invalidation'
 import {userDataPath} from './app-paths'
 import {recentsApi} from './app-recents'
+
 import {secureStorageApi} from './app-secure-storage'
 import {appSettingsApi} from './app-settings'
+import {sitesApi} from './app-sites'
 import {t} from './app-trpc'
 import {uploadFile, webImportingApi} from './app-web-importing'
 import {welcomingApi} from './app-welcoming'
@@ -158,6 +160,7 @@ export const router = t.router({
   gatewaySettings: gatewaySettingsApi,
   secureStorage: secureStorageApi,
   recents: recentsApi,
+  sites: sitesApi,
   appSettings: appSettingsApi,
   closeAppWindow: t.procedure.input(z.string()).mutation(async ({input}) => {
     closeAppWindow(input)
