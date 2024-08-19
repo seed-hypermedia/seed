@@ -58,12 +58,12 @@ export function Directory({docId}: {docId: UnpackedHypermediaId}) {
       drafts: draftsForShow
         ?.map((draftId) => {
           const id = unpackHmId(draftId)
-
           if (!id) return null
           return id
         })
         .filter((id) => {
           if (!id) return false
+          if (id.uid != docId.uid) return false
           const level = docId.path?.length || 0
           if (id.path?.length !== level + 1) return false
           let pathPrefix = (docId.path || []).join('/')
@@ -108,6 +108,8 @@ function DraftListItem({id}: {id: UnpackedHypermediaId}) {
     navigate({key: 'draft', id})
   }
 
+  console.log('== DRAFT', draft.data?.thumbnail, draft.data)
+
   return (
     <Button
       group="item"
@@ -120,11 +122,11 @@ function DraftListItem({id}: {id: UnpackedHypermediaId}) {
       paddingVertical="$1"
       onPress={goToDraft}
       h={60}
-      // icon={
-      //   id.path?.length == 0 || draft.data.thumbnail ? (
-      //     <Thumbnail size={40} id={id} metadata={draft.data} />
-      //   ) : undefined
-      // }
+      icon={
+        draft.data?.metadata.thumbnail ? (
+          <Thumbnail size={40} id={id} metadata={draft.data.metadata} />
+        ) : undefined
+      }
     >
       <XStack gap="$2" ai="center" f={1} paddingVertical="$2">
         <YStack f={1} gap="$1.5">
@@ -202,7 +204,7 @@ function DirectoryItem({
       }}
       h={60}
       icon={
-        entry.id.path?.length == 0 || entry.metadata.thumbnail ? (
+        entry.metadata.thumbnail ? (
           <Thumbnail size={40} id={entry.id} metadata={entry.metadata} />
         ) : undefined
       }
