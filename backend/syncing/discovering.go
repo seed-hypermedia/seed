@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"seed/backend/ipfs"
-	"sync"
 	"time"
 
 	"github.com/multiformats/go-multicodec"
@@ -15,7 +14,7 @@ const defaultDiscoveryTimeout = time.Second * 30
 
 // DiscoverObject discovers an object in the network. If not found, then it returns an error
 // If found, this function will store the object locally so that it can be gotten like any
-// other local object.
+// other local object. This function blocks until either success or fails to find providers.
 func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) error {
 	if s.cfg.NoDiscovery {
 		return fmt.Errorf("remote content discovery is disabled")
@@ -42,27 +41,20 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 
 	peers := s.bitswap.FindProvidersAsync(ctx, c, maxProviders)
 
-	var wg sync.WaitGroup
-
 	for p := range peers {
 		p := p
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			log := s.log.With(
-				zap.String("entity", entityID),
-				zap.String("CID", c.String()),
-				zap.String("peer", p.String()),
-			)
-			log.Debug("DiscoveredProvider")
-			if err := s.SyncWithPeer(ctx, p.ID, entityID); err != nil {
-				log.Debug("FinishedSyncingWithProvider", zap.Error(err))
-				return
-			}
-		}()
+		log := s.log.With(
+			zap.String("entity", entityID),
+			zap.String("CID", c.String()),
+			zap.String("peer", p.String()),
+		)
+		log.Debug("DiscoveredProvider")
+		if err := s.SyncWithPeer(ctx, p.ID, entityID); err != nil {
+			log.Warn("FinishedSyncingWithProvider", zap.Error(err))
+			continue
+		}
+		return nil
 	}
 
-	wg.Wait()
-
-	return nil // fmt.Errorf("Found %d providers but could not sync with them:", len(peers))
+	return fmt.Errorf("No providers found for CID %s", c.String())
 }
