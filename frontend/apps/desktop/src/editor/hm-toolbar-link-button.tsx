@@ -45,13 +45,35 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
   }, [props.editor])
 
   const setLink = useCallback(
-    (url: string, text?: string) => {
+    (url: string, text?: string, currentUrl?: string) => {
+      if (currentUrl) {
+        deleteLink()
+      }
       popoverProps.onOpenChange(false)
       props.editor.focus()
       props.editor.createLink(url, text)
     },
     [props.editor],
   )
+
+  const deleteLink = () => {
+    const url = props.editor.getSelectedLinkUrl()
+    if (url) {
+      const {view} = props.editor._tiptapEditor
+      const {state} = view
+      const $urlPos = state.doc.resolve(state.selection.from)
+      const linkMarks = $urlPos.parent.firstChild!.marks
+      if (linkMarks && linkMarks.length > 0) {
+        const linkMark = linkMarks.find((mark) => mark.type.name == 'link')
+        view.dispatch(
+          view.state.tr
+            .removeMark($urlPos.start(), $urlPos.end(), linkMark)
+            .setMeta('preventAutolink', true),
+        )
+        view.focus()
+      }
+    }
+  }
 
   return (
     <XGroup.Item>
@@ -78,13 +100,13 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
               popoverProps.onOpenChange(false)
               props.editor.focus()
               if (url) {
-                props.editor.hyperlinkToolbar.updateHyperlink(_url, text)
+                setLink(_url, text, url)
               } else {
                 setLink(_url, text)
               }
             }}
             onCancel={() => popoverProps.onOpenChange(false)}
-            deleteHyperlink={props.editor.hyperlinkToolbar.deleteHyperlink}
+            deleteHyperlink={deleteLink}
           />
         </Popover.Content>
       </Popover>
