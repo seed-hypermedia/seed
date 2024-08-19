@@ -23,6 +23,7 @@ import {
   Separator,
   SizableText,
   SizeTokens,
+  Text,
   XStack,
   YGroup,
   YStack,
@@ -38,7 +39,7 @@ import {
   User2,
   X,
 } from '@tamagui/lucide-icons'
-import {ComponentProps, useRef, useState} from 'react'
+import {ComponentProps, useMemo, useRef, useState} from 'react'
 
 const defaultSort: LibraryQueryState['sort'] = 'lastUpdate'
 
@@ -519,14 +520,19 @@ function LibraryListItem({entry}: {entry: LibraryData[0]}) {
   const navigate = useNavigate()
   const metadata = entry.document?.metadata || entry.draft?.metadata
   const isUnpublished = !!entry.draft && !entry.document
-  const isFavorite = !isUnpublished && entry.isFavorite
+  const editors = useMemo(
+    () =>
+      entry.authors.length > 3 ? entry.authors.slice(0, 2) : entry.authors,
+    [entry.authors],
+  )
+
+  const hoverColor = '$color5'
   return (
     <Button
-      size="$4"
       group="item"
       borderWidth={0}
       hoverStyle={{
-        bg: '$color5',
+        bg: hoverColor,
       }}
       paddingHorizontal={16}
       paddingVertical="$1"
@@ -536,14 +542,16 @@ function LibraryListItem({entry}: {entry: LibraryData[0]}) {
       }}
       h={60}
       icon={
-        <Thumbnail
-          size={42}
-          id={entry.id}
-          metadata={entry.document?.metadata || entry.draft?.metadata}
-        />
+        entry.id.path?.length == 0 || entry.document?.metadata.thumbnail ? (
+          <Thumbnail
+            size={40}
+            id={entry.id}
+            metadata={entry.document?.metadata || entry.draft?.metadata}
+          />
+        ) : undefined
       }
     >
-      <XStack gap="$3" ai="center" f={1} paddingVertical="$2">
+      <XStack gap="$2" ai="center" f={1} paddingVertical="$2">
         <YStack f={1} gap="$1.5">
           <XStack ai="center" gap="$2" paddingLeft={4}>
             <SizableText
@@ -597,14 +605,54 @@ function LibraryListItem({entry}: {entry: LibraryData[0]}) {
           <LibraryEntryTime entry={entry} />
         )}
         <XStack>
-          {entry.authors.map((author) => (
-            <LinkThumbnail
+          {editors.map((author, idx) => (
+            <XStack
+              zIndex={idx + 1}
               key={author.id.id}
-              id={author.id}
-              metadata={author.metadata}
-              size={20}
-            />
+              borderColor="$background"
+              backgroundColor="$background"
+              $group-item-hover={{
+                borderColor: hoverColor,
+                backgroundColor: hoverColor,
+              }}
+              borderWidth={2}
+              borderRadius={100}
+              overflow="hidden"
+              marginLeft={-8}
+              animation="fast"
+            >
+              <LinkThumbnail
+                key={author.id.id}
+                id={author.id}
+                metadata={author.metadata}
+                size={20}
+              />
+            </XStack>
           ))}
+          {entry.authors.length > editors.length ? (
+            <XStack
+              zIndex={editors.length}
+              borderColor="$background"
+              backgroundColor="$background"
+              borderWidth={2}
+              borderRadius={100}
+              marginLeft={-8}
+              animation="fast"
+              width={24}
+              height={24}
+              ai="center"
+              jc="center"
+            >
+              <Text
+                fontSize={10}
+                fontFamily="$body"
+                fontWeight="bold"
+                color="$color10"
+              >
+                +{entry.authors.length - editors.length - 1}
+              </Text>
+            </XStack>
+          ) : null}
         </XStack>
       </XStack>
     </Button>
@@ -642,7 +690,7 @@ function LibraryEntryLocation({
       <Button
         theme="purple"
         color="$purple8"
-        fontWeight="600"
+        fontWeight="400"
         size="$1"
         borderWidth={0}
         bg="$colorTransparent"

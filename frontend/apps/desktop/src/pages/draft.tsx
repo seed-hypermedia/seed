@@ -348,6 +348,7 @@ export function DraftHeader({
             })
           }}
           url={cover ? getFileUrl(cover) : ''}
+          id={route.id?.id}
         />
       ) : null}
       <Container paddingTop={!showCover ? 60 : '$6'}>
@@ -411,7 +412,7 @@ export function DraftHeader({
             padding={0}
           />
           {route.id?.path?.length || !showThumbnail || !showCover ? (
-            <XStack marginTop="$4" gap="$3" bg="red">
+            <XStack marginTop="$4" gap="$3">
               {route.id?.path?.length ? (
                 <PathDraft draftActor={draftActor} />
               ) : null}

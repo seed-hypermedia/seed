@@ -1,7 +1,14 @@
 import {fileUpload} from '@/utils/file-upload'
-import {Button, Container, Stack, Tooltip, XStack} from '@shm/ui'
+import {
+  Button,
+  Container,
+  getRandomColor,
+  Stack,
+  Tooltip,
+  XStack,
+} from '@shm/ui'
 import {X} from '@tamagui/lucide-icons'
-import {ChangeEvent} from 'react'
+import {ChangeEvent, useMemo} from 'react'
 import appError from '../errors'
 
 export function CoverImage({
@@ -17,6 +24,12 @@ export function CoverImage({
   onCoverUpload?: (avatar: string) => void
   onRemoveCover?: () => void
 }) {
+  const coverBg = useMemo(() => {
+    if (id) {
+      return getRandomColor(id)
+    }
+  }, [id])
+
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const fileList = event.target.files
     const file = fileList?.[0]
@@ -34,7 +47,7 @@ export function CoverImage({
   }
 
   const coverImage = (
-    <XStack bg="black" height="25vh" width="100%" position="relative">
+    <XStack bg={coverBg} height="25vh" width="100%" position="relative">
       {url ? (
         <img
           src={url}

@@ -1,4 +1,4 @@
-import {XStack} from "@tamagui/stacks";
+import {XStack, XStackProps} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import {useMemo} from "react";
 
@@ -30,7 +30,8 @@ export function UIAvatar({
   size = 20,
   color,
   onPress,
-}: UIAvatarProps) {
+  borderRadius = size,
+}: UIAvatarProps & {borderRadius?: XStackProps["BorderRadius"]}) {
   let avatarColor = useMemo(() => {
     if (color) return color;
     return getRandomColor(id || "untitled");
@@ -38,16 +39,20 @@ export function UIAvatar({
 
   let text = label ? label[0] : id ? id[0] : "?";
 
-  let avatar = (
+  return (
     <XStack
       width={size}
       height={size}
-      borderRadius={size}
+      borderRadius={borderRadius}
       overflow="hidden"
       backgroundColor={avatarColor}
       alignItems="center"
       justifyContent="center"
       position="relative"
+      onPress={onPress}
+      hoverStyle={{
+        cursor: onPress ? "pointer" : undefined,
+      }}
     >
       {url ? (
         <img
@@ -70,15 +75,6 @@ export function UIAvatar({
       )}
     </XStack>
   );
-
-  if (onPress) {
-    return (
-      <XStack cursor="pointer" onPress={onPress}>
-        {avatar}
-      </XStack>
-    );
-  }
-  return avatar;
 }
 
 export function getRandomColor(id: string) {

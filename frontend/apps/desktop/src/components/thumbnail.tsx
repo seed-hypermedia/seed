@@ -3,23 +3,24 @@ import {useNavigate} from '@/utils/useNavigate'
 import {getMetadataName, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
 import {Tooltip, UIAvatar} from '@shm/ui'
 import {AlertCircle} from '@tamagui/lucide-icons'
-import {Button, FontSizeTokens, YStack} from 'tamagui'
+import {Button, YStack} from 'tamagui'
 
 export function Thumbnail({
   id,
   metadata,
-  size,
+  size = 32,
 }: {
   id: UnpackedHypermediaId
   metadata?: HMMetadata | null
-  size?: FontSizeTokens | number
+  size?: number
 }) {
   return (
     <UIAvatar
-      size={size || 40}
+      size={size}
       id={id.path?.at(-1) || id.uid.slice(2)}
       label={metadata?.name}
       url={getFileUrl(metadata?.thumbnail)}
+      borderRadius={id.path?.length != 0 ? size / 6 : undefined}
     />
   )
 }
@@ -32,14 +33,14 @@ export function LinkThumbnail({
 }: {
   id: UnpackedHypermediaId
   metadata?: HMMetadata | null
-  size?: FontSizeTokens | number
+  size?: number
   error?: boolean
 }) {
   const navigate = useNavigate()
   let content = (
     <>
       <Thumbnail id={id} size={size} metadata={metadata} />
-      {error ? <ErrorDot /> : null}
+      <ErrorDot error={error} />
     </>
   )
 
@@ -67,10 +68,10 @@ export function LinkThumbnail({
   )
 }
 
-export function ErrorDot() {
-  return (
+export function ErrorDot({error}: {error?: boolean}) {
+  return error ? (
     <YStack
-      backgroundColor={'#ff3333'}
+      backgroundColor="$red11"
       display="flex"
       position="absolute"
       top={-8}
@@ -83,5 +84,5 @@ export function ErrorDot() {
     >
       <AlertCircle size={16} />
     </YStack>
-  )
+  ) : null
 }
