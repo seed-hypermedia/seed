@@ -1,6 +1,7 @@
 import {useGRPCClient, useQueryInvalidator} from '@/app-context'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {hmId, Role, UnpackedHypermediaId} from '@shm/shared'
+import {toast} from '@shm/ui'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {useMyAccountIds} from './daemon'
 import {
@@ -42,8 +43,9 @@ export function useAddCapabilities(id: UnpackedHypermediaId) {
         ),
       )
     },
-    onSuccess: () => {
-      invalidate([queryKeys.CAPABILITIES, id.uid, ...(id.path || [])])
+    onSuccess: (data, {collaboratorAccountIds: count}) => {
+      toast.success(`Capabilit${count.length > 1 ? 'ies' : 'y'} added`),
+        invalidate([queryKeys.CAPABILITIES, id.uid, ...(id.path || [])])
     },
   })
 }

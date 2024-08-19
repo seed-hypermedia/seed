@@ -20,7 +20,7 @@ export function Thumbnail({
       id={id.path?.at(-1) || id.uid.slice(2)}
       label={metadata?.name}
       url={getFileUrl(metadata?.thumbnail)}
-      borderRadius={id.path?.length != 0 ? size / 6 : undefined}
+      borderRadius={id.path && id.path.length != 0 ? size / 8 : undefined}
     />
   )
 }

@@ -150,7 +150,6 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
               size="$2"
               h="auto"
               onPress={() => {
-                setSearch('')
                 addCapabilities.mutate({
                   myCapability: myCapability,
                   collaboratorAccountIds: selectedCollaborators.map(
@@ -158,6 +157,8 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
                   ),
                   role: Role.WRITER,
                 })
+                setSearch('')
+                setSelectedCollaborators([])
               }}
               bg="#DED9FF"
               borderColor="#DED9FF"
