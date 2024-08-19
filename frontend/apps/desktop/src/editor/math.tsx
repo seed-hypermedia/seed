@@ -143,8 +143,9 @@ const Render = (
         paddingHorizontal="16px"
         position="relative"
         hoverStyle={{cursor: `${!opened ? 'pointer' : ''}`}}
+        userSelect="none"
       >
-        <SizableText ref={mathRef} />
+        <SizableText ref={mathRef} userSelect="none" />
       </YStack>
       {opened && (
         <YStack>

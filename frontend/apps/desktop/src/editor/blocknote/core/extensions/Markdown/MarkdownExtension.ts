@@ -1,5 +1,6 @@
 import {BlockNoteEditor, getBlockInfoFromPos, setGroupTypes} from '@/editor'
 import {Extension} from '@tiptap/core'
+import {DOMParser as ProseMirrorDOMParser} from 'prosemirror-model'
 import {Plugin} from 'prosemirror-state'
 import {MarkdownToBlocks} from './MarkdownToBlocks'
 
@@ -32,14 +33,31 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
           props: {
             handlePaste: (view, event, slice) => {
               const pastedText = event.clipboardData!.getData('text/plain')
-              // const pastedHtml = event.clipboardData!.getData('text/html')
-
-              if (!isMarkdown(pastedText)) {
-                return false
-              }
+              const pastedHtml = event.clipboardData!.getData('text/html')
+              const hasList =
+                pastedHtml.includes('<ul') || pastedHtml.includes('<ol')
 
               const {state} = view
               const {selection} = state
+
+              if (!isMarkdown(pastedText)) {
+                if (hasList) {
+                  const parser = new DOMParser()
+                  const doc = parser.parseFromString(pastedHtml, 'text/html')
+                  const fragment = ProseMirrorDOMParser.fromSchema(
+                    view.state.schema,
+                  ).parse(doc.body)
+                  let tr = state.tr
+                  tr = tr.replaceRangeWith(
+                    selection.from,
+                    selection.to,
+                    fragment.firstChild!.content.content,
+                  )
+                  view.dispatch(tr)
+                  return true
+                }
+                return false
+              }
 
               MarkdownToBlocks(pastedText, bnEditor).then((organizedBlocks) => {
                 const blockInfo = getBlockInfoFromPos(state.doc, selection.from)

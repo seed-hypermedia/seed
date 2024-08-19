@@ -82,13 +82,13 @@ const display = ({
         justifyContent="flex-start"
         icon={<File />}
         disabled
+        userSelect="none"
       >
         <SizableText
           size="$5"
           overflow="hidden"
           textOverflow="ellipsis"
           whiteSpace="nowrap"
-          userSelect="text"
           flex={1}
         >
           {block.props.name}
