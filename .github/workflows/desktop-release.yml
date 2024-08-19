@@ -126,9 +126,9 @@ jobs:
           # VITE_VERSION: "0.0.100"
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           timeout-minutes: 10
-          VITE_DESKTOP_P2P_PORT: "55000"
-          VITE_DESKTOP_HTTP_PORT: "55001"
-          VITE_DESKTOP_GRPC_PORT: "55002"
+          VITE_DESKTOP_P2P_PORT: "56000"
+          VITE_DESKTOP_HTTP_PORT: "56001"
+          VITE_DESKTOP_GRPC_PORT: "56002"
           VITE_DESKTOP_APPDATA: "Seed"
           VITE_DESKTOP_HOSTNAME: "http://localhost"
           VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
@@ -145,9 +145,9 @@ jobs:
           VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           timeout-minutes: 10
-          VITE_DESKTOP_P2P_PORT: "55000"
-          VITE_DESKTOP_HTTP_PORT: "55001"
-          VITE_DESKTOP_GRPC_PORT: "55002"
+          VITE_DESKTOP_P2P_PORT: "56000"
+          VITE_DESKTOP_HTTP_PORT: "56001"
+          VITE_DESKTOP_GRPC_PORT: "56002"
           VITE_DESKTOP_APPDATA: "Seed"
           VITE_DESKTOP_HOSTNAME: "http://localhost"
 
