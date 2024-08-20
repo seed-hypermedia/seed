@@ -157,7 +157,7 @@ function DraftItem({id}: {id: UnpackedHypermediaId}) {
             </SizableText>
           </XStack>
           <PathButton
-            name={draft.data.metadata.name}
+            name={draft.data?.metadata?.name}
             isDraft
             path={id.path}
             onCopy={() => {}}
