@@ -108,7 +108,7 @@ go run ./backend/cmd/seed-site -data-dir=~/.mttsite -p2p.port=59000 --http.port=
 In the Seed directory, start by running `yarn`. Then:
 
 ```
-HM_BASE_URL="http://localhost:3000" GRPC_HOST="http://localhost:59001" PORT=3000 yarn site
+HM_BASE_URL="http://localhost:3000" WEB_GRPC_HOST="http://localhost:59001" PORT=3000 yarn site
 ```
 
 ## Dev: Run Gateway

@@ -6758,6 +6758,7 @@ __metadata:
     "@tamagui/themes": 1.108.2
     "@tamagui/use-did-finish-ssr": ^1.100.5
     "@tamagui/web": 1.108.2
+    lucide-react: ^0.428.0
     react: 18.2.0
     react-native-reanimated: ^3.7.0
     react-virtuoso: 4.6.2
@@ -10996,13 +10997,13 @@ __metadata:
   linkType: hard
 
 "algoliasearch-helper@npm:^3.10.0":
-  version: 3.22.3
-  resolution: "algoliasearch-helper@npm:3.22.3"
+  version: 3.22.4
+  resolution: "algoliasearch-helper@npm:3.22.4"
   dependencies:
     "@algolia/events": ^4.0.1
   peerDependencies:
     algoliasearch: ">= 3.1 < 6"
-  checksum: 18ee77496e6e3aec6b3c1cab7a6c3e103172e3ac39d8dac076f654a28f66e5a7a3f609f694451705e606510b93c9e2c10f1fe738761ff007044c445318ffdb90
+  checksum: 798b91f18265d5ce91f601571a267fe8d630490610d6017021b86d2bd1a3464e34005eab408da1bbd56507d61a76ca93443769f81d8cf9e8f49e209cf5749e77
   languageName: node
   linkType: hard
 
@@ -13339,18 +13340,18 @@ __metadata:
   linkType: hard
 
 "core-js-compat@npm:^3.37.1, core-js-compat@npm:^3.38.0":
-  version: 3.38.0
-  resolution: "core-js-compat@npm:3.38.0"
+  version: 3.38.1
+  resolution: "core-js-compat@npm:3.38.1"
   dependencies:
     browserslist: ^4.23.3
-  checksum: bd410be723e3621f7e8c7a4dce91eaefc603d95133da89c042dd961aca368c7281894bd9af14116a455a4473288fb6c121b185cb8a1e8290b8ace15aedb315f2
+  checksum: a0a5673bcd59f588f0cd0b59cdacd4712b82909738a87406d334dd412eb3d273ae72b275bdd8e8fef63fca9ef12b42ed651be139c7c44c8a1acb423c8906992e
   languageName: node
   linkType: hard
 
 "core-js-pure@npm:^3.23.3, core-js-pure@npm:^3.30.2":
-  version: 3.38.0
-  resolution: "core-js-pure@npm:3.38.0"
-  checksum: 29aac7b56778370523f6a58f713c730975b097fea19838f93705730bd95d2da78b116e561e2cda637dde4cebe0a88baf9a5ce4e391732c39cbc5e55dc95bb38c
+  version: 3.38.1
+  resolution: "core-js-pure@npm:3.38.1"
+  checksum: 95ca2e75df371571b0d41cba81e1f6335a2ba1f080e80f8edfa124ad3041880fe72e10f2144527a700a3d993dbf9f7cada3e04a927a66604bc49d0c4951567fb
   languageName: node
   linkType: hard
 
@@ -13362,9 +13363,9 @@ __metadata:
   linkType: hard
 
 "core-js@npm:^3.23.3":
-  version: 3.38.0
-  resolution: "core-js@npm:3.38.0"
-  checksum: 71ef0598da69daee2b46fa1f82f074019981656f7cae26fed2b7f076c611e330a99ba5c70156ae37682f59a8d6ec6486119c70cb283c9fff25bd4f20db7fdc27
+  version: 3.38.1
+  resolution: "core-js@npm:3.38.1"
+  checksum: 55703c2f6fcd537e47a5cc83e9dc9884efef61861bbefb4a96a8c95e87956db980ce314628465dd49f14e626c5e633b9e3433f3e4a1f628404a14da420eb2556
   languageName: node
   linkType: hard
 
@@ -14781,9 +14782,9 @@ __metadata:
   linkType: hard
 
 "electron-to-chromium@npm:^1.5.4":
-  version: 1.5.11
-  resolution: "electron-to-chromium@npm:1.5.11"
-  checksum: 9dbf480ff39005b3c9657e6b8df534a4597d0747472f2982315cc169024ebfb45f99b16dd57d8be4a51a063f14590f9f585f179e55f68591f870f38b9a5e491a
+  version: 1.5.12
+  resolution: "electron-to-chromium@npm:1.5.12"
+  checksum: 9ce8d5be88357e71213c12f3d2d47b74666bb17d5dfbd30be77e4c1ed6782c7349803018b0fbefd95bf99ae69ab5918a50cdebf0d5b2c4c9a2e5d0e897d2e32b
   languageName: node
   linkType: hard
 
@@ -20103,6 +20104,15 @@ __metadata:
   version: 0.3.3
   resolution: "lru_map@npm:0.3.3"
   checksum: ca9dd43c65ed7a4f117c548028101c5b6855e10923ea9d1f635af53ad20c5868ff428c364d454a7b57fe391b89c704982275410c3c5099cca5aeee00d76e169a
+  languageName: node
+  linkType: hard
+
+"lucide-react@npm:^0.428.0":
+  version: 0.428.0
+  resolution: "lucide-react@npm:0.428.0"
+  peerDependencies:
+    react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0-rc
+  checksum: da9b9460cd957353d995a61e1a40f69c2ed991698a7c5f0a482ce38bb3bac8066671bd016a4000f69b4b4789269db6439641c62053f9360e5bd89e319738b515
   languageName: node
   linkType: hard
 
