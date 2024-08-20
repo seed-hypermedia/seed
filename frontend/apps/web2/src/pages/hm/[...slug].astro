@@ -22,11 +22,21 @@ const document = toPlainMessage(rawDoc);
     <title>Astro</title>
   </head>
   <body>
-    <h1>{document.metadata.name || "Untitled Document"}</h1>
-    {
-      document.content.map((block) => (
-        <div>{block.block?.text ? <p>{block.block?.text}</p> : null}</div>
-      ))
-    }
+    <section class="mx-auto max-w-xl py-12">
+      <h1 class="text-4xl font-bold">
+        {document.metadata.name || "Untitled Document"}
+      </h1>
+    </section>
+    <section class="mx-auto max-w-xl py-12">
+      <article class="prose lg:prose-xl">
+        {
+          document.content.map((block) =>
+            block.block?.text ? (
+              <p class="text-gray-800 leading-7 mb-6">{block.block.text}</p>
+            ) : null
+          )
+        }
+      </article>
+    </section>
   </body>
 </html>
