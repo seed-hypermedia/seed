@@ -1,0 +1,135 @@
+networks:
+  internal_network:
+    driver: bridge # the default
+services:
+  # proxy:
+  #   container_name: seed-proxy
+  #   image: caddy:2
+  #   depends_on:
+  #     - seed-daemon
+  #     - seed-web
+  #   profiles:
+  #     - astro
+  #     - default
+  #     - metrics
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #     - "443:443/udp"
+  #   restart: unless-stopped
+  #   networks:
+  #     - internal_network
+  #   environment:
+  #     - "SEED_SITE_HOSTNAME=${SEED_SITE_HOSTNAME}"
+  #     - "SEED_SITE_BACKEND_GRPCWEB_PORT=${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001}"
+  #     - "SEED_SITE_LOCAL_PORT=${SEED_SITE_LOCAL_PORT:-3000}"
+  #   volumes:
+  #     - ${SEED_SITE_WORKSPACE}/proxy/data:/data
+  #     - ${SEED_SITE_WORKSPACE}/proxy/config:/config
+  #     - ${SEED_SITE_WORKSPACE}/proxy/CaddyFile:/etc/caddy/Caddyfile
+
+  # seed-web:
+  #   container_name: seed-web
+  #   image: seedhypermedia/web:${SEED_SITE_TAG:-latest}
+  #   depends_on:
+  #     - seed-daemon
+  #   profiles:
+  #     - default
+  #     - metrics
+  #   networks:
+  #     - internal_network
+  #   ports:
+  #     - "${SEED_SITE_LOCAL_PORT:-4321}:${SEED_SITE_LOCAL_PORT:-4321}"
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ${SEED_SITE_WORKSPACE}/web:/data:rw
+  #   environment:
+  #     - "SEED_BASE_URL=${SEED_SITE_HOSTNAME}"
+  #     - "DAEMON_HTTP_URL=http://seed-daemon:${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001}"
+  #     - "PORT=${SEED_SITE_LOCAL_PORT:-3000}"
+  #     - "DATA_DIR=/data"
+
+  seed-web-astro:
+    container_name: seed-web-astro
+    image: seed-web-astro
+    depends_on:
+      - seed-daemon
+    profiles:
+      - astro
+      - metrics
+    networks:
+      - internal_network
+    ports:
+      - "${SEED_SITE_LOCAL_PORT:-4321}:${SEED_SITE_LOCAL_PORT:-4321}"
+    restart: unless-stopped
+    volumes:
+      - ${SEED_SITE_WORKSPACE}/web:/data:rw
+    environment:
+      - "SEED_BASE_URL=${SEED_SITE_HOSTNAME}"
+      - "DAEMON_HTTP_URL=http://seed-daemon:${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001}"
+      - "PORT=${SEED_SITE_LOCAL_PORT:-4321}"
+      - "DATA_DIR=/data"
+
+  seed-daemon:
+    container_name: seed-daemon
+    image: seed-daemon
+    restart: unless-stopped
+    profiles:
+      - astro
+      - default
+    ports:
+      - "56000:56000"
+      - "56000:56000/udp"
+    networks:
+      - internal_network
+    environment:
+      # - "SENTRY_DSN=${SEED_SITE_SENTRY_DSN:-https://47c66bd7a6d64db68a59c03f2337e475@o4504088793841664.ingest.sentry.io/4505527493328896}"
+      - SEED_P2P_TESTNET_NAME=${SEED_P2P_TESTNET_NAME}
+    volumes:
+      - ${SEED_SITE_WORKSPACE}/daemon:/data:rw
+#   prometheus:
+#     image: prom/prometheus:latest
+#     restart: unless-stopped
+#     container_name: prometheus
+#     profiles:
+#       - metrics
+#       - astro
+#       - default
+#     depends_on:
+#       - seed-daemon
+#     networks:
+#       - internal_network
+#     extra_hosts:
+#       - "host.docker.internal:host-gateway"
+#     volumes:
+#       - prometheus-data:/prometheus
+#       - ${SEED_SITE_MONITORING_WORKDIR:-./monitoring}/prometheus/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+
+#   grafana:
+#     image: grafana/grafana:main
+#     restart: unless-stopped
+#     container_name: grafana
+#     depends_on:
+#       - prometheus
+#     profiles:
+#       - metrics
+#       - astro
+#       - default
+#     networks:
+#       - internal_network
+#     volumes:
+#       - grafana-data:/var/lib/grafana
+#       - ${SEED_SITE_MONITORING_WORKDIR:-./monitoring}/grafana/dashboards:/etc/grafana/dashboards:ro
+#       - ${SEED_SITE_MONITORING_WORKDIR:-./monitoring}/grafana/provisioning:/etc/grafana/provisioning:ro
+#     environment:
+#       GF_LOG_MODE: console
+#       GF_PATHS_PROVISIONING: "/etc/grafana/provisioning"
+#       GF_SERVER_HTTP_PORT: ${SEED_SITE_MONITORING_PORT:-3001}
+#       GF_SERVER_PROTOCOL: "http"
+#       GF_SERVER_DOMAIN: ${SEED_SITE_DNS:-localhost:3001}
+#       GF_SERVER_ROOT_URL: ${SEED_SITE_HOSTNAME:-http}/.metrics
+#       GF_SERVER_SERVE_FROM_SUB_PATH: True
+
+# volumes:
+#   grafana-data: {}
+#   prometheus-data: {}

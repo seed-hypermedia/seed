@@ -1,0 +1,32 @@
+---
+import {toPlainMessage} from "@bufbuild/protobuf";
+import {queryClient} from "../../client";
+
+const {slug} = Astro.params;
+const path = slug?.split("/");
+const [accountUid, ...restPath] = path || [];
+const validPathTerms = restPath.filter((term) => !!term);
+const rawDoc = await queryClient.documents.getDocument({
+  account: accountUid,
+  path: validPathTerms.length ? `/${validPathTerms.join("/")}` : "",
+});
+const document = toPlainMessage(rawDoc);
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
+    <title>Astro</title>
+  </head>
+  <body>
+    <h1>{document.metadata.name || "Untitled Document"}</h1>
+    {
+      document.content.map((block) => (
+        <div>{block.block?.text ? <p>{block.block?.text}</p> : null}</div>
+      ))
+    }
+  </body>
+</html>
