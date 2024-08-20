@@ -170,7 +170,7 @@ export function useAllDocumentComments(
     },
     enabled: !!docId,
     refetchInterval: 10_000,
-    queryKey: [queryKeys.DOCUMENT_COMMENTS, docId?.id],
+    queryKey: [queryKeys.DOCUMENT_COMMENTS, docId?.uid, ...(docId?.path || [])],
   })
 }
 
@@ -227,9 +227,6 @@ export function useCommentEditor(
       editor,
       editor.topLevelBlocks,
     )
-    console.log('blocks', blocks)
-    console.log('targetDocId.id', targetDocId.id)
-    console.log('account.get()!', account.get()!)
     await write.mutateAsync({
       blocks,
       targetDocId: targetDocId.id,
@@ -365,10 +362,6 @@ export function useCommentEditor(
       return resultComment
     },
     onSuccess: (newComment: HMComment) => {
-      removeDraft.mutate({
-        targetDocId: targetDocId.id,
-        replyCommentId,
-      })
       invalidate([
         queryKeys.DOCUMENT_COMMENTS,
         targetDocId.uid,
@@ -376,6 +369,10 @@ export function useCommentEditor(
       ])
       invalidate([queryKeys.FEED_LATEST_EVENT])
       invalidate([queryKeys.RESOURCE_FEED_LATEST_EVENT])
+      removeDraft.mutate({
+        targetDocId: targetDocId.id,
+        replyCommentId,
+      })
     },
   })
   return useMemo(() => {

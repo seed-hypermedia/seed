@@ -52,8 +52,6 @@ export function Discussion({docId}: {docId: UnpackedHypermediaId}) {
 
 function DiscussionComments({docId}: {docId: UnpackedHypermediaId}) {
   const comments = useDocumentCommentGroups(docId)
-
-  console.log(`== ~ DiscussionComments:`, comments)
   return comments.map((commentGroup) => {
     return (
       <CommentGroup
