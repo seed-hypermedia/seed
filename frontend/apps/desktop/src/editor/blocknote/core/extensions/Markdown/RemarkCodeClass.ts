@@ -1,7 +1,7 @@
 import {Root} from 'remark-parse/lib'
 import {Plugin} from 'unified'
 import {Node} from 'unist'
-import visit from 'unist-util-visit'
+import {visit} from 'unist-util-visit'
 
 export const remarkCodeClass: Plugin<void[], Root> = () => {
   return (tree: Node) => {
