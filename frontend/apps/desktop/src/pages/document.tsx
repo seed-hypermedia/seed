@@ -205,14 +205,13 @@ function DocPageHeader({
   return (
     <YStack>
       <DocumentCover docId={docId} />
-      <Container paddingTop={!hasCover ? 60 : '$6'}>
-        <YStack
-          // marginTop={hasCover ? -60 : 60}
-          bg="$background"
-          borderRadius="$2"
-          group="header"
-          gap="$4"
-        >
+      <Container
+        marginTop={hasCover ? -40 : 0}
+        paddingTop={!hasCover ? 60 : '$6'}
+        bg="$background"
+        borderRadius="$2"
+      >
+        <YStack group="header" gap="$4">
           {hasThumbnail ? (
             <XStack marginTop={hasCover ? -80 : 0}>
               <AvatarForm

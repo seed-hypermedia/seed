@@ -80,7 +80,7 @@ export function Directory({docId}: {docId: UnpackedHypermediaId}) {
     <YStack paddingVertical="$4">
       {drafts.map((id) => {
         if (!id) return null
-        return <DraftListItem key={id.id} id={id} />
+        return <DraftItem key={id.id} id={id} />
       })}
 
       {directory.map((item) => (
@@ -103,7 +103,7 @@ function DocCreation({id}: {id: UnpackedHypermediaId}) {
   )
 }
 
-function DraftListItem({id}: {id: UnpackedHypermediaId}) {
+function DraftItem({id}: {id: UnpackedHypermediaId}) {
   const navigate = useNavigate()
 
   const draft = useDraft(packHmId(id))
@@ -144,8 +144,10 @@ function DraftListItem({id}: {id: UnpackedHypermediaId}) {
             <SizableText
               size="$1"
               color="$yellow11"
-              paddingHorizontal="$2"
-              paddingVertical="$1"
+              paddingHorizontal={4}
+              paddingVertical={8}
+              lineHeight={1}
+              fontSize={10}
               bg="$yellow3"
               borderRadius="$1"
               borderColor="$yellow10"
@@ -154,7 +156,12 @@ function DraftListItem({id}: {id: UnpackedHypermediaId}) {
               DRAFT
             </SizableText>
           </XStack>
-          <PathButton path={id.path} onCopy={() => {}} />
+          <PathButton
+            name={draft.data.metadata.name}
+            isDraft
+            path={id.path}
+            onCopy={() => {}}
+          />
         </YStack>
       </XStack>
       <XStack gap="$3" ai="center">
@@ -350,10 +357,14 @@ function NewSubDocumentButton({
 }
 
 function PathButton({
+  name,
   path,
   onCopy,
+  isDraft = false,
 }: {
   path: UnpackedHypermediaId['path'] | HMDocument['path']
+  name?: string
+  isDraft?: boolean
   onCopy: () => void
 }) {
   return (
@@ -371,28 +382,35 @@ function PathButton({
       <SizableText
         color="$blue8"
         size="$1"
-        $group-pathitem-hover={{
-          color: '$blue11',
-        }}
+        $group-pathitem-hover={
+          isDraft
+            ? undefined
+            : {
+                color: '$blue11',
+              }
+        }
         textOverflow="ellipsis"
         whiteSpace="nowrap"
         overflow="hidden"
-        hoverStyle={{
-          color: '$blue10',
-        }}
       >
-        {path ? `/${path.at(-1)}` : ''}
+        {!!name && path && path.at(-1)?.startsWith('_')
+          ? `/${pathNameify(name)}`
+          : path
+          ? `/${path.at(-1)}`
+          : ''}
       </SizableText>
-      <Copy
-        flexGrow={0}
-        flexShrink={0}
-        size={12}
-        color="$blue10"
-        opacity={0}
-        $group-pathitem-hover={{
-          opacity: 1,
-        }}
-      />
+      {!isDraft ? (
+        <Copy
+          flexGrow={0}
+          flexShrink={0}
+          size={12}
+          color="$blue10"
+          opacity={0}
+          $group-pathitem-hover={{
+            opacity: 1,
+          }}
+        />
+      ) : null}
     </XStack>
   )
 }

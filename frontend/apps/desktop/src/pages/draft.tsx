@@ -16,6 +16,7 @@ import {
   handleDragMedia,
 } from '@/utils/media-drag'
 import {useNavRoute} from '@/utils/navigation'
+import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   BlockRange,
@@ -351,14 +352,13 @@ export function DraftHeader({
           id={route.id?.id}
         />
       ) : null}
-      <Container paddingTop={!showCover ? 60 : '$6'}>
-        <YStack
-          // marginTop={showCover ? -60 : 60}
-          bg="$background"
-          borderRadius="$2"
-          group="header"
-          gap="$2"
-        >
+      <Container
+        marginTop={showCover ? -40 : 0}
+        paddingTop={!showCover ? 60 : '$6'}
+        bg="$background"
+        borderRadius="$2"
+      >
+        <YStack group="header" gap="$4">
           {showThumbnail ? (
             <AvatarForm
               size={100}
@@ -464,8 +464,9 @@ function PathDraft({
   const route = useNavRoute()
   if (route.key != 'draft') throw new Error('not a draft')
   const replaceRoute = useNavigate('replace')
-  const name = useSelector(draftActor, (state) => state.context.name)
+
   const draftContext = useSelector(draftActor, (s) => s.context)
+  const name = useMemo(() => draftContext.name, [draftContext])
   const routePath = useMemo(() => route.id?.path, [route])
   const [isDirty, setDirty] = useState(false)
   const [isEditing, setEditing] = useState(false)
@@ -473,6 +474,7 @@ function PathDraft({
     () => separateLastItem(routePath),
     [routePath],
   )
+
   const {data: draft} = useDraft(packHmId(route.id))
   const createDraft = trpc.drafts.write.useMutation()
   const deleteDraft = trpc.drafts.delete.useMutation()
@@ -480,42 +482,17 @@ function PathDraft({
   useEffect(() => {
     if (isDirty) return
     if (!!name && currentPath?.startsWith('_')) {
-      setPath(handlePathChange(name))
+      setPath(pathNameify(name))
     }
   }, [name, isDirty])
 
   const [path, setPath] = useState('')
-
-  function handlePathChange(newPath: string) {
-    // Remove spaces
-    let formatted = newPath.replace(/\s+/g, '-')
-
-    // Remove consecutive dashes
-    formatted = formatted.replace(/-+/g, '-')
-
-    // Only allow valid URL path characters
-    formatted = formatted.replace(/[^a-zA-Z0-9/_-]/g, '')
-
-    // Remove consecutive slashes
-    formatted = formatted.replace(/\/{2,}/g, '/')
-
-    // // Ensure it starts with a single slash
-    // if (!formatted.startsWith('/')) {
-    //   formatted = '/' + formatted
-    // }
-
-    // Remove trailing dashes
-    // formatted = formatted.replace(/-+$/, '')
-
-    return formatted
-  }
 
   async function handleDraftChange() {
     if (route.key != 'draft' && !route.id) return
     const newId = hmId('draft', route.id.uid, {path: [...paths, path]})
     const packedId = packHmId(newId)
 
-    console.log(`== ~ handleDraftChange ~ packedId:`, packedId)
     let newContent = {
       metadata: {
         name: draftContext.name,
@@ -526,7 +503,7 @@ function PathDraft({
       content: draft?.content || [],
     } as HMDraft
 
-    const newDraft = await createDraft.mutateAsync({
+    await createDraft.mutateAsync({
       id: packedId,
       draft: newContent,
     })
@@ -549,7 +526,7 @@ function PathDraft({
           <Input
             size="$2"
             value={path}
-            onChangeText={(t: string) => setPath(handlePathChange(t))}
+            onChangeText={(t: string) => setPath(pathNameify(t))}
           />
           <SizableText
             size="$2"
@@ -567,7 +544,7 @@ function PathDraft({
             hoverStyle={{textDecorationLine: 'underline', cursor: 'pointer'}}
             onPress={() => {
               if (!!name && path.startsWith('_')) {
-                setPath(handlePathChange(name))
+                setPath(pathNameify(name))
               } else {
                 setPath(currentPath || '')
               }
