@@ -716,7 +716,11 @@ function LibraryEntryLocation({
             {names.map(({id, metadata}, idx) => (
               <>
                 {idx != 0 ? (
-                  <SizableText color="$color10" size="$1">
+                  <SizableText
+                    key={`slash-${id.id}`}
+                    color="$color10"
+                    size="$1"
+                  >
                     /
                   </SizableText>
                 ) : null}
