@@ -108,7 +108,13 @@ if [ $auto_update -eq 1 ]; then
 fi
 
 mkdir -p ~/.seed-site/web
-echo "{\"availableRegistrationSecret\": \"$registration_secret\"}" > ~/.seed-site/web/config.json
+
+site_config_file="${workspace}/web/config.json"
+
+if [ ! -e "$site_config_file" ]; then
+  echo "{\"availableRegistrationSecret\": \"$registration_secret\"}" > "$site_config_file"
+fi
+
 
 SEED_P2P_TESTNET_NAME="$testnet_name" SEED_SITE_DNS="$dns" SEED_SITE_TAG="$tag" SEED_SITE_WORKSPACE="${workspace}" SEED_SITE_ALLOW_PUSH="$allow_push" SEED_SITE_HOSTNAME="$hostname" SEED_SITE_MONITORING_WORKDIR="${workspace}/monitoring" SEED_SITE_MONITORING_PORT="$SEED_SITE_MONITORING_PORT" docker compose -f ${workspace}/hmsite.yml --profile "$profile" up -d --pull always --quiet-pull 2> ${workspace}/deployment.log || true
 

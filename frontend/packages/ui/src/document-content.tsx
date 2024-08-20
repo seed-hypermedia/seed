@@ -617,7 +617,6 @@ export function BlockNodeContent({
               width={layoutUnit}
               height={layoutUnit * 0.75}
               icon={_expanded ? ChevronDown : ChevronRight}
-              color="green"
               onPress={(e) => {
                 e.stopPropagation();
                 handleBlockNodeToggle();
