@@ -10,7 +10,7 @@ export function Thumbnail({
   metadata,
   size = 32,
   ...props
-}: UIAvatarProps & {
+}: Omit<UIAvatarProps, 'id'> & {
   id: UnpackedHypermediaId
   metadata?: HMMetadata | null
   size?: number

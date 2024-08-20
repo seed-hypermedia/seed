@@ -40,15 +40,12 @@ export default function PublishDraftButton() {
   const publish = usePublishDraft()
 
   useEffect(() => {
-    console.log('=== CHANGE SIGNING ACCOUNT', signingAccount)
     if (signingAccount && signingAccount.id.uid) {
       draftDispatch({type: 'CHANGE', signingAccount: signingAccount.id.uid})
     }
   }, [signingAccount])
 
   useEffect(() => {
-    console.log('=== ACCOUNTS', accts, signingAccount)
-
     if (
       accts.length == 1 &&
       accts[0].data &&

@@ -1,7 +1,11 @@
 import {ImportButton} from '@/components/import-doc-button'
 import {useMyCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
-import {useDraftList, useListDirectory} from '@/models/documents'
+import {
+  HMDocumentListItem,
+  useDraftList,
+  useListDirectory,
+} from '@/models/documents'
 import {useEntities} from '@/models/entities'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
@@ -80,7 +84,7 @@ export function Directory({docId}: {docId: UnpackedHypermediaId}) {
       })}
 
       {directory.map((item) => (
-        <DirectoryItem entry={item} />
+        <DirectoryItem key={item.id.id} entry={item} />
       ))}
 
       <DocCreation id={docId} />
@@ -107,8 +111,6 @@ function DraftListItem({id}: {id: UnpackedHypermediaId}) {
   function goToDraft() {
     navigate({key: 'draft', id})
   }
-
-  console.log('== DRAFT', draft.data?.thumbnail, draft.data)
 
   return (
     <Button
@@ -185,7 +187,7 @@ const itemHoverBgColor = '$color5'
 function DirectoryItem({
   entry,
 }: {
-  entry: HMDocument & {id: UnpackedHypermediaId; hasDraft: boolean}
+  entry: HMDocumentListItem & {id: UnpackedHypermediaId; hasDraft: boolean}
 }) {
   const navigate = useNavigate()
   const metadata = entry?.metadata
@@ -253,7 +255,7 @@ function DirectoryItem({
 function DocumentEditors({
   entry,
 }: {
-  entry: HMDocument & {id: UnpackedHypermediaId; hasDraft?: boolean}
+  entry: HMDocumentListItem & {id: UnpackedHypermediaId; hasDraft?: boolean}
 }) {
   const editorIds = useMemo(
     () =>

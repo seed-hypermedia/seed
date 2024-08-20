@@ -6,10 +6,11 @@ import {queryKeys} from '@/models/query-keys'
 import {useOpenUrl} from '@/open-url'
 import {slashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
-import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
+import {PlainMessage, Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
 import {
   DocumentChange,
+  DocumentListItem,
   HMAccount,
   HMBlock,
   HMBlockNode,
@@ -749,6 +750,11 @@ export function usePushPublication() {
     },
   })
 }
+
+export type HMDocumentListItem = Omit<
+  PlainMessage<DocumentListItem>,
+  'path'
+> & {path: string[]}
 
 export function useListDirectory(id: UnpackedHypermediaId) {
   const grpcClient = useGRPCClient()

@@ -26,7 +26,6 @@ initDrafts()
 
 function inputIdToDraftFile(id: string) {
   const encodedId = Buffer.from(id).toString('base64')
-  console.log('=== encodedId', encodedId)
   return `${encodedId}.json`
 }
 
