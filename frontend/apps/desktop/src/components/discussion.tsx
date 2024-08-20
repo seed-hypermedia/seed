@@ -130,20 +130,33 @@ function Comment({
         bg={lineColor}
       />
       {isFirst && isNested ? (
-        <View
-          position="absolute"
-          top={0}
-          left={-6}
-          width={20}
-          height={20}
-          borderLeftWidth={lineWidth}
-          borderBottomWidth={lineWidth}
-          borderLeftColor={lineColor}
-          borderBottomColor={lineColor}
-          borderRadius={25}
-          borderTopLeftRadius={0}
-          borderBottomRightRadius={0}
-        />
+        <>
+          {isLast ? (
+            <View
+              width={5}
+              position="absolute"
+              top={8}
+              bottom={0}
+              left={-8}
+              bg="$background"
+              // bg="red"
+            />
+          ) : null}
+          <View
+            position="absolute"
+            top={4}
+            left={-6}
+            width={15}
+            height={15}
+            borderLeftWidth={lineWidth}
+            borderBottomWidth={lineWidth}
+            borderLeftColor={lineColor}
+            borderBottomColor={lineColor}
+            borderRadius={25}
+            borderTopLeftRadius={0}
+            borderBottomRightRadius={0}
+          />
+        </>
       ) : null}
 
       <XStack gap="$2" padding="$2">
