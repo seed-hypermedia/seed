@@ -31,7 +31,7 @@ export const BlockGroup = Node.create<{
         },
       },
       start: {
-        default: undefined,
+        default: '1',
         renderHTML: (attributes) => {
           if (attributes.listType === 'ol' && attributes.start) {
             const offset = 0.65 * attributes.start.toString().length
@@ -78,28 +78,34 @@ export const BlockGroup = Node.create<{
     return [
       {
         tag: 'ul',
-        // attrs: {listType: 'ul'},
+        attrs: {listType: 'ul'},
         getAttrs: (element) => {
           if (typeof element === 'string') {
             return false
           }
-          return {listType: 'ul'}
+          return {
+            listType: 'ul',
+          }
         },
         priority: 200,
       },
       {
         tag: 'ol',
-        // attrs: {listType: 'ol'},
+        attrs: {listType: 'ol'},
         getAttrs: (element) => {
           if (typeof element === 'string') {
             return false
           }
-          return {listType: 'ol', start: element.getAttribute('start')}
+          return {
+            listType: 'ol',
+            start: element.getAttribute('start'),
+          }
         },
         priority: 200,
       },
       {
         tag: 'div',
+        attrs: {listType: 'div'},
         getAttrs: (element) => {
           if (typeof element === 'string') {
             return false

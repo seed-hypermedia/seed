@@ -1,5 +1,6 @@
 import {Editor} from '@tiptap/core'
 import {Node as TipTapNode} from '@tiptap/pm/model'
+import {EditorView} from '@tiptap/pm/view'
 import {Block, BlockSchema} from './blocknote'
 
 export function youtubeParser(url: string) {
@@ -71,4 +72,18 @@ export function setGroupTypes(
       setGroupTypes(tiptap, block.children)
     }
   })
+}
+
+export function getNodesInSelection(view: EditorView) {
+  const {state} = view
+  const {from, to} = state.selection
+  const nodes: TipTapNode[] = []
+
+  state.doc.nodesBetween(from, to, (node) => {
+    if (node.type.name === 'blockContainer') {
+      nodes.push(node)
+    }
+  })
+
+  return nodes
 }

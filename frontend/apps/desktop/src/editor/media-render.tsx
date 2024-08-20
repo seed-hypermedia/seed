@@ -10,6 +10,7 @@ import {
   YStack,
   useDocContentContext,
 } from '@shm/ui'
+import {NodeSelection, TextSelection} from 'prosemirror-state'
 import {
   ChangeEvent,
   FunctionComponent,
@@ -18,9 +19,10 @@ import {
   useState,
 } from 'react'
 import {RiUpload2Fill} from 'react-icons/ri'
-import {Block, BlockNoteEditor, getBlockInfoFromPos} from './blocknote'
+import {Block, BlockNoteEditor, useEditorSelectionChange} from './blocknote'
 import {MaxFileSizeB, MaxFileSizeMB} from './file'
 import {HMBlockSchema} from './schema'
+import {getNodesInSelection} from './utils'
 
 export type MediaType = {
   id: string
@@ -71,26 +73,36 @@ export const MediaRender: React.FC<RenderProps> = ({
   const [selected, setSelected] = useState(false)
   const [uploading, setUploading] = useState(false)
   const tiptapEditor = editor._tiptapEditor
-  const selection = tiptapEditor.state.selection
   const hasSrc = !!block.props.src
   const {importWebFile} = useDocContentContext()
 
-  useEffect(() => {
-    const selectedNode = getBlockInfoFromPos(
-      tiptapEditor.state.doc,
-      tiptapEditor.state.selection.from,
-    )
-    if (selectedNode && selectedNode.id) {
+  function updateSelection() {
+    const {view} = tiptapEditor
+    const {selection} = view.state
+    let isSelected = false
+
+    if (selection instanceof NodeSelection) {
+      // If the selection is a NodeSelection, check if this block is the selected node
+      const selectedNode = view.state.doc.resolve(selection.from).parent
       if (
-        selectedNode.id === block.id &&
-        selectedNode.startPos === selection.$anchor.pos
+        selectedNode &&
+        selectedNode.attrs &&
+        selectedNode.attrs.id === block.id
       ) {
-        setSelected(true)
-      } else if (selectedNode.id !== block.id) {
-        setSelected(false)
+        isSelected = true
       }
+    } else if (selection instanceof TextSelection) {
+      // If it's a TextSelection, check if this block's node is within the selection range
+      const selectedNodes = getNodesInSelection(view)
+      isSelected = selectedNodes.some(
+        (node) => node.attrs && node.attrs.id === block.id,
+      )
     }
-  }, [selection, block.id])
+
+    setSelected(isSelected)
+  }
+
+  useEditorSelectionChange(editor, updateSelection)
 
   useEffect(() => {
     if (!uploading && hasSrc) {
