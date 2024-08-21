@@ -16,13 +16,14 @@ import {
   FontSizeTokens,
   Home,
   Popover,
+  Spinner,
   styled,
   TextProps,
   TitleText,
   XStack,
   YStack,
 } from '@shm/ui'
-import {Library, Sparkles, Star} from '@tamagui/lucide-icons'
+import {AlertCircle, Library, Sparkles, Star} from '@tamagui/lucide-icons'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {AiOutlineEllipsis} from 'react-icons/ai'
 
@@ -99,6 +100,8 @@ export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
 type CrumbDetails = {
   name?: string
   route: NavRoute | null
+  isError?: boolean
+  isLoading?: boolean
   crumbKey: string
 }
 
@@ -120,6 +123,8 @@ function BreadcrumbTitle({
         return [
           {
             name: getDocumentTitle(contents.entity?.document),
+            isError: contents.entity && !contents.entity.document,
+            isLoading: !contents.entity,
             route: {
               ...route,
               blockId: undefined,
@@ -132,6 +137,7 @@ function BreadcrumbTitle({
       }),
     [entityRoutes, entityContents],
   )
+  const isAllError = crumbDetails.every((details) => details?.isError)
 
   function updateWidths() {
     const containerWidth = widthInfo.current.container
@@ -171,6 +177,7 @@ function BreadcrumbTitle({
     widthInfo.current.container = width
     updateWidths()
   })
+  if (isAllError) return <BreadcrumbErrorIcon />
   const activeItem: CrumbDetails | null = crumbDetails[crumbDetails.length - 1]
   const firstInactiveDetail =
     crumbDetails[0] === activeItem ? null : crumbDetails[0]
@@ -303,6 +310,10 @@ function BreadcrumbSeparator() {
   )
 }
 
+function BreadcrumbErrorIcon() {
+  return <AlertCircle size="$1" color="$red11" />
+}
+
 function BreadcrumbItem({
   details,
   isActive,
@@ -314,6 +325,12 @@ function BreadcrumbItem({
 }) {
   const navigate = useNavigate()
   const observerRef = useSizeObserver(onSize)
+  if (details.isLoading) {
+    return <Spinner />
+  }
+  if (details.isError) {
+    return <BreadcrumbErrorIcon />
+  }
   if (!details?.name) return null
   if (isActive) {
     return (

@@ -330,9 +330,13 @@ function DocDiscovery({docId}: {docId: UnpackedHypermediaId}) {
         borderRadius="$2"
         padding="$5"
       >
-        <Heading>Looking for this document...</Heading>
         {discover.error ? (
-          <SizableText color="$red10">{discover.error.message}</SizableText>
+          <Heading color="$red11">Could not find this document</Heading>
+        ) : (
+          <Heading>Looking for this document...</Heading>
+        )}
+        {discover.error ? (
+          <SizableText color="$red11">{discover.error.message}</SizableText>
         ) : null}
         {discover.isLoading ? (
           <>
