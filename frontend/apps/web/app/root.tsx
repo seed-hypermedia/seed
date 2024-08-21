@@ -1,10 +1,16 @@
-import { Links, Meta, Outlet, Scripts, ScrollRestoration } from '@remix-run/react'
-import { Providers } from './providers'
-import Tamagui from '../tamagui.config'
-import './tamagui.css'
-import { isClient } from '@tamagui/core'
+import {
+  Links,
+  Meta,
+  Outlet,
+  Scripts,
+  ScrollRestoration,
+} from "@remix-run/react";
+import {isClient} from "@tamagui/core";
+import Tamagui from "../tamagui.config";
+import {Providers} from "./providers";
+import "./tamagui.css";
 
-export function Layout({ children }: { children: React.ReactNode }) {
+export function Layout({children}: {children: React.ReactNode}) {
   return (
     <html lang="en">
       <head>
@@ -20,25 +26,25 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Scripts />
       </body>
     </html>
-  )
+  );
 }
 
 export default function App() {
-  return <Outlet />
+  return <Outlet />;
 }
 
 export const Styles = () => {
   if (isClient) {
-    return null
+    return null;
   }
   return (
     <style
       dangerouslySetInnerHTML={{
         __html: Tamagui.getCSS({
           // design system generated into tamagui.css
-          exclude: 'design-system',
+          exclude: "design-system",
         }),
       }}
     />
-  )
-}
+  );
+};

@@ -17,7 +17,8 @@ export async function loadHMDocument(accountUid: string, path: string[]) {
     // version
   });
   const document = toPlainMessage(rawDoc);
-  let homeDocumentMetadata = null;
+  let homeMetadata = null;
+  let homeId = null;
   try {
     const rawHomeDoc = await queryClient.documents.getDocument({
       account: config.registeredAccountUid,
@@ -25,7 +26,8 @@ export async function loadHMDocument(accountUid: string, path: string[]) {
       // version
     });
     const homeDocument = toPlainMessage(rawHomeDoc);
-    homeDocumentMetadata = homeDocument.metadata;
+    homeMetadata = homeDocument.metadata;
+    homeId = hmId("d", homeDocument.account);
   } catch (e) {}
   return {
     document: serialize(document),
@@ -33,6 +35,7 @@ export async function loadHMDocument(accountUid: string, path: string[]) {
       path: path,
       // version: v,
     }),
-    homeDocumentMetadata,
+    homeMetadata,
+    homeId,
   };
 }

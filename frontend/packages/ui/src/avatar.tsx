@@ -11,18 +11,6 @@ export type UIAvatarProps = XStackProps & {
   onPress?: () => void;
 };
 
-let colors = [
-  "blue",
-  "gray",
-  "green",
-  "orange",
-  "pink",
-  "purple",
-  "red",
-  "yellow",
-  "mint",
-];
-
 export function UIAvatar({
   url,
   id,
