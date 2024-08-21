@@ -1,9 +1,17 @@
 import {execFileSync, spawn} from "child_process";
+import {existsSync, writeFileSync} from "fs";
 import {dirname} from "path";
 import {fileURLToPath} from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+if (!existsSync(`${__dirname}/config.json`)) {
+  writeFileSync(
+    `${__dirname}/config.json`,
+    JSON.stringify({availableRegistrationSecret: "a"})
+  );
+}
 
 async function attemptBuild() {
   console.log("Starting Attempted Build");
