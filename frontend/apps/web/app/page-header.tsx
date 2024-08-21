@@ -35,16 +35,18 @@ export function PageHeader({
         <XStack paddingBlock="$2" paddingInline="$4" gap="$4">
           <XStack
             f={1}
+            tag="a"
+            role="link"
+            style={{textDecoration: "none"}}
+            href="/"
             $gtSm={{
               f: "inherit",
             }}
             gap="$2"
             ai="center"
-            onPress={() => {
-              console.log("go to home");
-            }}
+            cursor="pointer"
             hoverStyle={{
-              cursor: "pointer",
+              textDecoration: "underline",
             }}
           >
             {homeMetadata?.thumbnail && homeId ? (
