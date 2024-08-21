@@ -1368,7 +1368,6 @@ function InlineContentView({
           );
         }
         if (content.type === "link") {
-          console.log(content.href);
           const href = isHypermediaScheme(content.href)
             ? idToUrl(content.href, null)
             : content.href;

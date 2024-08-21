@@ -112,6 +112,7 @@ mkdir -p ~/.seed-site/web
 site_config_file="${workspace}/web/config.json"
 
 if [ ! -e "$site_config_file" ]; then
+  did_init_registration_secret=1
   echo "{\"availableRegistrationSecret\": \"$registration_secret\"}" > "$site_config_file"
 fi
 
@@ -121,7 +122,9 @@ sudo chown -R 1001:1001 "${workspace}/web"
 SEED_P2P_TESTNET_NAME="$testnet_name" SEED_SITE_DNS="$dns" SEED_SITE_TAG="$tag" SEED_SITE_WORKSPACE="${workspace}" SEED_SITE_ALLOW_PUSH="$allow_push" SEED_SITE_HOSTNAME="$hostname" SEED_SITE_MONITORING_WORKDIR="${workspace}/monitoring" SEED_SITE_MONITORING_PORT="$SEED_SITE_MONITORING_PORT" docker compose -f ${workspace}/hmsite.yml --profile "$profile" up -d --pull always --quiet-pull 2> ${workspace}/deployment.log || true
 
 echo "Deployment done. Your secret registration URL is:"
-echo "${hostname}/hm/register?secret=${registration_secret}"
+if [ $did_init_registration_secret -eq 1 ]; then
+	echo "${hostname}/hm/register?secret=${registration_secret}"
+fi
 # rm -f ${workspace}/hmsite.yml
 exit 0
 
