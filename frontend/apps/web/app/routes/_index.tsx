@@ -1,26 +1,16 @@
-import type {MetaFunction} from "@remix-run/node";
-import {LoaderFunction} from "@remix-run/node";
 import {useLoaderData} from "@remix-run/react";
-import {HMDocument} from "@shm/shared";
 import {Button} from "@tamagui/button";
-import {deserialize} from "superjson";
 import {getConfig} from "~/config";
-import {DocumentPage} from "~/document";
+import {DocumentPage, documentPageMeta} from "~/document";
 import {loadHMDocument} from "~/loaders";
 
 // Remove this if you want the error:
 Button;
 // seriously, wtf
 
-export const meta: MetaFunction = ({data}) => {
-  const document: HMDocument = deserialize(data.document);
-  return [
-    {title: document.metadata?.name || "Untitled"},
-    // {name: "description", content: "Welcome to Remix!"},
-  ];
-};
+export const meta = documentPageMeta;
 
-export const loader: LoaderFunction = async ({params, request}) => {
+export const loader = async ({request}: {request: Request}) => {
   const url = new URL(request.url);
   const v = url.searchParams.get("v");
   const {registeredAccountUid} = getConfig();
@@ -31,6 +21,5 @@ export const loader: LoaderFunction = async ({params, request}) => {
 
 export default function SiteDocument() {
   const data = useLoaderData<typeof loader>();
-  const document: HMDocument = deserialize(data.document);
-  return <DocumentPage document={document} />;
+  return <DocumentPage {...data} />;
 }

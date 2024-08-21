@@ -1,19 +1,16 @@
-import {LoaderFunction, MetaFunction} from "@remix-run/node";
-import {useLoaderData} from "@remix-run/react";
-import {HMDocument} from "@shm/shared";
-import {deserialize} from "superjson";
-import {DocumentPage} from "~/document";
+import {Params, useLoaderData} from "@remix-run/react";
+import {DocumentPage, documentPageMeta} from "~/document";
 import {loadHMDocument} from "~/loaders";
 
-export const meta: MetaFunction = ({data}) => {
-  const document: HMDocument = deserialize(data.document);
-  return [
-    {title: document.metadata?.name || "Untitled"},
-    // {name: "description", content: "Welcome to Remix!"},
-  ];
-};
+export const meta = documentPageMeta;
 
-export const loader: LoaderFunction = async ({params, request}) => {
+export const loader = async ({
+  params,
+  request,
+}: {
+  params: Params;
+  request: Request;
+}) => {
   const url = new URL(request.url);
   const v = url.searchParams.get("v");
   // todo, use version "v"
@@ -23,8 +20,6 @@ export const loader: LoaderFunction = async ({params, request}) => {
 };
 
 export default function HypermediaDocument() {
-  // const {"*": path} = useParams();
   const data = useLoaderData<typeof loader>();
-  const document: HMDocument = deserialize(data.document);
-  return <DocumentPage document={document} />;
+  return <DocumentPage {...data} />;
 }
