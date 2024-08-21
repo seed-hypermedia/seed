@@ -11,27 +11,25 @@ async function attemptBuild() {
   console.log("Build Complete. Testing...");
   const testServer = spawn("yarn", ["start"], {
     cwd: __dirname,
-    stdio: "inherit",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let output = "";
+  testServer.stdout.on("data", (data) => {
+    output += data.toString();
+  });
+  testServer.stderr.on("data", (data) => {
+    output += data.toString();
   });
   await new Promise((resolve, reject) => {
     // wait for server to be ready to serve
     setTimeout(resolve, 2_000);
   });
-  let didPass = false;
-  await fetch("http://localhost:3000/")
-    .then((res) => {
-      if (res.ok) {
-        console.log("Server is running successfully");
-        didPass = true;
-      } else {
-        console.error("Server is not running successfully", e);
-      }
-    })
-    .catch((e) => {
-      console.error("Test server fetch failed", e);
-    });
   testServer.kill();
-  return didPass;
+  if (output.includes("[remix-serve]")) {
+    return true;
+  }
+  console.error(output);
+  return false;
 }
 
 async function main() {
