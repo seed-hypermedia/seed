@@ -70,7 +70,7 @@ services:
     profiles:
       - metrics
     depends_on:
-      - seed-site
+      - seed-daemon
     networks:
       - internal_network
     extra_hosts:
