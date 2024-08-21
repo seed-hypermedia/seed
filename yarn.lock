@@ -3090,8 +3090,8 @@ __metadata:
   linkType: hard
 
 "@electron/packager@npm:^18.0.0":
-  version: 18.3.3
-  resolution: "@electron/packager@npm:18.3.3"
+  version: 18.3.4
+  resolution: "@electron/packager@npm:18.3.4"
   dependencies:
     "@electron/asar": ^3.2.1
     "@electron/get": ^3.0.0
@@ -3114,7 +3114,7 @@ __metadata:
     yargs-parser: ^21.1.1
   bin:
     electron-packager: bin/electron-packager.js
-  checksum: e4a00ec73ba88c10e72faef41ad2468b2c9dd94016484ad57fc4e7548eeb1fdbab1afe62b80628e0532717fc4bc96218aa7fe64e92c3cc29f3883918186b6df0
+  checksum: 042fe134f5b9c3bb4d1908b41822dda8e3877b4467cb6072cb59077d3c3550a7288fa9b86c68d624b0b71f679b4932cbaa711e67a57db4c8905f46bd6bef0291
   languageName: node
   linkType: hard
 
@@ -10209,12 +10209,12 @@ __metadata:
   linkType: hard
 
 "@types/react@npm:*, @types/react@npm:^18.2.55":
-  version: 18.3.3
-  resolution: "@types/react@npm:18.3.3"
+  version: 18.3.4
+  resolution: "@types/react@npm:18.3.4"
   dependencies:
     "@types/prop-types": "*"
     csstype: ^3.0.2
-  checksum: c63d6a78163244e2022b01ef79b0baec4fe4da3475dc4a90bb8accefad35ef0c43560fd0312e5974f92a0f1108aa4d669ac72d73d66396aa060ea03b5d2e3873
+  checksum: 555ccd1af86a23c781dea0360de64b2f7a0708cdcbf9e6496744b77630065868526fd55147c727dc5ef11b7fd712b04f7898757a84c67e2eb9dfd4c4ead10d95
   languageName: node
   linkType: hard
 
@@ -21689,11 +21689,11 @@ __metadata:
   linkType: hard
 
 "node-abi@npm:^3.45.0":
-  version: 3.65.0
-  resolution: "node-abi@npm:3.65.0"
+  version: 3.66.0
+  resolution: "node-abi@npm:3.66.0"
   dependencies:
     semver: ^7.3.5
-  checksum: 5a60f2b0c73fe0a1123e581bd99e43729f4aa3f4b9b19f1915567128d52540e8f812474410a446cd77d708a3a1139e0b2abf1d0823ba6b5f5d47aa4345931706
+  checksum: 1098e96d565288d640531a324239a6f884dbef588dfeef1be257c6e5f9cd885e5595d608fb348523cff8aef83b6b1fb2bb8193e2173448c01a425a73bc04d586
   languageName: node
   linkType: hard
 
@@ -25826,7 +25826,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"rollup@npm:^4.13.0":
+"rollup@npm:^4.13.0, rollup@npm:^4.20.0":
   version: 4.21.0
   resolution: "rollup@npm:4.21.0"
   dependencies:
@@ -26782,9 +26782,9 @@ __metadata:
   linkType: hard
 
 "spdx-license-ids@npm:^3.0.0":
-  version: 3.0.18
-  resolution: "spdx-license-ids@npm:3.0.18"
-  checksum: 457825df5dd1fc0135b0bb848c896143f70945cc2da148afc71c73ed0837d1d651f809006e406d82109c9dd71a8cb39785a3604815fe46bc0548e9d3976f6b69
+  version: 3.0.20
+  resolution: "spdx-license-ids@npm:3.0.20"
+  checksum: 0c57750bedbcff48f3d0e266fbbdaf0aab54217e182f669542ffe0b5a902dce69e8cdfa126a131e1ddd39a9bef4662e357b2b41315d7240b4a28c0a7e782bb40
   languageName: node
   linkType: hard
 
@@ -29506,13 +29506,13 @@ __metadata:
   linkType: hard
 
 "vite@npm:^5.0.0, vite@npm:^5.0.11":
-  version: 5.4.1
-  resolution: "vite@npm:5.4.1"
+  version: 5.4.2
+  resolution: "vite@npm:5.4.2"
   dependencies:
     esbuild: ^0.21.3
     fsevents: ~2.3.3
     postcss: ^8.4.41
-    rollup: ^4.13.0
+    rollup: ^4.20.0
   peerDependencies:
     "@types/node": ^18.0.0 || >=20.0.0
     less: "*"
@@ -29544,7 +29544,7 @@ __metadata:
       optional: true
   bin:
     vite: bin/vite.js
-  checksum: 5bbb9e855fdbcb170f0d02b78e5c1e8f68e2d2010df6dd74b105bbcef96e91d89871063cb9afafb263e8e0bd69d7b6c4eeadd1abec63bd0938ab7b2b56e7e4dd
+  checksum: 7d25c1b2366ae4d9eb515ba9efc2619c544ec6d806d636977fac93f59cdf63e22ea9b4592c69c496a313cf95c88e374c81870d4bb4b11f401ec003793dfd2830
   languageName: node
   linkType: hard
 
