@@ -488,7 +488,9 @@ func syncEntity(
 	if err != nil {
 		return fmt.Errorf("Failed to Init Syncing Session: %w", err)
 	}
-
+	if err = store.Seal(); err != nil {
+		return fmt.Errorf("Failed to seal store: %w", err)
+	}
 	msg, err := ne.Initiate()
 	if err != nil {
 		return err
