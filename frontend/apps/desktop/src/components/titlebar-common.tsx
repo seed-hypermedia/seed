@@ -50,6 +50,7 @@ import {
 } from '@tamagui/lucide-icons'
 import {ReactNode, useState} from 'react'
 import DiscardDraftButton from './discard-draft-button'
+import {ExportDocButton} from './export-doc-button'
 import PublishDraftButton from './publish-draft-button'
 import {usePublishSite, useRemoveSiteDialog} from './publish-site'
 import {TitleBarProps} from './titlebar'
@@ -285,6 +286,7 @@ export function PageActionButtons(props: TitleBarProps) {
   } else if (route.key === 'document' && route.id.type === 'd') {
     buttonGroup = [
       <EditDocButton key="editDoc" />,
+      <ExportDocButton docId={route.id} />,
       // <CreateDropdown key="create" location={route.id} />, // TODO, new path selection workflow
       <DocOptionsButton key="options" />,
     ]

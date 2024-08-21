@@ -257,6 +257,13 @@ function MainApp({
         openMarkdownFiles={openMarkdownFiles}
         openMarkdownDirectories={openMarkdownDirectories}
         readMediaFile={readMediaFile}
+        exportDocument={async (
+          title: string,
+          markdownContent: string,
+          mediaFiles: {url: string; filename: string}[],
+        ) => {
+          ipc.send?.('export-document', {title, markdownContent, mediaFiles})
+        }}
         windowUtils={windowUtils}
         darkMode={darkMode}
       >

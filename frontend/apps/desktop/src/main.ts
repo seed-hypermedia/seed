@@ -34,6 +34,7 @@ import {appStore} from './app-store'
 import autoUpdate from './auto-update'
 import {startMainDaemon} from './daemon'
 import {saveCidAsFile} from './save-cid-as-file'
+import {saveMarkdownFile} from './save-markdown-file'
 
 // @ts-ignore
 global.electronTRPC = {}
@@ -291,6 +292,7 @@ ipcMain.handle('dark-mode:system', () => {
 // ipcMain.handle('dialog:openMdFile', handleOpenMarkdown)
 
 ipcMain.on('save-file', saveCidAsFile)
+ipcMain.on('export-document', saveMarkdownFile)
 ipcMain.on('open-external-link', (_event, linkUrl) => {
   shell.openExternal(linkUrl)
 })
