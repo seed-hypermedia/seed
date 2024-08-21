@@ -111,9 +111,9 @@ mkdir -p ~/.seed-site/web
 
 site_config_file="${workspace}/web/config.json"
 
-did_init_registration_secret=0
+did_init_registration_secret="0"
 if [ ! -e "$site_config_file" ]; then
-  did_init_registration_secret=1
+  did_init_registration_secret="1"
   echo "{\"availableRegistrationSecret\": \"$registration_secret\"}" > "$site_config_file"
 fi
 
