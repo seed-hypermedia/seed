@@ -5,6 +5,7 @@ import {XStack, YStack} from "@tamagui/stacks";
 import {Thumbnail} from "./ui/thumbnail";
 
 import {getRandomColor} from "@shm/ui/src/avatar";
+import {Search} from "@tamagui/lucide-icons";
 import {SizableText} from "@tamagui/text";
 import {useMemo} from "react";
 import {Container} from "./ui/container";
@@ -46,7 +47,7 @@ export function PageHeader({
               cursor: "pointer",
             }}
           >
-            {homeMetadata?.thumbnail ? (
+            {homeMetadata?.thumbnail && homeId ? (
               <Thumbnail size={30} id={homeId} metadata={homeMetadata} />
             ) : null}
 
@@ -55,7 +56,9 @@ export function PageHeader({
             </SizableText>
           </XStack>
           <XStack ai="center">
-            <Button size="$2">search</Button>
+            <Button size="$2" icon={Search}>
+              search
+            </Button>
           </XStack>
         </XStack>
         <XStack ai="center" $gtSm={{f: 1}} paddingBlock="$2" paddingInline="$4">

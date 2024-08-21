@@ -1,5 +1,4 @@
 import {
-  API_HTTP_URL,
   Block,
   BlockNode,
   BlockRange,
@@ -17,6 +16,7 @@ import {
   formattedDate,
   getCIDFromIPFSUrl,
   getDocumentTitle,
+  getFileUrl,
   idToUrl,
   isHypermediaScheme,
   pluralS,
@@ -1092,9 +1092,8 @@ function BlockContentImage({
   ...props
 }: BlockContentProps) {
   let inline = useMemo(() => toHMInlineContent(new Block(block)), [block]);
-  const cid = getCIDFromIPFSUrl(block?.ref);
   const {ipfsBlobPrefix, textUnit} = useDocContentContext();
-  if (!cid) return null;
+  if (!block?.ref) return null;
 
   return (
     <YStack
@@ -1102,7 +1101,7 @@ function BlockContentImage({
       {...props}
       className="block-content block-image"
       data-content-type="image"
-      data-url={`ipfs://${cid}`}
+      data-url={block?.ref}
       data-alt={block?.attributes?.alt}
       data-width={block.attributes?.width}
       paddingVertical="$3"
@@ -1117,7 +1116,7 @@ function BlockContentImage({
       >
         <img
           alt={block?.attributes?.alt}
-          src={`${ipfsBlobPrefix}${cid}`}
+          src={getFileUrl(block?.ref)}
           style={{width: "100%"}}
         />
       </XStack>
@@ -1168,7 +1167,7 @@ function BlockContentVideo({
             preload="metadata"
           >
             <source
-              src={`${ipfsBlobPrefix}${getCIDFromIPFSUrl(block.ref)}`}
+              src={getFileUrl(block.ref)}
               type={getSourceType(block.attributes.name)}
             />
             <SizableText>Something is wrong with the video file.</SizableText>
@@ -1369,6 +1368,7 @@ function InlineContentView({
           );
         }
         if (content.type === "link") {
+          console.log(content.href);
           const href = isHypermediaScheme(content.href)
             ? idToUrl(content.href, null)
             : content.href;
@@ -1809,8 +1809,7 @@ export function BlockContentNostr({
     block.ref !== "" &&
     (content === undefined || verified === undefined)
   ) {
-    const cid = getCIDFromIPFSUrl(block.ref);
-    fetch(`${API_HTTP_URL}/ipfs/${cid}`, {
+    fetch(getFileUrl(block.ref), {
       method: "GET",
     }).then((response) => {
       if (response) {

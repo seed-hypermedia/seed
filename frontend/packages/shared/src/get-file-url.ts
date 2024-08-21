@@ -1,10 +1,9 @@
 import {API_FILE_URL} from './constants'
 
-export function getFileUrl(image?: string) {
-  if (image) {
-    return `${API_FILE_URL}/${extractIpfsUrlCid(image)}`
+export function getFileUrl(ipfsUrl?: string) {
+  if (ipfsUrl) {
+    return `${API_FILE_URL}/${extractIpfsUrlCid(ipfsUrl)}`
   }
-
   return ''
 }
 
