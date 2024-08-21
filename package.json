@@ -6,7 +6,7 @@
     "validate": "yarn format",
     "validate:fix": "yarn format:fix",
     "web": "yarn workspace @shm/web dev",
-    "web:prod": "yarn build && yarn workspace @shm/web build",
+    "web:prod": "yarn build && node frontend/apps/web/crazy-hack-web-build.mjs",
     "web:start": "yarn workspace @shm/web start",
     "web:extract": "DISABLE_EXTRACTION=false yarn workspace @shm/site dev",
     "desktop": "concurrently -n \"DESKTOP:APP,UI\" -c \"blue,green\" -p \"[{name}]\" \"yarn workspace @shm/desktop dev\" \"yarn watch\"",
