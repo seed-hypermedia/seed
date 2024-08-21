@@ -38,7 +38,7 @@ services:
       - ${SEED_SITE_WORKSPACE}/web:/data:rw
     environment:
       - "SEED_BASE_URL=${SEED_SITE_HOSTNAME}"
-      - "WEB_GRPC_HOST=http://seed-daemon:${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001}"
+      - "GRPC_HOST=http://seed-daemon:${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001}"
       - "PORT=${SEED_SITE_LOCAL_PORT:-3000}"
       - "DATA_DIR=/data"
 

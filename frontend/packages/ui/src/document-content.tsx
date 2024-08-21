@@ -32,6 +32,19 @@ import {Checkbox, CheckboxProps} from "@tamagui/checkbox";
 import {SizeTokens, Text, TextProps, Theme} from "@tamagui/core";
 import {ColorProp} from "@tamagui/helpers-tamagui";
 import {Label} from "@tamagui/label";
+import {
+  AlertCircle,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  File,
+  Link,
+  MessageSquare,
+  MoreHorizontal,
+  MoveLeft,
+  Reply,
+  Undo2,
+} from "@tamagui/lucide-icons";
 import {RadioGroup} from "@tamagui/radio-group";
 import {XStack, XStackProps, YStack, YStackProps} from "@tamagui/stacks";
 import {SizableText, SizableTextProps} from "@tamagui/text";
@@ -64,21 +77,9 @@ import {
 //   enrichTweet,
 //   useTweet,
 // } from "react-tweet";
-import {
-  AlertCircle,
-  Check,
-  ChevronDown,
-  ChevronRight,
-  File,
-  Link,
-  MessageSquare,
-  MoreHorizontal,
-  MoveLeft,
-  Reply,
-  Undo2,
-} from "lucide-react";
 import {contentLayoutUnit, contentTextUnit} from "./document-content-constants";
 import "./document-content.css";
+import {Comment} from "./icons";
 import {Spinner} from "./spinner";
 import {Tooltip} from "./tooltip";
 
@@ -322,7 +323,7 @@ export function DocContent({
           <Tooltip content="Add a Comment">
             <Button
               size="$2"
-              icon={MessageSquare}
+              icon={Comment}
               onPress={() => {
                 // send({type: "CREATE_COMMENT"});
                 // onBlockComment(
@@ -1672,7 +1673,7 @@ export function BlockNotFoundError({
       paddingVertical="$2"
     >
       <XStack gap="$2" paddingHorizontal="$4" paddingVertical="$2" ai="center">
-        <AlertCircle color="$red14" size={12} />
+        <AlertCircle color="$red10" size={12} />
         <SizableText flex={1} color="$red10">
           {message ? message : "Error"}
         </SizableText>
