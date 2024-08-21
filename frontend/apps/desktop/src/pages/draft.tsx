@@ -1,4 +1,4 @@
-import {AvatarForm} from '@/components/avatar-form'
+import {ThumbnailForm} from '@/components/avatar-form'
 import {CoverImage} from '@/components/cover-image'
 import {HyperMediaEditorView} from '@/components/editor'
 import Footer from '@/components/footer'
@@ -345,7 +345,7 @@ export function DraftHeader({
             setShowCover(false)
             draftActor.send({
               type: 'CHANGE',
-              cover: undefined,
+              cover: null,
             })
           }}
           url={cover ? getFileUrl(cover) : ''}
@@ -360,7 +360,7 @@ export function DraftHeader({
       >
         <YStack group="header" gap="$4">
           {showThumbnail ? (
-            <AvatarForm
+            <ThumbnailForm
               size={100}
               id={route.id ? route.id.uid : 'document-avatar'}
               label={name}
@@ -373,6 +373,13 @@ export function DraftHeader({
                     thumbnail: `ipfs://${thumbnail}`,
                   })
                 }
+              }}
+              onRemoveThumbnail={() => {
+                setShowThumbnail(false)
+                draftActor.send({
+                  type: 'CHANGE',
+                  thumbnail: null,
+                })
               }}
             />
           ) : null}

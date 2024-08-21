@@ -5,7 +5,7 @@ import {Control, useController, useForm} from 'react-hook-form'
 import {z} from 'zod'
 import {useSetProfile_deprecated} from '../models/accounts'
 import {getFileUrl} from '../utils/account-url'
-import {AvatarForm} from './avatar-form'
+import {ThumbnailForm} from './avatar-form'
 import {useAppDialog} from './dialog'
 import {FormError, FormInput} from './form-input'
 
@@ -28,7 +28,7 @@ type ProfileFields = z.infer<typeof profileSchema>
 function AvatarInput({control}: {control: Control<ProfileFields>}) {
   const c = useController({control, name: 'avatar'})
   return (
-    <AvatarForm
+    <ThumbnailForm
       onAvatarUpload={c.field.onChange}
       url={c.field.value ? getFileUrl(c.field.value) : undefined}
     />

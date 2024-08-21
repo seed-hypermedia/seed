@@ -22,7 +22,7 @@ export const draftMachine = setup({
       | {
           type: 'CHANGE'
           name?: string
-          thumbnail?: string
+          thumbnail?: string | null
           cover?: string | null
           signingAccount?: string
         }
@@ -77,8 +77,12 @@ export const draftMachine = setup({
             return event.document.metadata.thumbnail
           }
         }
-        if (event.type == 'CHANGE' && event.thumbnail) {
-          return event.thumbnail
+        if (event.type == 'CHANGE') {
+          if (event.thumbnail) {
+            return event.thumbnail
+          } else if (event.thumbnail === null) {
+            return ''
+          }
         }
         return context.thumbnail
       },

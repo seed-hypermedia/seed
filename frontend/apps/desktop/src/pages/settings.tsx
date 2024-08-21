@@ -1,5 +1,5 @@
 import {useIPC, useQueryInvalidator} from '@/app-context'
-import {AvatarForm} from '@/components/avatar-form'
+import {ThumbnailForm} from '@/components/avatar-form'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {Thumbnail} from '@/components/thumbnail'
 import appError from '@/errors'
@@ -273,7 +273,7 @@ export function ProfileForm({
     <>
       <XStack gap="$4">
         <YStack flex={0} alignItems="center" flexGrow={0}>
-          <AvatarForm url={getFileUrl(profile?.thumbnail)} />
+          <ThumbnailForm url={getFileUrl(profile?.thumbnail)} />
         </YStack>
         <YStack flex={1} space>
           <YStack>

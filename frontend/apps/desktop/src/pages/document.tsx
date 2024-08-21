@@ -2,7 +2,7 @@ import {
   AccessoryContainer,
   AccessoryLayout,
 } from '@/components/accessory-sidebar'
-import {AvatarForm} from '@/components/avatar-form'
+import {ThumbnailForm} from '@/components/avatar-form'
 import {CollaboratorsPanel} from '@/components/collaborators-panel'
 import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
 import {Directory} from '@/components/directory'
@@ -214,7 +214,7 @@ function DocPageHeader({
         <YStack group="header" gap="$4">
           {hasThumbnail ? (
             <XStack marginTop={hasCover ? -80 : 0}>
-              <AvatarForm
+              <ThumbnailForm
                 size={100}
                 id={docId.uid || 'document-thumbnail'}
                 label={entity.data?.document?.metadata.name}

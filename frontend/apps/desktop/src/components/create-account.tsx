@@ -39,7 +39,7 @@ import {
 } from '../models/daemon'
 import {trpc} from '../trpc'
 import {useOpenDraft} from '../utils/open-draft'
-import {AvatarForm} from './avatar-form'
+import {ThumbnailForm} from './avatar-form'
 
 const onboardingColor = '#755EFF'
 
@@ -495,7 +495,7 @@ export function AccountWizardDialog() {
               <Onboarding.MainSection>
                 <Onboarding.Title>Account Information</Onboarding.Title>
                 <YStack gap="$2">
-                  <AvatarForm
+                  <ThumbnailForm
                     url={`${API_FILE_URL}/${thumbnail}`}
                     onAvatarUpload={(d) => {
                       setThumbnail(d)
