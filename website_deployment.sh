@@ -98,7 +98,7 @@ reverse_proxy @ipfsget seed-daemon:{\$HM_SITE_BACKEND_GRPCWEB_PORT:56001}
 reverse_proxy * seed-web:{\$SEED_SITE_LOCAL_PORT:3000}
 BLOCK
 
-if [ "$auto_update" -eq 1 ]; then
+if [ "$auto_update" -eq "1" ]; then
   docker rm -f autoupdater >/dev/null 2>&1
   if ! (crontab -l 2>/dev/null || true) | grep -q "seed site cleanup"; then
     # Remove any existing cron job for this task, add the new cron job, and install the new crontab
@@ -121,9 +121,14 @@ sudo chown -R 1001:1001 "${workspace}/web"
 
 SEED_P2P_TESTNET_NAME="$testnet_name" SEED_SITE_DNS="$dns" SEED_SITE_TAG="$tag" SEED_SITE_WORKSPACE="${workspace}" SEED_SITE_ALLOW_PUSH="$allow_push" SEED_SITE_HOSTNAME="$hostname" SEED_SITE_MONITORING_WORKDIR="${workspace}/monitoring" SEED_SITE_MONITORING_PORT="$SEED_SITE_MONITORING_PORT" docker compose -f ${workspace}/hmsite.yml --profile "$profile" up -d --pull always --quiet-pull 2> ${workspace}/deployment.log || true
 
-echo "Deployment done. Your secret registration URL is:"
-if [ "$did_init_registration_secret" -eq 1 ]; then
+echo "===================="
+echo "Deployment done."
+echo "===================="
+
+if [ "$did_init_registration_secret" -eq "1" ]; then
+	echo "Your secret registration URL is:"
 	echo "${hostname}/hm/register?secret=${registration_secret}"
+	echo "===================="
 fi
 # rm -f ${workspace}/hmsite.yml
 exit 0
