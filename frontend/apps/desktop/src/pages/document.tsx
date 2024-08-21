@@ -14,7 +14,7 @@ import {SidebarSpacer} from '@/components/main-wrapper'
 import {CopyReferenceButton} from '@/components/titlebar-common'
 import '@/editor/editor.css'
 import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
-import {useEntity} from '@/models/entities'
+import {useDiscoverEntity, useEntity} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {getFileUrl} from '@/utils/account-url'
 import {useNavRoute} from '@/utils/navigation'
@@ -34,6 +34,7 @@ import {
   Container,
   DocContent,
   H1,
+  Heading,
   HistoryIcon,
   SizableText,
   Spinner,
@@ -44,8 +45,8 @@ import {
   YStack,
 } from '@shm/ui'
 import {RadioButtons} from '@shm/ui/src/radio-buttons'
-import {Link, Trash} from '@tamagui/lucide-icons'
-import React, {ReactNode, useMemo} from 'react'
+import {Link, RefreshCw, Trash} from '@tamagui/lucide-icons'
+import React, {ReactNode, useEffect, useMemo} from 'react'
 import {EntityCitationsAccessory} from '../components/citations'
 import {AppDocContentProvider} from './document-content-provider'
 
@@ -200,7 +201,14 @@ function DocPageHeader({
     [entity.data],
   )
 
+  // hm://z6MkqYME8XHQpnxBLVjDWxCkEwbjKQ4ghxpUB8stgzBCNSwD/advances-in-distributed-security?v=bafy2bzaceckzk7vdca2to6o2ms6gdvjyizvfsimp7txftm7mx3ohp7loqskpk
   const authors = useMemo(() => entity.data?.document?.authors, [entity.data])
+
+  if (entity.isLoading) return <Spinner />
+
+  if (entity.data?.document === undefined) {
+    return <DocDiscovery docId={docId} />
+  }
 
   return (
     <YStack>
@@ -306,6 +314,53 @@ function DocPageHeader({
   )
 }
 
+function DocDiscovery({docId}: {docId: UnpackedHypermediaId}) {
+  const discover = useDiscoverEntity(docId)
+  useEffect(() => {
+    discover.mutate()
+  }, [docId.id])
+  return (
+    <YStack paddingVertical="$8">
+      <YStack
+        alignSelf="center"
+        maxWidth={600}
+        gap="$5"
+        borderWidth={1}
+        borderColor="$color8"
+        borderRadius="$2"
+        padding="$5"
+      >
+        <Heading>Looking for this document...</Heading>
+        {discover.error ? (
+          <SizableText color="$red10">{discover.error.message}</SizableText>
+        ) : null}
+        {discover.isLoading ? (
+          <>
+            <Spinner />
+            <SizableText>
+              This document is not on your node yet. Now finding a peer who can
+              provide it.
+            </SizableText>
+          </>
+        ) : null}
+        <XStack>
+          {discover.isError ? (
+            <Button
+              icon={RefreshCw}
+              backgroundColor="$color4"
+              onPress={() => {
+                discover.reset()
+                discover.mutate()
+              }}
+            >
+              Retry Document Discovery
+            </Button>
+          ) : null}
+        </XStack>
+      </YStack>
+    </YStack>
+  )
+}
 const Separator = () => <TSeparator borderColor="$color8" vertical h={20} />
 
 function SiteURLButton({siteUrl}: {siteUrl?: string}) {
@@ -392,6 +447,7 @@ function DocPageContent({
 
 function DocPageAppendix({docId}: {docId: UnpackedHypermediaId}) {
   const replace = useNavigate('replace')
+  const entity = useEntity(docId)
   const route = useNavRoute()
   if (route.key !== 'document')
     throw new Error('DocPageAppendix must be in Doc route')
@@ -400,6 +456,7 @@ function DocPageAppendix({docId}: {docId: UnpackedHypermediaId}) {
   if (route.tab === 'discussion') {
     content = <Discussion docId={docId} />
   }
+  if (!entity.data?.document) return null
   return (
     <Container>
       <XStack>

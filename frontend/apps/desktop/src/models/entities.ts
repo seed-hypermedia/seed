@@ -180,6 +180,19 @@ export function queryEntity(
   }
 }
 
+export function useDiscoverEntity(id: UnpackedHypermediaId) {
+  const invalidate = useQueryInvalidator()
+  const grpcClient = useGRPCClient()
+  return useMutation({
+    mutationFn: async () => {
+      await grpcClient.entities.discoverEntity({id: id.id})
+    },
+    onSuccess: () => {
+      invalidate([queryKeys.ENTITY, id.id])
+    },
+  })
+}
+
 export function useEntity(
   id: UnpackedHypermediaId | null | undefined,
   options?: UseQueryOptions<HMEntityContent | null>,
