@@ -16,13 +16,13 @@ import '@/editor/editor.css'
 import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
 import {useDiscoverEntity, useEntity} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
-import {getFileUrl} from '@/utils/account-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   formattedDateLong,
   formattedDateMedium,
   getAccountName,
+  getFileUrl,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {

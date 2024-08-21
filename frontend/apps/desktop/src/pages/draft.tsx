@@ -8,7 +8,6 @@ import {useDraft} from '@/models/accounts'
 import {useDraftEditor} from '@/models/documents'
 import {draftMachine} from '@/models/draft-machine'
 import {trpc} from '@/trpc'
-import {getFileUrl} from '@/utils/account-url'
 import {
   chromiumSupportedImageMimeTypes,
   chromiumSupportedVideoMimeTypes,
@@ -22,6 +21,7 @@ import {
   BlockRange,
   createPublicWebHmUrl,
   ExpandedBlockRange,
+  getFileUrl,
   HMDraft,
   hmId,
   packHmId,

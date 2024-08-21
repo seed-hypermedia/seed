@@ -28,8 +28,13 @@ import {
 } from '@/models/payments'
 import {useWalletOptIn} from '@/models/wallet'
 import {trpc} from '@/trpc'
-import {getFileUrl} from '@/utils/account-url'
-import {getAccountName, hmId, LightningWallet, VERSION} from '@shm/shared'
+import {
+  getAccountName,
+  getFileUrl,
+  hmId,
+  LightningWallet,
+  VERSION,
+} from '@shm/shared'
 import {
   AlertDialog,
   ArrowDownRight,

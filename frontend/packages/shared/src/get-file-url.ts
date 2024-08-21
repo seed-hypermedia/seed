@@ -1,4 +1,4 @@
-import {API_FILE_URL} from '@shm/shared'
+import {API_FILE_URL} from './constants'
 
 export function getFileUrl(image?: string) {
   if (image) {

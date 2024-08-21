@@ -2,10 +2,9 @@ import Footer from '@/components/footer'
 import {ListItem} from '@/components/list-item'
 import {MainWrapper, MainWrapperNoScroll} from '@/components/main-wrapper'
 import {useListProfileDocuments} from '@/models/documents'
-import {getFileUrl} from '@/utils/account-url'
 import {useNavigate} from '@/utils/useNavigate'
 import {PlainMessage} from '@bufbuild/protobuf'
-import {DocumentListItem, hmId} from '@shm/shared'
+import {DocumentListItem, getFileUrl, hmId} from '@shm/shared'
 import {
   Container,
   List,

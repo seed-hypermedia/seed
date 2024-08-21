@@ -1,6 +1,10 @@
-import {getFileUrl} from '@/utils/account-url'
 import {useNavigate} from '@/utils/useNavigate'
-import {getMetadataName, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
+import {
+  getFileUrl,
+  getMetadataName,
+  HMMetadata,
+  UnpackedHypermediaId,
+} from '@shm/shared'
 import {Tooltip, UIAvatar, UIAvatarProps} from '@shm/ui'
 import {AlertCircle} from '@tamagui/lucide-icons'
 import {Button, YStack} from 'tamagui'
