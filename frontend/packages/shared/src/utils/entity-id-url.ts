@@ -246,10 +246,12 @@ export function idToUrl(
     version,
     blockRef,
     blockRange,
+    path,
   }: {
     version?: string | null | undefined
     blockRef?: string | null | undefined
     blockRange?: BlockRange | ExpandedBlockRange | null | undefined
+    path?: string[] | null | undefined
   } = {},
 ) {
   const unpacked = unpackHmId(hmId)
@@ -258,6 +260,7 @@ export function idToUrl(
     version: version || unpacked.version,
     blockRef: blockRef || unpacked.blockRef,
     blockRange: blockRange || unpacked.blockRange,
+    path: path || unpacked.path,
     hostname,
   })
 }
