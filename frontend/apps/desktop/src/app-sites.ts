@@ -15,10 +15,8 @@ export const sitesApi = t.router({
         body: JSON.stringify(input.payload),
       })
       if (resp.status !== 200) {
-        console.error('site registration error')
-        console.error(resp)
-        console.error(await resp.text())
-        throw new Error(`Failed to register`)
+        const error = await resp.json()
+        throw error
       }
       const result = await resp.json()
       return result

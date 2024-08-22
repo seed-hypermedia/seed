@@ -15,7 +15,7 @@ export function useSiteRegistration() {
       const url = new URL(input.url)
       const secret = url.searchParams.get('secret')
       const siteUrl = `${url.protocol}//${url.host}`
-      const registerUrl = `${siteUrl}/hm/register`
+      const registerUrl = `${siteUrl}/hm/api/register`
       const daemonInfo = await grpcClient.daemon.getInfo({})
       const peerInfo = await grpcClient.networking.getPeerInfo({
         deviceId: daemonInfo.peerId,
@@ -29,8 +29,6 @@ export function useSiteRegistration() {
           addrs: peerInfo.addrs,
         },
       })
-      console.log(registerResult)
-
       await grpcClient.documents.createDocumentChange({
         account: input.accountUid,
         signingKeyName: input.accountUid,
@@ -46,7 +44,7 @@ export function useSiteRegistration() {
           }),
         ],
       })
-      return null
+      return registerResult
     },
     onSuccess: (result, input) => {
       invalidate([queryKeys.ENTITY, hmId('d', input.accountUid).id])

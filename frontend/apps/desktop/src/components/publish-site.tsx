@@ -108,7 +108,11 @@ function PublishSiteDialog({
         Publish "{getDocumentTitle(entity.data?.document)}" to the web
       </DialogTitle>
       {register.error ? (
-        <SizableText theme="red">{JSON.stringify(register.error)}</SizableText>
+        <SizableText color="$red11">
+          {register.error.message
+            ? register.error.message
+            : JSON.stringify(register.error)}
+        </SizableText>
       ) : null}
       {/* <DialogDescription>description</DialogDescription> */}
       <Form onSubmit={handleSubmit(onSubmit)} gap="$4">
