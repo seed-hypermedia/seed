@@ -21,6 +21,7 @@ export function Thumbnail({
 }) {
   return (
     <UIAvatar
+      {...props}
       size={size}
       id={id.path?.at(-1) || id.uid.slice(2)}
       label={metadata?.name}

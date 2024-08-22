@@ -27,6 +27,7 @@ import {
   ReplyArrow,
   SelectDropdown,
   SizableText,
+  Stack,
   Tooltip,
   useStream,
   View,
@@ -141,30 +142,44 @@ function Comment({
         bg={lineColor}
       />
       {isFirst && isNested ? (
-        <>
-          <View
-            position="absolute"
-            top={4}
-            left={-6}
-            width={15}
-            height={15}
-            borderLeftWidth={lineWidth}
-            borderBottomWidth={lineWidth}
-            borderLeftColor={lineColor}
-            borderBottomColor={lineColor}
-            borderRadius={25}
-            borderTopLeftRadius={0}
-            borderBottomRightRadius={0}
-          />
-        </>
-      ) : null}
-
-      <XStack gap="$2" padding="$2">
-        <Thumbnail
-          id={authorId}
-          metadata={author?.document?.metadata}
-          size={20}
+        <View
+          position="absolute"
+          zi={10}
+          top={4}
+          left={-6}
+          width={12}
+          height={15}
+          borderLeftWidth={lineWidth}
+          borderBottomWidth={lineWidth}
+          borderLeftColor={lineColor}
+          borderBottomColor={lineColor}
+          borderRadius={25}
+          borderTopLeftRadius={0}
+          borderBottomRightRadius={0}
         />
+      ) : null}
+      <XStack gap="$2" padding="$2">
+        <Stack position="relative">
+          <Stack
+            position="absolute"
+            top={0}
+            zi={20}
+            left={0}
+            w={20}
+            h={20}
+            bg="transparent"
+            outlineColor="$background"
+            outlineStyle="solid"
+            outlineWidth={4}
+            borderRadius={100}
+          />
+          <Thumbnail
+            zi={20}
+            id={authorId}
+            metadata={author?.document?.metadata}
+            size={20}
+          />
+        </Stack>
         <YStack f={1}>
           <XStack minHeight={20} ai="center" gap="$2">
             <SizableText size="$2" fontWeight="bold">
