@@ -1,11 +1,11 @@
 import {MetaFunction} from "@remix-run/node";
 import {HMDocument} from "@shm/shared";
+import {Container} from "@shm/ui/src/container";
 import {DocContent, DocContentProvider} from "@shm/ui/src/document-content";
 import {YStack} from "@tamagui/stacks";
 import {deserialize} from "superjson";
 import type {hmDocumentLoader, hmDocumentPayload} from "./loaders";
 import {PageHeader} from "./page-header";
-import {Container} from "./ui/container";
 
 export const documentPageMeta: MetaFunction<hmDocumentLoader> = ({data}) => {
   const document = deserialize(data?.document) as HMDocument;

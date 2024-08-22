@@ -1,5 +1,6 @@
+import {styled} from "@tamagui/core";
+import {XStack, YStack} from "@tamagui/stacks";
 import {ComponentProps} from "react";
-import {XStack, YStack, styled} from "tamagui";
 
 const variants = {
   hide: {
