@@ -20,21 +20,39 @@ export function useSiteRegistration() {
       console.log('registerUrl', registerUrl)
       const siteConfig = await getSiteConfig.mutateAsync(siteUrl)
       console.log('siteConfig', siteConfig)
-      const daemonInfo = await grpcClient.daemon.getInfo({})
-      const peerInfo = await grpcClient.networking.getPeerInfo({
-        deviceId: daemonInfo.peerId,
-      })
-      const registerPayload = {
-        registrationSecret: secret,
-        accountUid: input.accountUid,
-        peerId: daemonInfo.peerId,
-        addrs: peerInfo.addrs,
+      if (!siteConfig) throw new Error('Site is not set up.')
+
+      if (
+        siteConfig.registeredAccountUid &&
+        siteConfig.registeredAccountUid !== input.accountUid
+      ) {
+        throw new Error('Site already registered to another account')
       }
-      console.log(JSON.stringify(registerPayload, null, 2))
-      const registerResult = await registerSite.mutateAsync({
-        url: registerUrl,
-        payload: registerPayload,
+      if (!siteConfig.registeredAccountUid) {
+        const daemonInfo = await grpcClient.daemon.getInfo({})
+        const peerInfo = await grpcClient.networking.getPeerInfo({
+          deviceId: daemonInfo.peerId,
+        })
+        const registerPayload = {
+          registrationSecret: secret,
+          accountUid: input.accountUid,
+          peerId: daemonInfo.peerId,
+          addrs: peerInfo.addrs,
+        }
+        console.log(JSON.stringify(registerPayload, null, 2))
+        const registerResult = await registerSite.mutateAsync({
+          url: registerUrl,
+          payload: registerPayload,
+        })
+        console.log('registerResult', registerResult)
+      }
+      console.log('connecting to site...')
+      await grpcClient.networking.connect({
+        addrs: siteConfig.addrs,
       })
+      console.log('doing force sync from this node...')
+      await grpcClient.daemon.forceSync({})
+
       await grpcClient.documents.createDocumentChange({
         account: input.accountUid,
         signingKeyName: input.accountUid,
@@ -50,7 +68,7 @@ export function useSiteRegistration() {
           }),
         ],
       })
-      return registerResult
+      return null
     },
     onSuccess: (result, input) => {
       invalidate([queryKeys.ENTITY, hmId('d', input.accountUid).id])
