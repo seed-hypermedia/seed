@@ -48,7 +48,14 @@ export const ImageBlock = createReactBlockSpec({
     {
       tag: 'img[src]',
       getAttrs: (element) => {
-        return {src: element.getAttribute('src'), width: element.style.width}
+        const alt = element.getAttribute('title') || element.getAttribute('alt')
+        const width = element.getAttribute('width') || element.style.width
+        return {
+          src: element.getAttribute('src'),
+          alt: alt,
+          width: width,
+          content: [{type: 'text', text: element.getAttribute('alt')}],
+        }
       },
       node: 'image',
     },

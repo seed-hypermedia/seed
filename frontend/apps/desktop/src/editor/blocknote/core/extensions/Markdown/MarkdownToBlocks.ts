@@ -7,6 +7,7 @@ import remarkRehype from 'remark-rehype'
 import {unified} from 'unified'
 import {Block, BlockNoteEditor, BlockSchema, nodeToBlock} from '../..'
 import {remarkCodeClass} from './RemarkCodeClass'
+import {remarkImageWidth} from './RemarkImageWidth'
 
 const fileRegex = /\[([^\]]+)\]\(([^)]*) "size=(\d+)"\)/
 const videoRegex = /!\[([^\]]*)\]\(([^)]*) "width=(\d*)"\)/
@@ -126,6 +127,7 @@ export const MarkdownToBlocks = async (
   const file = await unified()
     .use(remarkParse)
     .use(remarkCodeClass)
+    .use(remarkImageWidth)
     .use(remarkRehype)
     .use(rehypeStringify)
     .process(markdown)

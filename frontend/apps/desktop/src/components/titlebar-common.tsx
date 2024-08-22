@@ -9,6 +9,7 @@ import {usePushPublication} from '@/models/documents'
 import {useEntity} from '@/models/entities'
 import {useGatewayHost, useGatewayUrl} from '@/models/gateway-settings'
 import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
+import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {
   useNavRoute,
   useNavigationDispatch,
@@ -18,11 +19,13 @@ import {useNavigate} from '@/utils/useNavigate'
 import {
   BlockRange,
   ExpandedBlockRange,
+  HMBlockNode,
   UnpackedHypermediaId,
   createPublicWebHmUrl,
   getDocumentTitle,
   hmId,
   packHmId,
+  toHMBlock,
 } from '@shm/shared'
 import {
   Back,
@@ -42,6 +45,7 @@ import {
   ArrowLeftFromLine,
   ArrowRightFromLine,
   CloudOff,
+  Download,
   ExternalLink,
   Link,
   Pencil,
@@ -50,7 +54,6 @@ import {
 } from '@tamagui/lucide-icons'
 import {ReactNode, useState} from 'react'
 import DiscardDraftButton from './discard-draft-button'
-import {ExportDocButton} from './export-doc-button'
 import PublishDraftButton from './publish-draft-button'
 import {usePublishSite, useRemoveSiteDialog} from './publish-site'
 import {TitleBarProps} from './titlebar'
@@ -62,6 +65,7 @@ export function DocOptionsButton() {
     throw new Error(
       'DocOptionsButton can only be rendered on publication route',
     )
+  const {exportDocument} = useAppContext()
   const gwHost = useGatewayHost()
   const push = usePushPublication()
   const deleteEntity = useDeleteDialog()
@@ -91,6 +95,19 @@ export function DocOptionsButton() {
           success: `Pushed to ${gwHost}`,
           error: (err) => `Could not push to ${gwHost}: ${err.message}`,
         })
+      },
+    },
+    {
+      key: 'export',
+      label: 'Export Document',
+      icon: Download,
+      onPress: async () => {
+        const title = doc.data?.document?.metadata.name || 'document'
+        const blocks: HMBlockNode[] | undefined = doc.data?.document?.content
+        const editorBlocks = toHMBlock(blocks)
+        const markdownWithFiles = await convertBlocksToMarkdown(editorBlocks)
+        const {markdownContent, mediaFiles} = markdownWithFiles
+        exportDocument(title, markdownContent, mediaFiles)
       },
     },
     {
@@ -286,7 +303,7 @@ export function PageActionButtons(props: TitleBarProps) {
   } else if (route.key === 'document' && route.id.type === 'd') {
     buttonGroup = [
       <EditDocButton key="editDoc" />,
-      <ExportDocButton docId={route.id} />,
+      // <ExportDocButton docId={route.id} />,
       // <CreateDropdown key="create" location={route.id} />, // TODO, new path selection workflow
       <DocOptionsButton key="options" />,
     ]
