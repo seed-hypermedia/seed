@@ -1,4 +1,4 @@
-import {API_FILE_UPLOAD_URL} from '@shm/shared'
+import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared'
 import {Button, Text, XStack, YStack, toast} from '@shm/ui'
 import {useState} from 'react'
 import {Block, HMBlockSchema, MaxFileSizeB, MaxFileSizeMB} from '.'
@@ -51,7 +51,7 @@ export const MediaContainer = ({
     formData.append('file', file)
 
     try {
-      const response = await fetch(API_FILE_UPLOAD_URL, {
+      const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
         method: 'POST',
         body: formData,
       })

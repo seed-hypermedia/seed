@@ -108,7 +108,8 @@ go run ./backend/cmd/seed-site -data-dir=~/.mttsite -p2p.port=59000 --http.port=
 In the Seed directory, start by running `yarn`. Then:
 
 ```
-HM_BASE_URL="http://localhost:3000" GRPC_HOST="http://localhost:59001" PORT=3000 yarn site
+cd frontend/apps/web
+DAEMON_HTTP_URL="http://localhost:57001" yarn dev
 ```
 
 ## Dev: Run Gateway
@@ -116,13 +117,14 @@ HM_BASE_URL="http://localhost:3000" GRPC_HOST="http://localhost:59001" PORT=3000
 Run the daemon:
 
 ```
-SEED_P2P_TESTNET_NAME="dev" go run ./backend/cmd/seed-site -data-dir=~/.mttgateway -p2p.port=57000  -grpc.port=57002 -http.port=57001 -p2p.no-relay -syncing.allow-push -syncing.no-discovery=false "http://localhost:3300"
+SEED_P2P_TESTNET_NAME="dev" go run ./backend/cmd/seed-daemon -data-dir="$HOME/.seed-site" -p2p.port=59000  -grpc.port=59002 -http.port=59001
 ```
 
 Simultaneously run the Frontend:
 
 ```
-NEXT_PUBLIC_ENABLE_GATEWAY=true NEXT_PUBLIC_GRPC_HOST="http://localhost:57001/" GRPC_HOST="http://localhost:57001/" PORT=3300 GW_NEXT_HOST="http://localhost:3300" yarn site
+cd frontend/apps/web
+PORT=3300 DAEMON_HTTP_URL="http://localhost:59001" yarn dev
 ```
 
 Now your dev gateway is running at `http://localhost:3300`

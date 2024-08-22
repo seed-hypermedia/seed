@@ -24,10 +24,3 @@ export async function writeConfig(newConfig: Config) {
   await fs.writeFile(configPath, JSON.stringify(newConfig));
   config = newConfig;
 }
-
-export function getGRPCHost() {
-  if (process.env.SITE_GRPC_HOST) {
-    return process.env.SITE_GRPC_HOST;
-  }
-  return "http://localhost:59001";
-}

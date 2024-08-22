@@ -37,11 +37,11 @@ export const VERSION =
   process.env.VITE_VERSION ||
   '0.0.0'
 
-export const API_HTTP_URL = `${HOSTNAME}:${HTTP_PORT}`
-export const API_GRPC_URL = `${HOSTNAME}:${GRPC_PORT}`
-export const API_FILE_UPLOAD_URL = `${HOSTNAME}:${HTTP_PORT}/ipfs/file-upload`
-export const API_FILE_URL = `${HOSTNAME}:${HTTP_PORT}/ipfs`
-export const API_GRAPHQL_ENDPOINT = `${HOSTNAME}:${HTTP_PORT}/graphql`
+export const DAEMON_HTTP_URL =
+  process.env.DAEMON_HTTP_URL || `${HOSTNAME}:${HTTP_PORT}`
+export const DAEMON_FILE_UPLOAD_URL = `${HOSTNAME}:${HTTP_PORT}/ipfs/file-upload`
+export const DAEMON_FILE_URL = `${HOSTNAME}:${HTTP_PORT}/ipfs`
+export const DAEMON_GRAPHQL_ENDPOINT = `${HOSTNAME}:${HTTP_PORT}/graphql`
 
 export const LIGHTNING_API_URL = IS_PROD_DESKTOP
   ? 'https://ln.mintter.com'

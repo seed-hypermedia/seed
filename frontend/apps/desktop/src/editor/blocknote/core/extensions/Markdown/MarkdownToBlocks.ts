@@ -1,5 +1,5 @@
 import {hmBlockSchema} from '@/editor/schema'
-import {API_FILE_UPLOAD_URL, API_FILE_URL} from '@shm/shared'
+import {DAEMON_FILE_UPLOAD_URL, DAEMON_FILE_URL} from '@shm/shared'
 import {DOMParser as ProseMirrorDOMParser} from '@tiptap/pm/model'
 import rehypeStringify from 'rehype-stringify'
 import remarkParse from 'remark-parse'
@@ -19,7 +19,7 @@ const uploadToIpfs = async (file: File): Promise<string> => {
     formData.append('file', file)
 
     try {
-      const response = await fetch(API_FILE_UPLOAD_URL, {
+      const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
         method: 'POST',
         body: formData,
       })
@@ -105,7 +105,7 @@ export const processMediaMarkdown = async (
         const ipfsUrl = await uploadToIpfs(file)
         markdownContent = markdownContent.replace(
           url,
-          `${API_FILE_URL}/${ipfsUrl}`,
+          `${DAEMON_FILE_URL}/${ipfsUrl}`,
         )
       } catch (error) {
         console.error(`Error processing file ${url}:`, error)
@@ -194,7 +194,7 @@ export const MarkdownToBlocks = async (
           if (videoMatch) {
             let videoProps = {}
             if (
-              videoMatch[2].startsWith(API_FILE_URL) ||
+              videoMatch[2].startsWith(DAEMON_FILE_URL) ||
               videoMatch[2].includes('youtube') ||
               videoMatch[2].includes('youtu.be') ||
               videoMatch[2].includes('vimeo')
@@ -217,7 +217,7 @@ export const MarkdownToBlocks = async (
           const fileMatch = blockContent.match(fileRegex)
           if (fileMatch) {
             let fileProps = {}
-            if (fileMatch[2].startsWith(API_FILE_URL)) {
+            if (fileMatch[2].startsWith(DAEMON_FILE_URL)) {
               fileProps = {
                 name: fileMatch[1],
                 url: fileMatch[2],

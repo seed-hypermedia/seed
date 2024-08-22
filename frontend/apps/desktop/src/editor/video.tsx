@@ -1,5 +1,5 @@
 import {isValidUrl, youtubeParser} from '@/editor/utils'
-import {API_FILE_URL} from '@shm/shared'
+import {DAEMON_FILE_URL} from '@shm/shared'
 import {ResizeHandle, SizableText, XStack, useTheme} from '@shm/ui'
 import {useEffect, useState} from 'react'
 import {RiVideoAddLine} from 'react-icons/ri'
@@ -302,7 +302,7 @@ const display = ({
           height="100%"
         >
           <source
-            src={`${API_FILE_URL}/${block.props.url.replace('ipfs://', '')}`}
+            src={`${DAEMON_FILE_URL}/${block.props.url.replace('ipfs://', '')}`}
             type={getSourceType(block.props.name)}
           />
           <SizableText>Something is wrong with the video file.</SizableText>

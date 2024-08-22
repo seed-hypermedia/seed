@@ -1,4 +1,4 @@
-import {API_HTTP_URL} from '@shm/shared'
+import {DAEMON_HTTP_URL} from '@shm/shared'
 import {app, dialog, net} from 'electron'
 import fs from 'fs'
 import mime from 'mime'
@@ -56,7 +56,7 @@ export async function saveMarkdownFile(
         const regex = /ipfs:\/\/(.+)/
         const match = url.match(regex)
         const cid = match ? match[1] : null
-        const request = net.request(`${API_HTTP_URL}/ipfs/${cid}`)
+        const request = net.request(`${DAEMON_HTTP_URL}/ipfs/${cid}`)
 
         request.on('response', (response) => {
           const mimeType = response.headers['content-type']

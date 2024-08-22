@@ -1,4 +1,4 @@
-import {API_FILE_UPLOAD_URL} from '@shm/shared'
+import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared'
 import {Extension} from '@tiptap/core'
 import {Plugin, PluginKey} from 'prosemirror-state'
 
@@ -95,7 +95,7 @@ const handleLocalMediaPastePlugin = new Plugin({
 async function uploadMedia(file: File) {
   const formData = new FormData()
   formData.append('file', file)
-  const response = await fetch(API_FILE_UPLOAD_URL, {
+  const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
     method: 'POST',
     body: formData,
   })

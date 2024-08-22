@@ -1,5 +1,5 @@
 import {
-  API_GRAPHQL_ENDPOINT,
+  DAEMON_GRAPHQL_ENDPOINT,
   ExportWalletInput,
   LightningWallet,
   Mutation,
@@ -36,7 +36,7 @@ function queryWallets():
     queryKey: ['payments', 'wallets'],
     queryFn: async () => {
       try {
-        let req: Query = await request(API_GRAPHQL_ENDPOINT, getWalletsQuery)
+        let req: Query = await request(DAEMON_GRAPHQL_ENDPOINT, getWalletsQuery)
         return req.me.wallets ?? []
       } catch (error) {
         return []
@@ -90,7 +90,7 @@ function queryInvoicesByWallet(
     queryFn: async () => {
       try {
         let req: Query = await request(
-          API_GRAPHQL_ENDPOINT,
+          DAEMON_GRAPHQL_ENDPOINT,
           getInvoicesByWalletQuery,
           {
             walletId,
@@ -127,7 +127,7 @@ export function mutationExportWallet(
     mutationFn: async (input: ExportWalletInput) => {
       try {
         let req: Mutation = await request(
-          API_GRAPHQL_ENDPOINT,
+          DAEMON_GRAPHQL_ENDPOINT,
           exportWalletMutationQuery,
           input,
         )

@@ -119,7 +119,6 @@ def main():
         return run(
             "yarn web",
             args=args,
-            env={**os.environ, "HM_BASE_URL": "http://localhost:3000"},
         )
 
     @cmd(cmds, "build-web", "Build web app for production.")
@@ -131,7 +130,6 @@ def main():
         return run(
             "yarn web:prod",
             args=args,
-            # env={**os.environ, "HM_BASE_URL": "http://localhost:3000"},
         )
 
     @cmd(cmds, "frontend-validate", "Formats, Validates")

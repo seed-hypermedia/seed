@@ -1,4 +1,4 @@
-import {API_GRAPHQL_ENDPOINT, LIGHTNING_API_URL, Mutation} from '@shm/shared'
+import {DAEMON_GRAPHQL_ENDPOINT, LIGHTNING_API_URL, Mutation} from '@shm/shared'
 import {UseMutationOptions, useMutation, useQuery} from '@tanstack/react-query'
 import request, {gql} from 'graphql-request'
 import {useEffect} from 'react'
@@ -62,11 +62,11 @@ export function useWalletOptIn(opts?: UseMutationOptions) {
   const optIn = useMutation({
     mutationFn: async (input) => {
       const exported: Mutation = await request(
-        API_GRAPHQL_ENDPOINT,
+        DAEMON_GRAPHQL_ENDPOINT,
         exportBuiltInWalletMutation,
       )
       const imported: Mutation = await request(
-        API_GRAPHQL_ENDPOINT,
+        DAEMON_GRAPHQL_ENDPOINT,
         insertDefaultWalletMutation,
         {credentials: exported.exportWallet.credentials},
       )

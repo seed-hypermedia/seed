@@ -1,7 +1,7 @@
 import {useAccount_deprecated} from '@/models/accounts'
 import {useEntities, useEntity} from '@/models/entities'
 import {
-  API_FILE_URL,
+  DAEMON_FILE_URL,
   UnpackedHypermediaId,
   formattedDateMedium,
   getAccountName,
@@ -487,7 +487,7 @@ export function EmbedComment(props: EntityComponentProps) {
             id={account.data?.id}
             url={
               account.data?.profile?.avatar
-                ? `${API_FILE_URL}/${account.data?.profile?.avatar}`
+                ? `${DAEMON_FILE_URL}/${account.data?.profile?.avatar}`
                 : undefined
             }
           />

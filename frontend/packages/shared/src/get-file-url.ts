@@ -1,8 +1,8 @@
-import {API_FILE_URL} from './constants'
+import {DAEMON_FILE_URL} from './constants'
 
 export function getFileUrl(ipfsUrl?: string) {
   if (ipfsUrl) {
-    return `${API_FILE_URL}/${extractIpfsUrlCid(ipfsUrl)}`
+    return `${DAEMON_FILE_URL}/${extractIpfsUrlCid(ipfsUrl)}`
   }
   return ''
 }

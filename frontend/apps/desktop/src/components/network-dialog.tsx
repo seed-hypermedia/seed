@@ -1,5 +1,5 @@
 import {useOpenUrl} from '@/open-url'
-import {Account, API_FILE_URL, hmId, PeerInfo} from '@shm/shared'
+import {Account, DAEMON_FILE_URL, hmId, PeerInfo} from '@shm/shared'
 import {
   ArrowUpRight,
   Button,
@@ -193,7 +193,7 @@ const PeerRow = React.memo(function PeerRow({
               label={account.profile?.alias}
               url={
                 account.profile?.avatar &&
-                `${API_FILE_URL}/${account.profile?.avatar}`
+                `${DAEMON_FILE_URL}/${account.profile?.avatar}`
               }
             />
           ) : null}

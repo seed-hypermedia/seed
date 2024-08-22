@@ -1,4 +1,4 @@
-import {API_FILE_UPLOAD_URL} from '@shm/shared'
+import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared'
 import {
   Button,
   Input,
@@ -319,7 +319,7 @@ function MediaForm({
     formData.append('file', files[0])
 
     try {
-      const response = await fetch(API_FILE_UPLOAD_URL, {
+      const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
         method: 'POST',
         body: formData,
       })
@@ -340,7 +340,7 @@ function MediaForm({
       formData.append('file', files[i])
 
       try {
-        const response = await fetch(API_FILE_UPLOAD_URL, {
+        const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
           method: 'POST',
           body: formData,
         })

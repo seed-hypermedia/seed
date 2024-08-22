@@ -1,4 +1,4 @@
-import {API_FILE_UPLOAD_URL, API_FILE_URL} from '@shm/shared'
+import {DAEMON_FILE_UPLOAD_URL, DAEMON_FILE_URL} from '@shm/shared'
 import {
   Button,
   Card,
@@ -169,7 +169,7 @@ function NostrComponent({
   const header = `${nostrNpud.slice(0, 6)}...${nostrNpud.slice(-6)}`
 
   if (block.props.name && block.props.name !== '') {
-    fetch(`${API_FILE_URL}/${block.props.url}`, {
+    fetch(`${DAEMON_FILE_URL}/${block.props.url}`, {
       method: 'GET',
     }).then((response) => {
       if (response) {
@@ -392,7 +392,7 @@ function NostrForm({
 
       const formData = new FormData()
       formData.append('file', blob, event.id)
-      const response = await fetch(API_FILE_UPLOAD_URL, {
+      const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
         method: 'POST',
         body: formData,
       })

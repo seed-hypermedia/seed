@@ -1,6 +1,6 @@
-import { API_FILE_UPLOAD_URL } from '@shm/shared'
-import { toast } from '@shm/ui'
-import { Node, NodeType } from 'prosemirror-model'
+import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared'
+import {toast} from '@shm/ui'
+import {Node, NodeType} from 'prosemirror-model'
 
 export type BlockInfoWithoutPositions = {
   id: string
@@ -37,7 +37,6 @@ export function getBlockInfo(blockContainer: Node): BlockInfoWithoutPositions {
   }
 }
 
-
 type FileType = {
   id: string
   props: {
@@ -60,7 +59,7 @@ export async function handleDragMedia(file: File) {
   formData.append('file', file)
 
   try {
-    const response = await fetch(API_FILE_UPLOAD_URL, {
+    const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
       method: 'POST',
       body: formData,
     })

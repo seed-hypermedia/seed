@@ -1,4 +1,4 @@
-import {API_FILE_UPLOAD_URL} from '@shm/shared'
+import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared'
 import {toast} from '@shm/ui'
 import {Extension} from '@tiptap/core'
 import {Plugin, PluginKey} from 'prosemirror-state'
@@ -175,7 +175,7 @@ async function handleDragMedia(file: File) {
   formData.append('file', file)
 
   try {
-    const response = await fetch(API_FILE_UPLOAD_URL, {
+    const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
       method: 'POST',
       body: formData,
     })

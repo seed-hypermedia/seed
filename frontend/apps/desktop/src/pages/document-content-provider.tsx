@@ -4,8 +4,8 @@ import {useExperiments} from '@/models/experiments'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {
-  API_FILE_URL,
   BlockRange,
+  DAEMON_FILE_URL,
   ExpandedBlockRange,
   UnpackedHypermediaId,
 } from '@shm/shared'
@@ -61,7 +61,7 @@ export function AppDocContentProvider({
               }
             : null
         }
-        ipfsBlobPrefix={`${API_FILE_URL}/`}
+        ipfsBlobPrefix={`${DAEMON_FILE_URL}/`}
         saveCidAsFile={saveCidAsFile}
         routeParams={{}}
         {...overrides}

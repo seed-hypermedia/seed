@@ -4,8 +4,8 @@ import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {trpc} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
 import {
-  API_FILE_URL,
   BlockRange,
+  DAEMON_FILE_URL,
   ExpandedBlockRange,
   HMComment,
   StateStream,
@@ -265,7 +265,7 @@ export function CommentPresentation({
             id={account.data?.id}
             url={
               account.data?.profile?.avatar
-                ? `${API_FILE_URL}/${account.data?.profile?.avatar}`
+                ? `${DAEMON_FILE_URL}/${account.data?.profile?.avatar}`
                 : undefined
             }
           />

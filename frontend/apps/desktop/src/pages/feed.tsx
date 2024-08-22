@@ -9,7 +9,7 @@ import {appRouteOfId, useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {Timestamp} from '@bufbuild/protobuf'
 import {
-  API_FILE_URL,
+  DAEMON_FILE_URL,
   HMComment,
   HMDocument,
   UnpackedHypermediaId,
@@ -206,7 +206,7 @@ function FeedItemHeader({
         size={30}
         url={
           account.data?.profile?.avatar &&
-          `${API_FILE_URL}/${account.data?.profile?.avatar}`
+          `${DAEMON_FILE_URL}/${account.data?.profile?.avatar}`
         }
         label={account.data?.profile?.alias || account.data?.id}
         onPress={() => {
@@ -364,7 +364,7 @@ function getPatchedAccountEntries(
     entries.push({
       labelKey: 'Avatar',
       content: (
-        <UIAvatar size={80} url={`${API_FILE_URL}/${patch.avatar['/']}`} />
+        <UIAvatar size={80} url={`${DAEMON_FILE_URL}/${patch.avatar['/']}`} />
       ),
     })
   }

@@ -1,6 +1,6 @@
 import {queryKeys} from '@/models/query-keys'
 import {
-  API_FILE_URL,
+  DAEMON_FILE_URL,
   DocumentChange,
   eventStream,
   HMDraft,
@@ -496,7 +496,7 @@ export function AccountWizardDialog() {
                 <Onboarding.Title>Account Information</Onboarding.Title>
                 <YStack gap="$2">
                   <ThumbnailForm
-                    url={`${API_FILE_URL}/${thumbnail}`}
+                    url={`${DAEMON_FILE_URL}/${thumbnail}`}
                     onAvatarUpload={(d) => {
                       setThumbnail(d)
                     }}

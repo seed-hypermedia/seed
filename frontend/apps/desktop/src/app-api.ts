@@ -1,7 +1,7 @@
 import {resolveHmIdToAppRoute} from '@/utils/navigation'
 import {NavRoute, defaultRoute, navRouteSchema} from '@/utils/routes'
 import type {AppWindowEvent} from '@/utils/window-events'
-import {API_GRPC_URL, API_HTTP_URL} from '@shm/shared/src/constants'
+import {DAEMON_HTTP_URL} from '@shm/shared/src/constants'
 
 import {
   BrowserWindow,
@@ -280,7 +280,7 @@ export const router = t.router({
   queryInvalidation,
 
   getDaemonInfo: t.procedure.query(async () => {
-    const buildInfoUrl = `${API_HTTP_URL}/debug/buildinfo`
+    const buildInfoUrl = `${DAEMON_HTTP_URL}/debug/buildinfo`
     let daemonVersion = null
     const errors = []
     try {
@@ -295,7 +295,7 @@ export const router = t.router({
   }),
 
   getAppInfo: t.procedure.query(() => {
-    return {dataDir: userDataPath, loggingDir, grpcHost: API_GRPC_URL}
+    return {dataDir: userDataPath, loggingDir}
   }),
 })
 

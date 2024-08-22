@@ -5,7 +5,7 @@ import {NavigationContainer} from '@/utils/navigation-container'
 import {useListenAppEvent} from '@/utils/window-events'
 import type {Interceptor} from '@connectrpc/connect'
 import {createGrpcWebTransport} from '@connectrpc/connect-web'
-import {API_HTTP_URL, createGRPCClient} from '@shm/shared'
+import {DAEMON_HTTP_URL, createGRPCClient} from '@shm/shared'
 import type {StateStream} from '@shm/shared/src/utils/stream'
 import {Spinner, Toaster, YStack, toast, useStream} from '@shm/ui'
 import '@tamagui/core/reset.css'
@@ -90,7 +90,7 @@ const loggingInterceptor: Interceptor = (next) => async (req) => {
 }
 
 const transport = createGrpcWebTransport({
-  baseUrl: API_HTTP_URL,
+  baseUrl: DAEMON_HTTP_URL,
   interceptors: [loggingInterceptor],
 })
 
