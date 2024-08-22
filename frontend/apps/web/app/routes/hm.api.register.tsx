@@ -1,5 +1,6 @@
 import type {ActionFunction} from "@remix-run/node";
 import {json} from "@remix-run/node";
+import {hmId} from "@shm/shared";
 import {z} from "zod";
 import {queryClient} from "~/client";
 import {getConfig, writeConfig} from "~/config";
@@ -38,6 +39,10 @@ export const action: ActionFunction = async ({request}) => {
     console.log("networking.connect", addrs);
     await queryClient.networking.connect({
       addrs,
+    });
+    console.log("discover");
+    await queryClient.entities.discoverEntity({
+      id: hmId("d", input.accountUid).id,
     });
     console.log("daemon.forceSync");
     await queryClient.daemon.forceSync({});
