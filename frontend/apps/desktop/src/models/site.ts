@@ -16,18 +16,21 @@ export function useSiteRegistration() {
       const secret = url.searchParams.get('secret')
       const siteUrl = `${url.protocol}//${url.host}`
       const registerUrl = `${siteUrl}/hm/api/register`
+      console.log('registerUrl', registerUrl)
       const daemonInfo = await grpcClient.daemon.getInfo({})
       const peerInfo = await grpcClient.networking.getPeerInfo({
         deviceId: daemonInfo.peerId,
       })
+      const registerPayload = {
+        registrationSecret: secret,
+        accountUid: input.accountUid,
+        peerId: daemonInfo.peerId,
+        addrs: peerInfo.addrs,
+      }
+      console.log(JSON.stringify(registerPayload, null, 2))
       const registerResult = await registerSite.mutateAsync({
         url: registerUrl,
-        payload: {
-          registrationSecret: secret,
-          accountUid: input.accountUid,
-          peerId: daemonInfo.peerId,
-          addrs: peerInfo.addrs,
-        },
+        payload: registerPayload,
       })
       await grpcClient.documents.createDocumentChange({
         account: input.accountUid,

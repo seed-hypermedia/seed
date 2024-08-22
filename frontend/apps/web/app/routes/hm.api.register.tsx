@@ -33,18 +33,24 @@ export const action: ActionFunction = async ({request}) => {
     if (input.registrationSecret !== config.availableRegistrationSecret) {
       throw {message: "Invalid registration secret"};
     }
-    // await queryClient.networking.connect({addrs: [input.peerId]});
+    console.log("REGISTERING SITE", JSON.stringify(input, null, 2));
+    const addrs = input.addrs.map((addr) => `${addr}/p2p/${input.peerId}`);
+    console.log("networking.connect", addrs);
     await queryClient.networking.connect({
-      addrs: input.addrs.map((addr) => `${addr}/p2p/${input.peerId}`),
+      addrs,
     });
+    console.log("daemon.forceSync");
     await queryClient.daemon.forceSync({});
+    console.log("writing config");
     await writeConfig({
       registeredAccountUid: input.accountUid,
       sourcePeerId: input.peerId,
     });
     await waitFor(async () => {
+      console.log("querying document", input.accountUid);
       await queryClient.documents.getDocument({account: input.accountUid});
     });
+    console.log("Registration succeeded.");
     return json({message: "Success"});
   } catch (e) {
     if (e.toJSON) {
