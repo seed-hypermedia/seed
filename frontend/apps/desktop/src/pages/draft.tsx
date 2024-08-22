@@ -331,58 +331,83 @@ export function DraftHeader({
         e.stopPropagation()
       }}
     >
-      {showCover ? (
-        <CoverImage
-          onCoverUpload={(cover) => {
-            if (cover) {
-              draftActor.send({
-                type: 'CHANGE',
-                cover: `ipfs://${cover}`,
-              })
-            }
-          }}
-          onRemoveCover={() => {
-            setShowCover(false)
+      <CoverImage
+        show={showCover}
+        onCoverUpload={(cover) => {
+          if (cover) {
             draftActor.send({
               type: 'CHANGE',
-              cover: null,
+              cover: `ipfs://${cover}`,
             })
-          }}
-          url={cover ? getFileUrl(cover) : ''}
-          id={route.id?.id}
-        />
-      ) : null}
+          }
+        }}
+        onRemoveCover={() => {
+          setShowCover(false)
+          draftActor.send({
+            type: 'CHANGE',
+            cover: null,
+          })
+        }}
+        url={cover ? getFileUrl(cover) : ''}
+        id={route.id?.id}
+      />
+
       <Container
+        animation="fast"
         marginTop={showCover ? -40 : 0}
         paddingTop={!showCover ? 60 : '$6'}
         bg="$background"
         borderRadius="$2"
       >
         <YStack group="header" gap="$4">
-          {showThumbnail ? (
-            <ThumbnailForm
-              size={100}
-              id={route.id ? route.id.uid : 'document-avatar'}
-              label={name}
-              url={thumbnail ? getFileUrl(thumbnail) : ''}
-              marginTop={showCover ? -80 : 0}
-              onAvatarUpload={(thumbnail) => {
-                if (thumbnail) {
+          <XStack gap="$2" ai="flex-end">
+            {showThumbnail ? (
+              <ThumbnailForm
+                marginTop={showCover ? -80 : 0}
+                size={100}
+                id={route.id ? route.id.uid : 'document-avatar'}
+                label={name}
+                url={thumbnail ? getFileUrl(thumbnail) : ''}
+                onAvatarUpload={(thumbnail) => {
+                  if (thumbnail) {
+                    draftActor.send({
+                      type: 'CHANGE',
+                      thumbnail: `ipfs://${thumbnail}`,
+                    })
+                  }
+                }}
+                onRemoveThumbnail={() => {
+                  setShowThumbnail(false)
                   draftActor.send({
                     type: 'CHANGE',
-                    thumbnail: `ipfs://${thumbnail}`,
+                    thumbnail: null,
                   })
-                }
-              }}
-              onRemoveThumbnail={() => {
-                setShowThumbnail(false)
-                draftActor.send({
-                  type: 'CHANGE',
-                  thumbnail: null,
-                })
-              }}
-            />
-          ) : null}
+                }}
+              />
+            ) : null}
+            {!showThumbnail ? (
+              <Button
+                icon={Smile}
+                size="$1"
+                chromeless
+                hoverStyle={{bg: '$color5'}}
+                onPress={() => setShowThumbnail(true)}
+              >
+                Add Thumbnail
+              </Button>
+            ) : null}
+            {!showCover ? (
+              <Button
+                hoverStyle={{bg: '$color5'}}
+                icon={Image}
+                size="$1"
+                chromeless
+                onPress={() => setShowCover(true)}
+              >
+                Add Cover
+              </Button>
+            ) : null}
+          </XStack>
           <Input
             disabled={disabled}
             // we use multiline so that we can avoid horizontal scrolling for long titles
@@ -418,32 +443,10 @@ export function DraftHeader({
             {...headingTextStyles}
             padding={0}
           />
-          {route.id?.path?.length || !showThumbnail || !showCover ? (
-            <XStack marginTop="$4" gap="$3">
+          {route.id?.path?.length ? (
+            <XStack marginTop="$3" gap="$3">
               {route.id?.path?.length ? (
                 <PathDraft draftActor={draftActor} />
-              ) : null}
-              {!showThumbnail ? (
-                <Button
-                  icon={Smile}
-                  size="$2"
-                  chromeless
-                  hoverStyle={{bg: '$color5'}}
-                  onPress={() => setShowThumbnail(true)}
-                >
-                  Add Thumbnail
-                </Button>
-              ) : null}
-              {!showCover ? (
-                <Button
-                  hoverStyle={{bg: '$color5'}}
-                  icon={Image}
-                  size="$2"
-                  chromeless
-                  onPress={() => setShowCover(true)}
-                >
-                  Add Cover
-                </Button>
               ) : null}
             </XStack>
           ) : null}

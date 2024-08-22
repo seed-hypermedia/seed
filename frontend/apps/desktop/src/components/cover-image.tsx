@@ -15,12 +15,14 @@ export function CoverImage({
   url,
   label,
   id,
+  show = true,
   onCoverUpload,
   onRemoveCover,
 }: {
   label?: string
   id?: string
   url?: string
+  show: boolean
   onCoverUpload?: (avatar: string) => void
   onRemoveCover?: () => void
 }) {
@@ -47,7 +49,14 @@ export function CoverImage({
   }
 
   const coverImage = (
-    <XStack bg={coverBg} height="25vh" width="100%" position="relative">
+    <XStack
+      bg={coverBg}
+      height={show ? '25vh' : 0}
+      opacity={show ? 1 : 0}
+      width="100%"
+      position="relative"
+      animation="fast"
+    >
       {url ? (
         <img
           src={url}

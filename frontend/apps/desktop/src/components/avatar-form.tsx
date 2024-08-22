@@ -54,7 +54,7 @@ export function ThumbnailForm({
   return (
     <XStack
       gap="$2"
-      ai="center"
+      ai="flex-end"
       group="thumbnail"
       w="auto"
       alignSelf="flex-start"
