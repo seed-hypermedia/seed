@@ -37,9 +37,13 @@ export const action: ActionFunction = async ({request}) => {
     console.log("REGISTERING SITE", JSON.stringify(input, null, 2));
     const addrs = input.addrs.map((addr) => `${addr}/p2p/${input.peerId}`);
     console.log("networking.connect", addrs);
-    await queryClient.networking.connect({
-      addrs,
-    });
+    try {
+      await queryClient.networking.connect({
+        addrs,
+      });
+    } catch (e) {
+      console.error("direct connect failed", e);
+    }
     console.log("discover");
     await queryClient.entities.discoverEntity({
       id: hmId("d", input.accountUid).id,

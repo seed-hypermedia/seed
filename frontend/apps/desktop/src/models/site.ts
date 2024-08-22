@@ -9,6 +9,7 @@ export function useSiteRegistration() {
   const invalidate = useQueryInvalidator()
 
   const registerSite = trpc.sites.registerSite.useMutation()
+  const getSiteConfig = trpc.sites.getConfig.useMutation()
   return useMutation({
     mutationFn: async (input: {url: string; accountUid: string}) => {
       // http://localhost:5175/hm/register?secret=abc
@@ -17,6 +18,8 @@ export function useSiteRegistration() {
       const siteUrl = `${url.protocol}//${url.host}`
       const registerUrl = `${siteUrl}/hm/api/register`
       console.log('registerUrl', registerUrl)
+      const siteConfig = await getSiteConfig.mutateAsync(siteUrl)
+      console.log('siteConfig', siteConfig)
       const daemonInfo = await grpcClient.daemon.getInfo({})
       const peerInfo = await grpcClient.networking.getPeerInfo({
         deviceId: daemonInfo.peerId,

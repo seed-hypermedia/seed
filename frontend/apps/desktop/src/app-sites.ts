@@ -21,4 +21,13 @@ export const sitesApi = t.router({
       const result = await resp.json()
       return result
     }),
+  getConfig: t.procedure.input(z.string()).mutation(async ({input}) => {
+    const resp = await fetch(`${input}/hm/api/config`, {})
+    if (resp.status !== 200) {
+      const error = await resp.json()
+      throw error
+    }
+    const result = await resp.json()
+    return result
+  }),
 })

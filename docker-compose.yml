@@ -61,7 +61,7 @@ services:
     command: >
       sh -c "rsync -a /monitoring/prometheus/ /exported_prometheus &&
              rsync -a /monitoring/grafana/ /exported_grafana && 
-             seed-daemon -data-dir=/data -lndhub.mainnet -p2p.port=56000 --http.port=${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001} -syncing.allow-push=${SEED_SITE_ALLOW_PUSH:-false} -grpc.port=56002 -syncing.no-discovery=${SEED_SITE_NO_DISCOVERY:-true} -syncing.no-pull=${SEED_SITE_NO_PULL:-true} ${SEED_SITE_HOSTNAME}"
+             seed-daemon -data-dir=/data -lndhub.mainnet -p2p.port=56000 --http.port=${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001} -syncing.allow-push=${SEED_SITE_ALLOW_PUSH:-false} -grpc.port=56002 -syncing.no-pull=${SEED_SITE_NO_PULL:-true} ${SEED_SITE_HOSTNAME}"
 
   prometheus:
     image: prom/prometheus:latest
