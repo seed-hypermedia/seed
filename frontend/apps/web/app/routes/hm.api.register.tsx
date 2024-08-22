@@ -34,10 +34,10 @@ export const action: ActionFunction = async ({request}) => {
       throw {message: "Invalid registration secret"};
     }
     console.log("REGISTERING SITE", JSON.stringify(input, null, 2));
-    // const addrs = input.addrs.map((addr) => `${addr}/p2p/${input.peerId}`);
-    console.log("networking.connect", input.addrs);
+    const addrs = input.addrs.map((addr) => `${addr}/p2p/${input.peerId}`);
+    console.log("networking.connect", addrs);
     await queryClient.networking.connect({
-      addrs: input.addrs,
+      addrs,
     });
     console.log("daemon.forceSync");
     await queryClient.daemon.forceSync({});
