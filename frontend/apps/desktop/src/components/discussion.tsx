@@ -38,8 +38,8 @@ import {useEffect, useState} from 'react'
 import {HyperMediaEditorView} from './editor'
 import {Thumbnail} from './thumbnail'
 
-const lineColor = '$blue11'
-const lineWidth = 2
+const lineColor = '$blue7'
+const lineWidth = 1
 
 export function Discussion({docId}: {docId: UnpackedHypermediaId}) {
   return (
@@ -58,6 +58,7 @@ function DiscussionComments({docId}: {docId: UnpackedHypermediaId}) {
         key={commentGroup.id}
         docId={docId}
         commentGroup={commentGroup}
+        isLastGroup={commentGroup === comments[comments.length - 1]}
       />
     )
   })
@@ -68,14 +69,26 @@ function CommentGroup({
   docId,
   commentGroup,
   isNested = false,
+  isLastGroup = false,
 }: {
   docId: UnpackedHypermediaId
   commentGroup: HMCommentGroup
   isNested?: boolean
+  isLastGroup?: boolean
 }) {
   const lastComment = commentGroup.comments.at(-1)
   return (
     <YStack>
+      {isLastGroup ? (
+        <View
+          width={5}
+          position="absolute"
+          top={8}
+          bottom={-10}
+          left={-8}
+          bg="$background"
+        />
+      ) : null}
       {commentGroup.comments.map((comment, idx) => {
         const isLastCommentInGroup = !!lastComment && comment === lastComment
         return (
@@ -129,17 +142,6 @@ function Comment({
       />
       {isFirst && isNested ? (
         <>
-          {isLast ? (
-            <View
-              width={5}
-              position="absolute"
-              top={8}
-              bottom={0}
-              left={-8}
-              bg="$background"
-              // bg="red"
-            />
-          ) : null}
           <View
             position="absolute"
             top={4}
@@ -290,6 +292,7 @@ function CommentReplies({
         key={commentGroup.id}
         docId={docId}
         commentGroup={commentGroup}
+        isLastGroup={commentGroup === comments[comments.length - 1]}
       />
     )
   })
