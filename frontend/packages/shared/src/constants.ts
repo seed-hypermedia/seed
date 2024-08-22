@@ -26,7 +26,8 @@ export const ELECTRON_HTTP_PORT =
 
 export const HOSTNAME =
   (import.meta.env && import.meta.env.VITE_DESKTOP_HOSTNAME) ||
-  process.env.VITE_DESKTOP_HOSTNAME
+  process.env.VITE_DESKTOP_HOSTNAME ||
+  'http://localhost'
 export const DESKTOP_APPDATA =
   (import.meta.env && import.meta.env.VITE_DESKTOP_APPDATA) ||
   process.env.VITE_DESKTOP_APPDATA ||
