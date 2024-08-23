@@ -32,7 +32,7 @@ import {
   useQuery,
 } from '@tanstack/react-query'
 import {Extension, findParentNode} from '@tiptap/core'
-import {NodeSelection} from '@tiptap/pm/state'
+import {NodeSelection, Selection} from '@tiptap/pm/state'
 import {useMachine} from '@xstate/react'
 import _ from 'lodash'
 import {nanoid} from 'nanoid'
@@ -632,26 +632,25 @@ export function useDraftEditor({id}: {id: string | undefined}) {
 
     const pos = editorView.posAtCoords({
       left: editorRect.left + 1,
-      top: event.clientY + editorView.dom.offsetTop,
+      top: event.clientY,
     })
+
+    console.log(`== ~ handleFocusAtMousePos ~ pos:`, pos)
 
     if (pos) {
       let node = editorView.state.doc.nodeAt(pos.pos)
 
-      let sel = Selection.near(
-        editorView.state.doc.resolve(
-          event.clientX < centerEditor ? pos.pos : pos.pos + node.nodeSize - 1,
-        ),
-      )
+      if (node) {
+        let sel = Selection.near(
+          editorView.state.doc.resolve(
+            event.clientX < centerEditor
+              ? pos.inside
+              : pos.inside + node.nodeSize + 1,
+          ),
+        )
 
-      ttEditor.commands.focus()
-      ttEditor.commands.setTextSelection(sel)
-    } else {
-      if (event.clientY > editorRect.top) {
-        // this is needed because if the user clicks on one of the sides of the title we don't want to jump to the bottom of the document to focus the document.
-        // if the window is scrolled and the title is not visible this will not matter because a block will be at its place so the normal focus should work.
         ttEditor.commands.focus()
-        ttEditor.commands.setTextSelection(ttEditor.state.doc.nodeSize)
+        ttEditor.commands.setTextSelection(sel)
       }
     }
   }

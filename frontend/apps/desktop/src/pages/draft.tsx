@@ -99,8 +99,9 @@ export default function DraftPage() {
                 paddingLeft: '$4',
               }}
               onPress={(e: MouseEvent) => {
+                // this prevents to fire handleFocusAtMousePos on click
                 e.stopPropagation()
-                data.editor?._tiptapEditor.commands.focus()
+                // data.editor?._tiptapEditor.commands.focus()
               }}
             >
               {data.editor ? (
