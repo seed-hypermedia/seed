@@ -9,8 +9,8 @@ import {
 import {isClient} from "@tamagui/core";
 import Tamagui from "../tamagui.config";
 import {Providers} from "./providers";
-import globalStyles from "./styles.css";
-import globalTamaguiStyles from "./tamagui.css";
+import globalStyles from "./styles.css?url";
+import globalTamaguiStyles from "./tamagui.css?url";
 
 export const links: LinksFunction = () => {
   return [

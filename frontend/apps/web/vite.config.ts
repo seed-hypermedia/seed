@@ -2,7 +2,6 @@ import {vitePlugin as remix} from "@remix-run/dev";
 import {installGlobals} from "@remix-run/node";
 import {tamaguiExtractPlugin, tamaguiPlugin} from "@tamagui/vite-plugin";
 import {defineConfig} from "vite";
-import {analyzer} from "vite-bundle-analyzer";
 import commonjs from "vite-plugin-commonjs";
 import tsconfigPaths from "vite-tsconfig-paths";
 
@@ -38,9 +37,9 @@ export default defineConfig({
         }
       },
     }),
-    analyzer({
-      analyzerMode: "static",
-      fileName: "report",
-    }),
+    // analyzer({
+    //   analyzerMode: "static",
+    //   fileName: "report",
+    // }),
   ],
 });
