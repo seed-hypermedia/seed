@@ -28,7 +28,6 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 	"github.com/multiformats/go-multiaddr"
 	"go.uber.org/multierr"
-	"golang.org/x/exp/constraints"
 )
 
 // DefaultBootstrapPeers exposes default bootstrap peers from the go-ipfs package,
@@ -356,16 +355,4 @@ func buildResourceManager(ourProtocolLimits map[protocol.ID]rcmgr.LimitVal, thei
 	limiter := rcmgr.NewFixedLimiter(limits)
 
 	return rcmgr.NewResourceManager(limiter)
-}
-func min[T constraints.Ordered](a, b T) T {
-	if a < b {
-		return a
-	}
-	return b
-}
-func max[T constraints.Ordered](a, b T) T {
-	if a > b {
-		return a
-	}
-	return b
 }
