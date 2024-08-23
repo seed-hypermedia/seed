@@ -635,23 +635,37 @@ export function useDraftEditor({id}: {id: string | undefined}) {
       top: event.clientY,
     })
 
-    console.log(`== ~ handleFocusAtMousePos ~ pos:`, pos)
-
     if (pos) {
       let node = editorView.state.doc.nodeAt(pos.pos)
 
       if (node) {
-        let sel = Selection.near(
-          editorView.state.doc.resolve(
-            event.clientX < centerEditor
-              ? pos.inside
-              : pos.inside + node.nodeSize + 1,
-          ),
-        )
+        let resolvedPos = editorView.state.doc.resolve(pos.pos)
+        let lineStartPos = pos.pos
+        let selPos = lineStartPos
 
+        if (event.clientX >= centerEditor) {
+          let lineEndPos = lineStartPos
+
+          // Loop through the line to find its end based on next Y position
+          while (lineEndPos < resolvedPos.end()) {
+            const coords = editorView.coordsAtPos(lineEndPos)
+            if (coords && coords.top >= event.clientY) {
+              lineEndPos--
+              break
+            }
+            lineEndPos++
+          }
+          selPos = lineEndPos
+        }
+
+        const sel = Selection.near(editorView.state.doc.resolve(selPos))
         ttEditor.commands.focus()
         ttEditor.commands.setTextSelection(sel)
       }
+    } else {
+      console.warn(
+        'No position found within the editor for the given mouse coordinates.',
+      )
     }
   }
 }
