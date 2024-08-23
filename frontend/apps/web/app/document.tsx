@@ -1,6 +1,6 @@
 import {MetaFunction} from "@remix-run/node";
 import {useFetcher} from "@remix-run/react";
-import {HMDocument, UnpackedHypermediaId} from "@shm/shared";
+import {getFileUrl, HMDocument, UnpackedHypermediaId} from "@shm/shared";
 import {Container} from "@shm/ui/src/container";
 import {DocContent, DocContentProvider} from "@shm/ui/src/document-content";
 import {RadioButtons} from "@shm/ui/src/radio-buttons";
@@ -21,9 +21,27 @@ import {PageHeader} from "./page-header";
 import type {HMDirectory} from "./routes/hm.api.directory";
 import {unwrap, Wrapped} from "./wrapping";
 
-export const documentPageMeta: MetaFunction<hmDocumentLoader> = ({data}) => {
+export const documentPageMeta: MetaFunction<hmDocumentLoader> = ({
+  data,
+}: {
+  data: hmDocumentPayload;
+}) => {
   const document = deserialize(data?.document) as HMDocument;
-  return [{title: document.metadata?.name || "Untitled"}];
+  const homeThumbnail = data.homeMetadata?.thumbnail
+    ? getFileUrl(data.homeMetadata.thumbnail)
+    : null;
+  const meta: ReturnType<MetaFunction> = [
+    {title: document.metadata?.name || "Untitled"},
+  ];
+  if (homeThumbnail) {
+    meta.push({
+      tagName: "link",
+      rel: "icon",
+      href: homeThumbnail,
+      type: "image/png",
+    });
+  }
+  return meta;
 };
 
 const outlineWidth = 172;
