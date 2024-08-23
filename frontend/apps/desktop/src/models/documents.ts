@@ -637,7 +637,6 @@ export function useDraftEditor({id}: {id: string | undefined}) {
 
     if (pos) {
       let node = editorView.state.doc.nodeAt(pos.pos)
-
       if (node) {
         let resolvedPos = editorView.state.doc.resolve(pos.pos)
         let lineStartPos = pos.pos

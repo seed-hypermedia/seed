@@ -6,6 +6,7 @@ import {DocContent, DocContentProvider} from "@shm/ui/src/document-content";
 import {RadioButtons} from "@shm/ui/src/radio-buttons";
 import {Text} from "@tamagui/core";
 import {YStack} from "@tamagui/stacks";
+import {SizableText} from "@tamagui/text";
 import {useEffect, useState} from "react";
 import {deserialize} from "superjson";
 import type {hmDocumentLoader, hmDocumentPayload} from "./loaders";
@@ -27,29 +28,33 @@ export function DocumentPage(props: hmDocumentPayload) {
         homeId={props.homeId}
         docMetadata={document.metadata}
         docId={props.id}
+        authors={props.authors}
+        updateTime={document.updateTime}
       />
-      <Text>
-        {props.authors.map((author) => author.metadata?.name).join(", ")}
-      </Text>
-      <Container clearVerticalSpace>
-        <DocContentProvider
-          entityComponents={{
-            Document: () => null,
-            Comment: () => null,
-            Inline: () => null,
-          }}
-          ipfsBlobPrefix="http://localhost:55001/ipfs/" // todo, configure this properly
-          onLinkClick={(href, e) => {}}
-          onCopyBlock={(blockId, blockRange) => {}}
-          saveCidAsFile={async (cid, name) => {}}
-          textUnit={18}
-          layoutUnit={24}
-          debug={false}
-        >
-          <DocContent document={document} />
-        </DocContentProvider>
-      </Container>
-      <DocumentAppendix id={props.id} />
+      <YStack>
+        {/* <YStack display="none" h={0} $gtSm={{display: "block"}} bg="green">
+          <YStack position="sticky" w={100} h={100} top={50} bg="red" zi={10} />
+        </YStack> */}
+        <Container clearVerticalSpace>
+          <DocContentProvider
+            entityComponents={{
+              Document: () => null,
+              Comment: () => null,
+              Inline: () => null,
+            }}
+            ipfsBlobPrefix="http://localhost:55001/ipfs/" // todo, configure this properly
+            onLinkClick={(href, e) => {}}
+            onCopyBlock={(blockId, blockRange) => {}}
+            saveCidAsFile={async (cid, name) => {}}
+            textUnit={18}
+            layoutUnit={24}
+            debug={false}
+          >
+            <DocContent document={document} />
+          </DocContentProvider>
+        </Container>
+        <OutlineSheet document={document} />
+      </YStack>
     </YStack>
   );
 }
@@ -93,4 +98,9 @@ function DocumentDirectory({id}: {id: UnpackedHypermediaId}) {
 
 function DocumentDiscussion({id}: {id: UnpackedHypermediaId}) {
   return null;
+}
+
+function OutlineSheet({document}: {document?: HMDocument}) {
+  if (!document) return null;
+  return <SizableText>demo</SizableText>;
 }

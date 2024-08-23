@@ -2,7 +2,6 @@ import {
   AccessoryContainer,
   AccessoryLayout,
 } from '@/components/accessory-sidebar'
-import {ThumbnailForm} from '@/components/avatar-form'
 import {CollaboratorsPanel} from '@/components/collaborators-panel'
 import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
 import {Directory} from '@/components/directory'
@@ -11,6 +10,7 @@ import {LinkNameComponent} from '@/components/document-name'
 import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
 import {SidebarSpacer} from '@/components/main-wrapper'
+import {Thumbnail} from '@/components/thumbnail'
 import {CopyReferenceButton} from '@/components/titlebar-common'
 import '@/editor/editor.css'
 import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
@@ -222,11 +222,10 @@ function DocPageHeader({
         <YStack group="header" gap="$4">
           {hasThumbnail ? (
             <XStack marginTop={hasCover ? -80 : 0}>
-              <ThumbnailForm
+              <Thumbnail
                 size={100}
-                id={docId.uid || 'document-thumbnail'}
-                label={entity.data?.document?.metadata.name}
-                url={getFileUrl(entity.data!.document!.metadata.thumbnail)}
+                id={docId}
+                metadata={entity.data?.document?.metadata}
               />
             </XStack>
           ) : null}

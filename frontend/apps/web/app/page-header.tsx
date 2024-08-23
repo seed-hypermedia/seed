@@ -1,25 +1,36 @@
-import {getFileUrl, HMDocument, UnpackedHypermediaId} from "@shm/shared";
+import {
+  formattedDateMedium,
+  getFileUrl,
+  HMDocument,
+  UnpackedHypermediaId,
+} from "@shm/shared";
 import {Button} from "@tamagui/button";
 import {Stack} from "@tamagui/core";
+import {Separator} from "@tamagui/separator";
 import {XStack, YStack} from "@tamagui/stacks";
 import {Thumbnail} from "./ui/thumbnail";
 
 import {getRandomColor} from "@shm/ui/src/avatar";
-import {Search} from "@tamagui/lucide-icons";
-import {SizableText} from "@tamagui/text";
+import {Container} from "@shm/ui/src/container";
+import {Menu, Search} from "@tamagui/lucide-icons";
+import {H1, SizableText} from "@tamagui/text";
 import {useMemo} from "react";
-import {Container} from "./ui/container";
+import {hmDocumentPayload} from "./loaders";
 
 export function PageHeader({
   homeMetadata,
   homeId,
   docMetadata,
   docId,
+  authors = [],
+  updateTime = null,
 }: {
   homeMetadata: HMDocument["metadata"] | null;
   homeId: UnpackedHypermediaId | null;
   docMetadata: HMDocument["metadata"] | null;
   docId: UnpackedHypermediaId | null;
+  authors: hmDocumentPayload["authors"];
+  updateTime: HMDocument["updateTime"] | null;
 }) {
   const coverBg = useMemo(() => {
     if (docId?.id) {
@@ -28,6 +39,8 @@ export function PageHeader({
   }, [docId]);
 
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata]);
+  const hasThumbnail = useMemo(() => !!docMetadata?.thumbnail, [docMetadata]);
+  const isHomeDoc = useMemo(() => docId?.id == homeId?.id, [docId, homeId]);
 
   return (
     <YStack>
@@ -58,17 +71,22 @@ export function PageHeader({
             </SizableText>
           </XStack>
           <XStack ai="center">
-            <Button size="$2" icon={Search}>
-              search
-            </Button>
+            <Button size="$2" chromeless bg="transparent" icon={Search} />
           </XStack>
         </XStack>
         <XStack ai="center" $gtSm={{f: 1}} paddingBlock="$2" paddingInline="$4">
-          <XStack>
+          <XStack f={1}>
             <SizableText size="$1" fontWeight="bold">
               {docMetadata?.name}
             </SizableText>
           </XStack>
+          <Button
+            $gtSm={{opacity: 0, pointerEvents: "none"}}
+            size="$2"
+            chromeless
+            bg="transparent"
+            icon={Menu}
+          />
         </XStack>
       </Stack>
       {hasCover ? (
@@ -88,19 +106,46 @@ export function PageHeader({
         </XStack>
       ) : null}
       <Container
-        clearVerticalSpace
-        marginTop={0}
         $gtSm={{
-          marginTop: hasCover ? -60 : 0,
-          y: -8,
+          marginTop: hasCover ? -40 : 0,
+          paddingTop: !hasCover ? 60 : "$6",
         }}
-        background="$background"
+        bg="$background"
         borderRadius="$2"
       >
-        <YStack paddingBlock="$5" paddingInline="$4">
-          <SizableText size="$10">{docMetadata?.name}</SizableText>
+        <YStack paddingInline="$4" gap="$4">
+          {!isHomeDoc && docId && hasThumbnail ? (
+            <XStack marginTop={hasCover ? -80 : 0}>
+              <Thumbnail size={100} id={docId} metadata={docMetadata} />
+            </XStack>
+          ) : null}
+          <H1 size="$9" style={{fontWeight: "bold"}}>
+            {docMetadata?.name}
+          </H1>
+          <XStack marginTop="$4" gap="$3" ai="center" w="100%">
+            {authors?.length ? (
+              <XStack ai="center" overflow="hidden">
+                {authors.map((a) => (
+                  <SizableText size="$1">{a.metadata.name}</SizableText>
+                ))}
+              </XStack>
+            ) : null}
+            {authors?.length ? <VerticalSeparator /> : null}
+            {updateTime ? (
+              <>
+                <SizableText size="$1" color="$color9">
+                  {formattedDateMedium(updateTime)}
+                </SizableText>
+              </>
+            ) : null}
+          </XStack>
+          <Separator />
         </YStack>
       </Container>
     </YStack>
   );
 }
+
+const VerticalSeparator = () => (
+  <XStack flexShrink={0} flexGrow={0} w={1} h={20} bg="$color8" />
+);
