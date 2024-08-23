@@ -15,7 +15,7 @@ import {Container} from "@shm/ui/src/container";
 import {Menu, Search} from "@tamagui/lucide-icons";
 import {H1, SizableText} from "@tamagui/text";
 import {useMemo} from "react";
-import {hmDocumentPayload} from "./loaders";
+import type {hmDocumentPayload} from "./loaders";
 
 export function PageHeader({
   homeMetadata,

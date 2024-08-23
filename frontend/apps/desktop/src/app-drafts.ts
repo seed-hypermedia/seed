@@ -1,3 +1,4 @@
+import {HMDraft} from '@shm/shared'
 import fs from 'fs/promises'
 import {join} from 'path'
 import z from 'zod'
@@ -46,7 +47,7 @@ export const draftsApi = t.router({
       const fileContent = await fs.readFile(draftPath, 'utf-8')
       const draft = JSON.parse(fileContent)
 
-      return draft
+      return draft as HMDraft
     } catch (e) {
       console.log(
         `[DRAFT]: Error when getting draft ${input}: ${JSON.stringify(e)}`,

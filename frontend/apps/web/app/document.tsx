@@ -1,6 +1,12 @@
 import {MetaFunction} from "@remix-run/node";
 import {useFetcher} from "@remix-run/react";
-import {getFileUrl, HMDocument, UnpackedHypermediaId} from "@shm/shared";
+import {
+  getFileUrl,
+  getNodesOutline,
+  HMDocument,
+  NodeOutline,
+  UnpackedHypermediaId,
+} from "@shm/shared";
 import {Container} from "@shm/ui/src/container";
 import {DocContent, DocContentProvider} from "@shm/ui/src/document-content";
 import {RadioButtons} from "@shm/ui/src/radio-buttons";
@@ -12,9 +18,9 @@ import {Text} from "@tamagui/core";
 //   Overlay as SheetOverlay,
 //   SheetScrollView,
 // } from "@tamagui/sheet";
+import {ButtonText} from "@tamagui/button";
 import {YStack} from "@tamagui/stacks";
-import {SizableText} from "@tamagui/text";
-import {useEffect, useState} from "react";
+import {useEffect, useMemo, useState} from "react";
 import {deserialize} from "superjson";
 import type {hmDocumentLoader, hmDocumentPayload} from "./loaders";
 import {PageHeader} from "./page-header";
@@ -91,9 +97,7 @@ export function DocumentPage(props: hmDocumentPayload) {
                 overflow="auto"
                 className="hide-scrollbar"
               >
-                <SizableText color="$color9" fontSize={14}>
-                  TODO ERIC: OUTLINE HERE
-                </SizableText>
+                <DocumentOutline document={document} />
               </YStack>
             </YStack>
           </YStack>
@@ -114,6 +118,7 @@ export function DocumentPage(props: hmDocumentPayload) {
             <DocContent document={document} />
           </DocContentProvider>
         </Container>
+        <DocumentAppendix id={props.id} />
         {/* <Sheet
           forceRemoveScrollEnabled={open}
           modal
@@ -191,4 +196,35 @@ function DocumentDirectory({id}: {id: UnpackedHypermediaId}) {
 
 function DocumentDiscussion({id}: {id: UnpackedHypermediaId}) {
   return null;
+}
+
+function DocumentOutline({document}: {document: HMDocument}) {
+  const outline = useMemo(() => {
+    return getNodesOutline(document.content);
+  }, [document.content]);
+  console.log(outline);
+  return (
+    <YStack gap="$1">
+      {outline.map((node) => (
+        <OutlineNode node={node} key={node.id} />
+      ))}
+    </YStack>
+  );
+}
+
+function OutlineNode({node}: {node: NodeOutline}) {
+  return (
+    <>
+      <ButtonText tag="a" href={`#${node.id}`} color="$color9" fontSize={14}>
+        {node.title}
+      </ButtonText>
+      {node.children?.length ? (
+        <YStack gap="$1" paddingLeft="$4">
+          {node.children.map((child) => (
+            <OutlineNode node={child} key={child.id} />
+          ))}
+        </YStack>
+      ) : null}
+    </>
+  );
 }

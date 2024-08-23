@@ -1,14 +1,17 @@
+import {useDraft} from '@/models/accounts'
 import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
 import {useEntities, useEntity} from '@/models/entities'
 import {useFavorites} from '@/models/favorites'
 import {appRouteOfId, useNavRoute} from '@/utils/navigation'
+import {DocumentRoute, DraftRoute, NavRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   getDocumentTitle,
+  getNodesOutline,
   HMBlockNode,
   hmId,
+  NodesOutline,
   UnpackedHypermediaId,
-  unpackHmId,
 } from '@shm/shared'
 import {Button, getBlockNodeById, Tooltip} from '@shm/ui'
 import {
@@ -89,7 +92,7 @@ export function MainAppSidebar() {
       />
       <FavoritesSection />
       <AccountsSection />
-      {route.key === 'document' ? <OutlineSection id={route.id} /> : null}
+      <OutlineSection route={route} />
     </GenericSidebarContainer>
   )
 }
@@ -236,12 +239,61 @@ function AccountsSection() {
   )
 }
 
-function OutlineSection({id}: {id: UnpackedHypermediaId}) {
+function OutlineSection({route}: {route: NavRoute; id: UnpackedHypermediaId}) {
+  if (route.key === 'document') {
+    return <DocumentOutlineSection route={route} />
+  }
+  if (route.key === 'draft') {
+    return <DraftOutlineSection route={route} />
+  }
+  return null
+}
+
+function DraftOutlineSection({route}: {route: DraftRoute}) {
+  const {id} = route
+  const draft = useDraft(id?.id)
+  const replace = useNavigate('replace')
+  console.log(draft.data)
+  if (!id) return null
+  return (
+    <>
+      <SidebarItem
+        marginTop="$4"
+        key={id.uid}
+        title={draft.data?.metadata?.name}
+        icon={<Thumbnail id={id} metadata={draft.data?.metadata} size={20} />}
+        onPress={() => {
+          // navigate({key: 'document', id: hmId(id.type, id.uid)})
+        }}
+        active={!id.blockRef}
+      />
+      {/* <SidebarOutline
+        nodes={draft?.data?.content}
+        activeBlock={id.blockRef || undefined}
+        indent={1}
+        onActivateBlock={(blockId) => {
+          // navigate({
+          //   key: 'document',
+          //   id: hmId(id.type, id.uid, {blockRef: blockId, path: id.path}),
+          // })
+        }}
+        onFocusBlock={(blockId) => {
+          // navigate({
+          //   key: 'document',
+          //   isBlockFocused: true,
+          //   id: hmId(id.type, id.uid, {blockRef: blockId, path: id.path}),
+          // })
+        }}
+      /> */}
+    </>
+  )
+}
+
+function DocumentOutlineSection({route}: {route: DocumentRoute}) {
+  const {id} = route
   const entity = useEntity(id)
-  const route = useNavRoute()
   const replace = useNavigate('replace')
   const navigate = useNavigate()
-  if (route.key !== 'document') return null
   const {tab} = route
   if (!entity?.data) return null
   const {document} = entity.data
@@ -369,56 +421,6 @@ function _SidebarOutline({
   return getOutline(outline, indent)
 }
 const SidebarOutline = memo(_SidebarOutline)
-
-type IconDefinition = React.FC<{size: any; color: any}>
-
-type NodeOutline = {
-  title?: string
-  id: string
-  entityId?: UnpackedHypermediaId
-  embedId?: UnpackedHypermediaId
-  parentBlockId?: string
-  children?: NodeOutline[]
-  icon?: IconDefinition
-}
-type NodesOutline = NodeOutline[]
-
-function getNodesOutline(
-  children: HMBlockNode[],
-  parentEntityId?: UnpackedHypermediaId,
-  parentBlockId?: string,
-): NodesOutline {
-  const outline: NodesOutline = []
-  children.forEach((child) => {
-    if (child.block.type === 'heading') {
-      outline.push({
-        id: child.block.id,
-        title: child.block.text,
-        entityId: parentEntityId,
-        parentBlockId,
-        children:
-          child.children &&
-          getNodesOutline(child.children, parentEntityId, parentBlockId),
-      })
-    } else if (
-      child.block.type === 'embed' &&
-      child.block.attributes?.view !== 'card'
-    ) {
-      const embedId = unpackHmId(child.block.ref)
-      if (embedId) {
-        outline.push({
-          id: child.block.id,
-          embedId,
-        })
-      }
-    } else if (child.children) {
-      outline.push(
-        ...getNodesOutline(child.children, parentEntityId, parentBlockId),
-      )
-    }
-  })
-  return outline
-}
 
 const SidebarEmbedOutlineItem = memo(_SidebarEmbedOutlineItem)
 function _SidebarEmbedOutlineItem({
