@@ -5,7 +5,14 @@ import {Container} from "@shm/ui/src/container";
 import {DocContent, DocContentProvider} from "@shm/ui/src/document-content";
 import {RadioButtons} from "@shm/ui/src/radio-buttons";
 import {Text} from "@tamagui/core";
-import {XStack, YStack} from "@tamagui/stacks";
+import {
+  Sheet,
+  Frame as SheetFrame,
+  Handle as SheetHandle,
+  Overlay as SheetOverlay,
+  SheetScrollView,
+} from "@tamagui/sheet";
+import {YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import {useEffect, useState} from "react";
 import {deserialize} from "superjson";
@@ -22,6 +29,9 @@ export const documentPageMeta: MetaFunction<hmDocumentLoader> = ({data}) => {
 const outlineWidth = 172;
 export function DocumentPage(props: hmDocumentPayload) {
   const document = deserialize(props.document) as HMDocument;
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState(0);
+
   return (
     <YStack>
       <PageHeader
@@ -31,6 +41,10 @@ export function DocumentPage(props: hmDocumentPayload) {
         docId={props.id}
         authors={props.authors}
         updateTime={document.updateTime}
+        openSheet={() => {
+          console.log("OPEN SHEET", open);
+          setOpen(!open);
+        }}
       />
       <YStack position="relative">
         <Container clearVerticalSpace>
@@ -59,27 +73,9 @@ export function DocumentPage(props: hmDocumentPayload) {
                 overflow="auto"
                 className="hide-scrollbar"
               >
-                {/* ERIC OUTLINE HERE */}
-                <XStack>
-                  <SizableText color="$color9" fontSize={14}>
-                    Abstract
-                  </SizableText>
-                </XStack>
-                <XStack>
-                  <SizableText color="$color9" fontSize={14}>
-                    Background
-                  </SizableText>
-                </XStack>
-                <XStack>
-                  <SizableText color="$color9" fontSize={14}>
-                    Discussion
-                  </SizableText>
-                </XStack>
-                <XStack>
-                  <SizableText color="$color9" fontSize={14}>
-                    Directory
-                  </SizableText>
-                </XStack>
+                <SizableText color="$color9" fontSize={14}>
+                  TODO ERIC: OUTLINE HERE
+                </SizableText>
               </YStack>
             </YStack>
           </YStack>
@@ -100,7 +96,39 @@ export function DocumentPage(props: hmDocumentPayload) {
             <DocContent document={document} />
           </DocContentProvider>
         </Container>
-        <OutlineSheet document={document} />
+        <Sheet
+          forceRemoveScrollEnabled={open}
+          modal
+          open={open}
+          onOpenChange={setOpen}
+          snapPoints={[45, 80]}
+          dismissOnSnapToBottom
+          position={position}
+          onPositionChange={setPosition}
+          zIndex={100_000}
+          animation="medium"
+        >
+          <SheetOverlay
+            position="absolute"
+            top={0}
+            zi={0}
+            left={0}
+            fullscreen
+            animation="medium"
+            enterStyle={{opacity: 0}}
+            exitStyle={{opacity: 0}}
+          />
+          <SheetHandle />
+          <SheetFrame>
+            <SheetScrollView>
+              <YStack bg="$background" padding="$4" marginInline="$6">
+                <SizableText color="$color9" fontSize={14}>
+                  TODO ERIC: OUTLINE HERE
+                </SizableText>
+              </YStack>
+            </SheetScrollView>
+          </SheetFrame>
+        </Sheet>
       </YStack>
     </YStack>
   );
@@ -145,9 +173,4 @@ function DocumentDirectory({id}: {id: UnpackedHypermediaId}) {
 
 function DocumentDiscussion({id}: {id: UnpackedHypermediaId}) {
   return null;
-}
-
-function OutlineSheet({document}: {document?: HMDocument}) {
-  if (!document) return null;
-  return <SizableText>demo</SizableText>;
 }

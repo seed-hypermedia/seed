@@ -1,3 +1,4 @@
+import {LinksFunction} from "@remix-run/node";
 import {
   Links,
   Meta,
@@ -8,8 +9,15 @@ import {
 import {isClient} from "@tamagui/core";
 import Tamagui from "../tamagui.config";
 import {Providers} from "./providers";
-import "./styles.css";
-import "./tamagui.css";
+import globalStyles from "./styles.css";
+import globalTamaguiStyles from "./tamagui.css";
+
+export const links: LinksFunction = () => {
+  return [
+    {rel: "stylesheet", href: globalStyles},
+    {rel: "stylesheet", href: globalTamaguiStyles},
+  ];
+};
 
 export function Layout({children}: {children: React.ReactNode}) {
   return (

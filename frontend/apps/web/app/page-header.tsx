@@ -24,6 +24,7 @@ export function PageHeader({
   docId,
   authors = [],
   updateTime = null,
+  openSheet,
 }: {
   homeMetadata: HMDocument["metadata"] | null;
   homeId: UnpackedHypermediaId | null;
@@ -31,6 +32,7 @@ export function PageHeader({
   docId: UnpackedHypermediaId | null;
   authors: hmDocumentPayload["authors"];
   updateTime: HMDocument["updateTime"] | null;
+  openSheet: ReturnType<typeof useOutlineSheet>["setOpen"];
 }) {
   const coverBg = useMemo(() => {
     if (docId?.id) {
@@ -81,11 +83,15 @@ export function PageHeader({
             </SizableText>
           </XStack>
           <Button
-            $gtMd={{opacity: 0, pointerEvents: "none"}}
+            $gtMd={{display: "none", opacity: 0, pointerEvents: "none"}}
             size="$2"
             chromeless
             bg="transparent"
             icon={Menu}
+            onPress={() => {
+              console.log("OPEN SHEET");
+              openSheet();
+            }}
           />
         </XStack>
       </Stack>
