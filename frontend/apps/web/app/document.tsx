@@ -28,6 +28,9 @@ export function DocumentPage(props: hmDocumentPayload) {
         docMetadata={document.metadata}
         docId={props.id}
       />
+      <Text>
+        {props.authors.map((author) => author.metadata?.name).join(", ")}
+      </Text>
       <Container clearVerticalSpace>
         <DocContentProvider
           entityComponents={{

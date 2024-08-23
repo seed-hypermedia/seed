@@ -8,6 +8,14 @@ export type hmDocumentLoader = typeof loadHMDocument;
 
 export type hmDocumentPayload = Awaited<ReturnType<typeof loadHMDocument>>;
 
+async function getMetadata(uid: string, path?: string[]) {
+  const rawDoc = await queryClient.documents.getDocument({
+    account: uid,
+  });
+  const document = toPlainMessage(rawDoc);
+  return {id: hmId("d", uid, {path}), metadata: document.metadata};
+}
+
 export async function loadHMDocument(accountUid: string, path: string[]) {
   const config = getConfig();
   const validPathTerms = path.filter((term) => !!term);
@@ -19,18 +27,21 @@ export async function loadHMDocument(accountUid: string, path: string[]) {
   const document = toPlainMessage(rawDoc);
   let homeMetadata = null;
   let homeId = null;
-  try {
-    const rawHomeDoc = await queryClient.documents.getDocument({
-      account: config.registeredAccountUid,
-      path: "",
-      // version
-    });
-    const homeDocument = toPlainMessage(rawHomeDoc);
-    homeMetadata = homeDocument.metadata;
-    homeId = hmId("d", homeDocument.account);
-  } catch (e) {}
+  if (config.registeredAccountUid) {
+    try {
+      const {id, metadata} = await getMetadata(config.registeredAccountUid);
+      homeMetadata = metadata;
+      homeId = id;
+    } catch (e) {}
+  }
+  const authors = await Promise.all(
+    document.authors.map(async (authorUid) => {
+      return getMetadata(authorUid);
+    })
+  );
   return {
     document: serialize(document),
+    authors,
     id: hmId("d", accountUid, {
       path: path,
       // version: v,
