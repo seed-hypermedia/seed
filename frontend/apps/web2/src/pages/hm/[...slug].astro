@@ -1,5 +1,6 @@
 ---
 import DocumentContent from "../../components/DocumentContent.astro";
+import Header from "../../components/Header.astro";
 import {getDocument} from "../../get-document";
 const document = await getDocument(Astro.params.slug!);
 ---
@@ -13,11 +14,7 @@ const document = await getDocument(Astro.params.slug!);
     <title>Astro</title>
   </head>
   <body>
-    <section class="mx-auto max-w-xl py-12">
-      <h1 class="text-4xl font-bold">
-        {document.metadata.name || "Untitled Document"}
-      </h1>
-    </section>
+    <Header />
     <DocumentContent document={document} />
   </body>
 </html>

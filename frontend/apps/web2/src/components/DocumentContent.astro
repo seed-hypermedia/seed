@@ -1,29 +1,23 @@
 ---
-import type {HMBlockNode} from "@shm/shared";
-const {document} = Astro.props;
+import {formattedDateMedium} from "@shm/shared";
+import {DocContent} from "./doc-content";
+const {document, isIndex = false} = Astro.props;
+
+const name = document.metadata.name;
+const updateTime = document.updateTime;
 ---
 
 <!-- Component Template (HTML + JS Expressions) -->
 <article
-  class="mx-auto prose mt-8 w-full max-w-3xl pb-24 md:prose-lg lg:prose-xl sm:pb-32 md:mt-16 md:px-8 lg:mt-16"
+  class="mx-auto w-full max-w-3xl pb-24 mt-8 sm:pb-32 md:mt-16 md:px-8 lg:mt-16 px-4 prose md:prose-lg lg:prose-xl"
 >
+  {!isIndex ? <h1>{name}</h1> : null}
   {
-    document.content.map((block: HMBlockNode) => {
-      if (!block.block) return null;
-
-      if (block.block.type == "paragraph") {
-        return <p>{block.block.text}</p>;
-      } else if (block.block.type == "heading") {
-        if (block.block.attributes?.level == "3") {
-          return <h3>{block.block.text}</h3>;
-        } else if (block.block.attributes?.level == "4") {
-          return <h4>{block.block.text}</h4>;
-        } else {
-          return <h2>{block.block.text}</h2>;
-        }
-      } else if (block.block.type == "image") {
-        return <img src={block.block.ref} />;
-      }
-    })
+    !isIndex ? (
+      <small class="text-slate-400">
+        published {formattedDateMedium(updateTime)}
+      </small>
+    ) : null
   }
+  <DocContent content={document.content} />
 </article>
