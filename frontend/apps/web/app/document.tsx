@@ -5,13 +5,13 @@ import {Container} from "@shm/ui/src/container";
 import {DocContent, DocContentProvider} from "@shm/ui/src/document-content";
 import {RadioButtons} from "@shm/ui/src/radio-buttons";
 import {Text} from "@tamagui/core";
-import {
-  Sheet,
-  Frame as SheetFrame,
-  Handle as SheetHandle,
-  Overlay as SheetOverlay,
-  SheetScrollView,
-} from "@tamagui/sheet";
+// import {
+//   Sheet,
+//   Frame as SheetFrame,
+//   Handle as SheetHandle,
+//   Overlay as SheetOverlay,
+//   SheetScrollView,
+// } from "@tamagui/sheet";
 import {YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import {useEffect, useState} from "react";
@@ -114,7 +114,7 @@ export function DocumentPage(props: hmDocumentPayload) {
             <DocContent document={document} />
           </DocContentProvider>
         </Container>
-        <Sheet
+        {/* <Sheet
           forceRemoveScrollEnabled={open}
           modal
           open={open}
@@ -146,7 +146,7 @@ export function DocumentPage(props: hmDocumentPayload) {
               </YStack>
             </SheetScrollView>
           </SheetFrame>
-        </Sheet>
+        </Sheet> */}
       </YStack>
     </YStack>
   );
