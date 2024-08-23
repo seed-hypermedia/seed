@@ -81,7 +81,7 @@ export function PageHeader({
             </SizableText>
           </XStack>
           <Button
-            $gtSm={{opacity: 0, pointerEvents: "none"}}
+            $gtMd={{opacity: 0, pointerEvents: "none"}}
             size="$2"
             chromeless
             bg="transparent"

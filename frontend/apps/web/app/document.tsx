@@ -5,7 +5,7 @@ import {Container} from "@shm/ui/src/container";
 import {DocContent, DocContentProvider} from "@shm/ui/src/document-content";
 import {RadioButtons} from "@shm/ui/src/radio-buttons";
 import {Text} from "@tamagui/core";
-import {YStack} from "@tamagui/stacks";
+import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import {useEffect, useState} from "react";
 import {deserialize} from "superjson";
@@ -19,6 +19,7 @@ export const documentPageMeta: MetaFunction<hmDocumentLoader> = ({data}) => {
   return [{title: document.metadata?.name || "Untitled"}];
 };
 
+const outlineWidth = 172;
 export function DocumentPage(props: hmDocumentPayload) {
   const document = deserialize(props.document) as HMDocument;
   return (
@@ -31,11 +32,52 @@ export function DocumentPage(props: hmDocumentPayload) {
         authors={props.authors}
         updateTime={document.updateTime}
       />
-      <YStack>
-        {/* <YStack display="none" h={0} $gtSm={{display: "block"}} bg="green">
-          <YStack position="sticky" w={100} h={100} top={50} bg="red" zi={10} />
-        </YStack> */}
+      <YStack position="relative">
         <Container clearVerticalSpace>
+          <YStack
+            position="absolute"
+            h="100%"
+            top={0}
+            left={outlineWidth * -1}
+            display="none"
+            $gtMd={{display: "flex"}}
+          >
+            <YStack
+              width={outlineWidth}
+              position="sticky"
+              paddingTop={34}
+              top={0}
+              h="calc(100%)"
+              maxHeight="calc(100vh - 60px)"
+              overflow="hidden"
+              display="none"
+              $gtSm={{display: "block"}}
+            >
+              <YStack gap="$3" maxHeight="100%" overflow="auto">
+                {/* ERIC OUTLINE HERE */}
+                <XStack>
+                  <SizableText color="$color9" fontSize={14}>
+                    Abstract
+                  </SizableText>
+                </XStack>
+                <XStack>
+                  <SizableText color="$color9" fontSize={14}>
+                    Background
+                  </SizableText>
+                </XStack>
+                <XStack>
+                  <SizableText color="$color9" fontSize={14}>
+                    Discussion
+                  </SizableText>
+                </XStack>
+                <XStack>
+                  <SizableText color="$color9" fontSize={14}>
+                    Directory
+                  </SizableText>
+                </XStack>
+              </YStack>
+            </YStack>
+          </YStack>
           <DocContentProvider
             entityComponents={{
               Document: () => null,
