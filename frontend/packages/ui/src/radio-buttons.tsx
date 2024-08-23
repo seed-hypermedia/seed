@@ -1,5 +1,7 @@
+import {Button} from "@tamagui/button";
+import {ColorTokens, SizeTokens} from "@tamagui/core";
+import {XGroup} from "@tamagui/group";
 import {ComponentProps} from "react";
-import {Button, ColorTokens, SizeTokens, XGroup} from "tamagui";
 
 export function RadioButtons<
   Options extends ReadonlyArray<{
