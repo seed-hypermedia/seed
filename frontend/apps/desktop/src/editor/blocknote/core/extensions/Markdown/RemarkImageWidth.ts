@@ -1,6 +1,6 @@
 import {Node} from 'hast'
 import {Data} from 'unist'
-import visit from 'unist-util-visit'
+import {visit} from 'unist-util-visit'
 
 export function remarkImageWidth() {
   return (tree: Node<Data>) => {

@@ -1,16 +1,7 @@
 ---
-import {toPlainMessage} from "@bufbuild/protobuf";
-import {queryClient} from "../../client";
-
-const {slug} = Astro.params;
-const path = slug?.split("/");
-const [accountUid, ...restPath] = path || [];
-const validPathTerms = restPath.filter((term) => !!term);
-const rawDoc = await queryClient.documents.getDocument({
-  account: accountUid,
-  path: validPathTerms.length ? `/${validPathTerms.join("/")}` : "",
-});
-const document = toPlainMessage(rawDoc);
+import DocumentContent from "../../components/DocumentContent.astro";
+import {getDocument} from "../../get-document";
+const document = await getDocument(Astro.params.slug!);
 ---
 
 <html lang="en">
@@ -27,16 +18,6 @@ const document = toPlainMessage(rawDoc);
         {document.metadata.name || "Untitled Document"}
       </h1>
     </section>
-    <section class="mx-auto max-w-xl py-12">
-      <article class="prose lg:prose-xl">
-        {
-          document.content.map((block) =>
-            block.block?.text ? (
-              <p class="text-gray-800 leading-7 mb-6">{block.block.text}</p>
-            ) : null
-          )
-        }
-      </article>
-    </section>
+    <DocumentContent document={document} />
   </body>
 </html>

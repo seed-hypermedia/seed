@@ -36,6 +36,9 @@ import {Trash} from '@tamagui/lucide-icons'
 import {useEffect, useState} from 'react'
 import {HyperMediaEditorView} from './editor'
 
+const lineColor = '$blue5'
+const lineWidth = 1
+
 export function Discussion({docId}: {docId: UnpackedHypermediaId}) {
   return (
     <YStack paddingVertical="$6" marginBottom={100} gap="$4">

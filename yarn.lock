@@ -7689,6 +7689,7 @@ __metadata:
   resolution: "@shm/astro@workspace:frontend/apps/web2"
   dependencies:
     "@astrojs/check": ^0.9.3
+    "@astrojs/node": ^8.3.3
     "@astrojs/tailwind": ^5.1.0
     "@connectrpc/connect-node": ^1.4.0
     astro: ^4.14.3
@@ -27677,6 +27678,13 @@ __metadata:
     parseurl: ~1.3.3
     send: 0.19.0
   checksum: dffc52feb4cc5c68e66d0c7f3c1824d4e989f71050aefc9bd5f822a42c54c9b814f595fc5f2b717f4c7cc05396145f3e90422af31186a93f76cf15f707019759
+  languageName: node
+  linkType: hard
+
+"server-destroy@npm:^1.0.1":
+  version: 1.0.1
+  resolution: "server-destroy@npm:1.0.1"
+  checksum: cbc19d4f92d25a0a34430c6a09faccbea77d1a69563560eefe883feb67c14c3fb3a1c5af1affae0e82d537886ea0f91d317e39e46b5d6425de3acf57a3ab13e3
   languageName: node
   linkType: hard
 

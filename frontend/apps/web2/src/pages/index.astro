@@ -1,5 +1,10 @@
 ---
-
+import {hmId} from "@shm/shared";
+import DocumentContent from "../components/DocumentContent.astro";
+import {getDocument} from "../get-document";
+// @ts-expect-error
+const homeId = hmId("d", Astro.locals.accountUid);
+const homeDocument = await getDocument(Astro.locals.accountUid);
 ---
 
 <html lang="en">
@@ -8,9 +13,9 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width" />
     <meta name="generator" content={Astro.generator} />
-    <title>Astro</title>
+    <title>{homeDocument.metadata?.name}</title>
   </head>
   <body>
-    <h1 class="text-4xl font-bold">Astro Seed demo</h1>
+    <DocumentContent document={homeDocument} />
   </body>
 </html>
