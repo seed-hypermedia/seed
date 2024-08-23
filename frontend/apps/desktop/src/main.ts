@@ -1,6 +1,6 @@
 import {defaultRoute} from '@/utils/routes'
 import * as Sentry from '@sentry/electron/main'
-import {ELECTRON_HTTP_PORT, IS_PROD_DESKTOP} from '@shm/shared'
+import {DAEMON_HTTP_URL, ELECTRON_HTTP_PORT, IS_PROD_DESKTOP} from '@shm/shared'
 import {
   BrowserWindow,
   Menu,
@@ -10,6 +10,7 @@ import {
   globalShortcut,
   ipcMain,
   nativeTheme,
+  net,
   shell,
 } from 'electron'
 
@@ -293,6 +294,142 @@ ipcMain.handle('dark-mode:system', () => {
 
 ipcMain.on('save-file', saveCidAsFile)
 ipcMain.on('export-document', saveMarkdownFile)
+
+ipcMain.on(
+  'export-multiple-documents',
+  async (
+    _event,
+    documents: {
+      title: string
+      markdown: {
+        markdownContent: string
+        mediaFiles: {url: string; filename: string}[]
+      }
+    }[],
+  ) => {
+    const {debug, error} = console
+    // Open a dialog to select a directory
+    const {filePaths} = await dialog.showOpenDialog({
+      title: 'Select Export Directory',
+      defaultPath: app.getPath('documents'),
+      properties: ['openDirectory'],
+    })
+
+    if (filePaths && filePaths.length > 0) {
+      const filePath = path.join(filePaths[0], 'Seed Documents')
+      if (!fs.existsSync(filePath)) {
+        fs.mkdirSync(filePath)
+      }
+
+      for (const {title, markdown} of documents) {
+        const {markdownContent, mediaFiles} = markdown
+        const camelTitle = title
+          .split(' ')
+          .map(
+            (word) =>
+              word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
+          )
+          .join('')
+
+        if (filePath) {
+          const documentDir = path.join(filePath, camelTitle)
+
+          if (!fs.existsSync(documentDir)) {
+            fs.mkdirSync(documentDir)
+          }
+
+          const mediaDir = path.join(documentDir, 'media')
+          if (!fs.existsSync(mediaDir)) {
+            fs.mkdirSync(mediaDir)
+          }
+
+          let updatedMarkdownContent = markdownContent
+
+          const uploadMediaFile = ({
+            url,
+            filename,
+          }: {
+            url: string
+            filename: string
+          }) => {
+            return new Promise<void>((resolve, reject) => {
+              const regex = /ipfs:\/\/(.+)/
+              const match = url.match(regex)
+              if (match) {
+                const cid = match ? match[1] : null
+                const request = net.request(`${DAEMON_HTTP_URL}/ipfs/${cid}`)
+
+                request.on('response', (response) => {
+                  const mimeType = response.headers['content-type']
+                  const extension = Array.isArray(mimeType)
+                    ? mime.extension(mimeType[0])
+                    : mime.extension(mimeType)
+                  const filenameWithExt = `${filename}.${extension}`
+                  if (response.statusCode === 200) {
+                    const chunks: Buffer[] = []
+
+                    response.on('data', (chunk) => {
+                      chunks.push(chunk)
+                    })
+
+                    response.on('end', () => {
+                      const data = Buffer.concat(chunks)
+                      if (!data || data.length === 0) {
+                        reject(`Error: No data received for ${filenameWithExt}`)
+                        return
+                      }
+
+                      const mediaFilePath = path.join(mediaDir, filenameWithExt)
+                      try {
+                        fs.writeFileSync(mediaFilePath, data)
+                        debug(`Media file successfully saved: ${mediaFilePath}`)
+                        // Update the markdown content with the correct file name
+                        updatedMarkdownContent = updatedMarkdownContent.replace(
+                          filename,
+                          filenameWithExt,
+                        )
+                        resolve()
+                      } catch (e) {
+                        reject(e)
+                      }
+                    })
+                  } else {
+                    reject(`Error: Invalid status code ${response.statusCode}`)
+                  }
+                })
+
+                request.on('error', (err) => {
+                  reject(err.message)
+                })
+
+                request.end()
+              }
+            })
+          }
+
+          // Process all media files
+          const uploadPromises = mediaFiles.map(uploadMediaFile)
+          try {
+            await Promise.all(uploadPromises)
+          } catch (e) {
+            error('Error processing media files:', e)
+          }
+
+          // Save the updated Markdown file after all media files are processed
+          const markdownFilePath = path.join(documentDir, `${camelTitle}.md`)
+          fs.writeFile(markdownFilePath, updatedMarkdownContent, (err) => {
+            if (err) {
+              error('Error saving file:', err)
+              return
+            }
+            debug('Markdown file successfully saved:', markdownFilePath)
+          })
+        }
+      }
+    }
+  },
+)
+
 ipcMain.on('open-external-link', (_event, linkUrl) => {
   shell.openExternal(linkUrl)
 })

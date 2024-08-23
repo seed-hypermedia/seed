@@ -303,7 +303,6 @@ export function PageActionButtons(props: TitleBarProps) {
   } else if (route.key === 'document' && route.id.type === 'd') {
     buttonGroup = [
       <EditDocButton key="editDoc" />,
-      // <ExportDocButton docId={route.id} />,
       // <CreateDropdown key="create" location={route.id} />, // TODO, new path selection workflow
       <DocOptionsButton key="options" />,
     ]

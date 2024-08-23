@@ -23,6 +23,7 @@ export function AppContextProvider({
   openMarkdownDirectories,
   readMediaFile,
   exportDocument,
+  exportDocuments,
   windowUtils,
   saveCidAsFile,
   darkMode,
@@ -58,6 +59,15 @@ export function AppContextProvider({
     markdownContent: string,
     mediaFiles: {url: string; filename: string}[],
   ) => Promise<void>
+  exportDocuments: (
+    documents: {
+      title: string
+      markdown: {
+        markdownContent: string
+        mediaFiles: {url: string; filename: string}[]
+      }
+    }[],
+  ) => Promise<void>
   windowUtils: WindowUtils
   saveCidAsFile: (cid: string, name: string) => Promise<void>
   darkMode: boolean
@@ -74,6 +84,7 @@ export function AppContextProvider({
       openMarkdownDirectories,
       readMediaFile,
       exportDocument,
+      exportDocuments,
       windowUtils,
       saveCidAsFile,
     }),

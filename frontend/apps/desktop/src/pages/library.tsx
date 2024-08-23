@@ -1,3 +1,4 @@
+import {useAppContext} from '@/app-context'
 import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
 import {MainWrapper} from '@/components/main-wrapper'
@@ -10,16 +11,22 @@ import {
   useLibrary,
 } from '@/models/library'
 import {usePopoverState} from '@/use-popover-state'
+import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {DocumentRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
-import {formattedDate, getMetadataName} from '@shm/shared'
+import {
+  formattedDate,
+  getDocumentTitle,
+  getMetadataName,
+  HMBlockNode,
+  toHMBlock,
+} from '@shm/shared'
 import {
   Button,
   Checkbox,
   Container,
   Input,
   Popover,
-  Search,
   Separator,
   SizableText,
   SizeTokens,
@@ -32,7 +39,9 @@ import {
   Archive,
   ArrowDownUp,
   Check,
+  Download,
   Pencil,
+  Search,
   Settings2,
   Square,
   Star,
@@ -50,8 +59,61 @@ export default function LibraryPage() {
     filterString: '',
     filter: {},
   })
+  const [exportMode, setExportMode] = useState(false)
+  const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(
+    new Set(),
+  )
+  const [allSelected, setAllSelected] = useState(false)
+
   const library = useLibrary(queryState)
-  // console.log('lib', library)
+  const {exportDocuments} = useAppContext()
+
+  const toggleDocumentSelection = (id: string) => {
+    setSelectedDocuments((prevSelected) => {
+      const newSelected = new Set(prevSelected)
+      if (newSelected.has(id)) {
+        newSelected.delete(id)
+      } else {
+        newSelected.add(id)
+      }
+      return newSelected
+    })
+  }
+
+  const handleSelectAllChange = (checked: boolean) => {
+    setAllSelected(checked)
+    if (checked) {
+      const allDocumentIds = library.map((entry) => entry.id.id)
+      setSelectedDocuments(new Set(allDocumentIds))
+    } else {
+      setSelectedDocuments(new Set())
+    }
+  }
+
+  const submitExportDocuments = async () => {
+    const selectedDocs = library.filter((entry) =>
+      selectedDocuments.has(entry.id.id),
+    )
+
+    const documentsToExport = await Promise.all(
+      selectedDocs.map(async (doc) => {
+        const blocks: HMBlockNode[] | undefined = doc.document?.content
+        const editorBlocks = toHMBlock(blocks)
+        const markdown = await convertBlocksToMarkdown(editorBlocks)
+        return {
+          title: getDocumentTitle(doc.document),
+          markdown,
+        }
+      }),
+    )
+
+    exportDocuments(documentsToExport)
+  }
+
+  const filteredLibrary = exportMode
+    ? library.filter((entry) => !entry.draft) // Filter out drafts in export mode
+    : library
+
   return (
     <>
       <MainWrapper>
@@ -59,12 +121,60 @@ export default function LibraryPage() {
           <LibraryQueryBar
             queryState={queryState}
             setQueryState={setQueryState}
+            exportMode={exportMode}
+            setExportMode={setExportMode}
           />
           {queryState.display == 'list' ? (
-            <LibraryList library={library} />
+            <LibraryList
+              library={filteredLibrary}
+              exportMode={exportMode}
+              toggleDocumentSelection={toggleDocumentSelection}
+              selectedDocuments={selectedDocuments}
+            />
           ) : queryState.display == 'cards' ? (
-            <LibraryCards library={library} />
+            <LibraryCards library={filteredLibrary} />
           ) : null}
+          {exportMode && (
+            <>
+              {/* <XStack
+                marginBottom="$5"
+                w="100%"
+                maxWidth={900}
+                group="item"
+                justifyContent="flex-start"
+              >
+                <Checkbox
+                  size="$3"
+                  borderColor="$color12"
+                  checked={allSelected}
+                  onCheckedChange={(checked: boolean) =>
+                    handleSelectAllChange(checked)
+                  }
+                >
+                  <Checkbox.Indicator>
+                    <Check />
+                  </Checkbox.Indicator>
+                </Checkbox>
+                <SizableText
+                  fontSize="$4"
+                  fontWeight="800"
+                  textAlign="left"
+                  marginLeft="$3"
+                >
+                  Select All
+                </SizableText>
+              </XStack> */}
+              <Button
+                size="$2"
+                onPress={() => handleSelectAllChange(!allSelected)}
+              >
+                {allSelected ? 'Deselect All' : 'Select All'}
+              </Button>
+              <Button size="$2" onPress={submitExportDocuments}>
+                Submit Export
+              </Button>
+            </>
+          )}
         </Container>
       </MainWrapper>
       <Footer />
@@ -75,28 +185,16 @@ export default function LibraryPage() {
 function LibraryQueryBar({
   queryState,
   setQueryState,
+  exportMode,
+  setExportMode,
 }: {
   queryState: LibraryQueryState
   setQueryState: React.Dispatch<React.SetStateAction<LibraryQueryState>>
+  exportMode: boolean
+  setExportMode: React.Dispatch<React.SetStateAction<boolean>>
 }) {
   return (
     <XStack gap="$2" w="100%">
-      {/* <Tooltip
-        content={`Show items as ${
-          queryState.display == 'cards' ? 'list' : 'cards'
-        }`}
-      >
-        <Button
-          onPress={() => {
-            setQueryState((v) => ({
-              ...v,
-              display: v.display == 'cards' ? 'list' : 'cards',
-            }))
-          }}
-          size="$2"
-          icon={queryState.display == 'cards' ? LayoutGrid : List}
-        />
-      </Tooltip> */}
       <SortControl
         sort={queryState.sort}
         onSort={(sort) => {
@@ -124,6 +222,19 @@ function LibraryQueryBar({
           }))
         }}
       />
+      <Button size="$2" onPress={() => setExportMode((prev) => !prev)}>
+        {exportMode ? (
+          <XStack ai="center" gap="$2">
+            <SizableText size="$2">Cancel Export</SizableText>
+            <X size={15} />
+          </XStack>
+        ) : (
+          <XStack ai="center" gap="$2">
+            <SizableText size="$2">Export Documents</SizableText>
+            <Download size={15} />
+          </XStack>
+        )}
+      </Button>
     </XStack>
   )
 }
@@ -195,7 +306,6 @@ function TagXButton({onPress}: {onPress: () => void}) {
     <Button
       size="$1"
       chromeless
-      // bg="$colorTransparent"
       hoverStyle={{
         bg: '$colorTransparent',
         borderColor: '$colorTransparent',
@@ -506,17 +616,46 @@ function LibraryCards({library}: {library: LibraryData}) {
   return null
 }
 
-function LibraryList({library}: {library: LibraryData}) {
+function LibraryList({
+  library,
+  exportMode,
+  toggleDocumentSelection,
+  selectedDocuments,
+}: {
+  library: LibraryData
+  exportMode: boolean
+  toggleDocumentSelection: (id: string) => void
+  selectedDocuments: Set<string>
+}) {
   return (
     <YStack paddingVertical="$4" marginHorizontal={-8}>
       {library.map((entry) => {
-        return <LibraryListItem key={entry.id.id} entry={entry} />
+        const isSelected = selectedDocuments.has(entry.id.id)
+        return (
+          <LibraryListItem
+            key={entry.id.id}
+            entry={entry}
+            exportMode={exportMode}
+            isSelected={isSelected}
+            toggleDocumentSelection={toggleDocumentSelection}
+          />
+        )
       })}
     </YStack>
   )
 }
 
-function LibraryListItem({entry}: {entry: LibraryData[0]}) {
+function LibraryListItem({
+  entry,
+  exportMode,
+  isSelected,
+  toggleDocumentSelection,
+}: {
+  entry: LibraryData[0]
+  exportMode: boolean
+  isSelected: boolean
+  toggleDocumentSelection: (id: string) => void
+}) {
   const navigate = useNavigate()
   const metadata = entry.document?.metadata || entry.draft?.metadata
   const isUnpublished = !!entry.draft && !entry.document
@@ -537,8 +676,12 @@ function LibraryListItem({entry}: {entry: LibraryData[0]}) {
       paddingHorizontal={16}
       paddingVertical="$1"
       onPress={() => {
-        if (isUnpublished) navigate({key: 'draft', id: entry.id})
-        else navigate({key: 'document', id: entry.id})
+        if (!exportMode) {
+          if (isUnpublished) navigate({key: 'draft', id: entry.id})
+          else navigate({key: 'document', id: entry.id})
+        } else {
+          toggleDocumentSelection(entry.id.id)
+        }
       }}
       h={60}
       icon={
@@ -589,7 +732,7 @@ function LibraryListItem({entry}: {entry: LibraryData[0]}) {
         {isUnpublished ? null : (
           <FavoriteButton id={entry.id} hideUntilItemHover />
         )}
-        {entry.hasDraft && !isUnpublished ? (
+        {entry.hasDraft && !isUnpublished && !exportMode ? (
           <Button
             theme="yellow"
             icon={Pencil}
@@ -604,56 +747,69 @@ function LibraryListItem({entry}: {entry: LibraryData[0]}) {
         ) : (
           <LibraryEntryTime entry={entry} />
         )}
-        <XStack>
-          {editors.map((author, idx) => (
-            <XStack
-              zIndex={idx + 1}
-              key={author.id.id}
-              borderColor="$background"
-              backgroundColor="$background"
-              $group-item-hover={{
-                borderColor: hoverColor,
-                backgroundColor: hoverColor,
-              }}
-              borderWidth={2}
-              borderRadius={100}
-              overflow="hidden"
-              marginLeft={-8}
-              animation="fast"
-            >
-              <LinkThumbnail
+        {exportMode ? (
+          <Checkbox
+            size="$3"
+            borderColor="$color12"
+            checked={isSelected}
+            onCheckedChange={() => toggleDocumentSelection(entry.id.id)}
+          >
+            <Checkbox.Indicator>
+              <Check />
+            </Checkbox.Indicator>
+          </Checkbox>
+        ) : (
+          <XStack>
+            {editors.map((author, idx) => (
+              <XStack
+                zIndex={idx + 1}
                 key={author.id.id}
-                id={author.id}
-                metadata={author.metadata}
-                size={20}
-              />
-            </XStack>
-          ))}
-          {entry.authors.length > editors.length ? (
-            <XStack
-              zIndex={editors.length}
-              borderColor="$background"
-              backgroundColor="$background"
-              borderWidth={2}
-              borderRadius={100}
-              marginLeft={-8}
-              animation="fast"
-              width={24}
-              height={24}
-              ai="center"
-              jc="center"
-            >
-              <Text
-                fontSize={10}
-                fontFamily="$body"
-                fontWeight="bold"
-                color="$color10"
+                borderColor="$background"
+                backgroundColor="$background"
+                $group-item-hover={{
+                  borderColor: hoverColor,
+                  backgroundColor: hoverColor,
+                }}
+                borderWidth={2}
+                borderRadius={100}
+                overflow="hidden"
+                marginLeft={-8}
+                animation="fast"
               >
-                +{entry.authors.length - editors.length - 1}
-              </Text>
-            </XStack>
-          ) : null}
-        </XStack>
+                <LinkThumbnail
+                  key={author.id.id}
+                  id={author.id}
+                  metadata={author.metadata}
+                  size={20}
+                />
+              </XStack>
+            ))}
+            {entry.authors.length > editors.length ? (
+              <XStack
+                zIndex={editors.length}
+                borderColor="$background"
+                backgroundColor="$background"
+                borderWidth={2}
+                borderRadius={100}
+                marginLeft={-8}
+                animation="fast"
+                width={24}
+                height={24}
+                ai="center"
+                jc="center"
+              >
+                <Text
+                  fontSize={10}
+                  fontFamily="$body"
+                  fontWeight="bold"
+                  color="$color10"
+                >
+                  +{entry.authors.length - editors.length - 1}
+                </Text>
+              </XStack>
+            ) : null}
+          </XStack>
+        )}
       </XStack>
     </Button>
   )

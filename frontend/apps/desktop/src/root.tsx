@@ -264,6 +264,17 @@ function MainApp({
         ) => {
           ipc.send?.('export-document', {title, markdownContent, mediaFiles})
         }}
+        exportDocuments={async (
+          documents: {
+            title: string
+            markdown: {
+              markdownContent: string
+              mediaFiles: {url: string; filename: string}[]
+            }
+          }[],
+        ) => {
+          ipc.send?.('export-multiple-documents', documents)
+        }}
         windowUtils={windowUtils}
         darkMode={darkMode}
       >

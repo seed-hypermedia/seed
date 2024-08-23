@@ -39,6 +39,15 @@ export type AppContext = {
     markdownContent: string,
     mediaFiles: {url: string; filename: string}[],
   ) => Promise<void>
+  exportDocuments: (
+    documents: {
+      title: string
+      markdown: {
+        markdownContent: string
+        mediaFiles: {url: string; filename: string}[]
+      }
+    }[],
+  ) => Promise<void>
   windowUtils: WindowUtils
   saveCidAsFile: (cid: string, name: string) => Promise<void>
 }
