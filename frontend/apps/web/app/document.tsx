@@ -53,7 +53,12 @@ export function DocumentPage(props: hmDocumentPayload) {
               display="none"
               $gtSm={{display: "block"}}
             >
-              <YStack gap="$3" maxHeight="100%" overflow="auto">
+              <YStack
+                gap="$3"
+                maxHeight="100%"
+                overflow="auto"
+                className="hide-scrollbar"
+              >
                 {/* ERIC OUTLINE HERE */}
                 <XStack>
                   <SizableText color="$color9" fontSize={14}>

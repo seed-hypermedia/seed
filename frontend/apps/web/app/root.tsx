@@ -8,6 +8,7 @@ import {
 import {isClient} from "@tamagui/core";
 import Tamagui from "../tamagui.config";
 import {Providers} from "./providers";
+import "./styles.css";
 import "./tamagui.css";
 
 export function Layout({children}: {children: React.ReactNode}) {

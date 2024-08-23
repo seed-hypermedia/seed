@@ -125,9 +125,33 @@ export function PageHeader({
           <XStack marginTop="$4" gap="$3" ai="center" w="100%">
             {authors?.length ? (
               <XStack ai="center" overflow="hidden">
-                {authors.map((a) => (
-                  <SizableText size="$1">{a.metadata.name}</SizableText>
-                ))}
+                {authors.map((a, index) => [
+                  <SizableText
+                    hoverStyle={{
+                      cursor: "pointer",
+                      textDecorationLine: "underline",
+                    }}
+                    fontWeight="bold"
+                    size="$2"
+                  >
+                    {a.metadata.name}
+                  </SizableText>,
+                  index !== authors.length - 1 ? (
+                    index === authors.length - 2 ? (
+                      <SizableText key={`${a}-and`} size="$2" fontWeight="bold">
+                        {" & "}
+                      </SizableText>
+                    ) : (
+                      <SizableText
+                        size="$2"
+                        key={`${a}-comma`}
+                        fontWeight="bold"
+                      >
+                        {", "}
+                      </SizableText>
+                    )
+                  ) : null,
+                ])}
               </XStack>
             ) : null}
             {authors?.length ? <VerticalSeparator /> : null}
