@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type {EditorInlineContent} from "@shm/desktop/src/editor";
 import {
   toHMInlineContent,

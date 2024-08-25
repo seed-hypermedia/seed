@@ -3,7 +3,9 @@ import DocumentContent from "../components/DocumentContent.astro";
 import Header from "../components/Header.astro";
 import {getDocument} from "../get-document";
 
-const homeDocument = await getDocument(Astro.locals.accountUid);
+const document = await getDocument(
+  `${Astro.locals.accountUid}/${Astro.params.slug!}`
+);
 ---
 
 <html lang="en">
@@ -12,10 +14,10 @@ const homeDocument = await getDocument(Astro.locals.accountUid);
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width" />
     <meta name="generator" content={Astro.generator} />
-    <title>Horacio Herrera</title>
+    <title>Astro</title>
   </head>
   <body>
     <Header />
-    <DocumentContent isIndex document={homeDocument} />
+    <DocumentContent document={document} />
   </body>
 </html>

@@ -1,5 +1,8 @@
 ---
 // Component Script (JavaScript)
+import {listDocuments} from "../list-documents";
+
+const documents = await listDocuments(Astro.locals.accountUid);
 ---
 
 <!-- Component Template (HTML + JS Expressions) -->
@@ -9,9 +12,13 @@
   </h1>
   <nav class="py-4">
     <ul class="flex">
-      <li class="px-4 pl-0"><a href="/about">About</a></li>
-      <li class="px-4"><a href="/services">Services</a></li>
-      <li class="px-4"><a href="/contact">Contact</a></li>
+      {
+        documents.map((item) => (
+          <li class="px-4 pl-0">
+            <a href={item.path}>{item.metadata.name}</a>
+          </li>
+        ))
+      }
     </ul>
   </nav>
 </header>

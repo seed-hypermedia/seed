@@ -1,7 +1,10 @@
-export function onRequest(context, next) {
-  context.locals.accountUid =
-    "z6MkkEnUheepjpmhwkF7m8tVLPXAzBadPeajriaVUXYoTteJ";
+import {defineMiddleware} from "astro:middleware";
 
-  // return a Response or the result of calling `next()`
-  return next();
-}
+export const onRequest = defineMiddleware(
+  async function homeDocMiddleware(context, next) {
+    context.locals.accountUid =
+      "z6Mkvz9TgGtv9zsGsdrksfNk1ajbFancgHREJEz3Y2HsAVdk";
+    // return a Response or the result of calling `next()`
+    return next();
+  }
+);
