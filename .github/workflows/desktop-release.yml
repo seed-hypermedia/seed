@@ -5,7 +5,7 @@ permissions:
 
 on:
   schedule:
-    - cron: "0 8 * * *"
+    - cron: "0 8 * * 1-5"
   # push:
   #   branches:
   #     - main
