@@ -9,17 +9,21 @@ import {
 import {useMemo} from "react";
 
 export function DocContent({content}: {content: Array<HMBlockNode>}) {
-  return <Group type="group" content={content} />;
+  return <Group type="group" content={content} depth={1} />;
 }
 
 export function Group({
   type,
   content,
+  depth,
 }: {
   type: HMBlockChildrenType;
   content: Array<HMBlockNode>;
+  depth: number;
 }) {
-  let children = content.map((bn) => <BlockNode key={bn.block?.id} bn={bn} />);
+  let children = content.map((bn) => (
+    <BlockNode depth={depth} key={bn.block?.id} bn={bn} />
+  ));
   if (type == "ol") {
     return <ol>{children}</ol>;
   } else if (type == "ul") {
@@ -29,21 +33,23 @@ export function Group({
   }
 }
 
-export function BlockNode({bn}: {bn: HMBlockNode}) {
+export function BlockNode({bn, depth}: {bn: HMBlockNode; depth: number}) {
   return (
     <>
-      <Block block={bn.block} />
+      <Block block={bn.block} depth={depth} />
       {/* TODO children */}
     </>
   );
 }
 
-export function Block({block}: {block: HMBlock}) {
-  switch (block.type) {
+export function Block(props: {block: HMBlock; depth: number}) {
+  switch (props.block.type) {
     case "paragraph":
-      return <ParagraphBlock block={block} />;
+      return <ParagraphBlock {...props} />;
+    case "heading":
+      return <HeadingBlock {...props} />;
     default:
-      return <p>{block.text}</p>;
+      return <ParagraphBlock {...props} />;
   }
 }
 
@@ -94,11 +100,27 @@ export function InlineContent({
   );
 }
 
-function ParagraphBlock({block}: {block: HMBlock}) {
+type BlockProps = {
+  block: HMBlock;
+  depth: number;
+};
+
+function ParagraphBlock({block}: BlockProps) {
   const inline = useMemo(() => toHMInlineContent(block), [block]);
   return (
     <p>
       <InlineContent inline={inline} />
     </p>
+  );
+}
+
+function HeadingBlock({block, depth}: BlockProps) {
+  const inline = useMemo(() => toHMInlineContent(block), [block]);
+  const Heading = useMemo(() => `h${depth + 1}`, [depth]);
+  console.log("== HEADING", block, depth);
+  return (
+    <Heading>
+      <InlineContent inline={inline} />
+    </Heading>
   );
 }

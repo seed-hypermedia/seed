@@ -10,6 +10,7 @@ COPY . .
 
 ENV NODE_ENV production
 RUN rm -rf ./frontend/apps/desktop
+RUN npx astro telemetry disable
 RUN yarn install
 RUN yarn web:prod
 
@@ -24,9 +25,9 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 seed-web
 USER seed-web
 
-EXPOSE 3000
+EXPOSE 4321
 
-ENV PORT 3000
+ENV PORT 4321
 
-WORKDIR /app/frontend/apps/web
-CMD ["npm", "start"]
+WORKDIR /app/frontend/apps/web2
+CMD ["node", "./dist/server/entry.mjs"]

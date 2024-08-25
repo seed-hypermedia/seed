@@ -1,6 +1,6 @@
-import { defineConfig } from "astro/config";
-import tailwind from "@astrojs/tailwind";
 import node from "@astrojs/node";
+import tailwind from "@astrojs/tailwind";
+import {defineConfig} from "astro/config";
 
 import react from "@astrojs/react";
 
@@ -9,6 +9,11 @@ export default defineConfig({
   output: "server",
   integrations: [tailwind(), react()],
   adapter: node({
-    mode: "standalone"
-  })
+    mode: "standalone",
+  }),
+  vite: {
+    ssr: {
+      noExternal: ["path-to-regexp"],
+    },
+  },
 });
