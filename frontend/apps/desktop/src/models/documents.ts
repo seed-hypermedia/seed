@@ -280,7 +280,8 @@ export function usePublishDraft(
             return toPlainMessage(publishedDoc)
           } else {
             // dispatchWizardEvent(true)
-            toast.error('PUBLISH ERROR: Please select an account to sign first')
+            // toast.error('PUBLISH ERROR: Please select an account to sign first')
+            throw Error('PUBLISH ERROR: Please select an account to sign first')
           }
         } catch (error) {
           const connectErr = ConnectError.from(error)

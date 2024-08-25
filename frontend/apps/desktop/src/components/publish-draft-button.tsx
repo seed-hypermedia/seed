@@ -75,16 +75,16 @@ export default function PublishDraftButton() {
           previous: prevEntity.data?.document as
             | PlainMessage<Document>
             | undefined,
-          id: draftId.type === 'draft' ? undefined : draftId,
+          id: draftId,
         })
         .then(async (res) => {
           const resultDocId = hmId('d', draftId.uid, {
-            path: res.path
+            path: res?.path
               ? res.path?.split('/').filter(Boolean)
               : draftId.path,
           })
 
-          if (draftId)
+          if (resultDocId && draftId)
             await deleteDraft
               .mutateAsync(packHmId(draftId))
               .catch((e) => {
