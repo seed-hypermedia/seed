@@ -76,7 +76,7 @@ hostname="${hostname%/}"
 mkdir -p ${workspace}
 rm -f ${workspace}/deployment.log
 touch ${workspace}/deployment.log
-curl -s -o ${workspace}/hmsite.yml https://raw.githubusercontent.com/seed-hypermedia/seed/main/docker-compose.yml
+curl -s -o ${workspace}/hmsite.yml https://raw.githubusercontent.com/seed-hypermedia/seed/feat/horacio/docker-compose.yml
 
 install_docker
 if [ "$profile" = "metrics" ]; then

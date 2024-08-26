@@ -68,7 +68,7 @@ services:
       - "SEED_BASE_URL=${SEED_SITE_HOSTNAME}"
       - "SEED_IS_GATEWAY=${SEED_IS_GATEWAY:-false}"
       - "DAEMON_HTTP_URL=http://seed-daemon:${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001}"
-      - "PORT=${SEED_SITE_LOCAL_PORT:-3000}"
+      - "PORT=${SEED_SITE_LOCAL_PORT:-4321}"
       - "DATA_DIR=/data"
 
   seed-daemon:
