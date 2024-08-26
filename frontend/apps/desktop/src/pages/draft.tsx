@@ -3,6 +3,7 @@ import {CoverImage} from '@/components/cover-image'
 import {HyperMediaEditorView} from '@/components/editor'
 import Footer from '@/components/footer'
 import {MainWrapper} from '@/components/main-wrapper'
+import {subscribeDraftFocus} from '@/draft-focusing'
 import {BlockNoteEditor, getBlockInfoFromPos} from '@/editor'
 import {useDraft} from '@/models/accounts'
 import {useDraftEditor} from '@/models/documents'
@@ -56,6 +57,16 @@ export default function DraftPage() {
   let data = useDraftEditor({
     id: route.id ? packHmId(route.id) : undefined,
   })
+
+  useEffect(() => {
+    if (!route.id?.id) return
+    return subscribeDraftFocus(route.id?.id, (blockId: string) => {
+      if (data.editor) {
+        data.editor._tiptapEditor.commands.focus()
+        data.editor.setTextCursorPosition(blockId, 'start')
+      }
+    })
+  }, [route.id?.id, data.editor, route.id?.id])
 
   // if (data.state.matches('idle')) {
   //   return (

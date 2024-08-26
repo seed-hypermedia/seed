@@ -1,4 +1,4 @@
-import {HMBlockNode} from '.'
+import {HMBlockNode, HMDraft} from '.'
 import {UnpackedHypermediaId, unpackHmId} from './utils'
 
 type IconDefinition = React.FC<{size: any; color: any}>
@@ -45,6 +45,46 @@ export function getNodesOutline(
     } else if (child.children) {
       outline.push(
         ...getNodesOutline(child.children, parentEntityId, parentBlockId),
+      )
+    }
+  })
+  return outline
+}
+
+export function getDraftNodesOutline(
+  children: HMDraft['content'],
+  parentEntityId?: UnpackedHypermediaId,
+  parentBlockId?: string,
+): NodesOutline {
+  const outline: NodesOutline = []
+  children.forEach((child) => {
+    if (child.type === 'heading') {
+      outline.push({
+        id: child.id,
+        title: child.content
+          .map((c) => {
+            if (c.type === 'text') return c.text
+          })
+          .join(''),
+        entityId: parentEntityId,
+        parentBlockId,
+        children:
+          child.children &&
+          getDraftNodesOutline(child.children, parentEntityId, parentBlockId),
+      })
+    } else if (child.type === 'embed' && child.props?.view !== 'card') {
+      console.error('Outline Might not handle embeds from draft correctly')
+      console.error(child)
+      const embedId = unpackHmId(child.props.href)
+      if (embedId) {
+        outline.push({
+          id: child.id,
+          embedId,
+        })
+      }
+    } else if (child.children) {
+      outline.push(
+        ...getDraftNodesOutline(child.children, parentEntityId, parentBlockId),
       )
     }
   })

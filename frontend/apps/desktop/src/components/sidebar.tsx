@@ -1,3 +1,4 @@
+import {focusDraftBlock} from '@/draft-focusing'
 import {useDraft} from '@/models/accounts'
 import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
 import {useEntities, useEntity} from '@/models/entities'
@@ -7,6 +8,7 @@ import {DocumentRoute, DraftRoute, NavRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   getDocumentTitle,
+  getDraftNodesOutline,
   getNodesOutline,
   HMBlockNode,
   hmId,
@@ -252,8 +254,7 @@ function OutlineSection({route}: {route: NavRoute; id: UnpackedHypermediaId}) {
 function DraftOutlineSection({route}: {route: DraftRoute}) {
   const {id} = route
   const draft = useDraft(id?.id)
-  const replace = useNavigate('replace')
-  console.log(draft.data)
+  const outline = getDraftNodesOutline(draft?.data?.content || [])
   if (!id) return null
   return (
     <>
@@ -262,32 +263,93 @@ function DraftOutlineSection({route}: {route: DraftRoute}) {
         key={id.uid}
         title={draft.data?.metadata?.name}
         icon={<Thumbnail id={id} metadata={draft.data?.metadata} size={20} />}
-        onPress={() => {
-          // navigate({key: 'document', id: hmId(id.type, id.uid)})
-        }}
+        onPress={() => {}}
         active={!id.blockRef}
       />
-      {/* <SidebarOutline
-        nodes={draft?.data?.content}
-        activeBlock={id.blockRef || undefined}
-        indent={1}
-        onActivateBlock={(blockId) => {
-          // navigate({
-          //   key: 'document',
-          //   id: hmId(id.type, id.uid, {blockRef: blockId, path: id.path}),
-          // })
-        }}
-        onFocusBlock={(blockId) => {
-          // navigate({
-          //   key: 'document',
-          //   isBlockFocused: true,
-          //   id: hmId(id.type, id.uid, {blockRef: blockId, path: id.path}),
-          // })
-        }}
-      /> */}
+      {outline && (
+        <SidebarDraftOutline
+          outline={outline}
+          activeBlock={id.blockRef || undefined}
+          onActivateBlock={(blockId) => {
+            focusDraftBlock(id.id, blockId)
+          }}
+          onFocusBlock={null}
+        />
+      )}
     </>
   )
 }
+
+function _SidebarDraftOutline({
+  activeBlock,
+  onActivateBlock,
+  onFocusBlock,
+  indent = 0,
+  outline,
+}: {
+  activeBlock?: string
+  onActivateBlock: (blockId: string) => void
+  onFocusBlock: ((blockId: string) => void) | null
+  indent?: number
+  outline: NodesOutline
+}) {
+  function getOutline(outlineNodes: NodesOutline, level = 0): ReactNode[] {
+    const outlineContent = outlineNodes.map((item) => {
+      const childrenOutline = item.children
+        ? getOutline(item.children, level + 1)
+        : null
+      if (item.embedId)
+        return (
+          <SidebarEmbedOutlineItem
+            activeBlock={activeBlock}
+            id={item.embedId}
+            key={item.id}
+            blockId={item.id}
+            indent={1 + level}
+            onActivateBlock={onActivateBlock}
+            onFocusBlock={onFocusBlock}
+          />
+        )
+      return (
+        <SidebarGroupItem
+          key={item.id}
+          onPress={() => {
+            onActivateBlock(item.id)
+          }}
+          active={item.id === activeBlock}
+          activeBgColor={item.id === activeBlock ? '$yellow4' : undefined}
+          icon={
+            <View width={16}>
+              {item.icon ? (
+                <item.icon color="$color9" size={16} />
+              ) : (
+                <Hash color="$color9" size={16} />
+              )}
+            </View>
+          }
+          title={item.title || 'Untitled Heading'}
+          indented={1 + level}
+          items={childrenOutline || []}
+          rightHover={[
+            onFocusBlock ? (
+              <FocusButton
+                key="focus"
+                onPress={() => {
+                  onFocusBlock(item.id)
+                }}
+              />
+            ) : null,
+          ]}
+          defaultExpanded
+        />
+      )
+    })
+    return outlineContent
+  }
+
+  return getOutline(outline, indent)
+}
+const SidebarDraftOutline = memo(_SidebarDraftOutline)
 
 function DocumentOutlineSection({route}: {route: DocumentRoute}) {
   const {id} = route
