@@ -19,9 +19,9 @@ export const GRPC_PORT =
   process.env.VITE_DESKTOP_GRPC_PORT ||
   56002
 
-export const ELECTRON_HTTP_PORT =
-  (import.meta.env && import.meta.env.VITE_ELECTRON_HTTP_PORT) ||
-  process.env.VITE_ELECTRON_HTTP_PORT ||
+export const METRIC_SERVER_HTTP_PORT =
+  (import.meta.env && import.meta.env.VITE_METRIC_SERVER_HTTP_PORT) ||
+  process.env.VITE_METRIC_SERVER_HTTP_PORT ||
   56003
 
 export const HOSTNAME =

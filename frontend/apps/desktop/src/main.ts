@@ -1,6 +1,10 @@
 import {defaultRoute} from '@/utils/routes'
 import * as Sentry from '@sentry/electron/main'
-import {DAEMON_HTTP_URL, ELECTRON_HTTP_PORT, IS_PROD_DESKTOP} from '@shm/shared'
+import {
+  DAEMON_HTTP_URL,
+  IS_PROD_DESKTOP,
+  METRIC_SERVER_HTTP_PORT,
+} from '@shm/shared'
 import {
   BrowserWindow,
   Menu,
@@ -48,7 +52,7 @@ contextMenu({
   showInspectElement: !IS_PROD_DESKTOP,
 })
 
-const metricsServer = startMetricsServer(ELECTRON_HTTP_PORT)
+const metricsServer = startMetricsServer(METRIC_SERVER_HTTP_PORT)
 app.on('quit', async () => {
   await metricsServer.close()
 })
