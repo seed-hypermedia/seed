@@ -14,9 +14,13 @@ export const loader = async ({
   const url = new URL(request.url);
   const id = unpackHmId(url.searchParams.get("id") || undefined);
   if (!id) throw new Error("id is required");
-  const res = await queryClient.documents.listDocuments({
-    account: id.uid,
-  });
-  const directory = toPlainMessage(res);
-  return json(wrap(directory));
+  try {
+    const res = await queryClient.documents.listDocuments({
+      account: id.uid,
+    });
+    const directory = toPlainMessage(res);
+    return json({directory: wrap(directory)});
+  } catch (e) {
+    return json({error: e.message});
+  }
 };

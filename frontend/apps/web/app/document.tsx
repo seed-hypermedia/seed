@@ -25,7 +25,7 @@ import {deserialize} from "superjson";
 import type {hmDocumentLoader, hmDocumentPayload} from "./loaders";
 import {PageHeader} from "./page-header";
 import type {HMDirectory} from "./routes/hm.api.directory";
-import {unwrap, Wrapped} from "./wrapping";
+import {unwrap} from "./wrapping";
 
 export const documentPageMeta: MetaFunction<hmDocumentLoader> = ({
   data,
@@ -185,13 +185,24 @@ function DocumentAppendix({id}: {id: UnpackedHypermediaId}) {
 }
 
 function DocumentDirectory({id}: {id: UnpackedHypermediaId}) {
-  const fetcher = useFetcher<Wrapped<HMDirectory>>();
+  const fetcher = useFetcher();
   useEffect(() => {
     fetcher.load(`/hm/api/directory?id=${id.id}`);
   }, []);
-  const directory = unwrap<HMDirectory>(fetcher.data);
+  if (fetcher.data?.error)
+    return <ErrorComponent error={fetcher.data?.error} />;
+
+  const directory = unwrap<HMDirectory>(fetcher.data?.directory);
   return directory?.documents.map((doc) => <Text>{doc.metadata?.name}</Text>);
   // return <Text>{JSON.stringify(fetcher.data?.id)}</Text>;
+}
+
+function ErrorComponent({error}: {error: string}) {
+  return (
+    <YStack backgroundColor="$red2" padding="$4">
+      <Text color="$red10">{error}</Text>
+    </YStack>
+  );
 }
 
 function DocumentDiscussion({id}: {id: UnpackedHypermediaId}) {
