@@ -1,6 +1,8 @@
 #!/bin/sh
 set -e
 
+echo "Building images..."
+
 command_exists() {
 	command -v "$@" > /dev/null 2>&1
 }
