@@ -2,10 +2,8 @@
 import DocumentContent from "../components/DocumentContent.astro";
 import Header from "../components/Header.astro";
 import {getDocument} from "../get-document";
-
+import "../styles/codeblock.css";
 const homeDocument = await getDocument(Astro.locals.accountUid);
-
-console.log(`== ~ homeDocument:`, homeDocument.content);
 ---
 
 <html lang="en">

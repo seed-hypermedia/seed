@@ -2029,7 +2029,7 @@ export function BlockContentCode({
           lineHeight={textUnit * 1.5}
           fontSize={textUnit * 0.85}
         >
-          {nodes.length > 0
+          {nodes.length
             ? nodes.map((node, index) => (
                 <CodeHighlight key={index} node={node} />
               ))

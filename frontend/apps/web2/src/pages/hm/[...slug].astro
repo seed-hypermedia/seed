@@ -2,6 +2,7 @@
 import DocumentContent from "../../components/DocumentContent.astro";
 import Header from "../../components/Header.astro";
 import {getDocument} from "../../get-document";
+import "../../styles/codeblock.css";
 const document = await getDocument(Astro.params.slug!);
 ---
 

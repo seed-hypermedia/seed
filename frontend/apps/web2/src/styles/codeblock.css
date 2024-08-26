@@ -1,0 +1,60 @@
+:root {
+  --gray: rgb(107 114 128);
+  --red: rgb(239 68 68);
+  --orange: rgb(249 115 22);
+  --green: rgb(22 163 74);
+  --yellow: rgb(234 179 8);
+  --blue: rgb(37 99 235);
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: var(--gray);
+}
+
+.hljs-variable,
+.hljs-template-variable,
+.hljs-attribute,
+.hljs-tag,
+.hljs-name,
+.hljs-regexp,
+.hljs-link,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class {
+  color: var(--red);
+}
+
+.hljs-number,
+.hljs-meta,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params {
+  color: var(--orange);
+}
+
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet {
+  color: var(--green);
+}
+
+.hljs-title,
+.hljs-section {
+  color: var(--yellow11);
+}
+
+.hljs-keyword,
+.hljs-selector-tag {
+  color: var(--blue);
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: 700;
+}

@@ -9,12 +9,9 @@ import {
   type HMBlockNode,
 } from "@shm/shared";
 import {useMemo} from "react";
+import {Code} from "./codeblock";
 
 export function DocContent({content}: {content: Array<HMBlockNode>}) {
-  console.log(
-    `\n\n================================= ~ DocContent ~ content:`,
-    content
-  );
   return <Group type="group" content={content} depth={1} />;
 }
 
@@ -59,7 +56,7 @@ export function BlockNode({bn, depth}: {bn: HMBlockNode; depth: number}) {
             />
           </>
         ) : (
-          <div class="ml-8" id={bn.block.id}>
+          <div className="ml-8" id={bn.block.id}>
             <Group
               type={bn.block.attributes?.childrenType}
               depth={depth + 1}
@@ -129,7 +126,7 @@ function ImageBlock({block}: BlockProps) {
         style={{width: "100%"}}
         alt={block.attributes.alt}
       />
-      <figcaption class="caption-bottom">
+      <figcaption className="caption-bottom">
         <InlineContent inline={inline} />
       </figcaption>
     </figure>
@@ -139,12 +136,12 @@ function ImageBlock({block}: BlockProps) {
 function VideoBlock({block}: BlockProps) {
   const inline = useMemo(() => toHMInlineContent(block), [block]);
   return (
-    <div class="prose-video relative pb-9/16">
+    <div className="prose-video relative pb-9/16">
       {block.ref?.startsWith("ipfs://") ? (
         <video
           controls
           frameborder="0"
-          class="w-full h-full rounded-lg shadow-md absolute top-0 left-0 w-full h-full rounded-lg shadow-md"
+          className="w-full h-full rounded-lg shadow-md absolute top-0 left-0 w-full h-full rounded-lg shadow-md"
         >
           <source
             src={getFileUrl(block.ref)}
@@ -156,7 +153,7 @@ function VideoBlock({block}: BlockProps) {
         <iframe
           allowfullscreen
           frameborder="0"
-          class="w-full h-full rounded-lg shadow-md absolute top-0 left-0 w-full h-full rounded-lg shadow-md"
+          className="w-full h-full rounded-lg shadow-md absolute top-0 left-0 w-full h-full rounded-lg shadow-md"
           src={block.ref}
         />
       )}
@@ -179,9 +176,9 @@ function EmbedBlock({block}: BlockProps) {
 
 function CodeBlock({block}: BlockProps) {
   return (
-    <pre class="rounded-md border-[0.5px] border-token-border-medium">
-      <div class="overflow-y-auto p-4">
-        <code>{block.text}</code>
+    <pre className="rounded-md border-[0.5px] border-token-border-medium">
+      <div className="overflow-y-auto p-4">
+        <Code language={block.attributes?.language} text={block.text} />
       </div>
     </pre>
   );
