@@ -30,12 +30,13 @@ async function attemptBuild() {
   });
   await new Promise((resolve, reject) => {
     // wait for server to be ready to serve
-    setTimeout(resolve, 2_000);
+    setTimeout(resolve, 6_000);
   });
   testServer.kill();
   if (output.includes("[remix-serve]")) {
     return true;
   }
+  console.log("Start Output:");
   console.error(output);
   return false;
 }
