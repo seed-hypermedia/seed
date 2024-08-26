@@ -1,12 +1,14 @@
 // @ts-nocheck
 import type {EditorInlineContent} from "@shm/desktop/src/editor";
 import {
+  isHypermediaScheme,
   toHMInlineContent,
+  unpackHmId,
   type HMBlock,
   type HMBlockChildrenType,
   type HMBlockNode,
 } from "@shm/shared";
-import {useMemo} from "react";
+import {Fragment, useMemo} from "react";
 
 export function DocContent({content}: {content: Array<HMBlockNode>}) {
   return <Group type="group" content={content} depth={1} />;
@@ -21,9 +23,11 @@ export function Group({
   content: Array<HMBlockNode>;
   depth: number;
 }) {
-  let children = content.map((bn) => (
-    <BlockNode depth={depth} key={bn.block?.id} bn={bn} />
-  ));
+  let children = content
+    ? content.map((bn) => (
+        <BlockNode depth={depth} key={bn.block?.id} bn={bn} />
+      ))
+    : null;
   if (type == "ol") {
     return <ol>{children}</ol>;
   } else if (type == "ul") {
@@ -34,22 +38,44 @@ export function Group({
 }
 
 export function BlockNode({bn, depth}: {bn: HMBlockNode; depth: number}) {
+  const hasChildren = !!bn.children?.length;
+  const bnChildren = hasChildren
+    ? bn.children.map((bn, index) => <BlockNode bn={bn} depth={depth + 1} />)
+    : null;
+
+  if (isBlockNodeEmpty(bn)) return null;
+
+  const Wrapper = hasChildren ? "div" : Fragment;
+
   return (
-    <>
+    <Wrapper id={bn.block.id}>
       <Block block={bn.block} depth={depth} />
-      {/* TODO children */}
-    </>
+      {hasChildren ? (
+        <Group type={bn.block.attributes?.childrenType} depth={depth + 1} />
+      ) : null}
+    </Wrapper>
   );
 }
 
 export function Block(props: {block: HMBlock; depth: number}) {
-  switch (props.block.type) {
-    case "paragraph":
-      return <ParagraphBlock {...props} />;
-    case "heading":
-      return <HeadingBlock {...props} />;
-    default:
-      return <ParagraphBlock {...props} />;
+  if (props.block.type == "paragraph") {
+    return <ParagraphBlock {...props} />;
+  } else if (props.block.type == "heading") {
+    return <HeadingBlock {...props} />;
+  } else if (props.block.type == "image") {
+    return <ImageBlock {...props} />;
+  } else if (props.block.type == "video") {
+    return <VideoBlock {...props} />;
+  } else if (props.block.type == "file") {
+    return <FileBlock {...props} />;
+  } else if (props.block.type == "embed") {
+    return <EmbedBlock {...props} />;
+  } else if (props.block.type == "codeBlock") {
+    return <CodeBlock {...props} />;
+  } else if (["equation", "math"].includes(props.block.type)) {
+    return <MathBlock {...props} />;
+  } else {
+    return <ParagraphBlock {...props} />;
   }
 }
 
@@ -81,7 +107,7 @@ export function InlineContent({
           }
 
           if (c.styles.strikethrough) {
-            children = <span className="FOO line-through">{children}</span>;
+            children = <span className="line-through">{children}</span>;
           }
 
           return <span>{children}</span>;
@@ -90,8 +116,11 @@ export function InlineContent({
         }
         if (c.type == "link") {
           return (
-            <a href={c.href}>
-              <InlineContent className="foo" inline={c.content} />
+            <a
+              href={getSiteHref(c.href)}
+              target={!isHypermediaScheme(c.href) ? "_blank" : undefined}
+            >
+              <InlineContent inline={c.content} />
             </a>
           );
         }
@@ -123,4 +152,34 @@ function HeadingBlock({block, depth}: BlockProps) {
       <InlineContent inline={inline} />
     </Heading>
   );
+}
+
+function isBlockNodeEmpty(bn: HMBlockNode): boolean {
+  if (bn.children && bn.children.length) return false;
+  if (typeof bn.block == "undefined") return true;
+  switch (bn.block.type) {
+    case "paragraph":
+    case "heading":
+    case "math":
+    case "equation":
+    case "code":
+    case "codeBlock":
+      return !bn.block.text;
+    case "image":
+    case "file":
+    case "video":
+    case "nostr":
+    case "embed":
+    case "web-embed":
+      return !bn.block.ref;
+    default:
+      return false;
+  }
+}
+
+function getSiteHref({}: {entry: string; hostname?: string}) {
+  const unpacked = unpackHmId(entry);
+
+  if (!unpacked) return entry;
+  return entry;
 }
