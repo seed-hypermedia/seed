@@ -33,7 +33,7 @@ usage()
 	echo  "-t --tag T          :Image tag to pull. Latest by default"
 	echo  "-g --gateway        :Site behaves as a gateway, serves all public data. False by default."
 	echo  "-a --auto-update    :Updates containers whenever a new image is available. Disabled by default"
-	echo  "-l --log-level      :Chose between various containers log levels debug | info(default) | warn | error"
+	echo  "-s --astro          :Uses Astro build for web server"
 	echo  "-m --monitoring     :Sets up monitoring system"
 	echo  "-w --workspace      :To change the localtion of the workspace. Default /home/<user>/.seed-site"
     echo  "-h --help           :Shows help and exit"
@@ -48,7 +48,9 @@ while [ "$1" != "" ]; do
                                 ;;
         -m | --monitoring )     profile="metrics"
                                 ;;
-        -g | --gateway )        is_gateway="true"
+		-s | --astro )			profile="astro"
+                                ;;
+        -g | --gateway )        allow_push="true"
                                 ;;
         -t | --tag )            shift
                                 tag="$1"
@@ -77,7 +79,7 @@ touch ${workspace}/deployment.log
 curl -s -o ${workspace}/hmsite.yml https://raw.githubusercontent.com/seed-hypermedia/seed/main/docker-compose.yml
 
 install_docker
-if [ -n "$profile" ]; then
+if [ "$profile" = "metrics" ]; then
 	mkdir -p ${workspace}/monitoring/grafana/dashboards/libp2p
 	mkdir -p ${workspace}/monitoring/grafana/dashboards/seed
 	mkdir -p ${workspace}/monitoring/grafana/dashboards/system

@@ -8,6 +8,10 @@ services:
     depends_on:
       - seed-daemon
       - seed-web
+    profiles:
+      - astro
+      - default
+      - metrics
     ports:
       - "80:80"
       - "443:443"
@@ -29,6 +33,30 @@ services:
     image: seedhypermedia/web:${SEED_SITE_TAG:-latest}
     depends_on:
       - seed-daemon
+    profiles:
+      - default
+      - metrics
+    networks:
+      - internal_network
+    ports:
+      - "${SEED_SITE_LOCAL_PORT:-4321}:${SEED_SITE_LOCAL_PORT:-4321}"
+    restart: unless-stopped
+    volumes:
+      - ${SEED_SITE_WORKSPACE}/web:/data:rw
+    environment:
+      - "SEED_BASE_URL=${SEED_SITE_HOSTNAME}"
+      - "DAEMON_HTTP_URL=http://seed-daemon:${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001}"
+      - "PORT=${SEED_SITE_LOCAL_PORT:-3000}"
+      - "DATA_DIR=/data"
+
+  seed-web-astro:
+    container_name: seed-web-astro
+    image: seedhypermedia/web-astro:${SEED_SITE_TAG:-latest}
+    depends_on:
+      - seed-daemon
+    profiles:
+      - astro
+      - metrics
     networks:
       - internal_network
     ports:
@@ -47,6 +75,10 @@ services:
     container_name: seed-daemon
     image: seedhypermedia/site:${SEED_SITE_TAG:-latest}
     restart: unless-stopped
+    profiles:
+      - astro
+      - default
+      - metrics
     ports:
       - "56000:56000"
       - "56000:56000/udp"
@@ -71,6 +103,8 @@ services:
     container_name: prometheus
     profiles:
       - metrics
+      - astro
+      - default
     depends_on:
       - seed-daemon
     networks:
@@ -89,6 +123,8 @@ services:
       - prometheus
     profiles:
       - metrics
+      - astro
+      - default
     networks:
       - internal_network
     volumes:
