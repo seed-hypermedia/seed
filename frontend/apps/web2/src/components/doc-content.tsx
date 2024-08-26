@@ -1,6 +1,6 @@
 // @ts-nocheck
-import type {EditorInlineContent} from "@shm/desktop/src/editor";
 import {
+  getFileUrl,
   isHypermediaScheme,
   toHMInlineContent,
   unpackHmId,
@@ -8,9 +8,13 @@ import {
   type HMBlockChildrenType,
   type HMBlockNode,
 } from "@shm/shared";
-import {Fragment, useMemo} from "react";
+import {useMemo} from "react";
 
 export function DocContent({content}: {content: Array<HMBlockNode>}) {
+  console.log(
+    `\n\n================================= ~ DocContent ~ content:`,
+    content
+  );
   return <Group type="group" content={content} depth={1} />;
 }
 
@@ -39,22 +43,34 @@ export function Group({
 
 export function BlockNode({bn, depth}: {bn: HMBlockNode; depth: number}) {
   const hasChildren = !!bn.children?.length;
-  const bnChildren = hasChildren
-    ? bn.children.map((bn, index) => <BlockNode bn={bn} depth={depth + 1} />)
-    : null;
 
   if (isBlockNodeEmpty(bn)) return null;
 
-  const Wrapper = hasChildren ? "div" : Fragment;
-
-  return (
-    <Wrapper id={bn.block.id}>
-      <Block block={bn.block} depth={depth} />
-      {hasChildren ? (
-        <Group type={bn.block.attributes?.childrenType} depth={depth + 1} />
-      ) : null}
-    </Wrapper>
-  );
+  if (hasChildren) {
+    return (
+      <>
+        <Block block={bn.block} depth={depth} />
+        {bn.block.type == "heading" ? (
+          <>
+            <Group
+              type={bn.block.attributes?.childrenType}
+              depth={depth + 1}
+              content={bn.children}
+            />
+          </>
+        ) : (
+          <div class="ml-8" id={bn.block.id}>
+            <Group
+              type={bn.block.attributes?.childrenType}
+              depth={depth + 1}
+              content={bn.children}
+            />
+          </div>
+        )}
+      </>
+    );
+  }
+  return <Block block={bn.block} depth={depth} />;
 }
 
 export function Block(props: {block: HMBlock; depth: number}) {
@@ -77,6 +93,102 @@ export function Block(props: {block: HMBlock; depth: number}) {
   } else {
     return <ParagraphBlock {...props} />;
   }
+}
+
+type BlockProps = {
+  block: HMBlock;
+  depth: number;
+};
+
+function ParagraphBlock({block}: BlockProps) {
+  const inline = useMemo(() => toHMInlineContent(block), [block]);
+  return (
+    <p>
+      <InlineContent inline={inline} />
+    </p>
+  );
+}
+
+function HeadingBlock({block, depth = 1}: BlockProps) {
+  const inline = useMemo(() => toHMInlineContent(block), [block]);
+  const Heading = useMemo(() => `h${depth + 1 > 6 ? 6 : depth + 1}`, [depth]);
+
+  return (
+    <Heading>
+      <InlineContent inline={inline} />
+    </Heading>
+  );
+}
+
+function ImageBlock({block}: BlockProps) {
+  const inline = useMemo(() => toHMInlineContent(block), [block]);
+  return (
+    <figure>
+      <img
+        src={getFileUrl(block?.ref)}
+        style={{width: "100%"}}
+        alt={block.attributes.alt}
+      />
+      <figcaption class="caption-bottom">
+        <InlineContent inline={inline} />
+      </figcaption>
+    </figure>
+  );
+}
+
+function VideoBlock({block}: BlockProps) {
+  const inline = useMemo(() => toHMInlineContent(block), [block]);
+  return (
+    <div class="prose-video relative pb-9/16">
+      {block.ref?.startsWith("ipfs://") ? (
+        <video
+          controls
+          frameborder="0"
+          class="w-full h-full rounded-lg shadow-md absolute top-0 left-0 w-full h-full rounded-lg shadow-md"
+        >
+          <source
+            src={getFileUrl(block.ref)}
+            type={getSourceType(block.attributes.name)}
+          />
+          Your browser does not support the video tag.
+        </video>
+      ) : (
+        <iframe
+          allowfullscreen
+          frameborder="0"
+          class="w-full h-full rounded-lg shadow-md absolute top-0 left-0 w-full h-full rounded-lg shadow-md"
+          src={block.ref}
+        />
+      )}
+      {inline.length ? (
+        <p>
+          <InlineContent inline={inline} />
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function FileBlock({block}: BlockProps) {
+  return <p>file: {block.attributes.name}</p>;
+}
+
+function EmbedBlock({block}: BlockProps) {
+  return <p>embed: {block.ref}</p>;
+}
+
+function CodeBlock({block}: BlockProps) {
+  return (
+    <pre class="rounded-md border-[0.5px] border-token-border-medium">
+      <div class="overflow-y-auto p-4">
+        <code>{block.text}</code>
+      </div>
+    </pre>
+  );
+}
+
+function MathBlock({block}: BlockProps) {
+  return <p>mathblock: {block.text}</p>;
 }
 
 export function InlineContent({
@@ -129,31 +241,6 @@ export function InlineContent({
   );
 }
 
-type BlockProps = {
-  block: HMBlock;
-  depth: number;
-};
-
-function ParagraphBlock({block}: BlockProps) {
-  const inline = useMemo(() => toHMInlineContent(block), [block]);
-  return (
-    <p>
-      <InlineContent inline={inline} />
-    </p>
-  );
-}
-
-function HeadingBlock({block, depth}: BlockProps) {
-  const inline = useMemo(() => toHMInlineContent(block), [block]);
-  const Heading = useMemo(() => `h${depth + 1}`, [depth]);
-  console.log("== HEADING", block, depth);
-  return (
-    <Heading>
-      <InlineContent inline={inline} />
-    </Heading>
-  );
-}
-
 function isBlockNodeEmpty(bn: HMBlockNode): boolean {
   if (bn.children && bn.children.length) return false;
   if (typeof bn.block == "undefined") return true;
@@ -182,4 +269,10 @@ function getSiteHref({entry}: {entry: string; hostname?: string}) {
 
   if (!unpacked) return entry;
   return entry;
+}
+
+function getSourceType(name?: string) {
+  if (!name) return;
+  const nameArray = name.split(".");
+  return `video/${nameArray[nameArray.length - 1]}`;
 }
