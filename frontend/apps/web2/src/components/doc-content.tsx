@@ -117,7 +117,7 @@ export function InlineContent({
         if (c.type == "link") {
           return (
             <a
-              href={getSiteHref(c.href)}
+              href={getSiteHref({entry: c.href})}
               target={!isHypermediaScheme(c.href) ? "_blank" : undefined}
             >
               <InlineContent inline={c.content} />
@@ -177,7 +177,7 @@ function isBlockNodeEmpty(bn: HMBlockNode): boolean {
   }
 }
 
-function getSiteHref({}: {entry: string; hostname?: string}) {
+function getSiteHref({entry}: {entry: string; hostname?: string}) {
   const unpacked = unpackHmId(entry);
 
   if (!unpacked) return entry;
