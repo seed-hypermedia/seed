@@ -16,8 +16,7 @@ RUN yarn web:prod
 
 FROM node:20-alpine AS production
 
-COPY --from=builder /app/frontend/apps/web /app/frontend/apps/web
-# COPY --from=builder /app/frontend/apps/web/node_modules /app/frontend/apps/web/node_modules
+COPY --from=builder /app/frontend/apps/web2 /app/frontend/apps/web2
 COPY --from=builder /app/node_modules /app/node_modules
 COPY --from=builder /app/package.json /app/package.json
 
