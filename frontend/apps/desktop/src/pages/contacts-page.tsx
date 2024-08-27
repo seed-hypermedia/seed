@@ -6,7 +6,7 @@ import {useListProfileDocuments} from '@/models/documents'
 import {useEntities} from '@/models/entities'
 import {useNavigate} from '@/utils/useNavigate'
 import {PlainMessage} from '@bufbuild/protobuf'
-import {DocumentListItem, getAccountName, hmId} from '@shm/shared'
+import {DocumentListItem, getMetadataName, hmId} from '@shm/shared'
 import {
   Button,
   Container,
@@ -92,16 +92,18 @@ function ContactListItem({entry}: {entry: PlainMessage<DocumentListItem>}) {
     version: entry.version,
   })
 
-  const authors = useEntities(
-    entry.authors.map((a) => hmId('d', a, {path: ['']})),
-  )
+  const authors = useEntities(entry.authors.map((a) => hmId('d', a)))
 
   const editors = useMemo(
-    () => (authors.length > 3 ? authors.slice(0, 2) : authors),
+    () =>
+      (authors.length == 1
+        ? []
+        : authors.length > 3
+        ? authors.slice(0, 2)
+        : authors
+      ).filter((a) => !!a.data?.id.uid),
     [authors],
   )
-
-  console.log(`== ~ ContactListItem ~ editors:`, editors)
   return (
     <Button
       group="item"
@@ -134,7 +136,8 @@ function ContactListItem({entry}: {entry: PlainMessage<DocumentListItem>}) {
               whiteSpace="nowrap"
               overflow="hidden"
             >
-              {getAccountName(entry.account, entry.metadata.name)}
+              {getMetadataName(entry.metadata) ||
+                `${entry.account.slice(0, 5)}...${entry.account.slice(-5)}`}
             </SizableText>
           </XStack>
         </YStack>
@@ -166,7 +169,7 @@ function ContactListItem({entry}: {entry: PlainMessage<DocumentListItem>}) {
               />
             </XStack>
           ))}
-          {entry.authors.length > editors.length ? (
+          {entry.authors.length > editors.length && editors.length != 0 ? (
             <XStack
               zIndex={editors.length}
               borderColor="$background"

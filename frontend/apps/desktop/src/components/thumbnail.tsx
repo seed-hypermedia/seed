@@ -1,7 +1,7 @@
 import {useNavigate} from '@/utils/useNavigate'
 import {
-  getAccountName,
   getFileUrl,
+  getMetadataName,
   HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared'
@@ -57,7 +57,12 @@ export function LinkThumbnail({
   )
 
   return (
-    <Tooltip content={getAccountName(id.uid, metadata?.name)}>
+    <Tooltip
+      content={
+        getMetadataName(metadata) ||
+        `${id.uid.slice(0, 5)}...${id.uid.slice(-5)}`
+      }
+    >
       <Button
         className="no-window-drag"
         size="$1"
