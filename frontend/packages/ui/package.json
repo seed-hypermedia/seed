@@ -25,6 +25,8 @@
   "dependencies": {
     "@hookform/resolvers": "3.3.1",
     "@shm/shared": "*",
+    "react-icons": "4.9.0",
+    "nostr-tools": "1.16.0",
     "@tamagui/animations-moti": "1.108.2",
     "@tamagui/animations-react-native": "1.108.2",
     "@tamagui/checkbox": "1.108.2",
