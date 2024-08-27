@@ -172,7 +172,10 @@ export function queryEntity(
           account: id.uid,
           path: hmIdPathToEntityQueryPath(id.path),
         })
-        return {id, document: toPlainMessage(document)}
+        return {
+          id: {...id, version: document.version},
+          document: toPlainMessage(document),
+        }
       } catch (e) {
         return {id, document: undefined}
       }

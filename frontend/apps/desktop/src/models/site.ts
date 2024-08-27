@@ -2,16 +2,19 @@ import {useGRPCClient, useQueryInvalidator} from '@/app-context'
 import {trpc} from '@/trpc'
 import {DocumentChange, hmId, UnpackedHypermediaId} from '@shm/shared'
 import {useMutation} from '@tanstack/react-query'
+import {useEntity} from './entities'
 import {queryKeys} from './query-keys'
 
-export function useSiteRegistration() {
+export function useSiteRegistration(accountUid: string) {
   const grpcClient = useGRPCClient()
   const invalidate = useQueryInvalidator()
+  const accountId = hmId('d', accountUid)
+  const entity = useEntity(accountId)
 
   const registerSite = trpc.sites.registerSite.useMutation()
   const getSiteConfig = trpc.sites.getConfig.useMutation()
   return useMutation({
-    mutationFn: async (input: {url: string; accountUid: string}) => {
+    mutationFn: async (input: {url: string}) => {
       // http://localhost:5175/hm/register?secret=abc
       const url = new URL(input.url)
       const secret = url.searchParams.get('secret')
@@ -24,7 +27,7 @@ export function useSiteRegistration() {
 
       if (
         siteConfig.registeredAccountUid &&
-        siteConfig.registeredAccountUid !== input.accountUid
+        siteConfig.registeredAccountUid !== accountUid
       ) {
         throw new Error('Site already registered to another account')
       }
@@ -35,7 +38,7 @@ export function useSiteRegistration() {
         })
         const registerPayload = {
           registrationSecret: secret,
-          accountUid: input.accountUid,
+          accountUid,
           peerId: daemonInfo.peerId,
           addrs: peerInfo.addrs,
         }
@@ -54,8 +57,9 @@ export function useSiteRegistration() {
       await grpcClient.daemon.forceSync({})
 
       await grpcClient.documents.createDocumentChange({
-        account: input.accountUid,
-        signingKeyName: input.accountUid,
+        account: accountUid,
+        signingKeyName: accountUid,
+        baseVersion: entity.data?.document?.version,
         changes: [
           new DocumentChange({
             op: {
@@ -71,19 +75,21 @@ export function useSiteRegistration() {
       return null
     },
     onSuccess: (result, input) => {
-      invalidate([queryKeys.ENTITY, hmId('d', input.accountUid).id])
+      invalidate([queryKeys.ENTITY, accountId.id])
     },
   })
 }
 
-export function useRemoveSite() {
+export function useRemoveSite(id: UnpackedHypermediaId) {
   const grpcClient = useGRPCClient()
   const invalidate = useQueryInvalidator()
+  const entity = useEntity(id)
   return useMutation({
-    mutationFn: async (input: UnpackedHypermediaId) => {
+    mutationFn: async () => {
       await grpcClient.documents.createDocumentChange({
-        account: input.uid,
-        signingKeyName: input.uid,
+        account: id.uid,
+        signingKeyName: id.uid,
+        baseVersion: entity.data?.document?.version,
         changes: [
           new DocumentChange({
             op: {
@@ -98,8 +104,8 @@ export function useRemoveSite() {
       })
       return null
     },
-    onSuccess: (result, input) => {
-      invalidate([queryKeys.ENTITY, input.id])
+    onSuccess: () => {
+      invalidate([queryKeys.ENTITY, id.id])
     },
   })
 }

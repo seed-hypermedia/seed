@@ -257,11 +257,12 @@ export function usePublishDraft(
                 )
               capabilityId = capability.id
             }
-
+            console.log('previousId', draft.previousId)
             const publishedDoc =
               await grpcClient.documents.createDocumentChange({
                 signingKeyName: draft.signingAccount,
                 account: id.uid,
+                baseVersion: draft.previousId?.version || undefined,
                 path: id.path?.length
                   ? `/${id.path
                       .map((p, idx) =>
@@ -485,8 +486,10 @@ export function useDraftEditor({id}: {id: string | undefined}) {
           cover: input.cover,
         },
         members: {},
+        lastUpdateTime: Date.now(),
+        previousId: backendDocument.data?.id,
         signingAccount: input.signingAccount || undefined,
-      }
+      } as HMDraft
     } else {
       inputData = {
         ...input.draft,
@@ -497,7 +500,7 @@ export function useDraftEditor({id}: {id: string | undefined}) {
           thumbnail: input.thumbnail,
         },
         signingAccount: input.signingAccount || undefined,
-      }
+      } as HMDraft
     }
     const res = await saveDraft.mutateAsync({id: draftId, draft: inputData})
 

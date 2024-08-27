@@ -29,7 +29,7 @@ function RemoveSiteDialog({
   onClose: () => void
   input: UnpackedHypermediaId
 }) {
-  const removeSite = useRemoveSite()
+  const removeSite = useRemoveSite(input)
   return (
     <YStack gap="$4" padding="$4" borderRadius="$3">
       <AlertDialog.Title>Remove Site</AlertDialog.Title>
@@ -53,7 +53,7 @@ function RemoveSiteDialog({
           <Button
             theme="red"
             onPress={() => {
-              removeSite.mutate(input)
+              removeSite.mutate()
               onClose()
             }}
           >
@@ -79,9 +79,9 @@ function PublishSiteDialog({
 }) {
   const navigate = useNavigate()
   const entity = useEntity(input)
-  const register = useSiteRegistration()
+  const register = useSiteRegistration(input.uid)
   const onSubmit: SubmitHandler<PublishSiteFields> = (data) => {
-    register.mutateAsync({url: data.url, accountUid: input.uid}).then(() => {
+    register.mutateAsync({url: data.url}).then(() => {
       onClose()
     })
   }

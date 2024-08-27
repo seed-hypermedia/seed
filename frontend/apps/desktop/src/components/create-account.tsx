@@ -197,6 +197,7 @@ export function AccountWizardDialog() {
         const doc = await grpcClient.documents.createDocumentChange({
           account: createdAccount?.accountId,
           signingKeyName: createdAccount?.publicKey,
+          baseVersion: undefined, // undefined because this is the first change of this document
           changes,
         })
 
