@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package com.seed.activity.v1alpha;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "seed/backend/genproto/activity/v1alpha;activity";
+
+// Subscriptions service provides subscription capabilities.
+service Subscriptions {
+  // Subscribe to a document or space.
+  rpc Subscribe(SubscribeRequest) returns (google.protobuf.Empty);
+
+  // Remove a subscription.
+  rpc Unsubscribe(UnsubscribeRequest) returns (google.protobuf.Empty);
+
+  // Lists active subscriptions.
+  rpc ListSubscriptions(ListSubscriptionsRequest) returns (ListSubscriptionsResponse);
+}
+
+// Subscribe to a resource
+message SubscribeRequest {
+    // Required. Entity ID of the resource to be subscribed to. 
+    string id = 1;
+}
+
+// Subscribe to a resource
+message UnsubscribeRequest {
+    // Required. Id of the resource to be unsubscribe to. 
+    string id = 1;
+}
+
+// Get a list of active subscriptions.
+message ListSubscriptionsRequest {
+    // Optional. The size of the page. The default is defined by the server.
+    int32 page_size = 1;
+  
+    // Optional. The page token for requesting next pages.
+    string page_token = 2;
+}
+
+// Get a list of active subscriptions.
+message ListSubscriptionsResponse {
+    // The list of subscriptions.
+    repeated Subscription subscriptions = 1;
+
+    // The token to request the next page.
+    string next_page_token = 2;
+}
+
+
+// Description of the subscription item.
+message Subscription {
+    // The ID of the subscribed resource.
+    string id = 1;
+  
+    // The Type of subscription
+    Type type = 2;
+
+    // Timestamp when the user started the subscrition.
+    google.protobuf.Timestamp since = 3;
+}
+
+// State describes the subscription type.
+enum Type {
+    // Document Subscription. Any changes on the document will be fetched
+    DOCUMENT = 0;
+  
+    // Space subscription. Any change in any document from that space
+    // will be fetched.
+    SPACE = 1;
+  }
