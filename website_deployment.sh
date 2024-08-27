@@ -89,6 +89,7 @@ if [ "$profile" = "metrics" ]; then
 	mkdir -p ${workspace}/monitoring/grafana/provisioning/datasources
 	mkdir -p ${workspace}/monitoring/prometheus
 fi
+docker ps
 docker stop seed-site seed-daemon seed-proxy grafana prometheus 2> ${workspace}/deployment.log 1> ${workspace}/deployment.log || true
 docker rm seed-site seed-daemon seed-proxy grafana prometheus 2> ${workspace}/deployment.log 1> ${workspace}/deployment.log || true
 
