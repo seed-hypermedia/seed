@@ -48,16 +48,20 @@ message CreateDocumentChangeRequest {
   // Empty string means root document.
   string path = 2;
 
+  // Required. Version of the document to apply changes to.
+  // Can be empty when creating a new document.
+  string base_version = 3;
+
   // Required. Changes to be applied to the document.
-  repeated DocumentChange changes = 3;
+  repeated DocumentChange changes = 4;
 
   // Required. Name of the key to use for signing.
   // Use the Daemon API to list and manage keys.
-  string signing_key_name = 4;
+  string signing_key_name = 5;
 
   // Optional. ID of the capability that allows signing key to write on behalf of the account
   // for this particular path.
-  string capability = 5;
+  string capability = 6;
 }
 
 message DeleteDocumentRequest {

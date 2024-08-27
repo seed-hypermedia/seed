@@ -14,7 +14,6 @@ import (
 	"seed/backend/util/apiutil"
 	"seed/backend/util/dqb"
 	"seed/backend/util/errutil"
-
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
@@ -56,10 +55,6 @@ func (srv *Server) GetDocument(ctx context.Context, in *documents.GetDocumentReq
 		if in.Account == "" {
 			return nil, errutil.MissingArgument("account")
 		}
-
-		if in.Version != "" {
-			return nil, status.Error(codes.Unimplemented, "getting docs by version is not implemented yet")
-		}
 	}
 
 	ns, err := core.DecodePrincipal(in.Account)
@@ -67,7 +62,7 @@ func (srv *Server) GetDocument(ctx context.Context, in *documents.GetDocumentReq
 		return nil, err
 	}
 
-	doc, err := srv.loadDocument(ctx, ns, in.Path, false)
+	doc, err := srv.loadDocument(ctx, ns, in.Path, docmodel.Version(in.Version), false)
 	if err != nil {
 		return nil, err
 	}
@@ -119,9 +114,23 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 		}
 	}
 
-	doc, err := srv.loadDocument(ctx, ns, in.Path, true)
+	ver := docmodel.Version(in.BaseVersion)
+
+	doc, err := srv.loadDocument(ctx, ns, in.Path, ver, true)
 	if err != nil {
 		return nil, err
+	}
+
+	if in.BaseVersion == "" {
+		switch {
+		// No base version is allowed for home documents with 1 change (which is the auto-generated genesis change).
+		case in.Path == "" && doc.Entity().NumChanges() == 1:
+		// No base version is allowed for newly created documents, i.e. when there's not changes applied yet.
+		case in.Path != "" && doc.Entity().NumChanges() == 0:
+		// Otherwise it's an error to not provide a base version.
+		default:
+			return nil, status.Errorf(codes.InvalidArgument, "base_version is required for updating existing documents")
+		}
 	}
 
 	if err := applyChanges(doc, in.Changes); err != nil {
@@ -372,7 +381,7 @@ func makeIRI(account core.Principal, path string) (index.IRI, error) {
 	return index.NewIRI(account, path)
 }
 
-func (srv *Server) loadDocument(ctx context.Context, account core.Principal, path string, ensurePath bool) (*docmodel.Document, error) {
+func (srv *Server) loadDocument(ctx context.Context, account core.Principal, path string, version docmodel.Version, ensurePath bool) (*docmodel.Document, error) {
 	iri, err := makeIRI(account, path)
 	if err != nil {
 		return nil, err
@@ -380,14 +389,32 @@ func (srv *Server) loadDocument(ctx context.Context, account core.Principal, pat
 
 	clock := hlc.NewClock()
 	entity := docmodel.NewEntityWithClock(iri, clock)
-	if err := srv.idx.WalkChanges(ctx, iri, account, func(c cid.Cid, ch *index.Change) error {
-		return entity.ApplyChange(c, ch)
-	}); err != nil {
-		return nil, err
+
+	iter, errs := srv.idx.IterChanges(ctx, iri, account)
+	for c, ch := range iter {
+		if err := entity.ApplyChange(c, ch); err != nil {
+			errs.Add(err)
+			break
+		}
+	}
+	if errs.Check() != nil {
+		return nil, errs.Check()
 	}
 
 	if !ensurePath && len(entity.Heads()) == 0 {
 		return nil, status.Errorf(codes.NotFound, "document not found: %s", iri)
+	}
+
+	if version != "" {
+		heads, err := version.Parse()
+		if err != nil {
+			return nil, err
+		}
+
+		entity, err = entity.Checkout(heads)
+		if err != nil {
+			return nil, fmt.Errorf("failed to checkout version %s", version)
+		}
 	}
 
 	doc, err := docmodel.New(entity, clock.MustNow())

@@ -120,47 +120,53 @@ func (idx *Index) CanEditResource(ctx context.Context, resource IRI, author core
 	return res.ResourcesOwner == dbAuthor, nil
 }
 
-func (idx *Index) WalkChanges(ctx context.Context, resource IRI, author core.Principal, fn func(cid.Cid, *Change) error) error {
-	conn, release, err := idx.db.Conn(ctx)
-	if err != nil {
-		return err
-	}
-	defer release()
+func (idx *Index) IterChanges(ctx context.Context, resource IRI, author core.Principal) (iter.Seq2[cid.Cid, *Change], *iterx.LazyError) {
+	le := iterx.NewLazyError()
 
-	buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
-	if err := sqlitex.Exec(conn, qWalkChanges(), func(stmt *sqlite.Stmt) error {
-		var (
-			codec = stmt.ColumnInt64(0)
-			hash  = stmt.ColumnBytesUnsafe(1)
-			data  = stmt.ColumnBytesUnsafe(2)
-		)
-
-		buf, err = idx.bs.decoder.DecodeAll(data, buf)
+	it := func(yield func(cid.Cid, *Change) bool) {
+		conn, release, err := idx.db.Conn(ctx)
 		if err != nil {
-			return err
+			le.Set(err)
+			return
+		}
+		defer release()
+
+		buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
+		rows, errs := sqlitex.Query(conn, qIterChanges(), resource, author, author, resource)
+		for row := range rows {
+			var (
+				codec = row.ColumnInt64(0)
+				hash  = row.ColumnBytesUnsafe(1)
+				data  = row.ColumnBytesUnsafe(2)
+			)
+
+			buf, err = idx.bs.decoder.DecodeAll(data, buf)
+			if err != nil {
+				le.Add(err)
+				break
+			}
+
+			chcid := cid.NewCidV1(uint64(codec), hash)
+			ch := &Change{}
+			if err := cbornode.DecodeInto(buf, ch); err != nil {
+				le.Add(fmt.Errorf("WalkChanges: failed to decode change %s for entity %s: %w", chcid, resource, err))
+				break
+			}
+
+			if !yield(chcid, ch) {
+				break
+			}
+
+			buf = buf[:0] // reset the slice reusing the backing array
 		}
 
-		chcid := cid.NewCidV1(uint64(codec), hash)
-		ch := &Change{}
-		if err := cbornode.DecodeInto(buf, ch); err != nil {
-			return fmt.Errorf("WalkChanges: failed to decode change %s for entity %s: %w", chcid, resource, err)
-		}
-
-		if err := fn(chcid, ch); err != nil {
-			return err
-		}
-
-		buf = buf[:0] // reset the slice reusing the backing array
-
-		return nil
-	}, resource, author, author, resource); err != nil {
-		return err
+		le.Add(errs.Check())
 	}
 
-	return nil
+	return it, le
 }
 
-var qWalkChanges = dqb.Str(`
+var qIterChanges = dqb.Str(`
 	WITH RECURSIVE
 	refs (id) AS (
 		SELECT id

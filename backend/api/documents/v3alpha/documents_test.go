@@ -220,6 +220,89 @@ func TestListDocument(t *testing.T) {
 	testutil.StructsEqual(want[2], list.Documents[2]).Compare(t, "profile doc must be the last element in the list")
 }
 
+func TestGetDocumentWithVersion(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	doc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.Principal().String(),
+		Path:           "",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice from the Wonderland"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Hello",
+				},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "b1", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b2",
+					Type: "paragraph",
+					Text: "World!",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	doc2, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.Principal().String(),
+		Path:           "",
+		BaseVersion:    doc.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_DeleteBlock{DeleteBlock: "b2"}},
+		},
+	})
+	require.NoError(t, err)
+
+	doc3, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.Principal().String(),
+		Path:           "",
+		BaseVersion:    doc2.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_ReplaceBlock{ReplaceBlock: &documents.Block{
+				Id:   "b1",
+				Type: "paragraph",
+				Text: "Hello, World!",
+			}}},
+		},
+	})
+	require.NoError(t, err)
+
+	{
+		gotLatest, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{Account: doc.Account, Path: doc.Path})
+		require.NoError(t, err)
+		testutil.StructsEqual(gotLatest, doc3).Compare(t, "get without version must return latest doc")
+
+		got3, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{Account: doc.Account, Path: doc.Path, Version: doc3.Version})
+		require.NoError(t, err)
+		testutil.StructsEqual(got3, doc3).Compare(t, "get with version must return the correct doc")
+
+		got2, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{Account: doc.Account, Path: doc.Path, Version: doc2.Version})
+		require.NoError(t, err)
+		testutil.StructsEqual(got2, doc2).Compare(t, "get with version must return the correct doc")
+
+		got1, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{Account: doc.Account, Path: doc.Path, Version: doc.Version})
+		require.NoError(t, err)
+		testutil.StructsEqual(got1, doc).Compare(t, "get with version must return the correct doc")
+	}
+}
+
 type testServer struct {
 	*Server
 	me coretest.Tester

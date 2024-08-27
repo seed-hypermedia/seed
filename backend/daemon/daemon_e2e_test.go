@@ -145,8 +145,9 @@ func TestDaemonUpdateProfile(t *testing.T) {
 	// Do another update.
 	{
 		doc, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
-			Account: alice.Account.Principal().String(),
-			Path:    "",
+			Account:     alice.Account.Principal().String(),
+			Path:        "",
+			BaseVersion: doc.Version,
 			Changes: []*documents.DocumentChange{
 				{Op: &documents.DocumentChange_SetMetadata_{
 					SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Just Alice"},

@@ -87,9 +87,17 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
   path = "";
 
   /**
+   * Required. Version of the document to apply changes to.
+   * Can be empty when creating a new document.
+   *
+   * @generated from field: string base_version = 3;
+   */
+  baseVersion = "";
+
+  /**
    * Required. Changes to be applied to the document.
    *
-   * @generated from field: repeated com.seed.documents.v3alpha.DocumentChange changes = 3;
+   * @generated from field: repeated com.seed.documents.v3alpha.DocumentChange changes = 4;
    */
   changes: DocumentChange[] = [];
 
@@ -97,7 +105,7 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
    * Required. Name of the key to use for signing.
    * Use the Daemon API to list and manage keys.
    *
-   * @generated from field: string signing_key_name = 4;
+   * @generated from field: string signing_key_name = 5;
    */
   signingKeyName = "";
 
@@ -105,7 +113,7 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
    * Optional. ID of the capability that allows signing key to write on behalf of the account
    * for this particular path.
    *
-   * @generated from field: string capability = 5;
+   * @generated from field: string capability = 6;
    */
   capability = "";
 
@@ -119,9 +127,10 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "changes", kind: "message", T: DocumentChange, repeated: true },
-    { no: 4, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "base_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "changes", kind: "message", T: DocumentChange, repeated: true },
+    { no: 5, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateDocumentChangeRequest {

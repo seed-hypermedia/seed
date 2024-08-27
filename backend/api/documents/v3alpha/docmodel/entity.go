@@ -76,6 +76,70 @@ func (e *Entity) Heads() map[cid.Cid]struct{} {
 	return e.heads
 }
 
+// NumChanges returns the number of changes applied to the entity.
+func (e *Entity) NumChanges() int {
+	return len(e.cids)
+}
+
+// Checkout returns an entity with the state filtered up to the given heads.
+// If no heads are given it returns the same instance of the Entity.
+// If heads given are the same as the current heads, the same instance is returned as well.
+func (e *Entity) Checkout(heads []cid.Cid) (*Entity, error) {
+	if len(heads) == 0 {
+		return e, nil
+	}
+
+	{
+		curVer := NewVersion(maps.Keys(e.heads)...)
+		wantVer := NewVersion(heads...)
+
+		if curVer == wantVer {
+			return e, nil
+		}
+	}
+
+	// We walk the DAG of changes backwards starting from the heads.
+	// And then we apply those changes to the cloned entity.
+
+	visited := make(map[int]struct{}, len(e.cids))
+	queue := make([]int, 0, len(e.cids))
+	chain := make([]int, 0, len(e.cids))
+
+	for _, h := range heads {
+		hh, ok := e.applied[h]
+		if !ok {
+			return nil, fmt.Errorf("head '%s' not found", h)
+		}
+
+		queue = append(queue, hh)
+	}
+
+	for len(queue) > 0 {
+		c := queue[0]
+		queue = queue[1:]
+		if _, ok := visited[c]; ok {
+			continue
+		}
+		visited[c] = struct{}{}
+		chain = append(chain, c)
+		for _, dep := range e.deps[c] {
+			queue = append(queue, dep)
+		}
+	}
+	slices.Reverse(chain)
+
+	clock := hlc.NewClock()
+	entity := NewEntityWithClock(e.id, clock)
+
+	for _, c := range chain {
+		if err := entity.ApplyChange(e.cids[c], e.changes[c]); err != nil {
+			return nil, err
+		}
+	}
+
+	return entity, nil
+}
+
 type Version string
 
 func NewVersion(cids ...cid.Cid) Version {
