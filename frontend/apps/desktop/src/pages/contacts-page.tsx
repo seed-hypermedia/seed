@@ -1,20 +1,23 @@
+import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
-import {ListItem} from '@/components/list-item'
-import {MainWrapper, MainWrapperNoScroll} from '@/components/main-wrapper'
+import {MainWrapper} from '@/components/main-wrapper'
+import {LinkThumbnail, Thumbnail} from '@/components/thumbnail'
 import {useListProfileDocuments} from '@/models/documents'
+import {useEntities} from '@/models/entities'
 import {useNavigate} from '@/utils/useNavigate'
 import {PlainMessage} from '@bufbuild/protobuf'
-import {DocumentListItem, getFileUrl, hmId} from '@shm/shared'
+import {DocumentListItem, getAccountName, hmId} from '@shm/shared'
 import {
+  Button,
   Container,
-  List,
-  PageHeading,
+  getRandomColor,
+  SizableText,
   Spinner,
   Text,
-  UIAvatar,
+  XStack,
   YStack,
 } from '@shm/ui'
-import {useRef} from 'react'
+import {useMemo, useRef} from 'react'
 import {useShowTitleObserver} from './app-title'
 
 function ErrorPage({}: {error: any}) {
@@ -65,39 +68,130 @@ export default function ContactsPage() {
   }
   return (
     <>
-      <MainWrapperNoScroll>
-        <List
-          header={
-            <Container>
-              <PageHeading ref={ref}>Contacts</PageHeading>
-            </Container>
-          }
-          items={contacts.data!}
-          renderItem={({item}: {item: PlainMessage<DocumentListItem>}) => {
-            return (
-              <ListItem
-                title={item.metadata.name}
-                icon={
-                  <UIAvatar
-                    url={getFileUrl(item.metadata.thumbnail)}
-                    label={item.metadata.name}
-                    size={24}
-                  />
-                }
-                onPress={() => {
-                  navigate({
-                    key: 'document',
-                    id: hmId('d', item.account),
-                  })
-                }}
-              />
-            )
-          }}
-        />
-      </MainWrapperNoScroll>
+      <MainWrapper>
+        <Container>
+          <YStack paddingVertical="$4" marginHorizontal={-8}>
+            {contacts.data.map((contact) => (
+              <ContactListItem entry={contact} />
+            ))}
+          </YStack>
+        </Container>
+      </MainWrapper>
       {/* {copyDialogContent}
       {deleteEntity.content} */}
       <Footer />
     </>
+  )
+}
+
+const hoverColor = '$color5'
+
+function ContactListItem({entry}: {entry: PlainMessage<DocumentListItem>}) {
+  const navigate = useNavigate()
+  const id = hmId('d', entry.account, {
+    version: entry.version,
+  })
+
+  const authors = useEntities(
+    entry.authors.map((a) => hmId('d', a, {path: ['']})),
+  )
+
+  const editors = useMemo(
+    () => (authors.length > 3 ? authors.slice(0, 2) : authors),
+    [authors],
+  )
+
+  console.log(`== ~ ContactListItem ~ editors:`, editors)
+  return (
+    <Button
+      group="item"
+      borderWidth={0}
+      hoverStyle={{
+        bg: hoverColor,
+      }}
+      paddingHorizontal={16}
+      paddingVertical="$1"
+      onPress={() => {
+        navigate({key: 'document', id})
+      }}
+      h={60}
+      icon={
+        <Thumbnail
+          size={40}
+          id={id}
+          metadata={entry.metadata}
+          borderRadius={40}
+          color={getRandomColor(entry.account)}
+        />
+      }
+    >
+      <XStack gap="$2" ai="center" f={1} paddingVertical="$2">
+        <YStack f={1} gap="$1.5">
+          <XStack ai="center" gap="$2" paddingLeft={4}>
+            <SizableText
+              fontWeight="bold"
+              textOverflow="ellipsis"
+              whiteSpace="nowrap"
+              overflow="hidden"
+            >
+              {getAccountName(entry.account, entry.metadata.name)}
+            </SizableText>
+          </XStack>
+        </YStack>
+      </XStack>
+      <XStack gap="$3" ai="center">
+        <FavoriteButton id={id} hideUntilItemHover />
+        <XStack>
+          {editors.map((author, idx) => (
+            <XStack
+              zIndex={idx + 1}
+              key={entry.account}
+              borderColor="$background"
+              backgroundColor="$background"
+              $group-item-hover={{
+                borderColor: hoverColor,
+                backgroundColor: hoverColor,
+              }}
+              borderWidth={2}
+              borderRadius={100}
+              overflow="hidden"
+              marginLeft={-8}
+              animation="fast"
+            >
+              <LinkThumbnail
+                key={author.data?.id.id}
+                id={author.data?.id}
+                metadata={author.data?.document?.metadata}
+                size={20}
+              />
+            </XStack>
+          ))}
+          {entry.authors.length > editors.length ? (
+            <XStack
+              zIndex={editors.length}
+              borderColor="$background"
+              backgroundColor="$background"
+              borderWidth={2}
+              borderRadius={100}
+              marginLeft={-8}
+              animation="fast"
+              width={24}
+              height={24}
+              ai="center"
+              jc="center"
+            >
+              <Text
+                fontSize={10}
+                fontFamily="$body"
+                fontWeight="bold"
+                color="$color10"
+              >
+                +{entry.authors.length - editors.length - 1}
+              </Text>
+            </XStack>
+          ) : null}
+        </XStack>
+      </XStack>
+    </Button>
   )
 }

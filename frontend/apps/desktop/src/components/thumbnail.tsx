@@ -1,15 +1,18 @@
 import {useNavigate} from '@/utils/useNavigate'
 import {
+  getAccountName,
   getFileUrl,
-  getMetadataName,
   HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {Tooltip, UIAvatar, UIAvatarProps} from '@shm/ui'
 import {AlertCircle} from '@tamagui/lucide-icons'
+import {memo} from 'react'
 import {Button, YStack} from 'tamagui'
 
-export function Thumbnail({
+export const Thumbnail = memo(_Thumbnail)
+
+function _Thumbnail({
   id,
   metadata,
   size = 32,
@@ -19,14 +22,17 @@ export function Thumbnail({
   metadata?: HMMetadata | null
   size?: number
 }) {
+  if (!id) return null
+
   return (
     <UIAvatar
-      {...props}
       size={size}
-      id={id.path?.at(-1) || id.uid.slice(2)}
+      // id={id.path?.at(-1) || id.uid.slice(2)}
+      id={id.id}
       label={metadata?.name}
       url={getFileUrl(metadata?.thumbnail)}
       borderRadius={id.path && id.path.length != 0 ? size / 8 : undefined}
+      {...props}
     />
   )
 }
@@ -51,7 +57,7 @@ export function LinkThumbnail({
   )
 
   return (
-    <Tooltip content={getMetadataName(metadata)}>
+    <Tooltip content={getAccountName(id.uid, metadata?.name)}>
       <Button
         className="no-window-drag"
         size="$1"
