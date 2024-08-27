@@ -31,6 +31,7 @@ import {
   SizableText,
   SizeTokens,
   Text,
+  toast,
   XStack,
   YGroup,
   YStack,
@@ -66,6 +67,14 @@ export default function LibraryPage() {
   const [allSelected, setAllSelected] = useState(false)
 
   const library = useLibrary(queryState)
+
+  const filteredLibrary = useMemo(() => {
+    return exportMode ? library.filter((entry) => !entry.draft) : library
+  }, [exportMode, library])
+
+  const filteredDocumentIds = useMemo(() => {
+    return filteredLibrary.map((entry) => entry.id.id)
+  }, [filteredLibrary])
   const {exportDocuments} = useAppContext()
 
   const toggleDocumentSelection = (id: string) => {
@@ -76,6 +85,12 @@ export default function LibraryPage() {
       } else {
         newSelected.add(id)
       }
+
+      // Check if all documents are selected and update `allSelected` state
+      setAllSelected(
+        filteredDocumentIds.every((docId) => newSelected.has(docId)),
+      )
+
       return newSelected
     })
   }
@@ -83,14 +98,18 @@ export default function LibraryPage() {
   const handleSelectAllChange = (checked: boolean) => {
     setAllSelected(checked)
     if (checked) {
-      const allDocumentIds = library.map((entry) => entry.id.id)
-      setSelectedDocuments(new Set(allDocumentIds))
+      setSelectedDocuments(new Set(filteredDocumentIds))
     } else {
       setSelectedDocuments(new Set())
     }
   }
 
   const submitExportDocuments = async () => {
+    if (selectedDocuments.size == 0) {
+      toast.error('No documents selected')
+      return
+    }
+
     const selectedDocs = library.filter((entry) =>
       selectedDocuments.has(entry.id.id),
     )
@@ -109,10 +128,6 @@ export default function LibraryPage() {
 
     exportDocuments(documentsToExport)
   }
-
-  const filteredLibrary = exportMode
-    ? library.filter((entry) => !entry.draft) // Filter out drafts in export mode
-    : library
 
   return (
     <>
@@ -171,7 +186,7 @@ export default function LibraryPage() {
                 {allSelected ? 'Deselect All' : 'Select All'}
               </Button>
               <Button size="$2" onPress={submitExportDocuments}>
-                Submit Export
+                {`Submit Export (${selectedDocuments.size} documents)`}
               </Button>
             </>
           )}
@@ -679,9 +694,10 @@ function LibraryListItem({
         if (!exportMode) {
           if (isUnpublished) navigate({key: 'draft', id: entry.id})
           else navigate({key: 'document', id: entry.id})
-        } else {
-          toggleDocumentSelection(entry.id.id)
         }
+        // else {
+        //   toggleDocumentSelection(entry.id.id)
+        // }
       }}
       h={60}
       icon={
