@@ -216,7 +216,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 			Path:    "",
 		})
 		if err != nil {
-			return err
+			return nil
 		}
 
 		// TODO: use indexed data instead of loading the entire document.
@@ -315,7 +315,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 			Path:    path,
 		})
 		if err != nil {
-			return err
+			return nil
 		}
 
 		// TODO: use indexed data instead of loading the entire document.
