@@ -214,12 +214,15 @@ function DirectoryItemWithAuthors({
     [entry.authors],
   )
   const editors = useEntities(editorIds.map((id) => hmId('d', id)))
-  const authorsMetadata = editors.map((author) => {
-    return {
-      uid: author.data!.id!.uid,
-      metadata: author.data?.document?.metadata,
-    }
-  })
+  const authorsMetadata = editors
+    .map((query) => query.data)
+    .filter((author) => !!author)
+    .map((data) => {
+      return {
+        uid: data!.id!.uid,
+        metadata: data?.document?.metadata,
+      }
+    })
   return (
     <DirectoryItem
       PathButton={PathButton}
