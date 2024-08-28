@@ -2,8 +2,8 @@ package activity
 
 import (
 	context "context"
-	"seed/backend/daemon/storage"
 	activity "seed/backend/genproto/activity/v1alpha"
+	"seed/backend/storage"
 	"testing"
 
 	"github.com/stretchr/testify/require"
