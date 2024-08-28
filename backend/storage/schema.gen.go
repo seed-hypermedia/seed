@@ -222,6 +222,22 @@ const (
 	C_StructuralBlobsType        = "structural_blobs.type"
 )
 
+// Table subscriptions.
+const (
+	Subscriptions            sqlitegen.Table  = "subscriptions"
+	SubscriptionsID          sqlitegen.Column = "subscriptions.id"
+	SubscriptionsInsertTime  sqlitegen.Column = "subscriptions.insert_time"
+	SubscriptionsIsRecursive sqlitegen.Column = "subscriptions.is_recursive"
+)
+
+// Table subscriptions. Plain strings.
+const (
+	T_Subscriptions            = "subscriptions"
+	C_SubscriptionsID          = "subscriptions.id"
+	C_SubscriptionsInsertTime  = "subscriptions.insert_time"
+	C_SubscriptionsIsRecursive = "subscriptions.is_recursive"
+)
+
 // Table wallets.
 const (
 	Wallets         sqlitegen.Table  = "wallets"
@@ -299,6 +315,9 @@ var Schema = sqlitegen.Schema{
 		StructuralBlobsResource:    {Table: StructuralBlobs, SQLType: "INTEGER"},
 		StructuralBlobsTs:          {Table: StructuralBlobs, SQLType: "INTEGER"},
 		StructuralBlobsType:        {Table: StructuralBlobs, SQLType: "TEXT"},
+		SubscriptionsID:            {Table: Subscriptions, SQLType: "INTEGER"},
+		SubscriptionsInsertTime:    {Table: Subscriptions, SQLType: "INTEGER"},
+		SubscriptionsIsRecursive:   {Table: Subscriptions, SQLType: "BOOLEAN"},
 		WalletsAddress:             {Table: Wallets, SQLType: "TEXT"},
 		WalletsBalance:             {Table: Wallets, SQLType: "INTEGER"},
 		WalletsID:                  {Table: Wallets, SQLType: "TEXT"},

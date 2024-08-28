@@ -181,6 +181,17 @@ CREATE TABLE resource_links (
 CREATE INDEX resource_links_by_source ON resource_links (source, is_pinned, target);
 CREATE INDEX resource_links_by_target ON resource_links (target, source);
 
+-- Stores subscribed resources. Once we subscribe to a resource, 
+-- we will sync the latest versions of it periodically.
+CREATE TABLE subscriptions (
+    -- The resource we are subscribing to.
+    id INTEGER REFERENCES resources (id) ON DELETE CASCADE NOT NULL PRIMARY KEY,
+    -- Whether we subscribe recursively to all documents in the directory or not
+    is_recursive BOOLEAN DEFAULT false NOT NULL,
+    -- The time when the resource was subscribed.
+    insert_time INTEGER DEFAULT (strftime('%s', 'now')) NOT NULL
+);
+
 -- Stores seed peers we know about.
 CREATE TABLE peers (
     -- Internal index used for pagination
