@@ -24680,8 +24680,8 @@ __metadata:
   linkType: hard
 
 "react-native-reanimated@npm:^3.7.0":
-  version: 3.15.0
-  resolution: "react-native-reanimated@npm:3.15.0"
+  version: 3.15.1
+  resolution: "react-native-reanimated@npm:3.15.1"
   dependencies:
     "@babel/plugin-transform-arrow-functions": ^7.0.0-0
     "@babel/plugin-transform-class-properties": ^7.0.0-0
@@ -24698,7 +24698,7 @@ __metadata:
     "@babel/core": ^7.0.0-0
     react: "*"
     react-native: "*"
-  checksum: fad4f54d7f005f4fb3d90d983bedcf1ec7de936259b8e286feb35edaa9d1ac16d8b927fcd59eeea7f91446310432b342fd9785301a304955844785fef52a3e31
+  checksum: e520ba51a56075a3a0358f966ea6a44b41fa59ed1d0470b9c537dfeb224032066cd197955e18e96af5da22a51ad31c4d8b2422f511d96b8d1dd2ef5fc11a7d1a
   languageName: node
   linkType: hard
 

@@ -13,7 +13,40 @@ export const HYPERMEDIA_ENTITY_TYPES = {
 
 export type HMEntityType = keyof typeof HYPERMEDIA_ENTITY_TYPES
 
-export function createPublicWebHmUrl(
+export function createSiteUrl({
+  path,
+  hostname,
+  version,
+  latest,
+  blockRef,
+  blockRange,
+}: {
+  path: string[] | null | undefined
+  hostname: string
+  version?: string | null | undefined
+  latest?: boolean
+  blockRef?: string | null | undefined
+  blockRange?: BlockRange | ExpandedBlockRange | null
+}) {
+  let res = `${hostname}/`
+  if (path && path.length) {
+    res += path.join('/')
+  }
+  const query: Record<string, string | null> = {}
+  if (version) {
+    query.v = version
+  }
+  if (latest) {
+    query.l = null
+  }
+  res += serializeQueryString(query)
+  if (blockRef) {
+    res += `#${blockRef}${serializeBlockRange(blockRange)}`
+  }
+  return res
+}
+
+export function createWebHMUrl(
   type: keyof typeof HYPERMEDIA_ENTITY_TYPES,
   uid: string,
   {
@@ -243,7 +276,7 @@ export function isPublicGatewayLink(text: string, gwUrl: StateStream<string>) {
 
 export function idToUrl(hmId: UnpackedHypermediaId) {
   if (!hmId?.type) return null
-  return createPublicWebHmUrl(hmId.type, hmId.uid, {
+  return createWebHMUrl(hmId.type, hmId.uid, {
     version: hmId.version,
     blockRef: hmId.blockRef,
     blockRange: hmId.blockRange,

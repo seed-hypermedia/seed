@@ -21,7 +21,8 @@ import {
   ExpandedBlockRange,
   HMBlockNode,
   UnpackedHypermediaId,
-  createPublicWebHmUrl,
+  createSiteUrl,
+  createWebHMUrl,
   getDocumentTitle,
   hmId,
   packHmId,
@@ -38,6 +39,7 @@ import {
   View,
   XGroup,
   XStack,
+  copyTextToClipboard,
   toast,
   useStream,
 } from '@shm/ui'
@@ -69,8 +71,8 @@ export function DocOptionsButton() {
   const gwHost = useGatewayHost()
   const push = usePushPublication()
   const deleteEntity = useDeleteDialog()
-  const [copyContent, onCopy, host] = useCopyGatewayReference()
   const doc = useEntity(route.id)
+  const [copyContent, onCopy, host] = useCopyGatewayReference()
   const removeSite = useRemoveSiteDialog()
   const publishSite = usePublishSite()
   const canEditDoc = true // todo: check permissions
@@ -211,32 +213,46 @@ export function useDocumentUrl({
   ) => void
   content: ReactNode
 } | null {
-  const pub = useEntity(docId)
+  const docEntity = useEntity(docId)
+  const accountEntity = useEntity(hmId('d', docId?.uid!))
   const gwUrl = useGatewayUrl()
   const [copyDialogContent, onCopyPublic] = useCopyGatewayReference()
-  const hostname = gwUrl.data
+  const gwHostname = gwUrl.data
+  const siteHostname = accountEntity.data?.document?.metadata?.siteUrl
   if (!docId) return null
+  const url = siteHostname
+    ? createSiteUrl({
+        hostname: siteHostname,
+        path: docId.path,
+        version: docEntity.data?.document?.version,
+        latest: true,
+      })
+    : createWebHMUrl('d', docId.uid, {
+        version: docEntity.data?.document?.version,
+        hostname: gwHostname,
+        path: docId.path,
+      })
   return {
-    url: createPublicWebHmUrl('d', docId.uid, {
-      version: pub.data?.document?.version,
-      hostname,
-      path: docId.path,
-    }),
-    label: hostname ? 'Site Version' : 'Doc Version',
+    url,
+    label: siteHostname ? 'Site Version' : 'Doc Version',
     content: copyDialogContent,
     onCopy: (
       blockId: string | undefined,
       blockRange?: BlockRange | ExpandedBlockRange | null,
     ) => {
       const focusBlockId = isBlockFocused ? docId.blockRef : null
-      onCopyPublic({
-        ...docId,
-        hostname: hostname || null,
-        version: pub.data?.document?.version || null,
-        blockRef: blockId || focusBlockId || null,
-        blockRange: blockRange || null,
-        path: docId.path,
-      })
+      if (siteHostname) {
+        copyTextToClipboard(url)
+      } else {
+        onCopyPublic({
+          ...docId,
+          hostname: gwHostname || null,
+          version: docEntity.data?.document?.version || null,
+          blockRef: blockId || focusBlockId || null,
+          blockRange: blockRange || null,
+          path: docId.path,
+        })
+      }
     },
   }
 }

@@ -48,13 +48,13 @@ export function useSiteRegistration(accountUid: string) {
           payload: registerPayload,
         })
         console.log('registerResult', registerResult)
+        console.log('connecting to site...')
+        await grpcClient.networking.connect({
+          addrs: siteConfig.addrs,
+        })
+        console.log('doing force sync from this node...')
+        await grpcClient.daemon.forceSync({})
       }
-      console.log('connecting to site...')
-      await grpcClient.networking.connect({
-        addrs: siteConfig.addrs,
-      })
-      console.log('doing force sync from this node...')
-      await grpcClient.daemon.forceSync({})
 
       await grpcClient.documents.createDocumentChange({
         account: accountUid,

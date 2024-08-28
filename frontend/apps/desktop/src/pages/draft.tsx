@@ -20,7 +20,7 @@ import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   BlockRange,
-  createPublicWebHmUrl,
+  createWebHMUrl,
   ExpandedBlockRange,
   getFileUrl,
   HMDraft,
@@ -250,7 +250,7 @@ export default function DraftPage() {
     if (!route.id?.uid)
       throw new Error('uid could not be extracted from draft route')
     copyUrlToClipboardWithFeedback(
-      createPublicWebHmUrl(route.id.type, route.id.uid, {
+      createWebHMUrl(route.id.type, route.id.uid, {
         blockRef: blockId,
         blockRange,
         hostname: gwUrl.data,

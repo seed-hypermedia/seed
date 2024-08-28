@@ -3,7 +3,6 @@ import {
   AccessoryLayout,
 } from '@/components/accessory-sidebar'
 import {CollaboratorsPanel} from '@/components/collaborators-panel'
-import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
 import {Directory} from '@/components/directory'
 import {Discussion} from '@/components/discussion'
 import {LinkNameComponent} from '@/components/document-name'
@@ -69,7 +68,6 @@ export default function DocumentPage() {
   if (!docId) throw new Error('Invalid route, no document id')
   const accessoryKey = route.accessory?.key
   const replace = useNavigate('replace')
-  const [copyDialogContent, onCopy] = useCopyGatewayReference()
 
   function handleClose() {
     if (route.key !== 'document') return

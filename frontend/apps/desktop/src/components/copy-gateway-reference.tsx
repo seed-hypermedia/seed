@@ -6,7 +6,7 @@ import {
   writeableStateStream,
 } from '@shm/shared'
 import {
-  createPublicWebHmUrl,
+  createWebHMUrl,
   hmId,
   packHmId,
 } from '@shm/shared/src/utils/entity-id-url'
@@ -50,13 +50,14 @@ export function useCopyGatewayReference() {
   const pushOnCopy = usePushOnCopy()
   const push = usePushPublication()
   function onCopy(input: UnpackedHypermediaId) {
-    const publicUrl = createPublicWebHmUrl(input.type, input.uid, {
+    const publicUrl = createWebHMUrl(input.type, input.uid, {
       version: input.version,
       blockRef: input.blockRef,
       blockRange: input.blockRange,
       hostname: gatewayUrl.data,
       path: input.path,
     })
+    console.log('--- public URL', publicUrl)
     const [setIsPublished, isPublished] =
       writeableStateStream<IsPublishedState>(null)
     const [setPushingState, pushingState] =

@@ -9,7 +9,7 @@ import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   Change,
-  createPublicWebHmUrl,
+  createWebHMUrl,
   formattedDateLong,
   NavRoute,
   packHmId,
@@ -124,7 +124,7 @@ function ChangeItem({
   const gwUrl = useGatewayUrl()
   const publicWebUrl =
     parsedEntityId &&
-    createPublicWebHmUrl(parsedEntityId?.type, parsedEntityId?.uid, {
+    createWebHMUrl(parsedEntityId?.type, parsedEntityId?.uid, {
       version: change.id,
       hostname: gwUrl.data,
     })
