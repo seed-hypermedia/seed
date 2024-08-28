@@ -40,7 +40,7 @@ export function createPublicWebHmUrl(
       ? ''
       : hostname
   let res = `${urlHost}${webPath}`
-  if (path) {
+  if (path && path.length) {
     res += `/${path.join('/')}`
   }
   const query: Record<string, string | null> = {}
