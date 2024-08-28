@@ -145,6 +145,19 @@ export const MediaContainer = ({
       width={width}
       alignSelf="center"
       borderWidth={0}
+      draggable="true"
+      onDragStart={(e: any) => {
+        if (!selected) {
+          e.preventDefault()
+          return
+        }
+        e.stopPropagation()
+        editor.sideMenu.blockDragStart(e)
+      }}
+      onDragEnd={(e: any) => {
+        e.stopPropagation()
+        editor.sideMenu.blockDragEnd()
+      }}
       onPress={
         onPress
           ? (e: MouseEvent) => {

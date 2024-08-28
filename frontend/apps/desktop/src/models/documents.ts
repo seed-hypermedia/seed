@@ -425,8 +425,10 @@ export function useDraftEditor({id}: {id: string | undefined}) {
         const rect: DOMRect = domAtPos.node.getBoundingClientRect()
         // Check if the cursor is off screen
         if ((rect && rect.top < 0) || rect.bottom > window.innerHeight) {
-          // Scroll the cursor into view
-          domAtPos.node.scrollIntoView({block: 'center'})
+          // Scroll the cursor into view if not caused by media drag
+          // @ts-ignore
+          if (!editor.sideMenu.sideMenuView?.isDragging)
+            domAtPos.node.scrollIntoView({block: 'center'})
         }
       } catch {}
       return
