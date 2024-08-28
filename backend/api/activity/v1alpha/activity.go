@@ -166,7 +166,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 				Resource: resource,
 			}},
 			Account:     accountID,
-			EventTime:   &timestamppb.Timestamp{Seconds: eventTime / 1000000000, Nanos: int32(eventTime % 1000000000)},
+			EventTime:   &timestamppb.Timestamp{Seconds: eventTime / 1000000000, Nanos: int32(eventTime % 1000000000)}, //nolint:gosec, We won't overflow
 			ObserveTime: &timestamppb.Timestamp{Seconds: observeTime},
 		}
 		events = append(events, &event)
@@ -177,7 +177,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	}
 
 	var nextPageToken string
-	if lastBlobID != 0 && req.PageSize == int32(len(events)) {
+	if lastBlobID != 0 && int(req.PageSize) == len(events) {
 		nextPageToken, err = apiutil.EncodePageToken(lastBlobID-1, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to encode next page token: %w", err)

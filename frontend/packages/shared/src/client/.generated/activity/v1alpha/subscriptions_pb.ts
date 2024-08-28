@@ -13,17 +13,25 @@ import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
  */
 export class SubscribeRequest extends Message<SubscribeRequest> {
   /**
-   * Required. Entity ID of the resource to be subscribed to. 
+   * Required. The ID of the account where the subscribed document is located.
    *
-   * @generated from field: string url = 1;
+   * @generated from field: string account = 1;
    */
-  url = "";
+  account = "";
+
+  /**
+   * Required. Path of the document.
+   * Empty string means root document.
+   *
+   * @generated from field: string path = 2;
+   */
+  path = "";
 
   /**
    * Optional. Indicate if we not only subscribe to the resource 
    * ID above but also to all documents on its directory. 
    *
-   * @generated from field: bool recursive = 2;
+   * @generated from field: bool recursive = 3;
    */
   recursive = false;
 
@@ -35,8 +43,9 @@ export class SubscribeRequest extends Message<SubscribeRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.activity.v1alpha.SubscribeRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SubscribeRequest {
@@ -63,11 +72,19 @@ export class SubscribeRequest extends Message<SubscribeRequest> {
  */
 export class UnsubscribeRequest extends Message<UnsubscribeRequest> {
   /**
-   * Required. Entity Id of the resource to be unsubscribe to. 
+   * Required. The ID of the account where the subscribed document is located.
    *
-   * @generated from field: string url = 1;
+   * @generated from field: string account = 1;
    */
-  url = "";
+  account = "";
+
+  /**
+   * Required. Path of the document.
+   * Empty string means root document.
+   *
+   * @generated from field: string path = 2;
+   */
+  path = "";
 
   constructor(data?: PartialMessage<UnsubscribeRequest>) {
     super();
@@ -77,7 +94,8 @@ export class UnsubscribeRequest extends Message<UnsubscribeRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.activity.v1alpha.UnsubscribeRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UnsubscribeRequest {
@@ -202,24 +220,32 @@ export class ListSubscriptionsResponse extends Message<ListSubscriptionsResponse
  */
 export class Subscription extends Message<Subscription> {
   /**
-   * The entity ID of the subscribed resource.
+   * Account to which the document belongs.
    *
-   * @generated from field: string url = 1;
+   * @generated from field: string account = 1;
    */
-  url = "";
+  account = "";
+
+  /**
+   * Path of the document within the account.
+   * Empty string means root document.
+   *
+   * @generated from field: string path = 2;
+   */
+  path = "";
 
   /**
    * Whether this subscription also subscribes to 
    * all documents in the document's directory.
    *
-   * @generated from field: bool recursive = 2;
+   * @generated from field: bool recursive = 3;
    */
   recursive = false;
 
   /**
    * Timestamp when the user started the subscrition.
    *
-   * @generated from field: google.protobuf.Timestamp since = 3;
+   * @generated from field: google.protobuf.Timestamp since = 4;
    */
   since?: Timestamp;
 
@@ -231,9 +257,10 @@ export class Subscription extends Message<Subscription> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.activity.v1alpha.Subscription";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 3, name: "since", kind: "message", T: Timestamp },
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 4, name: "since", kind: "message", T: Timestamp },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Subscription {

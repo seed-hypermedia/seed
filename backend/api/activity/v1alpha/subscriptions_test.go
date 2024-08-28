@@ -21,7 +21,7 @@ func TestListSubscriptions(t *testing.T) {
 	require.NotNil(t, res)
 	require.Len(t, res.Subscriptions, 0)
 	_, err = alice.Subscribe(ctx, &activity.SubscribeRequest{
-		Url:       "fake_url",
+		Account:   "fake_acc",
 		Recursive: false,
 	})
 	require.Error(t, err)

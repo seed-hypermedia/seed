@@ -10,6 +10,7 @@ import (
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"seed/backend/util/sqlitegen"
+	"strings"
 
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -25,7 +26,7 @@ func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest
 	defer cancel()
 	sqlStr := "INSERT INTO subscriptions (iri, is_recursive) VALUES (?,?)"
 
-	vals = append(vals, req.Url, req.Recursive)
+	vals = append(vals, "hm://"+req.Account+req.Path, req.Recursive)
 	if err := sqlitex.Exec(conn, sqlStr, nil, vals...); err != nil {
 		return &emptypb.Empty{}, err
 	}
@@ -43,10 +44,10 @@ func (srv *Server) Unsubscribe(ctx context.Context, req *activity.UnsubscribeReq
 	const query = `DELETE FROM subscriptions WHERE subscriptions.iri = :id`
 
 	before := func(stmt *sqlite.Stmt) {
-		stmt.SetText(":id", req.Url)
+		stmt.SetText(":id", "hm://"+req.Account+req.Path)
 	}
 
-	onStep := func(i int, stmt *sqlite.Stmt) error {
+	onStep := func(_ int, _ *sqlite.Stmt) error {
 		return nil
 	}
 
@@ -72,11 +73,13 @@ func (srv *Server) ListSubscriptions(ctx context.Context, req *activity.ListSubs
 	var lastBlobID int64
 	err = sqlitex.Exec(conn, qListSubscriptions(), func(stmt *sqlite.Stmt) error {
 		lastBlobID = stmt.ColumnInt64(0)
-		iri := stmt.ColumnText(1)
+		iri := strings.Trim(stmt.ColumnText(1), "hm://")
 		recursive := stmt.ColumnInt(2)
 		insertTime := stmt.ColumnInt64(3)
+		acc := strings.Split(iri, "/")[0]
 		item := activity.Subscription{
-			Url:       iri,
+			Account:   acc,
+			Path:      strings.Trim(iri, acc),
 			Recursive: recursive != 0,
 			Since:     &timestamppb.Timestamp{Seconds: insertTime},
 		}
@@ -89,7 +92,7 @@ func (srv *Server) ListSubscriptions(ctx context.Context, req *activity.ListSubs
 	}
 
 	var nextPageToken string
-	if lastBlobID != 0 && req.PageSize == int32(len(subscriptions)) {
+	if lastBlobID != 0 && int(req.PageSize) == len(subscriptions) {
 		nextPageToken, err = apiutil.EncodePageToken(lastBlobID-1, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to encode next page token: %w", err)

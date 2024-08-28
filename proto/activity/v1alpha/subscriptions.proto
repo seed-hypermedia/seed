@@ -21,18 +21,26 @@ service Subscriptions {
 
 // Subscribe to a resource
 message SubscribeRequest {
-    // Required. Entity ID of the resource to be subscribed to. 
-    string url = 1;
+    // Required. The ID of the account where the subscribed document is located.
+    string account = 1;
+
+    // Required. Path of the document.
+    // Empty string means root document.
+    string path = 2;
 
     // Optional. Indicate if we not only subscribe to the resource 
     // ID above but also to all documents on its directory. 
-    bool recursive = 2;
+    bool recursive = 3;
 }
 
 // Subscribe to a resource
 message UnsubscribeRequest {
-    // Required. Entity Id of the resource to be unsubscribe to. 
-    string url = 1;
+    // Required. The ID of the account where the subscribed document is located.
+    string account = 1;
+
+    // Required. Path of the document.
+    // Empty string means root document.
+    string path = 2;
 }
 
 // Get a list of active subscriptions.
@@ -56,13 +64,17 @@ message ListSubscriptionsResponse {
 
 // Description of the subscription item.
 message Subscription {
-    // The entity ID of the subscribed resource.
-    string url = 1;
+    // Account to which the document belongs.
+    string account = 1;
+
+    // Path of the document within the account.
+    // Empty string means root document.
+    string path = 2;
   
     // Whether this subscription also subscribes to 
     // all documents in the document's directory.
-    bool recursive = 2;
+    bool recursive = 3;
 
     // Timestamp when the user started the subscrition.
-    google.protobuf.Timestamp since = 3;
+    google.protobuf.Timestamp since = 4;
 }
