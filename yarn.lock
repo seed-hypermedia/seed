@@ -2090,7 +2090,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@dnd-kit/core@npm:^6.1.0":
+"@dnd-kit/core@npm:6.1.0":
   version: 6.1.0
   resolution: "@dnd-kit/core@npm:6.1.0"
   dependencies:
@@ -2104,7 +2104,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@dnd-kit/sortable@npm:^8.0.0":
+"@dnd-kit/sortable@npm:8.0.0":
   version: 8.0.0
   resolution: "@dnd-kit/sortable@npm:8.0.0"
   dependencies:
@@ -4755,7 +4755,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@manuscripts/prosemirror-recreate-steps@npm:^0.1.4":
+"@manuscripts/prosemirror-recreate-steps@npm:0.1.4":
   version: 0.1.4
   resolution: "@manuscripts/prosemirror-recreate-steps@npm:0.1.4"
   dependencies:
@@ -6364,66 +6364,66 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@sentry/cli-darwin@npm:2.34.0":
-  version: 2.34.0
-  resolution: "@sentry/cli-darwin@npm:2.34.0"
+"@sentry/cli-darwin@npm:2.34.1":
+  version: 2.34.1
+  resolution: "@sentry/cli-darwin@npm:2.34.1"
   conditions: os=darwin
   languageName: node
   linkType: hard
 
-"@sentry/cli-linux-arm64@npm:2.34.0":
-  version: 2.34.0
-  resolution: "@sentry/cli-linux-arm64@npm:2.34.0"
+"@sentry/cli-linux-arm64@npm:2.34.1":
+  version: 2.34.1
+  resolution: "@sentry/cli-linux-arm64@npm:2.34.1"
   conditions: (os=linux | os=freebsd) & cpu=arm64
   languageName: node
   linkType: hard
 
-"@sentry/cli-linux-arm@npm:2.34.0":
-  version: 2.34.0
-  resolution: "@sentry/cli-linux-arm@npm:2.34.0"
+"@sentry/cli-linux-arm@npm:2.34.1":
+  version: 2.34.1
+  resolution: "@sentry/cli-linux-arm@npm:2.34.1"
   conditions: (os=linux | os=freebsd) & cpu=arm
   languageName: node
   linkType: hard
 
-"@sentry/cli-linux-i686@npm:2.34.0":
-  version: 2.34.0
-  resolution: "@sentry/cli-linux-i686@npm:2.34.0"
+"@sentry/cli-linux-i686@npm:2.34.1":
+  version: 2.34.1
+  resolution: "@sentry/cli-linux-i686@npm:2.34.1"
   conditions: (os=linux | os=freebsd) & (cpu=x86 | cpu=ia32)
   languageName: node
   linkType: hard
 
-"@sentry/cli-linux-x64@npm:2.34.0":
-  version: 2.34.0
-  resolution: "@sentry/cli-linux-x64@npm:2.34.0"
+"@sentry/cli-linux-x64@npm:2.34.1":
+  version: 2.34.1
+  resolution: "@sentry/cli-linux-x64@npm:2.34.1"
   conditions: (os=linux | os=freebsd) & cpu=x64
   languageName: node
   linkType: hard
 
-"@sentry/cli-win32-i686@npm:2.34.0":
-  version: 2.34.0
-  resolution: "@sentry/cli-win32-i686@npm:2.34.0"
+"@sentry/cli-win32-i686@npm:2.34.1":
+  version: 2.34.1
+  resolution: "@sentry/cli-win32-i686@npm:2.34.1"
   conditions: os=win32 & (cpu=x86 | cpu=ia32)
   languageName: node
   linkType: hard
 
-"@sentry/cli-win32-x64@npm:2.34.0":
-  version: 2.34.0
-  resolution: "@sentry/cli-win32-x64@npm:2.34.0"
+"@sentry/cli-win32-x64@npm:2.34.1":
+  version: 2.34.1
+  resolution: "@sentry/cli-win32-x64@npm:2.34.1"
   conditions: os=win32 & cpu=x64
   languageName: node
   linkType: hard
 
 "@sentry/cli@npm:^2.33.1":
-  version: 2.34.0
-  resolution: "@sentry/cli@npm:2.34.0"
+  version: 2.34.1
+  resolution: "@sentry/cli@npm:2.34.1"
   dependencies:
-    "@sentry/cli-darwin": 2.34.0
-    "@sentry/cli-linux-arm": 2.34.0
-    "@sentry/cli-linux-arm64": 2.34.0
-    "@sentry/cli-linux-i686": 2.34.0
-    "@sentry/cli-linux-x64": 2.34.0
-    "@sentry/cli-win32-i686": 2.34.0
-    "@sentry/cli-win32-x64": 2.34.0
+    "@sentry/cli-darwin": 2.34.1
+    "@sentry/cli-linux-arm": 2.34.1
+    "@sentry/cli-linux-arm64": 2.34.1
+    "@sentry/cli-linux-i686": 2.34.1
+    "@sentry/cli-linux-x64": 2.34.1
+    "@sentry/cli-win32-i686": 2.34.1
+    "@sentry/cli-win32-x64": 2.34.1
     https-proxy-agent: ^5.0.0
     node-fetch: ^2.6.7
     progress: ^2.0.3
@@ -6446,7 +6446,7 @@ __metadata:
       optional: true
   bin:
     sentry-cli: bin/sentry-cli
-  checksum: c01c3711475af2d264bab49d2ca584e68b73cf780b1e2ca74c3bc57d5c84534afe540c3f4c830053874916976c03e25be346258af5318acba8a4bc2bbd705040
+  checksum: ce4f0787d47ce504a0613f61ea4eb8fea59aefe217b679c91b0c92014b729026bc63c5109330041caa5b2f23d1327abffc993e0e7c519981dfe28fc7b567d8d4
   languageName: node
   linkType: hard
 
@@ -6572,10 +6572,10 @@ __metadata:
   resolution: "@shm/desktop@workspace:frontend/apps/desktop"
   dependencies:
     "@ariakit/react": 0.3.5
-    "@bufbuild/protobuf": ^1.10.0
+    "@bufbuild/protobuf": 1.10.0
     "@connectrpc/connect-web": 1.1.3
-    "@dnd-kit/core": ^6.1.0
-    "@dnd-kit/sortable": ^8.0.0
+    "@dnd-kit/core": 6.1.0
+    "@dnd-kit/sortable": 8.0.0
     "@electron-forge/cli": 6.4.1
     "@electron-forge/maker-deb": 6.4.1
     "@electron-forge/maker-dmg": 7.1.0
@@ -6592,7 +6592,7 @@ __metadata:
     "@juggle/resize-observer": 3.4.0
     "@mantine/core": 6.0.13
     "@mantine/hooks": 6.0.13
-    "@manuscripts/prosemirror-recreate-steps": ^0.1.4
+    "@manuscripts/prosemirror-recreate-steps": 0.1.4
     "@playwright/test": 1.40.1
     "@radix-ui/colors": 0.1.9
     "@radix-ui/react-dropdown-menu": 2.0.5
@@ -6625,13 +6625,13 @@ __metadata:
     "@trpc/client": 10.40.0
     "@trpc/react-query": 10.40.0
     "@trpc/server": 10.40.0
-    "@types/katex": ^0.16.7
+    "@types/katex": 0.16.7
     "@types/node": 20.6.5
     "@types/prosemirror-dev-tools": 3.0.3
     "@types/react": 18.2.21
     "@types/react-dom": 18.2.7
     "@vitejs/plugin-react": 4.0.4
-    "@xstate/react": ^4.1.1
+    "@xstate/react": 4.1.1
     cheerio: 1.0.0-rc.12
     console-log-colors: 0.4.0
     copy-text-to-clipboard: 3.1.0
@@ -6642,16 +6642,16 @@ __metadata:
     electron-squirrel-startup: 1.0.0
     electron-store: 8.1.0
     electron-trpc: 0.5.2
-    fast-deep-equal: ^3.1.3
+    fast-deep-equal: 3.1.3
     fs-extra: 11.1.1
     graphql-request: 6.0.0
     happy-dom: 7.8.1
     hast-util-from-dom: 4.2.0
     highlight.js: 11.9.0
     jsdom: 22.1.0
-    katex: ^0.16.9
+    katex: 0.16.9
     linkifyjs: 4.1.1
-    lodash: ^4.17.21
+    lodash: 4.17.21
     loglevel: 1.8.1
     lowlight: 3.1.0
     lz-string: 1.5.0
@@ -6668,8 +6668,8 @@ __metadata:
     react-error-boundary: 4.0.11
     react-hook-form: 7.46.1
     react-icons: 4.9.0
-    react-resizable-panels: ^2.0.20
-    react-tweet: ^3.2.0
+    react-resizable-panels: 2.0.20
+    react-tweet: 3.2.0
     rehype: 12.0.1
     rehype-parse: 8.0.4
     rehype-remark: 9.1.2
@@ -6687,7 +6687,7 @@ __metadata:
     vitest: 0.34.2
     winston: 3.11.0
     winston-daily-rotate-file: 4.7.1
-    xstate: beta
+    xstate: 5.17.4
     xvfb-maybe: 0.2.1
     y-prosemirror: 1.2.1
     y-protocols: 1.0.5
@@ -6727,10 +6727,13 @@ __metadata:
     "@bufbuild/protobuf": ^1.10.0
     "@connectrpc/connect-web": 1.1.3
     "@shm/prettier": "*"
-    "@xstate/react": ^4.1.1
+    "@xstate/react": 4.1.1
+    katex: 0.16.9
+    lowlight: 3.1.0
     react-tweet: ^3.2.0
     typescript: 5.5.2
     vitest: 0.34.2
+    xstate: 5.17.4
   languageName: unknown
   linkType: soft
 
@@ -6759,7 +6762,9 @@ __metadata:
     "@tamagui/themes": 1.108.2
     "@tamagui/use-did-finish-ssr": ^1.100.5
     "@tamagui/web": 1.108.2
+    nostr-tools: 1.16.0
     react: 18.2.0
+    react-icons: 4.9.0
     react-native-reanimated: ^3.7.0
     react-virtuoso: 4.6.2
     tamagui: 1.108.2
@@ -7569,90 +7574,90 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@swc/core-darwin-arm64@npm:1.7.19":
-  version: 1.7.19
-  resolution: "@swc/core-darwin-arm64@npm:1.7.19"
+"@swc/core-darwin-arm64@npm:1.7.21":
+  version: 1.7.21
+  resolution: "@swc/core-darwin-arm64@npm:1.7.21"
   conditions: os=darwin & cpu=arm64
   languageName: node
   linkType: hard
 
-"@swc/core-darwin-x64@npm:1.7.19":
-  version: 1.7.19
-  resolution: "@swc/core-darwin-x64@npm:1.7.19"
+"@swc/core-darwin-x64@npm:1.7.21":
+  version: 1.7.21
+  resolution: "@swc/core-darwin-x64@npm:1.7.21"
   conditions: os=darwin & cpu=x64
   languageName: node
   linkType: hard
 
-"@swc/core-linux-arm-gnueabihf@npm:1.7.19":
-  version: 1.7.19
-  resolution: "@swc/core-linux-arm-gnueabihf@npm:1.7.19"
+"@swc/core-linux-arm-gnueabihf@npm:1.7.21":
+  version: 1.7.21
+  resolution: "@swc/core-linux-arm-gnueabihf@npm:1.7.21"
   conditions: os=linux & cpu=arm
   languageName: node
   linkType: hard
 
-"@swc/core-linux-arm64-gnu@npm:1.7.19":
-  version: 1.7.19
-  resolution: "@swc/core-linux-arm64-gnu@npm:1.7.19"
+"@swc/core-linux-arm64-gnu@npm:1.7.21":
+  version: 1.7.21
+  resolution: "@swc/core-linux-arm64-gnu@npm:1.7.21"
   conditions: os=linux & cpu=arm64 & libc=glibc
   languageName: node
   linkType: hard
 
-"@swc/core-linux-arm64-musl@npm:1.7.19":
-  version: 1.7.19
-  resolution: "@swc/core-linux-arm64-musl@npm:1.7.19"
+"@swc/core-linux-arm64-musl@npm:1.7.21":
+  version: 1.7.21
+  resolution: "@swc/core-linux-arm64-musl@npm:1.7.21"
   conditions: os=linux & cpu=arm64 & libc=musl
   languageName: node
   linkType: hard
 
-"@swc/core-linux-x64-gnu@npm:1.7.19":
-  version: 1.7.19
-  resolution: "@swc/core-linux-x64-gnu@npm:1.7.19"
+"@swc/core-linux-x64-gnu@npm:1.7.21":
+  version: 1.7.21
+  resolution: "@swc/core-linux-x64-gnu@npm:1.7.21"
   conditions: os=linux & cpu=x64 & libc=glibc
   languageName: node
   linkType: hard
 
-"@swc/core-linux-x64-musl@npm:1.7.19":
-  version: 1.7.19
-  resolution: "@swc/core-linux-x64-musl@npm:1.7.19"
+"@swc/core-linux-x64-musl@npm:1.7.21":
+  version: 1.7.21
+  resolution: "@swc/core-linux-x64-musl@npm:1.7.21"
   conditions: os=linux & cpu=x64 & libc=musl
   languageName: node
   linkType: hard
 
-"@swc/core-win32-arm64-msvc@npm:1.7.19":
-  version: 1.7.19
-  resolution: "@swc/core-win32-arm64-msvc@npm:1.7.19"
+"@swc/core-win32-arm64-msvc@npm:1.7.21":
+  version: 1.7.21
+  resolution: "@swc/core-win32-arm64-msvc@npm:1.7.21"
   conditions: os=win32 & cpu=arm64
   languageName: node
   linkType: hard
 
-"@swc/core-win32-ia32-msvc@npm:1.7.19":
-  version: 1.7.19
-  resolution: "@swc/core-win32-ia32-msvc@npm:1.7.19"
+"@swc/core-win32-ia32-msvc@npm:1.7.21":
+  version: 1.7.21
+  resolution: "@swc/core-win32-ia32-msvc@npm:1.7.21"
   conditions: os=win32 & cpu=ia32
   languageName: node
   linkType: hard
 
-"@swc/core-win32-x64-msvc@npm:1.7.19":
-  version: 1.7.19
-  resolution: "@swc/core-win32-x64-msvc@npm:1.7.19"
+"@swc/core-win32-x64-msvc@npm:1.7.21":
+  version: 1.7.21
+  resolution: "@swc/core-win32-x64-msvc@npm:1.7.21"
   conditions: os=win32 & cpu=x64
   languageName: node
   linkType: hard
 
 "@swc/core@npm:^1.5.25, @swc/core@npm:^1.5.7":
-  version: 1.7.19
-  resolution: "@swc/core@npm:1.7.19"
+  version: 1.7.21
+  resolution: "@swc/core@npm:1.7.21"
   dependencies:
-    "@swc/core-darwin-arm64": 1.7.19
-    "@swc/core-darwin-x64": 1.7.19
-    "@swc/core-linux-arm-gnueabihf": 1.7.19
-    "@swc/core-linux-arm64-gnu": 1.7.19
-    "@swc/core-linux-arm64-musl": 1.7.19
-    "@swc/core-linux-x64-gnu": 1.7.19
-    "@swc/core-linux-x64-musl": 1.7.19
-    "@swc/core-win32-arm64-msvc": 1.7.19
-    "@swc/core-win32-ia32-msvc": 1.7.19
-    "@swc/core-win32-x64-msvc": 1.7.19
+    "@swc/core-darwin-arm64": 1.7.21
+    "@swc/core-darwin-x64": 1.7.21
+    "@swc/core-linux-arm-gnueabihf": 1.7.21
+    "@swc/core-linux-arm64-gnu": 1.7.21
+    "@swc/core-linux-arm64-musl": 1.7.21
+    "@swc/core-linux-x64-gnu": 1.7.21
+    "@swc/core-linux-x64-musl": 1.7.21
+    "@swc/core-win32-arm64-msvc": 1.7.21
+    "@swc/core-win32-ia32-msvc": 1.7.21
+    "@swc/core-win32-x64-msvc": 1.7.21
     "@swc/counter": ^0.1.3
     "@swc/types": ^0.1.12
   peerDependencies:
@@ -7681,7 +7686,7 @@ __metadata:
   peerDependenciesMeta:
     "@swc/helpers":
       optional: true
-  checksum: 26d176e693d0e6fb395c8189399693e7740bdc6459ff3b12f1e745dc76841853d35f633fde44f7f4f72a2cfaf1008ebd41e68131c846bb62bc135c9edb7e04f4
+  checksum: ac5c10ae6e428ed588ac9d2b18a90baefa2d3900899fc4465a1ec8535fc408fd7920bd4eb08bad8294d3bf65a8bb06b4c92e58be0af612692e898f0c51123e53
   languageName: node
   linkType: hard
 
@@ -9879,7 +9884,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/katex@npm:^0.16.7":
+"@types/katex@npm:0.16.7":
   version: 0.16.7
   resolution: "@types/katex@npm:0.16.7"
   checksum: 4fd15d93553be97c02c064e16be18d7ccbabf66ec72a9dc7fd5bfa47f0c7581da2f942f693c7cb59499de4c843c2189796e49c9647d336cbd52b777b6722a95a
@@ -10736,7 +10741,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@xstate/react@npm:^4.1.1":
+"@xstate/react@npm:4.1.1":
   version: 4.1.1
   resolution: "@xstate/react@npm:4.1.1"
   dependencies:
@@ -15995,7 +16000,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"fast-deep-equal@npm:^3.1.1, fast-deep-equal@npm:^3.1.3":
+"fast-deep-equal@npm:3.1.3, fast-deep-equal@npm:^3.1.1, fast-deep-equal@npm:^3.1.3":
   version: 3.1.3
   resolution: "fast-deep-equal@npm:3.1.3"
   checksum: e21a9d8d84f53493b6aa15efc9cfd53dd5b714a1f23f67fb5dc8f574af80df889b3bce25dc081887c6d25457cce704e636395333abad896ccdec03abaf1f3f9d
@@ -19513,14 +19518,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"katex@npm:^0.16.9":
-  version: 0.16.11
-  resolution: "katex@npm:0.16.11"
+"katex@npm:0.16.9":
+  version: 0.16.9
+  resolution: "katex@npm:0.16.9"
   dependencies:
     commander: ^8.3.0
   bin:
     katex: cli.js
-  checksum: 49d9340705f4922ee22aacedad45664971449e5ca65e42a70228961336c8d4746c37c3c719bcc2114b6ad21182800c7d3d8bea28fe6f951fc45fe7e8322ea3bd
+  checksum: 861194dfd4d86505e657f688fb73048d46ac498edafce71199502a35b03c0ecc35ba930c631be79c4a09d90a0d23476673cd52f6bc367c7a161854d64005fa95
   languageName: node
   linkType: hard
 
@@ -19921,7 +19926,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lodash@npm:^4.17.15, lodash@npm:^4.17.19, lodash@npm:^4.17.20, lodash@npm:^4.17.21, lodash@npm:^4.17.4":
+"lodash@npm:4.17.21, lodash@npm:^4.17.15, lodash@npm:^4.17.19, lodash@npm:^4.17.20, lodash@npm:^4.17.21, lodash@npm:^4.17.4":
   version: 4.17.21
   resolution: "lodash@npm:4.17.21"
   checksum: eb835a2e51d381e561e508ce932ea50a8e5a68f4ebdd771ea240d3048244a8d13658acbd502cd4829768c56f2e16bdd4340b9ea141297d472517b83868e677f7
@@ -24814,13 +24819,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-resizable-panels@npm:^2.0.20":
-  version: 2.1.1
-  resolution: "react-resizable-panels@npm:2.1.1"
+"react-resizable-panels@npm:2.0.20":
+  version: 2.0.20
+  resolution: "react-resizable-panels@npm:2.0.20"
   peerDependencies:
     react: ^16.14.0 || ^17.0.0 || ^18.0.0
     react-dom: ^16.14.0 || ^17.0.0 || ^18.0.0
-  checksum: 0afed2cad98299552f60ae5a81a404813ef391dec4f36f726bc11903bf08b6767fe7aa4b804be0d2eab1bfd783de9c58d5ba78d1de6052f8f2a6e506fdd4640f
+  checksum: 73f42c826037a5027c4112c5d62ded42c122ca2f62210123954923fb000f9b4ce6b9d329284892046fb8b14036b53abc0c5235ef3ec85e53175c0c73ba70844a
   languageName: node
   linkType: hard
 
@@ -24936,6 +24941,21 @@ __metadata:
   peerDependencies:
     react: ^16.8.0 || ^17.0.0 || ^18.0.0
   checksum: b317c3763f37a89621bbafd0e6e2d068e7876790a5ae77f497adfd6ba9334ceea138c8a0b7d907bae0f79c765cb24e8b2ca2b8033b4144c0bce28571a3658921
+  languageName: node
+  linkType: hard
+
+"react-tweet@npm:3.2.0":
+  version: 3.2.0
+  resolution: "react-tweet@npm:3.2.0"
+  dependencies:
+    "@swc/helpers": ^0.5.3
+    clsx: ^2.0.0
+    date-fns: ^2.30.0
+    swr: ^2.2.4
+  peerDependencies:
+    react: ">= 18.0.0"
+    react-dom: ">= 18.0.0"
+  checksum: 55e95d231fc70381ab0a08b87a164f1ad206674cd1ff45528d15ed72620e878d9c2a4275c83369dee4cc41913c74475edd75196aea2f962c9bb520e2fa030966
   languageName: node
   linkType: hard
 
@@ -30299,10 +30319,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"xstate@npm:beta":
-  version: 5.0.0-beta.54
-  resolution: "xstate@npm:5.0.0-beta.54"
-  checksum: 2b2144b0391ad1b1fa32d0dbe2ccce33d01ac685b99b3f3bb517515d66cf6ec1d4f166a31cdb5fd5566559451f829ef110a91619786eb90ccf0711508560588d
+"xstate@npm:5.17.4":
+  version: 5.17.4
+  resolution: "xstate@npm:5.17.4"
+  checksum: 42096288155f18b07d7cb76cff6afcdd1f416922953f526812ca66f79726e122f5f78e870e8b7dc4d1eff72c249b37d350b2d2c23c07e8ce2e6d7696f7cbd8c8
   languageName: node
   linkType: hard
 
