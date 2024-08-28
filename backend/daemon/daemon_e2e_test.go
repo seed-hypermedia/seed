@@ -5,6 +5,7 @@ import (
 	documentsimpl "seed/backend/api/documents/v3alpha"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
+	activity "seed/backend/genproto/activity/v1alpha"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	documents "seed/backend/genproto/documents/v3alpha"
 	entities "seed/backend/genproto/entities/v1alpha"
@@ -407,4 +408,69 @@ func TestSyncingEntity(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, docs.Documents, 1)
 	require.Equal(t, documentsimpl.DocumentToListItem(doc), docs.Documents[0])
+}
+
+func TestSubscriptions(t *testing.T) {
+	t.Parallel()
+
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	ctx := context.Background()
+	aliceIdentity := coretest.NewTester("alice")
+	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
+	doc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceIdentity.Account.Principal().String(),
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice from the Wonderland"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Hello",
+				},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "b1", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b2",
+					Type: "paragraph",
+					Text: "World!",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	_, err = bob.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
+		Addrs: mttnet.AddrInfoToStrings(alice.Net.AddrInfo()),
+	})
+	require.NoError(t, err)
+
+	time.Sleep(time.Millisecond * 500)
+	_, err = bob.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
+		Account:   doc.Account,
+		Path:      doc.Path,
+		Recursive: false,
+	})
+	require.NoError(t, err)
+	res, err := bob.RPC.Activity.ListSubscriptions(ctx, &activity.ListSubscriptionsRequest{})
+	require.NoError(t, err)
+	require.Len(t, res.Subscriptions, 1)
+	require.Equal(t, doc.Account, res.Subscriptions[0].Account)
+	require.Equal(t, doc.Path, res.Subscriptions[0].Path)
+	_, err = bob.RPC.Activity.Unsubscribe(ctx, &activity.UnsubscribeRequest{
+		Account: doc.Account,
+		Path:    doc.Path,
+	})
+	require.NoError(t, err)
+	res, err = bob.RPC.Activity.ListSubscriptions(ctx, &activity.ListSubscriptionsRequest{})
+	require.NoError(t, err)
+	require.Len(t, res.Subscriptions, 0)
 }
