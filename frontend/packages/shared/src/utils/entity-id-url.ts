@@ -176,7 +176,8 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
   if (!hypermediaId) return null
   const parsed = parseCustomURL(hypermediaId)
   if (!parsed) return null
-  let uidOrType, path
+  let uidOrType
+  let path: string[]
   let hostname = null
   if (parsed.scheme === 'https' || parsed.scheme === 'http') {
     if (parsed.path[1] !== 'hm') return null
@@ -199,6 +200,7 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
     uid = uidOrType
     type = 'd'
   }
+  if (restPath.length === 1 && restPath[0] === '') restPath = []
   const version = parsed.query.v || null
   const latest = parsed.query.l !== undefined
   const fragment = parseFragment(parsed.fragment)
