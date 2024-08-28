@@ -73,13 +73,13 @@ func (srv *Server) ListSubscriptions(ctx context.Context, req *activity.ListSubs
 	var lastBlobID int64
 	err = sqlitex.Exec(conn, qListSubscriptions(), func(stmt *sqlite.Stmt) error {
 		lastBlobID = stmt.ColumnInt64(0)
-		iri := strings.Trim(stmt.ColumnText(1), "hm://")
+		iri := strings.TrimPrefix(stmt.ColumnText(1), "hm://")
 		recursive := stmt.ColumnInt(2)
 		insertTime := stmt.ColumnInt64(3)
 		acc := strings.Split(iri, "/")[0]
 		item := activity.Subscription{
 			Account:   acc,
-			Path:      strings.Trim(iri, acc),
+			Path:      strings.TrimPrefix(iri, acc),
 			Recursive: recursive != 0,
 			Since:     &timestamppb.Timestamp{Seconds: insertTime},
 		}
