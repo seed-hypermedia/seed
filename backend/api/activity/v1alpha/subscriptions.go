@@ -23,7 +23,7 @@ func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest
 		return nil, err
 	}
 	defer cancel()
-	sqlStr := "INSERT INTO subscriptions (resource, is_recursive) VALUES (?,?)"
+	sqlStr := "INSERT INTO subscriptions (iri, is_recursive) VALUES (?,?)"
 
 	vals = append(vals, req.Url, req.Recursive)
 	if err := sqlitex.Exec(conn, sqlStr, nil, vals...); err != nil {
@@ -72,11 +72,11 @@ func (srv *Server) ListSubscriptions(ctx context.Context, req *activity.ListSubs
 	var lastBlobID int64
 	err = sqlitex.Exec(conn, qListSubscriptions(), func(stmt *sqlite.Stmt) error {
 		lastBlobID = stmt.ColumnInt64(0)
-		resource := stmt.ColumnText(1)
+		iri := stmt.ColumnText(1)
 		recursive := stmt.ColumnInt(2)
 		insertTime := stmt.ColumnInt64(3)
 		item := activity.Subscription{
-			Url:       resource,
+			Url:       iri,
 			Recursive: recursive != 0,
 			Since:     &timestamppb.Timestamp{Seconds: insertTime},
 		}
@@ -105,7 +105,7 @@ func (srv *Server) ListSubscriptions(ctx context.Context, req *activity.ListSubs
 var qListSubscriptions = dqb.Str(`
 	SELECT 
 		id,
-		resource,
+		iri,
 		is_recursive,
 		insert_time
 	FROM subscriptions
