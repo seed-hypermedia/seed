@@ -23,6 +23,10 @@ service Subscriptions {
 message SubscribeRequest {
     // Required. Entity ID of the resource to be subscribed to. 
     string id = 1;
+
+    // Optional. Indicate if we not only subscribe to the resource 
+    // ID above but also to all documents on its directory. 
+    bool recursive = 2;
 }
 
 // Subscribe to a resource
@@ -55,8 +59,9 @@ message Subscription {
     // The ID of the subscribed resource.
     string id = 1;
   
-    // The Type of subscription
-    Type type = 2;
+    // Whether this subscription also subscribes to 
+    // all documents in the document's directory.
+    bool recursive = 2;
 
     // Timestamp when the user started the subscrition.
     google.protobuf.Timestamp since = 3;
