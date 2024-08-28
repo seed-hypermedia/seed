@@ -1,4 +1,4 @@
-import {GRPCClient, StateStream} from '@shm/shared'
+import {GRPCClient, NavRoute, StateStream, defaultRoute} from '@shm/shared'
 import {
   UnpackedHypermediaId,
   unpackHmId,
@@ -7,7 +7,6 @@ import {useStream, useStreamSelector} from '@shm/ui'
 import {Buffer} from 'buffer'
 import {createContext, useContext} from 'react'
 import {useGRPCClient} from '../app-context'
-import {NavRoute, defaultRoute} from './routes'
 
 global.Buffer = global.Buffer || Buffer
 

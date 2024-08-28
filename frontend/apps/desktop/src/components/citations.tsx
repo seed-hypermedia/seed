@@ -5,10 +5,10 @@ import {useComment} from '@/models/comments'
 import {useEntityMentions} from '@/models/content-graph'
 import {useDocTextContent} from '@/models/documents'
 import {useEntity} from '@/models/entities'
-import {DocumentRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   BlockRange,
+  DocumentRoute,
   ExpandedBlockRange,
   HYPERMEDIA_SCHEME,
   UnpackedHypermediaId,

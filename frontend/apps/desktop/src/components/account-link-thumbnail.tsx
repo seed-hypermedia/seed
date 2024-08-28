@@ -1,7 +1,6 @@
 import {useEntity} from '@/models/entities'
 import {UnpackedHypermediaId} from '@shm/shared'
-import {FontSizeTokens} from '@shm/ui'
-import {LinkThumbnail} from './thumbnail'
+import {FontSizeTokens, LinkThumbnail} from '@shm/ui'
 
 export function EntityLinkThumbnail({
   id,

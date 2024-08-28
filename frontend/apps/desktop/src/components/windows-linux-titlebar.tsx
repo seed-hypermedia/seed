@@ -2,9 +2,9 @@ import {useIPC, useWindowUtils} from '@/app-context'
 import {WindowsLinuxWindowControls} from '@/components/window-controls'
 import {useNavRoute, useNavigationDispatch} from '@/utils/navigation'
 import {useOpenDraft} from '@/utils/open-draft'
-import {defaultRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {useTriggerWindowEvent} from '@/utils/window-events'
+import {defaultRoute} from '@shm/shared'
 import {
   AddSquare,
   Button,

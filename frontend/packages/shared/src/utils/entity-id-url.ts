@@ -239,29 +239,14 @@ export function isPublicGatewayLink(text: string, gwUrl: StateStream<string>) {
   return !!matchesGateway
 }
 
-export function idToUrl(
-  hmId: string,
-  hostname?: string | null | undefined,
-  {
-    version,
-    blockRef,
-    blockRange,
-    path,
-  }: {
-    version?: string | null | undefined
-    blockRef?: string | null | undefined
-    blockRange?: BlockRange | ExpandedBlockRange | null | undefined
-    path?: string[] | null | undefined
-  } = {},
-) {
-  const unpacked = unpackHmId(hmId)
-  if (!unpacked?.type) return null
-  return createPublicWebHmUrl(unpacked.type, unpacked.uid, {
-    version: version || unpacked.version,
-    blockRef: blockRef || unpacked.blockRef,
-    blockRange: blockRange || unpacked.blockRange,
-    path: path || unpacked.path,
-    hostname,
+export function idToUrl(hmId: UnpackedHypermediaId) {
+  if (!hmId?.type) return null
+  return createPublicWebHmUrl(hmId.type, hmId.uid, {
+    version: hmId.version,
+    blockRef: hmId.blockRef,
+    blockRange: hmId.blockRange,
+    path: hmId.path,
+    hostname: hmId.hostname,
   })
 }
 

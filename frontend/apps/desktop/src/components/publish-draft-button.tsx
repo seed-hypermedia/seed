@@ -3,11 +3,24 @@ import {useMyAccountsWithWriteAccess} from '@/models/access-control'
 import {useEntity} from '@/models/entities'
 import {trpc} from '@/trpc'
 import {useNavRoute} from '@/utils/navigation'
-import {DraftRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {PlainMessage} from '@bufbuild/protobuf'
-import {Document, HMEntityContent, hmId, packHmId} from '@shm/shared'
-import {Button, Spinner, Tooltip, XGroup, YStack, YStackProps} from '@shm/ui'
+import {
+  Document,
+  DraftRoute,
+  HMEntityContent,
+  hmId,
+  packHmId,
+} from '@shm/shared'
+import {
+  Button,
+  Spinner,
+  Thumbnail,
+  Tooltip,
+  XGroup,
+  YStack,
+  YStackProps,
+} from '@shm/ui'
 import {AlertCircle, Check, ChevronDown} from '@tamagui/lucide-icons'
 import {PropsWithChildren, useEffect, useState} from 'react'
 import {createMachine} from 'xstate'
@@ -15,7 +28,6 @@ import {useQueryInvalidator} from '../app-context'
 import {useDraft} from '../models/accounts'
 import {draftDispatch, usePublishDraft} from '../models/documents'
 import {OptionsDropdown} from './options-dropdown'
-import {Thumbnail} from './thumbnail'
 
 export default function PublishDraftButton() {
   const route = useNavRoute()

@@ -6,9 +6,13 @@ import {
   useRouteEntities,
 } from '@/models/entities'
 import {useNavRoute} from '@/utils/navigation'
-import {DocumentRoute, DraftRoute, NavRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
-import {getDocumentTitle} from '@shm/shared'
+import {
+  DocumentRoute,
+  DraftRoute,
+  getDocumentTitle,
+  NavRoute,
+} from '@shm/shared'
 import {
   Button,
   ButtonText,

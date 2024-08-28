@@ -8,10 +8,10 @@ import {Button} from "@tamagui/button";
 import {Stack} from "@tamagui/core";
 import {Separator} from "@tamagui/separator";
 import {XStack, YStack} from "@tamagui/stacks";
-import {Thumbnail} from "./ui/thumbnail";
 
 import {getRandomColor} from "@shm/ui/src/avatar";
 import {Container} from "@shm/ui/src/container";
+import {Thumbnail} from "@shm/ui/src/thumbnail";
 import {Menu, Search} from "@tamagui/lucide-icons";
 import {H1, SizableText} from "@tamagui/text";
 import {useMemo} from "react";

@@ -2,7 +2,6 @@ import {useAppContext} from '@/app-context'
 import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
 import {MainWrapper} from '@/components/main-wrapper'
-import {LinkThumbnail, Thumbnail} from '@/components/thumbnail'
 import {
   FilterItem,
   LibraryData,
@@ -12,9 +11,9 @@ import {
 } from '@/models/library'
 import {usePopoverState} from '@/use-popover-state'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
-import {DocumentRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {
+  DocumentRoute,
   formattedDate,
   getDocumentTitle,
   getMetadataName,
@@ -26,11 +25,13 @@ import {
   Checkbox,
   Container,
   Input,
+  LinkThumbnail,
   Popover,
   Separator,
   SizableText,
   SizeTokens,
   Text,
+  Thumbnail,
   toast,
   XStack,
   YGroup,

@@ -10,7 +10,6 @@ import {LinkNameComponent} from '@/components/document-name'
 import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
 import {SidebarSpacer} from '@/components/main-wrapper'
-import {Thumbnail} from '@/components/thumbnail'
 import {CopyReferenceButton} from '@/components/titlebar-common'
 import '@/editor/editor.css'
 import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
@@ -39,6 +38,7 @@ import {
   SizableText,
   Spinner,
   SuggestedChangesIcon,
+  Thumbnail,
   Tooltip,
   Separator as TSeparator,
   XStack,

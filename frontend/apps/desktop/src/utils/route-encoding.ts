@@ -1,5 +1,5 @@
+import {NavRoute} from '@shm/shared'
 import {Buffer} from 'buffer'
-import {NavRoute} from './routes'
 
 export function encodeRouteToPath(route: NavRoute): string {
   return `/${Buffer.from(JSON.stringify(route))

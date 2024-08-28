@@ -1,5 +1,9 @@
 import {client} from '@/trpc'
-import {writeableStateStream} from '@shm/shared'
+import {
+  defaultRoute,
+  UniversalRoutingProvider,
+  writeableStateStream,
+} from '@shm/shared'
 import {ReactNode, useEffect, useMemo} from 'react'
 import {useIPC} from '../app-context'
 import {useConfirmConnection} from '../components/contacts-prompt'
@@ -10,7 +14,6 @@ import {
   navStateReducer,
   setAppNavDispatch,
 } from './navigation'
-import {defaultRoute} from './routes'
 import {AppWindowEvent} from './window-events'
 
 export function NavigationContainer({
@@ -69,10 +72,14 @@ export function NavigationContainer({
   }, [])
 
   return (
-    <NavContextProvider value={navigation}>
-      {children}
-      <ConnectionConfirmer />
-    </NavContextProvider>
+    <UniversalRoutingProvider
+      value={{openRoute: (route) => navigation.dispatch({type: 'push', route})}}
+    >
+      <NavContextProvider value={navigation}>
+        {children}
+        <ConnectionConfirmer />
+      </NavContextProvider>
+    </UniversalRoutingProvider>
   )
 }
 

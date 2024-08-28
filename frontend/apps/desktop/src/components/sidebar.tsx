@@ -4,18 +4,20 @@ import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
 import {useEntities, useEntity} from '@/models/entities'
 import {useFavorites} from '@/models/favorites'
 import {appRouteOfId, useNavRoute} from '@/utils/navigation'
-import {DocumentRoute, DraftRoute, NavRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {
+  DocumentRoute,
+  DraftRoute,
   getDocumentTitle,
   getDraftNodesOutline,
   getNodesOutline,
   HMBlockNode,
   hmId,
+  NavRoute,
   NodesOutline,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {Button, getBlockNodeById, Tooltip} from '@shm/ui'
+import {Button, getBlockNodeById, Thumbnail, Tooltip} from '@shm/ui'
 import {
   Contact,
   Folder,
@@ -35,7 +37,6 @@ import {
   SidebarGroupItem,
   SidebarItem,
 } from './sidebar-base'
-import {Thumbnail} from './thumbnail'
 
 export const AppSidebar = memo(MainAppSidebar)
 

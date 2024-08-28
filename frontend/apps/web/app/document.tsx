@@ -18,13 +18,15 @@ import {Text} from "@tamagui/core";
 //   Overlay as SheetOverlay,
 //   SheetScrollView,
 // } from "@tamagui/sheet";
+import {DirectoryItem} from "@shm/ui/src/directory";
+import {Spinner} from "@shm/ui/src/spinner";
 import {ButtonText} from "@tamagui/button";
 import {YStack} from "@tamagui/stacks";
 import {useEffect, useMemo, useState} from "react";
 import {deserialize} from "superjson";
 import type {hmDocumentLoader, hmDocumentPayload} from "./loaders";
 import {PageHeader} from "./page-header";
-import type {HMDirectory} from "./routes/hm.api.directory";
+import type {DirectoryPayload} from "./routes/hm.api.directory";
 import {unwrap} from "./wrapping";
 
 export const documentPageMeta: MetaFunction<hmDocumentLoader> = ({
@@ -189,12 +191,28 @@ function DocumentDirectory({id}: {id: UnpackedHypermediaId}) {
   useEffect(() => {
     fetcher.load(`/hm/api/directory?id=${id.id}`);
   }, []);
-  if (fetcher.data?.error)
-    return <ErrorComponent error={fetcher.data?.error} />;
+  const response = fetcher.data
+    ? unwrap<DirectoryPayload>(fetcher.data)
+    : undefined;
+  if (response?.error) return <ErrorComponent error={response?.error} />;
+  if (!response) return <Spinner />;
+  const {directory, authorsMetadata} = response;
+  if (!authorsMetadata) return null;
+  return (
+    <YStack paddingVertical="$4">
+      {directory?.map((doc) => (
+        <DirectoryItem
+          entry={doc}
+          authorsMetadata={authorsMetadata}
+          PathButton={PathButton}
+        />
+      ))}
+    </YStack>
+  );
+}
 
-  const directory = unwrap<HMDirectory>(fetcher.data?.directory);
-  return directory?.documents.map((doc) => <Text>{doc.metadata?.name}</Text>);
-  // return <Text>{JSON.stringify(fetcher.data?.id)}</Text>;
+function PathButton() {
+  return null;
 }
 
 function ErrorComponent({error}: {error: string}) {

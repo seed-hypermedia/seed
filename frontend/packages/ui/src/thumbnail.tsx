@@ -1,28 +1,30 @@
-import {useNavigate} from '@/utils/useNavigate'
 import {
   getFileUrl,
   getMetadataName,
   HMMetadata,
   UnpackedHypermediaId,
-} from '@shm/shared'
-import {Tooltip, UIAvatar, UIAvatarProps} from '@shm/ui'
-import {AlertCircle} from '@tamagui/lucide-icons'
-import {memo} from 'react'
-import {Button, YStack} from 'tamagui'
+  useRouteLink,
+} from "@shm/shared";
+import {Button} from "@tamagui/button";
+import {AlertCircle} from "@tamagui/lucide-icons";
+import {YStack} from "@tamagui/stacks";
+import {memo} from "react";
+import {UIAvatar, UIAvatarProps} from "./avatar";
+import {Tooltip} from "./tooltip";
 
-export const Thumbnail = memo(_Thumbnail)
+export const Thumbnail = memo(_Thumbnail);
 
 function _Thumbnail({
   id,
   metadata,
   size = 32,
   ...props
-}: Omit<UIAvatarProps, 'id'> & {
-  id: UnpackedHypermediaId
-  metadata?: HMMetadata | null
-  size?: number
+}: Omit<UIAvatarProps, "id"> & {
+  id: UnpackedHypermediaId;
+  metadata?: HMMetadata | null;
+  size?: number;
 }) {
-  if (!id) return null
+  if (!id) return null;
 
   return (
     <UIAvatar
@@ -32,9 +34,11 @@ function _Thumbnail({
       label={metadata?.name}
       url={getFileUrl(metadata?.thumbnail)}
       borderRadius={id.path && id.path.length != 0 ? size / 8 : undefined}
+      flexShrink={0}
+      flexGrow={0}
       {...props}
     />
-  )
+  );
 }
 
 export function LinkThumbnail({
@@ -43,18 +47,18 @@ export function LinkThumbnail({
   size,
   error,
 }: {
-  id: UnpackedHypermediaId
-  metadata?: HMMetadata | null
-  size?: number
-  error?: boolean
+  id: UnpackedHypermediaId;
+  metadata?: HMMetadata | null;
+  size?: number;
+  error?: boolean;
 }) {
-  const navigate = useNavigate()
+  const linkProps = useRouteLink({key: "document", id});
   let content = (
     <>
       <Thumbnail id={id} size={size} metadata={metadata} />
       <ErrorDot error={error} />
     </>
-  )
+  );
 
   return (
     <Tooltip
@@ -67,22 +71,18 @@ export function LinkThumbnail({
         className="no-window-drag"
         size="$1"
         backgroundColor="transparent"
-        hoverStyle={{backgroundColor: 'transparent'}}
+        hoverStyle={{backgroundColor: "transparent"}}
         minWidth={20}
         minHeight={20}
         padding={0}
-        onPress={(e: MouseEvent) => {
-          e.preventDefault()
-          e.stopPropagation()
-          navigate({key: 'document', id})
-        }}
+        {...linkProps}
         position="relative"
         height={size}
       >
         {content}
       </Button>
     </Tooltip>
-  )
+  );
 }
 
 export function ErrorDot({error}: {error?: boolean}) {
@@ -101,5 +101,5 @@ export function ErrorDot({error}: {error?: boolean}) {
     >
       <AlertCircle size={16} />
     </YStack>
-  ) : null
+  ) : null;
 }

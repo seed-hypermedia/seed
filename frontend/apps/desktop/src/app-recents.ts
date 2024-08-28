@@ -1,4 +1,4 @@
-import {NavRoute, getRecentsRouteEntityUrl} from '@/utils/routes'
+import {NavRoute, getRecentsRouteEntityUrl} from '@shm/shared'
 import {z} from 'zod'
 import {invalidateQueries} from './app-invalidation'
 import {appStore} from './app-store'

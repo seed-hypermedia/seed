@@ -1,6 +1,6 @@
 import {resolveHmIdToAppRoute} from '@/utils/navigation'
-import {NavRoute, defaultRoute, navRouteSchema} from '@/utils/routes'
 import type {AppWindowEvent} from '@/utils/window-events'
+import {NavRoute, defaultRoute, navRouteSchema} from '@shm/shared'
 import {DAEMON_HTTP_URL} from '@shm/shared/src/constants'
 
 import {

@@ -1,7 +1,7 @@
 import {trpc} from '@/trpc'
+import {getRecentsRouteEntityUrl} from '@shm/shared'
 import {useQueryInvalidator} from '../app-context'
 import {useNavRoute} from '../utils/navigation'
-import {getRecentsRouteEntityUrl} from '../utils/routes'
 
 export function useRecents() {
   const route = useNavRoute()

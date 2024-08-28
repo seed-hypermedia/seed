@@ -1,31 +1,32 @@
 import {ImportButton} from '@/components/import-doc-button'
 import {useMyCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
-import {
-  HMDocumentListItem,
-  useDraftList,
-  useListDirectory,
-} from '@/models/documents'
+import {useDraftList, useListDirectory} from '@/models/documents'
 import {useEntities} from '@/models/entities'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {
-  formattedDate,
   formattedDateLong,
   formattedDateMedium,
-  getMetadataName,
-  HMDocument,
   hmId,
+  HMMetadata,
   packHmId,
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
-import {Button, SizableText, Text, Tooltip, XStack, YStack} from '@shm/ui'
-import {Copy, FilePlus, Pencil} from '@tamagui/lucide-icons'
+import {
+  Button,
+  DirectoryItem,
+  itemHoverBgColor,
+  SizableText,
+  Thumbnail,
+  Tooltip,
+  XStack,
+  YStack,
+} from '@shm/ui'
+import {Copy, FilePlus} from '@tamagui/lucide-icons'
 import {nanoid} from 'nanoid'
 import {useMemo} from 'react'
-import {FavoriteButton} from './favoriting'
-import {LinkThumbnail, Thumbnail} from './thumbnail'
 
 export function Directory({docId}: {docId: UnpackedHypermediaId}) {
   const dir = useListDirectory(docId)
@@ -54,6 +55,8 @@ export function Directory({docId}: {docId: UnpackedHypermediaId}) {
               }
               return {
                 ...dirItem,
+                metadata: dirItem.metadata,
+                path: dirItem.path.join('/'),
                 id,
                 hasDraft,
               }
@@ -84,7 +87,7 @@ export function Directory({docId}: {docId: UnpackedHypermediaId}) {
       })}
 
       {directory.map((item) => (
-        <DirectoryItem key={item.id.id} entry={item} />
+        <DirectoryItemWithAuthors key={item.id.id} entry={item} />
       ))}
 
       <DocCreation id={docId} />
@@ -157,10 +160,16 @@ function DraftItem({id}: {id: UnpackedHypermediaId}) {
             </SizableText>
           </XStack>
           <PathButton
-            name={draft.data?.metadata?.name}
             isDraft
-            path={id.path}
-            onCopy={() => {}}
+            path={
+              !!draft.data?.metadata?.name &&
+              id.path &&
+              id.path.at(-1)?.startsWith('_')
+                ? `/${pathNameify(draft.data.metadata.name)}`
+                : id.path
+                ? `/${id.path.at(-1)}`
+                : ''
+            }
           />
         </YStack>
       </XStack>
@@ -188,81 +197,16 @@ function DraftItem({id}: {id: UnpackedHypermediaId}) {
   )
 }
 
-const itemHoverBgColor = '$color5'
-
-// TODO: update types
-function DirectoryItem({
+function DirectoryItemWithAuthors({
   entry,
 }: {
-  entry: HMDocumentListItem & {id: UnpackedHypermediaId; hasDraft: boolean}
-}) {
-  const navigate = useNavigate()
-  const metadata = entry?.metadata
-  return (
-    <Button
-      group="item"
-      borderWidth={0}
-      hoverStyle={{
-        bg: itemHoverBgColor,
-      }}
-      w="100%"
-      paddingHorizontal={16}
-      paddingVertical="$1"
-      onPress={() => {
-        navigate({key: 'document', id: entry.id})
-      }}
-      h={60}
-      icon={
-        entry.metadata.thumbnail ? (
-          <Thumbnail size={40} id={entry.id} metadata={entry.metadata} />
-        ) : undefined
-      }
-    >
-      <XStack gap="$2" ai="center" f={1} paddingVertical="$2">
-        <YStack f={1} gap="$1.5">
-          <XStack ai="center" gap="$2" paddingLeft={4} f={1} w="100%">
-            <SizableText
-              fontWeight="bold"
-              textOverflow="ellipsis"
-              whiteSpace="nowrap"
-              overflow="hidden"
-            >
-              {getMetadataName(metadata)}
-            </SizableText>
-          </XStack>
-          <PathButton path={entry.path} onCopy={() => {}} />
-        </YStack>
-      </XStack>
-      <XStack gap="$3" ai="center">
-        <FavoriteButton id={entry.id} hideUntilItemHover />
-
-        {entry.hasDraft ? (
-          <Button
-            theme="yellow"
-            icon={Pencil}
-            size="$2"
-            onPress={(e: MouseEvent) => {
-              e.stopPropagation()
-              navigate({key: 'draft', id: entry.id})
-            }}
-          >
-            Resume Editing
-          </Button>
-        ) : (
-          <SizableText size="$1">{formattedDate(entry.updateTime)}</SizableText>
-        )}
-        <XStack>
-          <DocumentEditors entry={entry} />
-        </XStack>
-      </XStack>
-    </Button>
-  )
-}
-
-function DocumentEditors({
-  entry,
-}: {
-  entry: HMDocumentListItem & {id: UnpackedHypermediaId; hasDraft?: boolean}
+  entry: {
+    id: UnpackedHypermediaId
+    hasDraft?: boolean
+    authors: string[]
+    path: string
+    metadata: HMMetadata
+  }
 }) {
   const editorIds = useMemo(
     () =>
@@ -270,60 +214,18 @@ function DocumentEditors({
     [entry.authors],
   )
   const editors = useEntities(editorIds.map((id) => hmId('d', id)))
+  const authorsMetadata = editors.map((author) => {
+    return {
+      uid: author.data!.id!.uid,
+      metadata: author.data?.document?.metadata,
+    }
+  })
   return (
-    <>
-      {/* todo add author data here */}
-      {editors.map((author, idx) =>
-        author.data?.id ? (
-          <XStack
-            zIndex={idx + 1}
-            key={editorIds[idx]}
-            borderColor="$background"
-            backgroundColor="$background"
-            $group-item-hover={{
-              borderColor: itemHoverBgColor,
-              backgroundColor: itemHoverBgColor,
-            }}
-            borderWidth={2}
-            borderRadius={100}
-            overflow="hidden"
-            marginLeft={-8}
-            animation="fast"
-          >
-            <LinkThumbnail
-              key={author.data?.id.id}
-              id={author.data?.id!}
-              metadata={author.data?.document?.metadata}
-              size={20}
-            />
-          </XStack>
-        ) : null,
-      )}
-      {entry.authors.length > editors.length && editors.length != 0 ? (
-        <XStack
-          zIndex={editors.length}
-          borderColor="$background"
-          backgroundColor="$background"
-          borderWidth={2}
-          borderRadius={100}
-          marginLeft={-8}
-          animation="fast"
-          width={24}
-          height={24}
-          ai="center"
-          jc="center"
-        >
-          <Text
-            fontSize={10}
-            fontFamily="$body"
-            fontWeight="bold"
-            color="$color10"
-          >
-            +{entry.authors.length - editors.length - 1}
-          </Text>
-        </XStack>
-      ) : null}
-    </>
+    <DirectoryItem
+      PathButton={PathButton}
+      entry={entry}
+      authorsMetadata={authorsMetadata}
+    />
   )
 }
 
@@ -357,15 +259,11 @@ function NewSubDocumentButton({
 }
 
 function PathButton({
-  name,
   path,
-  onCopy,
   isDraft = false,
 }: {
-  path: UnpackedHypermediaId['path'] | HMDocument['path']
-  name?: string
+  path: string
   isDraft?: boolean
-  onCopy: () => void
 }) {
   return (
     <XStack
@@ -374,7 +272,6 @@ function PathButton({
       ai="center"
       gap="$2"
       onPress={(e: MouseEvent) => {
-        onCopy()
         e.stopPropagation()
         e.preventDefault()
       }}
@@ -393,11 +290,7 @@ function PathButton({
         whiteSpace="nowrap"
         overflow="hidden"
       >
-        {!!name && path && path.at(-1)?.startsWith('_')
-          ? `/${pathNameify(name)}`
-          : path
-          ? `/${path.at(-1)}`
-          : ''}
+        {path}
       </SizableText>
       {!isDraft ? (
         <Copy

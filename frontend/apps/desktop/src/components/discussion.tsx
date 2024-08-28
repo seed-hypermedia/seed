@@ -28,6 +28,7 @@ import {
   SelectDropdown,
   SizableText,
   Stack,
+  Thumbnail,
   Tooltip,
   useStream,
   View,
@@ -37,7 +38,6 @@ import {
 import {ChevronDown, ChevronRight, Trash} from '@tamagui/lucide-icons'
 import {useEffect, useState} from 'react'
 import {HyperMediaEditorView} from './editor'
-import {Thumbnail} from './thumbnail'
 
 const lineColor = '$blue7'
 const lineWidth = 1

@@ -13,13 +13,13 @@ import {
   resolveHmIdToAppRoute,
   useHmIdToAppRouteResolver,
 } from '@/utils/navigation'
-import {NavRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {
   GRPCClient,
   HYPERMEDIA_ENTITY_TYPES,
   HYPERMEDIA_SCHEME,
+  NavRoute,
   hmIdWithVersion,
   isHypermediaScheme,
   parseCustomURL,

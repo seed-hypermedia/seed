@@ -1,7 +1,6 @@
 import {useIPC, useQueryInvalidator} from '@/app-context'
 import {ThumbnailForm} from '@/components/avatar-form'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
-import {Thumbnail} from '@/components/thumbnail'
 import appError from '@/errors'
 import {useAutoUpdatePreference} from '@/models/app-settings'
 import {
@@ -68,6 +67,7 @@ import {
   TabsContentProps,
   TabsProps,
   TextArea,
+  Thumbnail,
   toast,
   Tooltip,
   View,

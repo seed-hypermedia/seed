@@ -6327,10 +6327,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@sentry/babel-plugin-component-annotate@npm:2.22.2":
-  version: 2.22.2
-  resolution: "@sentry/babel-plugin-component-annotate@npm:2.22.2"
-  checksum: 304db71fd3abddafb565a1737f39aabb11d59067037db3a19883d43487ca20674ac5d7b6b73a9edb32eb8d317089bbefc3ddade92894042c2c0998b702f1d26c
+"@sentry/babel-plugin-component-annotate@npm:2.22.3":
+  version: 2.22.3
+  resolution: "@sentry/babel-plugin-component-annotate@npm:2.22.3"
+  checksum: 8dccbe700ffdd4cbdbcf2466d342fba40b3619aef06aa855205a9fa09707a92e80cb401cd341bed1ebe77d28b96fd11a06a6e78ba12b8045b52201f89cb6eced
   languageName: node
   linkType: hard
 
@@ -6348,82 +6348,82 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@sentry/bundler-plugin-core@npm:2.22.2":
-  version: 2.22.2
-  resolution: "@sentry/bundler-plugin-core@npm:2.22.2"
+"@sentry/bundler-plugin-core@npm:2.22.3":
+  version: 2.22.3
+  resolution: "@sentry/bundler-plugin-core@npm:2.22.3"
   dependencies:
     "@babel/core": ^7.18.5
-    "@sentry/babel-plugin-component-annotate": 2.22.2
+    "@sentry/babel-plugin-component-annotate": 2.22.3
     "@sentry/cli": ^2.33.1
     dotenv: ^16.3.1
     find-up: ^5.0.0
     glob: ^9.3.2
     magic-string: 0.30.8
     unplugin: 1.0.1
-  checksum: 24e95bd320a77c053b775e025ec21b5be62ffd033b835bc906b54dc1c1e1d35dee946f92cff3f34b96493f664e7a75aac4181d66d1a97ec328aa8e71742cc039
+  checksum: cbf7befb78ecf2c1cd0af9b22c26acb7da63c030309452172a34146e834c644dcd24538eedfa6e4296c51bbf46fd1ab50c2b2f108d26c16d8169b7eb29f1e53c
   languageName: node
   linkType: hard
 
-"@sentry/cli-darwin@npm:2.33.1":
-  version: 2.33.1
-  resolution: "@sentry/cli-darwin@npm:2.33.1"
+"@sentry/cli-darwin@npm:2.34.0":
+  version: 2.34.0
+  resolution: "@sentry/cli-darwin@npm:2.34.0"
   conditions: os=darwin
   languageName: node
   linkType: hard
 
-"@sentry/cli-linux-arm64@npm:2.33.1":
-  version: 2.33.1
-  resolution: "@sentry/cli-linux-arm64@npm:2.33.1"
+"@sentry/cli-linux-arm64@npm:2.34.0":
+  version: 2.34.0
+  resolution: "@sentry/cli-linux-arm64@npm:2.34.0"
   conditions: (os=linux | os=freebsd) & cpu=arm64
   languageName: node
   linkType: hard
 
-"@sentry/cli-linux-arm@npm:2.33.1":
-  version: 2.33.1
-  resolution: "@sentry/cli-linux-arm@npm:2.33.1"
+"@sentry/cli-linux-arm@npm:2.34.0":
+  version: 2.34.0
+  resolution: "@sentry/cli-linux-arm@npm:2.34.0"
   conditions: (os=linux | os=freebsd) & cpu=arm
   languageName: node
   linkType: hard
 
-"@sentry/cli-linux-i686@npm:2.33.1":
-  version: 2.33.1
-  resolution: "@sentry/cli-linux-i686@npm:2.33.1"
+"@sentry/cli-linux-i686@npm:2.34.0":
+  version: 2.34.0
+  resolution: "@sentry/cli-linux-i686@npm:2.34.0"
   conditions: (os=linux | os=freebsd) & (cpu=x86 | cpu=ia32)
   languageName: node
   linkType: hard
 
-"@sentry/cli-linux-x64@npm:2.33.1":
-  version: 2.33.1
-  resolution: "@sentry/cli-linux-x64@npm:2.33.1"
+"@sentry/cli-linux-x64@npm:2.34.0":
+  version: 2.34.0
+  resolution: "@sentry/cli-linux-x64@npm:2.34.0"
   conditions: (os=linux | os=freebsd) & cpu=x64
   languageName: node
   linkType: hard
 
-"@sentry/cli-win32-i686@npm:2.33.1":
-  version: 2.33.1
-  resolution: "@sentry/cli-win32-i686@npm:2.33.1"
+"@sentry/cli-win32-i686@npm:2.34.0":
+  version: 2.34.0
+  resolution: "@sentry/cli-win32-i686@npm:2.34.0"
   conditions: os=win32 & (cpu=x86 | cpu=ia32)
   languageName: node
   linkType: hard
 
-"@sentry/cli-win32-x64@npm:2.33.1":
-  version: 2.33.1
-  resolution: "@sentry/cli-win32-x64@npm:2.33.1"
+"@sentry/cli-win32-x64@npm:2.34.0":
+  version: 2.34.0
+  resolution: "@sentry/cli-win32-x64@npm:2.34.0"
   conditions: os=win32 & cpu=x64
   languageName: node
   linkType: hard
 
 "@sentry/cli@npm:^2.33.1":
-  version: 2.33.1
-  resolution: "@sentry/cli@npm:2.33.1"
+  version: 2.34.0
+  resolution: "@sentry/cli@npm:2.34.0"
   dependencies:
-    "@sentry/cli-darwin": 2.33.1
-    "@sentry/cli-linux-arm": 2.33.1
-    "@sentry/cli-linux-arm64": 2.33.1
-    "@sentry/cli-linux-i686": 2.33.1
-    "@sentry/cli-linux-x64": 2.33.1
-    "@sentry/cli-win32-i686": 2.33.1
-    "@sentry/cli-win32-x64": 2.33.1
+    "@sentry/cli-darwin": 2.34.0
+    "@sentry/cli-linux-arm": 2.34.0
+    "@sentry/cli-linux-arm64": 2.34.0
+    "@sentry/cli-linux-i686": 2.34.0
+    "@sentry/cli-linux-x64": 2.34.0
+    "@sentry/cli-win32-i686": 2.34.0
+    "@sentry/cli-win32-x64": 2.34.0
     https-proxy-agent: ^5.0.0
     node-fetch: ^2.6.7
     progress: ^2.0.3
@@ -6446,7 +6446,7 @@ __metadata:
       optional: true
   bin:
     sentry-cli: bin/sentry-cli
-  checksum: e46a00898f1d965f427fcce98072ede4d0f70af53f35e200a7d1281e60c848d3a498a080e9ae92d7ffc542e85f4674a7fa64e3dc0dd3942af0bae86078b53673
+  checksum: c01c3711475af2d264bab49d2ca584e68b73cf780b1e2ca74c3bc57d5c84534afe540c3f4c830053874916976c03e25be346258af5318acba8a4bc2bbd705040
   languageName: node
   linkType: hard
 
@@ -6558,12 +6558,12 @@ __metadata:
   linkType: hard
 
 "@sentry/vite-plugin@npm:latest":
-  version: 2.22.2
-  resolution: "@sentry/vite-plugin@npm:2.22.2"
+  version: 2.22.3
+  resolution: "@sentry/vite-plugin@npm:2.22.3"
   dependencies:
-    "@sentry/bundler-plugin-core": 2.22.2
+    "@sentry/bundler-plugin-core": 2.22.3
     unplugin: 1.0.1
-  checksum: f228ed011292938742181ed824128c18432766a11098dc590b6ec2042dc46abe3db297c61515201fe9775a7c149e77af25014ace50bea1e713bfaad304c9ccf7
+  checksum: 5168f43fc9ddedbcd98b38b4e50902ffa0f029353b73e6c8fb98e4d45c31deab18498ceea4438c963f0c0328f25bd46bef09b01f5ab723ecc694ff66ae3c97bd
   languageName: node
   linkType: hard
 
@@ -7569,90 +7569,90 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@swc/core-darwin-arm64@npm:1.7.18":
-  version: 1.7.18
-  resolution: "@swc/core-darwin-arm64@npm:1.7.18"
+"@swc/core-darwin-arm64@npm:1.7.19":
+  version: 1.7.19
+  resolution: "@swc/core-darwin-arm64@npm:1.7.19"
   conditions: os=darwin & cpu=arm64
   languageName: node
   linkType: hard
 
-"@swc/core-darwin-x64@npm:1.7.18":
-  version: 1.7.18
-  resolution: "@swc/core-darwin-x64@npm:1.7.18"
+"@swc/core-darwin-x64@npm:1.7.19":
+  version: 1.7.19
+  resolution: "@swc/core-darwin-x64@npm:1.7.19"
   conditions: os=darwin & cpu=x64
   languageName: node
   linkType: hard
 
-"@swc/core-linux-arm-gnueabihf@npm:1.7.18":
-  version: 1.7.18
-  resolution: "@swc/core-linux-arm-gnueabihf@npm:1.7.18"
+"@swc/core-linux-arm-gnueabihf@npm:1.7.19":
+  version: 1.7.19
+  resolution: "@swc/core-linux-arm-gnueabihf@npm:1.7.19"
   conditions: os=linux & cpu=arm
   languageName: node
   linkType: hard
 
-"@swc/core-linux-arm64-gnu@npm:1.7.18":
-  version: 1.7.18
-  resolution: "@swc/core-linux-arm64-gnu@npm:1.7.18"
+"@swc/core-linux-arm64-gnu@npm:1.7.19":
+  version: 1.7.19
+  resolution: "@swc/core-linux-arm64-gnu@npm:1.7.19"
   conditions: os=linux & cpu=arm64 & libc=glibc
   languageName: node
   linkType: hard
 
-"@swc/core-linux-arm64-musl@npm:1.7.18":
-  version: 1.7.18
-  resolution: "@swc/core-linux-arm64-musl@npm:1.7.18"
+"@swc/core-linux-arm64-musl@npm:1.7.19":
+  version: 1.7.19
+  resolution: "@swc/core-linux-arm64-musl@npm:1.7.19"
   conditions: os=linux & cpu=arm64 & libc=musl
   languageName: node
   linkType: hard
 
-"@swc/core-linux-x64-gnu@npm:1.7.18":
-  version: 1.7.18
-  resolution: "@swc/core-linux-x64-gnu@npm:1.7.18"
+"@swc/core-linux-x64-gnu@npm:1.7.19":
+  version: 1.7.19
+  resolution: "@swc/core-linux-x64-gnu@npm:1.7.19"
   conditions: os=linux & cpu=x64 & libc=glibc
   languageName: node
   linkType: hard
 
-"@swc/core-linux-x64-musl@npm:1.7.18":
-  version: 1.7.18
-  resolution: "@swc/core-linux-x64-musl@npm:1.7.18"
+"@swc/core-linux-x64-musl@npm:1.7.19":
+  version: 1.7.19
+  resolution: "@swc/core-linux-x64-musl@npm:1.7.19"
   conditions: os=linux & cpu=x64 & libc=musl
   languageName: node
   linkType: hard
 
-"@swc/core-win32-arm64-msvc@npm:1.7.18":
-  version: 1.7.18
-  resolution: "@swc/core-win32-arm64-msvc@npm:1.7.18"
+"@swc/core-win32-arm64-msvc@npm:1.7.19":
+  version: 1.7.19
+  resolution: "@swc/core-win32-arm64-msvc@npm:1.7.19"
   conditions: os=win32 & cpu=arm64
   languageName: node
   linkType: hard
 
-"@swc/core-win32-ia32-msvc@npm:1.7.18":
-  version: 1.7.18
-  resolution: "@swc/core-win32-ia32-msvc@npm:1.7.18"
+"@swc/core-win32-ia32-msvc@npm:1.7.19":
+  version: 1.7.19
+  resolution: "@swc/core-win32-ia32-msvc@npm:1.7.19"
   conditions: os=win32 & cpu=ia32
   languageName: node
   linkType: hard
 
-"@swc/core-win32-x64-msvc@npm:1.7.18":
-  version: 1.7.18
-  resolution: "@swc/core-win32-x64-msvc@npm:1.7.18"
+"@swc/core-win32-x64-msvc@npm:1.7.19":
+  version: 1.7.19
+  resolution: "@swc/core-win32-x64-msvc@npm:1.7.19"
   conditions: os=win32 & cpu=x64
   languageName: node
   linkType: hard
 
 "@swc/core@npm:^1.5.25, @swc/core@npm:^1.5.7":
-  version: 1.7.18
-  resolution: "@swc/core@npm:1.7.18"
+  version: 1.7.19
+  resolution: "@swc/core@npm:1.7.19"
   dependencies:
-    "@swc/core-darwin-arm64": 1.7.18
-    "@swc/core-darwin-x64": 1.7.18
-    "@swc/core-linux-arm-gnueabihf": 1.7.18
-    "@swc/core-linux-arm64-gnu": 1.7.18
-    "@swc/core-linux-arm64-musl": 1.7.18
-    "@swc/core-linux-x64-gnu": 1.7.18
-    "@swc/core-linux-x64-musl": 1.7.18
-    "@swc/core-win32-arm64-msvc": 1.7.18
-    "@swc/core-win32-ia32-msvc": 1.7.18
-    "@swc/core-win32-x64-msvc": 1.7.18
+    "@swc/core-darwin-arm64": 1.7.19
+    "@swc/core-darwin-x64": 1.7.19
+    "@swc/core-linux-arm-gnueabihf": 1.7.19
+    "@swc/core-linux-arm64-gnu": 1.7.19
+    "@swc/core-linux-arm64-musl": 1.7.19
+    "@swc/core-linux-x64-gnu": 1.7.19
+    "@swc/core-linux-x64-musl": 1.7.19
+    "@swc/core-win32-arm64-msvc": 1.7.19
+    "@swc/core-win32-ia32-msvc": 1.7.19
+    "@swc/core-win32-x64-msvc": 1.7.19
     "@swc/counter": ^0.1.3
     "@swc/types": ^0.1.12
   peerDependencies:
@@ -7681,7 +7681,7 @@ __metadata:
   peerDependenciesMeta:
     "@swc/helpers":
       optional: true
-  checksum: 090708fefbfac6b803f7f186579d788d977e39e68007e44415ad64b51386c38f647c4de3657913f8d2f4f908d0e1b51dd10c473a4bfd0234df4caf94144557a1
+  checksum: 26d176e693d0e6fb395c8189399693e7740bdc6459ff3b12f1e745dc76841853d35f633fde44f7f4f72a2cfaf1008ebd41e68131c846bb62bc135c9edb7e04f4
   languageName: node
   linkType: hard
 
@@ -8115,12 +8115,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tamagui/constants@npm:1.109.5":
-  version: 1.109.5
-  resolution: "@tamagui/constants@npm:1.109.5"
+"@tamagui/constants@npm:1.109.6":
+  version: 1.109.6
+  resolution: "@tamagui/constants@npm:1.109.6"
   peerDependencies:
     react: "*"
-  checksum: 6c3c9475d99aaaa0d0b7c9bbda0c954c3f0b4bd7acba61004eef3d6f9f190e39183e07e19f44c61655ae0b543709503cb57e1abaf026e2e1a74fde708fa707ae
+  checksum: 9fa69bce20045dfbb7843c44afc9081ecb1257b071102fc8834cf52014761bb712b55be799372a9b50a24fb1bf8d6a1aa3415273468a516289af5fea4ef1a600
   languageName: node
   linkType: hard
 
@@ -9087,13 +9087,13 @@ __metadata:
   linkType: hard
 
 "@tamagui/use-did-finish-ssr@npm:^1.100.5":
-  version: 1.109.5
-  resolution: "@tamagui/use-did-finish-ssr@npm:1.109.5"
+  version: 1.109.6
+  resolution: "@tamagui/use-did-finish-ssr@npm:1.109.6"
   dependencies:
-    "@tamagui/constants": 1.109.5
+    "@tamagui/constants": 1.109.6
   peerDependencies:
     react: "*"
-  checksum: fca869c5a739880ad97ece9e7a7092aa7277a99a7e003493ccd78a0825a4c96113012f8bd688a2f9dd3703fa2ce95857ca204da349dad42fe566499448481392
+  checksum: cceaad02f70a345dd846d71ca79c54d958060532ce385fefca42630dfbc017c8890ddd88440ce48886266a44bc4e9638a987e5346e886f41a4a0c71a631a1300
   languageName: node
   linkType: hard
 
@@ -9650,9 +9650,9 @@ __metadata:
   linkType: hard
 
 "@types/chai@npm:*, @types/chai@npm:^4.3.5":
-  version: 4.3.18
-  resolution: "@types/chai@npm:4.3.18"
-  checksum: 01840fdd85b7ccfcc145cf3ab294510d9294b00b9e5fa7096c1699e73f892314bbb8a0505ba38dad61a9ae7f2e38bd8af59cadd3e8fbe4962b39e3627d7104ea
+  version: 4.3.19
+  resolution: "@types/chai@npm:4.3.19"
+  checksum: abd4d3239735054f3b6e8163e45bc6495f66469729fbcf4784c9f2b82361a6845d45ab9c518818c78eafa46d015e3a72306e9949d1333e10d7eaedf426af4261
   languageName: node
   linkType: hard
 
@@ -9959,11 +9959,11 @@ __metadata:
   linkType: hard
 
 "@types/node@npm:*":
-  version: 22.5.0
-  resolution: "@types/node@npm:22.5.0"
+  version: 22.5.1
+  resolution: "@types/node@npm:22.5.1"
   dependencies:
     undici-types: ~6.19.2
-  checksum: 3710b6f42416796061cf47cff0a37955f2ca0afc63ab281cc23e46b3ec8dffcabc66b970e4ee34fff5e2082617bed47610b4a1122c7b3880f551d3c673c40f84
+  checksum: 366990347c12e08e9ffe113e493253ac454d5337828e23cb02c790d5abe1f2ab0148da37b728eb886d858c4c5f29f4341a29987e89555d482ea236691d9d2648
   languageName: node
   linkType: hard
 
@@ -9996,11 +9996,11 @@ __metadata:
   linkType: hard
 
 "@types/node@npm:^18.11.18":
-  version: 18.19.46
-  resolution: "@types/node@npm:18.19.46"
+  version: 18.19.47
+  resolution: "@types/node@npm:18.19.47"
   dependencies:
     undici-types: ~5.26.4
-  checksum: 04ac7f62e937dcbe87ac41bf0c6d553d88e62e08b0e9ba80ca20d41f502b71bcfafc540b12ef508ee9a311bdc0288ec1f0eb0cdf2f6d2598883eac6f36bdf2f0
+  checksum: e01f1afbc5430656ed781600eebae8d62a9ad242f23344bf486f5577aac49ecc4957972284e91d89762f1189063e674a650227d949868ad8e693a9373201411b
   languageName: node
   linkType: hard
 

@@ -6,12 +6,12 @@ import {TimelineChange, useDocHistory} from '@/models/changes'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {useNavRoute} from '@/utils/navigation'
-import {NavRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   Change,
   createPublicWebHmUrl,
   formattedDateLong,
+  NavRoute,
   packHmId,
   unpackHmId,
 } from '@shm/shared'

@@ -6,12 +6,12 @@ import {
 } from '@/models/access-control'
 import {useEntity} from '@/models/entities'
 import {useSearch} from '@/models/search'
-import {DocumentRoute} from '@/utils/routes'
 import * as Ariakit from '@ariakit/react'
 import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
 import {PlainMessage} from '@bufbuild/protobuf'
 import {
   Capability,
+  DocumentRoute,
   getDocumentTitle,
   hmId,
   Role,
@@ -24,6 +24,7 @@ import {
   RadioButtons,
   Separator,
   SizableText,
+  Thumbnail,
   UIAvatar,
   XGroup,
   XStack,
@@ -34,7 +35,6 @@ import {ArrowRight, X} from '@tamagui/lucide-icons'
 import {forwardRef, useEffect, useId, useMemo, useRef, useState} from 'react'
 import {AccessoryContainer} from './accessory-sidebar'
 import './combobox.css'
-import {Thumbnail} from './thumbnail'
 
 export function CollaboratorsPanel({
   route,

@@ -20,6 +20,7 @@ import {
   EntityComponentProps,
   SizableText,
   Spinner,
+  Thumbnail,
   UIAvatar,
   XStack,
   YStack,
@@ -42,7 +43,6 @@ import {useComment} from '../models/comments'
 import {useNavRoute} from '../utils/navigation'
 import {useNavigate} from '../utils/useNavigate'
 import {EntityLinkThumbnail} from './account-link-thumbnail'
-import {Thumbnail} from './thumbnail'
 
 function EmbedWrapper({
   hmRef,

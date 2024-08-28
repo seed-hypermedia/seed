@@ -1,9 +1,9 @@
-import {defaultRoute} from '@/utils/routes'
 import * as Sentry from '@sentry/electron/main'
 import {
   DAEMON_HTTP_URL,
   IS_PROD_DESKTOP,
   METRIC_SERVER_HTTP_PORT,
+  defaultRoute,
 } from '@shm/shared'
 import {
   BrowserWindow,

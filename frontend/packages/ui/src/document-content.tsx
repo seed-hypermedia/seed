@@ -1368,24 +1368,23 @@ function InlineContentView({
           );
         }
         if (content.type === "link") {
-          const href = isHypermediaScheme(content.href)
-            ? idToUrl(content.href, null)
-            : content.href;
+          const hmId = unpackHmId(content.href);
+          const isHmScheme = isHypermediaScheme(content.href);
+          const href = isHmScheme && hmId ? idToUrl(hmId) : content.href;
           if (!href) return null;
-          const isHmLink = isHypermediaScheme(content.href);
           return (
             <a
               href={href}
-              className={isHmLink ? "hm-link" : "link"}
+              className={isHmScheme ? "hm-link" : "link"}
               key={index}
-              target={isHmLink ? undefined : "_blank"}
+              target={isHmScheme ? undefined : "_blank"}
               onClick={(e) => onLinkClick(content.href, e)}
             >
               <InlineContentView
                 fontSize={fSize}
                 lineHeight={fSize * 1.5}
                 inline={content.content}
-                linkType={isHmLink ? "hypermedia" : "basic"}
+                linkType={isHmScheme ? "hypermedia" : "basic"}
                 rangeOffset={inlineContentOffset}
               />
             </a>

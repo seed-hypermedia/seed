@@ -2,10 +2,9 @@ import {useAppContext} from '@/app-context'
 import {MenuItemType, OptionsDropdown} from '@/components/options-dropdown'
 import {EmbedsContent} from '@/models/documents'
 import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
-import {NavRoute} from '@/utils/routes'
 import {useNavigate} from '@/utils/useNavigate'
 import {useTriggerWindowEvent} from '@/utils/window-events'
-import {UnpackedHypermediaId} from '@shm/shared'
+import {NavRoute, UnpackedHypermediaId} from '@shm/shared'
 import {
   Button,
   ListItem,

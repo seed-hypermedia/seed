@@ -1,8 +1,11 @@
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {
+  DocumentRoute,
+  DraftRoute,
   GRPCClient,
   HMEntityContent,
   hmId,
+  NavRoute,
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
@@ -15,7 +18,6 @@ import {
 } from '@tanstack/react-query'
 import {useMemo} from 'react'
 import {useGRPCClient, useQueryInvalidator} from '../app-context'
-import {DocumentRoute, DraftRoute, NavRoute} from '../utils/routes'
 import {queryKeys} from './query-keys'
 import {useDeleteRecent} from './recents'
 
