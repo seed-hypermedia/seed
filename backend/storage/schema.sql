@@ -184,8 +184,9 @@ CREATE INDEX resource_links_by_target ON resource_links (target, source);
 -- Stores subscribed resources. Once we subscribe to a resource, 
 -- we will sync the latest versions of it periodically.
 CREATE TABLE subscriptions (
+    id INTEGER PRIMARY KEY,
     -- The resource we are subscribing to.
-    id INTEGER REFERENCES resources (id) ON DELETE CASCADE NOT NULL PRIMARY KEY,
+    iri INTEGER REFERENCES resources (id) ON DELETE CASCADE NOT NULL,
     -- Whether we subscribe recursively to all documents in the directory or not
     is_recursive BOOLEAN DEFAULT false NOT NULL,
     -- The time when the resource was subscribed.

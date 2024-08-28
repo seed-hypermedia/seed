@@ -22,7 +22,7 @@ service Subscriptions {
 // Subscribe to a resource
 message SubscribeRequest {
     // Required. Entity ID of the resource to be subscribed to. 
-    string id = 1;
+    string url = 1;
 
     // Optional. Indicate if we not only subscribe to the resource 
     // ID above but also to all documents on its directory. 
@@ -31,8 +31,8 @@ message SubscribeRequest {
 
 // Subscribe to a resource
 message UnsubscribeRequest {
-    // Required. Id of the resource to be unsubscribe to. 
-    string id = 1;
+    // Required. Entity Id of the resource to be unsubscribe to. 
+    string url = 1;
 }
 
 // Get a list of active subscriptions.
@@ -56,8 +56,8 @@ message ListSubscriptionsResponse {
 
 // Description of the subscription item.
 message Subscription {
-    // The ID of the subscribed resource.
-    string id = 1;
+    // The entity ID of the subscribed resource.
+    string url = 1;
   
     // Whether this subscription also subscribes to 
     // all documents in the document's directory.
@@ -66,13 +66,3 @@ message Subscription {
     // Timestamp when the user started the subscrition.
     google.protobuf.Timestamp since = 3;
 }
-
-// State describes the subscription type.
-enum Type {
-    // Document Subscription. Any changes on the document will be fetched
-    DOCUMENT = 0;
-  
-    // Space subscription. Any change in any document from that space
-    // will be fetched.
-    SPACE = 1;
-  }

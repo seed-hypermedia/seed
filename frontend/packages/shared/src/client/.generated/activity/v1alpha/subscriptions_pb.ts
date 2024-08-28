@@ -7,33 +7,6 @@ import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialM
 import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
 
 /**
- * State describes the subscription type.
- *
- * @generated from enum com.seed.activity.v1alpha.Type
- */
-export enum Type {
-  /**
-   * Document Subscription. Any changes on the document will be fetched
-   *
-   * @generated from enum value: DOCUMENT = 0;
-   */
-  DOCUMENT = 0,
-
-  /**
-   * Space subscription. Any change in any document from that space
-   * will be fetched.
-   *
-   * @generated from enum value: SPACE = 1;
-   */
-  SPACE = 1,
-}
-// Retrieve enum metadata with: proto3.getEnumType(Type)
-proto3.util.setEnumType(Type, "com.seed.activity.v1alpha.Type", [
-  { no: 0, name: "DOCUMENT" },
-  { no: 1, name: "SPACE" },
-]);
-
-/**
  * Subscribe to a resource
  *
  * @generated from message com.seed.activity.v1alpha.SubscribeRequest
@@ -42,9 +15,17 @@ export class SubscribeRequest extends Message<SubscribeRequest> {
   /**
    * Required. Entity ID of the resource to be subscribed to. 
    *
-   * @generated from field: int32 id = 1;
+   * @generated from field: string url = 1;
    */
-  id = 0;
+  url = "";
+
+  /**
+   * Optional. Indicate if we not only subscribe to the resource 
+   * ID above but also to all documents on its directory. 
+   *
+   * @generated from field: bool recursive = 2;
+   */
+  recursive = false;
 
   constructor(data?: PartialMessage<SubscribeRequest>) {
     super();
@@ -54,7 +35,8 @@ export class SubscribeRequest extends Message<SubscribeRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.activity.v1alpha.SubscribeRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 1, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SubscribeRequest {
@@ -81,11 +63,11 @@ export class SubscribeRequest extends Message<SubscribeRequest> {
  */
 export class UnsubscribeRequest extends Message<UnsubscribeRequest> {
   /**
-   * Required. Id of the resource to be unsubscribe to. 
+   * Required. Entity Id of the resource to be unsubscribe to. 
    *
-   * @generated from field: int32 id = 1;
+   * @generated from field: string url = 1;
    */
-  id = 0;
+  url = "";
 
   constructor(data?: PartialMessage<UnsubscribeRequest>) {
     super();
@@ -95,7 +77,7 @@ export class UnsubscribeRequest extends Message<UnsubscribeRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.activity.v1alpha.UnsubscribeRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 1, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UnsubscribeRequest {
@@ -220,18 +202,19 @@ export class ListSubscriptionsResponse extends Message<ListSubscriptionsResponse
  */
 export class Subscription extends Message<Subscription> {
   /**
-   * The ID of the subscribed resource.
+   * The entity ID of the subscribed resource.
    *
-   * @generated from field: string id = 1;
+   * @generated from field: string url = 1;
    */
-  id = "";
+  url = "";
 
   /**
-   * The Type of subscription
+   * Whether this subscription also subscribes to 
+   * all documents in the document's directory.
    *
-   * @generated from field: com.seed.activity.v1alpha.Type type = 2;
+   * @generated from field: bool recursive = 2;
    */
-  type = Type.DOCUMENT;
+  recursive = false;
 
   /**
    * Timestamp when the user started the subscrition.
@@ -248,8 +231,8 @@ export class Subscription extends Message<Subscription> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.activity.v1alpha.Subscription";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "type", kind: "enum", T: proto3.getEnumType(Type) },
+    { no: 1, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 3, name: "since", kind: "message", T: Timestamp },
   ]);
 

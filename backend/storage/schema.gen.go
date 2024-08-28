@@ -227,6 +227,7 @@ const (
 	Subscriptions            sqlitegen.Table  = "subscriptions"
 	SubscriptionsID          sqlitegen.Column = "subscriptions.id"
 	SubscriptionsInsertTime  sqlitegen.Column = "subscriptions.insert_time"
+	SubscriptionsIRI         sqlitegen.Column = "subscriptions.iri"
 	SubscriptionsIsRecursive sqlitegen.Column = "subscriptions.is_recursive"
 )
 
@@ -235,6 +236,7 @@ const (
 	T_Subscriptions            = "subscriptions"
 	C_SubscriptionsID          = "subscriptions.id"
 	C_SubscriptionsInsertTime  = "subscriptions.insert_time"
+	C_SubscriptionsIRI         = "subscriptions.iri"
 	C_SubscriptionsIsRecursive = "subscriptions.is_recursive"
 )
 
@@ -317,6 +319,7 @@ var Schema = sqlitegen.Schema{
 		StructuralBlobsType:        {Table: StructuralBlobs, SQLType: "TEXT"},
 		SubscriptionsID:            {Table: Subscriptions, SQLType: "INTEGER"},
 		SubscriptionsInsertTime:    {Table: Subscriptions, SQLType: "INTEGER"},
+		SubscriptionsIRI:           {Table: Subscriptions, SQLType: "INTEGER"},
 		SubscriptionsIsRecursive:   {Table: Subscriptions, SQLType: "BOOLEAN"},
 		WalletsAddress:             {Table: Wallets, SQLType: "TEXT"},
 		WalletsBalance:             {Table: Wallets, SQLType: "INTEGER"},
