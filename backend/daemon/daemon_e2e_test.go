@@ -411,11 +411,16 @@ func TestSyncingEntity(t *testing.T) {
 
 func TestSubscriptions(t *testing.T) {
 	t.Parallel()
-
-	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	aliceCfg := makeTestConfig(t)
+	aliceCfg.Syncing.NoSyncBack = true
+	aliceCfg.Syncing.SmartSyncing = true
+	alice := makeTestApp(t, "alice", aliceCfg, true)
 	ctx := context.Background()
 	aliceIdentity := coretest.NewTester("alice")
-	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
+	bobCfg := makeTestConfig(t)
+	bobCfg.Syncing.NoSyncBack = true
+	bobCfg.Syncing.SmartSyncing = true
+	bob := makeTestApp(t, "bob", bobCfg, true)
 	doc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		Account:        aliceIdentity.Account.Principal().String(),
 		Path:           "",
@@ -447,29 +452,135 @@ func TestSubscriptions(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	doc2, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceIdentity.Account.Principal().String(),
+		Path:           "/cars/toyota",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Why Toyota rocks"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Because it sounds great",
+				},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "b1", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b2",
+					Type: "paragraph",
+					Text: "Quote anyways",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	doc3, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceIdentity.Account.Principal().String(),
+		Path:           "/cars/honda",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Why Honda rocks"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Because it sounds great",
+				},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "b1", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b2",
+					Type: "paragraph",
+					Text: "Quote anyways 2",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
 	_, err = bob.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
 		Addrs: mttnet.AddrInfoToStrings(alice.Net.AddrInfo()),
 	})
 	require.NoError(t, err)
 
-	time.Sleep(time.Millisecond * 500)
+	time.Sleep(time.Millisecond * 100)
+	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: doc2.Account,
+		Path:    doc2.Path,
+	})
+	require.Error(t, err)
+
 	_, err = bob.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
-		Account:   doc.Account,
-		Path:      doc.Path,
+		Account:   doc2.Account,
+		Path:      doc2.Path,
 		Recursive: false,
 	})
 	require.NoError(t, err)
+
 	res, err := bob.RPC.Activity.ListSubscriptions(ctx, &activity.ListSubscriptionsRequest{})
 	require.NoError(t, err)
 	require.Len(t, res.Subscriptions, 1)
-	require.Equal(t, doc.Account, res.Subscriptions[0].Account)
-	require.Equal(t, doc.Path, res.Subscriptions[0].Path)
+	require.Equal(t, doc2.Account, res.Subscriptions[0].Account)
+	require.Equal(t, doc2.Path, res.Subscriptions[0].Path)
+	time.Sleep(time.Millisecond * 100)
+
+	doc2Gotten, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: doc2.Account,
+		Path:    doc2.Path,
+	})
+	require.NoError(t, err)
+	require.Equal(t, doc2.Content, doc2Gotten.Content)
+
+	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: doc3.Account,
+		Path:    doc3.Path,
+	})
+	require.Error(t, err)
+
 	_, err = bob.RPC.Activity.Unsubscribe(ctx, &activity.UnsubscribeRequest{
-		Account: doc.Account,
-		Path:    doc.Path,
+		Account: doc2.Account,
+		Path:    doc2.Path,
 	})
 	require.NoError(t, err)
 	res, err = bob.RPC.Activity.ListSubscriptions(ctx, &activity.ListSubscriptionsRequest{})
 	require.NoError(t, err)
 	require.Len(t, res.Subscriptions, 0)
+
+	_, err = bob.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
+		Account:   doc3.Account,
+		Path:      "/cars",
+		Recursive: true,
+	})
+	require.NoError(t, err)
+	time.Sleep(time.Millisecond * 100)
+
+	doc3Gotten, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: doc3.Account,
+		Path:    doc3.Path,
+	})
+	require.NoError(t, err)
+	require.Equal(t, doc3.Content, doc3Gotten.Content)
+
+	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: doc.Account,
+		Path:    doc.Path,
+	})
+	require.Error(t, err)
 }

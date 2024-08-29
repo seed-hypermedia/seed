@@ -163,7 +163,7 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 		return nil, err
 	}
 	a.Index.SetProvider(a.Net.Provider())
-	activitySrv := activity.NewServer(a.Storage.DB())
+	activitySrv := activity.NewServer(a.Storage.DB(), &a.clean)
 	a.Syncing, err = initSyncing(cfg.Syncing, &a.clean, a.g, a.Storage.DB(), a.Index, a.Net, activitySrv, cfg.LogLevel)
 	if err != nil {
 		return nil, err

@@ -5,9 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	activity "seed/backend/api/activity/v1alpha"
 	"seed/backend/config"
 	"seed/backend/core"
-	activity "seed/backend/genproto/activity/v1alpha"
+	activity_proto "seed/backend/genproto/activity/v1alpha"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/mttnet"
 	"seed/backend/syncing/rbsr"
@@ -107,9 +108,10 @@ type Storage interface {
 	// Service manages syncing of Seed objects among peers.
 }
 
-// Store to get the documents the user has subscribed to.
+// SubscriptionStore an interface implementing necessary methods to get subscriptions.
 type SubscriptionStore interface {
-	ListSubscriptions(context.Context, *activity.ListSubscriptionsRequest) (*activity.ListSubscriptionsResponse, error)
+	ListSubscriptions(context.Context, *activity_proto.ListSubscriptionsRequest) (*activity_proto.ListSubscriptionsResponse, error)
+	GetSubsEventCh() *chan interface{}
 }
 type protocolChecker struct {
 	checker func(context.Context, peer.ID, string) error
@@ -160,6 +162,19 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer *
 	if !cfg.NoSyncBack {
 		net.SetIdentificationCallback(svc.syncBack)
 	}
+
+	go func() {
+		for e := range *sstore.GetSubsEventCh() {
+			switch event := e.(type) {
+			case activity.SubscribedEvnt:
+				_, _ = svc.SyncSubscribedContent(context.Background(), &activity_proto.Subscription{
+					Account:   event.Account,
+					Path:      event.Path,
+					Recursive: event.Recursive,
+				})
+			}
+		}
+	}()
 
 	return svc
 }
@@ -356,8 +371,14 @@ func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
 	return res, nil
 }
 
+var qunwrapRecursive = dqb.Str(`
+		SELECT
+			iri
+		FROM resources where = iri LIKE ?%;
+	`)
+
 // SyncSubscribedContent attempts to sync all the content marked as subscribed.
-func (s *Service) SyncSubscribedContent(ctx context.Context) (res SyncResult, err error) {
+func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*activity_proto.Subscription) (res SyncResult, err error) {
 	if !s.mu.TryLock() {
 		return res, ErrSyncAlreadyRunning
 	}
@@ -369,19 +390,18 @@ func (s *Service) SyncSubscribedContent(ctx context.Context) (res SyncResult, er
 	}
 	defer release()
 
-	ret, err := s.sstore.ListSubscriptions(ctx, &activity.ListSubscriptionsRequest{
-		PageSize: math.MaxInt32,
-	})
-	if err != nil {
-		return res, err
+	if len(subscriptions) == 0 {
+		ret, err := s.sstore.ListSubscriptions(ctx, &activity_proto.ListSubscriptionsRequest{
+			PageSize: math.MaxInt32,
+		})
+		if err != nil {
+			return res, err
+		}
+		subscriptions = ret.Subscriptions
 	}
-	var qunwrapRecursive = dqb.Str(`
-		SELECT
-			iri
-		FROM resources where = iri LIKE ?%;
-	`)
+
 	var eids []string
-	for _, subs := range ret.Subscriptions {
+	for _, subs := range subscriptions {
 		if subs.Recursive {
 			err = sqlitex.Exec(conn, qunwrapRecursive(), func(stmt *sqlite.Stmt) error {
 				eids = append(eids, stmt.ColumnText(0))
