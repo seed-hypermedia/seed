@@ -878,7 +878,7 @@ function AppSettings() {
   }
   const {data: deviceInfo} = useDaemonInfo()
   const peer = usePeerInfo(deviceInfo?.peerId)
-  const addrs = peer.data?.addrs?.join(',')
+  const addrs = peer.data?.addrs?.join('\n')
   return (
     <YStack gap="$5">
       <TableList>
@@ -891,17 +891,18 @@ function AppSettings() {
                   size="$2"
                   icon={Copy}
                   onPress={() => {
-                    copyTextToClipboard(addrs)
+                    navigator.clipboard.writeText(addrs)
                     toast.success('Copied Routing Address successfully')
                   }}
                 >
-                  Copy Routing Address
+                  Copy Addresses
                 </Button>
               </Tooltip>
             ) : null
           }
         />
         <InfoListItem label="Peer ID" value={deviceInfo?.peerId} />
+        <InfoListItem label="Addresses" value={addrs} />
       </TableList>
       <TableList>
         <InfoListHeader title="Settings" />

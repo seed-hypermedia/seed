@@ -90,7 +90,7 @@ export function useConnectPeer(
         }
       }
       if (!addrs) {
-        addrs = peer.trim().split(',')
+        addrs = peer.trim().split(/(?:,|\s|\n)+/) // Split by comma, space, or newline
       }
       if (!addrs) throw new Error('Invalid peer address(es) provided.')
       await grpcClient.networking.connect({addrs})
