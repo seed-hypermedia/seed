@@ -49,7 +49,7 @@ type migration struct {
 var migrations = []migration{
 	// New beginning. While we're doing the HM24 migration we can still make some breaking changes.
 	// TODO(burdiyan): add a real version when we are ready to release.
-	{Version: "2024-08-29.hm24-dev-1", Run: func(_ *Store, _ *sqlite.Conn) error {
+	{Version: "2024-08-29.hm24-dev-2", Run: func(_ *Store, _ *sqlite.Conn) error {
 		return nil
 	}},
 }

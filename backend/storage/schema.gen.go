@@ -319,7 +319,7 @@ var Schema = sqlitegen.Schema{
 		StructuralBlobsType:        {Table: StructuralBlobs, SQLType: "TEXT"},
 		SubscriptionsID:            {Table: Subscriptions, SQLType: "INTEGER"},
 		SubscriptionsInsertTime:    {Table: Subscriptions, SQLType: "INTEGER"},
-		SubscriptionsIRI:           {Table: Subscriptions, SQLType: "INTEGER"},
+		SubscriptionsIRI:           {Table: Subscriptions, SQLType: "TEXT"},
 		SubscriptionsIsRecursive:   {Table: Subscriptions, SQLType: "BOOLEAN"},
 		WalletsAddress:             {Table: Wallets, SQLType: "TEXT"},
 		WalletsBalance:             {Table: Wallets, SQLType: "INTEGER"},
