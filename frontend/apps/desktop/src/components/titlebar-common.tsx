@@ -174,7 +174,7 @@ function EditDocButton() {
     throw new Error('EditDocButton can only be rendered on document route')
   const capability = useMyCapability(route.id, 'writer')
   const navigate = useNavigate()
-  const draft = useDraft(route.id.id)
+  const draft = useDraft(route.id)
   const hasExistingDraft = !!draft.data
   if (!capability) return null
   return (

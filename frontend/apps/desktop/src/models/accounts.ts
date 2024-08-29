@@ -3,7 +3,7 @@ import {useMyAccountIds} from '@/models/daemon'
 import {queryKeys} from '@/models/query-keys'
 import {client, trpc} from '@/trpc'
 import {Code, ConnectError} from '@connectrpc/connect'
-import {GRPCClient, HMDraft} from '@shm/shared'
+import {GRPCClient, HMDraft, packHmId, UnpackedHypermediaId} from '@shm/shared'
 import {useQueries, UseQueryOptions} from '@tanstack/react-query'
 
 export function useAccount_deprecated() {
@@ -34,9 +34,10 @@ export function useSetProfile_deprecated() {
   throw new Error('useSetProfile_deprecated not supported anymore')
 }
 
-export function useDraft(draftId?: string) {
+export function useDraft(id?: UnpackedHypermediaId) {
+  const draftId = id ? packHmId({...id, version: null}) : ''
   return trpc.drafts.get.useQuery(draftId, {
-    enabled: !!draftId,
+    enabled: !!id,
   })
 }
 export function useDrafts(draftIds: string[]) {

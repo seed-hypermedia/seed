@@ -12,6 +12,7 @@ export function ThumbnailForm({
   onAvatarUpload,
   onRemoveThumbnail,
   marginTop,
+  borderRadius = size,
   ...props
 }: {
   label?: string
@@ -19,6 +20,7 @@ export function ThumbnailForm({
   url?: string
   size?: number
   marginTop?: number
+  borderRadius?: number
   onAvatarUpload?: (avatar: string) => Awaited<void>
   onRemoveThumbnail?: () => void
 }) {
@@ -48,6 +50,7 @@ export function ThumbnailForm({
       url={url}
       color="$blue12"
       marginTop={marginTop}
+      borderRadius={borderRadius}
     />
   )
   if (!onAvatarUpload) return avatarImage
@@ -66,7 +69,7 @@ export function ThumbnailForm({
         group="thumbnail"
         w={size}
         h={size}
-        borderRadius={size / 2}
+        borderRadius={borderRadius}
         overflow="hidden"
         {...props}
       >

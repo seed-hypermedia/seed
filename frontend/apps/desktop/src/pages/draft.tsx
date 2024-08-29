@@ -375,6 +375,11 @@ export function DraftHeader({
           <XStack gap="$2" ai="flex-end">
             {showThumbnail ? (
               <ThumbnailForm
+                borderRadius={
+                  route.id?.path && route.id?.path.length != 0
+                    ? 100 / 8
+                    : undefined
+                }
                 marginTop={showCover ? -80 : 0}
                 size={100}
                 id={route.id ? route.id.uid : 'document-avatar'}
@@ -497,7 +502,7 @@ function PathDraft({
     [routePath],
   )
 
-  const {data: draft} = useDraft(packHmId(route.id))
+  const {data: draft} = useDraft(route.id)
   const createDraft = trpc.drafts.write.useMutation()
   const deleteDraft = trpc.drafts.delete.useMutation()
 
@@ -512,7 +517,7 @@ function PathDraft({
 
   async function handleDraftChange() {
     if (route.key != 'draft' && !route.id) return
-    const newId = hmId('draft', route.id.uid, {path: [...paths, path]})
+    const newId = hmId('d', route.id.uid, {path: [...paths, path]})
     const packedId = packHmId(newId)
 
     let newContent = {

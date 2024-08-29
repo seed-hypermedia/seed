@@ -393,7 +393,7 @@ export function Title({size}: {size?: FontSizeTokens}) {
 
 function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
   const name = useDraftName({
-    draftId: route.id?.id,
+    id: route.id,
   })
   const entity = useEntity(route.id)
   const realTitle = name ?? getDocumentTitle(entity.data?.document)

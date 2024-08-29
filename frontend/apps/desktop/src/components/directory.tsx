@@ -10,7 +10,6 @@ import {
   formattedDateMedium,
   hmId,
   HMMetadata,
-  packHmId,
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
@@ -109,8 +108,7 @@ function DocCreation({id}: {id: UnpackedHypermediaId}) {
 function DraftItem({id}: {id: UnpackedHypermediaId}) {
   const navigate = useNavigate()
 
-  const draft = useDraft(packHmId(id))
-
+  const draft = useDraft(id)
   function goToDraft() {
     navigate({key: 'draft', id})
   }
@@ -243,7 +241,7 @@ function NewSubDocumentButton({
       <Button
         icon={FilePlus}
         onPress={() => {
-          const id = hmId('draft', parentDocId.uid, {
+          const id = hmId('d', parentDocId.uid, {
             ...parentDocId,
             path: [...(parentDocId.path || []), `_${pathNameify(nanoid(10))}`],
           })

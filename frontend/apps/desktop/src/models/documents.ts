@@ -36,7 +36,6 @@ import {Extension, findParentNode} from '@tiptap/core'
 import {NodeSelection, Selection} from '@tiptap/pm/state'
 import {useMachine} from '@xstate/react'
 import _ from 'lodash'
-import {nanoid} from 'nanoid'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {ContextFrom, OutputFrom, fromPromise} from 'xstate'
 import {
@@ -313,9 +312,9 @@ export type EditorDraftState = {
 }
 
 export function useDraftName(
-  input: UseQueryOptions<EditorDraftState> & {draftId?: string | undefined},
+  input: UseQueryOptions<EditorDraftState> & {id?: UnpackedHypermediaId},
 ) {
-  const draft = useDraft(input.draftId)
+  const draft = useDraft(input.id)
   return (draft.data?.metadata?.name || undefined) as string | undefined
 }
 
@@ -478,7 +477,9 @@ export function useDraftEditor({id}: {id: string | undefined}) {
   >(async ({input}) => {
     const blocks = editor.topLevelBlocks
     let inputData: Partial<HMDraft> = {}
-    const draftId = id || `hm://draft/${nanoid()}`
+    const draftId = id || input.id
+    if (!draftId)
+      throw new Error('Draft Error: no id passed to update function')
     if (!input.draft) {
       inputData = {
         content: blocks,
@@ -501,6 +502,7 @@ export function useDraftEditor({id}: {id: string | undefined}) {
           ...input.draft.metadata,
           name: input.name,
           thumbnail: input.thumbnail,
+          cover: input.cover,
         },
         signingAccount: input.signingAccount || undefined,
       } as HMDraft
@@ -566,7 +568,9 @@ export function useDraftEditor({id}: {id: string | undefined}) {
     }),
   )
 
-  const backendDraft = useDraft(id)
+  const backendDraft = useDraft(route.id)
+
+  console.log(`== ~ DRAFT ~ useDraftEditor ~ id:`, id)
   const backendDocument = useEntity(unpackHmId(id))
 
   useEffect(() => {

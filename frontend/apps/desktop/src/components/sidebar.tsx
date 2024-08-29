@@ -254,7 +254,7 @@ function OutlineSection({route}: {route: NavRoute; id: UnpackedHypermediaId}) {
 
 function DraftOutlineSection({route}: {route: DraftRoute}) {
   const {id} = route
-  const draft = useDraft(id?.id)
+  const draft = useDraft(id)
   const outline = getDraftNodesOutline(draft?.data?.content || [])
   if (!id) return null
   return (

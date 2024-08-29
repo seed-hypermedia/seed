@@ -37,7 +37,7 @@ export default function PublishDraftButton() {
     throw new Error('DraftPublicationButtons requires draft route')
   const draftId = draftRoute.id
   const packedDraftId = draftId ? packHmId(draftId) : undefined
-  const draft = useDraft(packedDraftId)
+  const draft = useDraft(draftId)
   const prevEntity = useEntity(draftId?.type !== 'draft' ? draftId : undefined)
   const invalidate = useQueryInvalidator()
   const [signingAccount, setSigningAccount] = useState<HMEntityContent | null>(
