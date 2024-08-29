@@ -24,10 +24,13 @@ export default defineConfig({
   //   noExternal: ["react-tweet"],
   // },
   plugins: [
-    tamaguiPlugin() as any,
-    tamaguiExtractPlugin({
-      logTimings: true,
-    }),
+    tamaguiPlugin({config: "./tamagui.config.ts"}) as any,
+    process.env.NODE_ENV === "production"
+      ? tamaguiExtractPlugin({config: "./tamagui.config.ts"})
+      : null,
+    // tamaguiExtractPlugin({
+    //   logTimings: true,
+    // }),
     remix(),
     tsconfigPaths(),
     commonjs({
@@ -41,5 +44,5 @@ export default defineConfig({
     //   analyzerMode: "static",
     //   fileName: "report",
     // }),
-  ],
+  ].filter(Boolean),
 });
