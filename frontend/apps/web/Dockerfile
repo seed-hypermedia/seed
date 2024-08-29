@@ -1,4 +1,4 @@
-# Build from the root with `docker build -t seed-web . -f ./frontend/apps/site/Dockerfile`.
+# Build from the root with `docker build -t seed-web . -f ./frontend/apps/web/Dockerfile`.
 # docker run -e ENV_EXAMPLE=yes-it -p 3000:3000 --rm --name seed-web seed-web:latest
 
 FROM node:20-alpine AS builder

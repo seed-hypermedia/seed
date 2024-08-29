@@ -1,21 +1,25 @@
-import { FavoriteButton } from '@/components/favoriting'
+import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
-import { MainWrapper } from '@/components/main-wrapper'
-import { useListProfileDocuments } from '@/models/documents'
-import { useEntities } from '@/models/entities'
-import { useNavigate } from '@/utils/useNavigate'
-import { PlainMessage } from '@bufbuild/protobuf'
-import { DocumentListItem, getMetadataName, hmId } from '@shm/shared'
+import {MainWrapper} from '@/components/main-wrapper'
+import {useListProfileDocuments} from '@/models/documents'
+import {useEntities} from '@/models/entities'
+import {useNavigate} from '@/utils/useNavigate'
+import {PlainMessage} from '@bufbuild/protobuf'
+import {DocumentListItem, getMetadataName, hmId} from '@shm/shared'
 import {
   Button,
   Container,
-  getRandomColor, LinkThumbnail, SizableText,
+  getRandomColor,
+  LinkThumbnail,
+  SizableText,
   Spinner,
-  Text, Thumbnail, XStack,
-  YStack
+  Text,
+  Thumbnail,
+  XStack,
+  YStack,
 } from '@shm/ui'
-import { useMemo, useRef } from 'react'
-import { useShowTitleObserver } from './app-title'
+import {useMemo, useRef} from 'react'
+import {useShowTitleObserver} from './app-title'
 
 function ErrorPage({}: {error: any}) {
   // todo, this!
