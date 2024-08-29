@@ -157,7 +157,7 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer *
 		checker: net.CheckHyperMediaProtocolVersion,
 		version: net.GetProtocolVersion(),
 	}
-	if cfg.SyncingBackPolicy {
+	if !cfg.NoSyncBack {
 		net.SetIdentificationCallback(svc.syncBack)
 	}
 

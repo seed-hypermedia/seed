@@ -194,14 +194,10 @@ func TestDaemonUpdateProfile(t *testing.T) {
 
 func TestSyncingProfiles(t *testing.T) {
 	t.Parallel()
-	cfgAlice := makeTestConfig(t)
-	cfgAlice.Syncing.SyncingBackPolicy = true
-	alice := makeTestApp(t, "alice", cfgAlice, true)
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
 	ctx := context.Background()
 	aliceIdentity := coretest.NewTester("alice")
-	cfgBob := makeTestConfig(t)
-	cfgBob.Syncing.SyncingBackPolicy = true
-	bob := makeTestApp(t, "bob", cfgBob, true)
+	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
 	bobIdentity := coretest.NewTester("bob")
 	doc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		Account:        aliceIdentity.Account.Principal().String(),
@@ -416,14 +412,10 @@ func TestSyncingEntity(t *testing.T) {
 func TestSubscriptions(t *testing.T) {
 	t.Parallel()
 
-	cfgAlice := makeTestConfig(t)
-	cfgAlice.Syncing.SyncingBackPolicy = true
-	alice := makeTestApp(t, "alice", cfgAlice, true)
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
 	ctx := context.Background()
 	aliceIdentity := coretest.NewTester("alice")
-	cfgBob := makeTestConfig(t)
-	cfgBob.Syncing.SyncingBackPolicy = true
-	bob := makeTestApp(t, "bob", cfgBob, true)
+	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
 	doc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		Account:        aliceIdentity.Account.Principal().String(),
 		Path:           "",
