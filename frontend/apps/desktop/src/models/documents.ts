@@ -381,7 +381,7 @@ export function queryDraft({
   }
 }
 
-export function useDraftEditor({id}: {id: string | undefined}) {
+export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
   const {queryClient, grpcClient} = useAppContext()
   const openUrl = useOpenUrl()
   const route = useNavRoute()
@@ -477,7 +477,7 @@ export function useDraftEditor({id}: {id: string | undefined}) {
   >(async ({input}) => {
     const blocks = editor.topLevelBlocks
     let inputData: Partial<HMDraft> = {}
-    const draftId = id || input.id
+    const draftId = id.id || input.id
 
     console.log(`== ~ DRAFT draftId:`, {draftId, id, input})
     if (!draftId)
@@ -558,10 +558,10 @@ export function useDraftEditor({id}: {id: string | undefined}) {
           }
         },
         onSaveSuccess: function () {
-          invalidate([queryKeys.DRAFT, id])
+          invalidate([queryKeys.DRAFT, id?.id])
           invalidate(['trpc.drafts.get'])
           invalidate(['trpc.drafts.list'])
-          invalidate([queryKeys.ENTITY, id])
+          invalidate([queryKeys.ENTITY, id?.id])
         },
       },
       actors: {
@@ -570,8 +570,8 @@ export function useDraftEditor({id}: {id: string | undefined}) {
     }),
   )
 
-  const backendDraft = useDraft(route.id)
-  const backendDocument = useEntity(unpackHmId(id))
+  const backendDraft = useDraft(id)
+  const backendDocument = useEntity(id)
 
   useEffect(() => {
     if (backendDraft.status == 'loading' && typeof id == 'undefined') {

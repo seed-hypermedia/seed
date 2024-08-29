@@ -55,7 +55,7 @@ export default function DraftPage() {
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
 
   let data = useDraftEditor({
-    id: route.id ? packHmId(route.id) : undefined,
+    id: route.id,
   })
 
   useEffect(() => {
