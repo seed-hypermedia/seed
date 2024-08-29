@@ -127,7 +127,7 @@ function Comment({
 }) {
   const [showReplies, setShowReplies] = useState(false)
   const [isReplying, setIsReplying] = useState(false)
-  const authorId = hmId('d', comment.author)
+  const authorId = comment.author ? hmId('d', comment.author) : null
   const {data: author} = useEntity(authorId)
   const draft = useCommentDraft(docId, comment.id)
 
@@ -469,6 +469,7 @@ function SelectAccountDropdown({
   onSetAccount: (account: string) => void
   accounts: HMEntityContent[]
 }) {
+  console.log(`== ~ accounts:`, accounts)
   const currentAccount = useStream(account)
   const options = accounts.map((acct) => {
     return {

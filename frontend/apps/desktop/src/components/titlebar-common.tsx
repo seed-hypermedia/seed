@@ -214,6 +214,7 @@ export function useDocumentUrl({
   content: ReactNode
 } | null {
   const docEntity = useEntity(docId)
+  if (!docId?.uid) return null
   const accountEntity = useEntity(hmId('d', docId?.uid!))
   const gwUrl = useGatewayUrl()
   const [copyDialogContent, onCopyPublic] = useCopyGatewayReference()
