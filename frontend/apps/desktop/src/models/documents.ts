@@ -478,6 +478,8 @@ export function useDraftEditor({id}: {id: string | undefined}) {
     const blocks = editor.topLevelBlocks
     let inputData: Partial<HMDraft> = {}
     const draftId = id || input.id
+
+    console.log(`== ~ DRAFT draftId:`, {draftId, id, input})
     if (!draftId)
       throw new Error('Draft Error: no id passed to update function')
     if (!input.draft) {
