@@ -231,7 +231,7 @@ function BreadcrumbTitle({
     <BreadcrumbItem
       details={
         overwriteActiveTitle
-          ? {...activeItem, name: overwriteActiveTitle}
+          ? {...activeItem, isError: false, name: overwriteActiveTitle}
           : activeItem
       }
       key={activeItem.crumbKey}
@@ -404,7 +404,7 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
   return (
     <BreadcrumbTitle
       route={{key: 'document', id: route.id}}
-      overwriteActiveTitle={name}
+      overwriteActiveTitle={realTitle}
     />
   )
 }

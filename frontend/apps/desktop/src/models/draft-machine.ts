@@ -62,7 +62,7 @@ export const draftMachine = setup({
             return event.document.metadata?.name
           }
         }
-        if (event.type == 'CHANGE' && event.name) {
+        if (event.type == 'CHANGE' && event.name != null) {
           return event.name
         }
         return context.name
