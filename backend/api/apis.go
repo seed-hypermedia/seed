@@ -43,6 +43,7 @@ func New(
 	node *mttnet.Node,
 	wallet daemon.Wallet,
 	sync *syncing.Service,
+	activity *activity.Server,
 	LogLevel string,
 ) Server {
 	doSync := func() error {
@@ -59,7 +60,7 @@ func New(
 	idx := index.NewIndex(db, logging.New("seed/index", LogLevel), node.Provider())
 
 	return Server{
-		Activity:    activity.NewServer(db),
+		Activity:    activity,
 		Daemon:      daemon.NewServer(repo, wallet, doSync),
 		Networking:  networking.NewServer(node, db),
 		Entities:    entities.NewServer(idx, sync),

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"seed/backend/api"
+	activity "seed/backend/api/activity/v1alpha"
 	daemon "seed/backend/api/daemon/v1alpha"
 	"seed/backend/config"
 	"seed/backend/core"
@@ -162,7 +163,8 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 		return nil, err
 	}
 	a.Index.SetProvider(a.Net.Provider())
-	a.Syncing, err = initSyncing(cfg.Syncing, &a.clean, a.g, a.Storage.DB(), a.Index, a.Net, cfg.LogLevel)
+	activitySrv := activity.NewServer(a.Storage.DB())
+	a.Syncing, err = initSyncing(cfg.Syncing, &a.clean, a.g, a.Storage.DB(), a.Index, a.Net, activitySrv, cfg.LogLevel)
 	if err != nil {
 		return nil, err
 	}
@@ -171,6 +173,7 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 
 	a.GRPCServer, a.GRPCListener, a.RPC, err = initGRPC(ctx, cfg.GRPC.Port, &a.clean, a.g, a.Storage, a.Storage.DB(), a.Net,
 		a.Syncing,
+		activitySrv,
 		a.Wallet,
 		cfg.LogLevel, opts.grpc)
 	if err != nil {
@@ -329,6 +332,7 @@ func initSyncing(
 	db *sqlitex.Pool,
 	indexer *index.Index,
 	node *mttnet.Node,
+	sstore syncing.SubscriptionStore,
 	LogLevel string,
 ) (*syncing.Service, error) {
 	done := make(chan struct{})
@@ -339,7 +343,7 @@ func initSyncing(
 		return nil
 	})
 
-	svc := syncing.NewService(cfg, logging.New("seed/syncing", LogLevel), db, indexer, node)
+	svc := syncing.NewService(cfg, logging.New("seed/syncing", LogLevel), db, indexer, node, sstore)
 	if cfg.NoPull {
 		close(done)
 	} else {
@@ -362,6 +366,7 @@ func initGRPC(
 	pool *sqlitex.Pool,
 	node *mttnet.Node,
 	sync *syncing.Service,
+	activity *activity.Server,
 	wallet daemon.Wallet,
 	LogLevel string,
 	opts grpcOpts,
@@ -372,8 +377,7 @@ func initGRPC(
 	}
 
 	srv = grpc.NewServer(opts.serverOptions...)
-
-	rpc = api.New(ctx, repo, pool, node, wallet, sync, LogLevel)
+	rpc = api.New(ctx, repo, pool, node, wallet, sync, activity, LogLevel)
 	rpc.Register(srv)
 	reflection.Register(srv)
 

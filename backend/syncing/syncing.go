@@ -7,6 +7,7 @@ import (
 	"math"
 	"seed/backend/config"
 	"seed/backend/core"
+	activity "seed/backend/genproto/activity/v1alpha"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/mttnet"
 	"seed/backend/syncing/rbsr"
@@ -105,6 +106,11 @@ type Storage interface {
 	DB() *sqlitex.Pool
 	// Service manages syncing of Seed objects among peers.
 }
+
+// Store to get the documents the user has subscribed to.
+type SubscriptionStore interface {
+	ListSubscriptions(context.Context, *activity.ListSubscriptionsRequest) (*activity.ListSubscriptionsResponse, error)
+}
 type protocolChecker struct {
 	checker func(context.Context, peer.ID, string) error
 	version string
@@ -120,10 +126,10 @@ type Service struct {
 	host       host.Host
 	pc         protocolChecker
 	mu         sync.Mutex // Ensures only one sync loop is running at a time.
-
-	wg        sync.WaitGroup
-	workers   map[peer.ID]*worker
-	semaphore chan struct{}
+	sstore     SubscriptionStore
+	wg         sync.WaitGroup
+	workers    map[peer.ID]*worker
+	semaphore  chan struct{}
 }
 
 const (
@@ -133,7 +139,7 @@ const (
 const peerRoutingConcurrency = 3 // how many concurrent requests for peer routing.
 
 // NewService creates a new syncing service. Users should call Start() to start the periodic syncing.
-func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer *index.Index, net *mttnet.Node) *Service {
+func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer *index.Index, net *mttnet.Node, sstore SubscriptionStore) *Service {
 	svc := &Service{
 		cfg:        cfg,
 		log:        log,
@@ -145,6 +151,7 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer *
 		host:       net.Libp2p().Host,
 		workers:    make(map[peer.ID]*worker),
 		semaphore:  make(chan struct{}, peerRoutingConcurrency),
+		sstore:     sstore,
 	}
 	svc.pc = protocolChecker{
 		checker: net.CheckHyperMediaProtocolVersion,
@@ -333,6 +340,94 @@ func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
 				err = errors.Join(err, fmt.Errorf("failed to sync objects: %w", xerr))
 			}
 		}(i, pid)
+	}
+
+	wg.Wait()
+
+	return res, nil
+}
+
+// SyncSubscribedContent attempts to sync all the content marked as subscribed.
+func (s *Service) SyncSubscribedContent(ctx context.Context) (res SyncResult, err error) {
+	if !s.mu.TryLock() {
+		return res, ErrSyncAlreadyRunning
+	}
+	defer s.mu.Unlock()
+
+	conn, release, err := s.db.Conn(ctx)
+	if err != nil {
+		return res, err
+	}
+	defer release()
+
+	ret, err := s.sstore.ListSubscriptions(ctx, &activity.ListSubscriptionsRequest{
+		PageSize: math.MaxInt32,
+	})
+	if err != nil {
+		return res, err
+	}
+	var qunwrapRecursive = dqb.Str(`
+		SELECT
+			iri
+		FROM resources where = iri LIKE ?%;
+	`)
+	var eids []string
+	for _, subs := range ret.Subscriptions {
+		if subs.Recursive {
+			err = sqlitex.Exec(conn, qunwrapRecursive(), func(stmt *sqlite.Stmt) error {
+				eids = append(eids, stmt.ColumnText(0))
+				return nil
+			}, "hm://"+subs.Account+subs.Path)
+		} else {
+			eids = append(eids, "hm://"+subs.Account+subs.Path)
+		}
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(len(eids))
+	subsMap := make(map[peer.ID][]string)
+	allPeers := []peer.ID{} // TODO:(juligasa): Remove this when we have providers store
+	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
+		pidStr := stmt.ColumnText(0)
+		pid, err := peer.Decode(pidStr)
+		if err != nil {
+			return err
+		}
+		allPeers = append(allPeers, pid)
+		return nil
+	}); err != nil {
+		return res, err
+	}
+
+	for _, pid := range allPeers {
+		// TODO(juligasa): look into the providers store who has each eid
+		// instead of pasting all peers in all documents.
+		subsMap[pid] = eids
+	}
+	res.Peers = make([]peer.ID, len(allPeers))
+	res.Errs = make([]error, len(allPeers))
+	var i int
+	for pid, eids := range subsMap {
+		go func(i int, pid peer.ID, eids []string) {
+			var err error
+			defer func() {
+				res.Errs[i] = err
+				if err == nil {
+					atomic.AddInt64(&res.NumSyncOK, 1)
+				} else {
+					atomic.AddInt64(&res.NumSyncFailed, 1)
+				}
+
+				wg.Done()
+			}()
+
+			res.Peers[i] = pid
+
+			if xerr := s.SyncWithPeer(ctx, pid, eids); xerr != nil {
+				err = errors.Join(err, fmt.Errorf("failed to sync objects: %w", xerr))
+			}
+		}(i, pid, eids)
+		i++
 	}
 
 	wg.Wait()
