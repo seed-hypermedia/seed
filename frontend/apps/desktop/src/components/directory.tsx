@@ -242,7 +242,6 @@ function NewSubDocumentButton({
         icon={FilePlus}
         onPress={() => {
           const id = hmId('d', parentDocId.uid, {
-            ...parentDocId,
             path: [...(parentDocId.path || []), `_${pathNameify(nanoid(10))}`],
           })
           navigate({
