@@ -24,6 +24,8 @@ import {
   Button,
   Checkbox,
   Container,
+  Dialog,
+  DialogContent,
   Input,
   LinkThumbnail,
   Popover,
@@ -41,7 +43,7 @@ import {
   Archive,
   ArrowDownUp,
   Check,
-  Download,
+  FileOutput,
   Pencil,
   Search,
   Settings2,
@@ -62,6 +64,8 @@ export default function LibraryPage() {
     filter: {},
   })
   const [exportMode, setExportMode] = useState(false)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(
     new Set(),
   )
@@ -77,6 +81,15 @@ export default function LibraryPage() {
     return filteredLibrary.map((entry) => entry.id.id)
   }, [filteredLibrary])
   const {exportDocuments} = useAppContext()
+
+  const handleExportButtonClick = () => {
+    if (exportMode) {
+      if (selectedDocuments.size == 0) setExportMode(false)
+      else setIsDialogOpen(true)
+    } else {
+      setExportMode(true)
+    }
+  }
 
   const toggleDocumentSelection = (id: string) => {
     setSelectedDocuments((prevSelected) => {
@@ -121,7 +134,7 @@ export default function LibraryPage() {
         const editorBlocks = toHMBlock(blocks)
         const markdown = await convertBlocksToMarkdown(editorBlocks)
         return {
-          title: getDocumentTitle(doc.document),
+          title: getDocumentTitle(doc.document) || 'Untitled document',
           markdown,
         }
       }),
@@ -133,12 +146,12 @@ export default function LibraryPage() {
   return (
     <>
       <MainWrapper>
-        <Container>
+        <Container justifyContent="center">
           <LibraryQueryBar
             queryState={queryState}
             setQueryState={setQueryState}
             exportMode={exportMode}
-            setExportMode={setExportMode}
+            handleExportButtonClick={handleExportButtonClick}
           />
           {queryState.display == 'list' ? (
             <LibraryList
@@ -146,50 +159,89 @@ export default function LibraryPage() {
               exportMode={exportMode}
               toggleDocumentSelection={toggleDocumentSelection}
               selectedDocuments={selectedDocuments}
+              allSelected={allSelected}
+              handleSelectAllChange={handleSelectAllChange}
             />
           ) : queryState.display == 'cards' ? (
             <LibraryCards library={filteredLibrary} />
           ) : null}
           {exportMode && (
-            <>
-              {/* <XStack
-                marginBottom="$5"
-                w="100%"
-                maxWidth={900}
-                group="item"
-                justifyContent="flex-start"
-              >
-                <Checkbox
-                  size="$3"
-                  borderColor="$color12"
-                  checked={allSelected}
-                  onCheckedChange={(checked: boolean) =>
-                    handleSelectAllChange(checked)
-                  }
-                >
-                  <Checkbox.Indicator>
-                    <Check />
-                  </Checkbox.Indicator>
-                </Checkbox>
-                <SizableText
-                  fontSize="$4"
-                  fontWeight="800"
-                  textAlign="left"
-                  marginLeft="$3"
-                >
-                  Select All
-                </SizableText>
-              </XStack> */}
-              <Button
-                size="$2"
-                onPress={() => handleSelectAllChange(!allSelected)}
-              >
-                {allSelected ? 'Deselect All' : 'Select All'}
-              </Button>
-              <Button size="$2" onPress={submitExportDocuments}>
-                {`Submit Export (${selectedDocuments.size} documents)`}
-              </Button>
-            </>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <Dialog.Portal>
+                <Dialog.Overlay
+                  height="100vh"
+                  bg={'#00000088'}
+                  width="100vw"
+                  animation="fast"
+                  opacity={0.8}
+                  enterStyle={{opacity: 0}}
+                  exitStyle={{opacity: 0}}
+                />
+                <DialogContent>
+                  <YStack>
+                    {selectedDocuments.size === 1 ? (
+                      <XStack
+                        maxWidth={290}
+                        wordWrap="break-word"
+                        whiteSpace="normal"
+                        overflow="hidden"
+                        textOverflow="ellipsis"
+                      >
+                        <SizableText size="$3">
+                          You are choosing to{' '}
+                          <Text fontWeight="800">export</Text> the document
+                          named{' '}
+                          <Text fontWeight="800">
+                            “
+                            {library.find(
+                              (entry) =>
+                                entry.id.id ===
+                                Array.from(selectedDocuments)[0],
+                            )?.document?.metadata?.name || 'Untitled'}
+                            ”
+                          </Text>
+                          .
+                        </SizableText>
+                      </XStack>
+                    ) : (
+                      <SizableText size="$3">
+                        You are choosing to{' '}
+                        <Text fontWeight="800">
+                          export ({selectedDocuments.size}) documents
+                        </Text>
+                        .
+                      </SizableText>
+                    )}
+                    <SizableText size="$2" marginVertical="$4">
+                      Do you want to continue with the export?
+                    </SizableText>
+                    <XStack width="100%" gap="$3" jc="space-between">
+                      <Button
+                        flex={1}
+                        bc="$gray3"
+                        onPress={() => {
+                          setIsDialogOpen(false)
+                          setExportMode(false)
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        flex={1}
+                        bc="$purple3"
+                        onPress={() => {
+                          setIsDialogOpen(false)
+                          setExportMode(false)
+                          submitExportDocuments()
+                        }}
+                      >
+                        Export
+                      </Button>
+                    </XStack>
+                  </YStack>
+                </DialogContent>
+              </Dialog.Portal>
+            </Dialog>
           )}
         </Container>
       </MainWrapper>
@@ -202,12 +254,12 @@ function LibraryQueryBar({
   queryState,
   setQueryState,
   exportMode,
-  setExportMode,
+  handleExportButtonClick,
 }: {
   queryState: LibraryQueryState
   setQueryState: React.Dispatch<React.SetStateAction<LibraryQueryState>>
   exportMode: boolean
-  setExportMode: React.Dispatch<React.SetStateAction<boolean>>
+  handleExportButtonClick: () => void
 }) {
   return (
     <XStack gap="$2" w="100%">
@@ -238,18 +290,16 @@ function LibraryQueryBar({
           }))
         }}
       />
-      <Button size="$2" onPress={() => setExportMode((prev) => !prev)}>
-        {exportMode ? (
-          <XStack ai="center" gap="$2">
-            <SizableText size="$2">Cancel Export</SizableText>
-            <X size={15} />
-          </XStack>
-        ) : (
-          <XStack ai="center" gap="$2">
-            <SizableText size="$2">Export Documents</SizableText>
-            <Download size={15} />
-          </XStack>
-        )}
+      <Button
+        position="absolute"
+        right="$2"
+        top="$1"
+        size="$2"
+        onPress={handleExportButtonClick}
+        icon={FileOutput}
+        bc="$purple5"
+      >
+        Export
       </Button>
     </XStack>
   )
@@ -637,22 +687,50 @@ function LibraryList({
   exportMode,
   toggleDocumentSelection,
   selectedDocuments,
+  allSelected,
+  handleSelectAllChange,
 }: {
   library: LibraryData
   exportMode: boolean
   toggleDocumentSelection: (id: string) => void
   selectedDocuments: Set<string>
+  allSelected: boolean
+  handleSelectAllChange: (checked: boolean) => void
 }) {
   return (
     <YStack paddingVertical="$4" marginHorizontal={-8}>
+      {exportMode && (
+        <XStack
+          paddingHorizontal={16}
+          paddingVertical="$1"
+          group="item"
+          gap="$3"
+          ai="center"
+          f={1}
+          h={60}
+        >
+          <Checkbox
+            size="$3"
+            checked={allSelected}
+            onCheckedChange={handleSelectAllChange}
+          >
+            <Checkbox.Indicator>
+              <Check />
+            </Checkbox.Indicator>
+          </Checkbox>
+          <SizableText fontSize="$4" fontWeight="800" textAlign="left">
+            Select All
+          </SizableText>
+        </XStack>
+      )}
       {library.map((entry) => {
-        const isSelected = selectedDocuments.has(entry.id.id)
+        const selected = selectedDocuments.has(entry.id.id)
         return (
           <LibraryListItem
             key={entry.id.id}
             entry={entry}
             exportMode={exportMode}
-            isSelected={isSelected}
+            selected={selected}
             toggleDocumentSelection={toggleDocumentSelection}
           />
         )
@@ -664,12 +742,12 @@ function LibraryList({
 function LibraryListItem({
   entry,
   exportMode,
-  isSelected,
+  selected,
   toggleDocumentSelection,
 }: {
   entry: LibraryData[0]
   exportMode: boolean
-  isSelected: boolean
+  selected: boolean
   toggleDocumentSelection: (id: string) => void
 }) {
   const navigate = useNavigate()
@@ -702,13 +780,30 @@ function LibraryListItem({
       }}
       h={60}
       icon={
-        entry.id.path?.length == 0 || entry.document?.metadata.thumbnail ? (
-          <Thumbnail
-            size={40}
-            id={entry.id}
-            metadata={entry.document?.metadata || entry.draft?.metadata}
-          />
-        ) : undefined
+        <XStack ai="center" gap="$3">
+          {exportMode && (
+            <Checkbox
+              size="$3"
+              checked={selected}
+              onCheckedChange={() => {
+                toggleDocumentSelection(entry.id.id)
+              }}
+            >
+              <Checkbox.Indicator>
+                <Check />
+              </Checkbox.Indicator>
+            </Checkbox>
+          )}
+
+          {(entry.id.path?.length == 0 ||
+            entry.document?.metadata.thumbnail) && (
+            <Thumbnail
+              size={40}
+              id={entry.id}
+              metadata={entry.document?.metadata || entry.draft?.metadata}
+            />
+          )}
+        </XStack>
       }
     >
       <XStack gap="$2" ai="center" f={1} paddingVertical="$2">
@@ -764,69 +859,56 @@ function LibraryListItem({
         ) : (
           <LibraryEntryTime entry={entry} />
         )}
-        {exportMode ? (
-          <Checkbox
-            size="$3"
-            borderColor="$color12"
-            checked={isSelected}
-            onCheckedChange={() => toggleDocumentSelection(entry.id.id)}
-          >
-            <Checkbox.Indicator>
-              <Check />
-            </Checkbox.Indicator>
-          </Checkbox>
-        ) : (
-          <XStack>
-            {editors.map((author, idx) => (
-              <XStack
-                zIndex={idx + 1}
+        <XStack>
+          {editors.map((author, idx) => (
+            <XStack
+              zIndex={idx + 1}
+              key={author.id.id}
+              borderColor="$background"
+              backgroundColor="$background"
+              $group-item-hover={{
+                borderColor: hoverColor,
+                backgroundColor: hoverColor,
+              }}
+              borderWidth={2}
+              borderRadius={100}
+              overflow="hidden"
+              marginLeft={-8}
+              animation="fast"
+            >
+              <LinkThumbnail
                 key={author.id.id}
-                borderColor="$background"
-                backgroundColor="$background"
-                $group-item-hover={{
-                  borderColor: hoverColor,
-                  backgroundColor: hoverColor,
-                }}
-                borderWidth={2}
-                borderRadius={100}
-                overflow="hidden"
-                marginLeft={-8}
-                animation="fast"
+                id={author.id}
+                metadata={author.metadata}
+                size={20}
+              />
+            </XStack>
+          ))}
+          {entry.authors.length > editors.length && editors.length != 0 ? (
+            <XStack
+              zIndex={editors.length}
+              borderColor="$background"
+              backgroundColor="$background"
+              borderWidth={2}
+              borderRadius={100}
+              marginLeft={-8}
+              animation="fast"
+              width={24}
+              height={24}
+              ai="center"
+              jc="center"
+            >
+              <Text
+                fontSize={10}
+                fontFamily="$body"
+                fontWeight="bold"
+                color="$color10"
               >
-                <LinkThumbnail
-                  key={author.id.id}
-                  id={author.id}
-                  metadata={author.metadata}
-                  size={20}
-                />
-              </XStack>
-            ))}
-            {entry.authors.length > editors.length && editors.length != 0 ? (
-              <XStack
-                zIndex={editors.length}
-                borderColor="$background"
-                backgroundColor="$background"
-                borderWidth={2}
-                borderRadius={100}
-                marginLeft={-8}
-                animation="fast"
-                width={24}
-                height={24}
-                ai="center"
-                jc="center"
-              >
-                <Text
-                  fontSize={10}
-                  fontFamily="$body"
-                  fontWeight="bold"
-                  color="$color10"
-                >
-                  +{entry.authors.length - editors.length - 1}
-                </Text>
-              </XStack>
-            ) : null}
-          </XStack>
-        )}
+                +{entry.authors.length - editors.length - 1}
+              </Text>
+            </XStack>
+          ) : null}
+        </XStack>
       </XStack>
     </Button>
   )
