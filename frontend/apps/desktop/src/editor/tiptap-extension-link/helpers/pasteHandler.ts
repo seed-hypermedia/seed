@@ -1,6 +1,5 @@
 import {getLinkMenuItems} from '@/editor/blocknote/core'
 import {linkMenuPluginKey} from '@/editor/blocknote/core/extensions/LinkMenu/LinkMenuPlugin'
-import {hmIdPathToEntityQueryPath} from '@/models/entities'
 import {fetchWebLink} from '@/models/web-links'
 import type {AppQueryClient} from '@/query-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
@@ -11,6 +10,7 @@ import {
   extractBlockRefOfUrl,
   getDocumentTitle,
   hmId,
+  hmIdPathToEntityQueryPath,
   hmIdWithVersion,
   isHypermediaScheme,
   isPublicGatewayLink,

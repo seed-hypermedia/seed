@@ -19,6 +19,7 @@ import {
   UnpackedHypermediaId,
   eventStream,
   fromHMBlock,
+  hmIdPathToEntityQueryPath,
   toHMBlock,
   unpackHmId,
   writeableStateStream,
@@ -50,7 +51,7 @@ import {useNavigate} from '../utils/useNavigate'
 import {useMyAccountIds} from './daemon'
 import {draftMachine} from './draft-machine'
 import {setGroupTypes} from './editor-utils'
-import {hmIdPathToEntityQueryPath, useEntities, useEntity} from './entities'
+import {useEntities, useEntity} from './entities'
 import {useGatewayUrl, useGatewayUrlStream} from './gateway-settings'
 import {useInlineMentions} from './search'
 

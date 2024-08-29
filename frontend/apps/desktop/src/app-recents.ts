@@ -1,5 +1,12 @@
-import {NavRoute, getRecentsRouteEntityUrl} from '@shm/shared'
+import {toPlainMessage} from '@bufbuild/protobuf'
+import {
+  NavRoute,
+  getDocumentTitle,
+  getRecentsRouteEntityUrl,
+  hmIdPathToEntityQueryPath,
+} from '@shm/shared'
 import {z} from 'zod'
+import {grpcClient} from './app-grpc'
 import {invalidateQueries} from './app-invalidation'
 import {appStore} from './app-store'
 import {t} from './app-trpc'
@@ -40,11 +47,23 @@ export async function updateRecentRoute(route: NavRoute) {
   const url = getRecentsRouteEntityUrl(route)
   const type: RecentEntry['type'] = route.key === 'draft' ? 'draft' : 'entity'
   const time = Date.now()
+  let title = '?'
+  if (route.key === 'document') {
+    const document = await grpcClient.documents.getDocument({
+      account: route.id.uid,
+      path: hmIdPathToEntityQueryPath(route.id.path),
+      version: route.id.version || undefined,
+    })
+    title = getDocumentTitle(toPlainMessage(document))
+  }
+  if (!url) return
   updateRecents((state: RecentsState): RecentsState => {
     let recents = state.recents
-    console.log('warning: recents updating not implemented')
     return {
-      recents,
+      recents: [
+        ...recents.filter((recent) => recent.url !== url),
+        {type, url, title, time},
+      ],
     }
   })
 }

@@ -13,6 +13,7 @@ import {
   HMEntityContent,
   UnpackedHypermediaId,
   fromHMBlock,
+  hmIdPathToEntityQueryPath,
   toHMBlock,
   writeableStateStream,
 } from '@shm/shared'
@@ -25,7 +26,7 @@ import {hmBlockSchema, useBlockNote} from '../editor'
 import type {Block, BlockNoteEditor} from '../editor/blocknote'
 import appError from '../errors'
 import {getBlockGroup, setGroupTypes} from './editor-utils'
-import {hmIdPathToEntityQueryPath, useEntity} from './entities'
+import {useEntity} from './entities'
 import {useGatewayUrlStream} from './gateway-settings'
 import {queryKeys} from './query-keys'
 import {useInlineMentions} from './search'

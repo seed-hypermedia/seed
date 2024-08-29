@@ -5,6 +5,7 @@ import {
   GRPCClient,
   HMEntityContent,
   hmId,
+  hmIdPathToEntityQueryPath,
   NavRoute,
   UnpackedHypermediaId,
   unpackHmId,
@@ -152,10 +153,6 @@ function catchNotFound<Result>(
     // if (isActuallyNotFound) throw error;
     return null
   })
-}
-
-export function hmIdPathToEntityQueryPath(path: string[] | null) {
-  return path?.length ? `/${path.join('/')}` : ''
 }
 
 export function queryEntity(

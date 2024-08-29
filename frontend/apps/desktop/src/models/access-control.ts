@@ -1,14 +1,15 @@
 import {useGRPCClient, useQueryInvalidator} from '@/app-context'
 import {toPlainMessage} from '@bufbuild/protobuf'
-import {hmId, Role, UnpackedHypermediaId} from '@shm/shared'
+import {
+  hmId,
+  hmIdPathToEntityQueryPath,
+  Role,
+  UnpackedHypermediaId,
+} from '@shm/shared'
 import {toast} from '@shm/ui'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {useMyAccountIds} from './daemon'
-import {
-  getParentPaths,
-  hmIdPathToEntityQueryPath,
-  useEntities,
-} from './entities'
+import {getParentPaths, useEntities} from './entities'
 import {queryKeys} from './query-keys'
 
 export function useDocumentCollaborators(id: UnpackedHypermediaId) {
