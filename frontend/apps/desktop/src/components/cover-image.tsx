@@ -76,62 +76,64 @@ export function CoverImage({
   if (!onCoverUpload) return coverImage
   return (
     <Stack group="cover">
-      <Container clearVerticalSpace>
-        <XStack
-          opacity={0}
-          jc="end"
-          paddingHorizontal="$4"
-          paddingTop="$6"
-          position="absolute"
-          top={0}
-          left={0}
-          right={0}
-          w="100%"
-          zi={10}
-          $group-cover-hover={{opacity: 1}}
-          gap="$2"
-        >
-          <XStack position="relative" bg="red" hoverStyle={{cursor: 'pointer'}}>
-            <XStack
-              tag="input"
-              hoverStyle={{cursor: 'pointer'}}
-              type="file"
-              onChange={handleFileChange}
-              style={{
-                height: '100%',
-                opacity: 0,
-                display: 'flex',
-                position: 'absolute',
-                left: 0,
-                right: 0,
-                top: 0,
-                zIndex: 12,
-                cursor: 'pointer',
-                background: 'red',
-              }}
-            />
-            <Button size="$1" fontWeight="600" elevate elevation="$7">
-              {`${url ? 'CHANGE' : 'ADD'} COVER`}
-            </Button>
+      {show ? (
+        <Container clearVerticalSpace>
+          <XStack
+            opacity={0}
+            jc="end"
+            paddingHorizontal="$4"
+            paddingTop="$6"
+            position="absolute"
+            top={0}
+            left={0}
+            right={0}
+            w="100%"
+            zi={10}
+            $group-cover-hover={{opacity: 1}}
+            gap="$2"
+          >
+            <XStack position="relative" hoverStyle={{cursor: 'pointer'}}>
+              <XStack
+                tag="input"
+                hoverStyle={{cursor: 'pointer'}}
+                type="file"
+                onChange={handleFileChange}
+                style={{
+                  height: '100%',
+                  opacity: 0,
+                  display: 'flex',
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  zIndex: 12,
+                  cursor: 'pointer',
+                  background: 'red',
+                }}
+              />
+              <Button size="$1" fontWeight="600" elevate elevation="$7">
+                {`${url ? 'CHANGE' : 'ADD'} COVER`}
+              </Button>
+            </XStack>
+            <Tooltip content="Remove Cover image">
+              <Button
+                bg="$red9"
+                color="$color1"
+                borderColor="$red9"
+                hoverStyle={{
+                  bg: '$red10',
+                  color: '$color1',
+                  borderColor: '$red10',
+                }}
+                icon={X}
+                size="$1"
+                fontWeight="600"
+                onPress={onRemoveCover}
+              />
+            </Tooltip>
           </XStack>
-          <Tooltip content="Remove Cover image">
-            <Button
-              bg="$red9"
-              color="$color1"
-              borderColor="$red9"
-              hoverStyle={{
-                bg: '$red10',
-                color: '$color1',
-                borderColor: '$red10',
-              }}
-              icon={X}
-              size="$1"
-              fontWeight="600"
-              onPress={onRemoveCover}
-            />
-          </Tooltip>
-        </XStack>
-      </Container>
+        </Container>
+      ) : null}
       {coverImage}
     </Stack>
   )
