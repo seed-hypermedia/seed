@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"os"
+	"slices"
 	"time"
 
 	_ "expvar"
@@ -18,7 +19,7 @@ import (
 
 	"github.com/burdiyan/go/mainutil"
 	"github.com/getsentry/sentry-go"
-	"github.com/peterbourgon/ff/v3"
+	"github.com/peterbourgon/ff/v4"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -35,30 +36,17 @@ func main() {
 		cfg := config.Default()
 		cfg.BindFlags(fs)
 
-		// We parse flags twice here, once without the config file setting, and then with it.
-		// This is because we want the config file to be in the repo path, which can be changed
-		// with flags or env vars. We don't allow setting a config file explicitly, but the repo path
-		// can change. We need to know the requested repo path in the first place, and then figure out the config file.
+		err := ff.Parse(fs, slices.Clone(os.Args[1:]), ff.WithEnvVarPrefix(envVarPrefix))
+		if err != nil {
+			if errors.Is(err, ff.ErrHelp) {
+				fs.Usage()
+				return nil
+			}
 
-		if err := ff.Parse(fs, os.Args[1:], ff.WithEnvVarPrefix(envVarPrefix)); err != nil {
 			return err
 		}
 
 		if err := cfg.Base.ExpandDataDir(); err != nil {
-			return err
-		}
-
-		cfgFile, err := config.EnsureConfigFile(cfg.Base.DataDir)
-		if err != nil {
-			return err
-		}
-
-		if err := ff.Parse(fs, os.Args[1:],
-			ff.WithEnvVarPrefix(envVarPrefix),
-			ff.WithConfigFileParser(ff.PlainParser),
-			ff.WithConfigFile(cfgFile),
-			ff.WithAllowMissingConfigFile(false),
-		); err != nil {
 			return err
 		}
 

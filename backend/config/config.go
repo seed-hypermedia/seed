@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"seed/backend/ipfs"
 	"strings"
 	"time"
@@ -221,34 +220,4 @@ func (p2p *P2P) BindFlags(fs *flag.FlagSet) {
 // NoBootstrap indicates whether bootstrap nodes are configured.
 func (p2p P2P) NoBootstrap() bool {
 	return len(p2p.BootstrapPeers) == 0
-}
-
-// EnsureConfigFile makes sure a config file exist.
-func EnsureConfigFile(repoPath string) (filename string, err error) {
-	if !filepath.IsAbs(repoPath) {
-		return "", fmt.Errorf("repo path must be an absolute path")
-	}
-
-	if err := os.MkdirAll(repoPath, 0700); err != nil {
-		return "", err
-	}
-
-	filename = filepath.Join(repoPath, "seed-daemon.conf")
-
-	_, err = os.Lstat(filename)
-	if err == nil {
-		return filename, nil
-	}
-
-	if os.IsNotExist(err) {
-		if err := os.WriteFile(filename, []byte(`# Config file for the seed-daemon program.
-# You can set any CLI flags here, one per line with a space between key and value.
-`), 0600); err != nil {
-			return "", err
-		}
-
-		return filename, nil
-	}
-
-	return "", err
 }
