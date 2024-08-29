@@ -25,7 +25,6 @@ import (
 
 // Server implements the Activity gRPC API.
 type Server struct {
-	// activity.UnimplementedActivityFeedServer
 	db        *sqlitex.Pool
 	startTime time.Time
 }

@@ -49,7 +49,7 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 			zap.String("peer", p.String()),
 		)
 		log.Debug("DiscoveredProvider")
-		if err := s.SyncWithPeer(ctx, p.ID, entityID); err != nil {
+		if err := s.SyncWithPeer(ctx, p.ID, []string{entityID}); err != nil {
 			log.Warn("FinishedSyncingWithProvider", zap.Error(err))
 			continue
 		}

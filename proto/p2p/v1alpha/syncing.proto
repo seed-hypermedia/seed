@@ -23,8 +23,8 @@ message ReconcileBlobsResponse {
 
 // Filter describes which blobs to select for reconciliation.
 message Filter {
-  // Selects only blobs related to the given resource.
-  string resource = 1;
+  // Selects only blobs related to the given resources.
+  repeated string resources = 1;
 }
 
 message SetReconciliationRange {

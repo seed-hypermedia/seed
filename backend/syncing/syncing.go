@@ -329,7 +329,7 @@ func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
 
 			res.Peers[i] = pid
 
-			if xerr := s.SyncWithPeer(ctx, pid, ""); xerr != nil {
+			if xerr := s.SyncWithPeer(ctx, pid, nil); xerr != nil {
 				err = errors.Join(err, fmt.Errorf("failed to sync objects: %w", xerr))
 			}
 		}(i, pid)
@@ -341,8 +341,8 @@ func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
 }
 
 // SyncWithPeer syncs all documents from a given peer. given no initial objectsOptionally.
-// if a non empty entity is provided, then only syncs blobs related to that entity
-func (s *Service) SyncWithPeer(ctx context.Context, pid peer.ID, eid string) error {
+// if a non empty entity is provided, then only syncs blobs related to that entities
+func (s *Service) SyncWithPeer(ctx context.Context, pid peer.ID, eids []string) error {
 	// Can't sync with self.
 	if s.host.Network().LocalPeer() == pid {
 		return nil
@@ -367,8 +367,8 @@ func (s *Service) SyncWithPeer(ctx context.Context, pid peer.ID, eid string) err
 
 	bswap := s.bitswap.NewSession(ctx)
 
-	if eid != "" {
-		return syncEntity(ctx, pid, c, s.indexer, bswap, s.db, s.log, eid)
+	if len(eids) != 0 {
+		return syncEntities(ctx, pid, c, s.indexer, bswap, s.db, s.log, eids)
 	}
 	return syncPeerRbsr(ctx, pid, c, s.indexer, bswap, s.db, s.log)
 }
@@ -452,13 +452,13 @@ func (s *Service) syncBack(ctx context.Context, event event.EvtPeerIdentificatio
 			s.log.Warn("Could not store peer", zap.Error(err))
 		} else {
 			s.log.Info("Syncing back", zap.String("PeerID", info.ID.String()))
-			go s.SyncWithPeer(ctx, info.ID, "")
+			go s.SyncWithPeer(ctx, info.ID, nil)
 		}
 	}
 
 }
 
-func syncEntity(
+func syncEntities(
 	ctx context.Context,
 	pid peer.ID,
 	c p2p.SyncingClient,
@@ -466,7 +466,7 @@ func syncEntity(
 	sess exchange.Fetcher,
 	db *sqlitex.Pool,
 	log *zap.Logger,
-	eid string,
+	eids []string,
 ) (err error) {
 	mSyncsInFlight.Inc()
 	defer func() {
@@ -504,7 +504,12 @@ func syncEntity(
 		if rounds > 1000 {
 			return fmt.Errorf("Too many rounds of interactive syncing")
 		}
-		res, err := c.ReconcileBlobs(ctx, &p2p.ReconcileBlobsRequest{Ranges: msg, Filter: &p2p.Filter{Resource: eid}})
+		res, err := c.ReconcileBlobs(ctx, &p2p.ReconcileBlobsRequest{
+			Ranges: msg,
+			Filter: &p2p.Filter{
+				Resources: eids,
+			},
+		})
 		if err != nil {
 			return err
 		}

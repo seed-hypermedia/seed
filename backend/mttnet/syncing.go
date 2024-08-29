@@ -6,6 +6,7 @@ import (
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/syncing/rbsr"
 	"seed/backend/util/dqb"
+	"strings"
 
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -25,7 +26,8 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 	SELECT
 		blobs.codec,
 		blobs.multihash,
-		blobs.insert_time
+		blobs.insert_time,
+		?
 	FROM blobs INDEXED BY blobs_metadata LEFT JOIN structural_blobs sb ON sb.id = blobs.id
 	WHERE blobs.size >= 0 
 	ORDER BY sb.ts, blobs.multihash;
@@ -38,7 +40,7 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 	FROM blobs INDEXED BY blobs_metadata 
 	LEFT JOIN structural_blobs sb ON sb.id = blobs.id
 	JOIN resources res ON sb.resource = res.id
-	WHERE blobs.size >= 0 AND res.iri = ?
+	WHERE blobs.size >= 0 AND res.iri IN (?)
 	ORDER BY sb.ts, blobs.multihash;
 `)
 	conn, release, err := srv.Node.db.Conn(ctx)
@@ -47,9 +49,12 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 	}
 	defer release()
 	query := qListAllBlobs
-	if in.Filter != nil && in.Filter.Resource != "" {
+	var iriList any = nil
+	if in.Filter != nil && len(in.Filter.Resources) != 0 {
 		query = qListrelatedBlobs
+		iriList = strings.Join(in.Filter.Resources, ", ")
 	}
+
 	if err = sqlitex.Exec(conn, query(), func(stmt *sqlite.Stmt) error {
 		codec := stmt.ColumnInt64(0)
 		hash := stmt.ColumnBytesUnsafe(1)
@@ -57,7 +62,7 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 		c := cid.NewCidV1(uint64(codec), hash)
 		store.Insert(ts, c.Bytes())
 		return nil
-	}); err != nil {
+	}, iriList); err != nil {
 		return nil, fmt.Errorf("Could not list: %w", err)
 	}
 
