@@ -75,7 +75,7 @@ export const draftsApi = t.router({
         return input
       } catch (error) {
         throw Error(
-          `[DRAFT]: Error writinf draft: ${JSON.stringify(error, null)}`,
+          `[DRAFT]: Error writing draft: ${JSON.stringify(error, null)}`,
         )
       }
     }),
