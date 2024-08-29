@@ -36,7 +36,7 @@ export function getDocumentTitle(document?: HMDocument | null) {
 }
 
 export function getMetadataName(metadata?: HMDocument['metadata'] | null) {
-  return metadata?.name
+  return metadata?.name || 'Untitled Document'
 }
 
 export function getAccountName(profile: HMDocument | null | undefined) {
