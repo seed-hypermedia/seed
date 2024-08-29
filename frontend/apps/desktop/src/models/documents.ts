@@ -569,8 +569,6 @@ export function useDraftEditor({id}: {id: string | undefined}) {
   )
 
   const backendDraft = useDraft(route.id)
-
-  console.log(`== ~ DRAFT ~ useDraftEditor ~ id:`, id)
   const backendDocument = useEntity(unpackHmId(id))
 
   useEffect(() => {

@@ -30,7 +30,7 @@ import BlockAttributes from './BlockAttributes'
 const SelectionPluginKey = new PluginKey('selectionPluginKey')
 const ClickSelectionPluginKey = new PluginKey('clickSelectionPluginKey')
 const PastePluginKey = new PluginKey('pastePluginKey')
-const headingGroupPluginKey = new PluginKey('HeadingGroupPlugin')
+const headingLinePluginKey = new PluginKey('HeadingLinePlugin')
 
 const SelectionPlugin = new Plugin({
   key: SelectionPluginKey,
@@ -122,14 +122,14 @@ const PastePlugin = new Plugin({
   },
 })
 
-const headingGroupPlugin = new Plugin({
-  key: headingGroupPluginKey,
+const headingLinePlugin = new Plugin({
+  key: headingLinePluginKey,
   view(editorView) {
-    return new HeadingGroupPlugin(editorView)
+    return new HeadingLinePlugin(editorView)
   },
 })
 
-class HeadingGroupPlugin {
+class HeadingLinePlugin {
   private line: HTMLElement
   constructor(view: EditorView) {
     this.line = document.createElement('div')
@@ -159,12 +159,15 @@ class HeadingGroupPlugin {
 
       let rect = (node as HTMLElement).getBoundingClientRect()
       let editorRect = view.dom.getBoundingClientRect()
-
+      let groupPadding = 10
+      let editorPaddingTop = 40
       this.line.style.position = 'absolute'
-      this.line.style.top = `${rect.top - editorRect.top}px`
-      this.line.style.left = `${rect.left - 30 - editorRect.left}px`
-      this.line.style.width = `3px`
-      this.line.style.height = `${rect.height}px`
+      this.line.style.top = `${
+        rect.top + editorPaddingTop + groupPadding - editorRect.top
+      }px`
+      this.line.style.left = `${rect.left - editorRect.left + groupPadding}px`
+      this.line.style.width = `2.5px`
+      this.line.style.height = `${rect.height - groupPadding * 2}px`
       this.line.style.backgroundColor = 'var(--mint11)'
       this.line.style.opacity = '0.4'
     } else {
@@ -870,7 +873,7 @@ export const BlockContainer = Node.create<{
       SelectionPlugin,
       ClickSelectionPlugin,
       PastePlugin,
-      headingGroupPlugin,
+      headingLinePlugin,
     ]
   },
 
