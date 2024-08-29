@@ -192,6 +192,7 @@ export function hmId(
 ): UnpackedHypermediaId {
   if (!uid) throw new Error('uid is required')
   return {
+    ...opts,
     type,
     uid,
     id: packBaseId(type, uid, opts.path),
@@ -201,7 +202,6 @@ export function hmId(
     blockRange: opts.blockRange || null,
     hostname: opts.hostname || null,
     scheme: null,
-    ...opts,
   }
 }
 
