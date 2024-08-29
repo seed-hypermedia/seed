@@ -169,13 +169,15 @@ func (c *Lndhub) BindFlags(fs *flag.FlagSet) {
 
 // Syncing configuration.
 type Syncing struct {
-	WarmupDuration  time.Duration
-	Interval        time.Duration
-	TimeoutPerPeer  time.Duration
-	RefreshInterval time.Duration
-	NoPull          bool
-	NoDiscovery     bool
-	AllowPush       bool
+	WarmupDuration    time.Duration
+	Interval          time.Duration
+	TimeoutPerPeer    time.Duration
+	RefreshInterval   time.Duration
+	SmartSyncing      bool
+	NoPull            bool
+	NoDiscovery       bool
+	AllowPush         bool
+	SyncingBackPolicy bool
 }
 
 // BindFlags binds the flags to the given FlagSet.
@@ -186,7 +188,9 @@ func (c *Syncing) BindFlags(fs *flag.FlagSet) {
 	fs.DurationVar(&c.RefreshInterval, "syncing.refresh-interval", c.RefreshInterval, "Periodic interval at which list of peers to sync is refreshed from the database")
 	fs.BoolVar(&c.AllowPush, "syncing.allow-push", c.AllowPush, "Allows direct content push. Anyone could force push content.")
 	fs.BoolVar(&c.NoPull, "syncing.no-pull", c.NoPull, "Disables periodic content pulling")
+	fs.BoolVar(&c.SmartSyncing, "syncing.smart", c.SmartSyncing, "Enables subscription-based syncing and deactivates dumb syncing")
 	fs.BoolVar(&c.NoDiscovery, "syncing.no-discovery", c.NoDiscovery, "Disables the ability to discover content from other peers")
+	fs.BoolVar(&c.SyncingBackPolicy, "syncing.on-incoming-connection", c.SyncingBackPolicy, "When a peer connects to us, we sync all the content with it")
 }
 
 // P2P networking configuration.

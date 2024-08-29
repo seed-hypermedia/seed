@@ -157,7 +157,10 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer *
 		checker: net.CheckHyperMediaProtocolVersion,
 		version: net.GetProtocolVersion(),
 	}
-	net.SetIdentificationCallback(svc.syncBack)
+	if cfg.SyncingBackPolicy {
+		net.SetIdentificationCallback(svc.syncBack)
+	}
+
 	return svc
 }
 
@@ -252,8 +255,14 @@ func (s *Service) SyncAllAndLog(ctx context.Context) error {
 	log := s.log.With(zap.Int64("traceID", time.Now().UnixMicro()))
 
 	log.Info("SyncLoopStarted")
+	var err error
+	var res SyncResult
+	if s.cfg.SmartSyncing {
+		res, err = s.SyncSubscribedContent(ctx)
+	} else {
+		res, err = s.SyncAll(ctx)
+	}
 
-	res, err := s.SyncAll(ctx)
 	if err != nil {
 		if errors.Is(err, ErrSyncAlreadyRunning) {
 			log.Debug("SyncLoopIsAlreadyRunning")
