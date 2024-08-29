@@ -45,8 +45,17 @@ export function PageHeader({
   const isHomeDoc = useMemo(() => docId?.id == homeId?.id, [docId, homeId]);
 
   return (
-    <YStack>
-      <Stack flex={1} flexDirection="column" $gtSm={{flexDirection: "row"}}>
+    <YStack style={{paddingTop: 80}}>
+      <Stack
+        flex={1}
+        flexDirection="column"
+        $gtSm={{flexDirection: "row"}}
+        bg="$background"
+        position="fixed"
+        zi={9999}
+        w="100%"
+        top={0}
+      >
         <XStack paddingBlock="$2" paddingInline="$4" gap="$4">
           <XStack
             f={1}
@@ -76,7 +85,16 @@ export function PageHeader({
             <Button size="$2" chromeless bg="transparent" icon={Search} />
           </XStack>
         </XStack>
-        <XStack ai="center" $gtSm={{f: 1}} paddingBlock="$2" paddingInline="$4">
+        <XStack
+          ai="center"
+          $gtSm={{f: 1}}
+          paddingBlock="$2"
+          paddingInline="$4"
+          position="sticky"
+          bg="$background"
+          zi={2000}
+          top={0}
+        >
           <XStack f={1}>
             <SizableText size="$1" fontWeight="bold">
               {docMetadata?.name}
@@ -89,7 +107,6 @@ export function PageHeader({
             bg="transparent"
             icon={Menu}
             onPress={() => {
-              console.log("OPEN SHEET");
               openSheet();
             }}
           />

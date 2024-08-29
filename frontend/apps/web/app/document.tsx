@@ -9,21 +9,16 @@ import {
   UnpackedHypermediaId,
 } from "@shm/shared";
 import {Container} from "@shm/ui/src/container";
+import {DirectoryItem} from "@shm/ui/src/directory";
 import {DocContent, DocContentProvider} from "@shm/ui/src/document-content";
 import {RadioButtons} from "@shm/ui/src/radio-buttons";
-import {Text} from "@tamagui/core";
-// import {
-//   Sheet,
-//   Frame as SheetFrame,
-//   Handle as SheetHandle,
-//   Overlay as SheetOverlay,
-//   SheetScrollView,
-// } from "@tamagui/sheet";
-import {DirectoryItem} from "@shm/ui/src/directory";
 import {Spinner} from "@shm/ui/src/spinner";
-import {ButtonText} from "@tamagui/button";
-import {YStack} from "@tamagui/stacks";
-import {useEffect, useMemo, useState} from "react";
+import {Button, ButtonText} from "@tamagui/button";
+import {Text} from "@tamagui/core";
+import {X} from "@tamagui/lucide-icons";
+import {ScrollView} from "@tamagui/scroll-view";
+import {XStack, YStack} from "@tamagui/stacks";
+import {PropsWithChildren, useEffect, useMemo, useState} from "react";
 import {deserialize} from "superjson";
 import type {hmDocumentLoader, hmDocumentPayload} from "./loaders";
 import {PageHeader} from "./page-header";
@@ -67,106 +62,76 @@ const outlineWidth = 172;
 export function DocumentPage(props: hmDocumentPayload) {
   const document = deserialize(props.document) as HMDocument;
   const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState(0);
 
   return (
-    <YStack>
-      <PageHeader
-        homeMetadata={props.homeMetadata}
-        homeId={props.homeId}
-        docMetadata={document.metadata}
-        docId={props.id}
-        authors={props.authors}
-        updateTime={document.updateTime}
-        openSheet={() => {
-          console.log("OPEN SHEET", open);
-          setOpen(!open);
-        }}
-      />
-      <YStack position="relative">
-        <Container clearVerticalSpace>
-          <YStack
-            position="absolute"
-            h="100%"
-            top={0}
-            left={outlineWidth * -1}
-            display="none"
-            $gtMd={{display: "flex"}}
-          >
+    <>
+      <YStack>
+        <PageHeader
+          homeMetadata={props.homeMetadata}
+          homeId={props.homeId}
+          docMetadata={document.metadata}
+          docId={props.id}
+          authors={props.authors}
+          updateTime={document.updateTime}
+          openSheet={() => {
+            setOpen(!open);
+          }}
+        />
+        <YStack position="relative">
+          <Container clearVerticalSpace>
             <YStack
-              width={outlineWidth}
-              position="sticky"
-              paddingTop={34}
+              position="absolute"
+              h="100%"
               top={0}
-              h="calc(100%)"
-              maxHeight="calc(100vh - 60px)"
-              overflow="hidden"
+              left={outlineWidth * -1}
               display="none"
-              $gtSm={{display: "block"}}
+              $gtMd={{display: "flex"}}
             >
               <YStack
-                gap="$3"
-                maxHeight="100%"
-                overflow="auto"
-                className="hide-scrollbar"
+                width={outlineWidth}
+                position="sticky"
+                paddingTop={34}
+                top={50}
+                h="calc(100%)"
+                maxHeight="calc(100vh - 60px)"
+                overflow="hidden"
+                display="none"
+                $gtSm={{display: "block"}}
               >
-                <DocumentOutline document={document} />
+                <YStack
+                  gap="$3"
+                  maxHeight="100%"
+                  overflow="auto"
+                  className="hide-scrollbar"
+                >
+                  <DocumentOutline document={document} />
+                </YStack>
               </YStack>
             </YStack>
-          </YStack>
-          <DocContentProvider
-            entityComponents={{
-              Document: () => null,
-              Comment: () => null,
-              Inline: () => null,
-            }}
-            ipfsBlobPrefix="http://localhost:55001/ipfs/" // todo, configure this properly
-            onLinkClick={(href, e) => {}}
-            onCopyBlock={(blockId, blockRange) => {}}
-            saveCidAsFile={async (cid, name) => {}}
-            textUnit={18}
-            layoutUnit={24}
-            debug={false}
-          >
-            <DocContent document={document} />
-          </DocContentProvider>
-        </Container>
-        <DocumentAppendix id={props.id} />
-        {/* <Sheet
-          forceRemoveScrollEnabled={open}
-          modal
-          open={open}
-          onOpenChange={setOpen}
-          snapPoints={[45, 80]}
-          dismissOnSnapToBottom
-          position={position}
-          onPositionChange={setPosition}
-          zIndex={100_000}
-          animation="medium"
-        >
-          <SheetOverlay
-            position="absolute"
-            top={0}
-            zi={0}
-            left={0}
-            fullscreen
-            animation="medium"
-            enterStyle={{opacity: 0}}
-            exitStyle={{opacity: 0}}
-          />
-          <SheetHandle />
-          <SheetFrame>
-            <SheetScrollView>
-              <YStack bg="$background" padding="$4" marginInline="$6">
-                <SizableText color="$color9" fontSize={14}>
-                  TODO ERIC: OUTLINE HERE
-                </SizableText>
-              </YStack>
-            </SheetScrollView>
-          </SheetFrame>
-        </Sheet> */}
+            <DocContentProvider
+              entityComponents={{
+                Document: () => null,
+                Comment: () => null,
+                Inline: () => null,
+              }}
+              ipfsBlobPrefix="http://localhost:55001/ipfs/" // todo, configure this properly
+              onLinkClick={(href, e) => {}}
+              onCopyBlock={(blockId, blockRange) => {}}
+              saveCidAsFile={async (cid, name) => {}}
+              textUnit={18}
+              layoutUnit={24}
+              debug={false}
+            >
+              <DocContent document={document} />
+            </DocContentProvider>
+          </Container>
+          <DocumentAppendix id={props.id} />
+        </YStack>
       </YStack>
-    </YStack>
+      <MobileOutline open={open} onClose={() => setOpen(false)}>
+        <DocumentOutline document={document} onClose={() => setOpen(false)} />
+      </MobileOutline>
+    </>
   );
 }
 
@@ -238,24 +203,53 @@ function DocumentDiscussion({id}: {id: UnpackedHypermediaId}) {
   return null;
 }
 
-function DocumentOutline({document}: {document: HMDocument}) {
+function DocumentOutline({
+  document,
+  onClose,
+}: {
+  document: HMDocument;
+  onClose?: () => void;
+}) {
   const outline = useMemo(() => {
     return getNodesOutline(document.content);
   }, [document.content]);
-  console.log(outline);
+
   return (
-    <YStack gap="$1">
+    <YStack gap="$3">
       {outline.map((node) => (
-        <OutlineNode node={node} key={node.id} />
+        <OutlineNode node={node} key={node.id} onClose={onClose} />
       ))}
     </YStack>
   );
 }
 
-function OutlineNode({node}: {node: NodeOutline}) {
+function OutlineNode({
+  node,
+  onClose,
+}: {
+  node: NodeOutline;
+  onClose?: () => void;
+}) {
   return (
     <>
-      <ButtonText tag="a" href={`#${node.id}`} color="$color9" fontSize={14}>
+      <ButtonText
+        tag="a"
+        href={`#${node.id}`}
+        color="$color9"
+        fontSize={14}
+        onPress={(e: MouseEvent) => {
+          e.preventDefault();
+          const targetElement = document.querySelector(`#${node.id}`);
+
+          if (targetElement) {
+            const offset = 80; // header fixed height
+            const elementPosition = targetElement.getBoundingClientRect().top;
+            const offsetPosition = elementPosition + window.scrollY - offset;
+            window.scrollTo({top: offsetPosition, behavior: "smooth"});
+            onClose?.();
+          }
+        }}
+      >
         {node.title}
       </ButtonText>
       {node.children?.length ? (
@@ -267,4 +261,44 @@ function OutlineNode({node}: {node: NodeOutline}) {
       ) : null}
     </>
   );
+}
+
+function MobileOutline({
+  open,
+  onClose,
+  children,
+}: PropsWithChildren<{open: boolean; onClose: () => void}>) {
+  return open ? (
+    <YStack
+      fullscreen
+      zi={10000}
+      position="fixed"
+      pointerEvents={open ? "inherit" : "none"}
+    >
+      <XStack
+        id="menu-overlay"
+        fullscreen
+        bg="black"
+        opacity={open ? 0.6 : 0}
+        onPress={onClose}
+        animation="fast"
+      />
+
+      <YStack
+        fullscreen
+        x={open ? 50 : "100%"}
+        animation="medium"
+        elevation="$4"
+        p="$4"
+        bg="$background"
+        paddingRight={50 + 18}
+      >
+        <XStack>
+          <XStack f={1} />
+          <Button icon={X} onPress={onClose} />
+        </XStack>
+        <ScrollView paddingVertical="$6">{children}</ScrollView>
+      </YStack>
+    </YStack>
+  ) : null;
 }
