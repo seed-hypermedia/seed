@@ -1,4 +1,4 @@
-import {fetchWebLink} from '@/models/web-links'
+import {loadWebLinkMeta} from '@/models/web-links'
 import {AppQueryClient} from '@/query-client'
 import {extractBlockRefOfUrl, hmIdWithVersion} from '@shm/shared'
 import {EditorView} from '@tiptap/pm/view'
@@ -79,7 +79,7 @@ async function checkHyperLink(
   if (!entryUrl) return
   view.dispatch(view.state.tr.setMeta('hmPlugin:removeId', id))
   try {
-    let res = await fetchWebLink(queryClient, entryUrl)
+    let res = await loadWebLinkMeta(queryClient, entryUrl)
     if (res && res.hmId) {
       const fullHmId = hmIdWithVersion(
         res.hmId,

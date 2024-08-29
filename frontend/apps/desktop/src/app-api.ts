@@ -30,7 +30,7 @@ import {secureStorageApi} from './app-secure-storage'
 import {appSettingsApi} from './app-settings'
 import {sitesApi} from './app-sites'
 import {t} from './app-trpc'
-import {uploadFile, webImportingApi} from './app-web-importing'
+import {extractMetaTags, uploadFile, webImportingApi} from './app-web-importing'
 import {welcomingApi} from './app-welcoming'
 import {
   closeAppWindow,
@@ -155,6 +155,14 @@ export const router = t.router({
   diagnosis: diagnosisApi,
   welcoming: welcomingApi,
   webImporting: webImportingApi,
+  web: t.router({
+    queryMeta: t.procedure.input(z.string()).query(async ({input}) => {
+      const res = await fetch(input)
+      const html = await res.text()
+      const meta = extractMetaTags(html)
+      return {meta}
+    }),
+  }),
   favorites: favoritesApi,
   comments: commentsApi,
   gatewaySettings: gatewaySettingsApi,

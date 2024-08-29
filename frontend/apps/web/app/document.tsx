@@ -1,6 +1,7 @@
 import {MetaFunction} from "@remix-run/node";
 import {useFetcher} from "@remix-run/react";
 import {
+  getDocumentTitle,
   getFileUrl,
   getNodesOutline,
   HMDocument,
@@ -38,9 +39,7 @@ export const documentPageMeta: MetaFunction<hmDocumentLoader> = ({
   const homeThumbnail = data.homeMetadata?.thumbnail
     ? getFileUrl(data.homeMetadata.thumbnail)
     : null;
-  const meta: ReturnType<MetaFunction> = [
-    {title: document.metadata?.name || "Untitled"},
-  ];
+  const meta: ReturnType<MetaFunction> = [{title: getDocumentTitle(document)}];
   if (homeThumbnail) {
     meta.push({
       tagName: "link",
@@ -49,6 +48,18 @@ export const documentPageMeta: MetaFunction<hmDocumentLoader> = ({
       type: "image/png",
     });
   }
+  meta.push({
+    name: "hypermedia_id",
+    content: data.id.id,
+  });
+  meta.push({
+    name: "hypermedia_version",
+    content: document.version,
+  });
+  meta.push({
+    name: "hypermedia_title",
+    content: getDocumentTitle(document),
+  });
   return meta;
 };
 

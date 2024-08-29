@@ -6,7 +6,7 @@ import {useGatewayHost} from '@/models/gateway-settings'
 import {useRecents} from '@/models/recents'
 import {useSearch} from '@/models/search'
 import {importWebCapture} from '@/models/web-importer'
-import {fetchWebLink} from '@/models/web-links'
+import {loadWebLinkMeta} from '@/models/web-links'
 import {trpc} from '@/trpc'
 import {
   appRouteOfId,
@@ -85,7 +85,7 @@ function useURLHandler() {
         documentId,
       }
     } else {
-      const result = await fetchWebLink(queryClient, httpSearch)
+      const result = await loadWebLinkMeta(queryClient, httpSearch)
       const parsedUrl = parseCustomURL(httpSearch)
       const fragment = parseFragment(parsedUrl?.fragment || '')
       const fullHmId = hmIdWithVersion(

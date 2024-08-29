@@ -10,7 +10,6 @@ import {useEffect, useRef, useState} from 'react'
 import {useGRPCClient} from '../app-context'
 import {useGatewayUrl} from './gateway-settings'
 import {queryKeys} from './query-keys'
-import {WebLinkMeta, fetchWebLinkMeta} from './web-links'
 
 export function useIsOnline() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
@@ -129,41 +128,4 @@ function queryPeerInfo(
 export function usePeerInfo(deviceId?: string) {
   const grpcClient = useGRPCClient()
   return useQuery<PeerInfo, ConnectError>(queryPeerInfo(grpcClient, deviceId))
-}
-
-export function useIsHMUrlReady(webUrl: string | null, timeoutSeconds = 120) {
-  const [readyMeta, setReadyMeta] = useState<null | WebLinkMeta>(null)
-  const isReadyRef = useRef<boolean>(false)
-  const [didTimeout, setDidTimeout] = useState(false)
-  const didTimeoutRef = useRef<boolean>(false)
-  useEffect(() => {
-    setReadyMeta(null)
-    setTimeout(() => {
-      didTimeoutRef.current = true
-      if (!isReadyRef.current) setDidTimeout(true)
-    }, timeoutSeconds * 1000)
-    function start() {
-      if (!webUrl) return
-      fetchWebLinkMeta(webUrl)
-        .then((res) => {
-          if (res?.hmVersion) {
-            isReadyRef.current = true
-            setReadyMeta(res)
-          }
-        })
-        .catch((error) => {
-          appError('Unexpected fetchWebLinkMeta Error', {error})
-        })
-        .finally(() => {
-          if (isReadyRef.current) return
-          if (didTimeoutRef.current) return
-          setTimeout(() => {
-            start()
-          }, 2000)
-        })
-    }
-    start()
-    return () => {}
-  }, [webUrl, timeoutSeconds])
-  return {linkMeta: readyMeta, didTimeout}
 }

@@ -1,6 +1,5 @@
 import type {AppQueryClient} from '@/query-client'
-import {parseFragment} from '@shm/shared'
-import {useQuery} from '@tanstack/react-query'
+import {client} from '@/trpc'
 import {useEffect, useRef, useState} from 'react'
 import {queryKeys} from './query-keys'
 
@@ -49,32 +48,39 @@ export function useWaitForPublication(url: string, secondsUntilTimeout = 120) {
   return {resultMeta, timedOut}
 }
 
+// export async function fetchWebLinkMeta(
+//   url: string,
+// ): Promise<WebLinkMeta | null> {
+//   if (!url) return null
+//   try {
+//     if (!url.startsWith('http')) return null
+//     const webResponse = await fetch(url, {
+//       method: 'GET',
+//     })
+//     const htmlData = await webResponse.text()
+//     const doc = parseHTML(htmlData)
+//     const hmId = extractMetaTagValue(doc, 'hypermedia-entity-id')
+//     const hmUrl = extractMetaTagValue(doc, 'hypermedia-url')
+//     const hmVersion = extractMetaTagValue(doc, 'hypermedia-entity-version')
+//     const hmTitle = extractMetaTagValue(doc, 'hypermedia-entity-title')
+//     const fragment = parseFragment(url)
+//     return {
+//       hmUrl,
+//       hmId,
+//       hmVersion,
+//       hmTitle,
+//       blockRef: fragment?.blockId || null,
+//     }
+//   } catch (e) {
+//     return null
+//   }
+// }
+
 export async function fetchWebLinkMeta(
   url: string,
-): Promise<WebLinkMeta | null> {
-  if (!url) return null
-  try {
-    if (!url.startsWith('http')) return null
-    const webResponse = await fetch(url, {
-      method: 'GET',
-    })
-    const htmlData = await webResponse.text()
-    const doc = parseHTML(htmlData)
-    const hmId = extractMetaTagValue(doc, 'hypermedia-entity-id')
-    const hmUrl = extractMetaTagValue(doc, 'hypermedia-url')
-    const hmVersion = extractMetaTagValue(doc, 'hypermedia-entity-version')
-    const hmTitle = extractMetaTagValue(doc, 'hypermedia-entity-title')
-    const fragment = parseFragment(url)
-    return {
-      hmUrl,
-      hmId,
-      hmVersion,
-      hmTitle,
-      blockRef: fragment?.blockId || null,
-    }
-  } catch (e) {
-    return null
-  }
+): Promise<Record<string, string>> {
+  const queried = await client.web.queryMeta.query(url)
+  return queried.meta
 }
 
 function queryWebLink(url: string, enabled: boolean) {
@@ -82,14 +88,12 @@ function queryWebLink(url: string, enabled: boolean) {
     queryKey: [queryKeys.GET_URL, url],
     enabled,
     queryFn: async () => {
-      return await fetchWebLinkMeta(url)
+      const meta = await fetchWebLinkMeta(url)
+      return meta
     },
   }
 }
 
-export function useWebLink(url: string, enabled: boolean) {
-  return useQuery(queryWebLink(url, enabled))
-}
-export function fetchWebLink(appClient: AppQueryClient, url: string) {
+export function loadWebLinkMeta(appClient: AppQueryClient, url: string) {
   return appClient.client.fetchQuery(queryWebLink(url, true))
 }

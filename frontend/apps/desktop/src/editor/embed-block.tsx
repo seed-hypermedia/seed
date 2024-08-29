@@ -1,6 +1,6 @@
 import {useAppContext} from '@/app-context'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
-import {fetchWebLink} from '@/models/web-links'
+import {loadWebLinkMeta} from '@/models/web-links'
 import {useOpenUrl} from '@/open-url'
 import {usePopoverState} from '@/use-popover-state'
 import {
@@ -112,7 +112,7 @@ const Render = (
       }
     } else {
       setLoading(true)
-      fetchWebLink(queryClient, url)
+      loadWebLinkMeta(queryClient, url)
         .then((res) => {
           const fullHmId = hmIdWithVersion(
             res?.hmId,

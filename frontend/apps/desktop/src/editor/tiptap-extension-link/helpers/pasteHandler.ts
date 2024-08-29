@@ -1,6 +1,6 @@
 import {getLinkMenuItems} from '@/editor/blocknote/core'
 import {linkMenuPluginKey} from '@/editor/blocknote/core/extensions/LinkMenu/LinkMenuPlugin'
-import {fetchWebLink} from '@/models/web-links'
+import {loadWebLinkMeta} from '@/models/web-links'
 import type {AppQueryClient} from '@/query-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {
@@ -324,16 +324,14 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                 }),
               )
               break
-            case 0:
-              const embedPromise = fetchWebLink(options.client, link.href)
+            case 0: {
+              const metaPromise = loadWebLinkMeta(options.client, link.href)
                 .then((res) => {
                   if (res) {
-                    const title = res.hmTitle
-                    // todo: use res?.hmUrl which may have format of hm://g/ID/PATH?v=G_VERSION.
-                    // the embed component does not load this group doc URL correctly
+                    const title = res.hypermedia_title
                     const fullHmUrl = hmIdWithVersion(
-                      res?.hmId,
-                      res?.hmVersion,
+                      res.hypermedia_id,
+                      res.hypermedia_version,
                       extractBlockRefOfUrl(link.href),
                     )
                     if (title && fullHmUrl) {
@@ -358,7 +356,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                             hmId: unpackHmId(fullHmUrl),
                             isLoading: false,
                             sourceUrl: fullHmUrl,
-                            docTitle: res.hmTitle,
+                            docTitle: res.hypermedia_title,
                             gwUrl: options.gwUrl,
                           }),
                         }),
@@ -368,6 +366,8 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                   }
                 })
                 .catch((err) => {
+                  console.log('ERROR FETCHING web link')
+
                   console.log(err)
                 })
               const mediaPromise = options
@@ -395,7 +395,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                 .catch((err) => {
                   console.log(err)
                 })
-              Promise.all([embedPromise, mediaPromise])
+              Promise.all([metaPromise, mediaPromise])
                 .then((results) => {
                   const [embedResult, mediaResult] = results
                   if (!embedResult && !mediaResult) {
@@ -413,6 +413,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                 .catch((err) => {
                   console.log(err)
                 })
+            }
             default:
               break
           }

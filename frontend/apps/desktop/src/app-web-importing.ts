@@ -41,7 +41,7 @@ function downloadFile(fileUrl: string): Promise<Blob> {
   })
 }
 
-function extractMetaTags(html: string) {
+export function extractMetaTags(html: string) {
   const $ = cheerio.load(html)
   const metaTags: Record<string, string> = {}
   $('meta').each((_i, element) => {
