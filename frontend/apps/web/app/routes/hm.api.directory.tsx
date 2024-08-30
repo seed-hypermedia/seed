@@ -40,8 +40,17 @@ export const loader = async ({
     const res = await queryClient.documents.listDocuments({
       account: id.uid,
     });
+    const pathPrefix = id.path ? "/" + id.path.join("/") : "/";
+    const idPathLength = id.path?.length || 0;
     const directory = toPlainMessage(res)
-      .documents.filter((doc) => doc.path !== "/")
+      .documents.filter(
+        (doc) =>
+          doc.path !== "/" &&
+          doc.path !== "" &&
+          doc.path !== pathPrefix &&
+          doc.path.startsWith(pathPrefix) &&
+          doc.path.split("/").slice(1).length === idPathLength + 1
+      )
       .map((doc) => {
         return {
           path: doc.path,
