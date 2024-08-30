@@ -186,7 +186,7 @@ CREATE INDEX resource_links_by_target ON resource_links (target, source);
 CREATE TABLE subscriptions (
     id INTEGER PRIMARY KEY,
     -- The resource we are subscribing to.
-    iri TEXT REFERENCES resources (iri) ON DELETE CASCADE UNIQUE NOT NULL,
+    iri TEXT UNIQUE NOT NULL,
     -- Whether we subscribe recursively to all documents in the directory or not
     is_recursive BOOLEAN DEFAULT false NOT NULL,
     -- The time when the resource was subscribed.
