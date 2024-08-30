@@ -1,6 +1,8 @@
 import {useFetcher} from "@remix-run/react";
 import {ContentEmbed, EntityComponentProps} from "@shm/ui/src/document-content";
 import {useEffect, useState} from "react";
+import type {WebDocumentPayload} from "./loaders";
+import {unwrap} from "./wrapping";
 
 function EmbedWrapper({
   children,
@@ -20,6 +22,7 @@ export function EmbedDocument(props: EntityComponentProps) {
 export function EmbedDocContent(props: EntityComponentProps) {
   const [showReferenced, setShowReferenced] = useState(false);
   const doc = useEntity(props);
+  // return <div>{JSON.stringify(doc.data)}</div>;
   return (
     <ContentEmbed
       props={props}
@@ -56,7 +59,7 @@ function useEntity(props: EntityComponentProps) {
   }, [props.uid, props.path?.join("/")]);
 
   return {
-    data: fetcher.data,
+    data: fetcher.data ? unwrap<WebDocumentPayload>(fetcher.data) : null,
     isLoading: fetcher.state === "loading",
   };
 }

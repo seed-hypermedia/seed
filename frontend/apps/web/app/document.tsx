@@ -175,7 +175,6 @@ function DocumentDirectory({id}: {id: UnpackedHypermediaId}) {
   useEffect(() => {
     fetcher.load(`/hm/api/directory?id=${id.id}`);
   }, [id.id]);
-  console.log("LOADED DIRECTORY", id.id, fetcher.data);
   const response = fetcher.data
     ? unwrap<DirectoryPayload>(fetcher.data)
     : undefined;
