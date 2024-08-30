@@ -27,14 +27,16 @@ export default defineConfig({
     noExternal: ["@tamagui/helpers-icon"],
   },
   optimizeDeps: {
-    exclude: process.env.NODE_ENV === "production" ? [] : ["*"],
+    exclude:
+      process.env.NODE_ENV === "production"
+        ? []
+        : ["expo-linear-gradient", "@tamagui/*", "tamagui"],
   },
   plugins: [
     tamaguiPlugin({config: "./tamagui.config.ts"}) as any,
     process.env.NODE_ENV === "production"
       ? tamaguiExtractPlugin({
           config: "./tamagui.config.ts",
-          excludeReactNativeWebExports: ["Sheet", "Switch"],
         })
       : null,
     // tamaguiExtractPlugin({
