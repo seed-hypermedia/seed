@@ -33,7 +33,6 @@
     "@tamagui/create-theme": "1.108.2",
     "@tamagui/font-inter": "1.108.2",
     "@tamagui/helpers-icon": "1.108.2",
-    "@tamagui/lucide-icons": "1.108.2",
     "@tamagui/react-native-media-driver": "1.108.2",
     "@tamagui/shorthands": "1.108.2",
     "@tamagui/stacks": "1.108.2",
@@ -47,6 +46,9 @@
     "react-native-reanimated": "^3.7.0",
     "react-virtuoso": "4.6.2",
     "tamagui": "1.108.2"
+  },
+  "peerDependencies": {
+    "@tamagui/lucide-icons": "1.108.2"
   },
   "devDependencies": {
     "@shm/prettier": "*",

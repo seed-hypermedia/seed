@@ -20,17 +20,8 @@
     "watch": "yarn workspaces foreach -pi run watch",
     "fix": "manypkg fix",
     "build": "yarn ui:build",
-    "storybook": "yarn storybook:web",
-    "sb": "yarn storybook:web",
-    "storybook:web": "yarn build && cd frontend/apps/storybook && yarn dev",
-    "check-deps": "check-dependency-version-consistency .",
     "docs": "yarn workspace @shm/docs start",
-    "upgrade:tamagui": "yarn up '*tamagui*'@latest '@tamagui/*'@latest",
-    "generate": "yarn turbo gen",
-    "ui:build": "yarn workspace @shm/ui generate && yarn workspace @shm/ui build",
-    "gen": "yarn generate",
-    "format": "turbo format --continue -- --cache --cache-location='node_modules/.cache/.prettiercache'",
-    "format:fix": "turbo format --continue -- --write --cache --cache-location='node_modules/.cache/.prettiercache'"
+    "ui:build": "yarn workspace @shm/ui generate && yarn workspace @shm/ui build"
   },
   "repository": "github:mintterhypermedia/mintter",
   "packageManager": "yarn@3.6.1",
@@ -45,17 +36,10 @@
     "@connectrpc/protoc-gen-connect-es": "1.1.3",
     "@manypkg/cli": "0.19.2",
     "@nderscore/tamagui-typescript-plugin": "0.5.4",
-    "@tamagui/cli": "1.108.2",
-    "check-dependency-version-consistency": "4.1.0",
     "cross-env": "7.0.3",
-    "electron-squirrel-startup": "1.0.0",
-    "graphql-codegen": "0.4.0",
-    "node-gyp": "9.3.1",
     "prettier": "3.0.2",
-    "sort-package-json": "2.5.1",
-    "superjson": "1.13.3",
-    "tamagui": "1.108.2",
-    "turbo": "1.11.2",
+    "react-native": "^0.75.2",
+    "react-native-svg": "^15.6.0",
     "typescript": "5.5.2"
   },
   "resolutions": {
@@ -63,7 +47,6 @@
     "react-dom": "18.2.0"
   },
   "devDependencies": {
-    "@storybook/nextjs": "7.0.26",
     "babel-plugin-react-native-web": "0.19.9",
     "concurrently": "8.2.1",
     "playwright": "^1.40.1",
