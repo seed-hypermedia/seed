@@ -32,14 +32,25 @@ export type WebDocumentPayload = {
 };
 
 export async function getDocument(
-  id: UnpackedHypermediaId
+  entityId: UnpackedHypermediaId
 ): Promise<WebDocumentPayload> {
+  const {id, version, uid} = entityId;
+  if (process.env.SEED_IS_GATEWAY === "true") {
+    console.log("= discoverEntity", {id, version});
+    await queryClient.entities.discoverEntity({
+      id,
+      version: version || undefined,
+    });
+  }
+  const path = hmIdPathToEntityQueryPath(entityId.path);
+  console.log("= getDocument", {uid, path, version});
   const rawDoc = await queryClient.documents.getDocument({
-    account: id.uid,
-    path: hmIdPathToEntityQueryPath(id.path),
-    version: id.version || undefined,
+    account: uid,
+    path,
+    version: version || undefined,
   });
   const document = toPlainMessage(rawDoc);
+  console.log("loaded doc with version: ", document.version);
   const authors = await Promise.all(
     document.authors.map(async (authorUid) => {
       return await getMetadata(hmId("d", authorUid));
@@ -48,7 +59,7 @@ export async function getDocument(
   return {
     document,
     authors,
-    id,
+    id: entityId,
   };
 }
 
