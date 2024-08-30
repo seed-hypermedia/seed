@@ -9,6 +9,7 @@ import {LinkNameComponent} from '@/components/document-name'
 import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
 import {SidebarSpacer} from '@/components/main-wrapper'
+import {SubscriptionButton} from '@/components/subscription'
 import {CopyReferenceButton} from '@/components/titlebar-common'
 import '@/editor/editor.css'
 import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
@@ -244,65 +245,68 @@ function DocPageHeader({
             </XStack>
           </XStack>
 
-          <XStack marginTop="$4" gap="$3" ai="center">
-            {entity.data?.document?.path.length || authors?.length !== 1 ? (
-              <>
-                <XStack ai="center" gap={0}>
-                  {authors
-                    ?.map((a, index) => [
-                      <LinkNameComponent key={a} accountId={a} />,
-                      index !== authors.length - 1 ? (
-                        index === authors.length - 2 ? (
-                          <SizableText
-                            key={`${a}-and`}
-                            size="$1"
-                            fontWeight={'bold'}
-                          >
-                            {' & '}
-                          </SizableText>
-                        ) : (
-                          <SizableText key={`${a}-comma`} fontWeight={'bold'}>
-                            {', '}
-                          </SizableText>
-                        )
-                      ) : null,
-                    ])
-                    .filter(Boolean)}
-                </XStack>
-                <Separator />
-              </>
-            ) : null}
-            <Tooltip
-              content={`Update time: ${formattedDateLong(
-                entity.data?.document?.updateTime,
-              )}`}
-            >
-              <SizableText size="$1" hoverStyle={{cursor: 'default'}}>
-                {formattedDateMedium(entity.data?.document?.updateTime)}
-              </SizableText>
-            </Tooltip>
-            {entity.data?.document?.metadata.siteUrl ? (
-              <>
-                <Separator />
-                <SiteURLButton
-                  siteUrl={entity.data?.document?.metadata.siteUrl}
-                />
-              </>
-            ) : null}
-            <Separator />
-            <Button
-              borderColor="$colorTransparent"
-              outlineColor="$colorTransparent"
-              hoverStyle={{
-                borderColor: '$colorTransparent',
-                background: '$blue7',
-              }}
-              color="$blue11"
-              size="$1"
-              icon={Link}
-            >
-              Share
-            </Button>
+          <XStack marginTop="$4" gap="$3" ai="center" jc="space-between">
+            <XStack gap="$3" ai="center">
+              {entity.data?.document?.path.length || authors?.length !== 1 ? (
+                <>
+                  <XStack ai="center" gap={0}>
+                    {authors
+                      ?.map((a, index) => [
+                        <LinkNameComponent key={a} accountId={a} />,
+                        index !== authors.length - 1 ? (
+                          index === authors.length - 2 ? (
+                            <SizableText
+                              key={`${a}-and`}
+                              size="$1"
+                              fontWeight={'bold'}
+                            >
+                              {' & '}
+                            </SizableText>
+                          ) : (
+                            <SizableText key={`${a}-comma`} fontWeight={'bold'}>
+                              {', '}
+                            </SizableText>
+                          )
+                        ) : null,
+                      ])
+                      .filter(Boolean)}
+                  </XStack>
+                  <Separator />
+                </>
+              ) : null}
+              <Tooltip
+                content={`Update time: ${formattedDateLong(
+                  entity.data?.document?.updateTime,
+                )}`}
+              >
+                <SizableText size="$1" hoverStyle={{cursor: 'default'}}>
+                  {formattedDateMedium(entity.data?.document?.updateTime)}
+                </SizableText>
+              </Tooltip>
+              {entity.data?.document?.metadata.siteUrl ? (
+                <>
+                  <Separator />
+                  <SiteURLButton
+                    siteUrl={entity.data?.document?.metadata.siteUrl}
+                  />
+                </>
+              ) : null}
+              <Separator />
+              <Button
+                borderColor="$colorTransparent"
+                outlineColor="$colorTransparent"
+                hoverStyle={{
+                  borderColor: '$colorTransparent',
+                  background: '$blue7',
+                }}
+                color="$blue11"
+                size="$1"
+                icon={Link}
+              >
+                Share
+              </Button>
+            </XStack>
+            <SubscriptionButton id={docId} />
           </XStack>
           <TSeparator borderColor="$color8" />
         </YStack>

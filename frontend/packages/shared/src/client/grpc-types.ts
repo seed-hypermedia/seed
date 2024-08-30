@@ -1,5 +1,7 @@
 export * from './.generated/activity/v1alpha/activity_connect'
 export * from './.generated/activity/v1alpha/activity_pb'
+export * from './.generated/activity/v1alpha/subscriptions_connect'
+export * from './.generated/activity/v1alpha/subscriptions_pb'
 export * from './.generated/daemon/v1alpha/daemon_connect'
 export * from './.generated/daemon/v1alpha/daemon_pb'
 export * from './.generated/documents/v3alpha/access_control_connect'

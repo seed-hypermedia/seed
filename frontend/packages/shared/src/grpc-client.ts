@@ -6,6 +6,7 @@ import {
   Documents,
   Entities,
   Networking,
+  Subscriptions,
 } from './client'
 
 export type GRPCClient = {
@@ -15,6 +16,7 @@ export type GRPCClient = {
   entities: PromiseClient<typeof Entities>
   networking: PromiseClient<typeof Networking>
   accessControl: PromiseClient<typeof AccessControl>
+  subscriptions: PromiseClient<typeof Subscriptions>
 }
 
 export function createGRPCClient(transport: any): GRPCClient {
@@ -25,5 +27,6 @@ export function createGRPCClient(transport: any): GRPCClient {
     entities: createPromiseClient(Entities, transport),
     networking: createPromiseClient(Networking, transport),
     accessControl: createPromiseClient(AccessControl, transport),
+    subscriptions: createPromiseClient(Subscriptions, transport),
   } as const
 }

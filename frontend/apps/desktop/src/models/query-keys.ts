@@ -66,6 +66,9 @@ export const queryKeys = {
 
   // deleted content
   DELETED: 'deleted',
+
+  // subscriptions
+  SUBSCRIPTIONS: 'SUBSCRIPTIONS', // toodo lollll
 } as const
 
 export function labelOfQueryKey(key: QueryKey) {
@@ -101,8 +104,6 @@ export function labelOfQueryKey(key: QueryKey) {
     // documents
     case queryKeys.ACCOUNT_DOCUMENTS:
       return 'Account Publications'
-    case queryKeys.DOCUMENT_LIST:
-      return 'Publications'
     case queryKeys.DRAFT:
       return `Editor Draft ${abbreviateCid(arg1)}`
     case queryKeys.ENTITY:
