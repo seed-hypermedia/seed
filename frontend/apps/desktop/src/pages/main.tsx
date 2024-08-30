@@ -1,6 +1,5 @@
 import {useListen} from '@/app-context'
 
-import {Launcher} from '@/components/launcher'
 import {SidebarContextProvider} from '@/sidebar-context'
 import {getRouteKey, useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
@@ -44,7 +43,6 @@ export default function Main({className}: {className?: string}) {
   const windowType = getWindowType()
   let titlebar: ReactElement | null = null
   let sidebar: ReactElement | null = null
-  let launcher: ReactElement | null = null
   if (windowType === 'main') {
     titlebar = <TitleBar />
     sidebar = <AppSidebar />
@@ -66,10 +64,6 @@ export default function Main({className}: {className?: string}) {
     titlebar = <TitleBar clean cleanTitle="Review Deleted Content" />
   }
 
-  if (windowType === 'main') {
-    launcher = <Launcher />
-  }
-
   return (
     <YStack fullscreen className={className}>
       <SidebarContextProvider>
@@ -82,7 +76,6 @@ export default function Main({className}: {className?: string}) {
         >
           {titlebar}
           <PageComponent />
-          {launcher}
         </ErrorBoundary>
         {sidebar}
       </SidebarContextProvider>

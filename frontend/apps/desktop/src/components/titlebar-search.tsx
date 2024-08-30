@@ -20,7 +20,7 @@ import {
   HYPERMEDIA_ENTITY_TYPES,
   HYPERMEDIA_SCHEME,
   NavRoute,
-  hmIdWithVersion,
+  hmId,
   isHypermediaScheme,
   parseCustomURL,
   parseFragment,
@@ -129,13 +129,16 @@ function useURLHandler() {
       const result = await loadWebLinkMeta(queryClient, httpSearch)
       const parsedUrl = parseCustomURL(httpSearch)
       const fragment = parseFragment(parsedUrl?.fragment || '')
-      const fullHmId = hmIdWithVersion(
-        result?.hmId,
-        result?.hmVersion,
-        fragment?.blockId,
-      )
+      const baseId = unpackHmId(result?.hypermedia_id)
+      const fullHmId =
+        baseId &&
+        hmId(baseId.type, baseId.uid, {
+          path: baseId.path,
+          version: result.hypermedia_version,
+          blockRef: fragment?.blockId,
+        })
       if (!fullHmId) throw new Error('Failed to fetch web link')
-      const queried = await resolveHmUrl(result?.hmUrl || fullHmId)
+      const queried = await resolveHmUrl(fullHmId)
       if (queried?.navRoute) {
         return queried?.navRoute
       }

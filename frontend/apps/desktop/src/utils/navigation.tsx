@@ -1,8 +1,5 @@
 import {GRPCClient, NavRoute, StateStream, defaultRoute} from '@shm/shared'
-import {
-  UnpackedHypermediaId,
-  unpackHmId,
-} from '@shm/shared/src/utils/entity-id-url'
+import {UnpackedHypermediaId} from '@shm/shared/src/utils/entity-id-url'
 import {useStream, useStreamSelector} from '@shm/ui'
 import {Buffer} from 'buffer'
 import {createContext, useContext} from 'react'
@@ -196,9 +193,9 @@ export function isHttpUrl(url: string) {
 export function useHmIdToAppRouteResolver() {
   const grpcClient = useGRPCClient()
   return (
-    hmId: string,
+    id: UnpackedHypermediaId,
   ): Promise<null | (UnpackedHypermediaId & {navRoute?: NavRoute})> => {
-    return resolveHmIdToAppRoute(hmId, grpcClient).catch((e) => {
+    return resolveHmIdToAppRoute(id, grpcClient).catch((e) => {
       console.error(e)
       // toast.error('Failed to resolve ID to app route')
       return null
@@ -207,21 +204,20 @@ export function useHmIdToAppRouteResolver() {
 }
 
 export async function resolveHmIdToAppRoute(
-  hmId: string,
+  hmId: UnpackedHypermediaId,
   grpcClient: GRPCClient,
 ): Promise<null | (UnpackedHypermediaId & {navRoute?: NavRoute})> {
-  const hmIds = unpackHmId(hmId)
-  if (hmIds?.type === 'd') {
+  if (hmId?.type === 'd') {
     return {
-      ...hmIds,
+      ...hmId,
       navRoute: {
         key: 'document',
-        id: {...hmIds, version: null},
+        id: {...hmId, version: null},
       },
     }
   }
-  if (!hmIds) return null
-  const navRoute = appRouteOfId(hmIds)
+  if (!hmId) return null
+  const navRoute = appRouteOfId(hmId)
   if (!navRoute) return null
-  return {...hmIds, navRoute}
+  return {...hmId, navRoute}
 }
