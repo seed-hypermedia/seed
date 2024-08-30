@@ -241,7 +241,7 @@ func (s *Service) refreshWorkers(ctx context.Context) error {
 	// Starting workers for newly added trusted peers.
 	for pid := range peers {
 		if _, ok := s.workers[pid]; !ok {
-			w := newWorker(s.cfg, pid, s.log, s.rbsrClient, s.host, s.indexer, s.bitswap, s.db, s.semaphore)
+			w := newWorker(s.cfg, pid, s.log, s.rbsrClient, s.host, s.indexer, s.bitswap, s.db, s.semaphore, s.sstore)
 			s.wg.Add(1)
 			go w.start(ctx, &s.wg, s.cfg.Interval)
 			workersDiff++
@@ -272,11 +272,8 @@ func (s *Service) SyncAllAndLog(ctx context.Context) error {
 	log.Info("SyncLoopStarted")
 	var err error
 	var res SyncResult
-	if s.cfg.SmartSyncing {
-		res, err = s.SyncSubscribedContent(ctx)
-	} else {
-		res, err = s.SyncAll(ctx)
-	}
+
+	res, err = s.SyncAll(ctx)
 
 	if err != nil {
 		if errors.Is(err, ErrSyncAlreadyRunning) {
@@ -316,6 +313,9 @@ type SyncResult struct {
 
 // SyncAll attempts to sync the with all the peers at once.
 func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
+	if s.cfg.SmartSyncing {
+		return s.SyncSubscribedContent(ctx)
+	}
 	if !s.mu.TryLock() {
 		return res, ErrSyncAlreadyRunning
 	}
@@ -378,6 +378,8 @@ var qunwrapRecursive = dqb.Str(`
 	`)
 
 // SyncSubscribedContent attempts to sync all the content marked as subscribed.
+// However, if subscriptions are passed to this function, only those docs will
+// be synced.
 func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*activity_proto.Subscription) (res SyncResult, err error) {
 	if !s.mu.TryLock() {
 		return res, ErrSyncAlreadyRunning
@@ -396,6 +398,9 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 		})
 		if err != nil {
 			return res, err
+		}
+		if len(ret.Subscriptions) == 0 {
+			return res, nil
 		}
 		subscriptions = ret.Subscriptions
 	}

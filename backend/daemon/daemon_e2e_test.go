@@ -559,6 +559,18 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.Error(t, err)
 
+	// Force sync will sync subscribed content. Since there is no subscriptions,
+	// no content is expected to be synced
+	_, err = bob.RPC.Daemon.ForceSync(ctx, &daemon.ForceSyncRequest{})
+	require.NoError(t, err)
+
+	time.Sleep(time.Millisecond * 100)
+	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: doc2.Account,
+		Path:    doc2.Path,
+	})
+	require.Error(t, err)
+
 	_, err = bob.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
 		Account:   doc2.Account,
 		Path:      doc2.Path,
@@ -571,7 +583,7 @@ func TestSubscriptions(t *testing.T) {
 	require.Len(t, res.Subscriptions, 1)
 	require.Equal(t, doc2.Account, res.Subscriptions[0].Account)
 	require.Equal(t, doc2.Path, res.Subscriptions[0].Path)
-	time.Sleep(time.Millisecond * 300)
+	time.Sleep(time.Millisecond * 100)
 
 	_, err = alice.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: doc4.Account,

@@ -3,7 +3,9 @@ package syncing
 import (
 	"context"
 	"hash/fnv"
+	"math"
 	"seed/backend/config"
+	activity_proto "seed/backend/genproto/activity/v1alpha"
 	"sync"
 	"time"
 
@@ -27,7 +29,7 @@ type worker struct {
 	bswap      bitswap
 	db         *sqlitex.Pool
 	sema       chan struct{}
-
+	sstore     SubscriptionStore
 	// stop is assigned during start().
 	stop context.CancelFunc
 }
@@ -42,6 +44,7 @@ func newWorker(
 	bswap bitswap,
 	db *sqlitex.Pool,
 	semaphore chan struct{},
+	sstore SubscriptionStore,
 ) *worker {
 	log = log.With(
 		zap.String("peer", pid.String()),
@@ -56,6 +59,7 @@ func newWorker(
 		bswap:      bswap,
 		db:         db,
 		sema:       semaphore,
+		sstore:     sstore,
 	}
 }
 
@@ -180,14 +184,33 @@ func (sw *worker) sync(ctx context.Context) {
 
 	c, err := sw.clientFunc(ctx, sw.pid)
 	if err != nil {
-		sw.log.Debug("FailedToGetClient", zap.Error(err))
+		sw.log.Warn("FailedToGetClient", zap.Error(err))
 		return
 	}
 
 	sess := sw.bswap.NewSession(ctx)
-
+	if sw.cfg.SmartSyncing {
+		ret, err := sw.sstore.ListSubscriptions(ctx, &activity_proto.ListSubscriptionsRequest{
+			PageSize: math.MaxInt32,
+		})
+		if err != nil {
+			sw.log.Warn("Failed to list subscriptions in smart syncing", zap.Error(err))
+			return
+		}
+		if len(ret.Subscriptions) == 0 {
+			return
+		}
+		eids := make(map[string]bool)
+		for _, subscription := range ret.Subscriptions {
+			eid := "hm://" + subscription.Account + subscription.Path
+			eids[eid] = subscription.Recursive
+		}
+		if err := syncEntities(ctx, sw.pid, c, sw.indexer, sess, sw.db, sw.log, eids); err != nil {
+			sw.log.Debug("Failed to smart sync", zap.Error(err))
+		}
+	}
 	if err := syncPeerRbsr(ctx, sw.pid, c, sw.indexer, sess, sw.db, sw.log); err != nil {
-		sw.log.Debug("FailedToSync", zap.Error(err))
+		sw.log.Debug("Failed to dumb Sync", zap.Error(err))
 	}
 }
 
