@@ -57,7 +57,7 @@ export function DirectoryItem({
       h={60}
       icon={
         entry.metadata.thumbnail ? (
-          <Thumbnail size={40} id={entry.id} metadata={entry.metadata} />
+          <Thumbnail size={28} id={entry.id} metadata={entry.metadata} />
         ) : undefined
       }
     >

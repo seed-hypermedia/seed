@@ -526,7 +526,7 @@ function ThumbnailComponent({accountId}: {accountId?: string}) {
   const entity = useEntity(id)
   if (!id) return null
   return (
-    <Thumbnail id={id} metadata={entity.data?.document?.metadata} size={40} />
+    <Thumbnail id={id} metadata={entity.data?.document?.metadata} size={28} />
   )
 }
 

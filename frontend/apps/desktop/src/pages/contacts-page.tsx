@@ -120,7 +120,7 @@ function ContactListItem({entry}: {entry: PlainMessage<DocumentListItem>}) {
       h={60}
       icon={
         <Thumbnail
-          size={40}
+          size={28}
           id={id}
           metadata={entry.metadata}
           borderRadius={40}

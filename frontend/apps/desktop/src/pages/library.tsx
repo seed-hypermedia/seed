@@ -798,7 +798,7 @@ function LibraryListItem({
           {(entry.id.path?.length == 0 ||
             entry.document?.metadata.thumbnail) && (
             <Thumbnail
-              size={40}
+              size={28}
               id={entry.id}
               metadata={entry.document?.metadata || entry.draft?.metadata}
             />

@@ -127,7 +127,7 @@ function DraftItem({id}: {id: UnpackedHypermediaId}) {
       h={60}
       icon={
         draft.data?.metadata.thumbnail ? (
-          <Thumbnail size={40} id={id} metadata={draft.data.metadata} />
+          <Thumbnail size={28} id={id} metadata={draft.data.metadata} />
         ) : undefined
       }
     >
