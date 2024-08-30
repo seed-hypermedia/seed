@@ -24,5 +24,5 @@ func TestListSubscriptions(t *testing.T) {
 		Account:   "fake_acc",
 		Recursive: false,
 	})
-	require.Error(t, err)
+	require.NoError(t, err)
 }

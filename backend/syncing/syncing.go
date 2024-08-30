@@ -5,9 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	activity "seed/backend/api/activity/v1alpha"
 	"seed/backend/config"
 	"seed/backend/core"
-	activity "seed/backend/genproto/activity/v1alpha"
+	activity_proto "seed/backend/genproto/activity/v1alpha"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/mttnet"
 	"seed/backend/syncing/rbsr"
@@ -107,9 +108,10 @@ type Storage interface {
 	// Service manages syncing of Seed objects among peers.
 }
 
-// Store to get the documents the user has subscribed to.
+// SubscriptionStore an interface implementing necessary methods to get subscriptions.
 type SubscriptionStore interface {
-	ListSubscriptions(context.Context, *activity.ListSubscriptionsRequest) (*activity.ListSubscriptionsResponse, error)
+	ListSubscriptions(context.Context, *activity_proto.ListSubscriptionsRequest) (*activity_proto.ListSubscriptionsResponse, error)
+	GetSubsEventCh() *chan interface{}
 }
 type protocolChecker struct {
 	checker func(context.Context, peer.ID, string) error
@@ -160,6 +162,19 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer *
 	if !cfg.NoSyncBack {
 		net.SetIdentificationCallback(svc.syncBack)
 	}
+
+	go func() {
+		for e := range *sstore.GetSubsEventCh() {
+			switch event := e.(type) {
+			case activity.SubscribedEvnt:
+				_, _ = svc.SyncSubscribedContent(context.Background(), &activity_proto.Subscription{
+					Account:   event.Account,
+					Path:      event.Path,
+					Recursive: event.Recursive,
+				})
+			}
+		}
+	}()
 
 	return svc
 }
@@ -226,7 +241,7 @@ func (s *Service) refreshWorkers(ctx context.Context) error {
 	// Starting workers for newly added trusted peers.
 	for pid := range peers {
 		if _, ok := s.workers[pid]; !ok {
-			w := newWorker(s.cfg, pid, s.log, s.rbsrClient, s.host, s.indexer, s.bitswap, s.db, s.semaphore)
+			w := newWorker(s.cfg, pid, s.log, s.rbsrClient, s.host, s.indexer, s.bitswap, s.db, s.semaphore, s.sstore)
 			s.wg.Add(1)
 			go w.start(ctx, &s.wg, s.cfg.Interval)
 			workersDiff++
@@ -257,11 +272,8 @@ func (s *Service) SyncAllAndLog(ctx context.Context) error {
 	log.Info("SyncLoopStarted")
 	var err error
 	var res SyncResult
-	if s.cfg.SmartSyncing {
-		res, err = s.SyncSubscribedContent(ctx)
-	} else {
-		res, err = s.SyncAll(ctx)
-	}
+
+	res, err = s.SyncAll(ctx)
 
 	if err != nil {
 		if errors.Is(err, ErrSyncAlreadyRunning) {
@@ -301,6 +313,9 @@ type SyncResult struct {
 
 // SyncAll attempts to sync the with all the peers at once.
 func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
+	if s.cfg.SmartSyncing {
+		return s.SyncSubscribedContent(ctx)
+	}
 	if !s.mu.TryLock() {
 		return res, ErrSyncAlreadyRunning
 	}
@@ -357,7 +372,9 @@ func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
 }
 
 // SyncSubscribedContent attempts to sync all the content marked as subscribed.
-func (s *Service) SyncSubscribedContent(ctx context.Context) (res SyncResult, err error) {
+// However, if subscriptions are passed to this function, only those docs will
+// be synced.
+func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*activity_proto.Subscription) (res SyncResult, err error) {
 	if !s.mu.TryLock() {
 		return res, ErrSyncAlreadyRunning
 	}
@@ -369,32 +386,26 @@ func (s *Service) SyncSubscribedContent(ctx context.Context) (res SyncResult, er
 	}
 	defer release()
 
-	ret, err := s.sstore.ListSubscriptions(ctx, &activity.ListSubscriptionsRequest{
-		PageSize: math.MaxInt32,
-	})
-	if err != nil {
-		return res, err
-	}
-	var qunwrapRecursive = dqb.Str(`
-		SELECT
-			iri
-		FROM resources where = iri LIKE ?%;
-	`)
-	var eids []string
-	for _, subs := range ret.Subscriptions {
-		if subs.Recursive {
-			err = sqlitex.Exec(conn, qunwrapRecursive(), func(stmt *sqlite.Stmt) error {
-				eids = append(eids, stmt.ColumnText(0))
-				return nil
-			}, "hm://"+subs.Account+subs.Path)
-		} else {
-			eids = append(eids, "hm://"+subs.Account+subs.Path)
+	if len(subscriptions) == 0 {
+		ret, err := s.sstore.ListSubscriptions(ctx, &activity_proto.ListSubscriptionsRequest{
+			PageSize: math.MaxInt32,
+		})
+		if err != nil {
+			return res, err
 		}
+		if len(ret.Subscriptions) == 0 {
+			return res, nil
+		}
+		subscriptions = ret.Subscriptions
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(len(eids))
-	subsMap := make(map[peer.ID][]string)
+	eidsMap := make(map[string]bool)
+	for _, subs := range subscriptions {
+		eid := "hm://" + subs.Account + subs.Path
+		eidsMap[eid] = subs.Recursive
+	}
+
+	subsMap := make(map[peer.ID]map[string]bool)
 	allPeers := []peer.ID{} // TODO:(juligasa): Remove this when we have providers store
 	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
 		pidStr := stmt.ColumnText(0)
@@ -411,13 +422,15 @@ func (s *Service) SyncSubscribedContent(ctx context.Context) (res SyncResult, er
 	for _, pid := range allPeers {
 		// TODO(juligasa): look into the providers store who has each eid
 		// instead of pasting all peers in all documents.
-		subsMap[pid] = eids
+		subsMap[pid] = eidsMap
 	}
 	res.Peers = make([]peer.ID, len(allPeers))
 	res.Errs = make([]error, len(allPeers))
 	var i int
+	var wg sync.WaitGroup
+	wg.Add(len(subsMap))
 	for pid, eids := range subsMap {
-		go func(i int, pid peer.ID, eids []string) {
+		go func(i int, pid peer.ID, eids map[string]bool) {
 			var err error
 			defer func() {
 				res.Errs[i] = err
@@ -445,8 +458,8 @@ func (s *Service) SyncSubscribedContent(ctx context.Context) (res SyncResult, er
 }
 
 // SyncWithPeer syncs all documents from a given peer. given no initial objectsOptionally.
-// if a non empty entity is provided, then only syncs blobs related to that entities
-func (s *Service) SyncWithPeer(ctx context.Context, pid peer.ID, eids []string) error {
+// If a non empty entity is provided, then only syncs blobs related to that entities.
+func (s *Service) SyncWithPeer(ctx context.Context, pid peer.ID, eids map[string]bool) error {
 	// Can't sync with self.
 	if s.host.Network().LocalPeer() == pid {
 		return nil
@@ -570,7 +583,7 @@ func syncEntities(
 	sess exchange.Fetcher,
 	db *sqlitex.Pool,
 	log *zap.Logger,
-	eids []string,
+	eids map[string]bool,
 ) (err error) {
 	mSyncsInFlight.Inc()
 	defer func() {
@@ -608,11 +621,13 @@ func syncEntities(
 		if rounds > 1000 {
 			return fmt.Errorf("Too many rounds of interactive syncing")
 		}
+		filters := []*p2p.Filter{}
+		for eid, recursive := range eids {
+			filters = append(filters, &p2p.Filter{Resource: eid, Recursive: recursive})
+		}
 		res, err := c.ReconcileBlobs(ctx, &p2p.ReconcileBlobsRequest{
-			Ranges: msg,
-			Filter: &p2p.Filter{
-				Resources: eids,
-			},
+			Ranges:  msg,
+			Filters: filters,
 		})
 		if err != nil {
 			return err

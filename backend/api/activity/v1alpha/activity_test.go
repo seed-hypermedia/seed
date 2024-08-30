@@ -4,6 +4,7 @@ import (
 	context "context"
 	activity "seed/backend/genproto/activity/v1alpha"
 	"seed/backend/storage"
+	"seed/backend/util/cleanup"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,5 +28,6 @@ func TestListEvents(t *testing.T) {
 
 func newTestServer(t *testing.T, name string) *Server {
 	db := storage.MakeTestDB(t)
-	return NewServer(db)
+	var clean cleanup.Stack
+	return NewServer(db, &clean)
 }

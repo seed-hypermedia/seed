@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"seed/backend/util/apiutil"
+	"seed/backend/util/cleanup"
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -27,15 +28,18 @@ import (
 type Server struct {
 	db        *sqlitex.Pool
 	startTime time.Time
+	clean     *cleanup.Stack
+	subsCh    chan interface{}
 }
 
 var resourcePattern = regexp.MustCompile(`^hm://[acdg]/[a-zA-Z0-9]+$`)
 
 // NewServer creates a new Server.
-func NewServer(db *sqlitex.Pool) *Server {
+func NewServer(db *sqlitex.Pool, clean *cleanup.Stack) *Server {
 	return &Server{
 		db:        db,
 		startTime: time.Now(),
+		clean:     clean,
 	}
 }
 
@@ -165,7 +169,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 				Resource: resource,
 			}},
 			Account:     accountID,
-			EventTime:   &timestamppb.Timestamp{Seconds: eventTime / 1000000000, Nanos: int32(eventTime % 1000000000)}, //nolint:gosec, We won't overflow
+			EventTime:   &timestamppb.Timestamp{Seconds: eventTime / 1000000000, Nanos: int32(eventTime % 1000000000)}, //nolint:gosec
 			ObserveTime: &timestamppb.Timestamp{Seconds: observeTime},
 		}
 		events = append(events, &event)

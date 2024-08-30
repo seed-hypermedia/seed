@@ -16,6 +16,25 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+// SubscribedEvnt will be sent every time a subscription occur.
+type SubscribedEvnt struct {
+	Account   string
+	Path      string
+	Recursive bool
+}
+
+// GetSubsEventCh gets the event channel.
+func (srv *Server) GetSubsEventCh() *chan interface{} {
+	if srv.subsCh == nil {
+		srv.subsCh = make(chan interface{}, 50)
+		srv.clean.AddErrFunc(func() error {
+			close(srv.subsCh)
+			return nil
+		})
+	}
+	return &srv.subsCh
+}
+
 // Subscribe subscribes to a document.
 func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest) (*emptypb.Empty, error) {
 	vals := []interface{}{}
@@ -25,10 +44,16 @@ func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest
 	}
 	defer cancel()
 	sqlStr := "INSERT INTO subscriptions (iri, is_recursive) VALUES (?,?)"
-
 	vals = append(vals, "hm://"+req.Account+req.Path, req.Recursive)
 	if err := sqlitex.Exec(conn, sqlStr, nil, vals...); err != nil {
 		return &emptypb.Empty{}, err
+	}
+	if srv.subsCh != nil {
+		srv.subsCh <- SubscribedEvnt{
+			Account:   req.Account,
+			Path:      req.Path,
+			Recursive: req.Recursive,
+		}
 	}
 	return &emptypb.Empty{}, nil
 }
