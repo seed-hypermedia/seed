@@ -421,6 +421,7 @@ func TestSubscriptions(t *testing.T) {
 	bobCfg.Syncing.NoSyncBack = true
 	bobCfg.Syncing.SmartSyncing = true
 	bob := makeTestApp(t, "bob", bobCfg, true)
+	bobIdentity := coretest.NewTester("bob")
 	doc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		Account:        aliceIdentity.Account.Principal().String(),
 		Path:           "",
@@ -515,6 +516,37 @@ func TestSubscriptions(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	doc4, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        bobIdentity.Account.Principal().String(),
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Bob not from the Wonderland"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Hello",
+				},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "b1", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b2",
+					Type: "paragraph",
+					Text: "World!",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
 	_, err = bob.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
 		Addrs: mttnet.AddrInfoToStrings(alice.Net.AddrInfo()),
 	})
@@ -539,7 +571,13 @@ func TestSubscriptions(t *testing.T) {
 	require.Len(t, res.Subscriptions, 1)
 	require.Equal(t, doc2.Account, res.Subscriptions[0].Account)
 	require.Equal(t, doc2.Path, res.Subscriptions[0].Path)
-	time.Sleep(time.Millisecond * 100)
+	time.Sleep(time.Millisecond * 300000)
+
+	_, err = alice.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: doc4.Account,
+		Path:    doc4.Path,
+	})
+	require.Error(t, err)
 
 	doc2Gotten, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: doc2.Account,
