@@ -208,6 +208,7 @@ func (sw *worker) sync(ctx context.Context) {
 		if err := syncEntities(ctx, sw.pid, c, sw.indexer, sess, sw.db, sw.log, eids); err != nil {
 			sw.log.Debug("Failed to smart sync", zap.Error(err))
 		}
+		return
 	}
 	if err := syncPeerRbsr(ctx, sw.pid, c, sw.indexer, sess, sw.db, sw.log); err != nil {
 		sw.log.Debug("Failed to dumb Sync", zap.Error(err))

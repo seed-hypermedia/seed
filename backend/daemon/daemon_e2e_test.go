@@ -414,12 +414,16 @@ func TestSubscriptions(t *testing.T) {
 	aliceCfg := makeTestConfig(t)
 	aliceCfg.Syncing.NoSyncBack = true
 	aliceCfg.Syncing.SmartSyncing = true
+	aliceCfg.Syncing.Interval = time.Millisecond * 20
+	aliceCfg.Syncing.WarmupDuration = time.Millisecond * 50
 	alice := makeTestApp(t, "alice", aliceCfg, true)
 	ctx := context.Background()
 	aliceIdentity := coretest.NewTester("alice")
 	bobCfg := makeTestConfig(t)
 	bobCfg.Syncing.NoSyncBack = true
 	bobCfg.Syncing.SmartSyncing = true
+	bobCfg.Syncing.Interval = time.Millisecond * 20
+	bobCfg.Syncing.WarmupDuration = time.Millisecond * 50
 	bob := makeTestApp(t, "bob", bobCfg, true)
 	bobIdentity := coretest.NewTester("bob")
 	doc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
@@ -598,6 +602,7 @@ func TestSubscriptions(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, doc2.Content, doc2Gotten.Content)
 
+	// We should not sync this document since we did not subscribe recursively.
 	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: doc3.Account,
 		Path:    doc3.Path,
