@@ -19,7 +19,7 @@ hostname=""
 tag="latest"
 auto_update=0
 profile=""
-allow_push="false"
+is_gateway="false"
 clean_images_cron="0 3 * * * docker rmi \$(docker images | grep -E 'seedhypermedia/' | awk '{print \$3}') # seed site cleanup"
 testnet_name=""
 registration_secret=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 10)
@@ -30,7 +30,7 @@ usage()
 	echo "   hostname          :Protocol + domain this sice will be served in. Ex.: https://example.com"
     echo "Options"
 	echo  "-t --tag T          :Image tag to pull. Latest by default"
-	echo  "-g --gateway        :Site behaves as a gateway, storing all data. False by default."
+	echo  "-g --gateway        :Site behaves as a gateway, serves all public data. False by default."
 	echo  "-a --auto-update    :Updates containers whenever a new image is available. Disabled by default"
 	echo  "-m --monitoring     :Sets up monitoring system"
     echo  "-h --help           :Shows help and exit"
@@ -45,7 +45,7 @@ while [ "$1" != "" ]; do
                                 ;;
         -m | --monitoring )     profile="metrics"
                                 ;;
-        -g | --gateway )        allow_push="true"
+        -g | --gateway )        is_gateway="true"
                                 ;;
         -t | --tag )            shift
                                 tag="$1"
@@ -120,7 +120,7 @@ fi
 # this user and group ID align with the ones in /frontend/apps/web/Dockerfile, so web app is allowed to write to the volume
 sudo chown -R 1001:1001 "${workspace}/web"
 
-SEED_P2P_TESTNET_NAME="$testnet_name" SEED_SITE_DNS="$dns" SEED_SITE_TAG="$tag" SEED_SITE_WORKSPACE="${workspace}" SEED_SITE_ALLOW_PUSH="$allow_push" SEED_SITE_HOSTNAME="$hostname" SEED_SITE_MONITORING_WORKDIR="${workspace}/monitoring" SEED_SITE_MONITORING_PORT="$SEED_SITE_MONITORING_PORT" docker compose -f ${workspace}/hmsite.yml --profile "$profile" up -d --pull always --quiet-pull 2> ${workspace}/deployment.log || true
+SEED_P2P_TESTNET_NAME="$testnet_name" SEED_SITE_DNS="$dns" SEED_SITE_TAG="$tag" SEED_SITE_WORKSPACE="${workspace}" SEED_IS_GATEWAY="$is_gateway" SEED_SITE_HOSTNAME="$hostname" SEED_SITE_MONITORING_WORKDIR="${workspace}/monitoring" SEED_SITE_MONITORING_PORT="$SEED_SITE_MONITORING_PORT" docker compose -f ${workspace}/hmsite.yml --profile "$profile" up -d --pull always --quiet-pull 2> ${workspace}/deployment.log || true
 
 echo "===================="
 echo "Deployment done."
