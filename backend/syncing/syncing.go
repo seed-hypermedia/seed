@@ -400,21 +400,13 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 		subscriptions = ret.Subscriptions
 	}
 
-	var eids []string
+	eidsMap := make(map[string]bool)
 	for _, subs := range subscriptions {
-		if subs.Recursive {
-			err = sqlitex.Exec(conn, qunwrapRecursive(), func(stmt *sqlite.Stmt) error {
-				eids = append(eids, stmt.ColumnText(0))
-				return nil
-			}, "hm://"+subs.Account+subs.Path)
-		} else {
-			eids = append(eids, "hm://"+subs.Account+subs.Path)
-		}
+		eid := "hm://" + subs.Account + subs.Path
+		eidsMap[eid] = subs.Recursive
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(len(eids))
-	subsMap := make(map[peer.ID][]string)
+	subsMap := make(map[peer.ID]map[string]bool)
 	allPeers := []peer.ID{} // TODO:(juligasa): Remove this when we have providers store
 	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
 		pidStr := stmt.ColumnText(0)
@@ -431,13 +423,15 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 	for _, pid := range allPeers {
 		// TODO(juligasa): look into the providers store who has each eid
 		// instead of pasting all peers in all documents.
-		subsMap[pid] = eids
+		subsMap[pid] = eidsMap
 	}
 	res.Peers = make([]peer.ID, len(allPeers))
 	res.Errs = make([]error, len(allPeers))
 	var i int
+	var wg sync.WaitGroup
+	wg.Add(len(subsMap))
 	for pid, eids := range subsMap {
-		go func(i int, pid peer.ID, eids []string) {
+		go func(i int, pid peer.ID, eids map[string]bool) {
 			var err error
 			defer func() {
 				res.Errs[i] = err
@@ -465,8 +459,8 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 }
 
 // SyncWithPeer syncs all documents from a given peer. given no initial objectsOptionally.
-// if a non empty entity is provided, then only syncs blobs related to that entities
-func (s *Service) SyncWithPeer(ctx context.Context, pid peer.ID, eids []string) error {
+// If a non empty entity is provided, then only syncs blobs related to that entities.
+func (s *Service) SyncWithPeer(ctx context.Context, pid peer.ID, eids map[string]bool) error {
 	// Can't sync with self.
 	if s.host.Network().LocalPeer() == pid {
 		return nil
@@ -590,7 +584,7 @@ func syncEntities(
 	sess exchange.Fetcher,
 	db *sqlitex.Pool,
 	log *zap.Logger,
-	eids []string,
+	eids map[string]bool,
 ) (err error) {
 	mSyncsInFlight.Inc()
 	defer func() {
@@ -628,11 +622,13 @@ func syncEntities(
 		if rounds > 1000 {
 			return fmt.Errorf("Too many rounds of interactive syncing")
 		}
+		filters := []*p2p.Filter{}
+		for eid, recursive := range eids {
+			filters = append(filters, &p2p.Filter{Resource: eid, Recursive: recursive})
+		}
 		res, err := c.ReconcileBlobs(ctx, &p2p.ReconcileBlobsRequest{
-			Ranges: msg,
-			Filter: &p2p.Filter{
-				Resources: eids,
-			},
+			Ranges:  msg,
+			Filters: filters,
 		})
 		if err != nil {
 			return err

@@ -571,7 +571,7 @@ func TestSubscriptions(t *testing.T) {
 	require.Len(t, res.Subscriptions, 1)
 	require.Equal(t, doc2.Account, res.Subscriptions[0].Account)
 	require.Equal(t, doc2.Path, res.Subscriptions[0].Path)
-	time.Sleep(time.Millisecond * 300000)
+	time.Sleep(time.Millisecond * 300)
 
 	_, err = alice.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: doc4.Account,
@@ -600,6 +600,12 @@ func TestSubscriptions(t *testing.T) {
 	res, err = bob.RPC.Activity.ListSubscriptions(ctx, &activity.ListSubscriptionsRequest{})
 	require.NoError(t, err)
 	require.Len(t, res.Subscriptions, 0)
+
+	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: doc.Account,
+		Path:    doc.Path,
+	})
+	require.Error(t, err)
 
 	_, err = bob.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
 		Account:   doc3.Account,

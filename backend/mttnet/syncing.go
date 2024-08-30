@@ -6,7 +6,6 @@ import (
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/syncing/rbsr"
 	"seed/backend/util/dqb"
-	"strings"
 
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -32,6 +31,7 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 	WHERE blobs.size >= 0 
 	ORDER BY sb.ts, blobs.multihash;
 `)
+
 	var qListrelatedBlobs = dqb.Str(`
 	SELECT
 		blobs.codec,
@@ -39,8 +39,9 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 		blobs.insert_time
 	FROM blobs INDEXED BY blobs_metadata 
 	LEFT JOIN structural_blobs sb ON sb.id = blobs.id
-	JOIN resources res ON sb.resource = res.id
-	WHERE blobs.size >= 0 AND res.iri IN (?)
+	LEFT JOIN structural_blobs sb2 ON sb.ts = sb2.ts
+	LEFT JOIN resources res ON sb2.resource = res.id
+	WHERE blobs.size >= 0 AND (res.iri LIKE ?)
 	ORDER BY sb.ts, blobs.multihash;
 `)
 	conn, release, err := srv.Node.db.Conn(ctx)
@@ -50,9 +51,19 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 	defer release()
 	query := qListAllBlobs
 	var iriList any = nil
-	if in.Filter != nil && len(in.Filter.Resources) != 0 {
+	var iriString string
+	if len(in.Filters) != 0 {
 		query = qListrelatedBlobs
-		iriList = strings.Join(in.Filter.Resources, ", ")
+		for i, filter := range in.Filters {
+			iriString += filter.Resource
+			if filter.Recursive {
+				iriString += "%"
+			}
+			if i < len(in.Filters)-1 {
+				iriString += " OR res.iri LIKE "
+			}
+		}
+		iriList = iriString
 	}
 
 	if err = sqlitex.Exec(conn, query(), func(stmt *sqlite.Stmt) error {
