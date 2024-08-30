@@ -31,7 +31,7 @@ export function useIsOnline() {
 }
 
 async function checkGatewayConnected(gwUrl: string): Promise<0 | 1 | 2> {
-  return await fetch(`${gwUrl}/.well-known/hypermedia-site`)
+  return await fetch(`${gwUrl}/hm/api/config`)
     .then(async (res) => {
       if (res.status === 200) return 2
       return 0

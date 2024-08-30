@@ -44,6 +44,12 @@ export const action: ActionFunction = async ({request}) => {
     } catch (e) {
       console.error("direct connect failed", e);
     }
+    console.log("subscribe");
+    await queryClient.subscriptions.subscribe({
+      account: input.accountUid,
+      path: "",
+      recursive: true,
+    });
     console.log("discover");
     await queryClient.entities.discoverEntity({
       id: hmId("d", input.accountUid).id,

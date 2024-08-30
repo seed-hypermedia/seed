@@ -5,12 +5,12 @@ import {
   P2P_PORT,
   VERSION,
 } from '@shm/shared'
-import { spawn } from 'child_process'
-import { app } from 'electron'
+import {spawn} from 'child_process'
+import {app} from 'electron'
 import path from 'path'
-import { userDataPath } from './app-paths'
-import { getDaemonBinaryPath } from './daemon-path'
-import { childLogger, info } from './logger'
+import {userDataPath} from './app-paths'
+import {getDaemonBinaryPath} from './daemon-path'
+import {childLogger, info} from './logger'
 const logger = childLogger('Go Daemon')
 
 let goDaemonExecutablePath = getDaemonBinaryPath()
@@ -33,6 +33,10 @@ const daemonArguments = [
 
   '-data-dir',
   `${userDataPath}/daemon`,
+
+  '-syncing.smart=true',
+
+  '-syncing.no-sync-back=true',
 
   lndhubFlags,
   `SENTRY_DSN=${__SENTRY_DSN__}`,

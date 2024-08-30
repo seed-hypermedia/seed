@@ -134,14 +134,16 @@ fi
 # rm -f ${workspace}/hmsite.yml
 exit 0
 
-# to test this script:
+# Set up Test Site:
+# sh <(curl -sL https://raw.githubusercontent.com/seed-hypermedia/seed/main/website_deployment.sh) https://my.example.domain --tag main --auto-update --testnet
 
-# sh <(curl -sL https://raw.githubusercontent.com/seed-hypermedia/seed/main/website_deployment.sh) https://seed.verse.link --tag main --auto-update --testnet
+## To Set up Test Gateway:
+# sh <(curl -sL https://raw.githubusercontent.com/seed-hypermedia/seed/main/website_deployment.sh) https://test.hyper.media --tag main --auto-update --testnet --gateway
 
-# to clean the server for new testing
-## stop and delete all running docker containers
+### To clean the server for new testing:
+## 1. stop and delete all running docker containers
 # docker rm -f $(docker ps -a -q)
-## delete old images
+## 2. delete old images
 # docker image prune -a -f
-## wipe the workspace:
+## 3. wipe the workspace:
 # rm -rf ~/.seed-site
