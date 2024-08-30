@@ -19,22 +19,25 @@ import {X} from "@tamagui/lucide-icons";
 import {ScrollView} from "@tamagui/scroll-view";
 import {XStack, YStack} from "@tamagui/stacks";
 import {PropsWithChildren, useEffect, useMemo, useState} from "react";
-import {deserialize} from "superjson";
-import type {hmDocumentLoader, hmDocumentPayload} from "./loaders";
+import type {SiteDocumentPayload} from "./loaders";
 import {PageHeader} from "./page-header";
 import type {DirectoryPayload} from "./routes/hm.api.directory";
-import {unwrap} from "./wrapping";
+import {EmbedDocument} from "./web-embeds";
+import {unwrap, Wrapped} from "./wrapping";
 
-export const documentPageMeta: MetaFunction<hmDocumentLoader> = ({
+export const documentPageMeta: MetaFunction = ({
   data,
 }: {
-  data: hmDocumentPayload;
+  data: Wrapped<SiteDocumentPayload>;
 }) => {
-  const document = deserialize(data?.document) as HMDocument;
-  const homeThumbnail = data.homeMetadata?.thumbnail
-    ? getFileUrl(data.homeMetadata.thumbnail)
+  const siteDocument = unwrap<SiteDocumentPayload>(data);
+  if (!siteDocument) return [];
+  const homeThumbnail = siteDocument.homeMetadata?.thumbnail
+    ? getFileUrl(siteDocument.homeMetadata.thumbnail)
     : null;
-  const meta: ReturnType<MetaFunction> = [{title: getDocumentTitle(document)}];
+  const meta: ReturnType<MetaFunction> = [
+    {title: getDocumentTitle(siteDocument.document)},
+  ];
   if (homeThumbnail) {
     meta.push({
       tagName: "link",
@@ -45,33 +48,38 @@ export const documentPageMeta: MetaFunction<hmDocumentLoader> = ({
   }
   meta.push({
     name: "hypermedia_id",
-    content: data.id.id,
+    content: siteDocument.id.id,
   });
   meta.push({
     name: "hypermedia_version",
-    content: document.version,
+    content: siteDocument.document.version,
   });
   meta.push({
     name: "hypermedia_title",
-    content: getDocumentTitle(document),
+    content: getDocumentTitle(siteDocument.document),
   });
   return meta;
 };
 
 const outlineWidth = 172;
-export function DocumentPage(props: hmDocumentPayload) {
-  const document = deserialize(props.document) as HMDocument;
+export function DocumentPage({
+  document,
+  homeId,
+  homeMetadata,
+  id,
+  authors,
+}: SiteDocumentPayload) {
   const [open, setOpen] = useState(false);
 
   return (
     <>
       <YStack>
         <PageHeader
-          homeMetadata={props.homeMetadata}
-          homeId={props.homeId}
+          homeMetadata={homeMetadata}
+          homeId={homeId}
           docMetadata={document.metadata}
-          docId={props.id}
-          authors={props.authors}
+          docId={id}
+          authors={authors}
           updateTime={document.updateTime}
           openSheet={() => {
             setOpen(!open);
@@ -110,7 +118,7 @@ export function DocumentPage(props: hmDocumentPayload) {
             </YStack>
             <DocContentProvider
               entityComponents={{
-                Document: () => null,
+                Document: EmbedDocument,
                 Comment: () => null,
                 Inline: () => null,
               }}
@@ -125,7 +133,7 @@ export function DocumentPage(props: hmDocumentPayload) {
               <DocContent document={document} />
             </DocContentProvider>
           </Container>
-          <DocumentAppendix id={props.id} />
+          <DocumentAppendix id={id} />
         </YStack>
       </YStack>
       <MobileOutline open={open} onClose={() => setOpen(false)}>
@@ -166,7 +174,8 @@ function DocumentDirectory({id}: {id: UnpackedHypermediaId}) {
   const fetcher = useFetcher();
   useEffect(() => {
     fetcher.load(`/hm/api/directory?id=${id.id}`);
-  }, []);
+  }, [id.id]);
+  console.log("LOADED DIRECTORY", id.id, fetcher.data);
   const response = fetcher.data
     ? unwrap<DirectoryPayload>(fetcher.data)
     : undefined;

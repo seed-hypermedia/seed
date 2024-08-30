@@ -1,6 +1,8 @@
 import {Params, useLoaderData} from "@remix-run/react";
+import {hmId} from "@shm/shared";
 import {DocumentPage, documentPageMeta} from "~/document";
-import {loadHMDocument} from "~/loaders";
+import {loadSiteDocument, SiteDocumentPayload} from "~/loaders";
+import {unwrap} from "~/wrapping";
 
 export const meta = documentPageMeta;
 
@@ -12,14 +14,15 @@ export const loader = async ({
   request: Request;
 }) => {
   const url = new URL(request.url);
-  const v = url.searchParams.get("v");
-  // todo, use version "v"
+  const version = url.searchParams.get("v");
   const path = (params["*"] || "").split("/");
   const [accountUid, ...restPath] = path;
-  return await loadHMDocument(accountUid, restPath);
+  return await loadSiteDocument(
+    hmId("d", accountUid, {path: restPath, version})
+  );
 };
 
 export default function HypermediaDocument() {
-  const data = useLoaderData<typeof loader>();
+  const data = unwrap<SiteDocumentPayload>(useLoaderData());
   return <DocumentPage {...data} />;
 }

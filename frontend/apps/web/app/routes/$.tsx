@@ -1,7 +1,9 @@
 import {Params, useLoaderData} from "@remix-run/react";
+import {hmId} from "@shm/shared";
 import {getConfig} from "~/config";
 import {DocumentPage, documentPageMeta} from "~/document";
-import {loadHMDocument} from "~/loaders";
+import {loadSiteDocument, SiteDocumentPayload} from "~/loaders";
+import {unwrap} from "~/wrapping";
 
 export const meta = documentPageMeta;
 
@@ -13,16 +15,17 @@ export const loader = async ({
   request: Request;
 }) => {
   const url = new URL(request.url);
-  const v = url.searchParams.get("v");
+  const version = url.searchParams.get("v");
   const {registeredAccountUid} = getConfig();
   if (!registeredAccountUid) throw new Error("No registered account uid");
-  // todo, use version "v"
   const path = (params["*"] || "").split("/");
-  return await loadHMDocument(registeredAccountUid, path);
+  return await loadSiteDocument(
+    hmId("d", registeredAccountUid, {path, version})
+  );
 };
 
 export default function SiteDocument() {
   // const {"*": path} = useParams();
-  const data = useLoaderData<typeof loader>();
+  const data = unwrap<SiteDocumentPayload>(useLoaderData());
   return <DocumentPage {...data} />;
 }

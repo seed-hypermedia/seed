@@ -1,52 +1,86 @@
 import {toPlainMessage} from "@bufbuild/protobuf";
-import {hmId} from "@shm/shared";
-import {serialize} from "superjson";
+import {
+  HMDocument,
+  hmId,
+  hmIdPathToEntityQueryPath,
+  HMMetadata,
+  UnpackedHypermediaId,
+} from "@shm/shared";
 import {queryClient} from "./client";
 import {getConfig} from "./config";
+import {wrapJSON, WrappedResponse} from "./wrapping";
 
-export type hmDocumentLoader = typeof loadHMDocument;
+export type MetadataPayload = {
+  id: UnpackedHypermediaId;
+  metadata: HMMetadata;
+};
 
-export type hmDocumentPayload = Awaited<ReturnType<typeof loadHMDocument>>;
-
-async function getMetadata(uid: string, path?: string[]) {
+async function getMetadata(id: UnpackedHypermediaId): Promise<MetadataPayload> {
   const rawDoc = await queryClient.documents.getDocument({
-    account: uid,
+    account: id.uid,
+    path: hmIdPathToEntityQueryPath(id.path),
+    version: id.version || undefined,
   });
   const document = toPlainMessage(rawDoc);
-  return {id: hmId("d", uid, {path}), metadata: document.metadata};
+  return {id, metadata: document.metadata};
 }
 
-export async function loadHMDocument(accountUid: string, path: string[]) {
-  const config = getConfig();
-  const validPathTerms = path.filter((term) => !!term);
+export type WebDocumentPayload = {
+  document: HMDocument;
+  authors: {id: UnpackedHypermediaId; metadata: HMMetadata}[];
+  id: UnpackedHypermediaId;
+};
+
+export async function getDocument(
+  id: UnpackedHypermediaId
+): Promise<WebDocumentPayload> {
   const rawDoc = await queryClient.documents.getDocument({
-    account: accountUid,
-    path: validPathTerms.length ? `/${validPathTerms.join("/")}` : "",
-    // version
+    account: id.uid,
+    path: hmIdPathToEntityQueryPath(id.path),
+    version: id.version || undefined,
   });
   const document = toPlainMessage(rawDoc);
+  const authors = await Promise.all(
+    document.authors.map(async (authorUid) => {
+      return await getMetadata(hmId("d", authorUid));
+    })
+  );
+  return {
+    document,
+    authors,
+    id,
+  };
+}
+
+export async function loadDocument(id: UnpackedHypermediaId) {
+  return wrapJSON(await getDocument(id));
+}
+
+export type SiteDocumentPayload = WebDocumentPayload & {
+  homeMetadata: HMMetadata;
+  homeId: UnpackedHypermediaId;
+};
+
+export async function loadSiteDocument(
+  id: UnpackedHypermediaId
+): Promise<WrappedResponse<SiteDocumentPayload>> {
+  const config = getConfig();
   let homeMetadata = null;
   let homeId = null;
   if (config.registeredAccountUid) {
     try {
-      const {id, metadata} = await getMetadata(config.registeredAccountUid);
+      const {id, metadata} = await getMetadata(
+        hmId("d", config.registeredAccountUid)
+      );
       homeMetadata = metadata;
       homeId = id;
     } catch (e) {}
   }
-  const authors = await Promise.all(
-    document.authors.map(async (authorUid) => {
-      return getMetadata(authorUid);
-    })
-  );
-  return {
-    document: serialize(document),
-    authors,
-    id: hmId("d", accountUid, {
-      path: path,
-      // version: v,
-    }),
+  const docContent = await getDocument(id);
+  const loadedSiteDocument = {
+    ...docContent,
     homeMetadata,
     homeId,
   };
+  return wrapJSON(loadedSiteDocument);
 }

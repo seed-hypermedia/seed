@@ -2,6 +2,7 @@ import {
   formattedDateMedium,
   getFileUrl,
   HMDocument,
+  HMMetadata,
   UnpackedHypermediaId,
 } from "@shm/shared";
 import {Button} from "@tamagui/button";
@@ -15,7 +16,7 @@ import {Thumbnail} from "@shm/ui/src/thumbnail";
 import {Menu, Search} from "@tamagui/lucide-icons";
 import {H1, SizableText} from "@tamagui/text";
 import {useMemo} from "react";
-import type {hmDocumentPayload} from "./loaders";
+import type {MetadataPayload} from "./loaders";
 
 export function PageHeader({
   homeMetadata,
@@ -26,11 +27,11 @@ export function PageHeader({
   updateTime = null,
   openSheet,
 }: {
-  homeMetadata: HMDocument["metadata"] | null;
+  homeMetadata: HMMetadata | null;
   homeId: UnpackedHypermediaId | null;
-  docMetadata: HMDocument["metadata"] | null;
+  docMetadata: HMMetadata | null;
   docId: UnpackedHypermediaId | null;
-  authors: hmDocumentPayload["authors"];
+  authors: MetadataPayload[];
   updateTime: HMDocument["updateTime"] | null;
   openSheet: ReturnType<typeof useOutlineSheet>["setOpen"];
 }) {
