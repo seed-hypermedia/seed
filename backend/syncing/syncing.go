@@ -371,12 +371,6 @@ func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
 	return res, nil
 }
 
-var qunwrapRecursive = dqb.Str(`
-		SELECT
-			iri
-		FROM resources where = iri LIKE ?%;
-	`)
-
 // SyncSubscribedContent attempts to sync all the content marked as subscribed.
 // However, if subscriptions are passed to this function, only those docs will
 // be synced.

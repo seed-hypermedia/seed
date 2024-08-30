@@ -169,7 +169,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 				Resource: resource,
 			}},
 			Account:     accountID,
-			EventTime:   &timestamppb.Timestamp{Seconds: eventTime / 1000000000, Nanos: int32(eventTime % 1000000000)}, //nolint:gosec, We won't overflow
+			EventTime:   &timestamppb.Timestamp{Seconds: eventTime / 1000000000, Nanos: int32(eventTime % 1000000000)}, //nolint:gosec
 			ObserveTime: &timestamppb.Timestamp{Seconds: observeTime},
 		}
 		events = append(events, &event)

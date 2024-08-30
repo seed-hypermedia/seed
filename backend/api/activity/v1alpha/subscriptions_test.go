@@ -9,7 +9,6 @@ import (
 )
 
 func TestListSubscriptions(t *testing.T) {
-	t.Skip("It fails with twisted db")
 	alice := newTestServer(t, "alice")
 	ctx := context.Background()
 
@@ -25,5 +24,5 @@ func TestListSubscriptions(t *testing.T) {
 		Account:   "fake_acc",
 		Recursive: false,
 	})
-	require.Error(t, err)
+	require.NoError(t, err)
 }
