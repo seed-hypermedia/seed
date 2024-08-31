@@ -131,8 +131,8 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	}
 	defer release()
 	if len(res.Peers) > 0 {
-		vals := []interface{}{}
-		sqlStr := "INSERT OR REPLACE INTO peers (pid, addresses) VALUES "
+		vals := []interface{}{info.ID.String(), strings.Join(addrsStr, ",")}
+		sqlStr := "INSERT OR REPLACE INTO peers (pid, addresses) VALUES (?, ?),"
 		for _, peer := range res.Peers {
 			if len(peer.Addrs) > 0 {
 				sqlStr += "(?, ?),"
