@@ -15,7 +15,7 @@ export const loader = async ({
 }) => {
   const url = new URL(request.url);
   const version = url.searchParams.get("v");
-  const path = (params["*"] || "").split("/");
+  const path = (params["*"] || "").split("/").filter((term) => !!term);
   const [accountUid, ...restPath] = path;
   return await loadSiteDocument(
     hmId("d", accountUid, {path: restPath, version})

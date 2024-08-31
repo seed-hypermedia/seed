@@ -7041,6 +7041,7 @@ __metadata:
     "@shm/ui": "*"
     "@tamagui/config": 1.108.2
     "@tamagui/core": 1.108.2
+    "@tamagui/input": 1.108.2
     "@tamagui/lucide-icons": 1.108.2
     "@tamagui/vite-plugin": 1.108.2
     "@types/react": ^18.2.55
@@ -8132,6 +8133,23 @@ __metadata:
   peerDependencies:
     react: "*"
   checksum: 17d47007f4bcbb0f6fe9ba13008d802126247f99eebd3f3889f873544bfd1f629e15100d4ae85060fbbf5a19269d577728f628e285c0d4a79f45ea311e9ce1f2
+  languageName: node
+  linkType: hard
+
+"@tamagui/input@npm:1.108.2":
+  version: 1.108.2
+  resolution: "@tamagui/input@npm:1.108.2"
+  dependencies:
+    "@tamagui/font-size": 1.108.2
+    "@tamagui/get-button-sized": 1.108.2
+    "@tamagui/helpers": 1.108.2
+    "@tamagui/helpers-tamagui": 1.108.2
+    "@tamagui/stacks": 1.108.2
+    "@tamagui/text": 1.108.2
+    "@tamagui/web": 1.108.2
+  peerDependencies:
+    react: "*"
+  checksum: 97b446023fc3d72111406302d42ecfedc52675e4afbcef6890032a102338b6b8a4bca2256d861dc62322b116213ce517608bdabbccd8886b4bbd5eddb16529b4
   languageName: node
   linkType: hard
 

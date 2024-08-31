@@ -21,6 +21,7 @@
     "@shm/ui": "*",
     "@tamagui/config": "1.108.2",
     "@tamagui/core": "1.108.2",
+    "@tamagui/input": "1.108.2",
     "@tamagui/lucide-icons": "1.108.2",
     "isbot": "^4.1.0",
     "react": "^18.2.0 || ^19.0.0",
