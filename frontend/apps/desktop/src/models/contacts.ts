@@ -1,9 +1,9 @@
 import {useAccount_deprecated} from '@/models/accounts'
+import {client} from '@/trpc'
 import {Device} from '@shm/shared'
 import {UseMutationOptions, useMutation} from '@tanstack/react-query'
 import {decompressFromEncodedURIComponent} from 'lz-string'
 import {useGRPCClient, useQueryInvalidator} from '../app-context'
-import appError from '../errors'
 import {useConnectedPeers} from './networking'
 import {fullInvalidate, queryKeys} from './query-keys'
 
@@ -65,26 +65,10 @@ export function useConnectPeer(
       if (!addrs && peer.match(/^(https:\/\/)/)) {
         // in this case, the "peer" input is not https://site/connect-peer/x url, but it is a web url. So lets try to connect to this site via its well known peer id.
         const peerUrl = new URL(peer)
-        peerUrl.search = ''
-        peerUrl.hash = ''
-        peerUrl.pathname = '/.well-known/hypermedia-site'
-        const peerWellKnown = peerUrl.toString()
-        const wellKnownData = await fetch(peerWellKnown)
-          .then((res) => res.json())
-          .catch((error) => {
-            appError(`Error fetching peer wellKnown`, {error})
-            return null
-          })
-        if (wellKnownData?.peerInfo?.peerId) {
-          const {peerId} = wellKnownData.peerInfo
-          // addrs = [wellKnownData.peerInfo.peerId] // peer id is not sufficient most of the time
-          addrs = wellKnownData.peerInfo.addrs.map(
-            (addr) => `${addr}/p2p/${peerId}`,
-          )
-          if (wellKnownData.peerInfo.accountId) {
-            // hacky workaround of trusting sites we connect to, so we will actually sync from them!! remove this once we have better syncing policies!
-            trustAccountId = wellKnownData.peerInfo.accountId
-          }
+        const baseUrl = `${peerUrl.protocol}//${peerUrl.hostname}`
+        const siteConfigData = await client.sites.getConfig.mutate(baseUrl)
+        if (siteConfigData?.addrs) {
+          addrs = siteConfigData.addrs
         } else {
           throw new Error('Failed to connet to web url: ' + peer)
         }
@@ -94,12 +78,6 @@ export function useConnectPeer(
       }
       if (!addrs) throw new Error('Invalid peer address(es) provided.')
       await grpcClient.networking.connect({addrs})
-      if (trustAccountId) {
-        await grpcClient.accounts.setAccountTrust({
-          id: trustAccountId,
-          isTrusted: true,
-        })
-      }
       if (opts.syncImmediately) {
         await grpcClient.daemon.forceSync({})
       }

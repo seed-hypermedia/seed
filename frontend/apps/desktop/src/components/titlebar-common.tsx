@@ -1,5 +1,4 @@
 import {useAppContext} from '@/app-context'
-import {ContactsPrompt} from '@/components/contacts-prompt'
 import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
 import {useDeleteDialog} from '@/components/delete-dialog'
 import {MenuItemType, OptionsDropdown} from '@/components/options-dropdown'
@@ -53,8 +52,11 @@ import {
   Pencil,
   Trash,
   UploadCloud,
+  UserPlus,
 } from '@tamagui/lucide-icons'
 import {ReactNode, useState} from 'react'
+import {AddConnectionDialog} from './contacts-prompt'
+import {useAppDialog} from './dialog'
 import DiscardDraftButton from './discard-draft-button'
 import PublishDraftButton from './publish-draft-button'
 import {usePublishSite, useRemoveSiteDialog} from './publish-site'
@@ -308,7 +310,7 @@ export function CopyReferenceButton({
 
 export function PageActionButtons(props: TitleBarProps) {
   const route = useNavRoute()
-
+  const connectDialog = useAppDialog(AddConnectionDialog)
   let buttonGroup: ReactNode[] = []
   if (route.key === 'draft') {
     buttonGroup = [
@@ -316,7 +318,18 @@ export function PageActionButtons(props: TitleBarProps) {
       <DiscardDraftButton key="discard-draft" />,
     ]
   } else if (route.key == 'contacts') {
-    buttonGroup = [<ContactsPrompt key="addContact" />]
+    buttonGroup = [
+      <Button
+        size="$2"
+        onPress={() => {
+          connectDialog.open(true)
+        }}
+        icon={UserPlus}
+      >
+        Add Connection
+      </Button>,
+      connectDialog.content,
+    ]
   } else if (route.key === 'document' && route.id.type === 'd') {
     buttonGroup = [
       <EditDocButton key="editDoc" />,

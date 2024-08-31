@@ -6,7 +6,6 @@ import {
 } from '@shm/shared'
 import {ReactNode, useEffect, useMemo} from 'react'
 import {useIPC} from '../app-context'
-import {useConfirmConnection} from '../components/contacts-prompt'
 import {
   NavAction,
   NavContextProvider,
@@ -45,7 +44,6 @@ export function NavigationContainer({
   }, [])
   const {send} = useIPC()
 
-  // const confirmConnection = useConfirmConnection()
   useEffect(() => {
     return navigation.state.subscribe(() => {
       send('windowNavState', navigation.state.get())
@@ -75,22 +73,7 @@ export function NavigationContainer({
     <UniversalRoutingProvider
       value={{openRoute: (route) => navigation.dispatch({type: 'push', route})}}
     >
-      <NavContextProvider value={navigation}>
-        {children}
-        <ConnectionConfirmer />
-      </NavContextProvider>
+      <NavContextProvider value={navigation}>{children}</NavContextProvider>
     </UniversalRoutingProvider>
   )
-}
-
-function ConnectionConfirmer() {
-  const confirmConnection = useConfirmConnection()
-  useEffect(() => {
-    return window.appWindowEvents?.subscribe((event: AppWindowEvent) => {
-      if (typeof event === 'object' && event.key === 'connectPeer') {
-        confirmConnection.open(event)
-      }
-    })
-  }, [])
-  return confirmConnection.content
 }

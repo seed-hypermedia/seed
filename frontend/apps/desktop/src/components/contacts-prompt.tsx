@@ -4,28 +4,15 @@ import {getAccountName, hmId, HYPERMEDIA_PUBLIC_WEB_GATEWAY} from '@shm/shared'
 import {Button, Spinner, TextArea, toast, XStack} from '@shm/ui'
 import {UserPlus} from '@tamagui/lucide-icons'
 import {compressToEncodedURIComponent} from 'lz-string'
-import {ComponentProps, useMemo, useState} from 'react'
+import {useMemo, useState} from 'react'
 import appError from '../errors'
 import {useMyAccount_deprecated} from '../models/accounts'
 import {useConnectPeer} from '../models/contacts'
 import {useDaemonInfo} from '../models/daemon'
 import {usePeerInfo} from '../models/networking'
-import {
-  AppDialog,
-  DialogCloseButton,
-  DialogDescription,
-  DialogTitle,
-  useAppDialog,
-} from './dialog'
+import {DialogCloseButton, DialogDescription, DialogTitle} from './dialog'
 
-function AddConnectionButton(props: ComponentProps<typeof Button>) {
-  return (
-    <Button size="$2" {...props} icon={UserPlus}>
-      Add Connection
-    </Button>
-  )
-}
-function AddConnectionForm({
+export function AddConnectionDialog({
   input,
   onClose,
 }: {
@@ -38,8 +25,6 @@ function AddConnectionForm({
   const profile = useEntity(account ? hmId('d', account) : undefined)
   const deviceId = daemonInfo.data?.peerId
   const peerInfo = usePeerInfo(deviceId)
-  console.log('peerInfo', peerInfo.data, deviceId)
-
   const connectionString =
     typeof input === 'object' ? input.connectionString : undefined
   const name = typeof input === 'object' ? input?.name : undefined
@@ -119,31 +104,5 @@ function AddConnectionForm({
         {connect.isLoading ? <Spinner /> : null}
       </XStack>
     </>
-  )
-}
-
-export function useConfirmConnection() {
-  return useAppDialog<{
-    connectionString: string
-    name?: string | undefined
-  }>(AddConnectionForm)
-}
-export function useAddConnection() {
-  return null
-}
-
-export function ContactsPrompt() {
-  return (
-    <AppDialog
-      TriggerComponent={AddConnectionButton}
-      triggerComponentProps={{}}
-      ContentComponent={AddConnectionForm}
-      contentComponentProps={
-        {
-          input: true,
-          onClose() {},
-        } as const
-      }
-    />
   )
 }
