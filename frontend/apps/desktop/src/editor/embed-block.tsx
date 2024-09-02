@@ -2,7 +2,6 @@ import {useAppContext} from '@/app-context'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {loadWebLinkMeta} from '@/models/web-links'
 import {useOpenUrl} from '@/open-url'
-import {usePopoverState} from '@/use-popover-state'
 import {
   createHmDocLink_DEPRECATED,
   hmIdWithVersion,
@@ -26,6 +25,7 @@ import {
   Popover,
   Separator,
   Tooltip,
+  usePopoverState,
   XStack,
   YGroup,
 } from '@shm/ui'

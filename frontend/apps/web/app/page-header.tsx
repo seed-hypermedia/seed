@@ -10,11 +10,11 @@ import {Stack} from "@tamagui/core";
 import {Separator} from "@tamagui/separator";
 import {XStack, YStack} from "@tamagui/stacks";
 
-import {usePopoverState} from "@shm/desktop/src/use-popover-state";
 import {getRandomColor} from "@shm/ui/src/avatar";
 import {Container} from "@shm/ui/src/container";
 import {Popover} from "@shm/ui/src/TamaguiPopover";
 import {Thumbnail} from "@shm/ui/src/thumbnail";
+import {usePopoverState} from "@shm/ui/src/use-popover-state";
 import {Input} from "@tamagui/input";
 import {Menu, Search} from "@tamagui/lucide-icons";
 import {H1, SizableText} from "@tamagui/text";

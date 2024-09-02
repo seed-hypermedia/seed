@@ -11,9 +11,9 @@ import {
   Unlink,
   XGroup,
   XStack,
+  usePopoverState,
 } from '@shm/ui'
 import {useCallback, useEffect, useState} from 'react'
-import {usePopoverState} from '../use-popover-state'
 import {
   BlockNoteEditor,
   BlockSchema,

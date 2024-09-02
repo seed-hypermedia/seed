@@ -1,6 +1,5 @@
 import {useEntity} from '@/models/entities'
 import {HMSubscription, useSubscription} from '@/models/subscription'
-import {usePopoverState} from '@/use-popover-state'
 import {getDocumentTitle, UnpackedHypermediaId} from '@shm/shared'
 import {
   AlertDialog,
@@ -10,6 +9,7 @@ import {
   File,
   Popover,
   Text,
+  usePopoverState,
   XStack,
   YStack,
 } from '@shm/ui'

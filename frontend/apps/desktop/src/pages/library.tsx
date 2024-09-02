@@ -9,7 +9,6 @@ import {
   LibraryQueryState,
   useLibrary,
 } from '@/models/library'
-import {usePopoverState} from '@/use-popover-state'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {useNavigate} from '@/utils/useNavigate'
 import {
@@ -35,6 +34,7 @@ import {
   Text,
   Thumbnail,
   toast,
+  usePopoverState,
   XStack,
   YGroup,
   YStack,

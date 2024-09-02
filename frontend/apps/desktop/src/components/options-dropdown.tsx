@@ -6,9 +6,9 @@ import {
   Separator,
   XStack,
   YGroup,
+  usePopoverState,
 } from '@shm/ui'
 import {FC} from 'react'
-import {usePopoverState} from '../use-popover-state'
 
 export type MenuItemType = {
   key: string
