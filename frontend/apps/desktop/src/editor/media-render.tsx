@@ -60,6 +60,13 @@ interface RenderProps {
   ) => Promise<void> | void | undefined
   icon: JSX.Element | FunctionComponent<{color?: string; size?: number}>
   DisplayComponent: React.ComponentType<DisplayComponentProps>
+  CustomInput?: React.ComponentType<{
+    editor: BlockNoteEditor<HMBlockSchema>
+    assign: any
+    setUrl: any
+    fileName: any
+    setFileName: any
+  }>
 }
 
 export const MediaRender: React.FC<RenderProps> = ({
@@ -68,6 +75,7 @@ export const MediaRender: React.FC<RenderProps> = ({
   mediaType,
   submit,
   DisplayComponent,
+  CustomInput,
   icon,
 }) => {
   const [selected, setSelected] = useState(false)
@@ -174,6 +182,7 @@ export const MediaRender: React.FC<RenderProps> = ({
           editor={editor}
           selected={selected}
           mediaType={mediaType}
+          CustomInput={CustomInput}
           submit={submit}
           icon={icon}
         />
@@ -218,6 +227,7 @@ function MediaForm({
   mediaType,
   submit,
   icon,
+  CustomInput,
 }: {
   block: Block<HMBlockSchema>
   assign: any
@@ -231,6 +241,13 @@ function MediaForm({
     setLoading: any,
   ) => Promise<void> | void | undefined
   icon: JSX.Element | FunctionComponent<{color?: string; size?: number}> | null
+  CustomInput?: React.ComponentType<{
+    editor: BlockNoteEditor<HMBlockSchema>
+    assign: any
+    setUrl: any
+    fileName: any
+    setFileName: any
+  }>
 }) {
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(false)
@@ -413,35 +430,45 @@ function MediaForm({
         {mediaType !== 'file' ? (
           <YStack flex={1}>
             <XStack flex={1} gap="$3" width="100%">
-              <Input
-                unstyled
-                borderColor="$color8"
-                borderWidth="$1"
-                borderRadius="$2"
-                paddingLeft="$3"
-                height="$3"
-                width="100%"
-                placeholder={`Input ${
-                  mediaType === 'web-embed' ? 'X.com' : mediaType
-                } URL here...`}
-                hoverStyle={{
-                  borderColor: '$color11',
-                }}
-                focusStyle={{
-                  borderColor: '$color11',
-                }}
-                onChange={(e: {
-                  nativeEvent: {text: SetStateAction<string>}
-                }) => {
-                  setUrl(e.nativeEvent.text)
-                  if (fileName.color)
-                    setFileName({
-                      name: 'Upload File',
-                      color: undefined,
-                    })
-                }}
-                autoFocus={true}
-              />
+              {CustomInput ? (
+                <CustomInput
+                  editor={editor}
+                  assign={assign}
+                  setUrl={setUrl}
+                  fileName={fileName}
+                  setFileName={setFileName}
+                />
+              ) : (
+                <Input
+                  unstyled
+                  borderColor="$color8"
+                  borderWidth="$1"
+                  borderRadius="$2"
+                  paddingLeft="$3"
+                  height="$3"
+                  width="100%"
+                  placeholder={`Input ${
+                    mediaType === 'web-embed' ? 'X.com' : mediaType
+                  } URL here...`}
+                  hoverStyle={{
+                    borderColor: '$color11',
+                  }}
+                  focusStyle={{
+                    borderColor: '$color11',
+                  }}
+                  onChange={(e: {
+                    nativeEvent: {text: SetStateAction<string>}
+                  }) => {
+                    setUrl(e.nativeEvent.text)
+                    if (fileName.color)
+                      setFileName({
+                        name: 'Upload File',
+                        color: undefined,
+                      })
+                  }}
+                  autoFocus={true}
+                />
+              )}
               {['image', 'video'].includes(mediaType) ? (
                 <>
                   <Tooltip

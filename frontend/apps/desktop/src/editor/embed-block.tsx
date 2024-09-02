@@ -1,10 +1,13 @@
 import {useAppContext} from '@/app-context'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
+import {useRecents} from '@/models/recents'
+import {useSearch} from '@/models/search'
 import {loadWebLinkMeta} from '@/models/web-links'
 import {useOpenUrl} from '@/open-url'
 import {
   createHmDocLink_DEPRECATED,
   hmIdWithVersion,
+  HYPERMEDIA_ENTITY_TYPES,
   isHypermediaScheme,
   isPublicGatewayLink,
   normalizeHmId,
@@ -19,18 +22,29 @@ import {
   Forward as ChevronRight,
   ErrorBlock,
   ExternalLink,
+  Input,
   ListItem,
   MenuItem,
   MoreHorizontal,
   Popover,
   Separator,
+  SizableText,
+  toast,
   Tooltip,
   usePopoverState,
   XStack,
   YGroup,
+  YStack,
 } from '@shm/ui'
 import {Fragment} from '@tiptap/pm/model'
-import {useCallback, useMemo} from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {Block, BlockNoteEditor, HMBlockSchema} from '.'
 import {createReactBlockSpec} from './blocknote/react'
@@ -161,6 +175,7 @@ const Render = (
       editor={editor}
       mediaType="embed"
       submit={submitEmbed}
+      CustomInput={EmbedLauncherInput}
       DisplayComponent={display}
       icon={<ExternalLink />}
     />
@@ -512,5 +527,219 @@ function EmbedControl({
         </Popover>
       ) : null}
     </XStack>
+  )
+}
+
+type SwitcherItem = {
+  key: string
+  title: string
+  subtitle?: string
+  onSelect: () => void
+}
+
+const EmbedLauncherInput = ({
+  editor,
+  assign,
+  setUrl,
+  fileName,
+  setFileName,
+}: {
+  editor: BlockNoteEditor
+  assign: any
+  setUrl: any
+  fileName: any
+  setFileName: any
+}) => {
+  const [search, setSearch] = useState('')
+  const [focused, setFocused] = useState(false)
+  const recents = useRecents()
+  const searchResults = useSearch(search, {})
+
+  const searchItems: SwitcherItem[] =
+    searchResults.data
+      ?.map((item) => {
+        const id = unpackHmId(item.id)
+        if (!id) return null
+        return {
+          title: item.title || item.id,
+          onSelect: () => {
+            assign({props: {url: id.id}} as MediaType)
+          },
+          subtitle: HYPERMEDIA_ENTITY_TYPES[id.type],
+        }
+      })
+      .filter(Boolean) || []
+  const recentItems =
+    recents.data?.map(({url, title, subtitle, type}) => {
+      return {
+        key: url,
+        title,
+        subtitle,
+        onSelect: () => {
+          const id = unpackHmId(url)
+          if (!id) {
+            toast.error('Failed to open recent: ' + url)
+            return
+          }
+          assign({props: {url: id.id}} as MediaType)
+        },
+      }
+    }) || []
+  const isDisplayingRecents = !search.length
+  const activeItems = isDisplayingRecents ? recentItems : searchItems
+
+  const [focusedIndex, setFocusedIndex] = useState(0)
+
+  useEffect(() => {
+    if (focusedIndex >= activeItems.length) setFocusedIndex(0)
+  }, [focusedIndex, activeItems])
+
+  let content = (
+    <YStack
+      display={focused ? 'flex' : 'none'}
+      gap="$2"
+      elevation={2}
+      opacity={1}
+      paddingVertical="$3"
+      paddingHorizontal="$3"
+      backgroundColor={'$backgroundHover'}
+      borderTopStartRadius={0}
+      borderTopEndRadius={0}
+      borderBottomLeftRadius={6}
+      borderBottomRightRadius={6}
+      position="absolute"
+      width="100%"
+      top={fileName.color ? '$11' : '$8'}
+      left={0}
+      zIndex={999}
+    >
+      {isDisplayingRecents ? (
+        <SizableText color="$color10" marginHorizontal="$4">
+          Recent Resources
+        </SizableText>
+      ) : null}
+      {activeItems?.map((item, itemIndex) => {
+        return (
+          <LauncherItem
+            item={item}
+            key={item.key}
+            selected={focusedIndex === itemIndex}
+            onFocus={() => {
+              setFocusedIndex(itemIndex)
+            }}
+            onMouseEnter={() => {
+              setFocusedIndex(itemIndex)
+            }}
+          />
+        )
+      })}
+    </YStack>
+  )
+
+  return (
+    <YStack flex={1} gap="$4">
+      <Input
+        unstyled
+        borderColor="$color8"
+        borderWidth="$1"
+        borderRadius="$2"
+        paddingLeft="$3"
+        height="$3"
+        width="100%"
+        hoverStyle={{
+          borderColor: '$color11',
+        }}
+        focusStyle={{
+          borderColor: '$color11',
+        }}
+        onFocus={() => {
+          setFocused(true)
+        }}
+        onBlur={() => {
+          setTimeout(() => {
+            setFocused(false)
+          }, 150)
+        }}
+        autoFocus={false}
+        value={search}
+        onChangeText={(text: string) => {
+          setSearch(text)
+          setUrl(text)
+          if (fileName.color)
+            setFileName({
+              name: 'Upload File',
+              color: undefined,
+            })
+        }}
+        placeholder="Query or input Embed URL..."
+        // disabled={!!actionPromise}
+        onKeyPress={(e: any) => {
+          if (e.nativeEvent.key === 'Escape') {
+            setFocused(false)
+            return
+          }
+          if (e.nativeEvent.key === 'Enter') {
+            const item = activeItems[focusedIndex]
+            if (item) {
+              item.onSelect()
+            }
+          }
+          if (e.nativeEvent.key === 'ArrowDown') {
+            e.preventDefault()
+            setFocusedIndex((prev) => (prev + 1) % activeItems.length)
+          }
+          if (e.nativeEvent.key === 'ArrowUp') {
+            e.preventDefault()
+            setFocusedIndex(
+              (prev) => (prev - 1 + activeItems.length) % activeItems.length,
+            )
+          }
+        }}
+      />
+
+      {content}
+    </YStack>
+  )
+}
+
+function LauncherItem({
+  item,
+  selected = false,
+  onFocus,
+  onMouseEnter,
+}: {
+  item: SwitcherItem
+  selected: boolean
+  onFocus: any
+  onMouseEnter: any
+}) {
+  const elm = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    if (selected) {
+      elm.current?.scrollIntoView({block: 'nearest'})
+    }
+  }, [selected])
+
+  return (
+    <Button
+      ref={elm}
+      key={item.key}
+      onPress={() => {
+        item.onSelect()
+      }}
+      backgroundColor={selected ? '$blue4' : undefined}
+      hoverStyle={{
+        backgroundColor: selected ? '$blue4' : undefined,
+      }}
+      onFocus={onFocus}
+      onMouseEnter={onMouseEnter}
+    >
+      <XStack f={1} justifyContent="space-between">
+        <SizableText numberOfLines={1}>{item.title}</SizableText>
+
+        <SizableText color="$color10">{item.subtitle}</SizableText>
+      </XStack>
+    </Button>
   )
 }
