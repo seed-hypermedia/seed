@@ -227,7 +227,7 @@ ipcMain.on('read-media-file', async (event, filePath) => {
     const absoluteFilePath = path.resolve(filePath)
 
     const fileContent = fs.readFileSync(absoluteFilePath)
-    const mimeType = mime.lookup(filePath) || 'application/octet-stream'
+    const mimeType = mime.getType(filePath)
     const fileName = path.basename(filePath)
     event.sender.send('media-file-content', {
       success: true,
@@ -366,8 +366,8 @@ ipcMain.on(
                 request.on('response', (response) => {
                   const mimeType = response.headers['content-type']
                   const extension = Array.isArray(mimeType)
-                    ? mime.extension(mimeType[0])
-                    : mime.extension(mimeType)
+                    ? mime.getExtension(mimeType[0])
+                    : mime.getExtension(mimeType)
                   const filenameWithExt = `${filename}.${extension}`
                   if (response.statusCode === 200) {
                     const chunks: Buffer[] = []

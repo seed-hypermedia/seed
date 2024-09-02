@@ -61,8 +61,8 @@ export async function saveMarkdownFile(
         request.on('response', (response) => {
           const mimeType = response.headers['content-type']
           const extension = Array.isArray(mimeType)
-            ? mime.extension(mimeType[0])
-            : mime.extension(mimeType)
+            ? mime.getExtension(mimeType[0])
+            : mime.getExtension(mimeType)
           const filenameWithExt = `${filename}.${extension}`
           if (response.statusCode === 200) {
             const chunks: Buffer[] = []

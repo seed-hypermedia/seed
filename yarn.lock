@@ -6910,6 +6910,7 @@ __metadata:
     lowlight: 3.1.0
     lz-string: 1.5.0
     match-sorter: 6.3.1
+    mime: ^4.0.4
     nanoid: 4.0.2
     nostr-tools: 1.16.0
     prettier: 3.0.2
@@ -20499,6 +20500,15 @@ __metadata:
   bin:
     mime: cli.js
   checksum: f43f9b7bfa64534e6b05bd6062961681aeb406a5b53673b53b683f27fcc4e739989941836a355eef831f4478923651ecc739f4a5f6e20a76487b432bfd4db928
+  languageName: node
+  linkType: hard
+
+"mime@npm:^4.0.4":
+  version: 4.0.4
+  resolution: "mime@npm:4.0.4"
+  bin:
+    mime: bin/cli.js
+  checksum: 729904cd8b3913062017970ffa25c4303356f80dad33d472b47244e3baa35ab748ce005fb9a66ae854266fa73396ef219287bf6db311c8376ea3d9cfc5dda107
   languageName: node
   linkType: hard
 
