@@ -30,6 +30,7 @@ type Server struct {
 	startTime time.Time
 	clean     *cleanup.Stack
 	subsCh    chan interface{}
+	subSynCh  chan interface{}
 }
 
 var resourcePattern = regexp.MustCompile(`^hm://[acdg]/[a-zA-Z0-9]+$`)

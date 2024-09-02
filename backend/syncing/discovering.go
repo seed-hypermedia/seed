@@ -43,6 +43,7 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 
 	for p := range peers {
 		p := p
+		s.host.Peerstore().AddAddrs(p.ID, p.Addrs, time.Minute*10)
 		log := s.log.With(
 			zap.String("entity", entityID),
 			zap.String("CID", c.String()),

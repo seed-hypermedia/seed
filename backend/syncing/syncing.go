@@ -10,6 +10,7 @@ import (
 	"seed/backend/core"
 	activity_proto "seed/backend/genproto/activity/v1alpha"
 	p2p "seed/backend/genproto/p2p/v1alpha"
+	"seed/backend/ipfs"
 	"seed/backend/mttnet"
 	"seed/backend/syncing/rbsr"
 	"seed/backend/util/dqb"
@@ -31,6 +32,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/multiformats/go-multicodec"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/zap"
@@ -112,6 +114,7 @@ type Storage interface {
 type SubscriptionStore interface {
 	ListSubscriptions(context.Context, *activity_proto.ListSubscriptionsRequest) (*activity_proto.ListSubscriptionsResponse, error)
 	GetSubsEventCh() *chan interface{}
+	GetSubsSyncEventCh() *chan interface{}
 }
 type protocolChecker struct {
 	checker func(context.Context, peer.ID, string) error
@@ -167,11 +170,19 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer *
 		for e := range *sstore.GetSubsEventCh() {
 			switch event := e.(type) {
 			case activity.SubscribedEvnt:
-				_, _ = svc.SyncSubscribedContent(context.Background(), &activity_proto.Subscription{
+				res, err := svc.SyncSubscribedContent(context.Background(), &activity_proto.Subscription{
 					Account:   event.Account,
 					Path:      event.Path,
 					Recursive: event.Recursive,
 				})
+				evnt := activity.SubscribedSyncEvnt{
+					SubID: event.ID}
+				if err != nil {
+					evnt.Err = err
+				} else if res.NumSyncOK == 0 {
+					evnt.Err = fmt.Errorf("We could not sync the subscribed content with any provider")
+				}
+				*sstore.GetSubsSyncEventCh() <- evnt
 			}
 		}
 	}()
@@ -399,12 +410,6 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 		subscriptions = ret.Subscriptions
 	}
 
-	eidsMap := make(map[string]bool)
-	for _, subs := range subscriptions {
-		eid := "hm://" + subs.Account + subs.Path
-		eidsMap[eid] = subs.Recursive
-	}
-
 	subsMap := make(map[peer.ID]map[string]bool)
 	allPeers := []peer.ID{} // TODO:(juligasa): Remove this when we have providers store
 	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
@@ -419,6 +424,27 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 		return res, err
 	}
 
+	eidsMap := make(map[string]bool)
+	for _, subs := range subscriptions {
+		eid := "hm://" + subs.Account + subs.Path
+		eidsMap[eid] = subs.Recursive
+	}
+	if len(allPeers) == 0 {
+		for _, subs := range subscriptions {
+			c, err := ipfs.NewCID(uint64(multicodec.Raw), uint64(multicodec.Identity), []byte("hm://"+subs.Account+subs.Path))
+			if err != nil {
+				continue
+			}
+
+			peers := s.bitswap.FindProvidersAsync(ctx, c, 3)
+			for p := range peers {
+				p := p
+				s.host.Peerstore().AddAddrs(p.ID, p.Addrs, time.Minute*10)
+				allPeers = append(allPeers, p.ID)
+			}
+
+		}
+	}
 	for _, pid := range allPeers {
 		// TODO(juligasa): look into the providers store who has each eid
 		// instead of pasting all peers in all documents.
