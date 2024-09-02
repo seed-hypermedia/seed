@@ -3,6 +3,7 @@ package activity
 import (
 	context "context"
 	activity "seed/backend/genproto/activity/v1alpha"
+	"seed/backend/logging"
 	"seed/backend/storage"
 	"seed/backend/util/cleanup"
 	"testing"
@@ -29,5 +30,5 @@ func TestListEvents(t *testing.T) {
 func newTestServer(t *testing.T, name string) *Server {
 	db := storage.MakeTestDB(t)
 	var clean cleanup.Stack
-	return NewServer(db, &clean)
+	return NewServer(db, logging.New("seed/Activity", "debug"), &clean)
 }

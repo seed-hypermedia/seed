@@ -170,11 +170,13 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer *
 		for e := range *sstore.GetSubsEventCh() {
 			switch event := e.(type) {
 			case activity.SubscribedEvnt:
+				log.Debug("SubscribedEvnt received", zap.String("Account", event.Account), zap.String("Path", event.Path), zap.Bool("Recursive", event.Recursive))
 				res, err := svc.SyncSubscribedContent(context.Background(), &activity_proto.Subscription{
 					Account:   event.Account,
 					Path:      event.Path,
 					Recursive: event.Recursive,
 				})
+				log.Debug("SyncSubscribedContent Finished", zap.Errors("Errors in return", res.Errs), zap.Error(err))
 				evnt := activity.SubscribedSyncEvnt{
 					SubID: event.ID}
 				if err != nil {
@@ -390,7 +392,7 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 		return res, ErrSyncAlreadyRunning
 	}
 	defer s.mu.Unlock()
-
+	s.log.Debug("SyncSubscribedContent called", zap.Int("Number of subscriptions", len(subscriptions)))
 	conn, release, err := s.db.Conn(ctx)
 	if err != nil {
 		return res, err

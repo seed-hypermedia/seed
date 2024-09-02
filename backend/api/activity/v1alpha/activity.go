@@ -20,6 +20,7 @@ import (
 	"seed/backend/util/sqlite/sqlitex"
 
 	"github.com/ipfs/go-cid"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -31,16 +32,18 @@ type Server struct {
 	clean     *cleanup.Stack
 	subsCh    chan interface{}
 	subSynCh  chan interface{}
+	log       *zap.Logger
 }
 
 var resourcePattern = regexp.MustCompile(`^hm://[acdg]/[a-zA-Z0-9]+$`)
 
 // NewServer creates a new Server.
-func NewServer(db *sqlitex.Pool, clean *cleanup.Stack) *Server {
+func NewServer(db *sqlitex.Pool, log *zap.Logger, clean *cleanup.Stack) *Server {
 	return &Server{
 		db:        db,
 		startTime: time.Now(),
 		clean:     clean,
+		log:       log,
 	}
 }
 

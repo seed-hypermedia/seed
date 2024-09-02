@@ -15,6 +15,7 @@ import (
 
 	"math/rand"
 
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -72,10 +73,10 @@ func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest
 
 	_, ok := ctx.Deadline()
 	if !ok {
+		srv.log.Debug("Inserting deadline", zap.String("Duration", blockingTimeout.String()))
 		toCtx, cancelCtx := context.WithTimeout(ctx, blockingTimeout)
 		defer cancelCtx()
 		ctx = toCtx
-
 	}
 	defer cancel()
 
@@ -94,7 +95,7 @@ func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest
 	if err != nil {
 		return nil, fmt.Errorf("Problem collecting subscriptions, Probably no subscriptions or token out of range: %w", err)
 	}
-
+	srv.log.Debug("Subscribe called", zap.Bool("Blocking", blocking))
 	sqlStr := "INSERT OR REPLACE INTO subscriptions (iri, is_recursive) VALUES (?,?)"
 	vals = append(vals, "hm://"+req.Account+req.Path, req.Recursive)
 	if err := sqlitex.Exec(conn, sqlStr, nil, vals...); err != nil {
@@ -107,6 +108,7 @@ func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest
 		for i := range b {
 			b[i] = letters[r.Intn(len(letters))]
 		}
+		srv.log.Debug("Sending event", zap.String("ID", string(b)))
 		srv.subsCh <- SubscribedEvnt{
 			ID:        string(b),
 			Account:   req.Account,
@@ -120,8 +122,10 @@ func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest
 		for {
 			select {
 			case e := <-*srv.GetSubsSyncEventCh():
+				srv.log.Debug("Event Received", zap.Any("data", e))
 				switch event := e.(type) {
 				case SubscribedSyncEvnt:
+					srv.log.Debug("SubscribedSyncEvnt Received", zap.String("id", string(b)))
 					if event.SubID == string(b) {
 						if event.Err != nil {
 							srv.Unsubscribe(ctx, &activity.UnsubscribeRequest{
