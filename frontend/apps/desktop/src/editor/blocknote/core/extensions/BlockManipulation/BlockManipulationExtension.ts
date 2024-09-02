@@ -168,6 +168,47 @@ export const BlockManipulationExtension = Extension.create({
                 const {prevBlock, prevBlockPos} = prevBlockInfo
                 const prevNode = prevBlock.firstChild!
                 const prevNodePos = prevBlockPos + 1
+                if (event.shiftKey) {
+                  const blockInfoAtSelectionStart = getBlockInfoFromPos(
+                    state.doc,
+                    state.selection.from,
+                  )
+                  if (event.key === 'ArrowLeft') {
+                    if (
+                      (state.selection.from - 1 !==
+                        blockInfoAtSelectionStart.startPos &&
+                        ![
+                          'image',
+                          'file',
+                          'embed',
+                          'video',
+                          'web-embed',
+                          'equation',
+                          'math',
+                        ].includes(
+                          blockInfoAtSelectionStart.contentType.name,
+                        )) ||
+                      ![
+                        'image',
+                        'file',
+                        'embed',
+                        'video',
+                        'web-embed',
+                        'equation',
+                        'math',
+                      ].includes(prevBlock.firstChild!.type.name)
+                    )
+                      return false
+                  }
+
+                  const selection = TextSelection.create(
+                    state.doc,
+                    state.selection.to,
+                    prevNodePos,
+                  )
+                  view.dispatch(state.tr.setSelection(selection))
+                  return true
+                }
                 if (event.key === 'ArrowLeft') {
                   const blockInfo = getBlockInfoFromPos(
                     state.doc,
@@ -204,6 +245,7 @@ export const BlockManipulationExtension = Extension.create({
                   return true
                 }
               } else {
+                if (event.shiftKey) return false
                 const blockInfo = getBlockInfoFromPos(
                   state.doc,
                   state.selection.from,
@@ -239,14 +281,65 @@ export const BlockManipulationExtension = Extension.create({
             ) {
               const nextBlockInfo = findNextBlock(view, state.selection.from)
               if (nextBlockInfo) {
+                const blockInfo = getBlockInfoFromPos(
+                  state.doc,
+                  state.selection.from,
+                )!
+                if (event.shiftKey) {
+                  const blockInfoAfterSelection = findNextBlock(
+                    view,
+                    state.selection.to,
+                  )
+                  if (event.key === 'ArrowRight') {
+                    const lastBlockInSelection = getBlockInfoFromPos(
+                      state.doc,
+                      state.selection.to,
+                    )
+                    if (
+                      state.selection.to + 1 !==
+                        lastBlockInSelection.startPos +
+                          lastBlockInSelection.contentNode.nodeSize &&
+                      ![
+                        'image',
+                        'file',
+                        'embed',
+                        'video',
+                        'web-embed',
+                        'equation',
+                        'math',
+                      ].includes(lastBlockInSelection.contentType.name)
+                    ) {
+                      return false
+                    }
+                  }
+                  if (blockInfoAfterSelection) {
+                    const {nextBlock, nextBlockPos} = blockInfoAfterSelection
+                    if (
+                      [
+                        'image',
+                        'file',
+                        'embed',
+                        'video',
+                        'web-embed',
+                        'equation',
+                        'math',
+                      ].includes(nextBlock.firstChild!.type.name)
+                    ) {
+                      const selection = TextSelection.create(
+                        state.doc,
+                        state.selection.anchor,
+                        nextBlockPos + 1,
+                      )
+                      view.dispatch(state.tr.setSelection(selection))
+                      return true
+                    } else return false
+                  }
+                  return false
+                }
                 const {nextBlock, nextBlockPos} = nextBlockInfo
                 const nextNode = nextBlock.firstChild!
                 const nextNodePos = nextBlockPos + 1
                 if (event.key === 'ArrowRight') {
-                  const blockInfo = getBlockInfoFromPos(
-                    state.doc,
-                    state.selection.from,
-                  )!
                   if (
                     state.selection.$anchor.pos + 1 !==
                       blockInfo.startPos + blockInfo.contentNode.nodeSize &&
