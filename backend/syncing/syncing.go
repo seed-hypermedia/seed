@@ -395,15 +395,17 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 	s.log.Debug("SyncSubscribedContent called", zap.Int("Number of subscriptions", len(subscriptions)))
 	conn, release, err := s.db.Conn(ctx)
 	if err != nil {
+		s.log.Debug("Could not grab a connection", zap.Error(err))
 		return res, err
 	}
 	defer release()
 
 	if len(subscriptions) == 0 {
+		s.log.Debug("No subscriptions passed, grabbing all of them")
 		ret, err := s.sstore.ListSubscriptions(ctx, &activity_proto.ListSubscriptionsRequest{
 			PageSize: math.MaxInt32,
 		})
-		s.log.Debug("No subscriptions passed, grabbing all of them", zap.Error(err))
+		s.log.Debug("List all subscriptions", zap.Error(err))
 		if err != nil {
 			return res, err
 		}
