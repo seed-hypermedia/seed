@@ -1,6 +1,5 @@
 import type {ActionFunction} from "@remix-run/node";
 import {json} from "@remix-run/node";
-import {hmId} from "@shm/shared";
 import {z} from "zod";
 import {queryClient} from "~/client";
 import {getConfig, writeConfig} from "~/config";
@@ -55,22 +54,12 @@ export const action: ActionFunction = async ({request}) => {
       console.error("subscribe failed", e);
       // probably this was an attempt to create a duplicate subscription, and this error can be ignored
     }
-    console.log("discover");
-    await queryClient.entities.discoverEntity({
-      id: hmId("d", input.accountUid).id,
-    });
-    console.log("daemon.forceSync");
-    await queryClient.daemon.forceSync({});
     console.log("writing config");
     await writeConfig({
       registeredAccountUid: input.accountUid,
       sourcePeerId: input.peerId,
     });
-    await waitFor(async () => {
-      console.log("querying document", input.accountUid);
-      await queryClient.documents.getDocument({account: input.accountUid});
-    });
-    console.log("Registration succeeded.");
+    console.log("Registration Done.");
     return json({message: "Success"});
   } catch (e) {
     if (e.toJSON) {
