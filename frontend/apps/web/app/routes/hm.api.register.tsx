@@ -45,11 +45,16 @@ export const action: ActionFunction = async ({request}) => {
       console.error("direct connect failed", e);
     }
     console.log("subscribe");
-    await queryClient.subscriptions.subscribe({
-      account: input.accountUid,
-      path: "",
-      recursive: true,
-    });
+    try {
+      await queryClient.subscriptions.subscribe({
+        account: input.accountUid,
+        path: "",
+        recursive: true,
+      });
+    } catch (e) {
+      console.error("subscribe failed", e);
+      // probably this was an attempt to create a duplicate subscription, and this error can be ignored
+    }
     console.log("discover");
     await queryClient.entities.discoverEntity({
       id: hmId("d", input.accountUid).id,
