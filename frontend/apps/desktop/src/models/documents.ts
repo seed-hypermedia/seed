@@ -673,9 +673,19 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
         ttEditor.commands.setTextSelection(sel)
       }
     } else {
-      console.warn(
-        'No position found within the editor for the given mouse coordinates.',
-      )
+      if (event.clientY > editorRect.bottom) {
+        // editorView.state.doc.descendants((node, pos) => {
+        //   console.log(node, pos)
+        // })
+        // From debugging positions, the last node is always resolved at position doc.content.size - 4, but it is possible to add exact position by calling doc.descendants
+        ttEditor.commands.setTextSelection(
+          editorView.state.doc.content.size - 4,
+        )
+        ttEditor.commands.focus()
+      } else
+        console.warn(
+          'No position found within the editor for the given mouse coordinates.',
+        )
     }
   }
 }
