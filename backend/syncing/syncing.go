@@ -409,7 +409,9 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 		}
 		subscriptions = ret.Subscriptions
 	}
-
+	if len(subscriptions) == 0 {
+		return res, nil
+	}
 	subsMap := make(map[peer.ID]map[string]bool)
 	allPeers := []peer.ID{} // TODO:(juligasa): Remove this when we have providers store
 	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
@@ -442,9 +444,13 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 				s.host.Peerstore().AddAddrs(p.ID, p.Addrs, time.Minute*10)
 				allPeers = append(allPeers, p.ID)
 			}
-
 		}
 	}
+
+	if len(allPeers) == 0 {
+		return res, fmt.Errorf("Could not find any provider for any of the subscribed content")
+	}
+	s.log.Debug("Syncing Subscribed content", zap.Int("Number of documents", len(eidsMap)), zap.Int("Number of peers", len(allPeers)))
 	for _, pid := range allPeers {
 		// TODO(juligasa): look into the providers store who has each eid
 		// instead of pasting all peers in all documents.
