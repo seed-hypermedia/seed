@@ -4,13 +4,19 @@ import {
   getDocumentTitle,
   getFileUrl,
   getNodesOutline,
+  HMComment,
   HMDocument,
   NodeOutline,
   UnpackedHypermediaId,
 } from "@shm/shared";
 import {Container} from "@shm/ui/src/container";
 import {DirectoryItem} from "@shm/ui/src/directory";
-import {DocContent, DocContentProvider} from "@shm/ui/src/document-content";
+import {CommentGroup} from "@shm/ui/src/discussion";
+import {
+  BlocksContent,
+  DocContent,
+  DocContentProvider,
+} from "@shm/ui/src/document-content";
 import {RadioButtons} from "@shm/ui/src/radio-buttons";
 import {Spinner} from "@shm/ui/src/spinner";
 import {Button, ButtonText} from "@tamagui/button";
@@ -22,6 +28,7 @@ import {PropsWithChildren, useEffect, useMemo, useState} from "react";
 import type {SiteDocumentPayload} from "./loaders";
 import {PageHeader} from "./page-header";
 import type {DirectoryPayload} from "./routes/hm.api.directory";
+import {DiscussionPayload} from "./routes/hm.api.discussion";
 import {EmbedDocument} from "./web-embeds";
 import {unwrap, Wrapped} from "./wrapping";
 
@@ -116,22 +123,9 @@ export function DocumentPage({
                 </YStack>
               </YStack>
             </YStack>
-            <DocContentProvider
-              entityComponents={{
-                Document: EmbedDocument,
-                Comment: () => null,
-                Inline: () => null,
-              }}
-              ipfsBlobPrefix="http://localhost:55001/ipfs/" // todo, configure this properly
-              onLinkClick={(href, e) => {}}
-              onCopyBlock={(blockId, blockRange) => {}}
-              saveCidAsFile={async (cid, name) => {}}
-              textUnit={18}
-              layoutUnit={24}
-              debug={false}
-            >
+            <WebDocContentProvider>
               <DocContent document={document} />
-            </DocContentProvider>
+            </WebDocContentProvider>
           </Container>
           <DocumentAppendix id={id} />
         </YStack>
@@ -140,6 +134,27 @@ export function DocumentPage({
         <DocumentOutline document={document} onClose={() => setOpen(false)} />
       </MobileOutline>
     </>
+  );
+}
+
+function WebDocContentProvider({children}: PropsWithChildren<{}>) {
+  return (
+    <DocContentProvider
+      entityComponents={{
+        Document: EmbedDocument,
+        Comment: () => null,
+        Inline: () => null,
+      }}
+      ipfsBlobPrefix="http://localhost:55001/ipfs/" // todo, configure this properly
+      onLinkClick={(href, e) => {}}
+      onCopyBlock={(blockId, blockRange) => {}}
+      saveCidAsFile={async (cid, name) => {}}
+      textUnit={18}
+      layoutUnit={24}
+      debug={false}
+    >
+      {children}
+    </DocContentProvider>
   );
 }
 
@@ -170,14 +185,21 @@ function DocumentAppendix({id}: {id: UnpackedHypermediaId}) {
   );
 }
 
-function DocumentDirectory({id}: {id: UnpackedHypermediaId}) {
+function useAPI<ResponsePayloadType>(url?: string) {
   const fetcher = useFetcher();
   useEffect(() => {
-    fetcher.load(`/hm/api/directory?id=${id.id}`);
-  }, [id.id]);
+    if (!url) return;
+    fetcher.load(url);
+  }, [url]);
+  if (!url) return undefined;
   const response = fetcher.data
-    ? unwrap<DirectoryPayload>(fetcher.data)
+    ? unwrap<ResponsePayloadType>(fetcher.data)
     : undefined;
+  return response;
+}
+
+function DocumentDirectory({id}: {id: UnpackedHypermediaId}) {
+  const response = useAPI<DirectoryPayload>(`/hm/api/directory?id=${id.id}`);
   if (response?.error) return <ErrorComponent error={response?.error} />;
   if (!response) return <Spinner />;
   const {directory, authorsMetadata} = response;
@@ -207,8 +229,72 @@ function ErrorComponent({error}: {error: string}) {
   );
 }
 
+function useDiscussion(docId: UnpackedHypermediaId, targetCommentId?: string) {
+  let url = `/hm/api/discussion?id=${docId.id}`;
+  if (targetCommentId) {
+    url += `&targetCommentId=${targetCommentId}`;
+  }
+  const response = useAPI<DiscussionPayload>(url);
+  return response;
+}
+
 function DocumentDiscussion({id}: {id: UnpackedHypermediaId}) {
-  return null;
+  const discussion = useDiscussion(id);
+  if (!discussion) return null;
+  const {commentGroups, commentAuthors} = discussion;
+  if (!commentGroups) return null;
+  return commentGroups.map((commentGroup) => {
+    return (
+      <CommentGroup
+        key={commentGroup.id}
+        docId={id}
+        commentGroup={commentGroup}
+        isLastGroup={commentGroup === commentGroups.at(-1)}
+        authors={commentAuthors}
+        renderCommentContent={renderCommentContent}
+        CommentReplies={CommentReplies}
+      />
+    );
+  });
+}
+
+function renderCommentContent(comment: HMComment) {
+  return (
+    <WebDocContentProvider>
+      <BlocksContent blocks={comment.content} parentBlockId={null} />
+    </WebDocContentProvider>
+  );
+}
+
+function CommentReplies({
+  docId,
+  replyCommentId,
+}: {
+  docId: UnpackedHypermediaId;
+  replyCommentId: string;
+}) {
+  const discussion = useDiscussion(docId, replyCommentId);
+  if (!discussion) return null;
+  const {commentGroups, commentAuthors} = discussion;
+  if (!commentGroups) return null;
+  return (
+    <YStack paddingLeft={22}>
+      {commentGroups.map((commentGroup) => {
+        return (
+          <CommentGroup
+            isNested
+            key={commentGroup.id}
+            docId={docId}
+            authors={commentAuthors}
+            renderCommentContent={renderCommentContent}
+            commentGroup={commentGroup}
+            isLastGroup={commentGroup === commentGroups.at(-1)}
+            CommentReplies={CommentReplies}
+          />
+        );
+      })}
+    </YStack>
+  );
 }
 
 function DocumentOutline({

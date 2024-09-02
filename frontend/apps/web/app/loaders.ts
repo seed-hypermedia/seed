@@ -15,7 +15,9 @@ export type MetadataPayload = {
   metadata: HMMetadata;
 };
 
-async function getMetadata(id: UnpackedHypermediaId): Promise<MetadataPayload> {
+export async function getMetadata(
+  id: UnpackedHypermediaId
+): Promise<MetadataPayload> {
   const rawDoc = await queryClient.documents.getDocument({
     account: id.uid,
     path: hmIdPathToEntityQueryPath(id.path),

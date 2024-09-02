@@ -4,18 +4,17 @@ import {
   useDocumentCommentGroups,
 } from '@/models/comments'
 import {useMyAccounts} from '@/models/daemon'
-import {useEntity} from '@/models/entities'
+import {useEntities} from '@/models/entities'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {
   BlockRange,
   ExpandedBlockRange,
-  formattedDateLong,
-  formattedDateMedium,
   getDocumentTitle,
   HMComment,
   HMCommentGroup,
   HMEntityContent,
   hmId,
+  HMMetadata,
   serializeBlockRange,
   StateStream,
   UnpackedHypermediaId,
@@ -23,11 +22,9 @@ import {
 import {
   BlocksContent,
   Button,
+  CommentGroup,
   copyUrlToClipboardWithFeedback,
-  ReplyArrow,
   SelectDropdown,
-  SizableText,
-  Stack,
   Thumbnail,
   Tooltip,
   useStream,
@@ -35,12 +32,9 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {ChevronDown, ChevronRight, Trash} from '@tamagui/lucide-icons'
+import {Trash} from '@tamagui/lucide-icons'
 import {useEffect, useState} from 'react'
 import {HyperMediaEditorView} from './editor'
-
-const lineColor = '$blue7'
-const lineWidth = 1
 
 export function Discussion({docId}: {docId: UnpackedHypermediaId}) {
   return (
@@ -51,8 +45,30 @@ export function Discussion({docId}: {docId: UnpackedHypermediaId}) {
   )
 }
 
+function renderCommentContent(comment: HMComment) {
+  return (
+    <AppDocContentProvider
+      comment
+      // onReplyBlock={onReplyBlock}
+      onReplyBlock={() => {}}
+      onCopyBlock={(
+        blockId: string,
+        blockRange: BlockRange | ExpandedBlockRange | undefined,
+      ) => {
+        const url = `hm://c/${comment.id}#${blockId}${serializeBlockRange(
+          blockRange,
+        )}`
+        copyUrlToClipboardWithFeedback(url, 'Comment Block')
+      }}
+    >
+      <BlocksContent blocks={comment.content} parentBlockId={null} />
+    </AppDocContentProvider>
+  )
+}
+
 function DiscussionComments({docId}: {docId: UnpackedHypermediaId}) {
   const comments = useDocumentCommentGroups(docId)
+  const authors = useCommentGroupAuthors(comments)
   return comments.map((commentGroup) => {
     return (
       <CommentGroup
@@ -60,49 +76,38 @@ function DiscussionComments({docId}: {docId: UnpackedHypermediaId}) {
         docId={docId}
         commentGroup={commentGroup}
         isLastGroup={commentGroup === comments[comments.length - 1]}
+        authors={authors}
+        renderCommentContent={renderCommentContent}
+        RepliesEditor={RepliesEditor}
+        CommentReplies={CommentReplies}
       />
     )
   })
 }
 
-// this is a LINEARIZED set of comments, where one comment is directly replying to another. the commentGroup.moreCommentsCount should be the number of replies to the last comment in the group.
-function CommentGroup({
+function CommentReplies({
   docId,
-  commentGroup,
-  isNested = false,
-  isLastGroup = false,
+  replyCommentId,
 }: {
   docId: UnpackedHypermediaId
-  commentGroup: HMCommentGroup
-  isNested?: boolean
-  isLastGroup?: boolean
+  replyCommentId: string
 }) {
-  const lastComment = commentGroup.comments.at(-1)
+  const comments = useDocumentCommentGroups(docId, replyCommentId)
+  const authors = useCommentGroupAuthors(comments)
   return (
-    <YStack>
-      {isLastGroup ? (
-        <View
-          width={5}
-          position="absolute"
-          top={8}
-          bottom={-10}
-          left={-8}
-          bg="$background"
-        />
-      ) : null}
-      {commentGroup.comments.map((comment, idx) => {
-        const isLastCommentInGroup = !!lastComment && comment === lastComment
+    <YStack paddingLeft={22}>
+      {comments.map((commentGroup) => {
         return (
-          <Comment
-            isFirst={idx == 0}
-            isLast={isLastCommentInGroup}
-            isNested={isNested}
-            key={comment.id}
+          <CommentGroup
+            isNested
+            key={commentGroup.id}
             docId={docId}
-            comment={comment}
-            replyCount={
-              isLastCommentInGroup ? commentGroup.moreCommentsCount : undefined
-            }
+            authors={authors}
+            renderCommentContent={renderCommentContent}
+            commentGroup={commentGroup}
+            isLastGroup={commentGroup === comments[comments.length - 1]}
+            RepliesEditor={RepliesEditor}
+            CommentReplies={CommentReplies}
           />
         )
       })}
@@ -110,150 +115,24 @@ function CommentGroup({
   )
 }
 
-function Comment({
-  docId,
-  comment,
-  replyCount,
-  isFirst = false,
-  isLast = false,
-  isNested = false,
-}: {
-  docId: UnpackedHypermediaId
-  comment: HMComment
-  replyCount?: number
-  isFirst?: boolean
-  isLast?: boolean
-  isNested?: boolean
-}) {
-  const [showReplies, setShowReplies] = useState(false)
-  const [isReplying, setIsReplying] = useState(false)
-  const authorId = comment.author ? hmId('d', comment.author) : null
-  const {data: author} = useEntity(authorId)
-  const draft = useCommentDraft(docId, comment.id)
-
-  return (
-    <YStack>
-      <View
-        width={lineWidth}
-        height={isLast && !showReplies ? 20 : '100%'}
-        position="absolute"
-        top={isFirst ? 8 : 0}
-        left={16}
-        bg={lineColor}
-      />
-      {isFirst && isNested ? (
-        <View
-          position="absolute"
-          zi={10}
-          top={4}
-          left={-6}
-          width={12}
-          height={15}
-          borderLeftWidth={lineWidth}
-          borderBottomWidth={lineWidth}
-          borderLeftColor={lineColor}
-          borderBottomColor={lineColor}
-          borderRadius={25}
-          borderTopLeftRadius={0}
-          borderBottomRightRadius={0}
-        />
-      ) : null}
-      <XStack gap="$2" padding="$2">
-        <Stack position="relative">
-          <Stack
-            position="absolute"
-            top={0}
-            zi={20}
-            left={0}
-            w={20}
-            h={20}
-            bg="transparent"
-            outlineColor="$background"
-            outlineStyle="solid"
-            outlineWidth={4}
-            borderRadius={100}
-          />
-          <Thumbnail
-            zi={20}
-            id={authorId}
-            metadata={author?.document?.metadata}
-            size={20}
-          />
-        </Stack>
-        <YStack f={1}>
-          <XStack minHeight={20} ai="center" gap="$2">
-            <SizableText size="$2" fontWeight="bold">
-              {author?.document?.metadata.name || '...'}
-            </SizableText>
-            <Tooltip content={formattedDateLong(comment.createTime)}>
-              <SizableText color="$color8" size="$1">
-                {formattedDateMedium(comment.createTime)}
-              </SizableText>
-            </Tooltip>
-          </XStack>
-          <XStack marginLeft={-8}>
-            <AppDocContentProvider
-              comment
-              // onReplyBlock={onReplyBlock}
-              onReplyBlock={() => {}}
-              onCopyBlock={(
-                blockId: string,
-                blockRange: BlockRange | ExpandedBlockRange | undefined,
-              ) => {
-                const url = `${comment.id}#${blockId}${serializeBlockRange(
-                  blockRange,
-                )}`
-                copyUrlToClipboardWithFeedback(url, 'Comment Block')
-              }}
-            >
-              <BlocksContent blocks={comment.content} parentBlockId={null} />
-            </AppDocContentProvider>
-          </XStack>
-          <XStack ai="center" gap="$2" marginLeft={-4} paddingVertical="$1">
-            {replyCount ? (
-              <Button
-                chromeless
-                color="$blue11"
-                size="$1"
-                theme="blue"
-                icon={showReplies ? ChevronDown : ChevronRight}
-                onPress={() => setShowReplies(!showReplies)}
-              >
-                <SizableText size="$1" color="$blue11">
-                  Replies ({replyCount})
-                </SizableText>
-              </Button>
-            ) : null}
-            <Button
-              chromeless
-              color="$blue11"
-              size="$1"
-              theme="blue"
-              icon={<ReplyArrow size={16} />}
-              onPress={() => setIsReplying(true)}
-            >
-              Reply
-            </Button>
-          </XStack>
-        </YStack>
-      </XStack>
-      <RepliesEditor
-        isReplying={isReplying || !!draft.data}
-        docId={docId}
-        replyCommentId={comment.id}
-        onDiscardDraft={() => {
-          setIsReplying(false)
-        }}
-      />
-      {showReplies ? (
-        <YStack
-          paddingLeft={22}
-          // bg="$background"
-        >
-          <CommentReplies docId={docId} replyCommentId={comment.id} />
-        </YStack>
-      ) : null}
-    </YStack>
+function useCommentGroupAuthors(
+  commentGroups: HMCommentGroup[],
+): Record<string, HMMetadata> {
+  const commentGroupAuthors = new Set<string>()
+  commentGroups.forEach((commentGroup) => {
+    commentGroup.comments.forEach((comment) => {
+      commentGroupAuthors.add(comment.author)
+    })
+  })
+  const authorEntities = useEntities(
+    Array.from(commentGroupAuthors).map((uid) => hmId('d', uid)),
+  )
+  return Object.fromEntries(
+    authorEntities
+      .map((q) => q.data)
+      .filter((a) => !!a)
+      .map((author) => [author.id.uid, author.document?.metadata])
+      .filter((author) => !!author[1]),
   )
 }
 
@@ -289,28 +168,6 @@ function RepliesEditor({
       />
     </XStack>
   )
-}
-
-function CommentReplies({
-  docId,
-  replyCommentId,
-}: {
-  docId: UnpackedHypermediaId
-  replyCommentId: string
-}) {
-  const comments = useDocumentCommentGroups(docId, replyCommentId)
-  // todo, indentation, etc..
-  return comments.map((commentGroup) => {
-    return (
-      <CommentGroup
-        isNested
-        key={commentGroup.id}
-        docId={docId}
-        commentGroup={commentGroup}
-        isLastGroup={commentGroup === comments[comments.length - 1]}
-      />
-    )
-  })
 }
 
 function CommentDraft({docId}: {docId: UnpackedHypermediaId}) {

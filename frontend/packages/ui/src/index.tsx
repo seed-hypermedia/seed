@@ -15,6 +15,7 @@ export * from "./container";
 export * from "./copy-to-clipboard";
 export * from "./datatable";
 export * from "./directory";
+export * from "./discussion";
 export * from "./document-content";
 export * from "./document-content-constants";
 export * from "./footer";
