@@ -43,7 +43,7 @@ func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest
 		return nil, err
 	}
 	defer cancel()
-	sqlStr := "INSERT INTO subscriptions (iri, is_recursive) VALUES (?,?)"
+	sqlStr := "INSERT OR REPLACE INTO subscriptions (iri, is_recursive) VALUES (?,?)"
 	vals = append(vals, "hm://"+req.Account+req.Path, req.Recursive)
 	if err := sqlitex.Exec(conn, sqlStr, nil, vals...); err != nil {
 		return &emptypb.Empty{}, err
