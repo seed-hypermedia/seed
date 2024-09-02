@@ -133,7 +133,11 @@ func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest
 					}
 				}
 			case <-ctx.Done():
-				return &emptypb.Empty{}, fmt.Errorf("Time out")
+				srv.Unsubscribe(ctx, &activity.UnsubscribeRequest{
+					Account: req.Account,
+					Path:    req.Path,
+				})
+				return &emptypb.Empty{}, fmt.Errorf("Timeout")
 			}
 		}
 	}
