@@ -147,10 +147,11 @@ export const MediaContainer = ({
       borderWidth={0}
       draggable="true"
       onDragStart={(e: any) => {
-        if (!selected) {
-          e.preventDefault()
-          return
-        }
+        // Uncomment to allow drag only if block is selected
+        // if (!selected) {
+        //   e.preventDefault()
+        //   return
+        // }
         e.stopPropagation()
         editor.sideMenu.blockDragStart(e)
       }}
