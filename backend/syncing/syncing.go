@@ -403,14 +403,13 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 		ret, err := s.sstore.ListSubscriptions(ctx, &activity_proto.ListSubscriptionsRequest{
 			PageSize: math.MaxInt32,
 		})
+		s.log.Debug("No subscriptions passed, grabbing all of them", zap.Error(err))
 		if err != nil {
 			return res, err
 		}
-		if len(ret.Subscriptions) == 0 {
-			return res, nil
-		}
 		subscriptions = ret.Subscriptions
 	}
+	s.log.Debug("New Subscriptions gotten", zap.Int("Number of total subscriptions", len(subscriptions)))
 	if len(subscriptions) == 0 {
 		return res, nil
 	}
@@ -427,20 +426,21 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 	}); err != nil {
 		return res, err
 	}
-
+	s.log.Debug("Got list of peers", zap.Int("Number of total peers", len(allPeers)))
 	eidsMap := make(map[string]bool)
 	for _, subs := range subscriptions {
 		eid := "hm://" + subs.Account + subs.Path
 		eidsMap[eid] = subs.Recursive
 	}
 	if len(allPeers) == 0 {
+		s.log.Debug("Defaulting to DHT since we don't have providers")
 		for _, subs := range subscriptions {
 			c, err := ipfs.NewCID(uint64(multicodec.Raw), uint64(multicodec.Identity), []byte("hm://"+subs.Account+subs.Path))
 			if err != nil {
 				continue
 			}
-
 			peers := s.bitswap.FindProvidersAsync(ctx, c, 3)
+			s.log.Debug("DHT returned", zap.Int("Number of providers found", len(peers)))
 			for p := range peers {
 				p := p
 				s.host.Peerstore().AddAddrs(p.ID, p.Addrs, time.Minute*10)
@@ -478,7 +478,7 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 			}()
 
 			res.Peers[i] = pid
-
+			s.log.Debug("Syncing with peer to get subscribed content", zap.String("PID", pid.String()))
 			if xerr := s.SyncWithPeer(ctx, pid, eids); xerr != nil {
 				err = errors.Join(err, fmt.Errorf("failed to sync objects: %w", xerr))
 			}
