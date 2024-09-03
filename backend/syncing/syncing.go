@@ -468,6 +468,7 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 			res.Peers[i] = pid
 			s.log.Debug("Syncing with peer to get subscribed content", zap.String("PID", pid.String()))
 			if xerr := s.SyncWithPeer(ctx, pid, eids); xerr != nil {
+				s.log.Debug("Could not sync with content", zap.String("PID", pid.String()), zap.Error(xerr))
 				err = errors.Join(err, fmt.Errorf("failed to sync objects: %w", xerr))
 			}
 		}(i, pid, eids)
@@ -485,7 +486,7 @@ func (s *Service) SyncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 	// Can't sync with self.
 	if s.host.Network().LocalPeer() == pid {
 		s.log.Debug("Sync with self attempted")
-		return nil
+		return fmt.Errorf("Can't sync with self")
 	}
 
 	{
