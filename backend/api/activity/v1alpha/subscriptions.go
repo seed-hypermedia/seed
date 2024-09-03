@@ -25,44 +25,6 @@ var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 const blockingTimeout = time.Second * 30
 
-// SubscribedEvnt will be sent every time a subscription occur.
-type SubscribedEvnt struct {
-	ID        string // Event ID
-	Account   string // Subscribed Account
-	Path      string // Subscribed Path
-	Recursive bool   // WHether it's recursive or not
-}
-
-// SubscribedSyncEvnt goves feedback about the syncing associated with a subscription.
-type SubscribedSyncEvnt struct {
-	SubID string // SubscribedEvnt ID this event responses to.
-	Err   error
-}
-
-// GetSubsEventCh gets the event channel.
-func (srv *Server) GetSubsEventCh() chan interface{} {
-	if srv.subsCh == nil {
-		srv.subsCh = make(chan interface{}, 50)
-		srv.clean.AddErrFunc(func() error {
-			close(srv.subsCh)
-			return nil
-		})
-	}
-	return srv.subsCh
-}
-
-// GetSubsSyncEventCh gets the event channel.
-func (srv *Server) GetSubsSyncEventCh() chan interface{} {
-	if srv.subSynCh == nil {
-		srv.subSynCh = make(chan interface{}, 50)
-		srv.clean.AddErrFunc(func() error {
-			close(srv.subSynCh)
-			return nil
-		})
-	}
-	return srv.subSynCh
-}
-
 // Subscribe subscribes to a document.
 func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest) (*emptypb.Empty, error) {
 	vals := []interface{}{}
@@ -96,53 +58,31 @@ func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest
 		return nil, fmt.Errorf("Problem collecting subscriptions, Probably no subscriptions or token out of range: %w", err)
 	}
 	srv.log.Debug("Subscribe called", zap.Bool("Blocking", blocking))
+
+	if srv.syncer == nil && blocking {
+		return nil, fmt.Errorf("Syncer non defined on blocking call")
+	}
+
 	sqlStr := "INSERT OR REPLACE INTO subscriptions (iri, is_recursive) VALUES (?,?)"
 	vals = append(vals, "hm://"+req.Account+req.Path, req.Recursive)
 	if err := sqlitex.Exec(conn, sqlStr, nil, vals...); err != nil {
 		return &emptypb.Empty{}, err
 	}
-	b := make([]rune, 8)
-	if srv.subsCh != nil {
-		r := rand.New(randSrc) //nolint:gosec
 
-		for i := range b {
-			b[i] = letters[r.Intn(len(letters))]
-		}
-		srv.log.Debug("Sending event", zap.String("ID", string(b)))
-		srv.subsCh <- SubscribedEvnt{
-			ID:        string(b),
+	if blocking {
+		ret, err := srv.syncer.SyncSubscribedContent(ctx, &activity.Subscription{
 			Account:   req.Account,
 			Path:      req.Path,
 			Recursive: req.Recursive,
+		})
+		if err != nil {
+			srv.log.Debug("Sync failed", zap.Error(err))
+			return &emptypb.Empty{}, err
 		}
-	} else if blocking {
-		return &emptypb.Empty{}, fmt.Errorf("blocking call without channel readers will timeout")
-	}
-	if blocking {
-		for {
-			select {
-			case e := <-srv.GetSubsSyncEventCh():
-				srv.log.Debug("Event Received", zap.Any("data", e))
-				switch event := e.(type) {
-				case SubscribedSyncEvnt:
-					srv.log.Debug("SubscribedSyncEvnt Received", zap.String("id", string(b)))
-					if event.SubID == string(b) {
-						if event.Err != nil {
-							srv.Unsubscribe(ctx, &activity.UnsubscribeRequest{
-								Account: req.Account,
-								Path:    req.Path,
-							})
-						}
-						return &emptypb.Empty{}, event.Err
-					}
-				}
-			case <-ctx.Done():
-				srv.Unsubscribe(ctx, &activity.UnsubscribeRequest{
-					Account: req.Account,
-					Path:    req.Path,
-				})
-				return &emptypb.Empty{}, fmt.Errorf("Timeout")
-			}
+		if ret.NumSyncOK == 0 {
+			const errMsg = "Could not sync subscribed content from any known peer"
+			srv.log.Debug(errMsg)
+			return &emptypb.Empty{}, fmt.Errorf("%s", errMsg)
 		}
 	}
 	return &emptypb.Empty{}, nil

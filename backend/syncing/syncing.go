@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	activity "seed/backend/api/activity/v1alpha"
 	"seed/backend/config"
 	"seed/backend/core"
 	activity_proto "seed/backend/genproto/activity/v1alpha"
@@ -113,8 +112,6 @@ type Storage interface {
 // SubscriptionStore an interface implementing necessary methods to get subscriptions.
 type SubscriptionStore interface {
 	ListSubscriptions(context.Context, *activity_proto.ListSubscriptionsRequest) (*activity_proto.ListSubscriptionsResponse, error)
-	GetSubsEventCh() chan interface{}
-	GetSubsSyncEventCh() chan interface{}
 }
 type protocolChecker struct {
 	checker func(context.Context, peer.ID, string) error
@@ -165,31 +162,6 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer *
 	if !cfg.NoSyncBack {
 		net.SetIdentificationCallback(svc.syncBack)
 	}
-
-	go func() {
-		for e := range sstore.GetSubsEventCh() {
-			switch event := e.(type) {
-			case activity.SubscribedEvnt:
-				log.Debug("SubscribedEvnt received", zap.String("Account", event.Account), zap.String("Path", event.Path), zap.Bool("Recursive", event.Recursive))
-				res, err := svc.SyncSubscribedContent(context.Background(), &activity_proto.Subscription{
-					Account:   event.Account,
-					Path:      event.Path,
-					Recursive: event.Recursive,
-				})
-				log.Debug("SyncSubscribedContent Finished", zap.Errors("Errors in return", res.Errs), zap.Error(err))
-				evnt := activity.SubscribedSyncEvnt{
-					SubID: event.ID}
-				if err != nil {
-					evnt.Err = err
-				} else if res.NumSyncOK == 0 {
-					evnt.Err = fmt.Errorf("We could not sync the subscribed content with any provider")
-				} else {
-					log.Debug("Successfully synced content", zap.Int64("NumSyncOK", res.NumSyncOK))
-				}
-				sstore.GetSubsSyncEventCh() <- evnt
-			}
-		}
-	}()
 
 	return svc
 }
@@ -764,15 +736,6 @@ func syncPeerRbsr(
 		return fmt.Errorf("Failed to Init Syncing Session: %w", err)
 	}
 
-	var qListBlobs = dqb.Str(`
-		SELECT
-			blobs.codec,
-			blobs.multihash,
-			blobs.insert_time
-		FROM blobs INDEXED BY blobs_metadata LEFT JOIN structural_blobs sb ON sb.id = blobs.id
-		WHERE blobs.size >= 0 
-		ORDER BY sb.ts, blobs.multihash;
-	`)
 	conn, release, err := db.Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("Could not get connection: %w", err)
@@ -919,3 +882,13 @@ var qSaveCursor = dqb.Str(`
 		:cursor
 	);
 `)
+
+var qListBlobs = dqb.Str(`
+		SELECT
+			blobs.codec,
+			blobs.multihash,
+			blobs.insert_time
+		FROM blobs INDEXED BY blobs_metadata LEFT JOIN structural_blobs sb ON sb.id = blobs.id
+		WHERE blobs.size >= 0 
+		ORDER BY sb.ts, blobs.multihash;
+	`)

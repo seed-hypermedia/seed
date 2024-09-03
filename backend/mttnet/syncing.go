@@ -21,29 +21,6 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 		return nil, err
 	}
 
-	var qListAllBlobs = dqb.Str(`
-	SELECT
-		blobs.codec,
-		blobs.multihash,
-		blobs.insert_time,
-		?
-	FROM blobs INDEXED BY blobs_metadata LEFT JOIN structural_blobs sb ON sb.id = blobs.id
-	WHERE blobs.size >= 0 
-	ORDER BY sb.ts, blobs.multihash;
-`)
-
-	var qListrelatedBlobs = dqb.Str(`
-	SELECT
-		blobs.codec,
-		blobs.multihash,
-		blobs.insert_time
-	FROM blobs INDEXED BY blobs_metadata 
-	LEFT JOIN structural_blobs sb ON sb.id = blobs.id
-	LEFT JOIN structural_blobs sb2 ON sb.ts = sb2.ts
-	LEFT JOIN resources res ON sb2.resource = res.id
-	WHERE blobs.size >= 0 AND (res.iri LIKE ?)
-	ORDER BY sb.ts, blobs.multihash;
-`)
 	conn, release, err := srv.Node.db.Conn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("Could not get connection: %w", err)
@@ -88,3 +65,27 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 		Ranges: out,
 	}, nil
 }
+
+var qListAllBlobs = dqb.Str(`
+SELECT
+	blobs.codec,
+	blobs.multihash,
+	blobs.insert_time,
+	?
+FROM blobs INDEXED BY blobs_metadata LEFT JOIN structural_blobs sb ON sb.id = blobs.id
+WHERE blobs.size >= 0 
+ORDER BY sb.ts, blobs.multihash;
+`)
+
+var qListrelatedBlobs = dqb.Str(`
+SELECT
+	blobs.codec,
+	blobs.multihash,
+	blobs.insert_time
+FROM blobs INDEXED BY blobs_metadata 
+LEFT JOIN structural_blobs sb ON sb.id = blobs.id
+LEFT JOIN structural_blobs sb2 ON sb.ts = sb2.ts
+LEFT JOIN resources res ON sb2.resource = res.id
+WHERE blobs.size >= 0 AND (res.iri LIKE ?)
+ORDER BY sb.ts, blobs.multihash;
+`)
