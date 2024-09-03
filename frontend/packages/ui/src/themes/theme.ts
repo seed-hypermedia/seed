@@ -46,7 +46,6 @@ const themesBuilder = createThemeBuilder()
     yellow: colorThemeDefinition("yellow"),
     green: colorThemeDefinition("green"),
     blue: colorThemeDefinition("blue"),
-    mint: colorThemeDefinition("mint"),
     purple: colorThemeDefinition("purple"),
     // pink: colorThemeDefinition('pink'),
     red: colorThemeDefinition("red"),

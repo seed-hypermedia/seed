@@ -9,8 +9,6 @@ import {
   grayDark,
   green,
   greenDark,
-  mint,
-  mintDark,
   // orange,
   // orangeDark,
   // pink,
@@ -42,7 +40,6 @@ export const colorTokens = {
     purple,
     red,
     yellow,
-    mint,
     brand,
     brandDark,
   },
@@ -55,7 +52,6 @@ export const colorTokens = {
     purple: purpleDark,
     red: redDark,
     yellow: yellowDark,
-    mint: mintDark,
     brand: brandDark,
   },
 };
@@ -69,7 +65,6 @@ export const darkColors = {
   ...colorTokens.dark.purple,
   ...colorTokens.dark.red,
   ...colorTokens.dark.yellow,
-  ...colorTokens.dark.mint,
   ...colorTokens.dark.brand,
 };
 
@@ -82,7 +77,6 @@ export const lightColors = {
   ...colorTokens.light.purple,
   ...colorTokens.light.red,
   ...colorTokens.light.yellow,
-  ...colorTokens.light.mint,
   ...colorTokens.light.brand,
 };
 

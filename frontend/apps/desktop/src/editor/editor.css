@@ -57,7 +57,7 @@
   color: hsl(210, 100%, 66.1%);
 } */
 
-/* manually sync these values with colors.ts mint11 and mintDark11 */
+/* manually sync these values with colors.ts brand11 and brandDark11 */
 .ProseMirror .hm-link {
   color: var(--brand11);
 }
