@@ -22,6 +22,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Running tests normally.
   test-go:
     runs-on: ubuntu-latest
     steps:
@@ -30,4 +31,15 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.23"
-      - run: go test -p 1 ./backend/...
+      - run: go test ./backend/...
+
+  # Running tests with race detector enabled.
+  test-go-race:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+      - run: go test -race ./backend/...
