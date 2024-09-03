@@ -759,6 +759,15 @@ function LibraryListItem({
     [entry.authors],
   )
 
+  const thumbnail =
+    entry.id.path?.length == 0 || entry.document?.metadata.thumbnail ? (
+      <Thumbnail
+        size={28}
+        id={entry.id}
+        metadata={entry.document?.metadata || entry.draft?.metadata}
+      />
+    ) : null
+
   const hoverColor = '$color5'
   return (
     <Button
@@ -780,30 +789,27 @@ function LibraryListItem({
       }}
       h={60}
       icon={
-        <XStack ai="center" gap="$3">
-          {exportMode && (
-            <Checkbox
-              size="$3"
-              checked={selected}
-              onCheckedChange={() => {
-                toggleDocumentSelection(entry.id.id)
-              }}
-            >
-              <Checkbox.Indicator>
-                <Check />
-              </Checkbox.Indicator>
-            </Checkbox>
-          )}
+        exportMode ? (
+          <XStack ai="center" gap="$3">
+            {exportMode && (
+              <Checkbox
+                size="$3"
+                checked={selected}
+                onCheckedChange={() => {
+                  toggleDocumentSelection(entry.id.id)
+                }}
+              >
+                <Checkbox.Indicator>
+                  <Check />
+                </Checkbox.Indicator>
+              </Checkbox>
+            )}
 
-          {(entry.id.path?.length == 0 ||
-            entry.document?.metadata.thumbnail) && (
-            <Thumbnail
-              size={28}
-              id={entry.id}
-              metadata={entry.document?.metadata || entry.draft?.metadata}
-            />
-          )}
-        </XStack>
+            {thumbnail}
+          </XStack>
+        ) : (
+          thumbnail
+        )
       }
     >
       <XStack gap="$2" ai="center" f={1} paddingVertical="$2">
