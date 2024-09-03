@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"seed/backend/syncing"
 	"seed/backend/util/apiutil"
 	"seed/backend/util/cleanup"
 	"seed/backend/util/dqb"
@@ -25,14 +26,17 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+type syncer interface {
+	SyncSubscribedContent(context.Context, ...*activity.Subscription) (syncing.SyncResult, error)
+}
+
 // Server implements the Activity gRPC API.
 type Server struct {
 	db        *sqlitex.Pool
 	startTime time.Time
 	clean     *cleanup.Stack
-	subsCh    chan interface{}
-	subSynCh  chan interface{}
 	log       *zap.Logger
+	syncer    syncer
 }
 
 var resourcePattern = regexp.MustCompile(`^hm://[acdg]/[a-zA-Z0-9]+$`)
@@ -45,6 +49,10 @@ func NewServer(db *sqlitex.Pool, log *zap.Logger, clean *cleanup.Stack) *Server 
 		clean:     clean,
 		log:       log,
 	}
+}
+
+func (srv *Server) SetSyncer(sync syncer) {
+	srv.syncer = sync
 }
 
 // RegisterServer registers the server with the gRPC server.

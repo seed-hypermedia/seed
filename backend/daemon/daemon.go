@@ -168,7 +168,7 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 	if err != nil {
 		return nil, err
 	}
-
+	activitySrv.SetSyncer(a.Syncing)
 	a.Wallet = wallet.New(ctx, logging.New("seed/wallet", cfg.LogLevel), a.Storage.DB(), a.Storage.KeyStore(), "main", a.Net, cfg.Lndhub.Mainnet)
 
 	a.GRPCServer, a.GRPCListener, a.RPC, err = initGRPC(ctx, cfg.GRPC.Port, &a.clean, a.g, a.Storage, a.Storage.DB(), a.Net,
