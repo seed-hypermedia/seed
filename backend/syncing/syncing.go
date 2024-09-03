@@ -31,6 +31,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/multiformats/go-multicodec"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -200,7 +201,7 @@ func (s *Service) Start(ctx context.Context) (err error) {
 
 var qListPeers = dqb.Str(`
 	SELECT 
-		pid
+		addresses
 	FROM peers;
 `)
 
@@ -212,12 +213,14 @@ func (s *Service) refreshWorkers(ctx context.Context) error {
 	}
 	defer release()
 	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
-		pidStr := stmt.ColumnText(0)
-		pid, err := peer.Decode(pidStr)
+		addresStr := stmt.ColumnText(0)
+		addrList := strings.Split(addresStr, ",")
+		info, err := mttnet.AddrInfoFromStrings(addrList...)
 		if err != nil {
 			return err
 		}
-		peers[pid] = struct{}{}
+		s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
+		peers[info.ID] = struct{}{}
 		return nil
 	}); err != nil {
 		return err
@@ -316,12 +319,14 @@ func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
 	}
 	defer release()
 	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
-		pidStr := stmt.ColumnText(0)
-		pid, err := peer.Decode(pidStr)
+		addresStr := stmt.ColumnText(0)
+		addrList := strings.Split(addresStr, ",")
+		info, err := mttnet.AddrInfoFromStrings(addrList...)
 		if err != nil {
 			return err
 		}
-		seedPeers = append(seedPeers, pid)
+		s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
+		seedPeers = append(seedPeers, info.ID)
 		return nil
 	}); err != nil {
 		return res, err
@@ -396,12 +401,14 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 	subsMap := make(map[peer.ID]map[string]bool)
 	allPeers := []peer.ID{} // TODO:(juligasa): Remove this when we have providers store
 	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
-		pidStr := stmt.ColumnText(0)
-		pid, err := peer.Decode(pidStr)
+		addresStr := stmt.ColumnText(0)
+		addrList := strings.Split(addresStr, ",")
+		info, err := mttnet.AddrInfoFromStrings(addrList...)
 		if err != nil {
 			return err
 		}
-		allPeers = append(allPeers, pid)
+		s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
+		allPeers = append(allPeers, info.ID)
 		return nil
 	}); err != nil {
 		release()
@@ -425,7 +432,6 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 			s.log.Debug("DHT returned", zap.Int("Number of providers found", len(peers)))
 			for p := range peers {
 				p := p
-				s.host.Peerstore().AddAddrs(p.ID, p.Addrs, time.Minute*10)
 				allPeers = append(allPeers, p.ID)
 			}
 		}
@@ -487,9 +493,10 @@ func (s *Service) SyncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 		ctx, cancel = context.WithTimeout(ctx, connectTimeout)
 		defer cancel()
 	}
-
+	s.log.Debug("SyncWithPeer called")
 	c, err := s.rbsrClient(ctx, pid)
 	if err != nil {
+		s.log.Debug("Could not get syncing client", zap.Error(err))
 		return err
 	}
 

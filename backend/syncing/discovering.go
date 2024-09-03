@@ -6,6 +6,7 @@ import (
 	"seed/backend/ipfs"
 	"time"
 
+	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/multiformats/go-multicodec"
 	"go.uber.org/zap"
 )
@@ -43,7 +44,7 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 
 	for p := range peers {
 		p := p
-		s.host.Peerstore().AddAddrs(p.ID, p.Addrs, time.Minute*10)
+		s.host.Peerstore().AddAddrs(p.ID, p.Addrs, peerstore.TempAddrTTL)
 		log := s.log.With(
 			zap.String("entity", entityID),
 			zap.String("CID", c.String()),
