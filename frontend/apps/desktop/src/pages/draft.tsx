@@ -46,6 +46,7 @@ import {YStack} from 'tamagui'
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'
+import './draft-page.css'
 
 export default function DraftPage() {
   const route = useNavRoute()
@@ -58,6 +59,41 @@ export default function DraftPage() {
     id: route.id,
   })
 
+  // useEffect(() => {
+  //   const intervalFn = () => {
+  //     if (data.state.matches({ready: 'idle'})) {
+  //       // data.editor.replaceBlocks(data.editor.topLevelBlocks, [
+  //       //   {
+  //       //     id: nanoid(8),
+  //       //     type: 'paragraph',
+  //       //     props: {
+  //       //       textAlignment: 'left',
+  //       //       diff: 'undefined',
+  //       //     },
+  //       //     content: [
+  //       //       {
+  //       //         type: 'text',
+  //       //         text: 'asdasd',
+  //       //         styles: {},
+  //       //       },
+  //       //     ],
+  //       //     children: [],
+  //       //   },
+  //       //   ...data.editor.topLevelBlocks,
+  //       // ])
+  //       console.log('data.editor.topLevelBlocks', data.editor.topLevelBlocks)
+  //     }
+  //   }
+  //   let interval = setInterval(intervalFn, 1000)
+
+  //   if (interval) {
+  //     clearInterval(interval)
+  //     interval = setInterval(intervalFn, 1000)
+  //   }
+
+  //   return () => clearInterval(interval)
+  // }, [data.state])
+
   useEffect(() => {
     if (!route.id?.id) return
     return subscribeDraftFocus(route.id?.id, (blockId: string) => {
@@ -67,14 +103,6 @@ export default function DraftPage() {
       }
     })
   }, [route.id?.id, data.editor, route.id?.id])
-
-  // if (data.state.matches('idle')) {
-  //   return (
-  //     <MainWrapper>
-  //       <SizableText>...</SizableText>
-  //     </MainWrapper>
-  //   )
-  // }
 
   if (data.state.matches('ready')) {
     return (
@@ -101,7 +129,10 @@ export default function DraftPage() {
           >
             <DraftHeader
               draftActor={data.actor}
-              onEnter={() => {}}
+              onEnter={() => {
+                data.editor._tiptapEditor.commands.focus()
+                data.editor._tiptapEditor.commands.setTextSelection(0)
+              }}
               disabled={!data.state.matches('ready')}
             />
             <Container
@@ -434,6 +465,7 @@ export function DraftHeader({
             disabled={disabled}
             // we use multiline so that we can avoid horizontal scrolling for long titles
             multiline
+            id="draft-name-input"
             ref={input}
             onKeyPress={(e: any) => {
               if (e.nativeEvent.key == 'Enter') {
