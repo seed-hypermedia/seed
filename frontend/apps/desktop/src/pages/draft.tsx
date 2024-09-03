@@ -156,10 +156,14 @@ export default function DraftPage() {
           'mantine-Editor-root',
         )[0]
         const editorBoundingBox = editorElement.getBoundingClientRect()
-        const pos = ttEditor.view.posAtCoords({
+        const posAtCoords = ttEditor.view.posAtCoords({
           left: editorBoundingBox.left + editorBoundingBox.width / 2,
           top: event.clientY,
         })
+        let pos: number | null
+        if (posAtCoords && posAtCoords.inside !== -1) pos = posAtCoords.pos
+        else if (event.clientY > editorBoundingBox.bottom)
+          pos = ttEditor.view.state.doc.content.size - 4
 
         let lastId: string
 
@@ -171,7 +175,7 @@ export default function DraftPage() {
               event.preventDefault()
               event.stopPropagation()
 
-              if (pos && pos.inside !== -1) {
+              if (pos) {
                 return handleDragMedia(file).then((props) => {
                   if (!props) return false
 
@@ -207,13 +211,14 @@ export default function DraftPage() {
                     }
                   }
 
-                  const blockInfo = getBlockInfoFromPos(state.doc, pos.pos)
+                  const blockInfo = getBlockInfoFromPos(state.doc, pos)
 
                   if (index === 0) {
                     ;(data.editor as BlockNoteEditor).insertBlocks(
                       [blockNode],
                       blockInfo.id,
-                      blockInfo.node.textContent ? 'after' : 'before',
+                      // blockInfo.node.textContent ? 'after' : 'before',
+                      'after',
                     )
                   } else {
                     ;(data.editor as BlockNoteEditor).insertBlocks(
