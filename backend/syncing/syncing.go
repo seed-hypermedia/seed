@@ -113,8 +113,8 @@ type Storage interface {
 // SubscriptionStore an interface implementing necessary methods to get subscriptions.
 type SubscriptionStore interface {
 	ListSubscriptions(context.Context, *activity_proto.ListSubscriptionsRequest) (*activity_proto.ListSubscriptionsResponse, error)
-	GetSubsEventCh() *chan interface{}
-	GetSubsSyncEventCh() *chan interface{}
+	GetSubsEventCh() chan interface{}
+	GetSubsSyncEventCh() chan interface{}
 }
 type protocolChecker struct {
 	checker func(context.Context, peer.ID, string) error
@@ -167,7 +167,7 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer *
 	}
 
 	go func() {
-		for e := range *sstore.GetSubsEventCh() {
+		for e := range sstore.GetSubsEventCh() {
 			switch event := e.(type) {
 			case activity.SubscribedEvnt:
 				log.Debug("SubscribedEvnt received", zap.String("Account", event.Account), zap.String("Path", event.Path), zap.Bool("Recursive", event.Recursive))
@@ -186,7 +186,7 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer *
 				} else {
 					log.Debug("Successfully synced content", zap.Int64("NumSyncOK", res.NumSyncOK))
 				}
-				*sstore.GetSubsSyncEventCh() <- evnt
+				sstore.GetSubsSyncEventCh() <- evnt
 			}
 		}
 	}()

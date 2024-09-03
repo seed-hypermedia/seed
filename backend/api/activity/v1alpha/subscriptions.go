@@ -40,7 +40,7 @@ type SubscribedSyncEvnt struct {
 }
 
 // GetSubsEventCh gets the event channel.
-func (srv *Server) GetSubsEventCh() *chan interface{} {
+func (srv *Server) GetSubsEventCh() chan interface{} {
 	if srv.subsCh == nil {
 		srv.subsCh = make(chan interface{}, 50)
 		srv.clean.AddErrFunc(func() error {
@@ -48,11 +48,11 @@ func (srv *Server) GetSubsEventCh() *chan interface{} {
 			return nil
 		})
 	}
-	return &srv.subsCh
+	return srv.subsCh
 }
 
 // GetSubsSyncEventCh gets the event channel.
-func (srv *Server) GetSubsSyncEventCh() *chan interface{} {
+func (srv *Server) GetSubsSyncEventCh() chan interface{} {
 	if srv.subSynCh == nil {
 		srv.subSynCh = make(chan interface{}, 50)
 		srv.clean.AddErrFunc(func() error {
@@ -60,7 +60,7 @@ func (srv *Server) GetSubsSyncEventCh() *chan interface{} {
 			return nil
 		})
 	}
-	return &srv.subSynCh
+	return srv.subSynCh
 }
 
 // Subscribe subscribes to a document.
@@ -121,7 +121,7 @@ func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest
 	if blocking {
 		for {
 			select {
-			case e := <-*srv.GetSubsSyncEventCh():
+			case e := <-srv.GetSubsSyncEventCh():
 				srv.log.Debug("Event Received", zap.Any("data", e))
 				switch event := e.(type) {
 				case SubscribedSyncEvnt:
