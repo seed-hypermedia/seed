@@ -396,11 +396,11 @@ export function AccountWizardDialog() {
                 <YStack gap="$2" marginTop="auto">
                   <Button
                     bg={onboardingColor}
-                    color="$color1"
+                    color="white"
                     borderColor="$colorTransparent"
                     hoverStyle={{
                       bg: onboardingColor,
-                      color: '$color1',
+                      color: 'white',
                       borderColor: '$colorTransparent',
                     }}
                     f={1}
@@ -497,7 +497,10 @@ export function AccountWizardDialog() {
                 <Onboarding.Title>Account Information</Onboarding.Title>
                 <YStack gap="$2">
                   <ThumbnailForm
-                    url={`${DAEMON_FILE_URL}/${thumbnail}`}
+                    emptyLabel="ADD AVATAR"
+                    url={
+                      thumbnail ? `${DAEMON_FILE_URL}/${thumbnail}` : undefined
+                    }
                     onAvatarUpload={(d) => {
                       setThumbnail(d)
                     }}
@@ -616,10 +619,10 @@ function extractWords(input: string): Array<string> {
 function MarketingSection() {
   return (
     <Onboarding.AccentSection>
-      <Onboarding.Title color="$color2">
+      <Onboarding.Title color="white">
         Getting started with Seed Hypermedia
       </Onboarding.Title>
-      <Onboarding.Text color="$color8">
+      <Onboarding.Text color="white" opacity={0.8}>
         Dive into our collaborative documents and join a community that's
         passionate about innovation and shared knowledge.
       </Onboarding.Text>

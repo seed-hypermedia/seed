@@ -11,11 +11,13 @@ export function ThumbnailForm({
   size = 140,
   onAvatarUpload,
   onRemoveThumbnail,
+  emptyLabel,
   marginTop,
   borderRadius = size,
   ...props
 }: {
   label?: string
+  emptyLabel?: string
   id?: string
   url?: string
   size?: number
@@ -41,6 +43,8 @@ export function ThumbnailForm({
         event.target.value = ''
       })
   }
+
+  console.log('url', url)
 
   const avatarImage = (
     <UIAvatar
@@ -88,6 +92,25 @@ export function ThumbnailForm({
             cursor: 'pointer',
           }}
         />
+        {emptyLabel && !url ? (
+          <XStack
+            bg="rgba(0,0,0,0.3)"
+            position="absolute"
+            gap="$2"
+            zi={101}
+            w="100%"
+            $group-thumbnail-hover={{opacity: 0}}
+            h="100%"
+            opacity={1}
+            ai="center"
+            jc="center"
+            pointerEvents="none"
+          >
+            <SizableText textAlign="center" size="$1" color="white">
+              {emptyLabel}
+            </SizableText>
+          </XStack>
+        ) : null}
         <XStack
           bg="rgba(0,0,0,0.3)"
           position="absolute"
@@ -102,7 +125,7 @@ export function ThumbnailForm({
           pointerEvents="none"
         >
           <SizableText textAlign="center" size="$1" color="white">
-            {url ? 'UPDATE' : 'ADD IMAGE'}
+            {url ? 'UPDATE' : emptyLabel || 'ADD IMAGE'}
           </SizableText>
         </XStack>
         {avatarImage}
