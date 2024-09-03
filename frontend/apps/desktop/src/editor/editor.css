@@ -59,7 +59,7 @@
 
 /* manually sync these values with colors.ts mint11 and mintDark11 */
 .ProseMirror .hm-link {
-  color: var(--mint11);
+  color: var(--brand11);
 }
 /* .seed-app-dark .ProseMirror .hm-link {
   color: hsl(184, 80%, 71%);

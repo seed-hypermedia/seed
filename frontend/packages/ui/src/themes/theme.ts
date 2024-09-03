@@ -50,6 +50,7 @@ const themesBuilder = createThemeBuilder()
     purple: colorThemeDefinition("purple"),
     // pink: colorThemeDefinition('pink'),
     red: colorThemeDefinition("red"),
+    brand: colorThemeDefinition("brand"),
   });
 // .addChildThemes({
 //   alt1: {

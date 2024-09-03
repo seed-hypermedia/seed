@@ -1201,7 +1201,7 @@ type LinkType = null | "basic" | "hypermedia";
 
 function hmTextColor(linkType: LinkType): string {
   if (linkType === "basic") return "$color11";
-  if (linkType === "hypermedia") return "$mint11";
+  if (linkType === "hypermedia") return "$brand11";
   return "$color12";
 }
 

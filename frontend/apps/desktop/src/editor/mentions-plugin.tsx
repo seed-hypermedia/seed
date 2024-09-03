@@ -122,8 +122,8 @@ export function MentionText(props) {
         display: 'inline-block',
         fontFamily: 'inherit',
       }}
-      color="$mint11"
-      outlineColor="$mint11"
+      color="$brand11"
+      outlineColor="$brand11"
     >
       {props.children}
     </SizableText>

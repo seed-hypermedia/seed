@@ -597,8 +597,8 @@ function InlineEmbedButton({
       }}
     >
       <ButtonText
-        textDecorationColor={'$mint11'}
-        color="$mint11"
+        textDecorationColor={'$brand11'}
+        color="$brand11"
         className="hm-link"
         fontSize="$5"
         data-inline-embed={dataRef}

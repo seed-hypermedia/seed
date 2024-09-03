@@ -3,6 +3,8 @@ import {Variable} from "@tamagui/web";
 import {
   blue,
   blueDark,
+  brand,
+  brandDark,
   gray,
   grayDark,
   green,
@@ -41,6 +43,8 @@ export const colorTokens = {
     red,
     yellow,
     mint,
+    brand,
+    brandDark,
   },
   dark: {
     blue: blueDark,
@@ -52,6 +56,7 @@ export const colorTokens = {
     red: redDark,
     yellow: yellowDark,
     mint: mintDark,
+    brand: brandDark,
   },
 };
 
@@ -65,6 +70,7 @@ export const darkColors = {
   ...colorTokens.dark.red,
   ...colorTokens.dark.yellow,
   ...colorTokens.dark.mint,
+  ...colorTokens.dark.brand,
 };
 
 export const lightColors = {
@@ -77,6 +83,7 @@ export const lightColors = {
   ...colorTokens.light.red,
   ...colorTokens.light.yellow,
   ...colorTokens.light.mint,
+  ...colorTokens.light.brand,
 };
 
 export const color = {

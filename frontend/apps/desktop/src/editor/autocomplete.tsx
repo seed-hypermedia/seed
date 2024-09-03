@@ -550,10 +550,10 @@ const SuggestionItem = React.memo(function SuggestionItem(props: {
       size="$2"
       jc="flex-start"
       borderRadius={0}
-      bg={props.selected ? '$mint11' : '$backgroundFocus'}
+      bg={props.selected ? '$brand11' : '$backgroundFocus'}
       color={props.selected ? 'white' : '$color'}
       hoverStyle={{
-        bg: '$mint11',
+        bg: '$brand11',
         borderColor: '$colorTransparent',
         color: 'white',
       }}
