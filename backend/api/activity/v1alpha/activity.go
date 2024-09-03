@@ -51,6 +51,8 @@ func NewServer(db *sqlitex.Pool, log *zap.Logger, clean *cleanup.Stack) *Server 
 	}
 }
 
+// SetSyncer includes the syncer into the server in case it
+// was not available during initialization.
 func (srv *Server) SetSyncer(sync syncer) {
 	srv.syncer = sync
 }

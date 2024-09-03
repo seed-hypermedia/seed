@@ -736,15 +736,6 @@ func syncPeerRbsr(
 		return fmt.Errorf("Failed to Init Syncing Session: %w", err)
 	}
 
-	var qListBlobs = dqb.Str(`
-		SELECT
-			blobs.codec,
-			blobs.multihash,
-			blobs.insert_time
-		FROM blobs INDEXED BY blobs_metadata LEFT JOIN structural_blobs sb ON sb.id = blobs.id
-		WHERE blobs.size >= 0 
-		ORDER BY sb.ts, blobs.multihash;
-	`)
 	conn, release, err := db.Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("Could not get connection: %w", err)
@@ -891,3 +882,13 @@ var qSaveCursor = dqb.Str(`
 		:cursor
 	);
 `)
+
+var qListBlobs = dqb.Str(`
+		SELECT
+			blobs.codec,
+			blobs.multihash,
+			blobs.insert_time
+		FROM blobs INDEXED BY blobs_metadata LEFT JOIN structural_blobs sb ON sb.id = blobs.id
+		WHERE blobs.size >= 0 
+		ORDER BY sb.ts, blobs.multihash;
+	`)
