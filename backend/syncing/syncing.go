@@ -400,7 +400,7 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 		s.log.Debug("Could not grab a connection", zap.Error(err))
 		return res, err
 	}
-	defer release()
+
 	s.log.Debug("Got db connections")
 	if len(subscriptions) == 0 {
 		s.log.Debug("No subscriptions passed, grabbing all of them")
@@ -409,12 +409,14 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 		})
 		s.log.Debug("List all subscriptions", zap.Error(err))
 		if err != nil {
+			release()
 			return res, err
 		}
 		subscriptions = ret.Subscriptions
 	}
 	s.log.Debug("New Subscriptions gotten", zap.Int("Number of total subscriptions", len(subscriptions)))
 	if len(subscriptions) == 0 {
+		release()
 		return res, nil
 	}
 	subsMap := make(map[peer.ID]map[string]bool)
@@ -428,8 +430,10 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 		allPeers = append(allPeers, pid)
 		return nil
 	}); err != nil {
+		release()
 		return res, err
 	}
+	release()
 	s.log.Debug("Got list of peers", zap.Int("Number of total peers", len(allPeers)))
 	eidsMap := make(map[string]bool)
 	for _, subs := range subscriptions {
