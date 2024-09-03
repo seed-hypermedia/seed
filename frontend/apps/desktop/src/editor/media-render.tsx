@@ -20,6 +20,7 @@ import {
 } from 'react'
 import {RiUpload2Fill} from 'react-icons/ri'
 import {Block, BlockNoteEditor, useEditorSelectionChange} from './blocknote'
+import {MultipleNodeSelection} from './blocknote/core/extensions/SideMenu/MultipleNodeSelection'
 import {MaxFileSizeB, MaxFileSizeMB} from './file'
 import {HMBlockSchema} from './schema'
 import {getNodesInSelection} from './utils'
@@ -99,8 +100,11 @@ export const MediaRender: React.FC<RenderProps> = ({
       ) {
         isSelected = true
       }
-    } else if (selection instanceof TextSelection) {
-      // If it's a TextSelection, check if this block's node is within the selection range
+    } else if (
+      selection instanceof TextSelection ||
+      selection instanceof MultipleNodeSelection
+    ) {
+      // If it's a TextSelection or MultipleNodeSelection (TODO Fix for drag), check if this block's node is within the selection range
       const selectedNodes = getNodesInSelection(view)
       isSelected = selectedNodes.some(
         (node) => node.attrs && node.attrs.id === block.id,

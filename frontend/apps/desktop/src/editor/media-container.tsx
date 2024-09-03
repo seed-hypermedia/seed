@@ -93,20 +93,32 @@ export const MediaContainer = ({
       }
     },
     onDragOver: (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setDrag(true)
+      if (
+        e.dataTransfer &&
+        e.dataTransfer.types &&
+        Array.from(e.dataTransfer.types).includes('Files')
+      ) {
+        e.preventDefault()
+        e.stopPropagation()
+        setDrag(true)
+      }
     },
     onDragEnter: (e: React.DragEvent<HTMLDivElement>) => {
-      const relatedTarget = e.relatedTarget as HTMLElement
-      e.preventDefault()
-      e.stopPropagation()
-      setDrag(true)
       if (
-        (!relatedTarget || !e.currentTarget.contains(relatedTarget)) &&
-        e.dataTransfer.effectAllowed !== 'move'
+        e.dataTransfer &&
+        e.dataTransfer.types &&
+        Array.from(e.dataTransfer.types).includes('Files')
       ) {
-        setSelected(true)
+        const relatedTarget = e.relatedTarget as HTMLElement
+        e.preventDefault()
+        e.stopPropagation()
+        setDrag(true)
+        if (
+          (!relatedTarget || !e.currentTarget.contains(relatedTarget)) &&
+          e.dataTransfer.effectAllowed !== 'move'
+        ) {
+          setSelected(true)
+        }
       }
     },
     onDragLeave: (e: React.DragEvent<HTMLDivElement>) => {
