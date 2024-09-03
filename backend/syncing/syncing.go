@@ -183,6 +183,8 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer *
 					evnt.Err = err
 				} else if res.NumSyncOK == 0 {
 					evnt.Err = fmt.Errorf("We could not sync the subscribed content with any provider")
+				} else {
+					log.Debug("Successfully synced content", zap.Int64("NumSyncOK", res.NumSyncOK))
 				}
 				*sstore.GetSubsSyncEventCh() <- evnt
 			}
@@ -504,6 +506,7 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 func (s *Service) SyncWithPeer(ctx context.Context, pid peer.ID, eids map[string]bool) error {
 	// Can't sync with self.
 	if s.host.Network().LocalPeer() == pid {
+		s.log.Debug("Sync with self attempted")
 		return nil
 	}
 
@@ -527,8 +530,10 @@ func (s *Service) SyncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 	bswap := s.bitswap.NewSession(ctx)
 
 	if len(eids) != 0 {
+		s.log.Debug("Sync with entities", zap.Int("num entities", len(eids)), zap.String("Peer", pid.String()))
 		return syncEntities(ctx, pid, c, s.indexer, bswap, s.db, s.log, eids)
 	}
+	s.log.Debug("Sync Everything", zap.String("Peer", pid.String()))
 	return syncPeerRbsr(ctx, pid, c, s.indexer, bswap, s.db, s.log)
 }
 
@@ -683,9 +688,11 @@ func syncEntities(
 		for _, want := range wants {
 			allWants.PushBack(want)
 		}
+		log.Debug("Blobs Reconciled", zap.Int("Wants", allWants.Len()))
 	}
 
 	if allWants.Len() == 0 {
+		log.Debug("Peer does not have new content")
 		return nil
 	}
 
@@ -721,6 +728,7 @@ func syncEntities(
 			continue
 		}
 		failed = 0
+		log.Debug("Blob synced", zap.String("blobCid", blobCid.String()))
 		allWants.Remove(item)
 	}
 
