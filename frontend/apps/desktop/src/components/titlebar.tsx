@@ -1,5 +1,5 @@
 import {AppPlatform, useAppContext} from '@/app-context'
-import {TitlebarWrapper} from '@shm/ui'
+import {TitlebarWrapper, YStackProps} from '@shm/ui'
 import {Suspense, lazy} from 'react'
 
 var TitleBarMacos = lazy(() => import('./titlebar-macos'))
@@ -8,9 +8,10 @@ var TitleBarWindowsLinux = lazy(() => import('./titlebar-windows-linux'))
 export interface TitleBarProps {
   clean?: boolean
   cleanTitle?: string
+  height?: number
 }
 
-export function TitleBar(props: TitleBarProps) {
+export function TitleBar(props: TitleBarProps & YStackProps) {
   const {platform} = useAppContext()
   let Component = getTitleBar(platform)
   return (

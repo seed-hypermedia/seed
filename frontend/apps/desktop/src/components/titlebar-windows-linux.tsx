@@ -2,14 +2,7 @@ import {
   CloseButton,
   WindowsLinuxWindowControls,
 } from '@/components/window-controls'
-import {
-  TitleText,
-  TitlebarRow,
-  TitlebarSection,
-  TitlebarWrapper,
-  XStack,
-  YStack,
-} from '@shm/ui'
+import {TitleText, TitlebarWrapper, XStack, YStack} from '@shm/ui'
 import {TitleBarProps} from './titlebar'
 import {
   NavMenuButton,
@@ -24,10 +17,12 @@ export default function TitleBarWindows(props: TitleBarProps) {
   if (props.clean) {
     return (
       <TitlebarWrapper>
-        <XStack>
-          <TitleText marginHorizontal="$4" fontWeight="bold">
-            {props.cleanTitle}
-          </TitleText>
+        <XStack paddingHorizontal="$2">
+          <XStack ai="center" flex={1} justifyContent="center">
+            <TitleText marginHorizontal="$4" fontWeight="bold">
+              {props.cleanTitle}
+            </TitleText>
+          </XStack>
           <XStack className="no-window-drag">
             <CloseButton />
           </XStack>
@@ -38,9 +33,15 @@ export default function TitleBarWindows(props: TitleBarProps) {
 
   return (
     <WindowsLinuxTitleBar
-      right={<PageActionButtons {...props} />}
+      right={<PageActionButtons />}
       left={
-        <XStack paddingHorizontal={0} paddingVertical="$2" space="$2">
+        <XStack
+          flex={1}
+          paddingHorizontal={0}
+          alignItems="flex-start"
+          className="window-drag"
+          gap="$2"
+        >
           <NavMenuButton />
           <NavigationButtons />
         </XStack>
@@ -54,18 +55,22 @@ export function WindowsLinuxTitleBar({
   left,
   title,
   right,
+  platform,
 }: {
   title: React.ReactNode
   left?: React.ReactNode
   right?: React.ReactNode
+  platform?: string
 }) {
   return (
     <YStack>
-      <XStack bg="red" height={24} ai="center">
+      <XStack height={24} ai="center">
         <SystemMenu />
+        <XStack flex={1} />
+        <WindowsLinuxWindowControls />
       </XStack>
 
-      <TitlebarWrapper>
+      <TitlebarWrapper platform={platform}>
         <XStack
           paddingRight="$2"
           justifyContent="space-between"
@@ -77,20 +82,11 @@ export function WindowsLinuxTitleBar({
             alignItems="center"
             className="window-drag"
           >
-            <XStack
-              flex={1}
-              paddingHorizontal={0}
-              alignItems="flex-start"
-              className="window-drag"
-              gap="$2"
-            >
-              <NavMenuButton />
-              <NavigationButtons />
-            </XStack>
+            {left}
           </XStack>
           <XStack flex={1} alignItems="center" paddingHorizontal="$2">
             {/* <Title /> */}
-            <TitlebarSearch />
+            {title}
           </XStack>
           <XStack
             className="window-drag"
@@ -98,57 +94,12 @@ export function WindowsLinuxTitleBar({
             minWidth={'min-content'}
             flexBasis={0}
             alignItems="center"
+            paddingRight="$2"
           >
-            <PageActionButtons />
+            {right}
           </XStack>
         </XStack>
       </TitlebarWrapper>
     </YStack>
-  )
-
-  return (
-    <TitlebarWrapper className="window-drag" style={{flex: 'none'}}>
-      <TitlebarRow minHeight={28} backgroundColor="$color3">
-        <TitlebarSection>
-          <SystemMenu />
-        </TitlebarSection>
-        <XStack flex={1} />
-        <TitlebarSection space>
-          <WindowsLinuxWindowControls />
-        </TitlebarSection>
-      </TitlebarRow>
-      <TitlebarRow>
-        <XStack
-          flex={1}
-          minWidth={'min-content'}
-          flexBasis={0}
-          alignItems="center"
-          className="window-drag"
-        >
-          {left}
-        </XStack>
-        <XStack
-          f={1}
-          alignItems="center"
-          justifyContent="center"
-          pointerEvents="none"
-          height="100%"
-          ai="center"
-          jc="center"
-        >
-          {title}
-        </XStack>
-        <XStack
-          flex={1}
-          justifyContent="flex-end"
-          minWidth={'min-content'}
-          flexBasis={0}
-          className="window-drag"
-          alignItems="center"
-        >
-          {right}
-        </XStack>
-      </TitlebarRow>
-    </TitlebarWrapper>
   )
 }

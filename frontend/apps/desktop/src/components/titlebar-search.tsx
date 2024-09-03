@@ -53,6 +53,10 @@ export function TitlebarSearch() {
       background="$backgroundStrong"
       gap="$2"
       w="100%"
+      borderColor="$color7"
+      // borderWidth={1}
+      // borderBottomColor="$colorTransparent"
+      // elevation="$4"
     >
       <Button
         chromeless
@@ -294,6 +298,9 @@ function LauncherContent({onClose}: {onClose: () => void}) {
         borderTopEndRadius={0}
         borderBottomLeftRadius={6}
         borderBottomRightRadius={6}
+        borderColor="$color7"
+        borderWidth={1}
+        borderTopColor="$colorTransparent"
       >
         {isDisplayingRecents ? (
           <SizableText color="$color10" marginHorizontal="$4">
@@ -335,7 +342,6 @@ function LauncherContent({onClose}: {onClose: () => void}) {
         top={0}
         left={0}
         zi={9999}
-        elevation="$7"
         bg="$backgroundStrong"
       >
         <YStack
@@ -345,6 +351,10 @@ function LauncherContent({onClose}: {onClose: () => void}) {
           padding="$2"
           borderTopLeftRadius={6}
           borderTopRightRadius={6}
+          borderColor="$color7"
+          borderWidth={1}
+          borderBottomColor="$colorTransparent"
+          // elevation="$4"
         >
           <XStack ai="center" gap="$2">
             <Search size={16} />

@@ -96,7 +96,7 @@ function ButtonWrapper(props: any) {
 
 export function WindowsLinuxWindowControls() {
   return (
-    <XStack className="no-window-drag">
+    <XStack className="no-window-drag" paddingRight="$3">
       <MinimizeButton />
       <MaximizeOrRestoreButton />
       <CloseButton />

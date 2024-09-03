@@ -1,51 +1,51 @@
 // @ts-nocheck
-import {SizableText, styled, XStack, YStack} from 'tamagui'
+import {SizableText, styled, XStack, YStack} from "tamagui";
 
 export const TitlebarWrapper = styled(YStack, {
-  name: 'TitlebarWrapper',
-  className: 'window-drag',
+  name: "TitlebarWrapper",
+  className: "window-drag",
   // theme: 'gray',
   paddingVertical: 0,
   paddingHorizontal: 0,
-  width: '100%',
+  width: "100%",
   minHeight: 40,
-  borderColor: 'transparent',
-  backgroundColor: '$backgroundStrong',
-  borderBottomColor: '$color5',
-  borderWidth: '1px',
-  alignItems: 'stretch',
-  justifyContent: 'center',
-  borderStyle: 'solid',
-  flex: 'none',
-})
+  borderColor: "transparent",
+  backgroundColor: "$backgroundStrong",
+  borderBottomColor: "$color5",
+  borderWidth: "1px",
+  alignItems: "stretch",
+  justifyContent: "center",
+  borderStyle: "solid",
+  flex: "none",
+});
 
 export const TitlebarRow = styled(XStack, {
-  name: 'TitlebarRow',
-  className: 'window-drag',
-  paddingRight: '$2',
-  flex: 'none',
+  name: "TitlebarRow",
+  className: "window-drag",
+  paddingRight: "$2",
+  flex: "none",
   flexShrink: 0,
   flexGrow: 0,
-})
+});
 
 export const TitlebarSection = styled(XStack, {
-  name: 'TitlebarSection',
-  className: 'no-window-drag',
-  ai: 'center',
-  gap: '$2',
-  userSelect: 'none',
-})
+  name: "TitlebarSection",
+  className: "no-window-drag",
+  ai: "center",
+  gap: "$2",
+  userSelect: "none",
+});
 
 export const TitleText = styled(SizableText, {
-  whiteSpace: 'nowrap',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  name: 'TitlebarH1',
-  color: '$color12',
-  fontSize: '$4',
-  userSelect: 'none',
-  cursor: 'default',
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  name: "TitlebarH1",
+  color: "$color12",
+  fontSize: "$4",
+  userSelect: "none",
+  cursor: "default",
   padding: 0,
   margin: 0,
-  textTransform: 'none',
-})
+  textTransform: "none",
+});

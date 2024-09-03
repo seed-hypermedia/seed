@@ -10,7 +10,7 @@ import {TitlebarSearch} from './titlebar-search'
 export default function TitleBarMacos(props: TitleBarProps) {
   if (props.clean) {
     return (
-      <TitlebarWrapper>
+      <TitlebarWrapper {...props}>
         <XStack>
           <View
             width={72} // this width to stay away from the macOS window traffic lights
@@ -24,7 +24,7 @@ export default function TitleBarMacos(props: TitleBarProps) {
   }
 
   return (
-    <TitlebarWrapper>
+    <TitlebarWrapper {...props}>
       <XStack
         paddingRight="$2"
         justifyContent="space-between"
