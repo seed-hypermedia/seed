@@ -1,7 +1,6 @@
 export * from './autocomplete'
 export * from './block-utils'
 export * from './blocknote'
-export * from './diffExtension'
 export * from './editor-types'
 export * from './embed-block'
 export * from './file'

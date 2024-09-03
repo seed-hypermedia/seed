@@ -214,14 +214,23 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     })
     extensions.push(blockNoteUIExtension)
 
-    this.schema = {
-      ...newOptions.blockSchema,
+    this.schema = newOptions.blockSchema
+
+    if (newOptions.collaboration && newOptions.initialContent) {
+      console.warn(
+        'When using Collaboration, initialContent might cause conflicts, because changes should come from the collaboration provider',
+      )
     }
 
     const initialContent =
       newOptions.initialContent ||
       (options.collaboration
-        ? undefined
+        ? [
+            {
+              type: 'paragraph',
+              id: 'initialBlockId',
+            },
+          ]
         : [
             {
               type: 'paragraph',

@@ -4,6 +4,7 @@ import {HMBlockSchema} from '../../schema'
 import {BlockNoteEditor} from './BlockNoteEditor'
 
 import {LocalMediaPastePlugin} from '@/editor/handle-local-media-paste-plugin'
+import {debugPlugin} from '@/editor/prosemirror-debugger'
 import {Bold} from '@tiptap/extension-bold'
 import {Code} from '@tiptap/extension-code'
 import Collaboration from '@tiptap/extension-collaboration'
@@ -17,7 +18,6 @@ import {Strike} from '@tiptap/extension-strike'
 import {Text} from '@tiptap/extension-text'
 import {Underline} from '@tiptap/extension-underline'
 import * as Y from 'yjs'
-import {DiffExtension} from '../../diffExtension'
 import {createInlineEmbedNode} from '../../mentions-plugin'
 import Link from '../../tiptap-extension-link'
 import styles from './editor.module.css'
@@ -104,7 +104,6 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     BackgroundColorExtension,
     TextAlignmentExtension,
     LocalMediaPastePlugin,
-    DiffExtension,
     // nodes
     Doc,
     BlockGroup.configure({
@@ -126,6 +125,7 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     BlockContainer.configure({
       domAttributes: opts.domAttributes,
     }),
+    debugPlugin,
   ]
 
   if (opts.collaboration) {
