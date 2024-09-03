@@ -197,6 +197,7 @@ func (sw *worker) sync(ctx context.Context) {
 			sw.log.Warn("Failed to list subscriptions in smart syncing", zap.Error(err))
 			return
 		}
+		sw.log.Debug("Periodic subscription update", zap.Int("Number of subscriptions to update", len(ret.Subscriptions)))
 		if len(ret.Subscriptions) == 0 {
 			return
 		}
