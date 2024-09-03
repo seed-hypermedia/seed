@@ -46,7 +46,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
   const isHoverVisible = useStream(ctx.isHoverVisible)
   const isVisible = isLocked || isHoverVisible
   const {platform} = useAppContext()
-  let top = platform === 'darwin' ? 40 : 72
+  let top = platform === 'darwin' ? 40 : 64
   let bottom = 24
   if (!isLocked) {
     top += 8

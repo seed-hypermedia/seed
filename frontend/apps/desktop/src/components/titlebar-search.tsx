@@ -1,5 +1,4 @@
 import {useAppContext, useGRPCClient} from '@/app-context'
-import {dialogBoxShadow} from '@/components/dialog'
 import appError from '@/errors'
 import {useConnectPeer} from '@/models/contacts'
 import {useGatewayHost} from '@/models/gateway-settings'
@@ -50,8 +49,8 @@ export function TitlebarSearch() {
   return (
     <XStack
       ai="center"
-      className="window-drag"
       position="relative"
+      background="$backgroundStrong"
       gap="$2"
       w="100%"
     >
@@ -290,7 +289,7 @@ function LauncherContent({onClose}: {onClose: () => void}) {
         gap="$2"
         paddingVertical="$3"
         paddingHorizontal="$3"
-        backgroundColor={'$background'}
+        backgroundColor={'$backgroundStrong'}
         borderTopStartRadius={0}
         borderTopEndRadius={0}
         borderBottomLeftRadius={6}
@@ -328,11 +327,21 @@ function LauncherContent({onClose}: {onClose: () => void}) {
     )
   }
   return (
-    <Theme inverse>
-      <YStack height="80%" position="absolute" top={0} left={0} zi={10_000}>
+    <Theme>
+      <YStack
+        className="no-window-drag"
+        height="80%"
+        position="absolute"
+        top={0}
+        left={0}
+        zi={9999}
+        elevation="$7"
+        bg="$backgroundStrong"
+      >
         <YStack
-          bg="$background"
-          boxShadow={dialogBoxShadow}
+          bg="$backgroundStrong"
+          // boxShadow={dialogBoxShadow}
+          zi={9999}
           padding="$2"
           borderTopLeftRadius={6}
           borderTopRightRadius={6}
@@ -340,6 +349,7 @@ function LauncherContent({onClose}: {onClose: () => void}) {
           <XStack ai="center" gap="$2">
             <Search size={16} />
             <Input
+              zi={9999}
               minWidth={240}
               autoFocus
               size="$2"
