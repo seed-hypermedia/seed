@@ -40,7 +40,6 @@ import {
 } from 'react'
 import {SizableTextProps, YStackProps} from 'tamagui'
 import {useComment} from '../models/comments'
-import {useNavRoute} from '../utils/navigation'
 import {useNavigate} from '../utils/useNavigate'
 import {EntityLinkThumbnail} from './account-link-thumbnail'
 
@@ -64,7 +63,6 @@ function EmbedWrapper({
     comment,
     routeParams,
   } = useDocContentContext()
-  const route = useNavRoute()
   const navigate = useNavigate('replace')
   const unpackRef = unpackHmId(hmRef)
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -180,14 +178,14 @@ function EmbedWrapper({
       {...props}
     >
       {children}
-      {!comment && viewType == 'content' ? (
+      {/* {!comment && viewType == 'content' ? (
         <EmbedSideAnnotation
           sidePos={sidePos}
           ref={sideannotationRef}
           id={hmRef}
           disableEmbedClick={disableEmbedClick}
         />
-      ) : null}
+      ) : null} */}
     </YStack>
   )
 }
