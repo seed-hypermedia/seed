@@ -45,7 +45,7 @@ import {
   YStack,
 } from '@shm/ui'
 import {RadioButtons} from '@shm/ui/src/radio-buttons'
-import {Link, RefreshCw, Trash} from '@tamagui/lucide-icons'
+import {RefreshCw, Trash} from '@tamagui/lucide-icons'
 import React, {ReactNode, useEffect, useMemo} from 'react'
 import {EntityCitationsAccessory} from '../components/citations'
 import {AppDocContentProvider} from './document-content-provider'
@@ -189,7 +189,7 @@ function DocPageHeader({
 }) {
   const myAccountIds = useMyAccountIds()
   const entity = useEntity(docId)
-  const isMyAccount = myAccountIds.data?.includes(docId.id)
+  const isMyAccount = myAccountIds.data?.includes(docId.uid)
   const accountName = getAccountName(entity.data?.document)
   const hasCover = useMemo(
     () => !!entity.data?.document?.metadata.cover,
@@ -232,21 +232,10 @@ function DocPageHeader({
             <H1 size="$9" f={1} style={{fontWeight: 'bold'}}>
               {accountName}
             </H1>
-            <XStack gap="$2">
-              {isMyAccount ? (
-                <DeleteKey accountId={docId.id} />
-              ) : (
-                <FavoriteButton id={docId} />
-              )}
-              <CopyReferenceButton
-                docId={docId}
-                isBlockFocused={isBlockFocused}
-              />
-            </XStack>
           </XStack>
 
           <XStack marginTop="$4" gap="$3" ai="center" jc="space-between">
-            <XStack gap="$3" ai="center">
+            <XStack gap="$3" ai="center" f={1}>
               {entity.data?.document?.path.length || authors?.length !== 1 ? (
                 <>
                   <XStack ai="center" gap={0}>
@@ -292,20 +281,20 @@ function DocPageHeader({
                 </>
               ) : null}
               <Separator />
-              <Button
-                borderColor="$colorTransparent"
-                outlineColor="$colorTransparent"
+              <CopyReferenceButton
+                docId={docId}
+                isBlockFocused={isBlockFocused}
                 hoverStyle={{
                   borderColor: '$colorTransparent',
                   background: '$blue7',
                 }}
                 color="$blue11"
                 size="$1"
-                icon={Link}
               >
                 Share
-              </Button>
+              </CopyReferenceButton>
             </XStack>
+            <FavoriteButton id={docId} />
             <SubscriptionButton id={docId} />
           </XStack>
           <TSeparator borderColor="$color8" />

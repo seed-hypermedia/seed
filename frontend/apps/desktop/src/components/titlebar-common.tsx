@@ -30,6 +30,7 @@ import {
 import {
   Back,
   Button,
+  ButtonProps,
   ColorProp,
   Forward,
   Menu,
@@ -54,7 +55,7 @@ import {
   UploadCloud,
   UserPlus,
 } from '@tamagui/lucide-icons'
-import {ReactNode, useState} from 'react'
+import {PropsWithChildren, ReactNode, useState} from 'react'
 import {AddConnectionDialog} from './contacts-prompt'
 import {useAppDialog} from './dialog'
 import DiscardDraftButton from './discard-draft-button'
@@ -261,12 +262,16 @@ export function useDocumentUrl({
 }
 
 export function CopyReferenceButton({
+  children,
   docId,
   isBlockFocused,
-}: {
-  docId: UnpackedHypermediaId
-  isBlockFocused: boolean
-}) {
+  ...props
+}: PropsWithChildren<
+  ButtonProps & {
+    docId: UnpackedHypermediaId
+    isBlockFocused: boolean
+  }
+>) {
   const [shouldOpen, setShouldOpen] = useState(false)
   const reference = useDocumentUrl({docId, isBlockFocused})
   const {externalOpen} = useAppContext()
@@ -301,7 +306,11 @@ export function CopyReferenceButton({
               reference.onCopy()
             }
           }}
-        />
+          {...props}
+          hoverStyle={props.hoverStyle}
+        >
+          {children}
+        </Button>
       </Tooltip>
       {reference.content}
     </>

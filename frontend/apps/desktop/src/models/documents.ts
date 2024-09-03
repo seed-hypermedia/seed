@@ -574,9 +574,6 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
   const backendDocument = useEntity(id)
 
   useEffect(() => {
-    if (backendDraft.status == 'loading' && typeof id == 'undefined') {
-      send({type: 'EMPTY.ID'})
-    }
     if (
       backendDraft.status == 'success' &&
       backendDocument.status != 'loading'
