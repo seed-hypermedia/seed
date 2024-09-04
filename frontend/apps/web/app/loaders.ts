@@ -89,11 +89,16 @@ export async function loadSiteDocument(
       homeId = id;
     } catch (e) {}
   }
-  const docContent = await getDocument(id);
-  const loadedSiteDocument = {
-    ...docContent,
-    homeMetadata,
-    homeId,
-  };
-  return wrapJSON(loadedSiteDocument);
+  try {
+    const docContent = await getDocument(id);
+    const loadedSiteDocument = {
+      ...docContent,
+      homeMetadata,
+      homeId,
+    };
+    return wrapJSON(loadedSiteDocument);
+  } catch (e) {
+    // probably document not found. todo, handle other errors
+  }
+  return wrapJSON({homeMetadata, homeId});
 }

@@ -26,6 +26,7 @@ import {ScrollView} from "@tamagui/scroll-view";
 import {XStack, YStack} from "@tamagui/stacks";
 import {PropsWithChildren, useEffect, useMemo, useState} from "react";
 import type {SiteDocumentPayload} from "./loaders";
+import {NotFoundPage} from "./not-found";
 import {PageHeader} from "./page-header";
 import type {DirectoryPayload} from "./routes/hm.api.directory";
 import {DiscussionPayload} from "./routes/hm.api.discussion";
@@ -42,9 +43,7 @@ export const documentPageMeta: MetaFunction = ({
   const homeThumbnail = siteDocument.homeMetadata?.thumbnail
     ? getFileUrl(siteDocument.homeMetadata.thumbnail)
     : null;
-  const meta: ReturnType<MetaFunction> = [
-    {title: getDocumentTitle(siteDocument.document)},
-  ];
+  const meta: ReturnType<MetaFunction> = [];
   if (homeThumbnail) {
     meta.push({
       tagName: "link",
@@ -53,18 +52,25 @@ export const documentPageMeta: MetaFunction = ({
       type: "image/png",
     });
   }
-  meta.push({
-    name: "hypermedia_id",
-    content: siteDocument.id.id,
-  });
-  meta.push({
-    name: "hypermedia_version",
-    content: siteDocument.document.version,
-  });
-  meta.push({
-    name: "hypermedia_title",
-    content: getDocumentTitle(siteDocument.document),
-  });
+  if (siteDocument.id)
+    meta.push({
+      name: "hypermedia_id",
+      content: siteDocument.id.id,
+    });
+  if (siteDocument.document) {
+    meta.push({title: getDocumentTitle(siteDocument.document)});
+
+    meta.push({
+      name: "hypermedia_version",
+      content: siteDocument.document.version,
+    });
+    meta.push({
+      name: "hypermedia_title",
+      content: getDocumentTitle(siteDocument.document),
+    });
+  } else {
+    meta.push({title: "Not Found"});
+  }
   return meta;
 };
 
@@ -77,7 +83,7 @@ export function DocumentPage({
   authors,
 }: SiteDocumentPayload) {
   const [open, setOpen] = useState(false);
-
+  if (!document || !id) return <NotFoundPage />;
   return (
     <>
       <YStack>
