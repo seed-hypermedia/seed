@@ -155,6 +155,7 @@ func (sw *worker) start(ctx context.Context, wg *sync.WaitGroup, interval time.D
 						attempts = max(1, attempts+1)
 						deadline = time.Now().Add(interval * 1 << attempts) // exponential backoff.
 						state = sBackoff
+						sw.log.Warn("Attempt to sync to a peer with no known address", zap.String("PID", sw.pid.String()))
 					}
 				case sSyncing:
 					attempts = 0

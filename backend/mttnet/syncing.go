@@ -48,8 +48,7 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 		hash := stmt.ColumnBytesUnsafe(1)
 		ts := stmt.ColumnInt64(2)
 		c := cid.NewCidV1(uint64(codec), hash)
-		store.Insert(ts, c.Bytes())
-		return nil
+		return store.Insert(ts, c.Bytes())
 	}, iriList); err != nil {
 		return nil, fmt.Errorf("Could not list: %w", err)
 	}

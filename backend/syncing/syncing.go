@@ -620,6 +620,21 @@ func syncEntities(
 	if err != nil {
 		return fmt.Errorf("Failed to Init Syncing Session: %w", err)
 	}
+	conn, release, err := db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("Could not get connection: %w", err)
+	}
+	if err = sqlitex.Exec(conn, qListBlobs(), func(stmt *sqlite.Stmt) error {
+		codec := stmt.ColumnInt64(0)
+		hash := stmt.ColumnBytesUnsafe(1)
+		ts := stmt.ColumnInt64(2)
+		rawCid := cid.NewCidV1(uint64(codec), hash)
+		return store.Insert(ts, rawCid.Bytes())
+	}); err != nil {
+		release()
+		return fmt.Errorf("Could not list blobs: %w", err)
+	}
+	release()
 	if err = store.Seal(); err != nil {
 		return fmt.Errorf("Failed to seal store: %w", err)
 	}
@@ -638,6 +653,7 @@ func syncEntities(
 		}
 		filters := []*p2p.Filter{}
 		for eid, recursive := range eids {
+			log.Debug("Inserting reconciling filters", zap.String("Resource", eid), zap.Bool("Recursive", recursive))
 			filters = append(filters, &p2p.Filter{Resource: eid, Recursive: recursive})
 		}
 		res, err := c.ReconcileBlobs(ctx, &p2p.ReconcileBlobsRequest{
