@@ -27,17 +27,13 @@ import {
 import {
   Button,
   ButtonText,
-  CitationsIcon,
   CollaboratorsIcon,
-  CommentsIcon,
   Container,
   DocContent,
   H1,
   Heading,
-  HistoryIcon,
   SizableText,
   Spinner,
-  SuggestedChangesIcon,
   Thumbnail,
   Tooltip,
   Separator as TSeparator,
@@ -99,33 +95,33 @@ export default function DocumentPage() {
 
   const accessoryOptions: DocAccessoryOption[] = []
 
-  accessoryOptions.push({
-    key: 'versions',
-    label: 'Version History',
-    icon: HistoryIcon,
-  })
+  // accessoryOptions.push({
+  //   key: 'versions',
+  //   label: 'Version History',
+  //   icon: HistoryIcon,
+  // })
   if (docId.type === 'd') {
     accessoryOptions.push({
       key: 'collaborators',
       label: 'Collaborators',
       icon: CollaboratorsIcon,
     })
-    accessoryOptions.push({
-      key: 'suggested-changes',
-      label: 'Suggested Changes',
-      icon: SuggestedChangesIcon,
-    })
+    // accessoryOptions.push({
+    //   key: 'suggested-changes',
+    //   label: 'Suggested Changes',
+    //   icon: SuggestedChangesIcon,
+    // })
   }
-  accessoryOptions.push({
-    key: 'comments',
-    label: 'Comments',
-    icon: CommentsIcon,
-  })
-  accessoryOptions.push({
-    key: 'citations',
-    label: 'Citations',
-    icon: CitationsIcon,
-  })
+  // accessoryOptions.push({
+  //   key: 'comments',
+  //   label: 'Comments',
+  //   icon: CommentsIcon,
+  // })
+  // accessoryOptions.push({
+  //   key: 'citations',
+  //   label: 'Citations',
+  //   icon: CitationsIcon,
+  // })
   if (docId.type === 'd' && !docId.path?.length) {
     accessoryOptions.push({
       key: 'all-documents',
