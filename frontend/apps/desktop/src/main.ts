@@ -96,15 +96,15 @@ if (IS_PROD_DESKTOP) {
   })
 }
 
-ipcMain.on('open-markdown-directory-dialog', async (event) => {
+ipcMain.on('open-markdown-directory', async (event) => {
   const focusedWindow = BrowserWindow.getFocusedWindow()
   if (!focusedWindow) {
     console.error('No focused window found.')
     return
   }
 
-  const options: OpenDialogOptions = {
-    title: 'Select directories containing Markdown files and media',
+  const options = {
+    title: 'Select directories containing Markdown files',
     properties: ['openDirectory', 'multiSelections'],
   }
 
@@ -116,29 +116,48 @@ ipcMain.on('open-markdown-directory-dialog', async (event) => {
 
       for (const dirPath of directories) {
         const files = fs.readdirSync(dirPath)
-        const markdownFile = files.find((file) => file.endsWith('.md'))
         const isDirectory = fs.lstatSync(dirPath).isDirectory()
-        if (markdownFile && isDirectory) {
-          const markdownFilePath = path.join(dirPath, markdownFile)
+
+        // Import all markdown files in the root of the selected directory
+        const markdownFiles = files.filter((file) => file.endsWith('.md'))
+        if (markdownFiles.length > 0 && isDirectory) {
+          for (const markdownFile of markdownFiles) {
+            const markdownFilePath = path.join(dirPath, markdownFile)
+            const markdownContent = fs.readFileSync(markdownFilePath, 'utf-8')
+
+            const fileName = path.basename(markdownFile, '.md')
+            const title = formatTitle(fileName)
+
+            validDocuments.push({
+              markdownContent,
+              title,
+              directoryPath: dirPath,
+            })
+          }
+        }
+
+        // Check subdirectories for markdown files
+        const subdirectories = files.filter((file) =>
+          fs.lstatSync(path.join(dirPath, file)).isDirectory(),
+        )
+
+        for (const subDir of subdirectories) {
+          const subDirPath = path.join(dirPath, subDir)
+          const subDirFiles = fs.readdirSync(subDirPath)
+          const subDirMarkdownFiles = subDirFiles.filter((file) =>
+            file.endsWith('.md'),
+          )
+          const markdownFilePath = path.join(subDirPath, subDirMarkdownFiles[0])
           const markdownContent = fs.readFileSync(markdownFilePath, 'utf-8')
 
-          // Extract and format title from directory name
-          const dirName = path.basename(dirPath)
-          const title = formatTitle(dirName)
+          const fileName = path.basename(subDirMarkdownFiles[0], '.md')
+          const title = formatTitle(fileName)
 
           validDocuments.push({
             markdownContent,
             title,
-            directoryPath: dirPath,
+            directoryPath: subDirPath,
           })
-        } else {
-          event.sender.send(
-            'directory-error',
-            `Invalid directory: ${dirPath}, ${JSON.stringify({
-              markdownFile,
-              isDirectory,
-            })}`,
-          )
         }
       }
 
@@ -169,7 +188,7 @@ const formatTitle = (fileName: string) => {
     .replace(/\b\w/g, (char) => char.toUpperCase()) // Capitalize each word
 }
 
-ipcMain.on('open-markdown-file-dialog', async (event) => {
+ipcMain.on('open-markdown-file', async (event) => {
   const focusedWindow = BrowserWindow.getFocusedWindow()
   if (!focusedWindow) {
     console.error('No focused window found.')
@@ -289,12 +308,6 @@ ipcMain.handle('dark-mode:toggle', () => {
 ipcMain.handle('dark-mode:system', () => {
   nativeTheme.themeSource = 'system'
 })
-
-// ipcMain.on('open-markdown-file-dialog', (event, args) => {
-//   ipcMain.handle('dialog:openFile', handleOpenMarkdown)
-// })
-// ipcMain.on('open-markdown-file-dialog', handleOpenMarkdown)
-// ipcMain.handle('dialog:openMdFile', handleOpenMarkdown)
 
 ipcMain.on('save-file', saveCidAsFile)
 ipcMain.on('export-document', saveMarkdownFile)

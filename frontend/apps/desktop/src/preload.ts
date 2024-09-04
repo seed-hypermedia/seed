@@ -75,7 +75,7 @@ contextBridge.exposeInMainWorld('fileOpen', {
         console.error(error)
       })
 
-      ipcRenderer.send('open-markdown-directory-dialog')
+      ipcRenderer.send('open-markdown-directory')
     })
   },
 
@@ -89,7 +89,7 @@ contextBridge.exposeInMainWorld('fileOpen', {
         }
       })
 
-      ipcRenderer.send('open-markdown-file-dialog')
+      ipcRenderer.send('open-markdown-file')
     })
   },
 
