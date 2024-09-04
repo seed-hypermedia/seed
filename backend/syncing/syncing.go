@@ -135,10 +135,6 @@ type Service struct {
 	semaphore  chan struct{}
 }
 
-const (
-	connectTimeout = 30 * time.Second
-)
-
 const peerRoutingConcurrency = 3 // how many concurrent requests for peer routing.
 
 // NewService creates a new syncing service. Users should call Start() to start the periodic syncing.
@@ -372,9 +368,7 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 	}
 	defer s.mu.Unlock()
 	s.log.Debug("SyncSubscribedContent called", zap.Int("Number of subscriptions", len(subscriptions)))
-	dbCtx, ctxCncl := context.WithTimeout(ctx, time.Second*5)
-	defer ctxCncl()
-	conn, release, err := s.db.Conn(dbCtx)
+	conn, release, err := s.db.Conn(ctx)
 	if err != nil {
 		s.log.Debug("Could not grab a connection", zap.Error(err))
 		return res, err
@@ -491,7 +485,7 @@ func (s *Service) SyncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 
 	{
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, connectTimeout)
+		ctx, cancel = context.WithTimeout(ctx, s.cfg.TimeoutPerPeer)
 		defer cancel()
 	}
 	s.log.Debug("SyncWithPeer called")
@@ -499,12 +493,6 @@ func (s *Service) SyncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 	if err != nil {
 		s.log.Debug("Could not get syncing client", zap.Error(err))
 		return err
-	}
-
-	{
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, s.cfg.TimeoutPerPeer)
-		defer cancel()
 	}
 
 	bswap := s.bitswap.NewSession(ctx)

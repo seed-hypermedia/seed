@@ -11,7 +11,8 @@ import (
 	"go.uber.org/zap"
 )
 
-const defaultDiscoveryTimeout = time.Second * 30
+// DefaultDiscoveryTimeout is how long do we wait to discover a peer and sync with it
+const DefaultDiscoveryTimeout = time.Second * 30
 
 // DiscoverObject discovers an object in the network. If not found, then it returns an error
 // If found, this function will store the object locally so that it can be gotten like any
@@ -24,7 +25,7 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 		return fmt.Errorf("Discovering by version is not implemented yet")
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, defaultDiscoveryTimeout)
+	ctx, cancel := context.WithTimeout(ctx, DefaultDiscoveryTimeout)
 	defer cancel()
 	c, err := ipfs.NewCID(uint64(multicodec.Raw), uint64(multicodec.Identity), []byte(entityID))
 	if err != nil {

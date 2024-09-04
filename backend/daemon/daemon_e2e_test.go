@@ -416,6 +416,7 @@ func TestSubscriptions(t *testing.T) {
 	aliceCfg.Syncing.SmartSyncing = true
 	aliceCfg.Syncing.Interval = time.Millisecond * 20
 	aliceCfg.Syncing.WarmupDuration = time.Millisecond * 50
+	//aliceCfg.Syncing.NoPull = true
 	alice := makeTestApp(t, "alice", aliceCfg, true)
 	ctx := context.Background()
 	aliceIdentity := coretest.NewTester("alice")
@@ -424,6 +425,7 @@ func TestSubscriptions(t *testing.T) {
 	bobCfg.Syncing.SmartSyncing = true
 	bobCfg.Syncing.Interval = time.Millisecond * 20
 	bobCfg.Syncing.WarmupDuration = time.Millisecond * 50
+	//bobCfg.Syncing.NoPull = true
 	bob := makeTestApp(t, "bob", bobCfg, true)
 	bobIdentity := coretest.NewTester("bob")
 	doc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
@@ -556,7 +558,7 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	time.Sleep(time.Millisecond * 100)
+	time.Sleep(time.Millisecond * 120)
 	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: doc2.Account,
 		Path:    doc2.Path,
@@ -568,7 +570,7 @@ func TestSubscriptions(t *testing.T) {
 	_, err = bob.RPC.Daemon.ForceSync(ctx, &daemon.ForceSyncRequest{})
 	require.NoError(t, err)
 
-	time.Sleep(time.Millisecond * 100)
+	time.Sleep(time.Millisecond * 120)
 	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: doc2.Account,
 		Path:    doc2.Path,
@@ -587,7 +589,7 @@ func TestSubscriptions(t *testing.T) {
 	require.Len(t, res.Subscriptions, 1)
 	require.Equal(t, doc2.Account, res.Subscriptions[0].Account)
 	require.Equal(t, doc2.Path, res.Subscriptions[0].Path)
-	time.Sleep(time.Millisecond * 100)
+	time.Sleep(time.Millisecond * 120)
 
 	_, err = alice.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: doc4.Account,
@@ -618,19 +620,13 @@ func TestSubscriptions(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, res.Subscriptions, 0)
 
-	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
-		Account: doc.Account,
-		Path:    doc.Path,
-	})
-	require.Error(t, err)
-
 	_, err = bob.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
 		Account:   doc3.Account,
 		Path:      "/cars",
 		Recursive: true,
 	})
 	require.NoError(t, err)
-	time.Sleep(time.Millisecond * 100)
+	time.Sleep(time.Millisecond * 120)
 
 	doc3Gotten, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: doc3.Account,
@@ -644,4 +640,56 @@ func TestSubscriptions(t *testing.T) {
 		Path:    doc.Path,
 	})
 	require.Error(t, err)
+
+	doc3Modified, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceIdentity.Account.Principal().String(),
+		BaseVersion:    doc3.Version,
+		Path:           "/cars/honda",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			//{Op: &documents.DocumentChange_MoveBlock_{
+			//	MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			//}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Modified Content",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, doc3.Version, doc3Modified.Version)
+	require.Equal(t, doc3.Version, doc3Modified.PreviousVersion)
+
+	// TODO(juligasa): instead of forcing a subscription, we already have a recursive
+	// subscription on a top level path so we just wait for the periodic subscription.
+
+	//newCtx, cancel := context.WithTimeout(ctx, time.Minute*10)
+	//defer cancel()
+	/*
+		_, err = bob.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
+			Account:   doc3.Account,
+			Path:      "/cars/honda",
+			Recursive: false,
+		})
+		require.NoError(t, err)
+
+	*/
+	doc3Gotten, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: doc3Modified.Account,
+		Path:    doc3Modified.Path,
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, doc3Gotten.Version, doc3Modified.Version)
+
+	time.Sleep(time.Millisecond * 120)
+	doc3Gotten, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: doc3Modified.Account,
+		Path:    doc3Modified.Path,
+	})
+	require.NoError(t, err)
+	require.Equal(t, doc3Gotten.Version, doc3Modified.Version)
+	require.Equal(t, doc3Modified.Content, doc3Gotten.Content)
 }

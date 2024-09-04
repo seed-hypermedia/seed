@@ -34,6 +34,8 @@ type worker struct {
 	stop context.CancelFunc
 }
 
+const connectTimeout = time.Second * 15
+
 func newWorker(
 	cfg config.Syncing,
 	pid peer.ID,

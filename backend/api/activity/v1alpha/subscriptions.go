@@ -5,46 +5,38 @@ import (
 	"fmt"
 	"math"
 	activity "seed/backend/genproto/activity/v1alpha"
+	"seed/backend/syncing"
 	"seed/backend/util/apiutil"
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"seed/backend/util/sqlitegen"
 	"strings"
-	"time"
-
-	"math/rand"
 
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-var randSrc = rand.NewSource(time.Now().UnixNano())
-var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
-const blockingTimeout = time.Second * 30
-
 // Subscribe subscribes to a document.
 func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest) (*emptypb.Empty, error) {
 	vals := []interface{}{}
+
+	_, ok := ctx.Deadline()
+	if !ok {
+		srv.log.Debug("Inserting deadline", zap.String("Duration", syncing.DefaultDiscoveryTimeout.String()))
+		toCtx, cancelCtx := context.WithTimeout(ctx, syncing.DefaultDiscoveryTimeout)
+		defer cancelCtx()
+		ctx = toCtx
+	}
 	conn, cancel, err := srv.db.Conn(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	_, ok := ctx.Deadline()
-	if !ok {
-		srv.log.Debug("Inserting deadline", zap.String("Duration", blockingTimeout.String()))
-		toCtx, cancelCtx := context.WithTimeout(ctx, blockingTimeout)
-		defer cancelCtx()
-		ctx = toCtx
-	}
-	defer cancel()
-
 	// If the document is not present locally, then we make this call blocking,
 	// since we have to discover it first.
-	var blocking bool = true
+	var blocking = true
 	wantedIri := "hm://" + req.Account + req.Path
 	err = sqlitex.Exec(conn, qGetResource(), func(stmt *sqlite.Stmt) error {
 		iri := stmt.ColumnText(0)
@@ -55,28 +47,32 @@ func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest
 		return nil
 	}, wantedIri)
 	if err != nil {
+		cancel()
 		return nil, fmt.Errorf("Problem collecting subscriptions, Probably no subscriptions or token out of range: %w", err)
 	}
 	srv.log.Debug("Subscribe called", zap.Bool("Blocking", blocking))
 
 	if srv.syncer == nil && blocking {
+		cancel()
 		return nil, fmt.Errorf("Syncer non defined on blocking call")
 	}
 
 	sqlStr := "INSERT OR REPLACE INTO subscriptions (iri, is_recursive) VALUES (?,?)"
 	vals = append(vals, "hm://"+req.Account+req.Path, req.Recursive)
 	if err := sqlitex.Exec(conn, sqlStr, nil, vals...); err != nil {
+		cancel()
 		return &emptypb.Empty{}, err
 	}
-
+	cancel()
+	subscriptionReq := activity.Subscription{
+		Account:   req.Account,
+		Path:      req.Path,
+		Recursive: req.Recursive,
+	}
 	if blocking {
-		ret, err := srv.syncer.SyncSubscribedContent(ctx, &activity.Subscription{
-			Account:   req.Account,
-			Path:      req.Path,
-			Recursive: req.Recursive,
-		})
+		ret, err := srv.syncer.SyncSubscribedContent(ctx, &subscriptionReq)
 		if err != nil {
-			srv.log.Debug("Sync failed", zap.Error(err))
+			srv.log.Debug("Blocking Sync failed", zap.Error(err))
 			return &emptypb.Empty{}, err
 		}
 		if ret.NumSyncOK == 0 {
@@ -85,6 +81,14 @@ func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest
 			return &emptypb.Empty{}, fmt.Errorf("%s", errMsg)
 		}
 	}
+	go func() {
+		syncCtx, cancel := context.WithTimeout(context.Background(), syncing.DefaultDiscoveryTimeout)
+		_, err := srv.syncer.SyncSubscribedContent(syncCtx, &subscriptionReq)
+		if err != nil {
+			srv.log.Debug("Non blocking Sync failed", zap.Error(err))
+		}
+		cancel()
+	}()
 	return &emptypb.Empty{}, nil
 }
 
