@@ -42,9 +42,6 @@ function FooterNetworkingButton() {
         size="$1"
         chromeless={route.key != 'contacts'}
         color={route.key == 'contacts' ? '$blue10' : undefined}
-        onPress={() => {
-          networkDialog.open(true)
-        }}
         paddingHorizontal="$2"
       >
         <OnlineIndicator online={summary.online} />
