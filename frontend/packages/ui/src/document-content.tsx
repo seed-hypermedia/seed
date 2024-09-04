@@ -92,7 +92,6 @@ export type EntityComponentsRecord = {
 export type DocContentContextValue = {
   entityComponents: EntityComponentsRecord;
   onLinkClick: (dest: string, e: MouseEvent) => void;
-  ipfsBlobPrefix: string;
   saveCidAsFile: (cid: string, name: string) => Promise<void>;
   citations?: Mention[];
 
@@ -1092,7 +1091,7 @@ function BlockContentImage({
   ...props
 }: BlockContentProps) {
   let inline = useMemo(() => toHMInlineContent(new Block(block)), [block]);
-  const {ipfsBlobPrefix, textUnit} = useDocContentContext();
+  const {textUnit} = useDocContentContext();
   if (!block?.ref) return null;
 
   return (
@@ -1136,7 +1135,7 @@ function BlockContentVideo({
 }: BlockContentProps) {
   let inline = useMemo(() => toHMInlineContent(new Block(block)), []);
   const ref = block.ref || "";
-  const {ipfsBlobPrefix, textUnit} = useDocContentContext();
+  const {textUnit} = useDocContentContext();
 
   return (
     <YStack

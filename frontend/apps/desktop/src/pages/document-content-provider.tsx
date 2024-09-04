@@ -3,12 +3,7 @@ import {EmbedComment, EmbedDocument, EmbedInline} from '@/components/app-embeds'
 import {useExperiments} from '@/models/experiments'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
-import {
-  BlockRange,
-  DAEMON_FILE_URL,
-  ExpandedBlockRange,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {BlockRange, ExpandedBlockRange, UnpackedHypermediaId} from '@shm/shared'
 import {
   DocContentContextValue,
   DocContentProvider,
@@ -61,7 +56,6 @@ export function AppDocContentProvider({
               }
             : null
         }
-        ipfsBlobPrefix={`${DAEMON_FILE_URL}/`}
         saveCidAsFile={saveCidAsFile}
         routeParams={{}}
         {...overrides}

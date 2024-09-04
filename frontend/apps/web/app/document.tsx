@@ -145,7 +145,6 @@ function WebDocContentProvider({children}: PropsWithChildren<{}>) {
         Comment: () => null,
         Inline: () => null,
       }}
-      ipfsBlobPrefix="http://localhost:55001/ipfs/" // todo, configure this properly
       onLinkClick={(href, e) => {}}
       onCopyBlock={(blockId, blockRange) => {}}
       saveCidAsFile={async (cid, name) => {}}

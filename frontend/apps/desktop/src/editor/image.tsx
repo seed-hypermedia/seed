@@ -1,5 +1,5 @@
 import {isValidUrl, timeoutPromise} from '@/editor/utils'
-import {getCIDFromIPFSUrl} from '@shm/shared'
+import {getFileUrl} from '@shm/shared'
 import {ResizeHandle, useDocContentContext, useTheme} from '@shm/ui'
 import {useEffect, useState} from 'react'
 import {RiImage2Line} from 'react-icons/ri'
@@ -148,10 +148,9 @@ const display = ({
   setSelected,
   assign,
 }: DisplayComponentProps) => {
-  const {ipfsBlobPrefix} = useDocContentContext()
   const imageUrl = block.props.url.includes('.')
     ? null
-    : `${ipfsBlobPrefix}${getCIDFromIPFSUrl(block.props.url)}`
+    : getFileUrl(block.props.url)
   // Min image width in px.
   const minWidth = 64
   let width: number =

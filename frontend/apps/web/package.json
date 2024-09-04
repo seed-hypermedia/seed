@@ -6,7 +6,7 @@
   "scripts": {
     "upgrade:tamagui": "yarn up '@tamagui/*'@latest",
     "build": "remix vite:build",
-    "dev": "remix vite:dev",
+    "dev": "DAEMON_FILE_URL=\"http://localhost:57001/ipfs\" remix vite:dev",
     "start": "remix-serve ./build/server/index.js",
     "typecheck": "tsc"
   },
