@@ -164,10 +164,6 @@ message Document {
 
   // Output only. Current version of the document.
   string version = 9;
-
-  // Output only. Previous version of the document,
-  // Empty if this is the first version.
-  string previous_version = 10;
 }
 
 // Content block with children.

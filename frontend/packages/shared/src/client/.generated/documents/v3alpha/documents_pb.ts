@@ -556,14 +556,6 @@ export class Document extends Message<Document> {
    */
   version = "";
 
-  /**
-   * Output only. Previous version of the document,
-   * Empty if this is the first version.
-   *
-   * @generated from field: string previous_version = 10;
-   */
-  previousVersion = "";
-
   constructor(data?: PartialMessage<Document>) {
     super();
     proto3.util.initPartial(data, this);
@@ -580,7 +572,6 @@ export class Document extends Message<Document> {
     { no: 7, name: "create_time", kind: "message", T: Timestamp },
     { no: 8, name: "update_time", kind: "message", T: Timestamp },
     { no: 9, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 10, name: "previous_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Document {

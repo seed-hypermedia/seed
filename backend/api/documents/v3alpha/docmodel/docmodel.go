@@ -334,12 +334,11 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 	path := u.Path
 
 	docpb := &documents.Document{
-		Account:         account,
-		Path:            path,
-		Metadata:        make(map[string]string),
-		CreateTime:      timestamppb.New(hlc.Timestamp(first.Ts).Time()),
-		Version:         e.Version().String(),
-		PreviousVersion: NewVersion(e.Deps()...).String(),
+		Account:    account,
+		Path:       path,
+		Metadata:   make(map[string]string),
+		CreateTime: timestamppb.New(hlc.Timestamp(first.Ts).Time()),
+		Version:    e.Version().String(),
 	}
 
 	docpb.UpdateTime = timestamppb.New(hlc.Timestamp(last.Ts).Time())

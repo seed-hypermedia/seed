@@ -140,7 +140,7 @@ func TestDaemonUpdateProfile(t *testing.T) {
 
 	testutil.StructsEqual(want, doc).
 		IgnoreFields(documents.Block{}, "Revision").
-		IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version", "PreviousVersion").
+		IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version").
 		Compare(t, "profile document must match")
 
 	// Do another update.
@@ -187,7 +187,7 @@ func TestDaemonUpdateProfile(t *testing.T) {
 
 		testutil.StructsEqual(want, doc).
 			IgnoreFields(documents.Block{}, "Revision").
-			IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version", "PreviousVersion").
+			IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version").
 			Compare(t, "profile document must match")
 	}
 }
@@ -660,7 +660,6 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotEqual(t, doc3.Version, doc3Modified.Version)
-	require.Equal(t, doc3.Version, doc3Modified.PreviousVersion)
 
 	// TODO(juligasa): instead of forcing a subscription, we already have a recursive
 	// subscription on a top level path so we just wait for the periodic subscription.

@@ -81,7 +81,7 @@ func TestCreateDocumentChange(t *testing.T) {
 
 	testutil.StructsEqual(want, doc).
 		IgnoreFields(documents.Block{}, "Revision").
-		IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version", "PreviousVersion").
+		IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version").
 		Compare(t, "profile document must match")
 }
 
