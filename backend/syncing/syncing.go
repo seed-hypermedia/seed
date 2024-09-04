@@ -100,6 +100,8 @@ func init() {
 // of a Syncing RPC client for a given remote Device ID.
 type netDialFunc func(context.Context, peer.ID) (p2p.SyncingClient, error)
 
+type subscriptionMap map[peer.ID]map[string]bool
+
 // bitswap is a subset of the bitswap that is used by syncing service.
 type bitswap interface {
 	NewSession(context.Context) exchange.Fetcher
@@ -392,7 +394,7 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 		release()
 		return res, nil
 	}
-	subsMap := make(map[peer.ID]map[string]bool)
+	subsMap := make(subscriptionMap)
 	allPeers := []peer.ID{} // TODO:(juligasa): Remove this when we have providers store
 	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
 		addresStr := stmt.ColumnText(0)
@@ -440,11 +442,17 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 		// instead of pasting all peers in all documents.
 		subsMap[pid] = eidsMap
 	}
-	res.Peers = make([]peer.ID, len(allPeers))
-	res.Errs = make([]error, len(allPeers))
+
+	return s.SyncWithManyPeers(ctx, subsMap), nil
+}
+
+// SyncWithManyPeers syncs with many peers in parallel
+func (s *Service) SyncWithManyPeers(ctx context.Context, subsMap subscriptionMap) (res SyncResult) {
 	var i int
 	var wg sync.WaitGroup
 	wg.Add(len(subsMap))
+	res.Peers = make([]peer.ID, len(subsMap))
+	res.Errs = make([]error, len(subsMap))
 	for pid, eids := range subsMap {
 		go func(i int, pid peer.ID, eids map[string]bool) {
 			var err error
@@ -460,7 +468,7 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 			}()
 
 			res.Peers[i] = pid
-			s.log.Debug("Syncing with peer to get subscribed content", zap.String("PID", pid.String()))
+			s.log.Debug("Syncing with peer", zap.String("PID", pid.String()))
 			if xerr := s.SyncWithPeer(ctx, pid, eids); xerr != nil {
 				s.log.Debug("Could not sync with content", zap.String("PID", pid.String()), zap.Error(xerr))
 				err = errors.Join(err, fmt.Errorf("failed to sync objects: %w", xerr))
@@ -471,7 +479,7 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 
 	wg.Wait()
 
-	return res, nil
+	return res
 }
 
 // SyncWithPeer syncs all documents from a given peer. given no initial objectsOptionally.

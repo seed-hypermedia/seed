@@ -4,8 +4,13 @@ import (
 	"context"
 	"fmt"
 	"seed/backend/ipfs"
+	"seed/backend/mttnet"
+	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
+	"strings"
 	"time"
 
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/multiformats/go-multicodec"
 	"go.uber.org/zap"
@@ -32,6 +37,45 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 		return fmt.Errorf("Couldn't encode eid into CID: %w", err)
 	}
 
+	conn, release, err := s.db.Conn(ctx)
+	if err != nil {
+		s.log.Debug("Could not grab a connection", zap.Error(err))
+		return err
+	}
+
+	subsMap := make(subscriptionMap)
+	allPeers := []peer.ID{} // TODO:(juligasa): Remove this when we have providers store
+	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
+		addresStr := stmt.ColumnText(0)
+		addrList := strings.Split(addresStr, ",")
+		info, err := mttnet.AddrInfoFromStrings(addrList...)
+		if err != nil {
+			return err
+		}
+		s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
+		allPeers = append(allPeers, info.ID)
+		return nil
+	}); err != nil {
+		release()
+		return err
+	}
+	if len(allPeers) != 0 {
+		s.log.Debug("Discovering via local peers first", zap.Error(err))
+		eidsMap := make(map[string]bool)
+		eidsMap[entityID] = false
+		for _, pid := range allPeers {
+			// TODO(juligasa): look into the providers store who has each eid
+			// instead of pasting all peers in all documents.
+			subsMap[pid] = eidsMap
+		}
+
+		ret := s.SyncWithManyPeers(ctx, subsMap)
+		if ret.NumSyncOK > 0 {
+			s.log.Debug("Discovered content via local peer, we avoided hitting the DHT!")
+			return nil
+		}
+	}
+	s.log.Debug("None of the local peers have the document, hitting the DHT :(")
 	// Arbitrary number of maximum providers
 	maxProviders := 15
 
@@ -51,10 +95,10 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 			zap.String("CID", c.String()),
 			zap.String("peer", p.String()),
 		)
-		log.Debug("DiscoveredProvider")
+		log.Debug("Provider Found")
 		eidMap := map[string]bool{entityID: false}
 		if err := s.SyncWithPeer(ctx, p.ID, eidMap); err != nil {
-			log.Warn("FinishedSyncingWithProvider", zap.Error(err))
+			log.Debug("Error trying to sync with a provider", zap.Error(err))
 			continue
 		}
 		return nil

@@ -6,6 +6,7 @@ import (
 	"math"
 	"seed/backend/config"
 	activity_proto "seed/backend/genproto/activity/v1alpha"
+	"seed/backend/mttnet"
 	"sync"
 	"time"
 
@@ -33,8 +34,6 @@ type worker struct {
 	// stop is assigned during start().
 	stop context.CancelFunc
 }
-
-const connectTimeout = time.Second * 15
 
 func newWorker(
 	cfg config.Syncing,
@@ -251,7 +250,7 @@ func (sw *worker) maybeConnect(ctx context.Context, attempts int) peerState {
 		panic("BUG: invalid peer state")
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, connectTimeout)
+	ctx, cancel := context.WithTimeout(ctx, mttnet.ConnectTimeout)
 	defer cancel()
 
 	if err := sw.host.Connect(ctx, peer.AddrInfo{ID: sw.pid}); err != nil {

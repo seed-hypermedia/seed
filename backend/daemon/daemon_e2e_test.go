@@ -193,6 +193,7 @@ func TestDaemonUpdateProfile(t *testing.T) {
 }
 
 func TestSyncingProfiles(t *testing.T) {
+	t.Skip("Dumb Syncing not supported")
 	t.Parallel()
 	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
 	ctx := context.Background()

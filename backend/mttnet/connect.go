@@ -26,6 +26,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const ConnectTimeout = time.Second * 15
+
 var (
 	mConnectsInFlight = promauto.NewGauge(prometheus.GaugeOpts{
 		Name: "seed_connects_in_flight",
@@ -90,7 +92,7 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	}
 
 	log := n.log.With(zap.String("peer", info.ID.String()))
-	ctx, cancel := context.WithTimeout(ctx, 7*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, ConnectTimeout)
 	defer cancel()
 
 	log.Debug("ConnectStarted")
