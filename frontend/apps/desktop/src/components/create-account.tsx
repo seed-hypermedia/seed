@@ -27,7 +27,6 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {useMutation} from '@tanstack/react-query'
 import {nanoid} from 'nanoid'
 import {SVGProps, useEffect, useMemo, useRef, useState} from 'react'
 import {useGRPCClient, useQueryInvalidator} from '../app-context'
@@ -86,6 +85,8 @@ export function AccountWizardDialog() {
     if (accounts.data?.length == 0) {
       setAccountType('author')
       setStep('create')
+    } else {
+      setStep('type')
     }
   }, [accounts.data])
 
@@ -95,30 +96,6 @@ export function AccountWizardDialog() {
       inputWords.current?.focus()
     }
   }, [step, newAccount])
-
-  const addExistingAccount = useMutation({
-    mutationFn: async () => {
-      let input = []
-
-      let error = isInputValid(words as string)
-
-      if (typeof error == 'string') {
-        // this means is an error
-        throw Error(`Invalid mnemonics: ${error}`)
-      } else {
-        input = extractWords(words as string)
-      }
-
-      if (input.length == 0) {
-        throw Error('No mnemonics')
-      }
-      let res = await register.mutateAsync({
-        mnemonic: input,
-        name,
-      })
-      return res
-    },
-  })
 
   async function handleAccountCreation(existing?: boolean) {
     const name = `temp${accountType}${nanoid(8)}`
@@ -155,7 +132,6 @@ export function AccountWizardDialog() {
       })
       invalidate([queryKeys.LOCAL_ACCOUNT_ID_LIST])
       setCreatedAccount(renamedKey)
-      console.log('CREATED', existing)
       setStep(existing ? 'complete' : 'name')
     } catch (error) {
       toast.error(`REGISTER ERROR: ${error}`)
@@ -246,7 +222,7 @@ export function AccountWizardDialog() {
           overflow="hidden"
           h={step == 'type' ? 300 : 460}
           w="100%"
-          maxWidth={600}
+          maxWidth={step == 'type' ? 360 : 600}
           p={0}
           backgroundColor={'$background'}
           animation={[

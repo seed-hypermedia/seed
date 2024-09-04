@@ -12,7 +12,10 @@ export function useConnectionSummary() {
     refetchInterval: 15_000,
   })
   const connectedPeers = peerInfo.data || []
-  console.log(`== ~ useConnectionSummary ~ peerInfo:`, peerInfo)
+  console.log(
+    `== ~ useConnectionSummary ~ peerInfo:`,
+    JSON.stringify(peerInfo.data),
+  )
   return {
     online: connectedPeers.length > 0,
     connectedCount: connectedPeers.length,
