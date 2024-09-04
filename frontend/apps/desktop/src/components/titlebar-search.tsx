@@ -167,6 +167,7 @@ function LauncherContent({onClose}: {onClose: () => void}) {
   const recents = useRecents()
   const searchResults = useSearch(search, {})
   let queryItem: null | LauncherItemType = null
+  console.log('search', search, isHypermediaScheme(search))
   if (
     isHypermediaScheme(search) ||
     search.startsWith('http://') ||
@@ -177,7 +178,11 @@ function LauncherContent({onClose}: {onClose: () => void}) {
       key: 'mtt-link',
       title: `Query ${search}`,
       onSelect: async () => {
-        const searched = await resolveHmIdToAppRoute(search, grpcClient)
+        const unpacked = unpackHmId(search)
+        const searched = unpacked
+          ? await resolveHmIdToAppRoute(unpacked, grpcClient)
+          : null
+
         if (
           (searched?.scheme === HYPERMEDIA_SCHEME ||
             searched?.hostname === gwHost) &&
