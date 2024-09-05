@@ -49,7 +49,6 @@ import {
   Settings2,
   Square,
   Star,
-  User2,
   X,
 } from '@tamagui/lucide-icons'
 import {ComponentProps, useMemo, useRef, useState} from 'react'
@@ -451,7 +450,7 @@ function FilterControl({
             borderColor: isEmptyFilter ? undefined : '$blue6',
           }}
         >
-          {allEditorialRolesSelected ? (
+          {/* {allEditorialRolesSelected ? (
             <SelectedFilterTag
               label="Editorial Role"
               onX={() => {
@@ -471,7 +470,7 @@ function FilterControl({
                 onX={() => onFilter({...filter, [activeFilter.value]: false})}
               />
             ))
-          )}
+          )} */}
           {activeFilters.map((activeFilter) => (
             <SelectedFilterTag
               label={activeFilter.label}
@@ -483,7 +482,7 @@ function FilterControl({
       </Popover.Trigger>
       <Popover.Content {...commonPopoverProps}>
         <YGroup separator={<Separator />}>
-          <RoleFilterOption
+          {/* <RoleFilterOption
             option={{label: 'Editorial Role', icon: User2}}
             checked={allEditorialRolesSelected}
             onCheckedChange={(newValue) => {
@@ -502,8 +501,8 @@ function FilterControl({
               })
               popoverState.onOpenChange(false)
             }}
-          />
-          {roleFilterOptions.map((option) => (
+          /> */}
+          {/* {roleFilterOptions.map((option) => (
             <RoleFilterOption
               key={option.value}
               option={option}
@@ -516,7 +515,7 @@ function FilterControl({
                 popoverState.onOpenChange(false)
               }}
             />
-          ))}
+          ))} */}
           {filterOptions.map((option) => (
             <RoleFilterOption
               key={option.value}
