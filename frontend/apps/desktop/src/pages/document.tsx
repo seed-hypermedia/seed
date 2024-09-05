@@ -29,8 +29,10 @@ import {
   Button,
   ButtonText,
   CollaboratorsIcon,
+  Contact,
   Container,
   DocContent,
+  Document,
   H1,
   Heading,
   HistoryIcon,
@@ -128,12 +130,12 @@ export default function DocumentPage() {
     accessoryOptions.push({
       key: 'all-documents',
       label: 'All Documents',
-      icon: null,
+      icon: Document,
     })
     accessoryOptions.push({
       key: 'contacts',
       label: 'Contacts',
-      icon: null,
+      icon: Contact,
     })
   }
   return (
