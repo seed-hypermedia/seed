@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"seed/backend/ipfs"
 	"seed/backend/mttnet"
+	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"strings"
@@ -71,8 +72,20 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 
 		ret := s.SyncWithManyPeers(ctx, subsMap)
 		if ret.NumSyncOK > 0 {
-			s.log.Debug("Discovered content via local peer, we avoided hitting the DHT!")
-			return nil
+			var haveIt bool
+			if err = sqlitex.Exec(conn, qGetEntity(), func(stmt *sqlite.Stmt) error {
+				eid := stmt.ColumnText(0)
+				if eid != entityID {
+					return fmt.Errorf("Got a different eid")
+				}
+				haveIt = true
+				return nil
+			}, entityID); err != nil {
+				s.log.Warn("Problem finding eid after local discovery", zap.Error(err))
+			} else if haveIt {
+				s.log.Debug("Discovered content via local peer, we avoided hitting the DHT!")
+				return nil
+			}
 		}
 	}
 	s.log.Debug("None of the local peers have the document, hitting the DHT :(")
@@ -106,3 +119,11 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 
 	return fmt.Errorf("No providers found for CID %s", c.String())
 }
+
+var qGetEntity = dqb.Str(`
+		SELECT
+			iri
+		FROM resources 
+		WHERE iri = :iri
+		LIMIT 1;
+	`)
