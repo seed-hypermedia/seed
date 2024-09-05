@@ -566,3 +566,33 @@ export function UnSubscribeSpace({
     </svg>
   );
 }
+
+export function Version({
+  color = DefaultIconColor,
+  size = "1em",
+  ...props
+}: {
+  color?: string;
+  size?: string | number;
+}) {
+  console.log(`== ~ color:`, color);
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 20 20"
+      width={size}
+      height={size}
+      fill="none"
+      {...props}
+    >
+      <path
+        fill={color}
+        d="M14.062 5.278A6.171 6.171 0 0 0 3.865 9.302a.6.6 0 0 1-1.194-.121 7.371 7.371 0 1 1 1.197 4.83v2.002a.6.6 0 0 1-1.2 0V12.25a.6.6 0 0 1 .6-.6H7.03a.6.6 0 0 1 0 1.2H4.57a6.171 6.171 0 1 0 9.492-7.573Z"
+      />
+      <path
+        fill={color}
+        d="M10.02 6.535a.6.6 0 0 1 .6.6v2.191h2.193a.6.6 0 1 1 0 1.2H10.62v2.193a.6.6 0 0 1-1.2 0v-2.193H7.229a.6.6 0 0 1 0-1.2H9.42v-2.19a.6.6 0 0 1 .6-.6Z"
+      />
+    </svg>
+  );
+}

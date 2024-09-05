@@ -8,8 +8,8 @@ import {
   HMChangeInfo,
   hmId,
 } from '@shm/shared'
-import {Button} from '@shm/ui'
-import {SizableText, YStack} from 'tamagui'
+import {Button, Thumbnail, Version} from '@shm/ui'
+import {SizableText, XStack, YStack} from 'tamagui'
 import {AccessoryContainer} from './accessory-sidebar'
 
 export function VersionsPanel({
@@ -24,18 +24,21 @@ export function VersionsPanel({
   const changes = useDocumentChanges(route.id)
   return (
     <AccessoryContainer title="Versions" onClose={onClose}>
-      {changes.data?.map((change) => {
-        const isActive = activeChangeIds?.has(change.id) || false
-        return (
-          <ChangeItem
-            change={change}
-            isActive={isActive}
-            onPress={() => {
-              navigate({...route, id: {...route.id, version: change.id}})
-            }}
-          />
-        )
-      })}
+      <YStack>
+        {changes.data?.map((change, idx) => {
+          const isActive = activeChangeIds?.has(change.id) || false
+          return (
+            <ChangeItem
+              change={change}
+              isActive={isActive}
+              onPress={() => {
+                navigate({...route, id: {...route.id, version: change.id}})
+              }}
+              isLast={idx === changes.data.length - 1}
+            />
+          )
+        })}
+      </YStack>
     </AccessoryContainer>
   )
 }
@@ -44,21 +47,73 @@ function ChangeItem({
   change,
   isActive,
   onPress,
+  isLast = false,
 }: {
   change: HMChangeInfo
   onPress: () => void
   isActive: boolean
+  isLast: boolean
 }) {
+  const thumbnailSize = 20
   const authorEntity = useEntity(hmId('d', change.author))
   return (
     <Button
       onPress={onPress}
       key={change.id}
-      backgroundColor={isActive ? '$blue6' : undefined}
+      h="auto"
+      p="$3"
+      paddingHorizontal="$1"
+      borderRadius="$2"
+      borderWidth={0}
+      backgroundColor={isActive ? '$blue5' : '$backgroundTransparent'}
+      hoverStyle={{
+        backgroundColor: '$background',
+        borderColor: '$borderTransparent',
+      }}
+      ai="flex-start"
+      position="relative"
     >
-      <YStack>
-        <SizableText>{formattedDateMedium(change.createTime)}</SizableText>
-        <SizableText>{getAccountName(authorEntity.data?.document)}</SizableText>
+      <XStack
+        w={1}
+        h="100%"
+        bg="$color8"
+        position="absolute"
+        top={14}
+        left={22}
+        opacity={isLast ? 0 : 1}
+        zi={1}
+      />
+
+      <XStack
+        flexGrow={0}
+        flexShrink={0}
+        w={20}
+        h={20}
+        zi={2}
+        ai="center"
+        bg="#2C2C2C"
+        jc="center"
+        borderRadius={10}
+        p={1}
+      >
+        <Version size={16} color="white" />
+      </XStack>
+      <Thumbnail
+        flexGrow={0}
+        flexShrink={0}
+        size={thumbnailSize}
+        id={authorEntity.data?.id}
+        metadata={authorEntity.data?.document?.metadata}
+      />
+      <YStack f={1}>
+        <XStack h={thumbnailSize} ai="center" gap="$2">
+          <SizableText size="$2" fontWeight={700}>
+            {getAccountName(authorEntity.data?.document)}
+          </SizableText>
+        </XStack>
+        <SizableText size="$1" color="$color9">
+          {formattedDateMedium(change.createTime)}
+        </SizableText>
       </YStack>
     </Button>
   )

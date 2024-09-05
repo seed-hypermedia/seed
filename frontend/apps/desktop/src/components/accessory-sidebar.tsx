@@ -17,25 +17,19 @@ export function AccessoryContainer({
   onClose?: () => void
 } & ComponentProps<typeof YStack>) {
   return (
-    <YStack
-      height="100%"
-      {...props}
-      paddingVertical="$3"
-      backgroundColor="$color4"
-      paddingHorizontal="$4"
-      gap="$4"
-    >
-      {title ? (
-        <SizableText userSelect="none" size="$3" fontWeight="600">
-          {title}
-        </SizableText>
-      ) : null}
-      <YStack f={1}>
-        <ScrollView f={1}>
+    <YStack height="100%" {...props} backgroundColor="$color4" gap="$4">
+      <ScrollView f={1}>
+        <YStack paddingVertical="$3" paddingHorizontal="$4" gap="$4">
+          {title ? (
+            <SizableText userSelect="none" size="$3" fontWeight="600">
+              {title}
+            </SizableText>
+          ) : null}
+
           <YStack gap="$5">{children}</YStack>
-        </ScrollView>
-        {footer}
-      </YStack>
+          {footer}
+        </YStack>
+      </ScrollView>
     </YStack>
   )
 }
@@ -84,7 +78,7 @@ export function AccessoryLayout<
           minSize={25}
           defaultSize={25}
           style={{
-            overflowY: 'scroll',
+            overflowY: 'auto',
             borderRight:
               accessoryKey === undefined
                 ? undefined

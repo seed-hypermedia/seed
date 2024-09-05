@@ -419,7 +419,17 @@ function LauncherContent({onClose}: {onClose: () => void}) {
   )
 }
 
-export function LauncherItem({item, selected = false, onFocus, onMouseEnter}) {
+export function LauncherItem({
+  item,
+  selected = false,
+  onFocus,
+  onMouseEnter,
+}: {
+  item: LauncherItemType
+  selected: boolean
+  onFocus: () => void
+  onMouseEnter: () => void
+}) {
   const elm = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
