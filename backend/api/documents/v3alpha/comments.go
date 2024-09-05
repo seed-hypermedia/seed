@@ -3,6 +3,7 @@ package documents
 import (
 	"context"
 	"fmt"
+	"seed/backend/api/documents/v3alpha/docmodel"
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/hlc"
@@ -156,7 +157,7 @@ func commentToProto(c cid.Cid, cmt *index.Comment) (*documents.Comment, error) {
 		Id:            c.String(),
 		TargetAccount: cmt.Target.Account.String(),
 		TargetPath:    cmt.Target.Path,
-		TargetVersion: index.NewVersion(cmt.Target.Version...).String(),
+		TargetVersion: docmodel.NewVersion(cmt.Target.Version...).String(),
 		Author:        cmt.Author.String(),
 		Content:       commentContentToProto(cmt.Body),
 		CreateTime:    timestamppb.New(time.UnixMicro(cmt.Ts)),

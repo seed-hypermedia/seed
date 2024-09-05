@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateDocumentChangeRequest, DeleteDocumentRequest, Document, GetDocumentRequest, ListDocumentsRequest, ListDocumentsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse } from "./documents_pb";
+import { CreateDocumentChangeRequest, DeleteDocumentRequest, Document, GetDocumentRequest, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse } from "./documents_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -67,6 +67,17 @@ export const Documents = {
       name: "ListRootDocuments",
       I: ListRootDocumentsRequest,
       O: ListRootDocumentsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Lists all changes of a document.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Documents.ListDocumentChanges
+     */
+    listDocumentChanges: {
+      name: "ListDocumentChanges",
+      I: ListDocumentChangesRequest,
+      O: ListDocumentChangesResponse,
       kind: MethodKind.Unary,
     },
   }

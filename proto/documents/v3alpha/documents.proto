@@ -23,6 +23,9 @@ service Documents {
 
   // Lists all the root documents that we know about.
   rpc ListRootDocuments(ListRootDocumentsRequest) returns (ListRootDocumentsResponse);
+
+  // Lists all changes of a document.
+  rpc ListDocumentChanges(ListDocumentChangesRequest) returns (ListDocumentChangesResponse);
 }
 
 // Request for getting a single document.
@@ -109,6 +112,48 @@ message ListDocumentsResponse {
 
   // Token for the next page if there're more results.
   string next_page_token = 2;
+}
+
+// Request for listing document changes.
+message ListDocumentChangesRequest {
+    // Required. ID of the account to list versions for.
+    string account = 1;
+
+    // Required. Path of the document to list versions for.
+    string path = 2;
+
+    // Required. Version of the document to list changes for.
+    string version = 3;
+
+    // Optional. Number of results per page. Default is defined by the server.
+    int32 page_size = 4;
+
+    // Optional. Value from next_page_token obtained from a previous response.
+    string page_token = 5;
+}
+
+// Response with list of document versions.
+message ListDocumentChangesResponse {
+    // List of document versions.
+    repeated DocumentChangeInfo changes = 1;
+
+    // Token for the next page if there're more results.
+    string next_page_token = 2;
+}
+
+// Information about a particular document version.
+message DocumentChangeInfo {
+    // CID of the change.
+    string id = 1;
+
+    // Author of the change.
+    string author = 2;
+
+    // List of change IDs that this change depends on.
+    repeated string deps = 3;
+
+    // Time when the change was created (as claimed by the author).
+    google.protobuf.Timestamp create_time = 4;
 }
 
 // Basic data about a document that is returned in list responses.

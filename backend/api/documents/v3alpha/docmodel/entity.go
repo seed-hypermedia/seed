@@ -1,10 +1,12 @@
 package docmodel
 
 import (
+	"cmp"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
+	"iter"
 	"seed/backend/core"
 	"seed/backend/crdt2"
 	"seed/backend/hlc"
@@ -132,7 +134,10 @@ func (e *Entity) Checkout(heads []cid.Cid) (*Entity, error) {
 	entity := NewEntityWithClock(e.id, clock)
 
 	for _, c := range chain {
-		if err := entity.ApplyChange(e.cids[c], e.changes[c]); err != nil {
+		if err := entity.ApplyChange(index.ChangeRecord{
+			CID:  e.cids[c],
+			Data: e.changes[c],
+		}); err != nil {
 			return nil, err
 		}
 	}
@@ -185,15 +190,64 @@ func (e *Entity) Version() Version {
 	return NewVersion(maps.Keys(e.heads)...)
 }
 
+// BFTDeps returns a single-use iterator that does breadth-first traversal of the Change DAG deps.
+func (e *Entity) BFTDeps(start []cid.Cid) (iter.Seq2[int, index.ChangeRecord], error) {
+	visited := make(map[int]struct{}, len(e.cids))
+	queue := make([]int, 0, len(e.cids))
+	var scratch []int
+
+	enqueueNodes := func(nodes []int) {
+		scratch = append(scratch[:0], nodes...)
+		slices.SortFunc(scratch, func(i, j int) int {
+			if e.changes[i].Ts == e.changes[j].Ts {
+				return cmp.Compare(e.cids[i].KeyString(), e.cids[j].KeyString())
+			}
+			return cmp.Compare(e.changes[i].Ts, e.changes[j].Ts)
+		})
+		queue = append(queue, scratch...)
+	}
+
+	for _, h := range start {
+		hh, ok := e.applied[h]
+		if !ok {
+			return nil, fmt.Errorf("start node '%s' not found", h)
+		}
+		scratch = append(scratch, hh)
+	}
+	enqueueNodes(scratch)
+
+	return func(yield func(int, index.ChangeRecord) bool) {
+		var i int
+		for len(queue) > 0 {
+			c := queue[0]
+			queue = queue[1:]
+			if _, ok := visited[c]; ok {
+				continue
+			}
+			visited[c] = struct{}{}
+
+			enqueueNodes(e.deps[c])
+			if !yield(i, index.ChangeRecord{
+				CID:  e.cids[c],
+				Data: e.changes[c],
+			}) {
+				break
+			}
+
+			i++
+		}
+	}, nil
+}
+
 // ApplyChange to the internal state.
-func (e *Entity) ApplyChange(c cid.Cid, ch *index.Change) error {
-	if _, ok := e.applied[c]; ok {
+func (e *Entity) ApplyChange(rec index.ChangeRecord) error {
+	if _, ok := e.applied[rec.CID]; ok {
 		return nil
 	}
 
 	var actor string
 	{
-		au := ch.Author.UnsafeString()
+		au := rec.Data.Author.UnsafeString()
 		a, ok := e.actorsIntern[au]
 		if !ok {
 			e.actorsIntern[au] = au
@@ -202,45 +256,47 @@ func (e *Entity) ApplyChange(c cid.Cid, ch *index.Change) error {
 		actor = a
 	}
 
-	if ch.Ts < e.vectorClock[actor] {
-		return fmt.Errorf("applying change '%s' violates causal order", c)
+	if rec.Data.Ts < e.vectorClock[actor] {
+		return fmt.Errorf("applying change '%s' violates causal order", rec.CID)
 	}
 
-	e.vectorClock[actor] = ch.Ts
+	e.vectorClock[actor] = rec.Data.Ts
 
 	// TODO(hm24): is this check necessary?
 	// if ch.Ts < int64(e.maxClock.Max()) {
 	// 	return fmt.Errorf("applying change '%s' out of causal order", c)
 	// }
 
-	deps := make([]int, len(ch.Deps))
+	deps := make([]int, len(rec.Data.Deps))
 
-	for i, dep := range ch.Deps {
+	for i, dep := range rec.Data.Deps {
 		depIdx, ok := e.applied[dep]
 		if !ok {
-			return fmt.Errorf("missing dependency %s of change %s", dep, c)
+			return fmt.Errorf("missing dependency %s of change %s", dep, rec.CID)
 		}
 
 		deps[i] = depIdx
 	}
 
-	if err := e.maxClock.Track(hlc.Timestamp(ch.Ts)); err != nil {
+	if err := e.maxClock.Track(hlc.Timestamp(rec.Data.Ts)); err != nil {
 		return err
 	}
 
-	e.state.ApplyPatch(int64(ch.Ts), OriginFromCID(c), ch.Payload)
-	e.cids = append(e.cids, c)
-	e.changes = append(e.changes, ch)
+	e.state.ApplyPatch(int64(rec.Data.Ts), OriginFromCID(rec.CID), rec.Data.Payload)
+
+	e.cids = append(e.cids, rec.CID)
+	e.changes = append(e.changes, rec.Data)
+
 	e.deps = append(e.deps, nil)
 	e.rdeps = append(e.rdeps, nil)
-	e.heads[c] = struct{}{}
+	e.heads[rec.CID] = struct{}{}
 	curIdx := len(e.changes) - 1
-	e.applied[c] = curIdx
+	e.applied[rec.CID] = curIdx
 
 	// One more pass through the deps to update the internal DAG structure,
 	// and update the heads of the current version.
 	// To avoid corrupting the entity state we shouldn't do this in the first loop we did.
-	for i, dep := range ch.Deps {
+	for i, dep := range rec.Data.Deps {
 		// If any of the deps was a head, then it's no longer the case.
 		delete(e.heads, dep)
 
@@ -387,7 +443,12 @@ func (e *Entity) CreateChange(action string, ts hlc.Timestamp, signer core.KeyPa
 		return hb, err
 	}
 
-	if err := e.ApplyChange(hb.CID, hb.Decoded); err != nil {
+	rec := index.ChangeRecord{
+		CID:  hb.CID,
+		Data: hb.Decoded,
+	}
+
+	if err := e.ApplyChange(rec); err != nil {
 		return hb, err
 	}
 

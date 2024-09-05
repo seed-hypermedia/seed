@@ -402,6 +402,193 @@ export class ListDocumentsResponse extends Message<ListDocumentsResponse> {
 }
 
 /**
+ * Request for listing document changes.
+ *
+ * @generated from message com.seed.documents.v3alpha.ListDocumentChangesRequest
+ */
+export class ListDocumentChangesRequest extends Message<ListDocumentChangesRequest> {
+  /**
+   * Required. ID of the account to list versions for.
+   *
+   * @generated from field: string account = 1;
+   */
+  account = "";
+
+  /**
+   * Required. Path of the document to list versions for.
+   *
+   * @generated from field: string path = 2;
+   */
+  path = "";
+
+  /**
+   * Required. Version of the document to list changes for.
+   *
+   * @generated from field: string version = 3;
+   */
+  version = "";
+
+  /**
+   * Optional. Number of results per page. Default is defined by the server.
+   *
+   * @generated from field: int32 page_size = 4;
+   */
+  pageSize = 0;
+
+  /**
+   * Optional. Value from next_page_token obtained from a previous response.
+   *
+   * @generated from field: string page_token = 5;
+   */
+  pageToken = "";
+
+  constructor(data?: PartialMessage<ListDocumentChangesRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.ListDocumentChangesRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 5, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDocumentChangesRequest {
+    return new ListDocumentChangesRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListDocumentChangesRequest {
+    return new ListDocumentChangesRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListDocumentChangesRequest {
+    return new ListDocumentChangesRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListDocumentChangesRequest | PlainMessage<ListDocumentChangesRequest> | undefined, b: ListDocumentChangesRequest | PlainMessage<ListDocumentChangesRequest> | undefined): boolean {
+    return proto3.util.equals(ListDocumentChangesRequest, a, b);
+  }
+}
+
+/**
+ * Response with list of document versions.
+ *
+ * @generated from message com.seed.documents.v3alpha.ListDocumentChangesResponse
+ */
+export class ListDocumentChangesResponse extends Message<ListDocumentChangesResponse> {
+  /**
+   * List of document versions.
+   *
+   * @generated from field: repeated com.seed.documents.v3alpha.DocumentChangeInfo changes = 1;
+   */
+  changes: DocumentChangeInfo[] = [];
+
+  /**
+   * Token for the next page if there're more results.
+   *
+   * @generated from field: string next_page_token = 2;
+   */
+  nextPageToken = "";
+
+  constructor(data?: PartialMessage<ListDocumentChangesResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.ListDocumentChangesResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "changes", kind: "message", T: DocumentChangeInfo, repeated: true },
+    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDocumentChangesResponse {
+    return new ListDocumentChangesResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListDocumentChangesResponse {
+    return new ListDocumentChangesResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListDocumentChangesResponse {
+    return new ListDocumentChangesResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListDocumentChangesResponse | PlainMessage<ListDocumentChangesResponse> | undefined, b: ListDocumentChangesResponse | PlainMessage<ListDocumentChangesResponse> | undefined): boolean {
+    return proto3.util.equals(ListDocumentChangesResponse, a, b);
+  }
+}
+
+/**
+ * Information about a particular document version.
+ *
+ * @generated from message com.seed.documents.v3alpha.DocumentChangeInfo
+ */
+export class DocumentChangeInfo extends Message<DocumentChangeInfo> {
+  /**
+   * CID of the change.
+   *
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * Author of the change.
+   *
+   * @generated from field: string author = 2;
+   */
+  author = "";
+
+  /**
+   * List of change IDs that this change depends on.
+   *
+   * @generated from field: repeated string deps = 3;
+   */
+  deps: string[] = [];
+
+  /**
+   * Time when the change was created (as claimed by the author).
+   *
+   * @generated from field: google.protobuf.Timestamp create_time = 4;
+   */
+  createTime?: Timestamp;
+
+  constructor(data?: PartialMessage<DocumentChangeInfo>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.DocumentChangeInfo";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "author", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "deps", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 4, name: "create_time", kind: "message", T: Timestamp },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentChangeInfo {
+    return new DocumentChangeInfo().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentChangeInfo {
+    return new DocumentChangeInfo().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentChangeInfo {
+    return new DocumentChangeInfo().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DocumentChangeInfo | PlainMessage<DocumentChangeInfo> | undefined, b: DocumentChangeInfo | PlainMessage<DocumentChangeInfo> | undefined): boolean {
+    return proto3.util.equals(DocumentChangeInfo, a, b);
+  }
+}
+
+/**
  * Basic data about a document that is returned in list responses.
  * Content is omitted for efficiency reasons.
  *

@@ -12,7 +12,6 @@ import (
 	"seed/backend/util/dqb"
 	"seed/backend/util/iterx"
 	"seed/backend/util/maybe"
-	"strconv"
 	"strings"
 	"time"
 
@@ -120,50 +119,64 @@ func (idx *Index) CanEditResource(ctx context.Context, resource IRI, author core
 	return res.ResourcesOwner == dbAuthor, nil
 }
 
-func (idx *Index) IterChanges(ctx context.Context, resource IRI, author core.Principal) (iter.Seq2[cid.Cid, *Change], *iterx.LazyError) {
-	le := iterx.NewLazyError()
+type ChangeRecord struct {
+	CID  cid.Cid
+	Data *Change
+}
 
-	it := func(yield func(cid.Cid, *Change) bool) {
+func (idx *Index) IterChanges(ctx context.Context, resource IRI, author core.Principal) (it iter.Seq2[int, ChangeRecord], check func() error) {
+	var outErr error
+
+	check = func() error { return outErr }
+	it = func(yield func(int, ChangeRecord) bool) {
 		conn, release, err := idx.db.Conn(ctx)
 		if err != nil {
-			le.Set(err)
+			outErr = err
 			return
 		}
 		defer release()
 
 		buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
 		rows, errs := sqlitex.Query(conn, qIterChanges(), resource, author, author, resource)
+		var i int
 		for row := range rows {
+			next := sqlite.NewIncrementor(0)
 			var (
-				codec = row.ColumnInt64(0)
-				hash  = row.ColumnBytesUnsafe(1)
-				data  = row.ColumnBytesUnsafe(2)
+				codec = row.ColumnInt64(next())
+				hash  = row.ColumnBytesUnsafe(next())
+				data  = row.ColumnBytesUnsafe(next())
 			)
 
 			buf, err = idx.bs.decoder.DecodeAll(data, buf)
 			if err != nil {
-				le.Add(err)
+				outErr = errors.Join(outErr, err)
 				break
 			}
 
 			chcid := cid.NewCidV1(uint64(codec), hash)
 			ch := &Change{}
 			if err := cbornode.DecodeInto(buf, ch); err != nil {
-				le.Add(fmt.Errorf("WalkChanges: failed to decode change %s for entity %s: %w", chcid, resource, err))
+				outErr = errors.Join(outErr, fmt.Errorf("WalkChanges: failed to decode change %s for entity %s: %w", chcid, resource, err))
 				break
 			}
 
-			if !yield(chcid, ch) {
+			rec := ChangeRecord{
+				CID:  chcid,
+				Data: ch,
+			}
+
+			if !yield(i, rec) {
 				break
 			}
+			i++
 
 			buf = buf[:0] // reset the slice reusing the backing array
 		}
 
-		le.Add(errs.Check())
+		outErr = errors.Join(outErr, errs.Check())
 	}
 
-	return it, le
+	return it, check
 }
 
 var qIterChanges = dqb.Str(`
@@ -358,96 +371,6 @@ var qWalkComments = dqb.Str(`
 	AND sb.resource = (SELECT id FROM resources WHERE iri = :iri)
 	ORDER BY sb.ts
 `)
-
-func (idx *Index) WalkChangesFromHeads(ctx context.Context, resource IRI, heads []cid.Cid, fn func(cid.Cid, *Change) error) error {
-	conn, release, err := idx.db.Conn(ctx)
-	if err != nil {
-		return err
-	}
-	defer release()
-
-	headsIDs := make([]int64, 0, len(heads))
-	for _, head := range heads {
-		dbres, err := dbBlobsGetSize(conn, head.Hash())
-		if err != nil {
-			return err
-		}
-		if dbres.BlobsID == 0 || dbres.BlobsSize < 0 {
-			return fmt.Errorf("missing head %s for resource %s", head, resource)
-		}
-
-		headsIDs = append(headsIDs, dbres.BlobsID)
-	}
-
-	headsJSON := headsToJSON(headsIDs)
-
-	buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
-	if err := sqlitex.Exec(conn, qWalkChangesFromHeads(), func(stmt *sqlite.Stmt) error {
-		var (
-			codec = stmt.ColumnInt64(0)
-			hash  = stmt.ColumnBytesUnsafe(1)
-			data  = stmt.ColumnBytesUnsafe(2)
-		)
-
-		buf, err = idx.bs.decoder.DecodeAll(data, buf)
-		if err != nil {
-			return err
-		}
-
-		chcid := cid.NewCidV1(uint64(codec), hash)
-		ch := &Change{}
-		if err := cbornode.DecodeInto(buf, ch); err != nil {
-			return fmt.Errorf("WalkChangesFromHeads: failed to decode change %s for entity %s: %w", chcid, resource, err)
-		}
-
-		if err := fn(chcid, ch); err != nil {
-			return err
-		}
-
-		buf = buf[:0] // reset the slice reusing the backing array
-
-		return nil
-	}, headsJSON); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-var qWalkChangesFromHeads = dqb.Str(`
-	WITH RECURSIVE
-	changes (id) AS (
-		SELECT value FROM json_each(:heads)
-
-		UNION
-
-		SELECT bl.target
-		FROM blob_links bl
-		JOIN changes c ON c.id = bl.source
-		WHERE bl.type = 'change/dep'
-	)
-	SELECT
-		codec,
-		multihash,
-		data
-	FROM blobs b
-	JOIN structural_blobs sb ON sb.id = b.id
-	JOIN changes c ON c.id = b.id
-	ORDER BY sb.ts
-`)
-
-func headsToJSON(heads []int64) string {
-	var sb strings.Builder
-	sb.WriteByte('[')
-	for i, h := range heads {
-		if i > 0 {
-			sb.WriteByte(',')
-		}
-		sb.WriteString(strconv.FormatInt(h, 10))
-	}
-	sb.WriteByte(']')
-	return sb.String()
-}
 
 type blobType string
 

@@ -3,6 +3,7 @@ package documents
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"net/url"
@@ -390,15 +391,17 @@ func (srv *Server) loadDocument(ctx context.Context, account core.Principal, pat
 	clock := hlc.NewClock()
 	entity := docmodel.NewEntityWithClock(iri, clock)
 
-	iter, errs := srv.idx.IterChanges(ctx, iri, account)
-	for c, ch := range iter {
-		if err := entity.ApplyChange(c, ch); err != nil {
-			errs.Add(err)
+	var outErr error
+	changes, check := srv.idx.IterChanges(ctx, iri, account)
+	for _, ch := range changes {
+		if err := entity.ApplyChange(ch); err != nil {
+			outErr = errors.Join(outErr, err)
 			break
 		}
 	}
-	if errs.Check() != nil {
-		return nil, errs.Check()
+	outErr = errors.Join(outErr, check())
+	if outErr != nil {
+		return nil, outErr
 	}
 
 	if !ensurePath && len(entity.Heads()) == 0 {

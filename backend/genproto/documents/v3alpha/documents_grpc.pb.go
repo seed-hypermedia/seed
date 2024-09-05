@@ -33,6 +33,8 @@ type DocumentsClient interface {
 	ListDocuments(ctx context.Context, in *ListDocumentsRequest, opts ...grpc.CallOption) (*ListDocumentsResponse, error)
 	// Lists all the root documents that we know about.
 	ListRootDocuments(ctx context.Context, in *ListRootDocumentsRequest, opts ...grpc.CallOption) (*ListRootDocumentsResponse, error)
+	// Lists all changes of a document.
+	ListDocumentChanges(ctx context.Context, in *ListDocumentChangesRequest, opts ...grpc.CallOption) (*ListDocumentChangesResponse, error)
 }
 
 type documentsClient struct {
@@ -88,6 +90,15 @@ func (c *documentsClient) ListRootDocuments(ctx context.Context, in *ListRootDoc
 	return out, nil
 }
 
+func (c *documentsClient) ListDocumentChanges(ctx context.Context, in *ListDocumentChangesRequest, opts ...grpc.CallOption) (*ListDocumentChangesResponse, error) {
+	out := new(ListDocumentChangesResponse)
+	err := c.cc.Invoke(ctx, "/com.seed.documents.v3alpha.Documents/ListDocumentChanges", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DocumentsServer is the server API for Documents service.
 // All implementations should embed UnimplementedDocumentsServer
 // for forward compatibility
@@ -102,6 +113,8 @@ type DocumentsServer interface {
 	ListDocuments(context.Context, *ListDocumentsRequest) (*ListDocumentsResponse, error)
 	// Lists all the root documents that we know about.
 	ListRootDocuments(context.Context, *ListRootDocumentsRequest) (*ListRootDocumentsResponse, error)
+	// Lists all changes of a document.
+	ListDocumentChanges(context.Context, *ListDocumentChangesRequest) (*ListDocumentChangesResponse, error)
 }
 
 // UnimplementedDocumentsServer should be embedded to have forward compatible implementations.
@@ -122,6 +135,9 @@ func (UnimplementedDocumentsServer) ListDocuments(context.Context, *ListDocument
 }
 func (UnimplementedDocumentsServer) ListRootDocuments(context.Context, *ListRootDocumentsRequest) (*ListRootDocumentsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListRootDocuments not implemented")
+}
+func (UnimplementedDocumentsServer) ListDocumentChanges(context.Context, *ListDocumentChangesRequest) (*ListDocumentChangesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListDocumentChanges not implemented")
 }
 
 // UnsafeDocumentsServer may be embedded to opt out of forward compatibility for this service.
@@ -225,6 +241,24 @@ func _Documents_ListRootDocuments_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Documents_ListDocumentChanges_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDocumentChangesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).ListDocumentChanges(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/com.seed.documents.v3alpha.Documents/ListDocumentChanges",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).ListDocumentChanges(ctx, req.(*ListDocumentChangesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Documents_ServiceDesc is the grpc.ServiceDesc for Documents service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -251,6 +285,10 @@ var Documents_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListRootDocuments",
 			Handler:    _Documents_ListRootDocuments_Handler,
+		},
+		{
+			MethodName: "ListDocumentChanges",
+			Handler:    _Documents_ListDocumentChanges_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
