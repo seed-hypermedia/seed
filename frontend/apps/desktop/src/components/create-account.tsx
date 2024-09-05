@@ -129,6 +129,7 @@ export function AccountWizardDialog() {
         } as HMDraft,
       })
       invalidate([queryKeys.LOCAL_ACCOUNT_ID_LIST])
+      invalidate([queryKeys.LIST_ROOT_DOCUMENTS])
       setCreatedAccount(renamedKey)
       setStep(existing ? 'complete' : 'name')
     } catch (error) {
@@ -180,6 +181,7 @@ export function AccountWizardDialog() {
             queryKeys.ENTITY,
             hmId('d', createdAccount!.accountId).id,
           ])
+          invalidate([queryKeys.LIST_ROOT_DOCUMENTS])
           setStep('complete')
         }
       } catch (error) {

@@ -11,6 +11,7 @@ import path from 'path'
 import {userDataPath} from './app-paths'
 import {getDaemonBinaryPath} from './daemon-path'
 import {childLogger, info} from './logger'
+
 const logger = childLogger('Go Daemon')
 
 let goDaemonExecutablePath = getDaemonBinaryPath()
@@ -71,8 +72,6 @@ export function updateGoDaemonState(state: GoDaemonState) {
 }
 
 export function startMainDaemon() {
-  logger.info('Launching daemon:', goDaemonExecutablePath, daemonArguments)
-
   const daemonProcess = spawn(goDaemonExecutablePath, daemonArguments, {
     // daemon env
     cwd: path.join(process.cwd(), '../../..'),
@@ -96,7 +95,7 @@ export function startMainDaemon() {
     }
   })
   daemonProcess.on('spawn', () => {
-    // logger.info('Spawned')
+    logger.info('DAEMON: Spawned')
   })
 
   daemonProcess.stdout.on('data', (data) => {

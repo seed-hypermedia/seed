@@ -297,6 +297,7 @@ export function usePublishDraft(
       if (documentId) {
         invalidate([queryKeys.ENTITY, documentId])
         invalidate([queryKeys.DOC_LIST_DIRECTORY, variables.id?.uid])
+        invalidate([queryKeys.LIST_ROOT_DOCUMENTS])
       }
     },
   })
