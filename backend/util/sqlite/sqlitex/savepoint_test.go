@@ -347,7 +347,7 @@ func TestInterruptRollbackLongQuery(t *testing.T) {
 		}()
 		defer Save(conn)(&err)
 		if err := Exec(conn, `INSERT INTO t (c) VALUES (3);`, nil); err != nil {
-			t.Fatalf("interrupted too early")
+			panic("interrupted too early")
 		}
 		err = ExecScript(conn, veryLongScript)
 	}()

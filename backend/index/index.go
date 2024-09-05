@@ -10,7 +10,6 @@ import (
 	"seed/backend/core"
 	"seed/backend/ipfs"
 	"seed/backend/util/dqb"
-	"seed/backend/util/iterx"
 	"seed/backend/util/maybe"
 	"strings"
 	"time"
@@ -137,7 +136,7 @@ func (idx *Index) IterChanges(ctx context.Context, resource IRI, author core.Pri
 		defer release()
 
 		buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
-		rows, errs := sqlitex.Query(conn, qIterChanges(), resource, author, author, resource)
+		rows, check := sqlitex.Query(conn, qIterChanges(), resource, author, author, resource)
 		var i int
 		for row := range rows {
 			next := sqlite.NewIncrementor(0)
@@ -173,7 +172,7 @@ func (idx *Index) IterChanges(ctx context.Context, resource IRI, author core.Pri
 			buf = buf[:0] // reset the slice reusing the backing array
 		}
 
-		outErr = errors.Join(outErr, errs.Check())
+		outErr = errors.Join(outErr, check())
 	}
 
 	return it, check
@@ -273,19 +272,20 @@ var qWalkCapabilities = dqb.Str(`
 	ORDER BY sb.ts
 `)
 
-func (idx *Index) IterComments(ctx context.Context, resource IRI) (iter.Seq2[cid.Cid, *Comment], *iterx.LazyError) {
-	le := iterx.NewLazyError()
+func (idx *Index) IterComments(ctx context.Context, resource IRI) (it iter.Seq2[cid.Cid, *Comment], check func() error) {
+	var outErr error
 
-	it := func(yield func(cid.Cid, *Comment) bool) {
+	check = func() error { return outErr }
+	it = func(yield func(cid.Cid, *Comment) bool) {
 		conn, release, err := idx.db.Conn(ctx)
 		if err != nil {
-			le.Set(err)
+			outErr = err
 			return
 		}
 		defer release()
 
 		buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
-		rows, errs := sqlitex.Query(conn, qWalkComments(), resource)
+		rows, check := sqlitex.Query(conn, qWalkComments(), resource)
 		for row := range rows {
 			var (
 				codec = row.ColumnInt64(0)
@@ -295,14 +295,14 @@ func (idx *Index) IterComments(ctx context.Context, resource IRI) (iter.Seq2[cid
 
 			buf, err = idx.bs.decoder.DecodeAll(data, buf)
 			if err != nil {
-				le.Add(err)
+				outErr = err
 				break
 			}
 
 			chcid := cid.NewCidV1(uint64(codec), hash)
 			cmt := &Comment{}
 			if err := cbornode.DecodeInto(buf, cmt); err != nil {
-				le.Add(fmt.Errorf("WalkChanges: failed to decode change %s for entity %s: %w", chcid, resource, err))
+				outErr = fmt.Errorf("WalkChanges: failed to decode change %s for entity %s: %w", chcid, resource, err)
 				break
 			}
 
@@ -313,11 +313,10 @@ func (idx *Index) IterComments(ctx context.Context, resource IRI) (iter.Seq2[cid
 			buf = buf[:0] // reset the slice reusing the backing array
 		}
 
-		le.Add(errs.Check())
+		outErr = errors.Join(outErr, check())
 	}
 
-	return it, le
-
+	return it, check
 }
 
 func (idx *Index) WalkComments(ctx context.Context, resource IRI, fn func(cid.Cid, *Comment) error) error {

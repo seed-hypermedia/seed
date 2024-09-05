@@ -2,6 +2,7 @@ package documents
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"seed/backend/api/documents/v3alpha/docmodel"
 	"seed/backend/core"
@@ -136,17 +137,19 @@ func (srv *Server) ListComments(ctx context.Context, in *documents.ListCommentsR
 	// TODO(burdiyan): implement pagination.
 	resp := &documents.ListCommentsResponse{}
 
-	comments, errs := srv.idx.IterComments(ctx, iri)
+	var outErr error
+	comments, check := srv.idx.IterComments(ctx, iri)
 	for c, cp := range comments {
 		pb, err := commentToProto(c, cp)
 		if err != nil {
-			errs.Add(err)
+			outErr = err
 			break
 		}
 		resp.Comments = append(resp.Comments, pb)
 	}
-	if errs.Check() != nil {
-		return nil, errs.Check()
+	outErr = errors.Join(outErr, check())
+	if outErr != nil {
+		return nil, outErr
 	}
 
 	return resp, nil

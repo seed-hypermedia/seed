@@ -19,11 +19,11 @@ func TestQuery(t *testing.T) {
 	want := []string{"my_table", "sqlite_autoindex_my_table_1"}
 	var got []string
 
-	rows, errs := Query(conn, "SELECT name FROM sqlite_master")
+	rows, check := Query(conn, "SELECT name FROM sqlite_master")
 	for stmt := range rows {
 		got = append(got, stmt.ColumnText(0))
 	}
-	require.NoError(t, errs.Check())
+	require.NoError(t, check())
 
 	require.Equal(t, want, got)
 }
