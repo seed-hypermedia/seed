@@ -632,15 +632,31 @@ func syncEntities(
 	if err != nil {
 		return fmt.Errorf("Could not get connection: %w", err)
 	}
-	if err = sqlitex.Exec(conn, qListBlobs(), func(stmt *sqlite.Stmt) error {
+	var iriList any
+	var iriString string
+	var i int
+	for eid, recursive := range eids {
+		iriString += eid
+		if recursive {
+			iriString += "%"
+		}
+		if i < len(eids)-1 {
+			iriString += " OR res.iri LIKE "
+		}
+		i++
+	}
+	iriList = iriString
+	localHaves := make(map[cid.Cid]struct{})
+	if err = sqlitex.Exec(conn, mttnet.QListrelatedBlobs(), func(stmt *sqlite.Stmt) error {
 		codec := stmt.ColumnInt64(0)
 		hash := stmt.ColumnBytesUnsafe(1)
 		ts := stmt.ColumnInt64(2)
 		rawCid := cid.NewCidV1(uint64(codec), hash)
+		localHaves[rawCid] = struct{}{}
 		return store.Insert(ts, rawCid.Bytes())
-	}); err != nil {
+	}, iriList); err != nil {
 		release()
-		return fmt.Errorf("Could not list blobs: %w", err)
+		return fmt.Errorf("Could not list related blobs: %w", err)
 	}
 	release()
 	if err = store.Seal(); err != nil {
@@ -706,22 +722,24 @@ func syncEntities(
 			return err
 		}
 
-		blk, err := sess.GetBlock(ctx, blobCid)
-		if err != nil {
-			log.Debug("FailedToGetWantedBlob", zap.String("cid", blobCid.String()), zap.Error(err))
-			allWants.MoveAfter(item, allWants.Back())
-			failed++
-			continue
-		}
+		if _, ok := localHaves[blobCid]; !ok {
+			blk, err := sess.GetBlock(ctx, blobCid)
+			if err != nil {
+				log.Debug("FailedToGetWantedBlob", zap.String("cid", blobCid.String()), zap.Error(err))
+				allWants.MoveAfter(item, allWants.Back())
+				failed++
+				continue
+			}
 
-		if err := idx.Put(ctx, blk); err != nil {
-			log.Debug("FailedToSaveWantedBlob", zap.String("cid", blobCid.String()), zap.Error(err))
-			allWants.MoveAfter(item, allWants.Back())
-			failed++
-			continue
+			if err := idx.Put(ctx, blk); err != nil {
+				log.Debug("FailedToSaveWantedBlob", zap.String("cid", blobCid.String()), zap.Error(err))
+				allWants.MoveAfter(item, allWants.Back())
+				failed++
+				continue
+			}
+			log.Debug("Blob synced", zap.String("blobCid", blobCid.String()))
 		}
 		failed = 0
-		log.Debug("Blob synced", zap.String("blobCid", blobCid.String()))
 		allWants.Remove(item)
 	}
 
@@ -763,11 +781,13 @@ func syncPeerRbsr(
 	}
 	defer release()
 
+	localHaves := make(map[cid.Cid]struct{})
 	if err = sqlitex.Exec(conn, qListBlobs(), func(stmt *sqlite.Stmt) error {
 		codec := stmt.ColumnInt64(0)
 		hash := stmt.ColumnBytesUnsafe(1)
 		ts := stmt.ColumnInt64(2)
 		rawCid := cid.NewCidV1(uint64(codec), hash)
+		localHaves[rawCid] = struct{}{}
 		return store.Insert(ts, rawCid.Bytes())
 	}); err != nil {
 		return fmt.Errorf("Could not list blobs: %w", err)
@@ -824,19 +844,21 @@ func syncPeerRbsr(
 		if err != nil {
 			return err
 		}
-		blk, err := sess.GetBlock(ctx, blockCid)
-		if err != nil {
-			log.Debug("FailedToGetWantedBlob", zap.String("cid", blockCid.String()), zap.Error(err))
-			allWants.MoveAfter(item, allWants.Back())
-			failed++
-			continue
-		}
+		if _, ok := localHaves[blockCid]; !ok {
+			blk, err := sess.GetBlock(ctx, blockCid)
+			if err != nil {
+				log.Debug("FailedToGetWantedBlob", zap.String("cid", blockCid.String()), zap.Error(err))
+				allWants.MoveAfter(item, allWants.Back())
+				failed++
+				continue
+			}
 
-		if err := idx.Put(ctx, blk); err != nil {
-			log.Debug("FailedToSaveWantedBlob", zap.String("cid", blockCid.String()), zap.Error(err))
-			allWants.MoveAfter(item, allWants.Back())
-			failed++
-			continue
+			if err := idx.Put(ctx, blk); err != nil {
+				log.Debug("FailedToSaveWantedBlob", zap.String("cid", blockCid.String()), zap.Error(err))
+				allWants.MoveAfter(item, allWants.Back())
+				failed++
+				continue
+			}
 		}
 		failed = 0
 		allWants.Remove(item)

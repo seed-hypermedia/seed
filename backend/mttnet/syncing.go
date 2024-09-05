@@ -31,7 +31,7 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 	var iriList any = nil
 	var iriString string
 	if len(in.Filters) != 0 {
-		query = qListrelatedBlobs
+		query = QListrelatedBlobs
 		for i, filter := range in.Filters {
 			iriString += filter.Resource
 			if filter.Recursive {
@@ -78,7 +78,7 @@ WHERE blobs.size >= 0
 ORDER BY sb.ts, blobs.multihash;
 `)
 
-var qListrelatedBlobs = dqb.Str(`
+var QListrelatedBlobs = dqb.Str(`
 SELECT
 	blobs.codec,
 	blobs.multihash,
