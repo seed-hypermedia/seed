@@ -233,70 +233,78 @@ function DocPageHeader({
               {accountName}
             </H1>
           </XStack>
-
-          <XStack gap="$3" ai="center" jc="space-between">
-            <XStack gap="$3" ai="center" f={1}>
-              {entity.data?.document?.path.length || authors?.length !== 1 ? (
-                <>
-                  <XStack ai="center" gap={0}>
-                    {authors
-                      ?.map((a, index) => [
-                        <LinkNameComponent key={a} accountId={a} />,
-                        index !== authors.length - 1 ? (
-                          index === authors.length - 2 ? (
-                            <SizableText
-                              key={`${a}-and`}
-                              size="$1"
-                              fontWeight={'bold'}
-                            >
-                              {' & '}
-                            </SizableText>
-                          ) : (
-                            <SizableText key={`${a}-comma`} fontWeight={'bold'}>
-                              {', '}
-                            </SizableText>
-                          )
-                        ) : null,
-                      ])
-                      .filter(Boolean)}
-                  </XStack>
-                  <Separator />
-                </>
-              ) : null}
-              <Tooltip
-                content={`Update time: ${formattedDateLong(
-                  entity.data?.document?.updateTime,
-                )}`}
-              >
-                <SizableText size="$1" hoverStyle={{cursor: 'default'}}>
-                  {formattedDateMedium(entity.data?.document?.updateTime)}
-                </SizableText>
-              </Tooltip>
-              {entity.data?.document?.metadata.siteUrl ? (
-                <>
-                  <Separator />
-                  <SiteURLButton
-                    siteUrl={entity.data?.document?.metadata.siteUrl}
-                  />
-                </>
-              ) : null}
-              <Separator />
-              <CopyReferenceButton
-                docId={docId}
-                isBlockFocused={isBlockFocused}
-                hoverStyle={{
-                  borderColor: '$colorTransparent',
-                  background: '$blue7',
-                }}
-                color="$blue11"
-                size="$1"
-              >
-                Share
-              </CopyReferenceButton>
+          <YStack gap="$2">
+            {entity.data?.document?.metadata.siteUrl ? (
+              <SiteURLButton
+                siteUrl={entity.data?.document?.metadata.siteUrl}
+              />
+            ) : null}
+            <XStack gap="$3" ai="center" jc="space-between">
+              <XStack gap="$3" ai="center" f={1}>
+                {entity.data?.document?.path.length || authors?.length !== 1 ? (
+                  <>
+                    <XStack ai="center" gap={0}>
+                      {authors
+                        ?.map((a, index) => [
+                          <LinkNameComponent key={a} accountId={a} />,
+                          index !== authors.length - 1 ? (
+                            index === authors.length - 2 ? (
+                              <SizableText
+                                key={`${a}-and`}
+                                size="$1"
+                                fontWeight={'bold'}
+                              >
+                                {' & '}
+                              </SizableText>
+                            ) : (
+                              <SizableText
+                                key={`${a}-comma`}
+                                fontWeight={'bold'}
+                              >
+                                {', '}
+                              </SizableText>
+                            )
+                          ) : null,
+                        ])
+                        .filter(Boolean)}
+                    </XStack>
+                    <Separator />
+                  </>
+                ) : null}
+                <Tooltip
+                  content={`Update time: ${formattedDateLong(
+                    entity.data?.document?.updateTime,
+                  )}`}
+                >
+                  <SizableText
+                    size="$1"
+                    textOverflow="ellipsis"
+                    whiteSpace="nowrap"
+                    overflow="hidden"
+                    hoverStyle={{cursor: 'default'}}
+                    color="$color9"
+                  >
+                    {formattedDateMedium(entity.data?.document?.updateTime)}
+                  </SizableText>
+                </Tooltip>
+                <Separator />
+                <CopyReferenceButton
+                  docId={docId}
+                  isBlockFocused={isBlockFocused}
+                  hoverStyle={{
+                    borderColor: '$colorTransparent',
+                    background: '$blue7',
+                  }}
+                  color="$blue11"
+                  size="$1"
+                >
+                  Share
+                </CopyReferenceButton>
+              </XStack>
+              <FavoriteButton id={docId} />
+              <SubscriptionButton id={docId} />
             </XStack>
-            <FavoriteButton id={docId} />
-            <SubscriptionButton id={docId} />
-          </XStack>
+          </YStack>
           <TSeparator borderColor="$color8" />
         </YStack>
       </Container>
@@ -362,8 +370,9 @@ function SiteURLButton({siteUrl}: {siteUrl?: string}) {
   if (!siteUrl) return null
   return (
     <ButtonText
-      color="$blue10"
-      hoverStyle={{textDecoration: 'underline'}}
+      color="$color10"
+      size="$2"
+      hoverStyle={{textDecorationLine: 'underline'}}
       onPress={() => {
         open(siteUrl)
       }}
