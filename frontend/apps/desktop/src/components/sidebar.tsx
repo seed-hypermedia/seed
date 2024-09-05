@@ -392,7 +392,6 @@ function DocumentOutlineSection({route}: {route: DocumentRoute}) {
       <SidebarItem
         indented={1}
         icon={MessageCircle}
-        active={tab === 'discussion'}
         title="Discussion"
         onPress={() => {
           replace({...route, tab: 'discussion'})
@@ -401,7 +400,6 @@ function DocumentOutlineSection({route}: {route: DocumentRoute}) {
       <SidebarItem
         indented={1}
         icon={Folder}
-        active={tab === 'directory' || !tab}
         title="Directory"
         onPress={() => {
           replace({...route, tab: 'directory'})

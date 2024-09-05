@@ -355,8 +355,6 @@ function LauncherContent({onClose}: {onClose: () => void}) {
     >
       <YStack
         bg="$backgroundStrong"
-        // boxShadow={dialogBoxShadow}
-
         zi={9999}
         padding="$2"
         borderTopLeftRadius={6}
