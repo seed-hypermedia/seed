@@ -63,11 +63,12 @@ function ChangeItem({
       h="auto"
       p="$3"
       paddingHorizontal="$1"
+      paddingRight="$3"
       borderRadius="$2"
       borderWidth={0}
       backgroundColor={isActive ? '$blue5' : '$backgroundTransparent'}
       hoverStyle={{
-        backgroundColor: '$background',
+        backgroundColor: isActive ? '$blue6' : '$color6',
         borderColor: '$borderTransparent',
       }}
       ai="flex-start"
@@ -106,12 +107,34 @@ function ChangeItem({
         metadata={authorEntity.data?.document?.metadata}
       />
       <YStack f={1}>
-        <XStack h={thumbnailSize} ai="center" gap="$2">
-          <SizableText size="$2" fontWeight={700}>
+        <XStack
+          h={thumbnailSize}
+          ai="center"
+          gap="$2"
+          overflow="hidden"
+          width="100%"
+        >
+          <SizableText
+            size="$2"
+            flexShrink={1}
+            textOverflow="ellipsis"
+            overflow="hidden"
+            whiteSpace="nowrap"
+          >
             {getAccountName(authorEntity.data?.document)}
           </SizableText>
+          <SizableText size="$2" fontWeight={700} flexShrink={0}>
+            version
+          </SizableText>
         </XStack>
-        <SizableText size="$1" color="$color9">
+        <SizableText
+          size="$1"
+          color="$color9"
+          flexShrink={1}
+          textOverflow="ellipsis"
+          overflow="hidden"
+          whiteSpace="nowrap"
+        >
           {formattedDateMedium(change.createTime)}
         </SizableText>
       </YStack>
