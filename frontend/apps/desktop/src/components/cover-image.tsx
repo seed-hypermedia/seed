@@ -7,7 +7,7 @@ import {
   Tooltip,
   XStack,
 } from '@shm/ui'
-import {X} from '@tamagui/lucide-icons'
+import {Trash} from '@tamagui/lucide-icons'
 import {ChangeEvent, useMemo} from 'react'
 import appError from '../errors'
 
@@ -104,32 +104,17 @@ export function CoverImage({
                   display: 'flex',
                   position: 'absolute',
                   left: 0,
-                  right: 0,
+                  right: -12,
                   top: 0,
                   zIndex: 12,
                   cursor: 'pointer',
                   background: 'red',
                 }}
               />
-              <Button size="$1" fontWeight="600" elevate elevation="$7">
-                {`${url ? 'CHANGE' : 'ADD'} COVER`}
-              </Button>
+              <Button size="$2">{`${url ? 'CHANGE' : 'ADD'} COVER`}</Button>
             </XStack>
             <Tooltip content="Remove Cover image">
-              <Button
-                bg="$red9"
-                color="$color1"
-                borderColor="$red9"
-                hoverStyle={{
-                  bg: '$red10',
-                  color: '$color1',
-                  borderColor: '$red10',
-                }}
-                icon={X}
-                size="$1"
-                fontWeight="600"
-                onPress={onRemoveCover}
-              />
+              <Button icon={Trash} size="$2" onPress={onRemoveCover} />
             </Tooltip>
           </XStack>
         </Container>
