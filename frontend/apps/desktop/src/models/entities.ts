@@ -163,13 +163,14 @@ export function queryEntity(
   return {
     ...options,
     enabled: options?.enabled ?? !!id,
-    queryKey: [queryKeys.ENTITY, id?.id],
+    queryKey: [queryKeys.ENTITY, id?.id, id?.version],
     queryFn: async (): Promise<HMEntityContent | null> => {
       if (!id) return null
       try {
         const document = await grpcClient.documents.getDocument({
           account: id.uid,
           path: hmIdPathToEntityQueryPath(id.path),
+          version: id.version || undefined,
         })
         return {
           id: {...id, version: document.version},
