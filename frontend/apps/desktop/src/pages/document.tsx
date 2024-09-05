@@ -424,7 +424,7 @@ function DocPageContent({
   if (!entity.data?.document) return null
   const blockId = docId.blockRef
   return (
-    <Container clearVerticalSpace padding={0}>
+    <Container clearVerticalSpace padding={0} marginBottom={100}>
       <AppDocContentProvider
         routeParams={{blockRef: blockId || undefined}}
         docId={docId}
@@ -452,7 +452,7 @@ function DocPageAppendix({docId}: {docId: UnpackedHypermediaId}) {
   }
   if (!entity.data?.document) return null
   return (
-    <Container>
+    <Container marginBottom={200}>
       <XStack>
         <RadioButtons
           value={route.tab || 'directory'}

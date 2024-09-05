@@ -137,6 +137,7 @@ export default function DraftPage() {
             />
             <Container
               paddingLeft="$10"
+              marginBottom={300}
               $gtSm={{
                 paddingLeft: '$4',
               }}
@@ -578,67 +579,75 @@ function PathDraft({
   }
 
   return (
-    <XStack ai="center" gap="$2">
+    <XStack ai="center" gap="$2" f={1} w="100%">
       <SizableText size="$1">Path:</SizableText>
-      {isEditing ? (
-        <>
-          <XStack ai="center">
-            {paths.map((p) => (
-              <SizableText size="$2">/{p}</SizableText>
-            ))}
-          </XStack>
-          <Input
-            size="$2"
-            value={path}
-            onChangeText={(t: string) => setPath(pathNameify(t))}
-          />
+      <XStack ai="center" gap="$2" f={1}>
+        {!isEditing || paths.length ? (
           <SizableText
             size="$2"
-            color="$blue9"
-            userSelect="none"
-            hoverStyle={{textDecorationLine: 'underline', cursor: 'pointer'}}
-            onPress={handleDraftChange}
+            textOverflow="ellipsis"
+            whiteSpace="nowrap"
+            overflow="hidden"
           >
-            Apply
+            {paths.map((p) => `/${p}`)}
+            {!isEditing ? `/${path || currentPath}` : ''}
           </SizableText>
-          <SizableText
-            size="$2"
-            color="$red9"
-            userSelect="none"
-            hoverStyle={{textDecorationLine: 'underline', cursor: 'pointer'}}
-            onPress={() => {
-              if (!!name && path.startsWith('_')) {
-                setPath(pathNameify(name))
-              } else {
-                setPath(currentPath || '')
-              }
-              setDirty(false)
-              setEditing(false)
-            }}
-          >
-            Cancel
-          </SizableText>
-        </>
-      ) : (
-        <>
-          <XStack ai="center">
-            {paths?.map((p) => <SizableText size="$2">/{p}</SizableText>)}
-            <SizableText size="$2">/{path || currentPath}</SizableText>
-          </XStack>
-          <SizableText
-            size="$2"
-            color="$blue9"
-            userSelect="none"
-            hoverStyle={{textDecorationLine: 'underline', cursor: 'pointer'}}
-            onPress={() => {
-              setDirty(true)
-              setEditing(true)
-            }}
-          >
-            Edit
-          </SizableText>
-        </>
-      )}
+        ) : null}
+
+        {isEditing ? (
+          <>
+            <Input
+              f={1}
+              size="$1"
+              value={path}
+              onChangeText={(t: string) => setPath(pathNameify(t))}
+            />
+            <SizableText
+              size="$2"
+              color="$blue9"
+              userSelect="none"
+              hoverStyle={{textDecorationLine: 'underline', cursor: 'pointer'}}
+              onPress={handleDraftChange}
+            >
+              Apply
+            </SizableText>
+            <SizableText
+              size="$2"
+              color="$red9"
+              userSelect="none"
+              hoverStyle={{textDecorationLine: 'underline', cursor: 'pointer'}}
+              onPress={() => {
+                if (!!name && path.startsWith('_')) {
+                  setPath(pathNameify(name))
+                } else {
+                  setPath(currentPath || '')
+                }
+                setDirty(false)
+                setEditing(false)
+              }}
+            >
+              Cancel
+            </SizableText>
+          </>
+        ) : (
+          <>
+            <SizableText
+              flexGrow={0}
+              flexShrink={0}
+              size="$2"
+              color="$blue9"
+              userSelect="none"
+              hoverStyle={{textDecorationLine: 'underline', cursor: 'pointer'}}
+              onPress={() => {
+                setDirty(true)
+                setEditing(true)
+              }}
+            >
+              Edit
+            </SizableText>
+          </>
+        )}
+      </XStack>
     </XStack>
   )
 }
