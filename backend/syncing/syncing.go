@@ -25,6 +25,7 @@ import (
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
+	"github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/boxo/exchange"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/event"
@@ -198,7 +199,7 @@ func (s *Service) Start(ctx context.Context) (err error) {
 }
 
 var qListPeers = dqb.Str(`
-	SELECT 
+	SELECT
 		addresses
 	FROM peers;
 `)
@@ -602,7 +603,7 @@ func syncEntities(
 	ctx context.Context,
 	pid peer.ID,
 	c p2p.SyncingClient,
-	idx *index.Index,
+	idx blockstore.Blockstore,
 	sess exchange.Fetcher,
 	db *sqlitex.Pool,
 	log *zap.Logger,
@@ -705,6 +706,7 @@ func syncEntities(
 		if err != nil {
 			return err
 		}
+
 		blk, err := sess.GetBlock(ctx, blobCid)
 		if err != nil {
 			log.Debug("FailedToGetWantedBlob", zap.String("cid", blobCid.String()), zap.Error(err))
@@ -909,6 +911,6 @@ var qListBlobs = dqb.Str(`
 			blobs.multihash,
 			blobs.insert_time
 		FROM blobs INDEXED BY blobs_metadata LEFT JOIN structural_blobs sb ON sb.id = blobs.id
-		WHERE blobs.size >= 0 
+		WHERE blobs.size >= 0
 		ORDER BY sb.ts, blobs.multihash;
 	`)
