@@ -157,7 +157,7 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 		return fmt.Errorf("Peer with blank addresses")
 	}
 	if initialAddrs != "" {
-		return sqlitex.Exec(conn, "INSERT OR REPLACE INTO peers (pid, addresses) VALUES (?, ?);", nil, info.ID.String(), strings.Join(addrsStr, ","))
+		return sqlitex.Exec(conn, "INSERT OR REPLACE INTO peers (pid, addresses) VALUES (?, ?);", nil, info.ID.String(), initialAddrs)
 	}
 	return nil
 }
@@ -166,15 +166,29 @@ func (n *Node) defaultConnectionCallback(_ context.Context, event event.EvtPeerC
 	n.log.Debug(event.Peer.String(), zap.String("Connectedness", event.Connectedness.String()))
 }
 
-func (n *Node) defaultIdentificationCallback(_ context.Context, event event.EvtPeerIdentificationCompleted) {
+func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.EvtPeerIdentificationCompleted) {
 	connectedness := n.Libp2p().Network().Connectedness(event.Peer)
 	n.log.Debug(event.Peer.String(), zap.String("Connectedness", connectedness.String()))
-	protocols, err := n.Libp2p().Peerstore().GetProtocols(event.Peer)
-	if err != nil {
-		n.log.Warn("Could not get protocols")
+
+	if err := n.CheckHyperMediaProtocolVersion(ctx, event.Peer, n.protocol.version); err != nil {
+		n.log.Debug("Peer connected to use and we failed to check the protocol", zap.Error(err))
 	}
-	protocolsStr := protocol.ConvertToStrings(protocols)
-	n.log.Debug(event.Peer.String(), zap.String("Protocols", strings.Join(protocolsStr, ",")))
+
+	conn, release, err := n.db.Conn(ctx)
+	if err != nil {
+		n.log.Warn("Could not get a connection", zap.Error(err))
+	}
+	defer release()
+
+	var addrsString []string
+	for _, addrs := range event.ListenAddrs {
+		addrsString = append(addrsString, strings.ReplaceAll(addrs.String(), "/p2p/"+event.Peer.String(), "")+"/p2p/"+event.Peer.String())
+	}
+	if err = sqlitex.Exec(conn, "INSERT OR REPLACE INTO peers (pid, addresses) VALUES (?, ?);", nil, event.Peer.String(), strings.ReplaceAll(strings.Join(addrsString, ","), " ", "")); err != nil {
+		n.log.Warn("Could not store new connected peer addresses ", zap.Error(err))
+	} else {
+		n.log.Debug("New peer connected to us and we saved their addresses")
+	}
 }
 
 func (n *Node) CheckHyperMediaProtocolVersion(ctx context.Context, pid peer.ID, desiredVersion string) (err error) {

@@ -192,6 +192,43 @@ func TestDaemonUpdateProfile(t *testing.T) {
 	}
 }
 
+func TestConnectivity(t *testing.T) {
+	t.Parallel()
+	aliceCfg := makeTestConfig(t)
+	aliceCfg.Syncing.NoSyncBack = true
+	aliceCfg.Syncing.SmartSyncing = true
+	aliceCfg.Syncing.Interval = time.Millisecond * 100
+	aliceCfg.Syncing.WarmupDuration = time.Millisecond * 200
+	aliceCfg.Syncing.NoPull = true
+	aliceCfg.LogLevel = "debug"
+	alice := makeTestApp(t, "alice", aliceCfg, true)
+	ctx := context.Background()
+
+	bobCfg := makeTestConfig(t)
+	bobCfg.Syncing.NoSyncBack = true
+	bobCfg.Syncing.SmartSyncing = true
+	bobCfg.Syncing.Interval = time.Millisecond * 100
+	bobCfg.Syncing.WarmupDuration = time.Millisecond * 200
+	bobCfg.Syncing.NoPull = true
+	bobCfg.LogLevel = "debug"
+	bob := makeTestApp(t, "bob", bobCfg, true)
+
+	_, err := bob.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
+		Addrs: mttnet.AddrInfoToStrings(alice.Net.AddrInfo()),
+	})
+	require.NoError(t, err)
+	time.Sleep(time.Millisecond * 200)
+	res, err := bob.RPC.Networking.ListPeers(ctx, &networking.ListPeersRequest{
+		PageSize: 10,
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Peers, 1)
+	res, err = alice.RPC.Networking.ListPeers(ctx, &networking.ListPeersRequest{
+		PageSize: 10,
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Peers, 1, "Alice should also have Bob as a peer")
+}
 func TestSyncingProfiles(t *testing.T) {
 	t.Skip("Dumb Syncing not supported")
 	t.Parallel()
