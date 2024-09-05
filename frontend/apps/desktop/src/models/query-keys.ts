@@ -39,6 +39,7 @@ export const queryKeys = {
   LIST_ROOT_DOCUMENTS: 'LIST_ROOT_DOCUMENTS', //
 
   ENTITY: 'ENTITY',
+  ENTITY_CHANGES: 'ENTITY_CHANGES',
 
   CAPABILITIES: 'CAPABILITIES', //, id.uid: string, ...id.path
 

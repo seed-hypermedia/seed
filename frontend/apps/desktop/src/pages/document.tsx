@@ -11,6 +11,7 @@ import Footer from '@/components/footer'
 import {SidebarSpacer} from '@/components/main-wrapper'
 import {SubscriptionButton} from '@/components/subscription'
 import {CopyReferenceButton} from '@/components/titlebar-common'
+import {VersionsPanel} from '@/components/versions-panel'
 import '@/editor/editor.css'
 import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
 import {useDiscoverEntity, useEntity} from '@/models/entities'
@@ -32,6 +33,7 @@ import {
   DocContent,
   H1,
   Heading,
+  HistoryIcon,
   SizableText,
   Spinner,
   Thumbnail,
@@ -76,7 +78,7 @@ export default function DocumentPage() {
       <EntityCitationsAccessory entityId={docId} onClose={handleClose} />
     )
   } else if (accessoryKey === 'versions') {
-    accessory = <AccessoryContainer title="Versions" onClose={handleClose} />
+    accessory = <VersionsPanel route={route} onClose={handleClose} />
   } else if (accessoryKey === 'collaborators') {
     accessory = <CollaboratorsPanel route={route} onClose={handleClose} />
   } else if (accessoryKey === 'suggested-changes') {
@@ -95,11 +97,11 @@ export default function DocumentPage() {
 
   const accessoryOptions: DocAccessoryOption[] = []
 
-  // accessoryOptions.push({
-  //   key: 'versions',
-  //   label: 'Version History',
-  //   icon: HistoryIcon,
-  // })
+  accessoryOptions.push({
+    key: 'versions',
+    label: 'Version History',
+    icon: HistoryIcon,
+  })
   if (docId.type === 'd') {
     accessoryOptions.push({
       key: 'collaborators',
