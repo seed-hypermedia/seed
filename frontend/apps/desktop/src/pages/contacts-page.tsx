@@ -130,7 +130,7 @@ function ContactListItem({entry}: {entry: PlainMessage<DocumentListItem>}) {
     >
       <XStack gap="$2" ai="center" f={1} paddingVertical="$2">
         <YStack f={1} gap="$1.5">
-          <XStack ai="center" gap="$2" paddingLeft={4}>
+          <XStack ai="center" gap="$2">
             <SizableText
               fontWeight="bold"
               textOverflow="ellipsis"
