@@ -42,7 +42,7 @@ const daemonArguments = [
   `SENTRY_DSN=${__SENTRY_DSN__}`,
 ]
 
-console.log(`== ~ daemonArguments:`, daemonArguments)
+logger.info(`== ~ daemonArguments:`, daemonArguments)
 
 type ReadyState = {t: 'ready'}
 type ErrorState = {t: 'error'; message: string}
@@ -84,8 +84,7 @@ export function startMainDaemon() {
   })
   let expectingDaemonClose = false
   daemonProcess.on('error', (err) => {
-    logger.error('Error:', err)
-    console.log('ERROR', err)
+    logger.error('ERROR: onError', err)
   })
   daemonProcess.on('close', (code, signal) => {
     if (!expectingDaemonClose) {

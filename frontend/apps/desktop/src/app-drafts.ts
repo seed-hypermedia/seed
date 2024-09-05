@@ -4,6 +4,7 @@ import {join} from 'path'
 import z from 'zod'
 import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
+import {error, info} from './logger'
 
 const draftsDir = join(userDataPath, 'drafts')
 
@@ -19,10 +20,10 @@ async function initDrafts() {
 
 initDrafts()
   .then(() => {
-    console.log('[MAIN]: drafts ready')
+    info('[MAIN]: drafts ready')
   })
   .catch((e) => {
-    console.error('[MAIN]: error preparing drafts', e)
+    error('[MAIN]: error preparing drafts', e)
   })
 
 function inputIdToDraftFile(id: string) {
@@ -49,9 +50,7 @@ export const draftsApi = t.router({
 
       return draft as HMDraft
     } catch (e) {
-      console.log(
-        `[DRAFT]: Error when getting draft ${input}: ${JSON.stringify(e)}`,
-      )
+      error(`[DRAFT]: Error when getting draft ${input}: ${JSON.stringify(e)}`)
       return null
     }
   }),

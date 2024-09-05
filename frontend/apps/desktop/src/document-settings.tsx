@@ -1,5 +1,6 @@
 import {SizableText, XStack, YStack} from '@shm/ui'
 import {useEffect, useState} from 'react'
+import {info} from './logger'
 import {useEntityTimeline} from './models/changes'
 import {useNavRoute} from './utils/navigation'
 
@@ -10,19 +11,18 @@ export function DocumentSettings({open = true}: {open: boolean}) {
 
   const [sourceIndex, setSourceIndex] = useState<number[]>([])
   const [targetIndex, setTargetIndex] = useState<number[]>([])
-  console.log('INDEXES', {sourceIndex, targetIndex})
   useEffect(() => {
     if (timeline.data?.changesByTime.length) {
       let sv = route.sourceVersion.split('.').map((v) => {
-        console.log('VAL', v)
+        info('VAL', v)
         return timeline.data?.changesByTime.findIndex((av) => av == v)
       })
       let tv = route.targetVersion.split('.').map((v) => {
-        console.log('VAL', v)
+        info('VAL', v)
         return timeline.data?.changesByTime.findIndex((av) => av == v)
       })
 
-      console.log('data', sv, tv)
+      info('data', sv, tv)
       setSourceIndex(sv)
       setTargetIndex(tv)
     }

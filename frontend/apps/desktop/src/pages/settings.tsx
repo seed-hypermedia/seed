@@ -31,6 +31,7 @@ import {
   getAccountName,
   getFileUrl,
   hmId,
+  IS_PROD_DESKTOP,
   LightningWallet,
   VERSION,
 } from '@shm/shared'
@@ -866,6 +867,8 @@ function DeviceItem({id}: {id: string}) {
 
 function AppSettings() {
   const ipc = useIPC()
+  console.log('============================== IS_PROD_DESKTOP', IS_PROD_DESKTOP)
+  console.log('============================== IS_DEV_DESKTOP', IS_DEV_DESKTOP)
   const versions = useMemo(() => ipc.versions(), [ipc])
   const appInfo = trpc.getAppInfo.useQuery().data
   const {value: autoUpdate, setAutoUpdate} = useAutoUpdatePreference()

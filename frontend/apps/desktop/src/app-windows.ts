@@ -356,7 +356,6 @@ export function createAppWindow(input: {
   })
 
   browserWindow.webContents.on('found-in-page', (event, result) => {
-    console.log('=== FOUND IN PAGE ===', result)
     // if (result.finalUpdate) {
     //   browserWindow.webContents.stopFindInPage('clearSelection')
     // }
