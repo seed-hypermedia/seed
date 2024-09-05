@@ -270,6 +270,8 @@ function PathButton({
       alignSelf="flex-start"
       ai="center"
       gap="$2"
+      w="100%"
+      overflow="hidden"
       onPress={(e: MouseEvent) => {
         e.stopPropagation()
         e.preventDefault()
