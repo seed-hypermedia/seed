@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 	"seed/backend/config"
-	"seed/backend/core"
 	activity_proto "seed/backend/genproto/activity/v1alpha"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/ipfs"
@@ -845,65 +844,6 @@ func syncPeerRbsr(
 
 	return nil
 }
-
-// GetCursor from the last sync with the given peer.
-func GetCursor[T *sqlite.Conn | *sqlitex.Pool](ctx context.Context, db T, peer core.Principal) (cursor string, err error) {
-	var conn *sqlite.Conn
-	switch v := any(db).(type) {
-	case *sqlite.Conn:
-		conn = v
-	case *sqlitex.Pool:
-		c, release, err := v.Conn(ctx)
-		if err != nil {
-			return "", err
-		}
-		defer release()
-		conn = c
-	}
-
-	err = sqlitex.Exec(conn, qGetCursor(), func(stmt *sqlite.Stmt) error {
-		cursor = stmt.ColumnText(0)
-		return nil
-	}, peer)
-	return cursor, err
-}
-
-var qGetCursor = dqb.Str(`
-	SELECT cursor
-	FROM syncing_cursors
-	WHERE peer = (
-		SELECT id
-		FROM public_keys
-		WHERE principal = ?
-	)
-	LIMIT 1;
-`)
-
-// SaveCursor for the given peer.
-func SaveCursor[T *sqlite.Conn | *sqlitex.Pool](ctx context.Context, db T, peer core.Principal, cursor string) error {
-	var conn *sqlite.Conn
-	switch v := any(db).(type) {
-	case *sqlite.Conn:
-		conn = v
-	case *sqlitex.Pool:
-		c, release, err := v.Conn(ctx)
-		if err != nil {
-			return err
-		}
-		defer release()
-		conn = c
-	}
-
-	return sqlitex.Exec(conn, qSaveCursor(), nil, peer, cursor)
-}
-
-var qSaveCursor = dqb.Str(`
-	INSERT OR REPLACE INTO syncing_cursors (peer, cursor)
-	VALUES (
-		(SELECT id FROM public_keys WHERE principal = :peer),
-		:cursor
-	);
-`)
 
 var qListBlobs = dqb.Str(`
 		SELECT
