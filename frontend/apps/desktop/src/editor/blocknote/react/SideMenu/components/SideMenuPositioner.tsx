@@ -5,6 +5,7 @@ import {
   DefaultBlockSchema,
   SideMenuProsemirrorPlugin,
 } from '@/editor/blocknote/core'
+import {getGroupInfoFromPos} from '@/editor/blocknote/core/extensions/Blocks/helpers/getGroupInfoFromPos'
 import {scrollEvents} from '@/editor/editor-on-scroll-stream'
 import Tippy from '@tippyjs/react'
 import {FC, useEffect, useMemo, useRef, useState} from 'react'
@@ -105,6 +106,26 @@ export const SideMenuPositioner = <
     }
   }, [referencePos.current])
 
+  // Add right offset if the node is inside a list or blockquote
+  let rightOffset = useMemo(() => {
+    if (block && referencePos.current) {
+      let offset = 16
+      const ttEditor = props.editor._tiptapEditor
+      const {view} = ttEditor
+      const {state} = view
+      state.doc.descendants((node, pos) => {
+        if (node.attrs.id === block.id) {
+          const {group} = getGroupInfoFromPos(pos, state)
+          const listLevel = parseInt(group.attrs.listLevel)
+          if (group.attrs.listType !== 'div') offset = offset * (listLevel + 1)
+          return
+        }
+      })
+      return offset
+    }
+    return 8
+  }, [referencePos.current])
+
   return (
     <Tippy
       appendTo={props.editor.domElement.parentElement!}
@@ -113,7 +134,7 @@ export const SideMenuPositioner = <
       interactive={true}
       visible={show}
       animation={'fade'}
-      offset={[topOffset, 8]}
+      offset={[topOffset, rightOffset]}
       placement={props.placement}
       popperOptions={popperOptions}
     />

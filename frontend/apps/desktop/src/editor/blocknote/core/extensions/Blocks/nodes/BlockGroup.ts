@@ -47,6 +47,15 @@ export const BlockGroup = Node.create<{
 
   addInputRules() {
     return [
+      new InputRule({
+        find: new RegExp(`^>\\s$`),
+        handler: ({state, chain, range}) => {
+          chain()
+            .UpdateGroup(state.selection.from, 'blockquote', false)
+            // Removes the ">" character used to set the list.
+            .deleteRange({from: range.from, to: range.to})
+        },
+      }),
       // Creates an unordered list when starting with "-", "+", or "*".
       new InputRule({
         find: new RegExp(`^[-+*]\\s$`),
@@ -58,7 +67,6 @@ export const BlockGroup = Node.create<{
         },
       }),
       new InputRule({
-        // ^\d+\.\s
         find: new RegExp(/^\d+\.\s/),
         handler: ({state, chain, range}) => {
           chain()
@@ -99,6 +107,19 @@ export const BlockGroup = Node.create<{
           return {
             listType: 'ol',
             start: element.getAttribute('start'),
+          }
+        },
+        priority: 200,
+      },
+      {
+        tag: 'blockquote',
+        attrs: {listType: 'blockquote'},
+        getAttrs: (element) => {
+          if (typeof element === 'string') {
+            return false
+          }
+          return {
+            listType: 'blockquote',
           }
         },
         priority: 200,

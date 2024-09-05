@@ -60,6 +60,13 @@ ol[data-list-type="ol"] div[data-list-type="div"] .blocknode-content {
   list-style-position: outside;
 }
 
+.blocknode-list[data-list-type='blockquote'] {
+  border-left: 3px solid var(--color8);
+  padding-left: 15px;
+  margin: 1em 0;
+  /* font-style: italic; */
+}
+
 .blocknode-list[data-list-level="2"] {
   list-style-type: circle;
   list-style-position: outside;
