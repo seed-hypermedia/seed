@@ -32,7 +32,6 @@ import {
   Search,
   SizableText,
   Spinner,
-  Theme,
   XStack,
   YStack,
   toast,
@@ -293,25 +292,29 @@ function LauncherContent({onClose}: {onClose: () => void}) {
     }
   }, [])
   let content = (
-    <ScrollView minHeight={300}>
-      <YStack
-        gap="$2"
-        paddingVertical="$3"
-        paddingHorizontal="$3"
-        backgroundColor={'$backgroundStrong'}
-        borderTopStartRadius={0}
-        borderTopEndRadius={0}
-        borderBottomLeftRadius={6}
-        borderBottomRightRadius={6}
-        borderColor="$color7"
-        borderWidth={1}
-        borderTopColor="$colorTransparent"
-      >
+    <YStack
+      backgroundColor={'$backgroundStrong'}
+      borderTopStartRadius={0}
+      borderTopEndRadius={0}
+      borderBottomLeftRadius={6}
+      borderBottomRightRadius={6}
+      borderColor="$color7"
+      borderWidth={1}
+      borderTopColor="$colorTransparent"
+      height={300}
+      maxHeight={600}
+      overflow="hidden"
+      elevation="$4"
+    >
+      <ScrollView minHeight={300} paddingHorizontal="$3">
         {isDisplayingRecents ? (
-          <SizableText color="$color10" marginHorizontal="$4">
-            Recent Resources
-          </SizableText>
+          <XStack padding={9}>
+            <SizableText fontSize={10} color="$color10">
+              RECENT DOCUMENTS
+            </SizableText>
+          </XStack>
         ) : null}
+
         {activeItems?.map((item, itemIndex) => {
           return (
             <LauncherItem
@@ -327,8 +330,8 @@ function LauncherContent({onClose}: {onClose: () => void}) {
             />
           )
         })}
-      </YStack>
-    </ScrollView>
+      </ScrollView>
+    </YStack>
   )
 
   if (actionPromise) {
@@ -339,68 +342,82 @@ function LauncherContent({onClose}: {onClose: () => void}) {
     )
   }
   return (
-    <Theme>
+    <YStack
+      className="no-window-drag"
+      height="80%"
+      position="absolute"
+      top={0}
+      left={0}
+      zi={9999}
+      width="100%"
+      maxWidth={800}
+      bg="$backgroundStrong"
+    >
       <YStack
-        className="no-window-drag"
-        height="80%"
-        position="absolute"
-        top={0}
-        left={0}
-        zi={9999}
         bg="$backgroundStrong"
-      >
-        <YStack
-          bg="$backgroundStrong"
-          // boxShadow={dialogBoxShadow}
-          zi={9999}
-          padding="$2"
-          borderTopLeftRadius={6}
-          borderTopRightRadius={6}
-          borderColor="$color7"
-          borderWidth={1}
-          borderBottomColor="$colorTransparent"
-          // elevation="$4"
-        >
-          <XStack ai="center" gap="$2">
-            <Search size={16} />
-            <Input
-              zi={9999}
-              minWidth={240}
-              autoFocus
-              size="$2"
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Open Hypermedia Document..."
-              disabled={!!actionPromise}
-              onKeyPress={(e: any) => {
-                if (e.nativeEvent.key === 'Escape') {
-                  onClose()
-                }
-                if (e.nativeEvent.key === 'Enter') {
-                  const item = activeItems[focusedIndex]
-                  if (item) {
-                    item.onSelect()
-                  }
-                }
-                if (e.nativeEvent.key === 'ArrowDown') {
-                  e.preventDefault()
-                  setFocusedIndex((prev) => (prev + 1) % activeItems.length)
-                }
-                if (e.nativeEvent.key === 'ArrowUp') {
-                  e.preventDefault()
-                  setFocusedIndex(
-                    (prev) =>
-                      (prev - 1 + activeItems.length) % activeItems.length,
-                  )
-                }
-              }}
-            />
-          </XStack>
-        </YStack>
+        // boxShadow={dialogBoxShadow}
 
-        {content}
+        zi={9999}
+        padding="$2"
+        borderTopLeftRadius={6}
+        borderTopRightRadius={6}
+        borderColor="$color7"
+        borderWidth={1}
+        borderBottomColor="$colorTransparent"
+        // elevation="$4"
+      >
+        <XStack
+          ai="center"
+          gap="$2"
+          borderWidth={1}
+          // ai="center"
+          borderColor="$color5"
+          borderRadius="$2"
+          paddingHorizontal="$2"
+          animation="fast"
+        >
+          <Search size={16} />
+          <Input
+            borderWidth={0}
+            outline="none"
+            unstyled
+            zi={9999}
+            minWidth={240}
+            w="100%"
+            autoFocus
+            size="$2"
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Open Hypermedia Document..."
+            disabled={!!actionPromise}
+            onKeyPress={(e: any) => {
+              if (e.nativeEvent.key === 'Escape') {
+                onClose()
+              }
+              if (e.nativeEvent.key === 'Enter') {
+                const item = activeItems[focusedIndex]
+                if (item) {
+                  item.onSelect()
+                }
+              }
+              if (e.nativeEvent.key === 'ArrowDown') {
+                e.preventDefault()
+                setFocusedIndex((prev) => (prev + 1) % activeItems.length)
+              }
+              if (e.nativeEvent.key === 'ArrowUp') {
+                e.preventDefault()
+                setFocusedIndex(
+                  (prev) =>
+                    (prev - 1 + activeItems.length) % activeItems.length,
+                )
+              }
+            }}
+          />
+        </XStack>
       </YStack>
-    </Theme>
+
+      {content}
+    </YStack>
   )
 }
 
@@ -418,18 +435,19 @@ export function LauncherItem({item, selected = false, onFocus, onMouseEnter}) {
       ref={elm}
       key={item.key}
       onPress={item.onSelect}
-      backgroundColor={selected ? '$blue4' : undefined}
+      backgroundColor={selected ? '$blue4' : '$backgroundTransparent'}
+      borderColor={selected ? '$blue4' : '$colorTransparent'}
+      h="auto"
       hoverStyle={{
         backgroundColor: selected ? '$blue4' : undefined,
+        borderColor: selected ? '$blue4' : '$colorTransparent',
       }}
       size="$2"
       onFocus={onFocus}
       onMouseEnter={onMouseEnter}
     >
-      <XStack f={1} justifyContent="space-between">
+      <XStack f={1} justifyContent="space-between" paddingVertical="$2">
         <SizableText numberOfLines={1}>{item.title}</SizableText>
-
-        <SizableText color="$color10">{item.subtitle}</SizableText>
       </XStack>
     </Button>
   )
