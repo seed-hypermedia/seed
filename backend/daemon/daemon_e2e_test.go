@@ -623,11 +623,20 @@ func TestSubscriptions(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, res.Subscriptions, 0)
 
+	// we have 2 subscriptions to force the multiple subscriptions error
+	_, err = bob.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
+		Account:   doc3.Account,
+		Path:      "/non/existing/path",
+		Recursive: false,
+	})
+	require.NoError(t, err)
+	time.Sleep(time.Millisecond * 100)
 	_, err = bob.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
 		Account:   doc3.Account,
 		Path:      "/cars",
 		Recursive: true,
 	})
+	bob.log.Debug("Just subscribed")
 	require.NoError(t, err)
 	time.Sleep(time.Millisecond * 100)
 
