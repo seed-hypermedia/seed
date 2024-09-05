@@ -52,19 +52,19 @@ export function createAppMenu() {
     new MenuItem({
       role: 'fileMenu',
       submenu: [
-        {
-          label: 'New Document',
-          accelerator: 'CmdOrCtrl+n',
-          click: () => {
-            trpc.createAppWindow({
-              routes: [{key: 'draft'}],
-              sidebarLocked: false,
-            })
-          },
-        },
+        // {
+        //   label: 'New Document',
+        //   accelerator: 'CmdOrCtrl+n',
+        //   click: () => {
+        //     trpc.createAppWindow({
+        //       routes: [defaultRoute],
+        //       sidebarLocked: false,
+        //     })
+        //   },
+        // },
         {
           label: 'New Window',
-          accelerator: 'CmdOrCtrl+Shift+n',
+          accelerator: 'CmdOrCtrl+n',
           click: () => {
             trpc.createAppWindow({routes: [defaultRoute]})
           },
