@@ -81,8 +81,8 @@ export function AccessoryLayout<
         <Panel
           hidden={accessoryKey === undefined}
           maxSize={50}
-          minSize={20}
-          defaultSize={20}
+          minSize={25}
+          defaultSize={25}
           style={{
             overflowY: 'scroll',
             borderRight:
