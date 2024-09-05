@@ -85,8 +85,6 @@ export function AccountWizardDialog() {
     if (accounts.data?.length == 0) {
       setAccountType('author')
       setStep('create')
-    } else {
-      setStep('type')
     }
   }, [accounts.data])
 
