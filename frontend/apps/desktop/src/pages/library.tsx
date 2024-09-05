@@ -290,17 +290,25 @@ function LibraryQueryBar({
           }))
         }}
       />
-      <Button
-        position="absolute"
-        right="$2"
-        top="$1"
-        size="$2"
-        onPress={handleExportButtonClick}
-        icon={FileOutput}
-        bc="$purple5"
-      >
-        Export
-      </Button>
+      <XStack position="absolute" right="$2" top="$1" gap="$2">
+        <Button
+          size="$2"
+          onPress={handleExportButtonClick}
+          icon={FileOutput}
+          bg="$blue5"
+          hoverStyle={{
+            bg: '$blue6',
+            borderColor: '$blue6',
+          }}
+        >
+          Export
+        </Button>
+        {exportMode ? (
+          <Button size="$2" onPress={handleExportButtonClick} iconAfter={X}>
+            Cancel
+          </Button>
+        ) : null}
+      </XStack>
     </XStack>
   )
 }
