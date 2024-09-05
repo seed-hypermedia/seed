@@ -11,6 +11,7 @@ import {
   Subscribe,
   SubscribeSpace,
   Text,
+  Tooltip,
   usePopoverState,
   useTheme,
   XStack,
@@ -31,23 +32,33 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
   return (
     <>
       <Popover {...popoverState} placement="bottom-end">
-        <Popover.Trigger asChild>
-          <Button
-            size="$2"
-            theme="blue"
-            backgroundColor="$blue5"
-            iconAfter={ChevronDown}
-            icon={
-              subscription.subscription == 'space' ? (
-                <SubscribeSpace size={20} color={theme.blue10.val} />
-              ) : subscription.subscription == 'document' ? (
-                <Subscribe size={20} color={theme.blue10.val} />
-              ) : undefined
-            }
-          >
-            {subscription.subscription == 'none' ? 'Subscribe' : 'Subscribed'}
-          </Button>
-        </Popover.Trigger>
+        <Tooltip
+          content={
+            subscription.subscription != 'none'
+              ? `Subscribe to ${
+                  subscription.subscription == 'space' ? 'Space' : 'Document'
+                }`
+              : ''
+          }
+        >
+          <Popover.Trigger asChild>
+            <Button
+              size="$2"
+              theme="blue"
+              backgroundColor="$blue5"
+              iconAfter={ChevronDown}
+              icon={
+                subscription.subscription == 'space' ? (
+                  <SubscribeSpace size={20} color={theme.blue10.val} />
+                ) : subscription.subscription == 'document' ? (
+                  <Subscribe size={20} color={theme.blue10.val} />
+                ) : undefined
+              }
+            >
+              {subscription.subscription == 'none' ? 'Subscribe' : 'Subscribed'}
+            </Button>
+          </Popover.Trigger>
+        </Tooltip>
         <Popover.Content
           padding={0}
           elevation="$2"

@@ -13,9 +13,10 @@ export function Tooltip({
   placement?: TooltipProps["placement"];
   delay?: number;
 }) {
-  return (
+  return content ? (
     <TTooltip placement={placement} delay={delay}>
       <TTooltip.Trigger asChild>{children}</TTooltip.Trigger>
+
       <Theme inverse>
         <TTooltip.Content
           maxWidth="350px"
@@ -49,5 +50,7 @@ export function Tooltip({
         </TTooltip.Content>
       </Theme>
     </TTooltip>
+  ) : (
+    children
   );
 }
