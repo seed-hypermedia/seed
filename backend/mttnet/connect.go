@@ -119,6 +119,9 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	// 	return nil
 	// }
 	addrsStr := AddrInfoToStrings(info)
+	if len(addrsStr) == 0 {
+		return fmt.Errorf("Peer with no addresses")
+	}
 	c, err := n.client.Dial(ctx, info.ID)
 	if err != nil {
 		return fmt.Errorf("Could not get p2p client: %w", err)
@@ -132,20 +135,31 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 		return err
 	}
 	defer release()
+	initialAddrs := strings.ReplaceAll(strings.Join(addrsStr, ","), " ", "")
 	if len(res.Peers) > 0 {
-		vals := []interface{}{info.ID.String(), strings.Join(addrsStr, ",")}
-		sqlStr := "INSERT OR REPLACE INTO peers (pid, addresses) VALUES (?, ?),"
+		vals := []interface{}{}
+		sqlStr := "INSERT OR REPLACE INTO peers (pid, addresses) VALUES "
+		if initialAddrs != "" {
+			sqlStr += "(?, ?),"
+			vals = append(vals, info.ID.String(), initialAddrs)
+		}
+
 		for _, peer := range res.Peers {
 			if len(peer.Addrs) > 0 {
 				sqlStr += "(?, ?),"
 				vals = append(vals, peer.Id, strings.Join(peer.Addrs, ","))
 			}
 		}
-		sqlStr = sqlStr[0 : len(sqlStr)-1]
-
-		return sqlitex.Exec(conn, sqlStr, nil, vals...)
+		if len(vals) != 0 {
+			sqlStr = sqlStr[0 : len(sqlStr)-1]
+			return sqlitex.Exec(conn, sqlStr, nil, vals...)
+		}
+		return fmt.Errorf("Peer with blank addresses")
 	}
-	return sqlitex.Exec(conn, "INSERT OR REPLACE INTO peers (pid, addresses) VALUES (?, ?);", nil, info.ID.String(), strings.Join(addrsStr, ","))
+	if initialAddrs != "" {
+		return sqlitex.Exec(conn, "INSERT OR REPLACE INTO peers (pid, addresses) VALUES (?, ?);", nil, info.ID.String(), strings.Join(addrsStr, ","))
+	}
+	return nil
 }
 
 func (n *Node) defaultConnectionCallback(_ context.Context, event event.EvtPeerConnectednessChanged) {
