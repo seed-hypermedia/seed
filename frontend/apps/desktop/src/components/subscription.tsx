@@ -4,20 +4,25 @@ import {getDocumentTitle, UnpackedHypermediaId} from '@shm/shared'
 import {
   AlertDialog,
   Button,
+  Check,
   ChevronDown,
   ColorTokens,
-  File,
   Popover,
+  Subscribe,
+  SubscribeSpace,
   Text,
   usePopoverState,
+  useTheme,
   XStack,
   YStack,
 } from '@shm/ui'
-import {Check, CircleOff, Folder} from '@tamagui/lucide-icons'
+import {CircleOff, Folder} from '@tamagui/lucide-icons'
 import {useAppDialog} from './dialog'
 
 export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
+  const theme = useTheme()
   const subscription = useSubscription(id)
+
   const popoverState = usePopoverState()
   const unsubscribeParent = useAppDialog(UnsubscribeParentDialog, {
     isAlert: true,
@@ -32,8 +37,15 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
             theme="blue"
             backgroundColor="$blue5"
             iconAfter={ChevronDown}
+            icon={
+              subscription.subscription == 'space' ? (
+                <SubscribeSpace size={20} color={theme.blue10.val} />
+              ) : subscription.subscription == 'document' ? (
+                <Subscribe size={20} color={theme.blue10.val} />
+              ) : undefined
+            }
           >
-            {subscription.subscription === 'none' ? 'Subscribe' : 'Subscribed'}
+            {subscription.subscription == 'none' ? 'Subscribe' : 'Subscribed'}
           </Button>
         </Popover.Trigger>
         <Popover.Content
@@ -51,16 +63,16 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
           exitStyle={{y: -10, opacity: 0}}
           elevate={true}
         >
-          <YStack gap="$2" padding="$2">
+          <YStack maxWidth={300} overflow="hidden" borderRadius="$4">
             {subscription.parentSubscription ? (
               <ParentSubscription sub={subscription.parentSubscription} />
             ) : (
               <>
                 <SubscriptionOptionButton
-                  Icon={Folder}
-                  active={subscription.subscription === 'space'}
+                  Icon={SubscribeSpace}
+                  active={subscription.subscription == 'space'}
                   title={`${
-                    subscription.subscription === 'space'
+                    subscription.subscription == 'space'
                       ? 'Subscribed'
                       : 'Subscribe'
                   } to Space`}
@@ -71,10 +83,10 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
                   }}
                 />
                 <SubscriptionOptionButton
-                  Icon={File}
-                  active={subscription.subscription === 'document'}
+                  Icon={Subscribe}
+                  active={subscription.subscription == 'document'}
                   title={`${
-                    subscription.subscription === 'document'
+                    subscription.subscription == 'document'
                       ? 'Subscribed'
                       : 'Subscribe'
                   } to Document`}
@@ -86,9 +98,9 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
                 />
               </>
             )}
-            {subscription.subscription !== 'none' ? (
+            {subscription.subscription != 'none' ? (
               <SubscriptionOptionButton
-                color={'$red9'}
+                color={theme.red9.val}
                 Icon={CircleOff}
                 title="Unsubscribe"
                 onPress={() => {
@@ -180,50 +192,54 @@ function SubscriptionOptionButton({
   onPress,
   color,
 }: {
-  Icon: React.FC<{color?: ColorTokens}>
+  Icon: React.FC<{size?: number; color?: ColorTokens | string}>
   title: string
   description?: string
   active?: boolean
   onPress?: () => void
-  color?: ColorTokens
+  color?: ColorTokens | string
 }) {
+  const theme = useTheme()
   let icon = null
   if (active) {
-    icon = <Check color="$blue10" />
+    icon = <Check size={20} color={theme.blue10.val} />
   } else if (Icon) {
-    icon = <Icon color={color} />
+    icon = <Icon size={20} color={theme.color.val} />
   }
   return (
     <Button
-      height="$7"
+      height="auto"
       onPress={onPress}
       disabled={active}
       cursor={active ? 'default' : 'pointer'}
-      pressStyle={
-        active
-          ? {
-              backgroundColor: '$colorTransparent',
-              borderColor: '$colorTransparent',
-            }
-          : {}
-      }
-      hoverStyle={active ? {borderColor: '$colorTransparent'} : {}}
+      borderRadius={0}
+      pressStyle={{
+        backgroundColor: '$colorTransparent',
+        borderColor: '$colorTransparent',
+      }}
+      hoverStyle={{
+        backgroundColor: '$backgroundFocus',
+        borderColor: '$colorTransparent',
+        outlineColor: '$colorTransparent',
+      }}
+      padding="$3"
     >
-      <XStack gap="$4" f={1} ai="center">
-        {icon}
-        <YStack gap="$2" f={1}>
-          <Text
-            fontWeight="bold"
-            fontSize="$3"
-            color={active ? '$blue10' : color}
-          >
-            {title}
-          </Text>
-          {description ? (
-            <Text fontSize="$3" color="$color9">
-              {description}
+      <XStack gap="$3" f={1} ai="flex-start">
+        <XStack flexShrink={0} flexGrow={0}>
+          {icon}
+        </XStack>
+        <YStack f={1} gap="$1.5">
+          <XStack f={1} height={20} ai="center">
+            <Text
+              fontWeight="bold"
+              fontSize={14}
+              color={active ? theme.blue10 : color}
+            >
+              {title}
             </Text>
-          ) : null}
+          </XStack>
+
+          {description ? <Text fontSize={12}>{description}</Text> : null}
         </YStack>
       </XStack>
     </Button>

@@ -10,7 +10,6 @@ export {
   Quote as BlockQuote,
   Book,
   Camera,
-  Check,
   ChevronDown,
   ChevronUp,
   ChevronsDownUp,
@@ -21,7 +20,6 @@ export {
   Code,
   Code2 as CodeBlock,
   MessageCircle as Comment,
-  Contact,
   Copy,
   Delete,
   BookOpen as Documentation,
@@ -326,9 +324,244 @@ export function ReplyArrow({
       {...props}
     >
       <path
-        fill="currentColor"
+        fill={color}
         fillRule="evenodd"
         d="m4.766 12.794-.425-.425-.424.425.424.424.425-.424Zm3.271-7.798a.6.6 0 0 0 0 1.2v-1.2Zm-.424 4.102-3.272 3.271.849.849 3.272-3.272-.849-.848Zm-3.272 4.12 3.272 3.272.849-.849L5.19 12.37l-.849.849Zm.425.176h6.87v-1.2h-6.87v1.2Zm6.87-8.398H8.037v1.2h3.6v-1.2Zm4.2 4.199a4.199 4.199 0 0 0-4.2-4.2v1.2a2.999 2.999 0 0 1 3 3h1.2Zm-4.2 4.199a4.199 4.199 0 0 0 4.2-4.2h-1.2a2.999 2.999 0 0 1-3 3v1.2Z"
+      />
+    </svg>
+  );
+}
+
+export function Check({
+  color = DefaultIconColor,
+  size = "1em",
+  ...props
+}: {
+  color?: string;
+  size?: string | number;
+}) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 20 20"
+      width={size}
+      height={size}
+      fill="none"
+      {...props}
+    >
+      <path
+        stroke={color}
+        strokeLinecap="round"
+        strokeWidth={1.2}
+        d="m16.03 5.682-5.855 7.217c-.538.664-.808.995-1.175 1.016-.367.022-.672-.277-1.284-.873l-2.603-2.54"
+      />
+    </svg>
+  );
+}
+
+export function Contact({
+  color = DefaultIconColor,
+  size = "1em",
+  ...props
+}: {
+  color?: string;
+  size?: string | number;
+}) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 20 20"
+      width={size}
+      height={size}
+      fill="none"
+      {...props}
+    >
+      <path
+        stroke={color}
+        strokeWidth={1.2}
+        d="M15.494 17.254c-.285-.886-.913-1.669-1.786-2.227-.873-.558-1.943-.861-3.044-.861-1.1 0-2.17.303-3.044.861-.873.558-1.5 1.341-1.786 2.227"
+      />
+      <circle
+        cx={10.664}
+        cy={8.334}
+        r={2.5}
+        stroke={color}
+        strokeLinecap="round"
+        strokeWidth={1.2}
+      />
+      <rect
+        width={15.467}
+        height={15.467}
+        x={2.93}
+        y={2.266}
+        stroke={color}
+        strokeWidth={1.2}
+        rx={2.733}
+      />
+    </svg>
+  );
+}
+
+export function Document({
+  color = DefaultIconColor,
+  size = "1em",
+  ...props
+}: {
+  color?: string;
+  size?: string | number;
+}) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 20 20"
+      width={size}
+      height={size}
+      fill="none"
+      {...props}
+    >
+      <path
+        stroke={color}
+        strokeWidth={1.2}
+        d="M11.724 2.5H8.247c-1.57 0-2.357 0-2.845.488s-.488 1.274-.488 2.845v8.334c0 1.571 0 2.357.488 2.845s1.274.488 2.845.488h5c1.572 0 2.357 0 2.846-.488.488-.488.488-1.274.488-2.845v-6.81c0-.34 0-.51-.064-.664-.063-.153-.184-.274-.424-.514l-3.19-3.19c-.242-.242-.362-.362-.515-.426-.153-.063-.324-.063-.664-.063Z"
+      />
+      <path
+        stroke={color}
+        strokeLinecap="round"
+        strokeWidth={1.2}
+        d="M8.248 10.834h5M8.248 14.166h3.333"
+      />
+      <path
+        stroke={color}
+        strokeWidth={1.2}
+        d="M11.582 2.5v3.333c0 .786 0 1.179.244 1.423s.637.244 1.423.244h3.333"
+      />
+    </svg>
+  );
+}
+
+export function Subscribe({
+  color = DefaultIconColor,
+  size = "1em",
+  ...props
+}: {
+  color?: string;
+  size?: string | number;
+}) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 20 20"
+      width={size}
+      height={size}
+      fill="none"
+      {...props}
+    >
+      <path
+        fill={color}
+        fillRule="evenodd"
+        d="M2 8a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.581h7.434a2.6 2.6 0 1 1 .087 1.2H6V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8Zm1.2 3.8V8.2h1.6v3.6H3.2Zm11.417-1.619v.03a1.4 1.4 0 1 0-.016-.17c.01.045.016.092.016.14Z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+export function UnSubscribe({
+  color = DefaultIconColor,
+  size = "1em",
+  ...props
+}: {
+  color?: string;
+  size?: string | number;
+}) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 20 20"
+      width={size}
+      height={size}
+      fill="none"
+      {...props}
+    >
+      <path
+        fill={color}
+        d="M2.675 2.076a.6.6 0 1 0-.849.849l15 15a.6.6 0 0 0 .849-.849l-15-15Z"
+      />
+      <path
+        fill={color}
+        fillRule="evenodd"
+        d="M3 7a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-1.219h2.757s-.833-.924-1.115-1.2H6V8a1 1 0 0 0-1-1H3Zm.2 1.2v3.6h1.6V8.2H3.2ZM13.434 9.581H11.1s.826.873 1.081 1.2h1.34a2.6 2.6 0 1 0-.087-1.2ZM14.6 10a1.4 1.4 0 1 0 2.801 0 1.4 1.4 0 0 0-2.8 0Z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+export function SubscribeSpace({
+  color = DefaultIconColor,
+  size = "1em",
+  ...props
+}: {
+  color?: string;
+  size?: string | number;
+}) {
+  console.log(`== ~ color:`, color);
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 20 20"
+      width={size}
+      height={size}
+      fill="none"
+      {...props}
+    >
+      <path
+        fill={color}
+        fillRule="evenodd"
+        d="M3 8.276a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.4h6.667c.268 0 .495-.066.634-.149a.374.374 0 0 0 .1-.08V7.806a2.6 2.6 0 1 1 1.2 0v1.67c0 .323-.139.592-.333.8.194.207.332.476.332.8v1.67a2.6 2.6 0 1 1-1.2 0v-1.642a.375.375 0 0 0-.099-.08 1.28 1.28 0 0 0-.634-.148H7v1.4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4Zm1.2 3.8v-3.6h1.6v3.6H4.2Zm9.81 4.19a1.4 1.4 0 1 1 1.98-1.98 1.4 1.4 0 0 1-1.98 1.98Zm0-10a1.4 1.4 0 1 1 1.98-1.98 1.4 1.4 0 0 1-1.98 1.98Z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+export function UnSubscribeSpace({
+  color = DefaultIconColor,
+  size = "1em",
+  ...props
+}: {
+  color?: string;
+  size?: string | number;
+}) {
+  console.log(`== ~ color:`, color);
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 20 20"
+      width={size}
+      height={size}
+      fill="none"
+      {...props}
+    >
+      <path
+        fill={color}
+        d="M2.675 2.076a.6.6 0 1 0-.849.849l15 15a.6.6 0 0 0 .849-.849l-15-15Z"
+      />
+      <path
+        fill={color}
+        fillRule="evenodd"
+        d="M12.15 5a2.6 2.6 0 0 0 2 2.53v1.642a.374.374 0 0 1-.099.08c-.132.079-.343.142-.594.148H10.81l1.185 1.2h1.461c.25.006.461.07.593.148a.375.375 0 0 1 .1.08v1.642c-.158.037-.311.09-.458.155l.977.977c.027-.002.054-.002.081-.002a1.4 1.4 0 0 1 1.398 1.481l.977.977a2.6 2.6 0 0 0-1.776-3.588V10.8c0-.324-.137-.592-.33-.8.193-.207.331-.476.331-.8V7.53A2.6 2.6 0 1 0 12.15 5Zm1.61.99a1.4 1.4 0 1 1 1.98-1.98 1.4 1.4 0 0 1-1.98 1.98Z"
+        clipRule="evenodd"
+      />
+      <path
+        fill={color}
+        d="M12.15 15a2.6 2.6 0 0 0 3.651 2.378l-.986-.98a1.4 1.4 0 0 1-1.463-1.454l-.987-.98c-.14.324-.215.676-.215 1.036Z"
+      />
+      <path
+        fill={color}
+        fillRule="evenodd"
+        d="M6.75 10.6V12a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h1.617L6.75 8.472V9.4h.88l1.125 1.2H6.75Zm-2.8-2.4v3.6h1.6V8.2h-1.6Z"
+        clipRule="evenodd"
       />
     </svg>
   );
