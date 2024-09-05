@@ -281,10 +281,7 @@ function CommentDraftEditor({
         />
         <Button
           size="$2"
-          bg="$blue8"
-          borderColor="$blue8"
-          color="$color1"
-          hoverStyle={{bg: '$blue9', borderColor: '$blue9'}}
+          // hoverStyle={{bg: '$blue9', borderColor: '$blue9'}}
           onPress={onSubmit}
           disabled={!isSaved}
         >
@@ -292,7 +289,7 @@ function CommentDraftEditor({
         </Button>
         <Tooltip content="Discard Comment Draft">
           <Button
-            marginLeft="$2"
+            // marginLeft="$2"
             size="$2"
             onPress={onDiscard}
             theme="red"
@@ -340,6 +337,7 @@ function SelectAccountDropdown({
   if (!options || !currentAccount) return null
   return (
     <SelectDropdown
+      width={240}
       size="$2"
       options={options}
       value={currentAccount}
