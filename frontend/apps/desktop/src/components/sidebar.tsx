@@ -17,9 +17,8 @@ import {
   NodesOutline,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {Button, getBlockNodeById, Thumbnail, Tooltip} from '@shm/ui'
+import {Button, Contact, getBlockNodeById, Thumbnail, Tooltip} from '@shm/ui'
 import {
-  Contact,
   Folder,
   Hash,
   Library,
