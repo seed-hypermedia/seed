@@ -164,8 +164,7 @@ func Manual(t *testing.T) {
 			continue
 		}
 
-		// VSCode uses the regexp format for the run flag.
-		if runValue == tname || runValue == "^"+tname+"$" {
+		if strings.Contains(runValue, tname) {
 			return
 		}
 	}
