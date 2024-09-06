@@ -148,7 +148,7 @@ function EmbedWrapper({
         cursor: 'pointer',
         backgroundColor: isHighlight
           ? routeParams?.blockRef == unpackRef?.blockRef
-            ? '$yellow4'
+            ? '$brand11'
             : '$backgroundTransparent'
           : '$backgroundTransparent',
         // borderRadius: '$2',
@@ -595,8 +595,8 @@ function InlineEmbedButton({
       }}
     >
       <ButtonText
-        textDecorationColor={'$brand11'}
-        color="$brand11"
+        textDecorationColor={'$brand5'}
+        color="$brand5"
         className="hm-link"
         fontSize="$5"
         data-inline-embed={dataRef}

@@ -401,7 +401,10 @@ function AutocompletePopupInner(
           onClose()
         }}
       />
-      <div
+      <YStack
+        elevation="$5"
+        borderWidth={1}
+        borderColor="$color6"
         style={{
           position: 'absolute',
           display: 'flex',
@@ -479,7 +482,7 @@ function AutocompletePopupInner(
           }
           return null
         })}
-      </div>
+      </YStack>
     </div>
   )
 }
@@ -551,30 +554,20 @@ const SuggestionItem = React.memo(function SuggestionItem(props: {
       jc="flex-start"
       borderRadius={0}
       bg={props.selected ? '$brand11' : '$backgroundFocus'}
-      color={props.selected ? 'white' : '$color'}
+      color="$color"
       hoverStyle={{
         bg: '$brand11',
         borderColor: '$colorTransparent',
-        color: 'white',
       }}
       height="auto"
       minHeight={28}
       onMouseEnter={props.onMouseEnter}
       // icon={<Avatar size={18} url={props.embedRef?.profile?.avatar} />} avatars make everything slooow
     >
-      <SizableText
-        size="$2"
-        p={0}
-        fontWeight="400"
-        f={1}
-        color={props.selected ? 'white' : '$color'}
-        hoverStyle={{
-          color: 'white',
-        }}
-      >
+      <SizableText size="$2" p={0} fontWeight="400" f={1} color="$color">
         {props.title}
       </SizableText>
-      <SizableText p={0} size="$1" color={props.selected ? 'white' : '$color'}>
+      <SizableText p={0} size="$1" color="$color">
         {props.subtitle}
       </SizableText>
     </Button>

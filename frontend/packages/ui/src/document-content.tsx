@@ -582,10 +582,10 @@ export function BlockNodeContent({
       ref={elm}
       className="blocknode-content"
       id={blockNode.block?.id}
-      borderColor={isHighlight ? "$yellow5" : "$colorTransparent"}
+      borderColor={isHighlight ? "$brandHighlight" : "$colorTransparent"}
       borderWidth={1}
       borderRadius={layoutUnit / 4}
-      bg={isHighlight ? "$yellow3" : "$backgroundTransparent"}
+      bg={isHighlight ? "$brandHighlight" : "$backgroundTransparent"}
       data-node-type="blockContainer"
       // onHoverIn={() => (props.embedDepth ? undefined : hoverProps.onHoverIn())}
       // onHoverOut={() =>
@@ -1200,7 +1200,7 @@ type LinkType = null | "basic" | "hypermedia";
 
 function hmTextColor(linkType: LinkType): string {
   if (linkType === "basic") return "$color11";
-  if (linkType === "hypermedia") return "$brand11";
+  if (linkType === "hypermedia") return "$brand5";
   return "$color12";
 }
 

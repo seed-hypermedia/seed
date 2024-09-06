@@ -114,7 +114,16 @@ export function CoverImage({
               <Button size="$2">{`${url ? 'CHANGE' : 'ADD'} COVER`}</Button>
             </XStack>
             <Tooltip content="Remove Cover image">
-              <Button icon={Trash} size="$2" onPress={onRemoveCover} />
+              <Button
+                icon={Trash}
+                size="$2"
+                onPress={onRemoveCover}
+                bg="$red4"
+                hoverStyle={{
+                  bg: '$red5',
+                  borderColor: '$red6',
+                }}
+              />
             </Tooltip>
           </XStack>
         </Container>

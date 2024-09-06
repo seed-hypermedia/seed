@@ -135,13 +135,11 @@ export function ThumbnailForm({
           <Button
             opacity={0}
             $group-thumbnail-hover={{opacity: 1, pointerEvents: 'all'}}
-            bg="$red9"
-            color="$color1"
-            borderColor="$red9"
+            borderColor="$red5"
+            bg="$red4"
             hoverStyle={{
-              bg: '$red10',
-              color: '$color1',
-              borderColor: '$red10',
+              bg: '$red5',
+              borderColor: '$red6',
             }}
             icon={X}
             size="$1"

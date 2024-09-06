@@ -168,7 +168,7 @@ class HeadingLinePlugin {
       this.line.style.left = `${rect.left - editorRect.left + groupPadding}px`
       this.line.style.width = `2.5px`
       this.line.style.height = `${rect.height - groupPadding * 2}px`
-      this.line.style.backgroundColor = 'var(--brand11)'
+      this.line.style.backgroundColor = 'var(--brand5)'
       this.line.style.opacity = '0.4'
     } else {
       this.line.style.opacity = '0'

@@ -57,9 +57,9 @@
   color: hsl(210, 100%, 66.1%);
 } */
 
-/* manually sync these values with colors.ts brand11 and brandDark11 */
+/* manually sync these values with colors.ts brand5 and brandDark5 */
 .ProseMirror .hm-link {
-  color: var(--brand11);
+  color: var(--brand5);
 }
 /* .seed-app-dark .ProseMirror .hm-link {
   color: hsl(184, 80%, 71%);

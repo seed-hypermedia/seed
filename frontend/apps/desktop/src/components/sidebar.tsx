@@ -213,7 +213,11 @@ function AccountsSection() {
               >
                 <Button
                   size="$1"
-                  theme="red"
+                  bg="$red4"
+                  hoverStyle={{
+                    bg: '$red5',
+                    borderColor: '$red6',
+                  }}
                   icon={Trash}
                   onPress={
                     account.data?.id.id
@@ -317,7 +321,7 @@ function _SidebarDraftOutline({
             onActivateBlock(item.id)
           }}
           active={item.id === activeBlock}
-          activeBgColor={item.id === activeBlock ? '$yellow4' : undefined}
+          activeBgColor={item.id === activeBlock ? '$brand12' : undefined}
           icon={
             <View width={16}>
               {item.icon ? (
@@ -448,7 +452,7 @@ function _SidebarOutline({
             onActivateBlock(item.id)
           }}
           active={item.id === activeBlock}
-          activeBgColor={item.id === activeBlock ? '$yellow4' : undefined}
+          activeBgColor={item.id === activeBlock ? '$brand12' : undefined}
           icon={
             <View width={16}>
               {item.icon ? (
@@ -530,7 +534,7 @@ function _SidebarEmbedOutlineItem({
           isCollapsed={canCollapse ? collapse : undefined}
           onSetCollapsed={canCollapse ? setCollapse : undefined}
           active={activeBlock === blockId}
-          activeBgColor={'$yellow4'}
+          activeBgColor="$brand12"
           onPress={() => {
             onActivateBlock(blockId)
           }}

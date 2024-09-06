@@ -293,9 +293,9 @@ function DocPageHeader({
                   isBlockFocused={isBlockFocused}
                   hoverStyle={{
                     borderColor: '$colorTransparent',
-                    background: '$blue7',
+                    background: '$brand6',
                   }}
-                  color="$blue11"
+                  color="$brand5"
                   size="$1"
                 >
                   Share
@@ -391,7 +391,11 @@ function DeleteKey({accountId}: {accountId: string}) {
         size="$2"
         onPress={() => deleteKey.mutateAsync({accountId})}
         icon={Trash}
-        theme="red"
+        bg="$red4"
+        hoverStyle={{
+          bg: '$red5',
+          borderColor: '$red6',
+        }}
       />
     </Tooltip>
   )

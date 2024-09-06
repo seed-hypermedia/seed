@@ -61,7 +61,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
           position="absolute"
           left={-20} // this -20 is to make sure the rounded radius is not visible on the edge
           borderRadius={'$3'}
-          backgroundColor={'$color11'}
+          bg="$backgroundStrong"
           width={HoverRegionWidth + 20} // this 20 is to make sure the rounded radius is not visible on the edge
           top={top}
           zi={99999}
@@ -77,7 +77,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
         />
       ) : null}
       <YStack
-        backgroundColor={'$color1'}
+        bg="$backgroundStrong"
         borderRightWidth={1}
         borderColor={'$color4'}
         animation="fast"
@@ -99,6 +99,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
           flex={1}
           overflow="auto" // why does Tamagui/TS not agree that this is an acceptable value? IT WORKS!
           // paddingVertical="$2"
+          p={10}
         >
           {children}
         </YStack>
@@ -198,7 +199,7 @@ export function SidebarItem({
   onSetCollapsed?: (collapsed: boolean) => void
 }) {
   const indent = indented ? (typeof indented === 'number' ? indented : 1) : 0
-  const activeBg = activeBgColor || '$blue4'
+  const activeBg = activeBgColor || '$brand12'
   return (
     <ListItem
       hoverTheme
@@ -218,6 +219,7 @@ export function SidebarItem({
       color={color || '$gray12'}
       cursor={active ? undefined : 'pointer'}
       title={undefined}
+      borderRadius="$2"
       iconAfter={
         iconAfter || (
           <>
@@ -380,7 +382,7 @@ export function activeDocOutline(
           onBlockSelect(item.id, item.entityId, item.parentBlockId)
         }}
         active={item.id === activeBlock || item.id === focusBlock}
-        activeBgColor={item.id === activeBlock ? '$yellow4' : undefined}
+        activeBgColor={item.id === activeBlock ? '$brand12' : undefined}
         icon={
           <View width={16}>
             {item.icon ? (

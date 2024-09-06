@@ -14,7 +14,7 @@ export const AccentSection = styled(YStack, {
   flex: "none",
   flexGrow: 0,
   flexShrink: 0,
-  bg: onboardingColor,
+  bg: "$brand5",
   paddingHorizontal: "$4",
   paddingVertical: "$6",
   gap: "$4",

@@ -18,7 +18,7 @@ import {Thumbnail} from "./thumbnail";
 import {Tooltip} from "./tooltip";
 
 const Stack = View;
-const lineColor = "$blue7";
+const lineColor = "$color7";
 const lineWidth = 1;
 
 // this is a LINEARIZED set of comments, where one comment is directly replying to another. the commentGroup.moreCommentsCount should be the number of replies to the last comment in the group.

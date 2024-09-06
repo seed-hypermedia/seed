@@ -29,6 +29,8 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
     isAlert: true,
   })
 
+  const isSubscribed = ['space', 'document'].includes(subscription.subscription)
+
   return (
     <>
       <Popover {...popoverState} placement="bottom-end">
@@ -44,14 +46,30 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
           <Popover.Trigger asChild>
             <Button
               size="$2"
-              theme="blue"
-              backgroundColor="$blue5"
+              backgroundColor={
+                isSubscribed ? '$backgroundTransparent' : '$brand5'
+              }
+              color={isSubscribed ? '$brand7' : 'white'}
+              borderColor={isSubscribed ? '$brand9' : '$colorTransparent'}
               iconAfter={ChevronDown}
+              hoverStyle={
+                isSubscribed
+                  ? {
+                      bg: '$backgroundTransparent',
+                      borderColor: '$brand10',
+                      color: '$brand8',
+                    }
+                  : {
+                      bg: '$brand6',
+                      borderColor: '$colorTransparent',
+                      color: 'white',
+                    }
+              }
               icon={
                 subscription.subscription == 'space' ? (
-                  <SubscribeSpace size={20} color={theme.blue10.val} />
+                  <SubscribeSpace size={20} color={theme.brand6.val} />
                 ) : subscription.subscription == 'document' ? (
-                  <Subscribe size={20} color={theme.blue10.val} />
+                  <Subscribe size={20} color={theme.brand6.val} />
                 ) : undefined
               }
             >
@@ -213,7 +231,7 @@ function SubscriptionOptionButton({
   const theme = useTheme()
   let icon = null
   if (active) {
-    icon = <Check size={20} color={theme.blue10.val} />
+    icon = <Check size={20} color={theme.brand5.val} />
   } else if (Icon) {
     icon = <Icon size={20} color={theme.color.val} />
   }
@@ -244,7 +262,7 @@ function SubscriptionOptionButton({
             <Text
               fontWeight="bold"
               fontSize={14}
-              color={active ? theme.blue10 : color}
+              color={active ? theme.brand5 : color}
             >
               {title}
             </Text>

@@ -6,6 +6,6 @@
 }
 
 .inline-embed-token.selected {
-  border-color: var(--brand11);
-  border-bottom: 3px solid var(--brand11);
+  border-color: var(--brand5);
+  border-bottom: 3px solid var(--brand5);
 }

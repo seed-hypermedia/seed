@@ -32,12 +32,13 @@ export const brand = {
   brand9: "hsl(133, 54%, 78%)",
   brand10: "hsl(133, 63%, 83%)",
   brand11: "hsl(122, 53%, 88%)", // PLEASE manually sync with editor.css .seed-app-dark .ProseMirror .hm-link
-  brand12: "hsl(125, 100%, 98%)",
+  brand12: "hsl(123, 50%, 93%)",
+  brandHighlight: "hsl(125, 50%, 96%)",
 };
 
 export const brandDark = {
-  brand1: "hsl(133, 63%, 83%)",
-  brand2: "hsl(122, 53%, 88%)",
+  brand1: brand.brand12,
+  brand2: brand.brand11,
   brand3: "hsl(125, 100%, 98%)",
   brand4: "hsl(166, 55%, 31%)",
   brand5: "hsl(171, 96%, 28%)",
@@ -46,8 +47,9 @@ export const brandDark = {
   brand8: "hsl(144, 73%, 68%)",
   brand9: "hsl(133, 54%, 78%)",
   brand10: "hsl(166, 30%, 29%)",
-  brand11: "hsl(180, 36%, 22%)",
-  brand12: "hsl(180, 29%, 17%)",
+  brand11: brand.brand2,
+  brand12: brand.brand1,
+  brandHighlight: "hsl(180, 41%, 8%)",
 };
 
 export const lightColor = "hsl(0, 0%, 9.0%)";
