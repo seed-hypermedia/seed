@@ -170,8 +170,26 @@ func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.Ev
 	connectedness := n.Libp2p().Network().Connectedness(event.Peer)
 	n.log.Debug(event.Peer.String(), zap.String("Connectedness", connectedness.String()))
 
-	if err := n.CheckHyperMediaProtocolVersion(ctx, event.Peer, n.protocol.version); err != nil {
-		n.log.Debug("Peer connected to use and we failed to check the protocol", zap.Error(err))
+	var isSeed, versionMatches bool
+	for _, p := range event.Protocols {
+		version := strings.TrimPrefix(string(p), n.protocol.prefix)
+		if version == string(p) {
+			continue
+		}
+		isSeed = true
+		if version == n.protocol.version {
+			versionMatches = true
+			break
+		}
+	}
+
+	if !isSeed {
+		n.log.Debug("Peer connected to us but not a seed peer")
+		return
+	}
+
+	if !versionMatches {
+		n.log.Debug("Seed peer connected to us but not the latest version")
 		return
 	}
 
