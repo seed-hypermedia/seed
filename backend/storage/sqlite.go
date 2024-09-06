@@ -11,9 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
+
+	"github.com/stretchr/testify/require"
 )
 
 import "C"
@@ -47,7 +48,7 @@ func openSQLite(uri string, flags sqlite.OpenFlags, poolSize int, prelude ...str
 			}
 		}
 
-		conn.SetBusyTimeout(time.Minute * 3)
+		conn.SetBusyTimeout(time.Second * 3)
 
 		return nil
 	}); err != nil {

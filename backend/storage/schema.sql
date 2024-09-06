@@ -21,14 +21,15 @@ CREATE TABLE blobs (
     multihash BLOB UNIQUE NOT NULL,
     -- Multicodec describing the data stored in the blob.
     codec INTEGER NOT NULL,
-    -- Actual content of the block. Compressed with zstd.
-    data BLOB,
     -- Byte size of the original uncompressed data.
     -- Size 0 indicates that data is stored inline in the multihash.
     -- Size -1 indicates that we somehow know about this hash, but don't have the data yet.
     size INTEGER DEFAULT (-1) NOT NULL,
     -- Subjective (locally perceived) time when this blob was inserted.
-    insert_time INTEGER DEFAULT (strftime('%s', 'now')) NOT NULL
+    insert_time INTEGER DEFAULT (strftime('%s', 'now')) NOT NULL,
+    -- Actual content of the block. Compressed with zstd.
+    -- Stored at the end to make sure other columns don't go to the overflow pages in SQLite.
+    data BLOB
 );
 
 -- Index for better data locality when we need to iterate over blobs without their data.
@@ -57,55 +58,55 @@ CREATE TABLE structural_blobs (
     extra_attrs JSONB
 ) WITHOUT ROWID;
 
--- TODO(hm24): Create necessary indexes for structural blobs.
+CREATE INDEX structural_blobs_by_resource ON structural_blobs (resource);
+CREATE INDEX structural_blobs_by_genesis_blob ON structural_blobs (genesis_blob);
+CREATE INDEX structural_blobs_by_author ON structural_blobs (author);
 
--- TODO(hm24): Create necessary table for the feed API.
-
-
--- View blobs metadata It returns the latest non null title or the 
+-- View blobs metadata It returns the latest non null title or the
 -- latest blob in case of untitled meta.
 CREATE VIEW meta_view AS
 WITH RankedBlobs AS (
-    SELECT 
-        change_sb.id, 
-        change_sb.extra_attrs AS meta, 
-        change_sb.author, 
-        ref_sb.resource, 
-        change_sb.ts, 
+    SELECT
+        change_sb.id,
+        change_sb.extra_attrs AS meta,
+        change_sb.author,
+        ref_sb.resource,
+        change_sb.ts,
         ROW_NUMBER() OVER (
-            PARTITION BY ref_sb.resource 
-            ORDER BY 
+            PARTITION BY ref_sb.resource
+            ORDER BY
                 ref_sb.ts DESC
         ) AS rank
-    FROM 
+    FROM
         structural_blobs change_sb
-    JOIN 
+    JOIN
         structural_blobs ref_sb
-    ON 
+    ON
         change_sb.ts = ref_sb.ts
-    WHERE 
-        change_sb.type = 'Change' 
+    WHERE
+        change_sb.type = 'Change'
         AND ref_sb.type = 'Ref'
         AND change_sb.extra_attrs IS NOT NULL
 ),
 LatestBlobs AS (
-    SELECT 
+    SELECT
         rb.id,
-        rb.meta, 
-        rb.author, 
-        rb.resource, 
+        rb.meta,
+        rb.author,
+        rb.resource,
         rb.ts
     FROM RankedBlobs rb
     WHERE rb.rank = 1
 )
-SELECT 
-    lb.meta AS extra_attrs, 
-    res.iri, 
+SELECT
+    lb.meta AS extra_attrs,
+    res.iri,
     pk.principal
 FROM LatestBlobs lb
 JOIN resources res ON res.id = lb.resource
 JOIN public_keys pk ON pk.id = lb.author
 WHERE extra_attrs IS NOT NULL;
+
 -- Stores hypermedia resources.
 -- All resources are identified by an IRI[iri],
 -- might have an owner identified by a public key.
@@ -121,24 +122,11 @@ CREATE TABLE resources (
     create_time INTEGER
 );
 
--- Stores the heads for a given resource.
--- Heads are the latest changes to a given resource.
--- Heads are derived from Ref blobs or from Change blobs that update the index of a parent document.
-CREATE TABLE resource_heads (
-    -- Resource ID for which the head is for.
-    resource INTEGER REFERENCES resources (id) ON DELETE CASCADE ON UPDATE CASCADE NOT NULL,
-    -- Blob that introduces the head.
-    source_blob INTEGER REFERENCES blobs (id) ON DELETE CASCADE ON UPDATE CASCADE NOT NULL,
-    -- The JSON array of head blob IDs.
-    heads JSONB NOT NULL,
-    author INTEGER REFERENCES public_keys (id) NOT NULL,
-    ts INTEGER NOT NULL
-);
-
 CREATE INDEX resources_by_owner ON resources (owner) WHERE owner IS NOT NULL;
+CREATE INDEX resources_by_genesis_blob ON resources (genesis_blob);
 
 -- Stores deleted hypermedia resources.
--- In order to bring back content we need to keep track of 
+-- In order to bring back content we need to keep track of
 -- what's been deleted. Also, in order not to sync it back
 -- accidentally, we need to check whether the blob is related
 -- to a deleted resource.
@@ -181,7 +169,7 @@ CREATE TABLE resource_links (
 CREATE INDEX resource_links_by_source ON resource_links (source, is_pinned, target);
 CREATE INDEX resource_links_by_target ON resource_links (target, source);
 
--- Stores subscribed resources. Once we subscribe to a resource, 
+-- Stores subscribed resources. Once we subscribe to a resource,
 -- we will sync the latest versions of it periodically.
 CREATE TABLE subscriptions (
     id INTEGER PRIMARY KEY,
@@ -210,13 +198,13 @@ CREATE TABLE wallets (
     id TEXT PRIMARY KEY,
     -- The type of the wallet.
     type TEXT CHECK( type IN ('lnd','lndhub.go','lndhub') ) NOT NULL DEFAULT 'lndhub.go',
-    -- Address of the LND node backing up this wallet. In case lndhub, this will be the 
+    -- Address of the LND node backing up this wallet. In case lndhub, this will be the
     -- URL to connect via rest api. In case LND wallet, this will be the gRPC address.
     address TEXT NOT NULL,
-    -- The login to access the wallet. Login in case lndhub and the macaroon 
+    -- The login to access the wallet. Login in case lndhub and the macaroon
     -- bytes in case lnd.
     login BLOB NOT NULL,
-    -- The password to access the wallet. Passphrase in case of lndhub and the encryption 
+    -- The password to access the wallet. Passphrase in case of lndhub and the encryption
     -- key to unlock the internal wallet in case of LND.
     password BLOB NOT NULL,
     -- The Authentication token of the wallet. api token in case of lndhub

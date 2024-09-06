@@ -7,9 +7,10 @@ import (
 	"io"
 	"os"
 
-	"github.com/jedib0t/go-pretty/v6/table"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
+
+	"github.com/jedib0t/go-pretty/v6/table"
 )
 
 // Exec a query and print the results into w.
@@ -33,7 +34,7 @@ func Exec[T *sqlitex.Pool | *sqlite.Conn](db T, w io.Writer, query string, args 
 	}
 
 	tw := table.NewWriter()
-	tw.SetOutputMirror(os.Stdout)
+	tw.SetOutputMirror(w)
 	tw.SetStyle(table.StyleLight)
 
 	stmt, _, err := conn.PrepareTransient(query)

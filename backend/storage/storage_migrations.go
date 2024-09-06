@@ -43,13 +43,35 @@ type migration struct {
 
 // In order for a migration to actually run, it has to have a version higher than the version of the data directory.
 // Care has to be taken when migrations are being added in main, and feature branches in parallel.
+// Specifically, don't run code with migrations in feature branches on top of your production database!
 //
 // It's important to backup your data directory when trying out the code from a feature branch that has a migration.
 // Otherwise when you switch back to the main branch the program will complain about an unknown version of the data directory.
+//
+// Migrations should be idempotant as much as we can make them, to prevent issues with partially applied migrations.
 var migrations = []migration{
 	// New beginning. While we're doing the HM24 migration we can still make some breaking changes.
 	// TODO(burdiyan): add a real version when we are ready to release.
 	{Version: "2024-08-31.hm24-dev-1", Run: func(_ *Store, _ *sqlite.Conn) error {
+		return nil
+	}},
+	{Version: "2024-09-06.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			ALTER TABLE blobs RENAME COLUMN data TO data_old;
+			ALTER TABLE blobs ADD COLUMN data BLOB;
+			UPDATE blobs SET data = data_old, data_old = NULL;
+			ALTER TABLE blobs DROP COLUMN data_old;
+
+			DROP TABLE IF EXISTS resource_heads;
+
+			CREATE INDEX structural_blobs_by_resource ON structural_blobs (resource);
+			CREATE INDEX structural_blobs_by_author ON structural_blobs (author);
+			CREATE INDEX resources_by_genesis_blob ON resources (genesis_blob);
+			CREATE INDEX structural_blobs_by_genesis_blob ON structural_blobs (genesis_blob);
+		`)); err != nil {
+			return err
+		}
+
 		return nil
 	}},
 }
@@ -96,34 +118,39 @@ func (s *Store) migrate(currentVersion string) error {
 		}
 
 		pending := migrations[idx+1:]
+
+		conn, release, err := s.db.Conn(context.Background())
+		if err != nil {
+			return err
+		}
+		defer release()
+
 		if len(pending) > 0 {
-			db := s.db
-
-			conn, release, err := db.Conn(context.Background())
-			if err != nil {
-				return err
-			}
-			defer release()
-
-			// Locking the database for the entire migration process.
-			// We don't want to run all the migration in a single transaction, because it may get too big and cause problems.
-			// We also want to prevent other connections from using the database until we are fully done with migrations.
-			if err := sqlitex.ExecScript(conn, "PRAGMA locking_mode = EXCLUSIVE;"); err != nil {
+			// There's no easy way to lock the entire database for a long time to prevent other connections to access it.
+			// PRAGMA locking_mode = EXCLUSIVE doesn't seem to work as expected, or at least it doesn't fit this use case.
+			// We attempt to work around this by starting an immediate transaction for the entire migration process.
+			// We use savepoints for each migration, but we still may hit some limitations if transaction gets too big.
+			// Hopefully this will never happen in practice.
+			if err := sqlitex.ExecTransient(conn, "BEGIN IMMEDIATE;", nil); err != nil {
 				return err
 			}
 
 			for _, mig := range pending {
-				// In case of a problem (e.g. power cut) we could end up with an applied migration,
+				// In case of a problem like a power outage, we could end up with an applied migration,
 				// but without the version file being written, in which case things will be bad.
 				// To reduce this risk to some extent, we write the version file after each migration.
+				// We should also make migrations idempotent as much as we can.
 				//
 				// TODO(burdiyan): maybe move the version information into the database so everything could be done atomically,
 				// or implement some sort of recovery mechanism for these situations.
 
-				if err := sqlitex.WithTx(conn, func() error {
-					return mig.Run(s, conn)
-				}); err != nil {
-					return fmt.Errorf("failed to run migration %s: %w", mig.Version, err)
+				save := sqlitex.Save(conn)
+				if err := mig.Run(s, conn); err != nil {
+					return err
+				}
+				save(&err)
+				if err != nil {
+					return err
 				}
 
 				if err := writeVersionFile(s.path, mig.Version); err != nil {
@@ -132,8 +159,7 @@ func (s *Store) migrate(currentVersion string) error {
 			}
 
 			// We need to unlock the database so it be used after we've done the migration.
-			// For locking mode changes to take effect we need to run some statement that accesses the file.
-			if err := sqlitex.ExecScript(conn, "PRAGMA locking_mode = NORMAL; SELECT id FROM blobs LIMIT 1"); err != nil {
+			if err := sqlitex.ExecTransient(conn, "COMMIT;", nil); err != nil {
 				return err
 			}
 		}

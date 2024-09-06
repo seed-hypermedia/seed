@@ -1,47 +1,42 @@
 package storage
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"seed/backend/config"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
 	"seed/backend/testutil"
 	"seed/backend/util/must"
-	"seed/backend/util/sqlitedbg"
+	"seed/backend/util/sqlite/sqlitex"
 	"seed/backend/util/sqlitegen"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 )
 
 const snapshotDataDir = "./testdata/seed-test-db-snapshot"
 
-func TestMigrations_GenerateGoldenSnapshot(t *testing.T) {
-	// This is the same as TestMigrationsOnInitialSnapshot, but it generates a new golden snapshot,
-	// before running the test.
-	testutil.Manual(t)
-
-	generateGoldenSnapshot()
-	runMigrationsTest(t)
-}
-
 func TestMigrationsOnInitialSnapshot(t *testing.T) {
-	t.Cleanup(func() {
-		if t.Failed() {
-			t.Log("======= README =======")
-			t.Log("Maybe you want to regenerate the golden database snapshot?")
-			t.Log("If so, run the TestMigrations_GenerateGoldenSnapshot manually from your IDE.")
-			t.Log("Or run it from the command line with: 'go test ./backend/storage -run TestMigrations_GenerateGoldenSnapshot'.")
-		}
-	})
+	// This test takes our initial database snapshot stored in ./testdata
+	// and runs the migrations on it, to see if the migrated database
+	// would look the same as the newly created one.
+	//
+	// When we make a breaking database change we want to regenerate the golden snapshot,
+	// which can be done by running the TestMigrations_GenerateGoldenSnapshot test manually from the IDE,
+	// or from the command line with:
+	//
+	// ```
+	// go test ./backend/storage -run TestMigrations_GenerateGoldenSnapshot
+	// ```
 	runMigrationsTest(t)
 }
 
@@ -78,47 +73,77 @@ func generateGoldenSnapshot() {
 }
 
 func runMigrationsTest(t *testing.T) {
-	tmpDir := t.TempDir()
-	err := copyDir(snapshotDataDir, tmpDir)
+	migrateDir := t.TempDir()
+	err := copyDir(snapshotDataDir, migrateDir)
 	require.NoError(t, err)
 
 	alice := coretest.NewTester("alice")
 
-	oldDir, err := Open(tmpDir, alice.Device.Wrapped(), core.NewMemoryKeyStore(), "debug")
+	migratedStore, err := Open(migrateDir, alice.Device.Wrapped(), core.NewMemoryKeyStore(), "debug")
 	require.NoError(t, err)
-	require.NoError(t, oldDir.Migrate())
-	defer oldDir.Close()
+	require.NoError(t, migratedStore.Migrate())
+	defer migratedStore.Close()
 
-	newDir, err := Open(t.TempDir(), alice.Device.Wrapped(), core.NewMemoryKeyStore(), "debug")
+	freshStore, err := Open(t.TempDir(), alice.Device.Wrapped(), core.NewMemoryKeyStore(), "debug")
 	require.NoError(t, err)
-	require.NoError(t, newDir.Migrate())
-	defer newDir.Close()
+	require.NoError(t, freshStore.Migrate())
+	defer freshStore.Close()
 
-	oldDB, newDB := oldDir.db, newDir.db
+	migratedDB, freshDB := migratedStore.db, freshStore.db
 
-	oldSchema, err := sqlitegen.IntrospectSchema(oldDB)
-	require.NoError(t, err)
-
-	newSchema, err := sqlitegen.IntrospectSchema(newDB)
+	migratedSchema, err := sqlitegen.IntrospectSchema(migratedDB)
 	require.NoError(t, err)
 
-	require.Equal(t, oldSchema, newSchema)
+	freshSchema, err := sqlitegen.IntrospectSchema(freshDB)
+	require.NoError(t, err)
 
-	var (
-		oldSQL bytes.Buffer
-		newSQL bytes.Buffer
-	)
+	require.Equal(t, migratedSchema, freshSchema)
 
-	sqlitedbg.Exec(oldDB, &oldSQL, "select sql from sqlite_schema order by name")
-	sqlitedbg.Exec(newDB, &newSQL, "select sql from sqlite_schema order by name")
-	require.Equal(t, oldSQL.String(), newSQL.String())
+	migratedRawSchema := getRawSQLSchema(t, migratedDB)
+	freshRawSchema := getRawSQLSchema(t, freshDB)
+
+	migratedTables := slices.Collect(maps.Keys(migratedRawSchema))
+	slices.Sort(migratedTables)
+
+	freshTables := slices.Collect(maps.Keys(freshRawSchema))
+	slices.Sort(freshTables)
+
+	require.Equal(t, freshTables, migratedTables, "migrated table names don't match fresh ones")
+
+	for _, table := range freshTables {
+		checkSQLEqual(t, freshRawSchema[table], migratedRawSchema[table])
+	}
 
 	// We want to check that the version file matches the version of the last migration.
-	require.Equal(t, migrations[len(migrations)-1].Version, must.Do2(readVersionFile(oldDir.path)))
-	require.Equal(t, migrations[len(migrations)-1].Version, must.Do2(readVersionFile(newDir.path)))
+	require.Equal(t, migrations[len(migrations)-1].Version, must.Do2(readVersionFile(migratedStore.path)))
+	require.Equal(t, migrations[len(migrations)-1].Version, must.Do2(readVersionFile(freshStore.path)))
 }
 
-func TestMigrationList(t *testing.T) {
+func getRawSQLSchema(t *testing.T, db *sqlitex.Pool) map[string]string {
+	out := make(map[string]string) // table to sql.
+	conn, release, err := db.Conn(context.Background())
+	require.NoError(t, err)
+	defer release()
+
+	rows, check := sqlitex.Query(conn, "select name, sql from sqlite_schema order by name")
+	for r := range rows {
+		out[r.ColumnText(0)] = r.ColumnText(1)
+	}
+	require.NoError(t, check())
+
+	return out
+}
+
+var re = regexp.MustCompile(`\s+`)
+
+func checkSQLEqual(t *testing.T, want, got string) {
+	t.Helper()
+	want = re.ReplaceAllString(want, "")
+	got = re.ReplaceAllString(got, "")
+	require.Equal(t, want, got)
+}
+
+func TestMigrationListSorted(t *testing.T) {
 	require.True(t, slices.IsSortedFunc(migrations, func(a, b migration) int {
 		return strings.Compare(a.Version, b.Version)
 	}), "the list of migrations must be sorted")
@@ -167,4 +192,14 @@ func copyFile(src, dst string) error {
 	}
 
 	return dstFile.Sync()
+}
+
+func TestMigrations_GenerateGoldenSnapshot(t *testing.T) {
+	// This is the same as TestMigrationsOnInitialSnapshot, but it generates a new golden snapshot,
+	// before running the test.
+	// Normally we only need to use this when we make a breaking database change and we want to regenerate the snapshot.
+	testutil.Manual(t)
+
+	generateGoldenSnapshot()
+	runMigrationsTest(t)
 }
