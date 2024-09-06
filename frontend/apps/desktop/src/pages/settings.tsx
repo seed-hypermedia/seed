@@ -31,7 +31,6 @@ import {
   getAccountName,
   getFileUrl,
   hmId,
-  IS_PROD_DESKTOP,
   LightningWallet,
   VERSION,
 } from '@shm/shared'
@@ -172,7 +171,11 @@ export function DeleteDraftLogs() {
     return (
       <Button
         icon={Trash}
-        theme="red"
+        bg="$red4"
+        hoverStyle={{
+          bg: '$red5',
+          borderColor: '$red6',
+        }}
         onPress={() => {
           destroyDraftLogs.mutateAsync().then(() => {
             toast.success('Cleaned up Draft Logs')
@@ -187,7 +190,11 @@ export function DeleteDraftLogs() {
   return (
     <Button
       icon={Trash}
-      theme="red"
+      bg="$red4"
+      hoverStyle={{
+        bg: '$red5',
+        borderColor: '$red6',
+      }}
       onPress={() => {
         setIsConfirming(true)
       }}
@@ -463,7 +470,15 @@ function AccountKeys() {
                 <AlertDialog native>
                   <Tooltip content="Delete words from device">
                     <AlertDialog.Trigger asChild>
-                      <Button size="$2" theme="red" icon={Trash} />
+                      <Button
+                        size="$2"
+                        bg="$red4"
+                        hoverStyle={{
+                          bg: '$red5',
+                          borderColor: '$red6',
+                        }}
+                        icon={Trash}
+                      />
                     </AlertDialog.Trigger>
                   </Tooltip>
                   <AlertDialog.Portal>
@@ -867,8 +882,6 @@ function DeviceItem({id}: {id: string}) {
 
 function AppSettings() {
   const ipc = useIPC()
-  console.log('============================== IS_PROD_DESKTOP', IS_PROD_DESKTOP)
-  console.log('============================== IS_DEV_DESKTOP', IS_DEV_DESKTOP)
   const versions = useMemo(() => ipc.versions(), [ipc])
   const appInfo = trpc.getAppInfo.useQuery().data
   const {value: autoUpdate, setAutoUpdate} = useAutoUpdatePreference()
