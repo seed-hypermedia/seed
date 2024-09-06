@@ -3,9 +3,7 @@ package entities
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"seed/backend/core"
 	entities "seed/backend/genproto/entities/v1alpha"
 	"seed/backend/index"
@@ -264,31 +262,6 @@ func (srv *Server) RegisterServer(rpc grpc.ServiceRegistrar) {
 
 // 	return out, nil
 // }
-
-var qGetEntityTimeline = dqb.Str(`
-	SELECT
-		structural_blobs.id,
-		blobs.codec,
-		blobs.multihash,
-		structural_blobs.ts,
-		trusted_accounts.id > 0 AS is_trusted,
-		public_keys.id AS author_id,
-		public_keys.principal AS author,
-		group_concat(change_deps.parent, ' ') AS deps,
-		drafts.blob IS NOT NULL AS is_draft
-	FROM structural_blobs
-	JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
-	JOIN public_keys ON public_keys.id = structural_blobs.author
-	LEFT JOIN change_deps ON change_deps.child = structural_blobs.id
-	LEFT JOIN drafts ON (drafts.resource, drafts.blob) = (structural_blobs.resource, structural_blobs.id)
-	LEFT JOIN trusted_accounts ON trusted_accounts.id = structural_blobs.author
-	WHERE structural_blobs.resource IS NOT NULL
-		AND structural_blobs.type = 'Change'
-		AND structural_blobs.resource = :resource
-		AND is_draft <= :include_drafts
-	GROUP BY change_deps.child
-	ORDER BY structural_blobs.ts
-`)
 
 func sortChanges(timeline *entities.EntityTimeline, heads []string) []string {
 	slices.SortFunc(heads, func(a, b string) int {
@@ -631,73 +604,73 @@ var qGetEntityTitles = dqb.Str(`
 // 	return resp, nil
 // }
 
-const qListMentionsTpl = `
-	SELECT
-		resources.iri,
-		blobs.codec,
-		blobs.multihash,
-		public_keys.principal AS author,
-		structural_blobs.ts,
-		structural_blobs.type AS blob_type,
-		drafts.blob IS NOT NULL AS is_draft,
-		resource_links.is_pinned,
-		resource_links.meta->>'a' AS anchor,
-		resource_links.meta->>'v' AS target_version,
-		resource_links.meta->>'f' AS target_fragment,
-		blobs.id AS blob_id,
-		resource_links.id AS link_id
-	FROM resource_links
-	JOIN structural_blobs ON structural_blobs.id = resource_links.source
-	JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
-	LEFT JOIN drafts ON drafts.blob = structural_blobs.id
-	JOIN public_keys ON public_keys.id = structural_blobs.author
-	LEFT JOIN resources ON resources.id = structural_blobs.resource
-	WHERE resource_links.target = :target
-	AND (resource_links.source, resource_links.id) %s (:blob_id, :link_id)
-	AND structural_blobs.type IN ('Change', 'Comment')
-	ORDER BY resource_links.source %s, resource_links.id %s
-	LIMIT :page_size + 1;
-`
+// const qListMentionsTpl = `
+// 	SELECT
+// 		resources.iri,
+// 		blobs.codec,
+// 		blobs.multihash,
+// 		public_keys.principal AS author,
+// 		structural_blobs.ts,
+// 		structural_blobs.type AS blob_type,
+// 		drafts.blob IS NOT NULL AS is_draft,
+// 		resource_links.is_pinned,
+// 		resource_links.meta->>'a' AS anchor,
+// 		resource_links.meta->>'v' AS target_version,
+// 		resource_links.meta->>'f' AS target_fragment,
+// 		blobs.id AS blob_id,
+// 		resource_links.id AS link_id
+// 	FROM resource_links
+// 	JOIN structural_blobs ON structural_blobs.id = resource_links.source
+// 	JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
+// 	LEFT JOIN drafts ON drafts.blob = structural_blobs.id
+// 	JOIN public_keys ON public_keys.id = structural_blobs.author
+// 	LEFT JOIN resources ON resources.id = structural_blobs.resource
+// 	WHERE resource_links.target = :target
+// 	AND (resource_links.source, resource_links.id) %s (:blob_id, :link_id)
+// 	AND structural_blobs.type IN ('Change', 'Comment')
+// 	ORDER BY resource_links.source %s, resource_links.id %s
+// 	LIMIT :page_size + 1;
+// `
 
-func qListMentions(desc bool) string {
-	if desc {
-		return qListMentionsDesc()
-	}
+// func qListMentions(desc bool) string {
+// 	if desc {
+// 		return qListMentionsDesc()
+// 	}
 
-	return qListMentionsAsc()
-}
+// 	return qListMentionsAsc()
+// }
 
-var qListMentionsAsc = dqb.Q(func() string {
-	return fmt.Sprintf(qListMentionsTpl, ">", "ASC", "ASC")
-})
+// var qListMentionsAsc = dqb.Q(func() string {
+// 	return fmt.Sprintf(qListMentionsTpl, ">", "ASC", "ASC")
+// })
 
-var qListMentionsDesc = dqb.Q(func() string {
-	return fmt.Sprintf(qListMentionsTpl, "<", "DESC", "DESC")
-})
+// var qListMentionsDesc = dqb.Q(func() string {
+// 	return fmt.Sprintf(qListMentionsTpl, "<", "DESC", "DESC")
+// })
 
-type mentionsCursor struct {
-	BlobID int64 `json:"b"`
-	LinkID int64 `json:"l"`
-}
+// type mentionsCursor struct {
+// 	BlobID int64 `json:"b"`
+// 	LinkID int64 `json:"l"`
+// }
 
-func (mc *mentionsCursor) FromString(s string) error {
-	data, err := base64.RawURLEncoding.DecodeString(s)
-	if err != nil {
-		return err
-	}
+// func (mc *mentionsCursor) FromString(s string) error {
+// 	data, err := base64.RawURLEncoding.DecodeString(s)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	return json.Unmarshal(data, mc)
-}
+// 	return json.Unmarshal(data, mc)
+// }
 
-func (mc mentionsCursor) String() string {
-	if mc.BlobID == 0 && mc.LinkID == 0 {
-		return ""
-	}
+// func (mc mentionsCursor) String() string {
+// 	if mc.BlobID == 0 && mc.LinkID == 0 {
+// 		return ""
+// 	}
 
-	data, err := json.Marshal(mc)
-	if err != nil {
-		panic(err)
-	}
+// 	data, err := json.Marshal(mc)
+// 	if err != nil {
+// 		panic(err)
+// 	}
 
-	return base64.RawURLEncoding.EncodeToString(data)
-}
+// 	return base64.RawURLEncoding.EncodeToString(data)
+// }
