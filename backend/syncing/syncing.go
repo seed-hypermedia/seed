@@ -32,6 +32,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/multiformats/go-multicodec"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -117,7 +118,7 @@ type SubscriptionStore interface {
 	ListSubscriptions(context.Context, *activity_proto.ListSubscriptionsRequest) (*activity_proto.ListSubscriptionsResponse, error)
 }
 type protocolChecker struct {
-	checker func(context.Context, peer.ID, string) error
+	checker func(context.Context, peer.ID, string, ...protocol.ID) error
 	version string
 }
 type Service struct {

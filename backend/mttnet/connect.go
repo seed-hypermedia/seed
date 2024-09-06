@@ -144,10 +144,20 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 			vals = append(vals, info.ID.String(), initialAddrs)
 		}
 
-		for _, peer := range res.Peers {
-			if len(peer.Addrs) > 0 {
+		for _, p := range res.Peers {
+			if len(p.Addrs) > 0 {
+				if p.Id == n.client.me.String() {
+					continue
+				}
+				if err := n.CheckHyperMediaProtocolVersion(ctx, peer.ID(p.Id), n.protocol.version); err != nil {
+					xerr := n.Libp2p().Network().ClosePeer(peer.ID(p.Id))
+					xxerr := sqlitex.Exec(conn, "DELETE FROM peers WHERE pid = ?", nil, info.ID.String())
+					log.Warn("A real Seed peer is spamming us with a non-seed list of peers", zap.String("Non-seed peerid", p.Id), zap.Errors("Errors", []error{err, xerr, xxerr}))
+					return fmt.Errorf("Cannot connect to a peer that has non-seed peers in it's database")
+				}
+
 				sqlStr += "(?, ?),"
-				vals = append(vals, peer.Id, strings.Join(peer.Addrs, ","))
+				vals = append(vals, p.Id, strings.Join(p.Addrs, ","))
 			}
 		}
 		if len(vals) != 0 {
@@ -163,33 +173,15 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 }
 
 func (n *Node) defaultConnectionCallback(_ context.Context, event event.EvtPeerConnectednessChanged) {
-	n.log.Debug(event.Peer.String(), zap.String("Connectedness", event.Connectedness.String()))
+	n.log.Debug("NOSHOW: New peer tried to connect/disconnect", zap.String("PID", event.Peer.String()), zap.String("Connectedness", event.Connectedness.String()))
 }
 
 func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.EvtPeerIdentificationCompleted) {
-	connectedness := n.Libp2p().Network().Connectedness(event.Peer)
-	n.log.Debug(event.Peer.String(), zap.String("Connectedness", connectedness.String()))
-
-	var isSeed, versionMatches bool
-	for _, p := range event.Protocols {
-		version := strings.TrimPrefix(string(p), n.protocol.prefix)
-		if version == string(p) {
-			continue
-		}
-		isSeed = true
-		if version == n.protocol.version {
-			versionMatches = true
-			break
-		}
-	}
-
-	if !isSeed {
-		n.log.Debug("Peer connected to us but not a seed peer")
+	if event.Peer.String() == n.client.me.String() {
 		return
 	}
-
-	if !versionMatches {
-		n.log.Debug("Seed peer connected to us but not the latest version")
+	if err := n.CheckHyperMediaProtocolVersion(ctx, event.Peer, n.protocol.version, event.Protocols...); err != nil {
+		n.log.Debug("NOSHOW: Peer tried to connect to us But we did not store it", zap.Error(err))
 		return
 	}
 
@@ -199,38 +191,41 @@ func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.Ev
 		return
 	}
 	defer release()
+	connectedness := n.Libp2p().Network().Connectedness(event.Peer)
+	if connectedness != network.Connected {
+		return
+	}
 
+	n.log.Debug("Storing Seed peer that connected to us", zap.String("PID", event.Peer.String()), zap.String("Connectedness", connectedness.String()))
 	var addrsString []string
 	for _, addrs := range event.ListenAddrs {
 		addrsString = append(addrsString, strings.ReplaceAll(addrs.String(), "/p2p/"+event.Peer.String(), "")+"/p2p/"+event.Peer.String())
 	}
 	if err = sqlitex.Exec(conn, "INSERT OR REPLACE INTO peers (pid, addresses) VALUES (?, ?);", nil, event.Peer.String(), strings.ReplaceAll(strings.Join(addrsString, ","), " ", "")); err != nil {
-		n.log.Warn("Could not store new connected peer addresses ", zap.Error(err))
-	} else {
-		n.log.Debug("New peer connected to us and we saved their addresses")
+		n.log.Warn("Could not store new peer", zap.String("PID", event.Peer.String()), zap.Error(err))
 	}
 }
 
-func (n *Node) CheckHyperMediaProtocolVersion(ctx context.Context, pid peer.ID, desiredVersion string) (err error) {
+func (n *Node) CheckHyperMediaProtocolVersion(ctx context.Context, pid peer.ID, desiredVersion string, protos ...protocol.ID) (err error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 
-	var protos []protocol.ID
-	if err := retry.Exponential(ctx, 50*time.Millisecond, func(ctx context.Context) error {
-		protos, err = n.p2p.Peerstore().GetProtocols(pid)
-		if err != nil {
-			return fmt.Errorf("failed to check Hyper Media protocol version: %w", err)
-		}
+	if len(protos) == 0 {
+		if err := retry.Exponential(ctx, 50*time.Millisecond, func(ctx context.Context) error {
+			protos, err = n.p2p.Peerstore().GetProtocols(pid)
+			if err != nil {
+				return fmt.Errorf("failed to check Hyper Media protocol version: %w", err)
+			}
 
-		if len(protos) > 0 {
-			return nil
-		}
+			if len(protos) > 0 {
+				return nil
+			}
 
-		return fmt.Errorf("peer %s doesn't support any protocols", pid.String())
-	}); err != nil {
-		return err
+			return fmt.Errorf("peer %s doesn't support any protocols", pid.String())
+		}); err != nil {
+			return err
+		}
 	}
-
 	// Eventually we'd need to implement some compatibility checks between different protocol versions.
 	var isSeed bool
 	for _, p := range protos {
