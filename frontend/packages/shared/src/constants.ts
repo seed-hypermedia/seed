@@ -26,8 +26,7 @@ export const METRIC_SERVER_HTTP_PORT =
 
 export const HOSTNAME =
   (import.meta.env && import.meta.env.VITE_DESKTOP_HOSTNAME) ||
-  process.env.VITE_DESKTOP_HOSTNAME ||
-  'http://localhost'
+  process.env.VITE_DESKTOP_HOSTNAME
 export const DESKTOP_APPDATA =
   (import.meta.env && import.meta.env.VITE_DESKTOP_APPDATA) ||
   process.env.VITE_DESKTOP_APPDATA ||
@@ -42,14 +41,15 @@ export const DAEMON_HTTP_URL =
   process.env.DAEMON_HTTP_URL || `${HOSTNAME}:${HTTP_PORT}`
 export const DAEMON_FILE_UPLOAD_URL = `${HOSTNAME}:${HTTP_PORT}/ipfs/file-upload`
 
-const appFileURL = `${HOSTNAME}:${HTTP_PORT}/ipfs`
+const appFileURL = HOSTNAME ? `${HOSTNAME}:${HTTP_PORT}/ipfs` : undefined
 const webFileURL = process.env.SEED_BASE_URL
   ? `${process.env.SEED_BASE_URL}/ipfs`
   : undefined
 export const DAEMON_FILE_URL = // this is used to find /ipfs/ urls on the app and web, in dev and prod.
   process.env.DAEMON_FILE_URL ?? // first we check for an explicit configuration which is used in web dev script
   webFileURL ?? // then we handle web production which has SEED_BASE_URL set
-  appFileURL // and finally we use the appFileURL
+  appFileURL ?? // appFileURL for desktop
+  '/ipfs'
 export const DAEMON_GRAPHQL_ENDPOINT = `${HOSTNAME}:${HTTP_PORT}/graphql`
 
 export const LIGHTNING_API_URL = IS_PROD_DESKTOP
