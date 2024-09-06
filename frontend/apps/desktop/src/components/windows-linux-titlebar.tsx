@@ -41,16 +41,20 @@ export function WindowsLinuxTitleBar({
 }) {
   return (
     <TitlebarWrapper className="window-drag" style={{flex: 'none'}}>
-      <TitlebarRow minHeight={28} backgroundColor="$color3">
+      <TitlebarRow
+        minHeight={28}
+        backgroundColor="$color3"
+        className="window-drag"
+      >
         <TitlebarSection>
           <SystemMenu />
         </TitlebarSection>
-        <XStack flex={1} />
-        <TitlebarSection space>
+        <XStack flex={1} className="window-drag" />
+        <TitlebarSection>
           <WindowsLinuxWindowControls />
         </TitlebarSection>
       </TitlebarRow>
-      <TitlebarRow>
+      <TitlebarRow className="window-drag">
         <XStack
           flex={1}
           minWidth={'min-content'}
