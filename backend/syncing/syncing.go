@@ -633,29 +633,33 @@ func syncEntities(
 	if err != nil {
 		return fmt.Errorf("Could not get connection: %w", err)
 	}
-	var iriList any
-	var iriString string
+	var queryString = mttnet.QListrelatedBlobsString
+	var queryParams []interface{}
 	var i int
 	for eid, recursive := range eids {
-		iriString += eid
+		queryString += "?"
 		if recursive {
-			iriString += "%"
+			queryParams = append(queryParams, eid+"%")
+		} else {
+			queryParams = append(queryParams, eid)
 		}
 		if i < len(eids)-1 {
-			iriString += " OR res.iri LIKE "
+			queryString += " OR res.iri LIKE "
 		}
 		i++
 	}
-	iriList = iriString
+	queryString += `)
+ORDER BY sb.ts, blobs.multihash;`
+
 	localHaves := make(map[cid.Cid]struct{})
-	if err = sqlitex.Exec(conn, mttnet.QListrelatedBlobs(), func(stmt *sqlite.Stmt) error {
+	if err = sqlitex.Exec(conn, dqb.Str(queryString)(), func(stmt *sqlite.Stmt) error {
 		codec := stmt.ColumnInt64(0)
 		hash := stmt.ColumnBytesUnsafe(1)
 		ts := stmt.ColumnInt64(2)
 		rawCid := cid.NewCidV1(uint64(codec), hash)
 		localHaves[rawCid] = struct{}{}
 		return store.Insert(ts, rawCid.Bytes())
-	}, iriList); err != nil {
+	}, queryParams...); err != nil {
 		release()
 		return fmt.Errorf("Could not list related blobs: %w", err)
 	}

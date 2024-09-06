@@ -11,7 +11,6 @@ import (
 	"seed/backend/util/sqlite/sqlitex"
 
 	"github.com/ipfs/go-cid"
-	"go.uber.org/zap"
 )
 
 // ReconcileBlobs reconciles a set of blobs from the initiator. Finds the difference from what we have.
@@ -27,31 +26,32 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 		return nil, fmt.Errorf("Could not get connection: %w", err)
 	}
 	defer release()
-	query := qListAllBlobs
-	var iriList any = nil
-	var iriString string
+	query = qListAllBlobs
+	var queryString = QListrelatedBlobsString
+	var queryParams []interface{}
 	if len(in.Filters) != 0 {
-		query = QListrelatedBlobs
 		for i, filter := range in.Filters {
-			iriString += filter.Resource
+			queryString += "?"
 			if filter.Recursive {
-				iriString += "%"
+				queryParams = append(queryParams, filter.Resource+"%")
+			} else {
+				queryParams = append(queryParams, filter.Resource)
 			}
 			if i < len(in.Filters)-1 {
-				iriString += " OR res.iri LIKE "
+				queryString += " OR res.iri LIKE "
 			}
 		}
-		iriList = iriString
+		queryString += `)
+ORDER BY sb.ts, blobs.multihash;`
+		query = dqb.Str(queryString)
 	}
-
 	if err = sqlitex.Exec(conn, query(), func(stmt *sqlite.Stmt) error {
 		codec := stmt.ColumnInt64(0)
 		hash := stmt.ColumnBytesUnsafe(1)
 		ts := stmt.ColumnInt64(2)
 		c := cid.NewCidV1(uint64(codec), hash)
-		srv.Node.log.Debug("Inserting possible wants", zap.String("CID", c.String()))
 		return store.Insert(ts, c.Bytes())
-	}, iriList); err != nil {
+	}, queryParams...); err != nil {
 		return nil, fmt.Errorf("Could not list: %w", err)
 	}
 
@@ -67,6 +67,7 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 	}, nil
 }
 
+var query dqb.LazyQuery
 var qListAllBlobs = dqb.Str(`
 SELECT
 	blobs.codec,
@@ -78,7 +79,8 @@ WHERE blobs.size >= 0
 ORDER BY sb.ts, blobs.multihash;
 `)
 
-var QListrelatedBlobs = dqb.Str(`
+// QListrelatedBlobsString gets blobs related to multiple eids
+var QListrelatedBlobsString = `
 SELECT
 	blobs.codec,
 	blobs.multihash,
@@ -87,6 +89,4 @@ FROM blobs INDEXED BY blobs_metadata
 LEFT JOIN structural_blobs sb ON sb.id = blobs.id
 LEFT JOIN structural_blobs sb2 ON sb.ts = sb2.ts
 LEFT JOIN resources res ON sb2.resource = res.id
-WHERE blobs.size >= 0 AND (res.iri LIKE ?)
-ORDER BY sb.ts, blobs.multihash;
-`)
+WHERE blobs.size >= 0 AND (res.iri LIKE `
