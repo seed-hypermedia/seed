@@ -52,7 +52,7 @@ func (srv *Server) Connect(ctx context.Context, in *networking.ConnectRequest) (
 
 	info, err := mttnet.AddrInfoFromStrings(in.Addrs...)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "bad addrs: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "Can't connect due to bad addrs: %v", err)
 	}
 
 	net := srv.net
@@ -67,7 +67,8 @@ func (srv *Server) Connect(ctx context.Context, in *networking.ConnectRequest) (
 var qListPeers = dqb.Str(`
 	SELECT 
 		id,
-		addresses
+		addresses,
+		pid
 	FROM peers
 	WHERE id < :last_cursor
 	ORDER BY id DESC LIMIT :page_size + 1;
@@ -113,12 +114,13 @@ func (srv *Server) ListPeers(ctx context.Context, in *networking.ListPeersReques
 		count++
 		id := stmt.ColumnInt64(0)
 		maStr := stmt.ColumnText(1)
+		pid := stmt.ColumnText(2)
 		lastCursor.ID = id
 		lastCursor.Addr = maStr
 		maList := strings.Split(strings.Trim(maStr, " "), ",")
 		info, err := mttnet.AddrInfoFromStrings(maList...)
 		if err != nil {
-			return err
+			return fmt.Errorf("ListPeers failed due to some peer [%s] having invalid addresses: %w", pid, err)
 		}
 		peersInfo = append(peersInfo, info)
 		return nil

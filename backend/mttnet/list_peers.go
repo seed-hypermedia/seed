@@ -2,6 +2,7 @@ package mttnet
 
 import (
 	"context"
+	"fmt"
 	"math"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/util/apiutil"
@@ -19,7 +20,8 @@ import (
 var qListPeers = dqb.Str(`
 	SELECT 
 		id,
-		addresses
+		addresses,
+		pid
 	FROM peers
 	WHERE id < :last_cursor
 	ORDER BY id DESC LIMIT :page_size + 1;
@@ -63,12 +65,13 @@ func (srv *rpcMux) ListPeers(ctx context.Context, in *p2p.ListPeersRequest) (*p2
 		count++
 		id := stmt.ColumnInt64(0)
 		maStr := stmt.ColumnText(1)
+		pid := stmt.ColumnText(2)
 		lastCursor.ID = id
 		lastCursor.Addr = maStr
 		maList := strings.Split(strings.Trim(maStr, " "), ",")
 		info, err := AddrInfoFromStrings(maList...)
 		if err != nil {
-			return err
+			return fmt.Errorf("Remote listPeers failed due to some peer [%s] having invalid addresses: %w", pid, err)
 		}
 		peersInfo = append(peersInfo, info)
 		return nil

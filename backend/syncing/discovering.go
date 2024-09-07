@@ -46,12 +46,14 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 
 	subsMap := make(subscriptionMap)
 	allPeers := []peer.ID{} // TODO:(juligasa): Remove this when we have providers store
-	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
+	if err = sqlitex.Exec(conn, qListPeersWithPid(), func(stmt *sqlite.Stmt) error {
 		addresStr := stmt.ColumnText(0)
+		pid := stmt.ColumnText(1)
 		addrList := strings.Split(addresStr, ",")
 		info, err := mttnet.AddrInfoFromStrings(addrList...)
 		if err != nil {
-			return err
+			s.log.Warn("Can't discover from peer since it has malformed addresses", zap.String("PID", pid), zap.Error(err))
+			return nil
 		}
 		s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
 		allPeers = append(allPeers, info.ID)

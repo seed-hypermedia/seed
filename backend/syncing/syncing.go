@@ -204,19 +204,28 @@ var qListPeers = dqb.Str(`
 	FROM peers;
 `)
 
+var qListPeersWithPid = dqb.Str(`
+	SELECT
+		addresses,
+		pid
+	FROM peers;
+`)
+
 func (s *Service) refreshWorkers(ctx context.Context) error {
-	peers := make(map[peer.ID]struct{}, int(float64(len(s.workers))*1.5)) // arbitrary multiplier to avoid map resizing.
+	peers := make(map[peer.ID]struct{}, int(float64(len(s.workers))*1.9)) // arbitrary multiplier to avoid map resizing.
 	conn, release, err := s.db.Conn(ctx)
 	if err != nil {
 		return err
 	}
 	defer release()
-	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
+	if err = sqlitex.Exec(conn, qListPeersWithPid(), func(stmt *sqlite.Stmt) error {
 		addresStr := stmt.ColumnText(0)
+		pid := stmt.ColumnText(1)
 		addrList := strings.Split(addresStr, ",")
 		info, err := mttnet.AddrInfoFromStrings(addrList...)
 		if err != nil {
-			return err
+			s.log.Warn("Can't periodically sync with peer because it has malformed addresses", zap.String("PID", pid), zap.Error(err))
+			return nil
 		}
 		s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
 		peers[info.ID] = struct{}{}
@@ -317,12 +326,13 @@ func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
 		return res, err
 	}
 	defer release()
-	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
+	if err = sqlitex.Exec(conn, qListPeersWithPid(), func(stmt *sqlite.Stmt) error {
 		addresStr := stmt.ColumnText(0)
+		pid := stmt.ColumnText(1)
 		addrList := strings.Split(addresStr, ",")
 		info, err := mttnet.AddrInfoFromStrings(addrList...)
 		if err != nil {
-			return err
+			return fmt.Errorf("Can't sync with peer [%s] since it has malformed addresses: %w", pid, err)
 		}
 		s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
 		seedPeers = append(seedPeers, info.ID)
@@ -397,12 +407,13 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 	}
 	subsMap := make(subscriptionMap)
 	allPeers := []peer.ID{} // TODO:(juligasa): Remove this when we have providers store
-	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
+	if err = sqlitex.Exec(conn, qListPeersWithPid(), func(stmt *sqlite.Stmt) error {
 		addresStr := stmt.ColumnText(0)
+		pid := stmt.ColumnText(1)
 		addrList := strings.Split(addresStr, ",")
 		info, err := mttnet.AddrInfoFromStrings(addrList...)
 		if err != nil {
-			return err
+			return fmt.Errorf("Can't sync subscribed content with peer [%s] since it has malformed addresses: %w", pid, err)
 		}
 		s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
 		allPeers = append(allPeers, info.ID)
