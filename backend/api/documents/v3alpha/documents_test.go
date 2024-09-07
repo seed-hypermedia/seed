@@ -9,8 +9,11 @@ import (
 	"seed/backend/logging"
 	"seed/backend/storage"
 	"seed/backend/testutil"
+	"seed/backend/util/must"
+	"strings"
 	"testing"
 
+	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -301,6 +304,74 @@ func TestGetDocumentWithVersion(t *testing.T) {
 		require.NoError(t, err)
 		testutil.StructsEqual(got1, doc).Compare(t, "get with version must return the correct doc")
 	}
+}
+
+func TestConcurrentChanges(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	doc1, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.Principal().String(),
+		Path:           "",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice's profile"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	doc21, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.Principal().String(),
+		Path:           "",
+		BaseVersion:    doc1.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice from the Wonderland"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	doc22, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.Principal().String(),
+		Path:           "",
+		BaseVersion:    doc1.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice Pleasance Liddell"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	concurrent, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{Account: doc1.Account, Path: doc1.Path})
+	require.NoError(t, err)
+
+	wantVersion := index.NewVersion(
+		must.Do2(cid.Decode(doc21.Version)),
+		must.Do2(cid.Decode(doc22.Version)),
+	)
+	require.Equal(t, wantVersion.String(), concurrent.Version, "concurrent version must match")
+
+	merged, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.Principal().String(),
+		Path:           "",
+		BaseVersion:    concurrent.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice Pleasance Liddell. The one from the Wonderland."},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.False(t, strings.Contains(merged.Version, "."), "merged version must not be composite")
 }
 
 type testServer struct {
