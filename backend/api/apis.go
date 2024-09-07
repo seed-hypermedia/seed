@@ -62,7 +62,7 @@ func New(
 	return Server{
 		Activity:    activity,
 		Daemon:      daemon.NewServer(repo, wallet, doSync),
-		Networking:  networking.NewServer(node, db),
+		Networking:  networking.NewServer(node, db, logging.New("seed/networking", LogLevel)),
 		Entities:    entities.NewServer(idx, sync),
 		DocumentsV3: documentsv3.NewServer(repo.KeyStore(), idx, db),
 		Syncing:     sync,

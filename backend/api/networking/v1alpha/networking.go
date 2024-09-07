@@ -16,6 +16,7 @@ import (
 	"seed/backend/util/sqlite/sqlitex"
 
 	"github.com/libp2p/go-libp2p/core/peer"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -25,13 +26,15 @@ import (
 type Server struct {
 	net *mttnet.Node
 	db  *sqlitex.Pool
+	log *zap.Logger
 }
 
 // NewServer returns a new networking API server.
-func NewServer(node *mttnet.Node, db *sqlitex.Pool) *Server {
+func NewServer(node *mttnet.Node, db *sqlitex.Pool, log *zap.Logger) *Server {
 	return &Server{
 		net: node,
 		db:  db,
+		log: log,
 	}
 }
 
@@ -120,7 +123,8 @@ func (srv *Server) ListPeers(ctx context.Context, in *networking.ListPeersReques
 		maList := strings.Split(strings.Trim(maStr, " "), ",")
 		info, err := mttnet.AddrInfoFromStrings(maList...)
 		if err != nil {
-			return fmt.Errorf("ListPeers failed due to some peer [%s] having invalid addresses: %w", pid, err)
+			srv.log.Warn("Invalid address found when listing peers", zap.String("PID", pid), zap.Error(err))
+			return nil
 		}
 		peersInfo = append(peersInfo, info)
 		return nil

@@ -332,8 +332,10 @@ func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
 		addrList := strings.Split(addresStr, ",")
 		info, err := mttnet.AddrInfoFromStrings(addrList...)
 		if err != nil {
-			return fmt.Errorf("Can't sync with peer [%s] since it has malformed addresses: %w", pid, err)
+			s.log.Warn("Can't sync with peer with malformed addresses", zap.String("PID", pid), zap.Error(err))
+			return nil
 		}
+
 		s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
 		seedPeers = append(seedPeers, info.ID)
 		return nil
@@ -413,7 +415,8 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 		addrList := strings.Split(addresStr, ",")
 		info, err := mttnet.AddrInfoFromStrings(addrList...)
 		if err != nil {
-			return fmt.Errorf("Can't sync subscribed content with peer [%s] since it has malformed addresses: %w", pid, err)
+			s.log.Warn("Can't sync subscribed content with peer with malformed addresses", zap.String("PID", pid), zap.Error(err))
+			return nil
 		}
 		s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
 		allPeers = append(allPeers, info.ID)

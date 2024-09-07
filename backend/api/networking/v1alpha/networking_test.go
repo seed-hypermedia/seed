@@ -68,5 +68,5 @@ func makeTestServer(t *testing.T, u coretest.Tester) *Server {
 
 	t.Cleanup(cancel)
 
-	return NewServer(n, db)
+	return NewServer(n, db, logging.New("test", "debug"))
 }

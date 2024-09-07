@@ -2,7 +2,6 @@ package mttnet
 
 import (
 	"context"
-	"fmt"
 	"math"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/util/apiutil"
@@ -13,6 +12,7 @@ import (
 	"seed/backend/util/sqlite/sqlitex"
 
 	"github.com/libp2p/go-libp2p/core/peer"
+	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -71,7 +71,8 @@ func (srv *rpcMux) ListPeers(ctx context.Context, in *p2p.ListPeersRequest) (*p2
 		maList := strings.Split(strings.Trim(maStr, " "), ",")
 		info, err := AddrInfoFromStrings(maList...)
 		if err != nil {
-			return fmt.Errorf("Remote listPeers failed due to some peer [%s] having invalid addresses: %w", pid, err)
+			srv.Node.log.Warn("Invalid address found when listing peers", zap.String("PID", pid), zap.Error(err))
+			return nil
 		}
 		peersInfo = append(peersInfo, info)
 		return nil
