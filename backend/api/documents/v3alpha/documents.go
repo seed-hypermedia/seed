@@ -159,8 +159,7 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 	return srv.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: in.Account,
 		Path:    in.Path,
-		// TODO implement getting specific version. Or do we want latest always?
-		// Version:    parentVersion.String(),
+		Version: docChange.CID.String(),
 	})
 }
 
