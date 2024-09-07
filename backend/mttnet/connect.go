@@ -26,7 +26,11 @@ import (
 	"go.uber.org/zap"
 )
 
-const ConnectTimeout = time.Second * 15
+const (
+	// ConnectTimeout is the maximum time to spend connecting to a peer
+	ConnectTimeout         = time.Second * 15
+	maxNonSeedPeersAllowed = 10
+)
 
 var (
 	mConnectsInFlight = promauto.NewGauge(prometheus.GaugeOpts{
@@ -143,22 +147,32 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 			sqlStr += "(?, ?),"
 			vals = append(vals, info.ID.String(), initialAddrs)
 		}
-
+		var nonSeedPeers int
+		var xerr []error
 		for _, p := range res.Peers {
 			if len(p.Addrs) > 0 {
 				if p.Id == n.client.me.String() {
 					continue
 				}
 				if err := n.CheckHyperMediaProtocolVersion(ctx, peer.ID(p.Id), n.protocol.version); err != nil {
-					xerr := n.Libp2p().Network().ClosePeer(peer.ID(p.Id))
-					xxerr := sqlitex.Exec(conn, "DELETE FROM peers WHERE pid = ?", nil, info.ID.String())
-					log.Warn("A real Seed peer is spamming us with a non-seed list of peers", zap.String("Non-seed peerid", p.Id), zap.Errors("Errors", []error{err, xerr, xxerr}))
-					return fmt.Errorf("Cannot connect to a peer that has non-seed peers in it's database")
+					nonSeedPeers++
+					xerr = append(xerr, fmt.Errorf("Invalid peer %s: %w", p, err))
+					continue
 				}
-
 				sqlStr += "(?, ?),"
 				vals = append(vals, p.Id, strings.Join(p.Addrs, ","))
+			} else {
+				nonSeedPeers++
+				xerr = append(xerr, fmt.Errorf("Invalid peer %s with no addresses", p))
 			}
+			// In order not to get spammed with thousands of peers and make us waste computing
+			// resources, we abort early
+			if nonSeedPeers >= maxNonSeedPeersAllowed {
+				break
+			}
+		}
+		if nonSeedPeers > 0 {
+			log.Warn("The peer we are trying to connect with, has non-seed peers in its database.", zap.Int("Number of non-seed-peers", nonSeedPeers), zap.Errors("Errors", xerr))
 		}
 		if len(vals) != 0 {
 			sqlStr = sqlStr[0 : len(sqlStr)-1]
