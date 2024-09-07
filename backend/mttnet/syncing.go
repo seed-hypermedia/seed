@@ -5,7 +5,6 @@ import (
 	"fmt"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/syncing/rbsr"
-	"seed/backend/util/dqb"
 
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -26,26 +25,26 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 		return nil, fmt.Errorf("Could not get connection: %w", err)
 	}
 	defer release()
-	query = qListAllBlobs
-	var queryString = QListrelatedBlobsString
+	var query string = qListAllBlobsStr
 	var queryParams []interface{}
 	if len(in.Filters) != 0 {
+		query = QListrelatedBlobsStr
 		for i, filter := range in.Filters {
-			queryString += "?"
+			query += "?"
 			if filter.Recursive {
 				queryParams = append(queryParams, filter.Resource+"%")
 			} else {
 				queryParams = append(queryParams, filter.Resource)
 			}
 			if i < len(in.Filters)-1 {
-				queryString += " OR res.iri LIKE "
+				query += " OR res.iri LIKE "
 			}
 		}
-		queryString += `)
+		query += `)
 ORDER BY sb.ts, blobs.multihash;`
-		query = dqb.Str(queryString)
+		// query = dqb.Str(queryString)
 	}
-	if err = sqlitex.Exec(conn, query(), func(stmt *sqlite.Stmt) error {
+	if err = sqlitex.Exec(conn, query, func(stmt *sqlite.Stmt) error {
 		codec := stmt.ColumnInt64(0)
 		hash := stmt.ColumnBytesUnsafe(1)
 		ts := stmt.ColumnInt64(2)
@@ -67,8 +66,7 @@ ORDER BY sb.ts, blobs.multihash;`
 	}, nil
 }
 
-var query dqb.LazyQuery
-var qListAllBlobs = dqb.Str(`
+const qListAllBlobsStr = (`
 SELECT
 	blobs.codec,
 	blobs.multihash,
@@ -80,7 +78,7 @@ ORDER BY sb.ts, blobs.multihash;
 `)
 
 // QListrelatedBlobsString gets blobs related to multiple eids
-var QListrelatedBlobsString = `
+const QListrelatedBlobsStr = `
 SELECT
 	blobs.codec,
 	blobs.multihash,

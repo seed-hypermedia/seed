@@ -647,7 +647,7 @@ func syncEntities(
 	if err != nil {
 		return fmt.Errorf("Could not get connection: %w", err)
 	}
-	var queryString = mttnet.QListrelatedBlobsString
+	var queryString = mttnet.QListrelatedBlobsStr
 	var queryParams []interface{}
 	var i int
 	for eid, recursive := range eids {
@@ -666,7 +666,7 @@ func syncEntities(
 ORDER BY sb.ts, blobs.multihash;`
 
 	localHaves := make(map[cid.Cid]struct{})
-	if err = sqlitex.Exec(conn, dqb.Str(queryString)(), func(stmt *sqlite.Stmt) error {
+	if err = sqlitex.Exec(conn, queryString, func(stmt *sqlite.Stmt) error {
 		codec := stmt.ColumnInt64(0)
 		hash := stmt.ColumnBytesUnsafe(1)
 		ts := stmt.ColumnInt64(2)
