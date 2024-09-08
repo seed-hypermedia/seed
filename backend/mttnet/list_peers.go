@@ -31,6 +31,10 @@ var qListPeers = dqb.Str(`
 func (srv *rpcMux) ListPeers(ctx context.Context, in *p2p.ListPeersRequest) (*p2p.ListPeersResponse, error) {
 	net := srv.Node
 	out := &p2p.ListPeersResponse{}
+	// since the caller is a remote client if we don't want to share our peerlist remotely we don't do it
+	if !srv.Node.cfg.PeerSharing {
+		return out, nil
+	}
 	conn, release, err := srv.Node.db.Conn(ctx)
 	if err != nil {
 		return nil, err

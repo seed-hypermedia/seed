@@ -126,6 +126,13 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	if len(addrsStr) == 0 {
 		return fmt.Errorf("Peer with no addresses")
 	}
+	initialAddrs := strings.ReplaceAll(strings.Join(addrsStr, ","), " ", "")
+	conn, release, err = n.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+
 	c, err := n.client.Dial(ctx, info.ID)
 	if err != nil {
 		return fmt.Errorf("Could not get p2p client: %w", err)
@@ -134,12 +141,7 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	if err != nil {
 		return fmt.Errorf("Could not get list of peers: %w", err)
 	}
-	conn, release, err = n.db.Conn(ctx)
-	if err != nil {
-		return err
-	}
-	defer release()
-	initialAddrs := strings.ReplaceAll(strings.Join(addrsStr, ","), " ", "")
+
 	if len(res.Peers) > 0 {
 		vals := []interface{}{}
 		sqlStr := "INSERT OR REPLACE INTO peers (pid, addresses) VALUES "
@@ -154,7 +156,12 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 				if p.Id == n.client.me.String() {
 					continue
 				}
-				if err := n.CheckHyperMediaProtocolVersion(ctx, peer.ID(p.Id), n.protocol.version); err != nil {
+				pid, err := peer.Decode(p.Id)
+				if err != nil {
+					nonSeedPeers++
+					continue
+				}
+				if err := n.CheckHyperMediaProtocolVersion(ctx, pid, n.protocol.version); err != nil {
 					nonSeedPeers++
 					xerr = append(xerr, fmt.Errorf("Invalid peer %s: %w", p, err))
 					continue
@@ -210,7 +217,7 @@ func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.Ev
 		return
 	}
 
-	n.log.Debug("Storing Seed peer that connected to us", zap.String("PID", event.Peer.String()), zap.String("Connectedness", connectedness.String()))
+	n.log.Debug("Storing Seed peer", zap.String("PID", event.Peer.String()), zap.String("Connectedness", connectedness.String()))
 	var addrsString []string
 	for _, addrs := range event.ListenAddrs {
 		addrsString = append(addrsString, strings.ReplaceAll(addrs.String(), "/p2p/"+event.Peer.String(), "")+"/p2p/"+event.Peer.String())
