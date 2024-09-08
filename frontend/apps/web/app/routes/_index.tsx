@@ -4,7 +4,8 @@ import {Button} from "@tamagui/button";
 import {getConfig} from "~/config";
 import {DocumentPage, documentPageMeta} from "~/document";
 import {loadSiteDocument, SiteDocumentPayload} from "~/loaders";
-import {unwrap} from "~/wrapping";
+import {NotRegisteredPage} from "~/not-registered";
+import {unwrap, wrapJSON} from "~/wrapping";
 
 // Remove this if you want the error:
 Button;
@@ -16,13 +17,16 @@ export const loader = async ({request}: {request: Request}) => {
   const url = new URL(request.url);
   const version = url.searchParams.get("v");
   const {registeredAccountUid} = getConfig();
-  if (!registeredAccountUid) throw new Error("No registered account uid");
+  if (!registeredAccountUid) return wrapJSON("unregistered");
   return await loadSiteDocument(
     hmId("d", registeredAccountUid, {version, path: []})
   );
 };
 
 export default function SiteDocument() {
-  const data = unwrap<SiteDocumentPayload>(useLoaderData());
+  const data = unwrap<SiteDocumentPayload | "unregistered">(useLoaderData());
+  if (data === "unregistered") {
+    return <NotRegisteredPage />;
+  }
   return <DocumentPage {...data} />;
 }
