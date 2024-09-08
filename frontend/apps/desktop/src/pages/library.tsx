@@ -62,6 +62,7 @@ export default function LibraryPage() {
     filterString: '',
     filter: {},
   })
+  console.log('queryState', queryState)
   const [exportMode, setExportMode] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
@@ -581,9 +582,11 @@ function RoleFilterOption({
           onPress={(e: MouseEvent) => {
             e.stopPropagation()
           }}
+          borderColor="$color8"
+          focusStyle={{borderColor: '$color10'}}
           onCheckedChange={onCheckedChange}
         >
-          <Checkbox.Indicator>
+          <Checkbox.Indicator borderColor="$color8">
             <Check />
           </Checkbox.Indicator>
         </Checkbox>

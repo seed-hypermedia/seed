@@ -11,6 +11,7 @@ import {useDraftList} from './documents'
 import {getParentPaths, useEntities} from './entities'
 import {useFavorites} from './favorites'
 import {useSearch} from './search'
+import {HMSubscription, useListSubscriptions} from './subscription'
 
 export type FilterItem =
   | 'owner'
@@ -39,11 +40,27 @@ export type LibraryData = Array<{
   location: LibraryDependentData[]
   authors: LibraryDependentData[]
   isFavorite: boolean
+  isSubscribed: boolean
 }>
+
+function isSubscribedBy(
+  id: UnpackedHypermediaId,
+  sub: HMSubscription,
+): boolean {
+  if (sub.id.uid !== id.uid) return false
+  if (!id.path || !sub.id.path) return false
+  const subPath = sub.id.path.join('/')
+  const idPath = id.path.join('/')
+  if (subPath === idPath) return true
+  if (!sub.recursive) return false
+  if (idPath.startsWith(subPath)) return true
+  return false
+}
 
 export function useLibrary(query: LibraryQueryState): LibraryData {
   const search = useSearch(query.filterString, {})
   const favorites = useFavorites()
+  const subscriptions = useListSubscriptions()
   const draftList = useDraftList()
   const searchedIds =
     search.data?.map((entity) => unpackHmId(entity.id)).filter((id) => !!id) ||
@@ -172,6 +189,7 @@ export function useLibrary(query: LibraryQueryState): LibraryData {
           document: undefined,
           location: getLocation(id),
           authors: getAuthors(draft ? [draft.signingAccount] : []),
+          isSubscribed: false,
           isFavorite: false,
         }
       })
@@ -192,6 +210,9 @@ export function useLibrary(query: LibraryQueryState): LibraryData {
           hasDraft,
           location: getLocation(id),
           authors: getAuthors(entity?.data?.document?.authors || []),
+          isSubscribed:
+            subscriptions.data?.findIndex((sub) => isSubscribedBy(id, sub)) !==
+            -1,
           isFavorite:
             favorites?.findIndex((fav) => fav && fav.id === id.id) !== -1,
         }
@@ -206,6 +227,8 @@ export function useLibrary(query: LibraryQueryState): LibraryData {
             return result.hasDraft
           case 'favorites':
             return result.isFavorite
+          case 'subscribed':
+            return result.isSubscribed
           default:
             return false
         }

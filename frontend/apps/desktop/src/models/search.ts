@@ -21,8 +21,6 @@ export function useSearch(
         query,
       })
       const entities = result.entities.map(toPlainMessage)
-
-      console.log(`== ~ queryFn: ~ entities:`, entities)
       return entities
     },
   })

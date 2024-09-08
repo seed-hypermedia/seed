@@ -10,7 +10,7 @@ import {
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {queryKeys} from './query-keys'
 
-export type HMSubscription = PlainMessage<Subscription> & {
+export type HMSubscription = Omit<PlainMessage<Subscription>, 'path'> & {
   id: UnpackedHypermediaId
 }
 
