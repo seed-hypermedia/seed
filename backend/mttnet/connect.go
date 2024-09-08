@@ -99,9 +99,9 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	ctx, cancel := context.WithTimeout(ctx, ConnectTimeout)
 	defer cancel()
 
-	log.Debug("ConnectStarted")
+	log.Info("ConnectStarted")
 	defer func() {
-		log.Debug("ConnectFinished", zap.Error(err), zap.String("Info", info.String()))
+		log.Info("ConnectFinished", zap.Error(err), zap.String("Info", info.String()))
 	}()
 
 	// Since we're explicitly connecting to a peer, we want to clear any backoffs

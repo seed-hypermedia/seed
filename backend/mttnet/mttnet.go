@@ -308,9 +308,9 @@ func (n *Node) Libp2p() *ipfs.Libp2p { return n.p2p }
 func (n *Node) Start(ctx context.Context) (err error) {
 	n.ctx = ctx
 
-	n.log.Debug("P2PNodeStarted", zap.String("protocolID", string(n.protocol.ID)))
+	n.log.Info("P2PNodeStarted", zap.String("protocolID", string(n.protocol.ID)))
 
-	defer func() { n.log.Debug("P2PNodeFinished", zap.Error(err)) }()
+	defer func() { n.log.Info("P2PNodeFinished", zap.Error(err)) }()
 
 	if err := n.startLibp2p(ctx); err != nil {
 		return err
