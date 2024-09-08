@@ -19,6 +19,8 @@ import {
 } from '@shm/shared'
 import {Button, Contact, getBlockNodeById, Thumbnail, Tooltip} from '@shm/ui'
 import {
+  ChevronDown,
+  ChevronRight,
   Folder,
   Hash,
   Library,
@@ -109,25 +111,45 @@ function SidebarSection({
   accessory?: React.ReactNode
 }) {
   const [collapsed, setCollapsed] = React.useState(false)
+  let Icon = collapsed ? ChevronRight : ChevronDown
   return (
     <YStack marginTop="$4" group="section">
-      <XStack paddingHorizontal="$2" ai="center" jc="space-between">
-        <SizableText
-          fontWeight="bold"
-          fontSize="$1"
-          color="$color11"
-          cursor="pointer"
-          hoverStyle={{
-            color: '$color12',
-          }}
-          textTransform="capitalize"
-          userSelect="none"
+      <XStack
+        paddingHorizontal="$2"
+        ai="center"
+        jc="space-between"
+        cursor="pointer"
+      >
+        <XStack
+          gap="$1"
           onPress={() => {
             setCollapsed(!collapsed)
           }}
+          group="header"
+          jc="center"
         >
-          {title}
-        </SizableText>
+          <SizableText
+            fontWeight="bold"
+            fontSize="$1"
+            color="$color11"
+            $group-header-hover={{
+              color: '$color12',
+            }}
+            textTransform="capitalize"
+            userSelect="none"
+          >
+            {title}
+          </SizableText>
+          <Icon
+            size="$1"
+            color="$color11"
+            opacity={collapsed ? 1 : 0}
+            $group-header-hover={{
+              color: '$color12',
+              opacity: 1,
+            }}
+          />
+        </XStack>
         <XStack opacity={0} $group-section-hover={{opacity: 1}}>
           {accessory}
         </XStack>
