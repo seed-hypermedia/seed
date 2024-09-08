@@ -31,14 +31,14 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 		return fmt.Errorf("Discovering by version is not implemented yet")
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, DefaultDiscoveryTimeout)
+	ctxLocalPeers, cancel := context.WithTimeout(ctx, DefaultDiscoveryTimeout/2)
 	defer cancel()
 	c, err := ipfs.NewCID(uint64(multicodec.Raw), uint64(multicodec.Identity), []byte(entityID))
 	if err != nil {
 		return fmt.Errorf("Couldn't encode eid into CID: %w", err)
 	}
 
-	conn, release, err := s.db.Conn(ctx)
+	conn, release, err := s.db.Conn(ctxLocalPeers)
 	if err != nil {
 		s.log.Debug("Could not grab a connection", zap.Error(err))
 		return err
@@ -72,7 +72,7 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 			subsMap[pid] = eidsMap
 		}
 
-		ret := s.SyncWithManyPeers(ctx, subsMap)
+		ret := s.SyncWithManyPeers(ctxLocalPeers, subsMap)
 		if ret.NumSyncOK > 0 {
 			var haveIt bool
 			if err = sqlitex.Exec(conn, qGetEntity(), func(stmt *sqlite.Stmt) error {
@@ -99,8 +99,9 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 	if version != "" {
 		maxProviders = 0
 	}
-
-	peers := s.bitswap.FindProvidersAsync(ctx, c, maxProviders)
+	ctxDHT, cancelDHTCtx := context.WithTimeout(ctx, DefaultDiscoveryTimeout/2)
+	defer cancelDHTCtx()
+	peers := s.bitswap.FindProvidersAsync(ctxDHT, c, maxProviders)
 
 	for p := range peers {
 		p := p
@@ -112,7 +113,7 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 		)
 		log.Debug("Provider Found")
 		eidMap := map[string]bool{entityID: false}
-		if err := s.SyncWithPeer(ctx, p.ID, eidMap); err != nil {
+		if err := s.SyncWithPeer(ctxDHT, p.ID, eidMap); err != nil {
 			log.Debug("Error trying to sync with a provider", zap.Error(err))
 			continue
 		}
