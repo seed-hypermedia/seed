@@ -9,8 +9,9 @@ package ipfs
 // NOTE: This is here -- and not inside cmd/ipfs/init.go -- because of an
 // import dependency issue. TODO: move this into a config/default/ package.
 const (
-	ProductionGateway = "/dns4/hyper.media/tcp/55001/p2p/12D3KooWK1LhXM89HHbTFVVbxuGf6NNuZNPWZ4SN4nwMNXkUouTS"
-	TestGateway       = "/dns4/mintter.xyz/tcp/55001/p2p/12D3KooWEiTFkbrXKNT1d87cbr4cMCFrJG8aEcdo6cGdkDLJKMEW"
+	HM23ProductionGateway = "/dns4/hyper.media/tcp/55001/p2p/12D3KooWK1LhXM89HHbTFVVbxuGf6NNuZNPWZ4SN4nwMNXkUouTS"
+	//HM23TestGateway       = "/dns4/mintter.xyz/tcp/55001/p2p/12D3KooWEiTFkbrXKNT1d87cbr4cMCFrJG8aEcdo6cGdkDLJKMEW"
+	HM24TestGateway = "/dns4/dev.hyper.media/tcp/56000/p2p/12D3KooWMjs8x6ST53ZuXAegedQ4dJ2HYYQmFpw1puGpBZmLRCGB"
 )
 
 // DefaultBootstrapAddresses are the addresses to use as a gate to the network.
@@ -21,6 +22,6 @@ var DefaultBootstrapAddresses = []string{
 	"/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
 	"/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",         // mars.i.ipfs.io
 	"/ip4/104.131.131.82/udp/4001/quic-v1/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ", // mars.i.ipfs.io
-	ProductionGateway,
-	TestGateway,
+	HM23ProductionGateway,
+	HM24TestGateway,
 }
