@@ -133,7 +133,7 @@ export function DocumentPage({
               <DocContent document={document} />
             </WebDocContentProvider>
           </Container>
-          <DocumentAppendix id={id} />
+          <DocumentAppendix id={id} homeId={homeId} />
         </YStack>
       </YStack>
       <MobileOutline open={open} onClose={() => setOpen(false)}>
@@ -163,13 +163,19 @@ function WebDocContentProvider({children}: PropsWithChildren<{}>) {
   );
 }
 
-function DocumentAppendix({id}: {id: UnpackedHypermediaId}) {
+function DocumentAppendix({
+  id,
+  homeId,
+}: {
+  id: UnpackedHypermediaId;
+  homeId: UnpackedHypermediaId;
+}) {
   const [activeTab, setActiveTab] = useState<"directory" | "discussion">(
     "directory"
   );
   let content = null;
   if (activeTab === "directory") {
-    content = <DocumentDirectory id={id} />;
+    content = <DocumentDirectory id={id} homeId={homeId} />;
   } else if (activeTab === "discussion") {
     content = <DocumentDiscussion id={id} />;
   }
@@ -203,7 +209,13 @@ function useAPI<ResponsePayloadType>(url?: string) {
   return response;
 }
 
-function DocumentDirectory({id}: {id: UnpackedHypermediaId}) {
+function DocumentDirectory({
+  id,
+  homeId,
+}: {
+  id: UnpackedHypermediaId;
+  homeId: UnpackedHypermediaId;
+}) {
   const response = useAPI<DirectoryPayload>(`/hm/api/directory?id=${id.id}`);
   if (response?.error) return <ErrorComponent error={response?.error} />;
   if (!response) return <Spinner />;
@@ -214,6 +226,7 @@ function DocumentDirectory({id}: {id: UnpackedHypermediaId}) {
       {directory?.map((doc) => (
         <DirectoryItem
           entry={doc}
+          siteHomeId={homeId}
           authorsMetadata={authorsMetadata}
           PathButton={PathButton}
         />

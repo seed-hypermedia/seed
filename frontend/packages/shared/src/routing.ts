@@ -1,6 +1,6 @@
 import {createContext, useContext} from 'react'
 import {NavRoute} from './routes'
-import {idToUrl} from './utils'
+import {idToUrl, UnpackedHypermediaId} from './utils'
 
 type UniversalRoutingContextValue = {
   openRoute: (route: NavRoute) => void
@@ -20,9 +20,13 @@ export function useOpenRoute() {
   }
 }
 
-export function useRouteLink(route: NavRoute) {
+export function useRouteLink(
+  route: NavRoute,
+  siteHomeId?: UnpackedHypermediaId,
+) {
   const context = useContext(UniversalRoutingContext)
-  const href = route.key === 'document' ? idToUrl(route.id) : undefined
+  const href =
+    route.key === 'document' ? idToUrl(route.id, {siteHomeId}) : undefined
   if (!context)
     throw new Error('useRouteLink must be used in a UniversalRoutingProvider')
   return {

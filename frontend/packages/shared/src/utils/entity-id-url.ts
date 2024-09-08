@@ -56,6 +56,7 @@ export function createWebHMUrl(
     hostname,
     latest,
     path,
+    siteHomeId,
   }: {
     version?: string | null | undefined
     blockRef?: string | null | undefined
@@ -63,9 +64,13 @@ export function createWebHMUrl(
     hostname?: string | null | undefined
     latest?: boolean | null
     path?: string[] | null
+    siteHomeId?: UnpackedHypermediaId
   } = {},
 ) {
-  const webPath = type === 'd' ? `/hm/${uid}` : `/hm/${type}/${uid}`
+  let webPath = type === 'd' ? `/hm/${uid}` : `/hm/${type}/${uid}`
+  if (siteHomeId?.uid === uid) {
+    webPath = ''
+  }
   const urlHost =
     hostname === undefined
       ? HYPERMEDIA_PUBLIC_WEB_GATEWAY
@@ -274,7 +279,10 @@ export function isPublicGatewayLink(text: string, gwUrl: StateStream<string>) {
   return !!matchesGateway
 }
 
-export function idToUrl(hmId: UnpackedHypermediaId) {
+export function idToUrl(
+  hmId: UnpackedHypermediaId,
+  opts?: {siteHomeId?: UnpackedHypermediaId},
+) {
   if (!hmId?.type) return null
   return createWebHMUrl(hmId.type, hmId.uid, {
     version: hmId.version,
@@ -282,6 +290,7 @@ export function idToUrl(hmId: UnpackedHypermediaId) {
     blockRange: hmId.blockRange,
     path: hmId.path,
     hostname: hmId.hostname,
+    siteHomeId: opts?.siteHomeId,
   })
 }
 

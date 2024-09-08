@@ -22,6 +22,7 @@ export function DirectoryItem({
   PathButton,
   FavoriteButton,
   authorsMetadata,
+  siteHomeId,
 }: {
   entry: {
     path: string;
@@ -40,9 +41,10 @@ export function DirectoryItem({
     uid: string;
     metadata?: HMMetadata;
   }[];
+  siteHomeId?: UnpackedHypermediaId;
 }) {
   const metadata = entry?.metadata;
-  const linkProps = useRouteLink({key: "document", id: entry.id});
+  const linkProps = useRouteLink({key: "document", id: entry.id}, siteHomeId);
   return (
     <Button
       group="item"
