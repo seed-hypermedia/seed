@@ -243,10 +243,12 @@ function AccountsSection() {
                   icon={Trash}
                   onPress={
                     account.data?.id.id
-                      ? () =>
+                      ? (e) => {
+                          e.stopPropagation()
                           deleteKey.mutateAsync({
                             accountId: account.data!.id.uid,
                           })
+                        }
                       : undefined
                   }
                 />

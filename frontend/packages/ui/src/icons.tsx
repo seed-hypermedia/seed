@@ -505,7 +505,6 @@ export function SubscribeSpace({
   color?: string;
   size?: string | number;
 }) {
-  console.log(`== ~ color:`, color);
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -533,7 +532,6 @@ export function UnSubscribeSpace({
   color?: string;
   size?: string | number;
 }) {
-  console.log(`== ~ color:`, color);
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -575,7 +573,6 @@ export function Version({
   color?: string;
   size?: string | number;
 }) {
-  console.log(`== ~ color:`, color);
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
