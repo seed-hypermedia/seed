@@ -482,6 +482,7 @@ func newLibp2p(cfg config.P2P, device crypto.PrivKey) (*ipfs.Libp2p, io.Closer, 
 		libp2p.UserAgent(userAgent),
 		libp2p.Peerstore(ps),
 		libp2p.EnableNATService(),
+		libp2p.EnableHolePunching(),
 	}
 
 	if cfg.AnnounceAddrs != nil {
@@ -512,7 +513,6 @@ func newLibp2p(cfg config.P2P, device crypto.PrivKey) (*ipfs.Libp2p, io.Closer, 
 
 	if !cfg.NoRelay {
 		opts = append(opts,
-			libp2p.EnableHolePunching(),
 			libp2p.EnableAutoRelayWithStaticRelays(DefaultRelays(),
 				autorelay.WithBootDelay(time.Second*10),
 				autorelay.WithNumRelays(2),
