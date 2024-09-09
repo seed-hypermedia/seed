@@ -36,24 +36,15 @@ export const action: ActionFunction = async ({request}) => {
     console.log("REGISTERING SITE", JSON.stringify(input, null, 2));
     const addrs = input.addrs.map((addr) => `${addr}/p2p/${input.peerId}`);
     console.log("networking.connect", addrs);
-    try {
-      await queryClient.networking.connect({
-        addrs,
-      });
-    } catch (e) {
-      console.error("direct connect failed", e);
-    }
+    await queryClient.networking.connect({
+      addrs,
+    });
     console.log("subscribe");
-    try {
-      await queryClient.subscriptions.subscribe({
-        account: input.accountUid,
-        path: "",
-        recursive: true,
-      });
-    } catch (e) {
-      console.error("subscribe failed", e);
-      // probably this was an attempt to create a duplicate subscription, and this error can be ignored
-    }
+    await queryClient.subscriptions.subscribe({
+      account: input.accountUid,
+      path: "",
+      recursive: true,
+    });
     console.log("writing config");
     await writeConfig({
       registeredAccountUid: input.accountUid,
