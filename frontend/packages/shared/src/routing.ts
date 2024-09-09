@@ -37,7 +37,7 @@ export function useRouteLink(
           context.openRoute(route)
         }
       : undefined,
-    href,
+    href: href || undefined,
     style: {
       textDecoration: 'none',
     },

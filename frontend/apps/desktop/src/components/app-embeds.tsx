@@ -7,6 +7,7 @@ import {
   getAccountName,
   getDocumentTitle,
   hmId,
+  packHmId,
   unpackHmId,
 } from '@shm/shared'
 import {
@@ -14,10 +15,10 @@ import {
   BlockNodeContent,
   BlockNodeList,
   Button,
-  ButtonText,
   ContentEmbed,
   DocumentCardView,
   EntityComponentProps,
+  InlineEmbedButton,
   SizableText,
   Spinner,
   Thumbnail,
@@ -44,7 +45,7 @@ import {useNavigate} from '../utils/useNavigate'
 import {EntityLinkThumbnail} from './account-link-thumbnail'
 
 function EmbedWrapper({
-  hmRef,
+  id,
   parentBlockId,
   children,
   depth,
@@ -52,11 +53,11 @@ function EmbedWrapper({
   ...props
 }: PropsWithChildren<
   {
-    hmRef: string
+    id?: UnpackedHypermediaId
     parentBlockId: string | null
     depth?: number
     viewType?: 'content' | 'card'
-  } & ComponentProps<typeof YStack>
+  } & Omit<ComponentProps<typeof YStack>, 'id'>
 >) {
   const {
     disableEmbedClick = false,
@@ -64,7 +65,6 @@ function EmbedWrapper({
     routeParams,
   } = useDocContentContext()
   const navigate = useNavigate('replace')
-  const unpackRef = unpackHmId(hmRef)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const sideannotationRef = useRef<HTMLDivElement>(null)
   const wrapperRect = useRef<DOMRect>()
@@ -74,8 +74,8 @@ function EmbedWrapper({
 
   useEffect(() => {
     const val =
-      (routeParams?.documentId == unpackRef?.id &&
-        routeParams?.version == unpackRef?.version &&
+      (routeParams?.documentId == id?.id &&
+        routeParams?.version == id?.version &&
         comment) ||
       false
 
@@ -90,8 +90,8 @@ function EmbedWrapper({
     routeParams?.documentId,
     routeParams?.version,
     comment,
-    unpackRef?.id,
-    unpackRef?.version,
+    id?.id,
+    id?.version,
   ])
 
   useEffect(() => {
@@ -135,11 +135,11 @@ function EmbedWrapper({
       {...blockStyles}
       className="block-embed"
       data-content-type="embed"
-      data-url={hmRef}
+      data-url={id ? packHmId(id) : ''}
       data-view={viewType}
       backgroundColor={
         isHighlight
-          ? routeParams?.blockRef == unpackRef?.blockRef
+          ? routeParams?.blockRef == id?.blockRef
             ? '$yellow3'
             : '$backgroundTransparent'
           : '$backgroundTransparent'
@@ -147,7 +147,7 @@ function EmbedWrapper({
       hoverStyle={{
         cursor: 'pointer',
         backgroundColor: isHighlight
-          ? routeParams?.blockRef == unpackRef?.blockRef
+          ? routeParams?.blockRef == id?.blockRef
             ? '$brand11'
             : '$backgroundTransparent'
           : '$backgroundTransparent',
@@ -167,10 +167,11 @@ function EmbedWrapper({
       onPress={
         !disableEmbedClick
           ? () => {
-              if (!unpackRef) return
+              if (!id) return
+              debugger
               navigate({
                 key: 'document',
-                id: unpackRef,
+                id,
               })
             }
           : undefined
@@ -443,7 +444,17 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
 
   return (
     <EmbedWrapper
-      hmRef={props.id}
+      id={{
+        type: props.type,
+        id: props.id,
+        uid: props.uid,
+        path: props.path,
+        blockRef: props.blockRef,
+        blockRange: props.blockRange,
+        hostname: props.hostname,
+        scheme: props.scheme,
+        version: props.version,
+      }}
       parentBlockId={props.parentBlockId}
       viewType={props.block.attributes?.view == 'card' ? 'card' : 'content'}
     >
@@ -477,7 +488,20 @@ export function EmbedComment(props: EntityComponentProps) {
   const account = useAccount_deprecated(comment.data?.author)
   if (comment.isLoading) return <Spinner />
   return (
-    <EmbedWrapper hmRef={props.id} parentBlockId={props.parentBlockId}>
+    <EmbedWrapper
+      id={{
+        type: props.type,
+        id: props.id,
+        uid: props.uid,
+        path: props.path,
+        blockRef: props.blockRef,
+        blockRange: props.blockRange,
+        hostname: props.hostname,
+        scheme: props.scheme,
+        version: props.version,
+      }}
+      parentBlockId={props.parentBlockId}
+    >
       <XStack flexWrap="wrap" jc="space-between" p="$3">
         <XStack gap="$2">
           <UIAvatar
@@ -547,7 +571,7 @@ export function EmbedInline(props: UnpackedHypermediaId) {
     return <DocInlineEmbed {...props} />
   } else {
     console.error('Inline Embed Error', JSON.stringify(props))
-    return <InlineEmbedButton>??</InlineEmbedButton>
+    return <SizableText>??</SizableText>
   }
 }
 
@@ -555,54 +579,9 @@ function DocInlineEmbed(props: UnpackedHypermediaId) {
   const pubId = props?.type == 'd' ? props.id : undefined
   if (!pubId) throw new Error('Invalid props at DocInlineEmbed (pubId)')
   const doc = useEntity(props)
-  const navigate = useNavigate()
   return (
-    <InlineEmbedButton
-      dataRef={props?.id}
-      onPress={() =>
-        navigate({
-          key: 'document',
-          id: props,
-        })
-      }
-    >
+    <InlineEmbedButton id={props}>
       {getDocumentTitle(doc.data?.document)}
     </InlineEmbedButton>
-  )
-}
-
-function InlineEmbedButton({
-  children,
-  dataRef,
-  onPress,
-}: {
-  children: string
-  dataRef: string
-  onPress?: () => void
-}) {
-  return (
-    <Button
-      onPress={onPress}
-      bg="$backgroundTransparent"
-      hoverStyle={{
-        bg: '$backgroundTransparent',
-      }}
-      unstyled
-      style={{
-        display: 'inline-block',
-        // lineHeight: 1, // react was throwing an error about this
-        border: 'none',
-      }}
-    >
-      <ButtonText
-        textDecorationColor={'$brand5'}
-        color="$brand5"
-        className="hm-link"
-        fontSize="$5"
-        data-inline-embed={dataRef}
-      >
-        {children}
-      </ButtonText>
-    </Button>
   )
 }

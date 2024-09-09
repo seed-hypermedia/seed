@@ -19,15 +19,17 @@ import {
   getFileUrl,
   idToUrl,
   isHypermediaScheme,
+  packHmId,
   pluralS,
   toHMInlineContent,
   unpackHmId,
   useHover,
   useLowlight,
   useRangeSelection,
+  useRouteLink,
 } from "@shm/shared";
 
-import {Button, ButtonFrame} from "@tamagui/button";
+import {Button, ButtonFrame, ButtonText} from "@tamagui/button";
 import {Checkbox, CheckboxProps} from "@tamagui/checkbox";
 import {SizeTokens, Text, TextProps, Theme} from "@tamagui/core";
 import {ColorProp} from "@tamagui/helpers-tamagui";
@@ -46,6 +48,7 @@ import {
   Undo2,
 } from "@tamagui/lucide-icons";
 import {RadioGroup} from "@tamagui/radio-group";
+
 import {XStack, XStackProps, YStack, YStackProps} from "@tamagui/stacks";
 import {SizableText, SizableTextProps} from "@tamagui/text";
 import katex from "katex";
@@ -1488,7 +1491,11 @@ export function ContentEmbed({
   onShowReferenced: (showReference: boolean) => void;
   renderOpenButton: () => React.ReactNode;
   EmbedWrapper: React.ComponentType<
-    React.PropsWithChildren<{hmRef: string; parentBlockId: string}>
+    React.PropsWithChildren<{
+      id: UnpackedHypermediaId;
+      depth: number;
+      parentBlockId: string;
+    }>
   >;
   parentBlockId: string | null;
 }) {
@@ -1648,7 +1655,7 @@ export function ContentEmbed({
   return (
     <EmbedWrapper
       depth={props.depth}
-      hmRef={props.id}
+      id={props}
       parentBlockId={parentBlockId || ""}
     >
       {content}
@@ -2099,6 +2106,29 @@ function CheckboxWithLabel({
         {label}
       </Label>
     </XStack>
+  );
+}
+
+export function InlineEmbedButton({
+  children,
+  id,
+}: {
+  children: string;
+  id: UnpackedHypermediaId;
+}) {
+  const buttonProps = useRouteLink({key: "document", id});
+  return (
+    <ButtonText
+      {...buttonProps}
+      textDecorationColor={"$brand5"}
+      style={{textDecorationLine: "underline"}}
+      color="$brand5"
+      className="hm-link"
+      fontSize="$5"
+      data-inline-embed={packHmId(id)}
+    >
+      {children}
+    </ButtonText>
   );
 }
 

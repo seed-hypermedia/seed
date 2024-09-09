@@ -30,7 +30,7 @@ import {NotFoundPage} from "./not-found";
 import {PageHeader} from "./page-header";
 import type {DirectoryPayload} from "./routes/hm.api.directory";
 import {DiscussionPayload} from "./routes/hm.api.discussion";
-import {EmbedDocument} from "./web-embeds";
+import {EmbedDocument, EmbedInline} from "./web-embeds";
 import {unwrap, Wrapped} from "./wrapping";
 
 export const documentPageMeta: MetaFunction = ({
@@ -149,7 +149,7 @@ function WebDocContentProvider({children}: PropsWithChildren<{}>) {
       entityComponents={{
         Document: EmbedDocument,
         Comment: () => null,
-        Inline: () => null,
+        Inline: EmbedInline,
       }}
       onLinkClick={(href, e) => {}}
       onCopyBlock={(blockId, blockRange) => {}}
