@@ -102,9 +102,9 @@ reverse_proxy @ipfsget seed-daemon:{\$HM_SITE_BACKEND_GRPCWEB_PORT:56001}
 reverse_proxy * seed-web:{\$SEED_SITE_LOCAL_PORT:3000}
 BLOCK
 
-mkdir -p ${workspace}/.seed-site/web
+mkdir -p ${workspace}/web
 
-site_config_file="${workspace}/.seed-site/web/config.json"
+site_config_file="${workspace}/web/config.json"
 
 if [ "$auto_update" -eq "1" ]; then
   docker rm -f autoupdater >/dev/null 2>&1
