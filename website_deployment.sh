@@ -104,7 +104,7 @@ BLOCK
 
 mkdir -p ${workspace}/.seed-site/web
 
-site_config_file="${workspace}/web/config.json"
+site_config_file="${workspace}/.seed-site/web/config.json"
 
 if [ "$auto_update" -eq "1" ]; then
   docker rm -f autoupdater >/dev/null 2>&1
