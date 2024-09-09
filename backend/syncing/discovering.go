@@ -17,7 +17,11 @@ import (
 )
 
 // DefaultDiscoveryTimeout is how long do we wait to discover a peer and sync with it
-const DefaultDiscoveryTimeout = time.Second * 30
+const (
+	DefaultDiscoveryTimeout = time.Second * 30
+	DefaultSyncingTimeout   = 1 * DefaultDiscoveryTimeout / 5
+	DefaultDHTTimeout       = 4 * DefaultDiscoveryTimeout / 5
+)
 
 // DiscoverObject discovers an object in the network. If not found, then it returns an error
 // If found, this function will store the object locally so that it can be gotten like any
@@ -30,7 +34,7 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 		return fmt.Errorf("Discovering by version is not implemented yet")
 	}
 
-	ctxLocalPeers, cancel := context.WithTimeout(ctx, DefaultDiscoveryTimeout/2)
+	ctxLocalPeers, cancel := context.WithTimeout(ctx, DefaultSyncingTimeout)
 	defer cancel()
 	c, err := ipfs.NewCID(uint64(multicodec.Raw), uint64(multicodec.Identity), []byte(entityID))
 	if err != nil {
@@ -123,7 +127,7 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 	if version != "" {
 		maxProviders = 0
 	}
-	ctxDHT, cancelDHTCtx := context.WithTimeout(ctx, DefaultDiscoveryTimeout/2)
+	ctxDHT, cancelDHTCtx := context.WithTimeout(ctx, DefaultDHTTimeout)
 	defer cancelDHTCtx()
 	peers := s.bitswap.FindProvidersAsync(ctxDHT, c, maxProviders)
 
