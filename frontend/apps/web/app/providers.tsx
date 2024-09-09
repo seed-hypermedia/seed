@@ -4,10 +4,18 @@ import tamaConf from "../tamagui.config";
 
 export const Providers = (props: {children: any}) => {
   return (
-    <TamaguiProvider defaultTheme="light" config={tamaConf}>
+    <ThemeProvider>
       <UniversalRoutingProvider value={{}}>
         {props.children}
       </UniversalRoutingProvider>
-    </TamaguiProvider>
+    </ThemeProvider>
   );
 };
+
+export function ThemeProvider({children}: {children: React.ReactNode}) {
+  return (
+    <TamaguiProvider defaultTheme="light" config={tamaConf}>
+      {children}
+    </TamaguiProvider>
+  );
+}

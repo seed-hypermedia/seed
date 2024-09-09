@@ -1,14 +1,18 @@
 import {LinksFunction} from "@remix-run/node";
 import {
+  isRouteErrorResponse,
   Links,
   Meta,
   Outlet,
   Scripts,
   ScrollRestoration,
+  useRouteError,
 } from "@remix-run/react";
-import {isClient} from "@tamagui/core";
+import {isClient, Text} from "@tamagui/core";
+import {YStack} from "@tamagui/stacks";
+import {Heading} from "@tamagui/text";
 import Tamagui from "../tamagui.config";
-import {Providers} from "./providers";
+import {Providers, ThemeProvider} from "./providers";
 import globalStyles from "./styles.css?url";
 import globalTamaguiStyles from "./tamagui.css?url";
 
@@ -32,6 +36,34 @@ export function Layout({children}: {children: React.ReactNode}) {
       <body>
         <Providers>{children}</Providers>
         <ScrollRestoration />
+        <Scripts />
+      </body>
+    </html>
+  );
+}
+
+export function ErrorBoundary({}: {}) {
+  const error = useRouteError();
+
+  let errorMessage = "Unknown Error";
+  if (isRouteErrorResponse(error)) {
+    errorMessage = error.data.message;
+  } else if (error instanceof Error) {
+    errorMessage = error.message;
+  }
+
+  return (
+    <html>
+      <head>
+        <title>Oops! Something went wrong</title>
+      </head>
+      <body>
+        <ThemeProvider>
+          <YStack gap="$4">
+            <Heading>Something went wrong!</Heading>
+            <Text>{errorMessage}</Text>
+          </YStack>
+        </ThemeProvider>
         <Scripts />
       </body>
     </html>
