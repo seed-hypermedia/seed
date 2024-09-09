@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/multiformats/go-multicodec"
 	"go.uber.org/zap"
 )
@@ -73,13 +72,13 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 			s.log.Warn("Can't discover from peer since it has malformed addresses", zap.String("PID", pid), zap.Error(err))
 			return nil
 		}
-		s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
 		allPeers = append(allPeers, info.ID)
 		return nil
 	}); err != nil {
 		release()
 		return err
 	}
+	release()
 	if len(allPeers) != 0 {
 		s.log.Debug("Discovering via local peers first", zap.Error(err))
 		eidsMap := make(map[string]bool)
@@ -92,6 +91,11 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 
 		ret := s.SyncWithManyPeers(ctxLocalPeers, subsMap)
 		if ret.NumSyncOK > 0 {
+			conn, release, err := s.db.Conn(ctxLocalPeers)
+			if err != nil {
+				s.log.Debug("Could not grab a connection", zap.Error(err))
+				return err
+			}
 			var haveIt bool
 			if err = sqlitex.Exec(conn, qGetEntity(), func(stmt *sqlite.Stmt) error {
 				eid := stmt.ColumnText(0)
@@ -103,9 +107,11 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 			}, entityID); err != nil {
 				s.log.Warn("Problem finding eid after local discovery", zap.Error(err))
 			} else if haveIt {
+				release()
 				s.log.Debug("Discovered content via local peer, we avoided hitting the DHT!")
 				return nil
 			}
+			release()
 		}
 	}
 	s.log.Debug("None of the local peers have the document, hitting the DHT :(")
@@ -123,7 +129,6 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 
 	for p := range peers {
 		p := p
-		s.host.Peerstore().AddAddrs(p.ID, p.Addrs, peerstore.TempAddrTTL)
 		log := s.log.With(
 			zap.String("entity", entityID),
 			zap.String("CID", c.String()),
