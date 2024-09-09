@@ -26,13 +26,14 @@ registration_secret=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 10)
 
 usage()
 {
-    echo "group_deployment script. It links a group [options] hostname"
+    echo "site deploymentscript. It deploys a group [options] hostname. Ready to be registered"
 	echo "   hostname          :Protocol + domain this sice will be served in. Ex.: https://example.com"
     echo "Options"
 	echo  "-t --tag T          :Image tag to pull. Latest by default"
 	echo  "-g --gateway        :Site behaves as a gateway, serves all public data. False by default."
 	echo  "-a --auto-update    :Updates containers whenever a new image is available. Disabled by default"
 	echo  "-m --monitoring     :Sets up monitoring system"
+	echo  "-w --workspace      :To change the localtion of the workspace. Default /home/<user>/.seed-site"
     echo  "-h --help           :Shows help and exit"
 }
 
@@ -49,6 +50,9 @@ while [ "$1" != "" ]; do
                                 ;;
         -t | --tag )            shift
                                 tag="$1"
+                                ;;
+        -w | --workspace )      shift
+                                workspace="$1"
                                 ;;
         --testnet )             testnet_name="dev"
                                 ;;
