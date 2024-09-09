@@ -70,19 +70,6 @@ func DefaultRelays() []peer.AddrInfo {
 	}
 }
 
-type docInfo struct {
-	ID      string
-	Version string
-}
-
-// PublicationRecord holds the information of a published document (record) on a site.
-type PublicationRecord struct {
-	Document   docInfo
-	Path       string
-	Hostname   string
-	References []docInfo
-}
-
 // Server holds the p2p functionality to be accessed via gRPC.
 type rpcMux struct {
 	Node *Node
