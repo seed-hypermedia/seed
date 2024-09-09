@@ -13,9 +13,8 @@ import {SubscriptionButton} from '@/components/subscription'
 import {CopyReferenceButton} from '@/components/titlebar-common'
 import {VersionsPanel} from '@/components/versions-panel'
 import '@/editor/editor.css'
-import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
+import {useMyAccountIds} from '@/models/daemon'
 import {useDiscoverEntity, useEntity} from '@/models/entities'
-import {useOpenUrl} from '@/open-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {
@@ -45,7 +44,7 @@ import {
   YStack,
 } from '@shm/ui'
 import {RadioButtons} from '@shm/ui/src/radio-buttons'
-import {RefreshCw, Trash} from '@tamagui/lucide-icons'
+import {ArrowRight, RefreshCw, Trash} from '@tamagui/lucide-icons'
 import React, {ReactNode, useEffect, useMemo} from 'react'
 import {EntityCitationsAccessory} from '../components/citations'
 import {AppDocContentProvider} from './document-content-provider'
@@ -313,11 +312,47 @@ function DocPageHeader({
   )
 }
 
+function DocVersionNotFound({docId}: {docId: UnpackedHypermediaId}) {
+  const navigate = useNavigate()
+  return (
+    <YStack paddingVertical="$8">
+      <YStack
+        alignSelf="center"
+        maxWidth={600}
+        gap="$5"
+        borderWidth={1}
+        borderColor="$color8"
+        borderRadius="$2"
+        padding="$5"
+      >
+        <Heading color="$red11">Could not find this Version</Heading>
+        <SizableText>
+          We have discovered a different version of this document.
+        </SizableText>
+        <XStack>
+          <Button
+            icon={ArrowRight}
+            backgroundColor="$color4"
+            onPress={() => {
+              navigate({key: 'document', id: {...docId, version: null}})
+            }}
+          >
+            Go to Other Version
+          </Button>
+        </XStack>
+      </YStack>
+    </YStack>
+  )
+}
+
 function DocDiscovery({docId}: {docId: UnpackedHypermediaId}) {
   const discover = useDiscoverEntity(docId)
   useEffect(() => {
     discover.mutate()
   }, [docId.id])
+  const didCompleteDiscover =
+    !discover.error && !discover.isLoading && !!discover.data
+  if (didCompleteDiscover) return <DocVersionNotFound docId={docId} />
   return (
     <YStack paddingVertical="$8">
       <YStack
@@ -345,7 +380,9 @@ function DocDiscovery({docId}: {docId: UnpackedHypermediaId}) {
               provide it.
             </SizableText>
           </>
-        ) : null}
+        ) : (
+          <SizableText>Lol</SizableText>
+        )}
         <XStack>
           {discover.isError ? (
             <Button

@@ -189,6 +189,7 @@ export function useDiscoverEntity(id: UnpackedHypermediaId) {
   return useMutation({
     mutationFn: async () => {
       await grpcClient.entities.discoverEntity({id: id.id})
+      return {}
     },
     onSuccess: () => {
       invalidate([queryKeys.ENTITY, id.id])
