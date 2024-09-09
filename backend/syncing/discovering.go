@@ -43,22 +43,25 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 		s.log.Debug("Could not grab a connection", zap.Error(err))
 		return err
 	}
-
-	var haveIt bool
-	if err = sqlitex.Exec(conn, qGetEntity(), func(stmt *sqlite.Stmt) error {
-		eid := stmt.ColumnText(0)
-		if eid != entityID {
-			return fmt.Errorf("Got a different eid")
+	// TODO(juligasa): Activate this once we have versions. We check for the specific version in the db
+	// If the client wants the latest we don't have other option than to sync with peers since we don't
+	// know what the latests is.
+	/*
+		var haveIt bool
+		if err = sqlitex.Exec(conn, qGetEntity(), func(stmt *sqlite.Stmt) error {
+			eid := stmt.ColumnText(0)
+			if eid != entityID {
+				return fmt.Errorf("Got a different eid")
+			}
+			haveIt = true
+			return nil
+		}, entityID); err != nil {
+			s.log.Warn("Problem finding eid before local discovery", zap.Error(err))
+		} else if haveIt {
+			s.log.Debug("It's your lucky day, the document was already in the db!. we avoided syncing with peers.")
+			return nil
 		}
-		haveIt = true
-		return nil
-	}, entityID); err != nil {
-		s.log.Warn("Problem finding eid before local discovery", zap.Error(err))
-	} else if haveIt {
-		s.log.Debug("It's your lucky day, the document was already in the db!. we avoided syncing with peers.")
-		return nil
-	}
-
+	*/
 	subsMap := make(subscriptionMap)
 	allPeers := []peer.ID{} // TODO:(juligasa): Remove this when we have providers store
 	if err = sqlitex.Exec(conn, qListPeersWithPid(), func(stmt *sqlite.Stmt) error {
