@@ -102,6 +102,10 @@ reverse_proxy @ipfsget seed-daemon:{\$HM_SITE_BACKEND_GRPCWEB_PORT:56001}
 reverse_proxy * seed-web:{\$SEED_SITE_LOCAL_PORT:3000}
 BLOCK
 
+mkdir -p ${workspace}/.seed-site/web
+
+site_config_file="${workspace}/web/config.json"
+
 if [ "$auto_update" -eq "1" ]; then
   docker rm -f autoupdater >/dev/null 2>&1
   if ! (crontab -l 2>/dev/null || true) | grep -q "seed site cleanup"; then
@@ -110,10 +114,6 @@ if [ "$auto_update" -eq "1" ]; then
   fi
   docker run -d --restart unless-stopped --name autoupdater -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower --include-restarting -i 300 seed-web seed-daemon >/dev/null 2>&1
 fi
-
-mkdir -p ~/.seed-site/web
-
-site_config_file="${workspace}/web/config.json"
 
 did_init_registration_secret="0"
 if [ ! -e "$site_config_file" ]; then
