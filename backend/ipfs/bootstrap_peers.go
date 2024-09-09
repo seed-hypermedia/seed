@@ -9,7 +9,7 @@ package ipfs
 // NOTE: This is here -- and not inside cmd/ipfs/init.go -- because of an
 // import dependency issue. TODO: move this into a config/default/ package.
 const (
-	HM24TestGateway       = "/dns4/dev.hyper.media/tcp/56000/p2p/12D3KooWMjs8x6ST53ZuXAegedQ4dJ2HYYQmFpw1puGpBZmLRCGB"
+	HM24TestGateway       = "/dns4/test.hyper.media/tcp/56000/p2p/12D3KooWMjs8x6ST53ZuXAegedQ4dJ2HYYQmFpw1puGpBZmLRCGB"
 	HM24ProductionGateway = "/dns4/gateway.hyper.media/tcp/56000/p2p/12D3KooWBfZm117NpaJzdv16VvBnkYhqsbfnRSQcY1sAQe8ZqZFj"
 )
 
