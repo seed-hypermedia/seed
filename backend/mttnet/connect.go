@@ -56,7 +56,7 @@ func (n *Node) ForceConnect(ctx context.Context, info peer.AddrInfo) error {
 }
 
 var qGetPeer = dqb.Str(`
-	SELECT 
+	SELECT
 		pid
 	FROM peers WHERE pid =:pid LIMIT 1;
 `)
@@ -232,19 +232,21 @@ func (n *Node) CheckHyperMediaProtocolVersion(ctx context.Context, pid peer.ID, 
 	defer cancel()
 
 	if len(protos) == 0 {
+		var attempts int
 		if err := retry.Exponential(ctx, 50*time.Millisecond, func(ctx context.Context) error {
+			attempts++
 			protos, err = n.p2p.Peerstore().GetProtocols(pid)
 			if err != nil {
-				return fmt.Errorf("failed to check Hyper Media protocol version: %w", err)
+				return retry.RetryableError(fmt.Errorf("failed to check Hyper Media protocol version: %w", err))
 			}
 
 			if len(protos) > 0 {
 				return nil
 			}
 
-			return fmt.Errorf("peer %s doesn't support any protocols", pid.String())
+			return retry.RetryableError(fmt.Errorf("peer %s doesn't support any protocols", pid.String()))
 		}); err != nil {
-			return err
+			return fmt.Errorf("retry failed: attempts %d: %w", attempts, err)
 		}
 	}
 	// Eventually we'd need to implement some compatibility checks between different protocol versions.
