@@ -37,13 +37,6 @@ export async function getDocument(
   entityId: UnpackedHypermediaId
 ): Promise<WebDocumentPayload> {
   const {id, version, uid} = entityId;
-  if (process.env.SEED_IS_GATEWAY === "true") {
-    console.log("= discoverEntity", {id, version});
-    await queryClient.entities.discoverEntity({
-      id,
-      version: version || undefined,
-    });
-  }
   const path = hmIdPathToEntityQueryPath(entityId.path);
   console.log("= getDocument", {uid, path, version});
   const rawDoc = await queryClient.documents.getDocument({
