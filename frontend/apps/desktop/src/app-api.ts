@@ -234,7 +234,7 @@ export const router = t.router({
           offscreen: true,
         },
         icon: process.env.CI
-          ? path.resolve(__dirname, '../assets/icons-nightly/icon.png')
+          ? path.resolve(__dirname, '../assets/icons-prod/icon.png')
           : path.resolve(__dirname, '../assets/icons/icon.png'),
       })
       await webView.webContents.loadURL(webUrl)

@@ -201,7 +201,7 @@ export function createAppWindow(input: {
     maxWidth: windowType.maxWidth,
     maxHeight: windowType.maxHeight,
     icon: process.env.CI
-      ? path.resolve(__dirname, '../assets/icons-nightly/icon.png')
+      ? path.resolve(__dirname, '../assets/icons-prod/icon.png')
       : path.resolve(__dirname, '../assets/icons/icon.png'),
     titleBarStyle: 'hidden',
     trafficLightPosition: windowType.trafficLightPosition || undefined,

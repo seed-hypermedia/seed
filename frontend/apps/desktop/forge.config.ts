@@ -35,7 +35,7 @@ const daemonBinaryPath = path.join(
 )
 
 let iconsPath = process.env.CI
-  ? path.resolve(__dirname, 'assets', 'icons-nightly', 'icon')
+  ? path.resolve(__dirname, 'assets', 'icons-prod', 'icon')
   : path.resolve(__dirname, 'assets', 'icons', 'icon')
 
 const commonLinuxConfig: MakerDebConfig = {
