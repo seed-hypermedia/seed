@@ -65,6 +65,8 @@ type DocAccessoryOption = {
 
 export default function DocumentPage() {
   const route = useNavRoute()
+
+  console.log(`== ~ DocumentPage ~ route:`, route)
   const docId = route.key === 'document' && route.id
   if (!docId) throw new Error('Invalid route, no document id')
   const accessoryKey = route.accessory?.key
@@ -189,7 +191,6 @@ function DocPageHeader({
 }) {
   const myAccountIds = useMyAccountIds()
   const entity = useEntity(docId)
-  const isMyAccount = myAccountIds.data?.includes(docId.uid)
   const accountName = getAccountName(entity.data?.document)
   const hasCover = useMemo(
     () => !!entity.data?.document?.metadata.cover,

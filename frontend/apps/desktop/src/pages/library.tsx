@@ -227,7 +227,8 @@ export default function LibraryPage() {
                       </Button>
                       <Button
                         flex={1}
-                        bc="$purple3"
+                        bc="$brand5"
+                        color="$color11"
                         onPress={() => {
                           setIsDialogOpen(false)
                           setExportMode(false)
@@ -294,10 +295,11 @@ function LibraryQueryBar({
           size="$2"
           onPress={handleExportButtonClick}
           icon={FileOutput}
-          bg="$blue5"
+          bg="$brand7"
+          color="$color1"
           hoverStyle={{
-            bg: '$blue6',
-            borderColor: '$blue6',
+            bg: '$brand6',
+            borderColor: '$brand6',
           }}
         >
           Export
@@ -341,10 +343,10 @@ function SortControl({
         <Button
           size="$2"
           icon={ArrowDownUp}
-          bg={isDefault ? undefined : '$blue5'}
+          bg={isDefault ? undefined : '$brand5'}
           hoverStyle={{
-            bg: isDefault ? undefined : '$blue6',
-            borderColor: isDefault ? undefined : '$blue6',
+            bg: isDefault ? undefined : '$brand6',
+            borderColor: isDefault ? undefined : '$brand6',
           }}
         >
           {activeOption && !isDefault ? (
@@ -444,10 +446,10 @@ function FilterControl({
           size="$2"
           paddingVertical={0}
           icon={Settings2}
-          bg={isEmptyFilter ? undefined : '$blue5'}
+          bg={isEmptyFilter ? undefined : '$brand5'}
           hoverStyle={{
-            bg: isEmptyFilter ? undefined : '$blue6',
-            borderColor: isEmptyFilter ? undefined : '$blue6',
+            bg: isEmptyFilter ? undefined : '$brand6',
+            borderColor: isEmptyFilter ? undefined : '$brand6',
           }}
         >
           {/* {allEditorialRolesSelected ? (
@@ -958,14 +960,13 @@ function LibraryEntryLocation({
   return (
     <XStack gap="$2" w="100%" overflow="hidden">
       <Button
-        theme="purple"
-        color="$purple8"
+        color="$brand5"
         fontWeight="400"
         size="$1"
         borderWidth={0}
         bg="$colorTransparent"
         hoverStyle={{
-          color: '$purple11',
+          color: '$brand6',
           bg: '$colorTransparent',
           textDecorationLine: 'underline',
         }}

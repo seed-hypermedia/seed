@@ -697,7 +697,7 @@ export function BlockNodeContent({
               >
                 <XStack gap="$2" ai="center">
                   {/* <BlockQuote size={layoutUnit / 2} color="$blue11" />  TODO FIX ME*/}
-                  <SizableText color="$blue11" size="$2">
+                  <SizableText color="$brand5" size="$2">
                     {String(citations.length)}
                   </SizableText>
                 </XStack>

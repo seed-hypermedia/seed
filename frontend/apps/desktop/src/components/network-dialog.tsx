@@ -198,7 +198,7 @@ const PeerRow = React.memo(function PeerRow({
             />
           ) : null}
           <ButtonText
-            color={isSite ? '$blue10' : '$gray10'}
+            color={isSite ? '$brand5' : '$gray10'}
             hoverStyle={{
               textDecorationLine: isSite ? 'underline' : 'none',
             }}

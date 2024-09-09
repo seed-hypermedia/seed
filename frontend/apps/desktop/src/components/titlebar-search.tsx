@@ -443,12 +443,12 @@ export function LauncherItem({
       ref={elm}
       key={item.key}
       onPress={item.onSelect}
-      backgroundColor={selected ? '$blue4' : '$backgroundTransparent'}
-      borderColor={selected ? '$blue4' : '$colorTransparent'}
+      backgroundColor={selected ? '$brand4' : '$backgroundTransparent'}
+      borderColor={selected ? '$brand4' : '$colorTransparent'}
       h="auto"
       hoverStyle={{
-        backgroundColor: selected ? '$blue4' : undefined,
-        borderColor: selected ? '$blue4' : '$colorTransparent',
+        backgroundColor: selected ? '$brand4' : undefined,
+        borderColor: selected ? '$brand4' : '$colorTransparent',
       }}
       size="$2"
       onFocus={onFocus}

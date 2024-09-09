@@ -192,7 +192,7 @@ function CollaboratorsList({id}: {id: UnpackedHypermediaId}) {
     <YStack gap="$2">
       <XStack>
         <RadioButtons
-          activeColor="$blue11"
+          activeColor="$brand5"
           size="$2"
           options={[
             {key: 'granted', label: 'Granted'},

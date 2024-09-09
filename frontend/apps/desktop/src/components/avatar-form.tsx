@@ -52,7 +52,7 @@ export function ThumbnailForm({
       id={id}
       size={size}
       url={url}
-      color="$blue12"
+      color="$brand12"
       marginTop={marginTop}
       borderRadius={borderRadius}
     />

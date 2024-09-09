@@ -401,7 +401,8 @@ function AccountKeys() {
             f={1}
             icon={Plus}
             onPress={() => dispatchWizardEvent(true)}
-            theme="blue"
+            theme="brand"
+            color="$color11"
           >
             New Account
           </Button>
@@ -657,8 +658,8 @@ function EnabledTag() {
       alignItems="center"
       borderRadius="$2"
     >
-      <Check size="$1" color="$blue12" />
-      <SizableText size="$1" color="$blue12" fontWeight="bold">
+      <Check size="$1" color="$brand5" />
+      <SizableText size="$1" color="$brand5" fontWeight="bold">
         Enabled
       </SizableText>
     </XStack>
@@ -1136,7 +1137,7 @@ function ExistingWallets({wallets}: {wallets: LightningWallet[]}) {
                   fontWeight="700"
                   flex={0}
                   flexShrink={0}
-                  color="$blue8"
+                  color="$brand5"
                 >
                   {invoice?.Amount ? `${invoice.Amount} sats` : 'No amount'}
                 </SizableText>

@@ -604,7 +604,7 @@ function PathDraft({
             />
             <SizableText
               size="$2"
-              color="$blue9"
+              color="$brand5"
               userSelect="none"
               hoverStyle={{textDecorationLine: 'underline', cursor: 'pointer'}}
               onPress={handleDraftChange}
@@ -635,7 +635,7 @@ function PathDraft({
               flexGrow={0}
               flexShrink={0}
               size="$2"
-              color="$blue9"
+              color="$brand5"
               userSelect="none"
               hoverStyle={{textDecorationLine: 'underline', cursor: 'pointer'}}
               onPress={() => {

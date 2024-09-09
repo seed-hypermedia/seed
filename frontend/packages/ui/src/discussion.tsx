@@ -190,13 +190,13 @@ function Comment({
             {replyCount ? (
               <Button
                 chromeless
-                color="$blue11"
+                color="$brand5"
                 size="$1"
                 theme="blue"
                 icon={showReplies ? ChevronDown : ChevronRight}
                 onPress={() => setShowReplies(!showReplies)}
               >
-                <SizableText size="$1" color="$blue11">
+                <SizableText size="$1" color="$brand5">
                   Replies ({replyCount})
                 </SizableText>
               </Button>
@@ -204,7 +204,7 @@ function Comment({
             {RepliesEditor ? (
               <Button
                 chromeless
-                color="$blue11"
+                color="$brand5"
                 size="$1"
                 theme="blue"
                 icon={<ReplyArrow size={16} />}

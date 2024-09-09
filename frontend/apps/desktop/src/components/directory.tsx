@@ -278,13 +278,13 @@ function PathButton({
       }}
     >
       <SizableText
-        color="$blue8"
+        color="$brand5"
         size="$1"
         $group-pathitem-hover={
           isDraft
             ? undefined
             : {
-                color: '$blue11',
+                color: '$brand6',
               }
         }
         textOverflow="ellipsis"
@@ -298,7 +298,7 @@ function PathButton({
           flexGrow={0}
           flexShrink={0}
           size={12}
-          color="$blue10"
+          color="$brand5"
           opacity={0}
           $group-pathitem-hover={{
             opacity: 1,

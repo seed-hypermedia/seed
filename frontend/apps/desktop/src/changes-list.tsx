@@ -166,7 +166,7 @@ function ChangeItem({
       paddingHorizontal="$2"
       paddingVertical="$1"
       marginBottom="$1"
-      backgroundColor={isActive ? '$blue5' : 'transparent'}
+      backgroundColor={isActive ? '$brand5' : 'transparent'}
       userSelect="none"
     >
       <YStack

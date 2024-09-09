@@ -161,7 +161,7 @@ function EmbedWrapper({
       // overflow="hidden"
       borderRadius={0}
       borderRightWidth={3}
-      borderRightColor={'$blue8'}
+      borderRightColor={'$brand8'}
       // borderLeftWidth={6}
       // borderLeftColor={isHighlight ? '$yellow6' : '$color4'}
       onPress={
@@ -291,7 +291,7 @@ const EmbedSideAnnotation = forwardRef<
       {disableEmbedClick ? null : (
         <SizableText
           size="$1"
-          color="$blue9"
+          color="$brand5"
           opacity={0}
           $group-item-hover={{opacity: 1}}
         >
@@ -377,7 +377,7 @@ const CommentSideAnnotation = forwardRef(function CommentSideAnnotation(
         </XStack>
         <SizableText
           size="$1"
-          color="$blue9"
+          color="$brand5"
           opacity={0}
           $group-item-hover={{opacity: 1}}
         >

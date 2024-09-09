@@ -41,7 +41,7 @@ function FooterNetworkingButton() {
       <Button
         size="$1"
         chromeless={route.key != 'contacts'}
-        color={route.key == 'contacts' ? '$blue10' : undefined}
+        color={route.key == 'contacts' ? '$brand5' : undefined}
         paddingHorizontal="$2"
       >
         <OnlineIndicator online={summary.online} />

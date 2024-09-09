@@ -728,9 +728,9 @@ function LauncherItem({
       onPress={() => {
         item.onSelect()
       }}
-      backgroundColor={selected ? '$blue4' : undefined}
+      backgroundColor={selected ? '$brand4' : undefined}
       hoverStyle={{
-        backgroundColor: selected ? '$blue4' : undefined,
+        backgroundColor: selected ? '$brand4' : undefined,
       }}
       onFocus={onFocus}
       onMouseEnter={onMouseEnter}
