@@ -10,7 +10,6 @@ import {
 } from 'prosemirror-state'
 import {findNextBlock, findPreviousBlock} from '../../../../block-utils'
 import {getBlockInfoFromPos} from '../Blocks/helpers/getBlockInfoFromPos'
-import {MultipleNodeSelection} from '../SideMenu/MultipleNodeSelection'
 
 export const BlockManipulationExtension = Extension.create({
   name: 'BlockManupulation',
@@ -168,7 +167,7 @@ export const BlockManipulationExtension = Extension.create({
               if (prevBlockInfo) {
                 const {prevBlock, prevBlockPos} = prevBlockInfo
                 const prevNode = prevBlock.firstChild!
-                const prevNodePos = prevBlockPos + 1
+                const prevNodePos = prevBlockPos - 2
                 if (event.shiftKey) {
                   const blockInfoAtSelectionStart = getBlockInfoFromPos(
                     state.doc,
@@ -202,7 +201,7 @@ export const BlockManipulationExtension = Extension.create({
                       return false
                   }
 
-                  const selection = MultipleNodeSelection.create(
+                  const selection = TextSelection.create(
                     state.doc,
                     state.selection.to,
                     prevNodePos,
@@ -326,10 +325,10 @@ export const BlockManipulationExtension = Extension.create({
                         'math',
                       ].includes(nextBlock.firstChild!.type.name)
                     ) {
-                      const selection = MultipleNodeSelection.create(
+                      const selection = TextSelection.create(
                         state.doc,
                         state.selection.anchor,
-                        nextBlockPos + 1,
+                        nextBlockPos + 2,
                       )
                       view.dispatch(state.tr.setSelection(selection))
                       return true
