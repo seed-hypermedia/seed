@@ -19,8 +19,8 @@ import (
 // DefaultDiscoveryTimeout is how long do we wait to discover a peer and sync with it
 const (
 	DefaultDiscoveryTimeout = time.Second * 30
-	DefaultSyncingTimeout   = 1 * DefaultDiscoveryTimeout / 5
-	DefaultDHTTimeout       = 4 * DefaultDiscoveryTimeout / 5
+	DefaultSyncingTimeout   = 1 * DefaultDiscoveryTimeout / 4
+	DefaultDHTTimeout       = 3 * DefaultDiscoveryTimeout / 4
 )
 
 // DiscoverObject discovers an object in the network. If not found, then it returns an error
@@ -130,24 +130,45 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 	ctxDHT, cancelDHTCtx := context.WithTimeout(ctx, DefaultDHTTimeout)
 	defer cancelDHTCtx()
 	peers := s.bitswap.FindProvidersAsync(ctxDHT, c, maxProviders)
-
-	for p := range peers {
-		p := p
-		log := s.log.With(
-			zap.String("entity", entityID),
-			zap.String("CID", c.String()),
-			zap.String("peer", p.String()),
-		)
-		log.Debug("Provider Found")
-		eidMap := map[string]bool{entityID: false}
-		if err := s.SyncWithPeer(ctxDHT, p.ID, eidMap); err != nil {
-			log.Debug("Error trying to sync with a provider", zap.Error(err))
-			continue
-		}
-		return nil
+	if len(peers) == 0 {
+		return fmt.Errorf("After checking local peers, no dht providers found for CID %s", c.String())
 	}
 
-	return fmt.Errorf("No providers found for CID %s", c.String())
+	eidsMap := make(map[string]bool)
+	eidsMap[entityID] = false
+	subsMap = make(subscriptionMap)
+	for p := range peers {
+		p := p
+		// TODO(juligasa): look into the providers store who has each eid
+		// instead of pasting all peers in all documents.
+		subsMap[p.ID] = eidsMap
+	}
+
+	ret := s.SyncWithManyPeers(ctxDHT, subsMap)
+	if ret.NumSyncOK > 0 {
+		conn, release, err := s.db.Conn(ctxDHT)
+		if err != nil {
+			s.log.Debug("Could not grab a connection", zap.Error(err))
+			return err
+		}
+		defer release()
+		var haveIt bool
+		if err = sqlitex.Exec(conn, qGetEntity(), func(stmt *sqlite.Stmt) error {
+			eid := stmt.ColumnText(0)
+			if eid != entityID {
+				return fmt.Errorf("Got a different eid")
+			}
+			haveIt = true
+			return nil
+		}, entityID); err != nil {
+			s.log.Warn("Problem finding eid after dht discovery", zap.Error(err))
+		} else if haveIt {
+			s.log.Debug("Discovered content via DHT")
+			return nil
+		}
+	}
+	return fmt.Errorf("Found some DHT providers but could not sync from them %s", c.String())
+
 }
 
 var qGetEntity = dqb.Str(`
