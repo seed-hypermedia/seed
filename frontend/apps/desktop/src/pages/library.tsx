@@ -62,7 +62,6 @@ export default function LibraryPage() {
     filterString: '',
     filter: {},
   })
-  console.log('queryState', queryState)
   const [exportMode, setExportMode] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 

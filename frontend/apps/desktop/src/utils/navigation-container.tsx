@@ -47,8 +47,6 @@ export function NavigationContainer({
   useEffect(() => {
     return navigation.state.subscribe(() => {
       const state = navigation.state.get()
-      console.log('LOLL', state)
-      console.log('2LOLL', JSON.stringify(state))
       send('windowNavState', state)
     })
   }, [navigation, send])
