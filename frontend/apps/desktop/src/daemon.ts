@@ -1,6 +1,6 @@
 import {
-  GRPC_PORT,
-  HTTP_PORT,
+  DAEMON_GRPC_PORT,
+  DAEMON_HTTP_PORT,
   IS_PROD_DESKTOP,
   P2P_PORT,
   VERSION,
@@ -24,10 +24,10 @@ let lndhubFlags = userDataPath.includes('Seed.local')
 
 const daemonArguments = [
   '-http.port',
-  String(HTTP_PORT),
+  String(DAEMON_HTTP_PORT),
 
   '-grpc.port',
-  String(GRPC_PORT),
+  String(DAEMON_GRPC_PORT),
 
   '-p2p.port',
   String(P2P_PORT),

@@ -48,7 +48,6 @@ export function useCopyGatewayReference() {
   const gatewayHost = useGatewayHost()
   const gatewayUrl = useGatewayUrl()
   const pushOnCopy = usePushOnCopy()
-  const push = usePushPublication()
   function onCopy(input: UnpackedHypermediaId) {
     const publicUrl = createWebHMUrl(input.type, input.uid, {
       version: input.version,
@@ -56,12 +55,14 @@ export function useCopyGatewayReference() {
       blockRange: input.blockRange,
       hostname: gatewayUrl.data,
       path: input.path,
+      params: {waitForSync: null},
     })
     console.log('--- public URL', publicUrl)
     const [setIsPublished, isPublished] =
       writeableStateStream<IsPublishedState>(null)
-    const [setPushingState, pushingState] =
-      writeableStateStream<PushingState>(null)
+    if (pushOnCopy.data === 'never') {
+      setIsPublished(false)
+    }
     fetchWebLinkMeta(publicUrl)
       .then((meta) => {
         // toast.success(JSON.stringify(meta))
@@ -73,27 +74,10 @@ export function useCopyGatewayReference() {
           setIsPublished(true)
         } else {
           setIsPublished(false)
-          if (pushOnCopy.data === 'always') {
-            setPushingState(true)
-            push
-              .mutateAsync(destId)
-              .then(() => {
-                setIsPublished(true)
-                setPushingState(null)
-              })
-              .catch((e) => {
-                setPushingState(e.message)
-              })
-          } else if (pushOnCopy.data === 'never') {
-            setPushingState(false)
-          } else {
-            // ask
-            dialog.open({host: gatewayHost, context: 'copy', ...input})
-          }
         }
       })
       .catch((e) => {
-        toast.error('Failed to check public web link: ' + e.message)
+        toast.error('Failed to push public web link: ' + e.message)
         setIsPublished(false)
       })
     copyTextToClipboard(publicUrl)
@@ -101,7 +85,6 @@ export function useCopyGatewayReference() {
       <CopiedToast
         host={gatewayHost}
         isPublished={isPublished}
-        pushingState={pushingState}
         hmId={packHmId(input)}
       />,
       {duration: 8000},
@@ -112,32 +95,25 @@ export function useCopyGatewayReference() {
 
 function CopiedToast({
   isPublished,
-  pushingState,
   host,
   hmId,
 }: {
   isPublished: StateStream<IsPublishedState>
-  pushingState: StateStream<PushingState>
   host: string
   hmId: string
 }) {
   const published = useStream(isPublished)
-  const pushing = useStream(pushingState)
-  const push = usePushPublication()
   const id = unpackHmId(hmId)
   const entityType = id?.type ? HYPERMEDIA_ENTITY_TYPES[id.type] : 'Entity'
   let indicator: ReactNode = null
   let message: string = ''
-  if (pushing === true) {
+  if (published === null) {
     indicator = <Spinner />
     message = `Copied ${entityType} URL, pushing to ${host}...`
-  } else if (published === null) {
-    indicator = <Spinner />
-    message = `Copied ${entityType} URL, checking ${host}...`
   } else if (published === true) {
     indicator = <SuccessToastDecoration />
     message = `Copied ${entityType} URL, available on ${host}`
-  } else {
+  } else if (published === false) {
     indicator = <ErrorToastDecoration />
     message = `Copied ${entityType} URL, not available on ${host}`
   }
@@ -147,22 +123,6 @@ function CopiedToast({
         {indicator}
         <SizableText flexWrap="wrap">{message}</SizableText>
       </XStack>
-      {(pushing === null || pushing === false) && published === false ? (
-        <XStack jc="center">
-          <Button
-            size="$2"
-            onPress={() => {
-              toast.promise(push.mutateAsync(hmId), {
-                loading: `Pushing to ${host}...`,
-                success: `Pushed to ${host}`,
-                error: (err) => `Failed to push to ${host}: ${err.message}`,
-              })
-            }}
-          >
-            Push to {host}
-          </Button>
-        </XStack>
-      ) : null}
     </YStack>
   )
 }

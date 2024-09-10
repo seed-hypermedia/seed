@@ -1,4 +1,4 @@
-import {Change, HTTP_PORT} from '@shm/shared'
+import {Change, DAEMON_HTTP_PORT} from '@shm/shared'
 import {UseQueryOptions, useQueries, useQuery} from '@tanstack/react-query'
 import {useMemo} from 'react'
 import {useGRPCClient} from '../app-context'
@@ -141,7 +141,9 @@ export type BlobData = ChangeData
 function queryBlob(cid: string | undefined) {
   return {
     queryFn: async () => {
-      const res = await fetch(`http://localhost:${HTTP_PORT}/debug/cid/${cid}`)
+      const res = await fetch(
+        `http://localhost:${DAEMON_HTTP_PORT}/debug/cid/${cid}`,
+      )
       const data = await res.json()
       return data as BlobData
     },

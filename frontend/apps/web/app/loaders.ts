@@ -18,13 +18,17 @@ export type MetadataPayload = {
 export async function getMetadata(
   id: UnpackedHypermediaId
 ): Promise<MetadataPayload> {
-  const rawDoc = await queryClient.documents.getDocument({
-    account: id.uid,
-    path: hmIdPathToEntityQueryPath(id.path),
-    version: id.version || undefined,
-  });
-  const document = toPlainMessage(rawDoc);
-  return {id, metadata: document.metadata};
+  try {
+    const rawDoc = await queryClient.documents.getDocument({
+      account: id.uid,
+      path: hmIdPathToEntityQueryPath(id.path),
+      version: id.version || undefined,
+    });
+    const document = toPlainMessage(rawDoc);
+    return {id, metadata: document.metadata};
+  } catch (e) {
+    return {id, metadata: {}};
+  }
 }
 
 export type WebDocumentPayload = {
@@ -65,6 +69,7 @@ export async function getDocument(
       return await getMetadata(hmId("d", authorUid));
     })
   );
+  console.log("done with getDocument", entityId);
   return {
     document,
     authors,
@@ -104,6 +109,7 @@ export async function loadSiteDocument(
       homeMetadata,
       homeId,
     };
+    console.log("Nice====", docContent);
     return wrapJSON(loadedSiteDocument);
   } catch (e) {
     // probably document not found. todo, handle other errors

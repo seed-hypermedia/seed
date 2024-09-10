@@ -57,6 +57,7 @@ export function createWebHMUrl(
     latest,
     path,
     siteHomeId,
+    params,
   }: {
     version?: string | null | undefined
     blockRef?: string | null | undefined
@@ -65,6 +66,7 @@ export function createWebHMUrl(
     latest?: boolean | null
     path?: string[] | null
     siteHomeId?: UnpackedHypermediaId
+    params?: Record<string, string | null>
   } = {},
 ) {
   let webPath = type === 'd' ? `/hm/${uid}` : `/hm/${type}/${uid}`
@@ -87,6 +89,11 @@ export function createWebHMUrl(
   }
   if (latest) {
     query.l = null
+  }
+  if (params) {
+    Object.entries(params).forEach(([paramKey, paramVal]) => {
+      query[paramKey] = paramVal
+    })
   }
   res += serializeQueryString(query)
   if (blockRef) {

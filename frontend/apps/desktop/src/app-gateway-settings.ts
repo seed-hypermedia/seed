@@ -21,7 +21,8 @@ const DependsType = z
 type Depends = z.infer<typeof DependsType>
 
 const PUSH_ON_COPY_KEY = 'GatewayPushOnCopy'
-let pushOnCopy: Depends = (appStore.get(PUSH_ON_COPY_KEY) as Depends) || 'ask'
+let pushOnCopy: Depends =
+  (appStore.get(PUSH_ON_COPY_KEY) as Depends) || 'always'
 function writePushOnCopy(value: Depends) {
   pushOnCopy = value
   appStore.set(PUSH_ON_COPY_KEY, value)
@@ -29,7 +30,7 @@ function writePushOnCopy(value: Depends) {
 
 const PUSH_ON_PUBLISH_KEY = 'GatewayPushOnPublish'
 let pushOnPublish: Depends =
-  (appStore.get(PUSH_ON_PUBLISH_KEY) as Depends) || 'ask'
+  (appStore.get(PUSH_ON_PUBLISH_KEY) as Depends) || 'always'
 function writePushOnPublish(value: Depends) {
   pushOnPublish = value
   appStore.set(PUSH_ON_PUBLISH_KEY, value)

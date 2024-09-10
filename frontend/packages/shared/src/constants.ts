@@ -10,11 +10,13 @@ export const P2P_PORT =
   (import.meta.env && import.meta.env.VITE_DESKTOP_P2P_PORT) ||
   process.env.VITE_DESKTOP_P2P_PORT ||
   56000
-export const HTTP_PORT =
+
+export const DAEMON_HTTP_PORT =
+  process.env.DAEMON_HTTP_PORT ||
   (import.meta.env && import.meta.env.VITE_DESKTOP_HTTP_PORT) ||
   process.env.VITE_DESKTOP_HTTP_PORT ||
   56001
-export const GRPC_PORT =
+export const DAEMON_GRPC_PORT =
   (import.meta.env && import.meta.env.VITE_DESKTOP_GRPC_PORT) ||
   process.env.VITE_DESKTOP_GRPC_PORT ||
   56002
@@ -24,7 +26,7 @@ export const METRIC_SERVER_HTTP_PORT =
   process.env.VITE_METRIC_SERVER_HTTP_PORT ||
   56003
 
-export const HOSTNAME =
+export const DAEMON_HOSTNAME =
   (import.meta.env && import.meta.env.VITE_DESKTOP_HOSTNAME) ||
   process.env.VITE_DESKTOP_HOSTNAME
 export const DESKTOP_APPDATA =
@@ -38,10 +40,13 @@ export const VERSION =
   '0.0.0'
 
 export const DAEMON_HTTP_URL =
-  process.env.DAEMON_HTTP_URL || `${HOSTNAME}:${HTTP_PORT}`
-export const DAEMON_FILE_UPLOAD_URL = `${HOSTNAME}:${HTTP_PORT}/ipfs/file-upload`
+  process.env.DAEMON_HTTP_URL || `${DAEMON_HOSTNAME}:${DAEMON_HTTP_PORT}`
 
-const appFileURL = HOSTNAME ? `${HOSTNAME}:${HTTP_PORT}/ipfs` : undefined
+export const DAEMON_FILE_UPLOAD_URL = `${DAEMON_HOSTNAME}:${DAEMON_HTTP_PORT}/ipfs/file-upload`
+
+const appFileURL = DAEMON_HOSTNAME
+  ? `${DAEMON_HOSTNAME}:${DAEMON_HTTP_PORT}/ipfs`
+  : undefined
 const webFileURL = process.env.SEED_BASE_URL
   ? `${process.env.SEED_BASE_URL}/ipfs`
   : undefined
@@ -50,7 +55,7 @@ export const DAEMON_FILE_URL = // this is used to find /ipfs/ urls on the app an
   webFileURL ?? // then we handle web production which has SEED_BASE_URL set
   appFileURL ?? // appFileURL for desktop
   '/ipfs'
-export const DAEMON_GRAPHQL_ENDPOINT = `${HOSTNAME}:${HTTP_PORT}/graphql`
+export const DAEMON_GRAPHQL_ENDPOINT = `${DAEMON_HOSTNAME}:${DAEMON_HTTP_PORT}/graphql`
 
 export const LIGHTNING_API_URL = IS_PROD_DESKTOP
   ? 'https://ln.mintter.com'
