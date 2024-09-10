@@ -1,11 +1,8 @@
+import {DEFAULT_GATEWAY_URL} from '@shm/shared'
 import z from 'zod'
 import {appStore} from './app-store'
 import {t} from './app-trpc'
 
-const DEFAULT_GATEWAY_URL =
-  process.env.SEED_P2P_TESTNET_NAME === 'dev'
-    ? 'https://test.hyper.media'
-    : 'https://gateway.hyper.media'
 const GATEWAY_URL_KEY = 'GatewayUrl'
 let gatewayUrl =
   (appStore.get(GATEWAY_URL_KEY) as string) || DEFAULT_GATEWAY_URL

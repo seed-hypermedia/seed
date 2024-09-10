@@ -9,6 +9,7 @@ import {trpc} from '@/trpc'
 import {PlainMessage, Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
 import {
+  DEFAULT_GATEWAY_URL,
   DocumentChange,
   DocumentListItem,
   HMAccount,
@@ -17,8 +18,10 @@ import {
   HMDocument,
   HMDraft,
   UnpackedHypermediaId,
+  createWebHMUrl,
   eventStream,
   fromHMBlock,
+  hmId,
   hmIdPathToEntityQueryPath,
   toHMBlock,
   unpackHmId,
@@ -35,7 +38,7 @@ import {
 import {Extension, findParentNode} from '@tiptap/core'
 import {NodeSelection, Selection} from '@tiptap/pm/state'
 import {useMachine} from '@xstate/react'
-import _ from 'lodash'
+import _, {flatMap} from 'lodash'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {ContextFrom, OutputFrom, fromPromise} from 'xstate'
 import {
@@ -50,9 +53,10 @@ import {useNavigate} from '../utils/useNavigate'
 import {useMyAccountIds} from './daemon'
 import {draftMachine} from './draft-machine'
 import {setGroupTypes} from './editor-utils'
-import {useEntities, useEntity} from './entities'
-import {useGatewayUrlStream} from './gateway-settings'
+import {getParentPaths, useEntities, useEntity} from './entities'
+import {useGatewayUrl, useGatewayUrlStream} from './gateway-settings'
 import {useInlineMentions} from './search'
+import {fetchWebLinkMeta} from './web-links'
 
 export const [draftDispatch, draftEvents] = eventStream<{
   type: 'CHANGE'
@@ -206,6 +210,8 @@ export function usePublishDraft(
 ) {
   const grpcClient = useGRPCClient()
   const invalidate = useQueryInvalidator()
+  const publishToGateway = usePublishToGateway()
+  const gatewayUrl = useGatewayUrl()
   const accts = useMyAccountIds()
   return useMutation<
     HMDocument,
@@ -278,7 +284,19 @@ export function usePublishDraft(
                 capability: capabilityId,
               })
 
-            return toPlainMessage(publishedDoc)
+            const resultDoc = toPlainMessage(publishedDoc)
+
+            if (id && resultDoc.version) {
+              await publishToGateway(
+                hmId('d', id.uid, {
+                  path: id.path,
+                  version: resultDoc.version,
+                }),
+                gatewayUrl.data,
+              )
+            }
+
+            return resultDoc
           } else {
             // dispatchWizardEvent(true)
             // toast.error('PUBLISH ERROR: Please select an account to sign first')
@@ -765,6 +783,94 @@ export function createBlocksMap(
   })
 
   return result
+}
+
+async function remoteSyncId(
+  id: UnpackedHypermediaId,
+  gatewayHostname: string,
+): Promise<Record<string, string>> {
+  const url = createWebHMUrl(id.type, id.uid, {
+    version: id.version,
+    blockRef: id.blockRef,
+    blockRange: id.blockRange,
+    hostname: gatewayHostname,
+    path: id.path,
+    params: {waitForSync: null},
+  })
+  const meta = await fetchWebLinkMeta(url)
+  return meta
+}
+
+function extractEmbedIds(blockNodes: HMBlockNode[]): string[] {
+  return flatMap(
+    blockNodes.map((node) => {
+      const childEmbedUrls = extractEmbedIds(node.children || [])
+      if (node.block.type === 'embed' && node.block.ref) {
+        childEmbedUrls.push(node.block.ref)
+      }
+      if (node.block.annotations) {
+        node.block.annotations.forEach((annotation) => {
+          if (annotation.type === 'inline-embed' && annotation.ref) {
+            childEmbedUrls.push(annotation.ref)
+          }
+        })
+      }
+      return childEmbedUrls
+    }),
+  )
+}
+
+export function usePublishToGateway() {
+  const grpcClient = useGRPCClient()
+  return async (
+    id: UnpackedHypermediaId,
+    gatewayHostname?: string,
+  ): Promise<boolean> => {
+    const doc = await grpcClient.documents.getDocument({
+      account: id.uid,
+      path: hmIdPathToEntityQueryPath(id.path),
+      version: id.version || undefined,
+    })
+    const gatewayHost = gatewayHostname || DEFAULT_GATEWAY_URL
+    await Promise.all(
+      doc.authors.map(async (authorId) => {
+        await remoteSyncId(hmId('d', authorId), gatewayHost)
+      }),
+    )
+    const parentPaths = getParentPaths(id.path)
+    await Promise.all(
+      parentPaths.map(async (path) => {
+        if (!!id.path && path.length === id.path.length) {
+          await remoteSyncId(id, gatewayHost)
+          return
+        }
+        await remoteSyncId(hmId('d', id.uid, {path}), gatewayHost)
+      }),
+    )
+
+    const embeds = extractEmbedIds(doc.content).map(unpackHmId)
+    console.log({embeds})
+    await Promise.all(
+      embeds.map(async (embedId) => {
+        if (!embedId) return
+        await remoteSyncId(embedId, gatewayHost)
+      }),
+    )
+    // const publicUrl = createWebHMUrl(id.type, id.uid, {
+    //   version: id.version,
+    //   blockRef: id.blockRef,
+    //   blockRange: id.blockRange,
+    //   hostname: gatewayHost,
+    //   path: id.path,
+    //   params: {waitForSync: null},
+    // })
+    // const meta = await fetchWebLinkMeta(publicUrl)
+    // const destId = packHmId(hmId(id.type, id.uid))
+    // const correctId = meta?.hmId === destId
+    // const correctVersion = !id.version || meta?.hmVersion === id.version
+    // return correctId && correctVersion
+    return true
+  }
 }
 
 export type HMDocumentListItem = Omit<

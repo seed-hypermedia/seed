@@ -6,6 +6,11 @@
 export const IS_PROD_DESKTOP = !!import.meta.env?.PROD
 export const IS_DEV_DESKTOP = !!import.meta.env?.DEV
 
+export const DEFAULT_GATEWAY_URL =
+  process.env.SEED_P2P_TESTNET_NAME === 'dev'
+    ? 'https://test.hyper.media'
+    : 'https://gateway.hyper.media'
+
 export const P2P_PORT =
   (import.meta.env && import.meta.env.VITE_DESKTOP_P2P_PORT) ||
   process.env.VITE_DESKTOP_P2P_PORT ||

@@ -1,3 +1,4 @@
+import {usePublishToGateway} from '@/models/documents'
 import {
   HYPERMEDIA_ENTITY_TYPES,
   StateStream,
@@ -5,24 +6,20 @@ import {
   unpackHmId,
   writeableStateStream,
 } from '@shm/shared'
-import {
-  createWebHMUrl,
-  hmId,
-  packHmId,
-} from '@shm/shared/src/utils/entity-id-url'
+import {createWebHMUrl, packHmId} from '@shm/shared/src/utils/entity-id-url'
 import {
   Button,
   CheckboxField,
+  copyTextToClipboard,
   DialogDescription,
   ErrorToastDecoration,
   SizableText,
   Spinner,
   SuccessToastDecoration,
-  XStack,
-  YStack,
-  copyTextToClipboard,
   toast,
   useStream,
+  XStack,
+  YStack,
 } from '@shm/ui'
 import {ReactNode, useState} from 'react'
 import {
@@ -32,21 +29,16 @@ import {
   useSetPushOnCopy,
   useSetPushOnPublish,
 } from '../models/gateway-settings'
-import {fetchWebLinkMeta} from '../models/web-links'
 import {DialogTitle, useAppDialog} from './dialog'
 
 type IsPublishedState = null | boolean // null: determined checked yet
-type PushingState =
-  | null // not pushing yet
-  | false // will not push due to setting
-  | true // currently pushing
-  | 'string' // error text
 
 export function useCopyGatewayReference() {
   const dialog = useAppDialog(PushToGatewayDialog)
   const gatewayHost = useGatewayHost()
   const gatewayUrl = useGatewayUrl()
   const pushOnCopy = usePushOnCopy()
+  const publishToGateway = usePublishToGateway()
   function onCopy(input: UnpackedHypermediaId) {
     const publicUrl = createWebHMUrl(input.type, input.uid, {
       version: input.version,
@@ -54,7 +46,6 @@ export function useCopyGatewayReference() {
       blockRange: input.blockRange,
       hostname: gatewayUrl.data,
       path: input.path,
-      params: {waitForSync: null},
     })
     console.log('--- public URL', publicUrl)
     const [setIsPublished, isPublished] =
@@ -62,14 +53,9 @@ export function useCopyGatewayReference() {
     if (pushOnCopy.data === 'never') {
       setIsPublished(false)
     }
-    fetchWebLinkMeta(publicUrl)
-      .then((meta) => {
-        // toast.success(JSON.stringify(meta))
-        const destId = packHmId(hmId(input.type, input.uid))
-        const correctId = meta?.hmId === destId
-        const correctVersion =
-          !input.version || meta?.hmVersion === input.version
-        if (correctId && correctVersion) {
+    publishToGateway(input, gatewayUrl.data)
+      .then((didPublish) => {
+        if (didPublish) {
           setIsPublished(true)
         } else {
           setIsPublished(false)
