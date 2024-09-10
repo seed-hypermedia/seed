@@ -631,7 +631,9 @@ func syncEntities(
 			mSyncErrorsTotal.Inc()
 		}
 	}()
-
+	log = log.With(
+		zap.String("peer", pid.String()),
+	)
 	if _, ok := ctx.Deadline(); !ok {
 		return fmt.Errorf("BUG: syncEntity must have timeout")
 	}
@@ -677,6 +679,39 @@ ORDER BY sb.ts, blobs.multihash;`
 		release()
 		return fmt.Errorf("Could not list related blobs: %w", err)
 	}
+
+	var queryParams2 []interface{}
+	queryString = mttnet.QListEmbeddedBlobsStr
+	i = 0
+	for eid, recursive := range eids {
+		queryString += "?"
+		if recursive {
+			queryParams2 = append(queryParams2, eid+"%")
+		} else {
+			queryParams2 = append(queryParams2, eid)
+		}
+		if i < len(eids)-1 {
+			queryString += " OR res.iri LIKE "
+		}
+		i++
+	}
+	queryString += `)
+		ORDER BY sb.ts, blobs.multihash
+	)
+)
+ORDER BY sb.ts, blobs.multihash;`
+	if err = sqlitex.Exec(conn, queryString, func(stmt *sqlite.Stmt) error {
+		codec := stmt.ColumnInt64(0)
+		hash := stmt.ColumnBytesUnsafe(1)
+		ts := stmt.ColumnInt64(2)
+		c := cid.NewCidV1(uint64(codec), hash)
+		localHaves[c] = struct{}{}
+		return store.Insert(ts, c.Bytes())
+	}, queryParams2...); err != nil {
+		release()
+		return fmt.Errorf("Could not list related embeds: %w", err)
+	}
+
 	release()
 	if err = store.Seal(); err != nil {
 		return fmt.Errorf("Failed to seal store: %w", err)
@@ -726,10 +761,6 @@ ORDER BY sb.ts, blobs.multihash;`
 	MSyncingWantedBlobs.WithLabelValues("syncing").Add(float64(allWants.Len()))
 	defer MSyncingWantedBlobs.WithLabelValues("syncing").Sub(float64(allWants.Len()))
 
-	log = log.With(
-		zap.String("peer", pid.String()),
-	)
-
 	var failed int
 	for allWants.Len() > 0 {
 		item := allWants.Front()
@@ -757,11 +788,13 @@ ORDER BY sb.ts, blobs.multihash;`
 				continue
 			}
 			log.Debug("Blob synced", zap.String("blobCid", blobCid.String()))
+		} else {
+			log.Debug("Already had wanted blob", zap.String("blobCid", blobCid.String()))
 		}
 		failed = 0
 		allWants.Remove(item)
 	}
-
+	log.Debug("Successfully synced new content")
 	return nil
 }
 
