@@ -286,15 +286,15 @@ export function usePublishDraft(
 
             const resultDoc = toPlainMessage(publishedDoc)
 
-            if (id && resultDoc.version) {
-              await publishToGateway(
-                hmId('d', id.uid, {
-                  path: id.path,
-                  version: resultDoc.version,
-                }),
-                gatewayUrl.data,
-              )
-            }
+            // if (id && resultDoc.version) {
+            //   await publishToGateway(
+            //     hmId('d', id.uid, {
+            //       path: id.path,
+            //       version: resultDoc.version,
+            //     }),
+            //     gatewayUrl.data,
+            //   )
+            // }
 
             return resultDoc
           } else {
