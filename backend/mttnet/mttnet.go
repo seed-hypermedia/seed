@@ -15,6 +15,7 @@ import (
 	"seed/backend/util/cleanup"
 	"seed/backend/util/libp2px"
 	"seed/backend/util/must"
+	"slices"
 	"time"
 
 	"seed/backend/util/sqlite/sqlitex"
@@ -445,10 +446,13 @@ func (n *Node) DebugHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		totalPeers := n.p2p.Network().Peers()
 
+		protocols := n.p2p.Mux().Protocols()
+		slices.Sort(protocols)
+
 		out := debugInfo{
 			AddrInfo:            libp2px.AddrInfo(n.p2p.Host),
 			HypermediaProtocol:  n.ProtocolID(),
-			Libp2pProtocols:     n.p2p.Mux().Protocols(),
+			Libp2pProtocols:     protocols,
 			TotalPeersConnected: len(totalPeers),
 		}
 
