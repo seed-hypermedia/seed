@@ -54,7 +54,7 @@ import {useMyAccountIds} from './daemon'
 import {draftMachine} from './draft-machine'
 import {setGroupTypes} from './editor-utils'
 import {getParentPaths, useEntities, useEntity} from './entities'
-import {useGatewayUrl, useGatewayUrlStream} from './gateway-settings'
+import {useGatewayUrlStream} from './gateway-settings'
 import {useInlineMentions} from './search'
 import {fetchWebLinkMeta} from './web-links'
 
@@ -210,8 +210,6 @@ export function usePublishDraft(
 ) {
   const grpcClient = useGRPCClient()
   const invalidate = useQueryInvalidator()
-  const publishToGateway = usePublishToGateway()
-  const gatewayUrl = useGatewayUrl()
   const accts = useMyAccountIds()
   return useMutation<
     HMDocument,
@@ -285,16 +283,6 @@ export function usePublishDraft(
               })
 
             const resultDoc = toPlainMessage(publishedDoc)
-
-            // if (id && resultDoc.version) {
-            //   await publishToGateway(
-            //     hmId('d', id.uid, {
-            //       path: id.path,
-            //       version: resultDoc.version,
-            //     }),
-            //     gatewayUrl.data,
-            //   )
-            // }
 
             return resultDoc
           } else {
@@ -848,7 +836,6 @@ export function usePublishToGateway() {
     )
 
     const embeds = extractEmbedIds(doc.content).map(unpackHmId)
-    console.log({embeds})
     await Promise.all(
       embeds.map(async (embedId) => {
         if (!embedId) return

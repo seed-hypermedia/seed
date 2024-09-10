@@ -1,32 +1,46 @@
 import {DraftStatus, draftStatus} from '@/draft-status'
 import {useMyAccountsWithWriteAccess} from '@/models/access-control'
 import {useEntity} from '@/models/entities'
+import {useGatewayUrl} from '@/models/gateway-settings'
 import {trpc} from '@/trpc'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {PlainMessage} from '@bufbuild/protobuf'
 import {
+  DEFAULT_GATEWAY_URL,
   Document,
   DraftRoute,
   HMEntityContent,
   hmId,
   packHmId,
+  StateStream,
+  UnpackedHypermediaId,
+  writeableStateStream,
 } from '@shm/shared'
 import {
   Button,
+  ErrorToastDecoration,
+  SizableText,
   Spinner,
+  SuccessToastDecoration,
   Thumbnail,
+  toast,
   Tooltip,
+  useStream,
   XGroup,
+  XStack,
   YStack,
   YStackProps,
 } from '@shm/ui'
 import {AlertCircle, Check, ChevronDown} from '@tamagui/lucide-icons'
-import {PropsWithChildren, useEffect, useState} from 'react'
-import {createMachine} from 'xstate'
+import {PropsWithChildren, ReactNode, useEffect, useState} from 'react'
 import {useQueryInvalidator} from '../app-context'
 import {useDraft} from '../models/accounts'
-import {draftDispatch, usePublishDraft} from '../models/documents'
+import {
+  draftDispatch,
+  usePublishDraft,
+  usePublishToGateway,
+} from '../models/documents'
 import {OptionsDropdown} from './options-dropdown'
 
 export default function PublishDraftButton() {
@@ -49,7 +63,43 @@ export default function PublishDraftButton() {
     },
   })
   const accts = useMyAccountsWithWriteAccess(draftId)
-  const publish = usePublishDraft()
+  const gatewayUrl = useGatewayUrl()
+  const publishToGateway = usePublishToGateway()
+  const publish = usePublishDraft({
+    onSuccess: (resultDoc, input) => {
+      const {id} = input
+      const [setIsPushed, isPushed] = writeableStateStream<boolean | null>(null)
+      const {close} = toast.custom(
+        <PublishedToast
+          host={gatewayUrl.data || DEFAULT_GATEWAY_URL}
+          isPushed={isPushed}
+          id={id}
+        />,
+        {waitForClose: true, duration: 4000},
+      )
+      if (id && resultDoc.version) {
+        publishToGateway(
+          hmId('d', id.uid, {
+            path: id.path,
+            version: resultDoc.version,
+          }),
+          gatewayUrl.data,
+        )
+          .then(() => {
+            setIsPushed(true)
+          })
+          .catch((e) => {
+            setIsPushed(false)
+          })
+          .finally(() => {
+            close()
+          })
+      } else {
+        setIsPushed(false)
+        close()
+      }
+    },
+  })
 
   useEffect(() => {
     if (signingAccount && signingAccount.id.uid) {
@@ -185,7 +235,37 @@ function StatusWrapper({children, ...props}: PropsWithChildren<YStackProps>) {
   )
 }
 
-const dummyMachine = createMachine({initial: 'demo', states: {demo: {}}})
+function PublishedToast({
+  isPushed,
+  host,
+  id,
+}: {
+  isPushed: StateStream<boolean | null>
+  host: string
+  id?: UnpackedHypermediaId
+}) {
+  const pushed = useStream(isPushed)
+  let indicator: ReactNode = null
+  let message: string = ''
+  if (pushed === null) {
+    indicator = <Spinner />
+    message = `Published. Pushing to ${host}...`
+  } else if (pushed === true) {
+    indicator = <SuccessToastDecoration />
+    message = `Published to ${host}`
+  } else if (pushed === false) {
+    indicator = <ErrorToastDecoration />
+    message = `Published locally. Could not push to ${host}`
+  }
+  return (
+    <YStack f={1} gap="$3">
+      <XStack gap="$4" ai="center">
+        {indicator}
+        <SizableText flexWrap="wrap">{message}</SizableText>
+      </XStack>
+    </YStack>
+  )
+}
 
 function SaveIndicatorStatus() {
   const [status, setStatus] = useState('idle' as DraftStatus)

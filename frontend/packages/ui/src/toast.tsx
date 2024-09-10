@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2 } from '@tamagui/lucide-icons'
+import {AlertCircle, CheckCircle2} from "@tamagui/lucide-icons";
 import {
   ComponentProps,
   ReactElement,
@@ -6,38 +6,31 @@ import {
   useReducer,
   useRef,
   useState,
-} from 'react'
-import {
-  Button,
-  SizableText,
-  Spinner,
-  XStack,
-  YStack,
-  styled
-} from 'tamagui'
+} from "react";
+import {Button, SizableText, Spinner, XStack, YStack, styled} from "tamagui";
 
 function DecorationIcon({
   Icon,
   color,
 }: {
-  Icon: typeof CheckCircle2
-  color: ComponentProps<typeof CheckCircle2>['color']
+  Icon: typeof CheckCircle2;
+  color: ComponentProps<typeof CheckCircle2>["color"];
 }) {
-  return <Icon color={color} />
+  return <Icon color={color} />;
 }
 
 export function SuccessToastDecoration() {
-  return <DecorationIcon Icon={CheckCircle2} color="$green9" />
+  return <DecorationIcon Icon={CheckCircle2} color="$green9" />;
 }
 
 export function ErrorToastDecoration() {
-  return <DecorationIcon Icon={AlertCircle} color="$red9" />
+  return <DecorationIcon Icon={AlertCircle} color="$red9" />;
 }
 
 const ToastXStack = styled(XStack, {
-  gap: '$3',
-  ai: 'center',
-})
+  gap: "$3",
+  ai: "center",
+});
 
 function ToastView({
   message,
@@ -47,22 +40,22 @@ function ToastView({
   onPress,
   customContent,
 }: {
-  message: string
-  decoration?: 'error' | 'success'
-  onMouseEnter: () => void
-  onMouseLeave: () => void
-  onPress: () => void
-  customContent?: ReactElement
+  message: string;
+  decoration?: "error" | "success";
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+  onPress: () => void;
+  customContent?: ReactElement;
 }) {
   const content = customContent || (
     <ToastXStack>
       {/* <AnimatePresence> */}
-      {decoration === 'error' ? <ErrorToastDecoration /> : null}
-      {decoration === 'success' ? <SuccessToastDecoration /> : null}
+      {decoration === "error" ? <ErrorToastDecoration /> : null}
+      {decoration === "success" ? <SuccessToastDecoration /> : null}
       {/* </AnimatePresence> */}
       <SizableText>{message}</SizableText>
     </ToastXStack>
-  )
+  );
   return (
     <Button
       onMouseEnter={onMouseEnter}
@@ -78,7 +71,7 @@ function ToastView({
       shadowRadius="$2"
       shadowColor="#00000044"
       shadowOffset={{width: 0, height: 4}}
-      hoverStyle={{backgroundColor: '$color2'}}
+      hoverStyle={{backgroundColor: "$color2"}}
       onPress={onPress}
       enterStyle={{opacity: 0, scale: 0.7, y: 40}}
       exitStyle={{opacity: 0, scale: 1, y: 0}}
@@ -90,40 +83,46 @@ function ToastView({
     >
       {content}
     </Button>
-  )
+  );
 }
 
 type ToastState = {
-  key: string
-  message: string
-  openTime: number
-  duration: number
-  decoration?: 'error' | 'success'
-  onClick?: () => void
-  customContent?: ReactElement
-}[]
+  key: string;
+  message: string;
+  openTime: number;
+  duration: number | null;
+  decoration?: "error" | "success";
+  onClick?: () => void;
+  customContent?: ReactElement;
+}[];
 
 type ToastAction =
   | {
-      type: 'AddItem'
-      key: string
-      message: string
-      time: number
-      duration: number
-      decoration?: 'error' | 'success'
-      onClick?: () => void
-      customContent?: ReactElement
+      type: "AddItem";
+      key: string;
+      message: string;
+      time: number;
+      duration: number | null;
+      decoration?: "error" | "success";
+      onClick?: () => void;
+      customContent?: ReactElement;
     }
   | {
-      type: 'ClearItems'
-      keys: string[]
+      type: "ClearItems";
+      keys: string[];
     }
+  | {
+      type: "SetItemDuration";
+      key: string;
+      duration: number;
+      time: number;
+    };
 
-const initToastState: ToastState = []
+const initToastState: ToastState = [];
 
 function toastReducer(state: ToastState, action: ToastAction): ToastState {
   switch (action.type) {
-    case 'AddItem':
+    case "AddItem":
       return [
         ...state,
         {
@@ -135,70 +134,94 @@ function toastReducer(state: ToastState, action: ToastAction): ToastState {
           customContent: action.customContent,
           onClick: action.onClick,
         },
-      ]
-    case 'ClearItems':
-      return state.filter((item) => action.keys.indexOf(item.key) === -1)
+      ];
+    case "ClearItems":
+      return state.filter((item) => action.keys.indexOf(item.key) === -1);
+    case "SetItemDuration":
+      return state.map((item) =>
+        item.key === action.key
+          ? {...item, duration: action.duration, openTime: action.time}
+          : item
+      );
     default:
-      return state
+      return state;
   }
 }
 
 const fallbackToastHandler = (message: string) => {
-  console.error('Toast not initialized')
-  console.log(message)
-}
+  console.error("Toast not initialized");
+  console.log(message);
+  return {close: () => {}};
+};
 
 type ToastOptions = {
-  onClick?: () => void
-  decoration?: 'error' | 'success'
-  customContent?: ReactElement
-  duration?: number
-}
+  onClick?: () => void;
+  decoration?: "error" | "success";
+  customContent?: ReactElement;
+  duration?: number;
+  waitForClose?: boolean;
+};
 
-type ToastHandler = (message?: string, options?: ToastOptions) => void
+type ToastHandler = (
+  message?: string,
+  options?: ToastOptions
+) => {close: () => void};
 
-let handleToast: ToastHandler = fallbackToastHandler
-let toastCounter = 0
+let handleToast: ToastHandler = fallbackToastHandler;
+let toastCounter = 0;
 export function Toaster() {
-  const hovered = useRef<string | null>(null)
-  const hoveredTimeout = useRef<NodeJS.Timeout | undefined>(undefined)
-  const [state, dispatch] = useReducer(toastReducer, initToastState)
+  const hovered = useRef<string | null>(null);
+  const hoveredTimeout = useRef<NodeJS.Timeout | undefined>(undefined);
+  const [state, dispatch] = useReducer(toastReducer, initToastState);
   useEffect(() => {
     handleToast = (message: string, opts: ToastOptions = {}) => {
-      const key = `${Date.now()}_${toastCounter++}`
+      const key = `${Date.now()}_${toastCounter++}`;
       dispatch({
-        type: 'AddItem',
+        type: "AddItem",
         key,
         message,
         time: Date.now(),
-        duration: opts.duration || 5000,
+        duration: opts.waitForClose ? null : opts.duration || 5000,
         onClick: opts.onClick,
         decoration: opts.decoration,
         customContent: opts.customContent,
-      })
-    }
+      });
+      return {
+        close: () => {
+          dispatch({
+            type: "SetItemDuration",
+            key,
+            time: Date.now(),
+            duration: opts.duration || 5000,
+          });
+        },
+      };
+    };
     return () => {
-      handleToast = fallbackToastHandler
-    }
-  }, [])
+      handleToast = fallbackToastHandler;
+    };
+  }, []);
   useEffect(() => {
     const interval = setInterval(() => {
-      const now = Date.now()
-      dispatch({
-        type: 'ClearItems',
-        keys: state
-          .filter(
-            (item) =>
-              item.key !== hovered.current &&
-              item.openTime + item.duration < now,
-          )
-          .map((item) => item.key),
-      })
-    }, 5_000)
+      const now = Date.now();
+      const keysToClear = state
+        .filter(
+          (item) =>
+            item.key !== hovered.current &&
+            item.duration &&
+            item.openTime + item.duration < now
+        )
+        .map((item) => item.key);
+      if (keysToClear.length)
+        dispatch({
+          type: "ClearItems",
+          keys: keysToClear,
+        });
+    }, 1_000);
     return () => {
-      clearInterval(interval)
-    }
-  }, [state])
+      clearInterval(interval);
+    };
+  }, [state]);
   return (
     <YStack
       pointerEvents="box-none"
@@ -209,135 +232,135 @@ export function Toaster() {
       ai="center"
     >
       {/* <AnimatePresence> */}
-        {state.map((item) => (
-          <ToastView
-            key={item.key}
-            message={item.message}
-            decoration={item.decoration}
-            customContent={item.customContent}
-            onPress={() => {
-              if (item.onClick) {
-                item.onClick()
-                return
-              }
-              dispatch({
-                type: 'ClearItems',
-                keys: [item.key],
-              })
-            }}
-            onMouseEnter={() => {
-              clearTimeout(hoveredTimeout.current)
-              hovered.current = item.key
-            }}
-            onMouseLeave={() => {
-              hoveredTimeout.current = setTimeout(() => {
-                hovered.current = null
-              }, 500)
-            }}
-          />
-        ))}
+      {state.map((item) => (
+        <ToastView
+          key={item.key}
+          message={item.message}
+          decoration={item.decoration}
+          customContent={item.customContent}
+          onPress={() => {
+            if (item.onClick) {
+              item.onClick();
+              return;
+            }
+            dispatch({
+              type: "ClearItems",
+              keys: [item.key],
+            });
+          }}
+          onMouseEnter={() => {
+            clearTimeout(hoveredTimeout.current);
+            hovered.current = item.key;
+          }}
+          onMouseLeave={() => {
+            hoveredTimeout.current = setTimeout(() => {
+              hovered.current = null;
+            }, 500);
+          }}
+        />
+      ))}
       {/* </AnimatePresence> */}
     </YStack>
-  )
+  );
 }
 
 export function toast(message: string, opts: ToastOptions = {}) {
-  handleToast(message, {...opts})
+  return handleToast(message, {...opts});
 }
 
 toast.error = (message: string, opts: ToastOptions = {}) => {
-  handleToast(message, {...opts, decoration: 'error'})
-}
+  return handleToast(message, {...opts, decoration: "error"});
+};
 
 toast.success = (message: string, opts: ToastOptions = {}) => {
-  handleToast(message, {...opts, decoration: 'success'})
-}
+  return handleToast(message, {...opts, decoration: "success"});
+};
 
 toast.custom = (customContent: ReactElement, opts: ToastOptions = {}) => {
-  handleToast('', {...opts, customContent})
-}
+  return handleToast("", {...opts, customContent});
+};
 type PromiseToastMessages<V> = {
-  error: string | ((err: Error) => string)
-  loading: string
-  success: string | ((promiseResult: V) => string)
-}
+  error: string | ((err: Error) => string);
+  loading: string;
+  success: string | ((promiseResult: V) => string);
+};
 
 type ErrorState = {
-  state: 'error'
-  error: Error
-}
+  state: "error";
+  error: Error;
+};
 type LoadingState = {
-  state: 'loading'
-}
+  state: "loading";
+};
 type ResolvedState<V> = {
-  state: 'resolved'
-  value: V
-}
-const loadingState: LoadingState = {state: 'loading'}
-type PromiseToastState<V> = ErrorState | LoadingState | ResolvedState<V>
+  state: "resolved";
+  value: V;
+};
+const loadingState: LoadingState = {state: "loading"};
+type PromiseToastState<V> = ErrorState | LoadingState | ResolvedState<V>;
 
 function PromiseToast<V>({
   messages,
   promise,
 }: {
-  messages: PromiseToastMessages<V>
-  promise: Promise<V>
+  messages: PromiseToastMessages<V>;
+  promise: Promise<V>;
 }) {
-  const [state, setState] = useState<PromiseToastState<V>>(loadingState)
+  const [state, setState] = useState<PromiseToastState<V>>(loadingState);
   useEffect(() => {
     promise
       .then((value) => {
-        setState({state: 'resolved', value})
+        setState({state: "resolved", value});
       })
       .catch((error) => {
-        setState({state: 'error', error})
-      })
-  }, [])
-  if (state.state === 'loading')
+        setState({state: "error", error});
+      });
+  }, []);
+  if (state.state === "loading")
     return (
       <XStack gap="$3" ai="center">
         <Spinner />
         <SizableText>{messages.loading}</SizableText>
       </XStack>
-    )
-  if (state.state === 'error') {
-    let errorText = 'Error'
-    if (typeof messages.error === 'string') errorText = messages.error
-    if (typeof messages.error === 'function')
-      errorText = messages.error(state.error)
+    );
+  if (state.state === "error") {
+    let errorText = "Error";
+    if (typeof messages.error === "string") errorText = messages.error;
+    if (typeof messages.error === "function")
+      errorText = messages.error(state.error);
     return (
       <XStack gap="$3" ai="center">
         {/* <AnimatePresence> */}
-          <ErrorToastDecoration />
+        <ErrorToastDecoration />
         {/* </AnimatePresence> */}
         <SizableText>{errorText}</SizableText>
       </XStack>
-    )
+    );
   }
-  if (state.state === 'resolved') {
-    let successText = 'Success'
-    if (typeof messages.success === 'string') successText = messages.success
-    if (typeof messages.success === 'function')
-      successText = messages.success(state.value)
+  if (state.state === "resolved") {
+    let successText = "Success";
+    if (typeof messages.success === "string") successText = messages.success;
+    if (typeof messages.success === "function")
+      successText = messages.success(state.value);
     return (
       <XStack gap="$3" ai="center">
         {/* <AnimatePresence> */}
-          <SuccessToastDecoration />
+        <SuccessToastDecoration />
         {/* </AnimatePresence> */}
         <SizableText>{successText}</SizableText>
       </XStack>
-    )
+    );
   }
 }
 
 toast.promise = function promiseToast<V>(
   promise: Promise<V>,
   messages: PromiseToastMessages<V>,
-  opts: ToastOptions = {},
+  opts: ToastOptions = {}
 ) {
-  handleToast('', {
+  handleToast("", {
     ...opts,
     customContent: <PromiseToast promise={promise} messages={messages} />,
-  })
-  return promise
-}
+  });
+  return promise;
+};

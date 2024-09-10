@@ -47,12 +47,19 @@ export function useCopyGatewayReference() {
       hostname: gatewayUrl.data,
       path: input.path,
     })
-    console.log('--- public URL', publicUrl)
     const [setIsPublished, isPublished] =
       writeableStateStream<IsPublishedState>(null)
     if (pushOnCopy.data === 'never') {
       setIsPublished(false)
     }
+    const {close} = toast.custom(
+      <CopiedToast
+        host={gatewayHost}
+        isPublished={isPublished}
+        hmId={packHmId(input)}
+      />,
+      {duration: 4000, waitForClose: isPublished.get() === null},
+    )
     publishToGateway(input, gatewayUrl.data)
       .then((didPublish) => {
         if (didPublish) {
@@ -65,15 +72,10 @@ export function useCopyGatewayReference() {
         toast.error('Failed to push public web link: ' + e.message)
         setIsPublished(false)
       })
+      .finally(() => {
+        close()
+      })
     copyTextToClipboard(publicUrl)
-    toast.custom(
-      <CopiedToast
-        host={gatewayHost}
-        isPublished={isPublished}
-        hmId={packHmId(input)}
-      />,
-      {duration: 8000},
-    )
   }
   return [dialog.content, onCopy, gatewayHost] as const
 }
