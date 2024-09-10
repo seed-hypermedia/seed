@@ -51,7 +51,7 @@ export function DialogFooter(props) {
   return <XStack justifyContent="flex-end" gap="$4" {...props} />
 }
 export function DialogTitle(props) {
-  return <Dialog.Title fontSize="$7" {...props} />
+  return <Dialog.Title fontSize="$7" fontWeight="bold" {...props} />
 }
 
 export function DialogCloseButton() {

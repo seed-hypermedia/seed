@@ -1,6 +1,7 @@
 import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
 import {MainWrapper} from '@/components/main-wrapper'
+import {ListItemSkeleton} from '@/components/skeleton'
 import {useListProfileDocuments} from '@/models/documents'
 import {useEntities} from '@/models/entities'
 import {useNavigate} from '@/utils/useNavigate'
@@ -36,50 +37,47 @@ function ErrorPage({}: {error: any}) {
 
 export default function ContactsPage() {
   const contacts = useListProfileDocuments()
-  const navigate = useNavigate('push')
   const ref = useRef(null)
   useShowTitleObserver(ref.current)
   if (contacts.isLoading) {
     return (
-      <MainWrapper>
-        <Container>
-          <Spinner />
-        </Container>
-      </MainWrapper>
-    )
-  }
-  if (contacts.error) {
-    return <ErrorPage error={contacts.error} />
-  }
-  if (!contacts.data?.length) {
-    return (
       <>
         <MainWrapper>
           <Container>
-            <YStack gap="$5" paddingVertical="$8">
-              <Text fontFamily="$body" fontSize="$3">
-                You have no Contacts yet.
-              </Text>
-            </YStack>
+            <Spinner />
           </Container>
         </MainWrapper>
         <Footer />
       </>
     )
   }
+  if (contacts.error) {
+    return <ErrorPage error={contacts.error} />
+  }
+
   return (
     <>
       <MainWrapper>
         <Container>
           <YStack paddingVertical="$4" marginHorizontal={-8}>
-            {contacts.data.map((contact) => (
-              <ContactListItem entry={contact} />
-            ))}
+            {contacts.data?.length ? (
+              contacts.data.map((contact) => (
+                <ContactListItem entry={contact} />
+              ))
+            ) : (
+              <YStack gap="$3">
+                {[...Array(5)].map((_, index) => (
+                  <ListItemSkeleton key={index} />
+                ))}
+                <XStack jc="center" ai="center" f={1} gap="$2">
+                  <SizableText color="$color10">No contacts yet...</SizableText>
+                  {/* <Button size="$2">Add a Connection</Button> */}
+                </XStack>
+              </YStack>
+            )}
           </YStack>
         </Container>
       </MainWrapper>
-      {/* {copyDialogContent}
-      {deleteEntity.content} */}
       <Footer />
     </>
   )

@@ -14,7 +14,7 @@ export type SpinnerProps = Omit<YStackProps, "children"> & {
 
 export const Spinner: React.ForwardRefExoticComponent<
   SpinnerProps & React.RefAttributes<any>
-> = YStack.extractable(
+> = YStack.styleable(
   themeable(
     React.forwardRef<TamaguiElement>((props: SpinnerProps, ref) => {
       const {size, color: colorProp, ...stackProps} = props;

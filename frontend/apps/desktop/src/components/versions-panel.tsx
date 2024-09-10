@@ -66,9 +66,9 @@ function ChangeItem({
       paddingRight="$3"
       borderRadius="$2"
       borderWidth={0}
-      backgroundColor={isActive ? '$brand5' : '$backgroundTransparent'}
+      backgroundColor={isActive ? '$brand12' : '$backgroundTransparent'}
       hoverStyle={{
-        backgroundColor: isActive ? '$brand6' : '$color6',
+        backgroundColor: isActive ? '$brand11' : '$color6',
         borderColor: '$borderTransparent',
       }}
       ai="flex-start"
@@ -80,7 +80,7 @@ function ChangeItem({
         bg="$color8"
         position="absolute"
         top={14}
-        left={22}
+        left={21}
         opacity={isLast ? 0 : 1}
         zi={1}
       />

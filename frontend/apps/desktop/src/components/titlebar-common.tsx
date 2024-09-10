@@ -315,6 +315,12 @@ export function PageActionButtons(props: TitleBarProps) {
     buttonGroup = [
       <Button
         size="$2"
+        bg="$brand12"
+        borderColor="$brand11"
+        hoverStyle={{
+          bg: '$brand11',
+          borderColor: '$brand10',
+        }}
         onPress={() => {
           connectDialog.open(true)
         }}

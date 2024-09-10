@@ -98,6 +98,12 @@ export function AddConnectionDialog({
           onPress={() => connect.mutate(connectionString || peerText)}
           disabled={!peerText && !connectionString}
           icon={UserPlus}
+          bg="$brand12"
+          borderColor="$brand11"
+          hoverStyle={{
+            bg: '$brand11',
+            borderColor: '$brand10',
+          }}
         >
           Connect to Peer
         </Button>

@@ -3,7 +3,9 @@ export {config} from "./tamagui.config";
 
 export {
   Paragraph as TParagraph,
+  // SpinnerProps as TSPinnerProps,
   Section as TSection,
+  // Spinner as TSpinner,
   Button as TTButton,
   Tooltip as TTooltip,
 } from "tamagui";
@@ -32,6 +34,7 @@ export * from "./radio-option-section";
 export * from "./resize-handle";
 export {Section} from "./section";
 export * from "./select-dropdown";
+// export * from "./spinner";
 export * from "./step-wrapper";
 export * from "./table-list";
 export * from "./thumbnail";
