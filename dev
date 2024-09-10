@@ -18,7 +18,7 @@ def cmd(cmds: argparse._SubParsersAction, name: str, help: str):
     return wrapper
 
 
-def run(cmd: str, args: list = None, capture_output=False, env: dict = None):
+def run(cmd: str, args: list = [], capture_output=False, env: os._Environ = os.environ):
     """Helper to run cmd in a shell."""
     if args:
         if args[0] == "--":
