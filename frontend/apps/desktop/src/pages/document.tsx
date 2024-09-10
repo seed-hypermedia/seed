@@ -15,6 +15,7 @@ import {VersionsPanel} from '@/components/versions-panel'
 import '@/editor/editor.css'
 import {useMyAccountIds} from '@/models/daemon'
 import {useDiscoverEntity, useEntity} from '@/models/entities'
+import {useOpenUrl} from '@/open-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {
