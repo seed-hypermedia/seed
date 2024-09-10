@@ -44,8 +44,6 @@ export function ThumbnailForm({
       })
   }
 
-  console.log('url', url)
-
   const avatarImage = (
     <UIAvatar
       label={label}

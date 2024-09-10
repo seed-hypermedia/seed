@@ -13,6 +13,7 @@ import {
   SizableText,
   Tooltip,
   useStream,
+  useTheme,
   View,
   XStack,
   YStack,
@@ -198,6 +199,7 @@ export function SidebarItem({
   isCollapsed?: boolean | null
   onSetCollapsed?: (collapsed: boolean) => void
 }) {
+  const theme = useTheme()
   const indent = indented ? (typeof indented === 'number' ? indented : 1) : 0
   const activeBg = activeBgColor || '$brand12'
   return (
@@ -238,7 +240,12 @@ export function SidebarItem({
         {isValidElement(icon) ? (
           icon
         ) : icon ? (
-          <View width={18}>{createElement(icon, {size: 18})}</View>
+          <View width={18}>
+            {createElement(icon, {
+              size: 18,
+              color: color || theme.gray12.val,
+            })}
+          </View>
         ) : (
           <View width={18} />
         )}

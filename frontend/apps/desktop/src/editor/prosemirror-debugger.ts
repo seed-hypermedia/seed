@@ -15,7 +15,6 @@ const pmDebugPlugin = new Plugin({
   appendTransaction(transactions: readonly Transaction[], oldState, newState) {
     transactions.forEach((transaction) => {
       // Check if "addToHistory" meta is present
-      console.log('Transaction', transaction)
 
       if (transaction.getMeta('addToHistory')) {
         console.log('Transaction with addToHistory:', transaction)

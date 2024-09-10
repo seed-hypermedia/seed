@@ -498,7 +498,6 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
     let inputData: Partial<HMDraft> = {}
     const draftId = id.id || input.id
 
-    console.log(`== ~ DRAFT draftId:`, {draftId, id, input})
     if (!draftId)
       throw new Error('Draft Error: no id passed to update function')
     if (!input.draft) {
