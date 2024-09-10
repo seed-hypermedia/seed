@@ -3,10 +3,8 @@ package mttnet
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"seed/backend/config"
 	"seed/backend/core"
 	p2p "seed/backend/genproto/p2p/v1alpha"
@@ -15,7 +13,7 @@ import (
 	"seed/backend/util/cleanup"
 	"seed/backend/util/libp2px"
 	"seed/backend/util/must"
-	"slices"
+	"sync/atomic"
 	"time"
 
 	"seed/backend/util/sqlite/sqlitex"
@@ -31,6 +29,7 @@ import (
 	gostream "github.com/libp2p/go-libp2p-gostream"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/event"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
@@ -97,6 +96,7 @@ type Node struct {
 	grpc                   *grpc.Server
 	quit                   io.Closer
 	ready                  chan struct{}
+	currentReachability    atomic.Value    // type of network.Reachability
 	ctx                    context.Context // will be set after calling Start()
 }
 
@@ -157,7 +157,12 @@ func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool
 	}
 	n.connectionCallback = n.defaultConnectionCallback
 	n.identificationCallback = n.defaultIdentificationCallback
-	sub, err := host.EventBus().Subscribe([]interface{}{new(event.EvtPeerIdentificationCompleted), new(event.EvtPeerConnectednessChanged)})
+	n.currentReachability.Store(network.ReachabilityUnknown)
+	sub, err := host.EventBus().Subscribe([]interface{}{
+		new(event.EvtPeerIdentificationCompleted),
+		new(event.EvtPeerConnectednessChanged),
+		new(event.EvtLocalReachabilityChanged),
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -174,6 +179,8 @@ func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool
 				if n.identificationCallback != nil {
 					n.identificationCallback(n.ctx, event)
 				}
+			case event.EvtLocalReachabilityChanged:
+				n.currentReachability.Store(event.Reachability)
 			}
 		}
 	}()
@@ -432,49 +439,6 @@ func (n *Node) startLibp2p(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-type debugInfo struct {
-	AddrInfo                 peer.AddrInfo
-	HypermediaProtocol       protocol.ID
-	Libp2pProtocols          []protocol.ID
-	TotalPeersConnected      int
-	HypermediaPeersConnected int
-}
-
-func (n *Node) DebugHandler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		totalPeers := n.p2p.Network().Peers()
-
-		protocols := n.p2p.Mux().Protocols()
-		slices.Sort(protocols)
-
-		out := debugInfo{
-			AddrInfo:            libp2px.AddrInfo(n.p2p.Host),
-			HypermediaProtocol:  n.ProtocolID(),
-			Libp2pProtocols:     protocols,
-			TotalPeersConnected: len(totalPeers),
-		}
-
-		for _, pid := range totalPeers {
-			got, err := n.p2p.Peerstore().FirstSupportedProtocol(pid, n.protocol.ID)
-			if err != nil {
-				continue
-			}
-			if got == "" {
-				continue
-			}
-			out.HypermediaPeersConnected++
-		}
-
-		enc := json.NewEncoder(w)
-		enc.SetIndent("", "    ")
-		w.Header().Set("Content-Type", "application/json")
-		if err := enc.Encode(out); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	})
 }
 
 // AddrInfoToStrings returns address as string.
