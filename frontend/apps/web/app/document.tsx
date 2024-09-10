@@ -6,6 +6,7 @@ import {
   getNodesOutline,
   HMComment,
   HMDocument,
+  HMMetadata,
   NodeOutline,
   UnpackedHypermediaId,
 } from "@shm/shared";
@@ -83,7 +84,15 @@ export function DocumentPage({
   authors,
 }: SiteDocumentPayload) {
   const [open, setOpen] = useState(false);
-  if (!document || !id) return <NotFoundPage />;
+  if (!id) return <NotFoundPage />;
+  if (!document)
+    return (
+      <DocumentDiscoveryPage
+        id={id}
+        homeId={homeId}
+        homeMetadata={homeMetadata}
+      />
+    );
   return (
     <>
       <YStack>
@@ -140,6 +149,41 @@ export function DocumentPage({
         <DocumentOutline document={document} onClose={() => setOpen(false)} />
       </MobileOutline>
     </>
+  );
+}
+
+function DocumentDiscoveryPage({
+  id,
+  homeMetadata,
+  homeId,
+}: {
+  id: UnpackedHypermediaId;
+  homeMetadata: HMMetadata | null;
+  homeId: UnpackedHypermediaId | null;
+}) {
+  useEffect(() => {
+    fetch("/hm/api/discover", {
+      method: "post",
+      body: JSON.stringify({uid: id.uid, path: id.path, version: id.version}),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }).then(() => {
+      window.location.reload();
+    });
+  }, [id]);
+  return (
+    <YStack>
+      <PageHeader
+        homeMetadata={homeMetadata}
+        homeId={homeId}
+        docMetadata={null}
+        docId={id}
+        authors={[]}
+        updateTime={null}
+      />
+      <Text>Searching for this document...</Text>
+    </YStack>
   );
 }
 

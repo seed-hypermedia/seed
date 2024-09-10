@@ -380,9 +380,7 @@ function DocDiscovery({docId}: {docId: UnpackedHypermediaId}) {
               provide it.
             </SizableText>
           </>
-        ) : (
-          <SizableText>Lol</SizableText>
-        )}
+        ) : null}
         <XStack>
           {discover.isError ? (
             <Button

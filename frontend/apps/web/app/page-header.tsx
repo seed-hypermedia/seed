@@ -40,7 +40,7 @@ export function PageHeader({
   docId: UnpackedHypermediaId | null;
   authors: MetadataPayload[];
   updateTime: HMDocument["updateTime"] | null;
-  openSheet: ReturnType<typeof useOutlineSheet>["setOpen"];
+  openSheet?: () => void;
 }) {
   const coverBg = useMemo(() => {
     if (docId?.id) {
@@ -108,16 +108,18 @@ export function PageHeader({
               {docMetadata?.name}
             </SizableText>
           </XStack>
-          <Button
-            $gtMd={{display: "none", opacity: 0, pointerEvents: "none"}}
-            size="$2"
-            chromeless
-            bg="transparent"
-            icon={Menu}
-            onPress={() => {
-              openSheet();
-            }}
-          />
+          {openSheet ? (
+            <Button
+              $gtMd={{display: "none", opacity: 0, pointerEvents: "none"}}
+              size="$2"
+              chromeless
+              bg="transparent"
+              icon={Menu}
+              onPress={() => {
+                openSheet();
+              }}
+            />
+          ) : null}
         </XStack>
       </Stack>
       {hasCover ? (

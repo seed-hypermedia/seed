@@ -17,9 +17,9 @@ export const action: ActionFunction = async ({request}) => {
       id: packHmId(
         hmId("d", input.uid, {
           path: input.path,
-          version: input.version,
         })
       ),
+      // version: input.version,
     });
     return json({message: "Success"});
   } catch (e) {
