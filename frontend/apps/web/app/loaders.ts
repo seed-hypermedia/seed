@@ -38,6 +38,15 @@ export async function getDocument(
 ): Promise<WebDocumentPayload> {
   const {id, version, uid} = entityId;
   const path = hmIdPathToEntityQueryPath(entityId.path);
+  console.log("Will discover entity " + entityId.id);
+  queryClient.entities
+    .discoverEntity({id: entityId.id})
+    .then(() => {
+      console.log("discovered entity " + entityId.id);
+    })
+    .catch((e) => {
+      console.error("discovery error " + entityId.id, e);
+    });
   console.log("= getDocument", {uid, path, version});
   const rawDoc = await queryClient.documents.getDocument({
     account: uid,
