@@ -62,10 +62,11 @@ export function useConnectPeer(
         )
       }
       let trustAccountId: string | null = null
-      if (!addrs && peer.match(/^(https:\/\/)/)) {
+      if (!addrs && peer.match(/^(https?:\/\/)/)) {
         // in this case, the "peer" input is not https://site/connect-peer/x url, but it is a web url. So lets try to connect to this site via its well known peer id.
         const peerUrl = new URL(peer)
-        const baseUrl = `${peerUrl.protocol}//${peerUrl.hostname}`
+        let baseUrl = `${peerUrl.protocol}//${peerUrl.hostname}`
+        if (peerUrl.port) baseUrl += `:${peerUrl.port}`
         const siteConfigData = await client.sites.getConfig.mutate(baseUrl)
         if (siteConfigData?.addrs) {
           addrs = siteConfigData.addrs
