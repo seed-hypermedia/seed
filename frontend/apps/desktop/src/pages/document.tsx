@@ -33,7 +33,6 @@ import {
   DocContent,
   Document,
   H1,
-  Heading,
   HistoryIcon,
   SizableText,
   Spinner,
@@ -357,17 +356,22 @@ function DocDiscovery({docId}: {docId: UnpackedHypermediaId}) {
     <YStack paddingVertical="$8">
       <YStack
         alignSelf="center"
-        maxWidth={600}
+        width={600}
         gap="$5"
         borderWidth={1}
         borderColor="$color8"
-        borderRadius="$2"
+        borderRadius="$4"
         padding="$5"
+        elevation="$4"
       >
         {discover.error ? (
-          <Heading color="$red11">Could not find this document</Heading>
+          <SizableText size="$8" fontWeight="bold" color="$red11">
+            Could not find this document
+          </SizableText>
         ) : (
-          <Heading>Looking for this document...</Heading>
+          <SizableText size="$8" fontWeight="bold">
+            Looking for this document...
+          </SizableText>
         )}
         {discover.error ? (
           <SizableText color="$red11">{discover.error.message}</SizableText>

@@ -1,7 +1,9 @@
 import {useAppContext} from '@/app-context'
+import {openAddAccountWizard} from '@/components/create-account'
 import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
 import {MainWrapper} from '@/components/main-wrapper'
+import {ListItemSkeleton} from '@/components/skeleton'
 import {
   FilterItem,
   LibraryData,
@@ -11,6 +13,7 @@ import {
 } from '@/models/library'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {useNavigate} from '@/utils/useNavigate'
+import {useTriggerWindowEvent} from '@/utils/window-events'
 import {
   DocumentRoute,
   formattedDate,
@@ -22,6 +25,7 @@ import {
 import {
   Button,
   Checkbox,
+  Contact,
   Container,
   Dialog,
   DialogContent,
@@ -146,11 +150,14 @@ export default function LibraryPage() {
     <>
       <MainWrapper>
         <Container justifyContent="center">
+          {/* <GettingStarted /> */}
+
           <LibraryQueryBar
             queryState={queryState}
             setQueryState={setQueryState}
             exportMode={exportMode}
             handleExportButtonClick={handleExportButtonClick}
+            isLibraryEmpty={filteredLibrary.length == 0}
           />
           {queryState.display == 'list' ? (
             <LibraryList
@@ -227,8 +234,12 @@ export default function LibraryPage() {
                       </Button>
                       <Button
                         flex={1}
-                        bc="$brand5"
-                        color="$color11"
+                        bg="$brand12"
+                        borderColor="$brand11"
+                        hoverStyle={{
+                          bg: '$brand11',
+                          borderColor: '$brand10',
+                        }}
                         onPress={() => {
                           setIsDialogOpen(false)
                           setExportMode(false)
@@ -255,11 +266,13 @@ function LibraryQueryBar({
   setQueryState,
   exportMode,
   handleExportButtonClick,
+  isLibraryEmpty = true,
 }: {
   queryState: LibraryQueryState
   setQueryState: React.Dispatch<React.SetStateAction<LibraryQueryState>>
   exportMode: boolean
   handleExportButtonClick: () => void
+  isLibraryEmpty: boolean
 }) {
   return (
     <XStack gap="$2" w="100%">
@@ -290,26 +303,37 @@ function LibraryQueryBar({
           }))
         }}
       />
-      <XStack position="absolute" right="$2" top="$1" gap="$2">
-        <Button
-          size="$2"
-          onPress={handleExportButtonClick}
-          icon={FileOutput}
-          bg="$brand7"
-          color="$color1"
-          hoverStyle={{
-            bg: '$brand6',
-            borderColor: '$brand6',
-          }}
-        >
-          Export
-        </Button>
-        {exportMode ? (
-          <Button size="$2" onPress={handleExportButtonClick} iconAfter={X}>
-            Cancel
+      {isLibraryEmpty ? null : (
+        <XStack position="absolute" right="$2" top="$1" gap="$2">
+          <Button
+            size="$2"
+            onPress={handleExportButtonClick}
+            icon={FileOutput}
+            bg="$brand12"
+            borderColor="$brand11"
+            hoverStyle={{
+              bg: '$brand11',
+              borderColor: '$brand10',
+            }}
+          >
+            Export
           </Button>
-        ) : null}
-      </XStack>
+          {exportMode ? (
+            <Button
+              size="$2"
+              bg="$red4"
+              hoverStyle={{
+                bg: '$red5',
+                borderColor: '$red6',
+              }}
+              onPress={handleExportButtonClick}
+              iconAfter={X}
+            >
+              Cancel
+            </Button>
+          ) : null}
+        </XStack>
+      )}
     </XStack>
   )
 }
@@ -588,7 +612,7 @@ function RoleFilterOption({
           onCheckedChange={onCheckedChange}
         >
           <Checkbox.Indicator borderColor="$color8">
-            <Check />
+            <Check color="$brand5" />
           </Checkbox.Indicator>
         </Checkbox>
       }
@@ -722,11 +746,12 @@ function LibraryList({
         >
           <Checkbox
             size="$3"
+            bg="$brand12"
             checked={allSelected}
             onCheckedChange={handleSelectAllChange}
           >
             <Checkbox.Indicator>
-              <Check />
+              <Check color="$brand5" />
             </Checkbox.Indicator>
           </Checkbox>
           <SizableText fontSize="$4" fontWeight="800" textAlign="left">
@@ -734,18 +759,26 @@ function LibraryList({
           </SizableText>
         </XStack>
       )}
-      {library.map((entry) => {
-        const selected = selectedDocuments.has(entry.id.id)
-        return (
-          <LibraryListItem
-            key={entry.id.id}
-            entry={entry}
-            exportMode={exportMode}
-            selected={selected}
-            toggleDocumentSelection={toggleDocumentSelection}
-          />
-        )
-      })}
+      {library.length ? (
+        library.map((entry) => {
+          const selected = selectedDocuments.has(entry.id.id)
+          return (
+            <LibraryListItem
+              key={entry.id.id}
+              entry={entry}
+              exportMode={exportMode}
+              selected={selected}
+              toggleDocumentSelection={toggleDocumentSelection}
+            />
+          )
+        })
+      ) : (
+        <YStack gap="$3">
+          {[...Array(5)].map((_, index) => (
+            <ListItemSkeleton key={index} />
+          ))}
+        </YStack>
+      )}
     </YStack>
   )
 }
@@ -805,13 +838,14 @@ function LibraryListItem({
             {exportMode && (
               <Checkbox
                 size="$3"
+                bg="$brand12"
                 checked={selected}
                 onCheckedChange={() => {
                   toggleDocumentSelection(entry.id.id)
                 }}
               >
                 <Checkbox.Indicator>
-                  <Check />
+                  <Check color="$brand5" />
                 </Checkbox.Indicator>
               </Checkbox>
             )}
@@ -1020,5 +1054,60 @@ function LibraryEntryLocation({
         </>
       ) : null}
     </XStack>
+  )
+}
+
+function GettingStarted() {
+  const openLauncher = useTriggerWindowEvent()
+  return (
+    <YStack
+      gap="$4"
+      padding="$4"
+      bg="$background"
+      borderColor="$color7"
+      borderWidth={1}
+      borderRadius="$5"
+      elevation="$2"
+      marginBottom={40}
+      animation="medium"
+      enterStyle={{opacity: 0, y: -10}}
+      exitStyle={{opacity: 0, y: -10}}
+    >
+      <SizableText size="$8" fontWeight="bold">
+        Lets Get Started!
+      </SizableText>
+      <SizableText>
+        Welcome to Seed Hypermedia. Ready to enhance the web?
+      </SizableText>
+      <SizableText>
+        You can Start by creating your first account. it's quick and easy and it
+        will unlock all the features of Seed Hypermedia.
+      </SizableText>
+      <Button
+        bg="$brand11"
+        borderColor="$brand10"
+        hoverStyle={{bg: '$brand12', borderColor: '$brand11'}}
+        icon={<Contact color="currentColor" />}
+        onPress={openAddAccountWizard}
+      >
+        Add Account
+      </Button>
+      <Separator />
+      <SizableText size="$7" fontWeight="bold">
+        Got a Seed Hypermedia Link?
+      </SizableText>
+      <SizableText>
+        If you got a Seed Hypermedia link, you can add it here.
+      </SizableText>
+      <Button
+        bg="$brand11"
+        borderColor="$brand10"
+        hoverStyle={{bg: '$brand12', borderColor: '$brand11'}}
+        icon={Search}
+        onPress={() => openLauncher('openLauncher')}
+      >
+        Open Document
+      </Button>
+    </YStack>
   )
 }
