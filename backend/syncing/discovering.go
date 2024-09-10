@@ -19,8 +19,8 @@ import (
 // DefaultDiscoveryTimeout is how long do we wait to discover a peer and sync with it
 const (
 	DefaultDiscoveryTimeout = time.Second * 30
-	DefaultSyncingTimeout   = 1 * DefaultDiscoveryTimeout / 4
-	DefaultDHTTimeout       = 3 * DefaultDiscoveryTimeout / 4
+	DefaultSyncingTimeout   = 1 * DefaultDiscoveryTimeout / 6
+	DefaultDHTTimeout       = 5 * DefaultDiscoveryTimeout / 6
 )
 
 // DiscoverObject discovers an object in the network. If not found, then it returns an error
@@ -94,8 +94,10 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 		}
 
 		ret := s.SyncWithManyPeers(ctxLocalPeers, subsMap)
+		ctxDHT, cancelDHTCtx := context.WithTimeout(ctx, DefaultDHTTimeout)
+		defer cancelDHTCtx()
 		if ret.NumSyncOK > 0 {
-			conn, release, err := s.db.Conn(ctxLocalPeers)
+			conn, release, err := s.db.Conn(ctxDHT)
 			if err != nil {
 				s.log.Debug("Could not grab a connection", zap.Error(err))
 				return err
