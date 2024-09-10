@@ -168,7 +168,6 @@ function EmbedWrapper({
         !disableEmbedClick
           ? () => {
               if (!id) return
-              debugger
               navigate({
                 key: 'document',
                 id,
