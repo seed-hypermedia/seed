@@ -19,7 +19,7 @@ import (
 
 	"github.com/burdiyan/go/mainutil"
 	"github.com/getsentry/sentry-go"
-	"github.com/peterbourgon/ff/v4"
+	"github.com/peterbourgon/ff/v3"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -38,11 +38,6 @@ func main() {
 
 		err := ff.Parse(fs, slices.Clone(os.Args[1:]), ff.WithEnvVarPrefix(envVarPrefix))
 		if err != nil {
-			if errors.Is(err, ff.ErrHelp) {
-				fs.Usage()
-				return nil
-			}
-
 			return err
 		}
 
