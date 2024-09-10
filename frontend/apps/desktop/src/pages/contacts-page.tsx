@@ -6,7 +6,7 @@ import {useListProfileDocuments} from '@/models/documents'
 import {useEntities} from '@/models/entities'
 import {useNavigate} from '@/utils/useNavigate'
 import {PlainMessage} from '@bufbuild/protobuf'
-import {DocumentListItem, getMetadataName, hmId} from '@shm/shared'
+import {DocumentListItem, getAccountName, hmId} from '@shm/shared'
 import {
   Button,
   Container,
@@ -135,8 +135,7 @@ function ContactListItem({entry}: {entry: PlainMessage<DocumentListItem>}) {
               whiteSpace="nowrap"
               overflow="hidden"
             >
-              {getMetadataName(entry.metadata) ||
-                `${entry.account.slice(0, 5)}...${entry.account.slice(-5)}`}
+              {getAccountName(entry)}
             </SizableText>
           </XStack>
         </YStack>
