@@ -638,13 +638,6 @@ func syncEntities(
 		return fmt.Errorf("BUG: syncEntity must have timeout")
 	}
 
-	// TODO(juligasa): Space centric syncing Remove this when fine grained syncing
-	spaceEids := make(map[string]bool)
-	for eid := range eids {
-		spaceOnly := "hm://" + strings.Split(strings.TrimPrefix(eid, "hm://"), "/")[0]
-		spaceEids[spaceOnly] = true
-	}
-	eids = spaceEids
 	// If we know what we want, it's a 1 way syncing so we don't share anything
 	store := rbsr.NewSliceStore()
 	ne, err := rbsr.NewSession(store, 50000)
