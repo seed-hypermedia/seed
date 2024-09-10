@@ -34,19 +34,24 @@ export type WebDocumentPayload = {
 };
 
 export async function getDocument(
-  entityId: UnpackedHypermediaId
+  entityId: UnpackedHypermediaId,
+  waitForSync?: boolean
 ): Promise<WebDocumentPayload> {
   const {id, version, uid} = entityId;
   const path = hmIdPathToEntityQueryPath(entityId.path);
   console.log("Will discover entity " + entityId.id);
-  queryClient.entities
+  const discoverPromise = queryClient.entities
     .discoverEntity({id: entityId.id})
     .then(() => {
       console.log("discovered entity " + entityId.id);
-    })
-    .catch((e) => {
+    });
+  if (waitForSync) {
+    await discoverPromise;
+  } else {
+    discoverPromise.catch((e) => {
       console.error("discovery error " + entityId.id, e);
     });
+  }
   console.log("= getDocument", {uid, path, version});
   const rawDoc = await queryClient.documents.getDocument({
     account: uid,
@@ -77,7 +82,8 @@ export type SiteDocumentPayload = WebDocumentPayload & {
 };
 
 export async function loadSiteDocument(
-  id: UnpackedHypermediaId
+  id: UnpackedHypermediaId,
+  waitForSync?: boolean
 ): Promise<WrappedResponse<SiteDocumentPayload>> {
   const config = getConfig();
   let homeMetadata = null;
@@ -92,7 +98,7 @@ export async function loadSiteDocument(
     } catch (e) {}
   }
   try {
-    const docContent = await getDocument(id);
+    const docContent = await getDocument(id, waitForSync);
     const loadedSiteDocument = {
       ...docContent,
       homeMetadata,

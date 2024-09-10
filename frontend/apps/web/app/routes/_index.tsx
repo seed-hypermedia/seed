@@ -16,10 +16,12 @@ export const meta = documentPageMeta;
 export const loader = async ({request}: {request: Request}) => {
   const url = new URL(request.url);
   const version = url.searchParams.get("v");
+  const waitForSync = url.searchParams.get("waitForSync") !== null;
   const {registeredAccountUid} = getConfig();
   if (!registeredAccountUid) return wrapJSON("unregistered");
   return await loadSiteDocument(
-    hmId("d", registeredAccountUid, {version, path: []})
+    hmId("d", registeredAccountUid, {version, path: []}),
+    waitForSync
   );
 };
 
