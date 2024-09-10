@@ -10,6 +10,7 @@ import (
 	sync "sync"
 	"time"
 
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -28,24 +29,39 @@ type Wallet interface {
 	ConfigureSeedLNDHub(context.Context, core.KeyPair) error
 }
 
+// Node is a subset of the p2p node.
+type Node interface {
+	ForceSync() error
+	ProtocolID() protocol.ID
+	ProtocolVersion() string
+}
+
 // Server implements the Daemon gRPC API.
 type Server struct {
 	store     Storage
 	startTime time.Time
 	wallet    Wallet
 
-	forceSyncFunc func() error
+	p2p Node
 
 	mu sync.Mutex // we only want one register request at a time.
 }
 
 // NewServer creates a new Server.
-func NewServer(store Storage, w Wallet, syncFunc func() error) *Server {
+func NewServer(store Storage, w Wallet, n Node) *Server {
+	if w == nil {
+		panic("BUG: wallet is required")
+	}
+
+	if n == nil {
+		panic("BUG: p2p node is required")
+	}
+
 	return &Server{
 		store:     store,
 		startTime: time.Now(),
 		// wallet:        w, // TODO(hm24): Put the wallet back.
-		forceSyncFunc: syncFunc,
+		p2p: n,
 	}
 }
 
@@ -164,9 +180,10 @@ func (srv *Server) RegisterAccount(ctx context.Context, name string, kp core.Key
 // GetInfo implements the corresponding gRPC method.
 func (srv *Server) GetInfo(context.Context, *daemon.GetInfoRequest) (*daemon.Info, error) {
 	resp := &daemon.Info{
-		PeerId:    srv.store.Device().PeerID().String(),
-		StartTime: timestamppb.New(srv.startTime),
-		State:     daemon.State_ACTIVE, // TODO(hm24): handle the state correctly, providing feedback for database migrations.
+		PeerId:     srv.store.Device().PeerID().String(),
+		StartTime:  timestamppb.New(srv.startTime),
+		State:      daemon.State_ACTIVE, // TODO(hm24): handle the state correctly, providing feedback for database migrations.
+		ProtocolId: string(srv.p2p.ProtocolID()),
 	}
 
 	return resp, nil
@@ -174,11 +191,11 @@ func (srv *Server) GetInfo(context.Context, *daemon.GetInfoRequest) (*daemon.Inf
 
 // ForceSync implements the corresponding gRPC method.
 func (srv *Server) ForceSync(context.Context, *daemon.ForceSyncRequest) (*emptypb.Empty, error) {
-	if srv.forceSyncFunc == nil {
+	if srv.p2p == nil {
 		return &emptypb.Empty{}, status.Error(codes.FailedPrecondition, "force sync function is not set")
 	}
 
-	if err := srv.forceSyncFunc(); err != nil {
+	if err := srv.p2p.ForceSync(); err != nil {
 		return &emptypb.Empty{}, err
 	}
 

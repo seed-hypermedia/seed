@@ -15,6 +15,7 @@ import (
 
 	"seed/backend/util/sqlite/sqlitex"
 
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"google.golang.org/grpc"
 )
 
@@ -46,22 +47,11 @@ func New(
 	activity *activity.Server,
 	LogLevel string,
 ) Server {
-	doSync := func() error {
-		go func() {
-			if err := sync.SyncAllAndLog(context.Background()); err != nil {
-				panic("bug or fatal error during sync " + err.Error())
-			}
-		}()
-
-		return nil
-
-	}
-
 	idx := index.NewIndex(db, logging.New("seed/index", LogLevel), node.Provider())
 
 	return Server{
 		Activity:    activity,
-		Daemon:      daemon.NewServer(repo, wallet, doSync),
+		Daemon:      daemon.NewServer(repo, wallet, &p2pNodeSubset{node: node, sync: sync}),
 		Networking:  networking.NewServer(node, db, logging.New("seed/networking", LogLevel)),
 		Entities:    entities.NewServer(idx, sync),
 		DocumentsV3: documentsv3.NewServer(repo.KeyStore(), idx, db),
@@ -76,4 +66,27 @@ func (s Server) Register(srv *grpc.Server) {
 	s.Networking.RegisterServer(srv)
 	s.Entities.RegisterServer(srv)
 	s.DocumentsV3.RegisterServer(srv)
+}
+
+type p2pNodeSubset struct {
+	node *mttnet.Node
+	sync *syncing.Service
+}
+
+func (p *p2pNodeSubset) ForceSync() error {
+	go func() {
+		if err := p.sync.SyncAllAndLog(context.Background()); err != nil {
+			panic("bug or fatal error during sync " + err.Error())
+		}
+	}()
+
+	return nil
+}
+
+func (p *p2pNodeSubset) ProtocolID() protocol.ID {
+	return p.node.ProtocolID()
+}
+
+func (p *p2pNodeSubset) ProtocolVersion() string {
+	return p.node.ProtocolVersion()
 }

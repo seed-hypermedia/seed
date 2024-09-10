@@ -8,6 +8,7 @@ import (
 	"seed/backend/storage"
 	"testing"
 
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -20,6 +21,16 @@ func TestGenMnemonic(t *testing.T) {
 	resp, err := srv.GenMnemonic(ctx, &daemon.GenMnemonicRequest{WordCount: 18})
 	require.NoError(t, err)
 	require.Equal(t, 18, len(resp.Mnemonic))
+}
+
+func TestGetInfo(t *testing.T) {
+	srv := newTestServer(t, "alice")
+	ctx := context.Background()
+
+	resp, err := srv.GetInfo(ctx, &daemon.GetInfoRequest{})
+	require.NoError(t, err)
+
+	require.Equal(t, testProtocolID, resp.ProtocolId)
 }
 
 func TestRegister(t *testing.T) {
@@ -54,11 +65,27 @@ func newTestServer(t *testing.T, name string) *Server {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, store.Close()) })
 
-	return NewServer(store, &mockedWallet{}, nil)
+	return NewServer(store, &mockedWallet{}, &mockedP2PNode{})
 }
 
 type mockedWallet struct{}
 
 func (w *mockedWallet) ConfigureSeedLNDHub(context.Context, core.KeyPair) error {
 	return nil
+}
+
+type mockedP2PNode struct{}
+
+const testProtocolID = "/seed/testing/1.0.0"
+
+func (m *mockedP2PNode) ForceSync() error {
+	return nil
+}
+
+func (m *mockedP2PNode) ProtocolID() protocol.ID {
+	return protocol.ID(testProtocolID)
+}
+
+func (m *mockedP2PNode) ProtocolVersion() string {
+	return "1.0.0"
 }

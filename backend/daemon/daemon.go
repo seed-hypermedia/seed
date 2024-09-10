@@ -191,6 +191,10 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 		fm = mttnet.NewFileManager(logging.New("seed/file-manager", cfg.LogLevel), bs, e, a.Net.Provider())
 	}
 
+	opts.extraHTTPHandlers = append(opts.extraHTTPHandlers, func(r *Router) {
+		r.Handle("/debug/p2p", a.Net.DebugHandler(), RouteNav)
+	})
+
 	a.HTTPServer, a.HTTPListener, err = initHTTP(cfg.HTTP.Port, a.GRPCServer, &a.clean, a.g, a.Index,
 		a.Wallet,
 		fm, opts.extraHTTPHandlers...)

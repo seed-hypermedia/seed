@@ -919,6 +919,7 @@ function AppSettings() {
           }
         />
         <InfoListItem label="Peer ID" value={deviceInfo?.peerId} />
+        <InfoListItem label="Protocol ID" value={deviceInfo?.protocolId} />
         <InfoListItem label="Addresses" value={addrs} />
       </TableList>
       <TableList>

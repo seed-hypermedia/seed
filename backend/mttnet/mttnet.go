@@ -3,8 +3,10 @@ package mttnet
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"seed/backend/config"
 	"seed/backend/core"
 	p2p "seed/backend/genproto/p2p/v1alpha"
@@ -186,8 +188,13 @@ func (n *Node) SetInvoicer(inv Invoicer) {
 	n.invoicer = inv
 }
 
-// GetProtocolInfo returns the current protocol info for convenience.
-func (n *Node) GetProtocolVersion() string {
+// ProtocolID returns the supported protocol ID.
+func (n *Node) ProtocolID() protocol.ID {
+	return n.protocol.ID
+}
+
+// GetProtocolInfo returns the supported protocol version.
+func (n *Node) ProtocolVersion() string {
 	return n.protocol.version
 }
 
@@ -424,6 +431,46 @@ func (n *Node) startLibp2p(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+type debugInfo struct {
+	AddrInfo                 peer.AddrInfo
+	HypermediaProtocol       protocol.ID
+	Libp2pProtocols          []protocol.ID
+	TotalPeersConnected      int
+	HypermediaPeersConnected int
+}
+
+func (n *Node) DebugHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		totalPeers := n.p2p.Network().Peers()
+
+		out := debugInfo{
+			AddrInfo:            libp2px.AddrInfo(n.p2p.Host),
+			HypermediaProtocol:  n.ProtocolID(),
+			Libp2pProtocols:     n.p2p.Mux().Protocols(),
+			TotalPeersConnected: len(totalPeers),
+		}
+
+		for _, pid := range totalPeers {
+			got, err := n.p2p.Peerstore().FirstSupportedProtocol(pid, n.protocol.ID)
+			if err != nil {
+				continue
+			}
+			if got == "" {
+				continue
+			}
+			out.HypermediaPeersConnected++
+		}
+
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "    ")
+		w.Header().Set("Content-Type", "application/json")
+		if err := enc.Encode(out); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	})
 }
 
 // AddrInfoToStrings returns address as string.

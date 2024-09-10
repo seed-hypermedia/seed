@@ -95,13 +95,13 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 		return nil
 	}
 
-	log := n.log.With(zap.String("peer", info.ID.String()))
+	log := n.log.With(zap.String("peerID", info.ID.String()))
 	ctx, cancel := context.WithTimeout(ctx, ConnectTimeout)
 	defer cancel()
 
 	log.Info("ConnectStarted")
 	defer func() {
-		log.Info("ConnectFinished", zap.Error(err), zap.String("Info", info.String()))
+		log.Info("ConnectFinished", zap.Error(err), zap.Any("addrs", info.Addrs))
 	}()
 
 	// Since we're explicitly connecting to a peer, we want to clear any backoffs
@@ -251,19 +251,21 @@ func (n *Node) CheckHyperMediaProtocolVersion(ctx context.Context, pid peer.ID, 
 	}
 	// Eventually we'd need to implement some compatibility checks between different protocol versions.
 	var isSeed bool
+	var gotProtocols []string
 	for _, p := range protos {
 		version := strings.TrimPrefix(string(p), n.protocol.prefix)
 		if version == string(p) {
 			continue
 		}
 		isSeed = true
+		gotProtocols = append(gotProtocols, string(p))
 		if version == desiredVersion {
 			return nil
 		}
 	}
 
 	if isSeed {
-		return fmt.Errorf("peer with incompatible Seed protocol version")
+		return fmt.Errorf("peer with incompatible Seed protocol version: want=%s, got=%v", n.protocol.ID, gotProtocols)
 	}
 
 	return fmt.Errorf("not a Seed peer")

@@ -470,9 +470,16 @@ export class Info extends Message<Info> {
   /**
    * Start time of the node.
    *
-   * @generated from field: google.protobuf.Timestamp start_time = 4;
+   * @generated from field: google.protobuf.Timestamp start_time = 3;
    */
   startTime?: Timestamp;
+
+  /**
+   * The libp2p protocol ID that the daemon is using.
+   *
+   * @generated from field: string protocol_id = 4;
+   */
+  protocolId = "";
 
   constructor(data?: PartialMessage<Info>) {
     super();
@@ -484,7 +491,8 @@ export class Info extends Message<Info> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "state", kind: "enum", T: proto3.getEnumType(State) },
     { no: 2, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "start_time", kind: "message", T: Timestamp },
+    { no: 3, name: "start_time", kind: "message", T: Timestamp },
+    { no: 4, name: "protocol_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Info {

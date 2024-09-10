@@ -107,7 +107,10 @@ message Info {
   string peer_id = 2;
 
   // Start time of the node.
-  google.protobuf.Timestamp start_time = 4;
+  google.protobuf.Timestamp start_time = 3;
+
+  // The libp2p protocol ID that the daemon is using.
+  string protocol_id = 4;
 }
 
 // State describes various states of the daemon.
