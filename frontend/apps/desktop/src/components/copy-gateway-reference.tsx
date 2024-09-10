@@ -25,7 +25,6 @@ import {
   useStream,
 } from '@shm/ui'
 import {ReactNode, useState} from 'react'
-import {usePushPublication} from '../models/documents'
 import {
   useGatewayHost,
   useGatewayUrl,
@@ -137,7 +136,6 @@ export function PushToGatewayDialog({
   } & UnpackedHypermediaId
   onClose: () => void
 }) {
-  const push = usePushPublication()
   const [shouldDoAlways, setShouldDoAlways] = useState(false)
   const setPushOnCopy = useSetPushOnCopy()
   const setPushOnPublish = useSetPushOnPublish()
@@ -171,7 +169,7 @@ export function PushToGatewayDialog({
         Do this every time
       </CheckboxField>
       <XStack gap="$1">
-        <Button
+        {/* <Button
           theme="green"
           size="$2"
           iconAfter={push.isLoading ? <Spinner /> : null}
@@ -189,7 +187,7 @@ export function PushToGatewayDialog({
           }}
         >
           Push to Web
-        </Button>
+        </Button> */}
         <Button
           chromeless
           size="$2"

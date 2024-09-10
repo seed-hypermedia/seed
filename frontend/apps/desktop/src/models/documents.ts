@@ -51,7 +51,7 @@ import {useMyAccountIds} from './daemon'
 import {draftMachine} from './draft-machine'
 import {setGroupTypes} from './editor-utils'
 import {useEntities, useEntity} from './entities'
-import {useGatewayUrl, useGatewayUrlStream} from './gateway-settings'
+import {useGatewayUrlStream} from './gateway-settings'
 import {useInlineMentions} from './search'
 
 export const [draftDispatch, draftEvents] = eventStream<{
@@ -765,21 +765,6 @@ export function createBlocksMap(
   })
 
   return result
-}
-
-export function usePushPublication() {
-  const gatewayUrl = useGatewayUrl()
-  const grpcClient = useGRPCClient()
-  return useMutation({
-    mutationFn: async (docId: string) => {
-      if (!gatewayUrl.data) throw new Error('Cannot determine Gateway URL')
-
-      // await grpcClient.documents.pushDocument({
-      //   documentId: docId,
-      //   url: gatewayUrl.data,
-      // })
-    },
-  })
 }
 
 export type HMDocumentListItem = Omit<

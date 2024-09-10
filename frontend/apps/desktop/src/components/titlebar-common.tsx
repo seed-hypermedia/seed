@@ -4,7 +4,6 @@ import {useDeleteDialog} from '@/components/delete-dialog'
 import {MenuItemType, OptionsDropdown} from '@/components/options-dropdown'
 import {useMyCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
-import {usePushPublication} from '@/models/documents'
 import {useEntity} from '@/models/entities'
 import {useGatewayHost, useGatewayUrl} from '@/models/gateway-settings'
 import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
@@ -40,7 +39,6 @@ import {
   XGroup,
   XStack,
   copyTextToClipboard,
-  toast,
   useStream,
 } from '@shm/ui'
 import {
@@ -72,7 +70,6 @@ export function DocOptionsButton() {
     )
   const {exportDocument} = useAppContext()
   const gwHost = useGatewayHost()
-  const push = usePushPublication()
   const deleteEntity = useDeleteDialog()
   const doc = useEntity(route.id)
   const [copyContent, onCopy, host] = useCopyGatewayReference()
@@ -87,18 +84,6 @@ export function DocOptionsButton() {
       onPress: () => {
         onCopy({
           ...route.id,
-        })
-      },
-    },
-    {
-      key: 'push',
-      label: 'Push to Gateway',
-      icon: UploadCloud,
-      onPress: () => {
-        toast.promise(push.mutateAsync(route.id.id), {
-          loading: 'Pushing...',
-          success: `Pushed to ${gwHost}`,
-          error: (err) => `Could not push to ${gwHost}: ${err.message}`,
         })
       },
     },
