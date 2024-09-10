@@ -1,4 +1,5 @@
 import appError from '@/errors'
+import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
 import {ConnectionStatus, GRPCClient, PeerInfo} from '@shm/shared'
 import {
@@ -73,12 +74,14 @@ export function useIsGatewayConnected() {
   return isConnected
 }
 
+export type HMPeerInfo = PlainMessage<PeerInfo>
+
 export function usePeers(
   filterConnected: boolean,
-  options: UseQueryOptions<PeerInfo[] | null, ConnectError> = {},
+  options: UseQueryOptions<HMPeerInfo[] | null, ConnectError> = {},
 ) {
   const client = useGRPCClient()
-  return useQuery<PeerInfo[] | null, ConnectError>({
+  return useQuery<HMPeerInfo[] | null, ConnectError>({
     queryKey: [queryKeys.PEERS, filterConnected],
     queryFn: async () => {
       try {
@@ -87,7 +90,7 @@ export function usePeers(
           return listed.peers.filter((info) => {
             return info.connectionStatus === ConnectionStatus.CONNECTED
           })
-        return listed.peers
+        return listed.peers.map((peer) => toPlainMessage(peer))
       } catch (e) {
         return null
       }

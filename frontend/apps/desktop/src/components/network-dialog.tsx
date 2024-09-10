@@ -1,34 +1,21 @@
-import {useOpenUrl} from '@/open-url'
-import {Account, DAEMON_FILE_URL, hmId, PeerInfo} from '@shm/shared'
 import {
-  ArrowUpRight,
   Button,
   ButtonText,
   Copy,
   copyTextToClipboard,
   Dialog,
-  ExternalLink,
   List,
   SizableText,
   Spinner,
   toast,
   Tooltip,
-  UIAvatar,
   View,
-  XGroup,
   XStack,
   YStack,
 } from '@shm/ui'
-import React, {useState} from 'react'
+import React from 'react'
 import {ColorValue} from 'react-native'
-import {useAllAccounts} from '../models/accounts'
-import {
-  useIsGatewayConnected,
-  useIsOnline,
-  usePeers,
-} from '../models/networking'
-import {hostnameStripProtocol} from '../utils/site-hostname'
-import {useNavigate} from '../utils/useNavigate'
+import {HMPeerInfo, useIsGatewayConnected, usePeers} from '../models/networking'
 import {useAppDialog} from './dialog'
 import {OptionsDropdown} from './options-dropdown'
 
@@ -37,56 +24,56 @@ export function useNetworkDialog() {
 }
 
 export function NetworkDialog() {
-  const contacts = useAllAccounts()
+  // const contacts = useAllAccounts()
   const peers = usePeers(false, {
-    refetchInterval: 20_000,
+    refetchInterval: 5_000,
   })
-  const accounts = Object.fromEntries(
-    contacts.data?.accounts.map((account) => [account.id, account]) || [],
-  )
-  const connectedAccountIds = new Set(
-    peers.data
-      ?.filter((peer) => peer.connectionStatus === 1)
-      .map((peer) => peer.accountId) || [],
-  )
-  const peerCount = peers.data?.length || 0
-  const connectedAccounts =
-    contacts.data?.accounts.filter((account) => {
-      return connectedAccountIds.has(account.id)
-    }) || []
-  const siteAccounts = connectedAccounts.filter(
-    (account) =>
-      account.profile?.bio === 'Hypermedia Site. Powered by Mintter.',
-  )
-  const userAccountCount = connectedAccounts.length - siteAccounts.length
-  const siteAccountCount = siteAccounts.length
-  const isOnline = useIsOnline()
-  const [peerFilter, setPeerFilter] = useState<'all' | 'accounts' | 'sites'>(
-    'all',
-  )
-  const filteredPeers = peers.data?.filter((peer) => {
-    if (peerFilter === 'all') return true
-    const account: Account | undefined = accounts[peer.accountId]
-    const isSite =
-      account?.profile?.bio === 'Hypermedia Site. Powered by Mintter.'
-    if (peerFilter === 'accounts' && !isSite) return true
-    if (peerFilter === 'sites' && isSite) return true
-    return false // not sure if this will ever happen
-  })
-  const displayPeers = filteredPeers?.sort(
-    (a, b) => b.connectionStatus - a.connectionStatus,
-  )
+  // const accounts = Object.fromEntries(
+  //   contacts.data?.accounts.map((account) => [account.id, account]) || [],
+  // )
+  // const connectedAccountIds = new Set(
+  //   peers.data
+  //     ?.filter((peer) => peer.connectionStatus === 1)
+  //     .map((peer) => peer.accountId) || [],
+  // )
+  // const peerCount = peers.data?.length || 0
+  // const connectedAccounts =
+  //   contacts.data?.accounts.filter((account) => {
+  //     return connectedAccountIds.has(account.id)
+  //   }) || []
+  // const siteAccounts = connectedAccounts.filter(
+  //   (account) =>
+  //     account.profile?.bio === 'Hypermedia Site. Powered by Mintter.',
+  // )
+  // const userAccountCount = connectedAccounts.length - siteAccounts.length
+  // const siteAccountCount = siteAccounts.length
+  // const isOnline = useIsOnline()
+  // const [peerFilter, setPeerFilter] = useState<'all' | 'accounts' | 'sites'>(
+  //   'all',
+  // )
+  // const filteredPeers = peers.data?.filter((peer) => {
+  //   if (peerFilter === 'all') return true
+  //   const account: Account | undefined = accounts[peer.accountId]
+  //   const isSite =
+  //     account?.profile?.bio === 'Hypermedia Site. Powered by Mintter.'
+  //   if (peerFilter === 'accounts' && !isSite) return true
+  //   if (peerFilter === 'sites' && isSite) return true
+  //   return false // not sure if this will ever happen
+  // })
+  // const displayPeers = filteredPeers?.sort(
+  //   (a, b) => b.connectionStatus - a.connectionStatus,
+  // )
   return (
     <>
       <Dialog.Title>Network Connections</Dialog.Title>
-      <XStack>
+      {/* <XStack>
         <IndicationTag
           label={isOnline ? 'Device Online' : 'Device Offline'}
           status={isOnline ? 2 : 1}
         />
         {isOnline ? <GatewayIndicationTag /> : null}
-      </XStack>
-      <XGroup size="$2">
+      </XStack> */}
+      {/* <XGroup size="$2">
         <XGroup.Item>
           <Button
             size="$2"
@@ -114,18 +101,12 @@ export function NetworkDialog() {
             {String(siteAccountCount)} Connected Sites
           </Button>
         </XGroup.Item>
-      </XGroup>
+      </XGroup> */}
       <View flexDirection="column" minHeight={500}>
         <List
-          items={displayPeers || []}
-          renderItem={({item: peer, containerWidth}) => {
-            return (
-              <PeerRow
-                key={peer.id}
-                peer={peer}
-                account={accounts[peer.accountId]}
-              />
-            )
+          items={(peers.data || []) as HMPeerInfo[]}
+          renderItem={({item: peer, containerWidth}: {item: HMPeerInfo}) => {
+            return <PeerRow key={peer.id} peer={peer} />
           }}
         />
       </View>
@@ -133,32 +114,25 @@ export function NetworkDialog() {
   )
 }
 
-const PeerRow = React.memo(function PeerRow({
-  peer,
-  account,
-}: {
-  peer: PeerInfo
-  account?: Account
-}) {
+const PeerRow = React.memo(function PeerRow({peer}: {peer: HMPeerInfo}) {
   const {id, addrs, connectionStatus} = peer
-  const isSite =
-    account?.profile?.bio === 'Hypermedia Site. Powered by Mintter.'
-  const label = isSite
-    ? hostnameStripProtocol(account?.profile?.alias)
-    : account?.profile?.alias || 'Unknown Account'
-  const spawn = useNavigate('spawn')
-  const openUrl = useOpenUrl()
-  function handlePress() {
-    if (isSite && account?.profile?.alias) openUrl(account?.profile?.alias)
-    else if (!isSite && account?.id)
-      spawn({key: 'document', id: hmId('d', account.id)})
-    else toast.error('Could not open account')
-  }
+  // const isSite =
+  //   account?.profile?.bio === 'Hypermedia Site. Powered by Mintter.'
+  // const label = isSite
+  //   ? hostnameStripProtocol(account?.profile?.alias)
+  //   : account?.profile?.alias || 'Unknown Account'
+  // const spawn = useNavigate('spawn')
+  // const openUrl = useOpenUrl()
+  // function handlePress() {
+  //   if (isSite && account?.profile?.alias) openUrl(account?.profile?.alias)
+  //   else if (!isSite && account?.id)
+  //     spawn({key: 'document', id: hmId('d', account.id)})
+  //   else toast.error('Could not open account')
+  // }
   function handleCopyPeerId() {
     copyTextToClipboard(id)
     toast.success('Copied Peer ID')
   }
-  if (!account) return null
   return (
     <XStack
       jc="space-between"
@@ -185,7 +159,7 @@ const PeerRow = React.memo(function PeerRow({
         </Tooltip>
       </XStack>
       <XStack gap="$3" marginHorizontal="$3">
-        <XStack gap="$2">
+        {/* <XStack gap="$2">
           {account && !isSite ? (
             <UIAvatar
               size={20}
@@ -206,22 +180,22 @@ const PeerRow = React.memo(function PeerRow({
           >
             {label}
           </ButtonText>
-        </XStack>
+        </XStack> */}
         <OptionsDropdown
           hiddenUntilItemHover
           menuItems={[
-            {
-              key: 'open',
-              icon: isSite ? ExternalLink : ArrowUpRight,
-              label: isSite ? 'Open Site' : 'Open Account',
-              onPress: handlePress,
-            },
-            {
-              key: 'copy',
-              icon: Copy,
-              label: 'Copy Peer ID',
-              onPress: handleCopyPeerId,
-            },
+            // {
+            //   key: 'open',
+            //   icon: isSite ? ExternalLink : ArrowUpRight,
+            //   label: isSite ? 'Open Site' : 'Open Account',
+            //   onPress: handlePress,
+            // },
+            // {
+            //   key: 'copy',
+            //   icon: Copy,
+            //   label: 'Copy Peer ID',
+            //   onPress: handleCopyPeerId,
+            // },
             {
               key: 'copyAddress',
               icon: Copy,
