@@ -60,7 +60,7 @@ ol[data-list-type="ol"] div[data-list-type="div"] .blocknode-content {
   list-style-position: outside;
 }
 
-.blocknode-list[data-list-type='blockquote'] {
+.blocknode-list[data-list-type="blockquote"] {
   border-left: 3px solid var(--color8);
   padding-left: 15px;
   margin: 1em 0;
@@ -83,6 +83,6 @@ ol[data-list-type="ol"] div[data-list-type="div"] .blocknode-content {
   list-style-position: outside;
 }
 
-.blocknode-content-heading + .blocknode-list {
+.blocknode-content-heading + .blocknode-list[data-list-type="div"] {
   margin-left: 0 !important;
 }

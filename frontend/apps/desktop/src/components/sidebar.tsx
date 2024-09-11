@@ -26,7 +26,6 @@ import {
   Library,
   MessageCircle,
   Plus,
-  Trash,
   UserPlus2,
 } from '@tamagui/lucide-icons'
 import React, {memo, ReactNode, useState} from 'react'
@@ -229,32 +228,6 @@ function AccountsSection() {
               route.id.uid === id.uid &&
               !route.id.path?.length
             }
-            rightHover={[
-              <Tooltip
-                key="delete"
-                content="Delete Account Key from this device"
-              >
-                <Button
-                  size="$1"
-                  bg="$red4"
-                  hoverStyle={{
-                    bg: '$red5',
-                    borderColor: '$red6',
-                  }}
-                  icon={Trash}
-                  onPress={
-                    account.data?.id.id
-                      ? (e) => {
-                          e.stopPropagation()
-                          deleteKey.mutateAsync({
-                            accountId: account.data!.id.uid,
-                          })
-                        }
-                      : undefined
-                  }
-                />
-              </Tooltip>,
-            ]}
           />
         )
       })}

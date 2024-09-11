@@ -22,7 +22,7 @@
   margin-bottom: 60px;
 } */
 
-.block-heading + [data-node-type='blockGroup'] {
+.block-heading + [data-node-type='blockGroup'][data-list-type='div'] {
   margin-left: 0;
 }
 
@@ -125,10 +125,6 @@
 
 ol > [data-node-type='block-outer']::marker {
   font-size: 0.8em;
-}
-
-.block-heading + [data-node-type='blockGroup'] {
-  margin-left: 0;
 }
 
 .x-post-container {

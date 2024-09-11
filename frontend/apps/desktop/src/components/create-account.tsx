@@ -1,4 +1,5 @@
 import {queryKeys} from '@/models/query-keys'
+import {useNavigate} from '@/utils/useNavigate'
 import {
   DAEMON_FILE_URL,
   DocumentChange,
@@ -58,6 +59,7 @@ export function AccountWizardDialog() {
   const [thumbnail, setThumbnail] = useState('')
   const [name, setName] = useState('')
   const [error, setError] = useState('')
+  const navigate = useNavigate('push')
   const [accountType, setAccountType] = useState<'author' | 'publisher' | null>(
     null,
   )
@@ -78,6 +80,9 @@ export function AccountWizardDialog() {
 
   useEffect(() => {
     wizardEvents.subscribe((val) => {
+      if (!val) {
+        resetForm()
+      }
       setOpen(val)
     })
   }, [])
@@ -132,6 +137,12 @@ export function AccountWizardDialog() {
       invalidate([queryKeys.LOCAL_ACCOUNT_ID_LIST])
       invalidate([queryKeys.LIST_ROOT_DOCUMENTS])
       setCreatedAccount(renamedKey)
+      if (existing) {
+        navigate({
+          key: 'document',
+          id: hmId('d', createdAccount!.accountId),
+        })
+      }
       setStep(existing ? 'complete' : 'name')
     } catch (error) {
       toast.error(`REGISTER ERROR: ${error}`)
@@ -183,6 +194,10 @@ export function AccountWizardDialog() {
             hmId('d', createdAccount!.accountId).id,
           ])
           invalidate([queryKeys.LIST_ROOT_DOCUMENTS])
+          navigate({
+            key: 'document',
+            id: hmId('d', createdAccount!.accountId),
+          })
           setStep('complete')
         }
       } catch (error) {
@@ -198,6 +213,16 @@ export function AccountWizardDialog() {
       return existingWords
     }
   }, [genWords, existingWords, newAccount])
+
+  function resetForm() {
+    setName('')
+    setThumbnail('')
+    setExistingWords('')
+    setSaveWords(true)
+    setUserSaveWords(null)
+    setExistingWordsSave(false)
+    setCreatedAccount(null)
+  }
 
   return (
     <Dialog

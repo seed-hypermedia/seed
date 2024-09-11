@@ -778,7 +778,11 @@ export function BlockNodeContent({
       </XStack>
       {bnChildren && _expanded ? (
         <BlockNodeList
-          paddingLeft={blockNode.block?.type != "heading" ? layoutUnit : 0}
+          paddingLeft={
+            blockNode.block?.type != "heading" || childrenType != "div"
+              ? layoutUnit
+              : 0
+          }
           childrenType={childrenType as HMBlockChildrenType}
           start={start}
           listLevel={listLevel}

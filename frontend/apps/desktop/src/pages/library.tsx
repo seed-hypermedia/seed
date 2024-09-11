@@ -150,7 +150,7 @@ export default function LibraryPage() {
     <>
       <MainWrapper>
         <Container justifyContent="center">
-          {/* <GettingStarted /> */}
+          <GettingStarted />
 
           <LibraryQueryBar
             queryState={queryState}
