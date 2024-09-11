@@ -197,7 +197,7 @@ function DocPageHeader({
   )
 
   // hm://z6MkqYME8XHQpnxBLVjDWxCkEwbjKQ4ghxpUB8stgzBCNSwD/advances-in-distributed-security?v=bafy2bzaceckzk7vdca2to6o2ms6gdvjyizvfsimp7txftm7mx3ohp7loqskpk
-  const authors = useMemo(() => [entity.data?.document?.authors], [entity.data])
+  const authors = useMemo(() => entity.data?.document?.authors, [entity.data])
 
   if (entity.isLoading) return <Spinner />
 
@@ -239,11 +239,11 @@ function DocPageHeader({
                 siteUrl={entity.data?.document?.metadata.siteUrl}
               />
             ) : null}
-            <XStack gap="$3" ai="center" jc="space-between">
-              <XStack gap="$3" ai="center" f={1}>
+            <XStack gap="$3" ai="center" jc="space-between" f={1}>
+              <XStack gap="$3" ai="center" f={1} flexWrap="wrap">
                 {entity.data?.document?.path.length || authors?.length !== 1 ? (
                   <>
-                    <XStack ai="center" gap={0}>
+                    <XStack ai="center" gap={0} f={1} flexWrap="wrap">
                       {authors
                         ?.map((a, index) => [
                           <LinkNameComponent key={a} accountId={a} />,
@@ -277,10 +277,9 @@ function DocPageHeader({
                   )}`}
                 >
                   <SizableText
+                    flexShrink={0}
+                    flexGrow={0}
                     size="$1"
-                    textOverflow="ellipsis"
-                    whiteSpace="nowrap"
-                    overflow="hidden"
                     hoverStyle={{cursor: 'default'}}
                     color="$color9"
                   >

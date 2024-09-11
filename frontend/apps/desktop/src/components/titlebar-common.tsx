@@ -271,6 +271,8 @@ export function CopyReferenceButton({
         }
       >
         <Button
+          flexShrink={0}
+          flexGrow={0}
           onHoverOut={() => {
             setShouldOpen(false)
           }}
