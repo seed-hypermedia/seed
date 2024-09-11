@@ -243,7 +243,7 @@ function DocPageHeader({
               <XStack gap="$3" ai="center" f={1} flexWrap="wrap">
                 {entity.data?.document?.path.length || authors?.length !== 1 ? (
                   <>
-                    <XStack ai="center" gap={0} f={1} flexWrap="wrap">
+                    <XStack ai="center" gap={0} flexWrap="wrap">
                       {authors
                         ?.map((a, index) => [
                           <LinkNameComponent key={a} accountId={a} />,
