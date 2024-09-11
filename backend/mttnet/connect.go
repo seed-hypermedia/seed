@@ -194,7 +194,7 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 }
 
 func (n *Node) defaultConnectionCallback(_ context.Context, event event.EvtPeerConnectednessChanged) {
-	n.log.Debug("NOSHOW: New peer tried to connect/disconnect", zap.String("PID", event.Peer.String()), zap.String("Connectedness", event.Connectedness.String()))
+	return
 }
 
 func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.EvtPeerIdentificationCompleted) {
@@ -202,7 +202,6 @@ func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.Ev
 		return
 	}
 	if err := n.CheckHyperMediaProtocolVersion(ctx, event.Peer, n.protocol.version, event.Protocols...); err != nil {
-		n.log.Debug("NOSHOW: Peer tried to connect to us But we did not store it", zap.Error(err))
 		return
 	}
 
