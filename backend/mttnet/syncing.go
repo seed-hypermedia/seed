@@ -120,7 +120,7 @@ WHERE blobs.size >= 0 AND (res.iri LIKE `
 
 // QListEmbeddedBlobsStr gets embedded blobs related to multiple eids
 const QListEmbeddedBlobsStr = `
-SELECT
+SELECT DISTINCT
 blobs.codec,
 blobs.multihash,
 blobs.insert_time

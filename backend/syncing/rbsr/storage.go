@@ -38,7 +38,7 @@ func (v *sliceStore) Insert(createdAt int64, id []byte) error {
 	item := NewItem(createdAt, id)
 	for _, it := range v.items {
 		if it.Cmp(item) == 0 {
-			return errors.New("Item already exists")
+			return nil
 		}
 	}
 	v.items = append(v.items, item)
