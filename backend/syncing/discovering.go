@@ -19,8 +19,8 @@ import (
 // DefaultDiscoveryTimeout is how long do we wait to discover a peer and sync with it
 const (
 	DefaultDiscoveryTimeout = time.Second * 30
-	DefaultSyncingTimeout   = 1 * DefaultDiscoveryTimeout / 6
-	DefaultDHTTimeout       = 5 * DefaultDiscoveryTimeout / 6
+	DefaultSyncingTimeout   = 1 * DefaultDiscoveryTimeout / 5
+	DefaultDHTTimeout       = 4 * DefaultDiscoveryTimeout / 5
 )
 
 // DiscoverObject discovers an object in the network. If not found, then it returns an error
