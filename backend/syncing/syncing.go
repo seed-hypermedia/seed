@@ -717,19 +717,26 @@ func syncEntities(
 		return err
 	}
 
-	allWants := []cid.Cid{}
+	var (
+		allWants []cid.Cid
+		rounds   int
 
-	var rounds int
+		// We'll be reusing the slices for haves and wants on each round trip to reduce allocations.
+		haves [][]byte
+		wants [][]byte
+	)
+
+	filters := make([]*p2p.Filter, 0, len(eids))
+	for eid, recursive := range eids {
+		filters = append(filters, &p2p.Filter{Resource: eid, Recursive: recursive})
+	}
+
 	for msg != nil {
 		rounds++
 		if rounds > 1000 {
 			return fmt.Errorf("Too many rounds of interactive syncing")
 		}
-		filters := []*p2p.Filter{}
-		for eid, recursive := range eids {
-			log.Debug("Inserting reconciling filters", zap.String("Resource", eid), zap.Bool("Recursive", recursive))
-			filters = append(filters, &p2p.Filter{Resource: eid, Recursive: recursive})
-		}
+
 		res, err := c.ReconcileBlobs(ctx, &p2p.ReconcileBlobsRequest{
 			Ranges:  msg,
 			Filters: filters,
@@ -738,11 +745,15 @@ func syncEntities(
 			return err
 		}
 		msg = res.Ranges
-		var haves, wants [][]byte
+
+		// Clear the haves and wants from the previous round-trip.
+		haves = haves[:0]
+		wants = wants[:0]
 		msg, err = ne.ReconcileWithIDs(msg, &haves, &wants)
 		if err != nil {
 			return err
 		}
+
 		for _, want := range wants {
 			blockCid, err := cid.Cast(want)
 			if err != nil {
@@ -752,7 +763,7 @@ func syncEntities(
 				allWants = append(allWants, blockCid)
 			}
 		}
-		log.Debug("Blobs Reconciled", zap.Int("Wants", len(allWants)))
+		log.Debug("Blobs Reconciled", zap.Int("round", rounds), zap.Int("wants", len(allWants)))
 	}
 
 	if len(allWants) == 0 {
