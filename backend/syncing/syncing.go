@@ -776,6 +776,7 @@ func syncEntities(
 
 	downloadedBlocks := list.New()
 	for _, blkID := range allWants {
+		log.Debug("Trying to get blob", zap.String("cid", blkID.String()))
 		blk, err := sess.GetBlock(ctx, blkID)
 		if err != nil {
 			log.Debug("FailedToGetWantedBlob", zap.String("cid", blkID.String()), zap.Error(err))
