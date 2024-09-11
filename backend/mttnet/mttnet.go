@@ -53,7 +53,7 @@ var userAgent = "seed/<dev>"
 // DefaultRelays bootstrap seed-owned relays so they can reserve slots to do holepunch.
 func DefaultRelays() []peer.AddrInfo {
 	return []peer.AddrInfo{
-		// Seed prod server
+		// HM23 Seed prod server
 		{
 			ID: must.Do2(peer.Decode("12D3KooWNmjM4sMbSkDEA6ShvjTgkrJHjMya46fhZ9PjKZ4KVZYq")),
 			Addrs: []multiaddr.Multiaddr{
@@ -61,12 +61,21 @@ func DefaultRelays() []peer.AddrInfo {
 				must.Do2(multiaddr.NewMultiaddr("/ip4/23.20.24.146/udp/4002/quic-v1")),
 			},
 		},
-		// Seed test server
+		// HM23 Seed test server
 		{
 			ID: must.Do2(peer.Decode("12D3KooWGvsbBfcbnkecNoRBM7eUTiuriDqUyzu87pobZXSdUUsJ")),
 			Addrs: []multiaddr.Multiaddr{
 				must.Do2(multiaddr.NewMultiaddr("/ip4/52.22.139.174/tcp/4002")),
 				must.Do2(multiaddr.NewMultiaddr("/ip4/52.22.139.174/udp/4002/quic-v1")),
+			},
+		},
+
+		// HM24 Seed test server
+		{
+			ID: must.Do2(peer.Decode("12D3KooWMGVVkxCsGAKHBPNLSBEoyzzVMtmSkGFP6dmdJ5H9jV9d")),
+			Addrs: []multiaddr.Multiaddr{
+				must.Do2(multiaddr.NewMultiaddr("/dns4/test.hyper.media/tcp/4002")),
+				must.Do2(multiaddr.NewMultiaddr("/dns4/test.hyper.media/udp/4002/quic-v1")),
 			},
 		},
 	}
