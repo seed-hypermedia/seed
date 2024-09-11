@@ -79,13 +79,17 @@ def main():
         run("./scripts/cleanup-desktop.sh")
         run("yarn install")
         run("yarn workspace @shm/ui generate")
-        run("plz build //backend:seed-daemon //:yarn")
+
+        if "SEED_NO_DAEMON_SPAWN" not in os.environ:
+            run("plz build //backend:seed-daemon")
 
         testnet_var = "SEED_P2P_TESTNET_NAME"
         if testnet_var not in os.environ:
             os.environ[testnet_var] = "dev"
 
-        return run("VITE_DESKTOP_APPDATA=Seed.dev yarn desktop", args=args)
+        os.environ["VITE_DESKTOP_APPDATA"] = "Seed.dev"
+
+        return run("yarn desktop", args=args)
 
     @cmd(cmds, "build-desktop", "Builds the desktop app for the current platform.")
     def build_desktop(args):

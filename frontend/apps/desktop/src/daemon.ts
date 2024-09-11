@@ -75,6 +75,15 @@ export function updateGoDaemonState(state: GoDaemonState) {
 }
 
 export function startMainDaemon() {
+  if (process.env.SEED_NO_DAEMON_SPAWN) {
+    updateGoDaemonState({t: 'ready'})
+    return {
+      httpPort: process.env.VITE_DESKTOP_HTTP_PORT,
+      grpcPort: process.env.VITE_DESKTOP_GRPC_PORT,
+      p2pPort: process.env.VITE_DESKTOP_P2P_PORT,
+    }
+  }
+
   const daemonProcess = spawn(goDaemonExecutablePath, daemonArguments, {
     // daemon env
     cwd: path.join(process.cwd(), '../../..'),
