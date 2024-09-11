@@ -717,7 +717,7 @@ func syncEntities(
 		return err
 	}
 
-	allWants := list.New()
+	allWants := []cid.Cid{}
 
 	var rounds int
 	for msg != nil {
@@ -744,51 +744,54 @@ func syncEntities(
 			return err
 		}
 		for _, want := range wants {
-			allWants.PushBack(want)
+			blockCid, err := cid.Cast(want)
+			if err != nil {
+				return err
+			}
+			if _, ok := localHaves[blockCid]; !ok {
+				allWants = append(allWants, blockCid)
+			}
 		}
-		log.Debug("Blobs Reconciled", zap.Int("Wants", allWants.Len()))
+		log.Debug("Blobs Reconciled", zap.Int("Wants", len(allWants)))
 	}
 
-	if allWants.Len() == 0 {
+	if len(allWants) == 0 {
 		log.Debug("Peer does not have new content")
 		return nil
 	}
 
-	MSyncingWantedBlobs.WithLabelValues("syncing").Add(float64(allWants.Len()))
-	defer MSyncingWantedBlobs.WithLabelValues("syncing").Sub(float64(allWants.Len()))
+	MSyncingWantedBlobs.WithLabelValues("syncing").Add(float64(len(allWants)))
+	defer MSyncingWantedBlobs.WithLabelValues("syncing").Sub(float64(len(allWants)))
 
+	downloadedBlocks := list.New()
+	for _, blkID := range allWants {
+		blk, err := sess.GetBlock(ctx, blkID)
+		if err != nil {
+			log.Debug("FailedToGetWantedBlob", zap.String("cid", blkID.String()), zap.Error(err))
+			continue
+		}
+		downloadedBlocks.PushBack(blk)
+	}
 	var failed int
-	for allWants.Len() > 0 {
-		item := allWants.Front()
-		if failed == allWants.Len() {
+	for downloadedBlocks.Len() > 0 {
+		item := downloadedBlocks.Front()
+		if failed == downloadedBlocks.Len() {
 			return fmt.Errorf("could not sync all content")
 		}
-		blobCid, err := cid.Cast(item.Value.([]byte))
-		if err != nil {
-			return err
+		blk, ok := item.Value.(blocks.Block)
+		if !ok {
+			return fmt.Errorf("could not decode block from the list: %w", err)
 		}
 
-		if _, ok := localHaves[blobCid]; !ok {
-			blk, err := sess.GetBlock(ctx, blobCid)
-			if err != nil {
-				log.Debug("FailedToGetWantedBlob", zap.String("cid", blobCid.String()), zap.Error(err))
-				allWants.MoveAfter(item, allWants.Back())
-				failed++
-				continue
-			}
-
-			if err := idx.Put(ctx, blk); err != nil {
-				log.Debug("FailedToSaveWantedBlob", zap.String("cid", blobCid.String()), zap.Error(err))
-				allWants.MoveAfter(item, allWants.Back())
-				failed++
-				continue
-			}
-			log.Debug("Blob synced", zap.String("blobCid", blobCid.String()))
-		} else {
-			log.Debug("Already had wanted blob", zap.String("blobCid", blobCid.String()))
+		if err := idx.Put(ctx, blk); err != nil {
+			log.Debug("FailedToSaveWantedBlob", zap.String("cid", blk.Cid().String()), zap.Error(err))
+			downloadedBlocks.MoveAfter(item, downloadedBlocks.Back())
+			failed++
+			continue
 		}
+		log.Debug("Blob synced", zap.String("blobCid", blk.Cid().String()))
 		failed = 0
-		allWants.Remove(item)
+		downloadedBlocks.Remove(item)
 	}
 	log.Debug("Successfully synced new content")
 	return nil
