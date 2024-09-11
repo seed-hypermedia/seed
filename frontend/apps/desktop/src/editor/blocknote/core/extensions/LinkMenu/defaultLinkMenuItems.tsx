@@ -8,7 +8,7 @@ import {
   normalizeHmId,
 } from '@shm/shared'
 import {Globe, Link, Spinner, SquareAsterisk, TwitterXIcon} from '@shm/ui'
-import {Node} from '@tiptap/pm/model'
+import {Fragment, Node} from '@tiptap/pm/model'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {getBlockInfoFromPos} from '../Blocks/helpers/getBlockInfoFromPos'
 import {LinkMenuItem} from './LinkMenuItem'
@@ -297,10 +297,10 @@ function insertMentionNode(
   const $pos = state.doc.resolve($from.pos)
   let originalStartContent = state.doc.cut($pos.start(), $pos.pos - ref.length)
 
-  console.log(`== ~ insertMentionNode ~ originalStartContent:`, $from.marks())
-
   view.dispatch(
-    tr.insert($pos.pos, node).deleteRange($pos.pos - title.length, $pos.pos),
+    tr
+      .insert($pos.pos, Fragment.fromArray([node, view.state.schema.text(' ')]))
+      .deleteRange($pos.pos - title.length, $pos.pos),
   )
   // let originalLastContent = state.doc.cut($pos.pos, $pos.end())
   // const originalContent: Node[] = []
