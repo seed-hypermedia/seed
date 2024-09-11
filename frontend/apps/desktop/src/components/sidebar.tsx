@@ -191,6 +191,7 @@ function AccountsSection() {
   const accounts = useEntities(
     accountIds.data?.map((uid) => hmId('d', uid)) || [],
   )
+
   const hasAccounts = !!accountIds.data?.length
   const route = useNavRoute()
   const navigate = useNavigate()
@@ -218,7 +219,7 @@ function AccountsSection() {
         return (
           <SidebarItem
             key={id.uid}
-            title={getDocumentTitle(document)}
+            title={getDocumentTitle(document) || id.uid}
             icon={<Thumbnail id={id} metadata={document?.metadata} size={20} />}
             onPress={() => {
               navigate({key: 'document', id})

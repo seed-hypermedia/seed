@@ -32,6 +32,10 @@ export function clipContentBlocks(
 }
 
 export function getDocumentTitle(document?: HMDocument | null) {
+  if (!document) {
+    return null
+  }
+
   return document?.metadata?.name || document?.account! + document?.path!
 }
 
