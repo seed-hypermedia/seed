@@ -13,7 +13,6 @@ import {SubscriptionButton} from '@/components/subscription'
 import {CopyReferenceButton} from '@/components/titlebar-common'
 import {VersionsPanel} from '@/components/versions-panel'
 import '@/editor/editor.css'
-import {useMyAccountIds} from '@/models/daemon'
 import {useDiscoverEntity, useEntity} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {useNavRoute} from '@/utils/navigation'
@@ -186,7 +185,6 @@ function DocPageHeader({
   docId: UnpackedHypermediaId
   isBlockFocused: boolean
 }) {
-  const myAccountIds = useMyAccountIds()
   const entity = useEntity(docId)
   const accountName = getAccountName(entity.data?.document)
   const hasCover = useMemo(
@@ -199,7 +197,7 @@ function DocPageHeader({
   )
 
   // hm://z6MkqYME8XHQpnxBLVjDWxCkEwbjKQ4ghxpUB8stgzBCNSwD/advances-in-distributed-security?v=bafy2bzaceckzk7vdca2to6o2ms6gdvjyizvfsimp7txftm7mx3ohp7loqskpk
-  const authors = useMemo(() => entity.data?.document?.authors, [entity.data])
+  const authors = useMemo(() => [entity.data?.document?.authors], [entity.data])
 
   if (entity.isLoading) return <Spinner />
 
@@ -227,7 +225,11 @@ function DocPageHeader({
             </XStack>
           ) : null}
           <XStack>
-            <H1 size="$9" f={1} style={{fontWeight: 'bold'}}>
+            <H1
+              size="$9"
+              f={1}
+              style={{fontWeight: 'bold', wordBreak: 'break-all'}}
+            >
               {accountName}
             </H1>
           </XStack>
