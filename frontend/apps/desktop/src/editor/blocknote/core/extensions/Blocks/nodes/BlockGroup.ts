@@ -60,6 +60,9 @@ export const BlockGroup = Node.create<{
       new InputRule({
         find: new RegExp(`^[-+*]\\s$`),
         handler: ({state, chain, range}) => {
+          if (state.doc.resolve(range.from).parent.type.name === 'heading') {
+            return
+          }
           chain()
             .UpdateGroup(state.selection.from, 'ul', false)
             // Removes the "-", "+", or "*" character used to set the list.
@@ -69,6 +72,9 @@ export const BlockGroup = Node.create<{
       new InputRule({
         find: new RegExp(/^\d+\.\s/),
         handler: ({state, chain, range}) => {
+          if (state.doc.resolve(range.from).parent.type.name === 'heading') {
+            return
+          }
           chain()
             .UpdateGroup(
               state.selection.from,
@@ -91,9 +97,14 @@ export const BlockGroup = Node.create<{
           if (typeof element === 'string') {
             return false
           }
+          // if (
+          //   element.getAttribute('data-node-type') === 'blockGroup' &&
+          //   element.getAttribute('data-list-type') === 'ul'
+          // )
           return {
             listType: 'ul',
           }
+          // return false
         },
         priority: 200,
       },
@@ -104,10 +115,15 @@ export const BlockGroup = Node.create<{
           if (typeof element === 'string') {
             return false
           }
+          // if (
+          //   element.getAttribute('data-node-type') === 'blockGroup' &&
+          //   element.getAttribute('data-list-type') === 'ol'
+          // )
           return {
             listType: 'ol',
             start: element.getAttribute('start'),
           }
+          // return false
         },
         priority: 200,
       },
