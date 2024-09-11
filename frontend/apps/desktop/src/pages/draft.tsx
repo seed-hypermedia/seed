@@ -487,14 +487,13 @@ export function DraftHeader({
             }}
             outlineColor="transparent"
             borderColor="transparent"
-            paddingLeft={9.6}
             defaultValue={name?.trim() || ''} // this is still a controlled input because of the value comparison in useLayoutEffect
             // value={title}
             onChangeText={(name: string) => {
               // TODO: change title here
               draftActor.send({type: 'CHANGE', name})
             }}
-            placeholder="Untitled Document"
+            placeholder="Document Title"
             {...headingTextStyles}
             padding={0}
           />
