@@ -655,17 +655,16 @@ func syncEntities(
 	for eid, recursive := range eids {
 		queryString += "?"
 		if recursive {
-			queryParams = append(queryParams, eid+"%")
+			queryParams = append(queryParams, eid+"*")
 		} else {
 			queryParams = append(queryParams, eid)
 		}
 		if i < len(eids)-1 {
-			queryString += " OR res.iri LIKE "
+			queryString += " OR iri GLOB "
 		}
 		i++
 	}
-	queryString += `)
-ORDER BY sb.ts, blobs.multihash;`
+	queryString += mttnet.QListRelatedBlobsContStr
 
 	localHaves := make(map[cid.Cid]struct{})
 	if err = sqlitex.Exec(conn, queryString, func(stmt *sqlite.Stmt) error {
@@ -686,20 +685,16 @@ ORDER BY sb.ts, blobs.multihash;`
 	for eid, recursive := range eids {
 		queryString += "?"
 		if recursive {
-			queryParams2 = append(queryParams2, eid+"%")
+			queryParams2 = append(queryParams2, eid+"*")
 		} else {
 			queryParams2 = append(queryParams2, eid)
 		}
 		if i < len(eids)-1 {
-			queryString += " OR res.iri LIKE "
+			queryString += " OR res.iri GLOB "
 		}
 		i++
 	}
-	queryString += `)
-		ORDER BY sb.ts, blobs.multihash
-	)
-)
-ORDER BY sb.ts, blobs.multihash;`
+	queryString += mttnet.QListEmbeddedBlobsContStr
 	if err = sqlitex.Exec(conn, queryString, func(stmt *sqlite.Stmt) error {
 		codec := stmt.ColumnInt64(0)
 		hash := stmt.ColumnBytesUnsafe(1)

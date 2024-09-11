@@ -562,6 +562,23 @@ func TestSubscriptions(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	ret, err := alice.RPC.Daemon.RegisterKey(ctx, &daemon.RegisterKeyRequest{
+		Mnemonic: []string{"dinner", "fruit", "sleep", "olive", "unfair", "sight", "velvet", "endorse", "example", "key", "okay", "meadow"},
+		Name:     "secondary",
+	})
+	require.NoError(t, err)
+	dummyAcc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        ret.AccountId,
+		Path:           "",
+		SigningKeyName: ret.Name,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Hidden Account"},
+			}},
+		},
+	})
+
+	require.NoError(t, err)
 	doc4, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		Account:        bobIdentity.Account.Principal().String(),
 		Path:           "",
@@ -733,4 +750,24 @@ func TestSubscriptions(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, doc3Gotten.Version, doc3Modified.Version)
 	require.Equal(t, doc3Modified.Content, doc3Gotten.Content)
+
+	_, err = bob.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
+		Account:   doc.Account,
+		Path:      "",
+		Recursive: true,
+	})
+	require.NoError(t, err)
+	time.Sleep(time.Millisecond * 100)
+
+	docGotten, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: doc.Account,
+		Path:    doc.Path,
+	})
+	require.NoError(t, err)
+	require.Equal(t, doc.Content, docGotten.Content)
+	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: dummyAcc.Account,
+		Path:    dummyAcc.Path,
+	})
+	require.Error(t, err)
 }

@@ -32,16 +32,15 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 		for i, filter := range in.Filters {
 			query += "?"
 			if filter.Recursive {
-				queryParams = append(queryParams, filter.Resource+"%")
+				queryParams = append(queryParams, filter.Resource+"*")
 			} else {
 				queryParams = append(queryParams, filter.Resource)
 			}
 			if i < len(in.Filters)-1 {
-				query += " OR res.iri LIKE "
+				query += " OR iri GLOB "
 			}
 		}
-		query += `)
-ORDER BY sb.ts, blobs.multihash;`
+		query += QListRelatedBlobsContStr
 	}
 	if err = sqlitex.Exec(conn, query, func(stmt *sqlite.Stmt) error {
 		codec := stmt.ColumnInt64(0)
@@ -59,19 +58,15 @@ ORDER BY sb.ts, blobs.multihash;`
 		for i, filter := range in.Filters {
 			query += "?"
 			if filter.Recursive {
-				queryParams2 = append(queryParams2, filter.Resource+"%")
+				queryParams2 = append(queryParams2, filter.Resource+"*")
 			} else {
 				queryParams2 = append(queryParams2, filter.Resource)
 			}
 			if i < len(in.Filters)-1 {
-				query += " OR res.iri LIKE "
+				query += " OR res.iri GLOB "
 			}
 		}
-		query += `)
-		ORDER BY sb.ts, blobs.multihash
-	)
-)
-ORDER BY sb.ts, blobs.multihash;`
+		query += QListEmbeddedBlobsContStr
 	}
 	if err = sqlitex.Exec(conn, query, func(stmt *sqlite.Stmt) error {
 		codec := stmt.ColumnInt64(0)
@@ -102,25 +97,13 @@ SELECT
 	blobs.insert_time,
 	?
 FROM blobs INDEXED BY blobs_metadata LEFT JOIN structural_blobs sb ON sb.id = blobs.id
-WHERE blobs.size >= 0 
+WHERE blobs.size >= 0
 ORDER BY sb.ts, blobs.multihash;
 `)
 
-// QListrelatedBlobsString gets blobs related to multiple eids
-const QListrelatedBlobsStr = `
-SELECT
-	blobs.codec,
-	blobs.multihash,
-	blobs.insert_time
-FROM blobs INDEXED BY blobs_metadata 
-LEFT JOIN structural_blobs sb ON sb.id = blobs.id
-LEFT JOIN structural_blobs sb2 ON sb.ts = sb2.ts
-LEFT JOIN resources res ON sb2.resource = res.id
-WHERE blobs.size >= 0 AND (res.iri LIKE `
-
 // QListEmbeddedBlobsStr gets embedded blobs related to multiple eids
 const QListEmbeddedBlobsStr = `
-SELECT DISTINCT
+SELECT distinct
 blobs.codec,
 blobs.multihash,
 blobs.insert_time
@@ -129,15 +112,84 @@ LEFT JOIN structural_blobs sb ON sb.id = blobs.id
 LEFT JOIN structural_blobs sb2 ON sb.ts = sb2.ts
 LEFT JOIN resources res ON sb2.resource = res.id
 WHERE blobs.size >= 0 AND res.id IN (
-	SELECT distinct rl.target 
-	FROM structural_blobs sb
-	LEFT JOIN structural_blobs sb2 ON sb.ts = sb2.ts
-	JOIN resource_links rl ON sb2.id = rl.source
-	WHERE sb.resource IS NOT NULL AND sb.id IN (
-		SELECT
-		sb.id
-		FROM blobs INDEXED BY blobs_metadata 
-		LEFT JOIN structural_blobs sb ON sb.id = blobs.id
-		LEFT JOIN structural_blobs sb2 ON sb.ts = sb2.ts
-		LEFT JOIN resources res ON sb2.resource = res.id
-		WHERE blobs.size >= 0 AND (res.iri LIKE `
+SELECT distinct rl.target 
+FROM structural_blobs sb
+LEFT JOIN structural_blobs sb2 ON sb.ts = sb2.ts
+JOIN resource_links rl ON sb2.id = rl.source
+WHERE sb.resource IS NOT NULL AND sb.id IN (
+WITH RECURSIVE
+refs (id) AS (
+SELECT id
+FROM structural_blobs
+WHERE type = 'Ref'
+-- resource
+AND resource IN (SELECT id FROM resources WHERE iri GLOB `
+
+const QListEmbeddedBlobsContStr = `)
+),
+changes (id) AS (
+SELECT bl.target
+FROM blob_links bl
+JOIN refs r ON r.id = bl.source AND bl.type = 'ref/head'
+UNION
+SELECT bl.target
+FROM blob_links bl
+JOIN changes c ON c.id = bl.source
+WHERE bl.type = 'change/dep'
+)
+SELECT
+b.id
+FROM blobs b
+JOIN refs r ON r.id = b.id
+JOIN structural_blobs sb ON sb.id = b.id
+UNION ALL
+SELECT
+b.id
+FROM blobs b
+JOIN changes ch ON ch.id = b.id
+JOIN structural_blobs sb ON sb.id = b.id
+))
+ORDER BY sb.ts, blobs.multihash;`
+
+// QListrelatedBlobsString gets blobs related to multiple eids
+const QListrelatedBlobsStr = `
+WITH RECURSIVE
+refs (id) AS (
+	SELECT id
+	FROM structural_blobs
+	WHERE type = 'Ref'
+	AND resource IN (SELECT id FROM resources WHERE iri GLOB `
+
+// QListRelatedBlobsContStr gets blobs related to multiple eids
+const QListRelatedBlobsContStr = `)
+	),
+changes (id) AS (
+	SELECT bl.target
+	FROM blob_links bl
+	JOIN refs r ON r.id = bl.source AND bl.type = 'ref/head'
+	UNION
+	SELECT bl.target
+	FROM blob_links bl
+	JOIN changes c ON c.id = bl.source
+	WHERE bl.type = 'change/dep'
+)
+SELECT
+codec,
+b.multihash,
+insert_time,
+b.id,
+sb.ts
+FROM blobs b
+JOIN refs r ON r.id = b.id
+JOIN structural_blobs sb ON sb.id = b.id
+UNION ALL
+SELECT
+codec,
+b.multihash,
+insert_time,
+b.id,
+sb.ts
+FROM blobs b
+JOIN changes ch ON ch.id = b.id
+JOIN structural_blobs sb ON sb.id = b.id
+ORDER BY sb.ts, b.multihash;`
