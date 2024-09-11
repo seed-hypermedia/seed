@@ -53,7 +53,7 @@ export function PageHeader({
   const isHomeDoc = useMemo(() => docId?.id == homeId?.id, [docId, homeId]);
 
   return (
-    <YStack style={{paddingTop: 80}}>
+    <YStack paddingTop={86} $gtSm={{paddingTop: 44}}>
       <Stack
         flex={1}
         flexDirection="column"
