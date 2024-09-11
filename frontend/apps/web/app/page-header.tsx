@@ -155,9 +155,9 @@ export function PageHeader({
           <H1 size="$9" style={{fontWeight: "bold"}}>
             {docMetadata?.name}
           </H1>
-          <XStack marginTop="$4" gap="$3" ai="center" w="100%">
+          <XStack marginTop="$4" gap="$3" ai="center" f={1} flexWrap="wrap">
             {authors?.length ? (
-              <XStack ai="center" overflow="hidden">
+              <XStack ai="center" gap={0} flexWrap="wrap" maxWidth="100%">
                 {authors.map((a, index) => [
                   <SizableText
                     hoverStyle={{
