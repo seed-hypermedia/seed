@@ -32,6 +32,9 @@ const daemonArguments = [
   '-p2p.port',
   String(P2P_PORT),
 
+  '-log-level',
+  'debug',
+
   '-data-dir',
   `${userDataPath}/daemon`,
 
