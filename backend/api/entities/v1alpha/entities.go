@@ -316,6 +316,10 @@ func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEnti
 		return nil, errutil.MissingArgument("id")
 	}
 
+	if !strings.HasPrefix(in.Id, "hm://") {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid id %q: must start with hm://", in.Id)
+	}
+
 	// 	ver := hyper.Version(in.Version)
 
 	// 	heads, err := ver.Parse()
