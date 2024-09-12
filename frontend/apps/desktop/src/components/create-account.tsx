@@ -136,6 +136,7 @@ export function AccountWizardDialog() {
       })
       invalidate([queryKeys.LOCAL_ACCOUNT_ID_LIST])
       invalidate([queryKeys.LIST_ROOT_DOCUMENTS])
+      invalidate([queryKeys.SEARCH])
       setCreatedAccount(renamedKey)
       if (existing) {
         navigate({
