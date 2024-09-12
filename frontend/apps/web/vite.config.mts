@@ -23,6 +23,7 @@ export default defineConfig({
   // ssr: {
   //   noExternal: ["react-tweet"],
   // },
+  build: {minify: false},
   ssr: {
     noExternal: ["@tamagui/helpers-icon"],
   },
