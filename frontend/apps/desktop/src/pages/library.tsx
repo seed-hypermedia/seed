@@ -77,11 +77,13 @@ export default function LibraryPage() {
   const library = useLibrary(queryState)
 
   const filteredLibrary = useMemo(() => {
-    return exportMode ? library.filter((entry) => !entry.draft) : library
+    return exportMode
+      ? library?.items.filter((entry) => !entry.draft)
+      : library?.items
   }, [exportMode, library])
 
   const filteredDocumentIds = useMemo(() => {
-    return filteredLibrary.map((entry) => entry.id.id)
+    return filteredLibrary?.map((entry) => entry.id.id)
   }, [filteredLibrary])
   const {exportDocuments} = useAppContext()
 
@@ -104,9 +106,10 @@ export default function LibraryPage() {
       }
 
       // Check if all documents are selected and update `allSelected` state
-      setAllSelected(
-        filteredDocumentIds.every((docId) => newSelected.has(docId)),
-      )
+      if (filteredDocumentIds)
+        setAllSelected(
+          filteredDocumentIds.every((docId) => newSelected.has(docId)),
+        )
 
       return newSelected
     })
@@ -127,12 +130,12 @@ export default function LibraryPage() {
       return
     }
 
-    const selectedDocs = library.filter((entry) =>
+    const selectedDocs = library?.items.filter((entry) =>
       selectedDocuments.has(entry.id.id),
     )
 
     const documentsToExport = await Promise.all(
-      selectedDocs.map(async (doc) => {
+      (selectedDocs || []).map(async (doc) => {
         const blocks: HMBlockNode[] | undefined = doc.document?.content
         const editorBlocks = toHMBlock(blocks)
         const markdown = await convertBlocksToMarkdown(editorBlocks)
@@ -145,114 +148,118 @@ export default function LibraryPage() {
 
     exportDocuments(documentsToExport)
   }
-
+  const isLibraryEmpty = library?.totalItemCount === 0
   return (
     <>
       <MainWrapper>
         <Container justifyContent="center">
-          <GettingStarted />
+          {isLibraryEmpty ? <GettingStarted /> : null}
 
-          <LibraryQueryBar
-            queryState={queryState}
-            setQueryState={setQueryState}
-            exportMode={exportMode}
-            handleExportButtonClick={handleExportButtonClick}
-            isLibraryEmpty={filteredLibrary.length == 0}
-          />
-          {queryState.display == 'list' ? (
-            <LibraryList
-              library={filteredLibrary}
-              exportMode={exportMode}
-              toggleDocumentSelection={toggleDocumentSelection}
-              selectedDocuments={selectedDocuments}
-              allSelected={allSelected}
-              handleSelectAllChange={handleSelectAllChange}
-            />
-          ) : queryState.display == 'cards' ? (
-            <LibraryCards library={filteredLibrary} />
-          ) : null}
-          {exportMode && (
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <Dialog.Portal>
-                <Dialog.Overlay
-                  height="100vh"
-                  bg={'#00000088'}
-                  width="100vw"
-                  animation="fast"
-                  opacity={0.8}
-                  enterStyle={{opacity: 0}}
-                  exitStyle={{opacity: 0}}
+          {filteredLibrary && library && (
+            <>
+              <LibraryQueryBar
+                queryState={queryState}
+                setQueryState={setQueryState}
+                exportMode={exportMode}
+                handleExportButtonClick={handleExportButtonClick}
+                isLibraryEmpty={filteredLibrary.length == 0}
+              />
+              {queryState.display == 'list' ? (
+                <LibraryList
+                  library={filteredLibrary}
+                  exportMode={exportMode}
+                  toggleDocumentSelection={toggleDocumentSelection}
+                  selectedDocuments={selectedDocuments}
+                  allSelected={allSelected}
+                  handleSelectAllChange={handleSelectAllChange}
                 />
-                <DialogContent>
-                  <YStack>
-                    {selectedDocuments.size === 1 ? (
-                      <XStack
-                        maxWidth={290}
-                        wordWrap="break-word"
-                        whiteSpace="normal"
-                        overflow="hidden"
-                        textOverflow="ellipsis"
-                      >
-                        <SizableText size="$3">
-                          You are choosing to{' '}
-                          <Text fontWeight="800">export</Text> the document
-                          named{' '}
-                          <Text fontWeight="800">
-                            “
-                            {library.find(
-                              (entry) =>
-                                entry.id.id ===
-                                Array.from(selectedDocuments)[0],
-                            )?.document?.metadata?.name || 'Untitled'}
-                            ”
-                          </Text>
-                          .
+              ) : queryState.display == 'cards' ? (
+                <LibraryCards library={filteredLibrary} />
+              ) : null}
+              {exportMode && (
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                  <Dialog.Portal>
+                    <Dialog.Overlay
+                      height="100vh"
+                      bg={'#00000088'}
+                      width="100vw"
+                      animation="fast"
+                      opacity={0.8}
+                      enterStyle={{opacity: 0}}
+                      exitStyle={{opacity: 0}}
+                    />
+                    <DialogContent>
+                      <YStack>
+                        {selectedDocuments.size === 1 ? (
+                          <XStack
+                            maxWidth={290}
+                            wordWrap="break-word"
+                            whiteSpace="normal"
+                            overflow="hidden"
+                            textOverflow="ellipsis"
+                          >
+                            <SizableText size="$3">
+                              You are choosing to{' '}
+                              <Text fontWeight="800">export</Text> the document
+                              named{' '}
+                              <Text fontWeight="800">
+                                “
+                                {library.items.find(
+                                  (entry) =>
+                                    entry.id.id ===
+                                    Array.from(selectedDocuments)[0],
+                                )?.document?.metadata?.name || 'Untitled'}
+                                ”
+                              </Text>
+                              .
+                            </SizableText>
+                          </XStack>
+                        ) : (
+                          <SizableText size="$3">
+                            You are choosing to{' '}
+                            <Text fontWeight="800">
+                              export ({selectedDocuments.size}) documents
+                            </Text>
+                            .
+                          </SizableText>
+                        )}
+                        <SizableText size="$2" marginVertical="$4">
+                          Do you want to continue with the export?
                         </SizableText>
-                      </XStack>
-                    ) : (
-                      <SizableText size="$3">
-                        You are choosing to{' '}
-                        <Text fontWeight="800">
-                          export ({selectedDocuments.size}) documents
-                        </Text>
-                        .
-                      </SizableText>
-                    )}
-                    <SizableText size="$2" marginVertical="$4">
-                      Do you want to continue with the export?
-                    </SizableText>
-                    <XStack width="100%" gap="$3" jc="space-between">
-                      <Button
-                        flex={1}
-                        bc="$gray3"
-                        onPress={() => {
-                          setIsDialogOpen(false)
-                          setExportMode(false)
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        flex={1}
-                        bg="$brand12"
-                        borderColor="$brand11"
-                        hoverStyle={{
-                          bg: '$brand11',
-                          borderColor: '$brand10',
-                        }}
-                        onPress={() => {
-                          setIsDialogOpen(false)
-                          setExportMode(false)
-                          submitExportDocuments()
-                        }}
-                      >
-                        Export
-                      </Button>
-                    </XStack>
-                  </YStack>
-                </DialogContent>
-              </Dialog.Portal>
-            </Dialog>
+                        <XStack width="100%" gap="$3" jc="space-between">
+                          <Button
+                            flex={1}
+                            bc="$gray3"
+                            onPress={() => {
+                              setIsDialogOpen(false)
+                              setExportMode(false)
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            flex={1}
+                            bg="$brand12"
+                            borderColor="$brand11"
+                            hoverStyle={{
+                              bg: '$brand11',
+                              borderColor: '$brand10',
+                            }}
+                            onPress={() => {
+                              setIsDialogOpen(false)
+                              setExportMode(false)
+                              submitExportDocuments()
+                            }}
+                          >
+                            Export
+                          </Button>
+                        </XStack>
+                      </YStack>
+                    </DialogContent>
+                  </Dialog.Portal>
+                </Dialog>
+              )}
+            </>
           )}
         </Container>
       </MainWrapper>

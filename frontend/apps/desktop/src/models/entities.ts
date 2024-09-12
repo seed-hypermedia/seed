@@ -192,6 +192,7 @@ export function useDiscoverEntity(id: UnpackedHypermediaId) {
       return {}
     },
     onSuccess: () => {
+      invalidate([queryKeys.SEARCH])
       invalidate([queryKeys.ENTITY, id.id])
     },
   })

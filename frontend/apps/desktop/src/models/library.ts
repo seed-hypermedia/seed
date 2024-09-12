@@ -32,16 +32,19 @@ export type LibraryDependentData = {
   id: UnpackedHypermediaId
   metadata?: HMMetadata
 }
-export type LibraryData = Array<{
-  id: UnpackedHypermediaId
-  document?: HMDocument
-  hasDraft: boolean
-  draft?: HMDraft
-  location: LibraryDependentData[]
-  authors: LibraryDependentData[]
-  isFavorite: boolean
-  isSubscribed: boolean
-}>
+export type LibraryData = {
+  items: Array<{
+    id: UnpackedHypermediaId
+    document?: HMDocument
+    hasDraft: boolean
+    draft?: HMDraft
+    location: LibraryDependentData[]
+    authors: LibraryDependentData[]
+    isFavorite: boolean
+    isSubscribed: boolean
+  }>
+  totalItemCount: number
+}
 
 function isSubscribedBy(
   id: UnpackedHypermediaId,
@@ -57,7 +60,7 @@ function isSubscribedBy(
   return false
 }
 
-export function useLibrary(query: LibraryQueryState): LibraryData {
+export function useLibrary(query: LibraryQueryState): LibraryData | null {
   const search = useSearch(query.filterString, {})
   const favorites = useFavorites()
   const subscriptions = useListSubscriptions()
@@ -173,7 +176,8 @@ export function useLibrary(query: LibraryQueryState): LibraryData {
       .filter((location) => !!location)
   }
   const dependentEntities = useEntities(dependentEntityIds)
-  let results: LibraryData = [
+  if (!search.data) return null
+  let results: LibraryData['items'] = [
     ...(draftQueryList
       ?.map((draftId) => {
         const id = unpackHmId(draftId)
@@ -243,12 +247,20 @@ export function useLibrary(query: LibraryQueryState): LibraryData {
       return name.toLowerCase().includes(query.filterString.toLowerCase())
     })
   }
-  if (query.sort === 'alphabetical') return alphabeticalSort(results)
-  if (query.sort === 'lastUpdate') return lastUpdateSort(results)
-  return results
+  results = sortLibrary(results, query.sort)
+  return {items: results, totalItemCount: search.data.length}
 }
 
-function alphabeticalSort(library: LibraryData) {
+function sortLibrary(
+  library: LibraryData['items'],
+  sort: 'lastUpdate' | 'alphabetical',
+) {
+  if (sort === 'alphabetical') return alphabeticalSort(library)
+  if (sort === 'lastUpdate') return lastUpdateSort(library)
+  return library
+}
+
+function alphabeticalSort(library: LibraryData['items']) {
   library.sort((a, b) => {
     const aName = a.document?.metadata?.name || a.draft?.metadata?.name || ''
     const bName = b.document?.metadata?.name || b.draft?.metadata?.name || ''
@@ -257,14 +269,14 @@ function alphabeticalSort(library: LibraryData) {
   return library
 }
 
-function lastUpdateSort(library: LibraryData) {
+function lastUpdateSort(library: LibraryData['items']) {
   library.sort((a, b) => {
     return lastUpdateOfEntry(b) - lastUpdateOfEntry(a)
   })
   return library
 }
 
-function lastUpdateOfEntry(entry: LibraryData[number]) {
+function lastUpdateOfEntry(entry: LibraryData['items'][number]) {
   return entry.document?.updateTime?.seconds
     ? Number(entry.document?.updateTime?.seconds)
     : (entry.draft?.lastUpdateTime || 0) / 1000
