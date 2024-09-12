@@ -1,5 +1,6 @@
 export function hmIdPathToEntityQueryPath(path: string[] | null) {
-  return path?.length ? `/${path.join('/')}` : ''
+  const filteredPath = path?.filter((term) => !!term)
+  return filteredPath?.length ? `/${filteredPath.join('/')}` : ''
 }
 
 export function entityQueryPathToHmIdPath(path: string): string[] {
