@@ -1,10 +1,9 @@
-package daemon
+package logging
 
 import (
 	"encoding/json"
 	"html/template"
 	"net/http"
-	"seed/backend/logging"
 )
 
 var tpl = template.Must(template.New("").Parse(`
@@ -86,7 +85,7 @@ var tpl = template.Must(template.New("").Parse(`
 </html>
 `))
 
-func debugLogsHandler() http.Handler {
+func DebugHandler() http.Handler {
 	type logInfo struct {
 		Subsystem string
 		Level     string
@@ -97,7 +96,7 @@ func debugLogsHandler() http.Handler {
 	}
 
 	handleGet := func(w http.ResponseWriter, _ *http.Request) {
-		logs := logging.ListLogNames()
+		logs := ListLogNames()
 
 		data := indexModel{
 			Logs: make([]logInfo, len(logs)),
@@ -105,7 +104,7 @@ func debugLogsHandler() http.Handler {
 
 		for i, l := range logs {
 			data.Logs[i].Subsystem = l
-			data.Logs[i].Level = logging.GetLogLevel(l).String()
+			data.Logs[i].Level = GetLogLevel(l).String()
 		}
 
 		w.Header().Set("Content-Type", "text/html")
@@ -127,7 +126,7 @@ func debugLogsHandler() http.Handler {
 			return
 		}
 
-		if err := logging.SetLogLevelErr(in.Subsystem, in.Level); err != nil {
+		if err := SetLogLevelErr(in.Subsystem, in.Level); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

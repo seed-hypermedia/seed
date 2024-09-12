@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"runtime/debug"
+	"seed/backend/logging"
 	"seed/backend/util/cleanup"
 	"strconv"
 	"time"
@@ -59,7 +60,7 @@ func setupDebugHandlers(r *Router, blobs blockstore.Blockstore) {
 	r.Handle("/debug/version", gitVersionHandler(), RouteNav)
 	r.Handle("/debug/cid/{cid}", corsMiddleware(makeBlobDebugHandler(blobs)), 0)
 	r.Handle("/debug/traces", eztrc.Handler(), RouteNav)
-	r.Handle("/debug/logs", debugLogsHandler(), RouteNav)
+	r.Handle("/debug/logs", logging.DebugHandler(), RouteNav)
 }
 
 func makeBlobDebugHandler(bs blockstore.Blockstore) http.HandlerFunc {
