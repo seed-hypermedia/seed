@@ -292,12 +292,6 @@ function DocPageHeader({
                   isBlockFocused={isBlockFocused}
                   color="$brand5"
                   size="$1"
-                  bg="$colorTransparent"
-                  borderColor="$colorTransparent"
-                  hoverStyle={{
-                    borderColor: '$colorTransparent',
-                    background: '$colorTransparent',
-                  }}
                 >
                   Share
                 </CopyReferenceButton>

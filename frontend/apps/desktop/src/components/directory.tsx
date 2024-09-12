@@ -23,7 +23,7 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {FilePlus} from '@tamagui/lucide-icons'
+import {Copy, FilePlus} from '@tamagui/lucide-icons'
 import {nanoid} from 'nanoid'
 import {useMemo} from 'react'
 import {CopyReferenceButton} from './titlebar-common'
@@ -269,12 +269,12 @@ function PathButton({
 }) {
   const Comp = !isDraft ? CopyReferenceButton : XStack
   return (
-    // <CopyReferenceButton docId={docId} isBlockFocused={false}>
     <Comp
+      isBlockFocused={false}
       docId={docId}
-      group="pathitem"
       alignSelf="flex-start"
       ai="center"
+      group="item"
       // gap="$2"
       bg="$colorTransparent"
       borderColor="$colorTransparent"
@@ -282,12 +282,14 @@ function PathButton({
       size="$1"
       maxWidth="100%"
       overflow="hidden"
-      isIconAfter
+      copyIcon={Copy}
+      iconPosition="after"
+      showIconOnHover
     >
       <SizableText
         color="$brand5"
         size="$1"
-        $group-pathitem-hover={
+        $group-item-hover={
           isDraft
             ? undefined
             : {

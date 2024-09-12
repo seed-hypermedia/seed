@@ -250,19 +250,35 @@ export function CopyReferenceButton({
   children,
   docId,
   isBlockFocused,
-  isIconAfter = false,
+  copyIcon = Link,
+  openIcon = ExternalLink,
+  iconPosition = 'before',
+  showIconOnHover = false,
   ...props
 }: PropsWithChildren<
   ButtonProps & {
     docId: UnpackedHypermediaId
     isBlockFocused: boolean
     isIconAfter?: boolean
+    showIconOnHover?: boolean
+    copyIcon?: React.ElementType
+    openIcon?: React.ElementType
+    iconPosition?: 'before' | 'after'
   }
 >) {
   const [shouldOpen, setShouldOpen] = useState(false)
   const reference = useDocumentUrl({docId, isBlockFocused})
   const {externalOpen} = useAppContext()
   if (!reference) return null
+  const CurrentIcon = shouldOpen ? openIcon : copyIcon
+  const Icon = () => (
+    <CurrentIcon
+      size={12}
+      color="$color5"
+      opacity={showIconOnHover ? 0 : 1}
+      $group-item-hover={{opacity: 1, color: '$color6'}}
+    />
+  )
   return (
     <>
       <Tooltip
@@ -281,10 +297,10 @@ export function CopyReferenceButton({
           aria-label={`${shouldOpen ? 'Open' : 'Copy'} ${reference.label} Link`}
           chromeless
           size="$2"
-          icon={!isIconAfter ? (shouldOpen ? ExternalLink : Link) : undefined}
-          iconAfter={
-            isIconAfter ? (shouldOpen ? ExternalLink : Link) : undefined
-          }
+          group="item"
+          theme="brand"
+          bg="$colorTransparent"
+          borderColor="$colorTransparent"
           onPress={(e) => {
             e.stopPropagation()
             e.preventDefault()
@@ -300,10 +316,16 @@ export function CopyReferenceButton({
               reference.onCopy()
             }
           }}
+          hoverStyle={{
+            backgroundColor: '$colorTransparent',
+            borderColor: '$colorTransparent',
+            ...props.hoverStyle,
+          }}
           {...props}
-          hoverStyle={props.hoverStyle}
         >
+          {iconPosition == 'before' ? <Icon /> : null}
           {children}
+          {iconPosition == 'after' ? <Icon /> : null}
         </Button>
       </Tooltip>
       {reference.content}
