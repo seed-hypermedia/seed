@@ -1,6 +1,5 @@
 import {useIPC, useQueryInvalidator} from '@/app-context'
 import {ThumbnailForm} from '@/components/avatar-form'
-import {useDeleteKeyDialog} from '@/components/delete-dialog'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import appError from '@/errors'
 import {useAutoUpdatePreference} from '@/models/app-settings'
@@ -328,7 +327,6 @@ export function ProfileForm({
 function AccountKeys() {
   const deleteKey = useDeleteKey()
   const keys = useMyAccountIds()
-  const deleteKeyDialog = useDeleteKeyDialog()
   const deleteWords = trpc.secureStorage.delete.useMutation()
   const invalidate = useQueryInvalidator()
   const [selectedAccount, setSelectedAccount] = useState<undefined | string>(
@@ -377,10 +375,8 @@ function AccountKeys() {
     })
   }
 
-  console.log(`== ~ AccountKeys ~ deleteKeyDialog:`, deleteKeyDialog)
-
   return keys.data?.length && selectedAccount ? (
-    <XStack style={{flex: 1, height: '100%'}} gap="$4">
+    <XStack style={{flex: 1}} gap="$4">
       <YStack f={1} maxWidth="25%" borderColor="$color7" borderWidth={1}>
         <YStack f={1}>
           {keys.data?.map((key) => (
@@ -472,7 +468,7 @@ function AccountKeys() {
                   <AlertDialog.Portal>
                     <AlertDialog.Overlay
                       key="overlay"
-                      animation="quick"
+                      animation="fast"
                       opacity={0.5}
                       enterStyle={{opacity: 0}}
                       exitStyle={{opacity: 0}}
@@ -482,7 +478,7 @@ function AccountKeys() {
                       elevate
                       key="content"
                       animation={[
-                        'quick',
+                        'fast',
                         {
                           opacity: {
                             overshootClamping: true,
@@ -498,7 +494,9 @@ function AccountKeys() {
                       maxWidth={600}
                       gap="$4"
                     >
-                      <AlertDialog.Title>Delete Words</AlertDialog.Title>
+                      <AlertDialog.Title size="$8" fontWeight="bold">
+                        Delete Words
+                      </AlertDialog.Title>
                       <AlertDialog.Description>
                         Are you really sure? you cant recover the secret words
                         after you delete them. please save them securely in
@@ -509,7 +507,10 @@ function AccountKeys() {
                           <Button chromeless>Cancel</Button>
                         </AlertDialog.Cancel>
                         <AlertDialog.Action asChild>
-                          <Button theme="red" onPress={handleDeleteWords}>
+                          <Button
+                            theme="red"
+                            onPress={handleDeleteCurrentAccount}
+                          >
                             Delete Permanently
                           </Button>
                         </AlertDialog.Action>
@@ -521,7 +522,64 @@ function AccountKeys() {
             </XStack>
           </YStack>
         ) : null}
-        {deleteKeyDialog.content}
+        <XStack f={1} />
+        <AlertDialog native>
+          <Tooltip content="Delete words from device">
+            <AlertDialog.Trigger asChild>
+              <Button size="$2" theme="red" icon={Trash}>
+                Delete Account
+              </Button>
+            </AlertDialog.Trigger>
+          </Tooltip>
+          <AlertDialog.Portal>
+            <AlertDialog.Overlay
+              key="overlay"
+              animation="fast"
+              opacity={0.5}
+              enterStyle={{opacity: 0}}
+              exitStyle={{opacity: 0}}
+            />
+            <AlertDialog.Content
+              bordered
+              elevate
+              key="content"
+              animation={[
+                'fast',
+                {
+                  opacity: {
+                    overshootClamping: true,
+                  },
+                },
+              ]}
+              enterStyle={{x: 0, y: -20, opacity: 0, scale: 0.9}}
+              exitStyle={{x: 0, y: 10, opacity: 0, scale: 0.95}}
+              x={0}
+              scale={1}
+              opacity={1}
+              y={0}
+              maxWidth={600}
+              gap="$4"
+            >
+              <AlertDialog.Title size="$8" fontWeight="bold">
+                Delete Account
+              </AlertDialog.Title>
+              <AlertDialog.Description>
+                Are you really sure? Your account will be removed and can't be
+                recovered unless you have the secret words
+              </AlertDialog.Description>
+              <XStack gap="$3" justifyContent="flex-end">
+                <AlertDialog.Cancel asChild>
+                  <Button chromeless>Cancel</Button>
+                </AlertDialog.Cancel>
+                <AlertDialog.Action asChild>
+                  <Button theme="red" onPress={handleDeleteWords}>
+                    Delete Permanently
+                  </Button>
+                </AlertDialog.Action>
+              </XStack>
+            </AlertDialog.Content>
+          </AlertDialog.Portal>
+        </AlertDialog>
         {/* <SizableText>{JSON.stringify(account, null, 4)}</SizableText> */}
       </YStack>
     </XStack>

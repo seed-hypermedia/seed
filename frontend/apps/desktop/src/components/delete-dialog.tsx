@@ -81,7 +81,7 @@ export function DeleteEntityDialog({
   }, [setFocus])
   if (!hid) throw new Error('Invalid id passed to DeleteEntityDialog')
   return (
-    <YStack space backgroundColor="$background" padding="$4" borderRadius="$3">
+    <YStack backgroundColor="$background" padding="$4" borderRadius="$3">
       <AlertDialog.Title>
         Delete this {HYPERMEDIA_ENTITY_TYPES[hid.type]}
       </AlertDialog.Title>

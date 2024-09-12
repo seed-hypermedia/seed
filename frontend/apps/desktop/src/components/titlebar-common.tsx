@@ -250,11 +250,13 @@ export function CopyReferenceButton({
   children,
   docId,
   isBlockFocused,
+  isIconAfter = false,
   ...props
 }: PropsWithChildren<
   ButtonProps & {
     docId: UnpackedHypermediaId
     isBlockFocused: boolean
+    isIconAfter?: boolean
   }
 >) {
   const [shouldOpen, setShouldOpen] = useState(false)
@@ -279,8 +281,13 @@ export function CopyReferenceButton({
           aria-label={`${shouldOpen ? 'Open' : 'Copy'} ${reference.label} Link`}
           chromeless
           size="$2"
-          icon={shouldOpen ? ExternalLink : Link}
-          onPress={() => {
+          icon={!isIconAfter ? (shouldOpen ? ExternalLink : Link) : undefined}
+          iconAfter={
+            isIconAfter ? (shouldOpen ? ExternalLink : Link) : undefined
+          }
+          onPress={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
             if (shouldOpen) {
               setShouldOpen(false)
               externalOpen(reference.url)
