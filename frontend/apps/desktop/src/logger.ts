@@ -17,12 +17,14 @@ if (existsSync(legacyLogsFilePath)) {
 export const loggingDir = join(userDataPath, 'logs')
 
 const customJSONFormatter = winston.format((info: any) => {
-  if (info.rawMessage) {
-    info[MESSAGE] = info.rawMessage
+  if (info.isRaw) {
+    info[MESSAGE] = info.message
     return info
   }
 
-  let ts = new Date().toISOString()
+  // Removing the milliseconds to comply with RFC3339 format that Go daemon is using.
+  let ts = new Date().toISOString().split('.')[0] + 'Z'
+
   info[MESSAGE] = JSON.stringify({
     lvl: info.level,
     ts: ts,
@@ -113,11 +115,12 @@ export function verbose(message: string, meta: LogArgs = {}) {
 
 export function rawMessage(message: string) {
   winstonLogger.log({
-    // Using placeholder fields here to fulfill the interface.
-    // The actual raw message will be used by the custom formatter.
+    // Using placeholder level here to fulfill the interface.
+    // The actual raw message will be used by the custom formatter,
+    // and it already is expected to have the correct level.
     level: 'warn',
-    message: 'raw message',
-    rawMessage: message,
+    message: message,
+    isRaw: true,
   })
 }
 
