@@ -40,14 +40,14 @@ type Storage interface {
 func New(
 	ctx context.Context,
 	repo Storage,
-	db *sqlitex.Pool,
+	idx *index.Index,
 	node *mttnet.Node,
 	wallet daemon.Wallet,
 	sync *syncing.Service,
 	activity *activity.Server,
 	LogLevel string,
 ) Server {
-	idx := index.NewIndex(db, logging.New("seed/index", LogLevel), node.Provider())
+	db := repo.DB()
 
 	return Server{
 		Activity:    activity,

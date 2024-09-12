@@ -171,7 +171,7 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 	activitySrv.SetSyncer(a.Syncing)
 	a.Wallet = wallet.New(ctx, logging.New("seed/wallet", cfg.LogLevel), a.Storage.DB(), a.Storage.KeyStore(), "main", a.Net, cfg.Lndhub.Mainnet)
 
-	a.GRPCServer, a.GRPCListener, a.RPC, err = initGRPC(ctx, cfg.GRPC.Port, &a.clean, a.g, a.Storage, a.Storage.DB(), a.Net,
+	a.GRPCServer, a.GRPCListener, a.RPC, err = initGRPC(ctx, cfg.GRPC.Port, &a.clean, a.g, a.Storage, a.Index, a.Net,
 		a.Syncing,
 		activitySrv,
 		a.Wallet,
@@ -367,7 +367,7 @@ func initGRPC(
 	clean *cleanup.Stack,
 	g *errgroup.Group,
 	repo Storage,
-	pool *sqlitex.Pool,
+	idx *index.Index,
 	node *mttnet.Node,
 	sync *syncing.Service,
 	activity *activity.Server,
@@ -381,7 +381,7 @@ func initGRPC(
 	}
 
 	srv = grpc.NewServer(opts.serverOptions...)
-	rpc = api.New(ctx, repo, pool, node, wallet, sync, activity, LogLevel)
+	rpc = api.New(ctx, repo, idx, node, wallet, sync, activity, LogLevel)
 	rpc.Register(srv)
 	reflection.Register(srv)
 
