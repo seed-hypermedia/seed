@@ -166,9 +166,7 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, opts ...libp2p.Opt
 		libp2p.NoListenAddrs,      // Users must explicitly start listening.
 		libp2p.EnableRelay(),      // Be able to dial behind-relay peers and receive connections from them.
 		libp2p.EnableNATService(), // Dial other peers on-demand to let them know if they are reachable.
-		libp2p.ConnectionManager(must.Do2(connmgr.NewConnManager(50, 100,
-			connmgr.WithGracePeriod(10*time.Minute),
-		))),
+		libp2p.ConnectionManager(must.Do2(connmgr.NewConnManager(50, 100))),
 		libp2p.ResourceManager(rm),
 		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
 			if ds == nil {
