@@ -40,6 +40,26 @@ import (
 	"go.uber.org/zap"
 )
 
+// SyncState tells the internal state of a syncing process with a peer
+type SyncState int
+
+const (
+	// NotStarted means the syncing process with that peer has not started yet
+	NotStarted SyncState = iota
+
+	// Connected means we have connected with the peer
+	Connected
+
+	// Dialed means we suncessfully get a gRPC client to comunicate with the remote peer
+	Dialed
+
+	// Syncing means we are activey syncing blocks with the peer
+	Syncing
+
+	// Finished means the syncing process has finished either with or without errors
+	Finished
+)
+
 // Metrics. This is exported as a temporary measure,
 // because we have mostly the same code duplicated in groups and in syncing.
 //
@@ -103,6 +123,13 @@ func init() {
 type netDialFunc func(context.Context, peer.ID) (p2p.SyncingClient, error)
 
 type subscriptionMap map[peer.ID]map[string]bool
+
+// SyncResult is a summary of one Sync loop iteration.
+type SyncResult struct {
+	LastState    SyncState
+	BlocksSynced int
+	Err          error
+}
 
 // bitswap is a subset of the bitswap that is used by syncing service.
 type bitswap interface {
@@ -270,7 +297,7 @@ func (s *Service) SyncAllAndLog(ctx context.Context) error {
 
 	log.Info("SyncLoopStarted")
 	var err error
-	var res SyncResult
+	var res map[peer.ID]SyncResult
 
 	res, err = s.SyncAll(ctx)
 
@@ -282,18 +309,34 @@ func (s *Service) SyncAllAndLog(ctx context.Context) error {
 		return fmt.Errorf("fatal error in the sync background loop: %w", err)
 	}
 
-	for i, err := range res.Errs {
-		if err != nil {
+	for pid, result := range res {
+		if result.Err != nil {
 			log.Debug("SyncLoopError",
-				zap.String("peer", res.Peers[i].String()),
-				zap.Error(err),
+				zap.String("peer", pid.String()),
+				zap.Error(result.Err),
 			)
 		}
 	}
 
 	log.Info("SyncLoopFinished",
-		zap.Int64("failures", res.NumSyncFailed),
-		zap.Int64("successes", res.NumSyncOK),
+		zap.Int64("failures", func() int64 {
+			var i int64
+			for _, r := range res {
+				if r.Err != nil {
+					i++
+				}
+			}
+			return i
+		}()),
+		zap.Int64("successes", func() int64 {
+			var i int64
+			for _, r := range res {
+				if r.LastState == Finished && r.Err == nil {
+					i++
+				}
+			}
+			return i
+		}()),
 	)
 
 	return nil
@@ -302,16 +345,8 @@ func (s *Service) SyncAllAndLog(ctx context.Context) error {
 // ErrSyncAlreadyRunning is returned when calling Sync while one is already in progress.
 var ErrSyncAlreadyRunning = errors.New("sync is already running")
 
-// SyncResult is a summary of one Sync loop iteration.
-type SyncResult struct {
-	NumSyncOK     int64
-	NumSyncFailed int64
-	Peers         []peer.ID
-	Errs          []error
-}
-
 // SyncAll attempts to sync the with all the peers at once.
-func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
+func (s *Service) SyncAll(ctx context.Context) (res map[peer.ID]SyncResult, err error) {
 	if s.cfg.SmartSyncing {
 		return s.SyncSubscribedContent(ctx)
 	}
@@ -343,30 +378,17 @@ func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
 	}); err != nil {
 		return res, err
 	}
-	res.Peers = make([]peer.ID, len(seedPeers))
-	res.Errs = make([]error, len(seedPeers))
+	res = make(map[peer.ID]SyncResult)
 	var wg sync.WaitGroup
 	wg.Add(len(seedPeers))
 
 	for i, pid := range seedPeers {
 		go func(i int, pid peer.ID) {
-			var err error
 			defer func() {
-				res.Errs[i] = err
-				if err == nil {
-					atomic.AddInt64(&res.NumSyncOK, 1)
-				} else {
-					atomic.AddInt64(&res.NumSyncFailed, 1)
-				}
-
 				wg.Done()
 			}()
 
-			res.Peers[i] = pid
-
-			if xerr := s.SyncWithPeer(ctx, pid, nil); xerr != nil {
-				err = errors.Join(err, fmt.Errorf("failed to sync objects: %w", xerr))
-			}
+			res[pid] = SyncResult{Err: s.SyncWithPeer(ctx, pid, nil), LastState: Finished}
 		}(i, pid)
 	}
 
@@ -378,7 +400,7 @@ func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
 // SyncSubscribedContent attempts to sync all the content marked as subscribed.
 // However, if subscriptions are passed to this function, only those docs will
 // be synced.
-func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*activity_proto.Subscription) (res SyncResult, err error) {
+func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*activity_proto.Subscription) (res map[peer.ID]SyncResult, err error) {
 	if !s.mu.TryLock() {
 		return res, ErrSyncAlreadyRunning
 	}
@@ -463,12 +485,11 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 }
 
 // SyncWithManyPeers syncs with many peers in parallel
-func (s *Service) SyncWithManyPeers(ctx context.Context, subsMap subscriptionMap) (res SyncResult) {
+func (s *Service) SyncWithManyPeers(ctx context.Context, subsMap subscriptionMap) (res map[peer.ID]SyncResult) {
 	var i int
 	var wg sync.WaitGroup
 	wg.Add(len(subsMap))
-	res.Peers = make([]peer.ID, len(subsMap))
-	res.Errs = make([]error, len(subsMap))
+	res = make(map[peer.ID]SyncResult)
 	for pid, eids := range subsMap {
 		go func(i int, pid peer.ID, eids map[string]bool) {
 			var err error
