@@ -49,13 +49,9 @@ export function TitlebarSearch() {
     <XStack
       ai="center"
       position="relative"
-      background="$backgroundStrong"
       gap="$2"
       w="100%"
       borderColor="$color7"
-      // borderWidth={1}
-      // borderBottomColor="$colorTransparent"
-      // elevation="$4"
     >
       <Button
         chromeless

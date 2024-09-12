@@ -24,6 +24,7 @@ import {
   styled,
   TextProps,
   TitleText,
+  Tooltip,
   XStack,
   YStack,
 } from '@shm/ui'
@@ -103,6 +104,7 @@ export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
 
 type CrumbDetails = {
   name?: string
+  fallbackName?: string
   route: NavRoute | null
   isError?: boolean
   isLoading?: boolean
@@ -126,7 +128,8 @@ function BreadcrumbTitle({
         const contents = entityContents[routeIndex]
         return [
           {
-            name: getDocumentTitle(contents.entity?.document),
+            name: getDocumentTitle(contents.entity?.document) || undefined,
+            fallbackName: route.id?.path?.at(-1),
             isError: contents.entity && !contents.entity.document,
             isLoading: !contents.entity,
             route: {
@@ -181,7 +184,12 @@ function BreadcrumbTitle({
     widthInfo.current.container = width
     updateWidths()
   })
-  if (isAllError) return <BreadcrumbErrorIcon />
+  if (isAllError)
+    return (
+      <XStack ai="center" alignSelf="stretch">
+        <BreadcrumbErrorIcon />
+      </XStack>
+    )
   const activeItem: CrumbDetails | null = crumbDetails[crumbDetails.length - 1]
   const firstInactiveDetail =
     crumbDetails[0] === activeItem ? null : crumbDetails[0]
@@ -248,11 +256,12 @@ function BreadcrumbTitle({
     <XStack
       f={1}
       marginRight={'$4'}
-      height={20}
+      margin={0}
+      alignSelf="stretch"
       overflow="hidden"
       ref={containerObserverRef}
     >
-      <XStack position="absolute" gap="$2" f={1} marginRight={'$4'}>
+      <XStack position="absolute" gap="$2" f={1} marginRight={'$4'} ai="center">
         {displayItems.flatMap((item, itemIndex) => {
           if (!item) return null
           return [
@@ -333,6 +342,42 @@ function BreadcrumbItem({
     return <Spinner />
   }
   if (details.isError) {
+    if (details.fallbackName) {
+      return (
+        <Tooltip content="Failed to Load this Document">
+          <TitleTextButton
+            fontWeight={'bold'}
+            color="$red10"
+            className="no-window-drag"
+            onPress={() => {
+              if (details.route) navigate(details.route)
+            }}
+          >
+            {details.fallbackName}
+          </TitleTextButton>
+        </Tooltip>
+      )
+    }
+    const {route} = details
+    if (route) {
+      return (
+        <Tooltip content="Failed to Load">
+          <Button
+            chromeless
+            size="$2"
+            margin={0}
+            color="$red10"
+            backgroundColor="$colorTransparent"
+            borderWidth={0}
+            className="no-window-drag"
+            icon={AlertCircle}
+            onPress={() => {
+              navigate(route)
+            }}
+          />
+        </Tooltip>
+      )
+    }
     return <BreadcrumbErrorIcon />
   }
   if (!details?.name) return null
@@ -378,11 +423,11 @@ export function Title({size}: {size?: FontSizeTokens}) {
   return (
     <XStack
       gap="$2"
+      alignSelf="stretch"
       alignItems="flex-start"
       // marginVertical={0}
       // paddingHorizontal="$4"
       justifyContent="flex-start"
-      ai="center"
       width="100%"
       minWidth={240}
     >
