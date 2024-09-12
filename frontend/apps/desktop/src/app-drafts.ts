@@ -20,10 +20,10 @@ async function initDrafts() {
 
 initDrafts()
   .then(() => {
-    info('[MAIN]: drafts ready')
+    info('Drafts ready')
   })
   .catch((e) => {
-    error('[MAIN]: error preparing drafts', e)
+    error('Error preparing drafts', {error: e})
   })
 
 function inputIdToDraftFile(id: string) {
@@ -50,7 +50,7 @@ export const draftsApi = t.router({
 
       return draft as HMDraft
     } catch (e) {
-      error(`[DRAFT]: Error when getting draft ${input}: ${JSON.stringify(e)}`)
+      error('[DRAFT]: Error when getting draft', {input: input, error: e})
       return null
     }
   }),

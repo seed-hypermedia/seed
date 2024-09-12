@@ -14,7 +14,7 @@ import path from 'node:path'
 import {updateRecentRoute} from './app-recents'
 import {appStore} from './app-store'
 import {getDaemonState, subscribeDaemonState} from './daemon'
-import {childLogger, info, warn} from './logger'
+import {childLogger, info, warn, debug} from './logger'
 
 let windowIdCount = 1
 
@@ -131,7 +131,7 @@ function updateWindowState(
   if (winState) {
     newWindows[windowId] = updater(winState)
     setWindowsState(newWindows)
-  } else warn('updateWindowState: window not found: ' + windowId)
+  } else warn('updateWindowState: window not found', {windowID: windowId})
 }
 
 export function dispatchFocusedWindowAppEvent(event: AppWindowEvent) {
@@ -209,9 +209,9 @@ export function createAppWindow(input: {
 
   createFindView(browserWindow)
 
-  info('[MAIN:API]: window created')
+  debug('Window created')
 
-  const windowLogger = childLogger(windowId)
+  const windowLogger = childLogger(`seed/${windowId}`)
   browserWindow.webContents.on(
     'console-message',
     (e, level, message, line, sourceId) => {
@@ -338,7 +338,7 @@ export function createAppWindow(input: {
           info('[CMD+F]: no view present')
           createFindView(focusedWindow)
         } else {
-          info('[CMD+F]: view present', findInPageView.getBounds())
+          info('[CMD+F]: view present', {bounds: findInPageView.getBounds()})
           findInPageView.setBounds({
             ...findInPageView.getBounds(),
             y: 20,

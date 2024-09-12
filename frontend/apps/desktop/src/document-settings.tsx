@@ -14,15 +14,15 @@ export function DocumentSettings({open = true}: {open: boolean}) {
   useEffect(() => {
     if (timeline.data?.changesByTime.length) {
       let sv = route.sourceVersion.split('.').map((v) => {
-        info('VAL', v)
+        info('VAL', {v})
         return timeline.data?.changesByTime.findIndex((av) => av == v)
       })
       let tv = route.targetVersion.split('.').map((v) => {
-        info('VAL', v)
+        info('VAL', {v})
         return timeline.data?.changesByTime.findIndex((av) => av == v)
       })
 
-      info('data', sv, tv)
+      info('data', {sv, tv})
       setSourceIndex(sv)
       setTargetIndex(tv)
     }

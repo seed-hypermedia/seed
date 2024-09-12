@@ -40,7 +40,7 @@ import {
   getFocusedWindow,
   getWindowsState,
 } from './app-windows'
-import {info, loggingDir} from './logger'
+import * as log from './logger'
 
 ipcMain.on('invalidate_queries', (_event, info) => {
   invalidateQueries(info)
@@ -92,7 +92,7 @@ nativeTheme.addListener('updated', () => {
   })
 })
 
-info('App UserData: ', userDataPath)
+log.info('App User Data', {path: userDataPath})
 
 export function openInitialWindows() {
   const windowsState = getWindowsState()
@@ -119,7 +119,7 @@ export function openInitialWindows() {
       })
     })
   } catch (error) {
-    info(`[MAIN]: openInitialWindows Error: ${JSON.stringify(error)}`)
+    error(`[MAIN]: openInitialWindows Error: ${JSON.stringify(error)}`)
     trpc.createAppWindow({routes: [defaultRoute]})
     return
   }
@@ -303,7 +303,7 @@ export const router = t.router({
   }),
 
   getAppInfo: t.procedure.query(() => {
-    return {dataDir: userDataPath, loggingDir}
+    return {dataDir: userDataPath, loggingDir: log.loggingDir}
   }),
 })
 
@@ -314,7 +314,7 @@ const trpcHandlers = createIPCHandler({router, windows: []})
 export type AppRouter = typeof router
 
 export async function handleUrlOpen(url: string) {
-  info('[Deep Link Open]: ', url)
+  log.info('Deep Link Open', {url: url})
   const hmId = await resolveHmIdToAppRoute(url, grpcClient)
   if (!hmId?.navRoute) {
     const connectionRegexp = /connect-peer\/([\w\d]+)/
@@ -362,7 +362,7 @@ export function handleSecondInstance(
   args: string[],
   cwd: string,
 ) {
-  info('handling second instance', args, cwd)
+  log.info('Handling second instance', {args: args, cwd: cwd})
   // from https://www.electronjs.org/docs/latest/tutorial/launch-app-from-url-in-another-app
   // const focusedWindow = getFocusedWindow()
   // if (focusedWindow) {

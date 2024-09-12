@@ -5,6 +5,7 @@ import {join} from 'path'
 import winston from 'winston'
 import DailyRotateFile from 'winston-daily-rotate-file'
 import {userDataPath} from './app-paths'
+import {MESSAGE} from 'triple-beam'
 
 export const legacyLogsFilePath = legacyLogger.transports.file.getFile().path
 
@@ -15,28 +16,35 @@ if (existsSync(legacyLogsFilePath)) {
 
 export const loggingDir = join(userDataPath, 'logs')
 
+const customJSONFormatter = winston.format((info: any) => {
+  if (info.rawMessage) {
+    info[MESSAGE] = info.rawMessage
+    return info
+  }
+
+  let ts = new Date().toISOString()
+  info[MESSAGE] = JSON.stringify({
+    lvl: info.level,
+    ts: ts,
+    log: info.loggerName,
+    msg: info.message,
+    ...info.meta,
+  })
+  return info
+})
+
 const winstonLogger = winston.createLogger({
-  level: 'info',
-  format: winston.format.json(),
-  defaultMeta: {nodeEnv: process.env.NODE_ENV || ''},
   transports: [
     new DailyRotateFile({
-      level: 'info',
+      level: 'debug',
+      format: customJSONFormatter(),
       dirname: loggingDir,
       filename: '%DATE%.log',
       datePattern: 'YYYY-MM-DD-HH',
       zippedArchive: true,
-      maxSize: '20m',
-      maxFiles: '30d',
-    }),
-    new DailyRotateFile({
-      level: 'error',
-      dirname: loggingDir,
-      filename: '%DATE%.error.log',
-      datePattern: 'YYYY-MM-DD-HH',
-      zippedArchive: true,
-      maxSize: '20m',
-      maxFiles: '180d',
+      maxSize: '100m',
+      maxFiles: '7d',
+      createSymlink: true,
     }),
   ],
 })
@@ -44,68 +52,115 @@ const winstonLogger = winston.createLogger({
 if (!IS_PROD_DESKTOP) {
   winstonLogger.add(
     new winston.transports.Console({
-      format: winston.format.simple(),
+      level: 'debug',
+      format: customJSONFormatter(),
     }),
   )
 }
 
 console.log('== Logs will be written in: ', loggingDir)
 
-export function info(...input: any[]) {
-  winstonLogger.log({level: 'info', message: JSON.stringify(input)})
+interface LogArgs {
+  [key: string]: any
 }
 
-export function debug(...input: any[]) {
-  winstonLogger.log({level: 'debug', message: JSON.stringify(input)})
+const mainLoggerName = 'seed/desktop'
+
+export function info(message: string, meta: LogArgs = {}) {
+  winstonLogger.log({
+    level: 'info',
+    message: message,
+    loggerName: mainLoggerName,
+    meta: meta,
+  })
 }
 
-export function warn(...input: any[]) {
-  winstonLogger.log({level: 'warn', message: JSON.stringify(input)})
+export function debug(message: string, meta: LogArgs = {}) {
+  winstonLogger.log({
+    level: 'debug',
+    message: message,
+    loggerName: mainLoggerName,
+    meta: meta,
+  })
 }
 
-export function error(...input: any[]) {
-  winstonLogger.log({level: 'error', message: JSON.stringify(input)})
+export function warn(message: string, meta: LogArgs = {}) {
+  winstonLogger.log({
+    level: 'warn',
+    message: message,
+    loggerName: mainLoggerName,
+    meta: meta,
+  })
 }
 
-export function verbose(...input: any[]) {
-  winstonLogger.log({level: 'debug', message: JSON.stringify(input)})
+export function error(message: string, meta: LogArgs = {}) {
+  winstonLogger.log({
+    level: 'error',
+    message: message,
+    loggerName: mainLoggerName,
+    meta: meta,
+  })
 }
 
-export function childLogger(context: string) {
+export function verbose(message: string, meta: LogArgs = {}) {
+  winstonLogger.log({
+    level: 'debug',
+    message: message,
+    loggerName: mainLoggerName,
+    meta: meta,
+  })
+}
+
+export function rawMessage(message: string) {
+  winstonLogger.log({
+    // Using placeholder fields here to fulfill the interface.
+    // The actual raw message will be used by the custom formatter.
+    level: 'warn',
+    message: 'raw message',
+    rawMessage: message,
+  })
+}
+
+export function childLogger(loggerName: string) {
   return {
-    info(...input: any[]) {
+    info(message: string, meta: LogArgs = {}) {
       winstonLogger.log({
         level: 'info',
-        message: JSON.stringify(input),
-        meta: {context},
+        message: message,
+        loggerName: loggerName,
+        meta: meta,
       })
     },
-    debug(...input: any[]) {
+    debug(message: string, meta: LogArgs = {}) {
       winstonLogger.log({
         level: 'debug',
-        message: JSON.stringify(input),
-        meta: {context},
+        message: message,
+        loggerName: loggerName,
+        meta: meta,
       })
     },
-    warn(...input: any[]) {
+    warn(message: string, meta: LogArgs = {}) {
       winstonLogger.log({
         level: 'warn',
-        message: JSON.stringify(input),
-        meta: {context},
+        message: message,
+        loggerName: loggerName,
+        meta: meta,
       })
     },
-    error(...input: any[]) {
+    error(message: string, meta: LogArgs = {}) {
       winstonLogger.log({
         level: 'error',
-        message: JSON.stringify(input),
-        meta: {context},
+        message: message,
+        loggerName: loggerName,
+        meta: meta,
       })
     },
-    verbose(...input: any[]) {
+    verbose(message: string, meta: LogArgs = {}) {
       winstonLogger.log({
         level: 'debug',
-        message: JSON.stringify(input),
-        meta: {context},
+        message: message,
+        loggerName: loggerName,
+        meta: meta,
       })
     },
   }

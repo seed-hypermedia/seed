@@ -5,12 +5,46 @@ package logging
 
 import (
 	"fmt"
+	"os"
 	"sort"
+	"strings"
+	"time"
 
 	"github.com/ipfs/go-log/v2"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"golang.org/x/term"
 )
+
+func init() {
+	// Compatibility with IPFS's logging library.
+	envfmt := strings.TrimSpace(strings.ToLower(os.Getenv("GOLOG_LOG_FMT")))
+
+	// Overriding the primary logger of the IPFS's go-log package, to have full control of the output.
+
+	cfg := zap.NewProductionEncoderConfig()
+	cfg.MessageKey = "msg"
+	cfg.LevelKey = "lvl"
+	cfg.TimeKey = "ts"
+	cfg.NameKey = "log"
+	cfg.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
+		t = t.UTC()
+		enc.AppendString(t.Format(time.RFC3339))
+	}
+
+	var enc zapcore.Encoder
+
+	// If stderr is not a terminal, we use JSON encoding for logs.
+	// The fields and encodings are the same we use in our Electron app.
+	if !term.IsTerminal(int(os.Stderr.Fd())) || envfmt == "json" {
+		enc = zapcore.NewJSONEncoder(cfg)
+	} else {
+		cfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
+		enc = zapcore.NewConsoleEncoder(cfg)
+	}
+
+	log.SetPrimaryCore(zapcore.NewCore(enc, os.Stderr, zap.NewAtomicLevelAt(zapcore.DebugLevel)))
+}
 
 // New creates a new named logger with the specified level.
 // If logger was created before it will just set the level.
