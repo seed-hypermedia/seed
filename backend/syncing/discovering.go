@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multicodec"
 	"go.uber.org/zap"
@@ -90,7 +91,9 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 		for _, pid := range allPeers {
 			// TODO(juligasa): look into the providers store who has each eid
 			// instead of pasting all peers in all documents.
-			subsMap[pid] = eidsMap
+			if s.host.Network().Connectedness(pid) == network.Connected {
+				subsMap[pid] = eidsMap
+			}
 		}
 
 		ret := s.SyncWithManyPeers(ctxLocalPeers, subsMap)
