@@ -31,7 +31,7 @@ type Store struct {
 // Device can be nil in which case a random new device key will be generated.
 // Users are responsible for calling Close() to release the resources.
 func Open(dataDir string, device crypto.PrivKey, kms core.KeyStore, logLevel string) (_ *Store, err error) {
-	log := logging.New("seed/repo", logLevel)
+	log := logging.New("seed/storage", logLevel)
 
 	if !filepath.IsAbs(dataDir) {
 		return nil, fmt.Errorf("must provide absolute repo path, got = %s", dataDir)
