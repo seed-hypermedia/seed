@@ -392,7 +392,11 @@ function OutlineNode({
         tag="a"
         href={`#${node.id}`}
         color="$color9"
+        textDecorationLine="none"
         fontSize={14}
+        hoverStyle={{
+          textDecorationLine: "underline",
+        }}
         onPress={(e: MouseEvent) => {
           e.preventDefault();
           const targetElement = document.querySelector(`#${node.id}`);
