@@ -23,9 +23,10 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {Copy, FilePlus} from '@tamagui/lucide-icons'
+import {FilePlus} from '@tamagui/lucide-icons'
 import {nanoid} from 'nanoid'
 import {useMemo} from 'react'
+import {CopyReferenceButton} from './titlebar-common'
 
 export function Directory({docId}: {docId: UnpackedHypermediaId}) {
   const dir = useListDirectory(docId)
@@ -223,7 +224,7 @@ function DirectoryItemWithAuthors({
     })
   return (
     <DirectoryItem
-      PathButton={PathButton}
+      PathButtonComponent={PathButton}
       entry={entry}
       authorsMetadata={authorsMetadata}
     />
@@ -259,23 +260,29 @@ function NewSubDocumentButton({
 
 function PathButton({
   path,
+  docId,
   isDraft = false,
 }: {
   path: string
+  docId: UnpackedHypermediaId
   isDraft?: boolean
 }) {
+  const Comp = !isDraft ? CopyReferenceButton : XStack
   return (
-    <XStack
+    // <CopyReferenceButton docId={docId} isBlockFocused={false}>
+    <Comp
+      docId={docId}
       group="pathitem"
       alignSelf="flex-start"
       ai="center"
-      gap="$2"
-      w="100%"
+      // gap="$2"
+      bg="$colorTransparent"
+      borderColor="$colorTransparent"
+      borderWidth={0}
+      size="$1"
+      maxWidth="100%"
       overflow="hidden"
-      onPress={(e: MouseEvent) => {
-        e.stopPropagation()
-        e.preventDefault()
-      }}
+      isIconAfter
     >
       <SizableText
         color="$brand5"
@@ -285,6 +292,7 @@ function PathButton({
             ? undefined
             : {
                 color: '$brand6',
+                textDecorationLine: 'underline',
               }
         }
         textOverflow="ellipsis"
@@ -293,18 +301,6 @@ function PathButton({
       >
         {path}
       </SizableText>
-      {!isDraft ? (
-        <Copy
-          flexGrow={0}
-          flexShrink={0}
-          size={12}
-          color="$brand5"
-          opacity={0}
-          $group-pathitem-hover={{
-            opacity: 1,
-          }}
-        />
-      ) : null}
-    </XStack>
+    </Comp>
   )
 }

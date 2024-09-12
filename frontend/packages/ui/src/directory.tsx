@@ -19,7 +19,7 @@ import {itemHoverBgColor} from "./ui-constants";
 // TODO: update types
 export function DirectoryItem({
   entry,
-  PathButton,
+  PathButtonComponent,
   FavoriteButton,
   authorsMetadata,
   siteHomeId,
@@ -32,7 +32,11 @@ export function DirectoryItem({
     updateTime?: HMTimestamp;
     authors: string[];
   };
-  PathButton: React.FC<{path: string}>;
+  PathButtonComponent: React.FC<{
+    path: string;
+    docId: UnpackedHypermediaId;
+    isDraft?: boolean;
+  }>;
   FavoriteButton?: React.FC<{
     id: UnpackedHypermediaId;
     hideUntilItemHover: boolean;
@@ -75,7 +79,7 @@ export function DirectoryItem({
               {getMetadataName(metadata)}
             </SizableText>
           </XStack>
-          <PathButton path={entry.path} />
+          <PathButtonComponent docId={entry.id} path={entry.path} />
         </YStack>
       </XStack>
       <XStack gap="$3" ai="center">

@@ -126,6 +126,7 @@ function SidebarSection({
           }}
           group="header"
           jc="center"
+          ai="center"
         >
           <SizableText
             fontWeight="bold"
@@ -139,15 +140,17 @@ function SidebarSection({
           >
             {title}
           </SizableText>
-          <Icon
-            size="$1"
-            color="$color11"
-            opacity={collapsed ? 1 : 0}
-            $group-header-hover={{
-              color: '$color12',
-              opacity: 1,
-            }}
-          />
+          <XStack ai="center" jc="center" w={16} h={20}>
+            <Icon
+              size={12}
+              color="$color11"
+              opacity={collapsed ? 1 : 0}
+              $group-header-hover={{
+                color: '$color12',
+                opacity: 1,
+              }}
+            />
+          </XStack>
         </XStack>
         <XStack opacity={0} $group-section-hover={{opacity: 1}}>
           {accessory}

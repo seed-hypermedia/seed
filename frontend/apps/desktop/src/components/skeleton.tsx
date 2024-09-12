@@ -3,14 +3,10 @@ import {Button, View, ViewProps, XStack, YStack} from '@shm/ui'
 export function ListItemSkeleton() {
   return (
     <Button
-      group="item"
       borderWidth={0}
       paddingHorizontal={16}
       paddingVertical="$1"
       bg="$backgroundHover"
-      hoverStyle={{
-        bg: '$color4',
-      }}
       h={60}
       disabled
       gap="$2"
@@ -36,5 +32,5 @@ export function ListItemSkeleton() {
 }
 
 function Skeleton(props: ViewProps) {
-  return <View $group-item-hover={{bg: '$color5'}} {...props} bg="$color4" />
+  return <View {...props} bg="$color4" />
 }
