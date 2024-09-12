@@ -50,7 +50,7 @@ func main() {
 			return err
 		}
 
-		log := logging.New("seed-daemon", cfg.LogLevel)
+		log := logging.New("seed/daemon", cfg.LogLevel)
 		if err := sentry.Init(sentry.ClientOptions{}); err != nil {
 			log.Debug("SentryInitError", zap.Error(err))
 		} else {

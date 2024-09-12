@@ -66,6 +66,11 @@ func SetLogLevel(subsystem, level string) {
 	}
 }
 
+// SetLogLevelErr is like [SetLogLevel] but returns an error instead of panic.
+func SetLogLevelErr(subsystem, level string) error {
+	return log.SetLogLevel(subsystem, level)
+}
+
 // Config is an alias for IPFS logging config. Exported for convenience.
 type Config = log.Config
 
@@ -108,4 +113,9 @@ func GetGlobalConfig() log.Config {
 // callers depending on the zapcore package.
 func LevelToString(l log.LogLevel) string {
 	return zapcore.Level(l).String()
+}
+
+// GetLogLevel returns the current log level for the given logger.
+func GetLogLevel(subsystem string) zapcore.Level {
+	return log.Logger(subsystem).Level()
 }
