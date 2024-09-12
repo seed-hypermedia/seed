@@ -16,12 +16,7 @@ export default function DiscardDraftButton() {
       <Tooltip content="Discard Draft">
         <Button
           size="$2"
-          borderColor="$red5"
-          bg="$red4"
-          hoverStyle={{
-            bg: '$red5',
-            borderColor: '$red6',
-          }}
+          theme="red"
           onPress={() =>
             deleteDialog.open({
               draftId: draftId.id,

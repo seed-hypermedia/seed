@@ -107,6 +107,7 @@ function ContactListItem({entry}: {entry: PlainMessage<DocumentListItem>}) {
     <Button
       group="item"
       borderWidth={0}
+      bg="$colorTransparent"
       hoverStyle={{
         bg: hoverColor,
       }}

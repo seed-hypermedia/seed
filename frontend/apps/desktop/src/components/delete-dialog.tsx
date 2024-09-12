@@ -1,3 +1,4 @@
+import {useDeleteKey} from '@/models/daemon'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {HYPERMEDIA_ENTITY_TYPES, unpackHmId} from '@shm/shared'
 import {
@@ -113,6 +114,54 @@ export function DeleteEntityDialog({
           </Form.Trigger>
         </XStack>
       </Form>
+    </YStack>
+  )
+}
+
+export function useDeleteKeyDialog() {
+  const c = useAppDialog(DeleteKeyDialog, {isAlert: true})
+
+  console.log(`== ~ useDeleteKeyDialog ~ c:`, c)
+  return c
+}
+
+export function DeleteKeyDialog({
+  input: {accountId, onSuccess},
+  onClose,
+}: {
+  input: {accountId: string; onSuccess?: () => void}
+  onClose?: () => void
+}) {
+  const deleteKey = useDeleteKey()
+
+  return (
+    <YStack backgroundColor="$background" padding="$4" borderRadius="$3">
+      <AlertDialog.Title>Delete Key</AlertDialog.Title>
+      <AlertDialog.Description>
+        Are you sure you want to delete this key from your computer? You will
+        NOT be able to recover this neither sign content with this identity.
+      </AlertDialog.Description>
+
+      <XStack gap="$3" justifyContent="flex-end">
+        <AlertDialog.Cancel asChild>
+          <Button onPress={onClose} chromeless>
+            Cancel
+          </Button>
+        </AlertDialog.Cancel>
+        <AlertDialog.Action asChild>
+          <Button
+            theme="red"
+            onPress={() => {
+              deleteKey.mutateAsync({accountId}).then(() => {
+                onSuccess?.()
+                onClose?.()
+              })
+            }}
+          >
+            Delete Account
+          </Button>
+        </AlertDialog.Action>
+      </XStack>
     </YStack>
   )
 }

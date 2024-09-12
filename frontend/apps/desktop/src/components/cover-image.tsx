@@ -118,11 +118,7 @@ export function CoverImage({
                 icon={Trash}
                 size="$2"
                 onPress={onRemoveCover}
-                bg="$red4"
-                hoverStyle={{
-                  bg: '$red5',
-                  borderColor: '$red6',
-                }}
+                theme="red"
               />
             </Tooltip>
           </XStack>

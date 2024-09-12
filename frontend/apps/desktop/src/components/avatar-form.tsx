@@ -132,13 +132,8 @@ export function ThumbnailForm({
         <Tooltip content="Remove Thumbnail">
           <Button
             opacity={0}
+            theme="red"
             $group-thumbnail-hover={{opacity: 1, pointerEvents: 'all'}}
-            borderColor="$red5"
-            bg="$red4"
-            hoverStyle={{
-              bg: '$red5',
-              borderColor: '$red6',
-            }}
             icon={X}
             size="$1"
             fontWeight="600"

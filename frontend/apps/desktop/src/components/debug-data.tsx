@@ -8,12 +8,7 @@ export function DebugData({data}: {data: any}) {
   if (!hasDevTools) return null
   return (
     <YStack maxWidth="500px" marginHorizontal="auto" marginVertical="200px">
-      <Button
-        size="$1"
-        theme="gray"
-        width="100%"
-        onPress={() => setDebugValue((v) => !v)}
-      >
+      <Button size="$1" width="100%" onPress={() => setDebugValue((v) => !v)}>
         toggle value
       </Button>
       {debugValue && (

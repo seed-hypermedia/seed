@@ -292,12 +292,7 @@ function CommentDraftEditor({
             // marginLeft="$2"
             size="$2"
             onPress={onDiscard}
-            borderColor="$red5"
-            bg="$red4"
-            hoverStyle={{
-              bg: '$red5',
-              borderColor: '$red6',
-            }}
+            theme="red"
             icon={Trash}
           />
         </Tooltip>

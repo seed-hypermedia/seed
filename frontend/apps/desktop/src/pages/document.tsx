@@ -324,7 +324,9 @@ function DocVersionNotFound({docId}: {docId: UnpackedHypermediaId}) {
         borderRadius="$2"
         padding="$5"
       >
-        <Heading color="$red11">Could not find this Version</Heading>
+        <SizableText size="$8" color="$red11">
+          Could not find this Version
+        </SizableText>
         <SizableText>
           We have discovered a different version of this document.
         </SizableText>

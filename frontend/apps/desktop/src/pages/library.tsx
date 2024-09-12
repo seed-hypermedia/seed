@@ -321,11 +321,7 @@ function LibraryQueryBar({
           {exportMode ? (
             <Button
               size="$2"
-              bg="$red4"
-              hoverStyle={{
-                bg: '$red5',
-                borderColor: '$red6',
-              }}
+              theme="red"
               onPress={handleExportButtonClick}
               iconAfter={X}
             >
@@ -820,6 +816,7 @@ function LibraryListItem({
       hoverStyle={{
         bg: hoverColor,
       }}
+      bg="$colorTransparent"
       paddingHorizontal={16}
       paddingVertical="$1"
       onPress={() => {

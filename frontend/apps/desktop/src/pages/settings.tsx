@@ -1,5 +1,6 @@
 import {useIPC, useQueryInvalidator} from '@/app-context'
 import {ThumbnailForm} from '@/components/avatar-form'
+import {useDeleteKeyDialog} from '@/components/delete-dialog'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import appError from '@/errors'
 import {useAutoUpdatePreference} from '@/models/app-settings'
@@ -171,11 +172,7 @@ export function DeleteDraftLogs() {
     return (
       <Button
         icon={Trash}
-        bg="$red4"
-        hoverStyle={{
-          bg: '$red5',
-          borderColor: '$red6',
-        }}
+        theme="red"
         onPress={() => {
           destroyDraftLogs.mutateAsync().then(() => {
             toast.success('Cleaned up Draft Logs')
@@ -190,11 +187,7 @@ export function DeleteDraftLogs() {
   return (
     <Button
       icon={Trash}
-      bg="$red4"
-      hoverStyle={{
-        bg: '$red5',
-        borderColor: '$red6',
-      }}
+      theme="red"
       onPress={() => {
         setIsConfirming(true)
       }}
@@ -335,7 +328,7 @@ export function ProfileForm({
 function AccountKeys() {
   const deleteKey = useDeleteKey()
   const keys = useMyAccountIds()
-  console.log({keys})
+  const deleteKeyDialog = useDeleteKeyDialog()
   const deleteWords = trpc.secureStorage.delete.useMutation()
   const invalidate = useQueryInvalidator()
   const [selectedAccount, setSelectedAccount] = useState<undefined | string>(
@@ -383,6 +376,8 @@ function AccountKeys() {
       invalidate(['trpc.secureStorage.get'])
     })
   }
+
+  console.log(`== ~ AccountKeys ~ deleteKeyDialog:`, deleteKeyDialog)
 
   return keys.data?.length && selectedAccount ? (
     <XStack style={{flex: 1, height: '100%'}} gap="$4">
@@ -471,15 +466,7 @@ function AccountKeys() {
                 <AlertDialog native>
                   <Tooltip content="Delete words from device">
                     <AlertDialog.Trigger asChild>
-                      <Button
-                        size="$2"
-                        bg="$red4"
-                        hoverStyle={{
-                          bg: '$red5',
-                          borderColor: '$red6',
-                        }}
-                        icon={Trash}
-                      />
+                      <Button size="$2" theme="red" icon={Trash} />
                     </AlertDialog.Trigger>
                   </Tooltip>
                   <AlertDialog.Portal>
@@ -534,7 +521,7 @@ function AccountKeys() {
             </XStack>
           </YStack>
         ) : null}
-
+        {deleteKeyDialog.content}
         {/* <SizableText>{JSON.stringify(account, null, 4)}</SizableText> */}
       </YStack>
     </XStack>

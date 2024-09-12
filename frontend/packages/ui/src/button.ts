@@ -3,6 +3,25 @@ import {styled, Button as TButton, ThemeableStack} from "tamagui";
 export const Button = styled(TButton, {
   // bg: "$color4",
   borderWidth: 2,
+  bg: "$color4",
+  borderColor: "$color5",
+  hoverStyle: {
+    bg: "$color5",
+    borderColor: "$color6",
+    elevation: 0,
+  },
+  disabledStyle: {
+    opacity: 0.5,
+    borderWidth: 2,
+    borderColor: "$colorTransparent",
+    elevation: 0,
+  },
+
+  focusStyle: {
+    borderColor: "$color8",
+    borderWidth: 2,
+    elevation: 0,
+  },
 });
 
 export const AccountTypeButton = styled(ThemeableStack, {
