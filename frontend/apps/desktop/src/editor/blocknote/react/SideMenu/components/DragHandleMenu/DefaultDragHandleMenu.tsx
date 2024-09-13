@@ -5,6 +5,7 @@ import {Forward, RefreshCcw, XStack} from '@shm/ui'
 import * as _ from 'lodash'
 import {useCallback, useRef, useState} from 'react'
 import {
+  RiChatQuoteFill,
   RiHeading,
   RiListOrdered,
   RiListUnordered,
@@ -141,6 +142,21 @@ var turnIntoItems = [
         type: 'heading',
         props: {},
       })
+    },
+  },
+  {
+    label: 'Block Quote',
+    group: 'Group operations',
+    Icon: RiChatQuoteFill,
+    onClick: ({
+      block,
+      editor,
+    }: {
+      block: Block<HMBlockSchema>
+      editor: BlockNoteEditor<HMBlockSchema>
+    }) => {
+      editor.focus()
+      updateGroup(editor, block, 'blockquote')
     },
   },
   {
