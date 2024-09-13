@@ -272,7 +272,7 @@ function DocumentDirectory({
           entry={doc}
           siteHomeId={homeId}
           authorsMetadata={authorsMetadata}
-          PathButton={PathButton}
+          PathButtonComponent={PathButton}
         />
       ))}
     </YStack>
