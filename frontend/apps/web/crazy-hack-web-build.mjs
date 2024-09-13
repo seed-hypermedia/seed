@@ -15,7 +15,11 @@ if (!existsSync(`${__dirname}/config.json`)) {
 
 async function attemptBuild() {
   console.log("Starting Attempted Build");
-  execFileSync("yarn", ["build"], {cwd: __dirname, stdio: "inherit"});
+  execFileSync("yarn", ["build"], {
+    cwd: __dirname,
+    stdio: "inherit",
+    env: {...process.env, NODE_ENV: "development"},
+  });
   console.log("Build Complete. Testing...");
   const testServer = spawn("yarn", ["start"], {
     cwd: __dirname,

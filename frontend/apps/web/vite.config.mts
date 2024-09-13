@@ -23,9 +23,12 @@ export default defineConfig({
   // ssr: {
   //   noExternal: ["react-tweet"],
   // },
-  build: {minify: false},
+  build: {minify: false, sourcemap: true},
   ssr: {
     noExternal: ["@tamagui/helpers-icon"],
+  },
+  define: {
+    "process.env.NODE_ENV": JSON.stringify("development"), // Force React to development mode
   },
   optimizeDeps: {
     exclude:
