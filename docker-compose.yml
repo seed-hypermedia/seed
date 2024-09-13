@@ -53,6 +53,7 @@ services:
     networks:
       - internal_network
     environment:
+      - "SEED_P2P_TESTNET_NAME=${SEED_P2P_TESTNET_NAME}"
       - "SENTRY_DSN=${SEED_SITE_SENTRY_DSN:-https://47c66bd7a6d64db68a59c03f2337e475@o4504088793841664.ingest.sentry.io/4505527493328896}"
     volumes:
       - ${SEED_SITE_WORKSPACE}/daemon:/data:rw
@@ -61,7 +62,7 @@ services:
     command: >
       sh -c "rsync -a /monitoring/prometheus/ /exported_prometheus &&
              rsync -a /monitoring/grafana/ /exported_grafana && 
-             seed-daemon -p2p.testnet-name=${SEED_P2P_TESTNET_NAME} -data-dir=/data -lndhub.mainnet -p2p.port=56000 --http.port=${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001} -grpc.port=56002 -p2p.no-private-ips=true -p2p.no-relay=true -p2p.force-reachability-public=true -syncing.smart=true -syncing.no-sync-back=true -syncing.no-pull=${SEED_SITE_NO_PULL:-false} ${SEED_SITE_HOSTNAME}"
+             seed-daemon -data-dir=/data -lndhub.mainnet -p2p.port=56000 --http.port=${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001} -grpc.port=56002 -p2p.no-private-ips=true -p2p.no-relay=true -p2p.force-reachability-public=true -syncing.smart=true -syncing.no-sync-back=true -syncing.no-pull=${SEED_SITE_NO_PULL:-false} ${SEED_SITE_HOSTNAME}"
 
   prometheus:
     image: prom/prometheus:latest
