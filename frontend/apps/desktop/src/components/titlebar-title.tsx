@@ -257,6 +257,7 @@ function BreadcrumbTitle({
       f={1}
       marginRight={'$4'}
       margin={0}
+      ai="center"
       alignSelf="stretch"
       overflow="hidden"
       ref={containerObserverRef}
@@ -424,10 +425,11 @@ export function Title({size}: {size?: FontSizeTokens}) {
     <XStack
       gap="$2"
       alignSelf="stretch"
-      alignItems="flex-start"
+      alignItems="center"
+      paddingLeft="$2"
       // marginVertical={0}
       // paddingHorizontal="$4"
-      justifyContent="flex-start"
+      // justifyContent="flex-start"
       width="100%"
       minWidth={240}
     >
