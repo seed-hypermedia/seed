@@ -80,9 +80,14 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
                         nodes.push(container)
                       }
                     } else if (node.type.name !== 'blockContainer') {
+                      let nodeToInsert = node
+                      if (node.type.name === 'text') {
+                        nodeToInsert =
+                          this.editor.schema.nodes.paragraph.create({}, node)
+                      }
                       const container = this.editor.schema.nodes[
                         'blockContainer'
-                      ].create(null, node)
+                      ].create(null, nodeToInsert)
                       nodes.push(container)
                     } else nodes.push(node)
                   })
