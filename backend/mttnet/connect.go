@@ -30,6 +30,7 @@ const (
 	// ConnectTimeout is the maximum time to spend connecting to a peer
 	ConnectTimeout         = time.Second * 15
 	maxNonSeedPeersAllowed = 10
+	protocolSupportKey     = "seed-support" // This is what we use as a key to protect the connection in ConnManager.
 )
 
 var (
@@ -224,6 +225,8 @@ func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.Ev
 	if err = sqlitex.Exec(conn, "INSERT OR REPLACE INTO peers (pid, addresses) VALUES (?, ?);", nil, event.Peer.String(), strings.ReplaceAll(strings.Join(addrsString, ","), " ", "")); err != nil {
 		n.log.Warn("Could not store new peer", zap.String("PID", event.Peer.String()), zap.Error(err))
 	}
+
+	n.p2p.ConnManager().Protect(event.Peer, protocolSupportKey)
 }
 
 func (n *Node) CheckHyperMediaProtocolVersion(ctx context.Context, pid peer.ID, desiredVersion string, protos ...protocol.ID) (err error) {
