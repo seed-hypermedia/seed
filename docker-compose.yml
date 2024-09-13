@@ -54,6 +54,7 @@ services:
       - internal_network
     environment:
       - "SEED_P2P_TESTNET_NAME=${SEED_P2P_TESTNET_NAME}"
+      - "SEED_LOG_LEVEL=${SEED_LOG_LEVEL:-info}"
       - "SENTRY_DSN=${SEED_SITE_SENTRY_DSN:-https://47c66bd7a6d64db68a59c03f2337e475@o4504088793841664.ingest.sentry.io/4505527493328896}"
     volumes:
       - ${SEED_SITE_WORKSPACE}/daemon:/data:rw
