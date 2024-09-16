@@ -44,7 +44,7 @@ import {
 } from '@shm/ui'
 import {RadioButtons} from '@shm/ui/src/radio-buttons'
 import {ArrowRight, RefreshCw, Trash} from '@tamagui/lucide-icons'
-import React, {ReactNode, useEffect, useMemo} from 'react'
+import React, {ReactNode, useEffect, useMemo, useRef} from 'react'
 import {EntityCitationsAccessory} from '../components/citations'
 import {AppDocContentProvider} from './document-content-provider'
 
@@ -494,8 +494,19 @@ function DocPageAppendix({docId}: {docId: UnpackedHypermediaId}) {
   const replace = useNavigate('replace')
   const entity = useEntity(docId)
   const route = useNavRoute()
+  const wrapper = useRef<HTMLDivElement>(null)
+
   if (route.key !== 'document')
     throw new Error('DocPageAppendix must be in Doc route')
+
+  useEffect(() => {
+    if (wrapper.current) {
+      if (route.tab && ['discussion', 'directory'].includes(route.tab)) {
+        wrapper.current.scrollIntoView({behavior: 'smooth', block: 'start'})
+      }
+    }
+  }, [route.tab])
+
   let content = <Directory docId={docId} />
 
   if (route.tab === 'discussion') {
@@ -503,7 +514,7 @@ function DocPageAppendix({docId}: {docId: UnpackedHypermediaId}) {
   }
   if (!entity.data?.document) return null
   return (
-    <Container marginBottom={200}>
+    <Container marginBottom={200} ref={wrapper}>
       <XStack>
         <RadioButtons
           value={route.tab || 'directory'}

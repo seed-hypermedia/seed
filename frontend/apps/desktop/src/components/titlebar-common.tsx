@@ -275,7 +275,7 @@ export function CopyReferenceButton({
     <CurrentIcon
       size={12}
       color="$color5"
-      opacity={showIconOnHover ? 0 : 1}
+      opacity={shouldOpen ? 1 : showIconOnHover ? 0 : 1}
       $group-item-hover={{opacity: 1, color: '$color6'}}
     />
   )

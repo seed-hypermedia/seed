@@ -572,7 +572,7 @@ function AccountKeys() {
                   <Button chromeless>Cancel</Button>
                 </AlertDialog.Cancel>
                 <AlertDialog.Action asChild>
-                  <Button theme="red" onPress={handleDeleteWords}>
+                  <Button theme="red" onPress={handleDeleteCurrentAccount}>
                     Delete Permanently
                   </Button>
                 </AlertDialog.Action>

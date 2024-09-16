@@ -361,7 +361,6 @@ function DocumentOutlineSection({route}: {route: DocumentRoute}) {
   const entity = useEntity(id)
   const replace = useNavigate('replace')
   const navigate = useNavigate()
-  const {tab} = route
   if (!entity?.data) return null
   const {document} = entity.data
   return (

@@ -427,9 +427,6 @@ export function Title({size}: {size?: FontSizeTokens}) {
       alignSelf="stretch"
       alignItems="center"
       paddingLeft="$2"
-      // marginVertical={0}
-      // paddingHorizontal="$4"
-      // justifyContent="flex-start"
       width="100%"
       minWidth={240}
     >

@@ -130,12 +130,21 @@ export function useDeleteKey(
 ) {
   const grpcClient = useGRPCClient()
   const invalidate = useQueryInvalidator()
+  const deleteWords = trpc.secureStorage.delete.useMutation()
   return useMutation({
     mutationFn: async ({accountId}) => {
       const keys = await grpcClient.daemon.listKeys({})
-      const keyToDelete = keys.keys.find((key) => accountId === key.publicKey)
+      const keyToDelete = keys.keys.find((key) => accountId == key.publicKey)
       if (!keyToDelete) throw new Error('Key not found')
-      return grpcClient.daemon.deleteKey({name: keyToDelete.name})
+      const deletedKey = await grpcClient.daemon.deleteKey({
+        name: keyToDelete.name,
+      })
+
+      console.log(`== ~ mutationFn: ~ deletedKey:`, deletedKey)
+      const words = await deleteWords.mutateAsync(keyToDelete.name)
+
+      console.log(`== ~ mutationFn: ~ words:`, words)
+      return deletedKey
     },
     onSuccess: () => {
       invalidate([queryKeys.LOCAL_ACCOUNT_ID_LIST])
