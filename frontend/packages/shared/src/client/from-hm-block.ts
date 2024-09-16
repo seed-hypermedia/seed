@@ -14,11 +14,12 @@ import {
 function styleMarkToAnnotationType(
   style: keyof Styles,
 ): Exclude<HMTextAnnotation, InlineEmbedAnnotation | ColorAnnotation>['type'] {
-  if (style === 'bold') return 'strong'
-  if (style === 'italic') return 'emphasis'
-  if (style === 'underline') return 'underline'
-  if (style === 'strike') return 'strike'
-  if (style === 'code') return 'code'
+  if (style == 'strong') return 'strong'
+  if (style == 'emphasis') return 'emphasis'
+  if (style == 'underline') return 'underline'
+  if (style == 'strike') return 'strike'
+  if (style == 'code') return 'code'
+  // if (style == 'equation') return 'equation'
   throw new Error('Cannot handle this style yet')
 }
 

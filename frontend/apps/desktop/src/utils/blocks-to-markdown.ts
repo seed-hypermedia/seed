@@ -6,10 +6,12 @@ import remarkStringify from 'remark-stringify'
 import {unified} from 'unified'
 
 function applyStyles(text: string, styles: any) {
-  if (styles.bold) text = `<strong>${text}</strong>`
-  if (styles.italic) text = `<em>${text}</em>`
+  if (styles.strong) text = `<strong>${text}</strong>`
+  if (styles.emphasis) text = `<em>${text}</em>`
   if (styles.strike) text = `<del>${text}</del>`
   if (styles.underline) text = `<u>${text}</u>`
+  if (styles.code) text = `<code>${text}</code>`
+  // if (styles.equation) text = `$${text}$$`
   return text
 }
 

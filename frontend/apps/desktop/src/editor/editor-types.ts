@@ -25,6 +25,8 @@ export interface EditorBlockProps {
   childrenType?: 'div' | 'ul' | 'ol'
   listLevel?: string
   start?: string
+  level?: number | string
+  ref?: string
 }
 
 export interface EditorParagraphBlock extends EditorBaseBlock {
@@ -57,27 +59,28 @@ export interface MediaBlockProps extends EditorBlockProps {
 export interface EditorImageBlock extends EditorBaseBlock {
   type: 'image'
   props: MediaBlockProps
-  content: []
+  content: Array<EditorInlineContent>
 }
 
 export interface EditorVideoBlock extends EditorBaseBlock {
   type: 'video'
   props: MediaBlockProps
-  content: []
+  content: Array<EditorInlineContent>
 }
 
 export interface EditorFileBlock extends EditorBaseBlock {
   type: 'file'
   props: MediaBlockProps
-  content: []
+  content: Array<EditorInlineContent>
 }
 
 export interface EditorEmbedBlock extends EditorBaseBlock {
   type: 'embed'
   props: EditorBlockProps & {
     view: 'content' | 'card'
+    ref: string
   }
-  content: []
+  content: Array<EditorInlineContent>
 }
 
 export interface EditorMathBlock extends EditorBaseBlock {
@@ -90,6 +93,7 @@ export type EditorWebEmbedBlock = EditorBaseBlock & {
   props: EditorBlockProps & {
     url?: string
   }
+  content: Array<EditorInlineContent>
 }
 
 export type EditorNostrBlock = EditorBaseBlock & {
@@ -100,32 +104,32 @@ export type EditorNostrBlock = EditorBaseBlock & {
     text?: string
     size: number
   }
+  content: Array<EditorInlineContent>
 }
 
-export interface EditorText extends EditorBaseInlineContent {
+export interface EditorText {
   type: 'text'
   text: string
+  styles: EditorInlineStyles | {}
 }
 
-export interface EditorLink extends EditorBaseInlineContent {
+export interface EditorLink {
   type: 'link'
-  href: string
+  ref: string
   content: Array<EditorInlineContent>
 }
 
 export interface EditorInlineEmbed {
   type: 'inline-embed'
   ref: string
-}
-
-export interface EditorBaseInlineContent {
   styles: EditorInlineStyles | {}
 }
 
 export interface EditorInlineStyles {
-  bold?: boolean
-  italic?: boolean
+  strong?: boolean
+  emphasis?: boolean
   underline?: boolean
-  strikethrough?: boolean
+  strike?: boolean
   code?: boolean
+  equation?: boolean
 }

@@ -622,8 +622,8 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     const marks = this._tiptapEditor.state.selection.$to.marks()
 
     const toggleStyles = new Set<ToggledStyle>([
-      'bold',
-      'italic',
+      'strong',
+      'emphasis',
       'underline',
       'strike',
       'code',

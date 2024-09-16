@@ -21,13 +21,14 @@ export type HMBlockChildrenType = 'group' | 'ol' | 'ul' | 'div' | 'blockquote'
 export type HMEmbedDisplay = 'content' | 'card'
 
 export type HMStyles = {
-  bold?: true
-  italic?: true
+  strong?: true
+  emphasis?: true
   underline?: true
   strike?: true
   code?: true
   textColor?: string
   backgroundColor?: string
+  // equation?: true
 }
 
 export type ToggledStyle = {
@@ -75,8 +76,8 @@ export type HMBlockBase = {
   ref?: string
   annotations: HMAnnotations
   attributes?: {
-    childrenType: HMBlockChildrenType
-    [key: string]: string
+    [key: string]: string | undefined
+    childrenType?: HMBlockChildrenType
   }
 }
 
@@ -85,7 +86,7 @@ export type HMBlockParagraph = HMBlockBase & {
 }
 
 export type HMBlockCode = HMBlockBase & {
-  type: 'code'
+  type: 'codeBlock'
   attributes: HMBlockBase['attributes'] & {
     lang?: string
   }
@@ -180,7 +181,9 @@ export type HMEntityContent = {
 export type InlineEmbedAnnotation = BaseAnnotation & {
   type: 'inline-embed'
   ref: string // 'hm://... with #BlockRef
-  attributes: {}
+  attributes?: {
+    [key: string]: string
+  }
 }
 
 type BaseAnnotation = {

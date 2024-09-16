@@ -44,10 +44,10 @@ type InternalAnnotation = Record<string, string | boolean>
 function annotationStyle(a: Annotation): HMStyles {
   const annotation = a
   if (annotation.type === 'emphasis') {
-    return {italic: true}
+    return {emphasis: true}
   }
   if (annotation.type === 'strong') {
-    return {bold: true}
+    return {strong: true}
   }
   if (annotation.type === 'underline') {
     return {underline: true}
