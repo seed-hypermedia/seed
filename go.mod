@@ -251,8 +251,6 @@ require (
 
 replace roci.dev/fracdex => github.com/rocicorp/fracdex v0.0.0-20231009204907-ebc26eac9486
 
-replace github.com/libp2p/go-libp2p => ./third_party/go-libp2p
-
 // LND imports etcd, which imports some very old version of OpenTelemetry,
 // and it break the build in many different but miserable ways.
 exclude go.etcd.io/etcd/server/v3 v3.5.0

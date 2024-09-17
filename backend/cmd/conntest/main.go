@@ -90,6 +90,12 @@ func run(ctx context.Context) error {
 				}),
 			)
 			rt = dhtrt
+
+			// go func() {
+			// 	<-ctx.Done()
+			// 	fmt.Println("DHT CLOSE", dhtrt.Close())
+			// }()
+
 			return dhtrt, err
 		}),
 		libp2p.EnableAutoRelayWithStaticRelays(
@@ -210,6 +216,8 @@ func ensureConnection(ctx context.Context, node host.Host, remote peer.AddrInfo)
 		fmt.Println("Failed to close stream", err)
 		return
 	}
+
+	fmt.Println("Stream open/close done")
 }
 
 func retry(ctx context.Context, msg string, fn func() error) (ok bool) {
