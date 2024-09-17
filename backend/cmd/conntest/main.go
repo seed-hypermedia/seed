@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"seed/backend/ipfs"
 	"seed/backend/logging"
 	"seed/backend/mttnet"
 	"seed/backend/util/libp2px"
@@ -17,13 +18,16 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p"
+	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/routing"
 	"github.com/libp2p/go-libp2p/p2p/host/autonat"
 	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
 	"github.com/multiformats/go-multiaddr"
+	manet "github.com/multiformats/go-multiaddr/net"
 	"go.uber.org/zap"
 )
 
@@ -70,16 +74,32 @@ func run(ctx context.Context) error {
 
 	const port = 57010
 
+	var rt routing.Routing
+
 	opts := []libp2p.Option{
 		libp2p.Identity(priv),
 		libp2p.EnableRelay(),
 		libp2p.EnableHolePunching(),
+		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
+			dhtrt, err := dht.New(ctx, h,
+				dht.QueryFilter(dht.PublicQueryFilter),
+				dht.RoutingTableFilter(dht.PublicRoutingTableFilter),
+				dht.RoutingTablePeerDiversityFilter(dht.NewRTPeerDiversityFilter(h, 2, 3)),
+				// filter out all private addresses
+				dht.AddressFilter(func(addrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
+					return multiaddr.FilterAddrs(addrs, manet.IsPublicAddr)
+				}),
+			)
+			rt = dhtrt
+			return dhtrt, err
+		}),
 		libp2p.EnableAutoRelayWithStaticRelays(
 			[]peer.AddrInfo{relay},
 			autorelay.WithBootDelay(5*time.Second),
 			autorelay.WithNumRelays(1),
 		),
-		libp2p.ForceReachabilityPrivate(),
+		libp2p.EnableAutoNATv2(),
+		// libp2p.ForceReachabilityPrivate(),
 		libp2p.ListenAddrStrings(libp2px.DefaultListenAddrs(port)...),
 	}
 
@@ -92,8 +112,8 @@ func run(ctx context.Context) error {
 	// logging.SetLogLevel("nat", "debug")
 	logging.SetLogLevel("p2p-circuit", "debug")
 	logging.SetLogLevel("upgrader", "debug")
-	logging.SetLogLevel("webrtc-transport", "debug")
-	logging.SetLogLevel("webrtc-transport-pion", "debug")
+	// logging.SetLogLevel("webrtc-transport", "debug")
+	// logging.SetLogLevel("webrtc-transport-pion", "debug")
 	logging.SetLogLevel("relay", "debug")
 	// logging.SetLogLevel("eventlog", "debug")
 
@@ -107,6 +127,9 @@ func run(ctx context.Context) error {
 		}
 		defer node.Close()
 	}
+
+	boot := ipfs.Bootstrap(ctx, node, rt, ipfs.DefaultBootstrapAddrInfos)
+	fmt.Println("BOOTSTRAPPED", boot)
 
 	for {
 		time.Sleep(5 * time.Second)
