@@ -13,6 +13,7 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/protocol/holepunch/pb"
 	"github.com/libp2p/go-libp2p/p2p/protocol/identify"
 	"github.com/libp2p/go-msgio/pbio"
+	"github.com/multiformats/go-multiaddr"
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 )
@@ -190,6 +191,37 @@ func (hp *holePuncher) initiateHolePunch(rp peer.ID) ([]ma.Multiaddr, []ma.Multi
 	return addr, obsAddr, rtt, err
 }
 
+func (hp *holePuncher) getPublicAddrs() []ma.Multiaddr {
+	var all []multiaddr.Multiaddr
+	{
+		all = append(all, hp.ids.OwnObservedAddrs()...)
+
+		listen, err := hp.host.Network().InterfaceListenAddresses()
+		if err != nil {
+			log.Debugf("failed to get to get InterfaceListenAddresses: %s", err)
+		} else {
+			all = append(all, listen...)
+		}
+
+		all = append(all, hp.host.Addrs()...)
+	}
+
+	all = removeRelayAddrs(all)
+	all = ma.Unique(all)
+
+	publicAddrs := make([]ma.Multiaddr, 0, len(all))
+
+	for _, addr := range all {
+		if manet.IsPublicAddr(addr) {
+			publicAddrs = append(publicAddrs, addr)
+		}
+	}
+
+	fmt.Println("HOLE PUNCHER PUBLIC ADDRS", publicAddrs)
+
+	return publicAddrs
+}
+
 func (hp *holePuncher) initiateHolePunchImpl(str network.Stream) ([]ma.Multiaddr, []ma.Multiaddr, time.Duration, error) {
 	if err := str.Scope().SetService(ServiceName); err != nil {
 		return nil, nil, 0, fmt.Errorf("error attaching stream to holepunch service: %s", err)
@@ -206,7 +238,7 @@ func (hp *holePuncher) initiateHolePunchImpl(str network.Stream) ([]ma.Multiaddr
 	str.SetDeadline(time.Now().Add(StreamTimeout))
 
 	// send a CONNECT and start RTT measurement.
-	obsAddrs := removeRelayAddrs(hp.ids.OwnObservedAddrs())
+	obsAddrs := hp.getPublicAddrs()
 	if hp.filter != nil {
 		obsAddrs = hp.filter.FilterLocal(str.Conn().RemotePeer(), obsAddrs)
 	}
