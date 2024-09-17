@@ -682,6 +682,63 @@ func TestSubscriptions(t *testing.T) {
 	require.Equal(t, doc3Gotten.Version, doc3Modified.Version)
 	require.Equal(t, doc3Modified.Content, doc3Gotten.Content)
 
+	comment, err := bob.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
+		TargetAccount: doc3Modified.Account,
+		TargetPath:    doc3Modified.Path,
+		TargetVersion: doc3Modified.Version,
+		Content: []*documents.BlockNode{
+			{
+				Block: &documents.Block{Id: "b1", Type: "paragraph", Text: "Hello, Alice!"},
+				Children: []*documents.BlockNode{
+					{Block: &documents.Block{Id: "b2", Type: "paragraph", Text: "How are you?"}},
+				},
+			},
+		},
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+
+	comments, err := alice.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
+		TargetAccount: doc3Modified.Account,
+		TargetPath:    doc3Modified.Path,
+	})
+	require.NoError(t, err)
+	require.Len(t, comments.Comments, 0)
+	_, err = alice.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
+		Account:   doc3Modified.Account,
+		Path:      doc3Modified.Path,
+		Recursive: false,
+	})
+	require.NoError(t, err)
+	time.Sleep(time.Millisecond * 200)
+	comments, err = alice.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
+		TargetAccount: doc3Modified.Account,
+		TargetPath:    doc3Modified.Path,
+	})
+	require.NoError(t, err)
+	require.Len(t, comments.Comments, 1)
+	require.Equal(t, comment.Content, comments.Comments[0].Content)
+
+	reply, err := alice.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
+		TargetAccount:  doc3Modified.Account,
+		TargetPath:     doc3Modified.Path,
+		TargetVersion:  doc3Modified.Version,
+		ReplyParent:    comment.Id,
+		Content:        []*documents.BlockNode{{Block: &documents.Block{Id: "b1", Type: "paragraph", Text: "Hello back, Bob!"}, Children: []*documents.BlockNode{{Block: &documents.Block{Id: "b2", Type: "paragraph", Text: "Love your comment"}}}}},
+		SigningKeyName: "main",
+		Capability:     "",
+	})
+	require.NoError(t, err)
+
+	time.Sleep(time.Millisecond * 200)
+	comments, err = bob.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
+		TargetAccount: doc3Modified.Account,
+		TargetPath:    doc3Modified.Path,
+	})
+	require.NoError(t, err)
+	require.Len(t, comments.Comments, 2)
+	require.Equal(t, reply.Content, comments.Comments[1].Content)
+
 	_, err = bob.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
 		Account:   doc.Account,
 		Path:      "",

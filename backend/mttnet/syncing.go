@@ -162,7 +162,12 @@ refs (id) AS (
 
 // QListRelatedBlobsContStr gets blobs related to multiple eids
 const QListRelatedBlobsContStr = `)
-	),
+),
+comments (id) AS (
+	SELECT bl.source
+	FROM blob_links bl
+	WHERE bl.type = 'comment/target'
+),
 changes (id) AS (
 	SELECT bl.target
 	FROM blob_links bl
@@ -191,5 +196,15 @@ b.id,
 sb.ts
 FROM blobs b
 JOIN changes ch ON ch.id = b.id
+JOIN structural_blobs sb ON sb.id = b.id
+UNION ALL
+SELECT
+codec,
+b.multihash,
+insert_time,
+b.id,
+sb.ts
+FROM blobs b
+JOIN comments ch ON ch.id = b.id
 JOIN structural_blobs sb ON sb.id = b.id
 ORDER BY sb.ts, b.multihash;`
