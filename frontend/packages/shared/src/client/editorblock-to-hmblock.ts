@@ -1,8 +1,4 @@
-import {
-  EditorBlock,
-  EditorInlineContent,
-  MediaBlockProps,
-} from '@shm/desktop/src/editor'
+import {EditorBlock, EditorInlineContent} from '@shm/desktop/src/editor'
 import {HMAnnotations, HMBlock} from '../hm-types'
 import {AnnotationSet, codePointLength} from './unicode'
 
@@ -76,28 +72,21 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     out.attributes!.language = editorBlock.props.language
   }
 
-  if (['image', 'video'].includes(editorBlock.type)) {
-    const props = editorBlock.props as MediaBlockProps
-    out.ref = props.url
-    if (!out.attributes) {
-      out.attributes = {}
-    }
-    if (props.name) {
-      out.attributes.name = props.name
-    }
-    if (props.size) {
-      out.attributes.size = props.size
-    }
-    if (props.width) {
-      out.attributes.width = props.width.toString()
-    }
-    if (props.defaultOpen) {
-      out.attributes.defaultOpen = props.defaultOpen
-    }
-    if (props.src) {
-      out.attributes.src = props.src
-    }
+  if (['embed', 'web-embed', 'nostr'].includes(editorBlock.type)) {
+    out.ref = editorBlock.props.ref
   }
+
+  if (['image', 'video', 'file'].includes(editorBlock.type)) {
+    out.ref = editorBlock.props.url!
+  }
+
+  // Dynamically add all properties from props to out.attributes
+  Object.entries(editorBlock.props).forEach(([key, value]) => {
+    if (value !== undefined && key !== 'url' && key !== 'ref') {
+      out.attributes![key] =
+        typeof value === 'number' ? value.toString() : value
+    }
+  })
 
   return out as HMBlock
 }

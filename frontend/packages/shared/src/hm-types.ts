@@ -234,7 +234,7 @@ export type HMTextAnnotation =
   | ItalicAnnotation
   | CodeAnnotation
   | UnderlineAnnotation
-  | ItalicAnnotation
+  | StrikeAnnotation
   | ColorAnnotation
   | InlineEmbedAnnotation
   | RangeAnnotation

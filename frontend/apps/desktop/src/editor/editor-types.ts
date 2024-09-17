@@ -27,6 +27,7 @@ export interface EditorBlockProps {
   start?: string
   level?: number | string
   ref?: string
+  revision?: string
 }
 
 export interface EditorParagraphBlock extends EditorBaseBlock {
@@ -53,7 +54,7 @@ export interface MediaBlockProps extends EditorBlockProps {
   name?: string
   width?: number
   defaultOpen?: string
-  size?: string
+  size?: number
 }
 
 export interface EditorImageBlock extends EditorBaseBlock {

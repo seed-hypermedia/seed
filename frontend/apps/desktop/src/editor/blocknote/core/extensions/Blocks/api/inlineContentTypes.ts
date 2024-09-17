@@ -1,5 +1,5 @@
 export type Styles = {
-  emphasis?: true
+  bold?: true
   italic?: true
   underline?: true
   strike?: true

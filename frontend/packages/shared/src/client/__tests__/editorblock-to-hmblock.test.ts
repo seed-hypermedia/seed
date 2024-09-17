@@ -1,18 +1,25 @@
 import {
   EditorBlock,
   EditorCodeBlock,
+  EditorEmbedBlock,
+  EditorFileBlock,
   EditorHeadingBlock,
   EditorImageBlock,
   EditorMathBlock,
+  EditorNostrBlock,
   EditorVideoBlock,
+  EditorWebEmbedBlock,
 } from '@shm/desktop/src/editor'
 import {describe, expect, test} from 'vitest'
 import {
   HMBlock,
   HMBlockCode,
+  HMBlockEmbed,
   HMBlockHeading,
   HMBlockImage,
   HMBlockMath,
+  HMBlockNostr,
+  HMBlockWebEmbed,
 } from '../../hm-types'
 import {editorBlockToHMBlock} from '../editorblock-to-hmblock'
 
@@ -452,6 +459,145 @@ describe('EditorBlock to HMBlock', () => {
           size: '123456',
         },
       }
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val).toEqual(result)
+    })
+
+    test('file', () => {
+      const editorBlock: EditorFileBlock = {
+        id: 'foo',
+        type: 'file',
+        children: [],
+        props: {
+          url: 'ipfs://foobarimgcid',
+          width: 240,
+          name: 'testfile.pdf',
+          size: '123456',
+        },
+        content: [
+          {
+            type: 'text',
+            text: '',
+            styles: {},
+          },
+        ],
+      }
+
+      const result: HMBlock = {
+        id: 'foo',
+        type: 'file',
+        text: ``,
+        ref: 'ipfs://foobarimgcid',
+        annotations: [],
+        attributes: {
+          width: '240',
+          name: 'testfile.pdf',
+          size: '123456',
+        },
+      }
+
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val).toEqual(result)
+    })
+
+    test('embed', () => {
+      const editorBlock: EditorEmbedBlock = {
+        id: 'foo',
+        type: 'embed',
+        children: [],
+        props: {
+          ref: 'hm://foobarembed',
+          view: 'card',
+        },
+        content: [
+          {
+            type: 'text',
+            text: '',
+            styles: {},
+          },
+        ],
+      }
+
+      const result: HMBlockEmbed = {
+        id: 'foo',
+        type: 'embed',
+        text: ``,
+        ref: 'hm://foobarembed',
+        annotations: [],
+        attributes: {
+          view: 'card',
+        },
+      }
+
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val).toEqual(result)
+    })
+
+    test('web embed', () => {
+      const editorBlock: EditorWebEmbedBlock = {
+        id: 'foo',
+        type: 'web-embed',
+        children: [],
+        props: {
+          ref: 'hm://foobarwebembed',
+        },
+        content: [
+          {
+            type: 'text',
+            text: '',
+            styles: {},
+          },
+        ],
+      }
+
+      const result: HMBlockWebEmbed = {
+        id: 'foo',
+        type: 'web-embed',
+        text: ``,
+        ref: 'hm://foobarwebembed',
+        annotations: [],
+        attributes: {},
+      }
+
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val).toEqual(result)
+    })
+
+    test('nostr', () => {
+      const editorBlock: EditorNostrBlock = {
+        id: 'foo',
+        type: 'nostr',
+        children: [],
+        props: {
+          name: 'test nostr',
+          ref: 'nostr://foobarid',
+          size: 123456,
+        },
+        content: [
+          {
+            type: 'text',
+            text: '',
+            styles: {},
+          },
+        ],
+      }
+
+      const result: HMBlockNostr = {
+        id: 'foo',
+        type: 'nostr',
+        text: ``,
+        ref: 'nostr://foobarid',
+        annotations: [],
+        attributes: {
+          name: 'test nostr',
+          size: '123456',
+        },
+      }
+
       const val = editorBlockToHMBlock(editorBlock)
 
       expect(val).toEqual(result)

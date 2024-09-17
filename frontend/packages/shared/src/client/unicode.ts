@@ -126,7 +126,6 @@ export function pushSpanToAnnotation(
   start: number,
   end: number,
 ) {
-  console.log('annotationsss', annotation)
   annotation.starts.push(start)
   annotation.ends.push(end)
 }
