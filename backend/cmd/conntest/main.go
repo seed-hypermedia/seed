@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"seed/backend/ipfs"
 	"seed/backend/logging"
 	"seed/backend/mttnet"
 	"seed/backend/util/libp2px"
@@ -121,6 +122,9 @@ func run(ctx context.Context) error {
 	}()
 
 	log.Debug("PeerStarted", zap.String("peerID", node.ID().String()))
+
+	boot := ipfs.Bootstrap(ctx, node, nil, ipfs.DefaultBootstrapAddrInfos)
+	fmt.Println("BootstrapFinished", boot)
 
 	ok := retry(ctx, "WaitForRelay", func() error {
 		if hasRelayAddrs(node) {

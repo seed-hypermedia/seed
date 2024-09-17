@@ -101,7 +101,12 @@ func Bootstrap(ctx context.Context, h host.Host, rt routing.Routing, peers []pee
 		}(i, pinfo)
 	}
 
-	res.RoutingErr = rt.Bootstrap(ctx)
+	if rt != nil {
+		res.RoutingErr = rt.Bootstrap(ctx)
+	} else {
+		res.RoutingErr = fmt.Errorf("no routing system provided")
+	}
+
 	wg.Wait()
 
 	return res

@@ -2,6 +2,14 @@
 
 package ipfs
 
+import (
+	"cmp"
+	"maps"
+	"slices"
+
+	"github.com/libp2p/go-libp2p/core/peer"
+)
+
 // DefaultBootstrapAddresses are the hardcoded bootstrap addresses
 // for IPFS. they are nodes run by the IPFS team. docs on these later.
 // As with all p2p networks, bootstrap is an important security concern.
@@ -23,4 +31,28 @@ var DefaultBootstrapAddresses = []string{
 	"/ip4/104.131.131.82/udp/4001/quic-v1/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ", // mars.i.ipfs.io
 	HM24ProductionGateway,
 	HM24TestGateway,
+}
+
+var DefaultBootstrapAddrInfos []peer.AddrInfo
+
+func init() {
+	infos := map[peer.ID]peer.AddrInfo{}
+	for _, addr := range DefaultBootstrapAddresses {
+		ai, err := peer.AddrInfoFromString(addr)
+		if err != nil {
+			panic(err)
+		}
+		if _, ok := infos[ai.ID]; !ok {
+			infos[ai.ID] = *ai
+		} else {
+			old := infos[ai.ID]
+			old.Addrs = append(infos[ai.ID].Addrs, ai.Addrs...)
+			infos[ai.ID] = old
+		}
+	}
+
+	DefaultBootstrapAddrInfos = slices.Collect(maps.Values(infos))
+	slices.SortFunc(DefaultBootstrapAddrInfos, func(a, b peer.AddrInfo) int {
+		return cmp.Compare(a.ID, b.ID)
+	})
 }
