@@ -14,10 +14,12 @@ import (
 	"seed/backend/mttnet"
 	"seed/backend/util/libp2px"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -70,13 +72,14 @@ func run(ctx context.Context) error {
 	opts := []libp2p.Option{
 		libp2p.Identity(priv),
 		libp2p.EnableRelay(),
+		libp2p.EnableAutoNATv2(),
 		libp2p.EnableHolePunching(),
 		libp2p.EnableAutoRelayWithStaticRelays(
 			[]peer.AddrInfo{relay},
 			autorelay.WithBootDelay(5*time.Second),
 			autorelay.WithNumRelays(1),
 		),
-		libp2p.ForceReachabilityPrivate(),
+		// libp2p.ForceReachabilityPrivate(),
 		libp2p.ListenAddrStrings(libp2px.DefaultListenAddrs(57010)...),
 	}
 
@@ -99,13 +102,31 @@ func run(ctx context.Context) error {
 	}
 	defer node.Close()
 
+	var myReachability atomic.Value
+	myReachability.Store(network.ReachabilityUnknown)
+
+	sub, err := node.EventBus().Subscribe(new(event.EvtLocalReachabilityChanged))
+	if err != nil {
+		return err
+	}
+	defer sub.Close()
+
+	go func() {
+		for evt := range sub.Out() {
+			switch e := evt.(type) {
+			case event.EvtLocalReachabilityChanged:
+				myReachability.Store(e.Reachability)
+			}
+		}
+	}()
+
 	log.Debug("PeerStarted", zap.String("peerID", node.ID().String()))
 
 	ok := retry(ctx, "WaitForRelay", func() error {
 		if hasRelayAddrs(node) {
 			return nil
 		}
-		return fmt.Errorf("no relay addresses yet")
+		return fmt.Errorf("no relay addresses yet: my reachability: %s", myReachability.Load())
 	})
 	if !ok {
 		return fmt.Errorf("failed to get relay addresses")
