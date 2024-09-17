@@ -74,7 +74,7 @@ var qListPeers = dqb.Str(`
 		pid
 	FROM peers
 	WHERE id < :last_cursor
-	ORDER BY id DESC LIMIT :page_size + 1;
+	ORDER BY id DESC LIMIT :page_size;
 `)
 
 // ListPeers filters peers by status. If no status provided, it lists all peers.

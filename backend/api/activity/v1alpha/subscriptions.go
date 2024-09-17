@@ -129,6 +129,9 @@ func (srv *Server) ListSubscriptions(ctx context.Context, req *activity.ListSubs
 
 	var subscriptions []*activity.Subscription
 
+	if req.PageSize <= 0 {
+		req.PageSize = 30
+	}
 	var lastBlobID int64
 	err = sqlitex.Exec(conn, qListSubscriptions(), func(stmt *sqlite.Stmt) error {
 		lastBlobID = stmt.ColumnInt64(0)
@@ -172,7 +175,7 @@ var qListSubscriptions = dqb.Str(`
 		insert_time
 	FROM subscriptions
 	WHERE id < :last_cursor
-	ORDER BY id DESC LIMIT :page_size + 1;
+	ORDER BY id DESC LIMIT :page_size;
 `)
 
 var qGetResource = dqb.Str(`

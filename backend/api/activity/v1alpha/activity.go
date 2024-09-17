@@ -150,7 +150,9 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 
 		pageTokenStr = storage.BlobsID.String() + " <= :idx AND (" + storage.ResourcesIRI.String() + " IS NULL) AND " + storage.BlobsSize.String() + ">0 ORDER BY " + storage.BlobsID.String() + " desc limit :page_size"
 	)
-
+	if req.PageSize <= 0 {
+		req.PageSize = 30
+	}
 	var getEventsStr = fmt.Sprintf(`
 		%s
 		%s
