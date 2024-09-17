@@ -1,33 +1,27 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
 	"errors"
 	"flag"
 	"fmt"
 	"net/url"
 	"os"
 	"os/signal"
-	"seed/backend/ipfs"
+	"seed/backend/config"
+	"seed/backend/core"
+	"seed/backend/daemon"
 	"seed/backend/logging"
 	"seed/backend/mttnet"
+	"seed/backend/storage"
 	"seed/backend/util/libp2px"
 	"strings"
 	"time"
 
-	"github.com/libp2p/go-libp2p"
-	dht "github.com/libp2p/go-libp2p-kad-dht"
-	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/routing"
-	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
 	"github.com/multiformats/go-multiaddr"
-	manet "github.com/multiformats/go-multiaddr/net"
-	"go.uber.org/zap"
 )
 
 func main() {
@@ -44,72 +38,27 @@ func main() {
 }
 
 func run(ctx context.Context) error {
-	var (
-		keySeed = flag.String("key-seed", "", "any string to derive the libp2p private key from")
-		// Default relay is a fresh server on DigitalOcean for testing.
-		relayRaw      = flag.String("relay", "12D3KooWJ2WmxpP5EaHXqR56VidLL7gngWKHSnbkt4Q1ARbNWHPX@159.89.23.179:4001", "relay peer to connect to in form of <peer-id>@<ip>:<port>")
-		remotePeerRaw = flag.String("remote-peer", "", "comma-separated addresses of the remote peer to connect to")
-	)
+	cfg := config.Default()
+	cfg.DataDir = "/tmp/seed-connectivity-test"
+	cfg.Syncing.NoSyncBack = true
+	cfg.Syncing.SmartSyncing = true
 
+	remotePeerRaw := flag.String("remote-peer", "", "comma-separated addresses of the remote peer to connect to")
 	flag.Parse()
 
-	if *keySeed == "" {
-		flag.Usage()
-		return fmt.Errorf("flag -key-seed is required")
+	store, err := storage.Open(cfg.DataDir, nil, core.NewMemoryKeyStore(), "info")
+	if err != nil {
+		return err
 	}
+	defer store.Close()
 
-	seedHash := sha256.Sum256([]byte(*keySeed))
-
-	priv, _, err := crypto.GenerateEd25519Key(bytes.NewReader(seedHash[:]))
+	app, err := daemon.Load(ctx, cfg, store)
 	if err != nil {
 		return err
 	}
 
-	relay, err := parseRelay(*relayRaw)
-	if err != nil {
-		return fmt.Errorf("failed to parse relay: %w", err)
-	}
-
-	_ = relay
-
-	const port = 57010
-
-	var rt routing.Routing
-
-	opts := []libp2p.Option{
-		libp2p.Identity(priv),
-		libp2p.EnableRelay(),
-		libp2p.EnableHolePunching(),
-		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
-			dhtrt, err := dht.New(ctx, h,
-				dht.QueryFilter(dht.PublicQueryFilter),
-				dht.RoutingTableFilter(dht.PublicRoutingTableFilter),
-				dht.RoutingTablePeerDiversityFilter(dht.NewRTPeerDiversityFilter(h, 2, 3)),
-				// filter out all private addresses
-				dht.AddressFilter(func(addrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
-					return multiaddr.FilterAddrs(addrs, manet.IsPublicAddr)
-				}),
-			)
-			rt = dhtrt
-
-			go func() {
-				<-ctx.Done()
-				fmt.Println("DHT CLOSE", dhtrt.Close())
-			}()
-
-			return dhtrt, err
-		}),
-		libp2p.EnableAutoRelayWithStaticRelays(
-			mttnet.DefaultRelays(),
-			autorelay.WithBootDelay(5*time.Second),
-			autorelay.WithNumRelays(1),
-		),
-		libp2p.EnableAutoNATv2(),
-		libp2p.ForceReachabilityPrivate(),
-		libp2p.ListenAddrStrings(libp2px.DefaultListenAddrs(port)...),
-	}
-
 	logging.SetLogLevel("p2p-holepunch", "debug")
+	// logging.SetLogLevel("p2p-holepunch", "debug")
 	logging.SetLogLevel("autorelay", "debug")
 	logging.SetLogLevel("autonat", "info")
 	logging.SetLogLevel("autonatv2", "info")
@@ -122,21 +71,10 @@ func run(ctx context.Context) error {
 	logging.SetLogLevel("relay", "debug")
 	// logging.SetLogLevel("eventlog", "debug")
 
-	log := logging.New("conntest", "debug")
+	<-app.Net.Ready()
+	fmt.Println("Bootstrap done")
 
-	var node host.Host
-	{
-		node, err = libp2p.New(opts...)
-		if err != nil {
-			return err
-		}
-		defer node.Close()
-	}
-
-	boot := ipfs.Bootstrap(ctx, node, rt, ipfs.DefaultBootstrapAddrInfos)
-	fmt.Println("BOOTSTRAPPED", boot)
-
-	log.Debug("PeerStarted", zap.String("peerID", node.ID().String()))
+	node := app.Net.Libp2p().Host
 
 	ok := retry(ctx, "WaitForRelay", func() error {
 		if hasRelayAddrs(node) {
@@ -156,21 +94,20 @@ func run(ctx context.Context) error {
 			return fmt.Errorf("failed to parse remote addrs: %w", err)
 		}
 
-		go ensureConnection(ctx, node, remoteAddr)
+		go ensureConnection(ctx, app, remoteAddr)
 	}
 
-	<-ctx.Done()
-	return ctx.Err()
+	return app.Wait()
 }
 
-func ensureConnection(ctx context.Context, node host.Host, remote peer.AddrInfo) {
+func ensureConnection(ctx context.Context, app *daemon.App, remote peer.AddrInfo) {
 	fmt.Println("Warming up before connecting to remote peer")
 
 	time.Sleep(5 * time.Second)
 	fmt.Println("Connecting to remote peer")
 
 	ok := retry(ctx, "ConnectToRemote", func() error {
-		return node.Connect(ctx, remote)
+		return app.Net.Connect(ctx, remote)
 	})
 	if !ok {
 		fmt.Println("Failed to connect to remote peer. Stop retrying.")
@@ -178,6 +115,8 @@ func ensureConnection(ctx context.Context, node host.Host, remote peer.AddrInfo)
 	}
 
 	fmt.Println("Connected to remote peer")
+
+	node := app.Net.Libp2p().Host
 
 	ok = retry(ctx, "CheckConnectionUnlimited", func() error {
 		select {
