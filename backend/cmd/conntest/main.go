@@ -24,7 +24,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/routing"
-	"github.com/libp2p/go-libp2p/p2p/host/autonat"
 	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
 	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
@@ -142,20 +141,13 @@ func run(ctx context.Context) error {
 		}
 	}
 
-	nat := node.(interface {
-		GetAutoNat() autonat.AutoNAT
-	}).GetAutoNat()
-	if nat == nil {
-		panic("NO AUTONAT")
-	}
-
 	log.Debug("PeerStarted", zap.String("peerID", node.ID().String()))
 
 	ok := retry(ctx, "WaitForRelay", func() error {
 		if hasRelayAddrs(node) {
 			return nil
 		}
-		return fmt.Errorf("no relay addresses yet: my reachability: %s", nat.Status())
+		return fmt.Errorf("no relay addresses yet")
 	})
 	if !ok {
 		return fmt.Errorf("failed to get relay addresses")
