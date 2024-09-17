@@ -19,6 +19,7 @@ import (
 	"github.com/libp2p/go-msgio/pbio"
 
 	ma "github.com/multiformats/go-multiaddr"
+	manet "github.com/multiformats/go-multiaddr/net"
 )
 
 // Protocol is the libp2p protocol for Hole Punching.
@@ -287,15 +288,17 @@ func (s *Service) getPublicAddrs() []ma.Multiaddr {
 
 	addrs = ma.Unique(addrs)
 
-	// publicAddrs := make([]ma.Multiaddr, 0, len(addrs))
-	return addrs
+	publicAddrs := make([]ma.Multiaddr, 0, len(addrs))
 
-	// for _, addr := range addrs {
-	// 	if manet.IsPublicAddr(addr) {
-	// 		publicAddrs = append(publicAddrs, addr)
-	// 	}
-	// }
-	// return publicAddrs
+	for _, addr := range addrs {
+		if manet.IsPublicAddr(addr) {
+			publicAddrs = append(publicAddrs, addr)
+		}
+	}
+
+	fmt.Println("PUBLIC ADDRS", publicAddrs)
+
+	return publicAddrs
 }
 
 // DirectConnect is only exposed for testing purposes.
