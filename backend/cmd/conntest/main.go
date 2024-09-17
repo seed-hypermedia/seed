@@ -90,7 +90,6 @@ func run(ctx context.Context) error {
 		libp2p.Identity(priv),
 		libp2p.EnableRelay(),
 		libp2p.EnableHolePunching(),
-		libp2p.EnableAutoNATv2(),
 		libp2p.EnableAutoRelayWithStaticRelays(
 			[]peer.AddrInfo{relay},
 			autorelay.WithBootDelay(5*time.Second),
