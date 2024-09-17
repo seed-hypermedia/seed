@@ -43,6 +43,7 @@ func WithMetricsTracer(tr MetricsTracer) Option {
 // DisableObservedAddrManager disables the observed address manager. It also
 // effectively disables the nat emitter and EvtNATDeviceTypeChanged
 func DisableObservedAddrManager() Option {
+	panic("DISABLED OBSERVED")
 	return func(cfg *config) {
 		cfg.disableObservedAddrManager = true
 	}

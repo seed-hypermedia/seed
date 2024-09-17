@@ -13,17 +13,21 @@ import (
 	"seed/backend/logging"
 	"seed/backend/mttnet"
 	"seed/backend/util/libp2px"
+	"seed/backend/util/must"
+	"slices"
+	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
+	"github.com/Snawoot/extip"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/p2p/host/autonat"
 	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
+	"github.com/libp2p/go-libp2p/p2p/protocol/holepunch"
 	"github.com/multiformats/go-multiaddr"
 	"go.uber.org/zap"
 )
@@ -69,18 +73,35 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("failed to parse relay: %w", err)
 	}
 
+	ip, err := extip.QueryMultipleServers(ctx, nil, 2, false)
+	if err != nil {
+		return err
+	}
+
+	const port = 57010
+
+	var publicAddrs []multiaddr.Multiaddr
+	{
+		publicAddrs = append(publicAddrs, must.Do2(multiaddr.NewMultiaddr("/ip4/"+ip+"/tcp/"+strconv.Itoa(57010))))
+		publicAddrs = append(publicAddrs, must.Do2(multiaddr.NewMultiaddr("/ip4/"+ip+"/udp/"+strconv.Itoa(57010)+"/quic-v1")))
+		publicAddrs = append(publicAddrs, must.Do2(multiaddr.NewMultiaddr("/ip4/"+ip+"/udp/"+strconv.Itoa(57010)+"/quic-v1/webtransport")))
+	}
+
 	opts := []libp2p.Option{
 		libp2p.Identity(priv),
 		libp2p.EnableRelay(),
+		libp2p.EnableHolePunching(holepunch.WithAddrFilter(&filter{})),
 		libp2p.EnableAutoNATv2(),
-		libp2p.EnableHolePunching(),
 		libp2p.EnableAutoRelayWithStaticRelays(
 			[]peer.AddrInfo{relay},
 			autorelay.WithBootDelay(5*time.Second),
 			autorelay.WithNumRelays(1),
 		),
 		libp2p.ForceReachabilityPrivate(),
-		libp2p.ListenAddrStrings(libp2px.DefaultListenAddrs(57010)...),
+		libp2p.ListenAddrStrings(libp2px.DefaultListenAddrs(port)...),
+		libp2p.AddrsFactory(func(in []multiaddr.Multiaddr) []multiaddr.Multiaddr {
+			return slices.Concat(in, publicAddrs)
+		}),
 	}
 
 	logging.SetLogLevel("p2p-holepunch", "debug")
@@ -91,6 +112,9 @@ func run(ctx context.Context) error {
 	// logging.SetLogLevel("basichost", "debug")
 	// logging.SetLogLevel("nat", "debug")
 	logging.SetLogLevel("p2p-circuit", "debug")
+	logging.SetLogLevel("upgrader", "debug")
+	logging.SetLogLevel("webrtc-transport", "debug")
+	logging.SetLogLevel("webrtc-transport-pion", "debug")
 	logging.SetLogLevel("relay", "debug")
 	// logging.SetLogLevel("eventlog", "debug")
 
@@ -102,23 +126,23 @@ func run(ctx context.Context) error {
 	}
 	defer node.Close()
 
-	var myReachability atomic.Value
-	myReachability.Store(network.ReachabilityUnknown)
-
-	sub, err := node.EventBus().Subscribe(new(event.EvtLocalReachabilityChanged))
-	if err != nil {
-		return err
-	}
-	defer sub.Close()
-
-	go func() {
-		for evt := range sub.Out() {
-			switch e := evt.(type) {
-			case event.EvtLocalReachabilityChanged:
-				myReachability.Store(e.Reachability)
-			}
+	{
+		ok := retry(ctx, "RelayDirectConnect", func() error {
+			return node.Connect(ctx, relay)
+		})
+		if !ok {
+			return fmt.Errorf("failed to connect to relay directly")
+		} else {
+			fmt.Println("CONNECTED TO RELAY")
 		}
-	}()
+	}
+
+	nat := node.(interface {
+		GetAutoNat() autonat.AutoNAT
+	}).GetAutoNat()
+	if nat == nil {
+		panic("NO AUTONAT")
+	}
 
 	log.Debug("PeerStarted", zap.String("peerID", node.ID().String()))
 
@@ -126,7 +150,7 @@ func run(ctx context.Context) error {
 		if hasRelayAddrs(node) {
 			return nil
 		}
-		return fmt.Errorf("no relay addresses yet: my reachability: %s", myReachability.Load())
+		return fmt.Errorf("no relay addresses yet: my reachability: %s", nat.Status())
 	})
 	if !ok {
 		return fmt.Errorf("failed to get relay addresses")
@@ -237,4 +261,19 @@ func parseRelay(in string) (peer.AddrInfo, error) {
 	out.Addrs = append(out.Addrs, aquic)
 
 	return out, nil
+}
+
+type filter struct {
+}
+
+func (f *filter) FilterLocal(remoteID peer.ID, maddrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
+	fmt.Println("LOCAL FILTER CALLED", maddrs)
+
+	return maddrs
+}
+
+func (f *filter) FilterRemote(remoteID peer.ID, maddrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
+	fmt.Println("REMOTE FILTER CALLED", maddrs)
+
+	return maddrs
 }
