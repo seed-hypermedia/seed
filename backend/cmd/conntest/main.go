@@ -169,6 +169,9 @@ func run(ctx context.Context) error {
 }
 
 func ensureConnection(ctx context.Context, node host.Host, remote peer.AddrInfo) {
+	fmt.Println("Warming up before connecting to remote peer")
+
+	time.Sleep(5 * time.Second)
 	fmt.Println("Connecting to remote peer")
 
 	ok := retry(ctx, "ConnectToRemote", func() error {
@@ -188,13 +191,25 @@ func ensureConnection(ctx context.Context, node host.Host, remote peer.AddrInfo)
 		default:
 			state := node.Network().Connectedness(remote.ID)
 			if state != network.Connected {
-				return fmt.Errorf("not connected yet: current state: %s", state)
+				err := node.Connect(ctx, remote)
+				return fmt.Errorf("not connected yet: current state: %s: %w", state, err)
 			}
 			return nil
 		}
 	})
 
 	fmt.Println("Connection should be unlimited now", node.Network().Connectedness(remote.ID))
+
+	stream, err := node.NewStream(ctx, remote.ID, "/ipfs/ping/1.0.0")
+	if err != nil {
+		fmt.Println("Failed to open stream", err)
+		return
+	}
+
+	if err := stream.Close(); err != nil {
+		fmt.Println("Failed to close stream", err)
+		return
+	}
 }
 
 func retry(ctx context.Context, msg string, fn func() error) (ok bool) {
