@@ -19,6 +19,7 @@ import (
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
 	"github.com/multiformats/go-multiaddr"
@@ -135,6 +136,23 @@ func ensureConnection(ctx context.Context, node host.Host, remote peer.AddrInfo)
 		fmt.Println("Failed to connect to remote peer. Stop retrying.")
 		return
 	}
+
+	fmt.Println("Connected to remote peer")
+
+	ok = retry(ctx, "CheckConnectionUnlimited", func() error {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			state := node.Network().Connectedness(remote.ID)
+			if state != network.Connected {
+				return fmt.Errorf("not connected yet")
+			}
+			return nil
+		}
+	})
+
+	fmt.Println("Connection should be unlimited now", node.Network().Connectedness(remote.ID))
 }
 
 func retry(ctx context.Context, msg string, fn func() error) (ok bool) {
