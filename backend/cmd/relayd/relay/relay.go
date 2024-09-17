@@ -75,6 +75,7 @@ func (r *Relay) Start() error {
 		libp2p.UserAgent("HyperMediaRelay/0.1"),
 		libp2p.Identity(key),
 		libp2p.EnableRelay(),
+		libp2p.EnableNATService(),
 		libp2p.EnableRelayService(relay.WithResources(r.cfg.RelayV2.Resources)),
 		libp2p.EnableHolePunching(),
 		libp2p.ListenAddrStrings(libp2px.DefaultListenAddrs(r.cfg.Port)...),
