@@ -1,6 +1,6 @@
 export type Styles = {
-  strong?: true
   emphasis?: true
+  italic?: true
   underline?: true
   strike?: true
   code?: true

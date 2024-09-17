@@ -133,9 +133,7 @@ describe('Editor: ', () => {
       const result = toHMInlineContent(
         new Block({
           text: 'ABC',
-          annotations: [
-            {type: 'strong', starts: [1], ends: [2], attributes: {}},
-          ],
+          annotations: [{type: 'bold', starts: [1], ends: [2], attributes: {}}],
         }),
       )
       expect(result).toEqual([
@@ -150,8 +148,8 @@ describe('Editor: ', () => {
         new Block({
           text: '01234',
           annotations: [
-            {type: 'strong', starts: [0], ends: [1], attributes: {}},
-            {type: 'emphasis', starts: [1], ends: [2], attributes: {}},
+            {type: 'bold', starts: [0], ends: [1], attributes: {}},
+            {type: 'italic', starts: [1], ends: [2], attributes: {}},
             {type: 'underline', starts: [2], ends: [3], attributes: {}},
             {type: 'strike', starts: [3], ends: [4], attributes: {}},
             {type: 'code', starts: [4], ends: [5], attributes: {}},
@@ -178,12 +176,12 @@ describe('Editor: ', () => {
           text: 'ABCDE',
           annotations: [
             {
-              type: 'strong',
+              type: 'bold',
               starts: [1],
               ends: [3],
             },
             {
-              type: 'emphasis',
+              type: 'italic',
               starts: [2],
               ends: [4],
             },
@@ -263,7 +261,7 @@ describe('Editor: ', () => {
     test('link annotation with bold inside', () => {
       const result = toHMInlineContent(
         new Block({
-          text: 'a strong link',
+          text: 'a bold link',
           annotations: [
             {
               type: 'link',
@@ -272,7 +270,7 @@ describe('Editor: ', () => {
               ends: [13],
             },
             {
-              type: 'strong',
+              type: 'bold',
               starts: [2],
               ends: [8],
             },
@@ -285,7 +283,7 @@ describe('Editor: ', () => {
           type: 'link',
           href: 'http://example.com',
           content: [
-            {text: 'strong', type: 'text', styles: {bold: true}},
+            {text: 'bold', type: 'text', styles: {bold: true}},
             {text: ' link', type: 'text', styles: {}},
           ],
         },
@@ -439,7 +437,7 @@ describe('Editor: ', () => {
   //         text: 'ABC DE',
   //         annotations: [
   //           {
-  //             type: 'strong',
+  //             type: 'bold',
   //             starts: [1],
   //             ends: [3],
   //           },
@@ -450,7 +448,7 @@ describe('Editor: ', () => {
   //             ends: [4],
   //           },
   //           {
-  //             type: 'emphasis',
+  //             type: 'italic',
   //             starts: [4],
   //             ends: [6],
   //           },

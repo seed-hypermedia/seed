@@ -31,12 +31,12 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     const charCount = codePointLength(leaf.text)
     const end = start + charCount
 
-    if (leaf.styles?.strong) {
-      annotations.addSpan('strong', null, start, end)
+    if (leaf.styles?.bold) {
+      annotations.addSpan('bold', null, start, end)
     }
 
-    if (leaf.styles?.emphasis) {
-      annotations.addSpan('emphasis', null, start, end)
+    if (leaf.styles?.italic) {
+      annotations.addSpan('italic', null, start, end)
     }
 
     if (leaf.styles?.underline) {
@@ -51,8 +51,8 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
       annotations.addSpan('code', null, start, end)
     }
 
-    if (leaf.styles?.equation) {
-      annotations.addSpan('equation', null, start, end)
+    if (leaf.styles?.math) {
+      annotations.addSpan('math', null, start, end)
     }
 
     if (leaf.type == 'inline-embed') {

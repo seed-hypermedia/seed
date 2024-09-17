@@ -126,10 +126,10 @@ export interface EditorInlineEmbed {
 }
 
 export interface EditorInlineStyles {
-  strong?: boolean
-  emphasis?: boolean
+  bold?: boolean
+  italic?: boolean
   underline?: boolean
   strike?: boolean
   code?: boolean
-  equation?: boolean
+  math?: boolean
 }

@@ -52,8 +52,8 @@ describe('EditorBlock to HMBlock', () => {
         children: [],
         props: {},
         content: [
-          {text: 'A', type: 'text', styles: {strong: true}},
-          {text: 'B', type: 'text', styles: {emphasis: true}},
+          {text: 'A', type: 'text', styles: {bold: true}},
+          {text: 'B', type: 'text', styles: {italic: true}},
           {text: 'C', type: 'text', styles: {underline: true}},
           {text: 'D', type: 'text', styles: {strike: true}},
           {text: 'E', type: 'text', styles: {code: true}},
@@ -65,8 +65,8 @@ describe('EditorBlock to HMBlock', () => {
         type: 'paragraph',
         text: 'ABCDE',
         annotations: [
-          {type: 'strong', starts: [0], ends: [1]},
-          {type: 'emphasis', starts: [1], ends: [2]},
+          {type: 'bold', starts: [0], ends: [1]},
+          {type: 'italic', starts: [1], ends: [2]},
           {type: 'underline', starts: [2], ends: [3]},
           {type: 'strike', starts: [3], ends: [4]},
           {type: 'code', starts: [4], ends: [5]},
@@ -86,9 +86,9 @@ describe('EditorBlock to HMBlock', () => {
         props: {},
         content: [
           {text: 'A', type: 'text', styles: {}},
-          {text: 'B', type: 'text', styles: {strong: true}},
-          {text: 'C', type: 'text', styles: {strong: true, emphasis: true}},
-          {text: 'D', type: 'text', styles: {emphasis: true}},
+          {text: 'B', type: 'text', styles: {bold: true}},
+          {text: 'C', type: 'text', styles: {bold: true, italic: true}},
+          {text: 'D', type: 'text', styles: {italic: true}},
           {text: 'E', type: 'text', styles: {}},
         ],
       }
@@ -98,8 +98,8 @@ describe('EditorBlock to HMBlock', () => {
         type: 'paragraph',
         text: 'ABCDE',
         annotations: [
-          {type: 'strong', starts: [1], ends: [3]},
-          {type: 'emphasis', starts: [2], ends: [4]},
+          {type: 'bold', starts: [1], ends: [3]},
+          {type: 'italic', starts: [2], ends: [4]},
         ],
         attributes: {},
       }
@@ -124,7 +124,7 @@ describe('EditorBlock to HMBlock', () => {
             type: 'text',
             text: 'world!',
             styles: {
-              strong: true,
+              bold: true,
             },
           },
         ],
@@ -136,7 +136,7 @@ describe('EditorBlock to HMBlock', () => {
         text: '👨‍👩‍👧‍👦 Hello world!',
         annotations: [
           {
-            type: 'strong',
+            type: 'bold',
             starts: [14],
             ends: [20],
           },
@@ -258,7 +258,7 @@ describe('EditorBlock to HMBlock', () => {
             type: 'text',
             text: 'how are',
             styles: {
-              emphasis: true,
+              italic: true,
             },
           },
           {
@@ -270,7 +270,7 @@ describe('EditorBlock to HMBlock', () => {
             type: 'text',
             text: 'you?',
             styles: {
-              strong: true,
+              bold: true,
             },
           },
         ],
@@ -288,12 +288,12 @@ describe('EditorBlock to HMBlock', () => {
             ref: 'hm://asdf1234',
           },
           {
-            type: 'emphasis',
+            type: 'italic',
             starts: [8],
             ends: [15],
           },
           {
-            type: 'strong',
+            type: 'bold',
             starts: [16],
             ends: [20],
           },
@@ -372,7 +372,7 @@ describe('EditorBlock to HMBlock', () => {
         content: [
           {
             type: 'text',
-            text: `MATH EQUATION HERE`,
+            text: `MATH HERE`,
             styles: {},
           },
         ],
@@ -381,7 +381,7 @@ describe('EditorBlock to HMBlock', () => {
       const result: HMBlockMath = {
         id: 'foo',
         type: 'math',
-        text: `MATH EQUATION HERE`,
+        text: `MATH HERE`,
         annotations: [],
         attributes: {},
       }

@@ -802,7 +802,6 @@ function isBlockNodeEmpty(bn: HMBlockNode): boolean {
     case "paragraph":
     case "heading":
     case "math":
-    case "equation":
     case "code":
     case "codeBlock":
       return !bn.block.text;
@@ -886,7 +885,7 @@ function BlockContent(props: BlockContentProps) {
     return <BlockContentCode {...props} {...dataProps} />;
   }
 
-  if (["equation", "math"].includes(props.block.type)) {
+  if (props.block.type == "math") {
     return <BlockContentMath {...props} block={props.block} />;
   }
 

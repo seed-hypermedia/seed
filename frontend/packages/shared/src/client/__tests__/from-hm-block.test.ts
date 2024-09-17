@@ -16,12 +16,12 @@ describe('Editor to Server: ', () => {
         text: 'ABCDE',
         annotations: [
           {
-            type: 'strong',
+            type: 'bold',
             starts: [1],
             ends: [3],
           },
           {
-            type: 'emphasis',
+            type: 'italic',
             starts: [2],
             ends: [4],
           },
@@ -39,7 +39,7 @@ describe('Editor to Server: ', () => {
         text: 'Hello world!',
         annotations: [
           {
-            type: 'strong',
+            type: 'bold',
             starts: [6],
             ends: [11],
           },
@@ -57,8 +57,8 @@ describe('Editor to Server: ', () => {
       expect(extracted).toEqual({
         text: '01234',
         annotations: [
-          {type: 'strong', starts: [0], ends: [1]},
-          {type: 'emphasis', starts: [1], ends: [2]},
+          {type: 'bold', starts: [0], ends: [1]},
+          {type: 'italic', starts: [1], ends: [2]},
           {type: 'underline', starts: [2], ends: [3]},
           {type: 'strike', starts: [3], ends: [4]},
           {type: 'code', starts: [4], ends: [5]},
@@ -83,7 +83,7 @@ describe('Editor to Server: ', () => {
         text: 'agoodlink',
         annotations: [
           {
-            type: 'strong',
+            type: 'bold',
             starts: [1],
             ends: [5],
           },

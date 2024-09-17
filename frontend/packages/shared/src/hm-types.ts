@@ -21,14 +21,14 @@ export type HMBlockChildrenType = 'group' | 'ol' | 'ul' | 'div' | 'blockquote'
 export type HMEmbedDisplay = 'content' | 'card'
 
 export type HMStyles = {
-  strong?: true
-  emphasis?: true
+  bold?: true
+  italic?: true
   underline?: true
   strike?: true
   code?: true
   textColor?: string
   backgroundColor?: string
-  // equation?: true
+  // math?: true
 }
 
 export type ToggledStyle = {
@@ -98,7 +98,7 @@ export type HMBlockHeading = HMBlockBase & {
 }
 
 export type HMBlockMath = HMBlockBase & {
-  type: 'equation' | 'math'
+  type: 'math'
 }
 
 export type HMBlockImage = HMBlockBase & {
@@ -192,12 +192,12 @@ type BaseAnnotation = {
   // attributes: {}
 }
 
-export type StrongAnnotation = BaseAnnotation & {
-  type: 'strong'
+export type BoldAnnotation = BaseAnnotation & {
+  type: 'bold'
 }
 
-export type EmphasisAnnotation = BaseAnnotation & {
-  type: 'emphasis'
+export type ItalicAnnotation = BaseAnnotation & {
+  type: 'italic'
 }
 
 export type UnderlineAnnotation = BaseAnnotation & {
@@ -230,11 +230,11 @@ export type RangeAnnotation = BaseAnnotation & {
 
 export type HMTextAnnotation =
   | LinkAnnotation
-  | StrongAnnotation
-  | EmphasisAnnotation
+  | BoldAnnotation
+  | ItalicAnnotation
   | CodeAnnotation
   | UnderlineAnnotation
-  | StrikeAnnotation
+  | ItalicAnnotation
   | ColorAnnotation
   | InlineEmbedAnnotation
   | RangeAnnotation
