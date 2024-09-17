@@ -91,6 +91,13 @@ func NewService(h host.Host, ids identify.IDService, opts ...Option) (*Service, 
 	s.refCount.Add(1)
 	go s.watchForPublicAddr()
 
+	go func() {
+		for {
+			time.Sleep(5 * time.Second)
+			fmt.Println("SVC PUBLIC ADDRS", s.getPublicAddrs())
+		}
+	}()
+
 	return s, nil
 }
 
@@ -294,6 +301,8 @@ func (s *Service) getPublicAddrs() []ma.Multiaddr {
 
 	all = removeRelayAddrs(all)
 	all = ma.Unique(all)
+
+	fmt.Println("ALL ADDRS", all)
 
 	publicAddrs := make([]ma.Multiaddr, 0, len(all))
 

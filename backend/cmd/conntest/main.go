@@ -13,13 +13,9 @@ import (
 	"seed/backend/logging"
 	"seed/backend/mttnet"
 	"seed/backend/util/libp2px"
-	"seed/backend/util/must"
-	"slices"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/Snawoot/extip"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -72,19 +68,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("failed to parse relay: %w", err)
 	}
 
-	ip, err := extip.QueryMultipleServers(ctx, nil, 2, false)
-	if err != nil {
-		return err
-	}
-
 	const port = 57010
-
-	var publicAddrs []multiaddr.Multiaddr
-	{
-		publicAddrs = append(publicAddrs, must.Do2(multiaddr.NewMultiaddr("/ip4/"+ip+"/tcp/"+strconv.Itoa(57010))))
-		publicAddrs = append(publicAddrs, must.Do2(multiaddr.NewMultiaddr("/ip4/"+ip+"/udp/"+strconv.Itoa(57010)+"/quic-v1")))
-		publicAddrs = append(publicAddrs, must.Do2(multiaddr.NewMultiaddr("/ip4/"+ip+"/udp/"+strconv.Itoa(57010)+"/quic-v1/webtransport")))
-	}
 
 	opts := []libp2p.Option{
 		libp2p.Identity(priv),
@@ -97,9 +81,6 @@ func run(ctx context.Context) error {
 		),
 		libp2p.ForceReachabilityPrivate(),
 		libp2p.ListenAddrStrings(libp2px.DefaultListenAddrs(port)...),
-		libp2p.AddrsFactory(func(in []multiaddr.Multiaddr) []multiaddr.Multiaddr {
-			return slices.Concat(in, publicAddrs)
-		}),
 	}
 
 	logging.SetLogLevel("p2p-holepunch", "debug")
@@ -118,11 +99,21 @@ func run(ctx context.Context) error {
 
 	log := logging.New("conntest", "debug")
 
-	node, err := libp2p.New(opts...)
-	if err != nil {
-		return err
+	var node host.Host
+	{
+		node, err = libp2p.New(opts...)
+		if err != nil {
+			return err
+		}
+		defer node.Close()
 	}
-	defer node.Close()
+
+	for {
+		time.Sleep(5 * time.Second)
+		fmt.Println("NODE ADDRS", node.Addrs())
+	}
+
+	return nil
 
 	{
 		ok := retry(ctx, "RelayDirectConnect", func() error {

@@ -61,6 +61,14 @@ func newHolePuncher(h host.Host, ids identify.IDService, tracer *tracer, filter 
 	}
 	hp.ctx, hp.ctxCancel = context.WithCancel(context.Background())
 	h.Network().Notify((*netNotifiee)(hp))
+
+	go func() {
+		for {
+			time.Sleep(5 * time.Second)
+			fmt.Println("HOLE PUNCHER PUBLIC ADDRS", hp.getPublicAddrs())
+		}
+	}()
+
 	return hp
 }
 

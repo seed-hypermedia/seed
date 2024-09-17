@@ -63,7 +63,6 @@ require (
 )
 
 require (
-	github.com/Snawoot/extip v1.0.1 // indirect
 	github.com/alessio/shellescape v1.4.1 // indirect
 	github.com/danieljoos/wincred v1.2.0 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
@@ -89,7 +88,6 @@ require (
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/wlynxg/anet v0.0.3 // indirect
 	google.golang.org/genproto v0.0.0-20240213162025-012b6fc9bca9 // indirect
-	gortc.io/stun v1.22.2 // indirect
 )
 
 require (
