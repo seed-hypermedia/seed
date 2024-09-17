@@ -38,11 +38,11 @@ func DefaultListenAddrs(port int) []string {
 	portstr := strconv.Itoa(port)
 	return []string{
 		"/ip4/0.0.0.0/tcp/" + portstr,
-		"/ip4/0.0.0.0/udp/" + portstr + "/quic-v1",
-		"/ip4/0.0.0.0/udp/" + portstr + "/quic-v1/webtransport",
-		"/ip6/::/tcp/" + portstr,
-		"/ip6/::/udp/" + portstr + "/quic-v1",
-		"/ip6/::/udp/" + portstr + "/quic-v1/webtransport",
+		// "/ip4/0.0.0.0/udp/" + portstr + "/quic-v1",
+		// "/ip4/0.0.0.0/udp/" + portstr + "/quic-v1/webtransport",
+		// "/ip6/::/tcp/" + portstr,
+		// "/ip6/::/udp/" + portstr + "/quic-v1",
+		// "/ip6/::/udp/" + portstr + "/quic-v1/webtransport",
 	}
 }
 
