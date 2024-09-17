@@ -98,7 +98,7 @@ func run(ctx context.Context) error {
 			autorelay.WithNumRelays(1),
 		),
 		libp2p.EnableAutoNATv2(),
-		// libp2p.ForceReachabilityPrivate(),
+		libp2p.ForceReachabilityPrivate(),
 		libp2p.ListenAddrStrings(libp2px.DefaultListenAddrs(port)...),
 	}
 
