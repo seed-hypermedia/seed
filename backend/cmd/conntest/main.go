@@ -171,7 +171,7 @@ func ensureConnection(ctx context.Context, node host.Host, remote peer.AddrInfo)
 		default:
 			state := node.Network().Connectedness(remote.ID)
 			if state != network.Connected {
-				return fmt.Errorf("not connected yet")
+				return fmt.Errorf("not connected yet: current state: %s", state)
 			}
 			return nil
 		}
