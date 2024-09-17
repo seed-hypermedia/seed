@@ -28,7 +28,7 @@ import (
 
 const (
 	// ConnectTimeout is the maximum time to spend connecting to a peer
-	ConnectTimeout         = time.Second * 15
+	ConnectTimeout         = time.Minute
 	maxNonSeedPeersAllowed = 10
 	protocolSupportKey     = "seed-support" // This is what we use as a key to protect the connection in ConnManager.
 )

@@ -6,7 +6,6 @@ import (
 	"net"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"sync"
-	"time"
 
 	gostream "github.com/libp2p/go-libp2p-gostream"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -93,7 +92,7 @@ func (c *Client) Close() (err error) {
 }
 
 func (c *Client) dialPeer(ctx context.Context, pid peer.ID) (*grpc.ClientConn, error) {
-	ctx, cancel := context.WithTimeout(ctx, 7*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, ConnectTimeout)
 	defer cancel()
 
 	if c.me == pid {
