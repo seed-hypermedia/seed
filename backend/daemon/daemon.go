@@ -239,8 +239,20 @@ func (l *lazyFileManager) UploadFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) setupLogging(ctx context.Context, cfg config.Config) {
-	logging.SetLogLevel("autorelay", cfg.LogLevel)
 	logging.SetLogLevel("provider.batched", cfg.LogLevel)
+
+	logging.SetLogLevel("p2p-holepunch", "debug")
+	logging.SetLogLevel("autorelay", "debug")
+	logging.SetLogLevel("autonat", "info")
+	logging.SetLogLevel("autonatv2", "info")
+	// logging.SetLogLevel("basichost", "debug")
+	// logging.SetLogLevel("nat", "debug")
+	logging.SetLogLevel("p2p-circuit", "debug")
+	logging.SetLogLevel("upgrader", "debug")
+	// logging.SetLogLevel("webrtc-transport", "debug")
+	// logging.SetLogLevel("webrtc-transport-pion", "debug")
+	logging.SetLogLevel("relay", "debug")
+
 	a.g.Go(func() error {
 		a.log.Info("DaemonStarted",
 			zap.String("grpcListener", a.GRPCListener.Addr().String()),
