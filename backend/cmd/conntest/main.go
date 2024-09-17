@@ -71,6 +71,8 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("failed to parse relay: %w", err)
 	}
 
+	_ = relay
+
 	const port = 57010
 
 	var rt routing.Routing
@@ -99,7 +101,7 @@ func run(ctx context.Context) error {
 			return dhtrt, err
 		}),
 		libp2p.EnableAutoRelayWithStaticRelays(
-			[]peer.AddrInfo{relay},
+			mttnet.DefaultRelays(),
 			autorelay.WithBootDelay(5*time.Second),
 			autorelay.WithNumRelays(1),
 		),
@@ -135,17 +137,6 @@ func run(ctx context.Context) error {
 
 	boot := ipfs.Bootstrap(ctx, node, rt, ipfs.DefaultBootstrapAddrInfos)
 	fmt.Println("BOOTSTRAPPED", boot)
-
-	{
-		ok := retry(ctx, "RelayDirectConnect", func() error {
-			return node.Connect(ctx, relay)
-		})
-		if !ok {
-			return fmt.Errorf("failed to connect to relay directly")
-		} else {
-			fmt.Println("CONNECTED TO RELAY")
-		}
-	}
 
 	log.Debug("PeerStarted", zap.String("peerID", node.ID().String()))
 
