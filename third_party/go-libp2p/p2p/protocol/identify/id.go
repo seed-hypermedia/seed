@@ -214,7 +214,6 @@ func NewIDService(h host.Host, opts ...Option) (*idService, error) {
 
 	var err error
 	if cfg.disableObservedAddrManager {
-		panic("DISABLED OBSERVED 2")
 		s.disableObservedAddrManager = true
 	} else {
 		observedAddrs, err := NewObservedAddrManager(h.Network().ListenAddresses,

@@ -18,7 +18,6 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/protocol/identify"
 	"github.com/libp2p/go-msgio/pbio"
 
-	"github.com/multiformats/go-multiaddr"
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 )
@@ -90,13 +89,6 @@ func NewService(h host.Host, ids identify.IDService, opts ...Option) (*Service, 
 
 	s.refCount.Add(1)
 	go s.watchForPublicAddr()
-
-	go func() {
-		for {
-			time.Sleep(5 * time.Second)
-			fmt.Println("SVC PUBLIC ADDRS", s.getPublicAddrs())
-		}
-	}()
 
 	return s, nil
 }
@@ -285,35 +277,24 @@ func (s *Service) handleNewStream(str network.Stream) {
 
 // getPublicAddrs returns public observed and interface addresses
 func (s *Service) getPublicAddrs() []ma.Multiaddr {
-	var all []multiaddr.Multiaddr
-	{
-		all = append(all, s.ids.OwnObservedAddrs()...)
+	addrs := removeRelayAddrs(s.ids.OwnObservedAddrs())
 
-		listen, err := s.host.Network().InterfaceListenAddresses()
-		if err != nil {
-			log.Debugf("failed to get to get InterfaceListenAddresses: %s", err)
-		} else {
-			all = append(all, listen...)
-		}
-
-		all = append(all, s.host.Addrs()...)
+	interfaceListenAddrs, err := s.host.Network().InterfaceListenAddresses()
+	if err != nil {
+		log.Debugf("failed to get to get InterfaceListenAddresses: %s", err)
+	} else {
+		addrs = append(addrs, interfaceListenAddrs...)
 	}
 
-	all = removeRelayAddrs(all)
-	all = ma.Unique(all)
+	addrs = ma.Unique(addrs)
 
-	fmt.Println("ALL ADDRS", all)
+	publicAddrs := make([]ma.Multiaddr, 0, len(addrs))
 
-	publicAddrs := make([]ma.Multiaddr, 0, len(all))
-
-	for _, addr := range all {
+	for _, addr := range addrs {
 		if manet.IsPublicAddr(addr) {
 			publicAddrs = append(publicAddrs, addr)
 		}
 	}
-
-	fmt.Println("PUBLIC ADDRS", publicAddrs)
-
 	return publicAddrs
 }
 
