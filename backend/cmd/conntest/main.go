@@ -91,10 +91,10 @@ func run(ctx context.Context) error {
 			)
 			rt = dhtrt
 
-			// go func() {
-			// 	<-ctx.Done()
-			// 	fmt.Println("DHT CLOSE", dhtrt.Close())
-			// }()
+			go func() {
+				<-ctx.Done()
+				fmt.Println("DHT CLOSE", dhtrt.Close())
+			}()
 
 			return dhtrt, err
 		}),
