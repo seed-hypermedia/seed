@@ -8,7 +8,7 @@ import {
   UnpackedHypermediaId,
 } from "@shm/shared";
 import {Button} from "@tamagui/button";
-import {View} from "@tamagui/core";
+import {useTheme, View} from "@tamagui/core";
 import {ChevronDown, ChevronRight} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
@@ -120,6 +120,7 @@ function Comment({
   const [showReplies, setShowReplies] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
   const authorId = comment.author ? hmId("d", comment.author) : null;
+  const theme = useTheme();
   // const {data: author} = useEntity(authorId)
   // const draft = useCommentDraft(docId, comment.id)
 
@@ -190,13 +191,31 @@ function Comment({
             {replyCount ? (
               <Button
                 chromeless
-                color="$brand5"
                 size="$1"
-                theme="blue"
                 icon={showReplies ? ChevronDown : ChevronRight}
                 onPress={() => setShowReplies(!showReplies)}
+                color="$brand5"
+                borderColor="$colorTransparent"
+                hoverStyle={{
+                  bg: "$color4",
+                  borderColor: "$color5",
+                }}
+                focusStyle={{
+                  bg: "$color5",
+                  borderColor: "$color6",
+                }}
+                pressStyle={{
+                  bg: "$color5",
+                  borderColor: "$color6",
+                }}
               >
-                <SizableText size="$1" color="$brand5">
+                <SizableText
+                  size="$1"
+                  color="$brand5"
+                  hoverStyle={{color: "$brand6"}}
+                  focusStyle={{color: "$brand7"}}
+                  pressStyle={{color: "$brand7"}}
+                >
                   Replies ({replyCount})
                 </SizableText>
               </Button>
@@ -204,13 +223,33 @@ function Comment({
             {RepliesEditor ? (
               <Button
                 chromeless
-                color="$brand5"
                 size="$1"
-                theme="blue"
-                icon={<ReplyArrow size={16} />}
+                icon={<ReplyArrow color={theme.brand5.val} size={16} />}
                 onPress={() => setIsReplying(true)}
+                color="$brand5"
+                borderColor="$colorTransparent"
+                hoverStyle={{
+                  bg: "$color4",
+                  borderColor: "$color5",
+                }}
+                focusStyle={{
+                  bg: "$color5",
+                  borderColor: "$color6",
+                }}
+                pressStyle={{
+                  bg: "$color5",
+                  borderColor: "$color6",
+                }}
               >
-                Reply
+                <SizableText
+                  size="$1"
+                  color="$brand5"
+                  hoverStyle={{color: "$brand6"}}
+                  focusStyle={{color: "$brand7"}}
+                  pressStyle={{color: "$brand7"}}
+                >
+                  Reply
+                </SizableText>
               </Button>
             ) : null}
           </XStack>
