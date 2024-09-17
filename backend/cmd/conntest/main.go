@@ -106,8 +106,8 @@ func run(ctx context.Context) error {
 	logging.SetLogLevel("p2p-holepunch", "debug")
 	// logging.SetLogLevel("p2p-holepunch", "debug")
 	logging.SetLogLevel("autorelay", "debug")
-	logging.SetLogLevel("autonat", "debug")
-	logging.SetLogLevel("autonatv2", "debug")
+	logging.SetLogLevel("autonat", "info")
+	logging.SetLogLevel("autonatv2", "info")
 	// logging.SetLogLevel("basichost", "debug")
 	// logging.SetLogLevel("nat", "debug")
 	logging.SetLogLevel("p2p-circuit", "debug")
@@ -130,13 +130,6 @@ func run(ctx context.Context) error {
 
 	boot := ipfs.Bootstrap(ctx, node, rt, ipfs.DefaultBootstrapAddrInfos)
 	fmt.Println("BOOTSTRAPPED", boot)
-
-	for {
-		time.Sleep(5 * time.Second)
-		fmt.Println("NODE ADDRS", node.Addrs())
-	}
-
-	return nil
 
 	{
 		ok := retry(ctx, "RelayDirectConnect", func() error {
