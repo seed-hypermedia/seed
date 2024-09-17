@@ -27,7 +27,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/host/autonat"
 	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
-	"github.com/libp2p/go-libp2p/p2p/protocol/holepunch"
 	"github.com/multiformats/go-multiaddr"
 	"go.uber.org/zap"
 )
@@ -90,7 +89,7 @@ func run(ctx context.Context) error {
 	opts := []libp2p.Option{
 		libp2p.Identity(priv),
 		libp2p.EnableRelay(),
-		libp2p.EnableHolePunching(holepunch.WithAddrFilter(&filter{})),
+		libp2p.EnableHolePunching(),
 		libp2p.EnableAutoNATv2(),
 		libp2p.EnableAutoRelayWithStaticRelays(
 			[]peer.AddrInfo{relay},
@@ -261,19 +260,4 @@ func parseRelay(in string) (peer.AddrInfo, error) {
 	out.Addrs = append(out.Addrs, aquic)
 
 	return out, nil
-}
-
-type filter struct {
-}
-
-func (f *filter) FilterLocal(remoteID peer.ID, maddrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
-	fmt.Println("LOCAL FILTER CALLED", maddrs)
-
-	return maddrs
-}
-
-func (f *filter) FilterRemote(remoteID peer.ID, maddrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
-	fmt.Println("REMOTE FILTER CALLED", maddrs)
-
-	return maddrs
 }
