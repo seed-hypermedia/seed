@@ -3,6 +3,7 @@ import {
   EditorInlineContent,
   EditorInlineEmbed,
 } from '@shm/desktop/src/editor'
+import _ from 'lodash'
 import {HMBlock, InlineEmbedAnnotation, LinkAnnotation} from '../hm-types'
 import {Annotation} from './.generated/documents/v3alpha/documents_pb'
 import {isSurrogate} from './unicode'
@@ -97,11 +98,11 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
 
         if (inlineBlockContent) {
           if (!isText(leaves[leaves.length - 1])) {
-            leaves.push({type: 'text', text: '', styles: {}})
+            // leaves.push({type: 'text', text: '', styles: {}})
           }
 
           leaves.push(inlineBlockContent)
-          leaves.push({type: 'text', text: '', styles: {}})
+          //   leaves.push({type: 'text', text: '', styles: {}})
           inlineBlockContent = null
         }
         return out
@@ -126,10 +127,10 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
 
       if (inlineBlockContent) {
         if (!isText(leaves[leaves.length - 1])) {
-          leaves.push({type: 'text', text: '', styles: {}})
+          //   leaves.push({type: 'text', text: '', styles: {}})
         }
         leaves.push(inlineBlockContent)
-        leaves.push({type: 'text', text: '', styles: {}})
+        // leaves.push({type: 'text', text: '', styles: {}})
         inlineBlockContent = null
       }
 
@@ -179,29 +180,13 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
       styles: {},
     }
 
-    // this var keeps track if in the current annotations there's a link or embed annotation or not. this is important to make sure we are adding items to the correct array
     let linkAnnotation: LinkAnnotation | InlineEmbedAnnotation | null = null
 
     posAnnotations.forEach((l) => {
-      // Here's we'd need to do something more sophisticated
-      // to determine how different annotations affect the leaf node.
-      // We'd need to check the annotation "identity", but I'm
-      // checking only type here for brevity.
       if (['link', 'inline-embed'].includes(l.type)) {
-        // TODO: modify leaf if is link or embed
         linkAnnotation = l as LinkAnnotation | InlineEmbedAnnotation
       }
-      if (
-        [
-          'bold',
-          'italic',
-          'strike',
-          'underline',
-          //   'superscript',
-          //   'subscript',
-          'code',
-        ].includes(l.type)
-      ) {
+      if (['bold', 'italic', 'strike', 'underline', 'code'].includes(l.type)) {
         // @ts-ignore
         leaf.styles[l.type] = true
       }
@@ -213,44 +198,33 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     })
 
     if (linkAnnotation) {
-      if (
-        (linkAnnotation as LinkAnnotation | InlineEmbedAnnotation).type ==
-        'inline-embed'
-      ) {
+      if (linkAnnotation.type === 'inline-embed') {
         leaves.push({
           type: 'inline-embed',
           styles: {},
-          ref: (linkAnnotation as LinkAnnotation | InlineEmbedAnnotation).ref,
+          ref: linkAnnotation.ref,
         } as EditorInlineEmbed)
-        // Skip the empty Unicode code point
         textStart = i + 1
       } else if (inlineBlockContent) {
         if (linkChangedIdentity(linkAnnotation)) {
-          if (!isText(leaves[leaves.length - 1])) {
-            leaves.push({type: 'text', text: '', styles: {}})
-          }
           leaves.push(inlineBlockContent)
-          leaves.push({type: 'text', text: '', styles: {}})
           inlineBlockContent = {
-            type: (linkAnnotation as LinkAnnotation | InlineEmbedAnnotation)
-              .type,
-            ref: (linkAnnotation as LinkAnnotation | InlineEmbedAnnotation).ref,
+            type: linkAnnotation.type,
+            ref: linkAnnotation.ref,
+            content: [],
           }
         }
       } else {
         inlineBlockContent = {
-          type: (linkAnnotation as LinkAnnotation | InlineEmbedAnnotation).type,
-          ref: (linkAnnotation as LinkAnnotation | InlineEmbedAnnotation).ref,
+          type: linkAnnotation.type,
+          ref: linkAnnotation.ref,
           content: [],
         }
       }
     } else {
       if (inlineBlockContent) {
-        if (!isText(leaves[leaves.length - 1])) {
-          leaves.push({type: 'text', text: '', styles: {}})
-        }
+        console.log(`== ~ startLeaf ~ inlineBlockContent:`, inlineBlockContent)
         leaves.push(inlineBlockContent)
-        leaves.push({type: 'text', text: '', styles: {}})
         inlineBlockContent = null
       }
     }
@@ -275,7 +249,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
         inlineBlockContent.content.push({...leaf, text: ''})
       }
     } else {
-      if (leaf) {
+      if (leaf && !_.isEqual(leaf, {type: 'text', text: '', styles: {}})) {
         leaves.push(leaf)
       }
     }

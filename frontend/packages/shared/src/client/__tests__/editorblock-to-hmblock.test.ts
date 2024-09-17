@@ -200,6 +200,65 @@ describe('EditorBlock to HMBlock', () => {
       expect(val).toEqual(result)
     })
 
+    test('paragraph with link and more content', () => {
+      const editorBlock: EditorBlock = {
+        id: 'foo',
+        type: 'paragraph',
+        children: [],
+        props: {},
+        content: [
+          {
+            type: 'text',
+            text: 'Hello ',
+            styles: {},
+          },
+          {
+            type: 'link',
+            ref: 'https://example.com',
+            content: [
+              {
+                type: 'text',
+                text: 'world',
+                styles: {},
+              },
+            ],
+          },
+          {
+            type: 'text',
+            text: ' and all of ',
+            styles: {},
+          },
+          {
+            text: 'you!',
+            type: 'text',
+            styles: {bold: true},
+          },
+        ],
+      }
+
+      const result: HMBlock = {
+        id: 'foo',
+        type: 'paragraph',
+        text: 'Hello world and all of you!',
+        annotations: [
+          {
+            type: 'link',
+            starts: [6],
+            ends: [11],
+            ref: 'https://example.com',
+          },
+          {
+            type: 'bold',
+            starts: [23],
+            ends: [27],
+          },
+        ],
+        attributes: {},
+      }
+      const val = editorBlockToHMBlock(editorBlock)
+      expect(val).toEqual(result)
+    })
+
     test('paragraph with inline embed', () => {
       const editorBlock: EditorBlock = {
         id: 'foo',

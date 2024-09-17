@@ -207,11 +207,6 @@ describe('HMBlock to EditorBlock', () => {
               },
             ],
           },
-          {
-            type: 'text',
-            text: '',
-            styles: {},
-          },
         ],
       }
       const val = hmBlockToEditorBlock(hmBlock)
@@ -277,7 +272,6 @@ describe('HMBlock to EditorBlock', () => {
         ],
       }
       const val = hmBlockToEditorBlock(hmBlock)
-      //   console.log(`== ~ LINK ~ val:`, JSON.stringify(val, null, 2))
       expect(val).toEqual(result)
     })
 
@@ -315,15 +309,9 @@ describe('HMBlock to EditorBlock', () => {
             ref: 'hm://asdf1234',
             styles: {},
           },
-          {
-            type: 'text',
-            text: '',
-            styles: {},
-          },
         ],
       }
       const val = hmBlockToEditorBlock(hmBlock)
-      //   console.log(`== ~ EMBED ~ val:`, JSON.stringify(val, null, 2))
       expect(val).toEqual(result)
     })
 
@@ -388,7 +376,6 @@ describe('HMBlock to EditorBlock', () => {
         ],
       }
       const val = hmBlockToEditorBlock(hmBlock)
-      //   console.log(`== ~ EMBED ~ val:`, JSON.stringify(val, null, 2))
       expect(val).toEqual(result)
     })
 
