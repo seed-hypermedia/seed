@@ -3,6 +3,7 @@ package relay
 import (
 	"encoding/hex"
 	"fmt"
+	"seed/backend/logging"
 	"seed/backend/util/libp2px"
 	"seed/backend/util/must"
 	"strconv"
@@ -73,10 +74,11 @@ func (r *Relay) Start() error {
 	opts := []libp2p.Option{
 		libp2p.UserAgent("HyperMediaRelay/0.1"),
 		libp2p.Identity(key),
-		libp2p.DisableRelay(),
+		libp2p.EnableRelay(),
 		libp2p.EnableRelayService(relay.WithResources(r.cfg.RelayV2.Resources)),
+		libp2p.EnableHolePunching(),
 		libp2p.ListenAddrStrings(libp2px.DefaultListenAddrs(r.cfg.Port)...),
-		libp2px.WithPublicAddrsOnly(),
+		// libp2px.WithPublicAddrsOnly(),
 		libp2p.ForceReachabilityPublic(),
 		libp2p.ConnectionManager(must.Do2(connmgr.NewConnManager(
 			r.cfg.ConnMgr.ConnMgrLo,
@@ -85,6 +87,10 @@ func (r *Relay) Start() error {
 		))),
 		libp2p.ResourceManager(must.Do2(rcmgr.NewResourceManager(rcmgr.NewFixedLimiter(rcmgr.InfiniteLimits)))),
 	}
+
+	logging.SetLogLevel("p2p-holepunch", "debug")
+	logging.SetLogLevel("autorelay", "debug")
+	logging.SetLogLevel("relay", "debug")
 
 	r.host, err = libp2p.New(opts...)
 	if err != nil {
@@ -98,5 +104,8 @@ func (r *Relay) Start() error {
 	r.log.Info("Relay information", addresses...)
 
 	r.log.Info("RelayV2 is running!")
+
+	fmt.Println("PROTOCOLS", r.host.Mux().Protocols())
+
 	return nil
 }
