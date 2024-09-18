@@ -3,9 +3,6 @@ package ipfs
 import (
 	"context"
 	"fmt"
-	"sync"
-	"sync/atomic"
-	"time"
 
 	"seed/backend/util/cleanup"
 	"seed/backend/util/must"
@@ -25,71 +22,9 @@ import (
 	routing "github.com/libp2p/go-libp2p/core/routing"
 	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
-	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 	"github.com/multiformats/go-multiaddr"
 	"go.uber.org/multierr"
 )
-
-// BootstrapResult is a result of the bootstrap process.
-type BootstrapResult struct {
-	// Peers that were used for bootstrapping.
-	Peers []peer.AddrInfo
-	// ConnectErrs is a list of results from the
-	// Connect() call for all the peers in the input order.
-	ConnectErrs []error
-	// RoutingErr is the result of the bootstrap call
-	// from the routing system.
-	RoutingErr error
-	// NumFailedConnection is the number of total failed connect calls.
-	NumFailedConnections uint32
-}
-
-// Bootstrap the given host and routing using the provided bootstrap peers.
-// This function blocks until bootstrapping is complete or context is canceled.
-// It's fine to pass peers that might not be reachable. The caller is responsible
-// to handle the return value where the result for each peer is presented separately.
-func Bootstrap(ctx context.Context, h host.Host, rt routing.Routing, peers []peer.AddrInfo) BootstrapResult {
-	res := BootstrapResult{
-		Peers:       peers,
-		ConnectErrs: make([]error, len(peers)),
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(len(peers))
-
-	for i, pinfo := range peers {
-		go func(i int, pinfo peer.AddrInfo) {
-			defer wg.Done()
-			// Since we're explicitly connecting to a peer, we want to clear any backoffs
-			// that the network might have at the moment.
-			{
-				sw, ok := h.Network().(*swarm.Swarm)
-				if ok {
-					sw.Backoff().Clear(pinfo.ID)
-				}
-			}
-			toCtx, cancelFcn := context.WithTimeout(ctx, 8*time.Second)
-			defer cancelFcn()
-			err := h.Connect(toCtx, pinfo)
-			ctxErr := toCtx.Err()
-
-			if err != nil || ctxErr != nil {
-				atomic.AddUint32(&res.NumFailedConnections, 1)
-				if err != nil {
-					res.ConnectErrs[i] = err
-				} else {
-					res.ConnectErrs[i] = ctxErr
-				}
-
-			}
-		}(i, pinfo)
-	}
-
-	res.RoutingErr = rt.Bootstrap(ctx)
-	wg.Wait()
-
-	return res
-}
 
 // Libp2p exposes libp2p host and the underlying routing system (DHT).
 // It provides some reasonable defaults, and also handles shutdown more gracefully.
@@ -197,6 +132,11 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 	return n, nil
 }
 
+// Listen starts listening on the network.
+func (n *Libp2p) Listen(addrs []multiaddr.Multiaddr) error {
+	return n.Host.Network().Listen(addrs...)
+}
+
 // AddrsFull returns a list of fully-qualified multiaddrs.
 func (n *Libp2p) AddrsFull() []multiaddr.Multiaddr {
 	info := n.AddrInfo()
@@ -219,12 +159,6 @@ func (n *Libp2p) AddrInfo() peer.AddrInfo {
 // Datastore returns the underlying datastore for convenience.
 func (n *Libp2p) Datastore() datastore.Batching {
 	return n.ds
-}
-
-// Bootstrap blocks, and performs bootstrapping process for the node,
-// including the underlying routing system.
-func (n *Libp2p) Bootstrap(ctx context.Context, bootstrappers []peer.AddrInfo) BootstrapResult {
-	return Bootstrap(ctx, n.Host, n.Routing, bootstrappers)
 }
 
 // Close the node and all the underlying systems.

@@ -3,6 +3,7 @@ package mttnet
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"seed/backend/config"
@@ -35,7 +36,6 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
 	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoremem"
 	"github.com/multiformats/go-multiaddr"
-	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
@@ -103,7 +103,7 @@ type Node struct {
 	bitswap                *ipfs.Bitswap
 	providing              provider.System
 	grpc                   *grpc.Server
-	quit                   io.Closer
+	clean                  cleanup.Stack
 	ready                  chan struct{}
 	currentReachability    atomic.Value    // type of network.Reachability
 	ctx                    context.Context // will be set after calling Start()
@@ -111,8 +111,14 @@ type Node struct {
 
 // New creates a new P2P Node. The users must call Start() before using the node, and can use Ready() to wait
 // for when the node is ready to use.
-func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool, index *index.Index, log *zap.Logger) (*Node, error) {
+func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool, index *index.Index, log *zap.Logger) (n *Node, err error) {
 	var clean cleanup.Stack
+	defer func() {
+		// Make sure to close everything if we fail in the middle of the initialization.
+		if err != nil {
+			err = errors.Join(err, clean.Close())
+		}
+	}()
 
 	var testnetSuffix string
 	if cfg.TestnetName != "" {
@@ -148,7 +154,7 @@ func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool
 	client := newClient(device.PeerID(), host, protoInfo.ID)
 	clean.Add(client)
 
-	n := &Node{
+	n = &Node{
 		log:       log,
 		index:     index,
 		db:        db,
@@ -161,7 +167,7 @@ func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool
 		bitswap:   bitswap,
 		providing: providing,
 		grpc:      grpc.NewServer(),
-		quit:      &clean,
+		clean:     clean,
 		ready:     make(chan struct{}),
 	}
 	n.connectionCallback = n.defaultConnectionCallback
@@ -351,14 +357,11 @@ func (n *Node) Start(ctx context.Context) (err error) {
 
 	// Indicate that node is ready to work with.
 	close(n.ready)
-
-	werr := g.Wait()
-
-	cerr := n.quit.Close()
+	n.clean.AddErrFunc(func() error { return g.Wait() })
 
 	// When context is canceled the whole errgroup will be tearing down.
 	// We have to wait until all goroutines finish, and then call the cleanup stack.
-	return multierr.Combine(werr, cerr)
+	return n.clean.Close()
 }
 
 // AddrInfo returns info for our own peer.
@@ -387,67 +390,50 @@ func (n *Node) startLibp2p(ctx context.Context) error {
 		}
 	}
 
-	if err := n.p2p.Network().Listen(addrs...); err != nil {
+	if err := n.p2p.Listen(addrs); err != nil {
 		return err
 	}
 
+	doneOnce := make(chan struct{})
 	if !n.cfg.NoBootstrap() {
-		bootInfo, err := peer.AddrInfosFromP2pAddrs(n.cfg.BootstrapPeers...)
-		if err != nil {
-			return fmt.Errorf("failed to parse bootstrap addresses %+v: %w", n.cfg.BootstrapPeers, err)
-		}
-		ticker := time.NewTicker(10 * time.Minute)
-		done := make(chan bool)
-		res := n.p2p.Bootstrap(ctx, bootInfo)
-		if res.NumFailedConnections == 0 {
-			n.log.Info("BootstrapFinished",
-				zap.Int("peersTotal", len(res.Peers)),
-				zap.Int("failedConnections", int(res.NumFailedConnections)),
-			)
-			return nil
-		}
-		n.log.Info("BootstrapFinished",
-			zap.NamedError("dhtError", res.RoutingErr),
-			zap.Int("peersTotal", len(res.Peers)),
-			zap.Int("failedConnectionsTotal", int(res.NumFailedConnections)),
-			zap.Any("ConnectErrs", res.ConnectErrs),
-		)
-
+		done := make(chan struct{})
 		go func() {
-			for {
-				select {
-				case <-done:
-					return
-				case <-ticker.C:
-					res := n.p2p.Bootstrap(ctx, bootInfo)
-
-					n.log.Info("BootstrapFinished",
-						zap.NamedError("dhtError", res.RoutingErr),
-						zap.Int("peersTotal", len(res.Peers)),
-						zap.Int("failedConnectionsTotal", int(res.NumFailedConnections)),
-						zap.Any("ConnectErrs", res.ConnectErrs),
-					)
-
-					if res.NumFailedConnections > 0 {
-						for i, err := range res.ConnectErrs {
-							if err == nil {
-								continue
-							}
-							n.log.Debug("BootstrapConnectionError",
-								zap.String("peer", res.Peers[i].ID.String()),
-								zap.Error(err),
-							)
-						}
-					} else {
-						ticker.Stop()
-						done <- true
-					}
+			peersfn := func() []peer.AddrInfo { return n.cfg.BootstrapPeers }
+			var count int
+			ipfs.PeriodicBootstrap(ctx, n.p2p.Host, n.p2p.Routing, peersfn, func(_ context.Context, result ipfs.BootstrapResult) {
+				fields := []zap.Field{
+					zap.Int("round", count+1),
+					zap.NamedError("dhtError", result.RoutingErr),
+					zap.Int("dialedPeers", len(result.Peers)),
+					zap.Int("failures", int(result.NumFailedConnections)),
 				}
-			}
+				if result.NumFailedConnections > 0 {
+					fields = append(fields, zap.Errors("errors", result.ConnectErrs))
+				}
+
+				n.log.Info("BootstrapFinished", fields...)
+				if count == 0 {
+					close(doneOnce)
+				}
+				count++
+			})
 		}()
+		// We wait for the periodic bootstrap to shutdown cleanly.
+		n.clean.AddErrFunc(func() error {
+			<-done
+			return nil
+		})
+	} else {
+		n.log.Warn("NoBoostrapMode")
+		close(doneOnce)
 	}
 
-	return nil
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-doneOnce:
+		return nil
+	}
 }
 
 // AddrInfoToStrings returns address as string.

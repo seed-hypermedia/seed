@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 )
 
@@ -218,14 +219,19 @@ var customBootstrapPeers = []string{
 	"/dns4/gateway.hyper.media/udp/56000/quic-v1/p2p/12D3KooWLyw3zApBMKK2BbtjgHPmtr4iqqJkY8nUGYs92oM2bzgR",
 }
 
-func bootstrapPeers() []multiaddr.Multiaddr {
-	std := ipfs.DefaultBootstrapPeers()
+func bootstrapPeers() []peer.AddrInfo {
+	all := ipfs.DefaultBootstrapPeers()
 
 	for _, addr := range customBootstrapPeers {
-		std = append(std, must.Do2(multiaddr.NewMultiaddr(addr)))
+		all = append(all, must.Do2(multiaddr.NewMultiaddr(addr)))
 	}
 
-	return std
+	infos, err := peer.AddrInfosFromP2pAddrs(all...)
+	if err != nil {
+		panic(err)
+	}
+
+	return infos
 }
 
 // P2P networking configuration.
@@ -233,7 +239,7 @@ type P2P struct {
 	TestnetName             string
 	Port                    int
 	NoRelay                 bool
-	BootstrapPeers          []multiaddr.Multiaddr
+	BootstrapPeers          []peer.AddrInfo
 	ListenAddrs             []multiaddr.Multiaddr
 	AnnounceAddrs           []multiaddr.Multiaddr
 	ForceReachabilityPublic bool
@@ -266,9 +272,8 @@ func (p2p *P2P) BindFlags(fs *flag.FlagSet) {
 			}
 			out[i] = maddr
 		}
-		p2p.BootstrapPeers = out
-		if len(out) == 0 {
-			p2p.BootstrapPeers = nil
+		if len(out) > 0 {
+			p2p.BootstrapPeers = must.Do2(peer.AddrInfosFromP2pAddrs(out...))
 		}
 		return nil
 	})

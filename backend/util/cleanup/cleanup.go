@@ -5,9 +5,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"sync"
-
-	"go.uber.org/multierr"
 )
 
 type errFuncCloser func() error
@@ -19,7 +16,7 @@ func (f errFuncCloser) Close() error {
 // Stack of closers to clean up. Use Close() to close them
 // in the LIFO order. Zero value is useful.
 type Stack struct {
-	once  sync.Once
+	done  bool
 	err   error
 	funcs []io.Closer
 
@@ -41,23 +38,26 @@ func (s *Stack) AddErrFunc(fn ...func() error) {
 }
 
 // Close the stack in the LIFO order. It will only execute once and will remember the error.
+// Not safe for concurrent use.
 func (s *Stack) Close() error {
-	s.once.Do(func() {
-		if len(s.funcs) == 0 {
-			return
+	if s.done {
+		return s.err
+	}
+
+	if len(s.funcs) == 0 {
+		return s.err
+	}
+
+	// We have to close in reverse order because some later dependencies
+	// can use previous ones. This is similar to defer statement.
+	for i := len(s.funcs) - 1; i >= 0; i-- {
+		err := s.funcs[i].Close()
+		if errors.Is(err, context.Canceled) && s.IgnoreContextCanceled {
+			continue
 		}
+		s.err = errors.Join(s.err, err)
+	}
 
-		// We have to close in reverse order because some later dependencies
-		// can use previous ones. This is similar to defer statement.
-		for i := len(s.funcs) - 1; i >= 0; i-- {
-			err := s.funcs[i].Close()
-			if errors.Is(err, context.Canceled) && s.IgnoreContextCanceled {
-				continue
-			}
-			s.err = multierr.Append(s.err, err)
-		}
-
-	})
-
+	s.done = true
 	return s.err
 }

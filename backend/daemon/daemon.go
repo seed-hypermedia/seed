@@ -268,12 +268,7 @@ func (a *App) setupLogging(ctx context.Context, cfg config.Config) {
 			return ctx.Err()
 		}
 
-		addrs, err := n.Libp2p().Network().InterfaceListenAddresses()
-		if err != nil {
-			return err
-		}
-
-		a.log.Info("P2PNodeReady", zap.Any("listeners", addrs))
+		a.log.Info("P2PNodeReady")
 
 		return nil
 	})
