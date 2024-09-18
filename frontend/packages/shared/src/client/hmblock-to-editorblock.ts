@@ -69,7 +69,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     ].includes(block.type)
   ) {
     if (block.ref) {
-      out.props.ref = block.ref
+      out.props.url = block.ref
     }
     out.content = [
       {
@@ -90,7 +90,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
       }
     })
 
-    return out
+    // return out
   }
 
   const blockText = block.text || ''

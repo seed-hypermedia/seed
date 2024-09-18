@@ -917,6 +917,7 @@ export function compareBlocksWithMap(
     let prevBlock = fromHMBlock(block)
     console.log(
       `== ~ blocks?.forEach ~ currentBlockState:`,
+      block,
       currentBlockState,
       prevBlock,
       findDifferences(currentBlockState, prevBlock),

@@ -79,7 +79,7 @@ export interface EditorEmbedBlock extends EditorBaseBlock {
   type: 'embed'
   props: EditorBlockProps & {
     view: 'content' | 'card'
-    ref: string
+    url: string
   }
   content: Array<EditorInlineContent>
 }

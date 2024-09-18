@@ -387,6 +387,7 @@ export function BlockNodeList({
   start?: string | number;
   listLevel?: string | number;
 }) {
+  console.log(`== ~ BlockNodeList ~ children:`, children);
   return (
     <YStack
       tag={childrenType !== "group" ? childrenType : undefined}
@@ -864,12 +865,12 @@ function BlockContent(props: BlockContentProps) {
     return <BlockContentVideo {...props} {...dataProps} />;
   }
 
+  if (props.block.type == "nostr") {
+    return <BlockContentNostr {...props} {...dataProps} />;
+  }
+
   if (props.block.type == "file") {
-    if (props.block.attributes.subType?.startsWith("nostr:")) {
-      return <BlockContentNostr {...props} {...dataProps} />;
-    } else {
-      return <BlockContentFile {...props} {...dataProps} />;
-    }
+    return <BlockContentFile {...props} {...dataProps} />;
   }
 
   // if (props.block.type == "web-embed") {
@@ -1425,6 +1426,7 @@ function InlineContentView({
 }
 
 export function BlockContentEmbed(props: BlockContentProps) {
+  console.log(`== ~ BlockContentEmbed ~ props:`, props);
   const EmbedTypes = useDocContentContext().entityComponents;
   if (props.block.type !== "embed")
     throw new Error("BlockContentEmbed requires an embed block type");
@@ -1815,6 +1817,7 @@ export function BlockContentNostr({
   parentBlockId,
   ...props
 }: BlockContentProps) {
+  console.log("BlockContentNostr", block);
   const {layoutUnit} = useDocContentContext();
   const name = block.attributes?.name ?? "";
   const nostrNpud = nip19.npubEncode(name) ?? "";

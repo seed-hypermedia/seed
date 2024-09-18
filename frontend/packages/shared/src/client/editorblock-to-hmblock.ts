@@ -74,11 +74,11 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     out.attributes!.language = editorBlock.props.language
   }
 
-  if (['embed', 'web-embed', 'nostr'].includes(editorBlock.type)) {
-    out.ref = editorBlock.props.ref
-  }
-
-  if (['image', 'video', 'file'].includes(editorBlock.type)) {
+  if (
+    ['image', 'video', 'file', 'embed', 'web-embed', 'nostr'].includes(
+      editorBlock.type,
+    )
+  ) {
     out.ref = editorBlock.props.url!
   }
 
