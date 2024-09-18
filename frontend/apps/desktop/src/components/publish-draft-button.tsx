@@ -15,12 +15,12 @@ import {
   hmId,
   packHmId,
   StateStream,
-  UnpackedHypermediaId,
   writeableStateStream,
 } from '@shm/shared'
 import {
   Button,
   ErrorToastDecoration,
+  Hostname,
   SizableText,
   Spinner,
   SuccessToastDecoration,
@@ -77,7 +77,7 @@ export default function PublishDraftButton() {
       const {id} = input
       const [setIsPushed, isPushed] = writeableStateStream<boolean | null>(null)
       const {close} = toast.custom(
-        <PublishedToast host={publishSiteUrl} isPushed={isPushed} id={id} />,
+        <PublishedToast host={publishSiteUrl} isPushed={isPushed} />,
         {waitForClose: true, duration: 4000},
       )
       if (id && resultDoc.version) {
@@ -242,24 +242,34 @@ function StatusWrapper({children, ...props}: PropsWithChildren<YStackProps>) {
 function PublishedToast({
   isPushed,
   host,
-  id,
 }: {
   isPushed: StateStream<boolean | null>
   host: string
-  id?: UnpackedHypermediaId
 }) {
   const pushed = useStream(isPushed)
   let indicator: ReactNode = null
-  let message: string = ''
+  let message: ReactNode = ''
   if (pushed === null) {
     indicator = <Spinner />
-    message = `Published. Pushing to ${host}...`
+    message = (
+      <>
+        Published. Pushing to <Hostname host={host} />
+      </>
+    )
   } else if (pushed === true) {
     indicator = <SuccessToastDecoration />
-    message = `Published to ${host}`
+    message = (
+      <>
+        Published to <Hostname host={host} />
+      </>
+    )
   } else if (pushed === false) {
     indicator = <ErrorToastDecoration />
-    message = `Published locally. Could not push to ${host}`
+    message = (
+      <>
+        Published locally. Could not push to <Hostname host={host} />
+      </>
+    )
   }
   return (
     <YStack f={1} gap="$3">

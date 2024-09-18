@@ -196,7 +196,9 @@ function WebDocContentProvider({children}: PropsWithChildren<{}>) {
         Inline: EmbedInline,
       }}
       onLinkClick={(href, e) => {}}
-      onCopyBlock={(blockId, blockRange) => {}}
+      onCopyBlock={(blockId, blockRange) => {
+        console.log("copy block", blockId, blockRange);
+      }}
       saveCidAsFile={async (cid, name) => {}}
       textUnit={18}
       layoutUnit={24}

@@ -1,11 +1,11 @@
 import {useAppContext} from '@/app-context'
-import {useCopyGatewayReference} from '@/components/copy-gateway-reference'
+import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {useDeleteDialog} from '@/components/delete-dialog'
 import {MenuItemType, OptionsDropdown} from '@/components/options-dropdown'
 import {useMyCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useEntity} from '@/models/entities'
-import {useGatewayHost, useGatewayUrl} from '@/models/gateway-settings'
+import {useGatewayUrl} from '@/models/gateway-settings'
 import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {
@@ -16,14 +16,15 @@ import {
 import {useNavigate} from '@/utils/useNavigate'
 import {
   BlockRange,
+  DEFAULT_GATEWAY_URL,
   ExpandedBlockRange,
   HMBlockNode,
   UnpackedHypermediaId,
   createSiteUrl,
   createWebHMUrl,
+  displayHostname,
   getDocumentTitle,
   hmId,
-  packHmId,
   toHMBlock,
 } from '@shm/shared'
 import {
@@ -38,7 +39,6 @@ import {
   View,
   XGroup,
   XStack,
-  copyTextToClipboard,
   useStream,
 } from '@shm/ui'
 import {
@@ -69,22 +69,25 @@ export function DocOptionsButton() {
       'DocOptionsButton can only be rendered on publication route',
     )
   const {exportDocument} = useAppContext()
-  const gwHost = useGatewayHost()
   const deleteEntity = useDeleteDialog()
+  const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
   const doc = useEntity(route.id)
-  const [copyContent, onCopy, host] = useCopyGatewayReference()
+  const rootEntity = useEntity(hmId('d', route.id.uid))
+  const siteUrl = rootEntity.data?.document?.metadata.siteUrl
+  const [copyGatewayContent, onCopyGateway] = useCopyReferenceUrl(gwUrl)
+  const [copySiteUrlContent, onCopySiteUrl] = useCopyReferenceUrl(
+    siteUrl || gwUrl,
+  )
   const removeSite = useRemoveSiteDialog()
   const publishSite = usePublishSite()
   const canEditDoc = true // todo: check permissions
   const menuItems: MenuItemType[] = [
     {
       key: 'link',
-      label: `Copy ${host} URL`,
+      label: `Copy ${displayHostname(gwUrl)} URL`,
       icon: Link,
       onPress: () => {
-        onCopy({
-          ...route.id,
-        })
+        onCopyGateway(route.id)
       },
     },
     {
@@ -115,6 +118,16 @@ export function DocOptionsButton() {
       },
     },
   ]
+  if (siteUrl) {
+    menuItems.unshift({
+      key: 'link-site',
+      label: `Copy ${displayHostname(siteUrl)} URL`,
+      icon: Link,
+      onPress: () => {
+        onCopySiteUrl(route.id)
+      },
+    })
+  }
   if (!route.id.path?.length && canEditDoc) {
     if (doc.data?.document?.metadata?.siteUrl)
       menuItems.push({
@@ -136,18 +149,10 @@ export function DocOptionsButton() {
         },
       })
   }
-  const docUrl = route.id
-    ? packHmId(
-        hmId('d', route.id.uid, {
-          version: route.id.version,
-        }),
-      )
-    : null
-  // menuItems.push(useFavoriteMenuItem(docUrl))
-
   return (
     <>
-      {copyContent}
+      {copyGatewayContent}
+      {copySiteUrlContent}
       {deleteEntity.content}
       {publishSite.content}
       {removeSite.content}
@@ -204,10 +209,11 @@ export function useDocumentUrl({
   const docEntity = useEntity(docId)
   if (!docId?.uid) return null
   const accountEntity = useEntity(hmId('d', docId?.uid!))
-  const gwUrl = useGatewayUrl()
-  const [copyDialogContent, onCopyPublic] = useCopyGatewayReference()
-  const gwHostname = gwUrl.data
+  const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
   const siteHostname = accountEntity.data?.document?.metadata?.siteUrl
+  const [copyDialogContent, onCopyReference] = useCopyReferenceUrl(
+    siteHostname || gwUrl,
+  )
   if (!docId) return null
   const url = siteHostname
     ? createSiteUrl({
@@ -218,30 +224,26 @@ export function useDocumentUrl({
       })
     : createWebHMUrl('d', docId.uid, {
         version: docEntity.data?.document?.version,
-        hostname: gwHostname,
+        hostname: gwUrl,
         path: docId.path,
       })
   return {
     url,
-    label: siteHostname ? 'Site Version' : 'Doc Version',
+    label: siteHostname ? 'Site' : 'Public',
     content: copyDialogContent,
     onCopy: (
       blockId: string | undefined,
       blockRange?: BlockRange | ExpandedBlockRange | null,
     ) => {
       const focusBlockId = isBlockFocused ? docId.blockRef : null
-      if (siteHostname) {
-        copyTextToClipboard(url)
-      } else {
-        onCopyPublic({
-          ...docId,
-          hostname: gwHostname || null,
-          version: docEntity.data?.document?.version || null,
-          blockRef: blockId || focusBlockId || null,
-          blockRange: blockRange || null,
-          path: docId.path,
-        })
-      }
+      onCopyReference({
+        ...docId,
+        hostname: siteHostname || gwUrl,
+        version: docEntity.data?.document?.version || null,
+        blockRef: blockId || focusBlockId || null,
+        blockRange: blockRange || null,
+        path: docId.path,
+      })
     },
   }
 }

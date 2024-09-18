@@ -1,3 +1,4 @@
+import {displayHostname} from "@shm/shared";
 import {AlertCircle, CheckCircle2} from "@tamagui/lucide-icons";
 import {
   ComponentProps,
@@ -25,6 +26,10 @@ export function SuccessToastDecoration() {
 
 export function ErrorToastDecoration() {
   return <DecorationIcon Icon={AlertCircle} color="$red9" />;
+}
+
+export function Hostname({host}: {host: string}) {
+  return <SizableText fontWeight="bold">{displayHostname(host)}</SizableText>;
 }
 
 const ToastXStack = styled(XStack, {

@@ -1,7 +1,7 @@
 import {useAppContext, useGRPCClient} from '@/app-context'
 import appError from '@/errors'
 import {useConnectPeer} from '@/models/contacts'
-import {useGatewayHost} from '@/models/gateway-settings'
+import {useGatewayHost_DEPRECATED} from '@/models/gateway-settings'
 import {useRecents} from '@/models/recents'
 import {useSearch} from '@/models/search'
 import {loadWebLinkMeta} from '@/models/web-links'
@@ -157,7 +157,7 @@ function LauncherContent({onClose}: {onClose: () => void}) {
   const grpcClient = useGRPCClient()
   const queryClient = useAppContext().queryClient
   const [actionPromise, setActionPromise] = useState<Promise<void> | null>(null)
-  const gwHost = useGatewayHost()
+  const gwHost = useGatewayHost_DEPRECATED()
   const handleUrl = useURLHandler()
   const recents = useRecents()
   const searchResults = useSearch(search, {})

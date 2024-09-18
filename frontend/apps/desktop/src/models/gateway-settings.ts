@@ -1,6 +1,6 @@
 import {trpc} from '@/trpc'
 import {
-  HYPERMEDIA_PUBLIC_WEB_GATEWAY,
+  DEFAULT_GATEWAY_URL,
   StateStream,
   writeableStateStream,
 } from '@shm/shared'
@@ -14,7 +14,7 @@ export function useGatewayUrl() {
 export function useGatewayUrlStream(): StateStream<string> {
   const gatewayUrl = trpc.gatewaySettings.getGatewayUrl.useQuery()
   const [writeGwUrl, gwStateStream] = useMemo(() => {
-    return writeableStateStream<string>(HYPERMEDIA_PUBLIC_WEB_GATEWAY)
+    return writeableStateStream<string>(DEFAULT_GATEWAY_URL)
   }, [])
   useEffect(() => {
     gatewayUrl.data && writeGwUrl(gatewayUrl.data)
@@ -22,7 +22,7 @@ export function useGatewayUrlStream(): StateStream<string> {
   return gwStateStream
 }
 
-export function useGatewayHost() {
+export function useGatewayHost_DEPRECATED() {
   const gatewayUrl = useGatewayUrl()
   const gatewayHost = gatewayUrl.data?.replace(/https?:\/\//, '')
   return gatewayHost || 'hyper.media'

@@ -1,6 +1,6 @@
 import {useEntity} from '@/models/entities'
 import {AccessURLRow} from '@/url'
-import {getAccountName, hmId, HYPERMEDIA_PUBLIC_WEB_GATEWAY} from '@shm/shared'
+import {DEFAULT_GATEWAY_URL, getAccountName, hmId} from '@shm/shared'
 import {Button, Spinner, TextArea, toast, XStack} from '@shm/ui'
 import {UserPlus} from '@tamagui/lucide-icons'
 import {compressToEncodedURIComponent} from 'lz-string'
@@ -75,7 +75,7 @@ export function AddConnectionDialog({
           </DialogDescription>
           {deviceId && (
             <AccessURLRow
-              url={`${HYPERMEDIA_PUBLIC_WEB_GATEWAY}/hypermedia-connect/${connectInfo}`}
+              url={`${DEFAULT_GATEWAY_URL}/hypermedia-connect/${connectInfo}`}
             />
           )}
           <DialogDescription>

@@ -13,6 +13,7 @@ import {
   copyTextToClipboard,
   DialogDescription,
   ErrorToastDecoration,
+  Hostname,
   SizableText,
   Spinner,
   SuccessToastDecoration,
@@ -23,8 +24,6 @@ import {
 } from '@shm/ui'
 import {ReactNode, useState} from 'react'
 import {
-  useGatewayHost,
-  useGatewayUrl,
   usePushOnCopy,
   useSetPushOnCopy,
   useSetPushOnPublish,
@@ -33,18 +32,16 @@ import {DialogTitle, useAppDialog} from './dialog'
 
 type IsPublishedState = null | boolean // null: determined checked yet
 
-export function useCopyGatewayReference() {
+export function useCopyReferenceUrl(hostname: string) {
   const dialog = useAppDialog(PushToGatewayDialog)
-  const gatewayHost = useGatewayHost()
-  const gatewayUrl = useGatewayUrl()
   const pushOnCopy = usePushOnCopy()
-  const publishToGateway = usePublishToSite()
+  const publishToSite = usePublishToSite()
   function onCopy(input: UnpackedHypermediaId) {
-    const publicUrl = createWebHMUrl(input.type, input.uid, {
+    const url = createWebHMUrl(input.type, input.uid, {
       version: input.version,
       blockRef: input.blockRef,
       blockRange: input.blockRange,
-      hostname: gatewayUrl.data,
+      hostname,
       path: input.path,
     })
     const [setIsPublished, isPublished] =
@@ -54,13 +51,13 @@ export function useCopyGatewayReference() {
     }
     const {close} = toast.custom(
       <CopiedToast
-        host={gatewayHost}
+        host={hostname}
         isPublished={isPublished}
         hmId={packHmId(input)}
       />,
       {duration: 4000, waitForClose: isPublished.get() === null},
     )
-    publishToGateway(input, gatewayUrl.data)
+    publishToSite(input, hostname)
       .then((didPublish) => {
         if (didPublish) {
           setIsPublished(true)
@@ -69,15 +66,15 @@ export function useCopyGatewayReference() {
         }
       })
       .catch((e) => {
-        toast.error('Failed to push public web link: ' + e.message)
+        toast.error('Failed to Publish: ' + e.message)
         setIsPublished(false)
       })
       .finally(() => {
         close()
       })
-    copyTextToClipboard(publicUrl)
+    copyTextToClipboard(url)
   }
-  return [dialog.content, onCopy, gatewayHost] as const
+  return [dialog.content, onCopy] as const
 }
 
 function CopiedToast({
@@ -93,16 +90,28 @@ function CopiedToast({
   const id = unpackHmId(hmId)
   const entityType = id?.type ? HYPERMEDIA_ENTITY_TYPES[id.type] : 'Entity'
   let indicator: ReactNode = null
-  let message: string = ''
+  let message: ReactNode = ''
   if (published === null) {
     indicator = <Spinner />
-    message = `Copied ${entityType} URL, pushing to ${host}...`
+    message = (
+      <>
+        Copied URL, pushing to <Hostname host={host} />
+      </>
+    )
   } else if (published === true) {
     indicator = <SuccessToastDecoration />
-    message = `Copied ${entityType} URL, available on ${host}`
+    message = (
+      <>
+        Copied URL, available on <Hostname host={host} />
+      </>
+    )
   } else if (published === false) {
     indicator = <ErrorToastDecoration />
-    message = `Copied ${entityType} URL, not available on ${host}`
+    message = (
+      <>
+        Copied URL, failed to push to <Hostname host={host} />
+      </>
+    )
   }
   return (
     <YStack f={1} gap="$3">

@@ -1,9 +1,6 @@
 import {z} from 'zod'
+import {DEFAULT_GATEWAY_URL, HYPERMEDIA_SCHEME} from '../constants'
 import {StateStream} from './stream'
-
-export const HYPERMEDIA_PUBLIC_WEB_GATEWAY = 'https://hyper.media'
-
-export const HYPERMEDIA_SCHEME = 'hm'
 
 export const HYPERMEDIA_ENTITY_TYPES = {
   d: 'Document', // the default type
@@ -75,7 +72,7 @@ export function createWebHMUrl(
   }
   const urlHost =
     hostname === undefined
-      ? HYPERMEDIA_PUBLIC_WEB_GATEWAY
+      ? DEFAULT_GATEWAY_URL
       : hostname === null
       ? ''
       : hostname
@@ -471,4 +468,8 @@ export function serializeBlockRange(
   }
 
   return res
+}
+
+export function displayHostname(fullHost: string): string {
+  return fullHost.replace(/https?:\/\//, '')
 }
