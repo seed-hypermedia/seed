@@ -18,7 +18,6 @@ import {
   HMDocument,
   HMDraft,
   UnpackedHypermediaId,
-  createWebHMUrl,
   eventStream,
   fromHMBlock,
   hmId,
@@ -56,7 +55,7 @@ import {setGroupTypes} from './editor-utils'
 import {getParentPaths, useEntities, useEntity} from './entities'
 import {useGatewayUrlStream} from './gateway-settings'
 import {useInlineMentions} from './search'
-import {fetchWebLinkMeta} from './web-links'
+import {siteDiscover} from './web-links'
 
 export const [draftDispatch, draftEvents] = eventStream<{
   type: 'CHANGE'
@@ -283,7 +282,6 @@ export function usePublishDraft(
               })
 
             const resultDoc = toPlainMessage(publishedDoc)
-
             return resultDoc
           } else {
             // dispatchWizardEvent(true)
@@ -772,22 +770,6 @@ export function createBlocksMap(
   return result
 }
 
-async function remoteSyncId(
-  id: UnpackedHypermediaId,
-  gatewayHostname: string,
-): Promise<Record<string, string>> {
-  const url = createWebHMUrl(id.type, id.uid, {
-    version: id.version,
-    blockRef: id.blockRef,
-    blockRange: id.blockRange,
-    hostname: gatewayHostname,
-    path: id.path,
-    params: {waitForSync: null},
-  })
-  const meta = await fetchWebLinkMeta(url)
-  return meta
-}
-
 function extractEmbedIds(blockNodes: HMBlockNode[]): string[] {
   return flatMap(
     blockNodes.map((node) => {
@@ -807,54 +789,46 @@ function extractEmbedIds(blockNodes: HMBlockNode[]): string[] {
   )
 }
 
-export function usePublishToGateway() {
+export function usePublishToSite() {
   const grpcClient = useGRPCClient()
   return async (
     id: UnpackedHypermediaId,
-    gatewayHostname?: string,
+    siteHost?: string,
   ): Promise<boolean> => {
     const doc = await grpcClient.documents.getDocument({
       account: id.uid,
       path: hmIdPathToEntityQueryPath(id.path),
       version: id.version || undefined,
     })
-    const gatewayHost = gatewayHostname || DEFAULT_GATEWAY_URL
-    await Promise.all(
-      doc.authors.map(async (authorId) => {
-        await remoteSyncId(hmId('d', authorId), gatewayHost)
-      }),
-    )
+    const authors = new Set(doc.authors)
     const parentPaths = getParentPaths(id.path)
+    const syncParentIds: UnpackedHypermediaId[] = []
+    parentPaths.forEach((path) => {
+      if (!!id.path && path.length === id.path.length) {
+        return
+      }
+      if (authors.has(id.uid) && path.length === 0) {
+        return
+      }
+      syncParentIds.push(hmId('d', id.uid, {path}))
+    })
+    const embeds = extractEmbedIds(doc.content)
+    const remoteSyncIds = [
+      id,
+      ...syncParentIds,
+      ...doc.authors.map((authorId) => hmId('d', authorId)),
+      ...embeds.map(unpackHmId),
+    ].filter((id) => !!id)
     await Promise.all(
-      parentPaths.map(async (path) => {
-        if (!!id.path && path.length === id.path.length) {
-          await remoteSyncId(id, gatewayHost)
-          return
-        }
-        await remoteSyncId(hmId('d', id.uid, {path}), gatewayHost)
-      }),
+      remoteSyncIds.map((id) =>
+        siteDiscover({
+          uid: id.uid,
+          version: id.version,
+          path: id.path,
+          host: siteHost || DEFAULT_GATEWAY_URL,
+        }),
+      ),
     )
-
-    const embeds = extractEmbedIds(doc.content).map(unpackHmId)
-    await Promise.all(
-      embeds.map(async (embedId) => {
-        if (!embedId) return
-        await remoteSyncId(embedId, gatewayHost)
-      }),
-    )
-    // const publicUrl = createWebHMUrl(id.type, id.uid, {
-    //   version: id.version,
-    //   blockRef: id.blockRef,
-    //   blockRange: id.blockRange,
-    //   hostname: gatewayHost,
-    //   path: id.path,
-    //   params: {waitForSync: null},
-    // })
-    // const meta = await fetchWebLinkMeta(publicUrl)
-    // const destId = packHmId(hmId(id.type, id.uid))
-    // const correctId = meta?.hmId === destId
-    // const correctVersion = !id.version || meta?.hmVersion === id.version
-    // return correctId && correctVersion
     return true
   }
 }

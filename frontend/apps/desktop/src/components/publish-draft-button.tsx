@@ -10,6 +10,7 @@ import {
   DEFAULT_GATEWAY_URL,
   Document,
   DraftRoute,
+  entityQueryPathToHmIdPath,
   HMEntityContent,
   hmId,
   packHmId,
@@ -39,7 +40,7 @@ import {useDraft} from '../models/accounts'
 import {
   draftDispatch,
   usePublishDraft,
-  usePublishToGateway,
+  usePublishToSite,
 } from '../models/documents'
 import {OptionsDropdown} from './options-dropdown'
 
@@ -63,27 +64,30 @@ export default function PublishDraftButton() {
     },
   })
   const accts = useMyAccountsWithWriteAccess(draftId)
+  const rootDraftUid = draftId?.uid
+  const rootEntity = useEntity(
+    rootDraftUid ? hmId('d', rootDraftUid) : undefined,
+  )
+  const siteUrl = rootEntity.data?.document?.metadata.siteUrl
   const gatewayUrl = useGatewayUrl()
-  const publishToGateway = usePublishToGateway()
+  const publishToSite = usePublishToSite()
+  const publishSiteUrl = siteUrl || gatewayUrl.data || DEFAULT_GATEWAY_URL
   const publish = usePublishDraft({
     onSuccess: (resultDoc, input) => {
       const {id} = input
       const [setIsPushed, isPushed] = writeableStateStream<boolean | null>(null)
       const {close} = toast.custom(
-        <PublishedToast
-          host={gatewayUrl.data || DEFAULT_GATEWAY_URL}
-          isPushed={isPushed}
-          id={id}
-        />,
+        <PublishedToast host={publishSiteUrl} isPushed={isPushed} id={id} />,
         {waitForClose: true, duration: 4000},
       )
       if (id && resultDoc.version) {
-        publishToGateway(
+        const resultPath = entityQueryPathToHmIdPath(resultDoc.path)
+        publishToSite(
           hmId('d', id.uid, {
-            path: id.path,
+            path: resultPath,
             version: resultDoc.version,
           }),
-          gatewayUrl.data,
+          publishSiteUrl,
         )
           .then(() => {
             setIsPushed(true)

@@ -143,8 +143,6 @@ export function openRoute(route: NavRoute) {
 
 function getRouteRefocusKey(route: NavRoute): string | null {
   if (route.key === 'document') return null
-  if (route.key === 'comment') return null
-  if (route.key === 'comment-draft') return null
   if (route.key === 'draft') return null
   return route.key
 }
@@ -162,6 +160,35 @@ export const router = t.router({
       const meta = extractMetaTags(html)
       return {meta}
     }),
+    requestDiscover: t.procedure
+      .input(
+        z.object({
+          uid: z.string(),
+          path: z.array(z.string()).nullable(),
+          version: z.string().optional().nullable(),
+          host: z.string(),
+        }),
+      )
+      .mutation(async ({input}) => {
+        try {
+          const res = await fetch(`${input.host}/hm/api/discover`, {
+            method: 'post',
+            body: JSON.stringify({
+              uid: input.uid,
+              path: input.path || [],
+              version: input.version || undefined,
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          })
+          const discoverOutput = await res.json()
+          return discoverOutput
+        } catch (e) {
+          log.error('error discovering', e)
+          throw e
+        }
+      }),
   }),
   favorites: favoritesApi,
   comments: commentsApi,

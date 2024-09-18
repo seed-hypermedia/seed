@@ -1,4 +1,4 @@
-import {usePublishToGateway} from '@/models/documents'
+import {usePublishToSite} from '@/models/documents'
 import {
   HYPERMEDIA_ENTITY_TYPES,
   StateStream,
@@ -38,7 +38,7 @@ export function useCopyGatewayReference() {
   const gatewayHost = useGatewayHost()
   const gatewayUrl = useGatewayUrl()
   const pushOnCopy = usePushOnCopy()
-  const publishToGateway = usePublishToGateway()
+  const publishToGateway = usePublishToSite()
   function onCopy(input: UnpackedHypermediaId) {
     const publicUrl = createWebHMUrl(input.type, input.uid, {
       version: input.version,
