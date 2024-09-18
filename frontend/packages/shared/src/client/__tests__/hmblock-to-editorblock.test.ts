@@ -62,11 +62,11 @@ describe('HMBlock to EditorBlock', () => {
         type: 'paragraph',
         text: 'ABCDE',
         annotations: [
-          {type: 'bold', starts: [0], ends: [1]},
-          {type: 'italic', starts: [1], ends: [2]},
-          {type: 'underline', starts: [2], ends: [3]},
-          {type: 'strike', starts: [3], ends: [4]},
-          {type: 'code', starts: [4], ends: [5]},
+          {type: 'bold', attributes: {}, ref: '', starts: [0], ends: [1]},
+          {type: 'italic', attributes: {}, ref: '', starts: [1], ends: [2]},
+          {type: 'underline', attributes: {}, ref: '', starts: [2], ends: [3]},
+          {type: 'strike', attributes: {}, ref: '', starts: [3], ends: [4]},
+          {type: 'code', attributes: {}, ref: '', starts: [4], ends: [5]},
         ],
         attributes: {},
         revision: 'revision123',
@@ -98,8 +98,8 @@ describe('HMBlock to EditorBlock', () => {
         type: 'paragraph',
         text: 'ABCDE',
         annotations: [
-          {type: 'bold', starts: [1], ends: [3]},
-          {type: 'italic', starts: [2], ends: [4]},
+          {type: 'bold', attributes: {}, ref: '', starts: [1], ends: [3]},
+          {type: 'italic', attributes: {}, ref: '', starts: [2], ends: [4]},
         ],
         attributes: {},
         revision: 'revision123',
@@ -133,6 +133,8 @@ describe('HMBlock to EditorBlock', () => {
         annotations: [
           {
             type: 'bold',
+            attributes: {},
+            ref: '',
             starts: [14],
             ends: [20],
           },
@@ -175,9 +177,10 @@ describe('HMBlock to EditorBlock', () => {
         annotations: [
           {
             type: 'link',
+            attributes: {},
+            ref: 'https://example.com',
             starts: [6],
             ends: [11],
-            ref: 'https://example.com',
           },
         ],
         attributes: {},
@@ -222,12 +225,15 @@ describe('HMBlock to EditorBlock', () => {
         annotations: [
           {
             type: 'link',
+            attributes: {},
             starts: [6],
             ends: [11],
             ref: 'https://example.com',
           },
           {
             type: 'bold',
+            attributes: {},
+            ref: '',
             starts: [23],
             ends: [27],
           },
@@ -284,6 +290,7 @@ describe('HMBlock to EditorBlock', () => {
           {
             type: 'inline-embed',
             starts: [6],
+            attributes: {},
             ends: [7],
             ref: 'hm://asdf1234',
           },
@@ -324,6 +331,7 @@ describe('HMBlock to EditorBlock', () => {
           {
             type: 'inline-embed',
             starts: [6],
+            attributes: {},
             ends: [7],
             ref: 'hm://asdf1234',
           },
@@ -331,11 +339,15 @@ describe('HMBlock to EditorBlock', () => {
             type: 'bold',
             starts: [7],
             ends: [16],
+            attributes: {},
+            ref: '',
           },
           {
             type: 'strike',
             starts: [16],
             ends: [20],
+            attributes: {},
+            ref: '',
           },
         ],
         attributes: {},

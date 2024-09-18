@@ -116,7 +116,7 @@ export interface EditorText {
 
 export interface EditorLink {
   type: 'link'
-  ref: string
+  href: string
   content: Array<EditorInlineContent>
 }
 

@@ -3,10 +3,11 @@ import {HMAnnotations, HMBlock} from '../hm-types'
 import {AnnotationSet, codePointLength} from './unicode'
 
 export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
-  let out: Partial<HMBlock> = {
+  let out: HMBlock = {
     id: editorBlock.id,
     type: editorBlock.type,
     attributes: {},
+    text: '',
     annotations: [],
   }
 
@@ -52,11 +53,12 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     }
 
     if (leaf.type == 'inline-embed') {
+      console.log('inline-embed', leaf.ref)
       annotations.addSpan('inline-embed', {ref: leaf.ref}, start, end)
     }
 
     if (leaf.type == 'link') {
-      annotations.addSpan('link', {ref: leaf.ref}, start, end)
+      annotations.addSpan('link', {ref: leaf.href}, start, end)
     }
 
     out.text += leaf.text
@@ -88,7 +90,7 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     }
   })
 
-  return out as HMBlock
+  return out
 }
 
 function flattenLeaves(
@@ -98,11 +100,12 @@ function flattenLeaves(
 
   for (let i = 0; i < content.length; i++) {
     let leaf = content[i]
+
     if (leaf.type == 'link') {
       let nestedLeaves = flattenLeaves(leaf.content).map(
         (l: EditorInlineContent) => ({
           ...l,
-          ref: leaf.ref,
+          href: leaf.href,
           type: 'link',
         }),
       )

@@ -1,14 +1,51 @@
+import {PlainMessage} from '@bufbuild/protobuf'
 import {
   EditorBlock,
   EditorInlineContent,
   EditorInlineEmbed,
 } from '@shm/desktop/src/editor'
 import _ from 'lodash'
-import {HMBlock, InlineEmbedAnnotation, LinkAnnotation} from '../hm-types'
-import {Annotation} from './.generated/documents/v3alpha/documents_pb'
+import {
+  HMBlock,
+  HMBlockChildrenType,
+  HMBlockNode,
+  InlineEmbedAnnotation,
+  LinkAnnotation,
+} from '../hm-types'
+import {
+  Annotation,
+  BlockNode,
+} from './.generated/documents/v3alpha/documents_pb'
+import {ServerToEditorRecursiveOpts} from './to-hm-block'
 import {isSurrogate} from './unicode'
 
+export function hmBlocksToEditorContent(
+  blocks: Array<PlainMessage<BlockNode> | HMBlockNode>,
+  opts: ServerToEditorRecursiveOpts & {
+    childrenType?: HMBlockChildrenType
+    listLevel?: string
+    start?: string
+  } = {level: 1},
+): Array<EditorBlock> {
+  const childRecursiveOpts: ServerToEditorRecursiveOpts = {
+    level: opts.level || 0,
+  }
+  return blocks.map((hmBlock) => {
+    let res: EditorBlock | null = null
+    res = hmBlockToEditorBlock(hmBlock.block)
+
+    if (hmBlock.children?.length) {
+      res.children = hmBlocksToEditorContent(hmBlock.children, {
+        level: childRecursiveOpts.level ? childRecursiveOpts.level + 1 : 1,
+      })
+    }
+    console.log(`== ~ returnblocks.map ~ res:`, res)
+    return res
+  })
+}
+
 export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
+  console.log(`== ~ hmBlockToEditorBlock ~ block:`, block)
   let out: EditorBlock = {
     id: block.id,
     type: block.type,
@@ -185,6 +222,8 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     posAnnotations.forEach((l) => {
       if (['link', 'inline-embed'].includes(l.type)) {
         linkAnnotation = l as LinkAnnotation | InlineEmbedAnnotation
+
+        console.log(`== ~ posAnnotations.forEach ~ l:`, l)
       }
       if (['bold', 'italic', 'strike', 'underline', 'code'].includes(l.type)) {
         // @ts-ignore

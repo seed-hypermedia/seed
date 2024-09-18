@@ -19,11 +19,12 @@ import {
   HMDraft,
   UnpackedHypermediaId,
   createWebHMUrl,
+  editorBlockToHMBlock,
   eventStream,
   fromHMBlock,
+  hmBlocksToEditorContent,
   hmId,
   hmIdPathToEntityQueryPath,
-  toHMBlock,
   unpackHmId,
   writeableStateStream,
 } from '@shm/shared'
@@ -222,6 +223,7 @@ export function usePublishDraft(
   >({
     mutationFn: async ({draft, previous, id}) => {
       const blocksMap = previous ? createBlocksMap(previous.content, '') : {}
+
       const changes = compareBlocksWithMap(blocksMap, draft.content, '')
 
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
@@ -261,12 +263,12 @@ export function usePublishDraft(
                 )
               capabilityId = capability.id
             }
-            console.log('previousId', draft.previousId)
+            console.log(`== ~ mutationFn: ~ allChanges:`, allChanges)
             const publishedDoc =
               await grpcClient.documents.createDocumentChange({
                 signingKeyName: draft.signingAccount,
                 account: id.uid,
-                baseVersion: draft.previousId?.version || undefined,
+                baseVersion: draft.previousId?.version || '',
                 path: id.path?.length
                   ? `/${id.path
                       .map((p, idx) =>
@@ -406,7 +408,6 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
 
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
-      console.log('onEditorContentChange', editor.topLevelBlocks)
       if (!gotEdited.current) {
         gotEdited.current = true
       }
@@ -529,10 +530,11 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
     draftMachine.provide({
       actions: {
         populateEditor: function ({context, event}) {
-          let content: Array<HMBlock> = []
+          let content: Array<EditorBlock> = []
           if (context.document && !context.draft) {
             // populate draft from document
-            content = toHMBlock(context.document.content)
+
+            content = hmBlocksToEditorContent(context.document.content)
           } else if (
             context.draft != null &&
             context.draft.content.length != 0
@@ -886,7 +888,7 @@ export function useListDirectory(id: UnpackedHypermediaId) {
 
 export function compareBlocksWithMap(
   blocksMap: BlocksMap,
-  blocks: HMDraft['content'] | undefined,
+  blocks: Array<EditorBlock>,
   parentId: string,
 ) {
   let changes: Array<DocumentChange> = []
@@ -911,14 +913,21 @@ export function compareBlocksWithMap(
       // @ts-expect-error
       if (childGroup.start) block.props.start = childGroup.start.toString()
     }
-    let currentBlockState = fromHMBlock(block)
+    let currentBlockState = editorBlockToHMBlock(block)
+    let prevBlock = fromHMBlock(block)
+    console.log(
+      `== ~ blocks?.forEach ~ currentBlockState:`,
+      currentBlockState,
+      prevBlock,
+      findDifferences(currentBlockState, prevBlock),
+    )
 
     if (
       !prevBlockState ||
       prevBlockState.block.attributes?.listLevel !==
-        currentBlockState.attributes.listLevel
+        currentBlockState.attributes?.listLevel
     ) {
-      const serverBlock = fromHMBlock(block)
+      const serverBlock = editorBlockToHMBlock(block)
 
       // add moveBlock change by default to all blocks
       changes.push(
@@ -1262,4 +1271,49 @@ export function useListProfileDocuments() {
     },
     queryKey: [queryKeys.LIST_ROOT_DOCUMENTS],
   })
+}
+
+function findDifferences(obj1, obj2) {
+  let differences = {}
+
+  function compare(obj1, obj2, path = '') {
+    if (
+      typeof obj1 !== 'object' ||
+      obj1 === null ||
+      typeof obj2 !== 'object' ||
+      obj2 === null
+    ) {
+      if (obj1 !== obj2) {
+        differences[path] = {obj1, obj2} // Difference found
+      }
+      return
+    }
+
+    const keys1 = Object.keys(obj1)
+    const keys2 = Object.keys(obj2)
+
+    // Keys only in obj1
+    keys1.forEach((key) => {
+      if (!keys2.includes(key)) {
+        differences[`${path}${key}`] = {obj1: obj1[key], obj2: undefined}
+      }
+    })
+
+    // Keys only in obj2
+    keys2.forEach((key) => {
+      if (!keys1.includes(key)) {
+        differences[`${path}${key}`] = {obj1: undefined, obj2: obj2[key]}
+      }
+    })
+
+    // Keys present in both, compare values recursively
+    keys1.forEach((key) => {
+      if (keys2.includes(key)) {
+        compare(obj1[key], obj2[key], `${path}${key}.`)
+      }
+    })
+  }
+
+  compare(obj1, obj2)
+  return differences
 }

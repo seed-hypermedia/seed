@@ -72,11 +72,11 @@ describe('EditorBlock to HMBlock', () => {
         type: 'paragraph',
         text: 'ABCDE',
         annotations: [
-          {type: 'bold', starts: [0], ends: [1]},
-          {type: 'italic', starts: [1], ends: [2]},
-          {type: 'underline', starts: [2], ends: [3]},
-          {type: 'strike', starts: [3], ends: [4]},
-          {type: 'code', starts: [4], ends: [5]},
+          {type: 'bold', attributes: {}, ref: '', starts: [0], ends: [1]},
+          {type: 'italic', attributes: {}, ref: '', starts: [1], ends: [2]},
+          {type: 'underline', attributes: {}, ref: '', starts: [2], ends: [3]},
+          {type: 'strike', attributes: {}, ref: '', starts: [3], ends: [4]},
+          {type: 'code', attributes: {}, ref: '', starts: [4], ends: [5]},
         ],
         attributes: {},
       }
@@ -105,8 +105,8 @@ describe('EditorBlock to HMBlock', () => {
         type: 'paragraph',
         text: 'ABCDE',
         annotations: [
-          {type: 'bold', starts: [1], ends: [3]},
-          {type: 'italic', starts: [2], ends: [4]},
+          {type: 'bold', attributes: {}, ref: '', starts: [1], ends: [3]},
+          {type: 'italic', attributes: {}, ref: '', starts: [2], ends: [4]},
         ],
         attributes: {},
       }
@@ -144,6 +144,8 @@ describe('EditorBlock to HMBlock', () => {
         annotations: [
           {
             type: 'bold',
+            attributes: {},
+            ref: '',
             starts: [14],
             ends: [20],
           },
@@ -169,7 +171,7 @@ describe('EditorBlock to HMBlock', () => {
           },
           {
             type: 'link',
-            ref: 'https://example.com',
+            href: 'https://example.com',
             content: [
               {
                 type: 'text',
@@ -188,6 +190,8 @@ describe('EditorBlock to HMBlock', () => {
         annotations: [
           {
             type: 'link',
+            attributes: {},
+
             starts: [6],
             ends: [11],
             ref: 'https://example.com',
@@ -214,7 +218,7 @@ describe('EditorBlock to HMBlock', () => {
           },
           {
             type: 'link',
-            ref: 'https://example.com',
+            href: 'https://example.com',
             content: [
               {
                 type: 'text',
@@ -246,11 +250,14 @@ describe('EditorBlock to HMBlock', () => {
             starts: [6],
             ends: [11],
             ref: 'https://example.com',
+            attributes: {},
           },
           {
             type: 'bold',
             starts: [23],
             ends: [27],
+            attributes: {},
+            ref: '',
           },
         ],
         attributes: {},
@@ -286,6 +293,7 @@ describe('EditorBlock to HMBlock', () => {
         annotations: [
           {
             type: 'inline-embed',
+            attributes: {},
             starts: [6],
             ends: [7],
             ref: 'hm://asdf1234',
@@ -349,17 +357,22 @@ describe('EditorBlock to HMBlock', () => {
         annotations: [
           {
             type: 'inline-embed',
+            attributes: {},
             starts: [6],
             ends: [7],
             ref: 'hm://asdf1234',
           },
           {
             type: 'italic',
+            attributes: {},
+            ref: '',
             starts: [8],
             ends: [15],
           },
           {
             type: 'bold',
+            attributes: {},
+            ref: '',
             starts: [16],
             ends: [20],
           },
@@ -495,7 +508,7 @@ describe('EditorBlock to HMBlock', () => {
           url: 'ipfs://foobarimgcid',
           width: 240,
           name: 'test demo video',
-          size: '123456',
+          size: 123456,
         },
         content: [
           {
@@ -532,7 +545,7 @@ describe('EditorBlock to HMBlock', () => {
           url: 'ipfs://foobarimgcid',
           width: 240,
           name: 'testfile.pdf',
-          size: '123456',
+          size: 123456,
         },
         content: [
           {

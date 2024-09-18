@@ -1,6 +1,5 @@
 import {useEntity} from '@/models/entities'
 import {useRemoveSite, useSiteRegistration} from '@/models/site'
-import {useNavigate} from '@/utils/useNavigate'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {getDocumentTitle, UnpackedHypermediaId} from '@shm/shared'
 import {Button} from '@shm/ui'
@@ -77,7 +76,6 @@ function PublishSiteDialog({
   input: UnpackedHypermediaId
   onClose: () => void
 }) {
-  const navigate = useNavigate()
   const entity = useEntity(input)
   const register = useSiteRegistration(input.uid)
   const onSubmit: SubmitHandler<PublishSiteFields> = (data) => {

@@ -32,7 +32,7 @@ function containsMarkdownSymbols(pastedText: string) {
 export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
   const MarkdownExtension = Extension.create({
     name: 'MarkdownPasteHandler',
-    priority: 99999,
+    priority: 900,
 
     addProseMirrorPlugins() {
       return [

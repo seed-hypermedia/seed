@@ -22,9 +22,9 @@ import {
   createSiteUrl,
   createWebHMUrl,
   getDocumentTitle,
+  hmBlocksToEditorContent,
   hmId,
   packHmId,
-  toHMBlock,
 } from '@shm/shared'
 import {
   Back,
@@ -94,7 +94,7 @@ export function DocOptionsButton() {
       onPress: async () => {
         const title = doc.data?.document?.metadata.name || 'document'
         const blocks: HMBlockNode[] | undefined = doc.data?.document?.content
-        const editorBlocks = toHMBlock(blocks)
+        const editorBlocks = hmBlocksToEditorContent(blocks)
         const markdownWithFiles = await convertBlocksToMarkdown(editorBlocks)
         const {markdownContent, mediaFiles} = markdownWithFiles
         exportDocument(title, markdownContent, mediaFiles)

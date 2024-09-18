@@ -75,10 +75,9 @@ export type HMBlockBase = {
   text: string
   ref?: string
   annotations: HMAnnotations
-  attributes?: {
-    [key: string]: string | undefined
+  attributes: {
     childrenType?: HMBlockChildrenType
-  }
+  } & Record<string, string>
 }
 
 export type HMBlockParagraph = HMBlockBase & {
@@ -103,52 +102,52 @@ export type HMBlockMath = HMBlockBase & {
 
 export type HMBlockImage = HMBlockBase & {
   type: 'image'
-  ref: string
+  // ref: string
 }
 
 export type HMBlockFile = HMBlockBase & {
   type: 'file'
-  ref: string
-  attributes: {
-    name?: string
-  }
+  // ref: string
+  // attributes: {
+  //   name?: string
+  // }
 }
 
 export type HMBlockVideo = HMBlockBase & {
   type: 'video'
-  ref: string
-  attributes: {
-    name?: string
-  }
+  // ref: string
+  // attributes: {
+  //   name?: string
+  // }
 }
 
 export type HMBlockWebEmbed = HMBlockBase & {
   type: 'web-embed'
-  ref: string
+  // ref: string
 }
 
 export type HMBlockEmbed = HMBlockBase & {
   type: 'embed'
-  ref: string
-  attributes: {
-    view?: 'content' | 'card'
-  }
+  // ref: string
+  // attributes: {
+  //   view?: 'content' | 'card'
+  // }
 }
 
 export type HMBlockCodeBlock = HMBlockBase & {
   type: 'codeBlock'
-  attributes: {
-    language?: string
-  }
+  // attributes: {
+  //   language?: string
+  // }
 }
 
 export type HMBlockNostr = HMBlockBase & {
   type: 'nostr'
-  ref: string
-  attributes: {
-    name?: string
-    text?: string
-  }
+  // ref: string
+  // attributes: {
+  //   name?: string
+  //   text?: string
+  // }
 }
 
 export type HMBlock =
@@ -189,7 +188,8 @@ export type InlineEmbedAnnotation = BaseAnnotation & {
 type BaseAnnotation = {
   starts: number[]
   ends: number[]
-  // attributes: {}
+  attributes: Record<string, string>
+  ref: string
 }
 
 export type BoldAnnotation = BaseAnnotation & {

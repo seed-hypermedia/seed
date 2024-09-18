@@ -26,14 +26,16 @@ export class AnnotationSet {
       })
 
       if (type == 'link' || type == 'inline-embed') {
+        console.log('== ~ AnnotationSet:', attributes)
         annotation.ref = attributes!.ref
         // @ts-expect-error
-        delete annotation.attributes
+        // delete annotation.attributes
+        delete annotation.attributes.ref
       }
 
       if (typeof annotation.ref == 'string' && annotation.ref.length == 0) {
         // @ts-expect-error
-        delete annotation.ref
+        // delete annotation.ref
       }
 
       if (
@@ -41,7 +43,7 @@ export class AnnotationSet {
         Object.keys(annotation.attributes).length == 0
       ) {
         // @ts-expect-error
-        delete annotation.attributes
+        // delete annotation.attributes
       }
 
       this.annotations.set(id, annotation)
@@ -54,6 +56,10 @@ export class AnnotationSet {
     if (attributes) {
       if (attributes.ref) {
         return `${type}-${attributes.ref}`
+      }
+
+      if (attributes.href) {
+        return `${type}-${attributes.href}`
       }
 
       // add more attributes: color, embed, ...

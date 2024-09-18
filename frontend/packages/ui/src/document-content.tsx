@@ -1,5 +1,4 @@
 import {
-  Block,
   BlockNode,
   BlockRange,
   ExpandedBlockRange,
@@ -17,11 +16,11 @@ import {
   getCIDFromIPFSUrl,
   getDocumentTitle,
   getFileUrl,
+  hmBlockToEditorBlock,
   idToUrl,
   isHypermediaScheme,
   packHmId,
   pluralS,
-  toHMInlineContent,
   unpackHmId,
   useHover,
   useLowlight,
@@ -837,7 +836,7 @@ function inlineContentSize(unit: number): TextProps {
 }
 
 export type BlockContentProps = {
-  block: Block | HMBlock;
+  block: HMBlock;
   parentBlockId: string | null;
   depth: number;
   onHoverIn?: () => void;
@@ -899,7 +898,12 @@ function BlockContentParagraph({
 }: BlockContentProps) {
   const {debug, textUnit, comment} = useDocContentContext();
 
-  let inline = useMemo(() => toHMInlineContent(new Block(block)), [block]);
+  let inline = useMemo(() => {
+    const editorBlock = hmBlockToEditorBlock(block);
+
+    console.log(`== ~ inline ~ editorBlock:`, {editorBlock, block});
+    return editorBlock.content;
+  }, [block]);
   return (
     <YStack
       {...blockStyles}
@@ -924,7 +928,7 @@ export function BlockContentHeading({
   ...props
 }: BlockContentProps) {
   const {textUnit, debug, ffSerif, comment} = useDocContentContext();
-  let inline = useMemo(() => toHMInlineContent(new Block(block)), [block]);
+  let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block]);
   let headingTextStyles = useHeadingTextStyles(
     depth,
     comment ? textUnit * 0.8 : textUnit
@@ -1096,7 +1100,7 @@ function BlockContentImage({
   parentBlockId,
   ...props
 }: BlockContentProps) {
-  let inline = useMemo(() => toHMInlineContent(new Block(block)), [block]);
+  let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block]);
   const {textUnit} = useDocContentContext();
   if (!block?.ref) return null;
 
@@ -1139,7 +1143,7 @@ function BlockContentVideo({
   parentBlockId,
   ...props
 }: BlockContentProps) {
-  let inline = useMemo(() => toHMInlineContent(new Block(block)), []);
+  let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block]);
   const ref = block.ref || "";
   const {textUnit} = useDocContentContext();
 
@@ -1373,9 +1377,9 @@ function InlineContentView({
           );
         }
         if (content.type === "link") {
-          const hmId = unpackHmId(content.href);
-          const isHmScheme = isHypermediaScheme(content.href);
-          const href = isHmScheme && hmId ? idToUrl(hmId) : content.href;
+          const hmId = unpackHmId(content.ref);
+          const isHmScheme = isHypermediaScheme(content.ref);
+          const href = isHmScheme && hmId ? idToUrl(hmId) : content.ref;
           if (!href) return null;
           return (
             <a
@@ -1383,7 +1387,7 @@ function InlineContentView({
               className={isHmScheme ? "hm-link" : "link"}
               key={index}
               target={isHmScheme ? undefined : "_blank"}
-              onClick={(e) => onLinkClick(content.href, e)}
+              onClick={(e) => onLinkClick(content.ref, e)}
             >
               <InlineContentView
                 fontSize={fSize}
@@ -2134,8 +2138,9 @@ export function InlineEmbedButton({
     <ButtonText
       {...buttonProps}
       textDecorationColor={"$brand5"}
-      style={{textDecorationLine: "underline"}}
+      // style={{textDecorationLine: "underline"}}
       color="$brand5"
+      fontWeight="bold"
       className="hm-link"
       fontSize="$5"
       data-inline-embed={packHmId(id)}
