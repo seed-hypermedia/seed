@@ -67,7 +67,7 @@ func makePeer(t *testing.T, k crypto.PrivKey) *testNode {
 
 	t.Cleanup(func() { require.NoError(t, ds.Close()) })
 
-	n, err := NewLibp2pNode(k, ds, nil)
+	n, err := NewLibp2pNode(k, ds, "/hypermedia/0.4.0", nil)
 	require.NoError(t, err)
 
 	ma, err := multiaddr.NewMultiaddr("/ip4/0.0.0.0/tcp/0")

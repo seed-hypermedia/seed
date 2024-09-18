@@ -114,7 +114,14 @@ type Node struct {
 func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool, index *index.Index, log *zap.Logger) (*Node, error) {
 	var clean cleanup.Stack
 
-	host, closeHost, err := newLibp2p(cfg, device.Wrapped())
+	var testnetSuffix string
+	if cfg.TestnetName != "" {
+		testnetSuffix = "-" + cfg.TestnetName
+	}
+
+	protoInfo := newProtocolInfo(protocolPrefix, protocolVersion+testnetSuffix)
+
+	host, closeHost, err := newLibp2p(cfg, device.Wrapped(), protoInfo.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start libp2p host: %w", err)
 	}
@@ -137,13 +144,6 @@ func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool
 		return nil, fmt.Errorf("failed to initialize providing: %w", err)
 	}
 	clean.Add(providing)
-
-	var testnetSuffix string
-	if cfg.TestnetName != "" {
-		testnetSuffix = "-" + cfg.TestnetName
-	}
-
-	protoInfo := newProtocolInfo(protocolPrefix, protocolVersion+testnetSuffix)
 
 	client := newClient(device.PeerID(), host, protoInfo.ID)
 	clean.Add(client)
@@ -489,7 +489,7 @@ func AddrInfoFromStrings(addrs ...string) (out peer.AddrInfo, err error) {
 	return out, nil
 }
 
-func newLibp2p(cfg config.P2P, device crypto.PrivKey) (*ipfs.Libp2p, io.Closer, error) {
+func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID) (*ipfs.Libp2p, io.Closer, error) {
 	var clean cleanup.Stack
 
 	ps, err := pstoremem.NewPeerstore()
@@ -551,7 +551,7 @@ func newLibp2p(cfg config.P2P, device crypto.PrivKey) (*ipfs.Libp2p, io.Closer, 
 		opts = append(opts, libp2p.BandwidthReporter(m))
 	}
 
-	node, err := ipfs.NewLibp2pNode(device, ds, opts...)
+	node, err := ipfs.NewLibp2pNode(device, ds, protocolID, opts...)
 	if err != nil {
 		return nil, nil, err
 	}

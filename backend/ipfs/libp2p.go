@@ -139,7 +139,7 @@ type Libp2p struct {
 // To actually enable relay you also need to pass EnableAutoRelay, and optionally enable HolePunching.
 // The returning node won't be listening on the network by default, so users have to start listening manually,
 // using the Listen() method on the underlying P2P network.
-func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, opts ...libp2p.Option) (n *Libp2p, err error) {
+func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protocol.ID, opts ...libp2p.Option) (n *Libp2p, err error) {
 	n = &Libp2p{
 		ds: ds,
 	}
@@ -155,7 +155,7 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, opts ...libp2p.Opt
 		return nil
 	})
 
-	rm, err := buildResourceManager(map[protocol.ID]rcmgr.LimitVal{"/hypermedia/0.3.0": 1000, "/hypermedia/0.2.0": 1000},
+	rm, err := buildResourceManager(map[protocol.ID]rcmgr.LimitVal{protocolID: 2000},
 		map[protocol.ID]rcmgr.LimitVal{"/ipfs/kad/1.0.0": 5000, "/ipfs/bitswap/1.2.0": 3000})
 	if err != nil {
 		return nil, err
@@ -276,7 +276,7 @@ func buildResourceManager(ourProtocolLimits map[protocol.ID]rcmgr.LimitVal, thei
 	scaledDefaultLimits := scalingLimits.AutoScale()
 	const (
 		maxConns           = 12000
-		maxFileDescriptors = 1000
+		maxFileDescriptors = 5000
 		maxMemory          = 2048 * 1024 * 1024
 	)
 

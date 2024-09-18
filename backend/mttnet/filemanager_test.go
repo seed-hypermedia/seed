@@ -112,7 +112,7 @@ func makeManager(t *testing.T, k crypto.PrivKey) *FileManager {
 	ds := sync.MutexWrap(datastore.NewMapDatastore())
 	t.Cleanup(func() { require.NoError(t, ds.Close()) })
 
-	n, err := ipfs.NewLibp2pNode(k, ds, nil)
+	n, err := ipfs.NewLibp2pNode(k, ds, protocolPrefix+protocolVersion, nil)
 	require.NoError(t, err)
 
 	ma, err := multiaddr.NewMultiaddr("/ip4/0.0.0.0/tcp/0")
