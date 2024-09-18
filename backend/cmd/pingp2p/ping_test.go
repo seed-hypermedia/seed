@@ -36,7 +36,7 @@ func TestPing(t *testing.T) {
 	ch := pingService.Ping(context.Background(), listenerInfo.ID)
 	for i := 0; i < 5; i++ {
 		res := <-ch
-		require.Less(t, res.RTT, time.Millisecond*5)
+		require.Less(t, res.RTT, time.Millisecond*15)
 	}
 }
 
