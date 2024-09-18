@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"seed/backend/ipfs"
+	"seed/backend/util/must"
 	"strings"
 	"time"
 
@@ -81,7 +82,7 @@ func Default() Config {
 			Mainnet: false,
 		},
 		P2P: P2P{
-			BootstrapPeers: ipfs.DefaultBootstrapPeers(),
+			BootstrapPeers: bootstrapPeers(),
 			Port:           55000,
 			RelayBackoff:   time.Minute * 3,
 		},
@@ -193,6 +194,26 @@ func (c *Syncing) BindFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.NoSyncBack, "syncing.no-sync-back", c.NoSyncBack, "Disables syncing back all the content when a peer connects to us")
 }
 
+var customBootstrapPeers = []string{
+	// HM24 Test Gateway.
+	"/dns4/test.hyper.media/tcp/56000/p2p/12D3KooWMjs8x6ST53ZuXAegedQ4dJ2HYYQmFpw1puGpBZmLRCGB",
+	"/dns4/test.hyper.media/udp/56000/quic-v1/p2p/12D3KooWMjs8x6ST53ZuXAegedQ4dJ2HYYQmFpw1puGpBZmLRCGB",
+
+	// HM24 Production Gateway.
+	"/dns4/gateway.hyper.media/tcp/56000/p2p/12D3KooWLyw3zApBMKK2BbtjgHPmtr4iqqJkY8nUGYs92oM2bzgR",
+	"/dns4/gateway.hyper.media/udp/56000/quic-v1/p2p/12D3KooWLyw3zApBMKK2BbtjgHPmtr4iqqJkY8nUGYs92oM2bzgR",
+}
+
+func bootstrapPeers() []multiaddr.Multiaddr {
+	std := ipfs.DefaultBootstrapPeers()
+
+	for _, addr := range customBootstrapPeers {
+		std = append(std, must.Do2(multiaddr.NewMultiaddr(addr)))
+	}
+
+	return std
+}
+
 // P2P networking configuration.
 type P2P struct {
 	TestnetName             string
@@ -213,7 +234,18 @@ func (p2p *P2P) BindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&p2p.TestnetName, "p2p.testnet-name", p2p.TestnetName, "Name of the testnet to use (empty for mainnet)")
 	fs.IntVar(&p2p.Port, "p2p.port", p2p.Port, "Port to listen for incoming P2P connections")
 	fs.BoolVar(&p2p.NoRelay, "p2p.no-relay", p2p.NoRelay, "Disable libp2p circuit relay")
-	fs.Var(newAddrsFlag(p2p.BootstrapPeers, &p2p.BootstrapPeers), "p2p.bootstrap-peers", "Multiaddrs for bootstrap nodes (comma separated)")
+	fs.Func("p2p.bootstrap-peers", "Comma-separated multiaddrs for bootstrap nodes (default see `config/config.go`)", func(in string) error {
+		addrs := strings.Split(in, ",")
+		out := make([]multiaddr.Multiaddr, len(addrs))
+		for i, addr := range addrs {
+			maddr, err := multiaddr.NewMultiaddr(addr)
+			if err != nil {
+				return err
+			}
+			out[i] = maddr
+		}
+		return nil
+	})
 	fs.Var(newAddrsFlag(p2p.ListenAddrs, &p2p.ListenAddrs), "p2p.listen-addrs", "Addresses to be listen at (comma separated multiaddresses format)")
 	fs.Var(newAddrsFlag(p2p.AnnounceAddrs, &p2p.AnnounceAddrs), "p2p.announce-addrs", "Multiaddrs this node will announce as being reachable at (comma separated)")
 	fs.BoolVar(&p2p.ForceReachabilityPublic, "p2p.force-reachability-public", p2p.ForceReachabilityPublic, "Force the node into thinking it's publicly reachable")

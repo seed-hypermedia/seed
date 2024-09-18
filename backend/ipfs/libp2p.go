@@ -30,22 +30,6 @@ import (
 	"go.uber.org/multierr"
 )
 
-// DefaultBootstrapPeers exposes default bootstrap peers from the go-ipfs package,
-// failing in case of an error, which should only happen if there's a bug somewhere.
-func DefaultBootstrapPeers() []multiaddr.Multiaddr {
-	out := make([]multiaddr.Multiaddr, len(DefaultBootstrapAddresses))
-
-	for i, a := range DefaultBootstrapAddresses {
-		addr, err := multiaddr.NewMultiaddr(a)
-		if err != nil {
-			panic(err)
-		}
-		out[i] = addr
-	}
-
-	return out
-}
-
 // BootstrapResult is a result of the bootstrap process.
 type BootstrapResult struct {
 	// Peers that were used for bootstrapping.
@@ -105,21 +89,6 @@ func Bootstrap(ctx context.Context, h host.Host, rt routing.Routing, peers []pee
 	wg.Wait()
 
 	return res
-}
-
-// ParseMultiaddrs parses a slice of string multiaddrs.
-func ParseMultiaddrs(in []string) ([]multiaddr.Multiaddr, error) {
-	out := make([]multiaddr.Multiaddr, len(in))
-
-	for i, a := range in {
-		ma, err := multiaddr.NewMultiaddr(a)
-		if err != nil {
-			return nil, err
-		}
-		out[i] = ma
-	}
-
-	return out, nil
 }
 
 // Libp2p exposes libp2p host and the underlying routing system (DHT).
