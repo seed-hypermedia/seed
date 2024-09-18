@@ -40,12 +40,12 @@ func TestStack(t *testing.T) {
 	err := c.Close()
 	require.Error(t, err)
 	require.Equal(t, expected, errs)
-	require.Contains(t, err.Error(), "three; two; one")
+	require.Contains(t, err.Error(), "three\ntwo\none")
 
 	err = c.Close()
 	require.Error(t, err)
 	require.Equal(t, expected, errs)
-	require.Contains(t, err.Error(), "three; two; one")
+	require.Contains(t, err.Error(), "three\ntwo\none")
 }
 
 func TestEmpty(t *testing.T) {

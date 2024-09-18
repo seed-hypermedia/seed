@@ -491,7 +491,6 @@ func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID) (*
 	opts := []libp2p.Option{
 		libp2p.UserAgent(userAgent),
 		libp2p.Peerstore(ps),
-		libp2p.EnableNATService(),
 		libp2p.EnableHolePunching(),
 	}
 
@@ -517,17 +516,22 @@ func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID) (*
 			}),
 		)
 	}
+
+	// We force private reachability unless we force public one and we don't need relay.
 	if !cfg.ForceReachabilityPublic && !cfg.NoRelay {
 		opts = append(opts, libp2p.ForceReachabilityPrivate())
+	} else {
+		opts = append(opts, libp2p.EnableNATService())
 	}
 
 	if !cfg.NoRelay {
 		opts = append(opts,
 			libp2p.EnableAutoRelayWithStaticRelays(DefaultRelays(),
-				autorelay.WithBootDelay(time.Second*10),
+				autorelay.WithBootDelay(time.Second*5),
 				autorelay.WithNumRelays(2),
 				autorelay.WithMinCandidates(2),
-				autorelay.WithBackoff(cfg.RelayBackoff)),
+				autorelay.WithBackoff(cfg.RelayBackoff),
+			),
 		)
 	}
 

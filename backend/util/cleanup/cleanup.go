@@ -13,6 +13,13 @@ func (f errFuncCloser) Close() error {
 	return f()
 }
 
+type funcCloser func()
+
+func (f funcCloser) Close() error {
+	f()
+	return nil
+}
+
 // Stack of closers to clean up. Use Close() to close them
 // in the LIFO order. Zero value is useful.
 type Stack struct {
@@ -28,6 +35,13 @@ type Stack struct {
 // Add closer to the cleanup stack.
 func (s *Stack) Add(c ...io.Closer) {
 	s.funcs = append(s.funcs, c...)
+}
+
+// AddFunc to the cleanup stack.
+func (s *Stack) AddFunc(fn ...func()) {
+	for _, f := range fn {
+		s.funcs = append(s.funcs, funcCloser(f))
+	}
 }
 
 // AddErrFunc to the cleanup stack.

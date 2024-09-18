@@ -2,6 +2,7 @@ package ipfs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"seed/backend/util/cleanup"
@@ -23,7 +24,6 @@ import (
 	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/multiformats/go-multiaddr"
-	"go.uber.org/multierr"
 )
 
 // Libp2p exposes libp2p host and the underlying routing system (DHT).
@@ -43,33 +43,36 @@ type Libp2p struct {
 // To actually enable relay you also need to pass EnableAutoRelay, and optionally enable HolePunching.
 // The returning node won't be listening on the network by default, so users have to start listening manually,
 // using the Listen() method on the underlying P2P network.
-func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protocol.ID, opts ...libp2p.Option) (n *Libp2p, err error) {
-	n = &Libp2p{
-		ds: ds,
-	}
+func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protocol.ID, opts ...libp2p.Option) (nn *Libp2p, err error) {
+	var clean cleanup.Stack
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
 		if err != nil {
-			err = multierr.Append(err, n.Close())
+			err = errors.Join(err, clean.Close())
 		}
 	}()
-	n.clean.AddErrFunc(func() error {
-		cancel()
-		return nil
-	})
+	clean.AddFunc(cancel)
 
-	rm, err := buildResourceManager(map[protocol.ID]rcmgr.LimitVal{protocolID: 2000},
-		map[protocol.ID]rcmgr.LimitVal{"/ipfs/kad/1.0.0": 5000, "/ipfs/bitswap/1.2.0": 3000})
+	rm, err := buildResourceManager(
+		map[protocol.ID]rcmgr.LimitVal{
+			protocolID: 2000,
+		},
+		map[protocol.ID]rcmgr.LimitVal{
+			"/ipfs/kad/1.0.0":     5000,
+			"/ipfs/bitswap/1.2.0": 3000,
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
 
+	var ddht *dualdht.DHT
 	o := []libp2p.Option{
 		libp2p.Identity(key),
-		libp2p.NoListenAddrs,      // Users must explicitly start listening.
-		libp2p.EnableRelay(),      // Be able to dial behind-relay peers and receive connections from them.
-		libp2p.EnableNATService(), // Dial other peers on-demand to let them know if they are reachable.
+		libp2p.NoListenAddrs, // Users must explicitly start listening.
+		libp2p.EnableRelay(), // Be able to dial behind-relay peers and receive connections from them.
+		libp2p.EnableAutoNATv2(),
 		libp2p.ConnectionManager(must.Do2(connmgr.NewConnManager(50, 100))),
 		libp2p.ResourceManager(rm),
 		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
@@ -86,7 +89,7 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 			if err != nil {
 				return nil, err
 			}
-			n.clean.Add(provStore)
+			clean.Add(provStore)
 
 			r, err := dualdht.New(
 				ctx, h,
@@ -110,26 +113,26 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 			// Routing interface from IPFS doesn't expose Close method,
 			// so it actually never gets closed properly, even inside IPFS.
 			// This ugly trick attempts to solve this.
-			// n.clean.Add(r)
-			n.clean.AddErrFunc(func() error {
-				return r.Close()
-			})
-
-			n.Routing = &instrumentedRouting{r}
-
-			return n.Routing, nil
+			clean.Add(r)
+			ddht = r
+			return r, nil
 		}),
 	}
 
 	o = append(o, opts...)
 
-	n.Host, err = libp2p.New(o...)
+	node, err := libp2p.New(o...)
 	if err != nil {
 		return nil, err
 	}
-	n.clean.Add(n.Host)
+	clean.Add(node)
 
-	return n, nil
+	return &Libp2p{
+		ds:      ds,
+		clean:   clean,
+		Host:    node,
+		Routing: ddht,
+	}, nil
 }
 
 // Listen starts listening on the network.
