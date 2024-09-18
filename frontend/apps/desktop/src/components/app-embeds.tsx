@@ -1,5 +1,5 @@
 import {useAccount_deprecated} from '@/models/accounts'
-import {useEntities, useEntity} from '@/models/entities'
+import {useEntity} from '@/models/entities'
 import {
   DAEMON_FILE_URL,
   UnpackedHypermediaId,
@@ -8,7 +8,6 @@ import {
   getDocumentTitle,
   hmId,
   packHmId,
-  unpackHmId,
 } from '@shm/shared'
 import {
   BlockContentUnknown,
@@ -33,16 +32,14 @@ import {ArrowUpRightSquare} from '@tamagui/lucide-icons'
 import {
   ComponentProps,
   PropsWithChildren,
-  forwardRef,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from 'react'
-import {SizableTextProps, YStackProps} from 'tamagui'
+import {SizableTextProps} from 'tamagui'
 import {useComment} from '../models/comments'
 import {useNavigate} from '../utils/useNavigate'
-import {EntityLinkThumbnail} from './account-link-thumbnail'
 
 function EmbedWrapper({
   id,
@@ -210,184 +207,6 @@ export function useSizeObserver(onRect: (rect: DOMRect) => void) {
     widthObserver.current = observeSize(el, onRect)
   }
 }
-
-const EmbedSideAnnotation = forwardRef<
-  HTMLDivElement,
-  {id: string; sidePos: 'bottom' | 'right'; disableEmbedClick?: boolean}
->(function EmbedSideAnnotation({id, sidePos, disableEmbedClick}, ref) {
-  const unpacked = unpackHmId(id)
-
-  const sideStyles: YStackProps =
-    sidePos == 'right'
-      ? {
-          position: 'absolute',
-          top: 32,
-          right: -16,
-          transform: 'translateX(100%)',
-        }
-      : {}
-
-  if (unpacked && unpacked.type == 'comment')
-    return (
-      <CommentSideAnnotation
-        ref={ref}
-        unpackedRef={unpacked}
-        sideStyles={sideStyles}
-      />
-    )
-  if (unpacked && unpacked.type != 'd') return null
-  const entity = useEntity(unpacked)
-  const editors = useEntities(
-    entity.data?.document?.authors.map((accountId) => hmId('d', accountId)) ||
-      [],
-  )
-  return (
-    <YStack
-      ref={ref}
-      p="$2"
-      flex="none"
-      className="embed-side-annotation"
-      width="max-content"
-      maxWidth={300}
-      group="item"
-      {...sideStyles}
-    >
-      <SizableText size="$1" fontWeight="600">
-        {getDocumentTitle(entity?.data?.document)}
-      </SizableText>
-      <SizableText size="$1" color="$color9">
-        {formattedDateMedium(entity.data?.document?.updateTime)}
-      </SizableText>
-      <XStack
-        marginHorizontal="$2"
-        gap="$2"
-        ai="center"
-        paddingVertical="$1"
-        alignSelf="flex-start"
-      >
-        <XStack ai="center">
-          {editors
-            .map((editor) => editor.data)
-            .filter(Boolean)
-            .map(
-              (editorAccount, idx) =>
-                editorAccount?.id && (
-                  <XStack
-                    zIndex={idx + 1}
-                    key={editorAccount?.id.id}
-                    borderColor="$background"
-                    backgroundColor="$background"
-                    borderWidth={2}
-                    borderRadius={100}
-                    marginLeft={-8}
-                  >
-                    <EntityLinkThumbnail id={editorAccount?.id} />
-                  </XStack>
-                ),
-            )}
-        </XStack>
-      </XStack>
-      {disableEmbedClick ? null : (
-        <SizableText
-          size="$1"
-          color="$brand5"
-          opacity={0}
-          $group-item-hover={{opacity: 1}}
-        >
-          Go to Document →
-        </SizableText>
-      )}
-    </YStack>
-  )
-})
-
-const CommentSideAnnotation = forwardRef(function CommentSideAnnotation(
-  props: {unpackedRef?: UnpackedHypermediaId; sideStyles: YStackProps},
-  ref,
-) {
-  const comment = useComment(props.unpackedRef)
-
-  const unpackedTarget = useMemo(() => {
-    if (comment && comment.data?.target) {
-      return unpackHmId(comment.data.target)
-    } else {
-      return null
-    }
-  }, [comment])
-
-  const pubTarget = useEntity(unpackedTarget)
-
-  const editors =
-    pubTarget.data?.document?.authors.map((accountId) =>
-      hmId('d', accountId),
-    ) || []
-
-  if (pubTarget.status == 'success') {
-    return (
-      <YStack
-        ref={ref}
-        p="$2"
-        flex="none"
-        className="embed-side-annotation"
-        width="max-content"
-        maxWidth={300}
-        group="item"
-        {...props.sideStyles}
-      >
-        {/* <XStack ai="center" gap="$2" bg="green"> */}
-        <SizableText size="$1">
-          comment on{' '}
-          <SizableText size="$1" fontWeight="600">
-            {getDocumentTitle(pubTarget?.data?.document)}
-          </SizableText>
-        </SizableText>
-        {/* <SizableText fontSize={12} color="$color9">
-            {formattedDateMedium(pub.data?.document?.publishTime)}
-          </SizableText> */}
-        {/* </XStack> */}
-        <SizableText size="$1" color="$color9">
-          {formattedDateMedium(pubTarget.data?.document?.updateTime)}
-        </SizableText>
-        <XStack
-          marginHorizontal="$2"
-          gap="$2"
-          ai="center"
-          paddingVertical="$1"
-          alignSelf="flex-start"
-        >
-          <XStack ai="center">
-            {editors.map(
-              (editorId, idx) =>
-                editorId?.id && (
-                  <XStack
-                    zIndex={idx + 1}
-                    key={editorId?.id}
-                    borderColor="$background"
-                    backgroundColor="$background"
-                    borderWidth={2}
-                    borderRadius={100}
-                    marginLeft={-8}
-                  >
-                    <EntityLinkThumbnail id={editorId} />
-                  </XStack>
-                ),
-            )}
-          </XStack>
-        </XStack>
-        <SizableText
-          size="$1"
-          color="$brand5"
-          opacity={0}
-          $group-item-hover={{opacity: 1}}
-        >
-          Go to Comment →
-        </SizableText>
-      </YStack>
-    )
-  }
-
-  return null
-})
 
 export function EmbedDocument(props: EntityComponentProps) {
   if (props.block.attributes?.view == 'card') {
@@ -580,7 +399,7 @@ function DocInlineEmbed(props: UnpackedHypermediaId) {
   const doc = useEntity(props)
   return (
     <InlineEmbedButton id={props}>
-      {getDocumentTitle(doc.data?.document)}
+      @{getDocumentTitle(doc.data?.document)}
     </InlineEmbedButton>
   )
 }

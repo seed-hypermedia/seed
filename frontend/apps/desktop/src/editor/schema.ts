@@ -43,7 +43,6 @@ export const hmBlockSchema: BlockSchema = {
   file: FileBlock,
   nostr: NostrBlock,
   ['web-embed']: WebEmbed,
-  equation: MathBlock('equation'), // DEPRECATE
   math: MathBlock('math'),
 }
 

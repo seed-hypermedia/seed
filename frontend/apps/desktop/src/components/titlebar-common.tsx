@@ -1,19 +1,19 @@
-import {useAppContext} from '@/app-context'
-import {useCopyReferenceUrl} from '@/components/copy-reference-url'
-import {useDeleteDialog} from '@/components/delete-dialog'
-import {MenuItemType, OptionsDropdown} from '@/components/options-dropdown'
-import {useMyCapability} from '@/models/access-control'
-import {useDraft} from '@/models/accounts'
-import {useEntity} from '@/models/entities'
-import {useGatewayUrl} from '@/models/gateway-settings'
-import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
-import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
+import { useAppContext } from '@/app-context'
+import { useCopyReferenceUrl } from '@/components/copy-reference-url'
+import { useDeleteDialog } from '@/components/delete-dialog'
+import { MenuItemType, OptionsDropdown } from '@/components/options-dropdown'
+import { useMyCapability } from '@/models/access-control'
+import { useDraft } from '@/models/accounts'
+import { useEntity } from '@/models/entities'
+import { useGatewayUrl } from '@/models/gateway-settings'
+import { SidebarWidth, useSidebarContext } from '@/sidebar-context'
+import { convertBlocksToMarkdown } from '@/utils/blocks-to-markdown'
 import {
   useNavRoute,
   useNavigationDispatch,
   useNavigationState,
 } from '@/utils/navigation'
-import {useNavigate} from '@/utils/useNavigate'
+import { useNavigate } from '@/utils/useNavigate'
 import {
   BlockRange,
   DEFAULT_GATEWAY_URL,
@@ -24,8 +24,8 @@ import {
   createWebHMUrl,
   displayHostname,
   getDocumentTitle,
-  hmId,
-  toHMBlock,
+  hmBlocksToEditorContent,
+  hmId
 } from '@shm/shared'
 import {
   Back,
@@ -53,13 +53,13 @@ import {
   UploadCloud,
   UserPlus,
 } from '@tamagui/lucide-icons'
-import {PropsWithChildren, ReactNode, useState} from 'react'
-import {AddConnectionDialog} from './contacts-prompt'
-import {useAppDialog} from './dialog'
+import { PropsWithChildren, ReactNode, useState } from 'react'
+import { AddConnectionDialog } from './contacts-prompt'
+import { useAppDialog } from './dialog'
 import DiscardDraftButton from './discard-draft-button'
 import PublishDraftButton from './publish-draft-button'
-import {usePublishSite, useRemoveSiteDialog} from './publish-site'
-import {TitleBarProps} from './titlebar'
+import { usePublishSite, useRemoveSiteDialog } from './publish-site'
+import { TitleBarProps } from './titlebar'
 
 export function DocOptionsButton() {
   const route = useNavRoute()
@@ -97,7 +97,7 @@ export function DocOptionsButton() {
       onPress: async () => {
         const title = doc.data?.document?.metadata.name || 'document'
         const blocks: HMBlockNode[] | undefined = doc.data?.document?.content
-        const editorBlocks = toHMBlock(blocks)
+        const editorBlocks = hmBlocksToEditorContent(blocks)
         const markdownWithFiles = await convertBlocksToMarkdown(editorBlocks)
         const {markdownContent, mediaFiles} = markdownWithFiles
         exportDocument(title, markdownContent, mediaFiles)
