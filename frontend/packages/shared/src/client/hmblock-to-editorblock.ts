@@ -71,14 +71,6 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     if (block.ref) {
       out.props.url = block.ref
     }
-    out.content = [
-      {
-        type: 'text',
-        text: ['math', 'codeBlock'].includes(block.type) ? block.text : '',
-        styles: {},
-      },
-    ]
-    // out.children = []
 
     Object.entries(block.attributes).forEach(([key, value]) => {
       if (value !== undefined) {

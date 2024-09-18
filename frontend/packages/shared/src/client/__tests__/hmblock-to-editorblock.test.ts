@@ -500,7 +500,7 @@ describe('HMBlock to EditorBlock', () => {
         type: 'image',
         children: [],
         props: {
-          ref: 'ipfs://foobarimgcid',
+          url: 'ipfs://foobarimgcid',
           revision: 'revision123',
         },
         content: [
@@ -536,7 +536,7 @@ describe('HMBlock to EditorBlock', () => {
         type: 'video',
         children: [],
         props: {
-          ref: 'ipfs://foobarimgcid',
+          url: 'ipfs://foobarimgcid',
           width: 240,
           name: 'test demo video',
           size: 123456,
@@ -575,7 +575,7 @@ describe('HMBlock to EditorBlock', () => {
         type: 'file',
         children: [],
         props: {
-          ref: 'ipfs://foobarimgcid',
+          url: 'ipfs://foobarimgcid',
           width: 240,
           name: 'testfile.pdf',
           size: 123456,
@@ -613,7 +613,7 @@ describe('HMBlock to EditorBlock', () => {
         type: 'embed',
         children: [],
         props: {
-          ref: 'hm://foobarembed',
+          url: 'hm://foobarembed',
           view: 'card',
           revision: 'revision123',
         },
@@ -647,7 +647,7 @@ describe('HMBlock to EditorBlock', () => {
         type: 'web-embed',
         children: [],
         props: {
-          ref: 'hm://foobarwebembed',
+          url: 'hm://foobarwebembed',
           revision: 'revision123',
         },
         content: [
@@ -684,7 +684,7 @@ describe('HMBlock to EditorBlock', () => {
         children: [],
         props: {
           name: 'test nostr',
-          ref: 'nostr://foobarid',
+          url: 'nostr://foobarid',
           size: 123456,
           revision: 'revision123',
         },
@@ -698,6 +698,8 @@ describe('HMBlock to EditorBlock', () => {
       }
 
       const val = hmBlockToEditorBlock(hmBlock)
+
+      console.log(`== ~ test ~ val:`, val)
 
       expect(val).toEqual(result)
     })

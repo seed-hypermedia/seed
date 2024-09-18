@@ -580,7 +580,7 @@ describe('EditorBlock to HMBlock', () => {
         type: 'embed',
         children: [],
         props: {
-          ref: 'hm://foobarembed',
+          url: 'hm://foobarembed',
           view: 'card',
         },
         content: [
@@ -614,7 +614,7 @@ describe('EditorBlock to HMBlock', () => {
         type: 'web-embed',
         children: [],
         props: {
-          ref: 'hm://foobarwebembed',
+          url: 'hm://foobarwebembed',
         },
         content: [
           {
@@ -646,7 +646,7 @@ describe('EditorBlock to HMBlock', () => {
         children: [],
         props: {
           name: 'test nostr',
-          ref: 'nostr://foobarid',
+          url: 'nostr://foobarid',
           size: 123456,
         },
         content: [
