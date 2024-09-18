@@ -43,19 +43,19 @@ type InternalAnnotation = Record<string, string | boolean>
 
 function annotationStyle(a: Annotation): HMStyles {
   const annotation = a
-  if (annotation.type === 'emphasis') {
+  if (annotation.type == 'italic') {
     return {italic: true}
   }
-  if (annotation.type === 'strong') {
+  if (annotation.type == 'bold') {
     return {bold: true}
   }
-  if (annotation.type === 'underline') {
+  if (annotation.type == 'underline') {
     return {underline: true}
   }
-  if (annotation.type === 'strike') {
+  if (annotation.type == 'strike') {
     return {strike: true}
   }
-  if (annotation.type === 'code') {
+  if (annotation.type == 'code') {
     return {code: true}
   }
 
@@ -418,10 +418,7 @@ export function toHMBlock(
       res = toHMBlockHeading(serverBlock, childRecursiveOpts)
     }
 
-    if (
-      serverBlock.block?.type &&
-      ['math', 'equation'].includes(serverBlock.block?.type)
-    ) {
+    if (serverBlock.block?.type && serverBlock.block.type == 'math') {
       res = toHMBlockMath(serverBlock, childRecursiveOpts)
     }
     // if (opts?.childrenType === 'numbers') {

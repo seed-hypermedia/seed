@@ -14,11 +14,12 @@ import {
 function styleMarkToAnnotationType(
   style: keyof Styles,
 ): Exclude<HMTextAnnotation, InlineEmbedAnnotation | ColorAnnotation>['type'] {
-  if (style === 'bold') return 'strong'
-  if (style === 'italic') return 'emphasis'
-  if (style === 'underline') return 'underline'
-  if (style === 'strike') return 'strike'
-  if (style === 'code') return 'code'
+  if (style == 'bold') return 'bold'
+  if (style == 'italic') return 'italic'
+  if (style == 'underline') return 'underline'
+  if (style == 'strike') return 'strike'
+  if (style == 'code') return 'code'
+  // if (style == 'math') return 'math'
   throw new Error('Cannot handle this style yet')
 }
 
@@ -144,7 +145,7 @@ export function fromHMBlock(
     })
   }
 
-  if (['math', 'equation'].includes(editorBlock.type)) {
+  if (editorBlock.type == 'math') {
     res = new ServerBlock({
       id: editorBlock.id,
       type: 'math',

@@ -14,7 +14,7 @@ import {
 } from './blocknote'
 import {HMBlockSchema} from './schema'
 
-export const MathBlock = (type: 'equation' | 'math') =>
+export const MathBlock = (type: 'math') =>
   createReactBlockSpec({
     type,
     propSchema: {
@@ -182,7 +182,6 @@ const Render = (
                         'embed',
                         'video',
                         'web-embed',
-                        'equation',
                         'math',
                       ].includes(prevNode.type.name)
                     ) {
@@ -218,7 +217,6 @@ const Render = (
                         'embed',
                         'video',
                         'web-embed',
-                        'equation',
                         'math',
                       ].includes(nextNode.type.name)
                     ) {
