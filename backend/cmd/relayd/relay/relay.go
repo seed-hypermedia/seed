@@ -11,7 +11,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
-	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
 	ma "github.com/multiformats/go-multiaddr"
 	"go.uber.org/zap"
@@ -73,16 +72,14 @@ func (r *Relay) Start() error {
 	opts := []libp2p.Option{
 		libp2p.UserAgent("HyperMediaRelay/0.1"),
 		libp2p.Identity(key),
-		libp2p.DisableRelay(),
-		libp2p.EnableRelayService(relay.WithResources(r.cfg.RelayV2.Resources)),
+		libp2p.EnableNATService(), // Help other peers discover their public IP.
+		libp2p.EnableAutoNATv2(),  // Use the new AutoNAT service.
+		libp2p.EnableRelay(),      // Enable the Circuit Relay service.
+		libp2p.EnableRelayService(relay.WithResources(r.cfg.RelayV2.Resources)), // Become a Relay server that can coordinate hole punching.
+		libp2p.EnableHolePunching(), // Enable hole punching for NAT traversal.
 		libp2p.ListenAddrStrings(libp2px.DefaultListenAddrs(r.cfg.Port)...),
-		libp2px.WithPublicAddrsOnly(),
-		libp2p.ForceReachabilityPublic(),
-		libp2p.ConnectionManager(must.Do2(connmgr.NewConnManager(
-			r.cfg.ConnMgr.ConnMgrLo,
-			r.cfg.ConnMgr.ConnMgrHi,
-			connmgr.WithGracePeriod(r.cfg.ConnMgr.ConnMgrGrace),
-		))),
+		libp2px.WithPublicAddrsOnly(),    // We only want to report public addresses.
+		libp2p.ForceReachabilityPublic(), // This server must be public.
 		libp2p.ResourceManager(must.Do2(rcmgr.NewResourceManager(rcmgr.NewFixedLimiter(rcmgr.InfiniteLimits)))),
 	}
 
