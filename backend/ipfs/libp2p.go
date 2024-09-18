@@ -8,13 +8,10 @@ import (
 	"seed/backend/util/cleanup"
 	"seed/backend/util/must"
 
-	"github.com/ipfs/boxo/ipns"
 	"github.com/ipfs/go-datastore"
 	"github.com/libp2p/go-libp2p"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
-	dualdht "github.com/libp2p/go-libp2p-kad-dht/dual"
 	"github.com/libp2p/go-libp2p-kad-dht/providers"
-	record "github.com/libp2p/go-libp2p-record"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -24,6 +21,7 @@ import (
 	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/multiformats/go-multiaddr"
+	manet "github.com/multiformats/go-multiaddr/net"
 )
 
 // Libp2p exposes libp2p host and the underlying routing system (DHT).
@@ -67,7 +65,7 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 		return nil, err
 	}
 
-	var ddht *dualdht.DHT
+	var rt routing.Routing
 	o := []libp2p.Option{
 		libp2p.Identity(key),
 		libp2p.NoListenAddrs, // Users must explicitly start listening.
@@ -91,20 +89,24 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 			}
 			clean.Add(provStore)
 
-			r, err := dualdht.New(
-				ctx, h,
-				dualdht.DHTOption(
-					dht.Concurrency(10),
-					dht.Mode(dht.ModeAuto),
-					dht.ProviderStore(provStore),
-					dht.Datastore(ds),
-					dht.Validator(record.NamespacedValidator{
-						"pk":   record.PublicKeyValidator{},
-						"ipns": ipns.Validator{KeyBook: h.Peerstore()},
-					}),
-				),
-				// LAN DHT should always be in server mode.
-				dualdht.LanDHTOption(dht.Mode(dht.ModeServer)),
+			r, err := dht.New(ctx, h,
+				dht.Concurrency(10),
+				// Forcing DHT client mode.
+				// This libp2p node is not meant to be a DHT server.
+				dht.Mode(dht.ModeClient),
+				dht.ProviderStore(provStore),
+				dht.Datastore(ds),
+
+				// Options copied from dualdht package.
+				dht.QueryFilter(dht.PublicQueryFilter),
+				dht.RoutingTableFilter(dht.PublicRoutingTableFilter),
+				// Not sure what those magic numbers are. Copied from dualdht package.
+				// We don't use it because we don't need the LAN DHT.
+				dht.RoutingTablePeerDiversityFilter(dht.NewRTPeerDiversityFilter(h, 2, 3)),
+				// Filter out all private addresses
+				dht.AddressFilter(func(addrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
+					return multiaddr.FilterAddrs(addrs, manet.IsPublicAddr)
+				}),
 			)
 			if err != nil {
 				return nil, err
@@ -114,7 +116,8 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 			// so it actually never gets closed properly, even inside IPFS.
 			// This ugly trick attempts to solve this.
 			clean.Add(r)
-			ddht = r
+
+			rt = r
 			return r, nil
 		}),
 	}
@@ -131,7 +134,7 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 		ds:      ds,
 		clean:   clean,
 		Host:    node,
-		Routing: ddht,
+		Routing: rt,
 	}, nil
 }
 
