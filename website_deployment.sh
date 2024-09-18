@@ -21,7 +21,7 @@ log_level="info"
 auto_update=0
 profile=""
 is_gateway="false"
-clean_images_cron="0 3 * * * docker rmi \$(docker images | grep -E 'seedhypermedia/' | awk '{print \$3}') # seed site cleanup"
+clean_images_cron="0 0,4,8,12,16,20 * * * docker image prune -a -f # prune all unused images"
 testnet_name=""
 registration_secret=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 10)
 
