@@ -730,6 +730,22 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	cpb, err := alice.RPC.DocumentsV3.CreateCapability(ctx, &documents.CreateCapabilityRequest{
+		SigningKeyName: "main",
+		Delegate:       bobIdentity.Account.String(),
+		Account:        aliceIdentity.Account.Principal().String(),
+		Path:           doc3.Path,
+		Role:           documents.Role_WRITER,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, cpb)
+	list, err := alice.RPC.DocumentsV3.ListCapabilities(ctx, &documents.ListCapabilitiesRequest{
+		Account: aliceIdentity.Account.Principal().String(),
+		Path:    doc3.Path,
+	})
+	require.NoError(t, err)
+	require.Len(t, list.Capabilities, 1, "must return the capability")
+
 	time.Sleep(time.Millisecond * 200)
 	comments, err = bob.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
 		TargetAccount: doc3Modified.Account,
@@ -738,6 +754,13 @@ func TestSubscriptions(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, comments.Comments, 2)
 	require.Equal(t, reply.Content, comments.Comments[1].Content)
+
+	bobsCap, err := bob.RPC.DocumentsV3.ListCapabilities(ctx, &documents.ListCapabilitiesRequest{
+		Account: aliceIdentity.Account.Principal().String(),
+		Path:    doc3.Path,
+	})
+	require.NoError(t, err)
+	require.Len(t, bobsCap.Capabilities, 1, "must return the capability")
 
 	_, err = bob.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
 		Account:   doc.Account,

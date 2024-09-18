@@ -382,7 +382,6 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 		return res, ErrSyncAlreadyRunning
 	}
 	defer s.mu.Unlock()
-	s.log.Debug("SyncSubscribedContent called", zap.Int("Number of subscriptions", len(subscriptions)))
 	conn, release, err := s.db.Conn(ctx)
 	if err != nil {
 		s.log.Debug("Could not grab a connection", zap.Error(err))
@@ -402,7 +401,7 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 		}
 		subscriptions = ret.Subscriptions
 	}
-	s.log.Debug("New Subscriptions gotten", zap.Int("Number of total subscriptions", len(subscriptions)))
+	s.log.Debug("SyncSubscribedContent called", zap.Int("Number of total subscriptions", len(subscriptions)))
 	if len(subscriptions) == 0 {
 		release()
 		return res, nil
@@ -652,6 +651,20 @@ func syncEntities(
 	var queryString = mttnet.QListrelatedBlobsStr
 	var queryParams []interface{}
 	var i int
+	for eid, recursive := range eids {
+		queryString += "?"
+		if recursive {
+			queryParams = append(queryParams, eid+"*")
+		} else {
+			queryParams = append(queryParams, eid)
+		}
+		if i < len(eids)-1 {
+			queryString += " OR iri GLOB "
+		}
+		i++
+	}
+	i = 0
+	queryString += mttnet.QListrelatedCapabilitiesStr
 	for eid, recursive := range eids {
 		queryString += "?"
 		if recursive {

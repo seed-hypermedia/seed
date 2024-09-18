@@ -40,6 +40,18 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 				query += " OR iri GLOB "
 			}
 		}
+		query += QListrelatedCapabilitiesStr
+		for i, filter := range in.Filters {
+			query += "?"
+			if filter.Recursive {
+				queryParams = append(queryParams, filter.Resource+"*")
+			} else {
+				queryParams = append(queryParams, filter.Resource)
+			}
+			if i < len(in.Filters)-1 {
+				query += " OR iri GLOB "
+			}
+		}
 		query += QListRelatedBlobsContStr
 	}
 	if err = sqlitex.Exec(conn, query, func(stmt *sqlite.Stmt) error {
@@ -74,7 +86,7 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 		ts := stmt.ColumnInt64(2)
 		c := cid.NewCidV1(uint64(codec), hash)
 		return store.Insert(ts, c.Bytes())
-	}, queryParams...); err != nil {
+	}, queryParams2...); err != nil {
 		return nil, fmt.Errorf("Could not list related embeds: %w", err)
 	}
 
@@ -160,6 +172,15 @@ refs (id) AS (
 	WHERE type = 'Ref'
 	AND resource IN (SELECT id FROM resources WHERE iri GLOB `
 
+// QListrelatedCapabilitiesStr gets blobs related to multiple eids
+const QListrelatedCapabilitiesStr = `)
+),
+capabilities (id) AS (
+	SELECT id
+	FROM structural_blobs
+	WHERE type = 'Capability'
+	AND resource IN (SELECT id FROM resources WHERE iri GLOB `
+
 // QListRelatedBlobsContStr gets blobs related to multiple eids
 const QListRelatedBlobsContStr = `)
 ),
@@ -205,6 +226,16 @@ insert_time,
 b.id,
 sb.ts
 FROM blobs b
-JOIN comments ch ON ch.id = b.id
+JOIN comments co ON co.id = b.id
+JOIN structural_blobs sb ON sb.id = b.id
+UNION ALL
+SELECT
+codec,
+b.multihash,
+insert_time,
+b.id,
+sb.ts
+FROM blobs b
+JOIN capabilities cap ON cap.id = b.id
 JOIN structural_blobs sb ON sb.id = b.id
 ORDER BY sb.ts, b.multihash;`
