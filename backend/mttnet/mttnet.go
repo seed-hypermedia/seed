@@ -417,6 +417,7 @@ func (n *Node) startLibp2p(ctx context.Context) error {
 				}
 				count++
 			})
+			close(done)
 		}()
 		// We wait for the periodic bootstrap to shutdown cleanly.
 		n.clean.AddErrFunc(func() error {
