@@ -19,6 +19,13 @@ type Base struct {
 	LogLevel string
 }
 
+func (c Base) Default() Base {
+	return Base{
+		DataDir:  "~/.mtt",
+		LogLevel: "info",
+	}
+}
+
 // BindFlags binds the flags to the given FlagSet.
 func (c *Base) BindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.DataDir, "data-dir", c.DataDir, "Path to a directory where to store node data")
@@ -45,8 +52,8 @@ type Config struct {
 
 	HTTP    HTTP
 	GRPC    GRPC
-	Lndhub  Lndhub
 	P2P     P2P
+	Lndhub  Lndhub
 	Syncing Syncing
 }
 
@@ -60,38 +67,20 @@ func (c *Config) BindFlags(fs *flag.FlagSet) {
 	c.Base.BindFlags(fs)
 	c.HTTP.BindFlags(fs)
 	c.GRPC.BindFlags(fs)
-	c.Lndhub.BindFlags(fs)
 	c.P2P.BindFlags(fs)
+	c.Lndhub.BindFlags(fs)
 	c.Syncing.BindFlags(fs)
 }
 
 // Default creates a new default config.
 func Default() Config {
 	return Config{
-		Base: Base{
-			DataDir:  "~/.mtt",
-			LogLevel: "info",
-		},
-		HTTP: HTTP{
-			Port: 55001,
-		},
-		GRPC: GRPC{
-			Port: 55002,
-		},
-		Lndhub: Lndhub{
-			Mainnet: false,
-		},
-		P2P: P2P{
-			BootstrapPeers: bootstrapPeers(),
-			Port:           55000,
-			RelayBackoff:   time.Minute * 3,
-		},
-		Syncing: Syncing{
-			WarmupDuration:  time.Second * 20,
-			Interval:        time.Minute,
-			TimeoutPerPeer:  time.Minute * 5,
-			RefreshInterval: time.Second * 50,
-		},
+		Base:    Base{}.Default(),
+		HTTP:    HTTP{}.Default(),
+		GRPC:    GRPC{}.Default(),
+		P2P:     P2P{}.Default(),
+		Lndhub:  Lndhub{}.Default(),
+		Syncing: Syncing{}.Default(),
 	}
 }
 
@@ -143,6 +132,12 @@ type HTTP struct {
 	Port int
 }
 
+func (c HTTP) Default() HTTP {
+	return HTTP{
+		Port: 55001,
+	}
+}
+
 // BindFlags binds the flags to the given FlagSet.
 func (c *HTTP) BindFlags(fs *flag.FlagSet) {
 	fs.IntVar(&c.Port, "http.port", c.Port, "Port for the HTTP server (including grpc-web)")
@@ -153,6 +148,12 @@ type GRPC struct {
 	Port int
 }
 
+func (c GRPC) Default() GRPC {
+	return GRPC{
+		Port: 55002,
+	}
+}
+
 // BindFlags binds the flags to the given FlagSet.
 func (c *GRPC) BindFlags(fs *flag.FlagSet) {
 	fs.IntVar(&c.Port, "grpc.port", c.Port, "Port for the gRPC server")
@@ -161,6 +162,10 @@ func (c *GRPC) BindFlags(fs *flag.FlagSet) {
 // Lndhub related config.
 type Lndhub struct {
 	Mainnet bool
+}
+
+func (c Lndhub) Default() Lndhub {
+	return Lndhub{}
 }
 
 // BindFlags binds the flags to the given FlagSet.
@@ -179,6 +184,15 @@ type Syncing struct {
 	NoDiscovery     bool
 	AllowPush       bool
 	NoSyncBack      bool
+}
+
+func (c Syncing) Default() Syncing {
+	return Syncing{
+		WarmupDuration:  time.Second * 20,
+		Interval:        time.Minute,
+		TimeoutPerPeer:  time.Minute * 5,
+		RefreshInterval: time.Second * 50,
+	}
 }
 
 // BindFlags binds the flags to the given FlagSet.
@@ -229,6 +243,14 @@ type P2P struct {
 	RelayBackoff            time.Duration
 }
 
+func (p2p P2P) Default() P2P {
+	return P2P{
+		BootstrapPeers: bootstrapPeers(),
+		Port:           55000,
+		RelayBackoff:   time.Minute * 3,
+	}
+}
+
 // BindFlags binds the flags to the given FlagSet.
 func (p2p *P2P) BindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&p2p.TestnetName, "p2p.testnet-name", p2p.TestnetName, "Name of the testnet to use (empty for mainnet)")
@@ -243,6 +265,10 @@ func (p2p *P2P) BindFlags(fs *flag.FlagSet) {
 				return err
 			}
 			out[i] = maddr
+		}
+		p2p.BootstrapPeers = out
+		if len(out) == 0 {
+			p2p.BootstrapPeers = nil
 		}
 		return nil
 	})
