@@ -41,6 +41,7 @@ func TestBitSwap(t *testing.T) {
 		fetched, err := bob.bitswap.GetBlock(ctx, b1.Cid())
 		require.NoError(t, err)
 		require.Equal(t, b1.RawData(), fetched.RawData(), "bob must fetch block from alice with bitswap")
+		require.NoError(t, bob.bs.Put(ctx, fetched))
 	}
 
 	require.NoError(t, carol.Connect(ctx, bob.AddrInfo()), "carol must connect to bob")
