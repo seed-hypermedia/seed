@@ -42,12 +42,12 @@ const size: SizeTokens = '$3'
 
 const toggleStyles = [
   {
-    name: 'Strong (Mod+B)',
+    name: 'Bold (Mod+B)',
     icon: Strong,
     style: 'bold' as ToggledStyle,
   },
   {
-    name: 'Emphasis (Mod+I)',
+    name: 'Italic (Mod+I)',
     icon: Emphasis,
     style: 'italic' as ToggledStyle,
   },

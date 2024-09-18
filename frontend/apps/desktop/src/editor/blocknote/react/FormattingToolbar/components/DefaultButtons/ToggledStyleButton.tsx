@@ -22,7 +22,6 @@ const shortcuts: Record<ToggledStyle, string> = {
   italic: 'Mod+I',
   underline: 'Mod+U',
   strike: 'Mod+Shift+X',
-
   // blocknote had Mod+Shift+C here, but tiptap responds to Cmd-E with code toggle.
   code: 'Mod+E',
   // https://tiptap.dev/api/keyboard-shortcuts
