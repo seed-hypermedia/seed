@@ -1,5 +1,4 @@
 import {
-  Block,
   BlockNode,
   BlockRange,
   ExpandedBlockRange,
@@ -17,11 +16,11 @@ import {
   getCIDFromIPFSUrl,
   getDocumentTitle,
   getFileUrl,
+  hmBlockToEditorBlock,
   idToUrl,
   isHypermediaScheme,
   packHmId,
   pluralS,
-  toHMInlineContent,
   unpackHmId,
   useHover,
   useLowlight,
@@ -810,7 +809,6 @@ function isBlockNodeEmpty(bn: HMBlockNode): boolean {
     case "paragraph":
     case "heading":
     case "math":
-    case "equation":
     case "code":
     case "codeBlock":
       return !bn.block.text;
@@ -846,7 +844,7 @@ function inlineContentSize(unit: number): TextProps {
 }
 
 export type BlockContentProps = {
-  block: Block | HMBlock;
+  block: HMBlock;
   parentBlockId: string | null;
   depth: number;
   onHoverIn?: () => void;
@@ -874,12 +872,12 @@ function BlockContent(props: BlockContentProps) {
     return <BlockContentVideo {...props} {...dataProps} />;
   }
 
+  if (props.block.type == "nostr") {
+    return <BlockContentNostr {...props} {...dataProps} />;
+  }
+
   if (props.block.type == "file") {
-    if (props.block.attributes.subType?.startsWith("nostr:")) {
-      return <BlockContentNostr {...props} {...dataProps} />;
-    } else {
-      return <BlockContentFile {...props} {...dataProps} />;
-    }
+    return <BlockContentFile {...props} {...dataProps} />;
   }
 
   // if (props.block.type == "web-embed") {
@@ -894,7 +892,7 @@ function BlockContent(props: BlockContentProps) {
     return <BlockContentCode {...props} {...dataProps} />;
   }
 
-  if (["equation", "math"].includes(props.block.type)) {
+  if (props.block.type == "math") {
     return <BlockContentMath {...props} block={props.block} />;
   }
 
@@ -908,7 +906,12 @@ function BlockContentParagraph({
 }: BlockContentProps) {
   const {debug, textUnit, comment} = useDocContentContext();
 
-  let inline = useMemo(() => toHMInlineContent(new Block(block)), [block]);
+  let inline = useMemo(() => {
+    const editorBlock = hmBlockToEditorBlock(block);
+
+    console.log(`== ~ inline ~ editorBlock:`, {editorBlock, block});
+    return editorBlock.content;
+  }, [block]);
   return (
     <YStack
       {...blockStyles}
@@ -933,7 +936,7 @@ export function BlockContentHeading({
   ...props
 }: BlockContentProps) {
   const {textUnit, debug, ffSerif, comment} = useDocContentContext();
-  let inline = useMemo(() => toHMInlineContent(new Block(block)), [block]);
+  let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block]);
   let headingTextStyles = useHeadingTextStyles(
     depth,
     comment ? textUnit * 0.8 : textUnit
@@ -1105,7 +1108,7 @@ function BlockContentImage({
   parentBlockId,
   ...props
 }: BlockContentProps) {
-  let inline = useMemo(() => toHMInlineContent(new Block(block)), [block]);
+  let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block]);
   const {textUnit} = useDocContentContext();
   if (!block?.ref) return null;
 
@@ -1148,7 +1151,7 @@ function BlockContentVideo({
   parentBlockId,
   ...props
 }: BlockContentProps) {
-  let inline = useMemo(() => toHMInlineContent(new Block(block)), []);
+  let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block]);
   const ref = block.ref || "";
   const {textUnit} = useDocContentContext();
 
@@ -1382,9 +1385,9 @@ function InlineContentView({
           );
         }
         if (content.type === "link") {
-          const hmId = unpackHmId(content.href);
-          const isHmScheme = isHypermediaScheme(content.href);
-          const href = isHmScheme && hmId ? idToUrl(hmId) : content.href;
+          const hmId = unpackHmId(content.ref);
+          const isHmScheme = isHypermediaScheme(content.ref);
+          const href = isHmScheme && hmId ? idToUrl(hmId) : content.ref;
           if (!href) return null;
           return (
             <a
@@ -1392,7 +1395,7 @@ function InlineContentView({
               className={isHmScheme ? "hm-link" : "link"}
               key={index}
               target={isHmScheme ? undefined : "_blank"}
-              onClick={(e) => onLinkClick(content.href, e)}
+              onClick={(e) => onLinkClick(content.ref, e)}
             >
               <InlineContentView
                 fontSize={fSize}
@@ -1430,6 +1433,7 @@ function InlineContentView({
 }
 
 export function BlockContentEmbed(props: BlockContentProps) {
+  console.log(`== ~ BlockContentEmbed ~ props:`, props);
   const EmbedTypes = useDocContentContext().entityComponents;
   if (props.block.type !== "embed")
     throw new Error("BlockContentEmbed requires an embed block type");
@@ -1820,6 +1824,7 @@ export function BlockContentNostr({
   parentBlockId,
   ...props
 }: BlockContentProps) {
+  console.log("BlockContentNostr", block);
   const {layoutUnit} = useDocContentContext();
   const name = block.attributes?.name ?? "";
   const nostrNpud = nip19.npubEncode(name) ?? "";
@@ -2143,8 +2148,9 @@ export function InlineEmbedButton({
     <ButtonText
       {...buttonProps}
       textDecorationColor={"$brand5"}
-      style={{textDecorationLine: "underline"}}
+      // style={{textDecorationLine: "underline"}}
       color="$brand5"
+      fontWeight="bold"
       className="hm-link"
       fontSize="$5"
       data-inline-embed={packHmId(id)}

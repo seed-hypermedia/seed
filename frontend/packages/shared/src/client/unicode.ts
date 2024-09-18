@@ -1,12 +1,7 @@
+import {HMAnnotations} from '..'
 import {Annotation} from './.generated/documents/v3alpha/documents_pb'
 
-// AnnotationSet wraps multiple annotations in a single structure.
 export class AnnotationSet {
-  // Map key should be some "identity" for a annotation, which should consist
-  // of annotation's type and its attributes in some canonical representation,
-  // which should be created deterministically, i.e. same type and attributes,
-  // must result in the same annotation ID.
-  // In this concrete example I'm using just the type as an ID.
   annotations: Map<string, Annotation>
 
   constructor() {
@@ -19,7 +14,7 @@ export class AnnotationSet {
     start: number,
     end: number,
   ) {
-    const id = this._annotationID(type, attributes)
+    const id = this._annotationId(type, attributes)
 
     let annotation = this.annotations.get(id)
     if (!annotation) {
@@ -30,33 +25,49 @@ export class AnnotationSet {
         ends: [],
       })
 
+      if (type == 'link' || type == 'inline-embed') {
+        annotation.ref = attributes!.ref
+        // @ts-expect-error
+        // delete annotation.attributes
+        delete annotation.attributes.ref
+      }
+
+      if (typeof annotation.ref == 'string' && annotation.ref.length == 0) {
+        // @ts-expect-error
+        // delete annotation.ref
+      }
+
+      if (
+        'attributes' in annotation &&
+        Object.keys(annotation.attributes).length == 0
+      ) {
+        // @ts-expect-error
+        // delete annotation.attributes
+      }
+
       this.annotations.set(id, annotation)
     }
 
     addSpanToAnnotation(annotation, start, end)
   }
 
-  _annotationID(
-    type: string,
-    attributes: {[key: string]: string} | null,
-  ): string {
-    // TODO: Here we'd need to create id of a annotation, taking into account the attributes.
-    if (attributes && attributes.url) {
-      return `${type}-${attributes.url}`
-    }
+  _annotationId(type: string, attributes: {[key: string]: string} | null) {
+    if (attributes) {
+      if (attributes.ref) {
+        return `${type}-${attributes.ref}`
+      }
 
-    if (attributes && attributes.conversationId) {
-      return `${type}-${attributes.conversationId}`
-    }
+      if (attributes.href) {
+        return `${type}-${attributes.href}`
+      }
 
-    if (attributes && attributes.color) {
-      return `${type}-${attributes.color}`
+      // add more attributes: color, embed, ...
     }
 
     return type
   }
 
-  list(): Annotation[] {
+  list(): HMAnnotations {
     // We sort annotations by their "identity" key.
     const keys = Array.from(this.annotations.keys()).sort()
     // Then we create an output array of the same size as the number of annotations.
@@ -74,44 +85,8 @@ export class AnnotationSet {
       return startA - startB
     })
 
-    return out
+    return out as HMAnnotations
   }
-}
-
-// Checks if a position expressed in code points is within any of the span
-// of this annotation.
-// It assumes starts and ends array are valid span values, and are sorted,
-// because it's implemented as a binary search.
-// It returns array index of the span the position matches.
-// Otherwise it returns -1.
-export function annotationContains(
-  annotation: Annotation,
-  pos: number,
-): number {
-  let low = 0
-  let high = annotation.starts.length - 1
-  let mid = 0
-
-  while (low <= high) {
-    mid = Math.floor((low + high) / 2)
-    // Binary search. If the midpoint span ends before the position
-    // we're checking — we drop the left side of the array entirely.
-    if (annotation.ends[mid] <= pos) {
-      low = mid + 1
-    } else {
-      high = mid - 1
-    }
-  }
-
-  if (low == annotation.starts.length) {
-    return -1
-  }
-
-  if (annotation.starts[low] <= pos && pos < annotation.ends[low]) {
-    return low
-  }
-
-  return -1
 }
 
 export function addSpanToAnnotation(
@@ -123,6 +98,7 @@ export function addSpanToAnnotation(
   // i.e. we know that we'll only ever iterate over the Slate leaves in order, only going forward and never backwards.
   // So, all the possible derived spans will always be sorted.
   // Therefore, to detect adjacent spans, we only need to check the last one and the incoming one.
+
   if (!annotation.starts) {
     annotation.starts = []
   }
@@ -157,4 +133,23 @@ export function pushSpanToAnnotation(
 ) {
   annotation.starts.push(start)
   annotation.ends.push(end)
+}
+
+export function codePointLength(entry: string) {
+  let count = 0
+  if (!entry) return 0
+  for (let i = 0; i < entry.length; i++) {
+    count++
+
+    if (isSurrogate(entry, i)) {
+      i++
+    }
+  }
+  return count
+}
+
+// Checks if a UTF-16 code unit i in string s is start of a surrogate pair.
+export function isSurrogate(s: string, i: number) {
+  const code = s.charCodeAt(i)
+  return 0xd800 <= code && code <= 0xdbff
 }
