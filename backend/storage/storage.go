@@ -153,10 +153,11 @@ func (s *Store) Device() core.KeyPair {
 }
 
 func newSQLite(path string) (*sqlitex.Pool, error) {
-	poolSize := int(float64(runtime.NumCPU()) * 2)
-	if poolSize < 6 {
-		poolSize = 6
-	}
+	// Use half of the available CPUs as the pool size.
+	// The minimum pool size is set a bit arbitrarily,
+	// but using a lower value has caused issues in the past
+	// with the database being locked.
+	poolSize := max(runtime.NumCPU()/2, 6)
 
 	// The database is owned by the store, and is closed when the store is closed.
 	db, err := OpenSQLite(path, 0, poolSize)
