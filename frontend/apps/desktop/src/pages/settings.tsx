@@ -376,9 +376,9 @@ function AccountKeys() {
   }
 
   return keys.data?.length && selectedAccount ? (
-    <XStack style={{flex: 1}} gap="$4">
-      <YStack f={1} maxWidth="25%" borderColor="$color7" borderWidth={1}>
-        <YStack f={1}>
+    <XStack style={{flex: 1}} gap="$4" overflow="hidden">
+      <YStack f={1} maxWidth="25%" gap="$2">
+        <YStack f={1} overflow="scroll" borderColor="$color7" borderWidth={1}>
           {keys.data?.map((key) => (
             <KeyItem
               item={key}
@@ -391,15 +391,22 @@ function AccountKeys() {
           <Button
             f={1}
             icon={Plus}
+            size="$2"
             onPress={() => dispatchWizardEvent(true)}
             theme="brand"
             color="$color11"
           >
-            New Account
+            Add Account
           </Button>
         </XStack>
       </YStack>
-      <YStack f={3} borderColor="$color7" borderWidth={1} p="$4">
+      <YStack
+        f={3}
+        borderColor="$color7"
+        borderWidth={1}
+        p="$4"
+        overflow="scroll"
+      >
         <XStack marginBottom="$4" gap="$4">
           {selectedAccountId ? (
             <Thumbnail
@@ -526,7 +533,7 @@ function AccountKeys() {
         <AlertDialog native>
           <Tooltip content="Delete words from device">
             <AlertDialog.Trigger asChild>
-              <Button size="$2" theme="red" icon={Trash}>
+              <Button size="$2" theme="red" icon={Trash} alignSelf="flex-end">
                 Delete Account
               </Button>
             </AlertDialog.Trigger>
