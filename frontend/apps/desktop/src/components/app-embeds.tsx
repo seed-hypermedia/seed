@@ -20,7 +20,6 @@ import {
   EntityComponentProps,
   InlineEmbedButton,
   SizableText,
-  Spinner,
   Thumbnail,
   UIAvatar,
   XStack,
@@ -485,7 +484,7 @@ export function EmbedComment(props: EntityComponentProps) {
     return embedBlocks
   }, [props.blockRef, comment.data])
   const account = useAccount_deprecated(comment.data?.author)
-  if (comment.isLoading) return <Spinner />
+  if (comment.isLoading) return null
   return (
     <EmbedWrapper
       id={{

@@ -19,7 +19,6 @@ import {
   DocContentProvider,
 } from "@shm/ui/src/document-content";
 import {RadioButtons} from "@shm/ui/src/radio-buttons";
-import {Spinner} from "@shm/ui/src/spinner";
 import {Button, ButtonText} from "@tamagui/button";
 import {Text} from "@tamagui/core";
 import {X} from "@tamagui/lucide-icons";
@@ -84,7 +83,7 @@ export function DocumentPage({
   authors,
 }: SiteDocumentPayload) {
   const [open, setOpen] = useState(false);
-  if (!id) return <NotFoundPage />;
+  if (!id) return <NotFoundPage homeMetadata={homeMetadata} homeId={homeId} />;
   if (!document)
     return (
       <DocumentDiscoveryPage
@@ -95,7 +94,7 @@ export function DocumentPage({
     );
   return (
     <>
-      <YStack>
+      <YStack marginBottom={300}>
         <PageHeader
           homeMetadata={homeMetadata}
           homeId={homeId}
@@ -264,7 +263,7 @@ function DocumentDirectory({
 }) {
   const response = useAPI<DirectoryPayload>(`/hm/api/directory?id=${id.id}`);
   if (response?.error) return <ErrorComponent error={response?.error} />;
-  if (!response) return <Spinner />;
+  if (!response) return null;
   const {directory, authorsMetadata} = response;
   if (!authorsMetadata) return null;
   return (

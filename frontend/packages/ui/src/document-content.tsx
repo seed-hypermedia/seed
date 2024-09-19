@@ -83,7 +83,6 @@ import {
 import {contentLayoutUnit, contentTextUnit} from "./document-content-constants";
 import "./document-content.css";
 import {Comment} from "./icons";
-import {Spinner} from "./spinner";
 import {Tooltip} from "./tooltip";
 
 export type EntityComponentsRecord = {
@@ -1558,7 +1557,7 @@ export function ContentEmbed({
 
   let content = <BlockContentUnknown {...props} />;
   if (isLoading) {
-    content = <Spinner />;
+    content = null;
   }
   //  else if (embedData.data.blockRange) {
   //   content = (

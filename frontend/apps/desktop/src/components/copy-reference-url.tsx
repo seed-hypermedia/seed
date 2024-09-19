@@ -3,7 +3,6 @@ import {
   HYPERMEDIA_ENTITY_TYPES,
   StateStream,
   UnpackedHypermediaId,
-  unpackHmId,
   writeableStateStream,
 } from '@shm/shared'
 import {createWebHMUrl, packHmId} from '@shm/shared/src/utils/entity-id-url'
@@ -87,8 +86,6 @@ function CopiedToast({
   hmId: string
 }) {
   const published = useStream(isPublished)
-  const id = unpackHmId(hmId)
-  const entityType = id?.type ? HYPERMEDIA_ENTITY_TYPES[id.type] : 'Entity'
   let indicator: ReactNode = null
   let message: ReactNode = ''
   if (published === null) {
