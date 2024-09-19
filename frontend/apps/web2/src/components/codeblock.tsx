@@ -9,7 +9,6 @@ export function Code({text, language}: {language: string; text: string}) {
     language && language.length
       ? getHighlightNodes(lowlight.highlight(language, text))
       : [];
-  console.log("=== CODE HERE", language, nodes);
   let res = (
     <code>
       {nodes.length
@@ -17,9 +16,6 @@ export function Code({text, language}: {language: string; text: string}) {
         : text}
     </code>
   );
-
-  console.log("res", res);
-
   return res;
 }
 

@@ -1,4 +1,5 @@
 ---
+import {ViewTransitions} from "astro:transitions";
 import DocumentContent from "../components/DocumentContent.astro";
 import Header from "../components/Header.astro";
 import {getDocument} from "../get-document";
@@ -13,6 +14,7 @@ const homeDocument = await getDocument(Astro.locals.accountUid);
     <meta name="viewport" content="width=device-width" />
     <meta name="generator" content={Astro.generator} />
     <title>Horacio Herrera</title>
+    <ViewTransitions />
   </head>
   <body>
     <Header />

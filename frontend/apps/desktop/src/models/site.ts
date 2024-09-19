@@ -15,7 +15,7 @@ export function useSiteRegistration(accountUid: string) {
   const getSiteConfig = trpc.sites.getConfig.useMutation()
   return useMutation({
     mutationFn: async (input: {url: string}) => {
-      // http://localhost:5175/hm/register?secret=abc
+      // http://localhost:3000/hm/register?secret=abc
       const url = new URL(input.url)
       const secret = url.searchParams.get('secret')
       const siteUrl = `${url.protocol}//${url.host}`

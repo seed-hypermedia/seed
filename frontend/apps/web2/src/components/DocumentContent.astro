@@ -1,6 +1,14 @@
 ---
-import {formattedDateMedium} from "@shm/shared";
+import type {PlainMessage} from "@bufbuild/protobuf";
+import {Document, formattedDateMedium, type HMBlockNode} from "@shm/shared";
 import {DocContent} from "./doc-content";
+interface Props {
+  document: Omit<PlainMessage<Document>, "authors"> & {
+    authors: Array<PlainMessage<Document>>;
+  };
+  isIndex?: boolean;
+}
+
 const {document, isIndex = false} = Astro.props;
 
 const name = document.metadata.name;
@@ -12,6 +20,7 @@ const updateTime = document.updateTime;
   class="mx-auto w-full max-w-3xl pb-24 mt-8 sm:pb-32 md:mt-16 md:px-8 lg:mt-16 px-4 prose md:prose-lg lg:prose-xl"
 >
   {!isIndex ? <h1>{name}</h1> : null}
+
   {
     !isIndex ? (
       <small class="text-slate-400">
@@ -19,5 +28,5 @@ const updateTime = document.updateTime;
       </small>
     ) : null
   }
-  <DocContent content={document.content} />
+  <DocContent content={document.content as Array<HMBlockNode>} />
 </article>

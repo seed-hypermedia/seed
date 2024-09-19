@@ -1,15 +1,27 @@
 ---
 // Component Script (JavaScript)
+import {getFileUrl} from "@shm/shared";
+import {getDocument} from "../get-document";
 import {listDocuments} from "../list-documents";
-
-const documents = await listDocuments(Astro.locals.accountUid);
+const documents = await listDocuments(Astro.locals.accountUid, "");
+const rootDocument = await getDocument(Astro.locals.accountUid);
 ---
 
 <!-- Component Template (HTML + JS Expressions) -->
 <header class="mx-auto px-4 w-full max-w-3xl mt-8 md:mt-16 md:px-8 lg:mt-16">
-  <h1 class="text-xl font-bold">
-    <a href="/">Horacio Herrera</a>
-  </h1>
+  <div class="flex items-center gap-4">
+    <a href="/">
+      <img
+        src={getFileUrl(rootDocument.metadata.thumbnail)}
+        alt="home document thumbnail"
+        class="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover"
+      />
+    </a>
+    <h1 class="text-3xl font-bold">
+      <a href="/">{rootDocument.metadata.name}</a>
+    </h1>
+  </div>
+
   <nav class="py-4">
     <ul class="flex">
       {
