@@ -43,7 +43,7 @@
     "nostr-tools": "1.16.0",
     "react": "18.2.0",
     "react-icons": "4.9.0",
-    "react-native-reanimated": "^3.7.0",
+    "react-native-reanimated": "3.7.0",
     "react-virtuoso": "4.6.2",
     "tamagui": "1.108.2"
   },
@@ -53,6 +53,6 @@
   "devDependencies": {
     "@shm/prettier": "*",
     "@tamagui/build": "1.108.2",
-    "@tamagui/use-did-finish-ssr": "^1.100.5"
+    "@tamagui/use-did-finish-ssr": "1.100.5"
   }
 }

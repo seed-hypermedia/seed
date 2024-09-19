@@ -38,8 +38,8 @@
     "@nderscore/tamagui-typescript-plugin": "0.5.4",
     "cross-env": "7.0.3",
     "prettier": "3.0.2",
-    "react-native": "^0.75.2",
-    "react-native-svg": "^15.6.0",
+    "react-native": "0.75.2",
+    "react-native-svg": "15.6.0",
     "typescript": "5.5.2"
   },
   "resolutions": {
@@ -49,7 +49,7 @@
   "devDependencies": {
     "babel-plugin-react-native-web": "0.19.9",
     "concurrently": "8.2.1",
-    "playwright": "^1.40.1",
+    "playwright": "1.40.1",
     "ts-node": "10.9.1"
   }
 }

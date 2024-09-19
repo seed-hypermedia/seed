@@ -95,7 +95,7 @@
     "lowlight": "3.1.0",
     "lz-string": "1.5.0",
     "match-sorter": "6.3.1",
-    "mime": "^4.0.4",
+    "mime": "4.0.4",
     "nanoid": "4.0.2",
     "nostr-tools": "1.16.0",
     "prom-client": "15.1.0",
