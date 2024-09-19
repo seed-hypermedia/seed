@@ -153,9 +153,9 @@ func (s *Store) Device() core.KeyPair {
 }
 
 func newSQLite(path string) (*sqlitex.Pool, error) {
-	poolSize := int(float64(runtime.NumCPU()) / 2)
-	if poolSize < 2 {
-		poolSize = 2
+	poolSize := int(float64(runtime.NumCPU()) * 2)
+	if poolSize < 6 {
+		poolSize = 6
 	}
 
 	// The database is owned by the store, and is closed when the store is closed.
