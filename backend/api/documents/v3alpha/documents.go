@@ -21,6 +21,7 @@ import (
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -32,14 +33,16 @@ type Server struct {
 	keys core.KeyStore
 	idx  *index.Index
 	db   *sqlitex.Pool
+	log  *zap.Logger
 }
 
 // NewServer creates a new Documents API v3 server.
-func NewServer(keys core.KeyStore, idx *index.Index, db *sqlitex.Pool) *Server {
+func NewServer(keys core.KeyStore, idx *index.Index, db *sqlitex.Pool, log *zap.Logger) *Server {
 	return &Server{
 		keys: keys,
 		idx:  idx,
 		db:   db,
+		log:  log,
 	}
 }
 
@@ -177,7 +180,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 	)
 
 	if in.PageSize <= 0 {
-		in.PageSize = 30
+		in.PageSize = 100
 	}
 
 	if in.PageToken != "" {
@@ -225,7 +228,8 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 			Path:    "",
 		})
 		if err != nil {
-			return fmt.Errorf("Partial or corrupted root document: %w", err)
+			srv.log.Error("Partial or corrupted root document", zap.Error(err))
+			return nil
 		}
 
 		// TODO: use indexed data instead of loading the entire document.
@@ -247,7 +251,7 @@ var qListRootDocuments = dqb.Str(`
 	WHERE id < :last_cursor
 	AND iri NOT GLOB 'hm://*/**'
 	ORDER BY id DESC
-	LIMIT :page_size + 1;
+	LIMIT :page_size;
 `)
 
 // ListDocuments implements Documents API v3.

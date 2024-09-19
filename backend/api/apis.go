@@ -54,7 +54,7 @@ func New(
 		Daemon:      daemon.NewServer(repo, wallet, &p2pNodeSubset{node: node, sync: sync}),
 		Networking:  networking.NewServer(node, db, logging.New("seed/networking", LogLevel)),
 		Entities:    entities.NewServer(idx, sync),
-		DocumentsV3: documentsv3.NewServer(repo.KeyStore(), idx, db),
+		DocumentsV3: documentsv3.NewServer(repo.KeyStore(), idx, db, logging.New("seed/documents", LogLevel)),
 		Syncing:     sync,
 	}
 }

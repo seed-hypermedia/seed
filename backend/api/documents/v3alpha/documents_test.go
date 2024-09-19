@@ -385,6 +385,6 @@ func newTestDocsAPI(t *testing.T, name string) testServer {
 	ks := core.NewMemoryKeyStore()
 	require.NoError(t, ks.StoreKey(context.Background(), "main", u.Account))
 	idx := index.NewIndex(db, logging.New("seed/index"+"/"+name, "debug"), nil)
-	srv := NewServer(ks, idx, db)
+	srv := NewServer(ks, idx, db, logging.New("seed/documents"+"/"+name, "debug"))
 	return testServer{Server: srv, me: u}
 }
