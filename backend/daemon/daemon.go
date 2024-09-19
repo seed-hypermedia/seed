@@ -8,6 +8,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -36,6 +37,12 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
+
+func init() {
+	// See https://github.com/libp2p/go-libp2p/issues/2968, and https://github.com/golang/go/issues/69312.
+	// At some point we won't need this.
+	os.Setenv("GODEBUG", "asynctimerchan=1")
+}
 
 // App is the main Seed Daemon application, holding all of its dependencies
 // which can be used for embedding the daemon in other apps or for testing.
