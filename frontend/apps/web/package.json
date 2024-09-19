@@ -7,7 +7,7 @@
     "upgrade:tamagui": "yarn up '@tamagui/*'@latest",
     "build": "remix vite:build",
     "dev": "DAEMON_FILE_URL=\"http://localhost:57001/ipfs\" remix vite:dev",
-    "start": "remix-serve ./build/server/index.js",
+    "start": "NODE_OPTIONS='--import ./instrumentation.server.mjs' remix-serve ./build/server/index.js",
     "typecheck": "tsc"
   },
   "dependencies": {
@@ -17,6 +17,7 @@
     "@remix-run/node": "^2.10.3",
     "@remix-run/react": "^2.10.3",
     "@remix-run/serve": "^2.10.3",
+    "@sentry/remix": "^8.30.0",
     "@shm/shared": "*",
     "@shm/ui": "*",
     "@tamagui/config": "1.108.2",

@@ -1,3 +1,4 @@
+import { captureRemixErrorBoundaryError, withSentry } from "@sentry/remix";
 import {LinksFunction} from "@remix-run/node";
 import {
   isRouteErrorResponse,
@@ -52,6 +53,8 @@ export function ErrorBoundary({}: {}) {
     errorMessage = error.message;
   }
 
+  captureRemixErrorBoundaryError(error);
+
   return (
     <html>
       <head>
@@ -70,9 +73,11 @@ export function ErrorBoundary({}: {}) {
   );
 }
 
-export default function App() {
+function App() {
   return <Outlet />;
 }
+
+export default withSentry(App);
 
 export const Styles = () => {
   if (isClient) {
