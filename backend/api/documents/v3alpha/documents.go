@@ -225,7 +225,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 			Path:    "",
 		})
 		if err != nil {
-			return nil
+			return fmt.Errorf("Partial or corrupted root document: %w", err)
 		}
 
 		// TODO: use indexed data instead of loading the entire document.
