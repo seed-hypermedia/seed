@@ -3,9 +3,12 @@ package mttnet
 import (
 	"cmp"
 	"encoding/json"
+	"maps"
 	"net/http"
+	"reflect"
 	"seed/backend/util/libp2px"
 	"slices"
+	"sync"
 
 	"github.com/libp2p/go-libp2p/core/connmgr"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -14,31 +17,17 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 )
 
-type debugInfo struct {
-	AddrInfo             peer.AddrInfo
-	HypermediaProtocol   protocol.ID
-	Libp2pProtocols      []protocol.ID
-	Reachability         string
-	ConnectedPeersCount  int
-	HypermediaPeersCount int
-	PeerstorePeersCount  int
-	ConnManagerInfo      connManagerInfo
-}
-
-type connManagerInfo struct {
-	TotalPeersCount int
-	ShownPeersCount int
-	Peers           []connManagerPeerInfo
-}
-
-type connManagerPeerInfo struct {
-	PeerID      peer.ID
-	TagInfo     *connmgr.TagInfo
-	IsProtected bool
-}
-
 func (n *Node) DebugHandler() http.Handler {
+	var (
+		once sync.Once
+		cmgr *unsafeConnManager
+	)
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		once.Do(func() {
+			cmgr = unwrapConnManager(n.p2p.Host.ConnManager())
+		})
+
 		connectedPeers := n.p2p.Network().Peers()
 		allPeers := n.p2p.Peerstore().Peers()
 
@@ -46,14 +35,18 @@ func (n *Node) DebugHandler() http.Handler {
 		slices.Sort(protocols)
 
 		out := debugInfo{
-			AddrInfo:             libp2px.AddrInfo(n.p2p.Host),
-			HypermediaProtocol:   n.ProtocolID(),
-			Libp2pProtocols:      protocols,
-			Reachability:         n.currentReachability.Load().(network.Reachability).String(),
-			ConnectedPeersCount:  len(connectedPeers),
-			HypermediaPeersCount: countHypermediaPeers(connectedPeers, n.p2p.Peerstore(), n.protocol.ID),
-			PeerstorePeersCount:  len(n.p2p.Peerstore().Peers()),
-			ConnManagerInfo:      getConnManagerInfo(allPeers, n.p2p.ConnManager()),
+			AddrInfo:           libp2px.AddrInfo(n.p2p.Host),
+			HypermediaProtocol: n.ProtocolID(),
+			Libp2pProtocols:    protocols,
+			Reachability:       n.currentReachability.Load().(network.Reachability).String(),
+			ConnectedPeers:     len(connectedPeers),
+			HypermediaPeers:    countHypermediaPeers(connectedPeers, n.p2p.Peerstore(), n.protocol.ID),
+			PeerstorePeers:     len(n.p2p.Peerstore().Peers()),
+		}
+
+		if !r.URL.Query().Has("short") {
+			info := getConnManagerInfo(allPeers, cmgr)
+			out.ConnManagerInfo = &info
 		}
 
 		enc := json.NewEncoder(w)
@@ -66,10 +59,39 @@ func (n *Node) DebugHandler() http.Handler {
 	})
 }
 
-func getConnManagerInfo(allPeers []peer.ID, cmgr connmgr.ConnManager) connManagerInfo {
+type debugInfo struct {
+	AddrInfo           peer.AddrInfo
+	HypermediaProtocol protocol.ID
+	Libp2pProtocols    []protocol.ID
+	Reachability       string
+	ConnectedPeers     int
+	HypermediaPeers    int
+	PeerstorePeers     int
+	ConnManagerInfo    *connManagerInfo `json:",omitempty"`
+}
+
+type connManagerInfo struct {
+	TotalPeers         int
+	ShownPeers         int
+	PeersPerTag        map[string]int
+	PeersPerProtection map[string]int
+	Peers              []connManagerPeerInfo
+}
+
+type connManagerPeerInfo struct {
+	PeerID        peer.ID
+	TagInfo       *connmgr.TagInfo
+	ProtectedTags []string
+}
+
+func getConnManagerInfo(allPeers []peer.ID, cmgr *unsafeConnManager) connManagerInfo {
 	out := connManagerInfo{
-		Peers: make([]connManagerPeerInfo, 0, len(allPeers)),
+		Peers:              make([]connManagerPeerInfo, 0, len(allPeers)),
+		PeersPerTag:        make(map[string]int),
+		PeersPerProtection: make(map[string]int),
 	}
+
+	protectedPeers := cmgr.getProtectedPeers()
 
 	for _, pid := range allPeers {
 		info := cmgr.GetTagInfo(pid)
@@ -80,19 +102,34 @@ func getConnManagerInfo(allPeers []peer.ID, cmgr connmgr.ConnManager) connManage
 			continue
 		}
 
-		out.TotalPeersCount++
+		out.TotalPeers++
 
 		// Some info in connmgr, but we don't expose it as it's not very useful.
 		if info != nil && len(info.Tags) == 0 && !isProtected {
 			continue
 		}
 
-		out.ShownPeersCount++
+		out.ShownPeers++
+
+		tagInfo := cmgr.GetTagInfo(pid)
+
 		out.Peers = append(out.Peers, connManagerPeerInfo{
-			PeerID:      pid,
-			TagInfo:     cmgr.GetTagInfo(pid),
-			IsProtected: cmgr.IsProtected(pid, ""),
+			PeerID:        pid,
+			TagInfo:       tagInfo,
+			ProtectedTags: protectedPeers[pid],
 		})
+
+		if tagInfo != nil {
+			for tag := range tagInfo.Tags {
+				out.PeersPerTag[tag]++
+			}
+		}
+	}
+
+	for _, tags := range protectedPeers {
+		for _, tag := range tags {
+			out.PeersPerProtection[tag]++
+		}
 	}
 
 	slices.SortFunc(out.Peers, func(a, b connManagerPeerInfo) int {
@@ -115,4 +152,55 @@ func countHypermediaPeers(connected []peer.ID, ps peerstore.Peerstore, wantedPro
 		count++
 	}
 	return count
+}
+
+type unsafeConnManager struct {
+	connmgr.ConnManager
+
+	// Private fields from the BasicConnManager that we extract with reflection,
+	// to have access to the keys of protected peers.
+	// This is a terrible, terrible hack, and it will break if the internal structure of BasicConnManager changes.
+	// We have a test that checks that this works, so we should detect any problems when/if they happen.
+	plk       *sync.RWMutex
+	protected map[peer.ID]map[string]struct{}
+}
+
+func unwrapConnManager(cmgr connmgr.ConnManager) *unsafeConnManager {
+	var (
+		lockType      = reflect.TypeOf(sync.RWMutex{})
+		protectedType = reflect.TypeOf(map[peer.ID]map[string]struct{}{})
+	)
+
+	rv := reflect.ValueOf(cmgr)
+
+	rplk := rv.Elem().FieldByName("plk")
+	if rplk.Type() != lockType {
+		panic("BUG: unexpected type plk")
+	}
+
+	rprotected := rv.Elem().FieldByName("protected")
+	if rprotected.Type() != protectedType {
+		panic("BUG: unexpected type protected")
+	}
+
+	plk := (*sync.RWMutex)(rplk.Addr().UnsafePointer())
+	protected := *(*map[peer.ID]map[string]struct{})(rprotected.Addr().UnsafePointer())
+
+	return &unsafeConnManager{
+		ConnManager: cmgr,
+		plk:         plk,
+		protected:   protected,
+	}
+}
+
+func (cmgr *unsafeConnManager) getProtectedPeers() map[peer.ID][]string {
+	cmgr.plk.RLock()
+	defer cmgr.plk.RUnlock()
+
+	out := make(map[peer.ID][]string, len(cmgr.protected))
+	for k := range cmgr.protected {
+		out[k] = slices.Collect(maps.Keys(cmgr.protected[k]))
+	}
+
+	return out
 }
