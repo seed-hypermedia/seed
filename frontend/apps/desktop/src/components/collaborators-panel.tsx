@@ -6,6 +6,7 @@ import {
 } from '@/models/access-control'
 import {useEntity} from '@/models/entities'
 import {useSearch} from '@/models/search'
+import {useNavigate} from '@/utils/useNavigate'
 import * as Ariakit from '@ariakit/react'
 import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
 import {PlainMessage} from '@bufbuild/protobuf'
@@ -241,22 +242,38 @@ function CollaboratorItem({
 }: {
   capability: PlainMessage<Capability>
 }) {
+  const navigate = useNavigate('push')
   const collaboratorId = hmId('d', capability.delegate)
   const entity = useEntity(collaboratorId)
   return (
-    <XStack ai="center" gap="$2" padding="$2">
-      <Thumbnail
-        metadata={entity.data?.document?.metadata}
-        id={collaboratorId}
-        size={24}
-      />
-      <SizableText size="$2" f={1}>
-        {getDocumentTitle(entity.data?.document)}
-      </SizableText>
-      <SizableText size="$1" color="$color9">
-        {getRoleName(capability.role)}
-      </SizableText>
-    </XStack>
+    <ListItem
+      bg="$colorTransparent"
+      hoverTheme
+      pressTheme
+      focusTheme
+      outlineColor="transparent"
+      hoverStyle={{backgroundColor: '$color7'}}
+      borderRadius="$2"
+      paddingHorizontal="$3"
+      paddingVertical={0}
+      icon={
+        <Thumbnail
+          metadata={entity.data?.document?.metadata}
+          id={collaboratorId}
+          size={24}
+        />
+      }
+      onPress={() => navigate({key: 'document', id: collaboratorId})}
+    >
+      <XStack f={1} ai="center" gap="$2">
+        <SizableText size="$2" f={1}>
+          {getDocumentTitle(entity.data?.document)}
+        </SizableText>
+        <SizableText size="$1" color="$color9">
+          {getRoleName(capability.role)}
+        </SizableText>
+      </XStack>
+    </ListItem>
   )
 }
 
