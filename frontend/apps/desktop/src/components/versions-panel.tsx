@@ -29,6 +29,7 @@ export function VersionsPanel({
           const isActive = activeChangeIds?.has(change.id) || false
           return (
             <ChangeItem
+              key={change.id}
               change={change}
               isActive={isActive}
               onPress={() => {
