@@ -45,9 +45,7 @@
     "react-icons": "4.9.0",
     "react-native-reanimated": "3.7.0",
     "react-virtuoso": "4.6.2",
-    "tamagui": "1.108.2"
-  },
-  "peerDependencies": {
+    "tamagui": "1.108.2",
     "@tamagui/lucide-icons": "1.108.2"
   },
   "devDependencies": {
