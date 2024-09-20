@@ -52,6 +52,30 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 				query += " OR iri GLOB "
 			}
 		}
+		query += QListrelatedCommentsStr
+		for i, filter := range in.Filters {
+			query += "?"
+			if filter.Recursive {
+				queryParams = append(queryParams, filter.Resource+"*")
+			} else {
+				queryParams = append(queryParams, filter.Resource)
+			}
+			if i < len(in.Filters)-1 {
+				query += " OR iri GLOB "
+			}
+		}
+		query += QListrelatedEmbedsStr
+		for i, filter := range in.Filters {
+			query += "?"
+			if filter.Recursive {
+				queryParams = append(queryParams, filter.Resource+"*")
+			} else {
+				queryParams = append(queryParams, filter.Resource)
+			}
+			if i < len(in.Filters)-1 {
+				query += " OR iri GLOB "
+			}
+		}
 		query += QListRelatedBlobsContStr
 	}
 	if err = sqlitex.Exec(conn, query, func(stmt *sqlite.Stmt) error {
@@ -105,23 +129,31 @@ capabilities (id) AS (
 	WHERE type = 'Capability'
 	AND resource IN (SELECT id FROM resources WHERE iri GLOB `
 
-// QListRelatedBlobsContStr gets blobs related to multiple eids
-const QListRelatedBlobsContStr = `)
+// QListrelatedCommentsStr gets blobs related to multiple eids
+const QListrelatedCommentsStr = `)
 ),
 comments (id) AS (
-	SELECT bl.source
-	FROM blob_links bl
-	WHERE bl.type GLOB 'comment/*'
+	SELECT rl.source
+	FROM resource_links rl
+	WHERE rl.type GLOB 'comment/*'
+	AND rl.target IN (SELECT id FROM resources WHERE iri GLOB  `
+
+// QListrelatedEmbedsStr gets blobs related to multiple eids
+const QListrelatedEmbedsStr = `)
+),
+embeds (id) AS (
+	SELECT rl.source
+	FROM resource_links rl
+	WHERE rl.type GLOB 'doc/*'
+	AND rl.target IN (SELECT id FROM resources WHERE iri GLOB  `
+
+// QListRelatedBlobsContStr gets blobs related to multiple eids
+const QListRelatedBlobsContStr = `)
 ),
 metadata (id) AS (
 	SELECT bl.source
 	FROM blob_links bl
 	WHERE bl.type GLOB 'metadata/*'
-),
-embeds_links_images (id) AS (
-	SELECT bl.source
-	FROM blob_links bl
-	WHERE bl.type GLOB 'doc/*'
 ),
 changes (id) AS (
 	SELECT bl.target
@@ -180,7 +212,7 @@ insert_time,
 b.id,
 sb.ts
 FROM blobs b
-JOIN embeds_links_images eli ON eli.id = b.id
+JOIN embeds eli ON eli.id = b.id
 JOIN structural_blobs sb ON sb.id = b.id
 UNION ALL
 SELECT

@@ -678,6 +678,34 @@ func syncEntities(
 		}
 		i++
 	}
+	i = 0
+	queryString += mttnet.QListrelatedCommentsStr
+	for eid, recursive := range eids {
+		queryString += "?"
+		if recursive {
+			queryParams = append(queryParams, eid+"*")
+		} else {
+			queryParams = append(queryParams, eid)
+		}
+		if i < len(eids)-1 {
+			queryString += " OR iri GLOB "
+		}
+		i++
+	}
+	i = 0
+	queryString += mttnet.QListrelatedEmbedsStr
+	for eid, recursive := range eids {
+		queryString += "?"
+		if recursive {
+			queryParams = append(queryParams, eid+"*")
+		} else {
+			queryParams = append(queryParams, eid)
+		}
+		if i < len(eids)-1 {
+			queryString += " OR iri GLOB "
+		}
+		i++
+	}
 	queryString += mttnet.QListRelatedBlobsContStr
 
 	localHaves := make(map[cid.Cid]struct{})
