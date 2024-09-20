@@ -24,6 +24,7 @@ import {Text} from "@tamagui/core";
 import {X} from "@tamagui/lucide-icons";
 import {ScrollView} from "@tamagui/scroll-view";
 import {XStack, YStack} from "@tamagui/stacks";
+import {SizableText} from "@tamagui/text";
 import {PropsWithChildren, useEffect, useMemo, useState} from "react";
 import type {SiteDocumentPayload} from "./loaders";
 import {NotFoundPage} from "./not-found";
@@ -83,7 +84,16 @@ export function DocumentPage({
   authors,
 }: SiteDocumentPayload) {
   const [open, setOpen] = useState(false);
-  if (!id) return <NotFoundPage homeMetadata={homeMetadata} homeId={homeId} />;
+  if (!id)
+    return (
+      <NotFoundPage
+        document={document}
+        authors={authors}
+        id={id}
+        homeMetadata={homeMetadata}
+        homeId={homeId}
+      />
+    );
   if (!document)
     return (
       <DocumentDiscoveryPage
@@ -181,7 +191,37 @@ function DocumentDiscoveryPage({
         authors={[]}
         updateTime={null}
       />
-      <Text>Searching for this document...</Text>
+      <YStack>
+        <Container>
+          <YStack
+            alignSelf="center"
+            width={600}
+            gap="$5"
+            borderWidth={1}
+            borderColor="$color8"
+            borderRadius="$4"
+            padding="$5"
+            elevation="$4"
+          >
+            <XStack alignItems="center" gap="$3">
+              <SizableText size="$8" fontWeight="bold">
+                Looking for a document...
+              </SizableText>
+            </XStack>
+            <YStack gap="$3">
+              <SizableText>
+                Hang tight! We're currently searching the network to locate your
+                document. This may take a moment as we retrieve the most
+                up-to-date version.
+              </SizableText>
+              <SizableText>
+                If the document is available, it will appear shortly. Thank you
+                for your patience!
+              </SizableText>
+            </YStack>
+          </YStack>
+        </Container>
+      </YStack>
     </YStack>
   );
 }

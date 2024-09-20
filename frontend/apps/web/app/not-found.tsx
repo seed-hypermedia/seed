@@ -2,7 +2,13 @@ import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import {SiteDocumentPayload} from "./loaders";
 import {Container} from "./ui/container";
-export function NotFoundPage({homeMetadata, homeId}: SiteDocumentPayload) {
+
+export function NotFoundPage({
+  homeMetadata,
+  homeId,
+  document,
+  id,
+}: SiteDocumentPayload) {
   return (
     <YStack>
       <Container>
