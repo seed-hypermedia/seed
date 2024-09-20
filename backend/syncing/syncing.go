@@ -26,6 +26,7 @@ import (
 
 	"github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/boxo/exchange"
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -37,6 +38,26 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/zap"
+)
+
+// SyncState tells the internal state of a syncing process with a peer
+type SyncState int
+
+const (
+	// NotStarted means the syncing process with that peer has not started yet
+	NotStarted SyncState = iota
+
+	// Connected means we have connected with the peer
+	Connected
+
+	// Dialed means we suncessfully get a gRPC client to comunicate with the remote peer
+	Dialed
+
+	// Syncing means we are activey syncing blocks with the peer
+	Syncing
+
+	// Finished means the syncing process has finished either with or without errors
+	Finished
 )
 
 // Metrics. This is exported as a temporary measure,
@@ -102,6 +123,13 @@ func init() {
 type netDialFunc func(context.Context, peer.ID) (p2p.SyncingClient, error)
 
 type subscriptionMap map[peer.ID]map[string]bool
+
+// SyncResult is a summary of one Sync loop iteration.
+type SyncResult struct {
+	LastState    SyncState
+	BlocksSynced int
+	Err          error
+}
 
 // bitswap is a subset of the bitswap that is used by syncing service.
 type bitswap interface {
@@ -269,7 +297,7 @@ func (s *Service) SyncAllAndLog(ctx context.Context) error {
 
 	log.Info("SyncLoopStarted")
 	var err error
-	var res SyncResult
+	var res map[peer.ID]SyncResult
 
 	res, err = s.SyncAll(ctx)
 
@@ -281,18 +309,34 @@ func (s *Service) SyncAllAndLog(ctx context.Context) error {
 		return fmt.Errorf("fatal error in the sync background loop: %w", err)
 	}
 
-	for i, err := range res.Errs {
-		if err != nil {
+	for pid, result := range res {
+		if result.Err != nil {
 			log.Debug("SyncLoopError",
-				zap.String("peer", res.Peers[i].String()),
-				zap.Error(err),
+				zap.String("peer", pid.String()),
+				zap.Error(result.Err),
 			)
 		}
 	}
 
 	log.Info("SyncLoopFinished",
-		zap.Int64("failures", res.NumSyncFailed),
-		zap.Int64("successes", res.NumSyncOK),
+		zap.Int64("failures", func() int64 {
+			var i int64
+			for _, r := range res {
+				if r.Err != nil {
+					i++
+				}
+			}
+			return i
+		}()),
+		zap.Int64("successes", func() int64 {
+			var i int64
+			for _, r := range res {
+				if r.LastState == Finished && r.Err == nil {
+					i++
+				}
+			}
+			return i
+		}()),
 	)
 
 	return nil
@@ -301,16 +345,8 @@ func (s *Service) SyncAllAndLog(ctx context.Context) error {
 // ErrSyncAlreadyRunning is returned when calling Sync while one is already in progress.
 var ErrSyncAlreadyRunning = errors.New("sync is already running")
 
-// SyncResult is a summary of one Sync loop iteration.
-type SyncResult struct {
-	NumSyncOK     int64
-	NumSyncFailed int64
-	Peers         []peer.ID
-	Errs          []error
-}
-
 // SyncAll attempts to sync the with all the peers at once.
-func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
+func (s *Service) SyncAll(ctx context.Context) (res map[peer.ID]SyncResult, err error) {
 	if s.cfg.SmartSyncing {
 		return s.SyncSubscribedContent(ctx)
 	}
@@ -342,30 +378,17 @@ func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
 	}); err != nil {
 		return res, err
 	}
-	res.Peers = make([]peer.ID, len(seedPeers))
-	res.Errs = make([]error, len(seedPeers))
+	res = make(map[peer.ID]SyncResult)
 	var wg sync.WaitGroup
 	wg.Add(len(seedPeers))
 
 	for i, pid := range seedPeers {
 		go func(i int, pid peer.ID) {
-			var err error
 			defer func() {
-				res.Errs[i] = err
-				if err == nil {
-					atomic.AddInt64(&res.NumSyncOK, 1)
-				} else {
-					atomic.AddInt64(&res.NumSyncFailed, 1)
-				}
-
 				wg.Done()
 			}()
 
-			res.Peers[i] = pid
-
-			if xerr := s.SyncWithPeer(ctx, pid, nil); xerr != nil {
-				err = errors.Join(err, fmt.Errorf("failed to sync objects: %w", xerr))
-			}
+			res[pid] = SyncResult{Err: s.SyncWithPeer(ctx, pid, nil), LastState: Finished}
 		}(i, pid)
 	}
 
@@ -377,7 +400,7 @@ func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
 // SyncSubscribedContent attempts to sync all the content marked as subscribed.
 // However, if subscriptions are passed to this function, only those docs will
 // be synced.
-func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*activity_proto.Subscription) (res SyncResult, err error) {
+func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*activity_proto.Subscription) (res map[peer.ID]SyncResult, err error) {
 	if !s.mu.TryLock() {
 		return res, ErrSyncAlreadyRunning
 	}
@@ -461,12 +484,11 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 }
 
 // SyncWithManyPeers syncs with many peers in parallel
-func (s *Service) SyncWithManyPeers(ctx context.Context, subsMap subscriptionMap) (res SyncResult) {
+func (s *Service) SyncWithManyPeers(ctx context.Context, subsMap subscriptionMap) (res map[peer.ID]SyncResult) {
 	var i int
 	var wg sync.WaitGroup
 	wg.Add(len(subsMap))
-	res.Peers = make([]peer.ID, len(subsMap))
-	res.Errs = make([]error, len(subsMap))
+	res = make(map[peer.ID]SyncResult)
 	for pid, eids := range subsMap {
 		go func(i int, pid peer.ID, eids map[string]bool) {
 			var err error
@@ -729,19 +751,26 @@ func syncEntities(
 		return err
 	}
 
-	allWants := list.New()
+	var (
+		allWants []cid.Cid
+		rounds   int
 
-	var rounds int
+		// We'll be reusing the slices for haves and wants on each round trip to reduce allocations.
+		haves [][]byte
+		wants [][]byte
+	)
+
+	filters := make([]*p2p.Filter, 0, len(eids))
+	for eid, recursive := range eids {
+		filters = append(filters, &p2p.Filter{Resource: eid, Recursive: recursive})
+	}
+
 	for msg != nil {
 		rounds++
 		if rounds > 1000 {
 			return fmt.Errorf("Too many rounds of interactive syncing")
 		}
-		filters := []*p2p.Filter{}
-		for eid, recursive := range eids {
-			log.Debug("Inserting reconciling filters", zap.String("Resource", eid), zap.Bool("Recursive", recursive))
-			filters = append(filters, &p2p.Filter{Resource: eid, Recursive: recursive})
-		}
+
 		res, err := c.ReconcileBlobs(ctx, &p2p.ReconcileBlobsRequest{
 			Ranges:  msg,
 			Filters: filters,
@@ -750,57 +779,65 @@ func syncEntities(
 			return err
 		}
 		msg = res.Ranges
-		var haves, wants [][]byte
+
+		// Clear the haves and wants from the previous round-trip.
+		haves = haves[:0]
+		wants = wants[:0]
 		msg, err = ne.ReconcileWithIDs(msg, &haves, &wants)
 		if err != nil {
 			return err
 		}
+
 		for _, want := range wants {
-			allWants.PushBack(want)
+			blockCid, err := cid.Cast(want)
+			if err != nil {
+				return err
+			}
+			if _, ok := localHaves[blockCid]; !ok {
+				allWants = append(allWants, blockCid)
+			}
 		}
-		log.Debug("Blobs Reconciled", zap.Int("Wants", allWants.Len()))
+		log.Debug("Blobs Reconciled", zap.Int("round", rounds), zap.Int("wants", len(allWants)))
 	}
 
-	if allWants.Len() == 0 {
+	if len(allWants) == 0 {
 		log.Debug("Peer does not have new content")
 		return nil
 	}
 
-	MSyncingWantedBlobs.WithLabelValues("syncing").Add(float64(allWants.Len()))
-	defer MSyncingWantedBlobs.WithLabelValues("syncing").Sub(float64(allWants.Len()))
+	MSyncingWantedBlobs.WithLabelValues("syncing").Add(float64(len(allWants)))
+	defer MSyncingWantedBlobs.WithLabelValues("syncing").Sub(float64(len(allWants)))
 
+	downloadedBlocks := list.New()
+	for _, blkID := range allWants {
+		log.Debug("Trying to get blob", zap.String("cid", blkID.String()))
+		blk, err := sess.GetBlock(ctx, blkID)
+		if err != nil {
+			log.Debug("FailedToGetWantedBlob", zap.String("cid", blkID.String()), zap.Error(err))
+			continue
+		}
+		downloadedBlocks.PushBack(blk)
+	}
 	var failed int
-	for allWants.Len() > 0 {
-		item := allWants.Front()
-		if failed == allWants.Len() {
+	for downloadedBlocks.Len() > 0 {
+		item := downloadedBlocks.Front()
+		if failed == downloadedBlocks.Len() {
 			return fmt.Errorf("could not sync all content")
 		}
-		blobCid, err := cid.Cast(item.Value.([]byte))
-		if err != nil {
-			return err
+		blk, ok := item.Value.(blocks.Block)
+		if !ok {
+			return fmt.Errorf("could not decode block from the list: %w", err)
 		}
 
-		if _, ok := localHaves[blobCid]; !ok {
-			blk, err := sess.GetBlock(ctx, blobCid)
-			if err != nil {
-				log.Debug("FailedToGetWantedBlob", zap.String("cid", blobCid.String()), zap.Error(err))
-				allWants.MoveAfter(item, allWants.Back())
-				failed++
-				continue
-			}
-
-			if err := idx.Put(ctx, blk); err != nil {
-				log.Debug("FailedToSaveWantedBlob", zap.String("cid", blobCid.String()), zap.Error(err))
-				allWants.MoveAfter(item, allWants.Back())
-				failed++
-				continue
-			}
-			log.Debug("Blob synced", zap.String("blobCid", blobCid.String()))
-		} else {
-			log.Debug("Already had wanted blob", zap.String("blobCid", blobCid.String()))
+		if err := idx.Put(ctx, blk); err != nil {
+			log.Debug("FailedToSaveWantedBlob", zap.String("cid", blk.Cid().String()), zap.Error(err))
+			downloadedBlocks.MoveAfter(item, downloadedBlocks.Back())
+			failed++
+			continue
 		}
+		log.Debug("Blob synced", zap.String("blobCid", blk.Cid().String()))
 		failed = 0
-		allWants.Remove(item)
+		downloadedBlocks.Remove(item)
 	}
 	log.Debug("Successfully synced new content")
 	return nil
@@ -861,8 +898,7 @@ func syncPeerRbsr(
 		return err
 	}
 
-	allWants := list.New()
-
+	allWants := []cid.Cid{}
 	var rounds int
 	for msg != nil {
 		rounds++
@@ -880,48 +916,54 @@ func syncPeerRbsr(
 			return err
 		}
 		for _, want := range wants {
-			allWants.PushBack(want)
+			blockCid, err := cid.Cast(want)
+			if err != nil {
+				return err
+			}
+			if _, ok := localHaves[blockCid]; !ok {
+				allWants = append(allWants, blockCid)
+			}
 		}
 	}
 
-	if allWants.Len() == 0 {
+	if len(allWants) == 0 {
 		return nil
 	}
 
-	MSyncingWantedBlobs.WithLabelValues("syncing").Add(float64(allWants.Len()))
-	defer MSyncingWantedBlobs.WithLabelValues("syncing").Sub(float64(allWants.Len()))
+	MSyncingWantedBlobs.WithLabelValues("syncing").Add(float64(len(allWants)))
+	defer MSyncingWantedBlobs.WithLabelValues("syncing").Sub(float64(len(allWants)))
 
 	log = log.With(
 		zap.String("peer", pid.String()),
 	)
+	downloadedBlocks := list.New()
+	for _, blkID := range allWants {
+		blk, err := sess.GetBlock(ctx, blkID)
+		if err != nil {
+			log.Debug("FailedToGetWantedBlob", zap.String("cid", blkID.String()), zap.Error(err))
+			continue
+		}
+		downloadedBlocks.PushBack(blk)
+	}
 	var failed int
-	for allWants.Len() > 0 {
-		item := allWants.Front()
-		if failed == allWants.Len() {
+	for downloadedBlocks.Len() > 0 {
+		item := downloadedBlocks.Front()
+		if failed == downloadedBlocks.Len() {
 			return fmt.Errorf("could not sync all content")
 		}
-		blockCid, err := cid.Cast(item.Value.([]byte))
-		if err != nil {
-			return err
+		blk, ok := item.Value.(blocks.Block)
+		if !ok {
+			return fmt.Errorf("could not decode block from the list: %w", err)
 		}
-		if _, ok := localHaves[blockCid]; !ok {
-			blk, err := sess.GetBlock(ctx, blockCid)
-			if err != nil {
-				log.Debug("FailedToGetWantedBlob", zap.String("cid", blockCid.String()), zap.Error(err))
-				allWants.MoveAfter(item, allWants.Back())
-				failed++
-				continue
-			}
 
-			if err := idx.Put(ctx, blk); err != nil {
-				log.Debug("FailedToSaveWantedBlob", zap.String("cid", blockCid.String()), zap.Error(err))
-				allWants.MoveAfter(item, allWants.Back())
-				failed++
-				continue
-			}
+		if err := idx.Put(ctx, blk); err != nil {
+			log.Debug("FailedToSaveWantedBlob", zap.String("cid", blk.Cid().String()), zap.Error(err))
+			downloadedBlocks.MoveAfter(item, downloadedBlocks.Back())
+			failed++
+			continue
 		}
 		failed = 0
-		allWants.Remove(item)
+		downloadedBlocks.Remove(item)
 	}
 
 	return nil

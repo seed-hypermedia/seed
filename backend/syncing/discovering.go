@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multicodec"
 	"go.uber.org/zap"
@@ -19,8 +20,8 @@ import (
 // DefaultDiscoveryTimeout is how long do we wait to discover a peer and sync with it
 const (
 	DefaultDiscoveryTimeout = time.Second * 30
-	DefaultSyncingTimeout   = 1 * DefaultDiscoveryTimeout / 6
-	DefaultDHTTimeout       = 5 * DefaultDiscoveryTimeout / 6
+	DefaultSyncingTimeout   = 1 * DefaultDiscoveryTimeout / 2
+	DefaultDHTTimeout       = 1 * DefaultDiscoveryTimeout / 2
 )
 
 // DiscoverObject discovers an object in the network. If not found, then it returns an error
@@ -90,7 +91,9 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 		for _, pid := range allPeers {
 			// TODO(juligasa): look into the providers store who has each eid
 			// instead of pasting all peers in all documents.
-			subsMap[pid] = eidsMap
+			if s.host.Network().Connectedness(pid) == network.Connected {
+				subsMap[pid] = eidsMap
+			}
 		}
 
 		ret := s.SyncWithManyPeers(ctxLocalPeers, subsMap)
