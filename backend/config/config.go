@@ -215,8 +215,8 @@ var customBootstrapPeers = []string{
 	"/dns4/test.hyper.media/udp/56000/quic-v1/p2p/12D3KooWMjs8x6ST53ZuXAegedQ4dJ2HYYQmFpw1puGpBZmLRCGB",
 
 	// HM24 Production Gateway.
-	"/dns4/gateway.hyper.media/tcp/56000/p2p/12D3KooWLyw3zApBMKK2BbtjgHPmtr4iqqJkY8nUGYs92oM2bzgR",
-	"/dns4/gateway.hyper.media/udp/56000/quic-v1/p2p/12D3KooWLyw3zApBMKK2BbtjgHPmtr4iqqJkY8nUGYs92oM2bzgR",
+	"/dns4/gateway.hyper.media/tcp/56000/p2p/12D3KooWEDdEeuY3oHCSKtn1eC7tU9qNWjF9bb8sCtHzpuCjvomQ",
+	"/dns4/gateway.hyper.media/udp/56000/quic-v1/p2p/12D3KooWEDdEeuY3oHCSKtn1eC7tU9qNWjF9bb8sCtHzpuCjvomQ",
 }
 
 func bootstrapPeers() []peer.AddrInfo {
