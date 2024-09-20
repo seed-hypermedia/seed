@@ -11,7 +11,6 @@ import {
   Close,
   CloseAll,
   Delete,
-  Draft,
   Hide,
   ListItem,
   ListItemProps,
@@ -27,7 +26,7 @@ import {
   XStack,
   YGroup,
 } from '@shm/ui'
-import {Contact, FileText, Library} from '@tamagui/lucide-icons'
+import {Contact} from '@tamagui/lucide-icons'
 import {useMemo} from 'react'
 
 export function WindowsLinuxTitleBar({
@@ -212,30 +211,6 @@ export function SystemMenu() {
             onSelect: () => navDispatch({type: 'forward'}),
           },
           {
-            id: 'documents',
-            title: 'Documents',
-            accelerator: 'Ctrl+1',
-            onSelect: () => push({key: 'documents'}),
-            icon: FileText,
-            disabled: route.key == 'documents',
-          },
-          {
-            id: 'groups',
-            title: 'Groups',
-            accelerator: 'Ctrl+3',
-            onSelect: () => push({key: 'groups'}),
-            icon: Library,
-            disabled: route.key == 'groups',
-          },
-          {
-            id: 'drafts',
-            title: 'Drafts',
-            accelerator: 'Ctrl+8',
-            onSelect: () => push({key: 'documents', tab: 'drafts'}),
-            icon: Draft,
-            disabled: route.key == 'documents' && route.tab === 'drafts',
-          },
-          {
             id: 'contacts',
             title: 'Contacts',
             accelerator: 'Ctrl+9',
@@ -256,6 +231,13 @@ export function SystemMenu() {
             accelerator: 'Ctrl+Shift+R',
             onSelect: () => window.location.reload(),
             icon: Reload,
+          },
+          {
+            id: 'discover',
+            title: 'Discover current Document',
+            accelerator: 'Ctrl+D',
+            disabled: route.key != 'document',
+            onSelect: () => triggerFocusedWindow('discover'),
           },
         ],
       },

@@ -168,6 +168,16 @@ function _MainDocumentPage({
   id: UnpackedHypermediaId
   isBlockFocused: boolean
 }) {
+  const discovery = useDiscoverEntity(id)
+  useEffect(() => {
+    // @ts-expect-error
+    return window.appWindowEvents?.subscribe((event: AppWindowEvent) => {
+      if (event === 'discover') {
+        console.log('=== DISCOVERING!')
+        discovery.mutate()
+      }
+    })
+  }, [])
   return (
     <>
       <DocPageHeader docId={id} isBlockFocused={isBlockFocused} />

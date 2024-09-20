@@ -7,6 +7,7 @@ export type AppWindowSimpleEvent =
   | 'triggerPeerSync'
   | 'openLauncher'
   | 'find_in_page'
+  | 'discover'
 
 export type AppWindowEvent =
   | AppWindowSimpleEvent
