@@ -692,34 +692,6 @@ func syncEntities(
 		return fmt.Errorf("Could not list related blobs: %w", err)
 	}
 
-	var queryParams2 []interface{}
-	queryString = mttnet.QListEmbeddedBlobsStr
-	i = 0
-	for eid, recursive := range eids {
-		queryString += "?"
-		if recursive {
-			queryParams2 = append(queryParams2, eid+"*")
-		} else {
-			queryParams2 = append(queryParams2, eid)
-		}
-		if i < len(eids)-1 {
-			queryString += " OR res.iri GLOB "
-		}
-		i++
-	}
-	queryString += mttnet.QListEmbeddedBlobsContStr
-	if err = sqlitex.Exec(conn, queryString, func(stmt *sqlite.Stmt) error {
-		codec := stmt.ColumnInt64(0)
-		hash := stmt.ColumnBytesUnsafe(1)
-		ts := stmt.ColumnInt64(2)
-		c := cid.NewCidV1(uint64(codec), hash)
-		localHaves[c] = struct{}{}
-		return store.Insert(ts, c.Bytes())
-	}, queryParams2...); err != nil {
-		release()
-		return fmt.Errorf("Could not list related embeds: %w", err)
-	}
-
 	release()
 	if err = store.Seal(); err != nil {
 		return fmt.Errorf("Failed to seal store: %w", err)
