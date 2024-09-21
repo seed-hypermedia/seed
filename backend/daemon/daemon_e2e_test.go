@@ -674,12 +674,15 @@ func TestSubscriptions(t *testing.T) {
 	require.NotEqual(t, doc3Gotten.Version, doc3Modified.Version)
 
 	time.Sleep(time.Millisecond * 200)
-	doc3Gotten, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
-		Account: doc3Modified.Account,
-		Path:    doc3Modified.Path,
-	})
-	require.NoError(t, err)
-	require.Equal(t, doc3Gotten.Version, doc3Modified.Version)
+	require.Eventually(t, func() bool {
+		doc3Gotten, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+			Account: doc3Modified.Account,
+			Path:    doc3Modified.Path,
+		})
+		require.NoError(t, err)
+		return doc3Gotten.Version == doc3Modified.Version
+	}, time.Millisecond*650, time.Millisecond*100, "We should get the modified version, not the previous one")
+
 	require.Equal(t, doc3Modified.Content, doc3Gotten.Content)
 
 	comment, err := bob.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
@@ -747,12 +750,14 @@ func TestSubscriptions(t *testing.T) {
 	require.Len(t, list.Capabilities, 1, "must return the capability")
 
 	time.Sleep(time.Millisecond * 200)
-	comments, err = bob.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
-		TargetAccount: doc3Modified.Account,
-		TargetPath:    doc3Modified.Path,
-	})
-	require.NoError(t, err)
-	require.Len(t, comments.Comments, 2)
+	require.Eventually(t, func() bool {
+		comments, err = bob.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
+			TargetAccount: doc3Modified.Account,
+			TargetPath:    doc3Modified.Path,
+		})
+		require.NoError(t, err)
+		return len(comments.Comments) == 2
+	}, time.Millisecond*650, time.Millisecond*100, "We should have two comments, the initial comment and the reply")
 	require.Equal(t, reply.Content, comments.Comments[1].Content)
 
 	bobsCap, err := bob.RPC.DocumentsV3.ListCapabilities(ctx, &documents.ListCapabilitiesRequest{
