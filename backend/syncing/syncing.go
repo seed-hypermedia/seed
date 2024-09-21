@@ -801,7 +801,7 @@ func syncEntities(
 	for downloadedBlocks.Len() > 0 {
 		item := downloadedBlocks.Front()
 		if failed == downloadedBlocks.Len() {
-			return fmt.Errorf("could not sync all content")
+			return fmt.Errorf("could not sync all content due to indexing (dependencies) problems")
 		}
 		blk, ok := item.Value.(blocks.Block)
 		if !ok {

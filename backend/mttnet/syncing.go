@@ -150,15 +150,10 @@ embeds (id) AS (
 // QListRelatedBlobsContStr gets blobs related to multiple eids
 const QListRelatedBlobsContStr = `)
 ),
-metadata (id) AS (
-	SELECT bl.source
-	FROM blob_links bl
-	WHERE bl.type GLOB 'metadata/*'
-),
 changes (id) AS (
 	SELECT bl.target
 	FROM blob_links bl
-	JOIN refs r ON r.id = bl.source AND bl.type = 'ref/head'
+	JOIN refs r ON r.id = bl.source AND (bl.type = 'ref/head' OR bl.type GLOB 'metadata/*')
 	UNION
 	SELECT bl.target
 	FROM blob_links bl
@@ -192,6 +187,16 @@ insert_time,
 b.id,
 sb.ts
 FROM blobs b
+JOIN capabilities cap ON cap.id = b.id
+JOIN structural_blobs sb ON sb.id = b.id
+UNION ALL
+SELECT
+codec,
+b.multihash,
+insert_time,
+b.id,
+sb.ts
+FROM blobs b
 JOIN comments co ON co.id = b.id
 JOIN structural_blobs sb ON sb.id = b.id
 UNION ALL
@@ -202,26 +207,6 @@ insert_time,
 b.id,
 sb.ts
 FROM blobs b
-JOIN metadata meta ON meta.id = b.id
-JOIN structural_blobs sb ON sb.id = b.id
-UNION ALL
-SELECT
-codec,
-b.multihash,
-insert_time,
-b.id,
-sb.ts
-FROM blobs b
 JOIN embeds eli ON eli.id = b.id
-JOIN structural_blobs sb ON sb.id = b.id
-UNION ALL
-SELECT
-codec,
-b.multihash,
-insert_time,
-b.id,
-sb.ts
-FROM blobs b
-JOIN capabilities cap ON cap.id = b.id
 JOIN structural_blobs sb ON sb.id = b.id
 ORDER BY sb.ts, b.multihash;`
