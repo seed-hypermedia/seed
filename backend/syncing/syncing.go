@@ -7,6 +7,7 @@ import (
 	"math"
 	"seed/backend/config"
 	activity_proto "seed/backend/genproto/activity/v1alpha"
+	documents_proto "seed/backend/genproto/documents/v3alpha"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/ipfs"
 	"seed/backend/mttnet"
@@ -118,6 +119,12 @@ type Storage interface {
 type SubscriptionStore interface {
 	ListSubscriptions(context.Context, *activity_proto.ListSubscriptionsRequest) (*activity_proto.ListSubscriptionsResponse, error)
 }
+
+// LocalDocGetter is an interface to get a local
+type LocalDocGetter interface {
+	GetDocument(context.Context, *documents_proto.GetDocumentRequest) (*documents_proto.Document, error)
+}
+
 type protocolChecker struct {
 	checker func(context.Context, peer.ID, string, ...protocol.ID) error
 	version string
@@ -129,6 +136,7 @@ type Service struct {
 	indexer    *index.Index
 	bitswap    bitswap
 	rbsrClient netDialFunc
+	docGetter  LocalDocGetter
 	p2pClient  func(context.Context, peer.ID) (p2p.P2PClient, error)
 	host       host.Host
 	pc         protocolChecker
@@ -165,6 +173,11 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer *
 	}
 
 	return svc
+}
+
+// SetDocGetter sets the local Doc getter when its ready
+func (s *Service) SetDocGetter(docGetter LocalDocGetter) {
+	s.docGetter = docGetter
 }
 
 // Start the syncing service which will periodically refresh the list of peers

@@ -186,7 +186,7 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 	if err != nil {
 		return nil, err
 	}
-
+	a.Syncing.SetDocGetter(a.RPC.DocumentsV3)
 	var fm *mttnet.FileManager
 	{
 		bs := a.Index.IPFSBlockstore()

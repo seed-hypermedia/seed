@@ -155,6 +155,13 @@ export class DiscoverEntityRequest extends Message<DiscoverEntityRequest> {
  * @generated from message com.seed.entities.v1alpha.DiscoverEntityResponse
  */
 export class DiscoverEntityResponse extends Message<DiscoverEntityResponse> {
+  /**
+   * The version of the document we have found
+   *
+   * @generated from field: string version = 1;
+   */
+  version = "";
+
   constructor(data?: PartialMessage<DiscoverEntityResponse>) {
     super();
     proto3.util.initPartial(data, this);
@@ -163,6 +170,7 @@ export class DiscoverEntityResponse extends Message<DiscoverEntityResponse> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.entities.v1alpha.DiscoverEntityResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DiscoverEntityResponse {

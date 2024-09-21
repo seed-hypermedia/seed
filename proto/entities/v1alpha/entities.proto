@@ -67,6 +67,9 @@ message DiscoverEntityRequest {
 message DiscoverEntityResponse {
   // TODO(burdiyan): add summary of the discovery process.
   // Or maybe even make this call streaming?
+
+  // The version of the document we have found
+  string version = 1;
 }
 
 // A change to an entity.

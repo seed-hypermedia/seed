@@ -228,7 +228,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 			Path:    "",
 		})
 		if err != nil {
-			srv.log.Error("Partial or corrupted root document", zap.Error(err))
+			srv.log.Warn("Partial root document. Possibly got the genesis blob but not the content due to not syncing parent document", zap.Error(err))
 			return nil
 		}
 

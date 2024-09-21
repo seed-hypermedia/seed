@@ -25,7 +25,7 @@ import (
 
 // Discoverer is an interface for discovering objects.
 type Discoverer interface {
-	DiscoverObject(ctx context.Context, entityID, version string) error
+	DiscoverObject(ctx context.Context, entityID, version string) (string, error)
 }
 
 // Server implements Entities API.
@@ -327,7 +327,8 @@ func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEnti
 	// 		return nil, status.Errorf(codes.InvalidArgument, "invalid version %q: %v", in.Version, err)
 	// 	}
 
-	if err := api.disc.DiscoverObject(ctx, in.Id, in.Version); err != nil {
+	version, err := api.disc.DiscoverObject(ctx, in.Id, in.Version)
+	if err != nil {
 		return nil, err
 	}
 
@@ -341,7 +342,9 @@ func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEnti
 	// 		}
 	// 	}
 
-	return &entities.DiscoverEntityResponse{}, nil
+	return &entities.DiscoverEntityResponse{
+		Version: version,
+	}, nil
 }
 
 // SearchEntities implements the Fuzzy search of entities.
