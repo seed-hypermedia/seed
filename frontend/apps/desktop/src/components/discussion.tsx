@@ -7,15 +7,12 @@ import {useMyAccounts} from '@/models/daemon'
 import {useEntities} from '@/models/entities'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {
-  BlockRange,
-  ExpandedBlockRange,
   getDocumentTitle,
   HMComment,
   HMCommentGroup,
   HMEntityContent,
   hmId,
   HMMetadata,
-  serializeBlockRange,
   StateStream,
   UnpackedHypermediaId,
 } from '@shm/shared'
@@ -23,7 +20,6 @@ import {
   BlocksContent,
   Button,
   CommentGroup,
-  copyUrlToClipboardWithFeedback,
   SelectDropdown,
   Thumbnail,
   Tooltip,
@@ -50,16 +46,16 @@ function renderCommentContent(comment: HMComment) {
     <AppDocContentProvider
       comment
       // onReplyBlock={onReplyBlock}
-      onReplyBlock={() => {}}
-      onCopyBlock={(
-        blockId: string,
-        blockRange: BlockRange | ExpandedBlockRange | undefined,
-      ) => {
-        const url = `hm://c/${comment.id}#${blockId}${serializeBlockRange(
-          blockRange,
-        )}`
-        copyUrlToClipboardWithFeedback(url, 'Comment Block')
-      }}
+      // onReplyBlock={() => {}}
+      // onCopyBlock={(
+      //   blockId: string,
+      //   blockRange: BlockRange | ExpandedBlockRange | undefined,
+      // ) => {
+      //   const url = `hm://c/${comment.id}#${blockId}${serializeBlockRange(
+      //     blockRange,
+      //   )}`
+      //   copyUrlToClipboardWithFeedback(url, 'Comment Block')
+      // }}
     >
       <BlocksContent blocks={comment.content} parentBlockId={null} />
     </AppDocContentProvider>
