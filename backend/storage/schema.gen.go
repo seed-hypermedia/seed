@@ -94,18 +94,20 @@ const (
 
 // Table peers.
 const (
-	Peers          sqlitegen.Table  = "peers"
-	PeersAddresses sqlitegen.Column = "peers.addresses"
-	PeersID        sqlitegen.Column = "peers.id"
-	PeersPid       sqlitegen.Column = "peers.pid"
+	Peers                    sqlitegen.Table  = "peers"
+	PeersAddresses           sqlitegen.Column = "peers.addresses"
+	PeersExplicitlyConnected sqlitegen.Column = "peers.explicitly_connected"
+	PeersID                  sqlitegen.Column = "peers.id"
+	PeersPid                 sqlitegen.Column = "peers.pid"
 )
 
 // Table peers. Plain strings.
 const (
-	T_Peers          = "peers"
-	C_PeersAddresses = "peers.addresses"
-	C_PeersID        = "peers.id"
-	C_PeersPid       = "peers.pid"
+	T_Peers                    = "peers"
+	C_PeersAddresses           = "peers.addresses"
+	C_PeersExplicitlyConnected = "peers.explicitly_connected"
+	C_PeersID                  = "peers.id"
+	C_PeersPid                 = "peers.pid"
 )
 
 // Table public_keys.
@@ -268,6 +270,7 @@ var Schema = sqlitegen.Schema{
 		MetaViewIRI:                {Table: MetaView, SQLType: "TEXT"},
 		MetaViewPrincipal:          {Table: MetaView, SQLType: "BLOB"},
 		PeersAddresses:             {Table: Peers, SQLType: "TEXT"},
+		PeersExplicitlyConnected:   {Table: Peers, SQLType: "BOOLEAN"},
 		PeersID:                    {Table: Peers, SQLType: "INTEGER"},
 		PeersPid:                   {Table: Peers, SQLType: "TEXT"},
 		PublicKeysID:               {Table: PublicKeys, SQLType: "INTEGER"},

@@ -32,7 +32,7 @@ func (srv *rpcMux) ListPeers(ctx context.Context, in *p2p.ListPeersRequest) (*p2
 	net := srv.Node
 	out := &p2p.ListPeersResponse{}
 	// since the caller is a remote client if we don't want to share our peerlist remotely we don't do it
-	if !srv.Node.cfg.PeerSharing {
+	if srv.Node.cfg.NoPeerSharing {
 		return out, nil
 	}
 	conn, release, err := srv.Node.db.Conn(ctx)

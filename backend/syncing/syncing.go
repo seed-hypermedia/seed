@@ -212,12 +212,6 @@ func (s *Service) Start(ctx context.Context) (err error) {
 	}
 }
 
-var qListPeers = dqb.Str(`
-	SELECT
-		addresses
-	FROM peers;
-`)
-
 var qListPeersWithPid = dqb.Str(`
 	SELECT
 		addresses,

@@ -74,6 +74,15 @@ var migrations = []migration{
 
 		return nil
 	}},
+	{Version: "2024-09-23.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			ALTER TABLE peers ADD COLUMN explicitly_connected BOOLEAN DEFAULT false NOT NULL;
+		`)); err != nil {
+			return err
+		}
+
+		return nil
+	}},
 }
 
 func desiredVersion() string {

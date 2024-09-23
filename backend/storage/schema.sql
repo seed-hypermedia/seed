@@ -188,7 +188,9 @@ CREATE TABLE peers (
     -- Network unique peer identifier.
     pid TEXT UNIQUE NOT NULL,
     -- List of addresses in multiaddress format (comma separated)
-    addresses TEXT UNIQUE NOT NULL
+    addresses TEXT UNIQUE NOT NULL,
+    -- If we got the peer via direct connection or some other peer shared it with us.
+    explicitly_connected BOOLEAN DEFAULT false NOT NULL
 );
 
 -- Stores Lightning wallets both externals (imported wallets like bluewallet

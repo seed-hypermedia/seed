@@ -298,6 +298,13 @@ export class PeerInfo extends Message<PeerInfo> {
    */
   connectionStatus = ConnectionStatus.NOT_CONNECTED;
 
+  /**
+   * Whether this peer was a direct connection or someone else shared it with us.
+   *
+   * @generated from field: bool is_direct = 5;
+   */
+  isDirect = false;
+
   constructor(data?: PartialMessage<PeerInfo>) {
     super();
     proto3.util.initPartial(data, this);
@@ -310,6 +317,7 @@ export class PeerInfo extends Message<PeerInfo> {
     { no: 2, name: "account_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "addrs", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 4, name: "connection_status", kind: "enum", T: proto3.getEnumType(ConnectionStatus) },
+    { no: 5, name: "is_direct", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PeerInfo {

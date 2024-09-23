@@ -119,10 +119,7 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	if err := n.CheckHyperMediaProtocolVersion(ctx, info.ID, n.protocol.version); err != nil {
 		return err
 	}
-	// TODO(juligasa): If transient then return
-	// if transient {
-	// 	return nil
-	// }
+
 	addrsStr := AddrInfoToStrings(info)
 	if len(addrsStr) == 0 {
 		return fmt.Errorf("Peer with no addresses")
@@ -145,15 +142,16 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 
 	if len(res.Peers) > 0 {
 		vals := []interface{}{}
-		sqlStr := "INSERT OR REPLACE INTO peers (pid, addresses) VALUES "
+		sqlStr := "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES "
 		if initialAddrs != "" {
-			sqlStr += "(?, ?),"
-			vals = append(vals, info.ID.String(), initialAddrs)
+			sqlStr += "(?, ?, ?),"
+			vals = append(vals, info.ID.String(), initialAddrs, true)
 		}
 		var nonSeedPeers int
 		var xerr []error
 		for _, p := range res.Peers {
 			if len(p.Addrs) > 0 {
+				// Skipping our own node
 				if p.Id == n.client.me.String() {
 					continue
 				}
@@ -162,13 +160,17 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 					nonSeedPeers++
 					continue
 				}
+				// Skipping bootstrap nodes where the code is the only source of truth.
+				if n.cfg.IsBootstrap(pid) {
+					continue
+				}
 				if err := n.CheckHyperMediaProtocolVersion(ctx, pid, n.protocol.version); err != nil {
 					nonSeedPeers++
 					xerr = append(xerr, fmt.Errorf("Invalid peer %s: %w", p, err))
 					continue
 				}
-				sqlStr += "(?, ?),"
-				vals = append(vals, p.Id, strings.Join(p.Addrs, ","))
+				sqlStr += "(?, ?, ?),"
+				vals = append(vals, p.Id, strings.Join(p.Addrs, ","), false)
 			} else {
 				nonSeedPeers++
 				xerr = append(xerr, fmt.Errorf("Invalid peer %s with no addresses", p))
@@ -183,13 +185,14 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 			log.Warn("The peer we are trying to connect with, has non-seed peers in its database.", zap.Int("Number of non-seed-peers", nonSeedPeers), zap.Errors("Errors", xerr))
 		}
 		if len(vals) != 0 {
-			sqlStr = sqlStr[0 : len(sqlStr)-1]
+			sqlStr = sqlStr[0:len(sqlStr)-1] + " ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses"
+
 			return sqlitex.Exec(conn, sqlStr, nil, vals...)
 		}
 		return fmt.Errorf("Peer with blank addresses")
 	}
 	if initialAddrs != "" {
-		return sqlitex.Exec(conn, "INSERT OR REPLACE INTO peers (pid, addresses) VALUES (?, ?);", nil, info.ID.String(), initialAddrs)
+		return sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses;", nil, info.ID.String(), initialAddrs, true)
 	}
 	return nil
 }
@@ -219,10 +222,11 @@ func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.Ev
 
 	n.log.Debug("Storing Seed peer", zap.String("PID", event.Peer.String()), zap.String("Connectedness", connectedness.String()))
 	var addrsString []string
+	bootstrapped := n.cfg.IsBootstrap(event.Peer)
 	for _, addrs := range event.ListenAddrs {
 		addrsString = append(addrsString, strings.ReplaceAll(addrs.String(), "/p2p/"+event.Peer.String(), "")+"/p2p/"+event.Peer.String())
 	}
-	if err = sqlitex.Exec(conn, "INSERT OR REPLACE INTO peers (pid, addresses) VALUES (?, ?);", nil, event.Peer.String(), strings.ReplaceAll(strings.Join(addrsString, ","), " ", "")); err != nil {
+	if err = sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses;", nil, event.Peer.String(), strings.ReplaceAll(strings.Join(addrsString, ","), " ", ""), bootstrapped); err != nil {
 		n.log.Warn("Could not store new peer", zap.String("PID", event.Peer.String()), zap.Error(err))
 	}
 

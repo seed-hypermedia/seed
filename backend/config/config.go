@@ -243,7 +243,7 @@ type P2P struct {
 	ListenAddrs             []multiaddr.Multiaddr
 	AnnounceAddrs           []multiaddr.Multiaddr
 	ForceReachabilityPublic bool
-	PeerSharing             bool
+	NoPeerSharing           bool
 	NoPrivateIps            bool
 	NoMetrics               bool
 	RelayBackoff            time.Duration
@@ -282,11 +282,21 @@ func (p2p *P2P) BindFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&p2p.ForceReachabilityPublic, "p2p.force-reachability-public", p2p.ForceReachabilityPublic, "Force the node into thinking it's publicly reachable")
 	fs.BoolVar(&p2p.NoPrivateIps, "p2p.no-private-ips", p2p.NoPrivateIps, "Avoid announcing private IP addresses (ignored when using -p2p.announce-addrs)")
 	fs.BoolVar(&p2p.NoMetrics, "p2p.no-metrics", p2p.NoMetrics, "Disable Prometheus metrics collection")
-	fs.BoolVar(&p2p.PeerSharing, "syncing.peer-sharing", p2p.PeerSharing, "Whe share our peer list whenever we connect to another seed peer")
+	fs.BoolVar(&p2p.NoPeerSharing, "syncing.no-peer-sharing", p2p.NoPeerSharing, "We don't share our peer list whenever we connect to another seed peer")
 	fs.DurationVar(&p2p.RelayBackoff, "p2p.relay-backoff", p2p.RelayBackoff, "The time the autorelay waits to reconnect after failing to obtain a reservation with a candidate")
 }
 
 // NoBootstrap indicates whether bootstrap nodes are configured.
 func (p2p P2P) NoBootstrap() bool {
 	return len(p2p.BootstrapPeers) == 0
+}
+
+// IsBootstrap returns true if the passed peerID is part of bootstrapped nodes.
+func (p2p P2P) IsBootstrap(p peer.ID) bool {
+	for _, bootstrapAddrs := range p2p.BootstrapPeers {
+		if p.String() == bootstrapAddrs.ID.String() {
+			return true
+		}
+	}
+	return false
 }

@@ -63,6 +63,9 @@ message PeerInfo {
 
   // Connection status of our node with a remote peer.
   ConnectionStatus connection_status = 4;
+
+  // Whether this peer was a direct connection or someone else shared it with us.
+  bool is_direct = 5;
 }
 
 // Indicates connection status of our node with a remote peer.

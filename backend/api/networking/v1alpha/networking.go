@@ -71,7 +71,8 @@ var qListPeers = dqb.Str(`
 	SELECT 
 		id,
 		addresses,
-		pid
+		pid,
+		explicitly_connected
 	FROM peers
 	WHERE id < :last_cursor
 	ORDER BY id DESC LIMIT :page_size;
@@ -97,8 +98,9 @@ func (srv *Server) ListPeers(ctx context.Context, in *networking.ListPeersReques
 		lastCursor Cursor
 	)
 	peersInfo := []peer.AddrInfo{}
+	isDirectList := []bool{}
 	if in.PageSize <= 0 {
-		in.PageSize = 30
+		in.PageSize = 100
 	}
 	if in.PageToken == "" {
 		lastCursor.ID = math.MaxInt64
@@ -118,6 +120,7 @@ func (srv *Server) ListPeers(ctx context.Context, in *networking.ListPeersReques
 		id := stmt.ColumnInt64(0)
 		maStr := stmt.ColumnText(1)
 		pid := stmt.ColumnText(2)
+		isDirect := stmt.ColumnInt(3)
 		lastCursor.ID = id
 		lastCursor.Addr = maStr
 		maList := strings.Split(strings.Trim(maStr, " "), ",")
@@ -127,6 +130,7 @@ func (srv *Server) ListPeers(ctx context.Context, in *networking.ListPeersReques
 			return nil
 		}
 		peersInfo = append(peersInfo, info)
+		isDirectList = append(isDirectList, isDirect != 0)
 		return nil
 	}, lastCursor.ID, in.PageSize); err != nil {
 		return nil, err
@@ -134,7 +138,7 @@ func (srv *Server) ListPeers(ctx context.Context, in *networking.ListPeersReques
 
 	out.Peers = make([]*networking.PeerInfo, 0, len(peersInfo))
 
-	for _, peer := range peersInfo {
+	for i, peer := range peersInfo {
 		// Skip our own peer.
 		if peer.ID == net.Libp2p().ID() {
 			continue
@@ -154,6 +158,7 @@ func (srv *Server) ListPeers(ctx context.Context, in *networking.ListPeersReques
 			Id:               pids,
 			AccountId:        aidString,
 			Addrs:            addrs,
+			IsDirect:         isDirectList[i],
 			ConnectionStatus: networking.ConnectionStatus(connectedness), // ConnectionStatus is a 1-to-1 mapping for the libp2p connectedness.
 		})
 	}
@@ -161,7 +166,7 @@ func (srv *Server) ListPeers(ctx context.Context, in *networking.ListPeersReques
 	return out, nil
 }
 
-// GetPeerInfo gets info about
+// GetPeerInfo gets info about a peer in the IPFS peer store.
 func (srv *Server) GetPeerInfo(ctx context.Context, in *networking.GetPeerInfoRequest) (*networking.PeerInfo, error) {
 	if in.DeviceId == "" {
 		return nil, status.Error(codes.InvalidArgument, "must specify device id")
