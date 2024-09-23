@@ -43,6 +43,7 @@ import {
 } from '@shm/ui'
 import {
   ArrowLeftFromLine,
+  ArrowRight,
   ArrowRightFromLine,
   CloudOff,
   Download,
@@ -365,6 +366,7 @@ export function PageActionButtons(props: TitleBarProps) {
     ]
   } else if (route.key === 'document' && route.id.type === 'd') {
     buttonGroup = [
+      <LatestVersionButton />,
       <EditDocButton key="editDoc" />,
       // <CreateDropdown key="create" location={route.id} />, // TODO, new path selection workflow
       <DocOptionsButton key="options" />,
@@ -472,4 +474,36 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
       </XStack>
     </XStack>
   )
+}
+
+function LatestVersionButton() {
+  const route = useNavRoute()
+  const navigate = useNavigate('push')
+  if (route.key != 'document' || !route.id.version) return null
+  const latestDoc = useEntity({...route.id, version: null})
+
+  if (latestDoc.data?.id.version !== route.id.version) {
+    return (
+      <Button
+        bg="$brand12"
+        borderColor="$brand11"
+        hoverStyle={{bg: '$brand11', borderColor: '$brand10'}}
+        size="$2"
+        iconAfter={ArrowRight}
+        onPress={() => {
+          if (latestDoc.data?.id) {
+            navigate({
+              key: 'document',
+              id: latestDoc.data.id,
+              accessory: route.accessory,
+            })
+          }
+        }}
+      >
+        Latest Version
+      </Button>
+    )
+  } else {
+    return null
+  }
 }
