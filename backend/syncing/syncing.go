@@ -235,6 +235,9 @@ func (s *Service) refreshWorkers(ctx context.Context) error {
 			s.log.Warn("Can't periodically sync with peer because it has malformed addresses", zap.String("PID", pid), zap.Error(err))
 			return nil
 		}
+		if s.host.Network().Connectedness(info.ID) != network.Connected {
+			return nil
+		}
 		s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
 		peers[info.ID] = struct{}{}
 		return nil

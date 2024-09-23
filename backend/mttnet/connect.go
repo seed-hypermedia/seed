@@ -125,16 +125,27 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 		return fmt.Errorf("Peer with no addresses")
 	}
 	initialAddrs := strings.ReplaceAll(strings.Join(addrsStr, ","), " ", "")
-	conn, release, err = n.db.Conn(ctx)
-	if err != nil {
+
+	if err = n.storeRemotePeers(ctx, info.ID); err != nil {
 		return err
 	}
-	defer release()
+	if initialAddrs != "" {
+		conn, release, err = n.db.Conn(ctx)
+		if err != nil {
+			return err
+		}
+		defer release()
+		return sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses;", nil, info.ID.String(), initialAddrs, true)
+	}
+	return nil
+}
 
-	c, err := n.client.Dial(ctx, info.ID)
+func (n *Node) storeRemotePeers(ctx context.Context, id peer.ID) error {
+	c, err := n.client.Dial(ctx, id)
 	if err != nil {
 		return fmt.Errorf("Could not get p2p client: %w", err)
 	}
+
 	res, err := c.ListPeers(ctx, &p2p.ListPeersRequest{PageSize: math.MaxInt32})
 	if err != nil {
 		return fmt.Errorf("Could not get list of peers: %w", err)
@@ -143,15 +154,17 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	if len(res.Peers) > 0 {
 		vals := []interface{}{}
 		sqlStr := "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES "
-		if initialAddrs != "" {
-			sqlStr += "(?, ?, ?),"
-			vals = append(vals, info.ID.String(), initialAddrs, true)
-		}
 		var nonSeedPeers int
 		var xerr []error
 		for _, p := range res.Peers {
+			// In order not to get spammed with thousands of peers and make us waste computing
+			// resources, we abort early
+			if nonSeedPeers >= maxNonSeedPeersAllowed {
+				break
+			}
+
 			if len(p.Addrs) > 0 {
-				// Skipping our own node
+				// Skipping our own node.
 				if p.Id == n.client.me.String() {
 					continue
 				}
@@ -164,39 +177,39 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 				if n.cfg.IsBootstrap(pid) {
 					continue
 				}
-				if err := n.CheckHyperMediaProtocolVersion(ctx, pid, n.protocol.version); err != nil {
-					nonSeedPeers++
-					xerr = append(xerr, fmt.Errorf("Invalid peer %s: %w", p, err))
-					continue
-				}
+
+				// TODO(juligasa): Insert back the check
+				/*
+					if err := n.CheckHyperMediaProtocolVersion(ctx, pid, n.protocol.version); err != nil {
+						nonSeedPeers++
+						xerr = append(xerr, fmt.Errorf("Invalid peer %s: %w", p, err))
+						continue
+					}
+				*/
 				sqlStr += "(?, ?, ?),"
 				vals = append(vals, p.Id, strings.Join(p.Addrs, ","), false)
 			} else {
 				nonSeedPeers++
 				xerr = append(xerr, fmt.Errorf("Invalid peer %s with no addresses", p))
 			}
-			// In order not to get spammed with thousands of peers and make us waste computing
-			// resources, we abort early
-			if nonSeedPeers >= maxNonSeedPeersAllowed {
-				break
-			}
 		}
+
 		if nonSeedPeers > 0 {
-			log.Warn("The peer we are trying to connect with, has non-seed peers in its database.", zap.Int("Number of non-seed-peers", nonSeedPeers), zap.Errors("Errors", xerr))
+			n.log.Warn("The peer we are trying to connect with, has non-seed peers in its database.", zap.String("Peer ID", id.String()), zap.Int("Number of non-seed-peers", nonSeedPeers), zap.Errors("Errors", xerr))
 		}
 		if len(vals) != 0 {
 			sqlStr = sqlStr[0:len(sqlStr)-1] + " ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses"
-
+			conn, release, err := n.db.Conn(ctx)
+			if err != nil {
+				return err
+			}
+			defer release()
 			return sqlitex.Exec(conn, sqlStr, nil, vals...)
 		}
-		return fmt.Errorf("Peer with blank addresses")
-	}
-	if initialAddrs != "" {
-		return sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses;", nil, info.ID.String(), initialAddrs, true)
+		//return fmt.Errorf("Peer with blank addresses")
 	}
 	return nil
 }
-
 func (n *Node) defaultConnectionCallback(_ context.Context, event event.EvtPeerConnectednessChanged) {
 	return
 }
@@ -205,32 +218,41 @@ func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.Ev
 	if event.Peer.String() == n.client.me.String() {
 		return
 	}
+
+	connectedness := n.Libp2p().Network().Connectedness(event.Peer)
+	if connectedness != network.Connected {
+		return
+	}
+
 	if err := n.CheckHyperMediaProtocolVersion(ctx, event.Peer, n.protocol.version, event.Protocols...); err != nil {
 		return
 	}
 
+	bootstrapped := n.cfg.IsBootstrap(event.Peer)
+
+	var addrsString []string
+
+	if bootstrapped {
+		if err := n.storeRemotePeers(ctx, event.Peer); err != nil {
+			n.log.Warn("Could not get bootstrap peerlist", zap.String("PID", event.Peer.String()), zap.Error(err))
+			return
+		}
+	}
+	for _, addrs := range event.ListenAddrs {
+		addrsString = append(addrsString, strings.ReplaceAll(addrs.String(), "/p2p/"+event.Peer.String(), "")+"/p2p/"+event.Peer.String())
+	}
 	conn, release, err := n.db.Conn(ctx)
 	if err != nil {
 		n.log.Warn("Could not get a connection", zap.Error(err))
 		return
 	}
 	defer release()
-	connectedness := n.Libp2p().Network().Connectedness(event.Peer)
-	if connectedness != network.Connected {
-		return
-	}
-
-	n.log.Debug("Storing Seed peer", zap.String("PID", event.Peer.String()), zap.String("Connectedness", connectedness.String()))
-	var addrsString []string
-	bootstrapped := n.cfg.IsBootstrap(event.Peer)
-	for _, addrs := range event.ListenAddrs {
-		addrsString = append(addrsString, strings.ReplaceAll(addrs.String(), "/p2p/"+event.Peer.String(), "")+"/p2p/"+event.Peer.String())
-	}
 	if err = sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses;", nil, event.Peer.String(), strings.ReplaceAll(strings.Join(addrsString, ","), " ", ""), bootstrapped); err != nil {
 		n.log.Warn("Could not store new peer", zap.String("PID", event.Peer.String()), zap.Error(err))
 	}
 
 	n.p2p.ConnManager().Protect(event.Peer, protocolSupportKey)
+	n.log.Debug("Storing Seed peer", zap.String("PID", event.Peer.String()), zap.String("Connectedness", connectedness.String()))
 }
 
 func (n *Node) CheckHyperMediaProtocolVersion(ctx context.Context, pid peer.ID, desiredVersion string, protos ...protocol.ID) (err error) {
