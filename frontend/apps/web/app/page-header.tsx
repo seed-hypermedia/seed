@@ -10,6 +10,7 @@ import {Stack} from "@tamagui/core";
 import {Separator} from "@tamagui/separator";
 import {XStack, YStack} from "@tamagui/stacks";
 
+import {useFetcher} from "@remix-run/react";
 import {getRandomColor} from "@shm/ui/src/avatar";
 import {Container} from "@shm/ui/src/container";
 import {Popover} from "@shm/ui/src/TamaguiPopover";
@@ -20,7 +21,6 @@ import {Menu, Search} from "@tamagui/lucide-icons";
 import {H1, SizableText} from "@tamagui/text";
 import {useEffect, useMemo, useState} from "react";
 import {NativeSyntheticEvent, TextInputChangeEventData} from "react-native";
-import {useFetcher} from "react-router-dom";
 import type {MetadataPayload} from "./loaders";
 import {SearchPayload} from "./routes/hm.api.search";
 import {unwrap} from "./wrapping";
