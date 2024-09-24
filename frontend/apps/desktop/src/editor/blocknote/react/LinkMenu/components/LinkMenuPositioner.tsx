@@ -118,7 +118,7 @@ export const LinkMenuPositioner = <
 
   return (
     <Tippy
-      appendTo={scroller.current!}
+      appendTo={scroller.current ?? document.body}
       content={linkMenuElement}
       getReferenceClientRect={getReferenceClientRect}
       interactive={true}

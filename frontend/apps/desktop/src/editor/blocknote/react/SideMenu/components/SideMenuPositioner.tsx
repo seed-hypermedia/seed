@@ -128,7 +128,7 @@ export const SideMenuPositioner = <
 
   return (
     <Tippy
-      appendTo={props.editor.domElement.parentElement!}
+      appendTo={props.editor.domElement.parentElement ?? document.body}
       content={sideMenuElement}
       getReferenceClientRect={getReferenceClientRect}
       interactive={true}

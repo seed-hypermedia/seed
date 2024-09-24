@@ -108,8 +108,8 @@ export function createReactBlockSpec<
     }
   >({
     name: blockConfig.type,
-    content: blockConfig.containsInlineContent ? 'inline*' : '',
-    selectable: blockConfig.containsInlineContent,
+    content: blockConfig?.containsInlineContent ? 'inline*' : '',
+    selectable: blockConfig?.containsInlineContent,
 
     addAttributes() {
       return propsToAttributes(blockConfig)

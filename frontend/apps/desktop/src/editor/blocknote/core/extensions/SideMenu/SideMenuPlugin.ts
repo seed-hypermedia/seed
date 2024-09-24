@@ -399,7 +399,7 @@ export class SideMenuView<BSchema extends BlockSchema> implements PluginView {
       // Element is outside the editor
       !(
         editorWrapper === event.target ||
-        editorWrapper.contains(event.target as HTMLElement)
+        editorWrapper?.contains(event.target as HTMLElement)
       )
     ) {
       if (this.sideMenuState?.show) {

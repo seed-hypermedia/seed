@@ -121,7 +121,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
       // The clicked element is not the editor.
       !(
         editorWrapper === (event.target as Node) ||
-        editorWrapper.contains(event.target as Node)
+        editorWrapper?.contains(event.target as Node)
       )
     ) {
       if (this.hyperlinkToolbarState?.show) {

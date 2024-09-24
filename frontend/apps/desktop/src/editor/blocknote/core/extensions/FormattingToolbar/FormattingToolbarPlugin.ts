@@ -109,7 +109,7 @@ export class FormattingToolbarView<BSchema extends BlockSchema> {
       event.relatedTarget &&
       // Element is inside the editor.
       (editorWrapper === (event.relatedTarget as Node) ||
-        editorWrapper.contains(event.relatedTarget as Node))
+        editorWrapper?.contains(event.relatedTarget as Node))
     ) {
       return
     }

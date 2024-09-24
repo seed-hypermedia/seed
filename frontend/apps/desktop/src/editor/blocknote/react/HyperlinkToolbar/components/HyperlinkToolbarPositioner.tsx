@@ -93,7 +93,7 @@ export const HyperlinkToolbarPositioner = <
 
   return (
     <Tippy
-      appendTo={props.editor.domElement.parentElement!}
+      appendTo={props.editor.domElement.parentElement ?? document.body}
       // onHidden={() => setIsEditing(false)}
       content={hyperlinkToolbarElement}
       getReferenceClientRect={getReferenceClientRect}

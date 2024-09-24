@@ -453,7 +453,7 @@ export class BlockMenuView<BSchema extends BlockSchema> {
       event.target &&
       // Element is outside the editor
       this.ttEditor.view.dom !== event.target &&
-      !this.ttEditor.view.dom.contains(event.target as HTMLElement) &&
+      !this.ttEditor.view.dom?.contains(event.target as HTMLElement) &&
       // Element is outside the side menu
       this.blockMenu.element !== event.target &&
       !this.blockMenu.element?.contains(event.target as HTMLElement)

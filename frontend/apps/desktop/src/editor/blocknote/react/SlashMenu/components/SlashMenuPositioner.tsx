@@ -95,7 +95,7 @@ export const SlashMenuPositioner = <
 
   return (
     <Tippy
-      appendTo={scroller.current!}
+      appendTo={scroller.current ?? document.body}
       content={slashMenuElement}
       getReferenceClientRect={getReferenceClientRect}
       interactive={true}
