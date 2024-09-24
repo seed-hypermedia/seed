@@ -257,7 +257,7 @@ export function useSubscribedEntities(
         console.log('regular sync discovering', id)
         grpcClient.entities
           .discoverEntity({
-            account: id.id,
+            account: id.uid,
             path: hmIdPathToEntityQueryPath(id.path),
           })
           .then((result) => {
