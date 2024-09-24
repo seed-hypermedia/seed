@@ -485,6 +485,7 @@ function LatestVersionButton() {
 
   if (
     route.key != 'document' ||
+    !route.id.version ||
     latestDoc.data?.id?.version == route.id.version
   ) {
     return null
@@ -501,7 +502,7 @@ function LatestVersionButton() {
         if (latestDoc.data?.id) {
           navigate({
             key: 'document',
-            id: latestDoc.data.id,
+            id: {...latestDoc.data.id, version: null},
             accessory: route.accessory,
           })
         }
