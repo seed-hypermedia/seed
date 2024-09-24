@@ -478,32 +478,36 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
 
 function LatestVersionButton() {
   const route = useNavRoute()
+  const latestDoc = useEntity(
+    route.key == 'document' ? {...route.id, version: null} : undefined,
+  )
   const navigate = useNavigate('push')
-  if (route.key != 'document' || !route.id.version) return null
-  const latestDoc = useEntity({...route.id, version: null})
 
-  if (latestDoc.data?.id.version !== route.id.version) {
-    return (
-      <Button
-        bg="$brand12"
-        borderColor="$brand11"
-        hoverStyle={{bg: '$brand11', borderColor: '$brand10'}}
-        size="$2"
-        iconAfter={ArrowRight}
-        onPress={() => {
-          if (latestDoc.data?.id) {
-            navigate({
-              key: 'document',
-              id: latestDoc.data.id,
-              accessory: route.accessory,
-            })
-          }
-        }}
-      >
-        Latest Version
-      </Button>
-    )
-  } else {
+  if (
+    route.key != 'document' ||
+    latestDoc.data?.id?.version == route.id.version
+  ) {
     return null
   }
+
+  return (
+    <Button
+      bg="$brand12"
+      borderColor="$brand11"
+      hoverStyle={{bg: '$brand11', borderColor: '$brand10'}}
+      size="$2"
+      iconAfter={ArrowRight}
+      onPress={() => {
+        if (latestDoc.data?.id) {
+          navigate({
+            key: 'document',
+            id: latestDoc.data.id,
+            accessory: route.accessory,
+          })
+        }
+      }}
+    >
+      Latest Version
+    </Button>
+  )
 }
