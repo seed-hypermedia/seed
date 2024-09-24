@@ -1,5 +1,5 @@
 import {ActionFunction, json} from "@remix-run/node";
-import {hmId, packHmId} from "@shm/shared";
+import {hmIdPathToEntityQueryPath} from "@shm/shared";
 import {z} from "zod";
 import {queryClient} from "~/client";
 
@@ -14,12 +14,9 @@ export const action: ActionFunction = async ({request}) => {
     const data = await request.json();
     const input = discoverSchema.parse(data);
     await queryClient.entities.discoverEntity({
-      id: packHmId(
-        hmId("d", input.uid, {
-          path: input.path,
-          version: input.version,
-        })
-      ),
+      account: input.uid,
+      path: hmIdPathToEntityQueryPath(input.path),
+      version: input.version,
     });
     return json({message: "Success"});
   } catch (e) {

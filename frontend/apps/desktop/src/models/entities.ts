@@ -188,7 +188,11 @@ export function useDiscoverEntity(id: UnpackedHypermediaId) {
   const grpcClient = useGRPCClient()
   return useMutation({
     mutationFn: async () => {
-      await grpcClient.entities.discoverEntity({id: id.id})
+      await grpcClient.entities.discoverEntity({
+        account: id.uid,
+        path: hmIdPathToEntityQueryPath(id.path),
+        version: id.latest ? undefined : id.version || undefined,
+      })
       return {}
     },
     onSuccess: () => {
@@ -250,12 +254,14 @@ export function useSubscribedEntities(
 
       function handleDiscover() {
         if (!id) return
+        console.log('regular sync discovering', id)
         grpcClient.entities
           .discoverEntity({
-            id: id.id,
-            version: id.version || undefined,
+            account: id.id,
+            path: hmIdPathToEntityQueryPath(id.path),
           })
           .then((result) => {
+            console.log('discovery completed', result)
             // discovery completed. result.version is the new version
             if (result.version === loadedVersion) discoveryComplete = true
             invalidate([queryKeys.ENTITY, id.id])

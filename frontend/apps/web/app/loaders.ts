@@ -45,9 +45,16 @@ export async function getDocument(
   const path = hmIdPathToEntityQueryPath(entityId.path);
   console.log("Will discover entity " + entityId.id);
   const discoverPromise = queryClient.entities
-    .discoverEntity({id: entityId.id})
+    .discoverEntity({
+      account: entityId.uid,
+      path: hmIdPathToEntityQueryPath(entityId.path),
+      // version ommitted intentionally here. we want to discover the latest version
+    })
     .then(() => {
       console.log("discovered entity " + entityId.id);
+    })
+    .catch((e) => {
+      console.error("error discovering entity", entityId.id, e);
     });
   if (waitForSync) {
     await discoverPromise;
