@@ -13,6 +13,13 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 )
 
+const (
+	// ProductionGatewayPID is the Peer id of the production gateway
+	ProductionGatewayPID = "12D3KooWEDdEeuY3oHCSKtn1eC7tU9qNWjF9bb8sCtHzpuCjvomQ"
+	// TestGatewayPID is the peer id of the test gateway
+	TestGatewayPID = "12D3KooWMjs8x6ST53ZuXAegedQ4dJ2HYYQmFpw1puGpBZmLRCGB"
+)
+
 // BootstrapResult is a result of the bootstrap process.
 type BootstrapResult struct {
 	// Peers that were used for bootstrapping.
@@ -36,9 +43,10 @@ func PeriodicBootstrap(
 	callback func(context.Context, BootstrapResult),
 ) {
 	const (
-		connectTimeout    = 10 * time.Second
-		bootstrapInterval = 30 * time.Second // Bootstrapping is cheap so can be repeated often.
-		minPeers          = 10               // If we have less than this peers connected, we try to bootstrap more.
+		connectTimeout           = 10 * time.Second
+		bootstrapInterval        = 30 * time.Second // Bootstrapping is cheap so can be repeated often.
+		successBootstrapInterval = 1 * time.Minute  // When all bootstrapped nodes are connected we still try to reconnect in case some of the go offline
+		minPeers                 = 10               // If we have less than this peers connected, we try to bootstrap more.
 	)
 
 	t := time.NewTimer(1)
@@ -52,7 +60,12 @@ func PeriodicBootstrap(
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			if len(h.Network().Peers()) >= minPeers {
+			prodGwPID, err := peer.Decode(ProductionGatewayPID)
+			testGwPID, err2 := peer.Decode(TestGatewayPID)
+			if len(h.Network().Peers()) >= minPeers &&
+				err == nil && h.Network().Connectedness(prodGwPID) == network.Connected &&
+				err2 == nil && h.Network().Connectedness(testGwPID) == network.Connected {
+				t.Reset(successBootstrapInterval)
 				continue
 			}
 

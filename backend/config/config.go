@@ -211,12 +211,12 @@ func (c *Syncing) BindFlags(fs *flag.FlagSet) {
 
 var customBootstrapPeers = []string{
 	// HM24 Test Gateway.
-	"/dns4/test.hyper.media/tcp/56000/p2p/12D3KooWMjs8x6ST53ZuXAegedQ4dJ2HYYQmFpw1puGpBZmLRCGB",
-	"/dns4/test.hyper.media/udp/56000/quic-v1/p2p/12D3KooWMjs8x6ST53ZuXAegedQ4dJ2HYYQmFpw1puGpBZmLRCGB",
+	"/dns4/test.hyper.media/tcp/56000/p2p/" + ipfs.TestGatewayPID,
+	"/dns4/test.hyper.media/udp/56000/quic-v1/p2p/" + ipfs.TestGatewayPID,
 
 	// HM24 Production Gateway.
-	"/dns4/gateway.hyper.media/tcp/56000/p2p/12D3KooWEDdEeuY3oHCSKtn1eC7tU9qNWjF9bb8sCtHzpuCjvomQ",
-	"/dns4/gateway.hyper.media/udp/56000/quic-v1/p2p/12D3KooWEDdEeuY3oHCSKtn1eC7tU9qNWjF9bb8sCtHzpuCjvomQ",
+	"/dns4/gateway.hyper.media/tcp/56000/p2p/" + ipfs.ProductionGatewayPID,
+	"/dns4/gateway.hyper.media/udp/56000/quic-v1/p2p/" + ipfs.ProductionGatewayPID,
 }
 
 func bootstrapPeers() []peer.AddrInfo {
