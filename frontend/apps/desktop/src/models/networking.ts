@@ -90,7 +90,9 @@ export function usePeers(
           return listed.peers.filter((info) => {
             return info.connectionStatus === ConnectionStatus.CONNECTED
           })
-        return listed.peers.map((peer) => toPlainMessage(peer))
+        const peers = listed.peers.map((peer) => toPlainMessage(peer))
+        peers.sort((a, b) => b.connectionStatus - a.connectionStatus)
+        return peers
       } catch (e) {
         return null
       }
