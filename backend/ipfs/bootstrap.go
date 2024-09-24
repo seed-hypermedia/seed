@@ -18,6 +18,8 @@ const (
 	ProductionGatewayPID = "12D3KooWEDdEeuY3oHCSKtn1eC7tU9qNWjF9bb8sCtHzpuCjvomQ"
 	// TestGatewayPID is the peer id of the test gateway
 	TestGatewayPID = "12D3KooWMjs8x6ST53ZuXAegedQ4dJ2HYYQmFpw1puGpBZmLRCGB"
+
+	bootstrapSupportKey = "bootstrap-support" // This is what we use as a key to protect the connection in ConnManager.
 )
 
 // BootstrapResult is a result of the bootstrap process.
@@ -97,6 +99,7 @@ func PeriodicBootstrap(
 						atomic.AddUint32(&res.NumFailedConnections, 1)
 						res.ConnectErrs[i] = fmt.Errorf("bootstrap failed: %s: %w", pinfo.ID, err)
 					}
+					h.ConnManager().Protect(pinfo.ID, bootstrapSupportKey)
 				}(i, pinfo)
 			}
 
