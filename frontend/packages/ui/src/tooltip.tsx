@@ -7,14 +7,16 @@ export function Tooltip({
   content,
   placement,
   delay = 100,
+  open,
 }: {
   children: React.ReactNode;
   content: string | React.ReactElement;
   placement?: TooltipProps["placement"];
   delay?: number;
+  open?: boolean;
 }) {
   return content ? (
-    <TTooltip placement={placement} delay={delay}>
+    <TTooltip placement={placement} delay={delay} open={open}>
       <TTooltip.Trigger asChild>{children}</TTooltip.Trigger>
 
       <Theme inverse>

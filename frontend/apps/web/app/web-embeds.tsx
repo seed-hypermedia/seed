@@ -1,4 +1,4 @@
-import {useFetcher, useNavigate} from "@remix-run/react";
+import {useNavigate} from "@remix-run/react";
 import {
   createWebHMUrl,
   getDocumentTitle,
@@ -14,9 +14,8 @@ import {
 import {Thumbnail} from "@shm/ui/src/thumbnail";
 import {Text} from "@tamagui/core";
 import {YStack} from "@tamagui/stacks";
-import {useEffect, useMemo, useState} from "react";
-import type {WebDocumentPayload} from "./loaders";
-import {unwrap} from "./wrapping";
+import {useMemo, useState} from "react";
+import {useEntity} from "./models";
 
 function EmbedWrapper({
   id,
@@ -152,20 +151,4 @@ export function EmbedDocContent(props: EntityComponentProps) {
       }
     />
   );
-}
-
-function useEntity(id: UnpackedHypermediaId | undefined) {
-  const fetcher = useFetcher();
-  useEffect(() => {
-    if (!id?.uid) return;
-    const url = `/hm/api/entity/${id.uid}${
-      id.path ? `/${id.path.join("/")}` : ""
-    }`;
-    fetcher.load(url);
-  }, [id?.uid, id?.path?.join("/")]);
-
-  return {
-    data: fetcher.data ? unwrap<WebDocumentPayload>(fetcher.data) : null,
-    isLoading: fetcher.state === "loading",
-  };
 }

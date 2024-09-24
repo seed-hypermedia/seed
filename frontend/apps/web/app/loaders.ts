@@ -80,7 +80,7 @@ export async function getDocument(
   return {
     document,
     authors,
-    id: entityId,
+    id: {...entityId, version: document.version},
   };
 }
 
@@ -116,7 +116,6 @@ export async function loadSiteDocument(
       homeMetadata,
       homeId,
     };
-    console.log("Nice====", docContent);
     return wrapJSON(loadedSiteDocument);
   } catch (e) {
     // probably document not found. todo, handle other errors

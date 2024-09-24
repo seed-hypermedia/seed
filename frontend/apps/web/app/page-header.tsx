@@ -1,27 +1,33 @@
+import {useFetcher} from "@remix-run/react";
 import {
   formattedDateMedium,
   getFileUrl,
   HMDocument,
   HMMetadata,
+  relativeFormattedDate,
   UnpackedHypermediaId,
 } from "@shm/shared";
-import {Button} from "@tamagui/button";
-import {Stack} from "@tamagui/core";
-import {Separator} from "@tamagui/separator";
-import {XStack, YStack} from "@tamagui/stacks";
-
-import {useFetcher} from "@remix-run/react";
 import {getRandomColor} from "@shm/ui/src/avatar";
 import {Container} from "@shm/ui/src/container";
 import {Popover} from "@shm/ui/src/TamaguiPopover";
 import {Thumbnail} from "@shm/ui/src/thumbnail";
 import {usePopoverState} from "@shm/ui/src/use-popover-state";
+import {Button} from "@tamagui/button";
+import {Stack} from "@tamagui/core";
 import {Input} from "@tamagui/input";
 import {Menu, Search} from "@tamagui/lucide-icons";
+import {Separator} from "@tamagui/separator";
+import {XStack, YStack} from "@tamagui/stacks";
 import {H1, SizableText} from "@tamagui/text";
 import {useEffect, useMemo, useState} from "react";
-import {NativeSyntheticEvent, TextInputChangeEventData} from "react-native";
+import {
+  NativeSyntheticEvent,
+  ScrollView,
+  TextInputChangeEventData,
+} from "react-native";
 import type {MetadataPayload} from "./loaders";
+import {useDocumentChanges, useEntity} from "./models";
+import {HMDocumentChangeInfo} from "./routes/hm.api.changes";
 import {SearchPayload} from "./routes/hm.api.search";
 import {unwrap} from "./wrapping";
 
@@ -89,8 +95,8 @@ export function PageHeader({
               {homeMetadata?.name || "Home Document"}
             </SizableText>
           </XStack>
-          <XStack ai="center">
-            <SearchUI homeId={homeId} />
+          <XStack alignItems="center">
+            {homeId ? <SearchUI homeId={homeId} /> : null}
           </XStack>
         </XStack>
         <XStack
@@ -113,7 +119,7 @@ export function PageHeader({
               $gtMd={{display: "none", opacity: 0, pointerEvents: "none"}}
               size="$2"
               chromeless
-              bg="transparent"
+              backgroundColor="transparent"
               icon={Menu}
               onPress={() => {
                 openSheet();
@@ -123,7 +129,12 @@ export function PageHeader({
         </XStack>
       </Stack>
       {hasCover ? (
-        <XStack bg={coverBg} height="25vh" width="100%" position="relative">
+        <XStack
+          backgroundColor={coverBg}
+          height="25vh"
+          width="100%"
+          position="relative"
+        >
           <img
             src={getFileUrl(docMetadata!.cover)}
             title={`doc cover`}
@@ -143,7 +154,7 @@ export function PageHeader({
           marginTop: hasCover ? -40 : 0,
           paddingTop: !hasCover ? 60 : "$6",
         }}
-        bg="$background"
+        backgroundColor="$background"
         borderRadius="$2"
       >
         <YStack paddingInline="$4" gap="$4">
@@ -155,9 +166,20 @@ export function PageHeader({
           <H1 size="$9" style={{fontWeight: "bold"}}>
             {docMetadata?.name}
           </H1>
-          <XStack marginTop="$4" gap="$3" ai="center" f={1} flexWrap="wrap">
+          <XStack
+            marginTop="$4"
+            gap="$3"
+            alignItems="center"
+            flex={1}
+            flexWrap="wrap"
+          >
             {authors?.length ? (
-              <XStack ai="center" gap={0} flexWrap="wrap" maxWidth="100%">
+              <XStack
+                alignItems="center"
+                gap={0}
+                flexWrap="wrap"
+                maxWidth="100%"
+              >
                 {authors.map((a, index) => [
                   <SizableText
                     hoverStyle={{
@@ -188,12 +210,12 @@ export function PageHeader({
               </XStack>
             ) : null}
             {authors?.length ? <VerticalSeparator /> : null}
-            {updateTime ? (
-              <>
-                <SizableText size="$1" color="$color9">
-                  {formattedDateMedium(updateTime)}
-                </SizableText>
-              </>
+            {docId ? (
+              <VersionsModal
+                homeId={homeId}
+                docId={docId}
+                updateTime={updateTime}
+              />
             ) : null}
           </XStack>
           <Separator />
@@ -203,13 +225,170 @@ export function PageHeader({
   );
 }
 
+function VersionsModal({
+  homeId,
+  docId,
+  updateTime,
+}: {
+  homeId: UnpackedHypermediaId | null;
+  docId: UnpackedHypermediaId;
+  updateTime: HMDocument["updateTime"] | null;
+}) {
+  const entity = useEntity(docId);
+  const popoverState = usePopoverState();
+
+  const changes = useDocumentChanges(docId);
+  console.log(`===== ~ CHANGES DEMO:`, changes);
+  return updateTime && !changes.isLoading ? (
+    <Popover {...popoverState}>
+      <Popover.Trigger>
+        <SizableText
+          flexShrink={0}
+          flexGrow={0}
+          size="$1"
+          hoverStyle={{cursor: "default"}}
+          color="$color9"
+        >
+          {formattedDateMedium(entity.data?.document?.updateTime)}
+        </SizableText>
+        {changes.data && changes.data.length > 1 ? (
+          <SizableText
+            size="$1"
+            flexShrink={0}
+            flexGrow={0}
+            hoverStyle={{cursor: "default"}}
+            color="$color9"
+          >
+            ({changes.data?.length}) versions
+          </SizableText>
+        ) : null}
+      </Popover.Trigger>
+      {changes.data && changes.data.length > 1 ? (
+        <Popover.Content
+          borderWidth={1}
+          borderColor="$borderColor"
+          enterStyle={{y: -10, opacity: 0}}
+          exitStyle={{y: -10, opacity: 0}}
+          elevation="$5"
+          padding="$2"
+          animation={[
+            "fast",
+            {
+              opacity: {
+                overshootClamping: true,
+              },
+            },
+          ]}
+        >
+          <Popover.Arrow borderWidth={1} borderColor="$borderColor" />
+          <YStack overflow="hidden" maxHeight={220}>
+            <ScrollView>
+              {changes?.data?.map((change) => {
+                let href = homeId
+                  ? getHref(homeId, docId, change.id)
+                  : undefined;
+
+                console.log(`== ~ {changes?.data?.map ~ href:`, href);
+                return (
+                  <ModalVersionItem
+                    href={href}
+                    key={change.id}
+                    change={change}
+                  />
+                );
+              })}
+            </ScrollView>
+          </YStack>
+        </Popover.Content>
+      ) : null}
+    </Popover>
+  ) : null;
+
+  /**
+   * <Tooltip
+      content={`Update time: ${formattedDateLong(
+        entity.data?.document?.updateTime,
+      )}`}
+    >
+      <SizableText
+        flexShrink={0}
+        flexGrow={0}
+        size="$1"
+        hoverStyle={{cursor: 'default'}}
+        color="$color9"
+      >
+        {formattedDateMedium(entity.data?.document?.updateTime)}
+      </SizableText>
+    </Tooltip>
+   */
+}
+
+function ModalVersionItem({
+  change,
+  href,
+}: {
+  change: HMDocumentChangeInfo;
+  href?: string;
+}) {
+  return (
+    <Button
+      tag="a"
+      role="link"
+      key={change.id}
+      height="auto"
+      padding="$2"
+      href={href}
+      onPress={() => {
+        console.log(`== ~ {ModalVersionItem ~ href:`, href);
+      }}
+      borderRadius="$2"
+      borderWidth={0}
+      backgroundColor={"$backgroundTransparent"}
+      hoverStyle={{
+        backgroundColor: "$brand12",
+        borderColor: "$borderTransparent",
+      }}
+      alignItems="flex-start"
+      position="relative"
+      overflow="hidden"
+      maxWidth={260}
+      style={{textDecoration: "none"}}
+      icon={
+        <Thumbnail
+          flexGrow={0}
+          flexShrink={0}
+          size={20}
+          id={change.author.id}
+          metadata={change.author.metadata}
+        />
+      }
+    >
+      <SizableText
+        size="$2"
+        flex={1}
+        flexShrink={1}
+        textOverflow="ellipsis"
+        overflow="hidden"
+        whiteSpace="nowrap"
+      >
+        {change.author.metadata.name}
+      </SizableText>
+      <SizableText size="$2" whiteSpace="nowrap" flexShrink={0}>
+        {relativeFormattedDate(change.createTime)}
+      </SizableText>
+    </Button>
+  );
+}
+
 function getHref(
   homeId: UnpackedHypermediaId | undefined,
-  id: UnpackedHypermediaId
+  id: UnpackedHypermediaId,
+  version?: string
 ) {
   const path = `/${(id.path || []).join("/")}`;
-  if (homeId && homeId.uid === id.uid) return path;
-  return `/hm/${id.uid}${path}`;
+  if (homeId && homeId.uid === id.uid)
+    return `${path}${version ? `?v=${version}` : ""}`;
+  return `/hm/${id.uid}${path}${version ? `?v=${version}` : ""}`;
 }
 
 function SearchUI({homeId}: {homeId: UnpackedHypermediaId | undefined}) {
@@ -251,7 +430,7 @@ function SearchUI({homeId}: {homeId: UnpackedHypermediaId | undefined}) {
               }}
             />
           </XStack>
-          {searchResults?.entities.map((entity) => {
+          {searchResults?.entities.map((entity: any) => {
             return (
               <Button
                 backgroundColor="$colorTransparent"
@@ -286,5 +465,5 @@ function useSearch(input: string) {
 }
 
 const VerticalSeparator = () => (
-  <XStack flexShrink={0} flexGrow={0} w={1} h={20} bg="$color8" />
+  <XStack flexShrink={0} flexGrow={0} width={1} height={20} bg="$color8" />
 );
