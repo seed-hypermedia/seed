@@ -104,16 +104,23 @@ export class GetEntityTimelineRequest extends Message<GetEntityTimelineRequest> 
  */
 export class DiscoverEntityRequest extends Message<DiscoverEntityRequest> {
   /**
-   * Required. The entity ID to discover.
+   * Required. The account the entity belongs to.
    *
-   * @generated from field: string id = 1;
+   * @generated from field: string account = 1;
    */
-  id = "";
+  account = "";
+
+  /**
+   * Required. The path of the wanted entity.
+   *
+   * @generated from field: string path = 2;
+   */
+  path = "";
 
   /**
    * Optional. Version of the entity to discover.
    *
-   * @generated from field: string version = 2;
+   * @generated from field: string version = 3;
    */
   version = "";
 
@@ -125,8 +132,9 @@ export class DiscoverEntityRequest extends Message<DiscoverEntityRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.entities.v1alpha.DiscoverEntityRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DiscoverEntityRequest {

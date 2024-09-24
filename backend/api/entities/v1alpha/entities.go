@@ -312,12 +312,12 @@ func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEnti
 		return nil, status.Errorf(codes.FailedPrecondition, "discovery is not enabled")
 	}
 
-	if in.Id == "" {
-		return nil, errutil.MissingArgument("id")
+	if in.Account == "" {
+		return nil, errutil.MissingArgument("account")
 	}
 
-	if !strings.HasPrefix(in.Id, "hm://") {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid id %q: must start with hm://", in.Id)
+	if strings.HasPrefix(in.Account, "hm://") {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid account %q: must not start with hm://", in.Account)
 	}
 
 	// 	ver := hyper.Version(in.Version)
@@ -326,8 +326,8 @@ func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEnti
 	// 	if err != nil {
 	// 		return nil, status.Errorf(codes.InvalidArgument, "invalid version %q: %v", in.Version, err)
 	// 	}
-
-	version, err := api.disc.DiscoverObject(ctx, in.Id, in.Version)
+	eid := "hm://" + in.Account + in.Path
+	version, err := api.disc.DiscoverObject(ctx, eid, in.Version)
 	if err != nil {
 		return nil, err
 	}

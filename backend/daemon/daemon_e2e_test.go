@@ -365,7 +365,7 @@ func TestDiscoverHomeDocument(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = bob.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
-		Id: "hm://" + homeDoc.Account,
+		Account: homeDoc.Account,
 	})
 	require.NoError(t, err)
 

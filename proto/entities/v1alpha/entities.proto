@@ -56,11 +56,14 @@ message GetEntityTimelineRequest {
 
 // Request to discover an entity.
 message DiscoverEntityRequest {
-  // Required. The entity ID to discover.
-  string id = 1;
+  // Required. The account the entity belongs to.
+  string account = 1;
+
+  // Required. The path of the wanted entity.
+  string path = 2;
 
   // Optional. Version of the entity to discover.
-  string version = 2;
+  string version = 3;
 }
 
 // Response to discover an entity.
