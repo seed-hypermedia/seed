@@ -17,7 +17,7 @@ import {
   useQuery,
   UseQueryOptions,
 } from '@tanstack/react-query'
-import {useMemo} from 'react'
+import {useEffect, useMemo} from 'react'
 import {useGRPCClient, useQueryInvalidator} from '../app-context'
 import {queryKeys} from './query-keys'
 import {useDeleteRecent} from './recents'
@@ -217,10 +217,92 @@ export function useEntities(
   })
 }
 
+export function useSubscribedEntity(
+  id: UnpackedHypermediaId | null | undefined,
+) {
+  return useSubscribedEntities([id])[0]
+}
+
+const entitySubscriptions: Record<string, () => void> = {}
+const entitySubscriptionCounts: Record<string, number> = {}
+
+export function useSubscribedEntities(
+  ids: (UnpackedHypermediaId | null | undefined)[],
+) {
+  const entities = useEntities(ids)
+  const invalidate = useQueryInvalidator()
+  const grpcClient = useGRPCClient()
+  useEffect(() => {
+    const idKeys = ids.map((id) => {
+      if (!id) return null
+      let key = id.uid
+      if (id.version && !id.latest) key += id.version
+      return key
+    })
+    idKeys.forEach((key, index) => {
+      const id = ids[index]
+      const entity = entities[index]
+      const loadedVersion = entity.data?.document?.version
+      if (!key || !id) return
+      entitySubscriptionCounts[key] = (entitySubscriptionCounts[key] ?? 0) + 1
+      let discoveryComplete = loadedVersion === id.version && !id.latest
+      let nextDiscoverTimeout: NodeJS.Timeout | null = null
+
+      function handleDiscover() {
+        if (!id) return
+        grpcClient.entities
+          .discoverEntity({
+            id: id.id,
+            version: id.version || undefined,
+          })
+          .then((result) => {
+            // discovery completed. result.version is the new version
+            if (result.version === loadedVersion) discoveryComplete = true
+            invalidate([queryKeys.ENTITY, id.id])
+          })
+          .finally(() => {
+            if (!discoveryComplete) {
+              nextDiscoverTimeout = setTimeout(handleDiscover, 30_000)
+            }
+          })
+      }
+      if (entity.isLoading)
+        if (!entitySubscriptions[key]) {
+          if (loadedVersion === id.version && !id.latest) return
+          handleDiscover()
+          entitySubscriptions[key] = () => {
+            discoveryComplete = true
+            nextDiscoverTimeout && clearTimeout(nextDiscoverTimeout)
+          }
+        }
+    })
+    return () => {
+      idKeys.forEach((key, index) => {
+        if (!key) return
+        if (entitySubscriptionCounts[key]) {
+          entitySubscriptionCounts[key] = entitySubscriptionCounts[key] - 1
+          if (entitySubscriptionCounts[key] === 0) {
+            entitySubscriptions[key]?.()
+            delete entitySubscriptions[key]
+          }
+        } else {
+          entitySubscriptions[key]?.()
+          delete entitySubscriptions[key]
+        }
+        entitySubscriptionCounts[key] = (entitySubscriptionCounts[key] ?? 0) + 1
+      })
+    }
+  }, [
+    ids, // because ids are expected to be volatile, this effect will probably run every time
+    entities,
+  ])
+  return entities
+}
+
 export function useRouteEntities(
   routes: Array<DocumentRoute | DraftRoute>,
 ): {route: DocumentRoute | DraftRoute; entity?: HMEntityContent}[] {
-  return useEntities(
+  return useSubscribedEntities(
     routes.map((r) => {
       if (r.key === 'document') return r.id
       return null

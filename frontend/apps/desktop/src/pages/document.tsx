@@ -13,7 +13,7 @@ import {SubscriptionButton} from '@/components/subscription'
 import {CopyReferenceButton} from '@/components/titlebar-common'
 import {VersionsPanel} from '@/components/versions-panel'
 import '@/editor/editor.css'
-import {useDiscoverEntity, useEntity} from '@/models/entities'
+import {useDiscoverEntity, useSubscribedEntity} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
@@ -195,7 +195,7 @@ function DocPageHeader({
   docId: UnpackedHypermediaId
   isBlockFocused: boolean
 }) {
-  const entity = useEntity(docId)
+  const entity = useSubscribedEntity(docId)
   const accountName = getAccountName(entity.data?.document)
   const hasCover = useMemo(
     () => !!entity.data?.document?.metadata.cover,
@@ -450,7 +450,7 @@ function DeleteKey({accountId}: {accountId: string}) {
 }
 
 function DocumentCover({docId}: {docId: UnpackedHypermediaId}) {
-  const entity = useEntity(docId)
+  const entity = useSubscribedEntity(docId)
   if (!entity.data?.document) return null
   if (!entity.data.document.metadata.cover) return null
 
@@ -480,7 +480,7 @@ function DocPageContent({
   blockId?: string
   isBlockFocused: boolean
 }) {
-  const entity = useEntity(docId)
+  const entity = useSubscribedEntity(docId)
   if (entity.isLoading) return <Spinner />
   if (!entity.data?.document) return null
   const blockId = docId.blockRef
@@ -502,7 +502,7 @@ function DocPageContent({
 
 function DocPageAppendix({docId}: {docId: UnpackedHypermediaId}) {
   const replace = useNavigate('replace')
-  const entity = useEntity(docId)
+  const entity = useSubscribedEntity(docId)
   const route = useNavRoute()
   const wrapper = useRef<HTMLDivElement>(null)
 

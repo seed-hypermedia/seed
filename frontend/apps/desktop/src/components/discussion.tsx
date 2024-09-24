@@ -4,7 +4,7 @@ import {
   useDocumentCommentGroups,
 } from '@/models/comments'
 import {useMyAccounts} from '@/models/daemon'
-import {useEntities} from '@/models/entities'
+import {useSubscribedEntities} from '@/models/entities'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {
   getDocumentTitle,
@@ -120,7 +120,7 @@ function useCommentGroupAuthors(
       commentGroupAuthors.add(comment.author)
     })
   })
-  const authorEntities = useEntities(
+  const authorEntities = useSubscribedEntities(
     Array.from(commentGroupAuthors).map((uid) => hmId('d', uid)),
   )
   return Object.fromEntries(

@@ -1,10 +1,9 @@
 import {useAccount_deprecated} from '@/models/accounts'
-import {useEntities, useEntity} from '@/models/entities'
+import {useSubscribedEntities, useSubscribedEntity} from '@/models/entities'
 import {
   DAEMON_FILE_URL,
   UnpackedHypermediaId,
   formattedDateMedium,
-  getAccountName,
   getDocumentTitle,
   hmId,
   packHmId,
@@ -38,7 +37,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import {SizableTextProps, YStackProps} from 'tamagui'
+import {YStackProps} from 'tamagui'
 import {useComment} from '../models/comments'
 import {useNavigate} from '../utils/useNavigate'
 import {EntityLinkThumbnail} from './account-link-thumbnail'
@@ -235,8 +234,8 @@ const EmbedSideAnnotation = forwardRef<
       />
     )
   if (unpacked && unpacked.type != 'd') return null
-  const entity = useEntity(unpacked)
-  const editors = useEntities(
+  const entity = useSubscribedEntity(unpacked)
+  const editors = useSubscribedEntities(
     entity.data?.document?.authors.map((accountId) => hmId('d', accountId)) ||
       [],
   )
@@ -314,7 +313,7 @@ const CommentSideAnnotation = forwardRef(function CommentSideAnnotation(
     }
   }, [comment])
 
-  const pubTarget = useEntity(unpackedTarget)
+  const pubTarget = useSubscribedEntity(unpackedTarget)
 
   const editors =
     pubTarget.data?.document?.authors.map((accountId) =>
@@ -398,7 +397,7 @@ export function EmbedDocument(props: EntityComponentProps) {
 
 export function EmbedDocContent(props: EntityComponentProps) {
   const [showReferenced, setShowReferenced] = useState(false)
-  const doc = useEntity(props)
+  const doc = useSubscribedEntity(props)
   const navigate = useNavigate()
   return (
     <ContentEmbed
@@ -429,7 +428,7 @@ export function EmbedDocContent(props: EntityComponentProps) {
 }
 
 export function EmbedDocumentCard(props: EntityComponentProps) {
-  const doc = useEntity(props)
+  const doc = useSubscribedEntity(props)
   let textContent = useMemo(() => {
     if (doc.data?.document?.content) {
       let content = ''
@@ -543,24 +542,10 @@ export function EmbedComment(props: EntityComponentProps) {
 
 function ThumbnailComponent({accountId}: {accountId?: string}) {
   const id = accountId ? hmId('d', accountId) : undefined
-  const entity = useEntity(id)
+  const entity = useSubscribedEntity(id)
   if (!id) return null
   return (
     <Thumbnail id={id} metadata={entity.data?.document?.metadata} size={28} />
-  )
-}
-
-function NameComponent({
-  accountId,
-  ...props
-}: SizableTextProps & {accountId?: string}) {
-  const id = accountId ? hmId('d', accountId) : undefined
-  const entity = useEntity(id)
-  if (!id) return null
-  return (
-    <SizableText {...props}>
-      {getAccountName(entity.data?.document)}
-    </SizableText>
   )
 }
 
@@ -576,7 +561,7 @@ export function EmbedInline(props: UnpackedHypermediaId) {
 function DocInlineEmbed(props: UnpackedHypermediaId) {
   const pubId = props?.type == 'd' ? props.id : undefined
   if (!pubId) throw new Error('Invalid props at DocInlineEmbed (pubId)')
-  const doc = useEntity(props)
+  const doc = useSubscribedEntity(props)
   return (
     <InlineEmbedButton id={props}>
       {getDocumentTitle(doc.data?.document)}
