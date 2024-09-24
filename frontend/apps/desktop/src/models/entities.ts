@@ -7,6 +7,7 @@ import {
   hmId,
   hmIdPathToEntityQueryPath,
   NavRoute,
+  packHmId,
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
@@ -239,9 +240,7 @@ export function useSubscribedEntities(
   useEffect(() => {
     const idKeys = ids.map((id) => {
       if (!id) return null
-      let key = id.uid
-      if (id.version && !id.latest) key += id.version
-      return key
+      return packHmId(id)
     })
     idKeys.forEach((key, index) => {
       const id = ids[index]
@@ -254,17 +253,24 @@ export function useSubscribedEntities(
 
       function handleDiscover() {
         if (!id) return
-        console.log('regular sync discovering', id)
+        console.log(
+          '[sync] discovering',
+          id.uid,
+          hmIdPathToEntityQueryPath(id.path),
+        )
         grpcClient.entities
           .discoverEntity({
             account: id.uid,
             path: hmIdPathToEntityQueryPath(id.path),
           })
           .then((result) => {
-            console.log('discovery completed', result)
+            console.log('[sync] discovery completed', result)
             // discovery completed. result.version is the new version
             if (result.version === loadedVersion) discoveryComplete = true
             invalidate([queryKeys.ENTITY, id.id])
+          })
+          .catch((e) => {
+            console.log('[sync] discovery error', e)
           })
           .finally(() => {
             if (!discoveryComplete) {
