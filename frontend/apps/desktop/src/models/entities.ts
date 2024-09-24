@@ -274,7 +274,7 @@ export function useSubscribedEntities(
           })
           .finally(() => {
             if (!discoveryComplete) {
-              nextDiscoverTimeout = setTimeout(handleDiscover, 30_000)
+              nextDiscoverTimeout = setTimeout(handleDiscover, 10_000)
             }
           })
       }
