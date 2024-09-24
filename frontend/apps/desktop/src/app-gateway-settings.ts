@@ -37,9 +37,11 @@ export const gatewaySettingsApi = t.router({
   getGatewayUrl: t.procedure.query(async () => {
     return gatewayUrl
   }),
-  setGatewayUrl: t.procedure.input(z.string()).mutation(async ({input}) => {
-    return writeGatewayUrl(input)
-  }),
+  setGatewayUrl: t.procedure
+    .input(z.string())
+    .mutation(async ({input = DEFAULT_GATEWAY_URL}) => {
+      return writeGatewayUrl(input)
+    }),
 
   getPushOnCopy: t.procedure.query(async () => {
     return pushOnCopy

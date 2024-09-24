@@ -754,25 +754,24 @@ function GatewaySettings({}: {}) {
 
   return (
     <YStack gap="$3">
-      {gatewayUrl.data ? (
-        <TableList>
-          <InfoListHeader title="URL" />
-          <TableList.Item>
-            <XStack gap="$3" width="100%">
-              <Input size="$3" flex={1} value={gwUrl} onChangeText={setGWUrl} />
-              <Button
-                size="$3"
-                onPress={() => {
-                  setGatewayUrl.mutate(gwUrl)
-                  toast.success('Public Gateway URL changed!')
-                }}
-              >
-                Save
-              </Button>
-            </XStack>
-          </TableList.Item>
-        </TableList>
-      ) : null}
+      <TableList>
+        <InfoListHeader title="URL" />
+        <TableList.Item>
+          <XStack gap="$3" width="100%">
+            <Input size="$3" flex={1} value={gwUrl} onChangeText={setGWUrl} />
+            <Button
+              size="$3"
+              onPress={() => {
+                setGatewayUrl.mutate(gwUrl)
+                toast.success('Public Gateway URL changed!')
+              }}
+            >
+              Save
+            </Button>
+          </XStack>
+        </TableList.Item>
+      </TableList>
+
       <PushOnPublishSetting />
       <PushOnCopySetting />
     </YStack>
