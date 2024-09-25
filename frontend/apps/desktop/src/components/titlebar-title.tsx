@@ -15,15 +15,14 @@ import {
 } from '@shm/shared'
 import {
   Button,
-  ButtonText,
   Contact,
   FontSizeTokens,
   Home,
   Popover,
   Spinner,
-  styled,
   TextProps,
   TitleText,
+  TitleTextButton,
   Tooltip,
   XStack,
   YStack,
@@ -261,8 +260,16 @@ function BreadcrumbTitle({
       alignSelf="stretch"
       overflow="hidden"
       ref={containerObserverRef}
+      width="100%"
     >
-      <XStack position="absolute" gap="$2" f={1} marginRight={'$4'} ai="center">
+      <XStack
+        position="absolute"
+        gap="$2"
+        f={1}
+        marginRight={'$4'}
+        ai="center"
+        width="100%"
+      >
         {displayItems.flatMap((item, itemIndex) => {
           if (!item) return null
           return [
@@ -318,7 +325,7 @@ function BreadcrumbEllipsis({
 
 function BreadcrumbSeparator() {
   return (
-    <TitleText size="$4" color="$color10">
+    <TitleText size="$4" color="$color10" flexShrink={0}>
       {' / '}
     </TitleText>
   )
@@ -403,23 +410,6 @@ function BreadcrumbItem({
   )
 }
 
-export const TitleTextButton = styled(ButtonText, {
-  whiteSpace: 'nowrap',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  name: 'TitlebarLink',
-  color: '$color12',
-  fontSize: '$4',
-  userSelect: 'none',
-  padding: 0,
-  margin: 0,
-  textTransform: 'none',
-  cursor: 'pointer',
-  hoverStyle: {
-    textDecorationLine: 'underline',
-  },
-})
-
 export function Title({size}: {size?: FontSizeTokens}) {
   return (
     <XStack
@@ -427,8 +417,9 @@ export function Title({size}: {size?: FontSizeTokens}) {
       alignSelf="stretch"
       alignItems="center"
       paddingLeft="$2"
-      width="100%"
+      maxWidth="100%"
       minWidth={240}
+      f={1}
     >
       <TitleContent size={size} />
     </XStack>
