@@ -1,4 +1,3 @@
-import { captureRemixErrorBoundaryError, withSentry } from "@sentry/remix";
 import {LinksFunction} from "@remix-run/node";
 import {
   isRouteErrorResponse,
@@ -9,13 +8,15 @@ import {
   ScrollRestoration,
   useRouteError,
 } from "@remix-run/react";
-import {isClient, Text} from "@tamagui/core";
-import {YStack} from "@tamagui/stacks";
-import {Heading} from "@tamagui/text";
+import {captureRemixErrorBoundaryError, withSentry} from "@sentry/remix";
+import {isClient} from "@tamagui/core";
+import {XStack, YStack} from "@tamagui/stacks";
+import {SizableText} from "@tamagui/text";
 import Tamagui from "../tamagui.config";
 import {Providers, ThemeProvider} from "./providers";
 import globalStyles from "./styles.css?url";
 import globalTamaguiStyles from "./tamagui.css?url";
+import {Container} from "./ui/container";
 
 export const links: LinksFunction = () => {
   return [
@@ -62,9 +63,37 @@ export function ErrorBoundary({}: {}) {
       </head>
       <body>
         <ThemeProvider>
-          <YStack gap="$4">
-            <Heading>Something went wrong!</Heading>
-            <Text>{errorMessage}</Text>
+          <YStack>
+            <Container>
+              <YStack
+                alignSelf="center"
+                width={600}
+                gap="$5"
+                borderWidth={1}
+                borderColor="$color8"
+                borderRadius="$4"
+                padding="$5"
+                elevation="$4"
+              >
+                <XStack alignItems="center" gap="$3">
+                  <SizableText size="$10">🤕</SizableText>
+                  <SizableText size="$8" fontWeight="bold">
+                    Oh oh, it's not you, it's us...
+                  </SizableText>
+                </XStack>
+                <YStack gap="$3">
+                  <SizableText>
+                    Looks like something didn’t go as planned on our end. Don’t
+                    worry, it’s not your fault!
+                  </SizableText>
+                  <SizableText>
+                    Give it a quick refresh or come back in a bit, and we’ll
+                    have things sorted. If it keeps happening, just reach out to
+                    support and we’ll make it right in no time!
+                  </SizableText>
+                </YStack>
+              </YStack>
+            </Container>
           </YStack>
         </ThemeProvider>
         <Scripts />
