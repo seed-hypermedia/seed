@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	p2p "seed/backend/genproto/p2p/v1alpha"
+	"seed/backend/index"
 	"seed/backend/syncing/rbsr"
 	"strings"
+
+	cbornode "github.com/ipfs/go-ipld-cbor"
 
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -25,7 +28,6 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 	if err != nil {
 		return nil, fmt.Errorf("Could not get connection: %w", err)
 	}
-	defer release()
 	var query string = qListAllBlobsStr
 	var queryParams []interface{}
 
@@ -92,14 +94,95 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 		}
 		query += QListRelatedBlobsContStr
 	}
+	allCids := []cid.Cid{}
 	if err = sqlitex.Exec(conn, query, func(stmt *sqlite.Stmt) error {
 		codec := stmt.ColumnInt64(0)
 		hash := stmt.ColumnBytesUnsafe(1)
 		ts := stmt.ColumnInt64(2)
 		c := cid.NewCidV1(uint64(codec), hash)
+		allCids = append(allCids, c)
 		return store.Insert(ts, c.Bytes())
 	}, queryParams...); err != nil {
+		release()
 		return nil, fmt.Errorf("Could not list related blobs: %w", err)
+	}
+	release()
+	query = QListrelatedBlobsStr
+	commentFilters := []*p2p.Filter{}
+	for _, c := range allCids {
+		blk, err := srv.Node.index.Get(ctx, c)
+		if err != nil {
+			return nil, fmt.Errorf("Could not get cid: %w", err)
+		}
+		cp := &index.Comment{}
+		if err := cbornode.DecodeInto(blk.RawData(), cp); err == nil {
+			commentFilters = append(commentFilters, &p2p.Filter{
+				Resource:  "hm://" + cp.Author.String(),
+				Recursive: false,
+			})
+		}
+	}
+	var queryParams2 []interface{}
+	for i, filter := range commentFilters {
+		query += "?"
+		if filter.Recursive {
+			queryParams2 = append(queryParams2, filter.Resource+"*")
+		} else {
+			queryParams2 = append(queryParams2, filter.Resource)
+		}
+		if i < len(commentFilters)-1 {
+			query += " OR iri GLOB "
+		}
+	}
+	query += `)
+),
+changes (id) AS (
+	SELECT bl.target
+	FROM blob_links bl
+	JOIN refs r ON r.id = bl.source AND (bl.type = 'ref/head' OR bl.type GLOB 'metadata/*')
+	UNION
+	SELECT bl.target
+	FROM blob_links bl
+	JOIN changes c ON c.id = bl.source
+	WHERE bl.type = 'change/dep'
+)
+SELECT
+codec,
+b.multihash,
+insert_time,
+b.id,
+sb.ts
+FROM blobs b
+JOIN refs r ON r.id = b.id
+JOIN structural_blobs sb ON sb.id = b.id
+UNION ALL
+SELECT
+codec,
+b.multihash,
+insert_time,
+b.id,
+sb.ts
+FROM blobs b
+JOIN changes ch ON ch.id = b.id
+JOIN structural_blobs sb ON sb.id = b.id
+ORDER BY sb.ts, b.multihash;`
+
+	if len(queryParams2) != 0 {
+		conn, release, err := srv.Node.db.Conn(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("Could not get connection: %w", err)
+		}
+		if err = sqlitex.Exec(conn, query, func(stmt *sqlite.Stmt) error {
+			codec := stmt.ColumnInt64(0)
+			hash := stmt.ColumnBytesUnsafe(1)
+			ts := stmt.ColumnInt64(2)
+			c := cid.NewCidV1(uint64(codec), hash)
+			return store.Insert(ts, c.Bytes())
+		}, queryParams2...); err != nil {
+			release()
+			return nil, fmt.Errorf("Could not list related blobs: %w", err)
+		}
+		release()
 	}
 
 	if err = store.Seal(); err != nil {

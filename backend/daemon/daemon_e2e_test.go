@@ -409,6 +409,37 @@ func TestSubscriptions(t *testing.T) {
 	carolCfg.LogLevel = "debug"
 	carol := makeTestApp(t, "carol", carolCfg, true)
 	carolIdentity := coretest.NewTester("carol")
+	carolHome, err := carol.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        carolIdentity.Account.Principal().String(),
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "This is me"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Carol",
+				},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "b1", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b2",
+					Type: "paragraph",
+					Text: "World!",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
 	doc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		Account:        aliceIdentity.Account.Principal().String(),
 		Path:           "",
@@ -790,7 +821,7 @@ func TestSubscriptions(t *testing.T) {
 
 	carolRoots, err := carol.RPC.DocumentsV3.ListRootDocuments(ctx, &documents.ListRootDocumentsRequest{})
 	require.NoError(t, err)
-	require.Len(t, carolRoots.Documents, 1, "Carol must have Alice's root document")
+	require.Len(t, carolRoots.Documents, 3, "Carol must have Alice's & Bob's root document and her own")
 
 	carolComment, err := carol.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
 		TargetAccount: doc3Modified.Account,
@@ -824,11 +855,16 @@ func TestSubscriptions(t *testing.T) {
 		return len(comments.Comments) == 3
 	}, time.Second*2, time.Millisecond*100, "We should have three comments, including carol's")
 
-	carolHome, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+	_, err = alice.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: carolHome.Account,
+	})
+	require.NoError(t, err, "We want the profile of the comment's creator")
+
+	carolHomeGotten, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: carolIdentity.Account.Principal().String(),
 	})
 	require.NoError(t, err)
-	require.NotNil(t, carolHome.Metadata)
+	require.NotNil(t, carolHomeGotten.Metadata)
 	time.Sleep(time.Millisecond * 100)
 
 	_, err = bob.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
