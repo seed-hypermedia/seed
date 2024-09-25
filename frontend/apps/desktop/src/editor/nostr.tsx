@@ -205,7 +205,7 @@ function NostrComponent({
           position="absolute"
           top="$1.5"
           right="$1.5"
-          zIndex="$4"
+          zIndex="$zIndex.5"
           size="$1"
           width={60}
           onPress={() =>

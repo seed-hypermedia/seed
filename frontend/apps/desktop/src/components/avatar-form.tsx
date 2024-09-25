@@ -95,7 +95,7 @@ export function ThumbnailForm({
             bg="rgba(0,0,0,0.3)"
             position="absolute"
             gap="$2"
-            zi={101}
+            zi="$zIndex.5"
             w="100%"
             $group-thumbnail-hover={{opacity: 0}}
             h="100%"
@@ -113,7 +113,7 @@ export function ThumbnailForm({
           bg="rgba(0,0,0,0.3)"
           position="absolute"
           gap="$2"
-          zi={101}
+          zi="$zIndex.5"
           w="100%"
           $group-thumbnail-hover={{opacity: 1}}
           h="100%"
@@ -137,7 +137,7 @@ export function ThumbnailForm({
             icon={X}
             size="$1"
             fontWeight="600"
-            zi={101}
+            zi="$zIndex.5"
             onPress={(e: MouseEvent) => {
               e.preventDefault()
               e.stopPropagation()

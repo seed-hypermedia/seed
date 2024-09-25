@@ -3,7 +3,6 @@ import {MenuItemType, OptionsDropdown} from '@/components/options-dropdown'
 import {EmbedsContent} from '@/models/documents'
 import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
 import {useNavigate} from '@/utils/useNavigate'
-import {useTriggerWindowEvent} from '@/utils/window-events'
 import {NavRoute, UnpackedHypermediaId} from '@shm/shared'
 import {
   Button,
@@ -53,7 +52,6 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
     top += 8
     bottom += 8
   }
-  const triggerFocusedWindow = useTriggerWindowEvent()
   const navigate = useNavigate()
   return (
     <>
@@ -65,7 +63,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
           bg="$backgroundStrong"
           width={HoverRegionWidth + 20} // this 20 is to make sure the rounded radius is not visible on the edge
           top={top}
-          zi={99999}
+          zi="$zIndex.7"
           opacity={0}
           hoverStyle={{
             opacity: 0.1,
@@ -83,7 +81,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
         borderColor={'$color4'}
         animation="fast"
         position="absolute"
-        zi={999999}
+        zi="$zIndex.7"
         x={isVisible ? 0 : -SidebarWidth}
         width="100%"
         maxWidth={SidebarWidth}

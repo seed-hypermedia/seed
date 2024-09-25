@@ -90,7 +90,6 @@ export const DocumentListItem = React.memo(function DocumentListItem({
           {hasDraft && (
             <Button
               theme="yellow"
-              zIndex="$zIndex.5"
               onPress={(e) => {
                 // navigate(
                 //   {

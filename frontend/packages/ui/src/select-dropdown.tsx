@@ -38,7 +38,7 @@ export function SelectDropdown<
         )}
       </Select.Trigger>
 
-      <Select.Content zIndex={200000}>
+      <Select.Content zIndex="$zIndex.6">
         <Select.ScrollUpButton
           alignItems="center"
           justifyContent="center"
@@ -46,7 +46,7 @@ export function SelectDropdown<
           width="100%"
           height="$3"
         >
-          <YStack zIndex={10}>
+          <YStack zIndex="$zIndex.1">
             <ChevronUp size={20} />
           </YStack>
         </Select.ScrollUpButton>
@@ -82,7 +82,7 @@ export function SelectDropdown<
           width="100%"
           height="$3"
         >
-          <YStack zIndex={10}>
+          <YStack zIndex="$zIndex.1">
             <ChevronDown size={20} />
           </YStack>
         </Select.ScrollDownButton>

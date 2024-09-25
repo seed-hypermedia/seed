@@ -941,7 +941,7 @@ function LibraryListItem({
           ))}
           {entry.authors.length > editors.length && editors.length != 0 ? (
             <XStack
-              zIndex={editors.length}
+              zIndex="$zIndex.1"
               borderColor="$background"
               backgroundColor="$background"
               borderWidth={2}

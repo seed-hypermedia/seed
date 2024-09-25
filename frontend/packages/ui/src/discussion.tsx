@@ -137,7 +137,7 @@ function Comment({
       {isFirst && isNested ? (
         <View
           position="absolute"
-          zi={10}
+          zi="$zIndex.1"
           top={4}
           left={-6}
           width={12}
@@ -156,7 +156,7 @@ function Comment({
           <Stack
             position="absolute"
             top={0}
-            zi={20}
+            zi="$zIndex.2"
             left={0}
             w={20}
             h={20}
@@ -168,7 +168,7 @@ function Comment({
           />
           {authorId && (
             <Thumbnail
-              zi={20}
+              zi="$zIndex.2"
               id={authorId}
               metadata={authorMetadata}
               size={20}

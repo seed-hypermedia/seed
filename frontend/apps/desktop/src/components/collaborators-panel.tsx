@@ -122,6 +122,7 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
               (result) =>
                 result && (
                   <TagInputItem
+                    key={result.id.id}
                     onClick={() => {
                       setSelectedCollaborators((vals) => [...vals, result])
                     }}
@@ -387,7 +388,6 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
         >
           {selectedValues.map((value: SearchResult) => {
             return (
-              // <AccountCard accountId={value} key={value}>
               <Ariakit.CompositeItem
                 key={value.id.id}
                 role="gridcell"
@@ -415,7 +415,6 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
                 {/* <span className="tag-remove"></span> */}
                 <X size={12} />
               </Ariakit.CompositeItem>
-              // </AccountCard>
             )
           })}
           <YStack role="gridcell" flex={1}>
@@ -448,7 +447,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
                 store={select}
                 render={
                   <YGroup
-                    zIndex={100000}
+                    zIndex="$zIndex.5"
                     backgroundColor="$background"
                     separator={<Separator />}
                   />

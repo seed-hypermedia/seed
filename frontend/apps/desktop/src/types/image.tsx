@@ -148,7 +148,7 @@ function ImageComponent({
             position="absolute"
             top="$1.5"
             right="$1.5"
-            zIndex="$4"
+            zIndex="$zIndex.2"
             size="$1"
             width={60}
             color="muted"

@@ -416,7 +416,7 @@ function MediaForm({
           position="absolute"
           top={0}
           left={0}
-          zIndex={999}
+          zIndex="$zIndex.5"
           alignItems="center"
           justifyContent="center"
           backgroundColor="rgb(255, 255, 255, 0.5)"

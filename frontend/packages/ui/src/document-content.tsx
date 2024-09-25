@@ -160,7 +160,7 @@ export function DocContentProvider({
     >
       {showDevMenu ? (
         <YStack
-          zIndex={100}
+          zIndex="$zIndex.4"
           padding="$2"
           position="fixed"
           borderColor="$color7"
@@ -293,7 +293,7 @@ export function DocContent({
       <XStack
         ref={bubble}
         {...coords}
-        zIndex={99999}
+        zIndex="$zIndex.5"
         position="absolute"
         elevation="$4"
         userSelect="none"
@@ -625,7 +625,7 @@ export function BlockNodeContent({
               }}
               userSelect="none"
               position="absolute"
-              zIndex="$5"
+              zIndex="$zIndex.5"
               left={0}
               bg="$backgroundTransparent"
               opacity={_expanded ? 0 : 1}

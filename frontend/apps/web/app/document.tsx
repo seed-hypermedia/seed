@@ -494,7 +494,7 @@ function MobileOutline({
   return open ? (
     <YStack
       fullscreen
-      zi={10000}
+      zi="$zIndex.7"
       position="fixed"
       pointerEvents={open ? "inherit" : "none"}
     >

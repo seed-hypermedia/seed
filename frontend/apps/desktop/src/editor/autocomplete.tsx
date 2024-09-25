@@ -384,7 +384,7 @@ function AutocompletePopupInner(
         position: 'fixed',
         top: rect.bottom + 4,
         left: rect.left,
-        zIndex: 999999,
+        zIndex: 1000,
       }}
     >
       <div

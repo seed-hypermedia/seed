@@ -155,7 +155,7 @@ function DocumentEditors({
       })}
       {authors.length > 2 ? (
         <XStack
-          zIndex={authors.length}
+          zIndex="$zIndex.1"
           borderColor="$background"
           backgroundColor="$background"
           borderWidth={2}

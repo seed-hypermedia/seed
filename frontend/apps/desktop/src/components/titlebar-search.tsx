@@ -344,14 +344,14 @@ function LauncherContent({onClose}: {onClose: () => void}) {
       position="absolute"
       top={0}
       left={0}
-      zi={9999}
+      zi="$zIndex.7"
       width="100%"
       maxWidth={800}
       bg="$backgroundStrong"
     >
       <YStack
         bg="$backgroundStrong"
-        zi={9999}
+        zi="$zIndex.7"
         padding="$2"
         borderTopLeftRadius={6}
         borderTopRightRadius={6}
@@ -375,7 +375,7 @@ function LauncherContent({onClose}: {onClose: () => void}) {
             borderWidth={0}
             outline="none"
             unstyled
-            zi={9999}
+            zi="$zIndex.7"
             minWidth={240}
             w="100%"
             autoFocus

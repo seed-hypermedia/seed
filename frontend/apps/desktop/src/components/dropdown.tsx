@@ -25,7 +25,7 @@ const Content = ({
         backgroundColor="$background"
         borderRadius="$3"
         overflow="hidden"
-        zIndex="$max"
+        zIndex="$zIndex.5"
       >
         {children}
       </YStack>
@@ -48,7 +48,7 @@ const SubContent = forwardRef<
         backgroundColor="$background"
         borderRadius="$3"
         overflow="hidden"
-        zIndex="$max"
+        zIndex="$zIndex.5"
       >
         {children}
       </YStack>

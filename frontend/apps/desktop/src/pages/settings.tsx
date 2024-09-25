@@ -1128,7 +1128,7 @@ function ExistingWallets({wallets}: {wallets: LightningWallet[]}) {
                 <Select.Trigger width={280} iconAfter={ChevronDown}>
                   <Select.Value placeholder="Wallet" />
                 </Select.Trigger>
-                <Select.Content zIndex={200000}>
+                <Select.Content zIndex="$zIndex.5">
                   <Select.ScrollUpButton
                     alignItems="center"
                     justifyContent="center"
@@ -1136,7 +1136,7 @@ function ExistingWallets({wallets}: {wallets: LightningWallet[]}) {
                     width="100%"
                     height="$3"
                   >
-                    <YStack zIndex={10}>
+                    <YStack zIndex="$zIndex.5">
                       <ChevronUp size={20} />
                     </YStack>
                     {/* <LinearGradient

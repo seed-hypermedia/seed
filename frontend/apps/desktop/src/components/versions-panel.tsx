@@ -83,7 +83,7 @@ function ChangeItem({
         top={14}
         left={21}
         opacity={isLast ? 0 : 1}
-        zi={1}
+        zi="$zIndex.1"
       />
 
       <XStack
@@ -91,7 +91,7 @@ function ChangeItem({
         flexShrink={0}
         w={20}
         h={20}
-        zi={2}
+        zi="$zIndex.2"
         ai="center"
         bg="#2C2C2C"
         jc="center"

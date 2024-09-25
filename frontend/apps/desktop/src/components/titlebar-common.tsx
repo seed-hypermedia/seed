@@ -450,7 +450,7 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
       }
     >
       {left || <View />}
-      <XStack position="relative" zIndex={1000} className="no-window-drag">
+      <XStack position="relative" zIndex="$zIndex.1" className="no-window-drag">
         <Tooltip
           content={tooltip}
           key={key} // use this key to make sure the component is unmounted when changes, to blur the button and make tooltip disappear

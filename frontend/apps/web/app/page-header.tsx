@@ -67,7 +67,7 @@ export function PageHeader({
         $gtSm={{flexDirection: "row"}}
         bg="$background"
         position="fixed"
-        zi={9999}
+        zi="$zIndex.7"
         w="100%"
         top={0}
       >
@@ -107,7 +107,7 @@ export function PageHeader({
           paddingInline="$4"
           position="sticky"
           bg="$background"
-          zi={2000}
+          zi="$zIndex.7"
           top={0}
         >
           <XStack f={1}>

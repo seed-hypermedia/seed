@@ -184,7 +184,7 @@ export const MediaContainer = ({
       {drag && !isEmbed ? (
         <XStack
           position="absolute"
-          zIndex={100}
+          zIndex="$zIndex.5"
           fullscreen
           pointerEvents="none"
           alignItems="center"

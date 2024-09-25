@@ -33,7 +33,7 @@ export function SelectInput<Fields extends FieldValues>({
       <Select.Trigger width={265}>
         <Select.Value placeholder={placeholder} />
       </Select.Trigger>
-      <Select.Content zIndex={200000}>
+      <Select.Content zIndex="$zIndex.5">
         <Select.ScrollUpButton
           alignItems="center"
           justifyContent="center"
@@ -41,7 +41,7 @@ export function SelectInput<Fields extends FieldValues>({
           width="100%"
           height="$3"
         >
-          <YStack zIndex={10}>
+          <YStack zIndex="$zIndex.5">
             <ChevronUp size={20} />
           </YStack>
         </Select.ScrollUpButton>
@@ -66,7 +66,7 @@ export function SelectInput<Fields extends FieldValues>({
           width="100%"
           height="$3"
         >
-          <YStack zIndex={10}>
+          <YStack zIndex="$zIndex.5">
             <ChevronDown size={20} />
           </YStack>
         </Select.ScrollDownButton>

@@ -88,7 +88,7 @@ export function CoverImage({
             left={0}
             right={0}
             w="100%"
-            zi={10}
+            zi="$zIndex.1"
             $group-cover-hover={{opacity: 1}}
             gap="$2"
           >
@@ -106,7 +106,7 @@ export function CoverImage({
                   left: 0,
                   right: -12,
                   top: 0,
-                  zIndex: 12,
+                  zIndex: '$zIndex.5',
                   cursor: 'pointer',
                   background: 'red',
                 }}
