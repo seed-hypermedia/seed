@@ -1,5 +1,5 @@
 // @ts-nocheck
-import {SizableText, styled, XStack, YStack} from "tamagui";
+import {ButtonText, SizableText, styled, XStack, YStack} from "tamagui";
 
 export const TitlebarWrapper = styled(YStack, {
   name: "TitlebarWrapper",
@@ -38,6 +38,7 @@ export const TitlebarSection = styled(XStack, {
 
 export const TitleText = styled(SizableText, {
   whiteSpace: "nowrap",
+  maxWidth: "100%",
   overflow: "hidden",
   textOverflow: "ellipsis",
   name: "TitlebarH1",
@@ -48,4 +49,22 @@ export const TitleText = styled(SizableText, {
   padding: 0,
   margin: 0,
   textTransform: "none",
+});
+
+export const TitleTextButton = styled(ButtonText, {
+  whiteSpace: "nowrap",
+  flexShrink: 0,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  name: "TitlebarLink",
+  color: "$color12",
+  fontSize: "$4",
+  userSelect: "none",
+  padding: 0,
+  margin: 0,
+  textTransform: "none",
+  cursor: "pointer",
+  hoverStyle: {
+    textDecorationLine: "underline",
+  },
 });
