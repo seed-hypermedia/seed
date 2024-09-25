@@ -363,9 +363,6 @@ function DocumentDiscussion({
   siteHost: string | undefined;
 }) {
   const discussion = useDiscussion(id);
-  if (!discussion) return null;
-  const {commentGroups, commentAuthors} = discussion;
-  if (!commentGroups) return null;
   const renderCommentContent = useCallback(
     (comment: HMComment) => {
       return (
@@ -376,6 +373,9 @@ function DocumentDiscussion({
     },
     [homeId]
   );
+  if (!discussion) return null;
+  const {commentGroups, commentAuthors} = discussion;
+  if (!commentGroups) return null;
   return commentGroups.map((commentGroup) => {
     return (
       <CommentGroup
