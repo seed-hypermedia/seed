@@ -797,7 +797,7 @@ function PushOnCopySetting({}: {}) {
           {[
             {value: 'always', label: 'Always'},
             {value: 'never', label: 'Never'},
-            {value: 'ask', label: 'Ask'},
+            // {value: 'ask', label: 'Ask'},
           ].map((option) => {
             return (
               <XStack key={option.value} gap="$3" ai="center">
@@ -839,7 +839,7 @@ function PushOnPublishSetting({}: {}) {
           {[
             {value: 'always', label: 'Always'},
             {value: 'never', label: 'Never'},
-            {value: 'ask', label: 'Ask'},
+            // {value: 'ask', label: 'Ask'},
           ].map((option) => {
             return (
               <XStack key={option.value} gap="$3" ai="center">

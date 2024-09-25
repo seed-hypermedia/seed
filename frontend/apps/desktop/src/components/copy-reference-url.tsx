@@ -43,11 +43,12 @@ export function useCopyReferenceUrl(hostname: string) {
       hostname,
       path: input.path,
     })
+    copyTextToClipboard(url)
+    if (pushOnCopy.data === 'never') {
+      return
+    }
     const [setIsPublished, isPublished] =
       writeableStateStream<IsPublishedState>(null)
-    if (pushOnCopy.data === 'never') {
-      setIsPublished(false)
-    }
     const {close} = toast.custom(
       <CopiedToast
         host={hostname}
@@ -71,7 +72,6 @@ export function useCopyReferenceUrl(hostname: string) {
       .finally(() => {
         close()
       })
-    copyTextToClipboard(url)
   }
   return [dialog.content, onCopy] as const
 }

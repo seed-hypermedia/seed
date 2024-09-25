@@ -1,7 +1,7 @@
 import {DraftStatus, draftStatus} from '@/draft-status'
 import {useMyAccountsWithWriteAccess} from '@/models/access-control'
 import {useEntity} from '@/models/entities'
-import {useGatewayUrl} from '@/models/gateway-settings'
+import {useGatewayUrl, usePushOnPublish} from '@/models/gateway-settings'
 import {trpc} from '@/trpc'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
@@ -53,6 +53,7 @@ export default function PublishDraftButton() {
   const draftId = draftRoute.id
   const packedDraftId = draftId ? packHmId(draftId) : undefined
   const draft = useDraft(draftId)
+  const pushOnPublish = usePushOnPublish()
   const prevEntity = useEntity(draftId?.type !== 'draft' ? draftId : undefined)
   const invalidate = useQueryInvalidator()
   const [signingAccount, setSigningAccount] = useState<HMEntityContent | null>(
@@ -74,6 +75,7 @@ export default function PublishDraftButton() {
   const publishSiteUrl = siteUrl || gatewayUrl.data || DEFAULT_GATEWAY_URL
   const publish = usePublishDraft({
     onSuccess: (resultDoc, input) => {
+      if (pushOnPublish.data === 'never') return
       const {id} = input
       const [setIsPushed, isPushed] = writeableStateStream<boolean | null>(null)
       const {close} = toast.custom(
