@@ -18,7 +18,7 @@ function RemoveFavoriteButton({
         icon={hover ? Star : StarFull}
         onPress={onPress}
         color={hover ? undefined : '$yellow10'}
-        theme={hover ? 'red' : undefined}
+        // theme={hover ? 'red' : undefined}
         chromeless
         backgroundColor="$colorTransparent"
       />
