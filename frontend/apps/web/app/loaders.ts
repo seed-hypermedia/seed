@@ -4,6 +4,7 @@ import {
   hmId,
   hmIdPathToEntityQueryPath,
   HMMetadata,
+  SITE_BASE_URL,
   UnpackedHypermediaId,
 } from "@shm/shared";
 import {queryClient} from "./client";
@@ -35,6 +36,7 @@ export type WebDocumentPayload = {
   document: HMDocument;
   authors: {id: UnpackedHypermediaId; metadata: HMMetadata}[];
   id: UnpackedHypermediaId;
+  siteHost: string | undefined;
 };
 
 export async function getDocument(
@@ -80,6 +82,7 @@ export async function getDocument(
   return {
     document,
     authors,
+    siteHost: SITE_BASE_URL,
     id: {...entityId, version: document.version},
   };
 }

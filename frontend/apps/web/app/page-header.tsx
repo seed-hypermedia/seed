@@ -25,6 +25,7 @@ import {
   ScrollView,
   TextInputChangeEventData,
 } from "react-native";
+import {getHref} from "./href";
 import type {MetadataPayload} from "./loaders";
 import {useDocumentChanges, useEntity} from "./models";
 import {HMDocumentChangeInfo} from "./routes/hm.api.changes";
@@ -378,17 +379,6 @@ function ModalVersionItem({
       </SizableText>
     </Button>
   );
-}
-
-function getHref(
-  homeId: UnpackedHypermediaId | undefined,
-  id: UnpackedHypermediaId,
-  version?: string
-) {
-  const path = `/${(id.path || []).join("/")}`;
-  if (homeId && homeId.uid === id.uid)
-    return `${path}${version ? `?v=${version}` : ""}`;
-  return `/hm/${id.uid}${path}${version ? `?v=${version}` : ""}`;
 }
 
 function SearchUI({homeId}: {homeId: UnpackedHypermediaId | undefined}) {

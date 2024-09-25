@@ -25,7 +25,14 @@ import {X} from "@tamagui/lucide-icons";
 import {ScrollView} from "@tamagui/scroll-view";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
-import {PropsWithChildren, useEffect, useMemo, useState} from "react";
+import {
+  PropsWithChildren,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import {getHref} from "./href";
 import type {SiteDocumentPayload} from "./loaders";
 import {NotFoundPage} from "./not-found";
 import {PageHeader} from "./page-header";
@@ -76,24 +83,10 @@ export const documentPageMeta: MetaFunction = ({
 };
 
 const outlineWidth = 172;
-export function DocumentPage({
-  document,
-  homeId,
-  homeMetadata,
-  id,
-  authors,
-}: SiteDocumentPayload) {
+export function DocumentPage(props: SiteDocumentPayload) {
   const [open, setOpen] = useState(false);
-  if (!id)
-    return (
-      <NotFoundPage
-        document={document}
-        authors={authors}
-        id={id}
-        homeMetadata={homeMetadata}
-        homeId={homeId}
-      />
-    );
+  const {document, homeId, homeMetadata, id, authors, siteHost} = props;
+  if (!id) return <NotFoundPage {...props} />;
   if (!document)
     return (
       <DocumentDiscoveryPage
@@ -147,11 +140,11 @@ export function DocumentPage({
                 </YStack>
               </YStack>
             </YStack>
-            <WebDocContentProvider>
+            <WebDocContentProvider homeId={homeId} id={id} siteHost={siteHost}>
               <DocContent document={document} />
             </WebDocContentProvider>
           </Container>
-          <DocumentAppendix id={id} homeId={homeId} />
+          <DocumentAppendix id={id} homeId={homeId} siteHost={siteHost} />
         </YStack>
       </YStack>
       <MobileOutline open={open} onClose={() => setOpen(false)}>
@@ -226,7 +219,16 @@ function DocumentDiscoveryPage({
   );
 }
 
-function WebDocContentProvider({children}: PropsWithChildren<{}>) {
+function WebDocContentProvider({
+  children,
+  id,
+  homeId,
+  siteHost,
+}: PropsWithChildren<{
+  siteHost: string | undefined;
+  id: UnpackedHypermediaId;
+  homeId: UnpackedHypermediaId;
+}>) {
   return (
     <DocContentProvider
       entityComponents={{
@@ -236,7 +238,13 @@ function WebDocContentProvider({children}: PropsWithChildren<{}>) {
       }}
       onLinkClick={(href, e) => {}}
       onCopyBlock={(blockId, blockRange) => {
-        console.log("copy block", blockId, blockRange);
+        const blockHref = getHref(homeId, {
+          ...id,
+          hostname: siteHost || null,
+          blockRange: blockRange || null,
+          blockRef: blockId,
+        });
+        window.navigator.clipboard.writeText(blockHref);
       }}
       saveCidAsFile={async (cid, name) => {}}
       textUnit={18}
@@ -251,9 +259,11 @@ function WebDocContentProvider({children}: PropsWithChildren<{}>) {
 function DocumentAppendix({
   id,
   homeId,
+  siteHost,
 }: {
   id: UnpackedHypermediaId;
   homeId: UnpackedHypermediaId;
+  siteHost: string | undefined;
 }) {
   const [activeTab, setActiveTab] = useState<"directory" | "discussion">(
     "directory"
@@ -262,7 +272,9 @@ function DocumentAppendix({
   if (activeTab === "directory") {
     content = <DocumentDirectory id={id} homeId={homeId} />;
   } else if (activeTab === "discussion") {
-    content = <DocumentDiscussion id={id} />;
+    content = (
+      <DocumentDiscussion id={id} homeId={homeId} siteHost={siteHost} />
+    );
   }
   return (
     <Container>
@@ -341,11 +353,29 @@ function useDiscussion(docId: UnpackedHypermediaId, targetCommentId?: string) {
   return response;
 }
 
-function DocumentDiscussion({id}: {id: UnpackedHypermediaId}) {
+function DocumentDiscussion({
+  id,
+  homeId,
+  siteHost,
+}: {
+  id: UnpackedHypermediaId;
+  homeId: UnpackedHypermediaId;
+  siteHost: string | undefined;
+}) {
   const discussion = useDiscussion(id);
   if (!discussion) return null;
   const {commentGroups, commentAuthors} = discussion;
   if (!commentGroups) return null;
+  const renderCommentContent = useCallback(
+    (comment: HMComment) => {
+      return (
+        <WebDocContentProvider homeId={homeId} id={id} siteHost={siteHost}>
+          <BlocksContent blocks={comment.content} parentBlockId={null} />
+        </WebDocContentProvider>
+      );
+    },
+    [homeId]
+  );
   return commentGroups.map((commentGroup) => {
     return (
       <CommentGroup
@@ -359,14 +389,6 @@ function DocumentDiscussion({id}: {id: UnpackedHypermediaId}) {
       />
     );
   });
-}
-
-function renderCommentContent(comment: HMComment) {
-  return (
-    <WebDocContentProvider>
-      <BlocksContent blocks={comment.content} parentBlockId={null} />
-    </WebDocContentProvider>
-  );
 }
 
 function CommentReplies({

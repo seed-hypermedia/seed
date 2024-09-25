@@ -54,6 +54,7 @@ export const DAEMON_FILE_UPLOAD_URL = `${DAEMON_HOSTNAME}:${DAEMON_HTTP_PORT}/ip
 const appFileURL = DAEMON_HOSTNAME
   ? `${DAEMON_HOSTNAME}:${DAEMON_HTTP_PORT}/ipfs`
   : undefined
+export const SITE_BASE_URL = process.env.SEED_BASE_URL
 const webFileURL = process.env.SEED_BASE_URL
   ? `${process.env.SEED_BASE_URL}/ipfs`
   : undefined
