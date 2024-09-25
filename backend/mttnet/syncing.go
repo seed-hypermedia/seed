@@ -5,6 +5,7 @@ import (
 	"fmt"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/syncing/rbsr"
+	"strings"
 
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -27,16 +28,29 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 	defer release()
 	var query string = qListAllBlobsStr
 	var queryParams []interface{}
+
 	if len(in.Filters) != 0 {
 		query = QListrelatedBlobsStr
-		for i, filter := range in.Filters {
+		filtersWithParentDoc := in.Filters
+		for _, filter := range in.Filters {
+			iri := strings.TrimPrefix(filter.Resource, "hm://")
+			account := strings.Split(iri, "/")[0]
+			path := strings.TrimPrefix(iri, account)
+			if path != "" {
+				filtersWithParentDoc = append(filtersWithParentDoc, &p2p.Filter{
+					Resource:  "hm://" + account,
+					Recursive: false,
+				})
+			}
+		}
+		for i, filter := range filtersWithParentDoc {
 			query += "?"
 			if filter.Recursive {
 				queryParams = append(queryParams, filter.Resource+"*")
 			} else {
 				queryParams = append(queryParams, filter.Resource)
 			}
-			if i < len(in.Filters)-1 {
+			if i < len(filtersWithParentDoc)-1 {
 				query += " OR iri GLOB "
 			}
 		}

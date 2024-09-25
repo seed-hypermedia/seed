@@ -646,7 +646,7 @@ func TestSubscriptions(t *testing.T) {
 		Account: doc.Account,
 		Path:    doc.Path,
 	})
-	require.Error(t, err)
+	require.NoError(t, err)
 
 	doc3Modified, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		Account:        aliceIdentity.Account.Principal().String(),
@@ -787,6 +787,10 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, doc3Modified.Version, entity.Version)
+
+	carolRoots, err := carol.RPC.DocumentsV3.ListRootDocuments(ctx, &documents.ListRootDocumentsRequest{})
+	require.NoError(t, err)
+	require.Len(t, carolRoots.Documents, 1, "Carol must have Alice's root document")
 
 	carolComment, err := carol.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
 		TargetAccount: doc3Modified.Account,
