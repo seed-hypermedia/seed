@@ -1,9 +1,8 @@
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
-import {SiteDocumentPayload} from "./loaders";
 import {Container} from "./ui/container";
 
-export function NotRegisteredPage({homeMetadata, homeId}: SiteDocumentPayload) {
+export function NotRegisteredPage({}: {}) {
   return (
     <YStack>
       <Container>
@@ -20,19 +19,18 @@ export function NotRegisteredPage({homeMetadata, homeId}: SiteDocumentPayload) {
           <XStack alignItems="center" gap="$3">
             <SizableText size="$10">🚧</SizableText>
             <SizableText size="$8" fontWeight="bold">
-              Seed site Setup In Progress
+              Seed Hypermedia Site Coming Soon
             </SizableText>
           </XStack>
           <YStack gap="$3">
             <SizableText>
               Welcome! We're excited to have you onboard. It looks like your
-              domain is not yet fully registered in our system. Don't
-              worry—you're almost there!
+              content has not been published to this new site.
             </SizableText>
             <SizableText>
-              To complete your setup, please follow the remaining steps in your
-              account settings. Once done, your domain will be live and ready to
-              go. Thank you for your patience!
+              To complete your setup, please follow the remaining steps from
+              your secret setup URL. Reach out to the Seed Hypermedia team if
+              you need any help.
             </SizableText>
           </YStack>
         </YStack>

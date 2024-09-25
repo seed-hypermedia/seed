@@ -34,6 +34,7 @@ import {
 } from "react";
 import {getHref} from "./href";
 import type {SiteDocumentPayload} from "./loaders";
+import {defaultSiteIcon} from "./meta";
 import {NotFoundPage} from "./not-found";
 import {PageHeader} from "./page-header";
 import type {DirectoryPayload} from "./routes/hm.api.directory";
@@ -47,19 +48,20 @@ export const documentPageMeta: MetaFunction = ({
   data: Wrapped<SiteDocumentPayload>;
 }) => {
   const siteDocument = unwrap<SiteDocumentPayload>(data);
-  if (!siteDocument) return [];
-  const homeThumbnail = siteDocument.homeMetadata?.thumbnail
+  const homeThumbnail = siteDocument?.homeMetadata?.thumbnail
     ? getFileUrl(siteDocument.homeMetadata.thumbnail)
     : null;
   const meta: ReturnType<MetaFunction> = [];
-  if (homeThumbnail) {
-    meta.push({
-      tagName: "link",
-      rel: "icon",
-      href: homeThumbnail,
-      type: "image/png",
-    });
-  }
+
+  meta.push({
+    tagName: "link",
+    rel: "icon",
+    href: homeThumbnail || defaultSiteIcon,
+    type: "image/png",
+  });
+  console.log("===== meta", meta);
+  if (!siteDocument) return meta;
+
   if (siteDocument.id)
     meta.push({
       name: "hypermedia_id",
