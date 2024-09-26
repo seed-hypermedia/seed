@@ -8,6 +8,7 @@ import (
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/util/dqb"
 	"strings"
+	"sync"
 
 	"time"
 
@@ -27,8 +28,12 @@ import (
 )
 
 const (
-	// ConnectTimeout is the maximum time to spend connecting to a peer
-	ConnectTimeout         = time.Minute
+	// ConnectTimeout is the maximum time to spend connecting to a peer.
+	ConnectTimeout = time.Minute
+	// PeerShareTimeout is the maximum time to try to store shared peer list.
+	PeerShareTimeout = time.Second * 80
+	// CheckProtocolTimeout is the maximum time spent trying to check for protocols.
+	CheckProtocolTimeout   = time.Second * 8
 	maxNonSeedPeersAllowed = 10
 	protocolSupportKey     = "seed-support" // This is what we use as a key to protect the connection in ConnManager.
 )
@@ -126,29 +131,37 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	}
 	initialAddrs := strings.ReplaceAll(strings.Join(addrsStr, ","), " ", "")
 
-	if err = n.storeRemotePeers(ctx, info.ID); err != nil {
-		return err
-	}
+	go func() {
+		if err = n.storeRemotePeers(ctx, info.ID); err != nil {
+			n.log.Warn("Could not store remote peers", zap.Error(err))
+		}
+	}()
 	if initialAddrs != "" {
 		conn, release, err = n.db.Conn(ctx)
 		if err != nil {
 			return err
 		}
 		defer release()
-		return sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=strftime('%s', 'now') WHERE addresses!=excluded.addresses;", nil, info.ID.String(), initialAddrs, true)
+
+		if err = sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=strftime('%s', 'now') WHERE addresses!=excluded.addresses;", nil, info.ID.String(), initialAddrs, true); err != nil {
+			n.log.Warn("Failing to store peer", zap.Error(err))
+			return err
+		}
 	}
 	return nil
 }
 
 func (n *Node) storeRemotePeers(ctx context.Context, id peer.ID) error {
-	c, err := n.client.Dial(ctx, id)
+	ctxStore, cancel := context.WithTimeout(context.Background(), PeerShareTimeout)
+	defer cancel()
+	c, err := n.client.Dial(ctxStore, id)
 	if err != nil {
 		return fmt.Errorf("Could not get p2p client: %w", err)
 	}
 
-	res, err := c.ListPeers(ctx, &p2p.ListPeersRequest{PageSize: math.MaxInt32})
+	res, err := c.ListPeers(ctxStore, &p2p.ListPeersRequest{PageSize: math.MaxInt32})
 	if err != nil {
-		return fmt.Errorf("Could not get list of peers: %w", err)
+		return fmt.Errorf("Could not get list of peers from %s: %w", id.String(), err)
 	}
 
 	if len(res.Peers) > 0 {
@@ -156,51 +169,59 @@ func (n *Node) storeRemotePeers(ctx context.Context, id peer.ID) error {
 		sqlStr := "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES "
 		var nonSeedPeers int
 		var xerr []error
+		var wg sync.WaitGroup
 		for _, p := range res.Peers {
-			// In order not to get spammed with thousands of peers and make us waste computing
-			// resources, we abort early
-			if nonSeedPeers >= maxNonSeedPeersAllowed {
-				break
-			}
-
-			if len(p.Addrs) > 0 {
-				// Skipping our own node.
-				if p.Id == n.client.me.String() {
-					continue
-				}
-				pid, err := peer.Decode(p.Id)
-				if err != nil {
-					nonSeedPeers++
-					continue
-				}
-				// Skipping bootstrap nodes where the code is the only source of truth.
-				if n.cfg.IsBootstrap(pid) {
-					continue
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				// In order not to get spammed with thousands of peers and make us waste computing
+				// resources, we abort early
+				if nonSeedPeers >= maxNonSeedPeersAllowed {
+					return
 				}
 
-				// TODO(juligasa): Insert back the check
-				/*
-					if err := n.CheckHyperMediaProtocolVersion(ctx, pid, n.protocol.version); err != nil {
-						nonSeedPeers++
-						xerr = append(xerr, fmt.Errorf("Invalid peer %s: %w", p, err))
-						continue
+				if len(p.Addrs) > 0 {
+					// Skipping our own node.
+					if p.Id == n.client.me.String() {
+						return
 					}
-				*/
-				sqlStr += "(?, ?, ?),"
-				vals = append(vals, p.Id, strings.Join(p.Addrs, ","), false)
-			} else {
-				nonSeedPeers++
-				xerr = append(xerr, fmt.Errorf("Invalid peer %s with no addresses", p))
-			}
+					pid, err := peer.Decode(p.Id)
+					if err != nil {
+						xerr = append(xerr, fmt.Errorf("Could not decode shared peer", p))
+						nonSeedPeers++
+						return
+					}
+					// Skipping bootstrap nodes where the code is the only source of truth.
+					if n.cfg.IsBootstrap(pid) {
+						return
+					}
+
+					// TODO(juligasa): Insert back the check
+
+					if err := n.CheckHyperMediaProtocolVersion(ctxStore, pid, n.protocol.version); err != nil {
+						nonSeedPeers++
+						xerr = append(xerr, fmt.Errorf("Peer [%s] failed to pass seed-protocol-check: %w", p.Id, err))
+						return
+					}
+
+					sqlStr += "(?, ?, ?),"
+					vals = append(vals, p.Id, strings.Join(p.Addrs, ","), false)
+				} else {
+					nonSeedPeers++
+					xerr = append(xerr, fmt.Errorf("Invalid peer [%s] with no addresses", p))
+					return
+				}
+			}()
 		}
 
 		if nonSeedPeers > 0 {
-			n.log.Warn("The peer we are trying to connect with, has non-seed peers in its database.", zap.String("Peer ID", id.String()), zap.Int("Number of non-seed-peers", nonSeedPeers), zap.Errors("Errors", xerr))
+			return fmt.Errorf("The peer we are trying to connect with [%s], has at least [%d] non-seed peers in its database and [%d] seed peers at the moment we stopped: %v", id.String(), nonSeedPeers, len(vals), xerr)
 		}
 		if len(vals) != 0 {
 			sqlStr = sqlStr[0:len(sqlStr)-1] + " ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=strftime('%s', 'now') WHERE addresses!=excluded.addresses"
-			conn, release, err := n.db.Conn(ctx)
+			conn, release, err := n.db.Conn(ctxStore)
 			if err != nil {
+				n.log.Warn("Couldn't store shared peers", zap.Error(err))
 				return err
 			}
 			defer release()
@@ -233,11 +254,13 @@ func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.Ev
 	var addrsString []string
 
 	if bootstrapped {
-		if err := n.storeRemotePeers(ctx, event.Peer); err != nil {
-			n.log.Warn("Could not get bootstrap peerlist", zap.String("PID", event.Peer.String()), zap.Error(err))
-			return
-		}
+		go func() {
+			if err := n.storeRemotePeers(ctx, event.Peer); err != nil {
+				n.log.Warn("Could not store bootstrap peerlist", zap.String("PID", event.Peer.String()), zap.Error(err))
+			}
+		}()
 	}
+
 	for _, addrs := range event.ListenAddrs {
 		addrsString = append(addrsString, strings.ReplaceAll(addrs.String(), "/p2p/"+event.Peer.String(), "")+"/p2p/"+event.Peer.String())
 	}
@@ -256,8 +279,12 @@ func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.Ev
 }
 
 func (n *Node) CheckHyperMediaProtocolVersion(ctx context.Context, pid peer.ID, desiredVersion string, protos ...protocol.ID) (err error) {
-	ctx, cancel := context.WithTimeout(ctx, time.Minute)
-	defer cancel()
+	_, hasTimeout := ctx.Deadline()
+	if !hasTimeout {
+		newCtx, cancel := context.WithTimeout(ctx, CheckProtocolTimeout)
+		ctx = newCtx
+		defer cancel()
+	}
 
 	if len(protos) == 0 {
 		var attempts int
