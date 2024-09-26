@@ -9,6 +9,7 @@ import (
 	"seed/backend/util/dqb"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"time"
 
@@ -31,9 +32,9 @@ const (
 	// ConnectTimeout is the maximum time to spend connecting to a peer.
 	ConnectTimeout = time.Minute
 	// PeerShareTimeout is the maximum time to try to store shared peer list.
-	PeerShareTimeout = time.Second * 80
+	PeerShareTimeout = time.Second * 50
 	// CheckProtocolTimeout is the maximum time spent trying to check for protocols.
-	CheckProtocolTimeout   = time.Second * 8
+	CheckProtocolTimeout   = time.Second * 12
 	maxNonSeedPeersAllowed = 10
 	protocolSupportKey     = "seed-support" // This is what we use as a key to protect the connection in ConnManager.
 )
@@ -132,7 +133,7 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	initialAddrs := strings.ReplaceAll(strings.Join(addrsStr, ","), " ", "")
 
 	go func() {
-		if err = n.storeRemotePeers(ctx, info.ID); err != nil {
+		if err := n.storeRemotePeers(ctx, info.ID); err != nil {
 			n.log.Warn("Could not store remote peers", zap.Error(err))
 		}
 	}()
@@ -167,8 +168,10 @@ func (n *Node) storeRemotePeers(ctx context.Context, id peer.ID) error {
 	if len(res.Peers) > 0 {
 		vals := []interface{}{}
 		sqlStr := "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES "
-		var nonSeedPeers int
+		var nonSeedPeers uint32
 		var xerr []error
+		var mu sync.Mutex
+
 		var wg sync.WaitGroup
 		for _, p := range res.Peers {
 			wg.Add(1)
@@ -187,8 +190,10 @@ func (n *Node) storeRemotePeers(ctx context.Context, id peer.ID) error {
 					}
 					pid, err := peer.Decode(p.Id)
 					if err != nil {
-						xerr = append(xerr, fmt.Errorf("Could not decode shared peer", p))
-						nonSeedPeers++
+						mu.Lock()
+						xerr = append(xerr, fmt.Errorf("Could not decode shared peer %s", p))
+						mu.Unlock()
+						atomic.AddUint32(&nonSeedPeers, 1)
 						return
 					}
 					// Skipping bootstrap nodes where the code is the only source of truth.
@@ -199,20 +204,26 @@ func (n *Node) storeRemotePeers(ctx context.Context, id peer.ID) error {
 					// TODO(juligasa): Insert back the check
 
 					if err := n.CheckHyperMediaProtocolVersion(ctxStore, pid, n.protocol.version); err != nil {
-						nonSeedPeers++
+						atomic.AddUint32(&nonSeedPeers, 1)
+						mu.Lock()
 						xerr = append(xerr, fmt.Errorf("Peer [%s] failed to pass seed-protocol-check: %w", p.Id, err))
+						mu.Unlock()
 						return
 					}
-
+					mu.Lock()
 					sqlStr += "(?, ?, ?),"
 					vals = append(vals, p.Id, strings.Join(p.Addrs, ","), false)
+					mu.Unlock()
 				} else {
-					nonSeedPeers++
+					atomic.AddUint32(&nonSeedPeers, 1)
+					mu.Lock()
 					xerr = append(xerr, fmt.Errorf("Invalid peer [%s] with no addresses", p))
+					mu.Unlock()
 					return
 				}
 			}()
 		}
+		wg.Wait()
 
 		if nonSeedPeers > 0 {
 			return fmt.Errorf("The peer we are trying to connect with [%s], has at least [%d] non-seed peers in its database and [%d] seed peers at the moment we stopped: %v", id.String(), nonSeedPeers, len(vals), xerr)
