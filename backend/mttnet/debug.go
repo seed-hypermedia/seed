@@ -6,6 +6,7 @@ import (
 	"maps"
 	"net/http"
 	"reflect"
+	"seed/backend/ipfs"
 	"seed/backend/util/libp2px"
 	"slices"
 	"sync"
@@ -42,6 +43,7 @@ func (n *Node) DebugHandler() http.Handler {
 			ConnectedPeers:     len(connectedPeers),
 			HypermediaPeers:    countHypermediaPeers(connectedPeers, n.p2p.Peerstore(), n.protocol.ID),
 			PeerstorePeers:     len(n.p2p.Peerstore().Peers()),
+			BitswapInfo:        getBitswapInfo(n.bitswap),
 		}
 
 		if !r.URL.Query().Has("short") {
@@ -67,9 +69,16 @@ type debugInfo struct {
 	ConnectedPeers     int
 	HypermediaPeers    int
 	PeerstorePeers     int
+	BitswapInfo        *bitswapInfo     `json:",omitempty"`
 	ConnManagerInfo    *connManagerInfo `json:",omitempty"`
 }
 
+type bitswapInfo struct {
+	BlocksReceived uint64
+	BlocksSent     uint64
+	ProvideBufLen  int
+	Peers          []string
+}
 type connManagerInfo struct {
 	TotalPeers         int
 	ShownPeers         int
@@ -82,6 +91,19 @@ type connManagerPeerInfo struct {
 	PeerID        peer.ID
 	TagInfo       *connmgr.TagInfo
 	ProtectedTags []string
+}
+
+func getBitswapInfo(bs *ipfs.Bitswap) *bitswapInfo {
+	ret := &bitswapInfo{}
+	info, err := bs.Stat()
+	if err != nil {
+		return ret
+	}
+	ret.BlocksReceived = info.BlocksReceived
+	ret.BlocksSent = info.BlocksSent
+	ret.ProvideBufLen = info.ProvideBufLen
+	ret.Peers = info.Peers
+	return ret
 }
 
 func getConnManagerInfo(allPeers []peer.ID, cmgr *unsafeConnManager) connManagerInfo {
