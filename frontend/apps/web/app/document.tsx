@@ -59,7 +59,7 @@ export const documentPageMeta: MetaFunction = ({
     href: homeThumbnail || defaultSiteIcon,
     type: "image/png",
   });
-  console.log("===== meta", meta);
+
   if (!siteDocument) return meta;
 
   if (siteDocument.id)

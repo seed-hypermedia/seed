@@ -26,6 +26,5 @@ export const loader = async ({
 
 export default function HypermediaDocument() {
   const data = unwrap<SiteDocumentPayload>(useLoaderData());
-  console.log("DOC PAGE DATA", data);
   return <DocumentPage {...data} />;
 }

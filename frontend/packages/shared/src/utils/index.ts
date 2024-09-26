@@ -1,4 +1,5 @@
 export * from './abbreviate'
+export * from './breadcrumbs'
 export * from './date'
 export * from './entity-id-url'
 export * from './format-bytes'
