@@ -57,8 +57,8 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 			protocolID: 2000,
 		},
 		map[protocol.ID]rcmgr.LimitVal{
-			"/ipfs/kad/1.0.0":     5000,
-			"/ipfs/bitswap/1.2.0": 3000,
+			"/ipfs/kad/1.0.0":     2000,
+			"/ipfs/bitswap/1.2.0": 2000,
 		},
 	)
 	if err != nil {
@@ -184,8 +184,8 @@ func buildResourceManager(ourProtocolLimits map[protocol.ID]rcmgr.LimitVal, thei
 	// scales the limits proportional to your system memory.
 	scaledDefaultLimits := scalingLimits.AutoScale()
 	const (
-		maxConns           = 12000
-		maxFileDescriptors = 5000
+		maxConns           = 2500
+		maxFileDescriptors = 3000
 		maxMemory          = 2048 * 1024 * 1024
 	)
 
