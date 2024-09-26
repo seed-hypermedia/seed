@@ -1,6 +1,6 @@
 import {Params} from "@remix-run/react";
 import {hmId} from "@shm/shared";
-import {getDocument, WebDocumentPayload} from "~/loaders";
+import {getBaseDocument, WebBaseDocumentPayload} from "~/loaders";
 import {wrapJSON, WrappedResponse} from "~/wrapping";
 
 export const loader = async ({
@@ -9,7 +9,7 @@ export const loader = async ({
 }: {
   request: Request;
   params: Params;
-}): Promise<WrappedResponse<WebDocumentPayload>> => {
+}): Promise<WrappedResponse<WebBaseDocumentPayload>> => {
   const url = new URL(request.url);
   const version = url.searchParams.get("v");
   const entityPath = params["*"]?.split("/");
@@ -19,6 +19,6 @@ export const loader = async ({
     throw new Error("No uid provided");
   }
   const id = hmId("d", uid, {path: path || [], version});
-  const loaded = await getDocument(id);
+  const loaded = await getBaseDocument(id);
   return wrapJSON(loaded);
 };

@@ -33,18 +33,21 @@ export async function getMetadata(
   }
 }
 
-export type WebDocumentPayload = {
+export type WebBaseDocumentPayload = {
   document: HMDocument;
   authors: {id: UnpackedHypermediaId; metadata: HMMetadata}[];
   id: UnpackedHypermediaId;
   siteHost: string | undefined;
+};
+
+export type WebDocumentPayload = WebBaseDocumentPayload & {
   breadcrumbs: {id: UnpackedHypermediaId; metadata: HMMetadata}[];
 };
 
-export async function getDocument(
+export async function getBaseDocument(
   entityId: UnpackedHypermediaId,
   waitForSync?: boolean
-): Promise<WebDocumentPayload> {
+): Promise<WebBaseDocumentPayload> {
   const {id, version, uid} = entityId;
   const path = hmIdPathToEntityQueryPath(entityId.path);
   console.log("Will discover entity " + entityId.id);
@@ -80,24 +83,38 @@ export async function getDocument(
       return await getMetadata(hmId("d", authorUid));
     })
   );
-  const crumbs = getParentPaths(entityId.path);
-  const breadcrumbs = await Promise.all(
-    crumbs.map(async (c) => {
-      return await queryClient.documents.getDocument({
-        account: entityId.uid,
-        path: c.join("/"),
-      });
-    })
-  );
 
-  console.log(`== ~ breadcrumbs:`, breadcrumbs);
+  // console.log(`== ~ breadcrumbs:`, breadcrumbs);
   console.log("done with getDocument", entityId);
   return {
     document,
-    breadcrumbs,
     authors,
     siteHost: SITE_BASE_URL,
     id: {...entityId, version: document.version},
+  };
+}
+
+export async function getDocument(
+  entityId: UnpackedHypermediaId,
+  waitForSync?: boolean
+): Promise<WebDocumentPayload> {
+  const document = await getBaseDocument(entityId, waitForSync);
+  const crumbs = getParentPaths(entityId.path).slice(0, -1);
+  const breadcrumbs = await Promise.all(
+    crumbs.map(async (crumbPath) => {
+      const document = await queryClient.documents.getDocument({
+        account: entityId.uid,
+        path: hmIdPathToEntityQueryPath(crumbPath),
+      });
+      return {
+        id: hmId(entityId.type, entityId.uid, {path: crumbPath}),
+        metadata: toPlainMessage(document).metadata,
+      };
+    })
+  );
+  return {
+    ...document,
+    breadcrumbs,
   };
 }
 

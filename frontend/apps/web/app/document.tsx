@@ -107,6 +107,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
           docId={id}
           authors={authors}
           updateTime={document.updateTime}
+          breadcrumbs={props.breadcrumbs}
           openSheet={() => {
             setOpen(!open);
           }}

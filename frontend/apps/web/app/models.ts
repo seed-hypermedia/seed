@@ -1,7 +1,7 @@
 import {useFetcher} from "@remix-run/react";
 import {packHmId, UnpackedHypermediaId} from "@shm/shared";
 import {useEffect} from "react";
-import {type WebDocumentPayload} from "./loaders";
+import {WebBaseDocumentPayload} from "./loaders";
 import {HMDocumentChangeInfo} from "./routes/hm.api.changes";
 import {unwrap} from "./wrapping";
 
@@ -16,7 +16,7 @@ export function useEntity(id: UnpackedHypermediaId | undefined) {
   }, [id?.uid, id?.path?.join("/")]);
 
   return {
-    data: fetcher.data ? unwrap<WebDocumentPayload>(fetcher.data) : null,
+    data: fetcher.data ? unwrap<WebBaseDocumentPayload>(fetcher.data) : null,
     isLoading: fetcher.state === "loading",
   };
 }
@@ -48,16 +48,4 @@ export function useAPI<ResponsePayloadType>(url?: string) {
     ? unwrap<ResponsePayloadType>(fetcher.data)
     : undefined;
   return response;
-}
-
-export function getParentPaths(path?: string[] | null): string[][] {
-  if (!path) return [[]];
-  let walkParentPaths: string[] = [];
-  return [
-    [],
-    ...path.map((term) => {
-      walkParentPaths = [...walkParentPaths, term];
-      return walkParentPaths;
-    }),
-  ];
 }

@@ -40,6 +40,7 @@ export function PageHeader({
   authors = [],
   updateTime = null,
   openSheet,
+  breadcrumbs,
 }: {
   homeMetadata: HMMetadata | null;
   homeId: UnpackedHypermediaId | null;
@@ -48,7 +49,12 @@ export function PageHeader({
   authors: MetadataPayload[];
   updateTime: HMDocument["updateTime"] | null;
   openSheet?: () => void;
+  breadcrumbs: {
+    id: UnpackedHypermediaId;
+    metadata: HMMetadata;
+  }[];
 }) {
+  console.log("== ~ {PageHeader} ~ breadcrumbs: ", breadcrumbs);
   const coverBg = useMemo(() => {
     if (docId?.id) {
       return getRandomColor(docId.id);
