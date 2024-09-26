@@ -7,7 +7,8 @@ import tsconfigPaths from "vite-tsconfig-paths";
 
 installGlobals();
 
-export default defineConfig({
+// console.log(`== ~ process.env.NODE_ENV:`, process.env.NODE_ENV);
+let config = {
   server: {
     port: 3000,
   },
@@ -59,5 +60,14 @@ export default defineConfig({
     //   analyzerMode: "static",
     //   fileName: "report",
     // }),
+    // {
+    //   name: "log-files",
+    //   transform(code, id) {
+    //     console.log("--- Processing file:", id);
+    //     return code;
+    //   },
+    // },
   ].filter(Boolean),
-});
+};
+console.log("VITE CONFIG", JSON.stringify(config, null, 4));
+export default defineConfig(config);

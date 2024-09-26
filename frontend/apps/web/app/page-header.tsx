@@ -175,7 +175,7 @@ export function PageHeader({
             {docMetadata?.name}
           </H1>
           <XStack
-            marginTop="$4"
+            marginBlock="$4"
             gap="$3"
             alignItems="center"
             flex={1}
@@ -249,25 +249,18 @@ function VersionsModal({
 
   return updateTime && !changes.isLoading ? (
     <Popover {...popoverState}>
-      <Popover.Trigger>
-        <SizableText
-          flexShrink={0}
-          flexGrow={0}
-          size="$1"
-          hoverStyle={{cursor: "default"}}
-          color="$color9"
-        >
+      <Popover.Trigger
+        color="$color9"
+        flexDirection="row"
+        gap="$2"
+        hoverStyle={{cursor: "pointer", color: "$color12"}}
+      >
+        <SizableText flexShrink={0} flexGrow={0} size="$1" color="inherit">
           {formattedDateMedium(entity.data?.document?.updateTime)}
         </SizableText>
         {changes.data && changes.data.length > 1 ? (
-          <SizableText
-            size="$1"
-            flexShrink={0}
-            flexGrow={0}
-            hoverStyle={{cursor: "default"}}
-            color="$color9"
-          >
-            ({changes.data?.length}) versions
+          <SizableText size="$1" flexShrink={0} flexGrow={0} color="inherit">
+            ({changes.data?.length} versions)
           </SizableText>
         ) : null}
       </Popover.Trigger>
@@ -296,7 +289,6 @@ function VersionsModal({
                   ? getHref(homeId, docId, change.id)
                   : undefined;
 
-                console.log(`== ~ {changes?.data?.map ~ href:`, href);
                 return (
                   <ModalVersionItem
                     href={href}
