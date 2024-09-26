@@ -15,6 +15,8 @@ import (
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"github.com/libp2p/go-libp2p/core/peer"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -27,6 +29,12 @@ type Server struct {
 	net *mttnet.Node
 	db  *sqlitex.Pool
 	log *zap.Logger
+}
+
+type peerExtra struct {
+	createdTS *timestamppb.Timestamp
+	updatedTS *timestamppb.Timestamp
+	isDirect  bool
 }
 
 // NewServer returns a new networking API server.
@@ -72,7 +80,9 @@ var qListPeers = dqb.Str(`
 		id,
 		addresses,
 		pid,
-		explicitly_connected
+		explicitly_connected,
+		created_at,
+		updated_at
 	FROM peers
 	WHERE id < :last_cursor
 	ORDER BY id DESC LIMIT :page_size;
@@ -98,7 +108,7 @@ func (srv *Server) ListPeers(ctx context.Context, in *networking.ListPeersReques
 		lastCursor Cursor
 	)
 	peersInfo := []peer.AddrInfo{}
-	isDirectList := []bool{}
+	extraData := []peerExtra{}
 	if in.PageSize <= 0 {
 		in.PageSize = 100
 	}
@@ -121,6 +131,8 @@ func (srv *Server) ListPeers(ctx context.Context, in *networking.ListPeersReques
 		maStr := stmt.ColumnText(1)
 		pid := stmt.ColumnText(2)
 		isDirect := stmt.ColumnInt(3)
+		createdTS := &timestamppb.Timestamp{Seconds: stmt.ColumnInt64(4)}
+		updatedTS := &timestamppb.Timestamp{Seconds: stmt.ColumnInt64(5)}
 		lastCursor.ID = id
 		lastCursor.Addr = maStr
 		maList := strings.Split(strings.Trim(maStr, " "), ",")
@@ -130,7 +142,11 @@ func (srv *Server) ListPeers(ctx context.Context, in *networking.ListPeersReques
 			return nil
 		}
 		peersInfo = append(peersInfo, info)
-		isDirectList = append(isDirectList, isDirect != 0)
+		extraData = append(extraData, peerExtra{
+			createdTS: createdTS,
+			updatedTS: updatedTS,
+			isDirect:  isDirect != 0,
+		})
 		return nil
 	}, lastCursor.ID, in.PageSize); err != nil {
 		return nil, err
@@ -158,8 +174,10 @@ func (srv *Server) ListPeers(ctx context.Context, in *networking.ListPeersReques
 			Id:               pids,
 			AccountId:        aidString,
 			Addrs:            addrs,
-			IsDirect:         isDirectList[i],
-			ConnectionStatus: networking.ConnectionStatus(connectedness), // ConnectionStatus is a 1-to-1 mapping for the libp2p connectedness.
+			ConnectionStatus: networking.ConnectionStatus(connectedness),
+			IsDirect:         extraData[i].isDirect,
+			CreatedAt:        extraData[i].createdTS,
+			UpdatedAt:        extraData[i].updatedTS,
 		})
 	}
 

@@ -135,7 +135,7 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 			return err
 		}
 		defer release()
-		return sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses;", nil, info.ID.String(), initialAddrs, true)
+		return sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=strftime('%s', 'now') WHERE addresses!=excluded.addresses;", nil, info.ID.String(), initialAddrs, true)
 	}
 	return nil
 }
@@ -198,7 +198,7 @@ func (n *Node) storeRemotePeers(ctx context.Context, id peer.ID) error {
 			n.log.Warn("The peer we are trying to connect with, has non-seed peers in its database.", zap.String("Peer ID", id.String()), zap.Int("Number of non-seed-peers", nonSeedPeers), zap.Errors("Errors", xerr))
 		}
 		if len(vals) != 0 {
-			sqlStr = sqlStr[0:len(sqlStr)-1] + " ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses"
+			sqlStr = sqlStr[0:len(sqlStr)-1] + " ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=strftime('%s', 'now') WHERE addresses!=excluded.addresses"
 			conn, release, err := n.db.Conn(ctx)
 			if err != nil {
 				return err
@@ -247,7 +247,7 @@ func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.Ev
 		return
 	}
 	defer release()
-	if err = sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses;", nil, event.Peer.String(), strings.ReplaceAll(strings.Join(addrsString, ","), " ", ""), bootstrapped); err != nil {
+	if err = sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=strftime('%s', 'now') WHERE addresses!=excluded.addresses;", nil, event.Peer.String(), strings.ReplaceAll(strings.Join(addrsString, ","), " ", ""), bootstrapped); err != nil {
 		n.log.Warn("Could not store new peer", zap.String("PID", event.Peer.String()), zap.Error(err))
 	}
 

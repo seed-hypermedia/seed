@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package com.seed.networking.v1alpha;
 
+import "google/protobuf/timestamp.proto";
+
 option go_package = "seed/backend/genproto/networking/v1alpha;networking";
 
 // Networking API service of the Seed daemon.
@@ -66,6 +68,12 @@ message PeerInfo {
 
   // Whether this peer was a direct connection or someone else shared it with us.
   bool is_direct = 5;
+
+  // When we first inserted that peer in the database.
+  google.protobuf.Timestamp created_at = 6;
+
+   // When wthe peer updated its addresses for the last time.
+   google.protobuf.Timestamp updated_at = 7;
 }
 
 // Indicates connection status of our node with a remote peer.

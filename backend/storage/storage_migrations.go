@@ -83,6 +83,25 @@ var migrations = []migration{
 
 		return nil
 	}},
+	{Version: "2024-09-26.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			ALTER TABLE peers RENAME TO peers_old;
+			CREATE TABLE peers(
+    			id INTEGER PRIMARY KEY,
+				pid TEXT UNIQUE NOT NULL,
+				addresses TEXT UNIQUE NOT NULL,
+				explicitly_connected BOOLEAN DEFAULT false NOT NULL,
+				created_at INTEGER DEFAULT (strftime('%s', 'now')) NOT NULL,
+				updated_at INTEGER DEFAULT (strftime('%s', 'now')) NOT NULL
+			);
+			INSERT into peers(pid, addresses, explicitly_connected) select pid, addresses, explicitly_connected from peers_old;
+			DROP TABLE peers_old;
+		`)); err != nil {
+			return err
+		}
+
+		return nil
+	}},
 }
 
 func desiredVersion() string {

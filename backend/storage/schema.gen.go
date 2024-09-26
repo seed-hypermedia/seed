@@ -96,18 +96,22 @@ const (
 const (
 	Peers                    sqlitegen.Table  = "peers"
 	PeersAddresses           sqlitegen.Column = "peers.addresses"
+	PeersCreatedAt           sqlitegen.Column = "peers.created_at"
 	PeersExplicitlyConnected sqlitegen.Column = "peers.explicitly_connected"
 	PeersID                  sqlitegen.Column = "peers.id"
 	PeersPid                 sqlitegen.Column = "peers.pid"
+	PeersUpdatedAt           sqlitegen.Column = "peers.updated_at"
 )
 
 // Table peers. Plain strings.
 const (
 	T_Peers                    = "peers"
 	C_PeersAddresses           = "peers.addresses"
+	C_PeersCreatedAt           = "peers.created_at"
 	C_PeersExplicitlyConnected = "peers.explicitly_connected"
 	C_PeersID                  = "peers.id"
 	C_PeersPid                 = "peers.pid"
+	C_PeersUpdatedAt           = "peers.updated_at"
 )
 
 // Table public_keys.
@@ -270,9 +274,11 @@ var Schema = sqlitegen.Schema{
 		MetaViewIRI:                {Table: MetaView, SQLType: "TEXT"},
 		MetaViewPrincipal:          {Table: MetaView, SQLType: "BLOB"},
 		PeersAddresses:             {Table: Peers, SQLType: "TEXT"},
+		PeersCreatedAt:             {Table: Peers, SQLType: "INTEGER"},
 		PeersExplicitlyConnected:   {Table: Peers, SQLType: "BOOLEAN"},
 		PeersID:                    {Table: Peers, SQLType: "INTEGER"},
 		PeersPid:                   {Table: Peers, SQLType: "TEXT"},
+		PeersUpdatedAt:             {Table: Peers, SQLType: "INTEGER"},
 		PublicKeysID:               {Table: PublicKeys, SQLType: "INTEGER"},
 		PublicKeysPrincipal:        {Table: PublicKeys, SQLType: "BLOB"},
 		ResourceLinksExtraAttrs:    {Table: ResourceLinks, SQLType: "JSONB"},

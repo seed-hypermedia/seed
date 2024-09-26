@@ -4,7 +4,7 @@
 // @ts-nocheck
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Message, proto3 } from "@bufbuild/protobuf";
+import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
 
 /**
  * Indicates connection status of our node with a remote peer.
@@ -305,6 +305,20 @@ export class PeerInfo extends Message<PeerInfo> {
    */
   isDirect = false;
 
+  /**
+   * When we first inserted that peer in the database.
+   *
+   * @generated from field: google.protobuf.Timestamp created_at = 6;
+   */
+  createdAt?: Timestamp;
+
+  /**
+   * When wthe peer updated its addresses for the last time.
+   *
+   * @generated from field: google.protobuf.Timestamp updated_at = 7;
+   */
+  updatedAt?: Timestamp;
+
   constructor(data?: PartialMessage<PeerInfo>) {
     super();
     proto3.util.initPartial(data, this);
@@ -318,6 +332,8 @@ export class PeerInfo extends Message<PeerInfo> {
     { no: 3, name: "addrs", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 4, name: "connection_status", kind: "enum", T: proto3.getEnumType(ConnectionStatus) },
     { no: 5, name: "is_direct", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 6, name: "created_at", kind: "message", T: Timestamp },
+    { no: 7, name: "updated_at", kind: "message", T: Timestamp },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PeerInfo {

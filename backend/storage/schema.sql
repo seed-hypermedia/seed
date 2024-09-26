@@ -190,7 +190,11 @@ CREATE TABLE peers (
     -- List of addresses in multiaddress format (comma separated)
     addresses TEXT UNIQUE NOT NULL,
     -- If we got the peer via direct connection or some other peer shared it with us.
-    explicitly_connected BOOLEAN DEFAULT false NOT NULL
+    explicitly_connected BOOLEAN DEFAULT false NOT NULL,
+    -- The time when the peer was first stored.
+    created_at INTEGER DEFAULT (strftime('%s', 'now')) NOT NULL,
+    -- When the peer updated its addresses for the last time.
+    updated_at INTEGER DEFAULT (strftime('%s', 'now')) NOT NULL
 );
 
 -- Stores Lightning wallets both externals (imported wallets like bluewallet
