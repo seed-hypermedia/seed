@@ -723,9 +723,9 @@ func syncEntities(
 		codec := stmt.ColumnInt64(0)
 		hash := stmt.ColumnBytesUnsafe(1)
 		ts := stmt.ColumnInt64(2)
-		rawCid := cid.NewCidV1(uint64(codec), hash)
-		localHaves[rawCid] = struct{}{}
-		return store.Insert(ts, rawCid.Bytes())
+		localCid := cid.NewCidV1(uint64(codec), hash)
+		localHaves[localCid] = struct{}{}
+		return store.Insert(ts, localCid.Bytes())
 	}, queryParams...); err != nil {
 		release()
 		return fmt.Errorf("Could not list related blobs: %w", err)
@@ -799,7 +799,7 @@ func syncEntities(
 
 	downloadedBlocks := list.New()
 	for _, blkID := range allWants {
-		log.Debug("Trying to get blob", zap.String("cid", blkID.String()))
+		log.Debug("Fetching new block", zap.String("cid", blkID.String()))
 		blk, err := sess.GetBlock(ctx, blkID)
 		if err != nil {
 			log.Debug("FailedToGetWantedBlob", zap.String("cid", blkID.String()), zap.Error(err))
@@ -824,7 +824,7 @@ func syncEntities(
 			failed++
 			continue
 		}
-		log.Debug("Blob synced", zap.String("blobCid", blk.Cid().String()))
+		log.Debug("Blob synced and stored", zap.String("blobCid", blk.Cid().String()))
 		failed = 0
 		downloadedBlocks.Remove(item)
 	}
@@ -872,9 +872,9 @@ func syncPeerRbsr(
 		codec := stmt.ColumnInt64(0)
 		hash := stmt.ColumnBytesUnsafe(1)
 		ts := stmt.ColumnInt64(2)
-		rawCid := cid.NewCidV1(uint64(codec), hash)
-		localHaves[rawCid] = struct{}{}
-		return store.Insert(ts, rawCid.Bytes())
+		localCid := cid.NewCidV1(uint64(codec), hash)
+		localHaves[localCid] = struct{}{}
+		return store.Insert(ts, localCid.Bytes())
 	}); err != nil {
 		return fmt.Errorf("Could not list blobs: %w", err)
 	}
