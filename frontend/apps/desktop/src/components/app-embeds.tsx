@@ -62,7 +62,7 @@ function EmbedWrapper({
     comment,
     routeParams,
   } = useDocContentContext()
-  const navigate = useNavigate('replace')
+  const navigate = useNavigate('push')
   const wrapperRef = useRef<HTMLDivElement>(null)
   const sideannotationRef = useRef<HTMLDivElement>(null)
   const wrapperRect = useRef<DOMRect>()
