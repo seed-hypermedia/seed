@@ -1,5 +1,6 @@
 import {toPlainMessage} from "@bufbuild/protobuf";
 import {
+  getParentPaths,
   HMDocument,
   hmId,
   hmIdPathToEntityQueryPath,
@@ -37,6 +38,7 @@ export type WebDocumentPayload = {
   authors: {id: UnpackedHypermediaId; metadata: HMMetadata}[];
   id: UnpackedHypermediaId;
   siteHost: string | undefined;
+  breadcrumbs: {id: UnpackedHypermediaId; metadata: HMMetadata}[];
 };
 
 export async function getDocument(
@@ -78,9 +80,21 @@ export async function getDocument(
       return await getMetadata(hmId("d", authorUid));
     })
   );
+  const crumbs = getParentPaths(entityId.path);
+  const breadcrumbs = await Promise.all(
+    crumbs.map(async (c) => {
+      return await queryClient.documents.getDocument({
+        account: entityId.uid,
+        path: c.join("/"),
+      });
+    })
+  );
+
+  console.log(`== ~ breadcrumbs:`, breadcrumbs);
   console.log("done with getDocument", entityId);
   return {
     document,
+    breadcrumbs,
     authors,
     siteHost: SITE_BASE_URL,
     id: {...entityId, version: document.version},
@@ -114,6 +128,8 @@ export async function loadSiteDocument(
   }
   try {
     const docContent = await getDocument(id, waitForSync);
+
+    console.log(`== ~ docContent:`, docContent);
     const loadedSiteDocument = {
       ...docContent,
       homeMetadata,

@@ -1,7 +1,7 @@
 import {useFetcher} from "@remix-run/react";
 import {packHmId, UnpackedHypermediaId} from "@shm/shared";
 import {useEffect} from "react";
-import type {WebDocumentPayload} from "./loaders";
+import {type WebDocumentPayload} from "./loaders";
 import {HMDocumentChangeInfo} from "./routes/hm.api.changes";
 import {unwrap} from "./wrapping";
 
@@ -26,7 +26,6 @@ export function useDocumentChanges(id: UnpackedHypermediaId | undefined) {
   useEffect(() => {
     if (!id?.uid) return;
     const url = `/hm/api/changes?id=${packHmId(id)}`;
-    console.log(`== ~ useDocumentChanges ~ url:`, url);
     fetcher.load(url);
   }, [id?.uid, id?.path?.join("/")]);
 
@@ -49,4 +48,16 @@ export function useAPI<ResponsePayloadType>(url?: string) {
     ? unwrap<ResponsePayloadType>(fetcher.data)
     : undefined;
   return response;
+}
+
+export function getParentPaths(path?: string[] | null): string[][] {
+  if (!path) return [[]];
+  let walkParentPaths: string[] = [];
+  return [
+    [],
+    ...path.map((term) => {
+      walkParentPaths = [...walkParentPaths, term];
+      return walkParentPaths;
+    }),
+  ];
 }

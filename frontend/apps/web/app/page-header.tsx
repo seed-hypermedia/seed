@@ -60,7 +60,7 @@ export function PageHeader({
   const isHomeDoc = useMemo(() => docId?.id == homeId?.id, [docId, homeId]);
 
   return (
-    <YStack paddingTop={86} $gtSm={{paddingTop: 44}}>
+    <YStack paddingTop={86} $gtSm={{paddingTop: 44}} id="page-header">
       <Stack
         flex={1}
         flexDirection="column"
@@ -70,31 +70,40 @@ export function PageHeader({
         zi="$zIndex.7"
         w="100%"
         top={0}
+        paddingBlock="$2"
+        paddingInline="$4"
+        id="page-header-menu"
+        borderBottomColor="$color5"
+        borderBottomWidth={1}
       >
-        <XStack paddingBlock="$2" paddingInline="$4" gap="$4">
+        <XStack>
           <XStack
-            f={1}
-            tag="a"
-            role="link"
-            style={{textDecoration: "none"}}
-            href="/"
-            $gtSm={{
-              f: "inherit",
-            }}
-            gap="$2"
             ai="center"
-            cursor="pointer"
-            hoverStyle={{
-              textDecoration: "underline",
+            f={1}
+            $gtSm={{
+              f: 0,
             }}
           >
-            {homeMetadata?.thumbnail && homeId ? (
-              <Thumbnail size={30} id={homeId} metadata={homeMetadata} />
-            ) : null}
+            <XStack
+              tag="a"
+              role="link"
+              style={{textDecoration: "none"}}
+              href="/"
+              gap="$2"
+              ai="center"
+              cursor="pointer"
+              hoverStyle={{
+                textDecorationLine: "underline",
+              }}
+            >
+              {homeMetadata?.thumbnail && homeId ? (
+                <Thumbnail size={30} id={homeId} metadata={homeMetadata} />
+              ) : null}
 
-            <SizableText fontWeight="bold" cursor="pointer">
-              {homeMetadata?.name || "Home Document"}
-            </SizableText>
+              <SizableText fontWeight="bold" cursor="pointer">
+                {homeMetadata?.name || "Seed Gateway"}
+              </SizableText>
+            </XStack>
           </XStack>
           <XStack alignItems="center">
             {homeId ? <SearchUI homeId={homeId} /> : null}
@@ -102,19 +111,17 @@ export function PageHeader({
         </XStack>
         <XStack
           ai="center"
-          $gtSm={{f: 1}}
-          paddingBlock="$2"
-          paddingInline="$4"
+          $gtSm={{flex: 1}}
           position="sticky"
           bg="$background"
           zi="$zIndex.7"
           top={0}
         >
-          <XStack f={1}>
-            <SizableText size="$1" fontWeight="bold">
-              {docMetadata?.name}
-            </SizableText>
-          </XStack>
+          <Breadcrumbs
+            homeId={homeId}
+            docId={docId}
+            docMetadata={docMetadata}
+          />
           {openSheet ? (
             <Button
               $gtMd={{display: "none", opacity: 0, pointerEvents: "none"}}
@@ -158,7 +165,7 @@ export function PageHeader({
         backgroundColor="$background"
         borderRadius="$2"
       >
-        <YStack paddingInline="$4" gap="$4">
+        <YStack>
           {!isHomeDoc && docId && hasThumbnail ? (
             <XStack marginTop={hasCover ? -80 : 0}>
               <Thumbnail size={100} id={docId} metadata={docMetadata} />
@@ -239,7 +246,7 @@ function VersionsModal({
   const popoverState = usePopoverState();
 
   const changes = useDocumentChanges(docId);
-  console.log(`===== ~ CHANGES DEMO:`, changes);
+
   return updateTime && !changes.isLoading ? (
     <Popover {...popoverState}>
       <Popover.Trigger>
@@ -457,3 +464,31 @@ function useSearch(input: string) {
 const VerticalSeparator = () => (
   <XStack flexShrink={0} flexGrow={0} width={1} height={20} bg="$color8" />
 );
+
+function Breadcrumbs({
+  homeId,
+  docId,
+  docMetadata,
+}: {
+  homeId: UnpackedHypermediaId | null;
+  docId: UnpackedHypermediaId | null;
+  docMetadata: HMMetadata | null;
+}) {
+  // const crumbs = useBreadcrumbs(docId, homeId?.uid == docId?.uid);
+  return (
+    <XStack f={1}>
+      {docId?.id != homeId?.id ? (
+        <SizableText
+          size="$1"
+          fontWeight="bold"
+          overflow="hidden"
+          textOverflow="ellipsis"
+          whiteSpace="nowrap"
+          flex={1}
+        >
+          {docMetadata?.name}
+        </SizableText>
+      ) : null}
+    </XStack>
+  );
+}
