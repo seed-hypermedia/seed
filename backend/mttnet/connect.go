@@ -212,7 +212,17 @@ func (n *Node) storeRemotePeers(ctx context.Context, id peer.ID) error {
 				if nonSeedPeers >= maxNonSeedPeersAllowed {
 					return
 				}
+				pid, err := peer.Decode(p.Id)
+				if err != nil {
+					mu.Lock()
+					xerr = append(xerr, fmt.Errorf("Could not decode shared peer %s", p))
+					mu.Unlock()
+					atomic.AddUint32(&nonSeedPeers, 1)
+					n.p2p.ConnManager().Unprotect(pid, protocolSupportKey)
+					return
+				}
 				if _, ok := localPeers[p.Id]; ok {
+					n.p2p.ConnManager().Protect(pid, protocolSupportKey)
 					return
 				}
 
@@ -221,14 +231,7 @@ func (n *Node) storeRemotePeers(ctx context.Context, id peer.ID) error {
 					if p.Id == n.client.me.String() {
 						return
 					}
-					pid, err := peer.Decode(p.Id)
-					if err != nil {
-						mu.Lock()
-						xerr = append(xerr, fmt.Errorf("Could not decode shared peer %s", p))
-						mu.Unlock()
-						atomic.AddUint32(&nonSeedPeers, 1)
-						return
-					}
+
 					// Skipping bootstrap nodes where the code is the only source of truth.
 					if n.cfg.IsBootstrap(pid) {
 						return
@@ -250,12 +253,14 @@ func (n *Node) storeRemotePeers(ctx context.Context, id peer.ID) error {
 						mu.Lock()
 						xerr = append(xerr, fmt.Errorf("Peer [%s] failed to pass seed-protocol-check: %w", p.Id, err))
 						mu.Unlock()
+						n.p2p.ConnManager().Unprotect(pid, protocolSupportKey)
 						return
 					}
 					mu.Lock()
 					sqlStr += "(?, ?, ?),"
 					vals = append(vals, p.Id, strings.Join(p.Addrs, ","), false)
 					mu.Unlock()
+					n.p2p.ConnManager().Protect(pid, protocolSupportKey)
 				} else {
 					atomic.AddUint32(&nonSeedPeers, 1)
 					mu.Lock()
