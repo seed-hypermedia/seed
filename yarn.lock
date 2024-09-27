@@ -7099,66 +7099,66 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@sentry/cli-darwin@npm:2.36.2":
-  version: 2.36.2
-  resolution: "@sentry/cli-darwin@npm:2.36.2"
+"@sentry/cli-darwin@npm:2.36.3":
+  version: 2.36.3
+  resolution: "@sentry/cli-darwin@npm:2.36.3"
   conditions: os=darwin
   languageName: node
   linkType: hard
 
-"@sentry/cli-linux-arm64@npm:2.36.2":
-  version: 2.36.2
-  resolution: "@sentry/cli-linux-arm64@npm:2.36.2"
+"@sentry/cli-linux-arm64@npm:2.36.3":
+  version: 2.36.3
+  resolution: "@sentry/cli-linux-arm64@npm:2.36.3"
   conditions: (os=linux | os=freebsd) & cpu=arm64
   languageName: node
   linkType: hard
 
-"@sentry/cli-linux-arm@npm:2.36.2":
-  version: 2.36.2
-  resolution: "@sentry/cli-linux-arm@npm:2.36.2"
+"@sentry/cli-linux-arm@npm:2.36.3":
+  version: 2.36.3
+  resolution: "@sentry/cli-linux-arm@npm:2.36.3"
   conditions: (os=linux | os=freebsd) & cpu=arm
   languageName: node
   linkType: hard
 
-"@sentry/cli-linux-i686@npm:2.36.2":
-  version: 2.36.2
-  resolution: "@sentry/cli-linux-i686@npm:2.36.2"
+"@sentry/cli-linux-i686@npm:2.36.3":
+  version: 2.36.3
+  resolution: "@sentry/cli-linux-i686@npm:2.36.3"
   conditions: (os=linux | os=freebsd) & (cpu=x86 | cpu=ia32)
   languageName: node
   linkType: hard
 
-"@sentry/cli-linux-x64@npm:2.36.2":
-  version: 2.36.2
-  resolution: "@sentry/cli-linux-x64@npm:2.36.2"
+"@sentry/cli-linux-x64@npm:2.36.3":
+  version: 2.36.3
+  resolution: "@sentry/cli-linux-x64@npm:2.36.3"
   conditions: (os=linux | os=freebsd) & cpu=x64
   languageName: node
   linkType: hard
 
-"@sentry/cli-win32-i686@npm:2.36.2":
-  version: 2.36.2
-  resolution: "@sentry/cli-win32-i686@npm:2.36.2"
+"@sentry/cli-win32-i686@npm:2.36.3":
+  version: 2.36.3
+  resolution: "@sentry/cli-win32-i686@npm:2.36.3"
   conditions: os=win32 & (cpu=x86 | cpu=ia32)
   languageName: node
   linkType: hard
 
-"@sentry/cli-win32-x64@npm:2.36.2":
-  version: 2.36.2
-  resolution: "@sentry/cli-win32-x64@npm:2.36.2"
+"@sentry/cli-win32-x64@npm:2.36.3":
+  version: 2.36.3
+  resolution: "@sentry/cli-win32-x64@npm:2.36.3"
   conditions: os=win32 & cpu=x64
   languageName: node
   linkType: hard
 
 "@sentry/cli@npm:^2.33.1, @sentry/cli@npm:^2.35.0":
-  version: 2.36.2
-  resolution: "@sentry/cli@npm:2.36.2"
+  version: 2.36.3
+  resolution: "@sentry/cli@npm:2.36.3"
   dependencies:
-    "@sentry/cli-darwin": 2.36.2
-    "@sentry/cli-linux-arm": 2.36.2
-    "@sentry/cli-linux-arm64": 2.36.2
-    "@sentry/cli-linux-i686": 2.36.2
-    "@sentry/cli-linux-x64": 2.36.2
-    "@sentry/cli-win32-i686": 2.36.2
-    "@sentry/cli-win32-x64": 2.36.2
+    "@sentry/cli-darwin": 2.36.3
+    "@sentry/cli-linux-arm": 2.36.3
+    "@sentry/cli-linux-arm64": 2.36.3
+    "@sentry/cli-linux-i686": 2.36.3
+    "@sentry/cli-linux-x64": 2.36.3
+    "@sentry/cli-win32-i686": 2.36.3
+    "@sentry/cli-win32-x64": 2.36.3
     https-proxy-agent: ^5.0.0
     node-fetch: ^2.6.7
     progress: ^2.0.3
@@ -7181,7 +7181,7 @@ __metadata:
       optional: true
   bin:
     sentry-cli: bin/sentry-cli
-  checksum: 0f4dbed7db7073124e4d264025ece11746ae708da96a0b3a81d19962982494fbd2836ea161d71436f5568e88dedf0ba8bc0d97b65e4d22ac224f1e82de133af5
+  checksum: e1afded7c5967976b88947e0fe4b4e0c6116d980122130781c3fbf31758961713838fe70263322dfbb837d4feb3fda24f949b5780198518fb9c1ac3dffb4efed
   languageName: node
   linkType: hard
 
@@ -10301,11 +10301,11 @@ __metadata:
   linkType: hard
 
 "@types/node@npm:*":
-  version: 22.7.2
-  resolution: "@types/node@npm:22.7.2"
+  version: 22.7.3
+  resolution: "@types/node@npm:22.7.3"
   dependencies:
     undici-types: ~6.19.2
-  checksum: 5e753a4a7195a05133e1234e6e2eb68d9f002c5566499dc560e1d7efdcad102f10815ea11f8e206a04b7626876c666227535c755a7d77bc71d73278864b0a652
+  checksum: 1785ceb0d7b05b2a68df85ec89f2c76bc57a59f4f7a349966f2f7c8ee531d59dcba1adb4e3fddb19e0981ded96bf255291858e6b56dfe7984247b3a4f1227a22
   languageName: node
   linkType: hard
 
@@ -15550,7 +15550,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"escalade@npm:^3.1.1, escalade@npm:^3.1.2":
+"escalade@npm:^3.1.1, escalade@npm:^3.2.0":
   version: 3.2.0
   resolution: "escalade@npm:3.2.0"
   checksum: 47b029c83de01b0d17ad99ed766347b974b0d628e848de404018f3abee728e987da0d2d370ad4574aa3d5b5bfc368754fd085d69a30f8e75903486ec4b5b709e
@@ -16031,9 +16031,9 @@ __metadata:
   linkType: hard
 
 "fast-uri@npm:^3.0.1":
-  version: 3.0.1
-  resolution: "fast-uri@npm:3.0.1"
-  checksum: 106143ff83705995225dcc559411288f3337e732bb2e264e79788f1914b6bd8f8bc3683102de60b15ba00e6ebb443633cabac77d4ebc5cb228c47cf955e199ff
+  version: 3.0.2
+  resolution: "fast-uri@npm:3.0.2"
+  checksum: ca00aadc84e0ab93a8a1700c386bc7cbeb49f47d9801083c258444eed31221fdf864d68fb48ea8acd7c512bf046b53c09e3aafd6d4bdb9449ed21be29d8d6f75
   languageName: node
   linkType: hard
 
@@ -16335,9 +16335,9 @@ __metadata:
   linkType: hard
 
 "flow-parser@npm:0.*":
-  version: 0.246.0
-  resolution: "flow-parser@npm:0.246.0"
-  checksum: 717fc4eefa463e683ead1ca022af791a2677881658d4fce727df214eaaecea316520f4bfacfcd44cd4b26f257e5bd88c87509ee4ce54780597e30f357d8de628
+  version: 0.247.0
+  resolution: "flow-parser@npm:0.247.0"
+  checksum: eed5ac731f3c43be72b86f1775d31ea5e874f056630cc074bd4d1cda18fd6bf2d6a885c0bbd92dd3fb1e0fc15772699c057f46a00e69491d05a4984c87d95bce
   languageName: node
   linkType: hard
 
@@ -18163,14 +18163,14 @@ __metadata:
   linkType: hard
 
 "import-in-the-middle@npm:^1.11.0, import-in-the-middle@npm:^1.8.1":
-  version: 1.11.0
-  resolution: "import-in-the-middle@npm:1.11.0"
+  version: 1.11.1
+  resolution: "import-in-the-middle@npm:1.11.1"
   dependencies:
     acorn: ^8.8.2
     acorn-import-attributes: ^1.9.5
     cjs-module-lexer: ^1.2.2
     module-details-from-path: ^1.0.3
-  checksum: 7e7c47e363be9579a4269e1df803be29cd3feb1df2c490b7cdef7c3a7c20f1f5cfa62d7f8de934b73e5c0e98ff07e1f0147b9fc11789a0f160d2893ddcc035ab
+  checksum: 376f82f7e705669ad11ef67890e1d3e71d4e5c71915048ae7a29bc3f62ca5841b00ef6e610ffc48eb941cffc0208ce2b56c91b9538aa4c6d1c0febb09ba1016d
   languageName: node
   linkType: hard
 
@@ -22470,9 +22470,9 @@ __metadata:
   linkType: hard
 
 "package-json-from-dist@npm:^1.0.0":
-  version: 1.0.0
-  resolution: "package-json-from-dist@npm:1.0.0"
-  checksum: ac706ec856a5a03f5261e4e48fa974f24feb044d51f84f8332e2af0af04fbdbdd5bbbfb9cbbe354190409bc8307c83a9e38c6672c3c8855f709afb0006a009ea
+  version: 1.0.1
+  resolution: "package-json-from-dist@npm:1.0.1"
+  checksum: 58ee9538f2f762988433da00e26acc788036914d57c71c246bf0be1b60cdbd77dd60b6a3e1a30465f0b248aeb80079e0b34cb6050b1dfa18c06953bb1cbc7602
   languageName: node
   linkType: hard
 
@@ -28463,16 +28463,16 @@ __metadata:
   linkType: hard
 
 "update-browserslist-db@npm:^1.1.0":
-  version: 1.1.0
-  resolution: "update-browserslist-db@npm:1.1.0"
+  version: 1.1.1
+  resolution: "update-browserslist-db@npm:1.1.1"
   dependencies:
-    escalade: ^3.1.2
-    picocolors: ^1.0.1
+    escalade: ^3.2.0
+    picocolors: ^1.1.0
   peerDependencies:
     browserslist: ">= 4.21.0"
   bin:
     update-browserslist-db: cli.js
-  checksum: 7b74694d96f0c360f01b702e72353dc5a49df4fe6663d3ee4e5c628f061576cddf56af35a3a886238c01dd3d8f231b7a86a8ceaa31e7a9220ae31c1c1238e562
+  checksum: 2ea11bd2562122162c3e438d83a1f9125238c0844b6d16d366e3276d0c0acac6036822dc7df65fc5a89c699cdf9f174acf439c39bedf3f9a2f3983976e4b4c3e
   languageName: node
   linkType: hard
 

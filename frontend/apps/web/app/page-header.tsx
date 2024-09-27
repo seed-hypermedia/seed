@@ -49,12 +49,11 @@ export function PageHeader({
   authors: MetadataPayload[];
   updateTime: HMDocument["updateTime"] | null;
   openSheet?: () => void;
-  breadcrumbs: {
+  breadcrumbs: Array<{
     id: UnpackedHypermediaId;
     metadata: HMMetadata;
-  }[];
+  }>;
 }) {
-  console.log("== ~ {PageHeader} ~ breadcrumbs: ", breadcrumbs);
   const coverBg = useMemo(() => {
     if (docId?.id) {
       return getRandomColor(docId.id);
@@ -124,9 +123,10 @@ export function PageHeader({
           top={0}
         >
           <Breadcrumbs
-            homeId={homeId}
-            docId={docId}
-            docMetadata={docMetadata}
+            homeId={homeId || undefined}
+            docId={docId || undefined}
+            docMetadata={docMetadata || undefined}
+            breadcrumbs={breadcrumbs}
           />
           {openSheet ? (
             <Button
@@ -464,17 +464,39 @@ const VerticalSeparator = () => (
 );
 
 function Breadcrumbs({
+  breadcrumbs,
   homeId,
   docId,
   docMetadata,
 }: {
-  homeId: UnpackedHypermediaId | null;
-  docId: UnpackedHypermediaId | null;
-  docMetadata: HMMetadata | null;
+  breadcrumbs: Array<{
+    id: UnpackedHypermediaId;
+    metadata: HMMetadata;
+  }>;
+  homeId?: UnpackedHypermediaId;
+  docId?: UnpackedHypermediaId;
+  docMetadata?: HMMetadata;
 }) {
-  // const crumbs = useBreadcrumbs(docId, homeId?.uid == docId?.uid);
+  console.log(`== ~ breadcrumbs:`, breadcrumbs);
   return (
-    <XStack f={1}>
+    <XStack f={1} gap="$2">
+      {breadcrumbs.map((crumb) => {
+        return [
+          <SizableText
+            tag="a"
+            href={getHref(homeId, crumb.id)}
+            size="$1"
+            fontWeight="bold"
+            overflow="hidden"
+            textOverflow="ellipsis"
+            whiteSpace="nowrap"
+            minWidth="8ch"
+          >
+            {crumb.metadata?.name}
+          </SizableText>,
+          <SizableText size="$1">/</SizableText>,
+        ];
+      })}
       {docId?.id != homeId?.id ? (
         <SizableText
           size="$1"
@@ -482,7 +504,7 @@ function Breadcrumbs({
           overflow="hidden"
           textOverflow="ellipsis"
           whiteSpace="nowrap"
-          flex={1}
+          // flex={1}
         >
           {docMetadata?.name}
         </SizableText>
