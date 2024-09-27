@@ -225,7 +225,6 @@ func (s *Service) refreshWorkers(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer release()
 	if err = sqlitex.Exec(conn, qListPeersWithPid(), func(stmt *sqlite.Stmt) error {
 		addresStr := stmt.ColumnText(0)
 		pid := stmt.ColumnText(1)
@@ -235,15 +234,14 @@ func (s *Service) refreshWorkers(ctx context.Context) error {
 			s.log.Warn("Can't periodically sync with peer because it has malformed addresses", zap.String("PID", pid), zap.Error(err))
 			return nil
 		}
-		if s.host.Network().Connectedness(info.ID) != network.Connected {
-			return nil
-		}
 		s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
 		peers[info.ID] = struct{}{}
 		return nil
 	}); err != nil {
+		release()
 		return err
 	}
+	release()
 
 	var workersDiff int
 
