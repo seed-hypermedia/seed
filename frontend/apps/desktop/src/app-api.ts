@@ -183,6 +183,7 @@ export const router = t.router({
             },
           })
           const discoverOutput = await res.json()
+          if (res.status !== 200) throw new Error(discoverOutput.message)
           return discoverOutput
         } catch (e) {
           log.error('error discovering', e)
