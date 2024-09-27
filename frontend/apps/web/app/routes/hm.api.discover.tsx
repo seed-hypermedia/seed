@@ -13,11 +13,13 @@ export const action: ActionFunction = async ({request}) => {
   try {
     const data = await request.json();
     const input = discoverSchema.parse(data);
-    await queryClient.entities.discoverEntity({
+    console.log("[discover][start]: ", input);
+    const discovered = await queryClient.entities.discoverEntity({
       account: input.uid,
       path: hmIdPathToEntityQueryPath(input.path),
       version: input.version,
     });
+    console.log("[discover][end] version: ", discovered.version);
     return json({message: "Success"});
   } catch (e) {
     if (e.toJSON) {
