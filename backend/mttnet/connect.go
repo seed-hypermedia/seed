@@ -173,6 +173,9 @@ func (n *Node) storeRemotePeers(ctx context.Context, id peer.ID) error {
 	if len(res.Peers) > 0 {
 		localPeers := make(map[string]interface{})
 		conn, release, err := n.db.Conn(ctxStore)
+		if err != nil {
+			return err
+		}
 		if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
 			maStr := stmt.ColumnText(1)
 			maList := strings.Split(strings.Trim(maStr, " "), ",")
@@ -195,9 +198,8 @@ func (n *Node) storeRemotePeers(ctx context.Context, id peer.ID) error {
 		var mu sync.Mutex
 
 		var wg sync.WaitGroup
-
-		rand.Seed(time.Now().UnixNano())
-		rand.Shuffle(len(res.Peers), func(i, j int) { res.Peers[i], res.Peers[j] = res.Peers[j], res.Peers[i] })
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+		r.Shuffle(len(res.Peers), func(i, j int) { res.Peers[i], res.Peers[j] = res.Peers[j], res.Peers[i] })
 		var waitThreshold = int(math.Min(float64(len(res.Peers)), StorePeersBatchSize))
 		ctxBatch, cancelBatch := context.WithTimeout(ctxStore, PeerBatchTimeout)
 		defer cancelBatch()
@@ -342,12 +344,11 @@ func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.Ev
 
 func (n *Node) CheckHyperMediaProtocolVersion(ctx context.Context, pid peer.ID, desiredVersion string, protos ...protocol.ID) (err error) {
 	newCtx, cancel := context.WithTimeout(ctx, CheckProtocolTimeout)
-	ctx = newCtx
 	defer cancel()
 
 	if len(protos) == 0 {
 		var attempts int
-		if err := retry.Exponential(ctx, 50*time.Millisecond, func(ctx context.Context) error {
+		if err := retry.Exponential(newCtx, 50*time.Millisecond, func(newCtx context.Context) error {
 			attempts++
 			protos, err = n.p2p.Peerstore().GetProtocols(pid)
 			if err != nil {
