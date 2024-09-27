@@ -319,7 +319,6 @@ function SelectAccountDropdown({
   onSetAccount: (account: string) => void
   accounts: HMEntityContent[]
 }) {
-  console.log(`== ~ accounts:`, accounts)
   const currentAccount = useStream(account)
   const options = accounts.map((acct) => {
     return {

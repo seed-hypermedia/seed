@@ -812,11 +812,32 @@ export function usePublishToSite() {
       }
       syncParentIds.push(hmId('d', id.uid, {path}))
     })
+    const authorIds = (
+      await Promise.all(
+        doc.authors.map(async (authorUid) => {
+          try {
+            // we want to make sure the site has our version of each author (or later). so we need to provide the version into the id for discovery
+            const authorDoc = await grpcClient.documents.getDocument({
+              account: authorUid,
+            })
+            const authorId = hmId('d', authorUid, {version: authorDoc.version})
+            if (authorId.uid === id.uid && authorId.version === doc.version) {
+              // we are already discovering this doc, so it does not need to be included in the list of authorIds
+              return null
+            }
+            return authorId
+          } catch (e) {
+            // probably failed to find the author. this should not be fatal for the site publish workflow
+            return null
+          }
+        }),
+      )
+    ).filter((a) => !!a)
     const embeds = extractEmbedIds(doc.content)
     const remoteSyncIds = [
-      id,
+      {...id, version: doc.version},
       ...syncParentIds,
-      ...doc.authors.map((authorId) => hmId('d', authorId)),
+      ...authorIds,
       ...embeds.map(unpackHmId),
     ].filter((id) => !!id)
     await Promise.all(
