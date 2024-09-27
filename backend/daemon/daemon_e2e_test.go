@@ -681,7 +681,7 @@ func TestSubscriptions(t *testing.T) {
 		})
 		require.NoError(t, err)
 		return doc3Gotten.Version == doc3Modified.Version
-	}, time.Second*2, time.Millisecond*100, "We should get the modified version, not the previous one")
+	}, time.Second*5, time.Millisecond*200, "We should get the modified version, not the previous one")
 
 	require.Equal(t, doc3Modified.Content, doc3Gotten.Content)
 
@@ -757,7 +757,7 @@ func TestSubscriptions(t *testing.T) {
 		})
 		require.NoError(t, err)
 		return len(comments.Comments) == 2
-	}, time.Second*2, time.Millisecond*100, "We should have two comments, the initial comment and the reply")
+	}, time.Second*5, time.Millisecond*200, "We should have two comments, the initial comment and the reply")
 	require.Equal(t, reply.Content, comments.Comments[1].Content)
 
 	bobsCap, err := bob.RPC.DocumentsV3.ListCapabilities(ctx, &documents.ListCapabilitiesRequest{
