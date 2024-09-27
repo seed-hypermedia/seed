@@ -49,6 +49,7 @@ import {
 import {useNavRoute} from '../utils/navigation'
 import {pathNameify} from '../utils/path'
 import {useNavigate} from '../utils/useNavigate'
+import {useConnectPeer} from './contacts'
 import {useMyAccountIds} from './daemon'
 import {draftMachine} from './draft-machine'
 import {setGroupTypes} from './editor-utils'
@@ -790,6 +791,7 @@ function extractEmbedIds(blockNodes: HMBlockNode[]): string[] {
 }
 
 export function usePublishToSite() {
+  const connectPeer = useConnectPeer()
   const grpcClient = useGRPCClient()
   return async (
     id: UnpackedHypermediaId,
@@ -801,6 +803,7 @@ export function usePublishToSite() {
       version: id.version || undefined,
     })
     const authors = new Set(doc.authors)
+    await connectPeer.mutateAsync(siteHost)
     const parentPaths = getParentPaths(id.path)
     const syncParentIds: UnpackedHypermediaId[] = []
     parentPaths.forEach((path) => {
