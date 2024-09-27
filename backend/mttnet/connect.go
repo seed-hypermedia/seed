@@ -198,7 +198,7 @@ func (n *Node) storeRemotePeers(ctx context.Context, id peer.ID) error {
 		var mu sync.Mutex
 
 		var wg sync.WaitGroup
-		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+		r := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec
 		r.Shuffle(len(res.Peers), func(i, j int) { res.Peers[i], res.Peers[j] = res.Peers[j], res.Peers[i] })
 		var waitThreshold = int(math.Min(float64(len(res.Peers)), StorePeersBatchSize))
 		ctxBatch, cancelBatch := context.WithTimeout(ctxStore, PeerBatchTimeout)
@@ -348,7 +348,7 @@ func (n *Node) CheckHyperMediaProtocolVersion(ctx context.Context, pid peer.ID, 
 
 	if len(protos) == 0 {
 		var attempts int
-		if err := retry.Exponential(newCtx, 50*time.Millisecond, func(newCtx context.Context) error {
+		if err := retry.Exponential(newCtx, 50*time.Millisecond, func(_ context.Context) error {
 			attempts++
 			protos, err = n.p2p.Peerstore().GetProtocols(pid)
 			if err != nil {
