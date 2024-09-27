@@ -139,7 +139,7 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 
 	go func() {
 		if err := n.storeRemotePeers(ctx, info.ID); err != nil {
-			n.log.Warn("Could not store remote peers", zap.Error(err))
+			n.log.Warn("Problems storing some of the shared peer list", zap.String("Remote peer with bad peer list", info.ID.String()), zap.Error(err))
 		}
 	}()
 	if initialAddrs != "" {
@@ -273,10 +273,9 @@ func (n *Node) storeRemotePeers(ctx context.Context, id peer.ID) error {
 				break
 			}
 		}
-
+		wg.Wait()
 		if nonSeedPeers > 0 {
-			n.log.Warn("Some of the remote shared peers are not running up to date seed protocol", zap.Uint32("Number of non-seed (outdated) peers", nonSeedPeers), zap.Int("Number of actual Seed-peers at the moment we stopped", len(vals)/3) /*since we insert three params at a time*/, zap.Errors("errors", xerr))
-			return nil
+			n.log.Debug("Some of the remote shared peers are not running up to date seed protocol", zap.Uint32("Number of non-seed (outdated) peers", nonSeedPeers), zap.Int("Number of actual Seed-peers at the moment we stopped", len(vals)/3) /*since we insert three params at a time*/, zap.Errors("errors", xerr))
 		}
 		if len(vals) != 0 {
 			sqlStr = sqlStr[0:len(sqlStr)-1] + " ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=strftime('%s', 'now') WHERE addresses!=excluded.addresses"
@@ -288,7 +287,9 @@ func (n *Node) storeRemotePeers(ctx context.Context, id peer.ID) error {
 			defer release()
 			return sqlitex.Exec(conn, sqlStr, nil, vals...)
 		}
-		//return fmt.Errorf("Peer with blank addresses")
+		if nonSeedPeers > 0 {
+			return fmt.Errorf("We encounter at least %d non-seed (outdated) peers on the sharing table", nonSeedPeers)
+		}
 	}
 	return nil
 }
@@ -317,7 +318,7 @@ func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.Ev
 	if bootstrapped {
 		go func() {
 			if err := n.storeRemotePeers(ctx, event.Peer); err != nil {
-				n.log.Warn("Could not store bootstrap peerlist", zap.String("PID", event.Peer.String()), zap.Error(err))
+				n.log.Warn("Problems storing bootstrapped shared peer list", zap.String("PID", event.Peer.String()), zap.Error(err))
 			}
 		}()
 	}
