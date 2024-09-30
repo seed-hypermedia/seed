@@ -714,7 +714,6 @@ func TestSubscriptions(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, doc3Gotten.Version, doc3Modified.Version)
 
-	time.Sleep(time.Millisecond * 200)
 	require.Eventually(t, func() bool {
 		doc3Gotten, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 			Account: doc3Modified.Account,

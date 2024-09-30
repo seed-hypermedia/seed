@@ -662,67 +662,10 @@ func syncEntities(
 	if err != nil {
 		return fmt.Errorf("Could not get connection: %w", err)
 	}
-	var queryString = mttnet.QListrelatedBlobsStr
 	var queryParams []interface{}
-	var i int
-	for eid, recursive := range eids {
-		queryString += "?"
-		if recursive {
-			queryParams = append(queryParams, eid+"*")
-		} else {
-			queryParams = append(queryParams, eid)
-		}
-		if i < len(eids)-1 {
-			queryString += " OR iri GLOB "
-		}
-		i++
-	}
-	i = 0
-	queryString += mttnet.QListrelatedCapabilitiesStr
-	for eid, recursive := range eids {
-		queryString += "?"
-		if recursive {
-			queryParams = append(queryParams, eid+"*")
-		} else {
-			queryParams = append(queryParams, eid)
-		}
-		if i < len(eids)-1 {
-			queryString += " OR iri GLOB "
-		}
-		i++
-	}
-	i = 0
-	queryString += mttnet.QListrelatedCommentsStr
-	for eid, recursive := range eids {
-		queryString += "?"
-		if recursive {
-			queryParams = append(queryParams, eid+"*")
-		} else {
-			queryParams = append(queryParams, eid)
-		}
-		if i < len(eids)-1 {
-			queryString += " OR iri GLOB "
-		}
-		i++
-	}
-	i = 0
-	queryString += mttnet.QListrelatedEmbedsStr
-	for eid, recursive := range eids {
-		queryString += "?"
-		if recursive {
-			queryParams = append(queryParams, eid+"*")
-		} else {
-			queryParams = append(queryParams, eid)
-		}
-		if i < len(eids)-1 {
-			queryString += " OR iri GLOB "
-		}
-		i++
-	}
-	queryString += mttnet.QListRelatedBlobsContStr
 
 	localHaves := make(map[cid.Cid]struct{})
-	if err = sqlitex.Exec(conn, queryString, func(stmt *sqlite.Stmt) error {
+	if err = sqlitex.Exec(conn, qListBlobs(), func(stmt *sqlite.Stmt) error {
 		codec := stmt.ColumnInt64(0)
 		hash := stmt.ColumnBytesUnsafe(1)
 		ts := stmt.ColumnInt64(2)
