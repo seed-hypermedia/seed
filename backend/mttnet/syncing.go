@@ -176,7 +176,7 @@ ORDER BY sb.ts, b.multihash;`
 			codec := stmt.ColumnInt64(0)
 			hash := stmt.ColumnBytesUnsafe(1)
 			ts := stmt.ColumnInt64(2)
-			c := cid.NewCidV1(uint64(codec), hash)
+			c := cid.NewCidV1(uint64(codec), hash) //nolint:gosec
 			return store.Insert(ts, c.Bytes())
 		}, queryParams2...); err != nil {
 			release()
