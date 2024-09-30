@@ -697,23 +697,6 @@ func TestSubscriptions(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, doc3.Version, doc3Modified.Version)
 
-	// TODO(juligasa): instead of forcing a subscription, we already have a recursive
-	// subscription on a top level path so we just wait for the periodic subscription.
-	/*
-		_, err = bob.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
-			Account:   doc3.Account,
-			Path:      "/cars/honda",
-			Recursive: false,
-		})
-		require.NoError(t, err)
-	*/
-	doc3Gotten, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
-		Account: doc3Modified.Account,
-		Path:    doc3Modified.Path,
-	})
-	require.NoError(t, err)
-	require.NotEqual(t, doc3Gotten.Version, doc3Modified.Version)
-
 	require.Eventually(t, func() bool {
 		doc3Gotten, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 			Account: doc3Modified.Account,
