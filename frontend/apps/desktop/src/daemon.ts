@@ -7,11 +7,11 @@ import {
 } from '@shm/shared'
 import {spawn} from 'child_process'
 import {app} from 'electron'
+import * as readline from 'node:readline'
 import path from 'path'
 import {userDataPath} from './app-paths'
 import {getDaemonBinaryPath} from './daemon-path'
 import * as log from './logger'
-import * as readline from 'node:readline'
 
 let goDaemonExecutablePath = getDaemonBinaryPath()
 
@@ -70,7 +70,7 @@ export function updateGoDaemonState(state: GoDaemonState) {
   daemonStateHandlers.forEach((handler) => handler(state))
 }
 
-export function startMainDaemon() {
+export function startMainDaemon(onStarted?: () => void) {
   if (process.env.SEED_NO_DAEMON_SPAWN) {
     log.debug('Go daemon spawn skipped')
     updateGoDaemonState({t: 'ready'})
@@ -91,6 +91,7 @@ export function startMainDaemon() {
     stdio: 'pipe',
   })
 
+  let hasStartupCompleted = false
   let lastStderr = ''
   const stderr = readline.createInterface({input: daemonProcess.stderr})
   stderr.on('line', (line: string) => {
@@ -100,6 +101,13 @@ export function startMainDaemon() {
     }
 
     log.rawMessage(line)
+
+    const daemonEvent = JSON.parse(line)
+
+    if (daemonEvent.msg === 'P2PNodeReady' && !hasStartupCompleted) {
+      hasStartupCompleted = true
+      onStarted?.()
+    }
   })
 
   const stdout = readline.createInterface({input: daemonProcess.stdout})

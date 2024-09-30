@@ -118,8 +118,25 @@ export function useRegisterKey(
 ) {
   const grpcClient = useGRPCClient()
   return useMutation({
-    mutationFn: ({name = 'main', mnemonic, passphrase}) => {
-      return grpcClient.daemon.registerKey({name, mnemonic, passphrase})
+    mutationFn: async ({name = 'main', mnemonic, passphrase}) => {
+      const registration = await grpcClient.daemon.registerKey({
+        name,
+        mnemonic,
+        passphrase,
+      })
+      grpcClient.subscriptions
+        .subscribe({
+          account: registration.publicKey,
+          recursive: true,
+          path: '/',
+        })
+        .catch((e) => {
+          console.error('Failed to subscribe to new account!', e)
+        })
+        .then(() => {
+          console.log('Subscribed to new account')
+        })
+      return registration
     },
     ...opts,
   })

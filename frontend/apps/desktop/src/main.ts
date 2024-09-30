@@ -31,9 +31,11 @@ import {
 import {createAppMenu} from './app-menu'
 import {startMetricsServer} from './app-metrics'
 import {initPaths} from './app-paths'
+import * as logger from './logger'
 
 import fs from 'fs'
 import mime from 'mime'
+import {grpcClient} from './app-grpc'
 import {APP_AUTO_UPDATE_PREFERENCE} from './app-settings'
 import {appStore} from './app-store'
 import autoUpdate from './auto-update'
@@ -264,7 +266,44 @@ ipcMain.on('read-media-file', async (event, filePath) => {
   }
 })
 
-startMainDaemon()
+startMainDaemon(() => {
+  logger.info('DaemonStarted')
+  initAccountSubscriptions()
+    .then(() => {
+      logger.info('InitAccountSubscriptionsComplete')
+    })
+    .catch((e) => {
+      logger.error('InitAccountSubscriptionsError ' + e.message)
+    })
+})
+
+async function initAccountSubscriptions() {
+  logger.info('InitAccountSubscriptions')
+  const keys = await grpcClient.daemon.listKeys({})
+  const subs = await grpcClient.subscriptions.listSubscriptions({})
+  const recursiveSubs = new Set(
+    subs.subscriptions
+      .map((sub) => {
+        if (sub.path !== '/' || !sub.recursive) return null
+        return sub.account
+      })
+      .filter((s) => !!s),
+  )
+  const keysToSubscribeTo = keys.keys.filter((key) => {
+    if (recursiveSubs.has(key.accountId)) return false
+    return true
+  })
+
+  for (const key of keysToSubscribeTo) {
+    logger.debug('WillInitAccountSubscriptions')
+
+    await grpcClient.subscriptions.subscribe({
+      account: key.accountId,
+      recursive: true,
+      path: '/',
+    })
+  }
+}
 
 Menu.setApplicationMenu(createAppMenu())
 let shouldAutoUpdate = appStore.get(APP_AUTO_UPDATE_PREFERENCE) || 'true'

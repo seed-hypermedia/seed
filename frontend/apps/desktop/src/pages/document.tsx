@@ -13,6 +13,7 @@ import {SubscriptionButton} from '@/components/subscription'
 import {CopyReferenceButton} from '@/components/titlebar-common'
 import {VersionsPanel} from '@/components/versions-panel'
 import '@/editor/editor.css'
+import {useMyAccountIds} from '@/models/daemon'
 import {useDiscoverEntity, useSubscribedEntity} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {useNavRoute} from '@/utils/navigation'
@@ -27,6 +28,7 @@ import {
 import {
   Button,
   ButtonText,
+  Check,
   CollaboratorsIcon,
   Contact,
   Container,
@@ -205,6 +207,8 @@ function DocPageHeader({
     () => !!entity.data?.document?.metadata.thumbnail,
     [entity.data],
   )
+  const myAccountIds = useMyAccountIds()
+  const docIsInMyAccount = myAccountIds.data?.includes(docId.uid)
 
   // hm://z6MkqYME8XHQpnxBLVjDWxCkEwbjKQ4ghxpUB8stgzBCNSwD/advances-in-distributed-security?v=bafy2bzaceckzk7vdca2to6o2ms6gdvjyizvfsimp7txftm7mx3ohp7loqskpk
   const authors = useMemo(() => entity.data?.document?.authors, [entity.data])
@@ -307,7 +311,16 @@ function DocPageHeader({
                 </CopyReferenceButton>
               </XStack>
               <FavoriteButton id={docId} />
-              <SubscriptionButton id={docId} />
+              {docIsInMyAccount ? (
+                <XStack ai="center" gap="$2">
+                  <Check color="green" />
+                  <SizableText userSelect="none" color="$green10" size="$2">
+                    Subscribed
+                  </SizableText>
+                </XStack>
+              ) : (
+                <SubscriptionButton id={docId} />
+              )}
             </XStack>
           </YStack>
           <TSeparator borderColor="$color8" />
