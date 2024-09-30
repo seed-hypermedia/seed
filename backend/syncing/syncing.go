@@ -387,8 +387,13 @@ func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
 // However, if subscriptions are passed to this function, only those docs will
 // be synced.
 func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*activity_proto.Subscription) (res SyncResult, err error) {
-	if !s.mu.TryLock() {
-		return res, ErrSyncAlreadyRunning
+	for !s.mu.TryLock() {
+		select {
+		case <-ctx.Done():
+			return res, ctx.Err()
+		case <-time.After(time.Second * 1):
+		}
+		time.Sleep(time.Second)
 	}
 	defer s.mu.Unlock()
 	conn, release, err := s.db.Conn(ctx)
