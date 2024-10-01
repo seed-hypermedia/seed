@@ -689,7 +689,8 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotEqual(t, doc3.Version, doc3Modified.Version)
-
+	_, err = bob.RPC.Syncing.DiscoverObject(ctx, "hm://"+doc3Modified.Account, "")
+	require.NoError(t, err)
 	require.Eventually(t, func() bool {
 		doc3Gotten, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 			Account: doc3Modified.Account,
