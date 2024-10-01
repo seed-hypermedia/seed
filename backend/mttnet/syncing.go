@@ -108,29 +108,41 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 	}
 	release()
 	query = QListrelatedBlobsStr
-	commentFilters := []*p2p.Filter{}
+	authorFilters := []*p2p.Filter{}
 	for _, c := range allCids {
 		blk, err := srv.Node.index.Get(ctx, c)
 		if err != nil {
 			return nil, fmt.Errorf("Could not get cid: %w", err)
 		}
-		cp := &index.Comment{}
-		if err := cbornode.DecodeInto(blk.RawData(), cp); err == nil {
-			commentFilters = append(commentFilters, &p2p.Filter{
-				Resource:  "hm://" + cp.Author.String(),
+		co := &index.Comment{}
+		ca := &index.Capability{}
+		ch := &index.Change{}
+		if err := cbornode.DecodeInto(blk.RawData(), co); err == nil {
+			authorFilters = append(authorFilters, &p2p.Filter{
+				Resource:  "hm://" + co.Author.String(),
+				Recursive: false,
+			})
+		} else if err := cbornode.DecodeInto(blk.RawData(), ca); err == nil {
+			authorFilters = append(authorFilters, &p2p.Filter{
+				Resource:  "hm://" + ca.Delegate.String(),
+				Recursive: false,
+			})
+		} else if err := cbornode.DecodeInto(blk.RawData(), ch); err == nil {
+			authorFilters = append(authorFilters, &p2p.Filter{
+				Resource:  "hm://" + ch.Author.String(),
 				Recursive: false,
 			})
 		}
 	}
 	var queryParams2 []interface{}
-	for i, filter := range commentFilters {
+	for i, filter := range authorFilters {
 		query += "?"
 		if filter.Recursive {
 			queryParams2 = append(queryParams2, filter.Resource+"*")
 		} else {
 			queryParams2 = append(queryParams2, filter.Resource)
 		}
-		if i < len(commentFilters)-1 {
+		if i < len(authorFilters)-1 {
 			query += " OR iri GLOB "
 		}
 	}
