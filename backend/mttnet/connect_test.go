@@ -6,7 +6,7 @@ import (
 
 func TestConnect(t *testing.T) {
 	// TODO(hm24): fix the test.
-	// //t.Parallel()
+	// t.Parallel()
 
 	// alice, stopalice := makeTestPeer(t, "alice")
 	// defer stopalice()

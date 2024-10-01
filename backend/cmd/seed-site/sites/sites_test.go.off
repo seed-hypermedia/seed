@@ -24,7 +24,7 @@ import (
 )
 
 func TestSiteInit(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
 
 	site := makeTestSite(t, "carol")
 	ctx := context.Background()
@@ -63,7 +63,7 @@ func TestSiteInit(t *testing.T) {
 }
 
 func TestSiteSync(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
 
 	site := makeTestSite(t, "carol")
 	alice := daemon.MakeTestApp(t, "alice", daemon.MakeTestConfig(t), true)

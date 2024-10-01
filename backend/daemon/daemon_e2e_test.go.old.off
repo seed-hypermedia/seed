@@ -25,7 +25,7 @@ import (
 )
 
 func TestDaemonListPublications(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
 
 	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
 
@@ -41,7 +41,7 @@ func TestDaemonListPublications(t *testing.T) {
 }
 
 func TestDaemonPushPublication(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
 	t.Skip("Test uses real infra")
 	cfg := makeTestConfig(t)
 	cfg.P2P.TestnetName = "dev"
@@ -70,7 +70,7 @@ func mustGetMainKey(s Storage) core.KeyPair {
 }
 
 func TestMergeE2E(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
 	acfg := makeTestConfig(t)
 	bcfg := makeTestConfig(t)
 
@@ -126,7 +126,7 @@ func TestMergeE2E(t *testing.T) {
 }
 
 func TestRebaseE2E(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
 	acfg := makeTestConfig(t)
 	bcfg := makeTestConfig(t)
 
@@ -186,7 +186,7 @@ func TestRebaseE2E(t *testing.T) {
 }
 
 func TestAPIGetRemotePublication(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
 
 	ctx := context.Background()
 
@@ -224,7 +224,7 @@ func TestAPIGetRemotePublication(t *testing.T) {
 }
 
 func TestAPIDeleteAndRestoreEntity(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
 
 	aliceCfg := makeTestConfig(t)
 	bobCfg := makeTestConfig(t)
@@ -389,7 +389,7 @@ func TestAPIDeleteAndRestoreEntity(t *testing.T) {
 
 func TestBug_SyncHangs(t *testing.T) {
 	// See: https://github.com/MintterHypermedia/mintter/issues/712.
-	//t.Parallel()
+	t.Parallel()
 
 	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
 	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
@@ -422,7 +422,7 @@ func TestBug_SyncHangs(t *testing.T) {
 func TestBug_PublicationsListInconsistent(t *testing.T) {
 	// See: https://github.com/MintterHypermedia/mintter/issues/692.
 	// Although it turns out this bug may not be the daemon's issue.
-	//t.Parallel()
+	t.Parallel()
 
 	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
 	ctx := context.Background()
@@ -496,7 +496,7 @@ func TestBug_PublicationsListInconsistent(t *testing.T) {
 }
 
 func TestPeriodicSync(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
 
 	acfg := makeTestConfig(t)
 	bcfg := makeTestConfig(t)
@@ -540,7 +540,7 @@ func TestPeriodicSync(t *testing.T) {
 }
 
 // func TestMultiDevice(t *testing.T) {
-// 	//t.Parallel()
+// 	t.Parallel()
 
 // 	alice1 := makeTestApp(t, "alice", makeTestConfig(t), true)
 // 	alice2 := makeTestApp(t, "alice-2", makeTestConfig(t), true)
@@ -576,7 +576,7 @@ func TestPeriodicSync(t *testing.T) {
 // }
 
 func TestNetworkingListPeers(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
 
 	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
 	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
@@ -600,7 +600,7 @@ func TestNetworkingListPeers(t *testing.T) {
 }
 
 func TestAccountRootDocument(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
 
 	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
 	ctx := context.Background()

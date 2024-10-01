@@ -7,7 +7,7 @@ import (
 func TestSync(t *testing.T) {
 	t.Skip("TODO(hm24): include back when delegations substitutes and changes are implemented")
 	/*
-	   //t.Parallel()
+	   t.Parallel()
 
 	   alice := makeTestNode(t, "alice")
 	   bob := makeTestNode(t, "bob")

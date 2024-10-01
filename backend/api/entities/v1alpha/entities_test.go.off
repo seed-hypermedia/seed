@@ -70,7 +70,7 @@ func BenchmarkCache(b *testing.B) {
 }
 
 func TestEntityTimeline(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
 
 	alice := coretest.NewTester("alice")
 

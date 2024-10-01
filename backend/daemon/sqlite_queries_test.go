@@ -13,7 +13,7 @@ func TestDBQueries(t *testing.T) {
 	// imports all other packages that might have database queries. So all these
 	// queries would have been registered with the global query store in the dqb package.
 	// This test makes sure all queries are valid and use correct table and column names.
-	//t.Parallel()
+	t.Parallel()
 
 	db, err := storage.OpenSQLite("file::memory:?mode=memory", 0, 1)
 	require.NoError(t, err)
