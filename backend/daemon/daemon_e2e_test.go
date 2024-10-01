@@ -22,6 +22,7 @@ import (
 )
 
 func TestDaemonRegisterKey(t *testing.T) {
+	t.Parallel()
 	dmn := makeTestApp(t, "alice", makeTestConfig(t), false)
 	ctx := context.Background()
 
@@ -71,6 +72,7 @@ func TestDaemonRegisterKey(t *testing.T) {
 }
 
 func TestDaemonUpdateProfile(t *testing.T) {
+	t.Parallel()
 	dmn := makeTestApp(t, "alice", makeTestConfig(t), true)
 	ctx := context.Background()
 	alice := coretest.NewTester("alice")
@@ -189,6 +191,7 @@ func TestDaemonUpdateProfile(t *testing.T) {
 }
 
 func TestConnectivity(t *testing.T) {
+	t.Parallel()
 	aliceCfg := makeTestConfig(t)
 	aliceCfg.Syncing.NoSyncBack = true
 	aliceCfg.Syncing.SmartSyncing = true
@@ -315,6 +318,7 @@ func TestSyncingProfiles(t *testing.T) {
 }
 
 func TestDiscoverHomeDocument(t *testing.T) {
+	t.Parallel()
 	aliceCfg := makeTestConfig(t)
 	aliceCfg.Syncing.NoSyncBack = true
 	aliceCfg.Syncing.SmartSyncing = true
@@ -373,12 +377,13 @@ func TestDiscoverHomeDocument(t *testing.T) {
 }
 
 func TestSubscriptions(t *testing.T) {
+	t.Parallel()
 	aliceCfg := makeTestConfig(t)
 	aliceCfg.Syncing.NoSyncBack = true
 	aliceCfg.Syncing.SmartSyncing = true
-	aliceCfg.Syncing.RefreshInterval = time.Millisecond * 150
-	aliceCfg.Syncing.Interval = time.Millisecond * 100
-	aliceCfg.Syncing.WarmupDuration = time.Millisecond * 200
+	aliceCfg.Syncing.RefreshInterval = time.Millisecond * 250
+	aliceCfg.Syncing.Interval = time.Millisecond * 200
+	aliceCfg.Syncing.WarmupDuration = time.Millisecond * 300
 	//aliceCfg.Syncing.NoPull = true
 	aliceCfg.LogLevel = "debug"
 	alice := makeTestApp(t, "alice", aliceCfg, true)
@@ -387,8 +392,9 @@ func TestSubscriptions(t *testing.T) {
 	bobCfg := makeTestConfig(t)
 	bobCfg.Syncing.NoSyncBack = true
 	bobCfg.Syncing.SmartSyncing = true
-	bobCfg.Syncing.Interval = time.Millisecond * 100
-	bobCfg.Syncing.WarmupDuration = time.Millisecond * 200
+	bobCfg.Syncing.RefreshInterval = time.Millisecond * 250
+	bobCfg.Syncing.Interval = time.Millisecond * 200
+	bobCfg.Syncing.WarmupDuration = time.Millisecond * 300
 	//bobCfg.Syncing.NoPull = true
 	bobCfg.LogLevel = "debug"
 	bob := makeTestApp(t, "bob", bobCfg, true)
@@ -396,8 +402,9 @@ func TestSubscriptions(t *testing.T) {
 	carolCfg := makeTestConfig(t)
 	carolCfg.Syncing.NoSyncBack = true
 	carolCfg.Syncing.SmartSyncing = true
-	carolCfg.Syncing.Interval = time.Millisecond * 100
-	carolCfg.Syncing.WarmupDuration = time.Millisecond * 200
+	carolCfg.Syncing.RefreshInterval = time.Millisecond * 250
+	carolCfg.Syncing.Interval = time.Millisecond * 200
+	carolCfg.Syncing.WarmupDuration = time.Millisecond * 300
 	//carolCfg.Syncing.NoPull = true
 	carolCfg.LogLevel = "debug"
 	carol := makeTestApp(t, "carol", carolCfg, true)
@@ -689,8 +696,6 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotEqual(t, doc3.Version, doc3Modified.Version)
-	_, err = bob.RPC.Syncing.DiscoverObject(ctx, "hm://"+doc3Modified.Account, "")
-	require.NoError(t, err)
 	require.Eventually(t, func() bool {
 		doc3Gotten, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 			Account: doc3Modified.Account,
