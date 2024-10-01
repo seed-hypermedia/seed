@@ -22,8 +22,6 @@ import (
 )
 
 func TestDaemonRegisterKey(t *testing.T) {
-	t.Parallel()
-
 	dmn := makeTestApp(t, "alice", makeTestConfig(t), false)
 	ctx := context.Background()
 
@@ -73,8 +71,6 @@ func TestDaemonRegisterKey(t *testing.T) {
 }
 
 func TestDaemonUpdateProfile(t *testing.T) {
-	t.Parallel()
-
 	dmn := makeTestApp(t, "alice", makeTestConfig(t), true)
 	ctx := context.Background()
 	alice := coretest.NewTester("alice")
@@ -193,7 +189,6 @@ func TestDaemonUpdateProfile(t *testing.T) {
 }
 
 func TestConnectivity(t *testing.T) {
-	t.Parallel()
 	aliceCfg := makeTestConfig(t)
 	aliceCfg.Syncing.NoSyncBack = true
 	aliceCfg.Syncing.SmartSyncing = true
@@ -320,7 +315,6 @@ func TestSyncingProfiles(t *testing.T) {
 }
 
 func TestDiscoverHomeDocument(t *testing.T) {
-	t.Parallel()
 	aliceCfg := makeTestConfig(t)
 	aliceCfg.Syncing.NoSyncBack = true
 	aliceCfg.Syncing.SmartSyncing = true
@@ -379,7 +373,6 @@ func TestDiscoverHomeDocument(t *testing.T) {
 }
 
 func TestSubscriptions(t *testing.T) {
-	t.Parallel()
 	aliceCfg := makeTestConfig(t)
 	aliceCfg.Syncing.NoSyncBack = true
 	aliceCfg.Syncing.SmartSyncing = true
