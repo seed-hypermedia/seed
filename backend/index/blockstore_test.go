@@ -20,7 +20,7 @@ import (
 )
 
 func TestGet(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	bs := makeBlockstore(t)
 
@@ -48,7 +48,7 @@ func TestGet(t *testing.T) {
 }
 
 func TestGet_Missing(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	bs := makeBlockstore(t)
 
@@ -87,7 +87,7 @@ func TestGet_Missing(t *testing.T) {
 }
 
 func TestHashOnRead(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	bs := makeBlockstore(t)
 
@@ -95,7 +95,7 @@ func TestHashOnRead(t *testing.T) {
 }
 
 func TestHas(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	bs := makeBlockstore(t)
 
@@ -113,7 +113,7 @@ func TestHas(t *testing.T) {
 }
 
 func TestCidv0v1(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	bs := makeBlockstore(t)
 
@@ -128,7 +128,7 @@ func TestCidv0v1(t *testing.T) {
 }
 
 func TestAllKeysSimple(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	bs := makeBlockstore(t)
 
@@ -143,7 +143,7 @@ func TestAllKeysSimple(t *testing.T) {
 }
 
 func TestAllKeysRespectsContext(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	bs := makeBlockstore(t)
 
@@ -172,7 +172,7 @@ func TestAllKeysRespectsContext(t *testing.T) {
 }
 
 func TestPutMany(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	bs := makeBlockstore(t)
 
@@ -203,7 +203,7 @@ func TestPutMany(t *testing.T) {
 }
 
 func TestPut_InlineCID(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	bs := makeBlockstore(t)
 
@@ -224,7 +224,7 @@ func TestPut_InlineCID(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	bs := makeBlockstore(t)
 
@@ -255,7 +255,7 @@ func TestDelete(t *testing.T) {
 }
 
 func TestIPLDIndex(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	bs := makeBlockstore(t)
 	ctx := context.Background()

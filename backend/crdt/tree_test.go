@@ -248,7 +248,7 @@ func TestDelete(t *testing.T) {
 }
 
 func TestBadParent(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	d := NewTree(NewVectorClock())
 
@@ -256,7 +256,7 @@ func TestBadParent(t *testing.T) {
 }
 
 func TestEmptyNodeID(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	d := NewTree(NewVectorClock())
 

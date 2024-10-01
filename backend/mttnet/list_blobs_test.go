@@ -15,7 +15,7 @@ import (
 
 func TestListBlobs(t *testing.T) {
 	t.Skip("TODO(hm24): fix the test")
-	// t.Parallel()
+	// //t.Parallel()
 
 	// alice, stopalice := makeTestPeer(t, "alice")
 	// defer stopalice()

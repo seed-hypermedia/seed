@@ -22,7 +22,7 @@ import (
 var _ groups.GroupsServer = (*Server)(nil)
 
 func TestCreateGroup(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	srv := newTestSrv(t, "alice")
 	ctx := context.Background()
@@ -43,7 +43,7 @@ func TestCreateGroup(t *testing.T) {
 }
 
 func TestGetGroup(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	srv := newTestSrv(t, "alice")
 	ctx := context.Background()
@@ -62,7 +62,7 @@ func TestGetGroup(t *testing.T) {
 }
 
 func TestUpdateGroup(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	srv := newTestSrv(t, "alice")
 	ctx := context.Background()
@@ -85,7 +85,7 @@ func TestUpdateGroup(t *testing.T) {
 }
 
 func TestGetGroupWithVersion(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	srv := newTestSrv(t, "alice")
 	ctx := context.Background()
@@ -118,7 +118,7 @@ func TestGetGroupWithVersion(t *testing.T) {
 }
 
 func TestListContent(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	srv := newTestSrv(t, "alice")
 	ctx := context.Background()
@@ -198,7 +198,7 @@ func TestListContent(t *testing.T) {
 }
 
 func TestMembers(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	srv := newTestSrv(t, "alice")
 	bob := coretest.NewTester("bob")
@@ -249,7 +249,7 @@ func TestMembers(t *testing.T) {
 }
 
 func TestListGroups(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	srv := newTestSrv(t, "alice")
 	ctx := context.Background()
@@ -287,7 +287,7 @@ func TestListGroups(t *testing.T) {
 }
 
 func TestDocumentGroupBacklinks(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	srv := newTestSrv(t, "alice")
 	ctx := context.Background()
@@ -347,7 +347,7 @@ func TestDocumentGroupBacklinks(t *testing.T) {
 }
 
 func TestListAccountGroups(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	alicesrv := newTestSrv(t, "alice")
 	alice := alicesrv.me.MustGet()
@@ -414,7 +414,7 @@ func TestGroupMembersAfterSync(t *testing.T) {
 	// Alice creates a group, adds bob, then syncs with bob.
 	// Bob should be able to edit the group and use it as a member.
 
-	t.Parallel()
+	//t.Parallel()
 
 	alice := newTestSrv(t, "alice")
 	bob := newTestSrv(t, "bob")
@@ -488,7 +488,7 @@ func TestGroupNonMembers(t *testing.T) {
 	// Alice creates a group, adds bob, then syncs with bob.
 	// Bob should be able to edit the group and use it as a member.
 
-	t.Parallel()
+	//t.Parallel()
 
 	alice := newTestSrv(t, "alice")
 	bob := newTestSrv(t, "bob")
@@ -526,7 +526,7 @@ func TestGroupNonMembers(t *testing.T) {
 }
 
 func TestBug_MustConsiderMemberChangesToo(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	alice := newTestSrv(t, "alice")
 	bob := newTestSrv(t, "bob")

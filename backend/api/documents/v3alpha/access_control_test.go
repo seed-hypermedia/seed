@@ -10,7 +10,7 @@ import (
 )
 
 func TestCapabilities_Smoke(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	alice := newTestDocsAPI(t, "alice")
 	bob := coretest.NewTester("bob")

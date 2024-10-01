@@ -18,7 +18,7 @@ import (
 )
 
 func TestCreateDocumentChange(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	alice := newTestDocsAPI(t, "alice")
 	ctx := context.Background()
@@ -89,7 +89,7 @@ func TestCreateDocumentChange(t *testing.T) {
 }
 
 func TestListRootDocuments(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	alice := newTestDocsAPI(t, "alice")
 	ctx := context.Background()
@@ -167,7 +167,7 @@ func TestListRootDocuments(t *testing.T) {
 }
 
 func TestListDocument(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	alice := newTestDocsAPI(t, "alice")
 	ctx := context.Background()
@@ -224,7 +224,7 @@ func TestListDocument(t *testing.T) {
 }
 
 func TestGetDocumentWithVersion(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	alice := newTestDocsAPI(t, "alice")
 	ctx := context.Background()
@@ -307,7 +307,7 @@ func TestGetDocumentWithVersion(t *testing.T) {
 }
 
 func TestConcurrentChanges(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	alice := newTestDocsAPI(t, "alice")
 	ctx := context.Background()
