@@ -146,20 +146,26 @@ ipcMain.on('open-markdown-directory', async (event) => {
         for (const subDir of subdirectories) {
           const subDirPath = path.join(dirPath, subDir)
           const subDirFiles = fs.readdirSync(subDirPath)
+
+          // Get all markdown files in the subdirectory
           const subDirMarkdownFiles = subDirFiles.filter((file) =>
             file.endsWith('.md'),
           )
-          const markdownFilePath = path.join(subDirPath, subDirMarkdownFiles[0])
-          const markdownContent = fs.readFileSync(markdownFilePath, 'utf-8')
 
-          const fileName = path.basename(subDirMarkdownFiles[0], '.md')
-          const title = formatTitle(fileName)
+          // Loop through each markdown file in the subdirectory
+          for (const subDirMarkdownFile of subDirMarkdownFiles) {
+            const markdownFilePath = path.join(subDirPath, subDirMarkdownFile)
+            const markdownContent = fs.readFileSync(markdownFilePath, 'utf-8')
 
-          validDocuments.push({
-            markdownContent,
-            title,
-            directoryPath: subDirPath,
-          })
+            const fileName = path.basename(subDirMarkdownFile, '.md')
+            const title = formatTitle(fileName)
+
+            validDocuments.push({
+              markdownContent,
+              title,
+              directoryPath: subDirPath,
+            })
+          }
         }
       }
 
