@@ -24,6 +24,11 @@ import (
 	manet "github.com/multiformats/go-multiaddr/net"
 )
 
+const (
+	highWatermark = 100
+	lowWatermark  = 50
+)
+
 // Libp2p exposes libp2p host and the underlying routing system (DHT).
 // It provides some reasonable defaults, and also handles shutdown more gracefully.
 type Libp2p struct {
@@ -71,7 +76,7 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 		libp2p.NoListenAddrs, // Users must explicitly start listening.
 		libp2p.EnableRelay(), // Be able to dial behind-relay peers and receive connections from them.
 		libp2p.EnableAutoNATv2(),
-		libp2p.ConnectionManager(must.Do2(connmgr.NewConnManager(50, 100))),
+		libp2p.ConnectionManager(must.Do2(connmgr.NewConnManager(lowWatermark, highWatermark))),
 		libp2p.ResourceManager(rm),
 		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
 			if ds == nil {
@@ -160,6 +165,11 @@ func (n *Libp2p) AddrInfo() peer.AddrInfo {
 		ID:    n.Host.ID(),
 		Addrs: n.Host.Addrs(),
 	}
+}
+
+// GetConnLimit returns the connection limits.
+func (n *Libp2p) GetConnLimit() int {
+	return highWatermark
 }
 
 // Datastore returns the underlying datastore for convenience.

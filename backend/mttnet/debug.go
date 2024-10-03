@@ -34,7 +34,6 @@ func (n *Node) DebugHandler() http.Handler {
 
 		protocols := n.p2p.Mux().Protocols()
 		slices.Sort(protocols)
-
 		out := debugInfo{
 			AddrInfo:           libp2px.AddrInfo(n.p2p.Host),
 			HypermediaProtocol: n.ProtocolID(),
@@ -42,12 +41,13 @@ func (n *Node) DebugHandler() http.Handler {
 			Reachability:       n.currentReachability.Load().(network.Reachability).String(),
 			ConnectedPeers:     len(connectedPeers),
 			HypermediaPeers:    countHypermediaPeers(connectedPeers, n.p2p.Peerstore(), n.protocol.ID),
-			PeerstorePeers:     len(n.p2p.Peerstore().Peers()),
+			PeerstorePeers:     len(allPeers),
 			BitswapInfo:        getBitswapInfo(n.bitswap),
 		}
 
 		if !r.URL.Query().Has("short") {
 			info := getConnManagerInfo(allPeers, cmgr)
+			info.LimitExceeded = cmgr.CheckLimit(n.p2p) != nil
 			out.ConnManagerInfo = &info
 		}
 
@@ -82,6 +82,7 @@ type bitswapInfo struct {
 type connManagerInfo struct {
 	TotalPeers         int
 	ShownPeers         int
+	LimitExceeded      bool
 	PeersPerTag        map[string]int
 	PeersPerProtection map[string]int
 	Peers              []connManagerPeerInfo
@@ -112,9 +113,7 @@ func getConnManagerInfo(allPeers []peer.ID, cmgr *unsafeConnManager) connManager
 		PeersPerTag:        make(map[string]int),
 		PeersPerProtection: make(map[string]int),
 	}
-
 	protectedPeers := cmgr.getProtectedPeers()
-
 	for _, pid := range allPeers {
 		info := cmgr.GetTagInfo(pid)
 		isProtected := cmgr.IsProtected(pid, "")
