@@ -70,21 +70,60 @@ export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
       return
     }
 
+    const titleCounter: {[key: string]: number} = {}
+
     openFunction()
       .then(async (documents) => {
         for (const {markdownContent, title, directoryPath} of documents) {
-          const updatedMarkdownContent = await processMediaMarkdown(
+          let markdown = await processMediaMarkdown(
             markdownContent,
             directoryPath,
           )
-          const blocks = await MarkdownToBlocks(updatedMarkdownContent, editor)
-          const path = pathNameify(title)
+
+          let lines = markdown.split('\n')
+
+          // first non-empty line index
+          const firstNonEmptyLineIndex = lines.findIndex(
+            (line) => line.trim() !== '',
+          )
+
+          let documentTitle = title
+          // Check if the first non-empty line is an h1
+          if (
+            firstNonEmptyLineIndex !== -1 &&
+            lines[firstNonEmptyLineIndex].startsWith('# ')
+          ) {
+            // Extract the h1 as the title
+            documentTitle = lines[firstNonEmptyLineIndex]
+              .replace('# ', '')
+              .trim()
+
+            // Remove the h1 line from the markdown content
+            lines = lines.filter((_, index) => index !== firstNonEmptyLineIndex)
+
+            // Rejoin the lines back into the markdown content without the h1
+            markdown = lines.join('\n')
+          }
+
+          let path = pathNameify(documentTitle)
+
+          // Handle duplicate titles by appending a counter if necessary
+          if (titleCounter[documentTitle]) {
+            titleCounter[documentTitle] += 1
+            path = pathNameify(
+              `${documentTitle}-${titleCounter[documentTitle]}`,
+            )
+          } else {
+            titleCounter[documentTitle] = 1
+          }
+
+          const blocks = await MarkdownToBlocks(markdown, editor)
           let inputData: Partial<HMDraft> = {}
           inputData = {
             content: blocks,
             deps: [],
             metadata: {
-              name: title,
+              name: documentTitle,
             },
             members: {},
             signingAccount,
