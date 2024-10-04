@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
+	"seed/backend/blob"
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/hlc"
-	"seed/backend/index"
 	"seed/backend/util/colx"
 	"sort"
 	"strings"
@@ -197,7 +197,7 @@ func (dm *Document) ensureMutation() *treeMutation {
 }
 
 // Change creates a change.
-func (dm *Document) Change(kp core.KeyPair) (hb index.EncodedBlob[*index.Change], err error) {
+func (dm *Document) Change(kp core.KeyPair) (hb blob.Encoded[*blob.Change], err error) {
 	// TODO(burdiyan): we should make them reusable.
 	if dm.done {
 		return hb, fmt.Errorf("using already committed mutation")
@@ -226,7 +226,7 @@ func (dm *Document) Change(kp core.KeyPair) (hb index.EncodedBlob[*index.Change]
 }
 
 // Ref creates a Ref blob for the current heads.
-func (dm *Document) Ref(kp core.KeyPair) (ref index.EncodedBlob[*index.Ref], err error) {
+func (dm *Document) Ref(kp core.KeyPair) (ref blob.Encoded[*blob.Ref], err error) {
 	// TODO(hm24): make genesis detection more reliable.
 	genesis := dm.e.cids[0]
 
@@ -237,11 +237,11 @@ func (dm *Document) Ref(kp core.KeyPair) (ref index.EncodedBlob[*index.Ref], err
 	headCID := dm.e.cids[len(dm.e.cids)-1]
 	head := dm.e.changes[len(dm.e.cids)-1]
 
-	return index.NewRef(kp, genesis, dm.e.id, []cid.Cid{headCID}, head.Ts)
+	return blob.NewRef(kp, genesis, dm.e.id, []cid.Cid{headCID}, head.Ts)
 }
 
 // Commit commits a change.
-func (dm *Document) Commit(ctx context.Context, kp core.KeyPair, bs blockstore.Blockstore) (ebc index.EncodedBlob[*index.Change], err error) {
+func (dm *Document) Commit(ctx context.Context, kp core.KeyPair, bs blockstore.Blockstore) (ebc blob.Encoded[*blob.Change], err error) {
 	ebc, err = dm.Change(kp)
 	if err != nil {
 		return ebc, err

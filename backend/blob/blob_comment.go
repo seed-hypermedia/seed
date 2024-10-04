@@ -1,4 +1,4 @@
-package index
+package blob
 
 import (
 	"bytes"
@@ -29,7 +29,7 @@ type Comment struct {
 	Sig core.Signature `refmt:"sig,omitempty"`
 }
 
-func NewComment(kp core.KeyPair, cpb cid.Cid, t CommentTarget, threadRoot, replyParent cid.Cid, body []CommentBlock, ts int64) (eb EncodedBlob[*Comment], err error) {
+func NewComment(kp core.KeyPair, cpb cid.Cid, t CommentTarget, threadRoot, replyParent cid.Cid, body []CommentBlock, ts int64) (eb Encoded[*Comment], err error) {
 	cu := CommentUnsigned{
 		Type:        blobTypeComment,
 		Capability:  cpb,

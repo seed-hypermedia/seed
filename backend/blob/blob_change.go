@@ -1,4 +1,4 @@
-package index
+package blob
 
 import (
 	"bytes"
@@ -32,7 +32,7 @@ type Change struct {
 	Sig core.Signature `refmt:"sig,omitempty"`
 }
 
-func NewChange(kp core.KeyPair, deps []cid.Cid, action string, payload map[string]any, ts int64) (eb EncodedBlob[*Change], err error) {
+func NewChange(kp core.KeyPair, deps []cid.Cid, action string, payload map[string]any, ts int64) (eb Encoded[*Change], err error) {
 	cu := ChangeUnsigned{
 		Type:    blobTypeChange,
 		Deps:    deps,

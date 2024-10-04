@@ -1,4 +1,4 @@
-package index
+package blob
 
 import (
 	"context"
@@ -373,13 +373,13 @@ var qWalkComments = dqb.Str(`
 
 type blobType string
 
-type EncodedBlob[T any] struct {
+type Encoded[T any] struct {
 	CID     cid.Cid
 	Data    []byte
 	Decoded T
 }
 
-func encodeBlob[T any](v T) (eb EncodedBlob[T], err error) {
+func encodeBlob[T any](v T) (eb Encoded[T], err error) {
 	data, err := cbornode.DumpObject(v)
 	if err != nil {
 		return eb, err
@@ -387,26 +387,26 @@ func encodeBlob[T any](v T) (eb EncodedBlob[T], err error) {
 
 	blk := ipfs.NewBlock(uint64(multicodec.DagCbor), data)
 
-	return EncodedBlob[T]{CID: blk.Cid(), Data: blk.RawData(), Decoded: v}, nil
+	return Encoded[T]{CID: blk.Cid(), Data: blk.RawData(), Decoded: v}, nil
 }
 
 // RawData implements blocks.Block interface.
-func (eb EncodedBlob[T]) RawData() []byte {
+func (eb Encoded[T]) RawData() []byte {
 	return eb.Data
 }
 
 // Cid implements blocks.Block interface.
-func (eb EncodedBlob[T]) Cid() cid.Cid {
+func (eb Encoded[T]) Cid() cid.Cid {
 	return eb.CID
 }
 
 // String implements blocks.Block interface.
-func (eb EncodedBlob[T]) String() string {
+func (eb Encoded[T]) String() string {
 	return fmt.Sprintf("[EncodedBlob %s]", eb.CID)
 }
 
 // Loggable implements blocks.Block interface.
-func (eb EncodedBlob[T]) Loggable() map[string]interface{} {
+func (eb Encoded[T]) Loggable() map[string]interface{} {
 	return map[string]interface{}{
 		"cid": eb.CID,
 	}

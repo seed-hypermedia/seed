@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"seed/backend/index"
+	"seed/backend/blob"
 
 	"seed/backend/util/sqlite/sqlitex"
 
@@ -26,7 +26,7 @@ type worker struct {
 	log        *zap.Logger
 	clientFunc netDialFunc
 	host       host.Host
-	indexer    *index.Index
+	indexer    *blob.Index
 	bswap      bitswap
 	db         *sqlitex.Pool
 	sema       chan struct{}
@@ -41,7 +41,7 @@ func newWorker(
 	log *zap.Logger,
 	clientFunc netDialFunc,
 	host host.Host,
-	indexer *index.Index,
+	indexer *blob.Index,
 	bswap bitswap,
 	db *sqlitex.Pool,
 	semaphore chan struct{},

@@ -1,4 +1,4 @@
-package index
+package blob
 
 import (
 	"seed/backend/core"

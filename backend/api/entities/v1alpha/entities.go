@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"seed/backend/core"
 	entities "seed/backend/genproto/entities/v1alpha"
-	"seed/backend/index"
+	"seed/backend/blob"
 	"seed/backend/util/dqb"
 	"seed/backend/util/errutil"
 	"sort"
@@ -32,12 +32,12 @@ type Discoverer interface {
 type Server struct {
 	entities.UnimplementedEntitiesServer
 
-	idx  *index.Index
+	idx  *blob.Index
 	disc Discoverer
 }
 
 // NewServer creates a new entities server.
-func NewServer(idx *index.Index, disc Discoverer) *Server {
+func NewServer(idx *blob.Index, disc Discoverer) *Server {
 	return &Server{
 		idx:  idx,
 		disc: disc,

@@ -18,7 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"seed/backend/index"
+	"seed/backend/blob"
 
 	"container/list"
 
@@ -133,7 +133,7 @@ type Service struct {
 	cfg        config.Syncing
 	log        *zap.Logger
 	db         *sqlitex.Pool
-	indexer    *index.Index
+	indexer    *blob.Index
 	bitswap    bitswap
 	rbsrClient netDialFunc
 	docGetter  LocalDocGetter
@@ -150,7 +150,7 @@ type Service struct {
 const peerRoutingConcurrency = 3 // how many concurrent requests for peer routing.
 
 // NewService creates a new syncing service. Users should call Start() to start the periodic syncing.
-func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer *index.Index, net *mttnet.Node, sstore SubscriptionStore) *Service {
+func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer *blob.Index, net *mttnet.Node, sstore SubscriptionStore) *Service {
 	svc := &Service{
 		cfg:        cfg,
 		log:        log,
@@ -782,7 +782,7 @@ func syncPeerRbsr(
 	ctx context.Context,
 	pid peer.ID,
 	c p2p.SyncingClient,
-	idx *index.Index,
+	idx *blob.Index,
 	sess exchange.Fetcher,
 	db *sqlitex.Pool,
 	log *zap.Logger,

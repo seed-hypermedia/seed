@@ -3,8 +3,8 @@ package mttnet
 import (
 	"context"
 	"fmt"
+	"seed/backend/blob"
 	p2p "seed/backend/genproto/p2p/v1alpha"
-	"seed/backend/index"
 	"seed/backend/syncing/rbsr"
 	"strings"
 
@@ -114,9 +114,9 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 		if err != nil {
 			return nil, fmt.Errorf("Could not get cid: %w", err)
 		}
-		co := &index.Comment{}
-		ca := &index.Capability{}
-		ch := &index.Change{}
+		co := &blob.Comment{}
+		ca := &blob.Capability{}
+		ch := &blob.Change{}
 		if err := cbornode.DecodeInto(blk.RawData(), co); err == nil {
 			authorFilters = append(authorFilters, &p2p.Filter{
 				Resource:  "hm://" + co.Author.String(),

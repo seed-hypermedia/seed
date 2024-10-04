@@ -7,8 +7,8 @@ import (
 	documentsv3 "seed/backend/api/documents/v3alpha"
 	entities "seed/backend/api/entities/v1alpha"
 	networking "seed/backend/api/networking/v1alpha"
+	"seed/backend/blob"
 	"seed/backend/core"
-	"seed/backend/index"
 	"seed/backend/logging"
 	"seed/backend/mttnet"
 	"seed/backend/syncing"
@@ -40,7 +40,7 @@ type Storage interface {
 func New(
 	ctx context.Context,
 	repo Storage,
-	idx *index.Index,
+	idx *blob.Index,
 	node *mttnet.Node,
 	wallet daemon.Wallet,
 	sync *syncing.Service,

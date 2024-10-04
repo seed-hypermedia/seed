@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
-	"seed/backend/index"
+	"seed/backend/blob"
 	"seed/backend/util/errutil"
 	"time"
 
@@ -65,7 +65,7 @@ func (srv *Server) CreateCapability(ctx context.Context, in *documents.CreateCap
 	// TODO(burdiyan): Validate role according to the chain of capabilities.
 	role := in.Role.String()
 
-	cpb, err := index.NewCapability(kp, del, acc, in.Path, role, time.Now().UnixMicro(), in.NoRecursive)
+	cpb, err := blob.NewCapability(kp, del, acc, in.Path, role, time.Now().UnixMicro(), in.NoRecursive)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func (srv *Server) GetCapability(ctx context.Context, in *documents.GetCapabilit
 		return nil, err
 	}
 
-	cpb := &index.Capability{}
+	cpb := &blob.Capability{}
 	if err := cbornode.DecodeInto(blk.RawData(), cpb); err != nil {
 		return nil, err
 	}
@@ -122,7 +122,7 @@ func (srv *Server) ListCapabilities(ctx context.Context, in *documents.ListCapab
 	// TODO(burdiyan): implement pagination.
 	resp := &documents.ListCapabilitiesResponse{}
 
-	if err := srv.idx.WalkCapabilities(ctx, iri, acc, func(c cid.Cid, cpb *index.Capability) error {
+	if err := srv.idx.WalkCapabilities(ctx, iri, acc, func(c cid.Cid, cpb *blob.Capability) error {
 		pb, err := capToProto(c, cpb)
 		if err != nil {
 			return err
@@ -136,7 +136,7 @@ func (srv *Server) ListCapabilities(ctx context.Context, in *documents.ListCapab
 	return resp, nil
 }
 
-func capToProto(c cid.Cid, cpb *index.Capability) (*documents.Capability, error) {
+func capToProto(c cid.Cid, cpb *blob.Capability) (*documents.Capability, error) {
 	role, ok := documents.Role_value[cpb.Role]
 	if !ok {
 		return nil, fmt.Errorf("unknown role '%s'", cpb.Role)

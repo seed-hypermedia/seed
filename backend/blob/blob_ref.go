@@ -1,4 +1,4 @@
-package index
+package blob
 
 import (
 	"bytes"
@@ -25,7 +25,7 @@ type Ref struct {
 	Sig core.Signature `refmt:"sig,omitempty"`
 }
 
-func NewRef(kp core.KeyPair, genesis cid.Cid, rid IRI, heads []cid.Cid, ts int64) (eb EncodedBlob[*Ref], err error) {
+func NewRef(kp core.KeyPair, genesis cid.Cid, rid IRI, heads []cid.Cid, ts int64) (eb Encoded[*Ref], err error) {
 	ru := RefUnsigned{
 		Type:        blobTypeRef,
 		Resource:    rid,

@@ -7,10 +7,10 @@ import (
 	"encoding/binary"
 	"fmt"
 	"iter"
+	"seed/backend/blob"
 	"seed/backend/core"
 	"seed/backend/crdt2"
 	"seed/backend/hlc"
-	"seed/backend/index"
 	"sort"
 	"strings"
 
@@ -22,9 +22,9 @@ import (
 
 // Entity is our CRDT mutable object.
 type Entity struct {
-	id           index.IRI
+	id           blob.IRI
 	cids         []cid.Cid
-	changes      []*index.Change
+	changes      []*blob.Change
 	deps         [][]int // deps for each change.
 	rdeps        [][]int // reverse deps for each change.
 	applied      map[cid.Cid]int
@@ -36,7 +36,7 @@ type Entity struct {
 }
 
 // NewEntity creates a new entity with a given ID.
-func NewEntity(id index.IRI) *Entity {
+func NewEntity(id blob.IRI) *Entity {
 	return &Entity{
 		id:           id,
 		applied:      make(map[cid.Cid]int),
@@ -49,14 +49,14 @@ func NewEntity(id index.IRI) *Entity {
 }
 
 // NewEntityWithClock creates a new entity with a provided clock.
-func NewEntityWithClock(id index.IRI, clock *hlc.Clock) *Entity {
+func NewEntityWithClock(id blob.IRI, clock *hlc.Clock) *Entity {
 	e := NewEntity(id)
 	e.maxClock = clock
 	return e
 }
 
 // ID returns the ID of the entity.
-func (e *Entity) ID() index.IRI { return e.id }
+func (e *Entity) ID() blob.IRI { return e.id }
 
 // Get a property under a given path.
 func (e *Entity) Get(path ...string) (value any, ok bool) {
@@ -134,7 +134,7 @@ func (e *Entity) Checkout(heads []cid.Cid) (*Entity, error) {
 	entity := NewEntityWithClock(e.id, clock)
 
 	for _, c := range chain {
-		if err := entity.ApplyChange(index.ChangeRecord{
+		if err := entity.ApplyChange(blob.ChangeRecord{
 			CID:  e.cids[c],
 			Data: e.changes[c],
 		}); err != nil {
@@ -191,7 +191,7 @@ func (e *Entity) Version() Version {
 }
 
 // BFTDeps returns a single-use iterator that does breadth-first traversal of the Change DAG deps.
-func (e *Entity) BFTDeps(start []cid.Cid) (iter.Seq2[int, index.ChangeRecord], error) {
+func (e *Entity) BFTDeps(start []cid.Cid) (iter.Seq2[int, blob.ChangeRecord], error) {
 	visited := make(map[int]struct{}, len(e.cids))
 	queue := make([]int, 0, len(e.cids))
 	var scratch []int
@@ -216,7 +216,7 @@ func (e *Entity) BFTDeps(start []cid.Cid) (iter.Seq2[int, index.ChangeRecord], e
 	}
 	enqueueNodes(scratch)
 
-	return func(yield func(int, index.ChangeRecord) bool) {
+	return func(yield func(int, blob.ChangeRecord) bool) {
 		var i int
 		for len(queue) > 0 {
 			c := queue[0]
@@ -227,7 +227,7 @@ func (e *Entity) BFTDeps(start []cid.Cid) (iter.Seq2[int, index.ChangeRecord], e
 			visited[c] = struct{}{}
 
 			enqueueNodes(e.deps[c])
-			if !yield(i, index.ChangeRecord{
+			if !yield(i, blob.ChangeRecord{
 				CID:  e.cids[c],
 				Data: e.changes[c],
 			}) {
@@ -240,7 +240,7 @@ func (e *Entity) BFTDeps(start []cid.Cid) (iter.Seq2[int, index.ChangeRecord], e
 }
 
 // ApplyChange to the internal state.
-func (e *Entity) ApplyChange(rec index.ChangeRecord) error {
+func (e *Entity) ApplyChange(rec blob.ChangeRecord) error {
 	if _, ok := e.applied[rec.CID]; ok {
 		return nil
 	}
@@ -437,13 +437,13 @@ func (e *Entity) NextTimestamp() hlc.Timestamp {
 }
 
 // CreateChange entity creating a change blob, and applying it to the internal state.
-func (e *Entity) CreateChange(action string, ts hlc.Timestamp, signer core.KeyPair, payload map[string]any) (hb index.EncodedBlob[*index.Change], err error) {
-	hb, err = index.NewChange(signer, maps.Keys(e.heads), action, payload, int64(ts))
+func (e *Entity) CreateChange(action string, ts hlc.Timestamp, signer core.KeyPair, payload map[string]any) (hb blob.Encoded[*blob.Change], err error) {
+	hb, err = blob.NewChange(signer, maps.Keys(e.heads), action, payload, int64(ts))
 	if err != nil {
 		return hb, err
 	}
 
-	rec := index.ChangeRecord{
+	rec := blob.ChangeRecord{
 		CID:  hb.CID,
 		Data: hb.Decoded,
 	}
@@ -504,7 +504,7 @@ func NewUnforgeableID(prefix string, author core.Principal, nonce []byte, ts int
 	return prefix + base[len(base)-hashSize:], nonce
 }
 
-func verifyUnforgeableID(id index.IRI, prefix int, owner core.Principal, nonce []byte, ts int64) error {
+func verifyUnforgeableID(id blob.IRI, prefix int, owner core.Principal, nonce []byte, ts int64) error {
 	id2, _ := NewUnforgeableID(string(id[:prefix]), owner, nonce, ts)
 	if id2 != string(id) {
 		return fmt.Errorf("failed to verify unforgeable ID want=%q got=%q", id, id2)

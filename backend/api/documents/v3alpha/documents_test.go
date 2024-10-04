@@ -5,7 +5,7 @@ import (
 	"seed/backend/core"
 	"seed/backend/core/coretest"
 	documents "seed/backend/genproto/documents/v3alpha"
-	"seed/backend/index"
+	"seed/backend/blob"
 	"seed/backend/logging"
 	"seed/backend/storage"
 	"seed/backend/testutil"
@@ -353,7 +353,7 @@ func TestConcurrentChanges(t *testing.T) {
 	concurrent, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{Account: doc1.Account, Path: doc1.Path})
 	require.NoError(t, err)
 
-	wantVersion := index.NewVersion(
+	wantVersion := blob.NewVersion(
 		must.Do2(cid.Decode(doc21.Version)),
 		must.Do2(cid.Decode(doc22.Version)),
 	)
@@ -384,7 +384,7 @@ func newTestDocsAPI(t *testing.T, name string) testServer {
 	db := storage.MakeTestMemoryDB(t)
 	ks := core.NewMemoryKeyStore()
 	require.NoError(t, ks.StoreKey(context.Background(), "main", u.Account))
-	idx := index.NewIndex(db, logging.New("seed/index"+"/"+name, "debug"), nil)
+	idx := blob.NewIndex(db, logging.New("seed/index"+"/"+name, "debug"), nil)
 	srv := NewServer(ks, idx, db, logging.New("seed/documents"+"/"+name, "debug"))
 	return testServer{Server: srv, me: u}
 }

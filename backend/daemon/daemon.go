@@ -15,9 +15,9 @@ import (
 	"seed/backend/api"
 	activity "seed/backend/api/activity/v1alpha"
 	daemon "seed/backend/api/daemon/v1alpha"
+	"seed/backend/blob"
 	"seed/backend/config"
 	"seed/backend/core"
-	"seed/backend/index"
 	"seed/backend/logging"
 	"seed/backend/mttnet"
 	"seed/backend/syncing"
@@ -60,7 +60,7 @@ type App struct {
 	RPC          api.Server
 	Net          *mttnet.Node
 	Syncing      *syncing.Service
-	Index        *index.Index
+	Index        *blob.Index
 	Wallet       *wallet.Service
 }
 
@@ -163,7 +163,7 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 
 	otel.SetTracerProvider(tp)
 
-	a.Index = index.NewIndex(a.Storage.DB(), logging.New("seed/indexing", cfg.LogLevel), nil)
+	a.Index = blob.NewIndex(a.Storage.DB(), logging.New("seed/indexing", cfg.LogLevel), nil)
 
 	a.Net, err = initNetwork(&a.clean, a.g, a.Storage, cfg.P2P, a.Index, cfg.LogLevel, opts.extraP2PServices...)
 	if err != nil {
@@ -291,7 +291,7 @@ func initNetwork(
 	g *errgroup.Group,
 	store Storage,
 	cfg config.P2P,
-	index *index.Index,
+	index *blob.Index,
 	LogLevel string,
 	extraServers ...func(grpc.ServiceRegistrar),
 ) (*mttnet.Node, error) {
@@ -342,7 +342,7 @@ func initSyncing(
 	clean *cleanup.Stack,
 	g *errgroup.Group,
 	db *sqlitex.Pool,
-	indexer *index.Index,
+	indexer *blob.Index,
 	node *mttnet.Node,
 	sstore syncing.SubscriptionStore,
 	LogLevel string,
@@ -375,7 +375,7 @@ func initGRPC(
 	clean *cleanup.Stack,
 	g *errgroup.Group,
 	repo Storage,
-	idx *index.Index,
+	idx *blob.Index,
 	node *mttnet.Node,
 	sync *syncing.Service,
 	activity *activity.Server,

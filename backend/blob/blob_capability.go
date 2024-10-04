@@ -1,4 +1,4 @@
-package index
+package blob
 
 import (
 	"bytes"
@@ -35,7 +35,7 @@ type CapabilityUnsigned struct {
 	NoRecursive bool           `refmt:"noRecursive,omitempty"`
 }
 
-func NewCapability(issuer core.KeyPair, delegate, account core.Principal, path string, role string, ts int64, noRecursive bool) (eb EncodedBlob[*Capability], err error) {
+func NewCapability(issuer core.KeyPair, delegate, account core.Principal, path string, role string, ts int64, noRecursive bool) (eb Encoded[*Capability], err error) {
 	cu := CapabilityUnsigned{
 		Type:        blobTypeCapability,
 		Issuer:      issuer.Principal(),

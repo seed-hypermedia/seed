@@ -3,10 +3,10 @@ package wallet
 import (
 	"context"
 	"encoding/hex"
+	"seed/backend/blob"
 	"seed/backend/config"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
-	"seed/backend/index"
 	"seed/backend/lndhub"
 	"seed/backend/lndhub/lndhubsql"
 	"seed/backend/logging"
@@ -162,7 +162,7 @@ func makeTestService(t *testing.T, name string) *Service {
 }
 
 func makeTestPeer(t *testing.T, u coretest.Tester, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool) (*mttnet.Node, context.CancelFunc) {
-	idx := index.NewIndex(db, logging.New("seed/hyper", "debug"), nil)
+	idx := blob.NewIndex(db, logging.New("seed/hyper", "debug"), nil)
 
 	n, err := mttnet.New(config.P2P{
 		NoRelay:        true,

@@ -8,7 +8,7 @@ import (
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/hlc"
-	"seed/backend/index"
+	"seed/backend/blob"
 	"seed/backend/util/errutil"
 	"time"
 
@@ -33,7 +33,7 @@ func (srv *Server) CreateComment(ctx context.Context, in *documents.CreateCommen
 		return nil, errutil.MissingArgument("target_version")
 	}
 
-	versionHeads, err := index.Version(in.TargetVersion).Parse()
+	versionHeads, err := blob.Version(in.TargetVersion).Parse()
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func (srv *Server) CreateComment(ctx context.Context, in *documents.CreateCommen
 			return nil, fmt.Errorf("reply parent %s not found: %w", in.ReplyParent, err)
 		}
 
-		rp := &index.Comment{}
+		rp := &blob.Comment{}
 		if err := cbornode.DecodeInto(rpdata.RawData(), rp); err != nil {
 			return nil, fmt.Errorf("failed to decode reply parent %s: %w", in.ReplyParent, err)
 		}
@@ -84,13 +84,13 @@ func (srv *Server) CreateComment(ctx context.Context, in *documents.CreateCommen
 		}
 	}
 
-	target := index.CommentTarget{
+	target := blob.CommentTarget{
 		Account: acc,
 		Path:    in.TargetPath,
 		Version: versionHeads,
 	}
 
-	blob, err := index.NewComment(kp, cid.Undef, target, threadRoot, replyParent, commentContentFromProto(in.Content), int64(clock.MustNow()))
+	blob, err := blob.NewComment(kp, cid.Undef, target, threadRoot, replyParent, commentContentFromProto(in.Content), int64(clock.MustNow()))
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +114,7 @@ func (srv *Server) GetComment(ctx context.Context, in *documents.GetCommentReque
 		return nil, err
 	}
 
-	cp := &index.Comment{}
+	cp := &blob.Comment{}
 	if err := cbornode.DecodeInto(blk.RawData(), cp); err != nil {
 		return nil, err
 	}
@@ -129,7 +129,7 @@ func (srv *Server) ListComments(ctx context.Context, in *documents.ListCommentsR
 		return nil, status.Errorf(codes.InvalidArgument, "failed to parse target account '%s': %v", in.TargetAccount, err)
 	}
 
-	iri, err := index.NewIRI(acc, in.TargetPath)
+	iri, err := blob.NewIRI(acc, in.TargetPath)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to parse target path '%s': %v", in.TargetPath, err)
 	}
@@ -155,7 +155,7 @@ func (srv *Server) ListComments(ctx context.Context, in *documents.ListCommentsR
 	return resp, nil
 }
 
-func commentToProto(c cid.Cid, cmt *index.Comment) (*documents.Comment, error) {
+func commentToProto(c cid.Cid, cmt *blob.Comment) (*documents.Comment, error) {
 	pb := &documents.Comment{
 		Id:            c.String(),
 		TargetAccount: cmt.Target.Account.String(),
@@ -181,7 +181,7 @@ func commentToProto(c cid.Cid, cmt *index.Comment) (*documents.Comment, error) {
 	return pb, nil
 }
 
-func commentContentToProto(in []index.CommentBlock) []*documents.BlockNode {
+func commentContentToProto(in []blob.CommentBlock) []*documents.BlockNode {
 	if in == nil {
 		return nil
 	}
@@ -204,7 +204,7 @@ func commentContentToProto(in []index.CommentBlock) []*documents.BlockNode {
 	return out
 }
 
-func annotationsToProto(in []index.Annotation) []*documents.Annotation {
+func annotationsToProto(in []blob.Annotation) []*documents.Annotation {
 	if in == nil {
 		return nil
 	}
@@ -223,16 +223,16 @@ func annotationsToProto(in []index.Annotation) []*documents.Annotation {
 	return out
 }
 
-func commentContentFromProto(in []*documents.BlockNode) []index.CommentBlock {
+func commentContentFromProto(in []*documents.BlockNode) []blob.CommentBlock {
 	if in == nil {
 		return nil
 	}
 
-	out := make([]index.CommentBlock, len(in))
+	out := make([]blob.CommentBlock, len(in))
 
 	for i, n := range in {
-		out[i] = index.CommentBlock{
-			Block: index.Block{
+		out[i] = blob.CommentBlock{
+			Block: blob.Block{
 				ID:          n.Block.Id,
 				Type:        n.Block.Type,
 				Text:        n.Block.Text,
@@ -247,14 +247,14 @@ func commentContentFromProto(in []*documents.BlockNode) []index.CommentBlock {
 	return out
 }
 
-func annotationsFromProto(in []*documents.Annotation) []index.Annotation {
+func annotationsFromProto(in []*documents.Annotation) []blob.Annotation {
 	if in == nil {
 		return nil
 	}
 
-	out := make([]index.Annotation, len(in))
+	out := make([]blob.Annotation, len(in))
 	for i, a := range in {
-		out[i] = index.Annotation{
+		out[i] = blob.Annotation{
 			Type:       a.Type,
 			Ref:        a.Ref,
 			Attributes: a.Attributes,

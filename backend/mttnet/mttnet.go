@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"seed/backend/blob"
 	"seed/backend/config"
 	"seed/backend/core"
 	p2p "seed/backend/genproto/p2p/v1alpha"
-	"seed/backend/index"
 	"seed/backend/ipfs"
 	"seed/backend/util/cleanup"
 	"seed/backend/util/libp2px"
@@ -89,7 +89,7 @@ type rpcMux struct {
 // Node is a Seed P2P node.
 type Node struct {
 	log                    *zap.Logger
-	index                  *index.Index
+	index                  *blob.Index
 	db                     *sqlitex.Pool
 	device                 core.KeyPair
 	keys                   core.KeyStore
@@ -111,7 +111,7 @@ type Node struct {
 
 // New creates a new P2P Node. The users must call Start() before using the node, and can use Ready() to wait
 // for when the node is ready to use.
-func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool, index *index.Index, log *zap.Logger) (n *Node, err error) {
+func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool, index *blob.Index, log *zap.Logger) (n *Node, err error) {
 	var clean cleanup.Stack
 	defer func() {
 		// Make sure to close everything if we fail in the middle of the initialization.

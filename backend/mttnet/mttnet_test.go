@@ -6,7 +6,7 @@ import (
 	"seed/backend/core"
 	"seed/backend/core/coretest"
 	p2p "seed/backend/genproto/p2p/v1alpha"
-	"seed/backend/index"
+	"seed/backend/blob"
 	"seed/backend/logging"
 	"seed/backend/storage"
 	"seed/backend/util/future"
@@ -41,7 +41,7 @@ func makeTestPeer(t *testing.T, name string) (*Node, context.CancelFunc) {
 
 	db := storage.MakeTestDB(t)
 
-	idx := index.NewIndex(db, logging.New("seed/hyper", "debug"), nil)
+	idx := blob.NewIndex(db, logging.New("seed/hyper", "debug"), nil)
 
 	cfg := config.Default().P2P
 	cfg.Port = 0

@@ -8,10 +8,10 @@ import (
 	"math"
 	"net/url"
 	"seed/backend/api/documents/v3alpha/docmodel"
+	"seed/backend/blob"
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/hlc"
-	"seed/backend/index"
 	"seed/backend/util/apiutil"
 	"seed/backend/util/dqb"
 	"seed/backend/util/errutil"
@@ -31,13 +31,13 @@ import (
 // Server implements Documents API v3.
 type Server struct {
 	keys core.KeyStore
-	idx  *index.Index
+	idx  *blob.Index
 	db   *sqlitex.Pool
 	log  *zap.Logger
 }
 
 // NewServer creates a new Documents API v3 server.
-func NewServer(keys core.KeyStore, idx *index.Index, db *sqlitex.Pool, log *zap.Logger) *Server {
+func NewServer(keys core.KeyStore, idx *blob.Index, db *sqlitex.Pool, log *zap.Logger) *Server {
 	return &Server{
 		keys: keys,
 		idx:  idx,
@@ -359,7 +359,7 @@ func (srv *Server) DeleteDocument(ctx context.Context, in *documents.DeleteDocum
 }
 
 func (srv *Server) ensureProfileGenesis(ctx context.Context, kp core.KeyPair) error {
-	ebc, err := index.NewChange(kp, nil, "Create", nil, index.ProfileGenesisEpoch)
+	ebc, err := blob.NewChange(kp, nil, "Create", nil, blob.ProfileGenesisEpoch)
 	if err != nil {
 		return err
 	}
@@ -369,7 +369,7 @@ func (srv *Server) ensureProfileGenesis(ctx context.Context, kp core.KeyPair) er
 		return err
 	}
 
-	ebr, err := index.NewRef(kp, ebc.CID, iri, []cid.Cid{ebc.CID}, index.ProfileGenesisEpoch)
+	ebr, err := blob.NewRef(kp, ebc.CID, iri, []cid.Cid{ebc.CID}, blob.ProfileGenesisEpoch)
 	if err != nil {
 		return err
 	}
@@ -381,8 +381,8 @@ func (srv *Server) ensureProfileGenesis(ctx context.Context, kp core.KeyPair) er
 	return nil
 }
 
-func makeIRI(account core.Principal, path string) (index.IRI, error) {
-	return index.NewIRI(account, path)
+func makeIRI(account core.Principal, path string) (blob.IRI, error) {
+	return blob.NewIRI(account, path)
 }
 
 func (srv *Server) loadDocument(ctx context.Context, account core.Principal, path string, version docmodel.Version, ensurePath bool) (*docmodel.Document, error) {
@@ -472,7 +472,7 @@ func (srv *Server) checkWriteAccess(ctx context.Context, account core.Principal,
 		return err
 	}
 
-	cpb := &index.Capability{}
+	cpb := &blob.Capability{}
 	if err := cbornode.DecodeInto(blk.RawData(), cpb); err != nil {
 		return err
 	}

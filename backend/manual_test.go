@@ -3,7 +3,7 @@ package backend
 import (
 	"context"
 	"seed/backend/core"
-	"seed/backend/index"
+	"seed/backend/blob"
 	"seed/backend/storage"
 	"seed/backend/testutil"
 	"seed/backend/util/must"
@@ -27,6 +27,6 @@ func TestDBMigrateManual(t *testing.T) {
 
 	log := must.Do2(zap.NewDevelopment())
 
-	blobs := index.NewIndex(db, log, nil)
+	blobs := blob.NewIndex(db, log, nil)
 	require.NoError(t, blobs.Reindex(context.Background()))
 }
