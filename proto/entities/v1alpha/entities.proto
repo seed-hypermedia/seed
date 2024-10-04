@@ -321,7 +321,7 @@ message ListLibraryRequest {
   // when true, only return subscribed documents (including children documents of a recursive subscription)
   bool filter_subscribed = 5;
 
-  // todo: filter based on your capabilities for the given document
+  // todo: add filter options based on "your" capabilities for the given document
 
   // the frontend will filter these results further if the user has selected a 'favorite' filter, and will also do draft-based filtering
 }
