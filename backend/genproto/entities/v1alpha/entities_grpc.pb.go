@@ -42,6 +42,7 @@ type EntitiesClient interface {
 	UndeleteEntity(ctx context.Context, in *UndeleteEntityRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// List mentions of a given Entity across the locally-available content.
 	ListEntityMentions(ctx context.Context, in *ListEntityMentionsRequest, opts ...grpc.CallOption) (*ListEntityMentionsResponse, error)
+	ListLibrary(ctx context.Context, in *ListLibraryRequest, opts ...grpc.CallOption) (*ListLibraryResponse, error)
 }
 
 type entitiesClient struct {
@@ -124,6 +125,15 @@ func (c *entitiesClient) ListEntityMentions(ctx context.Context, in *ListEntityM
 	return out, nil
 }
 
+func (c *entitiesClient) ListLibrary(ctx context.Context, in *ListLibraryRequest, opts ...grpc.CallOption) (*ListLibraryResponse, error) {
+	out := new(ListLibraryResponse)
+	err := c.cc.Invoke(ctx, "/com.seed.entities.v1alpha.Entities/ListLibrary", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // EntitiesServer is the server API for Entities service.
 // All implementations should embed UnimplementedEntitiesServer
 // for forward compatibility
@@ -147,6 +157,7 @@ type EntitiesServer interface {
 	UndeleteEntity(context.Context, *UndeleteEntityRequest) (*emptypb.Empty, error)
 	// List mentions of a given Entity across the locally-available content.
 	ListEntityMentions(context.Context, *ListEntityMentionsRequest) (*ListEntityMentionsResponse, error)
+	ListLibrary(context.Context, *ListLibraryRequest) (*ListLibraryResponse, error)
 }
 
 // UnimplementedEntitiesServer should be embedded to have forward compatible implementations.
@@ -176,6 +187,9 @@ func (UnimplementedEntitiesServer) UndeleteEntity(context.Context, *UndeleteEnti
 }
 func (UnimplementedEntitiesServer) ListEntityMentions(context.Context, *ListEntityMentionsRequest) (*ListEntityMentionsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListEntityMentions not implemented")
+}
+func (UnimplementedEntitiesServer) ListLibrary(context.Context, *ListLibraryRequest) (*ListLibraryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListLibrary not implemented")
 }
 
 // UnsafeEntitiesServer may be embedded to opt out of forward compatibility for this service.
@@ -333,6 +347,24 @@ func _Entities_ListEntityMentions_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Entities_ListLibrary_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListLibraryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EntitiesServer).ListLibrary(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/com.seed.entities.v1alpha.Entities/ListLibrary",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EntitiesServer).ListLibrary(ctx, req.(*ListLibraryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Entities_ServiceDesc is the grpc.ServiceDesc for Entities service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -371,6 +403,10 @@ var Entities_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListEntityMentions",
 			Handler:    _Entities_ListEntityMentions_Handler,
+		},
+		{
+			MethodName: "ListLibrary",
+			Handler:    _Entities_ListLibrary_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

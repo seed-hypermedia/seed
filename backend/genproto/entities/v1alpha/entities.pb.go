@@ -22,6 +22,58 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type LibrarySort int32
+
+const (
+	// default sort. when was the document most recently updated. recent updates first
+	LibrarySort_LAST_DOCUMENT_UPDATE LibrarySort = 0
+	// alphabetical on the document title
+	LibrarySort_ALPHABETICAL LibrarySort = 1
+	// sort by the latest activity. (document change or comment)
+	LibrarySort_LATEST_ACTIVITY LibrarySort = 2
+)
+
+// Enum value maps for LibrarySort.
+var (
+	LibrarySort_name = map[int32]string{
+		0: "LAST_DOCUMENT_UPDATE",
+		1: "ALPHABETICAL",
+		2: "LATEST_ACTIVITY",
+	}
+	LibrarySort_value = map[string]int32{
+		"LAST_DOCUMENT_UPDATE": 0,
+		"ALPHABETICAL":         1,
+		"LATEST_ACTIVITY":      2,
+	}
+)
+
+func (x LibrarySort) Enum() *LibrarySort {
+	p := new(LibrarySort)
+	*p = x
+	return p
+}
+
+func (x LibrarySort) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (LibrarySort) Descriptor() protoreflect.EnumDescriptor {
+	return file_entities_v1alpha_entities_proto_enumTypes[0].Descriptor()
+}
+
+func (LibrarySort) Type() protoreflect.EnumType {
+	return &file_entities_v1alpha_entities_proto_enumTypes[0]
+}
+
+func (x LibrarySort) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use LibrarySort.Descriptor instead.
+func (LibrarySort) EnumDescriptor() ([]byte, []int) {
+	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{0}
+}
+
 // Request to get a change by ID.
 type GetChangeRequest struct {
 	state         protoimpl.MessageState
@@ -1265,6 +1317,285 @@ func (x *Mention) GetTargetFragment() string {
 	return ""
 }
 
+type ListLibraryRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Optional. Number of results per page. Default is defined by the server.
+	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Optional. Value from next_page_token obtains from a previous response.
+	PageToken string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	// Optional. The query string to filter library results
+	Query string `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
+	// Optional. Sort order for the library results
+	Sort LibrarySort `protobuf:"varint,4,opt,name=sort,proto3,enum=com.seed.entities.v1alpha.LibrarySort" json:"sort,omitempty"`
+	// when true, only return subscribed documents (including children documents of a recursive subscription)
+	FilterSubscribed bool `protobuf:"varint,5,opt,name=filter_subscribed,json=filterSubscribed,proto3" json:"filter_subscribed,omitempty"`
+}
+
+func (x *ListLibraryRequest) Reset() {
+	*x = ListLibraryRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_entities_v1alpha_entities_proto_msgTypes[18]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ListLibraryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListLibraryRequest) ProtoMessage() {}
+
+func (x *ListLibraryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[18]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListLibraryRequest.ProtoReflect.Descriptor instead.
+func (*ListLibraryRequest) Descriptor() ([]byte, []int) {
+	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *ListLibraryRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListLibraryRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+func (x *ListLibraryRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *ListLibraryRequest) GetSort() LibrarySort {
+	if x != nil {
+		return x.Sort
+	}
+	return LibrarySort_LAST_DOCUMENT_UPDATE
+}
+
+func (x *ListLibraryRequest) GetFilterSubscribed() bool {
+	if x != nil {
+		return x.FilterSubscribed
+	}
+	return false
+}
+
+type EntityMetadata struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Space/AccountUID of the document
+	Space string `protobuf:"bytes,1,opt,name=space,proto3" json:"space,omitempty"`
+	// The path of the document
+	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	// Metadata of this document, including name
+	Metadata map[string]string `protobuf:"bytes,3,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+}
+
+func (x *EntityMetadata) Reset() {
+	*x = EntityMetadata{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_entities_v1alpha_entities_proto_msgTypes[19]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *EntityMetadata) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EntityMetadata) ProtoMessage() {}
+
+func (x *EntityMetadata) ProtoReflect() protoreflect.Message {
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[19]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EntityMetadata.ProtoReflect.Descriptor instead.
+func (*EntityMetadata) Descriptor() ([]byte, []int) {
+	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *EntityMetadata) GetSpace() string {
+	if x != nil {
+		return x.Space
+	}
+	return ""
+}
+
+func (x *EntityMetadata) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *EntityMetadata) GetMetadata() map[string]string {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+type ListLibraryResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Space/AccountUID of the document
+	Space string `protobuf:"bytes,1,opt,name=space,proto3" json:"space,omitempty"`
+	// The path of the document
+	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	// The current version of this document
+	Version string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	// The most recent comment within this document, used for tracking if the document has an unread indicator
+	LastCommentId string `protobuf:"bytes,4,opt,name=last_comment_id,json=lastCommentId,proto3" json:"last_comment_id,omitempty"`
+	// Time when document was updated.
+	UpdateTime *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
+	// Time of most recent document activity (update or the most recent comment)
+	LastActivityTime *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=last_activity_time,json=lastActivityTime,proto3" json:"last_activity_time,omitempty"`
+	// Metadata of this document, including name
+	Metadata map[string]string `protobuf:"bytes,7,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// The list of all authors who have contributed to the latest version
+	Authors []*EntityMetadata `protobuf:"bytes,8,rep,name=authors,proto3" json:"authors,omitempty"`
+	// The metadata for all parent documents
+	Breadcrumbs []*EntityMetadata `protobuf:"bytes,9,rep,name=breadcrumbs,proto3" json:"breadcrumbs,omitempty"`
+	// Number of comments within this document
+	CommentCount int32 `protobuf:"varint,10,opt,name=comment_count,json=commentCount,proto3" json:"comment_count,omitempty"`
+}
+
+func (x *ListLibraryResponse) Reset() {
+	*x = ListLibraryResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_entities_v1alpha_entities_proto_msgTypes[20]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ListLibraryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListLibraryResponse) ProtoMessage() {}
+
+func (x *ListLibraryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[20]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListLibraryResponse.ProtoReflect.Descriptor instead.
+func (*ListLibraryResponse) Descriptor() ([]byte, []int) {
+	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *ListLibraryResponse) GetSpace() string {
+	if x != nil {
+		return x.Space
+	}
+	return ""
+}
+
+func (x *ListLibraryResponse) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *ListLibraryResponse) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *ListLibraryResponse) GetLastCommentId() string {
+	if x != nil {
+		return x.LastCommentId
+	}
+	return ""
+}
+
+func (x *ListLibraryResponse) GetUpdateTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdateTime
+	}
+	return nil
+}
+
+func (x *ListLibraryResponse) GetLastActivityTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastActivityTime
+	}
+	return nil
+}
+
+func (x *ListLibraryResponse) GetMetadata() map[string]string {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *ListLibraryResponse) GetAuthors() []*EntityMetadata {
+	if x != nil {
+		return x.Authors
+	}
+	return nil
+}
+
+func (x *ListLibraryResponse) GetBreadcrumbs() []*EntityMetadata {
+	if x != nil {
+		return x.Breadcrumbs
+	}
+	return nil
+}
+
+func (x *ListLibraryResponse) GetCommentCount() int32 {
+	if x != nil {
+		return x.CommentCount
+	}
+	return 0
+}
+
 // Information about a structural blob that contains the mention.
 type Mention_BlobInfo struct {
 	state         protoimpl.MessageState
@@ -1284,7 +1615,7 @@ type Mention_BlobInfo struct {
 func (x *Mention_BlobInfo) Reset() {
 	*x = Mention_BlobInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_entities_v1alpha_entities_proto_msgTypes[19]
+		mi := &file_entities_v1alpha_entities_proto_msgTypes[22]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1297,7 +1628,7 @@ func (x *Mention_BlobInfo) String() string {
 func (*Mention_BlobInfo) ProtoMessage() {}
 
 func (x *Mention_BlobInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_entities_v1alpha_entities_proto_msgTypes[19]
+	mi := &file_entities_v1alpha_entities_proto_msgTypes[22]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1584,64 +1915,80 @@ func file_entities_v1alpha_entities_proto_rawDescGZIP() []byte {
 	return file_entities_v1alpha_entities_proto_rawDescData
 }
 
-var file_entities_v1alpha_entities_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_entities_v1alpha_entities_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_entities_v1alpha_entities_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
 var file_entities_v1alpha_entities_proto_goTypes = []any{
-	(*GetChangeRequest)(nil),            // 0: com.seed.entities.v1alpha.GetChangeRequest
-	(*GetEntityTimelineRequest)(nil),    // 1: com.seed.entities.v1alpha.GetEntityTimelineRequest
-	(*DiscoverEntityRequest)(nil),       // 2: com.seed.entities.v1alpha.DiscoverEntityRequest
-	(*DiscoverEntityResponse)(nil),      // 3: com.seed.entities.v1alpha.DiscoverEntityResponse
-	(*Change)(nil),                      // 4: com.seed.entities.v1alpha.Change
-	(*EntityTimeline)(nil),              // 5: com.seed.entities.v1alpha.EntityTimeline
-	(*AuthorVersion)(nil),               // 6: com.seed.entities.v1alpha.AuthorVersion
-	(*Entity)(nil),                      // 7: com.seed.entities.v1alpha.Entity
-	(*DeletedEntity)(nil),               // 8: com.seed.entities.v1alpha.DeletedEntity
-	(*SearchEntitiesRequest)(nil),       // 9: com.seed.entities.v1alpha.SearchEntitiesRequest
-	(*SearchEntitiesResponse)(nil),      // 10: com.seed.entities.v1alpha.SearchEntitiesResponse
-	(*DeleteEntityRequest)(nil),         // 11: com.seed.entities.v1alpha.DeleteEntityRequest
-	(*ListDeletedEntitiesRequest)(nil),  // 12: com.seed.entities.v1alpha.ListDeletedEntitiesRequest
-	(*ListDeletedEntitiesResponse)(nil), // 13: com.seed.entities.v1alpha.ListDeletedEntitiesResponse
-	(*UndeleteEntityRequest)(nil),       // 14: com.seed.entities.v1alpha.UndeleteEntityRequest
-	(*ListEntityMentionsRequest)(nil),   // 15: com.seed.entities.v1alpha.ListEntityMentionsRequest
-	(*ListEntityMentionsResponse)(nil),  // 16: com.seed.entities.v1alpha.ListEntityMentionsResponse
-	(*Mention)(nil),                     // 17: com.seed.entities.v1alpha.Mention
-	nil,                                 // 18: com.seed.entities.v1alpha.EntityTimeline.ChangesEntry
-	(*Mention_BlobInfo)(nil),            // 19: com.seed.entities.v1alpha.Mention.BlobInfo
-	(*timestamppb.Timestamp)(nil),       // 20: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),               // 21: google.protobuf.Empty
+	(LibrarySort)(0),                    // 0: com.seed.entities.v1alpha.LibrarySort
+	(*GetChangeRequest)(nil),            // 1: com.seed.entities.v1alpha.GetChangeRequest
+	(*GetEntityTimelineRequest)(nil),    // 2: com.seed.entities.v1alpha.GetEntityTimelineRequest
+	(*DiscoverEntityRequest)(nil),       // 3: com.seed.entities.v1alpha.DiscoverEntityRequest
+	(*DiscoverEntityResponse)(nil),      // 4: com.seed.entities.v1alpha.DiscoverEntityResponse
+	(*Change)(nil),                      // 5: com.seed.entities.v1alpha.Change
+	(*EntityTimeline)(nil),              // 6: com.seed.entities.v1alpha.EntityTimeline
+	(*AuthorVersion)(nil),               // 7: com.seed.entities.v1alpha.AuthorVersion
+	(*Entity)(nil),                      // 8: com.seed.entities.v1alpha.Entity
+	(*DeletedEntity)(nil),               // 9: com.seed.entities.v1alpha.DeletedEntity
+	(*SearchEntitiesRequest)(nil),       // 10: com.seed.entities.v1alpha.SearchEntitiesRequest
+	(*SearchEntitiesResponse)(nil),      // 11: com.seed.entities.v1alpha.SearchEntitiesResponse
+	(*DeleteEntityRequest)(nil),         // 12: com.seed.entities.v1alpha.DeleteEntityRequest
+	(*ListDeletedEntitiesRequest)(nil),  // 13: com.seed.entities.v1alpha.ListDeletedEntitiesRequest
+	(*ListDeletedEntitiesResponse)(nil), // 14: com.seed.entities.v1alpha.ListDeletedEntitiesResponse
+	(*UndeleteEntityRequest)(nil),       // 15: com.seed.entities.v1alpha.UndeleteEntityRequest
+	(*ListEntityMentionsRequest)(nil),   // 16: com.seed.entities.v1alpha.ListEntityMentionsRequest
+	(*ListEntityMentionsResponse)(nil),  // 17: com.seed.entities.v1alpha.ListEntityMentionsResponse
+	(*Mention)(nil),                     // 18: com.seed.entities.v1alpha.Mention
+	(*ListLibraryRequest)(nil),          // 19: com.seed.entities.v1alpha.ListLibraryRequest
+	(*EntityMetadata)(nil),              // 20: com.seed.entities.v1alpha.EntityMetadata
+	(*ListLibraryResponse)(nil),         // 21: com.seed.entities.v1alpha.ListLibraryResponse
+	nil,                                 // 22: com.seed.entities.v1alpha.EntityTimeline.ChangesEntry
+	(*Mention_BlobInfo)(nil),            // 23: com.seed.entities.v1alpha.Mention.BlobInfo
+	nil,                                 // 24: com.seed.entities.v1alpha.EntityMetadata.MetadataEntry
+	nil,                                 // 25: com.seed.entities.v1alpha.ListLibraryResponse.MetadataEntry
+	(*timestamppb.Timestamp)(nil),       // 26: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),               // 27: google.protobuf.Empty
 }
 var file_entities_v1alpha_entities_proto_depIdxs = []int32{
-	20, // 0: com.seed.entities.v1alpha.Change.create_time:type_name -> google.protobuf.Timestamp
-	18, // 1: com.seed.entities.v1alpha.EntityTimeline.changes:type_name -> com.seed.entities.v1alpha.EntityTimeline.ChangesEntry
-	6,  // 2: com.seed.entities.v1alpha.EntityTimeline.author_versions:type_name -> com.seed.entities.v1alpha.AuthorVersion
-	20, // 3: com.seed.entities.v1alpha.AuthorVersion.version_time:type_name -> google.protobuf.Timestamp
-	20, // 4: com.seed.entities.v1alpha.DeletedEntity.delete_time:type_name -> google.protobuf.Timestamp
-	7,  // 5: com.seed.entities.v1alpha.SearchEntitiesResponse.entities:type_name -> com.seed.entities.v1alpha.Entity
-	8,  // 6: com.seed.entities.v1alpha.ListDeletedEntitiesResponse.deleted_entities:type_name -> com.seed.entities.v1alpha.DeletedEntity
-	17, // 7: com.seed.entities.v1alpha.ListEntityMentionsResponse.mentions:type_name -> com.seed.entities.v1alpha.Mention
-	19, // 8: com.seed.entities.v1alpha.Mention.source_blob:type_name -> com.seed.entities.v1alpha.Mention.BlobInfo
-	4,  // 9: com.seed.entities.v1alpha.EntityTimeline.ChangesEntry.value:type_name -> com.seed.entities.v1alpha.Change
-	20, // 10: com.seed.entities.v1alpha.Mention.BlobInfo.create_time:type_name -> google.protobuf.Timestamp
-	0,  // 11: com.seed.entities.v1alpha.Entities.GetChange:input_type -> com.seed.entities.v1alpha.GetChangeRequest
-	1,  // 12: com.seed.entities.v1alpha.Entities.GetEntityTimeline:input_type -> com.seed.entities.v1alpha.GetEntityTimelineRequest
-	2,  // 13: com.seed.entities.v1alpha.Entities.DiscoverEntity:input_type -> com.seed.entities.v1alpha.DiscoverEntityRequest
-	9,  // 14: com.seed.entities.v1alpha.Entities.SearchEntities:input_type -> com.seed.entities.v1alpha.SearchEntitiesRequest
-	11, // 15: com.seed.entities.v1alpha.Entities.DeleteEntity:input_type -> com.seed.entities.v1alpha.DeleteEntityRequest
-	12, // 16: com.seed.entities.v1alpha.Entities.ListDeletedEntities:input_type -> com.seed.entities.v1alpha.ListDeletedEntitiesRequest
-	14, // 17: com.seed.entities.v1alpha.Entities.UndeleteEntity:input_type -> com.seed.entities.v1alpha.UndeleteEntityRequest
-	15, // 18: com.seed.entities.v1alpha.Entities.ListEntityMentions:input_type -> com.seed.entities.v1alpha.ListEntityMentionsRequest
-	4,  // 19: com.seed.entities.v1alpha.Entities.GetChange:output_type -> com.seed.entities.v1alpha.Change
-	5,  // 20: com.seed.entities.v1alpha.Entities.GetEntityTimeline:output_type -> com.seed.entities.v1alpha.EntityTimeline
-	3,  // 21: com.seed.entities.v1alpha.Entities.DiscoverEntity:output_type -> com.seed.entities.v1alpha.DiscoverEntityResponse
-	10, // 22: com.seed.entities.v1alpha.Entities.SearchEntities:output_type -> com.seed.entities.v1alpha.SearchEntitiesResponse
-	21, // 23: com.seed.entities.v1alpha.Entities.DeleteEntity:output_type -> google.protobuf.Empty
-	13, // 24: com.seed.entities.v1alpha.Entities.ListDeletedEntities:output_type -> com.seed.entities.v1alpha.ListDeletedEntitiesResponse
-	21, // 25: com.seed.entities.v1alpha.Entities.UndeleteEntity:output_type -> google.protobuf.Empty
-	16, // 26: com.seed.entities.v1alpha.Entities.ListEntityMentions:output_type -> com.seed.entities.v1alpha.ListEntityMentionsResponse
-	19, // [19:27] is the sub-list for method output_type
-	11, // [11:19] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	26, // 0: com.seed.entities.v1alpha.Change.create_time:type_name -> google.protobuf.Timestamp
+	22, // 1: com.seed.entities.v1alpha.EntityTimeline.changes:type_name -> com.seed.entities.v1alpha.EntityTimeline.ChangesEntry
+	7,  // 2: com.seed.entities.v1alpha.EntityTimeline.author_versions:type_name -> com.seed.entities.v1alpha.AuthorVersion
+	26, // 3: com.seed.entities.v1alpha.AuthorVersion.version_time:type_name -> google.protobuf.Timestamp
+	26, // 4: com.seed.entities.v1alpha.DeletedEntity.delete_time:type_name -> google.protobuf.Timestamp
+	8,  // 5: com.seed.entities.v1alpha.SearchEntitiesResponse.entities:type_name -> com.seed.entities.v1alpha.Entity
+	9,  // 6: com.seed.entities.v1alpha.ListDeletedEntitiesResponse.deleted_entities:type_name -> com.seed.entities.v1alpha.DeletedEntity
+	18, // 7: com.seed.entities.v1alpha.ListEntityMentionsResponse.mentions:type_name -> com.seed.entities.v1alpha.Mention
+	23, // 8: com.seed.entities.v1alpha.Mention.source_blob:type_name -> com.seed.entities.v1alpha.Mention.BlobInfo
+	0,  // 9: com.seed.entities.v1alpha.ListLibraryRequest.sort:type_name -> com.seed.entities.v1alpha.LibrarySort
+	24, // 10: com.seed.entities.v1alpha.EntityMetadata.metadata:type_name -> com.seed.entities.v1alpha.EntityMetadata.MetadataEntry
+	26, // 11: com.seed.entities.v1alpha.ListLibraryResponse.update_time:type_name -> google.protobuf.Timestamp
+	26, // 12: com.seed.entities.v1alpha.ListLibraryResponse.last_activity_time:type_name -> google.protobuf.Timestamp
+	25, // 13: com.seed.entities.v1alpha.ListLibraryResponse.metadata:type_name -> com.seed.entities.v1alpha.ListLibraryResponse.MetadataEntry
+	20, // 14: com.seed.entities.v1alpha.ListLibraryResponse.authors:type_name -> com.seed.entities.v1alpha.EntityMetadata
+	20, // 15: com.seed.entities.v1alpha.ListLibraryResponse.breadcrumbs:type_name -> com.seed.entities.v1alpha.EntityMetadata
+	5,  // 16: com.seed.entities.v1alpha.EntityTimeline.ChangesEntry.value:type_name -> com.seed.entities.v1alpha.Change
+	26, // 17: com.seed.entities.v1alpha.Mention.BlobInfo.create_time:type_name -> google.protobuf.Timestamp
+	1,  // 18: com.seed.entities.v1alpha.Entities.GetChange:input_type -> com.seed.entities.v1alpha.GetChangeRequest
+	2,  // 19: com.seed.entities.v1alpha.Entities.GetEntityTimeline:input_type -> com.seed.entities.v1alpha.GetEntityTimelineRequest
+	3,  // 20: com.seed.entities.v1alpha.Entities.DiscoverEntity:input_type -> com.seed.entities.v1alpha.DiscoverEntityRequest
+	10, // 21: com.seed.entities.v1alpha.Entities.SearchEntities:input_type -> com.seed.entities.v1alpha.SearchEntitiesRequest
+	12, // 22: com.seed.entities.v1alpha.Entities.DeleteEntity:input_type -> com.seed.entities.v1alpha.DeleteEntityRequest
+	13, // 23: com.seed.entities.v1alpha.Entities.ListDeletedEntities:input_type -> com.seed.entities.v1alpha.ListDeletedEntitiesRequest
+	15, // 24: com.seed.entities.v1alpha.Entities.UndeleteEntity:input_type -> com.seed.entities.v1alpha.UndeleteEntityRequest
+	16, // 25: com.seed.entities.v1alpha.Entities.ListEntityMentions:input_type -> com.seed.entities.v1alpha.ListEntityMentionsRequest
+	19, // 26: com.seed.entities.v1alpha.Entities.ListLibrary:input_type -> com.seed.entities.v1alpha.ListLibraryRequest
+	5,  // 27: com.seed.entities.v1alpha.Entities.GetChange:output_type -> com.seed.entities.v1alpha.Change
+	6,  // 28: com.seed.entities.v1alpha.Entities.GetEntityTimeline:output_type -> com.seed.entities.v1alpha.EntityTimeline
+	4,  // 29: com.seed.entities.v1alpha.Entities.DiscoverEntity:output_type -> com.seed.entities.v1alpha.DiscoverEntityResponse
+	11, // 30: com.seed.entities.v1alpha.Entities.SearchEntities:output_type -> com.seed.entities.v1alpha.SearchEntitiesResponse
+	27, // 31: com.seed.entities.v1alpha.Entities.DeleteEntity:output_type -> google.protobuf.Empty
+	14, // 32: com.seed.entities.v1alpha.Entities.ListDeletedEntities:output_type -> com.seed.entities.v1alpha.ListDeletedEntitiesResponse
+	27, // 33: com.seed.entities.v1alpha.Entities.UndeleteEntity:output_type -> google.protobuf.Empty
+	17, // 34: com.seed.entities.v1alpha.Entities.ListEntityMentions:output_type -> com.seed.entities.v1alpha.ListEntityMentionsResponse
+	21, // 35: com.seed.entities.v1alpha.Entities.ListLibrary:output_type -> com.seed.entities.v1alpha.ListLibraryResponse
+	27, // [27:36] is the sub-list for method output_type
+	18, // [18:27] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_entities_v1alpha_entities_proto_init() }
@@ -1866,7 +2213,43 @@ func file_entities_v1alpha_entities_proto_init() {
 				return nil
 			}
 		}
+		file_entities_v1alpha_entities_proto_msgTypes[18].Exporter = func(v any, i int) any {
+			switch v := v.(*ListLibraryRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 		file_entities_v1alpha_entities_proto_msgTypes[19].Exporter = func(v any, i int) any {
+			switch v := v.(*EntityMetadata); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_entities_v1alpha_entities_proto_msgTypes[20].Exporter = func(v any, i int) any {
+			switch v := v.(*ListLibraryResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_entities_v1alpha_entities_proto_msgTypes[22].Exporter = func(v any, i int) any {
 			switch v := v.(*Mention_BlobInfo); i {
 			case 0:
 				return &v.state
@@ -1884,13 +2267,14 @@ func file_entities_v1alpha_entities_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_entities_v1alpha_entities_proto_rawDesc,
-			NumEnums:      0,
-			NumMessages:   20,
+			NumEnums:      1,
+			NumMessages:   25,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_entities_v1alpha_entities_proto_goTypes,
 		DependencyIndexes: file_entities_v1alpha_entities_proto_depIdxs,
+		EnumInfos:         file_entities_v1alpha_entities_proto_enumTypes,
 		MessageInfos:      file_entities_v1alpha_entities_proto_msgTypes,
 	}.Build()
 	File_entities_v1alpha_entities_proto = out.File

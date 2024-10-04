@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { Change, DeleteEntityRequest, DiscoverEntityRequest, DiscoverEntityResponse, EntityTimeline, GetChangeRequest, GetEntityTimelineRequest, ListDeletedEntitiesRequest, ListDeletedEntitiesResponse, ListEntityMentionsRequest, ListEntityMentionsResponse, SearchEntitiesRequest, SearchEntitiesResponse, UndeleteEntityRequest } from "./entities_pb";
+import { Change, DeleteEntityRequest, DiscoverEntityRequest, DiscoverEntityResponse, EntityTimeline, GetChangeRequest, GetEntityTimelineRequest, ListDeletedEntitiesRequest, ListDeletedEntitiesResponse, ListEntityMentionsRequest, ListEntityMentionsResponse, ListLibraryRequest, ListLibraryResponse, SearchEntitiesRequest, SearchEntitiesResponse, UndeleteEntityRequest } from "./entities_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -103,6 +103,15 @@ export const Entities = {
       name: "ListEntityMentions",
       I: ListEntityMentionsRequest,
       O: ListEntityMentionsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc com.seed.entities.v1alpha.Entities.ListLibrary
+     */
+    listLibrary: {
+      name: "ListLibrary",
+      I: ListLibraryRequest,
+      O: ListLibraryResponse,
       kind: MethodKind.Unary,
     },
   }

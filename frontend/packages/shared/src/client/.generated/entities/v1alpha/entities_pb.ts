@@ -7,6 +7,38 @@ import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialM
 import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
 
 /**
+ * @generated from enum com.seed.entities.v1alpha.LibrarySort
+ */
+export enum LibrarySort {
+  /**
+   * default sort. when was the document most recently updated. recent updates first
+   *
+   * @generated from enum value: LAST_DOCUMENT_UPDATE = 0;
+   */
+  LAST_DOCUMENT_UPDATE = 0,
+
+  /**
+   * alphabetical on the document title
+   *
+   * @generated from enum value: ALPHABETICAL = 1;
+   */
+  ALPHABETICAL = 1,
+
+  /**
+   * sort by the latest activity. (document change or comment)
+   *
+   * @generated from enum value: LATEST_ACTIVITY = 2;
+   */
+  LATEST_ACTIVITY = 2,
+}
+// Retrieve enum metadata with: proto3.getEnumType(LibrarySort)
+proto3.util.setEnumType(LibrarySort, "com.seed.entities.v1alpha.LibrarySort", [
+  { no: 0, name: "LAST_DOCUMENT_UPDATE" },
+  { no: 1, name: "ALPHABETICAL" },
+  { no: 2, name: "LATEST_ACTIVITY" },
+]);
+
+/**
  * Request to get a change by ID.
  *
  * @generated from message com.seed.entities.v1alpha.GetChangeRequest
@@ -1133,6 +1165,243 @@ export class Mention_BlobInfo extends Message<Mention_BlobInfo> {
 
   static equals(a: Mention_BlobInfo | PlainMessage<Mention_BlobInfo> | undefined, b: Mention_BlobInfo | PlainMessage<Mention_BlobInfo> | undefined): boolean {
     return proto3.util.equals(Mention_BlobInfo, a, b);
+  }
+}
+
+/**
+ * @generated from message com.seed.entities.v1alpha.ListLibraryRequest
+ */
+export class ListLibraryRequest extends Message<ListLibraryRequest> {
+  /**
+   * Optional. Number of results per page. Default is defined by the server.
+   *
+   * @generated from field: int32 page_size = 1;
+   */
+  pageSize = 0;
+
+  /**
+   * Optional. Value from next_page_token obtains from a previous response.
+   *
+   * @generated from field: string page_token = 2;
+   */
+  pageToken = "";
+
+  /**
+   * Optional. The query string to filter library results
+   *
+   * @generated from field: string query = 3;
+   */
+  query = "";
+
+  /**
+   * Optional. Sort order for the library results
+   *
+   * @generated from field: com.seed.entities.v1alpha.LibrarySort sort = 4;
+   */
+  sort = LibrarySort.LAST_DOCUMENT_UPDATE;
+
+  /**
+   * when true, only return subscribed documents (including children documents of a recursive subscription)
+   *
+   * @generated from field: bool filter_subscribed = 5;
+   */
+  filterSubscribed = false;
+
+  constructor(data?: PartialMessage<ListLibraryRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.entities.v1alpha.ListLibraryRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 2, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "query", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "sort", kind: "enum", T: proto3.getEnumType(LibrarySort) },
+    { no: 5, name: "filter_subscribed", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListLibraryRequest {
+    return new ListLibraryRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListLibraryRequest {
+    return new ListLibraryRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListLibraryRequest {
+    return new ListLibraryRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListLibraryRequest | PlainMessage<ListLibraryRequest> | undefined, b: ListLibraryRequest | PlainMessage<ListLibraryRequest> | undefined): boolean {
+    return proto3.util.equals(ListLibraryRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message com.seed.entities.v1alpha.EntityMetadata
+ */
+export class EntityMetadata extends Message<EntityMetadata> {
+  /**
+   * Space/AccountUID of the document
+   *
+   * @generated from field: string space = 1;
+   */
+  space = "";
+
+  /**
+   * The path of the document
+   *
+   * @generated from field: string path = 2;
+   */
+  path = "";
+
+  /**
+   * Metadata of this document, including name
+   *
+   * @generated from field: map<string, string> metadata = 3;
+   */
+  metadata: { [key: string]: string } = {};
+
+  constructor(data?: PartialMessage<EntityMetadata>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.entities.v1alpha.EntityMetadata";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "space", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "metadata", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "scalar", T: 9 /* ScalarType.STRING */} },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): EntityMetadata {
+    return new EntityMetadata().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): EntityMetadata {
+    return new EntityMetadata().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): EntityMetadata {
+    return new EntityMetadata().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: EntityMetadata | PlainMessage<EntityMetadata> | undefined, b: EntityMetadata | PlainMessage<EntityMetadata> | undefined): boolean {
+    return proto3.util.equals(EntityMetadata, a, b);
+  }
+}
+
+/**
+ * @generated from message com.seed.entities.v1alpha.ListLibraryResponse
+ */
+export class ListLibraryResponse extends Message<ListLibraryResponse> {
+  /**
+   * Space/AccountUID of the document
+   *
+   * @generated from field: string space = 1;
+   */
+  space = "";
+
+  /**
+   * The path of the document
+   *
+   * @generated from field: string path = 2;
+   */
+  path = "";
+
+  /**
+   * The current version of this document
+   *
+   * @generated from field: string version = 3;
+   */
+  version = "";
+
+  /**
+   * The most recent comment within this document, used for tracking if the document has an unread indicator
+   *
+   * @generated from field: string last_comment_id = 4;
+   */
+  lastCommentId = "";
+
+  /**
+   * Time when document was updated.
+   *
+   * @generated from field: google.protobuf.Timestamp update_time = 5;
+   */
+  updateTime?: Timestamp;
+
+  /**
+   * Time of most recent document activity (update or the most recent comment)
+   *
+   * @generated from field: google.protobuf.Timestamp last_activity_time = 6;
+   */
+  lastActivityTime?: Timestamp;
+
+  /**
+   * Metadata of this document, including name
+   *
+   * @generated from field: map<string, string> metadata = 7;
+   */
+  metadata: { [key: string]: string } = {};
+
+  /**
+   * The list of all authors who have contributed to the latest version
+   *
+   * @generated from field: repeated com.seed.entities.v1alpha.EntityMetadata authors = 8;
+   */
+  authors: EntityMetadata[] = [];
+
+  /**
+   * The metadata for all parent documents
+   *
+   * @generated from field: repeated com.seed.entities.v1alpha.EntityMetadata breadcrumbs = 9;
+   */
+  breadcrumbs: EntityMetadata[] = [];
+
+  /**
+   * Number of comments within this document
+   *
+   * @generated from field: int32 comment_count = 10;
+   */
+  commentCount = 0;
+
+  constructor(data?: PartialMessage<ListLibraryResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.entities.v1alpha.ListLibraryResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "space", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "last_comment_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "update_time", kind: "message", T: Timestamp },
+    { no: 6, name: "last_activity_time", kind: "message", T: Timestamp },
+    { no: 7, name: "metadata", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "scalar", T: 9 /* ScalarType.STRING */} },
+    { no: 8, name: "authors", kind: "message", T: EntityMetadata, repeated: true },
+    { no: 9, name: "breadcrumbs", kind: "message", T: EntityMetadata, repeated: true },
+    { no: 10, name: "comment_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListLibraryResponse {
+    return new ListLibraryResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListLibraryResponse {
+    return new ListLibraryResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListLibraryResponse {
+    return new ListLibraryResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListLibraryResponse | PlainMessage<ListLibraryResponse> | undefined, b: ListLibraryResponse | PlainMessage<ListLibraryResponse> | undefined): boolean {
+    return proto3.util.equals(ListLibraryResponse, a, b);
   }
 }
 

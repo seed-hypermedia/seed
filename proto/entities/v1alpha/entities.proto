@@ -36,6 +36,8 @@ service Entities {
 
   // List mentions of a given Entity across the locally-available content.
   rpc ListEntityMentions(ListEntityMentionsRequest) returns (ListEntityMentionsResponse);
+
+  rpc ListLibrary(ListLibraryRequest) returns (ListLibraryResponse);
 }
 
 // Request to get a change by ID.
@@ -301,4 +303,80 @@ message Mention {
 
   // Optional. The fragment portion of the link.
   string target_fragment = 6;
+}
+
+message ListLibraryRequest {
+  // Optional. Number of results per page. Default is defined by the server.
+  int32 page_size = 1;
+
+  // Optional. Value from next_page_token obtains from a previous response.
+  string page_token = 2;
+
+  // Optional. The query string to filter library results
+  string query = 3;
+
+  // Optional. Sort order for the library results
+  LibrarySort sort = 4;
+
+  // when true, only return subscribed documents (including children documents of a recursive subscription)
+  bool filter_subscribed = 5;
+
+  // todo: filter based on your capabilities for the given document
+
+  // the frontend will filter these results further if the user has selected a 'favorite' filter, and will also do draft-based filtering
+}
+
+
+enum LibrarySort {
+  // default sort. when was the document most recently updated. recent updates first
+  LAST_DOCUMENT_UPDATE = 0;
+
+  // alphabetical on the document title
+  ALPHABETICAL = 1;
+
+  // sort by the latest activity. (document change or comment)
+  LATEST_ACTIVITY = 2;
+}
+
+message EntityMetadata {
+  // Space/AccountUID of the document
+  string space = 1;
+
+  // The path of the document
+  string path = 2;
+
+  // Metadata of this document, including name
+  map<string, string> metadata = 3;
+}
+
+message ListLibraryResponse {
+  // Space/AccountUID of the document
+  string space = 1;
+
+  // The path of the document
+  string path = 2;
+
+  // The current version of this document
+  string version = 3;
+
+  // The most recent comment within this document, used for tracking if the document has an unread indicator
+  string last_comment_id = 4;
+
+  // Time when document was updated.
+  google.protobuf.Timestamp update_time = 5;
+
+  // Time of most recent document activity (update or the most recent comment)
+  google.protobuf.Timestamp last_activity_time = 6;
+
+  // Metadata of this document, including name
+  map<string, string> metadata = 7;
+
+  // The list of all authors who have contributed to the latest version
+  repeated EntityMetadata authors = 8;
+
+  // The metadata for all parent documents
+  repeated EntityMetadata breadcrumbs = 9;
+
+  // Number of comments within this document
+  int32 comment_count = 10;
 }
