@@ -207,7 +207,6 @@ export async function resolveHmIdToAppRoute(
   hmId: UnpackedHypermediaId,
   grpcClient: GRPCClient,
 ): Promise<null | (UnpackedHypermediaId & {navRoute?: NavRoute})> {
-  console.log('resolveHmIdToAppRoute', hmId)
   if (hmId?.type === 'd') {
     return {
       ...hmId,

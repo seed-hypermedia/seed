@@ -1,6 +1,7 @@
 import {useAppContext} from '@/app-context'
 import {isHttpUrl, useHmIdToAppRouteResolver} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
+import {unpackHmId} from '@shm/shared'
 import {toast} from '@shm/ui'
 import {useMemo} from 'react'
 
@@ -13,7 +14,12 @@ export function useOpenUrl() {
   return useMemo(() => {
     return (url?: string, newWindow?: boolean) => {
       if (!url) return
-      resolveRoute(url).then((resolved) => {
+      const unpacked = unpackHmId(url)
+      if (!unpacked) {
+        toast.error(`Failed to resolve route for "${url}"`)
+        return
+      }
+      resolveRoute(unpacked).then((resolved) => {
         if (resolved?.navRoute) {
           if (newWindow) {
             spawn(resolved?.navRoute)
