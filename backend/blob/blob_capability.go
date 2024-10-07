@@ -28,19 +28,19 @@ type CapabilityUnsigned struct {
 	Type        blobType       `refmt:"@type"`
 	Issuer      core.Principal `refmt:"issuer"`
 	Delegate    core.Principal `refmt:"delegate"`
-	Account     core.Principal `refmt:"account"`
+	Space       core.Principal `refmt:"space"`
 	Path        string         `refmt:"path,omitempty"`
 	Role        string         `refmt:"role"`
-	Ts          int64          `refmt:"ts"`
+	Ts          time.Time      `refmt:"ts"`
 	NoRecursive bool           `refmt:"noRecursive,omitempty"`
 }
 
-func NewCapability(issuer core.KeyPair, delegate, account core.Principal, path string, role string, ts int64, noRecursive bool) (eb Encoded[*Capability], err error) {
+func NewCapability(issuer core.KeyPair, delegate, space core.Principal, path string, role string, ts time.Time, noRecursive bool) (eb Encoded[*Capability], err error) {
 	cu := CapabilityUnsigned{
 		Type:        blobTypeCapability,
 		Issuer:      issuer.Principal(),
 		Delegate:    delegate,
-		Account:     account,
+		Space:       space,
 		Path:        path,
 		Role:        role,
 		Ts:          ts,
@@ -99,12 +99,12 @@ func init() {
 }
 
 func indexCapability(ictx *indexingCtx, id int64, c cid.Cid, v *Capability) error {
-	iri, err := NewIRI(v.Account, v.Path)
+	iri, err := NewIRI(v.Space, v.Path)
 	if err != nil {
 		return err
 	}
 
-	sb := newStructuralBlob(c, string(blobTypeCapability), v.Issuer, time.UnixMicro(v.Ts), iri, cid.Undef, v.Account, time.Time{})
+	sb := newStructuralBlob(c, string(blobTypeCapability), v.Issuer, v.Ts, iri, cid.Undef, v.Space, time.Time{})
 
 	if _, err := ictx.ensurePubKey(v.Issuer); err != nil {
 		return err

@@ -11,8 +11,8 @@ import (
 	"seed/backend/blob"
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
-	"seed/backend/hlc"
 	"seed/backend/util/apiutil"
+	"seed/backend/util/cclock"
 	"seed/backend/util/dqb"
 	"seed/backend/util/errutil"
 	"seed/backend/util/sqlite"
@@ -128,9 +128,9 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 	if in.BaseVersion == "" {
 		switch {
 		// No base version is allowed for home documents with 1 change (which is the auto-generated genesis change).
-		case in.Path == "" && doc.Entity().NumChanges() == 1:
+		case in.Path == "" && doc.NumChanges() == 1:
 		// No base version is allowed for newly created documents, i.e. when there's not changes applied yet.
-		case in.Path != "" && doc.Entity().NumChanges() == 0:
+		case in.Path != "" && doc.NumChanges() == 0:
 		// Otherwise it's an error to not provide a base version.
 		default:
 			return nil, status.Errorf(codes.InvalidArgument, "base_version is required for updating existing documents")
@@ -359,7 +359,7 @@ func (srv *Server) DeleteDocument(ctx context.Context, in *documents.DeleteDocum
 }
 
 func (srv *Server) ensureProfileGenesis(ctx context.Context, kp core.KeyPair) error {
-	ebc, err := blob.NewChange(kp, nil, "Create", nil, blob.ProfileGenesisEpoch)
+	ebc, err := blob.NewChange(kp, cid.Undef, nil, 0, nil, blob.ProfileGenesisEpoch)
 	if err != nil {
 		return err
 	}
@@ -369,7 +369,12 @@ func (srv *Server) ensureProfileGenesis(ctx context.Context, kp core.KeyPair) er
 		return err
 	}
 
-	ebr, err := blob.NewRef(kp, ebc.CID, iri, []cid.Cid{ebc.CID}, blob.ProfileGenesisEpoch)
+	space, path, err := iri.SpacePath()
+	if err != nil {
+		return err
+	}
+
+	ebr, err := blob.NewRef(kp, ebc.CID, space, path, []cid.Cid{ebc.CID}, blob.ProfileGenesisEpoch)
 	if err != nil {
 		return err
 	}
@@ -391,13 +396,16 @@ func (srv *Server) loadDocument(ctx context.Context, account core.Principal, pat
 		return nil, err
 	}
 
-	clock := hlc.NewClock()
-	entity := docmodel.NewEntityWithClock(iri, clock)
+	clock := cclock.New()
+	doc, err := docmodel.New(iri, clock)
+	if err != nil {
+		return nil, err
+	}
 
 	var outErr error
 	changes, check := srv.idx.IterChanges(ctx, iri, account)
 	for _, ch := range changes {
-		if err := entity.ApplyChange(ch); err != nil {
+		if err := doc.ApplyChange(ch.CID, ch.Data); err != nil {
 			outErr = errors.Join(outErr, err)
 			break
 		}
@@ -407,7 +415,7 @@ func (srv *Server) loadDocument(ctx context.Context, account core.Principal, pat
 		return nil, outErr
 	}
 
-	if !ensurePath && len(entity.Heads()) == 0 {
+	if !ensurePath && len(doc.Heads()) == 0 {
 		return nil, status.Errorf(codes.NotFound, "document not found: %s", iri)
 	}
 
@@ -417,18 +425,13 @@ func (srv *Server) loadDocument(ctx context.Context, account core.Principal, pat
 			return nil, err
 		}
 
-		entity, err = entity.Checkout(heads)
+		doc, err = doc.Checkout(heads)
 		if err != nil {
-			return nil, fmt.Errorf("failed to checkout version %s", version)
+			return nil, fmt.Errorf("failed to checkout version: %w", err)
 		}
 	}
 
-	doc, err := docmodel.New(entity, clock.MustNow())
-	if err != nil {
-		return nil, err
-	}
-
-	return doc, nil
+	return doc, err
 }
 
 func applyChanges(doc *docmodel.Document, ops []*documents.DocumentChange) error {
@@ -477,7 +480,7 @@ func (srv *Server) checkWriteAccess(ctx context.Context, account core.Principal,
 		return err
 	}
 
-	if !cpb.Account.Equal(account) {
+	if !cpb.Space.Equal(account) {
 		return status.Errorf(codes.PermissionDenied, "capability %s is not from account %s", capc, account)
 	}
 
@@ -485,7 +488,7 @@ func (srv *Server) checkWriteAccess(ctx context.Context, account core.Principal,
 		return status.Errorf(codes.PermissionDenied, "capability %s is not delegated to key %s", capc, kp.Principal())
 	}
 
-	grantedIRI, err := makeIRI(cpb.Account, cpb.Path)
+	grantedIRI, err := makeIRI(cpb.Space, cpb.Path)
 	if err != nil {
 		return err
 	}

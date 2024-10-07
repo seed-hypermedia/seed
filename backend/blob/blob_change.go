@@ -2,12 +2,9 @@ package blob
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"seed/backend/core"
-	documents "seed/backend/genproto/documents/v3alpha"
-	"seed/backend/hlc"
 	"seed/backend/ipfs"
 	"seed/backend/util/must"
 	"time"
@@ -15,29 +12,77 @@ import (
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/multiformats/go-multicodec"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
-var ProfileGenesisEpoch = must.Do2(time.ParseInLocation(time.RFC3339, "2024-01-01T00:00:00Z", time.UTC)).UnixMicro()
+var ProfileGenesisEpoch = must.Do2(time.ParseInLocation(time.RFC3339, "2024-01-01T00:00:00Z", time.UTC)).Round(ClockPrecision)
 
 func init() {
 	cbornode.RegisterCborType(Change{})
 	cbornode.RegisterCborType(ChangeUnsigned{})
+	cbornode.RegisterCborType(Op{})
 }
 
 const blobTypeChange blobType = "Change"
+
+type OpType string
+
+type Op struct {
+	Op   OpType         `refmt:"op"`
+	Args map[string]any `refmt:"args,omitempty"`
+}
+
+func NewOpSetMetadata(key string, value any) Op {
+	return Op{
+		Op:   OpSetMetadata,
+		Args: map[string]any{key: value}, // TODO(burdiyan): or key => key, value => value?
+	}
+}
+
+func NewOpSetPosition(block, parent, leftOrigin string) Op {
+	return Op{
+		Op: OpSetPosition,
+		Args: map[string]any{
+			"b": block,
+			"p": parent,
+			"l": leftOrigin,
+		},
+	}
+}
+
+func NewOpReplaceBlock(state map[string]any) Op {
+	switch id := state["id"].(type) {
+	case string:
+		if id == "" {
+			panic("BUG: block ID is empty")
+		}
+	default:
+		panic("BUG: block ID is not unset")
+	}
+
+	return Op{
+		Op:   OpReplaceBlock,
+		Args: state,
+	}
+}
+
+const (
+	OpSetMetadata  OpType = "m" // Args = key => value.
+	OpSetPosition  OpType = "p" // Args = block, parent, left+origin.
+	OpReplaceBlock OpType = "b" // Args = id => block data.
+)
 
 type Change struct {
 	ChangeUnsigned
 	Sig core.Signature `refmt:"sig,omitempty"`
 }
 
-func NewChange(kp core.KeyPair, deps []cid.Cid, action string, payload map[string]any, ts int64) (eb Encoded[*Change], err error) {
+func NewChange(kp core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, ops []Op, ts time.Time) (eb Encoded[*Change], err error) {
 	cu := ChangeUnsigned{
 		Type:    blobTypeChange,
+		Genesis: genesis,
 		Deps:    deps,
-		Action:  action,
-		Payload: payload,
+		Depth:   depth,
+		Ops:     ops,
 		Author:  kp.Principal(),
 		Ts:      ts,
 	}
@@ -52,11 +97,12 @@ func NewChange(kp core.KeyPair, deps []cid.Cid, action string, payload map[strin
 
 type ChangeUnsigned struct {
 	Type    blobType       `refmt:"@type"`
+	Genesis cid.Cid        `refmt:"genesis,omitempty"`
 	Deps    []cid.Cid      `refmt:"deps,omitempty"`
-	Action  string         `refmt:"action"`
-	Payload map[string]any `refmt:"payload"`
+	Depth   int            `refmt:"depth,omitempty"`
+	Ops     []Op           `refmt:"ops,omitempty"`
 	Author  core.Principal `refmt:"author"`
-	Ts      int64          `refmt:"ts"`
+	Ts      time.Time      `refmt:"ts"`
 }
 
 func (c *ChangeUnsigned) Sign(kp core.KeyPair) (cc *Change, err error) {
@@ -105,13 +151,24 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 
 	author := v.Author
 
+	switch {
+	case v.Genesis.Defined() && len(v.Deps) > 0 && v.Depth > 0:
+		// Non-genesis change.
+	case !v.Genesis.Defined() && len(v.Deps) == 0 && v.Depth == 0:
+		// Genesis change.
+	default:
+		// Everything else is invalid.
+		return fmt.Errorf("invalid change causality invariants: cid=%s genesis=%s deps=%v depth=%v", c, v.Genesis, v.Deps, v.Depth)
+	}
+
 	var sb StructuralBlob
 	{
 		var resourceTime time.Time
-		if v.Action == "Create" {
-			resourceTime = hlc.Timestamp(v.Ts).Time()
+		// Change with no deps is the genesis change.
+		if len(v.Deps) == 0 {
+			resourceTime = v.Ts
 		}
-		sb = newStructuralBlob(c, string(blobTypeChange), author, hlc.Timestamp(v.Ts).Time(), "", cid.Undef, author, resourceTime)
+		sb = newStructuralBlob(c, string(blobTypeChange), author, v.Ts, "", v.Genesis, author, resourceTime)
 	}
 
 	// TODO(burdiyan): ensure deps are indexed, not just known.
@@ -124,114 +181,65 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 		sb.AddBlobLink("change/dep", dep)
 	}
 
-	// TODO(burdiyan): remove this when all the tests are fixed. Sometimes CBOR codec decodes into
-	// different types than what was encoded, and we might not have accounted for that during indexing.
-	// So we re-encode the patch here to make sure.
-	// This is of course very wasteful.
-	// EDIT: actually re-encoding is probably not a bad idea to enforce the canonical encoding, and hash correctness.
-	// But it would probably need to happen in some other layer, and more generalized.
-	{
-		data, err := cbornode.DumpObject(v.Payload)
-		if err != nil {
-			return err
-		}
-		v.Payload = nil
-
-		if err := cbornode.DecodeInto(data, &v.Payload); err != nil {
-			return err
-		}
+	var meta struct {
+		Title string `json:"title"`
 	}
+	for _, op := range v.Ops {
+		switch op.Op {
+		case OpSetMetadata:
+			for k, v := range op.Args {
+				vs, ok := v.(string)
+				if !ok {
+					continue
+				}
 
-	if v.Payload["metadata"] != nil {
-		for k, v := range v.Payload["metadata"].(map[string]any) {
-			vs, ok := v.(string)
-			if !ok {
-				continue
+				if meta.Title == "" && (k == "title" || k == "name" || k == "alias") {
+					meta.Title = vs
+				}
+
+				u, err := url.Parse(vs)
+				if err != nil {
+					continue
+				}
+
+				if u.Scheme != "ipfs" {
+					continue
+				}
+
+				c, err := cid.Decode(u.Host)
+				if err != nil {
+					continue
+				}
+
+				sb.AddBlobLink("metadata/"+k, c)
+				// TODO(hm24): index other relevant metadata for list response and so on.
 			}
-
-			u, err := url.Parse(vs)
+		case OpReplaceBlock:
+			rawBlock, err := cbornode.DumpObject(op.Args)
 			if err != nil {
-				continue
+				return fmt.Errorf("bad data?: failed to encode block into cbor when indexing: %w", err)
 			}
 
-			if u.Scheme != "ipfs" {
-				continue
+			var blk Block
+			if err := cbornode.DecodeInto(rawBlock, &blk); err != nil {
+				return fmt.Errorf("bad data?: failed to decode cbor block: %w", err)
 			}
 
-			c, err := cid.Decode(u.Host)
-			if err != nil {
-				continue
-			}
-
-			sb.AddBlobLink("metadata/"+k, c)
-
-			// TODO(hm24): index other relevant metadata for list response and so on.
-		}
-	}
-
-	blocks, ok := v.Payload["blocks"].(map[string]any)
-	if ok {
-		for id, blk := range blocks {
-			v, ok := blk.(map[string]any)["#map"]
-			if !ok {
-				continue
-			}
-			// This is a very bad way to convert an opaque map into a block struct.
-			// TODO(burdiyan): we should do better than this. This is ugly as hell.
-			data, err := json.Marshal(v)
-			if err != nil {
-				return err
-			}
-			blk := &documents.Block{}
-			if err := protojson.Unmarshal(data, blk); err != nil {
-				return err
-			}
-			blk.Id = id
-			blk.Revision = c.String()
-			if err := indexURL(&sb, ictx.log, blk.Id, "doc/"+blk.Type, blk.Ref); err != nil {
+			if err := indexURL(&sb, ictx.log, blk.ID, "doc/"+blk.Type, blk.Ref); err != nil {
 				return err
 			}
 
 			for _, ann := range blk.Annotations {
-				if err := indexURL(&sb, ictx.log, blk.Id, "doc/"+ann.Type, ann.Ref); err != nil {
+				if err := indexURL(&sb, ictx.log, blk.ID, "doc/"+ann.Type, ann.Ref); err != nil {
 					return err
 				}
 			}
 		}
 	}
 
-	index, ok := v.Payload["index"].(map[string]any)
-	if ok {
-		for key, v := range index {
-			heads, ok := v.([]cid.Cid)
-			if !ok {
-				continue
-			}
-			for _, head := range heads {
-				sb.AddBlobLink("index/"+key, head)
-			}
-		}
-	}
-	type meta struct {
-		Title string `json:"title"`
+	if meta.Title != "" {
+		sb.Meta = meta
 	}
 
-	attrs, ok := v.Payload["metadata"].(map[string]any)
-	if ok {
-		title, ok := attrs["title"]
-		if !ok {
-			alias, ok := attrs["alias"]
-			if ok {
-				sb.Meta = meta{Title: alias.(string)}
-			} else {
-				name, ok := attrs["name"]
-				if ok {
-					sb.Meta = meta{Title: name.(string)}
-				}
-			}
-		} else {
-			sb.Meta = meta{Title: title.(string)}
-		}
-	}
 	return ictx.SaveBlob(id, sb)
 }

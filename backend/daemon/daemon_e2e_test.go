@@ -71,51 +71,87 @@ func TestDaemonRegisterKey(t *testing.T) {
 	}
 }
 
+type changeBuilder struct {
+	req *documents.CreateDocumentChangeRequest
+}
+
+func newChangeBuilder(account core.Principal, path, baseVersion, keyName string) *changeBuilder {
+	return &changeBuilder{
+		req: &documents.CreateDocumentChangeRequest{
+			Account:        account.String(),
+			Path:           path,
+			BaseVersion:    baseVersion,
+			SigningKeyName: keyName,
+		},
+	}
+}
+
+func (b *changeBuilder) SetMetadata(key, value string) *changeBuilder {
+	b.req.Changes = append(b.req.Changes, &documents.DocumentChange{
+		Op: &documents.DocumentChange_SetMetadata_{
+			SetMetadata: &documents.DocumentChange_SetMetadata{Key: key, Value: value},
+		},
+	})
+	return b
+}
+
+func (b *changeBuilder) MoveBlock(blockID, parent, leftSibling string) *changeBuilder {
+	b.req.Changes = append(b.req.Changes, &documents.DocumentChange{
+		Op: &documents.DocumentChange_MoveBlock_{
+			MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: blockID, Parent: parent, LeftSibling: leftSibling},
+		},
+	})
+	return b
+}
+
+func (b *changeBuilder) ReplaceBlock(block, btype, text string) *changeBuilder {
+	b.req.Changes = append(b.req.Changes, &documents.DocumentChange{
+		Op: &documents.DocumentChange_ReplaceBlock{
+			ReplaceBlock: &documents.Block{
+				Id:   block,
+				Type: btype,
+				Text: text,
+			},
+		},
+	})
+	return b
+}
+
+func (b *changeBuilder) DeleteBlock(block string) *changeBuilder {
+	b.req.Changes = append(b.req.Changes, &documents.DocumentChange{
+		Op: &documents.DocumentChange_DeleteBlock{DeleteBlock: block},
+	})
+	return b
+}
+
+func (b *changeBuilder) Build() *documents.CreateDocumentChangeRequest {
+	return b.req
+}
+
 func TestDaemonUpdateProfile(t *testing.T) {
 	t.Parallel()
+
 	dmn := makeTestApp(t, "alice", makeTestConfig(t), true)
 	ctx := context.Background()
-	alice := coretest.NewTester("alice")
+	alice := coretest.NewTester("alice").Account.Principal()
 
-	doc, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
-		Account: alice.Account.Principal().String(),
-		Path:    "",
-		Changes: []*documents.DocumentChange{
-			{Op: &documents.DocumentChange_SetMetadata_{
-				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice from the Wonderland"},
-			}},
-			{Op: &documents.DocumentChange_MoveBlock_{
-				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
-			}},
-			{Op: &documents.DocumentChange_ReplaceBlock{
-				ReplaceBlock: &documents.Block{
-					Id:   "b1",
-					Type: "paragraph",
-					Text: "Hello",
-				},
-			}},
-			{Op: &documents.DocumentChange_MoveBlock_{
-				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "b1", LeftSibling: ""},
-			}},
-			{Op: &documents.DocumentChange_ReplaceBlock{
-				ReplaceBlock: &documents.Block{
-					Id:   "b2",
-					Type: "paragraph",
-					Text: "World!",
-				},
-			}},
-		},
-		SigningKeyName: "main",
-	})
+	doc, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, newChangeBuilder(alice, "", "", "main").
+		SetMetadata("title", "Alice from the Wonderland").
+		MoveBlock("b1", "", "").
+		ReplaceBlock("b1", "paragraph", "Hello").
+		MoveBlock("b2", "b1", "").
+		ReplaceBlock("b2", "paragraph", "World!").
+		Build(),
+	)
 	require.NoError(t, err)
 
 	want := &documents.Document{
-		Account: alice.Account.Principal().String(),
+		Account: alice.String(),
 		Path:    "",
 		Metadata: map[string]string{
 			"title": "Alice from the Wonderland",
 		},
-		Authors: []string{alice.Account.Principal().String()},
+		Authors: []string{alice.String()},
 		Content: []*documents.BlockNode{
 			{
 				Block: &documents.Block{
@@ -142,27 +178,21 @@ func TestDaemonUpdateProfile(t *testing.T) {
 		Compare(t, "profile document must match")
 
 	// Do another update.
+
 	{
-		doc, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
-			Account:     alice.Account.Principal().String(),
-			Path:        "",
-			BaseVersion: doc.Version,
-			Changes: []*documents.DocumentChange{
-				{Op: &documents.DocumentChange_SetMetadata_{
-					SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Just Alice"},
-				}},
-			},
-			SigningKeyName: "main",
-		})
+		doc, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, newChangeBuilder(alice, "", doc.Version, "main").
+			SetMetadata("title", "Just Alice").
+			Build(),
+		)
 		require.NoError(t, err)
 
 		want := &documents.Document{
-			Account: alice.Account.Principal().String(),
+			Account: alice.String(),
 			Path:    "",
 			Metadata: map[string]string{
 				"title": "Just Alice",
 			},
-			Authors: []string{alice.Account.Principal().String()},
+			Authors: []string{alice.String()},
 			Content: []*documents.BlockNode{
 				{
 					Block: &documents.Block{

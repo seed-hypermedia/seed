@@ -6,7 +6,6 @@ import (
 	"seed/backend/api/documents/v3alpha/docmodel"
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
-	"seed/backend/hlc"
 	"seed/backend/util/apiutil"
 	"seed/backend/util/colx"
 	"seed/backend/util/errutil"
@@ -69,7 +68,7 @@ func (srv *Server) ListDocumentChanges(ctx context.Context, in *documents.ListDo
 		Changes: make([]*documents.DocumentChangeInfo, 0, in.PageSize),
 	}
 
-	changes, err := doc.Entity().BFTDeps(slices.Collect(maps.Keys(doc.Entity().Heads())))
+	changes, err := doc.BFTDeps(slices.Collect(maps.Keys(doc.Heads())))
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +96,7 @@ func (srv *Server) ListDocumentChanges(ctx context.Context, in *documents.ListDo
 			Id:         cc,
 			Author:     change.Data.Author.String(),
 			Deps:       colx.SliceMap(change.Data.Deps, cid.Cid.String),
-			CreateTime: timestamppb.New(hlc.Timestamp(change.Data.Ts).Time()),
+			CreateTime: timestamppb.New(change.Data.Ts),
 		})
 	}
 

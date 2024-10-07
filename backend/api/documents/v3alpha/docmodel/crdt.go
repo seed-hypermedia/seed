@@ -9,10 +9,11 @@ import (
 	"iter"
 	"seed/backend/blob"
 	"seed/backend/core"
-	"seed/backend/crdt2"
-	"seed/backend/hlc"
+	"seed/backend/util/btree"
+	"seed/backend/util/cclock"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multibase"
@@ -20,73 +21,99 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-// Entity is our CRDT mutable object.
-type Entity struct {
-	id           blob.IRI
-	cids         []cid.Cid
-	changes      []*blob.Change
-	deps         [][]int // deps for each change.
-	rdeps        [][]int // reverse deps for each change.
-	applied      map[cid.Cid]int
-	heads        map[cid.Cid]struct{}
-	state        *crdt2.Map
-	maxClock     *hlc.Clock
-	actorsIntern map[string]string
-	vectorClock  map[string]int64
+type opID struct {
+	Ts     int64
+	Origin string
+	Idx    int
 }
 
-// NewEntity creates a new entity with a given ID.
-func NewEntity(id blob.IRI) *Entity {
-	return &Entity{
-		id:           id,
-		applied:      make(map[cid.Cid]int),
-		heads:        make(map[cid.Cid]struct{}),
-		state:        crdt2.NewMap(),
-		maxClock:     hlc.NewClock(),
-		actorsIntern: make(map[string]string),
-		vectorClock:  make(map[string]int64),
+func newOpID(ts int64, origin string, idx int) opID {
+	return opID{
+		Ts:     ts,
+		Origin: origin,
+		Idx:    idx,
 	}
 }
 
-// NewEntityWithClock creates a new entity with a provided clock.
-func NewEntityWithClock(id blob.IRI, clock *hlc.Clock) *Entity {
-	e := NewEntity(id)
-	e.maxClock = clock
+func (o opID) Compare(oo opID) int {
+	if o.Ts < oo.Ts {
+		return -1
+	}
+
+	if o.Ts > oo.Ts {
+		return +1
+	}
+
+	if o.Origin < oo.Origin {
+		return -1
+	}
+
+	if o.Origin > oo.Origin {
+		return +1
+	}
+
+	return cmp.Compare(o.Idx, oo.Idx)
+}
+
+type docCRDT struct {
+	id      blob.IRI
+	cids    []cid.Cid
+	changes []*blob.Change
+	deps    [][]int // deps for each change.
+	rdeps   [][]int // reverse deps for each change.
+	applied map[cid.Cid]int
+	heads   map[cid.Cid]struct{}
+
+	// TODO(burdiyan): Make these type-safe.
+	// Holds currently committed state for metadata and blocks.
+	moveLog       *btree.Map[opID, map[string]any]
+	stateMetadata map[string]*mvReg[string]
+	stateBlocks   map[string]*mvReg[map[string]any] // blockID -> opid -> block state.
+
+	clock        *cclock.Clock
+	actorsIntern map[string]string
+	vectorClock  map[string]time.Time
+}
+
+func newCRDT(id blob.IRI, clock *cclock.Clock) *docCRDT {
+	e := &docCRDT{
+		id:            id,
+		applied:       make(map[cid.Cid]int),
+		heads:         make(map[cid.Cid]struct{}),
+		moveLog:       btree.New[opID, map[string]any](8, opID.Compare),
+		stateMetadata: make(map[string]*mvReg[string]),
+		stateBlocks:   make(map[string]*mvReg[map[string]any]),
+		clock:         cclock.New(),
+		actorsIntern:  make(map[string]string),
+		vectorClock:   make(map[string]time.Time),
+	}
+	e.clock = clock
 	return e
 }
 
-// ID returns the ID of the entity.
-func (e *Entity) ID() blob.IRI { return e.id }
+func (e *docCRDT) GetMetadata() map[string]string {
+	out := make(map[string]string, len(e.stateMetadata))
 
-// Get a property under a given path.
-func (e *Entity) Get(path ...string) (value any, ok bool) {
-	return e.state.Get(path...)
-}
+	for k, v := range e.stateMetadata {
+		vv, ok := v.GetLatestOK()
+		if ok {
+			out[k] = vv
+		}
+	}
 
-// LastChangeTime is max time tracked in the HLC.
-func (e *Entity) LastChangeTime() hlc.Timestamp {
-	return e.maxClock.Max()
-}
-
-func (e *Entity) State() *crdt2.Map {
-	return e.state
+	return out
 }
 
 // Heads returns the map of head changes.
 // This must be read only. Not safe for concurrency.
-func (e *Entity) Heads() map[cid.Cid]struct{} {
+func (e *docCRDT) Heads() map[cid.Cid]struct{} {
 	return e.heads
-}
-
-// NumChanges returns the number of changes applied to the entity.
-func (e *Entity) NumChanges() int {
-	return len(e.cids)
 }
 
 // Checkout returns an entity with the state filtered up to the given heads.
 // If no heads are given it returns the same instance of the Entity.
 // If heads given are the same as the current heads, the same instance is returned as well.
-func (e *Entity) Checkout(heads []cid.Cid) (*Entity, error) {
+func (e *docCRDT) Checkout(heads []cid.Cid) (*docCRDT, error) {
 	if len(heads) == 0 {
 		return e, nil
 	}
@@ -130,14 +157,11 @@ func (e *Entity) Checkout(heads []cid.Cid) (*Entity, error) {
 	}
 	slices.Reverse(chain)
 
-	clock := hlc.NewClock()
-	entity := NewEntityWithClock(e.id, clock)
+	clock := cclock.New()
+	entity := newCRDT(e.id, clock)
 
 	for _, c := range chain {
-		if err := entity.ApplyChange(blob.ChangeRecord{
-			CID:  e.cids[c],
-			Data: e.changes[c],
-		}); err != nil {
+		if err := entity.applyChange(e.cids[c], e.changes[c]); err != nil {
 			return nil, err
 		}
 	}
@@ -182,7 +206,7 @@ func (v Version) Parse() ([]cid.Cid, error) {
 	return out, nil
 }
 
-func (e *Entity) Version() Version {
+func (e *docCRDT) Version() Version {
 	if len(e.heads) == 0 {
 		return ""
 	}
@@ -191,7 +215,7 @@ func (e *Entity) Version() Version {
 }
 
 // BFTDeps returns a single-use iterator that does breadth-first traversal of the Change DAG deps.
-func (e *Entity) BFTDeps(start []cid.Cid) (iter.Seq2[int, blob.ChangeRecord], error) {
+func (e *docCRDT) BFTDeps(start []cid.Cid) (iter.Seq2[int, blob.ChangeRecord], error) {
 	visited := make(map[int]struct{}, len(e.cids))
 	queue := make([]int, 0, len(e.cids))
 	var scratch []int
@@ -202,7 +226,7 @@ func (e *Entity) BFTDeps(start []cid.Cid) (iter.Seq2[int, blob.ChangeRecord], er
 			if e.changes[i].Ts == e.changes[j].Ts {
 				return cmp.Compare(e.cids[i].KeyString(), e.cids[j].KeyString())
 			}
-			return cmp.Compare(e.changes[i].Ts, e.changes[j].Ts)
+			return cmp.Compare(e.changes[i].Ts.UnixNano(), e.changes[j].Ts.UnixNano())
 		})
 		queue = append(queue, scratch...)
 	}
@@ -239,15 +263,14 @@ func (e *Entity) BFTDeps(start []cid.Cid) (iter.Seq2[int, blob.ChangeRecord], er
 	}, nil
 }
 
-// ApplyChange to the internal state.
-func (e *Entity) ApplyChange(rec blob.ChangeRecord) error {
-	if _, ok := e.applied[rec.CID]; ok {
+func (e *docCRDT) applyChange(c cid.Cid, ch *blob.Change) error {
+	if _, ok := e.applied[c]; ok {
 		return nil
 	}
 
 	var actor string
 	{
-		au := rec.Data.Author.UnsafeString()
+		au := ch.Author.UnsafeString()
 		a, ok := e.actorsIntern[au]
 		if !ok {
 			e.actorsIntern[au] = au
@@ -256,47 +279,79 @@ func (e *Entity) ApplyChange(rec blob.ChangeRecord) error {
 		actor = a
 	}
 
-	if rec.Data.Ts < e.vectorClock[actor] {
-		return fmt.Errorf("applying change '%s' violates causal order", rec.CID)
+	if tracked := e.vectorClock[actor]; ch.Ts.Before(tracked) {
+		return fmt.Errorf("applying change '%s' violates causal order: incoming=%s tracked=%s", c, ch.Ts, tracked)
 	}
 
-	e.vectorClock[actor] = rec.Data.Ts
+	e.vectorClock[actor] = ch.Ts
 
 	// TODO(hm24): is this check necessary?
 	// if ch.Ts < int64(e.maxClock.Max()) {
 	// 	return fmt.Errorf("applying change '%s' out of causal order", c)
 	// }
 
-	deps := make([]int, len(rec.Data.Deps))
+	deps := make([]int, len(ch.Deps))
 
-	for i, dep := range rec.Data.Deps {
+	for i, dep := range ch.Deps {
 		depIdx, ok := e.applied[dep]
 		if !ok {
-			return fmt.Errorf("missing dependency %s of change %s", dep, rec.CID)
+			return fmt.Errorf("missing dependency %s of change %s", dep, c)
 		}
 
 		deps[i] = depIdx
 	}
 
-	if err := e.maxClock.Track(hlc.Timestamp(rec.Data.Ts)); err != nil {
+	if err := e.clock.Track(ch.Ts); err != nil {
 		return err
 	}
 
-	e.state.ApplyPatch(int64(rec.Data.Ts), OriginFromCID(rec.CID), rec.Data.Payload)
+	ts := ch.Ts.UnixMicro()
+	origin := originFromCID(c)
 
-	e.cids = append(e.cids, rec.CID)
-	e.changes = append(e.changes, rec.Data)
+	for idx, op := range ch.Ops {
+		opid := newOpID(ts, origin, idx)
+		switch op.Op {
+		case OpSetMetadata:
+			for k, v := range op.Args {
+				reg := e.stateMetadata[k]
+				if reg == nil {
+					reg = newMVReg[string]()
+					e.stateMetadata[k] = reg
+				}
+				reg.Set(opid, v.(string))
+			}
+		case OpReplaceBlock:
+			id, ok := op.Args["id"].(string)
+			if !ok {
+				return fmt.Errorf("replace block op is missing ID")
+			}
+
+			reg := e.stateBlocks[id]
+			if reg == nil {
+				reg = newMVReg[map[string]any]()
+				e.stateBlocks[id] = reg
+			}
+			reg.Set(opid, op.Args)
+		case OpSetPosition:
+			if e.moveLog.Set(opid, op.Args) {
+				return fmt.Errorf("BUG: duplicate op in move log")
+			}
+		}
+	}
+
+	e.cids = append(e.cids, c)
+	e.changes = append(e.changes, ch)
 
 	e.deps = append(e.deps, nil)
 	e.rdeps = append(e.rdeps, nil)
-	e.heads[rec.CID] = struct{}{}
+	e.heads[c] = struct{}{}
 	curIdx := len(e.changes) - 1
-	e.applied[rec.CID] = curIdx
+	e.applied[c] = curIdx
 
 	// One more pass through the deps to update the internal DAG structure,
 	// and update the heads of the current version.
 	// To avoid corrupting the entity state we shouldn't do this in the first loop we did.
-	for i, dep := range rec.Data.Deps {
+	for i, dep := range ch.Deps {
 		// If any of the deps was a head, then it's no longer the case.
 		delete(e.heads, dep)
 
@@ -319,7 +374,7 @@ func (e *Entity) ApplyChange(rec blob.ChangeRecord) error {
 //	a ← b ← c ← d
 //	     ↖
 //	       e
-func (e *Entity) Deps() []cid.Cid {
+func (e *docCRDT) Deps() []cid.Cid {
 	if len(e.heads) == 0 {
 		return nil
 	}
@@ -417,38 +472,28 @@ func addUnique(in []int, v int) []int {
 	return slices.Insert(in, targetIndex, v)
 }
 
-// OriginFromCID creates a CRDT origin from the last 8 chars of the hash.
-// Most of the time it's not needed, because HLC is very unlikely to collide.
-func OriginFromCID(c cid.Cid) string {
-	if !c.Defined() {
-		return ""
+// prepareChange to be applied later.
+func (e *docCRDT) prepareChange(ts time.Time, signer core.KeyPair, ops []Op) (hb blob.Encoded[*blob.Change], err error) {
+	var genesis cid.Cid
+	if len(e.cids) > 0 {
+		genesis = e.cids[0]
 	}
 
-	str, err := c.StringOfBase(multibase.Base58BTC)
+	var depth int
+
+	deps := maps.Keys(e.heads)
+	// Ensure we don't use empty non-nil slice, which would leak into the encoded format.
+	if len(deps) == 0 {
+		deps = nil
+	} else {
+		for _, dep := range deps {
+			depth = max(depth, e.changes[e.applied[dep]].Depth)
+		}
+		depth++
+	}
+
+	hb, err = blob.NewChange(signer, genesis, deps, depth, ops, ts)
 	if err != nil {
-		panic(err)
-	}
-	return str[len(str)-9:]
-}
-
-// NextTimestamp returns the next timestamp from the HLC.
-func (e *Entity) NextTimestamp() hlc.Timestamp {
-	return e.maxClock.MustNow()
-}
-
-// CreateChange entity creating a change blob, and applying it to the internal state.
-func (e *Entity) CreateChange(action string, ts hlc.Timestamp, signer core.KeyPair, payload map[string]any) (hb blob.Encoded[*blob.Change], err error) {
-	hb, err = blob.NewChange(signer, maps.Keys(e.heads), action, payload, int64(ts))
-	if err != nil {
-		return hb, err
-	}
-
-	rec := blob.ChangeRecord{
-		CID:  hb.CID,
-		Data: hb.Decoded,
-	}
-
-	if err := e.ApplyChange(rec); err != nil {
 		return hb, err
 	}
 
@@ -502,13 +547,4 @@ func NewUnforgeableID(prefix string, author core.Principal, nonce []byte, ts int
 	// We don't use full hash digest here, to make our IDs shorter.
 	// But it should have enough collision resistance for our purpose.
 	return prefix + base[len(base)-hashSize:], nonce
-}
-
-func verifyUnforgeableID(id blob.IRI, prefix int, owner core.Principal, nonce []byte, ts int64) error {
-	id2, _ := NewUnforgeableID(string(id[:prefix]), owner, nonce, ts)
-	if id2 != string(id) {
-		return fmt.Errorf("failed to verify unforgeable ID want=%q got=%q", id, id2)
-	}
-
-	return nil
 }
