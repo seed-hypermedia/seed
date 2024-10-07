@@ -127,12 +127,15 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	if err := n.p2p.Host.Connect(ctx, info); err != nil {
 		return fmt.Errorf("failed to connect to peer %s: %w", info.ID, err)
 	}
+	n.p2p.ConnManager().Protect(info.ID, protocolSupportKey)
 	if err := n.CheckHyperMediaProtocolVersion(ctx, info.ID, n.protocol.version); err != nil {
+		n.p2p.ConnManager().Unprotect(info.ID, protocolSupportKey)
 		return err
 	}
 
 	addrsStr := AddrInfoToStrings(info)
 	if len(addrsStr) == 0 {
+		n.p2p.ConnManager().Unprotect(info.ID, protocolSupportKey)
 		return fmt.Errorf("Peer with no addresses")
 	}
 	initialAddrs := strings.ReplaceAll(strings.Join(addrsStr, ","), " ", "")
@@ -248,6 +251,7 @@ func (n *Node) storeRemotePeers(ctx context.Context, id peer.ID) error {
 					if err := n.p2p.Host.Connect(ctxBatch, info); err != nil {
 						return
 					}
+					n.p2p.ConnManager().Protect(pid, protocolSupportKey)
 					if err := n.CheckHyperMediaProtocolVersion(ctxBatch, pid, n.protocol.version); err != nil {
 						atomic.AddUint32(&nonSeedPeers, 1)
 						mu.Lock()
@@ -260,7 +264,6 @@ func (n *Node) storeRemotePeers(ctx context.Context, id peer.ID) error {
 					sqlStr += "(?, ?, ?),"
 					vals = append(vals, p.Id, strings.Join(p.Addrs, ","), false)
 					mu.Unlock()
-					n.p2p.ConnManager().Protect(pid, protocolSupportKey)
 				} else {
 					atomic.AddUint32(&nonSeedPeers, 1)
 					mu.Lock()
@@ -315,6 +318,7 @@ func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.Ev
 	}
 
 	if err := n.CheckHyperMediaProtocolVersion(ctx, event.Peer, n.protocol.version, event.Protocols...); err != nil {
+		n.p2p.ConnManager().Unprotect(event.Peer, protocolSupportKey)
 		return
 	}
 

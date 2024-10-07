@@ -203,6 +203,7 @@ func (s *Service) Start(ctx context.Context) (err error) {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-t.C:
+			go s.host.ConnManager().TrimOpenConns(ctx)
 			if err := s.refreshWorkers(ctx); err != nil {
 				return err
 			}

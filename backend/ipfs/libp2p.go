@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"seed/backend/util/cleanup"
 	"seed/backend/util/must"
@@ -59,11 +60,11 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 
 	rm, err := buildResourceManager(
 		map[protocol.ID]rcmgr.LimitVal{
-			protocolID: 2000,
+			protocolID: 1000,
 		},
 		map[protocol.ID]rcmgr.LimitVal{
-			"/ipfs/kad/1.0.0":     2000,
-			"/ipfs/bitswap/1.2.0": 2000,
+			"/ipfs/kad/1.0.0":     1000,
+			"/ipfs/bitswap/1.2.0": 1000,
 		},
 	)
 	if err != nil {
@@ -71,12 +72,16 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 	}
 
 	var rt routing.Routing
+	cm := must.Do2(connmgr.NewConnManager(lowWatermark, highWatermark,
+		connmgr.WithGracePeriod(5*time.Second),
+		connmgr.WithSilencePeriod(6*time.Second)))
+
 	o := []libp2p.Option{
 		libp2p.Identity(key),
 		libp2p.NoListenAddrs, // Users must explicitly start listening.
 		libp2p.EnableRelay(), // Be able to dial behind-relay peers and receive connections from them.
 		libp2p.EnableAutoNATv2(),
-		libp2p.ConnectionManager(must.Do2(connmgr.NewConnManager(lowWatermark, highWatermark))),
+		libp2p.ConnectionManager(cm),
 		libp2p.ResourceManager(rm),
 		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
 			if ds == nil {
@@ -167,7 +172,7 @@ func (n *Libp2p) AddrInfo() peer.AddrInfo {
 	}
 }
 
-// GetConnLimit returns the connection limits.
+// GetConnLimit returns the connection manager limit.
 func (n *Libp2p) GetConnLimit() int {
 	return highWatermark
 }
