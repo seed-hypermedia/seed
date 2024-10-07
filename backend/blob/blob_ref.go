@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"seed/backend/core"
-	"seed/backend/hlc"
 	"seed/backend/ipfs"
 	"time"
 
@@ -25,10 +24,11 @@ type Ref struct {
 	Sig core.Signature `refmt:"sig,omitempty"`
 }
 
-func NewRef(kp core.KeyPair, genesis cid.Cid, rid IRI, heads []cid.Cid, ts int64) (eb Encoded[*Ref], err error) {
+func NewRef(kp core.KeyPair, genesis cid.Cid, space core.Principal, path string, heads []cid.Cid, ts time.Time) (eb Encoded[*Ref], err error) {
 	ru := RefUnsigned{
 		Type:        blobTypeRef,
-		Resource:    rid,
+		Space:       space,
+		Path:        path,
 		GenesisBlob: genesis,
 		Heads:       heads,
 		Author:      kp.Principal(),
@@ -45,12 +45,13 @@ func NewRef(kp core.KeyPair, genesis cid.Cid, rid IRI, heads []cid.Cid, ts int64
 
 type RefUnsigned struct {
 	Type        blobType       `refmt:"@type"`
-	Resource    IRI            `refmt:"resource"`
+	Space       core.Principal `refmt:"space"`
+	Path        string         `refmt:"path,omitempty"`
 	GenesisBlob cid.Cid        `refmt:"genesisBlob"`
 	Capability  cid.Cid        `refmt:"capability,omitempty"`
 	Heads       []cid.Cid      `refmt:"heads"`
 	Author      core.Principal `refmt:"author"`
-	Ts          int64          `refmt:"ts"`
+	Ts          time.Time      `refmt:"ts"`
 }
 
 func (r *RefUnsigned) Sign(kp core.KeyPair) (rr *Ref, err error) {
@@ -98,11 +99,16 @@ func init() {
 func indexRef(ictx *indexingCtx, id int64, c cid.Cid, v *Ref) error {
 	// TODO(hm24): more validation and refs for docs.
 
+	iri, err := NewIRI(v.Space, v.Path)
+	if err != nil {
+		return err
+	}
+
 	var sb StructuralBlob
 	if v.Ts == ProfileGenesisEpoch {
-		sb = newStructuralBlob(c, string(blobTypeRef), v.Author, hlc.Timestamp(v.Ts).Time(), v.Resource, v.GenesisBlob, v.Author, hlc.Timestamp(v.Ts).Time())
+		sb = newStructuralBlob(c, string(blobTypeRef), v.Author, v.Ts, iri, v.GenesisBlob, v.Author, v.Ts)
 	} else {
-		sb = newStructuralBlob(c, string(blobTypeRef), v.Author, hlc.Timestamp(v.Ts).Time(), v.Resource, v.GenesisBlob, nil, time.Time{})
+		sb = newStructuralBlob(c, string(blobTypeRef), v.Author, v.Ts, iri, v.GenesisBlob, nil, time.Time{})
 	}
 
 	if len(v.Heads) == 0 {

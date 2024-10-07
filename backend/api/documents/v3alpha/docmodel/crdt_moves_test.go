@@ -178,27 +178,27 @@ func TestRedundantMoveMutation(t *testing.T) {
 func TestTreeState(t *testing.T) {
 	ts := newTreeCRDT()
 
-	require.NoError(t, ts.integrate(newOpID("a", 1, 0), "b1", "", "", ""))
-	require.NoError(t, ts.integrate(newOpID("a", 2, 0), "b2", "", "b1", "a"))
-	require.NoError(t, ts.integrate(newOpID("b", 3, 0), "b1", "", "b2", "a"))
+	require.NoError(t, ts.integrate(newOpID(1, "a", 0), "b1", "", "", ""))
+	require.NoError(t, ts.integrate(newOpID(2, "a", 0), "b2", "", "b1", "a"))
+	require.NoError(t, ts.integrate(newOpID(3, "b", 0), "b1", "", "b2", "a"))
 }
 
 func TestVisibleTree(t *testing.T) {
 	state := newTreeCRDT()
 
-	require.NoError(t, state.integrate(newOpID("a", 1, 0), "b1", "", "", ""))
-	require.NoError(t, state.integrate(newOpID("a", 1, 1), "b2", "", "b1", "a"))
-	require.NoError(t, state.integrate(newOpID("a", 1, 2), "b3", "", "b2", "a"))
+	require.NoError(t, state.integrate(newOpID(1, "a", 0), "b1", "", "", ""))
+	require.NoError(t, state.integrate(newOpID(1, "a", 1), "b2", "", "b1", "a"))
+	require.NoError(t, state.integrate(newOpID(1, "a", 2), "b3", "", "b2", "a"))
 
 	// Concurrent conflicting changes.
 
-	require.NoError(t, state.integrate(newOpID("b", 2, 0), "b1", "b2", "", ""))
-	require.NoError(t, state.integrate(newOpID("b", 2, 1), "b3", "b2", "b1", "b"))
+	require.NoError(t, state.integrate(newOpID(2, "b", 0), "b1", "b2", "", ""))
+	require.NoError(t, state.integrate(newOpID(2, "b", 1), "b3", "b2", "b1", "b"))
 
 	require.True(t, state.mutate().isAncestor("b2", "b1"))
 
-	require.NoError(t, state.integrate(newOpID("c", 2, 0), "b2", "b1", "", ""))
-	require.NoError(t, state.integrate(newOpID("c", 2, 1), "b3", "b1", "b2", "c"))
+	require.NoError(t, state.integrate(newOpID(2, "c", 0), "b2", "b1", "", ""))
+	require.NoError(t, state.integrate(newOpID(2, "c", 1), "b3", "b1", "b2", "c"))
 
 	checkTree(t, state.mutate(), [][2]string{
 		{"", "b2"},

@@ -4,13 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"iter"
+	"maps"
 	"net/url"
 	"reflect"
 	"seed/backend/blob"
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
-	"seed/backend/hlc"
-	"seed/backend/util/colx"
+	"seed/backend/util/cclock"
+	"slices"
 	"sort"
 	"strings"
 
@@ -22,34 +24,43 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+type Op = blob.Op
+
+const (
+	OpSetMetadata  = blob.OpSetMetadata
+	OpSetPosition  = blob.OpSetPosition
+	OpReplaceBlock = blob.OpReplaceBlock
+)
+
+var (
+	newOpSetMetadata  = blob.NewOpSetMetadata
+	newOpSetPosition  = blob.NewOpSetPosition
+	newOpReplaceBlock = blob.NewOpReplaceBlock
+)
+
 // WARNING! There's some very ugly type-unsafe code in here.
 // Can do better, but no time for that now.
 
 // Document is a mutable document.
 type Document struct {
-	parent  *Document
-	e       *Entity
+	crdt    *docCRDT
 	tree    *treeCRDT
-	mut     *treeMutation
-	patch   map[string]any
-	done    bool
-	nextHLC hlc.Timestamp
 	origins map[string]cid.Cid // map of abbreviated origin hashes to actual cids; workaround, should not be necessary.
+
+	// Bellow goes the data for the ongoing dirty mutation.
+	// Document can only be mutated once, and then must be thrown away.
+
+	dirty         bool
+	mut           *treeMutation
+	movesReplayed bool
+	done          bool
 	// Index for blocks that we've created in this change.
 	createdBlocks map[string]struct{}
 	// Blocks that we've deleted in this change.
 	deletedBlocks map[string]struct{}
-}
 
-func (doc *Document) Parent() *Document {
-	return doc.parent
-}
-
-func (doc *Document) SetParent(parent *Document) {
-	if doc.parent != nil {
-		panic("BUG: parent doc is already set")
-	}
-	doc.parent = parent
+	dirtyBlocks   map[string]map[string]any // BlockID => BlockState.
+	dirtyMetadata map[string]any
 }
 
 // originFromCID creates a CRDT origin from the last 8 chars of the hash.
@@ -66,71 +77,119 @@ func originFromCID(c cid.Cid) string {
 	return str[len(str)-9:]
 }
 
-// New creates a new mutable document.
-func New(e *Entity, nextHLC hlc.Timestamp) (*Document, error) {
+func New(id blob.IRI, clock *cclock.Clock) (*Document, error) {
+	crdt := newCRDT(id, clock)
+	return newDoc(crdt)
+}
+
+// newDoc creates a new mutable document.
+func newDoc(crdt *docCRDT) (*Document, error) {
 	dm := &Document{
-		e:             e,
+		crdt:          crdt,
 		tree:          newTreeCRDT(),
-		patch:         map[string]any{},
 		origins:       make(map[string]cid.Cid),
 		createdBlocks: make(map[string]struct{}),
 		deletedBlocks: make(map[string]struct{}),
-		nextHLC:       nextHLC,
 	}
 
-	for _, c := range e.cids {
+	for _, c := range crdt.cids {
 		o := originFromCID(c)
 		dm.origins[o] = c
-	}
-
-	if err := dm.replayMoves(); err != nil {
-		return nil, err
 	}
 
 	return dm, nil
 }
 
-func (dm *Document) replayMoves() (err error) {
-	dm.e.State().ForEachListChunk([]string{"moves"}, func(time int64, origin string, items []any) bool {
-		for idx, move := range items {
-			mm := move.(map[string]any)
-			block := mm["b"].(string)
-			parent := mm["p"].(string)
-			leftShadow := mm["l"].(string)
-			left, leftOrigin, _ := strings.Cut(leftShadow, "@")
-			if left != "" && leftOrigin == "" {
-				leftOrigin = origin
-			}
+func (dm *Document) Checkout(heads []cid.Cid) (*Document, error) {
+	if dm.done {
+		panic("BUG: document is done")
+	}
 
-			if err = dm.tree.integrate(newOpID(origin, time, idx), block, parent, left, leftOrigin); err != nil {
-				err = fmt.Errorf("failed move %v: %w", move, err)
-				return false
-			}
-		}
-		return true
-	})
+	crdt2, err := dm.crdt.Checkout(heads)
 	if err != nil {
-		return fmt.Errorf("failed to replay previous moves: %w", err)
+		return nil, err
+	}
+
+	dm2, err := newDoc(crdt2)
+	if err != nil {
+		return nil, err
+	}
+
+	return dm2, nil
+}
+
+// ApplyChange to the state. Can only do that before any mutations were made.
+func (dm *Document) ApplyChange(c cid.Cid, ch *blob.Change) error {
+	if dm.dirty {
+		return fmt.Errorf("cannot apply change to dirty state")
+	}
+
+	return dm.applyChangeUnsafe(c, ch)
+}
+
+func (dm *Document) applyChangeUnsafe(c cid.Cid, ch *blob.Change) error {
+	o := originFromCID(c)
+	dm.origins[o] = c
+	return dm.crdt.applyChange(c, ch)
+}
+
+func (dm *Document) replayMoves() error {
+	dm.dirty = true
+	if dm.movesReplayed {
+		panic("BUG: moves replaed twice")
+	}
+
+	dm.movesReplayed = true
+
+	var idx int
+	for opid, move := range dm.crdt.moveLog.Iter() {
+		block := move["b"].(string)
+		parent := move["p"].(string)
+		leftShadow := move["l"].(string)
+		left, leftOrigin, _ := strings.Cut(leftShadow, "@")
+		if left != "" && leftOrigin == "" {
+			leftOrigin = opid.Origin
+		}
+
+		if err := dm.tree.integrate(opid, block, parent, left, leftOrigin); err != nil {
+			return fmt.Errorf("failed move %v: %w", move, err)
+		}
+
+		idx++
 	}
 
 	return nil
 }
 
 // SetMetadata sets the title of the document.
-func (dm *Document) SetMetadata(key, value string) error {
-	v, ok := dm.e.Get("metadata", key)
-	if ok && v.(string) == value {
-		return nil
+func (dm *Document) SetMetadata(key, newValue string) error {
+	dm.dirty = true
+	if dm.dirtyMetadata == nil {
+		dm.dirtyMetadata = make(map[string]any)
 	}
 
-	colx.ObjectSet(dm.patch, []string{"metadata", key}, value)
+	if reg := dm.crdt.stateMetadata[key]; reg != nil {
+		if newValue == reg.GetLatest() {
+			// If metadata key already has the same value in the committed CRDT state,
+			// we do nothing, and just in case clear the dirty metadata value if any.
+			delete(dm.dirtyMetadata, key)
+			return nil
+		}
+	}
+
+	dm.dirtyMetadata[key] = newValue
 
 	return nil
 }
 
 // DeleteBlock deletes a block.
 func (dm *Document) DeleteBlock(block string) error {
-	mut := dm.ensureMutation()
+	dm.dirty = true
+	mut, err := dm.ensureTreeMutation()
+	if err != nil {
+		return err
+	}
+
 	me, err := mut.move(block, TrashNodeID, "")
 	if err != nil {
 		return err
@@ -145,8 +204,13 @@ func (dm *Document) DeleteBlock(block string) error {
 
 // ReplaceBlock replaces a block.
 func (dm *Document) ReplaceBlock(blk *documents.Block) error {
+	dm.dirty = true
 	if blk.Id == "" {
 		return fmt.Errorf("blocks must have ID")
+	}
+
+	if dm.dirtyBlocks == nil {
+		dm.dirtyBlocks = make(map[string]map[string]any)
 	}
 
 	blockMap, err := blockToMap(blk)
@@ -154,23 +218,32 @@ func (dm *Document) ReplaceBlock(blk *documents.Block) error {
 		return err
 	}
 
-	oldBlock, ok := dm.e.Get("blocks", blk.Id)
-	if ok && reflect.DeepEqual(oldBlock, blockMap) {
-		return nil
+	// Check if CRDT state already has the same value for block.
+	// If so, we do nothing, and remove any dirty state for this block.
+	if reg := dm.crdt.stateBlocks[blk.Id]; reg != nil {
+		oldValue, ok := reg.GetLatestOK()
+		if ok && reflect.DeepEqual(oldValue, blockMap) {
+			delete(dm.dirtyBlocks, blk.Id)
+			return nil
+		}
 	}
 
-	colx.ObjectSet(dm.patch, []string{"blocks", blk.Id, "#map"}, blockMap)
+	dm.dirtyBlocks[blk.Id] = blockMap
 
 	return nil
 }
 
 // MoveBlock moves a block.
 func (dm *Document) MoveBlock(block, parent, left string) error {
+	dm.dirty = true
 	if parent == TrashNodeID {
 		panic("BUG: use DeleteBlock to delete a block")
 	}
 
-	mut := dm.ensureMutation()
+	mut, err := dm.ensureTreeMutation()
+	if err != nil {
+		return err
+	}
 
 	me, err := mut.move(block, parent, left)
 	if err != nil {
@@ -188,56 +261,60 @@ func (dm *Document) MoveBlock(block, parent, left string) error {
 	return nil
 }
 
-func (dm *Document) ensureMutation() *treeMutation {
+func (dm *Document) ensureTreeMutation() (*treeMutation, error) {
+	dm.dirty = true
 	if dm.mut == nil {
+		if err := dm.replayMoves(); err != nil {
+			return nil, err
+		}
 		dm.mut = dm.tree.mutate()
 	}
 
-	return dm.mut
+	return dm.mut, nil
 }
 
 // Change creates a change.
+// After this the Document instance must be discarded. The change must be applied to a different state.
 func (dm *Document) Change(kp core.KeyPair) (hb blob.Encoded[*blob.Change], err error) {
 	// TODO(burdiyan): we should make them reusable.
 	if dm.done {
 		return hb, fmt.Errorf("using already committed mutation")
 	}
 
-	if dm.nextHLC == 0 {
-		panic("BUG: next HLC time is zero")
-	}
-
 	dm.done = true
 
-	dm.cleanupPatch()
+	ops := dm.cleanupPatch()
 
-	action := "Update"
-
-	if len(dm.patch) == 0 {
-		dm.patch["isDraft"] = true
+	hb, err = dm.crdt.prepareChange(dm.crdt.clock.MustNow(), kp, ops)
+	if err != nil {
+		return hb, err
 	}
 
-	// Make sure to remove the dummy field created in the initial draft change.
-	if len(dm.patch) > 1 {
-		delete(dm.patch, "isDraft")
+	if err := dm.applyChangeUnsafe(hb.CID, hb.Decoded); err != nil {
+		return hb, err
 	}
 
-	return dm.e.CreateChange(action, dm.nextHLC, kp, dm.patch)
+	return hb, nil
 }
 
 // Ref creates a Ref blob for the current heads.
 func (dm *Document) Ref(kp core.KeyPair) (ref blob.Encoded[*blob.Ref], err error) {
 	// TODO(hm24): make genesis detection more reliable.
-	genesis := dm.e.cids[0]
+	genesis := dm.crdt.cids[0]
 
-	if len(dm.e.heads) != 1 {
+	if len(dm.crdt.heads) != 1 {
 		return ref, fmt.Errorf("TODO: creating refs for multiple heads is not supported yet")
 	}
 
-	headCID := dm.e.cids[len(dm.e.cids)-1]
-	head := dm.e.changes[len(dm.e.cids)-1]
+	headCID := dm.crdt.cids[len(dm.crdt.cids)-1]
+	head := dm.crdt.changes[len(dm.crdt.cids)-1]
 
-	return blob.NewRef(kp, genesis, dm.e.id, []cid.Cid{headCID}, head.Ts)
+	space, path, err := dm.crdt.id.SpacePath()
+	if err != nil {
+		return ref, err
+	}
+
+	return blob.NewRef(kp, genesis, space, path, []cid.Cid{headCID}, head.Ts)
 }
 
 // Commit commits a change.
@@ -259,59 +336,71 @@ func (dm *Document) Commit(ctx context.Context, kp core.KeyPair, bs blockstore.B
 	return ebc, nil
 }
 
-func (dm *Document) cleanupPatch() {
-	if dm.mut == nil {
-		return
+func (dm *Document) cleanupPatch() []Op {
+	if !dm.dirty {
+		return nil
+	}
+
+	var ops []Op
+
+	metaKeys := slices.Collect(maps.Keys(dm.dirtyMetadata))
+	slices.Sort(metaKeys)
+
+	for _, key := range metaKeys {
+		ops = append(ops, newOpSetMetadata(key, dm.dirtyMetadata[key]))
 	}
 
 	var moves []any
-	dm.mut.forEachMove(func(block, parent, left, leftOrigin string) bool {
-		var l string
-		if left != "" {
-			l = left + "@" + leftOrigin
-		}
-		moves = append(moves, map[string]any{
-			"b": block,
-			"p": parent,
-			"l": l,
+	if dm.mut != nil {
+		dm.mut.forEachMove(func(block, parent, left, leftOrigin string) bool {
+			var l string
+			if left != "" {
+				l = left + "@" + leftOrigin
+			}
+			moves = append(moves, map[string]any{
+				"b": block,
+				"p": parent,
+				"l": l,
+			})
+
+			ops = append(ops, newOpSetPosition(block, parent, l))
+
+			return true
 		})
-
-		return true
-	})
-
-	// If we have some moves after cleaning up, add them to the patch.
-	if moves != nil {
-		dm.patch["moves"] = map[string]any{
-			"#list": map[string]any{
-				"#ins": moves,
-			},
-		}
 	}
 
 	// Remove state of those blocks that we created and deleted in the same change.
 	for blk := range dm.deletedBlocks {
 		if _, mustIgnore := dm.createdBlocks[blk]; mustIgnore {
-			colx.ObjectDelete(dm.patch, []string{"blocks", blk})
+			delete(dm.dirtyBlocks, blk)
 			continue
 		}
 	}
 
-	// Remove the blocks key from the patch if we end up with no blocks after cleanup.
-	if blocks, ok := dm.patch["blocks"].(map[string]any); ok {
-		if len(blocks) == 0 {
-			delete(dm.patch, "blocks")
-		}
+	dirtyBlockIDs := slices.Collect(maps.Keys(dm.dirtyBlocks))
+	slices.Sort(dirtyBlockIDs)
+	for _, bid := range dirtyBlockIDs {
+		ops = append(ops, newOpReplaceBlock(dm.dirtyBlocks[bid]))
 	}
+
+	return ops
 }
 
-// Entity returns the underlying entity.
-func (dm *Document) Entity() *Entity {
-	return dm.e
+func (dm *Document) NumChanges() int {
+	return len(dm.crdt.cids)
+}
+
+func (dm *Document) BFTDeps(start []cid.Cid) (iter.Seq2[int, blob.ChangeRecord], error) {
+	return dm.crdt.BFTDeps(start)
+}
+
+func (dm *Document) Heads() map[cid.Cid]struct{} {
+	return dm.crdt.Heads()
 }
 
 // Hydrate hydrates a document.
 func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
-	if len(dm.e.changes) == 0 {
+	if len(dm.crdt.changes) == 0 {
 		return nil, fmt.Errorf("no changes in the entity")
 	}
 
@@ -319,36 +408,35 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 		panic("BUG: can't hydrate a document with uncommitted changes")
 	}
 
-	e := dm.e
+	if !dm.movesReplayed {
+		if err := dm.replayMoves(); err != nil {
+			return nil, err
+		}
+	}
+
+	e := dm.crdt
 
 	first := e.changes[0]
 	last := e.changes[len(e.changes)-1]
 
 	// TODO(burdiyan): this is ugly and needs to be refactored.
-	u, err := url.Parse(string(e.ID()))
+	u, err := url.Parse(string(e.id))
 	if err != nil {
 		return nil, err
 	}
 
-	account := u.Host
+	space := u.Host
 	path := u.Path
 
 	docpb := &documents.Document{
-		Account:    account,
+		Account:    space,
 		Path:       path,
-		Metadata:   make(map[string]string),
-		CreateTime: timestamppb.New(hlc.Timestamp(first.Ts).Time()),
+		Metadata:   e.GetMetadata(),
+		CreateTime: timestamppb.New(first.Ts),
 		Version:    e.Version().String(),
 	}
 
-	docpb.UpdateTime = timestamppb.New(hlc.Timestamp(last.Ts).Time())
-
-	for _, key := range e.state.Keys("metadata") {
-		v, ok := e.state.GetAny("metadata", key).(string)
-		if ok && v != "" {
-			docpb.Metadata[key] = v
-		}
-	}
+	docpb.UpdateTime = timestamppb.New(last.Ts)
 
 	// Loading editors is a bit cumbersome because we need to go over key delegations.
 	{
@@ -367,7 +455,7 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 		}
 		blk, ok := blockMap[parent]
 		if !ok {
-			panic("BUG: no parent " + parent + " was found yet while iterating")
+			panic("BUG: no parent " + parent + " for child " + child.Block.Id)
 		}
 		blk.Children = append(blk.Children, child)
 	}
@@ -375,20 +463,24 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 	dm.tree.mutate().walkDFT(func(m *move) bool {
 		// TODO(burdiyan): block revision would change only if block itself was changed.
 		// If block is only moved it's revision won't change. Need to check if that's what we want.
-		mm, origin, ok := dm.e.State().GetWithOrigin("blocks", m.Block)
-		if !ok {
-			// If we got some moves but no block state
-			// we just skip them, we don't want to blow up here.
+
+		// If we got some moves but no block state
+		// we just skip them, we don't want to blow up here.
+
+		opset := dm.crdt.stateBlocks[m.Block]
+		if opset == nil {
 			return true
 		}
 
-		oo := dm.origins[origin]
-		// if !oo.Defined() {
-		// 	oo = dm.oldDraft
-		// }
+		opid, rawBlock, ok := opset.GetLatestWithID()
+		if !ok {
+			return true
+		}
+
+		oo := dm.origins[opid.Origin]
 
 		var blk *documents.Block
-		blk, err = blockFromMap(m.Block, oo.String(), mm.(map[string]any))
+		blk, err = blockFromMap(m.Block, oo.String(), rawBlock)
 		if err != nil {
 			return false
 		}
@@ -424,7 +516,6 @@ func blockToMap(blk *documents.Block) (map[string]any, error) {
 
 	// We don't want those fields, because they can be inferred.
 	delete(v, "revision")
-	delete(v, "id")
 
 	return v, nil
 }

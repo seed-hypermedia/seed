@@ -5,12 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"seed/backend/api/documents/v3alpha/docmodel"
+	"seed/backend/blob"
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
-	"seed/backend/hlc"
-	"seed/backend/blob"
+	"seed/backend/util/cclock"
 	"seed/backend/util/errutil"
-	"time"
 
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
@@ -43,12 +42,12 @@ func (srv *Server) CreateComment(ctx context.Context, in *documents.CreateCommen
 		return nil, err
 	}
 
-	acc, err := core.DecodePrincipal(in.TargetAccount)
+	space, err := core.DecodePrincipal(in.TargetAccount)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to parse target account: %v", err)
 	}
 
-	clock := hlc.NewClock()
+	clock := cclock.New()
 
 	var (
 		threadRoot  cid.Cid
@@ -75,7 +74,7 @@ func (srv *Server) CreateComment(ctx context.Context, in *documents.CreateCommen
 			threadRoot = replyParent
 		}
 
-		if err := clock.Track(hlc.Timestamp(rp.Ts)); err != nil {
+		if err := clock.Track(rp.Ts); err != nil {
 			return nil, err
 		}
 
@@ -84,13 +83,7 @@ func (srv *Server) CreateComment(ctx context.Context, in *documents.CreateCommen
 		}
 	}
 
-	target := blob.CommentTarget{
-		Account: acc,
-		Path:    in.TargetPath,
-		Version: versionHeads,
-	}
-
-	blob, err := blob.NewComment(kp, cid.Undef, target, threadRoot, replyParent, commentContentFromProto(in.Content), int64(clock.MustNow()))
+	blob, err := blob.NewComment(kp, cid.Undef, space, in.TargetPath, versionHeads, threadRoot, replyParent, commentContentFromProto(in.Content), clock.MustNow())
 	if err != nil {
 		return nil, err
 	}
@@ -158,12 +151,12 @@ func (srv *Server) ListComments(ctx context.Context, in *documents.ListCommentsR
 func commentToProto(c cid.Cid, cmt *blob.Comment) (*documents.Comment, error) {
 	pb := &documents.Comment{
 		Id:            c.String(),
-		TargetAccount: cmt.Target.Account.String(),
-		TargetPath:    cmt.Target.Path,
-		TargetVersion: docmodel.NewVersion(cmt.Target.Version...).String(),
+		TargetAccount: cmt.Space.String(),
+		TargetPath:    cmt.Path,
+		TargetVersion: docmodel.NewVersion(cmt.Version...).String(),
 		Author:        cmt.Author.String(),
 		Content:       commentContentToProto(cmt.Body),
-		CreateTime:    timestamppb.New(time.UnixMicro(cmt.Ts)),
+		CreateTime:    timestamppb.New(cmt.Ts),
 	}
 
 	if cmt.ReplyParent.Defined() {
