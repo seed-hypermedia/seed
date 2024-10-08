@@ -100,7 +100,7 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 			clean.Add(provStore)
 
 			r, err := dht.New(ctx, h,
-				dht.Concurrency(10),
+				dht.Concurrency(1),
 				// Forcing DHT client mode.
 				// This libp2p node is not meant to be a DHT server.
 				dht.Mode(dht.ModeClient),
@@ -112,7 +112,7 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 				dht.RoutingTableFilter(dht.PublicRoutingTableFilter),
 				// Not sure what those magic numbers are. Copied from dualdht package.
 				// We don't use it because we don't need the LAN DHT.
-				dht.RoutingTablePeerDiversityFilter(dht.NewRTPeerDiversityFilter(h, 2, 3)),
+				dht.RoutingTablePeerDiversityFilter(dht.NewRTPeerDiversityFilter(h, 1, 1)),
 				// Filter out all private addresses
 				dht.AddressFilter(func(addrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
 					return multiaddr.FilterAddrs(addrs, manet.IsPublicAddr)
