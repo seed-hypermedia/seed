@@ -33,7 +33,7 @@ Children blocks under a heading are not indented, because the large heading text
 
 ### Code Block
 
-`type = "code"`
+`type = "codeBlock"`
 
 Embed some code that will be visible inside a document. The `text` field is used to contain the code that will be displayed.
 
@@ -105,7 +105,7 @@ The `childrenType` attribute may be set to the following:
 - `ol` - Ordered List (Numbered Items)
 - `ul` - Unordered List (Bullets)
 
-In the case of an `ol` (Numbered List), you may also set a ??? value to specify the starting number.
+In the case of an `ol` (Numbered List), you may also set a `start` value to specify the starting number.
 
 ## Block Classes
 
@@ -117,10 +117,12 @@ One of:
 
 - [`Heading`](#heading-block)
 - [`Paragraph`](#paragraph-block)
+- [`Code Block`](#code-block)
+- [`Math Block`](#math-block)
 
-Text blocks should have a value for the `text` field, and `annotations` are used to further describe the text content.
+Text blocks should have a value for the `text` field, and optionally `annotations` are used to further enrich the text content.
 
-### File Blocks
+### Media Blocks
 
 One of:
 
@@ -146,6 +148,6 @@ These are the annotations that can be used for [text blocks](#text-blocks).
 
 ### Link Annotation
 
-### Embed Annotation
+### Inline Embed Annotation
 
 Special character??
