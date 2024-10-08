@@ -237,10 +237,9 @@ func (mut *treeMutation) move(block, parent, left string) (moveEffect, error) {
 	// Checking if our move is actually a move or a create.
 	var me moveEffect
 	prevWinner, _ := mut.dirtyWinners.Get(block)
-	switch {
-	case prevWinner == nil:
+	if prevWinner == nil {
 		me = moveEffectCreated
-	case prevWinner != nil:
+	} else {
 		// When we're moving to trash we don't care about the sibling order.
 		if prevWinner.Parent == TrashNodeID && parent == TrashNodeID {
 			return moveEffectNone, nil
@@ -257,8 +256,6 @@ func (mut *treeMutation) move(block, parent, left string) (moveEffect, error) {
 		}
 
 		me = moveEffectMoved
-	default:
-		panic("BUG: invalid move case")
 	}
 
 	mut.parents[block] = parent

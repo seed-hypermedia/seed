@@ -449,9 +449,6 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 
 		return true
 	})
-	if err != nil {
-		return nil, err
-	}
 
 	return docpb, nil
 }
