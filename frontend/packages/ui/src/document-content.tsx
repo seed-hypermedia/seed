@@ -909,7 +909,6 @@ function BlockContentParagraph({
   let inline = useMemo(() => {
     const editorBlock = hmBlockToEditorBlock(block);
 
-    console.log(`== ~ inline ~ editorBlock:`, {editorBlock, block});
     return editorBlock.content;
   }, [block]);
   return (
