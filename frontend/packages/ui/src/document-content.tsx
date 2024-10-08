@@ -386,7 +386,6 @@ export function BlockNodeList({
   start?: string | number;
   listLevel?: string | number;
 }) {
-  console.log(`== ~ BlockNodeList ~ children:`, children);
   return (
     <YStack
       tag={childrenType !== "group" ? childrenType : undefined}
@@ -901,7 +900,6 @@ function BlockContentParagraph({
   let inline = useMemo(() => {
     const editorBlock = hmBlockToEditorBlock(block);
 
-    console.log(`== ~ inline ~ editorBlock:`, {editorBlock, block});
     return editorBlock.content;
   }, [block]);
   return (
