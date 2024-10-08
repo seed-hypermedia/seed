@@ -52,19 +52,10 @@ func NewOpMoveBlock(block, parent, leftOrigin string) Op {
 	}
 }
 
-func NewOpReplaceBlock(state map[string]any) Op {
-	switch id := state["id"].(type) {
-	case string:
-		if id == "" {
-			panic("BUG: block ID is empty")
-		}
-	default:
-		panic("BUG: block ID is not unset")
-	}
-
+func NewOpReplaceBlock(state Block) Op {
 	return Op{
 		Op:   OpReplaceBlock,
-		Data: state,
+		Data: CBORToMap(state),
 	}
 }
 

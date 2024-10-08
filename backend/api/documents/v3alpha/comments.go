@@ -10,6 +10,7 @@ import (
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/util/cclock"
 	"seed/backend/util/errutil"
+	"seed/backend/util/must"
 
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
@@ -182,34 +183,8 @@ func commentContentToProto(in []blob.CommentBlock) []*documents.BlockNode {
 	out := make([]*documents.BlockNode, len(in))
 	for i, b := range in {
 		out[i] = &documents.BlockNode{
-			Block: &documents.Block{
-				Id:          b.ID,
-				Type:        b.Type,
-				Text:        b.Text,
-				Ref:         b.Ref,
-				Attributes:  b.Attributes,
-				Annotations: annotationsToProto(b.Annotations),
-			},
+			Block:    docmodel.BlockToProto(b.Block, cid.Undef),
 			Children: commentContentToProto(b.Children),
-		}
-	}
-
-	return out
-}
-
-func annotationsToProto(in []blob.Annotation) []*documents.Annotation {
-	if in == nil {
-		return nil
-	}
-
-	out := make([]*documents.Annotation, len(in))
-	for i, a := range in {
-		out[i] = &documents.Annotation{
-			Type:       a.Type,
-			Ref:        a.Ref,
-			Attributes: a.Attributes,
-			Starts:     a.Starts,
-			Ends:       a.Ends,
 		}
 	}
 
@@ -225,34 +200,8 @@ func commentContentFromProto(in []*documents.BlockNode) []blob.CommentBlock {
 
 	for i, n := range in {
 		out[i] = blob.CommentBlock{
-			Block: blob.Block{
-				ID:          n.Block.Id,
-				Type:        n.Block.Type,
-				Text:        n.Block.Text,
-				Ref:         n.Block.Ref,
-				Attributes:  n.Block.Attributes,
-				Annotations: annotationsFromProto(n.Block.Annotations),
-			},
+			Block:    must.Do2(docmodel.BlockFromProto(n.Block)),
 			Children: commentContentFromProto(n.Children),
-		}
-	}
-
-	return out
-}
-
-func annotationsFromProto(in []*documents.Annotation) []blob.Annotation {
-	if in == nil {
-		return nil
-	}
-
-	out := make([]blob.Annotation, len(in))
-	for i, a := range in {
-		out[i] = blob.Annotation{
-			Type:       a.Type,
-			Ref:        a.Ref,
-			Attributes: a.Attributes,
-			Starts:     a.Starts,
-			Ends:       a.Ends,
 		}
 	}
 

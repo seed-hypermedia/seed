@@ -104,13 +104,14 @@ func (b *changeBuilder) MoveBlock(blockID, parent, leftSibling string) *changeBu
 	return b
 }
 
-func (b *changeBuilder) ReplaceBlock(block, btype, text string) *changeBuilder {
+func (b *changeBuilder) ReplaceBlock(block, btype, text string, annotations ...*documents.Annotation) *changeBuilder {
 	b.req.Changes = append(b.req.Changes, &documents.DocumentChange{
 		Op: &documents.DocumentChange_ReplaceBlock{
 			ReplaceBlock: &documents.Block{
-				Id:   block,
-				Type: btype,
-				Text: text,
+				Id:          block,
+				Type:        btype,
+				Text:        text,
+				Annotations: annotations,
 			},
 		},
 	})
@@ -897,4 +898,23 @@ func TestSubscriptions(t *testing.T) {
 		Path:    dummyAcc.Path,
 	})
 	require.Error(t, err)
+}
+
+func TestBug_BrokenFormattingAnnotations(t *testing.T) {
+	t.Parallel()
+
+	dmn := makeTestApp(t, "alice", makeTestConfig(t), true)
+	ctx := context.Background()
+	alice := coretest.NewTester("alice").Account.Principal()
+
+	doc, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, newChangeBuilder(alice, "", "", "main").
+		SetMetadata("title", "Alice from the Wonderland").
+		MoveBlock("b1", "", "").
+		ReplaceBlock("b1", "paragraph", "Hello world", &documents.Annotation{Type: "bold", Starts: []int32{0}, Ends: []int32{5}}).
+		MoveBlock("b2", "b1", "").
+		ReplaceBlock("b2", "paragraph", "World!").
+		Build(),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, doc)
 }

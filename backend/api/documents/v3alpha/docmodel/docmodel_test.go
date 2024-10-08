@@ -14,13 +14,13 @@ func TestDocmodelSmoke(t *testing.T) {
 
 	doc := must.Do2(New("mydoc", cclock.New()))
 	must.Do(doc.SetMetadata("title", "Hello"))
-	c1 := must.Do2(doc.Change(alice))
+	c1 := must.Do2(doc.SignChange(alice))
 
 	{
 		doc := must.Do2(New("mydoc", cclock.New()))
 		must.Do(doc.ApplyChange(c1.CID, c1.Decoded))
 		must.Do(doc.SetMetadata("title", "Hello world"))
-		c2 := must.Do2(doc.Change(alice))
+		c2 := must.Do2(doc.SignChange(alice))
 
 		{
 			doc := must.Do2(New("mydoc", cclock.New()))
