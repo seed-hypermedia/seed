@@ -30,3 +30,12 @@ func init() {
 		Complete(),
 	)
 }
+
+var unixZero = time.Unix(0, 0).UTC().Round(ClockPrecision)
+
+// ZeroUnixTime returns a zero timestamp.
+// We use it whenever we need determinism in data that has timestamps.
+// Namely, we use it to create a sentinel genesis Change for all the Account/Space home documents.
+func ZeroUnixTime() time.Time {
+	return unixZero
+}

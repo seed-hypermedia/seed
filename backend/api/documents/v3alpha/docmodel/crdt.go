@@ -312,7 +312,7 @@ func (e *docCRDT) applyChange(c cid.Cid, ch *blob.Change) error {
 		opid := newOpID(ts, origin, idx)
 		switch op.Op {
 		case blob.OpSetMetadata:
-			for k, v := range op.Args {
+			for k, v := range op.Data {
 				reg := e.stateMetadata[k]
 				if reg == nil {
 					reg = newMVReg[string]()
@@ -321,7 +321,7 @@ func (e *docCRDT) applyChange(c cid.Cid, ch *blob.Change) error {
 				reg.Set(opid, v.(string))
 			}
 		case blob.OpReplaceBlock:
-			id, ok := op.Args["id"].(string)
+			id, ok := op.Data["id"].(string)
 			if !ok {
 				return fmt.Errorf("replace block op is missing ID")
 			}
@@ -331,9 +331,9 @@ func (e *docCRDT) applyChange(c cid.Cid, ch *blob.Change) error {
 				reg = newMVReg[map[string]any]()
 				e.stateBlocks[id] = reg
 			}
-			reg.Set(opid, op.Args)
+			reg.Set(opid, op.Data)
 		case blob.OpMoveBlock:
-			if e.moveLog.Set(opid, op.Args) {
+			if e.moveLog.Set(opid, op.Data) {
 				return fmt.Errorf("BUG: duplicate op in move log")
 			}
 		}
