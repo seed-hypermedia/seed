@@ -359,7 +359,7 @@ func (srv *Server) DeleteDocument(ctx context.Context, in *documents.DeleteDocum
 }
 
 func (srv *Server) ensureProfileGenesis(ctx context.Context, kp core.KeyPair) error {
-	ebc, err := blob.NewChange(kp, cid.Undef, nil, 0, nil, blob.ProfileGenesisEpoch)
+	ebc, err := blob.NewChange(kp, cid.Undef, nil, 0, nil, blob.ZeroUnixTime())
 	if err != nil {
 		return err
 	}
@@ -374,7 +374,7 @@ func (srv *Server) ensureProfileGenesis(ctx context.Context, kp core.KeyPair) er
 		return err
 	}
 
-	ebr, err := blob.NewRef(kp, ebc.CID, space, path, []cid.Cid{ebc.CID}, blob.ProfileGenesisEpoch)
+	ebr, err := blob.NewRef(kp, ebc.CID, space, path, []cid.Cid{ebc.CID}, blob.ZeroUnixTime())
 	if err != nil {
 		return err
 	}

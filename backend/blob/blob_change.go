@@ -6,16 +6,12 @@ import (
 	"net/url"
 	"seed/backend/core"
 	"seed/backend/ipfs"
-	"seed/backend/util/must"
 	"time"
 
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/multiformats/go-multicodec"
 )
-
-// ProfileGenesisEpoch is the default deterministic epoch time for all the accounts we create.
-var ProfileGenesisEpoch = must.Do2(time.ParseInLocation(time.RFC3339, "2024-01-01T00:00:00Z", time.UTC)).Round(ClockPrecision)
 
 func init() {
 	cbornode.RegisterCborType(Change{})
@@ -29,7 +25,7 @@ type OpType string
 
 type Op struct {
 	Op   OpType         `refmt:"op"`
-	Args map[string]any `refmt:"args,omitempty"`
+	Data map[string]any `refmt:"data,omitempty"`
 }
 
 const (
@@ -41,14 +37,14 @@ const (
 func NewOpSetMetadata(key string, value any) Op {
 	return Op{
 		Op:   OpSetMetadata,
-		Args: map[string]any{key: value}, // TODO(burdiyan): or key => key, value => value?
+		Data: map[string]any{key: value}, // TODO(burdiyan): or key => key, value => value?
 	}
 }
 
 func NewOpMoveBlock(block, parent, leftOrigin string) Op {
 	return Op{
 		Op: OpMoveBlock,
-		Args: map[string]any{
+		Data: map[string]any{
 			"block":      block,
 			"parent":     parent,
 			"leftOrigin": leftOrigin,
@@ -68,7 +64,7 @@ func NewOpReplaceBlock(state map[string]any) Op {
 
 	return Op{
 		Op:   OpReplaceBlock,
-		Args: state,
+		Data: state,
 	}
 }
 
@@ -188,7 +184,7 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 	for _, op := range v.Ops {
 		switch op.Op {
 		case OpSetMetadata:
-			for k, v := range op.Args {
+			for k, v := range op.Data {
 				vs, ok := v.(string)
 				if !ok {
 					continue
@@ -216,7 +212,7 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 				// TODO(hm24): index other relevant metadata for list response and so on.
 			}
 		case OpReplaceBlock:
-			rawBlock, err := cbornode.DumpObject(op.Args)
+			rawBlock, err := cbornode.DumpObject(op.Data)
 			if err != nil {
 				return fmt.Errorf("bad data?: failed to encode block into cbor when indexing: %w", err)
 			}

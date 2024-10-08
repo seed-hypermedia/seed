@@ -105,7 +105,7 @@ func indexRef(ictx *indexingCtx, id int64, c cid.Cid, v *Ref) error {
 	}
 
 	var sb StructuralBlob
-	if v.Ts == ProfileGenesisEpoch {
+	if v.Ts.Equal(unixZero) {
 		sb = newStructuralBlob(c, string(blobTypeRef), v.Author, v.Ts, iri, v.GenesisBlob, v.Author, v.Ts)
 	} else {
 		sb = newStructuralBlob(c, string(blobTypeRef), v.Author, v.Ts, iri, v.GenesisBlob, nil, time.Time{})
