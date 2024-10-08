@@ -439,7 +439,7 @@ function DraftTitle({route}: {route: DraftRoute; size?: FontSizeTokens}) {
   return (
     <BreadcrumbTitle
       route={{key: 'document', id: route.id}}
-      overwriteActiveTitle={realTitle}
+      overwriteActiveTitle={realTitle || 'Untitled Document'}
     />
   )
 }
