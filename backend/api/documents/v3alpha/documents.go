@@ -143,7 +143,7 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 
 	var newBlobs []blocks.Block
 
-	docChange, err := doc.Change(kp)
+	docChange, err := doc.SignChange(kp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create subdoc change: %w", err)
 	}

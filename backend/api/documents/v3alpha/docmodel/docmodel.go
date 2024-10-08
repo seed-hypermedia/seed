@@ -2,7 +2,7 @@ package docmodel
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"iter"
 	"maps"
@@ -16,11 +16,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ipfs/boxo/blockstore"
-	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multibase"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -45,7 +42,7 @@ type Document struct {
 	// Blocks that we've deleted in this change.
 	deletedBlocks map[string]struct{}
 
-	dirtyBlocks   map[string]map[string]any // BlockID => BlockState.
+	dirtyBlocks   map[string]blob.Block // BlockID => BlockState.
 	dirtyMetadata map[string]any
 }
 
@@ -189,32 +186,32 @@ func (dm *Document) DeleteBlock(block string) error {
 }
 
 // ReplaceBlock replaces a block.
-func (dm *Document) ReplaceBlock(blk *documents.Block) error {
+func (dm *Document) ReplaceBlock(blkpb *documents.Block) error {
 	dm.dirty = true
-	if blk.Id == "" {
+	if blkpb.Id == "" {
 		return fmt.Errorf("blocks must have ID")
 	}
 
 	if dm.dirtyBlocks == nil {
-		dm.dirtyBlocks = make(map[string]map[string]any)
+		dm.dirtyBlocks = make(map[string]blob.Block)
 	}
 
-	blockMap, err := blockToMap(blk)
+	blk, err := BlockFromProto(blkpb)
 	if err != nil {
 		return err
 	}
 
 	// Check if CRDT state already has the same value for block.
 	// If so, we do nothing, and remove any dirty state for this block.
-	if reg := dm.crdt.stateBlocks[blk.Id]; reg != nil {
+	if reg := dm.crdt.stateBlocks[blkpb.Id]; reg != nil {
 		oldValue, ok := reg.GetLatestOK()
-		if ok && reflect.DeepEqual(oldValue, blockMap) {
-			delete(dm.dirtyBlocks, blk.Id)
+		if ok && reflect.DeepEqual(oldValue, blk) {
+			delete(dm.dirtyBlocks, blkpb.Id)
 			return nil
 		}
 	}
 
-	dm.dirtyBlocks[blk.Id] = blockMap
+	dm.dirtyBlocks[blk.ID] = blk
 
 	return nil
 }
@@ -259,9 +256,9 @@ func (dm *Document) ensureTreeMutation() (*treeMutation, error) {
 	return dm.mut, nil
 }
 
-// Change creates a change.
+// SignChange creates a change.
 // After this the Document instance must be discarded. The change must be applied to a different state.
-func (dm *Document) Change(kp core.KeyPair) (hb blob.Encoded[*blob.Change], err error) {
+func (dm *Document) SignChange(kp core.KeyPair) (hb blob.Encoded[*blob.Change], err error) {
 	// TODO(burdiyan): we should make them reusable.
 	if dm.done {
 		return hb, fmt.Errorf("using already committed mutation")
@@ -303,25 +300,6 @@ func (dm *Document) Ref(kp core.KeyPair) (ref blob.Encoded[*blob.Ref], err error
 	return blob.NewRef(kp, genesis, space, path, []cid.Cid{headCID}, head.Ts)
 }
 
-// Commit commits a change.
-func (dm *Document) Commit(ctx context.Context, kp core.KeyPair, bs blockstore.Blockstore) (ebc blob.Encoded[*blob.Change], err error) {
-	ebc, err = dm.Change(kp)
-	if err != nil {
-		return ebc, err
-	}
-
-	ebr, err := dm.Ref(kp)
-	if err != nil {
-		return ebc, err
-	}
-
-	if err := bs.PutMany(ctx, []blocks.Block{ebc, ebr}); err != nil {
-		return ebc, err
-	}
-
-	return ebc, nil
-}
-
 func (dm *Document) cleanupPatch() []blob.Op {
 	if !dm.dirty {
 		return nil
@@ -360,7 +338,12 @@ func (dm *Document) cleanupPatch() []blob.Op {
 	dirtyBlockIDs := slices.Collect(maps.Keys(dm.dirtyBlocks))
 	slices.Sort(dirtyBlockIDs)
 	for _, bid := range dirtyBlockIDs {
-		ops = append(ops, blob.NewOpReplaceBlock(dm.dirtyBlocks[bid]))
+		blk, ok := dm.dirtyBlocks[bid]
+		if !ok {
+			panic("BUG: dirty block not found")
+		}
+
+		ops = append(ops, blob.NewOpReplaceBlock(blk))
 	}
 
 	return ops
@@ -452,20 +435,15 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 			return true
 		}
 
-		opid, rawBlock, ok := opset.GetLatestWithID()
+		opid, blk, ok := opset.GetLatestWithID()
 		if !ok {
 			return true
 		}
 
 		oo := dm.origins[opid.Origin]
+		blkpb := BlockToProto(blk, oo)
 
-		var blk *documents.Block
-		blk, err = blockFromMap(m.Block, oo.String(), rawBlock)
-		if err != nil {
-			return false
-		}
-
-		child := &documents.BlockNode{Block: blk}
+		child := &documents.BlockNode{Block: blkpb}
 		appendChild(m.Parent, child)
 		blockMap[m.Block] = child
 
@@ -478,40 +456,71 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 	return docpb, nil
 }
 
-func blockToMap(blk *documents.Block) (map[string]any, error) {
-	// This is a very bad way to convert something into a map,
-	// but mapstructure package could have problems here,
-	// because protobuf have peculiar encoding of oneof fields into JSON,
-	// which mapstructure doesn't know about. Although in fact we don't have
-	// any oneof fields in this structure, but just in case.
-	data, err := protojson.Marshal(blk)
-	if err != nil {
-		return nil, err
+func BlockFromProto(b *documents.Block) (blob.Block, error) {
+	if b.Id == "" {
+		return blob.Block{}, errors.New("block ID is required")
 	}
 
-	var v map[string]any
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, err
+	if len(b.Attributes) == 0 {
+		b.Attributes = nil
 	}
 
-	// We don't want those fields, because they can be inferred.
-	delete(v, "revision")
-
-	return v, nil
+	return blob.Block{
+		ID:          b.Id,
+		Type:        b.Type,
+		Text:        b.Text,
+		Ref:         b.Ref,
+		Attributes:  b.Attributes,
+		Annotations: annotationsFromProto(b.Annotations),
+	}, nil
 }
 
-func blockFromMap(id, revision string, v map[string]any) (*documents.Block, error) {
-	data, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
+func annotationsFromProto(in []*documents.Annotation) []blob.Annotation {
+	if in == nil {
+		return nil
 	}
 
-	pb := &documents.Block{}
-	if err := protojson.Unmarshal(data, pb); err != nil {
-		return nil, err
+	out := make([]blob.Annotation, len(in))
+	for i, a := range in {
+		out[i] = blob.Annotation{
+			Type:       a.Type,
+			Ref:        a.Ref,
+			Attributes: a.Attributes,
+			Starts:     a.Starts,
+			Ends:       a.Ends,
+		}
 	}
-	pb.Id = id
-	pb.Revision = revision
 
-	return pb, nil
+	return out
+}
+
+func BlockToProto(b blob.Block, revision cid.Cid) *documents.Block {
+	return &documents.Block{
+		Id:          b.ID,
+		Type:        b.Type,
+		Text:        b.Text,
+		Ref:         b.Ref,
+		Attributes:  b.Attributes,
+		Annotations: annotationsToProto(b.Annotations),
+		Revision:    revision.String(),
+	}
+}
+
+func annotationsToProto(in []blob.Annotation) []*documents.Annotation {
+	if in == nil {
+		return nil
+	}
+
+	out := make([]*documents.Annotation, len(in))
+	for i, a := range in {
+		out[i] = &documents.Annotation{
+			Type:       a.Type,
+			Ref:        a.Ref,
+			Attributes: a.Attributes,
+			Starts:     a.Starts,
+			Ends:       a.Ends,
+		}
+	}
+
+	return out
 }

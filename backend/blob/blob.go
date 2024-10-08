@@ -39,3 +39,32 @@ var unixZero = time.Unix(0, 0).UTC().Round(ClockPrecision)
 func ZeroUnixTime() time.Time {
 	return unixZero
 }
+
+// CBORToMap converts a CBOR object to a map.
+// TODO(burdiyan): This is a workaround. Should not exist.
+func CBORToMap(v any) map[string]any {
+	data, err := cbornode.DumpObject(v)
+	if err != nil {
+		panic(err)
+	}
+
+	var m map[string]any
+	if err := cbornode.DecodeInto(data, &m); err != nil {
+		panic(err)
+	}
+
+	return m
+}
+
+// MapToCBOR converts a map to a CBOR object.
+// TODO(burdiyan): This is a workaround. Should not exist.
+func MapToCBOR(data map[string]any, v any) {
+	rawData, err := cbornode.DumpObject(data)
+	if err != nil {
+		panic(err)
+	}
+
+	if err := cbornode.DecodeInto(rawData, v); err != nil {
+		panic(err)
+	}
+}

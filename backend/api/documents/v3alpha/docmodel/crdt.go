@@ -68,7 +68,7 @@ type docCRDT struct {
 	// Holds currently committed state for metadata and blocks.
 	moveLog       *btree.Map[opID, map[string]any]
 	stateMetadata map[string]*mvReg[string]
-	stateBlocks   map[string]*mvReg[map[string]any] // blockID -> opid -> block state.
+	stateBlocks   map[string]*mvReg[blob.Block] // blockID -> opid -> block state.
 
 	clock        *cclock.Clock
 	actorsIntern map[string]string
@@ -82,7 +82,7 @@ func newCRDT(id blob.IRI, clock *cclock.Clock) *docCRDT {
 		heads:         make(map[cid.Cid]struct{}),
 		moveLog:       btree.New[opID, map[string]any](8, opID.Compare),
 		stateMetadata: make(map[string]*mvReg[string]),
-		stateBlocks:   make(map[string]*mvReg[map[string]any]),
+		stateBlocks:   make(map[string]*mvReg[blob.Block]),
 		clock:         cclock.New(),
 		actorsIntern:  make(map[string]string),
 		vectorClock:   make(map[string]time.Time),
@@ -321,17 +321,15 @@ func (e *docCRDT) applyChange(c cid.Cid, ch *blob.Change) error {
 				reg.Set(opid, v.(string))
 			}
 		case blob.OpReplaceBlock:
-			id, ok := op.Data["id"].(string)
-			if !ok {
-				return fmt.Errorf("replace block op is missing ID")
-			}
+			var blk blob.Block
+			blob.MapToCBOR(op.Data, &blk)
 
-			reg := e.stateBlocks[id]
+			reg := e.stateBlocks[blk.ID]
 			if reg == nil {
-				reg = newMVReg[map[string]any]()
-				e.stateBlocks[id] = reg
+				reg = newMVReg[blob.Block]()
+				e.stateBlocks[blk.ID] = reg
 			}
-			reg.Set(opid, op.Data)
+			reg.Set(opid, blk)
 		case blob.OpMoveBlock:
 			if e.moveLog.Set(opid, op.Data) {
 				return fmt.Errorf("BUG: duplicate op in move log")
