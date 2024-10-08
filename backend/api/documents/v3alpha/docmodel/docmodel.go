@@ -24,20 +24,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type Op = blob.Op
-
-const (
-	OpSetMetadata  = blob.OpSetMetadata
-	OpSetPosition  = blob.OpSetPosition
-	OpReplaceBlock = blob.OpReplaceBlock
-)
-
-var (
-	newOpSetMetadata  = blob.NewOpSetMetadata
-	newOpSetPosition  = blob.NewOpSetPosition
-	newOpReplaceBlock = blob.NewOpReplaceBlock
-)
-
 // WARNING! There's some very ugly type-unsafe code in here.
 // Can do better, but no time for that now.
 
@@ -143,9 +129,9 @@ func (dm *Document) replayMoves() error {
 
 	var idx int
 	for opid, move := range dm.crdt.moveLog.Iter() {
-		block := move["b"].(string)
-		parent := move["p"].(string)
-		leftShadow := move["l"].(string)
+		block := move["block"].(string)
+		parent := move["parent"].(string)
+		leftShadow := move["leftOrigin"].(string)
 		left, leftOrigin, _ := strings.Cut(leftShadow, "@")
 		if left != "" && leftOrigin == "" {
 			leftOrigin = opid.Origin
@@ -336,34 +322,28 @@ func (dm *Document) Commit(ctx context.Context, kp core.KeyPair, bs blockstore.B
 	return ebc, nil
 }
 
-func (dm *Document) cleanupPatch() []Op {
+func (dm *Document) cleanupPatch() []blob.Op {
 	if !dm.dirty {
 		return nil
 	}
 
-	var ops []Op
+	var ops []blob.Op
 
 	metaKeys := slices.Collect(maps.Keys(dm.dirtyMetadata))
 	slices.Sort(metaKeys)
 
 	for _, key := range metaKeys {
-		ops = append(ops, newOpSetMetadata(key, dm.dirtyMetadata[key]))
+		ops = append(ops, blob.NewOpSetMetadata(key, dm.dirtyMetadata[key]))
 	}
 
-	var moves []any
 	if dm.mut != nil {
 		dm.mut.forEachMove(func(block, parent, left, leftOrigin string) bool {
 			var l string
 			if left != "" {
 				l = left + "@" + leftOrigin
 			}
-			moves = append(moves, map[string]any{
-				"b": block,
-				"p": parent,
-				"l": l,
-			})
 
-			ops = append(ops, newOpSetPosition(block, parent, l))
+			ops = append(ops, blob.NewOpMoveBlock(block, parent, l))
 
 			return true
 		})
@@ -380,7 +360,7 @@ func (dm *Document) cleanupPatch() []Op {
 	dirtyBlockIDs := slices.Collect(maps.Keys(dm.dirtyBlocks))
 	slices.Sort(dirtyBlockIDs)
 	for _, bid := range dirtyBlockIDs {
-		ops = append(ops, newOpReplaceBlock(dm.dirtyBlocks[bid]))
+		ops = append(ops, blob.NewOpReplaceBlock(dm.dirtyBlocks[bid]))
 	}
 
 	return ops

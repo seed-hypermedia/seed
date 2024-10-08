@@ -311,7 +311,7 @@ func (e *docCRDT) applyChange(c cid.Cid, ch *blob.Change) error {
 	for idx, op := range ch.Ops {
 		opid := newOpID(ts, origin, idx)
 		switch op.Op {
-		case OpSetMetadata:
+		case blob.OpSetMetadata:
 			for k, v := range op.Args {
 				reg := e.stateMetadata[k]
 				if reg == nil {
@@ -320,7 +320,7 @@ func (e *docCRDT) applyChange(c cid.Cid, ch *blob.Change) error {
 				}
 				reg.Set(opid, v.(string))
 			}
-		case OpReplaceBlock:
+		case blob.OpReplaceBlock:
 			id, ok := op.Args["id"].(string)
 			if !ok {
 				return fmt.Errorf("replace block op is missing ID")
@@ -332,7 +332,7 @@ func (e *docCRDT) applyChange(c cid.Cid, ch *blob.Change) error {
 				e.stateBlocks[id] = reg
 			}
 			reg.Set(opid, op.Args)
-		case OpSetPosition:
+		case blob.OpMoveBlock:
 			if e.moveLog.Set(opid, op.Args) {
 				return fmt.Errorf("BUG: duplicate op in move log")
 			}
@@ -473,7 +473,7 @@ func addUnique(in []int, v int) []int {
 }
 
 // prepareChange to be applied later.
-func (e *docCRDT) prepareChange(ts time.Time, signer core.KeyPair, ops []Op) (hb blob.Encoded[*blob.Change], err error) {
+func (e *docCRDT) prepareChange(ts time.Time, signer core.KeyPair, ops []blob.Op) (hb blob.Encoded[*blob.Change], err error) {
 	var genesis cid.Cid
 	if len(e.cids) > 0 {
 		genesis = e.cids[0]

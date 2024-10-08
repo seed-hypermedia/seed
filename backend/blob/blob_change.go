@@ -14,6 +14,7 @@ import (
 	"github.com/multiformats/go-multicodec"
 )
 
+// ProfileGenesisEpoch is the default deterministic epoch time for all the accounts we create.
 var ProfileGenesisEpoch = must.Do2(time.ParseInLocation(time.RFC3339, "2024-01-01T00:00:00Z", time.UTC)).Round(ClockPrecision)
 
 func init() {
@@ -31,6 +32,12 @@ type Op struct {
 	Args map[string]any `refmt:"args,omitempty"`
 }
 
+const (
+	OpSetMetadata  OpType = "SetMetadata"  // Args = key => value.
+	OpMoveBlock    OpType = "MoveBlock"    // Args = block, parent, left+origin.
+	OpReplaceBlock OpType = "ReplaceBlock" // Args = id => block data.
+)
+
 func NewOpSetMetadata(key string, value any) Op {
 	return Op{
 		Op:   OpSetMetadata,
@@ -38,13 +45,13 @@ func NewOpSetMetadata(key string, value any) Op {
 	}
 }
 
-func NewOpSetPosition(block, parent, leftOrigin string) Op {
+func NewOpMoveBlock(block, parent, leftOrigin string) Op {
 	return Op{
-		Op: OpSetPosition,
+		Op: OpMoveBlock,
 		Args: map[string]any{
-			"b": block,
-			"p": parent,
-			"l": leftOrigin,
+			"block":      block,
+			"parent":     parent,
+			"leftOrigin": leftOrigin,
 		},
 	}
 }
@@ -64,12 +71,6 @@ func NewOpReplaceBlock(state map[string]any) Op {
 		Args: state,
 	}
 }
-
-const (
-	OpSetMetadata  OpType = "m" // Args = key => value.
-	OpSetPosition  OpType = "p" // Args = block, parent, left+origin.
-	OpReplaceBlock OpType = "b" // Args = id => block data.
-)
 
 type Change struct {
 	ChangeUnsigned
