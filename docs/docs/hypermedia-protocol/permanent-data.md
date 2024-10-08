@@ -1,34 +1,30 @@
 # Permanent Data
 
-Hypermedia content is expressed in a graph of connected [IPFS](./ipfs) files/blobs. Each blob is identified by a [CID](./cid).
+Hypermedia content is expressed in a graph of connected [IPFS](./ipfs.md) files/blobs. Each blob is identified by a [CID](./cid.md).
 
-To understand the data of our network, you should first review the [Hypermedia concepts](./concepts), which will be heavily referenced.
+To understand the data of our network, you should first review the [Hypermedia concepts](./concepts.md), which will be heavily referenced.
 
 ## Structured Data
 
-You will start to read content via structured data blobs, which are encoded using IPLD DAG-CBOR. These blobs can be converted to JSON for easier readability, and our docs will generally show you the structured data in JSON format.
+You will start to read content via structured data blobs, which are encoded using the [IPLD DAG-CBOR encoding](https://ipld.io/specs/codecs/dag-cbor/spec/). These blobs can be converted to JSON for easier readability, and our docs will generally show you the structured data in JSON format.
 
 Each of our structured data blobs contain a `@type` field, which designate how they should be interpreted.
 
-### Change
+### [Change](./blob-change.md)
 
-The change blob is used to describe how a document changes or is created.
+The Change Blob is used to describe how a document changes or is created.
 
-- `@type: 'Change'`
-- author
-- deps
-- depth
-- genesis
-- opts
-- sig
-- ts
+### [Ref](./blob-ref.md)
 
-### Ref
+The Ref Blob is used by a document owner or contributer to point to the most recent version, according to the author, at the time of authoring.
 
-### Capability
+### [Capability](./blob-capability.md)
 
-### Comment
+The Capability Blob is created by accounts to grant priveliges for another account to access or control an additional document (or tree of documents).
 
+### [Comment](./blob-comment.md)
+
+A Comment Blob is content that is created from a single author. It is created in the context of a specific document, possibly in reply to another comment, which may form a tree of commentary.
 
 ## Other IPFS files
 

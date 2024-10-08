@@ -2,7 +2,7 @@
 
 In IPLD DAG_CBOR there is a way to encode raw data by specifying an object with `{ "/": { "bytes": <BASE64-URL-Encoded-Data> } }`
 
-This is used to encode raw binary data inside [Hypermedia Permanent Data](./permanent-data).
+This is used to encode raw binary data inside [Hypermedia Permanent Data](./permanent-data.md).
 
 ## Example
 
@@ -18,4 +18,4 @@ Then the encoded value is inserted into a `{ "/": { "bytes": ... }}` data struct
   },
 ```
 
-This approach is also used to encode account public keys ([Account IDs](./accounts#account-id)).
+This approach is also used to encode account public keys ([Account IDs](./accounts.md#account-id)).

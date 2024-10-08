@@ -1,14 +1,25 @@
 # Document Operations
 
-## Set Metadata
+Each document operation takes the following format:
+
+```json
+{
+    "op": "setMetadata",
+    "attributes": {
+        "name": "New Document Name"
+    }
+}
+```
+
+The `op` is used to specify which operation is being used. The `attributes` will mean different things, depending on the operation.
+
+## Set Metadata Operation
 
 `"op": "setMetadata"`
 
-Attributes:
-- `field`
-- `value`
+Attributes is a Map of new [Document Metadata](./document-state.md#document-metadata) fields that will be set.
 
-## Move Block
+## Move Block Operation
 
 `"op": "moveBlock"`
 
@@ -18,8 +29,8 @@ Attributes:
 - `"location": "?@?"`
 - `"parent": ""`
 
-## Replace Block
+## Replace Block Operation
 
 `"op": "ReplaceBlock"`
 
-Attributes are equal to the full [Block](./document-blocks) value. The block ID is used to specify which block is being replaced.
+Attributes are equal to the full [Block](./document-blocks.md) value. The block ID is used to specify which block is being replaced.

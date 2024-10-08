@@ -8,7 +8,10 @@ Hypermedia URLs are always prefixed with the `hm://` protocol, so they may be di
 
 ## Account
 
-The first term of the Hypermedia URL is required
+The first term of the Hypermedia URL is the only required part: an [Account ID](./accounts.md#account-id).
+
+A basic Hypermedia URL is `hm://z6MkjPVNrNGA6dYEqkspBvfuTnAddw7hrNc5WM6dQDyuKkY3` which refers to the [Home Document](./concepts.md#home-document) of this Account.
+
 
 ## Path
 
