@@ -2,14 +2,14 @@
 
 The protocol is divided into several sections:
 
-## [1. Permanent Data](./permanent-data)
+## [1. Permanent Data](./permanent-data.md)
 
 Once you have the Hypermedia data, see this section to understand how it is organized, and how you can use it to interpret the content.
 
-## 2. Peer-to-Peer
+## [2. Peer-to-Peer](./peer-to-peer.md)
 
 How you can connect and communicate with peers (servers or other people's computers). These connections will allow you to find specific content, see whats new, and discover new or related content.
 
-## 3. Web + HTTP Connectivity
+## [3. Web + HTTP Connectivity](./web.md)
 
 Connect to web sites to associate domains with Hypermedia content, and connect to peers who will serve it for you.
