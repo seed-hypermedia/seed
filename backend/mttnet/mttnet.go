@@ -45,7 +45,7 @@ const ProtocolSupportKey = "seed-support" // This is what we use as a key to pro
 
 const (
 	protocolPrefix  = "/hypermedia/"
-	protocolVersion = "0.5.0"
+	protocolVersion = "0.5.1"
 )
 
 var userAgent = "seed/<dev>"
