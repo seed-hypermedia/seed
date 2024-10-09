@@ -84,7 +84,6 @@ function ToastView({
       opacity={1}
       scale={1}
       animation="fast"
-      cursor="pointer"
     >
       {content}
     </Button>

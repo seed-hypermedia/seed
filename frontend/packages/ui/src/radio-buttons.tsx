@@ -73,7 +73,9 @@ function RadioButton({
         color={active ? activeColor : color}
         hoverStyle={{
           color: active ? activeColor : color,
+          cursor: "default",
         }}
+        cursor="default"
         borderBottomWidth={2}
         borderBottomColor={active ? activeColor : "$colorTransparent"}
         onPress={onPress}

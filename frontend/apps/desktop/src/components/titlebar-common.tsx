@@ -1,19 +1,19 @@
-import { useAppContext } from '@/app-context'
-import { useCopyReferenceUrl } from '@/components/copy-reference-url'
-import { useDeleteDialog } from '@/components/delete-dialog'
-import { MenuItemType, OptionsDropdown } from '@/components/options-dropdown'
-import { useMyCapability } from '@/models/access-control'
-import { useDraft } from '@/models/accounts'
-import { useEntity } from '@/models/entities'
-import { useGatewayUrl } from '@/models/gateway-settings'
-import { SidebarWidth, useSidebarContext } from '@/sidebar-context'
-import { convertBlocksToMarkdown } from '@/utils/blocks-to-markdown'
+import {useAppContext} from '@/app-context'
+import {useCopyReferenceUrl} from '@/components/copy-reference-url'
+import {useDeleteDialog} from '@/components/delete-dialog'
+import {MenuItemType, OptionsDropdown} from '@/components/options-dropdown'
+import {useMyCapability} from '@/models/access-control'
+import {useDraft} from '@/models/accounts'
+import {useEntity} from '@/models/entities'
+import {useGatewayUrl} from '@/models/gateway-settings'
+import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
+import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {
   useNavRoute,
   useNavigationDispatch,
   useNavigationState,
 } from '@/utils/navigation'
-import { useNavigate } from '@/utils/useNavigate'
+import {useNavigate} from '@/utils/useNavigate'
 import {
   BlockRange,
   DEFAULT_GATEWAY_URL,
@@ -25,7 +25,7 @@ import {
   displayHostname,
   getDocumentTitle,
   hmBlocksToEditorContent,
-  hmId
+  hmId,
 } from '@shm/shared'
 import {
   Back,
@@ -54,13 +54,13 @@ import {
   UploadCloud,
   UserPlus,
 } from '@tamagui/lucide-icons'
-import { PropsWithChildren, ReactNode, useState } from 'react'
-import { AddConnectionDialog } from './contacts-prompt'
-import { useAppDialog } from './dialog'
+import {PropsWithChildren, ReactNode, useState} from 'react'
+import {AddConnectionDialog} from './contacts-prompt'
+import {useAppDialog} from './dialog'
 import DiscardDraftButton from './discard-draft-button'
 import PublishDraftButton from './publish-draft-button'
-import { usePublishSite, useRemoveSiteDialog } from './publish-site'
-import { TitleBarProps } from './titlebar'
+import {usePublishSite, useRemoveSiteDialog} from './publish-site'
+import {TitleBarProps} from './titlebar'
 
 export function DocOptionsButton() {
   const route = useNavRoute()
@@ -387,7 +387,6 @@ export function NavigationButtons() {
             size="$2"
             onPress={() => dispatch({type: 'pop'})}
             chromeless
-            cursor={state.routeIndex <= 0 ? 'default' : 'pointer'}
             disabled={state.routeIndex <= 0}
             opacity={state.routeIndex <= 0 ? 0.5 : 1}
             icon={Back}
@@ -398,11 +397,6 @@ export function NavigationButtons() {
             size="$2"
             onPress={() => dispatch({type: 'forward'})}
             chromeless
-            cursor={
-              state.routeIndex >= state.routes.length - 1
-                ? 'default'
-                : 'pointer'
-            }
             disabled={state.routeIndex >= state.routes.length - 1}
             opacity={state.routeIndex >= state.routes.length - 1 ? 0.5 : 1}
             icon={Forward}

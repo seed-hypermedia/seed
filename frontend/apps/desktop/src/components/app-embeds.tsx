@@ -1,5 +1,5 @@
-import { useAccount_deprecated } from '@/models/accounts'
-import { useSubscribedEntity } from '@/models/entities'
+import {useAccount_deprecated} from '@/models/accounts'
+import {useSubscribedEntity} from '@/models/entities'
 import {
   DAEMON_FILE_URL,
   UnpackedHypermediaId,
@@ -24,9 +24,9 @@ import {
   YStack,
   blockStyles,
   getBlockNodeById,
-  useDocContentContext
+  useDocContentContext,
 } from '@shm/ui'
-import { ArrowUpRightSquare } from '@tamagui/lucide-icons'
+import {ArrowUpRightSquare} from '@tamagui/lucide-icons'
 import {
   ComponentProps,
   PropsWithChildren,
@@ -35,8 +35,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useComment } from '../models/comments'
-import { useNavigate } from '../utils/useNavigate'
+import {useComment} from '../models/comments'
+import {useNavigate} from '../utils/useNavigate'
 
 function EmbedWrapper({
   id,
@@ -139,7 +139,6 @@ function EmbedWrapper({
           : '$backgroundTransparent'
       }
       hoverStyle={{
-        cursor: 'pointer',
         backgroundColor: isHighlight
           ? routeParams?.blockRef == id?.blockRef
             ? '$brand11'

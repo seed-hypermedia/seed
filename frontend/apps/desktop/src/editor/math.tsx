@@ -142,7 +142,6 @@ const Render = (
         paddingVertical="10px"
         paddingHorizontal="16px"
         position="relative"
-        hoverStyle={{cursor: `${!opened ? 'pointer' : ''}`}}
         userSelect="none"
       >
         <SizableText ref={mathRef} userSelect="none" />

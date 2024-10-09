@@ -404,7 +404,6 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
                     borderColor="$borderColor"
                     alignItems="center"
                     hoverStyle={{
-                      cursor: 'pointer',
                       backgroundColor: '$color7',
                     }}
                   />

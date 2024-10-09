@@ -63,8 +63,8 @@ export const TitleTextButton = styled(ButtonText, {
   padding: 0,
   margin: 0,
   textTransform: "none",
-  cursor: "pointer",
   hoverStyle: {
     textDecorationLine: "underline",
+    cursor: "default",
   },
 });

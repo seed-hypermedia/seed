@@ -110,7 +110,6 @@ function CommentCitationItem({mention}: {mention: Mention}) {
       borderRadius="$2"
       backgroundColor={'$backgroundTransparent'}
       hoverStyle={{
-        cursor: 'pointer',
         backgroundColor: '$backgroundHover',
       }}
       margin="$4"

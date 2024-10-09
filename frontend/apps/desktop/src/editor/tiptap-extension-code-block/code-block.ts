@@ -467,6 +467,10 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
         key: new PluginKey('codeBlockVSCodeHandler'),
         props: {
           handlePaste: (view, event) => {
+            console.log(
+              '== PASTE codeBlockVSCodeHandler PLUGIN',
+              view.state.selection,
+            )
             if (!event.clipboardData) {
               return false
             }

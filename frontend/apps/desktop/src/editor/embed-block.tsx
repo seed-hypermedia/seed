@@ -415,7 +415,6 @@ function EmbedControl({
                   onPress={handleViewSelect('content')}
                   iconAfter={block.props.view == 'content' ? Check : null}
                   hoverStyle={{
-                    cursor: 'pointer',
                     bg: '$backgroundHover',
                   }}
                 />
@@ -428,7 +427,6 @@ function EmbedControl({
                   onPress={handleViewSelect('card')}
                   iconAfter={block.props.view == 'card' ? Check : null}
                   hoverStyle={{
-                    cursor: 'pointer',
                     bg: '$backgroundHover',
                   }}
                 />
@@ -462,7 +460,6 @@ function EmbedControl({
                   onPress={handleVersionSelect('latest')}
                   iconAfter={isVersionLatest ? Check : null}
                   hoverStyle={{
-                    cursor: 'pointer',
                     bg: '$backgroundHover',
                   }}
                 />
@@ -475,7 +472,6 @@ function EmbedControl({
                   onPress={handleVersionSelect('exact')}
                   iconAfter={!isVersionLatest ? Check : null}
                   hoverStyle={{
-                    cursor: 'pointer',
                     bg: '$backgroundHover',
                   }}
                 />

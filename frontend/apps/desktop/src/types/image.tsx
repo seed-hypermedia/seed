@@ -330,7 +330,7 @@ function ImageForm({
                   borderBottomWidth={tabState == 'upload' ? '$1' : '$0'}
                   hoverStyle={{
                     backgroundColor: 'lightgrey',
-                    cursor: 'pointer',
+                    
                   }}
                 >
                   <SizableText size="$2" color="black">
@@ -349,7 +349,7 @@ function ImageForm({
                   borderBottomWidth={tabState == 'embed' ? '$1' : '$0'}
                   hoverStyle={{
                     backgroundColor: 'lightgrey',
-                    cursor: 'pointer',
+                    
                   }}
                 >
                   <SizableText size="$2" color="black">
@@ -374,7 +374,7 @@ function ImageForm({
                       justifyContent="center"
                       hoverStyle={{
                         backgroundColor: 'lightgrey',
-                        cursor: 'pointer',
+                        
                       }}
                     >
                       <SizableText
@@ -424,7 +424,7 @@ function ImageForm({
                         focusStyle={{
                           borderColor: 'lightgrey',
                           outlineWidth: 0,
-                          cursor: 'pointer',
+                          
                         }}
                         onChange={(e) => setUrl(e.nativeEvent.text)}
                       />

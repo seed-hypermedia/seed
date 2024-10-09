@@ -45,7 +45,6 @@
 
 .link:hover,
 .hm-link:hover {
-  cursor: pointer;
   text-decoration-thickness: 3px;
 }
 

@@ -182,6 +182,7 @@ export default function PublishDraftButton() {
               size="$2"
               onPress={handlePublish}
               borderRadius={0}
+              hoverStyle={{cursor: 'default'}}
               // disabled={!hassigningKeySelected}
               // opacity={hassigningKeySelected ? 1 : 0.3}
               icon={

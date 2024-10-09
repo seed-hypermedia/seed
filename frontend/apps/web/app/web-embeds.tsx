@@ -28,8 +28,6 @@ function EmbedWrapper({
   const navigate = useNavigate();
   return (
     <YStack
-      id="EMBED-WRAPPER"
-      cursor="pointer"
       width="100%"
       borderRightWidth={3}
       borderRightColor={"$brand8"}
