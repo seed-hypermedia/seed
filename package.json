@@ -2,7 +2,7 @@
   "name": "seed",
   "private": true,
   "scripts": {
-    "test": "turbo test --continue",
+    "test": "yarn workspace @shm/shared test",
     "validate": "yarn format",
     "validate:fix": "yarn format:fix",
     "web": "yarn workspace @shm/web dev",
