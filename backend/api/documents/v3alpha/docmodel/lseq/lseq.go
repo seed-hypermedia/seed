@@ -1,3 +1,7 @@
+// Package lseq provides a list CRDT with absolute position for elements.
+// It's similar to the original LSEQ algorithm, but doesn't cause interleaving of elements.
+// In fact, it's more similar to the RGA algorithm, but it generates absolute positions which can be compared lexicographically.
+// See this article for more information: https://www.bartoszsypytkowski.com/non-interleaving-lseq.
 package lseq
 
 import (
@@ -6,17 +10,20 @@ import (
 	"github.com/tidwall/btree"
 )
 
+// Item of an LSEQ list.
 type Item[T any] struct {
 	pos   Position
 	value T
 }
 
+// LSEQ is a list CRDT with absolute positions.
 type LSEQ[T any] struct {
 	items *btree.BTreeG[Item[T]]
 	hint  btree.PathHint
 }
 
-func NewLSEQ[T any]() *LSEQ[T] {
+// New creates a new LSEQ list.
+func New[T any]() *LSEQ[T] {
 	return &LSEQ[T]{
 		items: btree.NewBTreeGOptions(
 			func(a, b Item[T]) bool {
@@ -39,6 +46,7 @@ func (l *LSEQ[T]) maybePosAt(idx int) Position {
 	return el.pos
 }
 
+// InsertAt inserts values at the specified index.
 func (l *LSEQ[T]) InsertAt(idx int, origin uint64, values ...T) []Position {
 	if idx < 0 || idx > l.items.Len() {
 		panic("index out of bounds")
@@ -60,6 +68,7 @@ func (l *LSEQ[T]) InsertAt(idx int, origin uint64, values ...T) []Position {
 	return out
 }
 
+// Values returns an in-order iterator for values.
 func (l *LSEQ[T]) Values() iter.Seq[T] {
 	return func(yield func(T) bool) {
 		for i := range l.items.Len() {

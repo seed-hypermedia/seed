@@ -81,7 +81,7 @@ func (b *Map[K, V]) GetOK(k K) (v V, ok bool) {
 
 // GetAt is a list-like API to get the key and value at the given index.
 // Returns zero-value if the index is out of bounds.
-// Use GetAtOK if you want to distinguish between the zero value and the index being
+// Use GetAtOK if you want to distinguish between the zero value and the index being.
 func (b *Map[K, V]) GetAt(idx int) (k K, v V) {
 	n, _ := b.tr.GetAt(idx)
 	return n.k, n.v
@@ -110,7 +110,7 @@ func (b *Map[K, V]) Iter() iter.Seq2[K, V] {
 // Keys returns a slice of keys in the B-Tree in order.
 func (b *Map[K, V]) Keys() []K {
 	keys := make([]K, 0, b.Len())
-	for k, _ := range b.Iter() {
+	for k := range b.Iter() {
 		keys = append(keys, k)
 	}
 	return keys

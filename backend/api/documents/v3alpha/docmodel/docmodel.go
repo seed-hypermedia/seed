@@ -60,6 +60,7 @@ func originFromCID(c cid.Cid) string {
 	return str[len(str)-9:]
 }
 
+// New creates a new Document model.
 func New(id blob.IRI, clock *cclock.Clock) (*Document, error) {
 	crdt := newCRDT(id, clock)
 	return newDoc(crdt)
@@ -83,6 +84,7 @@ func newDoc(crdt *docCRDT) (*Document, error) {
 	return dm, nil
 }
 
+// Checkout a historical version of the Document.
 func (dm *Document) Checkout(heads []cid.Cid) (*Document, error) {
 	if dm.done {
 		panic("BUG: document is done")
@@ -349,14 +351,18 @@ func (dm *Document) cleanupPatch() []blob.Op {
 	return ops
 }
 
+// NumChanges returns the number of changes in the current state of the document.
 func (dm *Document) NumChanges() int {
 	return len(dm.crdt.cids)
 }
 
+// BFTDeps returns a breadth-first traversal iterator for the document change DAG.
 func (dm *Document) BFTDeps(start []cid.Cid) (iter.Seq2[int, blob.ChangeRecord], error) {
 	return dm.crdt.BFTDeps(start)
 }
 
+// Heads returns the current leaf/head changes in the document history.
+// I.e. it's the current version of the document.
 func (dm *Document) Heads() map[cid.Cid]struct{} {
 	return dm.crdt.Heads()
 }
@@ -453,6 +459,8 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 	return docpb, nil
 }
 
+// BlockFromProto converts a protobuf block into our internal representation.
+// It's largely the same, but we need a separate type for CBOR encoding which we use in the permanent data.
 func BlockFromProto(b *documents.Block) (blob.Block, error) {
 	if b.Id == "" {
 		return blob.Block{}, errors.New("block ID is required")
@@ -491,6 +499,8 @@ func annotationsFromProto(in []*documents.Annotation) []blob.Annotation {
 	return out
 }
 
+// BlockToProto converts our internal block representation into a protobuf block.
+// It's largely the same, but we use CBOR in our permanent data, and we use protobuf in our API.
 func BlockToProto(b blob.Block, revision cid.Cid) *documents.Block {
 	return &documents.Block{
 		Id:          b.ID,

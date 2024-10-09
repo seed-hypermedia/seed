@@ -7,9 +7,11 @@ import (
 	"time"
 )
 
+// Default values for the created clock.
+// You can change them on the created clock if necessary.
 const (
 	DefaultPrecision     = time.Millisecond
-	defaultSkewThreshold = time.Second * 40 // Quite arbitrary.
+	DefaultSkewThreshold = time.Second * 40 // Quite arbitrary.
 )
 
 // Clock issues timestamps that are guaranteed to be greater than any previously observed timestamp,
@@ -27,7 +29,7 @@ func New() *Clock {
 	return &Clock{
 		NowFunc:       time.Now,
 		Precision:     DefaultPrecision,
-		SkewThreshold: defaultSkewThreshold,
+		SkewThreshold: DefaultSkewThreshold,
 	}
 }
 

@@ -19,11 +19,15 @@ func init() {
 	cbornode.RegisterCborType(RefUnsigned{})
 }
 
+// Ref is a blob that claims an entry for a path in a space
+// to point to some other blobs, namely document changes.
+// It's similar to a Git Ref, but is signed.
 type Ref struct {
 	RefUnsigned
 	Sig core.Signature `refmt:"sig,omitempty"`
 }
 
+// NewRef creates a new Ref blob.
 func NewRef(kp core.KeyPair, genesis cid.Cid, space core.Principal, path string, heads []cid.Cid, ts time.Time) (eb Encoded[*Ref], err error) {
 	ru := RefUnsigned{
 		Type:        blobTypeRef,
@@ -43,6 +47,7 @@ func NewRef(kp core.KeyPair, genesis cid.Cid, space core.Principal, path string,
 	return encodeBlob(cc)
 }
 
+// RefUnsigned holds the fields of a Ref that are meant to be signed.
 type RefUnsigned struct {
 	Type        blobType       `refmt:"@type"`
 	Space       core.Principal `refmt:"space"`
@@ -54,6 +59,7 @@ type RefUnsigned struct {
 	Ts          time.Time      `refmt:"ts"`
 }
 
+// Sign the ref blob with the provided key pair.
 func (r *RefUnsigned) Sign(kp core.KeyPair) (rr *Ref, err error) {
 	if !r.Author.Equal(kp.Principal()) {
 		return nil, fmt.Errorf("author mismatch when signing")

@@ -19,11 +19,13 @@ func init() {
 	cbornode.RegisterCborType(CapabilityUnsigned{})
 }
 
+// Capability is a blob that represents some granted rights from the issuer to the delegate key.
 type Capability struct {
 	CapabilityUnsigned
 	Sig core.Signature `refmt:"sig,omitempty"`
 }
 
+// CapabilityUnsigned holds the fields of a Capability that are meant to be signed.
 type CapabilityUnsigned struct {
 	Type        blobType       `refmt:"@type"`
 	Issuer      core.Principal `refmt:"issuer"`
@@ -35,6 +37,7 @@ type CapabilityUnsigned struct {
 	NoRecursive bool           `refmt:"noRecursive,omitempty"`
 }
 
+// NewCapability creates a new Capability blob.
 func NewCapability(issuer core.KeyPair, delegate, space core.Principal, path string, role string, ts time.Time, noRecursive bool) (eb Encoded[*Capability], err error) {
 	cu := CapabilityUnsigned{
 		Type:        blobTypeCapability,
@@ -55,6 +58,7 @@ func NewCapability(issuer core.KeyPair, delegate, space core.Principal, path str
 	return encodeBlob(cc)
 }
 
+// Sign signs the Capability with the given key pair.
 func (c CapabilityUnsigned) Sign(kp core.KeyPair) (cc *Capability, err error) {
 	if !kp.Principal().Equal(c.Issuer) {
 		return cc, fmt.Errorf("signing key %s must be equal to issuer %s", kp.Principal(), c.Issuer)

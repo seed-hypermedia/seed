@@ -1,3 +1,4 @@
+// Package blob defines our core blob types for the permanent data layer.
 package blob
 
 import (

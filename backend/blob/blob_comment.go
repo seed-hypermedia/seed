@@ -23,11 +23,13 @@ func init() {
 	cbornode.RegisterCborType(CommentBlock{})
 }
 
+// Comment is a blob that represents a comment to some document, or a reply to some other comment.
 type Comment struct {
 	CommentUnsigned
 	Sig core.Signature `refmt:"sig,omitempty"`
 }
 
+// NewComment creates a new Comment blob.
 func NewComment(
 	kp core.KeyPair,
 	cpb cid.Cid,
@@ -60,6 +62,7 @@ func NewComment(
 	return encodeBlob(cc)
 }
 
+// CommentUnsigned holds the fields of a Comment that are meant to be signed.
 type CommentUnsigned struct {
 	Type        blobType       `refmt:"@type"`
 	Capability  cid.Cid        `refmt:"capability,omitempty"`
@@ -73,6 +76,7 @@ type CommentUnsigned struct {
 	Ts          time.Time      `refmt:"ts"`
 }
 
+// Sign signs the CommentUnsigned with the given keypair.
 func (r *CommentUnsigned) Sign(kp core.KeyPair) (rr *Comment, err error) {
 	if !r.Author.Equal(kp.Principal()) {
 		return nil, fmt.Errorf("author mismatch when signing")
@@ -92,25 +96,6 @@ func (r *CommentUnsigned) Sign(kp core.KeyPair) (rr *Comment, err error) {
 		CommentUnsigned: *r,
 		Sig:             sig,
 	}, nil
-}
-
-// Block is a block of text with annotations.
-type Block struct {
-	ID          string            `refmt:"id,omitempty"` // Omitempty when used in Documents.
-	Type        string            `refmt:"type,omitempty"`
-	Text        string            `refmt:"text,omitempty"`
-	Ref         string            `refmt:"ref,omitempty"`
-	Attributes  map[string]string `refmt:"attributes,omitempty"`
-	Annotations []Annotation      `refmt:"annotations,omitempty"`
-}
-
-// Annotation is a range of text that has a type and attributes.
-type Annotation struct {
-	Type       string            `refmt:"type"`
-	Ref        string            `refmt:"ref,omitempty"`
-	Attributes map[string]string `refmt:"attributes,omitempty"`
-	Starts     []int32           `refmt:"starts,omitempty"`
-	Ends       []int32           `refmt:"ends,omitempty"`
 }
 
 // CommentBlock is a block of text with annotations.

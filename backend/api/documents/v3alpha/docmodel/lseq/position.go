@@ -5,8 +5,10 @@ import (
 	"math"
 )
 
+// Position is an absolute list position.
 type Position []Segment
 
+// Cmp compares the two position.
 func (p Position) Cmp(o Position) int {
 	al := len(p)
 	bl := len(o)
@@ -28,18 +30,20 @@ func (p Position) Cmp(o Position) int {
 	return cmp.Compare(al, bl)
 }
 
-// origin + seq.
-// origin will be 32 bits
+// Segment is a tuple of origin/replica ID and a sequence number.
 type Segment [2]uint64
 
+// Origin part of the segment.
 func (ps Segment) Origin() uint64 {
 	return ps[0]
 }
 
+// Seq part of the segment.
 func (ps Segment) Seq() uint64 {
 	return ps[1]
 }
 
+// Less compares if this segment is less than the provided one.
 func (ps Segment) Less(other Segment) bool {
 	ocmp := cmp.Compare(ps.Origin(), other.Origin())
 	if ocmp == 0 {
@@ -48,6 +52,7 @@ func (ps Segment) Less(other Segment) bool {
 	return ocmp < 0
 }
 
+// Greater compares if this segment is greater than the provided one.
 func (ps Segment) Greater(other Segment) bool {
 	ocmp := cmp.Compare(ps.Origin(), other.Origin())
 	if ocmp == 0 {

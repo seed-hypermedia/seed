@@ -8,8 +8,8 @@ import (
 )
 
 func TestLSEQ(t *testing.T) {
-	a := NewLSEQ[byte]()
-	b := NewLSEQ[byte]()
+	a := New[byte]()
+	b := New[byte]()
 	alice := uint64(10)
 	bob := uint64(20)
 	_ = bob

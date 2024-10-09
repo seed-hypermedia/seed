@@ -21,19 +21,23 @@ func init() {
 
 const blobTypeChange blobType = "Change"
 
+// OpType is a type for operation types.
 type OpType string
 
+// Op is an atom of our op-based CRDT structure.
 type Op struct {
 	Op   OpType         `refmt:"op"`
 	Data map[string]any `refmt:"data,omitempty"`
 }
 
+// Supported op types.
 const (
 	OpSetMetadata  OpType = "SetMetadata"  // Args = key => value.
 	OpMoveBlock    OpType = "MoveBlock"    // Args = block, parent, left+origin.
 	OpReplaceBlock OpType = "ReplaceBlock" // Args = id => block data.
 )
 
+// NewOpSetMetadata creates a SetMetadata op.
 func NewOpSetMetadata(key string, value any) Op {
 	return Op{
 		Op:   OpSetMetadata,
@@ -41,6 +45,7 @@ func NewOpSetMetadata(key string, value any) Op {
 	}
 }
 
+// NewOpMoveBlock creates a MoveBlock op.
 func NewOpMoveBlock(block, parent, leftOrigin string) Op {
 	return Op{
 		Op: OpMoveBlock,
@@ -52,6 +57,7 @@ func NewOpMoveBlock(block, parent, leftOrigin string) Op {
 	}
 }
 
+// NewOpReplaceBlock creates a ReplaceBlock op.
 func NewOpReplaceBlock(state Block) Op {
 	return Op{
 		Op:   OpReplaceBlock,
@@ -59,11 +65,14 @@ func NewOpReplaceBlock(state Block) Op {
 	}
 }
 
+// Change is an atomic change to a document.
+// The linked DAG of Changes represents the state of a document over time.
 type Change struct {
 	ChangeUnsigned
 	Sig core.Signature `refmt:"sig,omitempty"`
 }
 
+// NewChange creates a new Change.
 func NewChange(kp core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, ops []Op, ts time.Time) (eb Encoded[*Change], err error) {
 	cu := ChangeUnsigned{
 		Type:    blobTypeChange,
@@ -83,6 +92,7 @@ func NewChange(kp core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, ops 
 	return encodeBlob(cc)
 }
 
+// ChangeUnsigned holds the fields of a Change that are supposed to be signed.
 type ChangeUnsigned struct {
 	Type    blobType       `refmt:"@type"`
 	Genesis cid.Cid        `refmt:"genesis,omitempty"`
@@ -93,6 +103,7 @@ type ChangeUnsigned struct {
 	Ts      time.Time      `refmt:"ts"`
 }
 
+// Sign the change with the provided key pair.
 func (c *ChangeUnsigned) Sign(kp core.KeyPair) (cc *Change, err error) {
 	if !c.Author.Equal(kp.Principal()) {
 		return nil, fmt.Errorf("author mismatch when signing")
@@ -230,4 +241,23 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 	}
 
 	return ictx.SaveBlob(id, sb)
+}
+
+// Block is a block of text with annotations.
+type Block struct {
+	ID          string            `refmt:"id,omitempty"` // Omitempty when used in Documents.
+	Type        string            `refmt:"type,omitempty"`
+	Text        string            `refmt:"text,omitempty"`
+	Ref         string            `refmt:"ref,omitempty"`
+	Attributes  map[string]string `refmt:"attributes,omitempty"`
+	Annotations []Annotation      `refmt:"annotations,omitempty"`
+}
+
+// Annotation is a range of text that has a type and attributes.
+type Annotation struct {
+	Type       string            `refmt:"type"`
+	Ref        string            `refmt:"ref,omitempty"`
+	Attributes map[string]string `refmt:"attributes,omitempty"`
+	Starts     []int32           `refmt:"starts,omitempty"`
+	Ends       []int32           `refmt:"ends,omitempty"`
 }
