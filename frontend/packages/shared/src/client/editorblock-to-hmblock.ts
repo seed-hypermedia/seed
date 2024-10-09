@@ -1,9 +1,9 @@
 import {EditorBlock, EditorInlineContent} from '@shm/desktop/src/editor'
-import {HMAnnotations, HMBlock} from '../hm-types'
+import {HMAnnotations, HMBlock, HMBlockSchema} from '../hm-types'
 import {AnnotationSet, codePointLength} from './unicode'
 
 export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
-  let out: HMBlock = {
+  let block: HMBlock = {
     id: editorBlock.id,
     type: editorBlock.type,
     attributes: {},
@@ -13,11 +13,11 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
 
   let leaves = flattenLeaves(editorBlock.content)
 
-  out.annotations = [] as HMAnnotations
+  block.annotations = [] as HMAnnotations
   if (editorBlock.props.childrenType) {
-    out.attributes!.childrenType = editorBlock.props.childrenType
+    block.attributes!.childrenType = editorBlock.props.childrenType
   }
-  out.text = ''
+  block.text = ''
 
   const annotations = new AnnotationSet()
 
@@ -60,17 +60,17 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
       annotations.addSpan('link', {ref: leaf.href}, start, end)
     }
 
-    out.text += leaf.text
+    block.text += leaf.text
     pos += charCount
   }
 
   let outAnnotations = annotations.list()
   if (outAnnotations) {
-    out.annotations = outAnnotations
+    block.annotations = outAnnotations
   }
 
   if (editorBlock.type == 'codeBlock') {
-    out.attributes!.language = editorBlock.props.language
+    block.attributes!.language = editorBlock.props.language
   }
 
   if (
@@ -78,18 +78,21 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
       editorBlock.type,
     )
   ) {
-    out.ref = editorBlock.props.url!
+    block.ref = editorBlock.props.url!
   }
 
-  // Dynamically add all properties from props to out.attributes
+  // Dynamically add all properties from props to block.attributes
   Object.entries(editorBlock.props).forEach(([key, value]) => {
     if (value !== undefined && key !== 'url' && key !== 'ref') {
-      out.attributes![key] =
+      block.attributes![key] =
         typeof value === 'number' ? value.toString() : value
     }
   })
 
-  return out
+  const blockParse = HMBlockSchema.safeParse(block)
+  if (blockParse.success) return block
+  console.error('Failed to validate block for writing', block, blockParse.error)
+  throw new Error('Failed to validate block for writing ' + blockParse.error)
 }
 
 function flattenLeaves(

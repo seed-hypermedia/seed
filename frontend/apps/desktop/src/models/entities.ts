@@ -3,6 +3,7 @@ import {
   DocumentRoute,
   DraftRoute,
   GRPCClient,
+  HMDocumentSchema,
   HMEntityContent,
   hmId,
   hmIdPathToEntityQueryPath,
@@ -168,14 +169,18 @@ export function queryEntity(
     queryFn: async (): Promise<HMEntityContent | null> => {
       if (!id) return null
       try {
-        const document = await grpcClient.documents.getDocument({
+        const grpcDocument = await grpcClient.documents.getDocument({
           account: id.uid,
           path: hmIdPathToEntityQueryPath(id.path),
           version: id.version || undefined,
         })
+        const serverDocument = toPlainMessage(grpcDocument)
+        console.log('serverDocument', serverDocument)
+        const document = HMDocumentSchema.parse(serverDocument)
+
         return {
           id: {...id, version: document.version},
-          document: toPlainMessage(document),
+          document,
         }
       } catch (e) {
         return {id, document: undefined}

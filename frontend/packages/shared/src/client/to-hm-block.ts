@@ -1,26 +1,11 @@
+import {BNLink, EditorInlineContent, InlineEmbed} from '@shm/desktop/src/editor'
 import {
+  EditorTextStyles,
+  HMAnnotation,
   HMAnnotations,
   HMBlock,
-  HMBlockChildrenType,
-  HMBlockCodeBlock,
-  HMBlockFile,
-  HMBlockHeading,
-  HMBlockImage,
-  HMBlockMath,
-  HMBlockNode,
-  HMBlockNostr,
-  HMBlockParagraph,
-  HMBlockVideo,
-  HMBlockWebEmbed,
-  HMInlineContent,
-  HMInlineContentEmbed,
-  HMInlineContentLink,
-  HMStyles,
 } from '../hm-types'
-import {getCIDFromIPFSUrl} from '../utils'
 import {Annotation} from './.generated/documents/v3alpha/documents_pb'
-// import {Annotation, Block, BlockNode, HMTextAnnotation} from '@shm/shared'
-// import {hmBlockSchema} from './schema'
 
 function areStylesEqual(
   styles1: InternalAnnotation | null,
@@ -41,7 +26,7 @@ function areStylesEqual(
 
 type InternalAnnotation = Record<string, string | boolean>
 
-function annotationStyle(a: Annotation): HMStyles {
+function annotationStyle(a: HMAnnotation): EditorTextStyles {
   const annotation = a
   if (annotation.type == 'italic') {
     return {italic: true}
@@ -65,9 +50,9 @@ function annotationStyle(a: Annotation): HMStyles {
   return {}
 }
 
-export function toHMInlineContent(
+export function toEditorInlineContent(
   block: Partial<HMBlock>,
-): Array<HMInlineContent> {
+): Array<EditorInlineContent> {
   const linkEmbedAndRangeAnnotations = block.annotations?.filter(
     (a) => a.type == 'link' || a.type == 'inline-embed' || a.type == 'range',
   )
@@ -105,7 +90,7 @@ export function toHMInlineContent(
   }
 
   let annotationStart = sortedAnnotations[0].starts[0]
-  const inlines: Array<HMInlineContent> = []
+  const inlines: Array<EditorInlineContent> = []
   inlines.push(...getSlicedContent(0, annotationStart))
 
   sortedAnnotations.forEach((a, aIndex) => {
@@ -117,12 +102,12 @@ export function toHMInlineContent(
         type: a.type,
         href: a.ref,
         content: getSlicedContent(annotationStart, annotationEnd),
-      } as HMInlineContentLink)
+      } as BNLink)
     } else if (a.type == 'inline-embed') {
       inlines.push({
         type: a.type,
         ref: a.ref,
-      } as HMInlineContentEmbed)
+      } as InlineEmbed)
     }
 
     const nonAnnotationContentEnd =
@@ -145,7 +130,7 @@ export function partialBlockToStyledText({
   const stylesForIndex: (InternalAnnotation | null)[] = Array(text.length).fill(
     null,
   )
-  const inlines: HMStyles[] = []
+  const inlines: EditorTextStyles[] = []
   const allStyleKeys = new Set<string>()
 
   annotations?.forEach((annotation) => {
@@ -190,266 +175,4 @@ export function partialBlockToStyledText({
   }
 
   return inlines
-}
-
-export type ServerToEditorRecursiveOpts = {
-  level?: number
-}
-
-function extractChildrenType(
-  childrenType: string | undefined,
-): HMBlockChildrenType {
-  if (childrenType === 'ol') return 'ol'
-  if (childrenType === 'ul') return 'ul'
-  if (childrenType === 'blockquote') return 'blockquote'
-  // console.warn(`Unknown childrenType block attr: ${childrenType}`)
-  return 'group'
-}
-
-export function toHMBlockParagraph(
-  serverBlock: HMBlockNode,
-  opts: ServerToEditorRecursiveOpts,
-): HMBlockParagraph {
-  if (!serverBlock.block) {
-    throw new Error('Server BlockNode is missing Block data')
-  }
-  const {block, children} = serverBlock
-  // let type: 'p' | 'code' | 'blockquote' = 'p'
-  // if (opts?.paragraphType === 'code') type = 'code'
-  // if (opts?.paragraphType === 'blockquote') type = 'blockquote'
-  let childrenType = extractChildrenType(block.attributes?.childrenType)
-  let result = {
-    id: block.id,
-    type: 'paragraph',
-    content: toHMInlineContent(block),
-    children: toHMBlock(children, {
-      ...opts,
-      childrenType,
-    }),
-    props: {
-      childrenType,
-    },
-  }
-  return result
-}
-
-export function toHMBlockHeading(
-  serverBlock: HMBlockNode,
-  opts?: ServerToEditorRecursiveOpts,
-): HMBlockHeading {
-  if (!serverBlock.block) {
-    throw new Error('Server BlockNode is missing Block data')
-  }
-  const {block, children} = serverBlock
-
-  let res: HMBlockHeading = {
-    type: 'heading',
-    id: block.id,
-    content: toHMInlineContent(block),
-    children: toHMBlock(children, {
-      level: (opts?.level || 0) + 1,
-      childrenType: block.attributes?.childrenType as HMBlockChildrenType,
-    }),
-    props: {
-      level: opts?.level || 1,
-    },
-  }
-
-  return res
-}
-
-export function toHMBlockMath(
-  serverBlock: HMBlockNode,
-  opts?: ServerToEditorRecursiveOpts,
-): HMBlockMath {
-  if (!serverBlock.block) {
-    throw new Error('Server BlockNode is missing Block data')
-  }
-  const {block, children} = serverBlock
-  let childrenType = extractChildrenType(block.attributes?.childrenType)
-
-  let res: HMBlockMath = {
-    type: 'math',
-    id: block.id,
-    content: toHMInlineContent(block),
-    children: toHMBlock(children, {
-      ...opts,
-      childrenType,
-    }),
-    props: {
-      childrenType,
-    },
-  }
-
-  return res
-}
-
-export function toHMBlock(
-  content: HMBlockNode[] = [],
-  opts: ServerToEditorRecursiveOpts & {
-    childrenType?: HMBlockChildrenType
-    listLevel?: string
-    start?: string
-  } = {level: 1},
-): Array<HMBlock> {
-  const childRecursiveOpts: ServerToEditorRecursiveOpts = {
-    level: opts?.level || 0,
-  }
-  return content.map((serverBlock) => {
-    let res: HMBlock | null = null
-    if (serverBlock.block?.type == 'image') {
-      res = {
-        type: 'image',
-        id: serverBlock.block.id,
-        props: {
-          url: serverBlock.block.ref,
-          name: serverBlock.block.attributes?.name,
-          width: serverBlock.block.attributes?.width,
-          textAlignment: 'left',
-          childrenType: extractChildrenType(
-            serverBlock.block.attributes?.childrenType,
-          ),
-        },
-        content: toHMInlineContent(serverBlock.block),
-        children: [],
-      } satisfies HMBlockImage
-    }
-
-    if (serverBlock.block?.type === 'file') {
-      if (serverBlock.block.attributes?.subType?.startsWith('nostr:')) {
-        res = {
-          type: 'nostr',
-          id: serverBlock.block.id,
-          props: {
-            url: getCIDFromIPFSUrl(serverBlock.block.ref),
-            name: serverBlock.block.attributes?.name,
-            size: serverBlock.block.attributes?.size,
-            textAlignment: 'left',
-            childrenType: extractChildrenType(
-              serverBlock.block.attributes?.childrenType,
-            ),
-          },
-          children: [],
-        } satisfies HMBlockNostr
-      } else {
-        res = {
-          type: 'file',
-          id: serverBlock.block.id,
-          props: {
-            url: serverBlock.block.ref,
-            name: serverBlock.block.attributes?.name,
-            size: serverBlock.block.attributes?.size,
-            textAlignment: 'left',
-            childrenType: extractChildrenType(
-              serverBlock.block.attributes?.childrenType,
-            ),
-          },
-          children: [],
-        } satisfies HMBlockFile
-      }
-    }
-
-    if (serverBlock.block?.type === 'video') {
-      res = {
-        type: 'video',
-        id: serverBlock.block.id,
-        props: {
-          url: serverBlock.block.ref,
-          name: serverBlock.block.attributes?.name,
-          width: serverBlock.block.attributes?.width,
-          childrenType: extractChildrenType(
-            serverBlock.block.attributes?.childrenType,
-          ),
-        },
-        content: toHMInlineContent(serverBlock.block),
-        children: [],
-      } satisfies HMBlockVideo
-    }
-
-    if (serverBlock.block?.type === 'web-embed') {
-      res = {
-        type: 'web-embed',
-        id: serverBlock.block.id,
-        props: {
-          url: serverBlock.block.ref,
-          childrenType: extractChildrenType(
-            serverBlock.block.attributes?.childrenType,
-          ),
-        },
-        children: [],
-      } satisfies HMBlockWebEmbed
-    }
-
-    if (serverBlock.block?.type === 'embed') {
-      res = {
-        type: 'embed',
-        id: serverBlock.block.id,
-        props: {
-          url: serverBlock.block.ref,
-          view: serverBlock.block.attributes.view || 'content',
-          textAlignment: 'left',
-          childrenType: extractChildrenType(
-            serverBlock.block.attributes?.childrenType,
-          ),
-        },
-        children: [],
-      }
-    }
-
-    if (serverBlock.block?.type === 'codeBlock') {
-      res = {
-        type: 'codeBlock',
-        id: serverBlock.block.id,
-        props: {
-          language: serverBlock.block.attributes.language,
-          textAlignment: 'left',
-          childrenType: extractChildrenType(
-            serverBlock.block.attributes?.childrenType,
-          ),
-        },
-        content: toHMInlineContent(serverBlock.block),
-        children: [],
-      } satisfies HMBlockCodeBlock
-    }
-
-    // how to handle when serverBlock.type is 'heading' but we are inside of a list?
-    // for now, we prioritize the node type
-    if (serverBlock.block?.type === 'heading') {
-      res = toHMBlockHeading(serverBlock, childRecursiveOpts)
-    }
-
-    if (serverBlock.block?.type && serverBlock.block.type == 'math') {
-      res = toHMBlockMath(serverBlock, childRecursiveOpts)
-    }
-    // if (opts?.childrenType === 'numbers') {
-    //   return serverBlockToEditorOLI(serverBlock, childRecursiveOpts)
-    // }
-    // if (opts?.childrenType === 'bullet') {
-    //   return serverBlockToEditorULI(serverBlock, childRecursiveOpts)
-    // }
-    if (!res) {
-      res = toHMBlockParagraph(serverBlock, childRecursiveOpts)
-    }
-
-    if (serverBlock.block?.attributes?.childrenType) {
-      // @ts-expect-error
-      res.props.childrenType = serverBlock.block.attributes.childrenType
-    }
-
-    if (serverBlock.block?.attributes?.start) {
-      res.props.start = serverBlock.block.attributes.start
-    }
-
-    if (serverBlock.block?.attributes?.listLevel) {
-      res.props.listLevel = serverBlock.block.attributes.listLevel
-    }
-
-    if (serverBlock.children?.length) {
-      res.children = toHMBlock(serverBlock.children, {
-        level: childRecursiveOpts.level ? childRecursiveOpts.level + 1 : 1,
-      })
-    }
-
-    return res
-  })
 }

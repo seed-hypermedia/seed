@@ -1,34 +1,37 @@
 import {
   Block as EditorBlock,
+  EditorInlineContent,
   Styles,
   hmBlockSchema,
 } from '@shm/desktop/src/editor'
 import {Block as ServerBlock} from '@shm/shared/src/client/grpc-types'
 import {
-  ColorAnnotation,
-  HMInlineContent,
-  HMTextAnnotation,
+  HMAnnotation,
+  HMBlock,
+  HMBlockChildrenType,
+  HMBlockChildrenTypeSchema,
+  HMBlockEmbed,
+  HMEmbedViewSchema,
   InlineEmbedAnnotation,
 } from '../hm-types'
 
 function styleMarkToAnnotationType(
   style: keyof Styles,
-): Exclude<HMTextAnnotation, InlineEmbedAnnotation | ColorAnnotation>['type'] {
+): Exclude<HMAnnotation, InlineEmbedAnnotation>['type'] {
   if (style == 'bold') return 'bold'
   if (style == 'italic') return 'italic'
   if (style == 'underline') return 'underline'
   if (style == 'strike') return 'strike'
   if (style == 'code') return 'code'
-  // if (style == 'math') return 'math'
   throw new Error('Cannot handle this style yet')
 }
 
-export function extractContent(content: Array<HMInlineContent>): {
-  annotations: Array<HMTextAnnotation>
+export function extractContent(content: Array<EditorInlineContent>): {
+  annotations: Array<HMAnnotation>
   text: string
 } {
   let text = ''
-  const annotations: Array<HMTextAnnotation> = []
+  const annotations: Array<HMAnnotation> = []
   const styleStarts: Record<string, number> = {}
   let charIndex = 0
 
@@ -59,7 +62,6 @@ export function extractContent(content: Array<HMInlineContent>): {
           ref: inline.ref,
           starts: [charIndex],
           ends: [charIndex + inlineLength],
-          attributes: {},
         })
 
         text += ' '
@@ -106,7 +108,6 @@ export function extractContent(content: Array<HMInlineContent>): {
   // Check for any styles that didn't end
   for (const style in styleStarts) {
     if (styleStarts[style] !== undefined) {
-      // @ts-expect-error
       annotations.push({
         type: styleMarkToAnnotationType(style as keyof Styles),
         starts: [styleStarts[style]],
@@ -123,35 +124,34 @@ export function fromHMBlock(
 ): ServerBlock {
   if (!editorBlock.id) throw new Error('this block has no id')
 
-  let res: ServerBlock | null = null
+  let res: HMBlock | null = null
 
   if (editorBlock.type === 'paragraph') {
-    res = new ServerBlock({
+    res = {
       id: editorBlock.id,
       type: 'paragraph',
-      attributes: {},
+      attributes: extractParentAttributes(editorBlock),
       ...extractContent(editorBlock.content),
-    })
+    }
   }
 
   if (editorBlock.type === 'heading') {
-    res = new ServerBlock({
+    res = {
       id: editorBlock.id,
       type: 'heading',
-      attributes: {
-        level: editorBlock.props.level,
-      },
+      attributes: extractParentAttributes(editorBlock),
       ...extractContent(editorBlock.content),
-    })
+    }
   }
 
   if (editorBlock.type == 'math') {
-    res = new ServerBlock({
+    res = {
       id: editorBlock.id,
       type: 'math',
       attributes: {},
       ...extractContent(editorBlock.content),
-    })
+      annotations: [], // todo, replace extractContent with something that will never result in annotations
+    } as const
   }
 
   if (editorBlock.type === 'image') {
@@ -161,7 +161,7 @@ export function fromHMBlock(
       ref = `ipfs://${editorBlock.props.url}`
     }
 
-    res = new ServerBlock({
+    res = {
       id: editorBlock.id,
       type: 'image',
       attributes: {
@@ -169,20 +169,18 @@ export function fromHMBlock(
         width: editorBlock.props.width,
       },
       ref: ref || '',
-      ...extractContent(editorBlock.content),
-    })
+    } as const
   }
 
   if (editorBlock.type == 'imagePlaceholder') {
-    res = new ServerBlock({
+    res = {
       id: editorBlock.id,
       type: 'image',
       attributes: {
         name: editorBlock.props.name,
       },
       ref: '',
-      ...extractContent(editorBlock.content),
-    })
+    } as const
   }
 
   if (editorBlock.type === 'file') {
@@ -192,43 +190,23 @@ export function fromHMBlock(
       ref = `ipfs://${editorBlock.props.url}`
     }
 
-    res = new ServerBlock({
+    res = {
       id: editorBlock.id,
       type: 'file',
       attributes: {
         name: editorBlock.props.name,
-        size: editorBlock.props.size,
+        // size: editorBlock.props.size,
       },
       ref: ref || '',
-    })
-  }
-
-  if (editorBlock.type === 'nostr') {
-    let ref = editorBlock.props.url
-
-    if (ref && !ref?.startsWith('http') && !ref?.startsWith('ipfs://')) {
-      ref = `ipfs://${editorBlock.props.url}`
     }
-
-    res = new ServerBlock({
-      id: editorBlock.id,
-      type: 'file',
-      attributes: {
-        subType: 'nostr:note',
-        name: editorBlock.props.name,
-        size: editorBlock.props.size,
-        text: editorBlock.props.text,
-      },
-      ref: ref || '',
-    })
   }
 
   if (editorBlock.type == 'web-embed') {
-    res = new ServerBlock({
+    res = {
       id: editorBlock.id,
       type: 'web-embed',
       ref: editorBlock.props.url,
-    })
+    }
   }
 
   if (editorBlock.type == 'video') {
@@ -237,7 +215,7 @@ export function fromHMBlock(
     if (ref && !ref?.startsWith('http') && !ref?.startsWith('ipfs://')) {
       ref = `ipfs://${editorBlock.props.url}`
     }
-    res = new ServerBlock({
+    res = {
       id: editorBlock.id,
       type: 'video',
       attributes: {
@@ -245,63 +223,63 @@ export function fromHMBlock(
         width: editorBlock.props.width,
       },
       ref: ref || '',
-    })
+    }
   }
 
   if (editorBlock.type == 'embed') {
-    res = new ServerBlock({
+    const attributes: HMBlockEmbed['attributes'] = {}
+    if (editorBlock.props.view) {
+      attributes.view = HMEmbedViewSchema.parse(editorBlock.props.view)
+    }
+    res = {
       id: editorBlock.id,
       type: 'embed',
       ref: editorBlock.props.url,
       text: '',
       annotations: [],
-      attributes: {
-        view: editorBlock.props.view,
-      },
-    })
+      attributes,
+    }
   }
 
   if (editorBlock.type == 'codeBlock') {
-    res = new ServerBlock({
+    res = {
       id: editorBlock.id,
       type: 'codeBlock',
       attributes: {
         language: editorBlock.props.language,
+        ...extractParentAttributes(editorBlock),
       },
       ...extractContent(editorBlock.content),
-    })
+      annotations: [], // todo, replace extractContent with something that will never result in annotations
+    }
   }
 
   if (res) {
-    res = extractChildrenType(res, editorBlock)
-    // res = addLevelAttr(res, editorBlock)
-    return res
+    // res = extractChildrenType(res, editorBlock)
+    // return res
+    return new ServerBlock(res)
   }
 
   throw new Error('not implemented')
 }
 
-function extractChildrenType(
-  block: ServerBlock,
+function extractParentAttributes(
   editorBlock: EditorBlock<typeof hmBlockSchema>,
-): ServerBlock {
+): {
+  childrenType?: HMBlockChildrenType
+  start?: string
+} {
+  const parentAttributes: {
+    childrenType?: HMBlockChildrenType
+    start?: string
+  } = {}
   if (editorBlock.props.childrenType) {
-    block.attributes.childrenType = editorBlock.props.childrenType
-    block.attributes.listLevel = editorBlock.props.listLevel
+    parentAttributes.childrenType = HMBlockChildrenTypeSchema.parse(
+      editorBlock.props.childrenType,
+    )
   }
-
   if (editorBlock.props.start) {
-    block.attributes.start = editorBlock.props.start
+    parentAttributes.start = editorBlock.props.start
   }
-
-  return block
-}
-
-function addLevelAttr(
-  block: ServerBlock,
-  editorBlock: EditorBlock<typeof hmBlockSchema>,
-): ServerBlock {
-  block.attributes.level = editorBlock.props.level
-
-  return block
+  return parentAttributes
 }

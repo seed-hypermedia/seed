@@ -66,7 +66,7 @@ export const EmbedBlock = createReactBlockSpec({
       default: 'false',
     },
     view: {
-      values: ['content', 'card'], // TODO: convert HMEmbedDisplay type to array items
+      values: ['content', 'card'], // TODO: convert HMEmbedView type to array items
       default: 'content',
     },
   },

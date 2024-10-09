@@ -1,18 +1,17 @@
-import { useAppContext, useGRPCClient, useQueryInvalidator } from '@/app-context'
-import { dispatchWizardEvent } from '@/components/create-account'
-import { createHypermediaDocLinkPlugin } from '@/editor'
-import { useDraft } from '@/models/accounts'
-import { queryKeys } from '@/models/query-keys'
-import { useOpenUrl } from '@/open-url'
-import { slashMenuItems } from '@/slash-menu-items'
-import { trpc } from '@/trpc'
-import { PlainMessage, Timestamp, toPlainMessage } from '@bufbuild/protobuf'
-import { ConnectError } from '@connectrpc/connect'
+import {useAppContext, useGRPCClient, useQueryInvalidator} from '@/app-context'
+import {dispatchWizardEvent} from '@/components/create-account'
+import {createHypermediaDocLinkPlugin} from '@/editor'
+import {useDraft} from '@/models/accounts'
+import {queryKeys} from '@/models/query-keys'
+import {useOpenUrl} from '@/open-url'
+import {slashMenuItems} from '@/slash-menu-items'
+import {trpc} from '@/trpc'
+import {PlainMessage, Timestamp, toPlainMessage} from '@bufbuild/protobuf'
+import {ConnectError} from '@connectrpc/connect'
 import {
   DEFAULT_GATEWAY_URL,
   DocumentChange,
   DocumentListItem,
-  HMAccount,
   HMBlock,
   HMBlockNode,
   HMDocument,
@@ -25,9 +24,9 @@ import {
   hmId,
   hmIdPathToEntityQueryPath,
   unpackHmId,
-  writeableStateStream
+  writeableStateStream,
 } from '@shm/shared'
-import { toast } from '@shm/ui'
+import {toast} from '@shm/ui'
 import {
   UseInfiniteQueryOptions,
   UseMutationOptions,
@@ -35,29 +34,29 @@ import {
   useMutation,
   useQuery,
 } from '@tanstack/react-query'
-import { Extension, findParentNode } from '@tiptap/core'
-import { NodeSelection, Selection } from '@tiptap/pm/state'
-import { useMachine } from '@xstate/react'
-import _, { flatMap } from 'lodash'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { ContextFrom, OutputFrom, fromPromise } from 'xstate'
+import {Extension, findParentNode} from '@tiptap/core'
+import {NodeSelection, Selection} from '@tiptap/pm/state'
+import {useMachine} from '@xstate/react'
+import _, {flatMap} from 'lodash'
+import {useEffect, useMemo, useRef, useState} from 'react'
+import {ContextFrom, OutputFrom, fromPromise} from 'xstate'
 import {
   BlockNoteEditor,
   Block as EditorBlock,
   hmBlockSchema,
   useBlockNote,
 } from '../editor'
-import { useNavRoute } from '../utils/navigation'
-import { pathNameify } from '../utils/path'
-import { useNavigate } from '../utils/useNavigate'
-import { useConnectPeer } from './contacts'
-import { useMyAccountIds } from './daemon'
-import { draftMachine } from './draft-machine'
-import { setGroupTypes } from './editor-utils'
-import { getParentPaths, useEntities, useEntity } from './entities'
-import { useGatewayUrlStream } from './gateway-settings'
-import { useInlineMentions } from './search'
-import { siteDiscover } from './web-links'
+import {useNavRoute} from '../utils/navigation'
+import {pathNameify} from '../utils/path'
+import {useNavigate} from '../utils/useNavigate'
+import {useConnectPeer} from './contacts'
+import {useMyAccountIds} from './daemon'
+import {draftMachine} from './draft-machine'
+import {setGroupTypes} from './editor-utils'
+import {getParentPaths, useEntities, useEntity} from './entities'
+import {useGatewayUrlStream} from './gateway-settings'
+import {useInlineMentions} from './search'
+import {siteDiscover} from './web-links'
 
 export const [draftDispatch, draftEvents] = eventStream<{
   type: 'CHANGE'
@@ -128,11 +127,6 @@ export type EmbedsContent = Record<
   | {
       type: 'd'
       data: HMDocument
-      query: {refId: UnpackedHypermediaId; blockId: string}
-    }
-  | {
-      type: 'a'
-      data: HMAccount
       query: {refId: UnpackedHypermediaId; blockId: string}
     }
   | undefined
@@ -913,13 +907,6 @@ export function compareBlocksWithMap(
     }
     let currentBlockState = editorBlockToHMBlock(block)
     let prevBlock = fromHMBlock(block)
-    console.log(
-      `== ~ blocks?.forEach ~ currentBlockState:`,
-      block,
-      currentBlockState,
-      prevBlock,
-      findDifferences(currentBlockState, prevBlock),
-    )
 
     if (
       !prevBlockState ||

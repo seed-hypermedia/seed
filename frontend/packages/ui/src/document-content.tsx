@@ -1,3 +1,4 @@
+import {EditorInlineContent} from "@shm/desktop/src/editor";
 import {
   BlockNode,
   BlockRange,
@@ -6,7 +7,6 @@ import {
   HMBlockChildrenType,
   HMBlockNode,
   HMDocument,
-  HMInlineContent,
   HMTimestamp,
   Mention,
   UnpackedHypermediaId,
@@ -1221,7 +1221,7 @@ function hmTextColor(linkType: LinkType): string {
   return "$color12";
 }
 
-function getInlineContentOffset(inline: HMInlineContent): number {
+function getInlineContentOffset(inline: EditorInlineContent): number {
   if (inline.type === "link") {
     return inline.content
       .map(getInlineContentOffset)
@@ -1239,7 +1239,7 @@ function InlineContentView({
   isRange = false,
   ...props
 }: SizableTextProps & {
-  inline: HMInlineContent[];
+  inline: EditorInlineContent[];
   linkType?: LinkType;
   fontSize?: number;
   rangeOffset?: number;
