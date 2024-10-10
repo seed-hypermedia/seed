@@ -291,7 +291,7 @@ export const HMBlockSchema = z.discriminatedUnion('type', [
 
 export type HMBlockParagraph = z.infer<typeof HMBlockParagraphSchema>
 export type HMBlockHeading = z.infer<typeof HMBlockHeadingSchema>
-export type HMBlockCodeBlock = z.infer<typeof HMBlockCodeSchema>
+export type HMBlockCode = z.infer<typeof HMBlockCodeSchema>
 export type HMBlockMath = z.infer<typeof HMBlockMathSchema>
 export type HMBlockImage = z.infer<typeof HMBlockImageSchema>
 export type HMBlockVideo = z.infer<typeof HMBlockVideoSchema>

@@ -57,6 +57,8 @@ The `text` field contains the KaTeX value.
 
 Used to embed an image into a document. The block's `ref` field should point to an `ipfs://` URL.
 
+Allows text with annotations, which will be used as the image caption.
+
 ### Video Block
 
 `type = "video"`

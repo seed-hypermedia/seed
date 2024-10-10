@@ -808,7 +808,7 @@ function isBlockNodeEmpty(bn: HMBlockNode): boolean {
     case "image":
     case "file":
     case "video":
-    case "nostr":
+    // case "nostr":
     case "embed":
     case "web-embed":
       return !bn.block.ref;
