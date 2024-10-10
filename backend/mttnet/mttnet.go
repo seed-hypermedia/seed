@@ -400,7 +400,7 @@ func (n *Node) startLibp2p(ctx context.Context) error {
 		go func() {
 			peersfn := func() []peer.AddrInfo { return n.cfg.BootstrapPeers }
 			var count int
-			ipfs.PeriodicBootstrap(ctx, n.p2p.Host, n.p2p.Routing, peersfn, func(_ context.Context, result ipfs.BootstrapResult) {
+			ipfs.PeriodicBootstrap(ctx, n.p2p.Host, peersfn, func(_ context.Context, result ipfs.BootstrapResult) {
 				fields := []zap.Field{
 					zap.Int("round", count+1),
 					zap.NamedError("dhtError", result.RoutingErr),

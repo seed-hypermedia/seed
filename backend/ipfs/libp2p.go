@@ -1,18 +1,18 @@
 package ipfs
 
 import (
-	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"seed/backend/util/cleanup"
 	"seed/backend/util/must"
 
+	delegated_routing "github.com/ipfs/boxo/routing/http/client"
+	content_routing "github.com/ipfs/boxo/routing/http/contentrouter"
 	"github.com/ipfs/go-datastore"
 	"github.com/libp2p/go-libp2p"
-	dht "github.com/libp2p/go-libp2p-kad-dht"
-	"github.com/libp2p/go-libp2p-kad-dht/providers"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -22,12 +22,12 @@ import (
 	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/multiformats/go-multiaddr"
-	manet "github.com/multiformats/go-multiaddr/net"
 )
 
 const (
 	highWatermark = 100
 	lowWatermark  = 50
+	delegatedURL  = "https://delegated-ipfs.dev"
 )
 
 // Libp2p exposes libp2p host and the underlying routing system (DHT).
@@ -36,7 +36,7 @@ type Libp2p struct {
 	host.Host
 
 	ds      datastore.Batching
-	Routing routing.Routing
+	Routing routing.ContentRouting
 
 	clean cleanup.Stack
 }
@@ -49,14 +49,11 @@ type Libp2p struct {
 // using the Listen() method on the underlying P2P network.
 func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protocol.ID, opts ...libp2p.Option) (nn *Libp2p, err error) {
 	var clean cleanup.Stack
-
-	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
 		if err != nil {
 			err = errors.Join(err, clean.Close())
 		}
 	}()
-	clean.AddFunc(cancel)
 
 	rm, err := buildResourceManager(
 		map[protocol.ID]rcmgr.LimitVal{
@@ -70,12 +67,31 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 	if err != nil {
 		return nil, err
 	}
-
-	var rt routing.Routing
+	var rt routing.ContentRouting
 	cm := must.Do2(connmgr.NewConnManager(lowWatermark, highWatermark,
 		connmgr.WithGracePeriod(5*time.Second),
 		connmgr.WithSilencePeriod(6*time.Second)))
 
+	pid, err := peer.IDFromPublicKey(key.GetPublic())
+	if err != nil {
+		return nil, err
+	}
+
+	ma, err := multiaddr.NewMultiaddr("/ip4/23.20.24.146/udp/4002/quic-v1/webtransport/certhash/uEiD05vslvQT_ZncqgCfYljWOMicJVFlPhIKEuktYH51ENA/certhash/uEiASOpf9RXh2HmEVZlfajKs6yWofMvS-vJbnR9KNwmdn3Q/p2p/12D3KooWNmjM4sMbSkDEA6ShvjTgkrJHjMya46fhZ9PjKZ4KVZYq/p2p-circuit/p2p/12D3KooWD863Q7NNMeLWnyujrgq29nsB6QrRSVTTYV7F8FowiVN4")
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse multiaddr")
+	}
+
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConns = 500
+	transport.MaxIdleConnsPerHost = 100
+
+	delegateHTTPClient := &http.Client{
+		Transport: &delegated_routing.ResponseBodyLimitedTransport{
+			RoundTripper: transport,
+			LimitBytes:   1 << 20,
+		},
+	}
 	o := []libp2p.Option{
 		libp2p.Identity(key),
 		libp2p.NoListenAddrs, // Users must explicitly start listening.
@@ -84,51 +100,20 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 		libp2p.ConnectionManager(cm),
 		libp2p.ResourceManager(rm),
 		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
-			if ds == nil {
-				panic("BUG: must provide datastore for DHT")
-			}
-
-			// The DHT code creates this automatically to store providing records,
-			// but the problem is that it doesn't close it properly. When this provider
-			// manager wants to flush records into the database, we would have closed the database
-			// already. Because of this we always have an annoying error during our shutdown.
-			// Here we manually ensure all the goroutines started by provider manager are closed.
-			provStore, err := providers.NewProviderManager(h.ID(), h.Peerstore(), ds)
-			if err != nil {
-				return nil, err
-			}
-			clean.Add(provStore)
-
-			r, err := dht.New(ctx, h,
-				dht.Concurrency(1),
-				// Forcing DHT client mode.
-				// This libp2p node is not meant to be a DHT server.
-				dht.Mode(dht.ModeClient),
-				dht.ProviderStore(provStore),
-				dht.Datastore(ds),
-
-				// Options copied from dualdht package.
-				dht.QueryFilter(dht.PublicQueryFilter),
-				dht.RoutingTableFilter(dht.PublicRoutingTableFilter),
-				// Not sure what those magic numbers are. Copied from dualdht package.
-				// We don't use it because we don't need the LAN DHT.
-				dht.RoutingTablePeerDiversityFilter(dht.NewRTPeerDiversityFilter(h, 1, 1)),
-				// Filter out all private addresses
-				dht.AddressFilter(func(addrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
-					return multiaddr.FilterAddrs(addrs, manet.IsPublicAddr)
-				}),
+			client, err := delegated_routing.New(delegatedURL,
+				delegated_routing.WithHTTPClient(delegateHTTPClient),
+				delegated_routing.WithIdentity(key),
+				delegated_routing.WithUserAgent("seed-hypermedia"),
+				//delegated_routing.WithStreamResultsRequired(),
+				delegated_routing.WithProviderInfo(pid, []multiaddr.Multiaddr{ma}),
+				delegated_routing.WithDisabledLocalFiltering(false),
 			)
 			if err != nil {
 				return nil, err
 			}
-
-			// Routing interface from IPFS doesn't expose Close method,
-			// so it actually never gets closed properly, even inside IPFS.
-			// This ugly trick attempts to solve this.
-			clean.Add(r)
-
-			rt = r
-			return r, nil
+			cr := content_routing.NewContentRoutingClient(client)
+			rt = cr
+			return cr, nil
 		}),
 	}
 

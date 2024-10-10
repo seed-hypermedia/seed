@@ -246,7 +246,7 @@ func (l *lazyFileManager) UploadFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) setupLogging(ctx context.Context, cfg config.Config) {
-	logging.SetLogLevel("provider.batched", "info")
+	logging.SetLogLevel("provider.batched", "debug")
 	logging.SetLogLevel("p2p-holepunch", "debug")
 	logging.SetLogLevel("autorelay", "debug")
 	logging.SetLogLevel("autonat", "info")
