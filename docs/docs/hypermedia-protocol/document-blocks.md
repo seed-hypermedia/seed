@@ -117,6 +117,7 @@ One of:
 
 - [`Heading`](#heading-block)
 - [`Paragraph`](#paragraph-block)
+- [`Image`](#image-block)
 
 Text blocks should have a value for the `text` field, and `annotations` are used to further describe the text content.
 
@@ -136,16 +137,33 @@ These are the annotations that can be used for [text blocks](#text-blocks).
 
 ### Bold Annotation
 
+`type: "bold"`
+
 ### Italic Annotation
+
+`type: "italic"`
+
 
 ### Underline Annotation
 
+`type: "underline"`
+
 ### Strikethrough Annotation
+
+`type: "strike"`
 
 ### Code Annotation
 
+`type: "code"`
+
 ### Link Annotation
 
-### Embed Annotation
+`type: "link"`
 
-Special character??
+`ref` is set
+
+### Inline Embed Annotation
+
+`type: "embed"`
+
+`\uFFFC`

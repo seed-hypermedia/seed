@@ -2,10 +2,29 @@ import {EditorBlock, EditorInlineContent} from '@shm/desktop/src/editor'
 import {HMAnnotations, HMBlock, HMBlockSchema} from '../hm-types'
 import {AnnotationSet, codePointLength} from './unicode'
 
+type HMBlockType = HMBlock['type']
+
+function toHMBlockType(
+  editorBlockType: EditorBlock['type'],
+): HMBlockType | undefined {
+  if (editorBlockType === 'heading') return 'heading'
+  if (editorBlockType === 'paragraph') return 'paragraph'
+  if (editorBlockType === 'codeBlock') return 'code'
+  if (editorBlockType === 'math') return 'math'
+  if (editorBlockType === 'image') return 'image'
+  if (editorBlockType === 'video') return 'video'
+  if (editorBlockType === 'file') return 'file'
+  if (editorBlockType === 'embed') return 'embed'
+  if (editorBlockType === 'web-embed') return 'web-embed'
+  return undefined
+}
+
 export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
+  const blockType = toHMBlockType(editorBlock.type)
+  if (!blockType) throw new Error('Unsupported block type ' + editorBlock.type)
   let block: HMBlock = {
     id: editorBlock.id,
-    type: editorBlock.type,
+    type: blockType,
     attributes: {},
     text: '',
     annotations: [],
@@ -115,6 +134,7 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
 
   const blockEmbed = block.type === 'embed' ? block : undefined
   if (blockEmbed && editorBlock.type == 'embed') {
+    block.text = '' // for some reason the text was being set to " " but it should be "" according to the schema
     if (editorBlock.props.url) blockEmbed.ref = editorBlock.props.url
     if (editorBlock.props.view)
       blockEmbed.attributes.view = editorBlock.props.view

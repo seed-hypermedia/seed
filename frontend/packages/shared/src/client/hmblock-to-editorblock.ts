@@ -97,7 +97,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
 
   let i = 0
 
-  const stopPoint = block.text.length - 1
+  const stopPoint = block.text ? block.text.length - 1 : 0
 
   let pos = 0
 

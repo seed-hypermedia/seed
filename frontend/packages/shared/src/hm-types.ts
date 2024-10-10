@@ -188,7 +188,7 @@ export const HMBlockHeadingSchema = z
 
 export const HMBlockCodeSchema = z
   .object({
-    type: z.literal('codeBlock'),
+    type: z.literal('code'),
     ...blockBaseProperties,
     attributes: z
       .object({
@@ -232,6 +232,7 @@ export const HMBlockVideoSchema = z
     attributes: z
       .object({
         ...parentBlockAttributes,
+        width: z.string().optional(),
         name: z.string().optional(),
       })
       .strict(),
