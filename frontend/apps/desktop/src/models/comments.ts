@@ -1,5 +1,5 @@
 import {useAppContext} from '@/app-context'
-import {createHypermediaDocLinkPlugin} from '@/editor'
+import {EditorBlock, createHypermediaDocLinkPlugin} from '@/editor'
 import {useOpenUrl} from '@/open-url'
 import {slashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
@@ -12,10 +12,10 @@ import {
   HMCommentGroup,
   HMEntityContent,
   UnpackedHypermediaId,
-  fromHMBlock,
+  editorBlockToHMBlock,
   getCommentGroups,
+  hmBlocksToEditorContent,
   hmIdPathToEntityQueryPath,
-  toHMBlock,
   writeableStateStream,
 } from '@shm/shared'
 import {toast} from '@shm/ui'
@@ -24,7 +24,7 @@ import {Extension} from '@tiptap/core'
 import {useEffect, useMemo, useRef} from 'react'
 import {useGRPCClient, useQueryInvalidator} from '../app-context'
 import {hmBlockSchema, useBlockNote} from '../editor'
-import type {Block, BlockNoteEditor} from '../editor/blocknote'
+import type {BlockNoteEditor} from '../editor/blocknote'
 import appError from '../errors'
 import {getBlockGroup, setGroupTypes} from './editor-utils'
 import {useEntity} from './entities'
@@ -34,13 +34,16 @@ import {useInlineMentions} from './search'
 
 function serverBlockNodesFromEditorBlocks(
   editor: BlockNoteEditor,
-  editorBlocks: Block[],
+  editorBlocks: EditorBlock[],
 ): BlockNode[] {
   if (!editorBlocks) return []
-  return editorBlocks.map((block: Block) => {
+  return editorBlocks.map((block: EditorBlock) => {
     const childGroup = getBlockGroup(editor, block.id) || {}
-    const serverBlock = fromHMBlock(block)
+    const serverBlock = editorBlockToHMBlock(block)
     if (childGroup) {
+      if (!serverBlock.attributes) {
+        serverBlock.attributes = {}
+      }
       serverBlock.attributes.childrenType = childGroup.type
         ? childGroup.type
         : 'group'
@@ -176,7 +179,7 @@ export function useCommentEditor(
     const draft = initCommentDraft.current
     if (!readyEditor.current || !draft) return
     const editor = readyEditor.current
-    const editorBlocks = toHMBlock(draft.blocks)
+    const editorBlocks = hmBlocksToEditorContent(draft.blocks)
     editor.removeBlocks(editor.topLevelBlocks)
     editor.replaceBlocks(editor.topLevelBlocks, editorBlocks)
     setGroupTypes(editor._tiptapEditor, editorBlocks)

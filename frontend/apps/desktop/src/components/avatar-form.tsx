@@ -87,7 +87,6 @@ export function ThumbnailForm({
             top: 0,
             bottom: 0,
             zIndex: 100,
-            cursor: 'pointer',
           }}
         />
         {emptyLabel && !url ? (

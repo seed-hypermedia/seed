@@ -96,6 +96,7 @@ const PastePlugin = new Plugin({
   key: PastePluginKey,
   props: {
     handlePaste: (view, event) => {
+      console.log('== PASTE BlockContainer PLUGIN', view.state.selection)
       if (!event.clipboardData) {
         return false
       }
@@ -1021,14 +1022,9 @@ export const BlockContainer = Node.create<{
                 }
                 if (!prevBlockInfo) return false
                 if (
-                  [
-                    'file',
-                    'embed',
-                    'video',
-                    'web-embed',
-                    'equation',
-                    'math',
-                  ].includes(prevBlockInfo.contentType.name) ||
+                  ['file', 'embed', 'video', 'web-embed', 'math'].includes(
+                    prevBlockInfo.contentType.name,
+                  ) ||
                   (prevBlockInfo.contentType.name === 'image' &&
                     prevBlockInfo.contentNode.attrs.url.length === 0)
                 ) {

@@ -18,44 +18,6 @@ const (
 
 const TrashNodeID = "◊"
 
-type opID struct {
-	Origin string
-	Ts     int64
-	Idx    int
-}
-
-func newOpID(origin string, ts int64, idx int) opID {
-	return opID{
-		Origin: origin,
-		Ts:     ts,
-		Idx:    idx,
-	}
-}
-
-func (o opID) Less(oo opID) bool {
-	if o.Ts < oo.Ts {
-		return true
-	}
-
-	if o.Ts > oo.Ts {
-		return false
-	}
-
-	if o.Origin < oo.Origin {
-		return true
-	}
-
-	if o.Origin > oo.Origin {
-		return false
-	}
-
-	if o.Idx == oo.Idx {
-		panic("BUG: duplicate move")
-	}
-
-	return o.Idx < oo.Idx
-}
-
 type treeCRDT struct {
 	log     *btree.BTreeG[*move]
 	logHint btree.PathHint
@@ -147,7 +109,7 @@ func (state *treeCRDT) findInsertionPoint(opID opID, parent, block, origin strin
 		// If item to the right of our initial insertion point is concurrent to our op,
 		// we skip over it.
 
-		if x.OpID.Less(opID) {
+		if x.OpID.Compare(opID) < 0 {
 			right = x.Fracdex
 			return false
 		}
@@ -185,7 +147,7 @@ func (state *treeCRDT) mutate() *treeMutation {
 
 	state.log.Scan(func(x *move) bool {
 		lastMove, ok := vt.originalWinners.Get(x.Block)
-		if ok && x.OpID.Less(lastMove.OpID) {
+		if ok && x.OpID.Compare(lastMove.OpID) < 0 {
 			panic("BUG: unsorted moves")
 		}
 
@@ -275,10 +237,9 @@ func (mut *treeMutation) move(block, parent, left string) (moveEffect, error) {
 	// Checking if our move is actually a move or a create.
 	var me moveEffect
 	prevWinner, _ := mut.dirtyWinners.Get(block)
-	switch {
-	case prevWinner == nil:
+	if prevWinner == nil {
 		me = moveEffectCreated
-	case prevWinner != nil:
+	} else {
 		// When we're moving to trash we don't care about the sibling order.
 		if prevWinner.Parent == TrashNodeID && parent == TrashNodeID {
 			return moveEffectNone, nil
@@ -295,8 +256,6 @@ func (mut *treeMutation) move(block, parent, left string) (moveEffect, error) {
 		}
 
 		me = moveEffectMoved
-	default:
-		panic("BUG: invalid move case")
 	}
 
 	mut.parents[block] = parent
@@ -417,7 +376,7 @@ func (mut *treeMutation) commit(origin string, ts int64, state *treeCRDT) (err e
 			leftOrigin = origin
 		}
 
-		if err := state.integrate(newOpID(origin, ts, idx), block, parent, left, leftOrigin); err != nil {
+		if err := state.integrate(newOpID(ts, origin, idx), block, parent, left, leftOrigin); err != nil {
 			err = fmt.Errorf("failed to integrate preliminary move (%s, %s, %s@%s): %w", block, parent, left, leftOrigin, err)
 			return false
 		}
@@ -524,5 +483,5 @@ func (m *move) ByParentOrder(mm *move) bool {
 }
 
 func (m *move) ByID(mm *move) bool {
-	return m.OpID.Less(mm.OpID)
+	return m.OpID.Compare(mm.OpID) < 0
 }

@@ -117,6 +117,10 @@ export function MentionText(props) {
   return (
     <SizableText
       fontSize="1em"
+      fontWeight="bold"
+      paddingBottom={1}
+      borderBottomWidth={1}
+      borderBottomColor="$brand5"
       paddingHorizontal={1}
       style={{
         display: 'inline-block',

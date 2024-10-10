@@ -92,10 +92,9 @@ export function CoverImage({
             $group-cover-hover={{opacity: 1}}
             gap="$2"
           >
-            <XStack position="relative" hoverStyle={{cursor: 'pointer'}}>
+            <XStack position="relative">
               <XStack
                 tag="input"
-                hoverStyle={{cursor: 'pointer'}}
                 type="file"
                 onChange={handleFileChange}
                 style={{
@@ -107,7 +106,6 @@ export function CoverImage({
                   right: -12,
                   top: 0,
                   zIndex: '$zIndex.5',
-                  cursor: 'pointer',
                   background: 'red',
                 }}
               />

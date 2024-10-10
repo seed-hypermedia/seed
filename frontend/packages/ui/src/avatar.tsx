@@ -39,7 +39,7 @@ export function UIAvatar({
       position="relative"
       onPress={onPress}
       hoverStyle={{
-        cursor: onPress ? "pointer" : undefined,
+        cursor: onPress ? "default" : undefined,
       }}
     >
       {url ? (

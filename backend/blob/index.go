@@ -46,6 +46,21 @@ func NewIRI(account core.Principal, path string) (IRI, error) {
 	return IRI("hm://" + account.String() + path), nil
 }
 
+// SpacePath parses IRI into space+path tuple if possible.
+func (iri IRI) SpacePath() (space core.Principal, path string, err error) {
+	u, err := url.Parse(string(iri))
+	if err != nil {
+		return nil, "", err
+	}
+
+	space, err = core.DecodePrincipal(u.Host)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return space, u.Path, nil
+}
+
 type Index struct {
 	bs       *blockStore
 	db       *sqlitex.Pool
@@ -486,7 +501,7 @@ func (idx *indexingCtx) SaveBlob(id int64, b StructuralBlob) error {
 
 	if !b.Ts.IsZero() {
 		// For changes we need microsecond timestamp, so we use it for all the blobs.
-		blobTime = maybe.New(b.Ts.UnixMicro())
+		blobTime = maybe.New(b.Ts.UnixMilli())
 	}
 
 	if err := dbStructuralBlobsInsert(idx.conn, id, b.Type, blobAuthor, blobResource, blobTime, blobMeta); err != nil {

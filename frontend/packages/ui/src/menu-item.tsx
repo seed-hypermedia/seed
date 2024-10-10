@@ -21,12 +21,12 @@ export function MenuItem({
       space="$2"
       opacity={disabled ? 0.5 : 1}
       userSelect="none"
-      cursor={disabled ? "not-allowed" : "pointer"}
+      cursor={disabled ? "not-allowed" : "default"}
       title={
         title ? (
           <SizableText
             fontSize="$2"
-            cursor={disabled ? "not-allowed" : "pointer"}
+            cursor={disabled ? "not-allowed" : "default"}
             userSelect="none"
             color={props.color}
           >

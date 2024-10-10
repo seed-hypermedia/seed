@@ -58,9 +58,9 @@ export function TitlebarSearch() {
         size="$2"
         className="no-window-drag"
         icon={Search}
-        hoverStyle={{
-          cursor: 'text !important',
-        }}
+        // hoverStyle={{
+        //   cursor: 'text !important',
+        // }}
         onPress={() => {
           setShowLauncher((v) => !v)
         }}

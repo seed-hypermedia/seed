@@ -295,7 +295,6 @@ export function SystemMenu() {
                     hoverTheme
                     pressTheme
                     hoverStyle={{
-                      cursor: 'pointer',
                       backgroundColor: '$backgroundFocus',
                     }}
                     paddingHorizontal="$3"

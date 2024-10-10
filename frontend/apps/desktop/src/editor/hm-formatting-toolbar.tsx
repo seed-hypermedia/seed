@@ -6,7 +6,7 @@ import {
   FormattingToolbarProps,
 } from './blocknote'
 
-import {ToggledStyle} from '@shm/shared'
+import {EditorToggledStyle} from '@shm/shared'
 import {
   Button,
   Check,
@@ -42,29 +42,29 @@ const size: SizeTokens = '$3'
 
 const toggleStyles = [
   {
-    name: 'Strong (Mod+B)',
+    name: 'Bold (Mod+B)',
     icon: Strong,
-    style: 'bold' as ToggledStyle,
+    style: 'bold' as EditorToggledStyle,
   },
   {
-    name: 'Emphasis (Mod+I)',
+    name: 'Italic (Mod+I)',
     icon: Emphasis,
-    style: 'italic' as ToggledStyle,
+    style: 'italic' as EditorToggledStyle,
   },
   {
     name: 'Underline (Mod+U)',
     icon: Underline,
-    style: 'underline' as ToggledStyle,
+    style: 'underline' as EditorToggledStyle,
   },
   {
     name: 'Strikethrough (Mod+Shift+X)',
     icon: Strikethrough,
-    style: 'strike' as ToggledStyle,
+    style: 'strike' as EditorToggledStyle,
   },
   {
     name: 'Code (Mod+E)',
     icon: Code,
-    style: 'code' as ToggledStyle,
+    style: 'code' as EditorToggledStyle,
   },
 ]
 
@@ -126,7 +126,7 @@ function ToggleStyleButton({
   icon,
 }: {
   editor: BlockNoteEditor<HMBlockSchema>
-  toggleStyle: ToggledStyle
+  toggleStyle: EditorToggledStyle
   name: string
   icon: any
 }) {
@@ -141,7 +141,7 @@ function ToggleStyleButton({
   useEditorContentChange(editor, toggleCurrentStyle)
   useEditorSelectionChange(editor, toggleCurrentStyle)
 
-  function handlePress(style: ToggledStyle) {
+  function handlePress(style: EditorToggledStyle) {
     editor.focus()
     editor.toggleStyles({[toggleStyle]: true})
   }

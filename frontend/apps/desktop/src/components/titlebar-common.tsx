@@ -24,8 +24,8 @@ import {
   createWebHMUrl,
   displayHostname,
   getDocumentTitle,
+  hmBlocksToEditorContent,
   hmId,
-  toHMBlock,
 } from '@shm/shared'
 import {
   Back,
@@ -98,7 +98,7 @@ export function DocOptionsButton() {
       onPress: async () => {
         const title = doc.data?.document?.metadata.name || 'document'
         const blocks: HMBlockNode[] | undefined = doc.data?.document?.content
-        const editorBlocks = toHMBlock(blocks)
+        const editorBlocks = hmBlocksToEditorContent(blocks)
         const markdownWithFiles = await convertBlocksToMarkdown(editorBlocks)
         const {markdownContent, mediaFiles} = markdownWithFiles
         exportDocument(title, markdownContent, mediaFiles)
@@ -387,7 +387,6 @@ export function NavigationButtons() {
             size="$2"
             onPress={() => dispatch({type: 'pop'})}
             chromeless
-            cursor={state.routeIndex <= 0 ? 'default' : 'pointer'}
             disabled={state.routeIndex <= 0}
             opacity={state.routeIndex <= 0 ? 0.5 : 1}
             icon={Back}
@@ -398,11 +397,6 @@ export function NavigationButtons() {
             size="$2"
             onPress={() => dispatch({type: 'forward'})}
             chromeless
-            cursor={
-              state.routeIndex >= state.routes.length - 1
-                ? 'default'
-                : 'pointer'
-            }
             disabled={state.routeIndex >= state.routes.length - 1}
             opacity={state.routeIndex >= state.routes.length - 1 ? 0.5 : 1}
             icon={Forward}

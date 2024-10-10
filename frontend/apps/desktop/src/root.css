@@ -3,6 +3,11 @@ body {
   padding: 0;
   overflow: hidden;
   display: flex;
+  cursor: default;
+}
+
+*:hover {
+  cursor: default !important;
 }
 
 #root {
@@ -32,4 +37,12 @@ body {
 
 .main-scroll-wrapper::-webkit-scrollbar {
   display: auto;
+}
+
+.btn * {
+  cursor: default !important;
+}
+
+.btn *:hover {
+  cursor: default !important;
 }

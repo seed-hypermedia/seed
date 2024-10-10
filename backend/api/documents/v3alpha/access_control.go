@@ -3,11 +3,11 @@ package documents
 import (
 	"context"
 	"fmt"
+	"seed/backend/blob"
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
-	"seed/backend/blob"
+	"seed/backend/util/cclock"
 	"seed/backend/util/errutil"
-	"time"
 
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
@@ -65,7 +65,7 @@ func (srv *Server) CreateCapability(ctx context.Context, in *documents.CreateCap
 	// TODO(burdiyan): Validate role according to the chain of capabilities.
 	role := in.Role.String()
 
-	cpb, err := blob.NewCapability(kp, del, acc, in.Path, role, time.Now().UnixMicro(), in.NoRecursive)
+	cpb, err := blob.NewCapability(kp, del, acc, in.Path, role, cclock.New().MustNow(), in.NoRecursive)
 	if err != nil {
 		return nil, err
 	}
@@ -146,11 +146,11 @@ func capToProto(c cid.Cid, cpb *blob.Capability) (*documents.Capability, error) 
 		Id:         c.String(),
 		Issuer:     cpb.Issuer.String(),
 		Delegate:   cpb.Delegate.String(),
-		Account:    cpb.Account.String(),
+		Account:    cpb.Space.String(),
 		Path:       cpb.Path,
 		Role:       documents.Role(role),
 		IsExact:    cpb.NoRecursive,
-		CreateTime: timestamppb.New(time.UnixMicro(cpb.Ts)),
+		CreateTime: timestamppb.New(cpb.Ts),
 	}
 
 	return pb, nil

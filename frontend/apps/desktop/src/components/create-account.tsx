@@ -126,7 +126,7 @@ export function AccountWizardDialog() {
           signingAccount: createdAccount.accountId,
           content: [],
           metadata: {
-            accountType,
+            // accountType,
           },
           members: [],
           previousId: null,

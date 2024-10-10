@@ -26,7 +26,7 @@ export const hmBlockSchema: BlockSchema = {
     node: HMHeadingBlockContent,
   },
   image: ImageBlock,
-  codeBlock: {
+  ['code-block']: {
     propSchema: {
       ...defaultProps,
       language: {default: ''},
@@ -43,7 +43,6 @@ export const hmBlockSchema: BlockSchema = {
   file: FileBlock,
   nostr: NostrBlock,
   ['web-embed']: WebEmbed,
-  equation: MathBlock('equation'), // DEPRECATE
   math: MathBlock('math'),
 }
 

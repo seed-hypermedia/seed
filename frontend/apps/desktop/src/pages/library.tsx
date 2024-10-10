@@ -20,7 +20,7 @@ import {
   getDocumentTitle,
   getMetadataName,
   HMBlockNode,
-  toHMBlock,
+  hmBlocksToEditorContent,
 } from '@shm/shared'
 import {
   Button,
@@ -137,7 +137,7 @@ export default function LibraryPage() {
     const documentsToExport = await Promise.all(
       (selectedDocs || []).map(async (doc) => {
         const blocks: HMBlockNode[] | undefined = doc.document?.content
-        const editorBlocks = toHMBlock(blocks)
+        const editorBlocks = hmBlocksToEditorContent(blocks)
         const markdown = await convertBlocksToMarkdown(editorBlocks)
         return {
           title: getDocumentTitle(doc.document) || 'Untitled document',

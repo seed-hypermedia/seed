@@ -67,14 +67,9 @@ export const BlockManipulationExtension = Extension.create({
               (node.type.name === 'image' &&
                 // @ts-ignore
                 event.target?.nodeName === 'IMG') ||
-              [
-                'file',
-                'embed',
-                'video',
-                'web-embed',
-                'math',
-                'equation',
-              ].includes(node.type.name)
+              ['file', 'embed', 'video', 'web-embed', 'math'].includes(
+                node.type.name,
+              )
             ) {
               let tr = view.state.tr
               const selection = NodeSelection.create(view.state.doc, nodePos)
@@ -129,7 +124,6 @@ export const BlockManipulationExtension = Extension.create({
                         'image',
                         'video',
                         'web-embed',
-                        'equation',
                         'math',
                       ].includes(nextNode.type.name)
                     ) {
@@ -183,7 +177,6 @@ export const BlockManipulationExtension = Extension.create({
                           'embed',
                           'video',
                           'web-embed',
-                          'equation',
                           'math',
                         ].includes(
                           blockInfoAtSelectionStart.contentType.name,
@@ -194,7 +187,6 @@ export const BlockManipulationExtension = Extension.create({
                         'embed',
                         'video',
                         'web-embed',
-                        'equation',
                         'math',
                       ].includes(prevBlock.firstChild!.type.name)
                     )
@@ -222,7 +214,6 @@ export const BlockManipulationExtension = Extension.create({
                       'embed',
                       'video',
                       'web-embed',
-                      'equation',
                       'math',
                     ].includes(blockInfo.contentType.name)
                   ) {
@@ -236,7 +227,6 @@ export const BlockManipulationExtension = Extension.create({
                     'embed',
                     'video',
                     'web-embed',
-                    'equation',
                     'math',
                   ].includes(prevNode.type.name)
                 ) {
@@ -257,7 +247,6 @@ export const BlockManipulationExtension = Extension.create({
                     'embed',
                     'video',
                     'web-embed',
-                    'equation',
                     'math',
                   ].includes(blockInfo.contentType.name)
                 ) {
@@ -305,7 +294,6 @@ export const BlockManipulationExtension = Extension.create({
                         'embed',
                         'video',
                         'web-embed',
-                        'equation',
                         'math',
                       ].includes(lastBlockInSelection.contentType.name)
                     ) {
@@ -321,7 +309,6 @@ export const BlockManipulationExtension = Extension.create({
                         'embed',
                         'video',
                         'web-embed',
-                        'equation',
                         'math',
                       ].includes(nextBlock.firstChild!.type.name)
                     ) {
@@ -349,7 +336,6 @@ export const BlockManipulationExtension = Extension.create({
                       'embed',
                       'video',
                       'web-embed',
-                      'equation',
                       'math',
                     ].includes(blockInfo.contentType.name)
                   ) {
@@ -363,7 +349,6 @@ export const BlockManipulationExtension = Extension.create({
                     'embed',
                     'video',
                     'web-embed',
-                    'equation',
                     'math',
                   ].includes(nextNode.type.name)
                 ) {

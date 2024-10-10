@@ -96,7 +96,6 @@ export function PageHeader({
               href="/"
               gap="$2"
               ai="center"
-              cursor="pointer"
               hoverStyle={{
                 textDecorationLine: "underline",
               }}
@@ -105,7 +104,7 @@ export function PageHeader({
                 <Thumbnail size={30} id={homeId} metadata={homeMetadata} />
               ) : null}
 
-              <SizableText fontWeight="bold" cursor="pointer">
+              <SizableText fontWeight="bold">
                 {homeMetadata?.name || "Seed Gateway"}
               </SizableText>
             </XStack>
@@ -197,7 +196,6 @@ export function PageHeader({
                 {authors.map((a, index) => [
                   <SizableText
                     hoverStyle={{
-                      cursor: "pointer",
                       textDecorationLine: "underline",
                     }}
                     fontWeight="bold"
@@ -259,7 +257,7 @@ function VersionsModal({
         color="$color9"
         flexDirection="row"
         gap="$2"
-        hoverStyle={{cursor: "pointer", color: "$color12"}}
+        hoverStyle={{color: "$color12"}}
       >
         <SizableText flexShrink={0} flexGrow={0} size="$1" color="inherit">
           {formattedDateMedium(entity.data?.document?.updateTime)}

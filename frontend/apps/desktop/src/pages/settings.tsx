@@ -77,7 +77,6 @@ import {
 } from '@shm/ui'
 import {
   AtSign,
-  Biohazard,
   Bitcoin,
   Code2,
   Eye,
@@ -92,9 +91,11 @@ import React, {useEffect, useId, useMemo, useState} from 'react'
 import {dispatchWizardEvent} from 'src/components/create-account'
 
 export default function Settings() {
+  const [activeTab, setActiveTab] = useState('accounts')
   return (
     <Tabs
       flex={1}
+      onValueChange={(v) => setActiveTab(v)}
       defaultValue="accounts"
       flexDirection="column"
       borderWidth="$0.25"
@@ -112,12 +113,42 @@ export default function Settings() {
           flexShrink: 0,
         }}
       >
-        <Tab value="accounts" icon={AtSign} label="Accounts" />
-        <Tab value="gateway" icon={RadioTower} label="Gateway" />
-        <Tab value="app-info" icon={Info} label="App Info" />
-        <Tab value="wallets" icon={Bitcoin} label="Sponsorship" />
-        <Tab value="experiments" icon={Biohazard} label="Experiments" />
-        <Tab value="developer" icon={Code2} label="Developers" />
+        <Tab
+          value="accounts"
+          active={activeTab === 'accounts'}
+          icon={AtSign}
+          label="Accounts"
+        />
+        <Tab
+          value="gateway"
+          active={activeTab === 'gateway'}
+          icon={RadioTower}
+          label="Gateway"
+        />
+        <Tab
+          value="app-info"
+          active={activeTab === 'app-info'}
+          icon={Info}
+          label="App Info"
+        />
+        <Tab
+          value="wallets"
+          active={activeTab === 'wallets'}
+          icon={Bitcoin}
+          label="Sponsorship"
+        />
+        {/* <Tab
+          value="experiments"
+          active={activeTab === 'experiments'}
+          icon={Biohazard}
+          label="Experiments"
+        /> */}
+        <Tab
+          value="developer"
+          active={activeTab === 'developer'}
+          icon={Code2}
+          label="Developers"
+        />
       </Tabs.List>
       <Separator />
       <TabsContent value="accounts">
@@ -133,9 +164,9 @@ export default function Settings() {
       <TabsContent value="wallets">
         <WalletsSettings />
       </TabsContent>
-      <TabsContent value="experiments">
+      {/* <TabsContent value="experiments">
         <ExperimentsSettings />
-      </TabsContent>
+      </TabsContent> */}
       <TabsContent value="developer">
         <DeveloperSettings />
       </TabsContent>
@@ -366,12 +397,6 @@ function AccountKeys() {
     deleteKey.mutateAsync({accountId: selectedAccount}).then(() => {
       setSelectedAccount(undefined)
       toast.success('Profile removed correctly')
-    })
-  }
-
-  function handleDeleteWords() {
-    deleteWords.mutateAsync('main').then(() => {
-      invalidate(['trpc.secureStorage.get'])
     })
   }
 
@@ -623,6 +648,8 @@ function KeyItem({
       pressTheme
       bg={isActive ? '$color5' : undefined}
       onPress={onSelect}
+      cursor="default"
+      hoverStyle={{cursor: 'default', backgroundColor: '$color6'}}
     />
   )
 }
@@ -1304,8 +1331,8 @@ function WalletCard({
   )
 }
 
-function Tab(props: TabsProps & {icon: any; label: string}) {
-  const {icon: Icon, label, ...rest} = props
+function Tab(props: TabsProps & {icon: any; label: string; active: boolean}) {
+  const {icon: Icon, label, active, ...rest} = props
   return (
     <Tabs.Tab
       data-testid={`tab-${props.value}`}
@@ -1316,9 +1343,12 @@ function Tab(props: TabsProps & {icon: any; label: string}) {
       paddingBottom="$3"
       height="auto"
       gap="$2"
+      bg={active ? '$color5' : '$colorTransparent'}
+      hoverStyle={{cursor: 'default', bg: '$color6'}}
+      {...rest}
     >
       <Icon size={20} />
-      <SizableText flex={1} size="$1" textAlign="left">
+      <SizableText flex={1} size="$1">
         {label}
       </SizableText>
     </Tabs.Tab>

@@ -1,21 +1,13 @@
 import {trpc} from '@/trpc'
-import {HMAccount, UnpackedHypermediaId, unpackHmId} from '@shm/shared'
+import {UnpackedHypermediaId, unpackHmId} from '@shm/shared'
 import {useMemo} from 'react'
 import {useQueryInvalidator} from '../app-context'
 
-export type FavoriteItem =
-  | {
-      key: 'document'
-      id: UnpackedHypermediaId
-      url: string
-    }
-  | {
-      key: 'account'
-      id: UnpackedHypermediaId
-      url: string
-      accountId: string
-      account: HMAccount
-    }
+export type FavoriteItem = {
+  key: 'document'
+  id: UnpackedHypermediaId
+  url: string
+}
 
 export function useFavorites() {
   const favoritesQuery = trpc.favorites.get.useQuery()

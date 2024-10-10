@@ -284,10 +284,6 @@ func dbResourcesMaybeSetTimestamp(conn *sqlite.Conn, id, ts int64) (updated bool
 		return false, fmt.Errorf("must specify resource ID")
 	}
 
-	if ts == 0 {
-		return false, fmt.Errorf("must specify timestamp")
-	}
-
 	if err := sqlitex.Exec(conn, qResourcesMaybeSetTimestamp(), nil, ts, id); err != nil {
 		return false, err
 	}

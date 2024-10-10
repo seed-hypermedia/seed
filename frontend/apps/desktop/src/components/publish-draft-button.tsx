@@ -51,7 +51,6 @@ export default function PublishDraftButton() {
   if (!draftRoute)
     throw new Error('DraftPublicationButtons requires draft route')
   const draftId = draftRoute.id
-  const packedDraftId = draftId ? packHmId(draftId) : undefined
   const draft = useDraft(draftId)
   const pushOnPublish = usePushOnPublish()
   const prevEntity = useEntity(draftId?.type !== 'draft' ? draftId : undefined)
@@ -183,6 +182,7 @@ export default function PublishDraftButton() {
               size="$2"
               onPress={handlePublish}
               borderRadius={0}
+              hoverStyle={{cursor: 'default'}}
               // disabled={!hassigningKeySelected}
               // opacity={hassigningKeySelected ? 1 : 0.3}
               icon={

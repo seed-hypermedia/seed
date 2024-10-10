@@ -11,7 +11,7 @@ import {BlockNoteDOMAttributes, getBlockInfoFromPos, mergeCSSClasses} from '..'
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
-    codeBlock: {
+    'code-block': {
       /**
        * Set a code block
        */
@@ -40,7 +40,7 @@ export interface CodeBlockOptions {
 }
 
 export const CodeBlock = Node.create<CodeBlockOptions>({
-  name: 'codeBlock',
+  name: 'code-block',
 
   addOptions() {
     return {

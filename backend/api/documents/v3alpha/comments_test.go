@@ -5,7 +5,6 @@ import (
 	"seed/backend/core/coretest"
 	pb "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/testutil"
-	"seed/backend/util/debugx"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -89,6 +88,4 @@ func TestComments_Smoke(t *testing.T) {
 	require.NoError(t, err)
 
 	testutil.StructsEqual(want, list).Compare(t, "comment list must match")
-
-	debugx.Dump(list)
 }

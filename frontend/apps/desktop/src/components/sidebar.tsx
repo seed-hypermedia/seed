@@ -113,12 +113,7 @@ function SidebarSection({
   let Icon = collapsed ? ChevronRight : ChevronDown
   return (
     <YStack marginTop="$4" group="section">
-      <XStack
-        paddingHorizontal="$2"
-        ai="center"
-        jc="space-between"
-        cursor="pointer"
-      >
+      <XStack paddingHorizontal="$2" ai="center" jc="space-between">
         <XStack
           gap="$1"
           onPress={() => {

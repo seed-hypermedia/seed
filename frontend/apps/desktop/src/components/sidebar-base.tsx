@@ -69,7 +69,6 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
             opacity: 0.1,
           }}
           bottom={bottom}
-          cursor="pointer"
           onMouseEnter={ctx.onMenuHoverDelayed}
           onMouseLeave={ctx.onMenuHoverLeave}
           onPress={ctx.onMenuHover}
@@ -212,12 +211,16 @@ export function SidebarItem({
       textAlign="left"
       outlineColor="transparent"
       backgroundColor={active ? activeBg : '$colorTransparent'}
-      hoverStyle={active ? {backgroundColor: activeBg} : {}}
+      hoverStyle={
+        active
+          ? {backgroundColor: activeBg, cursor: 'default'}
+          : {cursor: 'default'}
+      }
+      cursor="default"
       userSelect="none"
       gap="$2"
       group="item"
       color={color || '$gray12'}
-      cursor={active ? undefined : 'pointer'}
       title={undefined}
       borderRadius="$2"
       iconAfter={
@@ -256,7 +259,6 @@ export function SidebarItem({
           overflow="hidden"
           fontSize="$3"
           color={color || '$gray12'}
-          cursor={active ? undefined : 'pointer'}
           fontWeight={bold ? 'bold' : undefined}
           userSelect="none"
         >

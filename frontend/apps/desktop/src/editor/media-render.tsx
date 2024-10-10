@@ -494,7 +494,6 @@ function MediaForm({
                         fileName.color !== 'red'
                           ? {
                               backgroundColor: '$color5',
-                              cursor: 'pointer',
                             }
                           : {cursor: 'auto'}
                       }
@@ -552,7 +551,6 @@ function MediaForm({
                     fileName.color !== 'red'
                       ? {
                           backgroundColor: '$color5',
-                          cursor: 'pointer',
                         }
                       : {cursor: 'auto'}
                   }
@@ -596,7 +594,6 @@ function MediaForm({
               justifyContent="center"
               hoverStyle={{
                 backgroundColor: '$borderColorHover',
-                cursor: 'pointer',
               }}
               gap={3}
             >
