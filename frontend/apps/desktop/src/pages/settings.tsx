@@ -77,7 +77,6 @@ import {
 } from '@shm/ui'
 import {
   AtSign,
-  Biohazard,
   Bitcoin,
   Code2,
   Eye,
@@ -138,12 +137,12 @@ export default function Settings() {
           icon={Bitcoin}
           label="Sponsorship"
         />
-        <Tab
+        {/* <Tab
           value="experiments"
           active={activeTab === 'experiments'}
           icon={Biohazard}
           label="Experiments"
-        />
+        /> */}
         <Tab
           value="developer"
           active={activeTab === 'developer'}
@@ -165,9 +164,9 @@ export default function Settings() {
       <TabsContent value="wallets">
         <WalletsSettings />
       </TabsContent>
-      <TabsContent value="experiments">
+      {/* <TabsContent value="experiments">
         <ExperimentsSettings />
-      </TabsContent>
+      </TabsContent> */}
       <TabsContent value="developer">
         <DeveloperSettings />
       </TabsContent>
