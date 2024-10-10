@@ -65,42 +65,56 @@ const baseAnnotationProperties = {
   ref: z.literal('').optional(),
 }
 
-export const BoldAnnotationSchema = z.object({
-  type: z.literal('bold'),
-  ...baseAnnotationProperties,
-})
+export const BoldAnnotationSchema = z
+  .object({
+    type: z.literal('bold'),
+    ...baseAnnotationProperties,
+  })
+  .strict()
 
-export const ItalicAnnotationSchema = z.object({
-  type: z.literal('italic'),
-  ...baseAnnotationProperties,
-})
+export const ItalicAnnotationSchema = z
+  .object({
+    type: z.literal('italic'),
+    ...baseAnnotationProperties,
+  })
+  .strict()
 
-export const UnderlineAnnotationSchema = z.object({
-  type: z.literal('underline'),
-  ...baseAnnotationProperties,
-})
+export const UnderlineAnnotationSchema = z
+  .object({
+    type: z.literal('underline'),
+    ...baseAnnotationProperties,
+  })
+  .strict()
 
-export const StrikeAnnotationSchema = z.object({
-  type: z.literal('strike'),
-  ...baseAnnotationProperties,
-})
+export const StrikeAnnotationSchema = z
+  .object({
+    type: z.literal('strike'),
+    ...baseAnnotationProperties,
+  })
+  .strict()
 
-export const CodeAnnotationSchema = z.object({
-  type: z.literal('code'),
-  ...baseAnnotationProperties,
-})
+export const CodeAnnotationSchema = z
+  .object({
+    type: z.literal('code'),
+    ...baseAnnotationProperties,
+  })
+  .strict()
 
-export const LinkAnnotationSchema = z.object({
-  type: z.literal('link'),
-  ...baseAnnotationProperties,
-  ref: z.string(),
-})
+export const LinkAnnotationSchema = z
+  .object({
+    type: z.literal('link'),
+    ...baseAnnotationProperties,
+    ref: z.string(),
+  })
+  .strict()
 
-export const InlineEmbedAnnotationSchema = z.object({
-  type: z.literal('inline-embed'),
-  ...baseAnnotationProperties,
-  ref: z.string(),
-})
+export const InlineEmbedAnnotationSchema = z
+  .object({
+    type: z.literal('inline-embed'),
+    ...baseAnnotationProperties,
+    ref: z.string(),
+  })
+  .strict()
 
 export const HMAnnotationSchema = z.discriminatedUnion('type', [
   BoldAnnotationSchema,
@@ -154,71 +168,113 @@ const parentBlockAttributes = {
   start: z.string().optional(), // integer encoded as string
 }
 
-export const HMBlockParagraphSchema = z.object({
-  type: z.literal('paragraph'),
-  ...blockBaseProperties,
-  ...textBlockProperties,
-  attributes: z.object(parentBlockAttributes),
-})
+export const HMBlockParagraphSchema = z
+  .object({
+    type: z.literal('paragraph'),
+    ...blockBaseProperties,
+    ...textBlockProperties,
+    attributes: z.object(parentBlockAttributes),
+  })
+  .strict()
 
-export const HMBlockHeadingSchema = z.object({
-  type: z.literal('heading'),
-  ...blockBaseProperties,
-  ...textBlockProperties,
-  attributes: z.object(parentBlockAttributes),
-})
+export const HMBlockHeadingSchema = z
+  .object({
+    type: z.literal('heading'),
+    ...blockBaseProperties,
+    ...textBlockProperties,
+    attributes: z.object(parentBlockAttributes),
+  })
+  .strict()
 
-export const HMBlockCodeSchema = z.object({
-  type: z.literal('codeBlock'),
-  ...blockBaseProperties,
-  attributes: z.object({
-    language: z.string().optional(),
-    ...parentBlockAttributes,
-  }),
-  text: z.string(),
-})
+export const HMBlockCodeSchema = z
+  .object({
+    type: z.literal('codeBlock'),
+    ...blockBaseProperties,
+    attributes: z
+      .object({
+        ...parentBlockAttributes,
+        language: z.string().optional(),
+      })
+      .strict(),
+    text: z.string(),
+  })
+  .strict()
 
-export const HMBlockMathSchema = z.object({
-  type: z.literal('math'),
-  ...blockBaseProperties,
-  text: z.string(),
-})
+export const HMBlockMathSchema = z
+  .object({
+    type: z.literal('math'),
+    ...blockBaseProperties,
+    attributes: z.object(parentBlockAttributes).strict(),
+    text: z.string(),
+  })
+  .strict()
 
-export const HMBlockImageSchema = z.object({
-  type: z.literal('image'),
-  ...blockBaseProperties,
-  ref: z.string(),
-})
+export const HMBlockImageSchema = z
+  .object({
+    type: z.literal('image'),
+    ...blockBaseProperties,
+    ...textBlockProperties,
+    attributes: z
+      .object({
+        ...parentBlockAttributes,
+        width: z.string().optional(),
+        name: z.string().optional(),
+      })
+      .strict(),
+    ref: z.string(),
+  })
+  .strict()
 
-export const HMBlockVideoSchema = z.object({
-  type: z.literal('video'),
-  ...blockBaseProperties,
-  ref: z.string(),
-})
+export const HMBlockVideoSchema = z
+  .object({
+    type: z.literal('video'),
+    ...blockBaseProperties,
+    attributes: z
+      .object({
+        ...parentBlockAttributes,
+        name: z.string().optional(),
+      })
+      .strict(),
+    ref: z.string(),
+  })
+  .strict()
 
-export const HMBlockFileSchema = z.object({
-  type: z.literal('file'),
-  ...blockBaseProperties,
-  attributes: z.object({
-    name: z.string().optional(),
-  }),
-  ref: z.string(),
-})
+export const HMBlockFileSchema = z
+  .object({
+    type: z.literal('file'),
+    ...blockBaseProperties,
+    attributes: z
+      .object({
+        ...parentBlockAttributes,
+        name: z.string().optional(),
+        size: z.string().optional(), // number of bytes, as a string
+      })
+      .strict(),
+    ref: z.string(),
+  })
+  .strict()
 
-export const HMBlockEmbedSchema = z.object({
-  type: z.literal('embed'),
-  ...blockBaseProperties,
-  ref: z.string(), // should be a hm:// URL
-  attributes: z.object({
-    view: HMEmbedViewSchema.optional(),
-  }),
-})
+export const HMBlockEmbedSchema = z
+  .object({
+    type: z.literal('embed'),
+    ...blockBaseProperties,
+    ref: z.string(), // should be a hm:// URL
+    attributes: z
+      .object({
+        ...parentBlockAttributes,
+        view: HMEmbedViewSchema.optional(),
+      })
+      .strict(),
+  })
+  .strict()
 
-export const HMBlockWebEmbedSchema = z.object({
-  type: z.literal('web-embed'),
-  ...blockBaseProperties,
-  ref: z.string(), // should be a HTTP(S) URL
-})
+export const HMBlockWebEmbedSchema = z
+  .object({
+    type: z.literal('web-embed'),
+    ...blockBaseProperties,
+    ref: z.string(), // should be a HTTP(S) URL
+  })
+  .strict()
 
 export const HMBlockSchema = z.discriminatedUnion('type', [
   HMBlockParagraphSchema,
@@ -246,38 +302,45 @@ export type HMBlock = z.infer<typeof HMBlockSchema>
 const baseBlockNodeSchema = z.object({
   block: HMBlockSchema,
 })
-type HMBlockNode = z.infer<typeof baseBlockNodeSchema> & {
+export type HMBlockNode = z.infer<typeof baseBlockNodeSchema> & {
   children?: HMBlockNode[]
 }
-const HMBlockNodeSchema: z.ZodType<HMBlockNode> = baseBlockNodeSchema.extend({
-  children: z.lazy(() => z.array(HMBlockNodeSchema).optional()),
-})
+export const HMBlockNodeSchema: z.ZodType<HMBlockNode> =
+  baseBlockNodeSchema.extend({
+    children: z.lazy(() => z.array(HMBlockNodeSchema).optional()),
+  })
 
-export const HMDocumentMetadataSchema = z.object({
-  name: z.string().optional(),
-  thumbnail: z.string().optional(),
-  cover: z.string().optional(),
-  accountType: z
-    .union([z.literal('author'), z.literal('publisher')])
-    .optional(),
-  siteUrl: z.string().optional(),
-})
+export const HMDocumentMetadataSchema = z
+  .object({
+    name: z.string().optional(),
+    thumbnail: z.string().optional(),
+    cover: z.string().optional(),
+    accountType: z
+      .union([z.literal('author'), z.literal('publisher')])
+      .optional(),
+    siteUrl: z.string().optional(),
+  })
+  .strict()
 export type HMMetadata = z.infer<typeof HMDocumentMetadataSchema>
-export const HMTimestampSchema = z.object({
-  seconds: z.bigint(),
-  nanos: z.number(),
-})
+export const HMTimestampSchema = z
+  .object({
+    seconds: z.bigint(),
+    nanos: z.number(),
+  })
+  .strict()
 
-export const HMDocumentSchema = z.object({
-  content: z.array(HMBlockNodeSchema),
-  version: z.string(),
-  account: z.string(),
-  authors: z.array(z.string()),
-  path: z.string(),
-  createTime: HMTimestampSchema,
-  updateTime: HMTimestampSchema,
-  metadata: HMDocumentMetadataSchema,
-})
+export const HMDocumentSchema = z
+  .object({
+    content: z.array(HMBlockNodeSchema),
+    version: z.string(),
+    account: z.string(),
+    authors: z.array(z.string()),
+    path: z.string(),
+    createTime: HMTimestampSchema,
+    updateTime: HMTimestampSchema,
+    metadata: HMDocumentMetadataSchema,
+  })
+  .strict()
 
 export type HMDocument = z.infer<typeof HMDocumentSchema>
 

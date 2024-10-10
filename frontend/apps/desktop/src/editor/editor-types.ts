@@ -8,7 +8,7 @@ export type EditorBlock =
   | EditorEmbedBlock
   | EditorWebEmbedBlock
   | EditorMathBlock
-  | EditorNostrBlock
+// | EditorNostrBlock
 
 export type EditorInlineContent = EditorText | EditorInlineEmbed | EditorLink
 
@@ -111,7 +111,7 @@ export type EditorNostrBlock = EditorBaseBlock & {
 export interface EditorText {
   type: 'text'
   text: string
-  styles: EditorInlineStyles | {}
+  styles: EditorInlineStyles
 }
 
 export interface EditorLink {

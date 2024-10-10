@@ -16,8 +16,11 @@ import {
   Annotation,
   BlockNode,
 } from './.generated/documents/v3alpha/documents_pb'
-import {ServerToEditorRecursiveOpts} from './to-hm-block'
 import {isSurrogate} from './unicode'
+
+type ServerToEditorRecursiveOpts = {
+  level?: number
+}
 
 export function hmBlocksToEditorContent(
   blocks: Array<PlainMessage<BlockNode> | HMBlockNode>,

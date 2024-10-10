@@ -53,7 +53,6 @@ import {SizableText, SizableTextProps} from "@tamagui/text";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 import {common} from "lowlight";
-import {nip19, nip21, validateEvent, verifySignature} from "nostr-tools";
 import {
   PropsWithChildren,
   createContext,
@@ -64,11 +63,6 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  RiCheckFill,
-  RiCloseCircleLine,
-  RiRefreshLine,
-} from "react-icons/ri/index.js";
 // import {
 //   QuotedTweet,
 //   TweetBody,
@@ -872,9 +866,9 @@ function BlockContent(props: BlockContentProps) {
     return <BlockContentVideo {...props} {...dataProps} />;
   }
 
-  if (props.block.type == "nostr") {
-    return <BlockContentNostr {...props} {...dataProps} />;
-  }
+  // if (props.block.type == "nostr") {
+  //   return <BlockContentNostr {...props} {...dataProps} />;
+  // }
 
   if (props.block.type == "file") {
     return <BlockContentFile {...props} {...dataProps} />;
@@ -1109,6 +1103,7 @@ function BlockContentImage({
 }: BlockContentProps) {
   let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block]);
   const {textUnit} = useDocContentContext();
+  if (block.type !== "image") return null;
   if (!block?.ref) return null;
 
   return (
@@ -1751,6 +1746,7 @@ export function BlockContentFile({
   const {hover, ...hoverProps} = useHover();
   const {layoutUnit, saveCidAsFile} = useDocContentContext();
   const fileCid = block.ref ? getCIDFromIPFSUrl(block.ref) : "";
+  if (block.type !== "file") return null;
   return (
     <YStack
       // backgroundColor="$color3"
@@ -1818,105 +1814,105 @@ export function BlockContentFile({
   );
 }
 
-export function BlockContentNostr({
-  block,
-  parentBlockId,
-  ...props
-}: BlockContentProps) {
-  console.log("BlockContentNostr", block);
-  const {layoutUnit} = useDocContentContext();
-  const name = block.attributes?.name ?? "";
-  const nostrNpud = nip19.npubEncode(name) ?? "";
+// export function BlockContentNostr({
+//   block,
+//   parentBlockId,
+//   ...props
+// }: BlockContentProps) {
+//   console.log("BlockContentNostr", block);
+//   const {layoutUnit} = useDocContentContext();
+//   const name = block.attributes?.name ?? "";
+//   const nostrNpud = nip19.npubEncode(name) ?? "";
 
-  const [verified, setVerified] = useState<boolean>();
-  const [content, setContent] = useState<string>();
+//   const [verified, setVerified] = useState<boolean>();
+//   const [content, setContent] = useState<string>();
 
-  const uri = `nostr:${nostrNpud}`;
-  const header = `${nostrNpud.slice(0, 6)}...${nostrNpud.slice(-6)}`;
+//   const uri = `nostr:${nostrNpud}`;
+//   const header = `${nostrNpud.slice(0, 6)}...${nostrNpud.slice(-6)}`;
 
-  if (
-    block.ref &&
-    block.ref !== "" &&
-    (content === undefined || verified === undefined)
-  ) {
-    fetch(getFileUrl(block.ref), {
-      method: "GET",
-    }).then((response) => {
-      if (response) {
-        response.text().then((text) => {
-          if (text) {
-            const fileEvent = JSON.parse(text);
-            if (content === undefined) setContent(fileEvent.content);
-            if (verified === undefined && validateEvent(fileEvent)) {
-              setVerified(verifySignature(fileEvent));
-            }
-          }
-        });
-      }
-    });
-  }
+//   if (
+//     block.ref &&
+//     block.ref !== "" &&
+//     (content === undefined || verified === undefined)
+//   ) {
+//     fetch(getFileUrl(block.ref), {
+//       method: "GET",
+//     }).then((response) => {
+//       if (response) {
+//         response.text().then((text) => {
+//           if (text) {
+//             const fileEvent = JSON.parse(text);
+//             if (content === undefined) setContent(fileEvent.content);
+//             if (verified === undefined && validateEvent(fileEvent)) {
+//               setVerified(verifySignature(fileEvent));
+//             }
+//           }
+//         });
+//       }
+//     });
+//   }
 
-  return (
-    <YStack
-      // backgroundColor="$color3"
-      borderColor="$color6"
-      borderWidth={1}
-      borderRadius={layoutUnit / 4}
-      padding={layoutUnit / 2}
-      overflow="hidden"
-      width="100%"
-      className="block-content block-nostr"
-      hoverStyle={{
-        backgroundColor: "$backgroundHover",
-      }}
-      {...props}
-    >
-      <XStack justifyContent="space-between">
-        <SizableText
-          size="$5"
-          maxWidth="17em"
-          overflow="hidden"
-          textOverflow="ellipsis"
-          whiteSpace="nowrap"
-          userSelect="text"
-          flex={1}
-        >
-          {"Public Key: "}
-          {nip21.test(uri) ? <a href={uri}>{header}</a> : {header}}
-        </SizableText>
-        <Tooltip
-          content={
-            verified === undefined
-              ? ""
-              : verified
-              ? "Signature verified"
-              : "Invalid signature"
-          }
-        >
-          <Button
-            size="$2"
-            disabled
-            theme={
-              verified === undefined ? "blue" : verified ? "green" : "orange"
-            }
-            icon={
-              verified === undefined
-                ? RiRefreshLine
-                : verified
-                ? RiCheckFill
-                : RiCloseCircleLine
-            }
-          />
-        </Tooltip>
-      </XStack>
-      <XStack justifyContent="space-between">
-        <Text size="$6" fontWeight="bold">
-          {content}
-        </Text>
-      </XStack>
-    </YStack>
-  );
-}
+//   return (
+//     <YStack
+//       // backgroundColor="$color3"
+//       borderColor="$color6"
+//       borderWidth={1}
+//       borderRadius={layoutUnit / 4}
+//       padding={layoutUnit / 2}
+//       overflow="hidden"
+//       width="100%"
+//       className="block-content block-nostr"
+//       hoverStyle={{
+//         backgroundColor: "$backgroundHover",
+//       }}
+//       {...props}
+//     >
+//       <XStack justifyContent="space-between">
+//         <SizableText
+//           size="$5"
+//           maxWidth="17em"
+//           overflow="hidden"
+//           textOverflow="ellipsis"
+//           whiteSpace="nowrap"
+//           userSelect="text"
+//           flex={1}
+//         >
+//           {"Public Key: "}
+//           {nip21.test(uri) ? <a href={uri}>{header}</a> : {header}}
+//         </SizableText>
+//         <Tooltip
+//           content={
+//             verified === undefined
+//               ? ""
+//               : verified
+//               ? "Signature verified"
+//               : "Invalid signature"
+//           }
+//         >
+//           <Button
+//             size="$2"
+//             disabled
+//             theme={
+//               verified === undefined ? "blue" : verified ? "green" : "orange"
+//             }
+//             icon={
+//               verified === undefined
+//                 ? RiRefreshLine
+//                 : verified
+//                 ? RiCheckFill
+//                 : RiCloseCircleLine
+//             }
+//           />
+//         </Tooltip>
+//       </XStack>
+//       <XStack justifyContent="space-between">
+//         <Text size="$6" fontWeight="bold">
+//           {content}
+//         </Text>
+//       </XStack>
+//     </YStack>
+//   );
+// }
 
 // export function BlockContentXPost({
 //   block,

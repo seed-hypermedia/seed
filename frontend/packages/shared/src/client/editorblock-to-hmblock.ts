@@ -14,8 +14,17 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
   let leaves = flattenLeaves(editorBlock.content)
 
   block.annotations = [] as HMAnnotations
-  if (editorBlock.props.childrenType) {
-    block.attributes!.childrenType = editorBlock.props.childrenType
+
+  const parentBlock = getParentBlock(block)
+
+  if (parentBlock && editorBlock.props.childrenType === 'div') {
+    parentBlock.attributes.childrenType = 'group'
+  } else if (parentBlock && editorBlock.props.childrenType === 'ul') {
+    parentBlock.attributes.childrenType = 'ul'
+  } else if (parentBlock && editorBlock.props.childrenType === 'ol') {
+    parentBlock.attributes.childrenType = 'ol'
+    // } else if (parentBlock && editorBlock.props.childrenType === 'blockquote') {
+    //   parentBlock.attributes.childrenType = 'blockquote'
   }
   block.text = ''
 
@@ -69,25 +78,47 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     block.annotations = outAnnotations
   }
 
-  if (editorBlock.type == 'codeBlock') {
-    block.attributes!.language = editorBlock.props.language
+  const blockCode = block.type === 'codeBlock' ? block : undefined
+  if (blockCode && editorBlock.type == 'codeBlock') {
+    blockCode.attributes!.language = editorBlock.props.language
   }
 
+  const blockImage = block.type === 'image' ? block : undefined
+  if (blockImage && editorBlock.type == 'image') {
+    if (editorBlock.props.url) blockImage.ref = editorBlock.props.url
+    if (editorBlock.props.width)
+      blockImage.attributes.width = String(editorBlock.props.width)
+  }
+
+  const blockVideo = block.type === 'video' ? block : undefined
+  if (blockVideo && editorBlock.type == 'video' && editorBlock.props.url) {
+    blockVideo.ref = editorBlock.props.url
+  }
+
+  const blockFile = block.type === 'file' ? block : undefined
+  if (blockFile && editorBlock.type == 'file') {
+    if (editorBlock.props.url) blockFile.ref = editorBlock.props.url
+    if (editorBlock.props.name)
+      blockFile.attributes.name = editorBlock.props.name
+    if (editorBlock.props.size)
+      blockFile.attributes.size = String(editorBlock.props.size)
+  }
+
+  const blockWebEmbed = block.type === 'web-embed' ? block : undefined
   if (
-    ['image', 'video', 'file', 'embed', 'web-embed', 'nostr'].includes(
-      editorBlock.type,
-    )
+    blockWebEmbed &&
+    editorBlock.type == 'web-embed' &&
+    editorBlock.props.url
   ) {
-    block.ref = editorBlock.props.url!
+    blockWebEmbed.ref = editorBlock.props.url
   }
 
-  // Dynamically add all properties from props to block.attributes
-  Object.entries(editorBlock.props).forEach(([key, value]) => {
-    if (value !== undefined && key !== 'url' && key !== 'ref') {
-      block.attributes![key] =
-        typeof value === 'number' ? value.toString() : value
-    }
-  })
+  const blockEmbed = block.type === 'embed' ? block : undefined
+  if (blockEmbed && editorBlock.type == 'embed') {
+    if (editorBlock.props.url) blockEmbed.ref = editorBlock.props.url
+    if (editorBlock.props.view)
+      blockEmbed.attributes.view = editorBlock.props.view
+  }
 
   const blockParse = HMBlockSchema.safeParse(block)
   if (blockParse.success) return block
@@ -105,11 +136,12 @@ function flattenLeaves(
 
     if (leaf.type == 'link') {
       let nestedLeaves = flattenLeaves(leaf.content).map(
-        (l: EditorInlineContent) => ({
-          ...l,
-          href: leaf.href,
-          type: 'link',
-        }),
+        (l: EditorInlineContent) =>
+          ({
+            ...l,
+            href: leaf.href,
+            type: 'link',
+          }) as const,
       )
       result.push(...nestedLeaves)
     }
@@ -118,7 +150,7 @@ function flattenLeaves(
         ...leaf,
         text: '\uFFFC',
         ref: leaf.ref,
-      })
+      } as const)
     }
 
     if (leaf.type == 'text') {
@@ -127,4 +159,11 @@ function flattenLeaves(
   }
 
   return result
+}
+
+function getParentBlock(block: HMBlock) {
+  if (block.type === 'heading') return block
+  if (block.type === 'paragraph') return block
+  if (block.type === 'codeBlock') return block
+  return undefined
 }

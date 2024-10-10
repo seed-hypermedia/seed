@@ -175,12 +175,17 @@ export function queryEntity(
           version: id.version || undefined,
         })
         const serverDocument = toPlainMessage(grpcDocument)
-        console.log('serverDocument', serverDocument)
-        const document = HMDocumentSchema.parse(serverDocument)
 
-        return {
-          id: {...id, version: document.version},
-          document,
+        const result = HMDocumentSchema.safeParse(serverDocument)
+        if (result.success) {
+          const document = result.data
+          return {
+            id: {...id, version: document.version},
+            document,
+          }
+        } else {
+          console.error('Invalid Document!', serverDocument, result.error)
+          return {id, document: undefined}
         }
       } catch (e) {
         return {id, document: undefined}

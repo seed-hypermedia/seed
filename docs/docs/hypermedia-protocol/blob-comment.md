@@ -5,13 +5,13 @@ A Comment Blob is content that is created from a single author. It is created in
 ## Blob Map Field
 
 - `@type: 'Comment'`
-- `capability`
-- `author`
-- `space`
+- `capability` - [Link](./ipld-link.md) to the [Capability Blob](./blob-capability.md) which allows the user to write this comment (if necessary)
+- `author` - [Raw Account ID](./raw-account-id.md)
+- `space` - [Raw Account ID](./raw-account-id.md)
 - `path`
 - `version`
 - `threadRoot`
 - `replyParent`
-- `body`
+- `body` - BlockNode
 - `ts` - [Timestamp](./timestamp.md) when this Comment was created
 - `sig` - [Hypermedia Signature](./signature.md) of the other fields, signed by the `author`

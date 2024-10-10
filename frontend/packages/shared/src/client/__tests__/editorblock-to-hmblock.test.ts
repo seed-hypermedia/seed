@@ -6,7 +6,6 @@ import {
   EditorHeadingBlock,
   EditorImageBlock,
   EditorMathBlock,
-  EditorNostrBlock,
   EditorVideoBlock,
   EditorWebEmbedBlock,
 } from '@shm/desktop/src/editor'
@@ -18,7 +17,6 @@ import {
   HMBlockHeading,
   HMBlockImage,
   HMBlockMath,
-  HMBlockNostr,
   HMBlockWebEmbed,
 } from '../../hm-types'
 import {editorBlockToHMBlock} from '../editorblock-to-hmblock'
@@ -525,11 +523,7 @@ describe('EditorBlock to HMBlock', () => {
         text: ``,
         ref: 'ipfs://foobarimgcid',
         annotations: [],
-        attributes: {
-          width: '240',
-          name: 'test demo video',
-          size: '123456',
-        },
+        attributes: {},
       }
       const val = editorBlockToHMBlock(editorBlock)
 
@@ -563,7 +557,6 @@ describe('EditorBlock to HMBlock', () => {
         ref: 'ipfs://foobarimgcid',
         annotations: [],
         attributes: {
-          width: '240',
           name: 'testfile.pdf',
           size: '123456',
         },
@@ -639,40 +632,40 @@ describe('EditorBlock to HMBlock', () => {
       expect(val).toEqual(result)
     })
 
-    test('nostr', () => {
-      const editorBlock: EditorNostrBlock = {
-        id: 'foo',
-        type: 'nostr',
-        children: [],
-        props: {
-          name: 'test nostr',
-          url: 'nostr://foobarid',
-          size: 123456,
-        },
-        content: [
-          {
-            type: 'text',
-            text: '',
-            styles: {},
-          },
-        ],
-      }
+    // test('nostr', () => {
+    //   const editorBlock: EditorNostrBlock = {
+    //     id: 'foo',
+    //     type: 'nostr',
+    //     children: [],
+    //     props: {
+    //       name: 'test nostr',
+    //       url: 'nostr://foobarid',
+    //       size: 123456,
+    //     },
+    //     content: [
+    //       {
+    //         type: 'text',
+    //         text: '',
+    //         styles: {},
+    //       },
+    //     ],
+    //   }
 
-      const result: HMBlockNostr = {
-        id: 'foo',
-        type: 'nostr',
-        text: ``,
-        ref: 'nostr://foobarid',
-        annotations: [],
-        attributes: {
-          name: 'test nostr',
-          size: '123456',
-        },
-      }
+    //   const result: HMBlockNostr = {
+    //     id: 'foo',
+    //     type: 'nostr',
+    //     text: ``,
+    //     ref: 'nostr://foobarid',
+    //     annotations: [],
+    //     attributes: {
+    //       name: 'test nostr',
+    //       size: '123456',
+    //     },
+    //   }
 
-      const val = editorBlockToHMBlock(editorBlock)
+    //   const val = editorBlockToHMBlock(editorBlock)
 
-      expect(val).toEqual(result)
-    })
+    //   expect(val).toEqual(result)
+    // })
   })
 })

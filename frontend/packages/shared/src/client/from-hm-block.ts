@@ -9,7 +9,6 @@ import {
   HMAnnotation,
   HMBlock,
   HMBlockChildrenType,
-  HMBlockChildrenTypeSchema,
   HMBlockEmbed,
   HMEmbedViewSchema,
   InlineEmbedAnnotation,
@@ -263,6 +262,15 @@ export function fromHMBlock(
   throw new Error('not implemented')
 }
 
+function getHMBlockChildrenType(editorChildrenType: string) {
+  if (editorChildrenType === 'ul') return 'ul'
+  if (editorChildrenType === 'ol') return 'ol'
+  if (editorChildrenType === 'blockquote') return 'blockquote'
+  if (editorChildrenType === 'group') return 'group'
+  if (editorChildrenType === 'div') return 'group' // not sure why this inconsistency exists
+  return undefined
+}
+
 function extractParentAttributes(
   editorBlock: EditorBlock<typeof hmBlockSchema>,
 ): {
@@ -274,7 +282,7 @@ function extractParentAttributes(
     start?: string
   } = {}
   if (editorBlock.props.childrenType) {
-    parentAttributes.childrenType = HMBlockChildrenTypeSchema.parse(
+    parentAttributes.childrenType = getHMBlockChildrenType(
       editorBlock.props.childrenType,
     )
   }
