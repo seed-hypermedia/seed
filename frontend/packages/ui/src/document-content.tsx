@@ -387,18 +387,27 @@ export function BlockNodeList({
   start?: string | number;
   listLevel?: string | number;
 }) {
+  const parsedStart = typeof start === "string" ? parseInt(start) : start;
+
   return (
     <YStack
-      tag={childrenType !== "group" ? childrenType : undefined}
-      start={start}
       className="blocknode-list"
       data-node-type="blockGroup"
       data-list-type={childrenType !== "group" ? childrenType : undefined}
       data-list-level={listLevel}
-      {...props}
+      data-list-start={parsedStart}
       width="100%"
+      {...props}
     >
-      {children}
+      {childrenType === "ol" ? (
+        <ol start={parsedStart}>{children}</ol>
+      ) : childrenType === "ul" ? (
+        <ul>{children}</ul>
+      ) : childrenType === "blockquote" ? (
+        <blockquote>{children}</blockquote>
+      ) : (
+        <div>{children}</div>
+      )}
     </YStack>
   );
 }

@@ -35,8 +35,8 @@
   display: none !important;
 }
 
-ul[data-list-type="ul"] .blocknode-content,
-ol[data-list-type="ol"] .blocknode-content {
+ul .blocknode-content,
+ol .blocknode-content {
   display: list-item !important;
 }
 
@@ -44,17 +44,17 @@ div[data-list-type="div"] > .blocknode-content {
   display: flex !important;
 }
 
-div[data-list-type="div"] ul[data-list-type="ul"] .blocknode-content,
-div[data-list-type="div"] ol[data-list-type="ol"] .blocknode-content {
+div[data-list-type="div"] ul .blocknode-content,
+div[data-list-type="div"] ol .blocknode-content {
   display: list-item !important;
 }
 
-ul[data-list-type="ul"] div[data-list-type="div"] .blocknode-content,
-ol[data-list-type="ol"] div[data-list-type="div"] .blocknode-content {
+ul div[data-list-type="div"] .blocknode-content,
+ol div[data-list-type="div"] .blocknode-content {
   display: flex !important;
 }
 
-.blocknode-list[data-list-type="ul"] {
+.blocknode-list[data-list-type="ul"] ul {
   margin-left: 0.2em;
   list-style-type: disc;
   list-style-position: outside;
@@ -67,17 +67,17 @@ ol[data-list-type="ol"] div[data-list-type="div"] .blocknode-content {
   /* font-style: italic; */
 }
 
-.blocknode-list[data-list-level="2"] {
+.blocknode-list[data-list-level="2"] ul {
   list-style-type: circle;
   list-style-position: outside;
 }
 
-.blocknode-list[data-list-level="3"] {
+.blocknode-list[data-list-level="3"] ul {
   list-style-type: square;
   list-style-position: outside;
 }
 
-.blocknode-list[data-list-type="ol"] {
+.blocknode-list[data-list-type="ol"] ol {
   margin-left: 0.2em;
   list-style-type: decimal;
   list-style-position: outside;
