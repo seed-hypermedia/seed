@@ -316,9 +316,6 @@ export const HMDocumentMetadataSchema = z
     name: z.string().optional(),
     thumbnail: z.string().optional(),
     cover: z.string().optional(),
-    accountType: z
-      .union([z.literal('author'), z.literal('publisher')])
-      .optional(),
     siteUrl: z.string().optional(),
   })
   .strict()
