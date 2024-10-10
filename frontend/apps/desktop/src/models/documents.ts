@@ -218,7 +218,9 @@ export function usePublishDraft(
     mutationFn: async ({draft, previous, id}) => {
       const blocksMap = previous ? createBlocksMap(previous.content, '') : {}
 
-      const changes = compareBlocksWithMap(blocksMap, draft.content, '')
+      const content = removeTrailingBlocks(draft.content)
+
+      const changes = compareBlocksWithMap(blocksMap, content, '')
 
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
       if (accts.data?.length == 0) {
@@ -1302,4 +1304,22 @@ function findDifferences(obj1, obj2) {
 
   compare(obj1, obj2)
   return differences
+}
+
+function removeTrailingBlocks(
+  blocks: Array<EditorBlock<typeof hmBlockSchema>>,
+) {
+  let trailedBlocks = [...blocks]
+
+  while (true) {
+    let lastBlock = trailedBlocks[trailedBlocks.length - 1]
+
+    if (lastBlock.type == 'paragraph' && lastBlock.content.length == 0) {
+      trailedBlocks.pop()
+    } else {
+      break
+    }
+  }
+
+  return trailedBlocks
 }
