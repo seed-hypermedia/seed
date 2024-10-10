@@ -804,7 +804,6 @@ function isBlockNodeEmpty(bn: HMBlockNode): boolean {
     case "heading":
     case "math":
     case "code":
-    case "codeBlock":
       return !bn.block.text;
     case "image":
     case "file":
@@ -882,7 +881,7 @@ function BlockContent(props: BlockContentProps) {
     return <BlockContentEmbed {...props} {...dataProps} />;
   }
 
-  if (props.block.type == "codeBlock") {
+  if (props.block.type == "code") {
     return <BlockContentCode {...props} {...dataProps} />;
   }
 
@@ -2020,7 +2019,7 @@ export function BlockContentCode({
       borderRadius={layoutUnit / 4}
       padding={layoutUnit / 2}
       overflow="hidden"
-      data-content-type="codeBlock"
+      data-content-type="code"
       width="100%"
       {...debugStyles(debug, "blue")}
       marginHorizontal={(-1 * layoutUnit) / 2}

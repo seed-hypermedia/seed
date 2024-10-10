@@ -9,7 +9,7 @@ function toHMBlockType(
 ): HMBlockType | undefined {
   if (editorBlockType === 'heading') return 'heading'
   if (editorBlockType === 'paragraph') return 'paragraph'
-  if (editorBlockType === 'codeBlock') return 'code'
+  if (editorBlockType === 'code-block') return 'code'
   if (editorBlockType === 'math') return 'math'
   if (editorBlockType === 'image') return 'image'
   if (editorBlockType === 'video') return 'video'
@@ -97,8 +97,8 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     block.annotations = outAnnotations
   }
 
-  const blockCode = block.type === 'codeBlock' ? block : undefined
-  if (blockCode && editorBlock.type == 'codeBlock') {
+  const blockCode = block.type === 'code' ? block : undefined
+  if (blockCode && editorBlock.type == 'code-block') {
     blockCode.attributes!.language = editorBlock.props.language
   }
 
@@ -184,6 +184,6 @@ function flattenLeaves(
 function getParentBlock(block: HMBlock) {
   if (block.type === 'heading') return block
   if (block.type === 'paragraph') return block
-  if (block.type === 'codeBlock') return block
+  if (block.type === 'code') return block
   return undefined
 }

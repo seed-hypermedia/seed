@@ -19,7 +19,6 @@ import {
   UnpackedHypermediaId,
   editorBlockToHMBlock,
   eventStream,
-  fromHMBlock,
   hmBlocksToEditorContent,
   hmId,
   hmIdPathToEntityQueryPath,
@@ -908,7 +907,6 @@ export function compareBlocksWithMap(
       if (childGroup.start) block.props.start = childGroup.start.toString()
     }
     let currentBlockState = editorBlockToHMBlock(block)
-    let prevBlock = fromHMBlock(block)
 
     if (
       !prevBlockState ||

@@ -59,7 +59,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
 
   if (
     [
-      'codeBlock',
+      'code',
       'video',
       'image',
       'file',
@@ -71,6 +71,10 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
   ) {
     if (block.ref) {
       out.props.url = block.ref
+    }
+
+    if (block.type == 'code') {
+      out.type = 'code-block'
     }
 
     Object.entries(block.attributes).forEach(([key, value]) => {

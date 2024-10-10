@@ -164,7 +164,7 @@ export function blockToNode<BSchema extends BlockSchema>(
   } else {
     let nodes: Node[] = []
     // Don't want hard breaks inserted as nodes in codeblock
-    if (block.type === 'codeBlock' && block.content.length) {
+    if (block.type === 'code-block' && block.content.length) {
       // @ts-ignore
       const textNode = schema.text(block.content[0].text)
       nodes.push(textNode)
@@ -410,7 +410,7 @@ export function nodeToBlock<BSchema extends BlockSchema>(
   })) {
     const blockSpec = blockSchema[blockInfo.contentType.name]
     if (!blockSpec) {
-      if (blockInfo.contentType.name === 'codeBlock') {
+      if (blockInfo.contentType.name === 'code-block') {
         break
       } else
         throw Error(

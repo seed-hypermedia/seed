@@ -26,7 +26,7 @@ export const hmBlockSchema: BlockSchema = {
     node: HMHeadingBlockContent,
   },
   image: ImageBlock,
-  codeBlock: {
+  ['code-block']: {
     propSchema: {
       ...defaultProps,
       language: {default: ''},

@@ -46,13 +46,13 @@ export const slashMenuItems = [
   },
   {
     name: 'Code Block',
-    aliases: ['code', 'pre', 'code-block', 'codeBlock'],
+    aliases: ['code', 'pre', 'code-block'],
     group: 'Text blocks',
     icon: <RiCodeBoxFill size={18} />,
     hint: 'Insert a Code Block',
     execute: (editor: BlockNoteEditor) => {
       insertOrUpdateBlock(editor, {
-        type: 'codeBlock',
+        type: 'code-block',
         props: {
           language: '',
         },

@@ -69,7 +69,7 @@ function convertBlockToHtml(block: any, isListItem = false) {
         const {url, name, width} = block.props
         const titleWithWidth = `${name} | width=${width}`
         return `<img src="${url}" alt="${contentHtml}" title="${titleWithWidth}">`
-      case 'codeBlock':
+      case 'code-block':
         return `<pre><code class="language-${
           block.props.language || 'plaintext'
         }">${contentHtml}</code></pre>`

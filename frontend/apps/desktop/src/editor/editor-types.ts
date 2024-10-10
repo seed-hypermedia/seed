@@ -41,7 +41,7 @@ export interface EditorHeadingBlock extends EditorBaseBlock {
 }
 
 export interface EditorCodeBlock extends EditorBaseBlock {
-  type: 'codeBlock'
+  type: 'code-block'
   content: Array<EditorInlineContent>
   props: EditorBlockProps & {
     language?: string

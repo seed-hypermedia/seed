@@ -421,10 +421,10 @@ describe('HMBlock to EditorBlock', () => {
       expect(val).toEqual(result)
     })
 
-    test('codeBlock', () => {
+    test('code', () => {
       const hmBlock: HMBlockCode = {
         id: 'foo',
-        type: 'codeBlock',
+        type: 'code',
         text: `const hello = 'world'`,
         annotations: [],
         attributes: {
@@ -435,7 +435,7 @@ describe('HMBlock to EditorBlock', () => {
 
       const result: EditorCodeBlock = {
         id: 'foo',
-        type: 'codeBlock',
+        type: 'code-block',
         children: [],
         props: {
           language: 'javascript',
