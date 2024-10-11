@@ -1,11 +1,14 @@
 package docmodel
 
 import (
+	"cmp"
 	"fmt"
 
 	"github.com/tidwall/btree"
 	"golang.org/x/exp/maps"
 	"roci.dev/fracdex"
+
+	bbtree "seed/backend/util/btree"
 )
 
 type moveEffect byte
@@ -19,23 +22,62 @@ const (
 const TrashNodeID = "◊"
 
 type treeCRDT struct {
-	log     *btree.BTreeG[*move]
-	logHint btree.PathHint
+	log   *bbtree.Map[opID, *move]
+	tree2 *bbtree.Map[string, *rgaList[string]] // Parent Block => RGA List of children block IDs.
 
 	tree     *btree.BTreeG[*move]
 	treeHint btree.PathHint
-
-	origins map[[2]string]*move
+	origins  map[[2]string]*move
 }
 
 func newTreeCRDT() *treeCRDT {
 	ts := &treeCRDT{
-		log:     btree.NewBTreeGOptions((*move).ByID, btree.Options{NoLocks: true, Degree: 8}),
+		log:     bbtree.New[opID, *move](8, opID.Compare),
+		tree2:   bbtree.New[string, *rgaList[string]](8, cmp.Compare[string]),
 		tree:    btree.NewBTreeGOptions((*move).ByParentOrder, btree.Options{NoLocks: true, Degree: 8}),
 		origins: make(map[[2]string]*move),
 	}
 
+	// Create empty list for the root and trash.
+	ts.tree2.Set("", newRGAList[string]())
+	ts.tree2.Set(TrashNodeID, newRGAList[string]())
+
 	return ts
+}
+
+func (state *treeCRDT) Integrate2(opID opID, block, parent string, refID opID) error {
+	if _, ok := state.log.GetOK(opID); ok {
+		return fmt.Errorf("duplicate move op ID: %v", opID)
+	}
+
+	subtree, ok := state.tree2.GetOK(parent)
+	if !ok {
+		return fmt.Errorf("parent '%s' not found in tree", parent)
+	}
+
+	// We need to create a subtree for every block.
+	if _, ok := state.tree2.GetOK(block); !ok {
+		if state.tree2.Set(block, newRGAList[string]()) {
+			panic("BUG: duplicate subtree for block " + block)
+		}
+	}
+
+	if err := subtree.Integrate(opID, refID, block); err != nil {
+		return fmt.Errorf("failed to integrate move operation (block=%s parent=%s ref=%v): %w", block, parent, refID, err)
+	}
+
+	op := &move{
+		OpID:   opID,
+		Block:  block,
+		Parent: parent,
+		RefID:  refID,
+	}
+
+	if state.log.Set(opID, op) {
+		panic(fmt.Errorf("BUG: duplicate move op ID: %v", opID))
+	}
+
+	return nil
 }
 
 func (state *treeCRDT) Integrate(opID opID, block, parent, left, leftOrigin string) error {
@@ -72,7 +114,9 @@ func (state *treeCRDT) Integrate(opID opID, block, parent, left, leftOrigin stri
 		Fracdex:    idx,
 	}
 
-	state.log.SetHint(op, &state.logHint)
+	if state.log.Set(opID, op) {
+		panic(fmt.Errorf("BUG: duplicate move op ID: %v", opID))
+	}
 	state.tree.SetHint(op, &state.treeHint)
 	state.origins[origin] = op
 
@@ -145,15 +189,15 @@ func (state *treeCRDT) mutate() *treeMutation {
 		dirtyInvisibleMoves:    make(map[*move]struct{}),
 	}
 
-	state.log.Scan(func(x *move) bool {
+	for k, x := range state.log.Iter() {
 		lastMove, ok := vt.originalWinners.Get(x.Block)
-		if ok && x.OpID.Compare(lastMove.OpID) < 0 {
+		if ok && k.Compare(lastMove.OpID) < 0 {
 			panic("BUG: unsorted moves")
 		}
 
 		if vt.isAncestor(x.Block, x.Parent) {
 			vt.originalInvisibleMoves[x] = struct{}{}
-			return true
+			continue
 		}
 
 		if lastMove != nil {
@@ -163,8 +207,8 @@ func (state *treeCRDT) mutate() *treeMutation {
 		vt.originalWinners.Set(x.Block, x)
 		vt.parents[x.Block] = x.Parent
 
-		return true
-	})
+		continue
+	}
 
 	vt.dirtyWinners = vt.originalWinners.Copy()
 	vt.dirtyInvisibleMoves = maps.Clone(vt.originalInvisibleMoves)
@@ -432,6 +476,20 @@ func (mut *treeMutation) walkDFT(fn func(m *move) bool) {
 	}
 }
 
+/*
+1. Get state:
+	- Replay moves.
+	- Store child => parent relationship.
+	- Store block => valid move relationship.
+2. Mutate:
+	- Clone state.
+	- Move method:
+		- Ensure parent exist.
+		- Ensure left exist within parent.
+		- Find op ID of the left sibling.
+		- Integrate our move into RFA
+*/
+
 func (mut *treeMutation) visibleLeftSibling(m *move, invisible map[*move]struct{}) (blockID string, opid opID) {
 	mut.tree.DescendHint(m, func(x *move) bool {
 		if x == m {
@@ -461,6 +519,7 @@ type move struct {
 	Left       string
 	LeftOrigin string
 	Fracdex    string
+	RefID      opID
 }
 
 func (m *move) Index() string {

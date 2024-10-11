@@ -178,12 +178,12 @@ func TestRedundantMoveMutation(t *testing.T) {
 func TestTreeState(t *testing.T) {
 	ts := newTreeCRDT()
 
-	require.NoError(t, ts.Integrate(newOpID(1, "a", 0), "b1", "", "", ""))
-	require.NoError(t, ts.Integrate(newOpID(2, "a", 0), "b2", "", "b1", "a"))
-	require.NoError(t, ts.Integrate(newOpID(3, "b", 0), "b1", "", "b2", "a"))
+	require.NoError(t, ts.Integrate2(newOpID(1, "a", 0), "b1", "", opID{}))
+	require.NoError(t, ts.Integrate2(newOpID(2, "a", 0), "b2", "", newOpID(1, "a", 0)))
+	require.NoError(t, ts.Integrate2(newOpID(3, "b", 0), "b1", "", newOpID(2, "a", 0)))
 }
 
-func TestVisibleTree(t *testing.T) {
+func TestVisibleTreeOld(t *testing.T) {
 	state := newTreeCRDT()
 
 	require.NoError(t, state.Integrate(newOpID(1, "a", 0), "b1", "", "", ""))

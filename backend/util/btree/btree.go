@@ -129,3 +129,11 @@ func (b *Map[K, V]) Keys() []K {
 func (b *Map[K, V]) Clear() {
 	b.tr.Clear()
 }
+
+// Copy performs an efficient structural copying of the map.
+func (b *Map[K, V]) Copy() *Map[K, V] {
+	return &Map[K, V]{
+		tr:  b.tr.Copy(),
+		cmp: b.cmp,
+	}
+}
