@@ -2,6 +2,8 @@ package blob
 
 import (
 	"bytes"
+	"cmp"
+	"encoding/binary"
 	"fmt"
 	"net/url"
 	"seed/backend/core"
@@ -123,6 +125,109 @@ func (c *ChangeUnsigned) Sign(kp core.KeyPair) (cc *Change, err error) {
 		ChangeUnsigned: *c,
 		Sig:            sig,
 	}, nil
+}
+
+type OpID struct {
+	Ts     uint64
+	Idx    uint32
+	Origin uint64
+}
+
+const (
+	maxTimestamp = 1<<48 - 1
+	maxIdx       = 1<<24 - 1
+	maxOrigin    = 1<<48 - 1
+)
+
+func newOpID(ts uint64, idx uint32, origin uint64) OpID {
+	if ts >= maxTimestamp {
+		panic("BUG: operation timestamp is too large")
+	}
+
+	if idx >= maxIdx {
+		panic("BUG: operation index is too large")
+	}
+
+	if origin >= maxOrigin {
+		panic("BUG: operation origin is too large")
+	}
+
+	return OpID{
+		Ts:     ts,
+		Origin: origin,
+		Idx:    idx,
+	}
+}
+
+func (o OpID) Compare(oo OpID) int {
+	if o.Ts < oo.Ts {
+		return -1
+	}
+
+	if o.Ts > oo.Ts {
+		return +1
+	}
+
+	if o.Idx < oo.Idx {
+		return -1
+	}
+
+	if o.Idx > oo.Idx {
+		return +1
+	}
+
+	return cmp.Compare(o.Origin, oo.Origin)
+}
+
+func (op OpID) Encode() EncodedOpID {
+	var (
+		e       EncodedOpID
+		scratch [8]byte
+	)
+
+	binary.BigEndian.PutUint64(scratch[:], uint64(op.Ts))
+	copy(e[:6], scratch[2:])
+
+	binary.BigEndian.PutUint32(scratch[:], op.Idx)
+	copy(e[6:6+3], scratch[1:])
+
+	binary.BigEndian.PutUint64(scratch[:], op.Origin)
+	copy(e[9:], scratch[2:])
+
+	return e
+}
+
+// EncodedOpID is a CRDT Op ID that is compactly encoded in the following way:
+// - 6 bytes (48 bits): timestamp. Enough precision to track Unix millisecond timestamps for thousands for years.
+// - 3 bytes (24 bits): index/offset of the operation within the same Change/Transaction.
+// - 6 bytes (48 bits): origin/replica/actor. Random 48-bit value of a replica that generated the operation.
+// The timestamp and index are big-endian, to support lexicographic ordering of the IDs.
+// This has some limitations:
+// 1. Maximum number of operations in a single change is 16777215.
+// 2. Same actor must not generate Changes/Transactions within the same millisecond.
+// 3. The clocks on the devices generating the operations must be roughly syncronized to avoid inter-device conflicts in timestamps.
+type EncodedOpID [15]byte
+
+func (e EncodedOpID) Decode() OpID {
+	var (
+		out     OpID
+		scratch [8]byte
+	)
+
+	copy(scratch[2:], e[:6])
+	scratch[0] = 0
+	scratch[1] = 0
+	out.Ts = binary.BigEndian.Uint64(scratch[:])
+
+	copy(scratch[1:], e[6:6+3])
+	out.Idx = binary.BigEndian.Uint32(scratch[:5])
+
+	copy(scratch[2:], e[9:])
+	scratch[0] = 0
+	scratch[1] = 0
+	out.Origin = binary.BigEndian.Uint64(scratch[:])
+
+	return out
 }
 
 func init() {
