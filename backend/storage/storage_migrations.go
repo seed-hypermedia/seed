@@ -51,7 +51,7 @@ type migration struct {
 // Migrations should be idempotant as much as we can make them, to prevent issues with partially applied migrations.
 var migrations = []migration{
 	// New beginning.
-	{Version: "2024-10-08.01", Run: func(_ *Store, _ *sqlite.Conn) error {
+	{Version: "2024-10-11.01", Run: func(_ *Store, _ *sqlite.Conn) error {
 		return nil
 	}},
 }

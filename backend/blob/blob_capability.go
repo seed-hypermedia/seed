@@ -27,7 +27,7 @@ type Capability struct {
 
 // CapabilityUnsigned holds the fields of a Capability that are meant to be signed.
 type CapabilityUnsigned struct {
-	Type        blobType       `refmt:"@type"`
+	Type        blobType       `refmt:"type"`
 	Issuer      core.Principal `refmt:"issuer"`
 	Delegate    core.Principal `refmt:"delegate"`
 	Space       core.Principal `refmt:"space"`

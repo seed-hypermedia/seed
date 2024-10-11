@@ -94,7 +94,7 @@ func NewChange(kp core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, ops 
 
 // ChangeUnsigned holds the fields of a Change that are supposed to be signed.
 type ChangeUnsigned struct {
-	Type    blobType       `refmt:"@type"`
+	Type    blobType       `refmt:"type"`
 	Genesis cid.Cid        `refmt:"genesis,omitempty"`
 	Deps    []cid.Cid      `refmt:"deps,omitempty"`
 	Depth   int            `refmt:"depth,omitempty"`

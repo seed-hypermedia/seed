@@ -64,7 +64,7 @@ func NewComment(
 
 // CommentUnsigned holds the fields of a Comment that are meant to be signed.
 type CommentUnsigned struct {
-	Type        blobType       `refmt:"@type"`
+	Type        blobType       `refmt:"type"`
 	Capability  cid.Cid        `refmt:"capability,omitempty"`
 	Author      core.Principal `refmt:"author"`
 	Space       core.Principal `refmt:"space"`

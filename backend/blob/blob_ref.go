@@ -49,7 +49,7 @@ func NewRef(kp core.KeyPair, genesis cid.Cid, space core.Principal, path string,
 
 // RefUnsigned holds the fields of a Ref that are meant to be signed.
 type RefUnsigned struct {
-	Type        blobType       `refmt:"@type"`
+	Type        blobType       `refmt:"type"`
 	Space       core.Principal `refmt:"space"`
 	Path        string         `refmt:"path,omitempty"`
 	GenesisBlob cid.Cid        `refmt:"genesisBlob"`
