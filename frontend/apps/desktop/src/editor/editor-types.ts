@@ -8,7 +8,7 @@ export type EditorBlock =
   | EditorEmbedBlock
   | EditorWebEmbedBlock
   | EditorMathBlock
-// | EditorNostrBlock
+  | EditorNostrBlock
 
 export type EditorInlineContent = EditorText | EditorInlineEmbed | EditorLink
 
@@ -21,7 +21,7 @@ export interface EditorBaseBlock {
 }
 
 export interface EditorBlockProps {
-  textAlignment?: 'left' | 'center' | 'right'
+  // textAlignment?: 'left' | 'center' | 'right'
   childrenType?: 'div' | 'ul' | 'ol'
   listLevel?: string
   start?: string
@@ -78,7 +78,7 @@ export interface EditorFileBlock extends EditorBaseBlock {
 export interface EditorEmbedBlock extends EditorBaseBlock {
   type: 'embed'
   props: EditorBlockProps & {
-    view: 'content' | 'card'
+    view: 'Content' | 'Card'
     url: string
   }
   content: Array<EditorInlineContent>
@@ -116,13 +116,14 @@ export interface EditorText {
 
 export interface EditorLink {
   type: 'link'
+  // TODO: change to link
   href: string
   content: Array<EditorInlineContent>
 }
 
 export interface EditorInlineEmbed {
   type: 'inline-embed'
-  ref: string
+  link: string
   styles: EditorInlineStyles | {}
 }
 
@@ -134,3 +135,14 @@ export interface EditorInlineStyles {
   code?: boolean
   math?: boolean
 }
+
+export type EditorAnnotationType =
+  | 'bold'
+  | 'italic'
+  | 'underline'
+  | 'strike'
+  | 'code'
+  | 'link'
+  | 'inline-embed'
+
+export type EditorBlockType = EditorBlock['type']

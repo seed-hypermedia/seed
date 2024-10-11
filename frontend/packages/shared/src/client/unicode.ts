@@ -25,25 +25,23 @@ export class AnnotationSet {
         ends: [],
       })
 
-      if (type == 'link' || type == 'inline-embed') {
-        annotation.ref = attributes!.ref
-        // @ts-expect-error
+      if (type == 'Link' || type == 'Embed') {
+        annotation.link = attributes!.link
+
         // delete annotation.attributes
-        delete annotation.attributes.ref
+        delete annotation.attributes.link
       }
 
-      if (typeof annotation.ref == 'string' && annotation.ref.length == 0) {
-        // @ts-expect-error
-        // delete annotation.ref
-      }
+      // if (typeof annotation.link == 'string' && annotation.link.length == 0) {
+      //  delete annotation.link
+      // }
 
-      if (
-        'attributes' in annotation &&
-        Object.keys(annotation.attributes).length == 0
-      ) {
-        // @ts-expect-error
-        // delete annotation.attributes
-      }
+      // if (
+      //   'attributes' in annotation &&
+      //   Object.keys(annotation.attributes).length == 0
+      // ) {
+      //   delete annotation.attributes
+      // }
 
       this.annotations.set(id, annotation)
     }
@@ -53,8 +51,8 @@ export class AnnotationSet {
 
   _annotationId(type: string, attributes: {[key: string]: string} | null) {
     if (attributes) {
-      if (attributes.ref) {
-        return `${type}-${attributes.ref}`
+      if (attributes.link) {
+        return `${type}-${attributes.link}`
       }
 
       if (attributes.href) {

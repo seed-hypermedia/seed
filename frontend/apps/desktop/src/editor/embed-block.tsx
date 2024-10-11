@@ -212,14 +212,14 @@ const display = ({
             }
             block={{
               id: block.id,
-              type: 'embed',
+              type: 'Embed',
               text: ' ',
               attributes: {
                 childrenType: 'group',
                 view: block.props.view,
               },
               annotations: [],
-              ref: block.props.url,
+              link: block.props.url,
             }}
             depth={1}
           />

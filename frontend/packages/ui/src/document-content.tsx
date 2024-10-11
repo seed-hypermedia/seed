@@ -349,7 +349,7 @@ export function BlocksContent({
 }) {
   if (!blocks) return null;
   return (
-    <BlockNodeList childrenType={"group"}>
+    <BlockNodeList childrenType={"Group"}>
       {blocks?.length
         ? blocks?.map((bn, idx) => (
             <BlockNodeContent
@@ -463,7 +463,7 @@ export function BlockNodeContent({
   depth = 1,
   start,
   listLevel,
-  childrenType = "group",
+  childrenType = "Group",
   isFirstChild = false,
   expanded = true,
   embedDepth = 1,
@@ -602,7 +602,7 @@ export function BlockNodeContent({
         {...debugStyles(debug, "red")}
         group="blocknode"
         className={
-          blockNode.block!.type === "heading" ? "blocknode-content-heading" : ""
+          blockNode.block!.type === "Heading" ? "blocknode-content-heading" : ""
         }
       >
         {bnChildren ? (
@@ -800,18 +800,18 @@ function isBlockNodeEmpty(bn: HMBlockNode): boolean {
   if (bn.children && bn.children.length) return false;
   if (typeof bn.block == "undefined") return true;
   switch (bn.block.type) {
-    case "paragraph":
-    case "heading":
-    case "math":
-    case "code":
+    case "Paragraph":
+    case "Heading":
+    case "Math":
+    case "Code":
       return !bn.block.text;
-    case "image":
-    case "file":
-    case "video":
+    case "Image":
+    case "File":
+    case "Video":
     // case "nostr":
-    case "embed":
-    case "web-embed":
-      return !bn.block.ref;
+    case "Embed":
+    case "WebEmbed":
+      return !bn.block.link;
     default:
       return false;
   }
@@ -849,19 +849,19 @@ function BlockContent(props: BlockContentProps) {
     depth: props.depth || 1,
     "data-blockid": props.block.id,
   };
-  if (props.block.type == "paragraph") {
+  if (props.block.type == "Paragraph") {
     return <BlockContentParagraph {...props} {...dataProps} />;
   }
 
-  if (props.block.type == "heading") {
+  if (props.block.type == "Heading") {
     return <BlockContentHeading {...props} {...dataProps} />;
   }
 
-  if (props.block.type == "image") {
+  if (props.block.type == "Image") {
     return <BlockContentImage {...props} {...dataProps} />;
   }
 
-  if (props.block.type == "video") {
+  if (props.block.type == "Video") {
     return <BlockContentVideo {...props} {...dataProps} />;
   }
 
@@ -869,7 +869,7 @@ function BlockContent(props: BlockContentProps) {
   //   return <BlockContentNostr {...props} {...dataProps} />;
   // }
 
-  if (props.block.type == "file") {
+  if (props.block.type == "File") {
     return <BlockContentFile {...props} {...dataProps} />;
   }
 
@@ -877,15 +877,15 @@ function BlockContent(props: BlockContentProps) {
   //   return <BlockContentXPost {...props} {...dataProps} />;
   // }
 
-  if (props.block.type == "embed") {
+  if (props.block.type == "Embed") {
     return <BlockContentEmbed {...props} {...dataProps} />;
   }
 
-  if (props.block.type == "code") {
+  if (props.block.type == "Code") {
     return <BlockContentCode {...props} {...dataProps} />;
   }
 
-  if (props.block.type == "math") {
+  if (props.block.type == "Math") {
     return <BlockContentMath {...props} block={props.block} />;
   }
 
@@ -1102,8 +1102,8 @@ function BlockContentImage({
 }: BlockContentProps) {
   let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block]);
   const {textUnit} = useDocContentContext();
-  if (block.type !== "image") return null;
-  if (!block?.ref) return null;
+  if (block.type !== "Image") return null;
+  if (!block?.link) return null;
 
   return (
     <YStack
@@ -1111,7 +1111,7 @@ function BlockContentImage({
       {...props}
       className="block-content block-image"
       data-content-type="image"
-      data-url={block?.ref}
+      data-url={block?.link}
       data-alt={block?.attributes?.alt}
       data-width={block.attributes?.width}
       paddingVertical="$3"
@@ -1126,7 +1126,7 @@ function BlockContentImage({
       >
         <img
           alt={block?.attributes?.alt}
-          src={getFileUrl(block?.ref)}
+          src={getFileUrl(block?.link)}
           style={{width: "100%"}}
         />
       </XStack>
@@ -1145,7 +1145,7 @@ function BlockContentVideo({
   ...props
 }: BlockContentProps) {
   let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block]);
-  const ref = block.ref || "";
+  const link = block.link || "";
   const {textUnit} = useDocContentContext();
 
   return (
@@ -1156,14 +1156,14 @@ function BlockContentVideo({
       paddingVertical="$3"
       gap="$2"
       data-content-type="video"
-      data-url={ref}
+      data-url={link}
       data-name={block.attributes?.name}
       paddingBottom="56.25%"
       position="relative"
       height={0}
     >
-      {ref ? (
-        ref.startsWith("ipfs://") ? (
+      {link ? (
+        link.startsWith("ipfs://") ? (
           <XStack
             tag="video"
             top={0}
@@ -1177,7 +1177,7 @@ function BlockContentVideo({
             preload="metadata"
           >
             <source
-              src={getFileUrl(block.ref)}
+              src={getFileUrl(link)}
               type={getSourceType(block.attributes.name)}
             />
             <SizableText>Something is wrong with the video file.</SizableText>
@@ -1190,7 +1190,7 @@ function BlockContentVideo({
             position="absolute"
             width="100%"
             height="100%"
-            src={block.ref}
+            src={block.link}
             frameBorder="0"
             allowFullScreen
           />
@@ -1378,9 +1378,9 @@ function InlineContentView({
           );
         }
         if (content.type === "link") {
-          const hmId = unpackHmId(content.ref);
-          const isHmScheme = isHypermediaScheme(content.ref);
-          const href = isHmScheme && hmId ? idToUrl(hmId) : content.ref;
+          const hmId = unpackHmId(content.href);
+          const isHmScheme = isHypermediaScheme(content.href);
+          const href = isHmScheme && hmId ? idToUrl(hmId) : content.href;
           if (!href) return null;
           return (
             <a
@@ -1388,7 +1388,7 @@ function InlineContentView({
               className={isHmScheme ? "hm-link" : "link"}
               key={index}
               target={isHmScheme ? undefined : "_blank"}
-              onClick={(e) => onLinkClick(content.ref, e)}
+              onClick={(e) => onLinkClick(content.href, e)}
             >
               <InlineContentView
                 fontSize={fSize}
@@ -1402,8 +1402,8 @@ function InlineContentView({
         }
 
         if (content.type == "inline-embed") {
-          const unpackedRef = unpackHmId(content.ref);
-          return <InlineEmbed key={content.ref} {...unpackedRef} />;
+          const unpackedRef = unpackHmId(content.link);
+          return <InlineEmbed key={content.link} {...unpackedRef} />;
         }
 
         if (content.type == "range") {
@@ -1428,9 +1428,9 @@ function InlineContentView({
 export function BlockContentEmbed(props: BlockContentProps) {
   console.log(`== ~ BlockContentEmbed ~ props:`, props);
   const EmbedTypes = useDocContentContext().entityComponents;
-  if (props.block.type !== "embed")
+  if (props.block.type !== "Embed")
     throw new Error("BlockContentEmbed requires an embed block type");
-  const id = unpackHmId(props.block.ref);
+  const id = unpackHmId(props.block.link);
   if (id?.type == "d") {
     return <EmbedTypes.Document {...props} {...id} />;
   }
@@ -1580,7 +1580,7 @@ export function ContentEmbed({
     content = (
       <>
         {/* ADD SIDENOTE HERE */}
-        <BlockNodeList childrenType="group">
+        <BlockNodeList childrenType="Group">
           {!props.blockRef && document?.metadata?.name ? (
             <BlockNodeContent
               isFirstChild
@@ -1708,8 +1708,8 @@ export function BlockNotFoundError({
 
 export function BlockContentUnknown(props: BlockContentProps) {
   let message = "Unrecognized Block";
-  if (props.block.type == "embed") {
-    message = `Unrecognized Embed: ${props.block.ref}`;
+  if (props.block.type == "Embed") {
+    message = `Unrecognized Embed: ${props.block.link}`;
   }
   return <ErrorBlock message={message} debugData={props.block} />;
 }
@@ -1744,8 +1744,8 @@ export function BlockContentFile({
 }: BlockContentProps) {
   const {hover, ...hoverProps} = useHover();
   const {layoutUnit, saveCidAsFile} = useDocContentContext();
-  const fileCid = block.ref ? getCIDFromIPFSUrl(block.ref) : "";
-  if (block.type !== "file") return null;
+  const fileCid = block.link ? getCIDFromIPFSUrl(block.link) : "";
+  if (block.type !== "File") return null;
   return (
     <YStack
       // backgroundColor="$color3"
@@ -1758,7 +1758,7 @@ export function BlockContentFile({
       f={1}
       className="block-content block-file"
       data-content-type="file"
-      data-url={block.ref}
+      data-url={block.link}
       data-name={block.attributes?.name}
       data-size={block.attributes?.size}
       hoverStyle={{

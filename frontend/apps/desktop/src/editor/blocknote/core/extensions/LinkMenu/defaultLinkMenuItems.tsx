@@ -156,23 +156,26 @@ export function getLinkMenuItems({
             name: `Mention "${docTitle}"`,
             disabled: false,
             icon: <SquareAsterisk size={18} />,
-            execute: (editor: BlockNoteEditor, ref: string) => {
-              if (isPublicGatewayLink(ref, gwUrl) || isHypermediaScheme(ref)) {
-                const hmId = normalizeHmId(ref, gwUrl)
+            execute: (editor: BlockNoteEditor, link: string) => {
+              if (
+                isPublicGatewayLink(link, gwUrl) ||
+                isHypermediaScheme(link)
+              ) {
+                const hmId = normalizeHmId(link, gwUrl)
                 if (!hmId) return
-                ref = hmId
+                link = hmId
               }
               const {state, schema} = editor._tiptapEditor
               const {selection} = state
               if (!selection.empty) return
               const node = schema.nodes['inline-embed'].create(
                 {
-                  ref,
+                  link,
                 },
                 schema.text(' '),
               )
 
-              insertMentionNode(editor, sourceUrl || ref, docTitle, node)
+              insertMentionNode(editor, sourceUrl || link, docTitle, node)
             },
           },
           ...linkMenuItems,
@@ -282,20 +285,19 @@ function insertNode(editor: BlockNoteEditor, ref: string, node: Node) {
 
 function insertMentionNode(
   editor: BlockNoteEditor,
-  ref: string,
+  link: string,
   title: string,
   node: Node,
 ) {
-  const {state, schema, view} = editor._tiptapEditor
-  const {doc, selection} = state
+  const {state, view} = editor._tiptapEditor
+  const {selection} = state
   const {$from} = selection
-  const block = getBlockInfoFromPos(doc, selection.$anchor.pos)
   let tr = state.tr
 
   // If inserted link inline with other text (child count will be more than 1)
 
   const $pos = state.doc.resolve($from.pos)
-  let originalStartContent = state.doc.cut($pos.start(), $pos.pos - ref.length)
+  let originalStartContent = state.doc.cut($pos.start(), $pos.pos - link.length)
 
   view.dispatch(
     tr
@@ -329,30 +331,4 @@ function insertMentionNode(
   // )
 
   // view.dispatch(tr)
-}
-
-function findClosestLinkRangeBefore(state) {
-  const {doc, selection} = state
-  const {from} = selection
-  let closestLinkRange = null
-
-  // Iterate over the nodes in reverse order from the current selection position
-  doc.nodesBetween(0, from, (node, pos) => {
-    // If the node is an inline node of type link
-    if (node.isInline && node.type.name === 'link') {
-      // Get the start and end positions of the link node
-      const linkStart = pos
-      const linkEnd = pos + node.nodeSize
-
-      // If this is the first link found or it's closer than the previous closest link
-      if (
-        !closestLinkRange ||
-        Math.abs(linkStart - from) < Math.abs(closestLinkRange.from - from)
-      ) {
-        closestLinkRange = {from: linkStart, to: linkEnd}
-      }
-    }
-  })
-
-  return closestLinkRange
 }

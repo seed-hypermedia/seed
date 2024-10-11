@@ -43,18 +43,18 @@ export function extractContent(content: Array<EditorInlineContent>): {
         })
       })
       annotations.push({
-        type: 'link',
+        type: 'Link',
         starts: [charIndex],
         ends: [charIndex + linkLength],
-        ref: inline.href,
+        link: inline.href,
       })
       charIndex += linkLength
     } else {
       if (inline.type == 'inline-embed') {
         const inlineLength = 1
         annotations.push({
-          type: 'inline-embed',
-          ref: inline.ref,
+          type: 'Embed',
+          link: inline.link,
           starts: [charIndex],
           ends: [charIndex + inlineLength],
         })

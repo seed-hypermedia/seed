@@ -4,7 +4,7 @@ Each document operation takes the following format:
 
 ```json
 {
-    "op": "setMetadata",
+    "op": "SetMetadata",
     "attributes": {
         "name": "New Document Name"
     }
@@ -15,13 +15,13 @@ The `op` is used to specify which operation is being used. The `attributes` will
 
 ## Set Metadata Operation
 
-`"op": "setMetadata"`
+`"op": "SetMetadata"`
 
 Attributes is a Map of new [Document Metadata](./document-state.md#document-metadata) fields that will be set.
 
 ## Move Block Operation
 
-`"op": "moveBlock"`
+`"op": "MoveBlock"`
 
 Attributes:
 

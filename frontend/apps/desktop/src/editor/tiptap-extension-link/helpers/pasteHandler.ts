@@ -263,7 +263,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           view.dispatch(
             view.state.tr.scrollIntoView().setMeta(linkMenuPluginKey, {
               activate: true,
-              ref: link.href,
+              link: link.href,
               items: getLinkMenuItems({
                 isLoading: true,
                 gwUrl: options.gwUrl,
@@ -275,7 +275,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
             case 1:
               view.dispatch(
                 view.state.tr.setMeta(linkMenuPluginKey, {
-                  ref: link.href,
+                  link: link.href,
                   items: getLinkMenuItems({
                     isLoading: false,
                     media: 'image',
@@ -288,7 +288,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
             case 2:
               view.dispatch(
                 view.state.tr.setMeta(linkMenuPluginKey, {
-                  ref: link.href,
+                  link: link.href,
                   items: getLinkMenuItems({
                     isLoading: false,
                     media: 'file',
@@ -301,7 +301,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
             case 3:
               view.dispatch(
                 view.state.tr.setMeta(linkMenuPluginKey, {
-                  ref: link.href,
+                  link: link.href,
                   items: getLinkMenuItems({
                     isLoading: false,
                     media: 'video',
@@ -315,7 +315,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
             case 4:
               view.dispatch(
                 view.state.tr.setMeta(linkMenuPluginKey, {
-                  ref: link.href,
+                  link: link.href,
                   items: getLinkMenuItems({
                     isLoading: false,
                     media: 'twitter',
@@ -353,7 +353,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                     if (fullHmUrl) {
                       view.dispatch(
                         view.state.tr.setMeta(linkMenuPluginKey, {
-                          ref: fullHmUrl,
+                          link: fullHmUrl,
                           items: getLinkMenuItems({
                             hmId: unpackHmId(fullHmUrl),
                             isLoading: false,
@@ -381,7 +381,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                     if (['image', 'video', 'file'].includes(type)) {
                       view.dispatch(
                         view.state.tr.setMeta(linkMenuPluginKey, {
-                          ref: link.href,
+                          link: link.href,
                           items: getLinkMenuItems({
                             isLoading: false,
                             media: type,

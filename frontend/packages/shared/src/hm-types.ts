@@ -11,16 +11,16 @@ import type {
 import * as z from 'zod'
 
 export const HMBlockChildrenTypeSchema = z.union([
-  z.literal('group'),
-  z.literal('ol'),
-  z.literal('ul'),
-  z.literal('blockquote'),
+  z.literal('Group'),
+  z.literal('Ordered'),
+  z.literal('Unordered'),
+  z.literal('Blockquote'),
 ])
 export type HMBlockChildrenType = z.infer<typeof HMBlockChildrenTypeSchema>
 
 export const HMEmbedViewSchema = z.union([
-  z.literal('content'),
-  z.literal('card'),
+  z.literal('Content'),
+  z.literal('Card'),
 ])
 export type HMEmbedView = z.infer<typeof HMEmbedViewSchema>
 
@@ -30,8 +30,8 @@ export type EditorTextStyles = {
   underline?: true
   strike?: true
   code?: true
-  textColor?: string
-  backgroundColor?: string
+  // color?: string
+  // backgroundColor?: string
 }
 
 export type EditorToggledStyle = {
@@ -62,57 +62,57 @@ const baseAnnotationProperties = {
   starts: z.array(z.number()),
   ends: z.array(z.number()),
   attributes: z.object({}).optional(),
-  ref: z.literal('').optional(),
+  link: z.literal('').optional(),
 }
 
 export const BoldAnnotationSchema = z
   .object({
-    type: z.literal('bold'),
+    type: z.literal('Bold'),
     ...baseAnnotationProperties,
   })
   .strict()
 
 export const ItalicAnnotationSchema = z
   .object({
-    type: z.literal('italic'),
+    type: z.literal('Italic'),
     ...baseAnnotationProperties,
   })
   .strict()
 
 export const UnderlineAnnotationSchema = z
   .object({
-    type: z.literal('underline'),
+    type: z.literal('Underline'),
     ...baseAnnotationProperties,
   })
   .strict()
 
 export const StrikeAnnotationSchema = z
   .object({
-    type: z.literal('strike'),
+    type: z.literal('Strike'),
     ...baseAnnotationProperties,
   })
   .strict()
 
 export const CodeAnnotationSchema = z
   .object({
-    type: z.literal('code'),
+    type: z.literal('Code'),
     ...baseAnnotationProperties,
   })
   .strict()
 
 export const LinkAnnotationSchema = z
   .object({
-    type: z.literal('link'),
+    type: z.literal('Link'),
     ...baseAnnotationProperties,
-    ref: z.string(),
+    link: z.string(),
   })
   .strict()
 
 export const InlineEmbedAnnotationSchema = z
   .object({
-    type: z.literal('inline-embed'),
+    type: z.literal('Embed'),
     ...baseAnnotationProperties,
-    ref: z.string(),
+    link: z.string(),
   })
   .strict()
 
@@ -155,7 +155,7 @@ const blockBaseProperties = {
   attributes: z.object({}).optional(), // EMPTY ATTRIBUTES, override in specific block schemas
   annotations: z.array(z.never()).optional(), // EMPTY ANNOTATIONS, override in specific block schemas
   text: z.literal('').optional(), // EMPTY TEXT, override in specific block schemas
-  ref: z.literal('').optional(), // EMPTY REF, override in specific block schemas
+  link: z.literal('').optional(), // EMPTY LINK, override in specific block schemas
 } as const
 
 const textBlockProperties = {
@@ -170,7 +170,7 @@ const parentBlockAttributes = {
 
 export const HMBlockParagraphSchema = z
   .object({
-    type: z.literal('paragraph'),
+    type: z.literal('Paragraph'),
     ...blockBaseProperties,
     ...textBlockProperties,
     attributes: z.object(parentBlockAttributes),
@@ -179,7 +179,7 @@ export const HMBlockParagraphSchema = z
 
 export const HMBlockHeadingSchema = z
   .object({
-    type: z.literal('heading'),
+    type: z.literal('Heading'),
     ...blockBaseProperties,
     ...textBlockProperties,
     attributes: z.object(parentBlockAttributes),
@@ -188,7 +188,7 @@ export const HMBlockHeadingSchema = z
 
 export const HMBlockCodeSchema = z
   .object({
-    type: z.literal('code'),
+    type: z.literal('Code'),
     ...blockBaseProperties,
     attributes: z
       .object({
@@ -202,7 +202,7 @@ export const HMBlockCodeSchema = z
 
 export const HMBlockMathSchema = z
   .object({
-    type: z.literal('math'),
+    type: z.literal('Math'),
     ...blockBaseProperties,
     attributes: z.object(parentBlockAttributes).strict(),
     text: z.string(),
@@ -211,7 +211,7 @@ export const HMBlockMathSchema = z
 
 export const HMBlockImageSchema = z
   .object({
-    type: z.literal('image'),
+    type: z.literal('Image'),
     ...blockBaseProperties,
     ...textBlockProperties,
     attributes: z
@@ -221,13 +221,13 @@ export const HMBlockImageSchema = z
         name: z.string().optional(),
       })
       .strict(),
-    ref: z.string(),
+    link: z.string(),
   })
   .strict()
 
 export const HMBlockVideoSchema = z
   .object({
-    type: z.literal('video'),
+    type: z.literal('Video'),
     ...blockBaseProperties,
     attributes: z
       .object({
@@ -236,13 +236,13 @@ export const HMBlockVideoSchema = z
         name: z.string().optional(),
       })
       .strict(),
-    ref: z.string(),
+    link: z.string(),
   })
   .strict()
 
 export const HMBlockFileSchema = z
   .object({
-    type: z.literal('file'),
+    type: z.literal('File'),
     ...blockBaseProperties,
     attributes: z
       .object({
@@ -251,15 +251,15 @@ export const HMBlockFileSchema = z
         size: z.string().optional(), // number of bytes, as a string
       })
       .strict(),
-    ref: z.string(),
+    link: z.string(),
   })
   .strict()
 
 export const HMBlockEmbedSchema = z
   .object({
-    type: z.literal('embed'),
+    type: z.literal('Embed'),
     ...blockBaseProperties,
-    ref: z.string(), // should be a hm:// URL
+    link: z.string(), // should be a hm:// URL
     attributes: z
       .object({
         ...parentBlockAttributes,
@@ -271,9 +271,9 @@ export const HMBlockEmbedSchema = z
 
 export const HMBlockWebEmbedSchema = z
   .object({
-    type: z.literal('web-embed'),
+    type: z.literal('WebEmbed'),
     ...blockBaseProperties,
-    ref: z.string(), // should be a HTTP(S) URL
+    link: z.string(), // should be a HTTP(S) URL
   })
   .strict()
 
@@ -369,3 +369,5 @@ export type HMCommentGroup = {
   moreCommentsCount: number
   id: string
 }
+
+export type HMBlockType = HMBlock['type']

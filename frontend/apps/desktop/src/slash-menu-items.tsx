@@ -139,7 +139,7 @@ export const slashMenuItems = [
         {
           type: 'embed',
           props: {
-            ref: '',
+            link: '',
           },
         } as PartialBlock<HMBlockSchema>,
         true,

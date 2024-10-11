@@ -29,7 +29,7 @@ describe('HMBlock to EditorBlock', () => {
     test('paragraph', () => {
       const hmBlock: HMBlock = {
         id: 'foo',
-        type: 'paragraph',
+        type: 'Paragraph',
         text: 'Hello world',
         annotations: [],
         attributes: {},
@@ -59,14 +59,14 @@ describe('HMBlock to EditorBlock', () => {
     test('paragraph with styles formats', () => {
       const hmBlock: HMBlock = {
         id: 'foo',
-        type: 'paragraph',
+        type: 'Paragraph',
         text: 'ABCDE',
         annotations: [
-          {type: 'bold', attributes: {}, ref: '', starts: [0], ends: [1]},
-          {type: 'italic', attributes: {}, ref: '', starts: [1], ends: [2]},
-          {type: 'underline', attributes: {}, ref: '', starts: [2], ends: [3]},
-          {type: 'strike', attributes: {}, ref: '', starts: [3], ends: [4]},
-          {type: 'code', attributes: {}, ref: '', starts: [4], ends: [5]},
+          {type: 'Bold', attributes: {}, link: '', starts: [0], ends: [1]},
+          {type: 'Italic', attributes: {}, link: '', starts: [1], ends: [2]},
+          {type: 'Underline', attributes: {}, link: '', starts: [2], ends: [3]},
+          {type: 'Strike', attributes: {}, link: '', starts: [3], ends: [4]},
+          {type: 'Code', attributes: {}, link: '', starts: [4], ends: [5]},
         ],
         attributes: {},
         revision: 'revision123',
@@ -95,11 +95,11 @@ describe('HMBlock to EditorBlock', () => {
     test('paragraph with overlapping styles formats', () => {
       const hmBlock: HMBlock = {
         id: 'foo',
-        type: 'paragraph',
+        type: 'Paragraph',
         text: 'ABCDE',
         annotations: [
-          {type: 'bold', attributes: {}, ref: '', starts: [1], ends: [3]},
-          {type: 'italic', attributes: {}, ref: '', starts: [2], ends: [4]},
+          {type: 'Bold', attributes: {}, link: '', starts: [1], ends: [3]},
+          {type: 'Italic', attributes: {}, link: '', starts: [2], ends: [4]},
         ],
         attributes: {},
         revision: 'revision123',
@@ -128,13 +128,13 @@ describe('HMBlock to EditorBlock', () => {
     test('paragraph with emojis and format', () => {
       const hmBlock: HMBlock = {
         id: 'foo',
-        type: 'paragraph',
+        type: 'Paragraph',
         text: '👨‍👩‍👧‍👦 Hello world!',
         annotations: [
           {
-            type: 'bold',
+            type: 'Bold',
             attributes: {},
-            ref: '',
+            link: '',
             starts: [14],
             ends: [20],
           },
@@ -172,13 +172,13 @@ describe('HMBlock to EditorBlock', () => {
     test('paragraph with link', () => {
       const hmBlock: HMBlock = {
         id: 'foo',
-        type: 'paragraph',
+        type: 'Paragraph',
         text: 'Hello world',
         annotations: [
           {
-            type: 'link',
+            type: 'Link',
             attributes: {},
-            ref: 'https://example.com',
+            link: 'https://example.com',
             starts: [6],
             ends: [11],
           },
@@ -201,7 +201,7 @@ describe('HMBlock to EditorBlock', () => {
           },
           {
             type: 'link',
-            ref: 'https://example.com',
+            href: 'https://example.com',
             content: [
               {
                 type: 'text',
@@ -220,20 +220,20 @@ describe('HMBlock to EditorBlock', () => {
     test('paragraph with link and more content', () => {
       const hmBlock: HMBlock = {
         id: 'foo',
-        type: 'paragraph',
+        type: 'Paragraph',
         text: 'Hello world and all of you!',
         annotations: [
           {
-            type: 'link',
+            type: 'Link',
             attributes: {},
             starts: [6],
             ends: [11],
-            ref: 'https://example.com',
+            link: 'https://example.com',
           },
           {
-            type: 'bold',
+            type: 'Bold',
             attributes: {},
-            ref: '',
+            link: '',
             starts: [23],
             ends: [27],
           },
@@ -256,7 +256,7 @@ describe('HMBlock to EditorBlock', () => {
           },
           {
             type: 'link',
-            ref: 'https://example.com',
+            href: 'https://example.com',
             content: [
               {
                 type: 'text',
@@ -284,15 +284,15 @@ describe('HMBlock to EditorBlock', () => {
     test('paragraph with inline embed', () => {
       const hmBlock: HMBlock = {
         id: 'foo',
-        type: 'paragraph',
+        type: 'Paragraph',
         text: 'Hello \uFFFC',
         annotations: [
           {
-            type: 'inline-embed',
+            type: 'Embed',
             starts: [6],
             attributes: {},
             ends: [7],
-            ref: 'hm://asdf1234',
+            link: 'hm://asdf1234',
           },
         ],
         attributes: {},
@@ -313,7 +313,7 @@ describe('HMBlock to EditorBlock', () => {
           },
           {
             type: 'inline-embed',
-            ref: 'hm://asdf1234',
+            link: 'hm://asdf1234',
             styles: {},
           },
         ],
@@ -325,29 +325,29 @@ describe('HMBlock to EditorBlock', () => {
     test('paragraph with inline embed and more content', () => {
       const hmBlock: HMBlock = {
         id: 'foo',
-        type: 'paragraph',
+        type: 'Paragraph',
         text: 'Hello \uFFFC how are you?',
         annotations: [
           {
-            type: 'inline-embed',
+            type: 'Embed',
             starts: [6],
             attributes: {},
             ends: [7],
-            ref: 'hm://asdf1234',
+            link: 'hm://asdf1234',
           },
           {
-            type: 'bold',
+            type: 'Bold',
             starts: [7],
             ends: [16],
             attributes: {},
-            ref: '',
+            link: '',
           },
           {
-            type: 'strike',
+            type: 'Strike',
             starts: [16],
             ends: [20],
             attributes: {},
-            ref: '',
+            link: '',
           },
         ],
         attributes: {},
@@ -368,7 +368,7 @@ describe('HMBlock to EditorBlock', () => {
           },
           {
             type: 'inline-embed',
-            ref: 'hm://asdf1234',
+            link: 'hm://asdf1234',
             styles: {},
           },
           {
@@ -394,7 +394,7 @@ describe('HMBlock to EditorBlock', () => {
     test('heading', () => {
       const hmBlock: HMBlockHeading = {
         id: 'foo',
-        type: 'heading',
+        type: 'Heading',
         text: 'Hello world',
         annotations: [],
         attributes: {},
@@ -424,7 +424,7 @@ describe('HMBlock to EditorBlock', () => {
     test('code', () => {
       const hmBlock: HMBlockCode = {
         id: 'foo',
-        type: 'code',
+        type: 'Code',
         text: `const hello = 'world'`,
         annotations: [],
         attributes: {
@@ -457,7 +457,7 @@ describe('HMBlock to EditorBlock', () => {
     test('math', () => {
       const hmBlock: HMBlockMath = {
         id: 'foo',
-        type: 'math',
+        type: 'Math',
         text: `MATH HERE`,
         annotations: [],
         attributes: {},
@@ -487,9 +487,9 @@ describe('HMBlock to EditorBlock', () => {
     test('image', () => {
       const hmBlock: HMBlockImage = {
         id: 'foo',
-        type: 'image',
+        type: 'Image',
         text: ``,
-        ref: 'ipfs://foobarimgcid',
+        link: 'ipfs://foobarimgcid',
         annotations: [],
         attributes: {},
         revision: 'revision123',
@@ -519,14 +519,14 @@ describe('HMBlock to EditorBlock', () => {
     test('video', () => {
       const hmBlock: HMBlock = {
         id: 'foo',
-        type: 'video',
+        type: 'Video',
         text: ``,
-        ref: 'ipfs://foobarimgcid',
+        link: 'ipfs://foobarimgcid',
         annotations: [],
         attributes: {
           width: '240',
           name: 'test demo video',
-          size: '123456',
+          // size: '123456',
         },
         revision: 'revision123',
       }
@@ -539,7 +539,7 @@ describe('HMBlock to EditorBlock', () => {
           url: 'ipfs://foobarimgcid',
           width: 240,
           name: 'test demo video',
-          size: 123456,
+          // size: 123456,
           revision: 'revision123',
         },
         content: [
@@ -558,12 +558,11 @@ describe('HMBlock to EditorBlock', () => {
     test('file', () => {
       const hmBlock: HMBlockFile = {
         id: 'foo',
-        type: 'file',
+        type: 'File',
         text: ``,
-        ref: 'ipfs://foobarimgcid',
+        link: 'ipfs://foobarimgcid',
         annotations: [],
         attributes: {
-          width: '240',
           name: 'testfile.pdf',
           size: '123456',
         },
@@ -576,7 +575,6 @@ describe('HMBlock to EditorBlock', () => {
         children: [],
         props: {
           url: 'ipfs://foobarimgcid',
-          width: 240,
           name: 'testfile.pdf',
           size: 123456,
           revision: 'revision123',
@@ -598,12 +596,12 @@ describe('HMBlock to EditorBlock', () => {
     test('embed', () => {
       const hmBlock: HMBlockEmbed = {
         id: 'foo',
-        type: 'embed',
+        type: 'Embed',
         text: ``,
-        ref: 'hm://foobarembed',
+        link: 'hm://foobarembed',
         annotations: [],
         attributes: {
-          view: 'card',
+          view: 'Card',
         },
         revision: 'revision123',
       }
@@ -614,7 +612,7 @@ describe('HMBlock to EditorBlock', () => {
         children: [],
         props: {
           url: 'hm://foobarembed',
-          view: 'card',
+          view: 'Card',
           revision: 'revision123',
         },
         content: [
@@ -634,9 +632,9 @@ describe('HMBlock to EditorBlock', () => {
     test('web embed', () => {
       const hmBlock: HMBlockWebEmbed = {
         id: 'foo',
-        type: 'web-embed',
+        type: 'WebEmbed',
         text: ``,
-        ref: 'hm://foobarwebembed',
+        link: 'hm://foobarwebembed',
         annotations: [],
         attributes: {},
         revision: 'revision123',
@@ -667,9 +665,9 @@ describe('HMBlock to EditorBlock', () => {
     test('nostr', () => {
       const hmBlock: HMBlockNostr = {
         id: 'foo',
-        type: 'nostr',
+        type: 'Nostr',
         text: ``,
-        ref: 'nostr://foobarid',
+        link: 'nostr://foobarid',
         annotations: [],
         attributes: {
           name: 'test nostr',

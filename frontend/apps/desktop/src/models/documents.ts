@@ -93,7 +93,7 @@ export function useDeleteDraft(
 
 type ListedEmbed = {
   blockId: string
-  ref: string
+  link: string
   refId: UnpackedHypermediaId
 }
 
@@ -103,13 +103,13 @@ function extractRefs(
 ): ListedEmbed[] {
   let refs: ListedEmbed[] = []
   function extractRefsFromBlock(block: HMBlockNode) {
-    if (block.block?.type === 'embed' && block.block.ref) {
-      if (block.block.attributes?.view === 'card' && skipCards) return
-      const refId = unpackHmId(block.block.ref)
+    if (block.block?.type === 'Embed' && block.block.link) {
+      if (block.block.attributes?.view === 'Card' && skipCards) return
+      const refId = unpackHmId(block.block.link)
       if (refId)
         refs.push({
           blockId: block.block.id,
-          ref: block.block.ref,
+          link: block.block.link,
           refId,
         })
     }
@@ -402,6 +402,7 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
 
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
+      console.log('== onEditorContentChange', editor.topLevelBlocks)
       if (!gotEdited.current) {
         gotEdited.current = true
       }
@@ -773,13 +774,13 @@ function extractEmbedIds(blockNodes: HMBlockNode[]): string[] {
   return flatMap(
     blockNodes.map((node) => {
       const childEmbedUrls = extractEmbedIds(node.children || [])
-      if (node.block.type === 'embed' && node.block.ref) {
-        childEmbedUrls.push(node.block.ref)
+      if (node.block.type === 'Embed' && node.block.link) {
+        childEmbedUrls.push(node.block.link)
       }
       if (node.block.annotations) {
         node.block.annotations.forEach((annotation) => {
-          if (annotation.type === 'inline-embed' && annotation.ref) {
-            childEmbedUrls.push(annotation.ref)
+          if (annotation.type === 'Embed' && annotation.link) {
+            childEmbedUrls.push(annotation.link)
           }
         })
       }
@@ -1102,7 +1103,7 @@ export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
   let result =
     // b1.id == b2.id &&
     b1.text == b2.text &&
-    b1.ref == b2.ref &&
+    b1.link == b2.link &&
     _.isEqual(b1.annotations, b2.annotations) &&
     // TODO: how to correctly compare attributes???
     isBlockAttributesEqual(b1, b2) &&
@@ -1121,7 +1122,8 @@ function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
     a1.level == a2.level &&
     a1.url == a2.url &&
     a1.size == a2.size &&
-    a1.ref == a2.ref &&
+    a1.href == a2.href &&
+    a1.link == a2.link &&
     a1.language == a2.language &&
     a1.view == a2.view &&
     a1.width == a2.width

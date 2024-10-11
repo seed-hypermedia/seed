@@ -14,7 +14,7 @@ export type LinkMenuState<LinkMenuItem> = BaseUiElementState & {
   // The items to display.
   items: LinkMenuItem[]
   // Pasted URL
-  ref: string
+  link: string
   // The index of the suggested item that's currently hovered by the keyboard.
   keyboardHoveredItemIndex: number
 }
@@ -23,7 +23,7 @@ type LinkPluginState<LinkMenuItem> = {
   // True when the menu is shown, false when hidden.
   active: boolean
   // Pasted URL
-  ref: string
+  link: string
   // The items that should be shown in the menu.
   items: LinkMenuItem[]
   // The index of the item in the menu that's currently hovered using the keyboard.
@@ -34,7 +34,7 @@ type LinkPluginState<LinkMenuItem> = {
 function getDefaultPluginState<LinkMenuItem>(): LinkPluginState<LinkMenuItem> {
   return {
     active: false,
-    ref: '',
+    link: '',
     items: [] as LinkMenuItem[],
     keyboardHoveredItemIndex: undefined,
     decorationId: undefined,
@@ -111,7 +111,7 @@ export class LinkMenuView<LinkMenuItem, BSchema extends BlockSchema> {
     if (this.editor.isEditable) {
       this.linkMenuState = {
         show: true,
-        ref: this.pluginState.ref,
+        link: this.pluginState.link,
         referencePos: decorationNode!.getBoundingClientRect(),
         items: this.pluginState.items,
         keyboardHoveredItemIndex: this.pluginState.keyboardHoveredItemIndex!,
@@ -132,7 +132,7 @@ export class LinkMenuProsemirrorPlugin<
 > extends EventEmitter<any> {
   // private linkMenuView: LinkMenuView<BSchema> | undefined
   public readonly plugin: Plugin
-  public readonly itemCallback: (item: MenuItem, ref: string) => void
+  public readonly itemCallback: (item: MenuItem, link: string) => void
 
   constructor(editor: BlockNoteEditor<BSchema>) {
     super()
@@ -206,7 +206,7 @@ export const setupLinkMenu = <
           if (transaction.getMeta(pluginKey)?.activate) {
             return {
               active: true,
-              ref: ref,
+              link: link,
               items: items,
               keyboardHoveredItemIndex: 0,
               decorationId: `id_${Math.floor(Math.random() * 0xffffffff)}`,
@@ -341,11 +341,11 @@ export const setupLinkMenu = <
         },
       },
     }),
-    itemCallback: (item: LinkMenuItem<BSchema>, ref: string) => {
+    itemCallback: (item: LinkMenuItem<BSchema>, link: string) => {
       deactivate(editor._tiptapEditor.view)
       editor._tiptapEditor.chain().focus().run()
 
-      item.execute(editor, ref)
+      item.execute(editor, link)
     },
   }
 }

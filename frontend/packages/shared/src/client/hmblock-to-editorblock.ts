@@ -1,6 +1,7 @@
 import {PlainMessage} from '@bufbuild/protobuf'
 import {
   EditorBlock,
+  EditorBlockType,
   EditorInlineContent,
   EditorInlineEmbed,
 } from '@shm/desktop/src/editor'
@@ -9,6 +10,7 @@ import {
   HMBlock,
   HMBlockChildrenType,
   HMBlockNode,
+  HMBlockType,
   InlineEmbedAnnotation,
   LinkAnnotation,
 } from '../hm-types'
@@ -20,6 +22,22 @@ import {isSurrogate} from './unicode'
 
 type ServerToEditorRecursiveOpts = {
   level?: number
+}
+
+function toEditorBlockType(
+  hmBlockType: HMBlockType,
+): EditorBlockType | undefined {
+  if (hmBlockType === 'Heading') return 'heading'
+  if (hmBlockType === 'Paragraph') return 'paragraph'
+  if (hmBlockType === 'Code') return 'code-block'
+  if (hmBlockType === 'Math') return 'math'
+  if (hmBlockType === 'Image') return 'image'
+  if (hmBlockType === 'Video') return 'video'
+  if (hmBlockType === 'File') return 'file'
+  if (hmBlockType === 'Embed') return 'embed'
+  if (hmBlockType === 'WebEmbed') return 'web-embed'
+  if (hmBlockType === 'Nostr') return 'nostr'
+  return undefined
 }
 
 export function hmBlocksToEditorContent(
@@ -47,9 +65,12 @@ export function hmBlocksToEditorContent(
 }
 
 export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
+  const blockType = toEditorBlockType(block.type)
+  if (!blockType) throw new Error('Unsupported block type ' + block.type)
+
   let out: EditorBlock = {
     id: block.id,
-    type: block.type,
+    type: blockType,
     content: [],
     props: {
       revision: block.revision,
@@ -59,7 +80,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
 
   if (
     [
-      'code',
+      'code-block',
       'video',
       'image',
       'file',
@@ -67,13 +88,13 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
       'web-embed',
       'math',
       'nostr',
-    ].includes(block.type)
+    ].includes(blockType)
   ) {
-    if (block.ref) {
-      out.props.url = block.ref
+    if (block.link) {
+      out.props.url = block.link
     }
 
-    if (block.type == 'code') {
+    if (blockType == 'code-block') {
       out.type = 'code-block'
     }
 
@@ -217,18 +238,31 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     let linkAnnotation: LinkAnnotation | InlineEmbedAnnotation | null = null
 
     posAnnotations.forEach((l) => {
-      if (['link', 'inline-embed'].includes(l.type)) {
-        linkAnnotation = l as LinkAnnotation | InlineEmbedAnnotation
-      }
-      if (['bold', 'italic', 'strike', 'underline', 'code'].includes(l.type)) {
-        // @ts-ignore
-        leaf.styles[l.type] = true
+      // if (['Link', 'Embed'].includes(l.type)) {
+      //   linkAnnotation = l as LinkAnnotation | InlineEmbedAnnotation
+      // }
+      if (l.type == 'Link') {
+        linkAnnotation = {
+          type: 'link',
+          href: l.link,
+        }
       }
 
-      if (l.type === 'color') {
-        // @ts-ignore
-        leaf.styles['color'] = l.attributes.color
+      if (l.type == 'Embed') {
+        linkAnnotation = {
+          type: 'inline-embed',
+          link: l.link,
+        }
       }
+      if (['Bold', 'Italic', 'Strike', 'Underline', 'Code'].includes(l.type)) {
+        // @ts-ignore
+        leaf.styles[l.type.toLowerCase()] = true
+      }
+
+      // if (l.type === 'color') {
+      //   // @ts-ignore
+      //   leaf.styles['color'] = l.attributes.color
+      // }
     })
 
     if (linkAnnotation) {
@@ -236,7 +270,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
         leaves.push({
           type: 'inline-embed',
           styles: {},
-          ref: linkAnnotation.ref,
+          link: linkAnnotation.link,
         } as EditorInlineEmbed)
         textStart = i + 1
       } else if (inlineBlockContent) {
@@ -244,15 +278,24 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
           leaves.push(inlineBlockContent)
           inlineBlockContent = {
             type: linkAnnotation.type,
-            ref: linkAnnotation.ref,
             content: [],
+          }
+
+          if (linkAnnotation.type == 'link') {
+            inlineBlockContent.href = linkAnnotation.href
+          } else if (linkAnnotation.type == 'inline-embed') {
+            inlineBlockContent.link = linkAnnotation.link
           }
         }
       } else {
         inlineBlockContent = {
           type: linkAnnotation.type,
-          ref: linkAnnotation.ref,
           content: [],
+        }
+        if (linkAnnotation.type == 'link') {
+          inlineBlockContent.href = linkAnnotation.href
+        } else if (linkAnnotation.type == 'inline-embed') {
+          inlineBlockContent.link = linkAnnotation.link
         }
       }
     } else {
@@ -265,8 +308,8 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
 
   function linkChangedIdentity(annotation: Annotation): boolean {
     if (!inlineBlockContent) return false
-    let currentLink = inlineBlockContent.ref
-    return currentLink != annotation.ref
+    let currentLink = inlineBlockContent.link
+    return currentLink != annotation.link
   }
 
   function finishLeaf(low: number, high: number) {

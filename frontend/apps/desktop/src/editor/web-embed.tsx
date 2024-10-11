@@ -143,7 +143,7 @@ const display = ({
       setSelected={setSelected}
       assign={assign}
       onPress={() => {
-        openUrl(block.props.ref)
+        openUrl(block.props.link)
       }}
       styleProps={{
         padding: '$3',
