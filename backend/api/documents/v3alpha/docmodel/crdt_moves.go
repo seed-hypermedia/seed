@@ -38,7 +38,7 @@ func newTreeCRDT() *treeCRDT {
 	return ts
 }
 
-func (state *treeCRDT) integrate(opID opID, block, parent, left, leftOrigin string) error {
+func (state *treeCRDT) Integrate(opID opID, block, parent, left, leftOrigin string) error {
 	origin := [2]string{block, opID.Origin}
 	if _, ok := state.origins[origin]; ok {
 		return fmt.Errorf("duplicate move operation per block and origin: %s@%s", block, opID.Origin)
@@ -376,7 +376,7 @@ func (mut *treeMutation) commit(origin string, ts int64, state *treeCRDT) (err e
 			leftOrigin = origin
 		}
 
-		if err := state.integrate(newOpID(ts, origin, idx), block, parent, left, leftOrigin); err != nil {
+		if err := state.Integrate(newOpID(ts, origin, idx), block, parent, left, leftOrigin); err != nil {
 			err = fmt.Errorf("failed to integrate preliminary move (%s, %s, %s@%s): %w", block, parent, left, leftOrigin, err)
 			return false
 		}

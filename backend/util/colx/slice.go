@@ -1,6 +1,33 @@
 package colx
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
+
+type Slice[T any] []T
+
+// WrapSlice wraps a standard slice into a Slice,
+// which exposes various convenience methods for slice operations.
+func WrapSlice[S ~[]E, E any](in S) Slice[E] {
+	return Slice[E](in)
+}
+
+// Sort the slice in places using the provided comparison function,
+// and returns the sorted result to allow chaining.
+func (s Slice[T]) Sort(cmp func(T, T) int) Slice[T] {
+	slices.SortFunc(s, cmp)
+	return s
+}
+
+// GetMaybe returns the element at the given index,
+// or a zero value if the index is out of bounds.
+func (s Slice[T]) GetMaybe(i int) T {
+	if i < 0 || i >= len(s) {
+		return *new(T)
+	}
+	return s[i]
+}
 
 // SliceMap applies a map function to each element of the slice
 // and produces a new slice with (possibly) transformed value.

@@ -9,8 +9,8 @@ import (
 	"iter"
 	"seed/backend/blob"
 	"seed/backend/core"
-	"seed/backend/util/btree"
 	"seed/backend/util/cclock"
+	"seed/backend/util/colx"
 	"sort"
 	"strings"
 	"time"
@@ -64,9 +64,8 @@ type docCRDT struct {
 	applied map[cid.Cid]int
 	heads   map[cid.Cid]struct{}
 
-	// TODO(burdiyan): Make these type-safe.
-	// Holds currently committed state for metadata and blocks.
-	moveLog       *btree.Map[opID, map[string]any]
+	tree *treeCRDT
+
 	stateMetadata map[string]*mvReg[string]
 	stateBlocks   map[string]*mvReg[blob.Block] // blockID -> opid -> block state.
 
@@ -80,7 +79,7 @@ func newCRDT(id blob.IRI, clock *cclock.Clock) *docCRDT {
 		id:            id,
 		applied:       make(map[cid.Cid]int),
 		heads:         make(map[cid.Cid]struct{}),
-		moveLog:       btree.New[opID, map[string]any](8, opID.Compare),
+		tree:          newTreeCRDT(),
 		stateMetadata: make(map[string]*mvReg[string]),
 		stateBlocks:   make(map[string]*mvReg[blob.Block]),
 		clock:         cclock.New(),
@@ -161,7 +160,7 @@ func (e *docCRDT) Checkout(heads []cid.Cid) (*docCRDT, error) {
 	entity := newCRDT(e.id, clock)
 
 	for _, c := range chain {
-		if err := entity.applyChange(e.cids[c], e.changes[c]); err != nil {
+		if err := entity.ApplyChange(e.cids[c], e.changes[c]); err != nil {
 			return nil, err
 		}
 	}
@@ -263,7 +262,7 @@ func (e *docCRDT) BFTDeps(start []cid.Cid) (iter.Seq2[int, blob.ChangeRecord], e
 	}, nil
 }
 
-func (e *docCRDT) applyChange(c cid.Cid, ch *blob.Change) error {
+func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 	if _, ok := e.applied[c]; ok {
 		return nil
 	}
@@ -331,8 +330,17 @@ func (e *docCRDT) applyChange(c cid.Cid, ch *blob.Change) error {
 			}
 			reg.Set(opid, blk)
 		case blob.OpMoveBlock:
-			if e.moveLog.Set(opid, op.Data) {
-				return fmt.Errorf("BUG: duplicate op in move log")
+			block, ok := op.Data["block"].(string)
+			if !ok || block == "" {
+				return fmt.Errorf("missing block in move op")
+			}
+
+			parent, _ := op.Data["parent"].(string)
+			leftOriginRaw, _ := op.Data["leftOrigin"].(string)
+			leftOriginParts := colx.WrapSlice(strings.Split(leftOriginRaw, "@"))
+
+			if err := e.tree.Integrate(opid, block, parent, leftOriginParts.GetMaybe(0), leftOriginParts.GetMaybe(1)); err != nil {
+				return err
 			}
 		}
 	}

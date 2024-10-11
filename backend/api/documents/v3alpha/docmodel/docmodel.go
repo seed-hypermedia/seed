@@ -14,7 +14,6 @@ import (
 	"seed/backend/util/cclock"
 	"slices"
 	"sort"
-	"strings"
 
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multibase"
@@ -27,16 +26,14 @@ import (
 // Document is a mutable document.
 type Document struct {
 	crdt    *docCRDT
-	tree    *treeCRDT
 	origins map[string]cid.Cid // map of abbreviated origin hashes to actual cids; workaround, should not be necessary.
 
 	// Bellow goes the data for the ongoing dirty mutation.
 	// Document can only be mutated once, and then must be thrown away.
 
-	dirty         bool
-	mut           *treeMutation
-	movesReplayed bool
-	done          bool
+	dirty bool
+	mut   *treeMutation
+	done  bool
 	// Index for blocks that we've created in this change.
 	createdBlocks map[string]struct{}
 	// Blocks that we've deleted in this change.
@@ -70,7 +67,6 @@ func New(id blob.IRI, clock *cclock.Clock) (*Document, error) {
 func newDoc(crdt *docCRDT) (*Document, error) {
 	dm := &Document{
 		crdt:          crdt,
-		tree:          newTreeCRDT(),
 		origins:       make(map[string]cid.Cid),
 		createdBlocks: make(map[string]struct{}),
 		deletedBlocks: make(map[string]struct{}),
@@ -115,35 +111,7 @@ func (dm *Document) ApplyChange(c cid.Cid, ch *blob.Change) error {
 func (dm *Document) applyChangeUnsafe(c cid.Cid, ch *blob.Change) error {
 	o := originFromCID(c)
 	dm.origins[o] = c
-	return dm.crdt.applyChange(c, ch)
-}
-
-func (dm *Document) replayMoves() error {
-	dm.dirty = true
-	if dm.movesReplayed {
-		panic("BUG: moves replaed twice")
-	}
-
-	dm.movesReplayed = true
-
-	var idx int
-	for opid, move := range dm.crdt.moveLog.Iter() {
-		block := move["block"].(string)
-		parent := move["parent"].(string)
-		leftShadow := move["leftOrigin"].(string)
-		left, leftOrigin, _ := strings.Cut(leftShadow, "@")
-		if left != "" && leftOrigin == "" {
-			leftOrigin = opid.Origin
-		}
-
-		if err := dm.tree.integrate(opid, block, parent, left, leftOrigin); err != nil {
-			return fmt.Errorf("failed move %v: %w", move, err)
-		}
-
-		idx++
-	}
-
-	return nil
+	return dm.crdt.ApplyChange(c, ch)
 }
 
 // SetMetadata sets the title of the document.
@@ -249,10 +217,7 @@ func (dm *Document) MoveBlock(block, parent, left string) error {
 func (dm *Document) ensureTreeMutation() (*treeMutation, error) {
 	dm.dirty = true
 	if dm.mut == nil {
-		if err := dm.replayMoves(); err != nil {
-			return nil, err
-		}
-		dm.mut = dm.tree.mutate()
+		dm.mut = dm.crdt.tree.mutate()
 	}
 
 	return dm.mut, nil
@@ -377,12 +342,6 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 		panic("BUG: can't hydrate a document with uncommitted changes")
 	}
 
-	if !dm.movesReplayed {
-		if err := dm.replayMoves(); err != nil {
-			return nil, err
-		}
-	}
-
 	e := dm.crdt
 
 	first := e.changes[0]
@@ -429,7 +388,7 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 		blk.Children = append(blk.Children, child)
 	}
 
-	dm.tree.mutate().walkDFT(func(m *move) bool {
+	dm.crdt.tree.mutate().walkDFT(func(m *move) bool {
 		// TODO(burdiyan): block revision would change only if block itself was changed.
 		// If block is only moved it's revision won't change. Need to check if that's what we want.
 
