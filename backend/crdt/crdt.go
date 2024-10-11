@@ -1,6 +1,8 @@
 // Package crdt provides Seed-specific CRDTs. These are not meant to be general-purpose CRDTs,
 // but still are generic enough and could be extended for some other use cases. In case of tradeoffs,
 // we favor Seed-specific use cases.
+//
+// Deprecated: This package is abandoned and is only here for historical reasons.
 package crdt
 
 import "fmt"
