@@ -107,6 +107,15 @@ func (b *Map[K, V]) Iter() iter.Seq2[K, V] {
 	}
 }
 
+// Seek returns an iterator for records starting from the given key (inclusive).
+func (b *Map[K, V]) Seek(k K) iter.Seq2[K, V] {
+	return func(yield func(K, V) bool) {
+		b.tr.AscendHint(node[K, V]{k: k}, func(item node[K, V]) bool {
+			return yield(item.k, item.v)
+		}, &b.hint)
+	}
+}
+
 // Keys returns a slice of keys in the B-Tree in order.
 func (b *Map[K, V]) Keys() []K {
 	keys := make([]K, 0, b.Len())
