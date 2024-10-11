@@ -474,7 +474,7 @@ func BlockFromProto(b *documents.Block) (blob.Block, error) {
 		ID:          b.Id,
 		Type:        b.Type,
 		Text:        b.Text,
-		Ref:         b.Ref,
+		Link:        b.Link,
 		Attributes:  b.Attributes,
 		Annotations: annotationsFromProto(b.Annotations),
 	}, nil
@@ -489,7 +489,7 @@ func annotationsFromProto(in []*documents.Annotation) []blob.Annotation {
 	for i, a := range in {
 		out[i] = blob.Annotation{
 			Type:       a.Type,
-			Ref:        a.Ref,
+			Link:       a.Link,
 			Attributes: a.Attributes,
 			Starts:     a.Starts,
 			Ends:       a.Ends,
@@ -506,7 +506,7 @@ func BlockToProto(b blob.Block, revision cid.Cid) *documents.Block {
 		Id:          b.ID,
 		Type:        b.Type,
 		Text:        b.Text,
-		Ref:         b.Ref,
+		Link:        b.Link,
 		Attributes:  b.Attributes,
 		Annotations: annotationsToProto(b.Annotations),
 		Revision:    revision.String(),
@@ -522,7 +522,7 @@ func annotationsToProto(in []blob.Annotation) []*documents.Annotation {
 	for i, a := range in {
 		out[i] = &documents.Annotation{
 			Type:       a.Type,
-			Ref:        a.Ref,
+			Link:       a.Link,
 			Attributes: a.Attributes,
 			Starts:     a.Starts,
 			Ends:       a.Ends,

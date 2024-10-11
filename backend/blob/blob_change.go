@@ -224,12 +224,12 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 				return fmt.Errorf("bad data?: failed to decode cbor block: %w", err)
 			}
 
-			if err := indexURL(&sb, ictx.log, blk.ID, "doc/"+blk.Type, blk.Ref); err != nil {
+			if err := indexURL(&sb, ictx.log, blk.ID, "doc/"+blk.Type, blk.Link); err != nil {
 				return err
 			}
 
 			for _, ann := range blk.Annotations {
-				if err := indexURL(&sb, ictx.log, blk.ID, "doc/"+ann.Type, ann.Ref); err != nil {
+				if err := indexURL(&sb, ictx.log, blk.ID, "doc/"+ann.Type, ann.Link); err != nil {
 					return err
 				}
 			}
@@ -248,7 +248,7 @@ type Block struct {
 	ID          string            `refmt:"id,omitempty"` // Omitempty when used in Documents.
 	Type        string            `refmt:"type,omitempty"`
 	Text        string            `refmt:"text,omitempty"`
-	Ref         string            `refmt:"ref,omitempty"`
+	Link        string            `refmt:"link,omitempty"`
 	Attributes  map[string]string `refmt:"attributes,omitempty"`
 	Annotations []Annotation      `refmt:"annotations,omitempty"`
 }
@@ -256,7 +256,7 @@ type Block struct {
 // Annotation is a range of text that has a type and attributes.
 type Annotation struct {
 	Type       string            `refmt:"type"`
-	Ref        string            `refmt:"ref,omitempty"`
+	Link       string            `refmt:"link,omitempty"`
 	Attributes map[string]string `refmt:"attributes,omitempty"`
 	Starts     []int32           `refmt:"starts,omitempty"`
 	Ends       []int32           `refmt:"ends,omitempty"`

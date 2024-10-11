@@ -191,12 +191,12 @@ func indexComment(ictx *indexingCtx, id int64, c cid.Cid, v *Comment) error {
 	var indexCommentContent func([]CommentBlock) error // Declaring function to allow recursive calls.
 	indexCommentContent = func(in []CommentBlock) error {
 		for _, blk := range in {
-			if err := indexURL(&sb, ictx.log, blk.ID, "comment/"+blk.Type, blk.Ref); err != nil {
+			if err := indexURL(&sb, ictx.log, blk.ID, "comment/"+blk.Type, blk.Link); err != nil {
 				return err
 			}
 
 			for _, a := range blk.Annotations {
-				if err := indexURL(&sb, ictx.log, blk.ID, "comment/"+a.Type, a.Ref); err != nil {
+				if err := indexURL(&sb, ictx.log, blk.ID, "comment/"+a.Type, a.Link); err != nil {
 					return err
 				}
 			}
