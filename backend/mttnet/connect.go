@@ -288,7 +288,7 @@ func (n *Node) storeRemotePeers(ctx context.Context, id peer.ID) error {
 			n.log.Debug("Some of the remote shared peers are not running up to date seed protocol", zap.Uint32("Number of non-seed (outdated) peers", nonSeedPeers), zap.Int("Number of actual Seed-peers at the moment we stopped", len(vals)/3) /*since we insert three params at a time*/, zap.Errors("errors", xerr))
 		}
 		if len(vals) != 0 {
-			sqlStr = sqlStr[0:len(sqlStr)-1] + " ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=strftime('%s', 'now') WHERE addresses!=excluded.addresses"
+			sqlStr = sqlStr[0:len(sqlStr)-1] + " ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=excluded.updated_at WHERE addresses!=excluded.addresses AND excluded.updated_at > updated_at"
 			conn, release, err := n.db.Conn(ctxStore)
 			if err != nil {
 				n.log.Warn("Couldn't store shared peers", zap.Error(err))
@@ -343,7 +343,7 @@ func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.Ev
 		return
 	}
 	defer release()
-	if err = sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=strftime('%s', 'now') WHERE addresses!=excluded.addresses;", nil, event.Peer.String(), strings.ReplaceAll(strings.Join(addrsString, ","), " ", ""), bootstrapped); err != nil {
+	if err = sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=strftime('%s', 'now') WHERE addresses!=excluded.addresses AND excluded.updated_at > updated_at;", nil, event.Peer.String(), strings.ReplaceAll(strings.Join(addrsString, ","), " ", ""), bootstrapped); err != nil {
 		n.log.Warn("Could not store new peer", zap.String("PID", event.Peer.String()), zap.Error(err))
 	}
 
