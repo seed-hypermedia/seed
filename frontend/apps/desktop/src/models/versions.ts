@@ -6,10 +6,18 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {useQuery} from '@tanstack/react-query'
+import {useDraft} from './accounts'
 import {useEntity} from './entities'
 import {queryKeys} from './query-keys'
 
-export type HMChangeInfo = PlainMessage<DocumentChangeInfo>
+type DraftChangeInfo = {
+  author: string
+  id: string
+  deps: Array<string>
+  isDraft: boolean
+}
+
+export type HMChangeInfo = PlainMessage<DocumentChangeInfo> | DraftChangeInfo
 
 export function useDocumentChanges(
   id: UnpackedHypermediaId,
@@ -19,6 +27,7 @@ export function useDocumentChanges(
   const entity = useEntity({...id, version: null})
   const version = entity.data?.document?.version
   const path = hmIdPathToEntityQueryPath(id.path)
+  const draft = useDraft(id)
   return useQuery({
     queryKey: [queryKeys.ENTITY_CHANGES, id.uid, path, version, isDraft],
     queryFn: async () => {
@@ -28,7 +37,19 @@ export function useDocumentChanges(
         path,
         version,
       })
-      return result.changes.map(toPlainMessage)
+      let changes = result.changes.map(toPlainMessage)
+
+      return isDraft
+        ? [
+            {
+              author: id.uid,
+              id: `draft-${id.id}`,
+              deps: draft.data?.deps,
+              isDraft: true,
+            },
+            ...changes,
+          ]
+        : changes
     },
   })
 }

@@ -12,7 +12,7 @@ import {
   getAccountName,
   hmId,
 } from '@shm/shared'
-import {Button, HMIcon, Version} from '@shm/ui'
+import {Button, Draft, HMIcon, Version} from '@shm/ui'
 import {SizableText, XStack, YStack} from 'tamagui'
 import {AccessoryContainer} from './accessory-sidebar'
 
@@ -67,6 +67,7 @@ function ChangeItem({
 }) {
   const iconSize = 20
   const authorEntity = useEntity(hmId('d', change.author))
+
   return (
     <Button
       onPress={onPress}
@@ -103,12 +104,16 @@ function ChangeItem({
         h={20}
         zi="$zIndex.2"
         ai="center"
-        bg="#2C2C2C"
+        bg={change.isDraft ? '$brand7' : '#2C2C2C'}
         jc="center"
         borderRadius={10}
         p={1}
       >
-        <Version size={16} color="white" />
+        {change.isDraft ? (
+          <Draft size={10} color="white" />
+        ) : (
+          <Version size={16} color="white" />
+        )}
       </XStack>
       <HMIcon
         flexGrow={0}
@@ -134,9 +139,15 @@ function ChangeItem({
           >
             {getAccountName(authorEntity.data?.document)}
           </SizableText>
-          <SizableText size="$2" fontWeight={700} flexShrink={0}>
-            version
-          </SizableText>
+          {change.isDraft ? (
+            <SizableText size="$2" fontWeight={700} flexShrink={0}>
+              DRAFT
+            </SizableText>
+          ) : (
+            <SizableText size="$2" fontWeight={700} flexShrink={0}>
+              version
+            </SizableText>
+          )}
         </XStack>
         <SizableText
           size="$1"

@@ -1307,7 +1307,7 @@ function removeTrailingBlocks(
     } else {
       break
     }
-  }
 
-  return trailedBlocks
+    return trailedBlocks
+  }
 }
