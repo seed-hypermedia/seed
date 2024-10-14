@@ -127,7 +127,7 @@ func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool
 
 	protoInfo := newProtocolInfo(protocolPrefix, protocolVersion+testnetSuffix)
 
-	host, closeHost, err := newLibp2p(cfg, device.Wrapped(), protoInfo.ID)
+	host, closeHost, err := newLibp2p(cfg, device.Wrapped(), protoInfo.ID, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start libp2p host: %w", err)
 	}
@@ -400,7 +400,7 @@ func (n *Node) startLibp2p(ctx context.Context) error {
 		go func() {
 			peersfn := func() []peer.AddrInfo { return n.cfg.BootstrapPeers }
 			var count int
-			ipfs.PeriodicBootstrap(ctx, n.p2p.Host, n.p2p.Routing, peersfn, func(_ context.Context, result ipfs.BootstrapResult) {
+			ipfs.PeriodicBootstrap(ctx, n.p2p.Host, peersfn, func(_ context.Context, result ipfs.BootstrapResult) {
 				fields := []zap.Field{
 					zap.Int("round", count+1),
 					zap.NamedError("dhtError", result.RoutingErr),
@@ -476,7 +476,7 @@ func AddrInfoFromStrings(addrs ...string) (out peer.AddrInfo, err error) {
 	return out, nil
 }
 
-func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID) (*ipfs.Libp2p, io.Closer, error) {
+func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID, log *zap.Logger) (*ipfs.Libp2p, io.Closer, error) {
 	var clean cleanup.Stack
 
 	ps, err := pstoremem.NewPeerstore()
@@ -542,7 +542,7 @@ func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID) (*
 		opts = append(opts, libp2p.BandwidthReporter(m))
 	}
 
-	node, err := ipfs.NewLibp2pNode(device, ds, protocolID, opts...)
+	node, err := ipfs.NewLibp2pNode(device, ds, protocolID, cfg.DelegatedDHTURL, log, opts...)
 	if err != nil {
 		return nil, nil, err
 	}

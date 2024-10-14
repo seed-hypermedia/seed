@@ -242,6 +242,7 @@ type P2P struct {
 	BootstrapPeers          []peer.AddrInfo
 	ListenAddrs             []multiaddr.Multiaddr
 	AnnounceAddrs           []multiaddr.Multiaddr
+	DelegatedDHTURL         string
 	ForceReachabilityPublic bool
 	NoPeerSharing           bool
 	NoPrivateIps            bool
@@ -279,6 +280,7 @@ func (p2p *P2P) BindFlags(fs *flag.FlagSet) {
 	})
 	fs.Var(newAddrsFlag(p2p.ListenAddrs, &p2p.ListenAddrs), "p2p.listen-addrs", "Addresses to be listen at (comma separated multiaddresses format)")
 	fs.Var(newAddrsFlag(p2p.AnnounceAddrs, &p2p.AnnounceAddrs), "p2p.announce-addrs", "Multiaddrs this node will announce as being reachable at (comma separated)")
+	fs.StringVar(&p2p.DelegatedDHTURL, "p2p.delegated-dht", p2p.DelegatedDHTURL, "URL of the remote DHT delegated server. In not provided, then a local dht client is created.")
 	fs.BoolVar(&p2p.ForceReachabilityPublic, "p2p.force-reachability-public", p2p.ForceReachabilityPublic, "Force the node into thinking it's publicly reachable")
 	fs.BoolVar(&p2p.NoPrivateIps, "p2p.no-private-ips", p2p.NoPrivateIps, "Avoid announcing private IP addresses (ignored when using -p2p.announce-addrs)")
 	fs.BoolVar(&p2p.NoMetrics, "p2p.no-metrics", p2p.NoMetrics, "Disable Prometheus metrics collection")

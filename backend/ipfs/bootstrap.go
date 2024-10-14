@@ -40,7 +40,6 @@ type BootstrapResult struct {
 func PeriodicBootstrap(
 	ctx context.Context,
 	h host.Host,
-	routing interface{ Bootstrap(context.Context) error },
 	peersfn func() []peer.AddrInfo,
 	callback func(context.Context, BootstrapResult),
 ) {
@@ -104,10 +103,6 @@ func PeriodicBootstrap(
 			}
 
 			wg.Wait()
-
-			if routing != nil {
-				res.RoutingErr = routing.Bootstrap(ctx)
-			}
 
 			if callback != nil {
 				callback(ctx, res)
