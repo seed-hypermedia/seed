@@ -101,7 +101,7 @@ export default function DraftPage() {
           }}
           accessoryOptions={accessoryOptions}
         >
-          <DraftContent id={route.id} />
+          {route.id ? <DraftContent id={route.id} /> : null}
         </AccessoryLayout>
       </XStack>
       <Footer />
