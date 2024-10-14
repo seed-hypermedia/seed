@@ -32,7 +32,7 @@ type Document struct {
 	// Document can only be mutated once, and then must be thrown away.
 
 	dirty bool
-	mut   *treeMutation
+	mut   *blockTreeMutation
 	done  bool
 	// Index for blocks that we've created in this change.
 	createdBlocks map[string]struct{}
@@ -143,7 +143,7 @@ func (dm *Document) DeleteBlock(block string) error {
 		return err
 	}
 
-	me, err := mut.move(block, TrashNodeID, "")
+	me, err := mut.Move(TrashNodeID, block, "")
 	if err != nil {
 		return err
 	}
@@ -198,7 +198,8 @@ func (dm *Document) MoveBlock(block, parent, left string) error {
 		return err
 	}
 
-	me, err := mut.move(block, parent, left)
+	// TODO(burdiyan): make the order of parent/block parameters consistent.
+	me, err := mut.Move(parent, block, left)
 	if err != nil {
 		return err
 	}
@@ -214,10 +215,10 @@ func (dm *Document) MoveBlock(block, parent, left string) error {
 	return nil
 }
 
-func (dm *Document) ensureTreeMutation() (*treeMutation, error) {
+func (dm *Document) ensureTreeMutation() (*blockTreeMutation, error) {
 	dm.dirty = true
 	if dm.mut == nil {
-		dm.mut = dm.crdt.tree.mutate()
+		dm.mut = dm.crdt.tree.State().Mutate()
 	}
 
 	return dm.mut, nil
@@ -274,24 +275,21 @@ func (dm *Document) cleanupPatch() []blob.Op {
 
 	var ops []blob.Op
 
+	// TODO(burdiyan): It's important to moves go first,
+	// because I was stupid enough to implement the block tree CRDT in isolation,
+	// so it's not aware of any other possible operations.
+	// Will fix this at some point.
+	if dm.mut != nil {
+		for move := range dm.mut.Commit(0, "self") {
+			ops = append(ops, blob.NewOpMoveBlock(move.Block, move.Parent, move.Ref.String()))
+		}
+	}
+
 	metaKeys := slices.Collect(maps.Keys(dm.dirtyMetadata))
 	slices.Sort(metaKeys)
 
 	for _, key := range metaKeys {
 		ops = append(ops, blob.NewOpSetMetadata(key, dm.dirtyMetadata[key]))
-	}
-
-	if dm.mut != nil {
-		dm.mut.forEachMove(func(block, parent, left, leftOrigin string) bool {
-			var l string
-			if left != "" {
-				l = left + "@" + leftOrigin
-			}
-
-			ops = append(ops, blob.NewOpMoveBlock(block, parent, l))
-
-			return true
-		})
 	}
 
 	// Remove state of those blocks that we created and deleted in the same change.
@@ -388,32 +386,30 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 		blk.Children = append(blk.Children, child)
 	}
 
-	dm.crdt.tree.mutate().walkDFT(func(m *move) bool {
+	for pair := range dm.crdt.tree.State().DFT() {
 		// TODO(burdiyan): block revision would change only if block itself was changed.
 		// If block is only moved it's revision won't change. Need to check if that's what we want.
 
 		// If we got some moves but no block state
 		// we just skip them, we don't want to blow up here.
 
-		opset := dm.crdt.stateBlocks[m.Block]
-		if opset == nil {
-			return true
+		bs := dm.crdt.stateBlocks[pair.Child]
+		if bs == nil {
+			continue
 		}
 
-		opid, blk, ok := opset.GetLatestWithID()
+		opid, blk, ok := bs.GetLatestWithID()
 		if !ok {
-			return true
+			continue
 		}
 
 		oo := dm.origins[opid.Origin]
 		blkpb := BlockToProto(blk, oo)
 
 		child := &documents.BlockNode{Block: blkpb}
-		appendChild(m.Parent, child)
-		blockMap[m.Block] = child
-
-		return true
-	})
+		appendChild(pair.Parent, child)
+		blockMap[pair.Child] = child
+	}
 
 	return docpb, nil
 }

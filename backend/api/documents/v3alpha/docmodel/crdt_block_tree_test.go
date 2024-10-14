@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCRDTBlockTree(t *testing.T) {
+func TestCRDTBlockTree_Smoke(t *testing.T) {
 	opset := newTreeOpSet()
 
 	mut := opset.State().Mutate()

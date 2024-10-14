@@ -5,12 +5,12 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"iter"
 	"seed/backend/blob"
 	"seed/backend/core"
 	"seed/backend/util/cclock"
-	"seed/backend/util/colx"
 	"sort"
 	"strings"
 	"time"
@@ -25,6 +25,29 @@ type opID struct {
 	Ts     int64
 	Origin string
 	Idx    int
+}
+
+func (o opID) String() string {
+	var out []byte
+	out = binary.BigEndian.AppendUint64(out, uint64(o.Ts))
+	out = binary.BigEndian.AppendUint32(out, uint32(o.Idx))
+	out = append(out, o.Origin...)
+
+	return hex.EncodeToString(out)
+}
+
+func decodeOpID(s string) (opID, error) {
+	in, err := hex.DecodeString(s)
+	if err != nil {
+		return opID{}, err
+	}
+
+	var out opID
+	out.Ts = int64(binary.BigEndian.Uint64(in[:8]))
+	out.Idx = int(binary.BigEndian.Uint32(in[8:12]))
+	out.Origin = string(in[12:])
+
+	return out, nil
 }
 
 func newOpID(ts int64, origin string, idx int) opID {
@@ -106,7 +129,7 @@ type docCRDT struct {
 	applied map[cid.Cid]int
 	heads   map[cid.Cid]struct{}
 
-	tree *treeCRDT
+	tree *treeOpSet
 
 	stateMetadata map[string]*mvReg[string]
 	stateBlocks   map[string]*mvReg[blob.Block] // blockID -> opid -> block state.
@@ -121,7 +144,7 @@ func newCRDT(id blob.IRI, clock *cclock.Clock) *docCRDT {
 		id:            id,
 		applied:       make(map[cid.Cid]int),
 		heads:         make(map[cid.Cid]struct{}),
-		tree:          newTreeCRDT(),
+		tree:          newTreeOpSet(),
 		stateMetadata: make(map[string]*mvReg[string]),
 		stateBlocks:   make(map[string]*mvReg[blob.Block]),
 		clock:         cclock.New(),
@@ -378,10 +401,19 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 			}
 
 			parent, _ := op.Data["parent"].(string)
-			leftOriginRaw, _ := op.Data["leftOrigin"].(string)
-			leftOriginParts := colx.WrapSlice(strings.Split(leftOriginRaw, "@"))
 
-			if err := e.tree.Integrate(opid, block, parent, leftOriginParts.GetMaybe(0), leftOriginParts.GetMaybe(1)); err != nil {
+			leftOriginRaw, _ := op.Data["leftOrigin"].(string)
+			refID, err := decodeOpID(leftOriginRaw)
+			if err != nil {
+				return fmt.Errorf("failed to decode move left origin op id: %w", err)
+			}
+			// TODO(burdiyan): Get rid of this self trick.
+			if refID.Ts == 0 && refID.Origin == "self" {
+				refID.Ts = ts
+				refID.Origin = origin
+			}
+
+			if err := e.tree.Integrate(opid, parent, block, refID); err != nil {
 				return err
 			}
 		}

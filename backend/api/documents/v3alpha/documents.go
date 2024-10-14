@@ -145,7 +145,7 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 
 	docChange, err := doc.SignChange(kp)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create subdoc change: %w", err)
+		return nil, fmt.Errorf("failed to create document change: %w", err)
 	}
 	newBlobs = append(newBlobs, docChange)
 

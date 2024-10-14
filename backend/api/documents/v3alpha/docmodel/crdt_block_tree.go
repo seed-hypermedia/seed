@@ -8,6 +8,16 @@ import (
 	"strings"
 )
 
+type moveEffect byte
+
+const (
+	moveEffectNone    moveEffect = 0
+	moveEffectCreated moveEffect = 1
+	moveEffectMoved   moveEffect = 2
+)
+
+const TrashNodeID = "◊"
+
 type moveRecord struct {
 	OpID   opID
 	Parent string
