@@ -1,36 +1,21 @@
+import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {ThumbnailForm} from '@/components/avatar-form'
 import {CoverImage} from '@/components/cover-image'
 import {HyperMediaEditorView} from '@/components/editor'
 import Footer from '@/components/footer'
-import {MainWrapper} from '@/components/main-wrapper'
+import {SidebarSpacer} from '@/components/main-wrapper'
+import {VersionsPanel} from '@/components/versions-panel'
 import {subscribeDraftFocus} from '@/draft-focusing'
-import {BlockNoteEditor, getBlockInfoFromPos} from '@/editor'
-import {useDraft} from '@/models/accounts'
 import {useDraftEditor} from '@/models/documents'
-import {draftMachine} from '@/models/draft-machine'
 import {trpc} from '@/trpc'
-import {
-  chromiumSupportedImageMimeTypes,
-  chromiumSupportedVideoMimeTypes,
-  generateBlockId,
-  handleDragMedia,
-} from '@/utils/media-drag'
 import {useNavRoute} from '@/utils/navigation'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
-import {
-  BlockRange,
-  createWebHMUrl,
-  ExpandedBlockRange,
-  getFileUrl,
-  HMDraft,
-  hmId,
-  packHmId,
-} from '@shm/shared'
+import {DocAccessoryOption, getFileUrl, UnpackedHypermediaId} from '@shm/shared'
 import {
   Button,
   Container,
-  copyUrlToClipboardWithFeedback,
+  HistoryIcon,
   Input,
   Separator,
   SizableText,
@@ -40,7 +25,7 @@ import {
 } from '@shm/ui'
 import {Image, Smile} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
-import {useEffect, useMemo, useRef, useState} from 'react'
+import React, {ReactNode, useEffect, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {YStack} from 'tamagui'
 import {ActorRefFrom} from 'xstate'
@@ -48,7 +33,62 @@ import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'
 import './draft-page.css'
 
+import './draft-page.css'
+
 export default function DraftPage() {
+  const route = useNavRoute()
+  const replace = useNavigate('replace')
+  if (route.key !== 'draft') throw new Error('DraftPage must have draft route')
+  const docId = route.id
+  const accessoryKey = route.accessory?.key
+  if (!docId) throw new Error('DraftPage must have document id')
+
+  function handleClose() {
+    if (route.key !== 'draft') return
+    replace({...route, accessory: null})
+  }
+
+  let accessory: ReactNode = null
+
+  if (accessoryKey === 'versions') {
+    accessory = accessory = (
+      <VersionsPanel route={route} onClose={handleClose} />
+    )
+  }
+
+  const accessoryOptions: DocAccessoryOption[] = []
+
+  accessoryOptions.push({
+    key: 'versions',
+    label: 'Version History',
+    icon: HistoryIcon,
+  })
+
+  return (
+    <ErrorBoundary FallbackComponent={() => null}>
+      <XStack flex={1}>
+        <SidebarSpacer />
+        <AccessoryLayout
+          accessory={accessory}
+          accessoryKey={accessoryKey}
+          onAccessorySelect={(key: typeof accessoryKey) => {
+            if (key === accessoryKey || key === undefined)
+              return replace({...route, accessory: null})
+            replace({...route, accessory: {key}})
+          }}
+          accessoryOptions={accessoryOptions}
+        >
+          <DraftContent id={route.id} />
+        </AccessoryLayout>
+      </XStack>
+      <Footer />
+    </ErrorBoundary>
+  )
+}
+
+const DraftContent = React.memo(_DraftPage)
+
+export function _DraftPage({id}: {id: UnpackedHypermediaId}) {
   const route = useNavRoute()
 
   const importWebFile = trpc.webImporting.importWebFile.useMutation()
@@ -56,105 +96,67 @@ export default function DraftPage() {
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
 
   let data = useDraftEditor({
-    id: route.id,
+    id,
   })
 
-  // useEffect(() => {
-  //   const intervalFn = () => {
-  //     if (data.state.matches({ready: 'idle'})) {
-  //       // data.editor.replaceBlocks(data.editor.topLevelBlocks, [
-  //       //   {
-  //       //     id: nanoid(8),
-  //       //     type: 'paragraph',
-  //       //     props: {
-  //       //       textAlignment: 'left',
-  //       //       diff: 'undefined',
-  //       //     },
-  //       //     content: [
-  //       //       {
-  //       //         type: 'text',
-  //       //         text: 'asdasd',
-  //       //         styles: {},
-  //       //       },
-  //       //     ],
-  //       //     children: [],
-  //       //   },
-  //       //   ...data.editor.topLevelBlocks,
-  //       // ])
-  //       console.log('data.editor.topLevelBlocks', data.editor.topLevelBlocks)
-  //     }
-  //   }
-  //   let interval = setInterval(intervalFn, 1000)
-
-  //   if (interval) {
-  //     clearInterval(interval)
-  //     interval = setInterval(intervalFn, 1000)
-  //   }
-
-  //   return () => clearInterval(interval)
-  // }, [data.state])
-
   useEffect(() => {
-    if (!route.id?.id) return
-    return subscribeDraftFocus(route.id?.id, (blockId: string) => {
+    if (!id) return
+    return subscribeDraftFocus(id.id, (blockId: string) => {
       if (data.editor) {
         data.editor._tiptapEditor.commands.focus()
         data.editor.setTextCursorPosition(blockId, 'start')
       }
     })
-  }, [route.id?.id, data.editor, route.id?.id])
+  }, [id.id, data.editor])
 
   if (data.state.matches('ready')) {
     return (
-      <ErrorBoundary FallbackComponent={() => null}>
-        <MainWrapper
-          onDragStart={() => {
-            setIsDragging(true)
-          }}
-          onDragEnd={() => {
-            setIsDragging(false)
-          }}
-          onDragOver={(event: DragEvent) => {
-            event.preventDefault()
-            setIsDragging(true)
-          }}
-          onDrop={onDrop}
-          onPress={data.handleFocusAtMousePos}
+      <Container
+        onDragStart={() => {
+          setIsDragging(true)
+        }}
+        onDragEnd={() => {
+          setIsDragging(false)
+        }}
+        onDragOver={(event: DragEvent) => {
+          event.preventDefault()
+          setIsDragging(true)
+        }}
+        onDrop={onDrop}
+        onPress={data.handleFocusAtMousePos}
+      >
+        <AppDocContentProvider
+          disableEmbedClick
+          onCopyBlock={onCopyBlock}
+          importWebFile={importWebFile}
+          docId={route.id}
         >
-          <AppDocContentProvider
-            disableEmbedClick
-            onCopyBlock={onCopyBlock}
-            importWebFile={importWebFile}
-            docId={route.id}
+          <DraftHeader
+            draftActor={data.actor}
+            onEnter={() => {
+              data.editor._tiptapEditor.commands.focus()
+              data.editor._tiptapEditor.commands.setTextSelection(0)
+            }}
+            disabled={!data.state.matches('ready')}
+          />
+          <Container
+            paddingLeft="$10"
+            marginBottom={300}
+            $gtSm={{
+              paddingLeft: '$4',
+            }}
+            onPress={(e: MouseEvent) => {
+              // this prevents to fire handleFocusAtMousePos on click
+              e.stopPropagation()
+              // data.editor?._tiptapEditor.commands.focus()
+            }}
           >
-            <DraftHeader
-              draftActor={data.actor}
-              onEnter={() => {
-                data.editor._tiptapEditor.commands.focus()
-                data.editor._tiptapEditor.commands.setTextSelection(0)
-              }}
-              disabled={!data.state.matches('ready')}
-            />
-            <Container
-              paddingLeft="$10"
-              marginBottom={300}
-              $gtSm={{
-                paddingLeft: '$4',
-              }}
-              onPress={(e: MouseEvent) => {
-                // this prevents to fire handleFocusAtMousePos on click
-                e.stopPropagation()
-                // data.editor?._tiptapEditor.commands.focus()
-              }}
-            >
-              {data.editor ? (
-                <HyperMediaEditorView editable={true} editor={data.editor} />
-              ) : null}
-            </Container>
-          </AppDocContentProvider>
-        </MainWrapper>
-        <Footer />
-      </ErrorBoundary>
+            {data.editor ? (
+              <HyperMediaEditorView editable={true} editor={data.editor} />
+            ) : null}
+          </Container>
+        </AppDocContentProvider>
+      </Container>
     )
   }
 

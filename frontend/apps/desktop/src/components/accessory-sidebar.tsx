@@ -62,7 +62,7 @@ export function AccessoryLayout<
         <Panel
           minSize={50}
           style={{
-            overflowY: 'scroll',
+            overflowY: 'auto',
             borderRight: '1px solid var(--color7)',
           }}
           onScroll={() => {

@@ -7,6 +7,7 @@ import {
 import {useNavigate} from '@/utils/useNavigate'
 import {
   DocumentRoute,
+  DraftRoute,
   formattedDateMedium,
   getAccountName,
   hmId,
@@ -19,12 +20,13 @@ export function VersionsPanel({
   route,
   onClose,
 }: {
-  route: DocumentRoute
+  route: DocumentRoute | DraftRoute
   onClose: () => void
 }) {
   const navigate = useNavigate()
+  if (!route.id) throw new Error('VersionsPanel must have document id')
   const activeChangeIds = useVersionChanges(route.id)
-  const changes = useDocumentChanges(route.id)
+  const changes = useDocumentChanges(route.id, route.key == 'draft')
   return (
     <AccessoryContainer title="Versions" onClose={onClose}>
       <YStack>
@@ -36,7 +38,12 @@ export function VersionsPanel({
               change={change}
               isActive={isActive}
               onPress={() => {
-                navigate({...route, id: {...route.id, version: change.id}})
+                route.id
+                  ? navigate({
+                      key: 'document',
+                      id: {...route.id, version: change.id},
+                    })
+                  : null
               }}
               isLast={idx === changes.data.length - 1}
             />
