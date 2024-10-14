@@ -3,28 +3,22 @@ import {CoverImage} from '@/components/cover-image'
 import {HyperMediaEditorView} from '@/components/editor'
 import Footer from '@/components/footer'
 import {IconForm} from '@/components/icon-form'
-import {MainWrapper, SidebarSpacer} from '@/components/main-wrapper'
+import {SidebarSpacer} from '@/components/main-wrapper'
 import {NewspaperLayout} from '@/components/newspaper-layout'
 import {OptionsPanel} from '@/components/options-panel'
+import {VersionsPanel} from '@/components/versions-panel'
 import {subscribeDraftFocus} from '@/draft-focusing'
-import {BlockNoteEditor, getBlockInfoFromPos} from '@/editor'
-import {useDraft} from '@/models/accounts'
 import {useDraftEditor} from '@/models/documents'
 import {draftMachine} from '@/models/draft-machine'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {trpc} from '@/trpc'
-import {
-  chromiumSupportedImageMimeTypes,
-  chromiumSupportedVideoMimeTypes,
-  generateBlockId,
-  handleDragMedia,
-} from '@/utils/media-drag'
 import {useNavRoute} from '@/utils/navigation'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   BlockRange,
   createWebHMUrl,
+  DocAccessoryOption,
   ExpandedBlockRange,
   getFileUrl,
   HMDraft,
@@ -36,6 +30,7 @@ import {
   Button,
   Container,
   copyUrlToClipboardWithFeedback,
+  HistoryIcon,
   Input,
   Options,
   Separator,
@@ -46,7 +41,7 @@ import {
 } from '@shm/ui'
 import {Image, Smile} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
-import {useEffect, useMemo, useRef, useState} from 'react'
+import React, {ReactNode, useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {YStack} from 'tamagui'
 import {ActorRefFrom} from 'xstate'
@@ -54,7 +49,69 @@ import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'
 import './draft-page.css'
 
+import {BlockNoteEditor, getBlockInfoFromPos} from '@/editor'
+import {useDraft} from '@/models/accounts'
+import {
+  chromiumSupportedImageMimeTypes,
+  generateBlockId,
+  handleDragMedia,
+} from '@/utils/media-drag'
+import './draft-page.css'
+
 export default function DraftPage() {
+  const route = useNavRoute()
+  const replace = useNavigate('replace')
+  if (route.key !== 'draft') throw new Error('DraftPage must have draft route')
+  const docId = route.id
+  const accessoryKey = route.accessory?.key
+  if (!docId) throw new Error('DraftPage must have document id')
+
+  function handleClose() {
+    if (route.key !== 'draft') return
+    replace({...route, accessory: null})
+  }
+
+  let accessory: ReactNode = null
+
+  if (accessoryKey === 'versions') {
+    accessory = accessory = (
+      <VersionsPanel route={route} onClose={handleClose} />
+    )
+  }
+
+  const accessoryOptions: DocAccessoryOption[] = []
+
+  accessoryOptions.push({
+    key: 'versions',
+    label: 'Version History',
+    icon: HistoryIcon,
+  })
+
+  return (
+    <ErrorBoundary FallbackComponent={() => null}>
+      <XStack flex={1}>
+        <SidebarSpacer />
+        <AccessoryLayout
+          accessory={accessory}
+          accessoryKey={accessoryKey}
+          onAccessorySelect={(key: typeof accessoryKey) => {
+            if (key === accessoryKey || key === undefined)
+              return replace({...route, accessory: null})
+            replace({...route, accessory: {key}})
+          }}
+          accessoryOptions={accessoryOptions}
+        >
+          <DraftContent id={route.id} />
+        </AccessoryLayout>
+      </XStack>
+      <Footer />
+    </ErrorBoundary>
+  )
+}
+
+const DraftContent = React.memo(_DraftPage)
+
+export function _DraftPage({id}: {id: UnpackedHypermediaId}) {
   const route = useNavRoute()
 
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
@@ -156,7 +213,7 @@ function DocumentEditor({
 
   if (state.matches('ready'))
     return (
-      <MainWrapper
+      <Container
         onDragStart={() => {
           setIsDragging(true)
         }}
@@ -174,7 +231,7 @@ function DocumentEditor({
           disableEmbedClick
           onCopyBlock={onCopyBlock}
           importWebFile={importWebFile}
-          docId={id}
+          docId={route.id}
         >
           <DraftHeader
             draftActor={actor}
@@ -201,7 +258,7 @@ function DocumentEditor({
             ) : null}
           </Container>
         </AppDocContentProvider>
-      </MainWrapper>
+      </Container>
     )
   return null
 
@@ -243,47 +300,27 @@ function DocumentEditor({
         let lastId: string
 
         // using reduce so files get inserted sequentially
-        files
-          // @ts-expect-error
-          .reduce((previousPromise, file, index) => {
-            return previousPromise.then(() => {
-              event.preventDefault()
-              event.stopPropagation()
+        files.reduce((previousPromise, file, index) => {
+          return previousPromise.then(() => {
+            event.preventDefault()
+            event.stopPropagation()
 
-              if (pos) {
-                return handleDragMedia(file).then((props) => {
-                  if (!props) return false
+            if (pos) {
+              return handleDragMedia(file).then((props) => {
+                if (!props) return false
 
-                  const {state} = ttEditor.view
-                  let blockNode
-                  const newId = generateBlockId()
+                const {state} = ttEditor.view
+                let blockNode
+                const newId = generateBlockId()
 
-                  if (chromiumSupportedImageMimeTypes.has(file.type)) {
-                    blockNode = {
-                      id: newId,
-                      type: 'image',
-                      props: {
-                        url: props.url,
-                        name: props.name,
-                      },
-                    }
-                  } else if (chromiumSupportedVideoMimeTypes.has(file.type)) {
-                    blockNode = {
-                      id: newId,
-                      type: 'video',
-                      props: {
-                        url: props.url,
-                        name: props.name,
-                      },
-                    }
-                  } else {
-                    blockNode = {
-                      id: newId,
-                      type: 'file',
-                      props: {
-                        ...props,
-                      },
-                    }
+                if (chromiumSupportedImageMimeTypes.has(file.type)) {
+                  blockNode = {
+                    id: newId,
+                    type: 'image',
+                    props: {
+                      url: props.url,
+                      name: props.name,
+                    },
                   }
 
                   const blockInfo = getBlockInfoFromPos(state.doc, pos)
@@ -302,12 +339,38 @@ function DocumentEditor({
                       'after',
                     )
                   }
+                } else {
+                  blockNode = {
+                    id: newId,
+                    type: 'file',
+                    props: {
+                      ...props,
+                    },
+                  }
+                }
 
-                  lastId = newId
-                })
-              }
-            })
-          }, Promise.resolve())
+                const blockInfo = getBlockInfoFromPos(state.doc, pos)
+
+                if (index === 0) {
+                  ;(data.editor as BlockNoteEditor).insertBlocks(
+                    [blockNode],
+                    blockInfo.id,
+                    // blockInfo.node.textContent ? 'after' : 'before',
+                    'after',
+                  )
+                } else {
+                  ;(data.editor as BlockNoteEditor).insertBlocks(
+                    [blockNode],
+                    lastId,
+                    'after',
+                  )
+                }
+
+                lastId = newId
+              })
+            }
+          })
+        }, Promise.resolve())
         // .then(() => true) // TODO: @horacio ask Iskak about this
         setIsDragging(false)
         return true

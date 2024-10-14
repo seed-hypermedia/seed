@@ -35,18 +35,6 @@ export function getRouteWindowType(route: NavRoute): WindowTypeInfo {
       maxWidth: undefined,
       maxHeight: undefined,
     } as const
-  if (route.key === 'comment' || route.key === 'comment-draft')
-    return {
-      key: 'comment',
-      minWidth: 600,
-      minHeight: 600,
-      maxWidth: 600,
-      maxHeight: undefined,
-      trafficLightPosition: {
-        x: 12,
-        y: 12,
-      },
-    } as const
   return {
     key: 'main',
     initWidth: 1280,

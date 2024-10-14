@@ -11,13 +11,16 @@ import {queryKeys} from './query-keys'
 
 export type HMChangeInfo = PlainMessage<DocumentChangeInfo>
 
-export function useDocumentChanges(id: UnpackedHypermediaId) {
+export function useDocumentChanges(
+  id: UnpackedHypermediaId,
+  isDraft: boolean = false,
+) {
   const grpcClient = useGRPCClient()
   const entity = useEntity({...id, version: null})
   const version = entity.data?.document?.version
   const path = hmIdPathToEntityQueryPath(id.path)
   return useQuery({
-    queryKey: [queryKeys.ENTITY_CHANGES, id.uid, path, version],
+    queryKey: [queryKeys.ENTITY_CHANGES, id.uid, path, version, isDraft],
     queryFn: async () => {
       if (!version) return []
       const result = await grpcClient.documents.listDocumentChanges({
