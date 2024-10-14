@@ -53,9 +53,9 @@ func (b *Map[K, V]) Swap(k K, v V) (prev V, replaced bool) {
 	return oldNode.v, replaced
 }
 
-// Get the value by k. If the key does not exist, the zero value of V is returned.
-// Use GetOK if you want to distinguish between the zero value and the key not existing.
-func (b *Map[K, V]) Get(k K) (v V) {
+// GetMaybe returns the value at k, or a zero value if k is not set.
+// Use Get if you want to distinguish between the zero value and the key not existing.
+func (b *Map[K, V]) GetMaybe(k K) (v V) {
 	b.tr.AscendHint(node[K, V]{k: k}, func(item node[K, V]) bool {
 		if b.cmp(item.k, k) == 0 {
 			v = item.v
@@ -66,8 +66,8 @@ func (b *Map[K, V]) Get(k K) (v V) {
 	return v
 }
 
-// GetOK is like Get but returns an OK flag to distinguish between the zero value and the key not existing.
-func (b *Map[K, V]) GetOK(k K) (v V, ok bool) {
+// Get the value by key k.
+func (b *Map[K, V]) Get(k K) (v V, ok bool) {
 	b.tr.AscendHint(node[K, V]{k: k}, func(item node[K, V]) bool {
 		if b.cmp(item.k, k) == 0 {
 			v = item.v
@@ -79,16 +79,14 @@ func (b *Map[K, V]) GetOK(k K) (v V, ok bool) {
 	return v, ok
 }
 
-// GetAt is a list-like API to get the key and value at the given index.
-// Returns zero-value if the index is out of bounds.
-// Use GetAtOK if you want to distinguish between the zero value and the index being.
-func (b *Map[K, V]) GetAt(idx int) (k K, v V) {
+// GetAtMaybe is like GetAt, but returns the zero value if key is not set.
+func (b *Map[K, V]) GetAtMaybe(idx int) (k K, v V) {
 	n, _ := b.tr.GetAt(idx)
 	return n.k, n.v
 }
 
-// GetAtOK is like Get but returns an OK flag to distinguish between the zero value and the index being out of bounds.
-func (b *Map[K, V]) GetAtOK(idx int) (k K, v V, ok bool) {
+// GetAt returns the key-value pair at index idx.
+func (b *Map[K, V]) GetAt(idx int) (k K, v V, ok bool) {
 	n, ok := b.tr.GetAt(idx)
 	return n.k, n.v, ok
 }
@@ -98,8 +96,8 @@ func (b *Map[K, V]) Len() int {
 	return b.tr.Len()
 }
 
-// Iter returns an iterator for records.
-func (b *Map[K, V]) Iter() iter.Seq2[K, V] {
+// Items returns an iterator for map key-value items.
+func (b *Map[K, V]) Items() iter.Seq2[K, V] {
 	return func(yield func(K, V) bool) {
 		b.tr.AscendHint(node[K, V]{}, func(item node[K, V]) bool {
 			return yield(item.k, item.v)
@@ -116,10 +114,19 @@ func (b *Map[K, V]) Seek(k K) iter.Seq2[K, V] {
 	}
 }
 
+// SeekReverse is like Seek, but in reverse order.
+func (b *Map[K, V]) SeekReverse(k K) iter.Seq2[K, V] {
+	return func(yield func(K, V) bool) {
+		b.tr.DescendHint(node[K, V]{k: k}, func(item node[K, V]) bool {
+			return yield(item.k, item.v)
+		}, &b.hint)
+	}
+}
+
 // Keys returns a slice of keys in the B-Tree in order.
 func (b *Map[K, V]) Keys() []K {
 	keys := make([]K, 0, b.Len())
-	for k := range b.Iter() {
+	for k := range b.Items() {
 		keys = append(keys, k)
 	}
 	return keys

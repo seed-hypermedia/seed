@@ -19,7 +19,7 @@ func newMVReg[V any]() *mvReg[V] {
 }
 
 func (s *mvReg[V]) GetLatestOK() (v V, ok bool) {
-	_, vv, ok := s.state.GetAtOK(s.state.Len() - 1)
+	_, vv, ok := s.state.GetAt(s.state.Len() - 1)
 	return vv.Value, ok
 }
 
@@ -29,7 +29,7 @@ func (s *mvReg[V]) GetLatest() V {
 }
 
 func (s *mvReg[V]) GetLatestWithID() (id opID, v V, ok bool) {
-	id, vv, ok := s.state.GetAtOK(s.state.Len() - 1)
+	id, vv, ok := s.state.GetAt(s.state.Len() - 1)
 	return id, vv.Value, ok
 }
 

@@ -46,17 +46,17 @@ func newTreeCRDT() *treeCRDT {
 }
 
 func (state *treeCRDT) Integrate2(opID opID, block, parent string, refID opID) error {
-	if _, ok := state.log.GetOK(opID); ok {
+	if _, ok := state.log.Get(opID); ok {
 		return fmt.Errorf("duplicate move op ID: %v", opID)
 	}
 
-	subtree, ok := state.tree2.GetOK(parent)
+	subtree, ok := state.tree2.Get(parent)
 	if !ok {
 		return fmt.Errorf("parent '%s' not found in tree", parent)
 	}
 
 	// We need to create a subtree for every block.
-	if _, ok := state.tree2.GetOK(block); !ok {
+	if _, ok := state.tree2.Get(block); !ok {
 		if state.tree2.Set(block, newRGAList[string]()) {
 			panic("BUG: duplicate subtree for block " + block)
 		}
@@ -189,7 +189,7 @@ func (state *treeCRDT) mutate() *treeMutation {
 		dirtyInvisibleMoves:    make(map[*move]struct{}),
 	}
 
-	for k, x := range state.log.Iter() {
+	for k, x := range state.log.Items() {
 		lastMove, ok := vt.originalWinners.Get(x.Block)
 		if ok && k.Compare(lastMove.OpID) < 0 {
 			panic("BUG: unsorted moves")

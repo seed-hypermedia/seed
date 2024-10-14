@@ -1,10 +1,10 @@
 package docmodel
 
 import (
-	"cmp"
 	"fmt"
 	"iter"
 	"seed/backend/util/btree"
+	"strings"
 
 	"roci.dev/fracdex"
 )
@@ -12,61 +12,61 @@ import (
 var errCausalityViolation = fmt.Errorf("causality violation")
 
 type rgaItem[T any] struct {
-	ID    opID
-	Ref   opID
-	Value T
-}
-
-type rgaKey struct {
-	Fracdex string
-	Deleted bool
+	ID        opID
+	Ref       opID
+	Value     T
+	IsDeleted bool
 }
 
 var zeroOpID = opID{}
 
 type rgaList[T any] struct {
 	applied *btree.Map[opID, string]       // opID => fracdex
-	items   *btree.Map[rgaKey, rgaItem[T]] // fracdex => rgaItem
+	items   *btree.Map[string, rgaItem[T]] // fracdex => rgaItem
 }
 
 func newRGAList[T any]() *rgaList[T] {
 	return &rgaList[T]{
 		applied: btree.New[opID, string](8, opID.Compare),
-		items: btree.New[rgaKey, rgaItem[T]](8, func(a, b rgaKey) int {
-			return cmp.Compare(a.Fracdex, b.Fracdex)
-		}),
+		items:   btree.New[string, rgaItem[T]](8, strings.Compare),
+	}
+}
+
+// Copy returns a structurally-shared copy of the list.
+func (l *rgaList[T]) Copy() *rgaList[T] {
+	return &rgaList[T]{
+		applied: l.applied.Copy(),
+		items:   l.items.Copy(),
 	}
 }
 
 func (l *rgaList[T]) Integrate(id, ref opID, v T) error {
-	if _, ok := l.applied.GetOK(id); ok {
+	if _, ok := l.applied.Get(id); ok {
 		return fmt.Errorf("duplicate op ID in the list")
 	}
 
 	var left string
 	if ref != zeroOpID {
-		refFracdex, ok := l.applied.GetOK(ref)
+		refFracdex, ok := l.applied.Get(ref)
 		if !ok {
 			return fmt.Errorf("%w: ref op %v is not found", errCausalityViolation, ref)
 		}
 		left = refFracdex
 	}
 
-	seekItem := rgaKey{Fracdex: left}
-
 	var right string
-	for k, v := range l.items.Seek(seekItem) {
+	for k, v := range l.items.Seek(left) {
 		// Seek returns the pivot item first.
-		if k == seekItem {
+		if k == left {
 			continue
 		}
 
 		// RGA rules: skip over any elements with a greater ID to the right of our desired insertion point.
 		if v.ID.Compare(id) > 0 {
-			left = k.Fracdex
+			left = k
 			continue
 		} else {
-			right = k.Fracdex
+			right = k
 			break
 		}
 	}
@@ -78,7 +78,7 @@ func (l *rgaList[T]) Integrate(id, ref opID, v T) error {
 
 	newItem := rgaItem[T]{ID: id, Ref: ref, Value: v}
 
-	if l.items.Set(rgaKey{Fracdex: newPos}, newItem) {
+	if l.items.Set(newPos, newItem) {
 		panic("BUG: duplicate fracdex")
 	}
 
@@ -91,8 +91,8 @@ func (l *rgaList[T]) Integrate(id, ref opID, v T) error {
 
 func (l *rgaList[T]) ValuesAlive() iter.Seq[T] {
 	return func(yield func(T) bool) {
-		for k, v := range l.items.Iter() {
-			if k.Deleted {
+		for _, v := range l.items.Items() {
+			if v.IsDeleted {
 				continue
 			}
 
