@@ -28,7 +28,7 @@ type OpType string
 
 // Op is an atom of our op-based CRDT structure.
 type Op struct {
-	Op   OpType         `refmt:"op"`
+	Type OpType         `refmt:"type"`
 	Data map[string]any `refmt:"data,omitempty"`
 }
 
@@ -42,7 +42,7 @@ const (
 // NewOpSetMetadata creates a SetMetadata op.
 func NewOpSetMetadata(key string, value any) Op {
 	return Op{
-		Op:   OpSetMetadata,
+		Type: OpSetMetadata,
 		Data: map[string]any{key: value}, // TODO(burdiyan): or key => key, value => value?
 	}
 }
@@ -50,7 +50,7 @@ func NewOpSetMetadata(key string, value any) Op {
 // NewOpMoveBlock creates a MoveBlock op.
 func NewOpMoveBlock(block, parent, leftOrigin string) Op {
 	return Op{
-		Op: OpMoveBlock,
+		Type: OpMoveBlock,
 		Data: map[string]any{
 			"block":      block,
 			"parent":     parent,
@@ -62,7 +62,7 @@ func NewOpMoveBlock(block, parent, leftOrigin string) Op {
 // NewOpReplaceBlock creates a ReplaceBlock op.
 func NewOpReplaceBlock(state Block) Op {
 	return Op{
-		Op:   OpReplaceBlock,
+		Type: OpReplaceBlock,
 		Data: CBORToMap(state),
 	}
 }
@@ -289,7 +289,7 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 		Title string `json:"title"`
 	}
 	for _, op := range v.Ops {
-		switch op.Op {
+		switch op.Type {
 		case OpSetMetadata:
 			for k, v := range op.Data {
 				vs, ok := v.(string)

@@ -374,7 +374,7 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 
 	for idx, op := range ch.Ops {
 		opid := newOpID(ts, origin, idx)
-		switch op.Op {
+		switch op.Type {
 		case blob.OpSetMetadata:
 			for k, v := range op.Data {
 				reg := e.stateMetadata[k]
