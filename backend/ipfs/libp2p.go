@@ -15,8 +15,6 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/libp2p/go-libp2p"
-	dht "github.com/libp2p/go-libp2p-kad-dht"
-	"github.com/libp2p/go-libp2p-kad-dht/providers"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -26,7 +24,6 @@ import (
 	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/multiformats/go-multiaddr"
-	manet "github.com/multiformats/go-multiaddr/net"
 	"go.uber.org/zap"
 )
 
@@ -65,8 +62,6 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 			err = errors.Join(err, clean.Close())
 		}
 	}()
-	ctx, cancel := context.WithCancel(context.Background())
-	clean.AddFunc(cancel)
 	rm, err := buildResourceManager(
 		map[protocol.ID]rcmgr.LimitVal{
 			protocolID: 1000,
@@ -88,12 +83,7 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 	if err != nil {
 		return nil, err
 	}
-	/*
-		ma, err := multiaddr.NewMultiaddr("/ip4/23.20.24.146/udp/4002/quic-v1/webtransport/certhash/uEiD05vslvQT_ZncqgCfYljWOMicJVFlPhIKEuktYH51ENA/certhash/uEiASOpf9RXh2HmEVZlfajKs6yWofMvS-vJbnR9KNwmdn3Q/p2p/12D3KooWNmjM4sMbSkDEA6ShvjTgkrJHjMya46fhZ9PjKZ4KVZYq/p2p-circuit/p2p/12D3KooWD863Q7NNMeLWnyujrgq29nsB6QrRSVTTYV7F8FowiVN4")
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse multiaddr")
-		}
-	*/
+
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.MaxIdleConns = 500
 	transport.MaxIdleConnsPerHost = 100
@@ -117,7 +107,7 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 					delegated_routing.WithHTTPClient(delegateHTTPClient),
 					delegated_routing.WithIdentity(key),
 					delegated_routing.WithUserAgent("seed-hypermedia"),
-					delegated_routing.WithProviderInfo(pid, nil),
+					delegated_routing.WithProviderInfo(pid, nil), //TODO(juligasa): add address info
 					delegated_routing.WithDisabledLocalFiltering(false),
 				)
 				if err != nil {
@@ -126,47 +116,7 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 				rt = content_routing.NewContentRoutingClient(client)
 				log.Info("Delegated DHT Mode", zap.String("Server URL", delegatedDHTURL))
 			} else {
-				if ds == nil {
-					panic("BUG: must provide datastore for DHT")
-				}
-
-				// The DHT code creates this automatically to store providing records,
-				// but the problem is that it doesn't close it properly. When this provider
-				// manager wants to flush records into the database, we would have closed the database
-				// already. Because of this we always have an annoying error during our shutdown.
-				// Here we manually ensure all the goroutines started by provider manager are closed.
-				provStore, err := providers.NewProviderManager(h.ID(), h.Peerstore(), ds)
-				if err != nil {
-					return nil, err
-				}
-				clean.Add(provStore)
-				fullDHT, err := dht.New(ctx, h,
-					dht.Concurrency(1),
-					// Forcing DHT client mode.
-					// This libp2p node is not meant to be a DHT server.
-					dht.Mode(dht.ModeClient),
-					dht.ProviderStore(provStore),
-					dht.Datastore(ds),
-
-					// Options copied from dualdht package.
-					dht.QueryFilter(dht.PublicQueryFilter),
-					dht.RoutingTableFilter(dht.PublicRoutingTableFilter),
-					// Not sure what those magic numbers are. Copied from dualdht package.
-					// We don't use it because we don't need the LAN DHT.
-					dht.RoutingTablePeerDiversityFilter(dht.NewRTPeerDiversityFilter(h, 1, 1)),
-					// Filter out all private addresses
-					dht.AddressFilter(func(addrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
-						return multiaddr.FilterAddrs(addrs, manet.IsPublicAddr)
-					}),
-				)
-				if err != nil {
-					return nil, err
-				}
-				if fullDHT.Bootstrap(ctx) != nil {
-					return nil, err
-				}
-				log.Info("Local DHT Mode")
-				rt = fullDHT
+				rt = &noopDHT{}
 			}
 
 			return rt, nil
