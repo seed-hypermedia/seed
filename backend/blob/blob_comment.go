@@ -21,20 +21,33 @@ func init() {
 	cbornode.RegisterCborType(Block{})
 	cbornode.RegisterCborType(Annotation{})
 	cbornode.RegisterCborType(CommentBlock{})
-	cbornode.RegisterCborType(CommentTarget{})
 }
 
+// Comment is a blob that represents a comment to some document, or a reply to some other comment.
 type Comment struct {
 	CommentUnsigned
 	Sig core.Signature `refmt:"sig,omitempty"`
 }
 
-func NewComment(kp core.KeyPair, cpb cid.Cid, t CommentTarget, threadRoot, replyParent cid.Cid, body []CommentBlock, ts int64) (eb Encoded[*Comment], err error) {
+// NewComment creates a new Comment blob.
+func NewComment(
+	kp core.KeyPair,
+	cpb cid.Cid,
+	space core.Principal,
+	path string,
+	version []cid.Cid,
+	threadRoot cid.Cid,
+	replyParent cid.Cid,
+	body []CommentBlock,
+	ts time.Time,
+) (eb Encoded[*Comment], err error) {
 	cu := CommentUnsigned{
 		Type:        blobTypeComment,
 		Capability:  cpb,
 		Author:      kp.Principal(),
-		Target:      t,
+		Space:       space,
+		Path:        path,
+		Version:     version,
 		ThreadRoot:  threadRoot,
 		ReplyParent: replyParent,
 		Body:        body,
@@ -49,17 +62,21 @@ func NewComment(kp core.KeyPair, cpb cid.Cid, t CommentTarget, threadRoot, reply
 	return encodeBlob(cc)
 }
 
+// CommentUnsigned holds the fields of a Comment that are meant to be signed.
 type CommentUnsigned struct {
-	Type        blobType       `refmt:"@type"`
+	Type        blobType       `refmt:"type"`
 	Capability  cid.Cid        `refmt:"capability,omitempty"`
 	Author      core.Principal `refmt:"author"`
-	Target      CommentTarget  `refmt:"target"`
+	Space       core.Principal `refmt:"space"`
+	Path        string         `refmt:"path,omitempty"`
+	Version     []cid.Cid      `refmt:"version,omitempty"`
 	ThreadRoot  cid.Cid        `refmt:"threadRoot,omitempty"`
 	ReplyParent cid.Cid        `refmt:"replyParent,omitempty"`
 	Body        []CommentBlock `refmt:"body"`
-	Ts          int64          `refmt:"ts"`
+	Ts          time.Time      `refmt:"ts"`
 }
 
+// Sign signs the CommentUnsigned with the given keypair.
 func (r *CommentUnsigned) Sign(kp core.KeyPair) (rr *Comment, err error) {
 	if !r.Author.Equal(kp.Principal()) {
 		return nil, fmt.Errorf("author mismatch when signing")
@@ -79,31 +96,6 @@ func (r *CommentUnsigned) Sign(kp core.KeyPair) (rr *Comment, err error) {
 		CommentUnsigned: *r,
 		Sig:             sig,
 	}, nil
-}
-
-type CommentTarget struct {
-	Account core.Principal `refmt:"account"`
-	Path    string         `refmt:"path,omitempty"`
-	Version []cid.Cid      `refmt:"version,omitempty"`
-}
-
-// Block is a block of text with annotations.
-type Block struct {
-	ID          string            `refmt:"id,omitempty"` // Omitempty when used in Documents.
-	Type        string            `refmt:"type,omitempty"`
-	Text        string            `refmt:"text,omitempty"`
-	Ref         string            `refmt:"ref,omitempty"`
-	Attributes  map[string]string `refmt:"attributes,omitempty"`
-	Annotations []Annotation      `refmt:"annotations,omitempty"`
-}
-
-// Annotation is a range of text that has a type and attributes.
-type Annotation struct {
-	Type       string            `refmt:"type"`
-	Ref        string            `refmt:"ref,omitempty"`
-	Attributes map[string]string `refmt:"attributes,omitempty"`
-	Starts     []int32           `refmt:"starts,omitempty"`
-	Ends       []int32           `refmt:"ends,omitempty"`
 }
 
 // CommentBlock is a block of text with annotations.
@@ -135,7 +127,7 @@ func init() {
 }
 
 func indexComment(ictx *indexingCtx, id int64, c cid.Cid, v *Comment) error {
-	riri, err := NewIRI(v.Target.Account, v.Target.Path)
+	riri, err := NewIRI(v.Space, v.Path)
 	if err != nil {
 		return fmt.Errorf("invalid comment target: %v", err)
 	}
@@ -166,14 +158,14 @@ func indexComment(ictx *indexingCtx, id int64, c cid.Cid, v *Comment) error {
 		// - This comment must have a timestamp greater than any other predecessor comment.
 	}
 
-	sb := newStructuralBlob(c, string(v.Type), v.Author, time.UnixMicro(v.Ts), riri, cid.Undef, v.Target.Account, time.Time{})
+	sb := newStructuralBlob(c, string(v.Type), v.Author, v.Ts, riri, cid.Undef, v.Space, time.Time{})
 
 	targetURI, err := url.Parse(string(riri))
 	if err != nil {
 		return err
 	}
 
-	targetVersion := NewVersion(v.Target.Version...)
+	targetVersion := NewVersion(v.Version...)
 	if targetVersion != "" {
 		q := targetURI.Query()
 		q.Set("v", targetVersion.String())
@@ -199,12 +191,12 @@ func indexComment(ictx *indexingCtx, id int64, c cid.Cid, v *Comment) error {
 	var indexCommentContent func([]CommentBlock) error // Declaring function to allow recursive calls.
 	indexCommentContent = func(in []CommentBlock) error {
 		for _, blk := range in {
-			if err := indexURL(&sb, ictx.log, blk.ID, "comment/"+blk.Type, blk.Ref); err != nil {
+			if err := indexURL(&sb, ictx.log, blk.ID, "comment/"+blk.Type, blk.Link); err != nil {
 				return err
 			}
 
 			for _, a := range blk.Annotations {
-				if err := indexURL(&sb, ictx.log, blk.ID, "comment/"+a.Type, a.Ref); err != nil {
+				if err := indexURL(&sb, ictx.log, blk.ID, "comment/"+a.Type, a.Link); err != nil {
 					return err
 				}
 			}

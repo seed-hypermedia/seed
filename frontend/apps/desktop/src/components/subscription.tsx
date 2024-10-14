@@ -240,7 +240,6 @@ function SubscriptionOptionButton({
       height="auto"
       onPress={onPress}
       disabled={active}
-      cursor={active ? 'default' : 'pointer'}
       borderRadius={0}
       pressStyle={{
         backgroundColor: '$colorTransparent',

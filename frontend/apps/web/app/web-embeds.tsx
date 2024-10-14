@@ -28,8 +28,6 @@ function EmbedWrapper({
   const navigate = useNavigate();
   return (
     <YStack
-      id="EMBED-WRAPPER"
-      cursor="pointer"
       width="100%"
       borderRightWidth={3}
       borderRightColor={"$brand8"}
@@ -86,7 +84,7 @@ function DocInlineEmbed(props: EntityComponentProps) {
   const doc = useEntity(props);
   return (
     <InlineEmbedButton id={props}>
-      {getDocumentTitle(doc.data?.document)}
+      @{getDocumentTitle(doc.data?.document)}
     </InlineEmbedButton>
   );
 }

@@ -1,11 +1,14 @@
 import {useEntity} from '@/models/entities'
-import {useDocumentChanges, useVersionChanges} from '@/models/versions'
+import {
+  HMChangeInfo,
+  useDocumentChanges,
+  useVersionChanges,
+} from '@/models/versions'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   DocumentRoute,
   formattedDateMedium,
   getAccountName,
-  HMChangeInfo,
   hmId,
 } from '@shm/shared'
 import {Button, Thumbnail, Version} from '@shm/ui'

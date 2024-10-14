@@ -49,7 +49,7 @@ export default function CommentPage() {
             block: {
               type: 'embed',
               attributes: {},
-              ref: packHmId(
+              link: packHmId(
                 hmId('comment', commentId.uid, {
                   blockRef: blockId,
                 }),

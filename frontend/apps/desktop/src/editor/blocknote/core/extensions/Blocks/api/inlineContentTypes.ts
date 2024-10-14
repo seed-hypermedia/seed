@@ -30,7 +30,7 @@ export type BNLink = {
 
 export type InlineEmbed = {
   type: 'inline-embed'
-  ref: string
+  link: string
 }
 
 export type PartialLink = Omit<BNLink, 'content'> & {

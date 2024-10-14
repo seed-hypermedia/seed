@@ -1,5 +1,5 @@
+import {EditorInlineContent} from "@shm/desktop/src/editor";
 import {
-  Block,
   BlockNode,
   BlockRange,
   ExpandedBlockRange,
@@ -7,7 +7,6 @@ import {
   HMBlockChildrenType,
   HMBlockNode,
   HMDocument,
-  HMInlineContent,
   HMTimestamp,
   Mention,
   UnpackedHypermediaId,
@@ -17,11 +16,11 @@ import {
   getCIDFromIPFSUrl,
   getDocumentTitle,
   getFileUrl,
+  hmBlockToEditorBlock,
   idToUrl,
   isHypermediaScheme,
   packHmId,
   pluralS,
-  toHMInlineContent,
   unpackHmId,
   useHover,
   useLowlight,
@@ -54,7 +53,6 @@ import {SizableText, SizableTextProps} from "@tamagui/text";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 import {common} from "lowlight";
-import {nip19, nip21, validateEvent, verifySignature} from "nostr-tools";
 import {
   PropsWithChildren,
   createContext,
@@ -65,11 +63,6 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  RiCheckFill,
-  RiCloseCircleLine,
-  RiRefreshLine,
-} from "react-icons/ri/index.js";
 // import {
 //   QuotedTweet,
 //   TweetBody,
@@ -356,7 +349,7 @@ export function BlocksContent({
 }) {
   if (!blocks) return null;
   return (
-    <BlockNodeList childrenType={"group"}>
+    <BlockNodeList childrenType={"Group"}>
       {blocks?.length
         ? blocks?.map((bn, idx) => (
             <BlockNodeContent
@@ -470,7 +463,7 @@ export function BlockNodeContent({
   depth = 1,
   start,
   listLevel,
-  childrenType = "group",
+  childrenType = "Group",
   isFirstChild = false,
   expanded = true,
   embedDepth = 1,
@@ -609,7 +602,7 @@ export function BlockNodeContent({
         {...debugStyles(debug, "red")}
         group="blocknode"
         className={
-          blockNode.block!.type === "heading" ? "blocknode-content-heading" : ""
+          blockNode.block!.type === "Heading" ? "blocknode-content-heading" : ""
         }
       >
         {bnChildren ? (
@@ -807,20 +800,18 @@ function isBlockNodeEmpty(bn: HMBlockNode): boolean {
   if (bn.children && bn.children.length) return false;
   if (typeof bn.block == "undefined") return true;
   switch (bn.block.type) {
-    case "paragraph":
-    case "heading":
-    case "math":
-    case "equation":
-    case "code":
-    case "codeBlock":
+    case "Paragraph":
+    case "Heading":
+    case "Math":
+    case "Code":
       return !bn.block.text;
-    case "image":
-    case "file":
-    case "video":
-    case "nostr":
-    case "embed":
-    case "web-embed":
-      return !bn.block.ref;
+    case "Image":
+    case "File":
+    case "Video":
+    // case "nostr":
+    case "Embed":
+    case "WebEmbed":
+      return !bn.block.link;
     default:
       return false;
   }
@@ -846,7 +837,7 @@ function inlineContentSize(unit: number): TextProps {
 }
 
 export type BlockContentProps = {
-  block: Block | HMBlock;
+  block: HMBlock;
   parentBlockId: string | null;
   depth: number;
   onHoverIn?: () => void;
@@ -858,43 +849,43 @@ function BlockContent(props: BlockContentProps) {
     depth: props.depth || 1,
     "data-blockid": props.block.id,
   };
-  if (props.block.type == "paragraph") {
+  if (props.block.type == "Paragraph") {
     return <BlockContentParagraph {...props} {...dataProps} />;
   }
 
-  if (props.block.type == "heading") {
+  if (props.block.type == "Heading") {
     return <BlockContentHeading {...props} {...dataProps} />;
   }
 
-  if (props.block.type == "image") {
+  if (props.block.type == "Image") {
     return <BlockContentImage {...props} {...dataProps} />;
   }
 
-  if (props.block.type == "video") {
+  if (props.block.type == "Video") {
     return <BlockContentVideo {...props} {...dataProps} />;
   }
 
-  if (props.block.type == "file") {
-    if (props.block.attributes.subType?.startsWith("nostr:")) {
-      return <BlockContentNostr {...props} {...dataProps} />;
-    } else {
-      return <BlockContentFile {...props} {...dataProps} />;
-    }
+  // if (props.block.type == "nostr") {
+  //   return <BlockContentNostr {...props} {...dataProps} />;
+  // }
+
+  if (props.block.type == "File") {
+    return <BlockContentFile {...props} {...dataProps} />;
   }
 
   // if (props.block.type == "web-embed") {
   //   return <BlockContentXPost {...props} {...dataProps} />;
   // }
 
-  if (props.block.type == "embed") {
+  if (props.block.type == "Embed") {
     return <BlockContentEmbed {...props} {...dataProps} />;
   }
 
-  if (props.block.type == "codeBlock") {
+  if (props.block.type == "Code") {
     return <BlockContentCode {...props} {...dataProps} />;
   }
 
-  if (["equation", "math"].includes(props.block.type)) {
+  if (props.block.type == "Math") {
     return <BlockContentMath {...props} block={props.block} />;
   }
 
@@ -908,7 +899,11 @@ function BlockContentParagraph({
 }: BlockContentProps) {
   const {debug, textUnit, comment} = useDocContentContext();
 
-  let inline = useMemo(() => toHMInlineContent(new Block(block)), [block]);
+  let inline = useMemo(() => {
+    const editorBlock = hmBlockToEditorBlock(block);
+
+    return editorBlock.content;
+  }, [block]);
   return (
     <YStack
       {...blockStyles}
@@ -933,7 +928,7 @@ export function BlockContentHeading({
   ...props
 }: BlockContentProps) {
   const {textUnit, debug, ffSerif, comment} = useDocContentContext();
-  let inline = useMemo(() => toHMInlineContent(new Block(block)), [block]);
+  let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block]);
   let headingTextStyles = useHeadingTextStyles(
     depth,
     comment ? textUnit * 0.8 : textUnit
@@ -1105,9 +1100,10 @@ function BlockContentImage({
   parentBlockId,
   ...props
 }: BlockContentProps) {
-  let inline = useMemo(() => toHMInlineContent(new Block(block)), [block]);
+  let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block]);
   const {textUnit} = useDocContentContext();
-  if (!block?.ref) return null;
+  if (block.type !== "Image") return null;
+  if (!block?.link) return null;
 
   return (
     <YStack
@@ -1115,7 +1111,7 @@ function BlockContentImage({
       {...props}
       className="block-content block-image"
       data-content-type="image"
-      data-url={block?.ref}
+      data-url={block?.link}
       data-alt={block?.attributes?.alt}
       data-width={block.attributes?.width}
       paddingVertical="$3"
@@ -1130,7 +1126,7 @@ function BlockContentImage({
       >
         <img
           alt={block?.attributes?.alt}
-          src={getFileUrl(block?.ref)}
+          src={getFileUrl(block?.link)}
           style={{width: "100%"}}
         />
       </XStack>
@@ -1148,8 +1144,8 @@ function BlockContentVideo({
   parentBlockId,
   ...props
 }: BlockContentProps) {
-  let inline = useMemo(() => toHMInlineContent(new Block(block)), []);
-  const ref = block.ref || "";
+  let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block]);
+  const link = block.link || "";
   const {textUnit} = useDocContentContext();
 
   return (
@@ -1160,14 +1156,14 @@ function BlockContentVideo({
       paddingVertical="$3"
       gap="$2"
       data-content-type="video"
-      data-url={ref}
+      data-url={link}
       data-name={block.attributes?.name}
       paddingBottom="56.25%"
       position="relative"
       height={0}
     >
-      {ref ? (
-        ref.startsWith("ipfs://") ? (
+      {link ? (
+        link.startsWith("ipfs://") ? (
           <XStack
             tag="video"
             top={0}
@@ -1181,7 +1177,7 @@ function BlockContentVideo({
             preload="metadata"
           >
             <source
-              src={getFileUrl(block.ref)}
+              src={getFileUrl(link)}
               type={getSourceType(block.attributes.name)}
             />
             <SizableText>Something is wrong with the video file.</SizableText>
@@ -1194,7 +1190,7 @@ function BlockContentVideo({
             position="absolute"
             width="100%"
             height="100%"
-            src={block.ref}
+            src={block.link}
             frameBorder="0"
             allowFullScreen
           />
@@ -1219,7 +1215,7 @@ function hmTextColor(linkType: LinkType): string {
   return "$color12";
 }
 
-function getInlineContentOffset(inline: HMInlineContent): number {
+function getInlineContentOffset(inline: EditorInlineContent): number {
   if (inline.type === "link") {
     return inline.content
       .map(getInlineContentOffset)
@@ -1237,7 +1233,7 @@ function InlineContentView({
   isRange = false,
   ...props
 }: SizableTextProps & {
-  inline: HMInlineContent[];
+  inline: EditorInlineContent[];
   linkType?: LinkType;
   fontSize?: number;
   rangeOffset?: number;
@@ -1406,8 +1402,8 @@ function InlineContentView({
         }
 
         if (content.type == "inline-embed") {
-          const unpackedRef = unpackHmId(content.ref);
-          return <InlineEmbed key={content.ref} {...unpackedRef} />;
+          const unpackedRef = unpackHmId(content.link);
+          return <InlineEmbed key={content.link} {...unpackedRef} />;
         }
 
         if (content.type == "range") {
@@ -1430,10 +1426,11 @@ function InlineContentView({
 }
 
 export function BlockContentEmbed(props: BlockContentProps) {
+  console.log(`== ~ BlockContentEmbed ~ props:`, props);
   const EmbedTypes = useDocContentContext().entityComponents;
-  if (props.block.type !== "embed")
+  if (props.block.type !== "Embed")
     throw new Error("BlockContentEmbed requires an embed block type");
-  const id = unpackHmId(props.block.ref);
+  const id = unpackHmId(props.block.link);
   if (id?.type == "d") {
     return <EmbedTypes.Document {...props} {...id} />;
   }
@@ -1583,7 +1580,7 @@ export function ContentEmbed({
     content = (
       <>
         {/* ADD SIDENOTE HERE */}
-        <BlockNodeList childrenType="group">
+        <BlockNodeList childrenType="Group">
           {!props.blockRef && document?.metadata?.name ? (
             <BlockNodeContent
               isFirstChild
@@ -1711,8 +1708,8 @@ export function BlockNotFoundError({
 
 export function BlockContentUnknown(props: BlockContentProps) {
   let message = "Unrecognized Block";
-  if (props.block.type == "embed") {
-    message = `Unrecognized Embed: ${props.block.ref}`;
+  if (props.block.type == "Embed") {
+    message = `Unrecognized Embed: ${props.block.link}`;
   }
   return <ErrorBlock message={message} debugData={props.block} />;
 }
@@ -1747,7 +1744,8 @@ export function BlockContentFile({
 }: BlockContentProps) {
   const {hover, ...hoverProps} = useHover();
   const {layoutUnit, saveCidAsFile} = useDocContentContext();
-  const fileCid = block.ref ? getCIDFromIPFSUrl(block.ref) : "";
+  const fileCid = block.link ? getCIDFromIPFSUrl(block.link) : "";
+  if (block.type !== "File") return null;
   return (
     <YStack
       // backgroundColor="$color3"
@@ -1760,7 +1758,7 @@ export function BlockContentFile({
       f={1}
       className="block-content block-file"
       data-content-type="file"
-      data-url={block.ref}
+      data-url={block.link}
       data-name={block.attributes?.name}
       data-size={block.attributes?.size}
       hoverStyle={{
@@ -1815,104 +1813,105 @@ export function BlockContentFile({
   );
 }
 
-export function BlockContentNostr({
-  block,
-  parentBlockId,
-  ...props
-}: BlockContentProps) {
-  const {layoutUnit} = useDocContentContext();
-  const name = block.attributes?.name ?? "";
-  const nostrNpud = nip19.npubEncode(name) ?? "";
+// export function BlockContentNostr({
+//   block,
+//   parentBlockId,
+//   ...props
+// }: BlockContentProps) {
+//   console.log("BlockContentNostr", block);
+//   const {layoutUnit} = useDocContentContext();
+//   const name = block.attributes?.name ?? "";
+//   const nostrNpud = nip19.npubEncode(name) ?? "";
 
-  const [verified, setVerified] = useState<boolean>();
-  const [content, setContent] = useState<string>();
+//   const [verified, setVerified] = useState<boolean>();
+//   const [content, setContent] = useState<string>();
 
-  const uri = `nostr:${nostrNpud}`;
-  const header = `${nostrNpud.slice(0, 6)}...${nostrNpud.slice(-6)}`;
+//   const uri = `nostr:${nostrNpud}`;
+//   const header = `${nostrNpud.slice(0, 6)}...${nostrNpud.slice(-6)}`;
 
-  if (
-    block.ref &&
-    block.ref !== "" &&
-    (content === undefined || verified === undefined)
-  ) {
-    fetch(getFileUrl(block.ref), {
-      method: "GET",
-    }).then((response) => {
-      if (response) {
-        response.text().then((text) => {
-          if (text) {
-            const fileEvent = JSON.parse(text);
-            if (content === undefined) setContent(fileEvent.content);
-            if (verified === undefined && validateEvent(fileEvent)) {
-              setVerified(verifySignature(fileEvent));
-            }
-          }
-        });
-      }
-    });
-  }
+//   if (
+//     block.ref &&
+//     block.ref !== "" &&
+//     (content === undefined || verified === undefined)
+//   ) {
+//     fetch(getFileUrl(block.ref), {
+//       method: "GET",
+//     }).then((response) => {
+//       if (response) {
+//         response.text().then((text) => {
+//           if (text) {
+//             const fileEvent = JSON.parse(text);
+//             if (content === undefined) setContent(fileEvent.content);
+//             if (verified === undefined && validateEvent(fileEvent)) {
+//               setVerified(verifySignature(fileEvent));
+//             }
+//           }
+//         });
+//       }
+//     });
+//   }
 
-  return (
-    <YStack
-      // backgroundColor="$color3"
-      borderColor="$color6"
-      borderWidth={1}
-      borderRadius={layoutUnit / 4}
-      padding={layoutUnit / 2}
-      overflow="hidden"
-      width="100%"
-      className="block-content block-nostr"
-      hoverStyle={{
-        backgroundColor: "$backgroundHover",
-      }}
-      {...props}
-    >
-      <XStack justifyContent="space-between">
-        <SizableText
-          size="$5"
-          maxWidth="17em"
-          overflow="hidden"
-          textOverflow="ellipsis"
-          whiteSpace="nowrap"
-          userSelect="text"
-          flex={1}
-        >
-          {"Public Key: "}
-          {nip21.test(uri) ? <a href={uri}>{header}</a> : {header}}
-        </SizableText>
-        <Tooltip
-          content={
-            verified === undefined
-              ? ""
-              : verified
-              ? "Signature verified"
-              : "Invalid signature"
-          }
-        >
-          <Button
-            size="$2"
-            disabled
-            theme={
-              verified === undefined ? "blue" : verified ? "green" : "orange"
-            }
-            icon={
-              verified === undefined
-                ? RiRefreshLine
-                : verified
-                ? RiCheckFill
-                : RiCloseCircleLine
-            }
-          />
-        </Tooltip>
-      </XStack>
-      <XStack justifyContent="space-between">
-        <Text size="$6" fontWeight="bold">
-          {content}
-        </Text>
-      </XStack>
-    </YStack>
-  );
-}
+//   return (
+//     <YStack
+//       // backgroundColor="$color3"
+//       borderColor="$color6"
+//       borderWidth={1}
+//       borderRadius={layoutUnit / 4}
+//       padding={layoutUnit / 2}
+//       overflow="hidden"
+//       width="100%"
+//       className="block-content block-nostr"
+//       hoverStyle={{
+//         backgroundColor: "$backgroundHover",
+//       }}
+//       {...props}
+//     >
+//       <XStack justifyContent="space-between">
+//         <SizableText
+//           size="$5"
+//           maxWidth="17em"
+//           overflow="hidden"
+//           textOverflow="ellipsis"
+//           whiteSpace="nowrap"
+//           userSelect="text"
+//           flex={1}
+//         >
+//           {"Public Key: "}
+//           {nip21.test(uri) ? <a href={uri}>{header}</a> : {header}}
+//         </SizableText>
+//         <Tooltip
+//           content={
+//             verified === undefined
+//               ? ""
+//               : verified
+//               ? "Signature verified"
+//               : "Invalid signature"
+//           }
+//         >
+//           <Button
+//             size="$2"
+//             disabled
+//             theme={
+//               verified === undefined ? "blue" : verified ? "green" : "orange"
+//             }
+//             icon={
+//               verified === undefined
+//                 ? RiRefreshLine
+//                 : verified
+//                 ? RiCheckFill
+//                 : RiCloseCircleLine
+//             }
+//           />
+//         </Tooltip>
+//       </XStack>
+//       <XStack justifyContent="space-between">
+//         <Text size="$6" fontWeight="bold">
+//           {content}
+//         </Text>
+//       </XStack>
+//     </YStack>
+//   );
+// }
 
 // export function BlockContentXPost({
 //   block,
@@ -2020,7 +2019,7 @@ export function BlockContentCode({
       borderRadius={layoutUnit / 4}
       padding={layoutUnit / 2}
       overflow="hidden"
-      data-content-type="codeBlock"
+      data-content-type="code"
       width="100%"
       {...debugStyles(debug, "blue")}
       marginHorizontal={(-1 * layoutUnit) / 2}
@@ -2143,8 +2142,9 @@ export function InlineEmbedButton({
     <ButtonText
       {...buttonProps}
       textDecorationColor={"$brand5"}
-      style={{textDecorationLine: "underline"}}
+      // style={{textDecorationLine: "underline"}}
       color="$brand5"
+      fontWeight="bold"
       className="hm-link"
       fontSize="$5"
       data-inline-embed={packHmId(id)}

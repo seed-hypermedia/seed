@@ -460,7 +460,6 @@ function NostrForm({
             borderBottomWidth={tabState == 'search' ? '$1' : '$0'}
             hoverStyle={{
               backgroundColor: '$borderColorHover',
-              cursor: 'pointer',
             }}
           >
             <SizableText size="$2">Search</SizableText>
@@ -475,7 +474,6 @@ function NostrForm({
             borderBottomWidth={tabState == 'manual' ? '$1' : '$0'}
             hoverStyle={{
               backgroundColor: '$borderColorHover',
-              cursor: 'pointer',
             }}
           >
             <SizableText size="$2">Manual</SizableText>
@@ -524,7 +522,6 @@ function NostrForm({
                     color="$color1"
                     hoverStyle={{
                       backgroundColor: '$color11',
-                      cursor: 'pointer',
                     }}
                   >
                     SEARCH
@@ -582,7 +579,6 @@ function NostrForm({
                     color="$color1"
                     hoverStyle={{
                       backgroundColor: '$color11',
-                      cursor: 'pointer',
                     }}
                   >
                     EMBED

@@ -181,9 +181,12 @@ export function createAutoCompletePlugin<N extends string, T>(args: {
             view.state,
           )
 
-          const onCreate = (ref: string, range: {from: number; to: number}) => {
+          const onCreate = (
+            link: string,
+            range: {from: number; to: number},
+          ) => {
             const node = view.state.schema.nodes[nodeName].create({
-              ref,
+              link,
             })
             view.dispatch(
               view.state.tr.replaceWith(
@@ -347,20 +350,13 @@ function AutocompletePopupInner(
     },
     Enter: () => {
       let [group, idx] = index
-      console.log(
-        'enter',
-        group,
-        idx,
-        groups.indexOf(group) > groups.length &&
-          idx > suggestions[group].length,
-      )
+
       if (
         groups.indexOf(group) < groups.length &&
         idx < suggestions[group].length
       ) {
         let item = suggestions[group][idx]
 
-        console.log(`== ~ item:`, item)
         onCreate(item.value, range)
         onClose()
       }

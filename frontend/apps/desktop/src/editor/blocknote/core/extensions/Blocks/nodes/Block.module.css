@@ -301,7 +301,7 @@ NESTED BLOCKS
 }
 
 /* CODE BLOCK */
-.blockContent[data-content-type='codeBlock'] {
+.blockContent[data-content-type='code-block'] {
   background-color: var(--color4);
   border-radius: 6px;
   padding: 10px 16px;
@@ -311,7 +311,7 @@ NESTED BLOCKS
   position: 'relative';
 }
 
-.blockContent[data-content-type='codeBlock'] code {
+.blockContent[data-content-type='code-block'] code {
   font-family: 'ui-monospace', 'SFMono-Regular', 'SF Mono', Menlo, Consolas,
     'Liberation Mono', monospace;
   font-size: 0.85em;
@@ -489,7 +489,7 @@ NESTED BLOCKS
   content: 'Heading';
 }
 
-.blockContent[data-content-type='codeBlock'].isEmpty.hasAnchor
+.blockContent[data-content-type='code-block'].isEmpty.hasAnchor
   .inlineContent:before {
   font-family:
     'Inter',

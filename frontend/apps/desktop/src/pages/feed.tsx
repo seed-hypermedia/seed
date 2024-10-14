@@ -105,7 +105,6 @@ function FeedItemContainer({
   return (
     <PageContainer f={1} marginBottom="$4">
       <FeedItemInnerContainer
-        cursor={linkId ? 'pointer' : 'default'}
         onPress={
           linkId
             ? () => {

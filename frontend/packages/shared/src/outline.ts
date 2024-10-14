@@ -32,10 +32,10 @@ export function getNodesOutline(
           getNodesOutline(child.children, parentEntityId, parentBlockId),
       })
     } else if (
-      child.block.type === 'embed' &&
-      child.block.attributes?.view !== 'card'
+      child.block.type === 'Embed' &&
+      child.block.attributes?.view !== 'Card'
     ) {
-      const embedId = unpackHmId(child.block.ref)
+      const embedId = unpackHmId(child.block.link)
       if (embedId) {
         outline.push({
           id: child.block.id,

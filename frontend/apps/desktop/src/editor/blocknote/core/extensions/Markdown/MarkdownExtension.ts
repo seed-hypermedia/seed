@@ -39,6 +39,10 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
         new Plugin({
           props: {
             handlePaste: (view, event, slice) => {
+              console.log(
+                '== PASTE MarkdownExtension PLUGIN',
+                view.state.selection,
+              )
               const pastedText = event.clipboardData!.getData('text/plain')
               const pastedHtml = event.clipboardData!.getData('text/html')
               const hasList =

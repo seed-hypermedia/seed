@@ -2,7 +2,7 @@ module seed
 
 go 1.23
 
-toolchain go1.23.0
+toolchain go1.23.2
 
 require (
 	crawshaw.io/iox v0.0.0-20181124134642-c51c3df30797
@@ -38,6 +38,7 @@ require (
 	github.com/peterbourgon/ff/v4 v4.0.0-alpha.4
 	github.com/peterbourgon/trc v0.0.3
 	github.com/planetscale/vtprotobuf v0.3.0
+	github.com/polydawn/refmt v0.89.0
 	github.com/prometheus/client_golang v1.19.1
 	github.com/sanity-io/litter v1.5.5
 	github.com/sethvargo/go-retry v0.2.4
@@ -85,7 +86,6 @@ require (
 	github.com/pion/transport/v2 v2.2.10 // indirect
 	github.com/pion/turn/v2 v2.1.6 // indirect
 	github.com/pion/webrtc/v3 v3.3.0 // indirect
-	github.com/polydawn/refmt v0.89.0 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/samber/lo v1.39.0 // indirect
 	github.com/wlynxg/anet v0.0.3 // indirect

@@ -172,9 +172,6 @@ function ChangeItem({
       <YStack
         f={1}
         overflow="hidden"
-        hoverStyle={{
-          cursor: 'pointer',
-        }}
         onPress={() => {
           destRoute && navigate(destRoute)
         }}

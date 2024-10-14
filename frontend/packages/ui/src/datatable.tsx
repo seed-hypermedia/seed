@@ -37,7 +37,6 @@ const Cell = styled(View, {
   tag: "td",
   display: "table-cell",
   hoverStyle: {
-    cursor: "pointer",
     bg: "$color6",
   },
 });

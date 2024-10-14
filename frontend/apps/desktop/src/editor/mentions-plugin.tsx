@@ -51,7 +51,9 @@ export function createInlineEmbedNode(bnEditor: any) {
           getAttrs: (dom) => {
             if (dom instanceof HTMLElement) {
               var value = dom.getAttribute('data-inline-embed')
-              return {ref: value}
+
+              console.log(`== node ~ parseHTML ~ value:`, value)
+              return {link: value}
             }
             return false
           },
@@ -60,7 +62,7 @@ export function createInlineEmbedNode(bnEditor: any) {
     },
     addAttributes() {
       return {
-        ref: {
+        link: {
           default: '',
         },
       }
@@ -77,9 +79,9 @@ function InlineEmbedNodeComponent(props: any) {
   return (
     <NodeViewWrapper
       className={`inline-embed-token${props.selected ? ' selected' : ''}`}
-      data-inline-embed-ref={props.node.attrs.ref}
+      data-inline-embed={props.node.attrs.link}
     >
-      <MentionToken value={props.node.attrs.ref} selected={props.selected} />
+      <MentionToken value={props.node.attrs.link} selected={props.selected} />
     </NodeViewWrapper>
   )
 }
@@ -117,6 +119,10 @@ export function MentionText(props) {
   return (
     <SizableText
       fontSize="1em"
+      fontWeight="bold"
+      paddingBottom={1}
+      borderBottomWidth={1}
+      borderBottomColor="$brand5"
       paddingHorizontal={1}
       style={{
         display: 'inline-block',

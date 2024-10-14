@@ -66,7 +66,7 @@ export function WindowsLinuxTitleBar({
     <YStack>
       <XStack height={24} ai="center">
         <SystemMenu />
-        <XStack flex={1} />
+        <XStack flex={1} className="window-drag" />
         <WindowsLinuxWindowControls />
       </XStack>
 

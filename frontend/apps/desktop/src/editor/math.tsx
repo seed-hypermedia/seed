@@ -14,7 +14,7 @@ import {
 } from './blocknote'
 import {HMBlockSchema} from './schema'
 
-export const MathBlock = (type: 'equation' | 'math') =>
+export const MathBlock = (type: 'math') =>
   createReactBlockSpec({
     type,
     propSchema: {
@@ -142,7 +142,6 @@ const Render = (
         paddingVertical="10px"
         paddingHorizontal="16px"
         position="relative"
-        hoverStyle={{cursor: `${!opened ? 'pointer' : ''}`}}
         userSelect="none"
       >
         <SizableText ref={mathRef} userSelect="none" />
@@ -182,7 +181,6 @@ const Render = (
                         'embed',
                         'video',
                         'web-embed',
-                        'equation',
                         'math',
                       ].includes(prevNode.type.name)
                     ) {
@@ -218,7 +216,6 @@ const Render = (
                         'embed',
                         'video',
                         'web-embed',
-                        'equation',
                         'math',
                       ].includes(nextNode.type.name)
                     ) {

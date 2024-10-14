@@ -6,10 +6,12 @@ import remarkStringify from 'remark-stringify'
 import {unified} from 'unified'
 
 function applyStyles(text: string, styles: any) {
-  if (styles.bold) text = `<strong>${text}</strong>`
-  if (styles.italic) text = `<em>${text}</em>`
+  if (styles.bold) text = `<b>${text}</b>`
+  if (styles.italic) text = `<i>${text}</i>`
   if (styles.strike) text = `<del>${text}</del>`
   if (styles.underline) text = `<u>${text}</u>`
+  if (styles.code) text = `<code>${text}</code>`
+  // if (styles.math) text = `$${text}$$`
   return text
 }
 
@@ -67,7 +69,7 @@ function convertBlockToHtml(block: any, isListItem = false) {
         const {url, name, width} = block.props
         const titleWithWidth = `${name} | width=${width}`
         return `<img src="${url}" alt="${contentHtml}" title="${titleWithWidth}">`
-      case 'codeBlock':
+      case 'code-block':
         return `<pre><code class="language-${
           block.props.language || 'plaintext'
         }">${contentHtml}</code></pre>`
@@ -75,7 +77,7 @@ function convertBlockToHtml(block: any, isListItem = false) {
         return `<p>![${block.props.name}](${block.props.url} "width=${block.props.width}")</p>`
       case 'file':
         return `<p>[${block.props.name}](${block.props.url} "size=${block.props.size}")</p>`
-      case 'math' || 'equation':
+      case 'math':
         return `<p>$$${contentHtml}$$</p>`
       default:
         return contentHtml

@@ -12,17 +12,16 @@ import {
   DEFAULT_GATEWAY_URL,
   DocumentChange,
   DocumentListItem,
-  HMAccount,
   HMBlock,
   HMBlockNode,
   HMDocument,
   HMDraft,
   UnpackedHypermediaId,
+  editorBlockToHMBlock,
   eventStream,
-  fromHMBlock,
+  hmBlocksToEditorContent,
   hmId,
   hmIdPathToEntityQueryPath,
-  toHMBlock,
   unpackHmId,
   writeableStateStream,
 } from '@shm/shared'
@@ -94,7 +93,7 @@ export function useDeleteDraft(
 
 type ListedEmbed = {
   blockId: string
-  ref: string
+  link: string
   refId: UnpackedHypermediaId
 }
 
@@ -104,13 +103,13 @@ function extractRefs(
 ): ListedEmbed[] {
   let refs: ListedEmbed[] = []
   function extractRefsFromBlock(block: HMBlockNode) {
-    if (block.block?.type === 'embed' && block.block.ref) {
-      if (block.block.attributes?.view === 'card' && skipCards) return
-      const refId = unpackHmId(block.block.ref)
+    if (block.block?.type === 'Embed' && block.block.link) {
+      if (block.block.attributes?.view === 'Card' && skipCards) return
+      const refId = unpackHmId(block.block.link)
       if (refId)
         refs.push({
           blockId: block.block.id,
-          ref: block.block.ref,
+          link: block.block.link,
           refId,
         })
     }
@@ -127,11 +126,6 @@ export type EmbedsContent = Record<
   | {
       type: 'd'
       data: HMDocument
-      query: {refId: UnpackedHypermediaId; blockId: string}
-    }
-  | {
-      type: 'a'
-      data: HMAccount
       query: {refId: UnpackedHypermediaId; blockId: string}
     }
   | undefined
@@ -222,7 +216,10 @@ export function usePublishDraft(
   >({
     mutationFn: async ({draft, previous, id}) => {
       const blocksMap = previous ? createBlocksMap(previous.content, '') : {}
-      const changes = compareBlocksWithMap(blocksMap, draft.content, '')
+
+      const content = removeTrailingBlocks(draft.content)
+
+      const changes = compareBlocksWithMap(blocksMap, content, '')
 
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
       if (accts.data?.length == 0) {
@@ -261,12 +258,12 @@ export function usePublishDraft(
                 )
               capabilityId = capability.id
             }
-            console.log('previousId', draft.previousId)
+            console.log(`== ~ mutationFn: ~ allChanges:`, allChanges)
             const publishedDoc =
               await grpcClient.documents.createDocumentChange({
                 signingKeyName: draft.signingAccount,
                 account: id.uid,
-                baseVersion: draft.previousId?.version || undefined,
+                baseVersion: draft.previousId?.version || '',
                 path: id.path?.length
                   ? `/${id.path
                       .map((p, idx) =>
@@ -405,6 +402,7 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
 
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
+      console.log('== onEditorContentChange', editor.topLevelBlocks)
       if (!gotEdited.current) {
         gotEdited.current = true
       }
@@ -527,10 +525,11 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
     draftMachine.provide({
       actions: {
         populateEditor: function ({context, event}) {
-          let content: Array<HMBlock> = []
+          let content: Array<EditorBlock> = []
           if (context.document && !context.draft) {
             // populate draft from document
-            content = toHMBlock(context.document.content)
+
+            content = hmBlocksToEditorContent(context.document.content)
           } else if (
             context.draft != null &&
             context.draft.content.length != 0
@@ -775,13 +774,13 @@ function extractEmbedIds(blockNodes: HMBlockNode[]): string[] {
   return flatMap(
     blockNodes.map((node) => {
       const childEmbedUrls = extractEmbedIds(node.children || [])
-      if (node.block.type === 'embed' && node.block.ref) {
-        childEmbedUrls.push(node.block.ref)
+      if (node.block.type === 'Embed' && node.block.link) {
+        childEmbedUrls.push(node.block.link)
       }
       if (node.block.annotations) {
         node.block.annotations.forEach((annotation) => {
-          if (annotation.type === 'inline-embed' && annotation.ref) {
-            childEmbedUrls.push(annotation.ref)
+          if (annotation.type === 'Embed' && annotation.link) {
+            childEmbedUrls.push(annotation.link)
           }
         })
       }
@@ -883,7 +882,7 @@ export function useListDirectory(id: UnpackedHypermediaId) {
 
 export function compareBlocksWithMap(
   blocksMap: BlocksMap,
-  blocks: HMDraft['content'] | undefined,
+  blocks: Array<EditorBlock>,
   parentId: string,
 ) {
   let changes: Array<DocumentChange> = []
@@ -908,14 +907,14 @@ export function compareBlocksWithMap(
       // @ts-expect-error
       if (childGroup.start) block.props.start = childGroup.start.toString()
     }
-    let currentBlockState = fromHMBlock(block)
+    let currentBlockState = editorBlockToHMBlock(block)
 
     if (
       !prevBlockState ||
       prevBlockState.block.attributes?.listLevel !==
-        currentBlockState.attributes.listLevel
+        currentBlockState.attributes?.listLevel
     ) {
-      const serverBlock = fromHMBlock(block)
+      const serverBlock = editorBlockToHMBlock(block)
 
       // add moveBlock change by default to all blocks
       changes.push(
@@ -1104,7 +1103,7 @@ export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
   let result =
     // b1.id == b2.id &&
     b1.text == b2.text &&
-    b1.ref == b2.ref &&
+    b1.link == b2.link &&
     _.isEqual(b1.annotations, b2.annotations) &&
     // TODO: how to correctly compare attributes???
     isBlockAttributesEqual(b1, b2) &&
@@ -1123,7 +1122,8 @@ function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
     a1.level == a2.level &&
     a1.url == a2.url &&
     a1.size == a2.size &&
-    a1.ref == a2.ref &&
+    a1.href == a2.href &&
+    a1.link == a2.link &&
     a1.language == a2.language &&
     a1.view == a2.view &&
     a1.width == a2.width
@@ -1259,4 +1259,67 @@ export function useListProfileDocuments() {
     },
     queryKey: [queryKeys.LIST_ROOT_DOCUMENTS],
   })
+}
+
+function findDifferences(obj1, obj2) {
+  let differences = {}
+
+  function compare(obj1, obj2, path = '') {
+    if (
+      typeof obj1 !== 'object' ||
+      obj1 === null ||
+      typeof obj2 !== 'object' ||
+      obj2 === null
+    ) {
+      if (obj1 !== obj2) {
+        differences[path] = {obj1, obj2} // Difference found
+      }
+      return
+    }
+
+    const keys1 = Object.keys(obj1)
+    const keys2 = Object.keys(obj2)
+
+    // Keys only in obj1
+    keys1.forEach((key) => {
+      if (!keys2.includes(key)) {
+        differences[`${path}${key}`] = {obj1: obj1[key], obj2: undefined}
+      }
+    })
+
+    // Keys only in obj2
+    keys2.forEach((key) => {
+      if (!keys1.includes(key)) {
+        differences[`${path}${key}`] = {obj1: undefined, obj2: obj2[key]}
+      }
+    })
+
+    // Keys present in both, compare values recursively
+    keys1.forEach((key) => {
+      if (keys2.includes(key)) {
+        compare(obj1[key], obj2[key], `${path}${key}.`)
+      }
+    })
+  }
+
+  compare(obj1, obj2)
+  return differences
+}
+
+function removeTrailingBlocks(
+  blocks: Array<EditorBlock<typeof hmBlockSchema>>,
+) {
+  let trailedBlocks = [...blocks]
+
+  while (true) {
+    let lastBlock = trailedBlocks[trailedBlocks.length - 1]
+
+    if (lastBlock.type == 'paragraph' && lastBlock.content.length == 0) {
+      trailedBlocks.pop()
+    } else {
+      break
+    }
+  }
+
+  return trailedBlocks
 }

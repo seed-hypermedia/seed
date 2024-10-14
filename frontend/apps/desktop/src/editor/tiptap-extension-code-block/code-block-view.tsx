@@ -40,13 +40,7 @@ export const CodeBlockView = ({
           $group-item-hover={{opacity: 1}}
         >
           <Select value={language} onValueChange={handleChange}>
-            <Select.Trigger
-              iconAfter={ChevronDown}
-              size="$2.5"
-              hoverStyle={{
-                cursor: 'pointer',
-              }}
-            >
+            <Select.Trigger iconAfter={ChevronDown} size="$2.5">
               <Select.Value placeholder="plaintext" />
             </Select.Trigger>
 

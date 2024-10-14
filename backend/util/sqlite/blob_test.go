@@ -17,6 +17,7 @@ package sqlite_test
 import (
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"reflect"
@@ -214,7 +215,7 @@ func TestConcurrentBlobWrites(t *testing.T) {
 
 			c, err := sqlite.OpenConn("file::memory:?mode=memory", flags)
 			if err != nil {
-				t.Fatal(err)
+				panic(err)
 			}
 			defer c.Close()
 
@@ -233,7 +234,7 @@ func TestConcurrentBlobWrites(t *testing.T) {
 					return
 				}
 				if n != len(b) {
-					t.Fatalf("n=%d, want %d (i=%d, j=%d)", n, len(b), i, j)
+					panic(fmt.Errorf("n=%d, want %d (i=%d, j=%d)", n, len(b), i, j))
 				}
 			}
 		}(i)
@@ -386,7 +387,7 @@ func TestBlobPtrs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := ioutil.ReadAll(gzr)
+	b, err := io.ReadAll(gzr)
 	if err != nil {
 		t.Fatal(err)
 	}

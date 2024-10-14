@@ -50,56 +50,8 @@ type migration struct {
 //
 // Migrations should be idempotant as much as we can make them, to prevent issues with partially applied migrations.
 var migrations = []migration{
-	// New beginning. While we're doing the HM24 migration we can still make some breaking changes.
-	// TODO(burdiyan): add a real version when we are ready to release.
-	{Version: "2024-08-31.hm24-dev-1", Run: func(_ *Store, _ *sqlite.Conn) error {
-		return nil
-	}},
-	{Version: "2024-09-06.01", Run: func(_ *Store, conn *sqlite.Conn) error {
-		if err := sqlitex.ExecScript(conn, sqlfmt(`
-			ALTER TABLE blobs RENAME COLUMN data TO data_old;
-			ALTER TABLE blobs ADD COLUMN data BLOB;
-			UPDATE blobs SET data = data_old, data_old = NULL;
-			ALTER TABLE blobs DROP COLUMN data_old;
-
-			DROP TABLE IF EXISTS resource_heads;
-
-			CREATE INDEX structural_blobs_by_resource ON structural_blobs (resource);
-			CREATE INDEX structural_blobs_by_author ON structural_blobs (author);
-			CREATE INDEX resources_by_genesis_blob ON resources (genesis_blob);
-			CREATE INDEX structural_blobs_by_genesis_blob ON structural_blobs (genesis_blob);
-		`)); err != nil {
-			return err
-		}
-
-		return nil
-	}},
-	{Version: "2024-09-23.01", Run: func(_ *Store, conn *sqlite.Conn) error {
-		if err := sqlitex.ExecScript(conn, sqlfmt(`
-			ALTER TABLE peers ADD COLUMN explicitly_connected BOOLEAN DEFAULT false NOT NULL;
-		`)); err != nil {
-			return err
-		}
-
-		return nil
-	}},
-	{Version: "2024-09-26.01", Run: func(_ *Store, conn *sqlite.Conn) error {
-		if err := sqlitex.ExecScript(conn, sqlfmt(`
-			ALTER TABLE peers RENAME TO peers_old;
-			CREATE TABLE peers(
-    			id INTEGER PRIMARY KEY,
-				pid TEXT UNIQUE NOT NULL,
-				addresses TEXT UNIQUE NOT NULL,
-				explicitly_connected BOOLEAN DEFAULT false NOT NULL,
-				created_at INTEGER DEFAULT (strftime('%s', 'now')) NOT NULL,
-				updated_at INTEGER DEFAULT (strftime('%s', 'now')) NOT NULL
-			);
-			INSERT into peers(pid, addresses, explicitly_connected) select pid, addresses, explicitly_connected from peers_old;
-			DROP TABLE peers_old;
-		`)); err != nil {
-			return err
-		}
-
+	// New beginning.
+	{Version: "2024-10-14.01", Run: func(_ *Store, _ *sqlite.Conn) error {
 		return nil
 	}},
 }

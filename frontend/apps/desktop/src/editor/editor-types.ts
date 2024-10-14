@@ -21,10 +21,13 @@ export interface EditorBaseBlock {
 }
 
 export interface EditorBlockProps {
-  textAlignment?: 'left' | 'center' | 'right'
+  // textAlignment?: 'left' | 'center' | 'right'
   childrenType?: 'div' | 'ul' | 'ol'
   listLevel?: string
   start?: string
+  level?: number | string
+  ref?: string
+  revision?: string
 }
 
 export interface EditorParagraphBlock extends EditorBaseBlock {
@@ -38,7 +41,7 @@ export interface EditorHeadingBlock extends EditorBaseBlock {
 }
 
 export interface EditorCodeBlock extends EditorBaseBlock {
-  type: 'codeBlock'
+  type: 'code-block'
   content: Array<EditorInlineContent>
   props: EditorBlockProps & {
     language?: string
@@ -51,33 +54,34 @@ export interface MediaBlockProps extends EditorBlockProps {
   name?: string
   width?: number
   defaultOpen?: string
-  size?: string
+  size?: number
 }
 
 export interface EditorImageBlock extends EditorBaseBlock {
   type: 'image'
   props: MediaBlockProps
-  content: []
+  content: Array<EditorInlineContent>
 }
 
 export interface EditorVideoBlock extends EditorBaseBlock {
   type: 'video'
   props: MediaBlockProps
-  content: []
+  content: Array<EditorInlineContent>
 }
 
 export interface EditorFileBlock extends EditorBaseBlock {
   type: 'file'
   props: MediaBlockProps
-  content: []
+  content: Array<EditorInlineContent>
 }
 
 export interface EditorEmbedBlock extends EditorBaseBlock {
   type: 'embed'
   props: EditorBlockProps & {
-    view: 'content' | 'card'
+    view: 'Content' | 'Card'
+    url: string
   }
-  content: []
+  content: Array<EditorInlineContent>
 }
 
 export interface EditorMathBlock extends EditorBaseBlock {
@@ -90,6 +94,7 @@ export type EditorWebEmbedBlock = EditorBaseBlock & {
   props: EditorBlockProps & {
     url?: string
   }
+  content: Array<EditorInlineContent>
 }
 
 export type EditorNostrBlock = EditorBaseBlock & {
@@ -100,25 +105,25 @@ export type EditorNostrBlock = EditorBaseBlock & {
     text?: string
     size: number
   }
+  content: Array<EditorInlineContent>
 }
 
-export interface EditorText extends EditorBaseInlineContent {
+export interface EditorText {
   type: 'text'
   text: string
+  styles: EditorInlineStyles
 }
 
-export interface EditorLink extends EditorBaseInlineContent {
+export interface EditorLink {
   type: 'link'
+  // TODO: change to link
   href: string
   content: Array<EditorInlineContent>
 }
 
 export interface EditorInlineEmbed {
   type: 'inline-embed'
-  ref: string
-}
-
-export interface EditorBaseInlineContent {
+  link: string
   styles: EditorInlineStyles | {}
 }
 
@@ -126,6 +131,18 @@ export interface EditorInlineStyles {
   bold?: boolean
   italic?: boolean
   underline?: boolean
-  strikethrough?: boolean
+  strike?: boolean
   code?: boolean
+  math?: boolean
 }
+
+export type EditorAnnotationType =
+  | 'bold'
+  | 'italic'
+  | 'underline'
+  | 'strike'
+  | 'code'
+  | 'link'
+  | 'inline-embed'
+
+export type EditorBlockType = EditorBlock['type']

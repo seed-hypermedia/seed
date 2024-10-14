@@ -56,11 +56,11 @@ func registerIndexer[T any](
 }
 
 // makeCBORTypeMatch returns a subslice of CBOR bytes that could be used to match
-// our CBOR blob types with `@type` field. If we find this subslice
+// our CBOR blob types with `type` field. If we find this subslice
 // we can attempt to decode the blob as CBOR data into the corresponding concrete type.
 func makeCBORTypeMatch(blobType blobType) []byte {
 	var b bytes.Buffer
-	if err := cbor.MarshalToBuffer("@type", &b); err != nil {
+	if err := cbor.MarshalToBuffer("type", &b); err != nil {
 		panic(err)
 	}
 

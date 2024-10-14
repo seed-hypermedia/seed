@@ -2,23 +2,21 @@ package docmodel
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
+	"iter"
+	"maps"
 	"net/url"
 	"reflect"
 	"seed/backend/blob"
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
-	"seed/backend/hlc"
-	"seed/backend/util/colx"
+	"seed/backend/util/cclock"
+	"slices"
 	"sort"
-	"strings"
 
-	"github.com/ipfs/boxo/blockstore"
-	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multibase"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -27,29 +25,22 @@ import (
 
 // Document is a mutable document.
 type Document struct {
-	parent  *Document
-	e       *Entity
-	tree    *treeCRDT
-	mut     *treeMutation
-	patch   map[string]any
-	done    bool
-	nextHLC hlc.Timestamp
+	crdt    *docCRDT
 	origins map[string]cid.Cid // map of abbreviated origin hashes to actual cids; workaround, should not be necessary.
+
+	// Bellow goes the data for the ongoing dirty mutation.
+	// Document can only be mutated once, and then must be thrown away.
+
+	dirty bool
+	mut   *blockTreeMutation
+	done  bool
 	// Index for blocks that we've created in this change.
 	createdBlocks map[string]struct{}
 	// Blocks that we've deleted in this change.
 	deletedBlocks map[string]struct{}
-}
 
-func (doc *Document) Parent() *Document {
-	return doc.parent
-}
-
-func (doc *Document) SetParent(parent *Document) {
-	if doc.parent != nil {
-		panic("BUG: parent doc is already set")
-	}
-	doc.parent = parent
+	dirtyBlocks   map[string]blob.Block // BlockID => BlockState.
+	dirtyMetadata map[string]any
 }
 
 // originFromCID creates a CRDT origin from the last 8 chars of the hash.
@@ -66,72 +57,93 @@ func originFromCID(c cid.Cid) string {
 	return str[len(str)-9:]
 }
 
-// New creates a new mutable document.
-func New(e *Entity, nextHLC hlc.Timestamp) (*Document, error) {
+// New creates a new Document model.
+func New(id blob.IRI, clock *cclock.Clock) (*Document, error) {
+	crdt := newCRDT(id, clock)
+	return newDoc(crdt)
+}
+
+// newDoc creates a new mutable document.
+func newDoc(crdt *docCRDT) (*Document, error) {
 	dm := &Document{
-		e:             e,
-		tree:          newTreeCRDT(),
-		patch:         map[string]any{},
+		crdt:          crdt,
 		origins:       make(map[string]cid.Cid),
 		createdBlocks: make(map[string]struct{}),
 		deletedBlocks: make(map[string]struct{}),
-		nextHLC:       nextHLC,
 	}
 
-	for _, c := range e.cids {
+	for _, c := range crdt.cids {
 		o := originFromCID(c)
 		dm.origins[o] = c
-	}
-
-	if err := dm.replayMoves(); err != nil {
-		return nil, err
 	}
 
 	return dm, nil
 }
 
-func (dm *Document) replayMoves() (err error) {
-	dm.e.State().ForEachListChunk([]string{"moves"}, func(time int64, origin string, items []any) bool {
-		for idx, move := range items {
-			mm := move.(map[string]any)
-			block := mm["b"].(string)
-			parent := mm["p"].(string)
-			leftShadow := mm["l"].(string)
-			left, leftOrigin, _ := strings.Cut(leftShadow, "@")
-			if left != "" && leftOrigin == "" {
-				leftOrigin = origin
-			}
-
-			if err = dm.tree.integrate(newOpID(origin, time, idx), block, parent, left, leftOrigin); err != nil {
-				err = fmt.Errorf("failed move %v: %w", move, err)
-				return false
-			}
-		}
-		return true
-	})
-	if err != nil {
-		return fmt.Errorf("failed to replay previous moves: %w", err)
+// Checkout a historical version of the Document.
+func (dm *Document) Checkout(heads []cid.Cid) (*Document, error) {
+	if dm.done {
+		panic("BUG: document is done")
 	}
 
-	return nil
+	crdt2, err := dm.crdt.Checkout(heads)
+	if err != nil {
+		return nil, err
+	}
+
+	dm2, err := newDoc(crdt2)
+	if err != nil {
+		return nil, err
+	}
+
+	return dm2, nil
+}
+
+// ApplyChange to the state. Can only do that before any mutations were made.
+func (dm *Document) ApplyChange(c cid.Cid, ch *blob.Change) error {
+	if dm.dirty {
+		return fmt.Errorf("cannot apply change to dirty state")
+	}
+
+	return dm.applyChangeUnsafe(c, ch)
+}
+
+func (dm *Document) applyChangeUnsafe(c cid.Cid, ch *blob.Change) error {
+	o := originFromCID(c)
+	dm.origins[o] = c
+	return dm.crdt.ApplyChange(c, ch)
 }
 
 // SetMetadata sets the title of the document.
-func (dm *Document) SetMetadata(key, value string) error {
-	v, ok := dm.e.Get("metadata", key)
-	if ok && v.(string) == value {
-		return nil
+func (dm *Document) SetMetadata(key, newValue string) error {
+	dm.dirty = true
+	if dm.dirtyMetadata == nil {
+		dm.dirtyMetadata = make(map[string]any)
 	}
 
-	colx.ObjectSet(dm.patch, []string{"metadata", key}, value)
+	if reg := dm.crdt.stateMetadata[key]; reg != nil {
+		if newValue == reg.GetLatest() {
+			// If metadata key already has the same value in the committed CRDT state,
+			// we do nothing, and just in case clear the dirty metadata value if any.
+			delete(dm.dirtyMetadata, key)
+			return nil
+		}
+	}
+
+	dm.dirtyMetadata[key] = newValue
 
 	return nil
 }
 
 // DeleteBlock deletes a block.
 func (dm *Document) DeleteBlock(block string) error {
-	mut := dm.ensureMutation()
-	me, err := mut.move(block, TrashNodeID, "")
+	dm.dirty = true
+	mut, err := dm.ensureTreeMutation()
+	if err != nil {
+		return err
+	}
+
+	me, err := mut.Move(TrashNodeID, block, "")
 	if err != nil {
 		return err
 	}
@@ -144,35 +156,50 @@ func (dm *Document) DeleteBlock(block string) error {
 }
 
 // ReplaceBlock replaces a block.
-func (dm *Document) ReplaceBlock(blk *documents.Block) error {
-	if blk.Id == "" {
+func (dm *Document) ReplaceBlock(blkpb *documents.Block) error {
+	dm.dirty = true
+	if blkpb.Id == "" {
 		return fmt.Errorf("blocks must have ID")
 	}
 
-	blockMap, err := blockToMap(blk)
+	if dm.dirtyBlocks == nil {
+		dm.dirtyBlocks = make(map[string]blob.Block)
+	}
+
+	blk, err := BlockFromProto(blkpb)
 	if err != nil {
 		return err
 	}
 
-	oldBlock, ok := dm.e.Get("blocks", blk.Id)
-	if ok && reflect.DeepEqual(oldBlock, blockMap) {
-		return nil
+	// Check if CRDT state already has the same value for block.
+	// If so, we do nothing, and remove any dirty state for this block.
+	if reg := dm.crdt.stateBlocks[blkpb.Id]; reg != nil {
+		oldValue, ok := reg.GetLatestOK()
+		if ok && reflect.DeepEqual(oldValue, blk) {
+			delete(dm.dirtyBlocks, blkpb.Id)
+			return nil
+		}
 	}
 
-	colx.ObjectSet(dm.patch, []string{"blocks", blk.Id, "#map"}, blockMap)
+	dm.dirtyBlocks[blk.ID] = blk
 
 	return nil
 }
 
 // MoveBlock moves a block.
 func (dm *Document) MoveBlock(block, parent, left string) error {
+	dm.dirty = true
 	if parent == TrashNodeID {
 		panic("BUG: use DeleteBlock to delete a block")
 	}
 
-	mut := dm.ensureMutation()
+	mut, err := dm.ensureTreeMutation()
+	if err != nil {
+		return err
+	}
 
-	me, err := mut.move(block, parent, left)
+	// TODO(burdiyan): make the order of parent/block parameters consistent.
+	me, err := mut.Move(parent, block, left)
 	if err != nil {
 		return err
 	}
@@ -188,130 +215,124 @@ func (dm *Document) MoveBlock(block, parent, left string) error {
 	return nil
 }
 
-func (dm *Document) ensureMutation() *treeMutation {
+func (dm *Document) ensureTreeMutation() (*blockTreeMutation, error) {
+	dm.dirty = true
 	if dm.mut == nil {
-		dm.mut = dm.tree.mutate()
+		dm.mut = dm.crdt.tree.State().Mutate()
 	}
 
-	return dm.mut
+	return dm.mut, nil
 }
 
-// Change creates a change.
-func (dm *Document) Change(kp core.KeyPair) (hb blob.Encoded[*blob.Change], err error) {
+// SignChange creates a change.
+// After this the Document instance must be discarded. The change must be applied to a different state.
+func (dm *Document) SignChange(kp core.KeyPair) (hb blob.Encoded[*blob.Change], err error) {
 	// TODO(burdiyan): we should make them reusable.
 	if dm.done {
 		return hb, fmt.Errorf("using already committed mutation")
 	}
 
-	if dm.nextHLC == 0 {
-		panic("BUG: next HLC time is zero")
-	}
-
 	dm.done = true
 
-	dm.cleanupPatch()
+	ops := dm.cleanupPatch()
 
-	action := "Update"
-
-	if len(dm.patch) == 0 {
-		dm.patch["isDraft"] = true
+	hb, err = dm.crdt.prepareChange(dm.crdt.clock.MustNow(), kp, ops)
+	if err != nil {
+		return hb, err
 	}
 
-	// Make sure to remove the dummy field created in the initial draft change.
-	if len(dm.patch) > 1 {
-		delete(dm.patch, "isDraft")
+	if err := dm.applyChangeUnsafe(hb.CID, hb.Decoded); err != nil {
+		return hb, err
 	}
 
-	return dm.e.CreateChange(action, dm.nextHLC, kp, dm.patch)
+	return hb, nil
 }
 
 // Ref creates a Ref blob for the current heads.
 func (dm *Document) Ref(kp core.KeyPair) (ref blob.Encoded[*blob.Ref], err error) {
 	// TODO(hm24): make genesis detection more reliable.
-	genesis := dm.e.cids[0]
+	genesis := dm.crdt.cids[0]
 
-	if len(dm.e.heads) != 1 {
+	if len(dm.crdt.heads) != 1 {
 		return ref, fmt.Errorf("TODO: creating refs for multiple heads is not supported yet")
 	}
 
-	headCID := dm.e.cids[len(dm.e.cids)-1]
-	head := dm.e.changes[len(dm.e.cids)-1]
+	headCID := dm.crdt.cids[len(dm.crdt.cids)-1]
+	head := dm.crdt.changes[len(dm.crdt.cids)-1]
 
-	return blob.NewRef(kp, genesis, dm.e.id, []cid.Cid{headCID}, head.Ts)
+	space, path, err := dm.crdt.id.SpacePath()
+	if err != nil {
+		return ref, err
+	}
+
+	return blob.NewRef(kp, genesis, space, path, []cid.Cid{headCID}, head.Ts)
 }
 
-// Commit commits a change.
-func (dm *Document) Commit(ctx context.Context, kp core.KeyPair, bs blockstore.Blockstore) (ebc blob.Encoded[*blob.Change], err error) {
-	ebc, err = dm.Change(kp)
-	if err != nil {
-		return ebc, err
+func (dm *Document) cleanupPatch() []blob.Op {
+	if !dm.dirty {
+		return nil
 	}
 
-	ebr, err := dm.Ref(kp)
-	if err != nil {
-		return ebc, err
-	}
+	var ops []blob.Op
 
-	if err := bs.PutMany(ctx, []blocks.Block{ebc, ebr}); err != nil {
-		return ebc, err
-	}
-
-	return ebc, nil
-}
-
-func (dm *Document) cleanupPatch() {
-	if dm.mut == nil {
-		return
-	}
-
-	var moves []any
-	dm.mut.forEachMove(func(block, parent, left, leftOrigin string) bool {
-		var l string
-		if left != "" {
-			l = left + "@" + leftOrigin
+	// TODO(burdiyan): It's important to moves go first,
+	// because I was stupid enough to implement the block tree CRDT in isolation,
+	// so it's not aware of any other possible operations.
+	// Will fix this at some point.
+	if dm.mut != nil {
+		for move := range dm.mut.Commit(0, "self") {
+			ops = append(ops, blob.NewOpMoveBlock(move.Block, move.Parent, move.Ref.String()))
 		}
-		moves = append(moves, map[string]any{
-			"b": block,
-			"p": parent,
-			"l": l,
-		})
+	}
 
-		return true
-	})
+	metaKeys := slices.Collect(maps.Keys(dm.dirtyMetadata))
+	slices.Sort(metaKeys)
 
-	// If we have some moves after cleaning up, add them to the patch.
-	if moves != nil {
-		dm.patch["moves"] = map[string]any{
-			"#list": map[string]any{
-				"#ins": moves,
-			},
-		}
+	for _, key := range metaKeys {
+		ops = append(ops, blob.NewOpSetMetadata(key, dm.dirtyMetadata[key]))
 	}
 
 	// Remove state of those blocks that we created and deleted in the same change.
 	for blk := range dm.deletedBlocks {
 		if _, mustIgnore := dm.createdBlocks[blk]; mustIgnore {
-			colx.ObjectDelete(dm.patch, []string{"blocks", blk})
+			delete(dm.dirtyBlocks, blk)
 			continue
 		}
 	}
 
-	// Remove the blocks key from the patch if we end up with no blocks after cleanup.
-	if blocks, ok := dm.patch["blocks"].(map[string]any); ok {
-		if len(blocks) == 0 {
-			delete(dm.patch, "blocks")
+	dirtyBlockIDs := slices.Collect(maps.Keys(dm.dirtyBlocks))
+	slices.Sort(dirtyBlockIDs)
+	for _, bid := range dirtyBlockIDs {
+		blk, ok := dm.dirtyBlocks[bid]
+		if !ok {
+			panic("BUG: dirty block not found")
 		}
+
+		ops = append(ops, blob.NewOpReplaceBlock(blk))
 	}
+
+	return ops
 }
 
-// Entity returns the underlying entity.
-func (dm *Document) Entity() *Entity {
-	return dm.e
+// NumChanges returns the number of changes in the current state of the document.
+func (dm *Document) NumChanges() int {
+	return len(dm.crdt.cids)
+}
+
+// BFTDeps returns a breadth-first traversal iterator for the document change DAG.
+func (dm *Document) BFTDeps(start []cid.Cid) (iter.Seq2[int, blob.ChangeRecord], error) {
+	return dm.crdt.BFTDeps(start)
+}
+
+// Heads returns the current leaf/head changes in the document history.
+// I.e. it's the current version of the document.
+func (dm *Document) Heads() map[cid.Cid]struct{} {
+	return dm.crdt.Heads()
 }
 
 // Hydrate hydrates a document.
 func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
-	if len(dm.e.changes) == 0 {
+	if len(dm.crdt.changes) == 0 {
 		return nil, fmt.Errorf("no changes in the entity")
 	}
 
@@ -319,36 +340,29 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 		panic("BUG: can't hydrate a document with uncommitted changes")
 	}
 
-	e := dm.e
+	e := dm.crdt
 
 	first := e.changes[0]
 	last := e.changes[len(e.changes)-1]
 
 	// TODO(burdiyan): this is ugly and needs to be refactored.
-	u, err := url.Parse(string(e.ID()))
+	u, err := url.Parse(string(e.id))
 	if err != nil {
 		return nil, err
 	}
 
-	account := u.Host
+	space := u.Host
 	path := u.Path
 
 	docpb := &documents.Document{
-		Account:    account,
+		Account:    space,
 		Path:       path,
-		Metadata:   make(map[string]string),
-		CreateTime: timestamppb.New(hlc.Timestamp(first.Ts).Time()),
+		Metadata:   e.GetMetadata(),
+		CreateTime: timestamppb.New(first.Ts),
 		Version:    e.Version().String(),
 	}
 
-	docpb.UpdateTime = timestamppb.New(hlc.Timestamp(last.Ts).Time())
-
-	for _, key := range e.state.Keys("metadata") {
-		v, ok := e.state.GetAny("metadata", key).(string)
-		if ok && v != "" {
-			docpb.Metadata[key] = v
-		}
-	}
+	docpb.UpdateTime = timestamppb.New(last.Ts)
 
 	// Loading editors is a bit cumbersome because we need to go over key delegations.
 	{
@@ -367,80 +381,108 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 		}
 		blk, ok := blockMap[parent]
 		if !ok {
-			panic("BUG: no parent " + parent + " was found yet while iterating")
+			panic("BUG: no parent " + parent + " for child " + child.Block.Id)
 		}
 		blk.Children = append(blk.Children, child)
 	}
 
-	dm.tree.mutate().walkDFT(func(m *move) bool {
+	for pair := range dm.crdt.tree.State().DFT() {
 		// TODO(burdiyan): block revision would change only if block itself was changed.
 		// If block is only moved it's revision won't change. Need to check if that's what we want.
-		mm, origin, ok := dm.e.State().GetWithOrigin("blocks", m.Block)
+
+		// If we got some moves but no block state
+		// we just skip them, we don't want to blow up here.
+
+		bs := dm.crdt.stateBlocks[pair.Child]
+		if bs == nil {
+			continue
+		}
+
+		opid, blk, ok := bs.GetLatestWithID()
 		if !ok {
-			// If we got some moves but no block state
-			// we just skip them, we don't want to blow up here.
-			return true
+			continue
 		}
 
-		oo := dm.origins[origin]
-		// if !oo.Defined() {
-		// 	oo = dm.oldDraft
-		// }
+		oo := dm.origins[opid.Origin]
+		blkpb := BlockToProto(blk, oo)
 
-		var blk *documents.Block
-		blk, err = blockFromMap(m.Block, oo.String(), mm.(map[string]any))
-		if err != nil {
-			return false
-		}
-
-		child := &documents.BlockNode{Block: blk}
-		appendChild(m.Parent, child)
-		blockMap[m.Block] = child
-
-		return true
-	})
-	if err != nil {
-		return nil, err
+		child := &documents.BlockNode{Block: blkpb}
+		appendChild(pair.Parent, child)
+		blockMap[pair.Child] = child
 	}
 
 	return docpb, nil
 }
 
-func blockToMap(blk *documents.Block) (map[string]any, error) {
-	// This is a very bad way to convert something into a map,
-	// but mapstructure package could have problems here,
-	// because protobuf have peculiar encoding of oneof fields into JSON,
-	// which mapstructure doesn't know about. Although in fact we don't have
-	// any oneof fields in this structure, but just in case.
-	data, err := protojson.Marshal(blk)
-	if err != nil {
-		return nil, err
+// BlockFromProto converts a protobuf block into our internal representation.
+// It's largely the same, but we need a separate type for CBOR encoding which we use in the permanent data.
+func BlockFromProto(b *documents.Block) (blob.Block, error) {
+	if b.Id == "" {
+		return blob.Block{}, errors.New("block ID is required")
 	}
 
-	var v map[string]any
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, err
+	if len(b.Attributes) == 0 {
+		b.Attributes = nil
 	}
 
-	// We don't want those fields, because they can be inferred.
-	delete(v, "revision")
-	delete(v, "id")
-
-	return v, nil
+	return blob.Block{
+		ID:          b.Id,
+		Type:        b.Type,
+		Text:        b.Text,
+		Link:        b.Link,
+		Attributes:  b.Attributes,
+		Annotations: annotationsFromProto(b.Annotations),
+	}, nil
 }
 
-func blockFromMap(id, revision string, v map[string]any) (*documents.Block, error) {
-	data, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
+func annotationsFromProto(in []*documents.Annotation) []blob.Annotation {
+	if in == nil {
+		return nil
 	}
 
-	pb := &documents.Block{}
-	if err := protojson.Unmarshal(data, pb); err != nil {
-		return nil, err
+	out := make([]blob.Annotation, len(in))
+	for i, a := range in {
+		out[i] = blob.Annotation{
+			Type:       a.Type,
+			Link:       a.Link,
+			Attributes: a.Attributes,
+			Starts:     a.Starts,
+			Ends:       a.Ends,
+		}
 	}
-	pb.Id = id
-	pb.Revision = revision
 
-	return pb, nil
+	return out
+}
+
+// BlockToProto converts our internal block representation into a protobuf block.
+// It's largely the same, but we use CBOR in our permanent data, and we use protobuf in our API.
+func BlockToProto(b blob.Block, revision cid.Cid) *documents.Block {
+	return &documents.Block{
+		Id:          b.ID,
+		Type:        b.Type,
+		Text:        b.Text,
+		Link:        b.Link,
+		Attributes:  b.Attributes,
+		Annotations: annotationsToProto(b.Annotations),
+		Revision:    revision.String(),
+	}
+}
+
+func annotationsToProto(in []blob.Annotation) []*documents.Annotation {
+	if in == nil {
+		return nil
+	}
+
+	out := make([]*documents.Annotation, len(in))
+	for i, a := range in {
+		out[i] = &documents.Annotation{
+			Type:       a.Type,
+			Link:       a.Link,
+			Attributes: a.Attributes,
+			Starts:     a.Starts,
+			Ends:       a.Ends,
+		}
+	}
+
+	return out
 }
