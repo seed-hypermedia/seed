@@ -22,7 +22,7 @@
   margin-bottom: 60px;
 } */
 
-.block-heading + [data-node-type='blockGroup'][data-list-type='div'] {
+.block-heading + [data-node-type='blockGroup'][data-list-type='Group'] {
   margin-left: 0;
 }
 
@@ -102,8 +102,8 @@
   background-color: var(--backgroundPress);
 }
 
-[data-list-type='ul'] .node-blockContainer,
-[data-list-type='ol'] .node-blockContainer {
+[data-list-type='Unordered'] .node-blockContainer,
+[data-list-type='Ordered'] .node-blockContainer {
   display: list-item;
 }
 

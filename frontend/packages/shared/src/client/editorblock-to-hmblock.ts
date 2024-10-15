@@ -34,15 +34,20 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
 
   const parentBlock = getParentBlock(block)
 
-  if (parentBlock && editorBlock.props.childrenType === 'div') {
+  if (parentBlock && editorBlock.props.childrenType == 'Group') {
     parentBlock.attributes.childrenType = 'Group'
-  } else if (parentBlock && editorBlock.props.childrenType === 'ul') {
+  } else if (parentBlock && editorBlock.props.childrenType == 'Unordered') {
     parentBlock.attributes.childrenType = 'Unordered'
-  } else if (parentBlock && editorBlock.props.childrenType === 'ol') {
+  } else if (parentBlock && editorBlock.props.childrenType == 'Ordered') {
     parentBlock.attributes.childrenType = 'Ordered'
-    // } else if (parentBlock && editorBlock.props.childrenType === 'blockquote') {
-    //   parentBlock.attributes.childrenType = 'blockquote'
+  } else if (parentBlock && editorBlock.props.childrenType == 'Blockquote') {
+    parentBlock.attributes.childrenType = 'Blockquote'
   }
+
+  if (parentBlock && editorBlock.props.start) {
+    parentBlock.attributes.start = editorBlock.props.start.toString()
+  }
+
   block.text = ''
 
   const annotations = new AnnotationSet()

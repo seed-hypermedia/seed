@@ -1,3 +1,4 @@
+import {HMBlockChildrenType} from '@shm/shared'
 import {InputRule, mergeAttributes, Node} from '@tiptap/core'
 import {mergeCSSClasses} from '../../../shared/utils'
 import {BlockNoteDOMAttributes} from '../api/blockTypes'
@@ -22,7 +23,7 @@ export const BlockGroup = Node.create<{
         },
       },
       listType: {
-        default: 'div',
+        default: 'Group',
         parseHTML: (element) => element.getAttribute('data-list-type'),
         renderHTML: (attributes) => {
           return {
@@ -33,8 +34,7 @@ export const BlockGroup = Node.create<{
       start: {
         default: '1',
         renderHTML: (attributes) => {
-          if (attributes.listType === 'ol' && attributes.start) {
-            const offset = 0.65 * attributes.start.toString().length
+          if (attributes.listType === 'Ordered' && attributes.start) {
             return {
               start: attributes.start,
               // style: `margin-left: calc(1em + ${offset}em);`,
@@ -51,7 +51,7 @@ export const BlockGroup = Node.create<{
         find: new RegExp(`^>\\s$`),
         handler: ({state, chain, range}) => {
           chain()
-            .UpdateGroup(state.selection.from, 'blockquote', false)
+            .UpdateGroup(state.selection.from, 'Blockquote', false)
             // Removes the ">" character used to set the list.
             .deleteRange({from: range.from, to: range.to})
         },
@@ -64,7 +64,7 @@ export const BlockGroup = Node.create<{
             return
           }
           chain()
-            .UpdateGroup(state.selection.from, 'ul', false)
+            .UpdateGroup(state.selection.from, 'Unordered', false)
             // Removes the "-", "+", or "*" character used to set the list.
             .deleteRange({from: range.from, to: range.to})
         },
@@ -78,7 +78,7 @@ export const BlockGroup = Node.create<{
           chain()
             .UpdateGroup(
               state.selection.from,
-              'ol',
+              'Ordered',
               false,
               this.editor.state.doc.textBetween(range.from, range.to - 1),
             )
@@ -92,17 +92,13 @@ export const BlockGroup = Node.create<{
     return [
       {
         tag: 'ul',
-        attrs: {listType: 'ul'},
+        attrs: {listType: 'Unordered'},
         getAttrs: (element) => {
-          if (typeof element === 'string') {
+          if (typeof element == 'string') {
             return false
           }
-          // if (
-          //   element.getAttribute('data-node-type') === 'blockGroup' &&
-          //   element.getAttribute('data-list-type') === 'ul'
-          // )
           return {
-            listType: 'ul',
+            listType: 'Unordered',
           }
           // return false
         },
@@ -110,17 +106,14 @@ export const BlockGroup = Node.create<{
       },
       {
         tag: 'ol',
-        attrs: {listType: 'ol'},
+        attrs: {listType: 'Ordered'},
         getAttrs: (element) => {
-          if (typeof element === 'string') {
+          if (typeof element == 'string') {
             return false
           }
-          // if (
-          //   element.getAttribute('data-node-type') === 'blockGroup' &&
-          //   element.getAttribute('data-list-type') === 'ol'
-          // )
+
           return {
-            listType: 'ol',
+            listType: 'Ordered',
             start: element.getAttribute('start'),
           }
           // return false
@@ -129,22 +122,22 @@ export const BlockGroup = Node.create<{
       },
       {
         tag: 'blockquote',
-        attrs: {listType: 'blockquote'},
+        attrs: {listType: 'Blockquote'},
         getAttrs: (element) => {
-          if (typeof element === 'string') {
+          if (typeof element == 'string') {
             return false
           }
           return {
-            listType: 'blockquote',
+            listType: 'Blockquote',
           }
         },
         priority: 200,
       },
       {
         tag: 'div',
-        attrs: {listType: 'div'},
+        attrs: {listType: 'Group'},
         getAttrs: (element) => {
-          if (typeof element === 'string') {
+          if (typeof element == 'string') {
             return false
           }
 
@@ -164,7 +157,7 @@ export const BlockGroup = Node.create<{
     const blockGroupDOMAttributes = this.options.domAttributes?.blockGroup || {}
 
     return [
-      node.attrs.listType,
+      listNode(node.attrs.listType),
       mergeAttributes(
         {
           ...blockGroupDOMAttributes,
@@ -180,3 +173,16 @@ export const BlockGroup = Node.create<{
     ]
   },
 })
+
+function listNode(listType: HMBlockChildrenType) {
+  if (listType == 'Unordered') {
+    return 'ul'
+  }
+  if (listType == 'Ordered') {
+    return 'ol'
+  }
+  if (listType == 'Blockquote') {
+    return 'blockquote'
+  }
+  return 'div'
+}

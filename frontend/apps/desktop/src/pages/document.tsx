@@ -488,6 +488,7 @@ function DocPageContent({
   isBlockFocused: boolean
 }) {
   const entity = useSubscribedEntity(docId)
+
   if (entity.isLoading) return <Spinner />
   if (!entity.data?.document) return null
   if (entity.data.document.metadata.layout === 'seed/experimental/newspaper') {

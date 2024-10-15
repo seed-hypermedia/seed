@@ -371,7 +371,7 @@ export function BlocksContent({
 
 export function BlockNodeList({
   children,
-  childrenType = "group",
+  childrenType = "Group",
   start,
   listLevel,
   ...props
@@ -380,23 +380,22 @@ export function BlockNodeList({
   start?: string | number;
   listLevel?: string | number;
 }) {
-  const parsedStart = typeof start === "string" ? parseInt(start) : start;
-
+  const parsedStart = typeof start == "string" ? parseInt(start) : start;
   return (
     <YStack
       className="blocknode-list"
       data-node-type="blockGroup"
-      data-list-type={childrenType !== "group" ? childrenType : undefined}
+      data-list-type={childrenType !== "Group" ? childrenType : undefined}
       data-list-level={listLevel}
       data-list-start={parsedStart}
       width="100%"
       {...props}
     >
-      {childrenType === "ol" ? (
+      {childrenType === "Ordered" ? (
         <ol start={parsedStart}>{children}</ol>
-      ) : childrenType === "ul" ? (
+      ) : childrenType === "Unordered" ? (
         <ul>{children}</ul>
-      ) : childrenType === "blockquote" ? (
+      ) : childrenType === "Blockquote" ? (
         <blockquote>{children}</blockquote>
       ) : (
         <div>{children}</div>
@@ -498,6 +497,7 @@ export function BlockNodeContent({
     layoutUnit,
     isFirstChild
   );
+  console.log("-- BLOCKNODE", blockNode);
   const {hover, ...hoverProps} = useHover();
   const {citations} = useBlockCitations(blockNode.block?.id);
   const [_expanded, setExpanded] = useState<boolean>(expanded);
@@ -780,7 +780,7 @@ export function BlockNodeContent({
       {bnChildren && _expanded ? (
         <BlockNodeList
           paddingLeft={
-            blockNode.block?.type != "heading" || childrenType != "div"
+            blockNode.block?.type != "heading" || childrenType != "Group"
               ? layoutUnit
               : 0
           }

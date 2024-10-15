@@ -39,17 +39,20 @@ function convertBlockToHtml(block: any, isListItem = false) {
       .map((child: any) =>
         convertBlockToHtml(
           child,
-          block.props.childrenType === 'ul' ||
-            block.props.childrenType === 'ol',
+          block.props.childrenType === 'Unordered' ||
+            block.props.childrenType === 'Ordered' ||
+            block.props.childrenType === 'Blockquote',
         ),
       )
       .join('\n')
-    if (block.props.childrenType === 'ul') {
+    if (block.props.childrenType === 'Unordered') {
       childrenHtml = `<ul>${childrenContent}</ul>`
-    } else if (block.props.childrenType === 'ol') {
+    } else if (block.props.childrenType === 'Ordered') {
       childrenHtml = `<ol start="${
         block.props.start || 1
       }">${childrenContent}</ol>`
+    } else if (block.props.childrenType === 'Blockquote') {
+      childrenHtml = `<blockquote>${childrenContent}</blockquote>`
     } else {
       childrenHtml = childrenContent
     }

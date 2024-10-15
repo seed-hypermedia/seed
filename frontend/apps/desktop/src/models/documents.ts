@@ -529,7 +529,9 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
           if (context.document && !context.draft) {
             // populate draft from document
 
-            content = hmBlocksToEditorContent(context.document.content)
+            content = hmBlocksToEditorContent(context.document.content, {
+              childrenType: 'Group',
+            })
           } else if (
             context.draft != null &&
             context.draft.content.length != 0

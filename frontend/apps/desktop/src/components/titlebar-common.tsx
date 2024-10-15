@@ -98,7 +98,9 @@ export function DocOptionsButton() {
       onPress: async () => {
         const title = doc.data?.document?.metadata.name || 'document'
         const blocks: HMBlockNode[] | undefined = doc.data?.document?.content
-        const editorBlocks = hmBlocksToEditorContent(blocks)
+        const editorBlocks = hmBlocksToEditorContent(blocks, {
+          childrenType: 'Group',
+        })
         const markdownWithFiles = await convertBlocksToMarkdown(editorBlocks)
         const {markdownContent, mediaFiles} = markdownWithFiles
         exportDocument(title, markdownContent, mediaFiles)

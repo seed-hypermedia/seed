@@ -700,4 +700,107 @@ describe('HMBlock to EditorBlock', () => {
       expect(val).toEqual(result)
     })
   })
+
+  describe('childrenType', () => {
+    test('Group', () => {
+      const result: EditorBlock = {
+        id: 'foo',
+        type: 'paragraph',
+        children: [],
+        props: {
+          childrenType: 'Group',
+          revision: 'revision123',
+        },
+        content: [
+          {
+            type: 'text',
+            text: 'Hello world',
+            styles: {},
+          },
+        ],
+      }
+
+      const hmBlock: HMBlock = {
+        id: 'foo',
+        type: 'Paragraph',
+        text: 'Hello world',
+        annotations: [],
+        revision: 'revision123',
+        attributes: {
+          childrenType: 'Group',
+        },
+      }
+      const val = hmBlockToEditorBlock(hmBlock)
+
+      expect(val).toEqual(result)
+    })
+
+    test('Unordered', () => {
+      const result: EditorBlock = {
+        id: 'foo',
+        type: 'paragraph',
+        children: [],
+        props: {
+          revision: 'revision123',
+          childrenType: 'Unordered',
+        },
+        content: [
+          {
+            type: 'text',
+            text: 'Hello world',
+            styles: {},
+          },
+        ],
+      }
+
+      const hmBlock: HMBlock = {
+        id: 'foo',
+        type: 'Paragraph',
+        text: 'Hello world',
+        revision: 'revision123',
+        annotations: [],
+        attributes: {
+          childrenType: 'Unordered',
+        },
+      }
+      const val = hmBlockToEditorBlock(hmBlock)
+
+      expect(val).toEqual(result)
+    })
+
+    test('Ordered', () => {
+      const result: EditorBlock = {
+        id: 'foo',
+        type: 'paragraph',
+        children: [],
+        props: {
+          childrenType: 'Ordered',
+          start: '5',
+          revision: 'revision123',
+        },
+        content: [
+          {
+            type: 'text',
+            text: 'Hello world',
+            styles: {},
+          },
+        ],
+      }
+
+      const hmBlock: HMBlock = {
+        id: 'foo',
+        type: 'Paragraph',
+        text: 'Hello world',
+        revision: 'revision123',
+        annotations: [],
+        attributes: {
+          childrenType: 'Ordered',
+          start: '5',
+        },
+      }
+      const val = hmBlockToEditorBlock(hmBlock)
+
+      expect(val).toEqual(result)
+    })
+  })
 })

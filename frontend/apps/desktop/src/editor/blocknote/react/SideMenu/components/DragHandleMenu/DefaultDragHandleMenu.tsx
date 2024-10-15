@@ -171,7 +171,7 @@ var turnIntoItems = [
       editor: BlockNoteEditor<HMBlockSchema>
     }) => {
       editor.focus()
-      updateGroup(editor, block, 'ul')
+      updateGroup(editor, block, 'Unordered')
     },
   },
   {
@@ -186,7 +186,7 @@ var turnIntoItems = [
       editor: BlockNoteEditor<HMBlockSchema>
     }) => {
       editor.focus()
-      updateGroup(editor, block, 'ol')
+      updateGroup(editor, block, 'Ordered')
     },
   },
   {
@@ -201,7 +201,23 @@ var turnIntoItems = [
       editor: BlockNoteEditor<HMBlockSchema>
     }) => {
       editor.focus()
-      updateGroup(editor, block, 'div')
+      updateGroup(editor, block, 'Group')
+    },
+  },
+
+  {
+    label: 'Blockquote item',
+    group: 'Group operations',
+    Icon: RiChatQuoteFill,
+    onClick: ({
+      block,
+      editor,
+    }: {
+      block: Block<HMBlockSchema>
+      editor: BlockNoteEditor<HMBlockSchema>
+    }) => {
+      editor.focus()
+      updateGroup(editor, block, 'Blockquote')
     },
   },
 ]

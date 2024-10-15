@@ -179,7 +179,9 @@ export function useCommentEditor(
     const draft = initCommentDraft.current
     if (!readyEditor.current || !draft) return
     const editor = readyEditor.current
-    const editorBlocks = hmBlocksToEditorContent(draft.blocks)
+    const editorBlocks = hmBlocksToEditorContent(draft.blocks, {
+      childrenType: 'Group',
+    })
     editor.removeBlocks(editor.topLevelBlocks)
     editor.replaceBlocks(editor.topLevelBlocks, editorBlocks)
     setGroupTypes(editor._tiptapEditor, editorBlocks)

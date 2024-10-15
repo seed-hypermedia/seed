@@ -1,3 +1,5 @@
+import {HMBlockChildrenType} from '@shm/shared'
+
 export type EditorBlock =
   | EditorParagraphBlock
   | EditorHeadingBlock
@@ -22,7 +24,7 @@ export interface EditorBaseBlock {
 
 export interface EditorBlockProps {
   // textAlignment?: 'left' | 'center' | 'right'
-  childrenType?: 'div' | 'ul' | 'ol'
+  childrenType?: HMBlockChildrenType
   listLevel?: string
   start?: string
   level?: number | string

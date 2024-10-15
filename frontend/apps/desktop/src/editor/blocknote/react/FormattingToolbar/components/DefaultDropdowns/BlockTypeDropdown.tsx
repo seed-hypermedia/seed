@@ -129,7 +129,7 @@ export const BlockTypeDropdown = <BSchema extends BlockSchema>(props: {
           icon: RiListUnordered,
           onClick: () => {
             // @ts-expect-error
-            updateGroup(props.editor, block, 'ul')
+            updateGroup(props.editor, block, 'Unordered')
           },
         },
         {
@@ -137,7 +137,15 @@ export const BlockTypeDropdown = <BSchema extends BlockSchema>(props: {
           icon: RiListOrdered,
           onClick: () => {
             // @ts-expect-error
-            updateGroup(props.editor, block, 'ol')
+            updateGroup(props.editor, block, 'Ordered')
+          },
+        },
+        {
+          text: 'BlockQuote item',
+          icon: RiListOrdered,
+          onClick: () => {
+            // @ts-expect-error
+            updateGroup(props.editor, block, 'Blockquote')
           },
         },
       ]}

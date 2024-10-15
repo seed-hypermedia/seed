@@ -147,7 +147,7 @@ export const examples = {
         [
           createSectionNode({text: 'item 1', id: '2'}),
           createSectionNode(
-            {text: 'item 2', id: '3', attributes: {childrenType: 'ol'}},
+            {text: 'item 2', id: '3', attributes: {childrenType: 'Ordered'}},
             [
               createSectionNode({text: 'numbered A', id: 'a'}),
               createSectionNode({text: 'numbered B', id: 'b'}),

@@ -14,8 +14,8 @@ export const defaultProps = {
     values: ['deleted', 'added', 'updated', 'null'] as const,
   },
   childrenType: {
-    default: 'div' as const,
-    values: ['div', 'ul', 'ol'] as const,
+    default: 'Group' as const,
+    values: ['Group', 'Unordered', 'Ordered', 'Blockquote'] as const,
   },
   listLevel: {
     default: '1' as const,

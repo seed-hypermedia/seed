@@ -58,6 +58,7 @@ export function hmBlocksToEditorContent(
     if (hmBlock.children?.length) {
       res.children = hmBlocksToEditorContent(hmBlock.children, {
         level: childRecursiveOpts.level ? childRecursiveOpts.level + 1 : 1,
+        childrenType: hmBlock.block?.attributes?.childrenType || 'Group',
       })
     }
     return res
@@ -76,6 +77,17 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
       revision: block.revision,
     },
     children: [],
+  }
+
+  if (block.attributes?.childrenType) {
+    out.props.childrenType = block.attributes.childrenType
+  }
+
+  if (block.attributes?.start) {
+    out.props.start =
+      typeof block.attributes.start == 'number'
+        ? block.attributes.start.toString()
+        : block.attributes.start
   }
 
   if (
