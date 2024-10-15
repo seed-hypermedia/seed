@@ -1147,6 +1147,7 @@ function BlockContentVideo({
   let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block]);
   const link = block.link || "";
   const {textUnit} = useDocContentContext();
+  if (block.type !== "Video") return null;
 
   return (
     <YStack
@@ -1158,43 +1159,55 @@ function BlockContentVideo({
       data-content-type="video"
       data-url={link}
       data-name={block.attributes?.name}
-      paddingBottom="56.25%"
       position="relative"
-      height={0}
+      width="100%"
+      ai="center"
     >
       {link ? (
-        link.startsWith("ipfs://") ? (
-          <XStack
-            tag="video"
-            top={0}
-            left={0}
-            position="absolute"
-            width="100%"
-            height="100%"
-            contentEditable={false}
-            playsInline
-            controls
-            preload="metadata"
-          >
-            <source
-              src={getFileUrl(link)}
-              type={getSourceType(block.attributes.name)}
+        <YStack
+          width={
+            block.attributes?.width ? `${block.attributes?.width}px` : "100%"
+          }
+          position="relative"
+          paddingBottom={
+            link.startsWith("ipfs://") || link.startsWith("http")
+              ? "56.25%"
+              : "auto"
+          }
+          height={0}
+        >
+          {link.startsWith("ipfs://") ? (
+            <XStack
+              tag="video"
+              top={0}
+              left={0}
+              position="absolute"
+              width="100%"
+              height="100%"
+              contentEditable={false}
+              playsInline
+              controls
+              preload="metadata"
+            >
+              <source
+                src={getFileUrl(link)}
+                type={getSourceType(block.attributes.name)}
+              />
+            </XStack>
+          ) : (
+            <XStack
+              tag="iframe"
+              top={0}
+              left={0}
+              position="absolute"
+              width="100%"
+              height="100%"
+              src={block.link}
+              frameBorder="0"
+              allowFullScreen
             />
-            <SizableText>Something is wrong with the video file.</SizableText>
-          </XStack>
-        ) : (
-          <XStack
-            tag="iframe"
-            top={0}
-            left={0}
-            position="absolute"
-            width="100%"
-            height="100%"
-            src={block.link}
-            frameBorder="0"
-            allowFullScreen
-          />
-        )
+          )}
+        </YStack>
       ) : (
         <Text>Video block wrong state</Text>
       )}
