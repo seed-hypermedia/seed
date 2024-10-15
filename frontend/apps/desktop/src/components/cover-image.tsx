@@ -105,7 +105,7 @@ export function CoverImage({
                   left: 0,
                   right: -12,
                   top: 0,
-                  zIndex: '$zIndex.5',
+                  zIndex: 100,
                   background: 'red',
                 }}
               />
