@@ -40,6 +40,7 @@ export default function TitleBarWindows(props: TitleBarProps) {
           paddingHorizontal={0}
           alignItems="flex-start"
           className="window-drag"
+          alignSelf="stretch"
           gap="$2"
         >
           <NavMenuButton />
