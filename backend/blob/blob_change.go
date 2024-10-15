@@ -19,6 +19,8 @@ func init() {
 	cbornode.RegisterCborType(Change{})
 	cbornode.RegisterCborType(ChangeUnsigned{})
 	cbornode.RegisterCborType(Op{})
+	cbornode.RegisterCborType(Block{})
+	cbornode.RegisterCborType(Annotation{})
 }
 
 const blobTypeChange blobType = "Change"
