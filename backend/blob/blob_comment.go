@@ -18,8 +18,6 @@ const blobTypeComment blobType = "Comment"
 func init() {
 	cbornode.RegisterCborType(Comment{})
 	cbornode.RegisterCborType(CommentUnsigned{})
-	cbornode.RegisterCborType(Block{})
-	cbornode.RegisterCborType(Annotation{})
 	cbornode.RegisterCborType(CommentBlock{})
 }
 
