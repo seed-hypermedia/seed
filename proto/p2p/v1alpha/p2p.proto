@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package com.seed.p2p.v1alpha;
 
+import "google/protobuf/timestamp.proto";
+
 option go_package = "seed/backend/genproto/p2p/v1alpha;p2p";
 
 // Seed P2P API.
@@ -85,6 +87,9 @@ message PeerInfo {
 
   // Connection status of our node with a remote peer.
   ConnectionStatus connection_status = 3;
+
+  // When wthe peer updated its addresses for the last time.
+  google.protobuf.Timestamp updated_at = 4;
 }
 
 // Indicates connection status of our node with a remote peer.

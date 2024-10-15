@@ -15,13 +15,15 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var qListPeers = dqb.Str(`
 	SELECT 
 		id,
 		addresses,
-		pid
+		pid,
+		updated_at
 	FROM peers
 	WHERE id < :last_cursor
 	ORDER BY id DESC LIMIT :page_size;
@@ -49,6 +51,7 @@ func (srv *rpcMux) ListPeers(ctx context.Context, in *p2p.ListPeersRequest) (*p2
 		lastCursor Cursor
 	)
 	peersInfo := []peer.AddrInfo{}
+	extraAttrs := []int64{}
 	if in.PageSize <= 0 {
 		in.PageSize = 30
 	}
@@ -70,6 +73,8 @@ func (srv *rpcMux) ListPeers(ctx context.Context, in *p2p.ListPeersRequest) (*p2
 		id := stmt.ColumnInt64(0)
 		maStr := stmt.ColumnText(1)
 		pid := stmt.ColumnText(2)
+		updatedAt := stmt.ColumnInt64(3)
+		extraAttrs = append(extraAttrs, updatedAt)
 		lastCursor.ID = id
 		lastCursor.Addr = maStr
 		maList := strings.Split(strings.Trim(maStr, " "), ",")
@@ -85,7 +90,7 @@ func (srv *rpcMux) ListPeers(ctx context.Context, in *p2p.ListPeersRequest) (*p2
 	}
 	out.Peers = make([]*p2p.PeerInfo, 0, len(peersInfo))
 
-	for _, peer := range peersInfo {
+	for i, peer := range peersInfo {
 		// Skip our own peer.
 		if peer.ID == net.Libp2p().ID() {
 			continue
@@ -98,6 +103,7 @@ func (srv *rpcMux) ListPeers(ctx context.Context, in *p2p.ListPeersRequest) (*p2
 		out.Peers = append(out.Peers, &p2p.PeerInfo{
 			Id:               pids,
 			Addrs:            addrs,
+			UpdatedAt:        &timestamppb.Timestamp{Seconds: extraAttrs[i]},
 			ConnectionStatus: p2p.ConnectionStatus(connectedness), // ConnectionStatus is a 1-to-1 mapping for the libp2p connectedness.
 		})
 	}

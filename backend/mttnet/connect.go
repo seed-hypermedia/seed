@@ -195,7 +195,7 @@ func (n *Node) storeRemotePeers(ctx context.Context, id peer.ID) error {
 		}
 		release()
 		vals := []interface{}{}
-		sqlStr := "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES "
+		sqlStr := "INSERT INTO peers (pid, addresses, explicitly_connected, updated_at) VALUES "
 		var nonSeedPeers uint32
 		var xerr []error
 		var mu sync.Mutex
@@ -261,8 +261,8 @@ func (n *Node) storeRemotePeers(ctx context.Context, id peer.ID) error {
 						return
 					}
 					mu.Lock()
-					sqlStr += "(?, ?, ?),"
-					vals = append(vals, p.Id, strings.Join(p.Addrs, ","), false)
+					sqlStr += "(?, ?, ?, ?),"
+					vals = append(vals, p.Id, strings.Join(p.Addrs, ","), false, p.UpdatedAt.Seconds)
 					mu.Unlock()
 				} else {
 					atomic.AddUint32(&nonSeedPeers, 1)
@@ -285,7 +285,7 @@ func (n *Node) storeRemotePeers(ctx context.Context, id peer.ID) error {
 		}
 		wg.Wait()
 		if nonSeedPeers > 0 {
-			n.log.Debug("Some of the remote shared peers are not running up to date seed protocol", zap.Uint32("Number of non-seed (outdated) peers", nonSeedPeers), zap.Int("Number of actual Seed-peers at the moment we stopped", len(vals)/3) /*since we insert three params at a time*/, zap.Errors("errors", xerr))
+			n.log.Debug("Some of the remote shared peers are not running up to date seed protocol", zap.Uint32("Number of non-seed (outdated) peers", nonSeedPeers), zap.Int("Number of actual Seed-peers at the moment we stopped", len(vals)/4) /*since we insert four params at a time*/, zap.Errors("errors", xerr))
 		}
 		if len(vals) != 0 {
 			sqlStr = sqlStr[0:len(sqlStr)-1] + " ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=excluded.updated_at WHERE addresses!=excluded.addresses AND excluded.updated_at > updated_at"
