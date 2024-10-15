@@ -7,6 +7,7 @@ import {
 } from '@/editor'
 import {
   MarkdownToBlocks,
+  processLinkMarkdown,
   processMediaMarkdown,
 } from '@/editor/blocknote/core/extensions/Markdown/MarkdownToBlocks'
 import {useMyAccountIds} from '@/models/daemon'
@@ -14,12 +15,12 @@ import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {pathNameify} from '@/utils/path'
-import {useNavigate} from '@/utils/useNavigate'
 import {HMDraft, UnpackedHypermediaId} from '@shm/shared'
-import {Button} from '@shm/ui'
+import {Button, toast} from '@shm/ui'
 import {FileInput, FolderInput, Import} from '@tamagui/lucide-icons'
 import {Extension} from '@tiptap/core'
 import {useMemo} from 'react'
+import {ImportedDocument, useImportDialog} from './import-doc-dialog'
 import {OptionsDropdown} from './options-dropdown'
 
 export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
@@ -28,7 +29,7 @@ export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
   const signingAccount = useMemo(() => {
     return keys.data?.length ? keys.data[0] : undefined
   }, [keys.data])
-  const navigate = useNavigate()
+  // const navigate = useNavigate()
   const saveDraft = trpc.drafts.write.useMutation()
   const {queryClient, grpcClient} = useAppContext()
   const openUrl = useOpenUrl()
@@ -36,7 +37,40 @@ export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
   const invalidate = useQueryInvalidator()
 
+  const importDialog = useImportDialog()
+
   const importDocuments = async (type: 'directory' | 'file') => {
+    const openFunction =
+      type === 'directory' ? openMarkdownDirectories : openMarkdownFiles
+
+    if (typeof openFunction !== 'function') {
+      return
+    }
+
+    openFunction(input.id)
+      .then(async (result) => {
+        const docs = result.documents
+        if (docs.length) {
+          importDialog.open({
+            documents: docs,
+            documentCount: docs.length,
+            docMap: result.docMap,
+            onSuccess: handleConfirm,
+          })
+        } else {
+          toast.error('No documents found inside the selected directory.')
+        }
+      })
+      .catch((error) => {
+        console.error('Error importing documents:', error)
+        toast.error(`Import error: ${error.message || error}`)
+      })
+  }
+
+  const handleConfirm = async (
+    documents: ImportedDocument[],
+    docMap: Map<string, {name: string; path: string}>,
+  ) => {
     const editor = new BlockNoteEditor<BlockSchema>({
       linkExtensionOptions: {
         openOnClick: false,
@@ -63,107 +97,143 @@ export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
       },
     })
 
-    const openFunction =
-      type === 'directory' ? openMarkdownDirectories : openMarkdownFiles
-
-    if (typeof openFunction !== 'function') {
-      return
-    }
-
     const titleCounter: {[key: string]: number} = {}
 
-    openFunction()
-      .then(async (documents) => {
-        for (const {markdownContent, title, directoryPath} of documents) {
-          let markdown = await processMediaMarkdown(
-            markdownContent,
-            directoryPath,
-          )
+    // const subDirs: string[] = []
 
-          let lines = markdown.split('\n')
+    try {
+      for (const {markdownContent, title, directoryPath} of documents) {
+        let markdown = await processMediaMarkdown(
+          markdownContent,
+          directoryPath,
+        )
 
-          // first non-empty line index
-          const firstNonEmptyLineIndex = lines.findIndex(
-            (line) => line.trim() !== '',
-          )
+        markdown = processLinkMarkdown(markdown, docMap)
 
-          let documentTitle = title
-          // Check if the first non-empty line is an h1
-          if (
-            firstNonEmptyLineIndex !== -1 &&
-            lines[firstNonEmptyLineIndex].startsWith('# ')
-          ) {
-            // Extract the h1 as the title
-            documentTitle = lines[firstNonEmptyLineIndex]
-              .replace('# ', '')
-              .trim()
+        let lines = markdown.split('\n')
 
-            // Remove the h1 line from the markdown content
-            lines = lines.filter((_, index) => index !== firstNonEmptyLineIndex)
+        // first non-empty line index
+        const firstNonEmptyLineIndex = lines.findIndex(
+          (line) => line.trim() !== '',
+        )
 
-            // Rejoin the lines back into the markdown content without the h1
-            markdown = lines.join('\n')
-          }
+        let documentTitle: string = title
+        // Check if the first non-empty line is an h1
+        if (
+          firstNonEmptyLineIndex !== -1 &&
+          lines[firstNonEmptyLineIndex].startsWith('# ')
+        ) {
+          // Extract the h1 as the title
+          documentTitle = lines[firstNonEmptyLineIndex].replace('# ', '').trim()
 
-          let path = pathNameify(documentTitle)
+          // Remove the h1 line from the markdown content
+          lines = lines.filter((_, index) => index !== firstNonEmptyLineIndex)
 
-          // Handle duplicate titles by appending a counter if necessary
-          if (titleCounter[documentTitle]) {
-            titleCounter[documentTitle] += 1
-            path = pathNameify(
-              `${documentTitle}-${titleCounter[documentTitle]}`,
-            )
-          } else {
-            titleCounter[documentTitle] = 1
-          }
-
-          const blocks = await MarkdownToBlocks(markdown, editor)
-          let inputData: Partial<HMDraft> = {}
-          inputData = {
-            content: blocks,
-            deps: [],
-            metadata: {
-              name: documentTitle,
-            },
-            members: {},
-            signingAccount,
-          }
-
-          const draft = await saveDraft.mutateAsync({
-            id: input.id + '/' + path,
-            draft: inputData,
-          })
-          // navigate({key: 'draft', id: draft.id}) // Uncomment this line to navigate to the newly created draft
+          // Rejoin the lines back into the markdown content without the h1
+          markdown = lines.join('\n')
         }
-        invalidate(['trpc.drafts.list'])
-      })
-      .catch((error) => {
-        console.error('Error importing documents:', error)
-        // Show a toast or notification for the error
-      })
+
+        let path = pathNameify(documentTitle)
+
+        // Handle duplicate titles by appending a counter number
+        if (titleCounter[documentTitle]) {
+          titleCounter[documentTitle] += 1
+          path = pathNameify(`${documentTitle}-${titleCounter[documentTitle]}`)
+        } else {
+          titleCounter[documentTitle] = 1
+        }
+
+        const blocks = await MarkdownToBlocks(markdown, editor)
+        let inputData: Partial<HMDraft> = {
+          content: blocks,
+          deps: [],
+          metadata: {
+            name: documentTitle,
+          },
+          members: {},
+          signingAccount,
+        }
+
+        // const parentDir = directoryPath.split('/').pop()!
+        // if (parentDir !== documents[0].directoryPath.split('/').pop()!) {
+        //   if (!subDirs.includes(parentDir)) {
+        //     subDirs.push(parentDir)
+
+        //     const allChanges = [
+        //       new DocumentChange({
+        //         op: {
+        //           case: 'setMetadata',
+        //           value: {
+        //             key: 'name',
+        //             value: parentDir,
+        //           },
+        //         },
+        //       }),
+        //     ]
+
+        //     const publicationPath = input.path
+        //       ? '/' + input.path?.join('/') + '/' + parentDir
+        //       : '/' + parentDir
+
+        //     const publishedDoc =
+        //       await grpcClient.documents.createDocumentChange({
+        //         signingKeyName: input.uid,
+        //         account: input.uid,
+        //         baseVersion: undefined,
+        //         path: publicationPath,
+        //         changes: allChanges,
+        //         capability: '',
+        //       })
+        //   }
+
+        //   await saveDraft.mutateAsync({
+        //     id: input.id + '/' + parentDir + '/' + path,
+        //     draft: inputData,
+        //   })
+        // } else {
+        //   await saveDraft.mutateAsync({
+        //     id: input.id + '/' + path,
+        //     draft: inputData,
+        //   })
+        // }
+        await saveDraft.mutateAsync({
+          id: input.id + '/' + path,
+          draft: inputData,
+        })
+      }
+
+      invalidate(['trpc.drafts.list'])
+    } catch (error) {
+      console.error('Error importing documents:', error)
+      toast.error(`Import error: ${error.message || error}`)
+    }
   }
 
   return (
-    <OptionsDropdown
-      button={
-        <Button size="$3" icon={Import}>
-          Import Document
-        </Button>
-      }
-      menuItems={[
-        {
-          key: 'file',
-          label: 'Import Markdown File',
-          onPress: () => importDocuments('file'),
-          icon: FileInput,
-        },
-        {
-          key: 'directory',
-          label: 'Import Markdown Directory',
-          onPress: () => importDocuments('directory'),
-          icon: FolderInput,
-        },
-      ]}
-    />
+    <>
+      <OptionsDropdown
+        button={
+          <Button size="$3" icon={Import}>
+            Import Document
+          </Button>
+        }
+        menuItems={[
+          {
+            key: 'file',
+            label: 'Import Markdown File',
+            onPress: () => importDocuments('file'),
+            icon: FileInput,
+          },
+          {
+            key: 'directory',
+            label: 'Import Markdown Directory',
+            onPress: () => importDocuments('directory'),
+            icon: FolderInput,
+          },
+        ]}
+      />
+
+      {importDialog.content}
+    </>
   )
 }

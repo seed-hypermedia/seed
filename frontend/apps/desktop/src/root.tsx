@@ -222,19 +222,19 @@ function MainApp({
     }
   }, [queryClient.client, utils])
 
-  const openMarkdownFiles = () => {
-    // @ts-ignore
-    return window.fileOpen.openMarkdownFiles()
-  }
-  const openMarkdownDirectories = () => {
-    // @ts-ignore
-    return window.fileOpen.openMarkdownDirectories()
-  }
+  // const openMarkdownFiles = () => {
+  //   // @ts-ignore
+  //   return window.docImport.openMarkdownFiles()
+  // }
+  // const openMarkdownDirectories = () => {
+  //   // @ts-ignore
+  //   return window.docImport.openMarkdownDirectories()
+  // }
 
-  const readMediaFile = (filePath: string) => {
-    // @ts-ignore
-    return window.fileOpen.readMediaFile(filePath)
-  }
+  // const readMediaFile = (filePath: string) => {
+  //   // @ts-ignore
+  //   return window.docImport.readMediaFile(filePath)
+  // }
 
   useEffect(() => {
     // @ts-expect-error
@@ -254,9 +254,18 @@ function MainApp({
         saveCidAsFile={async (cid: string, name: string) => {
           ipc.send?.('save-file', {cid, name})
         }}
-        openMarkdownFiles={openMarkdownFiles}
-        openMarkdownDirectories={openMarkdownDirectories}
-        readMediaFile={readMediaFile}
+        openMarkdownFiles={(accountId: string) => {
+          // @ts-ignore
+          return window.docImport.openMarkdownFiles(accountId)
+        }}
+        openMarkdownDirectories={(accountId: string) => {
+          // @ts-ignore
+          return window.docImport.openMarkdownDirectories(accountId)
+        }}
+        readMediaFile={(filePath: string) => {
+          // @ts-ignore
+          return window.docImport.readMediaFile(filePath)
+        }}
         exportDocument={async (
           title: string,
           markdownContent: string,

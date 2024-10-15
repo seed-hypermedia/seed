@@ -60,36 +60,32 @@ const routeHandlers = new Set<(route: any) => void>()
 
 contextBridge.exposeInMainWorld('routeHandlers', routeHandlers)
 
-contextBridge.exposeInMainWorld('fileOpen', {
-  openMarkdownDirectories: () => {
+contextBridge.exposeInMainWorld('docImport', {
+  openMarkdownDirectories: (accountId: string) => {
     return new Promise((resolve, reject) => {
       ipcRenderer.once('directories-content-response', (event, response) => {
         if (response.success) {
-          resolve(response.documents)
+          resolve(response.result)
         } else {
           reject(response.error)
         }
       })
 
-      ipcRenderer.on('directory-error', (event, error) => {
-        console.error(error)
-      })
-
-      ipcRenderer.send('open-markdown-directory')
+      ipcRenderer.send('open-markdown-directory', accountId)
     })
   },
 
-  openMarkdownFiles: () => {
+  openMarkdownFiles: (accountId: string) => {
     return new Promise((resolve, reject) => {
       ipcRenderer.once('files-content-response', (event, response) => {
         if (response.success) {
-          resolve(response.documents)
+          resolve(response.result)
         } else {
           reject(response.error)
         }
       })
 
-      ipcRenderer.send('open-markdown-file')
+      ipcRenderer.send('open-markdown-file', accountId)
     })
   },
 

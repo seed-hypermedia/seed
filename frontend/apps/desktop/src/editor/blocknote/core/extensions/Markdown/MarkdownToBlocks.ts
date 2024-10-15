@@ -54,7 +54,7 @@ const isWebUrl = (url: string | undefined) => {
 const readMediaFile = async (filePath: string) => {
   try {
     // @ts-ignore
-    const response = await window.fileOpen.readMediaFile(filePath)
+    const response = await window.docImport.readMediaFile(filePath)
     return response
   } catch (error) {
     console.error('Error reading media file:', error)
@@ -112,6 +112,24 @@ export const processMediaMarkdown = async (
   }
 
   return markdownContent
+}
+
+export const processLinkMarkdown = (
+  markdownContent: string,
+  docMap: Map<string, {name: string; path: string}>,
+): string => {
+  // Regex to match markdown links
+  const linkPattern = /\[([^\]]+)\]\((\.\/[^\s)]+|[^\s)]+)\)/g
+
+  // Replace links based on mappings in docMap
+  return markdownContent.replace(linkPattern, (match, linkText, url) => {
+    // Check if the URL matches any key in docMap
+    if (docMap.has(url)) {
+      const {path} = docMap.get(url)!
+      return `[${linkText}](${path})` // Replace the link's URL with the 'path' from docMap
+    }
+    return match // If no mapping found, return the original match
+  })
 }
 
 export const MarkdownToBlocks = async (

@@ -108,8 +108,10 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
   }
 
   const blockVideo = block.type === 'Video' ? block : undefined
-  if (blockVideo && editorBlock.type == 'video' && editorBlock.props.url) {
-    blockVideo.link = editorBlock.props.url
+  if (blockVideo && editorBlock.type == 'video') {
+    if (editorBlock.props.url) blockVideo.link = editorBlock.props.url
+    if (editorBlock.props.width)
+      blockVideo.attributes.width = String(editorBlock.props.width)
   }
 
   const blockFile = block.type === 'File' ? block : undefined

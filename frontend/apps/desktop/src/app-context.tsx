@@ -14,20 +14,22 @@ export type AppContext = {
   queryClient: AppQueryClient
   ipc: AppIPC
   externalOpen: (url: string) => Promise<void>
-  openMarkdownDirectories: () => Promise<
-    {
+  openMarkdownDirectories: (accountId: string) => Promise<{
+    documents: {
       markdownContent: string
       title: string
       directoryPath: string
     }[]
-  >
-  openMarkdownFiles: () => Promise<
-    {
+    docMap: Map<string, {name: string; path: string}>
+  }>
+  openMarkdownFiles: (accountId: string) => Promise<{
+    documents: {
       markdownContent: string
       title: string
       directoryPath: string
     }[]
-  >
+    docMap: Map<string, {name: string; path: string}>
+  }>
   readMediaFile: (filePath: string) => Promise<{
     filePath: string
     content: string

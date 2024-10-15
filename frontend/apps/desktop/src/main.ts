@@ -98,7 +98,7 @@ if (IS_PROD_DESKTOP) {
   })
 }
 
-ipcMain.on('open-markdown-directory', async (event) => {
+ipcMain.on('open-markdown-directory', async (event, accountId: string) => {
   const focusedWindow = BrowserWindow.getFocusedWindow()
   if (!focusedWindow) {
     console.error('No focused window found.')
@@ -116,6 +116,11 @@ ipcMain.on('open-markdown-directory', async (event) => {
       const directories = result.filePaths
       const validDocuments = []
 
+      const docMap = new Map<
+        string,
+        {relativePath?: string; name: string; path: string}
+      >()
+
       for (const dirPath of directories) {
         const files = fs.readdirSync(dirPath)
         const isDirectory = fs.lstatSync(dirPath).isDirectory()
@@ -130,6 +135,14 @@ ipcMain.on('open-markdown-directory', async (event) => {
             const fileName = path.basename(markdownFile, '.md')
             const title = formatTitle(fileName)
 
+            docMap.set('./' + markdownFile, {
+              name: title,
+              path: path.join(
+                accountId,
+                title.toLowerCase().replace(/\s+/g, '-'),
+              ),
+            })
+
             validDocuments.push({
               markdownContent,
               title,
@@ -138,40 +151,43 @@ ipcMain.on('open-markdown-directory', async (event) => {
           }
         }
 
-        // Check subdirectories for markdown files
-        const subdirectories = files.filter((file) =>
-          fs.lstatSync(path.join(dirPath, file)).isDirectory(),
-        )
+        // // Check subdirectories for markdown files
+        // const subdirectories = files.filter((file) =>
+        //   fs.lstatSync(path.join(dirPath, file)).isDirectory(),
+        // )
 
-        for (const subDir of subdirectories) {
-          const subDirPath = path.join(dirPath, subDir)
-          const subDirFiles = fs.readdirSync(subDirPath)
+        // for (const subDir of subdirectories) {
+        //   const subDirPath = path.join(dirPath, subDir)
+        //   const subDirFiles = fs.readdirSync(subDirPath)
 
-          // Get all markdown files in the subdirectory
-          const subDirMarkdownFiles = subDirFiles.filter((file) =>
-            file.endsWith('.md'),
-          )
+        //   // Get all markdown files in the subdirectory
+        //   const subDirMarkdownFiles = subDirFiles.filter((file) =>
+        //     file.endsWith('.md'),
+        //   )
 
-          // Loop through each markdown file in the subdirectory
-          for (const subDirMarkdownFile of subDirMarkdownFiles) {
-            const markdownFilePath = path.join(subDirPath, subDirMarkdownFile)
-            const markdownContent = fs.readFileSync(markdownFilePath, 'utf-8')
+        //   // Loop through each markdown file in the subdirectory
+        //   for (const subDirMarkdownFile of subDirMarkdownFiles) {
+        //     const markdownFilePath = path.join(subDirPath, subDirMarkdownFile)
+        //     const markdownContent = fs.readFileSync(markdownFilePath, 'utf-8')
 
-            const fileName = path.basename(subDirMarkdownFile, '.md')
-            const title = formatTitle(fileName)
+        //     const fileName = path.basename(subDirMarkdownFile, '.md')
+        //     const title = formatTitle(fileName)
 
-            validDocuments.push({
-              markdownContent,
-              title,
-              directoryPath: subDirPath,
-            })
-          }
-        }
+        //     validDocuments.push({
+        //       markdownContent,
+        //       title,
+        //       directoryPath: subDirPath,
+        //     })
+        //   }
+        // }
       }
 
       event.sender.send('directories-content-response', {
         success: true,
-        documents: validDocuments,
+        result: {
+          documents: validDocuments,
+          docMap: docMap,
+        },
       })
     } else {
       event.sender.send('directories-content-response', {
@@ -196,7 +212,7 @@ const formatTitle = (fileName: string) => {
     .replace(/\b\w/g, (char) => char.toUpperCase()) // Capitalize each word
 }
 
-ipcMain.on('open-markdown-file', async (event) => {
+ipcMain.on('open-markdown-file', async (event, accountId: string) => {
   const focusedWindow = BrowserWindow.getFocusedWindow()
   if (!focusedWindow) {
     console.error('No focused window found.')
@@ -214,6 +230,10 @@ ipcMain.on('open-markdown-file', async (event) => {
     if (!result.canceled && result.filePaths.length > 0) {
       const files = result.filePaths
       const validDocuments = []
+      const docMap = new Map<
+        string,
+        {relativePath?: string; name: string; path: string}
+      >()
 
       for (const filePath of files) {
         const stats = fs.lstatSync(filePath)
@@ -222,6 +242,15 @@ ipcMain.on('open-markdown-file', async (event) => {
           // Extract and format title from directory name
           const dirName = path.basename(filePath)
           const title = formatTitle(dirName)
+
+          docMap.set('./' + dirName, {
+            name: title,
+            path: path.join(
+              accountId,
+              title.toLowerCase().replace(/\s+/g, '-'),
+            ),
+          })
+
           validDocuments.push({
             markdownContent,
             title,
@@ -232,7 +261,7 @@ ipcMain.on('open-markdown-file', async (event) => {
 
       event.sender.send('files-content-response', {
         success: true,
-        documents: validDocuments,
+        result: {documents: validDocuments, docMap: docMap},
       })
     } else {
       event.sender.send('files-content-response', {
