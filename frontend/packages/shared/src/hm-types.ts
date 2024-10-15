@@ -317,6 +317,9 @@ export const HMDocumentMetadataSchema = z
     thumbnail: z.string().optional(),
     cover: z.string().optional(),
     siteUrl: z.string().optional(),
+    layout: z
+      .union([z.literal('seed/experimental/newspaper'), z.literal('document')])
+      .optional(),
   })
   .strict()
 export type HMMetadata = z.infer<typeof HMDocumentMetadataSchema>

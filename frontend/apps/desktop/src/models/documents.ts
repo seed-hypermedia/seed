@@ -875,7 +875,7 @@ export function useListDirectory(id: UnpackedHypermediaId) {
         .map((doc) => {
           return {...doc, path: doc.path.slice(1).split('/')}
         })
-      return docs
+      return docs as HMDocumentListItem[]
     },
   })
 }

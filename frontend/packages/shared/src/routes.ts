@@ -65,6 +65,13 @@ export type DocumentCommentsAccessory = z.infer<
   typeof documentCommentsAccessorySchema
 >
 
+export const documentOptionsAccessorySchema = z.object({
+  key: z.literal('options'),
+})
+export type DocumentOptionsAccessory = z.infer<
+  typeof documentOptionsAccessorySchema
+>
+
 export const documentRouteSchema = z.object({
   key: z.literal('document'),
   id: unpackedHmIdSchema,
@@ -80,6 +87,7 @@ export const documentRouteSchema = z.object({
       documentCommentsAccessorySchema,
       documentAllDocumentsAccessorySchema,
       documentContactsAccessorySchema,
+      documentOptionsAccessorySchema,
     ])
     .nullable()
     .optional(),

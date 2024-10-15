@@ -402,6 +402,82 @@ export function Contact({
   );
 }
 
+export function Options({
+  color = DefaultIconColor,
+  size = "1em",
+  ...props
+}: {
+  color?: string;
+  size?: string | number;
+}) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      // viewBox="0 0 20 20"
+      viewBox="15 10 26 20"
+      width={size}
+      height={size}
+      fill="none"
+      {...props}
+    >
+      <g clip-path="url(#clip0_10497_46166)">
+        <path
+          d="M19 29.0003H23L36 16.0003C36.5304 15.4699 36.8284 14.7504 36.8284 14.0003C36.8284 13.2502 36.5304 12.5307 36 12.0003C35.4696 11.4699 34.7501 11.1719 34 11.1719C33.2499 11.1719 32.5304 11.4699 32 12.0003L19 25.0003V29.0003Z"
+          stroke={color}
+          stroke-width="1.44"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+        <path
+          d="M30.5 13.5L34.5 17.5"
+          stroke={color}
+          stroke-width="1.44"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+        <path
+          d="M28 16L23 11L19 15L24 20"
+          stroke={color}
+          stroke-width="1.44"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+        <path
+          d="M23 16L21.5 17.5"
+          stroke={color}
+          stroke-width="1.44"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+        <path
+          d="M32 20L37 25L33 29L28 24"
+          stroke={color}
+          stroke-width="1.44"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+        <path
+          d="M32 25L30.5 26.5"
+          stroke={color}
+          stroke-width="1.44"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </g>
+      <defs>
+        <clipPath id="clip0_10497_46166">
+          <rect
+            width="24"
+            height="24"
+            fill="white"
+            transform="translate(16 8)"
+          />
+        </clipPath>
+      </defs>
+    </svg>
+  );
+}
+
 export function Document({
   color = DefaultIconColor,
   size = "1em",

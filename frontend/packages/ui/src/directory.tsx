@@ -1,19 +1,17 @@
 import {
   formattedDate,
   getMetadataName,
-  hmId,
   HMMetadata,
   HMTimestamp,
   UnpackedHypermediaId,
   useRouteLink,
 } from "@shm/shared";
 import {Button} from "@tamagui/button";
-import {Text} from "@tamagui/core";
 import {Pencil} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
-import {useMemo} from "react";
-import {LinkThumbnail, Thumbnail} from "./thumbnail";
+import {FacePile} from "./face-pile";
+import {Thumbnail} from "./thumbnail";
 import {itemHoverBgColor} from "./ui-constants";
 
 // TODO: update types
@@ -91,9 +89,9 @@ export function DirectoryItem({
           <SizableText size="$1">{formattedDate(entry.updateTime)}</SizableText>
         )}
         <XStack>
-          <DocumentEditors
-            authors={entry.authors}
-            authorsMetadata={authorsMetadata}
+          <FacePile
+            accounts={entry.authors}
+            accountsMetadata={authorsMetadata}
           />
         </XStack>
       </XStack>
@@ -107,76 +105,5 @@ function DraftLink({id}: {id: UnpackedHypermediaId}) {
     <Button theme="yellow" icon={Pencil} size="$2" {...draftLinkProps}>
       Resume Editing
     </Button>
-  );
-}
-function DocumentEditors({
-  authors,
-  authorsMetadata,
-}: {
-  authors: string[];
-  authorsMetadata: {uid: string; metadata?: HMMetadata}[];
-}) {
-  const editorIds = useMemo(
-    () => (authors.length > 3 ? authors.slice(0, 2) : authors),
-    [authors]
-  );
-  return (
-    <>
-      {/* todo add author data here */}
-      {authors.map((author, idx) => {
-        const authorInfo = authorsMetadata.find(
-          (authorMetadata: any) => authorMetadata.uid === author
-        );
-        if (!authorInfo) return null;
-        return (
-          <XStack
-            zIndex={idx + 1}
-            key={editorIds[idx]}
-            borderColor="$background"
-            backgroundColor="$background"
-            $group-item-hover={{
-              borderColor: itemHoverBgColor,
-              backgroundColor: itemHoverBgColor,
-            }}
-            borderWidth={2}
-            borderRadius={100}
-            overflow="hidden"
-            marginLeft={-8}
-            animation="fast"
-          >
-            <LinkThumbnail
-              key={authorInfo.uid}
-              id={hmId("d", authorInfo.uid)}
-              metadata={authorInfo.metadata}
-              size={20}
-            />
-          </XStack>
-        );
-      })}
-      {authors.length > 2 ? (
-        <XStack
-          zIndex="$zIndex.1"
-          borderColor="$background"
-          backgroundColor="$background"
-          borderWidth={2}
-          borderRadius={100}
-          marginLeft={-8}
-          animation="fast"
-          width={24}
-          height={24}
-          ai="center"
-          jc="center"
-        >
-          <Text
-            fontSize={10}
-            fontFamily="$body"
-            fontWeight="bold"
-            color="$color10"
-          >
-            +{authors.length - 3}
-          </Text>
-        </XStack>
-      ) : null}
-    </>
   );
 }

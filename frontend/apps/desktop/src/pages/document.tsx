@@ -9,6 +9,8 @@ import {LinkNameComponent} from '@/components/document-name'
 import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
 import {SidebarSpacer} from '@/components/main-wrapper'
+import {NewspaperLayout} from '@/components/newspaper-layout'
+import {OptionsPanel} from '@/components/options-panel'
 import {SubscriptionButton} from '@/components/subscription'
 import {CopyReferenceButton} from '@/components/titlebar-common'
 import {VersionsPanel} from '@/components/versions-panel'
@@ -45,7 +47,7 @@ import {
   YStack,
 } from '@shm/ui'
 import {RadioButtons} from '@shm/ui/src/radio-buttons'
-import {ArrowRight, RefreshCw, Trash} from '@tamagui/lucide-icons'
+import {ArrowRight, RefreshCw} from '@tamagui/lucide-icons'
 import React, {ReactNode, useEffect, useMemo, useRef} from 'react'
 import {EntityCitationsAccessory} from '../components/citations'
 import {AppDocContentProvider} from './document-content-provider'
@@ -59,6 +61,7 @@ type DocAccessoryOption = {
     | 'citations'
     | 'contacts'
     | 'all-documents'
+    | 'options'
   label: string
   icon: null | React.FC<{color: string; size?: number}>
 }
@@ -79,6 +82,8 @@ export default function DocumentPage() {
     accessory = (
       <EntityCitationsAccessory entityId={docId} onClose={handleClose} />
     )
+  } else if (accessoryKey === 'options') {
+    accessory = <OptionsPanel route={route} onClose={handleClose} />
   } else if (accessoryKey === 'versions') {
     accessory = <VersionsPanel route={route} onClose={handleClose} />
   } else if (accessoryKey === 'collaborators') {
@@ -98,6 +103,14 @@ export default function DocumentPage() {
   }
 
   const accessoryOptions: DocAccessoryOption[] = []
+
+  if (docId.type === 'd' && !docId.path?.length) {
+    accessoryOptions.push({
+      key: 'options',
+      label: 'Options',
+      icon: Contact,
+    })
+  }
 
   accessoryOptions.push({
     key: 'versions',
@@ -443,25 +456,6 @@ function SiteURLButton({siteUrl}: {siteUrl?: string}) {
   )
 }
 
-function DeleteKey({accountId}: {accountId: string}) {
-  const deleteKey = useDeleteKey()
-
-  return (
-    <Tooltip content="Delete Account Key from this device">
-      <Button
-        size="$2"
-        onPress={() => deleteKey.mutateAsync({accountId})}
-        icon={Trash}
-        bg="$red4"
-        hoverStyle={{
-          bg: '$red5',
-          borderColor: '$red6',
-        }}
-      />
-    </Tooltip>
-  )
-}
-
 function DocumentCover({docId}: {docId: UnpackedHypermediaId}) {
   const entity = useSubscribedEntity(docId)
   if (!entity.data?.document) return null
@@ -496,6 +490,11 @@ function DocPageContent({
   const entity = useSubscribedEntity(docId)
   if (entity.isLoading) return <Spinner />
   if (!entity.data?.document) return null
+  if (entity.data.document.metadata.layout === 'seed/experimental/newspaper') {
+    return (
+      <NewspaperLayout id={docId} metadata={entity.data.document.metadata} />
+    )
+  }
   const blockId = docId.blockRef
   return (
     <Container clearVerticalSpace padding={0} marginBottom={100}>

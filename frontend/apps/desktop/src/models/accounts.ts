@@ -1,4 +1,4 @@
-import {useGRPCClient} from '@/app-context'
+import {useGRPCClient, useQueryInvalidator} from '@/app-context'
 import {useMyAccountIds} from '@/models/daemon'
 import {queryKeys} from '@/models/query-keys'
 import {client, trpc} from '@/trpc'
@@ -40,6 +40,21 @@ export function useDraft(id?: UnpackedHypermediaId) {
     enabled: !!id,
   })
 }
+
+export function useWriteDraft(id?: UnpackedHypermediaId) {
+  const invalidate = useQueryInvalidator()
+  const saveDraft = trpc.drafts.write.useMutation({
+    onSuccess: () => {
+      invalidate(['trpc.drafts.get'])
+    },
+  })
+
+  return async (draft: HMDraft) => {
+    if (!id) return
+    await saveDraft.mutateAsync({id: id.id, draft})
+  }
+}
+
 export function useDrafts(draftIds: string[]) {
   const grpcClient = useGRPCClient()
   return useQueries({

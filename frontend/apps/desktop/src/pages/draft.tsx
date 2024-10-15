@@ -1,8 +1,11 @@
+import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {ThumbnailForm} from '@/components/avatar-form'
 import {CoverImage} from '@/components/cover-image'
 import {HyperMediaEditorView} from '@/components/editor'
 import Footer from '@/components/footer'
 import {MainWrapper} from '@/components/main-wrapper'
+import {NewspaperLayout} from '@/components/newspaper-layout'
+import {OptionsPanel} from '@/components/options-panel'
 import {subscribeDraftFocus} from '@/draft-focusing'
 import {BlockNoteEditor, getBlockInfoFromPos} from '@/editor'
 import {useDraft} from '@/models/accounts'
@@ -26,12 +29,14 @@ import {
   HMDraft,
   hmId,
   packHmId,
+  UnpackedHypermediaId,
 } from '@shm/shared'
 import {
   Button,
   Container,
   copyUrlToClipboardWithFeedback,
   Input,
+  Options,
   Separator,
   SizableText,
   useDocContentContext,
@@ -51,49 +56,86 @@ import './draft-page.css'
 export default function DraftPage() {
   const route = useNavRoute()
 
-  const importWebFile = trpc.webImporting.importWebFile.useMutation()
-  const [isDragging, setIsDragging] = useState(false)
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
 
+  const [accessoryKey, setAccessory] = useState<undefined | 'options'>(
+    undefined,
+  )
+
+  let accessory = null
+
+  if (accessoryKey === 'options' && route.id) {
+    accessory = (
+      <OptionsPanel
+        onClose={() => setAccessory(undefined)}
+        draftId={route.id}
+      />
+    )
+  }
+
+  const accessoryOptions: {
+    key: 'options'
+    label: string
+    icon?: null | React.FC<{
+      color: string
+      size?: number
+    }>
+  }[] = []
+
+  if (!route.id?.path?.length) {
+    accessoryOptions.push({
+      key: 'options',
+      label: 'Options',
+      icon: Options,
+    })
+  }
+
+  const draft = useDraft(route.id)
+
+  let draftContent = null
+  console.log('~~ draft', draft.data)
+  if (
+    draft.data?.metadata?.layout === 'seed/experimental/newspaper' &&
+    route.id
+  ) {
+    draftContent = (
+      <NewspaperLayout id={route.id} metadata={draft.data?.metadata} />
+    )
+  } else if (!draft.isLoading && route.id) {
+    draftContent = <DocumentEditor id={route.id} />
+  }
+
+  return (
+    <ErrorBoundary FallbackComponent={() => null}>
+      <AccessoryLayout
+        accessory={accessory}
+        accessoryKey={accessoryKey}
+        onAccessorySelect={(key: typeof accessoryKey) => {
+          setAccessory(key)
+        }}
+        accessoryOptions={accessoryOptions}
+      >
+        {draftContent}
+      </AccessoryLayout>
+
+      <Footer />
+    </ErrorBoundary>
+  )
+
+  return null
+
+  // ==========
+}
+
+function DocumentEditor({id}: {id: UnpackedHypermediaId}) {
   let data = useDraftEditor({
-    id: route.id,
+    id,
   })
+  const importWebFile = trpc.webImporting.importWebFile.useMutation()
+  const [isDragging, setIsDragging] = useState(false)
+  const route = useNavRoute()
 
-  // useEffect(() => {
-  //   const intervalFn = () => {
-  //     if (data.state.matches({ready: 'idle'})) {
-  //       // data.editor.replaceBlocks(data.editor.topLevelBlocks, [
-  //       //   {
-  //       //     id: nanoid(8),
-  //       //     type: 'paragraph',
-  //       //     props: {
-  //       //       textAlignment: 'left',
-  //       //       diff: 'undefined',
-  //       //     },
-  //       //     content: [
-  //       //       {
-  //       //         type: 'text',
-  //       //         text: 'asdasd',
-  //       //         styles: {},
-  //       //       },
-  //       //     ],
-  //       //     children: [],
-  //       //   },
-  //       //   ...data.editor.topLevelBlocks,
-  //       // ])
-  //       console.log('data.editor.topLevelBlocks', data.editor.topLevelBlocks)
-  //     }
-  //   }
-  //   let interval = setInterval(intervalFn, 1000)
-
-  //   if (interval) {
-  //     clearInterval(interval)
-  //     interval = setInterval(intervalFn, 1000)
-  //   }
-
-  //   return () => clearInterval(interval)
-  // }, [data.state])
-
+  if (route.key != 'draft') throw new Error('DraftPage must have draft route')
   useEffect(() => {
     if (!route.id?.id) return
     return subscribeDraftFocus(route.id?.id, (blockId: string) => {
@@ -104,63 +146,56 @@ export default function DraftPage() {
     })
   }, [route.id?.id, data.editor, route.id?.id])
 
-  if (data.state.matches('ready')) {
+  if (data.state.matches('ready'))
     return (
-      <ErrorBoundary FallbackComponent={() => null}>
-        <MainWrapper
-          onDragStart={() => {
-            setIsDragging(true)
-          }}
-          onDragEnd={() => {
-            setIsDragging(false)
-          }}
-          onDragOver={(event: DragEvent) => {
-            event.preventDefault()
-            setIsDragging(true)
-          }}
-          onDrop={onDrop}
-          onPress={data.handleFocusAtMousePos}
+      <MainWrapper
+        onDragStart={() => {
+          setIsDragging(true)
+        }}
+        onDragEnd={() => {
+          setIsDragging(false)
+        }}
+        onDragOver={(event: DragEvent) => {
+          event.preventDefault()
+          setIsDragging(true)
+        }}
+        onDrop={onDrop}
+        onPress={data.handleFocusAtMousePos}
+      >
+        <AppDocContentProvider
+          disableEmbedClick
+          onCopyBlock={onCopyBlock}
+          importWebFile={importWebFile}
+          docId={id}
         >
-          <AppDocContentProvider
-            disableEmbedClick
-            onCopyBlock={onCopyBlock}
-            importWebFile={importWebFile}
-            docId={route.id}
+          <DraftHeader
+            draftActor={data.actor}
+            onEnter={() => {
+              data.editor._tiptapEditor.commands.focus()
+              data.editor._tiptapEditor.commands.setTextSelection(0)
+            }}
+            disabled={!data.state.matches('ready')}
+          />
+          <Container
+            paddingLeft="$10"
+            marginBottom={300}
+            $gtSm={{
+              paddingLeft: '$4',
+            }}
+            onPress={(e: MouseEvent) => {
+              // this prevents to fire handleFocusAtMousePos on click
+              e.stopPropagation()
+              // data.editor?._tiptapEditor.commands.focus()
+            }}
           >
-            <DraftHeader
-              draftActor={data.actor}
-              onEnter={() => {
-                data.editor._tiptapEditor.commands.focus()
-                data.editor._tiptapEditor.commands.setTextSelection(0)
-              }}
-              disabled={!data.state.matches('ready')}
-            />
-            <Container
-              paddingLeft="$10"
-              marginBottom={300}
-              $gtSm={{
-                paddingLeft: '$4',
-              }}
-              onPress={(e: MouseEvent) => {
-                // this prevents to fire handleFocusAtMousePos on click
-                e.stopPropagation()
-                // data.editor?._tiptapEditor.commands.focus()
-              }}
-            >
-              {data.editor ? (
-                <HyperMediaEditorView editable={true} editor={data.editor} />
-              ) : null}
-            </Container>
-          </AppDocContentProvider>
-        </MainWrapper>
-        <Footer />
-      </ErrorBoundary>
+            {data.editor ? (
+              <HyperMediaEditorView editable={true} editor={data.editor} />
+            ) : null}
+          </Container>
+        </AppDocContentProvider>
+      </MainWrapper>
     )
-  }
-
   return null
-
-  // ==========
 
   function onDrop(event: DragEvent) {
     if (!isDragging) return

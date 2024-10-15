@@ -101,7 +101,8 @@ export function AccessoryLayout<
                 //     : theme.color2.val,
                 // }}
                 onPress={() => {
-                  onAccessorySelect(option.key)
+                  if (isActive) onAccessorySelect(undefined)
+                  else onAccessorySelect(option.key)
                 }}
                 width={AccessoryButtonSize}
                 height={AccessoryButtonSize}
