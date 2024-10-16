@@ -155,8 +155,8 @@ func newCRDT(id blob.IRI, clock *cclock.Clock) *docCRDT {
 	return e
 }
 
-func (e *docCRDT) GetMetadata() map[string]string {
-	out := make(map[string]string, len(e.stateMetadata))
+func (e *docCRDT) GetMetadata() map[string]any {
+	out := make(map[string]any, len(e.stateMetadata))
 
 	for k, v := range e.stateMetadata {
 		vv, ok := v.GetLatestOK()
