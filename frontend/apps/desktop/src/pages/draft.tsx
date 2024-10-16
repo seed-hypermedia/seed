@@ -95,7 +95,7 @@ export default function DraftPage() {
   let draftContent = null
   console.log('~~ draft', draft.data)
   if (
-    draft.data?.metadata?.layout === 'seed/experimental/newspaper' &&
+    draft.data?.metadata?.layout === 'Seed/Experimental/Newspaper' &&
     route.id
   ) {
     draftContent = (

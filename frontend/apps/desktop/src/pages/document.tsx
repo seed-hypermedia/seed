@@ -491,7 +491,7 @@ function DocPageContent({
 
   if (entity.isLoading) return <Spinner />
   if (!entity.data?.document) return null
-  if (entity.data.document.metadata.layout === 'seed/experimental/newspaper') {
+  if (entity.data.document.metadata.layout === 'Seed/Experimental/Newspaper') {
     return (
       <NewspaperLayout id={docId} metadata={entity.data.document.metadata} />
     )
