@@ -143,7 +143,7 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	initialAddrs := strings.ReplaceAll(strings.Join(addrsStr, ","), " ", "")
 
 	go func() {
-		if err := n.storeRemotePeers(ctx, info.ID); err != nil {
+		if err := n.storeRemotePeers(info.ID); err != nil {
 			n.log.Warn("Problems storing some of the shared peer list", zap.String("Remote peer with bad peer list", info.ID.String()), zap.Error(err))
 		}
 	}()
@@ -162,7 +162,9 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	return nil
 }
 
-func (n *Node) storeRemotePeers(ctx context.Context, id peer.ID) error {
+func (n *Node) storeRemotePeers(id peer.ID) (err error) {
+	n.log.Debug("storeRemotePeers Called", zap.String("PID", id.String()))
+	defer n.log.Debug("Exiting storeRemotePeers", zap.String("PID", id.String()), zap.Error(err))
 	ctxStore, cancel := context.WithTimeout(context.Background(), PeerSharingTimeout)
 	defer cancel()
 	c, err := n.client.Dial(ctxStore, id)
@@ -331,7 +333,7 @@ func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.Ev
 
 	if bootstrapped {
 		go func() {
-			if err := n.storeRemotePeers(ctx, event.Peer); err != nil {
+			if err := n.storeRemotePeers(event.Peer); err != nil {
 				n.log.Warn("Problems storing bootstrapped shared peer list", zap.String("PID", event.Peer.String()), zap.Error(err))
 			}
 		}()

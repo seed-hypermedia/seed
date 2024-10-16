@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
+	"math/rand/v2"
 	"seed/backend/blob"
 	"seed/backend/config"
 	"seed/backend/core"
@@ -14,6 +16,7 @@ import (
 	"seed/backend/util/cleanup"
 	"seed/backend/util/libp2px"
 	"seed/backend/util/must"
+	"seed/backend/util/sqlite"
 	"sync/atomic"
 	"time"
 
@@ -352,6 +355,49 @@ func (n *Node) Start(ctx context.Context) (err error) {
 			<-ctx.Done()
 			n.grpc.GracefulStop()
 			return nil
+		})
+		g.Go(func() error {
+			t := time.NewTimer(15 * time.Second)
+			localPeers := make(map[peer.ID]time.Time)
+			firstIteration := true
+			defer t.Stop()
+			for {
+				conn, release, err := n.db.Conn(ctx)
+				if err != nil {
+					return err
+				}
+				if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
+					pidStr := stmt.ColumnText(2)
+					pid, err := peer.Decode(pidStr)
+					if err != nil {
+						return err
+					}
+
+					offset := time.Now().Add(10 * time.Minute)
+					if firstIteration {
+						firstIteration = false
+						// Not all peers at the same time
+						offset = time.Now().Add(time.Duration(rand.IntN(60*3)) * time.Second) //nolint:gosec, We don't need a secure random generator here.
+					}
+					localPeers[pid] = offset
+					return nil
+				}, math.MaxInt64, math.MaxInt64); err != nil {
+					release()
+					return err
+				}
+				release()
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-t.C:
+					for pid, next := range localPeers {
+						if time.Now().After(next) {
+							go n.storeRemotePeers(pid)
+						}
+					}
+					t.Reset(15 * time.Second)
+				}
+			}
 		})
 	}
 
