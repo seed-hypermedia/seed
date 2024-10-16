@@ -94,7 +94,7 @@ func (srv *Server) ListDocumentChanges(ctx context.Context, in *documents.ListDo
 		}
 		out.Changes = append(out.Changes, &documents.DocumentChangeInfo{
 			Id:         cc,
-			Author:     change.Data.Author.String(),
+			Author:     change.Data.Signer.String(),
 			Deps:       colx.SliceMap(change.Data.Deps, cid.Cid.String),
 			CreateTime: timestamppb.New(change.Data.Ts),
 		})

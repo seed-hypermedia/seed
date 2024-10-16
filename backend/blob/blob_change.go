@@ -17,7 +17,6 @@ import (
 
 func init() {
 	cbornode.RegisterCborType(Change{})
-	cbornode.RegisterCborType(ChangeUnsigned{})
 	cbornode.RegisterCborType(Op{})
 	cbornode.RegisterCborType(Block{})
 	cbornode.RegisterCborType(Annotation{})
@@ -72,61 +71,32 @@ func NewOpReplaceBlock(state Block) Op {
 // Change is an atomic change to a document.
 // The linked DAG of Changes represents the state of a document over time.
 type Change struct {
-	ChangeUnsigned
-	Sig core.Signature `refmt:"sig,omitempty"`
+	baseBlob
+	Genesis cid.Cid   `refmt:"genesis,omitempty"`
+	Deps    []cid.Cid `refmt:"deps,omitempty"`
+	Depth   int       `refmt:"depth,omitempty"`
+	Ops     []Op      `refmt:"ops,omitempty"`
 }
 
 // NewChange creates a new Change.
 func NewChange(kp core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, ops []Op, ts time.Time) (eb Encoded[*Change], err error) {
-	cu := ChangeUnsigned{
-		Type:    blobTypeChange,
+	cc := &Change{
+		baseBlob: baseBlob{
+			Type:   blobTypeChange,
+			Signer: kp.Principal(),
+			Ts:     ts,
+		},
 		Genesis: genesis,
 		Deps:    deps,
 		Depth:   depth,
 		Ops:     ops,
-		Author:  kp.Principal(),
-		Ts:      ts,
 	}
 
-	cc, err := cu.Sign(kp)
-	if err != nil {
+	if err := SignBlob(kp, cc, &cc.baseBlob.Sig); err != nil {
 		return eb, err
 	}
 
 	return encodeBlob(cc)
-}
-
-// ChangeUnsigned holds the fields of a Change that are supposed to be signed.
-type ChangeUnsigned struct {
-	Type    blobType       `refmt:"type"`
-	Genesis cid.Cid        `refmt:"genesis,omitempty"`
-	Deps    []cid.Cid      `refmt:"deps,omitempty"`
-	Depth   int            `refmt:"depth,omitempty"`
-	Ops     []Op           `refmt:"ops,omitempty"`
-	Author  core.Principal `refmt:"author"`
-	Ts      time.Time      `refmt:"ts"`
-}
-
-// Sign the change with the provided key pair.
-func (c *ChangeUnsigned) Sign(kp core.KeyPair) (cc *Change, err error) {
-	if !c.Author.Equal(kp.Principal()) {
-		return nil, fmt.Errorf("author mismatch when signing")
-	}
-
-	data, err := cbornode.DumpObject(c)
-	if err != nil {
-		return nil, err
-	}
-
-	sig, err := kp.Sign(data)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Change{
-		ChangeUnsigned: *c,
-		Sig:            sig,
-	}, nil
 }
 
 type OpID struct {
@@ -255,7 +225,7 @@ func init() {
 func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 	// TODO(burdiyan): ensure there's only one change that brings an entity into life.
 
-	author := v.Author
+	author := v.Signer
 
 	switch {
 	case v.Genesis.Defined() && len(v.Deps) > 0 && v.Depth > 0:

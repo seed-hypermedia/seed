@@ -152,10 +152,10 @@ func (srv *Server) ListComments(ctx context.Context, in *documents.ListCommentsR
 func commentToProto(c cid.Cid, cmt *blob.Comment) (*documents.Comment, error) {
 	pb := &documents.Comment{
 		Id:            c.String(),
-		TargetAccount: cmt.Space.String(),
+		TargetAccount: cmt.GetSpace().String(),
 		TargetPath:    cmt.Path,
 		TargetVersion: docmodel.NewVersion(cmt.Version...).String(),
-		Author:        cmt.Author.String(),
+		Author:        cmt.Signer.String(),
 		Content:       commentContentToProto(cmt.Body),
 		CreateTime:    timestamppb.New(cmt.Ts),
 	}

@@ -480,7 +480,7 @@ func (srv *Server) checkWriteAccess(ctx context.Context, account core.Principal,
 		return err
 	}
 
-	if !cpb.Space.Equal(account) {
+	if !cpb.GetSpace().Equal(account) {
 		return status.Errorf(codes.PermissionDenied, "capability %s is not from account %s", capc, account)
 	}
 
@@ -488,7 +488,7 @@ func (srv *Server) checkWriteAccess(ctx context.Context, account core.Principal,
 		return status.Errorf(codes.PermissionDenied, "capability %s is not delegated to key %s", capc, kp.Principal())
 	}
 
-	grantedIRI, err := makeIRI(cpb.Space, cpb.Path)
+	grantedIRI, err := makeIRI(cpb.GetSpace(), cpb.Path)
 	if err != nil {
 		return err
 	}
