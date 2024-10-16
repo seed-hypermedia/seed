@@ -415,5 +415,6 @@ export function annotationContains(
 }
 
 function isText(entry: EditorInlineContent): boolean {
-  return entry.type == 'text' && typeof entry.text == 'string'
+  console.log(`== ~ isText ~ entry:`, entry)
+  return entry?.type && entry.type == 'text' && typeof entry.text == 'string'
 }
