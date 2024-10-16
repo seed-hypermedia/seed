@@ -217,7 +217,7 @@ export function usePublishDraft(
     mutationFn: async ({draft, previous, id}) => {
       const blocksMap = previous ? createBlocksMap(previous.content, '') : {}
 
-      const content = removeTrailingBlocks(draft.content)
+      const content = removeTrailingBlocks(draft.content || [])
 
       const changes = compareBlocksWithMap(blocksMap, content, '')
 
@@ -1312,10 +1312,9 @@ function removeTrailingBlocks(
   blocks: Array<EditorBlock<typeof hmBlockSchema>>,
 ) {
   let trailedBlocks = [...blocks]
-
   while (true) {
     let lastBlock = trailedBlocks[trailedBlocks.length - 1]
-
+    if (!lastBlock) break
     if (lastBlock.type == 'paragraph' && lastBlock.content.length == 0) {
       trailedBlocks.pop()
     } else {
