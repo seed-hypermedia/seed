@@ -1,3 +1,4 @@
+import {ConnectionStatus} from '@shm/shared'
 import {
   Button,
   ButtonText,
@@ -105,7 +106,7 @@ export function NetworkDialog() {
       <View flexDirection="column" minHeight={500}>
         <List
           items={(peers.data || []) as HMPeerInfo[]}
-          renderItem={({item: peer, containerWidth}: {item: HMPeerInfo}) => {
+          renderItem={({item: peer}: {item: HMPeerInfo}) => {
             return <PeerRow key={peer.id} peer={peer} />
           }}
         />
@@ -133,6 +134,8 @@ const PeerRow = React.memo(function PeerRow({peer}: {peer: HMPeerInfo}) {
     copyTextToClipboard(id)
     toast.success('Copied Peer ID')
   }
+
+  const isConnected = connectionStatus == ConnectionStatus.CONNECTED
   return (
     <XStack
       jc="space-between"
@@ -143,9 +146,14 @@ const PeerRow = React.memo(function PeerRow({peer}: {peer: HMPeerInfo}) {
       group="item"
     >
       <XStack gap="$2" ai="center">
-        <Tooltip content={connectionStatus ? 'Connected' : 'Disconnected'}>
+        <Tooltip
+          content={`${
+            isConnected ? 'Connected' : 'Disconnected'
+            // TODO: @horacio remove this after we figure out what 4 means
+          } (${connectionStatus})`}
+        >
           <XStack
-            backgroundColor={connectionStatus ? '$green10' : '$gray8'}
+            backgroundColor={isConnected ? '$green10' : '$gray8'}
             borderRadius={6}
             height={12}
             width={12}

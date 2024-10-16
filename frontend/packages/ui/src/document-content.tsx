@@ -497,7 +497,6 @@ export function BlockNodeContent({
     layoutUnit,
     isFirstChild
   );
-  console.log("-- BLOCKNODE", blockNode);
   const {hover, ...hoverProps} = useHover();
   const {citations} = useBlockCitations(blockNode.block?.id);
   const [_expanded, setExpanded] = useState<boolean>(expanded);

@@ -88,7 +88,7 @@ export function usePeers(
         const listed = await client.networking.listPeers({})
         if (filterConnected)
           return listed.peers.filter((info) => {
-            return info.connectionStatus === ConnectionStatus.CONNECTED
+            return info.connectionStatus == ConnectionStatus.CONNECTED
           })
         const peers = listed.peers.map((peer) => toPlainMessage(peer))
         peers.sort((a, b) => b.connectionStatus - a.connectionStatus)
