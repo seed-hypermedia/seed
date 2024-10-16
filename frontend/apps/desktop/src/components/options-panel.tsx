@@ -28,7 +28,7 @@ export function OptionsPanel({
           }
           value={layout}
           onValue={(value) => {
-            if (!value || !draft.data) return
+            if (!draft.data) return
             writeDraft({
               ...draft.data,
               metadata: {...draft.data.metadata, layout: value},
