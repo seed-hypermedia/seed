@@ -2,7 +2,6 @@ package blob
 
 import (
 	"bytes"
-	"fmt"
 	"seed/backend/core"
 	"seed/backend/ipfs"
 	"time"
@@ -16,70 +15,50 @@ const blobTypeCapability blobType = "Capability"
 
 func init() {
 	cbornode.RegisterCborType(Capability{})
-	cbornode.RegisterCborType(CapabilityUnsigned{})
 }
 
 // Capability is a blob that represents some granted rights from the issuer to the delegate key.
 type Capability struct {
-	CapabilityUnsigned
-	Sig core.Signature `refmt:"sig,omitempty"`
-}
-
-// CapabilityUnsigned holds the fields of a Capability that are meant to be signed.
-type CapabilityUnsigned struct {
-	Type        blobType       `refmt:"type"`
-	Issuer      core.Principal `refmt:"issuer"`
+	baseBlob
 	Delegate    core.Principal `refmt:"delegate"`
-	Space       core.Principal `refmt:"space"`
+	Spc         core.Principal `refmt:"space,omitempty"` // if empty, then signer is the space.
 	Path        string         `refmt:"path,omitempty"`
 	Role        string         `refmt:"role"`
-	Ts          time.Time      `refmt:"ts"`
 	NoRecursive bool           `refmt:"noRecursive,omitempty"`
 }
 
 // NewCapability creates a new Capability blob.
 func NewCapability(issuer core.KeyPair, delegate, space core.Principal, path string, role string, ts time.Time, noRecursive bool) (eb Encoded[*Capability], err error) {
-	cu := CapabilityUnsigned{
-		Type:        blobTypeCapability,
-		Issuer:      issuer.Principal(),
+	cu := &Capability{
+		baseBlob: baseBlob{
+			Type:   blobTypeCapability,
+			Signer: issuer.Principal(),
+			Ts:     ts,
+		},
 		Delegate:    delegate,
-		Space:       space,
 		Path:        path,
 		Role:        role,
-		Ts:          ts,
 		NoRecursive: noRecursive,
 	}
 
-	cc, err := cu.Sign(issuer)
-	if err != nil {
+	if !issuer.Principal().Equal(space) {
+		cu.Spc = space
+	}
+
+	if err := SignBlob(issuer, cu, &cu.baseBlob.Sig); err != nil {
 		return eb, err
 	}
 
-	return encodeBlob(cc)
+	return encodeBlob(cu)
 }
 
-// Sign signs the Capability with the given key pair.
-func (c CapabilityUnsigned) Sign(kp core.KeyPair) (cc *Capability, err error) {
-	if !kp.Principal().Equal(c.Issuer) {
-		return cc, fmt.Errorf("signing key %s must be equal to issuer %s", kp.Principal(), c.Issuer)
+// GetSpace returns the space of the capability.
+// Normally it's the same as the signer, but can be different in case of nested delegations.
+func (c *Capability) GetSpace() core.Principal {
+	if len(c.Spc) == 0 {
+		return c.Signer
 	}
-
-	data, err := cbornode.DumpObject(c)
-	if err != nil {
-		return nil, err
-	}
-
-	sig, err := kp.Sign(data)
-	if err != nil {
-		return nil, err
-	}
-
-	cc = &Capability{
-		CapabilityUnsigned: c,
-		Sig:                sig,
-	}
-
-	return cc, nil
+	return c.Spc
 }
 
 func init() {
@@ -103,14 +82,14 @@ func init() {
 }
 
 func indexCapability(ictx *indexingCtx, id int64, c cid.Cid, v *Capability) error {
-	iri, err := NewIRI(v.Space, v.Path)
+	iri, err := NewIRI(v.GetSpace(), v.Path)
 	if err != nil {
 		return err
 	}
 
-	sb := newStructuralBlob(c, string(blobTypeCapability), v.Issuer, v.Ts, iri, cid.Undef, v.Space, time.Time{})
+	sb := newStructuralBlob(c, string(blobTypeCapability), v.Signer, v.Ts, iri, cid.Undef, v.GetSpace(), time.Time{})
 
-	if _, err := ictx.ensurePubKey(v.Issuer); err != nil {
+	if _, err := ictx.ensurePubKey(v.Signer); err != nil {
 		return err
 	}
 
