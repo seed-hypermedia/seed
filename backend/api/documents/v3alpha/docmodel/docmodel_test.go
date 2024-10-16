@@ -27,7 +27,7 @@ func TestDocmodelSmoke(t *testing.T) {
 			must.Do(doc.ApplyChange(c1.CID, c1.Decoded))
 			must.Do(doc.ApplyChange(c2.CID, c2.Decoded))
 
-			require.Equal(t, map[string]string{"title": "Hello world"}, doc.crdt.GetMetadata())
+			require.Equal(t, map[string]any{"title": "Hello world"}, doc.crdt.GetMetadata())
 		}
 	}
 }
