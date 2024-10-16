@@ -12,11 +12,13 @@ import (
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/util/cclock"
+	"seed/backend/util/must"
 	"slices"
 	"sort"
 
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multibase"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -357,7 +359,7 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 	docpb := &documents.Document{
 		Account:    space,
 		Path:       path,
-		Metadata:   e.GetMetadata(),
+		Metadata:   must.Do2(structpb.NewStruct(e.GetMetadata())),
 		CreateTime: timestamppb.New(first.Ts),
 		Version:    e.Version().String(),
 	}

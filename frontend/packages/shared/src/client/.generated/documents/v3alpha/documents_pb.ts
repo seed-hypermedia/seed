@@ -4,7 +4,7 @@
 // @ts-nocheck
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
+import { Message, proto3, Struct, Timestamp } from "@bufbuild/protobuf";
 
 /**
  * Request for getting a single document.
@@ -613,9 +613,9 @@ export class DocumentListItem extends Message<DocumentListItem> {
   /**
    * User-defined metadata attributes of the document.
    *
-   * @generated from field: map<string, string> metadata = 3;
+   * @generated from field: google.protobuf.Struct metadata = 3;
    */
-  metadata: { [key: string]: string } = {};
+  metadata?: Struct;
 
   /**
    * Every author ID who has modified this document's version.
@@ -655,7 +655,7 @@ export class DocumentListItem extends Message<DocumentListItem> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "metadata", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "scalar", T: 9 /* ScalarType.STRING */} },
+    { no: 3, name: "metadata", kind: "message", T: Struct },
     { no: 4, name: "authors", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 5, name: "create_time", kind: "message", T: Timestamp },
     { no: 6, name: "update_time", kind: "message", T: Timestamp },
@@ -703,9 +703,9 @@ export class Document extends Message<Document> {
   /**
    * Metadata values for a document.
    *
-   * @generated from field: map<string, string> metadata = 3;
+   * @generated from field: google.protobuf.Struct metadata = 3;
    */
-  metadata: { [key: string]: string } = {};
+  metadata?: Struct;
 
   /**
    * Output only. Every account ID who has modified the document.
@@ -753,7 +753,7 @@ export class Document extends Message<Document> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "metadata", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "scalar", T: 9 /* ScalarType.STRING */} },
+    { no: 3, name: "metadata", kind: "message", T: Struct },
     { no: 5, name: "authors", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 6, name: "content", kind: "message", T: BlockNode, repeated: true },
     { no: 7, name: "create_time", kind: "message", T: Timestamp },
