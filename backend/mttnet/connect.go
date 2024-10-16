@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/util/dqb"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -138,6 +139,7 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 		n.p2p.ConnManager().Unprotect(info.ID, protocolSupportKey)
 		return fmt.Errorf("Peer with no addresses")
 	}
+	sort.Strings(addrsStr)
 	initialAddrs := strings.ReplaceAll(strings.Join(addrsStr, ","), " ", "")
 
 	go func() {
@@ -262,6 +264,7 @@ func (n *Node) storeRemotePeers(ctx context.Context, id peer.ID) error {
 					}
 					mu.Lock()
 					sqlStr += "(?, ?, ?, ?),"
+					sort.Strings(p.Addrs)
 					vals = append(vals, p.Id, strings.Join(p.Addrs, ","), false, p.UpdatedAt.Seconds)
 					mu.Unlock()
 				} else {
@@ -337,6 +340,7 @@ func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.Ev
 	for _, addrs := range event.ListenAddrs {
 		addrsString = append(addrsString, strings.ReplaceAll(addrs.String(), "/p2p/"+event.Peer.String(), "")+"/p2p/"+event.Peer.String())
 	}
+	sort.Strings(addrsString)
 	conn, release, err := n.db.Conn(ctx)
 	if err != nil {
 		n.log.Warn("Could not get a connection", zap.Error(err))
