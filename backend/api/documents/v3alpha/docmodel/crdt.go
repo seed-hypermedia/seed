@@ -334,7 +334,7 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 
 	var actor string
 	{
-		au := ch.Author.UnsafeString()
+		au := ch.Signer.UnsafeString()
 		a, ok := e.actorsIntern[au]
 		if !ok {
 			e.actorsIntern[au] = au

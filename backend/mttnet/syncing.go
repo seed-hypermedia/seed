@@ -119,7 +119,7 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 		ch := &blob.Change{}
 		if err := cbornode.DecodeInto(blk.RawData(), co); err == nil {
 			authorFilters = append(authorFilters, &p2p.Filter{
-				Resource:  "hm://" + co.Author.String(),
+				Resource:  "hm://" + co.Signer.String(),
 				Recursive: false,
 			})
 		} else if err := cbornode.DecodeInto(blk.RawData(), ca); err == nil {
@@ -129,7 +129,7 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 			})
 		} else if err := cbornode.DecodeInto(blk.RawData(), ch); err == nil {
 			authorFilters = append(authorFilters, &p2p.Filter{
-				Resource:  "hm://" + ch.Author.String(),
+				Resource:  "hm://" + ch.Signer.String(),
 				Recursive: false,
 			})
 		}

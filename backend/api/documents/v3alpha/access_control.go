@@ -144,9 +144,9 @@ func capToProto(c cid.Cid, cpb *blob.Capability) (*documents.Capability, error) 
 
 	pb := &documents.Capability{
 		Id:         c.String(),
-		Issuer:     cpb.Issuer.String(),
+		Issuer:     cpb.Signer.String(),
 		Delegate:   cpb.Delegate.String(),
-		Account:    cpb.Space.String(),
+		Account:    cpb.GetSpace().String(),
 		Path:       cpb.Path,
 		Role:       documents.Role(role),
 		IsExact:    cpb.NoRecursive,
