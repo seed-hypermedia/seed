@@ -318,7 +318,7 @@ export const HMDocumentMetadataSchema = z
     cover: z.string().optional(),
     siteUrl: z.string().optional(),
     layout: z
-      .union([z.literal('seed/experimental/newspaper'), z.literal('document')])
+      .union([z.literal('Seed/Experimental/Newspaper'), z.literal('')])
       .optional(),
   })
   .strict()

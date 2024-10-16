@@ -4,7 +4,7 @@ Each document operation takes the following format:
 
 ```json
 {
-    "op": "SetMetadata",
+    "op": "SetAttributes",
     "attributes": {
         "name": "New Document Name"
     }

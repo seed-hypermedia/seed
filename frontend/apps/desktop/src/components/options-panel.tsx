@@ -1,5 +1,4 @@
 import {useDraft, useWriteDraft} from '@/models/accounts'
-import {useNavigate} from '@/utils/useNavigate'
 import {UnpackedHypermediaId} from '@shm/shared'
 import {SelectDropdown} from '@shm/ui'
 import {Label, YStack} from 'tamagui'
@@ -12,22 +11,22 @@ export function OptionsPanel({
   onClose: () => void
   draftId: UnpackedHypermediaId
 }) {
-  const navigate = useNavigate()
   const draft = useDraft(draftId)
 
   const writeDraft = useWriteDraft(draftId)
+  const layout = draft.data?.metadata?.layout || ''
   return (
     <AccessoryContainer title="Options" onClose={onClose}>
       <YStack>
-        <Label>Layout</Label>
+        <Label size="$1">Layout</Label>
         <SelectDropdown
           options={
             [
-              {label: 'Newspaper Home', value: 'seed/experimental/newspaper'},
-              {label: 'Document', value: 'document'},
+              {label: 'Newspaper Home', value: 'Seed/Experimental/Newspaper'},
+              {label: 'Document', value: ''},
             ] as const
           }
-          value={draft.data?.metadata?.layout || 'document'}
+          value={layout}
           onValue={(value) => {
             if (!value || !draft.data) return
             writeDraft({
