@@ -41,6 +41,13 @@ export enum ConnectionStatus {
    * @generated from enum value: CANNOT_CONNECT = 3;
    */
   CANNOT_CONNECT = 3,
+
+  /**
+   * Limited means we have a transient connection to the peer, but aren't fully connected.
+   *
+   * @generated from enum value: LIMITED = 4;
+   */
+  LIMITED = 4,
 }
 // Retrieve enum metadata with: proto3.getEnumType(ConnectionStatus)
 proto3.util.setEnumType(ConnectionStatus, "com.seed.networking.v1alpha.ConnectionStatus", [
@@ -48,6 +55,7 @@ proto3.util.setEnumType(ConnectionStatus, "com.seed.networking.v1alpha.Connectio
   { no: 1, name: "CONNECTED" },
   { no: 2, name: "CAN_CONNECT" },
   { no: 3, name: "CANNOT_CONNECT" },
+  { no: 4, name: "LIMITED" },
 ]);
 
 /**
