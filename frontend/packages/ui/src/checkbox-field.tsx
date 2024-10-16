@@ -19,9 +19,16 @@ export function CheckboxField({
   return (
     <XStack {...props} gap="$3" ai="center">
       <Checkbox
+        borderColor="$color9"
         id={id}
+        focusStyle={{
+          borderColor: "$color9",
+        }}
         checked={typeof value == "boolean" ? value : "indeterminate"}
         onCheckedChange={onValue}
+        hoverStyle={{
+          borderColor: "$color9",
+        }}
       >
         <Checkbox.Indicator>
           <Check />
