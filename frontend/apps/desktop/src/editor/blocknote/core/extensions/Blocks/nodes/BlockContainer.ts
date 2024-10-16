@@ -741,8 +741,8 @@ export const BlockContainer = Node.create<{
 
           // Change group type to div
           if (
-            group.attrs.listType !== 'div' &&
-            listType === 'div' &&
+            group.attrs.listType !== 'Group' &&
+            listType === 'Group' &&
             container
           ) {
             setTimeout(() => {
@@ -753,7 +753,7 @@ export const BlockContainer = Node.create<{
                     // setTimeout(() => {
                     state.tr.setNodeMarkup($pos.before(depth), null, {
                       ...group.attrs,
-                      listType: 'div',
+                      listType: 'Group',
                       listLevel: '1',
                     })
                     // })
@@ -804,7 +804,7 @@ export const BlockContainer = Node.create<{
 
           // If inserting other list type in another list, sink list item and then update group
           if (
-            group.attrs.listType !== 'div' &&
+            group.attrs.listType !== 'Group' &&
             group.attrs.listType !== listType &&
             container &&
             !tab &&
