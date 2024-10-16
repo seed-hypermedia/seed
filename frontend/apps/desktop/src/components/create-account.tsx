@@ -1,12 +1,14 @@
+import {useGatewayUrl} from '@/models/gateway-settings'
 import {queryKeys} from '@/models/query-keys'
 import {useNavigate} from '@/utils/useNavigate'
 import {
+  createWebHMUrl,
   DAEMON_FILE_URL,
+  DEFAULT_GATEWAY_URL,
   DocumentChange,
   eventStream,
   HMDraft,
   hmId,
-  packHmId,
 } from '@shm/shared'
 import {
   AccountTypeButton,
@@ -214,6 +216,8 @@ export function AccountWizardDialog() {
       return existingWords
     }
   }, [genWords, existingWords, newAccount])
+
+  const gatewayUrl = useGatewayUrl()
 
   function resetForm() {
     setName('')
@@ -575,9 +579,14 @@ export function AccountWizardDialog() {
                     f={1}
                     onPress={() => {
                       if (createdAccount) {
-                        copyTextToClipboard(
-                          packHmId(hmId('d', createdAccount.accountId)),
-                        ).then(() => {
+                        const url = createWebHMUrl(
+                          'd',
+                          createdAccount.accountId,
+                          {
+                            hostname: gatewayUrl.data || DEFAULT_GATEWAY_URL,
+                          },
+                        )
+                        copyTextToClipboard(url).then(() => {
                           toast.success('Copied account successfully')
                         })
                       }
