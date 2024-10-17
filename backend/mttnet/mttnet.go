@@ -576,6 +576,9 @@ func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID, lo
 		opts = append(opts, libp2p.ForceReachabilityPrivate())
 	} else {
 		opts = append(opts, libp2p.EnableNATService())
+		if cfg.ForceReachabilityPublic {
+			opts = append(opts, libp2p.ForceReachabilityPublic())
+		}
 	}
 
 	if !cfg.NoRelay {
