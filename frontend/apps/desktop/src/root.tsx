@@ -251,6 +251,9 @@ function MainApp({
         externalOpen={async (url: string) => {
           ipc.send?.('open-external-link', url)
         }}
+        openDirectory={async (directory: string) => {
+          ipc.send?.('open-directory', directory)
+        }}
         saveCidAsFile={async (cid: string, name: string) => {
           ipc.send?.('save-file', {cid, name})
         }}

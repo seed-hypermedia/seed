@@ -19,6 +19,7 @@ export function AppContextProvider({
   queryClient,
   ipc,
   externalOpen,
+  openDirectory,
   openMarkdownFiles,
   openMarkdownDirectories,
   readMediaFile,
@@ -34,6 +35,7 @@ export function AppContextProvider({
   queryClient: AppQueryClient
   ipc: AppIPC
   externalOpen: (url: string) => Promise<void>
+  openDirectory: (directory: string) => Promise<void>
   openMarkdownFiles: (accountId: string) => Promise<{
     documents: {
       markdownContent: string
@@ -82,6 +84,7 @@ export function AppContextProvider({
       queryClient,
       ipc,
       externalOpen,
+      openDirectory,
       openMarkdownFiles,
       openMarkdownDirectories,
       readMediaFile,

@@ -85,7 +85,7 @@ export default function LibraryPage() {
   const filteredDocumentIds = useMemo(() => {
     return filteredLibrary?.map((entry) => entry.id.id)
   }, [filteredLibrary])
-  const {exportDocuments} = useAppContext()
+  const {exportDocuments, openDirectory} = useAppContext()
 
   const handleExportButtonClick = () => {
     if (exportMode) {
@@ -148,7 +148,26 @@ export default function LibraryPage() {
 
     exportDocuments(documentsToExport)
       .then((res) => {
-        toast.success(res)
+        const success = (
+          <>
+            <YStack gap="$1.5">
+              <SizableText>
+                Successfully exported documents to: <b>{`${res}`}</b>.
+              </SizableText>
+              <SizableText
+                textDecorationLine="underline"
+                color="$brand5"
+                tag={'a'}
+                onPress={() => {
+                  openDirectory(res)
+                }}
+              >
+                Show directory
+              </SizableText>
+            </YStack>
+          </>
+        )
+        toast.success('test', {customContent: success})
       })
       .catch((err) => {
         toast.error(err)

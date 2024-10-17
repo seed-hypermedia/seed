@@ -14,6 +14,7 @@ export type AppContext = {
   queryClient: AppQueryClient
   ipc: AppIPC
   externalOpen: (url: string) => Promise<void>
+  openDirectory: (directory: string) => Promise<void>
   openMarkdownDirectories: (accountId: string) => Promise<{
     documents: {
       markdownContent: string
