@@ -15,9 +15,10 @@ import {useOpenUrl} from '@/open-url'
 
 export function HyperMediaEditorView({
   editor,
+  comment,
 }: {
   editor: HyperDocsEditor
-  editable: boolean
+  comment: boolean
 }) {
   const openUrl = useOpenUrl()
   return (
@@ -32,7 +33,7 @@ export function HyperMediaEditorView({
         openUrl={openUrl}
       />
       <SlashMenuPositioner editor={editor} />
-      <SideMenuPositioner editor={editor} placement="left" />
+      {comment ? null : <SideMenuPositioner editor={editor} placement="left" />}
       <LinkMenuPositioner editor={editor} />
     </BlockNoteView>
   )

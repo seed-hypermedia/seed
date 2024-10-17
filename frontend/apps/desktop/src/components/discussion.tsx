@@ -188,8 +188,8 @@ function CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
   } else {
     content = (
       <Button
-        paddingTop={31}
-        paddingHorizontal={56}
+        paddingTop={19}
+        paddingHorizontal={22}
         f={1}
         textAlign="left"
         jc="flex-start"
@@ -197,7 +197,7 @@ function CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
         margin={0}
         chromeless
         color="$color7"
-        fontSize={18}
+        fontSize={17}
         fontStyle="italic"
         h="auto"
         // icon={
@@ -251,15 +251,15 @@ function CommentDraftEditor({
   return (
     <YStack
       f={1}
-      marginTop="$3"
-      paddingLeft="$10"
+      marginTop="$1"
+      paddingHorizontal="$5"
       onPress={(e: MouseEvent) => {
         e.stopPropagation()
         editor._tiptapEditor.commands.focus()
       }}
     >
       <AppDocContentProvider disableEmbedClick>
-        <HyperMediaEditorView editor={editor} editable />
+        <HyperMediaEditorView editor={editor} comment />
       </AppDocContentProvider>
       <XStack
         jc="flex-end"
