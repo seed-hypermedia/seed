@@ -1,5 +1,5 @@
 import {dispatchDraftStatus, DraftStatus} from '@/draft-status'
-import {HMDocument, HMDraft} from '@shm/shared'
+import {HMDocument, HMDraft, HMMetadata} from '@shm/shared'
 import {assign, setup, StateFrom} from 'xstate'
 
 export type DraftMachineState = StateFrom<typeof draftMachine>
@@ -7,12 +7,7 @@ export type DraftMachineState = StateFrom<typeof draftMachine>
 export const draftMachine = setup({
   types: {
     context: {} as {
-      metadata: {
-        name: string
-        thumbnail: string
-        cover: string
-        layout: 'Seed/Experimental/Newspaper' | ''
-      }
+      metadata: HMMetadata | {}
       signingAccount: null | string
       draft: null | HMDraft
       document: null | HMDocument
@@ -89,9 +84,12 @@ export const draftMachine = setup({
         } else if (event.type == 'CHANGE' && event.signingAccount) {
           return event.signingAccount
         } else if (
+          // @ts-expect-error ignore this XState error
           event.type == 'xstate.done.actor.createOrUpdateDraft' &&
+          // @ts-expect-error ignore this XState error
           event.output.draft.signingAccount
         ) {
+          // @ts-expect-error ignore this XState error
           return event.output.draft.signingAccount
         } else {
           return context.signingAccount
@@ -138,10 +136,7 @@ export const draftMachine = setup({
 }).createMachine({
   id: 'Draft',
   context: {
-    name: '',
-    thumbnail: '',
-    cover: '',
-    layout: '',
+    metadata: {},
     draft: null,
     signingAccount: null,
     document: null,
@@ -273,10 +268,7 @@ export const draftMachine = setup({
                     type: 'onSaveSuccess',
                   },
                   {type: 'setDraft'},
-                  {type: 'setName'},
-                  {type: 'setThumbnail'},
-                  {type: 'setCover'},
-                  {type: 'setLayout'},
+                  {type: 'setAttributes'},
                   {type: 'setSigningAccount'},
                   {type: 'replaceRouteifNeeded'},
                   {
