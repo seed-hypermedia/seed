@@ -21,7 +21,7 @@ export function getNodesOutline(
 ): NodesOutline {
   const outline: NodesOutline = []
   children.forEach((child) => {
-    if (child.block.type === 'heading') {
+    if (child.block.type === 'Heading') {
       outline.push({
         id: child.block.id,
         title: child.block.text,
@@ -58,7 +58,7 @@ export function getDraftNodesOutline(
 ): NodesOutline {
   const outline: NodesOutline = []
   children.forEach((child) => {
-    if (child.type === 'heading') {
+    if (child.type === 'Heading') {
       outline.push({
         id: child.id,
         title: child.content
@@ -72,7 +72,7 @@ export function getDraftNodesOutline(
           child.children &&
           getDraftNodesOutline(child.children, parentEntityId, parentBlockId),
       })
-    } else if (child.type === 'embed' && child.props?.view !== 'card') {
+    } else if (child.type === 'Embed' && child.props?.view !== 'card') {
       console.error('Outline Might not handle embeds from draft correctly')
       console.error(child)
       const embedId = unpackHmId(child.props.href)

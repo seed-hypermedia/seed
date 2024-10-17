@@ -241,11 +241,11 @@ function AccountsSection() {
   )
 }
 
-function OutlineSection({route}: {route: NavRoute; id: UnpackedHypermediaId}) {
-  if (route.key === 'document') {
+function OutlineSection({route}: {route: NavRoute}) {
+  if (route.key == 'document') {
     return <DocumentOutlineSection route={route} />
   }
-  if (route.key === 'draft') {
+  if (route.key == 'draft') {
     return <DraftOutlineSection route={route} />
   }
   return null
@@ -358,6 +358,8 @@ function DocumentOutlineSection({route}: {route: DocumentRoute}) {
   const navigate = useNavigate()
   if (!entity?.data) return null
   const {document} = entity.data
+
+  console.log(`== ~ DocumentOutlineSection ~ document:`, document)
   return (
     <>
       <SidebarItem
@@ -422,6 +424,8 @@ function _SidebarOutline({
   indent?: number
 }) {
   const outline = getNodesOutline(nodes || [])
+
+  console.log(`== ~ outline:`, outline)
 
   function getOutline(outline: NodesOutline, level = 0): ReactNode[] {
     const outlineContent = outline.map((item) => {
