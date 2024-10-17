@@ -33,6 +33,13 @@ func New() *Clock {
 	}
 }
 
+// Clone returns shallow copy of the Clock.
+// Could be useful to emit timestamps without tracking them in the original clock.
+func (c *Clock) Clone() *Clock {
+	cc := *c
+	return &cc
+}
+
 // Track a timestamp observed elsewhere.
 func (c *Clock) Track(t time.Time) error {
 	t = t.Round(c.Precision)

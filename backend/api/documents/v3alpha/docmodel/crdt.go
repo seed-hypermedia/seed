@@ -332,6 +332,18 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 		return nil
 	}
 
+	if len(e.applied) == 0 {
+		if ch.Genesis.Defined() || ch.Depth != 0 || len(ch.Deps) != 0 {
+			return fmt.Errorf("first change must be a valid genesis")
+		}
+	} else {
+		genesis := e.cids[0]
+		if !genesis.Equals(ch.Genesis) {
+			return fmt.Errorf("change '%s' has a different genesis: expected=%s actual=%s", c, genesis, ch.Genesis)
+		}
+
+	}
+
 	var actor string
 	{
 		au := ch.Signer.UnsafeString()
@@ -372,22 +384,24 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 	ts := ch.Ts.UnixMicro()
 	origin := originFromCID(c)
 
-	for idx, op := range ch.Ops {
-		opid := newOpID(ts, origin, idx)
-		switch op.Type {
-		case blob.OpSetMetadata:
-			for k, v := range op.Data {
-				reg := e.stateMetadata[k]
-				if reg == nil {
-					reg = newMVReg[string]()
-					e.stateMetadata[k] = reg
-				}
-				reg.Set(opid, v.(string))
-			}
-		case blob.OpReplaceBlock:
-			var blk blob.Block
-			blob.MapToCBOR(op.Data, &blk)
+	idx := -1
+	for op, err := range ch.Ops() {
+		idx++
+		if err != nil {
+			return err
+		}
 
+		opid := newOpID(ts, origin, idx)
+		switch op := op.(type) {
+		case blob.OpSetKey:
+			reg := e.stateMetadata[op.Key]
+			if reg == nil {
+				reg = newMVReg[string]()
+				e.stateMetadata[op.Key] = reg
+			}
+			reg.Set(opid, op.Value.(string))
+		case blob.OpReplaceBlock:
+			blk := op.Block
 			reg := e.stateBlocks[blk.ID]
 			if reg == nil {
 				reg = newMVReg[blob.Block]()
@@ -395,15 +409,11 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 			}
 			reg.Set(opid, blk)
 		case blob.OpMoveBlock:
-			block, ok := op.Data["block"].(string)
-			if !ok || block == "" {
+			if op.Block == "" {
 				return fmt.Errorf("missing block in move op")
 			}
 
-			parent, _ := op.Data["parent"].(string)
-
-			leftOriginRaw, _ := op.Data["leftOrigin"].(string)
-			refID, err := decodeOpID(leftOriginRaw)
+			refID, err := decodeOpID(op.Ref)
 			if err != nil {
 				return fmt.Errorf("failed to decode move left origin op id: %w", err)
 			}
@@ -413,7 +423,7 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 				refID.Origin = origin
 			}
 
-			if err := e.tree.Integrate(opid, parent, block, refID); err != nil {
+			if err := e.tree.Integrate(opid, op.Parent, op.Block, refID); err != nil {
 				return err
 			}
 		}
@@ -553,7 +563,7 @@ func addUnique(in []int, v int) []int {
 }
 
 // prepareChange to be applied later.
-func (e *docCRDT) prepareChange(ts time.Time, signer core.KeyPair, ops []blob.Op) (hb blob.Encoded[*blob.Change], err error) {
+func (e *docCRDT) prepareChange(ts time.Time, signer core.KeyPair, ops []blob.OpMap) (hb blob.Encoded[*blob.Change], err error) {
 	var genesis cid.Cid
 	if len(e.cids) > 0 {
 		genesis = e.cids[0]
@@ -571,6 +581,7 @@ func (e *docCRDT) prepareChange(ts time.Time, signer core.KeyPair, ops []blob.Op
 		}
 		depth++
 	}
+	slices.SortFunc(deps, func(a, b cid.Cid) int { return strings.Compare(a.KeyString(), b.KeyString()) })
 
 	hb, err = blob.NewChange(signer, genesis, deps, depth, ops, ts)
 	if err != nil {

@@ -39,8 +39,8 @@ type Document struct {
 	// Blocks that we've deleted in this change.
 	deletedBlocks map[string]struct{}
 
-	dirtyBlocks   map[string]blob.Block // BlockID => BlockState.
-	dirtyMetadata map[string]any
+	dirtyBlocks   map[string]mvRegValue[blob.Block]
+	dirtyMetadata map[string]mvRegValue[any]
 }
 
 // originFromCID creates a CRDT origin from the last 8 chars of the hash.
@@ -118,9 +118,10 @@ func (dm *Document) applyChangeUnsafe(c cid.Cid, ch *blob.Change) error {
 func (dm *Document) SetMetadata(key, newValue string) error {
 	dm.dirty = true
 	if dm.dirtyMetadata == nil {
-		dm.dirtyMetadata = make(map[string]any)
+		dm.dirtyMetadata = make(map[string]mvRegValue[any])
 	}
 
+	var preds []opID
 	if reg := dm.crdt.stateMetadata[key]; reg != nil {
 		if newValue == reg.GetLatest() {
 			// If metadata key already has the same value in the committed CRDT state,
@@ -128,9 +129,10 @@ func (dm *Document) SetMetadata(key, newValue string) error {
 			delete(dm.dirtyMetadata, key)
 			return nil
 		}
+		preds = reg.state.Keys()
 	}
 
-	dm.dirtyMetadata[key] = newValue
+	dm.dirtyMetadata[key] = mvRegValue[any]{Value: newValue, Preds: preds}
 
 	return nil
 }
@@ -163,7 +165,7 @@ func (dm *Document) ReplaceBlock(blkpb *documents.Block) error {
 	}
 
 	if dm.dirtyBlocks == nil {
-		dm.dirtyBlocks = make(map[string]blob.Block)
+		dm.dirtyBlocks = make(map[string]mvRegValue[blob.Block])
 	}
 
 	blk, err := BlockFromProto(blkpb)
@@ -173,15 +175,17 @@ func (dm *Document) ReplaceBlock(blkpb *documents.Block) error {
 
 	// Check if CRDT state already has the same value for block.
 	// If so, we do nothing, and remove any dirty state for this block.
+	var preds []opID
 	if reg := dm.crdt.stateBlocks[blkpb.Id]; reg != nil {
 		oldValue, ok := reg.GetLatestOK()
 		if ok && reflect.DeepEqual(oldValue, blk) {
 			delete(dm.dirtyBlocks, blkpb.Id)
 			return nil
 		}
+		preds = reg.state.Keys()
 	}
 
-	dm.dirtyBlocks[blk.ID] = blk
+	dm.dirtyBlocks[blk.ID] = mvRegValue[blob.Block]{Value: blk, Preds: preds}
 
 	return nil
 }
@@ -268,12 +272,12 @@ func (dm *Document) Ref(kp core.KeyPair) (ref blob.Encoded[*blob.Ref], err error
 	return blob.NewRef(kp, genesis, space, path, []cid.Cid{headCID}, head.Ts)
 }
 
-func (dm *Document) cleanupPatch() []blob.Op {
+func (dm *Document) cleanupPatch() []blob.OpMap {
 	if !dm.dirty {
 		return nil
 	}
 
-	var ops []blob.Op
+	var ops []blob.OpMap
 
 	// TODO(burdiyan): It's important to moves go first,
 	// because I was stupid enough to implement the block tree CRDT in isolation,
@@ -289,7 +293,8 @@ func (dm *Document) cleanupPatch() []blob.Op {
 	slices.Sort(metaKeys)
 
 	for _, key := range metaKeys {
-		ops = append(ops, blob.NewOpSetMetadata(key, dm.dirtyMetadata[key]))
+		reg := dm.dirtyMetadata[key]
+		ops = append(ops, blob.NewOpSetKey(key, reg.Value))
 	}
 
 	// Remove state of those blocks that we created and deleted in the same change.
@@ -307,8 +312,7 @@ func (dm *Document) cleanupPatch() []blob.Op {
 		if !ok {
 			panic("BUG: dirty block not found")
 		}
-
-		ops = append(ops, blob.NewOpReplaceBlock(blk))
+		ops = append(ops, blob.NewOpReplaceBlock(blk.Value))
 	}
 
 	return ops

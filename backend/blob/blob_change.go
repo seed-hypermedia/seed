@@ -3,11 +3,12 @@ package blob
 import (
 	"bytes"
 	"cmp"
-	"encoding/binary"
 	"fmt"
+	"iter"
 	"net/url"
 	"seed/backend/core"
 	"seed/backend/ipfs"
+	"slices"
 	"time"
 
 	"github.com/go-viper/mapstructure/v2"
@@ -19,7 +20,9 @@ import (
 
 func init() {
 	cbornode.RegisterCborType(Change{})
-	cbornode.RegisterCborType(Op{})
+	cbornode.RegisterCborType(OpSetKey{})
+	cbornode.RegisterCborType(OpReplaceBlock{})
+	cbornode.RegisterCborType(OpMoveBlock{})
 
 	// We decided to encode our union types with type-specific fields inlined.
 	// It's really painful in Go, so we need to do this crazy hackery
@@ -69,45 +72,121 @@ const blobTypeChange blobType = "Change"
 // OpType is a type for operation types.
 type OpType string
 
-// Op is an atom of our op-based CRDT structure.
-type Op struct {
-	Type OpType         `refmt:"type"`
-	Data map[string]any `refmt:"data,omitempty"`
+// OpMap is a map representation of op data.
+// TODO(burdiyan): find something reasonable to work with union types.
+type OpMap map[string]any
+
+// ToOp converts the map into a concrete op type, checking the discriminator field.
+func (o OpMap) ToOp() (Op, error) {
+	switch ot := o["type"].(type) {
+	case nil:
+		return nil, fmt.Errorf("missing op type field")
+	case string:
+		switch OpType(ot) {
+		case OpTypeSetKey:
+			var out OpSetKey
+			mapToCBOR(o, &out)
+			return out, nil
+		case OpTypeMoveBlock:
+			var out OpMoveBlock
+			mapToCBOR(o, &out)
+			return out, nil
+		case OpTypeReplaceBlock:
+			var out OpReplaceBlock
+			mapToCBOR(o, &out)
+			return out, nil
+		default:
+			return nil, fmt.Errorf("unsupported op type %s", o)
+		}
+	default:
+		return nil, fmt.Errorf("invalid op type type %T", o)
+	}
 }
+
+type Op interface {
+	isOp()
+}
+
+type baseOp struct {
+	Type OpType `refmt:"type"`
+}
+
+func (o baseOp) isOp() {}
+
+type OpSetKey struct {
+	baseOp
+	Key   string `refmt:"key"`
+	Value any    `refmt:"value"`
+}
+
+type OpMoveBlock struct {
+	baseOp
+	Parent string `refmt:"parent,omitempty"`
+	Block  string `refmt:"block"`
+	// Ref here means the ID of the left position.
+	// It has nothing to do with a Hypermedia Ref,
+	// it's a ref in the sense of the RGA CRDT algorithm.
+	Ref string `refmt:"ref,omitempty"`
+}
+
+type OpReplaceBlock struct {
+	baseOp
+	Block Block `refmt:"block"`
+}
+
+type PackedOpID []byte
 
 // Supported op types.
 const (
-	OpSetMetadata  OpType = "SetMetadata"  // Args = key => value.
-	OpMoveBlock    OpType = "MoveBlock"    // Args = block, parent, left+origin.
-	OpReplaceBlock OpType = "ReplaceBlock" // Args = id => block data.
+	OpTypeSetKey       OpType = "SetKey"       // Args = key => value.
+	OpTypeMoveBlock    OpType = "MoveBlock"    // Args = block, parent, left+origin.
+	OpTypeReplaceBlock OpType = "ReplaceBlock" // Args = id => block data.
 )
 
-// NewOpSetMetadata creates a SetMetadata op.
-func NewOpSetMetadata(key string, value any) Op {
-	return Op{
-		Type: OpSetMetadata,
-		Data: map[string]any{key: value}, // TODO(burdiyan): or key => key, value => value?
+// NewOpSetKey creates a SetMetadata op.
+func NewOpSetKey(key string, value any) OpMap {
+	switch value.(type) {
+	case string, int, bool:
+	// OK.
+	default:
+		panic(fmt.Sprintf("unsupported metadata value type: %T", value))
 	}
+
+	op := OpSetKey{
+		baseOp: baseOp{
+			Type: OpTypeSetKey,
+		},
+		Key:   key,
+		Value: value,
+	}
+
+	return cborToMap(op)
 }
 
 // NewOpMoveBlock creates a MoveBlock op.
-func NewOpMoveBlock(block, parent, leftOrigin string) Op {
-	return Op{
-		Type: OpMoveBlock,
-		Data: map[string]any{
-			"block":      block,
-			"parent":     parent,
-			"leftOrigin": leftOrigin,
+func NewOpMoveBlock(block, parent, leftOrigin string) OpMap {
+	op := OpMoveBlock{
+		baseOp: baseOp{
+			Type: OpTypeMoveBlock,
 		},
+		Block:  block,
+		Parent: parent,
+		Ref:    leftOrigin,
 	}
+
+	return cborToMap(op)
 }
 
 // NewOpReplaceBlock creates a ReplaceBlock op.
-func NewOpReplaceBlock(state Block) Op {
-	return Op{
-		Type: OpReplaceBlock,
-		Data: CBORToMap(state),
+func NewOpReplaceBlock(state Block) OpMap {
+	op := OpReplaceBlock{
+		baseOp: baseOp{
+			Type: OpTypeReplaceBlock,
+		},
+		Block: state,
 	}
+
+	return cborToMap(op)
 }
 
 // Change is an atomic change to a document.
@@ -117,11 +196,17 @@ type Change struct {
 	Genesis cid.Cid   `refmt:"genesis,omitempty"`
 	Deps    []cid.Cid `refmt:"deps,omitempty"`
 	Depth   int       `refmt:"depth,omitempty"`
-	Ops     []Op      `refmt:"ops,omitempty"`
+	Ops_    []OpMap   `refmt:"ops,omitempty"`
 }
 
 // NewChange creates a new Change.
-func NewChange(kp core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, ops []Op, ts time.Time) (eb Encoded[*Change], err error) {
+func NewChange(kp core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, ops []OpMap, ts time.Time) (eb Encoded[*Change], err error) {
+	if !slices.IsSortedFunc(deps, func(a, b cid.Cid) int {
+		return cmp.Compare(a.KeyString(), b.KeyString())
+	}) {
+		panic("BUG: deps are not sorted")
+	}
+
 	cc := &Change{
 		baseBlob: baseBlob{
 			Type:   blobTypeChange,
@@ -131,7 +216,7 @@ func NewChange(kp core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, ops 
 		Genesis: genesis,
 		Deps:    deps,
 		Depth:   depth,
-		Ops:     ops,
+		Ops_:    ops,
 	}
 
 	if err := signBlob(kp, cc, &cc.baseBlob.Sig); err != nil {
@@ -141,107 +226,15 @@ func NewChange(kp core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, ops 
 	return encodeBlob(cc)
 }
 
-type OpID struct {
-	Ts     uint64
-	Idx    uint32
-	Origin uint64
-}
-
-const (
-	maxTimestamp = 1<<48 - 1
-	maxIdx       = 1<<24 - 1
-	maxOrigin    = 1<<48 - 1
-)
-
-func newOpID(ts uint64, idx uint32, origin uint64) OpID {
-	if ts >= maxTimestamp {
-		panic("BUG: operation timestamp is too large")
+// Ops is an iterator over the ops in the change.
+// We don't expose the underlying slice of Ops,
+// because eventually some data will be run-length encoded in there.
+func (c *Change) Ops() iter.Seq2[Op, error] {
+	return func(yield func(Op, error) bool) {
+		for _, v := range c.Ops_ {
+			yield(v.ToOp())
+		}
 	}
-
-	if idx >= maxIdx {
-		panic("BUG: operation index is too large")
-	}
-
-	if origin >= maxOrigin {
-		panic("BUG: operation origin is too large")
-	}
-
-	return OpID{
-		Ts:     ts,
-		Origin: origin,
-		Idx:    idx,
-	}
-}
-
-func (o OpID) Compare(oo OpID) int {
-	if o.Ts < oo.Ts {
-		return -1
-	}
-
-	if o.Ts > oo.Ts {
-		return +1
-	}
-
-	if o.Idx < oo.Idx {
-		return -1
-	}
-
-	if o.Idx > oo.Idx {
-		return +1
-	}
-
-	return cmp.Compare(o.Origin, oo.Origin)
-}
-
-func (op OpID) Encode() EncodedOpID {
-	var (
-		e       EncodedOpID
-		scratch [8]byte
-	)
-
-	binary.BigEndian.PutUint64(scratch[:], uint64(op.Ts))
-	copy(e[:6], scratch[2:])
-
-	binary.BigEndian.PutUint32(scratch[:], op.Idx)
-	copy(e[6:6+3], scratch[1:])
-
-	binary.BigEndian.PutUint64(scratch[:], op.Origin)
-	copy(e[9:], scratch[2:])
-
-	return e
-}
-
-// EncodedOpID is a CRDT Op ID that is compactly encoded in the following way:
-// - 6 bytes (48 bits): timestamp. Enough precision to track Unix millisecond timestamps for thousands for years.
-// - 3 bytes (24 bits): index/offset of the operation within the same Change/Transaction.
-// - 6 bytes (48 bits): origin/replica/actor. Random 48-bit value of a replica that generated the operation.
-// The timestamp and index are big-endian, to support lexicographic ordering of the IDs.
-// This has some limitations:
-// 1. Maximum number of operations in a single change is 16777215.
-// 2. Same actor must not generate Changes/Transactions within the same millisecond.
-// 3. The clocks on the devices generating the operations must be roughly syncronized to avoid inter-device conflicts in timestamps.
-type EncodedOpID [15]byte
-
-func (e EncodedOpID) Decode() OpID {
-	var (
-		out     OpID
-		scratch [8]byte
-	)
-
-	copy(scratch[2:], e[:6])
-	scratch[0] = 0
-	scratch[1] = 0
-	out.Ts = binary.BigEndian.Uint64(scratch[:])
-
-	copy(scratch[1:], e[6:6+3])
-	out.Idx = binary.BigEndian.Uint32(scratch[:5])
-
-	copy(scratch[2:], e[9:])
-	scratch[0] = 0
-	scratch[1] = 0
-	out.Origin = binary.BigEndian.Uint64(scratch[:])
-
-	return out
 }
 
 func init() {
@@ -306,46 +299,41 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 	var meta struct {
 		Title string `json:"title"`
 	}
-	for _, op := range v.Ops {
-		switch op.Type {
-		case OpSetMetadata:
-			for k, v := range op.Data {
-				vs, ok := v.(string)
-				if !ok {
-					continue
-				}
+	for op, err := range v.Ops() {
+		if err != nil {
+			return err
+		}
+		switch op := op.(type) {
+		case OpSetKey:
+			k, v := op.Key, op.Value
 
-				// TODO(hm24): index other relevant metadata for list response and so on.
-				if meta.Title == "" && (k == "title" || k == "name" || k == "alias") {
-					meta.Title = vs
-				}
-
-				u, err := url.Parse(vs)
-				if err != nil {
-					continue
-				}
-
-				if u.Scheme != "ipfs" {
-					continue
-				}
-
-				c, err := cid.Decode(u.Host)
-				if err != nil {
-					continue
-				}
-
-				sb.AddBlobLink("metadata/"+k, c)
+			vs, ok := v.(string)
+			if !ok {
+				continue
 			}
-		case OpReplaceBlock:
-			rawBlock, err := cbornode.DumpObject(op.Data)
+
+			// TODO(hm24): index other relevant metadata for list response and so on.
+			if meta.Title == "" && (k == "title" || k == "name" || k == "alias") {
+				meta.Title = vs
+			}
+
+			u, err := url.Parse(vs)
 			if err != nil {
-				return fmt.Errorf("bad data?: failed to encode block into cbor when indexing: %w", err)
+				continue
 			}
 
-			var blk Block
-			if err := cbornode.DecodeInto(rawBlock, &blk); err != nil {
-				return fmt.Errorf("bad data?: failed to decode cbor block: %w", err)
+			if u.Scheme != "ipfs" {
+				continue
 			}
+
+			c, err := cid.Decode(u.Host)
+			if err != nil {
+				continue
+			}
+
+			sb.AddBlobLink("metadata/"+k, c)
+		case OpReplaceBlock:
+			blk := op.Block
 
 			if err := indexURL(&sb, ictx.log, blk.ID, "doc/"+blk.Type, blk.Link); err != nil {
 				return err
