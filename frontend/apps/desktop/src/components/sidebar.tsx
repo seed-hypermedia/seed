@@ -136,20 +136,10 @@ function SidebarSection({
             {title}
           </SizableText>
           <XStack ai="center" jc="center" w={16} h={20}>
-            <Icon
-              size={12}
-              color="$color11"
-              opacity={collapsed ? 1 : 0}
-              $group-header-hover={{
-                color: '$color12',
-                opacity: 1,
-              }}
-            />
+            <Icon size={12} color="$color11" />
           </XStack>
         </XStack>
-        <XStack opacity={0} $group-section-hover={{opacity: 1}}>
-          {accessory}
-        </XStack>
+        <XStack>{accessory}</XStack>
       </XStack>
       {collapsed ? null : children}
     </YStack>
