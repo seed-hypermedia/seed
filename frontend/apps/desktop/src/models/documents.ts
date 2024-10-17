@@ -6,15 +6,15 @@ import {queryKeys} from '@/models/query-keys'
 import {useOpenUrl} from '@/open-url'
 import {slashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
-import {PlainMessage, Timestamp, toPlainMessage} from '@bufbuild/protobuf'
+import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
 import {
   DEFAULT_GATEWAY_URL,
   DocumentChange,
-  DocumentListItem,
   HMBlock,
   HMBlockNode,
   HMDocument,
+  HMDocumentListItem,
   HMDraft,
   UnpackedHypermediaId,
   editorBlockToHMBlock,
@@ -857,11 +857,6 @@ export function usePublishToSite() {
     return true
   }
 }
-
-export type HMDocumentListItem = Omit<
-  PlainMessage<DocumentListItem>,
-  'path'
-> & {path: string[]}
 
 export function useListDirectory(id: UnpackedHypermediaId) {
   const grpcClient = useGRPCClient()

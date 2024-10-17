@@ -2,6 +2,8 @@ import {toPlainMessage} from "@bufbuild/protobuf";
 import {
   getParentPaths,
   HMDocument,
+  HMDocumentListItem,
+  HMDocumentSchema,
   hmId,
   hmIdPathToEntityQueryPath,
   HMMetadata,
@@ -38,23 +40,52 @@ export type WebBaseDocumentPayload = {
   authors: {id: UnpackedHypermediaId; metadata: HMMetadata}[];
   id: UnpackedHypermediaId;
   siteHost: string | undefined;
+  supportDocuments?: {id: UnpackedHypermediaId; document: HMDocument}[];
+  supportQueries?: {
+    in: UnpackedHypermediaId;
+    results: HMDocumentListItem[];
+  }[];
 };
 
 export type WebDocumentPayload = WebBaseDocumentPayload & {
   breadcrumbs: {id: UnpackedHypermediaId; metadata: HMMetadata}[];
 };
 
+async function getHMDocument(entityId: UnpackedHypermediaId) {
+  const {version, uid} = entityId;
+  const path = hmIdPathToEntityQueryPath(entityId.path);
+  const apiDoc = await queryClient.documents.getDocument({
+    account: uid,
+    path,
+    version: version || undefined,
+  });
+  const document = HMDocumentSchema.parse(toPlainMessage(apiDoc));
+  return document;
+}
+
+async function getDirectory(id: UnpackedHypermediaId) {
+  const res = await queryClient.documents.listDocuments({
+    account: id.uid,
+  });
+  const docs = res.documents
+    .map(toPlainMessage)
+    .filter((doc) => doc.path !== "")
+    .map((doc) => {
+      return {...doc, path: doc.path.slice(1).split("/")};
+    });
+  return docs as HMDocumentListItem[];
+}
+
 export async function getBaseDocument(
   entityId: UnpackedHypermediaId,
   waitForSync?: boolean
 ): Promise<WebBaseDocumentPayload> {
-  const {id, version, uid} = entityId;
+  const {uid} = entityId;
   const path = hmIdPathToEntityQueryPath(entityId.path);
-  console.log("Will discover entity " + entityId.id);
   const discoverPromise = queryClient.entities
     .discoverEntity({
-      account: entityId.uid,
-      path: hmIdPathToEntityQueryPath(entityId.path),
+      account: uid,
+      path,
       // version ommitted intentionally here. we want to discover the latest version
     })
     .then(() => {
@@ -70,24 +101,48 @@ export async function getBaseDocument(
       console.error("discovery error " + entityId.id, e);
     });
   }
-  console.log("= getDocument", {uid, path, version});
-  const rawDoc = await queryClient.documents.getDocument({
-    account: uid,
-    path,
-    version: version || undefined,
-  });
-  const document = toPlainMessage(rawDoc);
-  console.log("loaded doc with version: ", document.version);
-  const authors = await Promise.all(
+  const document = await getHMDocument(entityId);
+  let authors = await Promise.all(
     document.authors.map(async (authorUid) => {
       return await getMetadata(hmId("d", authorUid));
     })
   );
 
-  // console.log(`== ~ breadcrumbs:`, breadcrumbs);
-  console.log("done with getDocument", entityId);
+  let supportDocuments: {id: UnpackedHypermediaId; document: HMDocument}[] = [];
+  let supportQueries: {
+    in: UnpackedHypermediaId;
+    results: HMDocumentListItem[];
+  }[] = [];
+
+  if (document.metadata.layout === "Seed/Experimental/Newspaper") {
+    const results = await getDirectory(entityId);
+    supportQueries = [{in: entityId, results}];
+    supportDocuments = await Promise.all(
+      results.map(async (item) => {
+        const id = hmId("d", entityId.uid, {path: item.path});
+        return {
+          id,
+          document: await getHMDocument(id),
+        };
+      })
+    );
+    const itemsAuthors = (
+      results.flatMap((entity) => entity.authors || []) || []
+    ).map((authorId) => {
+      return hmId("d", authorId);
+    });
+    authors = [
+      ...authors,
+      ...(await Promise.all(
+        itemsAuthors.map((authorId) => getMetadata(authorId))
+      )),
+    ];
+  }
+
   return {
     document,
+    supportDocuments,
+    supportQueries,
     authors,
     siteHost: SITE_BASE_URL,
     id: {...entityId, version: document.version},

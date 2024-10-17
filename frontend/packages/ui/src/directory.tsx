@@ -10,7 +10,7 @@ import {Button} from "@tamagui/button";
 import {Pencil} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
-import {FacePile} from "./face-pile";
+import {AccountsMetadata, FacePile} from "./face-pile";
 import {Thumbnail} from "./thumbnail";
 import {itemHoverBgColor} from "./ui-constants";
 
@@ -39,10 +39,7 @@ export function DirectoryItem({
     id: UnpackedHypermediaId;
     hideUntilItemHover: boolean;
   }>;
-  authorsMetadata: {
-    uid: string;
-    metadata?: HMMetadata;
-  }[];
+  authorsMetadata: AccountsMetadata;
   siteHomeId?: UnpackedHypermediaId;
 }) {
   const metadata = entry?.metadata;

@@ -35,6 +35,7 @@ import {
 import {getHref} from "./href";
 import type {SiteDocumentPayload} from "./loaders";
 import {defaultSiteIcon} from "./meta";
+import {NewspaperPage} from "./newspaper";
 import {NotFoundPage} from "./not-found";
 import {PageHeader} from "./page-header";
 import type {DirectoryPayload} from "./routes/hm.api.directory";
@@ -97,6 +98,9 @@ export function DocumentPage(props: SiteDocumentPayload) {
         homeMetadata={homeMetadata}
       />
     );
+  if (document.metadata.layout === "Seed/Experimental/Newspaper") {
+    return <NewspaperPage {...props} />;
+  }
   return (
     <>
       <YStack marginBottom={300}>

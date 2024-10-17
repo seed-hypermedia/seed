@@ -1438,7 +1438,6 @@ function InlineContentView({
 }
 
 export function BlockContentEmbed(props: BlockContentProps) {
-  console.log(`== ~ BlockContentEmbed ~ props:`, props);
   const EmbedTypes = useDocContentContext().entityComponents;
   if (props.block.type !== "Embed")
     throw new Error("BlockContentEmbed requires an embed block type");

@@ -7,6 +7,7 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
 } from "@shm/shared";
+import {AccountsMetadata} from "@shm/ui/src/face-pile";
 import {queryClient} from "~/client";
 import {wrapJSON, WrappedResponse} from "~/wrapping";
 
@@ -20,10 +21,7 @@ export type DirectoryPayload = {
     id: UnpackedHypermediaId;
     authors: string[];
   }[];
-  authorsMetadata?: {
-    uid: string;
-    metadata?: HMMetadata;
-  }[];
+  authorsMetadata?: AccountsMetadata;
   error?: string;
 };
 
@@ -70,7 +68,7 @@ export const loader = async ({
           account: authorUid,
         });
         const authorAccount = toPlainMessage(res);
-        return {uid: authorUid, metadata: authorAccount.metadata};
+        return {id: hmId("d", authorUid), metadata: authorAccount.metadata};
       })
     );
     result = {directory, authorsMetadata};

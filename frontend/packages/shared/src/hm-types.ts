@@ -6,6 +6,7 @@ import type {
   Comment,
   DeletedEntity,
   Document,
+  DocumentListItem,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import * as z from 'zod'
@@ -374,3 +375,8 @@ export type HMCommentGroup = {
 }
 
 export type HMBlockType = HMBlock['type']
+
+export type HMDocumentListItem = Omit<
+  PlainMessage<DocumentListItem>,
+  'path'
+> & {path: string[]}

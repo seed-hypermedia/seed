@@ -218,7 +218,7 @@ function DirectoryItemWithAuthors({
     .filter((author) => !!author)
     .map((data) => {
       return {
-        uid: data!.id!.uid,
+        id: data!.id!,
         metadata: data?.document?.metadata,
       }
     })

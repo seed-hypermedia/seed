@@ -69,5 +69,5 @@ let config = {
     // },
   ].filter(Boolean),
 };
-console.log("VITE CONFIG", JSON.stringify(config, null, 4));
+// console.log("VITE CONFIG", JSON.stringify(config, null, 4));
 export default defineConfig(config);

@@ -66,81 +66,14 @@ export function PageHeader({
 
   return (
     <YStack paddingTop={86} $gtSm={{paddingTop: 44}} id="page-header">
-      <Stack
-        flex={1}
-        flexDirection="column"
-        $gtSm={{flexDirection: "row"}}
-        bg="$background"
-        position="fixed"
-        zi="$zIndex.7"
-        w="100%"
-        top={0}
-        paddingBlock="$2"
-        paddingInline="$4"
-        id="page-header-menu"
-        borderBottomColor="$color5"
-        borderBottomWidth={1}
-      >
-        <XStack>
-          <XStack
-            ai="center"
-            f={1}
-            $gtSm={{
-              f: 0,
-            }}
-          >
-            <XStack
-              tag="a"
-              role="link"
-              style={{textDecoration: "none"}}
-              href="/"
-              gap="$2"
-              ai="center"
-              hoverStyle={{
-                textDecorationLine: "underline",
-              }}
-            >
-              {homeMetadata?.thumbnail && homeId ? (
-                <Thumbnail size={30} id={homeId} metadata={homeMetadata} />
-              ) : null}
-
-              <SizableText fontWeight="bold">
-                {homeMetadata?.name || "Seed Gateway"}
-              </SizableText>
-            </XStack>
-          </XStack>
-          <XStack alignItems="center">
-            {homeId ? <SearchUI homeId={homeId} /> : null}
-          </XStack>
-        </XStack>
-        <XStack
-          ai="center"
-          $gtSm={{flex: 1}}
-          position="sticky"
-          bg="$background"
-          zi="$zIndex.7"
-          top={0}
-        >
-          <Breadcrumbs
-            homeId={homeId || undefined}
-            docId={docId || undefined}
-            docMetadata={docMetadata || undefined}
-            breadcrumbs={breadcrumbs}
-          />
-          {openSheet ? (
-            <Button
-              $gtMd={{display: "none", opacity: 0, pointerEvents: "none"}}
-              size="$2"
-              chromeless
-              backgroundColor="transparent"
-              icon={Menu}
-              onPress={() => {
-                openSheet();
-              }}
-            />
-          ) : null}
-        </XStack>
-      </Stack>
+      <SiteHeader
+        homeMetadata={homeMetadata}
+        homeId={homeId}
+        docMetadata={docMetadata}
+        docId={docId}
+        openSheet={openSheet}
+        breadcrumbs={breadcrumbs}
+      />
       {hasCover ? (
         <XStack
           backgroundColor={coverBg}
@@ -234,6 +167,103 @@ export function PageHeader({
         </YStack>
       </Container>
     </YStack>
+  );
+}
+
+export function SiteHeader({
+  homeMetadata,
+  homeId,
+  docMetadata,
+  docId,
+  openSheet,
+  breadcrumbs,
+}: {
+  homeMetadata: HMMetadata | null;
+  homeId: UnpackedHypermediaId | null;
+  docMetadata: HMMetadata | null;
+  docId: UnpackedHypermediaId | null;
+  openSheet?: () => void;
+  breadcrumbs: Array<{
+    id: UnpackedHypermediaId;
+    metadata: HMMetadata;
+  }>;
+}) {
+  return (
+    <Stack
+      flex={1}
+      flexDirection="column"
+      $gtSm={{flexDirection: "row"}}
+      bg="$background"
+      position="fixed"
+      zi="$zIndex.7"
+      w="100%"
+      top={0}
+      paddingBlock="$2"
+      paddingInline="$4"
+      id="page-header-menu"
+      borderBottomColor="$color5"
+      borderBottomWidth={1}
+    >
+      <XStack>
+        <XStack
+          ai="center"
+          f={1}
+          $gtSm={{
+            f: 0,
+          }}
+        >
+          <XStack
+            tag="a"
+            role="link"
+            style={{textDecoration: "none"}}
+            href="/"
+            gap="$2"
+            ai="center"
+            hoverStyle={{
+              textDecorationLine: "underline",
+            }}
+          >
+            {homeMetadata?.thumbnail && homeId ? (
+              <Thumbnail size={30} id={homeId} metadata={homeMetadata} />
+            ) : null}
+
+            <SizableText fontWeight="bold">
+              {homeMetadata?.name || "Seed Gateway"}
+            </SizableText>
+          </XStack>
+        </XStack>
+        <XStack alignItems="center">
+          {homeId ? <SearchUI homeId={homeId} /> : null}
+        </XStack>
+      </XStack>
+      <XStack
+        ai="center"
+        $gtSm={{flex: 1}}
+        position="sticky"
+        bg="$background"
+        zi="$zIndex.7"
+        top={0}
+      >
+        <Breadcrumbs
+          homeId={homeId || undefined}
+          docId={docId || undefined}
+          docMetadata={docMetadata || undefined}
+          breadcrumbs={breadcrumbs}
+        />
+        {openSheet ? (
+          <Button
+            $gtMd={{display: "none", opacity: 0, pointerEvents: "none"}}
+            size="$2"
+            chromeless
+            backgroundColor="transparent"
+            icon={Menu}
+            onPress={() => {
+              openSheet();
+            }}
+          />
+        ) : null}
+      </XStack>
+    </Stack>
   );
 }
 
@@ -475,7 +505,6 @@ function Breadcrumbs({
   docId?: UnpackedHypermediaId;
   docMetadata?: HMMetadata;
 }) {
-  console.log(`== ~ breadcrumbs:`, breadcrumbs);
   return (
     <XStack f={1} gap="$2">
       {breadcrumbs.map((crumb) => {

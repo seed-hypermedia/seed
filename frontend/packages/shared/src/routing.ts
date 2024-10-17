@@ -1,4 +1,5 @@
 import {createContext, useContext} from 'react'
+import {GestureResponderEvent} from 'react-native'
 import {NavRoute} from './routes'
 import {idToUrl, UnpackedHypermediaId} from './utils'
 
@@ -31,7 +32,7 @@ export function useRouteLink(
     throw new Error('useRouteLink must be used in a UniversalRoutingProvider')
   return {
     onPress: context.openRoute
-      ? (e: MouseEvent) => {
+      ? (e: GestureResponderEvent) => {
           e.preventDefault()
           e.stopPropagation()
           context.openRoute(route)

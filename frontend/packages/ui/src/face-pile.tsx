@@ -1,11 +1,12 @@
-import {hmId, HMMetadata} from "@shm/shared";
+import {HMMetadata, UnpackedHypermediaId} from "@shm/shared";
+import {Text} from "@tamagui/core";
+import {XStack} from "@tamagui/stacks";
 import {useMemo} from "react";
-import {Text, XStack} from "tamagui";
 import {LinkThumbnail} from "./thumbnail";
 import {itemHoverBgColor} from "./ui-constants";
 
 export type AccountsMetadata = {
-  uid: string;
+  id: UnpackedHypermediaId;
   metadata?: HMMetadata;
 }[];
 
@@ -24,7 +25,8 @@ export function FacePile({
     <>
       {showAccountIds.map((author, idx) => {
         const authorInfo = accountsMetadata.find(
-          (authorMetadata: any) => authorMetadata.uid === author
+          (authorMetadata: AccountsMetadata[number]) =>
+            authorMetadata.id.uid === author
         );
         if (!authorInfo) return null;
         return (
@@ -44,8 +46,8 @@ export function FacePile({
             animation="fast"
           >
             <LinkThumbnail
-              key={authorInfo.uid}
-              id={hmId("d", authorInfo.uid)}
+              key={authorInfo.id.uid}
+              id={authorInfo.id}
               metadata={authorInfo.metadata}
               size={20}
             />

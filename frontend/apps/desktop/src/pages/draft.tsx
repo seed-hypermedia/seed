@@ -93,7 +93,6 @@ export default function DraftPage() {
   const draft = useDraft(route.id)
 
   let draftContent = null
-  console.log('~~ draft', draft.data)
   if (
     draft.data?.metadata?.layout === 'Seed/Experimental/Newspaper' &&
     route.id
