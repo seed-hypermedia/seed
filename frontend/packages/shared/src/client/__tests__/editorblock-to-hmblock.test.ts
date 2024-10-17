@@ -504,7 +504,7 @@ describe('EditorBlock to HMBlock', () => {
         children: [],
         props: {
           url: 'ipfs://foobarimgcid',
-          width: 240,
+          width: '240',
           name: 'test demo video',
           size: 123456,
         },
@@ -523,7 +523,9 @@ describe('EditorBlock to HMBlock', () => {
         text: ``,
         link: 'ipfs://foobarimgcid',
         annotations: [],
-        attributes: {},
+        attributes: {
+          width: '240',
+        },
       }
       const val = editorBlockToHMBlock(editorBlock)
 
