@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func TestDaemonRegisterKey(t *testing.T) {
@@ -150,9 +149,9 @@ func TestDaemonUpdateProfile(t *testing.T) {
 	want := &documents.Document{
 		Account: alice.String(),
 		Path:    "",
-		Metadata: must.Do2(structpb.NewStruct(map[string]any{
+		Metadata: map[string]string{
 			"title": "Alice from the Wonderland",
-		})),
+		},
 		Authors: []string{alice.String()},
 		Content: []*documents.BlockNode{
 			{
@@ -191,9 +190,9 @@ func TestDaemonUpdateProfile(t *testing.T) {
 		want := &documents.Document{
 			Account: alice.String(),
 			Path:    "",
-			Metadata: must.Do2(structpb.NewStruct(map[string]any{
+			Metadata: map[string]string{
 				"title": "Just Alice",
-			})),
+			},
 			Authors: []string{alice.String()},
 			Content: []*documents.BlockNode{
 				{

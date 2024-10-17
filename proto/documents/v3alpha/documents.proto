@@ -4,7 +4,6 @@ package com.seed.documents.v3alpha;
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
-import "google/protobuf/struct.proto";
 
 option go_package = "seed/backend/genproto/documents/v3alpha;documents";
 
@@ -168,7 +167,7 @@ message DocumentListItem {
   string path = 2;
 
   // User-defined metadata attributes of the document.
-  google.protobuf.Struct metadata = 3;
+  map<string, string> metadata = 3;
 
   // Every author ID who has modified this document's version.
   repeated string authors = 4;
@@ -193,7 +192,7 @@ message Document {
   string path = 2;
 
   // Metadata values for a document.
-  google.protobuf.Struct metadata = 3;
+  map<string, string> metadata = 3;
 
   // Output only. Every account ID who has modified the document.
   // Includes the original author as well.

@@ -2,10 +2,10 @@ package documents
 
 import (
 	"context"
-	"seed/backend/blob"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
 	documents "seed/backend/genproto/documents/v3alpha"
+	"seed/backend/blob"
 	"seed/backend/logging"
 	"seed/backend/storage"
 	"seed/backend/testutil"
@@ -15,7 +15,6 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func TestCreateDocumentChange(t *testing.T) {
@@ -59,9 +58,9 @@ func TestCreateDocumentChange(t *testing.T) {
 	want := &documents.Document{
 		Account: alice.me.Account.Principal().String(),
 		Path:    "",
-		Metadata: must.Do2(structpb.NewStruct(map[string]any{
+		Metadata: map[string]string{
 			"title": "Alice from the Wonderland",
-		})),
+		},
 		Authors: []string{alice.me.Account.Principal().String()},
 		Content: []*documents.BlockNode{
 			{
