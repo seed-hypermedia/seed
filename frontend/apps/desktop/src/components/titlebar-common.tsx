@@ -110,9 +110,10 @@ export function DocOptionsButton() {
           .then((res) => {
             const success = (
               <>
-                <YStack gap="$1.5">
-                  <SizableText>
-                    Successfully exported documents to: <b>{`${res}`}</b>.
+                <YStack gap="$1.5" maxWidth={700}>
+                  <SizableText wordWrap="break-word" textOverflow="break-word">
+                    Successfully exported document "{title}" to:{' '}
+                    <b>{`${res}`}</b>.
                   </SizableText>
                   <SizableText
                     textDecorationLine="underline"

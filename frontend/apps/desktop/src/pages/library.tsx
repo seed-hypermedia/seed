@@ -150,8 +150,8 @@ export default function LibraryPage() {
       .then((res) => {
         const success = (
           <>
-            <YStack gap="$1.5">
-              <SizableText>
+            <YStack gap="$1.5" maxWidth={700}>
+              <SizableText wordWrap="break-word" textOverflow="break-word">
                 Successfully exported documents to: <b>{`${res}`}</b>.
               </SizableText>
               <SizableText
