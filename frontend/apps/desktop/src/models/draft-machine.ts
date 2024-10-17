@@ -7,9 +7,12 @@ export type DraftMachineState = StateFrom<typeof draftMachine>
 export const draftMachine = setup({
   types: {
     context: {} as {
-      name: string
-      thumbnail: string
-      cover: string
+      metadata: {
+        name: string
+        thumbnail: string
+        cover: string
+        layout: 'Seed/Experimental/Newspaper' | ''
+      }
       signingAccount: null | string
       draft: null | HMDraft
       document: null | HMDocument
@@ -21,9 +24,7 @@ export const draftMachine = setup({
     events: {} as
       | {
           type: 'CHANGE'
-          name?: string
-          thumbnail?: string | null
-          cover?: string | null
+          metadata?: HMDraft['metadata']
           signingAccount?: string
         }
       | {type: 'RESET.DRAFT'}
@@ -53,57 +54,28 @@ export const draftMachine = setup({
         return null
       },
     }),
-    setName: assign({
-      name: ({context, event}) => {
+    setAttributes: assign({
+      metadata: ({context, event}) => {
         if (event.type == 'GET.DRAFT.SUCCESS') {
           if (event.draft) {
-            return event.draft.metadata?.name
+            return {
+              ...context.metadata,
+              ...event.draft.metadata,
+            }
           } else if (event.document) {
-            return event.document.metadata?.name
-          }
-        }
-        if (event.type == 'CHANGE' && event.name != null) {
-          return event.name
-        }
-        return context.name
-      },
-    }),
-    setThumbnail: assign({
-      thumbnail: ({context, event}) => {
-        if (event.type == 'GET.DRAFT.SUCCESS') {
-          if (event.draft) {
-            return event.draft.metadata.thumbnail
-          } else if (event.document) {
-            return event.document.metadata.thumbnail
+            return {
+              ...context.metadata,
+              ...event.document.metadata,
+            }
           }
         }
         if (event.type == 'CHANGE') {
-          if (event.thumbnail) {
-            return event.thumbnail
-          } else if (event.thumbnail === null) {
-            return ''
+          return {
+            ...context.metadata,
+            ...event.metadata,
           }
         }
-        return context.thumbnail
-      },
-    }),
-    setCover: assign({
-      cover: ({context, event}) => {
-        if (event.type == 'GET.DRAFT.SUCCESS') {
-          if (event.draft) {
-            return event.draft.metadata.cover
-          } else if (event.document) {
-            return event.document.metadata.cover
-          }
-        }
-        if (event.type == 'CHANGE') {
-          if (event.cover) {
-            return event.cover
-          } else if (event.cover === null) {
-            return ''
-          }
-        }
-        return context.cover
+        return context.metadata
       },
     }),
     setSigningAccount: assign({
@@ -169,6 +141,7 @@ export const draftMachine = setup({
     name: '',
     thumbnail: '',
     cover: '',
+    layout: '',
     draft: null,
     signingAccount: null,
     document: null,
@@ -190,9 +163,7 @@ export const draftMachine = setup({
             actions: [
               {type: 'setDraft'},
               {type: 'setDocument'},
-              {type: 'setName'},
-              {type: 'setThumbnail'},
-              {type: 'setCover'},
+              {type: 'setAttributes'},
               {type: 'setSigningAccount'},
             ],
           },
@@ -229,12 +200,7 @@ export const draftMachine = setup({
           on: {
             CHANGE: {
               target: 'changed',
-              actions: [
-                {type: 'setName'},
-                {type: 'setThumbnail'},
-                {type: 'setCover'},
-                {type: 'setSigningAccount'},
-              ],
+              actions: [{type: 'setAttributes'}, {type: 'setSigningAccount'}],
             },
           },
         },
@@ -248,12 +214,7 @@ export const draftMachine = setup({
           on: {
             CHANGE: {
               target: 'changed',
-              actions: [
-                {type: 'setName'},
-                {type: 'setThumbnail'},
-                {type: 'setCover'},
-                {type: 'setSigningAccount'},
-              ],
+              actions: [{type: 'setAttributes'}, {type: 'setSigningAccount'}],
               reenter: true,
             },
           },
@@ -278,9 +239,7 @@ export const draftMachine = setup({
               target: 'saving',
               actions: [
                 {type: 'setHasChangedWhileSaving'},
-                {type: 'setName'},
-                {type: 'setThumbnail'},
-                {type: 'setCover'},
+                {type: 'setAttributes'},
                 {type: 'setSigningAccount'},
               ],
               reenter: false,
@@ -288,10 +247,8 @@ export const draftMachine = setup({
           },
           invoke: {
             input: ({context}) => ({
-              name: context.name,
-              thumbnail: context.thumbnail,
+              metadata: context.metadata,
               currentDraft: context.draft,
-              cover: context.cover,
               signingAccount: context.signingAccount,
             }),
             id: 'createOrUpdateDraft',
@@ -319,6 +276,7 @@ export const draftMachine = setup({
                   {type: 'setName'},
                   {type: 'setThumbnail'},
                   {type: 'setCover'},
+                  {type: 'setLayout'},
                   {type: 'setSigningAccount'},
                   {type: 'replaceRouteifNeeded'},
                   {

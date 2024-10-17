@@ -11,6 +11,7 @@ import {BlockNoteEditor, getBlockInfoFromPos} from '@/editor'
 import {useDraft} from '@/models/accounts'
 import {useDraftEditor} from '@/models/documents'
 import {draftMachine} from '@/models/draft-machine'
+import {useGatewayUrl} from '@/models/gateway-settings'
 import {trpc} from '@/trpc'
 import {
   chromiumSupportedImageMimeTypes,
@@ -62,11 +63,21 @@ export default function DraftPage() {
     undefined,
   )
 
+  const draft = useDraft(route.id)
+  let data = useDraftEditor({
+    id: route.id,
+  })
+
   let accessory = null
 
   if (accessoryKey === 'options' && route.id) {
     accessory = (
       <OptionsPanel
+        value={data.state.context.metadata.layout}
+        onValue={(value) => {
+          if (!draft.data) return
+          data.actor.send({type: 'CHANGE', metadata: {layout: value}})
+        }}
         onClose={() => setAccessory(undefined)}
         draftId={route.id}
       />
@@ -90,18 +101,16 @@ export default function DraftPage() {
     })
   }
 
-  const draft = useDraft(route.id)
-
   let draftContent = null
   if (
-    draft.data?.metadata?.layout === 'Seed/Experimental/Newspaper' &&
+    draft.data?.metadata?.layout == 'Seed/Experimental/Newspaper' &&
     route.id
   ) {
     draftContent = (
       <NewspaperLayout id={route.id} metadata={draft.data?.metadata} />
     )
   } else if (!draft.isLoading && route.id) {
-    draftContent = <DocumentEditor id={route.id} />
+    draftContent = <DocumentEditor {...data} id={route.id} />
   }
 
   return (
@@ -126,26 +135,27 @@ export default function DraftPage() {
   // ==========
 }
 
-function DocumentEditor({id}: {id: UnpackedHypermediaId}) {
-  let data = useDraftEditor({
-    id,
-  })
+function DocumentEditor({
+  editor,
+  state,
+  actor,
+  handleFocusAtMousePos,
+  id,
+}: ReturnType<typeof useDraftEditor> & {id: UnpackedHypermediaId}) {
   const importWebFile = trpc.webImporting.importWebFile.useMutation()
   const [isDragging, setIsDragging] = useState(false)
-  const route = useNavRoute()
 
-  if (route.key != 'draft') throw new Error('DraftPage must have draft route')
   useEffect(() => {
-    if (!route.id?.id) return
-    return subscribeDraftFocus(route.id?.id, (blockId: string) => {
-      if (data.editor) {
-        data.editor._tiptapEditor.commands.focus()
-        data.editor.setTextCursorPosition(blockId, 'start')
+    if (!id?.id) return
+    return subscribeDraftFocus(id?.id, (blockId: string) => {
+      if (editor) {
+        editor._tiptapEditor.commands.focus()
+        editor.setTextCursorPosition(blockId, 'start')
       }
     })
-  }, [route.id?.id, data.editor, route.id?.id])
+  }, [id?.id, editor])
 
-  if (data.state.matches('ready'))
+  if (state.matches('ready'))
     return (
       <MainWrapper
         onDragStart={() => {
@@ -159,7 +169,7 @@ function DocumentEditor({id}: {id: UnpackedHypermediaId}) {
           setIsDragging(true)
         }}
         onDrop={onDrop}
-        onPress={data.handleFocusAtMousePos}
+        onPress={handleFocusAtMousePos}
       >
         <AppDocContentProvider
           disableEmbedClick
@@ -168,12 +178,12 @@ function DocumentEditor({id}: {id: UnpackedHypermediaId}) {
           docId={id}
         >
           <DraftHeader
-            draftActor={data.actor}
+            draftActor={actor}
             onEnter={() => {
-              data.editor._tiptapEditor.commands.focus()
-              data.editor._tiptapEditor.commands.setTextSelection(0)
+              editor._tiptapEditor.commands.focus()
+              editor._tiptapEditor.commands.setTextSelection(0)
             }}
-            disabled={!data.state.matches('ready')}
+            disabled={!state.matches('ready')}
           />
           <Container
             paddingLeft="$10"
@@ -184,11 +194,11 @@ function DocumentEditor({id}: {id: UnpackedHypermediaId}) {
             onPress={(e: MouseEvent) => {
               // this prevents to fire handleFocusAtMousePos on click
               e.stopPropagation()
-              // data.editor?._tiptapEditor.commands.focus()
+              // editor?._tiptapEditor.commands.focus()
             }}
           >
-            {data.editor ? (
-              <HyperMediaEditorView editable={true} editor={data.editor} />
+            {editor ? (
+              <HyperMediaEditorView editable={true} editor={editor} />
             ) : null}
           </Container>
         </AppDocContentProvider>
@@ -201,7 +211,7 @@ function DocumentEditor({id}: {id: UnpackedHypermediaId}) {
     const dataTransfer = event.dataTransfer
 
     if (dataTransfer) {
-      const ttEditor = (data.editor as BlockNoteEditor)._tiptapEditor
+      const ttEditor = (editor as BlockNoteEditor)._tiptapEditor
       const files: File[] = []
 
       if (dataTransfer.files.length) {
@@ -280,14 +290,14 @@ function DocumentEditor({id}: {id: UnpackedHypermediaId}) {
                   const blockInfo = getBlockInfoFromPos(state.doc, pos)
 
                   if (index === 0) {
-                    ;(data.editor as BlockNoteEditor).insertBlocks(
+                    ;(editor as BlockNoteEditor).insertBlocks(
                       [blockNode],
                       blockInfo.id,
                       // blockInfo.node.textContent ? 'after' : 'before',
                       'after',
                     )
                   } else {
-                    ;(data.editor as BlockNoteEditor).insertBlocks(
+                    ;(editor as BlockNoteEditor).insertBlocks(
                       [blockNode],
                       lastId,
                       'after',
@@ -315,13 +325,13 @@ function DocumentEditor({id}: {id: UnpackedHypermediaId}) {
     blockId: string,
     blockRange: BlockRange | ExpandedBlockRange | undefined,
   ) {
-    if (route.key != 'draft') throw new Error('DraftPage must have draft route')
-    if (!route.id) throw new Error('draft route id is missing')
+    const gwUrl = useGatewayUrl()
 
-    if (!route.id?.uid)
-      throw new Error('uid could not be extracted from draft route')
+    if (!id) throw new Error('draft route id is missing')
+
+    if (!id?.uid) throw new Error('uid could not be extracted from draft route')
     copyUrlToClipboardWithFeedback(
-      createWebHMUrl(route.id.type, route.id.uid, {
+      createWebHMUrl(id.type, id.uid, {
         blockRef: blockId,
         blockRange,
         hostname: gwUrl.data,
@@ -348,15 +358,15 @@ export function DraftHeader({
   const [showCover, setShowCover] = useState(false)
   let headingTextStyles = useHeadingTextStyles(1, textUnit)
   const name = useSelector(draftActor, (s) => {
-    return s.context.name
+    return s.context.metadata.name
   })
 
   const thumbnail = useSelector(draftActor, (s) => {
-    return s.context.thumbnail
+    return s.context.metadata.thumbnail
   })
 
   const cover = useSelector(draftActor, (s) => {
-    return s.context.cover
+    return s.context.metadata.cover
   })
 
   const input = useRef<HTMLTextAreaElement | null>(null)
@@ -420,7 +430,9 @@ export function DraftHeader({
           if (cover) {
             draftActor.send({
               type: 'CHANGE',
-              cover: `ipfs://${cover}`,
+              metadata: {
+                cover: `ipfs://${cover}`,
+              },
             })
           }
         }}
@@ -428,7 +440,9 @@ export function DraftHeader({
           setShowCover(false)
           draftActor.send({
             type: 'CHANGE',
-            cover: null,
+            metadata: {
+              cover: '',
+            },
           })
         }}
         url={cover ? getFileUrl(cover) : ''}
@@ -460,7 +474,9 @@ export function DraftHeader({
                   if (thumbnail) {
                     draftActor.send({
                       type: 'CHANGE',
-                      thumbnail: `ipfs://${thumbnail}`,
+                      metadata: {
+                        thumbnail: `ipfs://${thumbnail}`,
+                      },
                     })
                   }
                 }}
@@ -468,7 +484,9 @@ export function DraftHeader({
                   setShowThumbnail(false)
                   draftActor.send({
                     type: 'CHANGE',
-                    thumbnail: null,
+                    metadata: {
+                      thumbnail: null,
+                    },
                   })
                 }}
               />
@@ -525,7 +543,12 @@ export function DraftHeader({
             // value={title}
             onChangeText={(name: string) => {
               // TODO: change title here
-              draftActor.send({type: 'CHANGE', name})
+              draftActor.send({
+                type: 'CHANGE',
+                metadata: {
+                  name,
+                },
+              })
             }}
             placeholder="Document Title"
             {...headingTextStyles}
@@ -587,16 +610,12 @@ function PathDraft({
   const [path, setPath] = useState('')
 
   async function handleDraftChange() {
-    if (route.key != 'draft' && !route.id) return
+    if (route.key != 'draft') return
     const newId = hmId('d', route.id.uid, {path: [...paths, path]})
     const packedId = packHmId(newId)
 
     let newContent = {
-      metadata: {
-        name: draftContext.name,
-        cover: draftContext.cover,
-        thumbnail: draftContext.thumbnail,
-      },
+      metadata: draftContext.metadata,
       signingAccount: draftContext.signingAccount,
       content: draft?.content || [],
     } as HMDraft

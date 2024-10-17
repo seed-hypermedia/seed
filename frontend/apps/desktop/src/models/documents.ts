@@ -489,11 +489,7 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
       inputData = {
         content: blocks,
         deps: [],
-        metadata: {
-          name: input.name,
-          thumbnail: input.thumbnail,
-          cover: input.cover,
-        },
+        metadata: input.metadata,
         members: {},
         lastUpdateTime: Date.now(),
         previousId: backendDocument.data?.id,
@@ -505,9 +501,7 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
         content: blocks,
         metadata: {
           ...input.draft.metadata,
-          name: input.name,
-          thumbnail: input.thumbnail,
-          cover: input.cover,
+          ...input.metadata,
         },
         signingAccount: input.signingAccount || undefined,
       } as HMDraft
