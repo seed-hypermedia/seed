@@ -12,6 +12,7 @@ import {
   Tooltip,
   View,
   XStack,
+  XStackProps,
   YStack,
 } from '@shm/ui'
 import React from 'react'
@@ -135,7 +136,6 @@ const PeerRow = React.memo(function PeerRow({peer}: {peer: HMPeerInfo}) {
     toast.success('Copied Peer ID')
   }
 
-  const isConnected = connectionStatus == ConnectionStatus.CONNECTED
   return (
     <XStack
       jc="space-between"
@@ -146,17 +146,12 @@ const PeerRow = React.memo(function PeerRow({peer}: {peer: HMPeerInfo}) {
       group="item"
     >
       <XStack gap="$2" ai="center">
-        <Tooltip
-          content={`${
-            isConnected ? 'Connected' : 'Disconnected'
-            // TODO: @horacio remove this after we figure out what 4 means
-          } (${connectionStatus})`}
-        >
+        <Tooltip content={getPeerStatus(connectionStatus)}>
           <XStack
-            backgroundColor={isConnected ? '$green10' : '$gray8'}
             borderRadius={6}
             height={12}
             width={12}
+            {...getPeerStatusIndicator(connectionStatus)}
             space="$4"
           />
         </Tooltip>
@@ -219,6 +214,42 @@ const PeerRow = React.memo(function PeerRow({peer}: {peer: HMPeerInfo}) {
     </XStack>
   )
 })
+
+function getPeerStatus(status: ConnectionStatus) {
+  if (status === ConnectionStatus.CONNECTED) return 'Connected'
+  if (status === ConnectionStatus.CAN_CONNECT) return 'Can Connect'
+  if (status === ConnectionStatus.CANNOT_CONNECT) return 'Cannot Connect'
+  if (status === ConnectionStatus.LIMITED) return 'Limited'
+  return 'Unknown'
+}
+
+function getPeerStatusIndicator(status: ConnectionStatus): XStackProps {
+  if (status === ConnectionStatus.CONNECTED)
+    return {backgroundColor: '$green10'}
+  if (status === ConnectionStatus.CAN_CONNECT)
+    return {
+      backgroundColor: '$backgroundTransparent',
+      borderWidth: 1,
+      borderColor: '$green10',
+    }
+  if (status === ConnectionStatus.CANNOT_CONNECT)
+    return {
+      backgroundColor: '$backgroundTransparent',
+      borderWidth: 1,
+      borderStyle: 'dotted',
+      borderColor: '$green10',
+    }
+  if (status === ConnectionStatus.LIMITED) {
+    return {
+      backgroundColor: '$backgroundTransparent',
+      borderWidth: 1,
+      borderStyle: 'dashed',
+      borderColor: '$green10',
+    }
+  }
+
+  return {backgroundColor: '$gray8'}
+}
 
 function IndicationStatus({color}: {color: ColorValue}) {
   return (
