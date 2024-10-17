@@ -421,8 +421,12 @@ func BlockFromProto(b *documents.Block) (blob.Block, error) {
 		return blob.Block{}, errors.New("block ID is required")
 	}
 
-	if len(b.Attributes) == 0 {
-		b.Attributes = nil
+	var remaining map[string]any
+	if len(b.Attributes) > 0 {
+		remaining = make(map[string]any, len(b.Attributes))
+		for k, v := range b.Attributes {
+			remaining[k] = v
+		}
 	}
 
 	return blob.Block{
@@ -430,7 +434,7 @@ func BlockFromProto(b *documents.Block) (blob.Block, error) {
 		Type:        b.Type,
 		Text:        b.Text,
 		Link:        b.Link,
-		Attributes:  b.Attributes,
+		Attributes:  remaining,
 		Annotations: annotationsFromProto(b.Annotations),
 	}, nil
 }
@@ -442,10 +446,18 @@ func annotationsFromProto(in []*documents.Annotation) []blob.Annotation {
 
 	out := make([]blob.Annotation, len(in))
 	for i, a := range in {
+		var remaining map[string]any
+		if len(a.Attributes) > 0 {
+			remaining = make(map[string]any, len(a.Attributes))
+			for k, v := range a.Attributes {
+				remaining[k] = v
+			}
+		}
+
 		out[i] = blob.Annotation{
 			Type:       a.Type,
 			Link:       a.Link,
-			Attributes: a.Attributes,
+			Attributes: remaining,
 			Starts:     a.Starts,
 			Ends:       a.Ends,
 		}
@@ -457,12 +469,20 @@ func annotationsFromProto(in []*documents.Annotation) []blob.Annotation {
 // BlockToProto converts our internal block representation into a protobuf block.
 // It's largely the same, but we use CBOR in our permanent data, and we use protobuf in our API.
 func BlockToProto(b blob.Block, revision cid.Cid) *documents.Block {
+	var attrs map[string]string
+	if len(b.Attributes) > 0 {
+		attrs = make(map[string]string, len(b.Attributes))
+		for k, v := range b.Attributes {
+			attrs[k], _ = v.(string)
+		}
+	}
+
 	return &documents.Block{
 		Id:          b.ID,
 		Type:        b.Type,
 		Text:        b.Text,
 		Link:        b.Link,
-		Attributes:  b.Attributes,
+		Attributes:  attrs,
 		Annotations: annotationsToProto(b.Annotations),
 		Revision:    revision.String(),
 	}
@@ -475,10 +495,18 @@ func annotationsToProto(in []blob.Annotation) []*documents.Annotation {
 
 	out := make([]*documents.Annotation, len(in))
 	for i, a := range in {
+		var attrs map[string]string
+		if len(a.Attributes) > 0 {
+			attrs = make(map[string]string, len(a.Attributes))
+			for k, v := range a.Attributes {
+				// TODO(burdiyan): eventually we will support other types.
+				attrs[k], _ = v.(string)
+			}
+		}
 		out[i] = &documents.Annotation{
 			Type:       a.Type,
 			Link:       a.Link,
-			Attributes: a.Attributes,
+			Attributes: attrs,
 			Starts:     a.Starts,
 			Ends:       a.Ends,
 		}

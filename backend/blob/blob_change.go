@@ -10,16 +10,58 @@ import (
 	"seed/backend/ipfs"
 	"time"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/multiformats/go-multicodec"
+	"github.com/polydawn/refmt/obj/atlas"
 )
 
 func init() {
 	cbornode.RegisterCborType(Change{})
 	cbornode.RegisterCborType(Op{})
-	cbornode.RegisterCborType(Block{})
-	cbornode.RegisterCborType(Annotation{})
+
+	// We decided to encode our union types with type-specific fields inlined.
+	// It's really painful in Go, so we need to do this crazy hackery
+	// to make it work for Blocks and Annotations,
+	// because we don't even know all the possible fields in advance on the backend.
+	// I (burdiyan) hope we won't regret this decision.
+
+	cbornode.RegisterCborType(atlas.BuildEntry(Block{}).Transform().
+		TransformMarshal(atlas.MakeMarshalTransformFunc(func(in Block) (map[string]any, error) {
+			var v map[string]any
+			if err := mapstructure.Decode(in, &v); err != nil {
+				return nil, err
+			}
+			return v, nil
+		})).
+		TransformUnmarshal(atlas.MakeUnmarshalTransformFunc(func(in map[string]any) (Block, error) {
+			var v Block
+			if err := mapstructure.Decode(in, &v); err != nil {
+				return Block{}, err
+			}
+			return v, nil
+		})).
+		Complete(),
+	)
+
+	cbornode.RegisterCborType(atlas.BuildEntry(Annotation{}).Transform().
+		TransformMarshal(atlas.MakeMarshalTransformFunc(func(in Annotation) (map[string]any, error) {
+			var v map[string]any
+			if err := mapstructure.Decode(in, &v); err != nil {
+				return nil, err
+			}
+			return v, nil
+		})).
+		TransformUnmarshal(atlas.MakeUnmarshalTransformFunc(func(in map[string]any) (Annotation, error) {
+			var v Annotation
+			if err := mapstructure.Decode(in, &v); err != nil {
+				return Annotation{}, err
+			}
+			return v, nil
+		})).
+		Complete(),
+	)
 }
 
 const blobTypeChange blobType = "Change"
@@ -273,6 +315,7 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 					continue
 				}
 
+				// TODO(hm24): index other relevant metadata for list response and so on.
 				if meta.Title == "" && (k == "title" || k == "name" || k == "alias") {
 					meta.Title = vs
 				}
@@ -292,7 +335,6 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 				}
 
 				sb.AddBlobLink("metadata/"+k, c)
-				// TODO(hm24): index other relevant metadata for list response and so on.
 			}
 		case OpReplaceBlock:
 			rawBlock, err := cbornode.DumpObject(op.Data)
@@ -326,19 +368,19 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 
 // Block is a block of text with annotations.
 type Block struct {
-	ID          string            `refmt:"id,omitempty"` // Omitempty when used in Documents.
-	Type        string            `refmt:"type,omitempty"`
-	Text        string            `refmt:"text,omitempty"`
-	Link        string            `refmt:"link,omitempty"`
-	Attributes  map[string]string `refmt:"attributes,omitempty"`
-	Annotations []Annotation      `refmt:"annotations,omitempty"`
+	ID          string         `mapstructure:"id,omitempty"` // Omitempty when used in Documents.
+	Type        string         `mapstructure:"type,omitempty"`
+	Text        string         `mapstructure:"text,omitempty"`
+	Link        string         `mapstructure:"link,omitempty"`
+	Attributes  map[string]any `mapstructure:",remain"`
+	Annotations []Annotation   `mapstructure:"annotations,omitempty"`
 }
 
 // Annotation is a range of text that has a type and attributes.
 type Annotation struct {
-	Type       string            `refmt:"type"`
-	Link       string            `refmt:"link,omitempty"`
-	Attributes map[string]string `refmt:"attributes,omitempty"`
-	Starts     []int32           `refmt:"starts,omitempty"`
-	Ends       []int32           `refmt:"ends,omitempty"`
+	Type       string         `mapstructure:"type"`
+	Link       string         `mapstructure:"link,omitempty"`
+	Attributes map[string]any `mapstructure:",remain"`
+	Starts     []int32        `mapstructure:"starts,omitempty"`
+	Ends       []int32        `mapstructure:"ends,omitempty"`
 }

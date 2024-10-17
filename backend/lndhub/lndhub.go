@@ -17,11 +17,12 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/lightningnetwork/lnd/zpay32"
-	"github.com/mitchellh/mapstructure"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
+
+	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/go-viper/mapstructure/v2"
+	"github.com/lightningnetwork/lnd/zpay32"
 )
 
 const (
