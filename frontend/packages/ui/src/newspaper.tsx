@@ -9,7 +9,7 @@ import {
 } from "@shm/shared";
 import {View} from "@tamagui/core";
 import {XStack, YStack} from "@tamagui/stacks";
-import {Heading, SizableText} from "@tamagui/text";
+import {SizableText} from "@tamagui/text";
 import {useMemo} from "react";
 import {AccountsMetadata, FacePile} from "./face-pile";
 
@@ -37,7 +37,7 @@ export function BannerNewspaperCard({
       {...linkProps}
     >
       <View width="50%">
-        <NewspaperCardImage document={entity.document} />
+        <NewspaperCardImage document={entity.document} height="100%" />
       </View>
       <YStack flex={1} width="50%" jc="space-between">
         <NewspaperCardContent entity={entity} />
@@ -50,10 +50,21 @@ export function BannerNewspaperCard({
     </XStack>
   );
 }
-function NewspaperCardImage({document}: {document: HMDocument}) {
+function NewspaperCardImage({
+  document,
+  height = 120,
+}: {
+  document: HMDocument;
+  height?: number | string;
+}) {
   const coverImage = document.metadata.cover;
   return (
-    <View f={1} minHeight={120} backgroundColor="$blue6">
+    <View
+      height={height}
+      // minHeight={120}
+      // maxHeight={200}
+      backgroundColor="$blue6"
+    >
       {coverImage ? (
         <img
           src={getFileUrl(coverImage)}
@@ -79,10 +90,14 @@ function NewspaperCardContent({
     }
   }, [entity?.document]);
   return (
-    <YStack paddingHorizontal="$4" paddingVertical="$2">
-      <Heading>{entity?.document?.metadata?.name}</Heading>
-      <YStack overflow="hidden" maxHeight={20 * 3}>
-        <SizableText>{textContent}</SizableText>
+    <YStack padding="$3" gap="$3" f={1}>
+      <SizableText size="$5" fontWeight="bold">
+        {entity?.document?.metadata?.name}
+      </SizableText>
+      <YStack overflow="hidden" maxHeight={21 * 3}>
+        <SizableText color="$color10" fontFamily="$editorBody" size="$2">
+          {textContent}
+        </SizableText>
       </YStack>
     </YStack>
   );

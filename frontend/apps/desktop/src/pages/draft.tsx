@@ -3,7 +3,7 @@ import {ThumbnailForm} from '@/components/avatar-form'
 import {CoverImage} from '@/components/cover-image'
 import {HyperMediaEditorView} from '@/components/editor'
 import Footer from '@/components/footer'
-import {MainWrapper} from '@/components/main-wrapper'
+import {MainWrapper, SidebarSpacer} from '@/components/main-wrapper'
 import {NewspaperLayout} from '@/components/newspaper-layout'
 import {OptionsPanel} from '@/components/options-panel'
 import {subscribeDraftFocus} from '@/draft-focusing'
@@ -107,7 +107,10 @@ export default function DraftPage() {
     route.id
   ) {
     draftContent = (
-      <NewspaperLayout id={route.id} metadata={draft.data?.metadata} />
+      <XStack flex={1}>
+        <SidebarSpacer />
+        <NewspaperLayout id={route.id} metadata={draft.data?.metadata} />
+      </XStack>
     )
   } else if (!draft.isLoading && route.id) {
     draftContent = <DocumentEditor {...data} id={route.id} />
