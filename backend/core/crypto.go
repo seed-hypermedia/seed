@@ -12,6 +12,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/crypto/pb"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
@@ -27,6 +28,7 @@ const (
 var (
 	_ Verifier                 = PublicKey{}
 	_ encoding.BinaryMarshaler = PublicKey{}
+	_ Verifier                 = Principal{}
 
 	_ Signer = KeyPair{}
 )
@@ -50,6 +52,7 @@ type CIDer interface {
 // Verifier checks that signature corresponds to the data.
 type Verifier interface {
 	Verify(data []byte, s Signature) error
+	SignatureSize() int
 }
 
 // Signature is a cryptographic signature of some piece of data.
@@ -107,6 +110,11 @@ func NewPublicKey(pub crypto.PubKey) (pk PublicKey, err error) {
 		id:     pid,
 		abbrev: *(*uint64)(unsafe.Pointer(&b)),
 	}, nil
+}
+
+// SignatureSize implements Verifier.
+func (pk PublicKey) SignatureSize() int {
+	return signatureSize(pk.k.Type())
 }
 
 // PublicKeyFromCID attempts to extract a public key from CID.
@@ -225,11 +233,15 @@ func (kp KeyPair) Sign(data []byte) (Signature, error) {
 
 // SignatureSize returns the number of bytes that for the signature of this key type.
 func (kp KeyPair) SignatureSize() int {
-	switch kp.k.Type() {
+	return signatureSize(kp.k.Type())
+}
+
+func signatureSize(kt pb.KeyType) int {
+	switch kt {
 	case crypto.Ed25519:
 		return ed25519.SignatureSize
 	case crypto.Secp256k1:
-		panic("TODO: implement support for secp256k1")
+		return 64
 	default:
 		panic("BUG: unsupported key type")
 	}
