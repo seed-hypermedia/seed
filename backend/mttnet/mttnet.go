@@ -364,13 +364,19 @@ func (n *Node) Start(ctx context.Context) (err error) {
 			for {
 				conn, release, err := n.db.Conn(ctx)
 				if err != nil {
-					return err
+					if ctx.Err() == nil {
+						return err
+					}
+					return nil
 				}
 				if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
 					pidStr := stmt.ColumnText(2)
 					pid, err := peer.Decode(pidStr)
 					if err != nil {
-						return err
+						if ctx.Err() == nil {
+							return err
+						}
+						return nil
 					}
 
 					offset := time.Now().Add(10 * time.Minute)
