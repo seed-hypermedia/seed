@@ -60,7 +60,7 @@ describe('unpackHmId', () => {
         latest: false,
       })
     })
-    test.only('unpacks http://foobar.com/hm/1#block', () => {
+    test('unpacks http://foobar.com/hm/1#block', () => {
       expect(unpackHmId('http://foobar.com/hm/1#block')).toEqual({
         scheme: 'http',
         hostname: 'foobar.com',
