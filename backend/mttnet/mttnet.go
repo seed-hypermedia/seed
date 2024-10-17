@@ -383,7 +383,10 @@ func (n *Node) Start(ctx context.Context) (err error) {
 					return nil
 				}, math.MaxInt64, math.MaxInt64); err != nil {
 					release()
-					return err
+					if ctx.Err() == nil {
+						return err
+					}
+					return nil
 				}
 				release()
 				select {
