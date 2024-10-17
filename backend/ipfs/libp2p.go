@@ -116,7 +116,19 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 				rt = content_routing.NewContentRoutingClient(client)
 				log.Info("Delegated DHT Mode", zap.String("Server URL", delegatedDHTURL))
 			} else {
-				rt = &noopDHT{}
+
+				ctx, cancel := context.WithCancel(context.Background())
+				clean.AddFunc(cancel)
+				fullDHT, err := newDHT(ctx, h, ds, clean)
+				if err != nil {
+					return nil, err
+				}
+				go func() error {
+					time.Sleep(30 * time.Second)
+					return fullDHT.Close()
+				}()
+				return fullDHT, nil
+				//rt = &noopDHT{}
 			}
 
 			return rt, nil

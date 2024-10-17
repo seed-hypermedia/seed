@@ -11,7 +11,6 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/providers"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/routing"
 	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 )
@@ -20,7 +19,7 @@ var errNotImplemented = fmt.Errorf("Method not implemented")
 
 type noopDHT struct{}
 
-func newDHT(ctx context.Context, h host.Host, ds datastore.Batching, clean cleanup.Stack) (routing.PeerRouting, error) {
+func newDHT(ctx context.Context, h host.Host, ds datastore.Batching, clean cleanup.Stack) (*dht.IpfsDHT, error) {
 	if ds == nil {
 		panic("BUG: must provide datastore for DHT")
 	}
