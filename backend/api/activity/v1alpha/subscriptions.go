@@ -37,6 +37,7 @@ func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest
 	// If the document is not present locally, then we make this call blocking,
 	// since we have to discover it first.
 	var blocking = true
+	req.Account = strings.TrimPrefix(req.Account, "hm://")
 	wantedIri := "hm://" + req.Account + req.Path
 	err = sqlitex.Exec(conn, qGetResource(), func(stmt *sqlite.Stmt) error {
 		iri := stmt.ColumnText(0)
@@ -80,6 +81,7 @@ func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest
 			srv.log.Debug(errMsg)
 			return &emptypb.Empty{}, fmt.Errorf("%s", errMsg)
 		}
+		return &emptypb.Empty{}, nil
 	}
 	go func() {
 		syncCtx, cancel := context.WithTimeout(context.Background(), syncing.DefaultDiscoveryTimeout)

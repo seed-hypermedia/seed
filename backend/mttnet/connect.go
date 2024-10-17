@@ -34,7 +34,7 @@ const (
 	// ConnectTimeout is the maximum time to spend connecting to a peer.
 	ConnectTimeout = time.Minute
 	// PeerSharingTimeout is the maximum time to try to store shared peer list.
-	PeerSharingTimeout = time.Second * 50
+	PeerSharingTimeout = time.Second * 30
 	// CheckProtocolTimeout is the maximum time spent trying to check for protocols.
 	CheckProtocolTimeout = time.Second * 12
 	// PeerBatchTimeout is the maximum time spent pert batch of checking.
@@ -167,7 +167,9 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 	defer n.log.Debug("Exiting storeRemotePeers", zap.String("PID", id.String()), zap.Error(err))
 	ctxStore, cancel := context.WithTimeout(context.Background(), PeerSharingTimeout)
 	defer cancel()
-	c, err := n.client.Dial(ctxStore, id)
+	ctxDial, cancel2 := context.WithTimeout(ctxStore, 10*time.Second)
+	defer cancel2()
+	c, err := n.client.Dial(ctxDial, id)
 	if err != nil {
 		return fmt.Errorf("Could not get p2p client: %w", err)
 	}
