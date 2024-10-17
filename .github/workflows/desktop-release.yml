@@ -69,6 +69,10 @@ jobs:
           # matrix-target: ${{ matrix.config.daemon_name }}
           # matrix-arch: ${{ matrix.config.arch }}
 
+      - name: Frontend tests
+        run: |
+          yarn test
+
       - name: Build Backend (Unix)
         if: matrix.config.os != 'windows-latest'
         run: |
