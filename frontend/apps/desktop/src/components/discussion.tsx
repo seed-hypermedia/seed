@@ -152,7 +152,7 @@ function RepliesEditor({
       borderRadius="$4"
       borderWidth={2}
       borderColor="$color8"
-      minHeight={130}
+      minHeight={120}
       bg="$background"
     >
       <CommentDraftEditor
@@ -188,8 +188,8 @@ function CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
   } else {
     content = (
       <Button
-        paddingTop={19}
-        paddingHorizontal={22}
+        paddingVertical={19}
+        paddingHorizontal={18}
         f={1}
         textAlign="left"
         jc="flex-start"
@@ -219,7 +219,7 @@ function CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
       borderRadius="$4"
       borderWidth={2}
       borderColor="$color8"
-      minHeight={130}
+      minHeight={105}
       onPress={onPress}
     >
       {content}
@@ -252,11 +252,13 @@ function CommentDraftEditor({
     <YStack
       f={1}
       marginTop="$1"
-      paddingHorizontal="$5"
+      paddingHorizontal="$4"
       onPress={(e: MouseEvent) => {
         e.stopPropagation()
         editor._tiptapEditor.commands.focus()
       }}
+      gap="$4"
+      paddingBottom="$2"
     >
       <AppDocContentProvider disableEmbedClick>
         <HyperMediaEditorView editor={editor} comment />
@@ -265,9 +267,9 @@ function CommentDraftEditor({
         jc="flex-end"
         gap="$2"
         ai="center"
-        paddingVertical="$2"
-        marginHorizontal="$4"
-        marginTop="$4"
+        // paddingVertical="$2"
+        // marginHorizontal="$4"
+        // marginTop="$6"
       >
         <AutosaveIndicator isSaved={isSaved} />
         <SelectAccountDropdown
