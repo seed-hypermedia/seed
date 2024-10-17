@@ -42,7 +42,6 @@ const (
 	// StorePeersBatchSize is the number of shared peers to check at once for protocols.
 	StorePeersBatchSize    = 25
 	maxNonSeedPeersAllowed = 20
-	protocolSupportKey     = "seed-support" // This is what we use as a key to protect the connection in ConnManager.
 )
 
 var (
@@ -128,15 +127,15 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	if err := n.p2p.Host.Connect(ctx, info); err != nil {
 		return fmt.Errorf("failed to connect to peer %s: %w", info.ID, err)
 	}
-	n.p2p.ConnManager().Protect(info.ID, protocolSupportKey)
+	n.p2p.ConnManager().Protect(info.ID, ProtocolSupportKey)
 	if err := n.CheckHyperMediaProtocolVersion(ctx, info.ID, n.protocol.version); err != nil {
-		n.p2p.ConnManager().Unprotect(info.ID, protocolSupportKey)
+		n.p2p.ConnManager().Unprotect(info.ID, ProtocolSupportKey)
 		return err
 	}
 
 	addrsStr := AddrInfoToStrings(info)
 	if len(addrsStr) == 0 {
-		n.p2p.ConnManager().Unprotect(info.ID, protocolSupportKey)
+		n.p2p.ConnManager().Unprotect(info.ID, ProtocolSupportKey)
 		return fmt.Errorf("Peer with no addresses")
 	}
 	sort.Strings(addrsStr)
@@ -227,11 +226,11 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 					xerr = append(xerr, fmt.Errorf("Could not decode shared peer %s", p))
 					mu.Unlock()
 					atomic.AddUint32(&nonSeedPeers, 1)
-					n.p2p.ConnManager().Unprotect(pid, protocolSupportKey)
+					n.p2p.ConnManager().Unprotect(pid, ProtocolSupportKey)
 					return
 				}
 				if _, ok := localPeers[p.Id]; ok {
-					n.p2p.ConnManager().Protect(pid, protocolSupportKey)
+					n.p2p.ConnManager().Protect(pid, ProtocolSupportKey)
 					return
 				}
 
@@ -257,13 +256,13 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 					if err := n.p2p.Host.Connect(ctxBatch, info); err != nil {
 						return
 					}
-					n.p2p.ConnManager().Protect(pid, protocolSupportKey)
+					n.p2p.ConnManager().Protect(pid, ProtocolSupportKey)
 					if err := n.CheckHyperMediaProtocolVersion(ctxBatch, pid, n.protocol.version); err != nil {
 						atomic.AddUint32(&nonSeedPeers, 1)
 						mu.Lock()
 						xerr = append(xerr, fmt.Errorf("Peer [%s] failed to pass seed-protocol-check: %w", p.Id, err))
 						mu.Unlock()
-						n.p2p.ConnManager().Unprotect(pid, protocolSupportKey)
+						n.p2p.ConnManager().Unprotect(pid, ProtocolSupportKey)
 						return
 					}
 					mu.Lock()
@@ -325,7 +324,7 @@ func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.Ev
 	}
 
 	if err := n.CheckHyperMediaProtocolVersion(ctx, event.Peer, n.protocol.version, event.Protocols...); err != nil {
-		n.p2p.ConnManager().Unprotect(event.Peer, protocolSupportKey)
+		n.p2p.ConnManager().Unprotect(event.Peer, ProtocolSupportKey)
 		return
 	}
 
@@ -355,7 +354,7 @@ func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.Ev
 		n.log.Warn("Could not store new peer", zap.String("PID", event.Peer.String()), zap.Error(err))
 	}
 
-	n.p2p.ConnManager().Protect(event.Peer, protocolSupportKey)
+	n.p2p.ConnManager().Protect(event.Peer, ProtocolSupportKey)
 	n.log.Debug("Storing Seed peer", zap.String("PID", event.Peer.String()), zap.String("Connectedness", connectedness.String()))
 }
 
