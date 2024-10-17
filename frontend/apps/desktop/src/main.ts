@@ -389,7 +389,7 @@ ipcMain.on('export-document', saveMarkdownFile)
 ipcMain.on(
   'export-multiple-documents',
   async (
-    _event,
+    event,
     documents: {
       title: string
       markdown: {
@@ -399,6 +399,7 @@ ipcMain.on(
     }[],
   ) => {
     const {debug, error} = console
+
     // Open a dialog to select a directory
     const {filePaths} = await dialog.showOpenDialog({
       title: 'Select Export Directory',
@@ -407,13 +408,28 @@ ipcMain.on(
     })
 
     if (filePaths && filePaths.length > 0) {
-      const filePath = path.join(filePaths[0], 'Seed Documents')
-      if (!fs.existsSync(filePath)) {
-        fs.mkdirSync(filePath)
+      const exportDir = path.join(filePaths[0], 'Seed Documents')
+      const mediaDir = path.join(exportDir, 'media')
+
+      // Create the Seed Documents folder and the shared media folder
+      if (!fs.existsSync(exportDir)) {
+        fs.mkdirSync(exportDir)
+      }
+      if (!fs.existsSync(mediaDir)) {
+        fs.mkdirSync(mediaDir)
+      }
+
+      // Track duplicate titles
+      const titleCounter: {[key: string]: number} = {}
+      let success: {success: boolean; message: string} = {
+        success: true,
+        message: `Successfully exported documents to: ${exportDir}.`,
       }
 
       for (const {title, markdown} of documents) {
         const {markdownContent, mediaFiles} = markdown
+
+        // Generate a camelCase filename for the markdown document
         const camelTitle = title
           .split(' ')
           .map(
@@ -421,102 +437,122 @@ ipcMain.on(
               word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
           )
           .join('')
+          .replace(/[\/\\|]/g, '-') // Remove invalid characters: / \ |
+          .replace(/\s+/g, '') // Remove all whitespace for camel case
 
-        if (filePath) {
-          const documentDir = path.join(filePath, camelTitle)
+        // Initialize counter for the title if not present
+        if (!titleCounter[camelTitle]) {
+          titleCounter[camelTitle] = 0
+        }
 
-          if (!fs.existsSync(documentDir)) {
-            fs.mkdirSync(documentDir)
-          }
+        let markdownFilePath = path.join(exportDir, `${camelTitle}.md`)
 
-          const mediaDir = path.join(documentDir, 'media')
-          if (!fs.existsSync(mediaDir)) {
-            fs.mkdirSync(mediaDir)
-          }
+        // Check if file with the same name already exists and add a counter to the file name
+        while (fs.existsSync(markdownFilePath)) {
+          titleCounter[camelTitle] += 1
+          markdownFilePath = path.join(
+            exportDir,
+            `${camelTitle}-${titleCounter[camelTitle]}.md`,
+          )
+        }
 
-          let updatedMarkdownContent = markdownContent
+        let updatedMarkdownContent = markdownContent
 
-          const uploadMediaFile = ({
-            url,
-            filename,
-          }: {
-            url: string
-            filename: string
-          }) => {
-            return new Promise<void>((resolve, reject) => {
-              const regex = /ipfs:\/\/(.+)/
-              const match = url.match(regex)
-              if (match) {
-                const cid = match ? match[1] : null
-                const request = net.request(`${DAEMON_HTTP_URL}/ipfs/${cid}`)
+        const uploadMediaFile = async ({
+          url,
+          filename,
+        }: {
+          url: string
+          filename: string
+        }) => {
+          return new Promise<void>((resolve, reject) => {
+            const regex = /ipfs:\/\/(.+)/
+            const match = url.match(regex)
+            if (match) {
+              const cid = match[1]
+              const request = net.request(`${DAEMON_HTTP_URL}/ipfs/${cid}`)
 
-                request.on('response', (response) => {
-                  const mimeType = response.headers['content-type']
-                  const extension = Array.isArray(mimeType)
-                    ? mime.getExtension(mimeType[0])
-                    : mime.getExtension(mimeType)
-                  const filenameWithExt = `${filename}.${extension}`
-                  if (response.statusCode === 200) {
-                    const chunks: Buffer[] = []
+              request.on('response', (response) => {
+                const mimeType = response.headers['content-type']
+                const extension = Array.isArray(mimeType)
+                  ? mime.getExtension(mimeType[0])
+                  : mime.getExtension(mimeType)
+                const filenameWithExt = `${filename}.${extension}`
 
-                    response.on('data', (chunk) => {
-                      chunks.push(chunk)
-                    })
+                if (response.statusCode === 200) {
+                  const chunks: Buffer[] = []
 
-                    response.on('end', () => {
-                      const data = Buffer.concat(chunks)
-                      if (!data || data.length === 0) {
-                        reject(`Error: No data received for ${filenameWithExt}`)
-                        return
-                      }
+                  response.on('data', (chunk) => {
+                    chunks.push(chunk)
+                  })
 
-                      const mediaFilePath = path.join(mediaDir, filenameWithExt)
-                      try {
-                        fs.writeFileSync(mediaFilePath, data)
-                        debug(`Media file successfully saved: ${mediaFilePath}`)
-                        // Update the markdown content with the correct file name
-                        updatedMarkdownContent = updatedMarkdownContent.replace(
-                          filename,
-                          filenameWithExt,
-                        )
-                        resolve()
-                      } catch (e) {
-                        reject(e)
-                      }
-                    })
-                  } else {
-                    reject(`Error: Invalid status code ${response.statusCode}`)
-                  }
-                })
+                  response.on('end', () => {
+                    const data = Buffer.concat(chunks)
+                    if (!data || data.length === 0) {
+                      reject(`Error: No data received for ${filenameWithExt}`)
+                      return
+                    }
 
-                request.on('error', (err) => {
-                  reject(err.message)
-                })
+                    const mediaFilePath = path.join(mediaDir, filenameWithExt)
+                    try {
+                      fs.writeFileSync(mediaFilePath, data)
+                      debug(`Media file successfully saved: ${mediaFilePath}`)
+                      // Update the markdown content with the correct file name
+                      updatedMarkdownContent = updatedMarkdownContent.replace(
+                        filename,
+                        filenameWithExt,
+                      )
+                      resolve()
+                    } catch (e) {
+                      reject(e)
+                    }
+                  })
+                } else {
+                  reject(`Error: Invalid status code ${response.statusCode}`)
+                }
+              })
 
-                request.end()
-              }
-            })
-          }
+              request.on('error', (err) => {
+                reject(err.message)
+              })
 
-          // Process all media files
-          const uploadPromises = mediaFiles.map(uploadMediaFile)
-          try {
-            await Promise.all(uploadPromises)
-          } catch (e) {
-            error('Error processing media files:', e)
-          }
-
-          // Save the updated Markdown file after all media files are processed
-          const markdownFilePath = path.join(documentDir, `${camelTitle}.md`)
-          fs.writeFile(markdownFilePath, updatedMarkdownContent, (err) => {
-            if (err) {
-              error('Error saving file:', err)
-              return
+              request.end()
             }
-            debug('Markdown file successfully saved:', markdownFilePath)
           })
         }
+
+        // Handle all media files for the current document
+        await Promise.all(mediaFiles.map(uploadMediaFile))
+
+        // Save the updated markdown file
+        try {
+          fs.writeFileSync(markdownFilePath, updatedMarkdownContent)
+          debug(`Markdown file successfully saved: ${markdownFilePath}`)
+        } catch (e) {
+          error(`Error saving markdown file: ${markdownFilePath}`, e)
+          success = {
+            success: false,
+            message: `Error saving document: ${title}`,
+          }
+        }
       }
+
+      if (success.success) {
+        event.sender.send('export-completed', {
+          success: true,
+          message: success.message,
+        })
+      } else {
+        event.sender.send('export-completed', {
+          success: false,
+          message: success.message,
+        })
+      }
+    } else {
+      event.sender.send('export-completed', {
+        success: false,
+        message: 'Export has been cancelled.',
+      })
     }
   },
 )

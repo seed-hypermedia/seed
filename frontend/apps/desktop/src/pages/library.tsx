@@ -147,6 +147,12 @@ export default function LibraryPage() {
     )
 
     exportDocuments(documentsToExport)
+      .then((res) => {
+        toast.success(res)
+      })
+      .catch((err) => {
+        toast.error(err)
+      })
   }
   const isLibraryEmpty = library?.totalItemCount === 0
   return (

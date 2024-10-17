@@ -39,6 +39,7 @@ import {
   View,
   XGroup,
   XStack,
+  toast,
   useStream,
 } from '@shm/ui'
 import {
@@ -104,6 +105,12 @@ export function DocOptionsButton() {
         const markdownWithFiles = await convertBlocksToMarkdown(editorBlocks)
         const {markdownContent, mediaFiles} = markdownWithFiles
         exportDocument(title, markdownContent, mediaFiles)
+          .then((res) => {
+            toast.success(res)
+          })
+          .catch((err) => {
+            toast.error(err)
+          })
       },
     },
     {

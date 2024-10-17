@@ -103,6 +103,48 @@ contextBridge.exposeInMainWorld('docImport', {
   },
 })
 
+contextBridge.exposeInMainWorld('docExport', {
+  exportDocument: async (
+    title: string,
+    markdownContent: string,
+    mediaFiles: {url: string; filename: string}[],
+  ) => {
+    return new Promise((resolve, reject) => {
+      ipcRenderer.once('export-completed', (event, response) => {
+        if (response.success) {
+          resolve(response.message)
+        } else {
+          reject(response.message)
+        }
+      })
+
+      ipcRenderer.send('export-document', {title, markdownContent, mediaFiles})
+    })
+  },
+
+  exportDocuments: async (
+    documents: {
+      title: string
+      markdown: {
+        markdownContent: string
+        mediaFiles: {url: string; filename: string}[]
+      }
+    }[],
+  ) => {
+    return new Promise((resolve, reject) => {
+      ipcRenderer.once('export-completed', (event, response) => {
+        if (response.success) {
+          resolve(response.message)
+        } else {
+          reject(response.message)
+        }
+      })
+
+      ipcRenderer.send('export-multiple-documents', documents)
+    })
+  },
+})
+
 ipcRenderer.addListener('openRoute', (info, route) => {
   routeHandlers.forEach((handler) => handler(route))
 })
