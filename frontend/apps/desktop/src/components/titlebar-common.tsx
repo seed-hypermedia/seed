@@ -34,11 +34,13 @@ import {
   ColorProp,
   Forward,
   Menu,
+  SizableText,
   TitlebarSection,
   Tooltip,
   View,
   XGroup,
   XStack,
+  YStack,
   toast,
   useStream,
 } from '@shm/ui'
@@ -70,7 +72,7 @@ export function DocOptionsButton() {
     throw new Error(
       'DocOptionsButton can only be rendered on publication route',
     )
-  const {exportDocument} = useAppContext()
+  const {exportDocument, openDirectory} = useAppContext()
   const deleteEntity = useDeleteDialog()
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
   const doc = useEntity(route.id)
@@ -106,7 +108,26 @@ export function DocOptionsButton() {
         const {markdownContent, mediaFiles} = markdownWithFiles
         exportDocument(title, markdownContent, mediaFiles)
           .then((res) => {
-            toast.success(res)
+            const success = (
+              <>
+                <YStack gap="$1.5">
+                  <SizableText>
+                    Successfully exported documents to: <b>{`${res}`}</b>.
+                  </SizableText>
+                  <SizableText
+                    textDecorationLine="underline"
+                    color="$brand5"
+                    tag={'a'}
+                    onPress={() => {
+                      openDirectory(res)
+                    }}
+                  >
+                    Show directory
+                  </SizableText>
+                </YStack>
+              </>
+            )
+            toast.success('', {customContent: success})
           })
           .catch((err) => {
             toast.error(err)

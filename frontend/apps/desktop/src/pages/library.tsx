@@ -167,7 +167,7 @@ export default function LibraryPage() {
             </YStack>
           </>
         )
-        toast.success('test', {customContent: success})
+        toast.success('', {customContent: success})
       })
       .catch((err) => {
         toast.error(err)
