@@ -47,7 +47,7 @@ func NewRef(kp core.KeyPair, genesis cid.Cid, space core.Principal, path string,
 		ru.Spc = space
 	}
 
-	if err := SignBlob(kp, ru, &ru.baseBlob.Sig); err != nil {
+	if err := signBlob(kp, ru, &ru.baseBlob.Sig); err != nil {
 		return eb, err
 	}
 
@@ -74,6 +74,10 @@ func init() {
 
 			v := &Ref{}
 			if err := cbornode.DecodeInto(data, v); err != nil {
+				return nil, err
+			}
+
+			if err := verifyBlob(v.Signer, v, &v.Sig); err != nil {
 				return nil, err
 			}
 

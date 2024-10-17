@@ -45,7 +45,7 @@ func NewCapability(issuer core.KeyPair, delegate, space core.Principal, path str
 		cu.Spc = space
 	}
 
-	if err := SignBlob(issuer, cu, &cu.baseBlob.Sig); err != nil {
+	if err := signBlob(issuer, cu, &cu.baseBlob.Sig); err != nil {
 		return eb, err
 	}
 
@@ -72,6 +72,10 @@ func init() {
 
 			v := &Capability{}
 			if err := cbornode.DecodeInto(data, v); err != nil {
+				return nil, err
+			}
+
+			if err := verifyBlob(v.Signer, v, &v.Sig); err != nil {
 				return nil, err
 			}
 
