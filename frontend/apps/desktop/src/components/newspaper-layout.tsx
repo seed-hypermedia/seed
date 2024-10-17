@@ -5,6 +5,7 @@ import {hmId, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
 import {BannerNewspaperCard, Container, NewspaperCard} from '@shm/ui'
 import {AccountsMetadata} from '@shm/ui/src/face-pile'
 import {XStack} from 'tamagui'
+import {SidebarSpacer} from './main-wrapper'
 
 export function NewspaperLayout({
   id,
@@ -49,27 +50,30 @@ export function NewspaperLayout({
     })
     .filter((m) => !!m)
   return (
-    <Container clearVerticalSpace marginBottom={100}>
-      {firstItem && (
-        <BannerNewspaperCard
-          item={firstItem}
-          entity={getEntity(firstItem.path)}
-          accountsMetadata={accountsMetadata}
-        />
-      )}
-      <XStack flexWrap="wrap" gap="$4" marginTop="$4" jc="center">
-        {restItems.map((item) => {
-          return (
-            <NewspaperCard
-              item={item}
-              entity={getEntity(item.path)}
-              key={item.path.join('/')}
-              accountsMetadata={accountsMetadata}
-            />
-          )
-        })}
-      </XStack>
-    </Container>
+    <XStack flex={1}>
+      <SidebarSpacer />
+      <Container clearVerticalSpace marginBottom={100}>
+        {firstItem && (
+          <BannerNewspaperCard
+            item={firstItem}
+            entity={getEntity(firstItem.path)}
+            accountsMetadata={accountsMetadata}
+          />
+        )}
+        <XStack flexWrap="wrap" gap="$4" marginTop="$4" jc="center">
+          {restItems.map((item) => {
+            return (
+              <NewspaperCard
+                item={item}
+                entity={getEntity(item.path)}
+                key={item.path.join('/')}
+                accountsMetadata={accountsMetadata}
+              />
+            )
+          })}
+        </XStack>
+      </Container>
+    </XStack>
   )
 }
 
