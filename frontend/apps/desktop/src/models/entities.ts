@@ -3,12 +3,12 @@ import {
   DocumentRoute,
   DraftRoute,
   GRPCClient,
-  HMDocumentSchema,
   HMEntityContent,
   hmId,
   hmIdPathToEntityQueryPath,
   NavRoute,
   packHmId,
+  toHMDocument,
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
@@ -174,17 +174,13 @@ export function queryEntity(
           path: hmIdPathToEntityQueryPath(id.path),
           version: id.version || undefined,
         })
-        const serverDocument = toPlainMessage(grpcDocument)
-
-        const result = HMDocumentSchema.safeParse(serverDocument)
-        if (result.success) {
-          const document = result.data
+        const document = toHMDocument(grpcDocument)
+        if (document) {
           return {
             id: {...id, version: document.version},
             document,
           }
         } else {
-          console.error('Invalid Document!', serverDocument, result.error)
           return {id, document: undefined}
         }
       } catch (e) {

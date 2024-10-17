@@ -1,9 +1,9 @@
-import {toPlainMessage} from '@bufbuild/protobuf'
 import {
   NavRoute,
   getDocumentTitle,
   getRecentsRouteEntityUrl,
   hmIdPathToEntityQueryPath,
+  toHMDocument,
 } from '@shm/shared'
 import {z} from 'zod'
 import {grpcClient} from './app-grpc'
@@ -54,7 +54,7 @@ export async function updateRecentRoute(route: NavRoute) {
       path: hmIdPathToEntityQueryPath(route.id.path),
       version: route.id.version || undefined,
     })
-    title = getDocumentTitle(toPlainMessage(document))
+    title = getDocumentTitle(toHMDocument(document)) || '?'
   }
   if (!url) return
   updateRecents((state: RecentsState): RecentsState => {

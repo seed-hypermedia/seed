@@ -10,7 +10,6 @@ import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
 import {SidebarSpacer} from '@/components/main-wrapper'
 import {NewspaperLayout} from '@/components/newspaper-layout'
-import {OptionsPanel} from '@/components/options-panel'
 import {SubscriptionButton} from '@/components/subscription'
 import {CopyReferenceButton} from '@/components/titlebar-common'
 import {VersionsPanel} from '@/components/versions-panel'
@@ -61,7 +60,6 @@ type DocAccessoryOption = {
     | 'citations'
     | 'contacts'
     | 'all-documents'
-    | 'options'
   label: string
   icon: null | React.FC<{color: string; size?: number}>
 }
@@ -82,8 +80,6 @@ export default function DocumentPage() {
     accessory = (
       <EntityCitationsAccessory entityId={docId} onClose={handleClose} />
     )
-  } else if (accessoryKey === 'options') {
-    accessory = <OptionsPanel route={route} onClose={handleClose} />
   } else if (accessoryKey === 'versions') {
     accessory = <VersionsPanel route={route} onClose={handleClose} />
   } else if (accessoryKey === 'collaborators') {
@@ -103,14 +99,6 @@ export default function DocumentPage() {
   }
 
   const accessoryOptions: DocAccessoryOption[] = []
-
-  if (docId.type === 'd' && !docId.path?.length) {
-    accessoryOptions.push({
-      key: 'options',
-      label: 'Options',
-      icon: Contact,
-    })
-  }
 
   accessoryOptions.push({
     key: 'versions',

@@ -2,7 +2,6 @@ import {getLinkMenuItems} from '@/editor/blocknote/core'
 import {linkMenuPluginKey} from '@/editor/blocknote/core/extensions/LinkMenu/LinkMenuPlugin'
 import {loadWebLinkMeta} from '@/models/web-links'
 import type {AppQueryClient} from '@/query-client'
-import {toPlainMessage} from '@bufbuild/protobuf'
 import {
   GRPCClient,
   StateStream,
@@ -15,6 +14,7 @@ import {
   isHypermediaScheme,
   isPublicGatewayLink,
   packHmId,
+  toHMDocument,
   unpackHmId,
 } from '@shm/shared'
 import {Editor} from '@tiptap/core'
@@ -510,7 +510,7 @@ async function fetchEntityTitle(
       account: hmId.uid,
       path: hmIdPathToEntityQueryPath(hmId.path),
     })
-    const doc = toPlainMessage(document)
+    const doc = toHMDocument(document)
     const title = getDocumentTitle(doc)
     return {
       title,

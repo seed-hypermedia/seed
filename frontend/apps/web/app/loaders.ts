@@ -3,11 +3,12 @@ import {
   getParentPaths,
   HMDocument,
   HMDocumentListItem,
-  HMDocumentSchema,
   hmId,
   hmIdPathToEntityQueryPath,
   HMMetadata,
+  idToUrl,
   SITE_BASE_URL,
+  toHMDocument,
   UnpackedHypermediaId,
 } from "@shm/shared";
 import {queryClient} from "./client";
@@ -28,8 +29,8 @@ export async function getMetadata(
       path: hmIdPathToEntityQueryPath(id.path),
       version: id.version || undefined,
     });
-    const document = toPlainMessage(rawDoc);
-    return {id, metadata: document.metadata};
+    const document = toHMDocument(rawDoc);
+    return {id, metadata: document?.metadata || {}};
   } catch (e) {
     return {id, metadata: {}};
   }
@@ -40,7 +41,7 @@ export type WebBaseDocumentPayload = {
   authors: {id: UnpackedHypermediaId; metadata: HMMetadata}[];
   id: UnpackedHypermediaId;
   siteHost: string | undefined;
-  supportDocuments?: {id: UnpackedHypermediaId; document: HMDocument}[];
+  supportDocuments?: {id: UnpackedHypermediaId; document: HMDocument | null}[];
   supportQueries?: {
     in: UnpackedHypermediaId;
     results: HMDocumentListItem[];
@@ -59,8 +60,7 @@ async function getHMDocument(entityId: UnpackedHypermediaId) {
     path,
     version: version || undefined,
   });
-  const document = HMDocumentSchema.parse(toPlainMessage(apiDoc));
-  return document;
+  return toHMDocument(apiDoc);
 }
 
 async function getDirectory(id: UnpackedHypermediaId) {
@@ -102,13 +102,19 @@ export async function getBaseDocument(
     });
   }
   const document = await getHMDocument(entityId);
+  if (!document) {
+    throw new Error(`Document ${idToUrl(entityId)} not found`);
+  }
   let authors = await Promise.all(
     document.authors.map(async (authorUid) => {
       return await getMetadata(hmId("d", authorUid));
     })
   );
 
-  let supportDocuments: {id: UnpackedHypermediaId; document: HMDocument}[] = [];
+  let supportDocuments: {
+    id: UnpackedHypermediaId;
+    document: HMDocument | null;
+  }[] = [];
   let supportQueries: {
     in: UnpackedHypermediaId;
     results: HMDocumentListItem[];
@@ -163,7 +169,7 @@ export async function getDocument(
       });
       return {
         id: hmId(entityId.type, entityId.uid, {path: crumbPath}),
-        metadata: toPlainMessage(document).metadata,
+        metadata: toHMDocument(document)?.metadata || {},
       };
     })
   );
