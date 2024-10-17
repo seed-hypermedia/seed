@@ -4,6 +4,7 @@ package blob
 import (
 	"seed/backend/core"
 	"seed/backend/util/cclock"
+	"slices"
 	"time"
 
 	cbornode "github.com/ipfs/go-ipld-cbor"
@@ -71,8 +72,15 @@ func MapToCBOR(data map[string]any, v any) {
 	}
 }
 
-// SignBlob and fill in the signature.
-func SignBlob(kp core.KeyPair, v any, sig *core.Signature) error {
+type baseBlob struct {
+	Type   blobType       `refmt:"type"`
+	Signer core.Principal `refmt:"signer"`
+	Sig    core.Signature `refmt:"sig"`
+	Ts     time.Time      `refmt:"ts"`
+}
+
+// signBlob and fill in the signature.
+func signBlob(kp core.KeyPair, v any, sig *core.Signature) error {
 	// Unlike some other projects that use a nil signature or omit the field entirely for signing,
 	// we fill the space for the signature with zeros.
 	// This leaves us room for optimizations to avoid double-serialization:
@@ -89,9 +97,22 @@ func SignBlob(kp core.KeyPair, v any, sig *core.Signature) error {
 	return err
 }
 
-type baseBlob struct {
-	Type   blobType       `refmt:"type"`
-	Signer core.Principal `refmt:"signer"`
-	Sig    core.Signature `refmt:"sig"`
-	Ts     time.Time      `refmt:"ts"`
+// verifyBlob checks the signature of a blob.
+func verifyBlob(signer core.Principal, v any, sig *core.Signature) error {
+	sigCopy := slices.Clone(*sig)
+
+	*sig = make([]byte, signer.SignatureSize())
+
+	unsignedBytes, err := cbornode.DumpObject(v)
+	if err != nil {
+		return err
+	}
+
+	if err := signer.Verify(unsignedBytes, sigCopy); err != nil {
+		return err
+	}
+
+	*sig = sigCopy
+
+	return nil
 }

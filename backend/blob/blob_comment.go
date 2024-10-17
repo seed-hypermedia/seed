@@ -62,7 +62,7 @@ func NewComment(
 		cu.Spc = space
 	}
 
-	if err := SignBlob(kp, cu, &cu.baseBlob.Sig); err != nil {
+	if err := signBlob(kp, cu, &cu.baseBlob.Sig); err != nil {
 		return eb, err
 	}
 
@@ -97,6 +97,10 @@ func init() {
 
 			v := &Comment{}
 			if err := cbornode.DecodeInto(data, v); err != nil {
+				return nil, err
+			}
+
+			if err := verifyBlob(v.Signer, v, &v.Sig); err != nil {
 				return nil, err
 			}
 

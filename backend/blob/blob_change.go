@@ -92,7 +92,7 @@ func NewChange(kp core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, ops 
 		Ops:     ops,
 	}
 
-	if err := SignBlob(kp, cc, &cc.baseBlob.Sig); err != nil {
+	if err := signBlob(kp, cc, &cc.baseBlob.Sig); err != nil {
 		return eb, err
 	}
 
@@ -213,6 +213,10 @@ func init() {
 
 			v := &Change{}
 			if err := cbornode.DecodeInto(data, v); err != nil {
+				return nil, err
+			}
+
+			if err := verifyBlob(v.Signer, v, &v.Sig); err != nil {
 				return nil, err
 			}
 
