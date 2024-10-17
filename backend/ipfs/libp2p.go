@@ -125,7 +125,13 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 				}
 				go func() error {
 					time.Sleep(30 * time.Second)
-					return fullDHT.Close()
+					fullDHT.Close()
+					for _, p := range h.Network().Peers() {
+						if !h.ConnManager().IsProtected(p, "seed-support") && !h.ConnManager().IsProtected(p, "bootstrap-support") {
+							h.Network().ClosePeer(p)
+						}
+					}
+					return nil
 				}()
 				return fullDHT, nil
 				//rt = &noopDHT{}

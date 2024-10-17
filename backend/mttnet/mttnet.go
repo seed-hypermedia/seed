@@ -44,7 +44,8 @@ import (
 	"google.golang.org/grpc"
 )
 
-const ProtocolSupportKey = "seed-support" // This is what we use as a key to protect the connection in ConnManager.
+// ProtocolSupportKey is what we use as a key to protect the connection in ConnManager.
+const ProtocolSupportKey = "seed-support"
 
 const (
 	protocolPrefix  = "/hypermedia/"
