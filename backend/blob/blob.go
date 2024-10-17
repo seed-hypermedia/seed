@@ -43,9 +43,9 @@ func ZeroUnixTime() time.Time {
 	return unixZero
 }
 
-// CBORToMap converts a CBOR object to a map.
+// cborToMap converts a CBOR object to a map.
 // TODO(burdiyan): This is a workaround. Should not exist.
-func CBORToMap(v any) map[string]any {
+func cborToMap(v any) map[string]any {
 	data, err := cbornode.DumpObject(v)
 	if err != nil {
 		panic(err)
@@ -59,9 +59,9 @@ func CBORToMap(v any) map[string]any {
 	return m
 }
 
-// MapToCBOR converts a map to a CBOR object.
+// mapToCBOR converts a map to a CBOR object.
 // TODO(burdiyan): This is a workaround. Should not exist.
-func MapToCBOR(data map[string]any, v any) {
+func mapToCBOR(data map[string]any, v any) {
 	rawData, err := cbornode.DumpObject(data)
 	if err != nil {
 		panic(err)
