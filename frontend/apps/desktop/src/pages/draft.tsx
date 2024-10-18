@@ -590,7 +590,10 @@ function PathDraft({
   const replaceRoute = useNavigate('replace')
 
   const draftContext = useSelector(draftActor, (s) => s.context)
-  const name = useMemo(() => draftContext.name, [draftContext])
+  const name = useMemo(
+    () => draftContext.metadata.name,
+    [draftContext.metadata],
+  )
   const routePath = useMemo(() => route.id?.path, [route])
   const [isDirty, setDirty] = useState(false)
   const [isEditing, setEditing] = useState(false)
