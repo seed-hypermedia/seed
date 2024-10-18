@@ -252,7 +252,7 @@ func (mut *blockTreeMutation) Move(parent, block, left string) (moveEffect, erro
 	curState, ok := mut.dirty.blocks.Get(block)
 	newState := blockState{
 		Parent:   parent,
-		Position: newOpID(math.MaxInt64, "\xFF\xFF\xFF\xFF", mut.counter),
+		Position: newOpID(math.MaxInt64, math.MaxUint64, mut.counter),
 	}
 	if ok {
 		me = moveEffectMoved
@@ -304,13 +304,13 @@ func (mut *blockTreeMutation) Move(parent, block, left string) (moveEffect, erro
 	return me, nil
 }
 
-func (mut *blockTreeMutation) Commit(ts int64, origin string) iter.Seq[moveRecord] {
+func (mut *blockTreeMutation) Commit(ts int64, actor uint64) iter.Seq[moveRecord] {
 	// We iterate the state of the block tree in a breadth-first order,
 	// and we clean up all the moves we've made, such that redundant moves are not included.
 
 	// TODO(burdian): improve detecting operations created by our mutation.
 	isOurs := func(opID opID) bool {
-		return opID.Ts == math.MaxInt64 && opID.Origin == "\xFF\xFF\xFF\xFF"
+		return opID.Ts == math.MaxInt64 && opID.Actor == math.MaxUint64
 	}
 
 	type queueItem struct {
@@ -350,13 +350,13 @@ func (mut *blockTreeMutation) Commit(ts int64, origin string) iter.Seq[moveRecor
 				}
 
 				mr := moveRecord{
-					OpID:   newOpID(ts, origin, counter),
+					OpID:   newOpID(ts, actor, counter),
 					Parent: sublist.Block,
 					Block:  block.Value,
 				}
 
 				if isOurs(last.ID) {
-					mr.Ref = newOpID(ts, origin, counter-1)
+					mr.Ref = newOpID(ts, actor, counter-1)
 				} else {
 					mr.Ref = last.ID
 				}
@@ -397,7 +397,7 @@ func (mut *blockTreeMutation) Commit(ts int64, origin string) iter.Seq[moveRecor
 			}
 
 			mr := moveRecord{
-				OpID:   newOpID(ts, origin, counter),
+				OpID:   newOpID(ts, actor, counter),
 				Parent: TrashNodeID,
 				Block:  block.Value,
 				Ref:    opID{},

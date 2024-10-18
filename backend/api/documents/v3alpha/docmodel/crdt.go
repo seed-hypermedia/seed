@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"iter"
+	"math"
 	"seed/backend/blob"
 	"seed/backend/core"
 	"seed/backend/util/cclock"
@@ -22,16 +23,16 @@ import (
 )
 
 type opID struct {
-	Ts     int64
-	Origin string
-	Idx    int
+	Ts    int64
+	Idx   int32
+	Actor uint64
 }
 
 func (o opID) String() string {
 	var out []byte
 	out = binary.BigEndian.AppendUint64(out, uint64(o.Ts))
 	out = binary.BigEndian.AppendUint32(out, uint32(o.Idx))
-	out = append(out, o.Origin...)
+	out = binary.BigEndian.AppendUint64(out, o.Actor)
 
 	return hex.EncodeToString(out)
 }
@@ -44,17 +45,31 @@ func decodeOpID(s string) (opID, error) {
 
 	var out opID
 	out.Ts = int64(binary.BigEndian.Uint64(in[:8]))
-	out.Idx = int(binary.BigEndian.Uint32(in[8:12]))
-	out.Origin = string(in[12:])
+	out.Idx = int32(binary.BigEndian.Uint32(in[8:12]))
+	out.Actor = uint64(binary.BigEndian.Uint64(in[12:]))
 
 	return out, nil
 }
 
-func newOpID(ts int64, origin string, idx int) opID {
+const (
+	maxTs  = 1<<48 - 1
+	maxIdx = 1<<24 - 1
+)
+
+func newOpID(ts int64, actor uint64, idx int) opID {
+	// We use max int64 for some work arounds.
+	if ts != math.MaxInt64 && ts >= maxTs {
+		panic(fmt.Errorf("BUG: ts %d too big", ts))
+	}
+
+	if idx > maxIdx {
+		panic("BUG: idx too big")
+	}
+
 	return opID{
-		Ts:     ts,
-		Origin: origin,
-		Idx:    idx,
+		Ts:    ts,
+		Idx:   int32(idx),
+		Actor: actor,
 	}
 }
 
@@ -75,59 +90,18 @@ func (o opID) Compare(oo opID) int {
 		return +1
 	}
 
-	return cmp.Compare(o.Origin, oo.Origin)
+	return cmp.Compare(o.Actor, oo.Actor)
 }
-
-func (op opID) Encode() EncodedOpID {
-	const (
-		maxTimestamp = 1<<48 - 1
-		maxIdx       = 1<<24 - 1
-	)
-
-	if op.Ts >= maxTimestamp {
-		panic("BUG: operation timestamp is too large")
-	}
-
-	if op.Idx >= maxIdx {
-		panic("BUG: operation index is too large")
-	}
-
-	var e EncodedOpID
-
-	e[0] = byte(op.Ts >> 40)
-	e[1] = byte(op.Ts >> 32)
-	e[2] = byte(op.Ts >> 24)
-	e[3] = byte(op.Ts >> 16)
-	e[4] = byte(op.Ts >> 8)
-	e[5] = byte(op.Ts)
-
-	e[6] = byte(op.Idx >> 16)
-	e[7] = byte(op.Idx >> 8)
-	e[8] = byte(op.Idx)
-
-	copy(e[9:], op.Origin)
-	return e
-}
-
-// EncodedOpID is a CRDT Op ID that is compactly encoded in the following way:
-// - 6 bytes (48 bits): timestamp. Enough precision to track Unix millisecond timestamps for thousands for years.
-// - 3 bytes (24 bits): index/offset of the operation within the same Change/Transaction.
-// - 6 bytes (48 bits): origin/replica/actor. Random 48-bit value of a replica that generated the operation.
-// The timestamp and index are big-endian, to support lexicographic ordering of the IDs.
-// This has some limitations:
-// 1. Maximum number of operations in a single change is 16777215.
-// 2. Same actor must not generate Changes/Transactions within the same millisecond.
-// 3. The clocks on the devices generating the operations must be roughly syncronized to avoid inter-device conflicts in timestamps.
-type EncodedOpID [15]byte
 
 type docCRDT struct {
-	id      blob.IRI
-	cids    []cid.Cid
-	changes []*blob.Change
-	deps    [][]int // deps for each change.
-	rdeps   [][]int // reverse deps for each change.
-	applied map[cid.Cid]int
-	heads   map[cid.Cid]struct{}
+	id       blob.IRI
+	cids     []cid.Cid
+	changes  []*blob.Change
+	deps     [][]int // deps for each change.
+	rdeps    [][]int // reverse deps for each change.
+	applied  map[cid.Cid]int
+	heads    map[cid.Cid]struct{}
+	getActor func(core.Principal) (uint64, bool) // TODO(burdiyan): ugly workaround.
 
 	tree *treeOpSet
 
@@ -172,65 +146,6 @@ func (e *docCRDT) GetMetadata() map[string]string {
 // This must be read only. Not safe for concurrency.
 func (e *docCRDT) Heads() map[cid.Cid]struct{} {
 	return e.heads
-}
-
-// Checkout returns an entity with the state filtered up to the given heads.
-// If no heads are given it returns the same instance of the Entity.
-// If heads given are the same as the current heads, the same instance is returned as well.
-func (e *docCRDT) Checkout(heads []cid.Cid) (*docCRDT, error) {
-	if len(heads) == 0 {
-		return e, nil
-	}
-
-	{
-		curVer := NewVersion(maps.Keys(e.heads)...)
-		wantVer := NewVersion(heads...)
-
-		if curVer == wantVer {
-			return e, nil
-		}
-	}
-
-	// We walk the DAG of changes backwards starting from the heads.
-	// And then we apply those changes to the cloned entity.
-
-	visited := make(map[int]struct{}, len(e.cids))
-	queue := make([]int, 0, len(e.cids))
-	chain := make([]int, 0, len(e.cids))
-
-	for _, h := range heads {
-		hh, ok := e.applied[h]
-		if !ok {
-			return nil, fmt.Errorf("head '%s' not found", h)
-		}
-
-		queue = append(queue, hh)
-	}
-
-	for len(queue) > 0 {
-		c := queue[0]
-		queue = queue[1:]
-		if _, ok := visited[c]; ok {
-			continue
-		}
-		visited[c] = struct{}{}
-		chain = append(chain, c)
-		for _, dep := range e.deps[c] {
-			queue = append(queue, dep)
-		}
-	}
-	slices.Reverse(chain)
-
-	clock := cclock.New()
-	entity := newCRDT(e.id, clock)
-
-	for _, c := range chain {
-		if err := entity.ApplyChange(e.cids[c], e.changes[c]); err != nil {
-			return nil, err
-		}
-	}
-
-	return entity, nil
 }
 
 type Version string
@@ -287,10 +202,25 @@ func (e *docCRDT) BFTDeps(start []cid.Cid) (iter.Seq2[int, blob.ChangeRecord], e
 	enqueueNodes := func(nodes []int) {
 		scratch = append(scratch[:0], nodes...)
 		slices.SortFunc(scratch, func(i, j int) int {
-			if e.changes[i].Ts == e.changes[j].Ts {
-				return cmp.Compare(e.cids[i].KeyString(), e.cids[j].KeyString())
+			a, b := e.changes[i], e.changes[j]
+
+			if a.Ts.Before(b.Ts) {
+				return -1
 			}
-			return cmp.Compare(e.changes[i].Ts.UnixNano(), e.changes[j].Ts.UnixNano())
+
+			if a.Ts.After(b.Ts) {
+				return +1
+			}
+
+			if a.Depth < b.Depth {
+				return -1
+			}
+
+			if a.Depth > b.Depth {
+				return +1
+			}
+
+			return cmp.Compare(e.cids[i].KeyString(), e.cids[j].KeyString())
 		})
 		queue = append(queue, scratch...)
 	}
@@ -381,8 +311,12 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 		return err
 	}
 
-	ts := ch.Ts.UnixMicro()
-	origin := originFromCID(c)
+	ts := ch.Ts.UnixMilli()
+
+	actorID, ok := e.getActor(ch.Signer)
+	if !ok {
+		panic("BUG: actor wasn't derived when applying change")
+	}
 
 	idx := -1
 	for op, err := range ch.Ops() {
@@ -391,7 +325,7 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 			return err
 		}
 
-		opid := newOpID(ts, origin, idx)
+		opid := newOpID(ts, actorID, idx)
 		switch op := op.(type) {
 		case blob.OpSetKey:
 			reg := e.stateMetadata[op.Key]
@@ -418,9 +352,9 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 				return fmt.Errorf("failed to decode move left origin op id: %w", err)
 			}
 			// TODO(burdiyan): Get rid of this self trick.
-			if refID.Ts == 0 && refID.Origin == "self" {
+			if refID.Ts == 0 && refID.Actor == math.MaxUint64 {
 				refID.Ts = ts
-				refID.Origin = origin
+				refID.Actor = actorID
 			}
 
 			if err := e.tree.Integrate(opid, op.Parent, op.Block, refID); err != nil {
