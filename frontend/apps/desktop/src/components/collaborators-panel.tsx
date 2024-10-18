@@ -162,7 +162,14 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
                 setSearch('')
                 setSelectedCollaborators([])
               }}
-              theme="brand"
+              bg="$brand5"
+              borderColor="$brand5"
+              color="white"
+              hoverStyle={{
+                bg: '$brand6',
+                color: 'white',
+                borderColor: '$brand6',
+              }}
               iconAfter={ArrowRight}
             />
           </XGroup.Item>
