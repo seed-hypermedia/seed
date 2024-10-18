@@ -51,7 +51,7 @@ function modifiers(name: string, event: KeyboardEvent, shift: boolean) {
 // are based on the strings that can appear in
 // [`KeyEvent.key`](https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key).
 // Use lowercase letters to refer to letter keys (or uppercase letters
-// if you want shift to be held). You may use `"Space"` as an alias
+// if you want shift to be held). You may use `"Site"` as an alias
 // for the `" "` name.
 //
 // Modifiers can be given in any order. `Shift-` (or `s-`), `Alt-` (or

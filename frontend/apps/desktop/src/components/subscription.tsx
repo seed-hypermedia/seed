@@ -38,7 +38,7 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
           content={
             subscription.subscription != 'none'
               ? `Subscribe to ${
-                  subscription.subscription == 'space' ? 'Space' : 'Document'
+                  subscription.subscription == 'space' ? 'Site' : 'Document'
                 }`
               : ''
           }
@@ -104,7 +104,7 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
                     subscription.subscription == 'space'
                       ? 'Subscribed'
                       : 'Subscribe'
-                  } to Space`}
+                  } to Site`}
                   description="Receive the latest updates of this document and the full directory"
                   onPress={() => {
                     subscription.setSubscription('space')
@@ -208,7 +208,7 @@ function ParentSubscription({sub}: {sub: HMSubscription}) {
       Icon={Folder}
       active={true}
       title={`Subscribed to ${title}`}
-      description="This document is part of a Space you are subscribed to"
+      description="This document is part of a Site you are subscribed to"
     />
   )
 }
