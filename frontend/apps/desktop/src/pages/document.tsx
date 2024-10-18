@@ -104,13 +104,13 @@ export default function DocumentPage() {
 
   const accessoryOptions: DocAccessoryOption[] = []
 
-  if (docId.type === 'd' && !docId.path?.length) {
-    accessoryOptions.push({
-      key: 'options',
-      label: 'Options',
-      icon: Contact,
-    })
-  }
+  // if (docId.type === 'd' && !docId.path?.length) {
+  //   accessoryOptions.push({
+  //     key: 'options',
+  //     label: 'Options',
+  //     icon: Contact,
+  //   })
+  // }
 
   accessoryOptions.push({
     key: 'versions',
