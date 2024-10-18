@@ -2,10 +2,13 @@ package docmodel
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"iter"
 	"maps"
+	"math"
 	"net/url"
 	"reflect"
 	"seed/backend/blob"
@@ -14,6 +17,7 @@ import (
 	"seed/backend/util/cclock"
 	"slices"
 	"sort"
+	"unique"
 
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multibase"
@@ -25,8 +29,9 @@ import (
 
 // Document is a mutable document.
 type Document struct {
-	crdt    *docCRDT
-	origins map[string]cid.Cid // map of abbreviated origin hashes to actual cids; workaround, should not be necessary.
+	crdt      *docCRDT
+	actors    map[unique.Handle[string]]uint64
+	opsToCids map[[2]uint64]cid.Cid
 
 	// Bellow goes the data for the ongoing dirty mutation.
 	// Document can only be mutated once, and then must be thrown away.
@@ -60,21 +65,28 @@ func originFromCID(c cid.Cid) string {
 // New creates a new Document model.
 func New(id blob.IRI, clock *cclock.Clock) (*Document, error) {
 	crdt := newCRDT(id, clock)
-	return newDoc(crdt)
+	doc, err := newDoc(crdt)
+	if err != nil {
+		return nil, err
+	}
+
+	crdt.getActor = func(in core.Principal) (uint64, bool) {
+		akey := unique.Make(in.UnsafeString())
+		out, ok := doc.actors[akey]
+		return out, ok
+	}
+
+	return doc, nil
 }
 
 // newDoc creates a new mutable document.
 func newDoc(crdt *docCRDT) (*Document, error) {
 	dm := &Document{
 		crdt:          crdt,
-		origins:       make(map[string]cid.Cid),
+		actors:        make(map[unique.Handle[string]]uint64),
+		opsToCids:     make(map[[2]uint64]cid.Cid),
 		createdBlocks: make(map[string]struct{}),
 		deletedBlocks: make(map[string]struct{}),
-	}
-
-	for _, c := range crdt.cids {
-		o := originFromCID(c)
-		dm.origins[o] = c
 	}
 
 	return dm, nil
@@ -86,17 +98,64 @@ func (dm *Document) Checkout(heads []cid.Cid) (*Document, error) {
 		panic("BUG: document is done")
 	}
 
-	crdt2, err := dm.crdt.Checkout(heads)
+	e := dm.crdt
+
+	if len(heads) == 0 {
+		return dm, nil
+	}
+
+	{
+		curVer := NewVersion(slices.Collect(maps.Keys(e.heads))...)
+		wantVer := NewVersion(heads...)
+
+		if curVer == wantVer {
+			return dm, nil
+		}
+	}
+
+	// We walk the DAG of changes backwards starting from the heads.
+	// And then we apply those changes to the cloned entity.
+
+	visited := make(map[int]struct{}, len(e.cids))
+	queue := make([]int, 0, len(e.cids))
+	chain := make([]int, 0, len(e.cids))
+
+	for _, h := range heads {
+		hh, ok := e.applied[h]
+		if !ok {
+			return nil, fmt.Errorf("head '%s' not found", h)
+		}
+
+		queue = append(queue, hh)
+	}
+
+	for len(queue) > 0 {
+		c := queue[0]
+		queue = queue[1:]
+		if _, ok := visited[c]; ok {
+			continue
+		}
+		visited[c] = struct{}{}
+		chain = append(chain, c)
+		for _, dep := range e.deps[c] {
+			queue = append(queue, dep)
+		}
+	}
+	slices.Reverse(chain)
+
+	clock := cclock.New()
+	doc, err := New(e.id, clock)
 	if err != nil {
 		return nil, err
 	}
 
-	dm2, err := newDoc(crdt2)
-	if err != nil {
-		return nil, err
+	for _, c := range chain {
+		if err := doc.ApplyChange(e.cids[c], e.changes[c]); err != nil {
+			return nil, err
+		}
 	}
 
-	return dm2, nil
+	return doc, nil
 }
 
 // ApplyChange to the state. Can only do that before any mutations were made.
@@ -109,8 +168,16 @@ func (dm *Document) ApplyChange(c cid.Cid, ch *blob.Change) error {
 }
 
 func (dm *Document) applyChangeUnsafe(c cid.Cid, ch *blob.Change) error {
-	o := originFromCID(c)
-	dm.origins[o] = c
+	akey := unique.Make(ch.Signer.UnsafeString())
+	actor, ok := dm.actors[akey]
+	if !ok {
+		sum := sha256.Sum256(ch.Signer)
+		actor = binary.LittleEndian.Uint64(sum[:])
+		dm.actors[akey] = actor
+	}
+
+	dm.opsToCids[[2]uint64{actor, uint64(ch.Ts.UnixMilli())}] = c
+
 	return dm.crdt.ApplyChange(c, ch)
 }
 
@@ -284,7 +351,7 @@ func (dm *Document) cleanupPatch() []blob.OpMap {
 	// so it's not aware of any other possible operations.
 	// Will fix this at some point.
 	if dm.mut != nil {
-		for move := range dm.mut.Commit(0, "self") {
+		for move := range dm.mut.Commit(0, math.MaxUint64) {
 			ops = append(ops, blob.NewOpMoveBlock(move.Block, move.Parent, move.Ref.String()))
 		}
 	}
@@ -407,8 +474,13 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 			continue
 		}
 
-		oo := dm.origins[opid.Origin]
-		blkpb := BlockToProto(blk, oo)
+		c, ok := dm.opsToCids[[2]uint64{uint64(opid.Actor), uint64(opid.Ts)}]
+		if !ok {
+			fmt.Println(dm.opsToCids)
+			panic(fmt.Errorf("BUG: failed to find CID for block op ID: %d:%d", opid.Actor, opid.Ts))
+		}
+
+		blkpb := BlockToProto(blk, c)
 
 		child := &documents.BlockNode{Block: blkpb}
 		appendChild(pair.Parent, child)

@@ -30,14 +30,14 @@ func TestCRDTBlockTree_Smoke(t *testing.T) {
 	*/
 
 	wantOps := []moveRecord{
-		{OpID: newOpID(12345, "testing", 0), Parent: "", Block: "b1", Ref: opID{}},
-		{OpID: newOpID(12345, "testing", 1), Parent: "", Block: "b3", Ref: newOpID(12345, "testing", 0)},
-		{OpID: newOpID(12345, "testing", 2), Parent: "b1", Block: "b1.0", Ref: opID{}},
-		{OpID: newOpID(12345, "testing", 3), Parent: "b1", Block: "b1.1", Ref: newOpID(12345, "testing", 2)},
-		{OpID: newOpID(12345, "testing", 4), Parent: "b1", Block: "b2", Ref: newOpID(12345, "testing", 3)},
+		{OpID: newOpID(12345, 123, 0), Parent: "", Block: "b1", Ref: opID{}},
+		{OpID: newOpID(12345, 123, 1), Parent: "", Block: "b3", Ref: newOpID(12345, 123, 0)},
+		{OpID: newOpID(12345, 123, 2), Parent: "b1", Block: "b1.0", Ref: opID{}},
+		{OpID: newOpID(12345, 123, 3), Parent: "b1", Block: "b1.1", Ref: newOpID(12345, 123, 2)},
+		{OpID: newOpID(12345, 123, 4), Parent: "b1", Block: "b2", Ref: newOpID(12345, 123, 3)},
 	}
 
-	gotOps := slices.Collect(mut.Commit(12345, "testing"))
+	gotOps := slices.Collect(mut.Commit(12345, 123))
 
 	require.Equal(t, wantOps, gotOps, "committed mutation moves must match")
 
@@ -89,12 +89,12 @@ func TestCRDTBlockTree_Smoke(t *testing.T) {
 		require.Equal(t, moveEffectMoved, must.Do2(mut.Move("b1", "b1.0", "")))
 
 		wantOps := []moveRecord{
-			{OpID: newOpID(12346, "alice", 0), Parent: "", Block: "b3", Ref: opID{}},
-			{OpID: newOpID(12346, "alice", 1), Parent: "b1", Block: "b1.2", Ref: newOpID(12345, "testing", 2)},
-			{OpID: newOpID(12346, "alice", 2), Parent: TrashNodeID, Block: "b2", Ref: opID{}},
+			{OpID: newOpID(12346, 1, 0), Parent: "", Block: "b3", Ref: opID{}},
+			{OpID: newOpID(12346, 1, 1), Parent: "b1", Block: "b1.2", Ref: newOpID(12345, 123, 2)},
+			{OpID: newOpID(12346, 1, 2), Parent: TrashNodeID, Block: "b2", Ref: opID{}},
 		}
 
-		gotOps := slices.Collect(mut.Commit(12346, "alice"))
+		gotOps := slices.Collect(mut.Commit(12346, 1))
 
 		// _ = wantOps
 		// _ = gotOps

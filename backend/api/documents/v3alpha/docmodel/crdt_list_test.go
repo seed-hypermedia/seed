@@ -11,13 +11,13 @@ import (
 
 func TestCRDTList(t *testing.T) {
 	in := []rgaItem[string]{
-		{ID: newOpID(1, "alice", 0), Ref: opID{}, Value: "A"},
-		{ID: newOpID(1, "alice", 1), Ref: newOpID(1, "alice", 0), Value: "B"},
-		{ID: newOpID(1, "alice", 2), Ref: newOpID(1, "alice", 1), Value: "C"},
+		{ID: newOpID(1, 1, 0), Ref: opID{}, Value: "A"},
+		{ID: newOpID(1, 1, 1), Ref: newOpID(1, 1, 0), Value: "B"},
+		{ID: newOpID(1, 1, 2), Ref: newOpID(1, 1, 1), Value: "C"},
 
-		{ID: newOpID(1, "bob", 0), Ref: opID{}, Value: "X"},
-		{ID: newOpID(1, "bob", 1), Ref: newOpID(1, "bob", 0), Value: "Y"},
-		{ID: newOpID(1, "bob", 2), Ref: newOpID(1, "bob", 1), Value: "Z"},
+		{ID: newOpID(1, 2, 0), Ref: opID{}, Value: "X"},
+		{ID: newOpID(1, 2, 1), Ref: newOpID(1, 2, 0), Value: "Y"},
+		{ID: newOpID(1, 2, 2), Ref: newOpID(1, 2, 1), Value: "Z"},
 	}
 
 	want := []string{"X", "Y", "Z", "A", "B", "C"}
