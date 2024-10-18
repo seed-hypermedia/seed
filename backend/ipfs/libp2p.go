@@ -38,8 +38,9 @@ const (
 type Libp2p struct {
 	host.Host
 
-	ds      datastore.Batching
-	Routing router
+	ds               datastore.Batching
+	DelegatedRouting router
+	FullRouting      router
 
 	clean cleanup.Stack
 }
@@ -75,7 +76,7 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peers
 	if err != nil {
 		return nil, err
 	}
-	var rt router
+	var rt, dl router
 	cm := must.Do2(connmgr.NewConnManager(lowWatermark, highWatermark,
 		connmgr.WithGracePeriod(5*time.Second),
 		connmgr.WithSilencePeriod(6*time.Second)))
@@ -105,39 +106,41 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peers
 		libp2p.ResourceManager(rm),
 		libp2p.ConnectionGater(newGater(ps)),
 		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
-			if delegatedDHTURL != "" {
-				client, err := delegated_routing.New(delegatedDHTURL,
-					delegated_routing.WithHTTPClient(delegateHTTPClient),
-					delegated_routing.WithIdentity(key),
-					delegated_routing.WithUserAgent("seed-hypermedia"),
-					delegated_routing.WithProviderInfo(pid, nil), //TODO(juligasa): add address info
-					delegated_routing.WithDisabledLocalFiltering(false),
-				)
-				if err != nil {
-					return nil, err
-				}
-				rt = content_routing.NewContentRoutingClient(client)
-				log.Info("Delegated DHT Mode", zap.String("Server URL", delegatedDHTURL))
-			} else {
-				ctx, cancel := context.WithCancel(context.Background())
-				clean.AddFunc(cancel)
-				fullDHT, err := newDHT(ctx, h, ds, clean)
-				if err != nil {
-					return nil, err
-				}
-				rt = fullDHT
-				go func() error {
-					time.Sleep(30 * time.Second)
-					fullDHT.Close()
-					for _, p := range h.Network().Peers() {
-						if !h.ConnManager().IsProtected(p, "seed-support") && !h.ConnManager().IsProtected(p, "bootstrap-support") {
-							h.Network().ClosePeer(p)
-						}
-					}
-					return nil
-				}()
-				log.Info("Full DHT Mode", zap.String("Server URL", delegatedDHTURL))
+			//if delegatedDHTURL != "" {
+			client, err := delegated_routing.New(delegatedDHTURL,
+				delegated_routing.WithHTTPClient(delegateHTTPClient),
+				delegated_routing.WithIdentity(key),
+				delegated_routing.WithUserAgent("seed-hypermedia"),
+				delegated_routing.WithProviderInfo(pid, nil), //TODO(juligasa): add address info
+				delegated_routing.WithDisabledLocalFiltering(false),
+			)
+			if err != nil {
+				return nil, err
 			}
+			dl = content_routing.NewContentRoutingClient(client)
+			//log.Info("Delegated DHT Mode", zap.String("Server URL", delegatedDHTURL))
+			//} else {
+			ctx, cancel := context.WithCancel(context.Background())
+			clean.AddFunc(cancel)
+			fullDHT, err := newDHT(ctx, h, ds, clean)
+			if err != nil {
+				return nil, err
+			}
+			rt = fullDHT
+			go func() error {
+				time.Sleep(30 * time.Second)
+				fullDHT.Close()
+				var closedPeers int
+				for _, p := range h.Network().Peers() {
+					if !h.ConnManager().IsProtected(p, "seed-support") && !h.ConnManager().IsProtected(p, "bootstrap-support") {
+						h.Network().ClosePeer(p)
+						closedPeers++
+					}
+				}
+				return nil
+			}()
+			//log.Info("Full DHT Mode", zap.String("Server URL", delegatedDHTURL))
+			//}
 
 			return rt, nil
 		}),
@@ -152,10 +155,11 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peers
 	clean.Add(node)
 
 	return &Libp2p{
-		ds:      ds,
-		clean:   clean,
-		Host:    node,
-		Routing: rt,
+		ds:               ds,
+		clean:            clean,
+		Host:             node,
+		FullRouting:      rt,
+		DelegatedRouting: dl,
 	}, nil
 }
 
