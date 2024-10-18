@@ -232,6 +232,9 @@ function DocPageHeader({
     return <DocDiscovery docId={docId} />
   }
 
+  if (entity.data?.document?.metadata.layout == 'Seed/Experimental/Newspaper')
+    return null
+
   return (
     <YStack>
       <DocumentCover docId={docId} />

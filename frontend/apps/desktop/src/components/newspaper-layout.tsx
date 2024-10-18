@@ -49,7 +49,12 @@ export function NewspaperLayout({
     })
     .filter((m) => !!m)
   return (
-    <Container clearVerticalSpace marginBottom={100}>
+    <Container
+      clearVerticalSpace
+      marginTop={60}
+      marginBottom={80}
+      maxWidth={1000}
+    >
       {firstItem && (
         <BannerNewspaperCard
           item={firstItem}
@@ -57,7 +62,7 @@ export function NewspaperLayout({
           accountsMetadata={accountsMetadata}
         />
       )}
-      <XStack flexWrap="wrap" gap="$4" marginTop="$4" jc="center">
+      <XStack flexWrap="wrap" marginTop="$4" justifyContent="space-between">
         {restItems.map((item) => {
           return (
             <NewspaperCard

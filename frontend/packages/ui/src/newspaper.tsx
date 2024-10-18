@@ -28,26 +28,32 @@ export function BannerNewspaperCard({
 
   if (!entity?.document) return null;
   return (
-    <XStack
+    <View
       {...baseCardStyles}
+      flexDirection="column"
       marginTop="$4"
-      //   onPress={() => {
-      //     //   navigate({key: 'document', id})
-      //   }}
+      minHeight={340}
+      $gtMd={{flexDirection: "row"}}
       {...linkProps}
     >
-      <View width="50%">
+      <View height={200} width="100%" $gtMd={{width: "50%", height: "auto"}}>
         <NewspaperCardImage document={entity.document} height="100%" />
       </View>
-      <YStack flex={1} width="50%" jc="space-between">
-        <NewspaperCardContent entity={entity} />
+      <YStack
+        flex={1}
+        width="100%"
+        $gtMd={{width: "50%", height: "auto"}}
+        jc="space-between"
+      >
+        <NewspaperCardContent banner entity={entity} />
         <NewspaperCardFooter
+          banner
           entity={entity}
           item={item}
           accountsMetadata={accountsMetadata}
         />
       </YStack>
-    </XStack>
+    </View>
   );
 }
 function NewspaperCardImage({
@@ -77,8 +83,10 @@ function NewspaperCardImage({
 
 function NewspaperCardContent({
   entity,
+  banner = false,
 }: {
   entity: HMEntityContent | null | undefined;
+  banner?: boolean;
 }) {
   let textContent = useMemo(() => {
     if (entity?.document?.content) {
@@ -90,12 +98,16 @@ function NewspaperCardContent({
     }
   }, [entity?.document]);
   return (
-    <YStack padding="$3" gap="$3" f={1}>
-      <SizableText size="$5" fontWeight="bold">
+    <YStack padding={banner ? "$5" : "$3"} gap="$3" f={1}>
+      <SizableText size={banner ? "$8" : "$5"} fontWeight="bold">
         {entity?.document?.metadata?.name}
       </SizableText>
-      <YStack overflow="hidden" maxHeight={21 * 3}>
-        <SizableText color="$color10" fontFamily="$editorBody" size="$2">
+      <YStack overflow="hidden" maxHeight={(banner ? 27 : 21) * 3}>
+        <SizableText
+          color="$color10"
+          fontFamily="$editorBody"
+          size={banner ? "$4" : "$2"}
+        >
           {textContent}
         </SizableText>
       </YStack>
@@ -162,10 +174,15 @@ export function NewspaperCard({
   if (!entity?.document) return null;
   return (
     <YStack
+      flexGrow={0}
+      flexShrink={0}
+      flexBasis="100%"
+      $gtSm={{flexBasis: "48.5%"}}
+      $gtMd={{flexBasis: "31.5%"}}
       {...baseCardStyles}
+      marginTop="$5"
       //   marginTop="$4"
-      //   marginTop="$4"
-      width={208}
+
       //   maxWidth={208}
       //   f={1}
       //   onPress={() => {

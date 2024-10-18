@@ -36,7 +36,6 @@ export function AppErrorContent({
   return (
     <XStack jc="center" ai="center" f={1} backgroundColor={'$color2'}>
       <YStack
-        space
         theme="red"
         backgroundColor="$color1"
         maxWidth={500}
