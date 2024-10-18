@@ -602,6 +602,13 @@ function RoleFilterOption({
         <Checkbox
           id="link-latest"
           size="$2"
+          borderColor="$color9"
+          focusStyle={{
+            borderColor: '$color9',
+          }}
+          hoverStyle={{
+            borderColor: '$color9',
+          }}
           checked={checked}
           onPress={(e: MouseEvent) => {
             e.stopPropagation()
@@ -745,9 +752,15 @@ function LibraryList({
         >
           <Checkbox
             size="$3"
-            bg="$brand5"
             checked={allSelected}
             onCheckedChange={handleSelectAllChange}
+            borderColor="$color9"
+            focusStyle={{
+              borderColor: '$color9',
+            }}
+            hoverStyle={{
+              borderColor: '$color9',
+            }}
           >
             <Checkbox.Indicator>
               <Check color="$brand5" />
@@ -838,7 +851,13 @@ function LibraryListItem({
             {exportMode && (
               <Checkbox
                 size="$3"
-                bg="$brand5"
+                borderColor="$color9"
+                focusStyle={{
+                  borderColor: '$color9',
+                }}
+                hoverStyle={{
+                  borderColor: '$color9',
+                }}
                 checked={selected}
                 onCheckedChange={() => {
                   toggleDocumentSelection(entry.id.id)
