@@ -6,6 +6,7 @@ import {toast} from '@shm/ui'
 import {useMemo} from 'react'
 
 export function useOpenUrl() {
+  console.log('useOpenUrl')
   const {externalOpen} = useAppContext()
   const resolveRoute = useHmIdToAppRouteResolver()
 
@@ -15,10 +16,10 @@ export function useOpenUrl() {
     return (url?: string, newWindow?: boolean) => {
       if (!url) return
       const unpacked = unpackHmId(url)
-      if (!unpacked) {
-        toast.error(`Failed to resolve route for "${url}"`)
-        return
-      }
+      // if (!unpacked) {
+      //   toast.error(`Failed to resolve route for "${url}"`)
+      //   return
+      // }
       resolveRoute(unpacked).then((resolved) => {
         if (resolved?.navRoute) {
           if (newWindow) {
