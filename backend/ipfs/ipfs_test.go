@@ -13,6 +13,7 @@ import (
 	format "github.com/ipfs/go-ipld-format"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoremem"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 )
@@ -68,8 +69,10 @@ func makePeer(t *testing.T, k crypto.PrivKey) *testNode {
 	ds := sync.MutexWrap(datastore.NewMapDatastore())
 
 	t.Cleanup(func() { require.NoError(t, ds.Close()) })
+	ps, err := pstoremem.NewPeerstore()
+	require.NoError(t, err)
 
-	n, err := NewLibp2pNode(k, ds, "/hypermedia/0.4.1", "", logging.New("test", "debug"), nil)
+	n, err := NewLibp2pNode(k, ds, ps, "/hypermedia/0.4.1", "", logging.New("test", "debug"), nil)
 	require.NoError(t, err)
 
 	ma, err := multiaddr.NewMultiaddr("/ip4/0.0.0.0/tcp/0")
@@ -77,7 +80,7 @@ func makePeer(t *testing.T, k crypto.PrivKey) *testNode {
 
 	bs := blockstore.NewBlockstore(ds)
 
-	bitswap, err := NewBitswap(n, n.Routing, bs)
+	bitswap, err := NewBitswap(n, n.DelegatedRouting, bs)
 	require.NoError(t, err)
 
 	t.Cleanup(func() { require.NoError(t, bitswap.Close()) })

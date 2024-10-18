@@ -20,6 +20,7 @@ import (
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoremem"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 )
@@ -111,8 +112,9 @@ func makeRequest(t *testing.T, method, url string, body []byte, router *mux.Rout
 func makeManager(t *testing.T, k crypto.PrivKey) *FileManager {
 	ds := sync.MutexWrap(datastore.NewMapDatastore())
 	t.Cleanup(func() { require.NoError(t, ds.Close()) })
-
-	n, err := ipfs.NewLibp2pNode(k, ds, protocolPrefix+protocolVersion, "", logging.New("test", "debug"), nil)
+	ps, err := pstoremem.NewPeerstore()
+	require.NoError(t, err)
+	n, err := ipfs.NewLibp2pNode(k, ds, ps, protocolPrefix+protocolVersion, "", logging.New("test", "debug"), nil)
 	require.NoError(t, err)
 
 	ma, err := multiaddr.NewMultiaddr("/ip4/0.0.0.0/tcp/0")
@@ -120,7 +122,7 @@ func makeManager(t *testing.T, k crypto.PrivKey) *FileManager {
 
 	bs := blockstore.NewBlockstore(ds)
 
-	bitswap, err := ipfs.NewBitswap(n, n.Routing, bs)
+	bitswap, err := ipfs.NewBitswap(n, n.DelegatedRouting, bs)
 	require.NoError(t, err)
 
 	t.Cleanup(func() { require.NoError(t, bitswap.Close()) })
@@ -129,7 +131,7 @@ func makeManager(t *testing.T, k crypto.PrivKey) *FileManager {
 
 	t.Cleanup(func() { require.NoError(t, n.Close()) })
 
-	providing, err := ipfs.NewProviderSystem(ds, n.Routing, bs.AllKeysChan)
+	providing, err := ipfs.NewProviderSystem(ds, n.DelegatedRouting, bs.AllKeysChan)
 	require.NoError(t, err)
 
 	return NewFileManager(logging.New("seed/ipfs", "debug"), bs, bitswap, providing)
