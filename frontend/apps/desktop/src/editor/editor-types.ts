@@ -26,7 +26,6 @@ export interface EditorBlockProps {
   // textAlignment?: 'left' | 'center' | 'right'
   childrenType?: HMBlockChildrenType
   listLevel?: string
-  start?: string
   level?: number | string
   ref?: string
   revision?: string

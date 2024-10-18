@@ -166,7 +166,6 @@ const textBlockProperties = {
 
 const parentBlockAttributes = {
   childrenType: HMBlockChildrenTypeSchema.optional(),
-  start: z.string().optional(), // integer encoded as string
 }
 
 export const HMBlockParagraphSchema = z

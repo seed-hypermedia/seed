@@ -25,13 +25,7 @@ import {X} from "@tamagui/lucide-icons";
 import {ScrollView} from "@tamagui/scroll-view";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
-import {
-  PropsWithChildren,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import {useCallback, useEffect, useMemo, useState} from "react";
 import {getHref} from "./href";
 import type {SiteDocumentPayload} from "./loaders";
 import {defaultSiteIcon} from "./meta";
@@ -231,11 +225,12 @@ function WebDocContentProvider({
   id,
   homeId,
   siteHost,
-}: PropsWithChildren<{
+}: {
   siteHost: string | undefined;
   id: UnpackedHypermediaId;
   homeId: UnpackedHypermediaId;
-}>) {
+  children: React.JSX.Element;
+}) {
   return (
     <DocContentProvider
       entityComponents={{
@@ -497,7 +492,11 @@ function MobileOutline({
   open,
   onClose,
   children,
-}: PropsWithChildren<{open: boolean; onClose: () => void}>) {
+}: {
+  open: boolean;
+  onClose: () => void;
+  children: React.JSX.Element;
+}) {
   return open ? (
     <YStack
       fullscreen

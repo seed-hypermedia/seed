@@ -1,3 +1,4 @@
+import {PlainMessage} from "@bufbuild/protobuf";
 import {EditorInlineContent} from "@shm/desktop/src/editor";
 import {
   BlockNode,
@@ -155,6 +156,7 @@ export function DocContentProvider({
         <YStack
           zIndex="$zIndex.4"
           padding="$2"
+          // @ts-ignore
           position="fixed"
           borderColor="$color7"
           borderWidth={1}
@@ -165,12 +167,14 @@ export function DocContentProvider({
           <CheckboxWithLabel
             label="debug"
             checked={debug}
+            // @ts-ignore
             onCheckedChange={setDebug}
             size="$1"
           />
           <CheckboxWithLabel
             label="body sans-serif"
             checked={ffSerif}
+            // @ts-ignore
             onCheckedChange={toggleSerif}
             size="$1"
           />
@@ -344,7 +348,7 @@ export function BlocksContent({
   blocks,
   parentBlockId,
 }: {
-  blocks?: HMBlockNode[] | null;
+  blocks?: Array<PlainMessage<BlockNode>> | Array<HMBlockNode> | null;
   parentBlockId: string | null;
 }) {
   if (!blocks) return null;
@@ -359,8 +363,7 @@ export function BlocksContent({
               blockNode={bn}
               depth={1}
               childrenType={bn.block.attributes?.childrenType}
-              start={bn.block.attributes?.start}
-              listLevel={bn.block.attributes?.listLevel}
+              listLevel={1}
               index={idx}
             />
           ))
@@ -372,27 +375,23 @@ export function BlocksContent({
 export function BlockNodeList({
   children,
   childrenType = "Group",
-  start,
   listLevel,
   ...props
 }: YStackProps & {
   childrenType?: HMBlockChildrenType;
-  start?: string | number;
   listLevel?: string | number;
 }) {
-  const parsedStart = typeof start == "string" ? parseInt(start) : start;
   return (
     <YStack
       className="blocknode-list"
       data-node-type="blockGroup"
       data-list-type={childrenType !== "Group" ? childrenType : undefined}
       data-list-level={listLevel}
-      data-list-start={parsedStart}
       width="100%"
       {...props}
     >
       {childrenType === "Ordered" ? (
-        <ol start={parsedStart}>{children}</ol>
+        <ol>{children}</ol>
       ) : childrenType === "Unordered" ? (
         <ul>{children}</ul>
       ) : childrenType === "Blockquote" ? (
@@ -460,8 +459,7 @@ export function BlockNodeList({
 export function BlockNodeContent({
   blockNode,
   depth = 1,
-  start,
-  listLevel,
+  listLevel = 1,
   childrenType = "Group",
   isFirstChild = false,
   expanded = true,
@@ -473,16 +471,14 @@ export function BlockNodeContent({
   blockNode: BlockNode | HMBlockNode;
   index: number;
   depth?: number;
-  start?: string | number;
-  listLevel?: string;
-  childrenType?: HMBlockChildrenType | string;
+  listLevel?: number;
+  childrenType?: HMBlockChildrenType;
   embedDepth?: number;
   expanded?: boolean;
   parentBlockId: string | null;
 }) {
   const {
     layoutUnit,
-    textUnit,
     renderOnly,
     routeParams,
     onCitationClick,
@@ -516,8 +512,7 @@ export function BlockNodeContent({
           isFirstChild={index == 0}
           blockNode={bn}
           childrenType={bn.block!.attributes?.childrenType}
-          start={bn.block!.attributes?.start}
-          listLevel={bn.block!.attributes?.listLevel}
+          listLevel={listLevel + 1}
           index={index}
           parentBlockId={blockNode.block?.id || null}
           embedDepth={embedDepth ? embedDepth + 1 : embedDepth}
@@ -568,7 +563,7 @@ export function BlockNodeContent({
       if (contentNode) {
         const rect = contentNode.getBoundingClientRect();
 
-        return rect.height / 2 - (layoutUnit * 0.75) / 2;
+        return rect.height / 2 - (layoutUnit * 1) / 2;
       } else {
         return 4;
       }
@@ -601,11 +596,12 @@ export function BlockNodeContent({
         {...debugStyles(debug, "red")}
         group="blocknode"
         className={
-          blockNode.block!.type === "Heading" ? "blocknode-content-heading" : ""
+          blockNode.block!.type == "Heading" ? "blocknode-content-heading" : ""
         }
       >
         {bnChildren ? (
           <Tooltip
+            delay={1000}
             content={
               _expanded
                 ? "You can collapse this block and hide its children"
@@ -614,7 +610,7 @@ export function BlockNodeContent({
           >
             <Button
               size="$1"
-              x={textUnit * -1}
+              x={-24}
               y={contentH}
               chromeless
               width={layoutUnit}
@@ -628,7 +624,10 @@ export function BlockNodeContent({
               position="absolute"
               zIndex="$zIndex.5"
               left={0}
-              bg="$backgroundTransparent"
+              top={
+                ["Unordered", "Ordered"].includes(childrenType) ? 12 : undefined
+              }
+              bg="$background"
               opacity={_expanded ? 0 : 1}
               hoverStyle={{
                 opacity: 1,
@@ -779,12 +778,11 @@ export function BlockNodeContent({
       {bnChildren && _expanded ? (
         <BlockNodeList
           paddingLeft={
-            blockNode.block?.type != "heading" || childrenType != "Group"
+            blockNode.block?.type != "Heading" || childrenType != "Group"
               ? layoutUnit
               : 0
           }
           childrenType={childrenType as HMBlockChildrenType}
-          start={start}
           listLevel={listLevel}
           display="block"
         >
@@ -1603,13 +1601,13 @@ export function ContentEmbed({
                   id: `heading-${props.uid}`,
                   text: getDocumentTitle(document),
                   attributes: {
-                    childrenType: "group",
+                    childrenType: "Group",
                   },
                   annotations: [],
                 },
                 children: embedData.data.embedBlocks as Array<HMBlockNode>,
               }}
-              childrenType="group"
+              childrenType="Group"
               index={0}
               embedDepth={1}
             />
@@ -1623,7 +1621,7 @@ export function ContentEmbed({
                 depth={1}
                 expanded={!!props.blockRange?.expanded || false}
                 blockNode={bn}
-                childrenType="group"
+                childrenType="Group"
                 index={idx}
                 embedDepth={1}
               />

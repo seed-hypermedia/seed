@@ -90,3 +90,8 @@ ol div[data-list-type="Group"] .blocknode-content {
 .blocknode-content-heading + .blocknode-list[data-list-type="Group"] {
   margin-left: 0 !important;
 }
+
+[data-node-type="blockGroup"] > ul,
+[data-node-type="blockGroup"] > ol {
+  all: unset !important;
+}
