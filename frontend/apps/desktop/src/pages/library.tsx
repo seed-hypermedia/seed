@@ -341,11 +341,12 @@ function LibraryQueryBar({
             size="$2"
             onPress={handleExportButtonClick}
             icon={FileOutput}
-            bg="$brand12"
-            borderColor="$brand11"
+            bg="$brand5"
+            borderColor="$brand5"
+            color="white"
             hoverStyle={{
-              bg: '$brand11',
-              borderColor: '$brand10',
+              bg: '$brand6',
+              borderColor: '$brand6',
             }}
           >
             Export
@@ -410,7 +411,7 @@ function SortControl({
         </Button>
       </Popover.Trigger>
       <Popover.Content {...commonPopoverProps}>
-        <YGroup separator={<Separator />}>
+        <YGroup>
           {sortOptions.map((option) => (
             <Button
               size="$2"
@@ -441,6 +442,7 @@ function TagXButton({onPress}: {onPress: () => void}) {
         e.stopPropagation()
         onPress()
       }}
+      color="white"
       icon={X}
     />
   )
@@ -499,6 +501,7 @@ function FilterControl({
           paddingVertical={0}
           icon={Settings2}
           bg={isEmptyFilter ? undefined : '$brand5'}
+          color={isEmptyFilter ? undefined : 'white'}
           hoverStyle={{
             bg: isEmptyFilter ? undefined : '$brand6',
             borderColor: isEmptyFilter ? undefined : '$brand6',
@@ -535,41 +538,7 @@ function FilterControl({
         </Button>
       </Popover.Trigger>
       <Popover.Content {...commonPopoverProps}>
-        <YGroup separator={<Separator />}>
-          {/* <RoleFilterOption
-            option={{label: 'Editorial Role', icon: User2}}
-            checked={allEditorialRolesSelected}
-            onCheckedChange={(newValue) => {
-              onFilter({
-                ...filter,
-                ...Object.fromEntries(
-                  allRoleFilterOptions.map((role) => [role, !!newValue]),
-                ),
-              })
-            }}
-            onPress={() => {
-              onFilter({
-                ...Object.fromEntries(
-                  allRoleFilterOptions.map((role) => [role, true]),
-                ),
-              })
-              popoverState.onOpenChange(false)
-            }}
-          /> */}
-          {/* {roleFilterOptions.map((option) => (
-            <RoleFilterOption
-              key={option.value}
-              option={option}
-              checked={!!filter[option.value]}
-              onCheckedChange={(newValue) => {
-                onFilter({...filter, [option.value]: !!newValue})
-              }}
-              onPress={() => {
-                onFilter({[option.value]: true})
-                popoverState.onOpenChange(false)
-              }}
-            />
-          ))} */}
+        <YGroup>
           {filterOptions.map((option) => (
             <RoleFilterOption
               key={option.value}
@@ -593,8 +562,10 @@ function FilterControl({
 function SelectedFilterTag({label, onX}: {label: string; onX: () => void}) {
   return (
     <XStack ai="center">
-      <SizableText size="$1">{label}</SizableText>
-      <TagXButton onPress={onX} />
+      <SizableText color="white" size="$1">
+        {label}
+      </SizableText>
+      <TagXButton color="white" onPress={onX} />
     </XStack>
   )
 }
@@ -774,7 +745,7 @@ function LibraryList({
         >
           <Checkbox
             size="$3"
-            bg="$brand12"
+            bg="$brand5"
             checked={allSelected}
             onCheckedChange={handleSelectAllChange}
           >
@@ -867,7 +838,7 @@ function LibraryListItem({
             {exportMode && (
               <Checkbox
                 size="$3"
-                bg="$brand12"
+                bg="$brand5"
                 checked={selected}
                 onCheckedChange={() => {
                   toggleDocumentSelection(entry.id.id)
