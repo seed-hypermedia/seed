@@ -32,6 +32,7 @@ import {
   Search,
   SizableText,
   Spinner,
+  View,
   XStack,
   YStack,
   toast,
@@ -338,80 +339,92 @@ function LauncherContent({onClose}: {onClose: () => void}) {
     )
   }
   return (
-    <YStack
-      className="no-window-drag"
-      height="80%"
-      position="absolute"
-      top={0}
-      left={0}
-      zi="$zIndex.7"
-      width="100%"
-      maxWidth={800}
-      bg="$backgroundStrong"
-    >
+    <>
+      <View
+        onPress={onClose}
+        top={0}
+        left={0}
+        right={0}
+        bottom={0}
+        // @ts-ignore
+        position="fixed"
+        zIndex="$zIndex.8"
+      />
       <YStack
+        className="no-window-drag"
+        height="80%"
+        position="absolute"
+        top={0}
+        left={0}
+        zi="$zIndex.8"
+        width="100%"
+        maxWidth={800}
         bg="$backgroundStrong"
-        zi="$zIndex.7"
-        padding="$2"
-        borderTopLeftRadius={6}
-        borderTopRightRadius={6}
-        borderColor="$color7"
-        borderWidth={1}
-        borderBottomColor="$colorTransparent"
-        // elevation="$4"
       >
-        <XStack
-          ai="center"
-          gap="$2"
+        <YStack
+          bg="$backgroundStrong"
+          zIndex="$zIndex.8"
+          padding="$2"
+          borderTopLeftRadius={6}
+          borderTopRightRadius={6}
+          borderColor="$color7"
           borderWidth={1}
-          // ai="center"
-          borderColor="$color5"
-          borderRadius="$2"
-          paddingHorizontal="$2"
-          animation="fast"
+          borderBottomColor="$colorTransparent"
+          // elevation="$4"
         >
-          <Search size={16} />
-          <Input
-            borderWidth={0}
-            outline="none"
-            unstyled
-            zi="$zIndex.7"
-            minWidth={240}
-            w="100%"
-            autoFocus
-            size="$2"
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Open Hypermedia Document..."
-            disabled={!!actionPromise}
-            onKeyPress={(e: any) => {
-              if (e.nativeEvent.key === 'Escape') {
-                onClose()
-              }
-              if (e.nativeEvent.key === 'Enter') {
-                const item = activeItems[focusedIndex]
-                if (item) {
-                  item.onSelect()
+          <XStack
+            ai="center"
+            gap="$2"
+            borderWidth={1}
+            // ai="center"
+            borderColor="$color5"
+            borderRadius="$2"
+            paddingHorizontal="$2"
+            animation="fast"
+          >
+            <Search size={16} />
+            <Input
+              borderWidth={0}
+              outline="none"
+              unstyled
+              zi="$zIndex.7"
+              minWidth={240}
+              w="100%"
+              autoFocus
+              size="$2"
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Open Hypermedia Document..."
+              disabled={!!actionPromise}
+              onKeyPress={(e: any) => {
+                if (e.nativeEvent.key === 'Escape') {
+                  onClose()
                 }
-              }
-              if (e.nativeEvent.key === 'ArrowDown') {
-                e.preventDefault()
-                setFocusedIndex((prev) => (prev + 1) % activeItems.length)
-              }
-              if (e.nativeEvent.key === 'ArrowUp') {
-                e.preventDefault()
-                setFocusedIndex(
-                  (prev) =>
-                    (prev - 1 + activeItems.length) % activeItems.length,
-                )
-              }
-            }}
-          />
-        </XStack>
-      </YStack>
+                if (e.nativeEvent.key === 'Enter') {
+                  const item = activeItems[focusedIndex]
+                  if (item) {
+                    item.onSelect()
+                  }
+                }
+                if (e.nativeEvent.key === 'ArrowDown') {
+                  e.preventDefault()
+                  setFocusedIndex((prev) => (prev + 1) % activeItems.length)
+                }
+                if (e.nativeEvent.key === 'ArrowUp') {
+                  e.preventDefault()
+                  setFocusedIndex(
+                    (prev) =>
+                      (prev - 1 + activeItems.length) % activeItems.length,
+                  )
+                }
+              }}
+            />
+          </XStack>
+        </YStack>
 
-      {content}
-    </YStack>
+        {content}
+      </YStack>
+    </>
   )
 }
 
