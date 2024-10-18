@@ -226,7 +226,7 @@ export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
           },
           {
             key: 'directory',
-            label: 'Import Markdown Directory',
+            label: 'Import Markdown Folder',
             onPress: () => importDocuments('directory'),
             icon: FolderInput,
           },
