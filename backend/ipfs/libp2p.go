@@ -19,6 +19,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	routing "github.com/libp2p/go-libp2p/core/routing"
 	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
@@ -54,7 +55,7 @@ type router interface {
 // To actually enable relay you also need to pass EnableAutoRelay, and optionally enable HolePunching.
 // The returning node won't be listening on the network by default, so users have to start listening manually,
 // using the Listen() method on the underlying P2P network.
-func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protocol.ID, delegatedDHTURL string, log *zap.Logger, opts ...libp2p.Option) (nn *Libp2p, err error) {
+func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peerstore, protocolID protocol.ID, delegatedDHTURL string, log *zap.Logger, opts ...libp2p.Option) (nn *Libp2p, err error) {
 	var clean cleanup.Stack
 
 	defer func() {
@@ -99,8 +100,10 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 		libp2p.NoListenAddrs, // Users must explicitly start listening.
 		libp2p.EnableRelay(), // Be able to dial behind-relay peers and receive connections from them.
 		libp2p.EnableAutoNATv2(),
+		libp2p.Peerstore(ps),
 		libp2p.ConnectionManager(cm),
 		libp2p.ResourceManager(rm),
+		libp2p.ConnectionGater(newGater(ps)),
 		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
 			if delegatedDHTURL != "" {
 				client, err := delegated_routing.New(delegatedDHTURL,
@@ -116,13 +119,13 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 				rt = content_routing.NewContentRoutingClient(client)
 				log.Info("Delegated DHT Mode", zap.String("Server URL", delegatedDHTURL))
 			} else {
-
 				ctx, cancel := context.WithCancel(context.Background())
 				clean.AddFunc(cancel)
 				fullDHT, err := newDHT(ctx, h, ds, clean)
 				if err != nil {
 					return nil, err
 				}
+				rt = fullDHT
 				go func() error {
 					time.Sleep(30 * time.Second)
 					fullDHT.Close()
@@ -133,8 +136,7 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 					}
 					return nil
 				}()
-				return fullDHT, nil
-				//rt = &noopDHT{}
+				log.Info("Full DHT Mode", zap.String("Server URL", delegatedDHTURL))
 			}
 
 			return rt, nil

@@ -545,7 +545,7 @@ func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID, lo
 
 	opts := []libp2p.Option{
 		libp2p.UserAgent(userAgent),
-		libp2p.Peerstore(ps),
+
 		libp2p.EnableHolePunching(),
 	}
 
@@ -599,7 +599,7 @@ func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID, lo
 		opts = append(opts, libp2p.BandwidthReporter(m))
 	}
 
-	node, err := ipfs.NewLibp2pNode(device, ds, protocolID, cfg.DelegatedDHTURL, log, opts...)
+	node, err := ipfs.NewLibp2pNode(device, ds, ps, protocolID, cfg.DelegatedDHTURL, log, opts...)
 	if err != nil {
 		return nil, nil, err
 	}
