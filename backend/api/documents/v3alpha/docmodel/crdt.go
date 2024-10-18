@@ -28,7 +28,7 @@ type opID struct {
 	Actor uint64
 }
 
-func (o opID) String() string {
+func encodeOpID(o opID) string {
 	var out []byte
 	out = binary.BigEndian.AppendUint64(out, uint64(o.Ts))
 	out = binary.BigEndian.AppendUint32(out, uint32(o.Idx))

@@ -352,7 +352,7 @@ func (dm *Document) cleanupPatch() []blob.OpMap {
 	// Will fix this at some point.
 	if dm.mut != nil {
 		for move := range dm.mut.Commit(0, math.MaxUint64) {
-			ops = append(ops, blob.NewOpMoveBlock(move.Block, move.Parent, move.Ref.String()))
+			ops = append(ops, blob.NewOpMoveBlock(move.Block, move.Parent, encodeOpID(move.Ref)))
 		}
 	}
 

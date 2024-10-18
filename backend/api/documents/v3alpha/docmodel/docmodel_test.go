@@ -1,6 +1,7 @@
 package docmodel
 
 import (
+	"seed/backend/blob"
 	"seed/backend/core/coretest"
 	"seed/backend/util/cclock"
 	"seed/backend/util/must"
@@ -14,7 +15,44 @@ func TestDocmodelSmoke(t *testing.T) {
 
 	doc := must.Do2(New("mydoc", cclock.New()))
 	must.Do(doc.SetMetadata("title", "Hello"))
+	must.Do(doc.MoveBlock("b1", "", ""))
+	must.Do(doc.MoveBlock("b2", "", "b1"))
+	must.Do(doc.MoveBlock("b3", "", "b2"))
+	must.Do(doc.MoveBlock("b1.1", "b1", ""))
 	c1 := must.Do2(doc.SignChange(alice))
+
+	want := &blob.Change{
+		Ops_: []blob.OpMap{
+			{
+				"block": "b1",
+				"ref":   "0000000000000000000000000000000000000000",
+				"type":  "MoveBlock",
+			},
+			{
+				"block": "b2",
+				"ref":   "000000000000000000000000ffffffffffffffff",
+				"type":  "MoveBlock",
+			},
+			{
+				"block": "b3",
+				"ref":   "000000000000000000000001ffffffffffffffff",
+				"type":  "MoveBlock",
+			},
+			{
+				"block":  "b1.1",
+				"parent": "b1",
+				"ref":    "0000000000000000000000000000000000000000",
+				"type":   "MoveBlock",
+			},
+			{
+				"key":   "title",
+				"type":  "SetKey",
+				"value": "Hello",
+			},
+		},
+	}
+
+	require.Equal(t, want.Ops_, c1.Decoded.Ops_)
 
 	{
 		doc := must.Do2(New("mydoc", cclock.New()))
