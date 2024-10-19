@@ -1,6 +1,7 @@
 package core
 
 import (
+	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
 	"unsafe"
@@ -41,6 +42,23 @@ var pubKeyCodecBytes = map[multicodec.Code][]byte{
 //
 // [did-key]: https://w3c-ccg.github.io/did-method-key/#format
 type Principal []byte
+
+// ActorID is a 56-bit replica/actor/origin ID
+// that we use in our CRDT Op IDs.
+// 56 bits should be enough to avoid collisions for our use case,
+// because each OpID also contains a millisecond timestamp,
+// and it's more compatible with other environments, like JS, that may not work well with uint64.
+// It's derived from the public key of the actor, by hashing it with sha256,
+// and taking the first 56 bits of the hash as a *little-endian* unsigned integer.
+type ActorID uint64
+
+// ActorID returns a derived ActorID from the principal.
+// It performs calculations, so it's better to cache the result if it's used multiple times.
+func (p Principal) ActorID() ActorID {
+	sum := sha256.Sum256(p)
+	sum[7] = 0 // clearing the last byte because we only want 56 bits.
+	return ActorID(binary.LittleEndian.Uint64(sum[:8]))
+}
 
 // PeerID returns the Libp2p PeerID representation of a key.
 func (p Principal) PeerID() (peer.ID, error) {

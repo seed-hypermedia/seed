@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"iter"
 	"math"
+	"seed/backend/core"
 	"seed/backend/util/btree"
 	"strings"
 )
@@ -304,7 +305,7 @@ func (mut *blockTreeMutation) Move(parent, block, left string) (moveEffect, erro
 	return me, nil
 }
 
-func (mut *blockTreeMutation) Commit(ts int64, actor uint64) iter.Seq[moveRecord] {
+func (mut *blockTreeMutation) Commit(ts int64, actor core.ActorID) iter.Seq[moveRecord] {
 	// We iterate the state of the block tree in a breadth-first order,
 	// and we clean up all the moves we've made, such that redundant moves are not included.
 

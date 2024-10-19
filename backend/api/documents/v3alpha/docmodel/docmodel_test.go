@@ -25,23 +25,23 @@ func TestDocmodelSmoke(t *testing.T) {
 		Ops_: []blob.OpMap{
 			{
 				"block": "b1",
-				"ref":   "0000000000000000000000000000000000000000",
+				"ref":   []any{0, 0, 0},
 				"type":  "MoveBlock",
 			},
 			{
 				"block": "b2",
-				"ref":   "000000000000000000000000ffffffffffffffff",
+				"ref":   []any{0},
 				"type":  "MoveBlock",
 			},
 			{
 				"block": "b3",
-				"ref":   "000000000000000000000001ffffffffffffffff",
+				"ref":   []any{1},
 				"type":  "MoveBlock",
 			},
 			{
 				"block":  "b1.1",
 				"parent": "b1",
-				"ref":    "0000000000000000000000000000000000000000",
+				"ref":    []any{0, 0, 0},
 				"type":   "MoveBlock",
 			},
 			{

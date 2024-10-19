@@ -126,7 +126,7 @@ type OpMoveBlock struct {
 	// Ref here means the ID of the left position.
 	// It has nothing to do with a Hypermedia Ref,
 	// it's a ref in the sense of the RGA CRDT algorithm.
-	Ref string `refmt:"ref,omitempty"`
+	Ref []uint64 `refmt:"ref,omitempty"`
 }
 
 type OpReplaceBlock struct {
@@ -164,14 +164,14 @@ func NewOpSetKey(key string, value any) OpMap {
 }
 
 // NewOpMoveBlock creates a MoveBlock op.
-func NewOpMoveBlock(block, parent, leftOrigin string) OpMap {
+func NewOpMoveBlock(block, parent string, ref []uint64) OpMap {
 	op := OpMoveBlock{
 		baseOp: baseOp{
 			Type: OpTypeMoveBlock,
 		},
 		Block:  block,
 		Parent: parent,
-		Ref:    leftOrigin,
+		Ref:    ref,
 	}
 
 	return cborToMap(op)
@@ -232,7 +232,9 @@ func NewChange(kp core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, ops 
 func (c *Change) Ops() iter.Seq2[Op, error] {
 	return func(yield func(Op, error) bool) {
 		for _, v := range c.Ops_ {
-			yield(v.ToOp())
+			if !yield(v.ToOp()) {
+				break
+			}
 		}
 	}
 }

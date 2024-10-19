@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"iter"
 	"math"
@@ -25,30 +24,35 @@ import (
 type opID struct {
 	Ts    int64
 	Idx   int32
-	Actor uint64
+	Actor core.ActorID
 }
 
-func encodeOpID(o opID) string {
-	var out []byte
-	out = binary.BigEndian.AppendUint64(out, uint64(o.Ts))
-	out = binary.BigEndian.AppendUint32(out, uint32(o.Idx))
-	out = binary.BigEndian.AppendUint64(out, o.Actor)
-
-	return hex.EncodeToString(out)
-}
-
-func decodeOpID(s string) (opID, error) {
-	in, err := hex.DecodeString(s)
-	if err != nil {
-		return opID{}, err
+func encodeOpID(o opID) []uint64 {
+	if o.Actor == math.MaxUint64 && o.Ts == 0 {
+		return []uint64{uint64(o.Idx)}
 	}
 
-	var out opID
-	out.Ts = int64(binary.BigEndian.Uint64(in[:8]))
-	out.Idx = int32(binary.BigEndian.Uint32(in[8:12]))
-	out.Actor = uint64(binary.BigEndian.Uint64(in[12:]))
+	return []uint64{
+		uint64(o.Ts),
+		uint64(o.Idx),
+		uint64(o.Actor),
+	}
+}
 
-	return out, nil
+func decodeOpID(s []uint64) (opID, error) {
+	if len(s) == 1 {
+		return opID{Ts: 0, Actor: math.MaxUint64, Idx: int32(s[0])}, nil
+	}
+
+	if len(s) != 3 {
+		return opID{}, fmt.Errorf("invalid opID: %v", s)
+	}
+
+	return opID{
+		Ts:    int64(s[0]),
+		Idx:   int32(s[1]),
+		Actor: core.ActorID(s[2]),
+	}, nil
 }
 
 const (
@@ -56,7 +60,11 @@ const (
 	maxIdx = 1<<24 - 1
 )
 
-func newOpID(ts int64, actor uint64, idx int) opID {
+func newOpID(ts int64, actor core.ActorID, idx int) opID {
+	if idx < 0 {
+		panic("BUG: negative idx")
+	}
+
 	// We use max int64 for some work arounds.
 	if ts != math.MaxInt64 && ts >= maxTs {
 		panic(fmt.Errorf("BUG: ts %d too big", ts))
@@ -101,7 +109,7 @@ type docCRDT struct {
 	rdeps    [][]int // reverse deps for each change.
 	applied  map[cid.Cid]int
 	heads    map[cid.Cid]struct{}
-	getActor func(core.Principal) (uint64, bool) // TODO(burdiyan): ugly workaround.
+	getActor func(core.Principal) (core.ActorID, bool) // TODO(burdiyan): ugly workaround.
 
 	tree *treeOpSet
 

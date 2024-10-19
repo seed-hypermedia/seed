@@ -2,8 +2,6 @@ package docmodel
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"iter"
@@ -30,7 +28,7 @@ import (
 // Document is a mutable document.
 type Document struct {
 	crdt      *docCRDT
-	actors    map[unique.Handle[string]]uint64
+	actors    map[unique.Handle[string]]core.ActorID
 	opsToCids map[[2]uint64]cid.Cid
 
 	// Bellow goes the data for the ongoing dirty mutation.
@@ -70,7 +68,7 @@ func New(id blob.IRI, clock *cclock.Clock) (*Document, error) {
 		return nil, err
 	}
 
-	crdt.getActor = func(in core.Principal) (uint64, bool) {
+	crdt.getActor = func(in core.Principal) (core.ActorID, bool) {
 		akey := unique.Make(in.UnsafeString())
 		out, ok := doc.actors[akey]
 		return out, ok
@@ -83,7 +81,7 @@ func New(id blob.IRI, clock *cclock.Clock) (*Document, error) {
 func newDoc(crdt *docCRDT) (*Document, error) {
 	dm := &Document{
 		crdt:          crdt,
-		actors:        make(map[unique.Handle[string]]uint64),
+		actors:        make(map[unique.Handle[string]]core.ActorID),
 		opsToCids:     make(map[[2]uint64]cid.Cid),
 		createdBlocks: make(map[string]struct{}),
 		deletedBlocks: make(map[string]struct{}),
@@ -171,12 +169,11 @@ func (dm *Document) applyChangeUnsafe(c cid.Cid, ch *blob.Change) error {
 	akey := unique.Make(ch.Signer.UnsafeString())
 	actor, ok := dm.actors[akey]
 	if !ok {
-		sum := sha256.Sum256(ch.Signer)
-		actor = binary.LittleEndian.Uint64(sum[:])
+		actor = ch.Signer.ActorID()
 		dm.actors[akey] = actor
 	}
 
-	dm.opsToCids[[2]uint64{actor, uint64(ch.Ts.UnixMilli())}] = c
+	dm.opsToCids[[2]uint64{uint64(actor), uint64(ch.Ts.UnixMilli())}] = c
 
 	return dm.crdt.ApplyChange(c, ch)
 }
@@ -476,7 +473,6 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 
 		c, ok := dm.opsToCids[[2]uint64{uint64(opid.Actor), uint64(opid.Ts)}]
 		if !ok {
-			fmt.Println(dm.opsToCids)
 			panic(fmt.Errorf("BUG: failed to find CID for block op ID: %d:%d", opid.Actor, opid.Ts))
 		}
 
