@@ -22,37 +22,28 @@ func TestDocmodelSmoke(t *testing.T) {
 	c1 := must.Do2(doc.SignChange(alice))
 
 	want := &blob.Change{
-		Ops_: []blob.OpMap{
-			{
-				"block": "b1",
-				"ref":   []any{0, 0, 0},
-				"type":  "MoveBlock",
-			},
-			{
-				"block": "b2",
-				"ref":   []any{0},
-				"type":  "MoveBlock",
-			},
-			{
-				"block": "b3",
-				"ref":   []any{1},
-				"type":  "MoveBlock",
-			},
-			{
-				"block":  "b1.1",
-				"parent": "b1",
-				"ref":    []any{0, 0, 0},
-				"type":   "MoveBlock",
-			},
-			{
-				"key":   "title",
-				"type":  "SetKey",
-				"value": "Hello",
+		Body: blob.ChangeBody{
+			OpCount: 5,
+			Ops: []blob.OpMap{
+				{
+					"blocks": []any{"b1", "b2", "b3"},
+					"type":   "MoveBlocks",
+				},
+				{
+					"blocks": []any{"b1.1"},
+					"parent": "b1",
+					"type":   "MoveBlocks",
+				},
+				{
+					"key":   "title",
+					"type":  "SetKey",
+					"value": "Hello",
+				},
 			},
 		},
 	}
 
-	require.Equal(t, want.Ops_, c1.Decoded.Ops_)
+	require.Equal(t, want.Body, c1.Decoded.Body)
 
 	{
 		doc := must.Do2(New("mydoc", cclock.New()))

@@ -25,14 +25,27 @@ const blobTypeChange blobType = "Change"
 // The linked DAG of Changes represents the state of a document over time.
 type Change struct {
 	baseBlob
-	Genesis cid.Cid   `refmt:"genesis,omitempty"`
-	Deps    []cid.Cid `refmt:"deps,omitempty"`
-	Depth   int       `refmt:"depth,omitempty"`
-	Ops_    []OpMap   `refmt:"ops,omitempty"`
+	Genesis cid.Cid    `refmt:"genesis,omitempty"`
+	Deps    []cid.Cid  `refmt:"deps,omitempty"`
+	Depth   int        `refmt:"depth,omitempty"`
+	Body    ChangeBody `refmt:"body,omitempty"`
+}
+
+// ChangeBody is the body of a Change.
+type ChangeBody struct {
+	// OpCount is the number of "logical" operations in the change.
+	// Some op items in the list may be run-length encoded,
+	// such that one physical item represents multiple logical ops.
+	// This field is provided as a hint to the consumer of the change.
+	OpCount int `refmt:"opCount,omitempty"`
+
+	// Ops is a list of operations that make up the change.
+	// Some ops may be run-length encoded.
+	Ops []OpMap `refmt:"ops,omitempty"`
 }
 
 // NewChange creates a new Change.
-func NewChange(kp core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, ops []OpMap, ts time.Time) (eb Encoded[*Change], err error) {
+func NewChange(kp core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, body ChangeBody, ts time.Time) (eb Encoded[*Change], err error) {
 	if !slices.IsSortedFunc(deps, func(a, b cid.Cid) int {
 		return cmp.Compare(a.KeyString(), b.KeyString())
 	}) {
@@ -48,7 +61,7 @@ func NewChange(kp core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, ops 
 		Genesis: genesis,
 		Deps:    deps,
 		Depth:   depth,
-		Ops_:    ops,
+		Body:    body,
 	}
 
 	if err := signBlob(kp, cc, &cc.baseBlob.Sig); err != nil {
@@ -63,7 +76,7 @@ func NewChange(kp core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, ops 
 // because eventually some data will be run-length encoded in there.
 func (c *Change) Ops() iter.Seq2[Op, error] {
 	return func(yield func(Op, error) bool) {
-		for _, v := range c.Ops_ {
+		for _, v := range c.Body.Ops {
 			if !yield(v.ToOp()) {
 				break
 			}
@@ -75,9 +88,10 @@ var numbericAttributes = []string{"size", "width", "height", "start"}
 
 func init() {
 	cbornode.RegisterCborType(Change{})
+	cbornode.RegisterCborType(ChangeBody{})
 	cbornode.RegisterCborType(OpSetKey{})
 	cbornode.RegisterCborType(OpReplaceBlock{})
-	cbornode.RegisterCborType(OpMoveBlock{})
+	cbornode.RegisterCborType(OpMoveBlocks{})
 	cbornode.RegisterCborType(OpDeleteBlocks{})
 
 	// We decided to encode our union types with type-specific fields inlined.
@@ -173,8 +187,8 @@ func (o OpMap) ToOp() (Op, error) {
 			var out OpSetKey
 			mapToCBOR(o, &out)
 			return out, nil
-		case OpTypeMoveBlock:
-			var out OpMoveBlock
+		case OpTypeMoveBlocks:
+			var out OpMoveBlocks
 			mapToCBOR(o, &out)
 			return out, nil
 		case OpTypeReplaceBlock:
@@ -197,6 +211,7 @@ func (o OpMap) ToOp() (Op, error) {
 const (
 	OpTypeSetKey       OpType = "SetKey"
 	OpTypeMoveBlock    OpType = "MoveBlock"
+	OpTypeMoveBlocks   OpType = "MoveBlocks"
 	OpTypeReplaceBlock OpType = "ReplaceBlock"
 	OpTypeDeleteBlocks OpType = "DeleteBlocks"
 )
@@ -240,25 +255,22 @@ func NewOpSetKey(key string, value any) OpMap {
 	return cborToMap(op)
 }
 
-// OpMoveBlock represents the op to move a block
-type OpMoveBlock struct {
+// OpMoveBlocks represents the op to move a contiguous sequence of blocks under a parent block in a ref position.
+type OpMoveBlocks struct {
 	baseOp
-	Parent string `refmt:"parent,omitempty"`
-	Block  string `refmt:"block"`
-	// Ref here means the ID of the left position.
-	// It has nothing to do with a Hypermedia Ref,
-	// it's a ref in the sense of the RGA CRDT algorithm.
-	Ref []uint64 `refmt:"ref,omitempty"`
+	Parent string   `refmt:"parent,omitempty"` // Empty parent means root block.
+	Blocks []string `refmt:"blocks"`           // Contiguous sequence of blocks to position under parent after ref position.
+	Ref    []uint64 `refmt:"ref,omitempty"`    // RGA CRDT Ref ID. Empty means start of the list.
 }
 
-// NewOpMoveBlock creates the corresponding op.
-func NewOpMoveBlock(block, parent string, ref []uint64) OpMap {
-	op := OpMoveBlock{
+// NewOpMoveBlocks creates the corresponding op.
+func NewOpMoveBlocks(parent string, blocks []string, ref []uint64) OpMap {
+	op := OpMoveBlocks{
 		baseOp: baseOp{
-			Type: OpTypeMoveBlock,
+			Type: OpTypeMoveBlocks,
 		},
-		Block:  block,
 		Parent: parent,
+		Blocks: blocks,
 		Ref:    ref,
 	}
 

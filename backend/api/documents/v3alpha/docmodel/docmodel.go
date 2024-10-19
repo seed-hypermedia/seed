@@ -336,12 +336,15 @@ func (dm *Document) Ref(kp core.KeyPair) (ref blob.Encoded[*blob.Ref], err error
 	return blob.NewRef(kp, genesis, space, path, []cid.Cid{headCID}, head.Ts)
 }
 
-func (dm *Document) cleanupPatch() []blob.OpMap {
+func (dm *Document) cleanupPatch() (out blob.ChangeBody) {
 	if !dm.dirty {
-		return nil
+		return out
 	}
 
-	var ops []blob.OpMap
+	addOp := func(op blob.OpMap, size int) {
+		out.Ops = append(out.Ops, op)
+		out.OpCount += size
+	}
 
 	// TODO(burdiyan): It's important to moves go first,
 	// because I was stupid enough to implement the block tree CRDT in isolation,
@@ -351,6 +354,12 @@ func (dm *Document) cleanupPatch() []blob.OpMap {
 		var (
 			deletedBlocks []string
 			seenDeletes   = map[string]struct{}{}
+
+			// Batching contiguos moves.
+			curParent     string
+			lastOpID      opID
+			ref           opID
+			blockSequence []string
 		)
 		for move := range dm.mut.Commit(0, math.MaxUint64) {
 			if move.Parent == TrashNodeID {
@@ -361,11 +370,42 @@ func (dm *Document) cleanupPatch() []blob.OpMap {
 				seenDeletes[move.Block] = struct{}{}
 				continue
 			}
-			ops = append(ops, blob.NewOpMoveBlock(move.Block, move.Parent, encodeOpID(move.Ref)))
+
+			// Start new batch of moves.
+			if len(blockSequence) == 0 {
+				curParent = move.Parent
+				lastOpID = move.OpID
+				ref = move.Ref
+				blockSequence = append(blockSequence, move.Block)
+				continue
+			}
+
+			// If we continue the same sequence, just append move to the batch.
+			if move.Parent == curParent && move.OpID.Actor == lastOpID.Actor && move.OpID.Ts == lastOpID.Ts && move.OpID.Idx == lastOpID.Idx+1 {
+				blockSequence = append(blockSequence, move.Block)
+				lastOpID = move.OpID
+				continue
+			}
+
+			// If we are here we need to close the batch, and start a new one.
+			addOp(blob.NewOpMoveBlocks(curParent, blockSequence, encodeOpID(ref)), len(blockSequence))
+
+			// Start new batch.
+			curParent = move.Parent
+			lastOpID = move.OpID
+			ref = move.Ref
+			blockSequence = append([]string{}, move.Block)
+			continue
 		}
 
+		// If we haven't sent the last batch, we need to send it now.
+		if len(blockSequence) > 0 {
+			addOp(blob.NewOpMoveBlocks(curParent, blockSequence, encodeOpID(ref)), len(blockSequence))
+		}
+
+		// Now process the deletes.
 		if len(deletedBlocks) > 0 {
-			ops = append(ops, blob.NewOpDeleteBlocks(deletedBlocks))
+			addOp(blob.NewOpDeleteBlocks(deletedBlocks), len(deletedBlocks))
 		}
 	}
 
@@ -374,7 +414,7 @@ func (dm *Document) cleanupPatch() []blob.OpMap {
 
 	for _, key := range metaKeys {
 		reg := dm.dirtyMetadata[key]
-		ops = append(ops, blob.NewOpSetKey(key, reg.Value))
+		addOp(blob.NewOpSetKey(key, reg.Value), 1)
 	}
 
 	// Remove state of those blocks that we created and deleted in the same change.
@@ -392,10 +432,10 @@ func (dm *Document) cleanupPatch() []blob.OpMap {
 		if !ok {
 			panic("BUG: dirty block not found")
 		}
-		ops = append(ops, blob.NewOpReplaceBlock(blk.Value))
+		addOp(blob.NewOpReplaceBlock(blk.Value), 1)
 	}
 
-	return ops
+	return out
 }
 
 // NumChanges returns the number of changes in the current state of the document.

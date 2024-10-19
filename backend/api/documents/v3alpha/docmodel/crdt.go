@@ -27,7 +27,15 @@ type opID struct {
 	Actor core.ActorID
 }
 
+func (o opID) isZero() bool {
+	return o.Ts == 0 && o.Idx == 0 && o.Actor == 0
+}
+
 func encodeOpID(o opID) []uint64 {
+	if o.isZero() {
+		return nil
+	}
+
 	if o.Actor == math.MaxUint64 && o.Ts == 0 {
 		return []uint64{uint64(o.Idx)}
 	}
@@ -40,6 +48,10 @@ func encodeOpID(o opID) []uint64 {
 }
 
 func decodeOpID(s []uint64) (opID, error) {
+	if len(s) == 0 {
+		return opID{}, nil
+	}
+
 	if len(s) == 1 {
 		return opID{Ts: 0, Actor: math.MaxUint64, Idx: int32(s[0])}, nil
 	}
@@ -350,9 +362,9 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 				e.stateBlocks[blk.ID] = reg
 			}
 			reg.Set(opid, blk)
-		case blob.OpMoveBlock:
-			if op.Block == "" {
-				return fmt.Errorf("missing block in move op")
+		case blob.OpMoveBlocks:
+			if len(op.Blocks) == 0 {
+				return fmt.Errorf("missing blocks in move op")
 			}
 
 			refID, err := decodeOpID(op.Ref)
@@ -365,8 +377,17 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 				refID.Actor = actorID
 			}
 
-			if err := e.tree.Integrate(opid, op.Parent, op.Block, refID); err != nil {
-				return err
+			var lastOp opID
+			for i, blk := range op.Blocks {
+				idx += i
+				opid := newOpID(ts, actorID, idx)
+				if i > 0 {
+					refID = lastOp
+				}
+				if err := e.tree.Integrate(opid, op.Parent, blk, refID); err != nil {
+					return err
+				}
+				lastOp = opid
 			}
 		case blob.OpDeleteBlocks:
 			for i, blk := range op.Blocks {
@@ -515,7 +536,7 @@ func addUnique(in []int, v int) []int {
 }
 
 // prepareChange to be applied later.
-func (e *docCRDT) prepareChange(ts time.Time, signer core.KeyPair, ops []blob.OpMap) (hb blob.Encoded[*blob.Change], err error) {
+func (e *docCRDT) prepareChange(ts time.Time, signer core.KeyPair, body blob.ChangeBody) (hb blob.Encoded[*blob.Change], err error) {
 	var genesis cid.Cid
 	if len(e.cids) > 0 {
 		genesis = e.cids[0]
@@ -535,7 +556,7 @@ func (e *docCRDT) prepareChange(ts time.Time, signer core.KeyPair, ops []blob.Op
 	}
 	slices.SortFunc(deps, func(a, b cid.Cid) int { return strings.Compare(a.KeyString(), b.KeyString()) })
 
-	hb, err = blob.NewChange(signer, genesis, deps, depth, ops, ts)
+	hb, err = blob.NewChange(signer, genesis, deps, depth, body, ts)
 	if err != nil {
 		return hb, err
 	}
