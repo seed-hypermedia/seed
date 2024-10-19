@@ -9,6 +9,7 @@ import (
 	"seed/backend/core"
 	"seed/backend/ipfs"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/go-viper/mapstructure/v2"
@@ -17,6 +18,8 @@ import (
 	"github.com/multiformats/go-multicodec"
 	"github.com/polydawn/refmt/obj/atlas"
 )
+
+var numbericAttributes = []string{"size", "width", "height", "start"}
 
 func init() {
 	cbornode.RegisterCborType(Change{})
@@ -36,6 +39,23 @@ func init() {
 			if err := mapstructure.Decode(in, &v); err != nil {
 				return nil, err
 			}
+
+			if len(in.Attributes) > 0 {
+				// TODO(burdiyan): we do this trick because our API currently only accepts string values,
+				// but we want to be able to store other types as well.
+				// These are the attributes that we currently have that we know should be numbers.
+				for _, attr := range numbericAttributes {
+					vv, ok := v[attr].(string)
+					if !ok {
+						continue
+					}
+
+					n, err := strconv.Atoi(vv)
+					_ = err
+					v[attr] = n
+				}
+			}
+
 			return v, nil
 		})).
 		TransformUnmarshal(atlas.MakeUnmarshalTransformFunc(func(in map[string]any) (Block, error) {
@@ -43,6 +63,21 @@ func init() {
 			if err := mapstructure.Decode(in, &v); err != nil {
 				return Block{}, err
 			}
+
+			if len(v.Attributes) > 0 {
+				// TODO(burdiyan): we do this trick because our API currently only accepts string values,
+				// but we want to be able to store other types as well.
+				// These are the attributes that we currently have that we know should be numbers.
+				for _, attr := range numbericAttributes {
+					vv, ok := v.Attributes[attr].(int)
+					if !ok {
+						continue
+					}
+
+					v.Attributes[attr] = strconv.Itoa(vv)
+				}
+			}
+
 			return v, nil
 		})).
 		Complete(),
