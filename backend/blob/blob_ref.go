@@ -23,7 +23,10 @@ func init() {
 // It's similar to a Git Ref, but is signed.
 type Ref struct {
 	baseBlob
-	Spc         core.Principal `refmt:"space,omitempty"`
+
+	// Don't access field Space! Use GetSpace() method!
+
+	Space       core.Principal `refmt:"space,omitempty"`
 	Path        string         `refmt:"path,omitempty"`
 	GenesisBlob cid.Cid        `refmt:"genesisBlob"`
 	Capability  cid.Cid        `refmt:"capability,omitempty"`
@@ -44,7 +47,7 @@ func NewRef(kp core.KeyPair, genesis cid.Cid, space core.Principal, path string,
 	}
 
 	if !kp.Principal().Equal(space) {
-		ru.Spc = space
+		ru.Space = space
 	}
 
 	if err := signBlob(kp, ru, &ru.baseBlob.Sig); err != nil {
@@ -54,12 +57,13 @@ func NewRef(kp core.KeyPair, genesis cid.Cid, space core.Principal, path string,
 	return encodeBlob(ru)
 }
 
+// GetSpace returns the space the Ref is applied to.
 func (r *Ref) GetSpace() core.Principal {
-	if len(r.Spc) == 0 {
+	if len(r.Space) == 0 {
 		return r.Signer
 	}
 
-	return r.Spc
+	return r.Space
 }
 
 func init() {

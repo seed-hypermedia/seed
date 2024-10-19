@@ -37,13 +37,13 @@ func encodeOpID(o opID) []uint64 {
 	}
 
 	if o.Actor == math.MaxUint64 && o.Ts == 0 {
-		return []uint64{uint64(o.Idx)}
+		return []uint64{uint64(o.Idx)} //nolint:gosec // We know this should not overflow.
 	}
 
 	return []uint64{
-		uint64(o.Ts),
-		uint64(o.Idx),
-		uint64(o.Actor),
+		uint64(o.Ts),    //nolint:gosec // We know this should not overflow.
+		uint64(o.Idx),   //nolint:gosec // We know this should not overflow.
+		uint64(o.Actor), //nolint:gosec // We know this should not overflow.
 	}
 }
 
@@ -53,7 +53,7 @@ func decodeOpID(s []uint64) (opID, error) {
 	}
 
 	if len(s) == 1 {
-		return opID{Ts: 0, Actor: math.MaxUint64, Idx: int32(s[0])}, nil
+		return opID{Ts: 0, Actor: math.MaxUint64, Idx: int32(s[0])}, nil //nolint:gosec // We know this should not overflow.
 	}
 
 	if len(s) != 3 {
@@ -61,8 +61,8 @@ func decodeOpID(s []uint64) (opID, error) {
 	}
 
 	return opID{
-		Ts:    int64(s[0]),
-		Idx:   int32(s[1]),
+		Ts:    int64(s[0]), //nolint:gosec // We know this should not overflow.
+		Idx:   int32(s[1]), //nolint:gosec // We know this should not overflow.
 		Actor: core.ActorID(s[2]),
 	}, nil
 }
@@ -291,7 +291,6 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 		if !genesis.Equals(ch.Genesis) {
 			return fmt.Errorf("change '%s' has a different genesis: expected=%s actual=%s", c, genesis, ch.Genesis)
 		}
-
 	}
 
 	var actor string

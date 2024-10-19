@@ -135,9 +135,7 @@ func (dm *Document) Checkout(heads []cid.Cid) (*Document, error) {
 		}
 		visited[c] = struct{}{}
 		chain = append(chain, c)
-		for _, dep := range e.deps[c] {
-			queue = append(queue, dep)
-		}
+		queue = append(queue, e.deps[c]...)
 	}
 	slices.Reverse(chain)
 
@@ -173,7 +171,7 @@ func (dm *Document) applyChangeUnsafe(c cid.Cid, ch *blob.Change) error {
 		dm.actors[akey] = actor
 	}
 
-	dm.opsToCids[[2]uint64{uint64(actor), uint64(ch.Ts.UnixMilli())}] = c
+	dm.opsToCids[[2]uint64{uint64(actor), uint64(ch.Ts.UnixMilli())}] = c //nolint:gosec // We know this should not overflow.
 
 	return dm.crdt.ApplyChange(c, ch)
 }
@@ -527,7 +525,7 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 			continue
 		}
 
-		c, ok := dm.opsToCids[[2]uint64{uint64(opid.Actor), uint64(opid.Ts)}]
+		c, ok := dm.opsToCids[[2]uint64{uint64(opid.Actor), uint64(opid.Ts)}] //nolint:gosec // We know this should not overflow.
 		if !ok {
 			panic(fmt.Errorf("BUG: failed to find CID for block op ID: %d:%d", opid.Actor, opid.Ts))
 		}
