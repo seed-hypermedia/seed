@@ -84,7 +84,7 @@ func (c *Change) Ops() iter.Seq2[Op, error] {
 	}
 }
 
-var numbericAttributes = []string{"size", "width", "height", "start"}
+var numericAttributes = []string{"size", "width", "height", "start"}
 
 func init() {
 	cbornode.RegisterCborType(Change{})
@@ -111,7 +111,7 @@ func init() {
 				// TODO(burdiyan): we do this trick because our API currently only accepts string values,
 				// but we want to be able to store other types as well.
 				// These are the attributes that we currently have that we know should be numbers.
-				for _, attr := range numbericAttributes {
+				for _, attr := range numericAttributes {
 					vv, ok := v[attr].(string)
 					if !ok {
 						continue
@@ -135,7 +135,7 @@ func init() {
 				// TODO(burdiyan): we do this trick because our API currently only accepts string values,
 				// but we want to be able to store other types as well.
 				// These are the attributes that we currently have that we know should be numbers.
-				for _, attr := range numbericAttributes {
+				for _, attr := range numericAttributes {
 					vv, ok := v.Attributes[attr].(int)
 					if !ok {
 						continue
