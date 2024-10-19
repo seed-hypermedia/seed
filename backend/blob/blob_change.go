@@ -19,6 +19,58 @@ import (
 	"github.com/polydawn/refmt/obj/atlas"
 )
 
+const blobTypeChange blobType = "Change"
+
+// Change is an atomic change to a document.
+// The linked DAG of Changes represents the state of a document over time.
+type Change struct {
+	baseBlob
+	Genesis cid.Cid   `refmt:"genesis,omitempty"`
+	Deps    []cid.Cid `refmt:"deps,omitempty"`
+	Depth   int       `refmt:"depth,omitempty"`
+	Ops_    []OpMap   `refmt:"ops,omitempty"`
+}
+
+// NewChange creates a new Change.
+func NewChange(kp core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, ops []OpMap, ts time.Time) (eb Encoded[*Change], err error) {
+	if !slices.IsSortedFunc(deps, func(a, b cid.Cid) int {
+		return cmp.Compare(a.KeyString(), b.KeyString())
+	}) {
+		panic("BUG: deps are not sorted")
+	}
+
+	cc := &Change{
+		baseBlob: baseBlob{
+			Type:   blobTypeChange,
+			Signer: kp.Principal(),
+			Ts:     ts,
+		},
+		Genesis: genesis,
+		Deps:    deps,
+		Depth:   depth,
+		Ops_:    ops,
+	}
+
+	if err := signBlob(kp, cc, &cc.baseBlob.Sig); err != nil {
+		return eb, err
+	}
+
+	return encodeBlob(cc)
+}
+
+// Ops is an iterator over the ops in the change.
+// We don't expose the underlying slice of Ops,
+// because eventually some data will be run-length encoded in there.
+func (c *Change) Ops() iter.Seq2[Op, error] {
+	return func(yield func(Op, error) bool) {
+		for _, v := range c.Ops_ {
+			if !yield(v.ToOp()) {
+				break
+			}
+		}
+	}
+}
+
 var numbericAttributes = []string{"size", "width", "height", "start"}
 
 func init() {
@@ -102,8 +154,6 @@ func init() {
 	)
 }
 
-const blobTypeChange blobType = "Change"
-
 // OpType is a type for operation types.
 type OpType string
 
@@ -138,47 +188,34 @@ func (o OpMap) ToOp() (Op, error) {
 	}
 }
 
+// Supported op types.
+const (
+	OpTypeSetKey       OpType = "SetKey"
+	OpTypeMoveBlock    OpType = "MoveBlock"
+	OpTypeReplaceBlock OpType = "ReplaceBlock"
+	OpTypeDeleteBlocks OpType = "DeleteBlocks"
+)
+
+// Op a common interface implemented by all ops.
 type Op interface {
 	isOp()
 }
 
+// baseOp is the common attributes for all ops.
 type baseOp struct {
 	Type OpType `refmt:"type"`
 }
 
 func (o baseOp) isOp() {}
 
+// OpSetKey represents the op to set a key in the document attributes.
 type OpSetKey struct {
 	baseOp
 	Key   string `refmt:"key"`
 	Value any    `refmt:"value"`
 }
 
-type OpMoveBlock struct {
-	baseOp
-	Parent string `refmt:"parent,omitempty"`
-	Block  string `refmt:"block"`
-	// Ref here means the ID of the left position.
-	// It has nothing to do with a Hypermedia Ref,
-	// it's a ref in the sense of the RGA CRDT algorithm.
-	Ref []uint64 `refmt:"ref,omitempty"`
-}
-
-type OpReplaceBlock struct {
-	baseOp
-	Block Block `refmt:"block"`
-}
-
-type PackedOpID []byte
-
-// Supported op types.
-const (
-	OpTypeSetKey       OpType = "SetKey"       // Args = key => value.
-	OpTypeMoveBlock    OpType = "MoveBlock"    // Args = block, parent, left+origin.
-	OpTypeReplaceBlock OpType = "ReplaceBlock" // Args = id => block data.
-)
-
-// NewOpSetKey creates a SetMetadata op.
+// NewOpSetKey creates the corresponding op.
 func NewOpSetKey(key string, value any) OpMap {
 	switch value.(type) {
 	case string, int, bool:
@@ -198,7 +235,18 @@ func NewOpSetKey(key string, value any) OpMap {
 	return cborToMap(op)
 }
 
-// NewOpMoveBlock creates a MoveBlock op.
+// OpMoveBlock represents the op to move a block
+type OpMoveBlock struct {
+	baseOp
+	Parent string `refmt:"parent,omitempty"`
+	Block  string `refmt:"block"`
+	// Ref here means the ID of the left position.
+	// It has nothing to do with a Hypermedia Ref,
+	// it's a ref in the sense of the RGA CRDT algorithm.
+	Ref []uint64 `refmt:"ref,omitempty"`
+}
+
+// NewOpMoveBlock creates the corresponding op.
 func NewOpMoveBlock(block, parent string, ref []uint64) OpMap {
 	op := OpMoveBlock{
 		baseOp: baseOp{
@@ -212,7 +260,13 @@ func NewOpMoveBlock(block, parent string, ref []uint64) OpMap {
 	return cborToMap(op)
 }
 
-// NewOpReplaceBlock creates a ReplaceBlock op.
+// OpReplaceBlock represents the op to replace the state of a given block.
+type OpReplaceBlock struct {
+	baseOp
+	Block Block `refmt:"block"`
+}
+
+// NewOpReplaceBlock creates the corresponding op.
 func NewOpReplaceBlock(state Block) OpMap {
 	op := OpReplaceBlock{
 		baseOp: baseOp{
@@ -222,56 +276,6 @@ func NewOpReplaceBlock(state Block) OpMap {
 	}
 
 	return cborToMap(op)
-}
-
-// Change is an atomic change to a document.
-// The linked DAG of Changes represents the state of a document over time.
-type Change struct {
-	baseBlob
-	Genesis cid.Cid   `refmt:"genesis,omitempty"`
-	Deps    []cid.Cid `refmt:"deps,omitempty"`
-	Depth   int       `refmt:"depth,omitempty"`
-	Ops_    []OpMap   `refmt:"ops,omitempty"`
-}
-
-// NewChange creates a new Change.
-func NewChange(kp core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, ops []OpMap, ts time.Time) (eb Encoded[*Change], err error) {
-	if !slices.IsSortedFunc(deps, func(a, b cid.Cid) int {
-		return cmp.Compare(a.KeyString(), b.KeyString())
-	}) {
-		panic("BUG: deps are not sorted")
-	}
-
-	cc := &Change{
-		baseBlob: baseBlob{
-			Type:   blobTypeChange,
-			Signer: kp.Principal(),
-			Ts:     ts,
-		},
-		Genesis: genesis,
-		Deps:    deps,
-		Depth:   depth,
-		Ops_:    ops,
-	}
-
-	if err := signBlob(kp, cc, &cc.baseBlob.Sig); err != nil {
-		return eb, err
-	}
-
-	return encodeBlob(cc)
-}
-
-// Ops is an iterator over the ops in the change.
-// We don't expose the underlying slice of Ops,
-// because eventually some data will be run-length encoded in there.
-func (c *Change) Ops() iter.Seq2[Op, error] {
-	return func(yield func(Op, error) bool) {
-		for _, v := range c.Ops_ {
-			if !yield(v.ToOp()) {
-				break
-			}
-		}
-	}
 }
 
 func init() {
