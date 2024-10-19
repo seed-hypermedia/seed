@@ -127,19 +127,19 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peers
 				return nil, err
 			}
 			rt = fullDHT
-			go func() error {
+			go func() {
 				time.Sleep(30 * time.Second)
 				fullDHT.Close()
 				var closedPeers int
 				for _, p := range h.Network().Peers() {
 					if !h.ConnManager().IsProtected(p, "seed-support") && !h.ConnManager().IsProtected(p, "bootstrap-support") {
-						h.Network().ClosePeer(p)
+						_ = h.Network().ClosePeer(p)
 						closedPeers++
 					}
 				}
-				return nil
+				log.Info("Closing Full DHT Mode", zap.Int("Number of non-seed peers closed", closedPeers))
 			}()
-			//log.Info("Full DHT Mode", zap.String("Server URL", delegatedDHTURL))
+			//
 			//}
 
 			return rt, nil

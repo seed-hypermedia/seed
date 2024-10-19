@@ -20,7 +20,7 @@ func newGater(ps peerstore.Peerstore) connmgr.ConnectionGater {
 // InterceptPeerDial tests whether we're permitted to Dial the specified peer.
 //
 // This is called by the network.Network implementation when dialling a peer.
-func (cg *gater) InterceptPeerDial(p peer.ID) bool {
+func (cg *gater) InterceptPeerDial(_ peer.ID) bool {
 	return true
 }
 
@@ -29,7 +29,7 @@ func (cg *gater) InterceptPeerDial(p peer.ID) bool {
 //
 // This is called by the network.Network implementation after it has
 // resolved the peer's addrs, and prior to dialling each.
-func (cg *gater) InterceptAddrDial(p peer.ID, m ma.Multiaddr) (allow bool) {
+func (cg *gater) InterceptAddrDial(_ peer.ID, _ ma.Multiaddr) (allow bool) {
 	return true
 }
 
@@ -37,7 +37,7 @@ func (cg *gater) InterceptAddrDial(p peer.ID, m ma.Multiaddr) (allow bool) {
 //
 // This is called by the upgrader, or by the transport directly (e.g. QUIC,
 // Bluetooth), straight after it has accepted a connection from its socket.
-func (cg *gater) InterceptAccept(addrs network.ConnMultiaddrs) (allow bool) {
+func (cg *gater) InterceptAccept(_ network.ConnMultiaddrs) (allow bool) {
 	return true
 }
 
@@ -47,7 +47,7 @@ func (cg *gater) InterceptAccept(addrs network.ConnMultiaddrs) (allow bool) {
 // This is called by the upgrader, after it has performed the security
 // handshake, and before it negotiates the muxer, or by the directly by the
 // transport, at the exact same checkpoint.
-func (cg *gater) InterceptSecured(d network.Direction, p peer.ID, m network.ConnMultiaddrs) (allow bool) {
+func (cg *gater) InterceptSecured(_ network.Direction, _ peer.ID, _ network.ConnMultiaddrs) (allow bool) {
 	return true
 	/*
 		protocols, err := cg.Peerstore.GetProtocols(p)
@@ -75,7 +75,7 @@ func (cg *gater) InterceptSecured(d network.Direction, p peer.ID, m network.Conn
 // Refer to the godoc on the ConnectionGater type for more information.
 //
 // NOTE: the go-libp2p implementation currently IGNORES the disconnect reason.
-func (cg *gater) InterceptUpgraded(a network.Conn) (allow bool, reason control.DisconnectReason) {
+func (cg *gater) InterceptUpgraded(_ network.Conn) (allow bool, reason control.DisconnectReason) {
 	/*
 		protocols, err := cg.Peerstore.GetProtocols(a.RemotePeer())
 		if err != nil {
