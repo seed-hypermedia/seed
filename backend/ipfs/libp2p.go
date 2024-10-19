@@ -19,6 +19,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	routing "github.com/libp2p/go-libp2p/core/routing"
 	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
@@ -37,8 +38,9 @@ const (
 type Libp2p struct {
 	host.Host
 
-	ds      datastore.Batching
-	Routing router
+	ds               datastore.Batching
+	DelegatedRouting router
+	FullRouting      router
 
 	clean cleanup.Stack
 }
@@ -54,7 +56,7 @@ type router interface {
 // To actually enable relay you also need to pass EnableAutoRelay, and optionally enable HolePunching.
 // The returning node won't be listening on the network by default, so users have to start listening manually,
 // using the Listen() method on the underlying P2P network.
-func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protocol.ID, delegatedDHTURL string, log *zap.Logger, opts ...libp2p.Option) (nn *Libp2p, err error) {
+func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peerstore, protocolID protocol.ID, delegatedDHTURL string, log *zap.Logger, opts ...libp2p.Option) (nn *Libp2p, err error) {
 	var clean cleanup.Stack
 
 	defer func() {
@@ -74,7 +76,7 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 	if err != nil {
 		return nil, err
 	}
-	var rt router
+	var rt, dl router
 	cm := must.Do2(connmgr.NewConnManager(lowWatermark, highWatermark,
 		connmgr.WithGracePeriod(5*time.Second),
 		connmgr.WithSilencePeriod(6*time.Second)))
@@ -99,25 +101,46 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 		libp2p.NoListenAddrs, // Users must explicitly start listening.
 		libp2p.EnableRelay(), // Be able to dial behind-relay peers and receive connections from them.
 		libp2p.EnableAutoNATv2(),
+		libp2p.Peerstore(ps),
 		libp2p.ConnectionManager(cm),
 		libp2p.ResourceManager(rm),
+		libp2p.ConnectionGater(newGater(ps)),
 		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
-			if delegatedDHTURL != "" {
-				client, err := delegated_routing.New(delegatedDHTURL,
-					delegated_routing.WithHTTPClient(delegateHTTPClient),
-					delegated_routing.WithIdentity(key),
-					delegated_routing.WithUserAgent("seed-hypermedia"),
-					delegated_routing.WithProviderInfo(pid, nil), //TODO(juligasa): add address info
-					delegated_routing.WithDisabledLocalFiltering(false),
-				)
-				if err != nil {
-					return nil, err
-				}
-				rt = content_routing.NewContentRoutingClient(client)
-				log.Info("Delegated DHT Mode", zap.String("Server URL", delegatedDHTURL))
-			} else {
-				rt = &noopDHT{}
+			//if delegatedDHTURL != "" {
+			client, err := delegated_routing.New(delegatedDHTURL,
+				delegated_routing.WithHTTPClient(delegateHTTPClient),
+				delegated_routing.WithIdentity(key),
+				delegated_routing.WithUserAgent("seed-hypermedia"),
+				delegated_routing.WithProviderInfo(pid, nil), //TODO(juligasa): add address info
+				delegated_routing.WithDisabledLocalFiltering(false),
+			)
+			if err != nil {
+				return nil, err
 			}
+			dl = content_routing.NewContentRoutingClient(client)
+			//log.Info("Delegated DHT Mode", zap.String("Server URL", delegatedDHTURL))
+			//} else {
+			//ctx, cancel := context.WithCancel(context.Background())
+			//clean.AddFunc(cancel)
+			fullDHT, err := newDHT(context.Background(), h, ds, clean)
+			if err != nil {
+				return nil, err
+			}
+			rt = fullDHT
+			go func() {
+				time.Sleep(30 * time.Second)
+				fullDHT.Close()
+				var closedPeers int
+				for _, p := range h.Network().Peers() {
+					if !h.ConnManager().IsProtected(p, "seed-support") && !h.ConnManager().IsProtected(p, "bootstrap-support") {
+						_ = h.Network().ClosePeer(p)
+						closedPeers++
+					}
+				}
+				log.Info("Closing Full DHT Mode", zap.Int("Number of non-seed peers closed", closedPeers))
+			}()
+			//
+			//}
 
 			return rt, nil
 		}),
@@ -132,10 +155,11 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, protocolID protoco
 	clean.Add(node)
 
 	return &Libp2p{
-		ds:      ds,
-		clean:   clean,
-		Host:    node,
-		Routing: rt,
+		ds:               ds,
+		clean:            clean,
+		Host:             node,
+		FullRouting:      rt,
+		DelegatedRouting: dl,
 	}, nil
 }
 

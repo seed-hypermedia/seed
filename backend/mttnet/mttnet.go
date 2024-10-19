@@ -44,7 +44,8 @@ import (
 	"google.golang.org/grpc"
 )
 
-const ProtocolSupportKey = "seed-support" // This is what we use as a key to protect the connection in ConnManager.
+// ProtocolSupportKey is what we use as a key to protect the connection in ConnManager.
+const ProtocolSupportKey = "seed-support"
 
 const (
 	protocolPrefix  = "/hypermedia/"
@@ -136,7 +137,7 @@ func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool
 	}
 	clean.Add(closeHost)
 
-	bitswap, err := ipfs.NewBitswap(host, host.Routing, index.IPFSBlockstore())
+	bitswap, err := ipfs.NewBitswap(host, host.DelegatedRouting, index.IPFSBlockstore())
 	if err != nil {
 		return nil, fmt.Errorf("failed to start bitswap: %w", err)
 	}
@@ -148,7 +149,7 @@ func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool
 	if log.Level() != zapcore.InvalidLevel { // Usually test with zap.NewNop()
 		logLevel = log.Level().String()
 	}
-	providing, err := ipfs.NewProviderSystem(host.Datastore(), host.Routing, makeProvidingStrategy(db, logLevel))
+	providing, err := ipfs.NewProviderSystem(host.Datastore(), host.DelegatedRouting, makeProvidingStrategy(db, logLevel))
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize providing: %w", err)
 	}
@@ -544,7 +545,7 @@ func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID, lo
 
 	opts := []libp2p.Option{
 		libp2p.UserAgent(userAgent),
-		libp2p.Peerstore(ps),
+
 		libp2p.EnableHolePunching(),
 	}
 
@@ -598,7 +599,7 @@ func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID, lo
 		opts = append(opts, libp2p.BandwidthReporter(m))
 	}
 
-	node, err := ipfs.NewLibp2pNode(device, ds, protocolID, cfg.DelegatedDHTURL, log, opts...)
+	node, err := ipfs.NewLibp2pNode(device, ds, ps, protocolID, cfg.DelegatedDHTURL, log, opts...)
 	if err != nil {
 		return nil, nil, err
 	}
