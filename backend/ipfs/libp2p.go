@@ -120,9 +120,9 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peers
 			dl = content_routing.NewContentRoutingClient(client)
 			//log.Info("Delegated DHT Mode", zap.String("Server URL", delegatedDHTURL))
 			//} else {
-			ctx, cancel := context.WithCancel(context.Background())
-			clean.AddFunc(cancel)
-			fullDHT, err := newDHT(ctx, h, ds, clean)
+			//ctx, cancel := context.WithCancel(context.Background())
+			//clean.AddFunc(cancel)
+			fullDHT, err := newDHT(context.Background(), h, ds, clean)
 			if err != nil {
 				return nil, err
 			}
