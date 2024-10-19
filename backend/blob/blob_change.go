@@ -78,6 +78,7 @@ func init() {
 	cbornode.RegisterCborType(OpSetKey{})
 	cbornode.RegisterCborType(OpReplaceBlock{})
 	cbornode.RegisterCborType(OpMoveBlock{})
+	cbornode.RegisterCborType(OpDeleteBlocks{})
 
 	// We decided to encode our union types with type-specific fields inlined.
 	// It's really painful in Go, so we need to do this crazy hackery
@@ -180,6 +181,10 @@ func (o OpMap) ToOp() (Op, error) {
 			var out OpReplaceBlock
 			mapToCBOR(o, &out)
 			return out, nil
+		case OpTypeDeleteBlocks:
+			var out OpDeleteBlocks
+			mapToCBOR(o, &out)
+			return out, nil
 		default:
 			return nil, fmt.Errorf("unsupported op type %s", o)
 		}
@@ -273,6 +278,24 @@ func NewOpReplaceBlock(state Block) OpMap {
 			Type: OpTypeReplaceBlock,
 		},
 		Block: state,
+	}
+
+	return cborToMap(op)
+}
+
+// OpDeleteBlocks represents the op to delete a set of blocks.
+type OpDeleteBlocks struct {
+	baseOp
+	Blocks []string `refmt:"blocks"`
+}
+
+// NewOpDeleteBlocks creates the corresponding op.
+func NewOpDeleteBlocks(blocks []string) OpMap {
+	op := OpDeleteBlocks{
+		baseOp: baseOp{
+			Type: OpTypeDeleteBlocks,
+		},
+		Blocks: blocks,
 	}
 
 	return cborToMap(op)

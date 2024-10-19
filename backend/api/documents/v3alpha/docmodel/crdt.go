@@ -368,6 +368,16 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 			if err := e.tree.Integrate(opid, op.Parent, op.Block, refID); err != nil {
 				return err
 			}
+		case blob.OpDeleteBlocks:
+			for i, blk := range op.Blocks {
+				idx += i
+				opid := newOpID(ts, actorID, idx)
+				if err := e.tree.Integrate(opid, TrashNodeID, blk, opID{}); err != nil {
+					return err
+				}
+			}
+		default:
+			return fmt.Errorf("BUG?: unhandled op type: %T", op)
 		}
 	}
 

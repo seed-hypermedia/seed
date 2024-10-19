@@ -348,8 +348,24 @@ func (dm *Document) cleanupPatch() []blob.OpMap {
 	// so it's not aware of any other possible operations.
 	// Will fix this at some point.
 	if dm.mut != nil {
+		var (
+			deletedBlocks []string
+			seenDeletes   = map[string]struct{}{}
+		)
 		for move := range dm.mut.Commit(0, math.MaxUint64) {
+			if move.Parent == TrashNodeID {
+				if _, seen := seenDeletes[move.Block]; seen {
+					panic("BUG: delete block operation seen multiple times")
+				}
+				deletedBlocks = append(deletedBlocks, move.Block)
+				seenDeletes[move.Block] = struct{}{}
+				continue
+			}
 			ops = append(ops, blob.NewOpMoveBlock(move.Block, move.Parent, encodeOpID(move.Ref)))
+		}
+
+		if len(deletedBlocks) > 0 {
+			ops = append(ops, blob.NewOpDeleteBlocks(deletedBlocks))
 		}
 	}
 
