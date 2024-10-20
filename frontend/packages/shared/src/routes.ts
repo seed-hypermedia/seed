@@ -108,6 +108,7 @@ export const draftRouteSchema = z.object({
       documentCommentsAccessorySchema,
       documentAllDocumentsAccessorySchema,
       documentContactsAccessorySchema,
+      documentOptionsAccessorySchema,
     ])
     .nullable()
     .optional(),
@@ -169,6 +170,7 @@ export type DocAccessoryOption = {
     | 'citations'
     | 'contacts'
     | 'all-documents'
+    | 'options'
   label: string
   icon: null | React.FC<{color: string; size?: number}>
 }

@@ -56,6 +56,7 @@ import {
   generateBlockId,
   handleDragMedia,
 } from '@/utils/media-drag'
+import {UseTRPCQueryResult} from '@trpc/react-query/dist/shared'
 import './draft-page.css'
 
 export default function DraftPage() {
@@ -63,6 +64,10 @@ export default function DraftPage() {
   const replace = useNavigate('replace')
   if (route.key !== 'draft') throw new Error('DraftPage must have draft route')
   const docId = route.id
+  const draft = useDraft(route.id)
+  let data = useDraftEditor({
+    id: route.id,
+  })
   const accessoryKey = route.accessory?.key
   if (!docId) throw new Error('DraftPage must have document id')
 
@@ -79,6 +84,20 @@ export default function DraftPage() {
     )
   }
 
+  if (accessoryKey == 'options' && route.id) {
+    accessory = (
+      <OptionsPanel
+        value={data.state.context.metadata.layout}
+        onValue={(value) => {
+          if (!draft.data) return
+          data.actor.send({type: 'CHANGE', metadata: {layout: value}})
+        }}
+        onClose={handleClose}
+        draftId={route.id}
+      />
+    )
+  }
+
   const accessoryOptions: DocAccessoryOption[] = []
 
   accessoryOptions.push({
@@ -86,6 +105,14 @@ export default function DraftPage() {
     label: 'Version History',
     icon: HistoryIcon,
   })
+
+  if (!route.id?.path?.length) {
+    accessoryOptions.push({
+      key: 'options',
+      label: 'Options',
+      icon: Options,
+    })
+  }
 
   return (
     <ErrorBoundary FallbackComponent={() => null}>
@@ -101,7 +128,9 @@ export default function DraftPage() {
           }}
           accessoryOptions={accessoryOptions}
         >
-          {route.id ? <DraftContent id={route.id} /> : null}
+          {route.id ? (
+            <DraftContent draft={draft} data={data} id={route.id} />
+          ) : null}
         </AccessoryLayout>
       </XStack>
       <Footer />
@@ -111,7 +140,15 @@ export default function DraftPage() {
 
 const DraftContent = React.memo(_DraftPage)
 
-export function _DraftPage({id}: {id: UnpackedHypermediaId}) {
+export function _DraftPage({
+  draft,
+  data,
+  id,
+}: {
+  draft: UseTRPCQueryResult<HMDraft | null, unknown>
+  data: ReturnType<typeof useDraftEditor>
+  id: UnpackedHypermediaId
+}) {
   const route = useNavRoute()
 
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
@@ -120,74 +157,20 @@ export function _DraftPage({id}: {id: UnpackedHypermediaId}) {
     undefined,
   )
 
-  const draft = useDraft(route.id)
-  let data = useDraftEditor({
-    id: route.id,
-  })
-
-  let accessory = null
-
-  if (accessoryKey === 'options' && route.id) {
-    accessory = (
-      <OptionsPanel
-        metadata={data.state.context.metadata}
-        onMetadata={(metadata) => {
-          if (!draft.data) return
-          data.actor.send({type: 'CHANGE', metadata})
-        }}
-        onClose={() => setAccessory(undefined)}
-        draftId={route.id}
-      />
-    )
-  }
-
-  const accessoryOptions: {
-    key: 'options'
-    label: string
-    icon?: null | React.FC<{
-      color: string
-      size?: number
-    }>
-  }[] = []
-
-  if (!route.id?.path?.length) {
-    accessoryOptions.push({
-      key: 'options',
-      label: 'Options',
-      icon: Options,
-    })
-  }
-
   let draftContent = null
-  if (
-    draft.data?.metadata?.layout == 'Seed/Experimental/Newspaper' &&
-    route.id
-  ) {
+  if (draft.data?.metadata?.layout == 'Seed/Experimental/Newspaper' && id) {
     draftContent = (
       <XStack flex={1}>
         <SidebarSpacer />
-        <NewspaperLayout id={route.id} metadata={draft.data?.metadata} />
+        <NewspaperLayout id={id} metadata={draft.data?.metadata} />
       </XStack>
     )
   } else if (!draft.isLoading && route.id) {
-    draftContent = <DocumentEditor {...data} id={route.id} />
+    draftContent = <DocumentEditor {...data} id={id} />
   }
 
   return (
-    <ErrorBoundary FallbackComponent={() => null}>
-      <AccessoryLayout
-        accessory={accessory}
-        accessoryKey={accessoryKey}
-        onAccessorySelect={(key: typeof accessoryKey) => {
-          setAccessory(key)
-        }}
-        accessoryOptions={accessoryOptions}
-      >
-        {draftContent}
-      </AccessoryLayout>
-
-      <Footer />
-    </ErrorBoundary>
+    <ErrorBoundary FallbackComponent={() => null}>{draftContent}</ErrorBoundary>
   )
 }
 
@@ -231,7 +214,7 @@ function DocumentEditor({
           disableEmbedClick
           onCopyBlock={onCopyBlock}
           importWebFile={importWebFile}
-          docId={route.id}
+          docId={id}
         >
           <DraftHeader
             draftActor={actor}
