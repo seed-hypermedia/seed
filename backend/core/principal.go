@@ -1,15 +1,32 @@
 package core
 
 import (
+	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
 	"unsafe"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/crypto/pb"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multibase"
 	"github.com/multiformats/go-multicodec"
 )
+
+var pubKeyCodecs = map[int]multicodec.Code{
+	crypto.Ed25519:   multicodec.Ed25519Pub,
+	crypto.Secp256k1: multicodec.Secp256k1Pub,
+}
+
+var codecToPB = map[multicodec.Code]pb.KeyType{
+	multicodec.Ed25519Pub:   pb.KeyType_Ed25519,
+	multicodec.Secp256k1Pub: pb.KeyType_Secp256k1,
+}
+
+var pubKeyCodecBytes = map[multicodec.Code][]byte{
+	multicodec.Ed25519Pub:   binary.AppendUvarint(nil, uint64(multicodec.Ed25519Pub)),
+	multicodec.Secp256k1Pub: binary.AppendUvarint(nil, uint64(multicodec.Secp256k1Pub)),
+}
 
 // Principal is the byte representation of a public key.
 // We don't use libp2p encoding for keys, because it's very tied to libp2p,
@@ -25,6 +42,23 @@ import (
 //
 // [did-key]: https://w3c-ccg.github.io/did-method-key/#format
 type Principal []byte
+
+// ActorID is a 56-bit replica/actor/origin ID
+// that we use in our CRDT Op IDs.
+// 56 bits should be enough to avoid collisions for our use case,
+// because each OpID also contains a millisecond timestamp,
+// and it's more compatible with other environments, like JS, that may not work well with uint64.
+// It's derived from the public key of the actor, by hashing it with sha256,
+// and taking the first 56 bits of the hash as a *little-endian* unsigned integer.
+type ActorID uint64
+
+// ActorID returns a derived ActorID from the principal.
+// It performs calculations, so it's better to cache the result if it's used multiple times.
+func (p Principal) ActorID() ActorID {
+	sum := sha256.Sum256(p)
+	sum[7] = 0 // clearing the last byte because we only want 56 bits.
+	return ActorID(binary.LittleEndian.Uint64(sum[:8]))
+}
 
 // PeerID returns the Libp2p PeerID representation of a key.
 func (p Principal) PeerID() (peer.ID, error) {
@@ -92,6 +126,16 @@ func (p Principal) Verify(data []byte, sig Signature) error {
 	return sig.verify(pk, data)
 }
 
+// SignatureSize implements Verifier.
+func (p Principal) SignatureSize() int {
+	pbkt, ok := codecToPB[p.KeyType()]
+	if !ok {
+		panic("BUG: unsupported key type")
+	}
+
+	return signatureSize(pbkt)
+}
+
 // Libp2pKey converts principal into a Libp2p public key.
 func (p Principal) Libp2pKey() (crypto.PubKey, error) {
 	codec, n := binary.Uvarint(p)
@@ -109,16 +153,6 @@ func (p Principal) Libp2pKey() (crypto.PubKey, error) {
 // DID converts principal into a DID Key representation.
 func (p Principal) DID() string {
 	return "did:key:" + p.String()
-}
-
-var pubKeyCodecs = map[int]multicodec.Code{
-	crypto.Ed25519:   multicodec.Ed25519Pub,
-	crypto.Secp256k1: multicodec.Secp256k1Pub,
-}
-
-var pubKeyCodecBytes = map[multicodec.Code][]byte{
-	multicodec.Ed25519Pub:   binary.AppendUvarint(nil, uint64(multicodec.Ed25519Pub)),
-	multicodec.Secp256k1Pub: binary.AppendUvarint(nil, uint64(multicodec.Secp256k1Pub)),
 }
 
 // PrincipalFromPubKey converts a Libp2p public key into Principal.

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"iter"
 	"maps"
+	"math"
 	"net/url"
 	"reflect"
 	"seed/backend/blob"
@@ -14,6 +15,7 @@ import (
 	"seed/backend/util/cclock"
 	"slices"
 	"sort"
+	"unique"
 
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multibase"
@@ -25,8 +27,9 @@ import (
 
 // Document is a mutable document.
 type Document struct {
-	crdt    *docCRDT
-	origins map[string]cid.Cid // map of abbreviated origin hashes to actual cids; workaround, should not be necessary.
+	crdt      *docCRDT
+	actors    map[unique.Handle[string]]core.ActorID
+	opsToCids map[[2]uint64]cid.Cid
 
 	// Bellow goes the data for the ongoing dirty mutation.
 	// Document can only be mutated once, and then must be thrown away.
@@ -39,8 +42,8 @@ type Document struct {
 	// Blocks that we've deleted in this change.
 	deletedBlocks map[string]struct{}
 
-	dirtyBlocks   map[string]blob.Block // BlockID => BlockState.
-	dirtyMetadata map[string]any
+	dirtyBlocks   map[string]mvRegValue[blob.Block]
+	dirtyMetadata map[string]mvRegValue[any]
 }
 
 // originFromCID creates a CRDT origin from the last 8 chars of the hash.
@@ -60,21 +63,28 @@ func originFromCID(c cid.Cid) string {
 // New creates a new Document model.
 func New(id blob.IRI, clock *cclock.Clock) (*Document, error) {
 	crdt := newCRDT(id, clock)
-	return newDoc(crdt)
+	doc, err := newDoc(crdt)
+	if err != nil {
+		return nil, err
+	}
+
+	crdt.getActor = func(in core.Principal) (core.ActorID, bool) {
+		akey := unique.Make(in.UnsafeString())
+		out, ok := doc.actors[akey]
+		return out, ok
+	}
+
+	return doc, nil
 }
 
 // newDoc creates a new mutable document.
 func newDoc(crdt *docCRDT) (*Document, error) {
 	dm := &Document{
 		crdt:          crdt,
-		origins:       make(map[string]cid.Cid),
+		actors:        make(map[unique.Handle[string]]core.ActorID),
+		opsToCids:     make(map[[2]uint64]cid.Cid),
 		createdBlocks: make(map[string]struct{}),
 		deletedBlocks: make(map[string]struct{}),
-	}
-
-	for _, c := range crdt.cids {
-		o := originFromCID(c)
-		dm.origins[o] = c
 	}
 
 	return dm, nil
@@ -86,17 +96,62 @@ func (dm *Document) Checkout(heads []cid.Cid) (*Document, error) {
 		panic("BUG: document is done")
 	}
 
-	crdt2, err := dm.crdt.Checkout(heads)
+	e := dm.crdt
+
+	if len(heads) == 0 {
+		return dm, nil
+	}
+
+	{
+		curVer := NewVersion(slices.Collect(maps.Keys(e.heads))...)
+		wantVer := NewVersion(heads...)
+
+		if curVer == wantVer {
+			return dm, nil
+		}
+	}
+
+	// We walk the DAG of changes backwards starting from the heads.
+	// And then we apply those changes to the cloned entity.
+
+	visited := make(map[int]struct{}, len(e.cids))
+	queue := make([]int, 0, len(e.cids))
+	chain := make([]int, 0, len(e.cids))
+
+	for _, h := range heads {
+		hh, ok := e.applied[h]
+		if !ok {
+			return nil, fmt.Errorf("head '%s' not found", h)
+		}
+
+		queue = append(queue, hh)
+	}
+
+	for len(queue) > 0 {
+		c := queue[0]
+		queue = queue[1:]
+		if _, ok := visited[c]; ok {
+			continue
+		}
+		visited[c] = struct{}{}
+		chain = append(chain, c)
+		queue = append(queue, e.deps[c]...)
+	}
+	slices.Reverse(chain)
+
+	clock := cclock.New()
+	doc, err := New(e.id, clock)
 	if err != nil {
 		return nil, err
 	}
 
-	dm2, err := newDoc(crdt2)
-	if err != nil {
-		return nil, err
+	for _, c := range chain {
+		if err := doc.ApplyChange(e.cids[c], e.changes[c]); err != nil {
+			return nil, err
+		}
 	}
 
-	return dm2, nil
+	return doc, nil
 }
 
 // ApplyChange to the state. Can only do that before any mutations were made.
@@ -109,8 +164,15 @@ func (dm *Document) ApplyChange(c cid.Cid, ch *blob.Change) error {
 }
 
 func (dm *Document) applyChangeUnsafe(c cid.Cid, ch *blob.Change) error {
-	o := originFromCID(c)
-	dm.origins[o] = c
+	akey := unique.Make(ch.Signer.UnsafeString())
+	actor, ok := dm.actors[akey]
+	if !ok {
+		actor = ch.Signer.ActorID()
+		dm.actors[akey] = actor
+	}
+
+	dm.opsToCids[[2]uint64{uint64(actor), uint64(ch.Ts.UnixMilli())}] = c //nolint:gosec // We know this should not overflow.
+
 	return dm.crdt.ApplyChange(c, ch)
 }
 
@@ -118,9 +180,10 @@ func (dm *Document) applyChangeUnsafe(c cid.Cid, ch *blob.Change) error {
 func (dm *Document) SetMetadata(key, newValue string) error {
 	dm.dirty = true
 	if dm.dirtyMetadata == nil {
-		dm.dirtyMetadata = make(map[string]any)
+		dm.dirtyMetadata = make(map[string]mvRegValue[any])
 	}
 
+	var preds []opID
 	if reg := dm.crdt.stateMetadata[key]; reg != nil {
 		if newValue == reg.GetLatest() {
 			// If metadata key already has the same value in the committed CRDT state,
@@ -128,9 +191,10 @@ func (dm *Document) SetMetadata(key, newValue string) error {
 			delete(dm.dirtyMetadata, key)
 			return nil
 		}
+		preds = reg.state.Keys()
 	}
 
-	dm.dirtyMetadata[key] = newValue
+	dm.dirtyMetadata[key] = mvRegValue[any]{Value: newValue, Preds: preds}
 
 	return nil
 }
@@ -163,7 +227,7 @@ func (dm *Document) ReplaceBlock(blkpb *documents.Block) error {
 	}
 
 	if dm.dirtyBlocks == nil {
-		dm.dirtyBlocks = make(map[string]blob.Block)
+		dm.dirtyBlocks = make(map[string]mvRegValue[blob.Block])
 	}
 
 	blk, err := BlockFromProto(blkpb)
@@ -173,15 +237,17 @@ func (dm *Document) ReplaceBlock(blkpb *documents.Block) error {
 
 	// Check if CRDT state already has the same value for block.
 	// If so, we do nothing, and remove any dirty state for this block.
+	var preds []opID
 	if reg := dm.crdt.stateBlocks[blkpb.Id]; reg != nil {
 		oldValue, ok := reg.GetLatestOK()
 		if ok && reflect.DeepEqual(oldValue, blk) {
 			delete(dm.dirtyBlocks, blkpb.Id)
 			return nil
 		}
+		preds = reg.state.Keys()
 	}
 
-	dm.dirtyBlocks[blk.ID] = blk
+	dm.dirtyBlocks[blk.ID] = mvRegValue[blob.Block]{Value: blk, Preds: preds}
 
 	return nil
 }
@@ -268,20 +334,76 @@ func (dm *Document) Ref(kp core.KeyPair) (ref blob.Encoded[*blob.Ref], err error
 	return blob.NewRef(kp, genesis, space, path, []cid.Cid{headCID}, head.Ts)
 }
 
-func (dm *Document) cleanupPatch() []blob.Op {
+func (dm *Document) cleanupPatch() (out blob.ChangeBody) {
 	if !dm.dirty {
-		return nil
+		return out
 	}
 
-	var ops []blob.Op
+	addOp := func(op blob.OpMap, size int) {
+		out.Ops = append(out.Ops, op)
+		out.OpCount += size
+	}
 
 	// TODO(burdiyan): It's important to moves go first,
 	// because I was stupid enough to implement the block tree CRDT in isolation,
 	// so it's not aware of any other possible operations.
 	// Will fix this at some point.
 	if dm.mut != nil {
-		for move := range dm.mut.Commit(0, "self") {
-			ops = append(ops, blob.NewOpMoveBlock(move.Block, move.Parent, move.Ref.String()))
+		var (
+			deletedBlocks []string
+			seenDeletes   = map[string]struct{}{}
+
+			// Batching contiguos moves.
+			curParent     string
+			lastOpID      opID
+			ref           opID
+			blockSequence []string
+		)
+		for move := range dm.mut.Commit(0, math.MaxUint64) {
+			if move.Parent == TrashNodeID {
+				if _, seen := seenDeletes[move.Block]; seen {
+					panic("BUG: delete block operation seen multiple times")
+				}
+				deletedBlocks = append(deletedBlocks, move.Block)
+				seenDeletes[move.Block] = struct{}{}
+				continue
+			}
+
+			// Start new batch of moves.
+			if len(blockSequence) == 0 {
+				curParent = move.Parent
+				lastOpID = move.OpID
+				ref = move.Ref
+				blockSequence = append(blockSequence, move.Block)
+				continue
+			}
+
+			// If we continue the same sequence, just append move to the batch.
+			if move.Parent == curParent && move.OpID.Actor == lastOpID.Actor && move.OpID.Ts == lastOpID.Ts && move.OpID.Idx == lastOpID.Idx+1 {
+				blockSequence = append(blockSequence, move.Block)
+				lastOpID = move.OpID
+				continue
+			}
+
+			// If we are here we need to close the batch, and start a new one.
+			addOp(blob.NewOpMoveBlocks(curParent, blockSequence, encodeOpID(ref)), len(blockSequence))
+
+			// Start new batch.
+			curParent = move.Parent
+			lastOpID = move.OpID
+			ref = move.Ref
+			blockSequence = append([]string{}, move.Block)
+			continue
+		}
+
+		// If we haven't sent the last batch, we need to send it now.
+		if len(blockSequence) > 0 {
+			addOp(blob.NewOpMoveBlocks(curParent, blockSequence, encodeOpID(ref)), len(blockSequence))
+		}
+
+		// Now process the deletes.
+		if len(deletedBlocks) > 0 {
+			addOp(blob.NewOpDeleteBlocks(deletedBlocks), len(deletedBlocks))
 		}
 	}
 
@@ -289,7 +411,8 @@ func (dm *Document) cleanupPatch() []blob.Op {
 	slices.Sort(metaKeys)
 
 	for _, key := range metaKeys {
-		ops = append(ops, blob.NewOpSetMetadata(key, dm.dirtyMetadata[key]))
+		reg := dm.dirtyMetadata[key]
+		addOp(blob.NewOpSetKey(key, reg.Value), 1)
 	}
 
 	// Remove state of those blocks that we created and deleted in the same change.
@@ -307,11 +430,10 @@ func (dm *Document) cleanupPatch() []blob.Op {
 		if !ok {
 			panic("BUG: dirty block not found")
 		}
-
-		ops = append(ops, blob.NewOpReplaceBlock(blk))
+		addOp(blob.NewOpReplaceBlock(blk.Value), 1)
 	}
 
-	return ops
+	return out
 }
 
 // NumChanges returns the number of changes in the current state of the document.
@@ -403,8 +525,12 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 			continue
 		}
 
-		oo := dm.origins[opid.Origin]
-		blkpb := BlockToProto(blk, oo)
+		c, ok := dm.opsToCids[[2]uint64{uint64(opid.Actor), uint64(opid.Ts)}] //nolint:gosec // We know this should not overflow.
+		if !ok {
+			panic(fmt.Errorf("BUG: failed to find CID for block op ID: %d:%d", opid.Actor, opid.Ts))
+		}
+
+		blkpb := BlockToProto(blk, c)
 
 		child := &documents.BlockNode{Block: blkpb}
 		appendChild(pair.Parent, child)
@@ -421,8 +547,12 @@ func BlockFromProto(b *documents.Block) (blob.Block, error) {
 		return blob.Block{}, errors.New("block ID is required")
 	}
 
-	if len(b.Attributes) == 0 {
-		b.Attributes = nil
+	var remaining map[string]any
+	if len(b.Attributes) > 0 {
+		remaining = make(map[string]any, len(b.Attributes))
+		for k, v := range b.Attributes {
+			remaining[k] = v
+		}
 	}
 
 	return blob.Block{
@@ -430,7 +560,7 @@ func BlockFromProto(b *documents.Block) (blob.Block, error) {
 		Type:        b.Type,
 		Text:        b.Text,
 		Link:        b.Link,
-		Attributes:  b.Attributes,
+		Attributes:  remaining,
 		Annotations: annotationsFromProto(b.Annotations),
 	}, nil
 }
@@ -442,10 +572,18 @@ func annotationsFromProto(in []*documents.Annotation) []blob.Annotation {
 
 	out := make([]blob.Annotation, len(in))
 	for i, a := range in {
+		var remaining map[string]any
+		if len(a.Attributes) > 0 {
+			remaining = make(map[string]any, len(a.Attributes))
+			for k, v := range a.Attributes {
+				remaining[k] = v
+			}
+		}
+
 		out[i] = blob.Annotation{
 			Type:       a.Type,
 			Link:       a.Link,
-			Attributes: a.Attributes,
+			Attributes: remaining,
 			Starts:     a.Starts,
 			Ends:       a.Ends,
 		}
@@ -457,12 +595,20 @@ func annotationsFromProto(in []*documents.Annotation) []blob.Annotation {
 // BlockToProto converts our internal block representation into a protobuf block.
 // It's largely the same, but we use CBOR in our permanent data, and we use protobuf in our API.
 func BlockToProto(b blob.Block, revision cid.Cid) *documents.Block {
+	var attrs map[string]string
+	if len(b.Attributes) > 0 {
+		attrs = make(map[string]string, len(b.Attributes))
+		for k, v := range b.Attributes {
+			attrs[k], _ = v.(string)
+		}
+	}
+
 	return &documents.Block{
 		Id:          b.ID,
 		Type:        b.Type,
 		Text:        b.Text,
 		Link:        b.Link,
-		Attributes:  b.Attributes,
+		Attributes:  attrs,
 		Annotations: annotationsToProto(b.Annotations),
 		Revision:    revision.String(),
 	}
@@ -475,10 +621,18 @@ func annotationsToProto(in []blob.Annotation) []*documents.Annotation {
 
 	out := make([]*documents.Annotation, len(in))
 	for i, a := range in {
+		var attrs map[string]string
+		if len(a.Attributes) > 0 {
+			attrs = make(map[string]string, len(a.Attributes))
+			for k, v := range a.Attributes {
+				// TODO(burdiyan): eventually we will support other types.
+				attrs[k], _ = v.(string)
+			}
+		}
 		out[i] = &documents.Annotation{
 			Type:       a.Type,
 			Link:       a.Link,
-			Attributes: a.Attributes,
+			Attributes: attrs,
 			Starts:     a.Starts,
 			Ends:       a.Ends,
 		}

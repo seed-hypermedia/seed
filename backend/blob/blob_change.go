@@ -3,231 +3,314 @@ package blob
 import (
 	"bytes"
 	"cmp"
-	"encoding/binary"
 	"fmt"
+	"iter"
 	"net/url"
 	"seed/backend/core"
 	"seed/backend/ipfs"
+	"slices"
+	"strconv"
 	"time"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/multiformats/go-multicodec"
+	"github.com/polydawn/refmt/obj/atlas"
 )
-
-func init() {
-	cbornode.RegisterCborType(Change{})
-	cbornode.RegisterCborType(ChangeUnsigned{})
-	cbornode.RegisterCborType(Op{})
-}
 
 const blobTypeChange blobType = "Change"
-
-// OpType is a type for operation types.
-type OpType string
-
-// Op is an atom of our op-based CRDT structure.
-type Op struct {
-	Type OpType         `refmt:"type"`
-	Data map[string]any `refmt:"data,omitempty"`
-}
-
-// Supported op types.
-const (
-	OpSetMetadata  OpType = "SetMetadata"  // Args = key => value.
-	OpMoveBlock    OpType = "MoveBlock"    // Args = block, parent, left+origin.
-	OpReplaceBlock OpType = "ReplaceBlock" // Args = id => block data.
-)
-
-// NewOpSetMetadata creates a SetMetadata op.
-func NewOpSetMetadata(key string, value any) Op {
-	return Op{
-		Type: OpSetMetadata,
-		Data: map[string]any{key: value}, // TODO(burdiyan): or key => key, value => value?
-	}
-}
-
-// NewOpMoveBlock creates a MoveBlock op.
-func NewOpMoveBlock(block, parent, leftOrigin string) Op {
-	return Op{
-		Type: OpMoveBlock,
-		Data: map[string]any{
-			"block":      block,
-			"parent":     parent,
-			"leftOrigin": leftOrigin,
-		},
-	}
-}
-
-// NewOpReplaceBlock creates a ReplaceBlock op.
-func NewOpReplaceBlock(state Block) Op {
-	return Op{
-		Type: OpReplaceBlock,
-		Data: CBORToMap(state),
-	}
-}
 
 // Change is an atomic change to a document.
 // The linked DAG of Changes represents the state of a document over time.
 type Change struct {
-	ChangeUnsigned
-	Sig core.Signature `refmt:"sig,omitempty"`
+	baseBlob
+	Genesis cid.Cid    `refmt:"genesis,omitempty"`
+	Deps    []cid.Cid  `refmt:"deps,omitempty"`
+	Depth   int        `refmt:"depth,omitempty"`
+	Body    ChangeBody `refmt:"body,omitempty"`
+}
+
+// ChangeBody is the body of a Change.
+type ChangeBody struct {
+	// OpCount is the number of "logical" operations in the change.
+	// Some op items in the list may be run-length encoded,
+	// such that one physical item represents multiple logical ops.
+	// This field is provided as a hint to the consumer of the change.
+	OpCount int `refmt:"opCount,omitempty"`
+
+	// Ops is a list of operations that make up the change.
+	// Some ops may be run-length encoded.
+	Ops []OpMap `refmt:"ops,omitempty"`
 }
 
 // NewChange creates a new Change.
-func NewChange(kp core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, ops []Op, ts time.Time) (eb Encoded[*Change], err error) {
-	cu := ChangeUnsigned{
-		Type:    blobTypeChange,
+func NewChange(kp core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, body ChangeBody, ts time.Time) (eb Encoded[*Change], err error) {
+	if !slices.IsSortedFunc(deps, func(a, b cid.Cid) int {
+		return cmp.Compare(a.KeyString(), b.KeyString())
+	}) {
+		panic("BUG: deps are not sorted")
+	}
+
+	cc := &Change{
+		baseBlob: baseBlob{
+			Type:   blobTypeChange,
+			Signer: kp.Principal(),
+			Ts:     ts,
+		},
 		Genesis: genesis,
 		Deps:    deps,
 		Depth:   depth,
-		Ops:     ops,
-		Author:  kp.Principal(),
-		Ts:      ts,
+		Body:    body,
 	}
 
-	cc, err := cu.Sign(kp)
-	if err != nil {
+	if err := signBlob(kp, cc, &cc.baseBlob.Sig); err != nil {
 		return eb, err
 	}
 
 	return encodeBlob(cc)
 }
 
-// ChangeUnsigned holds the fields of a Change that are supposed to be signed.
-type ChangeUnsigned struct {
-	Type    blobType       `refmt:"type"`
-	Genesis cid.Cid        `refmt:"genesis,omitempty"`
-	Deps    []cid.Cid      `refmt:"deps,omitempty"`
-	Depth   int            `refmt:"depth,omitempty"`
-	Ops     []Op           `refmt:"ops,omitempty"`
-	Author  core.Principal `refmt:"author"`
-	Ts      time.Time      `refmt:"ts"`
+// Ops is an iterator over the ops in the change.
+// We don't expose the underlying slice of Ops,
+// because eventually some data will be run-length encoded in there.
+func (c *Change) Ops() iter.Seq2[Op, error] {
+	return func(yield func(Op, error) bool) {
+		for _, v := range c.Body.Ops {
+			if !yield(v.ToOp()) {
+				break
+			}
+		}
+	}
 }
 
-// Sign the change with the provided key pair.
-func (c *ChangeUnsigned) Sign(kp core.KeyPair) (cc *Change, err error) {
-	if !c.Author.Equal(kp.Principal()) {
-		return nil, fmt.Errorf("author mismatch when signing")
-	}
+var numericAttributes = []string{"size", "width", "height", "start"}
 
-	data, err := cbornode.DumpObject(c)
-	if err != nil {
-		return nil, err
-	}
+func init() {
+	cbornode.RegisterCborType(Change{})
+	cbornode.RegisterCborType(ChangeBody{})
+	cbornode.RegisterCborType(OpSetKey{})
+	cbornode.RegisterCborType(OpReplaceBlock{})
+	cbornode.RegisterCborType(OpMoveBlocks{})
+	cbornode.RegisterCborType(OpDeleteBlocks{})
 
-	sig, err := kp.Sign(data)
-	if err != nil {
-		return nil, err
-	}
+	// We decided to encode our union types with type-specific fields inlined.
+	// It's really painful in Go, so we need to do this crazy hackery
+	// to make it work for Blocks and Annotations,
+	// because we don't even know all the possible fields in advance on the backend.
+	// I (burdiyan) hope we won't regret this decision.
 
-	return &Change{
-		ChangeUnsigned: *c,
-		Sig:            sig,
-	}, nil
+	cbornode.RegisterCborType(atlas.BuildEntry(Block{}).Transform().
+		TransformMarshal(atlas.MakeMarshalTransformFunc(func(in Block) (map[string]any, error) {
+			var v map[string]any
+			if err := mapstructure.Decode(in, &v); err != nil {
+				return nil, err
+			}
+
+			if len(in.Attributes) > 0 {
+				// TODO(burdiyan): we do this trick because our API currently only accepts string values,
+				// but we want to be able to store other types as well.
+				// These are the attributes that we currently have that we know should be numbers.
+				for _, attr := range numericAttributes {
+					vv, ok := v[attr].(string)
+					if !ok {
+						continue
+					}
+
+					n, err := strconv.Atoi(vv)
+					_ = err
+					v[attr] = n
+				}
+			}
+
+			return v, nil
+		})).
+		TransformUnmarshal(atlas.MakeUnmarshalTransformFunc(func(in map[string]any) (Block, error) {
+			var v Block
+			if err := mapstructure.Decode(in, &v); err != nil {
+				return Block{}, err
+			}
+
+			if len(v.Attributes) > 0 {
+				// TODO(burdiyan): we do this trick because our API currently only accepts string values,
+				// but we want to be able to store other types as well.
+				// These are the attributes that we currently have that we know should be numbers.
+				for _, attr := range numericAttributes {
+					vv, ok := v.Attributes[attr].(int)
+					if !ok {
+						continue
+					}
+
+					v.Attributes[attr] = strconv.Itoa(vv)
+				}
+			}
+
+			return v, nil
+		})).
+		Complete(),
+	)
+
+	cbornode.RegisterCborType(atlas.BuildEntry(Annotation{}).Transform().
+		TransformMarshal(atlas.MakeMarshalTransformFunc(func(in Annotation) (map[string]any, error) {
+			var v map[string]any
+			if err := mapstructure.Decode(in, &v); err != nil {
+				return nil, err
+			}
+			return v, nil
+		})).
+		TransformUnmarshal(atlas.MakeUnmarshalTransformFunc(func(in map[string]any) (Annotation, error) {
+			var v Annotation
+			if err := mapstructure.Decode(in, &v); err != nil {
+				return Annotation{}, err
+			}
+			return v, nil
+		})).
+		Complete(),
+	)
 }
 
-type OpID struct {
-	Ts     uint64
-	Idx    uint32
-	Origin uint64
+// OpType is a type for operation types.
+type OpType string
+
+// OpMap is a map representation of op data.
+// TODO(burdiyan): find something reasonable to work with union types.
+type OpMap map[string]any
+
+// ToOp converts the map into a concrete op type, checking the discriminator field.
+func (o OpMap) ToOp() (Op, error) {
+	switch ot := o["type"].(type) {
+	case nil:
+		return nil, fmt.Errorf("missing op type field")
+	case string:
+		switch OpType(ot) {
+		case OpTypeSetKey:
+			var out OpSetKey
+			mapToCBOR(o, &out)
+			return out, nil
+		case OpTypeMoveBlocks:
+			var out OpMoveBlocks
+			mapToCBOR(o, &out)
+			return out, nil
+		case OpTypeReplaceBlock:
+			var out OpReplaceBlock
+			mapToCBOR(o, &out)
+			return out, nil
+		case OpTypeDeleteBlocks:
+			var out OpDeleteBlocks
+			mapToCBOR(o, &out)
+			return out, nil
+		default:
+			return nil, fmt.Errorf("unsupported op type %s", o)
+		}
+	default:
+		return nil, fmt.Errorf("invalid op type type %T", o)
+	}
 }
 
+// Supported op types.
 const (
-	maxTimestamp = 1<<48 - 1
-	maxIdx       = 1<<24 - 1
-	maxOrigin    = 1<<48 - 1
+	OpTypeSetKey       OpType = "SetKey"
+	OpTypeMoveBlock    OpType = "MoveBlock"
+	OpTypeMoveBlocks   OpType = "MoveBlocks"
+	OpTypeReplaceBlock OpType = "ReplaceBlock"
+	OpTypeDeleteBlocks OpType = "DeleteBlocks"
 )
 
-func newOpID(ts uint64, idx uint32, origin uint64) OpID {
-	if ts >= maxTimestamp {
-		panic("BUG: operation timestamp is too large")
-	}
-
-	if idx >= maxIdx {
-		panic("BUG: operation index is too large")
-	}
-
-	if origin >= maxOrigin {
-		panic("BUG: operation origin is too large")
-	}
-
-	return OpID{
-		Ts:     ts,
-		Origin: origin,
-		Idx:    idx,
-	}
+// Op a common interface implemented by all ops.
+type Op interface {
+	isOp()
 }
 
-func (o OpID) Compare(oo OpID) int {
-	if o.Ts < oo.Ts {
-		return -1
-	}
-
-	if o.Ts > oo.Ts {
-		return +1
-	}
-
-	if o.Idx < oo.Idx {
-		return -1
-	}
-
-	if o.Idx > oo.Idx {
-		return +1
-	}
-
-	return cmp.Compare(o.Origin, oo.Origin)
+// baseOp is the common attributes for all ops.
+type baseOp struct {
+	Type OpType `refmt:"type"`
 }
 
-func (op OpID) Encode() EncodedOpID {
-	var (
-		e       EncodedOpID
-		scratch [8]byte
-	)
+func (o baseOp) isOp() {}
 
-	binary.BigEndian.PutUint64(scratch[:], uint64(op.Ts))
-	copy(e[:6], scratch[2:])
-
-	binary.BigEndian.PutUint32(scratch[:], op.Idx)
-	copy(e[6:6+3], scratch[1:])
-
-	binary.BigEndian.PutUint64(scratch[:], op.Origin)
-	copy(e[9:], scratch[2:])
-
-	return e
+// OpSetKey represents the op to set a key in the document attributes.
+type OpSetKey struct {
+	baseOp
+	Key   string `refmt:"key"`
+	Value any    `refmt:"value"`
 }
 
-// EncodedOpID is a CRDT Op ID that is compactly encoded in the following way:
-// - 6 bytes (48 bits): timestamp. Enough precision to track Unix millisecond timestamps for thousands for years.
-// - 3 bytes (24 bits): index/offset of the operation within the same Change/Transaction.
-// - 6 bytes (48 bits): origin/replica/actor. Random 48-bit value of a replica that generated the operation.
-// The timestamp and index are big-endian, to support lexicographic ordering of the IDs.
-// This has some limitations:
-// 1. Maximum number of operations in a single change is 16777215.
-// 2. Same actor must not generate Changes/Transactions within the same millisecond.
-// 3. The clocks on the devices generating the operations must be roughly syncronized to avoid inter-device conflicts in timestamps.
-type EncodedOpID [15]byte
+// NewOpSetKey creates the corresponding op.
+func NewOpSetKey(key string, value any) OpMap {
+	switch value.(type) {
+	case string, int, bool:
+	// OK.
+	default:
+		panic(fmt.Sprintf("unsupported metadata value type: %T", value))
+	}
 
-func (e EncodedOpID) Decode() OpID {
-	var (
-		out     OpID
-		scratch [8]byte
-	)
+	op := OpSetKey{
+		baseOp: baseOp{
+			Type: OpTypeSetKey,
+		},
+		Key:   key,
+		Value: value,
+	}
 
-	copy(scratch[2:], e[:6])
-	scratch[0] = 0
-	scratch[1] = 0
-	out.Ts = binary.BigEndian.Uint64(scratch[:])
+	return cborToMap(op)
+}
 
-	copy(scratch[1:], e[6:6+3])
-	out.Idx = binary.BigEndian.Uint32(scratch[:5])
+// OpMoveBlocks represents the op to move a contiguous sequence of blocks under a parent block in a ref position.
+type OpMoveBlocks struct {
+	baseOp
+	Parent string   `refmt:"parent,omitempty"` // Empty parent means root block.
+	Blocks []string `refmt:"blocks"`           // Contiguous sequence of blocks to position under parent after ref position.
+	Ref    []uint64 `refmt:"ref,omitempty"`    // RGA CRDT Ref ID. Empty means start of the list.
+}
 
-	copy(scratch[2:], e[9:])
-	scratch[0] = 0
-	scratch[1] = 0
-	out.Origin = binary.BigEndian.Uint64(scratch[:])
+// NewOpMoveBlocks creates the corresponding op.
+func NewOpMoveBlocks(parent string, blocks []string, ref []uint64) OpMap {
+	op := OpMoveBlocks{
+		baseOp: baseOp{
+			Type: OpTypeMoveBlocks,
+		},
+		Parent: parent,
+		Blocks: blocks,
+		Ref:    ref,
+	}
 
-	return out
+	return cborToMap(op)
+}
+
+// OpReplaceBlock represents the op to replace the state of a given block.
+type OpReplaceBlock struct {
+	baseOp
+	Block Block `refmt:"block"`
+}
+
+// NewOpReplaceBlock creates the corresponding op.
+func NewOpReplaceBlock(state Block) OpMap {
+	op := OpReplaceBlock{
+		baseOp: baseOp{
+			Type: OpTypeReplaceBlock,
+		},
+		Block: state,
+	}
+
+	return cborToMap(op)
+}
+
+// OpDeleteBlocks represents the op to delete a set of blocks.
+type OpDeleteBlocks struct {
+	baseOp
+	Blocks []string `refmt:"blocks"`
+}
+
+// NewOpDeleteBlocks creates the corresponding op.
+func NewOpDeleteBlocks(blocks []string) OpMap {
+	op := OpDeleteBlocks{
+		baseOp: baseOp{
+			Type: OpTypeDeleteBlocks,
+		},
+		Blocks: blocks,
+	}
+
+	return cborToMap(op)
 }
 
 func init() {
@@ -244,6 +327,10 @@ func init() {
 				return nil, err
 			}
 
+			if err := verifyBlob(v.Signer, v, &v.Sig); err != nil {
+				return nil, err
+			}
+
 			return v, nil
 		},
 		indexChange,
@@ -253,7 +340,7 @@ func init() {
 func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 	// TODO(burdiyan): ensure there's only one change that brings an entity into life.
 
-	author := v.Author
+	author := v.Signer
 
 	switch {
 	case v.Genesis.Defined() && len(v.Deps) > 0 && v.Depth > 0:
@@ -288,46 +375,41 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 	var meta struct {
 		Title string `json:"title"`
 	}
-	for _, op := range v.Ops {
-		switch op.Type {
-		case OpSetMetadata:
-			for k, v := range op.Data {
-				vs, ok := v.(string)
-				if !ok {
-					continue
-				}
+	for op, err := range v.Ops() {
+		if err != nil {
+			return err
+		}
+		switch op := op.(type) {
+		case OpSetKey:
+			k, v := op.Key, op.Value
 
-				if meta.Title == "" && (k == "title" || k == "name" || k == "alias") {
-					meta.Title = vs
-				}
-
-				u, err := url.Parse(vs)
-				if err != nil {
-					continue
-				}
-
-				if u.Scheme != "ipfs" {
-					continue
-				}
-
-				c, err := cid.Decode(u.Host)
-				if err != nil {
-					continue
-				}
-
-				sb.AddBlobLink("metadata/"+k, c)
-				// TODO(hm24): index other relevant metadata for list response and so on.
+			vs, ok := v.(string)
+			if !ok {
+				continue
 			}
-		case OpReplaceBlock:
-			rawBlock, err := cbornode.DumpObject(op.Data)
+
+			// TODO(hm24): index other relevant metadata for list response and so on.
+			if meta.Title == "" && (k == "title" || k == "name" || k == "alias") {
+				meta.Title = vs
+			}
+
+			u, err := url.Parse(vs)
 			if err != nil {
-				return fmt.Errorf("bad data?: failed to encode block into cbor when indexing: %w", err)
+				continue
 			}
 
-			var blk Block
-			if err := cbornode.DecodeInto(rawBlock, &blk); err != nil {
-				return fmt.Errorf("bad data?: failed to decode cbor block: %w", err)
+			if u.Scheme != "ipfs" {
+				continue
 			}
+
+			c, err := cid.Decode(u.Host)
+			if err != nil {
+				continue
+			}
+
+			sb.AddBlobLink("metadata/"+k, c)
+		case OpReplaceBlock:
+			blk := op.Block
 
 			if err := indexURL(&sb, ictx.log, blk.ID, "doc/"+blk.Type, blk.Link); err != nil {
 				return err
@@ -350,19 +432,19 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 
 // Block is a block of text with annotations.
 type Block struct {
-	ID          string            `refmt:"id,omitempty"` // Omitempty when used in Documents.
-	Type        string            `refmt:"type,omitempty"`
-	Text        string            `refmt:"text,omitempty"`
-	Link        string            `refmt:"link,omitempty"`
-	Attributes  map[string]string `refmt:"attributes,omitempty"`
-	Annotations []Annotation      `refmt:"annotations,omitempty"`
+	ID          string         `mapstructure:"id,omitempty"` // Omitempty when used in Documents.
+	Type        string         `mapstructure:"type,omitempty"`
+	Text        string         `mapstructure:"text,omitempty"`
+	Link        string         `mapstructure:"link,omitempty"`
+	Attributes  map[string]any `mapstructure:",remain"`
+	Annotations []Annotation   `mapstructure:"annotations,omitempty"`
 }
 
 // Annotation is a range of text that has a type and attributes.
 type Annotation struct {
-	Type       string            `refmt:"type"`
-	Link       string            `refmt:"link,omitempty"`
-	Attributes map[string]string `refmt:"attributes,omitempty"`
-	Starts     []int32           `refmt:"starts,omitempty"`
-	Ends       []int32           `refmt:"ends,omitempty"`
+	Type       string         `mapstructure:"type"`
+	Link       string         `mapstructure:"link,omitempty"`
+	Attributes map[string]any `mapstructure:",remain"`
+	Starts     []int32        `mapstructure:"starts,omitempty"`
+	Ends       []int32        `mapstructure:"ends,omitempty"`
 }

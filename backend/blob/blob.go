@@ -2,7 +2,9 @@
 package blob
 
 import (
+	"seed/backend/core"
 	"seed/backend/util/cclock"
+	"slices"
 	"time"
 
 	cbornode "github.com/ipfs/go-ipld-cbor"
@@ -41,9 +43,9 @@ func ZeroUnixTime() time.Time {
 	return unixZero
 }
 
-// CBORToMap converts a CBOR object to a map.
+// cborToMap converts a CBOR object to a map.
 // TODO(burdiyan): This is a workaround. Should not exist.
-func CBORToMap(v any) map[string]any {
+func cborToMap(v any) map[string]any {
 	data, err := cbornode.DumpObject(v)
 	if err != nil {
 		panic(err)
@@ -57,9 +59,9 @@ func CBORToMap(v any) map[string]any {
 	return m
 }
 
-// MapToCBOR converts a map to a CBOR object.
+// mapToCBOR converts a map to a CBOR object.
 // TODO(burdiyan): This is a workaround. Should not exist.
-func MapToCBOR(data map[string]any, v any) {
+func mapToCBOR(data map[string]any, v any) {
 	rawData, err := cbornode.DumpObject(data)
 	if err != nil {
 		panic(err)
@@ -68,4 +70,49 @@ func MapToCBOR(data map[string]any, v any) {
 	if err := cbornode.DecodeInto(rawData, v); err != nil {
 		panic(err)
 	}
+}
+
+type baseBlob struct {
+	Type   blobType       `refmt:"type"`
+	Signer core.Principal `refmt:"signer"`
+	Sig    core.Signature `refmt:"sig"`
+	Ts     time.Time      `refmt:"ts"`
+}
+
+// signBlob and fill in the signature.
+func signBlob(kp core.KeyPair, v any, sig *core.Signature) error {
+	// Unlike some other projects that use a nil signature or omit the field entirely for signing,
+	// we fill the space for the signature with zeros.
+	// This leaves us room for optimizations to avoid double-serialization:
+	// We could replace the pattern of zeros with the resulting signature, instead of serializing the data again.
+	// TODO(burdiyan): no time to do this now. Maybe later.
+	*sig = make([]byte, kp.SignatureSize())
+
+	unsignedBytes, err := cbornode.DumpObject(v)
+	if err != nil {
+		return err
+	}
+
+	*sig, err = kp.Sign(unsignedBytes)
+	return err
+}
+
+// verifyBlob checks the signature of a blob.
+func verifyBlob(signer core.Principal, v any, sig *core.Signature) error {
+	sigCopy := slices.Clone(*sig)
+
+	*sig = make([]byte, signer.SignatureSize())
+
+	unsignedBytes, err := cbornode.DumpObject(v)
+	if err != nil {
+		return err
+	}
+
+	if err := signer.Verify(unsignedBytes, sigCopy); err != nil {
+		return err
+	}
+
+	*sig = sigCopy
+
+	return nil
 }

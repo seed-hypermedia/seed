@@ -5,9 +5,9 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"iter"
+	"math"
 	"seed/backend/blob"
 	"seed/backend/core"
 	"seed/backend/util/cclock"
@@ -22,39 +22,74 @@ import (
 )
 
 type opID struct {
-	Ts     int64
-	Origin string
-	Idx    int
+	Ts    int64
+	Idx   int32
+	Actor core.ActorID
 }
 
-func (o opID) String() string {
-	var out []byte
-	out = binary.BigEndian.AppendUint64(out, uint64(o.Ts))
-	out = binary.BigEndian.AppendUint32(out, uint32(o.Idx))
-	out = append(out, o.Origin...)
-
-	return hex.EncodeToString(out)
+func (o opID) isZero() bool {
+	return o.Ts == 0 && o.Idx == 0 && o.Actor == 0
 }
 
-func decodeOpID(s string) (opID, error) {
-	in, err := hex.DecodeString(s)
-	if err != nil {
-		return opID{}, err
+func encodeOpID(o opID) []uint64 {
+	if o.isZero() {
+		return nil
 	}
 
-	var out opID
-	out.Ts = int64(binary.BigEndian.Uint64(in[:8]))
-	out.Idx = int(binary.BigEndian.Uint32(in[8:12]))
-	out.Origin = string(in[12:])
+	if o.Actor == math.MaxUint64 && o.Ts == 0 {
+		return []uint64{uint64(o.Idx)} //nolint:gosec // We know this should not overflow.
+	}
 
-	return out, nil
+	return []uint64{
+		uint64(o.Ts),    //nolint:gosec // We know this should not overflow.
+		uint64(o.Idx),   //nolint:gosec // We know this should not overflow.
+		uint64(o.Actor), //nolint:gosec // We know this should not overflow.
+	}
 }
 
-func newOpID(ts int64, origin string, idx int) opID {
+func decodeOpID(s []uint64) (opID, error) {
+	if len(s) == 0 {
+		return opID{}, nil
+	}
+
+	if len(s) == 1 {
+		return opID{Ts: 0, Actor: math.MaxUint64, Idx: int32(s[0])}, nil //nolint:gosec // We know this should not overflow.
+	}
+
+	if len(s) != 3 {
+		return opID{}, fmt.Errorf("invalid opID: %v", s)
+	}
+
 	return opID{
-		Ts:     ts,
-		Origin: origin,
-		Idx:    idx,
+		Ts:    int64(s[0]), //nolint:gosec // We know this should not overflow.
+		Idx:   int32(s[1]), //nolint:gosec // We know this should not overflow.
+		Actor: core.ActorID(s[2]),
+	}, nil
+}
+
+const (
+	maxTs  = 1<<48 - 1
+	maxIdx = 1<<24 - 1
+)
+
+func newOpID(ts int64, actor core.ActorID, idx int) opID {
+	if idx < 0 {
+		panic("BUG: negative idx")
+	}
+
+	// We use max int64 for some work arounds.
+	if ts != math.MaxInt64 && ts >= maxTs {
+		panic(fmt.Errorf("BUG: ts %d too big", ts))
+	}
+
+	if idx > maxIdx {
+		panic("BUG: idx too big")
+	}
+
+	return opID{
+		Ts:    ts,
+		Idx:   int32(idx),
+		Actor: actor,
 	}
 }
 
@@ -75,59 +110,18 @@ func (o opID) Compare(oo opID) int {
 		return +1
 	}
 
-	return cmp.Compare(o.Origin, oo.Origin)
+	return cmp.Compare(o.Actor, oo.Actor)
 }
-
-func (op opID) Encode() EncodedOpID {
-	const (
-		maxTimestamp = 1<<48 - 1
-		maxIdx       = 1<<24 - 1
-	)
-
-	if op.Ts >= maxTimestamp {
-		panic("BUG: operation timestamp is too large")
-	}
-
-	if op.Idx >= maxIdx {
-		panic("BUG: operation index is too large")
-	}
-
-	var e EncodedOpID
-
-	e[0] = byte(op.Ts >> 40)
-	e[1] = byte(op.Ts >> 32)
-	e[2] = byte(op.Ts >> 24)
-	e[3] = byte(op.Ts >> 16)
-	e[4] = byte(op.Ts >> 8)
-	e[5] = byte(op.Ts)
-
-	e[6] = byte(op.Idx >> 16)
-	e[7] = byte(op.Idx >> 8)
-	e[8] = byte(op.Idx)
-
-	copy(e[9:], op.Origin)
-	return e
-}
-
-// EncodedOpID is a CRDT Op ID that is compactly encoded in the following way:
-// - 6 bytes (48 bits): timestamp. Enough precision to track Unix millisecond timestamps for thousands for years.
-// - 3 bytes (24 bits): index/offset of the operation within the same Change/Transaction.
-// - 6 bytes (48 bits): origin/replica/actor. Random 48-bit value of a replica that generated the operation.
-// The timestamp and index are big-endian, to support lexicographic ordering of the IDs.
-// This has some limitations:
-// 1. Maximum number of operations in a single change is 16777215.
-// 2. Same actor must not generate Changes/Transactions within the same millisecond.
-// 3. The clocks on the devices generating the operations must be roughly syncronized to avoid inter-device conflicts in timestamps.
-type EncodedOpID [15]byte
 
 type docCRDT struct {
-	id      blob.IRI
-	cids    []cid.Cid
-	changes []*blob.Change
-	deps    [][]int // deps for each change.
-	rdeps   [][]int // reverse deps for each change.
-	applied map[cid.Cid]int
-	heads   map[cid.Cid]struct{}
+	id       blob.IRI
+	cids     []cid.Cid
+	changes  []*blob.Change
+	deps     [][]int // deps for each change.
+	rdeps    [][]int // reverse deps for each change.
+	applied  map[cid.Cid]int
+	heads    map[cid.Cid]struct{}
+	getActor func(core.Principal) (core.ActorID, bool) // TODO(burdiyan): ugly workaround.
 
 	tree *treeOpSet
 
@@ -172,65 +166,6 @@ func (e *docCRDT) GetMetadata() map[string]string {
 // This must be read only. Not safe for concurrency.
 func (e *docCRDT) Heads() map[cid.Cid]struct{} {
 	return e.heads
-}
-
-// Checkout returns an entity with the state filtered up to the given heads.
-// If no heads are given it returns the same instance of the Entity.
-// If heads given are the same as the current heads, the same instance is returned as well.
-func (e *docCRDT) Checkout(heads []cid.Cid) (*docCRDT, error) {
-	if len(heads) == 0 {
-		return e, nil
-	}
-
-	{
-		curVer := NewVersion(maps.Keys(e.heads)...)
-		wantVer := NewVersion(heads...)
-
-		if curVer == wantVer {
-			return e, nil
-		}
-	}
-
-	// We walk the DAG of changes backwards starting from the heads.
-	// And then we apply those changes to the cloned entity.
-
-	visited := make(map[int]struct{}, len(e.cids))
-	queue := make([]int, 0, len(e.cids))
-	chain := make([]int, 0, len(e.cids))
-
-	for _, h := range heads {
-		hh, ok := e.applied[h]
-		if !ok {
-			return nil, fmt.Errorf("head '%s' not found", h)
-		}
-
-		queue = append(queue, hh)
-	}
-
-	for len(queue) > 0 {
-		c := queue[0]
-		queue = queue[1:]
-		if _, ok := visited[c]; ok {
-			continue
-		}
-		visited[c] = struct{}{}
-		chain = append(chain, c)
-		for _, dep := range e.deps[c] {
-			queue = append(queue, dep)
-		}
-	}
-	slices.Reverse(chain)
-
-	clock := cclock.New()
-	entity := newCRDT(e.id, clock)
-
-	for _, c := range chain {
-		if err := entity.ApplyChange(e.cids[c], e.changes[c]); err != nil {
-			return nil, err
-		}
-	}
-
-	return entity, nil
 }
 
 type Version string
@@ -287,10 +222,25 @@ func (e *docCRDT) BFTDeps(start []cid.Cid) (iter.Seq2[int, blob.ChangeRecord], e
 	enqueueNodes := func(nodes []int) {
 		scratch = append(scratch[:0], nodes...)
 		slices.SortFunc(scratch, func(i, j int) int {
-			if e.changes[i].Ts == e.changes[j].Ts {
-				return cmp.Compare(e.cids[i].KeyString(), e.cids[j].KeyString())
+			a, b := e.changes[i], e.changes[j]
+
+			if a.Ts.Before(b.Ts) {
+				return -1
 			}
-			return cmp.Compare(e.changes[i].Ts.UnixNano(), e.changes[j].Ts.UnixNano())
+
+			if a.Ts.After(b.Ts) {
+				return +1
+			}
+
+			if a.Depth < b.Depth {
+				return -1
+			}
+
+			if a.Depth > b.Depth {
+				return +1
+			}
+
+			return cmp.Compare(e.cids[i].KeyString(), e.cids[j].KeyString())
 		})
 		queue = append(queue, scratch...)
 	}
@@ -332,9 +282,20 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 		return nil
 	}
 
+	if len(e.applied) == 0 {
+		if ch.Genesis.Defined() || ch.Depth != 0 || len(ch.Deps) != 0 {
+			return fmt.Errorf("first change must be a valid genesis")
+		}
+	} else {
+		genesis := e.cids[0]
+		if !genesis.Equals(ch.Genesis) {
+			return fmt.Errorf("change '%s' has a different genesis: expected=%s actual=%s", c, genesis, ch.Genesis)
+		}
+	}
+
 	var actor string
 	{
-		au := ch.Author.UnsafeString()
+		au := ch.Signer.UnsafeString()
 		a, ok := e.actorsIntern[au]
 		if !ok {
 			e.actorsIntern[au] = au
@@ -369,53 +330,74 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 		return err
 	}
 
-	ts := ch.Ts.UnixMicro()
-	origin := originFromCID(c)
+	ts := ch.Ts.UnixMilli()
 
-	for idx, op := range ch.Ops {
-		opid := newOpID(ts, origin, idx)
-		switch op.Type {
-		case blob.OpSetMetadata:
-			for k, v := range op.Data {
-				reg := e.stateMetadata[k]
-				if reg == nil {
-					reg = newMVReg[string]()
-					e.stateMetadata[k] = reg
-				}
-				reg.Set(opid, v.(string))
+	actorID, ok := e.getActor(ch.Signer)
+	if !ok {
+		panic("BUG: actor wasn't derived when applying change")
+	}
+
+	idx := -1
+	for op, err := range ch.Ops() {
+		idx++
+		if err != nil {
+			return err
+		}
+
+		opid := newOpID(ts, actorID, idx)
+		switch op := op.(type) {
+		case blob.OpSetKey:
+			reg := e.stateMetadata[op.Key]
+			if reg == nil {
+				reg = newMVReg[string]()
+				e.stateMetadata[op.Key] = reg
 			}
+			reg.Set(opid, op.Value.(string))
 		case blob.OpReplaceBlock:
-			var blk blob.Block
-			blob.MapToCBOR(op.Data, &blk)
-
+			blk := op.Block
 			reg := e.stateBlocks[blk.ID]
 			if reg == nil {
 				reg = newMVReg[blob.Block]()
 				e.stateBlocks[blk.ID] = reg
 			}
 			reg.Set(opid, blk)
-		case blob.OpMoveBlock:
-			block, ok := op.Data["block"].(string)
-			if !ok || block == "" {
-				return fmt.Errorf("missing block in move op")
+		case blob.OpMoveBlocks:
+			if len(op.Blocks) == 0 {
+				return fmt.Errorf("missing blocks in move op")
 			}
 
-			parent, _ := op.Data["parent"].(string)
-
-			leftOriginRaw, _ := op.Data["leftOrigin"].(string)
-			refID, err := decodeOpID(leftOriginRaw)
+			refID, err := decodeOpID(op.Ref)
 			if err != nil {
 				return fmt.Errorf("failed to decode move left origin op id: %w", err)
 			}
 			// TODO(burdiyan): Get rid of this self trick.
-			if refID.Ts == 0 && refID.Origin == "self" {
+			if refID.Ts == 0 && refID.Actor == math.MaxUint64 {
 				refID.Ts = ts
-				refID.Origin = origin
+				refID.Actor = actorID
 			}
 
-			if err := e.tree.Integrate(opid, parent, block, refID); err != nil {
-				return err
+			var lastOp opID
+			for i, blk := range op.Blocks {
+				idx += i
+				opid := newOpID(ts, actorID, idx)
+				if i > 0 {
+					refID = lastOp
+				}
+				if err := e.tree.Integrate(opid, op.Parent, blk, refID); err != nil {
+					return err
+				}
+				lastOp = opid
 			}
+		case blob.OpDeleteBlocks:
+			for i, blk := range op.Blocks {
+				idx += i
+				opid := newOpID(ts, actorID, idx)
+				if err := e.tree.Integrate(opid, TrashNodeID, blk, opID{}); err != nil {
+					return err
+				}
+			}
+		default:
+			return fmt.Errorf("BUG?: unhandled op type: %T", op)
 		}
 	}
 
@@ -553,7 +535,7 @@ func addUnique(in []int, v int) []int {
 }
 
 // prepareChange to be applied later.
-func (e *docCRDT) prepareChange(ts time.Time, signer core.KeyPair, ops []blob.Op) (hb blob.Encoded[*blob.Change], err error) {
+func (e *docCRDT) prepareChange(ts time.Time, signer core.KeyPair, body blob.ChangeBody) (hb blob.Encoded[*blob.Change], err error) {
 	var genesis cid.Cid
 	if len(e.cids) > 0 {
 		genesis = e.cids[0]
@@ -571,8 +553,9 @@ func (e *docCRDT) prepareChange(ts time.Time, signer core.KeyPair, ops []blob.Op
 		}
 		depth++
 	}
+	slices.SortFunc(deps, func(a, b cid.Cid) int { return strings.Compare(a.KeyString(), b.KeyString()) })
 
-	hb, err = blob.NewChange(signer, genesis, deps, depth, ops, ts)
+	hb, err = blob.NewChange(signer, genesis, deps, depth, body, ts)
 	if err != nil {
 		return hb, err
 	}

@@ -49,7 +49,7 @@ const ProtocolSupportKey = "seed-support"
 
 const (
 	protocolPrefix  = "/hypermedia/"
-	protocolVersion = "0.7.0"
+	protocolVersion = "0.8.0"
 )
 
 var userAgent = "seed/<dev>"
@@ -382,7 +382,7 @@ func (n *Node) Start(ctx context.Context) (err error) {
 					if firstIteration {
 						firstIteration = false
 						// Not all peers at the same time
-						offset = time.Now().Add(time.Duration(rand.IntN(60*3)) * time.Second) //nolint:gosec, We don't need a secure random generator here.
+						offset = time.Now().Add(time.Duration(rand.IntN(60*3)) * time.Second) //nolint:gosec // We don't need a secure random generator here.
 					}
 					localPeers[pid] = offset
 					return nil

@@ -359,7 +359,7 @@ func (srv *Server) DeleteDocument(ctx context.Context, in *documents.DeleteDocum
 }
 
 func (srv *Server) ensureProfileGenesis(ctx context.Context, kp core.KeyPair) error {
-	ebc, err := blob.NewChange(kp, cid.Undef, nil, 0, nil, blob.ZeroUnixTime())
+	ebc, err := blob.NewChange(kp, cid.Undef, nil, 0, blob.ChangeBody{}, blob.ZeroUnixTime())
 	if err != nil {
 		return err
 	}
@@ -480,7 +480,7 @@ func (srv *Server) checkWriteAccess(ctx context.Context, account core.Principal,
 		return err
 	}
 
-	if !cpb.Space.Equal(account) {
+	if !cpb.GetSpace().Equal(account) {
 		return status.Errorf(codes.PermissionDenied, "capability %s is not from account %s", capc, account)
 	}
 
@@ -488,7 +488,7 @@ func (srv *Server) checkWriteAccess(ctx context.Context, account core.Principal,
 		return status.Errorf(codes.PermissionDenied, "capability %s is not delegated to key %s", capc, kp.Principal())
 	}
 
-	grantedIRI, err := makeIRI(cpb.Space, cpb.Path)
+	grantedIRI, err := makeIRI(cpb.GetSpace(), cpb.Path)
 	if err != nil {
 		return err
 	}
