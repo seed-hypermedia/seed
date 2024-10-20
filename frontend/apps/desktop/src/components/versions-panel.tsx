@@ -40,6 +40,7 @@ export function VersionsPanel({
               onPress={() => {
                 route.id
                   ? navigate({
+                      ...route,
                       key: 'document',
                       id: {...route.id, version: change.id},
                     })
