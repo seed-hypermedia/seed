@@ -29,10 +29,21 @@ jobs:
         run: yarn install
       - name: Run tests
         run: yarn test
-
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+      - run: go test --count 1 ./backend/...
+      # Run tests again with the race-detector.
+      # Using the same job to reuse the build cache.
+      - run: go test --count 1 -race ./backend/...
   generate-docker-images:
     runs-on: ubuntu-latest
-    needs: [frontend-tests]
+    needs: [frontend-tests, backend-tests]
     steps:
       - name: Force Install GIT latest
         run: |
