@@ -56,7 +56,7 @@ type router interface {
 // To actually enable relay you also need to pass EnableAutoRelay, and optionally enable HolePunching.
 // The returning node won't be listening on the network by default, so users have to start listening manually,
 // using the Listen() method on the underlying P2P network.
-func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peerstore, protocolID protocol.ID, delegatedDHTURL string, log *zap.Logger, opts ...libp2p.Option) (nn *Libp2p, err error) {
+func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peerstore, protocolID protocol.ID, delegatedDHTURL string, noDHT bool, log *zap.Logger, opts ...libp2p.Option) (nn *Libp2p, err error) {
 	var clean cleanup.Stack
 
 	defer func() {
@@ -122,6 +122,10 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peers
 			//} else {
 			//ctx, cancel := context.WithCancel(context.Background())
 			//clean.AddFunc(cancel)
+			if noDHT {
+				rt = dl
+				return rt, nil
+			}
 			fullDHT, err := newDHT(context.Background(), h, ds, clean)
 			if err != nil {
 				return nil, err
@@ -139,8 +143,6 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peers
 				}
 				log.Info("Closing Full DHT Mode", zap.Int("Number of non-seed peers closed", closedPeers))
 			}()
-			//
-			//}
 
 			return rt, nil
 		}),

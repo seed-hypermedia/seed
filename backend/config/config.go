@@ -245,6 +245,7 @@ type P2P struct {
 	DelegatedDHTURL         string
 	ForceReachabilityPublic bool
 	NoPeerSharing           bool
+	NoDHT                   bool
 	NoPrivateIps            bool
 	NoMetrics               bool
 	RelayBackoff            time.Duration
@@ -263,6 +264,7 @@ func (p2p *P2P) BindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&p2p.TestnetName, "p2p.testnet-name", p2p.TestnetName, "Name of the testnet to use (empty for mainnet)")
 	fs.IntVar(&p2p.Port, "p2p.port", p2p.Port, "Port to listen for incoming P2P connections")
 	fs.BoolVar(&p2p.NoRelay, "p2p.no-relay", p2p.NoRelay, "Disable libp2p circuit relay")
+	fs.BoolVar(&p2p.NoDHT, "p2p.no-dht", p2p.NoDHT, "Disable dht")
 	fs.Func("p2p.bootstrap-peers", "Comma-separated multiaddrs for bootstrap nodes (default see `config/config.go`)", func(in string) error {
 		addrs := strings.Split(in, ",")
 		out := make([]multiaddr.Multiaddr, len(addrs))

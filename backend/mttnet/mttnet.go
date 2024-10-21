@@ -368,6 +368,7 @@ func (n *Node) Start(ctx context.Context) (err error) {
 					if ctx.Err() == nil {
 						return err
 					}
+					return nil
 				}
 				if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
 					pidStr := stmt.ColumnText(2)
@@ -599,7 +600,7 @@ func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID, lo
 		opts = append(opts, libp2p.BandwidthReporter(m))
 	}
 
-	node, err := ipfs.NewLibp2pNode(device, ds, ps, protocolID, cfg.DelegatedDHTURL, log, opts...)
+	node, err := ipfs.NewLibp2pNode(device, ds, ps, protocolID, cfg.DelegatedDHTURL, cfg.NoDHT, log, opts...)
 	if err != nil {
 		return nil, nil, err
 	}
