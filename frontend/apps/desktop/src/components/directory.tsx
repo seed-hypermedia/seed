@@ -159,14 +159,15 @@ function DraftItem({id}: {id: UnpackedHypermediaId}) {
             </SizableText>
           </XStack>
           <PathButton
+            docId={id}
             isDraft
             path={
               !!draft.data?.metadata?.name &&
               id.path &&
               id.path.at(-1)?.startsWith('_')
-                ? `/${pathNameify(draft.data.metadata.name)}`
+                ? `${pathNameify(draft.data.metadata.name)}`
                 : id.path
-                ? `/${id.path.at(-1)}`
+                ? `${id.path.at(-1)}`
                 : ''
             }
           />
