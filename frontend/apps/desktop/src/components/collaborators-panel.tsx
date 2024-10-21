@@ -21,11 +21,11 @@ import {
 } from '@shm/shared'
 import {
   Button,
+  HMIcon,
   ListItem,
   RadioButtons,
   Separator,
   SizableText,
-  Thumbnail,
   UIAvatar,
   XGroup,
   XStack,
@@ -265,7 +265,7 @@ function CollaboratorItem({
       paddingHorizontal="$3"
       paddingVertical={0}
       icon={
-        <Thumbnail
+        <HMIcon
           metadata={entity.data?.document?.metadata}
           id={collaboratorId}
           size={24}
@@ -495,7 +495,7 @@ export const TagInputItem = forwardRef<HTMLDivElement, TagInputItemProps>(
         <XStack gap="$2" flex={1} jc="flex-start">
           <Ariakit.SelectItemCheck />
           {entity.data?.document?.metadata ? (
-            <Thumbnail
+            <HMIcon
               size={20}
               metadata={entity.data?.document?.metadata}
               id={props.member?.id}

@@ -11,7 +11,7 @@ import {
   EntityComponentProps,
   InlineEmbedButton,
 } from "@shm/ui/src/document-content";
-import {Thumbnail} from "@shm/ui/src/thumbnail";
+import {HMIcon} from "@shm/ui/src/hm-icon";
 import {Text} from "@tamagui/core";
 import {YStack} from "@tamagui/stacks";
 import {useMemo, useState} from "react";
@@ -56,16 +56,12 @@ export function EmbedDocument(props: EntityComponentProps) {
   }
 }
 
-export function ThumbnailComponent({
-  accountId,
-}: {
-  accountId?: string | undefined;
-}) {
+export function HMIconComponent({accountId}: {accountId?: string | undefined}) {
   const id = accountId ? hmId("d", accountId) : undefined;
   const entity = useEntity(id);
   if (!id) return null;
   return (
-    <Thumbnail size={20} id={id} metadata={entity.data?.document?.metadata} />
+    <HMIcon size={20} id={id} metadata={entity.data?.document?.metadata} />
   );
 }
 
@@ -111,7 +107,7 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
         title={getDocumentTitle(doc.data?.document)}
         textContent={textContent}
         editors={doc.data?.document?.authors || []}
-        ThumbnailComponent={ThumbnailComponent}
+        IconComponent={HMIconComponent}
         date={doc.data?.document?.updateTime}
       />
     </EmbedWrapper>

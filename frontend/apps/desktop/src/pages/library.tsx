@@ -29,14 +29,14 @@ import {
   Container,
   Dialog,
   DialogContent,
+  HMIcon,
   Input,
-  LinkThumbnail,
+  LinkIcon,
   Popover,
   Separator,
   SizableText,
   SizeTokens,
   Text,
-  Thumbnail,
   toast,
   usePopoverState,
   XStack,
@@ -815,9 +815,9 @@ function LibraryListItem({
     [entry.authors],
   )
 
-  const thumbnail =
-    entry.id.path?.length == 0 || entry.document?.metadata.thumbnail ? (
-      <Thumbnail
+  const icon =
+    entry.id.path?.length == 0 || entry.document?.metadata.icon ? (
+      <HMIcon
         size={28}
         id={entry.id}
         metadata={entry.document?.metadata || entry.draft?.metadata}
@@ -869,10 +869,10 @@ function LibraryListItem({
               </Checkbox>
             )}
 
-            {thumbnail}
+            {icon}
           </XStack>
         ) : (
-          thumbnail
+          icon
         )
       }
     >
@@ -946,7 +946,7 @@ function LibraryListItem({
               marginLeft={-8}
               animation="fast"
             >
-              <LinkThumbnail
+              <LinkIcon
                 key={author.id.id}
                 id={author.id}
                 metadata={author.metadata}

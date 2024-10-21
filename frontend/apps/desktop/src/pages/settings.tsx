@@ -1,6 +1,6 @@
 import {useIPC, useQueryInvalidator} from '@/app-context'
-import {ThumbnailForm} from '@/components/avatar-form'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
+import {IconForm} from '@/components/icon-form'
 import appError from '@/errors'
 import {useAutoUpdatePreference} from '@/models/app-settings'
 import {
@@ -49,6 +49,7 @@ import {
   Field,
   H3,
   Heading,
+  HMIcon,
   InfoListHeader,
   InfoListItem,
   Input,
@@ -67,7 +68,6 @@ import {
   TabsContentProps,
   TabsProps,
   TextArea,
-  Thumbnail,
   toast,
   Tooltip,
   View,
@@ -309,7 +309,7 @@ export function ProfileForm({
     <>
       <XStack gap="$4">
         <YStack flex={0} alignItems="center" flexGrow={0}>
-          <ThumbnailForm url={getFileUrl(profile?.thumbnail)} />
+          <IconForm url={getFileUrl(profile?.icon)} />
         </YStack>
         <YStack flex={1} space>
           <YStack>
@@ -431,13 +431,13 @@ function AccountKeys() {
         <ScrollView>
           <XStack marginBottom="$4" gap="$4">
             {selectedAccountId ? (
-              <Thumbnail
+              <HMIcon
                 id={selectedAccountId}
                 metadata={profile?.document?.metadata}
                 size={80}
               />
             ) : null}
-            <YStack f={1} gap="$3">
+            <YStack f={1} gap="$3" marginTop="$2">
               <Field id="username" label="Profile name">
                 <Input
                   borderColor="$colorTransparent"
@@ -457,7 +457,7 @@ function AccountKeys() {
             </YStack>
           </XStack>
           {mnemonics ? (
-            <YStack gap="$2">
+            <YStack gap="$2" marginBottom="$4">
               <XStack gap="$3">
                 <Field label="Secret Words" id="words">
                   <TextArea
@@ -538,7 +538,14 @@ function AccountKeys() {
                           <AlertDialog.Action asChild>
                             <Button
                               theme="red"
-                              onPress={handleDeleteCurrentAccount}
+                              onPress={() =>
+                                deleteWords
+                                  .mutateAsync(selectedAccount)
+                                  .then(() => {
+                                    toast.success('Words deleted!')
+                                    invalidate('trpc.secureStorage.get')
+                                  })
+                              }
                             >
                               Delete Permanently
                             </Button>
@@ -636,11 +643,7 @@ function KeyItem({
   return (
     <ListItem
       icon={
-        <Thumbnail
-          id={id}
-          metadata={entity.data?.document?.metadata}
-          size={24}
-        />
+        <HMIcon id={id} metadata={entity.data?.document?.metadata} size={24} />
       }
       title={entity.data?.document?.metadata.name || item}
       subTitle={item.substring(item.length - 8)}

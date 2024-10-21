@@ -1,5 +1,5 @@
 import {AccessoryContainer} from '@/components/accessory-sidebar'
-import {EntityLinkThumbnail} from '@/components/account-link-thumbnail'
+import {EntityLinkIcon} from '@/components/account-link-icon'
 import {useAccount_deprecated} from '@/models/accounts'
 import {useComment} from '@/models/comments'
 import {useEntityMentions} from '@/models/content-graph'
@@ -80,7 +80,7 @@ function PublicationCitationItem({mention}: {mention: Mention}) {
         }
       }}
       avatar={
-        <EntityLinkThumbnail accountId={doc.data?.document?.owner} size={24} />
+        <EntityLinkIcon accountId={doc.data?.document?.owner} size={24} />
       }
     />
   )
@@ -127,7 +127,7 @@ function CommentCitationItem({mention}: {mention: Mention}) {
       }}
     >
       <XStack gap="$2" ai="center">
-        <EntityLinkThumbnail accountId={comment?.author} size={24} />
+        <EntityLinkIcon accountId={comment?.author} size={24} />
         <SizableText size="$2" fontWeight="600">
           {account?.profile?.alias || '...'}
         </SizableText>

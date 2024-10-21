@@ -11,7 +11,7 @@ import {
   getAccountName,
   hmId,
 } from '@shm/shared'
-import {Button, Thumbnail, Version} from '@shm/ui'
+import {Button, HMIcon, Version} from '@shm/ui'
 import {SizableText, XStack, YStack} from 'tamagui'
 import {AccessoryContainer} from './accessory-sidebar'
 
@@ -58,7 +58,7 @@ function ChangeItem({
   isActive: boolean
   isLast: boolean
 }) {
-  const thumbnailSize = 20
+  const iconSize = 20
   const authorEntity = useEntity(hmId('d', change.author))
   return (
     <Button
@@ -103,16 +103,16 @@ function ChangeItem({
       >
         <Version size={16} color="white" />
       </XStack>
-      <Thumbnail
+      <HMIcon
         flexGrow={0}
         flexShrink={0}
-        size={thumbnailSize}
+        size={iconSize}
         id={authorEntity.data?.id}
         metadata={authorEntity.data?.document?.metadata}
       />
       <YStack f={1}>
         <XStack
-          h={thumbnailSize}
+          h={iconSize}
           ai="center"
           gap="$2"
           overflow="hidden"

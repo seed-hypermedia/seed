@@ -20,8 +20,8 @@ import {
   BlocksContent,
   Button,
   CommentGroup,
+  HMIcon,
   SelectDropdown,
-  Thumbnail,
   Tooltip,
   useStream,
   View,
@@ -327,7 +327,7 @@ function SelectAccountDropdown({
       label: getDocumentTitle(acct.document),
       value: acct.id.uid,
       icon: (
-        <Thumbnail size={20} id={acct.id} metadata={acct.document?.metadata} />
+        <HMIcon size={20} id={acct.id} metadata={acct.document?.metadata} />
       ),
     }
   })

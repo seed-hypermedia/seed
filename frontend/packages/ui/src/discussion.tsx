@@ -13,8 +13,8 @@ import {ChevronDown, ChevronRight} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import {ReactNode, useState} from "react";
+import {HMIcon} from "./hm-icon";
 import {ReplyArrow} from "./icons";
-import {Thumbnail} from "./thumbnail";
 import {Tooltip} from "./tooltip";
 
 const Stack = View;
@@ -167,7 +167,7 @@ function Comment({
             borderRadius={100}
           />
           {authorId && (
-            <Thumbnail
+            <HMIcon
               zi="$zIndex.2"
               id={authorId}
               metadata={authorMetadata}

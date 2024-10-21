@@ -11,7 +11,7 @@ import {Pencil} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import {AccountsMetadata, FacePile} from "./face-pile";
-import {Thumbnail} from "./thumbnail";
+import {HMIcon} from "./hm-icon";
 import {itemHoverBgColor} from "./ui-constants";
 
 // TODO: update types
@@ -57,8 +57,8 @@ export function DirectoryItem({
       {...linkProps}
       h={60}
       icon={
-        entry.metadata.thumbnail ? (
-          <Thumbnail size={28} id={entry.id} metadata={entry.metadata} />
+        entry.metadata.icon ? (
+          <HMIcon size={28} id={entry.id} metadata={entry.metadata} />
         ) : undefined
       }
     >

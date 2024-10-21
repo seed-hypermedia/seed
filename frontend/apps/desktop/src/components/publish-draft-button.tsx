@@ -20,11 +20,11 @@ import {
 import {
   Button,
   ErrorToastDecoration,
+  HMIcon,
   Hostname,
   SizableText,
   Spinner,
   SuccessToastDecoration,
-  Thumbnail,
   toast,
   Tooltip,
   useStream,
@@ -187,7 +187,7 @@ export default function PublishDraftButton() {
               // opacity={hassigningKeySelected ? 1 : 0.3}
               icon={
                 signingAccount ? (
-                  <Thumbnail
+                  <HMIcon
                     id={signingAccount.id}
                     metadata={signingAccount.document?.metadata}
                     size={20}
@@ -209,7 +209,7 @@ export default function PublishDraftButton() {
                     key: acc.data.id.uid,
                     label: acc.data.document?.metadata.name || acc.data?.id.uid,
                     icon: (
-                      <Thumbnail
+                      <HMIcon
                         size={20}
                         id={acc.data.id}
                         metadata={acc.data.document?.metadata}

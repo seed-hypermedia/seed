@@ -2,7 +2,7 @@ import {HMMetadata, UnpackedHypermediaId} from "@shm/shared";
 import {Text} from "@tamagui/core";
 import {XStack} from "@tamagui/stacks";
 import {useMemo} from "react";
-import {LinkThumbnail} from "./thumbnail";
+import {HMIcon} from "./hm-icon";
 import {itemHoverBgColor} from "./ui-constants";
 
 export type AccountsMetadata = {
@@ -45,7 +45,7 @@ export function FacePile({
             marginLeft={-8}
             animation="fast"
           >
-            <LinkThumbnail
+            <HMIcon
               key={authorInfo.id.uid}
               id={authorInfo.id}
               metadata={authorInfo.metadata}

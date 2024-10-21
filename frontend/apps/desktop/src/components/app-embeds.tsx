@@ -16,9 +16,9 @@ import {
   ContentEmbed,
   DocumentCardView,
   EntityComponentProps,
+  HMIcon,
   InlineEmbedButton,
   SizableText,
-  Thumbnail,
   UIAvatar,
   XStack,
   YStack,
@@ -276,7 +276,7 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
         title={getDocumentTitle(doc.data?.document)}
         textContent={textContent}
         editors={doc.data?.document?.authors || []}
-        ThumbnailComponent={ThumbnailComponent}
+        IconComponent={IconComponent}
         date={doc.data?.document?.updateTime}
       />
     </EmbedWrapper>
@@ -357,13 +357,11 @@ export function EmbedComment(props: EntityComponentProps) {
   )
 }
 
-function ThumbnailComponent({accountId}: {accountId?: string}) {
+function IconComponent({accountId}: {accountId?: string}) {
   const id = accountId ? hmId('d', accountId) : undefined
   const entity = useSubscribedEntity(id)
   if (!id) return null
-  return (
-    <Thumbnail id={id} metadata={entity.data?.document?.metadata} size={28} />
-  )
+  return <HMIcon id={id} metadata={entity.data?.document?.metadata} size={28} />
 }
 
 export function EmbedInline(props: UnpackedHypermediaId) {
