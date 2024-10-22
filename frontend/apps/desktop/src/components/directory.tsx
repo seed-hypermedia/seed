@@ -2,7 +2,7 @@ import {ImportButton} from '@/components/import-doc-button'
 import {useMyCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useDraftList, useListDirectory} from '@/models/documents'
-import {useEntities} from '@/models/entities'
+import {useEntities, useSubscribedEntity} from '@/models/entities'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {
@@ -30,6 +30,7 @@ import {CopyReferenceButton} from './titlebar-common'
 
 export function Directory({docId}: {docId: UnpackedHypermediaId}) {
   const dir = useListDirectory(docId)
+  useSubscribedEntity(docId, true)
   const backendDrafts = useDraftList()
 
   const {drafts, directory} = useMemo(() => {

@@ -234,26 +234,28 @@ export function useEntities(
 
 export function useSubscribedEntity(
   id: UnpackedHypermediaId | null | undefined,
+  recursive?: boolean,
 ) {
-  return useSubscribedEntities([id])[0]
+  return useSubscribedEntities([{id, recursive}])[0]
 }
 
 const entitySubscriptions: Record<string, () => void> = {}
 const entitySubscriptionCounts: Record<string, number> = {}
 
 export function useSubscribedEntities(
-  ids: (UnpackedHypermediaId | null | undefined)[],
+  subs: {id: UnpackedHypermediaId | null | undefined; recursive?: boolean}[],
 ) {
-  const entities = useEntities(ids)
+  const entities = useEntities(subs.map((sub) => sub.id))
   const invalidate = useQueryInvalidator()
   const grpcClient = useGRPCClient()
   useEffect(() => {
-    const idKeys = ids.map((id) => {
+    const idKeys = subs.map(({id, recursive}) => {
       if (!id) return null
-      return packHmId(id)
+      return packHmId(id) + (recursive ? '-recursive' : '')
     })
     idKeys.forEach((key, index) => {
-      const id = ids[index]
+      const sub = subs[index]
+      const {id, recursive} = sub
       const entity = entities[index]
       const loadedVersion = entity.data?.document?.version
       if (!key || !id) return
@@ -272,12 +274,15 @@ export function useSubscribedEntities(
           .discoverEntity({
             account: id.uid,
             path: hmIdPathToEntityQueryPath(id.path),
+            recursive,
           })
           .then((result) => {
             console.log('[sync] discovery completed', result)
             // discovery completed. result.version is the new version
-            if (result.version === loadedVersion) discoveryComplete = true
+            if (result.version === loadedVersion && !recursive)
+              discoveryComplete = true
             invalidate([queryKeys.ENTITY, id.id])
+            invalidate([queryKeys.DOC_LIST_DIRECTORY, id.uid])
           })
           .catch((e) => {
             console.log('[sync] discovery error', e)
@@ -315,7 +320,7 @@ export function useSubscribedEntities(
       })
     }
   }, [
-    ids, // because ids are expected to be volatile, this effect will probably run every time
+    subs, // because subs/ids are expected to be volatile, this effect will probably run every time
     entities,
   ])
   return entities
@@ -326,8 +331,8 @@ export function useRouteEntities(
 ): {route: DocumentRoute | DraftRoute; entity?: HMEntityContent}[] {
   return useSubscribedEntities(
     routes.map((r) => {
-      if (r.key === 'document') return r.id
-      return null
+      if (r.key === 'document') return {id: r.id}
+      return {id: null}
     }),
   ).map((result, i) => {
     const route = routes[i]

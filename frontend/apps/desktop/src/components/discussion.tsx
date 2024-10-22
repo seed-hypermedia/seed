@@ -121,7 +121,7 @@ function useCommentGroupAuthors(
     })
   })
   const authorEntities = useSubscribedEntities(
-    Array.from(commentGroupAuthors).map((uid) => hmId('d', uid)),
+    Array.from(commentGroupAuthors).map((uid) => ({id: hmId('d', uid)})),
   )
   return Object.fromEntries(
     authorEntities
