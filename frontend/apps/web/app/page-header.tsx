@@ -253,7 +253,7 @@ function HomeHeader({
       marginVertical="$3"
       gap="$3"
     >
-      <Thumbnail size={24} id={homeId} metadata={homeMetadata} />
+      <HMIcon size={24} id={homeId} metadata={homeMetadata} />
       <SizableText size="$4" fontWeight="bold">
         {homeMetadata?.name}
       </SizableText>
