@@ -1,5 +1,5 @@
 import {useListDirectory} from '@/models/documents'
-import {useEntities} from '@/models/entities'
+import {useEntities, useSubscribedEntity} from '@/models/entities'
 import {PlainMessage, Timestamp} from '@bufbuild/protobuf'
 import {hmId, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
 import {BannerNewspaperCard, Container, NewspaperCard} from '@shm/ui'
@@ -14,6 +14,8 @@ export function NewspaperLayout({
   metadata: HMMetadata
 }) {
   const dir = useListDirectory(id)
+  useSubscribedEntity(id, true)
+
   const docIds =
     dir.data?.map((entity) =>
       hmId('d', entity.account, {

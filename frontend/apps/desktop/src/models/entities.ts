@@ -265,19 +265,16 @@ export function useSubscribedEntities(
 
       function handleDiscover() {
         if (!id) return
-        console.log(
-          '[sync] discovering',
-          id.uid,
-          hmIdPathToEntityQueryPath(id.path),
-        )
+
+        const discoveryRequest = {
+          account: id.uid,
+          path: hmIdPathToEntityQueryPath(id.path),
+          recursive,
+        }
         grpcClient.entities
-          .discoverEntity({
-            account: id.uid,
-            path: hmIdPathToEntityQueryPath(id.path),
-            recursive,
-          })
+          .discoverEntity(discoveryRequest)
           .then((result) => {
-            console.log('[sync] discovery completed', result)
+            console.log('[sync] discovery completed', discoveryRequest, result)
             // discovery completed. result.version is the new version
             if (result.version === loadedVersion && !recursive)
               discoveryComplete = true
@@ -293,15 +290,14 @@ export function useSubscribedEntities(
             }
           })
       }
-      if (entity.isLoading)
-        if (!entitySubscriptions[key]) {
-          if (loadedVersion === id.version && !id.latest) return
-          handleDiscover()
-          entitySubscriptions[key] = () => {
-            discoveryComplete = true
-            nextDiscoverTimeout && clearTimeout(nextDiscoverTimeout)
-          }
+      if (!entitySubscriptions[key]) {
+        if (loadedVersion === id.version && !id.latest && !recursive) return
+        handleDiscover()
+        entitySubscriptions[key] = () => {
+          discoveryComplete = true
+          nextDiscoverTimeout && clearTimeout(nextDiscoverTimeout)
         }
+      }
     })
     return () => {
       idKeys.forEach((key, index) => {
