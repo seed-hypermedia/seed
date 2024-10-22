@@ -73,10 +73,10 @@ export default function DraftPage() {
   if (accessoryKey === 'options' && route.id) {
     accessory = (
       <OptionsPanel
-        value={data.state.context.metadata.layout}
-        onValue={(value) => {
+        metadata={data.state.context.metadata}
+        onMetadata={(metadata) => {
           if (!draft.data) return
-          data.actor.send({type: 'CHANGE', metadata: {layout: value}})
+          data.actor.send({type: 'CHANGE', metadata})
         }}
         onClose={() => setAccessory(undefined)}
         draftId={route.id}
