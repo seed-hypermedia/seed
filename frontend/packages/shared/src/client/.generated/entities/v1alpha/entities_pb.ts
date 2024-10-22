@@ -124,6 +124,14 @@ export class DiscoverEntityRequest extends Message<DiscoverEntityRequest> {
    */
   version = "";
 
+  /**
+   * Optional. If true, we sync the document and the child 
+   * documents as well.
+   *
+   * @generated from field: bool recursive = 4;
+   */
+  recursive = false;
+
   constructor(data?: PartialMessage<DiscoverEntityRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -135,6 +143,7 @@ export class DiscoverEntityRequest extends Message<DiscoverEntityRequest> {
     { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DiscoverEntityRequest {

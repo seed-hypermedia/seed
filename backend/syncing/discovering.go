@@ -28,7 +28,7 @@ const (
 // DiscoverObject discovers an object in the network. If not found, then it returns an error
 // If found, this function will store the object locally so that it can be gotten like any
 // other local object. This function blocks until either success or fails to find providers.
-func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) (string, error) {
+func (s *Service) DiscoverObject(ctx context.Context, entityID, version string, recursive bool) (string, error) {
 	if s.cfg.NoDiscovery {
 		return "", fmt.Errorf("remote content discovery is disabled")
 	}
@@ -88,7 +88,7 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 	if len(allPeers) != 0 {
 		s.log.Debug("Discovering via connected local peers first", zap.Error(err))
 		eidsMap := make(map[string]bool)
-		eidsMap[entityID] = false
+		eidsMap[entityID] = recursive
 		for _, pid := range allPeers {
 			// TODO(juligasa): look into the providers store who has each eid
 			// instead of pasting all peers in all documents.
@@ -124,7 +124,7 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string) 
 	}
 
 	eidsMap := make(map[string]bool)
-	eidsMap[entityID] = false
+	eidsMap[entityID] = recursive
 	subsMap = make(subscriptionMap)
 	for p := range peers {
 		p := p

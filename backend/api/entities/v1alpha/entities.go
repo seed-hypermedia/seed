@@ -4,9 +4,9 @@ package entities
 import (
 	"context"
 	"encoding/json"
+	"seed/backend/blob"
 	"seed/backend/core"
 	entities "seed/backend/genproto/entities/v1alpha"
-	"seed/backend/blob"
 	"seed/backend/util/dqb"
 	"seed/backend/util/errutil"
 	"sort"
@@ -25,7 +25,7 @@ import (
 
 // Discoverer is an interface for discovering objects.
 type Discoverer interface {
-	DiscoverObject(ctx context.Context, entityID, version string) (string, error)
+	DiscoverObject(ctx context.Context, entityID, version string, recursive bool) (string, error)
 }
 
 // Server implements Entities API.
@@ -327,7 +327,7 @@ func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEnti
 	// 		return nil, status.Errorf(codes.InvalidArgument, "invalid version %q: %v", in.Version, err)
 	// 	}
 	eid := "hm://" + in.Account + in.Path
-	version, err := api.disc.DiscoverObject(ctx, eid, in.Version)
+	version, err := api.disc.DiscoverObject(ctx, eid, in.Version, in.Recursive)
 	if err != nil {
 		return nil, err
 	}

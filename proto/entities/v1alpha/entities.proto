@@ -64,6 +64,11 @@ message DiscoverEntityRequest {
 
   // Optional. Version of the entity to discover.
   string version = 3;
+
+  // Optional. If true, we sync the document and the child 
+  // documents as well.
+  bool recursive = 4;
+
 }
 
 // Response to discover an entity.
