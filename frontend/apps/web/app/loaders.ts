@@ -35,16 +35,18 @@ export async function getMetadata(
   }
 }
 
+export type WebSupportQuery = {
+  in: UnpackedHypermediaId;
+  results: HMDocumentListItem[];
+};
+
 export type WebBaseDocumentPayload = {
   document: HMDocument;
   authors: {id: UnpackedHypermediaId; metadata: HMMetadata}[];
   id: UnpackedHypermediaId;
   siteHost: string | undefined;
   supportDocuments?: {id: UnpackedHypermediaId; document: HMDocument}[];
-  supportQueries?: {
-    in: UnpackedHypermediaId;
-    results: HMDocumentListItem[];
-  }[];
+  supportQueries?: WebSupportQuery[];
 };
 
 export type WebDocumentPayload = WebBaseDocumentPayload & {
@@ -167,6 +169,7 @@ export async function getDocument(
       };
     })
   );
+
   return {
     ...document,
     breadcrumbs,
@@ -200,11 +203,19 @@ export async function loadSiteDocument(
   }
   try {
     const docContent = await getDocument(id, waitForSync);
-
-    console.log(`== ~ docContent:`, docContent);
+    let supportQueries = docContent.supportQueries;
+    if (
+      homeId &&
+      homeMetadata?.layout === "Seed/Experimental/Newspaper" &&
+      !docContent.supportQueries?.find((q) => q.in.uid === homeId.uid)
+    ) {
+      const results = await getDirectory(homeId);
+      supportQueries = [...(supportQueries || []), {in: homeId, results}];
+    }
     const loadedSiteDocument = {
       ...docContent,
       homeMetadata,
+      supportQueries,
       homeId,
     };
     return wrapJSON(loadedSiteDocument);

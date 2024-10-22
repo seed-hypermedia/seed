@@ -3,9 +3,12 @@ import {
   formattedDateMedium,
   getFileUrl,
   HMDocument,
+  HMDocumentListItem,
+  hmId,
   HMMetadata,
   relativeFormattedDate,
   UnpackedHypermediaId,
+  useRouteLink,
 } from "@shm/shared";
 import {getRandomColor} from "@shm/ui/src/avatar";
 import {Container} from "@shm/ui/src/container";
@@ -26,7 +29,7 @@ import {
   TextInputChangeEventData,
 } from "react-native";
 import {getHref} from "./href";
-import type {MetadataPayload} from "./loaders";
+import type {MetadataPayload, WebSupportQuery} from "./loaders";
 import {useDocumentChanges, useEntity} from "./models";
 import {HMDocumentChangeInfo} from "./routes/hm.api.changes";
 import {SearchPayload} from "./routes/hm.api.search";
@@ -41,6 +44,7 @@ export function PageHeader({
   updateTime = null,
   openSheet,
   breadcrumbs,
+  supportQueries,
 }: {
   homeMetadata: HMMetadata | null;
   homeId: UnpackedHypermediaId | null;
@@ -53,6 +57,7 @@ export function PageHeader({
     id: UnpackedHypermediaId;
     metadata: HMMetadata;
   }>;
+  supportQueries?: WebSupportQuery[];
 }) {
   const coverBg = useMemo(() => {
     if (docId?.id) {
@@ -65,7 +70,7 @@ export function PageHeader({
   const isHomeDoc = useMemo(() => docId?.id == homeId?.id, [docId, homeId]);
 
   return (
-    <YStack paddingTop={86} $gtSm={{paddingTop: 44}} id="page-header">
+    <YStack id="page-header">
       <SiteHeader
         homeMetadata={homeMetadata}
         homeId={homeId}
@@ -73,6 +78,7 @@ export function PageHeader({
         docId={docId}
         openSheet={openSheet}
         breadcrumbs={breadcrumbs}
+        supportQueries={supportQueries}
       />
       {hasCover ? (
         <XStack
@@ -170,7 +176,100 @@ export function PageHeader({
   );
 }
 
-export function SiteHeader({
+export function SiteHeader(props: {
+  homeMetadata: HMMetadata | null;
+  homeId: UnpackedHypermediaId | null;
+  docMetadata: HMMetadata | null;
+  docId: UnpackedHypermediaId | null;
+  openSheet?: () => void;
+  breadcrumbs: Array<{
+    id: UnpackedHypermediaId;
+    metadata: HMMetadata;
+  }>;
+  supportQueries?: WebSupportQuery[];
+}) {
+  if (props.homeMetadata?.layout === "Seed/Experimental/Newspaper") {
+    return <NewsSiteHeader {...props} />;
+  }
+  return <DefaultSiteHeader {...props} />;
+}
+
+export function NewsSiteHeader({
+  homeMetadata,
+  homeId,
+  docMetadata,
+  docId,
+  openSheet,
+  breadcrumbs,
+  supportQueries,
+}: {
+  homeMetadata: HMMetadata | null;
+  homeId: UnpackedHypermediaId | null;
+  docMetadata: HMMetadata | null;
+  docId: UnpackedHypermediaId | null;
+  openSheet?: () => void;
+  breadcrumbs: Array<{
+    id: UnpackedHypermediaId;
+    metadata: HMMetadata;
+  }>;
+  supportQueries?: WebSupportQuery[];
+}) {
+  if (!homeId) return null;
+  const supportQuery = supportQueries?.find((q) => q.in.uid === homeId?.uid);
+  return (
+    <YStack paddingBottom="$4">
+      {homeId ? (
+        <HomeHeader homeId={homeId} homeMetadata={homeMetadata} />
+      ) : null}
+
+      <XStack gap="$5" justifyContent="center">
+        {supportQuery?.results
+          ?.filter((result) => result.path.length === 1)
+          ?.map((result) => {
+            return (
+              <NewsSiteHeaderLink result={result} key={result.path.join("/")} />
+            );
+          })}
+      </XStack>
+    </YStack>
+  );
+}
+
+function HomeHeader({
+  homeMetadata,
+  homeId,
+}: {
+  homeMetadata: HMMetadata | null;
+  homeId: UnpackedHypermediaId;
+}) {
+  const homeLinkProps = useRouteLink({
+    key: "document",
+    id: homeId,
+  });
+  return (
+    <XStack
+      {...homeLinkProps}
+      justifyContent="center"
+      marginVertical="$3"
+      gap="$3"
+    >
+      <Thumbnail size={24} id={homeId} metadata={homeMetadata} />
+      <SizableText size="$4" fontWeight="bold">
+        {homeMetadata?.name}
+      </SizableText>
+    </XStack>
+  );
+}
+
+function NewsSiteHeaderLink({result}: {result: HMDocumentListItem}) {
+  const linkProps = useRouteLink({
+    key: "document",
+    id: hmId("d", result.account, {path: result.path}),
+  });
+  return <SizableText {...linkProps}>{result.metadata.name}</SizableText>;
+}
+
+export function DefaultSiteHeader({
   homeMetadata,
   homeId,
   docMetadata,

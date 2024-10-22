@@ -25,7 +25,6 @@ export function NewspaperPage(props: SiteDocumentPayload) {
     return q.in.uid === id.uid && q.in.path?.join("/") === id.path?.join("/");
   });
   if (!newsQuery) return null;
-  console.log({supportDocuments, supportQueries});
 
   function getEntity(path: string[]) {
     return supportDocuments?.find(
@@ -40,18 +39,14 @@ export function NewspaperPage(props: SiteDocumentPayload) {
 
   return (
     <>
-      <YStack marginBottom={300} paddingTop={86}>
+      <YStack marginBottom={300}>
         <SiteHeader
           homeMetadata={homeMetadata}
           homeId={homeId}
           docMetadata={document.metadata}
           docId={id}
-          // authors={authors}
-          // updateTime={document.updateTime}
           breadcrumbs={props.breadcrumbs}
-          // openSheet={() => {
-          //   setOpen(!open);
-          // }}
+          supportQueries={supportQueries}
         />
         <Container clearVerticalSpace>
           {firstItem && (
@@ -78,7 +73,6 @@ export function NewspaperPage(props: SiteDocumentPayload) {
               );
             })}
           </XStack>
-          {/* <BannerNewspaperCard /> */}
         </Container>
       </YStack>
     </>
