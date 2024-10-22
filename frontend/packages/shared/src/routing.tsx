@@ -1,10 +1,11 @@
-import {createContext, useContext} from 'react'
+import {createContext, PropsWithChildren, useContext} from 'react'
 import {GestureResponderEvent} from 'react-native'
 import {NavRoute} from './routes'
 import {idToUrl, UnpackedHypermediaId} from './utils'
 
 type UniversalRoutingContextValue = {
   openRoute: (route: NavRoute) => void
+  siteHomeId?: UnpackedHypermediaId | null
 }
 
 const UniversalRoutingContext =
@@ -21,13 +22,38 @@ export function useOpenRoute() {
   }
 }
 
+export function SiteRoutingProvider({
+  homeId,
+  children,
+}: PropsWithChildren<{
+  homeId?: UnpackedHypermediaId | null
+}>) {
+  const context = useContext(UniversalRoutingContext)
+  console.log('== we out here', homeId)
+  return (
+    <UniversalRoutingProvider
+      value={{
+        ...(context || {
+          openRoute: () => {},
+        }),
+        siteHomeId: homeId,
+      }}
+    >
+      {children}
+    </UniversalRoutingProvider>
+  )
+}
+
 export function useRouteLink(
   route: NavRoute,
   siteHomeId?: UnpackedHypermediaId,
 ) {
   const context = useContext(UniversalRoutingContext)
+  console.log('== lfg', context)
   const href =
-    route.key === 'document' ? idToUrl(route.id, {siteHomeId}) : undefined
+    route.key === 'document'
+      ? idToUrl(route.id, {siteHomeId: siteHomeId || context?.siteHomeId})
+      : undefined
   if (!context)
     throw new Error('useRouteLink must be used in a UniversalRoutingProvider')
   return {

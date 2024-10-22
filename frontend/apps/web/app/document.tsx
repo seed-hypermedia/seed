@@ -10,6 +10,7 @@ import {
   NodeOutline,
   UnpackedHypermediaId,
 } from "@shm/shared";
+import {SiteRoutingProvider} from "@shm/shared/src/routing";
 import {Container} from "@shm/ui/src/container";
 import {DirectoryItem} from "@shm/ui/src/directory";
 import {CommentGroup} from "@shm/ui/src/discussion";
@@ -93,10 +94,14 @@ export function DocumentPage(props: SiteDocumentPayload) {
       />
     );
   if (document.metadata.layout === "Seed/Experimental/Newspaper") {
-    return <NewspaperPage {...props} />;
+    return (
+      <SiteRoutingProvider homeId={props.homeId}>
+        <NewspaperPage {...props} />;
+      </SiteRoutingProvider>
+    );
   }
   return (
-    <>
+    <SiteRoutingProvider homeId={props.homeId}>
       <YStack marginBottom={300}>
         <PageHeader
           homeMetadata={homeMetadata}
@@ -152,7 +157,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
       <MobileOutline open={open} onClose={() => setOpen(false)}>
         <DocumentOutline document={document} onClose={() => setOpen(false)} />
       </MobileOutline>
-    </>
+    </SiteRoutingProvider>
   );
 }
 

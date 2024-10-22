@@ -48,7 +48,6 @@ export function BannerNewspaperCard({
       >
         <NewspaperCardContent banner entity={entity} />
         <NewspaperCardFooter
-          banner
           entity={entity}
           item={item}
           accountsMetadata={accountsMetadata}
