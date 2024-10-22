@@ -35,33 +35,28 @@
   display: none !important;
 }
 
-ul .blocknode-content,
-ol .blocknode-content {
+.blocknode-list[data-list-type='Unordered'] > ul > .blocknode-content {
   display: list-item !important;
 }
 
-div[data-list-type="Group"] > .blocknode-content {
-  display: flex !important;
-}
-
-div[data-list-type="Group"] ul .blocknode-content,
-div[data-list-type="Group"] ol .blocknode-content {
+.blocknode-list[data-list-type='Ordered'] > ol > .blocknode-content {
   display: list-item !important;
 }
 
-ul div[data-list-type="Group"] .blocknode-content,
-ol div[data-list-type="Group"] .blocknode-content {
-  display: flex !important;
-}
-
-.blocknode-list[data-list-type="Unordered"] ul {
+.blocknode-list[data-list-type="Unordered"] > ul {
   margin-left: 0.2em;
-  list-style-type: disc;
+  list-style-type: disc !important;
   list-style-position: outside;
 }
 
-.blocknode-list[data-list-type="Blockquote"] blockquote {
-  all: unset;
+.blocknode-list[data-list-type="Ordered"] > ol {
+  margin-left: 0.2em;
+  list-style-type: decimal !important;
+  list-style-position: outside;
+}
+
+.blocknode-list[data-list-type="Blockquote"] > blockquote {
+  all: unset !important;
 }
 
 .blocknode-list[data-list-type="Blockquote"] {
@@ -71,19 +66,13 @@ ol div[data-list-type="Group"] .blocknode-content {
   /* font-style: italic; */
 }
 
-.blocknode-list[data-list-level="2"] ul {
-  list-style-type: circle;
+.blocknode-list[data-list-level="2"] > ul {
+  list-style-type: circle !important;
   list-style-position: outside;
 }
 
-.blocknode-list[data-list-level="3"] ul {
-  list-style-type: square;
-  list-style-position: outside;
-}
-
-.blocknode-list[data-list-type="Ordered"] ol {
-  margin-left: 0.2em;
-  list-style-type: decimal;
+.blocknode-list[data-list-level="3"] > ul {
+  list-style-type: square !important;
   list-style-position: outside;
 }
 
