@@ -200,7 +200,7 @@ export const setupLinkMenu = <
           }
 
           const items = transaction.getMeta(pluginKey)?.items
-          const ref = transaction.getMeta(pluginKey)?.ref
+          const link = transaction.getMeta(pluginKey)?.link
 
           // Checks if the menu should be shown.
           if (transaction.getMeta(pluginKey)?.activate) {
@@ -220,7 +220,7 @@ export const setupLinkMenu = <
 
           const next = {...prev}
           if (items) next.items = items
-          if (ref) next.ref = ref
+          if (link) next.link = link
 
           // Hides the menu
           if (
@@ -265,7 +265,7 @@ export const setupLinkMenu = <
       props: {
         handleKeyDown(view, event) {
           const menuIsActive = (this as Plugin).getState(view.state).active
-          const ref = (this as Plugin).getState(view.state).ref
+          const link = (this as Plugin).getState(view.state).link
 
           // Doesn't handle other keystrokes if the menu isn't active.
           if (!menuIsActive) {
@@ -299,7 +299,7 @@ export const setupLinkMenu = <
           if (event.key === 'Enter') {
             deactivate(view)
             editor._tiptapEditor.chain().focus().run()
-            items[keyboardHoveredItemIndex].execute(editor, ref)
+            items[keyboardHoveredItemIndex].execute(editor, link)
           }
 
           // Closes the menu.
