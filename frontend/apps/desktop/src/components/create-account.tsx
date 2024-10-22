@@ -11,22 +11,20 @@ import {
   hmId,
 } from '@shm/shared'
 import {
-  AccountTypeButton,
   Button,
   CheckboxField,
   Copy,
   copyTextToClipboard,
   Dialog,
   Field,
-  Info,
   Input,
   Link,
   Onboarding,
   Reload,
+  Separator,
   SizableText,
   TextArea,
   toast,
-  Tooltip,
   useTheme,
   XStack,
   YStack,
@@ -47,7 +45,7 @@ import {IconForm} from './icon-form'
 export const [dispatchWizardEvent, wizardEvents] = eventStream<boolean>()
 export const [dispatchNewKeyEvent, newKeyEvent] = eventStream<boolean>()
 
-type AccountStep = 'type' | 'create' | 'name' | 'members' | 'complete'
+type AccountStep = 'create' | 'name' | 'members' | 'complete'
 
 export function AccountWizardDialog() {
   const theme = useTheme()
@@ -56,15 +54,13 @@ export function AccountWizardDialog() {
   const invalidate = useQueryInvalidator()
   const [open, setOpen] = useState(false)
   const [newAccount, setNewAccount] = useState<null | boolean>(true)
-  const [step, setStep] = useState<AccountStep>('type')
+  const [step, setStep] = useState<AccountStep>('create')
   const [existingWords, setExistingWords] = useState<string>('')
   const [icon, setIcon] = useState('')
   const [name, setName] = useState('')
   const [error, setError] = useState('')
   const navigate = useNavigate('push')
-  const [accountType, setAccountType] = useState<'author' | 'publisher' | null>(
-    null,
-  )
+
   const onboardingColor = theme.brand5.val
   const [isSaveWords, setSaveWords] = useState<null | boolean>(true)
   const [isUserSavingWords, setUserSaveWords] = useState<null | boolean>(null)
@@ -91,7 +87,6 @@ export function AccountWizardDialog() {
 
   useEffect(() => {
     if (accounts.data?.length == 0) {
-      setAccountType('author')
       setStep('create')
     }
   }, [accounts.data])
@@ -104,7 +99,7 @@ export function AccountWizardDialog() {
   }, [step, newAccount])
 
   async function handleAccountCreation(existing?: boolean) {
-    const name = `temp${accountType}${nanoid(8)}`
+    const name = `temp${nanoid(8)}`
     try {
       const createdAccount = await register.mutateAsync({
         mnemonic: existing
@@ -127,9 +122,7 @@ export function AccountWizardDialog() {
         draft: {
           signingAccount: createdAccount.accountId,
           content: [],
-          metadata: {
-            // accountType,
-          },
+          metadata: {},
           members: [],
           previousId: null,
           deps: [],
@@ -234,7 +227,6 @@ export function AccountWizardDialog() {
       open={open}
       onOpenChange={(val: boolean) => {
         setNewAccount(true)
-        setStep('type')
         dispatchWizardEvent(val)
       }}
       defaultValue={false}
@@ -251,9 +243,9 @@ export function AccountWizardDialog() {
         />
         <Dialog.Content
           overflow="hidden"
-          h={step == 'type' ? 300 : 460}
+          h={460}
           w="100%"
-          maxWidth={step == 'type' ? 360 : 600}
+          maxWidth={600}
           p={0}
           backgroundColor={'$background'}
           animation={[
@@ -267,80 +259,11 @@ export function AccountWizardDialog() {
           enterStyle={{y: -10, opacity: 0}}
           exitStyle={{y: -10, opacity: 0}}
         >
-          {step == 'type' ? (
-            <Onboarding.Wrapper>
-              <Onboarding.MainSection>
-                <Onboarding.Title>
-                  What account type you want to create?
-                </Onboarding.Title>
-                <XStack gap="$4" ai="center" jc="center" f={1}>
-                  <AccountTypeButton
-                    onPress={() => {
-                      setAccountType('author')
-                      setStep('create')
-                      refetchWords()
-                    }}
-                  >
-                    <AuthorIcon color={onboardingColor} />
-                    <XStack>
-                      <Tooltip
-                        placement="top"
-                        content="Author account info <COPY>"
-                      >
-                        <Button
-                          icon={Info}
-                          size="$1"
-                          chromeless
-                          bg="$colorTransparent"
-                          hoverStyle={{bg: '$colorTransparent'}}
-                        />
-                      </Tooltip>
-                      <SizableText fontWeight="600" textAlign="center" f={1}>
-                        Author
-                      </SizableText>
-                    </XStack>
-                  </AccountTypeButton>
-                  <AccountTypeButton
-                    onPress={() => {
-                      setAccountType('publisher')
-                      setStep('create')
-                      refetchWords()
-                    }}
-                  >
-                    <PublisherIcon color={onboardingColor} />
-                    <XStack>
-                      <Tooltip
-                        placement="top"
-                        content="Publisher account info <COPY>"
-                      >
-                        <Button
-                          icon={Info}
-                          size="$1"
-                          chromeless
-                          bg="$colorTransparent"
-                          hoverStyle={{bg: '$colorTransparent'}}
-                        />
-                      </Tooltip>
-                      <SizableText fontWeight="600" textAlign="center" f={1}>
-                        Publisher
-                      </SizableText>
-                    </XStack>
-                  </AccountTypeButton>
-                </XStack>
-              </Onboarding.MainSection>
-            </Onboarding.Wrapper>
-          ) : null}
           {step == 'create' && newAccount ? (
             <Onboarding.Wrapper>
               <MarketingSection />
               <Onboarding.MainSection>
-                <Onboarding.Title>{`Create your new ${
-                  accountType == 'author'
-                    ? 'Author'
-                    : accountType == 'publisher'
-                    ? 'Publisher'
-                    : ''
-                } Account`}</Onboarding.Title>
+                <Onboarding.Title>Create your new Account</Onboarding.Title>
                 <YStack gap="$2">
                   {words?.length ? (
                     <Field id="words" label="Secret Words">
@@ -400,7 +323,7 @@ export function AccountWizardDialog() {
                     </CheckboxField>
                   ) : null}
                 </YStack>
-                <YStack gap="$2" marginTop="auto">
+                <YStack gap="$4" marginTop="auto">
                   <Button
                     bg={onboardingColor}
                     color="white"
@@ -417,20 +340,29 @@ export function AccountWizardDialog() {
                   >
                     Create new Account
                   </Button>
-                  <XStack ai="center">
-                    <SizableText size="$2">Have an account?</SizableText>
-                    <Button
-                      color={onboardingColor}
-                      bg="$colorTransparent"
-                      chromeless
+                  <Separator />
+                  <YStack gap="$2">
+                    <SizableText
                       size="$2"
-                      p={0}
+                      color={onboardingColor}
+                      textAlign="center"
                       fontWeight="bold"
+                    >
+                      Have an account already?
+                    </SizableText>
+                    <Button
+                      size="$2"
+                      bg="$colorTransparent"
+                      color={onboardingColor}
+                      borderColor={onboardingColor}
+                      f={1}
+                      disabled={!isSaveWords && !isUserSavingWords}
+                      opacity={!isSaveWords && !isUserSavingWords ? 0.4 : 1}
                       onPress={() => setNewAccount(false)}
                     >
-                      Add Existing account.
+                      Add Existing account
                     </Button>
-                  </XStack>
+                  </YStack>
                 </YStack>
               </Onboarding.MainSection>
             </Onboarding.Wrapper>
@@ -459,7 +391,7 @@ export function AccountWizardDialog() {
                 >
                   I have my words save somewhere
                 </CheckboxField>
-                <YStack gap="$2" marginTop="auto">
+                <YStack gap="$4" marginTop="auto">
                   <Button
                     bg={onboardingColor}
                     color="$color1"
@@ -478,21 +410,29 @@ export function AccountWizardDialog() {
                   >
                     Add Existing account
                   </Button>
-
-                  <XStack ai="center">
-                    <SizableText size="$2">Don't have an account?</SizableText>
-                    <Button
-                      color={onboardingColor}
-                      bg="$colorTransparent"
-                      chromeless
+                  <Separator />
+                  <YStack gap="$2">
+                    <SizableText
                       size="$2"
-                      p={0}
+                      color={onboardingColor}
+                      textAlign="center"
                       fontWeight="bold"
+                    >
+                      Don't have an account?
+                    </SizableText>
+                    <Button
+                      size="$2"
+                      bg="$colorTransparent"
+                      color={onboardingColor}
+                      borderColor={onboardingColor}
+                      f={1}
+                      disabled={!isSaveWords && !isUserSavingWords}
+                      opacity={!isSaveWords && !isUserSavingWords ? 0.4 : 1}
                       onPress={() => setNewAccount(true)}
                     >
-                      Create a new account.
+                      Create a new account
                     </Button>
-                  </XStack>
+                  </YStack>
                 </YStack>
               </Onboarding.MainSection>
             </Onboarding.Wrapper>
@@ -562,7 +502,6 @@ export function AccountWizardDialog() {
                       if (createdAccount) {
                         dispatchWizardEvent(false)
                         setNewAccount(true)
-                        setStep('type')
                         setName('')
                         setIcon('')
 
