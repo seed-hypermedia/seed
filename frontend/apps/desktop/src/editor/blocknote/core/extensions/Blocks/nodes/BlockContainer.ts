@@ -265,7 +265,7 @@ declare module '@tiptap/core' {
         posInBlock: number,
         listType: HMBlockChildrenType,
         tab: boolean,
-        start?: string,
+        // start?: string,
         isSank?: boolean,
         turnInto?: boolean,
       ) => ReturnType
@@ -626,7 +626,7 @@ export const BlockContainer = Node.create<{
                 .deleteSelection()
                 .BNSplitBlock(state.selection.from, false)
                 .sinkListItem('blockContainer')
-                .UpdateGroup(-1, blockInfo.node.attrs.listType, true, undefined)
+                .UpdateGroup(-1, blockInfo.node.attrs.listType, true)
                 .run()
             })
           } else {
@@ -723,7 +723,7 @@ export const BlockContainer = Node.create<{
         },
       // Updates a block group at a given position.
       UpdateGroup:
-        (posInBlock, listType, tab, start, isSank = false, turnInto = false) =>
+        (posInBlock, listType, tab, isSank = false, turnInto = false) =>
         ({state, dispatch}) => {
           // Find block group, block container and depth it is at
           const {
@@ -793,7 +793,7 @@ export const BlockContainer = Node.create<{
               this.editor
                 .chain()
                 .sinkListItem('blockContainer')
-                .UpdateGroup(-1, listType, tab, start, true)
+                .UpdateGroup(-1, listType, tab, true)
                 .run()
 
               return true
@@ -814,7 +814,7 @@ export const BlockContainer = Node.create<{
               this.editor
                 .chain()
                 .sinkListItem('blockContainer')
-                .UpdateGroup(-1, listType, tab, start, true)
+                .UpdateGroup(-1, listType, tab, true)
                 .run()
 
               return true
@@ -837,18 +837,19 @@ export const BlockContainer = Node.create<{
               }
             }
 
-            start
-              ? state.tr.setNodeMarkup($pos.before(depth), null, {
-                  ...group.attrs,
-                  listType: listType,
-                  listLevel: level,
-                  start: parseInt(start),
-                })
-              : state.tr.setNodeMarkup($pos.before(depth), null, {
-                  ...group.attrs,
-                  listType: listType,
-                  listLevel: level,
-                })
+            // start
+            //   ? state.tr.setNodeMarkup($pos.before(depth), null, {
+            //       ...group.attrs,
+            //       listType: listType,
+            //       listLevel: level,
+            //       start: parseInt(start),
+            //     })
+            //   :
+            state.tr.setNodeMarkup($pos.before(depth), null, {
+              ...group.attrs,
+              listType: listType,
+              listLevel: level,
+            })
 
             if (container) {
               setTimeout(() => {
@@ -1314,7 +1315,7 @@ export const BlockContainer = Node.create<{
                 this.editor
                   .chain()
                   .sinkListItem('blockContainer')
-                  .UpdateGroup(-1, group.attrs.listType, true, undefined)
+                  .UpdateGroup(-1, group.attrs.listType, true)
                   .run()
               })
               return true

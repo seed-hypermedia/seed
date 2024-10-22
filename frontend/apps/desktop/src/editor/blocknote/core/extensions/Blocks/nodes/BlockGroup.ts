@@ -31,17 +31,17 @@ export const BlockGroup = Node.create<{
           }
         },
       },
-      start: {
-        default: '1',
-        renderHTML: (attributes) => {
-          if (attributes.listType === 'Ordered' && attributes.start) {
-            return {
-              start: attributes.start,
-              // style: `margin-left: calc(1em + ${offset}em);`,
-            }
-          }
-        },
-      },
+      // start: {
+      //   default: '1',
+      //   renderHTML: (attributes) => {
+      //     if (attributes.listType === 'Ordered' && attributes.start) {
+      //       return {
+      //         start: attributes.start,
+      //         // style: `margin-left: calc(1em + ${offset}em);`,
+      //       }
+      //     }
+      //   },
+      // },
     }
   },
 
@@ -70,7 +70,8 @@ export const BlockGroup = Node.create<{
         },
       }),
       new InputRule({
-        find: new RegExp(/^\d+\.\s/),
+        // find: new RegExp(/^\d+\.\s/),
+        find: new RegExp(/^[1]+\.\s/),
         handler: ({state, chain, range}) => {
           if (state.doc.resolve(range.from).parent.type.name === 'heading') {
             return
@@ -80,7 +81,7 @@ export const BlockGroup = Node.create<{
               state.selection.from,
               'Ordered',
               false,
-              this.editor.state.doc.textBetween(range.from, range.to - 1),
+              // this.editor.state.doc.textBetween(range.from, range.to - 1),
             )
             // Removes the "1." characters used to set the list.
             .deleteRange({from: range.from, to: range.to})
@@ -114,7 +115,7 @@ export const BlockGroup = Node.create<{
 
           return {
             listType: 'Ordered',
-            start: element.getAttribute('start'),
+            // start: element.getAttribute('start'),
           }
           // return false
         },

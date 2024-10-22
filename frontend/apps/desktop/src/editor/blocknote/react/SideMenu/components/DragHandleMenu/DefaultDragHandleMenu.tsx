@@ -144,21 +144,21 @@ var turnIntoItems = [
       })
     },
   },
-  {
-    label: 'Block Quote',
-    group: 'Group operations',
-    Icon: RiChatQuoteFill,
-    onClick: ({
-      block,
-      editor,
-    }: {
-      block: Block<HMBlockSchema>
-      editor: BlockNoteEditor<HMBlockSchema>
-    }) => {
-      editor.focus()
-      updateGroup(editor, block, 'blockquote')
-    },
-  },
+  // {
+  //   label: 'Block Quote',
+  //   group: 'Group operations',
+  //   Icon: RiChatQuoteFill,
+  //   onClick: ({
+  //     block,
+  //     editor,
+  //   }: {
+  //     block: Block<HMBlockSchema>
+  //     editor: BlockNoteEditor<HMBlockSchema>
+  //   }) => {
+  //     editor.focus()
+  //     updateGroup(editor, block, 'Blockquote')
+  //   },
+  // },
   {
     label: 'Bullet item',
     group: 'Group operations',

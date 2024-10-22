@@ -61,7 +61,6 @@ export function updateGroup(
     listType,
     false,
     undefined,
-    undefined,
     true,
   )
 }

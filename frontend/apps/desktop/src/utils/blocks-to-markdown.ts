@@ -48,9 +48,10 @@ function convertBlockToHtml(block: any, isListItem = false) {
     if (block.props.childrenType === 'Unordered') {
       childrenHtml = `<ul>${childrenContent}</ul>`
     } else if (block.props.childrenType === 'Ordered') {
-      childrenHtml = `<ol start="${
-        block.props.start || 1
-      }">${childrenContent}</ol>`
+      // childrenHtml = `<ol start="${
+      //   block.props.start || 1
+      // }">${childrenContent}</ol>`
+      childrenHtml = `<ol>${childrenContent}</ol>`
     } else if (block.props.childrenType === 'Blockquote') {
       childrenHtml = `<blockquote>${childrenContent}</blockquote>`
     } else {
