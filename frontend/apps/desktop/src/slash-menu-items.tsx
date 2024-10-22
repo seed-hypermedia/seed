@@ -6,13 +6,16 @@ import {
   RiHeading,
   RiImage2Fill,
   RiMessage2Fill,
+  RiRadioButtonFill,
   RiText,
   RiVideoAddFill,
 } from 'react-icons/ri'
 import {
   BlockNoteEditor,
+  BlockSpec,
   HMBlockSchema,
   PartialBlock,
+  PropSchema,
   insertOrUpdateBlock,
 } from './editor'
 
@@ -22,7 +25,9 @@ export const slashMenuItems = [
     aliases: ['h', 'heading1', 'subheading'],
     group: 'Text blocks',
     icon: <RiHeading size={18} />,
-    execute: (editor) => {
+    execute: (
+      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
+    ) => {
       insertOrUpdateBlock(editor, {
         type: 'heading',
         props: {level: '2'},
@@ -36,7 +41,9 @@ export const slashMenuItems = [
     aliases: ['p'],
     group: 'Text blocks',
     icon: <RiText size={18} />,
-    execute: (editor) => {
+    execute: (
+      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
+    ) => {
       insertOrUpdateBlock(editor, {
         type: 'paragraph',
       } as PartialBlock<HMBlockSchema>)
@@ -67,7 +74,9 @@ export const slashMenuItems = [
     group: 'Media blocks',
     icon: <RiImage2Fill size={18} />,
     hint: 'Insert an Image',
-    execute: (editor) => {
+    execute: (
+      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
+    ) => {
       insertOrUpdateBlock(
         editor,
         {
@@ -89,7 +98,9 @@ export const slashMenuItems = [
     group: 'Media blocks',
     icon: <RiVideoAddFill size={18} />,
     hint: 'Insert a Video',
-    execute: (editor) => {
+    execute: (
+      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
+    ) => {
       insertOrUpdateBlock(
         editor,
         {
@@ -111,7 +122,9 @@ export const slashMenuItems = [
     group: 'Media blocks',
     icon: <RiFile2Fill size={18} />,
     hint: 'Insert a File',
-    execute: (editor) => {
+    execute: (
+      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
+    ) => {
       insertOrUpdateBlock(
         editor,
         {
@@ -133,7 +146,9 @@ export const slashMenuItems = [
     group: 'Media blocks',
     icon: <RiArticleFill size={18} />,
     hint: 'Insert a Hypermedia Embed',
-    execute: (editor) => {
+    execute: (
+      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
+    ) => {
       insertOrUpdateBlock(
         editor,
         {
@@ -154,11 +169,36 @@ export const slashMenuItems = [
     group: 'Media blocks',
     icon: <RiFunctions size={18} />,
     hint: 'Insert an Math Block',
-    execute: (editor) => {
+    execute: (
+      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
+    ) => {
       insertOrUpdateBlock(
         editor,
         {
           type: 'math',
+        } as PartialBlock<HMBlockSchema>,
+        true,
+      )
+      const {state, view} = editor._tiptapEditor
+      view.dispatch(state.tr.scrollIntoView())
+    },
+  },
+  {
+    name: 'Button',
+    aliases: ['button', 'click', 'press'],
+    group: '',
+    icon: <RiRadioButtonFill size={18} />,
+    hint: 'Insert a button block',
+    execute: (
+      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
+    ) => {
+      insertOrUpdateBlock(
+        editor,
+        {
+          type: 'button',
+          props: {
+            ref: '',
+          },
         } as PartialBlock<HMBlockSchema>,
         true,
       )
@@ -172,7 +212,9 @@ export const slashMenuItems = [
     group: 'Web embeds',
     icon: <RiMessage2Fill size={18} />,
     hint: 'Insert a nostr note',
-    execute: (editor) => {
+    execute: (
+      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
+    ) => {
       insertOrUpdateBlock(
         editor,
         {

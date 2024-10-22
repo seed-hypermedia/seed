@@ -572,7 +572,7 @@ function MediaForm({
                 </Button>
               )}
             </XStack>
-            {fileName.name !== 'Upload File' && (
+            {fileName.color && fileName.color === 'red' && (
               <SizableText size="$2" color={fileName.color} paddingTop="$2">
                 {fileName.name}
               </SizableText>

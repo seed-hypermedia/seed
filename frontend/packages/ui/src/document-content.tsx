@@ -870,6 +870,10 @@ function BlockContent(props: BlockContentProps) {
     return <BlockContentFile {...props} {...dataProps} />;
   }
 
+  if (props.block.type == "Button") {
+    return <BlockContentButton {...props} {...dataProps} />;
+  }
+
   // if (props.block.type == "web-embed") {
   //   return <BlockContentXPost {...props} {...dataProps} />;
   // }
@@ -1817,6 +1821,59 @@ export function BlockContentFile({
             </Button>
           </Tooltip>
         )}
+      </XStack>
+    </YStack>
+  );
+}
+
+export function BlockContentButton({
+  block,
+  parentBlockId,
+  ...props
+}: BlockContentProps) {
+  const {hover, ...hoverProps} = useHover();
+  const {layoutUnit, onLinkClick} = useDocContentContext();
+  if (block.type !== "Button") return null;
+  return (
+    <YStack
+      // backgroundColor="$color3"
+      borderColor="$color6"
+      {...hoverProps}
+      borderWidth={1}
+      borderRadius={layoutUnit / 4}
+      padding={layoutUnit / 2}
+      overflow="hidden"
+      f={1}
+      className="block-content block-file"
+      data-content-type="file"
+      data-url={block.link}
+      data-name={block.attributes?.name}
+      hoverStyle={{
+        backgroundColor: "$backgroundHover",
+      }}
+      {...props}
+    >
+      <XStack height="$5" width="100%" jc="center" ai="center">
+        <Button
+          borderWidth={1}
+          borderRadius={1}
+          bc="$brand10"
+          size="$3"
+          minWidth="$10"
+          maxWidth="100%"
+          px="$2"
+          fontSize="$4"
+          justifyContent="center"
+          textAlign="center"
+          userSelect="none"
+          onPress={(e) => {
+            onLinkClick(block.link, e);
+          }}
+        >
+          <SizableText numberOfLines={1} ellipsizeMode="tail">
+            {block.attributes?.name}
+          </SizableText>
+        </Button>
       </XStack>
     </YStack>
   );

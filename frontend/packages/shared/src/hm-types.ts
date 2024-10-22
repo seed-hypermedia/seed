@@ -255,6 +255,20 @@ export const HMBlockFileSchema = z
   })
   .strict()
 
+export const HMBlockButtonSchema = z
+  .object({
+    type: z.literal('Button'),
+    ...blockBaseProperties,
+    attributes: z
+      .object({
+        ...parentBlockAttributes,
+        name: z.string().optional(),
+      })
+      .strict(),
+    link: z.string(),
+  })
+  .strict()
+
 export const HMBlockEmbedSchema = z
   .object({
     type: z.literal('Embed'),
@@ -285,6 +299,7 @@ export const HMBlockSchema = z.discriminatedUnion('type', [
   HMBlockImageSchema,
   HMBlockVideoSchema,
   HMBlockFileSchema,
+  HMBlockButtonSchema,
   HMBlockEmbedSchema,
   HMBlockWebEmbedSchema,
 ])
@@ -296,6 +311,7 @@ export type HMBlockMath = z.infer<typeof HMBlockMathSchema>
 export type HMBlockImage = z.infer<typeof HMBlockImageSchema>
 export type HMBlockVideo = z.infer<typeof HMBlockVideoSchema>
 export type HMBlockFile = z.infer<typeof HMBlockFileSchema>
+export type HMBlockButton = z.infer<typeof HMBlockButtonSchema>
 export type HMBlockEmbed = z.infer<typeof HMBlockEmbedSchema>
 export type HMBlockWebEmbed = z.infer<typeof HMBlockWebEmbedSchema>
 export type HMBlock = z.infer<typeof HMBlockSchema>

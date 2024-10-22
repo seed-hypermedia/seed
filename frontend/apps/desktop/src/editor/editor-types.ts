@@ -7,6 +7,7 @@ export type EditorBlock =
   | EditorImageBlock
   | EditorVideoBlock
   | EditorFileBlock
+  | EditorButtonBlock
   | EditorEmbedBlock
   | EditorWebEmbedBlock
   | EditorMathBlock
@@ -72,6 +73,12 @@ export interface EditorVideoBlock extends EditorBaseBlock {
 
 export interface EditorFileBlock extends EditorBaseBlock {
   type: 'file'
+  props: MediaBlockProps
+  content: Array<EditorInlineContent>
+}
+
+export interface EditorButtonBlock extends EditorBaseBlock {
+  type: 'button'
   props: MediaBlockProps
   content: Array<EditorInlineContent>
 }

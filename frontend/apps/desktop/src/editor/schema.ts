@@ -5,6 +5,7 @@ import {
   defaultBlockSchema,
   defaultProps,
 } from './blocknote'
+import {ButtonBlock} from './button'
 import {EmbedBlock} from './embed-block'
 import {FileBlock} from './file'
 import {HMHeadingBlockContent} from './heading-component-plugin'
@@ -38,9 +39,11 @@ export const hmBlockSchema: BlockSchema = {
       languageClassPrefix: 'language-',
     }),
   },
-  embed: EmbedBlock,
+
   video: VideoBlock,
+  embed: EmbedBlock,
   file: FileBlock,
+  button: ButtonBlock,
   nostr: NostrBlock,
   ['web-embed']: WebEmbed,
   math: MathBlock('math'),

@@ -12,6 +12,7 @@ function toHMBlockType(
   if (editorBlockType === 'image') return 'Image'
   if (editorBlockType === 'video') return 'Video'
   if (editorBlockType === 'file') return 'File'
+  if (editorBlockType === 'button') return 'Button'
   if (editorBlockType === 'embed') return 'Embed'
   if (editorBlockType === 'web-embed') return 'WebEmbed'
   return undefined
@@ -126,6 +127,13 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
       blockFile.attributes.name = editorBlock.props.name
     if (editorBlock.props.size)
       blockFile.attributes.size = String(editorBlock.props.size)
+  }
+
+  const blockButton = block.type === 'Button' ? block : undefined
+  if (blockButton && editorBlock.type == 'button') {
+    if (editorBlock.props.url) blockButton.link = editorBlock.props.url
+    if (editorBlock.props.name)
+      blockButton.attributes.name = editorBlock.props.name
   }
 
   const blockWebEmbed = block.type === 'WebEmbed' ? block : undefined

@@ -34,6 +34,7 @@ function toEditorBlockType(
   if (hmBlockType === 'Image') return 'image'
   if (hmBlockType === 'Video') return 'video'
   if (hmBlockType === 'File') return 'file'
+  if (hmBlockType === 'Button') return 'button'
   if (hmBlockType === 'Embed') return 'embed'
   if (hmBlockType === 'WebEmbed') return 'web-embed'
   if (hmBlockType === 'Nostr') return 'nostr'
@@ -96,6 +97,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
       'video',
       'image',
       'file',
+      'button',
       'embed',
       'web-embed',
       'math',
