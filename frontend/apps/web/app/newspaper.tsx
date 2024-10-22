@@ -48,7 +48,12 @@ export function NewspaperPage(props: SiteDocumentPayload) {
           breadcrumbs={props.breadcrumbs}
           supportQueries={supportQueries}
         />
-        <Container clearVerticalSpace>
+        <Container
+          clearVerticalSpace
+          maxWidth={1000}
+          marginTop={60}
+          marginBottom={80}
+        >
           {firstItem && (
             <BannerNewspaperCard
               item={firstItem}
@@ -56,12 +61,7 @@ export function NewspaperPage(props: SiteDocumentPayload) {
               accountsMetadata={authors}
             />
           )}
-          <XStack
-            flexWrap="wrap"
-            gap="$4"
-            marginTop="$4"
-            justifyContent="center"
-          >
+          <XStack flexWrap="wrap" marginTop="$4" justifyContent="space-between">
             {restItems.map((item) => {
               return (
                 <NewspaperCard
