@@ -314,7 +314,7 @@ export const HMBlockNodeSchema: z.ZodType<HMBlockNode> =
 export const HMDocumentMetadataSchema = z
   .object({
     name: z.string().optional(),
-    thumbnail: z.string().optional(),
+    icon: z.string().optional(),
     cover: z.string().optional(),
     siteUrl: z.string().optional(),
     layout: z

@@ -38,9 +38,9 @@ import {
   Document,
   H1,
   HistoryIcon,
+  HMIcon,
   SizableText,
   Spinner,
-  Thumbnail,
   Tooltip,
   Separator as TSeparator,
   XStack,
@@ -216,8 +216,8 @@ function DocPageHeader({
     () => !!entity.data?.document?.metadata.cover,
     [entity.data],
   )
-  const hasThumbnail = useMemo(
-    () => !!entity.data?.document?.metadata.thumbnail,
+  const hasIcon = useMemo(
+    () => !!entity.data?.document?.metadata.icon,
     [entity.data],
   )
   const myAccountIds = useMyAccountIds()
@@ -245,9 +245,9 @@ function DocPageHeader({
         borderRadius="$2"
       >
         <YStack group="header" gap="$4">
-          {hasThumbnail ? (
+          {hasIcon ? (
             <XStack marginTop={hasCover ? -80 : 0}>
-              <Thumbnail
+              <HMIcon
                 size={100}
                 id={docId}
                 metadata={entity.data?.document?.metadata}

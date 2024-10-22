@@ -12,9 +12,9 @@ import {memo} from "react";
 import {UIAvatar, UIAvatarProps} from "./avatar";
 import {Tooltip} from "./tooltip";
 
-export const Thumbnail = memo(_Thumbnail);
+export const HMIcon = memo(_HMIcon);
 
-function _Thumbnail({
+function _HMIcon({
   id,
   metadata,
   size = 32,
@@ -32,7 +32,7 @@ function _Thumbnail({
       // id={id.path?.at(-1) || id.uid.slice(2)}
       id={id.id}
       label={metadata?.name}
-      url={getFileUrl(metadata?.thumbnail)}
+      url={getFileUrl(metadata?.icon)}
       borderRadius={id.path && id.path.length != 0 ? size / 8 : undefined}
       flexShrink={0}
       flexGrow={0}
@@ -41,7 +41,7 @@ function _Thumbnail({
   );
 }
 
-export function LinkThumbnail({
+export function LinkIcon({
   id,
   metadata,
   size,
@@ -55,7 +55,7 @@ export function LinkThumbnail({
   const linkProps = useRouteLink({key: "document", id});
   let content = (
     <>
-      <Thumbnail id={id} size={size} metadata={metadata} />
+      <HMIcon id={id} size={size} metadata={metadata} />
       <ErrorDot error={error} />
     </>
   );

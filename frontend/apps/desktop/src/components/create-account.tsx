@@ -42,7 +42,7 @@ import {
 } from '../models/daemon'
 import {trpc} from '../trpc'
 import {useOpenDraft} from '../utils/open-draft'
-import {ThumbnailForm} from './avatar-form'
+import {IconForm} from './icon-form'
 
 export const [dispatchWizardEvent, wizardEvents] = eventStream<boolean>()
 export const [dispatchNewKeyEvent, newKeyEvent] = eventStream<boolean>()
@@ -58,7 +58,7 @@ export function AccountWizardDialog() {
   const [newAccount, setNewAccount] = useState<null | boolean>(true)
   const [step, setStep] = useState<AccountStep>('type')
   const [existingWords, setExistingWords] = useState<string>('')
-  const [thumbnail, setThumbnail] = useState('')
+  const [icon, setIcon] = useState('')
   const [name, setName] = useState('')
   const [error, setError] = useState('')
   const navigate = useNavigate('push')
@@ -153,7 +153,7 @@ export function AccountWizardDialog() {
   }
 
   async function handleDocEdit() {
-    // TODO: horacio create home document with name and thumbnail data
+    // TODO: horacio create home document with name and icon data
     if (!name) {
       toast.error('Name is required. Please add one')
     } else {
@@ -170,14 +170,14 @@ export function AccountWizardDialog() {
           }),
         ]
 
-        if (thumbnail) {
+        if (icon) {
           changes.push(
             new DocumentChange({
               op: {
                 case: 'setMetadata',
                 value: {
-                  key: 'thumbnail',
-                  value: `ipfs://${thumbnail}`,
+                  key: 'icon',
+                  value: `ipfs://${icon}`,
                 },
               },
             }),
@@ -213,7 +213,7 @@ export function AccountWizardDialog() {
     if (newAccount) {
       return genWords
     } else {
-      return existingWords
+      return extractWords(existingWords)
     }
   }, [genWords, existingWords, newAccount])
 
@@ -221,7 +221,7 @@ export function AccountWizardDialog() {
 
   function resetForm() {
     setName('')
-    setThumbnail('')
+    setIcon('')
     setExistingWords('')
     setSaveWords(true)
     setUserSaveWords(null)
@@ -503,13 +503,11 @@ export function AccountWizardDialog() {
               <Onboarding.MainSection>
                 <Onboarding.Title>Account Information</Onboarding.Title>
                 <YStack gap="$2">
-                  <ThumbnailForm
-                    emptyLabel="ADD AVATAR"
-                    url={
-                      thumbnail ? `${DAEMON_FILE_URL}/${thumbnail}` : undefined
-                    }
-                    onAvatarUpload={(d) => {
-                      setThumbnail(d)
+                  <IconForm
+                    emptyLabel="ADD ICON"
+                    url={icon ? `${DAEMON_FILE_URL}/${icon}` : undefined}
+                    onIconUpload={(d) => {
+                      setIcon(d)
                     }}
                   />
                   <Input
@@ -566,7 +564,7 @@ export function AccountWizardDialog() {
                         setNewAccount(true)
                         setStep('type')
                         setName('')
-                        setThumbnail('')
+                        setIcon('')
 
                         openDraft({id: hmId('d', createdAccount.accountId)})
                       }
@@ -625,6 +623,7 @@ function extractWords(input: string): Array<string> {
     wordSplitting = wordSplitting.flatMap((word) => word.split(delimiter))
   })
   let words = wordSplitting.filter((word) => word.length > 0)
+
   return words
 }
 

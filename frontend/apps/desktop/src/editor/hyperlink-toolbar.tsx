@@ -6,7 +6,7 @@ import {
   ExternalLink,
   Input,
   Label,
-  LinkIcon,
+  Link as LinkIcon,
   Separator,
   SizeTokens,
   TextCursorInput,

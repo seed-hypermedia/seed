@@ -1,13 +1,8 @@
-import {zodResolver} from '@hookform/resolvers/zod'
 import {getFileUrl} from '@shm/shared'
-import {Button, Form, Label, XStack, YStack} from '@shm/ui'
-import {useEffect} from 'react'
-import {Control, useController, useForm} from 'react-hook-form'
+import {Control, useController} from 'react-hook-form'
 import {z} from 'zod'
-import {useSetProfile_deprecated} from '../models/accounts'
-import {ThumbnailForm} from './avatar-form'
 import {useAppDialog} from './dialog'
-import {FormError, FormInput} from './form-input'
+import {IconForm} from './icon-form'
 
 export function useEditProfileDialog() {
   // for some reason the dialog doesn't work if the input is falsy
@@ -28,61 +23,9 @@ type ProfileFields = z.infer<typeof profileSchema>
 function AvatarInput({control}: {control: Control<ProfileFields>}) {
   const c = useController({control, name: 'avatar'})
   return (
-    <ThumbnailForm
-      onAvatarUpload={c.field.onChange}
+    <IconForm
+      onIconUpload={c.field.onChange}
       url={c.field.value ? getFileUrl(c.field.value) : undefined}
     />
-  )
-}
-
-function ProfileForm({
-  profile,
-  onDone,
-}: {
-  profile: Profile
-  onDone: () => void
-}) {
-  const setProfile = useSetProfile_deprecated({
-    onSuccess: onDone,
-  })
-  const {
-    control,
-    handleSubmit,
-    setFocus,
-    formState: {errors},
-  } = useForm<ProfileFields>({
-    resolver: zodResolver(profileSchema),
-    // OMG wow, this object gets mutated! bad things will happen if we don't spread the profile into a new object:
-    defaultValues: {...profile},
-  })
-
-  useEffect(() => {
-    setFocus('alias')
-  }, [setFocus])
-
-  return (
-    <XStack gap="$4">
-      <YStack flex={0} alignItems="center" flexGrow={0}>
-        <AvatarInput control={control} />
-      </YStack>
-      <YStack flex={1}>
-        <Form
-          onSubmit={handleSubmit((values) => {
-            setProfile.mutate(values)
-          })}
-        >
-          <Label htmlFor="alias">Alias</Label>
-          <FormError name="alias" errors={errors} />
-          <FormInput id="alias" name="alias" control={control} />
-          <XStack gap="$4" alignItems="center" paddingTop="$3">
-            <Form.Trigger asChild>
-              <Button theme="green" disabled={setProfile.isLoading}>
-                Save Profile
-              </Button>
-            </Form.Trigger>
-          </XStack>
-        </Form>
-      </YStack>
-    </XStack>
   )
 }

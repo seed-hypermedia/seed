@@ -16,9 +16,9 @@ import {
 import {
   Button,
   DirectoryItem,
+  HMIcon,
   itemHoverBgColor,
   SizableText,
-  Thumbnail,
   Tooltip,
   XStack,
   YStack,
@@ -127,8 +127,8 @@ function DraftItem({id}: {id: UnpackedHypermediaId}) {
       onPress={goToDraft}
       h={60}
       icon={
-        draft.data?.metadata.thumbnail ? (
-          <Thumbnail size={28} id={id} metadata={draft.data.metadata} />
+        draft.data?.metadata.icon ? (
+          <HMIcon size={28} id={id} metadata={draft.data.metadata} />
         ) : undefined
       }
     >

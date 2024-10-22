@@ -44,7 +44,6 @@ export {
   Info,
   Library,
   Link,
-  Link as LinkIcon,
   Menu,
   MoreHorizontal,
   MoveLeft,

@@ -12,8 +12,8 @@ import {
 } from "@shm/shared";
 import {getRandomColor} from "@shm/ui/src/avatar";
 import {Container} from "@shm/ui/src/container";
+import {HMIcon} from "@shm/ui/src/hm-icon";
 import {Popover} from "@shm/ui/src/TamaguiPopover";
-import {Thumbnail} from "@shm/ui/src/thumbnail";
 import {usePopoverState} from "@shm/ui/src/use-popover-state";
 import {Button} from "@tamagui/button";
 import {Stack} from "@tamagui/core";
@@ -66,7 +66,7 @@ export function PageHeader({
   }, [docId]);
 
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata]);
-  const hasThumbnail = useMemo(() => !!docMetadata?.thumbnail, [docMetadata]);
+  const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata]);
   const isHomeDoc = useMemo(() => docId?.id == homeId?.id, [docId, homeId]);
 
   return (
@@ -110,9 +110,9 @@ export function PageHeader({
         borderRadius="$2"
       >
         <YStack>
-          {!isHomeDoc && docId && hasThumbnail ? (
+          {!isHomeDoc && docId && hasIcon ? (
             <XStack marginTop={hasCover ? -80 : 0}>
-              <Thumbnail size={100} id={docId} metadata={docMetadata} />
+              <HMIcon size={100} id={docId} metadata={docMetadata} />
             </XStack>
           ) : null}
           <H1 size="$9" style={{fontWeight: "bold"}}>
@@ -322,8 +322,8 @@ export function DefaultSiteHeader({
               textDecorationLine: "underline",
             }}
           >
-            {homeMetadata?.thumbnail && homeId ? (
-              <Thumbnail size={30} id={homeId} metadata={homeMetadata} />
+            {homeMetadata?.icon && homeId ? (
+              <HMIcon size={30} id={homeId} metadata={homeMetadata} />
             ) : null}
 
             <SizableText fontWeight="bold">
@@ -487,7 +487,7 @@ function ModalVersionItem({
       maxWidth={260}
       style={{textDecoration: "none"}}
       icon={
-        <Thumbnail
+        <HMIcon
           flexGrow={0}
           flexShrink={0}
           size={20}

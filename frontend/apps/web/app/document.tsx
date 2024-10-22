@@ -43,15 +43,15 @@ export const documentPageMeta: MetaFunction = ({
   data: Wrapped<SiteDocumentPayload>;
 }) => {
   const siteDocument = unwrap<SiteDocumentPayload>(data);
-  const homeThumbnail = siteDocument?.homeMetadata?.thumbnail
-    ? getFileUrl(siteDocument.homeMetadata.thumbnail)
+  const homeIcon = siteDocument?.homeMetadata?.icon
+    ? getFileUrl(siteDocument.homeMetadata.icon)
     : null;
   const meta: ReturnType<MetaFunction> = [];
 
   meta.push({
     tagName: "link",
     rel: "icon",
-    href: homeThumbnail || defaultSiteIcon,
+    href: homeIcon || defaultSiteIcon,
     type: "image/png",
   });
 

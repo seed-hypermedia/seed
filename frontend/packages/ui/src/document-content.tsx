@@ -2182,13 +2182,13 @@ export function DocumentCardView({
   title,
   textContent,
   editors,
-  ThumbnailComponent,
+  IconComponent,
   date,
 }: {
   title?: string;
   textContent?: string;
   editors?: Array<string>;
-  ThumbnailComponent: React.FC<{accountId?: string}>;
+  IconComponent: React.FC<{accountId?: string}>;
   date?: HMTimestamp;
 }) {
   return (
@@ -2210,10 +2210,7 @@ export function DocumentCardView({
           <SizableText>{textContent}</SizableText>
         </YStack>
         <XStack gap="$3" ai="center">
-          <EditorsAvatars
-            editors={editors}
-            ThumbnailComponent={ThumbnailComponent}
-          />
+          <EditorsAvatars editors={editors} IconComponent={IconComponent} />
           {date ? (
             <SizableText size="$1">{formattedDate(date)}</SizableText>
           ) : null}
@@ -2240,10 +2237,10 @@ export function getBlockNode(
 
 function EditorsAvatars({
   editors,
-  ThumbnailComponent,
+  IconComponent,
 }: {
   editors?: Array<string>;
-  ThumbnailComponent: React.FC<{accountId?: string}>;
+  IconComponent: React.FC<{accountId?: string}>;
 }) {
   return (
     <XStack marginLeft={6}>
@@ -2258,7 +2255,7 @@ function EditorsAvatars({
           marginLeft={-8}
           animation="fast"
         >
-          <ThumbnailComponent accountId={editor} />
+          <IconComponent accountId={editor} />
         </XStack>
       ))}
     </XStack>

@@ -11,11 +11,11 @@ import {
   Button,
   Container,
   getRandomColor,
-  LinkThumbnail,
+  HMIcon,
+  LinkIcon,
   SizableText,
   Spinner,
   Text,
-  Thumbnail,
   XStack,
   YStack,
 } from '@shm/ui'
@@ -118,7 +118,7 @@ function ContactListItem({entry}: {entry: PlainMessage<DocumentListItem>}) {
       }}
       h={60}
       icon={
-        <Thumbnail
+        <HMIcon
           size={28}
           id={id}
           metadata={entry.metadata}
@@ -160,7 +160,7 @@ function ContactListItem({entry}: {entry: PlainMessage<DocumentListItem>}) {
               marginLeft={-8}
               animation="fast"
             >
-              <LinkThumbnail
+              <LinkIcon
                 key={author.data?.id.id}
                 id={author.data?.id}
                 metadata={author.data?.document?.metadata}

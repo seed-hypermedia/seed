@@ -1,8 +1,8 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
-import {ThumbnailForm} from '@/components/avatar-form'
 import {CoverImage} from '@/components/cover-image'
 import {HyperMediaEditorView} from '@/components/editor'
 import Footer from '@/components/footer'
+import {IconForm} from '@/components/icon-form'
 import {MainWrapper, SidebarSpacer} from '@/components/main-wrapper'
 import {NewspaperLayout} from '@/components/newspaper-layout'
 import {OptionsPanel} from '@/components/options-panel'
@@ -357,15 +357,15 @@ export function DraftHeader({
   if (route.key !== 'draft')
     throw new Error('DraftHeader must have draft route')
   const {textUnit} = useDocContentContext()
-  const [showThumbnail, setShowThumbnail] = useState(false)
+  const [showIcon, setShowIcon] = useState(false)
   const [showCover, setShowCover] = useState(false)
   let headingTextStyles = useHeadingTextStyles(1, textUnit)
   const name = useSelector(draftActor, (s) => {
     return s.context.metadata.name
   })
 
-  const thumbnail = useSelector(draftActor, (s) => {
-    return s.context.metadata.thumbnail
+  const icon = useSelector(draftActor, (s) => {
+    return s.context.metadata.icon
   })
 
   const cover = useSelector(draftActor, (s) => {
@@ -399,11 +399,11 @@ export function DraftHeader({
   }, [cover])
 
   useEffect(() => {
-    let val = !!thumbnail
-    if (val != showThumbnail) {
-      setShowThumbnail(val)
+    let val = !!icon
+    if (val != showIcon) {
+      setShowIcon(val)
     }
-  }, [thumbnail])
+  }, [icon])
 
   useEffect(() => {
     handleResize()
@@ -461,8 +461,8 @@ export function DraftHeader({
       >
         <YStack group="header" gap="$4">
           <XStack gap="$2" ai="flex-end">
-            {showThumbnail ? (
-              <ThumbnailForm
+            {showIcon ? (
+              <IconForm
                 borderRadius={
                   route.id?.path && route.id?.path.length != 0
                     ? 100 / 8
@@ -472,37 +472,37 @@ export function DraftHeader({
                 size={100}
                 id={route.id ? route.id.uid : 'document-avatar'}
                 label={name}
-                url={thumbnail ? getFileUrl(thumbnail) : ''}
-                onAvatarUpload={(thumbnail) => {
-                  if (thumbnail) {
+                url={icon ? getFileUrl(icon) : ''}
+                onIconUpload={(icon) => {
+                  if (icon) {
                     draftActor.send({
                       type: 'CHANGE',
                       metadata: {
-                        thumbnail: `ipfs://${thumbnail}`,
+                        icon: `ipfs://${icon}`,
                       },
                     })
                   }
                 }}
-                onRemoveThumbnail={() => {
-                  setShowThumbnail(false)
+                onRemoveIcon={() => {
+                  setShowIcon(false)
                   draftActor.send({
                     type: 'CHANGE',
                     metadata: {
-                      thumbnail: null,
+                      icon: null,
                     },
                   })
                 }}
               />
             ) : null}
-            {!showThumbnail ? (
+            {!showIcon ? (
               <Button
                 icon={Smile}
                 size="$1"
                 chromeless
                 hoverStyle={{bg: '$color5'}}
-                onPress={() => setShowThumbnail(true)}
+                onPress={() => setShowIcon(true)}
               >
-                Add Thumbnail
+                Add Icon
               </Button>
             ) : null}
             {!showCover ? (

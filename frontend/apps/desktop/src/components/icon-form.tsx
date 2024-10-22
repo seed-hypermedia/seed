@@ -4,13 +4,13 @@ import {X} from '@tamagui/lucide-icons'
 import {ChangeEvent} from 'react'
 import appError from '../errors'
 
-export function ThumbnailForm({
+export function IconForm({
   url,
   label,
   id,
   size = 140,
-  onAvatarUpload,
-  onRemoveThumbnail,
+  onIconUpload,
+  onRemoveIcon,
   emptyLabel,
   marginTop,
   borderRadius = size,
@@ -23,28 +23,28 @@ export function ThumbnailForm({
   size?: number
   marginTop?: number
   borderRadius?: number
-  onAvatarUpload?: (avatar: string) => Awaited<void>
-  onRemoveThumbnail?: () => void
+  onIconUpload?: (avatar: string) => Awaited<void>
+  onRemoveIcon?: () => void
 }) {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     event.stopPropagation()
     const fileList = event.target.files
     const file = fileList?.[0]
     if (!file) return
-    if (!onAvatarUpload) return
+    if (!onIconUpload) return
     fileUpload(file)
       .then((data) => {
-        onAvatarUpload(data)
+        onIconUpload(data)
       })
       .catch((error) => {
-        appError(`Failed to upload avatar: ${e.message}`, {error})
+        appError(`Failed to upload icon: ${error.message}`, {error})
       })
       .finally(() => {
         event.target.value = ''
       })
   }
 
-  const avatarImage = (
+  const iconImage = (
     <UIAvatar
       label={label}
       id={id}
@@ -55,20 +55,14 @@ export function ThumbnailForm({
       borderRadius={borderRadius}
     />
   )
-  if (!onAvatarUpload) return avatarImage
+  if (!onIconUpload) return iconImage
   return (
-    <XStack
-      gap="$2"
-      ai="flex-end"
-      group="thumbnail"
-      w="auto"
-      alignSelf="flex-start"
-    >
+    <XStack gap="$2" ai="flex-end" group="icon" w="auto" alignSelf="flex-start">
       <Stack
         marginTop={marginTop}
         position="relative"
         {...props}
-        group="thumbnail"
+        group="icon"
         w={size}
         h={size}
         borderRadius={borderRadius}
@@ -96,7 +90,7 @@ export function ThumbnailForm({
             gap="$2"
             zi="$zIndex.5"
             w="100%"
-            $group-thumbnail-hover={{opacity: 0}}
+            $group-icon-hover={{opacity: 0}}
             h="100%"
             opacity={1}
             ai="center"
@@ -114,7 +108,7 @@ export function ThumbnailForm({
           gap="$2"
           zi="$zIndex.5"
           w="100%"
-          $group-thumbnail-hover={{opacity: 1}}
+          $group-icon-hover={{opacity: 1}}
           h="100%"
           opacity={0}
           ai="center"
@@ -122,17 +116,17 @@ export function ThumbnailForm({
           pointerEvents="none"
         >
           <SizableText textAlign="center" size="$1" color="white">
-            {url ? 'UPDATE' : emptyLabel || 'ADD IMAGE'}
+            {url ? 'UPDATE' : emptyLabel || 'ADD ICON'}
           </SizableText>
         </XStack>
-        {avatarImage}
+        {iconImage}
       </Stack>
-      {onRemoveThumbnail ? (
-        <Tooltip content="Remove Thumbnail">
+      {onRemoveIcon ? (
+        <Tooltip content="Remove Icon">
           <Button
             opacity={0}
             theme="red"
-            $group-thumbnail-hover={{opacity: 1, pointerEvents: 'all'}}
+            $group-icon-hover={{opacity: 1, pointerEvents: 'all'}}
             icon={X}
             size="$1"
             fontWeight="600"
@@ -140,7 +134,7 @@ export function ThumbnailForm({
             onPress={(e: MouseEvent) => {
               e.preventDefault()
               e.stopPropagation()
-              onRemoveThumbnail()
+              onRemoveIcon()
             }}
           />
         </Tooltip>
