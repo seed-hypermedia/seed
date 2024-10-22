@@ -315,6 +315,7 @@ export const HMDocumentMetadataSchema = z
   .object({
     name: z.string().optional(),
     icon: z.string().optional(),
+    thumbnail: z.string().optional(), // DEPRECATED
     cover: z.string().optional(),
     siteUrl: z.string().optional(),
     layout: z
