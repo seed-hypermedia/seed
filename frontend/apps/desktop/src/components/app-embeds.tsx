@@ -43,14 +43,14 @@ function EmbedWrapper({
   parentBlockId,
   children,
   depth,
-  viewType = 'content',
+  viewType = 'Content',
   ...props
 }: PropsWithChildren<
   {
     id?: UnpackedHypermediaId
     parentBlockId: string | null
     depth?: number
-    viewType?: 'content' | 'card'
+    viewType?: 'Content' | 'Card'
   } & Omit<ComponentProps<typeof YStack>, 'id'>
 >) {
   const {
@@ -171,7 +171,7 @@ function EmbedWrapper({
       {...props}
     >
       {children}
-      {/* {!comment && viewType == 'content' ? (
+      {/* {!comment && viewType == 'Content' ? (
         <EmbedSideAnnotation
           sidePos={sidePos}
           ref={sideannotationRef}
@@ -205,7 +205,7 @@ export function useSizeObserver(onRect: (rect: DOMRect) => void) {
 }
 
 export function EmbedDocument(props: EntityComponentProps) {
-  if (props.block.attributes?.view == 'card') {
+  if (props.block.attributes?.view == 'Card') {
     return <EmbedDocumentCard {...props} />
   } else {
     return <EmbedDocContent {...props} />
@@ -255,7 +255,9 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
       return content
     }
   }, [doc.data])
-
+  const view =
+    (props.block.type === 'Embed' ? props.block.attributes.view : undefined) ||
+    'Content'
   return (
     <EmbedWrapper
       id={{
@@ -270,7 +272,7 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
         version: props.version,
       }}
       parentBlockId={props.parentBlockId}
-      viewType={props.block.attributes?.view == 'card' ? 'card' : 'content'}
+      viewType={view}
     >
       <DocumentCardView
         title={getDocumentTitle(doc.data?.document)}

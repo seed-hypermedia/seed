@@ -98,11 +98,7 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
   }, [doc.data]);
 
   return (
-    <EmbedWrapper
-      id={props}
-      parentBlockId={props.parentBlockId}
-      // viewType={props.block.attributes?.view == 'card' ? 'card' : 'content'}
-    >
+    <EmbedWrapper id={props} parentBlockId={props.parentBlockId}>
       <DocumentCardView
         title={getDocumentTitle(doc.data?.document)}
         textContent={textContent}

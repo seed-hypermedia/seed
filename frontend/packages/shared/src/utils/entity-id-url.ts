@@ -43,6 +43,33 @@ export function createSiteUrl({
   return res
 }
 
+export function createHMUrl({
+  uid,
+  path,
+  version,
+  latest,
+  blockRef,
+  blockRange,
+}: UnpackedHypermediaId) {
+  let res = `hm://${uid}`
+  if (path && path.length) {
+    res += `/${path.join('/')}`
+  }
+  const query: Record<string, string | null> = {}
+  if (version) {
+    query.v = version
+  }
+  if (latest) {
+    query.l = null
+  }
+  res += serializeQueryString(query)
+  if (blockRef) {
+    res += `#${blockRef}${serializeBlockRange(blockRange)}`
+  }
+
+  return res
+}
+
 export function createWebHMUrl(
   type: keyof typeof HYPERMEDIA_ENTITY_TYPES,
   uid: string,

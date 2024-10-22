@@ -402,7 +402,6 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
 
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
-      console.log('== onEditorContentChange', editor.topLevelBlocks)
       if (!gotEdited.current) {
         gotEdited.current = true
       }

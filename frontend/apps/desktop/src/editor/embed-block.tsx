@@ -6,6 +6,7 @@ import {loadWebLinkMeta} from '@/models/web-links'
 import {useOpenUrl} from '@/open-url'
 import {
   createHmDocLink_DEPRECATED,
+  HMEmbedViewSchema,
   hmIdWithVersion,
   HYPERMEDIA_ENTITY_TYPES,
   isHypermediaScheme,
@@ -46,6 +47,7 @@ import {
   useState,
 } from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
+import {GestureResponderEvent} from 'react-native'
 import {Block, BlockNoteEditor, HMBlockSchema} from '.'
 import {createReactBlockSpec} from './blocknote/react'
 import {MediaContainer} from './media-container'
@@ -66,8 +68,8 @@ export const EmbedBlock = createReactBlockSpec({
       default: 'false',
     },
     view: {
-      values: ['content', 'card'], // TODO: convert HMEmbedView type to array items
-      default: 'content',
+      values: ['Content', 'Card'], // TODO: convert HMEmbedView type to array items
+      default: 'Content',
     },
   },
   containsInlineContent: true,
@@ -213,10 +215,10 @@ const display = ({
             block={{
               id: block.id,
               type: 'Embed',
-              text: ' ',
+              text: '',
               attributes: {
-                childrenType: 'group',
-                view: block.props.view,
+                childrenType: 'Group',
+                view: HMEmbedViewSchema.parse(block.props.view),
               },
               annotations: [],
               link: block.props.url,
@@ -257,7 +259,7 @@ function EmbedControl({
       : 'exact'
   let isVersionLatest = versionValue == 'latest'
 
-  const handleViewSelect = useCallback((view: 'content' | 'card') => {
+  const handleViewSelect = useCallback((view: 'Content' | 'Card') => {
     return () => {
       assign({props: {view}})
       popoverViewState.onOpenChange(false)
@@ -308,7 +310,7 @@ function EmbedControl({
             blockRef: unpackedRef?.blockRef,
             latest: unpackedRef?.latest || undefined,
           }),
-          view: 'content',
+          view: 'Content',
         },
       })
     }
@@ -359,7 +361,7 @@ function EmbedControl({
                 : ChevronRight
             }
             backgroundColor="$backgroundStrong"
-            onPress={(e: MouseEvent) => {
+            onPress={(e: GestureResponderEvent) => {
               e.stopPropagation()
               let url = createHmDocLink_DEPRECATED({
                 documentId: hmId?.id,
@@ -374,7 +376,7 @@ function EmbedControl({
               assign({
                 props: {
                   url,
-                  view: 'content',
+                  view: 'Content',
                 },
               })
             }}
@@ -412,8 +414,8 @@ function EmbedControl({
                 <ListItem
                   size="$2"
                   title="as Content"
-                  onPress={handleViewSelect('content')}
-                  iconAfter={block.props.view == 'content' ? Check : null}
+                  onPress={handleViewSelect('Content')}
+                  iconAfter={block.props.view == 'Content' ? Check : null}
                   hoverStyle={{
                     bg: '$backgroundHover',
                   }}
@@ -424,8 +426,8 @@ function EmbedControl({
                 <ListItem
                   size="$2"
                   title="as Card"
-                  onPress={handleViewSelect('card')}
-                  iconAfter={block.props.view == 'card' ? Check : null}
+                  onPress={handleViewSelect('Card')}
+                  iconAfter={block.props.view == 'Card' ? Check : null}
                   hoverStyle={{
                     bg: '$backgroundHover',
                   }}
@@ -486,7 +488,7 @@ function EmbedControl({
             <Button
               icon={MoreHorizontal}
               size="$1"
-              onPress={(e: MouseEvent) => e.stopPropagation()}
+              onPress={(e: GestureResponderEvent) => e.stopPropagation()}
               circular
             />
           </Popover.Trigger>
@@ -509,7 +511,7 @@ function EmbedControl({
               <YGroup.Item>
                 {hmId?.blockRef ? (
                   <MenuItem
-                    onPress={(e: MouseEvent) => {
+                    onPress={(e: GestureResponderEvent) => {
                       e.stopPropagation()
                       handleBlockToDocument()
                     }}

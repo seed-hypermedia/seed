@@ -6,7 +6,6 @@ import {toast} from '@shm/ui'
 import {useMemo} from 'react'
 
 export function useOpenUrl() {
-  console.log('useOpenUrl')
   const {externalOpen} = useAppContext()
   const resolveRoute = useHmIdToAppRouteResolver()
 

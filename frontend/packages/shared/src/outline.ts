@@ -72,7 +72,7 @@ export function getDraftNodesOutline(
           child.children &&
           getDraftNodesOutline(child.children, parentEntityId, parentBlockId),
       })
-    } else if (child.type === 'Embed' && child.props?.view !== 'card') {
+    } else if (child.type === 'Embed' && child.props?.view !== 'Card') {
       console.error('Outline Might not handle embeds from draft correctly')
       console.error(child)
       const embedId = unpackHmId(child.props.href)

@@ -3,6 +3,7 @@ import {
   HYPERMEDIA_ENTITY_TYPES,
   StateStream,
   UnpackedHypermediaId,
+  createHMUrl,
   isHypermediaScheme,
   isPublicGatewayLink,
   normalizeHmId,
@@ -85,18 +86,13 @@ export function getLinkMenuItems({
             disabled: false,
             icon: <SquareAsterisk size={18} />,
             execute: (editor: BlockNoteEditor, ref: string) => {
-              if (isPublicGatewayLink(ref, gwUrl) || isHypermediaScheme(ref)) {
-                const hmId = normalizeHmId(ref, gwUrl)
-                if (!hmId) return
-                ref = hmId
-              }
               const {state, schema} = editor._tiptapEditor
               const {selection} = state
               if (!selection.empty) return
               const node = schema.nodes.embed.create(
                 {
-                  url: ref,
-                  view: 'card',
+                  url: createHMUrl(hmId),
+                  view: 'Card',
                 },
                 schema.text(' '),
               )
@@ -119,23 +115,19 @@ export function getLinkMenuItems({
             disabled: false,
             icon: <SquareAsterisk size={18} />,
             execute: (editor: BlockNoteEditor, ref: string) => {
-              if (isPublicGatewayLink(ref, gwUrl) || isHypermediaScheme(ref)) {
-                const hmId = normalizeHmId(ref, gwUrl)
-                if (!hmId) return
-                ref = hmId
-              }
               const {state, schema} = editor._tiptapEditor
               const {selection} = state
               if (!selection.empty) return
+              const hmRef = createHMUrl(hmId)
               const node = schema.nodes.embed.create(
                 {
-                  url: ref,
-                  view: 'content',
+                  url: hmRef,
+                  view: 'Content',
                 },
                 schema.text(' '),
               )
 
-              insertNode(editor, sourceUrl || ref, node)
+              insertNode(editor, sourceUrl || hmRef, node)
             },
           },
           ...linkMenuItems,
