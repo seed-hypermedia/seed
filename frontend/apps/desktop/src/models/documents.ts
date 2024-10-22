@@ -258,7 +258,6 @@ export function usePublishDraft(
                 )
               capabilityId = capability.id
             }
-            console.log(`== ~ mutationFn: ~ allChanges:`, allChanges)
             const publishedDoc =
               await grpcClient.documents.createDocumentChange({
                 signingKeyName: draft.signingAccount,

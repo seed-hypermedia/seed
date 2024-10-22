@@ -32,7 +32,8 @@ export function BannerNewspaperCard({
       {...baseCardStyles}
       flexDirection="column"
       marginTop="$4"
-      minHeight={340}
+      minHeight={200}
+      maxHeight={300}
       $gtMd={{flexDirection: "row"}}
       {...linkProps}
     >
@@ -99,9 +100,11 @@ function NewspaperCardContent({
   }, [entity?.document]);
   return (
     <YStack padding={banner ? "$5" : "$3"} gap="$3" f={1}>
-      <SizableText size={banner ? "$8" : "$5"} fontWeight="bold">
-        {entity?.document?.metadata?.name}
-      </SizableText>
+      <YStack overflow="hidden" maxHeight={(banner ? 30 : 23) * 3}>
+        <SizableText size={banner ? "$8" : "$5"} fontWeight="bold">
+          {entity?.document?.metadata?.name}
+        </SizableText>
+      </YStack>
       <YStack overflow="hidden" maxHeight={(banner ? 27 : 21) * 3}>
         <SizableText
           color="$color10"
