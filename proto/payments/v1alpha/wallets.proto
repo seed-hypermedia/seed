@@ -1,0 +1,143 @@
+syntax = "proto3";
+
+package com.seed.payments.v1alpha;
+
+import "google/protobuf/empty.proto";
+
+option go_package = "seed/backend/genproto/payments/v1alpha;payments";
+
+// Wallet service provides wallet management functionality.
+
+service Wallets {
+  // CreateWallet Created a seed wallet based on mnemonics.
+  rpc CreateWallet(CreateWalletRequest) returns (Wallet);
+
+  // RemoveWallet deletes a wallet locally. It can be later imported
+  // with the necessary credentials and no funds will be lost.
+  rpc RemoveWallet(RemoveWalletRequest) returns (google.protobuf.Empty);
+
+  // ImportWallet Imports a 3rd party (compatible) wallet with credentials.
+  rpc ImportWallet(ImportWalletRequest) returns (Wallet);
+
+  // ExportWallet Export the wallet credentials so they can be imported and
+  // used with a 3rd party compatible app.
+  rpc ExportWallet(ExportWalletRequest) returns (ExportWalletResponse);
+
+  // ListWallets lists all available wallets for the account.
+  rpc ListWallets(ListWalletsRequest) returns (ListWalletsResponse);
+
+  // UpdateWalletName changes the name of the wallet. This does not have any
+  // implications on payments. Name is just for user convenience. 
+  rpc UpdateWalletName(UpdateWalletNameRequest) returns (google.protobuf.Empty);
+
+  // GetDefaultWallet returns the default wallet where payments are going
+  // to be collected at. Also, this wallet will be used to make payments.
+  rpc GetDefaultWallet(GetDefaultWalletRequest) returns (Wallet);
+
+  // SetDefaultWallet changes the default wallet where payments are going 
+  // to be collected at. Also, this wallet will be used to make payments.
+  rpc SetDefaultWallet(SetDefaultWalletRequest) returns (google.protobuf.Empty);
+}
+
+
+// Representation of a wallet
+message Wallet {
+  // Unique wallet identificator. Automatically generated. Unique across accounts.
+  string id = 1;
+
+  // The account this wallet belongs to.
+  string account = 2;
+
+  // Address of the LND node backing up this wallet. In case lndhub, this will be the
+  // URL to connect via rest api. In case LND wallet, this will be the gRPC address.
+  string address = 3;
+
+  // The name of the wallet.
+  string name = 4;
+
+  // The type of the wallet.
+  string type = 5;
+
+  // TBalance in satoshis of the wallet.
+  int64 balance = 6;
+}
+
+// The request to create a wallet.
+message CreateWalletRequest {
+  // Required. Mnemonic words to create the wallet from. 
+  repeated string mnemonics = 1;
+
+  // Optional. The password to add to mnemonic words. In most cases this is left blank.
+  string password = 2;
+  
+  // Required. Name of the wallet to be created.
+  string name = 3;
+}
+
+// The request to import a wallet.
+message ImportWalletRequest {
+  // Required. The credentials to insert the new wallet in the format of
+  // <wallet_type>://<alphanumeric_login>:<alphanumeric_password>@https://<domain>
+  string credentials_url = 1;
+
+  // Required. Account where this wallet will belong to.
+  string account = 2;
+
+  // Required. The wallet name to be displayed.
+  string name = 3;
+}
+
+// The request to export a wallet.
+message ExportWalletRequest {
+  // Required. ID (not name) of the wallet to export.
+  string id = 1;
+}
+
+// Exported credentials. 
+message ExportWalletResponse{
+  // The credentials url to be used with a compatible 3rd party app.
+  string credentials = 1;
+}
+
+// The request to list all wallets under a certain account.
+message ListWalletsRequest {
+  // Required. Account to list wallets from.
+  string account = 1;
+}
+
+// All the wallets under a certain account.
+message ListWalletsResponse {
+  // Wallets under the account.
+  repeated Wallet wallets = 1;
+}
+
+// The request to delete a wallet 
+message RemoveWalletRequest {
+  // Required. The wallet id to be removed
+  string id = 1;
+}
+
+// The request to update a wallet
+message UpdateWalletNameRequest {
+  // Required. The wallet id to be modified.
+  string id = 1;
+
+  // Required. The new wallet's name.
+  string name = 2;
+}
+
+// Gets the account's default wallet.
+message GetDefaultWalletRequest {
+  string account = 1;
+}
+
+// Sets the default wallet used for payments.
+message SetDefaultWalletRequest {
+  // Required. The wallet id to set as default.
+  string id = 1;
+
+  // Required. The account the provided wallet is going to
+  // be the default.
+  string account = 2;
+}
+

@@ -2,7 +2,6 @@ package wallet
 
 import (
 	"context"
-	"encoding/hex"
 	"seed/backend/blob"
 	"seed/backend/config"
 	"seed/backend/core"
@@ -26,16 +25,16 @@ import (
 
 func TestModifyWallets(t *testing.T) {
 	testutil.Manual(t)
-
-	alice := makeTestService(t, "alice")
-
-	ctx := context.Background()
 	var err error
 	var defaultWallet walletsql.Wallet
+	ctx := context.Background()
+	alice := makeTestService(t, "alice")
+	aliceAcc, err := alice.net.AccountForDevice(ctx, alice.net.AddrInfo().ID)
 	uri, err := alice.ExportWallet(ctx, "")
 	require.NoError(t, err)
-	seedWallet, err := alice.InsertWallet(ctx, uri, "default")
-	require.NoError(t, err)
+	seedWallet, err := alice.InsertWallet(ctx, uri, "default", aliceAcc.String())
+	require.Error(t, err, "We must register the account first.")
+
 	require.Eventually(t, func() bool { defaultWallet, err = alice.GetDefaultWallet(ctx); return err == nil }, 7*time.Second, 2*time.Second)
 	require.Equal(t, seedWallet, defaultWallet)
 	require.Eventually(t, func() bool {
@@ -60,23 +59,22 @@ func TestModifyWallets(t *testing.T) {
 
 func TestRequestLndHubInvoice(t *testing.T) {
 	testutil.Manual(t)
-
+	ctx := context.Background()
 	var err error
 	alice := makeTestService(t, "alice")
-	bob := makeTestService(t, "bob")
-	ctx := context.Background()
+	aliceAcc, err := alice.net.AccountForDevice(ctx, alice.net.AddrInfo().ID)
 	aliceURI, err := alice.ExportWallet(ctx, "")
+
+	bob := makeTestService(t, "bob")
+	bobAcc, err := bob.net.AccountForDevice(ctx, bob.net.AddrInfo().ID)
 	require.NoError(t, err)
-	_, err = alice.InsertWallet(ctx, aliceURI, "default")
+	_, err = alice.InsertWallet(ctx, aliceURI, "default", aliceAcc.String())
 	require.NoError(t, err)
 	bobURI, err := bob.ExportWallet(ctx, "")
 	require.NoError(t, err)
-	_, err = bob.InsertWallet(ctx, bobURI, "default")
+	_, err = bob.InsertWallet(ctx, bobURI, "default", bobAcc.String())
 	require.NoError(t, err)
 
-	kp, err := bob.keyStore.GetKey(ctx, "main")
-	require.NoError(t, err)
-	bobAccount := kp.Principal()
 	var amt uint64 = 23
 	var wrongAmt uint64 = 24
 	var memo = "test invoice"
@@ -92,7 +90,7 @@ func TestRequestLndHubInvoice(t *testing.T) {
 		return err == nil
 	}, 3*time.Second, 1*time.Second)
 	require.Eventually(t, func() bool {
-		payreq, err = alice.RequestRemoteInvoice(ctx, bobAccount.String(), int64(amt), &memo)
+		payreq, err = alice.RequestRemoteInvoice(ctx, bobAcc.String(), int64(amt), &memo)
 		return err == nil
 	}, 8*time.Second, 2*time.Second)
 	invoice, err := lndhub.DecodeInvoice(payreq)
@@ -142,21 +140,21 @@ func makeTestService(t *testing.T, name string) *Service {
 
 	node, closenode := makeTestPeer(t, u, device, ks, db)
 	t.Cleanup(closenode)
+	/*
+		conn, release, err := db.Conn(context.Background())
+		require.NoError(t, err)
+		defer release()
 
-	conn, release, err := db.Conn(context.Background())
-	require.NoError(t, err)
-	defer release()
+		signature, err := u.Account.Sign([]byte(lndhub.SigningMessage))
+		require.NoError(t, err)
 
-	signature, err := u.Account.Sign([]byte(lndhub.SigningMessage))
-	require.NoError(t, err)
-
-	require.NoError(t, lndhubsql.SetLoginSignature(conn, hex.EncodeToString(signature)))
-
+		require.NoError(t, lndhubsql.SetLoginSignature(conn, hex.EncodeToString(signature)))
+	*/
 	ctx, cancel := context.WithCancel(context.Background())
 
 	t.Cleanup(cancel)
-	require.NoError(t, ks.StoreKey(ctx, "main", u.Account))
-	srv := New(ctx, logging.New("seed/wallet", "debug"), db, ks, "main", node, false)
+
+	srv := New(ctx, logging.New("seed/wallet", "debug"), db, node, false)
 
 	return srv
 }

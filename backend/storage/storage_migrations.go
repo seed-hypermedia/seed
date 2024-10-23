@@ -54,6 +54,26 @@ var migrations = []migration{
 	{Version: "2024-10-19.01", Run: func(_ *Store, _ *sqlite.Conn) error {
 		return nil
 	}},
+	{Version: "2024-10-24.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			DROP TABLE IF EXISTS wallets;
+			CREATE TABLE wallets (
+				id TEXT NOT NULL,
+				account INTEGER REFERENCES public_keys (id) ON DELETE CASCADE NOT NULL,
+				type TEXT CHECK( type IN ('lnd','lndhub.go','lndhub') ) NOT NULL DEFAULT 'lndhub.go',
+				address TEXT NOT NULL,
+				login BLOB NOT NULL,
+				password BLOB NOT NULL,
+				token BLOB,
+				name TEXT NOT NULL,
+				balance INTEGER DEFAULT 0,
+    			PRIMARY KEY (id, account)
+			);
+			CREATE INDEX wallets_by_account ON wallets (account);
+			DELETE FROM kv WHERE key = 'default_wallet';
+			DELETE FROM kv WHERE key = 'lndhub_login_signature';
+		`))
+	}},
 }
 
 func desiredVersion() string {

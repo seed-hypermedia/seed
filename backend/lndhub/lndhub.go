@@ -57,8 +57,6 @@ type Client struct {
 	http            *http.Client
 	db              *sqlitex.Pool
 	WalletID        string
-	keyStorage      core.KeyStore
-	keyName         string
 	lndhubDomain    string
 	lnaddressDomain string
 }
@@ -104,12 +102,10 @@ type Invoice struct {
 
 // NewClient returns an instance of an lndhub client. The id is the credentials URI
 // hash that acts as an index in the wallet table.
-func NewClient(ctx context.Context, h *http.Client, db *sqlitex.Pool, keyStorage core.KeyStore, keyName, lndhubDomain, lnaddressDomain string) *Client {
+func NewClient(ctx context.Context, h *http.Client, db *sqlitex.Pool, lndhubDomain, lnaddressDomain string) *Client {
 	return &Client{
 		http:            h,
 		db:              db,
-		keyStorage:      keyStorage,
-		keyName:         keyName,
 		lndhubDomain:    lndhubDomain,
 		lnaddressDomain: lnaddressDomain,
 	}
@@ -130,20 +126,8 @@ func (c *Client) GetLndaddressDomain() string {
 // was used to sign the password. If login is not a CID, then there is no need for the token and password can be
 // anything. Nickname can be anything in both cases as long as it's unique across all seed lndhub users (it will
 // fail otherwise).
-func (c *Client) Create(ctx context.Context, connectionURL, login, pass, nickname string) (createResponse, error) {
+func (c *Client) Create(ctx context.Context, connectionURL, login, pass, nickname string, token []byte) (createResponse, error) {
 	var resp createResponse
-	kp, err := c.keyStorage.GetKey(ctx, c.keyName)
-	if err != nil {
-		return resp, fmt.Errorf("could not get signing key, is account initialized?: %w", err)
-	}
-	pubKey, err := kp.ID().ExtractPublicKey()
-	if err != nil {
-		return resp, fmt.Errorf("Invalid pubkey: %w", err)
-	}
-	pubKeyBytes, err := pubKey.Raw()
-	if err != nil {
-		return resp, fmt.Errorf("Invalid pubkey: %w", err)
-	}
 
 	conn, release, err := c.db.Conn(ctx)
 	if err != nil {
@@ -158,7 +142,7 @@ func (c *Client) Create(ctx context.Context, connectionURL, login, pass, nicknam
 			Password: pass,  // signed message
 			Nickname: strings.ToLower(nickname),
 		},
-		Token: hex.EncodeToString(pubKeyBytes),
+		Token: hex.EncodeToString(token),
 	}, 2, &resp)
 	if err != nil {
 		return resp, err
@@ -171,15 +155,11 @@ func (c *Client) Create(ctx context.Context, connectionURL, login, pass, nicknam
 // The update can fail if the nickname contain special characters or is already taken by another user.
 // Since it is a user operation, if the login is a CID, then user must provide a token representing
 // the pubkey whose private counterpart created the signature provided in password (like in create).
-func (c *Client) UpdateNickname(ctx context.Context, nickname string) error {
+func (c *Client) UpdateNickname(ctx context.Context, nickname string, token []byte) error {
 	for _, c := range nickname {
 		if unicode.IsUpper(c) && unicode.IsLetter(c) {
 			return fmt.Errorf("Nickname cannot contain uppercase letters %s", nickname)
 		}
-	}
-	kp, err := c.keyStorage.GetKey(ctx, c.keyName)
-	if err != nil {
-		return fmt.Errorf("could not get signing key, is account initialized?: %w", err)
 	}
 	var resp createResponse
 
@@ -201,14 +181,6 @@ func (c *Client) UpdateNickname(ctx context.Context, nickname string) error {
 	if err != nil {
 		return err
 	}
-	pubKey, err := kp.ID().ExtractPublicKey()
-	if err != nil {
-		return fmt.Errorf("Invalid pubkey: %w", err)
-	}
-	pubKeyBytes, err := pubKey.Raw()
-	if err != nil {
-		return fmt.Errorf("Invalid pubkey: %w", err)
-	}
 
 	err = c.do(ctx, conn, httpRequest{
 		URL:    connectionURL + createRoute,
@@ -218,7 +190,7 @@ func (c *Client) UpdateNickname(ctx context.Context, nickname string) error {
 			Password: pass,  // signed message
 			Nickname: nickname,
 		},
-		Token: hex.EncodeToString(pubKeyBytes), // this token is the pubkey bytes whose private counterpart was used to sign the password
+		Token: hex.EncodeToString(token), // this token is the pubkey bytes whose private counterpart was used to sign the password
 	}, 2, &resp)
 	if err != nil {
 		return err
@@ -233,7 +205,8 @@ func (c *Client) UpdateNickname(ctx context.Context, nickname string) error {
 // GetLnAddress gets the account-wide ln address in the form of <nickname>@<domain> .
 // Since it is a user operation, if the login is a CID, then user must provide a token representing
 // the pubkey whose private counterpart created the signature provided in password (like in create).
-func (c *Client) GetLnAddress(ctx context.Context) (string, error) {
+func (c *Client) GetLnAddress(ctx context.Context, account string) (string, error) {
+
 	conn, release, err := c.db.Conn(ctx)
 	if err != nil {
 		return "", err
@@ -252,8 +225,21 @@ func (c *Client) GetLnAddress(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	principal, err := core.DecodePrincipal(account)
+	if err != nil {
+		return "", fmt.Errorf("Wrong account %s: %w", account, err)
+	}
+	pk, err := principal.Libp2pKey()
+	if err != nil {
+		return "", fmt.Errorf("Wrong account format%s: %w", principal.String(), err)
+	}
+	_, token2 := principal.Explode()
+	token, err := pk.Raw()
+	fmt.Println(token)
+	fmt.Println(token2)
 
-	user, err := c.Create(ctx, connectionURL, login, pass, "") // create with valid credentials and blank nickname fills the nickname
+	user, err := c.Create(ctx, connectionURL, login, pass, "", token) // create with valid credentials and blank nickname fills the nickname
+	panic("Only one token valid, and make account a []byte")
 	if err != nil {
 		return "", err
 	}

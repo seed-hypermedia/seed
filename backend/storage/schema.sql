@@ -200,8 +200,10 @@ CREATE TABLE peers (
 -- Stores Lightning wallets both externals (imported wallets like bluewallet
 -- based on lndhub) and internals (based on the LND embedded node).
 CREATE TABLE wallets (
-    -- Wallet unique ID. Is the connection uri hash.
-    id TEXT PRIMARY KEY,
+    -- Wallet unique ID. Is the connection uri hashed with the account.
+    id TEXT NOT NULL,
+    -- Account
+    account INTEGER REFERENCES public_keys (id) ON DELETE CASCADE NOT NULL,
     -- The type of the wallet.
     type TEXT CHECK( type IN ('lnd','lndhub.go','lndhub') ) NOT NULL DEFAULT 'lndhub.go',
     -- Address of the LND node backing up this wallet. In case lndhub, this will be the
@@ -218,5 +220,8 @@ CREATE TABLE wallets (
     -- Human readable name to help the user identify each wallet
     name TEXT NOT NULL,
     -- The balance in satoshis
-    balance INTEGER DEFAULT 0
+    balance INTEGER DEFAULT 0,
+    PRIMARY KEY (id, account)
 );
+CREATE INDEX wallets_by_account ON wallets (account);
+
