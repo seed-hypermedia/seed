@@ -7,7 +7,7 @@ export type DraftMachineState = StateFrom<typeof draftMachine>
 export const draftMachine = setup({
   types: {
     context: {} as {
-      metadata: HMMetadata | {}
+      metadata: HMMetadata
       signingAccount: null | string
       draft: null | HMDraft
       document: null | HMDocument
