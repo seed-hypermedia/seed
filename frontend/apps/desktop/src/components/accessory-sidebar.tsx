@@ -71,7 +71,7 @@ export function AccessoryLayout<
         >
           {children}
         </Panel>
-        <PanelResizeHandle />
+        <PanelResizeHandle className="accessory-resize-handle" />
         <Panel
           hidden={accessoryKey === undefined}
           maxSize={50}

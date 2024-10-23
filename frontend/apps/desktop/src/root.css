@@ -10,6 +10,16 @@ body {
   cursor: default !important;
 }
 
+.accessory-resize-handle {
+  width: 1px;
+  background-color: var(--color7);
+}
+
+.accessory-resize-handle:hover {
+  cursor: col-resize !important;
+  background-color: var(--color8);
+}
+
 #root {
   display: flex;
   flex-direction: column;
