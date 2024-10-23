@@ -2,19 +2,21 @@ package documents
 
 import (
 	"context"
+	"seed/backend/blob"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
 	documents "seed/backend/genproto/documents/v3alpha"
-	"seed/backend/blob"
 	"seed/backend/logging"
 	"seed/backend/storage"
 	"seed/backend/testutil"
 	"seed/backend/util/must"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestCreateDocumentChange(t *testing.T) {
@@ -372,6 +374,96 @@ func TestConcurrentChanges(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.False(t, strings.Contains(merged.Version, "."), "merged version must not be composite")
+}
+
+func TestCreateDocumentChangeWithTimestamp(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	now := time.Now().Add(24 * time.Hour * -1)
+
+	doc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.Principal().String(),
+		Path:           "",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice from the Wonderland"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Hello",
+				},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "b1", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b2",
+					Type: "paragraph",
+					Text: "World!",
+				},
+			}},
+		},
+		Timestamp: timestamppb.New(now),
+	})
+	require.NoError(t, err)
+
+	want := &documents.Document{
+		Account: alice.me.Account.Principal().String(),
+		Path:    "",
+		Metadata: map[string]string{
+			"title": "Alice from the Wonderland",
+		},
+		Authors: []string{alice.me.Account.Principal().String()},
+		Content: []*documents.BlockNode{
+			{
+				Block: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Hello",
+				},
+				Children: []*documents.BlockNode{
+					{
+						Block: &documents.Block{
+							Id:   "b2",
+							Type: "paragraph",
+							Text: "World!",
+						},
+					},
+				},
+			},
+		},
+		CreateTime: timestamppb.New(time.UnixMilli(0)),
+		UpdateTime: timestamppb.New(now.Round(time.Millisecond)),
+	}
+
+	testutil.StructsEqual(want, doc).
+		IgnoreFields(documents.Block{}, "Revision").
+		IgnoreFields(documents.Document{}, "Version").
+		Compare(t, "profile document must match")
+
+	doc, err = alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.Principal().String(),
+		BaseVersion:    doc.Version,
+		Path:           "",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Change with older timestamp must fail"},
+			}},
+		},
+		Timestamp: timestamppb.New(now),
+	})
+	require.Error(t, err, "creating change with old timestamps must fail")
 }
 
 type testServer struct {

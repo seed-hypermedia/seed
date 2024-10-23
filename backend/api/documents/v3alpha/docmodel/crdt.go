@@ -323,6 +323,14 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 			return fmt.Errorf("missing dependency %s of change %s", dep, c)
 		}
 
+		if !ch.Ts.After(e.changes[depIdx].Ts) {
+			return fmt.Errorf("ts of change %s must be greater than ts of its dependency %s", c, dep)
+		}
+
+		if ch.Depth <= e.changes[depIdx].Depth {
+			return fmt.Errorf("depth of change %s must be greater than depth of its dependency %s", c, dep)
+		}
+
 		deps[i] = depIdx
 	}
 

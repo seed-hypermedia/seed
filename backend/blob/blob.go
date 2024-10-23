@@ -22,7 +22,7 @@ func init() {
 		Transform().
 		TransformMarshal(atlas.MakeMarshalTransformFunc(func(t time.Time) (int64, error) {
 			if !t.Equal(t.Round(ClockPrecision)) {
-				panic("BUG: trying to encoded a non-rounded time.Time")
+				panic("BUG: trying to encode a non-rounded time.Time")
 			}
 
 			return t.UnixMilli(), nil

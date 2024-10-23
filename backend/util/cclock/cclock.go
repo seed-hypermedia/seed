@@ -68,7 +68,7 @@ func (c *Clock) Now() (time.Time, error) {
 	// If local clock is less than max tracked timestamp, something is going wrong.
 	diff := c.maxTime.Sub(now)
 	if diff >= c.SkewThreshold {
-		return time.Time{}, fmt.Errorf("local clock %s is way behind the maximum tracked timestamp %s", now, c.maxTime)
+		return time.Time{}, fmt.Errorf("local clock timestamp %s is way behind the maximum tracked timestamp %s", now, c.maxTime)
 	}
 
 	if diff >= 0 {

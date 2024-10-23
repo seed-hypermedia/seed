@@ -15,6 +15,7 @@ import (
 	"seed/backend/util/cclock"
 	"slices"
 	"sort"
+	"time"
 	"unique"
 
 	"github.com/ipfs/go-cid"
@@ -293,6 +294,12 @@ func (dm *Document) ensureTreeMutation() (*blockTreeMutation, error) {
 // SignChange creates a change.
 // After this the Document instance must be discarded. The change must be applied to a different state.
 func (dm *Document) SignChange(kp core.KeyPair) (hb blob.Encoded[*blob.Change], err error) {
+	return dm.SignChangeAt(kp, dm.crdt.clock.MustNow())
+}
+
+// SignChangeAt creates a change at the given timestamp, ignoring the internal clock.
+// The timestamp must still satisfy the causality rules, i.e. be strictly greater than any previously observed timestamp.
+func (dm *Document) SignChangeAt(kp core.KeyPair, at time.Time) (hb blob.Encoded[*blob.Change], err error) {
 	// TODO(burdiyan): we should make them reusable.
 	if dm.done {
 		return hb, fmt.Errorf("using already committed mutation")
@@ -302,7 +309,9 @@ func (dm *Document) SignChange(kp core.KeyPair) (hb blob.Encoded[*blob.Change], 
 
 	ops := dm.cleanupPatch()
 
-	hb, err = dm.crdt.prepareChange(dm.crdt.clock.MustNow(), kp, ops)
+	at = at.Round(dm.crdt.clock.Precision)
+
+	hb, err = dm.crdt.prepareChange(at, kp, ops)
 	if err != nil {
 		return hb, err
 	}

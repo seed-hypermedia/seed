@@ -143,9 +143,17 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 
 	var newBlobs []blocks.Block
 
-	docChange, err := doc.SignChange(kp)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create document change: %w", err)
+	var docChange blob.Encoded[*blob.Change]
+	if in.Timestamp != nil {
+		docChange, err = doc.SignChangeAt(kp, in.Timestamp.AsTime())
+		if err != nil {
+			return nil, fmt.Errorf("failed to create document change with the provided timestamp: %w", err)
+		}
+	} else {
+		docChange, err = doc.SignChange(kp)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create document change: %w", err)
+		}
 	}
 	newBlobs = append(newBlobs, docChange)
 

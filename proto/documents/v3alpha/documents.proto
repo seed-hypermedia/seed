@@ -65,6 +65,11 @@ message CreateDocumentChangeRequest {
   // Optional. ID of the capability that allows signing key to write on behalf of the account
   // for this particular path.
   string capability = 6;
+
+  // Optional. Timestamp that the change should have.
+  // By default current time is used.
+  // The timestamp must be strictly greater than the timestamp of any other Change in the dependency chain.
+  google.protobuf.Timestamp timestamp = 7;
 }
 
 message DeleteDocumentRequest {

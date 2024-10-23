@@ -117,6 +117,15 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
    */
   capability = "";
 
+  /**
+   * Optional. Timestamp that the change should have.
+   * By default current time is used.
+   * The timestamp must be strictly greater than the timestamp of any other Change in the dependency chain.
+   *
+   * @generated from field: google.protobuf.Timestamp timestamp = 7;
+   */
+  timestamp?: Timestamp;
+
   constructor(data?: PartialMessage<CreateDocumentChangeRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -131,6 +140,7 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
     { no: 4, name: "changes", kind: "message", T: DocumentChange, repeated: true },
     { no: 5, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 6, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "timestamp", kind: "message", T: Timestamp },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateDocumentChangeRequest {
