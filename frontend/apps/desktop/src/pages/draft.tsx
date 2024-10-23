@@ -132,10 +132,6 @@ export default function DraftPage() {
       <Footer />
     </ErrorBoundary>
   )
-
-  return null
-
-  // ==========
 }
 
 function DocumentEditor({
