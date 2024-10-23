@@ -79,7 +79,7 @@ export default function autoUpdate() {
     checkForUpdates()
   }, 2000)
 
-  setInterval(checkForUpdates, 43200000) // every 12 hours
+  setInterval(checkForUpdates, 600_000) // every 12 hours
 }
 
 // ======================================
