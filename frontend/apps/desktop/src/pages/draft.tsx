@@ -87,8 +87,8 @@ export default function DraftPage() {
   if (accessoryKey == 'options' && route.id) {
     accessory = (
       <OptionsPanel
-        value={data.state.context.metadata.layout}
-        onValue={(value) => {
+        metadata={data.state.context.metadata}
+        onMetadata={(value) => {
           if (!draft.data) return
           data.actor.send({type: 'CHANGE', metadata: {layout: value}})
         }}
@@ -116,23 +116,21 @@ export default function DraftPage() {
 
   return (
     <ErrorBoundary FallbackComponent={() => null}>
-      <XStack flex={1}>
-        <SidebarSpacer />
-        <AccessoryLayout
-          accessory={accessory}
-          accessoryKey={accessoryKey}
-          onAccessorySelect={(key: typeof accessoryKey) => {
-            if (key === accessoryKey || key === undefined)
-              return replace({...route, accessory: null})
-            replace({...route, accessory: {key}})
-          }}
-          accessoryOptions={accessoryOptions}
-        >
-          {route.id ? (
-            <DraftContent draft={draft} data={data} id={route.id} />
-          ) : null}
-        </AccessoryLayout>
-      </XStack>
+      <AccessoryLayout
+        accessory={accessory}
+        accessoryKey={accessoryKey}
+        onAccessorySelect={(key: typeof accessoryKey) => {
+          if (key === accessoryKey || key === undefined)
+            return replace({...route, accessory: null})
+          replace({...route, accessory: {key}})
+        }}
+        accessoryOptions={accessoryOptions}
+      >
+        {route.id ? (
+          <DraftContent draft={draft} data={data} id={route.id} />
+        ) : null}
+      </AccessoryLayout>
+
       <Footer />
     </ErrorBoundary>
   )
