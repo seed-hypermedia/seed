@@ -14,10 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/btcsuite/btcd/btcutil"
-	"github.com/stretchr/testify/require"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
+
+	"github.com/btcsuite/btcd/btcutil"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -44,16 +45,15 @@ func TestCreate(t *testing.T) {
 	defer cancel()
 	keypair, err := core.NewKeyPairRandom()
 	require.NoError(t, err)
-	pubKeyBytes, err := keypair.PublicKey.MarshalBinary()
+	token, err := keypair.PublicKey.MarshalBinary()
 	require.NoError(t, err)
 
-	ks := core.NewMemoryKeyStore()
 	login := keypair.String()
 	passwordBytes, err := keypair.Sign([]byte(SigningMessage))
 	password := hex.EncodeToString(passwordBytes)
 	require.NoError(t, err)
-	lndHubClient := NewClient(context.Background(), &http.Client{}, pool, ks, "main", lndhubDomain, lnaddressDomain)
-	lndHubClient.WalletID = credentials2Id("lndhub.go", login, password, lndhubDomain)
+	lndHubClient := NewClient(context.Background(), &http.Client{}, pool, lndhubDomain, lnaddressDomain)
+	lndHubClient.WalletID = credentials2Id("lndhub.go", login, password, lndhubDomain, token)
 
 	makeTestWallet(t, conn, walletsql.Wallet{
 		ID:      lndHubClient.WalletID,
@@ -61,12 +61,10 @@ func TestCreate(t *testing.T) {
 		Name:    nickname,
 		Type:    "lndhub.go",
 		Balance: 0,
-	}, login, password, hex.EncodeToString(pubKeyBytes))
+		Account: keypair.Principal().String(),
+	}, login, password, hex.EncodeToString(token))
 
-	user, err := lndHubClient.Create(ctx, connectionURL, login, password, nickname)
-	require.Error(t, err)
-	require.NoError(t, ks.StoreKey(ctx, "main", keypair))
-	user, err = lndHubClient.Create(ctx, connectionURL, login, password, nickname)
+	user, err := lndHubClient.Create(ctx, connectionURL, login, password, nickname, token)
 	require.NoError(t, err)
 	require.EqualValues(t, login, user.Login)
 	require.EqualValues(t, password, user.Password)
@@ -75,12 +73,12 @@ func TestCreate(t *testing.T) {
 	_, err = lndHubClient.Auth(ctx)
 	require.NoError(t, err)
 	var newNickname = randStringRunes(8)
-	err = lndHubClient.UpdateNickname(ctx, strings.ToUpper(newNickname))
+	err = lndHubClient.UpdateNickname(ctx, strings.ToUpper(newNickname), token)
 	require.Error(t, err)
 	newNickname = strings.ToLower(newNickname)
-	err = lndHubClient.UpdateNickname(ctx, newNickname)
+	err = lndHubClient.UpdateNickname(ctx, newNickname, token)
 	require.NoError(t, err)
-	lnaddress, err := lndHubClient.GetLnAddress(ctx)
+	lnaddress, err := lndHubClient.GetLnAddress(ctx, keypair.PublicKey.Principal().String())
 	require.NoError(t, err)
 	require.EqualValues(t, newNickname+"@"+lnaddressDomain, lnaddress)
 	balance, err := lndHubClient.GetBalance(ctx)
@@ -132,8 +130,8 @@ func makeConn(t *testing.T) (*sqlitex.Pool, error) {
 	return storage.MakeTestDB(t), nil
 }
 
-func credentials2Id(wType, login, password, domain string) string {
+func credentials2Id(wType, login, password, domain string, account []byte) string {
 	url := wType + "://" + login + ":" + password + "@https://" + domain
-	h := sha256.Sum256([]byte(url))
+	h := sha256.Sum256(append([]byte(url), account...))
 	return hex.EncodeToString(h[:])
 }

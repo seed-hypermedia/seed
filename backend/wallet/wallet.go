@@ -37,8 +37,6 @@ type Service struct {
 	pool            *sqlitex.Pool
 	net             *mttnet.Node
 	log             *zap.Logger
-	keyStore        core.KeyStore
-	keyName         string
 }
 
 // Credentials struct holds all we need to connect to different lightning nodes (lndhub, LND, core-lightning, ...).
@@ -48,14 +46,12 @@ type Credentials struct {
 	Login      string `json:"login"`
 	Password   string `json:"password"`
 	Nickname   string `json:"nickname,omitempty"`
-	Token      string `json:"token,omitempty"`
-	ID         string `json:"id,omitempty"`
 }
 
 // New is the constructor of the wallet service. Since it needs to authenticate to the internal wallet provider (lndhub)
 // it may take time in case node is offline. This is why it's initialized in a gorutine and calls to the service functions
 // will fail until the initial wallet is successfully initialized.
-func New(ctx context.Context, log *zap.Logger, db *sqlitex.Pool, ks core.KeyStore, keyName string, net *mttnet.Node, mainnet bool) *Service {
+func New(ctx context.Context, log *zap.Logger, db *sqlitex.Pool, net *mttnet.Node, mainnet bool) *Service {
 	lndhubDomain := "ln.testnet.mintter.com"
 	lnaddressDomain := "ln.testnet.mintter.com"
 	if mainnet {
@@ -66,12 +62,10 @@ func New(ctx context.Context, log *zap.Logger, db *sqlitex.Pool, ks core.KeyStor
 	srv := &Service{
 		pool: db,
 		lightningClient: lnclient{
-			Lndhub: lndhub.NewClient(ctx, &http.Client{}, db, ks, keyName, lndhubDomain, lnaddressDomain),
+			Lndhub: lndhub.NewClient(ctx, &http.Client{}, db, lndhubDomain, lnaddressDomain),
 		},
-		net:      net,
-		log:      log,
-		keyStore: ks,
-		keyName:  keyName,
+		net: net,
+		log: log,
 	}
 	srv.net.SetInvoicer(srv)
 	// Check if the user already had a lndhub wallet (reusing db)
@@ -189,11 +183,38 @@ func (srv *Service) P2PInvoiceRequest(ctx context.Context, account core.Principa
 	*/
 }
 
+// CreateWallet creates a seed wallet from a set of mnemonic words. (usually the same as the
+// account). If the account was set with a password, then the same password has to be inserted here
+func (srv *Service) CreateWallet(ctx context.Context, mnemonics []string, passphrase string, name string) (ret wallet.Wallet, err error) {
+	kp, err := core.AccountFromMnemonic(mnemonics, passphrase)
+	if err != nil {
+		return ret, fmt.Errorf("Provided mnemonics lead to a non valid or non existing account: %w", err)
+	}
+	signature, err := kp.Sign([]byte(lndhub.SigningMessage))
+	if err != nil {
+		return ret, fmt.Errorf("Could not sign the login phrase with the provided mnemonics: %w", err)
+	}
+
+	creds := Credentials{
+		Domain:     srv.lightningClient.Lndhub.GetLndaddressDomain(),
+		WalletType: "lndhub.go",
+		Login:      kp.Principal().String(),
+		Password:   hex.EncodeToString(signature),
+		Nickname:   kp.Principal().String(),
+	}
+	credentialsURL, err := EncodeCredentialsURL(creds)
+	if err != nil {
+		return ret, fmt.Errorf("Error generating credentials: %w", err)
+	}
+	return srv.InsertWallet(ctx, credentialsURL, name, creds.Login)
+
+}
+
 // InsertWallet first tries to connect to the wallet with the provided credentials. On
 // success, gets the wallet balance and inserts all that information in the database.
-// InsertWallet returns the wallet actually inserted on success. The credentias are stored
+// InsertWallet returns the wallet actually inserted on success. The credentials are stored
 // in plain text at the moment.
-func (srv *Service) InsertWallet(ctx context.Context, credentialsURL, name string) (wallet.Wallet, error) {
+func (srv *Service) InsertWallet(ctx context.Context, credentialsURL, name, account string) (wallet.Wallet, error) {
 	var err error
 	var ret wallet.Wallet
 
@@ -208,8 +229,22 @@ func (srv *Service) InsertWallet(ctx context.Context, credentialsURL, name strin
 		srv.log.Debug(err.Error())
 		return ret, err
 	}
+
+	principal, err := core.DecodePrincipal(account)
+	if err != nil {
+		return ret, fmt.Errorf("Wrong account %s: %w", account, err)
+	}
+	pk, err := principal.Libp2pKey()
+	if err != nil {
+		return ret, fmt.Errorf("Problem extracting public key from account %s: %w", principal.String(), err)
+	}
+	bynaryAcc, err := pk.Raw()
+	if err != nil {
+		return ret, fmt.Errorf("Problem getting bytes from public key %s: %w", principal.String(), err)
+	}
+	ret.ID = URL2Id(credentialsURL, account)
 	if creds.WalletType == lndhubsql.LndhubGoWalletType || creds.WalletType == lndhubsql.LndhubWalletType {
-		srv.lightningClient.Lndhub.WalletID = URL2Id(credentialsURL)
+		srv.lightningClient.Lndhub.WalletID = ret.ID
 	}
 
 	conn, release, err := srv.pool.Conn(ctx)
@@ -220,8 +255,8 @@ func (srv *Service) InsertWallet(ctx context.Context, credentialsURL, name strin
 
 	ret.Type = creds.WalletType
 	ret.Address = "https://" + creds.Domain
-	ret.ID = creds.ID
 	ret.Name = name
+	ret.Account = account
 	if creds.WalletType == lndhubsql.LndhubGoWalletType {
 		// Only one lndhub.go wallet is allowed
 		wallets, err := srv.ListWallets(ctx, false)
@@ -239,7 +274,8 @@ func (srv *Service) InsertWallet(ctx context.Context, credentialsURL, name strin
 		if creds.Nickname == "" {
 			creds.Nickname = creds.Login
 		}
-		newWallet, err := srv.lightningClient.Lndhub.Create(ctx, ret.Address, creds.Login, creds.Password, creds.Nickname)
+
+		newWallet, err := srv.lightningClient.Lndhub.Create(ctx, ret.Address, creds.Login, creds.Password, creds.Nickname, bynaryAcc)
 		if err != nil {
 			srv.log.Warn("couldn't insert wallet", zap.String("Login", creds.Login), zap.String("Nickname", creds.Nickname), zap.Error(err))
 			return ret, err
@@ -247,7 +283,7 @@ func (srv *Service) InsertWallet(ctx context.Context, credentialsURL, name strin
 		creds.Nickname = newWallet.Nickname
 	}
 
-	if err = wallet.InsertWallet(conn, ret, []byte(creds.Login), []byte(creds.Password), []byte(creds.Token)); err != nil {
+	if err = wallet.InsertWallet(conn, ret, []byte(creds.Login), []byte(creds.Password), bynaryAcc); err != nil {
 		srv.log.Debug("couldn't insert wallet", zap.String("msg", err.Error()))
 		if errors.Is(err, walletsql.ErrDuplicateIndex) {
 			return ret, fmt.Errorf("couldn't insert wallet %s in the database. ID already exists", name)
@@ -256,7 +292,7 @@ func (srv *Service) InsertWallet(ctx context.Context, credentialsURL, name strin
 	}
 
 	// Trying to authenticate with the provided credentials
-	creds.Token, err = srv.lightningClient.Lndhub.Auth(ctx)
+	_, err = srv.lightningClient.Lndhub.Auth(ctx)
 	if err != nil {
 		_ = wallet.RemoveWallet(conn, ret.ID)
 		srv.log.Warn("couldn't authenticate new wallet", zap.String("msg", err.Error()))
@@ -341,10 +377,16 @@ func (srv *Service) SetDefaultWallet(ctx context.Context, walletID string) (ret 
 		return ret, err
 	}
 	defer release()
-
-	wallet, err := wallet.UpdateDefaultWallet(conn, walletID)
+	w, err := wallet.GetWallet(conn, walletID)
 	if err != nil {
-		srv.log.Debug("couldn't set default wallet: " + err.Error())
+		srv.log.Warn("couldn't wallet to be set to default: " + err.Error())
+		return ret, err
+	}
+
+	w, err = wallet.UpdateDefaultWallet(conn, w.Account, w.ID)
+	if err != nil {
+		srv.log.Warn("couldn't set default wallet: " + err.Error())
+		return ret, err
 	}
 	return wallet, err
 }
@@ -362,53 +404,36 @@ func (srv *Service) ExportWallet(ctx context.Context, walletID string) (string, 
 	defer release()
 	var uri string
 	if walletID == "" {
-		loginSignature, err := lndhubsql.GetLoginSignature(conn)
-		if err != nil {
-			return "", err
-		}
-		me, err := srv.keyStore.GetKey(ctx, srv.keyName)
-		if err != nil {
-			return "", err
-		}
-		uri, err = EncodeCredentialsURL(Credentials{
-			Domain:     srv.lightningClient.Lndhub.GetLndhubDomain(),
-			WalletType: lndhubsql.LndhubGoWalletType,
-			Login:      me.String(),
-			Password:   loginSignature,
-		})
-		if err != nil {
-			return "", err
-		}
-	} else {
-		login, err := lndhubsql.GetLogin(conn, walletID)
-		if err != nil {
-			srv.log.Debug(err.Error())
-			return "", err
-		}
-		password, err := lndhubsql.GetPassword(conn, walletID)
-		if err != nil {
-			srv.log.Debug(err.Error())
-			return "", err
-		}
-		url, err := lndhubsql.GetAPIURL(conn, walletID)
-		if err != nil {
-			srv.log.Debug(err.Error())
-			return "", err
-		}
-		splitURL := strings.Split(url, "//")
-		if len(splitURL) != 2 {
-			err = fmt.Errorf("Could not export wallet, unexpected url format [%s]", url)
-			srv.log.Debug(err.Error())
-			return "", err
-		}
-		uri, err = EncodeCredentialsURL(Credentials{
-			Domain:     splitURL[1],
-			WalletType: lndhubsql.LndhubWalletType,
-			Login:      login,
-			Password:   password,
-			ID:         walletID,
-		})
+		return "", fmt.Errorf("Wallet ID cannot be empty")
 	}
+	login, err := lndhubsql.GetLogin(conn, walletID)
+	if err != nil {
+		srv.log.Debug(err.Error())
+		return "", err
+	}
+	password, err := lndhubsql.GetPassword(conn, walletID)
+	if err != nil {
+		srv.log.Debug(err.Error())
+		return "", err
+	}
+	url, err := lndhubsql.GetAPIURL(conn, walletID)
+	if err != nil {
+		srv.log.Debug(err.Error())
+		return "", err
+	}
+	splitURL := strings.Split(url, "//")
+	if len(splitURL) != 2 {
+		err = fmt.Errorf("Could not export wallet, unexpected url format [%s]", url)
+		srv.log.Debug(err.Error())
+		return "", err
+	}
+	uri, err = EncodeCredentialsURL(Credentials{
+		Domain:     splitURL[1],
+		WalletType: lndhubsql.LndhubWalletType,
+		Login:      login,
+		Password:   password,
+	})
+
 	if err != nil {
 		srv.log.Debug("couldn't encode uri: " + err.Error())
 		return "", err
@@ -420,8 +445,23 @@ func (srv *Service) ExportWallet(ctx context.Context, walletID string) (string, 
 // The update can fail if the nickname contain special characters or is already taken by another user.
 // Since it is a user operation, if the login is a CID, then user must provide a token representing
 // the pubkey whose private counterpart created the signature provided in password (like in create).
-func (srv *Service) UpdateLnaddressNickname(ctx context.Context, nickname string) error {
-	err := srv.lightningClient.Lndhub.UpdateNickname(ctx, nickname)
+func (srv *Service) UpdateLnaddressNickname(ctx context.Context, nickname, account string) error {
+	principal, err := core.DecodePrincipal(account)
+	if err != nil {
+		return fmt.Errorf("Wrong account %s: %w", account, err)
+	}
+	pk, err := principal.Libp2pKey()
+	if err != nil {
+		return fmt.Errorf("Wrong account format%s: %w", principal.String(), err)
+	}
+	_, token2 := principal.Explode()
+	token, err := pk.Raw()
+	fmt.Println(token)
+	fmt.Println(token2)
+	if err != nil {
+		return fmt.Errorf("Wrong account format%s: %w", principal.String(), err)
+	}
+	err = srv.lightningClient.Lndhub.UpdateNickname(ctx, nickname, token)
 	if err != nil {
 		srv.log.Debug("couldn't update nickname: " + err.Error())
 		return err
@@ -623,33 +663,13 @@ func (srv *Service) PayInvoice(ctx context.Context, payReq string, walletID *str
 // GetLnAddress gets the account-wide ln address in the form of <nickname>@<domain> .
 // Since it is a user operation, if the login is a CID, then user must provide a token representing
 // the pubkey whose private counterpart created the signature provided in password (like in create).
-func (srv *Service) GetLnAddress(ctx context.Context) (string, error) {
-	lnaddress, err := srv.lightningClient.Lndhub.GetLnAddress(ctx)
+func (srv *Service) GetLnAddress(ctx context.Context, account string) (string, error) {
+	lnaddress, err := srv.lightningClient.Lndhub.GetLnAddress(ctx, account)
 	if err != nil {
 		srv.log.Debug("couldn't get lnaddress", zap.String("msg", err.Error()))
 		return "", fmt.Errorf("couldn't get lnaddress")
 	}
 	return lnaddress, nil
-}
-
-// ConfigureSeedLNDHub uses the account private key to generate credentials for the default
-// Seed custodial LNDHub wallet.
-func (srv *Service) ConfigureSeedLNDHub(ctx context.Context, acc core.KeyPair) error {
-	signature, err := acc.Sign([]byte(lndhub.SigningMessage))
-	if err != nil {
-		return err
-	}
-	conn, release, err := srv.pool.Conn(ctx)
-	if err != nil {
-		return err
-	}
-	defer release()
-
-	if err := lndhubsql.SetLoginSignature(conn, hex.EncodeToString(signature)); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // DecodeCredentialsURL takes a credential string of the form
@@ -671,13 +691,12 @@ func DecodeCredentialsURL(url string) (Credentials, error) {
 	credentials.Login = res[2]
 	credentials.Password = res[3]
 	credentials.Domain = res[4]
-	credentials.ID = URL2Id(url)
 	return credentials, nil
 }
 
-// URL2Id constructs a unique and collision-free ID out of a credentials URL.
-func URL2Id(url string) string {
-	h := sha256.Sum256([]byte(url))
+// URL2Id constructs a unique and collision-free ID out of a credentials URL and account.
+func URL2Id(url string, account string) string {
+	h := sha256.Sum256(append([]byte(url), []byte(account)...))
 	return hex.EncodeToString(h[:])
 }
 

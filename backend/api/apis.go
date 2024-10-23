@@ -42,7 +42,6 @@ func New(
 	repo Storage,
 	idx *blob.Index,
 	node *mttnet.Node,
-	wallet daemon.Wallet,
 	sync *syncing.Service,
 	activity *activity.Server,
 	LogLevel string,
@@ -51,7 +50,7 @@ func New(
 
 	return Server{
 		Activity:    activity,
-		Daemon:      daemon.NewServer(repo, wallet, &p2pNodeSubset{node: node, sync: sync}),
+		Daemon:      daemon.NewServer(repo, &p2pNodeSubset{node: node, sync: sync}),
 		Networking:  networking.NewServer(node, db, logging.New("seed/networking", LogLevel)),
 		Entities:    entities.NewServer(idx, sync),
 		DocumentsV3: documentsv3.NewServer(repo.KeyStore(), idx, db, logging.New("seed/documents", LogLevel)),

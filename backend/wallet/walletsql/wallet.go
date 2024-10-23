@@ -3,10 +3,11 @@ package walletsql
 import (
 	"errors"
 	"fmt"
+	"seed/backend/blob"
+	"seed/backend/core"
 	"seed/backend/lndhub/lndhubsql"
-	"strings"
-
 	"seed/backend/util/sqlite"
+	"strings"
 )
 
 const (
@@ -24,6 +25,7 @@ var (
 // Wallet is the representation of a lightning wallet.
 type Wallet struct {
 	ID      string `mapstructure:"id"`
+	Account string `mapstructure:"account"`
 	Address string `marstructure:"address"`
 	Name    string `mapstructure:"name"`
 	Type    string `mapstructure:"type"`
@@ -46,12 +48,17 @@ func GetWallet(conn *sqlite.Conn, walletID string) (Wallet, error) {
 	if wallet.WalletsID == "" {
 		return Wallet{}, fmt.Errorf("No wallet found with id %s", walletID)
 	}
+	principal, err := blob.DbGetPublicKeyByID(conn, wallet.WalletsAccount)
+	if err != nil {
+		return Wallet{}, fmt.Errorf("Problem getting the wallet's account %s", walletID)
+	}
 	ret := Wallet{
 		ID:      wallet.WalletsID,
 		Address: wallet.WalletsAddress,
 		Name:    wallet.WalletsName,
 		Type:    wallet.WalletsType,
 		Balance: int64(wallet.WalletsBalance),
+		Account: core.Principal(principal).String(),
 	}
 
 	return ret, err
@@ -71,6 +78,10 @@ func ListWallets(conn *sqlite.Conn, limit int) ([]Wallet, error) {
 	}
 
 	for _, s := range res {
+		principal, err := blob.DbGetPublicKeyByID(conn, s.WalletsAccount)
+		if err != nil {
+			return resultArray, fmt.Errorf("Problem getting the wallet's account %s", s.WalletsID)
+		}
 		resultArray = append(resultArray,
 			Wallet{
 				ID:      s.WalletsID,
@@ -78,6 +89,7 @@ func ListWallets(conn *sqlite.Conn, limit int) ([]Wallet, error) {
 				Name:    s.WalletsName,
 				Type:    s.WalletsType,
 				Balance: int64(s.WalletsBalance),
+				Account: core.Principal(principal).String(),
 			})
 	}
 
@@ -92,8 +104,21 @@ func InsertWallet(conn *sqlite.Conn, wallet Wallet, login, password, token []byt
 	if len(wallet.ID) != idcharLength {
 		return fmt.Errorf("wallet id must be a %d character string. Got %d", idcharLength, len(wallet.ID))
 	}
-
-	if err := insertWallet(conn, wallet.ID, wallet.Address, strings.ToLower(wallet.Type),
+	principal, err := core.DecodePrincipal(wallet.Account)
+	if err != nil {
+		return fmt.Errorf("Could not decode provided account %s: %w", wallet.Account, err)
+	}
+	accountID, err := blob.DbPublicKeysLookupID(conn, principal)
+	if err != nil {
+		return fmt.Errorf("Problem finding provided account %s : %w", wallet.Account, err)
+	}
+	if accountID == 0 {
+		accountID, err = blob.DbPublicKeysInsert(conn, principal)
+		if err != nil {
+			return fmt.Errorf("Error inserting new account %s: %w", principal.String(), err)
+		}
+	}
+	if err := insertWallet(conn, wallet.ID, accountID, wallet.Address, strings.ToLower(wallet.Type),
 		login, password, token, wallet.Name, int64(wallet.Balance)); err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			return fmt.Errorf("couldn't insert wallet: %w", ErrDuplicateIndex)
@@ -108,7 +133,7 @@ func InsertWallet(conn *sqlite.Conn, wallet Wallet, login, password, token []byt
 	}
 
 	if nwallets.Count == 1 {
-		if err = setDefaultWallet(conn, DefaultWalletKey, wallet.ID); err != nil {
+		if err = setDefaultWallet(conn, DefaultWalletKey, wallet.Account, wallet.ID); err != nil {
 			return fmt.Errorf("couldn't set newly created wallet to default: %w", err)
 		}
 	}
@@ -118,9 +143,9 @@ func InsertWallet(conn *sqlite.Conn, wallet Wallet, login, password, token []byt
 
 // GetDefaultWallet gets the user's default wallet. If the user didn't manually
 // update the default wallet, then the first wallet ever created is the default
-// wallet. It will remain default until manually changed.
-func GetDefaultWallet(conn *sqlite.Conn) (Wallet, error) {
-	ret, err := getDefaultWallet(conn, DefaultWalletKey)
+// wallet. It will remain default until manually changed. There is a default wallet per account.
+func GetDefaultWallet(conn *sqlite.Conn, account string) (Wallet, error) {
+	ret, err := getDefaultWallet(conn, account, DefaultWalletKey)
 	if err != nil {
 		return Wallet{}, err
 	}
@@ -151,8 +176,11 @@ func UpdateDefaultWallet(conn *sqlite.Conn, newID string) (Wallet, error) {
 	if err != nil {
 		return Wallet{}, fmt.Errorf("cannot make %s default: %w", newID, err)
 	}
-
-	if err := setDefaultWallet(conn, DefaultWalletKey, newID); err != nil {
+	principal, err := core.DecodePrincipal(defaultWallet.Account)
+	if err != nil {
+		return Wallet{}, fmt.Errorf("Could not decode provided account %s: %w", defaultWallet.Account, err)
+	}
+	if err := setDefaultWallet(conn, DefaultWalletKey, core.Principal(principal).String(), newID); err != nil {
 		return Wallet{}, fmt.Errorf("cannot set %s as default wallet: %w", newID, err)
 	}
 
@@ -186,8 +214,11 @@ func RemoveWallet(conn *sqlite.Conn, id string) error {
 	if err != nil {
 		return fmt.Errorf("couldn't find wallet for deletion, probably already deleted")
 	}
-
-	defaultWallet, err := GetDefaultWallet(conn)
+	principal, err := blob.DbGetPublicKeyByID(conn, wallet2delete.WalletsAccount)
+	if err != nil {
+		return fmt.Errorf("Problem getting the wallet's account %s", wallet2delete.WalletsID)
+	}
+	defaultWallet, err := GetDefaultWallet(conn, core.Principal(principal).String())
 	if err != nil {
 		return fmt.Errorf("couldn't get default wallet while deleting walletID %s", id)
 	}
@@ -213,7 +244,12 @@ func RemoveWallet(conn *sqlite.Conn, id string) error {
 			if err != nil {
 				return fmt.Errorf("couldn't list wallets")
 			}
-			if err = setDefaultWallet(conn, DefaultWalletKey, newDefaultWallet[0].ID); err != nil {
+			principal, err := core.DecodePrincipal(newDefaultWallet[0].Account)
+			if err != nil {
+				return fmt.Errorf("Could not decode provided account %s: %w", newDefaultWallet[0].Account, err)
+			}
+
+			if err = setDefaultWallet(conn, DefaultWalletKey, core.Principal(principal).String(), newDefaultWallet[0].ID); err != nil {
 				return fmt.Errorf("couldn't pick a wallet to be the new default after deleting the old one")
 			}
 		} else if err = removeDefaultWallet(conn, DefaultWalletKey); err != nil {

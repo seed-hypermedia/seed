@@ -65,13 +65,7 @@ func newTestServer(t *testing.T, name string) *Server {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, store.Close()) })
 
-	return NewServer(store, &mockedWallet{}, &mockedP2PNode{})
-}
-
-type mockedWallet struct{}
-
-func (w *mockedWallet) ConfigureSeedLNDHub(context.Context, core.KeyPair) error {
-	return nil
+	return NewServer(store, &mockedP2PNode{})
 }
 
 type mockedP2PNode struct{}
