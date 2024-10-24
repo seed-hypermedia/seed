@@ -103,12 +103,12 @@ you need to redeploy the site from scratch. Note that old content will be availa
 the owner of the site is synced with the site at the moment of the replacement. On the server:
 
 ```shell
-docker stop seedsite
+docker stop seed-web
 mv ~/.seed-site ~/.seed-site.bak
-docker start seedsite
+docker start seed-web
 ```
 
-Get the new secret link from the command line after starting the `seedsite` container
+Get the new secret link from the command line after starting the `seed-web` container
 Now in the Seed App, the Owner of the site can go to the group he/she wants to (re)deploy
 and click on the three dots, and publish group to site. Enter the new secret and the old content
 should be now available in the new site. If there is no new content (A completely new group), then
