@@ -602,7 +602,7 @@ function RoleFilterOption({
         <Checkbox
           id="link-latest"
           size="$2"
-          borderColor="$color9"
+          borderColor="$color8"
           focusStyle={{
             borderColor: '$color9',
           }}
@@ -613,7 +613,6 @@ function RoleFilterOption({
           onPress={(e: MouseEvent) => {
             e.stopPropagation()
           }}
-          borderColor="$color8"
           focusStyle={{borderColor: '$color10'}}
           onCheckedChange={onCheckedChange}
         >

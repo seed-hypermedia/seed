@@ -32,10 +32,8 @@ import {
   ButtonText,
   Check,
   CollaboratorsIcon,
-  Contact,
   Container,
   DocContent,
-  Document,
   H1,
   HistoryIcon,
   HMIcon,
@@ -139,18 +137,18 @@ export default function DocumentPage() {
   //   label: 'Citations',
   //   icon: CitationsIcon,
   // })
-  if (docId.type === 'd' && !docId.path?.length) {
-    accessoryOptions.push({
-      key: 'all-documents',
-      label: 'All Documents',
-      icon: Document,
-    })
-    accessoryOptions.push({
-      key: 'contacts',
-      label: 'Contacts',
-      icon: Contact,
-    })
-  }
+  // if (docId.type === 'd' && !docId.path?.length) {
+  //   accessoryOptions.push({
+  //     key: 'all-documents',
+  //     label: 'All Documents',
+  //     icon: Document,
+  //   })
+  //   accessoryOptions.push({
+  //     key: 'contacts',
+  //     label: 'Contacts',
+  //     icon: Contact,
+  //   })
+  // }
   return (
     <>
       <XStack flex={1}>
