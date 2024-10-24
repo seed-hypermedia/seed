@@ -296,18 +296,17 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		}
 	}
 
-	conn, release, err := srv.db.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer release()
-
 	out := documents.ListDocumentsResponse{
 		Documents: make([]*documents.DocumentListItem, 0, in.PageSize),
 	}
 
 	namespaceGlob := "hm://" + ns.String() + "*"
 
+	conn, release, err := srv.db.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	requests := []*documents.GetDocumentRequest{}
 	if err = sqlitex.Exec(conn, qListDocuments(), func(stmt *sqlite.Stmt) error {
 		if count == in.PageSize {
 			var err error
@@ -330,21 +329,27 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		}
 
 		path := u.Path
-
-		doc, err := srv.GetDocument(ctx, &documents.GetDocumentRequest{
+		// Since we don't want to call getDocument here, we buffer the request
+		// Otherwise we would have a transaction inside a transaction leading to
+		// a deadlock.
+		requests = append(requests, &documents.GetDocumentRequest{
 			Account: u.Host,
 			Path:    path,
 		})
-		if err != nil {
-			return nil
-		}
-
-		// TODO: use indexed data instead of loading the entire document.
-		out.Documents = append(out.Documents, DocumentToListItem(doc))
 
 		return nil
 	}, lastCursor.ID, namespaceGlob, in.PageSize); err != nil {
+		release()
 		return nil, err
+	}
+	release()
+	for _, req := range requests {
+		doc, err := srv.GetDocument(ctx, req)
+		if err != nil {
+			continue
+		}
+		// TODO: use indexed data instead of loading the entire document.
+		out.Documents = append(out.Documents, DocumentToListItem(doc))
 	}
 
 	return &out, nil

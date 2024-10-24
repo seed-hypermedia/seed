@@ -24,10 +24,6 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 		return nil, err
 	}
 
-	conn, release, err := srv.Node.db.Conn(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("Could not get connection: %w", err)
-	}
 	var query string = qListAllBlobsStr
 	var queryParams []interface{}
 
@@ -95,6 +91,10 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 		query += QListRelatedBlobsContStr
 	}
 	allCids := []cid.Cid{}
+	conn, release, err := srv.Node.db.Conn(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("Could not get connection: %w", err)
+	}
 	if err = sqlitex.Exec(conn, query, func(stmt *sqlite.Stmt) error {
 		codec := stmt.ColumnInt64(0)
 		hash := stmt.ColumnBytesUnsafe(1)
