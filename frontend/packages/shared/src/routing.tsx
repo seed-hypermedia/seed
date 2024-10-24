@@ -51,7 +51,7 @@ export function useRouteLink(
   const context = useContext(UniversalRoutingContext)
   console.log('== lfg', context)
   const href =
-    route.key === 'document'
+    route.key == 'document'
       ? idToUrl(route.id, {siteHomeId: siteHomeId || context?.siteHomeId})
       : undefined
   if (!context)
@@ -64,7 +64,7 @@ export function useRouteLink(
           context.openRoute(route)
         }
       : undefined,
-    href: href || undefined,
+    href: href || '/',
     style: {
       textDecoration: 'none',
     },
