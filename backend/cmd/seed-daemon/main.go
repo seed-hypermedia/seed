@@ -6,6 +6,7 @@ import (
 	"flag"
 	"os"
 	"slices"
+	"strings"
 	"time"
 
 	_ "expvar"
@@ -36,7 +37,18 @@ func main() {
 		cfg := config.Default()
 		cfg.BindFlags(fs)
 
-		err := ff.Parse(fs, slices.Clone(os.Args[1:]), ff.WithEnvVarPrefix(envVarPrefix))
+		// Each of our config flags can already be specified with a dedicated environment variable.
+		// The problem is that we won't have any errors in case of a typo in the environment variable name.
+		// Sometimes it matters, so we also define a single environment variable into which you can put all the flags at once,
+		// which is useful for situations where you can't directly provide them in the command line.
+		// Flags in this environment variables will be merged with the ones provided in the command line,
+		// with the explicitly provided ones taking precedence.
+		args := slices.Clone(os.Args[1:])
+		if envflags := os.Getenv("SEED_DAEMON_FLAGS"); envflags != "" {
+			args = slices.Concat(strings.Split(envflags, " "), args)
+		}
+
+		err := ff.Parse(fs, args, ff.WithEnvVarPrefix(envVarPrefix))
 		if err != nil {
 			if errors.Is(err, ff.ErrHelp) {
 				fs.Usage()
