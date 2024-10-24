@@ -3,6 +3,7 @@ import {Container} from "@shm/ui/src/container";
 import {BannerNewspaperCard, NewspaperCard} from "@shm/ui/src/newspaper";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SiteDocumentPayload} from "./loaders";
+import {PageFooter} from "./page-footer";
 import {SiteHeader} from "./page-header";
 
 export function NewspaperPage(props: SiteDocumentPayload) {
@@ -75,6 +76,7 @@ export function NewspaperPage(props: SiteDocumentPayload) {
           </XStack>
         </Container>
       </YStack>
+      <PageFooter id={id} />
     </>
   );
 }

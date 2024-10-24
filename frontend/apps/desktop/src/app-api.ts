@@ -1,6 +1,6 @@
 import {resolveHmIdToAppRoute} from '@/utils/navigation'
 import type {AppWindowEvent} from '@/utils/window-events'
-import {NavRoute, defaultRoute, navRouteSchema} from '@shm/shared'
+import {NavRoute, defaultRoute, navRouteSchema, unpackHmId} from '@shm/shared'
 import {DAEMON_HTTP_URL} from '@shm/shared/src/constants'
 
 import {
@@ -343,7 +343,8 @@ export type AppRouter = typeof router
 
 export async function handleUrlOpen(url: string) {
   log.info('Deep Link Open', {url: url})
-  const hmId = await resolveHmIdToAppRoute(url, grpcClient)
+  const id = unpackHmId(url)
+  const hmId = id ? await resolveHmIdToAppRoute(id, grpcClient) : null
   if (!hmId?.navRoute) {
     const connectionRegexp = /connect-peer\/([\w\d]+)/
     const parsedConnectUrl = url.match(connectionRegexp)

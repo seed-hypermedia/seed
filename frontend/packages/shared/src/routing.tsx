@@ -29,7 +29,6 @@ export function SiteRoutingProvider({
   homeId?: UnpackedHypermediaId | null
 }>) {
   const context = useContext(UniversalRoutingContext)
-  console.log('== we out here', homeId)
   return (
     <UniversalRoutingProvider
       value={{
@@ -49,7 +48,6 @@ export function useRouteLink(
   siteHomeId?: UnpackedHypermediaId,
 ) {
   const context = useContext(UniversalRoutingContext)
-  console.log('== lfg', context)
   const href =
     route.key == 'document'
       ? idToUrl(route.id, {siteHomeId: siteHomeId || context?.siteHomeId})

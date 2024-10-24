@@ -32,6 +32,7 @@ import type {SiteDocumentPayload} from "./loaders";
 import {defaultSiteIcon} from "./meta";
 import {NewspaperPage} from "./newspaper";
 import {NotFoundPage} from "./not-found";
+import {PageFooter} from "./page-footer";
 import {PageHeader} from "./page-header";
 import type {DirectoryPayload} from "./routes/hm.api.directory";
 import {DiscussionPayload} from "./routes/hm.api.discussion";
@@ -154,6 +155,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
           <DocumentAppendix id={id} homeId={homeId} siteHost={siteHost} />
         </YStack>
       </YStack>
+      <PageFooter id={id} />
       <MobileOutline open={open} onClose={() => setOpen(false)}>
         <DocumentOutline document={document} onClose={() => setOpen(false)} />
       </MobileOutline>
@@ -222,6 +224,7 @@ function DocumentDiscoveryPage({
           </YStack>
         </Container>
       </YStack>
+      <PageFooter id={id} />
     </YStack>
   );
 }
