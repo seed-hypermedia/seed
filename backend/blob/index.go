@@ -122,7 +122,7 @@ func (idx *Index) CanEditResource(ctx context.Context, resource IRI, author core
 		return ok, status.Errorf(codes.NotFound, "resource %s not found", resource)
 	}
 
-	dbAuthor, err := dbPublicKeysLookupID(conn, author)
+	dbAuthor, err := DbPublicKeysLookupID(conn, author)
 	if err != nil {
 		return ok, err
 	}
@@ -578,7 +578,7 @@ func (idx *indexingCtx) ensurePubKey(key core.Principal) (int64, error) {
 		return id, nil
 	}
 
-	res, err := dbPublicKeysLookupID(idx.conn, key)
+	res, err := DbPublicKeysLookupID(idx.conn, key)
 	if err != nil {
 		return 0, err
 	}
@@ -587,7 +587,7 @@ func (idx *indexingCtx) ensurePubKey(key core.Principal) (int64, error) {
 	if res > 0 {
 		id = res
 	} else {
-		ins, err := dbPublicKeysInsert(idx.conn, key)
+		ins, err := DbPublicKeysInsert(idx.conn, key)
 		if err != nil {
 			return 0, err
 		}

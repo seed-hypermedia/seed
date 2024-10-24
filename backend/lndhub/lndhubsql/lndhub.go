@@ -70,19 +70,3 @@ func SetToken(conn *sqlite.Conn, id, token string) error {
 	return setToken(conn, []byte(token), id)
 	// TODO: decrypt token before returning
 }
-
-// SetLoginSignature stores the sigature (hex representation) of the
-// signed login message to access to account settings in lndhub.go.
-func SetLoginSignature(conn *sqlite.Conn, signature string) error {
-	return setLoginSignature(conn, LoginSignatureKey, signature)
-}
-
-// GetLoginSignature returns the sigature (hex representation) of the
-// signed login message to access to account settings in lndhub.go.
-func GetLoginSignature(conn *sqlite.Conn) (string, error) {
-	res, err := getLoginSignature(conn, LoginSignatureKey)
-	if err == nil && res.KVValue == "" {
-		return "", fmt.Errorf("Could not find any signature associated with self node: %w", ErrEmptyResult)
-	}
-	return res.KVValue, err
-}
