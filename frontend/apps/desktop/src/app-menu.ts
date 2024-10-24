@@ -4,6 +4,7 @@
 import {defaultRoute} from '@shm/shared'
 import {Menu, MenuItem} from 'electron'
 import {dispatchFocusedWindowAppEvent, openRoute, trpc} from './app-api'
+import {checkForUpdates} from './auto-update'
 
 export function createAppMenu() {
   const appMenu = new Menu()
@@ -36,6 +37,11 @@ export function createAppMenu() {
           click: () => {
             dispatchFocusedWindowAppEvent('triggerPeerSync')
           },
+        },
+        {
+          label: 'Check for Updates',
+          accelerator: 'CmdOrCtrl+Option+u',
+          click: checkForUpdates,
         },
         {type: 'separator'},
         {role: 'services'},
