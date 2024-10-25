@@ -1,5 +1,5 @@
 import {useAccount_deprecated} from '@/models/accounts'
-import {useSubscribedEntity} from '@/models/entities'
+import {useEntities, useSubscribedEntity} from '@/models/entities'
 import {
   DAEMON_FILE_URL,
   UnpackedHypermediaId,
@@ -14,10 +14,11 @@ import {
   BlockNodeList,
   Button,
   ContentEmbed,
-  DocumentCardView,
   EntityComponentProps,
+  ErrorBlock,
   HMIcon,
   InlineEmbedButton,
+  NewspaperCard,
   SizableText,
   UIAvatar,
   XStack,
@@ -26,6 +27,7 @@ import {
   getBlockNodeById,
   useDocContentContext,
 } from '@shm/ui'
+import {Spinner} from '@shm/ui/src/spinner'
 import {ArrowUpRightSquare} from '@tamagui/lucide-icons'
 import {
   ComponentProps,
@@ -246,18 +248,25 @@ export function EmbedDocContent(props: EntityComponentProps) {
 
 export function EmbedDocumentCard(props: EntityComponentProps) {
   const doc = useSubscribedEntity(props)
-  let textContent = useMemo(() => {
-    if (doc.data?.document?.content) {
-      let content = ''
-      doc.data?.document?.content.forEach((bn) => {
-        content += bn.block?.text + ' '
-      })
-      return content
-    }
-  }, [doc.data])
+  const authors = useEntities(
+    doc.data?.document?.authors?.map((uid) => hmId('d', uid)) || [],
+  )
   const view =
     (props.block.type === 'Embed' ? props.block.attributes.view : undefined) ||
     'Content'
+  if (doc.isLoading) return <Spinner />
+  if (!doc.data) return <ErrorBlock message="Could not load embed" />
+  const id: UnpackedHypermediaId = {
+    type: props.type,
+    id: props.id,
+    uid: props.uid,
+    path: props.path,
+    blockRef: props.blockRef,
+    blockRange: props.blockRange,
+    version: props.version,
+    hostname: props.hostname,
+    scheme: props.scheme,
+  }
   return (
     <EmbedWrapper
       id={{
@@ -274,12 +283,15 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
       parentBlockId={props.parentBlockId}
       viewType={view}
     >
-      <DocumentCardView
-        title={getDocumentTitle(doc.data?.document)}
-        textContent={textContent}
-        editors={doc.data?.document?.authors || []}
-        IconComponent={IconComponent}
-        date={doc.data?.document?.updateTime}
+      <NewspaperCard
+        entity={{
+          id,
+          document: doc.data.document,
+        }}
+        id={id}
+        accountsMetadata={authors
+          .map((author) => author.data)
+          .filter((d) => !!d)}
       />
     </EmbedWrapper>
   )

@@ -451,7 +451,9 @@ function EmbedControl({
               backgroundColor="$backgroundStrong"
               size="$2"
               iconAfter={ChevronDown}
-            >{`version: ${versionValue}`}</Button>
+            >
+              {versionValue === 'exact' ? 'Exact Version' : 'Latest Version'}
+            </Button>
           </Popover.Trigger>
           <Popover.Content asChild>
             <YGroup padding={0} width={120} elevation="$4">

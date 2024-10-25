@@ -162,17 +162,18 @@ export function queryEntity(
   id: UnpackedHypermediaId | null | undefined,
   options?: UseQueryOptions<HMEntityContent | null>,
 ): UseQueryOptions<HMEntityContent | null> {
+  const version = id?.latest ? undefined : id?.version || undefined
   return {
     ...options,
     enabled: options?.enabled ?? !!id,
-    queryKey: [queryKeys.ENTITY, id?.id, id?.version],
+    queryKey: [queryKeys.ENTITY, id?.id, version],
     queryFn: async (): Promise<HMEntityContent | null> => {
       if (!id) return null
       try {
         const grpcDocument = await grpcClient.documents.getDocument({
           account: id.uid,
           path: hmIdPathToEntityQueryPath(id.path),
-          version: id.version || undefined,
+          version,
         })
         const serverDocument = toPlainMessage(grpcDocument)
 

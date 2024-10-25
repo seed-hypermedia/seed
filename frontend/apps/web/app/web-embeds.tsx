@@ -7,14 +7,16 @@ import {
 } from "@shm/shared";
 import {
   ContentEmbed,
-  DocumentCardView,
   EntityComponentProps,
+  ErrorBlock,
   InlineEmbedButton,
 } from "@shm/ui/src/document-content";
 import {HMIcon} from "@shm/ui/src/hm-icon";
+import {NewspaperCard} from "@shm/ui/src/newspaper";
+import {Spinner} from "@shm/ui/src/spinner";
 import {Text} from "@tamagui/core";
 import {YStack} from "@tamagui/stacks";
-import {useMemo, useState} from "react";
+import {useState} from "react";
 import {useEntity} from "./models";
 
 function EmbedWrapper({
@@ -49,7 +51,8 @@ function EmbedWrapper({
 }
 
 export function EmbedDocument(props: EntityComponentProps) {
-  if (props.block.attributes?.view == "card") {
+  if (props.block.type !== "Embed") return null;
+  if (props.block.attributes?.view == "Card") {
     return <EmbedDocumentCard {...props} />;
   } else {
     return <EmbedDocContent {...props} />;
@@ -87,24 +90,17 @@ function DocInlineEmbed(props: EntityComponentProps) {
 
 export function EmbedDocumentCard(props: EntityComponentProps) {
   const doc = useEntity(props);
-  let textContent = useMemo(() => {
-    if (doc.data?.document?.content) {
-      let content = "";
-      doc.data?.document?.content.forEach((bn) => {
-        content += bn.block?.text + " ";
-      });
-      return content;
-    }
-  }, [doc.data]);
-
+  if (doc.isLoading) return <Spinner />;
+  if (!doc.data) return <ErrorBlock message="Could not load embed" />;
   return (
     <EmbedWrapper id={props} parentBlockId={props.parentBlockId}>
-      <DocumentCardView
-        title={getDocumentTitle(doc.data?.document)}
-        textContent={textContent}
-        editors={doc.data?.document?.authors || []}
-        IconComponent={HMIconComponent}
-        date={doc.data?.document?.updateTime}
+      <NewspaperCard
+        entity={{
+          id: props,
+          document: doc.data.document,
+        }}
+        id={props}
+        accountsMetadata={doc.data.authors}
       />
     </EmbedWrapper>
   );

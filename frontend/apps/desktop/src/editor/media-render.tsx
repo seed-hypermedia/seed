@@ -31,7 +31,7 @@ export type MediaType = {
     url: string
     name: string
     size?: string
-    display?: 'content' | 'card'
+    view?: 'Content' | 'Card'
     width?: string
   }
   children: []

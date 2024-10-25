@@ -66,7 +66,7 @@ export function NewspaperPage(props: SiteDocumentPayload) {
             {restItems.map((item) => {
               return (
                 <NewspaperCard
-                  item={item}
+                  id={id}
                   entity={getEntity(item.path)}
                   key={item.path.join("/")}
                   accountsMetadata={authors}

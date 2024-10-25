@@ -8,12 +8,10 @@ import {
   HMBlockChildrenType,
   HMBlockNode,
   HMDocument,
-  HMTimestamp,
   Mention,
   UnpackedHypermediaId,
   clipContentBlocks,
   formatBytes,
-  formattedDate,
   getCIDFromIPFSUrl,
   getDocumentTitle,
   getFileUrl,
@@ -1466,7 +1464,14 @@ export function ErrorBlock({
       content={debugData ? (open ? "Hide debug Data" : "Show debug data") : ""}
     >
       <YStack f={1} className="block-content block-unknown">
-        <ButtonFrame theme="red" gap="$2" onPress={() => toggleOpen((v) => !v)}>
+        <ButtonFrame
+          theme="red"
+          gap="$2"
+          onPress={(e) => {
+            e.stopPropagation();
+            toggleOpen((v) => !v);
+          }}
+        >
           <SizableText flex={1} color="$red10">
             {message ? message : "Error"}
           </SizableText>
@@ -1601,9 +1606,9 @@ export function ContentEmbed({
               expanded
               blockNode={{
                 block: {
-                  type: "heading",
+                  type: "Heading",
                   id: `heading-${props.uid}`,
-                  text: getDocumentTitle(document),
+                  text: getDocumentTitle(document) || "",
                   attributes: {
                     childrenType: "Group",
                   },
@@ -2235,48 +2240,6 @@ function RadioGroupItemWithLabel(props: {value: string; label: string}) {
   );
 }
 
-export function DocumentCardView({
-  title,
-  textContent,
-  editors,
-  IconComponent,
-  date,
-}: {
-  title?: string;
-  textContent?: string;
-  editors?: Array<string>;
-  IconComponent: React.FC<{accountId?: string}>;
-  date?: HMTimestamp;
-}) {
-  return (
-    <XStack padding="$2">
-      <YStack flex={1} gap="$2">
-        <SizableText
-          size="$7"
-          fontWeight="bold"
-          textAlign="left"
-          textOverflow="ellipsis"
-          whiteSpace="nowrap"
-          overflow="hidden"
-        >
-          {title}
-        </SizableText>
-        {/* the maxHeight here is defined by the lineHeight of the content,
-        so if we change the size of the text we need to change the maxHeight too */}
-        <YStack overflow="hidden" maxHeight={20 * 3}>
-          <SizableText>{textContent}</SizableText>
-        </YStack>
-        <XStack gap="$3" ai="center">
-          <EditorsAvatars editors={editors} IconComponent={IconComponent} />
-          {date ? (
-            <SizableText size="$1">{formattedDate(date)}</SizableText>
-          ) : null}
-        </XStack>
-      </YStack>
-    </XStack>
-  );
-}
-
 export function getBlockNode(
   blockNodes: HMBlockNode[] | undefined,
   blockId: string
@@ -2290,31 +2253,4 @@ export function getBlockNode(
     }
   }
   return null;
-}
-
-function EditorsAvatars({
-  editors,
-  IconComponent,
-}: {
-  editors?: Array<string>;
-  IconComponent: React.FC<{accountId?: string}>;
-}) {
-  return (
-    <XStack marginLeft={6}>
-      {editors?.map((editor, idx) => (
-        <XStack
-          zIndex={idx + 1}
-          key={editor}
-          borderColor="$color4"
-          backgroundColor="$color4"
-          borderWidth={2}
-          borderRadius={100}
-          marginLeft={-8}
-          animation="fast"
-        >
-          <IconComponent accountId={editor} />
-        </XStack>
-      ))}
-    </XStack>
-  );
 }

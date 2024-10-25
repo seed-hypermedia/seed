@@ -5,6 +5,7 @@ import {
   HMDocumentListItem,
   HMEntityContent,
   hmId,
+  UnpackedHypermediaId,
   useRouteLink,
 } from "@shm/shared";
 import {View} from "@tamagui/core";
@@ -49,7 +50,6 @@ export function BannerNewspaperCard({
         <NewspaperCardContent banner entity={entity} />
         <NewspaperCardFooter
           entity={entity}
-          item={item}
           accountsMetadata={accountsMetadata}
         />
       </YStack>
@@ -118,11 +118,9 @@ function NewspaperCardContent({
 }
 
 function NewspaperCardFooter({
-  item,
   entity,
   accountsMetadata,
 }: {
-  item: HMDocumentListItem;
   entity: HMEntityContent | null | undefined;
   accountsMetadata: AccountsMetadata;
 }) {
@@ -161,15 +159,14 @@ const baseCardStyles: Parameters<typeof XStack>[0] = {
   },
 };
 export function NewspaperCard({
-  item,
+  id,
   entity,
   accountsMetadata,
 }: {
-  item: HMDocumentListItem;
+  id: UnpackedHypermediaId;
   entity: HMEntityContent | null | undefined;
   accountsMetadata: AccountsMetadata;
 }) {
-  const id = hmId("d", item.account, {path: item.path});
   const linkProps = useRouteLink({key: "document", id});
 
   // const navigate = useNavigate()
@@ -197,7 +194,6 @@ export function NewspaperCard({
 
       <NewspaperCardFooter
         entity={entity}
-        item={item}
         accountsMetadata={accountsMetadata}
       />
     </YStack>

@@ -2,11 +2,9 @@ export * from "tamagui";
 export {config} from "./tamagui.config";
 
 export {
+  Button as TButton,
   Paragraph as TParagraph,
-  // SpinnerProps as TSPinnerProps,
   Section as TSection,
-  // Spinner as TSpinner,
-  Button as TTButton,
   Tooltip as TTooltip,
 } from "tamagui";
 export * from "./avatar";
@@ -22,10 +20,12 @@ export * from "./document-content";
 export * from "./document-content-constants";
 export * from "./footer";
 export * from "./form-fields";
+export * from "./hm-icon";
 export * from "./icons";
 export * from "./layout";
 export * from "./list";
 export * from "./menu-item";
+export * from "./newspaper";
 export * as Onboarding from "./onboarding";
 export * from "./page-components";
 export * from "./panel-card";
@@ -34,9 +34,6 @@ export * from "./radio-option-section";
 export * from "./resize-handle";
 export {Section} from "./section";
 export * from "./select-dropdown";
-// export * from "./spinner";
-export * from "./hm-icon";
-export * from "./newspaper";
 export * from "./step-wrapper";
 export * from "./table-list";
 export * from "./titlebar";
