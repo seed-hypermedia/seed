@@ -66,6 +66,9 @@ export function NewspaperLayout({
       )}
       <XStack flexWrap="wrap" marginTop="$4" justifyContent="space-between">
         {restItems.map((item) => {
+          const id = hmId('d', item.account, {
+            path: item.path,
+          })
           return (
             <NewspaperCard
               id={id}
