@@ -61,11 +61,6 @@ func generateQueries() error {
 			),
 		),
 
-		qb.MakeQuery(storage.Schema, "removeDefaultWallet", sqlitegen.QueryKindExec,
-			"DELETE FROM", storage.KV,
-			"WHERE", storage.KVKey, "=", qb.Var("key", sqlitegen.TypeText), "",
-		),
-
 		qb.MakeQuery(storage.Schema, "updateWalletName", sqlitegen.QueryKindExec,
 			"UPDATE", storage.Wallets, "SET", qb.ListColShort(
 				storage.WalletsName,

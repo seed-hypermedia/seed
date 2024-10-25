@@ -73,8 +73,9 @@ func GetWallet(conn *sqlite.Conn, walletID string) (Wallet, error) {
 // If there are no wallets, an empty slice will be returned
 // If there are wallets to show, ListWallets will return up
 // to limit wallets. In case limit <=0, ListWallets will return
-// all wallets available.
-func ListWallets(conn *sqlite.Conn, limit int) ([]Wallet, error) {
+// all wallets available. If accounts is not blank then ListWallets
+// will return only wallets for that account
+func ListWallets(conn *sqlite.Conn, account string, limit int) ([]Wallet, error) {
 	var resultArray []Wallet
 
 	res, err := listWallets(conn, "", int64(limit))
@@ -87,6 +88,10 @@ func ListWallets(conn *sqlite.Conn, limit int) ([]Wallet, error) {
 		if err != nil {
 			return resultArray, fmt.Errorf("Problem getting the wallet's account %s", s.WalletsID)
 		}
+		acc := core.Principal(principal).String()
+		if account != "" && account != acc {
+			continue
+		}
 		resultArray = append(resultArray,
 			Wallet{
 				ID:      s.WalletsID,
@@ -94,7 +99,7 @@ func ListWallets(conn *sqlite.Conn, limit int) ([]Wallet, error) {
 				Name:    s.WalletsName,
 				Type:    s.WalletsType,
 				Balance: int64(s.WalletsBalance),
-				Account: core.Principal(principal).String(),
+				Account: acc,
 			})
 	}
 
@@ -246,17 +251,12 @@ func RemoveWallet(conn *sqlite.Conn, id string) error {
 
 	//If the previously inserted was the default, then we should set a new default
 	if defaultWallet.ID == id {
-		nwallets, err := getWalletCount(conn)
-
+		newDefaultWallet, err := ListWallets(conn, core.Principal(principal).String(), 1)
 		if err != nil {
 			return fmt.Errorf("couldn't get wallet count")
 		}
 
-		if nwallets.Count != 0 {
-			newDefaultWallet, err := ListWallets(conn, 1)
-			if err != nil {
-				return fmt.Errorf("couldn't list wallets")
-			}
+		if len(newDefaultWallet) != 0 {
 			principal, err := core.DecodePrincipal(newDefaultWallet[0].Account)
 			if err != nil {
 				return fmt.Errorf("Could not decode provided account %s: %w", newDefaultWallet[0].Account, err)
@@ -266,12 +266,20 @@ func RemoveWallet(conn *sqlite.Conn, id string) error {
 			if err := sqlitex.Exec(conn, query, nil); err != nil {
 				return fmt.Errorf("couldn't pick a wallet to be the new default after deleting the old one")
 			}
-		} else if err = removeDefaultWallet(conn, DefaultWalletKey); err != nil {
-			return fmt.Errorf("couldn't remove default wallet after deleting the last one")
+		} else {
+			query := createRemoveDefaultWalletQuery(core.Principal(principal).String())
+			if err := sqlitex.Exec(conn, query, nil); err != nil {
+				return fmt.Errorf("couldn't remove default wallet after deleting the last one")
+			}
 		}
 	}
 
 	return nil
+}
+
+func createRemoveDefaultWalletQuery(account string) string {
+	cond := "SELECT json_remove(json((SELECT " + storage.KVValue + " FROM " + storage.T_KV + " WHERE " + storage.KVKey + "='" + DefaultWalletKey + "')),'$." + sqlitegen.Column(account) + "') FROM " + storage.T_KV + " WHERE " + storage.KVKey + " = '" + DefaultWalletKey + "'"
+	return "INSERT OR REPLACE INTO " + storage.T_KV + "(" + storage.KVKey.ShortName() + ", " + storage.KVValue.ShortName() + ") VALUES ('" + DefaultWalletKey + "',(" + cond.String() + "));"
 }
 
 func createSetDefaultWalletQuery(account, walletID string) string {

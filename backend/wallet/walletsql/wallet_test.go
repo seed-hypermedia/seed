@@ -156,5 +156,8 @@ func TestQueries(t *testing.T) {
 		nwallets, err = getWalletCount(conn)
 		require.NoError(t, err)
 		require.Equal(t, int64(3), nwallets.Count)
+		require.NoError(t, RemoveWallet(conn, id1))
+		require.NoError(t, RemoveWallet(conn, id2))
+		require.Error(t, RemoveWallet(conn, id3))
 	}
 }
