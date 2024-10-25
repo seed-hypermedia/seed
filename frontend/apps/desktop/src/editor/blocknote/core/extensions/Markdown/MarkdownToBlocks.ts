@@ -10,7 +10,7 @@ import {remarkCodeClass} from './RemarkCodeClass'
 import {remarkImageWidth} from './RemarkImageWidth'
 
 const fileRegex = /\[([^\]]+)\]\(([^)]*) "size=(\d+)"\)/
-const videoRegex = /!\[([^\]]*)\]\(([^)]*) "width=(\d*)"\)/
+const videoRegex = /!\[([^\]]*)\]\(([^\s]+)\s"width=([\w]+)"\)/
 const mathRegex = /\$\$(.*?)\$\$/
 
 const uploadToIpfs = async (file: File): Promise<string> => {
@@ -132,6 +132,27 @@ export const processLinkMarkdown = (
   })
 }
 
+function unwrapImagesFromParagraphs(doc: Document) {
+  // Select all paragraphs that contain an image
+  const paragraphsWithImages = doc.querySelectorAll('p > img')
+
+  paragraphsWithImages.forEach((img) => {
+    const parentParagraph: Element | null = img.parentNode as Element
+
+    if (parentParagraph && parentParagraph.parentNode) {
+      // Insert the image before the paragraph
+      parentParagraph.parentNode.insertBefore(img, parentParagraph)
+
+      // If the paragraph is empty after removing the image, remove the paragraph
+      if (parentParagraph.innerHTML.trim() === '') {
+        parentParagraph.parentNode.removeChild(parentParagraph)
+      }
+    }
+  })
+
+  return doc
+}
+
 export const MarkdownToBlocks = async (
   markdown: string,
   editor: BlockNoteEditor,
@@ -148,12 +169,14 @@ export const MarkdownToBlocks = async (
     .process(markdown)
 
   const parser = new DOMParser()
-  const doc = parser.parseFromString(file.value.toString(), 'text/html')
+  let doc = parser.parseFromString(file.value.toString(), 'text/html')
 
   const {view} = editor._tiptapEditor
   const {state} = view
 
-  // Get ProseMirror fragment from pasted markdown, previously converted to HTML
+  doc = unwrapImagesFromParagraphs(doc)
+
+  // Get ProseMirror fragment from parsed HTML
   const fragment = ProseMirrorDOMParser.fromSchema(view.state.schema).parse(
     doc.body,
   )
@@ -217,7 +240,10 @@ export const MarkdownToBlocks = async (
               videoProps = {
                 name: videoMatch[1],
                 url: videoMatch[2],
-                width: videoMatch[3] || '',
+                width:
+                  videoMatch[3] && videoMatch[3] !== 'undefined'
+                    ? videoMatch[3]
+                    : '',
               }
             }
             blockToInsert = {
