@@ -197,7 +197,7 @@ func (srv *Service) CreateWallet(ctx context.Context, mnemonics []string, passph
 
 	creds := Credentials{
 		Domain:     srv.lightningClient.Lndhub.GetLndaddressDomain(),
-		WalletType: "lndhub.go",
+		WalletType: lndhubsql.LndhubGoWalletType,
 		Login:      kp.Principal().String(),
 		Password:   hex.EncodeToString(signature),
 		Nickname:   kp.Principal().String(),
@@ -266,7 +266,7 @@ func (srv *Service) InsertWallet(ctx context.Context, credentialsURL, name, acco
 		}
 		for i := 0; i < len(wallets); i++ {
 			if wallets[i].Type == lndhubsql.LndhubGoWalletType {
-				err = fmt.Errorf("Only one type of %s wallet is allowed: %w", lndhubsql.LndhubGoWalletType, errAlreadyLndhubgoWallet)
+				err = fmt.Errorf("Only one type of %s wallet is allowed per account: %w", lndhubsql.LndhubGoWalletType, errAlreadyLndhubgoWallet)
 				srv.log.Debug(err.Error())
 				return wallets[i], err
 			}
@@ -377,18 +377,13 @@ func (srv *Service) SetDefaultWallet(ctx context.Context, walletID string) (ret 
 		return ret, err
 	}
 	defer release()
-	w, err := wallet.GetWallet(conn, walletID)
-	if err != nil {
-		srv.log.Warn("couldn't wallet to be set to default: " + err.Error())
-		return ret, err
-	}
 
-	w, err = wallet.UpdateDefaultWallet(conn, w.Account, w.ID)
+	ret, err = wallet.UpdateDefaultWallet(conn, walletID)
 	if err != nil {
 		srv.log.Warn("couldn't set default wallet: " + err.Error())
 		return ret, err
 	}
-	return wallet, err
+	return ret, err
 }
 
 // ExportWallet returns the wallet credentials in uri format so the user can import it
@@ -472,14 +467,14 @@ func (srv *Service) UpdateLnaddressNickname(ctx context.Context, nickname, accou
 // GetDefaultWallet gets the user's default wallet. If the user didn't manually
 // update the default wallet, then the first wallet ever created is the default
 // wallet. It will remain default until manually changed.
-func (srv *Service) GetDefaultWallet(ctx context.Context) (ret wallet.Wallet, err error) {
+func (srv *Service) GetDefaultWallet(ctx context.Context, account string) (ret wallet.Wallet, err error) {
 	conn, release, err := srv.pool.Conn(ctx)
 	if err != nil {
 		return ret, err
 	}
 	defer release()
 
-	w, err := wallet.GetDefaultWallet(conn)
+	w, err := wallet.GetDefaultWallet(conn, account)
 	if err != nil {
 		srv.log.Debug("couldn't getDefaultWallet: " + err.Error())
 		return wallet.Wallet{}, err
@@ -576,13 +571,13 @@ func (srv *Service) RequestRemoteInvoice(ctx context.Context, remoteUser string,
 }
 
 // CreateLocalInvoice tries to generate an invoice locally from the default wallet The memo field is optional and can be left nil.
-func (srv *Service) CreateLocalInvoice(ctx context.Context, amountSats int64, memo *string) (string, error) {
+func (srv *Service) CreateLocalInvoice(ctx context.Context, account string, amountSats int64, memo *string) (string, error) {
 	invoiceMemo := ""
 	if memo != nil {
 		invoiceMemo = *memo
 	}
 
-	defaultWallet, err := srv.GetDefaultWallet(ctx)
+	defaultWallet, err := srv.GetDefaultWallet(ctx, account)
 	if err != nil {
 		return "", fmt.Errorf("could not get default wallet to ask for a local invoice")
 	}
@@ -603,7 +598,7 @@ func (srv *Service) CreateLocalInvoice(ctx context.Context, amountSats int64, me
 // PayInvoice tries to pay the provided invoice. If a walletID is provided, that wallet will be used instead of the default one
 // If amountSats is provided, the invoice will be paid with that amount. This amount should be equal to the amount on the invoice
 // unless the amount on the invoice is 0.
-func (srv *Service) PayInvoice(ctx context.Context, payReq string, walletID *string, amountSats *uint64) (string, error) {
+func (srv *Service) PayInvoice(ctx context.Context, account string, payReq string, walletID *string, amountSats *uint64) (string, error) {
 	var walletToPay wallet.Wallet
 	var err error
 	var amountToPay uint64
@@ -622,7 +617,7 @@ func (srv *Service) PayInvoice(ctx context.Context, payReq string, walletID *str
 			return "", publicErr
 		}
 	} else {
-		walletToPay, err = srv.GetDefaultWallet(ctx)
+		walletToPay, err = srv.GetDefaultWallet(ctx, account)
 		if err != nil {
 			return "", fmt.Errorf("couldn't get default wallet to pay")
 		}

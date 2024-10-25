@@ -53,10 +53,10 @@ func TestCreate(t *testing.T) {
 	password := hex.EncodeToString(passwordBytes)
 	require.NoError(t, err)
 	lndHubClient := NewClient(context.Background(), &http.Client{}, pool, lndhubDomain, lnaddressDomain)
-	lndHubClient.WalletID = credentials2Id("lndhub.go", login, password, lndhubDomain, token)
+	walletID := credentials2Id("lndhub.go", login, password, lndhubDomain, token)
 
 	makeTestWallet(t, conn, walletsql.Wallet{
-		ID:      lndHubClient.WalletID,
+		ID:      walletID,
 		Address: connectionURL,
 		Name:    nickname,
 		Type:    "lndhub.go",
@@ -64,26 +64,26 @@ func TestCreate(t *testing.T) {
 		Account: keypair.Principal().String(),
 	}, login, password, hex.EncodeToString(token))
 
-	user, err := lndHubClient.Create(ctx, connectionURL, login, password, nickname, token)
+	user, err := lndHubClient.Create(ctx, connectionURL, walletID, login, password, nickname, token)
 	require.NoError(t, err)
 	require.EqualValues(t, login, user.Login)
 	require.EqualValues(t, password, user.Password)
 	require.EqualValues(t, strings.ToLower(nickname), user.Nickname)
-	_, err = lndHubClient.Auth(ctx)
+	_, err = lndHubClient.Auth(ctx, walletID)
 	require.NoError(t, err)
 	var newNickname = randStringRunes(8)
-	err = lndHubClient.UpdateNickname(ctx, strings.ToUpper(newNickname), token)
+	err = lndHubClient.UpdateNickname(ctx, walletID, strings.ToUpper(newNickname), token)
 	require.Error(t, err)
 	newNickname = strings.ToLower(newNickname)
-	err = lndHubClient.UpdateNickname(ctx, newNickname, token)
+	err = lndHubClient.UpdateNickname(ctx, walletID, newNickname, token)
 	require.NoError(t, err)
-	lnaddress, err := lndHubClient.GetLnAddress(ctx, keypair.PublicKey.Principal().String())
+	lnaddress, err := lndHubClient.GetLnAddress(ctx, walletID, keypair.PublicKey.Principal().String())
 	require.NoError(t, err)
 	require.EqualValues(t, newNickname+"@"+lnaddressDomain, lnaddress)
-	balance, err := lndHubClient.GetBalance(ctx)
+	balance, err := lndHubClient.GetBalance(ctx, walletID)
 	require.NoError(t, err)
 	require.EqualValues(t, 0, balance)
-	payreq, err := lndHubClient.CreateLocalInvoice(ctx, invoiceAmt, invoiceMemo)
+	payreq, err := lndHubClient.CreateLocalInvoice(ctx, walletID, invoiceAmt, invoiceMemo)
 	require.NoError(t, err)
 	decodedInvoice, err := DecodeInvoice(payreq)
 	require.NoError(t, err)
@@ -91,17 +91,17 @@ func TestCreate(t *testing.T) {
 	require.EqualValues(t, invoiceAmt, uint64(decodedInvoice.MilliSat.ToSatoshis()))
 
 	const invoiceMemo2 = "zero invoice test amount"
-	_, err = lndHubClient.RequestRemoteInvoice(ctx, newNickname, 0, invoiceMemo2)
+	_, err = lndHubClient.RequestRemoteInvoice(ctx, walletID, newNickname, 0, invoiceMemo2)
 	require.Error(t, err)
 	const invoiceMemo3 = "non-zero invoice test amount"
 	const amt = 233
-	payreq, err = lndHubClient.RequestRemoteInvoice(ctx, newNickname, amt, invoiceMemo3)
+	payreq, err = lndHubClient.RequestRemoteInvoice(ctx, walletID, newNickname, amt, invoiceMemo3)
 	require.NoError(t, err)
 	decodedInvoice, err = DecodeInvoice(payreq)
 	require.NoError(t, err)
 	require.EqualValues(t, invoiceMemo3, *decodedInvoice.Description)
 	require.EqualValues(t, amt, decodedInvoice.MilliSat.ToSatoshis().ToUnit(btcutil.AmountSatoshi)) // when amt is zero, the result is nil
-	invoices, err := lndHubClient.ListReceivedInvoices(ctx)
+	invoices, err := lndHubClient.ListReceivedInvoices(ctx, walletID)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(invoices), 1)
 	//TODO: test for invoice metadata
