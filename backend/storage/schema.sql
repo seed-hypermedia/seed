@@ -201,7 +201,7 @@ CREATE TABLE peers (
 -- based on lndhub) and internals (based on the LND embedded node).
 CREATE TABLE wallets (
     -- Wallet unique ID. Is the connection uri hashed with the account.
-    id TEXT NOT NULL,
+    id TEXT PRIMARY KEY,
     -- Account
     account INTEGER REFERENCES public_keys (id) ON DELETE CASCADE NOT NULL,
     -- The type of the wallet.
@@ -220,8 +220,7 @@ CREATE TABLE wallets (
     -- Human readable name to help the user identify each wallet
     name TEXT NOT NULL,
     -- The balance in satoshis
-    balance INTEGER DEFAULT 0,
-    PRIMARY KEY (id, account)
+    balance INTEGER DEFAULT 0
 );
 CREATE INDEX wallets_by_account ON wallets (account);
 

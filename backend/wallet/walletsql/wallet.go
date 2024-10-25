@@ -23,6 +23,8 @@ const (
 var (
 	// ErrDuplicateIndex is thrown when db identifies a duplicate entry on a unique key.
 	ErrDuplicateIndex = errors.New("duplicate entry")
+	// ErrNoDefaultWallet is thrown when there is not a default wallet for a certain account.
+	ErrNoDefaultWallet = errors.New("No default wallet set")
 )
 
 // Wallet is the representation of a lightning wallet.
@@ -130,18 +132,17 @@ func InsertWallet(conn *sqlite.Conn, wallet Wallet, login, password, token []byt
 	}
 
 	//If the previously inserted was the first one, then it should be the default as well
-	nwallets, err := getWalletCount(conn)
-	if err != nil {
-		return fmt.Errorf("couldn't get wallet count: %w", err)
-	}
-
-	if nwallets.Count == 1 {
-		query := createSetDefaultWalletQUery(wallet.Account, wallet.ID)
-		if err := sqlitex.Exec(conn, query, nil); err != nil {
-			return fmt.Errorf("couldn't set newly created wallet to default: %w", err)
+	if _, err := GetDefaultWallet(conn, principal.String()); err != nil {
+		if errors.Is(err, ErrNoDefaultWallet) {
+			query := createSetDefaultWalletQuery(wallet.Account, wallet.ID)
+			if err := sqlitex.Exec(conn, query, nil); err != nil {
+				return fmt.Errorf("couldn't set newly created wallet to default: %w", err)
+			}
+			return nil
 		}
+		_ = removeWallet(conn, wallet.ID)
+		return fmt.Errorf("couldn't set default wallet")
 	}
-
 	return nil
 }
 
@@ -149,7 +150,7 @@ func InsertWallet(conn *sqlite.Conn, wallet Wallet, login, password, token []byt
 // update the default wallet, then the first wallet ever created is the default
 // wallet. It will remain default until manually changed. There is a default wallet per account.
 func GetDefaultWallet(conn *sqlite.Conn, account string) (w Wallet, err error) {
-	query := createGetDefaultWalletQUery(account)
+	query := createGetDefaultWalletQuery(account)
 	var acc int64
 	if err = sqlitex.Exec(conn, query, func(stmt *sqlite.Stmt) error {
 		w.ID = stmt.ColumnText(0)
@@ -166,6 +167,9 @@ func GetDefaultWallet(conn *sqlite.Conn, account string) (w Wallet, err error) {
 	if err != nil {
 		return w, fmt.Errorf("Could not decode default wallet account: %w", err)
 	}
+	if principal == nil {
+		return w, ErrNoDefaultWallet
+	}
 	w.Account = core.Principal(principal).String()
 	return w, err
 }
@@ -174,7 +178,7 @@ func GetDefaultWallet(conn *sqlite.Conn, account string) (w Wallet, err error) {
 // previous default wallet is replaced by the new one so only one can be
 // the default at any given time. The default wallet is the first wallet ever
 // created until manually changed.
-func UpdateDefaultWallet(conn *sqlite.Conn, newID string) (Wallet, error) {
+func UpdateDefaultWallet(conn *sqlite.Conn, account, newID string) (Wallet, error) {
 	var err error
 
 	if len(newID) != idcharLength {
@@ -185,11 +189,10 @@ func UpdateDefaultWallet(conn *sqlite.Conn, newID string) (Wallet, error) {
 	if err != nil {
 		return Wallet{}, fmt.Errorf("cannot make %s default: %w", newID, err)
 	}
-	principal, err := core.DecodePrincipal(defaultWallet.Account)
-	if err != nil {
-		return Wallet{}, fmt.Errorf("Could not decode provided account %s: %w", defaultWallet.Account, err)
+	if defaultWallet.Account != account {
+		return Wallet{}, fmt.Errorf("New default wallet id %s does not belong to account %s. Please, import that wallet first in the account", newID, account)
 	}
-	query := createSetDefaultWalletQUery(core.Principal(principal).String(), newID)
+	query := createSetDefaultWalletQuery(account, newID)
 	if err := sqlitex.Exec(conn, query, nil); err != nil {
 		return Wallet{}, fmt.Errorf("cannot set %s as default wallet: %w", newID, err)
 	}
@@ -259,7 +262,7 @@ func RemoveWallet(conn *sqlite.Conn, id string) error {
 				return fmt.Errorf("Could not decode provided account %s: %w", newDefaultWallet[0].Account, err)
 			}
 
-			query := createSetDefaultWalletQUery(core.Principal(principal).String(), newDefaultWallet[0].ID)
+			query := createSetDefaultWalletQuery(core.Principal(principal).String(), newDefaultWallet[0].ID)
 			if err := sqlitex.Exec(conn, query, nil); err != nil {
 				return fmt.Errorf("couldn't pick a wallet to be the new default after deleting the old one")
 			}
@@ -271,12 +274,12 @@ func RemoveWallet(conn *sqlite.Conn, id string) error {
 	return nil
 }
 
-func createSetDefaultWalletQUery(account, walletID string) string {
+func createSetDefaultWalletQuery(account, walletID string) string {
 	cond := "CASE WHEN (SELECT json(" + storage.KVValue + ") from " + storage.T_KV + " WHERE " + storage.KVKey + "='" + DefaultWalletKey + "') IS NOT NULL THEN json_set((SELECT json(" + storage.KVValue + ") FROM " + storage.T_KV + " WHERE " + storage.KVKey + "='" + DefaultWalletKey + "'),'$." + sqlitegen.Column(account) + "','" + sqlitegen.Column(walletID) + "') ELSE json_set('{}','$." + sqlitegen.Column(account) + "','" + sqlitegen.Column(walletID) + "') END"
 	return "INSERT OR REPLACE INTO " + storage.T_KV + "(" + storage.KVKey.ShortName() + ", " + storage.KVValue.ShortName() + ") VALUES ('" + DefaultWalletKey + "'," + cond.String() + ");"
 }
 
-func createGetDefaultWalletQUery(account string) string {
-	cond := "SELECT json_extract(json(" + storage.KVValue + "),'$." + sqlitegen.Column(account) + "') FROM " + storage.T_KV + " WHERE " + storage.KVKey + " = '" + DefaultWalletKey + "')"
+func createGetDefaultWalletQuery(account string) string {
+	cond := "SELECT json_extract(json((SELECT " + storage.KVValue + " FROM " + storage.T_KV + " WHERE " + storage.KVKey + "='" + DefaultWalletKey + "')),'$." + sqlitegen.Column(account) + "') FROM " + storage.T_KV + " WHERE " + storage.KVKey + " = '" + DefaultWalletKey + "')"
 	return ("SELECT " + storage.WalletsID + ", " + storage.WalletsAccount + ", " + storage.WalletsAddress + ", " + storage.WalletsName + ", " + storage.WalletsBalance + ", " + storage.WalletsType + " FROM " + sqlitegen.Column(storage.T_Wallets) + " WHERE " + storage.WalletsID + " = (" + cond + ";").String()
 }
