@@ -121,48 +121,6 @@ func listWallets(conn *sqlite.Conn, cursor string, limit int64) ([]listWalletsRe
 	return out, err
 }
 
-type getDefaultWalletResult struct {
-	WalletsID      string
-	WalletsAccount int64
-	WalletsAddress string
-	WalletsName    string
-	WalletsBalance int64
-	WalletsType    string
-}
-
-func getDefaultWallet(conn *sqlite.Conn, account string, key string) (getDefaultWalletResult, error) {
-	const query = `SELECT wallets.id, wallets.account, wallets.address, wallets.name, wallets.balance, wallets.type
-FROM wallets WHERE wallets.id != :account AND wallets.id = (SELECT json_extract(json( kv.value ),'$.:account')) FROM kv WHERE kv.key = :key )`
-
-	var out getDefaultWalletResult
-
-	before := func(stmt *sqlite.Stmt) {
-		stmt.SetText(":account", account)
-		stmt.SetText(":key", key)
-	}
-
-	onStep := func(i int, stmt *sqlite.Stmt) error {
-		if i > 1 {
-			return errors.New("getDefaultWallet: more than one result return for a single-kind query")
-		}
-
-		out.WalletsID = stmt.ColumnText(0)
-		out.WalletsAccount = stmt.ColumnInt64(1)
-		out.WalletsAddress = stmt.ColumnText(2)
-		out.WalletsName = stmt.ColumnText(3)
-		out.WalletsBalance = stmt.ColumnInt64(4)
-		out.WalletsType = stmt.ColumnText(5)
-		return nil
-	}
-
-	err := sqlitegen.ExecStmt(conn, query, before, onStep)
-	if err != nil {
-		err = fmt.Errorf("failed query: getDefaultWallet: %w", err)
-	}
-
-	return out, err
-}
-
 func setLoginSignature(conn *sqlite.Conn, kvKey string, kvValue string) error {
 	const query = `INSERT OR REPLACE INTO kv (key, value)
 VALUES (:kvKey, :kvValue)`
@@ -179,29 +137,6 @@ VALUES (:kvKey, :kvValue)`
 	err := sqlitegen.ExecStmt(conn, query, before, onStep)
 	if err != nil {
 		err = fmt.Errorf("failed query: setLoginSignature: %w", err)
-	}
-
-	return err
-}
-
-func setDefaultWallet(conn *sqlite.Conn, key string, account string, id string) error {
-	const query = `INSERT OR REPLACE INTO kv (key, value)
-VALUES( :key , CASE WHEN (SELECT json( kv.value ) from kv
-WHERE kv.key =:key AND kv.key != :account AND kv.key != :id ) IS NOT NULL THEN json_set((SELECT json( kv.value ) from kv WHERE kv.key =:key ),'$.:account',':id') ELSE json_set('{}','$.:account',':id') END)`
-
-	before := func(stmt *sqlite.Stmt) {
-		stmt.SetText(":key", key)
-		stmt.SetText(":account", account)
-		stmt.SetText(":id", id)
-	}
-
-	onStep := func(i int, stmt *sqlite.Stmt) error {
-		return nil
-	}
-
-	err := sqlitegen.ExecStmt(conn, query, before, onStep)
-	if err != nil {
-		err = fmt.Errorf("failed query: setDefaultWallet: %w", err)
 	}
 
 	return err

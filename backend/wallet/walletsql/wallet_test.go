@@ -29,14 +29,14 @@ const (
 )
 
 var (
-	login = []byte("f7b32cb8ae914a1706b94bbe46d304e3")
-	pass  = []byte("4f671cadcf0e5977559ed7727b2ee2f4f")
-	token = []byte("4f671cadcf0e5977559ed7727b2ee2f4f7b32ca8ae914a1703b94bbe4fd304e3")
+	login   = []byte("f7b32cb8ae914a1706b94bbe46d304e3")
+	pass    = []byte("4f671cadcf0e5977559ed7727b2ee2f4f")
+	token   = []byte("4f671cadcf0e5977559ed7727b2ee2f4f7b32ca8ae914a1703b94bbe4fd304e3")
+	account = "z6Mkw6sXCVij4x7RnqKfp2CB9PH7gMscFRaL8vur2vdrfopq"
 )
 
 func TestQueries(t *testing.T) {
 	pool := storage.MakeTestDB(t)
-
 	conn, release, err := pool.Conn(context.Background())
 	require.NoError(t, err)
 	defer release()
@@ -44,6 +44,7 @@ func TestQueries(t *testing.T) {
 	{
 		err = InsertWallet(conn, Wallet{
 			ID:      id1,
+			Account: account,
 			Address: address1,
 			Name:    name1,
 			Type:    type1,
@@ -60,12 +61,13 @@ func TestQueries(t *testing.T) {
 		require.Equal(t, strings.ToLower(type1), got.WalletsType)
 		require.Equal(t, balance1, got.WalletsBalance)
 
-		defaultWallet, err := GetDefaultWallet(conn)
+		defaultWallet, err := GetDefaultWallet(conn, account)
 		require.NoError(t, err)
 		require.Equal(t, defaultWallet.ID, got.WalletsID)
 
 		err = InsertWallet(conn, Wallet{
 			ID:      id2,
+			Account: account,
 			Address: address2,
 			Name:    name2,
 			Type:    type2,
@@ -73,7 +75,7 @@ func TestQueries(t *testing.T) {
 		}, login, pass, token)
 		require.NoError(t, err)
 
-		defaultWallet, err = GetDefaultWallet(conn)
+		defaultWallet, err = GetDefaultWallet(conn, account)
 		require.NoError(t, err)
 		require.Equal(t, defaultWallet.ID, got.WalletsID)
 
@@ -103,7 +105,7 @@ func TestQueries(t *testing.T) {
 		require.Equal(t, int64(2), nwallets.Count)
 
 		require.NoError(t, RemoveWallet(conn, newDefaultWallet.ID))
-		defaultWallet, err = GetDefaultWallet(conn)
+		defaultWallet, err = GetDefaultWallet(conn, account)
 		require.NoError(t, err)
 		require.Equal(t, defaultWallet.ID, id1)
 
@@ -113,6 +115,7 @@ func TestQueries(t *testing.T) {
 
 		err = InsertWallet(conn, Wallet{
 			ID:      id3,
+			Account: account,
 			Name:    name3,
 			Type:    type3,
 			Balance: balance3,

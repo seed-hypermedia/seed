@@ -50,21 +50,6 @@ func generateQueries() error {
 			"LIMIT", qb.Var("limit", sqlitegen.TypeInt),
 		),
 
-		qb.MakeQuery(storage.Schema, "getDefaultWallet", sqlitegen.QueryKindSingle,
-			"SELECT", qb.Results(
-				qb.ResultCol(storage.WalletsID),
-				qb.ResultCol(storage.WalletsAccount),
-				qb.ResultCol(storage.WalletsAddress),
-				qb.ResultCol(storage.WalletsName),
-				qb.ResultCol(storage.WalletsBalance),
-				qb.ResultCol(storage.WalletsType),
-			), qb.Line,
-			"FROM", storage.Wallets,
-			"WHERE", storage.WalletsID, "!=", qb.Var("account", sqlitegen.TypeText), "AND", storage.WalletsID, "= (SELECT json_extract(json(", storage.KVValue, "),'$.:account'))",
-			"FROM", storage.KV,
-			"WHERE", storage.KVKey, "=", qb.Var("key", sqlitegen.TypeText), ")",
-		),
-
 		qb.MakeQuery(storage.Schema, "setLoginSignature", sqlitegen.QueryKindExec,
 			"INSERT OR REPLACE INTO", storage.KV, qb.ListColShort(
 				storage.KVKey,
@@ -74,17 +59,6 @@ func generateQueries() error {
 				qb.VarCol(storage.KVKey),
 				qb.VarCol(storage.KVValue),
 			),
-		),
-
-		qb.MakeQuery(storage.Schema, "setDefaultWallet", sqlitegen.QueryKindExec,
-			"INSERT OR REPLACE INTO", storage.KV, qb.ListColShort(
-				storage.KVKey,
-				storage.KVValue,
-			), qb.Line,
-			"VALUES(",
-			qb.Var("key", sqlitegen.TypeText),
-			", CASE WHEN (SELECT json(", storage.KVValue, ") from", storage.KV, qb.Line,
-			"WHERE", storage.KVKey, "=:key AND", storage.KVKey, "!=", qb.Var("account", sqlitegen.TypeText), "AND", storage.KVKey, "!=", qb.Var("id", sqlitegen.TypeText), ") IS NOT NULL THEN json_set((SELECT json(", storage.KVValue, ") from", storage.KV, "WHERE", storage.KVKey, "=:key ),'$.:account',':id') ELSE json_set('{}','$.:account',':id') END)",
 		),
 
 		qb.MakeQuery(storage.Schema, "removeDefaultWallet", sqlitegen.QueryKindExec,

@@ -127,7 +127,7 @@ var qPublicKeysLookupID = dqb.Str(`
 
 func DbGetPublicKeyByID(conn *sqlite.Conn, id int64) (publicKeysPrincipal []byte, err error) {
 	before := func(stmt *sqlite.Stmt) {
-		stmt.SetInt64(":id", id)
+		stmt.SetInt64(":publicKeysID", id)
 	}
 
 	var out []byte

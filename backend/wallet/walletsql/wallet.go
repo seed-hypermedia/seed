@@ -6,7 +6,10 @@ import (
 	"seed/backend/blob"
 	"seed/backend/core"
 	"seed/backend/lndhub/lndhubsql"
+	"seed/backend/storage"
 	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
+	"seed/backend/util/sqlitegen"
 	"strings"
 )
 
@@ -133,7 +136,8 @@ func InsertWallet(conn *sqlite.Conn, wallet Wallet, login, password, token []byt
 	}
 
 	if nwallets.Count == 1 {
-		if err = setDefaultWallet(conn, DefaultWalletKey, wallet.Account, wallet.ID); err != nil {
+		query := createSetDefaultWalletQUery(wallet.Account, wallet.ID)
+		if err := sqlitex.Exec(conn, query, nil); err != nil {
 			return fmt.Errorf("couldn't set newly created wallet to default: %w", err)
 		}
 	}
@@ -144,21 +148,26 @@ func InsertWallet(conn *sqlite.Conn, wallet Wallet, login, password, token []byt
 // GetDefaultWallet gets the user's default wallet. If the user didn't manually
 // update the default wallet, then the first wallet ever created is the default
 // wallet. It will remain default until manually changed. There is a default wallet per account.
-func GetDefaultWallet(conn *sqlite.Conn, account string) (Wallet, error) {
-	ret, err := getDefaultWallet(conn, account, DefaultWalletKey)
+func GetDefaultWallet(conn *sqlite.Conn, account string) (w Wallet, err error) {
+	query := createGetDefaultWalletQUery(account)
+	var acc int64
+	if err = sqlitex.Exec(conn, query, func(stmt *sqlite.Stmt) error {
+		w.ID = stmt.ColumnText(0)
+		acc = stmt.ColumnInt64(1)
+		w.Address = stmt.ColumnText(2)
+		w.Name = stmt.ColumnText(3)
+		w.Balance = stmt.ColumnInt64(4)
+		w.Type = stmt.ColumnText(5)
+		return nil
+	}); err != nil {
+		return w, fmt.Errorf("Could not get default wallet: %w", err)
+	}
+	principal, err := blob.DbGetPublicKeyByID(conn, acc)
 	if err != nil {
-		return Wallet{}, err
+		return w, fmt.Errorf("Could not decode default wallet account: %w", err)
 	}
-	if ret.WalletsID == "" {
-		return Wallet{}, fmt.Errorf("No default wallet found")
-	}
-	return Wallet{
-		ID:      ret.WalletsID,
-		Address: ret.WalletsAddress,
-		Name:    ret.WalletsName,
-		Type:    ret.WalletsType,
-		Balance: int64(ret.WalletsBalance),
-	}, nil
+	w.Account = core.Principal(principal).String()
+	return w, err
 }
 
 // UpdateDefaultWallet sets the default wallet to the one that matches newIdx
@@ -180,7 +189,8 @@ func UpdateDefaultWallet(conn *sqlite.Conn, newID string) (Wallet, error) {
 	if err != nil {
 		return Wallet{}, fmt.Errorf("Could not decode provided account %s: %w", defaultWallet.Account, err)
 	}
-	if err := setDefaultWallet(conn, DefaultWalletKey, core.Principal(principal).String(), newID); err != nil {
+	query := createSetDefaultWalletQUery(core.Principal(principal).String(), newID)
+	if err := sqlitex.Exec(conn, query, nil); err != nil {
 		return Wallet{}, fmt.Errorf("cannot set %s as default wallet: %w", newID, err)
 	}
 
@@ -249,7 +259,8 @@ func RemoveWallet(conn *sqlite.Conn, id string) error {
 				return fmt.Errorf("Could not decode provided account %s: %w", newDefaultWallet[0].Account, err)
 			}
 
-			if err = setDefaultWallet(conn, DefaultWalletKey, core.Principal(principal).String(), newDefaultWallet[0].ID); err != nil {
+			query := createSetDefaultWalletQUery(core.Principal(principal).String(), newDefaultWallet[0].ID)
+			if err := sqlitex.Exec(conn, query, nil); err != nil {
 				return fmt.Errorf("couldn't pick a wallet to be the new default after deleting the old one")
 			}
 		} else if err = removeDefaultWallet(conn, DefaultWalletKey); err != nil {
@@ -258,4 +269,14 @@ func RemoveWallet(conn *sqlite.Conn, id string) error {
 	}
 
 	return nil
+}
+
+func createSetDefaultWalletQUery(account, walletID string) string {
+	cond := "CASE WHEN (SELECT json(" + storage.KVValue + ") from " + storage.T_KV + " WHERE " + storage.KVKey + "='" + DefaultWalletKey + "') IS NOT NULL THEN json_set((SELECT json(" + storage.KVValue + ") FROM " + storage.T_KV + " WHERE " + storage.KVKey + "='" + DefaultWalletKey + "'),'$." + sqlitegen.Column(account) + "','" + sqlitegen.Column(walletID) + "') ELSE json_set('{}','$." + sqlitegen.Column(account) + "','" + sqlitegen.Column(walletID) + "') END"
+	return "INSERT OR REPLACE INTO " + storage.T_KV + "(" + storage.KVKey.ShortName() + ", " + storage.KVValue.ShortName() + ") VALUES ('" + DefaultWalletKey + "'," + cond.String() + ");"
+}
+
+func createGetDefaultWalletQUery(account string) string {
+	cond := "SELECT json_extract(json(" + storage.KVValue + "),'$." + sqlitegen.Column(account) + "') FROM " + storage.T_KV + " WHERE " + storage.KVKey + " = '" + DefaultWalletKey + "')"
+	return ("SELECT " + storage.WalletsID + ", " + storage.WalletsAccount + ", " + storage.WalletsAddress + ", " + storage.WalletsName + ", " + storage.WalletsBalance + ", " + storage.WalletsType + " FROM " + sqlitegen.Column(storage.T_Wallets) + " WHERE " + storage.WalletsID + " = (" + cond + ";").String()
 }
