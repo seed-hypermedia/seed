@@ -45,7 +45,7 @@ func TestCreate(t *testing.T) {
 	defer cancel()
 	keypair, err := core.NewKeyPairRandom()
 	require.NoError(t, err)
-	token, err := keypair.PublicKey.MarshalBinary()
+	token, err := keypair.PublicKey.Wrapped().Raw()
 	require.NoError(t, err)
 
 	login := keypair.String()
@@ -69,7 +69,6 @@ func TestCreate(t *testing.T) {
 	require.EqualValues(t, login, user.Login)
 	require.EqualValues(t, password, user.Password)
 	require.EqualValues(t, strings.ToLower(nickname), user.Nickname)
-	require.NoError(t, err)
 	_, err = lndHubClient.Auth(ctx)
 	require.NoError(t, err)
 	var newNickname = randStringRunes(8)

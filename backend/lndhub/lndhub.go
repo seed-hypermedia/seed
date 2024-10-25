@@ -206,7 +206,6 @@ func (c *Client) UpdateNickname(ctx context.Context, nickname string, token []by
 // Since it is a user operation, if the login is a CID, then user must provide a token representing
 // the pubkey whose private counterpart created the signature provided in password (like in create).
 func (c *Client) GetLnAddress(ctx context.Context, account string) (string, error) {
-
 	conn, release, err := c.db.Conn(ctx)
 	if err != nil {
 		return "", err
@@ -229,17 +228,10 @@ func (c *Client) GetLnAddress(ctx context.Context, account string) (string, erro
 	if err != nil {
 		return "", fmt.Errorf("Wrong account %s: %w", account, err)
 	}
-	pk, err := principal.Libp2pKey()
-	if err != nil {
-		return "", fmt.Errorf("Wrong account format%s: %w", principal.String(), err)
-	}
-	_, token2 := principal.Explode()
-	token, err := pk.Raw()
-	fmt.Println(token)
-	fmt.Println(token2)
+	_, token := principal.Explode()
 
 	user, err := c.Create(ctx, connectionURL, login, pass, "", token) // create with valid credentials and blank nickname fills the nickname
-	panic("Only one token valid, and make account a []byte")
+
 	if err != nil {
 		return "", err
 	}
