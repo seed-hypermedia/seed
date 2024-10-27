@@ -21,8 +21,6 @@ import * as Y from 'yjs'
 import {createInlineEmbedNode} from '../../mentions-plugin'
 import Link from '../../tiptap-extension-link'
 import styles from './editor.module.css'
-import {BackgroundColorExtension} from './extensions/BackgroundColor/BackgroundColorExtension'
-import {BackgroundColorMark} from './extensions/BackgroundColor/BackgroundColorMark'
 import {BlockManipulationExtension} from './extensions/BlockManipulation/BlockManipulationExtension'
 import {BlockContainer, BlockGroup, Doc} from './extensions/Blocks'
 import {BlockNoteDOMAttributes} from './extensions/Blocks/api/blockTypes'
@@ -30,9 +28,6 @@ import {CustomBlockSerializerExtension} from './extensions/Blocks/api/serializat
 import blockStyles from './extensions/Blocks/nodes/Block.module.css'
 import {createMarkdownExtension} from './extensions/Markdown/MarkdownExtension'
 import {Placeholder} from './extensions/Placeholder/PlaceholderExtension'
-import {TextAlignmentExtension} from './extensions/TextAlignment/TextAlignmentExtension'
-import {TextColorExtension} from './extensions/TextColor/TextColorExtension'
-import {TextColorMark} from './extensions/TextColor/TextColorMark'
 import {TrailingNode} from './extensions/TrailingNode/TrailingNodeExtension'
 import {UniqueID} from './extensions/UniqueID/UniqueID'
 
@@ -98,11 +93,11 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     Strike,
     Underline,
     Link.configure(opts.linkExtensionOptions),
-    TextColorMark,
-    TextColorExtension,
-    BackgroundColorMark,
-    BackgroundColorExtension,
-    TextAlignmentExtension,
+    // TextColorMark,
+    // TextColorExtension,
+    // BackgroundColorMark,
+    // BackgroundColorExtension,
+    // TextAlignmentExtension,
     LocalMediaPastePlugin,
     // nodes
     Doc,
