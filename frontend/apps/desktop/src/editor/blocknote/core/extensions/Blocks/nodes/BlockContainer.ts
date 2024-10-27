@@ -443,10 +443,11 @@ export const BlockContainer = Node.create<{
 
             // Adds all provided props as attributes to the parent blockContainer node too, and also preserves existing
             // attributes.
-            state.tr.setNodeMarkup(startPos - 1, undefined, {
+            let providedProps = {
               ...node.attrs,
               ...block.props,
-            })
+            }
+            state.tr.setNodeMarkup(startPos - 1, undefined, providedProps)
           }
 
           return true

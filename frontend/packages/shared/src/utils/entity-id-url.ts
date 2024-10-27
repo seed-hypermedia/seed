@@ -271,7 +271,7 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
   }
   if (restPath.length === 1 && restPath[0] === '') restPath = []
   const version = parsed.query.v || null
-  const latest = parsed.query.l !== undefined
+  const latest = parsed.query.l === null || parsed.query.l === ''
   const fragment = parseFragment(parsed.fragment)
 
   let blockRange = null

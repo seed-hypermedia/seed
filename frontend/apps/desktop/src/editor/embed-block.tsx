@@ -5,13 +5,15 @@ import {useSearch} from '@/models/search'
 import {loadWebLinkMeta} from '@/models/web-links'
 import {useOpenUrl} from '@/open-url'
 import {
-  createHmDocLink_DEPRECATED,
   HMEmbedViewSchema,
   hmIdWithVersion,
   HYPERMEDIA_ENTITY_TYPES,
   isHypermediaScheme,
   isPublicGatewayLink,
   normalizeHmId,
+  packHmId,
+  parseCustomURL,
+  UnpackedHypermediaId,
   unpackHmId,
   useHover,
 } from '@shm/shared'
@@ -38,14 +40,7 @@ import {
   YStack,
 } from '@shm/ui'
 import {Fragment} from '@tiptap/pm/model'
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {GestureResponderEvent} from 'react-native'
 import {Block, BlockNoteEditor, HMBlockSchema} from '.'
@@ -201,7 +196,7 @@ const display = ({
       setSelected={setSelected}
       assign={assign}
     >
-      <EmbedControl block={block} assign={assign} />
+      <EmbedControl block={block} unpackedId={unpackedId} assign={assign} />
       {block.props.url && (
         <ErrorBoundary FallbackComponent={EmbedError}>
           <BlockContentEmbed
@@ -233,19 +228,13 @@ const display = ({
 
 function EmbedControl({
   block,
+  unpackedId,
   assign,
 }: {
   block: Block<HMBlockSchema>
+  unpackedId: UnpackedHypermediaId | null
   assign: any
 }) {
-  const hmId = useMemo(() => {
-    if (block.props.url) {
-      return unpackHmId(block.props.url)
-    }
-    return null
-  }, [block.props.url])
-  const allowViewSwitcher = hmId?.type != 'c' && !hmId?.blockRef
-  const allowVersionSwitcher = hmId?.type == 'd'
   const openUrl = useOpenUrl()
   const popoverState = usePopoverState()
   const popoverViewState = usePopoverState()
@@ -253,11 +242,20 @@ function EmbedControl({
   const popoverToDocumentState = usePopoverState()
   const expandButtonHover = useHover()
 
-  let versionValue =
-    block.props.url.includes('&l') || block.props.url.includes('?l')
-      ? 'latest'
-      : 'exact'
-  let isVersionLatest = versionValue == 'latest'
+  const allowViewSwitcher = unpackedId?.type == 'd' && !unpackedId?.blockRef
+  const allowVersionSwitcher = unpackedId?.type == 'd'
+  const hasBlockRef = unpackedId?.blockRef
+  const isLatestVersion = isEmbedUrlLatest(block.props.url)
+
+  function isEmbedUrlLatest(url: string): boolean {
+    const queryParams = parseCustomURL(url)
+
+    return (
+      (queryParams?.query &&
+        (queryParams.query.l === null || queryParams.query.l === '')) ||
+      false
+    )
+  }
 
   const handleViewSelect = useCallback((view: 'Content' | 'Card') => {
     return () => {
@@ -266,55 +264,40 @@ function EmbedControl({
     }
   }, [])
 
-  const expanded = useMemo(() => {
-    let res =
-      hmId &&
-      hmId?.blockRef &&
-      hmId.blockRange &&
-      'expanded' in hmId.blockRange &&
-      hmId.blockRange?.expanded
-    return res
-  }, [block.props.url])
+  const isBlockExpanded =
+    unpackedId &&
+    unpackedId?.blockRef &&
+    unpackedId.blockRange &&
+    'expanded' in unpackedId.blockRange &&
+    unpackedId.blockRange?.expanded
 
   const handleVersionSelect = useCallback(
     (versionMode: 'exact' | 'latest') => {
-      let unpackedRef = unpackHmId(block.props.url)
       return () => {
         popoverLatestState.onOpenChange(false)
-        if (unpackedRef) {
+        if (unpackedId) {
+          let url = packHmId({...unpackedId, latest: versionMode == 'latest'})
           assign({
             props: {
-              url: createHmDocLink_DEPRECATED({
-                documentId: unpackedRef?.id,
-                version: unpackedRef?.version,
-                blockRef: unpackedRef?.blockRef,
-                latest: versionMode === 'latest',
-              }),
+              url,
             },
           })
         }
       }
     },
-    [block.props.url],
+    [block.props.url, unpackedId],
   )
 
   const handleBlockToDocument = useCallback(() => {
-    let unpackedRef = unpackHmId(block.props.url)
-
-    if (unpackedRef) {
+    if (unpackedId) {
       assign({
         props: {
-          url: createHmDocLink_DEPRECATED({
-            documentId: unpackedRef?.id,
-            version: unpackedRef?.version,
-            blockRef: unpackedRef?.blockRef,
-            latest: unpackedRef?.latest || undefined,
-          }),
+          url: packHmId({...unpackedId, blockRef: null, blockRange: null}),
           view: 'Content',
         },
       })
     }
-  }, [block.props.url])
+  }, [block.props.url, unpackedId])
 
   return (
     <XStack
@@ -340,10 +323,10 @@ function EmbedControl({
           }}
         />
       </Tooltip>
-      {hmId?.blockRef ? (
+      {hasBlockRef ? (
         <Tooltip
           content={
-            expanded
+            isBlockExpanded
               ? `Embed only the block's content`
               : `Embed the block and its children`
           }
@@ -352,7 +335,7 @@ function EmbedControl({
             {...expandButtonHover}
             size="$2"
             icon={
-              expanded
+              isBlockExpanded
                 ? expandButtonHover.hover
                   ? ChevronRight
                   : ChevronDown
@@ -363,25 +346,19 @@ function EmbedControl({
             backgroundColor="$backgroundStrong"
             onPress={(e: GestureResponderEvent) => {
               e.stopPropagation()
-              let url = createHmDocLink_DEPRECATED({
-                documentId: hmId?.id,
-                version: hmId?.version,
-                latest: !!hmId?.latest,
-                blockRef: hmId?.blockRef,
-                blockRange: {
-                  expanded: !expanded,
-                },
+              let url = packHmId({
+                ...unpackedId,
+                blockRange: {expanded: !isBlockExpanded},
               })
 
               assign({
                 props: {
                   url,
-                  view: 'Content',
                 },
               })
             }}
           >
-            {expanded
+            {isBlockExpanded
               ? expandButtonHover.hover
                 ? 'Collapse'
                 : 'Expand'
@@ -452,7 +429,7 @@ function EmbedControl({
               size="$2"
               iconAfter={ChevronDown}
             >
-              {versionValue === 'exact' ? 'Exact Version' : 'Latest Version'}
+              {isLatestVersion ? 'Latest Version' : 'Exact Version'}
             </Button>
           </Popover.Trigger>
           <Popover.Content asChild>
@@ -462,7 +439,7 @@ function EmbedControl({
                   size="$2"
                   title="Latest"
                   onPress={handleVersionSelect('latest')}
-                  iconAfter={isVersionLatest ? Check : null}
+                  iconAfter={isLatestVersion ? Check : null}
                   hoverStyle={{
                     bg: '$backgroundHover',
                   }}
@@ -474,7 +451,7 @@ function EmbedControl({
                   size="$2"
                   title="Exact"
                   onPress={handleVersionSelect('exact')}
-                  iconAfter={!isVersionLatest ? Check : null}
+                  iconAfter={isLatestVersion ? null : Check}
                   hoverStyle={{
                     bg: '$backgroundHover',
                   }}
@@ -484,7 +461,7 @@ function EmbedControl({
           </Popover.Content>
         </Popover>
       )}
-      {hmId?.blockRef ? (
+      {hasBlockRef ? (
         <Popover {...popoverToDocumentState} placement="bottom-start">
           <Popover.Trigger asChild>
             <Button
@@ -511,7 +488,7 @@ function EmbedControl({
           >
             <YGroup>
               <YGroup.Item>
-                {hmId?.blockRef ? (
+                {hasBlockRef ? (
                   <MenuItem
                     onPress={(e: GestureResponderEvent) => {
                       e.stopPropagation()

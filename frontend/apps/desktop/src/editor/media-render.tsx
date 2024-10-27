@@ -82,7 +82,7 @@ export const MediaRender: React.FC<RenderProps> = ({
   const [selected, setSelected] = useState(false)
   const [uploading, setUploading] = useState(false)
   const tiptapEditor = editor._tiptapEditor
-  const hasSrc = !!block.props.src
+  const hasSrc = !!block.props?.src
   const {importWebFile} = useDocContentContext()
 
   function updateSelection() {
@@ -141,10 +141,9 @@ export const MediaRender: React.FC<RenderProps> = ({
     }
   }, [hasSrc, block, uploading, editor])
 
-  const assignMedia = (newFile: MediaType) => {
-    editor.updateBlock(block.id, {
-      props: {...block.props, ...newFile.props},
-    })
+  const assignMedia = (props: MediaType) => {
+    // we used to spread the current block.props into the new props, but now we just overwrite the whole thing because it was causing bugs
+    editor.updateBlock(block.id, props)
   }
 
   const setSelection = (isSelected: boolean) => {
