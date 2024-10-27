@@ -64,7 +64,7 @@ export function NewspaperLayout({
           accountsMetadata={accountsMetadata}
         />
       )}
-      <XStack flexWrap="wrap" marginTop="$4" justifyContent="space-between">
+      <XStack flexWrap="wrap" marginTop="$4" justifyContent="center" gap="$6">
         {restItems.map((item) => {
           const id = hmId('d', item.account, {
             path: item.path,

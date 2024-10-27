@@ -34,8 +34,7 @@ export function BannerNewspaperCard({
       flexDirection="column"
       marginTop="$4"
       minHeight={200}
-      maxHeight={300}
-      $gtMd={{flexDirection: "row"}}
+      $gtMd={{flexDirection: "row", maxHeight: 300}}
       {...linkProps}
     >
       <View height={200} width="100%" $gtMd={{width: "50%", height: "auto"}}>
@@ -169,6 +168,8 @@ export function NewspaperCard({
 }) {
   const linkProps = useRouteLink({key: "document", id});
 
+  console.log(`== ~ linkProps:`, linkProps);
+
   // const navigate = useNavigate()
   if (!entity?.document) return null;
   return (
@@ -176,8 +177,8 @@ export function NewspaperCard({
       flexGrow={0}
       flexShrink={0}
       flexBasis="100%"
-      $gtSm={{flexBasis: "48.5%"}}
-      $gtMd={{flexBasis: "31.5%"}}
+      $gtSm={{flexBasis: "47.9%"}}
+      $gtMd={{flexBasis: "31.1%"}}
       {...baseCardStyles}
       marginTop="$5"
       //   marginTop="$4"
