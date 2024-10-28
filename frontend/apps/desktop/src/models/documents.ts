@@ -39,6 +39,7 @@ import {Extension, findParentNode} from '@tiptap/core'
 import {NodeSelection, Selection} from '@tiptap/pm/state'
 import {useMachine} from '@xstate/react'
 import _, {flatMap} from 'lodash'
+import {nanoid} from 'nanoid'
 import {useEffect, useMemo, useRef} from 'react'
 import {ContextFrom, OutputFrom, fromPromise} from 'xstate'
 import {
@@ -904,15 +905,21 @@ export function usePublishToSite() {
 
 export function useListDirectory(id: UnpackedHypermediaId) {
   const grpcClient = useGRPCClient()
+  const prefixPath = id.path ? '/' + id.path.join('/') : ''
   return useQuery({
-    queryKey: [queryKeys.DOC_LIST_DIRECTORY, id.uid],
+    queryKey: [queryKeys.DOC_LIST_DIRECTORY, id.uid, prefixPath],
     queryFn: async () => {
       const res = await grpcClient.documents.listDocuments({
         account: id.uid,
       })
       const docs = res.documents
         .map(toPlainMessage)
-        .filter((doc) => doc.path !== '')
+        .filter(
+          (doc) =>
+            doc.path !== '' &&
+            doc.path.startsWith(prefixPath) &&
+            doc.path !== prefixPath,
+        )
         .map((doc) => {
           return {...doc, path: doc.path.slice(1).split('/')}
         })
@@ -1305,5 +1312,19 @@ function removeTrailingBlocks(
     }
 
     return trailedBlocks
+  }
+}
+
+export function useCreateDraft(parentDocId: UnpackedHypermediaId) {
+  const navigate = useNavigate('push')
+  return () => {
+    const id = hmId('d', parentDocId.uid, {
+      path: [...(parentDocId.path || []), `_${pathNameify(nanoid(10))}`],
+    })
+    navigate({
+      key: 'draft',
+      id,
+      new: true,
+    })
   }
 }

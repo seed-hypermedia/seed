@@ -1,13 +1,18 @@
 import {ImportButton} from '@/components/import-doc-button'
 import {useMyCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
-import {useDraftList, useListDirectory} from '@/models/documents'
+import {
+  useCreateDraft,
+  useDraftList,
+  useListDirectory,
+} from '@/models/documents'
 import {useEntities, useSubscribedEntity} from '@/models/entities'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   formattedDateLong,
   formattedDateMedium,
+  getMetadataName,
   hmId,
   HMMetadata,
   UnpackedHypermediaId,
@@ -23,12 +28,18 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {Copy, FilePlus} from '@tamagui/lucide-icons'
-import {nanoid} from 'nanoid'
+import {Copy, Plus} from '@tamagui/lucide-icons'
 import {useMemo} from 'react'
+import {SidebarItem} from './sidebar-base'
 import {CopyReferenceButton} from './titlebar-common'
 
-export function Directory({docId}: {docId: UnpackedHypermediaId}) {
+export function Directory({
+  docId,
+  indented,
+}: {
+  docId: UnpackedHypermediaId
+  indented?: number
+}) {
   const dir = useListDirectory(docId)
   useSubscribedEntity(docId, true)
   const backendDrafts = useDraftList()
@@ -79,20 +90,32 @@ export function Directory({docId}: {docId: UnpackedHypermediaId}) {
         }),
     }
   }, [dir.data, backendDrafts.data])
-
+  const navigate = useNavigate()
   return (
-    <YStack paddingVertical="$4">
+    <>
       {drafts.map((id) => {
         if (!id) return null
-        return <DraftItem key={id.id} id={id} />
+        // return <DraftItem key={id.id} id={id} />
+        return <DraftItem id={id} key={id.id} indented={indented} />
+        // return <SidebarItem key={id.id} title="Draft" icon={<Plus />} right={<DraftTag />} />
       })}
 
-      {directory.map((item) => (
+      {/* {directory.map((item) => (
         <DirectoryItemWithAuthors key={item.id.id} entry={item} />
-      ))}
+      ))} */}
 
-      <DocCreation id={docId} />
-    </YStack>
+      {directory.map((item) => (
+        <SidebarItem
+          onPress={() => {
+            navigate({key: 'document', id: item.id})
+          }}
+          title={getMetadataName(item.metadata)}
+          key={item.id.id}
+          icon={<HMIcon id={item.id} metadata={item.metadata} size={20} />}
+          indented={indented}
+        />
+      ))}
+    </>
   )
 }
 
@@ -106,8 +129,50 @@ function DocCreation({id}: {id: UnpackedHypermediaId}) {
     </XStack>
   )
 }
+function DraftTag() {
+  return (
+    <SizableText
+      size="$1"
+      color="$yellow11"
+      paddingHorizontal={4}
+      paddingVertical={8}
+      lineHeight={1}
+      fontSize={10}
+      bg="$yellow3"
+      borderRadius="$1"
+      borderColor="$yellow10"
+      borderWidth={1}
+    >
+      DRAFT
+    </SizableText>
+  )
+}
 
-function DraftItem({id}: {id: UnpackedHypermediaId}) {
+function DraftItem({
+  id,
+  indented,
+}: {
+  id: UnpackedHypermediaId
+  indented?: number
+}) {
+  const navigate = useNavigate()
+
+  const draft = useDraft(id)
+  function goToDraft() {
+    navigate({key: 'draft', id})
+  }
+  return (
+    <SidebarItem
+      key={id.id}
+      title={draft.data?.metadata.name || 'Untitled'}
+      icon={<HMIcon size={20} id={id} metadata={draft.data?.metadata} />}
+      indented={indented}
+      iconAfter={<DraftTag />}
+      onPress={goToDraft}
+    />
+  )
+}
+function DraftItemLarge({id}: {id: UnpackedHypermediaId}) {
   const navigate = useNavigate()
 
   const draft = useDraft(id)
@@ -144,20 +209,7 @@ function DraftItem({id}: {id: UnpackedHypermediaId}) {
             >
               {draft.data?.metadata.name || 'Untitled'}
             </SizableText>
-            <SizableText
-              size="$1"
-              color="$yellow11"
-              paddingHorizontal={4}
-              paddingVertical={8}
-              lineHeight={1}
-              fontSize={10}
-              bg="$yellow3"
-              borderRadius="$1"
-              borderColor="$yellow10"
-              borderWidth={1}
-            >
-              DRAFT
-            </SizableText>
+            <DraftTag />
           </XStack>
           <PathButton
             docId={id}
@@ -238,23 +290,10 @@ function NewSubDocumentButton({
 }: {
   parentDocId: UnpackedHypermediaId
 }) {
-  const navigate = useNavigate('push')
+  const createDraft = useCreateDraft(parentDocId)
   return (
     <>
-      <Button
-        icon={FilePlus}
-        onPress={() => {
-          const id = hmId('d', parentDocId.uid, {
-            path: [...(parentDocId.path || []), `_${pathNameify(nanoid(10))}`],
-          })
-          navigate({
-            key: 'draft',
-            id,
-            new: true,
-          })
-        }}
-        size="$3"
-      >
+      <Button icon={Plus} color="$green9" onPress={createDraft} size="$3">
         Create Document
       </Button>
     </>

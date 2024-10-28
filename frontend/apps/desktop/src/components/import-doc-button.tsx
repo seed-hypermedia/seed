@@ -23,7 +23,7 @@ import {useMemo} from 'react'
 import {ImportedDocument, useImportDialog} from './import-doc-dialog'
 import {OptionsDropdown} from './options-dropdown'
 
-export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
+export function ImportButton({input}: {input: UnpackedHypermediaId}) {
   const {openMarkdownDirectories, openMarkdownFiles} = useAppContext()
   const keys = useMyAccountIds()
   const signingAccount = useMemo(() => {
@@ -212,11 +212,7 @@ export const ImportButton = ({input}: {input: UnpackedHypermediaId}) => {
   return (
     <>
       <OptionsDropdown
-        button={
-          <Button size="$3" icon={Import}>
-            Import Document
-          </Button>
-        }
+        button={<Button size="$3" icon={Import}></Button>}
         menuItems={[
           {
             key: 'file',
