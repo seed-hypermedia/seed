@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"seed/backend/core"
 	lndhub "seed/backend/lndhub/lndhubsql"
+	"seed/backend/wallet/walletsql"
 	"strconv"
 	"strings"
 	"time"
@@ -206,7 +207,7 @@ func (c *Client) UpdateNickname(ctx context.Context, walletID, nickname string, 
 // GetLnAddress gets the account-wide ln address in the form of <nickname>@<domain> .
 // Since it is a user operation, if the login is a CID, then user must provide a token representing
 // the pubkey whose private counterpart created the signature provided in password (like in create).
-func (c *Client) GetLnAddress(ctx context.Context, walletID, account string) (string, error) {
+func (c *Client) GetLnAddress(ctx context.Context, walletID string) (string, error) {
 	conn, release, err := c.db.Conn(ctx)
 	if err != nil {
 		return "", err
@@ -225,9 +226,13 @@ func (c *Client) GetLnAddress(ctx context.Context, walletID, account string) (st
 	if err != nil {
 		return "", err
 	}
-	principal, err := core.DecodePrincipal(account)
+	w, err := walletsql.GetWallet(conn, walletID)
 	if err != nil {
-		return "", fmt.Errorf("Wrong account %s: %w", account, err)
+		return "", fmt.Errorf("wallet [%s] not found: %w", walletID, err)
+	}
+	principal, err := core.DecodePrincipal(w.Account)
+	if err != nil {
+		return "", fmt.Errorf("Wrong account %s: %w", w.Account, err)
 	}
 	_, token := principal.Explode()
 
@@ -414,12 +419,12 @@ func (c *Client) CreateLocalInvoice(ctx context.Context, walletID string, sats i
 	return resp.PayReq, err
 }
 
-// RequestRemoteInvoice request a remote peer via lndhub an invoice of amount
+// RequestLud6Invoice request a remote peer via lndhub an invoice of amount
 // sats (in satoshis). The remote user can be either a lnaddres user or a
 // seed account ID. We accept a short memo or description of purpose of
 // payment, to attach along with the invoice. The generated invoice will have
 // an expirationtime of 24 hours and a random preimage.
-func (c *Client) RequestRemoteInvoice(ctx context.Context, walletID, remoteUser string, amountSats int64, memo string) (string, error) {
+func (c *Client) RequestLud6Invoice(ctx context.Context, baseURL, remoteUser string, amountSats int64, memo string) (string, error) {
 	type requestRemoteInvoiceResponse struct {
 		PayReq string `mapstructure:"pr"`
 	}
@@ -432,13 +437,8 @@ func (c *Client) RequestRemoteInvoice(ctx context.Context, walletID, remoteUser 
 	}
 	defer release()
 
-	apiBaseURL, err := lndhub.GetAPIURL(conn, walletID)
-	if err != nil {
-		return resp.PayReq, err
-	}
-
-	err = c.do(ctx, conn, walletID, httpRequest{
-		URL:    apiBaseURL + requestInvoiceRoute + "?user=" + remoteUser + "&amount=" + strconv.FormatInt(amountSats*1000, 10) + "&memo=" + strings.ReplaceAll(memo, " ", "+"),
+	err = c.do(ctx, conn, "", httpRequest{
+		URL:    baseURL + requestInvoiceRoute + "?user=" + remoteUser + "&amount=" + strconv.FormatInt(amountSats*1000, 10) + "&memo=" + strings.ReplaceAll(memo, " ", "+"),
 		Method: http.MethodGet,
 	}, 2, &resp)
 

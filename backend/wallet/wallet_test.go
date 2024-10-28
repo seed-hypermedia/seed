@@ -33,9 +33,9 @@ func TestModifyWallets(t *testing.T) {
 	uri, err := alice.ExportWallet(ctx, "")
 	require.NoError(t, err)
 	seedWallet, err := alice.InsertWallet(ctx, uri, "default", aliceAcc.String())
-	require.Error(t, err, "We must register the account first.")
-
-	require.Eventually(t, func() bool { defaultWallet, err = alice.GetDefaultWallet(ctx); return err == nil }, 7*time.Second, 2*time.Second)
+	require.NoError(t, err)
+	defaultWallet, err = alice.GetDefaultWallet(ctx, aliceAcc.String())
+	require.NoError(t, err)
 	require.Equal(t, seedWallet, defaultWallet)
 	require.Eventually(t, func() bool {
 		conn, release, err := alice.pool.Conn(ctx)
@@ -51,7 +51,7 @@ func TestModifyWallets(t *testing.T) {
 	_, err = alice.UpdateWalletName(ctx, defaultWallet.ID, newName)
 	require.NoError(t, err)
 
-	wallets, err := alice.ListWallets(ctx, true)
+	wallets, err := alice.ListWallets(ctx, aliceAcc.String(), true)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, len(wallets))
 	require.EqualValues(t, newName, wallets[0].Name)
@@ -60,7 +60,6 @@ func TestModifyWallets(t *testing.T) {
 func TestRequestLndHubInvoice(t *testing.T) {
 	testutil.Manual(t)
 	ctx := context.Background()
-	var err error
 	alice := makeTestService(t, "alice")
 	aliceAcc, err := alice.net.AccountForDevice(ctx, alice.net.AddrInfo().ID)
 	aliceURI, err := alice.ExportWallet(ctx, "")
@@ -68,11 +67,11 @@ func TestRequestLndHubInvoice(t *testing.T) {
 	bob := makeTestService(t, "bob")
 	bobAcc, err := bob.net.AccountForDevice(ctx, bob.net.AddrInfo().ID)
 	require.NoError(t, err)
-	_, err = alice.InsertWallet(ctx, aliceURI, "default", aliceAcc.String())
+	alicesWallet, err := alice.InsertWallet(ctx, aliceURI, "default", aliceAcc.String())
 	require.NoError(t, err)
 	bobURI, err := bob.ExportWallet(ctx, "")
 	require.NoError(t, err)
-	_, err = bob.InsertWallet(ctx, bobURI, "default", bobAcc.String())
+	bobsWallet, err := bob.InsertWallet(ctx, bobURI, "default", bobAcc.String())
 	require.NoError(t, err)
 
 	var amt uint64 = 23
@@ -80,8 +79,14 @@ func TestRequestLndHubInvoice(t *testing.T) {
 	var memo = "test invoice"
 
 	var payreq string
-	var defaultWallet walletsql.Wallet
-	require.Eventually(t, func() bool { defaultWallet, err = bob.GetDefaultWallet(ctx); return err == nil }, 7*time.Second, 3*time.Second)
+
+	defaultWallet, err := alice.GetDefaultWallet(ctx, aliceAcc.String())
+	require.NoError(t, err)
+	require.Equal(t, alicesWallet, defaultWallet)
+
+	defaultWallet, err = bob.GetDefaultWallet(ctx, bobAcc.String())
+	require.NoError(t, err)
+	require.Equal(t, bobsWallet, defaultWallet)
 	require.Eventually(t, func() bool {
 		conn, release, err := bob.pool.Conn(ctx)
 		require.NoError(t, err)
@@ -89,17 +94,18 @@ func TestRequestLndHubInvoice(t *testing.T) {
 		_, err = lndhubsql.GetToken(conn, defaultWallet.ID)
 		return err == nil
 	}, 3*time.Second, 1*time.Second)
+
 	require.Eventually(t, func() bool {
-		payreq, err = alice.RequestRemoteInvoice(ctx, bobAcc.String(), int64(amt), &memo)
+		payreq, err = alice.RequestLud6Invoice(ctx, defaultWallet.Address, bobAcc.String(), int64(amt), &memo)
 		return err == nil
 	}, 8*time.Second, 2*time.Second)
 	invoice, err := lndhub.DecodeInvoice(payreq)
 	require.NoError(t, err)
 	require.EqualValues(t, amt, invoice.MilliSat.ToSatoshis())
 	require.EqualValues(t, memo, *invoice.Description)
-	_, err = alice.PayInvoice(ctx, payreq, nil, &wrongAmt)
+	_, err = alice.PayInvoice(ctx, aliceAcc.String(), payreq, nil, &wrongAmt)
 	require.ErrorIs(t, err, lndhubsql.ErrQtyMissmatch)
-	_, err = alice.PayInvoice(ctx, payreq, nil, &amt)
+	_, err = alice.PayInvoice(ctx, aliceAcc.String(), payreq, nil, &amt)
 	require.ErrorIs(t, err, lndhubsql.ErrNotEnoughBalance)
 }
 
@@ -109,26 +115,28 @@ func TestRequestP2PInvoice(t *testing.T) {
 	alice := makeTestService(t, "alice")
 	bob := makeTestService(t, "bob")
 	ctx := context.Background()
-
+	aliceAcc, err := alice.net.AccountForDevice(ctx, alice.net.AddrInfo().ID)
 	bobAccount, err := bob.net.AccountForDevice(ctx, bob.net.AddrInfo().ID)
 	require.NoError(t, err)
 	require.NoError(t, alice.net.Connect(ctx, bob.net.AddrInfo()))
+	defaultWallet, err := bob.GetDefaultWallet(ctx, bobAccount.String())
+	require.NoError(t, err)
 
 	var amt uint64 = 23
 	var wrongAmt uint64 = 24
 	var memo = "test invoice"
 	var payreq string
 	require.Eventually(t, func() bool {
-		payreq, err = alice.RequestRemoteInvoice(ctx, bobAccount.String(), int64(amt), &memo)
+		payreq, err = alice.RequestLud6Invoice(ctx, defaultWallet.Address, bobAccount.String(), int64(amt), &memo)
 		return err == nil
 	}, 8*time.Second, 2*time.Second)
 	invoice, err := lndhub.DecodeInvoice(payreq)
 	require.NoError(t, err)
 	require.EqualValues(t, amt, invoice.MilliSat.ToSatoshis())
 	require.EqualValues(t, memo, *invoice.Description)
-	_, err = alice.PayInvoice(ctx, payreq, nil, &wrongAmt)
+	_, err = alice.PayInvoice(ctx, aliceAcc.String(), payreq, nil, &wrongAmt)
 	require.ErrorIs(t, err, lndhubsql.ErrQtyMissmatch)
-	_, err = alice.PayInvoice(ctx, payreq, nil, &amt)
+	_, err = alice.PayInvoice(ctx, aliceAcc.String(), payreq, nil, &amt)
 	require.ErrorIs(t, err, lndhubsql.ErrNotEnoughBalance)
 }
 

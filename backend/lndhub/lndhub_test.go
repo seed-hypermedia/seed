@@ -77,7 +77,7 @@ func TestCreate(t *testing.T) {
 	newNickname = strings.ToLower(newNickname)
 	err = lndHubClient.UpdateNickname(ctx, walletID, newNickname, token)
 	require.NoError(t, err)
-	lnaddress, err := lndHubClient.GetLnAddress(ctx, walletID, keypair.PublicKey.Principal().String())
+	lnaddress, err := lndHubClient.GetLnAddress(ctx, walletID)
 	require.NoError(t, err)
 	require.EqualValues(t, newNickname+"@"+lnaddressDomain, lnaddress)
 	balance, err := lndHubClient.GetBalance(ctx, walletID)
@@ -91,11 +91,11 @@ func TestCreate(t *testing.T) {
 	require.EqualValues(t, invoiceAmt, uint64(decodedInvoice.MilliSat.ToSatoshis()))
 
 	const invoiceMemo2 = "zero invoice test amount"
-	_, err = lndHubClient.RequestRemoteInvoice(ctx, walletID, newNickname, 0, invoiceMemo2)
+	_, err = lndHubClient.RequestThirdPartyInvoice(ctx, walletID, newNickname, 0, invoiceMemo2)
 	require.Error(t, err)
 	const invoiceMemo3 = "non-zero invoice test amount"
 	const amt = 233
-	payreq, err = lndHubClient.RequestRemoteInvoice(ctx, walletID, newNickname, amt, invoiceMemo3)
+	payreq, err = lndHubClient.RequestThirdPartyInvoice(ctx, walletID, newNickname, amt, invoiceMemo3)
 	require.NoError(t, err)
 	decodedInvoice, err = DecodeInvoice(payreq)
 	require.NoError(t, err)
