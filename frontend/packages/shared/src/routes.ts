@@ -97,8 +97,20 @@ export type DocumentRoute = z.infer<typeof documentRouteSchema>
 export const draftRouteSchema = z.object({
   key: z.literal('draft'),
   id: unpackedHmIdSchema.optional(),
-  name: z.string().optional(),
-  deps: z.array(z.string()).optional(),
+  new: z.boolean().optional(),
+  accessory: z
+    .discriminatedUnion('key', [
+      documentVersionsAccessorySchema,
+      documentCitationsAccessorySchema,
+      documentCollaboratorsAccessorySchema,
+      documentSuggestedChangesAccessorySchema,
+      documentCommentsAccessorySchema,
+      documentAllDocumentsAccessorySchema,
+      documentContactsAccessorySchema,
+      documentOptionsAccessorySchema,
+    ])
+    .nullable()
+    .optional(),
 })
 export type DraftRoute = z.infer<typeof draftRouteSchema>
 
@@ -146,4 +158,18 @@ export function getRecentsRouteEntityUrl(route: NavRoute) {
   if (route.key === 'document') return route.id.id
   // comments do not show up in the recents list, we do not know how to display them
   return null
+}
+
+export type DocAccessoryOption = {
+  key:
+    | 'versions'
+    | 'collaborators'
+    | 'suggested-changes'
+    | 'comments'
+    | 'citations'
+    | 'contacts'
+    | 'all-documents'
+    | 'options'
+  label: string
+  icon: null | React.FC<{color: string; size?: number}>
 }

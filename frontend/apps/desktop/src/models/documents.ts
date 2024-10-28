@@ -16,9 +16,11 @@ import {
   HMDocument,
   HMDocumentListItem,
   HMDraft,
+  HMEntityContent,
   UnpackedHypermediaId,
   editorBlockToHMBlock,
   eventStream,
+  hmBlockToEditorBlock,
   hmBlocksToEditorContent,
   hmId,
   hmIdPathToEntityQueryPath,
@@ -37,7 +39,7 @@ import {Extension, findParentNode} from '@tiptap/core'
 import {NodeSelection, Selection} from '@tiptap/pm/state'
 import {useMachine} from '@xstate/react'
 import _, {flatMap} from 'lodash'
-import {useEffect, useMemo, useRef, useState} from 'react'
+import {useEffect, useMemo, useRef} from 'react'
 import {ContextFrom, OutputFrom, fromPromise} from 'xstate'
 import {
   BlockNoteEditor,
@@ -393,11 +395,10 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
   const gotEdited = useRef(false)
   const showNostr = trpc.experiments.get.useQuery().data?.nostr
   const invalidate = useQueryInvalidator()
-  const [writeEditorStream, editorStream] = useRef(
-    writeableStateStream<any>(null),
-  ).current
+  const [writeEditorStream] = useRef(writeableStateStream<any>(null)).current
   const saveDraft = trpc.drafts.write.useMutation()
   const {inlineMentionsQuery, inlineMentionsData} = useInlineMentions()
+  const isNewDraft = route.key == 'draft' && !!route.new
 
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
@@ -490,7 +491,7 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
         metadata: input.metadata,
         members: {},
         lastUpdateTime: Date.now(),
-        previousId: backendDocument.data?.id,
+        previousId: input.entity.id,
         signingAccount: input.signingAccount || undefined,
       } as HMDraft
     } else {
@@ -518,10 +519,10 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
       actions: {
         populateEditor: function ({context, event}) {
           let content: Array<EditorBlock> = []
-          if (context.document && !context.draft) {
+          if (context.entity && !context.draft && context.entity.document) {
             // populate draft from document
 
-            content = hmBlocksToEditorContent(context.document.content, {
+            content = hmBlocksToEditorContent(context.entity.document.content, {
               childrenType: 'Group',
             })
           } else if (
@@ -537,9 +538,20 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
           setGroupTypes(tiptap, content)
         },
         focusEditor: () => {
-          const tiptap = editor?._tiptapEditor
-          if (tiptap && !tiptap.isFocused) {
-            editor._tiptapEditor.commands.focus()
+          if (!isNewDraft) {
+            const tiptap = editor?._tiptapEditor
+            if (tiptap && !tiptap.isFocused) {
+              editor._tiptapEditor.commands.focus()
+            }
+          }
+        },
+        focusName: ({context}) => {
+          if (context.nameRef && isNewDraft) {
+            context.nameRef.focus()
+            context.nameRef.setSelectionRange(
+              context.nameRef.value.length,
+              context.nameRef.value.length,
+            )
           }
         },
         replaceRouteifNeeded: ({
@@ -552,7 +564,7 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
             if (!id) throw new Error('Draft save resulted in invalid hm ID')
             if (route.key !== 'draft')
               throw new Error('Invalid route, draft expected.')
-            replaceRoute({...route, id})
+            replaceRoute({...route, id, new: false})
           }
         },
         onSaveSuccess: function () {
@@ -569,7 +581,54 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
   )
 
   const backendDraft = useDraft(id)
-  const backendDocument = useEntity(id)
+  const backendDocument = useEntity(
+    backendDraft.status == 'success' && backendDraft.data?.previousId
+      ? backendDraft.data.previousId
+      : id,
+  )
+
+  async function handleRebase(newEntity: HMEntityContent) {
+    /**
+     * 1. get current version's blocks map
+     * 2. get new version's blocks map
+     * 3. get touched changes in draft
+     * 4. get touched changes in new version
+     * 5. compare touched blocks in draft vs touched blocks of new version
+     * 6. update blocks in editor
+     * 7. update previousId on draft (state machine)
+     */
+
+    const blocksMap1 = createBlocksMap(
+      backendDocument.data?.document?.content || [],
+      '',
+    )
+    const blocksMap2 = createBlocksMap(newEntity.document?.content || [], '')
+    const editorContent = removeTrailingBlocks(editor.topLevelBlocks)
+
+    console.log(`editorContent:`, editorContent)
+    const changes = compareBlocksWithMap(blocksMap1, editorContent, '')
+    const changes2 = compareDraftWithMap(
+      blocksMap1,
+      newEntity.document?.content,
+      '',
+    )
+    console.log('blocksMap1', blocksMap1)
+    console.log('blocksMap2', blocksMap2)
+    console.log('changes', changes)
+    console.log('changes2', changes2)
+
+    changes2.touchedBlocks.forEach((blockId) => {
+      const blockContent = blocksMap2[blockId]
+      if (blockContent) {
+        const editorBlock = hmBlockToEditorBlock(blockContent.block)
+        // this is updating the editor with the new version's block without comparing with the draft changes (destructive)
+        // TODO: fix types of editorBlock
+        editor.updateBlock(blockId, editorBlock as any)
+      }
+    })
+
+    send({type: 'FINISH.REBASE', entity: newEntity})
+  }
 
   useEffect(() => {
     if (
@@ -579,18 +638,11 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
       send({
         type: 'GET.DRAFT.SUCCESS',
         draft: backendDraft.data,
-        document:
-          backendDocument.status != 'error' && backendDocument.data?.document
-            ? backendDocument.data?.document
+        entity:
+          backendDocument.status != 'error' && backendDocument.data
+            ? backendDocument.data
             : null,
       })
-      if (route.key == 'draft' && !!route?.name) {
-        send({
-          type: 'CHANGE',
-          name: !backendDraft.data?.name ? route.name : undefined,
-        })
-        replaceRoute({...route, name: ''})
-      }
     }
     if (backendDraft.status == 'error') {
       send({type: 'GET.DRAFT.ERROR', error: backendDraft.error})
@@ -626,7 +678,7 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
     )
   }, [])
 
-  return {editor, handleFocusAtMousePos, state, send, actor}
+  return {editor, handleFocusAtMousePos, state, send, actor, handleRebase}
 
   // ==============
 
@@ -1182,62 +1234,6 @@ export function useAccountDocuments(id?: UnpackedHypermediaId) {
   })
 }
 
-export function useDraftRebase({
-  shouldCheck,
-  draft,
-}: {
-  shouldCheck: boolean
-  draft: HMDocument | null | undefined
-}) {
-  const grpcClient = useGRPCClient()
-  const [rebase, setRebase] = useState<boolean>(false)
-  const [newVersion, selectNewVersion] = useState<string>('')
-
-  useEffect(() => {
-    const INTERVAL = 10000
-    var interval
-    if (draft && shouldCheck) {
-      interval = setInterval(checkForRebase, INTERVAL)
-      checkForRebase()
-    }
-
-    async function checkForRebase() {
-      if (!draft?.previousVersion) {
-        return
-      }
-
-      const latestDoc = await grpcClient.publications.getPublication({
-        documentId: draft!.id,
-      })
-
-      const prevVersion = draft.previousVersion.split('.')
-      const latestVersion = latestDoc.version.split('.')
-      /**
-       * When I ask the backend for a publication without a version, it will respond
-       * with the latest version for that particular owner and also combined with my latest changes if those are not deps from the owner.
-       * this means that I need to check the latest version of the document with the previowVersion that my draft have
-       */
-      if (latestVersion && !_.isEqual(latestVersion, prevVersion)) {
-        setRebase(true)
-        selectNewVersion(
-          latestVersion.length > 1 ? latestVersion.join('.') : latestVersion[0],
-        )
-      }
-    }
-
-    return () => {
-      if (interval) {
-        clearInterval(interval)
-      }
-    }
-  }, [shouldCheck])
-
-  return {
-    shouldRebase: rebase,
-    newVersion,
-  }
-}
-
 export function useListProfileDocuments() {
   const grpcClient = useGRPCClient()
 
@@ -1307,7 +1303,7 @@ function removeTrailingBlocks(
     } else {
       break
     }
-  }
 
-  return trailedBlocks
+    return trailedBlocks
+  }
 }

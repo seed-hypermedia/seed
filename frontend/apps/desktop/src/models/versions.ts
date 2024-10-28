@@ -6,18 +6,30 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {useQuery} from '@tanstack/react-query'
+import {useDraft} from './accounts'
 import {useEntity} from './entities'
 import {queryKeys} from './query-keys'
 
-export type HMChangeInfo = PlainMessage<DocumentChangeInfo>
+type DraftChangeInfo = {
+  author: string
+  id: string
+  deps: Array<string>
+  isDraft: boolean
+}
 
-export function useDocumentChanges(id: UnpackedHypermediaId) {
+export type HMChangeInfo = PlainMessage<DocumentChangeInfo> | DraftChangeInfo
+
+export function useDocumentChanges(
+  id: UnpackedHypermediaId,
+  isDraft: boolean = false,
+) {
   const grpcClient = useGRPCClient()
   const entity = useEntity({...id, version: null})
   const version = entity.data?.document?.version
   const path = hmIdPathToEntityQueryPath(id.path)
+  const draft = useDraft(id)
   return useQuery({
-    queryKey: [queryKeys.ENTITY_CHANGES, id.uid, path, version],
+    queryKey: [queryKeys.ENTITY_CHANGES, id.uid, path, version, isDraft],
     queryFn: async () => {
       if (!version) return []
       const result = await grpcClient.documents.listDocumentChanges({
@@ -25,7 +37,19 @@ export function useDocumentChanges(id: UnpackedHypermediaId) {
         path,
         version,
       })
-      return result.changes.map(toPlainMessage)
+      let changes = result.changes.map(toPlainMessage)
+
+      return isDraft
+        ? [
+            {
+              author: id.uid,
+              id: `draft-${id.id}`,
+              deps: draft.data?.deps,
+              isDraft: true,
+            },
+            ...changes,
+          ]
+        : changes
     },
   })
 }

@@ -250,6 +250,7 @@ function NewSubDocumentButton({
           navigate({
             key: 'draft',
             id,
+            new: true,
           })
         }}
         size="$3"

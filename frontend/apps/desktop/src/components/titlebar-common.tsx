@@ -195,9 +195,12 @@ export function DocOptionsButton() {
 
 function EditDocButton() {
   const route = useNavRoute()
+
   if (route.key !== 'document')
     throw new Error('EditDocButton can only be rendered on document route')
+  console.log(`== ~ EditDocButton ~ route:`, route)
   const capability = useMyCapability(route.id, 'writer')
+  const {data: entity} = useEntity(route.id)
   const navigate = useNavigate()
   const draft = useDraft(route.id)
   const hasExistingDraft = !!draft.data
@@ -211,7 +214,7 @@ function EditDocButton() {
           onPress={() => {
             navigate({
               key: 'draft',
-              id: route.id,
+              id: entity?.id,
             })
           }}
           icon={Pencil}

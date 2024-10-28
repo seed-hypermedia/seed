@@ -7365,7 +7365,7 @@ __metadata:
     "@types/react": 18.2.21
     "@types/react-dom": 18.2.7
     "@vitejs/plugin-react": 4.0.4
-    "@xstate/react": 4.1.1
+    "@xstate/react": 4.1.3
     cheerio: 1.0.0-rc.12
     console-log-colors: 0.4.0
     copy-text-to-clipboard: 3.1.0
@@ -7422,7 +7422,7 @@ __metadata:
     vitest: 0.34.2
     winston: 3.11.0
     winston-daily-rotate-file: 4.7.1
-    xstate: 5.17.4
+    xstate: 5.18.2
     xvfb-maybe: 0.2.1
     y-prosemirror: 1.2.1
     y-protocols: 1.0.5
@@ -7462,13 +7462,13 @@ __metadata:
     "@bufbuild/protobuf": 1.10.0
     "@connectrpc/connect-web": 1.1.3
     "@shm/prettier": "*"
-    "@xstate/react": 4.1.1
+    "@xstate/react": 4.1.3
     katex: 0.16.9
     lowlight: 3.1.0
     react-tweet: 3.2.0
     typescript: 5.5.2
     vitest: 0.34.2
-    xstate: 5.17.4
+    xstate: 5.18.2
   languageName: unknown
   linkType: soft
 
@@ -10988,19 +10988,19 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@xstate/react@npm:4.1.1":
-  version: 4.1.1
-  resolution: "@xstate/react@npm:4.1.1"
+"@xstate/react@npm:4.1.3":
+  version: 4.1.3
+  resolution: "@xstate/react@npm:4.1.3"
   dependencies:
     use-isomorphic-layout-effect: ^1.1.2
     use-sync-external-store: ^1.2.0
   peerDependencies:
     react: ^16.8.0 || ^17.0.0 || ^18.0.0
-    xstate: ^5.11.0
+    xstate: ^5.18.2
   peerDependenciesMeta:
     xstate:
       optional: true
-  checksum: c590140c9319daa6ea277a5e153b584e2212dcac69e65a7e8df21b13005bc6b7b5ea4895f6e1b8800fb66d488ca67674e864b05f73d8cf46c252db26591b8c95
+  checksum: 56b577dba1c526825e8e51d4c118570f55bda447e5a9549becf2233647832548c03cd20a6cfc7bd9c6dc4c47e44d592935a5a1db58e8bd455c3dbc0c7bd34809
   languageName: node
   linkType: hard
 
@@ -29741,10 +29741,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"xstate@npm:5.17.4":
-  version: 5.17.4
-  resolution: "xstate@npm:5.17.4"
-  checksum: 42096288155f18b07d7cb76cff6afcdd1f416922953f526812ca66f79726e122f5f78e870e8b7dc4d1eff72c249b37d350b2d2c23c07e8ce2e6d7696f7cbd8c8
+"xstate@npm:5.18.2":
+  version: 5.18.2
+  resolution: "xstate@npm:5.18.2"
+  checksum: cf131c38986bcb27ebd9467615e0a7b68ee1334fab2aa092917cae6041e604e5ef93ada41fb289094e7533513b3e5663f3595295d9a9b39251027382d6594cc3
   languageName: node
   linkType: hard
 

@@ -11,6 +11,7 @@ import {BlockNoteEditor, getBlockInfoFromPos} from '@/editor'
 import {useDraft} from '@/models/accounts'
 import {useDraftEditor} from '@/models/documents'
 import {draftMachine} from '@/models/draft-machine'
+import {useSubscribedEntity} from '@/models/entities'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {trpc} from '@/trpc'
 import {
@@ -27,7 +28,9 @@ import {
   createWebHMUrl,
   ExpandedBlockRange,
   getFileUrl,
+  HMDocument,
   HMDraft,
+  HMEntityContent,
   hmId,
   packHmId,
   UnpackedHypermediaId,
@@ -48,7 +51,7 @@ import {Image, Smile} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
-import {YStack} from 'tamagui'
+import {Spinner, YStack} from 'tamagui'
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'
@@ -68,9 +71,17 @@ export default function DraftPage() {
     id: route.id,
   })
 
+  const {shouldRebase, performRebase, isRebasing} = useDraftRebase({
+    currentId: route.id,
+    draftId: draft.data?.previousId,
+    draft: draft.data,
+    document: data.state.context.entity?.document,
+    handleRebase: data.handleRebase,
+  })
+
   let accessory = null
 
-  if (accessoryKey === 'options' && route.id) {
+  if (accessoryKey == 'options' && route.id) {
     accessory = (
       <OptionsPanel
         metadata={data.state.context.metadata}
@@ -126,6 +137,21 @@ export default function DraftPage() {
         }}
         accessoryOptions={accessoryOptions}
       >
+        {shouldRebase ? (
+          <XStack
+            theme="yellow"
+            bg="$backgroundFocus"
+            ai="center"
+            jc="center"
+            p="$3"
+            gap="$4"
+          >
+            <SizableText>REBASE ME!</SizableText>
+            <Button size="$2" onPress={() => performRebase()}>
+              {isRebasing ? <Spinner /> : 'Rebase'}
+            </Button>
+          </XStack>
+        ) : null}
         {draftContent}
       </AccessoryLayout>
 
@@ -369,12 +395,18 @@ export function DraftHeader({
   })
 
   const input = useRef<HTMLTextAreaElement | null>(null)
+
   useShowTitleObserver(input.current)
+
   useEffect(() => {
     // handle the initial size of the title
     const target = input.current
     if (!target) return
     applyTitleResize(target)
+    draftActor.send({
+      type: 'SET.NAME.REF',
+      nameRef: target,
+    })
   }, [input.current])
 
   useEffect(() => {
@@ -718,5 +750,56 @@ function separateLastItem(
     const lastItem = arr![arr!.length - 1] // The last element
 
     return [allButLast, lastItem]
+  }
+}
+
+function useDraftRebase({
+  currentId,
+  draftId,
+  document,
+  draft,
+  handleRebase,
+}: {
+  currentId?: UnpackedHypermediaId | null
+  draftId?: UnpackedHypermediaId | null
+  document?: HMDocument | null
+  draft?: HMDraft | null
+  handleRebase: (newEntity: HMEntityContent) => Promise<void>
+}) {
+  const [isRebasing, setIsRebasing] = useState(false)
+  const rebasedData = useSubscribedEntity(currentId)
+
+  console.log(`== ~ useDraftRebase ~ data:`, {
+    equal:
+      draftId?.version != null &&
+      rebasedData.data?.id.version != null &&
+      draftId?.version == rebasedData.data?.id.version,
+    id: currentId,
+    currentVersion: draftId?.version,
+    newVersion: rebasedData.data?.id.version,
+  })
+
+  async function performRebase() {
+    setIsRebasing(true)
+    if (rebasedData.data?.document) {
+      handleRebase(rebasedData.data).then(() => {
+        setIsRebasing(false)
+      })
+    }
+
+    console.log('performRebase', {
+      draft: draft?.content,
+      document: rebasedData.data?.document,
+    })
+  }
+
+  return {
+    isRebasing,
+    shouldRebase:
+      // Only show rebase if we have both versions and they don't match
+      draftId?.version != null &&
+      rebasedData.data?.id.version != null &&
+      draftId.version !== rebasedData.data.id.version,
+    performRebase,
   }
 }

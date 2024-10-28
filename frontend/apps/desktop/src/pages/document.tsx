@@ -21,6 +21,7 @@ import {useOpenUrl} from '@/open-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {
+  DocAccessoryOption,
   formattedDateLong,
   formattedDateMedium,
   getAccountName,
@@ -49,20 +50,6 @@ import {ArrowRight, RefreshCw} from '@tamagui/lucide-icons'
 import React, {ReactNode, useEffect, useMemo, useRef} from 'react'
 import {EntityCitationsAccessory} from '../components/citations'
 import {AppDocContentProvider} from './document-content-provider'
-
-type DocAccessoryOption = {
-  key:
-    | 'versions'
-    | 'collaborators'
-    | 'suggested-changes'
-    | 'comments'
-    | 'citations'
-    | 'contacts'
-    | 'all-documents'
-    | 'options'
-  label: string
-  icon: null | React.FC<{color: string; size?: number}>
-}
 
 export default function DocumentPage() {
   const route = useNavRoute()
@@ -100,7 +87,7 @@ export default function DocumentPage() {
     accessory = <AccessoryContainer title="Contacts" onClose={handleClose} />
   }
 
-  const accessoryOptions: DocAccessoryOption[] = []
+  const accessoryOptions: Array<DocAccessoryOption> = []
 
   // if (docId.type === 'd' && !docId.path?.length) {
   //   accessoryOptions.push({

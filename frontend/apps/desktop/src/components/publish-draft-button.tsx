@@ -162,7 +162,14 @@ export default function PublishDraftButton() {
                 invalidate(['trpc.drafts.list'])
               })
           if (resultDocId) {
-            navigate({key: 'document', id: resultDocId})
+            navigate({
+              key: 'document',
+              accessory:
+                route.key == 'draft' && route.accessory?.key == 'versions'
+                  ? route.accessory
+                  : null,
+              id: resultDocId,
+            })
           } else {
             console.error(`can't navigate to document`)
           }
