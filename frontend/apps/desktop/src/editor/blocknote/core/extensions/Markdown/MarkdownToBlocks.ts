@@ -12,6 +12,7 @@ import {remarkImageWidth} from './RemarkImageWidth'
 const fileRegex = /\[([^\]]+)\]\(([^)]*) "size=(\d+)"\)/
 const videoRegex = /!\[([^\]]*)\]\(([^\s]+)\s"width=([\w]+)"\)/
 const mathRegex = /\$\$(.*?)\$\$/
+const tweetRegex = /\[\[tweet\(([^)]+)\)\]\]/
 
 const uploadToIpfs = async (file: File): Promise<string> => {
   if (file.size <= 62914560) {
@@ -250,6 +251,19 @@ export const MarkdownToBlocks = async (
               id: block.id,
               type: 'video',
               props: videoProps,
+              content: [],
+              children: [],
+            }
+          }
+        } else if (tweetRegex.test(blockContent)) {
+          const tweetMatch = blockContent.match(tweetRegex)
+          if (tweetMatch) {
+            blockToInsert = {
+              id: block.id,
+              type: 'web-embed',
+              props: {
+                url: tweetMatch[1],
+              },
               content: [],
               children: [],
             }
