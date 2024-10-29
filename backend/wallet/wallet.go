@@ -92,6 +92,7 @@ type InvoiceRequest struct {
 // can issue the invoice. If none of them can, then an error is raised.
 func (srv *Service) P2PInvoiceRequest(ctx context.Context, account core.Principal, request InvoiceRequest) (string, error) {
 	return "", fmt.Errorf("Hm-24. Not implemented")
+
 	/*
 		me, err := srv.keyStore.GetKey(ctx, srv.keyName)
 		if err != nil {
@@ -500,7 +501,7 @@ func (srv *Service) ListReceivednvoices(ctx context.Context, walletID string) ([
 	return invoices, nil
 }
 
-// RequestThirdPartyInvoice asks a remote peer to issue an invoice. The remote user can be either a lnaddres or a Seed account ID
+// RequestLud6Invoice asks a remote peer to issue an invoice. The remote user can be either a lnaddres or a Seed account ID
 // First an lndhub invoice request is attempted. If it fails, then a P2P its used to transmit the invoice. In that case,
 // Any of the devices associated with the accountID can issue the invoice. The memo field is optional and can be left nil.
 func (srv *Service) RequestLud6Invoice(ctx context.Context, remoteURL, remoteUser string, amountSats int64, memo *string) (string, error) {
@@ -513,11 +514,11 @@ func (srv *Service) RequestLud6Invoice(ctx context.Context, remoteURL, remoteUse
 	payReq, err = srv.lightningClient.Lndhub.RequestLud6Invoice(ctx, remoteURL, remoteUser, amountSats, invoiceMemo)
 	//err = fmt.Errorf("force p2p transmission")
 	if err != nil {
-		srv.log.Debug("couldn't get invoice via lndhub, trying p2p...", zap.String("error", err.Error()))
+		srv.log.Debug("couldn't get invoice via lndhub, trying p2p...", zap.Error(err))
 		account, err := core.DecodePrincipal(remoteUser)
 		if err != nil {
 			publicErr := fmt.Errorf("couldn't parse accountID string [%s], If using p2p transmission, remoteUser must be a valid accountID", remoteUser)
-			srv.log.Debug("error decoding cid "+publicErr.Error(), zap.String("error", err.Error()))
+			srv.log.Debug("error decoding cid "+publicErr.Error(), zap.Error(err))
 			return "", publicErr
 		}
 		payReq, err = srv.P2PInvoiceRequest(ctx, account,
@@ -525,10 +526,10 @@ func (srv *Service) RequestLud6Invoice(ctx context.Context, remoteURL, remoteUse
 				AmountSats:   amountSats,
 				Memo:         invoiceMemo,
 				HoldInvoice:  false,    // TODO: Add support hold invoices
-				PreimageHash: []byte{}, // Only aplicable to hold invoices
+				PreimageHash: []byte{}, // Only applicable to hold invoices
 			})
 		if err != nil {
-			srv.log.Debug("couldn't get invoice via p2p", zap.String("error", err.Error()))
+			srv.log.Debug("couldn't get invoice via p2p", zap.Error(err))
 			return "", fmt.Errorf("After trying to get the invoice locally Could not request invoice via P2P")
 		}
 	}

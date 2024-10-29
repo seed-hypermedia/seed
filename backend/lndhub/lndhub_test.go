@@ -91,11 +91,11 @@ func TestCreate(t *testing.T) {
 	require.EqualValues(t, invoiceAmt, uint64(decodedInvoice.MilliSat.ToSatoshis()))
 
 	const invoiceMemo2 = "zero invoice test amount"
-	_, err = lndHubClient.RequestThirdPartyInvoice(ctx, walletID, newNickname, 0, invoiceMemo2)
+	_, err = lndHubClient.RequestLud6Invoice(ctx, "https://ln.testnet.mintter.com", newNickname, 0, invoiceMemo2)
 	require.Error(t, err)
 	const invoiceMemo3 = "non-zero invoice test amount"
 	const amt = 233
-	payreq, err = lndHubClient.RequestThirdPartyInvoice(ctx, walletID, newNickname, amt, invoiceMemo3)
+	payreq, err = lndHubClient.RequestLud6Invoice(ctx, "https://ln.testnet.mintter.com", newNickname, amt, invoiceMemo3)
 	require.NoError(t, err)
 	decodedInvoice, err = DecodeInvoice(payreq)
 	require.NoError(t, err)

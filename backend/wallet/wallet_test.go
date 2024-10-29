@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"context"
+	"encoding/hex"
 	"seed/backend/blob"
 	"seed/backend/config"
 	"seed/backend/core"
@@ -23,18 +24,18 @@ import (
 	"go.uber.org/zap"
 )
 
+var testMnemonic = []string{"satisfy", "quit", "charge", "arrest", "prevent", "credit", "wreck", "amount", "swim", "snow", "system", "cluster", "skull", "slight", "dismiss"}
+var testMnemonic2 = []string{"hill", "february", "mule", "horse", "rose", "ten", "abandon", "antenna", "soup", "artist", "nerve", "secret"}
+
 func TestModifyWallets(t *testing.T) {
 	testutil.Manual(t)
 	var err error
 	var defaultWallet walletsql.Wallet
 	ctx := context.Background()
 	alice := makeTestService(t, "alice")
-	aliceAcc, err := alice.net.AccountForDevice(ctx, alice.net.AddrInfo().ID)
-	uri, err := alice.ExportWallet(ctx, "")
+	seedWallet, err := alice.CreateWallet(ctx, testMnemonic, "", "myWallet")
 	require.NoError(t, err)
-	seedWallet, err := alice.InsertWallet(ctx, uri, "default", aliceAcc.String())
-	require.NoError(t, err)
-	defaultWallet, err = alice.GetDefaultWallet(ctx, aliceAcc.String())
+	defaultWallet, err = alice.GetDefaultWallet(ctx, seedWallet.Account)
 	require.NoError(t, err)
 	require.Equal(t, seedWallet, defaultWallet)
 	require.Eventually(t, func() bool {
@@ -51,7 +52,7 @@ func TestModifyWallets(t *testing.T) {
 	_, err = alice.UpdateWalletName(ctx, defaultWallet.ID, newName)
 	require.NoError(t, err)
 
-	wallets, err := alice.ListWallets(ctx, aliceAcc.String(), true)
+	wallets, err := alice.ListWallets(ctx, seedWallet.Account, true)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, len(wallets))
 	require.EqualValues(t, newName, wallets[0].Name)
@@ -61,17 +62,23 @@ func TestRequestLndHubInvoice(t *testing.T) {
 	testutil.Manual(t)
 	ctx := context.Background()
 	alice := makeTestService(t, "alice")
-	aliceAcc, err := alice.net.AccountForDevice(ctx, alice.net.AddrInfo().ID)
-	aliceURI, err := alice.ExportWallet(ctx, "")
-
 	bob := makeTestService(t, "bob")
-	bobAcc, err := bob.net.AccountForDevice(ctx, bob.net.AddrInfo().ID)
+	bobKp, err := core.AccountFromMnemonic(testMnemonic2, "")
+	bobAcc := bobKp.Principal().String()
 	require.NoError(t, err)
-	alicesWallet, err := alice.InsertWallet(ctx, aliceURI, "default", aliceAcc.String())
+	alicesWallet, err := alice.CreateWallet(ctx, testMnemonic, "", "myWallet")
 	require.NoError(t, err)
-	bobURI, err := bob.ExportWallet(ctx, "")
+	defaultWallet, err := alice.GetDefaultWallet(ctx, alicesWallet.Account)
 	require.NoError(t, err)
-	bobsWallet, err := bob.InsertWallet(ctx, bobURI, "default", bobAcc.String())
+	require.Equal(t, alicesWallet, defaultWallet)
+	_, err = alice.ExportWallet(ctx, alicesWallet.ID)
+	require.NoError(t, err)
+
+	login, err := bobKp.Sign([]byte(lndhub.SigningMessage))
+	require.NoError(t, err)
+
+	uri := "lndhub.go://" + bobAcc + ":" + hex.EncodeToString(login) + "@https://ln.testnet.mintter.com"
+	bobsWallet, err := bob.InsertWallet(ctx, uri, "default", bobAcc)
 	require.NoError(t, err)
 
 	var amt uint64 = 23
@@ -80,11 +87,7 @@ func TestRequestLndHubInvoice(t *testing.T) {
 
 	var payreq string
 
-	defaultWallet, err := alice.GetDefaultWallet(ctx, aliceAcc.String())
-	require.NoError(t, err)
-	require.Equal(t, alicesWallet, defaultWallet)
-
-	defaultWallet, err = bob.GetDefaultWallet(ctx, bobAcc.String())
+	defaultWallet, err = bob.GetDefaultWallet(ctx, bobAcc)
 	require.NoError(t, err)
 	require.Equal(t, bobsWallet, defaultWallet)
 	require.Eventually(t, func() bool {
@@ -96,20 +99,21 @@ func TestRequestLndHubInvoice(t *testing.T) {
 	}, 3*time.Second, 1*time.Second)
 
 	require.Eventually(t, func() bool {
-		payreq, err = alice.RequestLud6Invoice(ctx, defaultWallet.Address, bobAcc.String(), int64(amt), &memo)
+		payreq, err = alice.RequestLud6Invoice(ctx, bobsWallet.Address, bobAcc, int64(amt), &memo)
 		return err == nil
 	}, 8*time.Second, 2*time.Second)
 	invoice, err := lndhub.DecodeInvoice(payreq)
 	require.NoError(t, err)
 	require.EqualValues(t, amt, invoice.MilliSat.ToSatoshis())
 	require.EqualValues(t, memo, *invoice.Description)
-	_, err = alice.PayInvoice(ctx, aliceAcc.String(), payreq, nil, &wrongAmt)
+	_, err = alice.PayInvoice(ctx, alicesWallet.Account, payreq, nil, &wrongAmt)
 	require.ErrorIs(t, err, lndhubsql.ErrQtyMissmatch)
-	_, err = alice.PayInvoice(ctx, aliceAcc.String(), payreq, nil, &amt)
+	_, err = alice.PayInvoice(ctx, alicesWallet.Account, payreq, nil, &amt)
 	require.ErrorIs(t, err, lndhubsql.ErrNotEnoughBalance)
 }
 
 func TestRequestP2PInvoice(t *testing.T) {
+	t.Skip("Not implemented, as we don't have contacts (PID->Account) yet")
 	testutil.Manual(t)
 
 	alice := makeTestService(t, "alice")
