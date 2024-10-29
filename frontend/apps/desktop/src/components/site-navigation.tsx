@@ -46,14 +46,7 @@ export function SiteNavigation({}: {}) {
   if (!entity?.data) return null
 
   return (
-    <View
-      paddingTop={145} // todo: real layout
-      borderColor="$color8"
-      borderRightWidth={1}
-      maxWidth={300}
-      flex={1}
-      paddingHorizontal="$4"
-    >
+    <View flex={1} paddingHorizontal="$4">
       {isTopLevel ? null : (
         <SidebarItem
           key={parentId.id}

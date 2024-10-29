@@ -160,6 +160,8 @@ export default function DocumentPage() {
   )
 }
 
+const outlineWidth = 300
+
 function _MainDocumentPage({
   id,
   isBlockFocused,
@@ -178,14 +180,46 @@ function _MainDocumentPage({
     })
   }, [])
   return (
-    <XStack>
-      <SiteNavigation />
-      <YStack flex={1}>
-        <DocPageHeader docId={id} isBlockFocused={isBlockFocused} />
-        <DocPageContent docId={id} isBlockFocused={isBlockFocused} />
-        <DocPageAppendix docId={id} />
+    <YStack>
+      <DocPageHeader docId={id} isBlockFocused={isBlockFocused} />
+      <YStack position="relative">
+        <Container clearVerticalSpace padding={0} marginBottom={100}>
+          <YStack
+            position="absolute"
+            h="100%"
+            top={0}
+            left={outlineWidth * -1}
+            display="none"
+            $gtMd={{display: 'flex'}}
+          >
+            <YStack
+              width={outlineWidth}
+              position="sticky"
+              paddingTop={34}
+              top={50}
+              h="calc(100%)"
+              maxHeight="calc(100vh - 60px)"
+              overflow="hidden"
+              display="none"
+              $gtSm={{display: 'block'}}
+            >
+              <YStack
+                gap="$3"
+                maxHeight="100%"
+                overflow="auto"
+                className="hide-scrollbar"
+              >
+                <SiteNavigation />
+              </YStack>
+            </YStack>
+          </YStack>
+          <YStack flex={1}>
+            <DocPageContent docId={id} isBlockFocused={isBlockFocused} />
+            <DocPageAppendix docId={id} />
+          </YStack>
+        </Container>
       </YStack>
-    </XStack>
+    </YStack>
   )
 }
 const MainDocumentPage = React.memo(_MainDocumentPage)
@@ -488,18 +522,16 @@ function DocPageContent({
   }
   const blockId = docId.blockRef
   return (
-    <Container clearVerticalSpace padding={0} marginBottom={100}>
-      <AppDocContentProvider
-        routeParams={{blockRef: blockId || undefined}}
-        docId={docId}
-        isBlockFocused={isBlockFocused}
-      >
-        <DocContent
-          document={entity.data?.document}
-          focusBlockId={isBlockFocused ? blockId || undefined : undefined}
-        />
-      </AppDocContentProvider>
-    </Container>
+    <AppDocContentProvider
+      routeParams={{blockRef: blockId || undefined}}
+      docId={docId}
+      isBlockFocused={isBlockFocused}
+    >
+      <DocContent
+        document={entity.data?.document}
+        focusBlockId={isBlockFocused ? blockId || undefined : undefined}
+      />
+    </AppDocContentProvider>
   )
 }
 
