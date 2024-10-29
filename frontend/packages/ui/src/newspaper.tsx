@@ -161,14 +161,15 @@ export function NewspaperCard({
   id,
   entity,
   accountsMetadata,
+  isWeb = false,
 }: {
   id: UnpackedHypermediaId;
   entity: HMEntityContent | null | undefined;
   accountsMetadata: AccountsMetadata;
+  isWeb?: boolean;
 }) {
+  console.log("=== NEWSPAPER CARD PROPS", {id, entity, accountsMetadata});
   const linkProps = useRouteLink({key: "document", id});
-
-  console.log(`== ~ linkProps:`, linkProps);
 
   // const navigate = useNavigate()
   if (!entity?.document) return null;
@@ -177,8 +178,8 @@ export function NewspaperCard({
       flexGrow={0}
       flexShrink={0}
       flexBasis="100%"
-      $gtSm={{flexBasis: "47.9%"}}
-      $gtMd={{flexBasis: "31.1%"}}
+      $gtSm={isWeb ? undefined : {flexBasis: "47.9%"}}
+      $gtMd={isWeb ? undefined : {flexBasis: "31.1%"}}
       {...baseCardStyles}
       marginTop="$5"
       //   marginTop="$4"
@@ -193,10 +194,12 @@ export function NewspaperCard({
       <NewspaperCardImage document={entity.document} />
       <NewspaperCardContent entity={entity} />
 
-      <NewspaperCardFooter
-        entity={entity}
-        accountsMetadata={accountsMetadata}
-      />
+      {!isWeb && (
+        <NewspaperCardFooter
+          entity={entity}
+          accountsMetadata={accountsMetadata}
+        />
+      )}
     </YStack>
   );
 }

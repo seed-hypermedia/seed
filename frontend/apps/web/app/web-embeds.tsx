@@ -22,17 +22,19 @@ import {useEntity} from "./models";
 function EmbedWrapper({
   id,
   parentBlockId,
+  hideBorder = false,
   children,
 }: React.PropsWithChildren<{
   id: UnpackedHypermediaId;
   parentBlockId: string | null;
+  hideBorder?: boolean;
 }>) {
   const navigate = useNavigate();
   return (
     <YStack
       width="100%"
-      borderRightWidth={3}
-      borderRightColor={"$brand8"}
+      borderRightWidth={hideBorder ? 0 : 3}
+      borderRightColor={hideBorder ? "$colorTransparent" : "$brand8"}
       onPress={() => {
         navigate(
           createWebHMUrl(id.type, id.uid, {
@@ -93,8 +95,9 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
   if (doc.isLoading) return <Spinner />;
   if (!doc.data) return <ErrorBlock message="Could not load embed" />;
   return (
-    <EmbedWrapper id={props} parentBlockId={props.parentBlockId}>
+    <EmbedWrapper id={props} parentBlockId={props.parentBlockId} hideBorder>
       <NewspaperCard
+        isWeb
         entity={{
           id: props,
           document: doc.data.document,
