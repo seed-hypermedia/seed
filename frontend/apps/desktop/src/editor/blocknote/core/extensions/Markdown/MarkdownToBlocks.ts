@@ -5,7 +5,15 @@ import rehypeStringify from 'rehype-stringify'
 import remarkParse from 'remark-parse'
 import remarkRehype from 'remark-rehype'
 import {unified} from 'unified'
-import {Block, BlockNoteEditor, BlockSchema, nodeToBlock} from '../..'
+import {
+  Block,
+  BlockNoteEditor,
+  BlockSchema,
+  BNLink,
+  nodeToBlock,
+  StyledText,
+  Styles,
+} from '../..'
 import {remarkCodeClass} from './RemarkCodeClass'
 import {remarkImageWidth} from './RemarkImageWidth'
 
@@ -61,6 +69,73 @@ const readMediaFile = async (filePath: string) => {
     console.error('Error reading media file:', error)
     return
   }
+}
+
+const parseImageCaptionStyles = (content: string): (StyledText | BNLink)[] => {
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(content, 'text/html')
+  const styledContent: (StyledText | BNLink)[] = []
+
+  function parseNode(node: Node): StyledText | BNLink | null {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return {
+        type: 'text',
+        text: node.textContent || '',
+        styles: {},
+      } as StyledText
+    }
+
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const element = node as HTMLElement
+      const styles: Styles = {}
+
+      // Set styles based on tags
+      if (element.tagName === 'STRONG' || element.style.fontWeight === 'bold')
+        styles.bold = true
+      if (element.tagName === 'EM' || element.style.fontStyle === 'italic')
+        styles.italic = true
+      if (
+        element.tagName === 'U' ||
+        element.style.textDecoration === 'underline'
+      )
+        styles.underline = true
+      if (
+        element.tagName === 'S' ||
+        element.style.textDecoration === 'line-through'
+      )
+        styles.strike = true
+      if (element.tagName === 'CODE') styles.code = true
+
+      if (element.tagName === 'A' && element.hasAttribute('href')) {
+        const href = element.getAttribute('href')!
+        const linkContent = Array.from(element.childNodes)
+          .map(parseNode)
+          .filter((node) => node !== null) as StyledText[]
+
+        return {
+          type: 'link',
+          href,
+          content: linkContent,
+        } as BNLink
+      } else {
+        const styledText: StyledText = {
+          type: 'text',
+          text: element.textContent || '',
+          styles,
+        }
+        return styledText
+      }
+    }
+
+    return null
+  }
+
+  Array.from(doc.body.childNodes).forEach((node) => {
+    const parsedNode = parseNode(node)
+    if (parsedNode) styledContent.push(parsedNode)
+  })
+
+  return styledContent
 }
 
 export const processMediaMarkdown = async (
@@ -218,8 +293,12 @@ export const MarkdownToBlocks = async (
       stack.push({level: headingLevel, block})
     } else {
       let blockToInsert = block
-      if (block.type === 'image' && block.props.src == 'null') {
-        blockToInsert.props = {}
+      if (block.type === 'image') {
+        if (block.props.src == 'null') blockToInsert.props = {}
+        else if (block.props.alt) {
+          const contentArray = parseImageCaptionStyles(block.props.alt)
+          block.content = contentArray
+        }
       }
       if (block.content.length > 0) {
         const blockContent =
