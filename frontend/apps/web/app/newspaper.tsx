@@ -1,4 +1,5 @@
 import {PlainMessage, Timestamp} from "@bufbuild/protobuf";
+import {hmId} from "@shm/shared";
 import {Container} from "@shm/ui/src/container";
 import {BannerNewspaperCard, NewspaperCard} from "@shm/ui/src/newspaper";
 import {XStack, YStack} from "@tamagui/stacks";
@@ -64,11 +65,12 @@ export function NewspaperPage(props: SiteDocumentPayload) {
           )}
           <XStack flexWrap="wrap" marginTop="$4" justifyContent="space-between">
             {restItems.map((item) => {
+              const itemId = hmId("d", item.account, {path: item.path});
               return (
                 <NewspaperCard
-                  id={id}
+                  id={itemId}
                   entity={getEntity(item.path)}
-                  key={item.path.join("/")}
+                  key={itemId.id}
                   accountsMetadata={authors}
                 />
               );
