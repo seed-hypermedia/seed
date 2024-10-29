@@ -173,13 +173,18 @@ export function NewspaperCard({
 
   // const navigate = useNavigate()
   if (!entity?.document) return null;
+  const cardProps = !isWeb
+    ? {
+        flexGrow: 0,
+        flexShrink: 0,
+        flexBasis: "100%",
+        $gtSm: {flexBasis: "47.9%"},
+        $gtMd: {flexBasis: "31.1%"},
+      }
+    : {};
   return (
     <YStack
-      flexGrow={0}
-      flexShrink={0}
-      flexBasis="100%"
-      $gtSm={isWeb ? undefined : {flexBasis: "47.9%"}}
-      $gtMd={isWeb ? undefined : {flexBasis: "31.1%"}}
+      {...cardProps}
       {...baseCardStyles}
       marginTop="$5"
       //   marginTop="$4"
