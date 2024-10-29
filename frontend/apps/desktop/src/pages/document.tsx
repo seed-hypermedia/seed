@@ -3,7 +3,6 @@ import {
   AccessoryLayout,
 } from '@/components/accessory-sidebar'
 import {CollaboratorsPanel} from '@/components/collaborators-panel'
-import {Directory} from '@/components/directory'
 import {Discussion} from '@/components/discussion'
 import {LinkNameComponent} from '@/components/document-name'
 import {FavoriteButton} from '@/components/favoriting'
@@ -11,6 +10,7 @@ import Footer from '@/components/footer'
 import {SidebarSpacer} from '@/components/main-wrapper'
 import {NewspaperLayout} from '@/components/newspaper-layout'
 import {OptionsPanel} from '@/components/options-panel'
+import {SiteNavigation} from '@/components/site-navigation'
 import {SubscriptionButton} from '@/components/subscription'
 import {CopyReferenceButton} from '@/components/titlebar-common'
 import {VersionsPanel} from '@/components/versions-panel'
@@ -45,9 +45,8 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {RadioButtons} from '@shm/ui/src/radio-buttons'
 import {ArrowRight, RefreshCw} from '@tamagui/lucide-icons'
-import React, {ReactNode, useEffect, useMemo, useRef} from 'react'
+import React, {ReactNode, useEffect, useMemo} from 'react'
 import {EntityCitationsAccessory} from '../components/citations'
 import {AppDocContentProvider} from './document-content-provider'
 
@@ -161,6 +160,8 @@ export default function DocumentPage() {
   )
 }
 
+const outlineWidth = 300
+
 function _MainDocumentPage({
   id,
   isBlockFocused,
@@ -179,11 +180,46 @@ function _MainDocumentPage({
     })
   }, [])
   return (
-    <>
+    <YStack>
       <DocPageHeader docId={id} isBlockFocused={isBlockFocused} />
-      <DocPageContent docId={id} isBlockFocused={isBlockFocused} />
-      <DocPageAppendix docId={id} />
-    </>
+      <YStack position="relative">
+        <Container clearVerticalSpace padding={0} marginBottom={100}>
+          <YStack
+            position="absolute"
+            h="100%"
+            top={0}
+            left={outlineWidth * -1}
+            display="none"
+            $gtMd={{display: 'flex'}}
+          >
+            <YStack
+              width={outlineWidth}
+              position="sticky"
+              paddingTop={34}
+              top={50}
+              h="calc(100%)"
+              maxHeight="calc(100vh - 60px)"
+              overflow="hidden"
+              display="none"
+              $gtSm={{display: 'block'}}
+            >
+              <YStack
+                gap="$3"
+                maxHeight="100%"
+                overflow="auto"
+                className="hide-scrollbar"
+              >
+                <SiteNavigation />
+              </YStack>
+            </YStack>
+          </YStack>
+          <YStack flex={1}>
+            <DocPageContent docId={id} isBlockFocused={isBlockFocused} />
+            <DocPageAppendix docId={id} />
+          </YStack>
+        </Container>
+      </YStack>
+    </YStack>
   )
 }
 const MainDocumentPage = React.memo(_MainDocumentPage)
@@ -486,61 +522,23 @@ function DocPageContent({
   }
   const blockId = docId.blockRef
   return (
-    <Container clearVerticalSpace padding={0} marginBottom={100}>
-      <AppDocContentProvider
-        routeParams={{blockRef: blockId || undefined}}
-        docId={docId}
-        isBlockFocused={isBlockFocused}
-      >
-        <DocContent
-          document={entity.data?.document}
-          focusBlockId={isBlockFocused ? blockId || undefined : undefined}
-        />
-      </AppDocContentProvider>
-    </Container>
+    <AppDocContentProvider
+      routeParams={{blockRef: blockId || undefined}}
+      docId={docId}
+      isBlockFocused={isBlockFocused}
+    >
+      <DocContent
+        document={entity.data?.document}
+        focusBlockId={isBlockFocused ? blockId || undefined : undefined}
+      />
+    </AppDocContentProvider>
   )
 }
 
 function DocPageAppendix({docId}: {docId: UnpackedHypermediaId}) {
-  const replace = useNavigate('replace')
-  const entity = useSubscribedEntity(docId)
-  const route = useNavRoute()
-  const wrapper = useRef<HTMLDivElement>(null)
-
-  if (route.key !== 'document')
-    throw new Error('DocPageAppendix must be in Doc route')
-
-  useEffect(() => {
-    if (wrapper.current) {
-      if (route.tab && ['discussion', 'directory'].includes(route.tab)) {
-        wrapper.current.scrollIntoView({behavior: 'smooth', block: 'start'})
-      }
-    }
-  }, [route.tab])
-
-  let content = <Directory docId={docId} />
-
-  if (route.tab === 'discussion') {
-    content = <Discussion docId={docId} />
-  }
-  if (!entity.data?.document) return null
   return (
-    <Container marginBottom={200} ref={wrapper}>
-      <XStack>
-        <RadioButtons
-          value={route.tab || 'directory'}
-          options={
-            [
-              {key: 'discussion', label: 'Discussion'},
-              {key: 'directory', label: 'Directory'},
-            ] as const
-          }
-          onValue={(value) => {
-            replace({...route, tab: value})
-          }}
-        />
-      </XStack>
-      {content}
+    <Container>
+      <Discussion docId={docId} />
     </Container>
   )
 }
