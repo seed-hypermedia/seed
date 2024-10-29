@@ -1,4 +1,5 @@
-import {HMMetadata, UnpackedHypermediaId} from "@shm/shared";
+import {HMMetadata} from "@shm/shared/src/hm-types";
+import {UnpackedHypermediaId} from "@shm/shared/src/utils/entity-id-url";
 import {Text} from "@tamagui/core";
 import {XStack} from "@tamagui/stacks";
 import {useMemo} from "react";
@@ -21,6 +22,7 @@ export function FacePile({
     () => (accounts.length > 3 ? accounts.slice(0, 2) : accounts),
     [accounts]
   );
+  console.log("=== FACEPILE PROPS", {accounts, accountsMetadata});
   return (
     <>
       {showAccountIds.map((author, idx) => {

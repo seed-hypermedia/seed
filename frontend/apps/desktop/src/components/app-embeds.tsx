@@ -46,6 +46,7 @@ function EmbedWrapper({
   children,
   depth,
   viewType = 'Content',
+  hideBorder = false,
   ...props
 }: PropsWithChildren<
   {
@@ -53,6 +54,7 @@ function EmbedWrapper({
     parentBlockId: string | null
     depth?: number
     viewType?: 'Content' | 'Card'
+    hideBorder?: boolean
   } & Omit<ComponentProps<typeof YStack>, 'id'>
 >) {
   const {
@@ -155,8 +157,8 @@ function EmbedWrapper({
       // padding={layoutUnit / 2}
       // overflow="hidden"
       borderRadius={0}
-      borderRightWidth={3}
-      borderRightColor={'$brand8'}
+      borderRightWidth={hideBorder ? 0 : 3}
+      borderRightColor={hideBorder ? '$colorTransparent' : '$brand8'}
       // borderLeftWidth={6}
       // borderLeftColor={isHighlight ? '$yellow6' : '$color4'}
       onPress={
@@ -269,6 +271,7 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
   }
   return (
     <EmbedWrapper
+      hideBorder
       id={{
         type: props.type,
         id: props.id,
