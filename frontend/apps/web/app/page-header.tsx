@@ -139,6 +139,7 @@ export function PageHeader({
                     }}
                     fontWeight="bold"
                     size="$2"
+                    key={a.id.id}
                   >
                     {a.metadata.name}
                   </SizableText>,
@@ -617,10 +618,13 @@ function Breadcrumbs({
             textOverflow="ellipsis"
             whiteSpace="nowrap"
             minWidth="8ch"
+            key={crumb.id.id}
           >
             {crumb.metadata?.name}
           </SizableText>,
-          <SizableText size="$1">/</SizableText>,
+          <SizableText size="$1" key={`${crumb.id.id}-slash`}>
+            /
+          </SizableText>,
         ];
       })}
       {docId?.id != homeId?.id ? (

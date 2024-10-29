@@ -168,9 +168,6 @@ export function NewspaperCard({
 }) {
   const linkProps = useRouteLink({key: "document", id});
 
-  console.log(`== ~ linkProps:`, linkProps);
-
-  // const navigate = useNavigate()
   if (!entity?.document) return null;
   return (
     <YStack
@@ -181,13 +178,6 @@ export function NewspaperCard({
       $gtMd={{flexBasis: "31.1%"}}
       {...baseCardStyles}
       marginTop="$5"
-      //   marginTop="$4"
-
-      //   maxWidth={208}
-      //   f={1}
-      //   onPress={() => {
-      //     //   navigate({key: 'document', id})
-      //   }}
       {...linkProps}
     >
       <NewspaperCardImage document={entity.document} />

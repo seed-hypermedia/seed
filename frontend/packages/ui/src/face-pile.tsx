@@ -3,7 +3,6 @@ import {Text} from "@tamagui/core";
 import {XStack} from "@tamagui/stacks";
 import {useMemo} from "react";
 import {HMIcon} from "./hm-icon";
-import {itemHoverBgColor} from "./ui-constants";
 
 export type AccountsMetadata = {
   id: UnpackedHypermediaId;
@@ -35,10 +34,11 @@ export function FacePile({
             key={showAccountIds[idx]}
             borderColor="$background"
             backgroundColor="$background"
-            $group-item-hover={{
-              borderColor: itemHoverBgColor,
-              backgroundColor: itemHoverBgColor,
-            }}
+            // These styles trigger an error in the NewspaperCard in a document embed on web:
+            // $group-item-hover={{
+            //   borderColor: itemHoverBgColor,
+            //   backgroundColor: itemHoverBgColor,
+            // }}
             borderWidth={2}
             borderRadius={100}
             overflow="hidden"
