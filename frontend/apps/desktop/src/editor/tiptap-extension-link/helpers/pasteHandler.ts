@@ -95,7 +95,9 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
 
         textContent = textContent.trim()
 
-        console.log(`== ~ pasteHandler ~ textContent:`, textContent)
+        if (!textContent) {
+          return false
+        }
 
         const hasPastedLink = pastedLinkMarks.length > 0
         const link = find(textContent).find(

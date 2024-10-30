@@ -126,7 +126,7 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
                 return
               })
 
-              return true
+              // return true
             },
           },
         }),
