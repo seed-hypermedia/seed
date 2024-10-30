@@ -38,7 +38,6 @@ export function SiteNavigation({}: {}) {
   const parentId = hmId(id.type, id.uid, {
     path: id.path?.slice(0, -1) || [],
   })
-  console.log({id, parentId})
   const parentEntity = useEntity(parentId)
   const siblingDir = useListDirectory(parentId)
   const createDraft = useCreateDraft(id)
