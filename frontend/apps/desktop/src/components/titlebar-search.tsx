@@ -98,7 +98,6 @@ function useURLHandler() {
     search: string,
   ): Promise<NavRoute | null> => {
     const httpSearch = isHttpUrl(search) ? search : `https://${search}`
-
     connect.mutate(httpSearch)
     if (experiments.data?.webImporting) {
       const webResult = await webQuery.mutateAsync({webUrl: httpSearch})
@@ -152,6 +151,7 @@ type LauncherItemType = {
   subtitle?: string
   onSelect: () => void
 }
+
 function LauncherContent({onClose}: {onClose: () => void}) {
   const [search, setSearch] = useState('')
   const navigate = useNavigate()
@@ -163,7 +163,7 @@ function LauncherContent({onClose}: {onClose: () => void}) {
   const recents = useRecents()
   const searchResults = useSearch(search, {})
   let queryItem: null | LauncherItemType = null
-  console.log('search', search, isHypermediaScheme(search))
+
   if (
     isHypermediaScheme(search) ||
     search.startsWith('http://') ||
@@ -288,6 +288,7 @@ function LauncherContent({onClose}: {onClose: () => void}) {
       window.removeEventListener('keydown', keyPressHandler)
     }
   }, [])
+
   let content = (
     <YStack
       backgroundColor={'$backgroundStrong'}

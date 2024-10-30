@@ -12,6 +12,7 @@ import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
 import {PlainMessage} from '@bufbuild/protobuf'
 import {
   Capability,
+  createHMUrl,
   DocumentRoute,
   getDocumentTitle,
   hmId,
@@ -24,8 +25,8 @@ import {
   HMIcon,
   ListItem,
   RadioButtons,
-  Separator,
   SizableText,
+  toast,
   UIAvatar,
   XGroup,
   XStack,
@@ -55,6 +56,7 @@ export function CollaboratorsPanel({
 type SearchResult = {
   id: UnpackedHypermediaId
   label: string
+  unresolved?: boolean
 }
 
 function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
@@ -136,8 +138,17 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
               <TagInputItem
                 onClick={() => {
                   console.log('Add new member', search)
-                  setSelectedCollaborators((v) => v)
-                  setSearch('')
+                  let hmUrl = unpackHmId(search)
+                  let result = hmUrl ? createHMUrl(hmId('d', hmUrl.uid)) : null
+                  if (result && hmUrl) {
+                    setSelectedCollaborators((v) => [
+                      ...v,
+                      {id: hmUrl, label: result, unresolved: true},
+                    ])
+                    setSearch('')
+                  } else {
+                    toast.error('Invalid Collaborator Input')
+                  }
                 }}
               >
                 Add &quot;{search}&quot;
@@ -394,6 +405,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
           render={<XStack gap="$1" width="100%" flexWrap="wrap" />}
         >
           {selectedValues.map((value: SearchResult) => {
+            // TODO: (horacio): Should I cleanup the list from the `unresolved` value?
             return (
               <Ariakit.CompositeItem
                 key={value.id.id}
@@ -416,9 +428,15 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
                   />
                 }
               >
-                <UIAvatar label={value.label} id={value.id.id} />
-                <SizableText size="$3">{value.label}</SizableText>
-                {/* <span className="tag-remove"></span> */}
+                {'unresolved' in value && value.unresolved ? (
+                  <UnresolvedItem value={value} />
+                ) : (
+                  <>
+                    <UIAvatar label={value.label} id={value.id.id} />
+                    <SizableText size="$3">{value.label}</SizableText>
+                    {/* <span className="tag-remove"></span> */}
+                  </>
+                )}
                 <X size={12} />
               </Ariakit.CompositeItem>
             )
@@ -452,11 +470,7 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
               <Ariakit.SelectList
                 store={select}
                 render={
-                  <YGroup
-                    zIndex="$zIndex.5"
-                    backgroundColor="$background"
-                    separator={<Separator />}
-                  />
+                  <YGroup zIndex="$zIndex.5" backgroundColor="$background" />
                 }
               />
             }
@@ -468,6 +482,17 @@ export const TagInput = forwardRef<HTMLInputElement, TagInputProps>(
     )
   },
 )
+
+function UnresolvedItem({value}: {value: SearchResult}) {
+  const entity = useEntity(value.id)
+  let label = entity.data?.document?.metadata.name || '...'
+  return (
+    <>
+      <UIAvatar label={label} id={value.id.id} />
+      <SizableText size="$3">{label}</SizableText>
+    </>
+  )
+}
 
 export interface TagInputItemProps extends Ariakit.SelectItemProps {
   children?: React.ReactNode
