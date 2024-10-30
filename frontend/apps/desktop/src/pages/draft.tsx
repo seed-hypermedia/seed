@@ -140,15 +140,21 @@ export default function DraftPage() {
         {shouldRebase ? (
           <XStack
             theme="yellow"
-            bg="$backgroundFocus"
+            bg="$backgroundHover"
             ai="center"
             jc="center"
             p="$3"
             gap="$4"
           >
-            <SizableText>REBASE ME!</SizableText>
-            <Button size="$2" onPress={() => performRebase()}>
-              {isRebasing ? <Spinner /> : 'Rebase'}
+            <SizableText size="$2">
+              A new change has been published to this document.{' '}
+            </SizableText>
+            <Button
+              bg="$backgroundFocus"
+              size="$2"
+              onPress={() => performRebase()}
+            >
+              {isRebasing ? <Spinner /> : 'Merge'}
             </Button>
           </XStack>
         ) : null}
