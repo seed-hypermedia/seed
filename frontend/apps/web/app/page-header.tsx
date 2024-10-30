@@ -306,8 +306,9 @@ export function DefaultSiteHeader({
       id="page-header-menu"
       borderBottomColor="$color5"
       borderBottomWidth={1}
+      gap="$2"
     >
-      <XStack>
+      <XStack gap="$2">
         <XStack
           ai="center"
           f={1}
@@ -323,7 +324,8 @@ export function DefaultSiteHeader({
             gap="$2"
             ai="center"
             hoverStyle={{
-              textDecorationLine: "underline",
+              textDecoration: "none",
+              cursor: "pointer",
             }}
           >
             {homeMetadata?.icon && homeId ? (
