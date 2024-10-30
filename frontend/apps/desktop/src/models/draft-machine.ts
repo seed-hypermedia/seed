@@ -134,7 +134,6 @@ export const draftMachine = setup({
     setNameRef: assign({
       nameRef: ({event}) => {
         if (event.type == 'SET.NAME.REF') {
-          console.log('== setNameRef', event.nameRef)
           return event.nameRef
         }
         return null

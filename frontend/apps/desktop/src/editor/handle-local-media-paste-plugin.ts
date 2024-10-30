@@ -13,7 +13,6 @@ const handleLocalMediaPastePlugin = new Plugin({
   key: new PluginKey('pm-local-media-paste'),
   props: {
     handlePaste(view, event) {
-      console.log('== PASTE loval media paste PLUGIN', view.state.selection)
       let currentSelection = view.state.selection
       const items = Array.from(event.clipboardData?.items || [])
       if (items.length === 0) return false

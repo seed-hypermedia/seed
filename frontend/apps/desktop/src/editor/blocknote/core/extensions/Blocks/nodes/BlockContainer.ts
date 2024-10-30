@@ -96,7 +96,6 @@ const PastePlugin = new Plugin({
   key: PastePluginKey,
   props: {
     handlePaste: (view, event) => {
-      console.log('== PASTE BlockContainer PLUGIN', view.state.selection)
       if (!event.clipboardData) {
         return false
       }
