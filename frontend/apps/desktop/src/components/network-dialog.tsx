@@ -6,6 +6,7 @@ import {
   copyTextToClipboard,
   Dialog,
   List,
+  OptionsDropdown,
   SizableText,
   Spinner,
   toast,
@@ -19,7 +20,6 @@ import React from 'react'
 import {ColorValue} from 'react-native'
 import {HMPeerInfo, useIsGatewayConnected, usePeers} from '../models/networking'
 import {useAppDialog} from './dialog'
-import {OptionsDropdown} from './options-dropdown'
 
 export function useNetworkDialog() {
   return useAppDialog<true>(NetworkDialog)

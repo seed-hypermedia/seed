@@ -21,6 +21,8 @@ import {
   BlocksContent,
   Button,
   ButtonText,
+  MenuItemType,
+  OptionsDropdown,
   SizableText,
   Text,
   UIAvatar,
@@ -45,7 +47,6 @@ import {
   useDocumentCommentGroups,
 } from '../models/comments'
 import {AccessoryContainer} from './accessory-sidebar'
-import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {WindowsLinuxWindowControls} from './window-controls'
 
 export function CommentGroup({

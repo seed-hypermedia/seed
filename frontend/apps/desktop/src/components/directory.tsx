@@ -24,13 +24,13 @@ import {
   HMIcon,
   itemHoverBgColor,
   SizableText,
+  SmallListItem,
   Tooltip,
   XStack,
   YStack,
 } from '@shm/ui'
 import {Copy, Plus} from '@tamagui/lucide-icons'
 import {useMemo} from 'react'
-import {SidebarItem} from './sidebar-base'
 import {CopyReferenceButton} from './titlebar-common'
 
 export function Directory({
@@ -97,7 +97,7 @@ export function Directory({
         if (!id) return null
         // return <DraftItem key={id.id} id={id} />
         return <DraftItem id={id} key={id.id} indented={indented} />
-        // return <SidebarItem key={id.id} title="Draft" icon={<Plus />} right={<DraftTag />} />
+        // return <SmallListItem key={id.id} title="Draft" icon={<Plus />} right={<DraftTag />} />
       })}
 
       {/* {directory.map((item) => (
@@ -105,7 +105,7 @@ export function Directory({
       ))} */}
 
       {directory.map((item) => (
-        <SidebarItem
+        <SmallListItem
           onPress={() => {
             navigate({key: 'document', id: item.id})
           }}
@@ -162,7 +162,7 @@ function DraftItem({
     navigate({key: 'draft', id})
   }
   return (
-    <SidebarItem
+    <SmallListItem
       key={id.id}
       title={draft.data?.metadata.name || 'Untitled'}
       icon={<HMIcon size={20} id={id} metadata={draft.data?.metadata} />}

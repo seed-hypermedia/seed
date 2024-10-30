@@ -3,14 +3,16 @@ import {useFetcher} from "@remix-run/react";
 import {
   getDocumentTitle,
   getFileUrl,
+  getMetadataName,
   getNodesOutline,
   HMComment,
   HMDocument,
+  hmId,
   HMMetadata,
   NodeOutline,
   UnpackedHypermediaId,
 } from "@shm/shared";
-import {SiteRoutingProvider} from "@shm/shared/src/routing";
+import {SiteRoutingProvider, useRouteLink} from "@shm/shared/src/routing";
 import {Container} from "@shm/ui/src/container";
 import {DirectoryItem} from "@shm/ui/src/directory";
 import {CommentGroup} from "@shm/ui/src/discussion";
@@ -19,16 +21,18 @@ import {
   DocContent,
   DocContentProvider,
 } from "@shm/ui/src/document-content";
+import {HMIcon} from "@shm/ui/src/hm-icon";
+import {SmallListItem} from "@shm/ui/src/list-item";
 import {RadioButtons} from "@shm/ui/src/radio-buttons";
 import {Button, ButtonText} from "@tamagui/button";
-import {Text} from "@tamagui/core";
+import {GestureReponderEvent, Text} from "@tamagui/core";
 import {X} from "@tamagui/lucide-icons";
 import {ScrollView} from "@tamagui/scroll-view";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import {useCallback, useEffect, useMemo, useState} from "react";
 import {getHref} from "./href";
-import type {SiteDocumentPayload} from "./loaders";
+import type {SiteDocumentPayload, WebSupportQuery} from "./loaders";
 import {defaultSiteIcon} from "./meta";
 import {NewspaperPage} from "./newspaper";
 import {NotFoundPage} from "./not-found";
@@ -144,7 +148,12 @@ export function DocumentPage(props: SiteDocumentPayload) {
                   overflow="auto"
                   className="hide-scrollbar"
                 >
-                  <DocumentOutline document={document} />
+                  <SiteNavigation
+                    supportDocuments={props.supportDocuments}
+                    supportQueries={props.supportQueries}
+                    document={document}
+                    id={id}
+                  />
                 </YStack>
               </YStack>
             </YStack>
@@ -157,7 +166,11 @@ export function DocumentPage(props: SiteDocumentPayload) {
       </YStack>
       <PageFooter id={id} />
       <MobileOutline open={open} onClose={() => setOpen(false)}>
-        <DocumentOutline document={document} onClose={() => setOpen(false)} />
+        <SiteNavigation
+          document={document}
+          onClose={() => setOpen(false)}
+          id={id}
+        />
       </MobileOutline>
     </SiteRoutingProvider>
   );
@@ -280,13 +293,11 @@ function DocumentAppendix({
     "directory"
   );
   let content = null;
-  if (activeTab === "directory") {
-    content = <DocumentDirectory id={id} homeId={homeId} />;
-  } else if (activeTab === "discussion") {
-    content = (
-      <DocumentDiscussion id={id} homeId={homeId} siteHost={siteHost} />
-    );
-  }
+  // if (activeTab === "directory") {
+  //   content = <DocumentDirectory id={id} homeId={homeId} />;
+  // } else if (activeTab === "discussion") {
+  content = <DocumentDiscussion id={id} homeId={homeId} siteHost={siteHost} />;
+  // }
   return (
     <Container>
       <RadioButtons
@@ -294,7 +305,7 @@ function DocumentAppendix({
         options={
           [
             {key: "discussion", label: "Discussion"},
-            {key: "directory", label: "Directory"},
+            // {key: "directory", label: "Directory"},
           ] as const
         }
         onValue={setActiveTab}
@@ -433,21 +444,112 @@ function CommentReplies({
   );
 }
 
-function DocumentOutline({
+function DocumentSmallListItem({
+  metadata,
+  id,
+  indented,
+}: {
+  metadata?: HMMetadata;
+  id: UnpackedHypermediaId;
+  indented?: number;
+}) {
+  const linkProps = useRouteLink({key: "document", id});
+  return (
+    <SmallListItem
+      key={id.id}
+      title={getMetadataName(metadata)}
+      icon={<HMIcon id={id} metadata={metadata} size={20} />}
+      indented={indented}
+      {...linkProps}
+    />
+  );
+}
+
+function SiteNavigation({
   document,
+  supportDocuments,
+  supportQueries,
   onClose,
+  id,
 }: {
   document: HMDocument;
   onClose?: () => void;
+  supportDocuments?: {id: UnpackedHypermediaId; document: HMDocument}[];
+  supportQueries?: WebSupportQuery[];
+  id: UnpackedHypermediaId;
 }) {
   const outline = useMemo(() => {
     return getNodesOutline(document.content);
   }, [document.content]);
 
+  const directory = supportQueries?.find(
+    (query) => query.in.uid === document.account
+  );
+  const isTopLevel = !id.path || id.path?.length === 0;
+
+  const parentId = hmId(id.type, id.uid, {
+    path: id.path?.slice(0, -1) || [],
+  });
+  if (!directory) return null;
+  const parentListItem = directory.results.find(
+    (doc) => doc.path.join("/") === parentId.path?.join("/")
+  );
+  const parentIdPath = parentId.path;
+  const idPath = id.path;
+  const siblingDocs =
+    parentIdPath &&
+    directory.results.filter(
+      (doc) =>
+        doc.path.join("/").startsWith(parentIdPath.join("/")) &&
+        parentIdPath.length === doc.path.length - 1 &&
+        doc.path.join("/") !== idPath?.join("/")
+    );
+  const childrenDocs =
+    idPath &&
+    directory.results.filter(
+      (doc) =>
+        doc.path.join("/").startsWith(idPath.join("/")) &&
+        idPath.length === doc.path.length - 1
+    );
+  const documentIndent = isTopLevel ? 0 : 1;
+
   return (
     <YStack gap="$3">
+      {isTopLevel || !parentListItem ? null : (
+        <DocumentSmallListItem
+          metadata={parentListItem.metadata}
+          id={parentId}
+        />
+      )}
+      <DocumentSmallListItem
+        metadata={document.metadata}
+        id={id}
+        indented={documentIndent}
+      />
       {outline.map((node) => (
-        <OutlineNode node={node} key={node.id} onClose={onClose} />
+        <OutlineNode
+          node={node}
+          key={node.id}
+          onClose={onClose}
+          indented={documentIndent}
+        />
+      ))}
+      {childrenDocs?.map((doc) => (
+        <DocumentSmallListItem
+          key={doc.path.join("/")}
+          metadata={doc.metadata}
+          id={hmId("d", doc.account, {path: doc.path})}
+          indented={2}
+        />
+      ))}
+
+      {siblingDocs?.map((doc) => (
+        <DocumentSmallListItem
+          key={doc.path.join("/")}
+          metadata={doc.metadata}
+          id={hmId("d", doc.account, {path: doc.path})}
+          indented={1}
+        />
       ))}
     </YStack>
   );
@@ -456,10 +558,39 @@ function DocumentOutline({
 function OutlineNode({
   node,
   onClose,
+  indented = 0,
 }: {
   node: NodeOutline;
   onClose?: () => void;
+  indented?: number;
 }) {
+  return (
+    <>
+      <SmallListItem
+        key={node.id}
+        title={node.title}
+        // icon={<HMIcon id={node.id} metadata={node.metadata} size={20} />}
+        indented={indented}
+        onPress={(e: GestureReponderEvent) => {
+          e.preventDefault();
+          const targetElement = document.querySelector(`#${node.id}`);
+
+          if (targetElement) {
+            const offset = 80; // header fixed height
+            const elementPosition = targetElement.getBoundingClientRect().top;
+            const offsetPosition = elementPosition + window.scrollY - offset;
+            window.scrollTo({top: offsetPosition, behavior: "smooth"});
+            onClose?.();
+          }
+        }}
+      />
+      {node.children?.length
+        ? node.children.map((child) => (
+            <OutlineNode node={child} key={child.id} indented={indented + 1} />
+          ))
+        : null}
+    </>
+  );
   return (
     <>
       <ButtonText

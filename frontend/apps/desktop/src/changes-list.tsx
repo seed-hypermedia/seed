@@ -1,11 +1,10 @@
-import { AccessoryContainer } from '@/components/accessory-sidebar'
-import { MenuItemType, OptionsDropdown } from '@/components/options-dropdown'
-import { useAccount_deprecated } from '@/models/accounts'
-import { TimelineChange, useDocHistory } from '@/models/changes'
-import { useGatewayUrl } from '@/models/gateway-settings'
-import { useOpenUrl } from '@/open-url'
-import { useNavRoute } from '@/utils/navigation'
-import { useNavigate } from '@/utils/useNavigate'
+import {AccessoryContainer} from '@/components/accessory-sidebar'
+import {useAccount_deprecated} from '@/models/accounts'
+import {TimelineChange, useDocHistory} from '@/models/changes'
+import {useGatewayUrl} from '@/models/gateway-settings'
+import {useOpenUrl} from '@/open-url'
+import {useNavRoute} from '@/utils/navigation'
+import {useNavigate} from '@/utils/useNavigate'
 import {
   Change,
   createWebHMUrl,
@@ -14,18 +13,20 @@ import {
   packHmId,
   unpackHmId,
 } from '@shm/shared'
-import { hmId, UnpackedHypermediaId } from '@shm/shared/src/utils/entity-id-url'
+import {hmId, UnpackedHypermediaId} from '@shm/shared/src/utils/entity-id-url'
 import {
   ButtonText,
   Copy,
   copyUrlToClipboardWithFeedback,
+  MenuItemType,
+  OptionsDropdown,
   SizableText,
   Theme,
   XStack,
   YStack,
 } from '@shm/ui'
-import { ArrowUpRight } from '@tamagui/lucide-icons'
-import { EntityLinkIcon } from './components/account-link-icon'
+import {ArrowUpRight} from '@tamagui/lucide-icons'
+import {EntityLinkIcon} from './components/account-link-icon'
 
 export function EntityVersionsAccessory({
   id,

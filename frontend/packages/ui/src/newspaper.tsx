@@ -168,7 +168,6 @@ export function NewspaperCard({
   accountsMetadata: AccountsMetadata;
   isWeb?: boolean;
 }) {
-  console.log("=== NEWSPAPER CARD PROPS", {id, entity, accountsMetadata});
   const linkProps = useRouteLink({key: "document", id});
 
   // const navigate = useNavigate()

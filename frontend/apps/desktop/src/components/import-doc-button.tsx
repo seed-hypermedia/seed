@@ -16,12 +16,11 @@ import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {pathNameify} from '@/utils/path'
 import {HMDraft, UnpackedHypermediaId} from '@shm/shared'
-import {Button, toast} from '@shm/ui'
+import {Button, OptionsDropdown, toast} from '@shm/ui'
 import {FileInput, FolderInput, Import} from '@tamagui/lucide-icons'
 import {Extension} from '@tiptap/core'
 import {useMemo} from 'react'
 import {ImportedDocument, useImportDialog} from './import-doc-dialog'
-import {OptionsDropdown} from './options-dropdown'
 
 export function ImportButton({input}: {input: UnpackedHypermediaId}) {
   const {openMarkdownDirectories, openMarkdownFiles} = useAppContext()

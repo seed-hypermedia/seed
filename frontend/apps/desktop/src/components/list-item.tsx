@@ -1,8 +1,16 @@
 import {Timestamp} from '@bufbuild/protobuf'
 import {formattedDate, formattedDateLong, useHover} from '@shm/shared'
-import {Button, ButtonProps, ButtonText, Link, Tooltip, XStack} from '@shm/ui'
+import {
+  Button,
+  ButtonProps,
+  ButtonText,
+  Link,
+  MenuItemType,
+  OptionsDropdown,
+  Tooltip,
+  XStack,
+} from '@shm/ui'
 import {ComponentProps, ReactElement, useState} from 'react'
-import {MenuItemType, OptionsDropdown} from './options-dropdown'
 
 export function ListItem({
   accessory,

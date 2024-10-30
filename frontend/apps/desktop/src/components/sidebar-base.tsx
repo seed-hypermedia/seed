@@ -1,38 +1,21 @@
 import {useAppContext} from '@/app-context'
-import {MenuItemType, OptionsDropdown} from '@/components/options-dropdown'
 import {EmbedsContent} from '@/models/documents'
 import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
 import {useNavigate} from '@/utils/useNavigate'
 import {NavRoute, UnpackedHypermediaId} from '@shm/shared'
 import {
   Button,
-  ListItem,
-  ListItemProps,
+  FocusButton,
   Separator,
-  SizableText,
   Tooltip,
   useStream,
-  useTheme,
   View,
   XStack,
   YStack,
 } from '@shm/ui'
-import {
-  ArrowDownRight,
-  ChevronDown,
-  ChevronRight,
-  Hash,
-  Settings,
-} from '@tamagui/lucide-icons'
-import {
-  ComponentProps,
-  createElement,
-  FC,
-  isValidElement,
-  ReactNode,
-  useEffect,
-  useState,
-} from 'react'
+import {SmallListGroupItem} from '@shm/ui/src'
+import {Hash, Settings} from '@tamagui/lucide-icons'
+import {ComponentProps, FC, ReactNode, useEffect, useState} from 'react'
 
 const HoverRegionWidth = 30
 
@@ -168,142 +151,6 @@ function useIsWindowNarrowForHoverSidebar() {
   return isWindowTooNarrowForHoverSidebar
 }
 
-export function SidebarItem({
-  disabled,
-  title,
-  icon,
-  iconAfter,
-  children,
-  indented,
-  bold,
-  active,
-  activeBgColor,
-  rightHover,
-  color,
-  paddingVertical,
-  minHeight,
-  menuItems,
-  isCollapsed,
-  onSetCollapsed,
-  ...props
-}: ListItemProps & {
-  indented?: boolean | number
-  bold?: boolean
-  activeBgColor?: ComponentProps<typeof ListItem>['backgroundColor']
-  selected?: boolean
-  rightHover?: ReactNode[]
-  menuItems?: MenuItemType[]
-  isCollapsed?: boolean | null
-  onSetCollapsed?: (collapsed: boolean) => void
-}) {
-  const theme = useTheme()
-  const indent = indented ? (typeof indented === 'number' ? indented : 1) : 0
-  const activeBg = activeBgColor || '$brand12'
-  return (
-    <ListItem
-      hoverTheme
-      pressTheme
-      focusTheme
-      minHeight={minHeight || 32}
-      paddingVertical={paddingVertical || '$1'}
-      size="$2"
-      paddingLeft={Math.max(0, indent) * 22 + 12}
-      textAlign="left"
-      outlineColor="transparent"
-      backgroundColor={active ? activeBg : '$colorTransparent'}
-      hoverStyle={
-        active
-          ? {backgroundColor: activeBg, cursor: 'default'}
-          : {cursor: 'default'}
-      }
-      cursor="default"
-      userSelect="none"
-      gap="$2"
-      group="item"
-      color={color || '$gray12'}
-      title={undefined}
-      borderRadius="$2"
-      iconAfter={
-        iconAfter || (
-          <>
-            <XStack opacity={0} $group-item-hover={{opacity: 1}}>
-              {rightHover}
-            </XStack>
-            {menuItems ? (
-              <OptionsDropdown hiddenUntilItemHover menuItems={menuItems} />
-            ) : null}
-          </>
-        )
-      }
-      {...props}
-    >
-      <XStack gap="$2" jc="center" f={1}>
-        {isValidElement(icon) ? (
-          icon
-        ) : icon ? (
-          <View width={18}>
-            {createElement(icon, {
-              size: 18,
-              color: color || theme.gray12.val,
-            })}
-          </View>
-        ) : (
-          <View width={18} />
-        )}
-        {children}
-        <SizableText
-          f={1}
-          textOverflow="ellipsis"
-          whiteSpace="nowrap"
-          width="100%"
-          overflow="hidden"
-          fontSize="$3"
-          color={color || '$gray12'}
-          fontWeight={bold ? 'bold' : undefined}
-          userSelect="none"
-        >
-          {title}
-        </SizableText>
-        {isCollapsed != null ? (
-          <Button
-            position="absolute"
-            left={-24}
-            size="$1"
-            chromeless
-            backgroundColor={'$colorTransparent'}
-            onPress={(e: MouseEvent) => {
-              e.stopPropagation()
-              onSetCollapsed?.(!isCollapsed)
-            }}
-            icon={isCollapsed ? ChevronRight : ChevronDown}
-          />
-        ) : null}
-      </XStack>
-    </ListItem>
-  )
-}
-
-export function SidebarGroupItem({
-  items,
-  defaultExpanded,
-  ...props
-}: {
-  items: ReactNode[]
-  defaultExpanded?: boolean
-} & ComponentProps<typeof SidebarItem>) {
-  const [isCollapsed, setIsCollapsed] = useState(defaultExpanded ? false : true)
-  return (
-    <>
-      <SidebarItem
-        {...props}
-        isCollapsed={items.length ? isCollapsed : null}
-        onSetCollapsed={setIsCollapsed}
-      />
-      {isCollapsed ? null : items}
-    </>
-  )
-}
-
 type DocOutlineSection = {
   title: string
   id: string
@@ -311,29 +158,6 @@ type DocOutlineSection = {
   parentBlockId?: string
   children?: DocOutlineSection[]
   icon?: FC<ComponentProps<typeof Hash>>
-}
-
-export function FocusButton({
-  onPress,
-  label,
-}: {
-  onPress: () => void
-  label?: string
-}) {
-  return (
-    <Tooltip content={label ? `Focus ${label}` : 'Focus'}>
-      <Button
-        icon={ArrowDownRight}
-        onPress={(e: MouseEvent) => {
-          e.stopPropagation()
-          onPress()
-        }}
-        chromeless
-        backgroundColor={'$colorTransparent'}
-        size="$1"
-      />
-    </Tooltip>
-  )
 }
 
 export function activeDocOutline(
@@ -384,7 +208,7 @@ export function activeDocOutline(
       isBlockFocused = true
     }
     return (
-      <SidebarGroupItem
+      <SmallListGroupItem
         onPress={() => {
           onBlockSelect(item.id, item.entityId, item.parentBlockId)
         }}

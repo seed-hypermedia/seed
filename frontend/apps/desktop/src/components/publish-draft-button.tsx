@@ -22,6 +22,7 @@ import {
   ErrorToastDecoration,
   HMIcon,
   Hostname,
+  OptionsDropdown,
   SizableText,
   Spinner,
   SuccessToastDecoration,
@@ -42,7 +43,6 @@ import {
   usePublishDraft,
   usePublishToSite,
 } from '../models/documents'
-import {OptionsDropdown} from './options-dropdown'
 
 export default function PublishDraftButton() {
   const route = useNavRoute()

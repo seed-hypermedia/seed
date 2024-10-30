@@ -71,7 +71,7 @@ async function getDirectory(id: UnpackedHypermediaId) {
   });
   const docs = res.documents
     .map(toPlainMessage)
-    .filter((doc) => doc.path !== "")
+    // .filter((doc) => doc.path !== "")
     .map((doc) => {
       return {...doc, path: doc.path.slice(1).split("/")};
     });
@@ -116,9 +116,9 @@ export async function getBaseDocument(
     results: HMDocumentListItem[];
   }[] = [];
 
+  const results = await getDirectory(entityId);
+  supportQueries = [{in: entityId, results}];
   if (document.metadata.layout === "Seed/Experimental/Newspaper") {
-    const results = await getDirectory(entityId);
-    supportQueries = [{in: entityId, results}];
     supportDocuments = await Promise.all(
       results.map(async (item) => {
         const id = hmId("d", entityId.uid, {path: item.path});

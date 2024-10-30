@@ -1,4 +1,5 @@
-import {ListItem, ListItemProps, SizableText} from "tamagui";
+import {ListItem, ListItemProps} from "@tamagui/list-item";
+import {SizableText} from "@tamagui/text";
 
 export function MenuItem({
   disabled,

@@ -4,7 +4,7 @@ import {useFavorites} from '@/models/favorites'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {getDocumentTitle, hmId} from '@shm/shared'
-import {Button, Contact, HMIcon, Tooltip} from '@shm/ui'
+import {Button, Contact, HMIcon, SmallListItem, Tooltip} from '@shm/ui'
 import {
   ChevronDown,
   ChevronRight,
@@ -15,7 +15,7 @@ import {
 import React, {memo} from 'react'
 import {SizableText, XStack, YStack} from 'tamagui'
 import {openAddAccountWizard} from './create-account'
-import {GenericSidebarContainer, SidebarItem} from './sidebar-base'
+import {GenericSidebarContainer} from './sidebar-base'
 
 export const AppSidebar = memo(MainAppSidebar)
 
@@ -25,7 +25,7 @@ export function MainAppSidebar() {
 
   return (
     <GenericSidebarContainer>
-      {/* <SidebarItem
+      {/* <SmallListItem
         active={route.key == 'home'}
         onPress={() => {
           navigate({key: 'home'})
@@ -34,7 +34,7 @@ export function MainAppSidebar() {
         bold
         icon={Home}
       /> */}
-      {/* <SidebarItem
+      {/* <SmallListItem
         active={route.key == 'feed'}
         onPress={() => {
           navigate({key: 'feed'})
@@ -43,7 +43,7 @@ export function MainAppSidebar() {
         bold
         icon={Home}
       /> */}
-      <SidebarItem
+      <SmallListItem
         active={route.key == 'library'}
         onPress={() => {
           navigate({key: 'library'})
@@ -53,7 +53,7 @@ export function MainAppSidebar() {
         icon={Library}
         rightHover={[]}
       />
-      {/* <SidebarItem
+      {/* <SmallListItem
         active={route.key == 'explore'}
         onPress={() => {
           navigate({key: 'explore'})
@@ -63,7 +63,7 @@ export function MainAppSidebar() {
         icon={Sparkles}
         rightHover={[]}
       /> */}
-      <SidebarItem
+      <SmallListItem
         active={route.key == 'contacts'}
         onPress={() => {
           navigate({key: 'contacts'})
@@ -137,7 +137,7 @@ function FavoritesSection() {
         if (!favorite.data) return null
         const {id, document} = favorite.data
         return (
-          <SidebarItem
+          <SmallListItem
             key={id.id}
             title={getDocumentTitle(document)}
             icon={<HMIcon id={id} metadata={document?.metadata} size={20} />}
@@ -183,7 +183,7 @@ function AccountsSection() {
         if (!account.data) return null
         const {id, document} = account.data
         return (
-          <SidebarItem
+          <SmallListItem
             key={id.uid}
             title={getDocumentTitle(document) || id.uid}
             icon={<HMIcon id={id} metadata={document?.metadata} size={20} />}
@@ -199,7 +199,7 @@ function AccountsSection() {
         )
       })}
       {hasAccounts ? null : (
-        <SidebarItem
+        <SmallListItem
           key="add-account"
           title="Add Account"
           onPress={openAddAccountWizard}

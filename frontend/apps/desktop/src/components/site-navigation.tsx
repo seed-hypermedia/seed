@@ -17,12 +17,17 @@ import {
   NodesOutline,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {getBlockNodeById, HMIcon} from '@shm/ui'
+import {
+  FocusButton,
+  getBlockNodeById,
+  HMIcon,
+  SmallListGroupItem,
+  SmallListItem,
+} from '@shm/ui'
 import {Hash, Plus} from '@tamagui/lucide-icons'
 import {memo, ReactNode, useState} from 'react'
 import {Separator, SizableText, Spinner, View} from 'tamagui'
 import {Directory} from './directory'
-import {FocusButton, SidebarGroupItem, SidebarItem} from './sidebar-base'
 
 export function SiteNavigation({}: {}) {
   const route = useNavRoute()
@@ -47,7 +52,7 @@ export function SiteNavigation({}: {}) {
   return (
     <View flex={1} paddingHorizontal="$4">
       {isTopLevel ? null : (
-        <SidebarItem
+        <SmallListItem
           key={parentId.id}
           title={getDocumentTitle(parentEntity.data?.document)}
           icon={
@@ -65,7 +70,7 @@ export function SiteNavigation({}: {}) {
           }}
         />
       )}
-      <SidebarItem
+      <SmallListItem
         key={id.uid}
         collapsable
         isCollapsed={isCollapsed}
@@ -86,7 +91,7 @@ export function SiteNavigation({}: {}) {
           <OutlineNavigation indented={documentIndent + 1} route={route} />
           <Separator marginLeft={Math.max(0, documentIndent + 1) * 22 + 12} />
           <Directory indented={documentIndent + 1} docId={id} />
-          <SidebarItem
+          <SmallListItem
             icon={Plus}
             title="Create Document"
             onPress={createDraft}
@@ -102,7 +107,7 @@ export function SiteNavigation({}: {}) {
             const itemId = hmId('d', item.account, {path: item.path})
             if (itemId.id === id.id) return null
             return (
-              <SidebarItem
+              <SmallListItem
                 key={itemId.id}
                 onPress={() => {
                   navigate({key: 'document', id: itemId})
@@ -146,7 +151,7 @@ function DraftOutlineNavigation({
   if (!id) return null
   return (
     <>
-      <SidebarItem
+      <SmallListItem
         marginTop="$4"
         key={id.uid}
         title={draft.data?.metadata?.name}
@@ -200,7 +205,7 @@ function _DraftOutline({
           />
         )
       return (
-        <SidebarGroupItem
+        <SmallListGroupItem
           key={item.id}
           onPress={() => {
             onActivateBlock(item.id)
@@ -249,10 +254,8 @@ function DocumentOutlineNavigation({
 }) {
   const {id} = route
   const entity = useEntity(id)
-  const replace = useNavigate('replace')
   const navigate = useNavigate()
   if (!entity?.data) return null
-  const {document} = entity.data
 
   return (
     <>
@@ -311,7 +314,7 @@ function _DocumentOutline({
           />
         )
       return (
-        <SidebarGroupItem
+        <SmallListGroupItem
           key={item.id}
           onPress={() => {
             onActivateBlock(item.id)
@@ -351,8 +354,8 @@ function _DocumentOutline({
 }
 const DocumentOutline = memo(_DocumentOutline)
 
-const SidebarEmbedOutlineItem = memo(_SidebarEmbedOutlineItem)
-function _SidebarEmbedOutlineItem({
+const SidebarEmbedOutlineItem = memo(_EmbedOutlineItem)
+function _EmbedOutlineItem({
   indented,
   id,
   blockId,
@@ -383,17 +386,17 @@ function _SidebarEmbedOutlineItem({
     ? singleBlockNode.children
     : doc?.content
   const outlineNodes = childrenNodes?.filter(
-    (node) => node.block?.type === 'heading' || node.block?.type === 'embed',
+    (node) => node.block?.type === 'Heading' || node.block?.type === 'Embed',
   )
   const canCollapse = !!outlineNodes?.length
   const destRoute = appRouteOfId(id)
   if (loadedEntity === undefined)
-    return <SidebarItem indented={indented} icon={() => <Spinner />} />
+    return <SmallListItem indented={indented} icon={() => <Spinner />} />
   if (doc)
     return (
       <>
-        <SidebarItem
-          indented={0}
+        <SmallListItem
+          indented={indented}
           title={title}
           icon={<HMIcon id={id} metadata={doc.metadata} size={20} />}
           isCollapsed={canCollapse ? collapse : undefined}
@@ -446,7 +449,7 @@ function _SidebarEmbedOutlineItem({
                 : null
             }
             nodes={outlineNodes}
-            indented={indented}
+            indented={indented + 1}
           />
         )}
       </>

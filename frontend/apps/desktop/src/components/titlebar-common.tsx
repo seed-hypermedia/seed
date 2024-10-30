@@ -1,7 +1,6 @@
 import {useAppContext} from '@/app-context'
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {useDeleteDialog} from '@/components/delete-dialog'
-import {MenuItemType, OptionsDropdown} from '@/components/options-dropdown'
 import {useMyCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useEntity} from '@/models/entities'
@@ -34,6 +33,8 @@ import {
   ColorProp,
   Forward,
   Menu,
+  MenuItemType,
+  OptionsDropdown,
   SizableText,
   TitlebarSection,
   Tooltip,
