@@ -275,9 +275,19 @@ func (n *Node) ArePrivateIPsAllowed() bool {
 	return !n.cfg.NoPrivateIps
 }
 
+// GetAccountByKeyName returns the account attached to the given named key.
+func (n *Node) GetAccountByKeyName(ctx context.Context, keyName string) (core.Principal, error) {
+	pk, err := n.keys.GetKey(ctx, keyName)
+	if err != nil {
+		return nil, fmt.Errorf("Can't get account for this device: %w", err)
+	}
+	return pk.PublicKey.Principal(), nil
+}
+
 // AccountForDevice returns the linked AccountID of a given device.
 func (n *Node) AccountForDevice(ctx context.Context, pid peer.ID) (core.Principal, error) {
-	// TODO(hm24): How to know the public key of other peers?
+	// TODO(hm24): When we have contacts we can do it.
+	return nil, fmt.Errorf("Not ready until we have contacts. Use GetAccountByKeyName instead")
 	if n.p2p.Network().LocalPeer() == pid {
 		pk, err := n.keys.GetKey(ctx, "main")
 		if err != nil {

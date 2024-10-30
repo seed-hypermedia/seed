@@ -155,7 +155,7 @@ func (srv *Service) P2PInvoiceRequest(ctx context.Context, account core.Principa
 }
 
 // CreateWallet creates a seed wallet from a set of mnemonic words. (usually the same as the
-// account). If the account was set with a password, then the same password has to be inserted here
+// account). If the account was set with a password, then the same password has to be inserted here.
 func (srv *Service) CreateWallet(ctx context.Context, mnemonics []string, passphrase string, name string) (ret wallet.Wallet, err error) {
 	kp, err := core.AccountFromMnemonic(mnemonics, passphrase)
 	if err != nil {
@@ -265,7 +265,7 @@ func (srv *Service) InsertWallet(ctx context.Context, credentialsURL, name, acco
 // ListWallets returns all the wallets available in the database. If includeBalance is true, then
 // ListWallets will also include the balance one every lndhub-like wallet. If false,then the call
 // is quicker but no balance information will appear. If account is not blank, it will return only
-// wallets from that account
+// wallets from that account.
 func (srv *Service) ListWallets(ctx context.Context, account string, includeBalance bool) ([]wallet.Wallet, error) {
 	conn, release, err := srv.pool.Conn(ctx)
 	if err != nil {
