@@ -266,7 +266,11 @@ function NewsSiteHeaderLink({result}: {result: HMDocumentListItem}) {
     key: "document",
     id: hmId("d", result.account, {path: result.path}),
   });
-  return <SizableText {...linkProps}>{result.metadata.name}</SizableText>;
+  return (
+    <SizableText fontWeight="bold" color="$color9" {...linkProps}>
+      {result.metadata.name}
+    </SizableText>
+  );
 }
 
 export function DefaultSiteHeader({
