@@ -48,8 +48,53 @@ export function CollaboratorsPanel({
   return (
     <AccessoryContainer title="Collaborators" onClose={onClose}>
       <AddCollaboratorForm id={route.id} />
+      <PublisherCollaborator id={route.id} />
       <CollaboratorsList id={route.id} />
     </AccessoryContainer>
+  )
+}
+
+function PublisherCollaborator({id}: {id?: UnpackedHypermediaId}) {
+  console.log(`== ~ PublisherCollaborator ~ id:`, id)
+  const navigate = useNavigate('push')
+  const pubId = id ? hmId('d', id.uid) : null
+  const entity = useEntity(pubId)
+
+  console.log(`== ~ PublisherCollaborator ~ entity:`, entity.data?.document)
+
+  if (!id || !entity.data) return null
+
+  return (
+    <YStack marginHorizontal={-8}>
+      <ListItem
+        bg="$colorTransparent"
+        hoverTheme
+        pressTheme
+        focusTheme
+        outlineColor="transparent"
+        hoverStyle={{backgroundColor: '$color7'}}
+        borderRadius="$2"
+        paddingHorizontal="$3"
+        paddingVertical={0}
+        icon={
+          <HMIcon
+            metadata={entity.data?.document?.metadata}
+            id={id?.uid}
+            size={24}
+          />
+        }
+        onPress={() => navigate({key: 'document', id})}
+      >
+        <XStack f={1} ai="center" gap="$2">
+          <SizableText size="$2" f={1}>
+            {getDocumentTitle(entity.data?.document)}
+          </SizableText>
+          <SizableText size="$1" color="$color9">
+            Publisher
+          </SizableText>
+        </XStack>
+      </ListItem>
+    </YStack>
   )
 }
 
@@ -60,7 +105,7 @@ type SearchResult = {
 }
 
 function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
-  const myCapability = useMyCapability(id, 'admin')
+  const myCapability = useMyCapability(id)
   const addCapabilities = useAddCapabilities(id)
   const [selectedCollaborators, setSelectedCollaborators] = useState<
     SearchResult[]
