@@ -22,7 +22,6 @@ import (
 	"seed/backend/syncing"
 	"seed/backend/util/cleanup"
 	"seed/backend/util/future"
-	"seed/backend/wallet"
 
 	"seed/backend/util/sqlite/sqlitex"
 
@@ -60,7 +59,6 @@ type App struct {
 	Net          *mttnet.Node
 	Syncing      *syncing.Service
 	Index        *blob.Index
-	Wallet       *wallet.Service
 }
 
 type options struct {
@@ -175,12 +173,11 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 		return nil, err
 	}
 	activitySrv.SetSyncer(a.Syncing)
-	a.Wallet = wallet.New(ctx, logging.New("seed/wallet", cfg.LogLevel), a.Storage.DB(), a.Net, cfg.Lndhub.Mainnet)
 
 	a.GRPCServer, a.GRPCListener, a.RPC, err = initGRPC(ctx, cfg.GRPC.Port, &a.clean, a.g, a.Storage, a.Index, a.Net,
 		a.Syncing,
 		activitySrv,
-		cfg.LogLevel, opts.grpc)
+		cfg.LogLevel, cfg.Lndhub.Mainnet, opts.grpc)
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +198,6 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 	})
 
 	a.HTTPServer, a.HTTPListener, err = initHTTP(cfg.HTTP.Port, a.GRPCServer, &a.clean, a.g, a.Index,
-		a.Wallet,
 		fm, opts.extraHTTPHandlers...)
 	if err != nil {
 		return nil, err
@@ -378,6 +374,7 @@ func initGRPC(
 	sync *syncing.Service,
 	activity *activity.Server,
 	LogLevel string,
+	isMainnet bool,
 	opts grpcOpts,
 ) (srv *grpc.Server, lis net.Listener, rpc api.Server, err error) {
 	lis, err = net.Listen("tcp", ":"+strconv.Itoa(port))
@@ -386,7 +383,7 @@ func initGRPC(
 	}
 
 	srv = grpc.NewServer(opts.serverOptions...)
-	rpc = api.New(ctx, repo, idx, node, sync, activity, LogLevel)
+	rpc = api.New(ctx, repo, idx, node, sync, activity, LogLevel, isMainnet)
 	rpc.Register(srv)
 	reflection.Register(srv)
 

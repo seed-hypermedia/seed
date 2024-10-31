@@ -37,13 +37,13 @@ type WalletsClient interface {
 	ListWallets(ctx context.Context, in *ListWalletsRequest, opts ...grpc.CallOption) (*ListWalletsResponse, error)
 	// UpdateWalletName changes the name of the wallet. This does not have any
 	// implications on payments. Name is just for user convenience.
-	UpdateWalletName(ctx context.Context, in *UpdateWalletNameRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpdateWalletName(ctx context.Context, in *UpdateWalletNameRequest, opts ...grpc.CallOption) (*Wallet, error)
 	// GetDefaultWallet returns the default wallet where payments are going
 	// to be collected at. Also, this wallet will be used to make payments.
 	GetDefaultWallet(ctx context.Context, in *GetDefaultWalletRequest, opts ...grpc.CallOption) (*Wallet, error)
 	// SetDefaultWallet changes the default wallet where payments are going
 	// to be collected at. Also, this wallet will be used to make payments.
-	SetDefaultWallet(ctx context.Context, in *SetDefaultWalletRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	SetDefaultWallet(ctx context.Context, in *SetDefaultWalletRequest, opts ...grpc.CallOption) (*Wallet, error)
 }
 
 type walletsClient struct {
@@ -99,8 +99,8 @@ func (c *walletsClient) ListWallets(ctx context.Context, in *ListWalletsRequest,
 	return out, nil
 }
 
-func (c *walletsClient) UpdateWalletName(ctx context.Context, in *UpdateWalletNameRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *walletsClient) UpdateWalletName(ctx context.Context, in *UpdateWalletNameRequest, opts ...grpc.CallOption) (*Wallet, error) {
+	out := new(Wallet)
 	err := c.cc.Invoke(ctx, "/com.seed.payments.v1alpha.Wallets/UpdateWalletName", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -117,8 +117,8 @@ func (c *walletsClient) GetDefaultWallet(ctx context.Context, in *GetDefaultWall
 	return out, nil
 }
 
-func (c *walletsClient) SetDefaultWallet(ctx context.Context, in *SetDefaultWalletRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *walletsClient) SetDefaultWallet(ctx context.Context, in *SetDefaultWalletRequest, opts ...grpc.CallOption) (*Wallet, error) {
+	out := new(Wallet)
 	err := c.cc.Invoke(ctx, "/com.seed.payments.v1alpha.Wallets/SetDefaultWallet", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -144,13 +144,13 @@ type WalletsServer interface {
 	ListWallets(context.Context, *ListWalletsRequest) (*ListWalletsResponse, error)
 	// UpdateWalletName changes the name of the wallet. This does not have any
 	// implications on payments. Name is just for user convenience.
-	UpdateWalletName(context.Context, *UpdateWalletNameRequest) (*emptypb.Empty, error)
+	UpdateWalletName(context.Context, *UpdateWalletNameRequest) (*Wallet, error)
 	// GetDefaultWallet returns the default wallet where payments are going
 	// to be collected at. Also, this wallet will be used to make payments.
 	GetDefaultWallet(context.Context, *GetDefaultWalletRequest) (*Wallet, error)
 	// SetDefaultWallet changes the default wallet where payments are going
 	// to be collected at. Also, this wallet will be used to make payments.
-	SetDefaultWallet(context.Context, *SetDefaultWalletRequest) (*emptypb.Empty, error)
+	SetDefaultWallet(context.Context, *SetDefaultWalletRequest) (*Wallet, error)
 }
 
 // UnimplementedWalletsServer should be embedded to have forward compatible implementations.
@@ -172,13 +172,13 @@ func (UnimplementedWalletsServer) ExportWallet(context.Context, *ExportWalletReq
 func (UnimplementedWalletsServer) ListWallets(context.Context, *ListWalletsRequest) (*ListWalletsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListWallets not implemented")
 }
-func (UnimplementedWalletsServer) UpdateWalletName(context.Context, *UpdateWalletNameRequest) (*emptypb.Empty, error) {
+func (UnimplementedWalletsServer) UpdateWalletName(context.Context, *UpdateWalletNameRequest) (*Wallet, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateWalletName not implemented")
 }
 func (UnimplementedWalletsServer) GetDefaultWallet(context.Context, *GetDefaultWalletRequest) (*Wallet, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDefaultWallet not implemented")
 }
-func (UnimplementedWalletsServer) SetDefaultWallet(context.Context, *SetDefaultWalletRequest) (*emptypb.Empty, error) {
+func (UnimplementedWalletsServer) SetDefaultWallet(context.Context, *SetDefaultWalletRequest) (*Wallet, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetDefaultWallet not implemented")
 }
 

@@ -28,7 +28,7 @@ service Wallets {
 
   // UpdateWalletName changes the name of the wallet. This does not have any
   // implications on payments. Name is just for user convenience. 
-  rpc UpdateWalletName(UpdateWalletNameRequest) returns (google.protobuf.Empty);
+  rpc UpdateWalletName(UpdateWalletNameRequest) returns (Wallet);
 
   // GetDefaultWallet returns the default wallet where payments are going
   // to be collected at. Also, this wallet will be used to make payments.
@@ -36,7 +36,7 @@ service Wallets {
 
   // SetDefaultWallet changes the default wallet where payments are going 
   // to be collected at. Also, this wallet will be used to make payments.
-  rpc SetDefaultWallet(SetDefaultWalletRequest) returns (google.protobuf.Empty);
+  rpc SetDefaultWallet(SetDefaultWalletRequest) returns (Wallet);
 }
 
 
@@ -59,7 +59,7 @@ message Wallet {
   string type = 5;
 
   // TBalance in satoshis of the wallet.
-  int64 balance = 6;
+  uint64 balance = 6;
 }
 
 // The request to create a wallet.
@@ -103,6 +103,9 @@ message ExportWalletResponse{
 message ListWalletsRequest {
   // Required. Account to list wallets from.
   string account = 1;
+
+  // Optional. Wheter or not including balance (It takes longer)
+  bool include_balance = 2;
 }
 
 // All the wallets under a certain account.

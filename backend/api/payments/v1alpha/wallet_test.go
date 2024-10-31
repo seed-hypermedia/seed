@@ -1,4 +1,4 @@
-package wallet
+package payments
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"seed/backend/config"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
+	payments "seed/backend/genproto/payments/v1alpha"
 	"seed/backend/lndhub"
 	"seed/backend/lndhub/lndhubsql"
 	"seed/backend/logging"
@@ -14,7 +15,6 @@ import (
 	"seed/backend/storage"
 	"seed/backend/testutil"
 	"seed/backend/util/future"
-	"seed/backend/wallet/walletsql"
 	"testing"
 	"time"
 
@@ -29,33 +29,34 @@ var testMnemonic2 = []string{"hill", "february", "mule", "horse", "rose", "ten",
 
 func TestModifyWallets(t *testing.T) {
 	testutil.Manual(t)
-	var err error
-	var defaultWallet walletsql.Wallet
 	ctx := context.Background()
 	alice := makeTestService(t, "alice")
-	seedWallet, err := alice.CreateWallet(ctx, testMnemonic, "", "myWallet")
+	seedWallet, err := alice.CreateWallet(ctx, &payments.CreateWalletRequest{
+		Mnemonics: testMnemonic,
+		Name:      "myWallet",
+	})
 	require.NoError(t, err)
-	defaultWallet, err = alice.GetDefaultWallet(ctx, seedWallet.Account)
+	defaultWallet, err := alice.GetDefaultWallet(ctx, &payments.GetDefaultWalletRequest{Account: seedWallet.Account})
 	require.NoError(t, err)
 	require.Equal(t, seedWallet, defaultWallet)
 	require.Eventually(t, func() bool {
 		conn, release, err := alice.pool.Conn(ctx)
 		require.NoError(t, err)
 		defer release()
-		_, err = lndhubsql.GetToken(conn, defaultWallet.ID)
+		_, err = lndhubsql.GetToken(conn, defaultWallet.Id)
 		return err == nil
 	}, 3*time.Second, 1*time.Second)
 	require.EqualValues(t, lndhubsql.LndhubGoWalletType, defaultWallet.Type)
-	err = alice.DeleteWallet(ctx, defaultWallet.ID)
+	_, err = alice.RemoveWallet(ctx, &payments.RemoveWalletRequest{Id: defaultWallet.Id})
 	require.Error(t, err)
 	const newName = "new wallet name"
-	_, err = alice.UpdateWalletName(ctx, defaultWallet.ID, newName)
+	_, err = alice.UpdateWalletName(ctx, &payments.UpdateWalletNameRequest{Id: defaultWallet.Id, Name: newName})
 	require.NoError(t, err)
 
-	wallets, err := alice.ListWallets(ctx, seedWallet.Account, true)
+	wallets, err := alice.ListWallets(ctx, &payments.ListWalletsRequest{Account: seedWallet.Account, IncludeBalance: true})
 	require.NoError(t, err)
-	require.EqualValues(t, 1, len(wallets))
-	require.EqualValues(t, newName, wallets[0].Name)
+	require.EqualValues(t, 1, len(wallets.Wallets))
+	require.EqualValues(t, newName, wallets.Wallets[0].Name)
 }
 
 func TestRequestLndHubInvoice(t *testing.T) {
@@ -66,19 +67,19 @@ func TestRequestLndHubInvoice(t *testing.T) {
 	bobKp, err := core.AccountFromMnemonic(testMnemonic2, "")
 	bobAcc := bobKp.Principal().String()
 	require.NoError(t, err)
-	alicesWallet, err := alice.CreateWallet(ctx, testMnemonic, "", "myWallet")
+	alicesWallet, err := alice.CreateWallet(ctx, &payments.CreateWalletRequest{Mnemonics: testMnemonic, Name: "myWallet"})
 	require.NoError(t, err)
-	defaultWallet, err := alice.GetDefaultWallet(ctx, alicesWallet.Account)
+	defaultWallet, err := alice.GetDefaultWallet(ctx, &payments.GetDefaultWalletRequest{Account: alicesWallet.Account})
 	require.NoError(t, err)
 	require.Equal(t, alicesWallet, defaultWallet)
-	_, err = alice.ExportWallet(ctx, alicesWallet.ID)
+	_, err = alice.ExportWallet(ctx, &payments.ExportWalletRequest{Id: alicesWallet.Id})
 	require.NoError(t, err)
 
 	login, err := bobKp.Sign([]byte(lndhub.SigningMessage))
 	require.NoError(t, err)
 
 	uri := "lndhub.go://" + bobAcc + ":" + hex.EncodeToString(login) + "@https://ln.testnet.mintter.com"
-	bobsWallet, err := bob.InsertWallet(ctx, uri, "default", bobAcc)
+	bobsWallet, err := bob.ImportWallet(ctx, &payments.ImportWalletRequest{CredentialsUrl: uri, Account: bobAcc, Name: "default"})
 	require.NoError(t, err)
 
 	var amt uint64 = 23
@@ -87,14 +88,14 @@ func TestRequestLndHubInvoice(t *testing.T) {
 
 	var payreq string
 
-	defaultWallet, err = bob.GetDefaultWallet(ctx, bobAcc)
+	defaultWallet, err = bob.GetDefaultWallet(ctx, &payments.GetDefaultWalletRequest{Account: bobAcc})
 	require.NoError(t, err)
 	require.Equal(t, bobsWallet, defaultWallet)
 	require.Eventually(t, func() bool {
 		conn, release, err := bob.pool.Conn(ctx)
 		require.NoError(t, err)
 		defer release()
-		_, err = lndhubsql.GetToken(conn, defaultWallet.ID)
+		_, err = lndhubsql.GetToken(conn, defaultWallet.Id)
 		return err == nil
 	}, 3*time.Second, 1*time.Second)
 
@@ -123,7 +124,7 @@ func TestRequestP2PInvoice(t *testing.T) {
 	bobAccount, err := bob.net.GetAccountByKeyName(ctx, "main")
 	require.NoError(t, err)
 	require.NoError(t, alice.net.Connect(ctx, bob.net.AddrInfo()))
-	defaultWallet, err := bob.GetDefaultWallet(ctx, bobAccount.String())
+	defaultWallet, err := bob.GetDefaultWallet(ctx, &payments.GetDefaultWalletRequest{Account: bobAccount.String()})
 	require.NoError(t, err)
 
 	var amt uint64 = 23
@@ -144,7 +145,7 @@ func TestRequestP2PInvoice(t *testing.T) {
 	require.ErrorIs(t, err, lndhubsql.ErrNotEnoughBalance)
 }
 
-func makeTestService(t *testing.T, name string) *Service {
+func makeTestService(t *testing.T, name string) *Server {
 	u := coretest.NewTester(name)
 	db := storage.MakeTestMemoryDB(t)
 	device := u.Device
@@ -166,9 +167,7 @@ func makeTestService(t *testing.T, name string) *Service {
 
 	t.Cleanup(cancel)
 
-	srv := New(ctx, logging.New("seed/wallet", "debug"), db, node, false)
-
-	return srv
+	return NewServer(ctx, logging.New("seed/wallet", "debug"), db, node, false)
 }
 
 func makeTestPeer(t *testing.T, u coretest.Tester, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool) (*mttnet.Node, context.CancelFunc) {

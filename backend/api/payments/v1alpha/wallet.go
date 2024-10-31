@@ -1,4 +1,4 @@
-package wallet
+package payments
 
 import (
 	"context"
@@ -9,17 +9,19 @@ import (
 	"net/http"
 	"regexp"
 	"seed/backend/core"
+	payments "seed/backend/genproto/payments/v1alpha"
 	"seed/backend/lndhub"
 	"seed/backend/lndhub/lndhubsql"
 	"seed/backend/mttnet"
 	"seed/backend/wallet/walletsql"
-	wallet "seed/backend/wallet/walletsql"
 	"strings"
 
 	"seed/backend/util/sqlite/sqlitex"
 
 	"github.com/ipfs/go-cid"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 var (
@@ -31,8 +33,8 @@ var (
 // AccountID is a handy alias of Cid.
 type AccountID = cid.Cid
 
-// Service wraps everything necessary to deliver a wallet service.
-type Service struct {
+// Server wraps everything necessary to deliver a wallet service.
+type Server struct {
 	lightningClient lnclient
 	pool            *sqlitex.Pool
 	net             *mttnet.Node
@@ -51,7 +53,7 @@ type Credentials struct {
 // New is the constructor of the wallet service. Since it needs to authenticate to the internal wallet provider (lndhub)
 // it may take time in case node is offline. This is why it's initialized in a gorutine and calls to the service functions
 // will fail until the initial wallet is successfully initialized.
-func New(ctx context.Context, log *zap.Logger, db *sqlitex.Pool, net *mttnet.Node, mainnet bool) *Service {
+func NewServer(ctx context.Context, log *zap.Logger, db *sqlitex.Pool, net *mttnet.Node, mainnet bool) *Server {
 	lndhubDomain := "ln.testnet.mintter.com"
 	lnaddressDomain := "ln.testnet.mintter.com"
 	if mainnet {
@@ -59,7 +61,7 @@ func New(ctx context.Context, log *zap.Logger, db *sqlitex.Pool, net *mttnet.Nod
 		lndhubDomain = "ln.mintter.com"
 		lnaddressDomain = "ln.mintter.com"
 	}
-	srv := &Service{
+	srv := &Server{
 		pool: db,
 		lightningClient: lnclient{
 			Lndhub: lndhub.NewClient(ctx, &http.Client{}, db, lndhubDomain, lnaddressDomain),
@@ -84,13 +86,18 @@ type InvoiceRequest struct {
 	PreimageHash []byte `help:"Preimage hash of the requested hold invoice. If HoldInvoice flag is set to false this field is skipped" default:""`
 }
 
+// RegisterServer registers the server with the gRPC server.
+func (srv *Server) RegisterServer(rpc grpc.ServiceRegistrar) {
+	payments.RegisterWalletsServer(rpc, srv)
+}
+
 // P2PInvoiceRequest requests a remote account to issue an invoice so we can pay it.
 // Any of the devices associated with the remote account can issue it. For each
 // associated device we found online ,we ask if it can provide an invoice.
 // If for some reason, that device cannot create the invoice (insufficient
 // inbound liquidity) we ask the next device. We return in the first device that
 // can issue the invoice. If none of them can, then an error is raised.
-func (srv *Service) P2PInvoiceRequest(ctx context.Context, account core.Principal, request InvoiceRequest) (string, error) {
+func (srv *Server) P2PInvoiceRequest(ctx context.Context, account core.Principal, request InvoiceRequest) (string, error) {
 	return "", fmt.Errorf("Hm-24. Not implemented")
 
 	/*
@@ -156,8 +163,8 @@ func (srv *Service) P2PInvoiceRequest(ctx context.Context, account core.Principa
 
 // CreateWallet creates a seed wallet from a set of mnemonic words. (usually the same as the
 // account). If the account was set with a password, then the same password has to be inserted here.
-func (srv *Service) CreateWallet(ctx context.Context, mnemonics []string, passphrase string, name string) (ret wallet.Wallet, err error) {
-	kp, err := core.AccountFromMnemonic(mnemonics, passphrase)
+func (srv *Server) CreateWallet(ctx context.Context, in *payments.CreateWalletRequest) (ret *payments.Wallet, err error) {
+	kp, err := core.AccountFromMnemonic(in.Mnemonics, in.Password)
 	if err != nil {
 		return ret, fmt.Errorf("Provided mnemonics lead to a non valid or non existing account: %w", err)
 	}
@@ -177,16 +184,21 @@ func (srv *Service) CreateWallet(ctx context.Context, mnemonics []string, passph
 	if err != nil {
 		return ret, fmt.Errorf("Error generating credentials: %w", err)
 	}
-	return srv.InsertWallet(ctx, credentialsURL, name, creds.Login)
+	return srv.ImportWallet(ctx, &payments.ImportWalletRequest{
+		CredentialsUrl: credentialsURL,
+		Account:        creds.Login,
+		Name:           in.Name,
+	})
 
 }
 
-// InsertWallet first tries to connect to the wallet with the provided credentials. On
+// ImportWallet first tries to connect to the wallet with the provided credentials. On
 // success, gets the wallet balance and inserts all that information in the database.
-// InsertWallet returns the wallet actually inserted on success. The credentials are stored
+// ImportWallet returns the wallet actually inserted on success. The credentials are stored
 // in plain text at the moment.
-func (srv *Service) InsertWallet(ctx context.Context, credentialsURL, name, account string) (ret wallet.Wallet, err error) {
-	creds, err := DecodeCredentialsURL(credentialsURL)
+func (srv *Server) ImportWallet(ctx context.Context, in *payments.ImportWalletRequest) (*payments.Wallet, error) {
+	ret := &payments.Wallet{}
+	creds, err := DecodeCredentialsURL(in.CredentialsUrl)
 	if err != nil {
 		srv.log.Debug(err.Error())
 		return ret, err
@@ -198,15 +210,15 @@ func (srv *Service) InsertWallet(ctx context.Context, credentialsURL, name, acco
 		return ret, err
 	}
 
-	principal, err := core.DecodePrincipal(account)
+	principal, err := core.DecodePrincipal(in.Account)
 	if err != nil {
-		return ret, fmt.Errorf("Wrong account %s: %w", account, err)
+		return ret, fmt.Errorf("Wrong account %s: %w", in.Account, err)
 	}
 	_, bynaryAcc := principal.Explode()
 	if err != nil {
 		return ret, fmt.Errorf("Problem getting bytes from public key %s: %w", principal.String(), err)
 	}
-	ret.ID = URL2Id(credentialsURL, account)
+	ret.Id = URL2Id(in.CredentialsUrl, in.Account)
 
 	conn, release, err := srv.pool.Conn(ctx)
 	if err != nil {
@@ -216,47 +228,60 @@ func (srv *Service) InsertWallet(ctx context.Context, credentialsURL, name, acco
 
 	ret.Type = creds.WalletType
 	ret.Address = "https://" + creds.Domain
-	ret.Name = name
-	ret.Account = account
+	ret.Name = in.Name
+	ret.Account = in.Account
 	if creds.WalletType == lndhubsql.LndhubGoWalletType {
 		// Only one lndhub.go wallet is allowed
-		wallets, err := srv.ListWallets(ctx, account, false)
+		wallets, err := srv.ListWallets(ctx, &payments.ListWalletsRequest{Account: in.Account})
 		if err != nil {
 			srv.log.Debug(err.Error())
 			return ret, err
 		}
-		for i := 0; i < len(wallets); i++ {
-			if wallets[i].Type == lndhubsql.LndhubGoWalletType && wallets[i].Account == account {
+		for i := 0; i < len(wallets.Wallets); i++ {
+			if wallets.Wallets[i].Type == lndhubsql.LndhubGoWalletType && wallets.Wallets[i].Account == in.Account {
 				err = fmt.Errorf("Only one type of %s wallet is allowed per account: %w", lndhubsql.LndhubGoWalletType, errAlreadyLndhubgoWallet)
 				srv.log.Debug(err.Error())
-				return wallets[i], err
+				return ret, err
 			}
 		}
 		if creds.Nickname == "" {
 			creds.Nickname = creds.Login
 		}
-		newWallet, err := srv.lightningClient.Lndhub.Create(ctx, ret.Address, ret.ID, creds.Login, creds.Password, creds.Nickname, bynaryAcc)
+		newWallet, err := srv.lightningClient.Lndhub.Create(ctx, ret.Address, ret.Id, creds.Login, creds.Password, creds.Nickname, bynaryAcc)
 		if err != nil {
 			srv.log.Warn("couldn't insert wallet", zap.String("Login", creds.Login), zap.String("Nickname", creds.Nickname), zap.Error(err))
 			return ret, err
 		}
 		creds.Nickname = newWallet.Nickname
 	}
-
-	if err = wallet.InsertWallet(conn, ret, []byte(creds.Login), []byte(creds.Password), bynaryAcc); err != nil {
+	wallet2insert := walletsql.Wallet{
+		ID:      ret.Id,
+		Account: ret.Account,
+		Address: ret.Address,
+		Name:    ret.Name,
+		Type:    ret.Type,
+		Balance: int64(ret.Balance),
+	}
+	if err = walletsql.InsertWallet(conn, wallet2insert, []byte(creds.Login), []byte(creds.Password), bynaryAcc); err != nil {
 		srv.log.Debug("couldn't insert wallet", zap.String("msg", err.Error()))
 		if errors.Is(err, walletsql.ErrDuplicateIndex) {
-			return ret, fmt.Errorf("couldn't insert wallet %s in the database. ID already exists", name)
+			return ret, fmt.Errorf("couldn't insert wallet %s in the database. ID already exists", in.Name)
 		}
-		return ret, fmt.Errorf("couldn't insert wallet %s in the database", name)
+		return ret, fmt.Errorf("couldn't insert wallet %s in the database", in.Name)
 	}
 
 	// Trying to authenticate with the provided credentials
-	_, err = srv.lightningClient.Lndhub.Auth(ctx, ret.ID)
+	_, err = srv.lightningClient.Lndhub.Auth(ctx, ret.Id)
 	if err != nil {
-		_ = wallet.RemoveWallet(conn, ret.ID)
+		_ = walletsql.RemoveWallet(conn, ret.Id)
 		srv.log.Warn("couldn't authenticate new wallet", zap.String("msg", err.Error()))
-		return ret, fmt.Errorf("couldn't authenticate new wallet %s", name)
+		return ret, fmt.Errorf("couldn't authenticate new wallet %s", in.Name)
+	}
+	ret.Balance, err = srv.lightningClient.Lndhub.GetBalance(ctx, ret.Id)
+	if err != nil {
+		_ = walletsql.RemoveWallet(conn, ret.Id)
+		srv.log.Warn("couldn't get balance on new wallet", zap.String("msg", err.Error()))
+		return ret, fmt.Errorf("couldn't get balance on new wallet %s", in.Name)
 	}
 
 	return ret, err
@@ -266,65 +291,80 @@ func (srv *Service) InsertWallet(ctx context.Context, credentialsURL, name, acco
 // ListWallets will also include the balance one every lndhub-like wallet. If false,then the call
 // is quicker but no balance information will appear. If account is not blank, it will return only
 // wallets from that account.
-func (srv *Service) ListWallets(ctx context.Context, account string, includeBalance bool) ([]wallet.Wallet, error) {
+func (srv *Server) ListWallets(ctx context.Context, in *payments.ListWalletsRequest) (*payments.ListWalletsResponse, error) {
+	ret := &payments.ListWalletsResponse{Wallets: []*payments.Wallet{}}
 	conn, release, err := srv.pool.Conn(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer release()
 
-	wallets, err := wallet.ListWallets(conn, account, -1)
+	wallets, err := walletsql.ListWallets(conn, in.Account, -1)
 	if err != nil {
 		srv.log.Debug("couldn't list wallets", zap.String("msg", err.Error()))
 		return nil, fmt.Errorf("couldn't list wallets")
 	}
 	for i, w := range wallets {
-		if includeBalance && (strings.ToLower(w.Type) == lndhubsql.LndhubWalletType || strings.ToLower(w.Type) == lndhubsql.LndhubGoWalletType) {
+		ret.Wallets = append(ret.Wallets, &payments.Wallet{
+			Id:      w.ID,
+			Account: w.Account,
+			Address: w.Address,
+			Name:    w.Name,
+			Type:    w.Type,
+		})
+		if in.IncludeBalance && (strings.ToLower(w.Type) == lndhubsql.LndhubWalletType || strings.ToLower(w.Type) == lndhubsql.LndhubGoWalletType) {
 			balance, err := srv.lightningClient.Lndhub.GetBalance(ctx, w.ID)
 			if err != nil {
 				srv.log.Debug("couldn't get balance", zap.String("wallet", w.Name), zap.String("error", err.Error()))
 				return nil, fmt.Errorf("couldn't get balance from wallet %s", w.Name)
 			}
-			wallets[i].Balance = int64(balance)
+			ret.Wallets[i].Balance = balance
 		}
 	}
-	return wallets, nil
+	return ret, nil
 }
 
-// DeleteWallet removes the wallet given a valid ID string representing
+// RemoveWallet deletes the wallet given a valid ID string representing
 // the url hash in case of Lndhub-type wallet or the pubkey in case of LND.
 // If the removed wallet was the default wallet, a random wallet will be
 // chosen as new default. Although it is advised that the user manually
 // changes the default wallet after removing the previous default.
-func (srv *Service) DeleteWallet(ctx context.Context, walletID string) error {
+func (srv *Server) RemoveWallet(ctx context.Context, in *payments.RemoveWalletRequest) (*emptypb.Empty, error) {
 	conn, release, err := srv.pool.Conn(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer release()
 
-	if err := wallet.RemoveWallet(conn, walletID); err != nil {
-		return fmt.Errorf("couldn't remove wallet %s", walletID)
+	if err := walletsql.RemoveWallet(conn, in.Id); err != nil {
+		return nil, fmt.Errorf("couldn't remove wallet %s", in.Id)
 	}
 	// TODO: remove associated token db entries
-	return nil
+	return nil, nil
 }
 
 // UpdateWalletName updates an existing wallet's name with the one provided.
 // If the wallet represented by the id id does not exist, this function
 // returns error. nil otherwise, along with the updated wallet.
-func (srv *Service) UpdateWalletName(ctx context.Context, walletID string, newName string) (ret wallet.Wallet, err error) {
+func (srv *Server) UpdateWalletName(ctx context.Context, in *payments.UpdateWalletNameRequest) (*payments.Wallet, error) {
+	ret := &payments.Wallet{}
 	conn, release, err := srv.pool.Conn(ctx)
 	if err != nil {
 		return ret, err
 	}
 	defer release()
 
-	if ret, err = wallet.UpdateWalletName(conn, walletID, newName); err != nil {
+	updatedWallet, err := walletsql.UpdateWalletName(conn, in.Id, in.Name)
+	if err != nil {
 		srv.log.Debug("couldn't update wallet", zap.String("msg", err.Error()))
-		return ret, fmt.Errorf("couldn't update wallet %s", walletID)
+		return ret, fmt.Errorf("couldn't update wallet %s", in.Id)
 	}
-
+	ret.Account = updatedWallet.Account
+	ret.Address = updatedWallet.Address
+	ret.Balance = uint64(updatedWallet.Balance)
+	ret.Id = updatedWallet.ID
+	ret.Name = updatedWallet.Name
+	ret.Type = updatedWallet.Type
 	return ret, nil
 }
 
@@ -332,18 +372,25 @@ func (srv *Service) UpdateWalletName(ctx context.Context, walletID string, newNa
 // Previous default wallet is replaced by the new one so only one can be
 // the default at any given time. The default wallet is the first wallet ever
 // created until manually changed.
-func (srv *Service) SetDefaultWallet(ctx context.Context, account, walletID string) (ret wallet.Wallet, err error) {
+func (srv *Server) SetDefaultWallet(ctx context.Context, in *payments.SetDefaultWalletRequest) (*payments.Wallet, error) {
+	ret := &payments.Wallet{}
 	conn, release, err := srv.pool.Conn(ctx)
 	if err != nil {
 		return ret, err
 	}
 	defer release()
 
-	ret, err = wallet.UpdateDefaultWallet(conn, account, walletID)
+	updatedWallet, err := walletsql.UpdateDefaultWallet(conn, in.Account, in.Id)
 	if err != nil {
 		srv.log.Warn("couldn't set default wallet: " + err.Error())
 		return ret, err
 	}
+	ret.Account = updatedWallet.Account
+	ret.Address = updatedWallet.Address
+	ret.Balance = uint64(updatedWallet.Balance)
+	ret.Id = updatedWallet.ID
+	ret.Name = updatedWallet.Name
+	ret.Type = updatedWallet.Type
 	return ret, err
 }
 
@@ -352,38 +399,38 @@ func (srv *Service) SetDefaultWallet(ctx context.Context, account, walletID stri
 // <wallet_type>://<alphanumeric_login>:<alphanumeric_password>@https://<domain>
 // lndhub://c227a7fb5c71a22fac33:d2a48ab779aa1b02e858@https://lndhub.io
 // If the ID is empty, then the builtin wallet is exported.
-func (srv *Service) ExportWallet(ctx context.Context, walletID string) (string, error) {
+func (srv *Server) ExportWallet(ctx context.Context, in *payments.ExportWalletRequest) (*payments.ExportWalletResponse, error) {
+	ret := &payments.ExportWalletResponse{}
 	conn, release, err := srv.pool.Conn(ctx)
 	if err != nil {
-		return "", err
+		return ret, err
 	}
 	defer release()
-	var uri string
-	if walletID == "" {
-		return "", fmt.Errorf("Wallet ID cannot be empty")
+	if in.Id == "" {
+		return ret, fmt.Errorf("Wallet ID cannot be empty")
 	}
-	login, err := lndhubsql.GetLogin(conn, walletID)
+	login, err := lndhubsql.GetLogin(conn, in.Id)
 	if err != nil {
 		srv.log.Debug(err.Error())
-		return "", err
+		return ret, err
 	}
-	password, err := lndhubsql.GetPassword(conn, walletID)
+	password, err := lndhubsql.GetPassword(conn, in.Id)
 	if err != nil {
 		srv.log.Debug(err.Error())
-		return "", err
+		return ret, err
 	}
-	url, err := lndhubsql.GetAPIURL(conn, walletID)
+	url, err := lndhubsql.GetAPIURL(conn, in.Id)
 	if err != nil {
 		srv.log.Debug(err.Error())
-		return "", err
+		return ret, err
 	}
 	splitURL := strings.Split(url, "//")
 	if len(splitURL) != 2 {
 		err = fmt.Errorf("Could not export wallet, unexpected url format [%s]", url)
 		srv.log.Debug(err.Error())
-		return "", err
+		return ret, err
 	}
-	uri, err = EncodeCredentialsURL(Credentials{
+	ret.Credentials, err = EncodeCredentialsURL(Credentials{
 		Domain:     splitURL[1],
 		WalletType: lndhubsql.LndhubWalletType,
 		Login:      login,
@@ -392,22 +439,22 @@ func (srv *Service) ExportWallet(ctx context.Context, walletID string) (string, 
 
 	if err != nil {
 		srv.log.Debug("couldn't encode uri: " + err.Error())
-		return "", err
+		return ret, err
 	}
-	return uri, nil
+	return ret, nil
 }
 
 // UpdateLnaddressNickname updates nickname on the lndhub.go database
 // The update can fail if the nickname contain special characters or is already taken by another user.
 // Since it is a user operation, if the login is a CID, then user must provide a token representing
 // the pubkey whose private counterpart created the signature provided in password (like in create).
-func (srv *Service) UpdateLnaddressNickname(ctx context.Context, nickname, walletID string) error {
+func (srv *Server) UpdateLnaddressNickname(ctx context.Context, nickname, walletID string) error {
 	conn, release, err := srv.pool.Conn(ctx)
 	if err != nil {
 		return err
 	}
 	defer release()
-	w, err := wallet.GetWallet(conn, walletID)
+	w, err := walletsql.GetWallet(conn, walletID)
 	if err != nil {
 		return fmt.Errorf("Can't get wallet with ID %s: %w", walletID, err)
 	}
@@ -434,30 +481,37 @@ func (srv *Service) UpdateLnaddressNickname(ctx context.Context, nickname, walle
 // GetDefaultWallet gets the user's default wallet. If the user didn't manually
 // update the default wallet, then the first wallet ever created is the default
 // wallet. It will remain default until manually changed.
-func (srv *Service) GetDefaultWallet(ctx context.Context, account string) (ret wallet.Wallet, err error) {
+func (srv *Server) GetDefaultWallet(ctx context.Context, in *payments.GetDefaultWalletRequest) (*payments.Wallet, error) {
+	ret := &payments.Wallet{}
 	conn, release, err := srv.pool.Conn(ctx)
 	if err != nil {
 		return ret, err
 	}
 	defer release()
 
-	w, err := wallet.GetDefaultWallet(conn, account)
+	w, err := walletsql.GetDefaultWallet(conn, in.Account)
 	if err != nil {
 		srv.log.Debug("couldn't getDefaultWallet: " + err.Error())
-		return wallet.Wallet{}, err
+		return ret, err
 	}
-	return w, nil
+	ret.Account = w.Account
+	ret.Address = w.Address
+	ret.Balance = uint64(w.Balance)
+	ret.Id = w.ID
+	ret.Name = w.Name
+	ret.Type = w.Type
+	return ret, nil
 }
 
 // ListPaidInvoices returns the invoices that the wallet represented by walletID has paid.
-func (srv *Service) ListPaidInvoices(ctx context.Context, walletID string) ([]lndhub.Invoice, error) {
+func (srv *Server) ListPaidInvoices(ctx context.Context, walletID string) ([]lndhub.Invoice, error) {
 	conn, release, err := srv.pool.Conn(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer release()
 
-	w, err := wallet.GetWallet(conn, walletID)
+	w, err := walletsql.GetWallet(conn, walletID)
 	if err != nil {
 		srv.log.Debug("couldn't list wallets: " + err.Error())
 		return nil, fmt.Errorf("couldn't list wallets")
@@ -476,14 +530,14 @@ func (srv *Service) ListPaidInvoices(ctx context.Context, walletID string) ([]ln
 }
 
 // ListReceivednvoices returns the incoming invoices that the wallet represented by walletID has received.
-func (srv *Service) ListReceivednvoices(ctx context.Context, walletID string) ([]lndhub.Invoice, error) {
+func (srv *Server) ListReceivednvoices(ctx context.Context, walletID string) ([]lndhub.Invoice, error) {
 	conn, release, err := srv.pool.Conn(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer release()
 
-	w, err := wallet.GetWallet(conn, walletID)
+	w, err := walletsql.GetWallet(conn, walletID)
 	if err != nil {
 		srv.log.Debug("couldn't list wallets: " + err.Error())
 		return nil, fmt.Errorf("couldn't list wallets: %w", err)
@@ -504,7 +558,7 @@ func (srv *Service) ListReceivednvoices(ctx context.Context, walletID string) ([
 // RequestLud6Invoice asks a remote peer to issue an invoice. The remote user can be either a lnaddres or a Seed account ID
 // First an lndhub invoice request is attempted. If it fails, then a P2P its used to transmit the invoice. In that case,
 // Any of the devices associated with the accountID can issue the invoice. The memo field is optional and can be left nil.
-func (srv *Service) RequestLud6Invoice(ctx context.Context, remoteURL, remoteUser string, amountSats int64, memo *string) (string, error) {
+func (srv *Server) RequestLud6Invoice(ctx context.Context, remoteURL, remoteUser string, amountSats int64, memo *string) (string, error) {
 	invoiceMemo := ""
 	if memo != nil {
 		invoiceMemo = *memo
@@ -538,13 +592,13 @@ func (srv *Service) RequestLud6Invoice(ctx context.Context, remoteURL, remoteUse
 }
 
 // CreateLocalInvoice tries to generate an invoice locally from the default wallet The memo field is optional and can be left nil.
-func (srv *Service) CreateLocalInvoice(ctx context.Context, account string, amountSats int64, memo *string) (string, error) {
+func (srv *Server) CreateLocalInvoice(ctx context.Context, account string, amountSats int64, memo *string) (string, error) {
 	invoiceMemo := ""
 	if memo != nil {
 		invoiceMemo = *memo
 	}
 
-	defaultWallet, err := srv.GetDefaultWallet(ctx, account)
+	defaultWallet, err := srv.GetDefaultWallet(ctx, &payments.GetDefaultWalletRequest{Account: account})
 	if err != nil {
 		return "", fmt.Errorf("could not get default wallet to ask for a local invoice")
 	}
@@ -554,7 +608,7 @@ func (srv *Service) CreateLocalInvoice(ctx context.Context, account string, amou
 		srv.log.Debug("couldn't create local invoice: " + err.Error())
 		return "", err
 	}
-	payreq, err := srv.lightningClient.Lndhub.CreateLocalInvoice(ctx, defaultWallet.ID, amountSats, invoiceMemo)
+	payreq, err := srv.lightningClient.Lndhub.CreateLocalInvoice(ctx, defaultWallet.Id, amountSats, invoiceMemo)
 	if err != nil {
 		srv.log.Debug("couldn't create local invoice: " + err.Error())
 		return "", err
@@ -565,8 +619,8 @@ func (srv *Service) CreateLocalInvoice(ctx context.Context, account string, amou
 // PayInvoice tries to pay the provided invoice. If a walletID is provided, that wallet will be used instead of the default one
 // If amountSats is provided, the invoice will be paid with that amount. This amount should be equal to the amount on the invoice
 // unless the amount on the invoice is 0.
-func (srv *Service) PayInvoice(ctx context.Context, account string, payReq string, walletID *string, amountSats *uint64) (string, error) {
-	var walletToPay wallet.Wallet
+func (srv *Server) PayInvoice(ctx context.Context, account string, payReq string, walletID *string, amountSats *uint64) (string, error) {
+	var walletToPay *payments.Wallet
 	var err error
 	var amountToPay uint64
 
@@ -577,14 +631,20 @@ func (srv *Service) PayInvoice(ctx context.Context, account string, payReq strin
 	defer release()
 
 	if walletID != nil {
-		walletToPay, err = wallet.GetWallet(conn, *walletID)
+		w, err := walletsql.GetWallet(conn, *walletID)
 		if err != nil {
 			publicErr := fmt.Errorf("couldn't get wallet %s", *walletID)
 			srv.log.Debug(publicErr.Error(), zap.String("msg", err.Error()))
 			return "", publicErr
 		}
+		walletToPay.Account = w.Account
+		walletToPay.Address = w.Address
+		walletToPay.Balance = uint64(w.Balance)
+		walletToPay.Id = w.ID
+		walletToPay.Name = w.Name
+		walletToPay.Type = w.Type
 	} else {
-		walletToPay, err = srv.GetDefaultWallet(ctx, account)
+		walletToPay, err = srv.GetDefaultWallet(ctx, &payments.GetDefaultWalletRequest{Account: account})
 		if err != nil {
 			return "", fmt.Errorf("couldn't get default wallet to pay")
 		}
@@ -608,8 +668,8 @@ func (srv *Service) PayInvoice(ctx context.Context, account string, payReq strin
 		amountToPay = *amountSats
 	}
 
-	if err = srv.lightningClient.Lndhub.PayInvoice(ctx, walletToPay.ID, payReq, amountToPay); err != nil {
-		if strings.Contains(err.Error(), wallet.NotEnoughBalance) {
+	if err = srv.lightningClient.Lndhub.PayInvoice(ctx, walletToPay.Id, payReq, amountToPay); err != nil {
+		if strings.Contains(err.Error(), walletsql.NotEnoughBalance) {
 			return "", fmt.Errorf("couldn't pay invoice with wallet [%s]: %w", walletToPay.Name, lndhubsql.ErrNotEnoughBalance)
 		}
 		if errors.Is(err, lndhubsql.ErrQtyMissmatch) {
@@ -619,13 +679,13 @@ func (srv *Service) PayInvoice(ctx context.Context, account string, payReq strin
 		return "", fmt.Errorf("couldn't pay invoice")
 	}
 
-	return walletToPay.ID, nil
+	return walletToPay.Id, nil
 }
 
 // GetLnAddress gets the account-wide ln address in the form of <nickname>@<domain> .
 // Since it is a user operation, if the login is a CID, then user must provide a token representing
 // the pubkey whose private counterpart created the signature provided in password (like in create).
-func (srv *Service) GetLnAddress(ctx context.Context, account string) (string, error) {
+func (srv *Server) GetLnAddress(ctx context.Context, account string) (string, error) {
 	lnaddress, err := srv.lightningClient.Lndhub.GetLnAddress(ctx, account)
 	if err != nil {
 		srv.log.Debug("couldn't get lnaddress", zap.String("msg", err.Error()))

@@ -14,7 +14,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gorilla/mux"
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"github.com/ipfs/boxo/blockstore"
@@ -36,13 +35,6 @@ var (
 	branch string
 	date   string
 )
-
-// setupGraphQLHandlers sets up the GraphQL endpoints.
-// TODO(hm24) add the wallet service back.
-func setupGraphQLHandlers(r *Router, wallet any) {
-	// r.Handle("/graphql", corsMiddleware(graphql.Handler(wallet)), 0)
-	r.Handle("/playground", playground.Handler("GraphQL Playground", "/graphql"), RouteNav)
-}
 
 // setupIPFSFileHandlers sets up the IPFS file endpoints for uploading and getting files.
 func setupIPFSFileHandlers(r *Router, h IPFSFileHandler) {
@@ -135,7 +127,6 @@ func initHTTP(
 	clean *cleanup.Stack,
 	g *errgroup.Group,
 	blobs blockstore.Blockstore,
-	wallet any, // TODO(hm24) put the wallet back in.
 	ipfsHandler IPFSFileHandler,
 	extraHandlers ...func(*Router),
 ) (srv *http.Server, lis net.Listener, err error) {
@@ -147,7 +138,6 @@ func initHTTP(
 	)
 
 	setupDebugHandlers(router, blobs)
-	setupGraphQLHandlers(router, wallet)
 	setupIPFSFileHandlers(router, ipfsHandler)
 	setupGRPCWebHandler(router, rpc)
 	for _, handle := range extraHandlers {

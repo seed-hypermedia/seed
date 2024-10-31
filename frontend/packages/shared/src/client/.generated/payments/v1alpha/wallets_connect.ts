@@ -78,7 +78,7 @@ export const Wallets = {
     updateWalletName: {
       name: "UpdateWalletName",
       I: UpdateWalletNameRequest,
-      O: Empty,
+      O: Wallet,
       kind: MethodKind.Unary,
     },
     /**
@@ -102,7 +102,7 @@ export const Wallets = {
     setDefaultWallet: {
       name: "SetDefaultWallet",
       I: SetDefaultWalletRequest,
-      O: Empty,
+      O: Wallet,
       kind: MethodKind.Unary,
     },
   }

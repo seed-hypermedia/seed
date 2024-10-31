@@ -7,6 +7,7 @@ import (
 	documentsv3 "seed/backend/api/documents/v3alpha"
 	entities "seed/backend/api/entities/v1alpha"
 	networking "seed/backend/api/networking/v1alpha"
+	payments "seed/backend/api/payments/v1alpha"
 	"seed/backend/blob"
 	"seed/backend/core"
 	"seed/backend/logging"
@@ -27,6 +28,7 @@ type Server struct {
 	Activity    *activity.Server
 	Syncing     *syncing.Service
 	DocumentsV3 *documentsv3.Server
+	Payments    *payments.Server
 }
 
 type Storage interface {
@@ -45,6 +47,7 @@ func New(
 	sync *syncing.Service,
 	activity *activity.Server,
 	LogLevel string,
+	isMainnet bool,
 ) Server {
 	db := repo.DB()
 
@@ -55,6 +58,7 @@ func New(
 		Entities:    entities.NewServer(idx, sync),
 		DocumentsV3: documentsv3.NewServer(repo.KeyStore(), idx, db, logging.New("seed/documents", LogLevel)),
 		Syncing:     sync,
+		Payments:    payments.NewServer(ctx, logging.New("seed/payments", LogLevel), db, node, isMainnet),
 	}
 }
 

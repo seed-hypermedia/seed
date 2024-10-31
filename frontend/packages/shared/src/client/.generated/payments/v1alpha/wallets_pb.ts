@@ -51,7 +51,7 @@ export class Wallet extends Message<Wallet> {
   /**
    * TBalance in satoshis of the wallet.
    *
-   * @generated from field: int64 balance = 6;
+   * @generated from field: uint64 balance = 6;
    */
   balance = protoInt64.zero;
 
@@ -68,7 +68,7 @@ export class Wallet extends Message<Wallet> {
     { no: 3, name: "address", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 5, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 6, name: "balance", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 6, name: "balance", kind: "scalar", T: 4 /* ScalarType.UINT64 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Wallet {
@@ -298,6 +298,13 @@ export class ListWalletsRequest extends Message<ListWalletsRequest> {
    */
   account = "";
 
+  /**
+   * Optional. Wheter or not including balance (It takes longer)
+   *
+   * @generated from field: bool include_balance = 2;
+   */
+  includeBalance = false;
+
   constructor(data?: PartialMessage<ListWalletsRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -307,6 +314,7 @@ export class ListWalletsRequest extends Message<ListWalletsRequest> {
   static readonly typeName = "com.seed.payments.v1alpha.ListWalletsRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "include_balance", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListWalletsRequest {
