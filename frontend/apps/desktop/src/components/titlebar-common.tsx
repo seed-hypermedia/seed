@@ -62,6 +62,7 @@ import {PropsWithChildren, ReactNode, useState} from 'react'
 import {AddConnectionDialog} from './contacts-prompt'
 import {useAppDialog} from './dialog'
 import DiscardDraftButton from './discard-draft-button'
+import {FavoriteButton} from './favoriting'
 import PublishDraftButton from './publish-draft-button'
 import {usePublishSite, useRemoveSiteDialog} from './publish-site'
 import {TitleBarProps} from './titlebar'
@@ -374,6 +375,8 @@ export function CopyReferenceButton({
 export function PageActionButtons(props: TitleBarProps) {
   const route = useNavRoute()
   const connectDialog = useAppDialog(AddConnectionDialog)
+  const favoriteButton =
+    route.key === 'document' ? <FavoriteButton id={route.id} /> : null
   let buttonGroup: ReactNode[] = []
   if (route.key === 'draft') {
     buttonGroup = [
@@ -402,6 +405,7 @@ export function PageActionButtons(props: TitleBarProps) {
   } else if (route.key === 'document' && route.id.type === 'd') {
     buttonGroup = [
       <LatestVersionButton />,
+      favoriteButton,
       <EditDocButton key="editDoc" />,
       // <CreateDropdown key="create" location={route.id} />, // TODO, new path selection workflow
       <DocOptionsButton key="options" />,
