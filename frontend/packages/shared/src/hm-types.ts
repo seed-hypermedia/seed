@@ -396,3 +396,8 @@ export type HMDocumentListItem = Omit<
   PlainMessage<DocumentListItem>,
   'path'
 > & {path: string[]}
+
+export type HMQueryResult = {
+  in: UnpackedHypermediaId
+  results: HMDocumentListItem[]
+}

@@ -7,6 +7,7 @@ import {
   hmId,
   hmIdPathToEntityQueryPath,
   HMMetadata,
+  HMQueryResult,
   SITE_BASE_URL,
   UnpackedHypermediaId,
 } from "@shm/shared";
@@ -35,18 +36,13 @@ export async function getMetadata(
   }
 }
 
-export type WebSupportQuery = {
-  in: UnpackedHypermediaId;
-  results: HMDocumentListItem[];
-};
-
 export type WebBaseDocumentPayload = {
   document: HMDocument;
   authors: {id: UnpackedHypermediaId; metadata: HMMetadata}[];
   id: UnpackedHypermediaId;
   siteHost: string | undefined;
   supportDocuments?: {id: UnpackedHypermediaId; document: HMDocument}[];
-  supportQueries?: WebSupportQuery[];
+  supportQueries?: HMQueryResult[];
 };
 
 export type WebDocumentPayload = WebBaseDocumentPayload & {

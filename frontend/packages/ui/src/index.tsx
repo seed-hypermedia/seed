@@ -41,6 +41,7 @@ export * from "./table-list";
 export * from "./titlebar";
 export * from "./toast";
 export {Tooltip} from "./tooltip";
+export * from "./top-bar";
 export * from "./ui-constants";
 export * from "./use-popover-state";
 export * from "./use-stream";

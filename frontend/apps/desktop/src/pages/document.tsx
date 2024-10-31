@@ -4,18 +4,17 @@ import {
 } from '@/components/accessory-sidebar'
 import {CollaboratorsPanel} from '@/components/collaborators-panel'
 import {Discussion} from '@/components/discussion'
+import {DocumentHeadItems} from '@/components/document-head-items'
 import {LinkNameComponent} from '@/components/document-name'
-import {FavoriteButton} from '@/components/favoriting'
 import Footer from '@/components/footer'
 import {SidebarSpacer} from '@/components/main-wrapper'
 import {NewspaperLayout} from '@/components/newspaper-layout'
 import {OptionsPanel} from '@/components/options-panel'
 import {SiteNavigation} from '@/components/site-navigation'
-import {SubscriptionButton} from '@/components/subscription'
 import {CopyReferenceButton} from '@/components/titlebar-common'
 import {VersionsPanel} from '@/components/versions-panel'
 import '@/editor/editor.css'
-import {useMyAccountIds} from '@/models/daemon'
+import {useListDirectory} from '@/models/documents'
 import {useDiscoverEntity, useSubscribedEntity} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {useNavRoute} from '@/utils/navigation'
@@ -26,18 +25,20 @@ import {
   formattedDateMedium,
   getAccountName,
   getFileUrl,
+  HMEntityContent,
+  hmId,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {
   Button,
   ButtonText,
-  Check,
   CollaboratorsIcon,
   Container,
   DocContent,
   H1,
   HistoryIcon,
   HMIcon,
+  NewsSiteHeader,
   SizableText,
   Spinner,
   Tooltip,
@@ -179,42 +180,64 @@ function _MainDocumentPage({
       }
     })
   }, [])
+  const entity = useSubscribedEntity(id)
+  const siteHomeEntity = useSubscribedEntity(hmId('d', id.uid))
+
+  if (entity.isLoading) return <Spinner />
+  if (!entity.data?.document) return null
+
+  const docIsNewspaperLayout =
+    entity.data?.document?.metadata.layout === 'Seed/Experimental/Newspaper'
+  const siteIsNewspaperLayout =
+    siteHomeEntity.data?.document?.metadata.layout ===
+    'Seed/Experimental/Newspaper'
   return (
     <YStack>
+      {siteIsNewspaperLayout ? (
+        <AppNewspaperHeader
+          siteHomeEntity={siteHomeEntity.data}
+          activeId={id}
+        />
+      ) : null}
       <DocPageHeader docId={id} isBlockFocused={isBlockFocused} />
       <YStack position="relative">
         <Container clearVerticalSpace padding={0} marginBottom={100}>
-          <YStack
-            position="absolute"
-            h="100%"
-            top={0}
-            left={outlineWidth * -1}
-            display="none"
-            $gtMd={{display: 'flex'}}
-          >
+          {docIsNewspaperLayout ? null : (
             <YStack
-              width={outlineWidth}
-              position="sticky"
-              paddingTop={34}
-              top={50}
-              h="calc(100%)"
-              maxHeight="calc(100vh - 60px)"
-              overflow="hidden"
+              position="absolute"
+              h="100%"
+              top={0}
+              left={outlineWidth * -1}
               display="none"
-              $gtSm={{display: 'block'}}
+              $gtMd={{display: 'flex'}}
             >
               <YStack
-                gap="$3"
-                maxHeight="100%"
-                overflow="auto"
-                className="hide-scrollbar"
+                width={outlineWidth}
+                position="sticky"
+                paddingTop={34}
+                top={50}
+                h="calc(100%)"
+                maxHeight="calc(100vh - 60px)"
+                overflow="hidden"
+                display="none"
+                $gtSm={{display: 'block'}}
               >
-                <SiteNavigation />
+                <YStack
+                  gap="$3"
+                  maxHeight="100%"
+                  overflow="auto"
+                  className="hide-scrollbar"
+                >
+                  <SiteNavigation />
+                </YStack>
               </YStack>
             </YStack>
-          </YStack>
+          )}
           <YStack flex={1}>
-            <DocPageContent docId={id} isBlockFocused={isBlockFocused} />
+            <DocPageContent
+              entity={entity.data}
+              isBlockFocused={isBlockFocused}
+            />
             <DocPageAppendix docId={id} />
           </YStack>
         </Container>
@@ -223,6 +246,32 @@ function _MainDocumentPage({
   )
 }
 const MainDocumentPage = React.memo(_MainDocumentPage)
+
+function AppNewspaperHeader({
+  siteHomeEntity,
+  activeId,
+}: {
+  siteHomeEntity: HMEntityContent | undefined | null
+  activeId: UnpackedHypermediaId
+}) {
+  const dir = useListDirectory(siteHomeEntity?.id)
+  if (!siteHomeEntity) return null
+  return (
+    <NewsSiteHeader
+      homeId={siteHomeEntity.id}
+      homeMetadata={siteHomeEntity.document?.metadata || null}
+      supportQueries={
+        dir.data ? [{in: siteHomeEntity.id, results: dir.data}] : []
+      }
+      docId={activeId}
+      rightContent={
+        activeId.id === siteHomeEntity.id.id ? (
+          <DocumentHeadItems docId={siteHomeEntity.id} />
+        ) : null
+      }
+    />
+  )
+}
 
 function DocPageHeader({
   docId,
@@ -241,8 +290,6 @@ function DocPageHeader({
     () => !!entity.data?.document?.metadata.icon,
     [entity.data],
   )
-  const myAccountIds = useMyAccountIds()
-  const docIsInMyAccount = myAccountIds.data?.includes(docId.uid)
 
   // hm://z6MkqYME8XHQpnxBLVjDWxCkEwbjKQ4ghxpUB8stgzBCNSwD/advances-in-distributed-security?v=bafy2bzaceckzk7vdca2to6o2ms6gdvjyizvfsimp7txftm7mx3ohp7loqskpk
   const authors = useMemo(() => entity.data?.document?.authors, [entity.data])
@@ -347,17 +394,7 @@ function DocPageHeader({
                   Share
                 </CopyReferenceButton>
               </XStack>
-              <FavoriteButton id={docId} />
-              {docIsInMyAccount ? (
-                <XStack ai="center" gap="$2">
-                  <Check color="green" />
-                  <SizableText userSelect="none" color="$green10" size="$2">
-                    Subscribed
-                  </SizableText>
-                </XStack>
-              ) : (
-                <SubscriptionButton id={docId} />
-              )}
+              <DocumentHeadItems docId={docId} />
             </XStack>
           </YStack>
           <TSeparator borderColor="$color8" />
@@ -504,31 +541,27 @@ function DocumentCover({docId}: {docId: UnpackedHypermediaId}) {
 }
 
 function DocPageContent({
-  docId,
+  entity,
   isBlockFocused,
 }: {
-  docId: UnpackedHypermediaId
+  entity: HMEntityContent
   blockId?: string
   isBlockFocused: boolean
 }) {
-  const entity = useSubscribedEntity(docId)
-
-  if (entity.isLoading) return <Spinner />
-  if (!entity.data?.document) return null
-  if (entity.data.document.metadata.layout === 'Seed/Experimental/Newspaper') {
+  if (entity.document!.metadata.layout === 'Seed/Experimental/Newspaper') {
     return (
-      <NewspaperLayout id={docId} metadata={entity.data.document.metadata} />
+      <NewspaperLayout id={entity.id} metadata={entity.document!.metadata} />
     )
   }
-  const blockId = docId.blockRef
+  const blockId = entity.id.blockRef
   return (
     <AppDocContentProvider
       routeParams={{blockRef: blockId || undefined}}
-      docId={docId}
+      docId={entity.id}
       isBlockFocused={isBlockFocused}
     >
       <DocContent
-        document={entity.data?.document}
+        document={entity.document!}
         focusBlockId={isBlockFocused ? blockId || undefined : undefined}
       />
     </AppDocContentProvider>

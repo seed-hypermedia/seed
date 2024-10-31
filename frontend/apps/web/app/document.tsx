@@ -32,7 +32,7 @@ import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import {useCallback, useEffect, useMemo, useState} from "react";
 import {getHref} from "./href";
-import type {SiteDocumentPayload, WebSupportQuery} from "./loaders";
+import type {HMQueryResult, SiteDocumentPayload} from "./loaders";
 import {defaultSiteIcon} from "./meta";
 import {NewspaperPage} from "./newspaper";
 import {NotFoundPage} from "./not-found";
@@ -475,7 +475,7 @@ function SiteNavigation({
   document: HMDocument;
   onClose?: () => void;
   supportDocuments?: {id: UnpackedHypermediaId; document: HMDocument}[];
-  supportQueries?: WebSupportQuery[];
+  supportQueries?: HMQueryResult[];
   id: UnpackedHypermediaId;
 }) {
   const outline = useMemo(() => {

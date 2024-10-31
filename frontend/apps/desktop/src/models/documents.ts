@@ -903,12 +903,13 @@ export function usePublishToSite() {
   }
 }
 
-export function useListDirectory(id: UnpackedHypermediaId) {
+export function useListDirectory(id?: UnpackedHypermediaId) {
   const grpcClient = useGRPCClient()
-  const prefixPath = id.path ? '/' + id.path.join('/') : ''
+  const prefixPath = id?.path ? '/' + id.path.join('/') : ''
   return useQuery({
-    queryKey: [queryKeys.DOC_LIST_DIRECTORY, id.uid, prefixPath],
+    queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.uid, prefixPath],
     queryFn: async () => {
+      if (!id) return []
       const res = await grpcClient.documents.listDocuments({
         account: id.uid,
       })
