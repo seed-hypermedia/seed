@@ -11,7 +11,6 @@ import {SidebarSpacer} from '@/components/main-wrapper'
 import {NewspaperLayout} from '@/components/newspaper-layout'
 import {OptionsPanel} from '@/components/options-panel'
 import {SiteNavigation} from '@/components/site-navigation'
-import {CopyReferenceButton} from '@/components/titlebar-common'
 import {VersionsPanel} from '@/components/versions-panel'
 import '@/editor/editor.css'
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
@@ -269,7 +268,7 @@ function AppNewspaperHeader({
       docId={activeId}
       rightContent={
         activeId.id === siteHomeEntity.id.id ? (
-          <DocumentHeadItems docId={siteHomeEntity.id} />
+          <DocumentHeadItems docId={siteHomeEntity.id} isBlockFocused={false} />
         ) : null
       }
       afterLinksContent={
@@ -408,16 +407,11 @@ function DocPageHeader({
                   </SizableText>
                 </Tooltip>
                 <Separator />
-                <CopyReferenceButton
-                  docId={docId}
-                  isBlockFocused={isBlockFocused}
-                  color="$brand5"
-                  size="$1"
-                >
-                  Share
-                </CopyReferenceButton>
               </XStack>
-              <DocumentHeadItems docId={docId} />
+              <DocumentHeadItems
+                docId={docId}
+                isBlockFocused={isBlockFocused}
+              />
             </XStack>
           </YStack>
           <TSeparator borderColor="$color8" />

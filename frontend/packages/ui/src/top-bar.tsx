@@ -27,7 +27,6 @@ export function NewsSiteHeader({
 }) {
   if (!homeId) return null;
   const supportQuery = supportQueries?.find((q) => q.in.uid === homeId?.uid);
-  console.log("supportQuery", supportQuery);
   return (
     <YStack paddingBottom="$4">
       {homeId ? (

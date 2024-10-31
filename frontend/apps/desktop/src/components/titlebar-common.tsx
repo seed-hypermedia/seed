@@ -324,8 +324,8 @@ export function CopyReferenceButton({
       <Tooltip
         content={
           shouldOpen
-            ? `Open ${reference.label}`
-            : `Copy ${reference.label} Link`
+            ? `Open ${reference.label} URL in Web Browser`
+            : `Copy ${reference.label} URL`
         }
       >
         <Button

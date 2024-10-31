@@ -3,8 +3,15 @@ import {UnpackedHypermediaId} from '@shm/shared'
 import {Check, SizableText, XStack} from '@shm/ui'
 
 import {SubscriptionButton} from './subscription'
+import {CopyReferenceButton} from './titlebar-common'
 
-export function DocumentHeadItems({docId}: {docId: UnpackedHypermediaId}) {
+export function DocumentHeadItems({
+  docId,
+  isBlockFocused,
+}: {
+  docId: UnpackedHypermediaId
+  isBlockFocused?: boolean
+}) {
   const myAccountIds = useMyAccountIds()
   const docIsInMyAccount = myAccountIds.data?.includes(docId.uid)
   return (
@@ -19,6 +26,11 @@ export function DocumentHeadItems({docId}: {docId: UnpackedHypermediaId}) {
       ) : (
         <SubscriptionButton id={docId} />
       )}
+      <CopyReferenceButton
+        docId={docId}
+        isBlockFocused={isBlockFocused || false}
+        size="$2"
+      />
     </>
   )
 }
