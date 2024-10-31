@@ -327,18 +327,17 @@ export const HMBlockNodeSchema: z.ZodType<HMBlockNode> =
     children: z.lazy(() => z.array(HMBlockNodeSchema).optional()),
   })
 
-export const HMDocumentMetadataSchema = z
-  .object({
-    name: z.string().optional(),
-    icon: z.string().optional(),
-    thumbnail: z.string().optional(), // DEPRECATED
-    cover: z.string().optional(),
-    siteUrl: z.string().optional(),
-    layout: z
-      .union([z.literal('Seed/Experimental/Newspaper'), z.literal('')])
-      .optional(),
-  })
-  .strict()
+export const HMDocumentMetadataSchema = z.object({
+  name: z.string().optional(),
+  icon: z.string().optional(),
+  thumbnail: z.string().optional(), // DEPRECATED
+  cover: z.string().optional(),
+  siteUrl: z.string().optional(),
+  layout: z
+    .union([z.literal('Seed/Experimental/Newspaper'), z.literal('')])
+    .optional(),
+})
+
 export type HMMetadata = z.infer<typeof HMDocumentMetadataSchema>
 export const HMTimestampSchema = z
   .object({
