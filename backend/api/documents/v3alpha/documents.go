@@ -157,7 +157,7 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 	}
 	newBlobs = append(newBlobs, docChange)
 
-	ref, err := doc.Ref(kp)
+	ref, err := doc.Ref(kp, capc)
 	if err != nil {
 		return nil, err
 	}
@@ -387,7 +387,7 @@ func (srv *Server) ensureProfileGenesis(ctx context.Context, kp core.KeyPair) er
 		return err
 	}
 
-	ebr, err := blob.NewRef(kp, ebc.CID, space, path, []cid.Cid{ebc.CID}, blob.ZeroUnixTime())
+	ebr, err := blob.NewRef(kp, ebc.CID, space, path, []cid.Cid{ebc.CID}, cid.Undef, blob.ZeroUnixTime())
 	if err != nil {
 		return err
 	}

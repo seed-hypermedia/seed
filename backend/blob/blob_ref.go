@@ -34,7 +34,7 @@ type Ref struct {
 }
 
 // NewRef creates a new Ref blob.
-func NewRef(kp core.KeyPair, genesis cid.Cid, space core.Principal, path string, heads []cid.Cid, ts time.Time) (eb Encoded[*Ref], err error) {
+func NewRef(kp core.KeyPair, genesis cid.Cid, space core.Principal, path string, heads []cid.Cid, cap cid.Cid, ts time.Time) (eb Encoded[*Ref], err error) {
 	ru := &Ref{
 		baseBlob: baseBlob{
 			Type:   blobTypeRef,

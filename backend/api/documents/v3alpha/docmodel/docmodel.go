@@ -324,7 +324,7 @@ func (dm *Document) SignChangeAt(kp core.KeyPair, at time.Time) (hb blob.Encoded
 }
 
 // Ref creates a Ref blob for the current heads.
-func (dm *Document) Ref(kp core.KeyPair) (ref blob.Encoded[*blob.Ref], err error) {
+func (dm *Document) Ref(kp core.KeyPair, cap cid.Cid) (ref blob.Encoded[*blob.Ref], err error) {
 	// TODO(hm24): make genesis detection more reliable.
 	genesis := dm.crdt.cids[0]
 
@@ -340,7 +340,7 @@ func (dm *Document) Ref(kp core.KeyPair) (ref blob.Encoded[*blob.Ref], err error
 		return ref, err
 	}
 
-	return blob.NewRef(kp, genesis, space, path, []cid.Cid{headCID}, head.Ts)
+	return blob.NewRef(kp, genesis, space, path, []cid.Cid{headCID}, cap, head.Ts)
 }
 
 func (dm *Document) cleanupPatch() (out blob.ChangeBody) {
