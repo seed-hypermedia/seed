@@ -1,4 +1,5 @@
 import {focusDraftBlock} from '@/draft-focusing'
+import {roleCanWrite, useMyCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useCreateDraft, useListDirectory} from '@/models/documents'
 import {useEntity} from '@/models/entities'
@@ -46,7 +47,7 @@ export function SiteNavigation({}: {}) {
   const parentEntity = useEntity(parentId)
   const siblingDir = useListDirectory(parentId)
   const createDraft = useCreateDraft(id)
-
+  const capability = useMyCapability(id)
   if (!entity?.data) return null
 
   return (
@@ -91,13 +92,15 @@ export function SiteNavigation({}: {}) {
           <OutlineNavigation indented={documentIndent + 1} route={route} />
           <Separator marginLeft={Math.max(0, documentIndent + 1) * 22 + 12} />
           <Directory indented={documentIndent + 1} docId={id} />
-          <SmallListItem
-            icon={Plus}
-            title="Create Document"
-            onPress={createDraft}
-            color="$green10"
-            indented={documentIndent + 1}
-          />
+          {roleCanWrite(capability?.role) && (
+            <SmallListItem
+              icon={Plus}
+              title="Create Document"
+              onPress={createDraft}
+              color="$green10"
+              indented={documentIndent + 1}
+            />
+          )}
         </>
       )}
 

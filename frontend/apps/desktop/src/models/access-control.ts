@@ -3,6 +3,7 @@ import {toPlainMessage} from '@bufbuild/protobuf'
 import {
   hmId,
   hmIdPathToEntityQueryPath,
+  HMRole,
   Role,
   UnpackedHypermediaId,
 } from '@shm/shared'
@@ -51,29 +52,37 @@ export function useAddCapabilities(id: UnpackedHypermediaId) {
   })
 }
 
-type CapabilityType = 'admin' | 'owner' | 'writer'
-
 export function getRoleName(role: Role) {
   if (role === Role.WRITER) return 'Writer'
   if (role === Role.ROLE_UNSPECIFIED) return 'None'
   return 'None'
 }
 
-function getRoleCapabilityType(role: Role): CapabilityType | null {
+function getRoleCapabilityType(role: Role): HMRole | null {
   if (role === Role.WRITER) return 'writer'
   return null
 }
 
 type HMCapability = {
   accountUid: string
-  role: CapabilityType
+  role: HMRole
 }
 
-const CapabilityInheritance: Readonly<CapabilityType[]> =
+const CapabilityInheritance: Readonly<HMRole[]> =
   // used to determine when one capability can be used in place of another. all owners are writers, for example
-  ['owner', 'admin', 'writer']
+  ['owner', 'writer', 'none']
 
-export function useMyCapability(id: UnpackedHypermediaId): HMCapability | null {
+export function roleCanWrite(role?: HMRole | undefined) {
+  if (!role) return false
+  const writeCapIndex = CapabilityInheritance.indexOf('writer')
+  const roleIndex = CapabilityInheritance.indexOf(role)
+  return roleIndex <= writeCapIndex
+}
+
+export function useMyCapability(
+  id?: UnpackedHypermediaId,
+): HMCapability | null {
+  if (!id) return null
   const myAccounts = useMyAccountIds()
   const capabilities = useAllDocumentCapabilities(id)
   if (myAccounts.data?.indexOf(id.uid) !== -1) {

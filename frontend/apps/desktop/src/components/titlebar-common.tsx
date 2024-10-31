@@ -1,7 +1,7 @@
 import {useAppContext} from '@/app-context'
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {useDeleteDialog} from '@/components/delete-dialog'
-import {useMyCapability} from '@/models/access-control'
+import {roleCanWrite, useMyCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useEntity} from '@/models/entities'
 import {useGatewayUrl} from '@/models/gateway-settings'
@@ -22,7 +22,7 @@ import {
   createSiteUrl,
   createWebHMUrl,
   displayHostname,
-  getDocumentTitle,
+  getMetadataName,
   hmBlocksToEditorContent,
   hmId,
 } from '@shm/shared'
@@ -86,7 +86,9 @@ export function DocOptionsButton() {
   )
   const removeSite = useRemoveSiteDialog()
   const publishSite = usePublishSite()
-  const canEditDoc = true // todo: check permissions
+  const capability = useMyCapability(route.id)
+  const canEditDoc = roleCanWrite(capability?.role)
+
   const menuItems: MenuItemType[] = [
     {
       key: 'link',
@@ -144,7 +146,7 @@ export function DocOptionsButton() {
       onPress: () => {
         deleteEntity.open({
           id: route.id.id,
-          title: getDocumentTitle(doc.data?.document),
+          title: getMetadataName(doc.data?.document?.metadata),
           onSuccess: () => {
             dispatch({type: 'pop'})
           },
@@ -200,13 +202,12 @@ function EditDocButton() {
 
   if (route.key !== 'document')
     throw new Error('EditDocButton can only be rendered on document route')
-  console.log(`== ~ EditDocButton ~ route:`, route)
-  const capability = useMyCapability(route.id, 'writer')
+  const capability = useMyCapability(route.id)
   const {data: entity} = useEntity(route.id)
   const navigate = useNavigate()
   const draft = useDraft(route.id)
   const hasExistingDraft = !!draft.data
-  if (!capability) return null
+  if (!roleCanWrite(capability?.role)) return null
   return (
     <>
       <Tooltip content={hasExistingDraft ? 'Resume Editing' : 'Edit'}>

@@ -401,3 +401,5 @@ export type HMQueryResult = {
   in: UnpackedHypermediaId
   results: HMDocumentListItem[]
 }
+
+export type HMRole = 'owner' | 'writer' | 'none'

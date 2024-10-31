@@ -36,7 +36,7 @@ export function getDocumentTitle(document?: HMDocument | null) {
     return null
   }
 
-  return document?.metadata?.name || document?.account! + document?.path!
+  return document.metadata?.name || document.account! + document.path!
 }
 
 export function getMetadataName(metadata?: HMDocument['metadata'] | null) {

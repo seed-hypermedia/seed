@@ -22,7 +22,6 @@ export function FacePile({
     () => (accounts.length > 3 ? accounts.slice(0, 2) : accounts),
     [accounts]
   );
-  console.log("=== FACEPILE PROPS", {accounts, accountsMetadata});
   return (
     <>
       {showAccountIds.map((author, idx) => {

@@ -16,12 +16,14 @@ export function NewsSiteHeader({
   supportQueries,
   rightContent,
   docId,
+  afterLinksContent,
 }: {
   homeMetadata: HMMetadata | null;
   homeId: UnpackedHypermediaId | null;
   supportQueries?: HMQueryResult[];
   rightContent?: React.ReactNode;
   docId?: UnpackedHypermediaId;
+  afterLinksContent?: React.ReactNode;
 }) {
   if (!homeId) return null;
   const supportQuery = supportQueries?.find((q) => q.in.uid === homeId?.uid);
@@ -36,7 +38,7 @@ export function NewsSiteHeader({
         />
       ) : null}
 
-      <XStack gap="$5" justifyContent="center">
+      <XStack gap="$5" justifyContent="center" ai="center">
         {supportQuery?.results
           ?.filter((result) => result.path.length === 1)
           ?.map((result) => {
@@ -49,6 +51,7 @@ export function NewsSiteHeader({
               />
             );
           })}
+        {afterLinksContent}
       </XStack>
     </YStack>
   );

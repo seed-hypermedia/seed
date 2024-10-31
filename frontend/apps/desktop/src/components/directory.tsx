@@ -1,11 +1,5 @@
-import {ImportButton} from '@/components/import-doc-button'
-import {useMyCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
-import {
-  useCreateDraft,
-  useDraftList,
-  useListDirectory,
-} from '@/models/documents'
+import {useDraftList, useListDirectory} from '@/models/documents'
 import {useEntities, useSubscribedEntity} from '@/models/entities'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
@@ -29,7 +23,7 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {Copy, Plus} from '@tamagui/lucide-icons'
+import {Copy} from '@tamagui/lucide-icons'
 import {useMemo} from 'react'
 import {CopyReferenceButton} from './titlebar-common'
 
@@ -119,16 +113,6 @@ export function Directory({
   )
 }
 
-function DocCreation({id}: {id: UnpackedHypermediaId}) {
-  const capability = useMyCapability(id)
-  if (!capability) return null
-  return (
-    <XStack paddingVertical="$4" gap="$3">
-      <NewSubDocumentButton parentDocId={id} />
-      <ImportButton input={id} />
-    </XStack>
-  )
-}
 function DraftTag() {
   return (
     <SizableText
@@ -282,21 +266,6 @@ function DirectoryItemWithAuthors({
       entry={entry}
       authorsMetadata={authorsMetadata}
     />
-  )
-}
-
-function NewSubDocumentButton({
-  parentDocId,
-}: {
-  parentDocId: UnpackedHypermediaId
-}) {
-  const createDraft = useCreateDraft(parentDocId)
-  return (
-    <>
-      <Button icon={Plus} color="$green9" onPress={createDraft} size="$3">
-        Create Document
-      </Button>
-    </>
   )
 }
 

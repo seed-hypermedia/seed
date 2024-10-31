@@ -14,7 +14,8 @@ import {SiteNavigation} from '@/components/site-navigation'
 import {CopyReferenceButton} from '@/components/titlebar-common'
 import {VersionsPanel} from '@/components/versions-panel'
 import '@/editor/editor.css'
-import {useListDirectory} from '@/models/documents'
+import {roleCanWrite, useMyCapability} from '@/models/access-control'
+import {useCreateDraft, useListDirectory} from '@/models/documents'
 import {useDiscoverEntity, useSubscribedEntity} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {useNavRoute} from '@/utils/navigation'
@@ -46,7 +47,7 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {ArrowRight, RefreshCw} from '@tamagui/lucide-icons'
+import {ArrowRight, Plus, RefreshCw} from '@tamagui/lucide-icons'
 import React, {ReactNode, useEffect, useMemo} from 'react'
 import {EntityCitationsAccessory} from '../components/citations'
 import {AppDocContentProvider} from './document-content-provider'
@@ -255,6 +256,8 @@ function AppNewspaperHeader({
   activeId: UnpackedHypermediaId
 }) {
   const dir = useListDirectory(siteHomeEntity?.id)
+  const capability = useMyCapability(siteHomeEntity?.id)
+  const canEditDoc = roleCanWrite(capability?.role)
   if (!siteHomeEntity) return null
   return (
     <NewsSiteHeader
@@ -269,7 +272,27 @@ function AppNewspaperHeader({
           <DocumentHeadItems docId={siteHomeEntity.id} />
         ) : null
       }
+      afterLinksContent={
+        canEditDoc ? (
+          <NewSubDocumentButton parentDocId={siteHomeEntity.id} />
+        ) : null
+      }
     />
+  )
+}
+
+function NewSubDocumentButton({
+  parentDocId,
+}: {
+  parentDocId: UnpackedHypermediaId
+}) {
+  const createDraft = useCreateDraft(parentDocId)
+  return (
+    <>
+      <Button icon={Plus} color="$green9" onPress={createDraft} size="$2">
+        Create Document
+      </Button>
+    </>
   )
 }
 
