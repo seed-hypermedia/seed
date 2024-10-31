@@ -490,6 +490,7 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 		Path:       path,
 		Metadata:   e.GetMetadata(),
 		CreateTime: timestamppb.New(first.Ts),
+		Genesis:    e.cids[0].String(),
 		Version:    e.Version().String(),
 	}
 

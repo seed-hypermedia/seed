@@ -531,6 +531,7 @@ func DocumentToListItem(doc *documents.Document) *documents.DocumentListItem {
 		Authors:    doc.Authors,
 		CreateTime: doc.CreateTime,
 		UpdateTime: doc.UpdateTime,
+		Genesis:    doc.Genesis,
 		Version:    doc.Version,
 	}
 }

@@ -649,9 +649,16 @@ export class DocumentListItem extends Message<DocumentListItem> {
   updateTime?: Timestamp;
 
   /**
+   * ID of the genesis change of this document.
+   *
+   * @generated from field: string genesis = 8;
+   */
+  genesis = "";
+
+  /**
    * Current version of the document.
    *
-   * @generated from field: string version = 8;
+   * @generated from field: string version = 9;
    */
   version = "";
 
@@ -669,7 +676,8 @@ export class DocumentListItem extends Message<DocumentListItem> {
     { no: 4, name: "authors", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 5, name: "create_time", kind: "message", T: Timestamp },
     { no: 6, name: "update_time", kind: "message", T: Timestamp },
-    { no: 8, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "genesis", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentListItem {
@@ -747,9 +755,16 @@ export class Document extends Message<Document> {
   updateTime?: Timestamp;
 
   /**
+   * Output only. ID of the genesis change of this document.
+   *
+   * @generated from field: string genesis = 9;
+   */
+  genesis = "";
+
+  /**
    * Output only. Current version of the document.
    *
-   * @generated from field: string version = 9;
+   * @generated from field: string version = 10;
    */
   version = "";
 
@@ -768,7 +783,8 @@ export class Document extends Message<Document> {
     { no: 6, name: "content", kind: "message", T: BlockNode, repeated: true },
     { no: 7, name: "create_time", kind: "message", T: Timestamp },
     { no: 8, name: "update_time", kind: "message", T: Timestamp },
-    { no: 9, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "genesis", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 10, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Document {

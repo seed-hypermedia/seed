@@ -175,7 +175,7 @@ func TestDaemonUpdateProfile(t *testing.T) {
 
 	testutil.StructsEqual(want, doc).
 		IgnoreFields(documents.Block{}, "Revision").
-		IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version").
+		IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version", "Genesis").
 		Compare(t, "profile document must match")
 
 	// Do another update.
@@ -216,7 +216,7 @@ func TestDaemonUpdateProfile(t *testing.T) {
 
 		testutil.StructsEqual(want, doc).
 			IgnoreFields(documents.Block{}, "Revision").
-			IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version").
+			IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version", "Genesis").
 			Compare(t, "profile document must match")
 	}
 }

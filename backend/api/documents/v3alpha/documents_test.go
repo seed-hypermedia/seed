@@ -86,7 +86,7 @@ func TestCreateDocumentChange(t *testing.T) {
 
 	testutil.StructsEqual(want, doc).
 		IgnoreFields(documents.Block{}, "Revision").
-		IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version").
+		IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version", "Genesis").
 		Compare(t, "profile document must match")
 }
 
@@ -448,7 +448,7 @@ func TestCreateDocumentChangeWithTimestamp(t *testing.T) {
 
 	testutil.StructsEqual(want, doc).
 		IgnoreFields(documents.Block{}, "Revision").
-		IgnoreFields(documents.Document{}, "Version").
+		IgnoreFields(documents.Document{}, "Version", "Genesis").
 		Compare(t, "profile document must match")
 
 	doc, err = alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{

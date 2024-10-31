@@ -183,8 +183,11 @@ message DocumentListItem {
   // Time when the document was updated.
   google.protobuf.Timestamp update_time = 6;
 
+  // ID of the genesis change of this document.
+  string genesis = 8;
+
   // Current version of the document.
-  string version = 8;
+  string version = 9;
 }
 
 // Document represents metadata and content of a document.
@@ -212,8 +215,11 @@ message Document {
   // Output only. Time when document was updated.
   google.protobuf.Timestamp update_time = 8;
 
+  // Output only. ID of the genesis change of this document.
+  string genesis = 9;
+
   // Output only. Current version of the document.
-  string version = 9;
+  string version = 10;
 }
 
 // Content block with children.
