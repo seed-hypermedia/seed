@@ -357,6 +357,7 @@ export const HMDocumentSchema = z
     createTime: HMTimestampSchema,
     updateTime: HMTimestampSchema,
     metadata: HMDocumentMetadataSchema,
+    genesis: z.string(),
   })
   .strict()
 
