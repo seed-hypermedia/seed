@@ -1,4 +1,4 @@
-import {useEntity} from '@/models/entities'
+import {useEntity, useSubscribedEntity} from '@/models/entities'
 import {
   HMChangeInfo,
   useDocumentChanges,
@@ -26,6 +26,7 @@ export function VersionsPanel({
   const navigate = useNavigate()
   if (!route.id) throw new Error('VersionsPanel must have document id')
   const activeChangeIds = useVersionChanges(route.id)
+  const currentEntity = useSubscribedEntity(route.id)
   const changes = useDocumentChanges(route.id, route.key == 'draft')
   return (
     <AccessoryContainer title="Versions" onClose={onClose}>
@@ -47,6 +48,7 @@ export function VersionsPanel({
                   : null
               }}
               isLast={idx === changes.data.length - 1}
+              isCurrent={change.id === currentEntity.data?.document?.version}
             />
           )
         })}
@@ -60,11 +62,13 @@ function ChangeItem({
   isActive,
   onPress,
   isLast = false,
+  isCurrent,
 }: {
   change: HMChangeInfo
   onPress: () => void
   isActive: boolean
   isLast: boolean
+  isCurrent: boolean
 }) {
   const iconSize = 20
   const authorEntity = useEntity(hmId('d', change.author))
@@ -146,7 +150,7 @@ function ChangeItem({
             </SizableText>
           ) : (
             <SizableText size="$2" fontWeight={700} flexShrink={0}>
-              version
+              {isCurrent ? 'current version' : 'version'}
             </SizableText>
           )}
         </XStack>
