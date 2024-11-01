@@ -56,6 +56,7 @@ export function PageHeader({
           marginTop: hasCover ? -40 : 0,
           paddingTop: !hasCover ? 60 : "$6",
         }}
+        $gtLg={{maxWidth: 1200}}
         backgroundColor="$background"
         borderRadius="$2"
       >

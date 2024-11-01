@@ -18,6 +18,7 @@ import {
   NodesOutline,
   UnpackedHypermediaId,
 } from '@shm/shared'
+import {SideNavigationPlaceholder} from '@shm/shared/src/site-navigation'
 import {
   FocusButton,
   getBlockNodeById,
@@ -65,7 +66,7 @@ export function SiteNavigation({}: {}) {
         className="document-aside"
       >
         <ScrollView>
-          <View flex={1} paddingHorizontal="$4">
+          <View flex={1} paddingLeft="$4" $gtLg={{paddingLeft: 0}}>
             {isTopLevel ? null : (
               <SmallListItem
                 key={parentId.id}
@@ -151,25 +152,7 @@ export function SiteNavigation({}: {}) {
       </YStack>
     )
   } else {
-    return (
-      <View
-        width={10}
-        margin="$4"
-        height="100%"
-        gap="$3"
-        bg="red"
-        marginTop={100}
-        zIndex="$zIndex.2"
-        top={0}
-        left={-8}
-        position="absolute"
-      >
-        <View height={2} bg="$color" />
-        <View height={2} bg="$color" />
-        <View height={2} bg="$color" />
-        <View height={2} bg="$color" />
-      </View>
-    )
+    return <SideNavigationPlaceholder />
   }
 }
 

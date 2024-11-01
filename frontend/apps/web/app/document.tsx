@@ -9,11 +9,14 @@ import {
   HMDocument,
   hmId,
   HMMetadata,
+  HMQueryResult,
   NodeOutline,
   UnpackedHypermediaId,
 } from "@shm/shared";
 import {SiteRoutingProvider, useRouteLink} from "@shm/shared/src/routing";
+import {SideNavigationPlaceholder} from "@shm/shared/src/site-navigation";
 import "@shm/shared/src/styles/document.css";
+import {getRandomColor} from "@shm/ui/src/avatar";
 import {Container} from "@shm/ui/src/container";
 import {DirectoryItem} from "@shm/ui/src/directory";
 import {CommentGroup} from "@shm/ui/src/discussion";
@@ -25,7 +28,7 @@ import {
 import {HMIcon} from "@shm/ui/src/hm-icon";
 import {SmallListItem} from "@shm/ui/src/list-item";
 import {RadioButtons} from "@shm/ui/src/radio-buttons";
-import {Button, ButtonText} from "@tamagui/button";
+import {Button} from "@tamagui/button";
 import {GestureReponderEvent, Text, useMedia} from "@tamagui/core";
 import {X} from "@tamagui/lucide-icons";
 import {ScrollView} from "@tamagui/scroll-view";
@@ -33,7 +36,7 @@ import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import {useCallback, useEffect, useMemo, useState} from "react";
 import {getHref} from "./href";
-import type {HMQueryResult, SiteDocumentPayload} from "./loaders";
+import type {SiteDocumentPayload} from "./loaders";
 import {defaultSiteIcon} from "./meta";
 import {NewspaperPage} from "./newspaper";
 import {NotFoundPage} from "./not-found";
@@ -164,12 +167,36 @@ export function DocumentPage(props: SiteDocumentPayload) {
   );
 }
 
-function DocumentCover({cover}: {cover: HMMetadata["cover"]}) {
+function DocumentCover({
+  cover,
+  id,
+}: {
+  cover: HMMetadata["cover"];
+  id: UnpackedHypermediaId | null;
+}) {
+  const coverBg = useMemo(() => {
+    if (id?.id) {
+      return getRandomColor(id.id);
+    }
+
+    return "black";
+  }, [id]);
   if (!cover) return null;
 
   return (
-    <XStack bg="black" height="25vh" width="100%" position="relative">
-      <img src={getFileUrl(cover)} title={"cover image"} />
+    <XStack bg={coverBg} height="25vh" width="100%" position="relative">
+      <img
+        src={getFileUrl(cover)}
+        title={"cover image"}
+        style={{
+          width: "100%",
+          height: "100%",
+          position: "absolute",
+          top: 0,
+          left: 0,
+          objectFit: "cover",
+        }}
+      />
     </XStack>
   );
 }
@@ -476,6 +503,7 @@ function SiteNavigation({
   supportQueries?: HMQueryResult[];
   id: UnpackedHypermediaId;
 }) {
+  const media = useMedia();
   const outline = useMemo(() => {
     return getNodesOutline(document.content);
   }, [document.content]);
@@ -510,46 +538,49 @@ function SiteNavigation({
         idPath.length === doc.path.length - 1
     );
   const documentIndent = isTopLevel ? 0 : 1;
-
-  return (
-    <YStack gap="$2">
-      {isTopLevel || !parentListItem ? null : (
+  if (media.gtSm) {
+    return (
+      <YStack gap="$2" paddingLeft="$4">
+        {isTopLevel || !parentListItem ? null : (
+          <DocumentSmallListItem
+            metadata={parentListItem.metadata}
+            id={parentId}
+          />
+        )}
         <DocumentSmallListItem
-          metadata={parentListItem.metadata}
-          id={parentId}
-        />
-      )}
-      <DocumentSmallListItem
-        metadata={document.metadata}
-        id={id}
-        indented={documentIndent}
-      />
-      {outline.map((node) => (
-        <OutlineNode
-          node={node}
-          key={node.id}
-          onClose={onClose}
+          metadata={document.metadata}
+          id={id}
           indented={documentIndent}
         />
-      ))}
-      {childrenDocs?.map((doc) => (
-        <DocumentSmallListItem
-          key={doc.path.join("/")}
-          metadata={doc.metadata}
-          id={hmId("d", doc.account, {path: doc.path})}
-          indented={2}
-        />
-      ))}
-      {siblingDocs?.map((doc) => (
-        <DocumentSmallListItem
-          key={doc.path.join("/")}
-          metadata={doc.metadata}
-          id={hmId("d", doc.account, {path: doc.path})}
-          indented={1}
-        />
-      ))}
-    </YStack>
-  );
+        {outline.map((node) => (
+          <OutlineNode
+            node={node}
+            key={node.id}
+            onClose={onClose}
+            indented={documentIndent}
+          />
+        ))}
+        {childrenDocs?.map((doc) => (
+          <DocumentSmallListItem
+            key={doc.path.join("/")}
+            metadata={doc.metadata}
+            id={hmId("d", doc.account, {path: doc.path})}
+            indented={2}
+          />
+        ))}
+        {siblingDocs?.map((doc) => (
+          <DocumentSmallListItem
+            key={doc.path.join("/")}
+            metadata={doc.metadata}
+            id={hmId("d", doc.account, {path: doc.path})}
+            indented={1}
+          />
+        ))}
+      </YStack>
+    );
+  } else {
+    return <SideNavigationPlaceholder />;
+  }
 }
 
 function OutlineNode({
@@ -586,41 +617,6 @@ function OutlineNode({
             <OutlineNode node={child} key={child.id} indented={indented + 1} />
           ))
         : null}
-    </>
-  );
-  return (
-    <>
-      <ButtonText
-        tag="a"
-        href={`#${node.id}`}
-        color="$color9"
-        textDecorationLine="none"
-        fontSize={14}
-        hoverStyle={{
-          textDecorationLine: "underline",
-        }}
-        onPress={(e: MouseEvent) => {
-          e.preventDefault();
-          const targetElement = document.querySelector(`#${node.id}`);
-
-          if (targetElement) {
-            const offset = 80; // header fixed height
-            const elementPosition = targetElement.getBoundingClientRect().top;
-            const offsetPosition = elementPosition + window.scrollY - offset;
-            window.scrollTo({top: offsetPosition, behavior: "smooth"});
-            onClose?.();
-          }
-        }}
-      >
-        {node.title}
-      </ButtonText>
-      {node.children?.length ? (
-        <YStack gap="$1" paddingLeft="$4">
-          {node.children.map((child) => (
-            <OutlineNode node={child} key={child.id} />
-          ))}
-        </YStack>
-      ) : null}
     </>
   );
 }
