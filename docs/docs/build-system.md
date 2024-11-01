@@ -46,7 +46,7 @@ We generate some amount of code here, mostly for Go and JavaScript, based on the
 
 We has to implement some tricks to efficiently generate code, because our build system actually prefers to generate code at build time. If you change some file that is a source for code generation (like a Protobuf file) make sure to run `./dev gen` before committing or building: it will check if the generated code is up to date, and run the code generators if necessary.
 
-If you create new files for code generationg, look around `BUILD.plz` files inside `proto`, `backend`, and `graphql` directories for some examples.
+If you create new files for code generationg, look around `BUILD.plz` files inside `proto` and `backend` directories for some examples.
 
 You can list code generation targets with `plz query filter -i 'generated:gen'`.
 
