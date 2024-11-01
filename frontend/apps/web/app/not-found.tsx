@@ -14,7 +14,8 @@ export function NotFoundPage({
       <Container>
         <YStack
           alignSelf="center"
-          width={600}
+          maxWidth={600}
+          width="100%"
           gap="$5"
           borderWidth={1}
           borderColor="$color8"

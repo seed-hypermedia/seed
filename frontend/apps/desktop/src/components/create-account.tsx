@@ -1,5 +1,6 @@
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {queryKeys} from '@/models/query-keys'
+import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   createWebHMUrl,
@@ -48,6 +49,7 @@ export const [dispatchNewKeyEvent, newKeyEvent] = eventStream<boolean>()
 type AccountStep = 'create' | 'name' | 'members' | 'complete'
 
 export function AccountWizardDialog() {
+  const route = useNavRoute()
   const theme = useTheme()
   const accounts = useMyAccountIds()
   const createDraft = trpc.drafts.write.useMutation()
@@ -58,7 +60,7 @@ export function AccountWizardDialog() {
   const [existingWords, setExistingWords] = useState<string>('')
   const [icon, setIcon] = useState('')
   const [name, setName] = useState('')
-  const [error, setError] = useState('')
+  // const [error, setError] = useState('')
   const navigate = useNavigate('push')
 
   const onboardingColor = theme.brand5.val
@@ -84,12 +86,6 @@ export function AccountWizardDialog() {
       setOpen(val)
     })
   }, [])
-
-  useEffect(() => {
-    if (accounts.data?.length == 0) {
-      setStep('create')
-    }
-  }, [accounts.data])
 
   useEffect(() => {
     if (step == 'create' && !newAccount) {
@@ -226,8 +222,11 @@ export function AccountWizardDialog() {
     <Dialog
       open={open}
       onOpenChange={(val: boolean) => {
-        setNewAccount(true)
         dispatchWizardEvent(val)
+        if (!val) {
+          setStep('create')
+          setNewAccount(true)
+        }
       }}
       defaultValue={false}
     >
@@ -504,6 +503,7 @@ export function AccountWizardDialog() {
                         setNewAccount(true)
                         setName('')
                         setIcon('')
+                        setStep('create')
 
                         openDraft({id: hmId('d', createdAccount.accountId)})
                       }
