@@ -1,14 +1,12 @@
 import {useFetcher} from "@remix-run/react";
 import {
   formattedDateMedium,
-  getFileUrl,
   HMDocument,
   HMMetadata,
   HMQueryResult,
   relativeFormattedDate,
   UnpackedHypermediaId,
 } from "@shm/shared";
-import {getRandomColor} from "@shm/ui/src/avatar";
 import {Container} from "@shm/ui/src/container";
 import {HMIcon} from "@shm/ui/src/hm-icon";
 import {Popover} from "@shm/ui/src/TamaguiPopover";
@@ -35,71 +33,24 @@ import {SearchPayload} from "./routes/hm.api.search";
 import {unwrap} from "./wrapping";
 
 export function PageHeader({
-  homeMetadata,
   homeId,
   docMetadata,
   docId,
   authors = [],
   updateTime = null,
-  openSheet,
-  breadcrumbs,
-  supportQueries,
 }: {
-  homeMetadata: HMMetadata | null;
   homeId: UnpackedHypermediaId | null;
   docMetadata: HMMetadata | null;
   docId: UnpackedHypermediaId | null;
   authors: MetadataPayload[];
   updateTime: HMDocument["updateTime"] | null;
-  openSheet?: () => void;
-  breadcrumbs: Array<{
-    id: UnpackedHypermediaId;
-    metadata: HMMetadata;
-  }>;
-  supportQueries?: HMQueryResult[];
 }) {
-  const coverBg = useMemo(() => {
-    if (docId?.id) {
-      return getRandomColor(docId.id);
-    }
-  }, [docId]);
-
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata]);
   const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata]);
   const isHomeDoc = useMemo(() => docId?.id == homeId?.id, [docId, homeId]);
 
   return (
     <YStack id="page-header">
-      <SiteHeader
-        homeMetadata={homeMetadata}
-        homeId={homeId}
-        docMetadata={docMetadata}
-        docId={docId}
-        openSheet={openSheet}
-        breadcrumbs={breadcrumbs}
-        supportQueries={supportQueries}
-      />
-      {hasCover ? (
-        <XStack
-          backgroundColor={coverBg}
-          height="25vh"
-          width="100%"
-          position="relative"
-        >
-          <img
-            src={getFileUrl(docMetadata!.cover)}
-            title={`doc cover`}
-            style={{
-              width: "100%",
-              height: "100%",
-              position: "absolute",
-              top: 0,
-              left: 0,
-              objectFit: "cover",
-            }}
-          />
-        </XStack>
-      ) : null}
       <Container
         $gtSm={{
           marginTop: hasCover ? -40 : 0,

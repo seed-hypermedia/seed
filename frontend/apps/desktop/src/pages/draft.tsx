@@ -1,7 +1,6 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {CoverImage} from '@/components/cover-image'
 import {HyperMediaEditorView} from '@/components/editor'
-import Footer from '@/components/footer'
 import {IconForm} from '@/components/icon-form'
 import {MainWrapper, SidebarSpacer} from '@/components/main-wrapper'
 import {NewspaperLayout} from '@/components/newspaper-layout'
@@ -118,9 +117,12 @@ export default function DraftPage() {
     route.id
   ) {
     draftContent = (
-      <XStack flex={1}>
-        <SidebarSpacer />
-        <NewspaperLayout id={route.id} metadata={draft.data?.metadata} />
+      <XStack flex={1} height="100%">
+        <MainWrapper>
+          <SidebarSpacer />
+
+          <NewspaperLayout id={route.id} metadata={draft.data?.metadata} />
+        </MainWrapper>
       </XStack>
     )
   } else if (!draft.isLoading && route.id) {
@@ -160,8 +162,6 @@ export default function DraftPage() {
         ) : null}
         {draftContent}
       </AccessoryLayout>
-
-      <Footer />
     </ErrorBoundary>
   )
 }

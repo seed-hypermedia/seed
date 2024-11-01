@@ -57,7 +57,7 @@ export function AccessoryLayout<
 }) {
   const theme = useTheme()
   return (
-    <XStack f={1}>
+    <XStack f={1} height="100%">
       <PanelGroup direction="horizontal">
         <Panel
           minSize={50}
@@ -71,12 +71,14 @@ export function AccessoryLayout<
         >
           {children}
         </Panel>
-        <PanelResizeHandle className="accessory-resize-handle" />
+        {accessoryKey !== undefined ? (
+          <PanelResizeHandle className="accessory-resize-handle" />
+        ) : null}
         <Panel
           hidden={accessoryKey === undefined}
           maxSize={50}
-          minSize={25}
-          defaultSize={25}
+          minSize={20}
+          defaultSize={20}
           style={{
             overflowY: 'auto',
             borderRight:

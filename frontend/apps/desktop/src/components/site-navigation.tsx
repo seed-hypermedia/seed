@@ -22,12 +22,18 @@ import {
   FocusButton,
   getBlockNodeById,
   HMIcon,
+  ScrollView,
+  Separator,
+  SizableText,
   SmallListGroupItem,
   SmallListItem,
+  Spinner,
+  useMedia,
+  View,
+  YStack,
 } from '@shm/ui'
 import {Hash, Plus} from '@tamagui/lucide-icons'
 import {memo, ReactNode, useState} from 'react'
-import {Separator, SizableText, Spinner, View} from 'tamagui'
 import {Directory} from './directory'
 
 export function SiteNavigation({}: {}) {
@@ -44,85 +50,127 @@ export function SiteNavigation({}: {}) {
   const parentId = hmId(id.type, id.uid, {
     path: id.path?.slice(0, -1) || [],
   })
+  const media = useMedia()
   const parentEntity = useEntity(parentId)
   const siblingDir = useListDirectory(parentId)
   const createDraft = useCreateDraft(id)
   const capability = useMyCapability(id)
   if (!entity?.data) return null
 
-  return (
-    <View flex={1} paddingHorizontal="$4">
-      {isTopLevel ? null : (
-        <SmallListItem
-          key={parentId.id}
-          title={getDocumentTitle(parentEntity.data?.document)}
-          icon={
-            <HMIcon
-              id={id}
-              metadata={parentEntity.data?.document?.metadata}
-              size={20}
-            />
-          }
-          onPress={() => {
-            navigate({
-              key: 'document',
-              id: parentId,
-            })
-          }}
-        />
-      )}
-      <SmallListItem
-        key={id.uid}
-        collapsable
-        isCollapsed={isCollapsed}
-        indented={documentIndent}
-        onSetCollapsed={setCollapsed}
-        title={getDocumentTitle(document)}
-        icon={<HMIcon id={id} metadata={document?.metadata} size={20} />}
-        onPress={() => {
-          navigate({
-            key: 'document',
-            id,
-          })
-        }}
-        active={!id.blockRef}
-      />
-      {isCollapsed ? null : (
-        <>
-          <OutlineNavigation indented={documentIndent + 1} route={route} />
-          <Separator marginLeft={Math.max(0, documentIndent + 1) * 22 + 12} />
-          <Directory indented={documentIndent + 1} docId={id} />
-          {roleCanWrite(capability?.role) && (
-            <SmallListItem
-              icon={Plus}
-              title="Create Document"
-              onPress={createDraft}
-              color="$green10"
-              indented={documentIndent + 1}
-            />
-          )}
-        </>
-      )}
-
-      {isTopLevel
-        ? null
-        : siblingDir.data?.map((item) => {
-            const itemId = hmId('d', item.account, {path: item.path})
-            if (itemId.id === id.id) return null
-            return (
+  if (media.gtSm) {
+    return (
+      <YStack
+        marginTop={200}
+        $gtSm={{marginTop: 160}}
+        className="document-aside"
+      >
+        <ScrollView>
+          <View flex={1} paddingHorizontal="$4">
+            {isTopLevel ? null : (
               <SmallListItem
-                key={itemId.id}
+                key={parentId.id}
+                title={getDocumentTitle(parentEntity.data?.document)}
+                icon={
+                  <HMIcon
+                    id={id}
+                    metadata={parentEntity.data?.document?.metadata}
+                    size={20}
+                  />
+                }
                 onPress={() => {
-                  navigate({key: 'document', id: itemId})
+                  navigate({
+                    key: 'document',
+                    id: parentId,
+                  })
                 }}
-                title={getMetadataName(item.metadata)}
-                icon={<HMIcon id={itemId} metadata={item.metadata} size={20} />}
-                indented={1}
               />
-            )
-          })}
-    </View>
-  )
+            )}
+            <SmallListItem
+              key={id.uid}
+              collapsable
+              isCollapsed={isCollapsed}
+              indented={documentIndent}
+              onSetCollapsed={setCollapsed}
+              title={getDocumentTitle(document)}
+              icon={<HMIcon id={id} metadata={document?.metadata} size={20} />}
+              onPress={() => {
+                navigate({
+                  key: 'document',
+                  id,
+                })
+              }}
+              active={!id.blockRef}
+            />
+            {isCollapsed ? null : (
+              <>
+                <OutlineNavigation
+                  indented={documentIndent + 1}
+                  route={route}
+                />
+                <Separator
+                  marginLeft={Math.max(0, documentIndent + 1) * 22 + 12}
+                />
+                <Directory indented={documentIndent + 1} docId={id} />
+                {roleCanWrite(capability?.role) && (
+                  <SmallListItem
+                    icon={Plus}
+                    title="Create Document"
+                    onPress={createDraft}
+                    color="$green10"
+                    indented={documentIndent + 1}
+                  />
+                )}
+              </>
+            )}
+
+            {isTopLevel
+              ? null
+              : siblingDir.data?.map((item) => {
+                  const itemId = hmId('d', item.account, {path: item.path})
+                  if (itemId.id === id.id) return null
+                  return (
+                    <SmallListItem
+                      key={itemId.id}
+                      onPress={() => {
+                        navigate({key: 'document', id: itemId})
+                      }}
+                      title={getMetadataName(item.metadata)}
+                      icon={
+                        <HMIcon
+                          id={itemId}
+                          metadata={item.metadata}
+                          size={20}
+                        />
+                      }
+                      indented={1}
+                    />
+                  )
+                })}
+          </View>
+        </ScrollView>
+      </YStack>
+    )
+  } else {
+    return (
+      <View
+        width={10}
+        margin="$4"
+        height="100%"
+        gap="$3"
+        bg="red"
+        marginTop={100}
+        zIndex="$zIndex.2"
+        top={0}
+        left={-8}
+        position="absolute"
+      >
+        <View height={2} bg="$color" />
+        <View height={2} bg="$color" />
+        <View height={2} bg="$color" />
+        <View height={2} bg="$color" />
+      </View>
+    )
+  }
 }
 
 function OutlineNavigation({

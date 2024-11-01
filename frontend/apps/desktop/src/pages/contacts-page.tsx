@@ -1,5 +1,4 @@
 import {FavoriteButton} from '@/components/favoriting'
-import Footer from '@/components/footer'
 import {MainWrapper} from '@/components/main-wrapper'
 import {ListItemSkeleton} from '@/components/skeleton'
 import {useListProfileDocuments} from '@/models/documents'
@@ -47,7 +46,6 @@ export default function ContactsPage() {
             <Spinner />
           </Container>
         </MainWrapper>
-        <Footer />
       </>
     )
   }
@@ -78,7 +76,6 @@ export default function ContactsPage() {
           </YStack>
         </Container>
       </MainWrapper>
-      <Footer />
     </>
   )
 }

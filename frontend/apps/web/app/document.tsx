@@ -13,6 +13,7 @@ import {
   UnpackedHypermediaId,
 } from "@shm/shared";
 import {SiteRoutingProvider, useRouteLink} from "@shm/shared/src/routing";
+import "@shm/shared/src/styles/document.css";
 import {Container} from "@shm/ui/src/container";
 import {DirectoryItem} from "@shm/ui/src/directory";
 import {CommentGroup} from "@shm/ui/src/discussion";
@@ -25,7 +26,7 @@ import {HMIcon} from "@shm/ui/src/hm-icon";
 import {SmallListItem} from "@shm/ui/src/list-item";
 import {RadioButtons} from "@shm/ui/src/radio-buttons";
 import {Button, ButtonText} from "@tamagui/button";
-import {GestureReponderEvent, Text} from "@tamagui/core";
+import {GestureReponderEvent, Text, useMedia} from "@tamagui/core";
 import {X} from "@tamagui/lucide-icons";
 import {ScrollView} from "@tamagui/scroll-view";
 import {XStack, YStack} from "@tamagui/stacks";
@@ -37,7 +38,7 @@ import {defaultSiteIcon} from "./meta";
 import {NewspaperPage} from "./newspaper";
 import {NotFoundPage} from "./not-found";
 import {PageFooter} from "./page-footer";
-import {PageHeader} from "./page-header";
+import {PageHeader, SiteHeader} from "./page-header";
 import type {DirectoryPayload} from "./routes/hm.api.directory";
 import {DiscussionPayload} from "./routes/hm.api.discussion";
 import {EmbedDocument, EmbedInline} from "./web-embeds";
@@ -85,8 +86,8 @@ export const documentPageMeta: MetaFunction = ({
   return meta;
 };
 
-const outlineWidth = 172;
 export function DocumentPage(props: SiteDocumentPayload) {
+  const media = useMedia();
   const [open, setOpen] = useState(false);
   const {document, homeId, homeMetadata, id, authors, siteHost} = props;
   if (!id) return <NotFoundPage {...props} />;
@@ -107,64 +108,51 @@ export function DocumentPage(props: SiteDocumentPayload) {
   }
   return (
     <SiteRoutingProvider homeId={props.homeId}>
-      <YStack marginBottom={300}>
-        <PageHeader
+      <YStack>
+        <SiteHeader
           homeMetadata={homeMetadata}
           homeId={homeId}
           docMetadata={document.metadata}
           docId={id}
-          authors={authors}
-          updateTime={document.updateTime}
           breadcrumbs={props.breadcrumbs}
           supportQueries={props.supportQueries}
           openSheet={() => {
             setOpen(!open);
           }}
         />
-        <YStack position="relative">
-          <Container clearVerticalSpace>
+        <DocumentCover cover={document.metadata.cover} />
+        <YStack className="document-container">
+          {media.gtSm ? (
             <YStack
-              position="absolute"
-              h="100%"
-              top={0}
-              left={outlineWidth * -1}
-              display="none"
-              $gtMd={{display: "flex"}}
+              marginTop={200}
+              $gtSm={{marginTop: 160}}
+              className="document-aside"
             >
-              <YStack
-                width={outlineWidth}
-                position="sticky"
-                paddingTop={34}
-                top={50}
-                h="calc(100%)"
-                maxHeight="calc(100vh - 60px)"
-                overflow="hidden"
-                display="none"
-                $gtSm={{display: "block"}}
-              >
-                <YStack
-                  gap="$3"
-                  maxHeight="100%"
-                  overflow="auto"
-                  className="hide-scrollbar"
-                >
-                  <SiteNavigation
-                    supportDocuments={props.supportDocuments}
-                    supportQueries={props.supportQueries}
-                    document={document}
-                    id={id}
-                  />
-                </YStack>
-              </YStack>
+              <SiteNavigation
+                supportDocuments={props.supportDocuments}
+                supportQueries={props.supportQueries}
+                document={document}
+                id={id}
+              />
             </YStack>
+          ) : null}
+          <YStack>
+            <PageHeader
+              homeId={homeId}
+              docMetadata={document.metadata}
+              docId={id}
+              authors={authors}
+              updateTime={document.updateTime}
+            />
             <WebDocContentProvider homeId={homeId} id={id} siteHost={siteHost}>
               <DocContent document={document} />
             </WebDocContentProvider>
-          </Container>
-          <DocumentAppendix id={id} homeId={homeId} siteHost={siteHost} />
+            <DocumentAppendix id={id} homeId={homeId} siteHost={siteHost} />
+          </YStack>
         </YStack>
+        <PageFooter id={id} />
       </YStack>
-      <PageFooter id={id} />
+
       <MobileOutline open={open} onClose={() => setOpen(false)}>
         <SiteNavigation
           document={document}
@@ -173,6 +161,16 @@ export function DocumentPage(props: SiteDocumentPayload) {
         />
       </MobileOutline>
     </SiteRoutingProvider>
+  );
+}
+
+function DocumentCover({cover}: {cover: HMMetadata["cover"]}) {
+  if (!cover) return null;
+
+  return (
+    <XStack bg="black" height="25vh" width="100%" position="relative">
+      <img src={getFileUrl(cover)} title={"cover image"} />
+    </XStack>
   );
 }
 
@@ -514,7 +512,7 @@ function SiteNavigation({
   const documentIndent = isTopLevel ? 0 : 1;
 
   return (
-    <YStack gap="$3">
+    <YStack gap="$2">
       {isTopLevel || !parentListItem ? null : (
         <DocumentSmallListItem
           metadata={parentListItem.metadata}
@@ -542,7 +540,6 @@ function SiteNavigation({
           indented={2}
         />
       ))}
-
       {siblingDocs?.map((doc) => (
         <DocumentSmallListItem
           key={doc.path.join("/")}

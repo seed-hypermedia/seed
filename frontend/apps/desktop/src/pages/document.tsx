@@ -6,7 +6,6 @@ import {CollaboratorsPanel} from '@/components/collaborators-panel'
 import {Discussion} from '@/components/discussion'
 import {DocumentHeadItems} from '@/components/document-head-items'
 import {LinkNameComponent} from '@/components/document-name'
-import Footer from '@/components/footer'
 import {SidebarSpacer} from '@/components/main-wrapper'
 import {NewspaperLayout} from '@/components/newspaper-layout'
 import {OptionsPanel} from '@/components/options-panel'
@@ -29,6 +28,7 @@ import {
   hmId,
   UnpackedHypermediaId,
 } from '@shm/shared'
+import '@shm/shared/src/styles/document.css'
 import {
   Button,
   ButtonText,
@@ -138,7 +138,7 @@ export default function DocumentPage() {
   // }
   return (
     <>
-      <XStack flex={1}>
+      <XStack flex={1} height="100%">
         <SidebarSpacer />
         <AccessoryLayout
           accessory={accessory}
@@ -156,7 +156,6 @@ export default function DocumentPage() {
           />
         </AccessoryLayout>
       </XStack>
-      <Footer />
     </>
   )
 }
@@ -191,6 +190,17 @@ function _MainDocumentPage({
   const siteIsNewspaperLayout =
     siteHomeEntity.data?.document?.metadata.layout ===
     'Seed/Experimental/Newspaper'
+
+  // TODO: fix types
+  const DocContainer = ({children}: any) =>
+    docIsNewspaperLayout ? (
+      <YStack padding={0}>{children}</YStack>
+    ) : (
+      <Container clearVerticalSpace padding={0}>
+        {children}
+      </Container>
+    )
+
   return (
     <YStack>
       {siteIsNewspaperLayout ? (
@@ -199,40 +209,11 @@ function _MainDocumentPage({
           activeId={id}
         />
       ) : null}
-      <DocPageHeader docId={id} isBlockFocused={isBlockFocused} />
-      <YStack position="relative">
-        <Container clearVerticalSpace padding={0} marginBottom={100}>
-          {docIsNewspaperLayout ? null : (
-            <YStack
-              position="absolute"
-              h="100%"
-              top={0}
-              left={outlineWidth * -1}
-              display="none"
-              $gtMd={{display: 'flex'}}
-            >
-              <YStack
-                width={outlineWidth}
-                position="sticky"
-                paddingTop={34}
-                top={50}
-                h="calc(100%)"
-                maxHeight="calc(100vh - 60px)"
-                overflow="hidden"
-                display="none"
-                $gtSm={{display: 'block'}}
-              >
-                <YStack
-                  gap="$3"
-                  maxHeight="100%"
-                  overflow="auto"
-                  className="hide-scrollbar"
-                >
-                  <SiteNavigation />
-                </YStack>
-              </YStack>
-            </YStack>
-          )}
+      <DocumentCover docId={id} />
+      <YStack className="document-container">
+        <SiteNavigation />
+        <YStack>
+          <DocPageHeader docId={id} isBlockFocused={isBlockFocused} />
           <YStack flex={1}>
             <DocPageContent
               entity={entity.data}
@@ -240,7 +221,7 @@ function _MainDocumentPage({
             />
             <DocPageAppendix docId={id} />
           </YStack>
-        </Container>
+        </YStack>
       </YStack>
     </YStack>
   )
@@ -327,7 +308,6 @@ function DocPageHeader({
 
   return (
     <YStack>
-      <DocumentCover docId={docId} />
       <Container
         marginTop={hasCover ? -40 : 0}
         paddingTop={!hasCover ? 60 : '$6'}

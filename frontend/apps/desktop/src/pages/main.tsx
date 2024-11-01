@@ -8,7 +8,9 @@ import {NavRoute} from '@shm/shared'
 import {YStack} from '@shm/ui'
 import {ReactElement, lazy, useMemo} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
+import {Panel, PanelGroup} from 'react-resizable-panels'
 import {AppErrorPage} from '../components/app-error'
+import Footer from '../components/footer'
 import {AppSidebar} from '../components/sidebar'
 import {TitleBar} from '../components/titlebar'
 import {BaseLoading, NotFoundPage} from './base'
@@ -57,6 +59,20 @@ export default function Main({className}: {className?: string}) {
         cleanTitle="Settings"
       />
     )
+    return (
+      <YStack fullscreen className={className}>
+        <ErrorBoundary
+          key={routeKey}
+          FallbackComponent={AppErrorPage}
+          onReset={() => {
+            window.location.reload()
+          }}
+        >
+          {titlebar}
+          <PageComponent />
+        </ErrorBoundary>
+      </YStack>
+    )
     // titlebar = (
     //   <XStack
     //     bg="$transparent"
@@ -85,9 +101,14 @@ export default function Main({className}: {className?: string}) {
           }}
         >
           {titlebar}
-          <PageComponent />
+          <PanelGroup direction="horizontal" style={{flex: 1}}>
+            <Panel id="page" order={2}>
+              <PageComponent />
+            </Panel>
+          </PanelGroup>
+          {sidebar}
+          <Footer />
         </ErrorBoundary>
-        {sidebar}
       </SidebarContextProvider>
     </YStack>
   )

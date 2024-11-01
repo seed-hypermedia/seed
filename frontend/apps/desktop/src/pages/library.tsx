@@ -1,7 +1,6 @@
 import {useAppContext} from '@/app-context'
 import {openAddAccountWizard} from '@/components/create-account'
 import {FavoriteButton} from '@/components/favoriting'
-import Footer from '@/components/footer'
 import {MainWrapper} from '@/components/main-wrapper'
 import {ListItemSkeleton} from '@/components/skeleton'
 import {
@@ -175,7 +174,7 @@ export default function LibraryPage() {
   }
   const isLibraryEmpty = library?.totalItemCount === 0
   return (
-    <>
+    <XStack flex={1} height="100%">
       <MainWrapper>
         <Container justifyContent="center">
           {isLibraryEmpty ? <GettingStarted /> : null}
@@ -288,8 +287,7 @@ export default function LibraryPage() {
           )}
         </Container>
       </MainWrapper>
-      <Footer />
-    </>
+    </XStack>
   )
 }
 
