@@ -38,6 +38,25 @@ export function FocusButton({
   );
 }
 
+export function SmallCollapsableListItem({
+  children,
+  ...props
+}: ComponentProps<typeof SmallListItem>) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const displayChildren = isCollapsed ? null : children;
+  return (
+    <>
+      <SmallListItem
+        collapsable
+        isCollapsed={isCollapsed}
+        onSetCollapsed={setIsCollapsed}
+        {...props}
+      />
+      {displayChildren}
+    </>
+  );
+}
+
 export function SmallListItem({
   disabled,
   title,

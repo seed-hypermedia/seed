@@ -26,6 +26,7 @@ import {
   ScrollView,
   Separator,
   SizableText,
+  SmallCollapsableListItem,
   SmallListGroupItem,
   SmallListItem,
   Spinner,
@@ -44,7 +45,6 @@ export function SiteNavigation({}: {}) {
   const {id} = route
   const entity = useEntity(id)
   const navigate = useNavigate()
-  const [isCollapsed, setCollapsed] = useState(false)
   const document = entity.data?.document
   const isTopLevel = !id.path || id.path?.length === 0
   const documentIndent = isTopLevel ? 0 : 1
@@ -86,49 +86,51 @@ export function SiteNavigation({}: {}) {
                 }}
               />
             )}
-            <SmallListItem
-              key={id.uid}
-              collapsable
-              isCollapsed={isCollapsed}
-              indented={documentIndent}
-              onSetCollapsed={setCollapsed}
-              title={getDocumentTitle(document)}
-              icon={<HMIcon id={id} metadata={document?.metadata} size={20} />}
-              onPress={() => {
-                navigate({
-                  key: 'document',
-                  id,
-                })
-              }}
-              active={!id.blockRef}
-            />
-            {isCollapsed ? null : (
-              <>
-                <OutlineNavigation
-                  indented={documentIndent + 1}
-                  route={route}
-                />
-                <Separator
-                  marginLeft={Math.max(0, documentIndent + 1) * 22 + 12}
-                />
-                <Directory indented={documentIndent + 1} docId={id} />
-                {roleCanWrite(capability?.role) && (
-                  <SmallListItem
-                    icon={Plus}
-                    title="Create Document"
-                    onPress={createDraft}
-                    color="$green10"
-                    indented={documentIndent + 1}
-                  />
-                )}
-              </>
-            )}
 
             {isTopLevel
               ? null
               : siblingDir.data?.map((item) => {
                   const itemId = hmId('d', item.account, {path: item.path})
-                  if (itemId.id === id.id) return null
+                  if (itemId.id === id.id)
+                    return (
+                      <SmallCollapsableListItem
+                        key={id.uid}
+                        indented={documentIndent}
+                        title={getDocumentTitle(document)}
+                        icon={
+                          <HMIcon
+                            id={id}
+                            metadata={document?.metadata}
+                            size={20}
+                          />
+                        }
+                        onPress={() => {
+                          navigate({
+                            key: 'document',
+                            id,
+                          })
+                        }}
+                        active={!id.blockRef}
+                      >
+                        <OutlineNavigation
+                          indented={documentIndent + 1}
+                          route={route}
+                        />
+                        <Separator
+                          marginLeft={Math.max(0, documentIndent + 1) * 22 + 12}
+                        />
+                        <Directory indented={documentIndent + 1} docId={id} />
+                        {roleCanWrite(capability?.role) && (
+                          <SmallListItem
+                            icon={Plus}
+                            title="Create Document"
+                            onPress={createDraft}
+                            color="$green10"
+                            indented={documentIndent + 1}
+                          />
+                        )}
+                      </SmallCollapsableListItem>
+                    )
                   return (
                     <SmallListItem
                       key={itemId.id}
