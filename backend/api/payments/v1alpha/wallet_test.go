@@ -55,7 +55,7 @@ func TestModifyWallets(t *testing.T) {
 	_, err = alice.UpdateWalletName(ctx, &payments.UpdateWalletNameRequest{Id: defaultWallet.Id, Name: newName})
 	require.NoError(t, err)
 
-	wallets, err := alice.ListWallets(ctx, &payments.ListWalletsRequest{Account: seedWallet.Account, IncludeBalance: true})
+	wallets, err := alice.ListWallets(ctx, &payments.ListWalletsRequest{Account: seedWallet.Account})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, len(wallets.Wallets))
 	require.EqualValues(t, newName, wallets.Wallets[0].Name)

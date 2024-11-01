@@ -218,9 +218,7 @@ CREATE TABLE wallets (
     -- The Authentication token of the wallet. api token in case of lndhub
     token BLOB,
     -- Human readable name to help the user identify each wallet
-    name TEXT NOT NULL,
-    -- The balance in satoshis
-    balance INTEGER DEFAULT 0
+    name TEXT NOT NULL
 );
 CREATE INDEX wallets_by_account ON wallets (account);
 

@@ -60,7 +60,6 @@ func TestCreate(t *testing.T) {
 		Address: connectionURL,
 		Name:    nickname,
 		Type:    "lndhub.go",
-		Balance: 0,
 		Account: keypair.Principal().String(),
 	}, login, password, hex.EncodeToString(token))
 

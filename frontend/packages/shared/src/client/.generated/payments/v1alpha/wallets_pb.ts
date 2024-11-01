@@ -48,13 +48,6 @@ export class Wallet extends Message<Wallet> {
    */
   type = "";
 
-  /**
-   * TBalance in satoshis of the wallet.
-   *
-   * @generated from field: uint64 balance = 6;
-   */
-  balance = protoInt64.zero;
-
   constructor(data?: PartialMessage<Wallet>) {
     super();
     proto3.util.initPartial(data, this);
@@ -68,7 +61,6 @@ export class Wallet extends Message<Wallet> {
     { no: 3, name: "address", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 5, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 6, name: "balance", kind: "scalar", T: 4 /* ScalarType.UINT64 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Wallet {
@@ -278,6 +270,88 @@ export class ExportWalletResponse extends Message<ExportWalletResponse> {
 }
 
 /**
+ * The request to get an lndhub wallet's balance.
+ *
+ * @generated from message com.seed.payments.v1alpha.GetWalletBalanceRequest
+ */
+export class GetWalletBalanceRequest extends Message<GetWalletBalanceRequest> {
+  /**
+   * Required. Id of the wallet to get the balance from.
+   *
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  constructor(data?: PartialMessage<GetWalletBalanceRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.payments.v1alpha.GetWalletBalanceRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetWalletBalanceRequest {
+    return new GetWalletBalanceRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetWalletBalanceRequest {
+    return new GetWalletBalanceRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetWalletBalanceRequest {
+    return new GetWalletBalanceRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetWalletBalanceRequest | PlainMessage<GetWalletBalanceRequest> | undefined, b: GetWalletBalanceRequest | PlainMessage<GetWalletBalanceRequest> | undefined): boolean {
+    return proto3.util.equals(GetWalletBalanceRequest, a, b);
+  }
+}
+
+/**
+ * The wallet's balance in satohis.
+ *
+ * @generated from message com.seed.payments.v1alpha.GetWalletBalanceResponse
+ */
+export class GetWalletBalanceResponse extends Message<GetWalletBalanceResponse> {
+  /**
+   * The wallet's balance in satohis.
+   *
+   * @generated from field: uint64 balance = 1;
+   */
+  balance = protoInt64.zero;
+
+  constructor(data?: PartialMessage<GetWalletBalanceResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.payments.v1alpha.GetWalletBalanceResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "balance", kind: "scalar", T: 4 /* ScalarType.UINT64 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetWalletBalanceResponse {
+    return new GetWalletBalanceResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetWalletBalanceResponse {
+    return new GetWalletBalanceResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetWalletBalanceResponse {
+    return new GetWalletBalanceResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetWalletBalanceResponse | PlainMessage<GetWalletBalanceResponse> | undefined, b: GetWalletBalanceResponse | PlainMessage<GetWalletBalanceResponse> | undefined): boolean {
+    return proto3.util.equals(GetWalletBalanceResponse, a, b);
+  }
+}
+
+/**
  * The request to list all wallets under a certain account.
  *
  * @generated from message com.seed.payments.v1alpha.ListWalletsRequest
@@ -290,13 +364,6 @@ export class ListWalletsRequest extends Message<ListWalletsRequest> {
    */
   account = "";
 
-  /**
-   * Optional. Wheter or not including balance (It takes longer)
-   *
-   * @generated from field: bool include_balance = 2;
-   */
-  includeBalance = false;
-
   constructor(data?: PartialMessage<ListWalletsRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -306,7 +373,6 @@ export class ListWalletsRequest extends Message<ListWalletsRequest> {
   static readonly typeName = "com.seed.payments.v1alpha.ListWalletsRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "include_balance", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListWalletsRequest {

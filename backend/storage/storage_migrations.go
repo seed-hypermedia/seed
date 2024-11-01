@@ -54,7 +54,7 @@ var migrations = []migration{
 	{Version: "2024-10-19.01", Run: func(_ *Store, _ *sqlite.Conn) error {
 		return nil
 	}},
-	{Version: "2024-10-25.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+	{Version: "2024-11-01.01", Run: func(_ *Store, conn *sqlite.Conn) error {
 		return sqlitex.ExecScript(conn, sqlfmt(`
 			DROP TABLE IF EXISTS wallets;
 			CREATE TABLE wallets (
@@ -65,8 +65,7 @@ var migrations = []migration{
 				login BLOB NOT NULL,
 				password BLOB NOT NULL,
 				token BLOB,
-				name TEXT NOT NULL,
-				balance INTEGER DEFAULT 0
+				name TEXT NOT NULL
 			);
 			CREATE INDEX wallets_by_account ON wallets (account);
 			DELETE FROM kv WHERE key = 'default_wallet';

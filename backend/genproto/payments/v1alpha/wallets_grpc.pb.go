@@ -34,6 +34,8 @@ type WalletsClient interface {
 	// used with a 3rd party compatible app.
 	ExportWallet(ctx context.Context, in *ExportWalletRequest, opts ...grpc.CallOption) (*ExportWalletResponse, error)
 	// ListWallets lists all available wallets for the account.
+	GetWalletBalance(ctx context.Context, in *GetWalletBalanceRequest, opts ...grpc.CallOption) (*GetWalletBalanceResponse, error)
+	// ListWallets lists all available wallets for the account.
 	ListWallets(ctx context.Context, in *ListWalletsRequest, opts ...grpc.CallOption) (*ListWalletsResponse, error)
 	// UpdateWalletName changes the name of the wallet. This does not have any
 	// implications on payments. Name is just for user convenience.
@@ -84,6 +86,15 @@ func (c *walletsClient) ImportWallet(ctx context.Context, in *ImportWalletReques
 func (c *walletsClient) ExportWallet(ctx context.Context, in *ExportWalletRequest, opts ...grpc.CallOption) (*ExportWalletResponse, error) {
 	out := new(ExportWalletResponse)
 	err := c.cc.Invoke(ctx, "/com.seed.payments.v1alpha.Wallets/ExportWallet", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *walletsClient) GetWalletBalance(ctx context.Context, in *GetWalletBalanceRequest, opts ...grpc.CallOption) (*GetWalletBalanceResponse, error) {
+	out := new(GetWalletBalanceResponse)
+	err := c.cc.Invoke(ctx, "/com.seed.payments.v1alpha.Wallets/GetWalletBalance", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -141,6 +152,8 @@ type WalletsServer interface {
 	// used with a 3rd party compatible app.
 	ExportWallet(context.Context, *ExportWalletRequest) (*ExportWalletResponse, error)
 	// ListWallets lists all available wallets for the account.
+	GetWalletBalance(context.Context, *GetWalletBalanceRequest) (*GetWalletBalanceResponse, error)
+	// ListWallets lists all available wallets for the account.
 	ListWallets(context.Context, *ListWalletsRequest) (*ListWalletsResponse, error)
 	// UpdateWalletName changes the name of the wallet. This does not have any
 	// implications on payments. Name is just for user convenience.
@@ -168,6 +181,9 @@ func (UnimplementedWalletsServer) ImportWallet(context.Context, *ImportWalletReq
 }
 func (UnimplementedWalletsServer) ExportWallet(context.Context, *ExportWalletRequest) (*ExportWalletResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ExportWallet not implemented")
+}
+func (UnimplementedWalletsServer) GetWalletBalance(context.Context, *GetWalletBalanceRequest) (*GetWalletBalanceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetWalletBalance not implemented")
 }
 func (UnimplementedWalletsServer) ListWallets(context.Context, *ListWalletsRequest) (*ListWalletsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListWallets not implemented")
@@ -261,6 +277,24 @@ func _Wallets_ExportWallet_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WalletsServer).ExportWallet(ctx, req.(*ExportWalletRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Wallets_GetWalletBalance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetWalletBalanceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletsServer).GetWalletBalance(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/com.seed.payments.v1alpha.Wallets/GetWalletBalance",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletsServer).GetWalletBalance(ctx, req.(*GetWalletBalanceRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -359,6 +393,10 @@ var Wallets_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ExportWallet",
 			Handler:    _Wallets_ExportWallet_Handler,
+		},
+		{
+			MethodName: "GetWalletBalance",
+			Handler:    _Wallets_GetWalletBalance_Handler,
 		},
 		{
 			MethodName: "ListWallets",

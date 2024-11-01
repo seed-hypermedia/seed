@@ -34,7 +34,6 @@ type Wallet struct {
 	Address string `marstructure:"address"`
 	Name    string `mapstructure:"name"`
 	Type    string `mapstructure:"type"`
-	Balance int64  `mapstructure:"balance"`
 }
 
 // GetWallet retrieves information about the specific wallet identified with id string
@@ -62,7 +61,6 @@ func GetWallet(conn *sqlite.Conn, walletID string) (Wallet, error) {
 		Address: wallet.WalletsAddress,
 		Name:    wallet.WalletsName,
 		Type:    wallet.WalletsType,
-		Balance: int64(wallet.WalletsBalance),
 		Account: core.Principal(principal).String(),
 	}
 
@@ -98,7 +96,6 @@ func ListWallets(conn *sqlite.Conn, account string, limit int) ([]Wallet, error)
 				Address: s.WalletsAddress,
 				Name:    s.WalletsName,
 				Type:    s.WalletsType,
-				Balance: int64(s.WalletsBalance),
 				Account: acc,
 			})
 	}
@@ -129,7 +126,7 @@ func InsertWallet(conn *sqlite.Conn, wallet Wallet, login, password, token []byt
 		}
 	}
 	if err := insertWallet(conn, wallet.ID, accountID, wallet.Address, strings.ToLower(wallet.Type),
-		login, password, token, wallet.Name, int64(wallet.Balance)); err != nil {
+		login, password, token, wallet.Name); err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			return fmt.Errorf("couldn't insert wallet: %w", ErrDuplicateIndex)
 		}
@@ -162,8 +159,7 @@ func GetDefaultWallet(conn *sqlite.Conn, account string) (w Wallet, err error) {
 		acc = stmt.ColumnInt64(1)
 		w.Address = stmt.ColumnText(2)
 		w.Name = stmt.ColumnText(3)
-		w.Balance = stmt.ColumnInt64(4)
-		w.Type = stmt.ColumnText(5)
+		w.Type = stmt.ColumnText(4)
 		return nil
 	}); err != nil {
 		return w, fmt.Errorf("Could not get default wallet: %w", err)
@@ -289,5 +285,5 @@ func createSetDefaultWalletQuery(account, walletID string) string {
 
 func createGetDefaultWalletQuery(account string) string {
 	cond := "SELECT json_extract(json((SELECT " + storage.KVValue + " FROM " + storage.T_KV + " WHERE " + storage.KVKey + "='" + DefaultWalletKey + "')),'$." + sqlitegen.Column(account) + "') FROM " + storage.T_KV + " WHERE " + storage.KVKey + " = '" + DefaultWalletKey + "')"
-	return ("SELECT " + storage.WalletsID + ", " + storage.WalletsAccount + ", " + storage.WalletsAddress + ", " + storage.WalletsName + ", " + storage.WalletsBalance + ", " + storage.WalletsType + " FROM " + sqlitegen.Column(storage.T_Wallets) + " WHERE " + storage.WalletsID + " = (" + cond + ";").String()
+	return ("SELECT " + storage.WalletsID + ", " + storage.WalletsAccount + ", " + storage.WalletsAddress + ", " + storage.WalletsName + ", " + storage.WalletsType + " FROM " + sqlitegen.Column(storage.T_Wallets) + " WHERE " + storage.WalletsID + " = (" + cond + ";").String()
 }

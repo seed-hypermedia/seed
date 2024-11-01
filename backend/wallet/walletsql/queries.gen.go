@@ -12,9 +12,9 @@ import (
 
 var _ = errors.New
 
-func insertWallet(conn *sqlite.Conn, walletsID string, walletsAccount int64, walletsAddress string, walletsType string, walletsLogin []byte, walletsPassword []byte, walletsToken []byte, walletsName string, walletsBalance int64) error {
-	const query = `INSERT INTO wallets (id, account, address, type, login, password, token, name, balance)
-VALUES (:walletsID, :walletsAccount, :walletsAddress, :walletsType, :walletsLogin, :walletsPassword, :walletsToken, :walletsName, :walletsBalance)`
+func insertWallet(conn *sqlite.Conn, walletsID string, walletsAccount int64, walletsAddress string, walletsType string, walletsLogin []byte, walletsPassword []byte, walletsToken []byte, walletsName string) error {
+	const query = `INSERT INTO wallets (id, account, address, type, login, password, token, name)
+VALUES (:walletsID, :walletsAccount, :walletsAddress, :walletsType, :walletsLogin, :walletsPassword, :walletsToken, :walletsName)`
 
 	before := func(stmt *sqlite.Stmt) {
 		stmt.SetText(":walletsID", walletsID)
@@ -25,7 +25,6 @@ VALUES (:walletsID, :walletsAccount, :walletsAddress, :walletsType, :walletsLogi
 		stmt.SetBytes(":walletsPassword", walletsPassword)
 		stmt.SetBytes(":walletsToken", walletsToken)
 		stmt.SetText(":walletsName", walletsName)
-		stmt.SetInt64(":walletsBalance", walletsBalance)
 	}
 
 	onStep := func(i int, stmt *sqlite.Stmt) error {
@@ -45,12 +44,11 @@ type getWalletResult struct {
 	WalletsAccount int64
 	WalletsAddress string
 	WalletsName    string
-	WalletsBalance int64
 	WalletsType    string
 }
 
 func getWallet(conn *sqlite.Conn, walletsID string) (getWalletResult, error) {
-	const query = `SELECT wallets.id, wallets.account, wallets.address, wallets.name, wallets.balance, wallets.type
+	const query = `SELECT wallets.id, wallets.account, wallets.address, wallets.name, wallets.type
 FROM wallets WHERE wallets.id = :walletsID`
 
 	var out getWalletResult
@@ -68,8 +66,7 @@ FROM wallets WHERE wallets.id = :walletsID`
 		out.WalletsAccount = stmt.ColumnInt64(1)
 		out.WalletsAddress = stmt.ColumnText(2)
 		out.WalletsName = stmt.ColumnText(3)
-		out.WalletsBalance = stmt.ColumnInt64(4)
-		out.WalletsType = stmt.ColumnText(5)
+		out.WalletsType = stmt.ColumnText(4)
 		return nil
 	}
 
@@ -87,11 +84,10 @@ type listWalletsResult struct {
 	WalletsAddress string
 	WalletsName    string
 	WalletsType    string
-	WalletsBalance int64
 }
 
 func listWallets(conn *sqlite.Conn, cursor string, limit int64) ([]listWalletsResult, error) {
-	const query = `SELECT wallets.id, wallets.account, wallets.address, wallets.name, wallets.type, wallets.balance FROM wallets WHERE wallets.id > :cursor LIMIT :limit`
+	const query = `SELECT wallets.id, wallets.account, wallets.address, wallets.name, wallets.type FROM wallets WHERE wallets.id > :cursor LIMIT :limit`
 
 	var out []listWalletsResult
 
@@ -107,7 +103,6 @@ func listWallets(conn *sqlite.Conn, cursor string, limit int64) ([]listWalletsRe
 			WalletsAddress: stmt.ColumnText(2),
 			WalletsName:    stmt.ColumnText(3),
 			WalletsType:    stmt.ColumnText(4),
-			WalletsBalance: stmt.ColumnInt64(5),
 		})
 
 		return nil
@@ -137,25 +132,6 @@ VALUES (:kvKey, :kvValue)`
 	err := sqlitegen.ExecStmt(conn, query, before, onStep)
 	if err != nil {
 		err = fmt.Errorf("failed query: setLoginSignature: %w", err)
-	}
-
-	return err
-}
-
-func removeDefaultWallet(conn *sqlite.Conn, key string) error {
-	const query = `DELETE FROM kv WHERE kv.key = :key `
-
-	before := func(stmt *sqlite.Stmt) {
-		stmt.SetText(":key", key)
-	}
-
-	onStep := func(i int, stmt *sqlite.Stmt) error {
-		return nil
-	}
-
-	err := sqlitegen.ExecStmt(conn, query, before, onStep)
-	if err != nil {
-		err = fmt.Errorf("failed query: removeDefaultWallet: %w", err)
 	}
 
 	return err

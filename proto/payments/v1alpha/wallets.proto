@@ -24,6 +24,9 @@ service Wallets {
   rpc ExportWallet(ExportWalletRequest) returns (ExportWalletResponse);
 
   // ListWallets lists all available wallets for the account.
+  rpc GetWalletBalance(GetWalletBalanceRequest) returns (GetWalletBalanceResponse);
+
+  // ListWallets lists all available wallets for the account.
   rpc ListWallets(ListWalletsRequest) returns (ListWalletsResponse);
 
   // UpdateWalletName changes the name of the wallet. This does not have any
@@ -57,9 +60,6 @@ message Wallet {
 
   // The type of the wallet.
   string type = 5;
-
-  // TBalance in satoshis of the wallet.
-  uint64 balance = 6;
 }
 
 // The request to create a wallet.
@@ -96,13 +96,22 @@ message ExportWalletResponse{
   string credentials = 1;
 }
 
+// The request to get an lndhub wallet's balance.
+message GetWalletBalanceRequest {
+  // Required. Id of the wallet to get the balance from.
+  string id = 1;
+}
+
+// The wallet's balance in satohis.
+message GetWalletBalanceResponse {
+  // The wallet's balance in satohis.
+  uint64 balance = 1;
+}
+
 // The request to list all wallets under a certain account.
 message ListWalletsRequest {
   // Required. Account to list wallets from.
   string account = 1;
-
-  // Optional. Wheter or not including balance (It takes longer)
-  bool include_balance = 2;
 }
 
 // All the wallets under a certain account.

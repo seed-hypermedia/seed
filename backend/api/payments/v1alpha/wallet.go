@@ -194,8 +194,7 @@ func (srv *Server) CreateWallet(ctx context.Context, in *payments.CreateWalletRe
 
 }
 
-// ImportWallet first tries to connect to the wallet with the provided credentials. On
-// success, gets the wallet balance and inserts all that information in the database.
+// ImportWallet first tries to connect to the wallet with the provided credentials.
 // ImportWallet returns the wallet actually inserted on success. The credentials are stored
 // in plain text at the moment.
 func (srv *Server) ImportWallet(ctx context.Context, in *payments.ImportWalletRequest) (*payments.Wallet, error) {
@@ -262,7 +261,6 @@ func (srv *Server) ImportWallet(ctx context.Context, in *payments.ImportWalletRe
 		Address: ret.Address,
 		Name:    ret.Name,
 		Type:    ret.Type,
-		Balance: int64(ret.Balance),
 	}
 	if err = walletsql.InsertWallet(conn, wallet2insert, []byte(creds.Login), []byte(creds.Password), bynaryAcc); err != nil {
 		srv.log.Debug("couldn't insert wallet", zap.String("msg", err.Error()))
@@ -279,13 +277,6 @@ func (srv *Server) ImportWallet(ctx context.Context, in *payments.ImportWalletRe
 		srv.log.Warn("couldn't authenticate new wallet", zap.String("msg", err.Error()))
 		return ret, fmt.Errorf("couldn't authenticate new wallet %s", in.Name)
 	}
-	ret.Balance, err = srv.lightningClient.Lndhub.GetBalance(ctx, ret.Id)
-	if err != nil {
-		_ = walletsql.RemoveWallet(conn, ret.Id)
-		srv.log.Warn("couldn't get balance on new wallet", zap.String("msg", err.Error()))
-		return ret, fmt.Errorf("couldn't get balance on new wallet %s", in.Name)
-	}
-
 	return ret, err
 }
 
@@ -306,7 +297,7 @@ func (srv *Server) ListWallets(ctx context.Context, in *payments.ListWalletsRequ
 		srv.log.Debug("couldn't list wallets", zap.String("msg", err.Error()))
 		return nil, fmt.Errorf("couldn't list wallets")
 	}
-	for i, w := range wallets {
+	for _, w := range wallets {
 		ret.Wallets = append(ret.Wallets, &payments.Wallet{
 			Id:      w.ID,
 			Account: w.Account,
@@ -314,14 +305,6 @@ func (srv *Server) ListWallets(ctx context.Context, in *payments.ListWalletsRequ
 			Name:    w.Name,
 			Type:    w.Type,
 		})
-		if in.IncludeBalance && (strings.ToLower(w.Type) == lndhubsql.LndhubWalletType || strings.ToLower(w.Type) == lndhubsql.LndhubGoWalletType) {
-			balance, err := srv.lightningClient.Lndhub.GetBalance(ctx, w.ID)
-			if err != nil {
-				srv.log.Debug("couldn't get balance", zap.String("wallet", w.Name), zap.String("error", err.Error()))
-				return nil, fmt.Errorf("couldn't get balance from wallet %s", w.Name)
-			}
-			ret.Wallets[i].Balance = balance
-		}
 	}
 	return ret, nil
 }
@@ -345,6 +328,31 @@ func (srv *Server) RemoveWallet(ctx context.Context, in *payments.RemoveWalletRe
 	return nil, nil
 }
 
+// GetWalletBalance tries to contact the wallet's address to get the
+// current balance in Satoshis.
+func (srv *Server) GetWalletBalance(ctx context.Context, in *payments.GetWalletBalanceRequest) (*payments.GetWalletBalanceResponse, error) {
+	ret := &payments.GetWalletBalanceResponse{}
+	conn, release, err := srv.pool.Conn(ctx)
+	if err != nil {
+		return ret, err
+	}
+	defer release()
+
+	wallet, err := walletsql.GetWallet(conn, in.Id)
+	if err != nil {
+		return ret, fmt.Errorf("Can't get the wallet with id %s", in.Id)
+	}
+	if wallet.Type != lndhubsql.LndhubGoWalletType && wallet.Type != lndhubsql.LndhubWalletType {
+		return ret, fmt.Errorf("Wallet type %s is not eligible to get balance", wallet.Type)
+	}
+	ret.Balance, err = srv.lightningClient.Lndhub.GetBalance(ctx, in.Id)
+	if err != nil {
+		srv.log.Debug("couldn't get wallet balance", zap.String("msg", err.Error()))
+		return ret, fmt.Errorf("couldn't get balance for wallet %s", in.Id)
+	}
+	return ret, nil
+}
+
 // UpdateWalletName updates an existing wallet's name with the one provided.
 // If the wallet represented by the id id does not exist, this function
 // returns error. nil otherwise, along with the updated wallet.
@@ -363,7 +371,6 @@ func (srv *Server) UpdateWalletName(ctx context.Context, in *payments.UpdateWall
 	}
 	ret.Account = updatedWallet.Account
 	ret.Address = updatedWallet.Address
-	ret.Balance = uint64(updatedWallet.Balance)
 	ret.Id = updatedWallet.ID
 	ret.Name = updatedWallet.Name
 	ret.Type = updatedWallet.Type
@@ -389,7 +396,6 @@ func (srv *Server) SetDefaultWallet(ctx context.Context, in *payments.SetDefault
 	}
 	ret.Account = updatedWallet.Account
 	ret.Address = updatedWallet.Address
-	ret.Balance = uint64(updatedWallet.Balance)
 	ret.Id = updatedWallet.ID
 	ret.Name = updatedWallet.Name
 	ret.Type = updatedWallet.Type
@@ -498,7 +504,6 @@ func (srv *Server) GetDefaultWallet(ctx context.Context, in *payments.GetDefault
 	}
 	ret.Account = w.Account
 	ret.Address = w.Address
-	ret.Balance = uint64(w.Balance)
 	ret.Id = w.ID
 	ret.Name = w.Name
 	ret.Type = w.Type
@@ -641,7 +646,6 @@ func (srv *Server) PayInvoice(ctx context.Context, account string, payReq string
 		}
 		walletToPay.Account = w.Account
 		walletToPay.Address = w.Address
-		walletToPay.Balance = uint64(w.Balance)
 		walletToPay.Id = w.ID
 		walletToPay.Name = w.Name
 		walletToPay.Type = w.Type

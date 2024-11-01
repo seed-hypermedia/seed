@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateWalletRequest, ExportWalletRequest, ExportWalletResponse, GetDefaultWalletRequest, ImportWalletRequest, ListWalletsRequest, ListWalletsResponse, RemoveWalletRequest, SetDefaultWalletRequest, UpdateWalletNameRequest, Wallet } from "./wallets_pb";
+import { CreateWalletRequest, ExportWalletRequest, ExportWalletResponse, GetDefaultWalletRequest, GetWalletBalanceRequest, GetWalletBalanceResponse, ImportWalletRequest, ListWalletsRequest, ListWalletsResponse, RemoveWalletRequest, SetDefaultWalletRequest, UpdateWalletNameRequest, Wallet } from "./wallets_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -56,6 +56,17 @@ export const Wallets = {
       name: "ExportWallet",
       I: ExportWalletRequest,
       O: ExportWalletResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * ListWallets lists all available wallets for the account.
+     *
+     * @generated from rpc com.seed.payments.v1alpha.Wallets.GetWalletBalance
+     */
+    getWalletBalance: {
+      name: "GetWalletBalance",
+      I: GetWalletBalanceRequest,
+      O: GetWalletBalanceResponse,
       kind: MethodKind.Unary,
     },
     /**
