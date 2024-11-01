@@ -39,6 +39,7 @@ type Server struct {
 	pool            *sqlitex.Pool
 	net             *mttnet.Node
 	log             *zap.Logger
+	ks              core.KeyStore
 }
 
 // Credentials struct holds all we need to connect to different lightning nodes (lndhub, LND, core-lightning, ...).
@@ -53,7 +54,7 @@ type Credentials struct {
 // New is the constructor of the wallet service. Since it needs to authenticate to the internal wallet provider (lndhub)
 // it may take time in case node is offline. This is why it's initialized in a gorutine and calls to the service functions
 // will fail until the initial wallet is successfully initialized.
-func NewServer(ctx context.Context, log *zap.Logger, db *sqlitex.Pool, net *mttnet.Node, mainnet bool) *Server {
+func NewServer(ctx context.Context, log *zap.Logger, db *sqlitex.Pool, net *mttnet.Node, ks core.KeyStore, mainnet bool) *Server {
 	lndhubDomain := "ln.testnet.mintter.com"
 	lnaddressDomain := "ln.testnet.mintter.com"
 	if mainnet {
@@ -68,6 +69,7 @@ func NewServer(ctx context.Context, log *zap.Logger, db *sqlitex.Pool, net *mttn
 		},
 		net: net,
 		log: log,
+		ks:  ks,
 	}
 	srv.net.SetInvoicer(srv)
 	return srv
@@ -164,13 +166,13 @@ func (srv *Server) P2PInvoiceRequest(ctx context.Context, account core.Principal
 // CreateWallet creates a seed wallet from a set of mnemonic words. (usually the same as the
 // account). If the account was set with a password, then the same password has to be inserted here.
 func (srv *Server) CreateWallet(ctx context.Context, in *payments.CreateWalletRequest) (ret *payments.Wallet, err error) {
-	kp, err := core.AccountFromMnemonic(in.Mnemonics, in.Password)
+	kp, err := srv.ks.GetKey(ctx, in.Account)
 	if err != nil {
-		return ret, fmt.Errorf("Provided mnemonics lead to a non valid or non existing account: %w", err)
+		return ret, fmt.Errorf("Problems with provided account: %w", err)
 	}
 	signature, err := kp.Sign([]byte(lndhub.SigningMessage))
 	if err != nil {
-		return ret, fmt.Errorf("Could not sign the login phrase with the provided mnemonics: %w", err)
+		return ret, fmt.Errorf("Could not sign the login phrase with the provided account: %w", err)
 	}
 
 	creds := Credentials{

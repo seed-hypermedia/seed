@@ -95,23 +95,16 @@ export class Wallet extends Message<Wallet> {
  */
 export class CreateWalletRequest extends Message<CreateWalletRequest> {
   /**
-   * Required. Mnemonic words to create the wallet from. 
+   * Required. The account we are creating the wallet to.
    *
-   * @generated from field: repeated string mnemonics = 1;
+   * @generated from field: string account = 1;
    */
-  mnemonics: string[] = [];
-
-  /**
-   * Optional. The password to add to mnemonic words. In most cases this is left blank.
-   *
-   * @generated from field: string password = 2;
-   */
-  password = "";
+  account = "";
 
   /**
    * Required. Name of the wallet to be created.
    *
-   * @generated from field: string name = 3;
+   * @generated from field: string name = 2;
    */
   name = "";
 
@@ -123,9 +116,8 @@ export class CreateWalletRequest extends Message<CreateWalletRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.payments.v1alpha.CreateWalletRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "mnemonics", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-    { no: 2, name: "password", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateWalletRequest {

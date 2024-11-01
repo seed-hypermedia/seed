@@ -50,7 +50,6 @@ func New(
 	isMainnet bool,
 ) Server {
 	db := repo.DB()
-
 	return Server{
 		Activity:    activity,
 		Daemon:      daemon.NewServer(repo, &p2pNodeSubset{node: node, sync: sync}),
@@ -58,7 +57,7 @@ func New(
 		Entities:    entities.NewServer(idx, sync),
 		DocumentsV3: documentsv3.NewServer(repo.KeyStore(), idx, db, logging.New("seed/documents", LogLevel)),
 		Syncing:     sync,
-		Payments:    payments.NewServer(ctx, logging.New("seed/payments", LogLevel), db, node, isMainnet),
+		Payments:    payments.NewServer(ctx, logging.New("seed/payments", LogLevel), db, node, repo.KeyStore(), isMainnet),
 	}
 }
 

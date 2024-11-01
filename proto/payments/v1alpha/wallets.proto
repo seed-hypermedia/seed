@@ -64,14 +64,11 @@ message Wallet {
 
 // The request to create a wallet.
 message CreateWalletRequest {
-  // Required. Mnemonic words to create the wallet from. 
-  repeated string mnemonics = 1;
-
-  // Optional. The password to add to mnemonic words. In most cases this is left blank.
-  string password = 2;
+  // Required. The account we are creating the wallet to.
+  string account = 1;
   
   // Required. Name of the wallet to be created.
-  string name = 3;
+  string name = 2;
 }
 
 // The request to import a wallet.

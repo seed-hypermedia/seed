@@ -24,16 +24,18 @@ import (
 	"go.uber.org/zap"
 )
 
-var testMnemonic = []string{"satisfy", "quit", "charge", "arrest", "prevent", "credit", "wreck", "amount", "swim", "snow", "system", "cluster", "skull", "slight", "dismiss"}
-var testMnemonic2 = []string{"hill", "february", "mule", "horse", "rose", "ten", "abandon", "antenna", "soup", "artist", "nerve", "secret"}
-
 func TestModifyWallets(t *testing.T) {
 	testutil.Manual(t)
 	ctx := context.Background()
 	alice := makeTestService(t, "alice")
+	aliceAccs, err := alice.ks.ListKeys(ctx)
+	require.NoError(t, err)
+	require.Len(t, aliceAccs, 1)
+	alicePk := aliceAccs[0].PublicKey.String()
+	require.NoError(t, err)
 	seedWallet, err := alice.CreateWallet(ctx, &payments.CreateWalletRequest{
-		Mnemonics: testMnemonic,
-		Name:      "myWallet",
+		Account: alicePk,
+		Name:    "myWallet",
 	})
 	require.NoError(t, err)
 	defaultWallet, err := alice.GetDefaultWallet(ctx, &payments.GetDefaultWalletRequest{Account: seedWallet.Account})
@@ -63,11 +65,21 @@ func TestRequestLndHubInvoice(t *testing.T) {
 	testutil.Manual(t)
 	ctx := context.Background()
 	alice := makeTestService(t, "alice")
-	bob := makeTestService(t, "bob")
-	bobKp, err := core.AccountFromMnemonic(testMnemonic2, "")
-	bobAcc := bobKp.Principal().String()
+	aliceAccs, err := alice.ks.ListKeys(ctx)
 	require.NoError(t, err)
-	alicesWallet, err := alice.CreateWallet(ctx, &payments.CreateWalletRequest{Mnemonics: testMnemonic, Name: "myWallet"})
+	require.Len(t, aliceAccs, 1)
+	alicePk, err := aliceAccs[0].PublicKey.Libp2pKey()
+	require.NoError(t, err)
+	bob := makeTestService(t, "bob")
+	bobAccs, err := bob.ks.ListKeys(ctx)
+	require.NoError(t, err)
+	require.Len(t, bobAccs, 1)
+	bobPk, err := bobAccs[0].PublicKey.Libp2pKey()
+	require.NoError(t, err)
+	bobKp, err := bob.ks.GetKey(ctx, core.PrincipalFromPubKey(bobPk).String())
+
+	require.NoError(t, err)
+	alicesWallet, err := alice.CreateWallet(ctx, &payments.CreateWalletRequest{Account: core.PrincipalFromPubKey(alicePk).String(), Name: "myWallet"})
 	require.NoError(t, err)
 	defaultWallet, err := alice.GetDefaultWallet(ctx, &payments.GetDefaultWalletRequest{Account: alicesWallet.Account})
 	require.NoError(t, err)
@@ -78,8 +90,8 @@ func TestRequestLndHubInvoice(t *testing.T) {
 	login, err := bobKp.Sign([]byte(lndhub.SigningMessage))
 	require.NoError(t, err)
 
-	uri := "lndhub.go://" + bobAcc + ":" + hex.EncodeToString(login) + "@https://ln.testnet.mintter.com"
-	bobsWallet, err := bob.ImportWallet(ctx, &payments.ImportWalletRequest{CredentialsUrl: uri, Account: bobAcc, Name: "default"})
+	uri := "lndhub.go://" + core.PrincipalFromPubKey(bobPk).String() + ":" + hex.EncodeToString(login) + "@https://ln.testnet.mintter.com"
+	bobsWallet, err := bob.ImportWallet(ctx, &payments.ImportWalletRequest{CredentialsUrl: uri, Account: core.PrincipalFromPubKey(bobPk).String(), Name: "default"})
 	require.NoError(t, err)
 
 	var amt uint64 = 23
@@ -88,7 +100,7 @@ func TestRequestLndHubInvoice(t *testing.T) {
 
 	var payreq string
 
-	defaultWallet, err = bob.GetDefaultWallet(ctx, &payments.GetDefaultWalletRequest{Account: bobAcc})
+	defaultWallet, err = bob.GetDefaultWallet(ctx, &payments.GetDefaultWalletRequest{Account: core.PrincipalFromPubKey(bobPk).String()})
 	require.NoError(t, err)
 	require.Equal(t, bobsWallet, defaultWallet)
 	require.Eventually(t, func() bool {
@@ -100,7 +112,7 @@ func TestRequestLndHubInvoice(t *testing.T) {
 	}, 3*time.Second, 1*time.Second)
 
 	require.Eventually(t, func() bool {
-		payreq, err = alice.RequestLud6Invoice(ctx, bobsWallet.Address, bobAcc, int64(amt), &memo)
+		payreq, err = alice.RequestLud6Invoice(ctx, bobsWallet.Address, core.PrincipalFromPubKey(bobPk).String(), int64(amt), &memo)
 		return err == nil
 	}, 8*time.Second, 2*time.Second)
 	invoice, err := lndhub.DecodeInvoice(payreq)
@@ -146,11 +158,12 @@ func TestRequestP2PInvoice(t *testing.T) {
 }
 
 func makeTestService(t *testing.T, name string) *Server {
+	ctx, cancel := context.WithCancel(context.Background())
 	u := coretest.NewTester(name)
 	db := storage.MakeTestMemoryDB(t)
 	device := u.Device
 	ks := core.NewMemoryKeyStore()
-
+	require.NoError(t, ks.StoreKey(ctx, device.Principal().String(), device))
 	node, closenode := makeTestPeer(t, u, device, ks, db)
 	t.Cleanup(closenode)
 	/*
@@ -163,11 +176,10 @@ func makeTestService(t *testing.T, name string) *Server {
 
 		require.NoError(t, lndhubsql.SetLoginSignature(conn, hex.EncodeToString(signature)))
 	*/
-	ctx, cancel := context.WithCancel(context.Background())
 
 	t.Cleanup(cancel)
 
-	return NewServer(ctx, logging.New("seed/wallet", "debug"), db, node, false)
+	return NewServer(ctx, logging.New("seed/wallet", "debug"), db, node, ks, false)
 }
 
 func makeTestPeer(t *testing.T, u coretest.Tester, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool) (*mttnet.Node, context.CancelFunc) {
