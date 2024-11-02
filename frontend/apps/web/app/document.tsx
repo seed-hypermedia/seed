@@ -527,8 +527,7 @@ function SiteNavigation({
     directory.results.filter(
       (doc) =>
         doc.path.join("/").startsWith(parentIdPath.join("/")) &&
-        parentIdPath.length === doc.path.length - 1 &&
-        doc.path.join("/") !== idPath?.join("/")
+        parentIdPath.length === doc.path.length - 1
     );
   const childrenDocs =
     idPath &&
@@ -547,35 +546,43 @@ function SiteNavigation({
             id={parentId}
           />
         )}
-        <DocumentSmallListItem
-          metadata={document.metadata}
-          id={id}
-          indented={documentIndent}
-        />
-        {outline.map((node) => (
-          <OutlineNode
-            node={node}
-            key={node.id}
-            onClose={onClose}
-            indented={documentIndent}
-          />
-        ))}
-        {childrenDocs?.map((doc) => (
-          <DocumentSmallListItem
-            key={doc.path.join("/")}
-            metadata={doc.metadata}
-            id={hmId("d", doc.account, {path: doc.path})}
-            indented={2}
-          />
-        ))}
-        {siblingDocs?.map((doc) => (
-          <DocumentSmallListItem
-            key={doc.path.join("/")}
-            metadata={doc.metadata}
-            id={hmId("d", doc.account, {path: doc.path})}
-            indented={1}
-          />
-        ))}
+
+        {siblingDocs?.map((doc) => {
+          if (idPath && doc.path.join("/") === idPath.join("/"))
+            return (
+              <>
+                <DocumentSmallListItem
+                  metadata={document.metadata}
+                  id={id}
+                  indented={documentIndent}
+                />
+                {outline.map((node) => (
+                  <OutlineNode
+                    node={node}
+                    key={node.id}
+                    onClose={onClose}
+                    indented={documentIndent}
+                  />
+                ))}
+                {childrenDocs?.map((doc) => (
+                  <DocumentSmallListItem
+                    key={doc.path.join("/")}
+                    metadata={doc.metadata}
+                    id={hmId("d", doc.account, {path: doc.path})}
+                    indented={2}
+                  />
+                ))}
+              </>
+            );
+          return (
+            <DocumentSmallListItem
+              key={doc.path.join("/")}
+              metadata={doc.metadata}
+              id={hmId("d", doc.account, {path: doc.path})}
+              indented={1}
+            />
+          );
+        })}
       </YStack>
     );
   } else {
