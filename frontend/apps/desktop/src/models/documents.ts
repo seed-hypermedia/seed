@@ -915,12 +915,14 @@ export function useListDirectory(id?: UnpackedHypermediaId) {
       })
       const docs = res.documents
         .map(toPlainMessage)
-        .filter(
-          (doc) =>
+        .filter((doc) => {
+          return (
             doc.path !== '' &&
             doc.path.startsWith(prefixPath) &&
-            doc.path !== prefixPath,
-        )
+            doc.path !== prefixPath &&
+            doc.path.slice(1).split('/').length === (id.path?.length || 0) + 1
+          )
+        })
         .map((doc) => {
           return {...doc, path: doc.path.slice(1).split('/')}
         })
