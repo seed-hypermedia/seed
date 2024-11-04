@@ -362,15 +362,12 @@ export const HMDocumentSchema = z
 
 export type HMDocument = z.infer<typeof HMDocumentSchema>
 
-export type HMCommentDraft = {
-  blocks: HMBlockNode[]
-  // targetDocId: string
-  // targetDocVersion: string
-  // targetCommentId: string | null
-  // publishTime: number | null
-  // commentId: string
-  account: string
-}
+export const HMCommentDraftSchema = z.object({
+  blocks: z.array(HMBlockNodeSchema),
+  account: z.string(),
+})
+
+export type HMCommentDraft = z.infer<typeof HMCommentDraftSchema>
 
 export type HMDraft = {
   content: Array<EditorBlock<typeof hmBlockSchema>>

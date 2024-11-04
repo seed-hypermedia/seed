@@ -44,7 +44,6 @@ import {
   Spinner,
   Tooltip,
   Separator as TSeparator,
-  useMedia,
   XStack,
   YStack,
 } from '@shm/ui'
@@ -162,6 +161,18 @@ export default function DocumentPage() {
   )
 }
 
+function BaseDocContainer({children}: {children: ReactNode}) {
+  return (
+    <Container clearVerticalSpace padding={0}>
+      {children}
+    </Container>
+  )
+}
+
+function NewspaperDocContainer({children}: {children: ReactNode}) {
+  return <YStack padding={0}>{children}</YStack>
+}
+
 function _MainDocumentPage({
   id,
   isBlockFocused,
@@ -169,7 +180,6 @@ function _MainDocumentPage({
   id: UnpackedHypermediaId
   isBlockFocused: boolean
 }) {
-  const media = useMedia()
   const discovery = useDiscoverEntity(id)
   useEffect(() => {
     // @ts-expect-error
@@ -183,7 +193,7 @@ function _MainDocumentPage({
   const entity = useSubscribedEntity(id)
   const siteHomeEntity = useSubscribedEntity(hmId('d', id.uid))
 
-  if (entity.isLoading) return <Spinner />
+  if (entity.isInitialLoading) return <Spinner />
   if (!entity.data?.document) return null
 
   const docIsNewspaperLayout =
@@ -192,16 +202,9 @@ function _MainDocumentPage({
     siteHomeEntity.data?.document?.metadata.layout ===
     'Seed/Experimental/Newspaper'
 
-  // TODO: fix types
-  const DocContainer = ({children}: any) =>
-    docIsNewspaperLayout ? (
-      <YStack padding={0}>{children}</YStack>
-    ) : (
-      <Container clearVerticalSpace padding={0}>
-        {children}
-      </Container>
-    )
-
+  const DocContainer = docIsNewspaperLayout
+    ? NewspaperDocContainer
+    : BaseDocContainer
   return (
     <YStack>
       {siteIsNewspaperLayout ? (

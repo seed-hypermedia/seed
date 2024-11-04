@@ -9,6 +9,7 @@ import {
   HMBlockNode,
   HMComment,
   HMCommentDraft,
+  HMCommentDraftSchema,
   HMCommentGroup,
   HMEntityContent,
   UnpackedHypermediaId,
@@ -25,7 +26,6 @@ import {useEffect, useMemo, useRef} from 'react'
 import {useGRPCClient, useQueryInvalidator} from '../app-context'
 import {hmBlockSchema, useBlockNote} from '../editor'
 import type {BlockNoteEditor} from '../editor/blocknote'
-import appError from '../errors'
 import {getBlockGroup, setGroupTypes} from './editor-utils'
 import {useEntity} from './entities'
 import {useGatewayUrlStream} from './gateway-settings'
@@ -46,7 +46,7 @@ function serverBlockNodesFromEditorBlocks(
       }
       serverBlock.attributes.childrenType = childGroup.type
         ? childGroup.type
-        : 'group'
+        : 'Group'
       if (childGroup.listLevel)
         serverBlock.attributes.listLevel = childGroup.listLevel
       if (childGroup.start)
@@ -96,7 +96,10 @@ export function useCommentDraft(
     },
     opts,
   )
-  return comment
+  return {
+    ...comment,
+    data: comment.data ? HMCommentDraftSchema.parse(comment.data) : undefined,
+  }
 }
 
 export function useComment(
@@ -151,7 +154,12 @@ export function useCommentEditor(
   {
     onDiscardDraft,
     replyCommentId,
-  }: {onDiscardDraft?: () => void; replyCommentId?: string} = {},
+    initCommentDraft,
+  }: {
+    initCommentDraft?: HMCommentDraft | null | undefined
+    onDiscardDraft?: () => void
+    replyCommentId?: string
+  } = {},
 ) {
   const targetEntity = useEntity(targetDocId)
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
@@ -176,10 +184,10 @@ export function useCommentEditor(
   const grpcClient = useGRPCClient()
   const {inlineMentionsData, inlineMentionsQuery} = useInlineMentions()
   function initDraft() {
-    const draft = initCommentDraft.current
-    if (!readyEditor.current || !draft) return
+    console.log('== initDraft', initCommentDraft, readyEditor.current)
+    if (!readyEditor.current || !initCommentDraft) return
     const editor = readyEditor.current
-    const editorBlocks = hmBlocksToEditorContent(draft.blocks, {
+    const editorBlocks = hmBlocksToEditorContent(initCommentDraft.blocks, {
       childrenType: 'Group',
     })
     editor.removeBlocks(editor.topLevelBlocks)
@@ -272,37 +280,37 @@ export function useCommentEditor(
     }
   }, [])
 
-  const draftQuery = trpc.comments.getCommentDraft.useQuery(
-    {
-      targetDocId: targetDocId.id,
-      replyCommentId,
-    },
-    {
-      onError: (err) =>
-        appError(`Could not load comment draft: ${err.message}`),
-      onSuccess: (draft: HMCommentDraft | null) => {
-        if (initCommentDraft.current) return
-        if (draft) {
-          initCommentDraft.current = draft
-          setAccountStream(draft.account)
-        } else {
-          const account: string = accounts[0]!.id.uid
-          initCommentDraft.current = {
-            account,
-            blocks: [],
-          }
-          setAccountStream(account)
-        }
-        initDraft()
-      },
-    },
-  )
-  const initCommentDraft = useRef<HMCommentDraft | null | undefined>(
-    draftQuery.data,
-  )
+  // const draftQuery = trpc.comments.getCommentDraft.useQuery(
+  //   {
+  //     targetDocId: targetDocId.id,
+  //     replyCommentId,
+  //   },
+  //   {
+  //     onError: (err) =>
+  //       appError(`Could not load comment draft: ${err.message}`),
+  //     onSuccess: (draft: HMCommentDraft | null) => {
+  //       if (initCommentDraft.current) return
+  //       if (draft) {
+  //         initCommentDraft.current = draft
+  //         setAccountStream(draft.account)
+  //       } else {
+  //         const account: string = accounts[0]!.id.uid
+  //         initCommentDraft.current = {
+  //           account,
+  //           blocks: [],
+  //         }
+  //         setAccountStream(account)
+  //       }
+  //       initDraft()
+  //     },
+  //   },
+  // )
+  // const initCommentDraft = useRef<HMCommentDraft | null | undefined>(
+  //   draftQuery.data,
+  // )
   const accountRef = useRef(
     writeableStateStream<string | null>(
-      draftQuery.data?.account || accounts[0]?.id.uid || null,
+      initCommentDraft?.account || accounts[0]?.id.uid || null,
     ),
   )
   const [setAccountStream, account] = accountRef.current
@@ -343,8 +351,6 @@ export function useCommentEditor(
   return useMemo(() => {
     function onSubmit() {
       if (!targetDocId.id) throw new Error('no targetDocId.id')
-      const draft = initCommentDraft.current
-      if (!draft) throw new Error('no draft found to publish')
       const content = serverBlockNodesFromEditorBlocks(
         editor,
         editor.topLevelBlocks,

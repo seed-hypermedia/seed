@@ -952,7 +952,7 @@ export function compareBlocksWithMap(
     // if (childGroup) {
     if (false) {
       // @ts-expect-error
-      block.props.childrenType = childGroup.type ? childGroup.type : 'group'
+      block.props.childrenType = childGroup.type ? childGroup.type : 'Group'
       // @ts-expect-error
       block.props.listLevel = childGroup.listLevel
       // @ts-expect-error

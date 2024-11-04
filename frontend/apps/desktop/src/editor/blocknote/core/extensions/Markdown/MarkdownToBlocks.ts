@@ -382,7 +382,7 @@ export const MarkdownToBlocks = async (
               ],
               children: [],
               props: {
-                childrenType: 'group',
+                childrenType: 'Group',
               },
             }
           }

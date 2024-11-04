@@ -9,7 +9,7 @@ export const appStore = new Store<Record<string, any>>({
 
 // TODO: add types
 export const commentDraftStore = new Store<Record<string, any>>({
-  name: 'CommentDraft',
+  name: 'CommentDraft.2',
   cwd: userDataPath,
 })
 

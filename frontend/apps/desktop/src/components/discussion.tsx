@@ -9,6 +9,7 @@ import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {
   getDocumentTitle,
   HMComment,
+  HMCommentDraft,
   HMCommentGroup,
   HMEntityContent,
   hmId,
@@ -29,7 +30,7 @@ import {
   YStack,
 } from '@shm/ui'
 import {Trash} from '@tamagui/lucide-icons'
-import {useEffect, useState} from 'react'
+import {memo, useEffect, useState} from 'react'
 import {HyperMediaEditorView} from './editor'
 
 export function Discussion({docId}: {docId: UnpackedHypermediaId}) {
@@ -145,8 +146,10 @@ function RepliesEditor({
 }) {
   const myAccountsQuery = useMyAccounts()
   const accounts = myAccountsQuery.map((query) => query.data).filter((a) => !!a)
+  const draft = useCommentDraft(docId, replyCommentId)
+
   if (accounts.length === 0) return null
-  if (!isReplying) return null
+  if (!isReplying && !draft.data) return null
   return (
     <XStack
       borderRadius="$4"
@@ -160,13 +163,15 @@ function RepliesEditor({
         replyCommentId={replyCommentId}
         accounts={accounts}
         autoFocus={isReplying}
+        initCommentDraft={draft.data}
         onDiscardDraft={onDiscardDraft}
       />
     </XStack>
   )
 }
 
-function CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
+const CommentDraft = memo(_CommentDraft)
+function _CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
   const myAccountsQuery = useMyAccounts()
   const accounts = myAccountsQuery.map((query) => query.data).filter((a) => !!a)
   const draft = useCommentDraft(docId, undefined)
@@ -174,12 +179,14 @@ function CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
   let onPress = undefined
   const [isStartingComment, setIsStartingComment] = useState(false)
   if (!accounts?.length) return null
+  if (draft.isInitialLoading) return null
   if (draft.data || isStartingComment) {
     content = (
       <CommentDraftEditor
         docId={docId}
         accounts={accounts}
         autoFocus={isStartingComment}
+        initCommentDraft={draft.data}
         onDiscardDraft={() => {
           setIsStartingComment(false)
         }}
@@ -226,24 +233,27 @@ function CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
     </XStack>
   )
 }
-
-function CommentDraftEditor({
+const CommentDraftEditor = memo(_CommentDraftEditor)
+function _CommentDraftEditor({
   docId,
   accounts,
   onDiscardDraft,
   autoFocus,
   replyCommentId,
+  initCommentDraft,
 }: {
   docId: UnpackedHypermediaId
   accounts: HMEntityContent[]
   onDiscardDraft?: () => void
   autoFocus?: boolean
   replyCommentId?: string
+  initCommentDraft?: HMCommentDraft | null | undefined
 }) {
   const {editor, onSubmit, onDiscard, isSaved, account, onSetAccount} =
     useCommentEditor(docId, accounts, {
       onDiscardDraft,
       replyCommentId,
+      initCommentDraft,
     })
   useEffect(() => {
     if (autoFocus) editor._tiptapEditor.commands.focus()
