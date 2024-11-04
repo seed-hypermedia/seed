@@ -30,7 +30,7 @@ import {HMIcon} from "@shm/ui/src/hm-icon";
 import {SmallListItem} from "@shm/ui/src/list-item";
 import {RadioButtons} from "@shm/ui/src/radio-buttons";
 import {Button} from "@tamagui/button";
-import {GestureReponderEvent, Text, useMedia} from "@tamagui/core";
+import {GestureReponderEvent, Text} from "@tamagui/core";
 import {X} from "@tamagui/lucide-icons";
 import {ScrollView} from "@tamagui/scroll-view";
 import {XStack, YStack} from "@tamagui/stacks";
@@ -91,7 +91,6 @@ export const documentPageMeta: MetaFunction = ({
 };
 
 export function DocumentPage(props: SiteDocumentPayload) {
-  const media = useMedia();
   const [open, setOpen] = useState(false);
   const {document, homeId, homeMetadata, id, authors, siteHost} = props;
   if (!id) return <NotFoundPage {...props} />;
@@ -126,20 +125,19 @@ export function DocumentPage(props: SiteDocumentPayload) {
         />
         <DocumentCover cover={document.metadata.cover} id={id} />
         <YStack className="document-container">
-          {media.gtSm ? (
-            <YStack
-              marginTop={200}
-              $gtSm={{marginTop: 124}}
-              className="document-aside"
-            >
-              <SiteNavigation
-                supportDocuments={props.supportDocuments}
-                supportQueries={props.supportQueries}
-                document={document}
-                id={id}
-              />
-            </YStack>
-          ) : null}
+          <YStack
+            marginTop={200}
+            $gtSm={{marginTop: 124}}
+            className="document-aside"
+          >
+            <SiteNavigation
+              supportDocuments={props.supportDocuments}
+              supportQueries={props.supportQueries}
+              document={document}
+              id={id}
+            />
+          </YStack>
+
           <YStack>
             <PageHeader
               homeId={homeId}
