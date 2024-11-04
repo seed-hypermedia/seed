@@ -68,6 +68,7 @@ func (s Server) Register(srv *grpc.Server) {
 	s.Networking.RegisterServer(srv)
 	s.Entities.RegisterServer(srv)
 	s.DocumentsV3.RegisterServer(srv)
+	s.Payments.RegisterServer(srv)
 }
 
 type p2pNodeSubset struct {
