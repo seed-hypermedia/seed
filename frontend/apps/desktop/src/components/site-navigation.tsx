@@ -115,40 +115,41 @@ export function SiteNavigationContent() {
       {isTopLevel ? (
         documentNavigation
       ) : (
-        <SmallListItem
-          key={parentId.id}
-          title={getDocumentTitle(parentEntity.data?.document)}
-          icon={
-            <HMIcon
-              id={id}
-              metadata={parentEntity.data?.document?.metadata}
-              size={20}
-            />
-          }
-          onPress={() => {
-            navigate({
-              key: 'document',
-              id: parentId,
-            })
-          }}
-        />
-      )}
-
-      {siblingDir.data?.map((item) => {
-        const itemId = hmId('d', item.account, {path: item.path})
-        if (itemId.id === id.id) return documentNavigation
-        return (
+        <>
           <SmallListItem
-            key={itemId.id}
+            key={parentId.id}
+            title={getDocumentTitle(parentEntity.data?.document)}
+            icon={
+              <HMIcon
+                id={id}
+                metadata={parentEntity.data?.document?.metadata}
+                size={20}
+              />
+            }
             onPress={() => {
-              navigate({key: 'document', id: itemId})
+              navigate({
+                key: 'document',
+                id: parentId,
+              })
             }}
-            title={getMetadataName(item.metadata)}
-            icon={<HMIcon id={itemId} metadata={item.metadata} size={20} />}
-            indented={1}
           />
-        )
-      })}
+          {siblingDir.data?.map((item) => {
+            const itemId = hmId('d', item.account, {path: item.path})
+            if (itemId.id === id.id) return documentNavigation
+            return (
+              <SmallListItem
+                key={itemId.id}
+                onPress={() => {
+                  navigate({key: 'document', id: itemId})
+                }}
+                title={getMetadataName(item.metadata)}
+                icon={<HMIcon id={itemId} metadata={item.metadata} size={20} />}
+                indented={1}
+              />
+            )
+          })}
+        </>
+      )}
     </View>
   )
 }
