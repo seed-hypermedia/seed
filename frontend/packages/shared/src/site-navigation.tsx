@@ -1,17 +1,18 @@
 import {View} from '@tamagui/core'
 import {YStack} from '@tamagui/stacks'
 
-export function SideNavigationPlaceholder() {
+export function SiteNavigationPlaceholder(props: any) {
   return (
     <View
       group="item"
       margin="$4"
-      height="calc(75vh - 140px - 12px)"
+      // height="calc(75vh - 140px - 12px)"
       marginTop={156}
-      zIndex="$zIndex.2"
+      zIndex="$zIndex.7"
       top={0}
       left={-6}
       position="absolute"
+      {...props}
     >
       <YStack
         width={16}

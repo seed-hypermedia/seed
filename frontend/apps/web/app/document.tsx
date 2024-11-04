@@ -16,7 +16,6 @@ import {
   unpackHmId,
 } from "@shm/shared";
 import {SiteRoutingProvider, useRouteLink} from "@shm/shared/src/routing";
-import {SideNavigationPlaceholder} from "@shm/shared/src/site-navigation";
 import "@shm/shared/src/styles/document.css";
 import {getRandomColor} from "@shm/ui/src/avatar";
 import {Container} from "@shm/ui/src/container";
@@ -104,7 +103,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
         homeMetadata={homeMetadata}
       />
     );
-  if (document.metadata.layout === "Seed/Experimental/Newspaper") {
+  if (document.metadata.layout == "Seed/Experimental/Newspaper") {
     return (
       <SiteRoutingProvider homeId={props.homeId}>
         <NewspaperPage {...props} />;
@@ -125,12 +124,12 @@ export function DocumentPage(props: SiteDocumentPayload) {
             setOpen(!open);
           }}
         />
-        <DocumentCover cover={document.metadata.cover} />
+        <DocumentCover cover={document.metadata.cover} id={id} />
         <YStack className="document-container">
           {media.gtSm ? (
             <YStack
               marginTop={200}
-              $gtSm={{marginTop: 160}}
+              $gtSm={{marginTop: 124}}
               className="document-aside"
             >
               <SiteNavigation
@@ -158,13 +157,14 @@ export function DocumentPage(props: SiteDocumentPayload) {
         <PageFooter id={id} />
       </YStack>
 
-      <MobileOutline open={open} onClose={() => setOpen(false)}>
+      <MobileSiteNavigation open={open} onClose={() => setOpen(false)}>
         <SiteNavigation
+          supportDocuments={props.supportDocuments}
+          supportQueries={props.supportQueries}
           document={document}
-          onClose={() => setOpen(false)}
           id={id}
         />
-      </MobileOutline>
+      </MobileSiteNavigation>
     </SiteRoutingProvider>
   );
 }
@@ -523,7 +523,6 @@ function SiteNavigation({
   supportQueries?: HMQueryResult[];
   id: UnpackedHypermediaId;
 }) {
-  const media = useMedia();
   const outline = useMemo(() => {
     return getNodesOutline(document.content);
   }, [document.content]);
@@ -557,57 +556,54 @@ function SiteNavigation({
         idPath.length === doc.path.length - 1
     );
   const documentIndent = isTopLevel ? 0 : 1;
-  if (media.gtSm) {
-    return (
-      <YStack gap="$2" paddingLeft="$4">
-        {isTopLevel || !parentListItem ? null : (
-          <DocumentSmallListItem
-            metadata={parentListItem.metadata}
-            id={parentId}
-          />
-        )}
 
-        {siblingDocs?.map((doc) => {
-          if (idPath && doc.path.join("/") === idPath.join("/"))
-            return (
-              <>
-                <DocumentSmallListItem
-                  metadata={document.metadata}
-                  id={id}
+  return (
+    <YStack gap="$2" paddingLeft="$4">
+      {isTopLevel || !parentListItem ? null : (
+        <DocumentSmallListItem
+          metadata={parentListItem.metadata}
+          id={parentId}
+        />
+      )}
+
+      {siblingDocs?.map((doc) => {
+        if (idPath && doc.path.join("/") === idPath.join("/"))
+          return (
+            <>
+              <DocumentSmallListItem
+                metadata={document.metadata}
+                id={id}
+                indented={documentIndent}
+              />
+              {outline.map((node) => (
+                <OutlineNode
+                  node={node}
+                  key={node.id}
+                  onClose={onClose}
                   indented={documentIndent}
                 />
-                {outline.map((node) => (
-                  <OutlineNode
-                    node={node}
-                    key={node.id}
-                    onClose={onClose}
-                    indented={documentIndent}
-                  />
-                ))}
-                {childrenDocs?.map((doc) => (
-                  <DocumentSmallListItem
-                    key={doc.path.join("/")}
-                    metadata={doc.metadata}
-                    id={hmId("d", doc.account, {path: doc.path})}
-                    indented={2}
-                  />
-                ))}
-              </>
-            );
-          return (
-            <DocumentSmallListItem
-              key={doc.path.join("/")}
-              metadata={doc.metadata}
-              id={hmId("d", doc.account, {path: doc.path})}
-              indented={1}
-            />
+              ))}
+              {childrenDocs?.map((doc) => (
+                <DocumentSmallListItem
+                  key={doc.path.join("/")}
+                  metadata={doc.metadata}
+                  id={hmId("d", doc.account, {path: doc.path})}
+                  indented={2}
+                />
+              ))}
+            </>
           );
-        })}
-      </YStack>
-    );
-  } else {
-    return <SideNavigationPlaceholder />;
-  }
+        return (
+          <DocumentSmallListItem
+            key={doc.path.join("/")}
+            metadata={doc.metadata}
+            id={hmId("d", doc.account, {path: doc.path})}
+            indented={1}
+          />
+        );
+      })}
+    </YStack>
+  );
 }
 
 function OutlineNode({
@@ -648,7 +644,7 @@ function OutlineNode({
   );
 }
 
-function MobileOutline({
+function MobileSiteNavigation({
   open,
   onClose,
   children,
@@ -661,33 +657,19 @@ function MobileOutline({
     <YStack
       fullscreen
       zi="$zIndex.7"
+      // @ts-ignore
       position="fixed"
+      // @ts-ignore
       pointerEvents={open ? "inherit" : "none"}
+      backgroundColor="$background"
     >
-      <XStack
-        id="menu-overlay"
-        fullscreen
-        bg="black"
-        opacity={open ? 0.6 : 0}
-        onPress={onClose}
-        animation="fast"
-      />
-
-      <YStack
-        fullscreen
-        x={open ? 50 : "100%"}
-        animation="medium"
-        elevation="$4"
-        p="$4"
-        bg="$background"
-        paddingRight={50 + 18}
-      >
-        <XStack>
-          <XStack f={1} />
-          <Button icon={X} onPress={onClose} />
-        </XStack>
-        <ScrollView paddingVertical="$6">{children}</ScrollView>
-      </YStack>
+      <XStack>
+        <XStack flex={1} />
+        <Button icon={<X width={20} height={20} />} onPress={onClose} />
+      </XStack>
+      <ScrollView paddingVertical="$6" paddingHorizontal="$4">
+        {children}
+      </ScrollView>
     </YStack>
   ) : null;
 }

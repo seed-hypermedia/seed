@@ -18,12 +18,12 @@ import {
   NodesOutline,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {SideNavigationPlaceholder} from '@shm/shared/src/site-navigation'
+import {SiteNavigationPlaceholder} from '@shm/shared/src/site-navigation'
 import {
   FocusButton,
   getBlockNodeById,
   HMIcon,
-  ScrollView,
+  Popover,
   Separator,
   SizableText,
   SmallCollapsableListItem,
@@ -31,131 +31,128 @@ import {
   SmallListItem,
   Spinner,
   useMedia,
+  usePopoverState,
   View,
-  YStack,
 } from '@shm/ui'
 import {Hash, Plus} from '@tamagui/lucide-icons'
 import {memo, ReactNode, useState} from 'react'
 import {Directory} from './directory'
 
-export function SiteNavigation({}: {}) {
+export function SiteNavigation() {
+  const popoverProps = usePopoverState()
+
+  console.log(`== ~ SiteNavigation ~ popoverProps:`, popoverProps)
+  const media = useMedia()
+  return media.gtSm ? (
+    <SiteNavigationContent />
+  ) : (
+    <Popover {...popoverProps} placement="right-end">
+      <Popover.Trigger asChild>
+        <SiteNavigationPlaceholder />
+      </Popover.Trigger>
+      <Popover.Content
+        enterStyle={{y: -10, opacity: 0}}
+        exitStyle={{y: -10, opacity: 0}}
+        animation="fast"
+        elevation="$4"
+      >
+        <SiteNavigationContent />
+      </Popover.Content>
+    </Popover>
+  )
+}
+
+export function SiteNavigationContent() {
   const route = useNavRoute()
   if (route.key !== 'document')
     throw new Error('SiteNavigation only supports document routes')
   const {id} = route
   const entity = useEntity(id)
+
   const navigate = useNavigate()
   const document = entity.data?.document
-  const isTopLevel = !id.path || id.path?.length === 0
+  const isTopLevel = !id.path || id.path?.length == 0
+
   const documentIndent = isTopLevel ? 0 : 1
   const parentId = hmId(id.type, id.uid, {
     path: id.path?.slice(0, -1) || [],
   })
-  const media = useMedia()
   const parentEntity = useEntity(parentId)
   const siblingDir = useListDirectory(parentId)
   const createDraft = useCreateDraft(id)
   const capability = useMyCapability(id)
+
   if (!entity?.data) return null
 
-  if (media.gtSm) {
-    return (
-      <YStack
-        marginTop={200}
-        $gtSm={{marginTop: 160}}
-        className="document-aside"
-      >
-        <ScrollView>
-          <View flex={1} paddingLeft="$4" $gtLg={{paddingLeft: 0}}>
-            {isTopLevel ? null : (
-              <SmallListItem
-                key={parentId.id}
-                title={getDocumentTitle(parentEntity.data?.document)}
-                icon={
-                  <HMIcon
-                    id={id}
-                    metadata={parentEntity.data?.document?.metadata}
-                    size={20}
-                  />
-                }
-                onPress={() => {
-                  navigate({
-                    key: 'document',
-                    id: parentId,
-                  })
-                }}
-              />
-            )}
+  return (
+    <View flex={1} paddingLeft="$4" $gtLg={{paddingLeft: 0}}>
+      {isTopLevel ? null : (
+        <SmallListItem
+          key={parentId.id}
+          title={getDocumentTitle(parentEntity.data?.document)}
+          icon={
+            <HMIcon
+              id={id}
+              metadata={parentEntity.data?.document?.metadata}
+              size={20}
+            />
+          }
+          onPress={() => {
+            navigate({
+              key: 'document',
+              id: parentId,
+            })
+          }}
+        />
+      )}
 
-            {isTopLevel
-              ? null
-              : siblingDir.data?.map((item) => {
-                  const itemId = hmId('d', item.account, {path: item.path})
-                  if (itemId.id === id.id)
-                    return (
-                      <SmallCollapsableListItem
-                        key={id.uid}
-                        indented={documentIndent}
-                        title={getDocumentTitle(document)}
-                        icon={
-                          <HMIcon
-                            id={id}
-                            metadata={document?.metadata}
-                            size={20}
-                          />
-                        }
-                        onPress={() => {
-                          navigate({
-                            key: 'document',
-                            id,
-                          })
-                        }}
-                        active={!id.blockRef}
-                      >
-                        <OutlineNavigation
-                          indented={documentIndent + 1}
-                          route={route}
-                        />
-                        <Separator
-                          marginLeft={Math.max(0, documentIndent + 1) * 22 + 12}
-                        />
-                        <Directory indented={documentIndent + 1} docId={id} />
-                        {roleCanWrite(capability?.role) && (
-                          <SmallListItem
-                            icon={Plus}
-                            title="Create Document"
-                            onPress={createDraft}
-                            color="$green10"
-                            indented={documentIndent + 1}
-                          />
-                        )}
-                      </SmallCollapsableListItem>
-                    )
-                  return (
-                    <SmallListItem
-                      key={itemId.id}
-                      onPress={() => {
-                        navigate({key: 'document', id: itemId})
-                      }}
-                      title={getMetadataName(item.metadata)}
-                      icon={
-                        <HMIcon
-                          id={itemId}
-                          metadata={item.metadata}
-                          size={20}
-                        />
-                      }
-                      indented={1}
-                    />
-                  )
-                })}
-          </View>
-        </ScrollView>
-      </YStack>
-    )
-  } else {
-    return <SideNavigationPlaceholder />
-  }
+      {siblingDir.data?.map((item) => {
+        const itemId = hmId('d', item.account, {path: item.path})
+        if (itemId.id === id.id)
+          return (
+            <SmallCollapsableListItem
+              key={id.uid}
+              indented={documentIndent}
+              title={getDocumentTitle(document)}
+              icon={<HMIcon id={id} metadata={document?.metadata} size={20} />}
+              onPress={() => {
+                navigate({
+                  key: 'document',
+                  id,
+                })
+              }}
+              active={!id.blockRef}
+            >
+              <OutlineNavigation indented={documentIndent + 1} route={route} />
+              <Separator
+                marginLeft={Math.max(0, documentIndent + 1) * 22 + 12}
+              />
+              <Directory indented={documentIndent + 1} docId={id} />
+              {roleCanWrite(capability?.role) && (
+                <SmallListItem
+                  icon={Plus}
+                  title="Create Document"
+                  onPress={createDraft}
+                  color="$green10"
+                  indented={documentIndent + 1}
+                />
+              )}
+            </SmallCollapsableListItem>
+          )
+        return (
+          <SmallListItem
+            key={itemId.id}
+            onPress={() => {
+              navigate({key: 'document', id: itemId})
+            }}
+            title={getMetadataName(item.metadata)}
+            icon={<HMIcon id={itemId} metadata={item.metadata} size={20} />}
+            indented={1}
+          />
+        )
+      })}
+    </View>
+  )
 }
 
 function OutlineNavigation({

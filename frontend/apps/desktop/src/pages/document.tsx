@@ -39,10 +39,12 @@ import {
   HistoryIcon,
   HMIcon,
   NewsSiteHeader,
+  ScrollView,
   SizableText,
   Spinner,
   Tooltip,
   Separator as TSeparator,
+  useMedia,
   XStack,
   YStack,
 } from '@shm/ui'
@@ -169,6 +171,7 @@ function _MainDocumentPage({
   id: UnpackedHypermediaId
   isBlockFocused: boolean
 }) {
+  const media = useMedia()
   const discovery = useDiscoverEntity(id)
   useEffect(() => {
     // @ts-expect-error
@@ -211,8 +214,20 @@ function _MainDocumentPage({
       ) : null}
       <DocumentCover docId={id} />
       <YStack className="document-container">
-        <SiteNavigation />
-        <YStack>
+        {media.gtSm ? (
+          <YStack
+            marginTop={200}
+            $gtSm={{marginTop: 164}}
+            className="document-aside"
+          >
+            <ScrollView height="100%">
+              <SiteNavigation />
+            </ScrollView>
+          </YStack>
+        ) : (
+          <SiteNavigation />
+        )}
+        <DocContainer>
           <DocPageHeader docId={id} isBlockFocused={isBlockFocused} />
           <YStack flex={1}>
             <DocPageContent
@@ -221,7 +236,7 @@ function _MainDocumentPage({
             />
             <DocPageAppendix docId={id} />
           </YStack>
-        </YStack>
+        </DocContainer>
       </YStack>
     </YStack>
   )

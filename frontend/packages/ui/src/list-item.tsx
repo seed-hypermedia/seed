@@ -95,7 +95,8 @@ export function SmallListItem({
       focusTheme
       minHeight={minHeight || 32}
       paddingVertical={paddingVertical || "$1"}
-      size="$2"
+      size="$5"
+      $gtSm={{size: "$2"}}
       paddingLeft={Math.max(0, indent) * 22 + 12}
       textAlign="left"
       outlineColor="transparent"
@@ -146,7 +147,8 @@ export function SmallListItem({
           whiteSpace="nowrap"
           width="100%"
           overflow="hidden"
-          fontSize="$3"
+          fontSize="$6"
+          $gtSm={{fontSize: "$3"}}
           color={color || "$gray12"}
           fontWeight={bold ? "bold" : undefined}
           userSelect="none"
