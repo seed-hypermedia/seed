@@ -82,10 +82,39 @@ export function SiteNavigationContent() {
   const capability = useMyCapability(id)
 
   if (!entity?.data) return null
-
+  const documentNavigation = (
+    <SmallCollapsableListItem
+      key={id.uid}
+      indented={documentIndent}
+      title={getDocumentTitle(document)}
+      icon={<HMIcon id={id} metadata={document?.metadata} size={20} />}
+      onPress={() => {
+        navigate({
+          key: 'document',
+          id,
+        })
+      }}
+      active={!id.blockRef}
+    >
+      <OutlineNavigation indented={documentIndent + 1} route={route} />
+      <Separator marginLeft={Math.max(0, documentIndent + 1) * 22 + 12} />
+      <Directory indented={documentIndent + 1} docId={id} />
+      {roleCanWrite(capability?.role) && (
+        <SmallListItem
+          icon={Plus}
+          title="Create Document"
+          onPress={createDraft}
+          color="$green10"
+          indented={documentIndent + 1}
+        />
+      )}
+    </SmallCollapsableListItem>
+  )
   return (
     <View flex={1} paddingLeft="$4" $gtLg={{paddingLeft: 0}}>
-      {isTopLevel ? null : (
+      {isTopLevel ? (
+        documentNavigation
+      ) : (
         <SmallListItem
           key={parentId.id}
           title={getDocumentTitle(parentEntity.data?.document)}
@@ -107,37 +136,7 @@ export function SiteNavigationContent() {
 
       {siblingDir.data?.map((item) => {
         const itemId = hmId('d', item.account, {path: item.path})
-        if (itemId.id === id.id)
-          return (
-            <SmallCollapsableListItem
-              key={id.uid}
-              indented={documentIndent}
-              title={getDocumentTitle(document)}
-              icon={<HMIcon id={id} metadata={document?.metadata} size={20} />}
-              onPress={() => {
-                navigate({
-                  key: 'document',
-                  id,
-                })
-              }}
-              active={!id.blockRef}
-            >
-              <OutlineNavigation indented={documentIndent + 1} route={route} />
-              <Separator
-                marginLeft={Math.max(0, documentIndent + 1) * 22 + 12}
-              />
-              <Directory indented={documentIndent + 1} docId={id} />
-              {roleCanWrite(capability?.role) && (
-                <SmallListItem
-                  icon={Plus}
-                  title="Create Document"
-                  onPress={createDraft}
-                  color="$green10"
-                  indented={documentIndent + 1}
-                />
-              )}
-            </SmallCollapsableListItem>
-          )
+        if (itemId.id === id.id) return documentNavigation
         return (
           <SmallListItem
             key={itemId.id}
