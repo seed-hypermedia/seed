@@ -272,7 +272,7 @@ function MainApp({
         exportDocument={async (
           title: string,
           markdownContent: string,
-          mediaFiles: {url: string; filename: string}[],
+          mediaFiles: {url: string; filename: string; placeholder: string}[],
         ) => {
           // @ts-ignore
           return window.docExport.exportDocument(
@@ -286,7 +286,7 @@ function MainApp({
             title: string
             markdown: {
               markdownContent: string
-              mediaFiles: {url: string; filename: string}[]
+              mediaFiles: {url: string; filename: string; placeholder: string}[]
             }
           }[],
         ) => {

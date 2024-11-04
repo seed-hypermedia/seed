@@ -61,14 +61,14 @@ export function AppContextProvider({
   exportDocument: (
     title: string,
     markdownContent: string,
-    mediaFiles: {url: string; filename: string}[],
+    mediaFiles: {url: string; filename: string; placeholder: string}[],
   ) => Promise<void>
   exportDocuments: (
     documents: {
       title: string
       markdown: {
         markdownContent: string
-        mediaFiles: {url: string; filename: string}[]
+        mediaFiles: {url: string; filename: string; placeholder: string}[]
       }
     }[],
   ) => Promise<void>

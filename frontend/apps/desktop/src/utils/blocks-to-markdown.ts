@@ -1,4 +1,4 @@
-import {HMBlock} from '@shm/shared'
+import {EditorBlock} from '@/editor'
 import rehypeParse from 'rehype-parse'
 import rehypeRemark from 'rehype-remark'
 import remarkGfm from 'remark-gfm'
@@ -72,8 +72,8 @@ function convertBlockToHtml(block: any, isListItem = false) {
       case 'image':
         const {url, name, width} = block.props
         const titleWithWidth = `${name} | width=${width}`
-        return `<img src="${url}" alt="${contentHtml}" title="${titleWithWidth}">`
-      case 'code-block':
+        return `<img src="${url}" alt=\"${contentHtml}\" title="${titleWithWidth}">`
+      case 'codeBlock':
         return `<pre><code class="language-${
           block.props.language || 'plaintext'
         }">${contentHtml}</code></pre>`
@@ -81,6 +81,8 @@ function convertBlockToHtml(block: any, isListItem = false) {
         return `<p>![${block.props.name}](${block.props.url} "width=${block.props.width}")</p>`
       case 'file':
         return `<p>[${block.props.name}](${block.props.url} "size=${block.props.size}")</p>`
+      case 'web-embed':
+        return `<p>[[tweet(${block.props.url})]]</p>`
       case 'math':
         return `<p>$$${contentHtml}$$</p>`
       default:
@@ -97,36 +99,38 @@ function convertBlockToHtml(block: any, isListItem = false) {
   }
 }
 
-function convertBlocksToHtml(blocks: HMBlock[]) {
+function convertBlocksToHtml(blocks: EditorBlock[]) {
   const htmlContent: string = blocks
-    .map((block: HMBlock) => convertBlockToHtml(block))
+    .map((block: EditorBlock) => convertBlockToHtml(block))
     .join('\n\n')
   return htmlContent
 }
 
-async function extractMediaFiles(blocks: HMBlock[]) {
-  const mediaFiles: {url: string; filename: string}[] = []
-  const extractMedia = async (block: {
-    type: string
-    props: {url: any}
-    children: any
-  }) => {
+async function extractMediaFiles(blocks: EditorBlock[]) {
+  const mediaFiles: {url: string; filename: string; placeholder: string}[] = []
+  let counter = 1
+  const extractMedia = async (block: EditorBlock) => {
     if (
       block.type === 'image' ||
       block.type === 'video' ||
       block.type === 'file'
     ) {
       const url = block.props.url
-      if (
-        url.includes('youtu.be') ||
-        url.includes('youtube') ||
-        url.includes('vimeo')
-      ) {
-        return
+      if (url) {
+        if (
+          url.includes('youtu.be') ||
+          url.includes('youtube') ||
+          url.includes('vimeo')
+        ) {
+          return
+        }
+        const filename = url.split('/').pop()!
+        const placeholder = `file-${counter}`
+        mediaFiles.push({url, filename, placeholder})
+        counter++
+        // Update the URL to point to the local media folder
+        block.props = {...block.props, url: `media/${placeholder}`}
       }
-      const filename = url.split('/').pop()
-      mediaFiles.push({url, filename})
-      block.props = {...block.props, url: `media/${filename}`} // Update the URL to point to the local media folder
     }
     if (block.children) {
       for (const child of block.children) {
@@ -140,8 +144,8 @@ async function extractMediaFiles(blocks: HMBlock[]) {
   return mediaFiles
 }
 
-export async function convertBlocksToMarkdown(blocks: HMBlock[]) {
-  const mediaFiles = await extractMediaFiles(blocks) // Extract media files and update URLs first
+export async function convertBlocksToMarkdown(blocks: EditorBlock[]) {
+  const mediaFiles = await extractMediaFiles(blocks)
   const markdownFile = await unified()
     .use(rehypeParse, {fragment: true})
     .use(rehypeRemark)

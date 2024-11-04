@@ -90,9 +90,9 @@ const parseImageCaptionStyles = (content: string): (StyledText | BNLink)[] => {
       const styles: Styles = {}
 
       // Set styles based on tags
-      if (element.tagName === 'STRONG' || element.style.fontWeight === 'bold')
+      if (element.tagName === 'B' || element.style.fontWeight === 'bold')
         styles.bold = true
-      if (element.tagName === 'EM' || element.style.fontStyle === 'italic')
+      if (element.tagName === 'I' || element.style.fontStyle === 'italic')
         styles.italic = true
       if (
         element.tagName === 'U' ||
