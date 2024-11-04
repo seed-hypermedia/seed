@@ -76,6 +76,7 @@ import {contentLayoutUnit, contentTextUnit} from "./document-content-constants";
 import "./document-content.css";
 import {Comment} from "./icons";
 import {Tooltip} from "./tooltip";
+// import {XPostNotFound, XPostSkeleton} from "./x-components";
 
 export type EntityComponentsRecord = {
   Document: React.FC<EntityComponentProps>;
@@ -872,7 +873,7 @@ function BlockContent(props: BlockContentProps) {
     return <BlockContentButton {...props} {...dataProps} />;
   }
 
-  // if (props.block.type == "web-embed") {
+  // if (props.block.type == "WebEmbed") {
   //   return <BlockContentXPost {...props} {...dataProps} />;
   // }
 

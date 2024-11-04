@@ -1,6 +1,7 @@
 import {MetaFunction} from "@remix-run/node";
 import {useFetcher} from "@remix-run/react";
 import {
+  createWebHMUrl,
   getDocumentTitle,
   getFileUrl,
   getMetadataName,
@@ -12,6 +13,7 @@ import {
   HMQueryResult,
   NodeOutline,
   UnpackedHypermediaId,
+  unpackHmId,
 } from "@shm/shared";
 import {SiteRoutingProvider, useRouteLink} from "@shm/shared/src/routing";
 import {SideNavigationPlaceholder} from "@shm/shared/src/site-navigation";
@@ -285,7 +287,25 @@ function WebDocContentProvider({
         Comment: () => null,
         Inline: EmbedInline,
       }}
-      onLinkClick={(href, e) => {}}
+      onLinkClick={(href, e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const unpackedId = unpackHmId(href);
+        if (unpackedId) {
+          const {uid, path, version, latest, blockRef, blockRange, type} =
+            unpackedId;
+          const hmUrl = createWebHMUrl(type, uid, {
+            version,
+            blockRef,
+            blockRange,
+            hostname: siteHost,
+            latest,
+            path,
+          });
+          window.open(hmUrl, "_self");
+        } else window.open(href, "_blank");
+      }}
       onCopyBlock={(blockId, blockRange) => {
         const blockHref = getHref(homeId, {
           ...id,
