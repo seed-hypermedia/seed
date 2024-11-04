@@ -25,6 +25,7 @@ import {
   getAccountName,
   getFileUrl,
   HMEntityContent,
+  hmId,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import '@shm/shared/src/styles/document.css'
@@ -180,12 +181,16 @@ function _MainDocumentPage({
     })
   }, [])
   const entity = useSubscribedEntity(id)
+  const siteHomeEntity = useSubscribedEntity(hmId('d', id.uid))
 
   if (entity.isLoading) return <Spinner />
   if (!entity.data?.document) return null
 
   const docIsNewspaperLayout =
     entity.data?.document?.metadata.layout === 'Seed/Experimental/Newspaper'
+  const siteIsNewspaperLayout =
+    siteHomeEntity.data?.document?.metadata.layout ===
+    'Seed/Experimental/Newspaper'
 
   // TODO: fix types
   const DocContainer = ({children}: any) =>
@@ -199,8 +204,11 @@ function _MainDocumentPage({
 
   return (
     <YStack>
-      {docIsNewspaperLayout ? (
-        <AppNewspaperHeader siteHomeEntity={entity.data} activeId={id} />
+      {siteIsNewspaperLayout ? (
+        <AppNewspaperHeader
+          siteHomeEntity={siteHomeEntity.data}
+          activeId={id}
+        />
       ) : null}
       {!docIsNewspaperLayout && <DocumentCover docId={id} />}
       <YStack className={!docIsNewspaperLayout ? 'document-container' : ''}>
