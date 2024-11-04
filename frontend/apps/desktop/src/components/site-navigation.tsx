@@ -41,7 +41,6 @@ import {Directory} from './directory'
 export function SiteNavigation() {
   const popoverProps = usePopoverState()
 
-  console.log(`== ~ SiteNavigation ~ popoverProps:`, popoverProps)
   const media = useMedia()
   return media.gtSm ? (
     <SiteNavigationContent />

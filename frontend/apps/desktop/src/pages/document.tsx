@@ -25,7 +25,6 @@ import {
   getAccountName,
   getFileUrl,
   HMEntityContent,
-  hmId,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import '@shm/shared/src/styles/document.css'
@@ -162,8 +161,6 @@ export default function DocumentPage() {
   )
 }
 
-const outlineWidth = 300
-
 function _MainDocumentPage({
   id,
   isBlockFocused,
@@ -183,16 +180,12 @@ function _MainDocumentPage({
     })
   }, [])
   const entity = useSubscribedEntity(id)
-  const siteHomeEntity = useSubscribedEntity(hmId('d', id.uid))
 
   if (entity.isLoading) return <Spinner />
   if (!entity.data?.document) return null
 
   const docIsNewspaperLayout =
     entity.data?.document?.metadata.layout === 'Seed/Experimental/Newspaper'
-  const siteIsNewspaperLayout =
-    siteHomeEntity.data?.document?.metadata.layout ===
-    'Seed/Experimental/Newspaper'
 
   // TODO: fix types
   const DocContainer = ({children}: any) =>
@@ -206,15 +199,12 @@ function _MainDocumentPage({
 
   return (
     <YStack>
-      {siteIsNewspaperLayout ? (
-        <AppNewspaperHeader
-          siteHomeEntity={siteHomeEntity.data}
-          activeId={id}
-        />
+      {docIsNewspaperLayout ? (
+        <AppNewspaperHeader siteHomeEntity={entity.data} activeId={id} />
       ) : null}
-      <DocumentCover docId={id} />
-      <YStack className="document-container">
-        {media.gtSm ? (
+      {!docIsNewspaperLayout && <DocumentCover docId={id} />}
+      <YStack className={!docIsNewspaperLayout ? 'document-container' : ''}>
+        {!docIsNewspaperLayout ? (
           <YStack
             marginTop={200}
             $gtSm={{marginTop: 164}}
@@ -224,9 +214,8 @@ function _MainDocumentPage({
               <SiteNavigation />
             </ScrollView>
           </YStack>
-        ) : (
-          <SiteNavigation />
-        )}
+        ) : null}
+
         <DocContainer>
           <DocPageHeader docId={id} isBlockFocused={isBlockFocused} />
           <YStack flex={1}>

@@ -83,7 +83,15 @@ function HomeHeader({
           {homeMetadata?.name}
         </SizableText>
       </XStack>
-      <XStack ai="center" gap="$3">
+      <XStack
+        ai="center"
+        gap="$3"
+        position="absolute"
+        right={0}
+        top={0}
+        height="100%"
+        background="$background"
+      >
         {rightContent}
       </XStack>
     </XStack>
