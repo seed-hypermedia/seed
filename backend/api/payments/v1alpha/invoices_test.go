@@ -95,6 +95,7 @@ func TestRequestP2PInvoice(t *testing.T) {
 	bob := makeTestService(t, "bob")
 	ctx := context.Background()
 	aliceAcc, err := alice.net.GetAccountByKeyName(ctx, "main")
+	require.NoError(t, err)
 	bobAccount, err := bob.net.GetAccountByKeyName(ctx, "main")
 	require.NoError(t, err)
 	require.NoError(t, alice.net.Connect(ctx, bob.net.AddrInfo()))
