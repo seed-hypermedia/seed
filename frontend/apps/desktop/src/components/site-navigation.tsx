@@ -61,7 +61,7 @@ export function SiteNavigation() {
   )
 }
 
-export function SiteNavigationContent() {
+export function SiteNavigationContent({onPress}: {onPress?: () => void}) {
   const route = useNavRoute()
   if (route.key !== 'document')
     throw new Error('SiteNavigation only supports document routes')
@@ -89,29 +89,41 @@ export function SiteNavigationContent() {
       title={getDocumentTitle(document)}
       icon={<HMIcon id={id} metadata={document?.metadata} size={20} />}
       onPress={() => {
+        onPress?.()
         navigate({
           key: 'document',
           id,
         })
       }}
       active={!id.blockRef}
+      size="$5"
+      $gtSm={{size: '$2'}}
     >
-      <OutlineNavigation indented={documentIndent + 1} route={route} />
+      <OutlineNavigation
+        indented={documentIndent + 1}
+        route={route}
+        onPress={onPress}
+      />
       <Separator marginLeft={Math.max(0, documentIndent + 1) * 22 + 12} />
       <Directory indented={documentIndent + 1} docId={id} />
       {roleCanWrite(capability?.role) && (
         <SmallListItem
           icon={Plus}
           title="Create Document"
-          onPress={createDraft}
+          onPress={() => {
+            onPress?.()
+            createDraft()
+          }}
           color="$green10"
           indented={documentIndent + 1}
+          size="$5"
+          $gtSm={{size: '$2'}}
         />
       )}
     </SmallCollapsableListItem>
   )
   return (
-    <View flex={1} paddingLeft="$4" $gtLg={{paddingLeft: 0}}>
+    <View flex={1}>
       {isTopLevel ? (
         documentNavigation
       ) : (
@@ -127,6 +139,7 @@ export function SiteNavigationContent() {
               />
             }
             onPress={() => {
+              onPress?.()
               navigate({
                 key: 'document',
                 id: parentId,
@@ -140,6 +153,7 @@ export function SiteNavigationContent() {
               <SmallListItem
                 key={itemId.id}
                 onPress={() => {
+                  onPress?.()
                   navigate({key: 'document', id: itemId})
                 }}
                 title={getMetadataName(item.metadata)}
@@ -157,15 +171,29 @@ export function SiteNavigationContent() {
 function OutlineNavigation({
   route,
   indented,
+  onPress,
 }: {
   route: NavRoute
   indented?: number
+  onPress?: () => void
 }) {
   if (route.key == 'document') {
-    return <DocumentOutlineNavigation indented={indented} route={route} />
+    return (
+      <DocumentOutlineNavigation
+        indented={indented}
+        route={route}
+        onPress={onPress}
+      />
+    )
   }
   if (route.key == 'draft') {
-    return <DraftOutlineNavigation indented={indented} route={route} />
+    return (
+      <DraftOutlineNavigation
+        indented={indented}
+        route={route}
+        onPress={onPress}
+      />
+    )
   }
   return null
 }
@@ -173,9 +201,11 @@ function OutlineNavigation({
 function DraftOutlineNavigation({
   route,
   indented,
+  onPress,
 }: {
   route: DraftRoute
   indented?: number
+  onPress?: () => void
 }) {
   const {id} = route
   const draft = useDraft(id)
@@ -190,6 +220,8 @@ function DraftOutlineNavigation({
         icon={<HMIcon id={id} metadata={draft.data?.metadata} size={20} />}
         onPress={() => {}}
         active={!id.blockRef}
+        size="$5"
+        $gtSm={{size: '$2'}}
       />
       {outline && (
         <DraftOutline

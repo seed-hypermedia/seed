@@ -8,7 +8,10 @@ import {
 } from "@shm/shared";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
+import {useEffect, useState} from "react";
+import {Button} from "./button";
 import {HMIcon} from "./hm-icon";
+import {Close, Menu} from "./icons";
 
 export function NewsSiteHeader({
   homeMetadata,
@@ -17,42 +20,81 @@ export function NewsSiteHeader({
   rightContent,
   docId,
   afterLinksContent,
+  children,
+  searchUI,
+  mobileSearchUI,
+  isWeb = false,
 }: {
   homeMetadata: HMMetadata | null;
   homeId: UnpackedHypermediaId | null;
   supportQueries?: HMQueryResult[];
   rightContent?: React.ReactNode;
-  docId?: UnpackedHypermediaId;
+  docId: UnpackedHypermediaId | null;
   afterLinksContent?: React.ReactNode;
+  searchUI?: React.ReactNode;
+  children: React.JSX.Element;
+  mobileSearchUI?: React.ReactNode;
+  isWeb?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
   if (!homeId) return null;
   const supportQuery = supportQueries?.find((q) => q.in.uid === homeId?.uid);
   return (
-    <YStack paddingBottom="$4" paddingHorizontal="$4">
-      {homeId ? (
+    <>
+      <YStack
+        borderBottomWidth={1}
+        borderColor="$borderColor"
+        zIndex="$zIndex.7"
+        // @ts-ignore
+        position="sticky"
+        top={0}
+        right={0}
+        left={0}
+        backgroundColor="$background"
+      >
         <HomeHeader
+          onOpen={() => setOpen(true)}
           homeId={homeId}
           homeMetadata={homeMetadata}
           rightContent={rightContent}
+          searchUI={searchUI}
+          isWeb={isWeb}
         />
-      ) : null}
 
-      <XStack gap="$5" justifyContent="center" ai="center">
-        {supportQuery?.results
-          ?.filter((result) => result.path.length === 1)
-          ?.map((result) => {
-            if (result.path.length === 1 && result.path[0] === "") return null;
-            return (
-              <NewsSiteHeaderLink
-                result={result}
-                key={result.path.join("/")}
-                active={!!docId?.path && result.path[0] === docId.path[0]}
-              />
-            );
-          })}
-        {afterLinksContent}
-      </XStack>
-    </YStack>
+        <XStack
+          ai="center"
+          gap="$4"
+          padding="$2"
+          jc="center"
+          display="none"
+          $gtSm={{display: "flex"}}
+        >
+          {supportQuery?.results
+            ?.filter((result) => result.path.length === 1)
+            ?.map((result) => {
+              if (result.path.length === 1 && result.path[0] === "")
+                return null;
+              return (
+                <NewsSiteHeaderLink
+                  result={result}
+                  key={result.path.join("/")}
+                  active={!!docId?.path && result.path[0] === docId.path[0]}
+                />
+              );
+            })}
+          {afterLinksContent}
+        </XStack>
+      </YStack>
+      {isWeb ? (
+        <MobileMenu
+          open={open}
+          onClose={() => setOpen(false)}
+          mobileSearchUI={mobileSearchUI}
+        >
+          {children}
+        </MobileMenu>
+      ) : null}
+    </>
   );
 }
 
@@ -60,40 +102,59 @@ function HomeHeader({
   homeMetadata,
   homeId,
   rightContent,
+  searchUI,
+  onOpen,
+  isWeb = false,
 }: {
   homeMetadata: HMMetadata | null;
   homeId: UnpackedHypermediaId;
   rightContent?: React.ReactNode;
+  searchUI?: React.ReactNode;
+  onOpen: () => void;
+  isWeb?: boolean;
 }) {
   const homeLinkProps = useRouteLink({
     key: "document",
     id: homeId,
   });
   return (
-    <XStack marginHorizontal="$4">
-      <XStack
-        flex={1}
-        {...homeLinkProps}
-        justifyContent="center"
-        marginVertical="$3"
-        gap="$3"
-      >
+    <XStack paddingHorizontal="$4" paddingVertical="$2.5" ai="center" gap="$4">
+      <XStack w={38} />
+      <XStack f={1} />
+      <XStack ai="center" gap="$2" {...homeLinkProps}>
         <HMIcon size={24} id={homeId} metadata={homeMetadata} />
         <SizableText size="$4" fontWeight="bold">
           {homeMetadata?.name}
         </SizableText>
       </XStack>
+      <XStack f={1} />
       <XStack
         ai="center"
         gap="$3"
         position="absolute"
-        right={0}
+        right="$4"
         top={0}
         height="100%"
         background="$background"
       >
         {rightContent}
       </XStack>
+      {isWeb ? (
+        <>
+          <Button
+            $gtSm={{display: "none"}}
+            icon={<Menu size={20} />}
+            chromeless
+            size="$2"
+            onPress={() => {
+              onOpen();
+            }}
+          />
+          <XStack display="none" $gtSm={{display: "flex"}}>
+            {searchUI}
+          </XStack>
+        </>
+      ) : null}
     </XStack>
   );
 }
@@ -117,5 +178,55 @@ function NewsSiteHeaderLink({
     >
       {result.metadata.name}
     </SizableText>
+  );
+}
+
+export function MobileMenu({
+  children,
+  open,
+  onClose,
+  mobileSearchUI,
+}: {
+  children: React.JSX.Element;
+  open: boolean;
+  onClose: () => void;
+  mobileSearchUI?: React.ReactNode;
+}) {
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "auto";
+    }
+  }, [open]);
+  return (
+    <YStack
+      $gtSm={{
+        display: "none",
+      }}
+      bg="$background"
+      fullscreen
+      // @ts-ignore
+      position="fixed"
+      top={0}
+      right={0}
+      bottom={0}
+      zIndex="$zIndex.7"
+      x={open ? 0 : "100%"}
+      animation="fast"
+    >
+      <XStack p="$4" alignItems="center">
+        <XStack f={1}>{mobileSearchUI}</XStack>
+        <Button
+          icon={<Close size={24} />}
+          chromeless
+          size="$2"
+          onPress={onClose}
+        />
+      </XStack>
+      <YStack p="$4" paddingBottom={200} flex={1} overflow="scroll">
+        {children}
+      </YStack>
+    </YStack>
   );
 }

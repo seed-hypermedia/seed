@@ -1,4 +1,3 @@
-import {useFetcher} from "@remix-run/react";
 import {
   formattedDateMedium,
   HMDocument,
@@ -10,27 +9,20 @@ import {
 import {Container} from "@shm/ui/src/container";
 import {HMIcon} from "@shm/ui/src/hm-icon";
 import {Popover} from "@shm/ui/src/TamaguiPopover";
-import {NewsSiteHeader} from "@shm/ui/src/top-bar";
+import {MobileMenu, NewsSiteHeader} from "@shm/ui/src/top-bar";
 import {usePopoverState} from "@shm/ui/src/use-popover-state";
 import {Button} from "@tamagui/button";
-import {Stack} from "@tamagui/core";
-import {Input} from "@tamagui/input";
-import {Menu, Search} from "@tamagui/lucide-icons";
+import {Menu} from "@tamagui/lucide-icons";
 import {Separator} from "@tamagui/separator";
 import {XStack, YStack} from "@tamagui/stacks";
 import {H1, SizableText} from "@tamagui/text";
-import {useEffect, useMemo, useState} from "react";
-import {
-  NativeSyntheticEvent,
-  ScrollView,
-  TextInputChangeEventData,
-} from "react-native";
+import {useMemo, useState} from "react";
+import {ScrollView} from "react-native";
 import {getHref} from "./href";
 import type {MetadataPayload} from "./loaders";
 import {useDocumentChanges, useEntity} from "./models";
 import {HMDocumentChangeInfo} from "./routes/hm.api.changes";
-import {SearchPayload} from "./routes/hm.api.search";
-import {unwrap} from "./wrapping";
+import {SearchUI} from "./search";
 
 export function PageHeader({
   homeId,
@@ -139,109 +131,94 @@ export function SiteHeader(props: {
     metadata: HMMetadata;
   }>;
   supportQueries?: HMQueryResult[];
+  children: React.JSX.Element;
+  mobileSearchUI?: React.ReactNode;
+  isWeb?: boolean;
 }) {
   if (props.homeMetadata?.layout === "Seed/Experimental/Newspaper") {
-    return <NewsSiteHeader {...props} />;
+    return (
+      <NewsSiteHeader
+        {...props}
+        searchUI={props.homeId ? <SearchUI homeId={props.homeId} /> : null}
+      />
+    );
   }
-  return <DefaultSiteHeader {...props} />;
+  return (
+    <DefaultSiteHeader
+      {...props}
+      searchUI={props.homeId ? <SearchUI homeId={props.homeId} /> : null}
+    />
+  );
 }
 
 export function DefaultSiteHeader({
   homeMetadata,
   homeId,
-  docMetadata,
-  docId,
-  openSheet,
-  breadcrumbs,
+  children,
+  searchUI,
+  mobileSearchUI,
+  isWeb = false,
 }: {
   homeMetadata: HMMetadata | null;
   homeId: UnpackedHypermediaId | null;
-  docMetadata: HMMetadata | null;
-  docId: UnpackedHypermediaId | null;
-  openSheet?: () => void;
-  breadcrumbs: Array<{
-    id: UnpackedHypermediaId;
-    metadata: HMMetadata;
-  }>;
+  children: React.JSX.Element;
+  searchUI?: React.ReactNode;
+  mobileSearchUI?: React.ReactNode;
+  isWeb?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
   return (
-    <Stack
-      flex={1}
-      flexDirection="column"
-      $gtSm={{flexDirection: "row"}}
-      bg="$background"
-      position="fixed"
-      zi="$zIndex.7"
-      w="100%"
-      top={0}
-      paddingBlock="$2"
-      paddingInline="$4"
-      id="page-header-menu"
-      borderBottomColor="$color5"
-      borderBottomWidth={1}
-      gap="$2"
-    >
-      <XStack gap="$2">
-        <XStack
-          ai="center"
-          f={1}
-          $gtSm={{
-            f: 0,
-          }}
-        >
-          <XStack
-            tag="a"
-            role="link"
-            style={{textDecoration: "none"}}
-            href="/"
-            gap="$2"
-            ai="center"
-            hoverStyle={{
-              textDecoration: "none",
-              cursor: "pointer",
-            }}
-          >
-            {homeMetadata?.icon && homeId ? (
-              <HMIcon size={30} id={homeId} metadata={homeMetadata} />
-            ) : null}
-
-            <SizableText fontWeight="bold">
-              {homeMetadata?.name || "Seed Gateway"}
-            </SizableText>
-          </XStack>
-        </XStack>
-        <XStack alignItems="center">
-          {homeId ? <SearchUI homeId={homeId} /> : null}
-        </XStack>
-      </XStack>
+    <>
       <XStack
-        ai="center"
-        $gtSm={{flex: 1}}
+        paddingHorizontal="$4"
+        paddingVertical="$2.5"
+        alignItems="center"
+        borderBottomWidth={1}
+        borderColor="$borderColor"
+        gap="$4"
+        zIndex="$zIndex.7"
+        // @ts-ignore
         position="sticky"
-        bg="$background"
-        zi="$zIndex.7"
         top={0}
+        right={0}
+        left={0}
+        backgroundColor="$background"
       >
-        <Breadcrumbs
-          homeId={homeId || undefined}
-          docId={docId || undefined}
-          docMetadata={docMetadata || undefined}
-          breadcrumbs={breadcrumbs}
-        />
-        {openSheet ? (
-          <Button
-            $gtMd={{display: "none", opacity: 0, pointerEvents: "none"}}
-            size="$2"
-            chromeless
-            backgroundColor="transparent"
-            icon={Menu}
-            onPress={() => {
-              openSheet();
-            }}
-          />
+        <XStack alignItems="center" gap="$2">
+          {homeMetadata?.icon && homeId ? (
+            <HMIcon size={30} id={homeId} metadata={homeMetadata} />
+          ) : null}
+
+          <SizableText fontWeight="bold">
+            {homeMetadata?.name || "Seed Gateway"}
+          </SizableText>
+        </XStack>
+        <XStack flex={1} />
+        {isWeb ? (
+          <>
+            <Button
+              $gtSm={{display: "none"}}
+              icon={<Menu size={20} />}
+              chromeless
+              size="$2"
+              onPress={() => {
+                setOpen(true);
+              }}
+            />
+            {searchUI}
+          </>
         ) : null}
       </XStack>
-    </Stack>
+      {isWeb ? (
+        <MobileMenu
+          open={open}
+          onClose={() => setOpen(false)}
+          mobileSearchUI={mobileSearchUI}
+        >
+          {children}
+        </MobileMenu>
+      ) : null}
+    </>
   );
 }
 
@@ -390,79 +367,6 @@ function ModalVersionItem({
       </SizableText>
     </Button>
   );
-}
-
-function SearchUI({homeId}: {homeId: UnpackedHypermediaId | undefined}) {
-  const popoverState = usePopoverState();
-  const [searchValue, setSearchValue] = useState("");
-  const searchResults = useSearch(searchValue);
-  return (
-    <Popover
-      {...popoverState}
-      onOpenChange={(open) => {
-        popoverState.onOpenChange(open);
-      }}
-      placement="bottom-start"
-    >
-      <Popover.Trigger asChild>
-        <Button
-          size="$2"
-          chromeless
-          backgroundColor="transparent"
-          icon={Search}
-        />
-      </Popover.Trigger>
-      <Popover.Content asChild>
-        <YStack
-          gap="$2"
-          padding="$2"
-          position="relative"
-          bottom={30}
-          backgroundColor="$color4"
-          borderRadius="$4"
-        >
-          <XStack gap="$2" alignItems="center">
-            <Search size="$1" margin="$2" />
-            <Input
-              value={searchValue}
-              size="$3"
-              onChange={(e: NativeSyntheticEvent<TextInputChangeEventData>) => {
-                setSearchValue(e.nativeEvent.target.value);
-              }}
-            />
-          </XStack>
-          {searchResults?.entities.map((entity: any) => {
-            return (
-              <Button
-                backgroundColor="$colorTransparent"
-                style={{textDecoration: "none"}}
-                key={entity.id.id}
-                onPress={() => {}}
-                tag="a"
-                href={getHref(homeId, entity.id)}
-                justifyContent="flex-start"
-              >
-                {entity.title}
-              </Button>
-            );
-          })}
-        </YStack>
-      </Popover.Content>
-    </Popover>
-  );
-}
-
-function useSearch(input: string) {
-  const q = useFetcher();
-  useEffect(() => {
-    if (!input) return;
-    q.load(`/hm/api/search?q=${input}`);
-  }, [input]);
-  if (!input) return {entities: [], searchQuery: ""} as SearchPayload;
-  if (q.data) {
-    return unwrap<SearchPayload>(q.data);
-  }
-  return null;
 }
 
 const VerticalSeparator = () => (

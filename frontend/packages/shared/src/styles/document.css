@@ -29,7 +29,7 @@
 
 .document-aside {
   position: fixed !important;
-  top: 2rem !important;
+  top: 200px !important;
   z-index: 30;
   margin-left: -0.5rem;
   display: none !important;
