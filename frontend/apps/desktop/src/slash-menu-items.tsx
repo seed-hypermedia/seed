@@ -165,7 +165,7 @@ export const slashMenuItems = [
   },
   {
     name: 'Math',
-    aliases: ['math', 'mathematics', 'equation'],
+    aliases: ['math', 'mathematics', 'equation', 'katex', 'tex'],
     group: 'Media blocks',
     icon: <RiFunctions size={18} />,
     hint: 'Insert an Math Block',
