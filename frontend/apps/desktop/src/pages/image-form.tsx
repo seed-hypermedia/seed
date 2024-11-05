@@ -1,41 +1,35 @@
 import {fileUpload} from '@/utils/file-upload'
-import {Button, SizableText, Stack, Tooltip, UIAvatar, XStack} from '@shm/ui'
+import {Button, Image, SizableText, Stack, Tooltip, View, XStack} from '@shm/ui'
 import {X} from '@tamagui/lucide-icons'
 import {ChangeEvent} from 'react'
 import {GestureResponderEvent} from 'react-native'
 import appError from '../errors'
 
-export function IconForm({
+export function ImageForm({
   url,
   label,
   id,
-  size = 140,
-  onIconUpload,
-  onRemoveIcon,
+  onImageUpload,
+  onRemove,
   emptyLabel,
-  marginTop,
-  borderRadius = size,
   ...props
 }: {
   label?: string
   emptyLabel?: string
   id?: string
   url?: string
-  size?: number
-  marginTop?: number
-  borderRadius?: number
-  onIconUpload?: (avatar: string) => Awaited<void>
-  onRemoveIcon?: () => void
+  onImageUpload?: (avatar: string) => Awaited<void>
+  onRemove?: () => void
 }) {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     event.stopPropagation()
     const fileList = event.target.files
     const file = fileList?.[0]
     if (!file) return
-    if (!onIconUpload) return
+    if (!onImageUpload) return
     fileUpload(file)
       .then((data) => {
-        onIconUpload(data)
+        onImageUpload(data)
       })
       .catch((error) => {
         appError(`Failed to upload icon: ${error.message}`, {error})
@@ -45,29 +39,22 @@ export function IconForm({
       })
   }
 
-  const iconImage = (
-    <UIAvatar
-      label={label}
-      id={id}
-      size={size}
-      url={url}
-      color="$brand12"
-      marginTop={marginTop}
-      borderRadius={borderRadius}
-    />
+  const image = (
+    <View backgroundColor="$color7" borderRadius="$4" flex={1}>
+      <Image source={{uri: url}} />
+    </View>
   )
-  if (!onIconUpload) return iconImage
+  if (!onImageUpload) return image
   return (
-    <XStack gap="$2" ai="flex-end" group="icon" w="auto" alignSelf="flex-start">
+    <XStack gap="$2" ai="flex-end" group="icon" w="auto" alignSelf="stretch">
       <Stack
-        marginTop={marginTop}
         position="relative"
         {...props}
         group="icon"
-        w={size}
-        h={size}
-        borderRadius={borderRadius}
         overflow="hidden"
+        minHeight={60}
+        alignSelf="stretch"
+        flex={1}
         {...props}
       >
         <input
@@ -115,15 +102,16 @@ export function IconForm({
           ai="center"
           jc="center"
           pointerEvents="none"
+          borderRadius="$4"
         >
           <SizableText textAlign="center" size="$1" color="white">
-            {url ? 'UPDATE' : emptyLabel || 'ADD ICON'}
+            {url ? 'UPDATE' : emptyLabel || 'ADD IMAGE'}
           </SizableText>
         </XStack>
-        {iconImage}
+        {image}
       </Stack>
-      {onRemoveIcon && url ? (
-        <Tooltip content="Remove Icon">
+      {onRemove && url ? (
+        <Tooltip content="Remove Image">
           <Button
             opacity={0}
             theme="red"
@@ -135,7 +123,7 @@ export function IconForm({
             onPress={(e: GestureResponderEvent) => {
               e.preventDefault()
               e.stopPropagation()
-              onRemoveIcon()
+              onRemove()
             }}
           />
         </Tooltip>

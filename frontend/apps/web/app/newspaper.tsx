@@ -1,5 +1,4 @@
-import {PlainMessage, Timestamp} from "@bufbuild/protobuf";
-import {hmId} from "@shm/shared";
+import {hmId, sortNewsEntries} from "@shm/shared";
 import {Container} from "@shm/ui/src/container";
 import {BannerNewspaperCard, NewspaperCard} from "@shm/ui/src/newspaper";
 import {XStack, YStack} from "@tamagui/stacks";
@@ -35,11 +34,13 @@ export function NewspaperPage(props: SiteDocumentPayload) {
       (item) => item?.id?.path?.join("/") === path?.join("/")
     );
   }
-  const latest = newsQuery.results
-    ? [...newsQuery.results].sort(lastUpdateSort)
-    : [];
-  const firstItem = latest[0];
-  const restItems = latest.slice(1);
+
+  const sortedItems = sortNewsEntries(
+    newsQuery.results,
+    homeMetadata.seedExperimentalHomeOrder
+  );
+  const firstItem = sortedItems[0];
+  const restItems = sortedItems.slice(1);
 
   return (
     <>
@@ -92,15 +93,4 @@ export function NewspaperPage(props: SiteDocumentPayload) {
       <PageFooter id={id} />
     </>
   );
-}
-
-function lastUpdateSort(
-  a: {updateTime?: PlainMessage<Timestamp>},
-  b: {updateTime?: PlainMessage<Timestamp>}
-) {
-  return lastUpdateOfEntry(b) - lastUpdateOfEntry(a);
-}
-
-function lastUpdateOfEntry(entry: {updateTime?: PlainMessage<Timestamp>}) {
-  return entry.updateTime?.seconds ? Number(entry.updateTime?.seconds) : 0;
 }

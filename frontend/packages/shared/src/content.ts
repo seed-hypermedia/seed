@@ -1,4 +1,10 @@
-import {HMBlockNode, HMDocument} from './hm-types'
+import {PlainMessage, Timestamp} from '@bufbuild/protobuf'
+import {
+  HMBlockNode,
+  HMDocument,
+  HMDocumentListItem,
+  HMMetadata,
+} from './hm-types'
 
 // HMBlockNodes are recursive values. we want the output to have the same shape, but limit the total number of blocks
 // the first blocks will be included up until the totalBlock value is reached
@@ -45,4 +51,37 @@ export function getMetadataName(metadata?: HMDocument['metadata'] | null) {
 
 export function getAccountName(profile: HMDocument | null | undefined) {
   return profile?.metadata?.name || profile?.account
+}
+
+export function sortNewsEntries(
+  items: HMDocumentListItem[] | undefined,
+  sort: HMMetadata['seedExperimentalHomeOrder'],
+) {
+  if (!items) return []
+  if (sort === 'CreatedFirst') {
+    return [...items].sort(createTimeSort)
+  }
+  return [...items].sort(lastUpdateSort)
+}
+
+function lastUpdateSort(
+  a: {updateTime?: PlainMessage<Timestamp>},
+  b: {updateTime?: PlainMessage<Timestamp>},
+) {
+  return lastUpdateOfEntry(b) - lastUpdateOfEntry(a)
+}
+
+function lastUpdateOfEntry(entry: {updateTime?: PlainMessage<Timestamp>}) {
+  return entry.updateTime?.seconds ? Number(entry.updateTime?.seconds) : 0
+}
+
+function createTimeSort(
+  a: {createTime?: PlainMessage<Timestamp>},
+  b: {createTime?: PlainMessage<Timestamp>},
+) {
+  return createTimeOfEntry(b) - createTimeOfEntry(a)
+}
+
+function createTimeOfEntry(entry: {createTime?: PlainMessage<Timestamp>}) {
+  return entry.createTime?.seconds ? Number(entry.createTime?.seconds) : 0
 }

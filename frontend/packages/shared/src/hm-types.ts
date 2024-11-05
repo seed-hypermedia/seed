@@ -336,6 +336,10 @@ export const HMDocumentMetadataSchema = z.object({
   layout: z
     .union([z.literal('Seed/Experimental/Newspaper'), z.literal('')])
     .optional(),
+  seedExperimentalLogo: z.string().optional(),
+  seedExperimentalHomeOrder: z
+    .union([z.literal('UpdatedFirst'), z.literal('CreatedFirst')])
+    .optional(),
 })
 
 export type HMMetadata = z.infer<typeof HMDocumentMetadataSchema>

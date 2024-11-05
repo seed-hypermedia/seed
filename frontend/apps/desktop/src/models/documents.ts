@@ -917,11 +917,33 @@ export function useListDirectory(id?: UnpackedHypermediaId) {
         .map(toPlainMessage)
         .filter((doc) => {
           return (
-            doc.path !== '' &&
+            doc.path !== '/' &&
             doc.path.startsWith(prefixPath) &&
             doc.path !== prefixPath &&
             doc.path.slice(1).split('/').length === (id.path?.length || 0) + 1
           )
+        })
+        .map((doc) => {
+          return {...doc, path: doc.path.slice(1).split('/')}
+        })
+      return docs as HMDocumentListItem[]
+    },
+  })
+}
+
+export function useListSite(id?: UnpackedHypermediaId) {
+  const grpcClient = useGRPCClient()
+  return useQuery({
+    queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.uid, 'ALL'],
+    queryFn: async () => {
+      if (!id) return []
+      const res = await grpcClient.documents.listDocuments({
+        account: id.uid,
+      })
+      const docs = res.documents
+        .map(toPlainMessage)
+        .filter((doc) => {
+          return doc.path !== ''
         })
         .map((doc) => {
           return {...doc, path: doc.path.slice(1).split('/')}

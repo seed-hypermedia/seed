@@ -1,3 +1,4 @@
+import {ImageForm} from '@/pages/image-form'
 import {getFileUrl, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
 import {Input, Label, SelectDropdown, YStack} from '@shm/ui'
 import {AccessoryContainer} from './accessory-sidebar'
@@ -15,6 +16,7 @@ export function OptionsPanel({
   metadata: HMMetadata
 }) {
   const isHome = !draftId.path || draftId.path.length === 0
+  const isNewspaperLayout = metadata.layout === 'Seed/Experimental/Newspaper'
   return (
     <AccessoryContainer
       title={isHome ? 'Home Options' : 'Document Options'}
@@ -65,6 +67,51 @@ export function OptionsPanel({
           />
         </YStack>
       </YStack>
+      {isNewspaperLayout ? (
+        <>
+          <YStack>
+            <Label size="$1">Header Logo</Label>
+            <ImageForm
+              size={100}
+              id={`logo-${draftId.id}`}
+              label={metadata.seedExperimentalLogo}
+              url={
+                metadata.seedExperimentalLogo
+                  ? getFileUrl(metadata.seedExperimentalLogo)
+                  : ''
+              }
+              onImageUpload={(imgageCid) => {
+                if (imgageCid) {
+                  onMetadata({
+                    seedExperimentalLogo: `ipfs://${imgageCid}`,
+                  })
+                }
+              }}
+              onRemove={() => {
+                onMetadata({
+                  seedExperimentalLogo: '',
+                })
+              }}
+            />
+          </YStack>
+          <YStack>
+            <Label size="$1">Sort Home Content</Label>
+            <SelectDropdown
+              width="100%"
+              options={
+                [
+                  {label: 'Last Updated First', value: 'UpdatedFirst'},
+                  {label: 'Last Created First', value: 'CreatedFirst'},
+                ] as const
+              }
+              value={metadata.seedExperimentalHomeOrder || 'UpdatedFirst'}
+              onValue={(seedExperimentalHomeOrder) =>
+                onMetadata({seedExperimentalHomeOrder})
+              }
+            />
+          </YStack>
+        </>
+      ) : null}
     </AccessoryContainer>
   )
 }

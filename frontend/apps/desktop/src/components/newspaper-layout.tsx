@@ -1,7 +1,11 @@
-import {useListDirectory} from '@/models/documents'
+import {useListSite} from '@/models/documents'
 import {useEntities, useSubscribedEntity} from '@/models/entities'
-import {PlainMessage, Timestamp} from '@bufbuild/protobuf'
-import {hmId, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
+import {
+  hmId,
+  HMMetadata,
+  sortNewsEntries,
+  UnpackedHypermediaId,
+} from '@shm/shared'
 import {BannerNewspaperCard, Container, NewspaperCard} from '@shm/ui'
 import {AccountsMetadata} from '@shm/ui/src/face-pile'
 import {XStack} from 'tamagui'
@@ -13,7 +17,7 @@ export function NewspaperLayout({
   id: UnpackedHypermediaId
   metadata: HMMetadata
 }) {
-  const dir = useListDirectory(id)
+  const dir = useListSite(id)
   useSubscribedEntity(id, true)
 
   const docIds =
@@ -36,9 +40,12 @@ export function NewspaperLayout({
       (document) => document.data?.id?.path?.join('/') === path?.join('/'),
     )?.data
   }
-  const latest = dir.data ? [...dir.data].sort(lastUpdateSort) : []
-  const firstItem = latest[0]
-  const restItems = latest.slice(1)
+  const sortedItems = sortNewsEntries(
+    dir.data,
+    metadata.seedExperimentalHomeOrder,
+  )
+  const firstItem = sortedItems[0]
+  const restItems = sortedItems.slice(1)
   const accountsMetadata: AccountsMetadata = documents
     .map((document) => {
       const d = document.data
@@ -81,15 +88,4 @@ export function NewspaperLayout({
       </XStack>
     </Container>
   )
-}
-
-function lastUpdateSort(
-  a: {updateTime?: PlainMessage<Timestamp>},
-  b: {updateTime?: PlainMessage<Timestamp>},
-) {
-  return lastUpdateOfEntry(b) - lastUpdateOfEntry(a)
-}
-
-function lastUpdateOfEntry(entry: {updateTime?: PlainMessage<Timestamp>}) {
-  return entry.updateTime?.seconds ? Number(entry.updateTime?.seconds) : 0
 }

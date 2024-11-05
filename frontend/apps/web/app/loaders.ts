@@ -67,7 +67,7 @@ async function getDirectory(id: UnpackedHypermediaId) {
   });
   const docs = res.documents
     .map(toPlainMessage)
-    // .filter((doc) => doc.path !== "")
+    .filter((doc) => doc.path !== "")
     .map((doc) => {
       return {...doc, path: doc.path.slice(1).split("/")};
     });
