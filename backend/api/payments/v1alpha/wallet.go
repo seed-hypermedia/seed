@@ -98,7 +98,7 @@ func (srv *Server) RegisterServer(rpc grpc.ServiceRegistrar) {
 // If for some reason, that device cannot create the invoice (insufficient
 // inbound liquidity) we ask the next device. We return in the first device that
 // can issue the invoice. If none of them can, then an error is raised.
-func (srv *Server) P2PInvoiceRequest(_ context.Context, account core.Principal, request InvoiceRequest) (string, error) {
+func (srv *Server) P2PInvoiceRequest(_ context.Context, _ core.Principal, _ InvoiceRequest) (string, error) {
 	return "", fmt.Errorf("Hm-24. Not implemented")
 
 	/*
@@ -190,7 +190,6 @@ func (srv *Server) CreateWallet(ctx context.Context, in *payments.CreateWalletRe
 		Account:        creds.Login,
 		Name:           in.Name,
 	})
-
 }
 
 // ImportWallet first tries to connect to the wallet with the provided credentials.

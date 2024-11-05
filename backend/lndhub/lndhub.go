@@ -68,7 +68,7 @@ type createRequest struct {
 	Nickname string `json:"nickname"`
 }
 
-// Short wallet description used as a return value.
+// CreateResponse is a short wallet description used as a return value.
 type CreateResponse struct {
 	Login    string `mapstructure:"login"`
 	Password string `mapstructure:"password"`
