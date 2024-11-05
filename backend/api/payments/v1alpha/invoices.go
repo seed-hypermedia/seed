@@ -173,7 +173,7 @@ func (srv *Server) CreateInvoice(ctx context.Context, in *payments.CreateInvoice
 // If amountSats is provided, the invoice will be paid with that amount. This amount should be equal to the amount on the invoice
 // unless the amount on the invoice is 0.
 func (srv *Server) PayInvoice(ctx context.Context, in *payments.PayInvoiceRequest) (*emptypb.Empty, error) {
-	var walletToPay *payments.Wallet
+	walletToPay := &payments.Wallet{}
 	var err error
 	var amountToPay int64
 
