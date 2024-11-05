@@ -1,3 +1,4 @@
+// Package payments handles lightning payments.
 package payments
 
 import (
@@ -141,7 +142,7 @@ func (srv *Server) RequestLud6Invoice(ctx context.Context, in *payments.RequestL
 	return payReq, nil
 }
 
-// CreateLocalInvoice tries to generate an invoice locally from the default wallet The memo field is optional and can be left nil.
+// CreateInvoice tries to generate an invoice locally.
 func (srv *Server) CreateInvoice(ctx context.Context, in *payments.CreateInvoiceRequest) (*payments.Payreq, error) {
 	ret := &payments.Payreq{}
 	wallet, err := srv.GetWallet(ctx, &payments.WalletRequest{Id: in.Id})

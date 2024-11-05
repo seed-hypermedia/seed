@@ -31,6 +31,7 @@ type Server struct {
 	Payments    *payments.Server
 }
 
+// Storage holds all the storing functionality.
 type Storage interface {
 	DB() *sqlitex.Pool
 	KeyStore() core.KeyStore
@@ -40,7 +41,6 @@ type Storage interface {
 
 // New creates a new API server.
 func New(
-	ctx context.Context,
 	repo Storage,
 	idx *blob.Index,
 	node *mttnet.Node,
@@ -57,7 +57,7 @@ func New(
 		Entities:    entities.NewServer(idx, sync),
 		DocumentsV3: documentsv3.NewServer(repo.KeyStore(), idx, db, logging.New("seed/documents", LogLevel)),
 		Syncing:     sync,
-		Payments:    payments.NewServer(ctx, logging.New("seed/payments", LogLevel), db, node, repo.KeyStore(), isMainnet),
+		Payments:    payments.NewServer(logging.New("seed/payments", LogLevel), db, node, repo.KeyStore(), isMainnet),
 	}
 }
 

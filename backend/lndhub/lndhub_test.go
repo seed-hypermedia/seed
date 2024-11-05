@@ -52,7 +52,7 @@ func TestCreate(t *testing.T) {
 	passwordBytes, err := keypair.Sign([]byte(SigningMessage))
 	password := hex.EncodeToString(passwordBytes)
 	require.NoError(t, err)
-	lndHubClient := NewClient(context.Background(), &http.Client{}, pool, lndhubDomain, lnaddressDomain)
+	lndHubClient := NewClient(&http.Client{}, pool, lndhubDomain, lnaddressDomain)
 	walletID := credentials2Id("lndhub.go", login, password, lndhubDomain, token)
 
 	makeTestWallet(t, conn, walletsql.Wallet{

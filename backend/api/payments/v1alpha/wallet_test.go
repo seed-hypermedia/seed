@@ -81,7 +81,7 @@ func makeTestService(t *testing.T, name string) *Server {
 
 	t.Cleanup(cancel)
 
-	return NewServer(ctx, logging.New("seed/wallet", "debug"), db, node, ks, false)
+	return NewServer(logging.New("seed/wallet", "debug"), db, node, ks, false)
 }
 
 func makeTestPeer(t *testing.T, u coretest.Tester, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool) (*mttnet.Node, context.CancelFunc) {

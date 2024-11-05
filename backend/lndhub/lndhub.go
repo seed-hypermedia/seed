@@ -67,7 +67,9 @@ type createRequest struct {
 	Password string `json:"password"`
 	Nickname string `json:"nickname"`
 }
-type createResponse struct {
+
+// Short wallet description used as a return value.
+type CreateResponse struct {
 	Login    string `mapstructure:"login"`
 	Password string `mapstructure:"password"`
 	Nickname string `mapstructure:"nickname"`
@@ -103,7 +105,7 @@ type Invoice struct {
 
 // NewClient returns an instance of an lndhub client. The id is the credentials URI
 // hash that acts as an index in the wallet table.
-func NewClient(ctx context.Context, h *http.Client, db *sqlitex.Pool, lndhubDomain, lnaddressDomain string) *Client {
+func NewClient(h *http.Client, db *sqlitex.Pool, lndhubDomain, lnaddressDomain string) *Client {
 	return &Client{
 		http:            h,
 		db:              db,
@@ -127,8 +129,8 @@ func (c *Client) GetLndaddressDomain() string {
 // was used to sign the password. If login is not a CID, then there is no need for the token and password can be
 // anything. Nickname can be anything in both cases as long as it's unique across all seed lndhub users (it will
 // fail otherwise).
-func (c *Client) Create(ctx context.Context, connectionURL, walletID, login, pass, nickname string, token []byte) (createResponse, error) {
-	var resp createResponse
+func (c *Client) Create(ctx context.Context, connectionURL, walletID, login, pass, nickname string, token []byte) (CreateResponse, error) {
+	var resp CreateResponse
 
 	conn, release, err := c.db.Conn(ctx)
 	if err != nil {
@@ -163,7 +165,7 @@ func (c *Client) UpdateNickname(ctx context.Context, walletID, nickname string, 
 			return fmt.Errorf("Nickname cannot contain uppercase letters %s", nickname)
 		}
 	}
-	var resp createResponse
+	var resp CreateResponse
 
 	conn, release, err := c.db.Conn(ctx)
 	if err != nil {

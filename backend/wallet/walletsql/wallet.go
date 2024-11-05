@@ -72,7 +72,7 @@ func GetWallet(conn *sqlite.Conn, walletID string) (Wallet, error) {
 // If there are wallets to show, ListWallets will return up
 // to limit wallets. In case limit <=0, ListWallets will return
 // all wallets available. If accounts is not blank then ListWallets
-// will return only wallets for that account
+// will return only wallets for that account.
 func ListWallets(conn *sqlite.Conn, account string, limit int) ([]Wallet, error) {
 	var resultArray []Wallet
 

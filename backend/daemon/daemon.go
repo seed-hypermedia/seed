@@ -383,7 +383,7 @@ func initGRPC(
 	}
 
 	srv = grpc.NewServer(opts.serverOptions...)
-	rpc = api.New(ctx, repo, idx, node, sync, activity, LogLevel, isMainnet)
+	rpc = api.New(repo, idx, node, sync, activity, LogLevel, isMainnet)
 	rpc.Register(srv)
 	reflection.Register(srv)
 

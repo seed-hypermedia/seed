@@ -51,10 +51,8 @@ type Credentials struct {
 	Nickname   string `json:"nickname,omitempty"`
 }
 
-// New is the constructor of the wallet service. Since it needs to authenticate to the internal wallet provider (lndhub)
-// it may take time in case node is offline. This is why it's initialized in a gorutine and calls to the service functions
-// will fail until the initial wallet is successfully initialized.
-func NewServer(ctx context.Context, log *zap.Logger, db *sqlitex.Pool, net *mttnet.Node, ks core.KeyStore, mainnet bool) *Server {
+// NewServer is the constructor of the wallet service.
+func NewServer(log *zap.Logger, db *sqlitex.Pool, net *mttnet.Node, ks core.KeyStore, mainnet bool) *Server {
 	lndhubDomain := "ln.testnet.mintter.com"
 	lnaddressDomain := "ln.testnet.mintter.com"
 	if mainnet {
@@ -65,7 +63,7 @@ func NewServer(ctx context.Context, log *zap.Logger, db *sqlitex.Pool, net *mttn
 	srv := &Server{
 		pool: db,
 		lightningClient: lnclient{
-			Lndhub: lndhub.NewClient(ctx, &http.Client{}, db, lndhubDomain, lnaddressDomain),
+			Lndhub: lndhub.NewClient(&http.Client{}, db, lndhubDomain, lnaddressDomain),
 		},
 		net: net,
 		log: log,
@@ -100,7 +98,7 @@ func (srv *Server) RegisterServer(rpc grpc.ServiceRegistrar) {
 // If for some reason, that device cannot create the invoice (insufficient
 // inbound liquidity) we ask the next device. We return in the first device that
 // can issue the invoice. If none of them can, then an error is raised.
-func (srv *Server) P2PInvoiceRequest(ctx context.Context, account core.Principal, request InvoiceRequest) (string, error) {
+func (srv *Server) P2PInvoiceRequest(_ context.Context, account core.Principal, request InvoiceRequest) (string, error) {
 	return "", fmt.Errorf("Hm-24. Not implemented")
 
 	/*
