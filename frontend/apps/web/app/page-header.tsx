@@ -483,9 +483,17 @@ function Breadcrumbs({
   docId?: UnpackedHypermediaId;
   docMetadata?: HMMetadata;
 }) {
+  const displayBreadcrumbs = breadcrumbs.filter((breadcrumb) => {
+    if (
+      !breadcrumb.id.path?.length &&
+      homeId &&
+      breadcrumb.id.uid === homeId.uid
+    )
+      return null;
+  });
   return (
-    <XStack f={1} gap="$2">
-      {breadcrumbs.flatMap((crumb) => {
+    <XStack flex={1} gap="$2">
+      {displayBreadcrumbs.flatMap((crumb) => {
         return [
           <SizableText
             tag="a"
