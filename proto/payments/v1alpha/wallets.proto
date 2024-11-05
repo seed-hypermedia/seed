@@ -14,20 +14,23 @@ service Wallets {
 
   // RemoveWallet deletes a wallet locally. It can be later imported
   // with the necessary credentials and no funds will be lost.
-  rpc RemoveWallet(RemoveWalletRequest) returns (google.protobuf.Empty);
+  rpc RemoveWallet(WalletRequest) returns (google.protobuf.Empty);
 
   // ImportWallet Imports a 3rd party (compatible) wallet with credentials.
   rpc ImportWallet(ImportWalletRequest) returns (Wallet);
 
   // ExportWallet Export the wallet credentials so they can be imported and
   // used with a 3rd party compatible app.
-  rpc ExportWallet(ExportWalletRequest) returns (ExportWalletResponse);
+  rpc ExportWallet(WalletRequest) returns (ExportWalletResponse);
 
   // ListWallets lists all available wallets for the account.
-  rpc GetWalletBalance(GetWalletBalanceRequest) returns (GetWalletBalanceResponse);
+  rpc GetWalletBalance(WalletRequest) returns (GetWalletBalanceResponse);
 
   // ListWallets lists all available wallets for the account.
   rpc ListWallets(ListWalletsRequest) returns (ListWalletsResponse);
+
+  // GetWallet gets a specific wallet.
+  rpc GetWallet(WalletRequest) returns (Wallet);
 
   // UpdateWalletName changes the name of the wallet. This does not have any
   // implications on payments. Name is just for user convenience. 
@@ -84,21 +87,15 @@ message ImportWalletRequest {
   string name = 3;
 }
 
-// The request to export a wallet.
-message ExportWalletRequest {
-  // Required. ID (not name) of the wallet to export.
-  string id = 1;
-}
-
 // Exported credentials. 
 message ExportWalletResponse{
   // The credentials url to be used with a compatible 3rd party app.
   string credentials = 1;
 }
 
-// The request to get an lndhub wallet's balance.
-message GetWalletBalanceRequest {
-  // Required. Id of the wallet to get the balance from.
+// The request to get an lndhub wallet.
+message WalletRequest {
+  // Required. Id of the wallet to operate with
   string id = 1;
 }
 
@@ -118,12 +115,6 @@ message ListWalletsRequest {
 message ListWalletsResponse {
   // Wallets under the account.
   repeated Wallet wallets = 1;
-}
-
-// The request to delete a wallet 
-message RemoveWalletRequest {
-  // Required. The wallet id to be removed
-  string id = 1;
 }
 
 // The request to update a wallet

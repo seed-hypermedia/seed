@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateWalletRequest, ExportWalletRequest, ExportWalletResponse, GetDefaultWalletRequest, GetWalletBalanceRequest, GetWalletBalanceResponse, ImportWalletRequest, ListWalletsRequest, ListWalletsResponse, RemoveWalletRequest, SetDefaultWalletRequest, UpdateWalletNameRequest, Wallet } from "./wallets_pb";
+import { CreateWalletRequest, ExportWalletResponse, GetDefaultWalletRequest, GetWalletBalanceResponse, ImportWalletRequest, ListWalletsRequest, ListWalletsResponse, SetDefaultWalletRequest, UpdateWalletNameRequest, Wallet, WalletRequest } from "./wallets_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -31,7 +31,7 @@ export const Wallets = {
      */
     removeWallet: {
       name: "RemoveWallet",
-      I: RemoveWalletRequest,
+      I: WalletRequest,
       O: Empty,
       kind: MethodKind.Unary,
     },
@@ -54,7 +54,7 @@ export const Wallets = {
      */
     exportWallet: {
       name: "ExportWallet",
-      I: ExportWalletRequest,
+      I: WalletRequest,
       O: ExportWalletResponse,
       kind: MethodKind.Unary,
     },
@@ -65,7 +65,7 @@ export const Wallets = {
      */
     getWalletBalance: {
       name: "GetWalletBalance",
-      I: GetWalletBalanceRequest,
+      I: WalletRequest,
       O: GetWalletBalanceResponse,
       kind: MethodKind.Unary,
     },
@@ -78,6 +78,17 @@ export const Wallets = {
       name: "ListWallets",
       I: ListWalletsRequest,
       O: ListWalletsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * GetWallet gets a specific wallet.
+     *
+     * @generated from rpc com.seed.payments.v1alpha.Wallets.GetWallet
+     */
+    getWallet: {
+      name: "GetWallet",
+      I: WalletRequest,
+      O: Wallet,
       kind: MethodKind.Unary,
     },
     /**

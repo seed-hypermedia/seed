@@ -27,16 +27,18 @@ type WalletsClient interface {
 	CreateWallet(ctx context.Context, in *CreateWalletRequest, opts ...grpc.CallOption) (*Wallet, error)
 	// RemoveWallet deletes a wallet locally. It can be later imported
 	// with the necessary credentials and no funds will be lost.
-	RemoveWallet(ctx context.Context, in *RemoveWalletRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	RemoveWallet(ctx context.Context, in *WalletRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// ImportWallet Imports a 3rd party (compatible) wallet with credentials.
 	ImportWallet(ctx context.Context, in *ImportWalletRequest, opts ...grpc.CallOption) (*Wallet, error)
 	// ExportWallet Export the wallet credentials so they can be imported and
 	// used with a 3rd party compatible app.
-	ExportWallet(ctx context.Context, in *ExportWalletRequest, opts ...grpc.CallOption) (*ExportWalletResponse, error)
+	ExportWallet(ctx context.Context, in *WalletRequest, opts ...grpc.CallOption) (*ExportWalletResponse, error)
 	// ListWallets lists all available wallets for the account.
-	GetWalletBalance(ctx context.Context, in *GetWalletBalanceRequest, opts ...grpc.CallOption) (*GetWalletBalanceResponse, error)
+	GetWalletBalance(ctx context.Context, in *WalletRequest, opts ...grpc.CallOption) (*GetWalletBalanceResponse, error)
 	// ListWallets lists all available wallets for the account.
 	ListWallets(ctx context.Context, in *ListWalletsRequest, opts ...grpc.CallOption) (*ListWalletsResponse, error)
+	// GetWallet gets a specific wallet.
+	GetWallet(ctx context.Context, in *WalletRequest, opts ...grpc.CallOption) (*Wallet, error)
 	// UpdateWalletName changes the name of the wallet. This does not have any
 	// implications on payments. Name is just for user convenience.
 	UpdateWalletName(ctx context.Context, in *UpdateWalletNameRequest, opts ...grpc.CallOption) (*Wallet, error)
@@ -65,7 +67,7 @@ func (c *walletsClient) CreateWallet(ctx context.Context, in *CreateWalletReques
 	return out, nil
 }
 
-func (c *walletsClient) RemoveWallet(ctx context.Context, in *RemoveWalletRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *walletsClient) RemoveWallet(ctx context.Context, in *WalletRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/com.seed.payments.v1alpha.Wallets/RemoveWallet", in, out, opts...)
 	if err != nil {
@@ -83,7 +85,7 @@ func (c *walletsClient) ImportWallet(ctx context.Context, in *ImportWalletReques
 	return out, nil
 }
 
-func (c *walletsClient) ExportWallet(ctx context.Context, in *ExportWalletRequest, opts ...grpc.CallOption) (*ExportWalletResponse, error) {
+func (c *walletsClient) ExportWallet(ctx context.Context, in *WalletRequest, opts ...grpc.CallOption) (*ExportWalletResponse, error) {
 	out := new(ExportWalletResponse)
 	err := c.cc.Invoke(ctx, "/com.seed.payments.v1alpha.Wallets/ExportWallet", in, out, opts...)
 	if err != nil {
@@ -92,7 +94,7 @@ func (c *walletsClient) ExportWallet(ctx context.Context, in *ExportWalletReques
 	return out, nil
 }
 
-func (c *walletsClient) GetWalletBalance(ctx context.Context, in *GetWalletBalanceRequest, opts ...grpc.CallOption) (*GetWalletBalanceResponse, error) {
+func (c *walletsClient) GetWalletBalance(ctx context.Context, in *WalletRequest, opts ...grpc.CallOption) (*GetWalletBalanceResponse, error) {
 	out := new(GetWalletBalanceResponse)
 	err := c.cc.Invoke(ctx, "/com.seed.payments.v1alpha.Wallets/GetWalletBalance", in, out, opts...)
 	if err != nil {
@@ -104,6 +106,15 @@ func (c *walletsClient) GetWalletBalance(ctx context.Context, in *GetWalletBalan
 func (c *walletsClient) ListWallets(ctx context.Context, in *ListWalletsRequest, opts ...grpc.CallOption) (*ListWalletsResponse, error) {
 	out := new(ListWalletsResponse)
 	err := c.cc.Invoke(ctx, "/com.seed.payments.v1alpha.Wallets/ListWallets", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *walletsClient) GetWallet(ctx context.Context, in *WalletRequest, opts ...grpc.CallOption) (*Wallet, error) {
+	out := new(Wallet)
+	err := c.cc.Invoke(ctx, "/com.seed.payments.v1alpha.Wallets/GetWallet", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -145,16 +156,18 @@ type WalletsServer interface {
 	CreateWallet(context.Context, *CreateWalletRequest) (*Wallet, error)
 	// RemoveWallet deletes a wallet locally. It can be later imported
 	// with the necessary credentials and no funds will be lost.
-	RemoveWallet(context.Context, *RemoveWalletRequest) (*emptypb.Empty, error)
+	RemoveWallet(context.Context, *WalletRequest) (*emptypb.Empty, error)
 	// ImportWallet Imports a 3rd party (compatible) wallet with credentials.
 	ImportWallet(context.Context, *ImportWalletRequest) (*Wallet, error)
 	// ExportWallet Export the wallet credentials so they can be imported and
 	// used with a 3rd party compatible app.
-	ExportWallet(context.Context, *ExportWalletRequest) (*ExportWalletResponse, error)
+	ExportWallet(context.Context, *WalletRequest) (*ExportWalletResponse, error)
 	// ListWallets lists all available wallets for the account.
-	GetWalletBalance(context.Context, *GetWalletBalanceRequest) (*GetWalletBalanceResponse, error)
+	GetWalletBalance(context.Context, *WalletRequest) (*GetWalletBalanceResponse, error)
 	// ListWallets lists all available wallets for the account.
 	ListWallets(context.Context, *ListWalletsRequest) (*ListWalletsResponse, error)
+	// GetWallet gets a specific wallet.
+	GetWallet(context.Context, *WalletRequest) (*Wallet, error)
 	// UpdateWalletName changes the name of the wallet. This does not have any
 	// implications on payments. Name is just for user convenience.
 	UpdateWalletName(context.Context, *UpdateWalletNameRequest) (*Wallet, error)
@@ -173,20 +186,23 @@ type UnimplementedWalletsServer struct {
 func (UnimplementedWalletsServer) CreateWallet(context.Context, *CreateWalletRequest) (*Wallet, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateWallet not implemented")
 }
-func (UnimplementedWalletsServer) RemoveWallet(context.Context, *RemoveWalletRequest) (*emptypb.Empty, error) {
+func (UnimplementedWalletsServer) RemoveWallet(context.Context, *WalletRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RemoveWallet not implemented")
 }
 func (UnimplementedWalletsServer) ImportWallet(context.Context, *ImportWalletRequest) (*Wallet, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ImportWallet not implemented")
 }
-func (UnimplementedWalletsServer) ExportWallet(context.Context, *ExportWalletRequest) (*ExportWalletResponse, error) {
+func (UnimplementedWalletsServer) ExportWallet(context.Context, *WalletRequest) (*ExportWalletResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ExportWallet not implemented")
 }
-func (UnimplementedWalletsServer) GetWalletBalance(context.Context, *GetWalletBalanceRequest) (*GetWalletBalanceResponse, error) {
+func (UnimplementedWalletsServer) GetWalletBalance(context.Context, *WalletRequest) (*GetWalletBalanceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWalletBalance not implemented")
 }
 func (UnimplementedWalletsServer) ListWallets(context.Context, *ListWalletsRequest) (*ListWalletsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListWallets not implemented")
+}
+func (UnimplementedWalletsServer) GetWallet(context.Context, *WalletRequest) (*Wallet, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetWallet not implemented")
 }
 func (UnimplementedWalletsServer) UpdateWalletName(context.Context, *UpdateWalletNameRequest) (*Wallet, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateWalletName not implemented")
@@ -228,7 +244,7 @@ func _Wallets_CreateWallet_Handler(srv interface{}, ctx context.Context, dec fun
 }
 
 func _Wallets_RemoveWallet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RemoveWalletRequest)
+	in := new(WalletRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -240,7 +256,7 @@ func _Wallets_RemoveWallet_Handler(srv interface{}, ctx context.Context, dec fun
 		FullMethod: "/com.seed.payments.v1alpha.Wallets/RemoveWallet",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(WalletsServer).RemoveWallet(ctx, req.(*RemoveWalletRequest))
+		return srv.(WalletsServer).RemoveWallet(ctx, req.(*WalletRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -264,7 +280,7 @@ func _Wallets_ImportWallet_Handler(srv interface{}, ctx context.Context, dec fun
 }
 
 func _Wallets_ExportWallet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ExportWalletRequest)
+	in := new(WalletRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -276,13 +292,13 @@ func _Wallets_ExportWallet_Handler(srv interface{}, ctx context.Context, dec fun
 		FullMethod: "/com.seed.payments.v1alpha.Wallets/ExportWallet",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(WalletsServer).ExportWallet(ctx, req.(*ExportWalletRequest))
+		return srv.(WalletsServer).ExportWallet(ctx, req.(*WalletRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _Wallets_GetWalletBalance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetWalletBalanceRequest)
+	in := new(WalletRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -294,7 +310,7 @@ func _Wallets_GetWalletBalance_Handler(srv interface{}, ctx context.Context, dec
 		FullMethod: "/com.seed.payments.v1alpha.Wallets/GetWalletBalance",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(WalletsServer).GetWalletBalance(ctx, req.(*GetWalletBalanceRequest))
+		return srv.(WalletsServer).GetWalletBalance(ctx, req.(*WalletRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -313,6 +329,24 @@ func _Wallets_ListWallets_Handler(srv interface{}, ctx context.Context, dec func
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WalletsServer).ListWallets(ctx, req.(*ListWalletsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Wallets_GetWallet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WalletRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletsServer).GetWallet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/com.seed.payments.v1alpha.Wallets/GetWallet",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletsServer).GetWallet(ctx, req.(*WalletRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -401,6 +435,10 @@ var Wallets_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListWallets",
 			Handler:    _Wallets_ListWallets_Handler,
+		},
+		{
+			MethodName: "GetWallet",
+			Handler:    _Wallets_GetWallet_Handler,
 		},
 		{
 			MethodName: "UpdateWalletName",

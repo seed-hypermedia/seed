@@ -458,18 +458,18 @@ func DecodeInvoice(payReq string) (*zpay32.Invoice, error) {
 }
 
 // PayInvoice tries to pay the invoice provided. With the amount provided in satoshis. The
-// enconded amount in the invoice should match the provided amount as a double check in case
+// encoded amount in the invoice should match the provided amount as a double check in case
 // the amount on the invoice is different than 0.
-func (c *Client) PayInvoice(ctx context.Context, walletID, payReq string, sats uint64) error {
+func (c *Client) PayInvoice(ctx context.Context, walletID, payReq string, sats int64) error {
 	if invoice, err := DecodeInvoice(payReq); err != nil {
 		return nil
-	} else if uint64(invoice.MilliSat.ToSatoshis()) != 0 && uint64(invoice.MilliSat.ToSatoshis()) != sats {
-		return fmt.Errorf("Invoice amt is %s sats and provided amount is %d sats: %w", invoice.MilliSat.ToSatoshis().String(), int64(sats), lndhub.ErrQtyMissmatch)
+	} else if invoice.MilliSat.ToSatoshis() != 0 && int64(invoice.MilliSat.ToSatoshis()) != sats {
+		return fmt.Errorf("Invoice amt is %s sats and provided amount is %d sats: %w", invoice.MilliSat.ToSatoshis().String(), sats, lndhub.ErrQtyMissmatch)
 	}
 
 	type payInvoiceRequest struct {
 		Invoice string `json:"invoice"`
-		Amount  uint64 `json:"amount"`
+		Amount  int64  `json:"amount"`
 	}
 
 	conn, release, err := c.db.Conn(ctx)

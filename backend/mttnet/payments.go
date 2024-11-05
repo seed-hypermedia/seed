@@ -3,6 +3,7 @@ package mttnet
 import (
 	"context"
 	p2p "seed/backend/genproto/p2p/v1alpha"
+	invoices "seed/backend/genproto/payments/v1alpha"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -11,7 +12,7 @@ import (
 // Invoicer is a subset of a Lightning node that allows to issue invoices.
 // It is used when a remote peer wants to pay our node.
 type Invoicer interface {
-	CreateLocalInvoice(ctx context.Context, account string, amountSats int64, memo *string) (string, error)
+	CreateInvoice(ctx context.Context, in *invoices.CreateInvoiceRequest) (*invoices.Payreq, error)
 }
 
 // RequestInvoice creates a local invoice.
@@ -20,13 +21,17 @@ func (srv *rpcMux) RequestInvoice(ctx context.Context, in *p2p.RequestInvoiceReq
 	if n.invoicer == nil {
 		return nil, status.Errorf(codes.Unimplemented, "method RequestInvoice not ready yet")
 	}
-
-	invoice, err := n.invoicer.CreateLocalInvoice(ctx, in.Account, in.AmountSats, &in.Memo)
+	req := invoices.CreateInvoiceRequest{
+		Account: in.Account,
+		Amount:  in.AmountSats,
+		Memo:    in.Memo,
+	}
+	invoice, err := n.invoicer.CreateInvoice(ctx, &req)
 	if err != nil {
 		return nil, err
 	}
 
 	return &p2p.RequestInvoiceResponse{
-		PayReq: invoice,
+		PayReq: invoice.Payreq,
 	}, nil
 }

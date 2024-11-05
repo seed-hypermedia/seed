@@ -188,47 +188,6 @@ export class ImportWalletRequest extends Message<ImportWalletRequest> {
 }
 
 /**
- * The request to export a wallet.
- *
- * @generated from message com.seed.payments.v1alpha.ExportWalletRequest
- */
-export class ExportWalletRequest extends Message<ExportWalletRequest> {
-  /**
-   * Required. ID (not name) of the wallet to export.
-   *
-   * @generated from field: string id = 1;
-   */
-  id = "";
-
-  constructor(data?: PartialMessage<ExportWalletRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
-  }
-
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.ExportWalletRequest";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
-
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ExportWalletRequest {
-    return new ExportWalletRequest().fromBinary(bytes, options);
-  }
-
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ExportWalletRequest {
-    return new ExportWalletRequest().fromJson(jsonValue, options);
-  }
-
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ExportWalletRequest {
-    return new ExportWalletRequest().fromJsonString(jsonString, options);
-  }
-
-  static equals(a: ExportWalletRequest | PlainMessage<ExportWalletRequest> | undefined, b: ExportWalletRequest | PlainMessage<ExportWalletRequest> | undefined): boolean {
-    return proto3.util.equals(ExportWalletRequest, a, b);
-  }
-}
-
-/**
  * Exported credentials. 
  *
  * @generated from message com.seed.payments.v1alpha.ExportWalletResponse
@@ -270,43 +229,43 @@ export class ExportWalletResponse extends Message<ExportWalletResponse> {
 }
 
 /**
- * The request to get an lndhub wallet's balance.
+ * The request to get an lndhub wallet.
  *
- * @generated from message com.seed.payments.v1alpha.GetWalletBalanceRequest
+ * @generated from message com.seed.payments.v1alpha.WalletRequest
  */
-export class GetWalletBalanceRequest extends Message<GetWalletBalanceRequest> {
+export class WalletRequest extends Message<WalletRequest> {
   /**
-   * Required. Id of the wallet to get the balance from.
+   * Required. Id of the wallet to operate with
    *
    * @generated from field: string id = 1;
    */
   id = "";
 
-  constructor(data?: PartialMessage<GetWalletBalanceRequest>) {
+  constructor(data?: PartialMessage<WalletRequest>) {
     super();
     proto3.util.initPartial(data, this);
   }
 
   static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.GetWalletBalanceRequest";
+  static readonly typeName = "com.seed.payments.v1alpha.WalletRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetWalletBalanceRequest {
-    return new GetWalletBalanceRequest().fromBinary(bytes, options);
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): WalletRequest {
+    return new WalletRequest().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetWalletBalanceRequest {
-    return new GetWalletBalanceRequest().fromJson(jsonValue, options);
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): WalletRequest {
+    return new WalletRequest().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetWalletBalanceRequest {
-    return new GetWalletBalanceRequest().fromJsonString(jsonString, options);
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): WalletRequest {
+    return new WalletRequest().fromJsonString(jsonString, options);
   }
 
-  static equals(a: GetWalletBalanceRequest | PlainMessage<GetWalletBalanceRequest> | undefined, b: GetWalletBalanceRequest | PlainMessage<GetWalletBalanceRequest> | undefined): boolean {
-    return proto3.util.equals(GetWalletBalanceRequest, a, b);
+  static equals(a: WalletRequest | PlainMessage<WalletRequest> | undefined, b: WalletRequest | PlainMessage<WalletRequest> | undefined): boolean {
+    return proto3.util.equals(WalletRequest, a, b);
   }
 }
 
@@ -430,47 +389,6 @@ export class ListWalletsResponse extends Message<ListWalletsResponse> {
 
   static equals(a: ListWalletsResponse | PlainMessage<ListWalletsResponse> | undefined, b: ListWalletsResponse | PlainMessage<ListWalletsResponse> | undefined): boolean {
     return proto3.util.equals(ListWalletsResponse, a, b);
-  }
-}
-
-/**
- * The request to delete a wallet 
- *
- * @generated from message com.seed.payments.v1alpha.RemoveWalletRequest
- */
-export class RemoveWalletRequest extends Message<RemoveWalletRequest> {
-  /**
-   * Required. The wallet id to be removed
-   *
-   * @generated from field: string id = 1;
-   */
-  id = "";
-
-  constructor(data?: PartialMessage<RemoveWalletRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
-  }
-
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.RemoveWalletRequest";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
-
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RemoveWalletRequest {
-    return new RemoveWalletRequest().fromBinary(bytes, options);
-  }
-
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RemoveWalletRequest {
-    return new RemoveWalletRequest().fromJson(jsonValue, options);
-  }
-
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RemoveWalletRequest {
-    return new RemoveWalletRequest().fromJsonString(jsonString, options);
-  }
-
-  static equals(a: RemoveWalletRequest | PlainMessage<RemoveWalletRequest> | undefined, b: RemoveWalletRequest | PlainMessage<RemoveWalletRequest> | undefined): boolean {
-    return proto3.util.equals(RemoveWalletRequest, a, b);
   }
 }
 
