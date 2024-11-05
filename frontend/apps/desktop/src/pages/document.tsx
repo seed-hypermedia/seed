@@ -344,7 +344,7 @@ function DocPageHeader({
             <H1
               size="$9"
               f={1}
-              style={{fontWeight: 'bold', wordBreak: 'break-all'}}
+              style={{fontWeight: 'bold', wordBreak: 'break-word'}}
             >
               {accountName}
             </H1>
