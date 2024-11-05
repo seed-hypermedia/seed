@@ -143,6 +143,23 @@ const Render = (
         paddingHorizontal="16px"
         position="relative"
         userSelect="none"
+        onPress={() => {
+          if (selected && !opened) {
+            const selectedNode = getBlockInfoFromPos(
+              tiptapEditor.state.doc,
+              tiptapEditor.state.selection.from,
+            )
+            if (selectedNode && selectedNode.id) {
+              if (
+                selectedNode.id === block.id &&
+                selectedNode.startPos === selection.$anchor.pos
+              ) {
+                setSelected(true)
+                setOpened(true)
+              }
+            }
+          }
+        }}
       >
         <SizableText ref={mathRef} userSelect="none" />
       </YStack>
@@ -158,8 +175,9 @@ const Render = (
           >
             <TextArea
               ref={inputRef}
-              onBlur={() => {
-                if (!selected) setOpened(false)
+              onBlur={(e) => {
+                // if (!selected)
+                setOpened(false)
               }}
               onKeyPress={(e) => {
                 // @ts-ignore
