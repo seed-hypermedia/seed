@@ -1119,7 +1119,7 @@ function BlockContentImage({
       ai="center"
       width="100%"
     >
-      <XStack
+      <YStack
         width={
           block.attributes?.width ? `${block.attributes?.width}px` : undefined
         }
@@ -1129,12 +1129,13 @@ function BlockContentImage({
           src={getFileUrl(block?.link)}
           style={{width: "100%"}}
         />
-      </XStack>
+
       {inline.length ? (
         <Text opacity={0.7} fontFamily="$body">
           <InlineContentView inline={inline} fontSize={textUnit * 0.85} />
         </Text>
       ) : null}
+      </YStack>
     </YStack>
   );
 }
@@ -1267,6 +1268,8 @@ function InlineContentView({
       data-range-offset={contentOffset}
       whiteSpace="pre-wrap"
       {...props}
+      alignContent="flex-start"
+      alignItems="flex-start"
     >
       {inline.map((content, index) => {
         const inlineContentOffset = contentOffset;
