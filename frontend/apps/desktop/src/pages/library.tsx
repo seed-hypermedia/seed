@@ -3,6 +3,7 @@ import {openAddAccountWizard} from '@/components/create-account'
 import {FavoriteButton} from '@/components/favoriting'
 import {MainWrapper} from '@/components/main-wrapper'
 import {ListItemSkeleton} from '@/components/skeleton'
+import {EditorBlock} from '@/editor'
 import {
   FilterItem,
   LibraryData,
@@ -136,8 +137,11 @@ export default function LibraryPage() {
     const documentsToExport = await Promise.all(
       (selectedDocs || []).map(async (doc) => {
         const blocks: HMBlockNode[] | undefined = doc.document?.content
-        const editorBlocks = hmBlocksToEditorContent(blocks)
-        const markdown = await convertBlocksToMarkdown(editorBlocks)
+        const editorBlocks: EditorBlock[] = hmBlocksToEditorContent(blocks)
+        const markdown = await convertBlocksToMarkdown(
+          editorBlocks,
+          doc.document!,
+        )
         return {
           title: getDocumentTitle(doc.document) || 'Untitled document',
           markdown,

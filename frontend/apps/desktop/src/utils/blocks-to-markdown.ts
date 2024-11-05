@@ -1,4 +1,5 @@
 import {EditorBlock} from '@/editor'
+import {HMDocument} from '@shm/shared'
 import rehypeParse from 'rehype-parse'
 import rehypeRemark from 'rehype-remark'
 import remarkGfm from 'remark-gfm'
@@ -106,6 +107,26 @@ function convertBlocksToHtml(blocks: EditorBlock[]) {
   return htmlContent
 }
 
+export function generateFrontMatter(document: HMDocument) {
+  const metadata = document.metadata || {}
+  const createTime = document.createTime
+  const millis =
+    Number(createTime.seconds) * 1000 + createTime.nanos / 1_000_000
+  const date = new Date(millis)
+
+  const frontMatter = `---
+title: ${metadata.name || ''}
+icon: ${metadata.icon || ''}
+cover_image: ${metadata.cover || ''}
+created_at: ${date.toISOString()}
+path: ${document.path || ''}
+---
+
+`
+
+  return frontMatter
+}
+
 async function extractMediaFiles(blocks: EditorBlock[]) {
   const mediaFiles: {url: string; filename: string; placeholder: string}[] = []
   let counter = 1
@@ -144,7 +165,11 @@ async function extractMediaFiles(blocks: EditorBlock[]) {
   return mediaFiles
 }
 
-export async function convertBlocksToMarkdown(blocks: EditorBlock[]) {
+export async function convertBlocksToMarkdown(
+  blocks: EditorBlock[],
+  document: HMDocument,
+) {
+  const frontMatter = generateFrontMatter(document)
   const mediaFiles = await extractMediaFiles(blocks)
   const markdownFile = await unified()
     .use(rehypeParse, {fragment: true})
@@ -152,6 +177,6 @@ export async function convertBlocksToMarkdown(blocks: EditorBlock[]) {
     .use(remarkGfm)
     .use(remarkStringify)
     .process(convertBlocksToHtml(blocks))
-  const markdownContent = markdownFile.value as string
+  const markdownContent = (frontMatter + markdownFile.value) as string
   return {markdownContent, mediaFiles}
 }

@@ -10,31 +10,40 @@ import {
   processLinkMarkdown,
   processMediaMarkdown,
 } from '@/editor/blocknote/core/extensions/Markdown/MarkdownToBlocks'
-import {useMyAccountIds} from '@/models/daemon'
+import {useMyAccountsWithWriteAccess} from '@/models/access-control'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {pathNameify} from '@/utils/path'
+import {useNavigate} from '@/utils/useNavigate'
 import {HMDraft, UnpackedHypermediaId} from '@shm/shared'
-import {Button, OptionsDropdown, toast} from '@shm/ui'
+import {OptionsDropdown, SmallListItem, toast} from '@shm/ui'
 import {FileInput, FolderInput, Import} from '@tamagui/lucide-icons'
 import {Extension} from '@tiptap/core'
-import {useMemo} from 'react'
+import matter from 'gray-matter'
+import {useMemo, useState} from 'react'
 import {ImportedDocument, useImportDialog} from './import-doc-dialog'
 
-export function ImportButton({input}: {input: UnpackedHypermediaId}) {
+export function ImportButton({
+  input,
+  indented,
+}: {
+  input: UnpackedHypermediaId
+  indented: number
+}) {
   const {openMarkdownDirectories, openMarkdownFiles} = useAppContext()
-  const keys = useMyAccountIds()
+  const accts = useMyAccountsWithWriteAccess(input)
   const signingAccount = useMemo(() => {
-    return keys.data?.length ? keys.data[0] : undefined
-  }, [keys.data])
-  // const navigate = useNavigate()
-  const saveDraft = trpc.drafts.write.useMutation()
+    return accts.length ? accts[0].data : undefined
+  }, [accts])
+  const navigate = useNavigate()
+  const createDraft = trpc.drafts.write.useMutation()
   const {queryClient, grpcClient} = useAppContext()
   const openUrl = useOpenUrl()
   const gwUrl = useGatewayUrlStream()
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
   const invalidate = useQueryInvalidator()
+  const [loading, setLoading] = useState(false)
 
   const importDialog = useImportDialog()
 
@@ -70,6 +79,8 @@ export function ImportButton({input}: {input: UnpackedHypermediaId}) {
     documents: ImportedDocument[],
     docMap: Map<string, {name: string; path: string}>,
   ) => {
+    setLoading(true)
+
     const editor = new BlockNoteEditor<BlockSchema>({
       linkExtensionOptions: {
         openOnClick: false,
@@ -96,50 +107,59 @@ export function ImportButton({input}: {input: UnpackedHypermediaId}) {
       },
     })
 
-    const titleCounter: {[key: string]: number} = {}
+    const pathCounter: {[key: string]: number} = {}
 
     // const subDirs: string[] = []
 
     try {
       for (const {markdownContent, title, directoryPath} of documents) {
-        let markdown = await processMediaMarkdown(
-          markdownContent,
-          directoryPath,
-        )
+        let {data: frontmatter, content: markdown} = matter(markdownContent)
 
+        // Process media and links in the markdown content
+        markdown = await processMediaMarkdown(markdown, directoryPath)
         markdown = processLinkMarkdown(markdown, docMap)
 
-        let lines = markdown.split('\n')
+        let documentTitle: string = frontmatter.title || title
 
-        // first non-empty line index
-        const firstNonEmptyLineIndex = lines.findIndex(
-          (line) => line.trim() !== '',
-        )
+        // If no title in frontmatter, check for an h1 as the first non-empty line
+        if (!frontmatter.title) {
+          let lines = markdown.split('\n')
 
-        let documentTitle: string = title
-        // Check if the first non-empty line is an h1
-        if (
-          firstNonEmptyLineIndex !== -1 &&
-          lines[firstNonEmptyLineIndex].startsWith('# ')
-        ) {
-          // Extract the h1 as the title
-          documentTitle = lines[firstNonEmptyLineIndex].replace('# ', '').trim()
+          // Find the first non-empty line index
+          const firstNonEmptyLineIndex = lines.findIndex(
+            (line) => line.trim() !== '',
+          )
 
-          // Remove the h1 line from the markdown content
-          lines = lines.filter((_, index) => index !== firstNonEmptyLineIndex)
+          if (
+            firstNonEmptyLineIndex !== -1 &&
+            lines[firstNonEmptyLineIndex].startsWith('# ')
+          ) {
+            // Extract the h1 as the title and update documentTitle
+            documentTitle = lines[firstNonEmptyLineIndex]
+              .replace('# ', '')
+              .trim()
 
-          // Rejoin the lines back into the markdown content without the h1
-          markdown = lines.join('\n')
+            // Remove the h1 line from the markdown content
+            lines.splice(firstNonEmptyLineIndex, 1)
+            markdown = lines.join('\n')
+          }
         }
 
-        let path = pathNameify(documentTitle)
+        const icon = frontmatter.icon
+        const cover = frontmatter.cover_image
+        const createdAt = frontmatter.created_at
+          ? new Date(frontmatter.created_at)
+          : new Date()
+        let path = frontmatter.path
+          ? frontmatter.path.slice(1)
+          : pathNameify(documentTitle)
 
-        // Handle duplicate titles by appending a counter number
-        if (titleCounter[documentTitle]) {
-          titleCounter[documentTitle] += 1
-          path = pathNameify(`${documentTitle}-${titleCounter[documentTitle]}`)
+        // Handle duplicate paths by appending a counter number
+        if (pathCounter[path]) {
+          pathCounter[path] += 1
+          path = `${path}-${pathCounter[path] - 1}`
         } else {
-          titleCounter[documentTitle] = 1
+          pathCounter[path] = 1
         }
 
         const blocks = await MarkdownToBlocks(markdown, editor)
@@ -148,10 +168,15 @@ export function ImportButton({input}: {input: UnpackedHypermediaId}) {
           deps: [],
           metadata: {
             name: documentTitle,
+            icon: icon,
+            cover: cover,
           },
           members: {},
-          signingAccount,
+          lastUpdateTime: Date.now(),
+          signingAccount: signingAccount?.document?.account || undefined,
         }
+
+        // Commented code below is subdirectories import
 
         // const parentDir = directoryPath.split('/').pop()!
         // if (parentDir !== documents[0].directoryPath.split('/').pop()!) {
@@ -185,17 +210,18 @@ export function ImportButton({input}: {input: UnpackedHypermediaId}) {
         //       })
         //   }
 
-        //   await saveDraft.mutateAsync({
+        //   await createDraft.mutateAsync({
         //     id: input.id + '/' + parentDir + '/' + path,
         //     draft: inputData,
         //   })
         // } else {
-        //   await saveDraft.mutateAsync({
+        //   await createDraft.mutateAsync({
         //     id: input.id + '/' + path,
         //     draft: inputData,
         //   })
         // }
-        await saveDraft.mutateAsync({
+
+        await createDraft.mutateAsync({
           id: input.id + '/' + path,
           draft: inputData,
         })
@@ -211,7 +237,14 @@ export function ImportButton({input}: {input: UnpackedHypermediaId}) {
   return (
     <>
       <OptionsDropdown
-        button={<Button size="$3" icon={Import}></Button>}
+        button={
+          <SmallListItem
+            icon={Import}
+            title="Import Document"
+            color="$green10"
+            indented={indented}
+          ></SmallListItem>
+        }
         menuItems={[
           {
             key: 'file',
