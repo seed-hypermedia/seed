@@ -1,5 +1,5 @@
 import {fileUpload} from '@/utils/file-upload'
-import {Button, Image, SizableText, Stack, Tooltip, View, XStack} from '@shm/ui'
+import {Button, SizableText, Stack, Tooltip, View, XStack} from '@shm/ui'
 import {X} from '@tamagui/lucide-icons'
 import {ChangeEvent} from 'react'
 import {GestureResponderEvent} from 'react-native'
@@ -21,6 +21,7 @@ export function ImageForm({
   onImageUpload?: (avatar: string) => Awaited<void>
   onRemove?: () => void
 }) {
+  console.log('~~ image form ', url)
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     event.stopPropagation()
     const fileList = event.target.files
@@ -41,7 +42,7 @@ export function ImageForm({
 
   const image = (
     <View backgroundColor="$color7" borderRadius="$4" flex={1}>
-      <Image source={{uri: url}} />
+      <img src={url} key={url} />
     </View>
   )
   if (!onImageUpload) return image
