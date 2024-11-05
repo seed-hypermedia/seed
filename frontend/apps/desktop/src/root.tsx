@@ -7,7 +7,7 @@ import type {Interceptor} from '@connectrpc/connect'
 import {createGrpcWebTransport} from '@connectrpc/connect-web'
 import {DAEMON_HTTP_URL, createGRPCClient} from '@shm/shared'
 import type {StateStream} from '@shm/shared/src/utils/stream'
-import {Spinner, Toaster, YStack, toast, useStream} from '@shm/ui'
+import {SizableText, Spinner, Toaster, YStack, toast, useStream} from '@shm/ui'
 import '@tamagui/core/reset.css'
 import '@tamagui/font-inter/css/400.css'
 import '@tamagui/font-inter/css/700.css'
@@ -294,15 +294,9 @@ function MainApp({
           return window.docExport.exportDocuments(documents)
         }}
         windowUtils={windowUtils}
-        darkMode={darkMode}
+        darkMode={darkMode!}
       >
-        <Suspense
-          fallback={
-            <YStack fullscreen ai="center" jc="center">
-              <Spinner />
-            </YStack>
-          }
-        >
+        <Suspense fallback={<SpinnerWithText message="" />}>
           <ErrorBoundary
             FallbackComponent={RootAppError}
             onReset={() => {
@@ -331,18 +325,56 @@ function MainApp({
         </Suspense>
       </AppContextProvider>
     )
-  }
-
-  if (daemonState?.t == 'error') {
+  } else if (daemonState?.t == 'error') {
     console.error('Daemon error', daemonState?.message)
     return (
-      <StyleProvider darkMode={darkMode}>
+      <StyleProvider darkMode={darkMode!}>
         <AppErrorContent message={daemonState?.message} />
       </StyleProvider>
     )
+  } else {
+    return (
+      <StyleProvider darkMode={darkMode!}>
+        <SpinnerWithText
+          message={'We are doing some housekeeping.\nDo not close this window!'}
+          delay={1000}
+        />
+      </StyleProvider>
+    )
   }
+}
 
-  return null
+function SpinnerWithText(props: {message: string; delay?: number}) {
+  const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    if (!props.delay) {
+      setMessage(props.message)
+      return () => {}
+    }
+
+    const timer = setTimeout(() => {
+      setMessage(props.message)
+    }, props.delay)
+
+    return () => clearTimeout(timer)
+  }, [])
+
+  return (
+    <YStack
+      fullscreen
+      ai="center"
+      jc="center"
+      paddingVertical="$3"
+      paddingHorizontal="$4"
+      gap="$4"
+    >
+      <Spinner />
+      <SizableText size="$4" fontWeight="300" textAlign="center" minHeight="$4">
+        {message}
+      </SizableText>
+    </YStack>
+  )
 }
 
 function ElectronApp() {
