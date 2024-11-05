@@ -9,11 +9,16 @@ export function useEntity(id: UnpackedHypermediaId | undefined) {
   const fetcher = useFetcher();
   useEffect(() => {
     if (!id?.uid) return;
+    const queryString = new URLSearchParams({
+      v: id.version || "",
+      l: id.latest ? "true" : "",
+    }).toString();
     const url = `/hm/api/entity/${id.uid}${
       id.path ? `/${id.path.join("/")}` : ""
-    }`;
+    }?${queryString}`;
+
     fetcher.load(url);
-  }, [id?.uid, id?.path?.join("/")]);
+  }, [id?.uid, id?.path?.join("/"), id?.version, id?.latest]);
 
   return {
     data: fetcher.data ? unwrap<WebBaseDocumentPayload>(fetcher.data) : null,

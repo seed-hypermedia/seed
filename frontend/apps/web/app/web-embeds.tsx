@@ -42,6 +42,7 @@ function EmbedWrapper({
             blockRange: id.blockRange,
             blockRef: id.blockRef,
             version: id.version,
+            latest: id.latest,
             path: id.path,
           })
         );
@@ -83,9 +84,10 @@ function DocInlineEmbed(props: EntityComponentProps) {
   const pubId = props?.type == "d" ? props.id : undefined;
   if (!pubId) throw new Error("Invalid props at DocInlineEmbed (pubId)");
   const doc = useEntity(props);
+  const document = doc.data?.document;
   return (
     <InlineEmbedButton id={props}>
-      @{getDocumentTitle(doc.data?.document)}
+      @{document ? getDocumentTitle(document) : "..."}
     </InlineEmbedButton>
   );
 }

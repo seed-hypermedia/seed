@@ -50,12 +50,12 @@ export type WebDocumentPayload = WebBaseDocumentPayload & {
 };
 
 async function getHMDocument(entityId: UnpackedHypermediaId) {
-  const {version, uid} = entityId;
+  const {version, uid, latest} = entityId;
   const path = hmIdPathToEntityQueryPath(entityId.path);
   const apiDoc = await queryClient.documents.getDocument({
     account: uid,
     path,
-    version: version || undefined,
+    version: !latest && version ? version : "",
   });
   const document = HMDocumentSchema.parse(toPlainMessage(apiDoc));
   return document;

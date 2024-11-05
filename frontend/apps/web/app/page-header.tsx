@@ -83,13 +83,14 @@ export function PageHeader({
                 flexWrap="wrap"
                 maxWidth="100%"
               >
-                {authors.map((a, index) => [
+                {authors.flatMap((a, index) => [
                   <SizableText
                     hoverStyle={{
                       textDecorationLine: "underline",
                     }}
                     fontWeight="bold"
                     size="$2"
+                    key={a.id.id}
                   >
                     {a.metadata.name}
                   </SizableText>,
@@ -484,10 +485,11 @@ function Breadcrumbs({
 }) {
   return (
     <XStack f={1} gap="$2">
-      {breadcrumbs.map((crumb) => {
+      {breadcrumbs.flatMap((crumb) => {
         return [
           <SizableText
             tag="a"
+            key={crumb.id.id}
             href={getHref(homeId, crumb.id)}
             size="$1"
             fontWeight="bold"
@@ -498,7 +500,9 @@ function Breadcrumbs({
           >
             {crumb.metadata?.name}
           </SizableText>,
-          <SizableText size="$1">/</SizableText>,
+          <SizableText key={`${crumb.id.id}-slash`} size="$1">
+            /
+          </SizableText>,
         ];
       })}
       {docId?.id != homeId?.id ? (

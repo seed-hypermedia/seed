@@ -566,41 +566,41 @@ function SiteNavigation({
         />
       )}
 
-      {siblingDocs?.map((doc) => {
+      {siblingDocs?.flatMap((doc) => {
         if (idPath && doc.path.join("/") === idPath.join("/"))
-          return (
-            <>
-              <DocumentSmallListItem
-                metadata={document.metadata}
-                id={id}
+          return [
+            <DocumentSmallListItem
+              metadata={document.metadata}
+              id={id}
+              key={id.id}
+              indented={documentIndent}
+            />,
+            ...outline.map((node) => (
+              <OutlineNode
+                node={node}
+                key={node.id}
+                onClose={onClose}
                 indented={documentIndent}
               />
-              {outline.map((node) => (
-                <OutlineNode
-                  node={node}
-                  key={node.id}
-                  onClose={onClose}
-                  indented={documentIndent}
-                />
-              ))}
-              {childrenDocs?.map((doc) => (
-                <DocumentSmallListItem
-                  key={doc.path.join("/")}
-                  metadata={doc.metadata}
-                  id={hmId("d", doc.account, {path: doc.path})}
-                  indented={2}
-                />
-              ))}
-            </>
-          );
-        return (
+            )),
+            childrenDocs?.map((doc) => (
+              <DocumentSmallListItem
+                key={doc.path.join("/")}
+                metadata={doc.metadata}
+                id={hmId("d", doc.account, {path: doc.path})}
+                indented={2}
+              />
+            )),
+          ];
+
+        return [
           <DocumentSmallListItem
             key={doc.path.join("/")}
             metadata={doc.metadata}
             id={hmId("d", doc.account, {path: doc.path})}
             indented={1}
-          />
-        );
+          />,
+        ];
       })}
     </YStack>
   );
