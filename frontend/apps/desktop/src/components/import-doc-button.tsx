@@ -17,22 +17,22 @@ import {trpc} from '@/trpc'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {HMDraft, UnpackedHypermediaId} from '@shm/shared'
-import {OptionsDropdown, SmallListItem, toast} from '@shm/ui'
-import {FileInput, FolderInput, Import} from '@tamagui/lucide-icons'
+import {OptionsDropdown, toast} from '@shm/ui'
+import {FileInput, FolderInput} from '@tamagui/lucide-icons'
 import {Extension} from '@tiptap/core'
 import matter from 'gray-matter'
-import {useMemo, useState} from 'react'
+import {ReactElement, useMemo, useState} from 'react'
 import {ImportedDocument, useImportDialog} from './import-doc-dialog'
 
-export function ImportButton({
-  input,
-  indented,
+export function ImportDropdownButton({
+  id,
+  button,
 }: {
-  input: UnpackedHypermediaId
-  indented: number
+  id: UnpackedHypermediaId
+  button: ReactElement
 }) {
   const {openMarkdownDirectories, openMarkdownFiles} = useAppContext()
-  const accts = useMyAccountsWithWriteAccess(input)
+  const accts = useMyAccountsWithWriteAccess(id)
   const signingAccount = useMemo(() => {
     return accts.length ? accts[0].data : undefined
   }, [accts])
@@ -55,7 +55,7 @@ export function ImportButton({
       return
     }
 
-    openFunction(input.id)
+    openFunction(id.id)
       .then(async (result) => {
         const docs = result.documents
         if (docs.length) {
@@ -195,14 +195,14 @@ export function ImportButton({
         //       }),
         //     ]
 
-        //     const publicationPath = input.path
-        //       ? '/' + input.path?.join('/') + '/' + parentDir
+        //     const publicationPath = id.path
+        //       ? '/' + id.path?.join('/') + '/' + parentDir
         //       : '/' + parentDir
 
         //     const publishedDoc =
         //       await grpcClient.documents.createDocumentChange({
-        //         signingKeyName: input.uid,
-        //         account: input.uid,
+        //         signingKeyName: id.uid,
+        //         account: id.uid,
         //         baseVersion: undefined,
         //         path: publicationPath,
         //         changes: allChanges,
@@ -211,18 +211,18 @@ export function ImportButton({
         //   }
 
         //   await createDraft.mutateAsync({
-        //     id: input.id + '/' + parentDir + '/' + path,
+        //     id: id.id + '/' + parentDir + '/' + path,
         //     draft: inputData,
         //   })
         // } else {
         //   await createDraft.mutateAsync({
-        //     id: input.id + '/' + path,
+        //     id: id.id + '/' + path,
         //     draft: inputData,
         //   })
         // }
 
         await createDraft.mutateAsync({
-          id: input.id + '/' + path,
+          id: id.id + '/' + path,
           draft: inputData,
         })
       }
@@ -237,14 +237,7 @@ export function ImportButton({
   return (
     <>
       <OptionsDropdown
-        button={
-          <SmallListItem
-            icon={Import}
-            title="Import Document"
-            color="$green10"
-            indented={indented}
-          ></SmallListItem>
-        }
+        button={button}
         menuItems={[
           {
             key: 'file',

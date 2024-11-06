@@ -17,7 +17,7 @@ export function PanelCard({
   author?: any;
   date?: any;
   onPress?: () => void;
-  avatar?: React.JSX.Element | null;
+  avatar?: React.ReactNode | null;
   active?: boolean;
   shorter?: boolean;
 }) {

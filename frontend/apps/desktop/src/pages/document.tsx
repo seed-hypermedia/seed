@@ -6,6 +6,7 @@ import {CollaboratorsPanel} from '@/components/collaborators-panel'
 import {Discussion} from '@/components/discussion'
 import {DocumentHeadItems} from '@/components/document-head-items'
 import {LinkNameComponent} from '@/components/document-name'
+import {ImportDropdownButton} from '@/components/import-doc-button'
 import {SidebarSpacer} from '@/components/main-wrapper'
 import {NewspaperLayout} from '@/components/newspaper-layout'
 import {OptionsPanel} from '@/components/options-panel'
@@ -47,7 +48,12 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {ArrowRight, Plus, RefreshCw} from '@tamagui/lucide-icons'
+import {
+  ArrowRight,
+  MoreHorizontal,
+  Plus,
+  RefreshCw,
+} from '@tamagui/lucide-icons'
 import React, {ReactNode, useEffect, useMemo} from 'react'
 import {EntityCitationsAccessory} from '../components/citations'
 import {AppDocContentProvider} from './document-content-provider'
@@ -285,8 +291,12 @@ function NewSubDocumentButton({
   return (
     <>
       <Button icon={Plus} color="$green9" onPress={createDraft} size="$2">
-        Create Document
+        Create
       </Button>
+      <ImportDropdownButton
+        id={parentDocId}
+        button={<Button size="$1" circular icon={MoreHorizontal} />}
+      />
     </>
   )
 }

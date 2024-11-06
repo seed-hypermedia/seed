@@ -131,7 +131,7 @@ export function SiteHeader(props: {
     metadata: HMMetadata;
   }>;
   supportQueries?: HMQueryResult[];
-  children: React.JSX.Element;
+  children: React.ReactNode;
   mobileSearchUI?: React.ReactNode;
   isWeb?: boolean;
 }) {
@@ -161,7 +161,7 @@ export function DefaultSiteHeader({
 }: {
   homeMetadata: HMMetadata | null;
   homeId: UnpackedHypermediaId | null;
-  children: React.JSX.Element;
+  children: React.ReactNode;
   searchUI?: React.ReactNode;
   mobileSearchUI?: React.ReactNode;
   isWeb?: boolean;

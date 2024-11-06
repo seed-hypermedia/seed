@@ -33,10 +33,13 @@ import {
   useMedia,
   usePopoverState,
   View,
+  XStack,
 } from '@shm/ui'
-import {Hash, Plus} from '@tamagui/lucide-icons'
+import {Hash, MoreHorizontal, Plus} from '@tamagui/lucide-icons'
 import {memo, ReactNode, useState} from 'react'
+import {Button} from 'tamagui'
 import {Directory} from './directory'
+import {ImportDropdownButton} from './import-doc-button'
 
 export function SiteNavigation() {
   const popoverProps = usePopoverState()
@@ -107,18 +110,47 @@ export function SiteNavigationContent({onPress}: {onPress?: () => void}) {
       <Separator marginLeft={Math.max(0, documentIndent + 1) * 22 + 12} />
       <Directory indented={documentIndent + 1} docId={id} />
       {roleCanWrite(capability?.role) && (
-        <SmallListItem
-          icon={Plus}
-          title="Create Document"
-          onPress={() => {
-            onPress?.()
-            createDraft()
-          }}
-          color="$green10"
-          indented={documentIndent + 1}
-          size="$5"
-          $gtSm={{size: '$2'}}
-        />
+        <XStack gap="$4">
+          <SmallListItem
+            icon={Plus}
+            title="Create"
+            onPress={() => {
+              onPress?.()
+              createDraft()
+            }}
+            color="$green10"
+            indented={documentIndent + 1}
+            size="$5"
+            $gtSm={{size: '$2'}}
+          />
+          <ImportDropdownButton
+            id={id}
+            button={
+              <Button
+                position="absolute"
+                top={6}
+                right={20}
+                size="$1"
+                circular
+                icon={MoreHorizontal}
+              />
+            }
+            // menuItems={[
+            //   {
+            //     key: 'import-document',
+            //     label: 'Import Document',
+            //     icon: FileDown,
+            //     onPress: createDraft,
+            //   },
+            //   {
+            //     key: 'import-documents',
+            //     label: 'Import Documents',
+            //     icon: FolderDown,
+            //     onPress: createDraft,
+            //   },
+            // ]}
+          />
+        </XStack>
       )}
     </SmallCollapsableListItem>
   )

@@ -269,7 +269,7 @@ function WebDocContentProvider({
   siteHost: string | undefined;
   id: UnpackedHypermediaId;
   homeId: UnpackedHypermediaId;
-  children: React.JSX.Element;
+  children: React.ReactNode;
 }) {
   return (
     <DocContentProvider

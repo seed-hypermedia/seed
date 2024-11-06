@@ -11,7 +11,7 @@ import {
 } from '@shm/ui'
 import {useState} from 'react'
 
-export function Topbar({children}: {children: React.JSX.Element}) {
+export function Topbar({children}: {children: React.ReactNode}) {
   const [open, setOpen] = useState(false)
   return (
     <>
@@ -53,7 +53,7 @@ export function Topbar({children}: {children: React.JSX.Element}) {
   )
 }
 
-export function NewspaperTopbar({children}: {children: React.JSX.Element}) {
+export function NewspaperTopbar({children}: {children: React.ReactNode}) {
   const [open, setOpen] = useState(false)
 
   console.log(`== ~ Topbar ~ open:`, open)
@@ -117,7 +117,7 @@ function MobileMenu({
   open,
   onClose,
 }: {
-  children: React.JSX.Element
+  children: React.ReactNode
   open: boolean
   onClose: () => void
 }) {

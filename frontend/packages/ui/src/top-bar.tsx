@@ -32,7 +32,7 @@ export function NewsSiteHeader({
   docId: UnpackedHypermediaId | null;
   afterLinksContent?: React.ReactNode;
   searchUI?: React.ReactNode;
-  children: React.JSX.Element;
+  children?: React.ReactNode;
   mobileSearchUI?: React.ReactNode;
   isWeb?: boolean;
 }) {
@@ -178,7 +178,7 @@ export function MobileMenu({
   onClose,
   mobileSearchUI,
 }: {
-  children: React.JSX.Element;
+  children: React.ReactNode;
   open: boolean;
   onClose: () => void;
   mobileSearchUI?: React.ReactNode;
