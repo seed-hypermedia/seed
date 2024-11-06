@@ -361,16 +361,17 @@ function SpinnerWithText(props: {message: string; delay?: number}) {
   }, [])
 
   return (
-    <YStack
-      fullscreen
-      ai="center"
-      jc="center"
-      paddingVertical="$3"
-      paddingHorizontal="$4"
-      gap="$4"
-    >
+    <YStack fullscreen ai="center" jc="center" gap="$4" className="window-drag">
       <Spinner />
-      <SizableText size="$4" fontWeight="300" textAlign="center" minHeight="$4">
+      <SizableText
+        opacity={message ? 1 : 0}
+        animation="slow"
+        size="$5"
+        color="$color9"
+        fontWeight="300"
+        textAlign="center"
+        minHeight="$4"
+      >
         {message}
       </SizableText>
     </YStack>
