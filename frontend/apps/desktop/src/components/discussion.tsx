@@ -27,6 +27,7 @@ import {
   SizableText,
   Tooltip,
   useStream,
+  useTheme,
   View,
   XStack,
   YStack,
@@ -71,11 +72,12 @@ function renderCommentContent(comment: HMComment) {
 function DiscussionComments({docId}: {docId: UnpackedHypermediaId}) {
   const comments = useDocumentCommentGroups(docId)
   const authors = useCommentGroupAuthors(comments)
+  const theme = useTheme()
   if (comments.length == 0) {
     return (
       <YStack padding="$4" jc="center" ai="center" gap="$4">
-        <EmptyDiscussion />
-        <SizableText color="$color7" fontWeight="500">
+        <EmptyDiscussion color={theme.color7.val} />
+        <SizableText color="$color7" fontWeight="500" size="$5">
           there are no active discussions
         </SizableText>
       </YStack>

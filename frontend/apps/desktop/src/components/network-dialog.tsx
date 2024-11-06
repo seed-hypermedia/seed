@@ -6,11 +6,13 @@ import {
   copyTextToClipboard,
   Dialog,
   List,
+  NoConnection,
   OptionsDropdown,
   SizableText,
   Spinner,
   toast,
   Tooltip,
+  useTheme,
   View,
   XStack,
   XStackProps,
@@ -26,91 +28,30 @@ export function useNetworkDialog() {
 }
 
 export function NetworkDialog() {
-  // const contacts = useAllAccounts()
+  const theme = useTheme()
   const peers = usePeers(false, {
     refetchInterval: 5_000,
   })
-  // const accounts = Object.fromEntries(
-  //   contacts.data?.accounts.map((account) => [account.id, account]) || [],
-  // )
-  // const connectedAccountIds = new Set(
-  //   peers.data
-  //     ?.filter((peer) => peer.connectionStatus === 1)
-  //     .map((peer) => peer.accountId) || [],
-  // )
-  // const peerCount = peers.data?.length || 0
-  // const connectedAccounts =
-  //   contacts.data?.accounts.filter((account) => {
-  //     return connectedAccountIds.has(account.id)
-  //   }) || []
-  // const siteAccounts = connectedAccounts.filter(
-  //   (account) =>
-  //     account.profile?.bio === 'Hypermedia Site. Powered by Mintter.',
-  // )
-  // const userAccountCount = connectedAccounts.length - siteAccounts.length
-  // const siteAccountCount = siteAccounts.length
-  // const isOnline = useIsOnline()
-  // const [peerFilter, setPeerFilter] = useState<'all' | 'accounts' | 'sites'>(
-  //   'all',
-  // )
-  // const filteredPeers = peers.data?.filter((peer) => {
-  //   if (peerFilter === 'all') return true
-  //   const account: Account | undefined = accounts[peer.accountId]
-  //   const isSite =
-  //     account?.profile?.bio === 'Hypermedia Site. Powered by Mintter.'
-  //   if (peerFilter === 'accounts' && !isSite) return true
-  //   if (peerFilter === 'sites' && isSite) return true
-  //   return false // not sure if this will ever happen
-  // })
-  // const displayPeers = filteredPeers?.sort(
-  //   (a, b) => b.connectionStatus - a.connectionStatus,
-  // )
+
   return (
     <>
       <Dialog.Title>Network Connections</Dialog.Title>
-      {/* <XStack>
-        <IndicationTag
-          label={isOnline ? 'Device Online' : 'Device Offline'}
-          status={isOnline ? 2 : 1}
-        />
-        {isOnline ? <GatewayIndicationTag /> : null}
-      </XStack> */}
-      {/* <XGroup size="$2">
-        <XGroup.Item>
-          <Button
-            size="$2"
-            backgroundColor={peerFilter === 'all' ? '$color6' : undefined}
-            onPress={() => setPeerFilter('all')}
-          >
-            {String(peerCount)} Known Peers
-          </Button>
-        </XGroup.Item>
-        <XGroup.Item>
-          <Button
-            size="$2"
-            backgroundColor={peerFilter === 'accounts' ? '$color6' : undefined}
-            onPress={() => setPeerFilter('accounts')}
-          >
-            {String(userAccountCount)} Connected Accounts
-          </Button>
-        </XGroup.Item>
-        <XGroup.Item>
-          <Button
-            size="$2"
-            backgroundColor={peerFilter === 'sites' ? '$color6' : undefined}
-            onPress={() => setPeerFilter('sites')}
-          >
-            {String(siteAccountCount)} Connected Sites
-          </Button>
-        </XGroup.Item>
-      </XGroup> */}
       <View flexDirection="column" minHeight={500}>
-        <List
-          items={(peers.data || []) as HMPeerInfo[]}
-          renderItem={({item: peer}: {item: HMPeerInfo}) => {
-            return <PeerRow key={peer.id} peer={peer} />
-          }}
-        />
+        {peers.data && peers.data.length ? (
+          <List
+            items={peers.data}
+            renderItem={({item: peer}: {item: HMPeerInfo}) => {
+              return <PeerRow key={peer.id} peer={peer} />
+            }}
+          />
+        ) : (
+          <YStack padding="$4" jc="center" ai="center" gap="$4" f={1}>
+            <NoConnection color={theme.color7.val} />
+            <SizableText color="$color7" fontWeight="500" size="$5">
+              there are no active connections
+            </SizableText>
+          </YStack>
+        )}
       </View>
     </>
   )
