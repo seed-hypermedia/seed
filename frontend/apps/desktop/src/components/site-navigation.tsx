@@ -1,8 +1,8 @@
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
+import {useDraft} from '@/models/accounts'
 import {
   useCreateDraft,
   useDocumentEmbeds,
-  useListDirectory,
   useListSite,
 } from '@/models/documents'
 import {useEntity} from '@/models/entities'
@@ -14,6 +14,7 @@ import {
   FocusButton,
   Popover,
   SiteNavigationContent,
+  SiteNavigationOutline,
   SmallListGroupItem,
   SmallListItem,
   useMedia,
@@ -52,7 +53,7 @@ export function SiteNavigation() {
 export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
   const route = useNavRoute()
   if (route.key !== 'document')
-    throw new Error('SiteNavigation only supports document routes')
+    throw new Error('SiteNavigation only supports document route')
   const {id} = route
   const entity = useEntity(id)
 
@@ -61,11 +62,6 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
   const isTopLevel = !id.path || id.path?.length == 0
 
   const documentIndent = isTopLevel ? 0 : 1
-  const parentId = hmId(id.type, id.uid, {
-    path: id.path?.slice(0, -1) || [],
-  })
-  const parentEntity = useEntity(parentId)
-  const siblingDir = useListDirectory(parentId)
   const createDraft = useCreateDraft(id)
   const capability = useMyCapability(id)
   const siteList = useListSite(id)
@@ -102,21 +98,65 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
     )
   }
   if (!document || !siteListQuery) return null
+
   return (
     <SiteNavigationContent
-      document={document}
+      documentMetadata={document.metadata}
       id={id}
       supportDocuments={embeds}
       supportQueries={[siteListQuery]}
       createDirItem={createDirItem}
       onPress={onPress}
-      onActivateBlock={(blockId) => {
-        onPress?.()
-        navigate({
-          key: 'document',
-          id: hmId(id.type, id.uid, {blockRef: blockId, path: id.path}),
-        })
-      }}
+      outline={
+        <SiteNavigationOutline
+          onActivateBlock={(blockId) => {
+            onPress?.()
+            navigate({
+              key: 'document',
+              id: hmId(id.type, id.uid, {blockRef: blockId, path: id.path}),
+            })
+          }}
+          document={document}
+          id={id}
+          supportDocuments={embeds}
+          activeBlockId={id.blockRef}
+          indented={1}
+        />
+      }
+    />
+  )
+}
+
+export function SiteNavigationDraftLoader() {
+  const route = useNavRoute()
+  if (route.key !== 'draft')
+    throw new Error('SiteNavigationDraftLoader only supports draft route')
+  const {id} = route
+  const entity = useEntity(id)
+  const draftQuery = useDraft(id)
+  const metadata = draftQuery?.data?.metadata || entity.data?.document?.metadata
+
+  const document = entity.data?.document
+
+  const siteList = useListSite(id)
+  const siteListQuery = siteList?.data
+    ? {in: hmId('d', id.uid), results: siteList.data}
+    : null
+  const embeds = useDocumentEmbeds(document)
+
+  if (!document || !siteListQuery) return null
+
+  return (
+    <SiteNavigationContent
+      // document={document}
+      documentMetadata={metadata}
+      id={id}
+      supportDocuments={embeds}
+      supportQueries={[siteListQuery]}
+      outline={null}
+      // onActivateBlock={(blockId) => {
+      //   // todo!
+      // }}
     />
   )
 }

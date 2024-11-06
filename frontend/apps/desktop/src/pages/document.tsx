@@ -338,7 +338,6 @@ function DocPageHeader({
         paddingTop={!hasCover ? 60 : '$6'}
         bg="$background"
         borderRadius="$2"
-        $gtLg={{maxWidth: 1200}}
       >
         <YStack group="header" gap="$4">
           {hasIcon ? (

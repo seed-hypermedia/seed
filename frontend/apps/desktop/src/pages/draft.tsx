@@ -5,6 +5,7 @@ import {IconForm} from '@/components/icon-form'
 import {MainWrapper, SidebarSpacer} from '@/components/main-wrapper'
 import {NewspaperLayout} from '@/components/newspaper-layout'
 import {OptionsPanel} from '@/components/options-panel'
+import {SiteNavigationDraftLoader} from '@/components/site-navigation'
 import {subscribeDraftFocus} from '@/draft-focusing'
 import {BlockNoteEditor, getBlockInfoFromPos} from '@/editor'
 import {useDraft} from '@/models/accounts'
@@ -34,6 +35,7 @@ import {
   packHmId,
   UnpackedHypermediaId,
 } from '@shm/shared'
+import '@shm/shared/src/styles/document.css'
 import {
   Button,
   Container,
@@ -50,7 +52,8 @@ import {Image, Smile} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
-import {Spinner, YStack} from 'tamagui'
+import {GestureResponderEvent} from 'react-native'
+import {ScrollView, Spinner, YStack} from 'tamagui'
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'
@@ -120,7 +123,6 @@ export default function DraftPage() {
       <XStack flex={1} height="100%">
         <MainWrapper>
           <SidebarSpacer />
-
           <NewspaperLayout id={route.id} metadata={draft.data?.metadata} />
         </MainWrapper>
       </XStack>
@@ -173,6 +175,8 @@ function DocumentEditor({
   handleFocusAtMousePos,
   id,
 }: ReturnType<typeof useDraftEditor> & {id: UnpackedHypermediaId}) {
+  const route = useNavRoute()
+  if (route.key != 'draft') throw new Error('DraftPage must have draft route')
   const importWebFile = trpc.webImporting.importWebFile.useMutation()
   const [isDragging, setIsDragging] = useState(false)
 
@@ -188,7 +192,7 @@ function DocumentEditor({
 
   if (state.matches('ready'))
     return (
-      <MainWrapper
+      <YStack
         onDragStart={() => {
           setIsDragging(true)
         }}
@@ -208,33 +212,48 @@ function DocumentEditor({
           importWebFile={importWebFile}
           docId={id}
         >
-          <DraftHeader
-            draftActor={actor}
-            onEnter={() => {
-              editor._tiptapEditor.commands.focus()
-              editor._tiptapEditor.commands.setTextSelection(0)
-            }}
-            disabled={!state.matches('ready')}
-          />
-          <Container
-            paddingLeft="$10"
-            marginBottom={300}
-            $gtSm={{
-              paddingLeft: '$4',
-            }}
-            onPress={(e: MouseEvent) => {
-              // this prevents to fire handleFocusAtMousePos on click
-              e.stopPropagation()
-              // editor?._tiptapEditor.commands.focus()
-            }}
-          >
-            {editor ? (
-              <HyperMediaEditorView editable={true} editor={editor} />
-            ) : null}
-          </Container>
+          <DraftCover draftActor={actor} disabled={!state.matches('ready')} />
+          <YStack className="document-container">
+            <YStack
+              marginTop={200}
+              $gtSm={{marginTop: 164}}
+              className="document-aside"
+            >
+              <ScrollView height="100%">
+                <SiteNavigationDraftLoader />
+              </ScrollView>
+            </YStack>
+            <YStack>
+              <DraftHeader
+                draftActor={actor}
+                onEnter={() => {
+                  editor._tiptapEditor.commands.focus()
+                  editor._tiptapEditor.commands.setTextSelection(0)
+                }}
+                disabled={!state.matches('ready')}
+              />
+              <Container
+                paddingLeft="$10"
+                marginBottom={300}
+                $gtSm={{
+                  paddingLeft: '$4',
+                }}
+                onPress={(e: GestureResponderEvent) => {
+                  // this prevents to fire handleFocusAtMousePos on click
+                  e.stopPropagation()
+                  // editor?._tiptapEditor.commands.focus()
+                }}
+              >
+                {editor ? (
+                  <HyperMediaEditorView editable={true} editor={editor} />
+                ) : null}
+              </Container>
+            </YStack>
+          </YStack>
         </AppDocContentProvider>
-      </MainWrapper>
+      </YStack>
     )
+
   return null
 
   function onDrop(event: DragEvent) {
@@ -461,31 +480,6 @@ export function DraftHeader({
         e.stopPropagation()
       }}
     >
-      <CoverImage
-        show={showCover}
-        onCoverUpload={(cover) => {
-          if (cover) {
-            draftActor.send({
-              type: 'CHANGE',
-              metadata: {
-                cover: `ipfs://${cover}`,
-              },
-            })
-          }
-        }}
-        onRemoveCover={() => {
-          setShowCover(false)
-          draftActor.send({
-            type: 'CHANGE',
-            metadata: {
-              cover: '',
-            },
-          })
-        }}
-        url={cover ? getFileUrl(cover) : ''}
-        id={route.id?.id}
-      />
-
       <Container
         animation="fast"
         marginTop={showCover ? -40 : 0}
@@ -602,6 +596,79 @@ export function DraftHeader({
           <Separator borderColor="$color8" />
         </YStack>
       </Container>
+    </YStack>
+  )
+}
+
+export function DraftCover({
+  draftActor,
+  disabled = false,
+}: {
+  draftActor: ActorRefFrom<typeof draftMachine>
+  disabled?: boolean
+}) {
+  const route = useNavRoute()
+  if (route.key !== 'draft')
+    throw new Error('DraftHeader must have draft route')
+
+  const [showCover, setShowCover] = useState(false)
+
+  const cover = useSelector(draftActor, (s) => {
+    return s.context.metadata.cover
+  })
+
+  const input = useRef<HTMLTextAreaElement | null>(null)
+
+  useShowTitleObserver(input.current)
+
+  useEffect(() => {
+    // handle the initial size of the title
+    const target = input.current
+    if (!target) return
+    applyTitleResize(target)
+    draftActor.send({
+      type: 'SET.NAME.REF',
+      nameRef: target,
+    })
+  }, [input.current])
+
+  useEffect(() => {
+    let val = !!cover
+    if (val != showCover) {
+      setShowCover(val)
+    }
+  }, [cover])
+
+  return (
+    <YStack
+      onPress={(e: MouseEvent) => {
+        e.stopPropagation()
+      }}
+    >
+      <CoverImage
+        show={showCover}
+        onCoverUpload={(cover) => {
+          if (cover) {
+            draftActor.send({
+              type: 'CHANGE',
+              metadata: {
+                cover: `ipfs://${cover}`,
+              },
+            })
+          }
+        }}
+        onRemoveCover={() => {
+          setShowCover(false)
+          draftActor.send({
+            type: 'CHANGE',
+            metadata: {
+              cover: '',
+            },
+          })
+        }}
+        url={cover ? getFileUrl(cover) : ''}
+        id={route.id?.id}
+      />
     </YStack>
   )
 }
@@ -774,16 +841,6 @@ function useDraftRebase({
 }) {
   const [isRebasing, setIsRebasing] = useState(false)
   const rebasedData = useSubscribedEntity(currentId)
-
-  console.log(`== ~ useDraftRebase ~ data:`, {
-    equal:
-      draftId?.version != null &&
-      rebasedData.data?.id.version != null &&
-      draftId?.version == rebasedData.data?.id.version,
-    id: currentId,
-    currentVersion: draftId?.version,
-    newVersion: rebasedData.data?.id.version,
-  })
 
   async function performRebase() {
     setIsRebasing(true)

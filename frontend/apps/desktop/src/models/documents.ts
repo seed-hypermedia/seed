@@ -647,7 +647,7 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
 
   // ==============
 
-  function handleFocusAtMousePos(event: MouseEvent) {
+  function handleFocusAtMousePos(event: GestureResponderEvent) {
     let ttEditor = (editor as BlockNoteEditor)._tiptapEditor
     let editorView = ttEditor.view
     let editorRect = editorView.dom.getBoundingClientRect()

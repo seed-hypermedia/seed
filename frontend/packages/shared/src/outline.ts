@@ -94,6 +94,7 @@ export function getDraftNodesOutline(
   parentBlockId?: string,
 ): NodesOutline {
   const outline: NodesOutline = []
+  console.log('getDraftNodesOutline outline', children)
   children.forEach((child) => {
     if (child.type === 'Heading') {
       outline.push({
