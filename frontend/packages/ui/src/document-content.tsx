@@ -1130,11 +1130,11 @@ function BlockContentImage({
           style={{width: "100%"}}
         />
 
-      {inline.length ? (
-        <Text opacity={0.7} fontFamily="$body">
-          <InlineContentView inline={inline} fontSize={textUnit * 0.85} />
-        </Text>
-      ) : null}
+        {inline.length ? (
+          <Text opacity={0.7} fontFamily="$body">
+            <InlineContentView inline={inline} fontSize={textUnit * 0.85} />
+          </Text>
+        ) : null}
       </YStack>
     </YStack>
   );
@@ -1848,7 +1848,6 @@ export function BlockContentButton({
       // backgroundColor="$color3"
       borderColor="$color6"
       {...hoverProps}
-      borderWidth={1}
       borderRadius={layoutUnit / 4}
       padding={layoutUnit / 2}
       overflow="hidden"
