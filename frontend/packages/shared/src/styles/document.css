@@ -30,6 +30,7 @@
 .document-aside {
   position: fixed !important;
   top: 200px !important;
+  padding-left: 16px;
   z-index: 30;
   margin-left: -0.5rem;
   display: none !important;

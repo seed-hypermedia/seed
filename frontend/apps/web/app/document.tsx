@@ -20,11 +20,11 @@ import {
   DocContent,
   DocContentProvider,
 } from "@shm/ui/src/document-content";
-import {RadioButtons} from "@shm/ui/src/radio-buttons";
+import {EmptyDiscussion} from "@shm/ui/src/icons";
 import {Text} from "@tamagui/core";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
-import {useCallback, useEffect, useMemo, useState} from "react";
+import {useCallback, useEffect, useMemo} from "react";
 import {getHref} from "./href";
 import type {SiteDocumentPayload} from "./loaders";
 import {defaultSiteIcon} from "./meta";
@@ -325,28 +325,14 @@ function DocumentAppendix({
   homeId: UnpackedHypermediaId;
   siteHost: string | undefined;
 }) {
-  const [activeTab, setActiveTab] = useState<"directory" | "discussion">(
-    "directory"
-  );
-  let content = null;
-  // if (activeTab === "directory") {
-  //   content = <DocumentDirectory id={id} homeId={homeId} />;
-  // } else if (activeTab === "discussion") {
-  content = <DocumentDiscussion id={id} homeId={homeId} siteHost={siteHost} />;
-  // }
   return (
     <Container>
-      <RadioButtons
-        value={activeTab}
-        options={
-          [
-            {key: "discussion", label: "Discussion"},
-            // {key: "directory", label: "Directory"},
-          ] as const
-        }
-        onValue={setActiveTab}
-      />
-      {content}
+      <YStack paddingVertical="$6" marginBottom={100} gap="$4">
+        <SizableText fontSize={20} fontWeight="600">
+          Discussions
+        </SizableText>
+        <DocumentDiscussion id={id} homeId={homeId} siteHost={siteHost} />
+      </YStack>
     </Container>
   );
 }
@@ -434,19 +420,28 @@ function DocumentDiscussion({
   if (!discussion) return null;
   const {commentGroups, commentAuthors} = discussion;
   if (!commentGroups) return null;
-  return commentGroups.map((commentGroup) => {
-    return (
-      <CommentGroup
-        key={commentGroup.id}
-        docId={id}
-        commentGroup={commentGroup}
-        isLastGroup={commentGroup === commentGroups.at(-1)}
-        authors={commentAuthors}
-        renderCommentContent={renderCommentContent}
-        CommentReplies={CommentReplies}
-      />
-    );
-  });
+  return commentGroups.length > 0 ? (
+    commentGroups.map((commentGroup) => {
+      return (
+        <CommentGroup
+          key={commentGroup.id}
+          docId={id}
+          commentGroup={commentGroup}
+          isLastGroup={commentGroup === commentGroups.at(-1)}
+          authors={commentAuthors}
+          renderCommentContent={renderCommentContent}
+          CommentReplies={CommentReplies}
+        />
+      );
+    })
+  ) : (
+    <YStack padding="$4" jc="center" ai="center" gap="$4">
+      <EmptyDiscussion />
+      <SizableText color="$color7" fontWeight="500">
+        there are no active discussions
+      </SizableText>
+    </YStack>
+  );
 }
 
 function CommentReplies({

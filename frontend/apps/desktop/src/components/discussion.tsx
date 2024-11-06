@@ -21,8 +21,10 @@ import {
   BlocksContent,
   Button,
   CommentGroup,
+  EmptyDiscussion,
   HMIcon,
   SelectDropdown,
+  SizableText,
   Tooltip,
   useStream,
   View,
@@ -36,6 +38,9 @@ import {HyperMediaEditorView} from './editor'
 export function Discussion({docId}: {docId: UnpackedHypermediaId}) {
   return (
     <YStack paddingVertical="$6" marginBottom={100} gap="$4">
+      <SizableText fontSize={20} fontWeight="600">
+        Discussions
+      </SizableText>
       <CommentDraft docId={docId} />
       <DiscussionComments docId={docId} />
     </YStack>
@@ -66,6 +71,16 @@ function renderCommentContent(comment: HMComment) {
 function DiscussionComments({docId}: {docId: UnpackedHypermediaId}) {
   const comments = useDocumentCommentGroups(docId)
   const authors = useCommentGroupAuthors(comments)
+  if (comments.length == 0) {
+    return (
+      <YStack padding="$4" jc="center" ai="center" gap="$4">
+        <EmptyDiscussion />
+        <SizableText color="$color7" fontWeight="500">
+          there are no active discussions
+        </SizableText>
+      </YStack>
+    )
+  }
   return comments.map((commentGroup) => {
     return (
       <CommentGroup
@@ -217,7 +232,7 @@ function _CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
           setIsStartingComment(true)
         }}
       >
-        Enter text or type '/' for commands
+        What are your thoughts?
       </Button>
     )
   }
