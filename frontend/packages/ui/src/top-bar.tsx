@@ -116,9 +116,7 @@ function HomeHeader({
   return (
     <XStack paddingHorizontal="$4" paddingVertical="$2.5" ai="center" gap="$4">
       <XStack w={38} />
-      <XStack f={1} />
       <SiteLogo id={homeId} metadata={homeMetadata} />
-      <XStack f={1} />
       <XStack
         ai="center"
         gap="$3"
