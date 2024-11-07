@@ -94,7 +94,8 @@ var qBlobsGetSize = dqb.Str(`
 	WHERE blobs.multihash = :blobsMultihash
 `)
 
-func dbPublicKeysLookupID(conn *sqlite.Conn, publicKeysPrincipal []byte) (int64, error) {
+// DbPublicKeysLookupID gets the db index of a given account.
+func DbPublicKeysLookupID(conn *sqlite.Conn, publicKeysPrincipal []byte) (int64, error) {
 	before := func(stmt *sqlite.Stmt) {
 		stmt.SetBytes(":publicKeysPrincipal", publicKeysPrincipal)
 	}
@@ -125,7 +126,40 @@ var qPublicKeysLookupID = dqb.Str(`
 	LIMIT 1
 `)
 
-func dbPublicKeysInsert(conn *sqlite.Conn, principal []byte) (int64, error) {
+// DbGetPublicKeyByID gets the account given its db Index.
+func DbGetPublicKeyByID(conn *sqlite.Conn, id int64) (publicKeysPrincipal []byte, err error) {
+	before := func(stmt *sqlite.Stmt) {
+		stmt.SetInt64(":publicKeysID", id)
+	}
+
+	var out []byte
+
+	onStep := func(i int, stmt *sqlite.Stmt) error {
+		if i > 1 {
+			return errors.New("GetPublicKeyByID: more than one result return for a single-kind query")
+		}
+
+		out = stmt.ColumnBytes(0)
+		return nil
+	}
+
+	err = sqlitegen.ExecStmt(conn, qGetPublicKeyByID(), before, onStep)
+	if err != nil {
+		err = fmt.Errorf("failed query: GetPublicKeyByID: %w", err)
+	}
+
+	return out, err
+}
+
+var qGetPublicKeyByID = dqb.Str(`
+	SELECT public_keys.principal
+	FROM public_keys
+	WHERE public_keys.id = :publicKeysID
+	LIMIT 1
+`)
+
+// DbPublicKeysInsert inserts the provided account in the db.
+func DbPublicKeysInsert(conn *sqlite.Conn, principal []byte) (int64, error) {
 	var out int64
 
 	before := func(stmt *sqlite.Stmt) {

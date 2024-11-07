@@ -42,14 +42,17 @@ message RequestInvoiceRequest {
   // The invoice amount in satoshis
   int64 amount_sats = 1;
 
+  // Required. The account we request this invoice from
+  string account = 2;
+
   // Optional requested memo to be attached in the invoice
-  string memo = 2;
+  string memo = 3;
 
   // True to request a hold invoice instead of a regular one. If true, then preimage_hash should be filled
-  bool hold_invoice = 3;
+  bool hold_invoice = 4;
 
   // Preimage hash of the requested hold invoice. If hold_invoice is set to false this field is skipped
-  bytes preimage_hash = 4;
+  bytes preimage_hash = 5;
 }
 
 // Request invoice response

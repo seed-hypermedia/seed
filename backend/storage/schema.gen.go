@@ -229,8 +229,8 @@ const (
 // Table wallets.
 const (
 	Wallets         sqlitegen.Table  = "wallets"
+	WalletsAccount  sqlitegen.Column = "wallets.account"
 	WalletsAddress  sqlitegen.Column = "wallets.address"
-	WalletsBalance  sqlitegen.Column = "wallets.balance"
 	WalletsID       sqlitegen.Column = "wallets.id"
 	WalletsLogin    sqlitegen.Column = "wallets.login"
 	WalletsName     sqlitegen.Column = "wallets.name"
@@ -242,8 +242,8 @@ const (
 // Table wallets. Plain strings.
 const (
 	T_Wallets         = "wallets"
+	C_WalletsAccount  = "wallets.account"
 	C_WalletsAddress  = "wallets.address"
-	C_WalletsBalance  = "wallets.balance"
 	C_WalletsID       = "wallets.id"
 	C_WalletsLogin    = "wallets.login"
 	C_WalletsName     = "wallets.name"
@@ -305,8 +305,8 @@ var Schema = sqlitegen.Schema{
 		SubscriptionsInsertTime:    {Table: Subscriptions, SQLType: "INTEGER"},
 		SubscriptionsIRI:           {Table: Subscriptions, SQLType: "TEXT"},
 		SubscriptionsIsRecursive:   {Table: Subscriptions, SQLType: "BOOLEAN"},
+		WalletsAccount:             {Table: Wallets, SQLType: "INTEGER"},
 		WalletsAddress:             {Table: Wallets, SQLType: "TEXT"},
-		WalletsBalance:             {Table: Wallets, SQLType: "INTEGER"},
 		WalletsID:                  {Table: Wallets, SQLType: "TEXT"},
 		WalletsLogin:               {Table: Wallets, SQLType: "BLOB"},
 		WalletsName:                {Table: Wallets, SQLType: "TEXT"},

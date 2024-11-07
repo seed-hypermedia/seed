@@ -275,49 +275,59 @@ func (n *Node) ArePrivateIPsAllowed() bool {
 	return !n.cfg.NoPrivateIps
 }
 
-// AccountForDevice returns the linked AccountID of a given device.
-func (n *Node) AccountForDevice(ctx context.Context, pid peer.ID) (core.Principal, error) {
-	// TODO(hm24): How to know the public key of other peers?
-	if n.p2p.Network().LocalPeer() == pid {
-		pk, err := n.keys.GetKey(ctx, "main")
-		if err != nil {
-			return nil, fmt.Errorf("Can't get account for this device. Has the user registered any key?")
-		}
-		return pk.PublicKey.Principal(), nil
+// GetAccountByKeyName returns the account attached to the given named key.
+func (n *Node) GetAccountByKeyName(ctx context.Context, keyName string) (core.Principal, error) {
+	pk, err := n.keys.GetKey(ctx, keyName)
+	if err != nil {
+		return nil, fmt.Errorf("Can't get account for this device: %w", err)
 	}
-	return nil, fmt.Errorf("Can't know the account of a peer different than myself.")
+	return pk.PublicKey.Principal(), nil
+}
+
+// AccountForDevice returns the linked AccountID of a given device.
+func (n *Node) AccountForDevice(_ context.Context, _ peer.ID) (core.Principal, error) {
+	// TODO(hm24): When we have contacts we can do it.
+	return nil, fmt.Errorf("Not ready until we have contacts. Use GetAccountByKeyName instead")
 	/*
-		var out core.Principal
-		if err := n.blobs.Query(ctx, func(conn *sqlite.Conn) error {
-			pk, err := pid.ExtractPublicKey()
+		if n.p2p.Network().LocalPeer() == pid {
+			pk, err := n.keys.GetKey(ctx, "main")
 			if err != nil {
-				return err
+				return nil, fmt.Errorf("Can't get account for this device. Has the user registered any key?")
 			}
-
-			delegate := core.PrincipalFromPubKey(pk)
-
-			list, err := hypersql.KeyDelegationsListByDelegate(conn, delegate)
-			if err != nil {
-				return err
-			}
-			if len(list) == 0 {
-				return fmt.Errorf("not found key delegation for peer: %s", pid)
-			}
-
-			if len(list) > 1 {
-				n.log.Warn("MoreThanOneKeyDelegation", zap.String("peer", pid.String()))
-			}
-
-			del := list[0]
-
-			out = core.Principal(del.KeyDelegationsViewIssuer)
-
-			return nil
-		}); err != nil {
-			return nil, err
+			return pk.PublicKey.Principal(), nil
 		}
 
-		return out, nil
+			var out core.Principal
+			if err := n.blobs.Query(ctx, func(conn *sqlite.Conn) error {
+				pk, err := pid.ExtractPublicKey()
+				if err != nil {
+					return err
+				}
+
+				delegate := core.PrincipalFromPubKey(pk)
+
+				list, err := hypersql.KeyDelegationsListByDelegate(conn, delegate)
+				if err != nil {
+					return err
+				}
+				if len(list) == 0 {
+					return fmt.Errorf("not found key delegation for peer: %s", pid)
+				}
+
+				if len(list) > 1 {
+					n.log.Warn("MoreThanOneKeyDelegation", zap.String("peer", pid.String()))
+				}
+
+				del := list[0]
+
+				out = core.Principal(del.KeyDelegationsViewIssuer)
+
+				return nil
+			}); err != nil {
+				return nil, err
+			}
+
+			return out, nil
 	*/
 }
 

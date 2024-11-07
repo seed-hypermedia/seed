@@ -14,15 +14,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/btcsuite/btcd/btcutil"
-	"github.com/stretchr/testify/require"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
+
+	"github.com/btcsuite/btcd/btcutil"
+	"github.com/stretchr/testify/require"
 )
 
 const (
-	lndhubDomain    = "ln.testnet.mintter.com"
-	lnaddressDomain = "ln.testnet.mintter.com"
+	lndhubDomain    = "ln.testnet.seed.hyper.media"
+	lnaddressDomain = "ln.testnet.seed.hyper.media"
 	connectionURL   = "https://" + lndhubDomain
 )
 
@@ -44,49 +45,44 @@ func TestCreate(t *testing.T) {
 	defer cancel()
 	keypair, err := core.NewKeyPairRandom()
 	require.NoError(t, err)
-	pubKeyBytes, err := keypair.PublicKey.MarshalBinary()
+	token, err := keypair.PublicKey.Wrapped().Raw()
 	require.NoError(t, err)
 
-	ks := core.NewMemoryKeyStore()
 	login := keypair.String()
 	passwordBytes, err := keypair.Sign([]byte(SigningMessage))
 	password := hex.EncodeToString(passwordBytes)
 	require.NoError(t, err)
-	lndHubClient := NewClient(context.Background(), &http.Client{}, pool, ks, "main", lndhubDomain, lnaddressDomain)
-	lndHubClient.WalletID = credentials2Id("lndhub.go", login, password, lndhubDomain)
+	lndHubClient := NewClient(&http.Client{}, pool, lndhubDomain, lnaddressDomain)
+	walletID := credentials2Id("lndhub.go", login, password, lndhubDomain, token)
 
 	makeTestWallet(t, conn, walletsql.Wallet{
-		ID:      lndHubClient.WalletID,
+		ID:      walletID,
 		Address: connectionURL,
 		Name:    nickname,
 		Type:    "lndhub.go",
-		Balance: 0,
-	}, login, password, hex.EncodeToString(pubKeyBytes))
+		Account: keypair.Principal().String(),
+	}, login, password, hex.EncodeToString(token))
 
-	user, err := lndHubClient.Create(ctx, connectionURL, login, password, nickname)
-	require.Error(t, err)
-	require.NoError(t, ks.StoreKey(ctx, "main", keypair))
-	user, err = lndHubClient.Create(ctx, connectionURL, login, password, nickname)
+	user, err := lndHubClient.Create(ctx, connectionURL, walletID, login, password, nickname, token)
 	require.NoError(t, err)
 	require.EqualValues(t, login, user.Login)
 	require.EqualValues(t, password, user.Password)
 	require.EqualValues(t, strings.ToLower(nickname), user.Nickname)
-	require.NoError(t, err)
-	_, err = lndHubClient.Auth(ctx)
+	_, err = lndHubClient.Auth(ctx, walletID)
 	require.NoError(t, err)
 	var newNickname = randStringRunes(8)
-	err = lndHubClient.UpdateNickname(ctx, strings.ToUpper(newNickname))
+	err = lndHubClient.UpdateNickname(ctx, walletID, strings.ToUpper(newNickname), token)
 	require.Error(t, err)
 	newNickname = strings.ToLower(newNickname)
-	err = lndHubClient.UpdateNickname(ctx, newNickname)
+	err = lndHubClient.UpdateNickname(ctx, walletID, newNickname, token)
 	require.NoError(t, err)
-	lnaddress, err := lndHubClient.GetLnAddress(ctx)
+	lnaddress, err := lndHubClient.GetLnAddress(ctx, walletID)
 	require.NoError(t, err)
 	require.EqualValues(t, newNickname+"@"+lnaddressDomain, lnaddress)
-	balance, err := lndHubClient.GetBalance(ctx)
+	balance, err := lndHubClient.GetBalance(ctx, walletID)
 	require.NoError(t, err)
 	require.EqualValues(t, 0, balance)
-	payreq, err := lndHubClient.CreateLocalInvoice(ctx, invoiceAmt, invoiceMemo)
+	payreq, err := lndHubClient.CreateLocalInvoice(ctx, walletID, invoiceAmt, invoiceMemo)
 	require.NoError(t, err)
 	decodedInvoice, err := DecodeInvoice(payreq)
 	require.NoError(t, err)
@@ -94,17 +90,17 @@ func TestCreate(t *testing.T) {
 	require.EqualValues(t, invoiceAmt, uint64(decodedInvoice.MilliSat.ToSatoshis()))
 
 	const invoiceMemo2 = "zero invoice test amount"
-	_, err = lndHubClient.RequestRemoteInvoice(ctx, newNickname, 0, invoiceMemo2)
+	_, err = lndHubClient.RequestLud6Invoice(ctx, "https://ln.testnet.seed.hyper.media", newNickname, 0, invoiceMemo2)
 	require.Error(t, err)
 	const invoiceMemo3 = "non-zero invoice test amount"
 	const amt = 233
-	payreq, err = lndHubClient.RequestRemoteInvoice(ctx, newNickname, amt, invoiceMemo3)
+	payreq, err = lndHubClient.RequestLud6Invoice(ctx, "https://ln.testnet.seed.hyper.media", newNickname, amt, invoiceMemo3)
 	require.NoError(t, err)
 	decodedInvoice, err = DecodeInvoice(payreq)
 	require.NoError(t, err)
 	require.EqualValues(t, invoiceMemo3, *decodedInvoice.Description)
 	require.EqualValues(t, amt, decodedInvoice.MilliSat.ToSatoshis().ToUnit(btcutil.AmountSatoshi)) // when amt is zero, the result is nil
-	invoices, err := lndHubClient.ListReceivedInvoices(ctx)
+	invoices, err := lndHubClient.ListReceivedInvoices(ctx, walletID)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(invoices), 1)
 	//TODO: test for invoice metadata
@@ -132,8 +128,8 @@ func makeConn(t *testing.T) (*sqlitex.Pool, error) {
 	return storage.MakeTestDB(t), nil
 }
 
-func credentials2Id(wType, login, password, domain string) string {
+func credentials2Id(wType, login, password, domain string, account []byte) string {
 	url := wType + "://" + login + ":" + password + "@https://" + domain
-	h := sha256.Sum256([]byte(url))
+	h := sha256.Sum256(append([]byte(url), account...))
 	return hex.EncodeToString(h[:])
 }

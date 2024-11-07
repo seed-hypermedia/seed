@@ -4,7 +4,6 @@ package daemon
 
 import (
 	context "context"
-	"fmt"
 	"seed/backend/core"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	sync "sync"
@@ -24,11 +23,6 @@ type Storage interface {
 	KeyStore() core.KeyStore
 }
 
-// Wallet is a subset of the wallet service used by this server.
-type Wallet interface {
-	ConfigureSeedLNDHub(context.Context, core.KeyPair) error
-}
-
 // Node is a subset of the p2p node.
 type Node interface {
 	ForceSync() error
@@ -40,7 +34,6 @@ type Node interface {
 type Server struct {
 	store     Storage
 	startTime time.Time
-	wallet    Wallet
 
 	p2p Node
 
@@ -48,11 +41,7 @@ type Server struct {
 }
 
 // NewServer creates a new Server.
-func NewServer(store Storage, w Wallet, n Node) *Server {
-	if w == nil {
-		panic("BUG: wallet is required")
-	}
-
+func NewServer(store Storage, n Node) *Server {
 	if n == nil {
 		panic("BUG: p2p node is required")
 	}
@@ -166,14 +155,6 @@ func (srv *Server) RegisterAccount(ctx context.Context, name string, kp core.Key
 		return err
 	}
 
-	// TODO(hm24): we don't need to do this here since now we have the keys always accessible, unless the user
-	// chooses not to store the keys... Do this at the time of creating the seed wallet (new method not insert
-	// wallet which is an external wallet)
-	if srv.wallet != nil {
-		if err := srv.wallet.ConfigureSeedLNDHub(ctx, kp); err != nil {
-			return fmt.Errorf("failed to configure wallet when registering: %w", err)
-		}
-	}
 	return nil
 }
 

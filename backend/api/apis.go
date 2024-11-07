@@ -7,6 +7,7 @@ import (
 	documentsv3 "seed/backend/api/documents/v3alpha"
 	entities "seed/backend/api/entities/v1alpha"
 	networking "seed/backend/api/networking/v1alpha"
+	payments "seed/backend/api/payments/v1alpha"
 	"seed/backend/blob"
 	"seed/backend/core"
 	"seed/backend/logging"
@@ -27,8 +28,10 @@ type Server struct {
 	Activity    *activity.Server
 	Syncing     *syncing.Service
 	DocumentsV3 *documentsv3.Server
+	Payments    *payments.Server
 }
 
+// Storage holds all the storing functionality.
 type Storage interface {
 	DB() *sqlitex.Pool
 	KeyStore() core.KeyStore
@@ -38,24 +41,23 @@ type Storage interface {
 
 // New creates a new API server.
 func New(
-	ctx context.Context,
 	repo Storage,
 	idx *blob.Index,
 	node *mttnet.Node,
-	wallet daemon.Wallet,
 	sync *syncing.Service,
 	activity *activity.Server,
 	LogLevel string,
+	isMainnet bool,
 ) Server {
 	db := repo.DB()
-
 	return Server{
 		Activity:    activity,
-		Daemon:      daemon.NewServer(repo, wallet, &p2pNodeSubset{node: node, sync: sync}),
+		Daemon:      daemon.NewServer(repo, &p2pNodeSubset{node: node, sync: sync}),
 		Networking:  networking.NewServer(node, db, logging.New("seed/networking", LogLevel)),
 		Entities:    entities.NewServer(idx, sync),
 		DocumentsV3: documentsv3.NewServer(repo.KeyStore(), idx, db, logging.New("seed/documents", LogLevel)),
 		Syncing:     sync,
+		Payments:    payments.NewServer(logging.New("seed/payments", LogLevel), db, node, repo.KeyStore(), isMainnet),
 	}
 }
 
@@ -66,6 +68,7 @@ func (s Server) Register(srv *grpc.Server) {
 	s.Networking.RegisterServer(srv)
 	s.Entities.RegisterServer(srv)
 	s.DocumentsV3.RegisterServer(srv)
+	s.Payments.RegisterServer(srv)
 }
 
 type p2pNodeSubset struct {

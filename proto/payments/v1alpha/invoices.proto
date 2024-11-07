@@ -1,0 +1,182 @@
+syntax = "proto3";
+
+package com.seed.payments.v1alpha;
+
+import "google/protobuf/empty.proto";
+
+option go_package = "seed/backend/genproto/payments/v1alpha;payments";
+
+// Invoices service deals with invoices and payments of invoices.
+service Invoices {
+  // CreateInvoice creates a local invoice. Used to get paid. Typicaly 
+  // seed users will call this remotely bc they don't know the lnaddress
+  // of the receiver, just their seed account. The local node, upon the 
+  // request, issues an invoice.
+  rpc CreateInvoice(CreateInvoiceRequest) returns (Payreq);
+
+  // PayInvoice Pays a bolt11 invoice.
+  rpc PayInvoice(PayInvoiceRequest) returns (google.protobuf.Empty);
+
+  // PayInvoice Pays a bolt11 invoice.
+  rpc ListPaidInvoices(ListInvoicesRequest) returns (ListInvoicesResponse);
+  
+  // PayInvoice Pays a bolt11 invoice.
+  rpc ListReceivednvoices(ListInvoicesRequest) returns (ListInvoicesResponse);
+  
+}
+
+// LNURL service provides LNURL (https://github.com/lnurl) compatibility.
+service LNURL {
+  // Request an invoice following the LNURL lud6 protocol 
+  // (https://github.com/lnurl/luds/blob/luds/06.md). This does not require the
+  // caller to log in anywhere. Used to pay.
+  rpc RequestLud6Invoice(RequestLud6InvoiceRequest) returns (Payreq);
+
+  // GetLnAddress gets the lnaddress (https://lightningaddress.com/) associated
+  // with a wallet. Not all wallets are lnaddress compatible.
+  rpc GetLnAddress(GetLnAddressRequest) returns (LNAddress);
+
+  // UpdateLNAddress change the lnaddress of a specific wallet.
+  // LNaddress must be globally unique (like email addresses).
+  rpc UpdateLNAddress(UpdateLNAddressRequest) returns (LNAddress);
+}
+
+// String representation of a bolt11 invoice payment request. 
+message Payreq{
+  // Bolt11 invoice payment request.
+  string payreq = 1;
+}
+
+// The request to create a local invoice. Used to be paid.
+message CreateInvoiceRequest {
+  // Optional. The account we are creating the invoice from. The default wallet
+  // from that account will be used to issue the invoice. If the user wants to 
+  // select an espedific wallet, then account must be blank and the user must 
+  // provide a wallet id.
+  string account = 1;
+  
+  // Optional. In case account is not provided, the especific walletID
+  // to issue an invoice from. 
+  string id = 2;
+
+  // Required. The amount in satoshis we want the invoice.
+  int64 amount = 3;
+
+  // Optional. Description we want to include in the invoice. 
+  string memo = 4;
+}
+
+// To pay an invoice
+message PayInvoiceRequest {
+  // Required. The payment request in plaintext representing the bolt-11 invoice to be paid
+  string payreq = 1;
+  
+  // Optional. The account used to pay this invoice. The default wallet of this account will
+  // be used. If not provided, then an specific wallet ID must be provided
+  string account = 2;
+
+  // Optional. Wallet id to pay the invoice with
+  string id = 3;
+
+  // Optional. Amount in satoshis to pay. This should match the amount in the invoice. 
+  // For zero-amount invoices, the user can put whatever amount it wants.  
+  int64 amount = 4;
+}
+
+// Request to pay.
+message RequestLud6InvoiceRequest {
+  // Required. URL associated with the ln server.
+  string URL = 1;
+  
+  // Required. User to pay.
+  string user = 2;
+  
+  // Required. Amount in satohis.
+  int64 amount = 3;
+  
+  // Optional. String to be attached in the invoice.
+  string memo = 4;
+}
+
+// Get the LNAddress of a wallet.
+message GetLnAddressRequest {
+  // Required. The wallet ID we want to know the lnaddress from.
+  string id = 1;
+}
+
+// The LNAddress of a wallet.
+message LNAddress {
+  // Required. The account we want to know the lnaddress from.
+  string address = 1;
+}
+
+// Changes the lnaddress associated with a wallet. 
+message UpdateLNAddressRequest {
+  // Required. The wallet we want to change its lnaddress. Not all wallets
+  // support lnaddresses
+  string id = 1;
+
+  // Required. The nickname of the new lnadress. The resultin lnaddress would be
+  // <new_nickname>@<lnurl>
+  string nickname = 2;
+}
+
+// List all invoices that has been paid with a wallet 
+message ListInvoicesRequest {
+  // Required. The wallet id from where we want the list of paid invoices
+  string id = 1;
+}
+
+// Bolt11 Invoice
+message Invoice{
+  // The hash of the invoice. Unique identifier of the invoice
+  string payment_hash = 1;
+
+  // The string representation of the invoice
+	string payment_request = 2;
+
+  // The description/memo/purpose of the invoice
+	string description = 3;
+
+  // The description hash
+	string description_hash = 4;
+
+  // The preimage revealed upon settlement. Proof of payment.
+	string payment_preimage = 5;
+
+  // The destination node of the payment.
+	string destination = 6;
+
+  // The amount in satoshis of the payment.
+	int64 amount = 7;
+
+  // The fees paid in satoshis.
+	int64 fee = 8;
+
+  // The satus of the invoice.
+	string status = 9;
+
+  // The type of invoice.
+	string type = 10;
+
+  // Error message (if any) of the transaction.
+	string error_message = 11;
+
+  // When the invoice was settled
+	string settled_at = 12;
+
+  // When the invoice expires (if unpaid).
+	string  expires_at = 13;
+
+  // Whether or not the invoice has been paid.
+	bool is_paid = 14;
+
+  // Whether or not this is a keysed payment.
+	bool keysend = 15;
+}
+
+// List all invoices that has been paid with a wallet 
+message ListInvoicesResponse {
+  // Required. The wallet id from where we want the list of paid invoices
+  repeated Invoice invoices = 1;
+}

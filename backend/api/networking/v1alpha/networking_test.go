@@ -23,14 +23,12 @@ func TestNetworkingGetPeerInfo(t *testing.T) {
 	ctx := context.Background()
 
 	pid := alice.Device.PeerID()
-	acc := alice.Account.Principal()
 
 	pinfo, err := api.GetPeerInfo(ctx, &networking.GetPeerInfoRequest{
 		DeviceId: pid.String(),
 	})
 	require.NoError(t, err)
 	require.NotNil(t, pinfo)
-	require.Equal(t, acc.String(), pinfo.AccountId, "account ids must match")
 }
 
 func makeTestServer(t *testing.T, u coretest.Tester) *Server {
