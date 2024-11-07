@@ -4,7 +4,6 @@ import {
   UnpackedHypermediaId,
   useRouteLink,
 } from "@shm/shared";
-import {Image} from "@tamagui/image";
 import {XStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import {HMIcon} from "./hm-icon";
@@ -22,12 +21,11 @@ export function SiteLogo({
   });
   if (metadata?.seedExperimentalLogo) {
     return (
-      <XStack {...homeLinkProps} maxHeight={60} flex={1}>
-        <Image
+      <XStack {...homeLinkProps} height={60} flex={1} ai="center" jc="center">
+        <img
+          src={getFileUrl(metadata.seedExperimentalLogo)}
           height={60}
-          flex={1}
-          source={{uri: getFileUrl(metadata.seedExperimentalLogo)}}
-          resizeMode="contain"
+          style={{objectFit: "contain"}}
         />
       </XStack>
     );
