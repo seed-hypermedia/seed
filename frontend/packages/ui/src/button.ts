@@ -1,4 +1,6 @@
-import {styled, Button as TButton, ThemeableStack} from "tamagui";
+import {Button as TButton} from "@tamagui/button";
+import {ThemeableStack} from "@tamagui/stacks";
+import {styled} from "@tamagui/web";
 
 export const Button = styled(TButton, {
   className: "btn",

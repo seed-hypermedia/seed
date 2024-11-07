@@ -5,6 +5,7 @@ import {XStack, YStack} from "@tamagui/stacks";
 import {SiteDocumentPayload} from "./loaders";
 import {PageFooter} from "./page-footer";
 import {SiteHeader} from "./page-header";
+import {MobileSearchUI} from "./search";
 
 export function NewspaperPage(props: SiteDocumentPayload) {
   const {
@@ -50,6 +51,7 @@ export function NewspaperPage(props: SiteDocumentPayload) {
           docId={id}
           breadcrumbs={props.breadcrumbs}
           supportQueries={supportQueries}
+          mobileSearchUI={<MobileSearchUI homeId={homeId} />}
         />
         <Container
           clearVerticalSpace

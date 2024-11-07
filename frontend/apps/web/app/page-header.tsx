@@ -133,20 +133,25 @@ export function SiteHeader(props: {
   homeId: UnpackedHypermediaId | null;
   docMetadata: HMMetadata | null;
   docId: UnpackedHypermediaId | null;
-  openSheet?: () => void;
   breadcrumbs: Array<{
     id: UnpackedHypermediaId;
     metadata: HMMetadata;
   }>;
   supportQueries?: HMQueryResult[];
-  children: React.ReactNode;
+  children: React.JSX.Element;
   mobileSearchUI?: React.ReactNode;
   isWeb?: boolean;
 }) {
   if (props.homeMetadata?.layout === "Seed/Experimental/Newspaper") {
-    return <NewsSiteHeader {...props} />;
+    return (
+      <NewsSiteHeader
+        {...props}
+        searchUI={props.homeId ? <SearchUI homeId={props.homeId} /> : null}
+        isWeb
+      />
+    );
   }
-  return <DefaultSiteHeader {...props} />;
+  return <DefaultSiteHeader isWeb {...props} />;
 }
 
 export function DefaultSiteHeader({

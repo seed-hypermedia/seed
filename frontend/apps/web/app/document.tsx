@@ -19,7 +19,6 @@ import {SiteRoutingProvider, useRouteLink} from "@shm/shared/src/routing";
 import "@shm/shared/src/styles/document.css";
 import {getRandomColor} from "@shm/ui/src/avatar";
 import {Container} from "@shm/ui/src/container";
-import {DirectoryItem} from "@shm/ui/src/directory";
 import {CommentGroup} from "@shm/ui/src/discussion";
 import {
   BlocksContent,
@@ -44,7 +43,6 @@ import {NewspaperPage} from "./newspaper";
 import {NotFoundPage} from "./not-found";
 import {PageFooter} from "./page-footer";
 import {PageHeader, SiteHeader} from "./page-header";
-import type {DirectoryPayload} from "./routes/hm.api.directory";
 import {DiscussionPayload} from "./routes/hm.api.discussion";
 import {MobileSearchUI} from "./search";
 import {EmbedDocument, EmbedInline} from "./web-embeds";
@@ -377,32 +375,6 @@ function useAPI<ResponsePayloadType>(url?: string) {
     ? unwrap<ResponsePayloadType>(fetcher.data)
     : undefined;
   return response;
-}
-
-function DocumentDirectory({
-  id,
-  homeId,
-}: {
-  id: UnpackedHypermediaId;
-  homeId: UnpackedHypermediaId;
-}) {
-  const response = useAPI<DirectoryPayload>(`/hm/api/directory?id=${id.id}`);
-  if (response?.error) return <ErrorComponent error={response?.error} />;
-  if (!response) return null;
-  const {directory, authorsMetadata} = response;
-  if (!authorsMetadata) return null;
-  return (
-    <YStack paddingVertical="$4">
-      {directory?.map((doc) => (
-        <DirectoryItem
-          entry={doc}
-          siteHomeId={homeId}
-          authorsMetadata={authorsMetadata}
-          PathButtonComponent={PathButton}
-        />
-      ))}
-    </YStack>
-  );
 }
 
 function PathButton() {
