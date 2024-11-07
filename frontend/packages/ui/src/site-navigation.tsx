@@ -113,7 +113,7 @@ export function SiteNavigationContent({
         idPath.length === doc.path.length - 1
     );
   const documentIndent = isTopLevel ? 0 : 1;
-
+  console.log("siblingDocs", siblingDocs);
   return (
     <YStack gap="$2" paddingLeft="$4">
       {isTopLevel || !parentListItem ? null : (
@@ -175,6 +175,8 @@ export function SiteNavigationContent({
           />,
         ];
       })}
+
+      {isTopLevel ? createDirItem : null}
     </YStack>
   );
 }
