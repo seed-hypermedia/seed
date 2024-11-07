@@ -107,7 +107,10 @@ export function DocOptionsButton() {
         const editorBlocks = hmBlocksToEditorContent(blocks, {
           childrenType: 'Group',
         })
-        const markdownWithFiles = await convertBlocksToMarkdown(editorBlocks)
+        const markdownWithFiles = await convertBlocksToMarkdown(
+          editorBlocks,
+          doc.data?.document,
+        )
         const {markdownContent, mediaFiles} = markdownWithFiles
         exportDocument(title, markdownContent, mediaFiles)
           .then((res) => {
