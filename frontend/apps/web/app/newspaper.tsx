@@ -5,8 +5,6 @@ import {XStack, YStack} from "@tamagui/stacks";
 import {SiteDocumentPayload} from "./loaders";
 import {PageFooter} from "./page-footer";
 import {SiteHeader} from "./page-header";
-import {MobileSearchUI} from "./search";
-import {SiteNavigation} from "./site-navigation";
 
 export function NewspaperPage(props: SiteDocumentPayload) {
   const {
@@ -52,16 +50,7 @@ export function NewspaperPage(props: SiteDocumentPayload) {
           docId={id}
           breadcrumbs={props.breadcrumbs}
           supportQueries={supportQueries}
-          mobileSearchUI={<MobileSearchUI homeId={homeId} />}
-          isWeb
-        >
-          <SiteNavigation
-            supportDocuments={props.supportDocuments}
-            supportQueries={props.supportQueries}
-            document={document}
-            id={id}
-          />
-        </SiteHeader>
+        />
         <Container
           clearVerticalSpace
           maxWidth={1000}
@@ -75,7 +64,12 @@ export function NewspaperPage(props: SiteDocumentPayload) {
               accountsMetadata={authors}
             />
           )}
-          <XStack flexWrap="wrap" marginTop="$4" justifyContent="space-between">
+          <XStack
+            flexWrap="wrap"
+            marginTop="$4"
+            justifyContent="center"
+            gap="$6"
+          >
             {restItems.map((item) => {
               const itemId = hmId("d", item.account, {path: item.path});
               return (

@@ -8,9 +8,9 @@ import {
 } from "@shm/shared";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
-import {useEffect, useState} from "react";
+import {useEffect} from "react";
 import {Button} from "./button";
-import {Close, Menu} from "./icons";
+import {Close} from "./icons";
 import {SiteLogo} from "./site-logo";
 
 export function NewsSiteHeader({
@@ -20,81 +20,46 @@ export function NewsSiteHeader({
   rightContent,
   docId,
   afterLinksContent,
-  children,
-  searchUI,
-  mobileSearchUI,
-  isWeb = false,
 }: {
   homeMetadata: HMMetadata | null;
   homeId: UnpackedHypermediaId | null;
   supportQueries?: HMQueryResult[];
   rightContent?: React.ReactNode;
-  docId: UnpackedHypermediaId | null;
+  docId?: UnpackedHypermediaId;
   afterLinksContent?: React.ReactNode;
   searchUI?: React.ReactNode;
   children?: React.ReactNode;
   mobileSearchUI?: React.ReactNode;
   isWeb?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
   if (!homeId) return null;
   const supportQuery = supportQueries?.find((q) => q.in.uid === homeId?.uid);
   return (
-    <>
-      <YStack
-        borderBottomWidth={1}
-        borderColor="$borderColor"
-        zIndex="$zIndex.7"
-        // @ts-ignore
-        position="sticky"
-        top={0}
-        right={0}
-        left={0}
-        backgroundColor="$background"
-      >
+    <YStack paddingBottom="$4" paddingHorizontal="$4">
+      {homeId ? (
         <HomeHeader
-          onOpen={() => setOpen(true)}
           homeId={homeId}
           homeMetadata={homeMetadata}
           rightContent={rightContent}
-          searchUI={searchUI}
-          isWeb={isWeb}
         />
-
-        <XStack
-          ai="center"
-          gap="$4"
-          padding="$2"
-          jc="center"
-          display="none"
-          $gtSm={{display: "flex"}}
-        >
-          {supportQuery?.results
-            ?.filter((result) => result.path.length === 1)
-            ?.map((result) => {
-              if (result.path.length === 1 && result.path[0] === "")
-                return null;
-              return (
-                <NewsSiteHeaderLink
-                  result={result}
-                  key={result.path.join("/")}
-                  active={!!docId?.path && result.path[0] === docId.path[0]}
-                />
-              );
-            })}
-          {afterLinksContent}
-        </XStack>
-      </YStack>
-      {isWeb ? (
-        <MobileMenu
-          open={open}
-          onClose={() => setOpen(false)}
-          mobileSearchUI={mobileSearchUI}
-        >
-          {children}
-        </MobileMenu>
       ) : null}
-    </>
+
+      <XStack gap="$5" justifyContent="center" ai="center">
+        {supportQuery?.results
+          ?.filter((result) => result.path.length === 1)
+          ?.map((result) => {
+            if (result.path.length === 1 && result.path[0] === "") return null;
+            return (
+              <NewsSiteHeaderLink
+                result={result}
+                key={result.path.join("/")}
+                active={!!docId?.path && result.path[0] === docId.path[0]}
+              />
+            );
+          })}
+        {afterLinksContent}
+      </XStack>
+    </YStack>
   );
 }
 
@@ -102,16 +67,10 @@ function HomeHeader({
   homeMetadata,
   homeId,
   rightContent,
-  searchUI,
-  onOpen,
-  isWeb = false,
 }: {
   homeMetadata: HMMetadata | null;
   homeId: UnpackedHypermediaId;
   rightContent?: React.ReactNode;
-  searchUI?: React.ReactNode;
-  onOpen: () => void;
-  isWeb?: boolean;
 }) {
   return (
     <XStack paddingHorizontal="$4" paddingVertical="$2.5" ai="center" gap="$4">
@@ -123,29 +82,13 @@ function HomeHeader({
         ai="center"
         gap="$3"
         position="absolute"
-        right="$4"
+        right={0}
         top={0}
         height="100%"
         background="$background"
       >
         {rightContent}
       </XStack>
-      {isWeb ? (
-        <>
-          <Button
-            $gtSm={{display: "none"}}
-            icon={<Menu size={20} />}
-            chromeless
-            size="$2"
-            onPress={() => {
-              onOpen();
-            }}
-          />
-          <XStack display="none" $gtSm={{display: "flex"}}>
-            {searchUI}
-          </XStack>
-        </>
-      ) : null}
     </XStack>
   );
 }

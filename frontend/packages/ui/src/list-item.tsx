@@ -94,7 +94,8 @@ export function SmallListItem({
       focusTheme
       minHeight={minHeight || 32}
       paddingVertical={paddingVertical || "$1"}
-      size="$2"
+      size="$5"
+      $gtSm={{size: "$2"}}
       paddingLeft={Math.max(0, indent) * 22 + 12}
       textAlign="left"
       outlineColor="transparent"
