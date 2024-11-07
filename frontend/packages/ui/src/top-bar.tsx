@@ -10,8 +10,8 @@ import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import {useEffect, useState} from "react";
 import {Button} from "./button";
-import {HMIcon} from "./hm-icon";
 import {Close, Menu} from "./icons";
+import {SiteLogo} from "./site-logo";
 
 export function NewsSiteHeader({
   homeMetadata,
@@ -113,20 +113,11 @@ function HomeHeader({
   onOpen: () => void;
   isWeb?: boolean;
 }) {
-  const homeLinkProps = useRouteLink({
-    key: "document",
-    id: homeId,
-  });
   return (
     <XStack paddingHorizontal="$4" paddingVertical="$2.5" ai="center" gap="$4">
       <XStack w={38} />
       <XStack f={1} />
-      <XStack ai="center" gap="$2" {...homeLinkProps}>
-        <HMIcon size={24} id={homeId} metadata={homeMetadata} />
-        <SizableText size="$4" fontWeight="bold">
-          {homeMetadata?.name}
-        </SizableText>
-      </XStack>
+      <SiteLogo id={homeId} metadata={homeMetadata} />
       <XStack f={1} />
       <XStack
         ai="center"

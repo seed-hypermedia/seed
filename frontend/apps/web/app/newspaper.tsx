@@ -1,7 +1,9 @@
 import {hmId, sortNewsEntries} from "@shm/shared";
 import {Container} from "@shm/ui/src/container";
 import {BannerNewspaperCard, NewspaperCard} from "@shm/ui/src/newspaper";
+import {SiteNavigationContent} from "@shm/ui/src/site-navigation";
 import {XStack, YStack} from "@tamagui/stacks";
+import {useCallback} from "react";
 import {SiteDocumentPayload} from "./loaders";
 import {PageFooter} from "./page-footer";
 import {SiteHeader} from "./page-header";
@@ -41,6 +43,18 @@ export function NewspaperPage(props: SiteDocumentPayload) {
   const firstItem = sortedItems[0];
   const restItems = sortedItems.slice(1);
 
+  const onActivateBlock = useCallback((blockId: string) => {
+    const targetElement = window.document.querySelector(`#${blockId}`);
+
+    if (targetElement) {
+      const offset = 80; // header fixed height
+      const elementPosition = targetElement.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.scrollY - offset;
+      window.scrollTo({top: offsetPosition, behavior: "smooth"});
+      // onClose?.();
+    }
+  }, []);
+
   return (
     <>
       <YStack marginBottom={300}>
@@ -50,9 +64,18 @@ export function NewspaperPage(props: SiteDocumentPayload) {
           docMetadata={document.metadata}
           docId={id}
           breadcrumbs={props.breadcrumbs}
-          supportQueries={supportQueries}
+          supportQueries={props.supportQueries}
           mobileSearchUI={<MobileSearchUI homeId={homeId} />}
-        />
+          isWeb
+        >
+          <SiteNavigationContent
+            supportDocuments={props.supportDocuments}
+            supportQueries={props.supportQueries}
+            document={document}
+            id={id}
+            onActivateBlock={onActivateBlock}
+          />
+        </SiteHeader>
         <Container
           clearVerticalSpace
           maxWidth={1000}

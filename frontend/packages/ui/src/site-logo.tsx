@@ -4,6 +4,7 @@ import {
   UnpackedHypermediaId,
   useRouteLink,
 } from "@shm/shared";
+import {View} from "@tamagui/core";
 import {XStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import {HMIcon} from "./hm-icon";
@@ -31,11 +32,24 @@ export function SiteLogo({
     );
   }
   return (
-    <XStack {...homeLinkProps}>
+    <View
+      {...homeLinkProps}
+      flex={1}
+      ai="center"
+      jc="center"
+      gap="$2"
+      flexDirection="column"
+      $gtSm={{flexDirection: "row"}}
+    >
       <HMIcon size={24} id={id} metadata={metadata} />
-      <SizableText size="$4" fontWeight="bold">
+      <SizableText
+        size="$4"
+        fontWeight="bold"
+        textAlign="center"
+        $gtSm={{textAlign: "left"}}
+      >
         {metadata?.name}
       </SizableText>
-    </XStack>
+    </View>
   );
 }
