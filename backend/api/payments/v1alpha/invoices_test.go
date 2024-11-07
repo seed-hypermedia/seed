@@ -43,7 +43,7 @@ func TestRequestLndHubInvoice(t *testing.T) {
 	login, err := bobKp.Sign([]byte(lndhub.SigningMessage))
 	require.NoError(t, err)
 
-	uri := "lndhub.go://" + core.PrincipalFromPubKey(bobPk).String() + ":" + hex.EncodeToString(login) + "@https://ln.testnet.mintter.com"
+	uri := "lndhub.go://" + core.PrincipalFromPubKey(bobPk).String() + ":" + hex.EncodeToString(login) + "@https://ln.testnet.seed.hyper.media"
 	bobsWallet, err := bob.ImportWallet(ctx, &payments.ImportWalletRequest{CredentialsUrl: uri, Account: core.PrincipalFromPubKey(bobPk).String(), Name: "default"})
 	require.NoError(t, err)
 

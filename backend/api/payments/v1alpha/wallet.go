@@ -53,12 +53,12 @@ type Credentials struct {
 
 // NewServer is the constructor of the wallet service.
 func NewServer(log *zap.Logger, db *sqlitex.Pool, net *mttnet.Node, ks core.KeyStore, mainnet bool) *Server {
-	lndhubDomain := "ln.testnet.mintter.com"
-	lnaddressDomain := "ln.testnet.mintter.com"
+	lndhubDomain := "ln.testnet.seed.hyper.media"
+	lnaddressDomain := "ln.testnet.seed.hyper.media"
 	if mainnet {
 		//lndhubDomain is the domain for internal lndhub calls.
-		lndhubDomain = "ln.mintter.com"
-		lnaddressDomain = "ln.mintter.com"
+		lndhubDomain = "ln.seed.hyper.media"
+		lnaddressDomain = "ln.seed.hyper.media"
 	}
 	srv := &Server{
 		pool: db,
@@ -214,9 +214,6 @@ func (srv *Server) ImportWallet(ctx context.Context, in *payments.ImportWalletRe
 		return ret, fmt.Errorf("Wrong account %s: %w", in.Account, err)
 	}
 	_, bynaryAcc := principal.Explode()
-	if err != nil {
-		return ret, fmt.Errorf("Problem getting bytes from public key %s: %w", principal.String(), err)
-	}
 	ret.Id = URL2Id(in.CredentialsUrl, in.Account)
 
 	conn, release, err := srv.pool.Conn(ctx)
@@ -227,7 +224,12 @@ func (srv *Server) ImportWallet(ctx context.Context, in *payments.ImportWalletRe
 
 	ret.Type = creds.WalletType
 	ret.Address = "https://" + creds.Domain
-	ret.Name = in.Name
+
+	if in.Name == "" {
+		ret.Name = in.Account
+	} else {
+		ret.Name = in.Name
+	}
 	ret.Account = in.Account
 	if creds.WalletType == lndhubsql.LndhubGoWalletType {
 		// Only one lndhub.go wallet is allowed

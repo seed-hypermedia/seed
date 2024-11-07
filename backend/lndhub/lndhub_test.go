@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	lndhubDomain    = "ln.testnet.mintter.com"
-	lnaddressDomain = "ln.testnet.mintter.com"
+	lndhubDomain    = "ln.testnet.seed.hyper.media"
+	lnaddressDomain = "ln.testnet.seed.hyper.media"
 	connectionURL   = "https://" + lndhubDomain
 )
 
@@ -90,11 +90,11 @@ func TestCreate(t *testing.T) {
 	require.EqualValues(t, invoiceAmt, uint64(decodedInvoice.MilliSat.ToSatoshis()))
 
 	const invoiceMemo2 = "zero invoice test amount"
-	_, err = lndHubClient.RequestLud6Invoice(ctx, "https://ln.testnet.mintter.com", newNickname, 0, invoiceMemo2)
+	_, err = lndHubClient.RequestLud6Invoice(ctx, "https://ln.testnet.seed.hyper.media", newNickname, 0, invoiceMemo2)
 	require.Error(t, err)
 	const invoiceMemo3 = "non-zero invoice test amount"
 	const amt = 233
-	payreq, err = lndHubClient.RequestLud6Invoice(ctx, "https://ln.testnet.mintter.com", newNickname, amt, invoiceMemo3)
+	payreq, err = lndHubClient.RequestLud6Invoice(ctx, "https://ln.testnet.seed.hyper.media", newNickname, amt, invoiceMemo3)
 	require.NoError(t, err)
 	decodedInvoice, err = DecodeInvoice(payreq)
 	require.NoError(t, err)

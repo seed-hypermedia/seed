@@ -38,7 +38,7 @@ const (
 	getReceivedInvoicesRoute = "/v2/invoices/incoming"
 
 	// SigningMessage is the fixed message to sign. The server must have the same message.
-	SigningMessage = "sign in into mintter lndhub"
+	SigningMessage = "sign in into seed lndhub"
 )
 
 type httpRequest struct {
@@ -125,7 +125,7 @@ func (c *Client) GetLndaddressDomain() string {
 }
 
 // Create creates an account or changes the nickname on already created one. If the login is a CID, then the password must
-// be the signature of the message 'sign in into mintter lndhub' and the token the pubkey whose private counterpart
+// be the signature of the message 'sign in into seed lndhub' and the token the pubkey whose private counterpart
 // was used to sign the password. If login is not a CID, then there is no need for the token and password can be
 // anything. Nickname can be anything in both cases as long as it's unique across all seed lndhub users (it will
 // fail otherwise).
