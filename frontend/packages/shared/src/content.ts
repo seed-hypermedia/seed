@@ -5,6 +5,7 @@ import {
   HMDocumentListItem,
   HMMetadata,
 } from './hm-types'
+import {UnpackedHypermediaId, unpackHmId} from './utils'
 
 // HMBlockNodes are recursive values. we want the output to have the same shape, but limit the total number of blocks
 // the first blocks will be included up until the totalBlock value is reached
@@ -84,4 +85,34 @@ function createTimeSort(
 
 function createTimeOfEntry(entry: {createTime?: PlainMessage<Timestamp>}) {
   return entry.createTime?.seconds ? Number(entry.createTime?.seconds) : 0
+}
+
+export type RefDefinition = {
+  blockId: string
+  link: string
+  refId: UnpackedHypermediaId
+}
+
+export function extractRefs(
+  children: HMBlockNode[],
+  skipCards?: boolean,
+): RefDefinition[] {
+  let refs: RefDefinition[] = []
+  function extractRefsFromBlock(block: HMBlockNode) {
+    if (block.block?.type === 'Embed' && block.block.link) {
+      if (block.block.attributes?.view === 'Card' && skipCards) return
+      const refId = unpackHmId(block.block.link)
+      if (refId)
+        refs.push({
+          blockId: block.block.id,
+          link: block.block.link,
+          refId,
+        })
+    }
+    if (block.children) {
+      block.children.forEach(extractRefsFromBlock)
+    }
+  }
+  children.forEach(extractRefsFromBlock)
+  return refs
 }

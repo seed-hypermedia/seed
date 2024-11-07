@@ -1,5 +1,6 @@
 import {toPlainMessage} from "@bufbuild/protobuf";
 import {
+  extractRefs,
   getParentPaths,
   HMDocument,
   HMDocumentListItem,
@@ -106,7 +107,15 @@ export async function getBaseDocument(
     })
   );
 
-  let supportDocuments: {id: UnpackedHypermediaId; document: HMDocument}[] = [];
+  let supportDocuments: {id: UnpackedHypermediaId; document: HMDocument}[] = (
+    await Promise.all(
+      extractRefs(document.content).map(async (ref) => {
+        const doc = await getHMDocument(ref.refId);
+        if (!doc) return null;
+        return {document: doc, id: ref.refId};
+      })
+    )
+  ).filter((doc) => !!doc);
   let supportQueries: {
     in: UnpackedHypermediaId;
     results: HMDocumentListItem[];

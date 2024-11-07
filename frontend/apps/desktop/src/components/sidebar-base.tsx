@@ -1,19 +1,8 @@
 import {useAppContext} from '@/app-context'
-import {EmbedsContent} from '@/models/documents'
 import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
 import {useNavigate} from '@/utils/useNavigate'
-import {NavRoute, UnpackedHypermediaId} from '@shm/shared'
-import {
-  Button,
-  FocusButton,
-  Separator,
-  Tooltip,
-  useStream,
-  View,
-  XStack,
-  YStack,
-} from '@shm/ui'
-import {SmallListGroupItem} from '@shm/ui/src'
+import {UnpackedHypermediaId} from '@shm/shared'
+import {Button, Separator, Tooltip, useStream, XStack, YStack} from '@shm/ui'
 import {Hash, Settings} from '@tamagui/lucide-icons'
 import {ComponentProps, FC, ReactNode, useEffect, useState} from 'react'
 
@@ -158,87 +147,6 @@ type DocOutlineSection = {
   parentBlockId?: string
   children?: DocOutlineSection[]
   icon?: FC<ComponentProps<typeof Hash>>
-}
-
-export function activeDocOutline(
-  outline: DocOutlineSection[],
-  activeBlock: string | null | undefined,
-  focusBlock: string | null | undefined,
-  embeds: EmbedsContent,
-  onBlockSelect: (
-    blockId: string,
-    entityId: UnpackedHypermediaId | undefined,
-    parentBlockId: string | undefined,
-  ) => void,
-  onBlockFocus: (
-    blockId: string,
-    entityId: UnpackedHypermediaId | undefined,
-    parentBlockId: string | undefined,
-  ) => void,
-  onNavigate: (route: NavRoute) => void,
-  level = 0,
-): {
-  outlineContent: ReactNode[]
-  isBlockActive: boolean
-  isBlockFocused: boolean
-} {
-  let isBlockActive = false
-  let isBlockFocused = false
-  const outlineContent = outline.map((item) => {
-    const childrenOutline = item.children
-      ? activeDocOutline(
-          item.children,
-          activeBlock,
-          focusBlock,
-          embeds,
-          onBlockSelect,
-          onBlockFocus,
-          onNavigate,
-          level + 1,
-        )
-      : null
-    if (childrenOutline?.isBlockActive) {
-      isBlockActive = true
-    } else if (item.id === activeBlock) {
-      isBlockActive = true
-    }
-    if (childrenOutline?.isBlockFocused) {
-      isBlockFocused = true
-    } else if (item.id === focusBlock) {
-      isBlockFocused = true
-    }
-    return (
-      <SmallListGroupItem
-        onPress={() => {
-          onBlockSelect(item.id, item.entityId, item.parentBlockId)
-        }}
-        active={item.id === activeBlock || item.id === focusBlock}
-        activeBgColor={item.id === activeBlock ? '$brand12' : undefined}
-        icon={
-          <View width={16}>
-            {item.icon ? (
-              <item.icon color="$color9" size={16} />
-            ) : (
-              <Hash color="$color9" size={16} />
-            )}
-          </View>
-        }
-        title={item.title || 'Untitled Heading'}
-        indented={2 + level}
-        items={childrenOutline?.outlineContent || []}
-        rightHover={[
-          <FocusButton
-            key="focus"
-            onPress={() => {
-              onBlockFocus(item.id, item.entityId, item.parentBlockId)
-            }}
-          />,
-        ]}
-        defaultExpanded
-      />
-    )
-  })
-  return {outlineContent, isBlockActive, isBlockFocused}
 }
 
 export function SidebarDivider() {

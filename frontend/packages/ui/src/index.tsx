@@ -36,6 +36,7 @@ export * from "./radio-option-section";
 export * from "./resize-handle";
 export {Section} from "./section";
 export * from "./select-dropdown";
+export * from "./site-navigation";
 export * from "./step-wrapper";
 export * from "./table-list";
 export * from "./titlebar";

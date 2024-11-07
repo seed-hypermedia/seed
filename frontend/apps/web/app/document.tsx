@@ -21,6 +21,7 @@ import {
   DocContentProvider,
 } from "@shm/ui/src/document-content";
 import {EmptyDiscussion} from "@shm/ui/src/icons";
+import {SiteNavigationContent} from "@shm/ui/src/site-navigation";
 import {Text} from "@tamagui/core";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
@@ -35,7 +36,6 @@ import {PageHeader, SiteHeader} from "./page-header";
 import type {DirectoryPayload} from "./routes/hm.api.directory";
 import {DiscussionPayload} from "./routes/hm.api.discussion";
 import {MobileSearchUI} from "./search";
-import {SiteNavigation} from "./site-navigation";
 import {EmbedDocument, EmbedInline} from "./web-embeds";
 import {unwrap, Wrapped} from "./wrapping";
 
@@ -99,6 +99,17 @@ export function DocumentPage(props: SiteDocumentPayload) {
       </SiteRoutingProvider>
     );
   }
+  const onActivateBlock = useCallback((blockId: string) => {
+    const targetElement = window.document.querySelector(`#${blockId}`);
+
+    if (targetElement) {
+      const offset = 80; // header fixed height
+      const elementPosition = targetElement.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.scrollY - offset;
+      window.scrollTo({top: offsetPosition, behavior: "smooth"});
+      // onClose?.();
+    }
+  }, []);
   return (
     <SiteRoutingProvider homeId={props.homeId}>
       <YStack>
@@ -112,11 +123,12 @@ export function DocumentPage(props: SiteDocumentPayload) {
           mobileSearchUI={<MobileSearchUI homeId={homeId} />}
           isWeb
         >
-          <SiteNavigation
+          <SiteNavigationContent
             supportDocuments={props.supportDocuments}
             supportQueries={props.supportQueries}
             document={document}
             id={id}
+            onActivateBlock={onActivateBlock}
           />
         </SiteHeader>
 
@@ -127,11 +139,12 @@ export function DocumentPage(props: SiteDocumentPayload) {
             $gtSm={{marginTop: 124}}
             className="document-aside"
           >
-            <SiteNavigation
+            <SiteNavigationContent
               supportDocuments={props.supportDocuments}
               supportQueries={props.supportQueries}
               document={document}
               id={id}
+              onActivateBlock={onActivateBlock}
             />
           </YStack>
 

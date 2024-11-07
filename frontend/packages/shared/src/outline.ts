@@ -1,4 +1,4 @@
-import {HMBlockNode, HMDraft} from '.'
+import {getMetadataName, HMBlockNode, HMDraft, HMEntityContent} from '.'
 import {UnpackedHypermediaId, unpackHmId} from './utils'
 
 type IconDefinition = React.FC<{size: any; color: any}>
@@ -7,7 +7,6 @@ export type NodeOutline = {
   title?: string
   id: string
   entityId?: UnpackedHypermediaId
-  embedId?: UnpackedHypermediaId
   parentBlockId?: string
   children?: NodeOutline[]
   icon?: IconDefinition
@@ -16,8 +15,8 @@ export type NodesOutline = NodeOutline[]
 
 export function getNodesOutline(
   children: HMBlockNode[],
-  parentEntityId?: UnpackedHypermediaId,
-  parentBlockId?: string,
+  entityId?: UnpackedHypermediaId,
+  embeds?: HMEntityContent[],
 ): NodesOutline {
   const outline: NodesOutline = []
   children.forEach((child) => {
@@ -25,11 +24,9 @@ export function getNodesOutline(
       outline.push({
         id: child.block.id,
         title: child.block.text,
-        entityId: parentEntityId,
-        parentBlockId,
+        entityId: entityId,
         children:
-          child.children &&
-          getNodesOutline(child.children, parentEntityId, parentBlockId),
+          child.children && getNodesOutline(child.children, entityId, embeds),
       })
     } else if (
       child.block.type === 'Embed' &&
@@ -37,18 +34,58 @@ export function getNodesOutline(
     ) {
       const embedId = unpackHmId(child.block.link)
       if (embedId) {
-        outline.push({
-          id: child.block.id,
-          embedId,
-        })
+        const embedEntity = embeds?.find((e) => e.id.id === embedId.id)
+        console.log('~~ outline embedId', embedId, embedEntity)
+        if (embedId.blockRef && embedEntity?.document?.content) {
+          const embedBn = findContentBlock(
+            embedEntity.document.content,
+            embedId.blockRef,
+          )
+          console.log('~~ outline embedBn', embedBn)
+          if (embedBn && embedBn.block.type === 'Heading') {
+            outline.push({
+              id: embedBn.block.id,
+              title: embedBn.block.text,
+              entityId: embedId,
+              children: embedBn.children
+                ? getNodesOutline(embedBn.children, embedId, embeds)
+                : [],
+            })
+          }
+        } else {
+          console.log({embedEntity})
+          outline.push({
+            id: child.block.id,
+            title: getMetadataName(embedEntity?.document?.metadata),
+            children: embedEntity?.document?.content
+              ? getNodesOutline(embedEntity?.document?.content, embedId, embeds)
+              : [],
+          })
+        }
       }
     } else if (child.children) {
-      outline.push(
-        ...getNodesOutline(child.children, parentEntityId, parentBlockId),
-      )
+      outline.push(...getNodesOutline(child.children, entityId, embeds))
     }
   })
   return outline
+}
+
+function findContentBlock(
+  content: HMBlockNode[],
+  blockRef: string,
+): HMBlockNode | null {
+  let block: HMBlockNode | null = null
+  content.find((node) => {
+    if (node.block.id === blockRef) {
+      block = node
+      return true
+    } else if (node.children) {
+      block = findContentBlock(node.children, blockRef)
+      return !!block
+    }
+    return false
+  })
+  return block
 }
 
 export function getDraftNodesOutline(

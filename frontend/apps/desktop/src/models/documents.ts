@@ -15,11 +15,13 @@ import {
   HMBlockNode,
   HMDocument,
   HMDocumentListItem,
+  HMDocumentSchema,
   HMDraft,
   HMEntityContent,
   UnpackedHypermediaId,
   editorBlockToHMBlock,
   eventStream,
+  extractRefs,
   hmBlockToEditorBlock,
   hmBlocksToEditorContent,
   hmId,
@@ -94,45 +96,7 @@ export function useDeleteDraft(
   return deleteDraft
 }
 
-type ListedEmbed = {
-  blockId: string
-  link: string
-  refId: UnpackedHypermediaId
-}
-
-function extractRefs(
-  children: HMBlockNode[],
-  skipCards?: boolean,
-): ListedEmbed[] {
-  let refs: ListedEmbed[] = []
-  function extractRefsFromBlock(block: HMBlockNode) {
-    if (block.block?.type === 'Embed' && block.block.link) {
-      if (block.block.attributes?.view === 'Card' && skipCards) return
-      const refId = unpackHmId(block.block.link)
-      if (refId)
-        refs.push({
-          blockId: block.block.id,
-          link: block.block.link,
-          refId,
-        })
-    }
-    if (block.children) {
-      block.children.forEach(extractRefsFromBlock)
-    }
-  }
-  children.forEach(extractRefsFromBlock)
-  return refs
-}
-
-export type EmbedsContent = Record<
-  string,
-  | {
-      type: 'd'
-      data: HMDocument
-      query: {refId: UnpackedHypermediaId; blockId: string}
-    }
-  | undefined
->
+export type EmbedsContent = HMEntityContent[]
 
 export function useDocumentEmbeds(
   doc: HMDocument | undefined | null,
@@ -144,11 +108,11 @@ export function useDocumentEmbeds(
     return extractRefs(doc?.content || [], opts?.skipCards)
   }, [doc, enabled])
   const entities = useEntities(docRefs.map((r) => r.refId))
-  return docRefs.map((query, i) => {
-    const entity = entities[i]
-
-    return {query, type: query.refId.type}
-  })
+  return entities
+    .map((entity) => {
+      return entity.data
+    })
+    .filter((e) => !!e)
 }
 
 // TODO: Duplicate (apps/site/server/routers/_app.ts#~187)
@@ -843,11 +807,12 @@ export function usePublishToSite() {
     id: UnpackedHypermediaId,
     siteHost?: string,
   ): Promise<boolean> => {
-    const doc = await grpcClient.documents.getDocument({
+    const apiDoc = await grpcClient.documents.getDocument({
       account: id.uid,
       path: hmIdPathToEntityQueryPath(id.path),
       version: id.version || undefined,
     })
+    const doc = HMDocumentSchema.parse(toPlainMessage(apiDoc))
     const authors = new Set(doc.authors)
     await connectPeer.mutateAsync(siteHost)
     const parentPaths = getParentPaths(id.path)

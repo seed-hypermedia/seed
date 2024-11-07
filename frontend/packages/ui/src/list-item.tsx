@@ -47,7 +47,6 @@ export function SmallCollapsableListItem({
   return (
     <>
       <SmallListItem
-        collapsable
         isCollapsed={isCollapsed}
         onSetCollapsed={setIsCollapsed}
         {...props}
@@ -163,6 +162,7 @@ export function SmallListItem({
             backgroundColor={"$colorTransparent"}
             onPress={(e: GestureResponderEvent) => {
               e.stopPropagation();
+              e.preventDefault();
               onSetCollapsed?.(!isCollapsed);
             }}
             icon={isCollapsed ? ChevronRight : ChevronDown}
