@@ -40,11 +40,12 @@ import {
   YStack,
 } from '@shm/ui'
 import {Fragment} from '@tiptap/pm/model'
-import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react'
+import {useCallback, useEffect, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {GestureResponderEvent} from 'react-native'
-import {Block, BlockNoteEditor, HMBlockSchema} from '.'
+import {Block, BlockNoteEditor, HMBlockSchema, SwitcherItem} from '.'
 import {createReactBlockSpec} from './blocknote/react'
+import {LauncherItem} from './launcher-item'
 import {MediaContainer} from './media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
 
@@ -510,13 +511,6 @@ function EmbedControl({
   )
 }
 
-type SwitcherItem = {
-  key: string
-  title: string
-  subtitle?: string
-  onSelect: () => void
-}
-
 const EmbedLauncherInput = ({
   editor,
   assign,
@@ -679,47 +673,5 @@ const EmbedLauncherInput = ({
 
       {content}
     </YStack>
-  )
-}
-
-function LauncherItem({
-  item,
-  selected = false,
-  onFocus,
-  onMouseEnter,
-}: {
-  item: SwitcherItem
-  selected: boolean
-  onFocus: any
-  onMouseEnter: any
-}) {
-  const elm = useRef<HTMLDivElement>(null)
-
-  useLayoutEffect(() => {
-    if (selected) {
-      elm.current?.scrollIntoView({block: 'nearest'})
-    }
-  }, [selected])
-
-  return (
-    <Button
-      ref={elm}
-      key={item.key}
-      onPress={() => {
-        item.onSelect()
-      }}
-      backgroundColor={selected ? '$brand4' : undefined}
-      hoverStyle={{
-        backgroundColor: selected ? '$brand4' : undefined,
-      }}
-      onFocus={onFocus}
-      onMouseEnter={onMouseEnter}
-    >
-      <XStack f={1} justifyContent="space-between">
-        <SizableText numberOfLines={1}>{item.title}</SizableText>
-
-        <SizableText color="$color10">{item.subtitle}</SizableText>
-      </XStack>
-    </Button>
   )
 }
