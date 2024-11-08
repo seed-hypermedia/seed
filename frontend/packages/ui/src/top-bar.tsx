@@ -8,7 +8,7 @@ import {
 } from "@shm/shared";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
-import {useEffect, useState} from "react";
+import React, {useEffect, useState} from "react";
 import {Button} from "./button";
 import {Close, Menu} from "./icons";
 import {SiteLogo} from "./site-logo";
@@ -32,7 +32,7 @@ export function NewsSiteHeader({
   docId: UnpackedHypermediaId | null;
   afterLinksContent?: React.ReactNode;
   searchUI?: React.ReactNode;
-  children: React.JSX.Element;
+  children?: React.ReactNode;
   mobileSearchUI?: React.ReactNode;
   isWeb?: boolean;
 }) {

@@ -237,6 +237,7 @@ function _MainDocumentPage({
           <DocPageHeader docId={id} isBlockFocused={isBlockFocused} />
           <YStack flex={1}>
             <DocPageContent
+              blockRef={id.blockRef}
               entity={entity.data}
               isBlockFocused={isBlockFocused}
             />
@@ -564,26 +565,27 @@ function DocumentCover({docId}: {docId: UnpackedHypermediaId}) {
 function DocPageContent({
   entity,
   isBlockFocused,
+  blockRef,
 }: {
   entity: HMEntityContent
   blockId?: string
   isBlockFocused: boolean
+  blockRef?: string | null | undefined
 }) {
   if (entity.document!.metadata.layout === 'Seed/Experimental/Newspaper') {
     return (
       <NewspaperLayout id={entity.id} metadata={entity.document!.metadata} />
     )
   }
-  const blockId = entity.id.blockRef
   return (
     <AppDocContentProvider
-      routeParams={{blockRef: blockId || undefined}}
+      routeParams={{blockRef: blockRef || undefined}}
       docId={entity.id}
       isBlockFocused={isBlockFocused}
     >
       <DocContent
         document={entity.document!}
-        focusBlockId={isBlockFocused ? blockId || undefined : undefined}
+        focusBlockId={isBlockFocused ? blockRef || undefined : undefined}
       />
     </AppDocContentProvider>
   )
