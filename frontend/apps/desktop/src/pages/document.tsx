@@ -23,7 +23,7 @@ import {
   DocAccessoryOption,
   formattedDateLong,
   formattedDateMedium,
-  getAccountName,
+  getDocumentTitle,
   getFileUrl,
   HMEntityContent,
   hmId,
@@ -309,7 +309,6 @@ function DocPageHeader({
   isBlockFocused: boolean
 }) {
   const entity = useSubscribedEntity(docId)
-  const accountName = getAccountName(entity.data?.document)
   const hasCover = useMemo(
     () => !!entity.data?.document?.metadata.cover,
     [entity.data],
@@ -355,7 +354,7 @@ function DocPageHeader({
               f={1}
               style={{fontWeight: 'bold', wordBreak: 'break-word'}}
             >
-              {accountName}
+              {getDocumentTitle(entity.data?.document)}
             </H1>
           </XStack>
           <YStack gap="$2">

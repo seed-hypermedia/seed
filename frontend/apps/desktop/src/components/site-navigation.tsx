@@ -1,3 +1,4 @@
+import {focusDraftBlock} from '@/draft-focusing'
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {
@@ -8,22 +9,20 @@ import {
 import {useEntity} from '@/models/entities'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {hmId, NodesOutline} from '@shm/shared'
+import {hmId} from '@shm/shared'
 import {SiteNavigationPlaceholder} from '@shm/shared/src/site-navigation'
 import {
-  FocusButton,
+  DocumentOutline,
+  DraftOutline,
   Popover,
   SiteNavigationContent,
-  SiteNavigationOutline,
-  SmallListGroupItem,
   SmallListItem,
   useMedia,
   usePopoverState,
-  View,
   XStack,
 } from '@shm/ui'
-import {Hash, MoreHorizontal, Plus} from '@tamagui/lucide-icons'
-import {memo, ReactNode} from 'react'
+import {MoreHorizontal, Plus} from '@tamagui/lucide-icons'
+import {ReactNode} from 'react'
 import {Button} from 'tamagui'
 import {ImportDropdownButton} from './import-doc-button'
 
@@ -56,12 +55,8 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
     throw new Error('SiteNavigation only supports document route')
   const {id} = route
   const entity = useEntity(id)
-
   const navigate = useNavigate()
   const document = entity.data?.document
-  const isTopLevel = !id.path || id.path?.length == 0
-
-  const documentIndent = isTopLevel ? 0 : 1
   const createDraft = useCreateDraft(id)
   const capability = useMyCapability(id)
   const siteList = useListSite(id)
@@ -69,17 +64,17 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
     ? {in: hmId('d', id.uid), results: siteList.data}
     : null
   const embeds = useDocumentEmbeds(document)
-  let createDirItem: null | ReactNode = null
 
+  let createDirItem: null | ((opts: {indented: number}) => ReactNode) = null
   if (roleCanWrite(capability?.role)) {
-    createDirItem = (
+    createDirItem = ({indented}) => (
       <XStack>
         <SmallListItem
           icon={Plus}
           title="Create Document"
           onPress={createDraft}
           color="$green10"
-          indented={documentIndent + 1}
+          indented={indented}
         />
         <ImportDropdownButton
           id={id}
@@ -107,8 +102,8 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
       supportQueries={[siteListQuery]}
       createDirItem={createDirItem}
       onPress={onPress}
-      outline={
-        <SiteNavigationOutline
+      outline={({indented}) => (
+        <DocumentOutline
           onActivateBlock={(blockId) => {
             onPress?.()
             navigate({
@@ -120,9 +115,9 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
           id={id}
           supportDocuments={embeds}
           activeBlockId={id.blockRef}
-          indented={1}
+          indented={indented}
         />
-      }
+      )}
     />
   )
 }
@@ -144,78 +139,28 @@ export function SiteNavigationDraftLoader() {
     : null
   const embeds = useDocumentEmbeds(document)
 
-  if (!document || !siteListQuery) return null
+  if (!document || !siteListQuery || !metadata) return null
 
   return (
     <SiteNavigationContent
-      // document={document}
       documentMetadata={metadata}
       id={id}
       supportDocuments={embeds}
       supportQueries={[siteListQuery]}
-      outline={null}
-      // onActivateBlock={(blockId) => {
-      //   // todo!
-      // }}
+      outline={({indented}) =>
+        draftQuery.data ? (
+          <DraftOutline
+            indented={indented}
+            onActivateBlock={(blockId: string) => {
+              focusDraftBlock(id.id, blockId)
+            }}
+            draft={draftQuery.data}
+            id={id}
+            supportDocuments={embeds}
+            onPress={() => {}}
+          />
+        ) : null
+      }
     />
   )
 }
-
-function _DraftOutline({
-  activeBlock,
-  onActivateBlock,
-  onFocusBlock,
-  indented = 0,
-  outline,
-}: {
-  activeBlock?: string
-  onActivateBlock: (blockId: string) => void
-  onFocusBlock: ((blockId: string) => void) | null
-  indented?: number
-  outline: NodesOutline
-}) {
-  function getOutline(outlineNodes: NodesOutline, level = 0): ReactNode[] {
-    const outlineContent = outlineNodes.map((item) => {
-      const childrenOutline = item.children
-        ? getOutline(item.children, level + 1)
-        : null
-      return (
-        <SmallListGroupItem
-          key={item.id}
-          onPress={() => {
-            onActivateBlock(item.id)
-          }}
-          active={item.id === activeBlock}
-          activeBgColor={item.id === activeBlock ? '$brand12' : undefined}
-          icon={
-            <View width={16}>
-              {item.icon ? (
-                <item.icon color="$color9" size={16} />
-              ) : (
-                <Hash color="$color9" size={16} />
-              )}
-            </View>
-          }
-          title={item.title || 'Untitled Heading'}
-          indented={1 + level}
-          items={childrenOutline || []}
-          rightHover={[
-            onFocusBlock ? (
-              <FocusButton
-                key="focus"
-                onPress={() => {
-                  onFocusBlock(item.id)
-                }}
-              />
-            ) : null,
-          ]}
-          defaultExpanded
-        />
-      )
-    })
-    return outlineContent
-  }
-
-  return getOutline(outline, indented)
-}
-const DraftOutline = memo(_DraftOutline)

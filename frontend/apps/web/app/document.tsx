@@ -29,8 +29,8 @@ import {HMIcon} from "@shm/ui/src/hm-icon";
 import {EmptyDiscussion} from "@shm/ui/src/icons";
 import {SmallListItem} from "@shm/ui/src/list-item";
 import {
+  DocumentOutline,
   SiteNavigationContent,
-  SiteNavigationOutline,
 } from "@shm/ui/src/site-navigation";
 import {Button} from "@tamagui/button";
 import {GestureReponderEvent, Text} from "@tamagui/core";
@@ -129,16 +129,16 @@ export function DocumentPage(props: SiteDocumentPayload) {
       supportQueries={props.supportQueries}
       documentMetadata={document.metadata}
       id={id}
-      outline={
-        <SiteNavigationOutline
+      outline={({indented}) => (
+        <DocumentOutline
           onActivateBlock={onActivateBlock}
           document={document}
           id={id}
           supportDocuments={props.supportDocuments}
           activeBlockId={id.blockRef}
-          indented={1}
+          indented={indented}
         />
-      }
+      )}
     />
   );
   return (
