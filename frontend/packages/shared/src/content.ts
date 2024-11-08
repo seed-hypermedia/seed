@@ -50,8 +50,11 @@ export function getMetadataName(metadata?: HMDocument['metadata'] | null) {
   return metadata?.name || 'Untitled Document'
 }
 
-export function getAccountName(profile: HMDocument | null | undefined) {
-  return profile?.metadata?.name || profile?.account
+export function getAccountName(document: HMDocument | null | undefined) {
+  if (!document) return ''
+  if (document.metadata.name) return document.metadata.name
+  if (document.account) return `${document.account.slice(0, -6)}`
+  return '?'
 }
 
 export function sortNewsEntries(

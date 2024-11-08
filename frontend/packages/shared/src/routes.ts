@@ -96,7 +96,7 @@ export type DocumentRoute = z.infer<typeof documentRouteSchema>
 
 export const draftRouteSchema = z.object({
   key: z.literal('draft'),
-  id: unpackedHmIdSchema.optional(),
+  id: unpackedHmIdSchema,
   new: z.boolean().optional(),
   accessory: z
     .discriminatedUnion('key', [

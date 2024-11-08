@@ -28,7 +28,10 @@ import {
 import {HMIcon} from "@shm/ui/src/hm-icon";
 import {EmptyDiscussion} from "@shm/ui/src/icons";
 import {SmallListItem} from "@shm/ui/src/list-item";
-import {SiteNavigationContent} from "@shm/ui/src/site-navigation";
+import {
+  DocumentOutline,
+  SiteNavigationContent,
+} from "@shm/ui/src/site-navigation";
 import {Button} from "@tamagui/button";
 import {GestureReponderEvent, Text} from "@tamagui/core";
 import {X} from "@tamagui/lucide-icons";
@@ -120,6 +123,24 @@ export function DocumentPage(props: SiteDocumentPayload) {
       // onClose?.();
     }
   }, []);
+  const siteNavigation = (
+    <SiteNavigationContent
+      supportDocuments={props.supportDocuments}
+      supportQueries={props.supportQueries}
+      documentMetadata={document.metadata}
+      id={id}
+      outline={({indented}) => (
+        <DocumentOutline
+          onActivateBlock={onActivateBlock}
+          document={document}
+          id={id}
+          supportDocuments={props.supportDocuments}
+          activeBlockId={id.blockRef}
+          indented={indented}
+        />
+      )}
+    />
+  );
   return (
     <SiteRoutingProvider homeId={props.homeId}>
       <YStack>
@@ -133,13 +154,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
           mobileSearchUI={<MobileSearchUI homeId={homeId} />}
           isWeb
         >
-          <SiteNavigationContent
-            supportDocuments={props.supportDocuments}
-            supportQueries={props.supportQueries}
-            document={document}
-            id={id}
-            onActivateBlock={onActivateBlock}
-          />
+          {siteNavigation}
         </SiteHeader>
 
         <DocumentCover cover={document.metadata.cover} id={id} />
@@ -149,13 +164,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
             $gtSm={{marginTop: 124}}
             className="document-aside"
           >
-            <SiteNavigationContent
-              supportDocuments={props.supportDocuments}
-              supportQueries={props.supportQueries}
-              document={document}
-              id={id}
-              onActivateBlock={onActivateBlock}
-            />
+            {siteNavigation}
           </YStack>
 
           <YStack>

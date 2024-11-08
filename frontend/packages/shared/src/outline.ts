@@ -32,41 +32,53 @@ export function getNodesOutline(
       child.block.type === 'Embed' &&
       child.block.attributes?.view !== 'Card'
     ) {
-      const embedId = unpackHmId(child.block.link)
-      if (embedId) {
-        const embedEntity = embeds?.find((e) => e.id.id === embedId.id)
-        console.log('~~ outline embedId', embedId, embedEntity)
-        if (embedId.blockRef && embedEntity?.document?.content) {
-          const embedBn = findContentBlock(
-            embedEntity.document.content,
-            embedId.blockRef,
-          )
-          console.log('~~ outline embedBn', embedBn)
-          if (embedBn && embedBn.block.type === 'Heading') {
-            outline.push({
-              id: embedBn.block.id,
-              title: embedBn.block.text,
-              entityId: embedId,
-              children: embedBn.children
-                ? getNodesOutline(embedBn.children, embedId, embeds)
-                : [],
-            })
-          }
-        } else {
-          console.log({embedEntity})
-          outline.push({
-            id: child.block.id,
-            title: getMetadataName(embedEntity?.document?.metadata),
-            children: embedEntity?.document?.content
-              ? getNodesOutline(embedEntity?.document?.content, embedId, embeds)
-              : [],
-          })
-        }
-      }
+      outline.push(...getEmbedOutline(child.block.id, child.block.link, embeds))
     } else if (child.children) {
       outline.push(...getNodesOutline(child.children, entityId, embeds))
     }
   })
+  return outline
+}
+
+function getEmbedOutline(
+  blockId: string,
+  link: string,
+  embedEntities?: HMEntityContent[],
+): NodesOutline {
+  const outline: NodesOutline = []
+  const embedId = unpackHmId(link)
+  if (embedId) {
+    const embedEntity = embedEntities?.find((e) => e.id.id === embedId.id)
+    if (embedId.blockRef && embedEntity?.document?.content) {
+      const embedBn = findContentBlock(
+        embedEntity.document.content,
+        embedId.blockRef,
+      )
+      if (embedBn && embedBn.block.type === 'Heading') {
+        outline.push({
+          id: blockId,
+          title: embedBn.block.text,
+          entityId: embedId,
+          children: embedBn.children
+            ? getNodesOutline(embedBn.children, embedId, embedEntities)
+            : [],
+        })
+      }
+    } else {
+      outline.push({
+        id: blockId,
+        title: getMetadataName(embedEntity?.document?.metadata),
+        children: embedEntity?.document?.content
+          ? getNodesOutline(
+              embedEntity?.document?.content,
+              embedId,
+              embedEntities,
+            )
+          : [],
+      })
+    }
+  }
+
   return outline
 }
 
@@ -91,11 +103,11 @@ function findContentBlock(
 export function getDraftNodesOutline(
   children: HMDraft['content'],
   parentEntityId?: UnpackedHypermediaId,
-  parentBlockId?: string,
+  embeds?: HMEntityContent[],
 ): NodesOutline {
   const outline: NodesOutline = []
   children.forEach((child) => {
-    if (child.type === 'Heading') {
+    if (child.type === 'heading') {
       outline.push({
         id: child.id,
         title: child.content
@@ -104,24 +116,15 @@ export function getDraftNodesOutline(
           })
           .join(''),
         entityId: parentEntityId,
-        parentBlockId,
         children:
           child.children &&
-          getDraftNodesOutline(child.children, parentEntityId, parentBlockId),
+          getDraftNodesOutline(child.children, parentEntityId, embeds),
       })
-    } else if (child.type === 'Embed' && child.props?.view !== 'Card') {
-      console.error('Outline Might not handle embeds from draft correctly')
-      console.error(child)
-      const embedId = unpackHmId(child.props.href)
-      if (embedId) {
-        outline.push({
-          id: child.id,
-          embedId,
-        })
-      }
+    } else if (child.type === 'embed' && child.props?.view !== 'Card') {
+      outline.push(...getEmbedOutline(child.id, child.props.url, embeds))
     } else if (child.children) {
       outline.push(
-        ...getDraftNodesOutline(child.children, parentEntityId, parentBlockId),
+        ...getDraftNodesOutline(child.children, parentEntityId, embeds),
       )
     }
   })

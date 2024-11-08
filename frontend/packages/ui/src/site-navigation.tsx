@@ -1,7 +1,9 @@
 import {
+  getDraftNodesOutline,
   getMetadataName,
   getNodesOutline,
   HMDocument,
+  HMDraft,
   HMEntityContent,
   hmId,
   HMMetadata,
@@ -64,47 +66,43 @@ function DocumentSmallListItem({
 }
 
 export function SiteNavigationContent({
-  document,
+  documentMetadata,
   supportDocuments,
   supportQueries,
   id,
   createDirItem,
   onPress,
-  onActivateBlock,
+  outline,
 }: {
-  document: HMDocument;
+  documentMetadata: HMMetadata;
   supportDocuments?: HMEntityContent[];
   supportQueries?: HMQueryResult[];
   id: UnpackedHypermediaId;
-  createDirItem?: ReactNode;
+  createDirItem?: ((opts: {indented: number}) => ReactNode) | null;
   onPress?: () => void;
-  onActivateBlock: (blockId: string) => void;
+  outline?: (opts: {indented: number}) => ReactNode;
 }) {
-  const outline = useMemo(() => {
-    return getNodesOutline(document.content, id, supportDocuments);
-  }, [document.content]);
-
-  const directory = supportQueries?.find(
-    (query) => query.in.uid === document.account
-  );
-  const isTopLevel = !id.path || id.path?.length === 0;
+  const directory = supportQueries?.find((query) => query.in.uid === id.uid);
+  const isHomeDoc = !id.path || id.path?.length === 0;
+  const isTopLevelDoc = id.path?.length === 1;
 
   const parentId = hmId(id.type, id.uid, {
     path: id.path?.slice(0, -1) || [],
   });
   if (!directory) return null;
-  const parentListItem = directory.results.find(
+  const parentItem = directory.results.find(
     (doc) => doc.path.join("/") === parentId.path?.join("/")
   );
   const parentIdPath = parentId.path;
   const idPath = id.path;
   const siblingDocs =
-    parentIdPath &&
-    directory.results.filter(
-      (doc) =>
-        doc.path.join("/").startsWith(parentIdPath.join("/")) &&
-        parentIdPath.length === doc.path.length - 1
-    );
+    parentIdPath && !isHomeDoc
+      ? directory.results.filter(
+          (doc) =>
+            doc.path.join("/").startsWith(parentIdPath.join("/")) &&
+            parentIdPath.length === doc.path.length - 1
+        )
+      : null;
   const childrenDocs =
     idPath &&
     directory.results.filter(
@@ -112,13 +110,31 @@ export function SiteNavigationContent({
         doc.path.join("/").startsWith(idPath.join("/")) &&
         idPath.length === doc.path.length - 1
     );
-  const documentIndent = isTopLevel ? 0 : 1;
-  console.log("siblingDocs", siblingDocs);
+  const documentIndent = isHomeDoc || isTopLevelDoc ? 0 : 1;
+  const childrenIndent = isHomeDoc ? 0 : documentIndent + 1;
+  const childrenItems =
+    outline || childrenDocs?.length ? (
+      <>
+        {outline?.({indented: childrenIndent})}
+        {childrenDocs
+          ? childrenDocs.map((doc) => (
+              <DocumentSmallListItem
+                key={doc.path.join("/")}
+                metadata={doc.metadata}
+                id={hmId("d", doc.account, {path: doc.path})}
+                onPress={onPress}
+                indented={childrenIndent}
+              />
+            ))
+          : null}
+        {createDirItem?.({indented: childrenIndent})}
+      </>
+    ) : null;
   return (
     <YStack gap="$2" paddingLeft="$4">
-      {isTopLevel || !parentListItem ? null : (
+      {isHomeDoc || isTopLevelDoc || !parentItem ? null : (
         <DocumentSmallListItem
-          metadata={parentListItem.metadata}
+          metadata={parentItem.metadata}
           id={parentId}
           onPress={onPress}
         />
@@ -128,40 +144,13 @@ export function SiteNavigationContent({
         if (idPath && doc.path.join("/") === idPath.join("/"))
           return [
             <DocumentSmallListItem
-              metadata={document.metadata}
+              metadata={documentMetadata}
               id={id}
               key={id.id}
               indented={documentIndent}
               onPress={onPress}
               active={doc.path.join("/") === id.path?.join("/") && !id.blockRef}
-              items={
-                outline.length || childrenDocs?.length ? (
-                  <>
-                    {...outline.map((node) => (
-                      <OutlineNode
-                        node={node}
-                        key={node.id}
-                        indented={documentIndent + 1}
-                        onActivateBlock={onActivateBlock}
-                        onPress={onPress}
-                        activeBlockId={id.blockRef}
-                      />
-                    ))}
-                    {childrenDocs
-                      ? childrenDocs.map((doc) => (
-                          <DocumentSmallListItem
-                            key={doc.path.join("/")}
-                            metadata={doc.metadata}
-                            id={hmId("d", doc.account, {path: doc.path})}
-                            onPress={onPress}
-                            indented={documentIndent + 1}
-                          />
-                        ))
-                      : null}
-                    {createDirItem}
-                  </>
-                ) : null
-              }
+              items={childrenItems}
             />,
           ];
 
@@ -171,14 +160,77 @@ export function SiteNavigationContent({
             metadata={doc.metadata}
             id={hmId("d", doc.account, {path: doc.path})}
             onPress={onPress}
-            indented={1}
+            indented={documentIndent}
           />,
         ];
       })}
 
-      {isTopLevel ? createDirItem : null}
+      {isHomeDoc ? childrenItems : null}
     </YStack>
   );
+}
+
+export function DocumentOutline({
+  document,
+  indented,
+  onActivateBlock,
+  onPress,
+  id,
+  supportDocuments,
+  activeBlockId,
+}: {
+  document: HMDocument;
+  indented?: number;
+  onActivateBlock: (blockId: string) => void;
+  onPress?: () => void;
+  id: UnpackedHypermediaId;
+  supportDocuments?: HMEntityContent[];
+  activeBlockId: string | null;
+}) {
+  const outline = useMemo(() => {
+    return getNodesOutline(document.content, id, supportDocuments);
+  }, [id, document.content, supportDocuments]);
+  return outline.map((node) => (
+    <OutlineNode
+      node={node}
+      key={node.id}
+      indented={indented}
+      onActivateBlock={onActivateBlock}
+      onPress={onPress}
+      activeBlockId={activeBlockId}
+    />
+  ));
+}
+
+export function DraftOutline({
+  draft,
+  id,
+  supportDocuments,
+  onActivateBlock,
+  indented,
+  onPress,
+}: {
+  draft: HMDraft;
+  id: UnpackedHypermediaId;
+  supportDocuments: HMEntityContent[];
+  onActivateBlock: (blockId: string) => void;
+  indented?: number;
+  onPress?: () => void;
+}) {
+  const outline = useMemo(() => {
+    return getDraftNodesOutline(draft.content, id, supportDocuments);
+  }, [id, draft.content, supportDocuments]);
+  console.log("DraftOutline", draft, outline);
+  return outline.map((node) => (
+    <OutlineNode
+      node={node}
+      key={node.id}
+      indented={indented}
+      onActivateBlock={onActivateBlock}
+      onPress={onPress}
+      activeBlockId={null}
+    />
+  ));
 }
 
 function OutlineNode({
