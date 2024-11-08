@@ -455,11 +455,55 @@ var qIterBlobs = dqb.Str(`
 		data
 	FROM json_each(:ids_json) t
 	LEFT JOIN blobs b ON b.id = t.value
+	LEFT JOIN structural_blobs sb ON sb.id = b.id
 	WHERE b.size >= 0
+	ORDER BY sb.ts
 `)
 
-func (idx *Index) loadGenerations(conn *sqlite.Conn, resource IRI) {
+func (idx *Index) loadGenerations(conn *sqlite.Conn, resource IRI) (out []generation, err error) {
+	rows, check := sqlitex.Query(conn, qLoadGenerations(), resource, resource)
+	for row := range rows {
+		seq := sqlite.NewIncrementor(0)
+		g := generation{
+			RefID:      row.ColumnInt64(seq()),
+			Generation: row.ColumnInt64(seq()),
+			GenesisID:  row.ColumnInt64(seq()),
+			AuthorID:   row.ColumnInt64(seq()),
+			Ts:         row.ColumnInt64(seq()),
+		}
 
+		isTomb := row.ColumnInt64(seq())
+		if isTomb != 0 && isTomb != 1 {
+			err = fmt.Errorf("BUG: invalid tombstone value %v", isTomb)
+			break
+		}
+
+		g.IsTombstone = isTomb == 1
+
+		if err := json.Unmarshal(row.ColumnBytesUnsafe(seq()), &g.Heads); err != nil {
+			err = fmt.Errorf("BUG: failed to unmarshal JSON heads")
+			break
+		}
+
+		out = append(out, g)
+	}
+
+	err = errors.Join(err, check())
+	if err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
+type generation struct {
+	RefID       int64
+	Generation  int64
+	GenesisID   int64
+	AuthorID    int64
+	Ts          int64
+	IsTombstone bool
+	Heads       []int64
 }
 
 var qLoadGenerations = dqb.Str(`
@@ -477,19 +521,28 @@ var qLoadGenerations = dqb.Str(`
 		AND author = (SELECT owner FROM space LIMIT 1)
 		AND resource IN (SELECT id FROM resources WHERE :iri2 BETWEEN iri AND iri || '~~~~~~')
 	),
-	refs (id, author, generation) AS (
+	refs (id, generation, genesis, author, ts, is_tombstone) AS (
 		SELECT
-			id,
+			structural_blobs.id,
+			COALESCE(extra_attrs->>'generation', 0) AS generation,
+			genesis_blob,
 			author,
 			ts,
-			COALESCE(extra_attrs->>'generation', 0) AS generation
+			COALESCE(extra_attrs->>'tombstone', 0) AS is_tombstone
 		FROM structural_blobs
 		JOIN space ON space.id = structural_blobs.resource
 		JOIN authors ON authors.id = structural_blobs.author
-		WHERE type = 'Ref'
-		GROUP BY author
+		WHERE structural_blobs.type = 'Ref'
+		GROUP BY generation, genesis_blob, author
 		HAVING ts = MAX(ts)
 	)
+	SELECT
+	refs.*,
+	JSON_GROUP_ARRAY(blob_links.target) AS heads
+	FROM refs
+	LEFT JOIN blob_links ON blob_links.source = refs.id AND type = 'ref/head'
+	GROUP BY refs.id
+	ORDER BY refs.ts DESC;
 `)
 
 // IsDeleted checks whether a given resource is deleted.
