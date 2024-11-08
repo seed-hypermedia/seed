@@ -13,6 +13,7 @@ import (
 	"seed/backend/storage"
 	"seed/backend/testutil"
 	"seed/backend/util/future"
+	"seed/backend/util/must"
 	"testing"
 	"time"
 
@@ -85,7 +86,7 @@ func makeTestService(t *testing.T, name string) *Server {
 }
 
 func makeTestPeer(t *testing.T, u coretest.Tester, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool) (*mttnet.Node, context.CancelFunc) {
-	idx := blob.NewIndex(db, logging.New("seed/hyper", "debug"), nil)
+	idx := must.Do2(blob.OpenIndex(context.Background(), db, logging.New("seed/hyper", "debug"), nil))
 
 	n, err := mttnet.New(config.P2P{
 		NoRelay:        true,
