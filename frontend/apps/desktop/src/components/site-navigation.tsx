@@ -71,7 +71,7 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
       <XStack>
         <SmallListItem
           icon={Plus}
-          title="Create Document"
+          title="Create"
           onPress={createDraft}
           color="$green10"
           indented={indented}
