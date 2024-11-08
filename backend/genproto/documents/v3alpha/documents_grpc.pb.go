@@ -27,7 +27,10 @@ type DocumentsClient interface {
 	GetDocument(ctx context.Context, in *GetDocumentRequest, opts ...grpc.CallOption) (*Document, error)
 	// Creates a new Document Change.
 	CreateDocumentChange(ctx context.Context, in *CreateDocumentChangeRequest, opts ...grpc.CallOption) (*Document, error)
+	// Deprecated: Do not use.
 	// Deletes a document.
+	//
+	// Deprecated: Use CreateRef API.
 	DeleteDocument(ctx context.Context, in *DeleteDocumentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Lists documents within the account. Only the most recent versions show up.
 	ListDocuments(ctx context.Context, in *ListDocumentsRequest, opts ...grpc.CallOption) (*ListDocumentsResponse, error)
@@ -35,6 +38,10 @@ type DocumentsClient interface {
 	ListRootDocuments(ctx context.Context, in *ListRootDocumentsRequest, opts ...grpc.CallOption) (*ListRootDocumentsResponse, error)
 	// Lists all changes of a document.
 	ListDocumentChanges(ctx context.Context, in *ListDocumentChangesRequest, opts ...grpc.CallOption) (*ListDocumentChangesResponse, error)
+	// Creates a Ref blob for the specified account + path.
+	CreateRef(ctx context.Context, in *CreateRefRequest, opts ...grpc.CallOption) (*Ref, error)
+	// Returns details about a Ref.
+	GetRef(ctx context.Context, in *GetRefRequest, opts ...grpc.CallOption) (*Ref, error)
 }
 
 type documentsClient struct {
@@ -63,6 +70,7 @@ func (c *documentsClient) CreateDocumentChange(ctx context.Context, in *CreateDo
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *documentsClient) DeleteDocument(ctx context.Context, in *DeleteDocumentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/com.seed.documents.v3alpha.Documents/DeleteDocument", in, out, opts...)
@@ -99,6 +107,24 @@ func (c *documentsClient) ListDocumentChanges(ctx context.Context, in *ListDocum
 	return out, nil
 }
 
+func (c *documentsClient) CreateRef(ctx context.Context, in *CreateRefRequest, opts ...grpc.CallOption) (*Ref, error) {
+	out := new(Ref)
+	err := c.cc.Invoke(ctx, "/com.seed.documents.v3alpha.Documents/CreateRef", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *documentsClient) GetRef(ctx context.Context, in *GetRefRequest, opts ...grpc.CallOption) (*Ref, error) {
+	out := new(Ref)
+	err := c.cc.Invoke(ctx, "/com.seed.documents.v3alpha.Documents/GetRef", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DocumentsServer is the server API for Documents service.
 // All implementations should embed UnimplementedDocumentsServer
 // for forward compatibility
@@ -107,7 +133,10 @@ type DocumentsServer interface {
 	GetDocument(context.Context, *GetDocumentRequest) (*Document, error)
 	// Creates a new Document Change.
 	CreateDocumentChange(context.Context, *CreateDocumentChangeRequest) (*Document, error)
+	// Deprecated: Do not use.
 	// Deletes a document.
+	//
+	// Deprecated: Use CreateRef API.
 	DeleteDocument(context.Context, *DeleteDocumentRequest) (*emptypb.Empty, error)
 	// Lists documents within the account. Only the most recent versions show up.
 	ListDocuments(context.Context, *ListDocumentsRequest) (*ListDocumentsResponse, error)
@@ -115,6 +144,10 @@ type DocumentsServer interface {
 	ListRootDocuments(context.Context, *ListRootDocumentsRequest) (*ListRootDocumentsResponse, error)
 	// Lists all changes of a document.
 	ListDocumentChanges(context.Context, *ListDocumentChangesRequest) (*ListDocumentChangesResponse, error)
+	// Creates a Ref blob for the specified account + path.
+	CreateRef(context.Context, *CreateRefRequest) (*Ref, error)
+	// Returns details about a Ref.
+	GetRef(context.Context, *GetRefRequest) (*Ref, error)
 }
 
 // UnimplementedDocumentsServer should be embedded to have forward compatible implementations.
@@ -138,6 +171,12 @@ func (UnimplementedDocumentsServer) ListRootDocuments(context.Context, *ListRoot
 }
 func (UnimplementedDocumentsServer) ListDocumentChanges(context.Context, *ListDocumentChangesRequest) (*ListDocumentChangesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDocumentChanges not implemented")
+}
+func (UnimplementedDocumentsServer) CreateRef(context.Context, *CreateRefRequest) (*Ref, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateRef not implemented")
+}
+func (UnimplementedDocumentsServer) GetRef(context.Context, *GetRefRequest) (*Ref, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRef not implemented")
 }
 
 // UnsafeDocumentsServer may be embedded to opt out of forward compatibility for this service.
@@ -259,6 +298,42 @@ func _Documents_ListDocumentChanges_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Documents_CreateRef_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateRefRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).CreateRef(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/com.seed.documents.v3alpha.Documents/CreateRef",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).CreateRef(ctx, req.(*CreateRefRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Documents_GetRef_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRefRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).GetRef(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/com.seed.documents.v3alpha.Documents/GetRef",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).GetRef(ctx, req.(*GetRefRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Documents_ServiceDesc is the grpc.ServiceDesc for Documents service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -289,6 +364,14 @@ var Documents_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListDocumentChanges",
 			Handler:    _Documents_ListDocumentChanges_Handler,
+		},
+		{
+			MethodName: "CreateRef",
+			Handler:    _Documents_CreateRef_Handler,
+		},
+		{
+			MethodName: "GetRef",
+			Handler:    _Documents_GetRef_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

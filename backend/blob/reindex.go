@@ -110,9 +110,9 @@ func (bs *Index) MaybeReindex(ctx context.Context) error {
 		return err
 	}
 
-	if res == "" {
-		return bs.reindex(conn)
+	if res != "" {
+		return nil
 	}
 
-	return nil
+	return bs.reindex(conn)
 }

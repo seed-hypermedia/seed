@@ -45,14 +45,18 @@ func (srv *Server) ListDocumentChanges(ctx context.Context, in *documents.ListDo
 		if in.PageSize > maxPageSize {
 			in.PageSize = maxPageSize
 		}
+	}
 
+	heads, err := docmodel.Version(in.Version).Parse()
+	if err != nil {
+		return nil, err
 	}
 
 	// TODO(burdiyan): This is the most stupid way to get the history of the document.
 	// We need to just use the database index, but it's currently too painful to work with,
 	// because we don't track latest heads for each space+path.
 
-	doc, err := srv.loadDocument(ctx, acc, in.Path, docmodel.Version(in.Version), false)
+	doc, err := srv.loadDocument(ctx, acc, in.Path, heads, false)
 	if err != nil {
 		return nil, err
 	}

@@ -16,7 +16,11 @@ service Documents {
   rpc CreateDocumentChange(CreateDocumentChangeRequest) returns (Document);
 
   // Deletes a document.
-  rpc DeleteDocument(DeleteDocumentRequest) returns (google.protobuf.Empty);
+  //
+  // Deprecated: Use CreateRef API.
+  rpc DeleteDocument(DeleteDocumentRequest) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  };
 
   // Lists documents within the account. Only the most recent versions show up.
   rpc ListDocuments(ListDocumentsRequest) returns (ListDocumentsResponse);
@@ -26,6 +30,12 @@ service Documents {
 
   // Lists all changes of a document.
   rpc ListDocumentChanges(ListDocumentChangesRequest) returns (ListDocumentChangesResponse);
+
+  // Creates a Ref blob for the specified account + path.
+  rpc CreateRef(CreateRefRequest) returns (Ref);
+
+  // Returns details about a Ref.
+  rpc GetRef(GetRefRequest) returns (Ref);
 }
 
 // Request for getting a single document.
@@ -38,6 +48,7 @@ message GetDocumentRequest {
   string path = 2;
 
   // Optional. Exact version of the document to retrieve.
+  // Empty version means "latest".
   string version = 3;
 }
 
@@ -144,6 +155,38 @@ message ListDocumentChangesResponse {
 
   // Token for the next page if there're more results.
   string next_page_token = 2;
+}
+
+// Request to create a Ref.
+message CreateRefRequest {
+  // Required. The ID of the account/space in which to create the Ref.
+  string account = 1;
+
+  // Required. Path of the new Ref.
+  // Empty string means root document.
+  string path = 2;
+
+  // Required. Target for the new Ref.
+  RefTarget target = 3;
+
+  // Required. Name of the signing key to use for signing the Ref.
+  string signing_key_name = 4;
+
+  // Optional. ID of the Capability blob that grants the necessary rights to the signin key
+  // to write Refs for the requested account + path.
+  string capability = 5;
+
+  // Optional. A timestamp of the Ref blob.
+  // If not specified the server will use the current time.
+  // The provided timestamp will be rounded to the nearest millisecond,
+  // so the final timestamp in the resulting Ref blob may not be exactly as provided.
+  google.protobuf.Timestamp timestamp = 6;
+}
+
+// Request to get a Ref by ID.
+message GetRefRequest {
+  // Required. ID of the Ref blob to retrieve.
+  string id = 1;
 }
 
 // Information about a particular document version.
@@ -323,4 +366,71 @@ message DocumentChange {
     // ID of a block to delete.
     string delete_block = 4;
   }
+}
+
+// Description of a Ref blob.
+message Ref {
+  // CID of the Ref blob.
+  string id = 1;
+
+  // Account (space) in which the Ref blob exists.
+  string account = 2;
+
+  // Path in the account Ref creates an entry for.
+  string path = 3;
+
+  // Description of where the Ref points to.
+  RefTarget target = 4;
+
+  // Public key used to sign the Ref blob.
+  string signer = 5;
+
+  // Optional. ID of the Capability attached to this Ref.
+  string capability = 6;
+
+  // Timestamp of the Ref.
+  google.protobuf.Timestamp timestamp = 7;
+}
+
+// Description of where the Ref points to.
+message RefTarget {
+  // A Ref can point to one of the following targets.
+  oneof target {
+    // Version target describes genesis + head changes (version).
+    Version version = 1;
+
+    // Redirect target makes a Ref point to a different account + path.
+    // Users must be careful to not create cycles or very deep redirect chains.
+    // Client should be careful not to get stuck in redirects
+    // by tracking visited paths to prevent cycles,
+    // and by limiting the depth of the redirect chains,
+    // while handling redirects.
+    Redirect redirect = 2;
+
+    // Tombstone Ref indicates the intent to delete the given account + path.
+    Tombstone tombstone = 3;
+  }
+
+  message Version {
+    // Required. ID of the genesis Change.
+    string genesis = 1;
+
+    // Required. Version ID (possibly compount).
+    // Each change in the version ID must have the same genesis.
+    string version = 2;
+  }
+
+  message Redirect {
+    // Required. Account ID to which the Ref should redirect.
+    // Can be the same as the account in the Ref itself,
+    // when we redirect to a different path in the same account/space.
+    string account = 1;
+
+    // Required. Path to which the Ref should redirect.
+    // Empty string means root document.
+    // Must not be the same as the Ref itself.
+    string path = 2;
+  }
+
+  message Tombstone {}
 }

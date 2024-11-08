@@ -139,20 +139,6 @@ export function DocOptionsButton() {
           })
       },
     },
-    {
-      key: 'delete',
-      label: 'Delete Publication',
-      icon: Trash,
-      onPress: () => {
-        deleteEntity.open({
-          id: route.id.id,
-          title: getMetadataName(doc.data?.document?.metadata),
-          onSuccess: () => {
-            dispatch({type: 'pop'})
-          },
-        })
-      },
-    },
   ]
   if (siteUrl) {
     menuItems.unshift({
@@ -161,6 +147,32 @@ export function DocOptionsButton() {
       icon: Link,
       onPress: () => {
         onCopySiteUrl(route.id)
+      },
+    })
+  }
+  const document = doc.data?.document
+  if (document && canEditDoc && route.id.path?.length) {
+    menuItems.push({
+      key: 'delete',
+      label: 'Delete Document',
+      icon: Trash,
+      onPress: () => {
+        const title = getMetadataName(document.metadata)
+        deleteEntity.open({
+          id: route.id,
+          title,
+          onSuccess: () => {
+            dispatch({
+              type: 'backplace',
+              route: {
+                key: 'document',
+                id: hmId('d', route.id.uid, {
+                  path: route.id.path?.slice(0, -1),
+                }),
+              } as any,
+            })
+          },
+        })
       },
     })
   }

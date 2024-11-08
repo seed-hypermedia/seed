@@ -33,7 +33,7 @@ func TestNetworkingGetPeerInfo(t *testing.T) {
 
 func makeTestServer(t *testing.T, u coretest.Tester) *Server {
 	db := storage.MakeTestDB(t)
-	idx := blob.NewIndex(db, logging.New("seed/hyper", "debug"), nil)
+	idx := must.Do2(blob.OpenIndex(context.Background(), db, logging.New("seed/hyper", "debug"), nil))
 
 	cfg := config.Default().P2P
 	cfg.Port = 0

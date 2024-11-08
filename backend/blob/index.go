@@ -11,6 +11,8 @@ import (
 	"seed/backend/ipfs"
 	"seed/backend/util/dqb"
 	"seed/backend/util/maybe"
+	"seed/backend/util/strbytes"
+	"slices"
 	"strings"
 	"time"
 
@@ -68,13 +70,21 @@ type Index struct {
 	provider provider.Provider
 }
 
-func NewIndex(db *sqlitex.Pool, log *zap.Logger, prov provider.Provider) *Index {
-	return &Index{
+// OpenIndex creates the index and reindexes the data if necessary.
+// At some point we should probably make the reindexing a separate concern.
+func OpenIndex(ctx context.Context, db *sqlitex.Pool, log *zap.Logger, prov provider.Provider) (*Index, error) {
+	idx := &Index{
 		bs:       newBlockstore(db),
 		db:       db,
 		log:      log,
 		provider: prov,
 	}
+
+	if err := idx.MaybeReindex(ctx); err != nil {
+		return nil, err
+	}
+
+	return idx, nil
 }
 
 func (idx *Index) SetProvider(prov provider.Provider) {
@@ -138,11 +148,19 @@ type ChangeRecord struct {
 	Data *Change
 }
 
-func (idx *Index) IterChanges(ctx context.Context, resource IRI, author core.Principal) (it iter.Seq2[int, ChangeRecord], check func() error) {
+// iterChangesLatest iterates over changes for a given resource for the latest generation.
+func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.Seq2[int, ChangeRecord], check func() error) {
 	var outErr error
 
 	check = func() error { return outErr }
+
 	it = func(yield func(int, ChangeRecord) bool) {
+		space, _, err := resource.SpacePath()
+		if err != nil {
+			outErr = err
+			return
+		}
+
 		conn, release, err := idx.db.Conn(ctx)
 		if err != nil {
 			outErr = err
@@ -151,7 +169,7 @@ func (idx *Index) IterChanges(ctx context.Context, resource IRI, author core.Pri
 		defer release()
 
 		buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
-		rows, check := sqlitex.Query(conn, qIterChanges(), resource, author, author, resource)
+		rows, check := sqlitex.Query(conn, qIterChanges(), resource, space, space, resource)
 		var i int
 		for row := range rows {
 			next := sqlite.NewIncrementor(0)
@@ -195,27 +213,30 @@ func (idx *Index) IterChanges(ctx context.Context, resource IRI, author core.Pri
 
 var qIterChanges = dqb.Str(`
 	WITH RECURSIVE
-	refs (id) AS (
-		SELECT id
+	refs (id, generation) AS (
+		SELECT
+			id,
+			COALESCE(extra_attrs->>'generation', 0) AS generation
 		FROM structural_blobs
 		WHERE type = 'Ref'
-		-- resource
-		AND resource = (SELECT id FROM resources WHERE iri = ?)
-		-- author
-		AND (author = (SELECT id FROM public_keys WHERE principal = ?) OR author IN (
+		AND resource = (SELECT id FROM resources WHERE iri = :iri)
+		AND (author = (SELECT id FROM public_keys WHERE principal = :space) OR author IN (
 			SELECT DISTINCT extra_attrs->>'del'
 			FROM structural_blobs
 			WHERE type = 'Capability'
-			-- author
-			AND author = (SELECT id FROM public_keys WHERE principal = ?)
-			-- iri
-			AND resource IN (SELECT id FROM resources WHERE ? BETWEEN iri AND iri || '~~~~~~')
+			AND author = (SELECT id FROM public_keys WHERE principal = :space2)
+			AND resource IN (SELECT id FROM resources WHERE :iri2 BETWEEN iri AND iri || '~~~~~~')
 		))
+	),
+	latest_refs (id) AS (
+		SELECT id
+		FROM refs
+		WHERE generation = (SELECT MAX(generation) FROM refs)
 	),
 	changes (id) AS (
 		SELECT bl.target
 		FROM blob_links bl
-		JOIN refs r ON r.id = bl.source AND bl.type = 'ref/head'
+		JOIN latest_refs r ON r.id = bl.source AND bl.type = 'ref/head'
 
 		UNION
 
@@ -232,6 +253,285 @@ var qIterChanges = dqb.Str(`
 	JOIN structural_blobs sb ON sb.id = b.id
 	JOIN changes c ON c.id = b.id
 	ORDER BY sb.ts
+`)
+
+// IterChangesFromHeads iterates over changes starting from the given heads.
+// When no heads are provided it uses the latest generation and the latest version.
+func (idx *Index) IterChangesFromHeads(ctx context.Context, resource IRI, heads []cid.Cid) (it iter.Seq2[int, ChangeRecord], check func() error) {
+	if len(heads) == 0 {
+		return idx.iterChangesLatest(ctx, resource)
+	}
+
+	var outErr error
+
+	check = func() error { return outErr }
+
+	it = func(yield func(int, ChangeRecord) bool) {
+		conn, release, err := idx.db.Conn(ctx)
+		if err != nil {
+			outErr = err
+			return
+		}
+		defer release()
+
+		headIDs, err := cidsToDBIDs(conn, heads)
+		if err != nil {
+			outErr = err
+			return
+		}
+
+		edges, err := loadChangeEdges(conn, resource)
+		if err != nil {
+			outErr = err
+			return
+		}
+
+		visited := make(map[int64]struct{}, len(edges))
+		queue := make([]int64, 0, len(edges))
+		chain := make([]int64, 0, len(edges))
+
+		for i, h := range headIDs {
+			if _, ok := edges[h]; !ok {
+				outErr = fmt.Errorf("head '%s' not found", heads[i])
+				return
+			}
+
+			queue = append(queue, h)
+		}
+
+		for len(queue) > 0 {
+			c := queue[0]
+			queue = queue[1:]
+			if _, ok := visited[c]; ok {
+				continue
+			}
+			visited[c] = struct{}{}
+			chain = append(chain, c)
+			queue = append(queue, edges[c]...)
+		}
+
+		slices.Reverse(chain)
+
+		idsJSON, err := json.Marshal(chain)
+		if err != nil {
+			outErr = err
+			return
+		}
+
+		buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
+		rows, check := sqlitex.Query(conn, qIterBlobs(), strbytes.String(idsJSON))
+		var i int
+		for row := range rows {
+			next := sqlite.NewIncrementor(1) // Skip the ID column.
+			var (
+				codec = row.ColumnInt64(next())
+				hash  = row.ColumnBytesUnsafe(next())
+				data  = row.ColumnBytesUnsafe(next())
+			)
+
+			if len(data) == 0 {
+				outErr = errors.Join(outErr, fmt.Errorf("WalkChanges: empty data for change %s", cid.NewCidV1(uint64(codec), hash)))
+				break
+			}
+
+			buf, err = idx.bs.decoder.DecodeAll(data, buf)
+			if err != nil {
+				outErr = errors.Join(outErr, err)
+				break
+			}
+
+			chcid := cid.NewCidV1(uint64(codec), hash)
+			ch := &Change{}
+			if err := cbornode.DecodeInto(buf, ch); err != nil {
+				outErr = errors.Join(outErr, fmt.Errorf("WalkChanges: failed to decode change %s: %w", chcid, err))
+				break
+			}
+
+			rec := ChangeRecord{
+				CID:  chcid,
+				Data: ch,
+			}
+
+			if !yield(i, rec) {
+				break
+			}
+			i++
+
+			buf = buf[:0] // reset the slice reusing the backing array
+		}
+
+		outErr = errors.Join(outErr, check())
+	}
+
+	return it, check
+}
+
+func loadChangeEdges(conn *sqlite.Conn, iri IRI) (map[int64][]int64, error) {
+	space, _, err := iri.SpacePath()
+	if err != nil {
+		return nil, err
+	}
+
+	edges := make(map[int64][]int64)
+
+	rows, check := sqlitex.Query(conn, qLoadChangeEdges(), iri, space, space, iri)
+	for row := range rows {
+		child := row.ColumnInt64(0)
+		parent := row.ColumnInt64(1)
+
+		if _, ok := edges[child]; !ok {
+			edges[child] = nil
+		}
+
+		if parent > 0 {
+			edges[child] = append(edges[child], parent)
+		}
+	}
+	if err := check(); err != nil {
+		return nil, err
+	}
+
+	return edges, nil
+}
+
+var qLoadChangeEdges = dqb.Str(`
+	WITH RECURSIVE
+	refs (id) AS (
+		SELECT id
+		FROM structural_blobs
+		WHERE type = 'Ref'
+		AND resource = (SELECT id FROM resources WHERE iri = :iri)
+		AND (author = (SELECT id FROM public_keys WHERE principal = :space) OR author IN (
+			SELECT DISTINCT extra_attrs->>'del'
+			FROM structural_blobs
+			WHERE type = 'Capability'
+			AND author = (SELECT id FROM public_keys WHERE principal = :space2)
+			AND resource IN (SELECT id FROM resources WHERE :iri2 BETWEEN iri AND iri || '~~~~~~')
+		))
+	),
+	edges (child, parent) AS (
+		SELECT reflinks.target, deps.target
+		FROM refs
+		-- Find heads from refs.
+		JOIN blob_links reflinks ON reflinks.source = refs.id AND reflinks.type = 'ref/head'
+		-- Now find deps edges from those heads, which will be the start of our traversal.
+		LEFT JOIN blob_links deps ON deps.source = reflinks.target AND deps.type = 'change/dep'
+
+		UNION
+
+		SELECT blob_links.source, blob_links.target
+		FROM edges
+		JOIN blob_links ON blob_links.source = edges.parent AND blob_links.type = 'change/dep'
+	)
+	SELECT * FROM edges;
+`)
+
+func cidsToDBIDs(conn *sqlite.Conn, cids []cid.Cid) ([]int64, error) {
+	if len(cids) == 0 {
+		return nil, fmt.Errorf("cids must not be empty")
+	}
+
+	out := make([]int64, len(cids))
+	for i, c := range cids {
+		res, err := dbBlobsGetSize(conn, c.Hash())
+		if err != nil {
+			return nil, err
+		}
+		if res.BlobsSize < 0 || res.BlobsID == 0 {
+			return nil, fmt.Errorf("cid %s not found", c)
+		}
+
+		out[i] = res.BlobsID
+	}
+
+	return out, nil
+}
+
+var qIterBlobs = dqb.Str(`
+	SELECT
+		t.key,
+		codec,
+		multihash,
+		data
+	FROM json_each(:ids_json) t
+	LEFT JOIN blobs b ON b.id = t.value
+	WHERE b.size >= 0
+`)
+
+func (idx *Index) loadGenerations(conn *sqlite.Conn, resource IRI) {
+
+}
+
+var qLoadGenerations = dqb.Str(`
+	WITH RECURSIVE
+	space (id, owner) AS (
+		SELECT id, owner FROM resources WHERE iri = :iri
+		LIMIT 1
+	),
+	authors (id) AS (
+		SELECT owner FROM space
+		UNION
+		SELECT extra_attrs->>'del'
+		FROM structural_blobs
+		WHERE type = 'Capability'
+		AND author = (SELECT owner FROM space LIMIT 1)
+		AND resource IN (SELECT id FROM resources WHERE :iri2 BETWEEN iri AND iri || '~~~~~~')
+	),
+	refs (id, author, generation) AS (
+		SELECT
+			id,
+			author,
+			ts,
+			COALESCE(extra_attrs->>'generation', 0) AS generation
+		FROM structural_blobs
+		JOIN space ON space.id = structural_blobs.resource
+		JOIN authors ON authors.id = structural_blobs.author
+		WHERE type = 'Ref'
+		GROUP BY author
+		HAVING ts = MAX(ts)
+	)
+`)
+
+// IsDeleted checks whether a given resource is deleted.
+func (idx *Index) IsDeleted(ctx context.Context, resource IRI) (deleted bool, err error) {
+	conn, release, err := idx.db.Conn(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer release()
+
+	space, _, err := resource.SpacePath()
+	if err != nil {
+		return false, err
+	}
+
+	rows, check := sqlitex.Query(conn, qIsDeleted(), resource, space, space, resource)
+	for row := range rows {
+		deleted = row.ColumnInt(0) == 1
+	}
+	if err := check(); err != nil {
+		return false, err
+	}
+
+	return deleted, nil
+}
+
+var qIsDeleted = dqb.Str(`
+	SELECT
+		COALESCE(extra_attrs->>'tombstone', 0) AS is_deleted
+	FROM structural_blobs
+	WHERE type = 'Ref'
+	AND resource = (SELECT id FROM resources WHERE iri = :iri)
+	AND (author = (SELECT id FROM public_keys WHERE principal = :space) OR author IN (
+		SELECT DISTINCT extra_attrs->>'del'
+		FROM structural_blobs
+		WHERE type = 'Capability'
+		AND author = (SELECT id FROM public_keys WHERE principal = :space2)
+		AND resource IN (SELECT id FROM resources WHERE :iri2 BETWEEN iri AND iri || '~~~~~~')
+	))
+	GROUP BY resource
+	HAVING ts = MAX(ts)
+	LIMIT 1
 `)
 
 func (idx *Index) WalkCapabilities(ctx context.Context, resource IRI, author core.Principal, fn func(cid.Cid, *Capability) error) error {
@@ -300,7 +600,7 @@ func (idx *Index) IterComments(ctx context.Context, resource IRI) (it iter.Seq2[
 		defer release()
 
 		buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
-		rows, check := sqlitex.Query(conn, qWalkComments(), resource)
+		rows, check := sqlitex.Query(conn, qIterComments(), resource)
 		for row := range rows {
 			var (
 				codec = row.ColumnInt64(0)
@@ -334,47 +634,7 @@ func (idx *Index) IterComments(ctx context.Context, resource IRI) (it iter.Seq2[
 	return it, check
 }
 
-func (idx *Index) WalkComments(ctx context.Context, resource IRI, fn func(cid.Cid, *Comment) error) error {
-	conn, release, err := idx.db.Conn(ctx)
-	if err != nil {
-		return err
-	}
-	defer release()
-
-	buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
-	if err := sqlitex.Exec(conn, qWalkComments(), func(stmt *sqlite.Stmt) error {
-		var (
-			codec = stmt.ColumnInt64(0)
-			hash  = stmt.ColumnBytesUnsafe(1)
-			data  = stmt.ColumnBytesUnsafe(2)
-		)
-
-		buf, err = idx.bs.decoder.DecodeAll(data, buf)
-		if err != nil {
-			return err
-		}
-
-		chcid := cid.NewCidV1(uint64(codec), hash)
-		cmt := &Comment{}
-		if err := cbornode.DecodeInto(buf, cmt); err != nil {
-			return fmt.Errorf("WalkChanges: failed to decode change %s for entity %s: %w", chcid, resource, err)
-		}
-
-		if err := fn(chcid, cmt); err != nil {
-			return err
-		}
-
-		buf = buf[:0] // reset the slice reusing the backing array
-
-		return nil
-	}, resource); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-var qWalkComments = dqb.Str(`
+var qIterComments = dqb.Str(`
 	SELECT
 		b.codec,
 		b.multihash,
@@ -456,6 +716,7 @@ func (idx *indexingCtx) SaveBlob(id int64, b StructuralBlob) error {
 		blobResource maybe.Value[int64]
 		blobTime     maybe.Value[int64]
 		blobMeta     maybe.Value[[]byte]
+		blobGenesis  maybe.Value[int64]
 	)
 
 	if b.Author != nil {
@@ -467,9 +728,11 @@ func (idx *indexingCtx) SaveBlob(id int64, b StructuralBlob) error {
 	}
 
 	if b.GenesisBlob.Defined() {
-		if _, err := idx.ensureBlob(b.GenesisBlob); err != nil {
+		id, err := idx.ensureBlob(b.GenesisBlob)
+		if err != nil {
 			return err
 		}
+		blobGenesis = maybe.New(id)
 	}
 
 	if b.Resource.ID != "" {
@@ -504,7 +767,7 @@ func (idx *indexingCtx) SaveBlob(id int64, b StructuralBlob) error {
 		blobTime = maybe.New(b.Ts.UnixMilli())
 	}
 
-	if err := dbStructuralBlobsInsert(idx.conn, id, b.Type, blobAuthor, blobResource, blobTime, blobMeta); err != nil {
+	if err := dbStructuralBlobsInsert(idx.conn, id, b.Type, blobAuthor, blobGenesis, blobResource, blobTime, blobMeta); err != nil {
 		return err
 	}
 

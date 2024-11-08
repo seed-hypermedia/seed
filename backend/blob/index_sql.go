@@ -12,17 +12,17 @@ import (
 )
 
 // dbStructuralBlobsInsert inserts a structural blob.
-func dbStructuralBlobsInsert(conn *sqlite.Conn, id int64, blobType string, author, resource, ts maybe.Value[int64], meta maybe.Value[[]byte]) error {
+func dbStructuralBlobsInsert(conn *sqlite.Conn, id int64, blobType string, author, genesis, resource, ts maybe.Value[int64], meta maybe.Value[[]byte]) error {
 	if id == 0 {
 		return fmt.Errorf("must specify blob ID")
 	}
 
-	return sqlitex.Exec(conn, qStructuralBlobsInsert(), nil, id, blobType, author.Any(), resource.Any(), ts.Any(), meta.Any())
+	return sqlitex.Exec(conn, qStructuralBlobsInsert(), nil, id, blobType, author.Any(), genesis.Any(), resource.Any(), ts.Any(), meta.Any())
 }
 
 var qStructuralBlobsInsert = dqb.Str(`
-	INSERT INTO structural_blobs (id, type, author, resource, ts, extra_attrs)
-	VALUES (?, ?, ?, ?, ?, ?);
+	INSERT INTO structural_blobs (id, type, author, genesis_blob, resource, ts, extra_attrs)
+	VALUES (?, ?, ?, ?, ?, ?, ?);
 `)
 
 func dbBlobLinksInsertOrIgnore(conn *sqlite.Conn, blobLinksSource int64, blobLinksType string, blobLinksTarget int64) error {

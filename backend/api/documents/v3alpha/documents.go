@@ -17,6 +17,7 @@ import (
 	"seed/backend/util/errutil"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
+	"time"
 
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
@@ -26,6 +27,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Server implements Documents API v3.
@@ -66,7 +68,12 @@ func (srv *Server) GetDocument(ctx context.Context, in *documents.GetDocumentReq
 		return nil, err
 	}
 
-	doc, err := srv.loadDocument(ctx, ns, in.Path, docmodel.Version(in.Version), false)
+	heads, err := docmodel.Version(in.Version).Parse()
+	if err != nil {
+		return nil, err
+	}
+
+	doc, err := srv.loadDocument(ctx, ns, in.Path, heads, false)
 	if err != nil {
 		return nil, err
 	}
@@ -118,18 +125,35 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 		}
 	}
 
-	ver := docmodel.Version(in.BaseVersion)
-
-	doc, err := srv.loadDocument(ctx, ns, in.Path, ver, true)
+	heads, err := docmodel.Version(in.BaseVersion).Parse()
 	if err != nil {
 		return nil, err
+	}
+
+	doc, err := srv.loadDocument(ctx, ns, in.Path, heads, true)
+	if err != nil {
+		// If the document is deleted we create a new one, to allow reusing the previously existing path.
+		if status.Code(err) != codes.FailedPrecondition {
+			return nil, err
+		}
+
+		iri, err := makeIRI(ns, in.Path)
+		if err != nil {
+			return nil, err
+		}
+
+		clock := cclock.New()
+		doc, err = docmodel.New(iri, clock)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if in.BaseVersion == "" {
 		switch {
 		// No base version is allowed for home documents with 1 change (which is the auto-generated genesis change).
 		case in.Path == "" && doc.NumChanges() == 1:
-		// No base version is allowed for newly created documents, i.e. when there's not changes applied yet.
+		// No base version is allowed for newly created documents, i.e. when there's no changes applied yet.
 		case in.Path != "" && doc.NumChanges() == 0:
 		// Otherwise it's an error to not provide a base version.
 		default:
@@ -296,7 +320,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		}
 	}
 
-	out := documents.ListDocumentsResponse{
+	out := &documents.ListDocumentsResponse{
 		Documents: make([]*documents.DocumentListItem, 0, in.PageSize),
 	}
 
@@ -348,11 +372,10 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		if err != nil {
 			continue
 		}
-		// TODO: use indexed data instead of loading the entire document.
 		out.Documents = append(out.Documents, DocumentToListItem(doc))
 	}
 
-	return &out, nil
+	return out, nil
 }
 
 var qListDocuments = dqb.Str(`
@@ -368,7 +391,147 @@ var qListDocuments = dqb.Str(`
 
 // DeleteDocument implements Documents API v3.
 func (srv *Server) DeleteDocument(ctx context.Context, in *documents.DeleteDocumentRequest) (*emptypb.Empty, error) {
-	return nil, status.Error(codes.Unimplemented, "DeleteDocument is not implemented yet")
+	return nil, status.Error(codes.Unimplemented, "Deprecated: Use CreateRef")
+}
+
+// CreateRef implements Documents API v3.
+func (srv *Server) CreateRef(ctx context.Context, in *documents.CreateRefRequest) (*documents.Ref, error) {
+	{
+		if in.Account == "" {
+			return nil, errutil.MissingArgument("account")
+		}
+
+		if in.SigningKeyName == "" {
+			return nil, errutil.MissingArgument("signing_key_name")
+		}
+
+		if in.Target == nil {
+			return nil, errutil.MissingArgument("target")
+		}
+	}
+
+	ns, err := core.DecodePrincipal(in.Account)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "faield to decode account ID: %v", err)
+	}
+
+	kp, err := srv.keys.GetKey(ctx, in.SigningKeyName)
+	if err != nil {
+		return nil, err
+	}
+
+	var capc cid.Cid
+	if in.Capability != "" {
+		capc, err = cid.Decode(in.Capability)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if err := srv.checkWriteAccess(ctx, ns, in.Path, kp, capc); err != nil {
+		return nil, err
+	}
+
+	if in.Path == "" {
+		return nil, status.Errorf(codes.Unimplemented, "TODO: creating Refs for root documents is not implemented yet")
+	}
+
+	var ts time.Time
+	if in.Timestamp != nil {
+		ts = in.Timestamp.AsTime().Round(blob.ClockPrecision)
+	} else {
+		ts = cclock.New().MustNow()
+	}
+
+	var refBlob blob.Encoded[*blob.Ref]
+
+	switch in.Target.Target.(type) {
+	case *documents.RefTarget_Version_:
+		return nil, status.Errorf(codes.Unimplemented, "version Ref target is not implemented yet")
+	case *documents.RefTarget_Tombstone_:
+		refBlob, err = blob.NewRefTombstone(kp, ns, in.Path, ts)
+		if err != nil {
+			return nil, err
+		}
+	case *documents.RefTarget_Redirect_:
+		return nil, status.Errorf(codes.Unimplemented, "redirect Ref target is not implemented yet")
+	default:
+		return nil, fmt.Errorf("BUG: unhandled ref target type case")
+	}
+
+	if err := srv.idx.Put(ctx, refBlob); err != nil {
+		return nil, err
+	}
+
+	return refToProto(refBlob.CID, refBlob.Decoded)
+}
+
+// GetRef implements Documents API v3.
+func (srv *Server) GetRef(ctx context.Context, in *documents.GetRefRequest) (*documents.Ref, error) {
+	if in.Id == "" {
+		return nil, errutil.MissingArgument("id")
+	}
+
+	c, err := cid.Decode(in.Id)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to parse Ref ID: %v", err)
+	}
+
+	ref, err := srv.getRef(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+
+	return refToProto(ref.CID, ref.Value)
+}
+
+func refToProto(c cid.Cid, ref *blob.Ref) (*documents.Ref, error) {
+	pb := &documents.Ref{
+		Id:        c.String(),
+		Account:   ref.GetSpace().String(),
+		Path:      ref.Path,
+		Signer:    ref.Signer.String(),
+		Timestamp: timestamppb.New(ref.Ts),
+	}
+
+	switch {
+	case ref.GenesisBlob.Defined() && len(ref.Heads) > 0:
+		pb.Target = &documents.RefTarget{
+			Target: &documents.RefTarget_Version_{
+				Version: &documents.RefTarget_Version{
+					Genesis: ref.GenesisBlob.String(),
+					Version: string(blob.NewVersion(ref.Heads...)),
+				},
+			},
+		}
+	case !ref.GenesisBlob.Defined() && len(ref.Heads) == 0:
+		pb.Target = &documents.RefTarget{
+			Target: &documents.RefTarget_Tombstone_{
+				Tombstone: &documents.RefTarget_Tombstone{},
+			},
+		}
+	default:
+		return nil, fmt.Errorf("refToProto: invalid original ref %s: %+v", c, ref)
+	}
+
+	return pb, nil
+}
+
+func (srv *Server) getRef(ctx context.Context, c cid.Cid) (hb blob.WithCID[*blob.Ref], err error) {
+	blk, err := srv.idx.Get(ctx, c)
+	if err != nil {
+		return hb, err
+	}
+
+	ref := &blob.Ref{}
+	if err := cbornode.DecodeInto(blk.RawData(), ref); err != nil {
+		return hb, err
+	}
+
+	return blob.WithCID[*blob.Ref]{
+		CID:   blk.Cid(),
+		Value: ref,
+	}, nil
 }
 
 func (srv *Server) ensureProfileGenesis(ctx context.Context, kp core.KeyPair) error {
@@ -403,7 +566,7 @@ func makeIRI(account core.Principal, path string) (blob.IRI, error) {
 	return blob.NewIRI(account, path)
 }
 
-func (srv *Server) loadDocument(ctx context.Context, account core.Principal, path string, version docmodel.Version, ensurePath bool) (*docmodel.Document, error) {
+func (srv *Server) loadDocument(ctx context.Context, account core.Principal, path string, heads []cid.Cid, ensurePath bool) (*docmodel.Document, error) {
 	iri, err := makeIRI(account, path)
 	if err != nil {
 		return nil, err
@@ -415,36 +578,35 @@ func (srv *Server) loadDocument(ctx context.Context, account core.Principal, pat
 		return nil, err
 	}
 
-	var outErr error
-	changes, check := srv.idx.IterChanges(ctx, iri, account)
+	// We only check if it's deleted if we are asked about the latest version.
+	if len(heads) == 0 {
+		isDeleted, err := srv.idx.IsDeleted(ctx, iri)
+		if err != nil {
+			return nil, err
+		}
+
+		if isDeleted {
+			return nil, status.Errorf(codes.FailedPrecondition, "document is marked as deleted")
+		}
+	}
+
+	changes, check := srv.idx.IterChangesFromHeads(ctx, iri, heads)
 	for _, ch := range changes {
-		if err := doc.ApplyChange(ch.CID, ch.Data); err != nil {
-			outErr = errors.Join(outErr, err)
+		if aerr := doc.ApplyChange(ch.CID, ch.Data); aerr != nil {
+			err = errors.Join(err, aerr)
 			break
 		}
 	}
-	outErr = errors.Join(outErr, check())
-	if outErr != nil {
-		return nil, outErr
+	err = errors.Join(err, check())
+	if err != nil {
+		return nil, err
 	}
 
 	if !ensurePath && len(doc.Heads()) == 0 {
 		return nil, status.Errorf(codes.NotFound, "document not found: %s", iri)
 	}
 
-	if version != "" {
-		heads, err := version.Parse()
-		if err != nil {
-			return nil, err
-		}
-
-		doc, err = doc.Checkout(heads)
-		if err != nil {
-			return nil, fmt.Errorf("failed to checkout version: %w", err)
-		}
-	}
-
-	return doc, err
+	return doc, nil
 }
 
 func applyChanges(doc *docmodel.Document, ops []*documents.DocumentChange) error {

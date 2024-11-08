@@ -72,6 +72,17 @@ var migrations = []migration{
 			DELETE FROM kv WHERE key = 'lndhub_login_signature';
 		`))
 	}},
+	{Version: "2024-11-08.02", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := sqlitex.ExecScript(conn, "DROP TABLE IF EXISTS deleted_resources;"); err != nil {
+			return err
+		}
+
+		return scheduleReindex(conn)
+	}},
+}
+
+func scheduleReindex(conn *sqlite.Conn) error {
+	return SetKV(context.Background(), conn, "last_reindex_time", "", true)
 }
 
 func desiredVersion() string {

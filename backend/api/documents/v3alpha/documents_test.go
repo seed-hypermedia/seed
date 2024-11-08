@@ -466,6 +466,167 @@ func TestCreateDocumentChangeWithTimestamp(t *testing.T) {
 	require.Error(t, err, "creating change with old timestamps must fail")
 }
 
+func TestTombstoneRef(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	home, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.Principal().String(),
+		Path:           "",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice's profile"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Just in case testing that creating refs for home docs fails.
+	{
+		ref, err := alice.CreateRef(ctx, &documents.CreateRefRequest{
+			Account:        home.Account,
+			Path:           home.Path,
+			SigningKeyName: "main",
+			Target: &documents.RefTarget{
+				Target: &documents.RefTarget_Tombstone_{
+					Tombstone: &documents.RefTarget_Tombstone{},
+				},
+			},
+		})
+		_ = ref
+		require.Error(t, err, "creating refs for home docs must fail")
+	}
+
+	doc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.Principal().String(),
+		Path:           "/hello",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Hello World"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Adding some sleep to make sure tomstone's timestamp is greater.
+	time.Sleep(20 * time.Millisecond)
+
+	tombstone, err := alice.CreateRef(ctx, &documents.CreateRefRequest{
+		SigningKeyName: "main",
+		Account:        doc.Account,
+		Path:           doc.Path,
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Tombstone_{
+				Tombstone: &documents.RefTarget_Tombstone{},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	want := &documents.Ref{
+		Id:      tombstone.Id,
+		Account: "z6MkvFrq593SZ3QNsAgXdsHC2CJGrrwUdwxY2EdRGaT4UbYj",
+		Path:    "/hello",
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Tombstone_{
+				Tombstone: &documents.RefTarget_Tombstone{},
+			},
+		},
+		Signer:     "z6MkvFrq593SZ3QNsAgXdsHC2CJGrrwUdwxY2EdRGaT4UbYj",
+		Capability: "",
+		Timestamp:  tombstone.Timestamp,
+	}
+	testutil.StructsEqual(want, tombstone).Compare(t, "tombstone ref must match")
+	require.True(t, tombstone.Timestamp.AsTime().After(time.Now().Add(time.Hour*-1)), "ref timestamp must be set around the current time")
+
+	// Now let's check the document disappears from the Get request.
+	{
+		got, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{
+			Account: tombstone.Account,
+			Path:    tombstone.Path,
+		})
+		require.Error(t, err, "getting deleted document must fail")
+		require.Nil(t, got)
+	}
+
+	// Getting previous versions should work though.
+	{
+		got, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{
+			Account: doc.Account,
+			Path:    doc.Path,
+			Version: doc.Version,
+		})
+		require.NoError(t, err)
+		testutil.StructsEqual(doc, got).Compare(t, "getting doc with version must succeed even if deleted")
+	}
+
+	// We should be able to get the latest version prior to deletion.
+	// TODO(burdiyan): implement this case when we've finalized the implementation of the trash can.
+	// {
+	// 	got, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{
+	// 		Account:       doc.Account,
+	// 		Path:          doc.Path,
+	// 		Version:       "",
+	// 		IgnoreDeleted: true,
+	// 	})
+	// 	require.NoError(t, err, "ignore deleted should work in Get")
+	// 	testutil.StructsEqual(doc, got).Compare(t, "getting doc with version must succeed even if deleted")
+	// }
+
+	// Deleted docs must disappear from the lists.
+	{
+		list, err := alice.ListDocuments(ctx, &documents.ListDocumentsRequest{
+			Account:  alice.me.Account.Principal().String(),
+			PageSize: 100,
+		})
+		require.NoError(t, err)
+		require.Len(t, list.Documents, 1, "only initial root document must be in the list")
+		testutil.StructsEqual(DocumentToListItem(home), list.Documents[0]).Compare(t, "listing must only show home document")
+	}
+
+	// But we also want to list the deleted docs.
+	// TODO(burdiyan): implement this case when we've finalized the implementation of the trash can.
+	// {
+	// 	list, err := alice.ListDocuments(ctx, &documents.ListDocumentsRequest{
+	// 		Account:     alice.me.Account.Principal().String(),
+	// 		PageSize:    100,
+	// 		DeletedOnly: true,
+	// 	})
+	// 	require.NoError(t, err)
+	// 	require.Len(t, list.Documents, 1, "only the deleted document must be in the list")
+	// 	testutil.StructsEqual(DocumentToListItem(doc), list.Documents[0]).Compare(t, "listing must only show home document")
+	// }
+
+	// Now I want to republish some document to the same path.
+	republished, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.Principal().String(),
+		Path:           "/hello",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Hello World Republished"},
+			}},
+		},
+	})
+	require.NoError(t, err, "publishing after deleting must work")
+
+	// Check latest returns the latest.
+	{
+		got, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{
+			Account: republished.Account,
+			Path:    republished.Path,
+		})
+		require.NoError(t, err)
+		testutil.StructsEqual(republished, got).Compare(t, "getting latest must return the second generation")
+	}
+	// Check get with version works for previous generation.
+	// Check list responses.
+}
+
 type testServer struct {
 	*Server
 	me coretest.Tester
@@ -476,7 +637,7 @@ func newTestDocsAPI(t *testing.T, name string) testServer {
 	db := storage.MakeTestMemoryDB(t)
 	ks := core.NewMemoryKeyStore()
 	require.NoError(t, ks.StoreKey(context.Background(), "main", u.Account))
-	idx := blob.NewIndex(db, logging.New("seed/index"+"/"+name, "debug"), nil)
+	idx := must.Do2(blob.OpenIndex(context.Background(), db, logging.New("seed/index"+"/"+name, "debug"), nil))
 	srv := NewServer(ks, idx, db, logging.New("seed/documents"+"/"+name, "debug"))
 	return testServer{Server: srv, me: u}
 }

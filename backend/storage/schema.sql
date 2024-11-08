@@ -125,20 +125,6 @@ CREATE TABLE resources (
 CREATE INDEX resources_by_owner ON resources (owner) WHERE owner IS NOT NULL;
 CREATE INDEX resources_by_genesis_blob ON resources (genesis_blob);
 
--- Stores deleted hypermedia resources.
--- In order to bring back content we need to keep track of
--- what's been deleted. Also, in order not to sync it back
--- accidentally, we need to check whether the blob is related
--- to a deleted resource.
-CREATE TABLE deleted_resources (
-    iri TEXT PRIMARY KEY,
-    delete_time INTEGER DEFAULT (strftime('%s', 'now')) NOT NULL,
-    reason TEXT,
-    -- Additional attributes extracted from the blob's content,
-    -- that might be relevant to keep in order to undelete the resource at some point.
-    extra_attrs JSONB
-);
-
 -- Stores content-addressable links between blobs.
 -- Links are typed (rel) and directed.
 CREATE TABLE blob_links (
