@@ -53,7 +53,8 @@ import {useSelector} from '@xstate/react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {GestureResponderEvent} from 'react-native'
-import {ScrollView, Spinner, YStack} from 'tamagui'
+// import 'show-keys'
+import {Spinner, YStack} from 'tamagui'
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'
@@ -185,7 +186,7 @@ function DocumentEditor({
     return subscribeDraftFocus(id?.id, (blockId: string) => {
       if (editor) {
         editor._tiptapEditor.commands.focus()
-        editor.setTextCursorPosition(blockId, 'start')
+        editor.setTextCursorPosition(blockId, 'end')
       }
     })
   }, [id?.id, editor])
@@ -217,11 +218,10 @@ function DocumentEditor({
             <YStack
               marginTop={200}
               $gtSm={{marginTop: 164}}
-              className="document-aside"
+              className="is-desktop document-aside"
+              onPress={(e) => e.stopPropagation()}
             >
-              <ScrollView height="100%">
-                <SiteNavigationDraftLoader />
-              </ScrollView>
+              <SiteNavigationDraftLoader />
             </YStack>
             <YStack>
               <DraftHeader
@@ -233,11 +233,8 @@ function DocumentEditor({
                 disabled={!state.matches('ready')}
               />
               <Container
-                paddingLeft="$10"
+                paddingLeft="$4"
                 marginBottom={300}
-                $gtSm={{
-                  paddingLeft: '$4',
-                }}
                 onPress={(e: GestureResponderEvent) => {
                   // this prevents to fire handleFocusAtMousePos on click
                   e.stopPropagation()

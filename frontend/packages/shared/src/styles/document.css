@@ -37,11 +37,17 @@
   height: calc(75vh - 2rem);
   width: 100%;
   flex-shrink: 0;
+  max-width: 32px;
+}
+
+.is-desktop.document-aside {
+  display: flex !important;
 }
 
 @media (min-width: 768px) {
   .document-aside {
     position: sticky !important;
     display: block !important;
+    max-width: 100%;
   }
 }

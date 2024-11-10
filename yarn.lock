@@ -7581,6 +7581,7 @@ __metadata:
     remark-parse: 10.0.1
     remark-rehype: 10.1.0
     remark-stringify: 10.0.2
+    show-keys: ^1.1.2
     tamagui: 1.108.2
     typescript: 5.5.2
     unified: 10.1.2
@@ -26358,6 +26359,13 @@ __metadata:
   version: 1.2.1
   resolution: "shimmer@npm:1.2.1"
   checksum: aa0d6252ad1c682a4fdfda69e541be987f7a265ac7b00b1208e5e48cc68dc55f293955346ea4c71a169b7324b82c70f8400b3d3d2d60b2a7519f0a3522423250
+  languageName: node
+  linkType: hard
+
+"show-keys@npm:^1.1.2":
+  version: 1.1.2
+  resolution: "show-keys@npm:1.1.2"
+  checksum: bce9370e2d5b5e46f07729db440167ebeb69e9e2f84ae638e19b9cacae23858ce37aca4d4ef2398e92c29764c11b08f853efa534629f4cc361c14f26ce7cea57
   languageName: node
   linkType: hard
 
