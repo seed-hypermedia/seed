@@ -175,7 +175,7 @@ func (s *Srv) scan(timeout time.Duration) {
 					info, err := s.checkSeedAddrs(ctx, site, "")
 
 					if err != nil {
-						checkError := fmt.Errorf("Could not get site [%s] address from seed-well-known: %w", site, err)
+						checkError := fmt.Errorf("Could not get site [%s] address from seed config page: %w", site, err)
 						stat.StatusDNS = err.Error()
 						stat.StatusP2P = "N/A"
 						stat.LastDNSError = time.Now().UTC().Format("2006-01-02 15:04:05") + " " + err.Error()
