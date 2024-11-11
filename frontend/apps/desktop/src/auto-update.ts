@@ -1,5 +1,12 @@
 import {IS_PROD_DESKTOP} from '@shm/shared'
-import {MessageBoxOptions, app, autoUpdater, dialog, shell} from 'electron'
+import {
+  BrowserWindow,
+  MessageBoxOptions,
+  app,
+  autoUpdater,
+  dialog,
+  shell,
+} from 'electron'
 import log from 'electron-log/main'
 
 export function defaultCheckForUpdates() {
@@ -118,13 +125,25 @@ export function linuxCheckForUpdates() {
             'A new version is available. Go and Download the new version!',
         }
 
-        dialog.showMessageBox(dialogOpts).then((returnValue: any) => {
-          log.debug('[MAIN][AUTO-UPDATE]: Quit and Install')
-          if (returnValue.response === 0)
-            shell.openExternal(
-              'https://github.com/seed-hypermedia/seed/releases/latest',
-            )
-        })
+        let win = BrowserWindow.getFocusedWindow()
+
+        if (win) {
+          dialog.showMessageBox(win, dialogOpts).then((returnValue: any) => {
+            log.debug('[MAIN][AUTO-UPDATE]: Quit and Install')
+            if (returnValue.response === 0)
+              shell.openExternal(
+                'https://github.com/seed-hypermedia/seed/releases/latest',
+              )
+          })
+        } else {
+          dialog.showMessageBox(dialogOpts).then((returnValue: any) => {
+            log.debug('[MAIN][AUTO-UPDATE]: Quit and Install')
+            if (returnValue.response === 0)
+              shell.openExternal(
+                'https://github.com/seed-hypermedia/seed/releases/latest',
+              )
+          })
+        }
       } else {
         log.debug('[MAIN][AUTO-UPDATE]: LINUX IS UPDATED', res)
       }
