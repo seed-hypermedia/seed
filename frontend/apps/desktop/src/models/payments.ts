@@ -1,147 +1,111 @@
-import {
-  DAEMON_GRAPHQL_ENDPOINT,
-  ExportWalletInput,
-  LightningWallet,
-  Mutation,
-  Payments,
-  Query,
-} from '@shm/shared'
-import {
-  FetchQueryOptions,
-  MutationOptions,
-  UseQueryOptions,
-  useMutation,
-  useQuery,
-} from '@tanstack/react-query'
-import {gql, request} from 'graphql-request'
-import appError from '../errors'
+import {useGRPCClient, useQueryInvalidator} from '@/app-context'
+import {toPlainMessage} from '@bufbuild/protobuf'
+import {useMutation, useQuery} from '@tanstack/react-query'
+import {queryKeys} from './query-keys'
 
-const getWalletsQuery = gql`
-  query getWallets {
-    me {
-      wallets {
-        id
-        isDefault
-        name
-        balanceSats
-      }
-    }
-  }
-`
+export function useCreateWallet() {
+  const grpcClient = useGRPCClient()
+  const invalidate = useQueryInvalidator()
+  return useMutation({
+    mutationFn: async (input: {accountUid: string}) => {
+      await grpcClient.wallets.createWallet({
+        account: input.accountUid,
+      })
+    },
+    onSuccess: (result, vars, context) => {
+      invalidate([queryKeys.ACCOUNT_WALLETS, vars.accountUid])
+    },
+  })
+}
 
-function queryWallets():
-  | UseQueryOptions<Array<LightningWallet>>
-  | FetchQueryOptions<Array<LightningWallet>> {
-  return {
-    queryKey: ['payments', 'wallets'],
+export function useListWallets(accountUid: string) {
+  const grpcClient = useGRPCClient()
+  return useQuery({
+    queryKey: [queryKeys.ACCOUNT_WALLETS, accountUid],
     queryFn: async () => {
-      try {
-        let req: Query = await request(DAEMON_GRAPHQL_ENDPOINT, getWalletsQuery)
-        return req.me.wallets ?? []
-      } catch (error) {
-        return []
-      }
+      const resp = await grpcClient.wallets.listWallets({
+        account: accountUid,
+      })
+      const wallets = toPlainMessage(resp)
+      return wallets
     },
-    retry: true,
-    retryOnMount: true,
-    retryDelay(failureCount, error) {
-      return failureCount * 2_000
-    },
-  }
+  })
 }
 
-export function useWallets() {
-  return useQuery(queryWallets())
+export function useDeleteWallet() {
+  const grpcClient = useGRPCClient()
+  const invalidate = useQueryInvalidator()
+  return useMutation({
+    mutationFn: async (input: {walletId: string; accountUid: string}) => {
+      await grpcClient.wallets.removeWallet({
+        id: input.walletId,
+      })
+    },
+    onSuccess: (result, vars, context) => {
+      invalidate([queryKeys.ACCOUNT_WALLETS, vars.accountUid])
+    },
+  })
 }
 
-const getInvoicesByWalletQuery = gql`
-  query getInvoicesByWallet($walletId: ID!) {
-    payments(walletID: $walletId) {
-      received {
-        PaymentHash
-        Description
-        Destination
-        Amount
-        Status
-        PaymentRequest
-        IsPaid
-        ExpiresAt
-      }
-      sent {
-        PaymentHash
-        Description
-        Destination
-        Amount
-        Status
-        PaymentRequest
-        IsPaid
-        ExpiresAt
-      }
-    }
-  }
-`
-
-function queryInvoicesByWallet(
-  walletId?: string,
-): UseQueryOptions<Payments> | FetchQueryOptions<Payments> {
-  return {
-    enabled: !!walletId,
-    queryKey: ['payments', 'invoices', walletId],
+export function useListInvoices(walletId: string) {
+  const grpcClient = useGRPCClient()
+  return useQuery({
+    queryKey: [queryKeys.INVOICES, walletId],
     queryFn: async () => {
-      try {
-        let req: Query = await request(
-          DAEMON_GRAPHQL_ENDPOINT,
-          getInvoicesByWalletQuery,
-          {
-            walletId,
-          },
-        )
-        console.log('🚀 ~ file: payments.ts:95 ~ queryFn: ~ req:', req)
-        return req.payments
-      } catch (error) {
-        appError(`queryInvoicesByWallet error: ${JSON.stringify(error)}`, {
-          error,
-        })
-        return {received: [], sent: []}
-      }
+      const receivedQuery = await grpcClient.invoices.listReceivednvoices({
+        id: walletId,
+      })
+      const received = toPlainMessage(receivedQuery).invoices
+      const paidQuery = await grpcClient.invoices.listPaidInvoices({
+        id: walletId,
+      })
+      const paid = toPlainMessage(paidQuery).invoices
+      return {received, paid}
     },
-  }
+  })
 }
 
-export function useInvoicesBywallet(walletId?: string) {
-  return useQuery(queryInvoicesByWallet(walletId))
-}
-
-let exportWalletMutationQuery = gql`
-  mutation exportWallet($id: ID!) {
-    exportWallet(input: {id: $id}) {
-      credentials
-    }
-  }
-`
-
-export function mutationExportWallet(
-  opts: MutationOptions<{credentials: string}, unknown, ExportWalletInput> = {},
-) {
-  return {
-    mutationFn: async (input: ExportWalletInput) => {
-      try {
-        let req: Mutation = await request(
-          DAEMON_GRAPHQL_ENDPOINT,
-          exportWalletMutationQuery,
-          input,
-        )
-
-        return req.exportWallet
-      } catch (error) {
-        appError(`Error exporting wallet`, {error})
-        return {credentials: ''}
-      }
+export function useExportWallet(walletId: string) {
+  const grpcClient = useGRPCClient()
+  return useMutation({
+    mutationFn: async () => {
+      const result = await grpcClient.wallets.exportWallet({
+        id: walletId,
+      })
+      return result.credentials
     },
-    ...opts,
-  } satisfies MutationOptions<{credentials: string}, unknown, {id: string}>
+    onSuccess: (result, vars, context) => {},
+  })
 }
 
-export function useExportWallet() {
-  return useMutation(mutationExportWallet())
+export function useCreateInvoice() {
+  const grpcClient = useGRPCClient()
+  return useMutation({
+    mutationFn: async (input: {walletId: string; amount: bigint}) => {
+      const result = await grpcClient.invoices.createInvoice({
+        id: input.walletId,
+        account: input.walletId,
+        amount: input.amount,
+      })
+      return result.payreq
+    },
+    onSuccess: (result, vars, context) => {},
+  })
+}
+
+export function useWallet(walletId: string) {
+  const grpcClient = useGRPCClient()
+  return useQuery({
+    queryKey: [queryKeys.WALLETS, walletId],
+    queryFn: async () => {
+      const walletResp = await grpcClient.wallets.getWallet({
+        id: walletId,
+      })
+      const wallet = toPlainMessage(walletResp)
+      const balanceResp = await grpcClient.wallets.getWalletBalance({
+        id: walletId,
+      })
+      return {...wallet, balance: balanceResp.balance}
+    },
+  })
 }

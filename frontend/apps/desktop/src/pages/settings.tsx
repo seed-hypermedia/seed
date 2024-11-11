@@ -1,8 +1,8 @@
 import {useIPC, useQueryInvalidator} from '@/app-context'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {IconForm} from '@/components/icon-form'
-import appError from '@/errors'
 import {useAutoUpdatePreference} from '@/models/app-settings'
+import {useCurrencyComparisons} from '@/models/compare-currencies'
 import {
   useDaemonInfo,
   useDeleteKey,
@@ -21,33 +21,23 @@ import {
 } from '@/models/gateway-settings'
 import {usePeerInfo} from '@/models/networking'
 import {
+  useCreateWallet,
+  useDeleteWallet,
   useExportWallet,
-  useInvoicesBywallet,
-  useWallets,
+  useListInvoices,
+  useListWallets,
+  useWallet,
 } from '@/models/payments'
-import {useWalletOptIn} from '@/models/wallet'
 import {trpc} from '@/trpc'
-import {
-  getAccountName,
-  getFileUrl,
-  hmId,
-  LightningWallet,
-  VERSION,
-} from '@shm/shared'
+import {getAccountName, getFileUrl, hmId, VERSION} from '@shm/shared'
 import {
   AlertDialog,
-  ArrowDownRight,
   Button,
-  Card,
-  CardProps,
   Check,
   Checkbox,
-  ChevronDown,
-  ChevronUp,
   Copy,
   ExternalLink,
   Field,
-  H3,
   Heading,
   HMIcon,
   InfoListHeader,
@@ -58,11 +48,9 @@ import {
   Pencil,
   RadioGroup,
   ScrollView,
-  Select,
+  SelectDropdown,
   Separator,
-  Share,
   SizableText,
-  Spinner,
   TableList,
   Tabs,
   TabsContentProps,
@@ -77,7 +65,6 @@ import {
 } from '@shm/ui'
 import {
   AtSign,
-  Bitcoin,
   Code2,
   Eye,
   EyeOff,
@@ -131,12 +118,6 @@ export default function Settings() {
           icon={Info}
           label="App Info"
         />
-        <Tab
-          value="wallets"
-          active={activeTab === 'wallets'}
-          icon={Bitcoin}
-          label="Sponsorship"
-        />
         {/* <Tab
           value="experiments"
           active={activeTab === 'experiments'}
@@ -160,9 +141,6 @@ export default function Settings() {
       <TabsContent value="app-info">
         <AppSettings />
         {/* <DevicesInfo /> */}
-      </TabsContent>
-      <TabsContent value="wallets">
-        <WalletsSettings />
       </TabsContent>
       {/* <TabsContent value="experiments">
         <ExperimentsSettings />
@@ -360,6 +338,7 @@ function AccountKeys() {
   const keys = useMyAccountIds()
   const deleteWords = trpc.secureStorage.delete.useMutation()
   const invalidate = useQueryInvalidator()
+  const [walletId, setWalletId] = useState<string | undefined>(undefined)
   const [selectedAccount, setSelectedAccount] = useState<undefined | string>(
     () => {
       if (keys.data && keys.data.length) {
@@ -399,7 +378,16 @@ function AccountKeys() {
       toast.success('Profile removed correctly')
     })
   }
-
+  if (walletId)
+    return (
+      <WalletPage
+        walletId={walletId}
+        accountUid={selectedAccount}
+        onClose={() => {
+          setWalletId(undefined)
+        }}
+      />
+    )
   return keys.data?.length && selectedAccount ? (
     <XStack style={{flex: 1}} gap="$4" overflow="hidden">
       <YStack f={1} maxWidth="25%" gap="$2">
@@ -616,7 +604,11 @@ function AccountKeys() {
               </AlertDialog.Content>
             </AlertDialog.Portal>
           </AlertDialog>
-          {/* <SizableText>{JSON.stringify(account, null, 4)}</SizableText> */}
+          <SizableText>Wallet</SizableText>
+          <AccountWallet
+            accountUid={selectedAccount}
+            onOpenWallet={(walletId) => setWalletId(walletId)}
+          />
         </ScrollView>
       </YStack>
     </XStack>
@@ -626,6 +618,109 @@ function AccountKeys() {
         Create a new Profile
       </Button>
     </XStack>
+  )
+}
+
+function AccountWallet({
+  accountUid,
+  onOpenWallet,
+}: {
+  accountUid: string
+  onOpenWallet: (walletId: string) => void
+}) {
+  const createWallet = useCreateWallet()
+  const wallets = useListWallets(accountUid)
+  if (!wallets.data?.wallets) return null
+  if (wallets.data.wallets.length) {
+    return (
+      <Button
+        onPress={() => {
+          onOpenWallet(wallets.data.wallets[0].id)
+        }}
+      >
+        See My Wallet
+      </Button>
+    )
+  }
+  return (
+    <>
+      <Button
+        onPress={() => {
+          createWallet.mutate({accountUid})
+        }}
+      >
+        Create Wallet
+      </Button>
+      <SizableText>{JSON.stringify(wallets.data)}</SizableText>
+    </>
+  )
+}
+
+function WalletPage({
+  walletId,
+  accountUid,
+  onClose,
+}: {
+  walletId: string
+  accountUid: string
+  onClose: () => void
+}) {
+  const deleteWallet = useDeleteWallet()
+  const wallet = useWallet(walletId)
+  const invoices = useListInvoices(walletId)
+  const exportWallet = useExportWallet(walletId)
+  return (
+    <YStack>
+      <Button onPress={onClose}>Close</Button>
+      <Button
+        theme="red"
+        icon={Trash}
+        onPress={() =>
+          deleteWallet
+            .mutateAsync({walletId, accountUid})
+            .then(() => {
+              onClose()
+              toast.success('Wallet deleted')
+            })
+            .catch((e) => {
+              console.error(e)
+              toast.error('Failed to delete wallet')
+            })
+        }
+      >
+        Delete Wallet
+      </Button>
+      <Heading>{wallet.data?.id}</Heading>
+      <Heading>{wallet.data?.balance} SATS</Heading>
+      <CurrencyConversion amount={Number(wallet.data?.balance)} />
+      <Button
+        onPress={() =>
+          exportWallet.mutateAsync().then((exportedWallet) => {
+            toast.success('Wallet exported: ' + exportedWallet)
+          })
+        }
+      >
+        Export Wallet
+      </Button>
+      <SizableText>{JSON.stringify(invoices.data)}</SizableText>
+    </YStack>
+  )
+}
+
+function CurrencyConversion({amount}: {amount: number}) {
+  const currencies = useCurrencyComparisons(amount || 0)
+  const [val, setVal] = useState<(typeof currencies)[number]['code']>('usd')
+  return (
+    <SelectDropdown
+      value={val}
+      onValue={setVal}
+      options={
+        currencies?.map(({code, value, name}) => ({
+          value: code,
+          label: `${name} - ${value}`,
+        })) || []
+      }
+    />
   )
 }
 
@@ -1122,215 +1217,6 @@ const TabsContent = (props: TabsContentProps) => {
         </YStack>
       </ScrollView>
     </Tabs.Content>
-  )
-}
-
-function ExistingWallets({wallets}: {wallets: LightningWallet[]}) {
-  const [wallet, setWallet] = useState<string | undefined>(wallets[0]?.id)
-  const {data: invoices} = useInvoicesBywallet(wallet)
-  return (
-    <YStack gap="$5">
-      <ScrollView horizontal>
-        <XStack gap="$6" overflow="visible">
-          {wallets?.map((cw) => (
-            <WalletCard
-              key={cw.id}
-              wallet={cw}
-              active={wallet && wallet == cw.id ? true : false}
-            />
-          ))}
-        </XStack>
-      </ScrollView>
-      <Separator />
-      <TableList>
-        <TableList.Header paddingRight="$2">
-          <SizableText fontWeight="700">Invoices</SizableText>
-          <XStack flex={1} alignItems="center" justifyContent="flex-end">
-            {wallets?.length && (
-              <Select
-                size="$3"
-                id="wallet-payments"
-                value={wallet}
-                onValueChange={setWallet}
-              >
-                <Select.Trigger width={280} iconAfter={ChevronDown}>
-                  <Select.Value placeholder="Wallet" />
-                </Select.Trigger>
-                <Select.Content zIndex="$zIndex.5">
-                  <Select.ScrollUpButton
-                    alignItems="center"
-                    justifyContent="center"
-                    position="relative"
-                    width="100%"
-                    height="$3"
-                  >
-                    <YStack zIndex="$zIndex.5">
-                      <ChevronUp size={20} />
-                    </YStack>
-                    {/* <LinearGradient
-                        start={[0, 0]}
-                        end={[0, 1]}
-                        fullscreen
-                        colors={['$background', '$backgroundTransparent']}
-                        borderRadius="$4"
-                      /> */}
-                  </Select.ScrollUpButton>
-                  <Select.Viewport minWidth={280}>
-                    {wallets?.map((wallet, i) => (
-                      <Select.Item index={i} key={wallet.id} value={wallet.id}>
-                        <Select.ItemText>
-                          <SizableText size="$2">{wallet.name}</SizableText>{' '}
-                          <SizableText size="$2">
-                            ({wallet.balanceSats} sats)
-                          </SizableText>
-                        </Select.ItemText>
-                        <Select.ItemIndicator marginLeft="auto">
-                          <Check size={16} />
-                        </Select.ItemIndicator>
-                      </Select.Item>
-                    ))}
-                  </Select.Viewport>
-                </Select.Content>
-              </Select>
-            )}
-          </XStack>
-        </TableList.Header>
-        {invoices?.received?.map((invoice) => (
-          <>
-            <Separator />
-            <TableList.Item>
-              <XStack gap="$4" alignItems="center" flex={1}>
-                <ArrowDownRight color="$color10" size={24} />
-                <SizableText
-                  size="$3"
-                  flex={1}
-                  overflow="hidden"
-                  textOverflow="ellipsis"
-                  whiteSpace="nowrap"
-                >
-                  {invoice?.PaymentHash}
-                </SizableText>
-                <SizableText size="$1" flex={1} fontWeight="600">
-                  {invoice?.IsPaid ? 'PAID' : 'NOT PAID'}
-                </SizableText>
-                <SizableText
-                  size="$2"
-                  fontWeight="700"
-                  flex={0}
-                  flexShrink={0}
-                  color="$brand5"
-                >
-                  {invoice?.Amount ? `${invoice.Amount} sats` : 'No amount'}
-                </SizableText>
-              </XStack>
-            </TableList.Item>
-          </>
-        ))}
-      </TableList>
-    </YStack>
-  )
-}
-
-function NoWallets() {
-  const {optIn, walletCheck} = useWalletOptIn()
-  const isLoading = optIn.isLoading || walletCheck.isLoading
-  return (
-    <YStack gap="$4">
-      {isLoading ? (
-        <Spinner />
-      ) : (
-        <>
-          <SizableText>No Lightning Wallet</SizableText>
-          <Button
-            onPress={() => {
-              optIn.mutate()
-            }}
-          >
-            Enable Lightning Sponsorship
-          </Button>
-        </>
-      )}
-    </YStack>
-  )
-}
-
-function WalletsSettings() {
-  const {data: wallets, isLoading: isLoadingWallets} = useWallets()
-  if (isLoadingWallets) return null
-  if (wallets?.length) return <ExistingWallets wallets={wallets} />
-  return <NoWallets />
-}
-
-function WalletCard({
-  wallet,
-  active = false,
-  ...props
-}: CardProps & {wallet: LightningWallet; active?: boolean}) {
-  const mutation = useExportWallet()
-
-  async function handleExport() {
-    try {
-      let res = await mutation.mutateAsync({id: wallet.id})
-      if (!res) {
-        appError('Error: ExportWallet error')
-      } else {
-        copyTextToClipboard(res.credentials)
-        toast.success('Wallet Exported and copied to your clipboard', {
-          duration: 5000,
-        })
-      }
-    } catch (error) {
-      appError(`Error: ExportWallet error: ${error}`, {error})
-    }
-  }
-
-  return (
-    <Card
-      animation="medium"
-      size="$4"
-      theme="green"
-      width={260}
-      // height={120}
-      scale={0.975}
-      hoverStyle={{scale: 1}}
-      pressStyle={{scale: 0.95}}
-      borderRadius="$4"
-      borderWidth={2}
-      borderColor="$borderColor"
-      elevation="$2"
-      {...props}
-    >
-      <Card.Header>
-        <XStack>
-          <YStack flex={1}>
-            <SizableText color="$color10">{wallet.name}</SizableText>
-            <H3 color="$color12">{wallet.balanceSats} sats</H3>
-          </YStack>
-          {/* <Tooltip content="default wallet">
-            <Button
-              size="$3"
-              chromeless
-              icon={
-                <Star color={wallet.isDefault ? 'yellow' : 'transparent'} />
-              }
-              scaleIcon={2}
-              padding="$1"
-            />
-          </Tooltip> */}
-        </XStack>
-      </Card.Header>
-      <Card.Footer padded>
-        <XStack flex={1} />
-        <Button
-          disabled={mutation.isLoading}
-          size="$2"
-          onPress={handleExport}
-          icon={<Share />}
-        >
-          Export
-        </Button>
-      </Card.Footer>
-    </Card>
   )
 }
 
