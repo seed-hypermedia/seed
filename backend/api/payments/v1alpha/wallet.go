@@ -263,11 +263,11 @@ func (srv *Server) ImportWallet(ctx context.Context, in *payments.ImportWalletRe
 		Type:    ret.Type,
 	}
 	if err = walletsql.InsertWallet(conn, wallet2insert, []byte(creds.Login), []byte(creds.Password), bynaryAcc); err != nil {
-		srv.log.Debug("couldn't insert wallet", zap.String("msg", err.Error()))
+		srv.log.Debug("couldn't insert wallet", zap.Error(err))
 		if errors.Is(err, walletsql.ErrDuplicateIndex) {
 			return ret, fmt.Errorf("couldn't insert wallet %s in the database. ID already exists", in.Name)
 		}
-		return ret, fmt.Errorf("couldn't insert wallet %s in the database", in.Name)
+		return ret, fmt.Errorf("couldn't insert wallet %s in the database: %w", in.Name, err)
 	}
 
 	// Trying to authenticate with the provided credentials
@@ -294,8 +294,8 @@ func (srv *Server) ListWallets(ctx context.Context, in *payments.ListWalletsRequ
 
 	wallets, err := walletsql.ListWallets(conn, in.Account, -1)
 	if err != nil {
-		srv.log.Debug("couldn't list wallets", zap.String("msg", err.Error()))
-		return nil, fmt.Errorf("couldn't list wallets")
+		srv.log.Debug("couldn't list wallets", zap.Error(err))
+		return nil, fmt.Errorf("couldn't list wallets: %w", err)
 	}
 	for _, w := range wallets {
 		ret.Wallets = append(ret.Wallets, &payments.Wallet{
@@ -322,7 +322,7 @@ func (srv *Server) RemoveWallet(ctx context.Context, in *payments.WalletRequest)
 	defer release()
 
 	if err := walletsql.RemoveWallet(conn, in.Id); err != nil {
-		return nil, fmt.Errorf("couldn't remove wallet %s", in.Id)
+		return nil, fmt.Errorf("couldn't remove wallet %s: %w", in.Id, err)
 	}
 	// TODO: remove associated token db entries
 	return nil, nil
@@ -347,8 +347,8 @@ func (srv *Server) GetWalletBalance(ctx context.Context, in *payments.WalletRequ
 	}
 	ret.Balance, err = srv.lightningClient.Lndhub.GetBalance(ctx, in.Id)
 	if err != nil {
-		srv.log.Debug("couldn't get wallet balance", zap.String("msg", err.Error()))
-		return ret, fmt.Errorf("couldn't get balance for wallet %s", in.Id)
+		srv.log.Debug("couldn't get wallet balance", zap.Error(err))
+		return ret, fmt.Errorf("couldn't get balance for wallet %s: %w", in.Id, err)
 	}
 	return ret, nil
 }
@@ -366,8 +366,8 @@ func (srv *Server) UpdateWalletName(ctx context.Context, in *payments.UpdateWall
 
 	updatedWallet, err := walletsql.UpdateWalletName(conn, in.Id, in.Name)
 	if err != nil {
-		srv.log.Debug("couldn't update wallet", zap.String("msg", err.Error()))
-		return ret, fmt.Errorf("couldn't update wallet %s", in.Id)
+		srv.log.Debug("couldn't update wallet", zap.Error(err))
+		return ret, fmt.Errorf("couldn't update wallet %s: %w", in.Id, err)
 	}
 	ret.Account = updatedWallet.Account
 	ret.Address = updatedWallet.Address
@@ -391,7 +391,7 @@ func (srv *Server) SetDefaultWallet(ctx context.Context, in *payments.SetDefault
 
 	updatedWallet, err := walletsql.UpdateDefaultWallet(conn, in.Account, in.Id)
 	if err != nil {
-		srv.log.Warn("couldn't set default wallet: " + err.Error())
+		srv.log.Warn("couldn't set default wallet", zap.Error(err))
 		return ret, err
 	}
 	ret.Account = updatedWallet.Account
@@ -446,7 +446,7 @@ func (srv *Server) ExportWallet(ctx context.Context, in *payments.WalletRequest)
 	})
 
 	if err != nil {
-		srv.log.Debug("couldn't encode uri: " + err.Error())
+		srv.log.Debug("couldn't encode uri", zap.Error(err))
 		return ret, err
 	}
 	return ret, nil
@@ -499,7 +499,7 @@ func (srv *Server) GetDefaultWallet(ctx context.Context, in *payments.GetDefault
 
 	w, err := walletsql.GetDefaultWallet(conn, in.Account)
 	if err != nil {
-		srv.log.Debug("couldn't getDefaultWallet: " + err.Error())
+		srv.log.Debug("couldn't getDefaultWallet", zap.Error(err))
 		return ret, err
 	}
 	ret.Account = w.Account
@@ -521,7 +521,7 @@ func (srv *Server) GetWallet(ctx context.Context, in *payments.WalletRequest) (*
 
 	w, err := walletsql.GetWallet(conn, in.Id)
 	if err != nil {
-		srv.log.Debug("couldn't getWallet: " + err.Error())
+		srv.log.Debug("couldn't getWallet", zap.Error(err))
 		return ret, err
 	}
 	ret.Account = w.Account
@@ -539,7 +539,7 @@ func (srv *Server) GetLnAddress(ctx context.Context, walletID string) (string, e
 	lnaddress, err := srv.lightningClient.Lndhub.GetLnAddress(ctx, walletID)
 	if err != nil {
 		srv.log.Debug("couldn't get lnaddress", zap.Error(err))
-		return "", fmt.Errorf("couldn't get lnaddress")
+		return "", fmt.Errorf("couldn't get lnaddress: %w", err)
 	}
 	return lnaddress, nil
 }

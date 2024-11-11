@@ -148,6 +148,6 @@ func TestQueries(t *testing.T) {
 		require.Equal(t, int64(3), nwallets.Count)
 		require.NoError(t, RemoveWallet(conn, id1))
 		require.NoError(t, RemoveWallet(conn, id2))
-		require.Error(t, RemoveWallet(conn, id3))
+		require.NoError(t, RemoveWallet(conn, id3), "we should remove the default wallet even though there is no one left")
 	}
 }

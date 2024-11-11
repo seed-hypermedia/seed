@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"seed/backend/blob"
 	"seed/backend/core"
-	"seed/backend/lndhub/lndhubsql"
 	"seed/backend/storage"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -237,15 +236,11 @@ func RemoveWallet(conn *sqlite.Conn, id string) error {
 		return fmt.Errorf("couldn't get default wallet while deleting walletID %s", id)
 	}
 
-	if wallet2delete.WalletsType == lndhubsql.LndhubGoWalletType && defaultWallet.ID == wallet2delete.WalletsID {
-		return fmt.Errorf("The internal wallet %s must not be removed", wallet2delete.WalletsName)
-	}
-
 	if err := removeWallet(conn, id); err != nil {
-		return fmt.Errorf("couldn't remove wallet. Unknown reason")
+		return fmt.Errorf("couldn't remove wallet: %w", err)
 	}
 
-	//If the previously inserted was the default, then we should set a new default
+	//If the previously deleted was the default, then we should set a new default
 	if defaultWallet.ID == id {
 		newDefaultWallet, err := ListWallets(conn, core.Principal(principal).String(), 1)
 		if err != nil {
