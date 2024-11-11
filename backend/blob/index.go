@@ -1,6 +1,7 @@
 package blob
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,7 @@ import (
 	"net/url"
 	"seed/backend/core"
 	"seed/backend/ipfs"
+	"seed/backend/util/btree"
 	"seed/backend/util/dqb"
 	"seed/backend/util/maybe"
 	"seed/backend/util/strbytes"
@@ -144,23 +146,18 @@ func (idx *Index) CanEditResource(ctx context.Context, resource IRI, author core
 }
 
 type ChangeRecord struct {
-	CID  cid.Cid
-	Data *Change
+	CID        cid.Cid
+	Data       *Change
+	Generation int64
 }
 
 // iterChangesLatest iterates over changes for a given resource for the latest generation.
-func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.Seq2[int, ChangeRecord], check func() error) {
+func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.Seq[ChangeRecord], check func() error) {
 	var outErr error
 
 	check = func() error { return outErr }
 
-	it = func(yield func(int, ChangeRecord) bool) {
-		space, _, err := resource.SpacePath()
-		if err != nil {
-			outErr = err
-			return
-		}
-
+	it = func(yield func(ChangeRecord) bool) {
 		conn, release, err := idx.db.Conn(ctx)
 		if err != nil {
 			outErr = err
@@ -168,9 +165,44 @@ func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.
 		}
 		defer release()
 
+		generations, err := idx.loadGenerations(conn, resource)
+		if err != nil {
+			outErr = err
+			return
+		}
+
+		if len(generations) == 0 {
+			return
+		}
+
+		maxRef := generations[0]
+
+		if maxRef.IsTombstone {
+			outErr = status.Errorf(codes.FailedPrecondition, "document '%s' is marked as deleted", resource)
+			return
+		}
+
+		var heads []int64
+		for i, gen := range generations {
+			// We only take into account those Refs that coincide with the latest generation and genesis.
+			if i > 0 && (gen.GenesisID != maxRef.GenesisID || gen.Generation != maxRef.Generation) {
+				continue
+			}
+
+			heads = append(heads, gen.Heads...)
+		}
+
+		slices.Sort(heads)
+		heads = slices.Compact(heads)
+
+		headJSON, err := json.Marshal(heads)
+		if err != nil {
+			outErr = err
+			return
+		}
+
 		buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
-		rows, check := sqlitex.Query(conn, qIterChanges(), resource, space, space, resource)
-		var i int
+		rows, check := sqlitex.Query(conn, qIterChangesFromHeads(), strbytes.String(headJSON))
 		for row := range rows {
 			next := sqlite.NewIncrementor(0)
 			var (
@@ -193,14 +225,14 @@ func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.
 			}
 
 			rec := ChangeRecord{
-				CID:  chcid,
-				Data: ch,
+				CID:        chcid,
+				Data:       ch,
+				Generation: maxRef.Generation,
 			}
 
-			if !yield(i, rec) {
+			if !yield(rec) {
 				break
 			}
-			i++
 
 			buf = buf[:0] // reset the slice reusing the backing array
 		}
@@ -211,53 +243,29 @@ func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.
 	return it, check
 }
 
-var qIterChanges = dqb.Str(`
+var qIterChangesFromHeads = dqb.Str(`
 	WITH RECURSIVE
-	refs (id, generation) AS (
-		SELECT
-			id,
-			COALESCE(extra_attrs->>'generation', 0) AS generation
-		FROM structural_blobs
-		WHERE type = 'Ref'
-		AND resource = (SELECT id FROM resources WHERE iri = :iri)
-		AND (author = (SELECT id FROM public_keys WHERE principal = :space) OR author IN (
-			SELECT DISTINCT extra_attrs->>'del'
-			FROM structural_blobs
-			WHERE type = 'Capability'
-			AND author = (SELECT id FROM public_keys WHERE principal = :space2)
-			AND resource IN (SELECT id FROM resources WHERE :iri2 BETWEEN iri AND iri || '~~~~~~')
-		))
-	),
-	latest_refs (id) AS (
-		SELECT id
-		FROM refs
-		WHERE generation = (SELECT MAX(generation) FROM refs)
-	),
 	changes (id) AS (
-		SELECT bl.target
-		FROM blob_links bl
-		JOIN latest_refs r ON r.id = bl.source AND bl.type = 'ref/head'
-
+		SELECT value FROM json_each(:heads)
 		UNION
-
-		SELECT bl.target
-		FROM blob_links bl
-		JOIN changes c ON c.id = bl.source
-		WHERE bl.type = 'change/dep'
+		SELECT target
+		FROM blob_links
+		JOIN changes ON changes.id = blob_links.source
+			AND blob_links.type = 'change/dep'
 	)
 	SELECT
 		codec,
 		multihash,
 		data
-	FROM blobs b
-	JOIN structural_blobs sb ON sb.id = b.id
-	JOIN changes c ON c.id = b.id
-	ORDER BY sb.ts
+	FROM changes
+	JOIN blobs ON changes.id = blobs.id
+	LEFT JOIN structural_blobs ON structural_blobs.id = blobs.id
+	ORDER BY structural_blobs.ts;
 `)
 
-// IterChangesFromHeads iterates over changes starting from the given heads.
+// IterChanges iterates over changes starting from the given heads.
 // When no heads are provided it uses the latest generation and the latest version.
-func (idx *Index) IterChangesFromHeads(ctx context.Context, resource IRI, heads []cid.Cid) (it iter.Seq2[int, ChangeRecord], check func() error) {
+func (idx *Index) IterChanges(ctx context.Context, resource IRI, heads []cid.Cid) (it iter.Seq[ChangeRecord], check func() error) {
 	if len(heads) == 0 {
 		return idx.iterChangesLatest(ctx, resource)
 	}
@@ -266,7 +274,7 @@ func (idx *Index) IterChangesFromHeads(ctx context.Context, resource IRI, heads 
 
 	check = func() error { return outErr }
 
-	it = func(yield func(int, ChangeRecord) bool) {
+	it = func(yield func(ChangeRecord) bool) {
 		conn, release, err := idx.db.Conn(ctx)
 		if err != nil {
 			outErr = err
@@ -280,49 +288,102 @@ func (idx *Index) IterChangesFromHeads(ctx context.Context, resource IRI, heads 
 			return
 		}
 
-		edges, err := loadChangeEdges(conn, resource)
+		var versionGenesis int64
+
+		for i, h := range headIDs {
+			genesis, err := dbBlobsGetGenesis(conn, h)
+			if err != nil {
+				outErr = err
+				return
+			}
+			if genesis == 0 {
+				outErr = fmt.Errorf("no genesis for change %s", heads[i])
+				return
+			}
+
+			if versionGenesis == 0 {
+				versionGenesis = genesis
+			} else if versionGenesis != genesis {
+				outErr = fmt.Errorf("changes of compound version %s have different genesis", NewVersion(heads...).String())
+				return
+			}
+		}
+
+		generations, err := idx.loadGenerations(conn, resource)
 		if err != nil {
 			outErr = err
 			return
 		}
 
-		visited := make(map[int64]struct{}, len(edges))
-		queue := make([]int64, 0, len(edges))
-		chain := make([]int64, 0, len(edges))
+		if len(generations) == 0 {
+			return
+		}
 
-		for i, h := range headIDs {
-			if _, ok := edges[h]; !ok {
-				outErr = fmt.Errorf("head '%s' not found", heads[i])
+		type lineageID struct {
+			Generation int64
+			GenesisID  int64
+		}
+
+		filteredLineages := btree.New[lineageID, []int64](8, func(a, b lineageID) int {
+			if a.Generation < b.Generation {
+				return -1
+			}
+			if a.Generation > b.Generation {
+				return +1
+			}
+			return cmp.Compare(a.GenesisID, b.GenesisID)
+		})
+
+		for _, gen := range generations {
+			if gen.GenesisID != versionGenesis {
+				continue
+			}
+
+			linID := lineageID{Generation: gen.Generation, GenesisID: gen.GenesisID}
+
+			heads := filteredLineages.GetMaybe(linID)
+			heads = append(heads, gen.Heads...)
+			filteredLineages.Set(linID, heads)
+		}
+
+		if filteredLineages.Len() == 0 {
+			return
+		}
+
+		var versionGeneration maybe.Value[int64]
+	Loop:
+		for linID, linHeads := range filteredLineages.Items() {
+			graph, err := idx.resolveHeads(conn, linHeads)
+			if err != nil {
+				outErr = err
 				return
 			}
 
-			queue = append(queue, h)
-		}
-
-		for len(queue) > 0 {
-			c := queue[0]
-			queue = queue[1:]
-			if _, ok := visited[c]; ok {
-				continue
+			// Check if all of our version components are in the graph.
+			// If they are we use this generation, otherwise we skip it.
+			for _, h := range headIDs {
+				_, ok := slices.BinarySearch(graph, h)
+				if ok {
+					versionGeneration = maybe.New(linID.Generation)
+					break Loop
+				}
 			}
-			visited[c] = struct{}{}
-			chain = append(chain, c)
-			queue = append(queue, edges[c]...)
 		}
 
-		slices.Reverse(chain)
+		if !versionGeneration.IsSet() {
+			return
+		}
 
-		idsJSON, err := json.Marshal(chain)
+		headsJSON, err := json.Marshal(headIDs)
 		if err != nil {
 			outErr = err
 			return
 		}
 
 		buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
-		rows, check := sqlitex.Query(conn, qIterBlobs(), strbytes.String(idsJSON))
-		var i int
+		rows, check := sqlitex.Query(conn, qIterChangesFromHeads(), strbytes.String(headsJSON))
 		for row := range rows {
-			next := sqlite.NewIncrementor(1) // Skip the ID column.
+			next := sqlite.NewIncrementor(0)
 			var (
 				codec = row.ColumnInt64(next())
 				hash  = row.ColumnBytesUnsafe(next())
@@ -330,6 +391,7 @@ func (idx *Index) IterChangesFromHeads(ctx context.Context, resource IRI, heads 
 			)
 
 			if len(data) == 0 {
+				//nolint:gosec
 				outErr = errors.Join(outErr, fmt.Errorf("WalkChanges: empty data for change %s", cid.NewCidV1(uint64(codec), hash)))
 				break
 			}
@@ -340,6 +402,7 @@ func (idx *Index) IterChangesFromHeads(ctx context.Context, resource IRI, heads 
 				break
 			}
 
+			//nolint:gosec
 			chcid := cid.NewCidV1(uint64(codec), hash)
 			ch := &Change{}
 			if err := cbornode.DecodeInto(buf, ch); err != nil {
@@ -348,14 +411,14 @@ func (idx *Index) IterChangesFromHeads(ctx context.Context, resource IRI, heads 
 			}
 
 			rec := ChangeRecord{
-				CID:  chcid,
-				Data: ch,
+				CID:        chcid,
+				Data:       ch,
+				Generation: versionGeneration.Value(),
 			}
 
-			if !yield(i, rec) {
+			if !yield(rec) {
 				break
 			}
-			i++
 
 			buf = buf[:0] // reset the slice reusing the backing array
 		}
@@ -366,64 +429,40 @@ func (idx *Index) IterChangesFromHeads(ctx context.Context, resource IRI, heads 
 	return it, check
 }
 
-func loadChangeEdges(conn *sqlite.Conn, iri IRI) (map[int64][]int64, error) {
-	space, _, err := iri.SpacePath()
+func (idx *Index) resolveHeads(conn *sqlite.Conn, heads []int64) ([]int64, error) {
+	if len(heads) == 0 {
+		return nil, fmt.Errorf("BUG: heads must not be empty")
+	}
+
+	idsJSON, err := json.Marshal(heads)
 	if err != nil {
 		return nil, err
 	}
 
-	edges := make(map[int64][]int64)
-
-	rows, check := sqlitex.Query(conn, qLoadChangeEdges(), iri, space, space, iri)
+	var out []int64
+	rows, check := sqlitex.Query(conn, qResolveHeads(), strbytes.String(idsJSON))
 	for row := range rows {
-		child := row.ColumnInt64(0)
-		parent := row.ColumnInt64(1)
-
-		if _, ok := edges[child]; !ok {
-			edges[child] = nil
-		}
-
-		if parent > 0 {
-			edges[child] = append(edges[child], parent)
-		}
+		out = append(out, row.ColumnInt64(0))
 	}
 	if err := check(); err != nil {
 		return nil, err
 	}
 
-	return edges, nil
+	return out, nil
 }
 
-var qLoadChangeEdges = dqb.Str(`
+var qResolveHeads = dqb.Str(`
 	WITH RECURSIVE
-	refs (id) AS (
-		SELECT id
-		FROM structural_blobs
-		WHERE type = 'Ref'
-		AND resource = (SELECT id FROM resources WHERE iri = :iri)
-		AND (author = (SELECT id FROM public_keys WHERE principal = :space) OR author IN (
-			SELECT DISTINCT extra_attrs->>'del'
-			FROM structural_blobs
-			WHERE type = 'Capability'
-			AND author = (SELECT id FROM public_keys WHERE principal = :space2)
-			AND resource IN (SELECT id FROM resources WHERE :iri2 BETWEEN iri AND iri || '~~~~~~')
-		))
-	),
-	edges (child, parent) AS (
-		SELECT reflinks.target, deps.target
-		FROM refs
-		-- Find heads from refs.
-		JOIN blob_links reflinks ON reflinks.source = refs.id AND reflinks.type = 'ref/head'
-		-- Now find deps edges from those heads, which will be the start of our traversal.
-		LEFT JOIN blob_links deps ON deps.source = reflinks.target AND deps.type = 'change/dep'
-
+	changes (id) AS (
+		SELECT value FROM json_each(:heads)
 		UNION
-
-		SELECT blob_links.source, blob_links.target
-		FROM edges
-		JOIN blob_links ON blob_links.source = edges.parent AND blob_links.type = 'change/dep'
+		SELECT target
+		FROM blob_links
+		JOIN changes ON changes.id = blob_links.source
+		WHERE type = 'change/dep'
 	)
-	SELECT * FROM edges;
+	SELECT id FROM changes
+	ORDER BY id;
 `)
 
 func cidsToDBIDs(conn *sqlite.Conn, cids []cid.Cid) ([]int64, error) {
@@ -447,19 +486,6 @@ func cidsToDBIDs(conn *sqlite.Conn, cids []cid.Cid) ([]int64, error) {
 	return out, nil
 }
 
-var qIterBlobs = dqb.Str(`
-	SELECT
-		t.key,
-		codec,
-		multihash,
-		data
-	FROM json_each(:ids_json) t
-	LEFT JOIN blobs b ON b.id = t.value
-	LEFT JOIN structural_blobs sb ON sb.id = b.id
-	WHERE b.size >= 0
-	ORDER BY sb.ts
-`)
-
 func (idx *Index) loadGenerations(conn *sqlite.Conn, resource IRI) (out []generation, err error) {
 	rows, check := sqlitex.Query(conn, qLoadGenerations(), resource, resource)
 	for row := range rows {
@@ -480,8 +506,8 @@ func (idx *Index) loadGenerations(conn *sqlite.Conn, resource IRI) (out []genera
 
 		g.IsTombstone = isTomb == 1
 
-		if err := json.Unmarshal(row.ColumnBytesUnsafe(seq()), &g.Heads); err != nil {
-			err = fmt.Errorf("BUG: failed to unmarshal JSON heads")
+		if xerr := json.Unmarshal(row.ColumnBytesUnsafe(seq()), &g.Heads); xerr != nil {
+			err = fmt.Errorf("BUG: failed to unmarshal JSON heads: %w", xerr)
 			break
 		}
 
@@ -521,70 +547,26 @@ var qLoadGenerations = dqb.Str(`
 		AND author = (SELECT owner FROM space LIMIT 1)
 		AND resource IN (SELECT id FROM resources WHERE :iri2 BETWEEN iri AND iri || '~~~~~~')
 	),
-	refs (id, generation, genesis, author, ts, is_tombstone) AS (
+	refs (id, generation, genesis, author, ts, is_tombstone, heads) AS (
 		SELECT
 			structural_blobs.id,
 			COALESCE(extra_attrs->>'generation', 0) AS generation,
 			genesis_blob,
 			author,
 			ts,
-			COALESCE(extra_attrs->>'tombstone', 0) AS is_tombstone
+			COALESCE(extra_attrs->>'tombstone', 0) AS is_tombstone,
+			JSON_GROUP_ARRAY(blob_links.target) AS heads
 		FROM structural_blobs
 		JOIN space ON space.id = structural_blobs.resource
 		JOIN authors ON authors.id = structural_blobs.author
+		LEFT JOIN blob_links ON blob_links.source = structural_blobs.id AND blob_links.type = 'ref/head'
 		WHERE structural_blobs.type = 'Ref'
 		GROUP BY generation, genesis_blob, author
 		HAVING ts = MAX(ts)
 	)
-	SELECT
-	refs.*,
-	JSON_GROUP_ARRAY(blob_links.target) AS heads
+	SELECT refs.*
 	FROM refs
-	LEFT JOIN blob_links ON blob_links.source = refs.id AND type = 'ref/head'
-	GROUP BY refs.id
-	ORDER BY refs.ts DESC;
-`)
-
-// IsDeleted checks whether a given resource is deleted.
-func (idx *Index) IsDeleted(ctx context.Context, resource IRI) (deleted bool, err error) {
-	conn, release, err := idx.db.Conn(ctx)
-	if err != nil {
-		return false, err
-	}
-	defer release()
-
-	space, _, err := resource.SpacePath()
-	if err != nil {
-		return false, err
-	}
-
-	rows, check := sqlitex.Query(conn, qIsDeleted(), resource, space, space, resource)
-	for row := range rows {
-		deleted = row.ColumnInt(0) == 1
-	}
-	if err := check(); err != nil {
-		return false, err
-	}
-
-	return deleted, nil
-}
-
-var qIsDeleted = dqb.Str(`
-	SELECT
-		COALESCE(extra_attrs->>'tombstone', 0) AS is_deleted
-	FROM structural_blobs
-	WHERE type = 'Ref'
-	AND resource = (SELECT id FROM resources WHERE iri = :iri)
-	AND (author = (SELECT id FROM public_keys WHERE principal = :space) OR author IN (
-		SELECT DISTINCT extra_attrs->>'del'
-		FROM structural_blobs
-		WHERE type = 'Capability'
-		AND author = (SELECT id FROM public_keys WHERE principal = :space2)
-		AND resource IN (SELECT id FROM resources WHERE :iri2 BETWEEN iri AND iri || '~~~~~~')
-	))
-	GROUP BY resource
-	HAVING ts = MAX(ts)
-	LIMIT 1
+	ORDER BY refs.generation DESC, refs.ts DESC;
 `)
 
 func (idx *Index) WalkCapabilities(ctx context.Context, resource IRI, author core.Principal, fn func(cid.Cid, *Capability) error) error {

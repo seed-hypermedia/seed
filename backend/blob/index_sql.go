@@ -94,6 +94,25 @@ var qBlobsGetSize = dqb.Str(`
 	WHERE blobs.multihash = :blobsMultihash
 `)
 
+func dbBlobsGetGenesis(conn *sqlite.Conn, id int64) (genesis int64, err error) {
+	rows, check := sqlitex.Query(conn, qBlobsGetGenesis(), id)
+	for row := range rows {
+		genesis = row.ColumnInt64(0)
+	}
+	if err := check(); err != nil {
+		return 0, err
+	}
+
+	return genesis, nil
+}
+
+var qBlobsGetGenesis = dqb.Str(`
+	SELECT COALESCE(genesis_blob, id)
+	FROM structural_blobs
+	WHERE id = :id
+	LIMIT 1;
+`)
+
 // DbPublicKeysLookupID gets the db index of a given account.
 func DbPublicKeysLookupID(conn *sqlite.Conn, publicKeysPrincipal []byte) (int64, error) {
 	before := func(stmt *sqlite.Stmt) {

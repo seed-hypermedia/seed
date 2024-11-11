@@ -72,7 +72,7 @@ var migrations = []migration{
 			DELETE FROM kv WHERE key = 'lndhub_login_signature';
 		`))
 	}},
-	{Version: "2024-11-08.03", Run: func(_ *Store, conn *sqlite.Conn) error {
+	{Version: "2024-11-11.01", Run: func(_ *Store, conn *sqlite.Conn) error {
 		if err := sqlitex.ExecScript(conn, "DROP TABLE IF EXISTS deleted_resources;"); err != nil {
 			return err
 		}

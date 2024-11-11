@@ -26,6 +26,11 @@ func (v Value[T]) Any() any {
 	return nil
 }
 
+// Value returns the underlying value.
+func (v Value[T]) Value() T {
+	return v.value
+}
+
 // Any converts concrete value to an any, using nil is the concrete value is a zero value.
 func Any[T comparable](v T) any {
 	if v == *(new(T)) {

@@ -82,8 +82,8 @@ func (srv *Server) ListDocumentChanges(ctx context.Context, in *documents.ListDo
 		foundCursor = true
 	}
 	var nextCursor string
-	for _, change := range changes {
-		cc := change.CID.String()
+	for c, change := range changes {
+		cc := c.String()
 		if !foundCursor {
 			if cc == cursor.StartFrom {
 				foundCursor = true
@@ -98,9 +98,9 @@ func (srv *Server) ListDocumentChanges(ctx context.Context, in *documents.ListDo
 		}
 		out.Changes = append(out.Changes, &documents.DocumentChangeInfo{
 			Id:         cc,
-			Author:     change.Data.Signer.String(),
-			Deps:       colx.SliceMap(change.Data.Deps, cid.Cid.String),
-			CreateTime: timestamppb.New(change.Data.Ts),
+			Author:     change.Signer.String(),
+			Deps:       colx.SliceMap(change.Deps, cid.Cid.String),
+			CreateTime: timestamppb.New(change.Ts),
 		})
 	}
 

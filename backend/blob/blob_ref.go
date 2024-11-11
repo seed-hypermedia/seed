@@ -35,7 +35,12 @@ type Ref struct {
 }
 
 // NewRef creates a new Ref blob.
-func NewRef(kp core.KeyPair, genesis cid.Cid, space core.Principal, path string, heads []cid.Cid, cap cid.Cid, ts time.Time) (eb Encoded[*Ref], err error) {
+func NewRef(kp core.KeyPair, generation int64, genesis cid.Cid, space core.Principal, path string, heads []cid.Cid, capc cid.Cid, ts time.Time) (eb Encoded[*Ref], err error) {
+	// TODO(burdiyan): we thought we wanted to attach caps to refs, then we figured out we were not doing it,
+	// then we wanted to fix it, then we realized we haven't, and then we decided that it was never needed anyway.
+	// So this should just go away, but we'll do it later.
+	_ = capc
+
 	ru := &Ref{
 		baseBlob: baseBlob{
 			Type:   blobTypeRef,
@@ -45,6 +50,7 @@ func NewRef(kp core.KeyPair, genesis cid.Cid, space core.Principal, path string,
 		Path:        path,
 		GenesisBlob: genesis,
 		Heads:       heads,
+		Generation:  generation,
 	}
 
 	if !kp.Principal().Equal(space) {
@@ -53,28 +59,6 @@ func NewRef(kp core.KeyPair, genesis cid.Cid, space core.Principal, path string,
 
 	if err := signBlob(kp, ru, &ru.baseBlob.Sig); err != nil {
 		return eb, err
-	}
-
-	return encodeBlob(ru)
-}
-
-// NewRefTombstone creates a new tombstone Ref.
-func NewRefTombstone(kp core.KeyPair, space core.Principal, path string, ts time.Time) (eb Encoded[*Ref], err error) {
-	ru := &Ref{
-		baseBlob: baseBlob{
-			Type:   blobTypeRef,
-			Signer: kp.Principal(),
-			Ts:     ts,
-		},
-		Path: path,
-	}
-
-	if !kp.Principal().Equal(space) {
-		ru.Space = space
-	}
-
-	if err := signBlob(kp, ru, &ru.baseBlob.Sig); err != nil {
-		return eb, nil
 	}
 
 	return encodeBlob(ru)
@@ -145,12 +129,12 @@ func indexRef(ictx *indexingCtx, id int64, c cid.Cid, v *Ref) error {
 	switch {
 	// A normal Ref has to have Genesis and Heads.
 	case v.GenesisBlob.Defined() && len(v.Heads) > 0:
-	// A tombstone Ref must have no Genesis and no Heads.
-	case !v.GenesisBlob.Defined() && len(v.Heads) == 0:
+	// A tombstone Ref must have Genesis and no Heads.
+	case v.GenesisBlob.Defined() && len(v.Heads) == 0:
 		meta.Tombstone = true
 	// All the other cases are invalid.
 	default:
-		return fmt.Errorf("invalid Ref blob invariants")
+		return fmt.Errorf("invalid Ref blob invariants %+v", v)
 	}
 
 	sb.Meta = meta

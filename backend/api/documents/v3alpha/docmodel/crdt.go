@@ -214,7 +214,7 @@ func (e *docCRDT) Version() Version {
 }
 
 // BFTDeps returns a single-use iterator that does breadth-first traversal of the Change DAG deps.
-func (e *docCRDT) BFTDeps(start []cid.Cid) (iter.Seq2[int, blob.ChangeRecord], error) {
+func (e *docCRDT) BFTDeps(start []cid.Cid) (iter.Seq2[cid.Cid, *blob.Change], error) {
 	visited := make(map[int]struct{}, len(e.cids))
 	queue := make([]int, 0, len(e.cids))
 	var scratch []int
@@ -254,7 +254,7 @@ func (e *docCRDT) BFTDeps(start []cid.Cid) (iter.Seq2[int, blob.ChangeRecord], e
 	}
 	enqueueNodes(scratch)
 
-	return func(yield func(int, blob.ChangeRecord) bool) {
+	return func(yield func(cid.Cid, *blob.Change) bool) {
 		var i int
 		for len(queue) > 0 {
 			c := queue[0]
@@ -265,10 +265,7 @@ func (e *docCRDT) BFTDeps(start []cid.Cid) (iter.Seq2[int, blob.ChangeRecord], e
 			visited[c] = struct{}{}
 
 			enqueueNodes(e.deps[c])
-			if !yield(i, blob.ChangeRecord{
-				CID:  e.cids[c],
-				Data: e.changes[c],
-			}) {
+			if !yield(e.cids[c], e.changes[c]) {
 				break
 			}
 

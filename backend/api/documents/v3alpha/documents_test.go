@@ -1,6 +1,7 @@
 package documents
 
 import (
+	"cmp"
 	"context"
 	"seed/backend/blob"
 	"seed/backend/core"
@@ -10,6 +11,7 @@ import (
 	"seed/backend/storage"
 	"seed/backend/testutil"
 	"seed/backend/util/must"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -623,8 +625,97 @@ func TestTombstoneRef(t *testing.T) {
 		require.NoError(t, err)
 		testutil.StructsEqual(republished, got).Compare(t, "getting latest must return the second generation")
 	}
+
+	// Check new generation works with latest.
+	{
+		got, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{
+			Account: republished.Account,
+			Path:    republished.Path,
+			Version: republished.Version,
+		})
+		require.NoError(t, err)
+		testutil.StructsEqual(republished, got).Compare(t, "getting republished with version must work")
+	}
+
 	// Check get with version works for previous generation.
-	// Check list responses.
+	{
+		got, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{
+			Account: doc.Account,
+			Path:    doc.Path,
+			Version: doc.Version,
+		})
+		require.NoError(t, err)
+		testutil.StructsEqual(doc, got).Compare(t, "getting republished with version must work")
+	}
+
+	// Check list contains latest.
+	{
+		list, err := alice.ListDocuments(ctx, &documents.ListDocumentsRequest{
+			Account:  alice.me.Account.Principal().String(),
+			PageSize: 100,
+		})
+		require.NoError(t, err)
+		require.Len(t, list.Documents, 2, "list must contain the home doc and the second generation of the other doc")
+
+		want := &documents.ListDocumentsResponse{
+			Documents: []*documents.DocumentListItem{
+				DocumentToListItem(home),
+				DocumentToListItem(republished),
+			},
+		}
+
+		slices.SortFunc(want.Documents, func(a, b *documents.DocumentListItem) int { return cmp.Compare(a.Version, b.Version) })
+		slices.SortFunc(list.Documents, func(a, b *documents.DocumentListItem) int { return cmp.Compare(a.Version, b.Version) })
+
+		testutil.StructsEqual(want, list).Compare(t, "listing must contain home doc and republished doc")
+	}
+
+	// Changes with no base version must fail when there's a live document.
+	{
+		_, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+			SigningKeyName: "main",
+			Account:        alice.me.Account.Principal().String(),
+			Path:           "/hello",
+			Changes: []*documents.DocumentChange{
+				{Op: &documents.DocumentChange_SetMetadata_{
+					SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Hello World Republished Must Fail"},
+				}},
+			},
+		})
+		require.Error(t, err, "changes with no base version must fail")
+	}
+
+	// Changes with base version of the old generation must not overwrite the newer generation
+	{
+		got, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+			SigningKeyName: "main",
+			Account:        doc.Account,
+			Path:           doc.Path,
+			Changes: []*documents.DocumentChange{
+				{Op: &documents.DocumentChange_SetMetadata_{
+					SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Hello World Revived Old Generation"},
+				}},
+			},
+			BaseVersion: doc.Version,
+		})
+		require.NoError(t, err)
+
+		gotv, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{
+			Account: got.Account,
+			Path:    doc.Path,
+			Version: got.Version,
+		})
+		require.NoError(t, err)
+		testutil.StructsEqual(got, gotv).Compare(t, "getting version of the old generation must take into account new changes")
+
+		gotLatest, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{
+			Account: doc.Account,
+			Path:    doc.Path,
+		})
+		require.NoError(t, err)
+
+		testutil.StructsEqual(republished, gotLatest).Compare(t, "changes with base version of the old generation must not overwrite the newer generation")
+	}
 }
 
 type testServer struct {

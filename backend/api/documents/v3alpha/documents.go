@@ -15,6 +15,7 @@ import (
 	"seed/backend/util/cclock"
 	"seed/backend/util/dqb"
 	"seed/backend/util/errutil"
+	"seed/backend/util/maybe"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"time"
@@ -443,13 +444,22 @@ func (srv *Server) CreateRef(ctx context.Context, in *documents.CreateRefRequest
 		ts = cclock.New().MustNow()
 	}
 
+	doc, err := srv.loadDocument(ctx, ns, in.Path, nil, false)
+	if err != nil {
+		return nil, err
+	}
+
+	if !doc.Generation.IsSet() {
+		return nil, fmt.Errorf("BUG: generation is not set on a loaded document")
+	}
+
 	var refBlob blob.Encoded[*blob.Ref]
 
 	switch in.Target.Target.(type) {
 	case *documents.RefTarget_Version_:
 		return nil, status.Errorf(codes.Unimplemented, "version Ref target is not implemented yet")
 	case *documents.RefTarget_Tombstone_:
-		refBlob, err = blob.NewRefTombstone(kp, ns, in.Path, ts)
+		refBlob, err = blob.NewRef(kp, doc.Generation.Value(), doc.Genesis(), ns, in.Path, nil, capc, ts)
 		if err != nil {
 			return nil, err
 		}
@@ -504,7 +514,7 @@ func refToProto(c cid.Cid, ref *blob.Ref) (*documents.Ref, error) {
 				},
 			},
 		}
-	case !ref.GenesisBlob.Defined() && len(ref.Heads) == 0:
+	case ref.GenesisBlob.Defined() && len(ref.Heads) == 0:
 		pb.Target = &documents.RefTarget{
 			Target: &documents.RefTarget_Tombstone_{
 				Tombstone: &documents.RefTarget_Tombstone{},
@@ -550,7 +560,7 @@ func (srv *Server) ensureProfileGenesis(ctx context.Context, kp core.KeyPair) er
 		return err
 	}
 
-	ebr, err := blob.NewRef(kp, ebc.CID, space, path, []cid.Cid{ebc.CID}, cid.Undef, blob.ZeroUnixTime())
+	ebr, err := blob.NewRef(kp, 0, ebc.CID, space, path, []cid.Cid{ebc.CID}, cid.Undef, blob.ZeroUnixTime())
 	if err != nil {
 		return err
 	}
@@ -578,20 +588,17 @@ func (srv *Server) loadDocument(ctx context.Context, account core.Principal, pat
 		return nil, err
 	}
 
-	// We only check if it's deleted if we are asked about the latest version.
-	if len(heads) == 0 {
-		isDeleted, err := srv.idx.IsDeleted(ctx, iri)
-		if err != nil {
-			return nil, err
+	changes, check := srv.idx.IterChanges(ctx, iri, heads)
+	for ch := range changes {
+		if doc.Generation.IsSet() {
+			if doc.Generation.Value() != ch.Generation {
+				err = fmt.Errorf("BUG: IterChanges returned changes with different generations")
+				break
+			}
+		} else {
+			doc.Generation = maybe.New(ch.Generation)
 		}
 
-		if isDeleted {
-			return nil, status.Errorf(codes.FailedPrecondition, "document is marked as deleted")
-		}
-	}
-
-	changes, check := srv.idx.IterChangesFromHeads(ctx, iri, heads)
-	for _, ch := range changes {
 		if aerr := doc.ApplyChange(ch.CID, ch.Data); aerr != nil {
 			err = errors.Join(err, aerr)
 			break

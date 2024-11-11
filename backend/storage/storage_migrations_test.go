@@ -64,11 +64,7 @@ func generateGoldenSnapshot() {
 
 	fmt.Println("Database has been saved in:", cfg.Base.DataDir)
 	if errors.Is(err, context.Canceled) {
-		panic("error unexpected " + err.Error())
-	}
-
-	if err != nil {
-		panic(err)
+		panic(fmt.Errorf("error unexpected: %w", err))
 	}
 }
 
