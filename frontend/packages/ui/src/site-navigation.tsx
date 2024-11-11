@@ -13,10 +13,11 @@ import {
   useRouteLink,
 } from "@shm/shared";
 import {Hash} from "@tamagui/lucide-icons";
-import {YStack} from "@tamagui/stacks";
-import {GestureReponderEvent} from "@tamagui/web";
-import {ReactNode, useMemo} from "react";
-import {View} from "tamagui";
+import {XStack, YStack} from "@tamagui/stacks";
+import {GestureReponderEvent, useMedia} from "@tamagui/web";
+import {ReactNode, useLayoutEffect, useMemo} from "react";
+import {Popover, ScrollView, View} from "tamagui";
+import {usePopoverState} from ".";
 import {HMIcon} from "./hm-icon";
 import {SmallCollapsableListItem, SmallListItem} from "./list-item";
 
@@ -280,6 +281,56 @@ function OutlineNode({
             />
           ))
         : null}
+    </>
+  );
+}
+
+export function SiteNavigationWrapper({children}: {children: ReactNode}) {
+  const popoverState = usePopoverState();
+  const media = useMedia();
+  useLayoutEffect(() => {
+    if (media.gtSm && popoverState.open) {
+      popoverState.onOpenChange(false);
+    }
+  }, [media.gtSm]);
+
+  return (
+    <>
+      <YStack $gtSm={{display: "none"}}>
+        <Popover placement="right" {...popoverState}>
+          <Popover.Trigger
+            opacity={popoverState.open ? 0 : 1}
+            bg="$color6"
+            x={-18}
+            paddingVertical="$3"
+            paddingHorizontal={3}
+            borderRadius={100}
+            gap="$3"
+            jc="space-between"
+            w="100%"
+            enterStyle={{opacity: 0}}
+            exitStyle={{opacity: 0}}
+            animation="fast"
+          >
+            <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
+            <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
+            <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
+            <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
+            <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
+          </Popover.Trigger>
+          <Popover.Content
+            enterStyle={{x: -10, opacity: 0}}
+            exitStyle={{x: -10, opacity: 0}}
+            animation="fast"
+            elevation="$4"
+          >
+            {children}
+          </Popover.Content>
+        </Popover>
+      </YStack>
+      <YStack display="none" $gtSm={{display: "flex"}}>
+        <ScrollView height="100%">{children}</ScrollView>
+      </YStack>
     </>
   );
 }

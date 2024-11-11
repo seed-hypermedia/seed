@@ -40,7 +40,6 @@ import {
   HistoryIcon,
   HMIcon,
   NewsSiteHeader,
-  ScrollView,
   SizableText,
   Spinner,
   Tooltip,
@@ -225,11 +224,9 @@ function _MainDocumentPage({
           <YStack
             marginTop={200}
             $gtSm={{marginTop: 164}}
-            className="document-aside"
+            className="is-desktop document-aside"
           >
-            <ScrollView height="100%">
-              <SiteNavigation />
-            </ScrollView>
+            <SiteNavigation />
           </YStack>
         ) : null}
 

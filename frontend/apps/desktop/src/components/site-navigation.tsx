@@ -10,42 +10,24 @@ import {useEntity} from '@/models/entities'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {hmId} from '@shm/shared'
-import {SiteNavigationPlaceholder} from '@shm/shared/src/site-navigation'
 import {
   DocumentOutline,
   DraftOutline,
-  Popover,
   SiteNavigationContent,
+  SiteNavigationWrapper,
   SmallListItem,
-  useMedia,
-  usePopoverState,
   XStack,
 } from '@shm/ui'
 import {MoreHorizontal, Plus} from '@tamagui/lucide-icons'
-import {ReactNode, useLayoutEffect} from 'react'
-import {Button, YStack} from 'tamagui'
+import {ReactNode} from 'react'
+import {Button} from 'tamagui'
 import {ImportDropdownButton} from './import-doc-button'
 
 export function SiteNavigation() {
-  const popoverProps = usePopoverState()
-
-  const media = useMedia()
-  return media.gtSm ? (
-    <SiteNavigationLoader />
-  ) : (
-    <Popover {...popoverProps} placement="right-end">
-      <Popover.Trigger asChild>
-        <SiteNavigationPlaceholder />
-      </Popover.Trigger>
-      <Popover.Content
-        enterStyle={{y: -10, opacity: 0}}
-        exitStyle={{y: -10, opacity: 0}}
-        animation="fast"
-        elevation="$4"
-      >
-        <SiteNavigationLoader />
-      </Popover.Content>
-    </Popover>
+  return (
+    <SiteNavigationWrapper>
+      <SiteNavigationLoader />
+    </SiteNavigationWrapper>
   )
 }
 
@@ -123,9 +105,7 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
 }
 
 export function SiteNavigationDraftLoader() {
-  const popoverState = usePopoverState()
   const route = useNavRoute()
-  const media = useMedia()
   if (route.key !== 'draft')
     throw new Error('SiteNavigationDraftLoader only supports draft route')
   const {id} = route
@@ -141,75 +121,31 @@ export function SiteNavigationDraftLoader() {
     : null
   const embeds = useDocumentEmbeds(document)
 
-  useLayoutEffect(() => {
-    if (media.gtSm && popoverState.open) {
-      popoverState.onOpenChange(false)
-    }
-  }, [media.gtSm])
-
   if (!document || !siteListQuery || !metadata) return null
 
-  let content = (
-    <SiteNavigationContent
-      documentMetadata={metadata}
-      id={id}
-      supportDocuments={embeds}
-      supportQueries={[siteListQuery]}
-      outline={({indented}) =>
-        draftQuery.data ? (
-          <DraftOutline
-            indented={indented}
-            onActivateBlock={(blockId: string) => {
-              popoverState.onOpenChange(false)
-              focusDraftBlock(id.id, blockId)
-            }}
-            draft={draftQuery.data}
-            id={id}
-            supportDocuments={embeds}
-            onPress={() => {}}
-          />
-        ) : null
-      }
-    />
-  )
-
   return (
-    <>
-      <YStack $gtSm={{display: 'none'}}>
-        <Popover placement="right" {...popoverState}>
-          <Popover.Trigger
-            opacity={popoverState.open ? 0 : 1}
-            bg="$color6"
-            x={-18}
-            paddingVertical="$3"
-            paddingHorizontal={3}
-            borderRadius={100}
-            gap="$3"
-            jc="space-between"
-            w="100%"
-            enterStyle={{opacity: 0}}
-            exitStyle={{opacity: 0}}
-            animation="fast"
-          >
-            <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
-            <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
-            <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
-            <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
-            <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
-          </Popover.Trigger>
-          <Popover.Content
-            enterStyle={{x: -10, opacity: 0}}
-            exitStyle={{x: -10, opacity: 0}}
-            animation="fast"
-            elevation="$4"
-          >
-            {content}
-          </Popover.Content>
-        </Popover>
-      </YStack>
-      <YStack display="none" $gtSm={{display: 'flex'}}>
-        {content}
-      </YStack>
-    </>
+    <SiteNavigationWrapper>
+      <SiteNavigationContent
+        documentMetadata={metadata}
+        id={id}
+        supportDocuments={embeds}
+        supportQueries={[siteListQuery]}
+        outline={({indented}) =>
+          draftQuery.data ? (
+            <DraftOutline
+              indented={indented}
+              onActivateBlock={(blockId: string) => {
+                popoverState.onOpenChange(false)
+                focusDraftBlock(id.id, blockId)
+              }}
+              draft={draftQuery.data}
+              id={id}
+              supportDocuments={embeds}
+              onPress={() => {}}
+            />
+          ) : null
+        }
+      />
+    </SiteNavigationWrapper>
   )
 }
