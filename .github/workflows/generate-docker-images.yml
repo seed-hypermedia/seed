@@ -94,26 +94,26 @@ jobs:
           build-args: |
             SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
             SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
-      #      - name: Build and push rc nextjs
-      #        if: (startsWith(github.ref, 'refs/tags/') && (steps.release-candidate-tag.outputs.match || steps.release-tag.outputs.match)) || startsWith(github.ref, 'refs/heads/release/')
-      #        uses: docker/build-push-action@v4
-      #        with:
-      #          push: true
-      #          file: frontend/apps/site/Dockerfile
-      #          tags: seedhypermedia/gateway:rc
-      #          build-args: |
-      #            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
-      #            SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
-      #      - name: Build and push stable nextjs
-      #        if: startsWith(github.ref, 'refs/tags/') && steps.release-tag.outputs.match
-      #        uses: docker/build-push-action@v4
-      #        with:
-      #          push: true
-      #          file: frontend/apps/site/Dockerfile
-      #          tags: seedhypermedia/gateway:latest
-      #          build-args: |
-      #            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
-      #            SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
+      - name: Build and push rc nextjs
+        if: (startsWith(github.ref, 'refs/tags/') && (steps.release-candidate-tag.outputs.match || steps.release-tag.outputs.match)) || startsWith(github.ref, 'refs/heads/release/')
+        uses: docker/build-push-action@v4
+        with:
+          push: true
+          file: frontend/apps/site/Dockerfile
+          tags: seedhypermedia/gateway:rc
+          build-args: |
+            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+            SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
+      - name: Build and push stable nextjs
+        if: startsWith(github.ref, 'refs/tags/') && steps.release-tag.outputs.match
+        uses: docker/build-push-action@v4
+        with:
+          push: true
+          file: frontend/apps/site/Dockerfile
+          tags: seedhypermedia/gateway:latest
+          build-args: |
+            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+            SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
 
       - name: Build and push edge seed-site
         if: ${{ github.ref == 'refs/heads/main' }}
@@ -126,50 +126,52 @@ jobs:
             DATE=${{ env.COMMIT_DATE }}
           file: backend/cmd/seed-daemon/Dockerfile
           tags: seedhypermedia/site:main
-      #      - name: Build and push rc seed-site
-      #        if: (startsWith(github.ref, 'refs/tags/') && (steps.release-candidate-tag.outputs.match || steps.release-tag.outputs.match)) || startsWith(github.ref, 'refs/heads/release/')
-      #        uses: docker/build-push-action@v4
-      #        with:
-      #          push: true
-      #          build-args: |
-      #            COMMIT_HASH=${{ github.sha }}
-      #            BRANCH=${{ github.ref }}
-      #            DATE=${{ env.COMMIT_DATE }}
-      #          file: backend/cmd/seed-site/Dockerfile
-      #          tags: seedhypermedia/site:rc
-      #      - name: Build and push stable seed-site
-      #        if: startsWith(github.ref, 'refs/tags/') && steps.release-tag.outputs.match
-      #        uses: docker/build-push-action@v4
-      #        with:
-      #          push: true
-      #          build-args: |
-      #            COMMIT_HASH=${{ github.sha }}
-      #            BRANCH=${{ github.ref }}
-      #            DATE=${{ env.COMMIT_DATE }}
-      #          file: backend/cmd/seed-site/Dockerfile
-      #          tags: seedhypermedia/site:latest
+      - name: Build and push rc seed-site
+        if: (startsWith(github.ref, 'refs/tags/') && (steps.release-candidate-tag.outputs.match || steps.release-tag.outputs.match)) || startsWith(github.ref, 'refs/heads/release/')
+        uses: docker/build-push-action@v4
+        with:
+          push: true
+          build-args: |
+            COMMIT_HASH=${{ github.sha }}
+            BRANCH=${{ github.ref }}
+            DATE=${{ env.COMMIT_DATE }}
+          file: backend/cmd/seed-site/Dockerfile
+          tags: seedhypermedia/site:rc
+      - name: Build and push stable seed-site
+        if: startsWith(github.ref, 'refs/tags/') && steps.release-tag.outputs.match
+        uses: docker/build-push-action@v4
+        with:
+          push: true
+          build-args: |
+            COMMIT_HASH=${{ github.sha }}
+            BRANCH=${{ github.ref }}
+            DATE=${{ env.COMMIT_DATE }}
+          file: backend/cmd/seed-site/Dockerfile
+          tags: seedhypermedia/site:latest
 
-      #      - name: Build and push edge monitord
-      #        if: ${{ github.ref == 'refs/heads/main' }}
-      #        uses: docker/build-push-action@v4
-      #        with:
-      #          push: true
-      #          file: backend/cmd/monitord/Dockerfile
-      #          tags: seedhypermedia/monitord:main
-      #      - name: Build and push rc monitord
-      #        if: (startsWith(github.ref, 'refs/tags/') && (steps.release-candidate-tag.outputs.match || steps.release-tag.outputs.match)) || startsWith(github.ref, 'refs/heads/release/')
-      #        uses: docker/build-push-action@v4
-      #        with:
-      #          push: true
-      #          file: backend/cmd/monitord/Dockerfile
-      #          tags: seedhypermedia/monitord:rc
-      #      - name: Build and push stable monitord
-      #        if: startsWith(github.ref, 'refs/tags/') && steps.release-tag.outputs.match
-      #        uses: docker/build-push-action@v4
-      #        with:
-      #          push: true
-      #          file: backend/cmd/monitord/Dockerfile
-      #          tags: seedhypermedia/monitord:latest
+      - name: Build and push edge monitord
+        if: ${{ github.ref == 'refs/heads/main' }}
+        uses: docker/build-push-action@v4
+        with:
+          push: true
+          file: backend/cmd/monitord/Dockerfile
+          tags: seedhypermedia/monitord:main
+
+      - name: Build and push rc monitord
+        if: (startsWith(github.ref, 'refs/tags/') && (steps.release-candidate-tag.outputs.match || steps.release-tag.outputs.match)) || startsWith(github.ref, 'refs/heads/release/')
+        uses: docker/build-push-action@v4
+        with:
+          push: true
+          file: backend/cmd/monitord/Dockerfile
+          tags: seedhypermedia/monitord:rc
+
+      - name: Build and push stable monitord
+        if: startsWith(github.ref, 'refs/tags/') && steps.release-tag.outputs.match
+        uses: docker/build-push-action@v4
+        with:
+          push: true
+          file: backend/cmd/monitord/Dockerfile
+          tags: seedhypermedia/monitord:latest
 
       - name: Build and push edge relay
         if: ${{ github.ref == 'refs/heads/main' }}
