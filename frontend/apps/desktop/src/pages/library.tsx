@@ -605,9 +605,6 @@ function RoleFilterOption({
           id="link-latest"
           size="$2"
           borderColor="$color8"
-          focusStyle={{
-            borderColor: '$color9',
-          }}
           hoverStyle={{
             borderColor: '$color9',
           }}
