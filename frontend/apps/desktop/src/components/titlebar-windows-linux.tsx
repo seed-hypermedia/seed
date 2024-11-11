@@ -17,8 +17,13 @@ export default function TitleBarWindows(props: TitleBarProps) {
   if (props.clean) {
     return (
       <TitlebarWrapper>
-        <XStack paddingHorizontal="$2">
-          <XStack ai="center" flex={1} justifyContent="center">
+        <XStack paddingHorizontal="$2" className="window-drag">
+          <XStack
+            ai="center"
+            flex={1}
+            justifyContent="center"
+            className="window-drag"
+          >
             <TitleText marginHorizontal="$4" fontWeight="bold">
               {props.cleanTitle}
             </TitleText>
@@ -67,7 +72,7 @@ export function WindowsLinuxTitleBar({
     <YStack>
       <XStack height={24} ai="center">
         <SystemMenu />
-        <XStack flex={1} className="window-drag" />
+        <XStack flex={1} className="window-drag" height="100%" />
         <WindowsLinuxWindowControls />
       </XStack>
 
