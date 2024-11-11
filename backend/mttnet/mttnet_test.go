@@ -2,11 +2,11 @@ package mttnet
 
 import (
 	"context"
+	"seed/backend/blob"
 	"seed/backend/config"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
 	p2p "seed/backend/genproto/p2p/v1alpha"
-	"seed/backend/blob"
 	"seed/backend/logging"
 	"seed/backend/storage"
 	"seed/backend/util/future"
@@ -41,7 +41,8 @@ func makeTestPeer(t *testing.T, name string) (*Node, context.CancelFunc) {
 
 	db := storage.MakeTestDB(t)
 
-	idx := blob.NewIndex(db, logging.New("seed/hyper", "debug"), nil)
+	idx, err := blob.OpenIndex(context.Background(), db, logging.New("seed/hyper", "debug"), nil)
+	require.NoError(t, err)
 
 	cfg := config.Default().P2P
 	cfg.Port = 0

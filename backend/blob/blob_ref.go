@@ -28,13 +28,19 @@ type Ref struct {
 
 	Space       core.Principal `refmt:"space,omitempty"`
 	Path        string         `refmt:"path,omitempty"`
-	GenesisBlob cid.Cid        `refmt:"genesisBlob"`
+	GenesisBlob cid.Cid        `refmt:"genesisBlob,omitempty"`
 	Capability  cid.Cid        `refmt:"capability,omitempty"`
 	Heads       []cid.Cid      `refmt:"heads"`
+	Generation  int64          `refmt:"generation,omitempty"`
 }
 
 // NewRef creates a new Ref blob.
-func NewRef(kp core.KeyPair, genesis cid.Cid, space core.Principal, path string, heads []cid.Cid, cap cid.Cid, ts time.Time) (eb Encoded[*Ref], err error) {
+func NewRef(kp core.KeyPair, generation int64, genesis cid.Cid, space core.Principal, path string, heads []cid.Cid, capc cid.Cid, ts time.Time) (eb Encoded[*Ref], err error) {
+	// TODO(burdiyan): we thought we wanted to attach caps to refs, then we figured out we were not doing it,
+	// then we wanted to fix it, then we realized we haven't, and then we decided that it was never needed anyway.
+	// So this should just go away, but we'll do it later.
+	_ = capc
+
 	ru := &Ref{
 		baseBlob: baseBlob{
 			Type:   blobTypeRef,
@@ -44,6 +50,7 @@ func NewRef(kp core.KeyPair, genesis cid.Cid, space core.Principal, path string,
 		Path:        path,
 		GenesisBlob: genesis,
 		Heads:       heads,
+		Generation:  generation,
 	}
 
 	if !kp.Principal().Equal(space) {
@@ -92,23 +99,45 @@ func init() {
 }
 
 func indexRef(ictx *indexingCtx, id int64, c cid.Cid, v *Ref) error {
-	// TODO(hm24): more validation and refs for docs.
+	type Meta struct {
+		Tombstone  bool  `json:"tombstone,omitempty"`
+		Generation int64 `json:"generation,omitempty"`
+	}
 
-	iri, err := NewIRI(v.GetSpace(), v.Path)
+	space := v.GetSpace()
+
+	iri, err := NewIRI(space, v.Path)
 	if err != nil {
 		return err
 	}
 
 	var sb StructuralBlob
 	if v.Ts.Equal(unixZero) {
-		sb = newStructuralBlob(c, string(blobTypeRef), v.Signer, v.Ts, iri, v.GenesisBlob, v.Signer, v.Ts)
+		sb = newStructuralBlob(c, string(blobTypeRef), v.Signer, v.Ts, iri, v.GenesisBlob, space, v.Ts)
 	} else {
-		sb = newStructuralBlob(c, string(blobTypeRef), v.Signer, v.Ts, iri, v.GenesisBlob, nil, time.Time{})
+		sb = newStructuralBlob(c, string(blobTypeRef), v.Signer, v.Ts, iri, v.GenesisBlob, space, time.Time{})
 	}
 
-	if len(v.Heads) == 0 {
-		return fmt.Errorf("ref blob must have heads")
+	if v.GenesisBlob.Defined() {
+		sb.GenesisBlob = v.GenesisBlob
 	}
+
+	meta := Meta{
+		Generation: v.Generation,
+	}
+
+	switch {
+	// A normal Ref has to have Genesis and Heads.
+	case v.GenesisBlob.Defined() && len(v.Heads) > 0:
+	// A tombstone Ref must have Genesis and no Heads.
+	case v.GenesisBlob.Defined() && len(v.Heads) == 0:
+		meta.Tombstone = true
+	// All the other cases are invalid.
+	default:
+		return fmt.Errorf("invalid Ref blob invariants %+v", v)
+	}
+
+	sb.Meta = meta
 
 	for _, head := range v.Heads {
 		sb.AddBlobLink("ref/head", head)

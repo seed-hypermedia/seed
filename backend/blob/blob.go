@@ -7,6 +7,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/polydawn/refmt/obj/atlas"
 )
@@ -115,4 +116,13 @@ func verifyBlob(signer core.Principal, v any, sig *core.Signature) error {
 	*sig = sigCopy
 
 	return nil
+}
+
+// WithCID is a type for a decoded blob with its CID.
+// Because blobs are content-addressed, they don't contain their own ID,
+// so when you decode them, you somehow need to separately carry their IDs if you need to.
+// This type provides a unified way of doing this.
+type WithCID[T any] struct {
+	CID   cid.Cid
+	Value T
 }

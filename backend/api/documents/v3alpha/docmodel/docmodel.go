@@ -13,6 +13,7 @@ import (
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/util/cclock"
+	"seed/backend/util/maybe"
 	"slices"
 	"sort"
 	"time"
@@ -45,6 +46,8 @@ type Document struct {
 
 	dirtyBlocks   map[string]mvRegValue[blob.Block]
 	dirtyMetadata map[string]mvRegValue[any]
+
+	Generation maybe.Value[int64]
 }
 
 // originFromCID creates a CRDT origin from the last 8 chars of the hash.
@@ -153,6 +156,11 @@ func (dm *Document) Checkout(heads []cid.Cid) (*Document, error) {
 	}
 
 	return doc, nil
+}
+
+// Genesis returns the CID of the genesis blob.
+func (dm *Document) Genesis() cid.Cid {
+	return dm.crdt.cids[0]
 }
 
 // ApplyChange to the state. Can only do that before any mutations were made.
@@ -340,7 +348,12 @@ func (dm *Document) Ref(kp core.KeyPair, cap cid.Cid) (ref blob.Encoded[*blob.Re
 		return ref, err
 	}
 
-	return blob.NewRef(kp, genesis, space, path, []cid.Cid{headCID}, cap, head.Ts)
+	// If we haven't set a generation yet, we use the timestamp of the new change as the generation.
+	if !dm.Generation.IsSet() {
+		dm.Generation = maybe.New(head.Ts.UnixMilli())
+	}
+
+	return blob.NewRef(kp, dm.Generation.Value(), genesis, space, path, []cid.Cid{headCID}, cap, head.Ts)
 }
 
 func (dm *Document) cleanupPatch() (out blob.ChangeBody) {
@@ -451,7 +464,7 @@ func (dm *Document) NumChanges() int {
 }
 
 // BFTDeps returns a breadth-first traversal iterator for the document change DAG.
-func (dm *Document) BFTDeps(start []cid.Cid) (iter.Seq2[int, blob.ChangeRecord], error) {
+func (dm *Document) BFTDeps(start []cid.Cid) (iter.Seq2[cid.Cid, *blob.Change], error) {
 	return dm.crdt.BFTDeps(start)
 }
 

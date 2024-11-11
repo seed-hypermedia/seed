@@ -29,6 +29,7 @@ export class GetDocumentRequest extends Message<GetDocumentRequest> {
 
   /**
    * Optional. Exact version of the document to retrieve.
+   * Empty version means "latest".
    *
    * @generated from field: string version = 3;
    */
@@ -530,6 +531,133 @@ export class ListDocumentChangesResponse extends Message<ListDocumentChangesResp
 
   static equals(a: ListDocumentChangesResponse | PlainMessage<ListDocumentChangesResponse> | undefined, b: ListDocumentChangesResponse | PlainMessage<ListDocumentChangesResponse> | undefined): boolean {
     return proto3.util.equals(ListDocumentChangesResponse, a, b);
+  }
+}
+
+/**
+ * Request to create a Ref.
+ *
+ * @generated from message com.seed.documents.v3alpha.CreateRefRequest
+ */
+export class CreateRefRequest extends Message<CreateRefRequest> {
+  /**
+   * Required. The ID of the account/space in which to create the Ref.
+   *
+   * @generated from field: string account = 1;
+   */
+  account = "";
+
+  /**
+   * Required. Path of the new Ref.
+   * Empty string means root document.
+   *
+   * @generated from field: string path = 2;
+   */
+  path = "";
+
+  /**
+   * Required. Target for the new Ref.
+   *
+   * @generated from field: com.seed.documents.v3alpha.RefTarget target = 3;
+   */
+  target?: RefTarget;
+
+  /**
+   * Required. Name of the signing key to use for signing the Ref.
+   *
+   * @generated from field: string signing_key_name = 4;
+   */
+  signingKeyName = "";
+
+  /**
+   * Optional. ID of the Capability blob that grants the necessary rights to the signin key
+   * to write Refs for the requested account + path.
+   *
+   * @generated from field: string capability = 5;
+   */
+  capability = "";
+
+  /**
+   * Optional. A timestamp of the Ref blob.
+   * If not specified the server will use the current time.
+   * The provided timestamp will be rounded to the nearest millisecond,
+   * so the final timestamp in the resulting Ref blob may not be exactly as provided.
+   *
+   * @generated from field: google.protobuf.Timestamp timestamp = 6;
+   */
+  timestamp?: Timestamp;
+
+  constructor(data?: PartialMessage<CreateRefRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.CreateRefRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "target", kind: "message", T: RefTarget },
+    { no: 4, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "timestamp", kind: "message", T: Timestamp },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateRefRequest {
+    return new CreateRefRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateRefRequest {
+    return new CreateRefRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateRefRequest {
+    return new CreateRefRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CreateRefRequest | PlainMessage<CreateRefRequest> | undefined, b: CreateRefRequest | PlainMessage<CreateRefRequest> | undefined): boolean {
+    return proto3.util.equals(CreateRefRequest, a, b);
+  }
+}
+
+/**
+ * Request to get a Ref by ID.
+ *
+ * @generated from message com.seed.documents.v3alpha.GetRefRequest
+ */
+export class GetRefRequest extends Message<GetRefRequest> {
+  /**
+   * Required. ID of the Ref blob to retrieve.
+   *
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  constructor(data?: PartialMessage<GetRefRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.GetRefRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetRefRequest {
+    return new GetRefRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetRefRequest {
+    return new GetRefRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetRefRequest {
+    return new GetRefRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetRefRequest | PlainMessage<GetRefRequest> | undefined, b: GetRefRequest | PlainMessage<GetRefRequest> | undefined): boolean {
+    return proto3.util.equals(GetRefRequest, a, b);
   }
 }
 
@@ -1206,6 +1334,297 @@ export class DocumentChange_SetMetadata extends Message<DocumentChange_SetMetada
 
   static equals(a: DocumentChange_SetMetadata | PlainMessage<DocumentChange_SetMetadata> | undefined, b: DocumentChange_SetMetadata | PlainMessage<DocumentChange_SetMetadata> | undefined): boolean {
     return proto3.util.equals(DocumentChange_SetMetadata, a, b);
+  }
+}
+
+/**
+ * Description of a Ref blob.
+ *
+ * @generated from message com.seed.documents.v3alpha.Ref
+ */
+export class Ref extends Message<Ref> {
+  /**
+   * CID of the Ref blob.
+   *
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * Account (space) in which the Ref blob exists.
+   *
+   * @generated from field: string account = 2;
+   */
+  account = "";
+
+  /**
+   * Path in the account Ref creates an entry for.
+   *
+   * @generated from field: string path = 3;
+   */
+  path = "";
+
+  /**
+   * Description of where the Ref points to.
+   *
+   * @generated from field: com.seed.documents.v3alpha.RefTarget target = 4;
+   */
+  target?: RefTarget;
+
+  /**
+   * Public key used to sign the Ref blob.
+   *
+   * @generated from field: string signer = 5;
+   */
+  signer = "";
+
+  /**
+   * Optional. ID of the Capability attached to this Ref.
+   *
+   * @generated from field: string capability = 6;
+   */
+  capability = "";
+
+  /**
+   * Timestamp of the Ref.
+   *
+   * @generated from field: google.protobuf.Timestamp timestamp = 7;
+   */
+  timestamp?: Timestamp;
+
+  constructor(data?: PartialMessage<Ref>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.Ref";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "target", kind: "message", T: RefTarget },
+    { no: 5, name: "signer", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "timestamp", kind: "message", T: Timestamp },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Ref {
+    return new Ref().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Ref {
+    return new Ref().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Ref {
+    return new Ref().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: Ref | PlainMessage<Ref> | undefined, b: Ref | PlainMessage<Ref> | undefined): boolean {
+    return proto3.util.equals(Ref, a, b);
+  }
+}
+
+/**
+ * Description of where the Ref points to.
+ *
+ * @generated from message com.seed.documents.v3alpha.RefTarget
+ */
+export class RefTarget extends Message<RefTarget> {
+  /**
+   * A Ref can point to one of the following targets.
+   *
+   * @generated from oneof com.seed.documents.v3alpha.RefTarget.target
+   */
+  target: {
+    /**
+     * Version target describes genesis + head changes (version).
+     *
+     * @generated from field: com.seed.documents.v3alpha.RefTarget.Version version = 1;
+     */
+    value: RefTarget_Version;
+    case: "version";
+  } | {
+    /**
+     * Redirect target makes a Ref point to a different account + path.
+     * Users must be careful to not create cycles or very deep redirect chains.
+     * Client should be careful not to get stuck in redirects
+     * by tracking visited paths to prevent cycles,
+     * and by limiting the depth of the redirect chains,
+     * while handling redirects.
+     *
+     * @generated from field: com.seed.documents.v3alpha.RefTarget.Redirect redirect = 2;
+     */
+    value: RefTarget_Redirect;
+    case: "redirect";
+  } | {
+    /**
+     * Tombstone Ref indicates the intent to delete the given account + path.
+     *
+     * @generated from field: com.seed.documents.v3alpha.RefTarget.Tombstone tombstone = 3;
+     */
+    value: RefTarget_Tombstone;
+    case: "tombstone";
+  } | { case: undefined; value?: undefined } = { case: undefined };
+
+  constructor(data?: PartialMessage<RefTarget>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.RefTarget";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "version", kind: "message", T: RefTarget_Version, oneof: "target" },
+    { no: 2, name: "redirect", kind: "message", T: RefTarget_Redirect, oneof: "target" },
+    { no: 3, name: "tombstone", kind: "message", T: RefTarget_Tombstone, oneof: "target" },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RefTarget {
+    return new RefTarget().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RefTarget {
+    return new RefTarget().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RefTarget {
+    return new RefTarget().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: RefTarget | PlainMessage<RefTarget> | undefined, b: RefTarget | PlainMessage<RefTarget> | undefined): boolean {
+    return proto3.util.equals(RefTarget, a, b);
+  }
+}
+
+/**
+ * @generated from message com.seed.documents.v3alpha.RefTarget.Version
+ */
+export class RefTarget_Version extends Message<RefTarget_Version> {
+  /**
+   * Required. ID of the genesis Change.
+   *
+   * @generated from field: string genesis = 1;
+   */
+  genesis = "";
+
+  /**
+   * Required. Version ID (possibly compount).
+   * Each change in the version ID must have the same genesis.
+   *
+   * @generated from field: string version = 2;
+   */
+  version = "";
+
+  constructor(data?: PartialMessage<RefTarget_Version>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.RefTarget.Version";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "genesis", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RefTarget_Version {
+    return new RefTarget_Version().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RefTarget_Version {
+    return new RefTarget_Version().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RefTarget_Version {
+    return new RefTarget_Version().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: RefTarget_Version | PlainMessage<RefTarget_Version> | undefined, b: RefTarget_Version | PlainMessage<RefTarget_Version> | undefined): boolean {
+    return proto3.util.equals(RefTarget_Version, a, b);
+  }
+}
+
+/**
+ * @generated from message com.seed.documents.v3alpha.RefTarget.Redirect
+ */
+export class RefTarget_Redirect extends Message<RefTarget_Redirect> {
+  /**
+   * Required. Account ID to which the Ref should redirect.
+   * Can be the same as the account in the Ref itself,
+   * when we redirect to a different path in the same account/space.
+   *
+   * @generated from field: string account = 1;
+   */
+  account = "";
+
+  /**
+   * Required. Path to which the Ref should redirect.
+   * Empty string means root document.
+   * Must not be the same as the Ref itself.
+   *
+   * @generated from field: string path = 2;
+   */
+  path = "";
+
+  constructor(data?: PartialMessage<RefTarget_Redirect>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.RefTarget.Redirect";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RefTarget_Redirect {
+    return new RefTarget_Redirect().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RefTarget_Redirect {
+    return new RefTarget_Redirect().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RefTarget_Redirect {
+    return new RefTarget_Redirect().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: RefTarget_Redirect | PlainMessage<RefTarget_Redirect> | undefined, b: RefTarget_Redirect | PlainMessage<RefTarget_Redirect> | undefined): boolean {
+    return proto3.util.equals(RefTarget_Redirect, a, b);
+  }
+}
+
+/**
+ * @generated from message com.seed.documents.v3alpha.RefTarget.Tombstone
+ */
+export class RefTarget_Tombstone extends Message<RefTarget_Tombstone> {
+  constructor(data?: PartialMessage<RefTarget_Tombstone>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.RefTarget.Tombstone";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RefTarget_Tombstone {
+    return new RefTarget_Tombstone().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RefTarget_Tombstone {
+    return new RefTarget_Tombstone().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RefTarget_Tombstone {
+    return new RefTarget_Tombstone().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: RefTarget_Tombstone | PlainMessage<RefTarget_Tombstone> | undefined, b: RefTarget_Tombstone | PlainMessage<RefTarget_Tombstone> | undefined): boolean {
+    return proto3.util.equals(RefTarget_Tombstone, a, b);
   }
 }
 

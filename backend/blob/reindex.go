@@ -15,6 +15,14 @@ import (
 	"go.uber.org/zap"
 )
 
+// Order is important to ensure foreign key constraints are not violated.
+var derivedTables = []string{
+	storage.T_BlobLinks,
+	storage.T_ResourceLinks,
+	storage.T_StructuralBlobs,
+	storage.T_Resources,
+}
+
 // Reindex forces deletes all the information derived from the blobs and reindexes them.
 func (bs *Index) Reindex(ctx context.Context) (err error) {
 	conn, release, err := bs.db.Conn(ctx)
@@ -32,16 +40,6 @@ func (bs *Index) reindex(conn *sqlite.Conn) (err error) {
 	defer func() {
 		bs.log.Info("ReindexingFinished", zap.Error(err), zap.Duration("duration", time.Since(start)))
 	}()
-
-	// Order is important to ensure foreign key constraints are not violated.
-	derivedTables := []string{
-		storage.T_BlobLinks,
-		storage.T_ResourceLinks,
-		storage.T_StructuralBlobs,
-		// Not deleting from resources yet, because they are referenced in the drafts table,
-		// and we can't yet reconstruct the drafts table purely from the blobs.
-		// storage.T_Resources,
-	}
 
 	const q = "SELECT * FROM " + storage.T_Blobs
 
@@ -110,9 +108,9 @@ func (bs *Index) MaybeReindex(ctx context.Context) error {
 		return err
 	}
 
-	if res == "" {
-		return bs.reindex(conn)
+	if res != "" {
+		return nil
 	}
 
-	return nil
+	return bs.reindex(conn)
 }

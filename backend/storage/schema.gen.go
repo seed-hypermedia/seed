@@ -44,24 +44,6 @@ const (
 	C_BlobsSize       = "blobs.size"
 )
 
-// Table deleted_resources.
-const (
-	DeletedResources           sqlitegen.Table  = "deleted_resources"
-	DeletedResourcesDeleteTime sqlitegen.Column = "deleted_resources.delete_time"
-	DeletedResourcesExtraAttrs sqlitegen.Column = "deleted_resources.extra_attrs"
-	DeletedResourcesIRI        sqlitegen.Column = "deleted_resources.iri"
-	DeletedResourcesReason     sqlitegen.Column = "deleted_resources.reason"
-)
-
-// Table deleted_resources. Plain strings.
-const (
-	T_DeletedResources           = "deleted_resources"
-	C_DeletedResourcesDeleteTime = "deleted_resources.delete_time"
-	C_DeletedResourcesExtraAttrs = "deleted_resources.extra_attrs"
-	C_DeletedResourcesIRI        = "deleted_resources.iri"
-	C_DeletedResourcesReason     = "deleted_resources.reason"
-)
-
 // Table kv.
 const (
 	KV      sqlitegen.Table  = "kv"
@@ -264,10 +246,6 @@ var Schema = sqlitegen.Schema{
 		BlobsInsertTime:            {Table: Blobs, SQLType: "INTEGER"},
 		BlobsMultihash:             {Table: Blobs, SQLType: "BLOB"},
 		BlobsSize:                  {Table: Blobs, SQLType: "INTEGER"},
-		DeletedResourcesDeleteTime: {Table: DeletedResources, SQLType: "INTEGER"},
-		DeletedResourcesExtraAttrs: {Table: DeletedResources, SQLType: "JSONB"},
-		DeletedResourcesIRI:        {Table: DeletedResources, SQLType: "TEXT"},
-		DeletedResourcesReason:     {Table: DeletedResources, SQLType: "TEXT"},
 		KVKey:                      {Table: KV, SQLType: "TEXT"},
 		KVValue:                    {Table: KV, SQLType: "TEXT"},
 		MetaViewExtraAttrs:         {Table: MetaView, SQLType: "JSONB"},

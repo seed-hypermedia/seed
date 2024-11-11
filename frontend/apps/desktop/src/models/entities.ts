@@ -24,41 +24,58 @@ import {useGRPCClient, useQueryInvalidator} from '../app-context'
 import {queryKeys} from './query-keys'
 import {useDeleteRecent} from './recents'
 
-export function useDeleteEntity(
-  opts: UseMutationOptions<void, unknown, {id: string; reason: string}>,
+type DeleteEntitiesInput = {
+  ids: UnpackedHypermediaId[]
+  capabilityId?: string
+  signingAccountUid: string
+}
+
+export function useDeleteEntities(
+  opts: UseMutationOptions<void, unknown, DeleteEntitiesInput>,
 ) {
   const deleteRecent = useDeleteRecent()
   const invalidate = useQueryInvalidator()
   const grpcClient = useGRPCClient()
   return useMutation({
     ...opts,
-    mutationFn: async ({id, reason}: {id: string; reason: string}) => {
-      await deleteRecent.mutateAsync(id)
-      await grpcClient.entities.deleteEntity({id, reason})
+    mutationFn: async ({
+      ids,
+      capabilityId,
+      signingAccountUid,
+    }: DeleteEntitiesInput) => {
+      await Promise.all(
+        ids.map(async (id) => {
+          await deleteRecent.mutateAsync(id.id)
+          await grpcClient.documents.createRef({
+            account: id.uid || '',
+            path: hmIdPathToEntityQueryPath(id.path),
+            signingKeyName: signingAccountUid,
+            capability: capabilityId,
+            target: {target: {case: 'tombstone', value: {}}},
+          })
+        }),
+      )
     },
-    onSuccess: (
-      result: void,
-      variables: {id: string; reason: string},
-      context,
-    ) => {
-      const hmId = unpackHmId(variables.id)
-      if (hmId?.type === 'd') {
-        invalidate([queryKeys.ENTITY, variables.id])
-        invalidate([queryKeys.ACCOUNT_DOCUMENTS])
-        invalidate([queryKeys.LIST_ACCOUNTS])
-        invalidate([queryKeys.ACCOUNT, hmId.uid])
-      } else if (hmId?.type === 'comment') {
-        invalidate([queryKeys.ENTITY, variables.id])
-        invalidate([queryKeys.COMMENT, variables.id])
-        invalidate([queryKeys.DOCUMENT_COMMENTS])
-      }
+    onSuccess: (result: void, input: DeleteEntitiesInput, context) => {
+      input.ids.forEach((id) => {
+        if (id.type === 'd') {
+          invalidate([queryKeys.ENTITY, id.id])
+          invalidate([queryKeys.ACCOUNT_DOCUMENTS])
+          invalidate([queryKeys.LIST_ACCOUNTS])
+          invalidate([queryKeys.ACCOUNT, id.uid])
+        } else if (id.type === 'comment') {
+          invalidate([queryKeys.ENTITY, id])
+          invalidate([queryKeys.COMMENT, id])
+          invalidate([queryKeys.DOCUMENT_COMMENTS])
+        }
+      })
       invalidate([queryKeys.FEED])
       invalidate([queryKeys.FEED_LATEST_EVENT])
       invalidate([queryKeys.RESOURCE_FEED])
       invalidate([queryKeys.RESOURCE_FEED_LATEST_EVENT])
       invalidate([queryKeys.ENTITY_CITATIONS])
       invalidate([queryKeys.SEARCH])
-      opts?.onSuccess?.(result, variables, context)
+      opts?.onSuccess?.(result, input, context)
     },
   })
 }

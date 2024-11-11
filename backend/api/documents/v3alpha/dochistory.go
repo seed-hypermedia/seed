@@ -45,14 +45,18 @@ func (srv *Server) ListDocumentChanges(ctx context.Context, in *documents.ListDo
 		if in.PageSize > maxPageSize {
 			in.PageSize = maxPageSize
 		}
+	}
 
+	heads, err := docmodel.Version(in.Version).Parse()
+	if err != nil {
+		return nil, err
 	}
 
 	// TODO(burdiyan): This is the most stupid way to get the history of the document.
 	// We need to just use the database index, but it's currently too painful to work with,
 	// because we don't track latest heads for each space+path.
 
-	doc, err := srv.loadDocument(ctx, acc, in.Path, docmodel.Version(in.Version), false)
+	doc, err := srv.loadDocument(ctx, acc, in.Path, heads, false)
 	if err != nil {
 		return nil, err
 	}
@@ -78,8 +82,8 @@ func (srv *Server) ListDocumentChanges(ctx context.Context, in *documents.ListDo
 		foundCursor = true
 	}
 	var nextCursor string
-	for _, change := range changes {
-		cc := change.CID.String()
+	for c, change := range changes {
+		cc := c.String()
 		if !foundCursor {
 			if cc == cursor.StartFrom {
 				foundCursor = true
@@ -94,9 +98,9 @@ func (srv *Server) ListDocumentChanges(ctx context.Context, in *documents.ListDo
 		}
 		out.Changes = append(out.Changes, &documents.DocumentChangeInfo{
 			Id:         cc,
-			Author:     change.Data.Signer.String(),
-			Deps:       colx.SliceMap(change.Data.Deps, cid.Cid.String),
-			CreateTime: timestamppb.New(change.Data.Ts),
+			Author:     change.Signer.String(),
+			Deps:       colx.SliceMap(change.Deps, cid.Cid.String),
+			CreateTime: timestamppb.New(change.Ts),
 		})
 	}
 

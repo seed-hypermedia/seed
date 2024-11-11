@@ -12,17 +12,17 @@ import (
 )
 
 // dbStructuralBlobsInsert inserts a structural blob.
-func dbStructuralBlobsInsert(conn *sqlite.Conn, id int64, blobType string, author, resource, ts maybe.Value[int64], meta maybe.Value[[]byte]) error {
+func dbStructuralBlobsInsert(conn *sqlite.Conn, id int64, blobType string, author, genesis, resource, ts maybe.Value[int64], meta maybe.Value[[]byte]) error {
 	if id == 0 {
 		return fmt.Errorf("must specify blob ID")
 	}
 
-	return sqlitex.Exec(conn, qStructuralBlobsInsert(), nil, id, blobType, author.Any(), resource.Any(), ts.Any(), meta.Any())
+	return sqlitex.Exec(conn, qStructuralBlobsInsert(), nil, id, blobType, author.Any(), genesis.Any(), resource.Any(), ts.Any(), meta.Any())
 }
 
 var qStructuralBlobsInsert = dqb.Str(`
-	INSERT INTO structural_blobs (id, type, author, resource, ts, extra_attrs)
-	VALUES (?, ?, ?, ?, ?, ?);
+	INSERT INTO structural_blobs (id, type, author, genesis_blob, resource, ts, extra_attrs)
+	VALUES (?, ?, ?, ?, ?, ?, ?);
 `)
 
 func dbBlobLinksInsertOrIgnore(conn *sqlite.Conn, blobLinksSource int64, blobLinksType string, blobLinksTarget int64) error {
@@ -92,6 +92,25 @@ var qBlobsGetSize = dqb.Str(`
 	SELECT blobs.id, blobs.size
 	FROM blobs INDEXED BY blobs_metadata_by_hash
 	WHERE blobs.multihash = :blobsMultihash
+`)
+
+func dbBlobsGetGenesis(conn *sqlite.Conn, id int64) (genesis int64, err error) {
+	rows, check := sqlitex.Query(conn, qBlobsGetGenesis(), id)
+	for row := range rows {
+		genesis = row.ColumnInt64(0)
+	}
+	if err := check(); err != nil {
+		return 0, err
+	}
+
+	return genesis, nil
+}
+
+var qBlobsGetGenesis = dqb.Str(`
+	SELECT COALESCE(genesis_blob, id)
+	FROM structural_blobs
+	WHERE id = :id
+	LIMIT 1;
 `)
 
 // DbPublicKeysLookupID gets the db index of a given account.

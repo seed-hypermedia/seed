@@ -160,7 +160,10 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 
 	otel.SetTracerProvider(tp)
 
-	a.Index = blob.NewIndex(a.Storage.DB(), logging.New("seed/indexing", cfg.LogLevel), nil)
+	a.Index, err = blob.OpenIndex(ctx, a.Storage.DB(), logging.New("seed/indexing", cfg.LogLevel), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	a.Net, err = initNetwork(&a.clean, a.g, a.Storage, cfg.P2P, a.Index, cfg.LogLevel, opts.extraP2PServices...)
 	if err != nil {

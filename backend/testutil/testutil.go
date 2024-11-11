@@ -114,6 +114,17 @@ func (sb *StructsEqualBuilder[T]) IgnoreFields(_type any, fields ...string) *Str
 	return sb
 }
 
+// Diff returns a diff between the two structs.
+func (sb *StructsEqualBuilder[T]) Diff() string {
+	return cmp.Diff(sb.a, sb.b, sb.opts...)
+}
+
+// IsEqual is like Compare but just returns a boolean.
+func (sb *StructsEqualBuilder[T]) IsEqual() bool {
+	diff := cmp.Diff(sb.a, sb.b, sb.opts...)
+	return diff == ""
+}
+
 // Compare executes the final comparison.
 func (sb *StructsEqualBuilder[T]) Compare(t *testing.T, msg string, format ...any) {
 	t.Helper()
@@ -121,6 +132,16 @@ func (sb *StructsEqualBuilder[T]) Compare(t *testing.T, msg string, format ...an
 	diff := cmp.Diff(sb.a, sb.b, sb.opts...)
 	if diff != "" {
 		t.Log(diff)
+		t.Fatalf(msg, format...)
+	}
+}
+
+// CompareNot ensures that structs are not equal.
+func (sb *StructsEqualBuilder[T]) CompareNot(t *testing.T, msg string, format ...any) {
+	t.Helper()
+
+	diff := cmp.Diff(sb.a, sb.b, sb.opts...)
+	if diff == "" {
 		t.Fatalf(msg, format...)
 	}
 }

@@ -1,25 +1,22 @@
+import {roleCanWrite, useMyCapability} from '@/models/access-control'
 import {useDeleteKey} from '@/models/daemon'
-import {zodResolver} from '@hookform/resolvers/zod'
-import {HYPERMEDIA_ENTITY_TYPES, unpackHmId} from '@shm/shared'
+import {useListSite} from '@/models/documents'
+import {hmId, HYPERMEDIA_ENTITY_TYPES, UnpackedHypermediaId} from '@shm/shared'
 import {
   AlertDialog,
   AlertDialogContentProps,
   AlertDialogProps,
   Button,
-  Form,
   HeadingProps,
   ParagraphProps,
+  Spinner,
   XStack,
   XStackProps,
   YStack,
 } from '@shm/ui'
-import {ReactNode, useEffect} from 'react'
-import {SubmitHandler, useForm} from 'react-hook-form'
-import {z} from 'zod'
-import {useDeleteEntity} from '../models/entities'
+import {ReactNode} from 'react'
+import {useDeleteEntities} from '../models/entities'
 import {useAppDialog} from './dialog'
-import {FormTextArea} from './form-input'
-import {FormField} from './forms'
 
 export type DeleteDialogProps = AlertDialogProps & {
   dialogContentProps?: AlertDialogContentProps
@@ -34,11 +31,6 @@ export type DeleteDialogProps = AlertDialogProps & {
   descriptionProps?: ParagraphProps
 }
 
-const deleteFormSchema = z.object({
-  description: z.string(),
-})
-type DeleteFormFields = z.infer<typeof deleteFormSchema>
-
 export function useDeleteDialog() {
   return useAppDialog(DeleteEntityDialog, {isAlert: true})
 }
@@ -47,73 +39,61 @@ export function DeleteEntityDialog({
   input: {id, title, onSuccess},
   onClose,
 }: {
-  input: {id: string; title?: string; onSuccess?: () => void}
+  input: {id: UnpackedHypermediaId; title?: string; onSuccess?: () => void}
   onClose?: () => void
 }) {
-  const deleteEntity = useDeleteEntity({
+  const deleteEntity = useDeleteEntities({
     onSuccess: () => {
       onClose?.(), onSuccess?.()
     },
   })
-  const {
-    control,
-    handleSubmit,
-    setFocus,
-    formState: {errors},
-  } = useForm<DeleteFormFields>({
-    resolver: zodResolver(deleteFormSchema),
-    defaultValues: {
-      description: title
-        ? `Deleted "${title}" because...`
-        : 'Deleted because...',
-    },
-  })
-  const hid = unpackHmId(id)
-  const onSubmit: SubmitHandler<DeleteFormFields> = (data) => {
-    console.log('DeleteEntityDialog.onSubmit', {id, data})
-    deleteEntity.mutate({
-      id,
-      reason: data.description,
-    })
-  }
-  useEffect(() => {
-    setFocus('description')
-  }, [setFocus])
-  if (!hid) throw new Error('Invalid id passed to DeleteEntityDialog')
+  const list = useListSite(id)
+  const childDocs =
+    list.data?.filter((item) => {
+      if (!item.path?.length) return false
+      if (!id.path) return false
+      if (id.path.length === item.path.length) return false
+      return item.path.join('/').startsWith(id.path.join('/'))
+    }) || []
+  console.log(`== ~ DeleteEntityDialog`, id, title, childDocs)
+  const cap = useMyCapability(id)
+
   return (
     <YStack backgroundColor="$background" padding="$4" borderRadius="$3">
-      <AlertDialog.Title>
-        Delete this {HYPERMEDIA_ENTITY_TYPES[hid.type]}
-      </AlertDialog.Title>
+      <AlertDialog.Title>Delete "{title}"</AlertDialog.Title>
       <AlertDialog.Description>
-        Are you sure you want to delete this from your computer? It will also be
-        blocked to prevent you seeing it again.
+        Are you sure you want to delete this? (TODO: better message, deletion is
+        not real. children deleted too)
       </AlertDialog.Description>
-      <AlertDialog.Description>
-        You may describe your reason for deleting+blocking this{' '}
-        {HYPERMEDIA_ENTITY_TYPES[hid.type].toLocaleLowerCase()} below.
-      </AlertDialog.Description>
-      <Form onSubmit={handleSubmit(onSubmit)} gap="$4">
-        <FormField name="description" errors={errors}>
-          <FormTextArea
-            control={control}
-            name="description"
-            placeholder="Reason for deleting..."
-          />
-        </FormField>
-        <XStack space="$3" justifyContent="flex-end">
-          <AlertDialog.Cancel asChild>
-            <Button onPress={onClose} chromeless>
-              Cancel
-            </Button>
-          </AlertDialog.Cancel>
-          <Form.Trigger asChild>
-            <Button theme="red">
-              {`Delete + Block ${HYPERMEDIA_ENTITY_TYPES[hid.type]}`}
-            </Button>
-          </Form.Trigger>
+      <XStack space="$3" justifyContent="flex-end">
+        <AlertDialog.Cancel asChild>
+          <Button onPress={onClose} chromeless>
+            Cancel
+          </Button>
+        </AlertDialog.Cancel>
+        <XStack gap="$4">
+          {deleteEntity.isLoading ? <Spinner /> : null}
+          <Button
+            theme="red"
+            onPress={() => {
+              if (!cap || !roleCanWrite(cap?.role))
+                throw new Error('Not allowed to delete')
+              deleteEntity.mutate({
+                ids: [
+                  id,
+                  ...childDocs.map((item) =>
+                    hmId('d', id.uid, {path: item.path}),
+                  ),
+                ],
+                signingAccountUid: cap.accountUid,
+                capabilityId: cap.capabilityId,
+              })
+            }}
+          >
+            {`Delete ${HYPERMEDIA_ENTITY_TYPES[id.type]}`}
+          </Button>
         </XStack>
-      </Form>
+      </XStack>
     </YStack>
   )
 }

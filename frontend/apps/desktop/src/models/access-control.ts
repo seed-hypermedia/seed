@@ -66,6 +66,7 @@ function getRoleCapabilityType(role: Role): HMRole | null {
 type HMCapability = {
   accountUid: string
   role: HMRole
+  capabilityId?: string
 }
 
 const CapabilityInheritance: Readonly<HMRole[]> =
@@ -88,14 +89,24 @@ export function useMyCapability(
   if (myAccounts.data?.indexOf(id.uid) !== -1) {
     return {accountUid: id.uid, role: 'owner'}
   }
-  const myCapability = capabilities.data?.find((cap) => {
-    return !!myAccounts.data?.find(
-      (myAccountUid) => myAccountUid === cap.delegate,
+  const myCapability = [...(capabilities.data || [])]
+    ?.sort(
+      // sort by capability id for deterministic capability selection
+      (a, b) => a.id.localeCompare(b.id),
     )
-  })
+    .find((cap) => {
+      return !!myAccounts.data?.find(
+        (myAccountUid) => myAccountUid === cap.delegate,
+      )
+    })
   if (myCapability) {
     const role = getRoleCapabilityType(myCapability.role)
-    if (role) return {accountUid: myCapability.delegate, role: 'writer'}
+    if (role)
+      return {
+        accountUid: myCapability.delegate,
+        role: 'writer',
+        capabilityId: myCapability.id,
+      }
   }
   return null
 }

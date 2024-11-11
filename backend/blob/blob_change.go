@@ -362,6 +362,10 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 		sb = newStructuralBlob(c, string(blobTypeChange), author, v.Ts, "", v.Genesis, author, resourceTime)
 	}
 
+	if v.Genesis.Defined() {
+		sb.GenesisBlob = v.Genesis
+	}
+
 	// TODO(burdiyan): ensure deps are indexed, not just known.
 	// Although in practice deps must always be indexed first, but need to make sure.
 	for _, dep := range v.Deps {
