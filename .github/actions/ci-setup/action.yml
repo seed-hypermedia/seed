@@ -33,7 +33,7 @@ runs:
     - name: "Setup Flatpak"
       if: inputs.matrix-os == 'ubuntu-20.04'
       run: |
-        sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+        sudo flatpak --user remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
       shell: bash
 
     - name: Setup cache Ubuntu
