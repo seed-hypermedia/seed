@@ -1,5 +1,6 @@
 import {MakerDeb, MakerDebConfig} from '@electron-forge/maker-deb'
-import {MakerRpm} from '@electron-forge/maker-rpm'
+import {MakerFlatpak, MakerFlatpakConfig} from '@electron-forge/maker-flatpak'
+import {MakerRpm, MakerRpmConfig} from '@electron-forge/maker-rpm'
 import {MakerSquirrel} from '@electron-forge/maker-squirrel'
 import {MakerZIP} from '@electron-forge/maker-zip'
 import type {ForgeConfig} from '@electron-forge/shared-types'
@@ -38,7 +39,7 @@ let iconsPath = process.env.CI
   ? path.resolve(__dirname, 'assets', 'icons-prod', 'icon')
   : path.resolve(__dirname, 'assets', 'icons', 'icon')
 
-const commonLinuxConfig: MakerDebConfig = {
+const commonLinuxConfig = {
   options: {
     categories: ['Development', 'Utility'],
     icon: `${iconsPath}.png`,
@@ -72,7 +73,7 @@ const config: ForgeConfig = {
     protocols: [{name: 'Seed Hypermedia', schemes: ['hm']}],
   },
   makers: [
-    new MakerDeb(commonLinuxConfig),
+    new MakerDeb(commonLinuxConfig as MakerDebConfig),
     new MakerZIP({}, ['darwin']),
     new MakerSquirrel({
       name: 'Seed',
@@ -90,7 +91,8 @@ const config: ForgeConfig = {
       // certificateFile: process.env.WINDOWS_PFX_FILE,
       // certificatePassword: process.env.WINDOWS_PFX_PASSWORD,
     }),
-    new MakerRpm(commonLinuxConfig),
+    new MakerRpm(commonLinuxConfig as MakerRpmConfig),
+    new MakerFlatpak(commonLinuxConfig as unknown as MakerFlatpakConfig),
   ],
   plugins: [
     // {

@@ -142,6 +142,7 @@ jobs:
           VITE_DESKTOP_HOSTNAME: "http://localhost"
           VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
           SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
+          DEBUG: electron-installer-flatpak*
 
       - name: Build, package and make (Win32)
         if: matrix.config.os == 'windows-latest'
