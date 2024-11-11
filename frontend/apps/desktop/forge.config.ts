@@ -1,5 +1,4 @@
 import {MakerDeb, MakerDebConfig} from '@electron-forge/maker-deb'
-import {MakerFlatpak, MakerFlatpakConfig} from '@electron-forge/maker-flatpak'
 import {MakerRpm, MakerRpmConfig} from '@electron-forge/maker-rpm'
 import {MakerSquirrel} from '@electron-forge/maker-squirrel'
 import {MakerZIP} from '@electron-forge/maker-zip'
@@ -92,7 +91,7 @@ const config: ForgeConfig = {
       // certificatePassword: process.env.WINDOWS_PFX_PASSWORD,
     }),
     new MakerRpm(commonLinuxConfig as MakerRpmConfig),
-    new MakerFlatpak(commonLinuxConfig as unknown as MakerFlatpakConfig),
+    // new MakerFlatpak(commonLinuxConfig as unknown as MakerFlatpakConfig),
   ],
   plugins: [
     // {
