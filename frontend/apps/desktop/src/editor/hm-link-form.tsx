@@ -12,11 +12,12 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {useEffect, useMemo, useState} from 'react'
+import {ReactNode, useEffect, useMemo, useState} from 'react'
 import {SwitcherItem} from './editor-types'
 import {LauncherItem} from './launcher-item'
 
-type HypermediaLinkFormProps = {
+export type HypermediaLinkFormProps = {
+  children?: ReactNode
   url: string
   text: string
   type: string
@@ -41,56 +42,65 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
 
   return (
     <YStack gap="$1">
-      <XStack ai="center" gap="$2" p="$1">
-        <TextCursorInput size={16} />
-        <Input
-          flex={1}
-          size={formSize}
-          placeholder="Link text"
-          id="link-text"
-          key={props.text}
-          value={_text}
-          onKeyPress={handleKeydown}
-          onChangeText={(val) => {
-            setText(val)
-            props.updateLink(props.url, val)
-          }}
-        />
-      </XStack>
-      <XStack ai="center" gap="$2" p="$1">
-        <LinkIcon size={16} />
-        <Input
-          flex={1}
-          size="$2"
-          key={props.url}
-          value={_url}
-          onKeyPress={handleKeydown}
-          onChangeText={(val) => {
-            setUrl(val)
-            props.updateLink(val, props.text)
-          }}
-        />
-      </XStack>
-      {props.search && (
+      {props.search ? (
         <XStack ai="center" gap="$2" p="$1">
           <Search size={16} />
-          <SearchInput assign={() => {}} link={_url} setLink={setUrl} />
+          <SearchInput
+            updateLink={props.editLink}
+            link={_url}
+            setLink={setUrl}
+          />
         </XStack>
+      ) : (
+        <>
+          <XStack ai="center" gap="$2" p="$1">
+            <TextCursorInput size={16} />
+            <Input
+              flex={1}
+              size={formSize}
+              placeholder="Link text"
+              id="link-text"
+              key={props.text}
+              value={_text}
+              onKeyPress={handleKeydown}
+              onChangeText={(val) => {
+                setText(val)
+                props.updateLink(props.url, val)
+              }}
+            />
+          </XStack>
+          <XStack ai="center" gap="$2" p="$1">
+            <LinkIcon size={16} />
+            <Input
+              flex={1}
+              size="$2"
+              key={props.url}
+              value={_url}
+              onKeyPress={handleKeydown}
+              onChangeText={(val) => {
+                setUrl(val)
+                props.updateLink(val, props.text)
+              }}
+            />
+          </XStack>
+        </>
       )}
 
       <SizableText marginLeft={26} fontSize="$2" color="$brand5">
         {unpackedRef ? 'Seed Document' : 'Web Address'}
       </SizableText>
+
+      {props.children}
     </YStack>
   )
 }
 
 const SearchInput = ({
-  assign,
+  updateLink,
   link,
   setLink,
 }: {
-  assign: any
+  updateLink: (url: string, text: string) => void
   link: string
   setLink: any
 }) => {
@@ -110,6 +120,7 @@ const SearchInput = ({
             // assign({props: {url: id.id}} as ButtonType)
             setLink(id.id)
             setSearch(id.id)
+            updateLink(id.id, '')
           },
           subtitle: HYPERMEDIA_ENTITY_TYPES[id.type],
         }
@@ -130,6 +141,7 @@ const SearchInput = ({
           // assign({props: {url: id.id}} as ButtonType)
           setLink(id.id)
           setSearch(id.id)
+          updateLink(id.id, '')
         },
       }
     }) || []

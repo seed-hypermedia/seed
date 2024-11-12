@@ -22,18 +22,14 @@ import {
   Button,
   Check,
   ChevronDown,
-  Forward as ChevronRight,
   ErrorBlock,
   ExternalLink,
   Input,
   ListItem,
-  MenuItem,
-  MoreHorizontal,
   Popover,
   Separator,
   SizableText,
   toast,
-  Tooltip,
   usePopoverState,
   XStack,
   YGroup,
@@ -42,9 +38,10 @@ import {
 import {Fragment} from '@tiptap/pm/model'
 import {useCallback, useEffect, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
-import {GestureResponderEvent} from 'react-native'
 import {Block, BlockNoteEditor, HMBlockSchema, SwitcherItem} from '.'
 import {createReactBlockSpec} from './blocknote/react'
+import {HypermediaLinkForm} from './hm-link-form'
+import {HypermediaLinkSwitchToolbar} from './hm-link-switch-toolbar'
 import {LauncherItem} from './launcher-item'
 import {MediaContainer} from './media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
@@ -189,6 +186,7 @@ const display = ({
   setSelected,
 }: DisplayComponentProps) => {
   const unpackedId = unpackHmId(block.props.url)
+
   return (
     <MediaContainer
       editor={editor}
@@ -198,7 +196,12 @@ const display = ({
       setSelected={setSelected}
       assign={assign}
     >
-      <EmbedControl block={block} unpackedId={unpackedId} assign={assign} />
+      <EmbedControl
+        editor={editor}
+        block={block}
+        unpackedId={unpackedId}
+        assign={assign}
+      />
       {block.props.url && (
         <ErrorBoundary FallbackComponent={EmbedError}>
           <BlockContentEmbed
@@ -229,14 +232,18 @@ const display = ({
 }
 
 function EmbedControl({
+  editor,
   block,
   unpackedId,
   assign,
 }: {
+  editor: BlockNoteEditor<HMBlockSchema>
   block: Block<HMBlockSchema>
   unpackedId: UnpackedHypermediaId | null
   assign: any
 }) {
+  const [url, setUrl] = useState<string>(block.props.url || '')
+  const [view, setView] = useState<string>(block.props.view || '')
   const openUrl = useOpenUrl()
   const popoverState = usePopoverState()
   const popoverViewState = usePopoverState()
@@ -301,6 +308,223 @@ function EmbedControl({
     }
   }, [block.props.url, unpackedId])
 
+  function EmbedEditForm(props: any) {
+    // useEffect(() => {
+    //   if (!popoverState.open) {
+    //     props.onClose(false)
+    //   }
+    // }, [popoverState.open])
+
+    return (
+      <YStack
+        paddingVertical="$4"
+        paddingHorizontal="$3"
+        gap="$2"
+        borderRadius="$4"
+        overflow="hidden"
+        bg="$backgroundFocus"
+        elevation="$3"
+        zIndex="$zIndex.5"
+        bottom="0"
+        position="absolute"
+      >
+        <SizableText fontWeight="700">Embed settings</SizableText>
+        <HypermediaLinkForm
+          url={props.url}
+          text={props.text}
+          updateLink={props.updateHyperlink}
+          editLink={props.editHyperlink}
+          openUrl={props.openUrl}
+          type={props.type}
+          search={true}
+        >
+          <XStack gap="$1">
+            {/* {hasBlockRef ? (
+              <Tooltip
+                content={
+                  isBlockExpanded
+                    ? `Embed only the block's content`
+                    : `Embed the block and its children`
+                }
+              >
+                <Button
+                  {...expandButtonHover}
+                  size="$2"
+                  icon={
+                    isBlockExpanded
+                      ? expandButtonHover.hover
+                        ? ChevronRight
+                        : ChevronDown
+                      : expandButtonHover.hover
+                      ? ChevronDown
+                      : ChevronRight
+                  }
+                  backgroundColor="$backgroundStrong"
+                  onPress={(e: GestureResponderEvent) => {
+                    e.stopPropagation()
+                    let url = packHmId({
+                      ...unpackedId,
+                      blockRange: {expanded: !isBlockExpanded},
+                    })
+
+                    assign({
+                      props: {
+                        url,
+                      },
+                    })
+                  }}
+                >
+                  {isBlockExpanded
+                    ? expandButtonHover.hover
+                      ? 'Collapse'
+                      : 'Expand'
+                    : expandButtonHover.hover
+                    ? 'Expand'
+                    : 'Collapse'}
+                </Button>
+              </Tooltip>
+            ) : null} */}
+
+            {allowViewSwitcher && (
+              <Popover
+                {...popoverViewState}
+                onOpenChange={(open) => {
+                  popoverState.onOpenChange(open)
+                  popoverViewState.onOpenChange(open)
+                }}
+                placement="bottom-end"
+              >
+                <Popover.Trigger asChild>
+                  <Button
+                    backgroundColor="$backgroundStrong"
+                    size="$2"
+                    iconAfter={ChevronDown}
+                  >{`view: ${block.props.view}`}</Button>
+                </Popover.Trigger>
+                <Popover.Content asChild>
+                  <YGroup padding={0} width={120}>
+                    <YGroup.Item>
+                      <ListItem
+                        size="$2"
+                        title="as Content"
+                        onPress={handleViewSelect('Content')}
+                        iconAfter={block.props.view == 'Content' ? Check : null}
+                        hoverStyle={{
+                          bg: '$backgroundHover',
+                        }}
+                      />
+                    </YGroup.Item>
+                    <Separator />
+                    <YGroup.Item>
+                      <ListItem
+                        size="$2"
+                        title="as Card"
+                        onPress={handleViewSelect('Card')}
+                        iconAfter={block.props.view == 'Card' ? Check : null}
+                        hoverStyle={{
+                          bg: '$backgroundHover',
+                        }}
+                      />
+                    </YGroup.Item>
+                  </YGroup>
+                </Popover.Content>
+              </Popover>
+            )}
+            {allowVersionSwitcher && (
+              <Popover
+                {...popoverLatestState}
+                onOpenChange={(open) => {
+                  popoverState.onOpenChange(open)
+                  popoverLatestState.onOpenChange(open)
+                }}
+                placement="bottom-end"
+              >
+                <Popover.Trigger asChild>
+                  <Button
+                    backgroundColor="$backgroundStrong"
+                    size="$2"
+                    iconAfter={ChevronDown}
+                  >
+                    {isLatestVersion ? 'Latest Version' : 'Exact Version'}
+                  </Button>
+                </Popover.Trigger>
+                <Popover.Content asChild>
+                  <YGroup padding={0} width={120} elevation="$4">
+                    <YGroup.Item>
+                      <ListItem
+                        size="$2"
+                        title="Latest"
+                        onPress={handleVersionSelect('latest')}
+                        iconAfter={isLatestVersion ? Check : null}
+                        hoverStyle={{
+                          bg: '$backgroundHover',
+                        }}
+                      />
+                    </YGroup.Item>
+                    <Separator />
+                    <YGroup.Item>
+                      <ListItem
+                        size="$2"
+                        title="Exact"
+                        onPress={handleVersionSelect('exact')}
+                        iconAfter={isLatestVersion ? null : Check}
+                        hoverStyle={{
+                          bg: '$backgroundHover',
+                        }}
+                      />
+                    </YGroup.Item>
+                  </YGroup>
+                </Popover.Content>
+              </Popover>
+            )}
+            {/* {hasBlockRef ? (
+              <Popover {...popoverToDocumentState} placement="bottom-start">
+                <Popover.Trigger asChild>
+                  <Button
+                    icon={MoreHorizontal}
+                    size="$1"
+                    onPress={(e: GestureResponderEvent) => e.stopPropagation()}
+                    circular
+                  />
+                </Popover.Trigger>
+                <Popover.Content
+                  padding={0}
+                  elevation="$2"
+                  animation={[
+                    'fast',
+                    {
+                      opacity: {
+                        overshootClamping: true,
+                      },
+                    },
+                  ]}
+                  enterStyle={{y: -10, opacity: 0}}
+                  exitStyle={{y: -10, opacity: 0}}
+                  elevate={true}
+                >
+                  <YGroup>
+                    <YGroup.Item>
+                      {hasBlockRef ? (
+                        <MenuItem
+                          onPress={(e: GestureResponderEvent) => {
+                            e.stopPropagation()
+                            handleBlockToDocument()
+                          }}
+                          title="Convert to Document Embed"
+                          // icon={item.icon}
+                        />
+                      ) : null}
+                    </YGroup.Item>
+                  </YGroup>
+                </Popover.Content>
+              </Popover>
+            ) : null} */}
+          </XStack>
+        </HypermediaLinkForm>
+      </YStack>
+    )
+  }
+
   return (
     <XStack
       position="absolute"
@@ -317,196 +541,41 @@ function EmbedControl({
       $group-item-hover={{opacity: 1}}
       bg="$colorTransparent"
     >
-      <Tooltip content="Open in a new window">
-        <Button
-          size="$2"
-          icon={<ExternalLink />}
-          backgroundColor="$backgroundStrong"
-          onPress={() => {
-            openUrl(block.props.url, true)
-          }}
-        />
-      </Tooltip>
-      {hasBlockRef ? (
-        <Tooltip
-          content={
-            isBlockExpanded
-              ? `Embed only the block's content`
-              : `Embed the block and its children`
+      <HypermediaLinkSwitchToolbar
+        url={url}
+        text={''}
+        editHyperlink={(url: string, _text: string) => {
+          setUrl(url)
+          console.log('assign')
+          assign({props: {url: url}})
+        }}
+        // editHyperlink={() => {}}
+        // updateHyperlink={(url: string, text: string) => {
+        //   setLink(url)
+        //   setButtonText(text)
+        //   assign({props: {url: url, name: text}} as ButtonType)
+        // }}
+        updateHyperlink={() => {}}
+        deleteHyperlink={() => {
+          setUrl('')
+          assign({props: {url: ''}})
+        }}
+        startHideTimer={() => {}}
+        stopHideTimer={() => {}}
+        onChangeLink={(key: 'url' | 'text', value: string) => {
+          if (key == 'url') {
+            setUrl(value)
           }
-        >
-          <Button
-            {...expandButtonHover}
-            size="$2"
-            icon={
-              isBlockExpanded
-                ? expandButtonHover.hover
-                  ? ChevronRight
-                  : ChevronDown
-                : expandButtonHover.hover
-                ? ChevronDown
-                : ChevronRight
-            }
-            backgroundColor="$backgroundStrong"
-            onPress={(e: GestureResponderEvent) => {
-              e.stopPropagation()
-              let url = packHmId({
-                ...unpackedId,
-                blockRange: {expanded: !isBlockExpanded},
-              })
-
-              assign({
-                props: {
-                  url,
-                },
-              })
-            }}
-          >
-            {isBlockExpanded
-              ? expandButtonHover.hover
-                ? 'Collapse'
-                : 'Expand'
-              : expandButtonHover.hover
-              ? 'Expand'
-              : 'Collapse'}
-          </Button>
-        </Tooltip>
-      ) : null}
-
-      {allowViewSwitcher && (
-        <Popover
-          {...popoverViewState}
-          onOpenChange={(open) => {
-            popoverState.onOpenChange(open)
-            popoverViewState.onOpenChange(open)
-          }}
-          placement="bottom-end"
-        >
-          <Popover.Trigger asChild>
-            <Button
-              backgroundColor="$backgroundStrong"
-              size="$2"
-              iconAfter={ChevronDown}
-            >{`view: ${block.props.view}`}</Button>
-          </Popover.Trigger>
-          <Popover.Content asChild>
-            <YGroup padding={0} width={120}>
-              <YGroup.Item>
-                <ListItem
-                  size="$2"
-                  title="as Content"
-                  onPress={handleViewSelect('Content')}
-                  iconAfter={block.props.view == 'Content' ? Check : null}
-                  hoverStyle={{
-                    bg: '$backgroundHover',
-                  }}
-                />
-              </YGroup.Item>
-              <Separator />
-              <YGroup.Item>
-                <ListItem
-                  size="$2"
-                  title="as Card"
-                  onPress={handleViewSelect('Card')}
-                  iconAfter={block.props.view == 'Card' ? Check : null}
-                  hoverStyle={{
-                    bg: '$backgroundHover',
-                  }}
-                />
-              </YGroup.Item>
-            </YGroup>
-          </Popover.Content>
-        </Popover>
-      )}
-      {allowVersionSwitcher && (
-        <Popover
-          {...popoverLatestState}
-          onOpenChange={(open) => {
-            popoverState.onOpenChange(open)
-            popoverLatestState.onOpenChange(open)
-          }}
-          placement="bottom-end"
-        >
-          <Popover.Trigger asChild>
-            <Button
-              backgroundColor="$backgroundStrong"
-              size="$2"
-              iconAfter={ChevronDown}
-            >
-              {isLatestVersion ? 'Latest Version' : 'Exact Version'}
-            </Button>
-          </Popover.Trigger>
-          <Popover.Content asChild>
-            <YGroup padding={0} width={120} elevation="$4">
-              <YGroup.Item>
-                <ListItem
-                  size="$2"
-                  title="Latest"
-                  onPress={handleVersionSelect('latest')}
-                  iconAfter={isLatestVersion ? Check : null}
-                  hoverStyle={{
-                    bg: '$backgroundHover',
-                  }}
-                />
-              </YGroup.Item>
-              <Separator />
-              <YGroup.Item>
-                <ListItem
-                  size="$2"
-                  title="Exact"
-                  onPress={handleVersionSelect('exact')}
-                  iconAfter={isLatestVersion ? null : Check}
-                  hoverStyle={{
-                    bg: '$backgroundHover',
-                  }}
-                />
-              </YGroup.Item>
-            </YGroup>
-          </Popover.Content>
-        </Popover>
-      )}
-      {hasBlockRef ? (
-        <Popover {...popoverToDocumentState} placement="bottom-start">
-          <Popover.Trigger asChild>
-            <Button
-              icon={MoreHorizontal}
-              size="$1"
-              onPress={(e: GestureResponderEvent) => e.stopPropagation()}
-              circular
-            />
-          </Popover.Trigger>
-          <Popover.Content
-            padding={0}
-            elevation="$2"
-            animation={[
-              'fast',
-              {
-                opacity: {
-                  overshootClamping: true,
-                },
-              },
-            ]}
-            enterStyle={{y: -10, opacity: 0}}
-            exitStyle={{y: -10, opacity: 0}}
-            elevate={true}
-          >
-            <YGroup>
-              <YGroup.Item>
-                {hasBlockRef ? (
-                  <MenuItem
-                    onPress={(e: GestureResponderEvent) => {
-                      e.stopPropagation()
-                      handleBlockToDocument()
-                    }}
-                    title="Convert to Document Embed"
-                    // icon={item.icon}
-                  />
-                ) : null}
-              </YGroup.Item>
-            </YGroup>
-          </Popover.Content>
-        </Popover>
-      ) : null}
+        }}
+        openUrl={openUrl}
+        editor={editor}
+        // onClose={(open: boolean) => {
+        //   popoverState.onOpenChange(open)
+        // }}
+        editComponent={EmbedEditForm}
+        type="embed"
+        id={block.id}
+      />
     </XStack>
   )
 }
