@@ -93,7 +93,7 @@ export function HypermediaLinkSwitchToolbar(
             active={false}
           />
           <LinkSwitchButton
-            tooltipText="Edit link"
+            tooltipText={`Edit ${props.type}`}
             icon={Pencil}
             onPress={() => setIsEditing(true)}
             active={false}
@@ -105,7 +105,13 @@ export function HypermediaLinkSwitchToolbar(
               const linkBlock = {
                 type: 'paragraph',
                 props: {},
-                content: [{type: 'link', href: props.url, content: props.text}],
+                content: [
+                  {
+                    type: 'link',
+                    href: props.url,
+                    content: props.text.length ? props.text : props.url,
+                  },
+                ],
               } as PartialBlock<HMBlockSchema>
               // props.editor.insertBlocks([linkBlock], props.id, 'after')
               props.editor.replaceBlocks([props.id], [linkBlock])
@@ -148,7 +154,7 @@ export function HypermediaLinkSwitchToolbar(
                 content: [],
                 props: {
                   url: props.url,
-                  name: props.text,
+                  name: props.text.length ? props.text : props.url,
                 },
               } as PartialBlock<HMBlockSchema>
               // props.editor.insertBlocks([buttonBlock], props.id, 'after')
