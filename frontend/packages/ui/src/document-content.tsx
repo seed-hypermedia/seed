@@ -74,6 +74,7 @@ import {
 // } from "react-tweet";
 import {contentLayoutUnit, contentTextUnit} from "./document-content-constants";
 import "./document-content.css";
+import {SeedHeading} from "./heading";
 import {Comment} from "./icons";
 import {Tooltip} from "./tooltip";
 // import {XPostNotFound, XPostSkeleton} from "./x-components";
@@ -942,11 +943,10 @@ export function BlockContentHeading({
       {...debugStyles(debug, "blue")}
       className="block-content block-heading"
     >
-      <Text
+      <SeedHeading
+        level={depth as 1 | 2 | 3 | 4 | undefined}
         className="content-inline"
         // fontFamily={ffSerif ? '$editorBody' : '$body'}
-        tag={tag}
-        {...headingTextStyles}
         maxWidth="95%"
       >
         <InlineContentView
@@ -955,7 +955,7 @@ export function BlockContentHeading({
           fontFamily="$heading"
           {...headingTextStyles}
         />
-      </Text>
+      </SeedHeading>
     </YStack>
   );
 }
@@ -986,15 +986,14 @@ export function DocHeading({
         >
           <XStack>
             <YStack {...blockStyles} {...debugStyles(debug, "blue")}>
-              <Text
+              <SeedHeading
+                level={1}
                 className="content-inline"
                 fontFamily={"$body"}
-                tag="h1"
-                {...headingTextStyles}
                 maxWidth="95%"
               >
                 {children}
-              </Text>
+              </SeedHeading>
             </YStack>
             {right}
           </XStack>
@@ -1005,42 +1004,74 @@ export function DocHeading({
 }
 
 export function useHeadingTextStyles(depth: number, unit: number) {
-  function headingFontValues(value: number) {
-    return {
-      fontSize: value,
-      lineHeight: value * 1.2,
-    };
-  }
-
   return useMemo(() => {
     if (depth == 1) {
       return {
-        ...headingFontValues(unit * 1.6),
-        $gtMd: headingFontValues(unit * 1.7),
-        $gtLg: headingFontValues(unit * 1.8),
+        fontSize: "$8",
+        lineHeight: "$8",
+        $gtMd: {
+          fontSize: "$9",
+          lineHeight: "$9",
+        },
       } satisfies TextProps;
     }
 
     if (depth == 2) {
       return {
-        ...headingFontValues(unit * 1.4),
-        $gtMd: headingFontValues(unit * 1.5),
-        $gtLg: headingFontValues(unit * 1.6),
+        fontSize: "$7",
+        lineHeight: "$7",
+        $gtMd: {
+          fontSize: "$8",
+          lineHeight: "$8",
+        },
+        $gtLg: {
+          fontSize: "$9",
+          lineHeight: "$9",
+        },
       } satisfies TextProps;
     }
 
     if (depth == 3) {
       return {
-        ...headingFontValues(unit * 1.2),
-        $gtMd: headingFontValues(unit * 1.3),
-        $gtLg: headingFontValues(unit * 1.4),
+        fontSize: "$6",
+        lineHeight: "$6",
+        $gtMd: {
+          fontSize: "$7",
+          lineHeight: "$7",
+        },
+        $gtLg: {
+          fontSize: "$8",
+          lineHeight: "$8",
+        },
+      } satisfies TextProps;
+    }
+
+    if (depth == 4) {
+      return {
+        fontSize: "$5",
+        lineHeight: "$5",
+        $gtMd: {
+          fontSize: "$6",
+          lineHeight: "$6",
+        },
+        $gtLg: {
+          fontSize: "$7",
+          lineHeight: "$7",
+        },
       } satisfies TextProps;
     }
 
     return {
-      ...headingFontValues(unit),
-      $gtMd: headingFontValues(unit * 1.1),
-      $gtLg: headingFontValues(unit * 1.2),
+      fontSize: "$5",
+      lineHeight: "$5",
+      $gtMd: {
+        fontSize: "$6",
+        lineHeight: "$6",
+      },
+      $gtLg: {
+        fontSize: "$7",
+        lineHeight: "$7",
+      },
     } satisfies TextProps;
   }, [depth, unit]);
 }

@@ -20,6 +20,7 @@ export * from "./document-content";
 export * from "./document-content-constants";
 export * from "./footer";
 export * from "./form-fields";
+export * from "./heading";
 export * from "./hm-icon";
 export * from "./icons";
 export * from "./layout";

@@ -36,10 +36,10 @@ import {
   CollaboratorsIcon,
   Container,
   DocContent,
-  H1,
   HistoryIcon,
   HMIcon,
   NewsSiteHeader,
+  SeedHeading,
   SizableText,
   Spinner,
   Tooltip,
@@ -347,13 +347,13 @@ function DocPageHeader({
             </XStack>
           ) : null}
           <XStack>
-            <H1
-              size="$9"
+            <SeedHeading
+              level={1}
               f={1}
               style={{fontWeight: 'bold', wordBreak: 'break-word'}}
             >
               {getDocumentTitle(entity.data?.document)}
-            </H1>
+            </SeedHeading>
           </XStack>
           <YStack gap="$2">
             {entity.data?.document?.metadata.siteUrl ? (
