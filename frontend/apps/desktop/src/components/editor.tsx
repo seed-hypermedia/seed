@@ -9,7 +9,8 @@ import {
 import '@/editor/blocknote/core/style.css'
 import '@/editor/editor.css'
 import {HMFormattingToolbar} from '@/editor/hm-formatting-toolbar'
-import {HypermediaLinkToolbar} from '@/editor/hyperlink-toolbar'
+import {HypermediaLinkSwitchToolbar} from '@/editor/hm-link-switch-toolbar'
+// import {HypermediaLinkToolbar} from '@/editor/hyperlink-toolbar'
 import {HyperDocsEditor} from '@/models/documents'
 import {useOpenUrl} from '@/open-url'
 
@@ -28,7 +29,8 @@ export function HyperMediaEditorView({
         formattingToolbar={HMFormattingToolbar}
       />
       <HyperlinkToolbarPositioner
-        hyperlinkToolbar={HypermediaLinkToolbar}
+        // hyperlinkToolbar={HypermediaLinkToolbar}
+        hyperlinkToolbar={HypermediaLinkSwitchToolbar}
         editor={editor}
         openUrl={openUrl}
       />

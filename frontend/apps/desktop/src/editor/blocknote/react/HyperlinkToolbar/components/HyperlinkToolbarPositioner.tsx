@@ -9,6 +9,7 @@ import {
 import Tippy from '@tippyjs/react'
 import {FC, useEffect, useMemo, useRef, useState} from 'react'
 
+import {HypermediaLinkToolbar} from '@/editor/hyperlink-toolbar'
 import {HMBlockSchema} from '@/editor/schema'
 import {DefaultHyperlinkToolbar} from './DefaultHyperlinkToolbar'
 
@@ -35,6 +36,8 @@ export const HyperlinkToolbarPositioner = <
   const [show, setShow] = useState<boolean>(false)
   const [url, setUrl] = useState<string>()
   const [text, setText] = useState<string>()
+  const [type, setType] = useState<string>()
+  const [id, setId] = useState<string>()
 
   const referencePos = useRef<DOMRect>()
 
@@ -42,9 +45,12 @@ export const HyperlinkToolbarPositioner = <
     return props.editor.hyperlinkToolbar.on(
       'update',
       (hyperlinkToolbarState) => {
+        // console.log('update', hyperlinkToolbarState.show)
         setShow(hyperlinkToolbarState.show)
         setUrl(hyperlinkToolbarState.url)
         setText(hyperlinkToolbarState.text)
+        setType(hyperlinkToolbarState.type)
+        setId(hyperlinkToolbarState.id)
 
         referencePos.current = hyperlinkToolbarState.referencePos
       },
@@ -63,7 +69,7 @@ export const HyperlinkToolbarPositioner = <
   )
 
   const hyperlinkToolbarElement = useMemo(() => {
-    if (!url || !text) {
+    if (!url || !text || !type || !id) {
       return null
     }
 
@@ -86,7 +92,10 @@ export const HyperlinkToolbarPositioner = <
           }
         }}
         openUrl={props.openUrl}
+        editComponent={HypermediaLinkToolbar}
         editor={props.editor}
+        type={type}
+        id={id}
       />
     )
   }, [props.hyperlinkToolbar, props.editor, text, url])
@@ -100,7 +109,7 @@ export const HyperlinkToolbarPositioner = <
       interactive={true}
       visible={show}
       animation={'fade'}
-      placement={'top-start'}
+      placement={'top'}
     />
   )
 }

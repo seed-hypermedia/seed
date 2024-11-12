@@ -127,9 +127,11 @@ export function MentionText(props) {
       style={{
         display: 'inline-block',
         fontFamily: 'inherit',
+        // border: '1px solid red'
       }}
       color="$brand5"
       outlineColor="$brand5"
+      className="mention-text"
     >
       {props.children}
     </SizableText>
