@@ -28,6 +28,7 @@ import (
 
 const (
 	createRoute         = "/v2/create" // v2 is the one created by our fork
+	checkUsersRoute     = "/v2/check"
 	balanceRoute        = "/balance"
 	authRoute           = "/auth"
 	createInvoiceRoute  = "/addinvoice"
@@ -73,6 +74,11 @@ type CreateResponse struct {
 	Login    string `mapstructure:"login"`
 	Password string `mapstructure:"password"`
 	Nickname string `mapstructure:"nickname"`
+}
+
+// CheckResponse is a list of users on the server
+type CheckResponse struct {
+	ExistingUsers []string `mapstructure:"existing_users"`
 }
 
 type authResponse struct {
@@ -147,6 +153,37 @@ func (c *Client) Create(ctx context.Context, connectionURL, walletID, login, pas
 			Nickname: strings.ToLower(nickname),
 		},
 		Token: hex.EncodeToString(token),
+	}, 2, &resp)
+	if err != nil {
+		return resp, err
+	}
+
+	return resp, nil
+}
+
+// Check checks that the passed users exist in the remote lndhub server. The returning response
+// is a list of users that do exist, excluding those that could not be found.
+func (c *Client) Check(ctx context.Context, baseURL string, users []string) (CheckResponse, error) {
+	var resp CheckResponse
+	if len(users) < 1 {
+		return resp, fmt.Errorf("At least one user must be provided")
+	}
+	conn, release, err := c.db.Conn(ctx)
+	if err != nil {
+		return resp, err
+	}
+	defer release()
+	var userList string
+	for i, user := range users {
+		if i == 0 {
+			userList += user
+		} else {
+			userList += "&user=" + user
+		}
+	}
+	err = c.do(ctx, conn, "", httpRequest{
+		URL:    baseURL + checkUsersRoute + "?user=" + userList,
+		Method: http.MethodGet,
 	}, 2, &resp)
 	if err != nil {
 		return resp, err

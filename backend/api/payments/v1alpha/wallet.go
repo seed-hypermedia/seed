@@ -15,6 +15,7 @@ import (
 	"seed/backend/mttnet"
 	"seed/backend/wallet/walletsql"
 	"strings"
+	"time"
 
 	"seed/backend/util/sqlite/sqlitex"
 
@@ -70,6 +71,85 @@ func NewServer(log *zap.Logger, db *sqlitex.Pool, net *mttnet.Node, ks core.KeyS
 		ks:  ks,
 	}
 	srv.net.SetInvoicer(srv)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
+		defer cancel()
+		keys, err := ks.ListKeys(ctx)
+		if err != nil {
+			log.Warn("Could not list keys to check opt-in wallets", zap.Error(err))
+			return
+		}
+		if len(keys) == 0 {
+			log.Warn("No keys installed yet, aborting wallet recovery")
+			return
+		}
+		accounts := []string{}
+		keyNames := []string{}
+		for _, key := range keys {
+			keyNames = append(keyNames, key.Name)
+			accounts = append(accounts, key.PublicKey.String())
+		}
+
+		res, err := srv.lightningClient.Lndhub.Check(ctx, "https://"+lndhubDomain, accounts)
+		if err != nil {
+			log.Warn("Could not check if accounts are in the lndhub server", zap.Error(err))
+			return
+		}
+		ExistingUsers := make(map[string]int)
+		for i, account := range res.ExistingUsers {
+			ExistingUsers[account] = i
+		}
+
+		for _, account := range accounts {
+			accountIdx, ok := ExistingUsers[account]
+			if !ok {
+				continue
+			}
+			// check if we already have the account
+			kp, err := srv.ks.GetKey(ctx, keyNames[accountIdx])
+			if err != nil {
+				log.Warn("Could not get private key", zap.String("Account", account), zap.String("KeyName", keyNames[accountIdx]), zap.Error(err))
+				continue
+			}
+			signature, err := kp.Sign([]byte(lndhub.SigningMessage))
+			if err != nil {
+				log.Warn("Could not sign the login phrase", zap.String("Account", account), zap.Error(err))
+				continue
+			}
+
+			creds := Credentials{
+				Domain:     lndhubDomain,
+				WalletType: lndhubsql.LndhubGoWalletType,
+				Login:      kp.Principal().String(),
+				Password:   hex.EncodeToString(signature),
+				Nickname:   kp.Principal().String(),
+			}
+
+			credentialsURL, err := EncodeCredentialsURL(creds)
+			if err != nil {
+				log.Warn("Could not generate wallet credentials", zap.String("Account", account), zap.Error(err))
+				continue
+			}
+			existingWallet, err := srv.GetWallet(ctx, &payments.WalletRequest{
+				Id: URL2Id(credentialsURL, account),
+			})
+
+			if err == nil && existingWallet.Id == URL2Id(credentialsURL, account) {
+				log.Info("Wallet already in the database, no need to recover", zap.String("Account", account))
+				continue
+			}
+
+			wallet, err := srv.CreateWallet(ctx, &payments.CreateWalletRequest{
+				Account: keyNames[accountIdx],
+				Name:    account,
+			})
+			if err != nil {
+				log.Warn("Could not recover existing remote wallet", zap.String("Account", account), zap.Error(err))
+				continue
+			}
+			log.Info("Wallet was auto recovered!", zap.String("Account", wallet.Account))
+		}
+	}()
 	return srv
 }
 

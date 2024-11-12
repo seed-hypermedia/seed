@@ -103,6 +103,10 @@ func TestCreate(t *testing.T) {
 	invoices, err := lndHubClient.ListReceivedInvoices(ctx, walletID)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(invoices), 1)
+	res, err := lndHubClient.Check(ctx, connectionURL, []string{user.Login, "nonExistingUser"})
+	require.NoError(t, err)
+	require.Len(t, res.ExistingUsers, 1)
+	require.Equal(t, user.Login, res.ExistingUsers[0])
 	//TODO: test for invoice metadata
 }
 
