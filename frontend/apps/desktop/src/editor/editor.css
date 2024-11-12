@@ -476,6 +476,6 @@ ol > [data-node-type='block-outer']::marker {
 
 @media (min-width: 768px) {
   .side-menu {
-    display: block !important;
+    display: flex !important;
   }
 }
