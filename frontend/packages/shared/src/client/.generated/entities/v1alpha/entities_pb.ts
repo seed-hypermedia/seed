@@ -1244,11 +1244,11 @@ export class ListLibraryRequest extends Message<ListLibraryRequest> {
  */
 export class EntityMetadata extends Message<EntityMetadata> {
   /**
-   * Space/AccountUID of the document
+   * AccountUID of the document
    *
-   * @generated from field: string space = 1;
+   * @generated from field: string account = 1;
    */
-  space = "";
+  account = "";
 
   /**
    * The path of the document
@@ -1272,7 +1272,7 @@ export class EntityMetadata extends Message<EntityMetadata> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.entities.v1alpha.EntityMetadata";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "space", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "metadata", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "scalar", T: 9 /* ScalarType.STRING */} },
   ]);
@@ -1299,11 +1299,11 @@ export class EntityMetadata extends Message<EntityMetadata> {
  */
 export class ListLibraryResponse extends Message<ListLibraryResponse> {
   /**
-   * Space/AccountUID of the document
+   * AccountUID of the document
    *
-   * @generated from field: string space = 1;
+   * @generated from field: string account = 1;
    */
-  space = "";
+  account = "";
 
   /**
    * The path of the document
@@ -1376,7 +1376,7 @@ export class ListLibraryResponse extends Message<ListLibraryResponse> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.entities.v1alpha.ListLibraryResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "space", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "last_comment_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },

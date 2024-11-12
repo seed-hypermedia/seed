@@ -339,8 +339,8 @@ enum LibrarySort {
 }
 
 message EntityMetadata {
-  // Space/AccountUID of the document
-  string space = 1;
+  // AccountUID of the document
+  string account = 1;
 
   // The path of the document
   string path = 2;
@@ -350,8 +350,8 @@ message EntityMetadata {
 }
 
 message ListLibraryResponse {
-  // Space/AccountUID of the document
-  string space = 1;
+  // AccountUID of the document
+  string account = 1;
 
   // The path of the document
   string path = 2;
