@@ -13,7 +13,7 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {AlignCenter, AlignLeft, AlignRight, X} from '@tamagui/lucide-icons'
+import {AlignCenter, AlignLeft, AlignRight} from '@tamagui/lucide-icons'
 import {useEffect, useState} from 'react'
 import {RiPencilFill} from 'react-icons/ri'
 import {
@@ -23,6 +23,8 @@ import {
   defaultProps,
 } from './blocknote'
 import {SwitcherItem} from './editor-types'
+import {HypermediaLinkForm} from './hm-link-form'
+import {HypermediaLinkSwitchToolbar} from './hm-link-switch-toolbar'
 import {LauncherItem} from './launcher-item'
 import {HMBlockSchema} from './schema'
 
@@ -126,6 +128,7 @@ const Render = (
   // ]
   const [link, setLink] = useState(block.props.url)
   const [linkType, setLinkType] = useState<'web' | 'seed'>('web')
+  // const unpackedRef = useMemo(() => unpackHmId(link), [link])
   const openUrl = useOpenUrl()
 
   const assign = (newFile: ButtonType) => {
@@ -156,6 +159,68 @@ const Render = (
     }
   }
 
+  function ButtonEditForm() {
+    return (
+      <YStack
+        // flexDirection="column"
+        // marginTop="$2"
+        gap="$3"
+        padding="$5"
+        width={300}
+        backgroundColor="$color6"
+        borderRadius="$4"
+      >
+        <SizableText fontWeight="900">Button Settings</SizableText>
+        <YStack gap="$0.5">
+          <Label fontWeight="300">Alignment</Label>
+          <XStack gap="$3">
+            <Button
+              onPress={() => setAlignment('flex-start')}
+              borderColor="$brand5"
+              backgroundColor={
+                alignment === 'flex-start' ? '$brand5' : '$colorTransparent'
+              }
+            >
+              <AlignLeft />
+            </Button>
+            <Button
+              onPress={() => setAlignment('center')}
+              borderColor="$brand5"
+              backgroundColor={
+                alignment === 'center' ? '$brand5' : '$colorTransparent'
+              }
+            >
+              <AlignCenter />
+            </Button>
+            <Button
+              onPress={() => setAlignment('flex-end')}
+              borderColor="$brand5"
+              backgroundColor={
+                alignment === 'flex-end' ? '$brand5' : '$colorTransparent'
+              }
+            >
+              <AlignRight />
+            </Button>
+          </XStack>
+        </YStack>
+        <YStack gap="$0.5">
+          <HypermediaLinkForm
+            url={link}
+            text={buttonText}
+            editLink={(url: string, text: string) => {
+              setLink(url)
+              setButtonText(text)
+              assign({props: {url: url, name: text}} as ButtonType)
+            }}
+            updateLink={(url: string, text: string) => {}}
+            openUrl={openUrl}
+            type="button"
+          />
+        </YStack>
+      </YStack>
+    )
+  }
+
   return (
     <Popover
       placement="bottom"
@@ -182,6 +247,7 @@ const Render = (
             contentEditable={false}
           >
             <Button
+              data-type="hm-button"
               borderWidth={1}
               // borderRadius={1}
               bc="$brand10"
@@ -218,7 +284,44 @@ const Render = (
             </Popover.Trigger>
             {/* )} */}
             <Popover.Content>
-              <YStack
+              <HypermediaLinkSwitchToolbar
+                url={link}
+                text={buttonText}
+                editHyperlink={(url: string, text: string) => {
+                  setLink(url)
+                  setButtonText(text)
+                  assign({props: {url: url, name: text}} as ButtonType)
+                }}
+                // editHyperlink={() => {}}
+                // updateHyperlink={(url: string, text: string) => {
+                //   setLink(url)
+                //   setButtonText(text)
+                //   assign({props: {url: url, name: text}} as ButtonType)
+                // }}
+                updateHyperlink={() => {}}
+                deleteHyperlink={() => {
+                  setLink('')
+                  assign({props: {url: ''}} as ButtonType)
+                }}
+                startHideTimer={() => {}}
+                stopHideTimer={() => {}}
+                onChangeLink={(key: 'url' | 'text', value: string) => {
+                  if (key == 'text') {
+                    setButtonText(value)
+                  } else {
+                    setLink(value)
+                  }
+                }}
+                openUrl={openUrl}
+                editor={editor}
+                // onClose={(open: boolean) => {
+                //   popoverState.onOpenChange(open)
+                // }}
+                editComponent={ButtonEditForm}
+                type="button"
+                id={block.id}
+              />
+              {/* <YStack
                 // flexDirection="column"
                 // marginTop="$2"
                 gap="$3"
@@ -282,7 +385,7 @@ const Render = (
                   </XStack>
                 </YStack>
 
-                {/* <YStack>
+                <YStack>
                   <Label>Sizing</Label>
                   <Select
                     value={sizing}
@@ -324,7 +427,7 @@ const Render = (
                       </Select.ScrollDownButton>
                     </Select.Content>
                   </Select>
-                </YStack> */}
+                </YStack>
 
                 <YStack gap="$0.5">
                   <Label fontWeight="500">Button Label</Label>
@@ -367,7 +470,7 @@ const Render = (
                       <SizableText>Seed Document</SizableText>
                     </Button>
                   </XStack>
-                  {/* <Input
+                  <Input
                     value={link}
                     onChangeText={(text) => setLink(text)}
                     placeholder="Add a link..."
@@ -375,10 +478,10 @@ const Render = (
                       if (link !== block.props.url)
                         assign({props: {url: link}} as ButtonType)
                     }}
-                  /> */}
+                  />
                   {renderLastInput()}
-                </YStack>
-              </YStack>
+                </YStack> */}
+              {/* </YStack> */}
             </Popover.Content>
           </XStack>
         </XStack>

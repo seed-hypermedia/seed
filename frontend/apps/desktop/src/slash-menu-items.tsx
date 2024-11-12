@@ -198,7 +198,7 @@ export const slashMenuItems = [
         {
           type: 'button',
           props: {
-            ref: '',
+            url: '',
           },
         } as PartialBlock<HMBlockSchema>,
         true,

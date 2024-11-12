@@ -1,17 +1,20 @@
 import {getMarkRange, posToDOMRect, Range} from '@tiptap/core'
 import {EditorView} from '@tiptap/pm/view'
-import {Mark} from 'prosemirror-model'
+import {Mark, Node as PMNode} from 'prosemirror-model'
 import {Plugin, PluginKey} from 'prosemirror-state'
 import type {BlockNoteEditor} from '../../BlockNoteEditor'
 import {BaseUiElementState} from '../../shared/BaseUiElementTypes'
 import {EventEmitter} from '../../shared/EventEmitter'
 import {BlockSchema} from '../Blocks/api/blockTypes'
+import {getGroupInfoFromPos} from '../Blocks/helpers/getGroupInfoFromPos'
 
 export type HyperlinkToolbarState = BaseUiElementState & {
   // The hovered hyperlink's URL, and the text it's displayed with in the
   // editor.
   url: string
   text: string
+  type: string
+  id: string
 }
 
 class HyperlinkToolbarView<BSchema extends BlockSchema> {
@@ -22,13 +25,13 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
   startMenuUpdateTimer: () => void
   stopMenuUpdateTimer: () => void
 
-  mouseHoveredHyperlinkMark: Mark | undefined
+  mouseHoveredHyperlinkMark: Mark | PMNode | undefined
   mouseHoveredHyperlinkMarkRange: Range | undefined
 
   keyboardHoveredHyperlinkMark: Mark | undefined
   keyboardHoveredHyperlinkMarkRange: Range | undefined
 
-  hyperlinkMark: Mark | undefined
+  hyperlinkMark: Mark | PMNode | undefined
   hyperlinkMarkRange: Range | undefined
 
   constructor(
@@ -73,6 +76,51 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
 
     this.stopMenuUpdateTimer()
 
+    const target = event.target
+    // console.log(target)
+    if (
+      target instanceof HTMLSpanElement &&
+      target.nodeName === 'SPAN' &&
+      target.classList.contains('mention-text')
+    ) {
+      const parent = target.parentElement
+      if (parent && parent.nodeName === 'DIV') {
+        // const link = parent.getAttribute('data-inline-embed')
+        const domPos = this.pmView.posAtDOM(target, 0)
+        const pos = this.pmView.state.doc.resolve(domPos)
+        const mention = pos.parent.firstChild
+        if (mention && mention.type.name === 'inline-embed') {
+          this.mouseHoveredHyperlinkMark = mention
+          this.mouseHoveredHyperlinkMarkRange = {
+            from: pos.start(),
+            to: pos.end(),
+          }
+        }
+      }
+    }
+    // if (
+    //   (target instanceof HTMLButtonElement &&
+    //     target.nodeName === 'BUTTON' &&
+    //     target.getAttribute('data-type') === 'hm-button') ||
+    //   (target instanceof HTMLSpanElement &&
+    //     target.parentElement?.nodeName === 'BUTTON' &&
+    //     target.parentElement.getAttribute('data-type') === 'hm-button')
+    // ) {
+    //   // console.log(target.className, target.getAttribute('data-type'))
+    //   console.log(event.target, event.relatedTarget, event.currentTarget)
+    // }
+
+    // if (target instanceof HTMLDivElement && target.nodeName === 'DIV') {
+    //   console.log(target)
+    // }
+
+    // console.log(
+    //   event.target.nodeName,
+    //   event.target.parentNode.nodeName,
+    //   event.target.parentNode,
+    //   event.target.childNodes,
+    // )
+
     if (
       event.target instanceof HTMLAnchorElement &&
       event.target.nodeName === 'A'
@@ -91,6 +139,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         if (
           mark.type.name === this.pmView.state.schema.mark('link').type.name
         ) {
+          console.log(mark)
           this.mouseHoveredHyperlinkMark = mark
           this.mouseHoveredHyperlinkMarkRange =
             getMarkRange(
@@ -124,6 +173,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         editorWrapper?.contains(event.target as Node)
       )
     ) {
+      console.log('here?')
       if (this.hyperlinkToolbarState?.show) {
         this.hyperlinkToolbarState.show = false
         this.updateHyperlinkToolbar()
@@ -161,6 +211,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
     this.pmView.focus()
 
     if (this.hyperlinkToolbarState?.show) {
+      console.log('here?')
       this.hyperlinkToolbarState.show = false
       this.updateHyperlinkToolbar()
     }
@@ -188,18 +239,22 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
   highlightHyperlink() {}
 
   deleteHyperlink() {
-    this.pmView.dispatch(
-      this.pmView.state.tr
-        .removeMark(
-          this.hyperlinkMarkRange!.from,
-          this.hyperlinkMarkRange!.to,
-          this.hyperlinkMark!.type,
-        )
-        .setMeta('preventAutolink', true),
-    )
+    if (this.hyperlinkMark instanceof Mark) {
+      this.pmView.dispatch(
+        this.pmView.state.tr
+          .removeMark(
+            this.hyperlinkMarkRange!.from,
+            this.hyperlinkMarkRange!.to,
+            this.hyperlinkMark!.type,
+          )
+          .setMeta('preventAutolink', true),
+      )
+    }
+
     this.pmView.focus()
 
     if (this.hyperlinkToolbarState?.show) {
+      console.log('here')
       this.hyperlinkToolbarState.show = false
       this.updateHyperlinkToolbar()
     }
@@ -253,19 +308,54 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
     }
 
     if (this.hyperlinkMark && this.editor.isEditable) {
-      this.hyperlinkToolbarState = {
-        show: this.pmView.state.selection.empty,
-        referencePos: posToDOMRect(
-          this.pmView,
-          this.hyperlinkMarkRange!.from,
-          this.hyperlinkMarkRange!.to,
-        ),
-        url: this.hyperlinkMark!.attrs.href,
-        text: this.pmView.state.doc.textBetween(
-          this.hyperlinkMarkRange!.from,
-          this.hyperlinkMarkRange!.to,
-        ),
+      if (this.hyperlinkMark instanceof Mark) {
+        const {container} = getGroupInfoFromPos(
+          this.pmView.state.selection.from,
+          this.pmView.state,
+        )
+        console.log(container)
+        this.hyperlinkToolbarState = {
+          show: this.pmView.state.selection.empty,
+          referencePos: posToDOMRect(
+            this.pmView,
+            this.hyperlinkMarkRange!.from,
+            this.hyperlinkMarkRange!.to,
+          ),
+          url: this.hyperlinkMark!.attrs.href,
+          text: this.pmView.state.doc.textBetween(
+            this.hyperlinkMarkRange!.from,
+            this.hyperlinkMarkRange!.to,
+          ),
+          type: 'link',
+          id: container ? container.attrs.id : '',
+        }
+      } else if (this.hyperlinkMark instanceof PMNode) {
+        const {container} = getGroupInfoFromPos(
+          this.pmView.state.selection.from,
+          this.pmView.state,
+        )
+        console.log(container)
+        // console.log(
+        // this.hyperlinkMark,
+        // this.pmView.state.selection.$anchor.parent,
+        // )
+        // console.log(this.pmView.state.selection.$anchor.parent)
+        this.hyperlinkToolbarState = {
+          show:
+            this.pmView.state.selection.$anchor.parent.firstChild! ===
+            this.hyperlinkMark,
+          referencePos: posToDOMRect(
+            this.pmView,
+            this.hyperlinkMarkRange!.from,
+            this.hyperlinkMarkRange!.to,
+          ),
+          url: this.hyperlinkMark!.attrs.link,
+          text: this.hyperlinkMark!.attrs.link,
+          type: 'mention',
+          id: container ? container.attrs.id : '',
+        }
       }
+
       this.updateHyperlinkToolbar()
 
       return

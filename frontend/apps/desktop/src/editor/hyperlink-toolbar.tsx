@@ -1,26 +1,14 @@
-import {createHmDocLink_DEPRECATED, unpackHmId} from '@shm/shared'
-import {
-  Button,
-  Check,
-  Checkbox,
-  ExternalLink,
-  Input,
-  Label,
-  Link as LinkIcon,
-  Separator,
-  SizeTokens,
-  TextCursorInput,
-  Tooltip,
-  Unlink,
-  XStack,
-  YStack,
-} from '@shm/ui'
+import {unpackHmId} from '@shm/shared'
+import {SizableText, SizeTokens, YStack} from '@shm/ui'
 import {useEffect, useMemo, useState} from 'react'
 import {HyperlinkToolbarProps} from './blocknote'
+import {HypermediaLinkForm} from './hm-link-form'
 
 export function HypermediaLinkToolbar(
   props: HyperlinkToolbarProps & {
     openUrl: (url?: string | undefined, newWindow?: boolean | undefined) => void
+    onClose: (bool: boolean) => void
+    type: string
   },
 ) {
   const formSize: SizeTokens = '$2'
@@ -28,7 +16,7 @@ export function HypermediaLinkToolbar(
   const [_url, setUrl] = useState(props.url || '')
   const [_text, setText] = useState(props.text || '')
   const unpackedRef = useMemo(() => unpackHmId(_url), [_url])
-  const _latest = unpackedRef?.latest || false
+  // const _latest = unpackedRef?.latest || false
 
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape' || event.key == 'Enter') {
@@ -38,7 +26,9 @@ export function HypermediaLinkToolbar(
   }
 
   useEffect(() => {
+    console.log(props.editor.hyperlinkToolbar)
     props.editor.hyperlinkToolbar.on('update', (state) => {
+      if (!state.show) props.onClose(false)
       setText(state.text || '')
       setUrl(state.url || '')
     })
@@ -54,11 +44,12 @@ export function HypermediaLinkToolbar(
 
   return (
     <YStack
-      p="$2"
+      paddingVertical="$4"
+      paddingHorizontal="$3"
       gap="$2"
       borderRadius="$4"
       overflow="hidden"
-      bg="$backgroundStrong"
+      bg="$backgroundFocus"
       elevation="$3"
       zIndex="$zIndex.5"
       bottom="0"
@@ -66,40 +57,57 @@ export function HypermediaLinkToolbar(
       onMouseEnter={props.stopHideTimer}
       onMouseLeave={props.startHideTimer}
     >
-      <XStack ai="center" gap="$2" p="$1">
-        <TextCursorInput size={12} />
-        <Input
-          flex={1}
-          size={formSize}
-          placeholder="link text"
-          id="link-text"
-          key={props.text}
-          value={_text}
-          onKeyPress={handleKeydown}
-          onChangeText={(val) => {
-            setText(val)
-            props.updateHyperlink(props.url, val)
-          }}
-        />
-      </XStack>
-      <XStack ai="center" gap="$2" p="$1">
-        <LinkIcon size={12} />
-        <Input
-          flex={1}
-          size="$2"
-          key={props.url}
-          value={_url}
-          onKeyPress={handleKeydown}
-          onChangeText={(val) => {
-            setUrl(val)
-            props.updateHyperlink(val, props.text)
-          }}
-        />
-      </XStack>
-      <Separator />
+      <SizableText fontWeight="700">{`${
+        props.type.charAt(0).toUpperCase() + props.type.slice(1)
+      } settings`}</SizableText>
+      <HypermediaLinkForm
+        url={props.url}
+        text={props.text}
+        updateLink={props.updateHyperlink}
+        editLink={props.editHyperlink}
+        openUrl={props.openUrl}
+        type={props.type}
+        search={false}
+      />
+      {/* <<YStack>
+        <XStack ai="center" gap="$2" p="$1">
+          <TextCursorInput size={16} />
+          <Input
+            flex={1}
+            size={formSize}
+            placeholder="link text"
+            id="link-text"
+            key={props.text}
+            value={_text}
+            onKeyPress={handleKeydown}
+            onChangeText={(val) => {
+              setText(val)
+              props.updateHyperlink(props.url, val)
+            }}
+          />
+        </XStack>
+        <XStack ai="center" gap="$2" p="$1">
+          <LinkIcon size={16} />
+          <Input
+            flex={1}
+            size="$2"
+            key={props.url}
+            value={_url}
+            onKeyPress={handleKeydown}
+            onChangeText={(val) => {
+              setUrl(val)
+              props.updateHyperlink(val, props.text)
+            }}
+          />
+        </XStack>
+        <SizableText marginLeft={26} fontSize="$2" color="$brand5">
+          {unpackedRef ? 'Seed Document' : 'Web Address'}
+        </SizableText>
+      </YStack>> */}
+      {/* <Separator backgroundColor="$backgroundStrong" />
       <YStack p="$1">
-        <XStack ai="center" gap="$2">
-          {unpackedRef ? (
+        <XStack ai="center" gap="$2"> */}
+      {/* {unpackedRef ? (
             <XStack ai="center" minWidth={200} gap="$2">
               <Checkbox
                 id="link-latest"
@@ -127,8 +135,8 @@ export function HypermediaLinkToolbar(
                 Link to Latest Version
               </Label>
             </XStack>
-          ) : null}
-          <Tooltip content="Remove link">
+          ) : null} */}
+      {/* <Tooltip content="Remove link">
             <Button
               chromeless
               size="$1"
@@ -143,9 +151,9 @@ export function HypermediaLinkToolbar(
               icon={ExternalLink}
               onPress={() => props.openUrl(props.url, true)}
             />
-          </Tooltip>
-        </XStack>
-      </YStack>
+          </Tooltip> */}
+      {/* </XStack>
+      </YStack> */}
     </YStack>
   )
 }
