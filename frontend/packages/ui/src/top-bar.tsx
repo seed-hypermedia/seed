@@ -213,7 +213,13 @@ export function MobileMenu({
           onPress={onClose}
         />
       </XStack>
-      <YStack p="$4" paddingBottom={200} flex={1} overflow="scroll">
+      <YStack
+        p="$4"
+        paddingBottom={200}
+        flex={1}
+        overflow="scroll"
+        className="mobile-menu"
+      >
         {children}
       </YStack>
     </YStack>
