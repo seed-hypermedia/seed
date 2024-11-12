@@ -57,24 +57,7 @@ export function useDeleteEntities(
       )
     },
     onSuccess: (result: void, input: DeleteEntitiesInput, context) => {
-      input.ids.forEach((id) => {
-        if (id.type === 'd') {
-          invalidate([queryKeys.ENTITY, id.id])
-          invalidate([queryKeys.ACCOUNT_DOCUMENTS])
-          invalidate([queryKeys.LIST_ACCOUNTS])
-          invalidate([queryKeys.ACCOUNT, id.uid])
-        } else if (id.type === 'comment') {
-          invalidate([queryKeys.ENTITY, id])
-          invalidate([queryKeys.COMMENT, id])
-          invalidate([queryKeys.DOCUMENT_COMMENTS])
-        }
-      })
-      invalidate([queryKeys.FEED])
-      invalidate([queryKeys.FEED_LATEST_EVENT])
-      invalidate([queryKeys.RESOURCE_FEED])
-      invalidate([queryKeys.RESOURCE_FEED_LATEST_EVENT])
-      invalidate([queryKeys.ENTITY_CITATIONS])
-      invalidate([queryKeys.SEARCH])
+      invalidate([])
       opts?.onSuccess?.(result, input, context)
     },
   })

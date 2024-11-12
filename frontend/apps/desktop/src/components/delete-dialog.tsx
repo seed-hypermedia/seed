@@ -10,6 +10,7 @@ import {
   HeadingProps,
   ParagraphProps,
   Spinner,
+  toast,
   XStack,
   XStackProps,
   YStack,
@@ -42,11 +43,6 @@ export function DeleteEntityDialog({
   input: {id: UnpackedHypermediaId; title?: string; onSuccess?: () => void}
   onClose?: () => void
 }) {
-  const deleteEntity = useDeleteEntities({
-    onSuccess: () => {
-      onClose?.(), onSuccess?.()
-    },
-  })
   const list = useListSite(id)
   const childDocs =
     list.data?.filter((item) => {
@@ -56,6 +52,12 @@ export function DeleteEntityDialog({
       return item.path.join('/').startsWith(id.path.join('/'))
     }) || []
   console.log(`== ~ DeleteEntityDialog`, id, title, childDocs)
+  const deleteEntity = useDeleteEntities({
+    onSuccess: () => {
+      toast.success(`Successfully deleted ${childDocs.length + 1} documents`)
+      onClose?.(), onSuccess?.()
+    },
+  })
   const cap = useMyCapability(id)
 
   return (
