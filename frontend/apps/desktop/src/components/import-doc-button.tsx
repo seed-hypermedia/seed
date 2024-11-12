@@ -221,6 +221,19 @@ export function ImportDropdownButton({
         //   })
         // }
 
+        // const newId = hmId('d', id.uid, {
+        //   path: [...(id.path || []), path],
+        // })
+
+        // const packedId = packHmId(newId)
+
+        // console.log(packedId)
+
+        // await createDraft.mutateAsync({
+        //   id: packedId,
+        //   draft: inputData,
+        // })
+
         await createDraft.mutateAsync({
           id: id.id + '/' + path,
           draft: inputData,
