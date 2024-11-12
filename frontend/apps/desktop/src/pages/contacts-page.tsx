@@ -55,7 +55,7 @@ export default function ContactsPage() {
 
   return (
     <>
-      <MainWrapper>
+      <MainWrapper height="100%">
         <Container>
           <YStack paddingVertical="$4" marginHorizontal={-8}>
             {contacts.data?.length ? (
