@@ -71,20 +71,21 @@ func NewServer(log *zap.Logger, db *sqlitex.Pool, net *mttnet.Node, ks core.KeyS
 		ks:  ks,
 	}
 	srv.net.SetInvoicer(srv)
+	keys, err := srv.ks.ListKeys(context.Background())
+	if err != nil {
+		log.Warn("Could not list keys to check opt-in wallets", zap.Error(err))
+		return srv
+	}
+	if len(keys) == 0 {
+		log.Info("No keys installed yet, aborting wallet recovery")
+		return srv
+	}
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
-		defer cancel()
-		keys, err := ks.ListKeys(ctx)
-		if err != nil {
-			log.Warn("Could not list keys to check opt-in wallets", zap.Error(err))
-			return
-		}
-		if len(keys) == 0 {
-			log.Warn("No keys installed yet, aborting wallet recovery")
-			return
-		}
 		accounts := []string{}
 		keyNames := []string{}
+		ExistingUsers := make(map[string]int)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
+		defer cancel()
 		for _, key := range keys {
 			keyNames = append(keyNames, key.Name)
 			accounts = append(accounts, key.PublicKey.String())
@@ -95,7 +96,7 @@ func NewServer(log *zap.Logger, db *sqlitex.Pool, net *mttnet.Node, ks core.KeyS
 			log.Warn("Could not check if accounts are in the lndhub server", zap.Error(err))
 			return
 		}
-		ExistingUsers := make(map[string]int)
+
 		for i, account := range res.ExistingUsers {
 			ExistingUsers[account] = i
 		}
