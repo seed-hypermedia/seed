@@ -15,7 +15,6 @@ import {
 } from '@shm/ui'
 import {AlignCenter, AlignLeft, AlignRight} from '@tamagui/lucide-icons'
 import {useEffect, useState} from 'react'
-import {RiPencilFill} from 'react-icons/ri'
 import {
   Block,
   BlockNoteEditor,
@@ -159,7 +158,7 @@ const Render = (
     }
   }
 
-  function ButtonEditForm() {
+  function ButtonEditForm(props: any) {
     return (
       <YStack
         // flexDirection="column"
@@ -223,7 +222,7 @@ const Render = (
 
   return (
     <Popover
-      placement="bottom"
+      placement="top"
       open={popoverState.open}
       onOpenChange={(open) => {
         popoverState.onOpenChange(open)
@@ -246,30 +245,32 @@ const Render = (
             // @ts-ignore
             contentEditable={false}
           >
-            <Button
-              data-type="hm-button"
-              borderWidth={1}
-              // borderRadius={1}
-              bc="$brand10"
-              size="$3"
-              width="100%"
-              // maxWidth="80%"
-              // px="$2"
-              p="$2"
-              fontSize="$4"
-              justifyContent="center"
-              textAlign="center"
-              userSelect="none"
-              onPress={() => {
-                openUrl(block.props.url)
-              }}
-            >
-              <SizableText numberOfLines={1} ellipsizeMode="tail">
-                {block.props.name}
-              </SizableText>
-            </Button>
-            {/* {focused && ( */}
             <Popover.Trigger>
+              <Button
+                data-type="hm-button"
+                borderWidth={1}
+                // borderRadius={1}
+                bc="$brand10"
+                size="$3"
+                width="100%"
+                // maxWidth="80%"
+                // px="$2"
+                p="$2"
+                fontSize="$4"
+                justifyContent="center"
+                textAlign="center"
+                userSelect="none"
+                // onPress={() => {
+                //   openUrl(block.props.url)
+                // }}
+              >
+                <SizableText numberOfLines={1} ellipsizeMode="tail">
+                  {block.props.name}
+                </SizableText>
+              </Button>
+            </Popover.Trigger>
+            {/* {focused && ( */}
+            {/* <Popover.Trigger>
               <Button
                 icon={<RiPencilFill color="$color11" />}
                 size="$3"
@@ -281,9 +282,9 @@ const Render = (
                 right={-50}
                 // onPress={() => popoverState.onOpenChange(true)}
               />
-            </Popover.Trigger>
+            </Popover.Trigger> */}
             {/* )} */}
-            <Popover.Content>
+            <Popover.Content size="$0">
               <HypermediaLinkSwitchToolbar
                 url={link}
                 text={buttonText}
