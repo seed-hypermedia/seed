@@ -17,7 +17,7 @@ function DeleteDraftDialog({
     onSettled: input.onSuccess,
   })
   return (
-    <YStack gap="$4" padding="$4" borderRadius="$3">
+    <YStack gap="$4" padding="$4" borderRadius="$3" maxWidth={400}>
       <AlertDialog.Title>Discard Draft</AlertDialog.Title>
       <AlertDialog.Description>
         Permanently delete this draft document?

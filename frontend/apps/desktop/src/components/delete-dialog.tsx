@@ -61,20 +61,20 @@ export function DeleteEntityDialog({
   const cap = useMyCapability(id)
 
   return (
-    <YStack backgroundColor="$background" padding="$4" borderRadius="$3">
+    <YStack gap="$4" padding="$4" borderRadius="$3" maxWidth={440}>
       <AlertDialog.Title>Delete "{title}"</AlertDialog.Title>
       <AlertDialog.Description>
         Are you sure you want to delete this? (TODO: better message, deletion is
         not real. children deleted too)
       </AlertDialog.Description>
-      <XStack space="$3" justifyContent="flex-end">
+      <XStack gap="$3" justifyContent="flex-end">
         <AlertDialog.Cancel asChild>
           <Button onPress={onClose} chromeless>
             Cancel
           </Button>
         </AlertDialog.Cancel>
-        <XStack gap="$4">
-          {deleteEntity.isLoading ? <Spinner /> : null}
+        {deleteEntity.isLoading ? <Spinner /> : null}
+        <AlertDialog.Action asChild>
           <Button
             theme="red"
             onPress={() => {
@@ -94,7 +94,7 @@ export function DeleteEntityDialog({
           >
             {`Delete ${HYPERMEDIA_ENTITY_TYPES[id.type]}`}
           </Button>
-        </XStack>
+        </AlertDialog.Action>
       </XStack>
     </YStack>
   )
