@@ -107,7 +107,6 @@ function DocumentMention({
   const entity = useEntity(unpackedRef)
   return (
     <MentionText selected={selected}>
-      @
       {entity.data?.document
         ? getDocumentTitle(entity.data?.document)
         : unpackedRef.id}
@@ -121,17 +120,18 @@ export function MentionText(props) {
       fontSize="1em"
       fontWeight="bold"
       paddingBottom={1}
-      borderBottomWidth={1}
-      borderBottomColor="$brand5"
       paddingHorizontal={1}
       style={{
         display: 'inline-block',
         fontFamily: 'inherit',
-        // border: '1px solid red'
       }}
       color="$brand5"
       outlineColor="$brand5"
       className="mention-text"
+      hoverStyle={{
+        borderBottomWidth: 1,
+        borderBottomColor: '$brand5',
+      }}
     >
       {props.children}
     </SizableText>
