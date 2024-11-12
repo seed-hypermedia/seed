@@ -1,12 +1,5 @@
 import {fileUpload} from '@/utils/file-upload'
-import {
-  Button,
-  Container,
-  getRandomColor,
-  Stack,
-  Tooltip,
-  XStack,
-} from '@shm/ui'
+import {Button, getRandomColor, Stack, Tooltip, XStack, YStack} from '@shm/ui'
 import {Trash} from '@tamagui/lucide-icons'
 import {ChangeEvent, useMemo} from 'react'
 import appError from '../errors'
@@ -77,50 +70,55 @@ export function CoverImage({
   return (
     <Stack group="cover">
       {show ? (
-        <Container clearVerticalSpace>
-          <XStack
-            opacity={0}
-            jc="end"
-            paddingHorizontal="$4"
-            paddingTop="$6"
-            position="absolute"
-            top={0}
-            left={0}
-            right={0}
-            w="100%"
-            zi="$zIndex.1"
-            $group-cover-hover={{opacity: 1}}
-            gap="$2"
-          >
-            <XStack position="relative">
-              <XStack
-                tag="input"
-                type="file"
-                onChange={handleFileChange}
-                style={{
-                  height: '100%',
-                  opacity: 0,
-                  display: 'flex',
-                  position: 'absolute',
-                  left: 0,
-                  right: -12,
-                  top: 0,
-                  zIndex: 100,
-                  background: 'red',
-                }}
-              />
-              <Button size="$2">{`${url ? 'CHANGE' : 'ADD'} COVER`}</Button>
+        <YStack
+          className="document-container"
+          position="absolute"
+          top={0}
+          left={0}
+          right={0}
+          w="100%"
+          zi="$zIndex.1"
+        >
+          <YStack />
+          <YStack paddingHorizontal="$2">
+            <XStack
+              opacity={0}
+              jc="end"
+              paddingHorizontal="$4"
+              paddingTop="$6"
+              $group-cover-hover={{opacity: 1}}
+              gap="$2"
+            >
+              <XStack position="relative">
+                <XStack
+                  tag="input"
+                  type="file"
+                  onChange={handleFileChange}
+                  style={{
+                    height: '100%',
+                    opacity: 0,
+                    display: 'flex',
+                    position: 'absolute',
+                    left: 0,
+                    right: -12,
+                    top: 0,
+                    zIndex: 100,
+                    background: 'red',
+                  }}
+                />
+                <Button size="$2">{`${url ? 'CHANGE' : 'ADD'} COVER`}</Button>
+              </XStack>
+              <Tooltip content="Remove Cover image">
+                <Button
+                  icon={Trash}
+                  size="$2"
+                  onPress={onRemoveCover}
+                  theme="red"
+                />
+              </Tooltip>
             </XStack>
-            <Tooltip content="Remove Cover image">
-              <Button
-                icon={Trash}
-                size="$2"
-                onPress={onRemoveCover}
-                theme="red"
-              />
-            </Tooltip>
-          </XStack>
-        </Container>
+          </YStack>
+        </YStack>
       ) : null}
       {coverImage}
     </Stack>

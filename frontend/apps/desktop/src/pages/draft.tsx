@@ -180,6 +180,16 @@ function DocumentEditor({
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
   const importWebFile = trpc.webImporting.importWebFile.useMutation()
   const [isDragging, setIsDragging] = useState(false)
+  const [showCover, setShowCover] = useState(false)
+
+  const cover = useSelector(actor, (s) => s.context.metadata.cover)
+
+  useEffect(() => {
+    let val = !!cover
+    if (val != showCover) {
+      setShowCover(val)
+    }
+  }, [cover])
 
   useEffect(() => {
     if (!id?.id) return
@@ -213,7 +223,12 @@ function DocumentEditor({
           importWebFile={importWebFile}
           docId={id}
         >
-          <DraftCover draftActor={actor} disabled={!state.matches('ready')} />
+          <DraftCover
+            draftActor={actor}
+            disabled={!state.matches('ready')}
+            show={showCover}
+            setShow={setShowCover}
+          />
           <YStack className="document-container">
             <YStack
               marginTop={200}
@@ -231,6 +246,8 @@ function DocumentEditor({
                   editor._tiptapEditor.commands.setTextSelection(0)
                 }}
                 disabled={!state.matches('ready')}
+                showCover={showCover}
+                setShowCover={setShowCover}
               />
               <Container
                 paddingLeft="$4"
@@ -392,17 +409,20 @@ export function DraftHeader({
   onEnter,
   draftActor,
   disabled = false,
+  showCover = false,
+  setShowCover,
 }: {
   onEnter: () => void
   draftActor: ActorRefFrom<typeof draftMachine>
   disabled?: boolean
+  showCover?: boolean
+  setShowCover?: (show: boolean) => void
 }) {
   const route = useNavRoute()
   if (route.key !== 'draft')
     throw new Error('DraftHeader must have draft route')
   const {textUnit} = useDocContentContext()
   const [showIcon, setShowIcon] = useState(false)
-  const [showCover, setShowCover] = useState(false)
   let headingTextStyles = useHeadingTextStyles(1, textUnit)
   const name = useSelector(draftActor, (s) => {
     return s.context.metadata.name
@@ -440,13 +460,6 @@ export function DraftHeader({
       applyTitleResize(target)
     }
   }, [name])
-
-  useEffect(() => {
-    let val = !!cover
-    if (val != showCover) {
-      setShowCover(val)
-    }
-  }, [cover])
 
   useEffect(() => {
     let val = !!icon
@@ -600,15 +613,17 @@ export function DraftHeader({
 export function DraftCover({
   draftActor,
   disabled = false,
+  show = false,
+  setShow,
 }: {
   draftActor: ActorRefFrom<typeof draftMachine>
   disabled?: boolean
+  show?: boolean
+  setShow?: (show: boolean) => void
 }) {
   const route = useNavRoute()
   if (route.key !== 'draft')
     throw new Error('DraftHeader must have draft route')
-
-  const [showCover, setShowCover] = useState(false)
 
   const cover = useSelector(draftActor, (s) => {
     return s.context.metadata.cover
@@ -629,13 +644,6 @@ export function DraftCover({
     })
   }, [input.current])
 
-  useEffect(() => {
-    let val = !!cover
-    if (val != showCover) {
-      setShowCover(val)
-    }
-  }, [cover])
-
   return (
     <YStack
       onPress={(e: MouseEvent) => {
@@ -643,7 +651,7 @@ export function DraftCover({
       }}
     >
       <CoverImage
-        show={showCover}
+        show={show}
         onCoverUpload={(cover) => {
           if (cover) {
             draftActor.send({
@@ -655,7 +663,7 @@ export function DraftCover({
           }
         }}
         onRemoveCover={() => {
-          setShowCover(false)
+          setShow?.(false)
           draftActor.send({
             type: 'CHANGE',
             metadata: {
