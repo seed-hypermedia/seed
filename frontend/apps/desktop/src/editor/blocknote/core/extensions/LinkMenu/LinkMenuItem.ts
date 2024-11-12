@@ -1,8 +1,8 @@
+import {HMBlockSchema} from '@/editor/schema'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {BlockSchema} from '../Blocks/api/blockTypes'
-import {DefaultBlockSchema} from '../Blocks/api/defaultBlocks'
 
-export type LinkMenuItem<BSchema extends BlockSchema = DefaultBlockSchema> = {
+export type LinkMenuItem<BSchema extends BlockSchema = HMBlockSchema> = {
   name: string
   icon?: JSX.Element
   hint?: string

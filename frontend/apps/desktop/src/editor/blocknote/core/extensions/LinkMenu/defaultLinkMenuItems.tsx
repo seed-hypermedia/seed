@@ -1,6 +1,6 @@
+import {HMBlockSchema} from '@/editor/schema'
 import {youtubeParser} from '@/editor/utils'
 import {
-  HYPERMEDIA_ENTITY_TYPES,
   StateStream,
   UnpackedHypermediaId,
   createHMUrl,
@@ -8,7 +8,8 @@ import {
   isPublicGatewayLink,
   normalizeHmId,
 } from '@shm/shared'
-import {Globe, Link, Spinner, SquareAsterisk, TwitterXIcon} from '@shm/ui'
+import {Link, Spinner, TwitterXIcon} from '@shm/ui'
+import {CircleDot, PanelBottom, Quote} from '@tamagui/lucide-icons'
 import {Fragment, Node} from '@tiptap/pm/model'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {getBlockInfoFromPos} from '../Blocks/helpers/getBlockInfoFromPos'
@@ -36,10 +37,10 @@ export function getLinkMenuItems({
   if (sourceUrl && !isHypermediaScheme(sourceUrl)) {
     linkMenuItems = [
       {
-        name: 'Web Link',
+        name: 'Link',
         disabled: false,
-        icon: <Globe size={18} />,
-        execute: (editor: BlockNoteEditor, ref: string) => {
+        icon: <Link size={18} />,
+        execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
           const {state, schema, view} = editor._tiptapEditor
           const {selection} = state
           const pos = selection.from - docTitle!.length
@@ -57,6 +58,22 @@ export function getLinkMenuItems({
           )
         },
       },
+      {
+        name: 'Button',
+        disabled: false,
+        icon: <CircleDot size={18} />,
+        execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
+          const {state, schema} = editor._tiptapEditor
+          const {selection} = state
+          if (!selection.empty) return
+          const node = schema.nodes.button.create({
+            url: sourceUrl,
+            name: sourceUrl,
+          })
+
+          insertNode(editor, sourceUrl, node)
+        },
+      },
       ...linkMenuItems,
     ]
   }
@@ -67,54 +84,55 @@ export function getLinkMenuItems({
       // hm://z6Mkj5NQAYGQSLRAV2L6g4R2LC8D2FL47XW5miJsPaRvkerg?v=bafy2bzacecwv74orbeuwfdzyvnbyzqnwzdn3gorznjku7ythcyyj6aqqktcqu
       icon: <Spinner size="small" />,
       disabled: true,
-      execute: (editor, ref) => {},
+      execute: (_editor: BlockNoteEditor<HMBlockSchema>, _ref: string) => {},
     }
 
     linkMenuItems = [loadingItem, ...linkMenuItems]
   } else {
     if (hmId) {
-      if (hmId.type !== 'c') {
-        // comments are not supported for card embeds yet
+      // if (hmId.type !== 'c') {
+      //   // comments are not supported for card embeds yet
 
-        linkMenuItems = [
-          {
-            name: `Insert Card of ${
-              docTitle
-                ? '"' + docTitle + '"'
-                : HYPERMEDIA_ENTITY_TYPES[hmId.type]
-            }`,
-            disabled: false,
-            icon: <SquareAsterisk size={18} />,
-            execute: (editor: BlockNoteEditor, ref: string) => {
-              const {state, schema} = editor._tiptapEditor
-              const {selection} = state
-              if (!selection.empty) return
-              const node = schema.nodes.embed.create(
-                {
-                  url: createHMUrl(hmId),
-                  view: 'Card',
-                },
-                schema.text(' '),
-              )
+      //   linkMenuItems = [
+      //     {
+      //       name: `Insert Card of ${
+      //         docTitle
+      //           ? '"' + docTitle + '"'
+      //           : HYPERMEDIA_ENTITY_TYPES[hmId.type]
+      //       }`,
+      //       disabled: false,
+      //       icon: <SquareAsterisk size={18} />,
+      //       execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
+      //         const {state, schema} = editor._tiptapEditor
+      //         const {selection} = state
+      //         if (!selection.empty) return
+      //         const node = schema.nodes.embed.create(
+      //           {
+      //             url: createHMUrl(hmId),
+      //             view: 'Card',
+      //           },
+      //           schema.text(' '),
+      //         )
 
-              insertNode(editor, sourceUrl || ref, node)
-            },
-          },
-          ...linkMenuItems,
-        ]
-      }
+      //         insertNode(editor, sourceUrl || ref, node)
+      //       },
+      //     },
+      //     ...linkMenuItems,
+      //   ]
+      // }
 
       if (hmId.type) {
         linkMenuItems = [
           {
-            name: `Embed ${HYPERMEDIA_ENTITY_TYPES[hmId.type]} ${
-              docTitle
-                ? '"' + docTitle + '"'
-                : HYPERMEDIA_ENTITY_TYPES[hmId.type]
-            }`,
+            // name: `Embed ${HYPERMEDIA_ENTITY_TYPES[hmId.type]} ${
+            //   docTitle
+            //     ? '"' + docTitle + '"'
+            //     : HYPERMEDIA_ENTITY_TYPES[hmId.type]
+            // }`,
+            name: 'Embed',
             disabled: false,
-            icon: <SquareAsterisk size={18} />,
-            execute: (editor: BlockNoteEditor, ref: string) => {
+            icon: <PanelBottom size={18} />,
+            execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
               const {state, schema} = editor._tiptapEditor
               const {selection} = state
               if (!selection.empty) return
@@ -137,18 +155,20 @@ export function getLinkMenuItems({
       if (docTitle && docTitle !== sourceUrl) {
         linkMenuItems = [
           {
-            name: `Link as "${docTitle}"`,
+            // name: `Link as "${docTitle}"`,
+            name: 'Link',
             disabled: false,
             icon: <Link size={18} />,
-            execute: (editor: BlockNoteEditor, ref: string) => {
+            execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
               // this is the default behavior of HM links and is already applied by this time
             },
           },
           {
-            name: `Mention "${docTitle}"`,
+            // name: `Mention "${docTitle}"`,
+            name: 'Mention',
             disabled: false,
-            icon: <SquareAsterisk size={18} />,
-            execute: (editor: BlockNoteEditor, link: string) => {
+            icon: <Quote size={18} />,
+            execute: (editor: BlockNoteEditor<HMBlockSchema>, link: string) => {
               if (
                 isPublicGatewayLink(link, gwUrl) ||
                 isHypermediaScheme(link)
@@ -170,6 +190,22 @@ export function getLinkMenuItems({
               insertMentionNode(editor, sourceUrl || link, docTitle, node)
             },
           },
+          {
+            name: 'Button',
+            disabled: false,
+            icon: <CircleDot size={18} />,
+            execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
+              const {state, schema} = editor._tiptapEditor
+              const {selection} = state
+              if (!selection.empty) return
+              const node = schema.nodes.button.create({
+                url: sourceUrl,
+                name: docTitle,
+              })
+
+              insertNode(editor, sourceUrl || ref, node)
+            },
+          },
           ...linkMenuItems,
         ]
       }
@@ -186,7 +222,7 @@ export function getLinkMenuItems({
           media === 'twitter' ? (
             <TwitterXIcon width={18} height={18} />
           ) : undefined,
-        execute: (editor: BlockNoteEditor, ref: string) => {
+        execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
           const {state, schema} = editor._tiptapEditor
           const {selection} = state
           if (!selection.empty) return
@@ -230,7 +266,11 @@ export function getLinkMenuItems({
   return linkMenuItems
 }
 
-function insertNode(editor: BlockNoteEditor, ref: string, node: Node) {
+function insertNode(
+  editor: BlockNoteEditor<HMBlockSchema>,
+  ref: string,
+  node: Node,
+) {
   const {state, schema, view} = editor._tiptapEditor
   const {doc, selection} = state
   const {$from} = selection
@@ -276,7 +316,7 @@ function insertNode(editor: BlockNoteEditor, ref: string, node: Node) {
 }
 
 function insertMentionNode(
-  editor: BlockNoteEditor,
+  editor: BlockNoteEditor<HMBlockSchema>,
   link: string,
   title: string,
   node: Node,
