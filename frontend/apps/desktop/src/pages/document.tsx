@@ -408,7 +408,6 @@ function DocPageHeader({
                     {formattedDateMedium(entity.data?.document?.updateTime)}
                   </SizableText>
                 </Tooltip>
-                <Separator />
               </XStack>
               <DocumentHeadItems
                 docId={docId}
