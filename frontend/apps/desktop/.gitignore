@@ -66,6 +66,7 @@ typings/
 
 # Electron-Forge
 out/
+dist/
 
 # Sentry
 sentry.properties
