@@ -7647,6 +7647,8 @@ __metadata:
     react-error-boundary: 4.0.11
     react-hook-form: 7.46.1
     react-icons: 4.9.0
+    react-native-qrcode-svg: ^6.3.12
+    react-qr-code: ^2.0.15
     react-resizable-panels: 2.0.20
     react-tweet: 3.2.0
     rehype: 12.0.1
@@ -7776,6 +7778,7 @@ __metadata:
     react: 18.2.0 || 19.0.0
     react-dom: 18.2.0 || 19.0.0
     react-native-svg: ">=12"
+    react-qr-code: ^2.0.15
     superjson: 2.2.1
     tamagui: 1.108.2
     typescript: 5.5.2
@@ -14621,6 +14624,13 @@ __metadata:
   version: 5.2.0
   resolution: "diff@npm:5.2.0"
   checksum: 12b63ca9c36c72bafa3effa77121f0581b4015df18bc16bac1f8e263597735649f1a173c26f7eba17fb4162b073fee61788abe49610e6c70a2641fe1895443fd
+  languageName: node
+  linkType: hard
+
+"dijkstrajs@npm:^1.0.1":
+  version: 1.0.3
+  resolution: "dijkstrajs@npm:1.0.3"
+  checksum: 82ff2c6633f235dd5e6bed04ec62cdfb1f327b4d7534557bd52f18991313f864ee50654543072fff4384a92b643ada4d5452f006b7098dbdfad6c8744a8c9e08
   languageName: node
   linkType: hard
 
@@ -23169,6 +23179,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"pngjs@npm:^5.0.0":
+  version: 5.0.0
+  resolution: "pngjs@npm:5.0.0"
+  checksum: 04e912cc45fb9601564e2284efaf0c5d20d131d9b596244f8a6789fc6cdb6b18d2975a6bbf7a001858d7e159d5c5c5dd7b11592e97629b7137f7f5cef05904c8
+  languageName: node
+  linkType: hard
+
 "possible-typed-array-names@npm:^1.0.0":
   version: 1.0.0
   resolution: "possible-typed-array-names@npm:1.0.0"
@@ -23954,7 +23971,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"prop-types@npm:^15.6.2, prop-types@npm:^15.7.2, prop-types@npm:^15.8.1":
+"prop-types@npm:^15.6.2, prop-types@npm:^15.7.2, prop-types@npm:^15.8.0, prop-types@npm:^15.8.1":
   version: 15.8.1
   resolution: "prop-types@npm:15.8.1"
   dependencies:
@@ -24318,6 +24335,26 @@ __metadata:
   version: 1.3.0
   resolution: "pure-color@npm:1.3.0"
   checksum: 646d8bed6e6eab89affdd5e2c11f607a85b631a7fb03c061dfa658eb4dc4806881a15feed2ac5fd8c0bad8c00c632c640d5b1cb8b9a972e6e947393a1329371b
+  languageName: node
+  linkType: hard
+
+"qr.js@npm:0.0.0":
+  version: 0.0.0
+  resolution: "qr.js@npm:0.0.0"
+  checksum: 5ac6c393967bdeaa660e7fd3a501a25eb538c1f6008a4d30ab2b97bbe520e5c236530090773f1578aa0a523cdaa6923c866615e21143f9e7cd22abd41c789b69
+  languageName: node
+  linkType: hard
+
+"qrcode@npm:^1.5.1":
+  version: 1.5.4
+  resolution: "qrcode@npm:1.5.4"
+  dependencies:
+    dijkstrajs: ^1.0.1
+    pngjs: ^5.0.0
+    yargs: ^15.3.1
+  bin:
+    qrcode: bin/qrcode
+  checksum: 0a162822e12c02b0333315462fd4ccad22255002130f86806773be7592aec5ef295efaffa3eb148cbf00e290839c7b610f63b0d62a0c5efc5bc52a68f4189684
   languageName: node
   linkType: hard
 
@@ -24726,6 +24763,21 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-native-qrcode-svg@npm:^6.3.12":
+  version: 6.3.12
+  resolution: "react-native-qrcode-svg@npm:6.3.12"
+  dependencies:
+    prop-types: ^15.8.0
+    qrcode: ^1.5.1
+    text-encoding: ^0.7.0
+  peerDependencies:
+    react: "*"
+    react-native: ">=0.63.4"
+    react-native-svg: ">=13.2.0"
+  checksum: a8b4f4fc73eefd8980ba60c911a8516b57a8a68b11609b4313ed9e5fa194bff51c6a6dd37cf6f5c0f296d27a8c48b1461276c3fe01b4d0a6b579c64690f06bb0
+  languageName: node
+  linkType: hard
+
 "react-native-reanimated@npm:3.7.0":
   version: 3.7.0
   resolution: "react-native-reanimated@npm:3.7.0"
@@ -24875,6 +24927,18 @@ __metadata:
   bin:
     react-native: cli.js
   checksum: f8a02e08886455bed78d461ad2a8f83547267e271f6d291eaed976482ad33e2b32364f5de5f778e02cfc574621e85291530c9326a472fd8c9fbf1efa92a41a64
+  languageName: node
+  linkType: hard
+
+"react-qr-code@npm:^2.0.15":
+  version: 2.0.15
+  resolution: "react-qr-code@npm:2.0.15"
+  dependencies:
+    prop-types: ^15.8.1
+    qr.js: 0.0.0
+  peerDependencies:
+    react: "*"
+  checksum: 4124b7c2ce71bfe94279d85322175c881ba87dcc9b67f3c6d6e2806854a8792cf5f9ed8e10ea04c22e39aa060ef12fb39e679e780cba14f168d3cd6cffb7086d
   languageName: node
   linkType: hard
 
@@ -27606,6 +27670,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"text-encoding@npm:^0.7.0":
+  version: 0.7.0
+  resolution: "text-encoding@npm:0.7.0"
+  checksum: b6109a843fb1b8748b32e1ecd6df74d370f46c13ac136bcb6ca15db70209bb0b8ec1f296ebb4b0dd9961150e205dcc044b89f8cf7657f6faef78c7569a2a81bc
+  languageName: node
+  linkType: hard
+
 "text-hex@npm:1.0.x":
   version: 1.0.0
   resolution: "text-hex@npm:1.0.0"
@@ -30295,7 +30366,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"yargs@npm:^15.1.0":
+"yargs@npm:^15.1.0, yargs@npm:^15.3.1":
   version: 15.4.1
   resolution: "yargs@npm:15.4.1"
   dependencies:

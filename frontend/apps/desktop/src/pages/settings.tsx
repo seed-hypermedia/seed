@@ -1,8 +1,9 @@
 import {useIPC, useQueryInvalidator} from '@/app-context'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {IconForm} from '@/components/icon-form'
+import {AccountWallet, WalletPage} from '@/components/payment-settings'
+import {SettingsSection} from '@/components/settings-common'
 import {useAutoUpdatePreference} from '@/models/app-settings'
-import {useCurrencyComparisons} from '@/models/compare-currencies'
 import {
   useDaemonInfo,
   useDeleteKey,
@@ -20,14 +21,6 @@ import {
   useSetPushOnPublish,
 } from '@/models/gateway-settings'
 import {usePeerInfo} from '@/models/networking'
-import {
-  useCreateWallet,
-  useDeleteWallet,
-  useExportWallet,
-  useListInvoices,
-  useListWallets,
-  useWallet,
-} from '@/models/payments'
 import {trpc} from '@/trpc'
 import {getAccountName, getFileUrl, hmId, VERSION} from '@shm/shared'
 import {
@@ -48,7 +41,6 @@ import {
   Pencil,
   RadioGroup,
   ScrollView,
-  SelectDropdown,
   Separator,
   SizableText,
   TableList,
@@ -149,26 +141,6 @@ export default function Settings() {
         <DeveloperSettings />
       </TabsContent>
     </Tabs>
-  )
-}
-function SettingsSection({
-  title,
-  children,
-}: React.PropsWithChildren<{title: string}>) {
-  return (
-    <YStack gap="$3">
-      <YStack
-        space="$6"
-        paddingHorizontal="$6"
-        borderWidth={1}
-        borderRadius={'$4'}
-        borderColor="$borderColor"
-        padding="$3"
-      >
-        <Heading size="$5">{title}</Heading>
-        {children}
-      </YStack>
-    </YStack>
   )
 }
 
@@ -378,7 +350,7 @@ function AccountKeys() {
       toast.success('Profile removed correctly')
     })
   }
-  if (walletId)
+  if (walletId && selectedAccount)
     return (
       <WalletPage
         walletId={walletId}
@@ -604,11 +576,12 @@ function AccountKeys() {
               </AlertDialog.Content>
             </AlertDialog.Portal>
           </AlertDialog>
-          <SizableText>Wallet</SizableText>
-          <AccountWallet
-            accountUid={selectedAccount}
-            onOpenWallet={(walletId) => setWalletId(walletId)}
-          />
+          <SettingsSection title="Wallets">
+            <AccountWallet
+              accountUid={selectedAccount}
+              onOpenWallet={(walletId) => setWalletId(walletId)}
+            />
+          </SettingsSection>
         </ScrollView>
       </YStack>
     </XStack>
@@ -618,109 +591,6 @@ function AccountKeys() {
         Create a new Profile
       </Button>
     </XStack>
-  )
-}
-
-function AccountWallet({
-  accountUid,
-  onOpenWallet,
-}: {
-  accountUid: string
-  onOpenWallet: (walletId: string) => void
-}) {
-  const createWallet = useCreateWallet()
-  const wallets = useListWallets(accountUid)
-  if (!wallets.data?.wallets) return null
-  if (wallets.data.wallets.length) {
-    return (
-      <Button
-        onPress={() => {
-          onOpenWallet(wallets.data.wallets[0].id)
-        }}
-      >
-        See My Wallet
-      </Button>
-    )
-  }
-  return (
-    <>
-      <Button
-        onPress={() => {
-          createWallet.mutate({accountUid})
-        }}
-      >
-        Create Wallet
-      </Button>
-      <SizableText>{JSON.stringify(wallets.data)}</SizableText>
-    </>
-  )
-}
-
-function WalletPage({
-  walletId,
-  accountUid,
-  onClose,
-}: {
-  walletId: string
-  accountUid: string
-  onClose: () => void
-}) {
-  const deleteWallet = useDeleteWallet()
-  const wallet = useWallet(walletId)
-  const invoices = useListInvoices(walletId)
-  const exportWallet = useExportWallet(walletId)
-  return (
-    <YStack>
-      <Button onPress={onClose}>Close</Button>
-      <Button
-        theme="red"
-        icon={Trash}
-        onPress={() =>
-          deleteWallet
-            .mutateAsync({walletId, accountUid})
-            .then(() => {
-              onClose()
-              toast.success('Wallet deleted')
-            })
-            .catch((e) => {
-              console.error(e)
-              toast.error('Failed to delete wallet')
-            })
-        }
-      >
-        Delete Wallet
-      </Button>
-      <Heading>{wallet.data?.id}</Heading>
-      <Heading>{wallet.data?.balance} SATS</Heading>
-      <CurrencyConversion amount={Number(wallet.data?.balance)} />
-      <Button
-        onPress={() =>
-          exportWallet.mutateAsync().then((exportedWallet) => {
-            toast.success('Wallet exported: ' + exportedWallet)
-          })
-        }
-      >
-        Export Wallet
-      </Button>
-      <SizableText>{JSON.stringify(invoices.data)}</SizableText>
-    </YStack>
-  )
-}
-
-function CurrencyConversion({amount}: {amount: number}) {
-  const currencies = useCurrencyComparisons(amount || 0)
-  const [val, setVal] = useState<(typeof currencies)[number]['code']>('usd')
-  return (
-    <SelectDropdown
-      value={val}
-      onValue={setVal}
-      options={
-        currencies?.map(({code, value, name}) => ({
-          value: code,
-          label: `${name} - ${value}`,
-        })) || []
-      }
-    />
   )
 }
 

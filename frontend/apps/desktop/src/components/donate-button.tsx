@@ -1,16 +1,21 @@
 import {useEntities, useEntity} from '@/models/entities'
+import {useAllowedPaymentRecipients, useCreateInvoice} from '@/models/payments'
 import {
   getAccountName,
   hmId,
+  HMInvoice,
   LIGHTNING_API_URL,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {CheckboxField, HMIcon} from '@shm/ui'
+import {CheckboxField, Field, HMIcon} from '@shm/ui'
+import {Spinner} from '@shm/ui/src/spinner'
 import {CircleDollarSign} from '@tamagui/lucide-icons'
 import {useState} from 'react'
+import QRCode from 'react-native-qrcode-svg'
 import {
   Button,
   DialogDescription,
+  Heading,
   Input,
   SizableText,
   XStack,
@@ -20,6 +25,13 @@ import {DialogTitle, useAppDialog} from './dialog'
 
 export function DonateButton({docId}: {docId: UnpackedHypermediaId}) {
   const donateDialog = useAppDialog(DonateDialog)
+  const entity = useEntity(docId)
+
+  const allowedRecipients = useAllowedPaymentRecipients(
+    entity.data?.document?.authors || [],
+  )
+  if (allowedRecipients.isLoading) return null
+  if (!allowedRecipients.data?.length) return null
   return (
     <>
       <Button
@@ -43,18 +55,96 @@ function DonateDialog({
   onClose: () => void
 }) {
   const entity = useEntity(input)
-  const authors = useEntities(
-    entity.data?.document?.authors?.map((author) => hmId('d', author)) || [],
+  const [openInvoice, setOpenInvoice] = useState<HMInvoice | null>(null)
+  const allowedRecipients = useAllowedPaymentRecipients(
+    entity.data?.document?.authors || [],
   )
+  let content = <SizableText>No available recipents to pay</SizableText>
+  if (openInvoice)
+    return (
+      <DonateInvoice
+        invoice={openInvoice}
+        onReset={() => setOpenInvoice(null)}
+        onClose={onClose}
+      />
+    )
+  if (allowedRecipients.isLoading) content = <Spinner />
+  else if (allowedRecipients.data?.length)
+    content = (
+      <DonateForm
+        allowedRecipients={allowedRecipients.data}
+        onInvoice={setOpenInvoice}
+        docId={input}
+      />
+    )
+  return (
+    <>
+      <DialogTitle>Donate to Authors</DialogTitle>
+      <DialogDescription>Send Bitcoin to authors</DialogDescription>
+      {content}
+    </>
+  )
+}
+
+function DonateInvoice({
+  invoice,
+  onReset,
+  onClose,
+}: {
+  invoice: HMInvoice
+  onReset: () => void
+  onClose: () => void
+}) {
+  return (
+    <>
+      <DialogTitle>pay this invoice</DialogTitle>
+      <QRCode value={invoice.payload} />
+      <SizableText>{invoice.payload}</SizableText>
+    </>
+  )
+}
+
+function DonateForm({
+  allowedRecipients,
+  onInvoice,
+  docId,
+}: {
+  allowedRecipients: string[]
+  onInvoice: (invoice: HMInvoice) => void
+  docId: UnpackedHypermediaId
+}) {
   const [paymentAllocation, setPaymentAllocation] = useState<{
     evenly: boolean
     accounts?: Record<string, number>
     total: number
   }>({evenly: true, total: 100})
+  const authors = useEntities(
+    allowedRecipients.map((author) => hmId('d', author)) || [],
+  )
+  const createInvoice = useCreateInvoice()
+  if (createInvoice.isLoading)
+    return (
+      <YStack ai="center" gap="$4">
+        <Heading>Creating Invoice</Heading>
+        <Spinner />
+      </YStack>
+    )
   return (
     <>
-      <DialogTitle>Donate to Authors</DialogTitle>
-      <DialogDescription>Send Bitcoin to authors</DialogDescription>
+      <Heading>Distribution Overview</Heading>
+      <Field id="username" label="Amount">
+        <Input
+          borderColor="$colorTransparent"
+          borderWidth={0}
+          value={`${paymentAllocation.total}`}
+          onChangeText={(text) => {
+            setPaymentAllocation((allocation) => {
+              if (isNaN(Number(text))) return allocation
+              return {...allocation, total: Number(text)}
+            })
+          }}
+        />
+      </Field>
       <CheckboxField
         id="split-evenly"
         value={paymentAllocation.evenly}
@@ -64,13 +154,13 @@ function DonateDialog({
           })
         }
       >
-        Split Evenly
+        Divide Evenly
       </CheckboxField>
       <YStack>
         {authors.map((author) => {
           if (!author.data) return null
           return (
-            <XStack jc="space-between">
+            <XStack key={author.data.id.uid} jc="space-between">
               <XStack ai="center" gap="$4">
                 <HMIcon
                   id={author.data.id}
@@ -86,7 +176,29 @@ function DonateDialog({
         })}
       </YStack>
       <DialogDescription>{LIGHTNING_API_URL}</DialogDescription>
-      <Button themeInverse theme="green">
+      <Button
+        themeInverse
+        theme="green"
+        onPress={() => {
+          if (!paymentAllocation.evenly)
+            throw new Error('Not implemented uneven splits')
+          const recipients = Object.fromEntries(
+            allowedRecipients.map((authorUid) => {
+              return [authorUid, 1 / allowedRecipients.length]
+            }),
+          )
+          createInvoice
+            .mutateAsync({
+              amountSats: paymentAllocation.total,
+              recipients,
+              docId,
+            })
+            .then((invoice) => {
+              console.log(`== ~ invoice`, invoice)
+              onInvoice(invoice)
+            })
+        }}
+      >
         Donate
       </Button>
     </>

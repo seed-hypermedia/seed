@@ -410,3 +410,10 @@ export type HMListedDraft = {
   metadata: HMMetadata
   lastUpdateTime: number
 }
+
+export type HMInvoice = {
+  payload: string
+  hash: string
+  amount: number
+  share: Record<string, number>
+}
