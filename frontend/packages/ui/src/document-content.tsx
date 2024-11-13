@@ -2159,11 +2159,25 @@ export function BlockContentMath({
   ...props
 }: BlockContentProps) {
   const {layoutUnit} = useDocContentContext();
+  const [tex, setTex] = useState<string>();
+  const [error, setError] = useState<string>();
 
-  const tex = katex.renderToString(block.text ? block.text : "", {
-    throwOnError: true,
-    displayMode: true,
-  });
+  useEffect(() => {
+    try {
+      let res = katex.renderToString(block.text ? block.text : "", {
+        throwOnError: true,
+        displayMode: true,
+      });
+      setTex(res);
+    } catch (e) {
+      console.error(e);
+      setError(e.message);
+    }
+  }, [block.text]);
+
+  if (error) {
+    return <ErrorBlock message={error} />;
+  }
 
   return (
     <YStack
