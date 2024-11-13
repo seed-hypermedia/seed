@@ -126,7 +126,7 @@ export function SmallListItem({
       }
       {...props}
     >
-      <XStack gap="$2" jc="center" f={1}>
+      <XStack gap="$2" jc="center" f={1} ai="center">
         {isValidElement(icon) ? (
           icon
         ) : icon ? (
