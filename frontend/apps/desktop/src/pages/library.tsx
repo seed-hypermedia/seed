@@ -180,7 +180,7 @@ export default function LibraryPage() {
   return (
     <XStack flex={1} height="100%">
       <MainWrapper>
-        <Container justifyContent="center">
+        <Container justifyContent="center" centered>
           {isLibraryEmpty ? <GettingStarted /> : null}
 
           {filteredLibrary && library && (

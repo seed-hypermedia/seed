@@ -14,6 +14,11 @@ const variants = {
       paddingVertical: 0,
     },
   },
+  centered: {
+    true: {
+      maxWidth: "calc(85ch + 1em)",
+    },
+  },
 } as const;
 
 export function PageContainer({
@@ -57,7 +62,7 @@ export const ContainerLarge = styled(YStack, {
   paddingHorizontal: "$4",
   paddingTop: "$6",
   width: "100%",
-  maxWidth: "calc(85ch + 1em)",
+  // maxWidth: "calc(85ch + 1em)",
   flexShrink: "unset",
   variants,
 });

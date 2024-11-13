@@ -25,7 +25,7 @@ function ErrorPage({}: {error: any}) {
   // todo, this!
   return (
     <MainWrapper>
-      <Container>
+      <Container centered>
         <Text fontFamily="$body" fontSize="$3">
           Error
         </Text>
@@ -42,7 +42,7 @@ export default function ContactsPage() {
     return (
       <>
         <MainWrapper>
-          <Container>
+          <Container centered>
             <Spinner />
           </Container>
         </MainWrapper>
@@ -56,7 +56,7 @@ export default function ContactsPage() {
   return (
     <>
       <MainWrapper height="100%">
-        <Container>
+        <Container centered>
           <YStack paddingVertical="$4" marginHorizontal={-8}>
             {contacts.data?.length ? (
               contacts.data.map((contact) => (

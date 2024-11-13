@@ -51,7 +51,8 @@ export function PageHeader({
         }}
         $gtLg={{maxWidth: 1200}}
         backgroundColor="$background"
-        borderRadius="$2"
+        borderTopLeftRadius="$2"
+        borderTopRightRadius="$2"
       >
         <YStack>
           {!isHomeDoc && docId && hasIcon ? (
