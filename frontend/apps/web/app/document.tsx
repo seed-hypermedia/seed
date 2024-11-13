@@ -33,7 +33,7 @@ import {
   SiteNavigationContent,
 } from "@shm/ui/src/site-navigation";
 import {Button} from "@tamagui/button";
-import {GestureReponderEvent, Text} from "@tamagui/core";
+import {GestureReponderEvent, Text, useTheme} from "@tamagui/core";
 import {X} from "@tamagui/lucide-icons";
 import {ScrollView} from "@tamagui/scroll-view";
 import {XStack, YStack} from "@tamagui/stacks";
@@ -426,6 +426,7 @@ function DocumentDiscussion({
   siteHost: string | undefined;
 }) {
   const discussion = useDiscussion(id);
+  const theme = useTheme();
   const renderCommentContent = useCallback(
     (comment: HMComment) => {
       return (
@@ -455,9 +456,9 @@ function DocumentDiscussion({
     })
   ) : (
     <YStack padding="$4" jc="center" ai="center" gap="$4">
-      <EmptyDiscussion />
+      <EmptyDiscussion color={theme.color7?.val} />
       <SizableText color="$color7" fontWeight="500">
-        there are no active discussions
+        There are no active discussions
       </SizableText>
     </YStack>
   );

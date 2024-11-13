@@ -76,9 +76,9 @@ function DiscussionComments({docId}: {docId: UnpackedHypermediaId}) {
   if (comments.length == 0) {
     return (
       <YStack padding="$4" jc="center" ai="center" gap="$4">
-        <EmptyDiscussion color={theme.color7.val} />
+        <EmptyDiscussion color={theme.color6.val} />
         <SizableText color="$color7" fontWeight="500" size="$5">
-          there are no active discussions
+          There are no active discussions
         </SizableText>
       </YStack>
     )
@@ -220,10 +220,14 @@ function _CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
         ai="flex-start"
         margin={0}
         chromeless
-        color="$color7"
+        color="$color9"
         fontSize={17}
-        fontStyle="italic"
+        hoverStyle={{bg: '$color6'}}
+        focusStyle={{bg: '$color6'}}
+        activeStyle={{bg: '$color6'}}
+        // fontStyle="italic"
         h="auto"
+        overflow="auto"
         // icon={
         //   <>
         //     <Plus color="$color7" size={20} />
@@ -241,10 +245,11 @@ function _CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
   return (
     <XStack
       borderRadius="$4"
-      borderWidth={2}
-      borderColor="$color8"
+      // borderWidth={2}
+      // borderColor="$color8"
       minHeight={105}
       onPress={onPress}
+      bg="$color6"
     >
       {content}
     </XStack>
