@@ -16,7 +16,7 @@ import {Hash} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {GestureReponderEvent, useMedia} from "@tamagui/web";
 import {ReactNode, useLayoutEffect, useMemo} from "react";
-import {Popover, ScrollView, View} from "tamagui";
+import {Popover, View} from "tamagui";
 import {usePopoverState} from ".";
 import {HMIcon} from "./hm-icon";
 import {SmallCollapsableListItem, SmallListItem} from "./list-item";
@@ -301,7 +301,7 @@ export function SiteNavigationWrapper({children}: {children: ReactNode}) {
           <Popover.Trigger
             opacity={popoverState.open ? 0 : 1}
             bg="$color6"
-            x={-18}
+            x={0}
             paddingVertical="$3"
             paddingHorizontal={3}
             borderRadius={100}
@@ -319,17 +319,27 @@ export function SiteNavigationWrapper({children}: {children: ReactNode}) {
             <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
           </Popover.Trigger>
           <Popover.Content
-            enterStyle={{x: -10, opacity: 0}}
-            exitStyle={{x: -10, opacity: 0}}
+            y={50}
+            enterStyle={{x: -10, y: 50, opacity: 0}}
+            exitStyle={{x: -10, y: 50, opacity: 0}}
             animation="fast"
             elevation="$4"
           >
-            {children}
+            <YStack height="100%" maxHeight="80vh" overflow="scroll">
+              {children}
+            </YStack>
           </Popover.Content>
         </Popover>
       </YStack>
-      <YStack display="none" $gtSm={{display: "flex"}}>
-        <ScrollView height="100%">{children}</ScrollView>
+      <YStack
+        className="hide-scrollbar"
+        display="none"
+        $gtSm={{display: "flex"}}
+        overflow="scroll"
+        height="100%"
+        paddingVertical="$4"
+      >
+        {children}
       </YStack>
     </>
   );

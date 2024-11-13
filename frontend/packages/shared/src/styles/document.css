@@ -27,12 +27,12 @@
 
 .document-aside {
   position: fixed !important;
-  top: 200px !important;
+  top: 150px !important;
   padding-left: 16px;
   z-index: 30;
   margin-left: -0.5rem;
   display: none !important;
-  height: calc(75vh - 2rem);
+  height: calc(90vh - 150px);
   width: 100%;
   flex-shrink: 0;
   max-width: 32px;
@@ -47,5 +47,17 @@
     position: sticky !important;
     display: block !important;
     max-width: 100%;
+    overflow: auto;
   }
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.hide-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
 }

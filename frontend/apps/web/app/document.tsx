@@ -163,8 +163,17 @@ export function DocumentPage(props: SiteDocumentPayload) {
             marginTop={200}
             $gtSm={{marginTop: 124}}
             className="document-aside"
+            height="calc(100vh - 150px)"
           >
-            {siteNavigation}
+            <YStack
+              className="hide-scrollbar"
+              overflow="scroll"
+              height="100%"
+              paddingTop={32}
+              paddingBottom={32}
+            >
+              {siteNavigation}
+            </YStack>
           </YStack>
 
           <YStack>

@@ -222,17 +222,26 @@ function _MainDocumentPage({
       <YStack className={!docIsNewspaperLayout ? 'document-container' : ''}>
         {!docIsNewspaperLayout ? (
           <YStack
-            marginTop={200}
+            marginTop={150}
             $gtSm={{marginTop: 164}}
             className="is-desktop document-aside"
           >
-            <SiteNavigation />
+            <YStack
+              className="hide-scrollbar"
+              display="none"
+              $gtSm={{display: 'flex'}}
+              overflow="scroll"
+              height="100%"
+              paddingVertical="$4"
+            >
+              <SiteNavigation />
+            </YStack>
           </YStack>
         ) : null}
 
         <DocContainer>
           <DocPageHeader docId={id} isBlockFocused={isBlockFocused} />
-          <YStack flex={1}>
+          <YStack flex={1} paddingLeft="$4" $gtSm={{paddingLeft: 0}}>
             <DocPageContent
               blockRef={id.blockRef}
               entity={entity.data}
