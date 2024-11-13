@@ -3,6 +3,7 @@ package payments
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"seed/backend/core"
@@ -113,10 +114,10 @@ func (srv *Server) ListReceivednvoices(ctx context.Context, in *payments.ListInv
 // RequestLud6Invoice asks a remote peer to issue an invoice. The remote user can be either a lnaddres or a Seed account ID
 // First an lndhub invoice request is attempted. If it fails, then a P2P its used to transmit the invoice. In that case,
 // Any of the devices associated with the accountID can issue the invoice. The memo field is optional and can be left nil.
-func (srv *Server) RequestLud6Invoice(ctx context.Context, in *payments.RequestLud6InvoiceRequest) (*payments.Payreq, error) {
-	payReq := &payments.Payreq{}
+func (srv *Server) RequestLud6Invoice(ctx context.Context, in *payments.RequestLud6InvoiceRequest) (*payments.InvoiceResponse, error) {
+	invoice := &payments.InvoiceResponse{}
 	var err error
-	payReq.Payreq, err = srv.lightningClient.Lndhub.RequestLud6Invoice(ctx, in.URL, in.User, in.Amount, in.Memo)
+	invoice.Payreq, err = srv.lightningClient.Lndhub.RequestLud6Invoice(ctx, in.URL, in.User, in.Amount, in.Memo)
 	//err = fmt.Errorf("force p2p transmission")
 	if err != nil {
 		srv.log.Debug("couldn't get invoice via lndhub, trying p2p...", zap.Error(err))
@@ -124,9 +125,9 @@ func (srv *Server) RequestLud6Invoice(ctx context.Context, in *payments.RequestL
 		if err != nil {
 			publicErr := fmt.Errorf("couldn't parse accountID string [%s], If using p2p transmission, User must be a valid accountID", in.User)
 			srv.log.Debug("error decoding cid "+publicErr.Error(), zap.Error(err))
-			return payReq, publicErr
+			return invoice, publicErr
 		}
-		payReq.Payreq, err = srv.P2PInvoiceRequest(ctx, account,
+		invoice.Payreq, err = srv.P2PInvoiceRequest(ctx, account,
 			InvoiceRequest{
 				AmountSats:   in.Amount,
 				Memo:         in.Memo,
@@ -135,16 +136,23 @@ func (srv *Server) RequestLud6Invoice(ctx context.Context, in *payments.RequestL
 			})
 		if err != nil {
 			srv.log.Debug("couldn't get invoice via p2p", zap.Error(err))
-			return payReq, fmt.Errorf("After trying to get the invoice locally Could not request invoice via P2P")
+			return invoice, fmt.Errorf("After trying to get the invoice locally Could not request invoice via P2P")
 		}
 	}
 
-	return payReq, nil
+	decodedInvoice, err := lndhub.DecodeInvoice(invoice.Payreq)
+	if err != nil {
+		publicError := fmt.Errorf("couldn't decode invoice [%s]: %w", invoice.Payreq, err)
+		srv.log.Debug("couldn't decode invoice", zap.Error(err))
+		return invoice, publicError
+	}
+	invoice.PaymentHash = hex.EncodeToString((*decodedInvoice.PaymentHash)[:])
+	return invoice, nil
 }
 
 // CreateInvoice tries to generate an invoice locally.
-func (srv *Server) CreateInvoice(ctx context.Context, in *payments.CreateInvoiceRequest) (*payments.Payreq, error) {
-	ret := &payments.Payreq{}
+func (srv *Server) CreateInvoice(ctx context.Context, in *payments.CreateInvoiceRequest) (*payments.InvoiceResponse, error) {
+	ret := &payments.InvoiceResponse{}
 	wallet, err := srv.GetWallet(ctx, &payments.WalletRequest{Id: in.Id})
 	if in.Id == "" && in.Account != "" {
 		wallet, err = srv.GetDefaultWallet(ctx, &payments.GetDefaultWalletRequest{Account: in.Account})
@@ -166,6 +174,13 @@ func (srv *Server) CreateInvoice(ctx context.Context, in *payments.CreateInvoice
 		srv.log.Debug("couldn't create local invoice: " + err.Error())
 		return ret, err
 	}
+	invoice, err := lndhub.DecodeInvoice(ret.Payreq)
+	if err != nil {
+		publicError := fmt.Errorf("couldn't decode invoice [%s]: %w", ret.Payreq, err)
+		srv.log.Debug("couldn't decode invoice", zap.Error(err))
+		return ret, publicError
+	}
+	ret.PaymentHash = hex.EncodeToString((*invoice.PaymentHash)[:])
 	return ret, nil
 }
 

@@ -51,7 +51,7 @@ func TestRequestLndHubInvoice(t *testing.T) {
 	var wrongAmt int64 = 24
 	var memo = "test invoice"
 
-	var payreq *payments.Payreq
+	var payreq *payments.InvoiceResponse
 
 	defaultWallet, err = bob.GetDefaultWallet(ctx, &payments.GetDefaultWalletRequest{Account: core.PrincipalFromPubKey(bobPk).String()})
 	require.NoError(t, err)
@@ -75,6 +75,7 @@ func TestRequestLndHubInvoice(t *testing.T) {
 	}, 8*time.Second, 2*time.Second)
 	invoice, err := lndhub.DecodeInvoice(payreq.Payreq)
 	require.NoError(t, err)
+	require.EqualValues(t, hex.EncodeToString((*invoice.PaymentHash)[:]), payreq.PaymentHash)
 	require.EqualValues(t, amt, invoice.MilliSat.ToSatoshis())
 	require.EqualValues(t, memo, *invoice.Description)
 	req := &payments.PayInvoiceRequest{Payreq: payreq.Payreq,
@@ -105,7 +106,7 @@ func TestRequestP2PInvoice(t *testing.T) {
 	var amt int64 = 23
 	var wrongAmt int64 = 24
 	var memo = "test invoice"
-	var payreq *payments.Payreq
+	var payreq *payments.InvoiceResponse
 	req := &payments.RequestLud6InvoiceRequest{
 		URL:    defaultWallet.Address,
 		User:   bobAccount.String(),

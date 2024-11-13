@@ -12,7 +12,7 @@ import (
 // Invoicer is a subset of a Lightning node that allows to issue invoices.
 // It is used when a remote peer wants to pay our node.
 type Invoicer interface {
-	CreateInvoice(ctx context.Context, in *invoices.CreateInvoiceRequest) (*invoices.Payreq, error)
+	CreateInvoice(ctx context.Context, in *invoices.CreateInvoiceRequest) (*invoices.InvoiceResponse, error)
 }
 
 // RequestInvoice creates a local invoice.

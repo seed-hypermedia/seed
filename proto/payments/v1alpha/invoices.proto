@@ -12,7 +12,7 @@ service Invoices {
   // seed users will call this remotely bc they don't know the lnaddress
   // of the receiver, just their seed account. The local node, upon the 
   // request, issues an invoice.
-  rpc CreateInvoice(CreateInvoiceRequest) returns (Payreq);
+  rpc CreateInvoice(CreateInvoiceRequest) returns (InvoiceResponse);
 
   // PayInvoice Pays a bolt11 invoice.
   rpc PayInvoice(PayInvoiceRequest) returns (google.protobuf.Empty);
@@ -30,7 +30,7 @@ service LNURL {
   // Request an invoice following the LNURL lud6 protocol 
   // (https://github.com/lnurl/luds/blob/luds/06.md). This does not require the
   // caller to log in anywhere. Used to pay.
-  rpc RequestLud6Invoice(RequestLud6InvoiceRequest) returns (Payreq);
+  rpc RequestLud6Invoice(RequestLud6InvoiceRequest) returns (InvoiceResponse);
 
   // GetLnAddress gets the lnaddress (https://lightningaddress.com/) associated
   // with a wallet. Not all wallets are lnaddress compatible.
@@ -41,10 +41,13 @@ service LNURL {
   rpc UpdateLNAddress(UpdateLNAddressRequest) returns (LNAddress);
 }
 
-// String representation of a bolt11 invoice payment request. 
-message Payreq{
-  // Bolt11 invoice payment request.
+// Response of the Create invoice.
+message InvoiceResponse{
+  // String representation of a bolt11 invoice payment request. 
   string payreq = 1;
+
+  // Payment Hash of the invoice.
+  string payment_hash = 2;
 }
 
 // The request to create a local invoice. Used to be paid.

@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateInvoiceRequest, GetLnAddressRequest, ListInvoicesRequest, ListInvoicesResponse, LNAddress, PayInvoiceRequest, Payreq, RequestLud6InvoiceRequest, UpdateLNAddressRequest } from "./invoices_pb";
+import { CreateInvoiceRequest, GetLnAddressRequest, InvoiceResponse, ListInvoicesRequest, ListInvoicesResponse, LNAddress, PayInvoiceRequest, RequestLud6InvoiceRequest, UpdateLNAddressRequest } from "./invoices_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -25,7 +25,7 @@ export const Invoices = {
     createInvoice: {
       name: "CreateInvoice",
       I: CreateInvoiceRequest,
-      O: Payreq,
+      O: InvoiceResponse,
       kind: MethodKind.Unary,
     },
     /**
@@ -82,7 +82,7 @@ export const LNURL = {
     requestLud6Invoice: {
       name: "RequestLud6Invoice",
       I: RequestLud6InvoiceRequest,
-      O: Payreq,
+      O: InvoiceResponse,
       kind: MethodKind.Unary,
     },
     /**

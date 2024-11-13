@@ -27,7 +27,7 @@ type InvoicesClient interface {
 	// seed users will call this remotely bc they don't know the lnaddress
 	// of the receiver, just their seed account. The local node, upon the
 	// request, issues an invoice.
-	CreateInvoice(ctx context.Context, in *CreateInvoiceRequest, opts ...grpc.CallOption) (*Payreq, error)
+	CreateInvoice(ctx context.Context, in *CreateInvoiceRequest, opts ...grpc.CallOption) (*InvoiceResponse, error)
 	// PayInvoice Pays a bolt11 invoice.
 	PayInvoice(ctx context.Context, in *PayInvoiceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// PayInvoice Pays a bolt11 invoice.
@@ -44,8 +44,8 @@ func NewInvoicesClient(cc grpc.ClientConnInterface) InvoicesClient {
 	return &invoicesClient{cc}
 }
 
-func (c *invoicesClient) CreateInvoice(ctx context.Context, in *CreateInvoiceRequest, opts ...grpc.CallOption) (*Payreq, error) {
-	out := new(Payreq)
+func (c *invoicesClient) CreateInvoice(ctx context.Context, in *CreateInvoiceRequest, opts ...grpc.CallOption) (*InvoiceResponse, error) {
+	out := new(InvoiceResponse)
 	err := c.cc.Invoke(ctx, "/com.seed.payments.v1alpha.Invoices/CreateInvoice", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -88,7 +88,7 @@ type InvoicesServer interface {
 	// seed users will call this remotely bc they don't know the lnaddress
 	// of the receiver, just their seed account. The local node, upon the
 	// request, issues an invoice.
-	CreateInvoice(context.Context, *CreateInvoiceRequest) (*Payreq, error)
+	CreateInvoice(context.Context, *CreateInvoiceRequest) (*InvoiceResponse, error)
 	// PayInvoice Pays a bolt11 invoice.
 	PayInvoice(context.Context, *PayInvoiceRequest) (*emptypb.Empty, error)
 	// PayInvoice Pays a bolt11 invoice.
@@ -101,7 +101,7 @@ type InvoicesServer interface {
 type UnimplementedInvoicesServer struct {
 }
 
-func (UnimplementedInvoicesServer) CreateInvoice(context.Context, *CreateInvoiceRequest) (*Payreq, error) {
+func (UnimplementedInvoicesServer) CreateInvoice(context.Context, *CreateInvoiceRequest) (*InvoiceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateInvoice not implemented")
 }
 func (UnimplementedInvoicesServer) PayInvoice(context.Context, *PayInvoiceRequest) (*emptypb.Empty, error) {
@@ -232,7 +232,7 @@ type LNURLClient interface {
 	// Request an invoice following the LNURL lud6 protocol
 	// (https://github.com/lnurl/luds/blob/luds/06.md). This does not require the
 	// caller to log in anywhere. Used to pay.
-	RequestLud6Invoice(ctx context.Context, in *RequestLud6InvoiceRequest, opts ...grpc.CallOption) (*Payreq, error)
+	RequestLud6Invoice(ctx context.Context, in *RequestLud6InvoiceRequest, opts ...grpc.CallOption) (*InvoiceResponse, error)
 	// GetLnAddress gets the lnaddress (https://lightningaddress.com/) associated
 	// with a wallet. Not all wallets are lnaddress compatible.
 	GetLnAddress(ctx context.Context, in *GetLnAddressRequest, opts ...grpc.CallOption) (*LNAddress, error)
@@ -249,8 +249,8 @@ func NewLNURLClient(cc grpc.ClientConnInterface) LNURLClient {
 	return &lNURLClient{cc}
 }
 
-func (c *lNURLClient) RequestLud6Invoice(ctx context.Context, in *RequestLud6InvoiceRequest, opts ...grpc.CallOption) (*Payreq, error) {
-	out := new(Payreq)
+func (c *lNURLClient) RequestLud6Invoice(ctx context.Context, in *RequestLud6InvoiceRequest, opts ...grpc.CallOption) (*InvoiceResponse, error) {
+	out := new(InvoiceResponse)
 	err := c.cc.Invoke(ctx, "/com.seed.payments.v1alpha.LNURL/RequestLud6Invoice", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -283,7 +283,7 @@ type LNURLServer interface {
 	// Request an invoice following the LNURL lud6 protocol
 	// (https://github.com/lnurl/luds/blob/luds/06.md). This does not require the
 	// caller to log in anywhere. Used to pay.
-	RequestLud6Invoice(context.Context, *RequestLud6InvoiceRequest) (*Payreq, error)
+	RequestLud6Invoice(context.Context, *RequestLud6InvoiceRequest) (*InvoiceResponse, error)
 	// GetLnAddress gets the lnaddress (https://lightningaddress.com/) associated
 	// with a wallet. Not all wallets are lnaddress compatible.
 	GetLnAddress(context.Context, *GetLnAddressRequest) (*LNAddress, error)
@@ -296,7 +296,7 @@ type LNURLServer interface {
 type UnimplementedLNURLServer struct {
 }
 
-func (UnimplementedLNURLServer) RequestLud6Invoice(context.Context, *RequestLud6InvoiceRequest) (*Payreq, error) {
+func (UnimplementedLNURLServer) RequestLud6Invoice(context.Context, *RequestLud6InvoiceRequest) (*InvoiceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RequestLud6Invoice not implemented")
 }
 func (UnimplementedLNURLServer) GetLnAddress(context.Context, *GetLnAddressRequest) (*LNAddress, error) {

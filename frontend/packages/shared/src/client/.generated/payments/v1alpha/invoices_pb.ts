@@ -7,43 +7,51 @@ import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialM
 import { Message, proto3, protoInt64 } from "@bufbuild/protobuf";
 
 /**
- * String representation of a bolt11 invoice payment request. 
+ * Response of the Create invoice.
  *
- * @generated from message com.seed.payments.v1alpha.Payreq
+ * @generated from message com.seed.payments.v1alpha.InvoiceResponse
  */
-export class Payreq extends Message<Payreq> {
+export class InvoiceResponse extends Message<InvoiceResponse> {
   /**
-   * Bolt11 invoice payment request.
+   * String representation of a bolt11 invoice payment request. 
    *
    * @generated from field: string payreq = 1;
    */
   payreq = "";
 
-  constructor(data?: PartialMessage<Payreq>) {
+  /**
+   * Payment Hash of the invoice.
+   *
+   * @generated from field: string payment_hash = 2;
+   */
+  paymentHash = "";
+
+  constructor(data?: PartialMessage<InvoiceResponse>) {
     super();
     proto3.util.initPartial(data, this);
   }
 
   static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.Payreq";
+  static readonly typeName = "com.seed.payments.v1alpha.InvoiceResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "payreq", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "payment_hash", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Payreq {
-    return new Payreq().fromBinary(bytes, options);
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): InvoiceResponse {
+    return new InvoiceResponse().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Payreq {
-    return new Payreq().fromJson(jsonValue, options);
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): InvoiceResponse {
+    return new InvoiceResponse().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Payreq {
-    return new Payreq().fromJsonString(jsonString, options);
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): InvoiceResponse {
+    return new InvoiceResponse().fromJsonString(jsonString, options);
   }
 
-  static equals(a: Payreq | PlainMessage<Payreq> | undefined, b: Payreq | PlainMessage<Payreq> | undefined): boolean {
-    return proto3.util.equals(Payreq, a, b);
+  static equals(a: InvoiceResponse | PlainMessage<InvoiceResponse> | undefined, b: InvoiceResponse | PlainMessage<InvoiceResponse> | undefined): boolean {
+    return proto3.util.equals(InvoiceResponse, a, b);
   }
 }
 
