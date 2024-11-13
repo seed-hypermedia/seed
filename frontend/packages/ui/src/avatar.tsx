@@ -19,21 +19,22 @@ export function UIAvatar({
   color,
   onPress,
   borderRadius = size,
-}: UIAvatarProps & {borderRadius?: XStackProps["BorderRadius"]}) {
+}: UIAvatarProps & {borderRadius?: XStackProps["borderRadius"]}) {
   let avatarColor = useMemo(() => {
     if (color) return color;
-    return getRandomColor(id || "untitled");
+    return id ? getRandomColor(id) : "transparent";
   }, [id, color]);
 
   let text = label ? label[0] : id ? id[0] : "?";
 
   return (
     <XStack
+      className="AAAAvatar"
       width={size}
       height={size}
       borderRadius={borderRadius}
       overflow="hidden"
-      backgroundColor={avatarColor}
+      backgroundColor={url ? "transparent" : avatarColor}
       alignItems="center"
       justifyContent="center"
       position="relative"
@@ -45,7 +46,12 @@ export function UIAvatar({
       {url ? (
         <img
           src={url}
-          style={{minWidth: "100%", minHeight: "100%", objectFit: "cover"}}
+          style={{
+            minWidth: "100%",
+            minHeight: "100%",
+            objectFit: "cover",
+            backgroundColor: "transparent",
+          }}
         />
       ) : (
         <SizableText

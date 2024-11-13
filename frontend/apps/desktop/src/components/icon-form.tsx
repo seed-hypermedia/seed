@@ -60,15 +60,15 @@ export function IconForm({
   return (
     <XStack gap="$2" ai="flex-end" group="icon" w="auto" alignSelf="flex-start">
       <Stack
+        className="IconFormmmmm"
+        {...props}
         marginTop={marginTop}
         position="relative"
-        {...props}
         group="icon"
         w={size}
         h={size}
         borderRadius={borderRadius}
         overflow="hidden"
-        {...props}
       >
         <input
           type="file"
