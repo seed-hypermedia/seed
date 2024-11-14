@@ -77,6 +77,7 @@ export const queryKeys = {
   INVOICES: 'INVOICES', //, walletId: string
   CURRENCY_COMPARISONS: 'CURRENCY_COMPARISONS',
   PAYMENT_RECIPIENTS: 'PAYMENT_RECIPIENTS', // string: "accountUid,accountUid"
+  INVOICE_STATUS: 'INVOICE_STATUS', // invoiceId: string
 } as const
 
 export function labelOfQueryKey(key: QueryKey) {

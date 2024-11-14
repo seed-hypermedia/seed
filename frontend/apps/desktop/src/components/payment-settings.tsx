@@ -1,5 +1,6 @@
 import {DialogTitle, useAppDialog} from '@/components/dialog'
 import {useCurrencyComparisons} from '@/models/compare-currencies'
+import {useEntity} from '@/models/entities'
 import {
   useCreateLocalInvoice,
   useCreateWallet,
@@ -8,12 +9,21 @@ import {
   useInvoiceStatus,
   useListInvoices,
   useListWallets,
+  usePayInvoice,
   useWallet,
 } from '@/models/payments'
 import {PlainMessage} from '@bufbuild/protobuf'
-import {formattedDateMedium, Invoice} from '@shm/shared'
+import {
+  formattedDateMedium,
+  getAccountName,
+  hmId,
+  HMInvoice,
+  Invoice,
+} from '@shm/shared'
 import {
   Button,
+  ButtonText,
+  copyTextToClipboard,
   DialogDescription,
   Field,
   Heading,
@@ -22,6 +32,7 @@ import {
   SizableText,
   Spinner,
   toast,
+  Tooltip,
   XStack,
   YStack,
 } from '@shm/ui'
@@ -75,11 +86,13 @@ export function WalletPage({
   onClose: () => void
 }) {
   const wallet = useWallet(walletId)
+  const accountDoc = useEntity(hmId('d', accountUid))
   const invoices = useListInvoices(walletId)
   const exportDialog = useAppDialog(ExportWalletDialog)
   const exportWallet = useExportWallet(walletId)
   const withdrawDialog = useAppDialog(WithdrawDialog)
   const topUpDialog = useAppDialog(TopUpDialog)
+  const walletName = `${getAccountName(accountDoc.data?.document)} Main Wallet`
   return (
     <YStack gap="$4">
       <XStack jc="space-between">
@@ -106,22 +119,34 @@ export function WalletPage({
           {exportDialog.content}
         </XStack>
       </XStack>
-      <XStack jc="space-between">
-        <Heading>{wallet.data?.id}</Heading>
-        <XStack gap="$4">
-          <Heading>
+      <XStack jc="space-between" ai="center">
+        <Heading>{walletName}</Heading>
+        <XStack gap="$4" ai="center">
+          <Heading fontFamily="$mono">
             {wallet.data?.balance ? Number(wallet.data?.balance) : '0'} SATS
           </Heading>
           <CurrencyConversion amount={Number(wallet.data?.balance)} />
         </XStack>
       </XStack>
+      <Tooltip content="Click to Copy Lightning Address">
+        <ButtonText
+          color="$blue10"
+          onPress={() => {
+            copyTextToClipboard(walletId)
+            toast.success('Copied Lightning Address to Clipboard')
+          }}
+        >
+          {wallet.data?.id}
+        </ButtonText>
+      </Tooltip>
       <XStack gap="$4">
         <Button
           icon={Download}
           themeInverse
           f={1}
+          size="$3"
           onPress={() => {
-            topUpDialog.open(walletId)
+            topUpDialog.open({walletId, accountUid, walletName})
           }}
         >
           Top Up
@@ -131,8 +156,9 @@ export function WalletPage({
           icon={Upload}
           themeInverse
           f={1}
+          size="$3"
           onPress={() => {
-            withdrawDialog.open(walletId)
+            withdrawDialog.open({walletId, accountUid, walletName})
           }}
         >
           Withdraw
@@ -154,40 +180,68 @@ function WithdrawDialog({
   input,
   onClose,
 }: {
-  input: string
+  input: {walletId: string; walletName: string; accountUid: string}
   onClose: () => void
 }) {
+  const {walletId, accountUid, walletName} = input
+  const [payreqInput, setPayreqInput] = useState('')
+  const payInvoice = usePayInvoice()
+
   return (
     <>
-      <DialogTitle>Withdraw from WalletNAME</DialogTitle>
+      <DialogTitle>Withdraw from {walletName}</DialogTitle>
+      <DialogDescription>
+        Paste the invoice payment request here, and this wallet will send the
+        funds.
+      </DialogDescription>
+      <Field id="payreq" label="Payment Request">
+        <Input value={payreqInput} onChangeText={setPayreqInput} />
+      </Field>
+      <XStack gap="$4">
+        <Button f={1} onPress={onClose}>
+          Cancel
+        </Button>
+        <Button
+          f={1}
+          themeInverse
+          onPress={() => {
+            payInvoice
+              .mutateAsync({walletId, accountUid, payreq: payreqInput})
+              .then(() => {})
+          }}
+        >
+          Send Funds
+        </Button>
+      </XStack>
     </>
   )
 }
 
-function TopUpDialog({input, onClose}: {input: string; onClose: () => void}) {
+function TopUpDialog({
+  input,
+  onClose,
+}: {
+  input: {walletId: string; walletName: string; accountUid: string}
+  onClose: () => void
+}) {
+  const {walletId, accountUid, walletName} = input
   const createInvoice = useCreateLocalInvoice()
-  const [invoice, setInvoice] = useState<string | null>(null)
+  const [invoice, setInvoice] = useState<HMInvoice | null>(null)
   const [amount, setAmount] = useState(1000)
-  const invoicePaid = useInvoiceStatus()
   if (invoice)
     return (
-      <>
-        <DialogTitle>Pay invoice with external wallet</DialogTitle>
-        <QRCode value={invoice} />
-        <SizableText>{invoice}</SizableText>
-        <Button
-          onPress={() => {
-            onClose()
-          }}
-        >
-          Cancel
-        </Button>
-      </>
+      <InvoiceInfo
+        accountUid={accountUid}
+        invoice={invoice}
+        onCancel={onClose}
+        walletName={walletName}
+        walletId={walletId}
+      />
     )
   return (
     <>
-      <DialogTitle>Add Funds to WalletNAME</DialogTitle>
-      <Field id="amount" label="Amount">
+      <DialogTitle>Add Funds to {walletName}</DialogTitle>
+      <Field id="amount" label="Amount (Sats)">
         <Input
           // type="number"
           value={`${amount}`}
@@ -197,16 +251,65 @@ function TopUpDialog({input, onClose}: {input: string; onClose: () => void}) {
           }}
         />
       </Field>
-      <Button
-        onPress={() => {
-          createInvoice
-            .mutateAsync({walletId: input, amount: BigInt(amount)})
-            .then((payreq) => {
-              setInvoice(payreq)
-            })
-          // onClose()
-        }}
-      />
+      <XStack gap="$4">
+        <Button f={1} onPress={onClose}>
+          Cancel
+        </Button>
+        <Button
+          f={1}
+          themeInverse
+          onPress={() => {
+            createInvoice
+              .mutateAsync({walletId, amount: BigInt(amount)})
+              .then((localInvoice) => {
+                setInvoice(localInvoice)
+              })
+          }}
+        >
+          Create Invoice
+        </Button>
+      </XStack>
+    </>
+  )
+}
+
+function InvoiceInfo({
+  invoice,
+  accountUid,
+  onCancel,
+  walletName,
+  walletId,
+}: {
+  invoice: HMInvoice
+  accountUid: string
+  onCancel: () => void
+  walletName: string
+  walletId: string
+}) {
+  const invoicePaid = useInvoiceStatus({
+    invoiceHash: invoice.hash,
+    accountUid,
+    walletId,
+  })
+  if (invoicePaid.data?.status === 'settled') {
+    return (
+      <>
+        <DialogTitle>Invoice Complete</DialogTitle>
+        <DialogDescription>
+          {invoice.amount} SATS have been transferred to {walletName}.
+        </DialogDescription>
+        <Button onPress={onCancel}>Done</Button>
+      </>
+    )
+  }
+  console.log('=== ', invoicePaid)
+
+  return (
+    <>
+      <DialogTitle>Add Funds with External Wallet</DialogTitle>
+      <QRCode value={invoice.payload} />
+      <SizableText>{invoice.payload}</SizableText>
+      <Button onPress={onCancel}>Cancel</Button>
     </>
   )
 }

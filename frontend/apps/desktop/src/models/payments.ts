@@ -7,6 +7,8 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {useMutation, useQuery} from '@tanstack/react-query'
+import {useEffect} from 'react'
+import {z} from 'zod'
 import {queryKeys} from './query-keys'
 
 export function useCreateWallet() {
@@ -94,25 +96,77 @@ export function useExportWallet(walletId: string) {
 export function useCreateLocalInvoice() {
   const grpcClient = useGRPCClient()
   return useMutation({
-    mutationFn: async (input: {walletId: string; amount: bigint}) => {
+    mutationFn: async ({
+      walletId,
+      amount,
+    }: {
+      walletId: string
+      amount: bigint
+    }) => {
       const result = await grpcClient.invoices.createInvoice({
-        id: input.walletId,
-        account: input.walletId,
-        amount: input.amount,
+        id: walletId,
+        account: walletId,
+        amount: amount,
       })
-      return result.payreq
+      const invoice: HMInvoice = {
+        amount: Number(amount),
+        hash: result.paymentHash,
+        payload: result.payreq,
+        share: {
+          [walletId]: 1,
+        },
+      }
+      return invoice
     },
     onSuccess: (result, vars, context) => {},
   })
 }
 
-export function useInvoiceStatus() {
-  return useQuery({
-    queryKey: [],
-    queryFn: () => {
-      return null
+export function usePayInvoice() {
+  const grpcClient = useGRPCClient()
+  return useMutation({
+    mutationFn: async (input: {
+      walletId: string
+      accountUid: string
+      payreq: string
+    }) => {
+      await grpcClient.invoices.payInvoice({
+        id: input.walletId,
+        payreq: input.payreq,
+        account: input.accountUid,
+        amount: 100,
+      })
     },
   })
+}
+
+const InvoiceStatusSchema = z.object({
+  status: z.union([z.literal('open'), z.literal('settled')]),
+})
+
+export function useInvoiceStatus(input: {
+  invoiceHash: string
+  accountUid: string
+  walletId: string
+}) {
+  const invalidate = useQueryInvalidator()
+  const status = useQuery({
+    queryKey: [queryKeys.INVOICE_STATUS, input.invoiceHash, input.accountUid],
+    refetchInterval: 2000,
+    refetchIntervalInBackground: true,
+    queryFn: async () => {
+      const url = `${LIGHTNING_API_URL}/v2/invoicemeta/${input.invoiceHash}?user=${input.accountUid}`
+      console.log('fetching', url)
+      const res = await fetch(url, {})
+      const serverInvoice = await res.json()
+      const invoiceMeta = InvoiceStatusSchema.parse(serverInvoice)
+      return invoiceMeta
+    },
+  })
+  useEffect(() => {
+    invalidate([queryKeys.INVOICES, input.walletId])
+  }, [status.data?.status])
+  return status
 }
 
 export function useWallet(walletId: string) {
