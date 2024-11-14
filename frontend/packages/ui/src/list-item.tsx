@@ -136,9 +136,7 @@ export function SmallListItem({
               color: color || theme.gray12.val,
             })}
           </View>
-        ) : (
-          <View width={18} />
-        )}
+        ) : null}
         {children}
         <SizableText
           f={1}

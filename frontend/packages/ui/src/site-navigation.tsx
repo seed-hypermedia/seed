@@ -8,15 +8,16 @@ import {
   hmId,
   HMMetadata,
   HMQueryResult,
+  NavRoute,
   NodeOutline,
+  normalizeDate,
   UnpackedHypermediaId,
   useRouteLink,
 } from "@shm/shared";
-import {Hash} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {GestureReponderEvent, useMedia} from "@tamagui/web";
 import {ReactNode, useLayoutEffect, useMemo} from "react";
-import {Popover, View} from "tamagui";
+import {Popover} from "tamagui";
 import {usePopoverState} from ".";
 import {HMIcon} from "./hm-icon";
 import {SmallCollapsableListItem, SmallListItem} from "./list-item";
@@ -28,6 +29,8 @@ function DocumentSmallListItem({
   items,
   active,
   onPress,
+  isDraft,
+  isPublished,
 }: {
   metadata?: HMMetadata;
   id: UnpackedHypermediaId;
@@ -35,11 +38,21 @@ function DocumentSmallListItem({
   items?: null | ReactNode;
   active?: boolean;
   onPress?: () => void;
+  isDraft?: boolean;
+  isPublished?: boolean;
 }) {
-  const linkProps = useRouteLink({key: "document", id});
+  const route: NavRoute = isDraft ? {key: "draft", id} : {key: "document", id};
+  const linkProps = useRouteLink(route);
+  const color = isPublished === false ? "$color11" : undefined;
+  const backgroundColor = isDraft ? "$yellow3" : undefined;
+  const hoverBackgroundColor = isDraft ? "$yellow4" : undefined;
   if (items)
     return (
       <SmallCollapsableListItem
+        bold
+        color={color}
+        backgroundColor={backgroundColor}
+        hoverStyle={{backgroundColor: hoverBackgroundColor}}
         key={id.id}
         title={getMetadataName(metadata)}
         icon={<HMIcon id={id} metadata={metadata} size={20} />}
@@ -56,6 +69,10 @@ function DocumentSmallListItem({
     );
   return (
     <SmallListItem
+      bold
+      color={color}
+      backgroundColor={backgroundColor}
+      hoverStyle={{backgroundColor: hoverBackgroundColor}}
       key={id.id}
       title={getMetadataName(metadata)}
       icon={<HMIcon id={id} metadata={metadata} size={20} />}
@@ -66,6 +83,14 @@ function DocumentSmallListItem({
   );
 }
 
+type SiteNavigationDocument = {
+  metadata: HMMetadata;
+  isDraft: boolean;
+  isPublished: boolean;
+  sortTime: Date;
+  id: UnpackedHypermediaId;
+};
+
 export function SiteNavigationContent({
   documentMetadata,
   supportDocuments,
@@ -74,6 +99,7 @@ export function SiteNavigationContent({
   createDirItem,
   onPress,
   outline,
+  drafts,
 }: {
   documentMetadata: HMMetadata;
   supportDocuments?: HMEntityContent[];
@@ -82,91 +108,83 @@ export function SiteNavigationContent({
   createDirItem?: ((opts: {indented: number}) => ReactNode) | null;
   onPress?: () => void;
   outline?: (opts: {indented: number}) => ReactNode;
+  drafts?: {
+    id: UnpackedHypermediaId;
+    metadata: HMMetadata;
+    lastUpdateTime: number;
+  }[];
 }) {
   const directory = supportQueries?.find((query) => query.in.uid === id.uid);
-  const isHomeDoc = !id.path || id.path?.length === 0;
-  const isTopLevelDoc = id.path?.length === 1;
-
-  const parentId = hmId(id.type, id.uid, {
-    path: id.path?.slice(0, -1) || [],
-  });
-  if (!directory) return null;
-  const parentItem = directory.results.find(
-    (doc) => doc.path.join("/") === parentId.path?.join("/")
+  const directoryDrafts = drafts?.filter(
+    (draft) =>
+      !!draft.id.path &&
+      draft.id.path.join("/").startsWith(id.path ? id.path.join("/") : "") &&
+      draft.id.path.length === (id.path?.length || 0) + 1
   );
-  const parentIdPath = parentId.path;
   const idPath = id.path;
-  const siblingDocs =
-    parentIdPath && !isHomeDoc
-      ? directory.results.filter(
-          (doc) =>
-            doc.path.join("/").startsWith(parentIdPath.join("/")) &&
-            parentIdPath.length === doc.path.length - 1
-        )
-      : null;
-  const childrenDocs =
-    idPath &&
-    directory.results.filter(
-      (doc) =>
-        doc.path.join("/").startsWith(idPath.join("/")) &&
-        idPath.length === doc.path.length - 1
-    );
-  const documentIndent = isHomeDoc || isTopLevelDoc ? 0 : 1;
-  const childrenIndent = isHomeDoc ? 0 : documentIndent + 1;
-  const childrenItems =
-    outline || childrenDocs?.length ? (
-      <>
-        {outline?.({indented: childrenIndent})}
-        {childrenDocs
-          ? childrenDocs.map((doc) => (
-              <DocumentSmallListItem
-                key={doc.path.join("/")}
-                metadata={doc.metadata}
-                id={hmId("d", doc.account, {path: doc.path})}
-                onPress={onPress}
-                indented={childrenIndent}
-              />
-            ))
-          : null}
-        {createDirItem?.({indented: childrenIndent})}
-      </>
-    ) : null;
+  const publishedIds = new Set(
+    directory?.results.map((doc) => hmId("d", doc.account, {path: doc.path}).id)
+  );
+  const draftIds = new Set(directoryDrafts?.map((draft) => draft.id.id));
+  const unpublishedDraftItems: SiteNavigationDocument[] =
+    directoryDrafts
+      ?.filter((draft) => !publishedIds.has(draft.id.id))
+      .map((draft) => ({
+        id: draft.id,
+        metadata: draft.metadata,
+        sortTime: new Date(draft.lastUpdateTime),
+        isDraft: true,
+        isPublished: false,
+      })) || [];
+  const publishedItems: SiteNavigationDocument[] =
+    directory && idPath
+      ? directory.results
+          .filter(
+            (doc) =>
+              doc.path.join("/").startsWith(idPath.join("/")) &&
+              idPath.length === doc.path.length - 1
+          )
+          .map((item) => {
+            const id = hmId("d", item.account, {path: item.path});
+            const sortTime = normalizeDate(item.createTime);
+            if (!sortTime) return null;
+            return {
+              id,
+              metadata: item.metadata,
+              sortTime,
+              isDraft: draftIds.has(id.id),
+              isPublished: true,
+            };
+          })
+          .filter((item) => !!item)
+      : [];
+  unpublishedDraftItems
+    .sort((a, b) => b.sortTime.getTime() - a.sortTime.getTime())
+    .reverse();
+  publishedItems
+    .sort((a, b) => b.sortTime.getTime() - a.sortTime.getTime())
+    .reverse();
+  const directoryItems: SiteNavigationDocument[] = [
+    ...publishedItems,
+    ...unpublishedDraftItems,
+  ];
   return (
     <YStack gap="$2" paddingLeft="$4">
-      {isHomeDoc || isTopLevelDoc || !parentItem ? null : (
-        <DocumentSmallListItem
-          metadata={parentItem.metadata}
-          id={parentId}
-          onPress={onPress}
-        />
-      )}
-
-      {siblingDocs?.flatMap((doc) => {
-        if (idPath && doc.path.join("/") === idPath.join("/"))
-          return [
+      {outline?.({indented: 0})}
+      {directoryItems
+        ? directoryItems.map((doc) => (
             <DocumentSmallListItem
-              metadata={documentMetadata}
-              id={id}
-              key={id.id}
-              indented={documentIndent}
+              key={doc.id.path?.join("/") || doc.id.id}
+              metadata={doc.metadata}
+              id={doc.id}
               onPress={onPress}
-              active={doc.path.join("/") === id.path?.join("/") && !id.blockRef}
-              items={childrenItems}
-            />,
-          ];
-
-        return [
-          <DocumentSmallListItem
-            key={doc.path.join("/")}
-            metadata={doc.metadata}
-            id={hmId("d", doc.account, {path: doc.path})}
-            onPress={onPress}
-            indented={documentIndent}
-          />,
-        ];
-      })}
-
-      {isHomeDoc ? childrenItems : null}
+              indented={0}
+              isDraft={doc.isDraft}
+              isPublished={doc.isPublished}
+            />
+          ))
+        : null}
+      {createDirItem?.({indented: 0})}
     </YStack>
   );
 }
@@ -221,7 +239,6 @@ export function DraftOutline({
   const outline = useMemo(() => {
     return getDraftNodesOutline(draft.content, id, supportDocuments);
   }, [id, draft.content, supportDocuments]);
-  console.log("DraftOutline", draft, outline);
   return outline.map((node) => (
     <OutlineNode
       node={node}
@@ -253,15 +270,6 @@ function OutlineNode({
         key={node.id}
         active={node.id === activeBlockId}
         title={node.title}
-        icon={
-          <View width={16}>
-            {node.icon ? (
-              <node.icon color="$color9" size={16} />
-            ) : (
-              <Hash color="$color9" size={16} />
-            )}
-          </View>
-        }
         indented={indented}
         onPress={(e: GestureReponderEvent) => {
           e.preventDefault();

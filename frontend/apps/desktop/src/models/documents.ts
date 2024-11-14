@@ -77,8 +77,10 @@ export function useDocumentList(
 }
 
 export function useDraftList() {
-  // opts: UseQueryOptions<unknown, unknown, HMDocument[]> = {},
   return trpc.drafts.list.useQuery(undefined, {})
+}
+export function useAccountDraftList(accountUid: string) {
+  return trpc.drafts.listAccount.useQuery(accountUid, {})
 }
 
 export function useDeleteDraft(
@@ -90,6 +92,7 @@ export function useDeleteDraft(
     onSuccess: (data, input, ctx) => {
       invalidate(['trpc.drafts.get', input])
       invalidate(['trpc.drafts.list'])
+      invalidate(['trpc.drafts.listAccount'])
       opts?.onSuccess?.(data, input, ctx)
     },
   })
@@ -536,6 +539,7 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
           invalidate([queryKeys.DRAFT, id?.id])
           invalidate(['trpc.drafts.get'])
           invalidate(['trpc.drafts.list'])
+          invalidate(['trpc.drafts.listAccount'])
           invalidate([queryKeys.ENTITY, id?.id])
         },
       },

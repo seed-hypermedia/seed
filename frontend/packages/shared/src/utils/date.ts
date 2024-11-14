@@ -49,7 +49,7 @@ export function formattedDate(
   }
 }
 
-function normalizeDate(
+export function normalizeDate(
   value: undefined | string | Date | Timestamp | HMTimestamp,
 ) {
   let date: Date | null = null

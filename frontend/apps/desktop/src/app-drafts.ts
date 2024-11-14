@@ -1,4 +1,4 @@
-import {HMDraft} from '@shm/shared'
+import {HMDraft, hmId, unpackHmId} from '@shm/shared'
 import fs from 'fs/promises'
 import {join} from 'path'
 import z from 'zod'
@@ -14,7 +14,9 @@ async function initDrafts() {
   await fs.mkdir(draftsDir, {recursive: true})
   await fs.readdir(draftsDir)
   const allDraftFiles = await fs.readdir(draftsDir)
-  const allDraftIds = allDraftFiles.map(draftFileNameToId)
+  const allDraftIds = allDraftFiles
+    .filter((item) => item.match('.json'))
+    .map(draftFileNameToId)
   draftIdList = allDraftIds
 }
 
@@ -40,6 +42,25 @@ function draftFileNameToId(filename: string) {
 export const draftsApi = t.router({
   list: t.procedure.query(async () => {
     return draftIdList
+  }),
+  listAccount: t.procedure.input(z.string()).query(async ({input}) => {
+    const drafts = await Promise.all(
+      draftIdList
+        ?.filter((id) => id.startsWith(hmId('d', input).id))
+        .map((id) => unpackHmId(id))
+        .filter((id) => !!id)
+        .map(async (id) => {
+          const draftPath = join(draftsDir, inputIdToDraftFile(id.id))
+          const fileContent = await fs.readFile(draftPath, 'utf-8')
+          const draft = JSON.parse(fileContent) as HMDraft
+          return {
+            id,
+            metadata: draft.metadata,
+            lastUpdateTime: draft.lastUpdateTime,
+          }
+        }) || [],
+    )
+    return drafts
   }),
   get: t.procedure.input(z.string().optional()).query(async ({input}) => {
     if (!input) return null

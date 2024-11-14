@@ -228,6 +228,7 @@ export function ImportDropdownButton({
       }
 
       invalidate(['trpc.drafts.list'])
+      invalidate(['trpc.drafts.listAccount'])
     } catch (error) {
       console.error('Error importing documents:', error)
       toast.error(`Import error: ${error.message || error}`)

@@ -2,6 +2,7 @@ import {focusDraftBlock} from '@/draft-focusing'
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {
+  useAccountDraftList,
   useCreateDraft,
   useDocumentEmbeds,
   useListSite,
@@ -74,6 +75,8 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
       </XStack>
     )
   }
+  const drafts = useAccountDraftList(id.uid)
+
   if (!document || !siteListQuery) return null
 
   return (
@@ -82,6 +85,7 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
       id={id}
       supportDocuments={embeds}
       supportQueries={[siteListQuery]}
+      drafts={drafts.data}
       createDirItem={createDirItem}
       onPress={onPress}
       outline={({indented}) => (
@@ -111,6 +115,7 @@ export function SiteNavigationDraftLoader() {
   const {id} = route
   const entity = useEntity(id)
   const draftQuery = useDraft(id)
+  const draft = draftQuery?.data
   const metadata = draftQuery?.data?.metadata || entity.data?.document?.metadata
 
   const document = entity.data?.document
@@ -121,7 +126,9 @@ export function SiteNavigationDraftLoader() {
     : null
   const embeds = useDocumentEmbeds(document)
 
-  if (!document || !siteListQuery || !metadata) return null
+  const drafts = useAccountDraftList(id.uid)
+
+  if (!siteListQuery || !metadata) return null
 
   return (
     <SiteNavigationWrapper>
@@ -129,16 +136,16 @@ export function SiteNavigationDraftLoader() {
         documentMetadata={metadata}
         id={id}
         supportDocuments={embeds}
+        drafts={drafts.data}
         supportQueries={[siteListQuery]}
         outline={({indented}) =>
-          draftQuery.data ? (
+          draft ? (
             <DraftOutline
               indented={indented}
               onActivateBlock={(blockId: string) => {
-                popoverState.onOpenChange(false)
                 focusDraftBlock(id.id, blockId)
               }}
-              draft={draftQuery.data}
+              draft={draft}
               id={id}
               supportDocuments={embeds}
               onPress={() => {}}
