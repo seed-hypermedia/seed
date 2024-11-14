@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"seed/backend/cmd/monitord/discord"
+
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"go.uber.org/zap"
@@ -24,6 +26,7 @@ import (
 type Srv struct {
 	// MonitorStatus is a map where the key is the site hostname and the value the status.
 	MonitorStatus *map[string]*siteStatus
+	discordClient *discord.BotClient
 	mu            sync.Mutex
 	node          host.Host
 	numPings      int
@@ -36,15 +39,17 @@ type Srv struct {
 }
 
 type siteStatus struct {
-	StatusDNS    string
-	LastDNSError string
-	LastCheck    string
-	StatusP2P    string
-	LastP2PError string
+	StatusDNS              string
+	LastDNSError           string
+	LastCheck              string
+	StatusP2P              string
+	LastP2PError           string
+	LastOKNotificationSent time.Time
+	LastKONotificationSent time.Time
 }
 
 // NewServer returns a new monitor server. It also starts serving content on the provided port.
-func NewServer(portHTTP int, portP2P int, log *zap.Logger, sitesCSVPath string) (*Srv, error) {
+func NewServer(portHTTP, portP2P int, log *zap.Logger, sitesCSVPath, discordToken, discordChannelID string) (*Srv, error) {
 	portStr := strconv.Itoa(portP2P)
 	node, err := libp2p.New(
 		libp2p.ListenAddrStrings([]string{
@@ -64,6 +69,11 @@ func NewServer(portHTTP int, portP2P int, log *zap.Logger, sitesCSVPath string) 
 	}
 	if err := srv.updateSiteList(); err != nil {
 		return nil, err
+	}
+
+	srv.discordClient, err = discord.NewBot(log, discordToken, discordChannelID)
+	if err != nil {
+		log.Warn("Discord notifications disabled", zap.Error(err))
 	}
 
 	srv.httpServer = &http.Server{
@@ -171,27 +181,55 @@ func (s *Srv) scan(timeout time.Duration) {
 					ctx, cancel := context.WithTimeout(context.Background(), timeout)
 					defer wg.Done()
 					defer cancel()
-					stat.LastCheck = time.Now().UTC().Format("2006-01-02 15:04:05")
+					lastCheck := time.Now().UTC()
+					stat.LastCheck = lastCheck.Format("2006-01-02 15:04:05")
 					info, err := s.checkSeedAddrs(ctx, site, "")
-
+					s.log.Info("CheckSeedAddrs done",
+						zap.String("LastKONotificationSent", stat.LastKONotificationSent.String()),
+						zap.String("LastOKNotificationSent", stat.LastOKNotificationSent.String()))
 					if err != nil {
 						checkError := fmt.Errorf("Could not get site [%s] address from seed config page: %w", site, err)
 						stat.StatusDNS = err.Error()
 						stat.StatusP2P = "N/A"
-						stat.LastDNSError = time.Now().UTC().Format("2006-01-02 15:04:05") + " " + err.Error()
+						stat.LastDNSError = lastCheck.Format("2006-01-02 15:04:05") + " " + err.Error()
 						s.log.Warn("CheckSeedAddrs error", zap.Error(checkError))
+						if !stat.LastOKNotificationSent.Before(stat.LastKONotificationSent) && s.discordClient != nil {
+							if err := s.discordClient.SendMessage(site + " has DNS problems: ```" + err.Error() + "```"); err != nil {
+								s.log.Warn("Could not send KO Discord notification", zap.Error(err))
+							} else {
+								stat.LastKONotificationSent = lastCheck
+							}
+						}
 						return
 					}
 					stat.StatusDNS = "OK"
+					lastCheck = time.Now().UTC()
+
 					duration, err := s.checkP2P(ctx, info, s.numPings)
 					if err != nil {
 						checkError := fmt.Errorf("P2P error [%s]: %w", site, err)
 						stat.StatusP2P = "KO"
-						stat.LastP2PError = time.Now().UTC().Format("2006-01-02 15:04:05") + " " + err.Error()
+						stat.LastP2PError = lastCheck.Format("2006-01-02 15:04:05") + " " + err.Error()
 						s.log.Warn("CheckP2P error", zap.Error(checkError))
+						if !stat.LastOKNotificationSent.Before(stat.LastKONotificationSent) && s.discordClient != nil {
+							if err := s.discordClient.SendMessage("Server " + site + " has DNS problems: " + err.Error()); err != nil {
+								s.log.Warn("Could not send KO Discord notification", zap.Error(err))
+							} else {
+								stat.LastKONotificationSent = lastCheck
+							}
+						}
 						return
 					}
 					stat.StatusP2P = "OK Avg. Ping:" + duration.Round(time.Millisecond).String()
+
+					if stat.LastOKNotificationSent.Before(stat.LastKONotificationSent) && s.discordClient != nil {
+						if err := s.discordClient.SendMessage("Server " + site + " is back up again. P2P Ping time: " + duration.Round(time.Millisecond).String()); err != nil {
+							s.log.Warn("Could not send Discord OK notification", zap.Error(err))
+						} else {
+							stat.LastOKNotificationSent = lastCheck
+						}
+					}
+
 					/*
 						if mustInclude != "" {
 							for _, addr := range info.Addrs {

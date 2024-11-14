@@ -99,7 +99,7 @@ func getSiteInfoHTTP(ctx context.Context, client *http.Client, siteURL string) (
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("could not create request to well-known site: %w ", err)
+		return nil, fmt.Errorf("could not create request to hm/api/config site: %w ", err)
 	}
 
 	res, err := client.Do(req)

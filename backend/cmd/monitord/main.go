@@ -16,7 +16,8 @@ import (
 
 func main() {
 	var log = logging.Logger("monitord")
-	sitesCSV := flag.String("sites", "~/sites.csv", "CSV file with mandatory header hostname and optional headers musthave.")
+	sitesCSV := flag.String("sites", "~/sites.csv", "CSV file with mandatory header hostname and optional headers must have.")
+	discordChannelID := flag.String("discord-channel", "", "Discord channel ID where we want to send notifications to. You must also set DISCORD_TOKEN env variable to communicate to remote discord server.")
 	scanPeriod := flag.Duration("scan-period", time.Duration(10*time.Minute), "Site scanning periodicity.")
 	peerTimeout := flag.Duration("peer-timeout", time.Duration(45*time.Second), "Timeout to consider the peer to be offline.")
 	numPings := flag.Int("num-pings", 5, "Number of pings per site to calculate average TTR.")
@@ -34,8 +35,8 @@ func main() {
 	}
 
 	logging.SetAllLoggers(lvl)
-
-	srv, err := server.NewServer(*portHTTP, *portP2P, log.Desugar(), *sitesCSV)
+	discordToken := os.Getenv("DISCORD_TOKEN")
+	srv, err := server.NewServer(*portHTTP, *portP2P, log.Desugar(), *sitesCSV, discordToken, *discordChannelID)
 	if err != nil {
 		panic(err)
 	}

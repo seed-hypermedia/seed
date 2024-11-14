@@ -12,7 +12,7 @@ import (
 func TestChecks(t *testing.T) {
 	t.Skip("Using external infra")
 	var log = logging.Logger("monitord")
-	srv, err := NewServer(8081, 0, log.Desugar(), "../sites.csv")
+	srv, err := NewServer(8081, 0, log.Desugar(), "../sites.csv", "", "")
 	require.NoError(t, err)
 	srv.Start(5, time.Second*5, time.Second*3, "../template.html")
 	defer srv.Stop()
