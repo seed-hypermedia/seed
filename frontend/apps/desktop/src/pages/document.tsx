@@ -252,8 +252,8 @@ function _MainDocumentPage({
               entity={entity.data}
               isBlockFocused={isBlockFocused}
             />
-            <DocPageAppendix docId={id} />
           </YStack>
+          <DocPageAppendix docId={id} />
         </DocContainer>
       </YStack>
     </YStack>
@@ -610,7 +610,7 @@ function DocPageContent({
 
 function DocPageAppendix({docId}: {docId: UnpackedHypermediaId}) {
   return (
-    <Container>
+    <Container centered>
       <Discussion docId={docId} />
     </Container>
   )
