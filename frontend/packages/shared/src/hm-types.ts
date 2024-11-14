@@ -404,3 +404,9 @@ export type HMQueryResult = {
 }
 
 export type HMRole = 'owner' | 'writer' | 'none'
+
+export type HMListedDraft = {
+  id: UnpackedHypermediaId
+  metadata: HMMetadata
+  lastUpdateTime: number
+}

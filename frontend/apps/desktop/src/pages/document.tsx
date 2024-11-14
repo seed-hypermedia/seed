@@ -14,7 +14,11 @@ import {SiteNavigation} from '@/components/site-navigation'
 import {VersionsPanel} from '@/components/versions-panel'
 import '@/editor/editor.css'
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
-import {useCreateDraft, useListDirectory} from '@/models/documents'
+import {
+  useAccountDraftList,
+  useCreateDraft,
+  useListDirectory,
+} from '@/models/documents'
 import {useDiscoverEntity, useSubscribedEntity} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {useNavRoute} from '@/utils/navigation'
@@ -36,6 +40,7 @@ import {
   CollaboratorsIcon,
   Container,
   DocContent,
+  getSiteNavDirectory,
   HistoryIcon,
   HMIcon,
   NewsSiteHeader,
@@ -266,14 +271,21 @@ function AppNewspaperHeader({
   const dir = useListDirectory(siteHomeEntity?.id)
   const capability = useMyCapability(siteHomeEntity?.id)
   const canEditDoc = roleCanWrite(capability?.role)
+  const drafts = useAccountDraftList(activeId.uid)
+
   if (!siteHomeEntity) return null
+  const navItems = getSiteNavDirectory({
+    id: siteHomeEntity.id,
+    supportQueries: dir.data
+      ? [{in: siteHomeEntity.id, results: dir.data}]
+      : [],
+    drafts: drafts.data,
+  })
   return (
     <NewsSiteHeader
       homeId={siteHomeEntity.id}
       homeMetadata={siteHomeEntity.document?.metadata || null}
-      supportQueries={
-        dir.data ? [{in: siteHomeEntity.id, results: dir.data}] : []
-      }
+      items={navItems}
       docId={activeId}
       rightContent={
         activeId.id === siteHomeEntity.id.id ? (

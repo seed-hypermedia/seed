@@ -1,8 +1,6 @@
 import {
-  HMDocumentListItem,
-  hmId,
+  getMetadataName,
   HMMetadata,
-  HMQueryResult,
   UnpackedHypermediaId,
   useRouteLink,
 } from "@shm/shared";
@@ -12,11 +10,11 @@ import React, {useEffect, useState} from "react";
 import {Button} from "./button";
 import {Close, Menu} from "./icons";
 import {SiteLogo} from "./site-logo";
+import {SiteNavigationDocument} from "./site-navigation";
 
 export function NewsSiteHeader({
   homeMetadata,
   homeId,
-  supportQueries,
   rightContent,
   docId,
   afterLinksContent,
@@ -24,10 +22,10 @@ export function NewsSiteHeader({
   searchUI,
   mobileSearchUI,
   isWeb = false,
+  items,
 }: {
   homeMetadata: HMMetadata | null;
   homeId: UnpackedHypermediaId | null;
-  supportQueries?: HMQueryResult[];
   rightContent?: React.ReactNode;
   docId: UnpackedHypermediaId | null;
   afterLinksContent?: React.ReactNode;
@@ -35,10 +33,10 @@ export function NewsSiteHeader({
   children?: React.ReactNode;
   mobileSearchUI?: React.ReactNode;
   isWeb?: boolean;
+  items?: SiteNavigationDocument[];
 }) {
   const [open, setOpen] = useState(false);
   if (!homeId) return null;
-  const supportQuery = supportQueries?.find((q) => q.in.uid === homeId?.uid);
   return (
     <>
       <YStack
@@ -63,25 +61,27 @@ export function NewsSiteHeader({
 
         <XStack
           ai="center"
-          gap="$4"
+          gap="$2"
           padding="$2"
           jc="center"
           display="none"
           $gtSm={{display: "flex"}}
         >
-          {supportQuery?.results
-            ?.filter((result) => result.path.length === 1)
-            ?.map((result) => {
-              if (result.path.length === 1 && result.path[0] === "")
-                return null;
-              return (
-                <NewsSiteHeaderLink
-                  result={result}
-                  key={result.path.join("/")}
-                  active={!!docId?.path && result.path[0] === docId.path[0]}
-                />
-              );
-            })}
+          {items?.map((item) => {
+            return (
+              <NewsSiteHeaderLink
+                id={item.id}
+                metadata={item.metadata}
+                isDraft={item.isDraft}
+                isPublished={item.isPublished}
+                active={
+                  !!docId?.path &&
+                  !!item.id.path &&
+                  item.id.path?.[0] === docId.path[0]
+                }
+              />
+            );
+          })}
           {afterLinksContent}
         </XStack>
       </YStack>
@@ -149,23 +149,37 @@ function HomeHeader({
 }
 
 function NewsSiteHeaderLink({
-  result,
+  id,
+  metadata,
   active,
+  isDraft,
+  isPublished,
 }: {
-  result: HMDocumentListItem;
+  id: UnpackedHypermediaId;
+  metadata: HMMetadata;
   active: boolean;
+  isDraft?: boolean;
+  isPublished?: boolean;
 }) {
-  const linkProps = useRouteLink({
-    key: "document",
-    id: hmId("d", result.account, {path: result.path}),
-  });
+  const linkProps = useRouteLink(
+    isDraft
+      ? {key: "draft", id}
+      : {
+          key: "document",
+          id,
+        }
+  );
+  const baseColor = isPublished === false ? "$color9" : "$color10";
   return (
     <SizableText
       fontWeight="bold"
-      color={active ? "$color" : "$color9"}
+      backgroundColor={isDraft ? "$yellow4" : undefined}
+      color={active ? "$color" : baseColor}
+      paddingHorizontal="$1"
+      hoverStyle={{cursor: "pointer", color: active ? "$color" : "$color11"}}
       {...linkProps}
     >
-      {result.metadata.name}
+      {getMetadataName(metadata)}
     </SizableText>
   );
 }

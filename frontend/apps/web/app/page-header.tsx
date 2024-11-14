@@ -1,8 +1,10 @@
 import {
   formattedDateMedium,
   HMDocument,
+  hmId,
   HMMetadata,
   HMQueryResult,
+  normalizeDate,
   relativeFormattedDate,
   UnpackedHypermediaId,
 } from "@shm/shared";
@@ -138,9 +140,32 @@ export function SiteHeader(props: {
   isWeb?: boolean;
 }) {
   if (props.homeMetadata?.layout === "Seed/Experimental/Newspaper") {
+    const supportQuery = props.supportQueries?.find(
+      (q) => q.in.uid === props.homeId?.uid
+    );
+    const items = supportQuery?.results
+      ?.filter((item) => {
+        return item.path.length === 1;
+      })
+      ?.map((item) => {
+        const sortTime = normalizeDate(item.createTime);
+        if (!sortTime) return null;
+        return {
+          isPublished: true,
+          isDraft: false,
+          id: hmId("d", item.account, {path: item.path}),
+          sortTime,
+          metadata: item.metadata,
+        };
+      })
+      .filter((item) => !!item);
+    items
+      ?.sort((a, b) => b.sortTime.getTime() - a.sortTime.getTime())
+      .reverse();
     return (
       <NewsSiteHeader
         {...props}
+        items={items || []}
         searchUI={props.homeId ? <SearchUI homeId={props.homeId} /> : null}
       />
     );

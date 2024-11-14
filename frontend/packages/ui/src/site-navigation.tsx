@@ -6,6 +6,7 @@ import {
   HMDraft,
   HMEntityContent,
   hmId,
+  HMListedDraft,
   HMMetadata,
   HMQueryResult,
   NavRoute,
@@ -83,7 +84,7 @@ function DocumentSmallListItem({
   );
 }
 
-type SiteNavigationDocument = {
+export type SiteNavigationDocument = {
   metadata: HMMetadata;
   isDraft: boolean;
   isPublished: boolean;
@@ -91,29 +92,15 @@ type SiteNavigationDocument = {
   id: UnpackedHypermediaId;
 };
 
-export function SiteNavigationContent({
-  documentMetadata,
-  supportDocuments,
-  supportQueries,
+export function getSiteNavDirectory({
   id,
-  createDirItem,
-  onPress,
-  outline,
+  supportQueries,
   drafts,
 }: {
-  documentMetadata: HMMetadata;
-  supportDocuments?: HMEntityContent[];
-  supportQueries?: HMQueryResult[];
   id: UnpackedHypermediaId;
-  createDirItem?: ((opts: {indented: number}) => ReactNode) | null;
-  onPress?: () => void;
-  outline?: (opts: {indented: number}) => ReactNode;
-  drafts?: {
-    id: UnpackedHypermediaId;
-    metadata: HMMetadata;
-    lastUpdateTime: number;
-  }[];
-}) {
+  supportQueries?: HMQueryResult[];
+  drafts?: HMListedDraft[];
+}): SiteNavigationDocument[] {
   const directory = supportQueries?.find((query) => query.in.uid === id.uid);
   const directoryDrafts = drafts?.filter(
     (draft) =>
@@ -168,6 +155,29 @@ export function SiteNavigationContent({
     ...publishedItems,
     ...unpublishedDraftItems,
   ];
+  return directoryItems;
+}
+
+export function SiteNavigationContent({
+  documentMetadata,
+  supportDocuments,
+  supportQueries,
+  id,
+  createDirItem,
+  onPress,
+  outline,
+  drafts,
+}: {
+  documentMetadata: HMMetadata;
+  supportDocuments?: HMEntityContent[];
+  supportQueries?: HMQueryResult[];
+  id: UnpackedHypermediaId;
+  createDirItem?: ((opts: {indented: number}) => ReactNode) | null;
+  onPress?: () => void;
+  outline?: (opts: {indented: number}) => ReactNode;
+  drafts?: HMListedDraft[];
+}) {
+  const directoryItems = getSiteNavDirectory({id, supportQueries, drafts});
   return (
     <YStack gap="$2" paddingLeft="$4">
       {outline?.({indented: 0})}
