@@ -79,6 +79,54 @@ func (x *InvoiceResponse) GetPaymentHash() string {
 	return ""
 }
 
+type DecodeInvoiceRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// String representation of a bolt11 invoice payment request.
+	Payreq string `protobuf:"bytes,1,opt,name=payreq,proto3" json:"payreq,omitempty"`
+}
+
+func (x *DecodeInvoiceRequest) Reset() {
+	*x = DecodeInvoiceRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_payments_v1alpha_invoices_proto_msgTypes[1]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *DecodeInvoiceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DecodeInvoiceRequest) ProtoMessage() {}
+
+func (x *DecodeInvoiceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_payments_v1alpha_invoices_proto_msgTypes[1]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DecodeInvoiceRequest.ProtoReflect.Descriptor instead.
+func (*DecodeInvoiceRequest) Descriptor() ([]byte, []int) {
+	return file_payments_v1alpha_invoices_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *DecodeInvoiceRequest) GetPayreq() string {
+	if x != nil {
+		return x.Payreq
+	}
+	return ""
+}
+
 // The request to create a local invoice. Used to be paid.
 type CreateInvoiceRequest struct {
 	state         protoimpl.MessageState
@@ -102,7 +150,7 @@ type CreateInvoiceRequest struct {
 func (x *CreateInvoiceRequest) Reset() {
 	*x = CreateInvoiceRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_payments_v1alpha_invoices_proto_msgTypes[1]
+		mi := &file_payments_v1alpha_invoices_proto_msgTypes[2]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -115,7 +163,7 @@ func (x *CreateInvoiceRequest) String() string {
 func (*CreateInvoiceRequest) ProtoMessage() {}
 
 func (x *CreateInvoiceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_payments_v1alpha_invoices_proto_msgTypes[1]
+	mi := &file_payments_v1alpha_invoices_proto_msgTypes[2]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -128,7 +176,7 @@ func (x *CreateInvoiceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateInvoiceRequest.ProtoReflect.Descriptor instead.
 func (*CreateInvoiceRequest) Descriptor() ([]byte, []int) {
-	return file_payments_v1alpha_invoices_proto_rawDescGZIP(), []int{1}
+	return file_payments_v1alpha_invoices_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *CreateInvoiceRequest) GetAccount() string {
@@ -180,7 +228,7 @@ type PayInvoiceRequest struct {
 func (x *PayInvoiceRequest) Reset() {
 	*x = PayInvoiceRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_payments_v1alpha_invoices_proto_msgTypes[2]
+		mi := &file_payments_v1alpha_invoices_proto_msgTypes[3]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -193,7 +241,7 @@ func (x *PayInvoiceRequest) String() string {
 func (*PayInvoiceRequest) ProtoMessage() {}
 
 func (x *PayInvoiceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_payments_v1alpha_invoices_proto_msgTypes[2]
+	mi := &file_payments_v1alpha_invoices_proto_msgTypes[3]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -206,7 +254,7 @@ func (x *PayInvoiceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PayInvoiceRequest.ProtoReflect.Descriptor instead.
 func (*PayInvoiceRequest) Descriptor() ([]byte, []int) {
-	return file_payments_v1alpha_invoices_proto_rawDescGZIP(), []int{2}
+	return file_payments_v1alpha_invoices_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *PayInvoiceRequest) GetPayreq() string {
@@ -256,7 +304,7 @@ type RequestLud6InvoiceRequest struct {
 func (x *RequestLud6InvoiceRequest) Reset() {
 	*x = RequestLud6InvoiceRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_payments_v1alpha_invoices_proto_msgTypes[3]
+		mi := &file_payments_v1alpha_invoices_proto_msgTypes[4]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -269,7 +317,7 @@ func (x *RequestLud6InvoiceRequest) String() string {
 func (*RequestLud6InvoiceRequest) ProtoMessage() {}
 
 func (x *RequestLud6InvoiceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_payments_v1alpha_invoices_proto_msgTypes[3]
+	mi := &file_payments_v1alpha_invoices_proto_msgTypes[4]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -282,7 +330,7 @@ func (x *RequestLud6InvoiceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequestLud6InvoiceRequest.ProtoReflect.Descriptor instead.
 func (*RequestLud6InvoiceRequest) Descriptor() ([]byte, []int) {
-	return file_payments_v1alpha_invoices_proto_rawDescGZIP(), []int{3}
+	return file_payments_v1alpha_invoices_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *RequestLud6InvoiceRequest) GetURL() string {
@@ -326,7 +374,7 @@ type GetLnAddressRequest struct {
 func (x *GetLnAddressRequest) Reset() {
 	*x = GetLnAddressRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_payments_v1alpha_invoices_proto_msgTypes[4]
+		mi := &file_payments_v1alpha_invoices_proto_msgTypes[5]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -339,7 +387,7 @@ func (x *GetLnAddressRequest) String() string {
 func (*GetLnAddressRequest) ProtoMessage() {}
 
 func (x *GetLnAddressRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_payments_v1alpha_invoices_proto_msgTypes[4]
+	mi := &file_payments_v1alpha_invoices_proto_msgTypes[5]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -352,7 +400,7 @@ func (x *GetLnAddressRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetLnAddressRequest.ProtoReflect.Descriptor instead.
 func (*GetLnAddressRequest) Descriptor() ([]byte, []int) {
-	return file_payments_v1alpha_invoices_proto_rawDescGZIP(), []int{4}
+	return file_payments_v1alpha_invoices_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GetLnAddressRequest) GetId() string {
@@ -375,7 +423,7 @@ type LNAddress struct {
 func (x *LNAddress) Reset() {
 	*x = LNAddress{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_payments_v1alpha_invoices_proto_msgTypes[5]
+		mi := &file_payments_v1alpha_invoices_proto_msgTypes[6]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -388,7 +436,7 @@ func (x *LNAddress) String() string {
 func (*LNAddress) ProtoMessage() {}
 
 func (x *LNAddress) ProtoReflect() protoreflect.Message {
-	mi := &file_payments_v1alpha_invoices_proto_msgTypes[5]
+	mi := &file_payments_v1alpha_invoices_proto_msgTypes[6]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -401,7 +449,7 @@ func (x *LNAddress) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LNAddress.ProtoReflect.Descriptor instead.
 func (*LNAddress) Descriptor() ([]byte, []int) {
-	return file_payments_v1alpha_invoices_proto_rawDescGZIP(), []int{5}
+	return file_payments_v1alpha_invoices_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *LNAddress) GetAddress() string {
@@ -428,7 +476,7 @@ type UpdateLNAddressRequest struct {
 func (x *UpdateLNAddressRequest) Reset() {
 	*x = UpdateLNAddressRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_payments_v1alpha_invoices_proto_msgTypes[6]
+		mi := &file_payments_v1alpha_invoices_proto_msgTypes[7]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -441,7 +489,7 @@ func (x *UpdateLNAddressRequest) String() string {
 func (*UpdateLNAddressRequest) ProtoMessage() {}
 
 func (x *UpdateLNAddressRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_payments_v1alpha_invoices_proto_msgTypes[6]
+	mi := &file_payments_v1alpha_invoices_proto_msgTypes[7]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -454,7 +502,7 @@ func (x *UpdateLNAddressRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateLNAddressRequest.ProtoReflect.Descriptor instead.
 func (*UpdateLNAddressRequest) Descriptor() ([]byte, []int) {
-	return file_payments_v1alpha_invoices_proto_rawDescGZIP(), []int{6}
+	return file_payments_v1alpha_invoices_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *UpdateLNAddressRequest) GetId() string {
@@ -484,7 +532,7 @@ type ListInvoicesRequest struct {
 func (x *ListInvoicesRequest) Reset() {
 	*x = ListInvoicesRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_payments_v1alpha_invoices_proto_msgTypes[7]
+		mi := &file_payments_v1alpha_invoices_proto_msgTypes[8]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -497,7 +545,7 @@ func (x *ListInvoicesRequest) String() string {
 func (*ListInvoicesRequest) ProtoMessage() {}
 
 func (x *ListInvoicesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_payments_v1alpha_invoices_proto_msgTypes[7]
+	mi := &file_payments_v1alpha_invoices_proto_msgTypes[8]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -510,7 +558,7 @@ func (x *ListInvoicesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListInvoicesRequest.ProtoReflect.Descriptor instead.
 func (*ListInvoicesRequest) Descriptor() ([]byte, []int) {
-	return file_payments_v1alpha_invoices_proto_rawDescGZIP(), []int{7}
+	return file_payments_v1alpha_invoices_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ListInvoicesRequest) GetId() string {
@@ -561,7 +609,7 @@ type Invoice struct {
 func (x *Invoice) Reset() {
 	*x = Invoice{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_payments_v1alpha_invoices_proto_msgTypes[8]
+		mi := &file_payments_v1alpha_invoices_proto_msgTypes[9]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -574,7 +622,7 @@ func (x *Invoice) String() string {
 func (*Invoice) ProtoMessage() {}
 
 func (x *Invoice) ProtoReflect() protoreflect.Message {
-	mi := &file_payments_v1alpha_invoices_proto_msgTypes[8]
+	mi := &file_payments_v1alpha_invoices_proto_msgTypes[9]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -587,7 +635,7 @@ func (x *Invoice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Invoice.ProtoReflect.Descriptor instead.
 func (*Invoice) Descriptor() ([]byte, []int) {
-	return file_payments_v1alpha_invoices_proto_rawDescGZIP(), []int{8}
+	return file_payments_v1alpha_invoices_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *Invoice) GetPaymentHash() string {
@@ -708,7 +756,7 @@ type ListInvoicesResponse struct {
 func (x *ListInvoicesResponse) Reset() {
 	*x = ListInvoicesResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_payments_v1alpha_invoices_proto_msgTypes[9]
+		mi := &file_payments_v1alpha_invoices_proto_msgTypes[10]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -721,7 +769,7 @@ func (x *ListInvoicesResponse) String() string {
 func (*ListInvoicesResponse) ProtoMessage() {}
 
 func (x *ListInvoicesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_payments_v1alpha_invoices_proto_msgTypes[9]
+	mi := &file_payments_v1alpha_invoices_proto_msgTypes[10]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -734,7 +782,7 @@ func (x *ListInvoicesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListInvoicesResponse.ProtoReflect.Descriptor instead.
 func (*ListInvoicesResponse) Descriptor() ([]byte, []int) {
-	return file_payments_v1alpha_invoices_proto_rawDescGZIP(), []int{9}
+	return file_payments_v1alpha_invoices_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ListInvoicesResponse) GetInvoices() []*Invoice {
@@ -757,7 +805,10 @@ var file_payments_v1alpha_invoices_proto_rawDesc = []byte{
 	0x70, 0x61, 0x79, 0x72, 0x65, 0x71, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x70, 0x61,
 	0x79, 0x72, 0x65, 0x71, 0x12, 0x21, 0x0a, 0x0c, 0x70, 0x61, 0x79, 0x6d, 0x65, 0x6e, 0x74, 0x5f,
 	0x68, 0x61, 0x73, 0x68, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0b, 0x70, 0x61, 0x79, 0x6d,
-	0x65, 0x6e, 0x74, 0x48, 0x61, 0x73, 0x68, 0x22, 0x6c, 0x0a, 0x14, 0x43, 0x72, 0x65, 0x61, 0x74,
+	0x65, 0x6e, 0x74, 0x48, 0x61, 0x73, 0x68, 0x22, 0x2e, 0x0a, 0x14, 0x44, 0x65, 0x63, 0x6f, 0x64,
+	0x65, 0x49, 0x6e, 0x76, 0x6f, 0x69, 0x63, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12,
+	0x16, 0x0a, 0x06, 0x70, 0x61, 0x79, 0x72, 0x65, 0x71, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x06, 0x70, 0x61, 0x79, 0x72, 0x65, 0x71, 0x22, 0x6c, 0x0a, 0x14, 0x43, 0x72, 0x65, 0x61, 0x74,
 	0x65, 0x49, 0x6e, 0x76, 0x6f, 0x69, 0x63, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12,
 	0x18, 0x0a, 0x07, 0x61, 0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
 	0x52, 0x07, 0x61, 0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18,
@@ -825,7 +876,7 @@ var file_payments_v1alpha_invoices_proto_rawDesc = []byte{
 	0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x22, 0x2e, 0x63, 0x6f, 0x6d, 0x2e, 0x73, 0x65, 0x65,
 	0x64, 0x2e, 0x70, 0x61, 0x79, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70,
 	0x68, 0x61, 0x2e, 0x49, 0x6e, 0x76, 0x6f, 0x69, 0x63, 0x65, 0x52, 0x08, 0x69, 0x6e, 0x76, 0x6f,
-	0x69, 0x63, 0x65, 0x73, 0x32, 0xb9, 0x03, 0x0a, 0x08, 0x49, 0x6e, 0x76, 0x6f, 0x69, 0x63, 0x65,
+	0x69, 0x63, 0x65, 0x73, 0x32, 0xa0, 0x04, 0x0a, 0x08, 0x49, 0x6e, 0x76, 0x6f, 0x69, 0x63, 0x65,
 	0x73, 0x12, 0x6c, 0x0a, 0x0d, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x49, 0x6e, 0x76, 0x6f, 0x69,
 	0x63, 0x65, 0x12, 0x2f, 0x2e, 0x63, 0x6f, 0x6d, 0x2e, 0x73, 0x65, 0x65, 0x64, 0x2e, 0x70, 0x61,
 	0x79, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x2e, 0x43,
@@ -845,39 +896,46 @@ var file_payments_v1alpha_invoices_proto_rawDesc = []byte{
 	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2f, 0x2e, 0x63, 0x6f, 0x6d, 0x2e, 0x73, 0x65,
 	0x65, 0x64, 0x2e, 0x70, 0x61, 0x79, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x61, 0x6c,
 	0x70, 0x68, 0x61, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x49, 0x6e, 0x76, 0x6f, 0x69, 0x63, 0x65, 0x73,
-	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x76, 0x0a, 0x13, 0x4c, 0x69, 0x73, 0x74,
-	0x52, 0x65, 0x63, 0x65, 0x69, 0x76, 0x65, 0x64, 0x6e, 0x76, 0x6f, 0x69, 0x63, 0x65, 0x73, 0x12,
-	0x2e, 0x2e, 0x63, 0x6f, 0x6d, 0x2e, 0x73, 0x65, 0x65, 0x64, 0x2e, 0x70, 0x61, 0x79, 0x6d, 0x65,
-	0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x2e, 0x4c, 0x69, 0x73, 0x74,
-	0x49, 0x6e, 0x76, 0x6f, 0x69, 0x63, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
-	0x2f, 0x2e, 0x63, 0x6f, 0x6d, 0x2e, 0x73, 0x65, 0x65, 0x64, 0x2e, 0x70, 0x61, 0x79, 0x6d, 0x65,
-	0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x2e, 0x4c, 0x69, 0x73, 0x74,
-	0x49, 0x6e, 0x76, 0x6f, 0x69, 0x63, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
-	0x32, 0xd1, 0x02, 0x0a, 0x05, 0x4c, 0x4e, 0x55, 0x52, 0x4c, 0x12, 0x76, 0x0a, 0x12, 0x52, 0x65,
-	0x71, 0x75, 0x65, 0x73, 0x74, 0x4c, 0x75, 0x64, 0x36, 0x49, 0x6e, 0x76, 0x6f, 0x69, 0x63, 0x65,
-	0x12, 0x34, 0x2e, 0x63, 0x6f, 0x6d, 0x2e, 0x73, 0x65, 0x65, 0x64, 0x2e, 0x70, 0x61, 0x79, 0x6d,
-	0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x2e, 0x52, 0x65, 0x71,
-	0x75, 0x65, 0x73, 0x74, 0x4c, 0x75, 0x64, 0x36, 0x49, 0x6e, 0x76, 0x6f, 0x69, 0x63, 0x65, 0x52,
-	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2a, 0x2e, 0x63, 0x6f, 0x6d, 0x2e, 0x73, 0x65, 0x65,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x64, 0x0a, 0x0d, 0x44, 0x65, 0x63, 0x6f,
+	0x64, 0x65, 0x49, 0x6e, 0x76, 0x6f, 0x69, 0x63, 0x65, 0x12, 0x2f, 0x2e, 0x63, 0x6f, 0x6d, 0x2e,
+	0x73, 0x65, 0x65, 0x64, 0x2e, 0x70, 0x61, 0x79, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31,
+	0x61, 0x6c, 0x70, 0x68, 0x61, 0x2e, 0x44, 0x65, 0x63, 0x6f, 0x64, 0x65, 0x49, 0x6e, 0x76, 0x6f,
+	0x69, 0x63, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x22, 0x2e, 0x63, 0x6f, 0x6d,
+	0x2e, 0x73, 0x65, 0x65, 0x64, 0x2e, 0x70, 0x61, 0x79, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76,
+	0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x2e, 0x49, 0x6e, 0x76, 0x6f, 0x69, 0x63, 0x65, 0x12, 0x77,
+	0x0a, 0x14, 0x4c, 0x69, 0x73, 0x74, 0x52, 0x65, 0x63, 0x65, 0x69, 0x76, 0x65, 0x64, 0x49, 0x6e,
+	0x76, 0x6f, 0x69, 0x63, 0x65, 0x73, 0x12, 0x2e, 0x2e, 0x63, 0x6f, 0x6d, 0x2e, 0x73, 0x65, 0x65,
 	0x64, 0x2e, 0x70, 0x61, 0x79, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70,
-	0x68, 0x61, 0x2e, 0x49, 0x6e, 0x76, 0x6f, 0x69, 0x63, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
-	0x73, 0x65, 0x12, 0x64, 0x0a, 0x0c, 0x47, 0x65, 0x74, 0x4c, 0x6e, 0x41, 0x64, 0x64, 0x72, 0x65,
-	0x73, 0x73, 0x12, 0x2e, 0x2e, 0x63, 0x6f, 0x6d, 0x2e, 0x73, 0x65, 0x65, 0x64, 0x2e, 0x70, 0x61,
-	0x79, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x2e, 0x47,
-	0x65, 0x74, 0x4c, 0x6e, 0x41, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65,
-	0x73, 0x74, 0x1a, 0x24, 0x2e, 0x63, 0x6f, 0x6d, 0x2e, 0x73, 0x65, 0x65, 0x64, 0x2e, 0x70, 0x61,
-	0x79, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x2e, 0x4c,
-	0x4e, 0x41, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73, 0x12, 0x6a, 0x0a, 0x0f, 0x55, 0x70, 0x64, 0x61,
-	0x74, 0x65, 0x4c, 0x4e, 0x41, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73, 0x12, 0x31, 0x2e, 0x63, 0x6f,
-	0x6d, 0x2e, 0x73, 0x65, 0x65, 0x64, 0x2e, 0x70, 0x61, 0x79, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x2e,
-	0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4c, 0x4e,
-	0x41, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x24,
-	0x2e, 0x63, 0x6f, 0x6d, 0x2e, 0x73, 0x65, 0x65, 0x64, 0x2e, 0x70, 0x61, 0x79, 0x6d, 0x65, 0x6e,
-	0x74, 0x73, 0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x2e, 0x4c, 0x4e, 0x41, 0x64, 0x64,
-	0x72, 0x65, 0x73, 0x73, 0x42, 0x31, 0x5a, 0x2f, 0x73, 0x65, 0x65, 0x64, 0x2f, 0x62, 0x61, 0x63,
-	0x6b, 0x65, 0x6e, 0x64, 0x2f, 0x67, 0x65, 0x6e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x70, 0x61,
-	0x79, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x2f, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x3b, 0x70,
-	0x61, 0x79, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x68, 0x61, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x49, 0x6e, 0x76, 0x6f, 0x69, 0x63, 0x65, 0x73, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2f, 0x2e, 0x63, 0x6f, 0x6d, 0x2e, 0x73, 0x65, 0x65,
+	0x64, 0x2e, 0x70, 0x61, 0x79, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70,
+	0x68, 0x61, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x49, 0x6e, 0x76, 0x6f, 0x69, 0x63, 0x65, 0x73, 0x52,
+	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x32, 0xd1, 0x02, 0x0a, 0x05, 0x4c, 0x4e, 0x55, 0x52,
+	0x4c, 0x12, 0x76, 0x0a, 0x12, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x4c, 0x75, 0x64, 0x36,
+	0x49, 0x6e, 0x76, 0x6f, 0x69, 0x63, 0x65, 0x12, 0x34, 0x2e, 0x63, 0x6f, 0x6d, 0x2e, 0x73, 0x65,
+	0x65, 0x64, 0x2e, 0x70, 0x61, 0x79, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x61, 0x6c,
+	0x70, 0x68, 0x61, 0x2e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x4c, 0x75, 0x64, 0x36, 0x49,
+	0x6e, 0x76, 0x6f, 0x69, 0x63, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2a, 0x2e,
+	0x63, 0x6f, 0x6d, 0x2e, 0x73, 0x65, 0x65, 0x64, 0x2e, 0x70, 0x61, 0x79, 0x6d, 0x65, 0x6e, 0x74,
+	0x73, 0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x2e, 0x49, 0x6e, 0x76, 0x6f, 0x69, 0x63,
+	0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x64, 0x0a, 0x0c, 0x47, 0x65, 0x74,
+	0x4c, 0x6e, 0x41, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73, 0x12, 0x2e, 0x2e, 0x63, 0x6f, 0x6d, 0x2e,
+	0x73, 0x65, 0x65, 0x64, 0x2e, 0x70, 0x61, 0x79, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31,
+	0x61, 0x6c, 0x70, 0x68, 0x61, 0x2e, 0x47, 0x65, 0x74, 0x4c, 0x6e, 0x41, 0x64, 0x64, 0x72, 0x65,
+	0x73, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x24, 0x2e, 0x63, 0x6f, 0x6d, 0x2e,
+	0x73, 0x65, 0x65, 0x64, 0x2e, 0x70, 0x61, 0x79, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31,
+	0x61, 0x6c, 0x70, 0x68, 0x61, 0x2e, 0x4c, 0x4e, 0x41, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73, 0x12,
+	0x6a, 0x0a, 0x0f, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4c, 0x4e, 0x41, 0x64, 0x64, 0x72, 0x65,
+	0x73, 0x73, 0x12, 0x31, 0x2e, 0x63, 0x6f, 0x6d, 0x2e, 0x73, 0x65, 0x65, 0x64, 0x2e, 0x70, 0x61,
+	0x79, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x2e, 0x55,
+	0x70, 0x64, 0x61, 0x74, 0x65, 0x4c, 0x4e, 0x41, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73, 0x52, 0x65,
+	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x24, 0x2e, 0x63, 0x6f, 0x6d, 0x2e, 0x73, 0x65, 0x65, 0x64,
+	0x2e, 0x70, 0x61, 0x79, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68,
+	0x61, 0x2e, 0x4c, 0x4e, 0x41, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73, 0x42, 0x31, 0x5a, 0x2f, 0x73,
+	0x65, 0x65, 0x64, 0x2f, 0x62, 0x61, 0x63, 0x6b, 0x65, 0x6e, 0x64, 0x2f, 0x67, 0x65, 0x6e, 0x70,
+	0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x70, 0x61, 0x79, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x2f, 0x76, 0x31,
+	0x61, 0x6c, 0x70, 0x68, 0x61, 0x3b, 0x70, 0x61, 0x79, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x62, 0x06,
+	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -892,38 +950,41 @@ func file_payments_v1alpha_invoices_proto_rawDescGZIP() []byte {
 	return file_payments_v1alpha_invoices_proto_rawDescData
 }
 
-var file_payments_v1alpha_invoices_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_payments_v1alpha_invoices_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_payments_v1alpha_invoices_proto_goTypes = []any{
 	(*InvoiceResponse)(nil),           // 0: com.seed.payments.v1alpha.InvoiceResponse
-	(*CreateInvoiceRequest)(nil),      // 1: com.seed.payments.v1alpha.CreateInvoiceRequest
-	(*PayInvoiceRequest)(nil),         // 2: com.seed.payments.v1alpha.PayInvoiceRequest
-	(*RequestLud6InvoiceRequest)(nil), // 3: com.seed.payments.v1alpha.RequestLud6InvoiceRequest
-	(*GetLnAddressRequest)(nil),       // 4: com.seed.payments.v1alpha.GetLnAddressRequest
-	(*LNAddress)(nil),                 // 5: com.seed.payments.v1alpha.LNAddress
-	(*UpdateLNAddressRequest)(nil),    // 6: com.seed.payments.v1alpha.UpdateLNAddressRequest
-	(*ListInvoicesRequest)(nil),       // 7: com.seed.payments.v1alpha.ListInvoicesRequest
-	(*Invoice)(nil),                   // 8: com.seed.payments.v1alpha.Invoice
-	(*ListInvoicesResponse)(nil),      // 9: com.seed.payments.v1alpha.ListInvoicesResponse
-	(*emptypb.Empty)(nil),             // 10: google.protobuf.Empty
+	(*DecodeInvoiceRequest)(nil),      // 1: com.seed.payments.v1alpha.DecodeInvoiceRequest
+	(*CreateInvoiceRequest)(nil),      // 2: com.seed.payments.v1alpha.CreateInvoiceRequest
+	(*PayInvoiceRequest)(nil),         // 3: com.seed.payments.v1alpha.PayInvoiceRequest
+	(*RequestLud6InvoiceRequest)(nil), // 4: com.seed.payments.v1alpha.RequestLud6InvoiceRequest
+	(*GetLnAddressRequest)(nil),       // 5: com.seed.payments.v1alpha.GetLnAddressRequest
+	(*LNAddress)(nil),                 // 6: com.seed.payments.v1alpha.LNAddress
+	(*UpdateLNAddressRequest)(nil),    // 7: com.seed.payments.v1alpha.UpdateLNAddressRequest
+	(*ListInvoicesRequest)(nil),       // 8: com.seed.payments.v1alpha.ListInvoicesRequest
+	(*Invoice)(nil),                   // 9: com.seed.payments.v1alpha.Invoice
+	(*ListInvoicesResponse)(nil),      // 10: com.seed.payments.v1alpha.ListInvoicesResponse
+	(*emptypb.Empty)(nil),             // 11: google.protobuf.Empty
 }
 var file_payments_v1alpha_invoices_proto_depIdxs = []int32{
-	8,  // 0: com.seed.payments.v1alpha.ListInvoicesResponse.invoices:type_name -> com.seed.payments.v1alpha.Invoice
-	1,  // 1: com.seed.payments.v1alpha.Invoices.CreateInvoice:input_type -> com.seed.payments.v1alpha.CreateInvoiceRequest
-	2,  // 2: com.seed.payments.v1alpha.Invoices.PayInvoice:input_type -> com.seed.payments.v1alpha.PayInvoiceRequest
-	7,  // 3: com.seed.payments.v1alpha.Invoices.ListPaidInvoices:input_type -> com.seed.payments.v1alpha.ListInvoicesRequest
-	7,  // 4: com.seed.payments.v1alpha.Invoices.ListReceivednvoices:input_type -> com.seed.payments.v1alpha.ListInvoicesRequest
-	3,  // 5: com.seed.payments.v1alpha.LNURL.RequestLud6Invoice:input_type -> com.seed.payments.v1alpha.RequestLud6InvoiceRequest
-	4,  // 6: com.seed.payments.v1alpha.LNURL.GetLnAddress:input_type -> com.seed.payments.v1alpha.GetLnAddressRequest
-	6,  // 7: com.seed.payments.v1alpha.LNURL.UpdateLNAddress:input_type -> com.seed.payments.v1alpha.UpdateLNAddressRequest
-	0,  // 8: com.seed.payments.v1alpha.Invoices.CreateInvoice:output_type -> com.seed.payments.v1alpha.InvoiceResponse
-	10, // 9: com.seed.payments.v1alpha.Invoices.PayInvoice:output_type -> google.protobuf.Empty
-	9,  // 10: com.seed.payments.v1alpha.Invoices.ListPaidInvoices:output_type -> com.seed.payments.v1alpha.ListInvoicesResponse
-	9,  // 11: com.seed.payments.v1alpha.Invoices.ListReceivednvoices:output_type -> com.seed.payments.v1alpha.ListInvoicesResponse
-	0,  // 12: com.seed.payments.v1alpha.LNURL.RequestLud6Invoice:output_type -> com.seed.payments.v1alpha.InvoiceResponse
-	5,  // 13: com.seed.payments.v1alpha.LNURL.GetLnAddress:output_type -> com.seed.payments.v1alpha.LNAddress
-	5,  // 14: com.seed.payments.v1alpha.LNURL.UpdateLNAddress:output_type -> com.seed.payments.v1alpha.LNAddress
-	8,  // [8:15] is the sub-list for method output_type
-	1,  // [1:8] is the sub-list for method input_type
+	9,  // 0: com.seed.payments.v1alpha.ListInvoicesResponse.invoices:type_name -> com.seed.payments.v1alpha.Invoice
+	2,  // 1: com.seed.payments.v1alpha.Invoices.CreateInvoice:input_type -> com.seed.payments.v1alpha.CreateInvoiceRequest
+	3,  // 2: com.seed.payments.v1alpha.Invoices.PayInvoice:input_type -> com.seed.payments.v1alpha.PayInvoiceRequest
+	8,  // 3: com.seed.payments.v1alpha.Invoices.ListPaidInvoices:input_type -> com.seed.payments.v1alpha.ListInvoicesRequest
+	1,  // 4: com.seed.payments.v1alpha.Invoices.DecodeInvoice:input_type -> com.seed.payments.v1alpha.DecodeInvoiceRequest
+	8,  // 5: com.seed.payments.v1alpha.Invoices.ListReceivedInvoices:input_type -> com.seed.payments.v1alpha.ListInvoicesRequest
+	4,  // 6: com.seed.payments.v1alpha.LNURL.RequestLud6Invoice:input_type -> com.seed.payments.v1alpha.RequestLud6InvoiceRequest
+	5,  // 7: com.seed.payments.v1alpha.LNURL.GetLnAddress:input_type -> com.seed.payments.v1alpha.GetLnAddressRequest
+	7,  // 8: com.seed.payments.v1alpha.LNURL.UpdateLNAddress:input_type -> com.seed.payments.v1alpha.UpdateLNAddressRequest
+	0,  // 9: com.seed.payments.v1alpha.Invoices.CreateInvoice:output_type -> com.seed.payments.v1alpha.InvoiceResponse
+	11, // 10: com.seed.payments.v1alpha.Invoices.PayInvoice:output_type -> google.protobuf.Empty
+	10, // 11: com.seed.payments.v1alpha.Invoices.ListPaidInvoices:output_type -> com.seed.payments.v1alpha.ListInvoicesResponse
+	9,  // 12: com.seed.payments.v1alpha.Invoices.DecodeInvoice:output_type -> com.seed.payments.v1alpha.Invoice
+	10, // 13: com.seed.payments.v1alpha.Invoices.ListReceivedInvoices:output_type -> com.seed.payments.v1alpha.ListInvoicesResponse
+	0,  // 14: com.seed.payments.v1alpha.LNURL.RequestLud6Invoice:output_type -> com.seed.payments.v1alpha.InvoiceResponse
+	6,  // 15: com.seed.payments.v1alpha.LNURL.GetLnAddress:output_type -> com.seed.payments.v1alpha.LNAddress
+	6,  // 16: com.seed.payments.v1alpha.LNURL.UpdateLNAddress:output_type -> com.seed.payments.v1alpha.LNAddress
+	9,  // [9:17] is the sub-list for method output_type
+	1,  // [1:9] is the sub-list for method input_type
 	1,  // [1:1] is the sub-list for extension type_name
 	1,  // [1:1] is the sub-list for extension extendee
 	0,  // [0:1] is the sub-list for field type_name
@@ -948,7 +1009,7 @@ func file_payments_v1alpha_invoices_proto_init() {
 			}
 		}
 		file_payments_v1alpha_invoices_proto_msgTypes[1].Exporter = func(v any, i int) any {
-			switch v := v.(*CreateInvoiceRequest); i {
+			switch v := v.(*DecodeInvoiceRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -960,7 +1021,7 @@ func file_payments_v1alpha_invoices_proto_init() {
 			}
 		}
 		file_payments_v1alpha_invoices_proto_msgTypes[2].Exporter = func(v any, i int) any {
-			switch v := v.(*PayInvoiceRequest); i {
+			switch v := v.(*CreateInvoiceRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -972,7 +1033,7 @@ func file_payments_v1alpha_invoices_proto_init() {
 			}
 		}
 		file_payments_v1alpha_invoices_proto_msgTypes[3].Exporter = func(v any, i int) any {
-			switch v := v.(*RequestLud6InvoiceRequest); i {
+			switch v := v.(*PayInvoiceRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -984,7 +1045,7 @@ func file_payments_v1alpha_invoices_proto_init() {
 			}
 		}
 		file_payments_v1alpha_invoices_proto_msgTypes[4].Exporter = func(v any, i int) any {
-			switch v := v.(*GetLnAddressRequest); i {
+			switch v := v.(*RequestLud6InvoiceRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -996,7 +1057,7 @@ func file_payments_v1alpha_invoices_proto_init() {
 			}
 		}
 		file_payments_v1alpha_invoices_proto_msgTypes[5].Exporter = func(v any, i int) any {
-			switch v := v.(*LNAddress); i {
+			switch v := v.(*GetLnAddressRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1008,7 +1069,7 @@ func file_payments_v1alpha_invoices_proto_init() {
 			}
 		}
 		file_payments_v1alpha_invoices_proto_msgTypes[6].Exporter = func(v any, i int) any {
-			switch v := v.(*UpdateLNAddressRequest); i {
+			switch v := v.(*LNAddress); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1020,7 +1081,7 @@ func file_payments_v1alpha_invoices_proto_init() {
 			}
 		}
 		file_payments_v1alpha_invoices_proto_msgTypes[7].Exporter = func(v any, i int) any {
-			switch v := v.(*ListInvoicesRequest); i {
+			switch v := v.(*UpdateLNAddressRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1032,7 +1093,7 @@ func file_payments_v1alpha_invoices_proto_init() {
 			}
 		}
 		file_payments_v1alpha_invoices_proto_msgTypes[8].Exporter = func(v any, i int) any {
-			switch v := v.(*Invoice); i {
+			switch v := v.(*ListInvoicesRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1044,6 +1105,18 @@ func file_payments_v1alpha_invoices_proto_init() {
 			}
 		}
 		file_payments_v1alpha_invoices_proto_msgTypes[9].Exporter = func(v any, i int) any {
+			switch v := v.(*Invoice); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_payments_v1alpha_invoices_proto_msgTypes[10].Exporter = func(v any, i int) any {
 			switch v := v.(*ListInvoicesResponse); i {
 			case 0:
 				return &v.state
@@ -1062,7 +1135,7 @@ func file_payments_v1alpha_invoices_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_payments_v1alpha_invoices_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

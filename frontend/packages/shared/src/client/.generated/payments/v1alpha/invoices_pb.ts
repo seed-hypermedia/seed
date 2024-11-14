@@ -56,6 +56,45 @@ export class InvoiceResponse extends Message<InvoiceResponse> {
 }
 
 /**
+ * @generated from message com.seed.payments.v1alpha.DecodeInvoiceRequest
+ */
+export class DecodeInvoiceRequest extends Message<DecodeInvoiceRequest> {
+  /**
+   * String representation of a bolt11 invoice payment request. 
+   *
+   * @generated from field: string payreq = 1;
+   */
+  payreq = "";
+
+  constructor(data?: PartialMessage<DecodeInvoiceRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.payments.v1alpha.DecodeInvoiceRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "payreq", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DecodeInvoiceRequest {
+    return new DecodeInvoiceRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DecodeInvoiceRequest {
+    return new DecodeInvoiceRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DecodeInvoiceRequest {
+    return new DecodeInvoiceRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DecodeInvoiceRequest | PlainMessage<DecodeInvoiceRequest> | undefined, b: DecodeInvoiceRequest | PlainMessage<DecodeInvoiceRequest> | undefined): boolean {
+    return proto3.util.equals(DecodeInvoiceRequest, a, b);
+  }
+}
+
+/**
  * The request to create a local invoice. Used to be paid.
  *
  * @generated from message com.seed.payments.v1alpha.CreateInvoiceRequest

@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateInvoiceRequest, GetLnAddressRequest, InvoiceResponse, ListInvoicesRequest, ListInvoicesResponse, LNAddress, PayInvoiceRequest, RequestLud6InvoiceRequest, UpdateLNAddressRequest } from "./invoices_pb";
+import { CreateInvoiceRequest, DecodeInvoiceRequest, GetLnAddressRequest, Invoice, InvoiceResponse, ListInvoicesRequest, ListInvoicesResponse, LNAddress, PayInvoiceRequest, RequestLud6InvoiceRequest, UpdateLNAddressRequest } from "./invoices_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -40,7 +40,7 @@ export const Invoices = {
       kind: MethodKind.Unary,
     },
     /**
-     * PayInvoice Pays a bolt11 invoice.
+     * ListPaidInvoices Pays a bolt11 invoice.
      *
      * @generated from rpc com.seed.payments.v1alpha.Invoices.ListPaidInvoices
      */
@@ -51,12 +51,23 @@ export const Invoices = {
       kind: MethodKind.Unary,
     },
     /**
-     * PayInvoice Pays a bolt11 invoice.
+     * DecodeInvoice decodes an invoice .
      *
-     * @generated from rpc com.seed.payments.v1alpha.Invoices.ListReceivednvoices
+     * @generated from rpc com.seed.payments.v1alpha.Invoices.DecodeInvoice
      */
-    listReceivednvoices: {
-      name: "ListReceivednvoices",
+    decodeInvoice: {
+      name: "DecodeInvoice",
+      I: DecodeInvoiceRequest,
+      O: Invoice,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * ListReceivedInvoices Lists received payments.
+     *
+     * @generated from rpc com.seed.payments.v1alpha.Invoices.ListReceivedInvoices
+     */
+    listReceivedInvoices: {
+      name: "ListReceivedInvoices",
       I: ListInvoicesRequest,
       O: ListInvoicesResponse,
       kind: MethodKind.Unary,

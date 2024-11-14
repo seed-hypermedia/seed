@@ -17,11 +17,14 @@ service Invoices {
   // PayInvoice Pays a bolt11 invoice.
   rpc PayInvoice(PayInvoiceRequest) returns (google.protobuf.Empty);
 
-  // PayInvoice Pays a bolt11 invoice.
+  // ListPaidInvoices Pays a bolt11 invoice.
   rpc ListPaidInvoices(ListInvoicesRequest) returns (ListInvoicesResponse);
+
+  // DecodeInvoice decodes an invoice .
+  rpc DecodeInvoice(DecodeInvoiceRequest) returns (Invoice);
   
-  // PayInvoice Pays a bolt11 invoice.
-  rpc ListReceivednvoices(ListInvoicesRequest) returns (ListInvoicesResponse);
+  // ListReceivedInvoices Lists received payments.
+  rpc ListReceivedInvoices(ListInvoicesRequest) returns (ListInvoicesResponse);
   
 }
 
@@ -48,6 +51,11 @@ message InvoiceResponse{
 
   // Payment Hash of the invoice.
   string payment_hash = 2;
+}
+
+message DecodeInvoiceRequest {
+  // String representation of a bolt11 invoice payment request. 
+  string payreq = 1;
 }
 
 // The request to create a local invoice. Used to be paid.

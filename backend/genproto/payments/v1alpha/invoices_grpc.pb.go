@@ -30,10 +30,12 @@ type InvoicesClient interface {
 	CreateInvoice(ctx context.Context, in *CreateInvoiceRequest, opts ...grpc.CallOption) (*InvoiceResponse, error)
 	// PayInvoice Pays a bolt11 invoice.
 	PayInvoice(ctx context.Context, in *PayInvoiceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// PayInvoice Pays a bolt11 invoice.
+	// ListPaidInvoices Pays a bolt11 invoice.
 	ListPaidInvoices(ctx context.Context, in *ListInvoicesRequest, opts ...grpc.CallOption) (*ListInvoicesResponse, error)
-	// PayInvoice Pays a bolt11 invoice.
-	ListReceivednvoices(ctx context.Context, in *ListInvoicesRequest, opts ...grpc.CallOption) (*ListInvoicesResponse, error)
+	// DecodeInvoice decodes an invoice .
+	DecodeInvoice(ctx context.Context, in *DecodeInvoiceRequest, opts ...grpc.CallOption) (*Invoice, error)
+	// ListReceivedInvoices Lists received payments.
+	ListReceivedInvoices(ctx context.Context, in *ListInvoicesRequest, opts ...grpc.CallOption) (*ListInvoicesResponse, error)
 }
 
 type invoicesClient struct {
@@ -71,9 +73,18 @@ func (c *invoicesClient) ListPaidInvoices(ctx context.Context, in *ListInvoicesR
 	return out, nil
 }
 
-func (c *invoicesClient) ListReceivednvoices(ctx context.Context, in *ListInvoicesRequest, opts ...grpc.CallOption) (*ListInvoicesResponse, error) {
+func (c *invoicesClient) DecodeInvoice(ctx context.Context, in *DecodeInvoiceRequest, opts ...grpc.CallOption) (*Invoice, error) {
+	out := new(Invoice)
+	err := c.cc.Invoke(ctx, "/com.seed.payments.v1alpha.Invoices/DecodeInvoice", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *invoicesClient) ListReceivedInvoices(ctx context.Context, in *ListInvoicesRequest, opts ...grpc.CallOption) (*ListInvoicesResponse, error) {
 	out := new(ListInvoicesResponse)
-	err := c.cc.Invoke(ctx, "/com.seed.payments.v1alpha.Invoices/ListReceivednvoices", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/com.seed.payments.v1alpha.Invoices/ListReceivedInvoices", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -91,10 +102,12 @@ type InvoicesServer interface {
 	CreateInvoice(context.Context, *CreateInvoiceRequest) (*InvoiceResponse, error)
 	// PayInvoice Pays a bolt11 invoice.
 	PayInvoice(context.Context, *PayInvoiceRequest) (*emptypb.Empty, error)
-	// PayInvoice Pays a bolt11 invoice.
+	// ListPaidInvoices Pays a bolt11 invoice.
 	ListPaidInvoices(context.Context, *ListInvoicesRequest) (*ListInvoicesResponse, error)
-	// PayInvoice Pays a bolt11 invoice.
-	ListReceivednvoices(context.Context, *ListInvoicesRequest) (*ListInvoicesResponse, error)
+	// DecodeInvoice decodes an invoice .
+	DecodeInvoice(context.Context, *DecodeInvoiceRequest) (*Invoice, error)
+	// ListReceivedInvoices Lists received payments.
+	ListReceivedInvoices(context.Context, *ListInvoicesRequest) (*ListInvoicesResponse, error)
 }
 
 // UnimplementedInvoicesServer should be embedded to have forward compatible implementations.
@@ -110,8 +123,11 @@ func (UnimplementedInvoicesServer) PayInvoice(context.Context, *PayInvoiceReques
 func (UnimplementedInvoicesServer) ListPaidInvoices(context.Context, *ListInvoicesRequest) (*ListInvoicesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListPaidInvoices not implemented")
 }
-func (UnimplementedInvoicesServer) ListReceivednvoices(context.Context, *ListInvoicesRequest) (*ListInvoicesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListReceivednvoices not implemented")
+func (UnimplementedInvoicesServer) DecodeInvoice(context.Context, *DecodeInvoiceRequest) (*Invoice, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DecodeInvoice not implemented")
+}
+func (UnimplementedInvoicesServer) ListReceivedInvoices(context.Context, *ListInvoicesRequest) (*ListInvoicesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListReceivedInvoices not implemented")
 }
 
 // UnsafeInvoicesServer may be embedded to opt out of forward compatibility for this service.
@@ -179,20 +195,38 @@ func _Invoices_ListPaidInvoices_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Invoices_ListReceivednvoices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Invoices_DecodeInvoice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DecodeInvoiceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InvoicesServer).DecodeInvoice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/com.seed.payments.v1alpha.Invoices/DecodeInvoice",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InvoicesServer).DecodeInvoice(ctx, req.(*DecodeInvoiceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Invoices_ListReceivedInvoices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListInvoicesRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(InvoicesServer).ListReceivednvoices(ctx, in)
+		return srv.(InvoicesServer).ListReceivedInvoices(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/com.seed.payments.v1alpha.Invoices/ListReceivednvoices",
+		FullMethod: "/com.seed.payments.v1alpha.Invoices/ListReceivedInvoices",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(InvoicesServer).ListReceivednvoices(ctx, req.(*ListInvoicesRequest))
+		return srv.(InvoicesServer).ListReceivedInvoices(ctx, req.(*ListInvoicesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -217,8 +251,12 @@ var Invoices_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Invoices_ListPaidInvoices_Handler,
 		},
 		{
-			MethodName: "ListReceivednvoices",
-			Handler:    _Invoices_ListReceivednvoices_Handler,
+			MethodName: "DecodeInvoice",
+			Handler:    _Invoices_DecodeInvoice_Handler,
+		},
+		{
+			MethodName: "ListReceivedInvoices",
+			Handler:    _Invoices_ListReceivedInvoices_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

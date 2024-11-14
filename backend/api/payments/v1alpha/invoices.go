@@ -66,7 +66,7 @@ func (srv *Server) ListPaidInvoices(ctx context.Context, in *payments.ListInvoic
 }
 
 // ListReceivednvoices returns the incoming invoices that the wallet represented by walletID has received.
-func (srv *Server) ListReceivednvoices(ctx context.Context, in *payments.ListInvoicesRequest) (*payments.ListInvoicesResponse, error) {
+func (srv *Server) ListReceivedInvoices(ctx context.Context, in *payments.ListInvoicesRequest) (*payments.ListInvoicesResponse, error) {
 	conn, release, err := srv.pool.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -148,6 +148,24 @@ func (srv *Server) RequestLud6Invoice(ctx context.Context, in *payments.RequestL
 	}
 	invoice.PaymentHash = hex.EncodeToString((*decodedInvoice.PaymentHash)[:])
 	return invoice, nil
+}
+
+// DecodeInvoice tries to generate an invoice locally.
+func (srv *Server) DecodeInvoice(_ context.Context, in *payments.DecodeInvoiceRequest) (*payments.Invoice, error) {
+	invoice, err := lndhub.DecodeInvoice(in.Payreq)
+	if err != nil {
+		publicError := fmt.Errorf("couldn't decode invoice [%s]: %w", in.Payreq, err)
+		srv.log.Debug("couldn't decode invoice", zap.Error(err))
+		return nil, publicError
+	}
+	ret := &payments.Invoice{
+		PaymentHash:    hex.EncodeToString(invoice.PaymentHash[:]),
+		PaymentRequest: in.Payreq,
+		Description:    *(invoice.Description),
+		Amount:         int64(invoice.MilliSat.ToSatoshis()),
+		Destination:    hex.EncodeToString(invoice.Destination.SerializeCompressed()[:]),
+	}
+	return ret, nil
 }
 
 // CreateInvoice tries to generate an invoice locally.
