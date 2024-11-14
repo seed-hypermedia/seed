@@ -209,7 +209,7 @@ func (s *Srv) scan(timeout time.Duration) {
 						stat.LastP2PError = lastCheck.Format("2006-01-02 15:04:05") + " " + err.Error()
 						s.log.Warn("CheckP2P error", zap.Error(checkError))
 						if !stat.LastOKNotificationSent.Before(stat.LastKONotificationSent) && s.discordClient != nil {
-							if err := s.discordClient.SendMessage("Server " + site + " has DNS problems: " + err.Error()); err != nil {
+							if err := s.discordClient.SendMessage("Server " + site + " has P2P problems: ```" + err.Error() + "```"); err != nil {
 								s.log.Warn("Could not send KO Discord notification", zap.Error(err))
 							} else {
 								stat.LastKONotificationSent = lastCheck
