@@ -35,7 +35,9 @@ function EmbedWrapper({
       width="100%"
       borderRightWidth={hideBorder ? 0 : 3}
       borderRightColor={hideBorder ? "$colorTransparent" : "$brand8"}
-      onPress={() => {
+      onPress={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
         navigate(
           createWebHMUrl(id.type, id.uid, {
             hostname: null,
