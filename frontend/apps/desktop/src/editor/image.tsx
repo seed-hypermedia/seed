@@ -139,6 +139,7 @@ const Render = (
   return (
     <MediaRender
       block={block}
+      hideForm={!!block.props.url}
       editor={editor}
       mediaType="image"
       submit={submitImage}

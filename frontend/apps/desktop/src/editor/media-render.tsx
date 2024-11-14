@@ -68,6 +68,7 @@ interface RenderProps {
     fileName: any
     setFileName: any
   }>
+  hideForm?: boolean
 }
 
 export const MediaRender: React.FC<RenderProps> = ({
@@ -78,6 +79,7 @@ export const MediaRender: React.FC<RenderProps> = ({
   DisplayComponent,
   CustomInput,
   icon,
+  hideForm,
 }) => {
   const [selected, setSelected] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -169,7 +171,7 @@ export const MediaRender: React.FC<RenderProps> = ({
 
   return (
     <YStack>
-      {block.props.url ? (
+      {hideForm ? (
         <MediaComponent
           block={block}
           editor={editor}

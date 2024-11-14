@@ -3,6 +3,7 @@ import {
   RiCodeBoxFill,
   RiFile2Fill,
   RiFunctions,
+  RiGridFill,
   RiHeading,
   RiImage2Fill,
   RiMessage2Fill,
@@ -221,6 +222,33 @@ export const slashMenuItems = [
           type: 'nostr',
           props: {
             url: '',
+          },
+        } as PartialBlock<HMBlockSchema>,
+        true,
+      )
+      const {state, view} = editor._tiptapEditor
+      view.dispatch(state.tr.scrollIntoView())
+    },
+  },
+  {
+    name: 'Query',
+    aliases: ['query'],
+    group: 'Web embeds',
+    icon: <RiGridFill size={18} />,
+    hint: 'Insert a Query Block',
+    execute: (
+      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
+    ) => {
+      insertOrUpdateBlock(
+        editor,
+        {
+          type: 'query',
+          props: {
+            style: 'Card',
+            columnCount: '3',
+            queryLimit: '',
+            queryIncludes: '',
+            querySort: '',
           },
         } as PartialBlock<HMBlockSchema>,
         true,
