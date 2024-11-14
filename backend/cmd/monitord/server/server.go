@@ -184,9 +184,6 @@ func (s *Srv) scan(timeout time.Duration) {
 					lastCheck := time.Now().UTC()
 					stat.LastCheck = lastCheck.Format("2006-01-02 15:04:05")
 					info, err := s.checkSeedAddrs(ctx, site, "")
-					s.log.Info("CheckSeedAddrs done",
-						zap.String("LastKONotificationSent", stat.LastKONotificationSent.String()),
-						zap.String("LastOKNotificationSent", stat.LastOKNotificationSent.String()))
 					if err != nil {
 						checkError := fmt.Errorf("Could not get site [%s] address from seed config page: %w", site, err)
 						stat.StatusDNS = err.Error()
