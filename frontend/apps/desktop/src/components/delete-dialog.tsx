@@ -1,7 +1,13 @@
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
 import {useDeleteKey} from '@/models/daemon'
 import {useListSite} from '@/models/documents'
-import {hmId, HYPERMEDIA_ENTITY_TYPES, UnpackedHypermediaId} from '@shm/shared'
+import {
+  getDocumentTitle,
+  getMetadataName,
+  hmId,
+  HMMetadata,
+  UnpackedHypermediaId,
+} from '@shm/shared'
 import {
   AlertDialog,
   AlertDialogContentProps,
@@ -9,6 +15,7 @@ import {
   Button,
   HeadingProps,
   ParagraphProps,
+  SizableText,
   Spinner,
   toast,
   XStack,
@@ -16,7 +23,7 @@ import {
   YStack,
 } from '@shm/ui'
 import {ReactNode} from 'react'
-import {useDeleteEntities} from '../models/entities'
+import {useDeleteEntities, useEntity} from '../models/entities'
 import {useAppDialog} from './dialog'
 
 export type DeleteDialogProps = AlertDialogProps & {
@@ -37,10 +44,10 @@ export function useDeleteDialog() {
 }
 
 export function DeleteEntityDialog({
-  input: {id, title, onSuccess},
+  input: {id, onSuccess},
   onClose,
 }: {
-  input: {id: UnpackedHypermediaId; title?: string; onSuccess?: () => void}
+  input: {id: UnpackedHypermediaId; onSuccess?: () => void}
   onClose?: () => void
 }) {
   const list = useListSite(id)
@@ -51,7 +58,6 @@ export function DeleteEntityDialog({
       if (id.path.length === item.path.length) return false
       return item.path.join('/').startsWith(id.path.join('/'))
     }) || []
-  console.log(`== ~ DeleteEntityDialog`, id, title, childDocs)
   const deleteEntity = useDeleteEntities({
     onSuccess: () => {
       toast.success(`Successfully deleted ${childDocs.length + 1} documents`)
@@ -59,14 +65,49 @@ export function DeleteEntityDialog({
     },
   })
   const cap = useMyCapability(id)
+  const doc = useEntity(id)
 
+  if (doc.isLoading) return <Spinner />
+  if (doc.isError || !doc.data?.document)
+    return (
+      <AlertDialog.Description theme="red">
+        {doc.error || 'Could not load document'}
+      </AlertDialog.Description>
+    )
   return (
     <YStack gap="$4" padding="$4" borderRadius="$3" maxWidth={440}>
-      <AlertDialog.Title>Delete "{title}"</AlertDialog.Title>
+      <AlertDialog.Title>
+        Delete "{getDocumentTitle(doc.data?.document)}"
+      </AlertDialog.Title>
       <AlertDialog.Description>
-        Are you sure you want to delete this? (TODO: better message, deletion is
-        not real. children deleted too)
+        Are you sure you want to delete{' '}
+        {childDocs.length ? 'these documents' : 'this document'}? This may break
+        links that refer to the current{' '}
+        {childDocs.length ? 'versions' : 'version'}.
       </AlertDialog.Description>
+      <AlertDialog.Description>
+        {childDocs.length ? 'They' : 'It'} will be removed from your directory
+        but the content will remain on your computer, and other people may still
+        have it saved.
+      </AlertDialog.Description>
+      <AlertDialog.Description color="$color9">
+        Note: This feature is a work-in-progress. For now, the raw document data
+        will continue to be synced with other peers. Soon we will avoid that.
+        Eventually, you will be able to recover deleted documents.
+      </AlertDialog.Description>
+      <YStack gap="$3" marginVertical="$4">
+        <DeletionListItem
+          metadata={doc.data.document.metadata}
+          path={id.path}
+        />
+        {childDocs.map((item) => (
+          <DeletionListItem
+            key={item.path?.join('/')}
+            metadata={item.metadata}
+            path={item.path}
+          />
+        ))}
+      </YStack>
       <XStack gap="$3" justifyContent="flex-end">
         <AlertDialog.Cancel asChild>
           <Button onPress={onClose} chromeless>
@@ -92,11 +133,30 @@ export function DeleteEntityDialog({
               })
             }}
           >
-            {`Delete ${HYPERMEDIA_ENTITY_TYPES[id.type]}`}
+            {childDocs.length ? 'Delete Documents' : 'Delete Document'}
           </Button>
         </AlertDialog.Action>
       </XStack>
     </YStack>
+  )
+}
+
+function DeletionListItem({
+  metadata,
+  path,
+}: {
+  metadata: HMMetadata
+  path: string[] | null
+}) {
+  return (
+    <XStack jc="space-between" gap="$3">
+      <SizableText color="$red11" textDecorationLine="line-through">
+        {getMetadataName(metadata)}
+      </SizableText>
+      <SizableText color="$red9" textDecorationLine="line-through">
+        {path?.join('/') || '?'}
+      </SizableText>
+    </XStack>
   )
 }
 

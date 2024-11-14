@@ -22,7 +22,6 @@ import {
   createSiteUrl,
   createWebHMUrl,
   displayHostname,
-  getMetadataName,
   hmBlocksToEditorContent,
   hmId,
 } from '@shm/shared'
@@ -151,16 +150,14 @@ export function DocOptionsButton() {
     })
   }
   const document = doc.data?.document
-  if (document && canEditDoc && route.id.path?.length) {
+  if (document && canEditDoc && route.id.path?.length && !route.id.version) {
     menuItems.push({
       key: 'delete',
       label: 'Delete Document',
       icon: Trash,
       onPress: () => {
-        const title = getMetadataName(document.metadata)
         deleteEntity.open({
           id: route.id,
-          title,
           onSuccess: () => {
             dispatch({
               type: 'backplace',
