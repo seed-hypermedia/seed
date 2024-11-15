@@ -162,8 +162,12 @@ func (srv *Server) DecodeInvoice(_ context.Context, in *payments.DecodeInvoiceRe
 		PaymentHash:    hex.EncodeToString(invoice.PaymentHash[:]),
 		PaymentRequest: in.Payreq,
 		Description:    *(invoice.Description),
-		Amount:         int64(invoice.MilliSat.ToSatoshis()),
 		Destination:    hex.EncodeToString(invoice.Destination.SerializeCompressed()[:]),
+	}
+	if invoice.MilliSat == nil {
+		ret.Amount = 0
+	} else {
+		ret.Amount = int64(invoice.MilliSat.ToSatoshis())
 	}
 	return ret, nil
 }
