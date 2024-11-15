@@ -108,22 +108,21 @@ export const SideMenuPositioner = <
 
   // Add right offset if the node is inside a list or blockquote
   let rightOffset = useMemo(() => {
+    let offset = 8
     if (block && referencePos.current) {
-      let offset = 16
       const ttEditor = props.editor._tiptapEditor
       const {view} = ttEditor
       const {state} = view
       state.doc.descendants((node, pos) => {
         if (node.attrs.id === block.id) {
           const {group} = getGroupInfoFromPos(pos, state)
-          const listLevel = parseInt(group.attrs.listLevel)
-          if (group.attrs.listType !== 'div') offset = offset * (listLevel + 1)
+
+          offset = group.attrs.listType !== 'Group' ? 20 : 8
           return
         }
       })
-      return offset
     }
-    return 8
+    return offset
   }, [referencePos.current])
 
   return (
