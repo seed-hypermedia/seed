@@ -432,9 +432,9 @@ export function DraftHeader({
     return s.context.metadata.icon
   })
 
-  const cover = useSelector(draftActor, (s) => {
-    return s.context.metadata.cover
-  })
+  const prevDoc = useSelector(draftActor, (s) => s.context.entity.document)
+
+  console.log(`== ~ prevDoc:`, prevDoc)
 
   const input = useRef<HTMLTextAreaElement | null>(null)
 
@@ -549,7 +549,7 @@ export function DraftHeader({
                 icon={Image}
                 size="$1"
                 chromeless
-                onPress={() => setShowCover(true)}
+                onPress={() => setShowCover?.(true)}
               >
                 Add Cover
               </Button>
@@ -598,7 +598,7 @@ export function DraftHeader({
           {route.id?.path?.length ? (
             <XStack marginTop="$3" gap="$3">
               {route.id?.path?.length ? (
-                <PathDraft draftActor={draftActor} />
+                <PathDraft canEditPath={!prevDoc} draftActor={draftActor} />
               ) : null}
             </XStack>
           ) : null}
@@ -688,8 +688,10 @@ function applyTitleResize(target: HTMLTextAreaElement) {
 
 function PathDraft({
   draftActor,
+  canEditPath = true,
 }: {
   draftActor: ActorRefFrom<typeof draftMachine>
+  canEditPath: boolean
 }) {
   const route = useNavRoute()
   if (route.key != 'draft') throw new Error('not a draft')
@@ -793,7 +795,7 @@ function PathDraft({
               Cancel
             </SizableText>
           </>
-        ) : (
+        ) : canEditPath ? (
           <>
             <SizableText
               flexGrow={0}
@@ -810,7 +812,7 @@ function PathDraft({
               Edit
             </SizableText>
           </>
-        )}
+        ) : null}
       </XStack>
     </XStack>
   )
