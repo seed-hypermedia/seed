@@ -28,14 +28,30 @@ export function SelectDropdown<
       disablePreventBodyScroll
     >
       <Select.Trigger size={size} width={width} iconAfter={ChevronDown}>
-        {selectedOption ? (
-          <XStack gap="$2" ai="center">
-            {selectedOption.icon}
-            <SizableText>{selectedOption.label}</SizableText>
-          </XStack>
-        ) : (
-          <SizableText>{placeholder}</SizableText>
-        )}
+        <XStack gap="$2" ai="center" w="100%">
+          {selectedOption ? (
+            <>
+              {selectedOption.icon}
+              <XStack f={1}>
+                <SizableText
+                  textOverflow="ellipsis"
+                  whiteSpace="nowrap"
+                  overflow="hidden"
+                >
+                  {selectedOption.label}
+                </SizableText>
+              </XStack>
+            </>
+          ) : (
+            <SizableText
+              textOverflow="ellipsis"
+              whiteSpace="nowrap"
+              overflow="hidden"
+            >
+              {placeholder}
+            </SizableText>
+          )}
+        </XStack>
       </Select.Trigger>
 
       <Select.Content zIndex="$zIndex.6">
