@@ -195,6 +195,7 @@ function _CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
   let content = null
   let onPress = undefined
   const [isStartingComment, setIsStartingComment] = useState(false)
+  const bgColor = '$color4'
   if (!accounts?.length) return null
   if (draft.isInitialLoading) return null
   if (draft.data || isStartingComment) {
@@ -220,14 +221,14 @@ function _CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
         ai="flex-start"
         margin={0}
         chromeless
-        color="$color9"
+        color="$color8"
         fontSize={17}
-        hoverStyle={{bg: '$color6'}}
-        focusStyle={{bg: '$color6'}}
-        activeStyle={{bg: '$color6'}}
+        bg={bgColor}
+        hoverStyle={{bg: bgColor}}
+        focusStyle={{bg: bgColor, borderWidth: 0}}
+        borderWidth={0}
         // fontStyle="italic"
         h="auto"
-        overflow="auto"
         // icon={
         //   <>
         //     <Plus color="$color7" size={20} />
@@ -249,7 +250,7 @@ function _CommentDraft({docId}: {docId: UnpackedHypermediaId}) {
       // borderColor="$color8"
       minHeight={105}
       onPress={onPress}
-      bg="$color6"
+      bg={bgColor}
     >
       {content}
     </XStack>
