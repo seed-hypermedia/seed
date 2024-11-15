@@ -180,9 +180,9 @@ export function SiteNavigationContent({
 }) {
   const directoryItems = getSiteNavDirectory({id, supportQueries, drafts});
   return (
-    <YStack gap="$3" paddingLeft="$4">
+    <YStack gap="$2.5" paddingLeft="$4">
       {/* <Separator marginVertical="$2" /> */}
-      {outline?.({indented: 0})}
+      <YStack gap="$1.5">{outline?.({indented: 0})}</YStack>
       {/* <Separator marginVertical="$2" /> */}
       {directoryItems
         ? directoryItems.map((doc) => (
