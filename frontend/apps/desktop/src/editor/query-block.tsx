@@ -1,14 +1,28 @@
 import {useAppContext} from '@/app-context'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
-import {ErrorBlock, SizableText, XStack} from '@shm/ui'
+import {
+  BlockContentQueryPlaceholder,
+  Button,
+  ErrorBlock,
+  Pencil,
+  Search,
+  SelectField,
+  SwitchField,
+  TextField,
+  Tooltip,
+  usePopoverState,
+  XStack,
+  YStack,
+} from '@shm/ui'
 import {Fragment} from '@tiptap/pm/model'
-import {MediaContainer} from './media-container'
 
-import {RiGridFill} from 'react-icons/ri'
+import {NodeSelection, TextSelection} from 'prosemirror-state'
+import {useState} from 'react'
 import {Block, BlockNoteEditor} from './blocknote'
-import {createReactBlockSpec} from './blocknote/react'
-import {DisplayComponentProps, MediaRender} from './media-render'
+import {MultipleNodeSelection} from './blocknote/core/extensions/SideMenu/MultipleNodeSelection'
+import {createReactBlockSpec, useEditorSelectionChange} from './blocknote/react'
 import {HMBlockSchema} from './schema'
+import {getNodesInSelection} from './utils'
 
 function BlockError() {
   return <ErrorBlock message="Failed to load this Embedded document" />
@@ -60,39 +74,159 @@ function Render(
   block: Block<HMBlockSchema>,
   editor: BlockNoteEditor<HMBlockSchema>,
 ) {
+  const [selected, setSelected] = useState(false)
   const {queryClient} = useAppContext()
   const gwUrl = useGatewayUrlStream()
+  const tiptapEditor = editor._tiptapEditor
+
+  function updateSelection() {
+    const {view} = tiptapEditor
+    const {selection} = view.state
+    let isSelected = false
+
+    if (selection instanceof NodeSelection) {
+      // If the selection is a NodeSelection, check if this block is the selected node
+      const selectedNode = view.state.doc.resolve(selection.from).parent
+      if (
+        selectedNode &&
+        selectedNode.attrs &&
+        selectedNode.attrs.id === block.id
+      ) {
+        isSelected = true
+      }
+    } else if (
+      selection instanceof TextSelection ||
+      selection instanceof MultipleNodeSelection
+    ) {
+      // If it's a TextSelection or MultipleNodeSelection (TODO Fix for drag), check if this block's node is within the selection range
+      const selectedNodes = getNodesInSelection(view)
+      isSelected = selectedNodes.some(
+        (node) => node.attrs && node.attrs.id === block.id,
+      )
+    }
+
+    setSelected(isSelected)
+  }
+
+  useEditorSelectionChange(editor, updateSelection)
+
   return (
-    <MediaRender
-      block={block}
-      hideForm={!!block.props.queryIncludes}
-      editor={editor}
-      mediaType="query"
-      DisplayComponent={display}
-      icon={<RiGridFill />}
-    />
+    <YStack
+      // @ts-ignore
+      contentEditable={false}
+      group="item"
+      borderColor={selected ? '$color8' : '$colorTransparent'}
+      borderWidth={3}
+      borderRadius="$2"
+    >
+      <QuerySettings />
+      <BlockContentQueryPlaceholder />
+    </YStack>
   )
 }
 
-const display = ({
-  editor,
-  block,
-  assign,
-  selected,
-  setSelected,
-}: DisplayComponentProps) => {
+function QuerySettings() {
+  const popoverState = usePopoverState()
+  const [search, setSearch] = useState('')
+
   return (
-    <MediaContainer
-      editor={editor}
-      block={block}
-      mediaType="query"
-      selected={selected}
-      setSelected={setSelected}
-      assign={assign}
-    >
-      <XStack height="$5" width="100%" jc="center" ai="center">
-        <SizableText>Query</SizableText>
-      </XStack>
-    </MediaContainer>
+    <>
+      <YStack
+        position="absolute"
+        zIndex="$zIndex.2"
+        // pointerEvents={popoverState.open ? 'none' : undefined}
+        onPress={
+          popoverState.open
+            ? (e) => {
+                e.stopPropagation()
+                popoverState.onOpenChange(false)
+              }
+            : undefined
+        }
+        y={8}
+        width="100%"
+        jc="flex-end"
+        ai="flex-end"
+        opacity={popoverState.open ? 1 : 0}
+        padding="$2"
+        gap="$2"
+        $group-item-hover={{opacity: 1}}
+      >
+        <Tooltip content="Edit Query">
+          <Button
+            size="$2"
+            onPress={() => popoverState.onOpenChange(!popoverState.open)}
+            icon={Pencil}
+            elevation="$2"
+          />
+        </Tooltip>
+
+        {popoverState.open ? (
+          <>
+            <YStack
+              p="$4"
+              bg="$background"
+              borderRadius="$4"
+              zi="$zIndex.3"
+              overflow="hidden"
+              w="100%"
+              maxWidth={250}
+              onPress={(e) => {
+                console.log('CLICK MODAL')
+                e.stopPropagation()
+              }}
+              gap="$4"
+              zIndex="$zIndex.3"
+              animation="fast"
+              enterStyle={{opacity: 0, y: -10}}
+              exitStyle={{opacity: 0, y: 10}}
+              elevation="$3"
+            >
+              <TextField
+                id="query-search"
+                label="Query"
+                Icon={Search}
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Search Query"
+              />
+              <SwitchField label="Show all Children" id="mode" />
+              <SelectField
+                size="$2"
+                value="Card"
+                onValue={(value) => {
+                  console.log(value)
+                }}
+                label="View"
+                id="view"
+                options={[
+                  {
+                    label: 'Card',
+                    value: 'Card',
+                  },
+                  {
+                    label: 'List',
+                    value: 'List',
+                  },
+                ]}
+              />
+            </YStack>
+          </>
+        ) : null}
+      </YStack>
+      {popoverState.open ? (
+        <XStack
+          zIndex="$zIndex.1"
+          onPress={() => popoverState.onOpenChange(false)}
+          fullscreen
+          // @ts-ignore
+          position="fixed"
+          top={0}
+          bottom={0}
+          right={0}
+          left={0}
+        />
+      ) : null}
+    </>
   )
 }

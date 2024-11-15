@@ -19,6 +19,7 @@ export * from "./discussion";
 export * from "./document-content";
 export * from "./document-content-constants";
 export * from "./donate-button";
+export * from "./entity-card";
 export * from "./footer";
 export * from "./form-fields";
 export * from "./heading";

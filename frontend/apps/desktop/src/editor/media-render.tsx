@@ -402,8 +402,11 @@ function MediaForm({
   return (
     <YStack
       position="relative"
-      borderColor={drag ? '$color8' : selected ? '$color8' : '$color6'}
-      borderWidth={4}
+      borderColor={
+        drag ? '$color8' : selected ? '$color8' : '$colorTransparent'
+      }
+      borderWidth={3}
+      backgroundColor={selected ? '$color4' : '$color4'}
       borderRadius="$2"
       borderStyle={drag ? 'dashed' : 'solid'}
       outlineWidth={0}
@@ -429,7 +432,7 @@ function MediaForm({
       <XStack
         padding="$4"
         alignItems="center"
-        backgroundColor="$background"
+        // backgroundColor="$background"
         borderRadius="$2"
       >
         {mediaType !== 'file' ? (

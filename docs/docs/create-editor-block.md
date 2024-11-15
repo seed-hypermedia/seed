@@ -5,3 +5,6 @@
     - define render block
 - include block in editor schema
 - add block to slash menu items
+- create display version of block
+- create placeholder (loading state) for block
+- create settings component in the editor (if needed)
