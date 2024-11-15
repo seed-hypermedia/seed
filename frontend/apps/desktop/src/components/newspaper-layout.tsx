@@ -6,9 +6,8 @@ import {
   sortNewsEntries,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {BannerNewspaperCard, Container, NewspaperCard} from '@shm/ui'
+import {BannerNewspaperCard, Container, NewspaperCard, XStack} from '@shm/ui'
 import {AccountsMetadata} from '@shm/ui/src/face-pile'
-import {XStack} from 'tamagui'
 
 export function NewspaperLayout({
   id,

@@ -12,6 +12,7 @@ import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {hmId} from '@shm/shared'
 import {
+  Button,
   DocumentOutline,
   DraftOutline,
   SiteNavigationContent,
@@ -21,7 +22,6 @@ import {
 } from '@shm/ui'
 import {MoreHorizontal, Plus} from '@tamagui/lucide-icons'
 import {ReactNode} from 'react'
-import {Button} from 'tamagui'
 import {ImportDropdownButton} from './import-doc-button'
 
 export function SiteNavigation() {

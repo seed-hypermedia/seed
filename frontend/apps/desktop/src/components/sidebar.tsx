@@ -4,7 +4,16 @@ import {useFavorites} from '@/models/favorites'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {getDocumentTitle, hmId} from '@shm/shared'
-import {Button, Contact, HMIcon, SmallListItem, Tooltip} from '@shm/ui'
+import {
+  Button,
+  Contact,
+  HMIcon,
+  SizableText,
+  SmallListItem,
+  Tooltip,
+  XStack,
+  YStack,
+} from '@shm/ui'
 import {
   ChevronDown,
   ChevronRight,
@@ -13,7 +22,6 @@ import {
   UserPlus2,
 } from '@tamagui/lucide-icons'
 import React, {memo} from 'react'
-import {SizableText, XStack, YStack} from 'tamagui'
 import {openAddAccountWizard} from './create-account'
 import {GenericSidebarContainer} from './sidebar-base'
 

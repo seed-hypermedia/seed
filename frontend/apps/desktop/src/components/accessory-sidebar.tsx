@@ -1,8 +1,15 @@
 import {dispatchScroll} from '@/editor/editor-on-scroll-stream'
-import {ScrollView, SizableText, Tooltip, XStack, YStack} from '@shm/ui'
+import {
+  Button,
+  ScrollView,
+  SizableText,
+  Tooltip,
+  useTheme,
+  XStack,
+  YStack,
+} from '@shm/ui'
 import {ComponentProps} from 'react'
 import {Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
-import {Button, useTheme} from 'tamagui'
 
 export function AccessoryContainer({
   children,

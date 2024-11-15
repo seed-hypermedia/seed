@@ -28,6 +28,7 @@ import {
   UIAvatar,
   View,
   XStack,
+  YStack,
   copyUrlToClipboardWithFeedback,
   useStream,
 } from '@shm/ui'
@@ -38,7 +39,6 @@ import {
   Pencil,
   Reply,
 } from '@tamagui/lucide-icons'
-import {YStack} from 'tamagui'
 import {useAppContext} from '../app-context'
 import type {CommentGroup} from '../models/comments'
 import {

@@ -12,8 +12,15 @@ import {
   getAccountName,
   hmId,
 } from '@shm/shared'
-import {Button, Draft, HMIcon, Version} from '@shm/ui'
-import {SizableText, XStack, YStack} from 'tamagui'
+import {
+  Button,
+  Draft,
+  HMIcon,
+  SizableText,
+  Version,
+  XStack,
+  YStack,
+} from '@shm/ui'
 import {AccessoryContainer} from './accessory-sidebar'
 
 export function VersionsPanel({
