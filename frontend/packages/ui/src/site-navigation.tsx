@@ -108,7 +108,7 @@ export function getSiteNavDirectory({
       draft.id.path.join("/").startsWith(id.path ? id.path.join("/") : "") &&
       draft.id.path.length === (id.path?.length || 0) + 1
   );
-  const idPath = id.path;
+  const idPath = id.path || [];
   const publishedIds = new Set(
     directory?.results.map((doc) => hmId("d", doc.account, {path: doc.path}).id)
   );

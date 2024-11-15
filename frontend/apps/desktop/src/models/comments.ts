@@ -184,7 +184,6 @@ export function useCommentEditor(
   const grpcClient = useGRPCClient()
   const {inlineMentionsData, inlineMentionsQuery} = useInlineMentions()
   function initDraft() {
-    console.log('== initDraft', initCommentDraft, readyEditor.current)
     if (!readyEditor.current || !initCommentDraft) return
     const editor = readyEditor.current
     const editorBlocks = hmBlocksToEditorContent(initCommentDraft.blocks, {
