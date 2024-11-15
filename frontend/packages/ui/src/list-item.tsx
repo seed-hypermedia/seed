@@ -102,27 +102,29 @@ export function SmallListItem({
       backgroundColor={active ? activeBg : "$colorTransparent"}
       hoverStyle={
         active
-          ? {backgroundColor: activeBg, cursor: "default"}
-          : {cursor: "default"}
+          ? {backgroundColor: "$brand11", cursor: "default"}
+          : {backgroundColor: "$color4", cursor: "default"}
       }
       cursor="default"
       userSelect="none"
-      gap="$2"
+      // gap="$2"
       group="item"
       color={color || "$gray12"}
       title={undefined}
       borderRadius="$2"
       iconAfter={
-        iconAfter || (
+        iconAfter || rightHover || menuItems ? (
           <>
-            <XStack opacity={0} $group-item-hover={{opacity: 1}}>
-              {rightHover}
-            </XStack>
+            {rightHover ? (
+              <XStack opacity={0} $group-item-hover={{opacity: 1}}>
+                {rightHover}
+              </XStack>
+            ) : null}
             {menuItems ? (
               <OptionsDropdown hiddenUntilItemHover menuItems={menuItems} />
             ) : null}
           </>
-        )
+        ) : null
       }
       {...props}
     >
@@ -144,7 +146,7 @@ export function SmallListItem({
           whiteSpace="nowrap"
           width="100%"
           overflow="hidden"
-          size="$3"
+          size="$2"
           color={color || "$gray12"}
           fontWeight={bold ? "bold" : undefined}
           userSelect="none"

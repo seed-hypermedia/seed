@@ -78,7 +78,7 @@ export function NewspaperPage(props: SiteDocumentPayload) {
         </SiteHeader>
         <Container
           clearVerticalSpace
-          maxWidth={1000}
+          maxWidth={1080}
           marginTop={60}
           marginBottom={80}
         >

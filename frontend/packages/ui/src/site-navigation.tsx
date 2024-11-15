@@ -46,7 +46,7 @@ function DocumentSmallListItem({
   const linkProps = useRouteLink(route);
   const color = isPublished === false ? "$color11" : undefined;
   const backgroundColor = isDraft ? "$yellow3" : undefined;
-  const hoverBackgroundColor = isDraft ? "$yellow4" : undefined;
+  const hoverBackgroundColor = isDraft ? "$yellow4" : "$color4";
   if (items)
     return (
       <SmallCollapsableListItem
@@ -355,7 +355,7 @@ export function SiteNavigationWrapper({children}: {children: ReactNode}) {
         $gtSm={{display: "flex"}}
         overflow="scroll"
         height="100%"
-        paddingVertical="$4"
+        // paddingVertical="$4"
       >
         {children}
       </YStack>

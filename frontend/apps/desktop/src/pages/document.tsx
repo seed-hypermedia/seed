@@ -237,7 +237,7 @@ function _MainDocumentPage({
               $gtSm={{display: 'flex'}}
               overflow="scroll"
               height="100%"
-              paddingVertical="$4"
+              // paddingVertical="$4"
             >
               <SiteNavigation />
             </YStack>

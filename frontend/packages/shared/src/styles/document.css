@@ -3,7 +3,7 @@
   max-width: 100%;
   flex: 1 1 0%;
   align-items: flex-start;
-  max-width: 1000px;
+  max-width: 1080px;
   margin: 0 auto 120px auto;
   /* 
   grid-template-columns: 20px minmax(0, 1fr);
@@ -13,7 +13,7 @@
 @media (min-width: 768px) {
   .document-container {
     display: grid !important;
-    grid-template-columns: 240px minmax(0, 1fr);
+    grid-template-columns: 280px minmax(0, 1fr);
     gap: 1rem;
   }
 }
@@ -28,7 +28,7 @@
 .document-aside {
   position: fixed !important;
   top: 150px !important;
-  padding-left: 16px;
+  /* padding-left: 16px; */
   z-index: 30;
   margin-left: -0.5rem;
   display: none !important;

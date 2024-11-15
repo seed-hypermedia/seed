@@ -169,7 +169,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
               className="hide-scrollbar"
               overflow="scroll"
               height="100%"
-              paddingTop={32}
+              // paddingTop={32}
               paddingBottom={32}
             >
               {siteNavigation}

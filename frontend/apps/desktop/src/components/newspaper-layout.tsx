@@ -61,7 +61,7 @@ export function NewspaperLayout({
       clearVerticalSpace
       marginTop={60}
       marginBottom={80}
-      maxWidth={1000}
+      maxWidth={1080}
     >
       {firstItem && (
         <BannerNewspaperCard
