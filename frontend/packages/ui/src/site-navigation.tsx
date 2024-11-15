@@ -70,6 +70,7 @@ function DocumentSmallListItem({
     );
   return (
     <SmallListItem
+      multiline
       bold
       color={color}
       backgroundColor={backgroundColor}
@@ -179,8 +180,10 @@ export function SiteNavigationContent({
 }) {
   const directoryItems = getSiteNavDirectory({id, supportQueries, drafts});
   return (
-    <YStack gap="$2" paddingLeft="$4">
+    <YStack gap="$3" paddingLeft="$4">
+      {/* <Separator marginVertical="$2" /> */}
       {outline?.({indented: 0})}
+      {/* <Separator marginVertical="$2" /> */}
       {directoryItems
         ? directoryItems.map((doc) => (
             <DocumentSmallListItem
@@ -278,6 +281,7 @@ function OutlineNode({
     <>
       <SmallListItem
         key={node.id}
+        multiline
         active={node.id === activeBlockId}
         title={node.title}
         indented={indented}

@@ -73,6 +73,7 @@ export function SmallListItem({
   menuItems,
   isCollapsed,
   onSetCollapsed,
+  multiline = false,
   ...props
 }: ListItemProps & {
   indented?: boolean | number;
@@ -83,6 +84,7 @@ export function SmallListItem({
   menuItems?: MenuItemType[];
   isCollapsed?: boolean | null;
   onSetCollapsed?: (collapsed: boolean) => void;
+  multiline?: boolean;
 }) {
   const theme = useTheme();
   const indent = indented ? (typeof indented === "number" ? indented : 1) : 0;
@@ -128,7 +130,7 @@ export function SmallListItem({
       }
       {...props}
     >
-      <XStack gap="$2" jc="center" f={1} ai="center">
+      <XStack gap="$2" jc="center" f={1} ai="baseline">
         {isValidElement(icon) ? (
           icon
         ) : icon ? (
@@ -142,10 +144,14 @@ export function SmallListItem({
         {children}
         <SizableText
           f={1}
-          textOverflow="ellipsis"
-          whiteSpace="nowrap"
+          {...(multiline
+            ? {numberOfLines: 2}
+            : {
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+              })}
           width="100%"
-          overflow="hidden"
           size="$2"
           color={color || "$gray12"}
           fontWeight={bold ? "bold" : undefined}
