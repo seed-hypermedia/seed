@@ -8,6 +8,7 @@ import {trpc} from '@/trpc'
 import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
 import {
+  Block,
   DEFAULT_GATEWAY_URL,
   DocumentChange,
   HMBlock,
@@ -967,7 +968,7 @@ export function compareBlocksWithMap(
         new DocumentChange({
           op: {
             case: 'replaceBlock',
-            value: serverBlock,
+            value: Block.fromJson(serverBlock),
           },
         }),
       )
@@ -994,7 +995,7 @@ export function compareBlocksWithMap(
           new DocumentChange({
             op: {
               case: 'replaceBlock',
-              value: currentBlockState,
+              value: Block.fromJson(currentBlockState),
             },
           }),
         )
@@ -1060,7 +1061,7 @@ export function compareDraftWithMap(
           new DocumentChange({
             op: {
               case: 'replaceBlock',
-              value: serverBlock,
+              value: Block.fromJson(serverBlock),
             },
           }),
         )
@@ -1091,7 +1092,7 @@ export function compareDraftWithMap(
             new DocumentChange({
               op: {
                 case: 'replaceBlock',
-                value: currentBlockState,
+                value: Block.fromJson(currentBlockState),
               },
             }),
           )

@@ -147,7 +147,7 @@ export type InlineEmbedAnnotation = z.infer<typeof InlineEmbedAnnotationSchema>
 //   type: 'range'
 // }
 
-export const HMAnnotationsSchema = z.array(HMAnnotationSchema)
+export const HMAnnotationsSchema = z.array(HMAnnotationSchema).optional()
 export type HMAnnotations = z.infer<typeof HMAnnotationsSchema>
 
 const blockBaseProperties = {
@@ -160,7 +160,7 @@ const blockBaseProperties = {
 } as const
 
 const textBlockProperties = {
-  text: z.string(),
+  text: z.string().default(''),
   annotations: HMAnnotationsSchema,
 } as const
 
@@ -196,7 +196,7 @@ export const HMBlockCodeSchema = z
         language: z.string().optional(),
       })
       .strict(),
-    text: z.string(),
+    text: z.string().default(''),
   })
   .strict()
 
@@ -205,7 +205,7 @@ export const HMBlockMathSchema = z
     type: z.literal('Math'),
     ...blockBaseProperties,
     attributes: z.object(parentBlockAttributes).strict(),
-    text: z.string(),
+    text: z.string().default(''),
   })
   .strict()
 
@@ -217,7 +217,7 @@ export const HMBlockImageSchema = z
     attributes: z
       .object({
         ...parentBlockAttributes,
-        width: z.string().optional(),
+        width: z.number().optional(),
         name: z.string().optional(),
       })
       .strict(),
@@ -232,7 +232,7 @@ export const HMBlockVideoSchema = z
     attributes: z
       .object({
         ...parentBlockAttributes,
-        width: z.string().optional(),
+        width: z.number().optional(),
         name: z.string().optional(),
       })
       .strict(),
@@ -248,7 +248,7 @@ export const HMBlockFileSchema = z
       .object({
         ...parentBlockAttributes,
         name: z.string().optional(),
-        size: z.string().optional(), // number of bytes, as a string
+        size: z.number().optional(), // number of bytes, as a string
       })
       .strict(),
     link: z.string(),
@@ -352,13 +352,13 @@ export const HMTimestampSchema = z
 
 export const HMDocumentSchema = z
   .object({
-    content: z.array(HMBlockNodeSchema),
-    version: z.string(),
-    account: z.string(),
+    content: z.array(HMBlockNodeSchema).default([]),
+    version: z.string().default(''),
+    account: z.string().default(''),
     authors: z.array(z.string()),
-    path: z.string(),
-    createTime: HMTimestampSchema,
-    updateTime: HMTimestampSchema,
+    path: z.string().default(''),
+    createTime: z.string().default(''),
+    updateTime: z.string().default(''),
     metadata: HMDocumentMetadataSchema,
     genesis: z.string(),
   })

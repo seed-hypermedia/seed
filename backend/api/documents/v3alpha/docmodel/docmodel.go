@@ -21,6 +21,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multibase"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -553,7 +554,10 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 			panic(fmt.Errorf("BUG: failed to find CID for block op ID: %d:%d", opid.Actor, opid.Ts))
 		}
 
-		blkpb := BlockToProto(blk, c)
+		blkpb, err := BlockToProto(blk, c)
+		if err != nil {
+			return nil, err
+		}
 
 		child := &documents.BlockNode{Block: blkpb}
 		appendChild(pair.Parent, child)
@@ -570,13 +574,7 @@ func BlockFromProto(b *documents.Block) (blob.Block, error) {
 		return blob.Block{}, errors.New("block ID is required")
 	}
 
-	var remaining map[string]any
-	if len(b.Attributes) > 0 {
-		remaining = make(map[string]any, len(b.Attributes))
-		for k, v := range b.Attributes {
-			remaining[k] = v
-		}
-	}
+	remaining := b.Attributes.AsMap()
 
 	return blob.Block{
 		ID:          b.Id,
@@ -617,24 +615,25 @@ func annotationsFromProto(in []*documents.Annotation) []blob.Annotation {
 
 // BlockToProto converts our internal block representation into a protobuf block.
 // It's largely the same, but we use CBOR in our permanent data, and we use protobuf in our API.
-func BlockToProto(b blob.Block, revision cid.Cid) *documents.Block {
-	var attrs map[string]string
-	if len(b.Attributes) > 0 {
-		attrs = make(map[string]string, len(b.Attributes))
-		for k, v := range b.Attributes {
-			attrs[k], _ = v.(string)
-		}
-	}
-
-	return &documents.Block{
+func BlockToProto(b blob.Block, revision cid.Cid) (*documents.Block, error) {
+	bpb := &documents.Block{
 		Id:          b.ID,
 		Type:        b.Type,
 		Text:        b.Text,
 		Link:        b.Link,
-		Attributes:  attrs,
+		Attributes:  nil,
 		Annotations: annotationsToProto(b.Annotations),
 		Revision:    revision.String(),
 	}
+	if len(b.Attributes) > 0 {
+		attrs, err := structpb.NewStruct(b.Attributes)
+		if err != nil {
+			return nil, err
+		}
+		bpb.Attributes = attrs
+	}
+
+	return bpb, nil
 }
 
 func annotationsToProto(in []blob.Annotation) []*documents.Annotation {

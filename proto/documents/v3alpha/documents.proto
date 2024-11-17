@@ -4,6 +4,7 @@ package com.seed.documents.v3alpha;
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
 
 option go_package = "seed/backend/genproto/documents/v3alpha;documents";
 
@@ -289,8 +290,15 @@ message Block {
   // Must be a valid URL.
   string link = 7;
 
-  // Arbitrary attributes of the block.
-  map<string, string> attributes = 4;
+  // Remaining type-specific attribtues of the block.
+  // Logically, these attributes are on the same level as the other fields,
+  // i.e. the field `attributes` should not exist,
+  // but because protobuf doesn't support arbitrary fields, and we don't want/need
+  // to specify the types of all the possible fields, we use this approach of storing
+  // the rest of the fields in this open-ended attributes map.
+  // The side-effect of this is that `attributes` map must not have any keys
+  // that conflict with the names of the top-level fields.
+  google.protobuf.Struct attributes = 4;
 
   // Annotation "layers" of the block.
   repeated Annotation annotations = 5;

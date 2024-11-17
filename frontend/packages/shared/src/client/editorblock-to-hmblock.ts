@@ -46,7 +46,7 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
   }
 
   if (parentBlock && editorBlock.props.start) {
-    parentBlock.attributes.start = editorBlock.props.start.toString()
+    parentBlock.attributes.start = editorBlock.props.start
   }
 
   block.text = ''
@@ -110,14 +110,14 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
   if (blockImage && editorBlock.type == 'image') {
     if (editorBlock.props.url) blockImage.link = editorBlock.props.url
     if (editorBlock.props.width)
-      blockImage.attributes.width = String(editorBlock.props.width)
+      blockImage.attributes.width = editorBlock.props.width
   }
 
   const blockVideo = block.type === 'Video' ? block : undefined
   if (blockVideo && editorBlock.type == 'video') {
     if (editorBlock.props.url) blockVideo.link = editorBlock.props.url
     if (editorBlock.props.width)
-      blockVideo.attributes.width = String(editorBlock.props.width)
+      blockVideo.attributes.width = editorBlock.props.width
   }
 
   const blockFile = block.type === 'File' ? block : undefined
@@ -126,7 +126,7 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     if (editorBlock.props.name)
       blockFile.attributes.name = editorBlock.props.name
     if (editorBlock.props.size)
-      blockFile.attributes.size = String(editorBlock.props.size)
+      blockFile.attributes.size = editorBlock.props.size
   }
 
   const blockButton = block.type === 'Button' ? block : undefined
