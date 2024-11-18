@@ -214,6 +214,7 @@ const Render = (
             updateLink={(url: string, text: string) => {}}
             openUrl={openUrl}
             type="button"
+            hasName={true}
           />
         </YStack>
       </YStack>

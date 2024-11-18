@@ -120,6 +120,7 @@ export const InlineEmbedAnnotationSchema = z
   .object({
     type: z.literal('Embed'),
     ...baseAnnotationProperties,
+    attributes: z.object({title: z.string()}),
     link: z.string(),
   })
   .strict()

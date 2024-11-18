@@ -86,7 +86,12 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     }
 
     if (leaf.type == 'inline-embed') {
-      annotations.addSpan('Embed', {link: leaf.link}, start, end)
+      annotations.addSpan(
+        'Embed',
+        {link: leaf.link, title: leaf.title},
+        start,
+        end,
+      )
     }
 
     if (leaf.type == 'link') {
@@ -206,6 +211,7 @@ function flattenLeaves(
       result.push({
         ...leaf,
         text: '\uFFFC',
+        title: leaf.title,
         link: leaf.link,
       } as const)
     }

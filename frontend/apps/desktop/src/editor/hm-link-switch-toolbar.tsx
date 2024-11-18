@@ -64,19 +64,9 @@ export function HypermediaLinkSwitchToolbar(
 
   return (
     <XStack>
-      {/* x={-40} */}
       {isEditing ? (
         // Render the form when in editing mode
-        <EditComponent
-          // url={props.url}
-          // text={props.text}
-          // updateHyperlink={props.editHyperlink}
-          // editHyperlink={props.editHyperlink}
-          // openUrl={props.openUrl}
-          onClose={setIsEditing}
-          // editor={props.editor}
-          {...props}
-        />
+        <EditComponent onClose={setIsEditing} {...props} />
       ) : (
         // Render the toolbar by default
         <XGroup elevation="$5" paddingHorizontal={0}>
@@ -141,14 +131,23 @@ export function HypermediaLinkSwitchToolbar(
           <LinkSwitchButton
             tooltipText="Change to a mention"
             icon={Quote}
-            onPress={() => {}}
+            onPress={() => {
+              const mentionBlock = {
+                type: 'inline-embed',
+                content: [],
+                props: {
+                  link: props.url,
+                },
+              } as PartialBlock<HMBlockSchema>
+              // props.editor.insertBlocks([mentionBlock], props.id, 'after')
+              props.editor.replaceBlocks([props.id], [mentionBlock])
+            }}
             active={props.type === 'mention'}
           />
           <LinkSwitchButton
             tooltipText="Change to a button"
             icon={CircleDot}
             onPress={() => {
-              console.log(props.id, props.type)
               const buttonBlock = {
                 type: 'button',
                 content: [],
@@ -227,9 +226,12 @@ function LinkSwitchButton({
             bg={active ? '$brand5' : '$backgroundFocus'}
             fontWeight={active ? 'bold' : '400'}
             size="$3"
+            disabled={active}
+            disabledStyle={{opacity: 1}}
             // width="$2"
             // height="$3"
             // borderRadius={0}
+            hoverStyle={{bg: '$brand5'}}
             icon={Icon}
             onPress={onPress}
           />
