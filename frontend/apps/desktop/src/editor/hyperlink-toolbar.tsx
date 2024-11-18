@@ -26,7 +26,6 @@ export function HypermediaLinkToolbar(
   }
 
   useEffect(() => {
-    console.log(props.editor.hyperlinkToolbar)
     props.editor.hyperlinkToolbar.on('update', (state) => {
       if (!state.show) props.onClose(false)
       setText(state.text || '')
@@ -67,7 +66,8 @@ export function HypermediaLinkToolbar(
         editLink={props.editHyperlink}
         openUrl={props.openUrl}
         type={props.type}
-        search={false}
+        hasName={true}
+        hasSearch={props.type === 'mention'}
       />
       {/* <<YStack>
         <XStack ai="center" gap="$2" p="$1">

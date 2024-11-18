@@ -336,7 +336,7 @@ function EmbedControl({
           editLink={props.editHyperlink}
           openUrl={props.openUrl}
           type={props.type}
-          search={true}
+          hasSearch={true}
         >
           <XStack gap="$1">
             {/* {hasBlockRef ? (
@@ -546,15 +546,8 @@ function EmbedControl({
         text={''}
         editHyperlink={(url: string, _text: string) => {
           setUrl(url)
-          console.log('assign')
           assign({props: {url: url}})
         }}
-        // editHyperlink={() => {}}
-        // updateHyperlink={(url: string, text: string) => {
-        //   setLink(url)
-        //   setButtonText(text)
-        //   assign({props: {url: url, name: text}} as ButtonType)
-        // }}
         updateHyperlink={() => {}}
         deleteHyperlink={() => {
           setUrl('')
@@ -569,9 +562,6 @@ function EmbedControl({
         }}
         openUrl={openUrl}
         editor={editor}
-        // onClose={(open: boolean) => {
-        //   popoverState.onOpenChange(open)
-        // }}
         editComponent={EmbedEditForm}
         type="embed"
         id={block.id}

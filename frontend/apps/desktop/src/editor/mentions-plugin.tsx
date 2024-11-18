@@ -65,6 +65,9 @@ export function createInlineEmbedNode(bnEditor: any) {
         link: {
           default: '',
         },
+        title: {
+          default: '',
+        },
       }
     },
     addProseMirrorPlugins() {
@@ -80,13 +83,22 @@ function InlineEmbedNodeComponent(props: any) {
     <NodeViewWrapper
       className={`inline-embed-token${props.selected ? ' selected' : ''}`}
       data-inline-embed={props.node.attrs.link}
+      data-title={props.node.attrs.title}
     >
-      <MentionToken value={props.node.attrs.link} selected={props.selected} />
+      <MentionToken
+        value={props.node.attrs.link}
+        title={props.node.attrs.title}
+        selected={props.selected}
+      />
     </NodeViewWrapper>
   )
 }
 
-export function MentionToken(props: {value: string; selected?: boolean}) {
+export function MentionToken(props: {
+  value: string
+  title: string
+  selected?: boolean
+}) {
   const unpackedRef = unpackHmId(props.value)
 
   if (unpackedRef?.type == 'd') {
@@ -99,22 +111,29 @@ export function MentionToken(props: {value: string; selected?: boolean}) {
 
 function DocumentMention({
   unpackedRef,
+  title,
   selected,
 }: {
   unpackedRef: UnpackedHypermediaId
+  title: string
   selected?: boolean
 }) {
   const entity = useEntity(unpackedRef)
+  // const newlabel = entity.data?.document
+  // ? getDocumentTitle(entity.data?.document)
+  // : unpackedRef.id
   return (
     <MentionText selected={selected}>
-      {entity.data?.document
+      {title
+        ? title
+        : entity.data?.document
         ? getDocumentTitle(entity.data?.document)
         : unpackedRef.id}
     </MentionText>
   )
 }
 
-export function MentionText(props) {
+export function MentionText(props: any) {
   return (
     <SizableText
       fontSize="1em"
