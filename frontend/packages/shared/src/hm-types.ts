@@ -153,7 +153,7 @@ export type HMAnnotations = z.infer<typeof HMAnnotationsSchema>
 const blockBaseProperties = {
   id: z.string(),
   revision: z.string().optional(),
-  attributes: z.object({}).optional(), // EMPTY ATTRIBUTES, override in specific block schemas
+  attributes: z.object({}).optional().default({}), // EMPTY ATTRIBUTES, override in specific block schemas
   annotations: z.array(z.never()).optional(), // EMPTY ANNOTATIONS, override in specific block schemas
   text: z.literal('').optional(), // EMPTY TEXT, override in specific block schemas
   link: z.literal('').optional(), // EMPTY LINK, override in specific block schemas
@@ -173,7 +173,7 @@ export const HMBlockParagraphSchema = z
     type: z.literal('Paragraph'),
     ...blockBaseProperties,
     ...textBlockProperties,
-    attributes: z.object(parentBlockAttributes),
+    attributes: z.object(parentBlockAttributes).optional().default({}),
   })
   .strict()
 
@@ -182,7 +182,7 @@ export const HMBlockHeadingSchema = z
     type: z.literal('Heading'),
     ...blockBaseProperties,
     ...textBlockProperties,
-    attributes: z.object(parentBlockAttributes),
+    attributes: z.object(parentBlockAttributes).optional().default({}),
   })
   .strict()
 
@@ -195,7 +195,8 @@ export const HMBlockCodeSchema = z
         ...parentBlockAttributes,
         language: z.string().optional(),
       })
-      .strict(),
+      .optional()
+      .default({}),
     text: z.string().default(''),
   })
   .strict()
@@ -204,7 +205,7 @@ export const HMBlockMathSchema = z
   .object({
     type: z.literal('Math'),
     ...blockBaseProperties,
-    attributes: z.object(parentBlockAttributes).strict(),
+    attributes: z.object(parentBlockAttributes).optional().default({}),
     text: z.string().default(''),
   })
   .strict()
@@ -220,7 +221,8 @@ export const HMBlockImageSchema = z
         width: z.number().optional(),
         name: z.string().optional(),
       })
-      .strict(),
+      .optional()
+      .default({}),
     link: z.string(),
   })
   .strict()
@@ -235,7 +237,8 @@ export const HMBlockVideoSchema = z
         width: z.number().optional(),
         name: z.string().optional(),
       })
-      .strict(),
+      .optional()
+      .default({}),
     link: z.string(),
   })
   .strict()
@@ -250,7 +253,8 @@ export const HMBlockFileSchema = z
         name: z.string().optional(),
         size: z.number().optional(), // number of bytes, as a string
       })
-      .strict(),
+      .optional()
+      .default({}),
     link: z.string(),
   })
   .strict()
@@ -264,7 +268,8 @@ export const HMBlockButtonSchema = z
         ...parentBlockAttributes,
         name: z.string().optional(),
       })
-      .strict(),
+      .optional()
+      .default({}),
     link: z.string(),
   })
   .strict()
@@ -279,7 +284,8 @@ export const HMBlockEmbedSchema = z
         ...parentBlockAttributes,
         view: HMEmbedViewSchema.optional(),
       })
-      .strict(),
+      .optional()
+      .default({}),
   })
   .strict()
 
