@@ -9,13 +9,14 @@ import {
   XStack,
 } from '@shm/ui'
 import {CircleDot, PanelBottom, Quote} from '@tamagui/lucide-icons'
-import {useState} from 'react'
+import {useEffect, useState} from 'react'
 import {BlockNoteEditor, HyperlinkToolbarProps, PartialBlock} from './blocknote'
 import {HMBlockSchema} from './schema'
 
 export function HypermediaLinkSwitchToolbar(
   props: HyperlinkToolbarProps & {
     openUrl: (url?: string | undefined, newWindow?: boolean | undefined) => void
+    stopEditing: boolean
     editComponent: React.ComponentType<{
       url: string
       text: string
@@ -25,14 +26,21 @@ export function HypermediaLinkSwitchToolbar(
         url?: string | undefined,
         newWindow?: boolean | undefined,
       ) => void
-      onClose?: (bool: boolean) => void
+      onClose: () => void
       editor: BlockNoteEditor
+      type: string
     }>
     type: string
   },
 ) {
   const [isEditing, setIsEditing] = useState(false)
   const {editComponent: EditComponent} = props
+
+  useEffect(() => {
+    if (props.stopEditing && isEditing) {
+      setIsEditing(false)
+    }
+  }, [props.stopEditing, isEditing])
   // const formSize: SizeTokens = '$2'
 
   // const [_url, setUrl] = useState(props.url || '')
@@ -66,7 +74,7 @@ export function HypermediaLinkSwitchToolbar(
     <XStack>
       {isEditing ? (
         // Render the form when in editing mode
-        <EditComponent onClose={setIsEditing} {...props} />
+        <EditComponent onClose={() => setIsEditing(false)} {...props} />
       ) : (
         // Render the toolbar by default
         <XGroup elevation="$5" paddingHorizontal={0}>

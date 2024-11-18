@@ -25,6 +25,7 @@ import {
   ErrorBlock,
   ExternalLink,
   Input,
+  Label,
   ListItem,
   Popover,
   Separator,
@@ -35,6 +36,7 @@ import {
   YGroup,
   YStack,
 } from '@shm/ui'
+import {ChevronRight} from '@tamagui/lucide-icons'
 import {Fragment} from '@tiptap/pm/model'
 import {useCallback, useEffect, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
@@ -186,6 +188,7 @@ const display = ({
   setSelected,
 }: DisplayComponentProps) => {
   const unpackedId = unpackHmId(block.props.url)
+  const [showControl, setShowControl] = useState(false)
 
   return (
     <MediaContainer
@@ -195,12 +198,15 @@ const display = ({
       selected={selected}
       setSelected={setSelected}
       assign={assign}
+      onHoverIn={() => setShowControl(true)}
+      onHoverOut={() => setShowControl(false)}
     >
       <EmbedControl
         editor={editor}
         block={block}
         unpackedId={unpackedId}
         assign={assign}
+        showControl={showControl}
       />
       {block.props.url && (
         <ErrorBoundary FallbackComponent={EmbedError}>
@@ -236,14 +242,15 @@ function EmbedControl({
   block,
   unpackedId,
   assign,
+  showControl,
 }: {
   editor: BlockNoteEditor<HMBlockSchema>
   block: Block<HMBlockSchema>
   unpackedId: UnpackedHypermediaId | null
   assign: any
+  showControl: boolean
 }) {
   const [url, setUrl] = useState<string>(block.props.url || '')
-  const [view, setView] = useState<string>(block.props.view || '')
   const openUrl = useOpenUrl()
   const popoverState = usePopoverState()
   const popoverViewState = usePopoverState()
@@ -308,7 +315,15 @@ function EmbedControl({
     }
   }, [block.props.url, unpackedId])
 
-  function EmbedEditForm(props: any) {
+  function EmbedEditForm(props: {
+    url: string
+    text: string
+    updateHyperlink: (url: string, text: string) => void
+    editHyperlink: (url: string, text: string) => void
+    openUrl: (url?: string | undefined, newWindow?: boolean | undefined) => void
+    editor: BlockNoteEditor
+    type: string
+  }) {
     // useEffect(() => {
     //   if (!popoverState.open) {
     //     props.onClose(false)
@@ -325,8 +340,8 @@ function EmbedControl({
         bg="$backgroundFocus"
         elevation="$3"
         zIndex="$zIndex.5"
-        bottom="0"
-        position="absolute"
+        // bottom="0"
+        // position="absolute"
       >
         <SizableText fontWeight="700">Embed settings</SizableText>
         <HypermediaLinkForm
@@ -338,7 +353,7 @@ function EmbedControl({
           type={props.type}
           hasSearch={true}
         >
-          <XStack gap="$1">
+          <>
             {/* {hasBlockRef ? (
               <Tooltip
                 content={
@@ -392,17 +407,26 @@ function EmbedControl({
                   popoverState.onOpenChange(open)
                   popoverViewState.onOpenChange(open)
                 }}
-                placement="bottom-end"
+                placement="bottom"
               >
-                <Popover.Trigger asChild>
-                  <Button
-                    backgroundColor="$backgroundStrong"
-                    size="$2"
-                    iconAfter={ChevronDown}
-                  >{`view: ${block.props.view}`}</Button>
-                </Popover.Trigger>
+                <YStack>
+                  <Label>View</Label>
+                  <Popover.Trigger asChild>
+                    <Button
+                      borderColor="$borderColorFocus"
+                      borderWidth="$1"
+                      borderRadius="$2"
+                      size="$2.5"
+                      iconAfter={
+                        popoverViewState.open ? ChevronDown : ChevronRight
+                      }
+                    >
+                      {block.props.view}
+                    </Button>
+                  </Popover.Trigger>
+                </YStack>
                 <Popover.Content asChild>
-                  <YGroup padding={0} width={120}>
+                  <YGroup padding={0} width={250} zIndex={99999}>
                     <YGroup.Item>
                       <ListItem
                         size="$2"
@@ -437,23 +461,30 @@ function EmbedControl({
                   popoverState.onOpenChange(open)
                   popoverLatestState.onOpenChange(open)
                 }}
-                placement="bottom-end"
+                placement="bottom"
               >
-                <Popover.Trigger asChild>
-                  <Button
-                    backgroundColor="$backgroundStrong"
-                    size="$2"
-                    iconAfter={ChevronDown}
-                  >
-                    {isLatestVersion ? 'Latest Version' : 'Exact Version'}
-                  </Button>
-                </Popover.Trigger>
+                <YStack>
+                  <Label>Sort</Label>
+                  <Popover.Trigger asChild>
+                    <Button
+                      borderColor="$borderColorFocus"
+                      borderWidth="$1"
+                      borderRadius="$2"
+                      size="$2.5"
+                      iconAfter={
+                        popoverLatestState.open ? ChevronDown : ChevronRight
+                      }
+                    >
+                      {isLatestVersion ? 'Latest Version' : 'Exact Version'}
+                    </Button>
+                  </Popover.Trigger>
+                </YStack>
                 <Popover.Content asChild>
-                  <YGroup padding={0} width={120} elevation="$4">
+                  <YGroup padding={0} width={250} elevation="$4" zIndex={99999}>
                     <YGroup.Item>
                       <ListItem
                         size="$2"
-                        title="Latest"
+                        title="Latest Version"
                         onPress={handleVersionSelect('latest')}
                         iconAfter={isLatestVersion ? Check : null}
                         hoverStyle={{
@@ -465,7 +496,7 @@ function EmbedControl({
                     <YGroup.Item>
                       <ListItem
                         size="$2"
-                        title="Exact"
+                        title="Exact Version"
                         onPress={handleVersionSelect('exact')}
                         iconAfter={isLatestVersion ? null : Check}
                         hoverStyle={{
@@ -519,7 +550,7 @@ function EmbedControl({
                 </Popover.Content>
               </Popover>
             ) : null} */}
-          </XStack>
+          </>
         </HypermediaLinkForm>
       </YStack>
     )
@@ -535,11 +566,10 @@ function EmbedControl({
       height="100%"
       ai="flex-start"
       jc="flex-end"
-      opacity={popoverState.open ? 1 : 0}
+      opacity={showControl ? 1 : 0}
+      // opacity={popoverState.open ? 1 : 0}
       padding="$2"
       gap="$2"
-      $group-item-hover={{opacity: 1}}
-      bg="$colorTransparent"
     >
       <HypermediaLinkSwitchToolbar
         url={url}
@@ -562,6 +592,7 @@ function EmbedControl({
         }}
         openUrl={openUrl}
         editor={editor}
+        stopEditing={!showControl}
         editComponent={EmbedEditForm}
         type="embed"
         id={block.id}

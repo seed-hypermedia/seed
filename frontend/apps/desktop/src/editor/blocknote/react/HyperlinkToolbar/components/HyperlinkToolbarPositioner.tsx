@@ -92,6 +92,7 @@ export const HyperlinkToolbarPositioner = <
           }
         }}
         openUrl={props.openUrl}
+        stopEditing={false}
         editComponent={HypermediaLinkToolbar}
         editor={props.editor}
         type={type}
