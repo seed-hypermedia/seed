@@ -210,6 +210,26 @@ export const HMBlockMathSchema = z
   })
   .strict()
 
+function toNumber(value: any): number {
+  // If it's already a number, return it directly
+  if (typeof value === 'number' && !isNaN(value)) {
+    return value
+  }
+
+  // If it's a string, try to convert it
+  if (typeof value === 'string') {
+    const converted = Number(value)
+    if (!isNaN(converted)) {
+      return converted
+    }
+  }
+
+  // If we get here, throw an error
+  throw new Error(
+    'Value must be a number or a string that can be converted to a number',
+  )
+}
+
 export const HMBlockImageSchema = z
   .object({
     type: z.literal('Image'),
@@ -218,7 +238,7 @@ export const HMBlockImageSchema = z
     attributes: z
       .object({
         ...parentBlockAttributes,
-        width: z.number().optional(),
+        width: z.number().optional().transform(toNumber),
         name: z.string().optional(),
       })
       .optional()
@@ -234,7 +254,7 @@ export const HMBlockVideoSchema = z
     attributes: z
       .object({
         ...parentBlockAttributes,
-        width: z.number().optional(),
+        width: z.number().optional().transform(toNumber),
         name: z.string().optional(),
       })
       .optional()
@@ -251,7 +271,7 @@ export const HMBlockFileSchema = z
       .object({
         ...parentBlockAttributes,
         name: z.string().optional(),
-        size: z.number().optional(), // number of bytes, as a string
+        size: z.number().optional().transform(toNumber), // number of bytes, as a string
       })
       .optional()
       .default({}),
