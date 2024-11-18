@@ -129,7 +129,20 @@ export default function DraftPage() {
       </XStack>
     )
   } else if (!draft.isLoading && route.id) {
-    draftContent = <DocumentEditor {...data} id={route.id} />
+    draftContent = (
+      <XStack flex={1}>
+        <YStack>
+          <DocumentEditor {...data} id={route.id} />
+        </YStack>
+        <YStack width={300} overflow="scroll">
+          <code>
+            <pre style={{whiteSpace: 'pre-wrap'}}>
+              {JSON.stringify(data.editor.topLevelBlocks, null, 2)}
+            </pre>
+          </code>
+        </YStack>
+      </XStack>
+    )
   }
 
   return (
@@ -164,6 +177,13 @@ export default function DraftPage() {
           </XStack>
         ) : null}
         {draftContent}
+        <YStack overflow="scroll" height={400} w="100%">
+          <code>
+            <pre style={{whiteSpace: 'pre-wrap'}}>
+              {JSON.stringify(data.state.context.entity?.document, null, 2)}
+            </pre>
+          </code>
+        </YStack>
       </AccessoryLayout>
     </ErrorBoundary>
   )
@@ -433,8 +453,6 @@ export function DraftHeader({
   })
 
   const prevDoc = useSelector(draftActor, (s) => s.context.entity.document)
-
-  console.log(`== ~ prevDoc:`, prevDoc)
 
   const input = useRef<HTMLTextAreaElement | null>(null)
 

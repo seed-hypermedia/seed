@@ -210,7 +210,7 @@ export const HMBlockMathSchema = z
   })
   .strict()
 
-function toNumber(value: any): number {
+export function toNumber(value: any): number {
   // If it's already a number, return it directly
   if (typeof value === 'number' && !isNaN(value)) {
     return value
@@ -238,7 +238,7 @@ export const HMBlockImageSchema = z
     attributes: z
       .object({
         ...parentBlockAttributes,
-        width: z.number().optional().transform(toNumber),
+        width: z.number().optional(),
         name: z.string().optional(),
       })
       .optional()
@@ -254,7 +254,7 @@ export const HMBlockVideoSchema = z
     attributes: z
       .object({
         ...parentBlockAttributes,
-        width: z.number().optional().transform(toNumber),
+        width: z.number().optional(),
         name: z.string().optional(),
       })
       .optional()

@@ -1,5 +1,11 @@
 import {EditorBlock, EditorInlineContent} from '../editor-types'
-import {HMAnnotations, HMBlock, HMBlockSchema, HMBlockType} from '../hm-types'
+import {
+  HMAnnotations,
+  HMBlock,
+  HMBlockSchema,
+  HMBlockType,
+  toNumber,
+} from '../hm-types'
 import {AnnotationSet, codePointLength} from './unicode'
 
 function toHMBlockType(
@@ -109,15 +115,35 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
   const blockImage = block.type === 'Image' ? block : undefined
   if (blockImage && editorBlock.type == 'image') {
     if (editorBlock.props.url) blockImage.link = editorBlock.props.url
-    if (editorBlock.props.width)
-      blockImage.attributes.width = editorBlock.props.width
+    if (
+      editorBlock.props.width &&
+      typeof editorBlock.props.width == 'string' &&
+      editorBlock.props.width != ''
+    ) {
+      console.log(
+        `== ~ editorBlock.props.width IMAGE:`,
+        typeof editorBlock.props.width,
+        editorBlock.props.width,
+      )
+      blockImage.attributes.width = toNumber(editorBlock.props.width)
+    }
   }
 
   const blockVideo = block.type === 'Video' ? block : undefined
   if (blockVideo && editorBlock.type == 'video') {
     if (editorBlock.props.url) blockVideo.link = editorBlock.props.url
-    if (editorBlock.props.width)
-      blockVideo.attributes.width = editorBlock.props.width
+    if (
+      editorBlock.props.width &&
+      typeof editorBlock.props.width == 'string' &&
+      editorBlock.props.width != ''
+    ) {
+      console.log(
+        `== ~ editorBlock.props.width VIDEO:`,
+        typeof editorBlock.props.width,
+        editorBlock.props.width,
+      )
+      blockVideo.attributes.width = toNumber(editorBlock.props.width)
+    }
   }
 
   const blockFile = block.type === 'File' ? block : undefined
@@ -126,7 +152,7 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     if (editorBlock.props.name)
       blockFile.attributes.name = editorBlock.props.name
     if (editorBlock.props.size)
-      blockFile.attributes.size = editorBlock.props.size
+      blockFile.attributes.size = toNumber(editorBlock.props.size)
   }
 
   const blockButton = block.type === 'Button' ? block : undefined

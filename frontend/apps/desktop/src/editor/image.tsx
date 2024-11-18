@@ -20,9 +20,6 @@ export const ImageBlock = createReactBlockSpec({
     url: {
       default: '',
     },
-    src: {
-      default: '',
-    },
     alt: {
       default: '',
     },
