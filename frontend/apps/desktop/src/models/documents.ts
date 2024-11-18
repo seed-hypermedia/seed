@@ -189,7 +189,11 @@ export function usePublishDraft(
 
       const content = removeTrailingBlocks(draft.content || [])
 
-      const changes = compareBlocksWithMap(blocksMap, content, '')
+      const changes = compareBlocksWithMap(
+        blocksMap,
+        typeof content == 'undefined' ? draft.content : content,
+        '',
+      )
 
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
       if (accts.data?.length == 0) {
