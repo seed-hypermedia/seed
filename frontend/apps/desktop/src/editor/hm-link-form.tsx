@@ -42,11 +42,22 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
   const unpackedRef = useMemo(() => unpackHmId(_url), [_url])
 
   return (
-    <YStack gap="$1">
+    <YStack gap="$1.5">
       {props.hasName && (
-        <XStack ai="center" gap="$2" p="$1">
+        <XStack
+          paddingHorizontal="$2"
+          ai="center"
+          gap="$2"
+          background="$background"
+          borderColor="$borderColorFocus"
+          borderRadius="$2"
+          borderWidth="$1"
+          hoverStyle={{borderColor: '$borderColorHover'}}
+          focusStyle={{borderColor: '$borderColorHover'}}
+        >
           <TextCursorInput size={16} />
           <Input
+            unstyled
             flex={1}
             size={formSize}
             placeholder="Link text"
@@ -62,7 +73,17 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
         </XStack>
       )}
       {props.hasSearch ? (
-        <XStack ai="center" gap="$2" p="$1">
+        <XStack
+          paddingHorizontal="$2"
+          ai="center"
+          gap="$2"
+          background="$background"
+          borderColor="$borderColorFocus"
+          borderRadius="$2"
+          borderWidth="$1"
+          hoverStyle={{borderColor: '$borderColorHover'}}
+          focusStyle={{borderColor: '$borderColorHover'}}
+        >
           <Search size={16} />
           <SearchInput
             updateLink={props.editLink}
@@ -72,9 +93,20 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
           />
         </XStack>
       ) : (
-        <XStack ai="center" gap="$2" p="$1">
+        <XStack
+          paddingHorizontal="$2"
+          ai="center"
+          gap="$2"
+          background="$background"
+          borderColor="$borderColorFocus"
+          borderRadius="$2"
+          borderWidth="$1"
+          hoverStyle={{borderColor: '$borderColorHover'}}
+          focusStyle={{borderColor: '$borderColorHover'}}
+        >
           <LinkIcon size={16} />
           <Input
+            unstyled
             flex={1}
             size="$2"
             key={props.url}
@@ -88,7 +120,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
         </XStack>
       )}
 
-      <SizableText marginLeft={26} fontSize="$2" color="$brand5">
+      <SizableText fontSize="$2" color="$brand5">
         {unpackedRef ? 'Seed Document' : 'Web Address'}
       </SizableText>
 
@@ -203,6 +235,7 @@ const SearchInput = ({
   return (
     <>
       <Input
+        unstyled
         flex={1}
         size="$2"
         onFocus={() => {
