@@ -8,6 +8,7 @@ import {
 import {Fragment, Slice} from '@tiptap/pm/model'
 import {Plugin, PluginKey, TextSelection} from '@tiptap/pm/state'
 import {BlockNoteDOMAttributes, getBlockInfoFromPos, mergeCSSClasses} from '..'
+import {getGroupInfoFromPos} from '../blocknote/core/extensions/Blocks/helpers/getGroupInfoFromPos'
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -374,7 +375,7 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
         return true
       },
 
-      // exit node on if at end of the block and at the new line or add a new line
+      // exit node on enter if at end of the block and at the new line or add a new line
       Enter: ({editor}) => {
         const {state, view} = editor
         const {selection} = state
@@ -390,16 +391,68 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
         const endsWithNewline = codeBlock.textContent.endsWith('\n')
         if (isAtEnd && endsWithNewline) {
           const nextBlockPos = codePos.end() + 2
-          editor
-            .chain()
-            .focus(nextBlockPos)
-            .command(({tr}) => {
-              tr.delete($from.pos - 1, $from.pos)
-              return true
-            })
-            .run()
+          const {group, container, $pos, depth} = getGroupInfoFromPos(
+            codePos.pos,
+            state,
+          )
+          if (
+            group.type.name === 'blockGroup' &&
+            group.lastChild?.firstChild?.eq(codeBlock)
+          ) {
+            editor
+              .chain()
+              .command(({tr}) => {
+                if (group.child(group.childCount - 1).childCount > 1) {
+                  const groupContent = group.content
+                  const lastBlockContent = groupContent.lastChild!.lastChild!
+                  const newBlockContent = [
+                    state.schema.nodes['paragraph'].createAndFill()!,
+                    lastBlockContent,
+                  ]
+                  const newContainer = state.schema.nodes[
+                    'blockContainer'
+                  ].createAndFill(null, newBlockContent)!
+                  const replaceContainer = state.schema.nodes[
+                    'blockContainer'
+                  ].createAndFill(container?.attrs, codeBlock)!
+                  const newGroupContent = group.content
+                    .replaceChild(group.childCount - 1, replaceContainer)
+                    .addToEnd(newContainer)
+                  const newGroup = state.schema.nodes[
+                    'blockGroup'
+                  ].createAndFill(group.attrs, newGroupContent)!
+                  const groupPos = state.doc.resolve($pos.after(depth + 1))
+                  tr.replaceRangeWith(
+                    groupPos.start(),
+                    groupPos.end(),
+                    newGroup,
+                  )
+                } else {
+                  const newContainer =
+                    state.schema.nodes['blockContainer'].createAndFill()!
+                  tr.insert(nextBlockPos, newContainer)
+                }
+                return false
+              })
+              .focus(nextBlockPos)
+              .command(({tr}) => {
+                tr.delete($from.pos - 1, $from.pos)
+                return true
+              })
+              .run()
+            return true
+          } else {
+            editor
+              .chain()
+              .focus(nextBlockPos)
+              .command(({tr}) => {
+                tr.delete($from.pos - 1, $from.pos)
+                return true
+              })
+              .run()
 
-          return true
+            return true
+          }
         }
         let tr = state.tr
         tr = tr.replaceSelectionWith(state.schema.text('\n'))
