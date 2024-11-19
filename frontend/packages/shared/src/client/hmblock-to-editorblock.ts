@@ -87,12 +87,12 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     out.props.childrenType = block.attributes.childrenType
   }
 
-  if (block.attributes?.start) {
-    out.props.start =
-      typeof block.attributes.start == 'number'
-        ? block.attributes.start.toString()
-        : block.attributes.start
-  }
+  // if (block.attributes?.start) {
+  //   out.props.start =
+  //     typeof block.attributes.start == 'number'
+  //       ? block.attributes.start.toString()
+  //       : block.attributes.start
+  // }
 
   if (
     [
@@ -118,7 +118,9 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     Object.entries(block.attributes).forEach(([key, value]) => {
       if (value !== undefined) {
         if (key == 'width' || key == 'size') {
-          out.props![key] = Number(value)
+          if (typeof value == 'number') {
+            out.props![key] = String(value)
+          }
         } else {
           out.props![key] = value
         }

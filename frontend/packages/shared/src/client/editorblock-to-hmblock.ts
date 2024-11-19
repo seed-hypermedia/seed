@@ -51,9 +51,9 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     parentBlock.attributes.childrenType = 'Blockquote'
   }
 
-  if (parentBlock && editorBlock.props.start) {
-    parentBlock.attributes.start = editorBlock.props.start
-  }
+  // if (parentBlock && editorBlock.props.start) {
+  //   parentBlock.attributes.start = editorBlock.props.start.toString()
+  // }
 
   block.text = ''
 
@@ -115,34 +115,20 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
   const blockImage = block.type === 'Image' ? block : undefined
   if (blockImage && editorBlock.type == 'image') {
     if (editorBlock.props.url) blockImage.link = editorBlock.props.url
-    if (
-      editorBlock.props.width &&
-      typeof editorBlock.props.width == 'string' &&
-      editorBlock.props.width != ''
-    ) {
-      console.log(
-        `== ~ editorBlock.props.width IMAGE:`,
-        typeof editorBlock.props.width,
-        editorBlock.props.width,
-      )
-      blockImage.attributes.width = toNumber(editorBlock.props.width)
+    const width = toNumber(editorBlock.props.width)
+    if (width) {
+      blockImage.attributes.width = width
     }
   }
 
   const blockVideo = block.type === 'Video' ? block : undefined
   if (blockVideo && editorBlock.type == 'video') {
     if (editorBlock.props.url) blockVideo.link = editorBlock.props.url
-    if (
-      editorBlock.props.width &&
-      typeof editorBlock.props.width == 'string' &&
-      editorBlock.props.width != ''
-    ) {
-      console.log(
-        `== ~ editorBlock.props.width VIDEO:`,
-        typeof editorBlock.props.width,
-        editorBlock.props.width,
-      )
-      blockVideo.attributes.width = toNumber(editorBlock.props.width)
+    const width = toNumber(editorBlock.props.width)
+    if (width) blockVideo.attributes.width = width
+
+    if (editorBlock.props.name) {
+      blockVideo.attributes.name = editorBlock.props.name
     }
   }
 
@@ -151,8 +137,8 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     if (editorBlock.props.url) blockFile.link = editorBlock.props.url
     if (editorBlock.props.name)
       blockFile.attributes.name = editorBlock.props.name
-    if (editorBlock.props.size)
-      blockFile.attributes.size = toNumber(editorBlock.props.size)
+    const size = toNumber(editorBlock.props.size)
+    if (size) blockFile.attributes.size = size
   }
 
   const blockButton = block.type === 'Button' ? block : undefined
@@ -226,4 +212,22 @@ function getParentBlock(block: HMBlock) {
   if (block.type == 'Paragraph') return block
   if (block.type == 'Code') return block
   return undefined
+}
+
+function toNumber(value?: string): number | null {
+  // Handle empty or whitespace-only strings
+  if (!value || value.trim() === '') {
+    return null
+  }
+
+  // Convert to number and check if it's valid
+  const num = Number(value)
+
+  // Check if the conversion resulted in a valid number
+  // isNaN() will return true for NaN and invalid conversions
+  if (isNaN(num)) {
+    return null
+  }
+
+  return num
 }

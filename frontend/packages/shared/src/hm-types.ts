@@ -270,8 +270,8 @@ export const HMBlockFileSchema = z
     attributes: z
       .object({
         ...parentBlockAttributes,
-        name: z.string().optional(),
         size: z.number().optional().transform(toNumber), // number of bytes, as a string
+        name: z.string().optional(),
       })
       .optional()
       .default({}),
@@ -317,6 +317,14 @@ export const HMBlockWebEmbedSchema = z
   })
   .strict()
 
+export const HMBlockNostrSchema = z
+  .object({
+    type: z.literal('Nostr'),
+    ...blockBaseProperties,
+    link: z.string(), // should be a nostr:// URL
+  })
+  .strict()
+
 export const HMBlockSchema = z.discriminatedUnion('type', [
   HMBlockParagraphSchema,
   HMBlockHeadingSchema,
@@ -328,6 +336,7 @@ export const HMBlockSchema = z.discriminatedUnion('type', [
   HMBlockButtonSchema,
   HMBlockEmbedSchema,
   HMBlockWebEmbedSchema,
+  HMBlockNostrSchema,
 ])
 
 export type HMBlockParagraph = z.infer<typeof HMBlockParagraphSchema>
@@ -341,6 +350,7 @@ export type HMBlockButton = z.infer<typeof HMBlockButtonSchema>
 export type HMBlockEmbed = z.infer<typeof HMBlockEmbedSchema>
 export type HMBlockWebEmbed = z.infer<typeof HMBlockWebEmbedSchema>
 export type HMBlock = z.infer<typeof HMBlockSchema>
+export type HMBlockNostr = z.infer<typeof HMBlockNostrSchema>
 
 const baseBlockNodeSchema = z.object({
   block: HMBlockSchema,

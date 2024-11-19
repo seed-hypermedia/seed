@@ -473,7 +473,7 @@ describe('EditorBlock to HMBlock', () => {
         type: 'image',
         children: [],
         props: {
-          url: 'ipfs://foobarimgcid',
+          url: 'ipfs://foobarcid_IMAGE',
         },
         content: [
           {
@@ -488,7 +488,69 @@ describe('EditorBlock to HMBlock', () => {
         id: 'foo',
         type: 'Image',
         text: ``,
-        link: 'ipfs://foobarimgcid',
+        link: 'ipfs://foobarcid_IMAGE',
+        annotations: [],
+        attributes: {},
+      }
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val).toEqual(result)
+    })
+
+    test('image removing width', () => {
+      const editorBlock: EditorImageBlock = {
+        id: 'foo',
+        type: 'image',
+        children: [],
+        props: {
+          url: 'ipfs://foobarcid_IMAGE',
+          width: '',
+        },
+        content: [
+          {
+            type: 'text',
+            text: '',
+            styles: {},
+          },
+        ],
+      }
+
+      const result: HMBlockImage = {
+        id: 'foo',
+        type: 'Image',
+        text: ``,
+        link: 'ipfs://foobarcid_IMAGE',
+        annotations: [],
+        attributes: {},
+      }
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val).toEqual(result)
+    })
+
+    test('image wrong width value should be removed (percentage)', () => {
+      const editorBlock: EditorImageBlock = {
+        id: 'foo',
+        type: 'image',
+        children: [],
+        props: {
+          url: 'ipfs://foobarcid_IMAGE',
+          width: '80%',
+        },
+        content: [
+          {
+            type: 'text',
+            text: '',
+            styles: {},
+          },
+        ],
+      }
+
+      const result: HMBlockImage = {
+        id: 'foo',
+        type: 'Image',
+        text: ``,
+        link: 'ipfs://foobarcid_IMAGE',
         annotations: [],
         attributes: {},
       }
@@ -503,10 +565,9 @@ describe('EditorBlock to HMBlock', () => {
         type: 'video',
         children: [],
         props: {
-          url: 'ipfs://foobarimgcid',
+          url: 'ipfs://foobarcid_VIDEO',
           width: '240',
           name: 'test demo video',
-          size: 123456,
         },
         content: [
           {
@@ -521,10 +582,11 @@ describe('EditorBlock to HMBlock', () => {
         id: 'foo',
         type: 'Video',
         text: ``,
-        link: 'ipfs://foobarimgcid',
+        link: 'ipfs://foobarcid_VIDEO',
         annotations: [],
         attributes: {
-          width: '240',
+          width: 240,
+          name: 'test demo video',
         },
       }
       const val = editorBlockToHMBlock(editorBlock)
@@ -538,10 +600,9 @@ describe('EditorBlock to HMBlock', () => {
         type: 'file',
         children: [],
         props: {
-          url: 'ipfs://foobarimgcid',
-          width: 240,
+          url: 'ipfs://foobarcid_FILE',
           name: 'testfile.pdf',
-          size: 123456,
+          size: '123456',
         },
         content: [
           {
@@ -556,11 +617,11 @@ describe('EditorBlock to HMBlock', () => {
         id: 'foo',
         type: 'File',
         text: ``,
-        link: 'ipfs://foobarimgcid',
+        link: 'ipfs://foobarcid_FILE',
         annotations: [],
         attributes: {
           name: 'testfile.pdf',
-          size: '123456',
+          size: 123456,
         },
       }
 
@@ -741,6 +802,38 @@ describe('EditorBlock to HMBlock', () => {
         children: [],
         props: {
           childrenType: 'Ordered',
+        },
+        content: [
+          {
+            type: 'text',
+            text: 'Hello world',
+            styles: {},
+          },
+        ],
+      }
+
+      const result: HMBlock = {
+        id: 'foo',
+        type: 'Paragraph',
+        text: 'Hello world',
+        annotations: [],
+        attributes: {
+          childrenType: 'Ordered',
+        },
+      }
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val).toEqual(result)
+    })
+
+    test('Ordered with start (deprecated)', () => {
+      const editorBlock: EditorBlock = {
+        id: 'foo',
+        type: 'paragraph',
+        children: [],
+        props: {
+          childrenType: 'Ordered',
+          // @ts-expect-error
           start: '5',
         },
         content: [
@@ -759,7 +852,68 @@ describe('EditorBlock to HMBlock', () => {
         annotations: [],
         attributes: {
           childrenType: 'Ordered',
-          start: '5',
+        },
+      }
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val).toEqual(result)
+    })
+
+    test('BlockQuote', () => {
+      const editorBlock: EditorBlock = {
+        id: 'foo',
+        type: 'paragraph',
+        children: [],
+        props: {
+          childrenType: 'Blockquote',
+        },
+        content: [
+          {
+            type: 'text',
+            text: 'Hello quote',
+            styles: {},
+          },
+        ],
+      }
+
+      const result: HMBlock = {
+        id: 'foo',
+        type: 'Paragraph',
+        text: 'Hello quote',
+        annotations: [],
+        attributes: {
+          childrenType: 'Blockquote',
+        },
+      }
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val).toEqual(result)
+    })
+
+    test('Group (default)', () => {
+      const editorBlock: EditorBlock = {
+        id: 'foo',
+        type: 'paragraph',
+        children: [],
+        props: {
+          childrenType: 'Group',
+        },
+        content: [
+          {
+            type: 'text',
+            text: 'Hello world',
+            styles: {},
+          },
+        ],
+      }
+
+      const result: HMBlock = {
+        id: 'foo',
+        type: 'Paragraph',
+        text: 'Hello world',
+        annotations: [],
+        attributes: {
+          childrenType: 'Group',
         },
       }
       const val = editorBlockToHMBlock(editorBlock)

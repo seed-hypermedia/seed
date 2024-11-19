@@ -281,6 +281,17 @@ function DocumentEditor({
                 {editor ? (
                   <HyperMediaEditorView editable={true} editor={editor} />
                 ) : null}
+                <code
+                  style={{
+                    padding: 20,
+                    marginTop: 20,
+                    backgroundColor: 'lightgray',
+                  }}
+                >
+                  <pre style={{whiteSpace: 'pre-wrap'}}>
+                    {JSON.stringify(editor.topLevelBlocks, null, 2)}
+                  </pre>
+                </code>
               </Container>
             </YStack>
           </YStack>
