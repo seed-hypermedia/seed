@@ -282,6 +282,26 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
           )
           .setMeta('preventAutolink', true),
       )
+    } else if (
+      this.hyperlinkToolbarState &&
+      this.hyperlinkToolbarState.type === 'mention'
+    ) {
+      const state = this.pmView.state
+      let tr = state.tr
+      const pos = this.hyperlinkMarkRange
+        ? this.hyperlinkMarkRange.from
+        : this.pmView.state.selection.from
+      const $pos = state.doc.resolve(pos)
+      tr = tr.replaceRangeWith(
+        $pos.start() - 1,
+        $pos.end(),
+        state.schema.nodes['paragraph'].createAndFill(
+          null,
+          state.schema.text(this.hyperlinkToolbarState.text),
+        )!,
+      )
+      // tr = tr.setNodeMarkup(pos, state.schema.nodes['paragraph'])
+      this.pmView.dispatch(tr)
     }
 
     this.pmView.focus()
