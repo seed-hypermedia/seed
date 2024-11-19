@@ -313,6 +313,7 @@ function EmbedControl({
       padding="$2"
       gap="$2"
       $group-item-hover={{opacity: 1}}
+      bg="$colorTransparent"
     >
       <Tooltip content="Open in a new window">
         <Button
