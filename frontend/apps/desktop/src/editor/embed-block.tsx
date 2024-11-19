@@ -323,6 +323,7 @@ function EmbedControl({
     openUrl: (url?: string | undefined, newWindow?: boolean | undefined) => void
     editor: BlockNoteEditor
     type: string
+    isSeedDocument?: boolean
   }) {
     // useEffect(() => {
     //   if (!popoverState.open) {
@@ -352,6 +353,7 @@ function EmbedControl({
           openUrl={props.openUrl}
           type={props.type}
           hasSearch={true}
+          isSeedDocument={props.isSeedDocument}
         >
           <>
             {/* {hasBlockRef ? (
