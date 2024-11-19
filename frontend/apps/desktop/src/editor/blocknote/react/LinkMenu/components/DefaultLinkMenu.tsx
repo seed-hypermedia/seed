@@ -11,6 +11,14 @@ export function DefaultLinkMenu<BSchema extends BlockSchema>(
     name: 'LinkMenu',
   })
   const renderedItems: any[] = []
+
+  if (props.items.length > 1) {
+    renderedItems.push(
+      <Menu.Label style={{fontWeight: 'bold', fontSize: 14}}>
+        Insert as:
+      </Menu.Label>,
+    )
+  }
   let index = 0
 
   for (const item of props.items) {
