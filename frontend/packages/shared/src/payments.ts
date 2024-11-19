@@ -1,4 +1,4 @@
-import {queryKeys} from '@shm/shared'
+import {invalidateQueries, queryKeys} from '@shm/shared'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {useEffect} from 'react'
 import {z} from 'zod'
@@ -61,7 +61,6 @@ const InvoiceStatusSchema = z.array(
 )
 
 export function useInvoiceStatus(invoice: HMInvoice | null) {
-  const invalidate = useQueryInvalidator()
   const status = useQuery({
     queryKey: [queryKeys.INVOICE_STATUS, invoice?.hash],
     refetchInterval: 2000,
@@ -79,7 +78,7 @@ export function useInvoiceStatus(invoice: HMInvoice | null) {
     },
   })
   useEffect(() => {
-    invalidate([queryKeys.INVOICES])
+    invalidateQueries([queryKeys.INVOICES])
   }, [status.data?.isSettled])
   return status
 }

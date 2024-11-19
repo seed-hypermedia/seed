@@ -1,8 +1,9 @@
-import {useGRPCClient, useQueryInvalidator} from '@/app-context'
+import {useGRPCClient} from '@/app-context'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {
   HMInvoice,
   HMWallet,
+  invalidateQueries,
   Invoice,
   LIGHTNING_API_URL,
   queryKeys,
@@ -14,7 +15,6 @@ import {z} from 'zod'
 
 export function useCreateWallet() {
   const grpcClient = useGRPCClient()
-  const invalidate = useQueryInvalidator()
   return useMutation({
     mutationFn: async (input: {accountUid: string}) => {
       await grpcClient.wallets.createWallet({
@@ -22,7 +22,7 @@ export function useCreateWallet() {
       })
     },
     onSuccess: (result, vars, context) => {
-      invalidate([queryKeys.ACCOUNT_WALLETS, vars.accountUid])
+      invalidateQueries([queryKeys.ACCOUNT_WALLETS, vars.accountUid])
     },
   })
 }
@@ -43,7 +43,6 @@ export function useListWallets(accountUid: string) {
 
 export function useDeleteWallet() {
   const grpcClient = useGRPCClient()
-  const invalidate = useQueryInvalidator()
   return useMutation({
     mutationFn: async (input: {walletId: string; accountUid: string}) => {
       await grpcClient.wallets.removeWallet({
@@ -51,7 +50,7 @@ export function useDeleteWallet() {
       })
     },
     onSuccess: (result, vars, context) => {
-      invalidate([queryKeys.ACCOUNT_WALLETS, vars.accountUid])
+      invalidateQueries([queryKeys.ACCOUNT_WALLETS, vars.accountUid])
     },
   })
 }
@@ -183,7 +182,6 @@ const InvoiceStatusSchema = z.array(
 )
 
 export function useInvoiceStatus(invoice: HMInvoice | null) {
-  const invalidate = useQueryInvalidator()
   const status = useQuery({
     queryKey: [queryKeys.INVOICE_STATUS, invoice?.hash],
     refetchInterval: 2000,
@@ -201,7 +199,7 @@ export function useInvoiceStatus(invoice: HMInvoice | null) {
     },
   })
   useEffect(() => {
-    invalidate([queryKeys.INVOICES])
+    invalidateQueries([queryKeys.INVOICES])
   }, [status.data?.isSettled])
   return status
 }

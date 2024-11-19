@@ -4,14 +4,12 @@ import {createContext, useContext, useEffect} from 'react'
 import {AppIPC, Event, EventCallback} from './app-ipc'
 
 import {WindowUtils} from './models/window-utils'
-import {AppQueryClient} from './query-client'
 
 export type AppPlatform = typeof process.platform
 
 export type AppContext = {
   platform: AppPlatform
   grpcClient: GRPCClient
-  queryClient: AppQueryClient
   ipc: AppIPC
   externalOpen: (url: string) => Promise<void>
   openDirectory: (directory: string) => Promise<void>
@@ -78,16 +76,6 @@ export function useIPC(): AppIPC {
     throw new Error('useIPC must be used within a AppContextProvider')
 
   return context.ipc
-}
-
-export function useQueryInvalidator() {
-  const context = useContext(AppContext)
-  if (!context)
-    throw new Error(
-      'useQueryInvalidator must be used within a AppContextProvider',
-    )
-
-  return context.queryClient.invalidate
 }
 
 export function useWindowUtils(): WindowUtils {

@@ -1,4 +1,4 @@
-import {useAppContext, useQueryInvalidator} from '@/app-context'
+import {useAppContext} from '@/app-context'
 import {
   BlockNoteEditor,
   BlockSchema,
@@ -16,7 +16,7 @@ import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
-import {HMDraft, UnpackedHypermediaId} from '@shm/shared'
+import {HMDraft, invalidateQueries, UnpackedHypermediaId} from '@shm/shared'
 import {OptionsDropdown, toast} from '@shm/ui'
 import {FileInput, FolderInput} from '@tamagui/lucide-icons'
 import {Extension} from '@tiptap/core'
@@ -42,7 +42,6 @@ export function ImportDropdownButton({
   const openUrl = useOpenUrl()
   const gwUrl = useGatewayUrlStream()
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
-  const invalidate = useQueryInvalidator()
   const [loading, setLoading] = useState(false)
 
   const importDialog = useImportDialog()
@@ -240,8 +239,8 @@ export function ImportDropdownButton({
         })
       }
 
-      invalidate(['trpc.drafts.list'])
-      invalidate(['trpc.drafts.listAccount'])
+      invalidateQueries(['trpc.drafts.list'])
+      invalidateQueries(['trpc.drafts.listAccount'])
     } catch (error) {
       console.error('Error importing documents:', error)
       toast.error(`Import error: ${error.message || error}`)

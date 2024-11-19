@@ -1,8 +1,9 @@
-import {useGRPCClient, useQueryInvalidator} from '@/app-context'
+import {useGRPCClient} from '@/app-context'
 import {trpc} from '@/trpc'
 import {
   DocumentChange,
   hmId,
+  invalidateQueries,
   queryKeys,
   UnpackedHypermediaId,
 } from '@shm/shared'
@@ -11,7 +12,6 @@ import {useEntity} from './entities'
 
 export function useSiteRegistration(accountUid: string) {
   const grpcClient = useGRPCClient()
-  const invalidate = useQueryInvalidator()
   const accountId = hmId('d', accountUid)
   const entity = useEntity(accountId)
 
@@ -79,14 +79,13 @@ export function useSiteRegistration(accountUid: string) {
       return null
     },
     onSuccess: (result, input) => {
-      invalidate([queryKeys.ENTITY, accountId.id])
+      invalidateQueries([queryKeys.ENTITY, accountId.id])
     },
   })
 }
 
 export function useRemoveSite(id: UnpackedHypermediaId) {
   const grpcClient = useGRPCClient()
-  const invalidate = useQueryInvalidator()
   const entity = useEntity(id)
   return useMutation({
     mutationFn: async () => {
@@ -109,7 +108,7 @@ export function useRemoveSite(id: UnpackedHypermediaId) {
       return null
     },
     onSuccess: () => {
-      invalidate([queryKeys.ENTITY, id.id])
+      invalidateQueries([queryKeys.ENTITY, id.id])
     },
   })
 }

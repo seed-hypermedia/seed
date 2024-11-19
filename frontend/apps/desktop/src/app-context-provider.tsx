@@ -1,4 +1,4 @@
-import {GRPCClient} from '@shm/shared'
+import {GRPCClient, queryClient} from '@shm/shared'
 import {TamaguiProvider, TamaguiProviderProps, View} from '@shm/ui'
 import {QueryClientProvider} from '@tanstack/react-query'
 import {ReactQueryDevtools} from '@tanstack/react-query-devtools'
@@ -10,13 +10,13 @@ import {useExperiments} from './models/experiments'
 
 import {AppContext, AppPlatform} from './app-context'
 import {WindowUtils} from './models/window-utils'
-import {AppQueryClient} from './query-client'
+
+debugger
 
 export function AppContextProvider({
   children,
   platform,
   grpcClient,
-  queryClient,
   ipc,
   externalOpen,
   openDirectory,
@@ -32,7 +32,6 @@ export function AppContextProvider({
   children: ReactNode
   platform: AppPlatform
   grpcClient: GRPCClient
-  queryClient: AppQueryClient
   ipc: AppIPC
   externalOpen: (url: string) => Promise<void>
   openDirectory: (directory: string) => Promise<void>
@@ -81,7 +80,6 @@ export function AppContextProvider({
       // platform: 'win32', // to test from macOS
       platform,
       grpcClient,
-      queryClient,
       ipc,
       externalOpen,
       openDirectory,
@@ -95,11 +93,9 @@ export function AppContextProvider({
     }),
     [],
   )
-  if (!queryClient)
-    throw new Error('queryClient is required for AppContextProvider')
   return (
     <AppContext.Provider value={appCtx}>
-      <QueryClientProvider client={queryClient.client}>
+      <QueryClientProvider client={queryClient}>
         <StyleProvider darkMode={darkMode}>{children}</StyleProvider>
         <ReactQueryTools />
       </QueryClientProvider>

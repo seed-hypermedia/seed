@@ -3,7 +3,7 @@ import {t} from './app-trpc'
 
 const invalidationHandlers = new Set<(queryKey: any) => void>()
 
-export function invalidateQueries(queryKey: any) {
+export function appInvalidateQueries(queryKey: any) {
   invalidationHandlers.forEach((handler) => handler(queryKey))
 }
 

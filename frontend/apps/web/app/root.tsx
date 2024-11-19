@@ -9,6 +9,7 @@ import {
   useRouteError,
 } from "@remix-run/react";
 import {captureRemixErrorBoundaryError, withSentry} from "@sentry/remix";
+import {onQueryInvalidation, queryClient} from "@shm/shared";
 import {isClient} from "@tamagui/core";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
@@ -24,6 +25,8 @@ export const links: LinksFunction = () => {
     {rel: "stylesheet", href: globalTamaguiStyles},
   ];
 };
+
+onQueryInvalidation(queryClient.invalidateQueries);
 
 export function Layout({children}: {children: React.ReactNode}) {
   return (

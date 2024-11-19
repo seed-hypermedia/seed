@@ -1,7 +1,6 @@
-import {useGRPCClient, useQueryInvalidator} from '@/app-context'
+import {useGRPCClient} from '@/app-context'
 import {Code, ConnectError} from '@connectrpc/connect'
-import {queryKeys} from '@shm/shared'
-import {useQuery} from '@tanstack/react-query'
+import {invalidateQueries, queryKeys} from '@shm/shared'
 
 import {trpc} from '@/trpc'
 import {
@@ -15,6 +14,7 @@ import {
   FetchQueryOptions,
   useMutation,
   UseMutationOptions,
+  useQuery,
   UseQueryOptions,
 } from '@tanstack/react-query'
 import {useEntities} from './entities'
@@ -146,7 +146,6 @@ export function useDeleteKey(
   opts?: UseMutationOptions<any, unknown, {accountId: string}>,
 ) {
   const grpcClient = useGRPCClient()
-  const invalidate = useQueryInvalidator()
   const deleteWords = trpc.secureStorage.delete.useMutation()
   return useMutation({
     mutationFn: async ({accountId}) => {
@@ -164,7 +163,7 @@ export function useDeleteKey(
       return deletedKey
     },
     onSuccess: () => {
-      invalidate([queryKeys.LOCAL_ACCOUNT_ID_LIST])
+      invalidateQueries([queryKeys.LOCAL_ACCOUNT_ID_LIST])
     },
     ...opts,
   })

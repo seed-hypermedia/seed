@@ -1,4 +1,4 @@
-import {useAppContext, useGRPCClient, useQueryInvalidator} from '@/app-context'
+import {useAppContext, useGRPCClient} from '@/app-context'
 import {dispatchWizardEvent} from '@/components/create-account'
 import {createHypermediaDocLinkPlugin} from '@/editor'
 import {useDraft} from '@/models/accounts'
@@ -25,6 +25,7 @@ import {
   hmBlocksToEditorContent,
   hmId,
   hmIdPathToEntityQueryPath,
+  invalidateQueries,
   queryKeys,
   unpackHmId,
   writeableStateStream,
@@ -86,13 +87,12 @@ export function useAccountDraftList(accountUid: string) {
 export function useDeleteDraft(
   opts?: UseMutationOptions<void, unknown, string>,
 ) {
-  const invalidate = useQueryInvalidator()
   const deleteDraft = trpc.drafts.delete.useMutation({
     ...opts,
     onSuccess: (data, input, ctx) => {
-      invalidate(['trpc.drafts.get', input])
-      invalidate(['trpc.drafts.list'])
-      invalidate(['trpc.drafts.listAccount'])
+      invalidateQueries(['trpc.drafts.get', input])
+      invalidateQueries(['trpc.drafts.list'])
+      invalidateQueries(['trpc.drafts.listAccount'])
       opts?.onSuccess?.(data, input, ctx)
     },
   })
@@ -173,7 +173,6 @@ export function usePublishDraft(
   >,
 ) {
   const grpcClient = useGRPCClient()
-  const invalidate = useQueryInvalidator()
   const accts = useMyAccountIds()
   return useMutation<
     HMDocument,
@@ -266,9 +265,9 @@ export function usePublishDraft(
       const documentId = variables.id?.id
       opts?.onSuccess?.(result, variables, context)
       if (documentId) {
-        invalidate([queryKeys.ENTITY, documentId])
-        invalidate([queryKeys.DOC_LIST_DIRECTORY, variables.id?.uid])
-        invalidate([queryKeys.LIST_ROOT_DOCUMENTS])
+        invalidateQueries([queryKeys.ENTITY, documentId])
+        invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, variables.id?.uid])
+        invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
       }
     },
   })
@@ -354,7 +353,7 @@ export function queryDraft({
 }
 
 export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
-  const {queryClient, grpcClient} = useAppContext()
+  const {grpcClient} = useAppContext()
   const openUrl = useOpenUrl()
   const route = useNavRoute()
   const replaceRoute = useNavigate('replace')
@@ -362,7 +361,6 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
   const gotEdited = useRef(false)
   const showNostr = trpc.experiments.get.useQuery().data?.nostr
-  const invalidate = useQueryInvalidator()
   const [writeEditorStream] = useRef(writeableStateStream<any>(null)).current
   const saveDraft = trpc.drafts.write.useMutation()
   const {inlineMentionsQuery, inlineMentionsData} = useInlineMentions()
@@ -407,7 +405,6 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
 
     linkExtensionOptions: {
       openOnClick: false,
-      queryClient,
       grpcClient,
       gwUrl,
       openUrl,
@@ -425,11 +422,7 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
         Extension.create({
           name: 'hypermedia-link',
           addProseMirrorPlugins() {
-            return [
-              createHypermediaDocLinkPlugin({
-                queryClient,
-              }).plugin,
-            ]
+            return [createHypermediaDocLinkPlugin({}).plugin]
           },
         }),
       ],
@@ -536,11 +529,11 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
           }
         },
         onSaveSuccess: function () {
-          invalidate([queryKeys.DRAFT, id?.id])
-          invalidate(['trpc.drafts.get'])
-          invalidate(['trpc.drafts.list'])
-          invalidate(['trpc.drafts.listAccount'])
-          invalidate([queryKeys.ENTITY, id?.id])
+          invalidateQueries([queryKeys.DRAFT, id?.id])
+          invalidateQueries(['trpc.drafts.get'])
+          invalidateQueries(['trpc.drafts.list'])
+          invalidateQueries(['trpc.drafts.listAccount'])
+          invalidateQueries([queryKeys.ENTITY, id?.id])
         },
       },
       actors: {

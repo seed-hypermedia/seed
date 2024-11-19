@@ -17,6 +17,7 @@ import {
   getCommentGroups,
   hmBlocksToEditorContent,
   hmIdPathToEntityQueryPath,
+  invalidateQueries,
   queryKeys,
   writeableStateStream,
 } from '@shm/shared'
@@ -24,7 +25,7 @@ import {toast} from '@shm/ui'
 import {UseQueryOptions, useMutation, useQuery} from '@tanstack/react-query'
 import {Extension} from '@tiptap/core'
 import {useEffect, useMemo, useRef} from 'react'
-import {useGRPCClient, useQueryInvalidator} from '../app-context'
+import {useGRPCClient} from '../app-context'
 import {hmBlockSchema, useBlockNote} from '../editor'
 import type {BlockNoteEditor} from '../editor/blocknote'
 import {getBlockGroup, setGroupTypes} from './editor-utils'
@@ -170,10 +171,9 @@ export function useCommentEditor(
       toast.error(err.message)
     },
   })
-  const invalidate = useQueryInvalidator()
   const removeDraft = trpc.comments.removeCommentDraft.useMutation({
     onSuccess: () => {
-      invalidate(['trpc.comments.getCommentDraft'])
+      invalidateQueries(['trpc.comments.getCommentDraft'])
       onDiscardDraft?.()
     },
   })
@@ -205,7 +205,7 @@ export function useCommentEditor(
       replyCommentId,
       account: account.get()!,
     })
-    invalidate(['trpc.comments.getCommentDraft'])
+    invalidateQueries(['trpc.comments.getCommentDraft'])
     setIsSaved(true)
   }
   const gwUrl = useGatewayUrlStream()
@@ -244,11 +244,7 @@ export function useCommentEditor(
         Extension.create({
           name: 'hypermedia-link',
           addProseMirrorPlugins() {
-            return [
-              createHypermediaDocLinkPlugin({
-                queryClient,
-              }).plugin,
-            ]
+            return [createHypermediaDocLinkPlugin({}).plugin]
           },
         }),
       ],
@@ -334,13 +330,13 @@ export function useCommentEditor(
       return resultComment
     },
     onSuccess: (newComment: HMComment) => {
-      invalidate([
+      invalidateQueries([
         queryKeys.DOCUMENT_COMMENTS,
         targetDocId.uid,
         ...(targetDocId.path || []),
       ])
-      invalidate([queryKeys.FEED_LATEST_EVENT])
-      invalidate([queryKeys.RESOURCE_FEED_LATEST_EVENT])
+      invalidateQueries([queryKeys.FEED_LATEST_EVENT])
+      invalidateQueries([queryKeys.RESOURCE_FEED_LATEST_EVENT])
       removeDraft.mutate({
         targetDocId: targetDocId.id,
         replyCommentId,

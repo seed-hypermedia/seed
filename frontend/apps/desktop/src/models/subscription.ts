@@ -1,9 +1,10 @@
-import {useGRPCClient, useQueryInvalidator} from '@/app-context'
+import {useGRPCClient} from '@/app-context'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {
   entityQueryPathToHmIdPath,
   hmId,
   hmIdPathToEntityQueryPath,
+  invalidateQueries,
   queryKeys,
   Subscription,
   UnpackedHypermediaId,
@@ -75,7 +76,6 @@ export function useListSubscriptions() {
 
 export function useSetSubscription() {
   const grpcClient = useGRPCClient()
-  const invalidate = useQueryInvalidator()
   return useMutation({
     mutationFn: async (input: {
       subscribed: boolean
@@ -96,7 +96,7 @@ export function useSetSubscription() {
       }
     },
     onSuccess: () => {
-      invalidate([queryKeys.SUBSCRIPTIONS])
+      invalidateQueries([queryKeys.SUBSCRIPTIONS])
     },
   })
 }

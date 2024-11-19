@@ -1,10 +1,11 @@
-import {useGRPCClient, useQueryInvalidator} from '@/app-context'
+import {useGRPCClient} from '@/app-context'
 import {useMyAccountIds} from '@/models/daemon'
 import {client, trpc} from '@/trpc'
 import {Code, ConnectError} from '@connectrpc/connect'
 import {
   GRPCClient,
   HMDraft,
+  invalidateQueries,
   packHmId,
   queryKeys,
   UnpackedHypermediaId,
@@ -47,10 +48,9 @@ export function useDraft(id?: UnpackedHypermediaId) {
 }
 
 export function useWriteDraft(id?: UnpackedHypermediaId) {
-  const invalidate = useQueryInvalidator()
   const saveDraft = trpc.drafts.write.useMutation({
     onSuccess: () => {
-      invalidate(['trpc.drafts.get'])
+      invalidateQueries(['trpc.drafts.get'])
     },
   })
 

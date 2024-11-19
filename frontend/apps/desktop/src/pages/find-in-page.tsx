@@ -1,4 +1,4 @@
-import {AppIPC} from '@/app-ipc'
+import {ipc} from '@/ipc'
 import {
   Button,
   ChevronDown,
@@ -10,7 +10,7 @@ import {
 } from '@shm/ui'
 import {useEffect, useRef, useState} from 'react'
 
-export function FindInPage({ipc}: {ipc: AppIPC}) {
+export function FindInPage({}: {}) {
   const size = '$2'
   const [query, setQuery] = useState('')
   const queryInput = useRef<HTMLInputElement>(null)

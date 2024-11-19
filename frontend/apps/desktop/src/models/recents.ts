@@ -1,6 +1,5 @@
 import {trpc} from '@/trpc'
-import {getRecentsRouteEntityUrl} from '@shm/shared'
-import {useQueryInvalidator} from '../app-context'
+import {getRecentsRouteEntityUrl, invalidateQueries} from '@shm/shared'
 import {useNavRoute} from '../utils/navigation'
 
 export function useRecents() {
@@ -16,10 +15,9 @@ export function useRecents() {
 }
 
 export function useDeleteRecent() {
-  const invalidate = useQueryInvalidator()
   return trpc.recents.deleteRecent.useMutation({
     onSuccess: () => {
-      invalidate(['trpc.recents.getRecents'])
+      invalidateQueries(['trpc.recents.getRecents'])
     },
   })
 }

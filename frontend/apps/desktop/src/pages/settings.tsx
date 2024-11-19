@@ -1,4 +1,4 @@
-import {useIPC, useQueryInvalidator} from '@/app-context'
+import {useIPC} from '@/app-context'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {IconForm} from '@/components/icon-form'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
@@ -22,7 +22,13 @@ import {
 } from '@/models/gateway-settings'
 import {usePeerInfo} from '@/models/networking'
 import {trpc} from '@/trpc'
-import {getAccountName, getFileUrl, hmId, VERSION} from '@shm/shared'
+import {
+  getAccountName,
+  getFileUrl,
+  hmId,
+  invalidateQueries,
+  VERSION,
+} from '@shm/shared'
 import {
   AlertDialog,
   Button,
@@ -309,7 +315,6 @@ function AccountKeys() {
   const deleteKey = useDeleteKey()
   const keys = useMyAccountIds()
   const deleteWords = trpc.secureStorage.delete.useMutation()
-  const invalidate = useQueryInvalidator()
   const [walletId, setWalletId] = useState<string | undefined>(undefined)
   const [selectedAccount, setSelectedAccount] = useState<undefined | string>(
     () => {
@@ -503,7 +508,9 @@ function AccountKeys() {
                                   .mutateAsync(selectedAccount)
                                   .then(() => {
                                     toast.success('Words deleted!')
-                                    invalidate('trpc.secureStorage.get')
+                                    invalidateQueries([
+                                      'trpc.secureStorage.get',
+                                    ])
                                   })
                               }
                             >

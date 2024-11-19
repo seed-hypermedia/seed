@@ -1,6 +1,5 @@
-import type {AppQueryClient} from '@/query-client'
 import {client} from '@/trpc'
-import {queryKeys} from '@shm/shared'
+import {queryClient, queryKeys} from '@shm/shared'
 import {useEffect, useRef, useState} from 'react'
 
 function parseHTML(html: string): Document {
@@ -100,6 +99,6 @@ function queryWebLink(url: string, enabled: boolean) {
   }
 }
 
-export function loadWebLinkMeta(appClient: AppQueryClient, url: string) {
-  return appClient.client.fetchQuery(queryWebLink(url, true))
+export function loadWebLinkMeta(url: string) {
+  return queryClient.fetchQuery(queryWebLink(url, true))
 }

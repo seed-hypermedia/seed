@@ -1,9 +1,9 @@
 import {useAccount_deprecated} from '@/models/accounts'
 import {client} from '@/trpc'
-import {Device, fullInvalidate, queryKeys} from '@shm/shared'
+import {Device, fullInvalidate, invalidateQueries, queryKeys} from '@shm/shared'
 import {UseMutationOptions, useMutation} from '@tanstack/react-query'
 import {decompressFromEncodedURIComponent} from 'lz-string'
-import {useGRPCClient, useQueryInvalidator} from '../app-context'
+import {useGRPCClient} from '../app-context'
 import {useConnectedPeers} from './networking'
 
 export function useConnectionSummary() {
@@ -43,7 +43,6 @@ export function useConnectPeer(
   } = {},
 ) {
   const grpcClient = useGRPCClient()
-  const invalidate = useQueryInvalidator()
   return useMutation<undefined, void, string | undefined>({
     mutationFn: async (peer: string | undefined) => {
       if (!peer) return undefined
@@ -88,13 +87,13 @@ export function useConnectPeer(
       if (opts.aggressiveInvalidation) {
         // invalidate frequently for 4 minutes while initial sync completes
         const invalidationInterval = setInterval(() => {
-          fullInvalidate(invalidate)
+          fullInvalidate(invalidateQueries)
         }, 6_000)
         setTimeout(() => {
           clearInterval(invalidationInterval)
         }, 4 * 60_000)
       }
-      invalidate([queryKeys.PEERS])
+      invalidateQueries([queryKeys.PEERS])
       opts?.onSuccess?.(data, ...rest)
     },
   })

@@ -22,7 +22,7 @@ import {experimentsApi} from './app-experiments'
 import {favoritesApi} from './app-favorites'
 import {gatewaySettingsApi} from './app-gateway-settings'
 import {grpcClient} from './app-grpc'
-import {invalidateQueries, queryInvalidation} from './app-invalidation'
+import {appInvalidateQueries, queryInvalidation} from './app-invalidation'
 import {userDataPath} from './app-paths'
 import {recentsApi} from './app-recents'
 
@@ -43,7 +43,7 @@ import {
 import * as log from './logger'
 
 ipcMain.on('invalidate_queries', (_event, info) => {
-  invalidateQueries(info)
+  appInvalidateQueries(info)
 })
 
 ipcMain.on('focusedWindowAppEvent', (_event, info) => {
