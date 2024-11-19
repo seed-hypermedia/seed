@@ -87,12 +87,27 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         // const link = parent.getAttribute('data-inline-embed')
         const domPos = this.pmView.posAtDOM(target, 0)
         const pos = this.pmView.state.doc.resolve(domPos)
-        const mention = pos.parent.firstChild
-        if (mention && mention.type.name === 'inline-embed') {
-          this.mouseHoveredHyperlinkMark = mention
-          this.mouseHoveredHyperlinkMarkRange = {
-            from: pos.start(),
-            to: pos.end(),
+        let mention = pos.parent.firstChild
+        if (mention) {
+          if (mention.type.name === 'inline-embed') {
+            this.mouseHoveredHyperlinkMark = mention
+            this.mouseHoveredHyperlinkMarkRange = {
+              from: pos.start(),
+              to: pos.end(),
+            }
+          } else {
+            let offset = 0
+            pos.parent.descendants((node, pos) => {
+              if (node.type.name === 'inline-embed') {
+                mention = node
+                offset = pos
+              }
+            })
+            this.mouseHoveredHyperlinkMark = mention
+            this.mouseHoveredHyperlinkMarkRange = {
+              from: pos.start() + offset,
+              to: pos.start() + offset + 2,
+            }
           }
         }
       }
@@ -319,6 +334,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
 
     // Saves the currently hovered hyperlink mark before it's updated.
     const prevHyperlinkMark = this.hyperlinkMark
+    const prevHyperlinkMarkRange = this.hyperlinkMarkRange
 
     // Resets the currently hovered hyperlink mark.
     this.hyperlinkMark = undefined
@@ -381,20 +397,13 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
           id: container ? container.attrs.id : '',
         }
       } else if (this.hyperlinkMark instanceof PMNode) {
-        // console.log(
-        // this.hyperlinkMark,
-        // // this.pmView.state.selection.$anchor.parent,
-        // this.hyperlinkMarkRange
-        // )
-        // console.log(
-        //   this.pmView.state.selection.$anchor.parent.firstChild!,
-        //   this.hyperlinkMark.eq(
-        //     this.pmView.state.selection.$anchor.parent.firstChild!,
-        //   ),
-        // )
-        const firstChild = this.pmView.state.selection.$anchor.parent.firstChild
+        const parent = this.pmView.state.selection.$anchor.parent
         this.hyperlinkToolbarState = {
-          show: firstChild ? this.hyperlinkMark.eq(firstChild) : false,
+          show: parent
+            ? this.pmView.state.doc
+                .resolve(this.hyperlinkMarkRange!.from)
+                .parent.eq(parent)
+            : false,
           referencePos: posToDOMRect(
             this.pmView,
             this.hyperlinkMarkRange!.from,
@@ -405,7 +414,6 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
           type: 'mention',
           id: container ? container.attrs.id : '',
         }
-        console.log(this.hyperlinkToolbarState)
       }
 
       this.updateHyperlinkToolbar()
@@ -419,10 +427,10 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
       // prevHyperlinkMark &&
       (!this.hyperlinkMark || !this.editor.isEditable)
     ) {
-      if (prevHyperlinkMark instanceof PMNode) {
+      if (prevHyperlinkMark instanceof PMNode && prevHyperlinkMarkRange) {
         if (
-          !this.pmView.state.selection.$anchor.parent.firstChild?.eq(
-            prevHyperlinkMark,
+          !this.pmView.state.selection.$anchor.parent.eq(
+            this.pmView.state.doc.resolve(prevHyperlinkMarkRange.from).parent,
           )
         ) {
           console.log('unshow')

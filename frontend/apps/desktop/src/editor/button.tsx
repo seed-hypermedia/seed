@@ -126,8 +126,7 @@ const Render = (
   //   {value: 'fill-width', label: 'Fill width'},
   // ]
   const [link, setLink] = useState(block.props.url)
-  const [linkType, setLinkType] = useState<'web' | 'seed'>('web')
-  // const unpackedRef = useMemo(() => unpackHmId(link), [link])
+  // const [linkType, setLinkType] = useState<'web' | 'seed'>('web')
   const openUrl = useOpenUrl()
 
   const assign = (newFile: ButtonType) => {
@@ -136,27 +135,27 @@ const Render = (
     })
   }
 
-  const renderLastInput = () => {
-    if (linkType === 'web') {
-      return (
-        <Input
-          value={link}
-          onChangeText={(text) => setLink(text)}
-          placeholder="Web Address URL"
-          onBlur={() => {
-            if (link !== block.props.url)
-              assign({props: {url: link}} as ButtonType)
-          }}
-        />
-      )
-    } else if (linkType === 'seed') {
-      return (
-        <XStack gap="$2">
-          <ButtonLauncherInput assign={assign} link={link} setLink={setLink} />
-        </XStack>
-      )
-    }
-  }
+  // const renderLastInput = () => {
+  //   if (linkType === 'web') {
+  //     return (
+  //       <Input
+  //         value={link}
+  //         onChangeText={(text) => setLink(text)}
+  //         placeholder="Web Address URL"
+  //         onBlur={() => {
+  //           if (link !== block.props.url)
+  //             assign({props: {url: link}} as ButtonType)
+  //         }}
+  //       />
+  //     )
+  //   } else if (linkType === 'seed') {
+  //     return (
+  //       <XStack gap="$2">
+  //         <ButtonLauncherInput assign={assign} link={link} setLink={setLink} />
+  //       </XStack>
+  //     )
+  //   }
+  // }
 
   function ButtonEditForm(props: any) {
     return (
@@ -215,6 +214,7 @@ const Render = (
             openUrl={openUrl}
             type="button"
             hasName={true}
+            isSeedDocument={props.isSeedDocument}
           />
         </YStack>
       </YStack>

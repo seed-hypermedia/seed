@@ -12,7 +12,7 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {ReactNode, useEffect, useMemo, useState} from 'react'
+import {ReactNode, useEffect, useState} from 'react'
 import {SwitcherItem} from './editor-types'
 import {LauncherItem} from './launcher-item'
 
@@ -24,6 +24,7 @@ export type HypermediaLinkFormProps = {
   updateLink: (url: string, text: string) => void
   editLink: (url: string, text: string) => void
   openUrl: (url?: string | undefined, newWindow?: boolean | undefined) => void
+  isSeedDocument?: boolean
   hasName?: boolean
   hasSearch?: boolean
 }
@@ -39,7 +40,6 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
       props.editLink(_url, _text)
     }
   }
-  const unpackedRef = useMemo(() => unpackHmId(_url), [_url])
 
   return (
     <YStack gap="$1.5">
@@ -121,7 +121,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
       )}
 
       <SizableText fontSize="$2" color="$brand5">
-        {unpackedRef ? 'Seed Document' : 'Web Address'}
+        {!!props.isSeedDocument ? 'Seed Document' : 'Web Address'}
       </SizableText>
 
       {props.children}

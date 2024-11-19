@@ -1,6 +1,5 @@
-import {unpackHmId} from '@shm/shared'
 import {SizableText, SizeTokens, YStack} from '@shm/ui'
-import {useEffect, useMemo, useState} from 'react'
+import {useEffect, useState} from 'react'
 import {HyperlinkToolbarProps} from './blocknote'
 import {HypermediaLinkForm} from './hm-link-form'
 
@@ -9,13 +8,14 @@ export function HypermediaLinkToolbar(
     openUrl: (url?: string | undefined, newWindow?: boolean | undefined) => void
     onClose: (bool: boolean) => void
     type: string
+    isSeedDocument?: boolean
   },
 ) {
   const formSize: SizeTokens = '$2'
 
   const [_url, setUrl] = useState(props.url || '')
   const [_text, setText] = useState(props.text || '')
-  const unpackedRef = useMemo(() => unpackHmId(_url), [_url])
+  // const unpackedRef = useMemo(() => unpackHmId(_url), [_url])
   // const _latest = unpackedRef?.latest || false
 
   function handleKeydown(event: KeyboardEvent) {
@@ -68,6 +68,7 @@ export function HypermediaLinkToolbar(
         type={props.type}
         hasName={true}
         hasSearch={props.type === 'mention'}
+        isSeedDocument={props.isSeedDocument}
       />
       {/* <<YStack>
         <XStack ai="center" gap="$2" p="$1">
