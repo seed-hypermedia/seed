@@ -42,6 +42,7 @@ type EntitiesClient interface {
 	UndeleteEntity(ctx context.Context, in *UndeleteEntityRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// List mentions of a given Entity across the locally-available content.
 	ListEntityMentions(ctx context.Context, in *ListEntityMentionsRequest, opts ...grpc.CallOption) (*ListEntityMentionsResponse, error)
+	// List library items.
 	ListLibrary(ctx context.Context, in *ListLibraryRequest, opts ...grpc.CallOption) (*ListLibraryResponse, error)
 }
 
@@ -157,6 +158,7 @@ type EntitiesServer interface {
 	UndeleteEntity(context.Context, *UndeleteEntityRequest) (*emptypb.Empty, error)
 	// List mentions of a given Entity across the locally-available content.
 	ListEntityMentions(context.Context, *ListEntityMentionsRequest) (*ListEntityMentionsResponse, error)
+	// List library items.
 	ListLibrary(context.Context, *ListLibraryRequest) (*ListLibraryResponse, error)
 }
 

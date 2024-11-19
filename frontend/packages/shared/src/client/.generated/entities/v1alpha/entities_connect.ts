@@ -106,6 +106,8 @@ export const Entities = {
       kind: MethodKind.Unary,
     },
     /**
+     * List library items.
+     *
      * @generated from rpc com.seed.entities.v1alpha.Entities.ListLibrary
      */
     listLibrary: {

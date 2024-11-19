@@ -4,6 +4,7 @@ package entities
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"seed/backend/blob"
 	"seed/backend/core"
 	entities "seed/backend/genproto/entities/v1alpha"
@@ -304,6 +305,22 @@ func isDescendant(timeline *entities.EntityTimeline, queue [][]string, parent, d
 	}
 
 	return false
+}
+
+// ListLibrary implements the Entities server.
+func (api *Server) ListLibrary(ctx context.Context, in *entities.ListLibraryRequest) (*entities.ListLibraryResponse, error) {
+	res := &entities.ListLibraryResponse{}
+	_, err := api.SearchEntities(ctx, &entities.SearchEntitiesRequest{Query: in.Query})
+
+	if err != nil {
+		return res, fmt.Errorf("Error searching entities given the query [%s]:%w", in.Query, err)
+	}
+	//for _, entity := range entities.Entities{
+	//	res.
+	//	entity.
+	//}
+
+	return res, nil
 }
 
 // DiscoverEntity implements the Entities server.

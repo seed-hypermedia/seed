@@ -37,6 +37,7 @@ service Entities {
   // List mentions of a given Entity across the locally-available content.
   rpc ListEntityMentions(ListEntityMentionsRequest) returns (ListEntityMentionsResponse);
 
+  // List library items.
   rpc ListLibrary(ListLibraryRequest) returns (ListLibraryResponse);
 }
 
