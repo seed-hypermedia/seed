@@ -2,14 +2,15 @@ import {useGRPCClient, useQueryInvalidator} from '@/app-context'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {
   HMInvoice,
+  HMWallet,
   Invoice,
   LIGHTNING_API_URL,
+  queryKeys,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {useMutation, useQuery} from '@tanstack/react-query'
-import {useEffect} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import {z} from 'zod'
-import {queryKeys} from './query-keys'
 
 export function useCreateWallet() {
   const grpcClient = useGRPCClient()
@@ -55,12 +56,46 @@ export function useDeleteWallet() {
   })
 }
 
+export function useDecodedInvoice(payreq: string) {
+  const grpcClient = useGRPCClient()
+  const [invoice, setInvoice] = useState<HMInvoice | null>(null)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  useEffect(() => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    timeoutRef.current = setTimeout(() => {
+      if (!payreq) {
+        setInvoice(null)
+        return
+      }
+      grpcClient.invoices
+        .decodeInvoice({payreq})
+        .then((res) => {
+          console.log('decoded invoice', res)
+          setInvoice({
+            amount: Number(res.amount),
+            hash: res.paymentHash,
+            description: res.description,
+            payload: payreq,
+            share: {},
+          })
+        })
+        .catch((e) => {
+          setInvoice(null)
+        })
+    }, 250)
+  }, [payreq])
+  function reset() {
+    setInvoice(null)
+  }
+  return [invoice, reset] as const
+}
+
 export function useListInvoices(walletId: string) {
   const grpcClient = useGRPCClient()
   return useQuery({
     queryKey: [queryKeys.INVOICES, walletId],
     queryFn: async () => {
-      const receivedQuery = await grpcClient.invoices.listReceivednvoices({
+      const receivedQuery = await grpcClient.invoices.listReceivedInvoices({
         id: walletId,
       })
       const received = toPlainMessage(receivedQuery).invoices
@@ -128,44 +163,46 @@ export function usePayInvoice() {
     mutationFn: async (input: {
       walletId: string
       accountUid: string
-      payreq: string
+      // payreq: string
+      invoice: HMInvoice
     }) => {
       await grpcClient.invoices.payInvoice({
         id: input.walletId,
-        payreq: input.payreq,
+        payreq: input.invoice.payload,
         account: input.accountUid,
-        amount: 100,
+        amount: BigInt(input.invoice.amount),
       })
     },
   })
 }
 
-const InvoiceStatusSchema = z.object({
-  status: z.union([z.literal('open'), z.literal('settled')]),
-})
+const InvoiceStatusSchema = z.array(
+  z.object({
+    status: z.union([z.literal('open'), z.literal('settled')]),
+  }),
+)
 
-export function useInvoiceStatus(input: {
-  invoiceHash: string
-  accountUid: string
-  walletId: string
-}) {
+export function useInvoiceStatus(invoice: HMInvoice | null) {
   const invalidate = useQueryInvalidator()
   const status = useQuery({
-    queryKey: [queryKeys.INVOICE_STATUS, input.invoiceHash, input.accountUid],
+    queryKey: [queryKeys.INVOICE_STATUS, invoice?.hash],
     refetchInterval: 2000,
     refetchIntervalInBackground: true,
     queryFn: async () => {
-      const url = `${LIGHTNING_API_URL}/v2/invoicemeta/${input.invoiceHash}?user=${input.accountUid}`
+      if (!invoice) return {isSettled: false}
+      const url = `${LIGHTNING_API_URL}/v2/invoicemeta/${invoice.hash}`
       console.log('fetching', url)
       const res = await fetch(url, {})
       const serverInvoice = await res.json()
+      console.log('server meta', serverInvoice)
       const invoiceMeta = InvoiceStatusSchema.parse(serverInvoice)
-      return invoiceMeta
+      const isSettled = invoiceMeta.every((meta) => meta.status === 'settled')
+      return {isSettled}
     },
   })
   useEffect(() => {
-    invalidate([queryKeys.INVOICES, input.walletId])
-  }, [status.data?.status])
+    invalidate([queryKeys.INVOICES])
+  }, [status.data?.isSettled])
   return status
 }
 
@@ -181,7 +218,11 @@ export function useWallet(walletId: string) {
       const balanceResp = await grpcClient.wallets.getWalletBalance({
         id: walletId,
       })
-      return {...wallet, balance: balanceResp.balance}
+      const fullWallet: HMWallet = {
+        ...wallet,
+        balance: Number(balanceResp.balance),
+      }
+      return fullWallet
     },
   })
 }
@@ -225,7 +266,7 @@ export function useCreateInvoice() {
       console.log(`== ~ serverInvoice`, serverInvoice)
       const invoice: HMInvoice = {
         payload: serverInvoice.pr,
-        hash: serverInvoice.hash,
+        hash: serverInvoice.payment_hash,
         amount: input.amountSats,
         share: input.recipients,
       }

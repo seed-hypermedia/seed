@@ -2,7 +2,6 @@ import {useAppContext, useGRPCClient, useQueryInvalidator} from '@/app-context'
 import {dispatchWizardEvent} from '@/components/create-account'
 import {createHypermediaDocLinkPlugin} from '@/editor'
 import {useDraft} from '@/models/accounts'
-import {queryKeys} from '@/models/query-keys'
 import {useOpenUrl} from '@/open-url'
 import {slashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
@@ -26,6 +25,7 @@ import {
   hmBlocksToEditorContent,
   hmId,
   hmIdPathToEntityQueryPath,
+  queryKeys,
   unpackHmId,
   writeableStateStream,
 } from '@shm/shared'

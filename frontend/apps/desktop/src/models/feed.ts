@@ -1,9 +1,8 @@
 import {PartialMessage, Timestamp} from '@bufbuild/protobuf'
-import {Event, ListEventsRequest, unpackHmId} from '@shm/shared'
+import {Event, ListEventsRequest, queryKeys, unpackHmId} from '@shm/shared'
 import {useInfiniteQuery, useQuery} from '@tanstack/react-query'
 import {useGRPCClient} from '../app-context'
 import {ChangeBlob, GroupSchema, useBlobsData} from './changes'
-import {queryKeys} from './query-keys'
 
 export function feedEventId(e: Event | undefined) {
   if (!e) return 'empty'

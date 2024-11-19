@@ -1,9 +1,13 @@
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
-import {Entity, HYPERMEDIA_ENTITY_TYPES, unpackHmId} from '@shm/shared'
+import {
+  Entity,
+  HYPERMEDIA_ENTITY_TYPES,
+  queryKeys,
+  unpackHmId,
+} from '@shm/shared'
 import {UseQueryOptions, useQuery} from '@tanstack/react-query'
 import {useCallback, useMemo, useState} from 'react'
 import {useGRPCClient} from '../app-context'
-import {queryKeys} from './query-keys'
 import {useRecents} from './recents'
 
 export function useSearch(

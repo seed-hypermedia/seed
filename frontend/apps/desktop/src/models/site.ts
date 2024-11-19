@@ -1,9 +1,13 @@
 import {useGRPCClient, useQueryInvalidator} from '@/app-context'
 import {trpc} from '@/trpc'
-import {DocumentChange, hmId, UnpackedHypermediaId} from '@shm/shared'
+import {
+  DocumentChange,
+  hmId,
+  queryKeys,
+  UnpackedHypermediaId,
+} from '@shm/shared'
 import {useMutation} from '@tanstack/react-query'
 import {useEntity} from './entities'
-import {queryKeys} from './query-keys'
 
 export function useSiteRegistration(accountUid: string) {
   const grpcClient = useGRPCClient()

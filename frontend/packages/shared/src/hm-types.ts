@@ -416,4 +416,18 @@ export type HMInvoice = {
   hash: string
   amount: number
   share: Record<string, number>
+  description?: string
+}
+
+export type HMWallet = {
+  balance: number
+  id: string
+  address: string
+  name: string
+  type: string
+}
+
+export type HMMetadataPayload = {
+  id: UnpackedHypermediaId
+  metadata: HMMetadata
 }

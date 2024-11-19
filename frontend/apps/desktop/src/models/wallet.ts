@@ -1,11 +1,15 @@
-import {DAEMON_GRAPHQL_ENDPOINT, LIGHTNING_API_URL, Mutation} from '@shm/shared'
+import {
+  DAEMON_GRAPHQL_ENDPOINT,
+  LIGHTNING_API_URL,
+  Mutation,
+  queryKeys,
+} from '@shm/shared'
 import {UseMutationOptions, useMutation, useQuery} from '@tanstack/react-query'
 import request, {gql} from 'graphql-request'
 import {useEffect} from 'react'
 import {useQueryInvalidator} from '../app-context'
 import {useMyAccount_deprecated} from './accounts'
 import {useWallets} from './payments'
-import {queryKeys} from './query-keys'
 
 let exportBuiltInWalletMutation = gql`
   mutation exportBuiltInWallet {

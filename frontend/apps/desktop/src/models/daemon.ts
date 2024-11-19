@@ -1,7 +1,7 @@
 import {useGRPCClient, useQueryInvalidator} from '@/app-context'
 import {Code, ConnectError} from '@connectrpc/connect'
+import {queryKeys} from '@shm/shared'
 import {useQuery} from '@tanstack/react-query'
-import {queryKeys} from './query-keys'
 
 import {trpc} from '@/trpc'
 import {

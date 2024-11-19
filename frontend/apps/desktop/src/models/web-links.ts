@@ -1,7 +1,7 @@
 import type {AppQueryClient} from '@/query-client'
 import {client} from '@/trpc'
+import {queryKeys} from '@shm/shared'
 import {useEffect, useRef, useState} from 'react'
-import {queryKeys} from './query-keys'
 
 function parseHTML(html: string): Document {
   const parser = new DOMParser()

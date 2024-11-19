@@ -33,6 +33,7 @@
     "@tamagui/create-theme": "1.108.2",
     "@tamagui/font-inter": "1.108.2",
     "@tamagui/helpers-icon": "1.108.2",
+    "@tamagui/input": "1.108.2",
     "@tamagui/lucide-icons": "1.108.2",
     "@tamagui/react-native-media-driver": "1.108.2",
     "@tamagui/shorthands": "1.108.2",

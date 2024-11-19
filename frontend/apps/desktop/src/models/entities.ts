@@ -9,6 +9,7 @@ import {
   hmIdPathToEntityQueryPath,
   NavRoute,
   packHmId,
+  queryKeys,
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
@@ -21,7 +22,6 @@ import {
 } from '@tanstack/react-query'
 import {useEffect, useMemo} from 'react'
 import {useGRPCClient, useQueryInvalidator} from '../app-context'
-import {queryKeys} from './query-keys'
 import {useDeleteRecent} from './recents'
 
 type DeleteEntitiesInput = {

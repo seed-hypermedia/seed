@@ -3,12 +3,14 @@ import {
   HMDocument,
   hmId,
   HMMetadata,
+  HMMetadataPayload,
   HMQueryResult,
   normalizeDate,
   relativeFormattedDate,
   UnpackedHypermediaId,
 } from "@shm/shared";
 import {Container} from "@shm/ui/src/container";
+import {DonateButton} from "@shm/ui/src/donate-button";
 import {HMIcon} from "@shm/ui/src/hm-icon";
 import {SiteLogo} from "@shm/ui/src/site-logo";
 import {Popover} from "@shm/ui/src/TamaguiPopover";
@@ -22,7 +24,6 @@ import {H1, SizableText} from "@tamagui/text";
 import {useMemo, useState} from "react";
 import {ScrollView} from "react-native";
 import {getHref} from "./href";
-import type {MetadataPayload} from "./loaders";
 import {useDocumentChanges, useEntity} from "./models";
 import {HMDocumentChangeInfo} from "./routes/hm.api.changes";
 import {SearchUI} from "./search";
@@ -37,7 +38,7 @@ export function PageHeader({
   homeId: UnpackedHypermediaId | null;
   docMetadata: HMMetadata | null;
   docId: UnpackedHypermediaId | null;
-  authors: MetadataPayload[];
+  authors: HMMetadataPayload[];
   updateTime: HMDocument["updateTime"] | null;
 }) {
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata]);
@@ -119,6 +120,7 @@ export function PageHeader({
           </XStack>
           <Separator />
         </YStack>
+        {docId && <DonateButton docId={docId} authors={authors} />}
       </Container>
     </YStack>
   );

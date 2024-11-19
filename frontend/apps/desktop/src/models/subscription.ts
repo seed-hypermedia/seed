@@ -4,11 +4,11 @@ import {
   entityQueryPathToHmIdPath,
   hmId,
   hmIdPathToEntityQueryPath,
+  queryKeys,
   Subscription,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {useMutation, useQuery} from '@tanstack/react-query'
-import {queryKeys} from './query-keys'
 
 export type HMSubscription = Omit<PlainMessage<Subscription>, 'path'> & {
   id: UnpackedHypermediaId

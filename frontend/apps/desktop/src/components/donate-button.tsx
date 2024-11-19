@@ -1,5 +1,9 @@
 import {useEntities, useEntity} from '@/models/entities'
-import {useAllowedPaymentRecipients, useCreateInvoice} from '@/models/payments'
+import {
+  useAllowedPaymentRecipients,
+  useCreateInvoice,
+  useInvoiceStatus,
+} from '@/models/payments'
 import {
   getAccountName,
   hmId,
@@ -11,7 +15,7 @@ import {CheckboxField, Field, HMIcon} from '@shm/ui'
 import {Spinner} from '@shm/ui/src/spinner'
 import {CircleDollarSign} from '@tamagui/lucide-icons'
 import {useState} from 'react'
-import QRCode from 'react-native-qrcode-svg'
+import QRCode from 'react-qr-code'
 import {
   Button,
   DialogDescription,
@@ -95,10 +99,14 @@ function DonateInvoice({
   onReset: () => void
   onClose: () => void
 }) {
+  console.log('~~', invoice)
+  const status = useInvoiceStatus(invoice)
+
   return (
     <>
       <DialogTitle>pay this invoice</DialogTitle>
       <QRCode value={invoice.payload} />
+      <SizableText>{status.data?.isSettled ? 'Settled' : 'Open'}</SizableText>
       <SizableText>{invoice.payload}</SizableText>
     </>
   )

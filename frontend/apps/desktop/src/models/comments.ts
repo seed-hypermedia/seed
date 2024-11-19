@@ -17,6 +17,7 @@ import {
   getCommentGroups,
   hmBlocksToEditorContent,
   hmIdPathToEntityQueryPath,
+  queryKeys,
   writeableStateStream,
 } from '@shm/shared'
 import {toast} from '@shm/ui'
@@ -29,7 +30,6 @@ import type {BlockNoteEditor} from '../editor/blocknote'
 import {getBlockGroup, setGroupTypes} from './editor-utils'
 import {useEntity} from './entities'
 import {useGatewayUrlStream} from './gateway-settings'
-import {queryKeys} from './query-keys'
 import {useInlineMentions} from './search'
 
 function serverBlockNodesFromEditorBlocks(

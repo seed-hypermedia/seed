@@ -288,8 +288,12 @@ function AppNewspaperHeader({
       items={navItems}
       docId={activeId}
       rightContent={
-        activeId.id === siteHomeEntity.id.id ? (
-          <DocumentHeadItems docId={siteHomeEntity.id} isBlockFocused={false} />
+        activeId.id === siteHomeEntity.id.id && siteHomeEntity.document ? (
+          <DocumentHeadItems
+            docId={siteHomeEntity.id}
+            isBlockFocused={false}
+            document={siteHomeEntity.document}
+          />
         ) : null
       }
       afterLinksContent={
@@ -430,10 +434,13 @@ function DocPageHeader({
                   </SizableText>
                 </Tooltip>
               </XStack>
-              <DocumentHeadItems
-                docId={docId}
-                isBlockFocused={isBlockFocused}
-              />
+              {entity.data?.document && (
+                <DocumentHeadItems
+                  document={entity.data.document}
+                  docId={docId}
+                  isBlockFocused={isBlockFocused}
+                />
+              )}
             </XStack>
           </YStack>
           <TSeparator borderColor="$color8" />

@@ -1,5 +1,4 @@
 import {useGatewayUrl} from '@/models/gateway-settings'
-import {queryKeys} from '@/models/query-keys'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {
@@ -10,6 +9,7 @@ import {
   eventStream,
   HMDraft,
   hmId,
+  queryKeys,
 } from '@shm/shared'
 import {
   Button,

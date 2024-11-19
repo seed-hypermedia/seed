@@ -1,9 +1,14 @@
 import {useGRPCClient, useQueryInvalidator} from '@/app-context'
 import {useMyAccountIds} from '@/models/daemon'
-import {queryKeys} from '@/models/query-keys'
 import {client, trpc} from '@/trpc'
 import {Code, ConnectError} from '@connectrpc/connect'
-import {GRPCClient, HMDraft, packHmId, UnpackedHypermediaId} from '@shm/shared'
+import {
+  GRPCClient,
+  HMDraft,
+  packHmId,
+  queryKeys,
+  UnpackedHypermediaId,
+} from '@shm/shared'
 import {useQueries, UseQueryOptions} from '@tanstack/react-query'
 
 export function useAccount_deprecated() {

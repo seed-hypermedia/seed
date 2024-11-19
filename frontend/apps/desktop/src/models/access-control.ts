@@ -4,6 +4,7 @@ import {
   hmId,
   hmIdPathToEntityQueryPath,
   HMRole,
+  queryKeys,
   Role,
   UnpackedHypermediaId,
 } from '@shm/shared'
@@ -11,7 +12,6 @@ import {toast} from '@shm/ui'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {useMyAccountIds} from './daemon'
 import {getParentPaths, useEntities} from './entities'
-import {queryKeys} from './query-keys'
 
 export function useDocumentCollaborators(id: UnpackedHypermediaId) {
   //

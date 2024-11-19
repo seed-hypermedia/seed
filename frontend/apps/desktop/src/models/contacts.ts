@@ -1,11 +1,10 @@
 import {useAccount_deprecated} from '@/models/accounts'
 import {client} from '@/trpc'
-import {Device} from '@shm/shared'
+import {Device, fullInvalidate, queryKeys} from '@shm/shared'
 import {UseMutationOptions, useMutation} from '@tanstack/react-query'
 import {decompressFromEncodedURIComponent} from 'lz-string'
 import {useGRPCClient, useQueryInvalidator} from '../app-context'
 import {useConnectedPeers} from './networking'
-import {fullInvalidate, queryKeys} from './query-keys'
 
 export function useConnectionSummary() {
   const peerInfo = useConnectedPeers({
