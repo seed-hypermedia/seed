@@ -10,7 +10,6 @@ import {
   UnpackedHypermediaId,
 } from "@shm/shared";
 import {Container} from "@shm/ui/src/container";
-import {DonateButton} from "@shm/ui/src/donate-button";
 import {HMIcon} from "@shm/ui/src/hm-icon";
 import {SiteLogo} from "@shm/ui/src/site-logo";
 import {Popover} from "@shm/ui/src/TamaguiPopover";
@@ -117,7 +116,7 @@ export function PageHeader({
                 updateTime={updateTime}
               />
             ) : null}
-            {docId && <DonateButton docId={docId} authors={authors} />}
+            {/* {docId && <DonateButton docId={docId} authors={authors} />} */}
           </XStack>
           <Separator />
         </YStack>
