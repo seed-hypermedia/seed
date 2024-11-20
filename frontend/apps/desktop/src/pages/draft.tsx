@@ -134,6 +134,13 @@ export default function DraftPage() {
         <YStack>
           <DocumentEditor {...data} id={route.id} />
         </YStack>
+        <YStack width={300} overflow="scroll">
+          <code>
+            <pre style={{whiteSpace: 'pre-wrap'}}>
+              {JSON.stringify(data.editor.topLevelBlocks, null, 2)}
+            </pre>
+          </code>
+        </YStack>
       </XStack>
     )
   }
@@ -170,6 +177,13 @@ export default function DraftPage() {
           </XStack>
         ) : null}
         {draftContent}
+        <YStack overflow="scroll" height={400} w="100%">
+          <code>
+            <pre style={{whiteSpace: 'pre-wrap'}}>
+              {JSON.stringify(data.state.context.entity?.document, null, 2)}
+            </pre>
+          </code>
+        </YStack>
       </AccessoryLayout>
     </ErrorBoundary>
   )
@@ -267,6 +281,17 @@ function DocumentEditor({
                 {editor ? (
                   <HyperMediaEditorView editable={true} editor={editor} />
                 ) : null}
+                <code
+                  style={{
+                    padding: 20,
+                    marginTop: 20,
+                    backgroundColor: 'lightgray',
+                  }}
+                >
+                  <pre style={{whiteSpace: 'pre-wrap'}}>
+                    {JSON.stringify(editor.topLevelBlocks, null, 2)}
+                  </pre>
+                </code>
               </Container>
             </YStack>
           </YStack>
