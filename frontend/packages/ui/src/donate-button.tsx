@@ -1,8 +1,13 @@
 import {
+  applyIsEvenAllocation,
+  applyRecipientAmount,
+  applyTotalAmount,
+  DEFAULT_PAYMENT_AMOUNTS,
+  getAllocations,
   getMetadataName,
   HMInvoice,
   HMMetadataPayload,
-  LIGHTNING_API_URL,
+  PaymentAllocation,
   UnpackedHypermediaId,
   useAllowedPaymentRecipients,
   useCreateInvoice,
@@ -16,8 +21,8 @@ import {XStack, YStack} from "@tamagui/stacks";
 import {Heading, SizableText} from "@tamagui/text";
 import {useState} from "react";
 import QRCode from "react-qr-code";
+import {Label} from "tamagui";
 import {CheckboxField} from "./checkbox-field";
-import {Field} from "./form-fields";
 import {HMIcon} from "./hm-icon";
 import {Spinner} from "./spinner";
 import {DialogTitle, useAppDialog} from "./universal-dialog";
@@ -130,12 +135,17 @@ function DonateForm({
   allowed: Set<string>;
   docId: UnpackedHypermediaId;
 }) {
-  const [paymentAllocation, setPaymentAllocation] = useState<{
-    evenly: boolean;
-    accounts?: Record<string, number>;
-    total: number;
-  }>({evenly: true, total: 100});
+  const [paymentAllocation, setPaymentAllocation] = useState<PaymentAllocation>(
+    {
+      mode: "even",
+      amount: DEFAULT_PAYMENT_AMOUNTS[0],
+      recipients: authors
+        .filter((a) => allowed.has(a.id.uid))
+        .map((a) => a.id.uid),
+    }
+  );
   const createInvoice = useCreateInvoice();
+  const {fee, recipients, total, isEven} = getAllocations(paymentAllocation);
   if (createInvoice.isLoading)
     return (
       <YStack ai="center" gap="$4">
@@ -146,28 +156,22 @@ function DonateForm({
   return (
     <>
       <Heading>Distribution Overview</Heading>
-      <Field id="amount" label="Amount">
-        <Input
+      <Label>Total Payment (SAT)</Label>
+      <Input
         // borderColor="$colorTransparent"
         // id="amount"
         // borderWidth={0}
-        // value={`${paymentAllocation.total}`}
-        // onChange={(e) => {
-        //   const text = e.target.value;
-        //   setPaymentAllocation((allocation) => {
-        //     if (isNaN(Number(text))) return allocation;
-        //     return {...allocation, total: Number(text)};
-        //   });
-        // }}
-        />
-      </Field>
+        value={`${total}`}
+        onChange={(e) => {
+          const amountText = e.target.value;
+          setPaymentAllocation(applyTotalAmount(amountText));
+        }}
+      />
       <CheckboxField
         id="split-evenly"
-        value={paymentAllocation.evenly}
+        value={isEven}
         onValue={(isEvenly) =>
-          setPaymentAllocation((allocation) => {
-            return {evenly: isEvenly, total: paymentAllocation.total};
-          })
+          setPaymentAllocation(applyIsEvenAllocation(isEvenly))
         }
       >
         Divide Evenly
@@ -175,35 +179,48 @@ function DonateForm({
       <YStack>
         {authors.map((author) => {
           if (!author.metadata) return null;
+          const isAllowedRecipient = allowed.has(author.id.uid);
+          const recieveAmount =
+            recipients.find((r) => r.account === author.id.uid)?.amount || 0;
           return (
             <XStack key={author.id.uid} jc="space-between">
               <XStack ai="center" gap="$4">
                 <HMIcon id={author.id} metadata={author.metadata} />
-                <SizableText>{getMetadataName(author.metadata)}</SizableText>
+                <SizableText color={isAllowedRecipient ? undefined : "$color9"}>
+                  {getMetadataName(author.metadata)}
+                </SizableText>
               </XStack>
-              <Input placeholder="0" />
+              {isAllowedRecipient ? (
+                <Input
+                  value={`${recieveAmount}`}
+                  onChange={(e) => {
+                    const amountText = e.target.value;
+                    setPaymentAllocation(
+                      applyRecipientAmount(author.id.uid, amountText)
+                    );
+                  }}
+                />
+              ) : (
+                <SizableText>Donations Disabled</SizableText>
+              )}
             </XStack>
           );
         })}
       </YStack>
-      <DialogDescription>{LIGHTNING_API_URL}</DialogDescription>
+      <DialogDescription>Fee: {fee} SAT</DialogDescription>
+      <DialogDescription>Total: {total} SAT</DialogDescription>
       <Button
         themeInverse
         theme="green"
         onPress={() => {
-          if (!paymentAllocation.evenly)
-            throw new Error("Not implemented uneven splits");
-          const recipients = Object.fromEntries(
-            authors
-              .filter((author) => allowed.has(author.id.uid))
-              .map((authorUid) => {
-                return [authorUid, 1 / allowed.size];
-              })
-          );
           createInvoice
             .mutateAsync({
-              amountSats: paymentAllocation.total,
-              recipients,
+              amountSats: total,
+              recipients: Object.fromEntries(
+                recipients.map((recipient) => {
+                  return [recipient, recipient.amount / total];
+                })
+              ),
               docId,
             })
             .then((invoice) => {

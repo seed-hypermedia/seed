@@ -11,8 +11,6 @@ import {useExperiments} from './models/experiments'
 import {AppContext, AppPlatform} from './app-context'
 import {WindowUtils} from './models/window-utils'
 
-debugger
-
 export function AppContextProvider({
   children,
   platform,

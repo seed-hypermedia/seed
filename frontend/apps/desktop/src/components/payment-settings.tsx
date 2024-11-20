@@ -24,9 +24,11 @@ import {
 } from '@shm/shared'
 import {
   Button,
+  ButtonText,
   copyTextToClipboard,
   DialogDescription,
   Field,
+  Form,
   Heading,
   InfoListHeader,
   Input,
@@ -36,12 +38,15 @@ import {
   TableList,
   toast,
   Tooltip,
+  View,
   XStack,
   YStack,
 } from '@shm/ui'
 import {
+  ChevronDown,
   ChevronLeft,
-  CircleDollarSign,
+  ChevronRight,
+  ChevronUp,
   Copy,
   Download,
   Trash,
@@ -82,6 +87,21 @@ export function AccountWallet({
   )
 }
 
+function Tag({label}: {label: string}) {
+  return (
+    <View
+      borderWidth={1}
+      borderColor="$brand5"
+      paddingHorizontal="$2"
+      borderRadius="$2"
+    >
+      <SizableText size="$1" color="$brand5">
+        {label}
+      </SizableText>
+    </View>
+  )
+}
+
 function WalletButton({
   walletId,
   onOpen,
@@ -91,8 +111,24 @@ function WalletButton({
 }) {
   const wallet = useWallet(walletId)
   return (
-    <Button onPress={onOpen} icon={CircleDollarSign}>
-      See My Wallet - {wallet.data?.balance}
+    <Button onPress={onOpen}>
+      <XStack f={1} jc="space-between" ai="center">
+        <SizableText fontFamily="$mono">
+          x{walletId.slice(-8).toUpperCase()}
+        </SizableText>
+        <XStack ai="center" gap="$3">
+          <Tag label="Account Wallet" />
+          {wallet.isLoading ? (
+            <Spinner />
+          ) : wallet.data ? (
+            <SizableText
+              fontFamily="$mono"
+              fontWeight="bold"
+            >{`${wallet.data?.balance} SAT`}</SizableText>
+          ) : null}
+          <ChevronRight color="$brand5" size={16} />
+        </XStack>
+      </XStack>
     </Button>
   )
 }
@@ -132,6 +168,10 @@ export function WalletPage({
                 exportDialog.open(exportedWallet)
               })
             }
+            color="$brand5"
+            borderColor="$brand5"
+            borderWidth={1}
+            hoverStyle={{borderColor: '$brand3'}}
           >
             Export
           </Button>
@@ -200,7 +240,7 @@ function WalletDetails({
   accountUid: string
 }) {
   const withdrawDialog = useAppDialog(WithdrawDialog)
-  const topUpDialog = useAppDialog(TopUpDialog)
+  const addFundsDialog = useAppDialog(AddFundsDialog)
 
   return (
     <>
@@ -215,14 +255,17 @@ function WalletDetails({
         <Tooltip content="Click to Copy Lightning Address">
           <Button
             icon={Copy}
+            padding="$0"
+            size="$2"
             chromeless
+            fontFamily="$mono"
             color="$blue10"
             onPress={() => {
               copyTextToClipboard(walletId)
               toast.success('Copied Lightning Address to Clipboard')
             }}
           >
-            {`...${wallet.id.slice(-8)}`}
+            {`x${wallet.id.slice(-8).toUpperCase()}`}
           </Button>
         </Tooltip>
         <SizableText fontFamily="$mono" fontSize="$7">
@@ -236,12 +279,12 @@ function WalletDetails({
           f={1}
           size="$3"
           onPress={() => {
-            topUpDialog.open({walletId, accountUid, walletName})
+            addFundsDialog.open({walletId, accountUid, walletName})
           }}
         >
-          Top Up
+          Add Funds
         </Button>
-        {topUpDialog.content}
+        {addFundsDialog.content}
         <Button
           icon={Upload}
           themeInverse
@@ -318,6 +361,10 @@ function WithdrawDialog({
                 .then(() => {
                   setIsComplete(true)
                 })
+                .catch((e) => {
+                  console.error(e)
+                  toast.error(`Failed to send funds: ${e.message}`)
+                })
             }}
           >
             Send Funds
@@ -356,7 +403,7 @@ function DestWallet({walletIds}: {walletIds: string[]}) {
   return <SizableText fontFamily="$mono">{walletIds.join(', ')}</SizableText>
 }
 
-function TopUpDialog({
+function AddFundsDialog({
   input,
   onClose,
 }: {
@@ -377,37 +424,49 @@ function TopUpDialog({
         walletId={walletId}
       />
     )
+  function submit() {
+    createInvoice
+      .mutateAsync({
+        walletId,
+        amount: BigInt(amount),
+        description: `Add Funds to ${walletName}`,
+      })
+      .then((localInvoice) => {
+        setInvoice(localInvoice)
+      })
+  }
   return (
     <>
       <DialogTitle>Add Funds to {walletName}</DialogTitle>
-      <Field id="amount" label="Amount (Sats)">
-        <Input
-          // type="number"
-          value={`${amount}`}
-          onChangeText={(text) => {
-            if (Number.isNaN(Number(text))) return
-            setAmount(Number(text))
-          }}
-        />
-      </Field>
-      <XStack gap="$4">
-        <Button f={1} onPress={onClose}>
-          Cancel
-        </Button>
-        <Button
-          f={1}
-          themeInverse
-          onPress={() => {
-            createInvoice
-              .mutateAsync({walletId, amount: BigInt(amount)})
-              .then((localInvoice) => {
-                setInvoice(localInvoice)
-              })
-          }}
-        >
-          Create Invoice
-        </Button>
-      </XStack>
+      <Form onSubmit={submit}>
+        <YStack gap="$4">
+          <Field id="amount" label="Amount (Sats)">
+            <Input
+              // type="number"
+              id="amount"
+              value={`${amount}`}
+              onChangeText={(text) => {
+                if (Number.isNaN(Number(text))) return
+                setAmount(Number(text))
+              }}
+              onSubmitEditing={submit}
+            />
+          </Field>
+          <XStack jc="center">
+            <Spinner opacity={createInvoice.isLoading ? 1 : 0} />
+          </XStack>
+          <XStack gap="$4">
+            <Button f={1} onPress={onClose}>
+              Cancel
+            </Button>
+            <Form.Trigger asChild>
+              <Button f={1} themeInverse onPress={submit}>
+                Create Invoice
+              </Button>
+            </Form.Trigger>
+          </XStack>
+        </YStack>
+      </Form>
     </>
   )
 }
@@ -437,13 +496,30 @@ function InvoiceInfo({
       </>
     )
   }
-  console.log('=== ', invoicePaid)
 
   return (
     <>
       <DialogTitle>Add Funds with External Wallet</DialogTitle>
-      <QRCode value={invoice.payload} />
-      <SizableText>{invoice.payload}</SizableText>
+      <DialogDescription>
+        Scan this code to pay with your lightning wallet, or copy and paste the
+        invoice text.
+      </DialogDescription>
+      <YStack ai="center" gap="$4">
+        <QRCode value={invoice.payload} />
+        <Tooltip content="Click to Copy Invoice Text">
+          <Button
+            onPress={() => {
+              copyTextToClipboard(invoice.payload)
+              toast.success('Copied Invoice to Clipboard')
+            }}
+            icon={Copy}
+            size="$2"
+            themeInverse
+          >
+            Copy Invoice
+          </Button>
+        </Tooltip>
+      </YStack>
       <Button onPress={onCancel}>Cancel</Button>
     </>
   )
@@ -500,14 +576,39 @@ function DeleteWalletButton({
 }
 
 function InvoiceRow({invoice}: {invoice: PlainMessage<Invoice>}) {
-  console.log('=== ', invoice)
+  const isPaid = invoice.type === 'paid_invoice'
+  const Chevron = isPaid ? ChevronUp : ChevronDown
+  const paymentColor = isPaid ? '$red9' : '$green9'
   return (
-    <XStack>
-      <SizableText>{invoice.status}</SizableText>
-      <SizableText>{Number(invoice.amount)} sats</SizableText>
-      <SizableText>
-        {formattedDateMedium(new Date(invoice.settledAt))}
-      </SizableText>
+    <XStack jc="space-between" paddingHorizontal="$4" paddingVertical="$2">
+      <YStack gap="$1">
+        <SizableText>
+          {formattedDateMedium(new Date(invoice.settledAt))}
+        </SizableText>
+        <SizableText>
+          {invoice.description ? (
+            <SizableText fontWeight="bold">{invoice.description} </SizableText>
+          ) : null}
+          <Tooltip content="Click to Copy Destination Address">
+            <ButtonText
+              onPress={() => {
+                copyTextToClipboard(invoice.destination)
+                toast.success('Copied Destination Address to Clipboard')
+              }}
+            >
+              {`x${invoice.destination.slice(-8).toUpperCase()}`}
+            </ButtonText>
+          </Tooltip>
+        </SizableText>
+      </YStack>
+      <YStack gap="$3">
+        <XStack gap="$2">
+          <SizableText fontFamily="$mono" color={paymentColor}>
+            {Number(invoice.amount)} SATS
+          </SizableText>
+          <Chevron color={paymentColor} size={18} />
+        </XStack>
+      </YStack>
     </XStack>
   )
 }

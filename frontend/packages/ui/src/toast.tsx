@@ -233,6 +233,7 @@ export function Toaster() {
       right={0}
       bottom={0}
       position="absolute"
+      zIndex={1_000_000}
       ai="center"
     >
       {/* <AnimatePresence> */}

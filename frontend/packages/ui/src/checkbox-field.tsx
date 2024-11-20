@@ -1,6 +1,8 @@
+import {Checkbox} from "@tamagui/checkbox";
+import {Label} from "@tamagui/label";
 import {Check} from "@tamagui/lucide-icons";
+import {XStack} from "@tamagui/stacks";
 import React from "react";
-import {Checkbox, Label, XStack} from "tamagui";
 
 export function CheckboxField({
   value,

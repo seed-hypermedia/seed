@@ -1,5 +1,6 @@
+import {Label} from "@tamagui/label";
+import {YStack} from "@tamagui/stacks";
 import {PropsWithChildren} from "react";
-import {Label, YStack} from "tamagui";
 
 export function Field({
   id,

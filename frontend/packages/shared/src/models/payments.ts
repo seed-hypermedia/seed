@@ -26,6 +26,7 @@ type CreateInvoiceRequest = {
   recipients: Record<string, number> // accountId: percentage
   docId: UnpackedHypermediaId
   amountSats: number
+  description: string
 }
 
 export function useCreateInvoice() {
@@ -33,6 +34,7 @@ export function useCreateInvoice() {
     mutationFn: async (input: CreateInvoiceRequest) => {
       const params = new URLSearchParams()
       params.append('source', input.docId.uid)
+      params.append('memo', input.description)
       params.append('amount', `${input.amountSats * 1000}`)
       Object.entries(input.recipients).forEach(([accountId, amount]) => {
         params.append('user', `${accountId},${amount}`)
@@ -68,10 +70,8 @@ export function useInvoiceStatus(invoice: HMInvoice | null) {
     queryFn: async () => {
       if (!invoice) return {isSettled: false}
       const url = `${LIGHTNING_API_URL}/v2/invoicemeta/${invoice.hash}`
-      console.log('fetching', url)
       const res = await fetch(url, {})
       const serverInvoice = await res.json()
-      console.log('server meta', serverInvoice)
       const invoiceMeta = InvoiceStatusSchema.parse(serverInvoice)
       const isSettled = invoiceMeta.every((meta) => meta.status === 'settled')
       return {isSettled}

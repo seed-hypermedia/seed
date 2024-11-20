@@ -7581,7 +7581,7 @@ __metadata:
     "@shm/ui": 0.1.0
     "@tamagui/lucide-icons": 1.108.2
     "@tamagui/vite-plugin": 1.108.2
-    "@tanstack/react-query-devtools": 4.18.0
+    "@tanstack/react-query-devtools": ^4.36.1
     "@tippyjs/react": 4.2.6
     "@tiptap/core": 2.0.3
     "@tiptap/extension-bold": 2.0.3
@@ -7598,9 +7598,9 @@ __metadata:
     "@tiptap/extension-underline": 2.0.3
     "@tiptap/pm": 2.0.3
     "@tiptap/react": 2.0.3
-    "@trpc/client": 10.40.0
-    "@trpc/react-query": 10.40.0
-    "@trpc/server": 10.40.0
+    "@trpc/client": 10.45.2
+    "@trpc/react-query": 10.45.2
+    "@trpc/server": 10.45.2
     "@types/katex": 0.16.7
     "@types/node": 20.6.5
     "@types/prosemirror-dev-tools": 3.0.3
@@ -7617,7 +7617,7 @@ __metadata:
     electron-playwright-helpers: 1.6.0
     electron-squirrel-startup: 1.0.0
     electron-store: 8.1.0
-    electron-trpc: 0.5.2
+    electron-trpc: 0.6.1
     fast-deep-equal: 3.1.3
     fs-extra: 11.1.1
     graphql-request: 6.0.0
@@ -7709,7 +7709,7 @@ __metadata:
     "@bufbuild/protobuf": 1.10.0
     "@connectrpc/connect-web": 1.1.3
     "@shm/prettier": "*"
-    "@tanstack/react-query": 4.18.0
+    "@tanstack/react-query": ^4.36.1
     "@xstate/react": 4.1.3
     katex: 0.16.9
     lowlight: 3.1.0
@@ -7776,6 +7776,7 @@ __metadata:
     "@tamagui/vite-plugin": 1.108.2
     "@types/react": 18.2.55
     "@types/react-dom": 18.2.19
+    isbot: ^4
     react: 18.2.0 || 19.0.0
     react-dom: 18.2.0 || 19.0.0
     react-native-svg: ">=12"
@@ -9682,42 +9683,42 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tanstack/match-sorter-utils@npm:8.1.1":
-  version: 8.1.1
-  resolution: "@tanstack/match-sorter-utils@npm:8.1.1"
+"@tanstack/match-sorter-utils@npm:^8.7.0":
+  version: 8.19.4
+  resolution: "@tanstack/match-sorter-utils@npm:8.19.4"
   dependencies:
-    remove-accents: 0.4.2
-  checksum: bf1458b7ca08cf79750ebd46fddef9c9b845ef55b5b69c0f7f69d48d6cbd73dbfd98763509f655298033b93cfc92b21d54f9f13a4d631cc68ca9191913967205
+    remove-accents: 0.5.0
+  checksum: 7ec302d75be1f65a3e91dd30b567e47e56c13577937276ef3a3ac7c8560a0b9f6dcaca44dd877189375ce9e7401d250895265adb0741ec867eda4e47d0f07dc0
   languageName: node
   linkType: hard
 
-"@tanstack/query-core@npm:4.18.0":
-  version: 4.18.0
-  resolution: "@tanstack/query-core@npm:4.18.0"
-  checksum: 2d3f253809e2fc0927bbab25e7a61cf1fa957c993006f219a8dcc615acfe68003629e612c7d914198457d0b1bfd2b6d5738093fc45a82369b1d3beee14395a28
+"@tanstack/query-core@npm:4.36.1":
+  version: 4.36.1
+  resolution: "@tanstack/query-core@npm:4.36.1"
+  checksum: 47672094da20d89402d9fe03bb7b0462be73a76ff9ca715169738bc600a719d064d106d083a8eedae22a2c22de22f87d5eb5d31ef447aba771d9190f2117ed10
   languageName: node
   linkType: hard
 
-"@tanstack/react-query-devtools@npm:4.18.0":
-  version: 4.18.0
-  resolution: "@tanstack/react-query-devtools@npm:4.18.0"
+"@tanstack/react-query-devtools@npm:^4.36.1":
+  version: 4.36.1
+  resolution: "@tanstack/react-query-devtools@npm:4.36.1"
   dependencies:
-    "@tanstack/match-sorter-utils": 8.1.1
+    "@tanstack/match-sorter-utils": ^8.7.0
     superjson: ^1.10.0
     use-sync-external-store: ^1.2.0
   peerDependencies:
-    "@tanstack/react-query": 4.18.0
+    "@tanstack/react-query": ^4.36.1
     react: ^16.8.0 || ^17.0.0 || ^18.0.0
     react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0
-  checksum: b8d12f194e545bb80f2e957d18ead2fd77baa3b641025fed37420b61da38f35314d1bca8e0fcefefef516d4440f824b51ad131a7997e5e39eec85f078da93054
+  checksum: d4f7da4121a933be0d0406fb75f682b193a33e7d4ba9a4d54ff19e04db823d00513fbe86230c43d34aae55f6d0d1f8be17315f19d515b298b6bb0dabd0c5d261
   languageName: node
   linkType: hard
 
-"@tanstack/react-query@npm:4.18.0":
-  version: 4.18.0
-  resolution: "@tanstack/react-query@npm:4.18.0"
+"@tanstack/react-query@npm:^4.36.1":
+  version: 4.36.1
+  resolution: "@tanstack/react-query@npm:4.36.1"
   dependencies:
-    "@tanstack/query-core": 4.18.0
+    "@tanstack/query-core": 4.36.1
     use-sync-external-store: ^1.2.0
   peerDependencies:
     react: ^16.8.0 || ^17.0.0 || ^18.0.0
@@ -9728,7 +9729,7 @@ __metadata:
       optional: true
     react-native:
       optional: true
-  checksum: 2fbb3e664fdc70650dfaaa63e56a1b97dddb50a46f6d3e0a0361c1fe9a0d711c1bb3b0f2e7ba5362269124405eb7a4f232a755b3e901b815d62008ddeedbd889
+  checksum: 1aff0a476859386f8d32253fa0d0bde7b81769a6d4d4d9cbd78778f0f955459a3bdb7ee27a0d2ee7373090f12998b45df80db0b5b313bd0a7a39d36c6e8e51c5
   languageName: node
   linkType: hard
 
@@ -9941,32 +9942,32 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@trpc/client@npm:10.40.0":
-  version: 10.40.0
-  resolution: "@trpc/client@npm:10.40.0"
+"@trpc/client@npm:10.45.2":
+  version: 10.45.2
+  resolution: "@trpc/client@npm:10.45.2"
   peerDependencies:
-    "@trpc/server": 10.40.0
-  checksum: b0375431ef6239dc3a95142ffcc259d23d5901d613d1eede17a6c78fa3bff06595249984d5d5b6f279297f4fcda4e4fa92fbc8a54a71b1cb4ed84ba1c49bce7b
+    "@trpc/server": 10.45.2
+  checksum: d1eaa8e0059a371265065dafb48372be8456bc5bbc68f63c92401b12258cf15efb3f9f3790ef18ec6a0b7b73daa362bbd371f98db67c0610f2aee284f12cf09a
   languageName: node
   linkType: hard
 
-"@trpc/react-query@npm:10.40.0":
-  version: 10.40.0
-  resolution: "@trpc/react-query@npm:10.40.0"
+"@trpc/react-query@npm:10.45.2":
+  version: 10.45.2
+  resolution: "@trpc/react-query@npm:10.45.2"
   peerDependencies:
     "@tanstack/react-query": ^4.18.0
-    "@trpc/client": 10.40.0
-    "@trpc/server": 10.40.0
+    "@trpc/client": 10.45.2
+    "@trpc/server": 10.45.2
     react: ">=16.8.0"
     react-dom: ">=16.8.0"
-  checksum: 1175952d350c07a8174eb9c47b11b350dae96080ae0f0a0b60212cedaba68609163df0dba6a4588bfcdc4614b071fa1a8f9552aacdb1d76c5bfc86f916c4bbe2
+  checksum: 5b94176f8b802dbe2642da8fa1c122b8a7e7907fcf9b7ccb7c9e1eab60a4c494db6efd61bfe536a6abc2e0e85a2fb0b8d3362b8a269bd1d9ee8e3e539b15be75
   languageName: node
   linkType: hard
 
-"@trpc/server@npm:10.40.0":
-  version: 10.40.0
-  resolution: "@trpc/server@npm:10.40.0"
-  checksum: 343d765002573b7f0d800de76b9d649de4245174454198ecd39fe7b98db07f09e6aadfcaab2f2654780826e996f1b28abe82b55965dce91f80b666e5864d17da
+"@trpc/server@npm:10.45.2":
+  version: 10.45.2
+  resolution: "@trpc/server@npm:10.45.2"
+  checksum: 30b92853c45747a376bbbd5c4eef71fea17a2b22e83ba7e694fb13cc99b15d1f24a17aa9124346074618fb5cee8d13434aa16cdf24af82f5e8acabdecfee0ca2
   languageName: node
   linkType: hard
 
@@ -10447,11 +10448,11 @@ __metadata:
   linkType: hard
 
 "@types/node@npm:*":
-  version: 22.9.0
-  resolution: "@types/node@npm:22.9.0"
+  version: 22.9.1
+  resolution: "@types/node@npm:22.9.1"
   dependencies:
     undici-types: ~6.19.8
-  checksum: c014eb3b8a110f1b87b614a40ef288d13e6b08ae9d5dafbd38951a2eebc24d352dc55330ed9d00c97ee9e64483c3cc14c4aa914c5df7ca7b9eaa1a30b2340dbd
+  checksum: dee25051e8d89f38b2b26c0714ce60acd1e3f9b1b946131ce3c6e64d626a134f1bec2d948f7ead3da0136aeb7672234f066f97f8290e6aead236e43f4ecb5a68
   languageName: node
   linkType: hard
 
@@ -11260,24 +11261,24 @@ __metadata:
   linkType: hard
 
 "@whatwg-node/node-fetch@npm:^0.7.1":
-  version: 0.7.2
-  resolution: "@whatwg-node/node-fetch@npm:0.7.2"
+  version: 0.7.3
+  resolution: "@whatwg-node/node-fetch@npm:0.7.3"
   dependencies:
     "@kamilkisiela/fast-url-parser": ^1.1.4
     busboy: ^1.6.0
     fast-querystring: ^1.1.1
     tslib: ^2.6.3
-  checksum: 1bba3e512a0d69ae335c01dea0b8a246afc1ea9946ef53437ee632c54215fc044b798bd4aa1f76ed31937ccfb43624413f83dcd62282ab1fb54bd13ccaea2b14
+  checksum: d77f95365570ddb0d6d9946fb04ac4bdf4b37f8de22b7df67453cb46949762cef990ee331b02f9d2ef8b78530544fb807a16157a34c901608cc8e7f7a421c7b5
   languageName: node
   linkType: hard
 
 "@whatwg-node/server@npm:^0.9.1":
-  version: 0.9.55
-  resolution: "@whatwg-node/server@npm:0.9.55"
+  version: 0.9.56
+  resolution: "@whatwg-node/server@npm:0.9.56"
   dependencies:
     "@whatwg-node/fetch": ^0.10.0
     tslib: ^2.6.3
-  checksum: fa77c50d73363c1921110928eed6d084c0b39a3d8f2cb8a2969b1f13f27295e3b6c2214d2cac0b0fe54cc4ecfff573fe3cacd2aef5e3d73b20297a910621e03a
+  checksum: 262f4e296dc51a7212647134f0b04fc349c25616fbcb9b90b3aeae4fc74a9799cc7f87913eb659fdc2f65c9f10253deabdfb7ff96aeda25bd00fed6fb76c85ac
   languageName: node
   linkType: hard
 
@@ -15059,16 +15060,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron-trpc@npm:0.5.2":
-  version: 0.5.2
-  resolution: "electron-trpc@npm:0.5.2"
+"electron-trpc@npm:0.6.1":
+  version: 0.6.1
+  resolution: "electron-trpc@npm:0.6.1"
   dependencies:
     debug: ^4.3.4
   peerDependencies:
     "@trpc/client": ">10.0.0"
     "@trpc/server": ">10.0.0"
     electron: ">19.0.0"
-  checksum: a9976134d5001a812e2db8940744fa4b44fd2b61310d2f8748dfc744bb5a1ad46309d381645505536bacb5fe2525aad245fafa8e8e7474eb7dd7ce7f6d2b9b78
+  checksum: 882d5fab78894cc3b39c6bfdda598975660ec1dd39af3f9fe27dcd6588f16a46431a649a9d7cc865d9d6a1df85866c4308522d31e6acd96872b0551657b06b45
   languageName: node
   linkType: hard
 
@@ -19076,6 +19077,13 @@ __metadata:
   version: 4.0.10
   resolution: "isbinaryfile@npm:4.0.10"
   checksum: a6b28db7e23ac7a77d3707567cac81356ea18bd602a4f21f424f862a31d0e7ab4f250759c98a559ece35ffe4d99f0d339f1ab884ffa9795172f632ab8f88e686
+  languageName: node
+  linkType: hard
+
+"isbot@npm:^4":
+  version: 4.4.0
+  resolution: "isbot@npm:4.4.0"
+  checksum: fea20d64ad2d7f23d5edb3af370a3e3f7cf2010d5f20fa00d89e45e0ba907f7f3cc9bf9cfdd5a7f408973934b6e665479ff3128f05d28ef18c3ded88a9971cd6
   languageName: node
   linkType: hard
 
@@ -25699,6 +25707,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"remove-accents@npm:0.5.0":
+  version: 0.5.0
+  resolution: "remove-accents@npm:0.5.0"
+  checksum: 7045b37015acb03df406d21f9cbe93c3fcf2034189f5d2e33b1dace9c7d6bdcd839929905ced21a5d76c58553557e1a42651930728702312a5774179d5b9147b
+  languageName: node
+  linkType: hard
+
 "renderkid@npm:^3.0.0":
   version: 3.0.0
   resolution: "renderkid@npm:3.0.0"
@@ -30334,11 +30349,11 @@ __metadata:
   linkType: hard
 
 "yaml@npm:^2.2.1, yaml@npm:^2.3.4":
-  version: 2.6.0
-  resolution: "yaml@npm:2.6.0"
+  version: 2.6.1
+  resolution: "yaml@npm:2.6.1"
   bin:
     yaml: bin.mjs
-  checksum: e5e74fd75e01bde2c09333d529af9fbb5928c5f7f01bfdefdcb2bf753d4ef489a45cab4deac01c9448f55ca27e691612b81fe3c3a59bb8cb5b0069da0f92cf0b
+  checksum: 5cf2627f121dcf04ccdebce8e6cbac7c9983d465c4eab314f6fbdc13cda8a07f4e8f9c2252a382b30bcabe05ee3c683647293afd52eb37cbcefbdc7b6ebde9ee
   languageName: node
   linkType: hard
 

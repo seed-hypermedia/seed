@@ -415,7 +415,7 @@ function ElectronApp() {
   )
 
   return (
-    <trpc.Provider queryClient={queryClient.client} client={trpcClient}>
+    <trpc.Provider queryClient={queryClient} client={trpcClient}>
       <MainApp />
     </trpc.Provider>
   )

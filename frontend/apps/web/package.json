@@ -24,6 +24,7 @@
     "@tamagui/core": "1.108.2",
     "@tamagui/input": "1.108.2",
     "@tamagui/lucide-icons": "1.108.2",
+    "isbot": "^4",
     "react": "18.2.0 || 19.0.0",
     "react-dom": "18.2.0 || 19.0.0",
     "react-qr-code": "^2.0.15",

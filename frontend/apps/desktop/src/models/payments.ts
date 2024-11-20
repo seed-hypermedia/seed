@@ -103,11 +103,11 @@ export function useListInvoices(walletId: string) {
       })
 
       const paid = toPlainMessage(paidQuery).invoices
-      const all: PlainMessage<Invoice>[] = [...paid, ...received].sort(
-        (a, b) => {
-          return Number(new Date(b.settledAt)) - Number(new Date(b.settledAt))
-        },
-      )
+      const all: PlainMessage<Invoice>[] = [...paid, ...received]
+        .sort((a, b) => {
+          return Number(new Date(b.settledAt)) - Number(new Date(a.settledAt))
+        })
+        .filter((invoice) => invoice.status === 'settled')
 
       return {received, paid, all}
     },
@@ -133,14 +133,17 @@ export function useCreateLocalInvoice() {
     mutationFn: async ({
       walletId,
       amount,
+      description,
     }: {
       walletId: string
       amount: bigint
+      description: string
     }) => {
       const result = await grpcClient.invoices.createInvoice({
         id: walletId,
         account: walletId,
         amount: amount,
+        memo: description,
       })
       const invoice: HMInvoice = {
         amount: Number(amount),
@@ -208,6 +211,7 @@ export function useWallet(walletId: string) {
   const grpcClient = useGRPCClient()
   return useQuery({
     queryKey: [queryKeys.WALLETS, walletId],
+    keepPreviousData: false,
     queryFn: async () => {
       const walletResp = await grpcClient.wallets.getWallet({
         id: walletId,
@@ -245,6 +249,7 @@ type CreateInvoiceRequest = {
   recipients: Record<string, number> // accountId: percentage
   docId: UnpackedHypermediaId
   amountSats: number
+  description: string
 }
 
 export function useCreateInvoice() {
@@ -252,6 +257,7 @@ export function useCreateInvoice() {
     mutationFn: async (input: CreateInvoiceRequest) => {
       const params = new URLSearchParams()
       params.append('source', input.docId.uid)
+      params.append('memo', input.description)
       params.append('amount', `${input.amountSats * 1000}`)
       Object.entries(input.recipients).forEach(([accountId, amount]) => {
         params.append('user', `${accountId},${amount}`)
