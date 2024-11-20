@@ -54,9 +54,9 @@ export interface MediaBlockProps extends EditorBlockProps {
   url?: string
   src?: string
   name?: string
-  width?: number
+  width?: string
   defaultOpen?: string
-  size?: number
+  size?: string
 }
 
 export interface EditorImageBlock extends EditorBaseBlock {
@@ -111,7 +111,7 @@ export type EditorNostrBlock = EditorBaseBlock & {
     name?: string
     url?: string
     text?: string
-    size: number
+    size?: string
   }
   content: Array<EditorInlineContent>
 }
