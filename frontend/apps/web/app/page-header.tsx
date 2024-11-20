@@ -9,6 +9,7 @@ import {
   relativeFormattedDate,
   UnpackedHypermediaId,
 } from "@shm/shared";
+import {Home} from "@shm/ui/src";
 import {Container} from "@shm/ui/src/container";
 import {HMIcon} from "@shm/ui/src/hm-icon";
 import {SiteLogo} from "@shm/ui/src/site-logo";
@@ -33,12 +34,17 @@ export function PageHeader({
   docId,
   authors = [],
   updateTime = null,
+  breadcrumbs = [],
 }: {
   homeId: UnpackedHypermediaId | null;
   docMetadata: HMMetadata | null;
   docId: UnpackedHypermediaId | null;
   authors: HMMetadataPayload[];
   updateTime: HMDocument["updateTime"] | null;
+  breadcrumbs: Array<{
+    id: UnpackedHypermediaId;
+    metadata: HMMetadata;
+  }>;
 }) {
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata]);
   const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata]);
@@ -49,19 +55,25 @@ export function PageHeader({
       <Container
         $gtSm={{
           marginTop: hasCover ? -40 : 0,
-          paddingTop: !hasCover ? 60 : "$6",
+          paddingTop: !hasCover ? 60 : "$4",
         }}
         $gtLg={{maxWidth: 1200}}
         backgroundColor="$background"
         borderTopLeftRadius="$2"
         borderTopRightRadius="$2"
       >
-        <YStack>
+        <YStack gap="$4">
           {!isHomeDoc && docId && hasIcon ? (
             <XStack marginTop={hasCover ? -80 : 0}>
               <HMIcon size={100} id={docId} metadata={docMetadata} />
             </XStack>
           ) : null}
+          <Breadcrumbs
+            breadcrumbs={breadcrumbs}
+            homeId={homeId}
+            docId={docId}
+            docMetadata={docMetadata}
+          />
           <H1 size="$9" style={{fontWeight: "bold"}}>
             {docMetadata?.name}
           </H1>
@@ -131,10 +143,6 @@ export function SiteHeader(props: {
   docMetadata: HMMetadata | null;
   docId: UnpackedHypermediaId | null;
   openSheet?: () => void;
-  breadcrumbs: Array<{
-    id: UnpackedHypermediaId;
-    metadata: HMMetadata;
-  }>;
   supportQueries?: HMQueryResult[];
   children: React.JSX.Element;
   mobileSearchUI?: React.ReactNode;
@@ -405,51 +413,80 @@ const VerticalSeparator = () => (
 function Breadcrumbs({
   breadcrumbs,
   homeId,
-  docId,
-  docMetadata,
 }: {
   breadcrumbs: Array<{
     id: UnpackedHypermediaId;
     metadata: HMMetadata;
   }>;
-  homeId?: UnpackedHypermediaId;
-  docId?: UnpackedHypermediaId;
-  docMetadata?: HMMetadata;
+  homeId: UnpackedHypermediaId | null;
+  docId: UnpackedHypermediaId | null;
+  docMetadata: HMMetadata | null;
 }) {
-  const displayBreadcrumbs = breadcrumbs.filter((breadcrumb) => {
-    if (
-      !breadcrumb.id.path?.length &&
-      homeId &&
-      breadcrumb.id.uid === homeId.uid
-    )
-      return null;
-  });
+  // const displayBreadcrumbs = breadcrumbs.filter((breadcrumb) => {
+  //   if (
+  //     !breadcrumb.id.path?.length &&
+  //     homeId &&
+  //     breadcrumb.id.uid === homeId.uid
+  //   )
+  //     return null;
+  // });
+  // const displayBreadcrumbs = breadcrumbs.filter((bc) => {
+  //   console.log(`== ~ Breadcrumbs ~ bc:`, bc);
+  //   return true;
+  // });
+
+  const [first, ...rest] = breadcrumbs;
+
   return (
-    <XStack flex={1} gap="$2">
-      {displayBreadcrumbs.flatMap((crumb) => {
-        return [
+    <XStack flex={1} gap="$2" alignItems="center">
+      {first ? (
+        <XStack alignItems="center" gap="$1">
+          <Home color="$color10" size={12} />
           <SizableText
+            color="$color10"
             tag="a"
-            key={crumb.id.id}
-            href={getHref(homeId, crumb.id)}
+            key={first.id.id}
+            href={homeId ? getHref(homeId, first.id) : undefined}
             size="$1"
-            fontWeight="bold"
             overflow="hidden"
             textOverflow="ellipsis"
             whiteSpace="nowrap"
-            minWidth="8ch"
+            textDecorationLine="none"
+            hoverStyle={{textDecorationLine: "underline"}}
+            maxWidth="15ch"
+          >
+            {first.metadata?.name}
+          </SizableText>
+        </XStack>
+      ) : null}
+      {rest.flatMap((crumb, index) => {
+        return [
+          <SizableText color="$color10" key={`${crumb.id.id}-slash`} size="$1">
+            /
+          </SizableText>,
+          <SizableText
+            color="$color10"
+            tag="a"
+            key={crumb.id.id}
+            href={homeId ? getHref(homeId, crumb.id) : undefined}
+            size="$1"
+            textDecorationLine="none"
+            overflow="hidden"
+            hoverStyle={{textDecorationLine: "underline"}}
+            textOverflow="ellipsis"
+            whiteSpace="nowrap"
+            textDecoration="none"
+            maxWidth="15ch"
+            // minWidth="8ch"
           >
             {crumb.metadata?.name}
           </SizableText>,
-          <SizableText key={`${crumb.id.id}-slash`} size="$1">
-            /
-          </SizableText>,
         ];
       })}
-      {docId?.id != homeId?.id ? (
+      {/* {docId?.id != homeId?.id ? (
         <SizableText
           size="$1"
-          fontWeight="bold"
+          // fontWeight="bold"
           overflow="hidden"
           textOverflow="ellipsis"
           whiteSpace="nowrap"
@@ -457,7 +494,7 @@ function Breadcrumbs({
         >
           {docMetadata?.name}
         </SizableText>
-      ) : null}
+      ) : null} */}
     </XStack>
   );
 }

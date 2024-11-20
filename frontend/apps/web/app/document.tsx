@@ -149,7 +149,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
           homeId={homeId}
           docMetadata={document.metadata}
           docId={id}
-          breadcrumbs={props.breadcrumbs}
           supportQueries={props.supportQueries}
           mobileSearchUI={<MobileSearchUI homeId={homeId} />}
           isWeb
@@ -179,6 +178,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
           <YStack>
             <PageHeader
               homeId={homeId}
+              breadcrumbs={props.breadcrumbs}
               docMetadata={document.metadata}
               docId={id}
               authors={authors}
