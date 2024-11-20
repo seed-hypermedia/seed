@@ -1,10 +1,8 @@
-import {invalidateQueries, queryKeys} from '@shm/shared'
+import {invalidateQueries, LIGHTNING_API_URL, queryKeys} from '@shm/shared'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {useEffect} from 'react'
 import {z} from 'zod'
 import {HMInvoice, UnpackedHypermediaId} from '.'
-
-const LIGHTNING_API_URL = 'https://ln.testnet.seed.hyper.media'
 
 export function useAllowedPaymentRecipients(accountUids: string[]) {
   return useQuery({
@@ -44,7 +42,6 @@ export function useCreateInvoice() {
         {},
       )
       const serverInvoice = await res.json()
-      console.log(`== ~ serverInvoice`, serverInvoice)
       const invoice: HMInvoice = {
         payload: serverInvoice.pr,
         hash: serverInvoice.payment_hash,
