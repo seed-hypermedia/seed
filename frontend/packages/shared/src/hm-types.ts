@@ -1,5 +1,4 @@
 import {PlainMessage} from '@bufbuild/protobuf'
-import {Block as EditorBlock, hmBlockSchema} from '@shm/desktop/src/editor'
 import type {
   Block,
   BlockNode,
@@ -7,6 +6,7 @@ import type {
   DeletedEntity,
   Document,
   DocumentListItem,
+  EditorBlock,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import * as z from 'zod'
@@ -374,7 +374,7 @@ export const HMCommentDraftSchema = z.object({
 export type HMCommentDraft = z.infer<typeof HMCommentDraftSchema>
 
 export type HMDraft = {
-  content: Array<EditorBlock<typeof hmBlockSchema>>
+  content: Array<EditorBlock>
   metadata: HMMetadata
   members: any //HMDocument['members']
   deps: Array<string>

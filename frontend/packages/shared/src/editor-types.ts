@@ -1,4 +1,4 @@
-import {HMBlockChildrenType} from '@shm/shared'
+import {HMBlockChildrenType} from './hm-types'
 
 export type EditorBlock =
   | EditorParagraphBlock

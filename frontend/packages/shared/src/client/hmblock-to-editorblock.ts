@@ -52,13 +52,15 @@ export function hmBlocksToEditorContent(
   const childRecursiveOpts: ServerToEditorRecursiveOpts = {
     level: opts.level || 0,
   }
-  return blocks.map((hmBlock) => {
-    let res: EditorBlock | null = null
-    res = hmBlockToEditorBlock(hmBlock.block)
+  return blocks.map((hmBlock: PlainMessage<BlockNode> | HMBlockNode) => {
+    let res: EditorBlock | null = hmBlock.block
+      ? hmBlockToEditorBlock(hmBlock.block)
+      : null
 
     if (hmBlock.children?.length) {
       res.children = hmBlocksToEditorContent(hmBlock.children, {
         level: childRecursiveOpts.level ? childRecursiveOpts.level + 1 : 1,
+        // @ts-expect-error the type {} prevents childrenType from being set
         childrenType: hmBlock.block?.attributes?.childrenType || 'Group',
       })
     }
@@ -80,6 +82,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     children: [],
   }
 
+  // @ts-expect-error the type {} prevents childrenType from being set
   if (block.attributes?.childrenType) {
     out.props.childrenType = block.attributes.childrenType
   }

@@ -3,7 +3,6 @@ import {openAddAccountWizard} from '@/components/create-account'
 import {FavoriteButton} from '@/components/favoriting'
 import {MainWrapper} from '@/components/main-wrapper'
 import {ListItemSkeleton} from '@/components/skeleton'
-import {EditorBlock} from '@/editor'
 import {
   FilterItem,
   LibraryData,
@@ -16,6 +15,7 @@ import {useNavigate} from '@/utils/useNavigate'
 import {useTriggerWindowEvent} from '@/utils/window-events'
 import {
   DocumentRoute,
+  EditorBlock,
   formattedDate,
   getDocumentTitle,
   getMetadataName,
@@ -137,7 +137,9 @@ export default function LibraryPage() {
     const documentsToExport = await Promise.all(
       (selectedDocs || []).map(async (doc) => {
         const blocks: HMBlockNode[] | undefined = doc.document?.content
-        const editorBlocks: EditorBlock[] = hmBlocksToEditorContent(blocks)
+        const editorBlocks: EditorBlock[] = blocks
+          ? hmBlocksToEditorContent(blocks)
+          : []
         const markdown = await convertBlocksToMarkdown(
           editorBlocks,
           doc.document!,
@@ -194,7 +196,10 @@ export default function LibraryPage() {
               />
               {queryState.display == 'list' ? (
                 <LibraryList
-                  library={filteredLibrary}
+                  library={{
+                    items: filteredLibrary,
+                    totalItemCount: filteredLibrary.length,
+                  }}
                   exportMode={exportMode}
                   toggleDocumentSelection={toggleDocumentSelection}
                   selectedDocuments={selectedDocuments}
@@ -202,7 +207,7 @@ export default function LibraryPage() {
                   handleSelectAllChange={handleSelectAllChange}
                 />
               ) : queryState.display == 'cards' ? (
-                <LibraryCards library={filteredLibrary} />
+                <LibraryCards />
               ) : null}
               {exportMode && (
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -221,10 +226,10 @@ export default function LibraryPage() {
                         {selectedDocuments.size === 1 ? (
                           <XStack
                             maxWidth={290}
-                            wordWrap="break-word"
                             whiteSpace="normal"
                             overflow="hidden"
                             textOverflow="ellipsis"
+                            style={{wordWrap: 'break-word'}}
                           >
                             <SizableText size="$3">
                               You are choosing to{' '}
@@ -717,7 +722,7 @@ function LibrarySearch({
   )
 }
 
-function LibraryCards({library}: {library: LibraryData}) {
+function LibraryCards() {
   return null
 }
 
@@ -769,8 +774,8 @@ function LibraryList({
           </SizableText>
         </XStack>
       )}
-      {library.length ? (
-        library.map((entry) => {
+      {library.items.length ? (
+        library.items.map((entry) => {
           const selected = selectedDocuments.has(entry.id.id)
           return (
             <LibraryListItem
@@ -799,7 +804,7 @@ function LibraryListItem({
   selected,
   toggleDocumentSelection,
 }: {
-  entry: LibraryData[0]
+  entry: LibraryData['items'][number]
   exportMode: boolean
   selected: boolean
   toggleDocumentSelection: (id: string) => void
