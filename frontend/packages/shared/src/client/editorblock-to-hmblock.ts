@@ -1,11 +1,5 @@
 import {EditorBlock, EditorInlineContent} from '../editor-types'
-import {
-  HMAnnotations,
-  HMBlock,
-  HMBlockSchema,
-  HMBlockType,
-  toNumber,
-} from '../hm-types'
+import {HMAnnotations, HMBlock, HMBlockSchema, HMBlockType} from '../hm-types'
 import {AnnotationSet, codePointLength} from './unicode'
 
 function toHMBlockType(
