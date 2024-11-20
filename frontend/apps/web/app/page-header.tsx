@@ -117,10 +117,10 @@ export function PageHeader({
                 updateTime={updateTime}
               />
             ) : null}
+            {docId && <DonateButton docId={docId} authors={authors} />}
           </XStack>
           <Separator />
         </YStack>
-        {docId && <DonateButton docId={docId} authors={authors} />}
       </Container>
     </YStack>
   );

@@ -16,15 +16,18 @@ import {
 import {Button} from "@tamagui/button";
 import {DialogDescription} from "@tamagui/dialog";
 import {Input} from "@tamagui/input";
-import {CircleDollarSign} from "@tamagui/lucide-icons";
+import {Label} from "@tamagui/label";
+import {CircleDollarSign, Copy, PartyPopper} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {Heading, SizableText} from "@tamagui/text";
 import {useState} from "react";
 import QRCode from "react-qr-code";
-import {Label} from "tamagui";
 import {CheckboxField} from "./checkbox-field";
+import {copyTextToClipboard} from "./copy-to-clipboard";
 import {HMIcon} from "./hm-icon";
 import {Spinner} from "./spinner";
+import {toast} from "./toast";
+import {Tooltip} from "./tooltip";
 import {DialogTitle, useAppDialog} from "./universal-dialog";
 
 export function DonateButton({
@@ -35,7 +38,6 @@ export function DonateButton({
   authors: HMMetadataPayload[];
 }) {
   const donateDialog = useAppDialog(DonateDialog);
-  console.log("== hellooo", docId, authors);
   const allowedRecipients = useAllowedPaymentRecipients(
     authors.map((author) => author.id.uid) || []
   );
@@ -111,15 +113,46 @@ function DonateInvoice({
   onReset: () => void;
   onClose: () => void;
 }) {
-  console.log("~~", invoice);
   const status = useInvoiceStatus(invoice);
-
+  const authors = Object.keys(invoice.share);
+  const isSettled = status.data?.isSettled;
+  if (isSettled) {
+    return (
+      <>
+        <DialogTitle>Thank You!</DialogTitle>
+        <YStack ai="center" padding="$4">
+          <PartyPopper size={120} />
+        </YStack>
+        <DialogDescription>
+          {invoice.amount} SATS has been sent to the{" "}
+          {authors.length > 1 ? "authors" : "author"}.
+        </DialogDescription>
+        <Button onPress={onClose}>Done</Button>
+      </>
+    );
+  }
   return (
     <>
-      <DialogTitle>pay this invoice</DialogTitle>
-      <QRCode value={invoice.payload} />
-      <SizableText>{status.data?.isSettled ? "Settled" : "Open"}</SizableText>
-      <SizableText>{invoice.payload}</SizableText>
+      <DialogTitle>
+        Pay Invoice to {authors.length > 1 ? "Authors" : "Author"}
+      </DialogTitle>
+      <YStack ai="center" gap="$4">
+        <QRCode value={invoice.payload} />
+        <Tooltip content="Click to Copy Invoice Text">
+          <Button
+            onPress={() => {
+              copyTextToClipboard(invoice.payload);
+              toast.success("Copied Invoice to Clipboard");
+            }}
+            icon={Copy}
+            size="$2"
+            themeInverse
+          >
+            Copy Invoice
+          </Button>
+        </Tooltip>
+      </YStack>
+      <Button onPress={onClose}>Cancel</Button>
     </>
   );
 }
@@ -218,13 +251,12 @@ function DonateForm({
               amountSats: total,
               recipients: Object.fromEntries(
                 recipients.map((recipient) => {
-                  return [recipient, recipient.amount / total];
+                  return [recipient.account, recipient.amount / total];
                 })
               ),
               docId,
             })
             .then((invoice) => {
-              console.log(`== ~ invoice`, invoice);
               onInvoice(invoice);
             });
         }}

@@ -75,7 +75,7 @@ export function useDecodedInvoice(payreq: string) {
             hash: res.paymentHash,
             description: res.description,
             payload: payreq,
-            share: {},
+            share: {[res.destination]: 1},
           })
         })
         .catch((e) => {
@@ -165,7 +165,6 @@ export function usePayInvoice() {
     mutationFn: async (input: {
       walletId: string
       accountUid: string
-      // payreq: string
       invoice: HMInvoice
     }) => {
       await grpcClient.invoices.payInvoice({
@@ -174,6 +173,9 @@ export function usePayInvoice() {
         account: input.accountUid,
         amount: BigInt(input.invoice.amount),
       })
+    },
+    onSuccess: (result, vars, context) => {
+      invalidateQueries([queryKeys.INVOICES, vars.walletId])
     },
   })
 }

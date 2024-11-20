@@ -66,6 +66,7 @@ export function AccountWallet({
   const wallets = useListWallets(accountUid)
   if (!wallets.data?.wallets) return null
   if (wallets.isLoading) return <Spinner />
+  if (createWallet.isLoading) return <Spinner />
   if (wallets.data.wallets.length) {
     return wallets.data.wallets.map((wallet) => (
       <WalletButton
@@ -77,8 +78,12 @@ export function AccountWallet({
   return (
     <>
       <Button
+        themeInverse
         onPress={() => {
-          createWallet.mutate({accountUid})
+          createWallet.mutateAsync({accountUid}).catch((e) => {
+            console.error(e)
+            toast.error(`Failed to create wallet: ${e.message}`)
+          })
         }}
       >
         Create Account Wallet
@@ -400,7 +405,21 @@ function AmountSats({amount}: {amount: number}) {
 }
 
 function DestWallet({walletIds}: {walletIds: string[]}) {
-  return <SizableText fontFamily="$mono">{walletIds.join(', ')}</SizableText>
+  return (
+    <Tooltip content="Copy Wallet Address">
+      <ButtonText
+        fontFamily="$mono"
+        onPress={() => {
+          copyTextToClipboard(walletIds.join(', '))
+          toast.success('Copied Destination Wallet Address to Clipboard')
+        }}
+      >
+        {walletIds
+          .map((walletId) => `x${walletId.slice(-8).toUpperCase()}`)
+          .join(', ')}
+      </ButtonText>
+    </Tooltip>
+  )
 }
 
 function AddFundsDialog({
@@ -591,6 +610,8 @@ function InvoiceRow({invoice}: {invoice: PlainMessage<Invoice>}) {
           ) : null}
           <Tooltip content="Click to Copy Destination Address">
             <ButtonText
+              color="$blue10"
+              fontFamily="$mono"
               onPress={() => {
                 copyTextToClipboard(invoice.destination)
                 toast.success('Copied Destination Address to Clipboard')

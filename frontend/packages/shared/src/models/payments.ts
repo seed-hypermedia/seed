@@ -26,7 +26,7 @@ type CreateInvoiceRequest = {
   recipients: Record<string, number> // accountId: percentage
   docId: UnpackedHypermediaId
   amountSats: number
-  description: string
+  description?: string
 }
 
 export function useCreateInvoice() {
@@ -34,7 +34,7 @@ export function useCreateInvoice() {
     mutationFn: async (input: CreateInvoiceRequest) => {
       const params = new URLSearchParams()
       params.append('source', input.docId.uid)
-      params.append('memo', input.description)
+      if (input.description) params.append('memo', input.description)
       params.append('amount', `${input.amountSats * 1000}`)
       Object.entries(input.recipients).forEach(([accountId, amount]) => {
         params.append('user', `${accountId},${amount}`)

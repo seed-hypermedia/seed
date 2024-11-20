@@ -182,7 +182,6 @@ export function useAppDialog<DialogInput>(
   const onClose = options?.onClose;
   return useMemo(() => {
     function open(input: DialogInput) {
-      console.log("open called", input);
       setOpenState(input);
     }
 
@@ -190,7 +189,6 @@ export function useAppDialog<DialogInput>(
       setOpenState(null);
       onClose?.();
     }
-    console.log("isOpen", openState);
     return {
       open,
       close,
