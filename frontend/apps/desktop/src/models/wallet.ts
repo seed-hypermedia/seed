@@ -1,11 +1,15 @@
-import {DAEMON_GRAPHQL_ENDPOINT, LIGHTNING_API_URL, Mutation} from '@shm/shared'
-import {UseMutationOptions, useMutation, useQuery} from '@tanstack/react-query'
+import {
+  DAEMON_GRAPHQL_ENDPOINT,
+  invalidateQueries,
+  LIGHTNING_API_URL,
+  Mutation,
+  queryKeys,
+} from '@shm/shared'
+import {useMutation, UseMutationOptions, useQuery} from '@tanstack/react-query'
 import request, {gql} from 'graphql-request'
 import {useEffect} from 'react'
-import {useQueryInvalidator} from '../app-context'
 import {useMyAccount_deprecated} from './accounts'
 import {useWallets} from './payments'
-import {queryKeys} from './query-keys'
 
 let exportBuiltInWalletMutation = gql`
   mutation exportBuiltInWallet {
@@ -57,7 +61,6 @@ export function useMyAccountCheck() {
 
 export function useWalletOptIn(opts?: UseMutationOptions) {
   const wallets = useWallets()
-  const invalidate = useQueryInvalidator()
   const walletCheck = useMyAccountCheck()
   const optIn = useMutation({
     mutationFn: async (input) => {
@@ -74,7 +77,7 @@ export function useWalletOptIn(opts?: UseMutationOptions) {
     },
     ...opts,
     onSuccess: (result, input, context) => {
-      invalidate(['payments'])
+      invalidateQueries(['payments'])
       opts?.onSuccess?.(result, input, context)
     },
   })

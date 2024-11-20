@@ -25,6 +25,8 @@ export const links: LinksFunction = () => {
   ];
 };
 
+// onQueryInvalidation(queryClient.invalidateQueries);
+
 export function Layout({children}: {children: React.ReactNode}) {
   return (
     <html lang="en">

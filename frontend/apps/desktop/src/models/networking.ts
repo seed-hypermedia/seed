@@ -1,7 +1,7 @@
 import appError from '@/errors'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
-import {ConnectionStatus, GRPCClient, PeerInfo} from '@shm/shared'
+import {ConnectionStatus, GRPCClient, PeerInfo, queryKeys} from '@shm/shared'
 import {
   FetchQueryOptions,
   UseQueryOptions,
@@ -10,7 +10,6 @@ import {
 import {useEffect, useRef, useState} from 'react'
 import {useGRPCClient} from '../app-context'
 import {useGatewayUrl} from './gateway-settings'
-import {queryKeys} from './query-keys'
 
 export function useIsOnline() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)

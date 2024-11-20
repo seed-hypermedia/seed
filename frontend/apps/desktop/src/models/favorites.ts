@@ -1,7 +1,6 @@
 import {trpc} from '@/trpc'
-import {UnpackedHypermediaId, unpackHmId} from '@shm/shared'
+import {invalidateQueries, UnpackedHypermediaId, unpackHmId} from '@shm/shared'
 import {useMemo} from 'react'
-import {useQueryInvalidator} from '../app-context'
 
 export type FavoriteItem = {
   key: 'document'
@@ -24,10 +23,9 @@ export function useFavorites() {
 
 export function useFavorite(id?: UnpackedHypermediaId) {
   const favorites = useFavorites()
-  const invalidate = useQueryInvalidator()
   const setFavorite = trpc.favorites.setFavorite.useMutation({
     onSuccess: () => {
-      invalidate(['trpc.favorites.get'])
+      invalidateQueries(['trpc.favorites.get'])
     },
   })
   if (!id)

@@ -8,6 +8,7 @@ import {
   hmId,
   hmIdPathToEntityQueryPath,
   HMMetadata,
+  HMMetadataPayload,
   HMQueryResult,
   SITE_BASE_URL,
   UnpackedHypermediaId,
@@ -16,14 +17,9 @@ import {queryClient} from "./client";
 import {getConfig} from "./config";
 import {wrapJSON, WrappedResponse} from "./wrapping";
 
-export type MetadataPayload = {
-  id: UnpackedHypermediaId;
-  metadata: HMMetadata;
-};
-
 export async function getMetadata(
   id: UnpackedHypermediaId
-): Promise<MetadataPayload> {
+): Promise<HMMetadataPayload> {
   try {
     const rawDoc = await queryClient.documents.getDocument({
       account: id.uid,

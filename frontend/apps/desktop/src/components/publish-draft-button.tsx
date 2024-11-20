@@ -13,6 +13,7 @@ import {
   entityQueryPathToHmIdPath,
   HMEntityContent,
   hmId,
+  invalidateQueries,
   packHmId,
   StateStream,
   writeableStateStream,
@@ -36,7 +37,6 @@ import {
 } from '@shm/ui'
 import {AlertCircle, Check, ChevronDown} from '@tamagui/lucide-icons'
 import {PropsWithChildren, ReactNode, useEffect, useState} from 'react'
-import {useQueryInvalidator} from '../app-context'
 import {useDraft} from '../models/accounts'
 import {
   draftDispatch,
@@ -54,13 +54,12 @@ export default function PublishDraftButton() {
   const draft = useDraft(draftId)
   const pushOnPublish = usePushOnPublish()
   const prevEntity = useEntity(draftId?.type !== 'draft' ? draftId : undefined)
-  const invalidate = useQueryInvalidator()
   const [signingAccount, setSigningAccount] = useState<HMEntityContent | null>(
     null,
   )
   const deleteDraft = trpc.drafts.delete.useMutation({
     onSuccess: () => {
-      invalidate(['trpc.drafts.get'])
+      invalidateQueries(['trpc.drafts.get'])
     },
   })
   const accts = useMyAccountsWithWriteAccess(draftId)
@@ -158,9 +157,9 @@ export default function PublishDraftButton() {
                 console.error('Failed to delete draft', e)
               })
               .then(() => {
-                invalidate(['trpc.drafts.get']) // todo, invalidate the specific draft id
-                invalidate(['trpc.drafts.list'])
-                invalidate(['trpc.drafts.listAccount'])
+                invalidateQueries(['trpc.drafts.get']) // todo, invalidate the specific draft id
+                invalidateQueries(['trpc.drafts.list'])
+                invalidateQueries(['trpc.drafts.listAccount'])
               })
           if (resultDocId) {
             navigate({

@@ -1,5 +1,4 @@
 import {loadWebLinkMeta} from '@/models/web-links'
-import {AppQueryClient} from '@/query-client'
 import {extractBlockRefOfUrl, hmIdWithVersion} from '@shm/shared'
 import {EditorView} from '@tiptap/pm/view'
 import {Plugin, PluginKey} from 'prosemirror-state'
@@ -7,11 +6,7 @@ import {Plugin, PluginKey} from 'prosemirror-state'
 export const hypermediaPluginKey = new PluginKey('hypermedia-link')
 
 // TODO: use `createX` function instead of just exporting the plugin
-export function createHypermediaDocLinkPlugin({
-  queryClient,
-}: {
-  queryClient: AppQueryClient
-}) {
+export function createHypermediaDocLinkPlugin({}: {}) {
   let plugin = new Plugin({
     key: hypermediaPluginKey,
     view(editorView) {
@@ -21,7 +16,7 @@ export function createHypermediaDocLinkPlugin({
           if (state?.size && state?.size > 0) {
             if (state) {
               for (const entry of state) {
-                checkHyperLink(queryClient, view, entry)
+                checkHyperLink(view, entry)
               }
             }
           }
@@ -64,7 +59,6 @@ export function createHypermediaDocLinkPlugin({
 }
 
 async function checkHyperLink(
-  queryClient: AppQueryClient,
   view: EditorView,
   entry: [key: string, value: string],
 ): Promise<
@@ -79,7 +73,7 @@ async function checkHyperLink(
   if (!entryUrl) return
   view.dispatch(view.state.tr.setMeta('hmPlugin:removeId', id))
   try {
-    let res = await loadWebLinkMeta(queryClient, entryUrl)
+    let res = await loadWebLinkMeta(entryUrl)
     if (res && res.hmId) {
       const fullHmId = hmIdWithVersion(
         res.hmId,

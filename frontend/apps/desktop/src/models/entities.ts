@@ -7,8 +7,10 @@ import {
   HMEntityContent,
   hmId,
   hmIdPathToEntityQueryPath,
+  invalidateQueries,
   NavRoute,
   packHmId,
+  queryKeys,
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
@@ -20,8 +22,7 @@ import {
   UseQueryOptions,
 } from '@tanstack/react-query'
 import {useEffect, useMemo} from 'react'
-import {useGRPCClient, useQueryInvalidator} from '../app-context'
-import {queryKeys} from './query-keys'
+import {useGRPCClient} from '../app-context'
 import {useDeleteRecent} from './recents'
 
 type DeleteEntitiesInput = {
@@ -34,7 +35,6 @@ export function useDeleteEntities(
   opts: UseMutationOptions<void, unknown, DeleteEntitiesInput>,
 ) {
   const deleteRecent = useDeleteRecent()
-  const invalidate = useQueryInvalidator()
   const grpcClient = useGRPCClient()
   return useMutation({
     ...opts,
@@ -57,7 +57,7 @@ export function useDeleteEntities(
       )
     },
     onSuccess: (result: void, input: DeleteEntitiesInput, context) => {
-      invalidate([])
+      invalidateQueries([])
       opts?.onSuccess?.(result, input, context)
     },
   })
@@ -80,7 +80,6 @@ export function useUndeleteEntity(
   opts?: UseMutationOptions<void, unknown, {id: string}>,
 ) {
   const deleteRecent = useDeleteRecent()
-  const invalidate = useQueryInvalidator()
   const grpcClient = useGRPCClient()
   return useMutation({
     ...opts,
@@ -91,21 +90,21 @@ export function useUndeleteEntity(
     onSuccess: (result: void, variables: {id: string}, context) => {
       const hmId = unpackHmId(variables.id)
       if (hmId?.type === 'd') {
-        invalidate([queryKeys.ENTITY, variables.id])
-        invalidate([queryKeys.ACCOUNT_DOCUMENTS])
-        invalidate([queryKeys.LIST_ACCOUNTS])
-        invalidate([queryKeys.ACCOUNT, hmId.uid])
+        invalidateQueries([queryKeys.ENTITY, variables.id])
+        invalidateQueries([queryKeys.ACCOUNT_DOCUMENTS])
+        invalidateQueries([queryKeys.LIST_ACCOUNTS])
+        invalidateQueries([queryKeys.ACCOUNT, hmId.uid])
       } else if (hmId?.type === 'comment') {
-        invalidate([queryKeys.COMMENT, variables.id])
-        invalidate([queryKeys.DOCUMENT_COMMENTS])
+        invalidateQueries([queryKeys.COMMENT, variables.id])
+        invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
       }
-      invalidate([queryKeys.FEED])
-      invalidate([queryKeys.FEED_LATEST_EVENT])
-      invalidate([queryKeys.RESOURCE_FEED])
-      invalidate([queryKeys.RESOURCE_FEED_LATEST_EVENT])
-      invalidate([queryKeys.ENTITY_CITATIONS])
-      invalidate([queryKeys.SEARCH])
-      invalidate([queryKeys.DELETED])
+      invalidateQueries([queryKeys.FEED])
+      invalidateQueries([queryKeys.FEED_LATEST_EVENT])
+      invalidateQueries([queryKeys.RESOURCE_FEED])
+      invalidateQueries([queryKeys.RESOURCE_FEED_LATEST_EVENT])
+      invalidateQueries([queryKeys.ENTITY_CITATIONS])
+      invalidateQueries([queryKeys.SEARCH])
+      invalidateQueries([queryKeys.DELETED])
       opts?.onSuccess?.(result, variables, context)
     },
   })
@@ -196,7 +195,6 @@ export function queryEntity(
 }
 
 export function useDiscoverEntity(id: UnpackedHypermediaId) {
-  const invalidate = useQueryInvalidator()
   const grpcClient = useGRPCClient()
   return useMutation({
     mutationFn: async () => {
@@ -208,8 +206,8 @@ export function useDiscoverEntity(id: UnpackedHypermediaId) {
       return {}
     },
     onSuccess: () => {
-      invalidate([queryKeys.SEARCH])
-      invalidate([queryKeys.ENTITY, id.id])
+      invalidateQueries([queryKeys.SEARCH])
+      invalidateQueries([queryKeys.ENTITY, id.id])
     },
   })
 }
@@ -247,7 +245,6 @@ export function useSubscribedEntities(
   subs: {id: UnpackedHypermediaId | null | undefined; recursive?: boolean}[],
 ) {
   const entities = useEntities(subs.map((sub) => sub.id))
-  const invalidate = useQueryInvalidator()
   const grpcClient = useGRPCClient()
   useEffect(() => {
     const idKeys = subs.map(({id, recursive}) => {
@@ -279,8 +276,8 @@ export function useSubscribedEntities(
             // discovery completed. result.version is the new version
             if (result.version === loadedVersion && !recursive)
               discoveryComplete = true
-            invalidate([queryKeys.ENTITY, id.id])
-            invalidate([queryKeys.DOC_LIST_DIRECTORY, id.uid])
+            invalidateQueries([queryKeys.ENTITY, id.id])
+            invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, id.uid])
           })
           .catch((e) => {
             console.log('[sync] discovery error', e)

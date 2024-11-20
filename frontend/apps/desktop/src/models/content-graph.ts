@@ -1,7 +1,11 @@
-import {GRPCClient, UnpackedHypermediaId, unpackHmId} from '@shm/shared'
+import {
+  GRPCClient,
+  queryKeys,
+  UnpackedHypermediaId,
+  unpackHmId,
+} from '@shm/shared'
 import {useQuery} from '@tanstack/react-query'
 import {useGRPCClient} from '../app-context'
-import {queryKeys} from './query-keys'
 
 export type CitationLink = Awaited<
   ReturnType<GRPCClient['entities']['listEntityMentions']>

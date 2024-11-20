@@ -1,5 +1,4 @@
 import {useGatewayUrl} from '@/models/gateway-settings'
-import {queryKeys} from '@/models/query-keys'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {
@@ -10,6 +9,8 @@ import {
   eventStream,
   HMDraft,
   hmId,
+  invalidateQueries,
+  queryKeys,
 } from '@shm/shared'
 import {
   Button,
@@ -32,7 +33,7 @@ import {
 } from '@shm/ui'
 import {nanoid} from 'nanoid'
 import {SVGProps, useEffect, useMemo, useRef, useState} from 'react'
-import {useGRPCClient, useQueryInvalidator} from '../app-context'
+import {useGRPCClient} from '../app-context'
 import {
   NamedKey,
   useMnemonics,
@@ -53,7 +54,6 @@ export function AccountWizardDialog() {
   const theme = useTheme()
   const accounts = useMyAccountIds()
   const createDraft = trpc.drafts.write.useMutation()
-  const invalidate = useQueryInvalidator()
   const [open, setOpen] = useState(false)
   const [newAccount, setNewAccount] = useState<null | boolean>(true)
   const [step, setStep] = useState<AccountStep>('create')
@@ -125,9 +125,9 @@ export function AccountWizardDialog() {
           lastUpdateTime: Date.now(),
         } as HMDraft,
       })
-      invalidate([queryKeys.LOCAL_ACCOUNT_ID_LIST])
-      invalidate([queryKeys.LIST_ROOT_DOCUMENTS])
-      invalidate([queryKeys.SEARCH])
+      invalidateQueries([queryKeys.LOCAL_ACCOUNT_ID_LIST])
+      invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
+      invalidateQueries([queryKeys.SEARCH])
       setCreatedAccount(renamedKey)
       if (existing) {
         navigate({
@@ -181,11 +181,11 @@ export function AccountWizardDialog() {
         })
 
         if (doc) {
-          invalidate([
+          invalidateQueries([
             queryKeys.ENTITY,
             hmId('d', createdAccount!.accountId).id,
           ])
-          invalidate([queryKeys.LIST_ROOT_DOCUMENTS])
+          invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
           navigate({
             key: 'document',
             id: hmId('d', createdAccount!.accountId),

@@ -1,6 +1,6 @@
 import {trpc} from '@/trpc'
+import {invalidateQueries} from '@shm/shared'
 import {toast} from '@shm/ui'
-import {useQueryInvalidator} from '../app-context'
 
 export function useExperiments() {
   const experiments = trpc.experiments.get.useQuery()
@@ -8,13 +8,12 @@ export function useExperiments() {
 }
 
 export function useWriteExperiments() {
-  const invalidate = useQueryInvalidator()
   const writeExperiments = trpc.experiments.write.useMutation({
     onError() {
       toast.error('Could not save this change')
     },
     onSuccess() {
-      invalidate(['trpc.experiments.get'])
+      invalidateQueries(['trpc.experiments.get'])
     },
   })
   return writeExperiments

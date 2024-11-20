@@ -1,8 +1,7 @@
-import {Change, DAEMON_HTTP_PORT} from '@shm/shared'
+import {Change, DAEMON_HTTP_PORT, queryKeys} from '@shm/shared'
 import {UseQueryOptions, useQueries, useQuery} from '@tanstack/react-query'
 import {useMemo} from 'react'
 import {useGRPCClient} from '../app-context'
-import {queryKeys} from './query-keys'
 
 export function useDocHistory(docId?: string, variantVersion?: string) {
   const {data} = useEntityTimeline(docId)

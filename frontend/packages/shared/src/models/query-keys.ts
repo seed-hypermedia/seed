@@ -69,7 +69,15 @@ export const queryKeys = {
   DELETED: 'deleted',
 
   // subscriptions
-  SUBSCRIPTIONS: 'SUBSCRIPTIONS', // toodo lollll
+  SUBSCRIPTIONS: 'SUBSCRIPTIONS',
+
+  // payments
+  WALLETS: 'WALLETS', //, walletId: string
+  ACCOUNT_WALLETS: 'ACCOUNT_WALLETS', //, accountId: string
+  INVOICES: 'INVOICES', //, walletId: string
+  CURRENCY_COMPARISONS: 'CURRENCY_COMPARISONS',
+  PAYMENT_RECIPIENTS: 'PAYMENT_RECIPIENTS', // string: "accountUid,accountUid"
+  INVOICE_STATUS: 'INVOICE_STATUS', // invoiceId: string
 } as const
 
 export function labelOfQueryKey(key: QueryKey) {

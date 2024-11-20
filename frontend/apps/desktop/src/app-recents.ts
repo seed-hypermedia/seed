@@ -4,10 +4,10 @@ import {
   getDocumentTitle,
   getRecentsRouteEntityUrl,
   hmIdPathToEntityQueryPath,
+  invalidateQueries,
 } from '@shm/shared'
 import {z} from 'zod'
 import {grpcClient} from './app-grpc'
-import {invalidateQueries} from './app-invalidation'
 import {appStore} from './app-store'
 import {t} from './app-trpc'
 

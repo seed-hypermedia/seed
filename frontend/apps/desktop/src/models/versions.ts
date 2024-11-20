@@ -3,12 +3,12 @@ import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {
   DocumentChangeInfo,
   hmIdPathToEntityQueryPath,
+  queryKeys,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {useQuery} from '@tanstack/react-query'
 import {useDraft} from './accounts'
 import {useEntity} from './entities'
-import {queryKeys} from './query-keys'
 
 type DraftChangeInfo = {
   author: string

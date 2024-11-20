@@ -3,13 +3,11 @@ import {useStream} from '@shm/ui'
 import '@tamagui/core/reset.css'
 import '@tamagui/font-inter/css/400.css'
 import '@tamagui/font-inter/css/700.css'
-import React, {useMemo} from 'react'
+import React from 'react'
 import ReactDOM from 'react-dom/client'
-import {createIPC} from './ipc'
 import {FindInPage} from './pages/find-in-page'
 
 function FindInPageView() {
-  const ipc = useMemo(() => createIPC(), [])
   // @ts-expect-error
   const darkMode = useStream<boolean>(window.darkMode)
 
@@ -21,7 +19,7 @@ function FindInPageView() {
       }
     >
       <StyleProvider darkMode={darkMode}>
-        <FindInPage ipc={ipc} />
+        <FindInPage />
       </StyleProvider>
     </div>
   )

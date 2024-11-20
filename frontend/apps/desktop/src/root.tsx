@@ -5,12 +5,21 @@ import {NavigationContainer} from '@/utils/navigation-container'
 import {useListenAppEvent} from '@/utils/window-events'
 import type {Interceptor} from '@connectrpc/connect'
 import {createGrpcWebTransport} from '@connectrpc/connect-web'
-import {DAEMON_HTTP_URL, createGRPCClient} from '@shm/shared'
+import {
+  DAEMON_HTTP_URL,
+  createGRPCClient,
+  labelOfQueryKey,
+  onQueryCacheError,
+  onQueryInvalidation,
+  queryClient,
+} from '@shm/shared'
 import type {StateStream} from '@shm/shared/src/utils/stream'
 import {SizableText, Spinner, Toaster, YStack, toast, useStream} from '@shm/ui'
 import '@tamagui/core/reset.css'
 import '@tamagui/font-inter/css/400.css'
 import '@tamagui/font-inter/css/700.css'
+import {QueryKey, onlineManager} from '@tanstack/react-query'
+import copyTextToClipboard from 'copy-text-to-clipboard'
 import {ipcLink} from 'electron-trpc/renderer'
 import React, {Suspense, useEffect, useMemo, useState} from 'react'
 import ReactDOM from 'react-dom/client'
@@ -19,10 +28,9 @@ import superjson from 'superjson'
 import {AppErrorContent, RootAppError} from './components/app-error'
 import {AccountWizardDialog} from './components/create-account'
 import type {GoDaemonState} from './daemon'
-import {createIPC} from './ipc'
+import {ipc} from './ipc'
 import Main from './pages/main'
 import type {AppInfoType} from './preload'
-import {AppQueryClient, getQueryClient} from './query-client'
 import './root.css'
 import {client, trpc} from './trpc'
 
@@ -160,13 +168,28 @@ function useGoDaemonState(): GoDaemonState | undefined {
   return state
 }
 
-function MainApp({
-  queryClient,
-  ipc,
-}: {
-  queryClient: AppQueryClient
-  ipc: AppIPC
-}) {
+// on desktop we handle query invalidation by sending it through IPC so it is sent to all windows
+onQueryInvalidation((queryKey: QueryKey) => {
+  ipc.send?.('invalidate_queries', queryKey)
+})
+
+// RQ will refuse to run mutations if !isOnline
+onlineManager.setOnline(true)
+
+// toast when a query error happens. we set this up here because web doesn't have this feature yet
+onQueryCacheError((error, query) => {
+  const queryKey = query.queryKey as string[]
+  const errorMessage = ((err as any)?.message || null) as string | null // todo: repent for my sins
+  toast.error(`Failed to Load ${labelOfQueryKey(queryKey)}`, {
+    onClick: () => {
+      const detailString = JSON.stringify({queryKey, errorMessage}, null, 2)
+      copyTextToClipboard(detailString)
+      toast.success(`📋 Copied details to clipboard`)
+    },
+  })
+})
+
+function MainApp({}: {}) {
   const darkMode = useStream<boolean>(window.darkMode)
   const daemonState = useGoDaemonState()
   const grpcClient = useMemo(() => createGRPCClient(transport), [])
@@ -187,6 +210,7 @@ function MainApp({
 
   useEffect(() => {
     const sub = client.queryInvalidation.subscribe(undefined, {
+      // called when invalidation happens in any window (including this one), here we are performing the local invalidation
       onData: (value: unknown[]) => {
         if (!value) return
         if (value[0] === 'trpc.experiments.get') {
@@ -214,15 +238,15 @@ function MainApp({
         } else if (value[0] == 'trpc.secureStorage.get') {
           utils.secureStorage.invalidate()
           utils.secureStorage.read.invalidate()
-        } else if (queryClient.client) {
-          queryClient.client.invalidateQueries(value)
+        } else {
+          queryClient.invalidateQueries(value)
         }
       },
     })
     return () => {
       sub.unsubscribe()
     }
-  }, [queryClient.client, utils])
+  }, [utils])
 
   // const openMarkdownFiles = () => {
   //   // @ts-ignore
@@ -381,9 +405,6 @@ function SpinnerWithText(props: {message: string; delay?: number}) {
 }
 
 function ElectronApp() {
-  const ipc = useMemo(() => createIPC(), [])
-  const queryClient = useMemo(() => getQueryClient(ipc), [ipc])
-
   const trpcClient = useMemo(
     () =>
       trpc.createClient({
@@ -394,8 +415,8 @@ function ElectronApp() {
   )
 
   return (
-    <trpc.Provider queryClient={queryClient.client} client={trpcClient}>
-      <MainApp queryClient={queryClient} ipc={ipc} />
+    <trpc.Provider queryClient={queryClient} client={trpcClient}>
+      <MainApp />
     </trpc.Provider>
   )
 }

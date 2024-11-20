@@ -410,3 +410,24 @@ export type HMListedDraft = {
   metadata: HMMetadata
   lastUpdateTime: number
 }
+
+export type HMInvoice = {
+  payload: string
+  hash: string
+  amount: number
+  share: Record<string, number>
+  description?: string
+}
+
+export type HMWallet = {
+  balance: number
+  id: string
+  address: string
+  name: string
+  type: string
+}
+
+export type HMMetadataPayload = {
+  id: UnpackedHypermediaId
+  metadata: HMMetadata
+}

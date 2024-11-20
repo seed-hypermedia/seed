@@ -1,9 +1,11 @@
-import {useGRPCClient, useQueryInvalidator} from '@/app-context'
+import {useGRPCClient} from '@/app-context'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {
   hmId,
   hmIdPathToEntityQueryPath,
   HMRole,
+  invalidateQueries,
+  queryKeys,
   Role,
   UnpackedHypermediaId,
 } from '@shm/shared'
@@ -11,7 +13,6 @@ import {toast} from '@shm/ui'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {useMyAccountIds} from './daemon'
 import {getParentPaths, useEntities} from './entities'
-import {queryKeys} from './query-keys'
 
 export function useDocumentCollaborators(id: UnpackedHypermediaId) {
   //
@@ -20,7 +21,6 @@ export function useDocumentCollaborators(id: UnpackedHypermediaId) {
 
 export function useAddCapabilities(id: UnpackedHypermediaId) {
   const grpcClient = useGRPCClient()
-  const invalidate = useQueryInvalidator()
   return useMutation({
     mutationFn: async ({
       myCapability,
@@ -47,7 +47,7 @@ export function useAddCapabilities(id: UnpackedHypermediaId) {
     },
     onSuccess: (data, {collaboratorAccountIds: count}) => {
       toast.success(`Capabilit${count.length > 1 ? 'ies' : 'y'} added`),
-        invalidate([queryKeys.CAPABILITIES, id.uid, ...(id.path || [])])
+        invalidateQueries([queryKeys.CAPABILITIES, id.uid, ...(id.path || [])])
     },
   })
 }

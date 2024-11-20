@@ -1,5 +1,9 @@
 import {displayHostname} from "@shm/shared";
+import {Button} from "@tamagui/button";
+import {styled} from "@tamagui/core";
 import {AlertCircle, CheckCircle2} from "@tamagui/lucide-icons";
+import {XStack, YStack} from "@tamagui/stacks";
+import {SizableText} from "@tamagui/text";
 import {
   ComponentProps,
   ReactElement,
@@ -8,7 +12,7 @@ import {
   useRef,
   useState,
 } from "react";
-import {Button, SizableText, Spinner, XStack, YStack, styled} from "tamagui";
+import {Spinner} from "./spinner";
 
 function DecorationIcon({
   Icon,
@@ -233,6 +237,7 @@ export function Toaster() {
       right={0}
       bottom={0}
       position="absolute"
+      zIndex={1_000_000}
       ai="center"
     >
       {/* <AnimatePresence> */}

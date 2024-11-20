@@ -1,11 +1,11 @@
 import {trpc} from '@/trpc'
 import {
   DEFAULT_GATEWAY_URL,
+  invalidateQueries,
   StateStream,
   writeableStateStream,
 } from '@shm/shared'
 import {useEffect, useMemo} from 'react'
-import {useQueryInvalidator} from '../app-context'
 
 export function useGatewayUrl() {
   const gatewayUrl = trpc.gatewaySettings.getGatewayUrl.useQuery()
@@ -29,10 +29,9 @@ export function useGatewayHost_DEPRECATED() {
 }
 
 export function useSetGatewayUrl() {
-  const invalidate = useQueryInvalidator()
   const setGatewayUrl = trpc.gatewaySettings.setGatewayUrl.useMutation({
     onSuccess: () => {
-      invalidate(['trpc.gatewaySettings.getGatewayUrl'])
+      invalidateQueries(['trpc.gatewaySettings.getGatewayUrl'])
     },
   })
   return setGatewayUrl
@@ -44,10 +43,9 @@ export function usePushOnCopy() {
 }
 
 export function useSetPushOnCopy() {
-  const invalidate = useQueryInvalidator()
   const setPushOnCopy = trpc.gatewaySettings.setPushOnCopy.useMutation({
     onSuccess: () => {
-      invalidate(['trpc.gatewaySettings.getPushOnCopy'])
+      invalidateQueries(['trpc.gatewaySettings.getPushOnCopy'])
     },
   })
   return setPushOnCopy
@@ -59,10 +57,9 @@ export function usePushOnPublish() {
 }
 
 export function useSetPushOnPublish() {
-  const invalidate = useQueryInvalidator()
   const setPushOnPublish = trpc.gatewaySettings.setPushOnPublish.useMutation({
     onSuccess: () => {
-      invalidate(['trpc.gatewaySettings.getPushOnPublish'])
+      invalidateQueries(['trpc.gatewaySettings.getPushOnPublish'])
     },
   })
   return setPushOnPublish
