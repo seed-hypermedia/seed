@@ -147,20 +147,20 @@ export type InlineEmbedAnnotation = z.infer<typeof InlineEmbedAnnotationSchema>
 //   type: 'range'
 // }
 
-export const HMAnnotationsSchema = z.array(HMAnnotationSchema).optional()
+export const HMAnnotationsSchema = z.array(HMAnnotationSchema)
 export type HMAnnotations = z.infer<typeof HMAnnotationsSchema>
 
 const blockBaseProperties = {
   id: z.string(),
   revision: z.string().optional(),
-  attributes: z.object({}).optional().default({}), // EMPTY ATTRIBUTES, override in specific block schemas
+  attributes: z.object({}).optional(), // EMPTY ATTRIBUTES, override in specific block schemas
   annotations: z.array(z.never()).optional(), // EMPTY ANNOTATIONS, override in specific block schemas
   text: z.literal('').optional(), // EMPTY TEXT, override in specific block schemas
   link: z.literal('').optional(), // EMPTY LINK, override in specific block schemas
 } as const
 
 const textBlockProperties = {
-  text: z.string().default(''),
+  text: z.string(),
   annotations: HMAnnotationsSchema,
 } as const
 
@@ -173,7 +173,7 @@ export const HMBlockParagraphSchema = z
     type: z.literal('Paragraph'),
     ...blockBaseProperties,
     ...textBlockProperties,
-    attributes: z.object(parentBlockAttributes).optional().default({}),
+    attributes: z.object(parentBlockAttributes),
   })
   .strict()
 
@@ -182,7 +182,7 @@ export const HMBlockHeadingSchema = z
     type: z.literal('Heading'),
     ...blockBaseProperties,
     ...textBlockProperties,
-    attributes: z.object(parentBlockAttributes).optional().default({}),
+    attributes: z.object(parentBlockAttributes),
   })
   .strict()
 
@@ -195,9 +195,8 @@ export const HMBlockCodeSchema = z
         ...parentBlockAttributes,
         language: z.string().optional(),
       })
-      .optional()
-      .default({}),
-    text: z.string().default(''),
+      .strict(),
+    text: z.string(),
   })
   .strict()
 
@@ -205,30 +204,10 @@ export const HMBlockMathSchema = z
   .object({
     type: z.literal('Math'),
     ...blockBaseProperties,
-    attributes: z.object(parentBlockAttributes).optional().default({}),
-    text: z.string().default(''),
+    attributes: z.object(parentBlockAttributes).strict(),
+    text: z.string(),
   })
   .strict()
-
-export function toNumber(value: any): number {
-  // If it's already a number, return it directly
-  if (typeof value === 'number' && !isNaN(value)) {
-    return value
-  }
-
-  // If it's a string, try to convert it
-  if (typeof value === 'string') {
-    const converted = Number(value)
-    if (!isNaN(converted)) {
-      return converted
-    }
-  }
-
-  // If we get here, throw an error
-  throw new Error(
-    'Value must be a number or a string that can be converted to a number',
-  )
-}
 
 export const HMBlockImageSchema = z
   .object({
@@ -238,11 +217,10 @@ export const HMBlockImageSchema = z
     attributes: z
       .object({
         ...parentBlockAttributes,
-        width: z.number().optional(),
+        width: z.string().optional(),
         name: z.string().optional(),
       })
-      .optional()
-      .default({}),
+      .strict(),
     link: z.string(),
   })
   .strict()
@@ -254,11 +232,10 @@ export const HMBlockVideoSchema = z
     attributes: z
       .object({
         ...parentBlockAttributes,
-        width: z.number().optional(),
+        width: z.string().optional(),
         name: z.string().optional(),
       })
-      .optional()
-      .default({}),
+      .strict(),
     link: z.string(),
   })
   .strict()
@@ -270,11 +247,10 @@ export const HMBlockFileSchema = z
     attributes: z
       .object({
         ...parentBlockAttributes,
-        size: z.number().optional().transform(toNumber), // number of bytes, as a string
         name: z.string().optional(),
+        size: z.string().optional(), // number of bytes, as a string
       })
-      .optional()
-      .default({}),
+      .strict(),
     link: z.string(),
   })
   .strict()
@@ -288,8 +264,7 @@ export const HMBlockButtonSchema = z
         ...parentBlockAttributes,
         name: z.string().optional(),
       })
-      .optional()
-      .default({}),
+      .strict(),
     link: z.string(),
   })
   .strict()
@@ -304,8 +279,7 @@ export const HMBlockEmbedSchema = z
         ...parentBlockAttributes,
         view: HMEmbedViewSchema.optional(),
       })
-      .optional()
-      .default({}),
+      .strict(),
   })
   .strict()
 
@@ -314,14 +288,6 @@ export const HMBlockWebEmbedSchema = z
     type: z.literal('WebEmbed'),
     ...blockBaseProperties,
     link: z.string(), // should be a HTTP(S) URL
-  })
-  .strict()
-
-export const HMBlockNostrSchema = z
-  .object({
-    type: z.literal('Nostr'),
-    ...blockBaseProperties,
-    link: z.string(), // should be a nostr:// URL
   })
   .strict()
 
@@ -336,7 +302,6 @@ export const HMBlockSchema = z.discriminatedUnion('type', [
   HMBlockButtonSchema,
   HMBlockEmbedSchema,
   HMBlockWebEmbedSchema,
-  HMBlockNostrSchema,
 ])
 
 export type HMBlockParagraph = z.infer<typeof HMBlockParagraphSchema>
@@ -350,7 +315,6 @@ export type HMBlockButton = z.infer<typeof HMBlockButtonSchema>
 export type HMBlockEmbed = z.infer<typeof HMBlockEmbedSchema>
 export type HMBlockWebEmbed = z.infer<typeof HMBlockWebEmbedSchema>
 export type HMBlock = z.infer<typeof HMBlockSchema>
-export type HMBlockNostr = z.infer<typeof HMBlockNostrSchema>
 
 const baseBlockNodeSchema = z.object({
   block: HMBlockSchema,
@@ -388,13 +352,13 @@ export const HMTimestampSchema = z
 
 export const HMDocumentSchema = z
   .object({
-    content: z.array(HMBlockNodeSchema).default([]),
-    version: z.string().default(''),
-    account: z.string().default(''),
+    content: z.array(HMBlockNodeSchema),
+    version: z.string(),
+    account: z.string(),
     authors: z.array(z.string()),
-    path: z.string().default(''),
-    createTime: z.string().default(''),
-    updateTime: z.string().default(''),
+    path: z.string(),
+    createTime: HMTimestampSchema,
+    updateTime: HMTimestampSchema,
     metadata: HMDocumentMetadataSchema,
     genesis: z.string(),
   })

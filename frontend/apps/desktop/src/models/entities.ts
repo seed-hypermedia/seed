@@ -174,8 +174,7 @@ export function queryEntity(
           path: hmIdPathToEntityQueryPath(id.path),
           version,
         })
-
-        const serverDocument = grpcDocument.toJson()
+        const serverDocument = toPlainMessage(grpcDocument)
 
         const result = HMDocumentSchema.safeParse(serverDocument)
         if (result.success) {

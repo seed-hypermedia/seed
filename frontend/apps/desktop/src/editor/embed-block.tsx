@@ -306,8 +306,7 @@ function EmbedControl({
       y={0}
       zIndex="$zIndex.5"
       width="100%"
-      height="100%"
-      ai="flex-start"
+      ai="center"
       jc="flex-end"
       opacity={popoverState.open ? 1 : 0}
       padding="$2"
