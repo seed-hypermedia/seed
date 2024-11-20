@@ -15,9 +15,7 @@ import * as log from './logger'
 
 let goDaemonExecutablePath = getDaemonBinaryPath()
 
-let lndhubFlags = userDataPath.includes('Seed.local')
-  ? '-lndhub.mainnet=false'
-  : IS_PROD_DESKTOP
+const lndhubFlags = IS_PROD_DESKTOP
   ? '-lndhub.mainnet=true'
   : '-lndhub.mainnet=false'
 
