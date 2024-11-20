@@ -1,4 +1,4 @@
-import {EditorBlock, EditorInlineContent} from '@shm/desktop/src/editor'
+import {EditorBlock, EditorInlineContent} from '../editor-types'
 import {HMAnnotations, HMBlock, HMBlockSchema, HMBlockType} from '../hm-types'
 import {AnnotationSet, codePointLength} from './unicode'
 

@@ -1,3 +1,4 @@
+import {describe, expect, test} from 'vitest'
 import {
   EditorBlock,
   EditorCodeBlock,
@@ -8,8 +9,7 @@ import {
   EditorMathBlock,
   EditorVideoBlock,
   EditorWebEmbedBlock,
-} from '@shm/desktop/src/editor'
-import {describe, expect, test} from 'vitest'
+} from '../../editor-types'
 import {
   HMBlock,
   HMBlockCode,

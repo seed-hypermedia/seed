@@ -1,11 +1,11 @@
 import {PlainMessage} from '@bufbuild/protobuf'
+import _ from 'lodash'
 import {
   EditorBlock,
   EditorBlockType,
   EditorInlineContent,
   EditorInlineEmbed,
-} from '@shm/desktop/src/editor'
-import _ from 'lodash'
+} from '../editor-types'
 import {
   HMBlock,
   HMBlockChildrenType,
