@@ -25,6 +25,13 @@ export const HMEmbedViewSchema = z.union([
 ])
 export type HMEmbedView = z.infer<typeof HMEmbedViewSchema>
 
+export const HMQueryStyleSchema = z.union([
+  z.literal('Card'),
+  z.literal('List'),
+])
+
+export type HMQueryStyle = z.infer<typeof HMQueryStyleSchema>
+
 export type EditorTextStyles = {
   bold?: true
   italic?: true
@@ -291,6 +298,47 @@ export const HMBlockWebEmbedSchema = z
   })
   .strict()
 
+export const HMBlockNostrSchema = z
+  .object({
+    type: z.literal('Nostr'),
+    ...blockBaseProperties,
+    link: z.string(), // should be a nostr:// URL
+  })
+  .strict()
+
+export const HMQueryInclusionSchema = z.object({
+  space: z.string(),
+  path: z.string().optional(),
+  mode: z.union([z.literal('Children'), z.literal('AllDescendants')]),
+})
+
+export const HMQuerySortSchema = z.object({
+  reverse: z.boolean().default(false),
+  term: z.union([
+    z.literal('Path'),
+    z.literal('Title'),
+    z.literal('CreateTime'),
+    z.literal('UpdateTime'),
+  ]),
+})
+
+export const HMBlockQuerySchema = z
+  .object({
+    type: z.literal('Query'),
+    ...blockBaseProperties,
+    attributes: z.object({
+      ...parentBlockAttributes,
+      style: HMQueryStyleSchema.optional(),
+      columnCount: z.number().optional(),
+      query: z.object({
+        includes: z.array(HMQueryInclusionSchema),
+        sort: z.array(HMQuerySortSchema).optional(),
+        limit: z.number().optional(),
+      }),
+    }),
+  })
+  .strict()
+
 export const HMBlockSchema = z.discriminatedUnion('type', [
   HMBlockParagraphSchema,
   HMBlockHeadingSchema,
@@ -302,6 +350,8 @@ export const HMBlockSchema = z.discriminatedUnion('type', [
   HMBlockButtonSchema,
   HMBlockEmbedSchema,
   HMBlockWebEmbedSchema,
+  HMBlockNostrSchema,
+  HMBlockQuerySchema,
 ])
 
 export type HMBlockParagraph = z.infer<typeof HMBlockParagraphSchema>

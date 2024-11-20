@@ -12,7 +12,7 @@ export type EditorBlock =
   | EditorWebEmbedBlock
   | EditorMathBlock
   | EditorNostrBlock
-
+  | EditorQueryBlock
 export type EditorInlineContent = EditorText | EditorInlineEmbed | EditorLink
 
 // ===============
@@ -114,6 +114,17 @@ export type EditorNostrBlock = EditorBaseBlock & {
     size: number
   }
   content: Array<EditorInlineContent>
+}
+
+export type EditorQueryBlock = EditorBaseBlock & {
+  type: 'query'
+  props: EditorBlockProps & {
+    style: 'Card' | 'List'
+    columnCount?: '1' | '2' | '3'
+    queryLimit?: string
+    queryIncludes?: string
+    querySort?: string
+  }
 }
 
 export interface EditorText {

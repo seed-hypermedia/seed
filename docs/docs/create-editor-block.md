@@ -8,3 +8,5 @@
 - create display version of block
 - create placeholder (loading state) for block
 - create settings component in the editor (if needed)
+- create hm types for block
+- create editor types for block

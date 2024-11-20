@@ -3,6 +3,8 @@ import {openAddAccountWizard} from '@/components/create-account'
 import {FavoriteButton} from '@/components/favoriting'
 import {MainWrapper} from '@/components/main-wrapper'
 import {ListItemSkeleton} from '@/components/skeleton'
+
+import {EditorBlock} from '@/editor'
 import {
   FilterItem,
   LibraryData,
@@ -15,7 +17,6 @@ import {useNavigate} from '@/utils/useNavigate'
 import {useTriggerWindowEvent} from '@/utils/window-events'
 import {
   DocumentRoute,
-  EditorBlock,
   formattedDate,
   getDocumentTitle,
   getMetadataName,

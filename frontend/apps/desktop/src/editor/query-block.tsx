@@ -1,10 +1,10 @@
 import {useAppContext} from '@/app-context'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {
-  BlockContentQueryPlaceholder,
   Button,
   ErrorBlock,
   Pencil,
+  QueryBlockPlaceholder,
   Search,
   SelectField,
   SwitchField,
@@ -17,10 +17,11 @@ import {
 import {Fragment} from '@tiptap/pm/model'
 
 import {NodeSelection, TextSelection} from 'prosemirror-state'
-import {useState} from 'react'
+import {useCallback, useMemo, useState} from 'react'
 import {Block, BlockNoteEditor} from './blocknote'
 import {MultipleNodeSelection} from './blocknote/core/extensions/SideMenu/MultipleNodeSelection'
 import {createReactBlockSpec, useEditorSelectionChange} from './blocknote/react'
+import {EditorQueryBlock} from './editor-types'
 import {HMBlockSchema} from './schema'
 import {getNodesInSelection} from './utils'
 
@@ -43,10 +44,10 @@ export const QueryBlock = createReactBlockSpec({
       default: '',
     },
     queryIncludes: {
-      default: '',
+      default: '[{"space": "", "path": "", "mode": "Children"}]',
     },
     querySort: {
-      default: '',
+      default: '[{"term": "UpdateTime", "reverse": false}]',
     },
   },
   containsInlineContent: true,
@@ -110,6 +111,14 @@ function Render(
 
   useEditorSelectionChange(editor, updateSelection)
 
+  const assign = useCallback(
+    (props: Partial<EditorQueryBlock['props']>) => {
+      // @ts-ignore because we have literal string values here that should be ok.
+      editor.updateBlock(block.id, {props})
+    },
+    [editor, block.id],
+  )
+
   return (
     <YStack
       // @ts-ignore
@@ -119,15 +128,33 @@ function Render(
       borderWidth={3}
       borderRadius="$2"
     >
-      <QuerySettings />
-      <BlockContentQueryPlaceholder />
+      <QuerySettings block={block} onValuesChange={assign} />
+      <QueryBlockPlaceholder styleType={block.props.style as 'Card' | 'List'} />
     </YStack>
   )
 }
 
-function QuerySettings() {
+function QuerySettings({
+  block,
+  onValuesChange,
+}: {
+  block: EditorQueryBlock
+  onValuesChange: (props: EditorQueryBlock['props']) => void
+}) {
   const popoverState = usePopoverState()
   const [search, setSearch] = useState('')
+
+  const queryIncludes = useMemo(() => {
+    return JSON.parse(block.props.queryIncludes || '[]')
+  }, [block.props.queryIncludes])
+  const querySort = useMemo(() => {
+    return JSON.parse(block.props.querySort || '[]')
+  }, [block.props.querySort])
+  console.log(`== ~ queryValues ~ queryIncludes:`, {
+    block,
+    queryIncludes,
+    querySort,
+  })
 
   return (
     <>
@@ -190,12 +217,26 @@ function QuerySettings() {
                 onChangeText={setSearch}
                 placeholder="Search Query"
               />
-              <SwitchField label="Show all Children" id="mode" />
+              <SwitchField
+                label="Show all Children"
+                id="mode"
+                onCheckedChange={(value) => {
+                  console.log('MODE', queryIncludes[0])
+                  let newVal = [
+                    {
+                      ...queryIncludes[0],
+                      mode: value ? 'AllDescendants' : 'Children',
+                    },
+                  ]
+
+                  onValuesChange({queryIncludes: JSON.stringify(newVal)})
+                }}
+              />
               <SelectField
                 size="$2"
-                value="Card"
+                value={block.props.style}
                 onValue={(value) => {
-                  console.log(value)
+                  onValuesChange({style: value as 'Card' | 'List'})
                 }}
                 label="View"
                 id="view"

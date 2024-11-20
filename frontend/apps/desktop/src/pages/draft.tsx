@@ -433,7 +433,7 @@ export function DraftHeader({
     return s.context.metadata.icon
   })
 
-  const prevDoc = useSelector(draftActor, (s) => s.context.entity.document)
+  const prevDoc = useSelector(draftActor, (s) => s.context.entity?.document)
 
   console.log(`== ~ prevDoc:`, prevDoc)
 
