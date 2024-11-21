@@ -10,6 +10,7 @@ import {ImportDropdownButton} from '@/components/import-doc-button'
 import {SidebarSpacer} from '@/components/main-wrapper'
 import {NewspaperLayout} from '@/components/newspaper-layout'
 import {OptionsPanel} from '@/components/options-panel'
+import {SearchInput} from '@/components/search-input'
 import {SiteNavigation} from '@/components/site-navigation'
 import {VersionsPanel} from '@/components/versions-panel'
 import '@/editor/editor.css'
@@ -247,6 +248,7 @@ function _MainDocumentPage({
         <DocContainer>
           <DocPageHeader docId={id} isBlockFocused={isBlockFocused} />
           <YStack flex={1} paddingLeft="$4" $gtSm={{paddingLeft: 0}}>
+            <SearchInput />
             <DocPageContent
               blockRef={id.blockRef}
               entity={entity.data}

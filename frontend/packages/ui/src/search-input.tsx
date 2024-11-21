@@ -14,7 +14,6 @@ export function SearchInput({
   onArrowUp,
   onEscape,
   onEnter,
-  searchResults = [],
 }: PropsWithChildren<{
   searchResults: Array<SearchResult>;
   inputProps: {
@@ -84,8 +83,6 @@ export function SearchInput({
 export function SearchResultItem({
   item,
   selected = false,
-  onFocus,
-  onMouseEnter,
 }: {
   item: SearchResult;
   selected: boolean;

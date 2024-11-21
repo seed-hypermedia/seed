@@ -1,7 +1,6 @@
 import {getLinkMenuItems} from '@/editor/blocknote/core'
 import {linkMenuPluginKey} from '@/editor/blocknote/core/extensions/LinkMenu/LinkMenuPlugin'
 import {loadWebLinkMeta} from '@/models/web-links'
-import type {AppQueryClient} from '@/query-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {
   GRPCClient,
@@ -25,7 +24,6 @@ import {find} from 'linkifyjs'
 import {nanoid} from 'nanoid'
 
 type PasteHandlerOptions = {
-  client: AppQueryClient
   grpcClient: GRPCClient
   editor: Editor
   type: MarkType
@@ -329,7 +327,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
               )
               break
             case 0: {
-              const metaPromise = loadWebLinkMeta(options.client, link.href)
+              const metaPromise = loadWebLinkMeta(link.href)
                 .then((res) => {
                   if (res) {
                     const title = res.hypermedia_title
