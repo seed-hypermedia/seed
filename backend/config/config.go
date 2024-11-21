@@ -215,8 +215,8 @@ var customBootstrapPeers = []string{
 	"/dns4/test.hyper.media/udp/56000/quic-v1/p2p/" + ipfs.TestGatewayPID,
 
 	// HM24 Production Gateway.
-	"/dns4/gateway.hyper.media/tcp/56000/p2p/" + ipfs.ProductionGatewayPID,
-	"/dns4/gateway.hyper.media/udp/56000/quic-v1/p2p/" + ipfs.ProductionGatewayPID,
+	"/dns4/hyper.media/tcp/56000/p2p/" + ipfs.ProductionGatewayPID,
+	"/dns4/hyper.media/udp/56000/quic-v1/p2p/" + ipfs.ProductionGatewayPID,
 }
 
 func bootstrapPeers() []peer.AddrInfo {
