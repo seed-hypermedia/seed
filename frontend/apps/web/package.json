@@ -7,7 +7,7 @@
     "upgrade:tamagui": "yarn up '@tamagui/*'@latest",
     "build": "remix vite:build",
     "dev": "DAEMON_FILE_URL=\"http://localhost:57001/ipfs\" remix vite:dev",
-    "start": "NODE_OPTIONS='--import ./instrumentation.server.mjs' remix-serve ./build/server/index.js",
+    "start": "NODE_OPTIONS='--import ./instrumentation.server.mjs' SEED_WEB_LN_HOST='https://ln.testnet.seed.hyper.media' remix-serve ./build/server/index.js",
     "typecheck": "tsc"
   },
   "dependencies": {
