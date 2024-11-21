@@ -16,7 +16,11 @@ service P2P {
   // Clients must treat the cursor as an opaque string.
   rpc ListBlobs(ListBlobsRequest) returns (stream Blob);
 
+  // Lists other peers that are known by the peer.
   rpc ListPeers(ListPeersRequest) returns (ListPeersResponse);
+
+  // Lists spaces that this peer can provide information about.
+  rpc ListSpaces(ListSpacesRequest) returns (ListSpacesResponse);
 
   // Request a peer to issue a lightning BOLT-11 invoice
   rpc RequestInvoice(RequestInvoiceRequest) returns (RequestInvoiceResponse);
@@ -35,6 +39,42 @@ message ListPeersRequest {
 
   // Optional. Page token to continue listing peers from.
   string page_token = 2;
+}
+
+// Request to list spaces.
+message ListSpacesRequest {
+  // How many items to return in the response.
+  int32 page_size = 1;
+
+  // Token to continue listing spaces from.
+  // Sometimes, the server may decide that previously generated tokens are invalid,
+  // and return the results from the beginning, as if no token was provided.
+  // Callers should deduplicate the responses themselves if necessary, and always treat
+  // the returned page tokens as the only source of truth.
+  string page_token = 2;
+}
+
+// Response to list spaces.
+// The order of items in the response is determined by the server,
+// and it's expected to remain stable (i.e. mostly append-only).
+// Callers should save the returned page
+message ListSpacesResponse {
+  // List of space IDs.
+  repeated string spaces = 1;
+
+  // Token for the next page.
+  // Unlike most of our other APIs this field would always be there,
+  // even if there are no more results to return.
+  // This is done to let users cache the token and use it for periodically
+  // polling for more results.
+  // To actually check whether there's more data to fetch
+  // callers should check the `has_more_results` field.
+  // Basically, the `next_page_token` field here is like a cursor,
+  // that users can store and continue fetching more results.
+  string next_page_token = 2;
+
+  // Whether there are more results to fetch.
+  bool has_more_results = 3;
 }
 
 // Request Invoice request.
@@ -112,5 +152,5 @@ enum ConnectionStatus {
   CANNOT_CONNECT = 3;
 
   // Limited means we have a transient connection to the peer, but aren't fully connected.
-	LIMITED = 4;
+  LIMITED = 4;
 }

@@ -1205,6 +1205,12 @@ func (stmt *Stmt) GetLen(colName string) int {
 	return stmt.ColumnLen(col)
 }
 
+// BytesUnsafe is a type that can be used in the [stmt.Scan] method,
+// to scan the BLOB column results referencing the C-managed memory.
+// Extreme care must be taken to only use the result within the duration
+// op the current row.
+type BytesUnsafe []byte
+
 // Scan fills the values of the current result row into dest.
 // This is similar to the database/sql interface.
 // The statement must contain exactly the same number of columns as len(dest).
@@ -1221,6 +1227,8 @@ func (stmt *Stmt) Scan(dest ...interface{}) {
 			*dd = stmt.ColumnText(i)
 		case *float64:
 			*dd = stmt.ColumnFloat(i)
+		case *BytesUnsafe:
+			*dd = stmt.ColumnBytesUnsafe(i)
 		default:
 			panic(fmt.Sprintf("BUG: unknown dest type %T for sqlite scanning", d))
 		}

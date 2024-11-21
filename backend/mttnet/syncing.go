@@ -18,19 +18,35 @@ import (
 
 // ReconcileBlobs reconciles a set of blobs from the initiator. Finds the difference from what we have.
 func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsRequest) (*p2p.ReconcileBlobsResponse, error) {
-	store := rbsr.NewSliceStore()
+	store, err := srv.loadStore(ctx, in.Filters)
+	if err != nil {
+		return nil, err
+	}
+
 	ne, err := rbsr.NewSession(store, 50000)
 	if err != nil {
 		return nil, err
 	}
 
+	out, err := ne.Reconcile(in.Ranges)
+	if err != nil {
+		return nil, err
+	}
+	return &p2p.ReconcileBlobsResponse{
+		Ranges: out,
+	}, nil
+}
+
+func (srv *rpcMux) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Store, error) {
+	store := rbsr.NewSliceStore()
+
 	var query string = qListAllBlobsStr
 	var queryParams []interface{}
 
-	if len(in.Filters) != 0 {
+	if len(filters) != 0 {
 		query = QListrelatedBlobsStr
-		filtersWithParentDoc := in.Filters
-		for _, filter := range in.Filters {
+		filtersWithParentDoc := filters
+		for _, filter := range filters {
 			iri := strings.TrimPrefix(filter.Resource, "hm://")
 			account := strings.Split(iri, "/")[0]
 			path := strings.TrimPrefix(iri, account)
@@ -53,38 +69,38 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 			}
 		}
 		query += QListrelatedCapabilitiesStr
-		for i, filter := range in.Filters {
+		for i, filter := range filters {
 			query += "?"
 			if filter.Recursive {
 				queryParams = append(queryParams, filter.Resource+"*")
 			} else {
 				queryParams = append(queryParams, filter.Resource)
 			}
-			if i < len(in.Filters)-1 {
+			if i < len(filters)-1 {
 				query += " OR iri GLOB "
 			}
 		}
 		query += QListrelatedCommentsStr
-		for i, filter := range in.Filters {
+		for i, filter := range filters {
 			query += "?"
 			if filter.Recursive {
 				queryParams = append(queryParams, filter.Resource+"*")
 			} else {
 				queryParams = append(queryParams, filter.Resource)
 			}
-			if i < len(in.Filters)-1 {
+			if i < len(filters)-1 {
 				query += " OR iri GLOB "
 			}
 		}
 		query += QListrelatedEmbedsStr
-		for i, filter := range in.Filters {
+		for i, filter := range filters {
 			query += "?"
 			if filter.Recursive {
 				queryParams = append(queryParams, filter.Resource+"*")
 			} else {
 				queryParams = append(queryParams, filter.Resource)
 			}
-			if i < len(in.Filters)-1 {
+			if i < len(filters)-1 {
 				query += " OR iri GLOB "
 			}
 		}
@@ -159,21 +175,21 @@ changes (id) AS (
 	WHERE bl.type = 'change/dep'
 )
 SELECT
-codec,
-b.multihash,
-insert_time,
-b.id,
-sb.ts
+	codec,
+	b.multihash,
+	insert_time,
+	b.id,
+	sb.ts
 FROM blobs b
 JOIN refs r ON r.id = b.id
 JOIN structural_blobs sb ON sb.id = b.id
 UNION ALL
 SELECT
-codec,
-b.multihash,
-insert_time,
-b.id,
-sb.ts
+	codec,
+	b.multihash,
+	insert_time,
+	b.id,
+	sb.ts
 FROM blobs b
 JOIN changes ch ON ch.id = b.id
 JOIN structural_blobs sb ON sb.id = b.id
@@ -200,13 +216,8 @@ ORDER BY sb.ts, b.multihash;`
 	if err = store.Seal(); err != nil {
 		return nil, err
 	}
-	out, err := ne.Reconcile(in.Ranges)
-	if err != nil {
-		return nil, err
-	}
-	return &p2p.ReconcileBlobsResponse{
-		Ranges: out,
-	}, nil
+
+	return store, nil
 }
 
 const qListAllBlobsStr = (`
@@ -270,51 +281,51 @@ changes (id) AS (
 	WHERE bl.type = 'change/dep'
 )
 SELECT
-codec,
-b.multihash,
-insert_time,
-b.id,
-sb.ts
+	codec,
+	b.multihash,
+	insert_time,
+	b.id,
+	sb.ts
 FROM blobs b
 JOIN refs r ON r.id = b.id
 JOIN structural_blobs sb ON sb.id = b.id
 UNION ALL
 SELECT
-codec,
-b.multihash,
-insert_time,
-b.id,
-sb.ts
+	codec,
+	b.multihash,
+	insert_time,
+	b.id,
+	sb.ts
 FROM blobs b
 JOIN changes ch ON ch.id = b.id
 JOIN structural_blobs sb ON sb.id = b.id
 UNION ALL
 SELECT
-codec,
-b.multihash,
-insert_time,
-b.id,
-sb.ts
+	codec,
+	b.multihash,
+	insert_time,
+	b.id,
+	sb.ts
 FROM blobs b
 JOIN capabilities cap ON cap.id = b.id
 JOIN structural_blobs sb ON sb.id = b.id
 UNION ALL
 SELECT
-codec,
-b.multihash,
-insert_time,
-b.id,
-sb.ts
+	codec,
+	b.multihash,
+	insert_time,
+	b.id,
+	sb.ts
 FROM blobs b
 JOIN comments co ON co.id = b.id
 JOIN structural_blobs sb ON sb.id = b.id
 UNION ALL
 SELECT
-codec,
-b.multihash,
-insert_time,
-b.id,
-sb.ts
+	codec,
+	b.multihash,
+	insert_time,
+	b.id,
+	sb.ts
 FROM blobs b
 JOIN embeds eli ON eli.id = b.id
 JOIN structural_blobs sb ON sb.id = b.id
