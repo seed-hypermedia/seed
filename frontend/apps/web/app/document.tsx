@@ -38,7 +38,7 @@ import {X} from "@tamagui/lucide-icons";
 import {ScrollView} from "@tamagui/scroll-view";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
-import {useCallback, useEffect, useMemo, useState} from "react";
+import {useCallback, useEffect, useMemo} from "react";
 import {getHref} from "./href";
 import type {SiteDocumentPayload} from "./loaders";
 import {defaultSiteIcon} from "./meta";
@@ -94,7 +94,6 @@ export const documentPageMeta: MetaFunction = ({
 };
 
 export function DocumentPage(props: SiteDocumentPayload) {
-  const [open, setOpen] = useState(false);
   const {document, homeId, homeMetadata, id, authors, siteHost} = props;
   if (!id) return <NotFoundPage {...props} />;
   if (!document)
@@ -192,15 +191,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
         </YStack>
         <PageFooter id={id} />
       </YStack>
-
-      <MobileSiteNavigation open={open} onClose={() => setOpen(false)}>
-        <SiteNavigation
-          supportDocuments={props.supportDocuments}
-          supportQueries={props.supportQueries}
-          document={document}
-          id={id}
-        />
-      </MobileSiteNavigation>
     </SiteRoutingProvider>
   );
 }
