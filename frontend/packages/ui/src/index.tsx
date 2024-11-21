@@ -37,6 +37,7 @@ export * from "./panel-card";
 export * from "./radio-buttons";
 export * from "./radio-option-section";
 export * from "./resize-handle";
+export * from "./search-input";
 export {Section} from "./section";
 export * from "./select-dropdown";
 export * from "./site-navigation";

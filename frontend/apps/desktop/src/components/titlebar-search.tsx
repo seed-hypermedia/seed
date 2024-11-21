@@ -19,6 +19,7 @@ import {
   HYPERMEDIA_ENTITY_TYPES,
   HYPERMEDIA_SCHEME,
   NavRoute,
+  SearchResult,
   hmId,
   isHypermediaScheme,
   parseCustomURL,
@@ -27,9 +28,9 @@ import {
 } from '@shm/shared'
 import {
   Button,
-  Input,
-  ScrollView,
   Search,
+  SearchInput,
+  SearchResultItem,
   SizableText,
   Spinner,
   View,
@@ -37,7 +38,7 @@ import {
   YStack,
   toast,
 } from '@shm/ui'
-import {useEffect, useLayoutEffect, useRef, useState} from 'react'
+import {useEffect, useState} from 'react'
 import {AppQueryClient} from '../query-client'
 import {Title} from './titlebar-title'
 
@@ -162,7 +163,7 @@ function LauncherContent({onClose}: {onClose: () => void}) {
   const handleUrl = useURLHandler()
   const recents = useRecents()
   const searchResults = useSearch(search, {})
-  let queryItem: null | LauncherItemType = null
+  let queryItem: null | SearchResult = null
 
   if (
     isHypermediaScheme(search) ||
@@ -208,35 +209,46 @@ function LauncherContent({onClose}: {onClose: () => void}) {
           )
         }
       },
+      onFocus: () => {},
+      onMouseEnter: () => {},
     }
   }
 
-  const searchItems: LauncherItemType[] =
-    searchResults.data
-      ?.map((item) => {
-        const id = unpackHmId(item.id)
-        if (!id) return null
-        return {
-          title: item.title || item.id,
-          onSelect: () => {
-            const appRoute = appRouteOfId(id)
-            if (!appRoute) {
-              toast.error('Failed to open recent: ' + item.id)
-              return
-            }
-            navigate(appRoute)
-            item.id
-          },
-          subtitle: HYPERMEDIA_ENTITY_TYPES[id.type],
-        }
-      })
-      .filter(Boolean) || []
+  const searchItems: SearchResult[] = searchResults
+    ? searchResults.data
+        ?.map((item) => {
+          const id = unpackHmId(item.id)
+          if (!id) return null
+          return {
+            title: item.title || item.id,
+            onFocus: () => {},
+            onMouseEnter: () => {},
+            onSelect: () => {
+              const appRoute = appRouteOfId(id)
+              if (!appRoute) {
+                toast.error('Failed to open recent: ' + item.id)
+                return
+              }
+              navigate(appRoute)
+              item.id
+            },
+            subtitle: HYPERMEDIA_ENTITY_TYPES[id.type],
+          }
+        })
+        .filter(Boolean) || []
+    : []
   const recentItems =
-    recents.data?.map(({url, title, subtitle, type}) => {
+    recents.data?.map(({url, title, subtitle}, index) => {
       return {
         key: url,
         title,
         subtitle,
+        onFocus: () => {
+          setFocusedIndex(index)
+        },
+        onMouseEnter: () => {
+          setFocusedIndex(index)
+        },
         onSelect: () => {
           const id = unpackHmId(url)
           if (!id) {
@@ -290,31 +302,24 @@ function LauncherContent({onClose}: {onClose: () => void}) {
   }, [])
 
   let content = (
-    <ScrollView minHeight={300} paddingHorizontal="$3">
+    <>
       {isDisplayingRecents ? (
-        <XStack padding={9}>
+        <XStack padding={4}>
           <SizableText fontSize={10} color="$color10">
             RECENT DOCUMENTS
           </SizableText>
         </XStack>
       ) : null}
-
       {activeItems?.map((item, itemIndex) => {
         return (
-          <LauncherItem
+          <SearchResultItem
             item={item}
             key={item.key}
             selected={focusedIndex === itemIndex}
-            onFocus={() => {
-              setFocusedIndex(itemIndex)
-            }}
-            onMouseEnter={() => {
-              setFocusedIndex(itemIndex)
-            }}
           />
         )
       })}
-    </ScrollView>
+    </>
   )
 
   if (actionPromise) {
@@ -337,8 +342,9 @@ function LauncherContent({onClose}: {onClose: () => void}) {
         zIndex="$zIndex.8"
       />
       <YStack
+        elevation="$4"
         className="no-window-drag"
-        height="80%"
+        minHeight="80%"
         position="absolute"
         top={0}
         left={0}
@@ -346,126 +352,40 @@ function LauncherContent({onClose}: {onClose: () => void}) {
         width="100%"
         maxWidth={800}
         bg="$backgroundStrong"
+        backgroundColor="$backgroundStrong"
+        borderColor="$color7"
+        borderWidth={1}
+        borderRadius={6}
       >
-        <YStack
-          bg="$backgroundStrong"
-          zIndex="$zIndex.8"
-          padding="$2"
-          borderTopLeftRadius={6}
-          borderTopRightRadius={6}
-          borderColor="$color7"
-          borderWidth={1}
-          borderBottomColor="$colorTransparent"
-          // elevation="$4"
-        >
-          <XStack
-            ai="center"
-            gap="$2"
-            borderWidth={1}
-            // ai="center"
-            borderColor="$color5"
-            borderRadius="$2"
-            paddingHorizontal="$2"
-            animation="fast"
-          >
-            <Search size={16} />
-            <Input
-              borderWidth={0}
-              outline="none"
-              unstyled
-              zi="$zIndex.7"
-              minWidth={240}
-              w="100%"
-              autoFocus
-              size="$2"
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Open Hypermedia Document..."
-              disabled={!!actionPromise}
-              onKeyPress={(e: any) => {
-                if (e.nativeEvent.key === 'Escape') {
-                  onClose()
-                }
-                if (e.nativeEvent.key === 'Enter') {
-                  const item = activeItems[focusedIndex]
-                  if (item) {
-                    item.onSelect()
-                  }
-                }
-                if (e.nativeEvent.key === 'ArrowDown') {
-                  e.preventDefault()
-                  setFocusedIndex((prev) => (prev + 1) % activeItems.length)
-                }
-                if (e.nativeEvent.key === 'ArrowUp') {
-                  e.preventDefault()
-                  setFocusedIndex(
-                    (prev) =>
-                      (prev - 1 + activeItems.length) % activeItems.length,
-                  )
-                }
-              }}
-            />
-          </XStack>
-        </YStack>
-        <YStack
-          backgroundColor={'$backgroundStrong'}
-          borderTopStartRadius={0}
-          borderTopEndRadius={0}
-          borderBottomLeftRadius={6}
-          borderBottomRightRadius={6}
-          borderColor="$color7"
-          borderWidth={1}
-          borderTopColor="$colorTransparent"
-          height={300}
-          maxHeight={600}
-          overflow="hidden"
-          elevation="$4"
+        <SearchInput
+          searchResults={activeItems || []}
+          inputProps={{
+            value: search,
+            onChangeText: setSearch,
+            disabled: !!actionPromise,
+          }}
+          onArrowDown={() => {
+            setFocusedIndex((prev) => (prev + 1) % activeItems.length)
+          }}
+          onArrowUp={() => {
+            setFocusedIndex(
+              (prev) => (prev - 1 + activeItems.length) % activeItems.length,
+            )
+          }}
+          onEscape={() => {
+            onClose()
+          }}
+          onEnter={() => {
+            const item = activeItems[focusedIndex]
+            if (item) {
+              item.onSelect()
+            }
+          }}
+          focusedIndex={focusedIndex}
         >
           {content}
-        </YStack>
+        </SearchInput>
       </YStack>
     </>
-  )
-}
-
-export function LauncherItem({
-  item,
-  selected = false,
-  onFocus,
-  onMouseEnter,
-}: {
-  item: LauncherItemType
-  selected: boolean
-  onFocus: () => void
-  onMouseEnter: () => void
-}) {
-  const elm = useRef<HTMLDivElement>(null)
-
-  useLayoutEffect(() => {
-    if (selected) {
-      elm.current?.scrollIntoView({block: 'nearest'})
-    }
-  }, [selected])
-
-  return (
-    <Button
-      ref={elm}
-      key={item.key}
-      onPress={item.onSelect}
-      backgroundColor={selected ? '$brand12' : '$backgroundTransparent'}
-      borderColor={selected ? '$brand12' : '$colorTransparent'}
-      h="auto"
-      hoverStyle={{
-        backgroundColor: selected ? '$brand12' : undefined,
-        borderColor: selected ? '$brand12' : '$colorTransparent',
-      }}
-      size="$2"
-      onFocus={onFocus}
-      onMouseEnter={onMouseEnter}
-    >
-      <XStack f={1} justifyContent="space-between" paddingVertical="$2">
-        <SizableText numberOfLines={1}>{item.title}</SizableText>
-      </XStack>
-    </Button>
   )
 }

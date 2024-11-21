@@ -165,3 +165,13 @@ export type EditorAnnotationType =
   | 'inline-embed'
 
 export type EditorBlockType = EditorBlock['type']
+
+export type SearchResult = {
+  key: string
+  title: string
+  subtitle?: string
+  icon?: string
+  onSelect: () => void
+  onFocus: () => void
+  onMouseEnter: () => void
+}
