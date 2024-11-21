@@ -5,7 +5,7 @@ import {roleCanWrite, useMyCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useEntity} from '@/models/entities'
 import {useGatewayUrl} from '@/models/gateway-settings'
-import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
+import {SidebarContext, SidebarWidth} from '@/sidebar-context'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {
   useNavRoute,
@@ -57,7 +57,7 @@ import {
   UploadCloud,
   UserPlus,
 } from '@tamagui/lucide-icons'
-import {PropsWithChildren, ReactNode, useState} from 'react'
+import {PropsWithChildren, ReactNode, useContext, useState} from 'react'
 import {AddConnectionDialog} from './contacts-prompt'
 import {useAppDialog} from './dialog'
 import DiscardDraftButton from './discard-draft-button'
@@ -464,18 +464,18 @@ export function DraftPublicationButtons() {
 }
 
 export function NavMenuButton({left}: {left?: ReactNode}) {
-  const ctx = useSidebarContext()
-  const isLocked = useStream(ctx.isLocked)
-  const isHoverVisible = useStream(ctx.isHoverVisible)
+  const ctx = useContext(SidebarContext)
+  const isLocked = useStream(ctx?.isLocked)
+  const isHoverVisible = useStream(ctx?.isHoverVisible)
   let icon = Menu
   let tooltip = 'Lock Sidebar Open'
-  let onPress = ctx.onLockSidebarOpen
+  let onPress = ctx?.onLockSidebarOpen
   let key = 'lock'
   let color: undefined | ColorProp = undefined
   if (isLocked) {
     icon = ArrowLeftFromLine
     tooltip = 'Close Sidebar'
-    onPress = ctx.onCloseSidebar
+    onPress = ctx?.onCloseSidebar
     key = 'close'
     color = '$color9'
   }
@@ -496,28 +496,34 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
       }
     >
       {left || <View />}
-      <XStack position="relative" zIndex="$zIndex.1" className="no-window-drag">
-        <Tooltip
-          content={tooltip}
-          key={key} // use this key to make sure the component is unmounted when changes, to blur the button and make tooltip disappear
+      {ctx && (
+        <XStack
+          position="relative"
+          zIndex="$zIndex.1"
+          className="no-window-drag"
         >
-          <Button
-            backgroundColor="$colorTransparent"
-            size="$2"
-            key={key}
-            icon={icon}
-            color={color}
-            // intention here is to hide the button when the sidebar is locked, but the group="item" causes layout issues
-            // {...(key === 'close'
-            //   ? {opacity: 0, '$group-item-hover': {opacity: 1}}
-            //   : {})}
-            chromeless={isLocked}
-            onMouseEnter={ctx.onMenuHover}
-            onMouseLeave={ctx.onMenuHoverLeave}
-            onPress={onPress}
-          />
-        </Tooltip>
-      </XStack>
+          <Tooltip
+            content={tooltip}
+            key={key} // use this key to make sure the component is unmounted when changes, to blur the button and make tooltip disappear
+          >
+            <Button
+              backgroundColor="$colorTransparent"
+              size="$2"
+              key={key}
+              icon={icon}
+              color={color}
+              // intention here is to hide the button when the sidebar is locked, but the group="item" causes layout issues
+              // {...(key === 'close'
+              //   ? {opacity: 0, '$group-item-hover': {opacity: 1}}
+              //   : {})}
+              chromeless={isLocked}
+              onMouseEnter={ctx.onMenuHover}
+              onMouseLeave={ctx.onMenuHoverLeave}
+              onPress={onPress}
+            />
+          </Tooltip>
+        </XStack>
+      )}
     </XStack>
   )
 }
