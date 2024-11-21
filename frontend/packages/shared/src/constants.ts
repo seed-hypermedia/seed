@@ -66,9 +66,18 @@ export const DAEMON_FILE_URL = // this is used to find /ipfs/ urls on the app an
   '/ipfs'
 export const DAEMON_GRAPHQL_ENDPOINT = `${DAEMON_HOSTNAME}:${DAEMON_HTTP_PORT}/graphql`
 
-export const LIGHTNING_API_URL = IS_PROD_DESKTOP
-  ? 'https://ln.seed.hyper.media'
-  : 'https://ln.testnet.seed.hyper.media'
+const WEB_ENV = (() => {
+  try {
+    return window.ENV
+  } catch (e) {
+    return {}
+  }
+})()
+export const LIGHTNING_API_URL =
+  WEB_ENV.SEED_WEB_LN_HOST ||
+  (IS_PROD_DESKTOP
+    ? 'https://ln.seed.hyper.media'
+    : 'https://ln.testnet.seed.hyper.media')
 
 export const VITE_DESKTOP_SENTRY_DSN =
   (import.meta.env && import.meta.env.VITE_DESKTOP_SENTRY_DSN) ||

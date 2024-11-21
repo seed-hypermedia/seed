@@ -9,15 +9,15 @@ import {
   relativeFormattedDate,
   UnpackedHypermediaId,
 } from "@shm/shared";
-import {Home} from "@shm/ui/src";
 import {Container} from "@shm/ui/src/container";
+import {DonateButton} from "@shm/ui/src/donate-button";
 import {HMIcon} from "@shm/ui/src/hm-icon";
 import {SiteLogo} from "@shm/ui/src/site-logo";
 import {Popover} from "@shm/ui/src/TamaguiPopover";
 import {MobileMenu, NewsSiteHeader} from "@shm/ui/src/top-bar";
 import {usePopoverState} from "@shm/ui/src/use-popover-state";
 import {Button} from "@tamagui/button";
-import {Menu} from "@tamagui/lucide-icons";
+import {Home, Menu} from "@tamagui/lucide-icons";
 import {Separator} from "@tamagui/separator";
 import {XStack, YStack} from "@tamagui/stacks";
 import {H1, SizableText} from "@tamagui/text";
@@ -128,7 +128,7 @@ export function PageHeader({
                 updateTime={updateTime}
               />
             ) : null}
-            {/* {docId && <DonateButton docId={docId} authors={authors} />} */}
+            {docId && <DonateButton docId={docId} authors={authors} />}
           </XStack>
           <Separator />
         </YStack>

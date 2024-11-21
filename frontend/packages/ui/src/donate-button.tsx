@@ -30,6 +30,16 @@ import {toast} from "./toast";
 import {Tooltip} from "./tooltip";
 import {DialogTitle, useAppDialog} from "./universal-dialog";
 
+async function sendWeblnPayment(invoice: string) {
+  // @ts-expect-error
+  if (typeof window.webln !== "undefined") {
+    // @ts-expect-error
+    await window.webln.enable();
+    // @ts-expect-error
+    return await window.webln.sendPayment(invoice);
+  }
+}
+
 export function DonateButton({
   docId,
   authors,
@@ -255,6 +265,10 @@ function DonateForm({
                 })
               ),
               docId,
+            })
+            .then(async (invoice) => {
+              await sendWeblnPayment(invoice.payload);
+              return invoice;
             })
             .then((invoice) => {
               onInvoice(invoice);
