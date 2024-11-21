@@ -286,43 +286,46 @@ const Render = (
             </Popover.Trigger> */}
             {/* )} */}
             <Popover.Content size="$0">
-              <HypermediaLinkSwitchToolbar
-                url={link}
-                text={buttonText}
-                editHyperlink={(url: string, text: string) => {
-                  setLink(url)
-                  setButtonText(text)
-                  assign({props: {url: url, name: text}} as ButtonType)
-                }}
-                // editHyperlink={() => {}}
-                // updateHyperlink={(url: string, text: string) => {
-                //   setLink(url)
-                //   setButtonText(text)
-                //   assign({props: {url: url, name: text}} as ButtonType)
-                // }}
-                updateHyperlink={() => {}}
-                deleteHyperlink={() => {
-                  setLink('')
-                  assign({props: {url: ''}} as ButtonType)
-                }}
-                startHideTimer={() => {}}
-                stopHideTimer={() => {}}
-                onChangeLink={(key: 'url' | 'text', value: string) => {
-                  if (key == 'text') {
-                    setButtonText(value)
-                  } else {
-                    setLink(value)
-                  }
-                }}
-                openUrl={openUrl}
-                editor={editor}
-                // onClose={(open: boolean) => {
-                //   popoverState.onOpenChange(open)
-                // }}
-                editComponent={ButtonEditForm}
-                type="button"
-                id={block.id}
-              />
+              <YStack marginBottom="$2">
+                <HypermediaLinkSwitchToolbar
+                  url={link}
+                  text={buttonText}
+                  editHyperlink={(url: string, text: string) => {
+                    setLink(url)
+                    setButtonText(text)
+                    assign({props: {url: url, name: text}} as ButtonType)
+                  }}
+                  // editHyperlink={() => {}}
+                  // updateHyperlink={(url: string, text: string) => {
+                  //   setLink(url)
+                  //   setButtonText(text)
+                  //   assign({props: {url: url, name: text}} as ButtonType)
+                  // }}
+                  updateHyperlink={() => {}}
+                  deleteHyperlink={() => {
+                    setLink('')
+                    assign({props: {url: ''}} as ButtonType)
+                  }}
+                  startHideTimer={() => {}}
+                  stopHideTimer={() => {}}
+                  onChangeLink={(key: 'url' | 'text', value: string) => {
+                    if (key == 'text') {
+                      setButtonText(value)
+                    } else {
+                      setLink(value)
+                    }
+                  }}
+                  openUrl={openUrl}
+                  editor={editor}
+                  // onClose={(open: boolean) => {
+                  //   popoverState.onOpenChange(open)
+                  // }}
+                  stopEditing={false}
+                  editComponent={ButtonEditForm}
+                  type="button"
+                  id={block.id}
+                />
+              </YStack>
               {/* <YStack
                 // flexDirection="column"
                 // marginTop="$2"
