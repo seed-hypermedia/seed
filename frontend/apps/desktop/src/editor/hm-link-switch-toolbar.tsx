@@ -15,6 +15,7 @@ import {useEffect, useMemo, useState} from 'react'
 import {
   BlockNoteEditor,
   getBlockInfoFromPos,
+  hyperlinkToolbarPluginKey,
   HyperlinkToolbarProps,
   PartialBlock,
 } from './blocknote'
@@ -127,6 +128,13 @@ export function HypermediaLinkSwitchToolbar(
                 // props.editor.insertBlocks([linkBlock], props.id, 'after')
                 props.editor.replaceBlocks([props.id], [linkBlock])
               }
+              props.editor._tiptapEditor.state.tr.setMeta(
+                hyperlinkToolbarPluginKey,
+                {
+                  type: 'link',
+                  show: false,
+                },
+              )
             }}
             active={props.type === 'link'}
           />
@@ -151,12 +159,21 @@ export function HypermediaLinkSwitchToolbar(
                   content: [],
                   props: {
                     link: props.url,
-                    title: props.text,
+                    title: props.text ? props.text : props.url,
                   },
                 } as PartialBlock<HMBlockSchema>
                 // props.editor.insertBlocks([mentionBlock], props.id, 'after')
                 props.editor.replaceBlocks([props.id], [mentionBlock])
               }
+              props.editor._tiptapEditor.view.dispatch(
+                props.editor._tiptapEditor.state.tr.setMeta(
+                  hyperlinkToolbarPluginKey,
+                  {
+                    type: 'mention',
+                    show: false,
+                  },
+                ),
+              )
             }}
             active={props.type === 'mention'}
           />
@@ -324,37 +341,55 @@ function insertNode(
     const $pos = state.doc.resolve($from.pos)
     let startPos = $pos.start()
     let endPos = $pos.end()
+    let endContent = Fragment.empty
     if (prevType === 'link') {
-      $pos.parent.descendants((node, pos) => {
+      $pos.parent.descendants((node, pos, _parent, index) => {
         if (node.marks.length > 0 && node.marks[0].attrs.href === link) {
-          startPos = $pos.start() + pos
-          endPos = $pos.start() + pos + text.length
+          startPos = index === 0 ? $pos.start() + pos - 2 : $pos.start() + pos
+          endPos = index === 0 ? $pos.end() : $pos.start() + pos + text.length
+        } else if (startPos !== $pos.start() && endPos !== $pos.end()) {
+          endContent = endContent.addToEnd(node)
         }
       })
     } else if (prevType === 'mention') {
-      if ($pos.parent.firstChild?.type.name === 'inline-embed') {
-        startPos = $pos.start() - 1
-        endPos = $pos.end()
-      } else
-        $pos.parent.descendants((node, pos) => {
-          if (node.type.name === 'inline-embed') {
-            startPos = $pos.start() + pos
-            endPos = $pos.start() + pos + 1
-          }
-        })
+      $pos.parent.descendants((node, pos, _parent, index) => {
+        if (node.type.name === 'inline-embed' && node.attrs.link === link) {
+          startPos = index === 0 ? $pos.start() - 1 : $pos.start() + pos
+          endPos = index === 0 ? $pos.end() : $pos.start() + pos + 1
+        } else if (startPos !== $pos.start() && endPos !== $pos.end()) {
+          endContent = endContent.addToEnd(node)
+        }
+      })
     }
 
     const newBlock = state.schema.nodes['blockContainer'].createAndFill()!
     const nextBlockPos = $pos.end() + 2
     const nextBlockContentPos = nextBlockPos + 2
-    tr = tr.insert(nextBlockPos, newBlock)
     const $nextBlockPos = state.doc.resolve(nextBlockContentPos)
+    if (
+      endContent.childCount &&
+      !(
+        endContent.childCount === 1 &&
+        endContent.firstChild?.textContent.trim() === ''
+      )
+    ) {
+      tr = tr.insert(nextBlockPos, newBlock)
+
+      const endNode = $pos.parent.copy(endContent)
+      tr = tr.replaceWith(
+        $nextBlockPos.before($nextBlockPos.depth),
+        nextBlockContentPos + 1,
+        endNode,
+      )
+    }
+
+    tr = tr.insert(nextBlockPos, newBlock)
     tr = tr.replaceWith(
       $nextBlockPos.before($nextBlockPos.depth),
       nextBlockContentPos + 1,
       node,
     )
-    tr = tr.deleteRange(startPos, endPos)
+    tr = tr.deleteRange(startPos, $pos.end())
   } else {
     const $pos = state.doc.resolve($from.pos)
     tr = tr.replaceWith($pos.start() - 2, $pos.end(), node)
