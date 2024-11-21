@@ -308,6 +308,7 @@ const Render = (
                   }}
                   startHideTimer={() => {}}
                   stopHideTimer={() => {}}
+                  resetHyperlink={() => {}}
                   onChangeLink={(key: 'url' | 'text', value: string) => {
                     if (key == 'text') {
                       setButtonText(value)

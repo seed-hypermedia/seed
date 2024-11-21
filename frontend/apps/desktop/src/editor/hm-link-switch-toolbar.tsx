@@ -15,7 +15,6 @@ import {useEffect, useMemo, useState} from 'react'
 import {
   BlockNoteEditor,
   getBlockInfoFromPos,
-  hyperlinkToolbarPluginKey,
   HyperlinkToolbarProps,
   PartialBlock,
 } from './blocknote'
@@ -128,13 +127,14 @@ export function HypermediaLinkSwitchToolbar(
                 // props.editor.insertBlocks([linkBlock], props.id, 'after')
                 props.editor.replaceBlocks([props.id], [linkBlock])
               }
-              props.editor._tiptapEditor.state.tr.setMeta(
-                hyperlinkToolbarPluginKey,
-                {
-                  type: 'link',
-                  show: false,
-                },
-              )
+              // props.editor._tiptapEditor.state.tr.setMeta(
+              //   hyperlinkToolbarPluginKey,
+              //   {
+              //     type: 'link',
+              //     show: false,
+              //   },
+              // )
+              props.resetHyperlink()
             }}
             active={props.type === 'link'}
           />
@@ -165,15 +165,16 @@ export function HypermediaLinkSwitchToolbar(
                 // props.editor.insertBlocks([mentionBlock], props.id, 'after')
                 props.editor.replaceBlocks([props.id], [mentionBlock])
               }
-              props.editor._tiptapEditor.view.dispatch(
-                props.editor._tiptapEditor.state.tr.setMeta(
-                  hyperlinkToolbarPluginKey,
-                  {
-                    type: 'mention',
-                    show: false,
-                  },
-                ),
-              )
+              // props.editor._tiptapEditor.view.dispatch(
+              //   props.editor._tiptapEditor.state.tr.setMeta(
+              //     hyperlinkToolbarPluginKey,
+              //     {
+              //       type: 'mention',
+              //       show: false,
+              //     },
+              //   ),
+              // )
+              props.resetHyperlink()
             }}
             active={props.type === 'mention'}
           />
