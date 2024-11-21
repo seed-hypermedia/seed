@@ -116,6 +116,7 @@ export default function DraftPage() {
   }
 
   let draftContent = null
+
   if (
     draft.data?.metadata?.layout == 'Seed/Experimental/Newspaper' &&
     route.id
