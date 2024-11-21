@@ -179,7 +179,7 @@ onlineManager.setOnline(true)
 // toast when a query error happens. we set this up here because web doesn't have this feature yet
 onQueryCacheError((error, query) => {
   const queryKey = query.queryKey as string[]
-  const errorMessage = ((err as any)?.message || null) as string | null // todo: repent for my sins
+  const errorMessage = ((error as any)?.message || null) as string | null // todo: repent for my sins
   toast.error(`Failed to Load ${labelOfQueryKey(queryKey)}`, {
     onClick: () => {
       const detailString = JSON.stringify({queryKey, errorMessage}, null, 2)
