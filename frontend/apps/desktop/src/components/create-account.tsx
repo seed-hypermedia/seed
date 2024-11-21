@@ -91,6 +91,8 @@ export function AccountWizardDialog() {
     if (step == 'create' && !newAccount) {
       // Focus the textarea when changing to this step (better UX!)
       inputWords.current?.focus()
+    } else {
+      refetchWords()
     }
   }, [step, newAccount])
 
