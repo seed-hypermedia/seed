@@ -197,7 +197,15 @@ func (srv *Server) GetPeerInfo(ctx context.Context, in *networking.GetPeerInfoRe
 		return nil, fmt.Errorf("failed to parse peer ID %s: %w", in.DeviceId, err)
 	}
 
-	addrinfo := net.Libp2p().Peerstore().PeerInfo(pid)
+	var addrinfo peer.AddrInfo
+	if pid != net.Libp2p().Network().LocalPeer() {
+		addrinfo = net.Libp2p().Peerstore().PeerInfo(pid)
+	} else {
+		addrinfo = net.AddrInfo()
+		if len(addrinfo.Addrs) == 0 {
+			addrinfo = net.Libp2p().Peerstore().PeerInfo(pid)
+		}
+	}
 	mas, err := peer.AddrInfoToP2pAddrs(&addrinfo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get device addrs: %w", err)
