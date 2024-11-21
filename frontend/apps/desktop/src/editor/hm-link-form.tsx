@@ -12,8 +12,10 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {ReactNode, useEffect, useState} from 'react'
+import {ReactNode, useEffect, useRef, useState} from 'react'
+import {createPortal} from 'react-dom'
 import {SwitcherItem} from './editor-types'
+import './hm-link-form.css'
 import {LauncherItem} from './launcher-item'
 
 export type HypermediaLinkFormProps = {
@@ -142,6 +144,11 @@ const SearchInput = ({
 }) => {
   const [search, setSearch] = useState(link)
   const [focused, setFocused] = useState(false)
+  const [inputPosition, setInputPosition] = useState<DOMRect | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const viewportHeight = window.innerHeight
+  const portalRoot = document.body
+
   const recents = useRecents()
   const searchResults = useSearch(search, {})
 
@@ -190,8 +197,16 @@ const SearchInput = ({
     if (focusedIndex >= activeItems.length) setFocusedIndex(0)
   }, [focusedIndex, activeItems])
 
-  let content = (
+  // Calculate position of input
+  useEffect(() => {
+    if (inputRef.current) {
+      setInputPosition(inputRef.current.getBoundingClientRect())
+    }
+  }, [focused])
+
+  let dropdownContent = (
     <YStack
+      className="search-dropdown-content"
       display={focused ? 'flex' : 'none'}
       gap="$2"
       elevation={2}
@@ -204,10 +219,18 @@ const SearchInput = ({
       borderBottomLeftRadius={6}
       borderBottomRightRadius={6}
       position="absolute"
-      width="100%"
-      top="$8"
-      left={0}
-      zIndex={999}
+      width={
+        inputPosition && inputPosition.width ? inputPosition?.width + 37 : 300
+      }
+      top={
+        inputPosition
+          ? Math.min(inputPosition.bottom, viewportHeight - 200) + 5 // Prevent overflow below viewport
+          : 0
+      }
+      left={inputPosition ? inputPosition.left - 30 : 0}
+      maxHeight={500}
+      overflow="scroll"
+      zIndex={99999}
     >
       {isDisplayingRecents ? (
         <SizableText color="$color10" marginHorizontal="$4">
@@ -236,6 +259,7 @@ const SearchInput = ({
     <>
       <Input
         unstyled
+        ref={inputRef}
         flex={1}
         size="$2"
         onFocus={() => {
@@ -277,7 +301,7 @@ const SearchInput = ({
         }}
       />
 
-      {focused && content}
+      {focused && inputPosition && createPortal(dropdownContent, portalRoot)}
     </>
   )
 }
