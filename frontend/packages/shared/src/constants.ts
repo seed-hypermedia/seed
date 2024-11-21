@@ -75,9 +75,9 @@ const WEB_ENV = (() => {
 })()
 export const LIGHTNING_API_URL =
   WEB_ENV.SEED_WEB_LN_HOST ||
-  (IS_PROD_DESKTOP
-    ? 'https://ln.seed.hyper.media'
-    : 'https://ln.testnet.seed.hyper.media')
+  (IS_DEV_DESKTOP
+    ? 'https://ln.testnet.seed.hyper.media'
+    : 'https://ln.seed.hyper.media')
 
 export const VITE_DESKTOP_SENTRY_DSN =
   (import.meta.env && import.meta.env.VITE_DESKTOP_SENTRY_DSN) ||
