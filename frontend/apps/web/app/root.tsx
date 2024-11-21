@@ -9,6 +9,7 @@ import {
   useRouteError,
 } from "@remix-run/react";
 import {captureRemixErrorBoundaryError, withSentry} from "@sentry/remix";
+import {LIGHTNING_API_URL} from "@shm/shared";
 import {isClient} from "@tamagui/core";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
@@ -43,7 +44,7 @@ export function Layout({children}: {children: React.ReactNode}) {
         <script
           dangerouslySetInnerHTML={{
             __html: `window.ENV = ${JSON.stringify({
-              SEED_WEB_LN_HOST: process.env.SEED_WEB_LN_HOST,
+              LIGHTNING_API_URL,
             })}`,
           }}
         />
