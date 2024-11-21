@@ -1,7 +1,6 @@
 import {
   DAEMON_GRPC_PORT,
   DAEMON_HTTP_PORT,
-  IS_PROD_DESKTOP,
   P2P_PORT,
   VERSION,
 } from '@shm/shared'
@@ -15,9 +14,10 @@ import * as log from './logger'
 
 let goDaemonExecutablePath = getDaemonBinaryPath()
 
-const lndhubFlags = IS_PROD_DESKTOP
-  ? '-lndhub.mainnet=true'
-  : '-lndhub.mainnet=false'
+// const lndhubFlags = IS_PROD_DESKTOP
+//   ? '-lndhub.mainnet=true'
+//   : '-lndhub.mainnet=false'
+const lndhubFlags = '-lndhub.mainnet=true'
 
 const daemonArguments = [
   '-http.port',

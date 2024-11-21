@@ -2,7 +2,6 @@ import {useAppContext} from '@/app-context'
 import {openAddAccountWizard} from '@/components/create-account'
 import {FavoriteButton} from '@/components/favoriting'
 import {MainWrapper} from '@/components/main-wrapper'
-import {ListItemSkeleton} from '@/components/skeleton'
 
 import {EditorBlock} from '@/editor'
 import {
@@ -33,6 +32,7 @@ import {
   HMIcon,
   Input,
   LinkIcon,
+  ListItemSkeleton,
   Popover,
   Separator,
   SizableText,
