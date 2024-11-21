@@ -75,6 +75,7 @@ const WEB_ENV = (() => {
 })()
 export const LIGHTNING_API_URL =
   WEB_ENV.LIGHTNING_API_URL ||
+  process.env.LIGHTNING_API_URL ||
   (IS_DEV_DESKTOP
     ? 'https://ln.testnet.seed.hyper.media'
     : 'https://ln.seed.hyper.media')
