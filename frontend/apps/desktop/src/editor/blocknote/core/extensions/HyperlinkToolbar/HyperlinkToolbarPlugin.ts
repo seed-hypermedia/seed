@@ -213,7 +213,6 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
       this.hyperlinkToolbarState &&
       this.hyperlinkToolbarState.type === 'mention'
     ) {
-      // console.log(this.hyperlinkMark, this.hyperlinkMarkRange)
       const pos = this.hyperlinkMarkRange
         ? this.hyperlinkMarkRange.from
         : this.pmView.state.selection.from
@@ -251,11 +250,6 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
       this.hyperlinkToolbarState &&
       this.hyperlinkToolbarState.type === 'mention'
     ) {
-      console.log(
-        this.hyperlinkMark,
-        // this.pmView.state.selection.$anchor.parent,
-        this.hyperlinkMarkRange,
-      )
       const pos = this.hyperlinkMarkRange
         ? this.hyperlinkMarkRange.from
         : this.pmView.state.selection.from
@@ -285,6 +279,19 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
   }
 
   highlightHyperlink() {}
+
+  resetHyperlink() {
+    // @ts-ignore
+    this.hyperlinkToolbarState = {
+      ...this.hyperlinkToolbarState,
+      show: false,
+      url: '',
+      text: '',
+      type: '',
+      id: '',
+    }
+    this.updateHyperlinkToolbar()
+  }
 
   deleteHyperlink() {
     if (this.hyperlinkMark instanceof Mark) {
@@ -361,7 +368,6 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
 
         break
       }
-      // }
     }
 
     if (this.mouseHoveredHyperlinkMark) {
@@ -521,4 +527,8 @@ export class HyperlinkToolbarProsemirrorPlugin<
   }
 
   public highlightHyperlink() {}
+
+  public resetHyperlink = () => {
+    this.view!.resetHyperlink()
+  }
 }

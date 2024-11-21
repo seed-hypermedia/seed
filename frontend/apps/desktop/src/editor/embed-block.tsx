@@ -587,6 +587,7 @@ function EmbedControl({
         }}
         startHideTimer={() => {}}
         stopHideTimer={() => {}}
+        resetHyperlink={() => {}}
         onChangeLink={(key: 'url' | 'text', value: string) => {
           if (key == 'url') {
             setUrl(value)

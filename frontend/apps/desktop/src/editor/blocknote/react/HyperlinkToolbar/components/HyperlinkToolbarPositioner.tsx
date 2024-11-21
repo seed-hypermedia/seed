@@ -20,6 +20,7 @@ export type HyperlinkToolbarProps = Pick<
   | 'startHideTimer'
   | 'stopHideTimer'
   | 'updateHyperlink'
+  | 'resetHyperlink'
 > &
   Omit<HyperlinkToolbarState, keyof BaseUiElementState> & {
     editor: BlockNoteEditor<HMBlockSchema>
@@ -45,7 +46,7 @@ export const HyperlinkToolbarPositioner = <
     return props.editor.hyperlinkToolbar.on(
       'update',
       (hyperlinkToolbarState) => {
-        // console.log('update', hyperlinkToolbarState.show)
+        // console.log('update', hyperlinkToolbarState)
         setShow(hyperlinkToolbarState.show)
         setUrl(hyperlinkToolbarState.url)
         setText(hyperlinkToolbarState.text)
@@ -84,6 +85,7 @@ export const HyperlinkToolbarPositioner = <
         deleteHyperlink={props.editor.hyperlinkToolbar.deleteHyperlink}
         startHideTimer={props.editor.hyperlinkToolbar.startHideTimer}
         stopHideTimer={props.editor.hyperlinkToolbar.stopHideTimer}
+        resetHyperlink={props.editor.hyperlinkToolbar.resetHyperlink}
         onChangeLink={(key: 'url' | 'text', value: string) => {
           if (key == 'text') {
             setText(value)
