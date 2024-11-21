@@ -1,6 +1,6 @@
-import { StateStream, writeableStateStream } from '@shm/shared'
-import { PropsWithChildren, createContext, useContext, useMemo } from 'react'
-import { useNavigationDispatch, useNavigationState } from './utils/navigation'
+import {StateStream, writeableStateStream} from '@shm/shared'
+import {PropsWithChildren, createContext, useContext, useMemo} from 'react'
+import {useNavigationDispatch, useNavigationState} from './utils/navigation'
 
 type SidebarContextValue = {
   onMenuHover: () => void
@@ -13,7 +13,7 @@ type SidebarContextValue = {
   isLocked: StateStream<boolean>
 }
 
-const SidebarContext = createContext<SidebarContextValue | null>(null)
+export const SidebarContext = createContext<SidebarContextValue | null>(null)
 
 export const SidebarWidth = 300
 
@@ -52,15 +52,15 @@ export function SidebarContextProvider(props: PropsWithChildren<{}>) {
         function onToggleMenuLock() {
           const wasLocked = isLocked.get()
           const nextIsLocked = !wasLocked
-          dispatch({ type: 'sidebarLocked', value: nextIsLocked })
+          dispatch({type: 'sidebarLocked', value: nextIsLocked})
           setIsLocked(nextIsLocked)
         }
         function onLockSidebarOpen() {
-          dispatch({ type: 'sidebarLocked', value: true })
+          dispatch({type: 'sidebarLocked', value: true})
           setIsLocked(true)
         }
         function onCloseSidebar() {
-          dispatch({ type: 'sidebarLocked', value: false })
+          dispatch({type: 'sidebarLocked', value: false})
           setIsLocked(false)
           setIsHoverVisible(false)
         }

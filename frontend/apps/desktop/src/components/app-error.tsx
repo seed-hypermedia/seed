@@ -1,14 +1,15 @@
-import {useSidebarContext} from '@/sidebar-context'
+import {SidebarContext} from '@/sidebar-context'
 import {Button, Heading, SizableText, XStack, YStack, useStream} from '@shm/ui'
+import {useContext} from 'react'
 import {FallbackProps} from 'react-error-boundary'
 import {ErrorBar} from './error-bar'
 
 export function AppErrorPage({error, resetErrorBoundary}: FallbackProps) {
-  const ctx = useSidebarContext()
-  const isLocked = useStream(ctx.isLocked)
+  const ctx = useContext(SidebarContext)
+  const isLocked = useStream(ctx?.isLocked)
   return (
     <YStack flex={1}>
-      <ErrorBar isSidebarLocked={isLocked} />
+      <ErrorBar isSidebarLocked={isLocked || false} />
       <AppErrorContent
         message={error.message}
         resetErrorBoundary={resetErrorBoundary}
