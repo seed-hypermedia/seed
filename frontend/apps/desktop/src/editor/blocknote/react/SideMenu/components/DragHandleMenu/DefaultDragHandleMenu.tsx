@@ -5,7 +5,8 @@ import {Forward, RefreshCcw, XStack} from '@shm/ui'
 import * as _ from 'lodash'
 import {useCallback, useRef, useState} from 'react'
 import {
-  RiChatQuoteFill,
+  RiChatQuoteLine,
+  RiCodeBoxLine,
   RiHeading,
   RiListOrdered,
   RiListUnordered,
@@ -144,6 +145,24 @@ var turnIntoItems = [
       })
     },
   },
+  {
+    label: 'Code',
+    group: 'Block operations',
+    Icon: RiCodeBoxLine,
+    onClick: ({
+      block,
+      editor,
+    }: {
+      block: Block<HMBlockSchema>
+      editor: BlockNoteEditor<HMBlockSchema>
+    }) => {
+      editor.focus()
+      editor.updateBlock(block, {
+        type: 'code-block',
+        props: {},
+      })
+    },
+  },
   // {
   //   label: 'Block Quote',
   //   group: 'Group operations',
@@ -208,7 +227,7 @@ var turnIntoItems = [
   {
     label: 'Blockquote item',
     group: 'Group operations',
-    Icon: RiChatQuoteFill,
+    Icon: RiChatQuoteLine,
     onClick: ({
       block,
       editor,
