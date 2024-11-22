@@ -29,4 +29,4 @@ EXPOSE 3000
 ENV PORT 3000
 
 WORKDIR /app/frontend/apps/web
-CMD ["npm", "start:prod"]
+CMD ["npm", "run", "start:prod"]
