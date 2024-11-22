@@ -7,7 +7,6 @@ import {useSearch} from '@/models/search'
 import {loadWebLinkMeta} from '@/models/web-links'
 import {trpc} from '@/trpc'
 import {
-  appRouteOfId,
   isHttpUrl,
   resolveHmIdToAppRoute,
   useHmIdToAppRouteResolver,
@@ -18,6 +17,7 @@ import {
   HYPERMEDIA_SCHEME,
   NavRoute,
   SearchResult,
+  UnpackedHypermediaId,
   hmId,
   isHypermediaScheme,
   parseCustomURL,
@@ -35,7 +35,13 @@ import {
 } from '@shm/ui'
 import {useEffect, useMemo, useState} from 'react'
 
-export function SearchInput({onClose}: {onClose?: () => void}) {
+export function SearchInput({
+  onClose,
+  onSelect,
+}: {
+  onClose?: () => void
+  onSelect: ({id, route}: {id?: UnpackedHypermediaId; route?: NavRoute}) => void
+}) {
   const [search, setSearch] = useState('')
   const [focusedIndex, setFocusedIndex] = useState(0)
   const navigate = useNavigate()
@@ -67,6 +73,7 @@ export function SearchInput({onClose}: {onClose?: () => void}) {
             searched?.navRoute
           ) {
             onClose?.()
+            onSelect({route: searched?.navRoute})
             navigate(searched?.navRoute)
           } else if (
             search.startsWith('http://') ||
@@ -78,6 +85,7 @@ export function SearchInput({onClose}: {onClose?: () => void}) {
                 .then((navRoute) => {
                   if (navRoute) {
                     onClose?.()
+                    onSelect({route: navRoute})
                     navigate(navRoute)
                   }
                 })
@@ -110,15 +118,7 @@ export function SearchInput({onClose}: {onClose?: () => void}) {
           title: item.title || item.id,
           onFocus: () => {},
           onMouseEnter: () => {},
-          onSelect: () => {
-            const appRoute = appRouteOfId(id)
-            if (!appRoute) {
-              toast.error('Failed to open recent: ' + item.id)
-              return
-            }
-            navigate(appRoute)
-            item.id
-          },
+          onSelect: () => onSelect({id}),
           subtitle: HYPERMEDIA_ENTITY_TYPES[id.type],
         }
       })
@@ -140,13 +140,9 @@ export function SearchInput({onClose}: {onClose?: () => void}) {
           if (!id) {
             toast.error('Failed to open recent: ' + url)
             return
+          } else {
+            onSelect({id})
           }
-          const appRoute = appRouteOfId(id)
-          if (!appRoute) {
-            toast.error('Failed to open recent: ' + url)
-            return
-          }
-          navigate(appRoute)
         },
       }
     }) || []

@@ -1,5 +1,7 @@
+import {appRouteOfId} from '@/utils/navigation'
+import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
-import {Button, Search, View, XStack, YStack} from '@shm/ui'
+import {Button, Search, toast, View, XStack, YStack} from '@shm/ui'
 import {useState} from 'react'
 import {SearchInput} from './search-input'
 import {Title} from './titlebar-title'
@@ -43,6 +45,7 @@ export function TitlebarSearch() {
 }
 
 function LauncherContent({onClose}: {onClose: () => void}) {
+  const navigate = useNavigate()
   return (
     <>
       <View
@@ -70,8 +73,23 @@ function LauncherContent({onClose}: {onClose: () => void}) {
         borderColor="$color7"
         borderWidth={1}
         borderRadius={6}
+        h={260}
       >
-        <SearchInput onClose={onClose} />
+        <SearchInput
+          onClose={onClose}
+          onSelect={({id, route}) => {
+            if (route) {
+              navigate(route)
+            } else if (id) {
+              const appRoute = appRouteOfId(id)
+              if (!appRoute) {
+                toast.error('Failed to open selected item: ' + id)
+              } else {
+                navigate(appRoute)
+              }
+            }
+          }}
+        />
       </YStack>
     </>
   )

@@ -9,7 +9,6 @@ import {Search} from "./icons";
 export function SearchInput({
   children,
   inputProps,
-  focusedIndex,
   onArrowDown,
   onArrowUp,
   onEscape,
@@ -28,7 +27,7 @@ export function SearchInput({
   focusedIndex: number;
 }>) {
   return (
-    <YStack padding="$2" gap="$2">
+    <YStack gap="$2" w="100%">
       <XStack
         ai="center"
         gap="$2"
@@ -73,7 +72,18 @@ export function SearchInput({
           }}
         />
       </XStack>
-      <YStack height={200} maxHeight={600} overflow="hidden">
+
+      <YStack
+        height={200}
+        maxHeight={600}
+        overflow="hidden"
+        // position="absolute"
+        // top={52}
+        // left={0}
+        // right={0}
+        paddingHorizontal="$2"
+        // zi="$zIndex.8"
+      >
         <ScrollView>{children}</ScrollView>
       </YStack>
     </YStack>
@@ -102,7 +112,7 @@ export function SearchResultItem({
       onPress={() => {
         item.onSelect();
       }}
-      backgroundColor={selected ? "$brand12" : undefined}
+      backgroundColor={selected ? "$brand12" : "$backgroundTransparent"}
       hoverStyle={{
         backgroundColor: selected ? "$brand12" : undefined,
       }}

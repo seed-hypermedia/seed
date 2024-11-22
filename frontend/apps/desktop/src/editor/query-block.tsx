@@ -5,10 +5,8 @@ import {
   ErrorBlock,
   Pencil,
   QueryBlockPlaceholder,
-  Search,
   SelectField,
   SwitchField,
-  TextField,
   Tooltip,
   usePopoverState,
   XStack,
@@ -16,6 +14,7 @@ import {
 } from '@shm/ui'
 import {Fragment} from '@tiptap/pm/model'
 
+import {SearchInput} from '@/components/search-input'
 import {NodeSelection, TextSelection} from 'prosemirror-state'
 import {useCallback, useMemo, useState} from 'react'
 import {Block, BlockNoteEditor} from './blocknote'
@@ -209,14 +208,14 @@ function QuerySettings({
               exitStyle={{opacity: 0, y: 10}}
               elevation="$3"
             >
-              <TextField
-                id="query-search"
-                label="Query"
-                Icon={Search}
-                value={search}
-                onChangeText={setSearch}
-                placeholder="Search Query"
-              />
+              <XStack position="relative" bg="$background" w="100%">
+                <SearchInput
+                  onSelect={({id, route}) => {
+                    console.log('SELECT QUERY', {id, route})
+                  }}
+                />
+              </XStack>
+
               <SwitchField
                 label="Show all Children"
                 id="mode"
