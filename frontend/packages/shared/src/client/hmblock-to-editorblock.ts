@@ -38,6 +38,7 @@ function toEditorBlockType(
   if (hmBlockType === 'Embed') return 'embed'
   if (hmBlockType === 'WebEmbed') return 'web-embed'
   if (hmBlockType === 'Nostr') return 'nostr'
+  if (hmBlockType === 'Query') return 'query'
   return undefined
 }
 
@@ -126,6 +127,13 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     })
 
     // return out
+  }
+
+  if (block.type === 'Query') {
+    out.props.style = block.attributes.style
+    out.props.columnCount = String(block.attributes.columnCount)
+    out.props.queryIncludes = JSON.stringify(block.attributes.query.includes)
+    out.props.querySort = JSON.stringify(block.attributes.query.sort)
   }
 
   const blockText = block.text || ''

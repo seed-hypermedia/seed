@@ -40,8 +40,8 @@ function BlockError() {
   return <ErrorBlock message="Failed to load this Embedded document" />
 }
 
-const defaultQueryIncludes = '[{"space": "", "path": "", "mode": "Children"}]'
-const defaultQuerySort = '[{"term": "UpdateTime", "reverse": false}]'
+const defaultQueryIncludes = '[{"space":"","path":"","mode":"Children"}]'
+const defaultQuerySort = '[{"term":"UpdateTime","reverse":false}]'
 
 export const QueryBlock = createReactBlockSpec({
   type: 'query',

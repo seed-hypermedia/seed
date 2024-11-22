@@ -125,6 +125,7 @@ export type EditorQueryBlock = EditorBaseBlock & {
     queryIncludes?: string
     querySort?: string
   }
+  content: Array<EditorInlineContent>
 }
 
 export interface EditorText {

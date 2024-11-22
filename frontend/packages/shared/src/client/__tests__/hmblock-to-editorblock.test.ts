@@ -8,6 +8,7 @@ import {
   EditorImageBlock,
   EditorMathBlock,
   EditorNostrBlock,
+  EditorQueryBlock,
   EditorVideoBlock,
   EditorWebEmbedBlock,
 } from '../../editor-types'
@@ -20,6 +21,7 @@ import {
   HMBlockImage,
   HMBlockMath,
   HMBlockNostr,
+  HMBlockQuery,
   HMBlockWebEmbed,
 } from '../../hm-types'
 import {hmBlockToEditorBlock} from '../hmblock-to-editorblock'
@@ -693,6 +695,48 @@ describe('HMBlock to EditorBlock', () => {
             styles: {},
           },
         ],
+      }
+
+      const val = hmBlockToEditorBlock(hmBlock)
+
+      expect(val).toEqual(result)
+    })
+
+    test('query block', () => {
+      const hmBlock: HMBlockQuery = {
+        id: 'foo',
+        type: 'Query',
+        text: ``,
+        annotations: [],
+        attributes: {
+          style: 'Card',
+          columnCount: 1,
+          query: {
+            includes: [{space: 'FOO_SPACE', path: '', mode: 'Children'}],
+            sort: [{term: 'UpdateTime', reverse: false}],
+          },
+        },
+        revision: 'revision123',
+      }
+
+      const result: EditorQueryBlock = {
+        id: 'foo',
+        type: 'query',
+        children: [],
+        content: [
+          {
+            type: 'text',
+            text: '',
+            styles: {},
+          },
+        ],
+        props: {
+          queryIncludes: '[{"space":"FOO_SPACE","path":"","mode":"Children"}]',
+          querySort: '[{"term":"UpdateTime","reverse":false}]',
+          style: 'Card',
+          columnCount: '1',
+          revision: 'revision123',
+        },
       }
 
       const val = hmBlockToEditorBlock(hmBlock)

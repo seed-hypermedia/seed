@@ -15,6 +15,7 @@ function toHMBlockType(
   if (editorBlockType === 'button') return 'Button'
   if (editorBlockType === 'embed') return 'Embed'
   if (editorBlockType === 'web-embed') return 'WebEmbed'
+  if (editorBlockType === 'query') return 'Query'
   return undefined
 }
 
@@ -151,6 +152,22 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     if (editorBlock.props.url) blockEmbed.link = editorBlock.props.url
     if (editorBlock.props.view)
       blockEmbed.attributes.view = editorBlock.props.view
+  }
+
+  const blockQuery = block.type === 'Query' ? block : undefined
+  if (blockQuery && editorBlock.type == 'query') {
+    blockQuery.attributes.style = editorBlock.props.style
+    blockQuery.attributes.columnCount = Number(editorBlock.props.columnCount)
+    blockQuery.attributes.query = {
+      includes: [],
+      sort: [],
+    }
+    if (editorBlock.props.queryIncludes)
+      blockQuery.attributes.query.includes = JSON.parse(
+        editorBlock.props.queryIncludes,
+      )
+    if (editorBlock.props.querySort)
+      blockQuery.attributes.query.sort = JSON.parse(editorBlock.props.querySort)
   }
 
   const blockParse = HMBlockSchema.safeParse(block)

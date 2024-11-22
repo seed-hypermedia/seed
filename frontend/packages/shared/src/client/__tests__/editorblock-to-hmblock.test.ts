@@ -7,6 +7,7 @@ import {
   EditorHeadingBlock,
   EditorImageBlock,
   EditorMathBlock,
+  EditorQueryBlock,
   EditorVideoBlock,
   EditorWebEmbedBlock,
 } from '../../editor-types'
@@ -17,6 +18,7 @@ import {
   HMBlockHeading,
   HMBlockImage,
   HMBlockMath,
+  HMBlockQuery,
   HMBlockWebEmbed,
 } from '../../hm-types'
 import {editorBlockToHMBlock} from '../editorblock-to-hmblock'
@@ -627,6 +629,47 @@ describe('EditorBlock to HMBlock', () => {
         link: 'hm://foobarwebembed',
         annotations: [],
         attributes: {},
+      }
+
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val).toEqual(result)
+    })
+
+    test('query block', () => {
+      const editorBlock: EditorQueryBlock = {
+        id: 'foo',
+        type: 'query',
+        children: [],
+        content: [
+          {
+            type: 'text',
+            text: '',
+            styles: {},
+          },
+        ],
+        props: {
+          queryIncludes:
+            '[{"space": "FOO_SPACE", "path": "", "mode": "Children"}]',
+          querySort: '[{"term": "UpdateTime", "reverse": false}]',
+          style: 'Card',
+          columnCount: '1',
+        },
+      }
+
+      const result: HMBlockQuery = {
+        id: 'foo',
+        type: 'Query',
+        text: ``,
+        annotations: [],
+        attributes: {
+          style: 'Card',
+          columnCount: 1,
+          query: {
+            includes: [{space: 'FOO_SPACE', path: '', mode: 'Children'}],
+            sort: [{term: 'UpdateTime', reverse: false}],
+          },
+        },
       }
 
       const val = editorBlockToHMBlock(editorBlock)
