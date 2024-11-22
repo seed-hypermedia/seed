@@ -2,7 +2,6 @@ import {useIPC} from '@/app-context'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {IconForm} from '@/components/icon-form'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
-import {SettingsSection} from '@/components/settings-common'
 import {useAutoUpdatePreference} from '@/models/app-settings'
 import {
   useDaemonInfo,
@@ -392,203 +391,198 @@ function AccountKeys() {
           </Button>
         </XStack>
       </YStack>
-      <YStack f={3} borderColor="$color7" borderWidth={1} p="$4">
+      <YStack f={3} borderColor="$color7" borderWidth={1}>
         <ScrollView>
-          <XStack marginBottom="$4" gap="$4">
-            {selectedAccountId ? (
-              <HMIcon
-                id={selectedAccountId}
-                metadata={profile?.document?.metadata}
-                size={80}
-              />
-            ) : null}
-            <YStack f={1} gap="$3" marginTop="$2">
-              <Field id="username" label="Profile name">
-                <Input
-                  borderColor="$colorTransparent"
-                  borderWidth={0}
-                  disabled
-                  value={getAccountName(profile?.document)}
+          <YStack p="$4" gap="$4">
+            <XStack marginBottom="$4" gap="$4">
+              {selectedAccountId ? (
+                <HMIcon
+                  id={selectedAccountId}
+                  metadata={profile?.document?.metadata}
+                  size={80}
                 />
-              </Field>
-              <Field id="accountid" label="Account Id">
-                <Input
-                  borderColor="$colorTransparent"
-                  borderWidth={0}
-                  disabled
-                  value={selectedAccount}
-                />
-              </Field>
-            </YStack>
-          </XStack>
-          {mnemonics ? (
-            <YStack gap="$2" marginBottom="$4">
-              <XStack gap="$3">
-                <Field label="Secret Words" id="words">
-                  <TextArea
-                    borderColor="$colorTransparent"
-                    borderWidth={0}
-                    f={1}
-                    disabled
-                    value={
-                      showWords
-                        ? mnemonics.join(', ')
-                        : '**** **** **** **** **** **** **** **** **** **** **** ****'
-                    }
-                  />
+              ) : null}
+              <YStack f={1} gap="$3" marginTop="$2">
+                <Field id="username" label="Profile name">
+                  <Input disabled value={getAccountName(profile?.document)} />
                 </Field>
-
-                <YStack gap="$2">
-                  <Button
-                    size="$2"
-                    icon={showWords ? EyeOff : Eye}
-                    onPress={() => setShowWords((v) => !v)}
-                  />
-                  <Button
-                    size="$2"
-                    icon={Copy}
-                    onPress={() => {
-                      copyTextToClipboard(mnemonics.join(', '))
-                      toast.success('Words copied to clipboard')
-                    }}
-                  />
-
-                  <AlertDialog native>
-                    <Tooltip content="Delete words from device">
-                      <AlertDialog.Trigger asChild>
-                        <Button size="$2" theme="red" icon={Trash} />
-                      </AlertDialog.Trigger>
-                    </Tooltip>
-                    <AlertDialog.Portal>
-                      <AlertDialog.Overlay
-                        key="overlay"
-                        animation="fast"
-                        opacity={0.5}
-                        enterStyle={{opacity: 0}}
-                        exitStyle={{opacity: 0}}
+                <Field id="accountid" label="Account Id">
+                  <Input disabled value={selectedAccount} />
+                </Field>
+              </YStack>
+            </XStack>
+            {mnemonics ? (
+              <YStack gap="$2">
+                <Field label="Secret Words" id="words">
+                  <XStack gap="$3">
+                    <TextArea
+                      f={1}
+                      disabled
+                      value={
+                        showWords
+                          ? mnemonics.join(', ')
+                          : '**** **** **** **** **** **** **** **** **** **** **** ****'
+                      }
+                    />
+                    <YStack gap="$2">
+                      <Button
+                        size="$2"
+                        icon={showWords ? EyeOff : Eye}
+                        onPress={() => setShowWords((v) => !v)}
                       />
-                      <AlertDialog.Content
-                        bordered
-                        elevate
-                        key="content"
-                        animation={[
-                          'fast',
-                          {
-                            opacity: {
-                              overshootClamping: true,
-                            },
-                          },
-                        ]}
-                        enterStyle={{x: 0, y: -20, opacity: 0, scale: 0.9}}
-                        exitStyle={{x: 0, y: 10, opacity: 0, scale: 0.95}}
-                        x={0}
-                        scale={1}
-                        opacity={1}
-                        y={0}
-                        maxWidth={600}
-                        gap="$4"
-                      >
-                        <AlertDialog.Title size="$8" fontWeight="bold">
-                          Delete Words
-                        </AlertDialog.Title>
-                        <AlertDialog.Description>
-                          Are you really sure? you cant recover the secret words
-                          after you delete them. please save them securely in
-                          another place before you delete
-                        </AlertDialog.Description>
-                        <XStack gap="$3" justifyContent="flex-end">
-                          <AlertDialog.Cancel asChild>
-                            <Button chromeless>Cancel</Button>
-                          </AlertDialog.Cancel>
-                          <AlertDialog.Action asChild>
-                            <Button
-                              theme="red"
-                              onPress={() =>
-                                deleteWords
-                                  .mutateAsync(selectedAccount)
-                                  .then(() => {
-                                    toast.success('Words deleted!')
-                                    invalidateQueries([
-                                      'trpc.secureStorage.get',
-                                    ])
-                                  })
-                              }
-                            >
-                              Delete Permanently
-                            </Button>
-                          </AlertDialog.Action>
-                        </XStack>
-                      </AlertDialog.Content>
-                    </AlertDialog.Portal>
-                  </AlertDialog>
-                </YStack>
-              </XStack>
-            </YStack>
-          ) : null}
-          <XStack f={1} />
-          <AlertDialog native>
-            <Tooltip content="Delete words from device">
-              <AlertDialog.Trigger asChild>
-                <Button size="$2" theme="red" icon={Trash} alignSelf="flex-end">
-                  Delete Account
-                </Button>
-              </AlertDialog.Trigger>
-            </Tooltip>
-            <AlertDialog.Portal>
-              <AlertDialog.Overlay
-                key="overlay"
-                animation="fast"
-                opacity={0.5}
-                enterStyle={{opacity: 0}}
-                exitStyle={{opacity: 0}}
-              />
-              <AlertDialog.Content
-                bordered
-                elevate
-                key="content"
-                animation={[
-                  'fast',
-                  {
-                    opacity: {
-                      overshootClamping: true,
+                      <Button
+                        size="$2"
+                        icon={Copy}
+                        onPress={() => {
+                          copyTextToClipboard(mnemonics.join(', '))
+                          toast.success('Words copied to clipboard')
+                        }}
+                      />
+
+                      <AlertDialog native>
+                        <Tooltip content="Delete words from device">
+                          <AlertDialog.Trigger asChild>
+                            <Button size="$2" theme="red" icon={Trash} />
+                          </AlertDialog.Trigger>
+                        </Tooltip>
+                        <AlertDialog.Portal>
+                          <AlertDialog.Overlay
+                            key="overlay"
+                            animation="fast"
+                            opacity={0.5}
+                            enterStyle={{opacity: 0}}
+                            exitStyle={{opacity: 0}}
+                          />
+                          <AlertDialog.Content
+                            bordered
+                            elevate
+                            key="content"
+                            animation={[
+                              'fast',
+                              {
+                                opacity: {
+                                  overshootClamping: true,
+                                },
+                              },
+                            ]}
+                            enterStyle={{x: 0, y: -20, opacity: 0, scale: 0.9}}
+                            exitStyle={{x: 0, y: 10, opacity: 0, scale: 0.95}}
+                            x={0}
+                            scale={1}
+                            opacity={1}
+                            y={0}
+                            maxWidth={600}
+                            gap="$4"
+                          >
+                            <AlertDialog.Title size="$8" fontWeight="bold">
+                              Delete Words
+                            </AlertDialog.Title>
+                            <AlertDialog.Description>
+                              Are you really sure? you cant recover the secret
+                              words after you delete them. please save them
+                              securely in another place before you delete
+                            </AlertDialog.Description>
+                            <XStack gap="$3" justifyContent="flex-end">
+                              <AlertDialog.Cancel asChild>
+                                <Button chromeless>Cancel</Button>
+                              </AlertDialog.Cancel>
+                              <AlertDialog.Action asChild>
+                                <Button
+                                  theme="red"
+                                  onPress={() =>
+                                    deleteWords
+                                      .mutateAsync(selectedAccount)
+                                      .then(() => {
+                                        toast.success('Words deleted!')
+                                        invalidateQueries([
+                                          'trpc.secureStorage.get',
+                                        ])
+                                      })
+                                  }
+                                >
+                                  Delete Permanently
+                                </Button>
+                              </AlertDialog.Action>
+                            </XStack>
+                          </AlertDialog.Content>
+                        </AlertDialog.Portal>
+                      </AlertDialog>
+                    </YStack>
+                  </XStack>
+                </Field>
+              </YStack>
+            ) : null}
+
+            <AlertDialog native>
+              <Tooltip content="Delete words from device">
+                <AlertDialog.Trigger asChild>
+                  <Button
+                    size="$2"
+                    theme="red"
+                    icon={Trash}
+                    alignSelf="flex-end"
+                  >
+                    Delete Account
+                  </Button>
+                </AlertDialog.Trigger>
+              </Tooltip>
+              <AlertDialog.Portal>
+                <AlertDialog.Overlay
+                  key="overlay"
+                  animation="fast"
+                  opacity={0.5}
+                  enterStyle={{opacity: 0}}
+                  exitStyle={{opacity: 0}}
+                />
+                <AlertDialog.Content
+                  bordered
+                  elevate
+                  key="content"
+                  animation={[
+                    'fast',
+                    {
+                      opacity: {
+                        overshootClamping: true,
+                      },
                     },
-                  },
-                ]}
-                enterStyle={{x: 0, y: -20, opacity: 0, scale: 0.9}}
-                exitStyle={{x: 0, y: 10, opacity: 0, scale: 0.95}}
-                x={0}
-                scale={1}
-                opacity={1}
-                y={0}
-                maxWidth={600}
-                gap="$4"
-              >
-                <AlertDialog.Title size="$8" fontWeight="bold">
-                  Delete Account
-                </AlertDialog.Title>
-                <AlertDialog.Description>
-                  Are you really sure? Your account will be removed and can't be
-                  recovered unless you have the secret words
-                </AlertDialog.Description>
-                <XStack gap="$3" justifyContent="flex-end">
-                  <AlertDialog.Cancel asChild>
-                    <Button chromeless>Cancel</Button>
-                  </AlertDialog.Cancel>
-                  <AlertDialog.Action asChild>
-                    <Button theme="red" onPress={handleDeleteCurrentAccount}>
-                      Delete Permanently
-                    </Button>
-                  </AlertDialog.Action>
-                </XStack>
-              </AlertDialog.Content>
-            </AlertDialog.Portal>
-          </AlertDialog>
-          <SettingsSection title="Wallets">
-            <AccountWallet
-              accountUid={selectedAccount}
-              onOpenWallet={(walletId) => setWalletId(walletId)}
-            />
-          </SettingsSection>
+                  ]}
+                  enterStyle={{x: 0, y: -20, opacity: 0, scale: 0.9}}
+                  exitStyle={{x: 0, y: 10, opacity: 0, scale: 0.95}}
+                  x={0}
+                  scale={1}
+                  opacity={1}
+                  y={0}
+                  maxWidth={600}
+                  gap="$4"
+                >
+                  <AlertDialog.Title size="$8" fontWeight="bold">
+                    Delete Account
+                  </AlertDialog.Title>
+                  <AlertDialog.Description>
+                    Are you really sure? Your account will be removed and can't
+                    be recovered unless you have the secret words
+                  </AlertDialog.Description>
+                  <XStack gap="$3" justifyContent="flex-end">
+                    <AlertDialog.Cancel asChild>
+                      <Button chromeless>Cancel</Button>
+                    </AlertDialog.Cancel>
+                    <AlertDialog.Action asChild>
+                      <Button theme="red" onPress={handleDeleteCurrentAccount}>
+                        Delete Permanently
+                      </Button>
+                    </AlertDialog.Action>
+                  </XStack>
+                </AlertDialog.Content>
+              </AlertDialog.Portal>
+            </AlertDialog>
+            <Separator />
+            <SettingsSection title="Wallets">
+              <AccountWallet
+                accountUid={selectedAccount}
+                onOpenWallet={(walletId) => setWalletId(walletId)}
+              />
+            </SettingsSection>
+          </YStack>
         </ScrollView>
       </YStack>
     </XStack>
@@ -1118,5 +1112,19 @@ function Tab(props: TabsProps & {icon: any; label: string; active: boolean}) {
         {label}
       </SizableText>
     </Tabs.Tab>
+  )
+}
+
+function SettingsSection({
+  title,
+  children,
+}: React.PropsWithChildren<{title: string}>) {
+  return (
+    <YStack gap="$3">
+      <YStack gap="$4">
+        <Heading size="$7">{title}</Heading>
+        {children}
+      </YStack>
+    </YStack>
   )
 }
