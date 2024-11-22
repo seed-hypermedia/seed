@@ -328,8 +328,8 @@ export const HMBlockQuerySchema = z
     ...blockBaseProperties,
     attributes: z.object({
       ...parentBlockAttributes,
-      style: HMQueryStyleSchema.optional(),
-      columnCount: z.number().optional(),
+      style: HMQueryStyleSchema.optional().default('Card'),
+      columnCount: z.number().optional().default(3),
       query: z.object({
         includes: z.array(HMQueryInclusionSchema),
         sort: z.array(HMQuerySortSchema).optional(),
@@ -364,6 +364,7 @@ export type HMBlockFile = z.infer<typeof HMBlockFileSchema>
 export type HMBlockButton = z.infer<typeof HMBlockButtonSchema>
 export type HMBlockEmbed = z.infer<typeof HMBlockEmbedSchema>
 export type HMBlockWebEmbed = z.infer<typeof HMBlockWebEmbedSchema>
+export type HMBlockQuery = z.infer<typeof HMBlockQuerySchema>
 export type HMBlock = z.infer<typeof HMBlockSchema>
 
 const baseBlockNodeSchema = z.object({

@@ -11,7 +11,6 @@ import {
   resolveHmIdToAppRoute,
   useHmIdToAppRouteResolver,
 } from '@/utils/navigation'
-import {useNavigate} from '@/utils/useNavigate'
 import {
   HYPERMEDIA_ENTITY_TYPES,
   HYPERMEDIA_SCHEME,
@@ -44,7 +43,6 @@ export function SearchInput({
 }) {
   const [search, setSearch] = useState('')
   const [focusedIndex, setFocusedIndex] = useState(0)
-  const navigate = useNavigate()
   const grpcClient = useGRPCClient()
   const [actionPromise, setActionPromise] = useState<Promise<void> | null>(null)
   const gwHost = useGatewayHost_DEPRECATED()
@@ -74,7 +72,6 @@ export function SearchInput({
           ) {
             onClose?.()
             onSelect({route: searched?.navRoute})
-            navigate(searched?.navRoute)
           } else if (
             search.startsWith('http://') ||
             search.startsWith('https://') ||
@@ -86,7 +83,6 @@ export function SearchInput({
                   if (navRoute) {
                     onClose?.()
                     onSelect({route: navRoute})
-                    navigate(navRoute)
                   }
                 })
                 .catch((error) => {

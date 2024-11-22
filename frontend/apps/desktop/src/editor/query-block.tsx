@@ -1,32 +1,47 @@
-import {useAppContext} from '@/app-context'
-import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {
   Button,
+  ButtonFrame,
   ErrorBlock,
+  NewspaperCard,
   Pencil,
   QueryBlockPlaceholder,
+  Search,
   SelectField,
+  SizableText,
   SwitchField,
   Tooltip,
   usePopoverState,
+  View,
   XStack,
   YStack,
 } from '@shm/ui'
 import {Fragment} from '@tiptap/pm/model'
 
 import {SearchInput} from '@/components/search-input'
+import {useListDirectory} from '@/models/documents'
+import {useEntities, useEntity} from '@/models/entities'
+import {
+  EditorQueryBlock,
+  HMBlockQuery,
+  HMEntityContent,
+  hmId,
+  NavRoute,
+  UnpackedHypermediaId,
+} from '@shm/shared'
 import {NodeSelection, TextSelection} from 'prosemirror-state'
-import {useCallback, useMemo, useState} from 'react'
+import {useCallback, useEffect, useMemo, useState} from 'react'
 import {Block, BlockNoteEditor} from './blocknote'
 import {MultipleNodeSelection} from './blocknote/core/extensions/SideMenu/MultipleNodeSelection'
 import {createReactBlockSpec, useEditorSelectionChange} from './blocknote/react'
-import {EditorQueryBlock} from './editor-types'
 import {HMBlockSchema} from './schema'
 import {getNodesInSelection} from './utils'
 
 function BlockError() {
   return <ErrorBlock message="Failed to load this Embedded document" />
 }
+
+const defaultQueryIncludes = '[{"space": "", "path": "", "mode": "Children"}]'
+const defaultQuerySort = '[{"term": "UpdateTime", "reverse": false}]'
 
 export const QueryBlock = createReactBlockSpec({
   type: 'query',
@@ -43,10 +58,10 @@ export const QueryBlock = createReactBlockSpec({
       default: '',
     },
     queryIncludes: {
-      default: '[{"space": "", "path": "", "mode": "Children"}]',
+      default: defaultQueryIncludes,
     },
     querySort: {
-      default: '[{"term": "UpdateTime", "reverse": false}]',
+      default: defaultQuerySort,
     },
   },
   containsInlineContent: true,
@@ -75,9 +90,50 @@ function Render(
   editor: BlockNoteEditor<HMBlockSchema>,
 ) {
   const [selected, setSelected] = useState(false)
-  const {queryClient} = useAppContext()
-  const gwUrl = useGatewayUrlStream()
   const tiptapEditor = editor._tiptapEditor
+  const queryIncludes: HMQueryBlockIncludes = useMemo(() => {
+    return JSON.parse(block.props.queryIncludes || defaultQueryIncludes)
+  }, [block.props.queryIncludes])
+
+  const querySort = useMemo(() => {
+    return JSON.parse(block.props.querySort || defaultQuerySort)
+  }, [block.props.querySort])
+  const [queryId, setQueryId] = useState<UnpackedHypermediaId | null>(() => {
+    if (queryIncludes?.[0].space) {
+      console.log('QUERY ID', queryIncludes[0])
+      return hmId('d', queryIncludes[0].space, {
+        path: queryIncludes[0].path ? queryIncludes[0].path.split('/') : null,
+        latest: true,
+      })
+    }
+    return null
+  })
+  const entity = useEntity(queryId, {
+    enabled: !!queryId,
+  })
+  const directoryItems = useListDirectory(queryId)
+  const docResults = useEntities(
+    directoryItems.data?.map((item) =>
+      hmId('d', item.account, {
+        path: item.path,
+        latest: true,
+        version: item.version,
+      }),
+    ) || [],
+    {
+      enabled: !!directoryItems.data?.length || false,
+    },
+  )
+
+  useEffect(() => {}, [])
+
+  console.log(`== ~ directory:`, {
+    queryId,
+    queryIncludes,
+    querySort,
+    docResults,
+    entity: entity.data,
+  })
 
   function updateSelection() {
     const {view} = tiptapEditor
@@ -112,6 +168,7 @@ function Render(
 
   const assign = useCallback(
     (props: Partial<EditorQueryBlock['props']>) => {
+      console.log('ASSIGN', props)
       // @ts-ignore because we have literal string values here that should be ok.
       editor.updateBlock(block.id, {props})
     },
@@ -127,33 +184,53 @@ function Render(
       borderWidth={3}
       borderRadius="$2"
     >
-      <QuerySettings block={block} onValuesChange={assign} />
-      <QueryBlockPlaceholder styleType={block.props.style as 'Card' | 'List'} />
+      <QuerySettings
+        queryDocName={entity.data?.document?.metadata.name || ''}
+        queryIncludes={queryIncludes}
+        querySort={querySort}
+        // @ts-expect-error
+        block={block}
+        onValuesChange={({id, props}) => {
+          if (id) {
+            setQueryId(id)
+          }
+          assign(props)
+        }}
+      />
+      {docResults?.length ? (
+        <QueryResultItems items={docResults} />
+      ) : (
+        <QueryBlockPlaceholder
+          styleType={block.props.style as 'Card' | 'List'}
+        />
+      )}
     </YStack>
   )
 }
 
+type HMQueryBlockIncludes = HMBlockQuery['attributes']['query']['includes']
+type HMQueryBlockSort = HMBlockQuery['attributes']['query']['sort']
+
 function QuerySettings({
+  queryDocName = '',
   block,
   onValuesChange,
+  queryIncludes,
+  querySort,
 }: {
+  queryDocName: string
   block: EditorQueryBlock
-  onValuesChange: (props: EditorQueryBlock['props']) => void
+  queryIncludes: HMQueryBlockIncludes
+  querySort: HMQueryBlockSort
+  onValuesChange: ({
+    id,
+    props,
+  }: {
+    id: UnpackedHypermediaId | null
+    props: EditorQueryBlock['props']
+  }) => void
 }) {
   const popoverState = usePopoverState()
-  const [search, setSearch] = useState('')
-
-  const queryIncludes = useMemo(() => {
-    return JSON.parse(block.props.queryIncludes || '[]')
-  }, [block.props.queryIncludes])
-  const querySort = useMemo(() => {
-    return JSON.parse(block.props.querySort || '[]')
-  }, [block.props.querySort])
-  console.log(`== ~ queryValues ~ queryIncludes:`, {
-    block,
-    queryIncludes,
-    querySort,
-  })
 
   return (
     <>
@@ -194,7 +271,7 @@ function QuerySettings({
               bg="$background"
               borderRadius="$4"
               zi="$zIndex.3"
-              overflow="hidden"
+              // overflow="hidden"
               w="100%"
               maxWidth={250}
               onPress={(e) => {
@@ -208,13 +285,30 @@ function QuerySettings({
               exitStyle={{opacity: 0, y: 10}}
               elevation="$3"
             >
-              <XStack position="relative" bg="$background" w="100%">
-                <SearchInput
-                  onSelect={({id, route}) => {
-                    console.log('SELECT QUERY', {id, route})
-                  }}
-                />
-              </XStack>
+              <QuerySearch
+                queryDocName={queryDocName}
+                onSelect={({id, route}) => {
+                  if (id) {
+                    const newVal: HMQueryBlockIncludes = [
+                      {
+                        ...queryIncludes[0],
+                        space: id.uid,
+                        path:
+                          id.path && id.path.length ? id.path.join('/') : '',
+                        mode: queryIncludes[0].mode,
+                      },
+                    ]
+                    // console.log('=== NEW VAL', id, newVal)
+                    onValuesChange({
+                      id,
+                      props: {
+                        ...block.props,
+                        queryIncludes: JSON.stringify(newVal),
+                      },
+                    })
+                  }
+                }}
+              />
 
               <SwitchField
                 label="Show all Children"
@@ -228,14 +322,23 @@ function QuerySettings({
                     },
                   ]
 
-                  onValuesChange({queryIncludes: JSON.stringify(newVal)})
+                  onValuesChange({
+                    id: null,
+                    props: {
+                      ...block.props,
+                      queryIncludes: JSON.stringify(newVal),
+                    },
+                  })
                 }}
               />
               <SelectField
                 size="$2"
                 value={block.props.style}
                 onValue={(value) => {
-                  onValuesChange({style: value as 'Card' | 'List'})
+                  onValuesChange({
+                    id: null,
+                    props: {...block.props, style: value as 'Card' | 'List'},
+                  })
                 }}
                 label="View"
                 id="view"
@@ -269,4 +372,89 @@ function QuerySettings({
       ) : null}
     </>
   )
+}
+
+function QuerySearch({
+  queryDocName = '',
+  onSelect,
+}: {
+  queryDocName: string
+  onSelect: ({id, route}: {id?: UnpackedHypermediaId; route?: NavRoute}) => void
+}) {
+  const [showSearch, setShowSearch] = useState(false)
+
+  return (
+    <YStack position="relative">
+      <ButtonFrame
+        onPress={() => setShowSearch(true)}
+        padding="$2"
+        h={38}
+        gap="$2"
+        ai="center"
+      >
+        <Search flexShrink={0} size={16} />
+        <SizableText
+          // color="$color9"
+          f={1}
+          maxWidth="100%"
+          overflow="hidden"
+          textOverflow="ellipsis"
+          whiteSpace="nowrap"
+        >
+          {queryDocName || 'Search Hypermedia Document'}
+        </SizableText>
+      </ButtonFrame>
+      {showSearch ? (
+        <>
+          <View
+            onPress={() => setShowSearch(false)}
+            top={0}
+            left={0}
+            right={0}
+            bottom={0}
+            // @ts-ignore
+            position="fixed"
+            zIndex="$zIndex.8"
+          />
+          <YStack
+            elevation="$4"
+            className="no-window-drag"
+            minHeight="80%"
+            position="absolute"
+            top={-8}
+            left={-8}
+            zi="$zIndex.8"
+            width="calc(100% + 16px)"
+            maxWidth={800}
+            backgroundColor="$background"
+            borderColor="$color7"
+            borderWidth={1}
+            borderRadius={6}
+            h={260}
+            padding="$2"
+          >
+            <SearchInput
+              onClose={() => setShowSearch(false)}
+              onSelect={(data) => {
+                setShowSearch(false)
+                onSelect(data)
+              }}
+            />
+          </YStack>
+        </>
+      ) : null}
+    </YStack>
+  )
+}
+
+function QueryResultItems({items}: {items: Array<{data: HMEntityContent}>}) {
+  return items
+    .filter((item) => !!item.data)
+    .map((item) => (
+      <NewspaperCard
+        id={item.data.id}
+        entity={item.data}
+        accountsMetadata={[]}
+      />
+    ))
 }

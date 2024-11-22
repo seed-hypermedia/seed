@@ -866,16 +866,18 @@ export function usePublishToSite() {
   }
 }
 
-export function useListDirectory(id?: UnpackedHypermediaId) {
+export function useListDirectory(id?: UnpackedHypermediaId | null) {
   const grpcClient = useGRPCClient()
   const prefixPath = id?.path ? '/' + id.path.join('/') : ''
   return useQuery({
+    enabled: !!id,
     queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.uid, prefixPath],
     queryFn: async () => {
       if (!id) return []
       const res = await grpcClient.documents.listDocuments({
         account: id.uid,
       })
+      console.log('LIST DIRECTORY', res)
       const docs = res.documents
         .map(toPlainMessage)
         .filter((doc) => {
@@ -889,6 +891,7 @@ export function useListDirectory(id?: UnpackedHypermediaId) {
         .map((doc) => {
           return {...doc, path: doc.path.slice(1).split('/')}
         })
+      console.log('LIST DIRECTORY', docs)
       return docs as HMDocumentListItem[]
     },
   })

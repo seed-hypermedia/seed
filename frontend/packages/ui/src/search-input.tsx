@@ -81,7 +81,7 @@ export function SearchInput({
         // top={52}
         // left={0}
         // right={0}
-        paddingHorizontal="$2"
+        // paddingHorizontal="$2"
         // zi="$zIndex.8"
       >
         <ScrollView>{children}</ScrollView>
