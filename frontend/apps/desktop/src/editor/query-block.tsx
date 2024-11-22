@@ -29,7 +29,7 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {NodeSelection, TextSelection} from 'prosemirror-state'
-import {useCallback, useEffect, useMemo, useState} from 'react'
+import {useCallback, useMemo, useState} from 'react'
 import {Block, BlockNoteEditor} from './blocknote'
 import {MultipleNodeSelection} from './blocknote/core/extensions/SideMenu/MultipleNodeSelection'
 import {createReactBlockSpec, useEditorSelectionChange} from './blocknote/react'
@@ -111,7 +111,10 @@ function Render(
   const entity = useEntity(queryId, {
     enabled: !!queryId,
   })
-  const directoryItems = useListDirectory(queryId)
+  const directoryItems = useListDirectory(queryId, {
+    mode: queryIncludes[0].mode,
+  })
+
   const docResults = useEntities(
     directoryItems.data?.map((item) =>
       hmId('d', item.account, {
@@ -124,16 +127,6 @@ function Render(
       enabled: !!directoryItems.data?.length || false,
     },
   )
-
-  useEffect(() => {}, [])
-
-  console.log(`== ~ directory:`, {
-    queryId,
-    queryIncludes,
-    querySort,
-    docResults,
-    entity: entity.data,
-  })
 
   function updateSelection() {
     const {view} = tiptapEditor

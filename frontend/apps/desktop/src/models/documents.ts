@@ -866,35 +866,43 @@ export function usePublishToSite() {
   }
 }
 
-export function useListDirectory(id?: UnpackedHypermediaId | null) {
+export function useListDirectory(
+  id?: UnpackedHypermediaId | null,
+  options?: {mode: 'Children' | 'AllDescendants'},
+) {
   const grpcClient = useGRPCClient()
   const prefixPath = id?.path ? '/' + id.path.join('/') : ''
-  return useQuery({
-    enabled: !!id,
-    queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.uid, prefixPath],
-    queryFn: async () => {
-      if (!id) return []
-      const res = await grpcClient.documents.listDocuments({
-        account: id.uid,
-      })
-      console.log('LIST DIRECTORY', res)
-      const docs = res.documents
-        .map(toPlainMessage)
-        .filter((doc) => {
-          return (
-            doc.path !== '/' &&
-            doc.path.startsWith(prefixPath) &&
-            doc.path !== prefixPath &&
-            doc.path.slice(1).split('/').length === (id.path?.length || 0) + 1
-          )
+  return useQuery(
+    {
+      queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.uid, prefixPath, options],
+      queryFn: async () => {
+        if (!id) return []
+        const res = await grpcClient.documents.listDocuments({
+          account: id.uid,
         })
-        .map((doc) => {
-          return {...doc, path: doc.path.slice(1).split('/')}
-        })
-      console.log('LIST DIRECTORY', docs)
-      return docs as HMDocumentListItem[]
+        console.log('LIST DIRECTORY', res)
+        const docs = res.documents
+          .map(toPlainMessage)
+          .filter((doc) => {
+            return (
+              doc.path !== '/' &&
+              doc.path.startsWith(prefixPath) &&
+              doc.path !== prefixPath &&
+              (options?.mode == 'Children'
+                ? doc.path.slice(1).split('/').length ==
+                  (id.path?.length || 0) + 1
+                : true)
+            )
+          })
+          .map((doc) => {
+            return {...doc, path: doc.path.slice(1).split('/')}
+          })
+        console.log('LIST DIRECTORY', docs)
+        return docs as HMDocumentListItem[]
+      },
     },
-  })
+    [id, options.mode],
+  )
 }
 
 export function useListSite(id?: UnpackedHypermediaId) {
