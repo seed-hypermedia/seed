@@ -36,6 +36,7 @@ export const METRIC_SERVER_HTTP_PORT =
 export const DAEMON_HOSTNAME =
   (import.meta.env && import.meta.env.VITE_DESKTOP_HOSTNAME) ||
   process.env.VITE_DESKTOP_HOSTNAME
+
 export const DESKTOP_APPDATA =
   (import.meta.env && import.meta.env.VITE_DESKTOP_APPDATA) ||
   process.env.VITE_DESKTOP_APPDATA ||
@@ -76,9 +77,8 @@ const WEB_ENV = (() => {
 export const LIGHTNING_API_URL =
   WEB_ENV.LIGHTNING_API_URL ||
   process.env.LIGHTNING_API_URL ||
-  (IS_DEV_DESKTOP
-    ? 'https://ln.testnet.seed.hyper.media'
-    : 'https://ln.seed.hyper.media')
+  (import.meta.env && import.meta.env.VITE_LIGHTNING_API_URL) ||
+  'https://ln.seed.hyper.media'
 
 export const VITE_DESKTOP_SENTRY_DSN =
   (import.meta.env && import.meta.env.VITE_DESKTOP_SENTRY_DSN) ||

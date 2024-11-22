@@ -140,6 +140,7 @@ jobs:
           VITE_DESKTOP_GRPC_PORT: "56002"
           VITE_DESKTOP_APPDATA: "Seed"
           VITE_DESKTOP_HOSTNAME: "http://localhost"
+          VITE_LIGHTNING_API_URL: "https://ln.seed.hyper.media"
           VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
           SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
           DEBUG: electron-installer-flatpak*
@@ -160,6 +161,7 @@ jobs:
           VITE_DESKTOP_GRPC_PORT: "56002"
           VITE_DESKTOP_APPDATA: "Seed"
           VITE_DESKTOP_HOSTNAME: "http://localhost"
+          VITE_LIGHTNING_API_URL: "https://ln.seed.hyper.media"
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3

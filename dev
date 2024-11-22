@@ -88,6 +88,7 @@ def main():
             os.environ[testnet_var] = "dev"
 
         os.environ["VITE_DESKTOP_APPDATA"] = "Seed.dev"
+        os.environ["VITE_LIGHTNING_API_URL"] = "https://ln.testnet.seed.hyper.media"
 
         return run("yarn desktop", args=args)
 
