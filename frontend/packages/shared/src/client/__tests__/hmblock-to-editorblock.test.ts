@@ -491,7 +491,7 @@ describe('HMBlock to EditorBlock', () => {
         id: 'foo',
         type: 'Image',
         text: ``,
-        link: 'ipfs://foobarimgcid',
+        link: 'ipfs://foobarcid_IMAGE',
         annotations: [],
         attributes: {},
         revision: 'revision123',
@@ -502,7 +502,42 @@ describe('HMBlock to EditorBlock', () => {
         type: 'image',
         children: [],
         props: {
-          url: 'ipfs://foobarimgcid',
+          url: 'ipfs://foobarcid_IMAGE',
+          revision: 'revision123',
+        },
+        content: [
+          {
+            type: 'text',
+            text: '',
+            styles: {},
+          },
+        ],
+      }
+      const val = hmBlockToEditorBlock(hmBlock)
+
+      expect(val).toEqual(result)
+    })
+
+    test('image with wrong width value should be removed', () => {
+      const hmBlock: HMBlockImage = {
+        id: 'foo',
+        type: 'Image',
+        text: ``,
+        link: 'ipfs://foobarcid_IMAGE',
+        annotations: [],
+        attributes: {
+          // @ts-expect-error
+          width: '80%',
+        },
+        revision: 'revision123',
+      }
+
+      const result: EditorImageBlock = {
+        id: 'foo',
+        type: 'image',
+        children: [],
+        props: {
+          url: 'ipfs://foobarcid_IMAGE',
           revision: 'revision123',
         },
         content: [
@@ -523,10 +558,10 @@ describe('HMBlock to EditorBlock', () => {
         id: 'foo',
         type: 'Video',
         text: ``,
-        link: 'ipfs://foobarimgcid',
+        link: 'ipfs://foobarcid_VIDEO',
         annotations: [],
         attributes: {
-          width: '240',
+          width: 240,
           name: 'test demo video',
           // size: '123456',
         },
@@ -538,8 +573,8 @@ describe('HMBlock to EditorBlock', () => {
         type: 'video',
         children: [],
         props: {
-          url: 'ipfs://foobarimgcid',
-          width: 240,
+          url: 'ipfs://foobarcid_VIDEO',
+          width: '240',
           name: 'test demo video',
           // size: 123456,
           revision: 'revision123',
@@ -562,11 +597,11 @@ describe('HMBlock to EditorBlock', () => {
         id: 'foo',
         type: 'File',
         text: ``,
-        link: 'ipfs://foobarimgcid',
+        link: 'ipfs://foobarcid_FILE',
         annotations: [],
         attributes: {
           name: 'testfile.pdf',
-          size: '123456',
+          size: 123456,
         },
         revision: 'revision123',
       }
@@ -576,9 +611,9 @@ describe('HMBlock to EditorBlock', () => {
         type: 'file',
         children: [],
         props: {
-          url: 'ipfs://foobarimgcid',
+          url: 'ipfs://foobarcid_FILE',
           name: 'testfile.pdf',
-          size: 123456,
+          size: '123456',
           revision: 'revision123',
         },
         content: [
@@ -673,7 +708,7 @@ describe('HMBlock to EditorBlock', () => {
         annotations: [],
         attributes: {
           name: 'test nostr',
-          size: '123456',
+          size: 123456,
         },
         revision: 'revision123',
       }
@@ -685,7 +720,7 @@ describe('HMBlock to EditorBlock', () => {
         props: {
           name: 'test nostr',
           url: 'nostr://foobarid',
-          size: 123456,
+          size: '123456',
           revision: 'revision123',
         },
         content: [
@@ -819,7 +854,6 @@ describe('HMBlock to EditorBlock', () => {
         children: [],
         props: {
           childrenType: 'Ordered',
-          start: '5',
           revision: 'revision123',
         },
         content: [
@@ -839,6 +873,40 @@ describe('HMBlock to EditorBlock', () => {
         annotations: [],
         attributes: {
           childrenType: 'Ordered',
+        },
+      }
+      const val = hmBlockToEditorBlock(hmBlock)
+
+      expect(val).toEqual(result)
+    })
+
+    test('Ordered with start should be removed (deprecated)', () => {
+      const result: EditorBlock = {
+        id: 'foo',
+        type: 'paragraph',
+        children: [],
+        props: {
+          childrenType: 'Ordered',
+          revision: 'revision123',
+        },
+        content: [
+          {
+            type: 'text',
+            text: 'Hello world',
+            styles: {},
+          },
+        ],
+      }
+
+      const hmBlock: HMBlock = {
+        id: 'foo',
+        type: 'Paragraph',
+        text: 'Hello world',
+        revision: 'revision123',
+        annotations: [],
+        attributes: {
+          childrenType: 'Ordered',
+          // @ts-expect-error
           start: '5',
         },
       }

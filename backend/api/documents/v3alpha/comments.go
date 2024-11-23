@@ -150,13 +150,18 @@ func (srv *Server) ListComments(ctx context.Context, in *documents.ListCommentsR
 }
 
 func commentToProto(c cid.Cid, cmt *blob.Comment) (*documents.Comment, error) {
+	content, err := commentContentToProto(cmt.Body)
+	if err != nil {
+		return nil, err
+	}
+
 	pb := &documents.Comment{
 		Id:            c.String(),
 		TargetAccount: cmt.GetSpace().String(),
 		TargetPath:    cmt.Path,
 		TargetVersion: docmodel.NewVersion(cmt.Version...).String(),
 		Author:        cmt.Signer.String(),
-		Content:       commentContentToProto(cmt.Body),
+		Content:       content,
 		CreateTime:    timestamppb.New(cmt.Ts),
 	}
 
@@ -175,20 +180,30 @@ func commentToProto(c cid.Cid, cmt *blob.Comment) (*documents.Comment, error) {
 	return pb, nil
 }
 
-func commentContentToProto(in []blob.CommentBlock) []*documents.BlockNode {
+func commentContentToProto(in []blob.CommentBlock) ([]*documents.BlockNode, error) {
 	if in == nil {
-		return nil
+		return nil, nil
 	}
 
 	out := make([]*documents.BlockNode, len(in))
 	for i, b := range in {
+		blockpb, err := docmodel.BlockToProto(b.Block, cid.Undef)
+		if err != nil {
+			return nil, err
+		}
+
+		children, err := commentContentToProto(b.Children)
+		if err != nil {
+			return nil, err
+		}
+
 		out[i] = &documents.BlockNode{
-			Block:    docmodel.BlockToProto(b.Block, cid.Undef),
-			Children: commentContentToProto(b.Children),
+			Block:    blockpb,
+			Children: children,
 		}
 	}
 
-	return out
+	return out, nil
 }
 
 func commentContentFromProto(in []*documents.BlockNode) []blob.CommentBlock {

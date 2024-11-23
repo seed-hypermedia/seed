@@ -165,6 +165,13 @@ export default function DraftPage() {
           </XStack>
         ) : null}
         {draftContent}
+        <YStack overflow="scroll" height={400} w="100%">
+          <code>
+            <pre style={{whiteSpace: 'pre-wrap'}}>
+              {JSON.stringify(data.state.context.entity?.document, null, 2)}
+            </pre>
+          </code>
+        </YStack>
       </AccessoryLayout>
     </ErrorBoundary>
   )
@@ -262,11 +269,6 @@ function DocumentEditor({
                 {editor ? (
                   <HyperMediaEditorView editable={true} editor={editor} />
                 ) : null}
-                <code>
-                  <pre style={{padding: 20, whiteSpace: 'pre-wrap'}}>
-                    {JSON.stringify(editor.topLevelBlocks, null, 2)}
-                  </pre>
-                </code>
               </Container>
             </YStack>
           </YStack>
@@ -436,7 +438,9 @@ export function DraftHeader({
   const icon = useSelector(draftActor, (s) => {
     return s.context.metadata.icon
   })
+
   const prevDoc = useSelector(draftActor, (s) => s.context.entity?.document)
+
   const input = useRef<HTMLTextAreaElement | null>(null)
 
   useShowTitleObserver(input.current)

@@ -1,6 +1,6 @@
 import {useAppContext, useGRPCClient} from '@/app-context'
 import {dispatchWizardEvent} from '@/components/create-account'
-import {createHypermediaDocLinkPlugin} from '@/editor'
+import {EditorBlock, createHypermediaDocLinkPlugin} from '@/editor'
 import {useDraft} from '@/models/accounts'
 import {useOpenUrl} from '@/open-url'
 import {slashMenuItems} from '@/slash-menu-items'
@@ -8,6 +8,7 @@ import {trpc} from '@/trpc'
 import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
 import {
+  Block,
   DEFAULT_GATEWAY_URL,
   DocumentChange,
   HMBlock,
@@ -45,12 +46,7 @@ import _, {flatMap} from 'lodash'
 import {nanoid} from 'nanoid'
 import {useEffect, useMemo, useRef} from 'react'
 import {ContextFrom, OutputFrom, fromPromise} from 'xstate'
-import {
-  BlockNoteEditor,
-  Block as EditorBlock,
-  hmBlockSchema,
-  useBlockNote,
-} from '../editor'
+import {BlockNoteEditor, hmBlockSchema, useBlockNote} from '../editor'
 import {useNavRoute} from '../utils/navigation'
 import {pathNameify} from '../utils/path'
 import {useNavigate} from '../utils/useNavigate'
@@ -191,6 +187,14 @@ export function usePublishDraft(
       const changes = compareBlocksWithMap(blocksMap, content, '')
 
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
+
+      console.log(`== ~ mutationFn: ~ changes:`, {
+        blocksMap,
+        content,
+        deleteChanges,
+        changes,
+      })
+      // return null
       if (accts.data?.length == 0) {
         dispatchWizardEvent(true)
       } else {
@@ -978,7 +982,7 @@ export function compareBlocksWithMap(
         new DocumentChange({
           op: {
             case: 'replaceBlock',
-            value: serverBlock,
+            value: Block.fromJson(serverBlock),
           },
         }),
       )
@@ -1005,7 +1009,7 @@ export function compareBlocksWithMap(
           new DocumentChange({
             op: {
               case: 'replaceBlock',
-              value: currentBlockState,
+              value: Block.fromJson(currentBlockState),
             },
           }),
         )
@@ -1071,7 +1075,7 @@ export function compareDraftWithMap(
           new DocumentChange({
             op: {
               case: 'replaceBlock',
-              value: serverBlock,
+              value: Block.fromJson(serverBlock),
             },
           }),
         )
@@ -1102,7 +1106,7 @@ export function compareDraftWithMap(
             new DocumentChange({
               op: {
                 case: 'replaceBlock',
-                value: currentBlockState,
+                value: Block.fromJson(currentBlockState),
               },
             }),
           )
@@ -1300,6 +1304,7 @@ function findDifferences(obj1, obj2) {
 function removeTrailingBlocks(
   blocks: Array<EditorBlock<typeof hmBlockSchema>>,
 ) {
+  console.log(`== ~ blocks:`, blocks)
   let trailedBlocks = [...blocks]
   while (true) {
     let lastBlock = trailedBlocks[trailedBlocks.length - 1]
