@@ -124,7 +124,7 @@ function useURLHandler() {
       //     documentId,
       //   }
     } else {
-      const result = await loadWebLinkMeta(queryClient, httpSearch)
+      const result = await loadWebLinkMeta(httpSearch)
       const parsedUrl = parseCustomURL(httpSearch)
       const fragment = parseFragment(parsedUrl?.fragment || '')
       const baseId = unpackHmId(result?.hypermedia_id)
@@ -290,46 +290,31 @@ function LauncherContent({onClose}: {onClose: () => void}) {
   }, [])
 
   let content = (
-    <YStack
-      backgroundColor={'$backgroundStrong'}
-      borderTopStartRadius={0}
-      borderTopEndRadius={0}
-      borderBottomLeftRadius={6}
-      borderBottomRightRadius={6}
-      borderColor="$color7"
-      borderWidth={1}
-      borderTopColor="$colorTransparent"
-      height={300}
-      maxHeight={600}
-      overflow="hidden"
-      elevation="$4"
-    >
-      <ScrollView minHeight={300} paddingHorizontal="$3">
-        {isDisplayingRecents ? (
-          <XStack padding={9}>
-            <SizableText fontSize={10} color="$color10">
-              RECENT DOCUMENTS
-            </SizableText>
-          </XStack>
-        ) : null}
+    <ScrollView minHeight={300} paddingHorizontal="$3">
+      {isDisplayingRecents ? (
+        <XStack padding={9}>
+          <SizableText fontSize={10} color="$color10">
+            RECENT DOCUMENTS
+          </SizableText>
+        </XStack>
+      ) : null}
 
-        {activeItems?.map((item, itemIndex) => {
-          return (
-            <LauncherItem
-              item={item}
-              key={item.key}
-              selected={focusedIndex === itemIndex}
-              onFocus={() => {
-                setFocusedIndex(itemIndex)
-              }}
-              onMouseEnter={() => {
-                setFocusedIndex(itemIndex)
-              }}
-            />
-          )
-        })}
-      </ScrollView>
-    </YStack>
+      {activeItems?.map((item, itemIndex) => {
+        return (
+          <LauncherItem
+            item={item}
+            key={item.key}
+            selected={focusedIndex === itemIndex}
+            onFocus={() => {
+              setFocusedIndex(itemIndex)
+            }}
+            onMouseEnter={() => {
+              setFocusedIndex(itemIndex)
+            }}
+          />
+        )
+      })}
+    </ScrollView>
   )
 
   if (actionPromise) {
@@ -422,8 +407,22 @@ function LauncherContent({onClose}: {onClose: () => void}) {
             />
           </XStack>
         </YStack>
-
-        {content}
+        <YStack
+          backgroundColor={'$backgroundStrong'}
+          borderTopStartRadius={0}
+          borderTopEndRadius={0}
+          borderBottomLeftRadius={6}
+          borderBottomRightRadius={6}
+          borderColor="$color7"
+          borderWidth={1}
+          borderTopColor="$colorTransparent"
+          height={300}
+          maxHeight={600}
+          overflow="hidden"
+          elevation="$4"
+        >
+          {content}
+        </YStack>
       </YStack>
     </>
   )
