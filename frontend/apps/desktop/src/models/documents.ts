@@ -1,6 +1,6 @@
 import {useAppContext, useGRPCClient} from '@/app-context'
 import {dispatchWizardEvent} from '@/components/create-account'
-import {EditorBlock, createHypermediaDocLinkPlugin} from '@/editor'
+import {createHypermediaDocLinkPlugin} from '@/editor'
 import {useDraft} from '@/models/accounts'
 import {useOpenUrl} from '@/open-url'
 import {slashMenuItems} from '@/slash-menu-items'
@@ -11,6 +11,7 @@ import {
   Block,
   DEFAULT_GATEWAY_URL,
   DocumentChange,
+  EditorBlock,
   HMBlock,
   HMBlockNode,
   HMDocument,
@@ -810,12 +811,19 @@ export function usePublishToSite() {
     id: UnpackedHypermediaId,
     siteHost?: string,
   ): Promise<boolean> => {
+    let path = hmIdPathToEntityQueryPath(id.path)
     const apiDoc = await grpcClient.documents.getDocument({
       account: id.uid,
-      path: hmIdPathToEntityQueryPath(id.path),
+      path,
       version: id.version || undefined,
     })
-    const doc = HMDocumentSchema.parse(toPlainMessage(apiDoc))
+    let res = toPlainMessage(apiDoc)
+
+    console.log(`== ~ usePublishToSite ~ res:`, res)
+    const doc = HMDocumentSchema.parse(res)
+
+    console.log(`== ~ usePublishToSite ~ doc:`, doc)
+
     const authors = new Set(doc.authors)
     await connectPeer.mutateAsync(siteHost)
     const parentPaths = getParentPaths(id.path)

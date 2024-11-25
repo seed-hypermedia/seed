@@ -54,6 +54,8 @@ async function getHMDocument(entityId: UnpackedHypermediaId) {
     path,
     version: !latest && version ? version : "",
   });
+
+  console.log(`==================== ~ getHMDocument ~ apiDoc:`, apiDoc);
   const document = HMDocumentSchema.parse(toPlainMessage(apiDoc));
   return document;
 }

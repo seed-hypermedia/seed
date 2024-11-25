@@ -435,8 +435,8 @@ export const HMDocumentSchema = z
     account: z.string().default(''),
     authors: z.array(z.string()),
     path: z.string().default(''),
-    createTime: z.string().default(''),
-    updateTime: z.string().default(''),
+    createTime: z.union([HMTimestampSchema, z.string()]).default(''),
+    updateTime: z.union([HMTimestampSchema, z.string()]).default(''),
     metadata: HMDocumentMetadataSchema,
     genesis: z.string(),
   })

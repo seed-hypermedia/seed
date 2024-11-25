@@ -189,6 +189,7 @@ function Render(
           assign(props)
         }}
       />
+
       {docResults?.length ? (
         <QueryResultItems items={docResults} />
       ) : (
@@ -229,6 +230,7 @@ function QuerySettings({
       <YStack
         position="absolute"
         zIndex="$zIndex.2"
+        bg="red"
         // pointerEvents={popoverState.open ? 'none' : undefined}
         onPress={
           popoverState.open
@@ -240,6 +242,7 @@ function QuerySettings({
         }
         y={8}
         width="100%"
+        height="100%"
         jc="flex-end"
         ai="flex-end"
         opacity={popoverState.open ? 1 : 0}

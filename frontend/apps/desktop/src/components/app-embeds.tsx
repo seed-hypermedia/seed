@@ -476,6 +476,9 @@ export function QueryBlockDesktop({
             entity={getEntity(item.path)}
             key={item.path.join('/')}
             accountsMetadata={accountsMetadata}
+            flexBasis="auto"
+            $gtSm={{flexBasis: 'auto'}}
+            $gtMd={{flexBasis: 'auto'}}
           />
         )
       })}
