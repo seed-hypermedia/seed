@@ -1,6 +1,6 @@
 import {useAppContext, useGRPCClient} from '@/app-context'
 import {dispatchWizardEvent} from '@/components/create-account'
-import {createHypermediaDocLinkPlugin} from '@/editor'
+import {EditorBlock, createHypermediaDocLinkPlugin} from '@/editor'
 import {useDraft} from '@/models/accounts'
 import {useOpenUrl} from '@/open-url'
 import {slashMenuItems} from '@/slash-menu-items'
