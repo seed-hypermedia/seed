@@ -103,6 +103,8 @@ def main():
         if testnet_var not in os.environ:
             os.environ[testnet_var] = "dev"
 
+        os.environ["VITE_LIGHTNING_API_URL"] = "https://ln.seed.hyper.media"
+
         run("VITE_DESKTOP_APPDATA=Seed.local yarn desktop:make")
 
     @cmd(cmds, "test-desktop", "Run frontend desktop tests.")
