@@ -165,13 +165,6 @@ export default function DraftPage() {
           </XStack>
         ) : null}
         {draftContent}
-        <YStack overflow="scroll" height={400} w="100%">
-          <code>
-            <pre style={{whiteSpace: 'pre-wrap'}}>
-              {JSON.stringify(data.state.context.entity?.document, null, 2)}
-            </pre>
-          </code>
-        </YStack>
       </AccessoryLayout>
     </ErrorBoundary>
   )

@@ -17,6 +17,7 @@ import {Spinner} from "@shm/ui/src/spinner";
 import {Text} from "@tamagui/core";
 import {YStack} from "@tamagui/stacks";
 import {useState} from "react";
+import {SizableText} from "tamagui";
 import {useEntity} from "./models";
 
 function EmbedWrapper({
@@ -144,4 +145,9 @@ export function EmbedDocContent(props: EntityComponentProps) {
       }
     />
   );
+}
+
+export function QueryBlockWeb(props: EntityComponentProps) {
+  console.log(`== ~ QueryBlockWeb ~ props:`, props);
+  return <SizableText>Query Block</SizableText>;
 }

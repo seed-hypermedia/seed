@@ -1,6 +1,6 @@
 import {useAppContext, useGRPCClient} from '@/app-context'
 import {dispatchWizardEvent} from '@/components/create-account'
-import {EditorBlock, createHypermediaDocLinkPlugin} from '@/editor'
+import {createHypermediaDocLinkPlugin} from '@/editor'
 import {useDraft} from '@/models/accounts'
 import {useOpenUrl} from '@/open-url'
 import {slashMenuItems} from '@/slash-menu-items'
@@ -32,6 +32,7 @@ import {
   writeableStateStream,
 } from '@shm/shared'
 import {toast} from '@shm/ui'
+import type {UseQueryResult} from '@tanstack/react-query'
 import {
   UseInfiniteQueryOptions,
   UseMutationOptions,
@@ -873,18 +874,22 @@ export function usePublishToSite() {
 export function useListDirectory(
   id?: UnpackedHypermediaId | null,
   options?: {mode: 'Children' | 'AllDescendants'},
-) {
+): UseQueryResult<Array<HMDocumentListItem>> {
   const grpcClient = useGRPCClient()
   const prefixPath = id?.path ? '/' + id.path.join('/') : ''
   return useQuery(
     {
-      queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.uid, prefixPath, options],
+      queryKey: [
+        queryKeys.DOC_LIST_DIRECTORY,
+        id?.uid,
+        prefixPath,
+        options?.mode,
+      ],
       queryFn: async () => {
         if (!id) return []
         const res = await grpcClient.documents.listDocuments({
           account: id.uid,
         })
-        console.log('LIST DIRECTORY', res)
         const docs = res.documents
           .map(toPlainMessage)
           .filter((doc) => {
@@ -901,11 +906,11 @@ export function useListDirectory(
           .map((doc) => {
             return {...doc, path: doc.path.slice(1).split('/')}
           })
-        console.log('LIST DIRECTORY', docs)
+
         return docs as HMDocumentListItem[]
       },
     },
-    [id, options.mode],
+    [id, options?.mode],
   )
 }
 

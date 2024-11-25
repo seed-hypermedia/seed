@@ -48,7 +48,7 @@ import {PageFooter} from "./page-footer";
 import {PageHeader, SiteHeader} from "./page-header";
 import {DiscussionPayload} from "./routes/hm.api.discussion";
 import {MobileSearchUI} from "./search";
-import {EmbedDocument, EmbedInline} from "./web-embeds";
+import {EmbedDocument, EmbedInline, QueryBlockWeb} from "./web-embeds";
 import {unwrap, Wrapped} from "./wrapping";
 
 export const documentPageMeta: MetaFunction = ({
@@ -312,6 +312,7 @@ function WebDocContentProvider({
         Document: EmbedDocument,
         Comment: () => null,
         Inline: EmbedInline,
+        Query: QueryBlockWeb,
       }}
       onLinkClick={(href, e) => {
         e.preventDefault();

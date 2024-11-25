@@ -1,7 +1,9 @@
 import {useAccount_deprecated} from '@/models/accounts'
+import {useListDirectory} from '@/models/documents'
 import {useEntities, useSubscribedEntity} from '@/models/entities'
 import {
   DAEMON_FILE_URL,
+  HMBlockQuery,
   UnpackedHypermediaId,
   formattedDateMedium,
   getDocumentTitle,
@@ -19,6 +21,7 @@ import {
   HMIcon,
   InlineEmbedButton,
   NewspaperCard,
+  QueryBlockPlaceholder,
   SizableText,
   UIAvatar,
   XStack,
@@ -27,6 +30,7 @@ import {
   getBlockNodeById,
   useDocContentContext,
 } from '@shm/ui'
+import {AccountsMetadata} from '@shm/ui/src/face-pile'
 import {Spinner} from '@shm/ui/src/spinner'
 import {ArrowUpRightSquare} from '@tamagui/lucide-icons'
 import {
@@ -398,5 +402,83 @@ function DocInlineEmbed(props: UnpackedHypermediaId) {
     <InlineEmbedButton id={props}>
       @{getDocumentTitle(doc.data?.document)}
     </InlineEmbedButton>
+  )
+}
+
+export function QueryBlockDesktop({
+  block,
+  id,
+}: {
+  block: HMBlockQuery
+  id: UnpackedHypermediaId
+}) {
+  const directoryItems = useListDirectory(id, {
+    mode: block.attributes.query.includes[0].mode,
+  })
+
+  const docIds =
+    directoryItems.data?.map((item) =>
+      hmId('d', item.account, {
+        path: item.path,
+        latest: true,
+      }),
+    ) || []
+
+  const authorIds = new Set<string>()
+  directoryItems.data?.forEach((item) =>
+    item.authors.forEach((authorId) => authorIds.add(authorId)),
+  )
+
+  const documents = useEntities([
+    ...docIds,
+    ...Array.from(authorIds).map((uid) => hmId('d', uid)),
+  ])
+
+  function getEntity(path: string[]) {
+    return documents?.find(
+      (document) => document.data?.id?.path?.join('/') === path?.join('/'),
+    )?.data
+  }
+
+  const accountsMetadata: AccountsMetadata = documents
+
+    .map((document) => {
+      const d = document.data
+      if (!d || !d.document) return null
+      if (d.id.path && d.id.path.length !== 0) return null
+      return {
+        id: d.id,
+        metadata: d.document.metadata,
+      }
+    })
+    .filter((m) => !!m)
+
+  console.log(`== ~ accountsMetadata:`, accountsMetadata)
+
+  if (directoryItems.status == 'loading') {
+    return (
+      <XStack className="block-query" w="100%" data-content-type="query">
+        <QueryBlockPlaceholder styleType={block.attributes?.style} />
+      </XStack>
+    )
+  }
+
+  return (
+    <YStack f={1}>
+      {directoryItems.data?.map((item) => {
+        const id = hmId('d', item.account, {
+          path: item.path,
+          latest: true,
+        })
+        return (
+          <NewspaperCard
+            id={id}
+            entity={getEntity(item.path)}
+            key={item.path.join('/')}
+            accountsMetadata={accountsMetadata}
+          />
+        )
+      })}
+    </YStack>
   )
 }

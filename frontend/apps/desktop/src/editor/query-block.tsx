@@ -23,7 +23,6 @@ import {useEntities, useEntity} from '@/models/entities'
 import {
   EditorQueryBlock,
   HMBlockQuery,
-  HMEntityContent,
   hmId,
   NavRoute,
   UnpackedHypermediaId,

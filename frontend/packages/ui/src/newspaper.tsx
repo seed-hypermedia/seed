@@ -9,7 +9,7 @@ import {
   useRouteLink,
 } from "@shm/shared";
 import {View} from "@tamagui/core";
-import {XStack, YStack} from "@tamagui/stacks";
+import {XStack, YStack, YStackProps} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import {useMemo} from "react";
 import {AccountsMetadata, FacePile} from "./face-pile";
@@ -162,7 +162,8 @@ export function NewspaperCard({
   entity,
   accountsMetadata,
   isWeb = false,
-}: {
+  ...props
+}: YStackProps & {
   id: UnpackedHypermediaId;
   entity: HMEntityContent | null | undefined;
   accountsMetadata: AccountsMetadata;
@@ -194,6 +195,7 @@ export function NewspaperCard({
       //     //   navigate({key: 'document', id})
       //   }}
       {...linkProps}
+      {...props}
     >
       <NewspaperCardImage document={entity.document} />
       <NewspaperCardContent entity={entity} />
