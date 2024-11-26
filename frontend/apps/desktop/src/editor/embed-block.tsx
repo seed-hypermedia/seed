@@ -40,11 +40,11 @@ import {ChevronRight} from '@tamagui/lucide-icons'
 import {Fragment} from '@tiptap/pm/model'
 import {useCallback, useEffect, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
-import {Block, BlockNoteEditor, HMBlockSchema, SwitcherItem} from '.'
+import {Block, BlockNoteEditor, HMBlockSchema} from '.'
 import {createReactBlockSpec} from './blocknote/react'
 import {HypermediaLinkForm} from './hm-link-form'
 import {HypermediaLinkSwitchToolbar} from './hm-link-switch-toolbar'
-import {LauncherItem} from './launcher-item'
+import {LauncherItem, SwitcherItem} from './launcher-item'
 import {MediaContainer} from './media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
 
@@ -324,13 +324,9 @@ function EmbedControl({
     editor: BlockNoteEditor
     type: string
     isSeedDocument?: boolean
+    isFocused: boolean
+    setIsFocused: (focused: boolean) => void
   }) {
-    // useEffect(() => {
-    //   if (!popoverState.open) {
-    //     props.onClose(false)
-    //   }
-    // }, [popoverState.open])
-
     return (
       <YStack
         paddingVertical="$4"
@@ -341,8 +337,6 @@ function EmbedControl({
         bg="$backgroundFocus"
         elevation="$3"
         zIndex="$zIndex.5"
-        // bottom="0"
-        // position="absolute"
       >
         <SizableText fontWeight="700">Embed settings</SizableText>
         <HypermediaLinkForm
@@ -354,6 +348,8 @@ function EmbedControl({
           type={props.type}
           hasSearch={true}
           isSeedDocument={props.isSeedDocument}
+          isFocused={props.isFocused}
+          setIsFocused={props.setIsFocused}
         >
           <>
             {/* {hasBlockRef ? (
@@ -563,7 +559,7 @@ function EmbedControl({
       position="absolute"
       x={0}
       y={0}
-      zIndex="$zIndex.5"
+      zIndex="$zIndex.4"
       width="100%"
       height="100%"
       ai="flex-start"

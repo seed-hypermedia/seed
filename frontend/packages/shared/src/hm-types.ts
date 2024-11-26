@@ -295,6 +295,7 @@ export const HMBlockButtonSchema = z
       .object({
         ...parentBlockAttributes,
         name: z.string().optional(),
+        alignment: z.string().optional(), // button alignment, as a string
       })
       .optional()
       .default({}),
