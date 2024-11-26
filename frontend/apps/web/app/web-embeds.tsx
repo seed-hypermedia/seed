@@ -2,6 +2,7 @@ import {useNavigate} from "@remix-run/react";
 import {
   createWebHMUrl,
   getDocumentTitle,
+  HMBlockQuery,
   hmId,
   UnpackedHypermediaId,
 } from "@shm/shared";
@@ -17,8 +18,7 @@ import {Spinner} from "@shm/ui/src/spinner";
 import {Text} from "@tamagui/core";
 import {YStack} from "@tamagui/stacks";
 import {useState} from "react";
-import {SizableText} from "tamagui";
-import {useEntity} from "./models";
+import {useDirectory, useEntity} from "./models";
 
 function EmbedWrapper({
   id,
@@ -147,7 +147,14 @@ export function EmbedDocContent(props: EntityComponentProps) {
   );
 }
 
-export function QueryBlockWeb(props: EntityComponentProps) {
-  console.log(`== ~ QueryBlockWeb ~ props:`, props);
-  return <SizableText>Query Block</SizableText>;
+export function QueryBlockWeb(props: {
+  id: UnpackedHypermediaId;
+  block: HMBlockQuery;
+}) {
+  const directoryItems = useDirectory({id: props.id});
+
+  console.log(`========== ~ QueryBlockWeb ~ directoryItems:`, directoryItems);
+  return (
+    <Text whiteSpace="pre-wrap">{JSON.stringify(directoryItems, null, 2)}</Text>
+  );
 }

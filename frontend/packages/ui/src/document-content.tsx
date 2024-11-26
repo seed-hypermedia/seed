@@ -581,6 +581,12 @@ export function BlockNodeContent({
     return null;
   }
 
+  const isMediablock = useMemo(() => {
+    return ["Image", "Video", "File", "Embed", "WebEmbed", "Query"].includes(
+      blockNode.block!.type
+    );
+  }, [blockNode.block]);
+
   return (
     <YStack
       ref={elm}
@@ -633,7 +639,6 @@ export function BlockNodeContent({
               top={
                 ["Unordered", "Ordered"].includes(childrenType) ? 12 : undefined
               }
-              bg="$background"
               opacity={_expanded ? 0 : 1}
               hoverStyle={{
                 opacity: 1,
@@ -673,6 +678,9 @@ export function BlockNodeContent({
           </Tooltip>
         ) : null}
         <XStack
+          position={isMediablock ? "absolute" : "relative"}
+          right={isMediablock ? 8 : undefined}
+          top={isMediablock ? 8 : undefined}
           pl="$2"
           borderRadius={layoutUnit / 4}
           gap="$2"
@@ -699,6 +707,7 @@ export function BlockNodeContent({
                 borderRadius={layoutUnit / 4}
                 // theme="blue"
                 onPress={() => onCitationClick?.()}
+                bg="$background"
               >
                 <XStack gap="$2" ai="center">
                   {/* <BlockQuote size={layoutUnit / 2} color="$blue11" />  TODO FIX ME*/}
@@ -721,6 +730,7 @@ export function BlockNodeContent({
                     borderRadius={layoutUnit / 4}
                     chromeless
                     icon={Link}
+                    bg="$background"
                     onPress={() => {
                       if (blockNode.block?.id) {
                         onCopyBlock(blockNode.block.id, {expanded: true});
@@ -743,6 +753,7 @@ export function BlockNodeContent({
                     borderRadius={layoutUnit / 4}
                     chromeless
                     icon={Reply}
+                    bg="$background"
                     onPress={() => {
                       if (blockNode.block?.id) {
                         onReplyBlock(blockNode.block.id);
@@ -765,6 +776,7 @@ export function BlockNodeContent({
                     borderRadius={layoutUnit / 4}
                     chromeless
                     icon={MessageSquare}
+                    bg="$background"
                     onPress={() => {
                       if (blockNode.block?.id) {
                         onBlockComment(blockNode.block.id);

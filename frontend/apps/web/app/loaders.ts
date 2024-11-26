@@ -43,7 +43,7 @@ export type WebBaseDocumentPayload = {
 };
 
 export type WebDocumentPayload = WebBaseDocumentPayload & {
-  breadcrumbs: {id: UnpackedHypermediaId; metadata: HMMetadata}[];
+  breadcrumbs: Array<{id: UnpackedHypermediaId; metadata: HMMetadata}>;
 };
 
 async function getHMDocument(entityId: UnpackedHypermediaId) {
@@ -55,8 +55,7 @@ async function getHMDocument(entityId: UnpackedHypermediaId) {
     version: !latest && version ? version : "",
   });
 
-  console.log(`==================== ~ getHMDocument ~ apiDoc:`, apiDoc);
-  const document = HMDocumentSchema.parse(toPlainMessage(apiDoc));
+  const document = HMDocumentSchema.parse(apiDoc.toJson());
   return document;
 }
 

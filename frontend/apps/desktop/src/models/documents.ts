@@ -817,12 +817,8 @@ export function usePublishToSite() {
       path,
       version: id.version || undefined,
     })
-    let res = toPlainMessage(apiDoc)
 
-    console.log(`== ~ usePublishToSite ~ res:`, res)
-    const doc = HMDocumentSchema.parse(res)
-
-    console.log(`== ~ usePublishToSite ~ doc:`, doc)
+    const doc = HMDocumentSchema.parse(apiDoc.toJson())
 
     const authors = new Set(doc.authors)
     await connectPeer.mutateAsync(siteHost)

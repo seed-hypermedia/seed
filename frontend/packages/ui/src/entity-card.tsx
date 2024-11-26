@@ -41,7 +41,8 @@ export function EntityCardPlaceholder() {
       flexGrow={0}
       flexShrink={0}
       flexBasis="100%"
-      $gtSm={{flexBasis: "33.33%"}}
+      $gtSm={{flexBasis: "50%"}}
+      $gtMd={{flexBasis: "33.33%"}}
       p="$2"
     >
       <YStack

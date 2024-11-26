@@ -26,6 +26,7 @@ import {
   UIAvatar,
   XStack,
   YStack,
+  YStackProps,
   blockStyles,
   getBlockNodeById,
   useDocContentContext,
@@ -440,6 +441,29 @@ export function QueryBlockDesktop({
     )?.data
   }
 
+  const columnProps = useMemo(() => {
+    switch (block.attributes.columnCount) {
+      case 2:
+        return {
+          flexBasis: '100%',
+          $gtSm: {flexBasis: '50%'},
+          $gtMd: {flexBasis: '50%'},
+        } as YStackProps
+      case 3:
+        return {
+          flexBasis: '100%',
+          $gtSm: {flexBasis: '50%'},
+          $gtMd: {flexBasis: '33.333%'},
+        } as YStackProps
+      default:
+        return {
+          flexBasis: '100%',
+          $gtSm: {flexBasis: '100%'},
+          $gtMd: {flexBasis: '100%'},
+        } as YStackProps
+    }
+  }, [block.attributes.columnCount])
+
   const accountsMetadata: AccountsMetadata = documents
 
     .map((document) => {
@@ -464,24 +488,26 @@ export function QueryBlockDesktop({
   }
 
   return (
-    <YStack f={1}>
+    <XStack f={1} flexWrap="wrap" marginHorizontal="$-3">
       {directoryItems.data?.map((item) => {
         const id = hmId('d', item.account, {
           path: item.path,
           latest: true,
         })
         return (
-          <NewspaperCard
-            id={id}
-            entity={getEntity(item.path)}
-            key={item.path.join('/')}
-            accountsMetadata={accountsMetadata}
-            flexBasis="auto"
-            $gtSm={{flexBasis: 'auto'}}
-            $gtMd={{flexBasis: 'auto'}}
-          />
+          <YStack {...columnProps} p="$3">
+            <NewspaperCard
+              id={id}
+              entity={getEntity(item.path)}
+              key={item.path.join('/')}
+              accountsMetadata={accountsMetadata}
+              flexBasis="100%"
+              $gtSm={{flexBasis: '100%'}}
+              $gtMd={{flexBasis: '100%'}}
+            />
+          </YStack>
         )
       })}
-    </YStack>
+    </XStack>
   )
 }

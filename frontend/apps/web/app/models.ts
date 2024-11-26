@@ -3,6 +3,7 @@ import {packHmId, UnpackedHypermediaId} from "@shm/shared";
 import {useEffect} from "react";
 import {WebBaseDocumentPayload} from "./loaders";
 import {HMDocumentChangeInfo} from "./routes/hm.api.changes";
+import {DirectoryPayload} from "./routes/hm.api.directory";
 import {unwrap} from "./wrapping";
 
 export function useEntity(id: UnpackedHypermediaId | undefined) {
@@ -22,6 +23,29 @@ export function useEntity(id: UnpackedHypermediaId | undefined) {
 
   return {
     data: fetcher.data ? unwrap<WebBaseDocumentPayload>(fetcher.data) : null,
+    isLoading: fetcher.state === "loading",
+  };
+}
+
+export function useDirectory({id}: {id: UnpackedHypermediaId}) {
+  const fetcher = useFetcher();
+  useEffect(() => {
+    if (!id?.uid) return;
+    const queryString = new URLSearchParams({
+      v: id.version || "",
+      l: id.latest ? "true" : "",
+    }).toString();
+    const url = `/hm/api/directory/${id.uid}${
+      id.path ? `/${id.path.join("/")}` : ""
+    }?${queryString}`;
+
+    console.log(`========== ~ useDirectory ~ url:`, url);
+
+    fetcher.load(url);
+  }, [id?.uid, id?.path?.join("/"), id?.version, id?.latest]);
+
+  return {
+    data: fetcher.data ? unwrap<Array<DirectoryPayload>>(fetcher.data) : null,
     isLoading: fetcher.state === "loading",
   };
 }

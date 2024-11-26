@@ -14,6 +14,7 @@ import {
   View,
   XStack,
   YStack,
+  YStackProps,
 } from '@shm/ui'
 import {Fragment} from '@tiptap/pm/model'
 
@@ -127,6 +128,40 @@ function Render(
     },
   )
 
+  const columnProps = useMemo(() => {
+    switch (block.props.columnCount) {
+      case '2':
+        return {
+          flexBasis: '100%',
+          $gtSm: {flexBasis: '50%'},
+          $gtMd: {flexBasis: '50%'},
+        } as YStackProps
+      case '3':
+        return {
+          flexBasis: '100%',
+          $gtSm: {flexBasis: '50%'},
+          $gtMd: {flexBasis: '33.333%'},
+        } as YStackProps
+      default:
+        return {
+          flexBasis: '100%',
+          $gtSm: {flexBasis: '100%'},
+          $gtMd: {flexBasis: '100%'},
+        } as YStackProps
+    }
+  }, [block.props])
+
+  useEditorSelectionChange(editor, updateSelection)
+
+  const assign = useCallback(
+    (props: Partial<EditorQueryBlock['props']>) => {
+      console.log('ASSIGN', props)
+      // @ts-ignore because we have literal string values here that should be ok.
+      editor.updateBlock(block.id, {props})
+    },
+    [editor, block.id],
+  )
+
   function updateSelection() {
     const {view} = tiptapEditor
     const {selection} = view.state
@@ -156,17 +191,6 @@ function Render(
     setSelected(isSelected)
   }
 
-  useEditorSelectionChange(editor, updateSelection)
-
-  const assign = useCallback(
-    (props: Partial<EditorQueryBlock['props']>) => {
-      console.log('ASSIGN', props)
-      // @ts-ignore because we have literal string values here that should be ok.
-      editor.updateBlock(block.id, {props})
-    },
-    [editor, block.id],
-  )
-
   return (
     <YStack
       // @ts-ignore
@@ -191,7 +215,23 @@ function Render(
       />
 
       {docResults?.length ? (
-        <QueryResultItems items={docResults} />
+        <XStack f={1} flexWrap="wrap" marginHorizontal="$-3">
+          {docResults
+            .filter((item) => !!item.data)
+            .map((item) => (
+              <XStack {...columnProps} p="$3">
+                <NewspaperCard
+                  id={item.data.id}
+                  entity={item.data}
+                  key={item.data.id.id}
+                  accountsMetadata={[]}
+                  flexBasis="100%"
+                  $gtSm={{flexBasis: '100%'}}
+                  $gtMd={{flexBasis: '100%'}}
+                />
+              </XStack>
+            ))}
+        </XStack>
       ) : (
         <QueryBlockPlaceholder
           styleType={block.props.style as 'Card' | 'List'}
@@ -230,7 +270,6 @@ function QuerySettings({
       <YStack
         position="absolute"
         zIndex="$zIndex.2"
-        bg="red"
         // pointerEvents={popoverState.open ? 'none' : undefined}
         onPress={
           popoverState.open
@@ -243,7 +282,7 @@ function QuerySettings({
         y={8}
         width="100%"
         height="100%"
-        jc="flex-end"
+        jc="flex-start"
         ai="flex-end"
         opacity={popoverState.open ? 1 : 0}
         padding="$2"
@@ -348,6 +387,35 @@ function QuerySettings({
                   },
                 ]}
               />
+              <SelectField
+                size="$2"
+                value={block.props.columnCount}
+                onValue={(value) => {
+                  onValuesChange({
+                    id: null,
+                    props: {
+                      ...block.props,
+                      columnCount: value as '1' | '2' | '3',
+                    },
+                  })
+                }}
+                label="Columns"
+                id="columns"
+                options={[
+                  {
+                    label: '1',
+                    value: '1',
+                  },
+                  {
+                    label: '2',
+                    value: '2',
+                  },
+                  {
+                    label: '3',
+                    value: '3',
+                  },
+                ]}
+              />
             </YStack>
           </>
         ) : null}
@@ -443,13 +511,5 @@ function QuerySearch({
 }
 
 function QueryResultItems({items}: {items: Array<{data: HMEntityContent}>}) {
-  return items
-    .filter((item) => !!item.data)
-    .map((item) => (
-      <NewspaperCard
-        id={item.data.id}
-        entity={item.data}
-        accountsMetadata={[]}
-      />
-    ))
+  return <></>
 }
