@@ -16,7 +16,12 @@ import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
-import {HMDraft, invalidateQueries, UnpackedHypermediaId} from '@shm/shared'
+import {
+  HMDraft,
+  HMEntityContent,
+  invalidateQueries,
+  UnpackedHypermediaId,
+} from '@shm/shared'
 import {OptionsDropdown, toast} from '@shm/ui'
 import {FileInput, FolderInput} from '@tamagui/lucide-icons'
 import {Extension} from '@tiptap/core'
@@ -106,10 +111,60 @@ export function ImportDropdownButton({
       },
     })
 
-    const pathCounter: {[key: string]: number} = {}
-
     // const subDirs: string[] = []
 
+    toast.promise(
+      ImportDocumentsWithFeedback(
+        id,
+        createDraft,
+        signingAccount,
+        documents,
+        docMap,
+        editor,
+      ),
+      {
+        loading: 'Importing documents...',
+        success: `Imported ${documents.length} documents.`,
+        error: (err) => `Failed to import documents: ${err.message}`,
+      },
+    )
+  }
+
+  return (
+    <>
+      <OptionsDropdown
+        button={button}
+        menuItems={[
+          {
+            key: 'file',
+            label: 'Import Markdown File',
+            onPress: () => importDocuments('file'),
+            icon: FileInput,
+          },
+          {
+            key: 'directory',
+            label: 'Import Markdown Folder',
+            onPress: () => importDocuments('directory'),
+            icon: FolderInput,
+          },
+        ]}
+      />
+
+      {importDialog.content}
+    </>
+  )
+}
+
+const ImportDocumentsWithFeedback = (
+  id: UnpackedHypermediaId,
+  createDraft: any,
+  signingAccount: HMEntityContent | null | undefined,
+  documents: ImportedDocument[],
+  docMap: Map<string, {name: string; path: string}>,
+  editor: BlockNoteEditor,
+) => {
+  const pathCounter: {[key: string]: number} = {}
+  return new Promise(async (resolve, reject) => {
     try {
       for (const {markdownContent, title, directoryPath} of documents) {
         let {data: frontmatter, content: markdown} = matter(markdownContent)
@@ -238,36 +293,13 @@ export function ImportDropdownButton({
           draft: inputData,
         })
       }
+      resolve(`Imported ${documents.length} documents.`)
 
       invalidateQueries(['trpc.drafts.list'])
       invalidateQueries(['trpc.drafts.listAccount'])
     } catch (error) {
       console.error('Error importing documents:', error)
-      toast.error(`Import error: ${error.message || error}`)
+      reject(error)
     }
-  }
-
-  return (
-    <>
-      <OptionsDropdown
-        button={button}
-        menuItems={[
-          {
-            key: 'file',
-            label: 'Import Markdown File',
-            onPress: () => importDocuments('file'),
-            icon: FileInput,
-          },
-          {
-            key: 'directory',
-            label: 'Import Markdown Folder',
-            onPress: () => importDocuments('directory'),
-            icon: FolderInput,
-          },
-        ]}
-      />
-
-      {importDialog.content}
-    </>
-  )
+  })
 }
