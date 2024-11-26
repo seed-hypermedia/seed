@@ -296,13 +296,19 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         ? this.hyperlinkMarkRange.from
         : this.pmView.state.selection.from
       const $pos = state.doc.resolve(pos)
+      let offset = 0
+      $pos.parent.descendants((node, pos) => {
+        if (
+          node.type.name === 'inline-embed' &&
+          node.attrs.link === this.hyperlinkToolbarState!.url
+        ) {
+          offset = pos
+        }
+      })
       tr = tr.replaceRangeWith(
-        $pos.start() - 1,
-        $pos.end(),
-        state.schema.nodes['paragraph'].createAndFill(
-          null,
-          state.schema.text(this.hyperlinkToolbarState.text),
-        )!,
+        $pos.start() + offset,
+        $pos.start() + offset + 1,
+        state.schema.text(this.hyperlinkToolbarState.text),
       )
       // tr = tr.setNodeMarkup(pos, state.schema.nodes['paragraph'])
       this.pmView.dispatch(tr)
