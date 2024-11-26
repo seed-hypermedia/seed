@@ -101,7 +101,16 @@ function DonateDialog({
       <DonateForm
         authors={authors}
         allowed={allowed}
-        onInvoice={setOpenInvoice}
+        onInvoice={(invoice) => {
+          setOpenInvoice(invoice);
+          sendWeblnPayment(invoice.payload)
+            .then(() => {
+              console.log("Payment sent: ", invoice.payload, invoice.hash);
+            })
+            .catch((e) => {
+              console.error("Error sending webln payment", e);
+            });
+        }}
         docId={docId}
       />
     );
@@ -265,10 +274,6 @@ function DonateForm({
                 })
               ),
               docId,
-            })
-            .then(async (invoice) => {
-              await sendWeblnPayment(invoice.payload);
-              return invoice;
             })
             .then((invoice) => {
               onInvoice(invoice);
