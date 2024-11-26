@@ -1,6 +1,12 @@
 import {Button, SizableText, XStack} from '@shm/ui'
 import {useLayoutEffect, useRef} from 'react'
-import {SwitcherItem} from './editor-types'
+
+export type SwitcherItem = {
+  key: string
+  title: string
+  subtitle?: string
+  onSelect: () => void
+}
 
 export function LauncherItem({
   item,

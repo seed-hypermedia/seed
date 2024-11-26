@@ -37,27 +37,32 @@ export function HypermediaLinkSwitchToolbar(
       editor: BlockNoteEditor
       type: string
       isSeedDocument: boolean
+      isFocused: boolean
+      setIsFocused: (focused: boolean) => void
     }>
     type: string
   },
 ) {
   const [isEditing, setIsEditing] = useState(false)
+  const [isFocused, setIsFocused] = useState(isEditing)
   const {editComponent: EditComponent} = props
   const unpackedRef = useMemo(() => unpackHmId(props.url), [props.url])
 
   useEffect(() => {
-    if (props.stopEditing && isEditing) {
+    if (props.stopEditing && isEditing && !isFocused) {
       setIsEditing(false)
     }
-  }, [props.stopEditing, isEditing])
+  }, [props.stopEditing, isEditing, isFocused])
 
   return (
-    <XStack>
+    <XStack zIndex="$zIndex.4">
       {isEditing ? (
         // Render the form when in editing mode
         <EditComponent
           onClose={() => setIsEditing(false)}
           isSeedDocument={unpackedRef ? true : false}
+          isFocused={isFocused}
+          setIsFocused={setIsFocused}
           {...props}
         />
       ) : (
@@ -78,7 +83,10 @@ export function HypermediaLinkSwitchToolbar(
           <LinkSwitchButton
             tooltipText={`Edit ${props.type}`}
             icon={Pencil}
-            onPress={() => setIsEditing(true)}
+            onPress={() => {
+              setIsFocused(true)
+              setIsEditing(true)
+            }}
             active={false}
           />
           <LinkSwitchButton

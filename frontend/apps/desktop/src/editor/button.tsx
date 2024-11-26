@@ -31,7 +31,7 @@ export const ButtonBlock = createReactBlockSpec({
     name: {
       default: '',
     },
-    width: {
+    alignment: {
       default: '',
     },
     defaultOpen: {
@@ -50,12 +50,14 @@ export const ButtonBlock = createReactBlockSpec({
   }) => Render(block, editor),
 })
 
+type ButtonAlignment = 'flex-start' | 'center' | 'flex-end'
+
 export type ButtonType = {
   id: string
   props: {
     url: string
     name: string
-    width?: string
+    alignment?: string
   }
   children: []
   content: []
@@ -69,30 +71,28 @@ const Render = (
   const popoverState = usePopoverState()
   // const [focused, setFocused] = useState(false)
   // const [sizing, setSizing] = useState('hug-content')
-  const [alignment, setAlignment] = useState<
-    'flex-start' | 'center' | 'flex-end'
-  >('flex-start')
-  const [buttonText, setButtonText] = useState(
-    block.props.name || 'Button Label',
+  const [alignment, setAlignment] = useState<ButtonAlignment>(
+    (block.props.alignment as ButtonAlignment) || 'flex-start',
   )
+  // const [buttonText, setButtonText] = useState(
+  //   block.props.name || 'Button Label',
+  // )
   // const sizingOptions = [
   //   {value: 'hug-content', label: 'Hug content'},
   //   {value: 'fill-width', label: 'Fill width'},
   // ]
-  const [link, setLink] = useState(block.props.url)
+  // const [link, setLink] = useState(block.props.url)
   const openUrl = useOpenUrl()
 
-  const assign = (newFile: ButtonType) => {
+  const assign = (newProps: ButtonType) => {
     editor.updateBlock(block.id, {
-      props: {...block.props, ...newFile.props},
+      props: {...block.props, ...newProps.props},
     })
   }
 
   function ButtonEditForm(props: any) {
     return (
       <YStack
-        // flexDirection="column"
-        // marginTop="$2"
         gap="$3"
         padding="$5"
         width={300}
@@ -104,7 +104,10 @@ const Render = (
           <Label fontWeight="300">Alignment</Label>
           <XStack gap="$3">
             <Button
-              onPress={() => setAlignment('flex-start')}
+              onPress={() => {
+                setAlignment('flex-start')
+                assign({props: {alignment: 'flex-start'}} as ButtonType)
+              }}
               borderColor="$brand5"
               backgroundColor={
                 alignment === 'flex-start' ? '$brand5' : '$colorTransparent'
@@ -113,7 +116,10 @@ const Render = (
               <AlignLeft />
             </Button>
             <Button
-              onPress={() => setAlignment('center')}
+              onPress={() => {
+                setAlignment('center')
+                assign({props: {alignment: 'center'}} as ButtonType)
+              }}
               borderColor="$brand5"
               backgroundColor={
                 alignment === 'center' ? '$brand5' : '$colorTransparent'
@@ -122,7 +128,10 @@ const Render = (
               <AlignCenter />
             </Button>
             <Button
-              onPress={() => setAlignment('flex-end')}
+              onPress={() => {
+                setAlignment('flex-end')
+                assign({props: {alignment: 'flex-end'}} as ButtonType)
+              }}
               borderColor="$brand5"
               backgroundColor={
                 alignment === 'flex-end' ? '$brand5' : '$colorTransparent'
@@ -134,18 +143,17 @@ const Render = (
         </YStack>
         <YStack gap="$0.5">
           <HypermediaLinkForm
-            url={link}
-            text={buttonText}
-            editLink={(url: string, text: string) => {
-              setLink(url)
-              setButtonText(text)
-              assign({props: {url: url, name: text}} as ButtonType)
-            }}
-            updateLink={(url: string, text: string) => {}}
-            openUrl={openUrl}
-            type="button"
+            url={props.url}
+            text={props.text}
+            editLink={props.editHyperlink}
+            updateLink={props.updateHyperlink}
+            openUrl={props.openUrl}
+            type={props.type}
             hasName={true}
+            hasSearch={true}
             isSeedDocument={props.isSeedDocument}
+            isFocused={props.isFocused}
+            setIsFocused={props.setIsFocused}
           />
         </YStack>
       </YStack>
@@ -172,12 +180,9 @@ const Render = (
               <Button
                 data-type="hm-button"
                 borderWidth={1}
-                // borderRadius={1}
                 bc="$brand10"
                 size="$3"
                 width="100%"
-                // maxWidth="80%"
-                // px="$2"
                 p="$2"
                 fontSize="$4"
                 justifyContent="center"
@@ -189,42 +194,26 @@ const Render = (
                 </SizableText>
               </Button>
             </Popover.Trigger>
-            <Popover.Content size="$0">
+            <Popover.Content size="$0" zIndex="$zIndex.8">
               <YStack marginBottom="$2">
                 <HypermediaLinkSwitchToolbar
-                  url={link}
-                  text={buttonText}
+                  url={block.props.url}
+                  text={block.props.name}
                   editHyperlink={(url: string, text: string) => {
-                    setLink(url)
-                    setButtonText(text)
                     assign({props: {url: url, name: text}} as ButtonType)
                   }}
-                  // editHyperlink={() => {}}
-                  // updateHyperlink={(url: string, text: string) => {
-                  //   setLink(url)
-                  //   setButtonText(text)
-                  //   assign({props: {url: url, name: text}} as ButtonType)
-                  // }}
-                  updateHyperlink={() => {}}
+                  updateHyperlink={(url: string, text: string) => {
+                    // assign({props: {url: url, name: text}} as ButtonType)
+                  }}
                   deleteHyperlink={() => {
-                    setLink('')
                     assign({props: {url: ''}} as ButtonType)
                   }}
                   startHideTimer={() => {}}
                   stopHideTimer={() => {}}
                   resetHyperlink={() => {}}
-                  onChangeLink={(key: 'url' | 'text', value: string) => {
-                    if (key == 'text') {
-                      setButtonText(value)
-                    } else {
-                      setLink(value)
-                    }
-                  }}
+                  onChangeLink={() => {}}
                   openUrl={openUrl}
                   editor={editor}
-                  // onClose={(open: boolean) => {
-                  //   popoverState.onOpenChange(open)
-                  // }}
                   stopEditing={false}
                   editComponent={ButtonEditForm}
                   type="button"

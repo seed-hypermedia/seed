@@ -14,9 +14,8 @@ import {
 } from '@shm/ui'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
-import {SwitcherItem} from './editor-types'
 import './hm-link-form.css'
-import {LauncherItem} from './launcher-item'
+import {LauncherItem, SwitcherItem} from './launcher-item'
 
 export type HypermediaLinkFormProps = {
   children?: ReactNode
@@ -27,6 +26,8 @@ export type HypermediaLinkFormProps = {
   editLink: (url: string, text: string) => void
   openUrl: (url?: string | undefined, newWindow?: boolean | undefined) => void
   isSeedDocument?: boolean
+  isFocused: boolean
+  setIsFocused: (focused: boolean) => void
   hasName?: boolean
   hasSearch?: boolean
 }
@@ -44,7 +45,18 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
   }
 
   return (
-    <YStack gap="$1.5">
+    <YStack
+      gap="$1.5"
+      zIndex="$zIndex.5"
+      onMouseEnter={(e) => {
+        e.stopPropagation()
+        if (!props.isFocused) props.setIsFocused(true)
+      }}
+      onMouseLeave={(e) => {
+        e.stopPropagation()
+        props.setIsFocused(false)
+      }}
+    >
       {props.hasName && (
         <XStack
           paddingHorizontal="$2"
@@ -62,14 +74,13 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
             unstyled
             flex={1}
             size={formSize}
-            placeholder="Link text"
+            placeholder={`${props.type} text`}
             id="link-text"
-            key={props.text}
             value={_text}
             onKeyPress={handleKeydown}
             onChangeText={(val) => {
               setText(val)
-              props.updateLink(props.url, val)
+              props.updateLink(_url, val)
             }}
           />
         </XStack>
@@ -90,6 +101,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
           <SearchInput
             updateLink={props.editLink}
             link={_url}
+            text={_text}
             setLink={setUrl}
             title={props.type === 'mention' ? true : false}
           />
@@ -111,12 +123,11 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
             unstyled
             flex={1}
             size="$2"
-            key={props.url}
             value={_url}
             onKeyPress={handleKeydown}
             onChangeText={(val) => {
               setUrl(val)
-              props.updateLink(val, props.text)
+              props.updateLink(val, _text)
             }}
           />
         </XStack>
@@ -134,11 +145,13 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
 const SearchInput = ({
   updateLink,
   link,
+  text,
   setLink,
   title,
 }: {
   updateLink: (url: string, text: string) => void
   link: string
+  text: string
   setLink: any
   title: boolean
 }) => {
@@ -210,7 +223,7 @@ const SearchInput = ({
       display={focused ? 'flex' : 'none'}
       gap="$2"
       elevation={2}
-      opacity={1}
+      opacity={activeItems.length > 0 ? 1 : 0}
       paddingVertical="$3"
       paddingHorizontal="$3"
       backgroundColor={'$backgroundHover'}
@@ -230,7 +243,7 @@ const SearchInput = ({
       left={inputPosition ? inputPosition.left - 30 : 0}
       maxHeight={500}
       overflow="scroll"
-      zIndex={99999}
+      zIndex="$zIndex.9"
     >
       {isDisplayingRecents ? (
         <SizableText color="$color10" marginHorizontal="$4">
@@ -274,18 +287,24 @@ const SearchInput = ({
         value={search}
         onChangeText={(text: string) => {
           setSearch(text)
+          setLink(text)
         }}
         placeholder="Open Seed Document..."
         // disabled={!!actionPromise}
         onKeyPress={(e: any) => {
           if (e.nativeEvent.key === 'Escape') {
             setFocused(false)
+            e.preventDefault()
+            updateLink(link, text)
             return
           }
           if (e.nativeEvent.key === 'Enter') {
             const item = activeItems[focusedIndex]
             if (item) {
               item.onSelect()
+            } else {
+              e.preventDefault()
+              updateLink(link, text)
             }
           }
           if (e.nativeEvent.key === 'ArrowDown') {

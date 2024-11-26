@@ -146,6 +146,8 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     if (editorBlock.props.url) blockButton.link = editorBlock.props.url
     if (editorBlock.props.name)
       blockButton.attributes.name = editorBlock.props.name
+    if (editorBlock.props.alignment)
+      blockButton.attributes.alignment = editorBlock.props.alignment
   }
 
   const blockWebEmbed = block.type === 'WebEmbed' ? block : undefined
