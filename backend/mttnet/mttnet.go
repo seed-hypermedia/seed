@@ -73,15 +73,6 @@ func DefaultRelays() []peer.AddrInfo {
 				must.Do2(multiaddr.NewMultiaddr("/ip4/52.22.139.174/udp/4002/quic-v1")),
 			},
 		},
-
-		// HM24 Seed test server
-		{
-			ID: must.Do2(peer.Decode("12D3KooWMGVVkxCsGAKHBPNLSBEoyzzVMtmSkGFP6dmdJ5H9jV9d")),
-			Addrs: []multiaddr.Multiaddr{
-				must.Do2(multiaddr.NewMultiaddr("/dns4/test.hyper.media/tcp/4002")),
-				must.Do2(multiaddr.NewMultiaddr("/dns4/test.hyper.media/udp/4002/quic-v1")),
-			},
-		},
 	}
 }
 
