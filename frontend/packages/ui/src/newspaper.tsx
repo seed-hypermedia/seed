@@ -37,9 +37,11 @@ export function BannerNewspaperCard({
       $gtMd={{flexDirection: "row", maxHeight: 300}}
       {...linkProps}
     >
-      <View height={200} width="100%" $gtMd={{width: "50%", height: "auto"}}>
-        <NewspaperCardImage document={entity.document} height="100%" />
-      </View>
+      {entity.document.metadata.cover ? (
+        <View height={200} width="100%" $gtMd={{width: "50%", height: "auto"}}>
+          <NewspaperCardImage document={entity.document} height="100%" />
+        </View>
+      ) : null}
       <YStack
         flex={1}
         width="100%"
@@ -64,7 +66,7 @@ function NewspaperCardImage({
 }) {
   const coverImage = document.metadata.cover;
 
-  return coverImage ? (
+  return (
     <View
       height={height}
       // minHeight={120}
@@ -78,7 +80,7 @@ function NewspaperCardImage({
         />
       ) : null}
     </View>
-  ) : null;
+  );
 }
 
 function NewspaperCardContent({
