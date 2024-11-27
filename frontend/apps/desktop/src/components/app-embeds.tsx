@@ -1,6 +1,8 @@
 import {useAccount_deprecated} from '@/models/accounts'
 import {useListDirectory} from '@/models/documents'
 import {useEntities, useSubscribedEntity} from '@/models/entities'
+import {LibraryData} from '@/models/library'
+import {LibraryListItem} from '@/pages/library'
 import {
   DAEMON_FILE_URL,
   HMBlockQuery,
@@ -420,7 +422,6 @@ export function QueryBlockDesktop({
 
   const sortedItems = useMemo(() => {
     if (directoryItems.data && block.attributes.query.sort) {
-      console.log(`== ~ document ~ querySort:`, block.attributes.query.sort[0])
       return queryBlockSortedItems({
         entries: directoryItems.data || [],
         sort: block.attributes.query.sort,
@@ -453,6 +454,51 @@ export function QueryBlockDesktop({
     )?.data
   }
 
+  const accountsMetadata: AccountsMetadata = documents
+
+    .map((document) => {
+      const d = document.data
+      if (!d || !d.document) return null
+      if (d.id.path && d.id.path.length !== 0) return null
+      return {
+        id: d.id,
+        metadata: d.document.metadata,
+      }
+    })
+    .filter((m) => !!m)
+
+  if (directoryItems.status == 'loading') {
+    return (
+      <XStack className="block-query" w="100%" data-content-type="query">
+        <QueryBlockPlaceholder styleType={block.attributes?.style} />
+      </XStack>
+    )
+  }
+
+  const DataComponent =
+    block.attributes.style == 'List' ? QueryStyleList : QueryStyleCard
+
+  return (
+    <DataComponent
+      items={sortedItems}
+      block={block}
+      getEntity={getEntity}
+      accountsMetadata={accountsMetadata}
+    />
+  )
+}
+
+function QueryStyleCard({
+  items,
+  block,
+  getEntity,
+  accountsMetadata,
+}: {
+  items: any[]
+  block: HMBlockQuery
+  getEntity: any
+  accountsMetadata: any
+}) {
   const columnProps = useMemo(() => {
     switch (block.attributes.columnCount) {
       case 2:
@@ -476,32 +522,9 @@ export function QueryBlockDesktop({
     }
   }, [block.attributes.columnCount])
 
-  const accountsMetadata: AccountsMetadata = documents
-
-    .map((document) => {
-      const d = document.data
-      if (!d || !d.document) return null
-      if (d.id.path && d.id.path.length !== 0) return null
-      return {
-        id: d.id,
-        metadata: d.document.metadata,
-      }
-    })
-    .filter((m) => !!m)
-
-  console.log(`== ~ accountsMetadata:`, accountsMetadata)
-
-  if (directoryItems.status == 'loading') {
-    return (
-      <XStack className="block-query" w="100%" data-content-type="query">
-        <QueryBlockPlaceholder styleType={block.attributes?.style} />
-      </XStack>
-    )
-  }
-
-  return (
+  return items?.length ? (
     <XStack f={1} flexWrap="wrap" marginHorizontal="$-3">
-      {directoryItems.data?.map((item) => {
+      {items.map((item) => {
         const id = hmId('d', item.account, {
           path: item.path,
           latest: true,
@@ -521,5 +544,67 @@ export function QueryBlockDesktop({
         )
       })}
     </XStack>
+  ) : (
+    <QueryBlockPlaceholder styleType={block.attributes.style} />
+  )
+}
+
+function QueryStyleList({
+  items,
+  block,
+  getEntity,
+  accountsMetadata,
+}: {
+  items: any[]
+  block: HMBlockQuery
+  getEntity: any
+  accountsMetadata: any
+}) {
+  const entries = useMemo(
+    () =>
+      items.map((item) => {
+        console.log('=== ITEMMMM', item)
+        const id = hmId('d', item.account, {
+          path: item.path,
+          latest: true,
+        })
+
+        return {
+          id,
+          document: item,
+          hasDraft: false,
+          location: [],
+          authors: [],
+          account: item.account,
+          path: item.path,
+          isFavorite: false,
+          isSubscribed: false,
+        } as LibraryData['items'][0]
+      }),
+    [items],
+  )
+
+  return (
+    <YStack gap="$3" w="100%">
+      {entries.length ? (
+        entries.map((item) => {
+          const id = hmId('d', item.account, {
+            path: item.path,
+            latest: true,
+          })
+          return (
+            <LibraryListItem
+              key={item.id}
+              entry={item}
+              exportMode={false}
+              selected={false}
+              toggleDocumentSelection={(id) => {}}
+            />
+          )
+        })
+      ) : (
+        <QueryBlockPlaceholder styleType={block.attributes.style} />
+      )}
+    </YStack>
   )
 }

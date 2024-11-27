@@ -17,7 +17,7 @@ export function QueryBlockPlaceholder({
 
 export function QueryBlockCardPlaceholder() {
   return (
-    <XStack flexWrap="wrap" marginHorizontal="$-2">
+    <XStack flexWrap="wrap" marginHorizontal="$-2" w="100%">
       <EntityCardPlaceholder />
       <EntityCardPlaceholder />
       <EntityCardPlaceholder />
@@ -27,7 +27,7 @@ export function QueryBlockCardPlaceholder() {
 
 export function QueryBlockListPlaceholder() {
   return (
-    <YStack gap="$2">
+    <YStack gap="$2" w="100%">
       <ListItemSkeleton />
       <ListItemSkeleton />
       <ListItemSkeleton />

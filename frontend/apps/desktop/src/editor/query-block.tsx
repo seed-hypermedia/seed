@@ -1,3 +1,17 @@
+import {SearchInput} from '@/components/search-input'
+import {useListDirectory} from '@/models/documents'
+import {useEntities, useEntity} from '@/models/entities'
+import {LibraryData} from '@/models/library'
+import {LibraryListItem} from '@/pages/library'
+import {
+  EditorQueryBlock,
+  HMBlockQuery,
+  HMEntityContent,
+  hmId,
+  NavRoute,
+  queryBlockSortedItems,
+  UnpackedHypermediaId,
+} from '@shm/shared'
 import {
   Button,
   ButtonFrame,
@@ -16,19 +30,8 @@ import {
   YStack,
   YStackProps,
 } from '@shm/ui'
+import type {UseQueryResult} from '@tanstack/react-query'
 import {Fragment} from '@tiptap/pm/model'
-
-import {SearchInput} from '@/components/search-input'
-import {useListDirectory} from '@/models/documents'
-import {useEntities, useEntity} from '@/models/entities'
-import {
-  EditorQueryBlock,
-  HMBlockQuery,
-  hmId,
-  NavRoute,
-  queryBlockSortedItems,
-  UnpackedHypermediaId,
-} from '@shm/shared'
 import {NodeSelection, TextSelection} from 'prosemirror-state'
 import {useCallback, useMemo, useState} from 'react'
 import {Block, BlockNoteEditor} from './blocknote'
@@ -142,29 +145,6 @@ function Render(
     },
   )
 
-  const columnProps = useMemo(() => {
-    switch (block.props.columnCount) {
-      case '2':
-        return {
-          flexBasis: '100%',
-          $gtSm: {flexBasis: '50%'},
-          $gtMd: {flexBasis: '50%'},
-        } as YStackProps
-      case '3':
-        return {
-          flexBasis: '100%',
-          $gtSm: {flexBasis: '50%'},
-          $gtMd: {flexBasis: '33.333%'},
-        } as YStackProps
-      default:
-        return {
-          flexBasis: '100%',
-          $gtSm: {flexBasis: '100%'},
-          $gtMd: {flexBasis: '100%'},
-        } as YStackProps
-    }
-  }, [block.props])
-
   useEditorSelectionChange(editor, updateSelection)
 
   const assign = useCallback(
@@ -205,6 +185,8 @@ function Render(
     setSelected(isSelected)
   }
 
+  const DataComponent = block.props.style == 'List' ? ListView : CardView
+
   return (
     <YStack
       // @ts-ignore
@@ -218,6 +200,7 @@ function Render(
         queryDocName={entity.data?.document?.metadata.name || ''}
         queryIncludes={queryIncludes}
         querySort={querySort}
+        style={block.props.style as 'Card' | 'List'}
         // @ts-expect-error
         block={block}
         onValuesChange={({id, props}) => {
@@ -227,29 +210,106 @@ function Render(
           assign(props)
         }}
       />
+      <DataComponent
+        items={docResults}
+        block={block as unknown as EditorQueryBlock}
+      />
+    </YStack>
+  )
+}
 
-      {docResults?.length ? (
-        <XStack f={1} flexWrap="wrap" marginHorizontal="$-3">
-          {docResults
-            .filter((item) => !!item.data)
-            .map((item) => (
-              <XStack {...columnProps} p="$3">
-                <NewspaperCard
-                  id={item.data.id}
-                  entity={item.data}
-                  key={item.data.id.id}
-                  accountsMetadata={[]}
-                  flexBasis="100%"
-                  $gtSm={{flexBasis: '100%'}}
-                  $gtMd={{flexBasis: '100%'}}
-                />
-              </XStack>
-            ))}
-        </XStack>
+function CardView({
+  items,
+  block,
+}: {
+  block: EditorQueryBlock
+  items: Array<UseQueryResult<HMEntityContent | null, unknown>>
+}) {
+  const columnProps = useMemo(() => {
+    switch (block.props.columnCount) {
+      case '2':
+        return {
+          flexBasis: '100%',
+          $gtSm: {flexBasis: '50%'},
+          $gtMd: {flexBasis: '50%'},
+        } as YStackProps
+      case '3':
+        return {
+          flexBasis: '100%',
+          $gtSm: {flexBasis: '50%'},
+          $gtMd: {flexBasis: '33.333%'},
+        } as YStackProps
+      default:
+        return {
+          flexBasis: '100%',
+          $gtSm: {flexBasis: '100%'},
+          $gtMd: {flexBasis: '100%'},
+        } as YStackProps
+    }
+  }, [block.props])
+
+  return items?.length ? (
+    <XStack f={1} flexWrap="wrap" marginHorizontal="$-3">
+      {items
+        .filter((item) => !!item.data)
+        .map((item) => (
+          <XStack {...columnProps} p="$3">
+            <NewspaperCard
+              id={item.data?.id}
+              entity={item.data}
+              key={item.data?.id.id}
+              accountsMetadata={[]}
+              flexBasis="100%"
+              $gtSm={{flexBasis: '100%'}}
+              $gtMd={{flexBasis: '100%'}}
+            />
+          </XStack>
+        ))}
+    </XStack>
+  ) : (
+    <QueryBlockPlaceholder styleType={block.props.style as 'Card' | 'List'} />
+  )
+}
+
+function ListView({
+  items,
+  block,
+}: {
+  block: EditorQueryBlock
+  items: Array<UseQueryResult<HMEntityContent | null, unknown>>
+}) {
+  const entries = useMemo(
+    () =>
+      items
+        .filter((item) => !!item.data)
+        .map((item) => {
+          console.log('== ITEM', item)
+          return {
+            id: item.data.id,
+            document: item.data?.document,
+            hasDraft: false,
+            location: [],
+            authors: [],
+            isFavorite: false,
+            isSubscribed: false,
+          } as LibraryData['items'][0]
+        }),
+    [items],
+  )
+  return (
+    <YStack gap="$3">
+      {entries.length ? (
+        entries.map((entry) => (
+          <LibraryListItem
+            key={entry.id.id}
+            entry={entry}
+            exportMode={false}
+            selected={false}
+            toggleDocumentSelection={(id) => {}}
+          />
+        ))
       ) : (
-        <QueryBlockPlaceholder
-          styleType={block.props.style as 'Card' | 'List'}
-        />
+        <QueryBlockPlaceholder styleType={block.props.style} />
       )}
     </YStack>
   )
@@ -264,6 +324,7 @@ function QuerySettings({
   onValuesChange,
   queryIncludes,
   querySort,
+  style,
 }: {
   queryDocName: string
   block: EditorQueryBlock
@@ -401,35 +462,37 @@ function QuerySettings({
                   },
                 ]}
               />
-              <SelectField
-                size="$2"
-                value={block.props.columnCount || '3'}
-                onValue={(value) => {
-                  onValuesChange({
-                    id: null,
-                    props: {
-                      ...block.props,
-                      columnCount: value as '1' | '2' | '3',
+              {block.props.style == 'Card' ? (
+                <SelectField
+                  size="$2"
+                  value={block.props.columnCount || '3'}
+                  onValue={(value) => {
+                    onValuesChange({
+                      id: null,
+                      props: {
+                        ...block.props,
+                        columnCount: value as '1' | '2' | '3',
+                      },
+                    })
+                  }}
+                  label="Columns"
+                  id="columns"
+                  options={[
+                    {
+                      label: '1',
+                      value: '1',
                     },
-                  })
-                }}
-                label="Columns"
-                id="columns"
-                options={[
-                  {
-                    label: '1',
-                    value: '1',
-                  },
-                  {
-                    label: '2',
-                    value: '2',
-                  },
-                  {
-                    label: '3',
-                    value: '3',
-                  },
-                ]}
-              />
+                    {
+                      label: '2',
+                      value: '2',
+                    },
+                    {
+                      label: '3',
+                      value: '3',
+                    },
+                  ]}
+                />
+              ) : null}
 
               <SelectField
                 size="$2"
