@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"seed/backend/api"
@@ -243,13 +244,17 @@ func (l *lazyFileManager) UploadFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) setupLogging(ctx context.Context, cfg config.Config) {
-	logging.SetLogLevel("provider.batched", "debug")
-	logging.SetLogLevel("p2p-holepunch", "debug")
-	logging.SetLogLevel("autorelay", "debug")
-	logging.SetLogLevel("autonat", "info")
+	autonatDebugLevel := cfg.LogLevel
+	if strings.ToLower(cfg.LogLevel) == "debug" {
+		autonatDebugLevel = "info" // its super verbose so it rarely make sense to set that.
+	}
+	logging.SetLogLevel("provider.batched", cfg.LogLevel)
+	logging.SetLogLevel("p2p-holepunch", cfg.LogLevel)
+	logging.SetLogLevel("autorelay", cfg.LogLevel)
+	logging.SetLogLevel("autonat", autonatDebugLevel)
 	logging.SetLogLevel("autonatv2", "info")
-	logging.SetLogLevel("p2p-circuit", "debug")
-	logging.SetLogLevel("relay", "debug")
+	logging.SetLogLevel("p2p-circuit", cfg.LogLevel)
+	logging.SetLogLevel("relay", cfg.LogLevel)
 
 	a.g.Go(func() error {
 		a.log.Info("DaemonStarted",
