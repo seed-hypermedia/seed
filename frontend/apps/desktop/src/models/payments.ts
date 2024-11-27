@@ -11,7 +11,6 @@ import {
 } from '@shm/shared'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {useEffect, useRef, useState} from 'react'
-import {z} from 'zod'
 
 export function useCreateWallet() {
   const grpcClient = useGRPCClient()
@@ -178,35 +177,6 @@ export function usePayInvoice() {
       invalidateQueries([queryKeys.INVOICES, vars.walletId])
     },
   })
-}
-
-const InvoiceStatusSchema = z.array(
-  z.object({
-    status: z.union([z.literal('open'), z.literal('settled')]),
-  }),
-)
-
-export function useInvoiceStatus(invoice: HMInvoice | null) {
-  const status = useQuery({
-    queryKey: [queryKeys.INVOICE_STATUS, invoice?.hash],
-    refetchInterval: 2000,
-    refetchIntervalInBackground: true,
-    queryFn: async () => {
-      if (!invoice) return {isSettled: false}
-      const url = `${LIGHTNING_API_URL}/v2/invoicemeta/${invoice.hash}`
-      console.log('fetching', url)
-      const res = await fetch(url, {})
-      const serverInvoice = await res.json()
-      console.log('server meta', serverInvoice)
-      const invoiceMeta = InvoiceStatusSchema.parse(serverInvoice)
-      const isSettled = invoiceMeta.every((meta) => meta.status === 'settled')
-      return {isSettled}
-    },
-  })
-  useEffect(() => {
-    invalidateQueries([queryKeys.INVOICES])
-  }, [status.data?.isSettled])
-  return status
 }
 
 export function useWallet(walletId: string) {

@@ -7,7 +7,6 @@ import {
   useDecodedInvoice,
   useDeleteWallet,
   useExportWallet,
-  useInvoiceStatus,
   useListInvoices,
   useListWallets,
   usePayInvoice,
@@ -21,6 +20,7 @@ import {
   HMInvoice,
   HMWallet,
   Invoice,
+  useInvoiceStatus,
 } from '@shm/shared'
 import {
   Button,

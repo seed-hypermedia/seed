@@ -76,6 +76,7 @@ export function useInvoiceStatus(invoice: HMInvoice | null) {
   })
   useEffect(() => {
     invalidateQueries([queryKeys.INVOICES])
+    invalidateQueries([queryKeys.WALLETS])
   }, [status.data?.isSettled])
   return status
 }
