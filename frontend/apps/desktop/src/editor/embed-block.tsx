@@ -42,7 +42,6 @@ import {useCallback, useEffect, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {Block, BlockNoteEditor, HMBlockSchema} from '.'
 import {createReactBlockSpec} from './blocknote/react'
-import {HypermediaLinkForm} from './hm-link-form'
 import {HypermediaLinkSwitchToolbar} from './hm-link-switch-toolbar'
 import {LauncherItem, SwitcherItem} from './launcher-item'
 import {MediaContainer} from './media-container'
@@ -315,44 +314,10 @@ function EmbedControl({
     }
   }, [block.props.url, unpackedId])
 
-  function EmbedEditForm(props: {
-    url: string
-    text: string
-    updateHyperlink: (url: string, text: string) => void
-    editHyperlink: (url: string, text: string) => void
-    openUrl: (url?: string | undefined, newWindow?: boolean | undefined) => void
-    editor: BlockNoteEditor
-    type: string
-    isSeedDocument?: boolean
-    isFocused: boolean
-    setIsFocused: (focused: boolean) => void
-  }) {
+  function EmbedLinkComponents() {
     return (
-      <YStack
-        paddingVertical="$4"
-        paddingHorizontal="$3"
-        gap="$2"
-        borderRadius="$4"
-        overflow="hidden"
-        bg="$backgroundFocus"
-        elevation="$3"
-        zIndex="$zIndex.5"
-      >
-        <SizableText fontWeight="700">Embed settings</SizableText>
-        <HypermediaLinkForm
-          url={props.url}
-          text={props.text}
-          updateLink={props.updateHyperlink}
-          editLink={props.editHyperlink}
-          openUrl={props.openUrl}
-          type={props.type}
-          hasSearch={true}
-          isSeedDocument={props.isSeedDocument}
-          isFocused={props.isFocused}
-          setIsFocused={props.setIsFocused}
-        >
-          <>
-            {/* {hasBlockRef ? (
+      <YStack gap="$0.25">
+        {/* {hasBlockRef ? (
               <Tooltip
                 content={
                   isBlockExpanded
@@ -398,115 +363,117 @@ function EmbedControl({
               </Tooltip>
             ) : null} */}
 
-            {allowViewSwitcher && (
-              <Popover
-                {...popoverViewState}
-                onOpenChange={(open) => {
-                  popoverState.onOpenChange(open)
-                  popoverViewState.onOpenChange(open)
-                }}
-                placement="bottom"
-              >
-                <YStack>
-                  <Label>View</Label>
-                  <Popover.Trigger asChild>
-                    <Button
-                      borderColor="$borderColorFocus"
-                      borderWidth="$1"
-                      borderRadius="$2"
-                      size="$2.5"
-                      iconAfter={
-                        popoverViewState.open ? ChevronDown : ChevronRight
-                      }
-                    >
-                      {block.props.view}
-                    </Button>
-                  </Popover.Trigger>
-                </YStack>
-                <Popover.Content asChild>
-                  <YGroup padding={0} width={250} zIndex={99999}>
-                    <YGroup.Item>
-                      <ListItem
-                        size="$2"
-                        title="as Content"
-                        onPress={handleViewSelect('Content')}
-                        iconAfter={block.props.view == 'Content' ? Check : null}
-                        hoverStyle={{
-                          bg: '$backgroundHover',
-                        }}
-                      />
-                    </YGroup.Item>
-                    <Separator />
-                    <YGroup.Item>
-                      <ListItem
-                        size="$2"
-                        title="as Card"
-                        onPress={handleViewSelect('Card')}
-                        iconAfter={block.props.view == 'Card' ? Check : null}
-                        hoverStyle={{
-                          bg: '$backgroundHover',
-                        }}
-                      />
-                    </YGroup.Item>
-                  </YGroup>
-                </Popover.Content>
-              </Popover>
-            )}
-            {allowVersionSwitcher && (
-              <Popover
-                {...popoverLatestState}
-                onOpenChange={(open) => {
-                  popoverState.onOpenChange(open)
-                  popoverLatestState.onOpenChange(open)
-                }}
-                placement="bottom"
-              >
-                <YStack>
-                  <Label>Sort</Label>
-                  <Popover.Trigger asChild>
-                    <Button
-                      borderColor="$borderColorFocus"
-                      borderWidth="$1"
-                      borderRadius="$2"
-                      size="$2.5"
-                      iconAfter={
-                        popoverLatestState.open ? ChevronDown : ChevronRight
-                      }
-                    >
-                      {isLatestVersion ? 'Latest Version' : 'Exact Version'}
-                    </Button>
-                  </Popover.Trigger>
-                </YStack>
-                <Popover.Content asChild>
-                  <YGroup padding={0} width={250} elevation="$4" zIndex={99999}>
-                    <YGroup.Item>
-                      <ListItem
-                        size="$2"
-                        title="Latest Version"
-                        onPress={handleVersionSelect('latest')}
-                        iconAfter={isLatestVersion ? Check : null}
-                        hoverStyle={{
-                          bg: '$backgroundHover',
-                        }}
-                      />
-                    </YGroup.Item>
-                    <Separator />
-                    <YGroup.Item>
-                      <ListItem
-                        size="$2"
-                        title="Exact Version"
-                        onPress={handleVersionSelect('exact')}
-                        iconAfter={isLatestVersion ? null : Check}
-                        hoverStyle={{
-                          bg: '$backgroundHover',
-                        }}
-                      />
-                    </YGroup.Item>
-                  </YGroup>
-                </Popover.Content>
-              </Popover>
-            )}
-            {/* {hasBlockRef ? (
+        {allowViewSwitcher && (
+          <Popover
+            {...popoverViewState}
+            onOpenChange={(open) => {
+              popoverState.onOpenChange(open)
+              popoverViewState.onOpenChange(open)
+            }}
+            placement="bottom"
+          >
+            <YStack>
+              <Label fontSize={13} marginBottom="$-2">
+                View
+              </Label>
+              <Popover.Trigger asChild>
+                <Button
+                  borderColor="$borderColorFocus"
+                  borderWidth="$1"
+                  borderRadius="$2"
+                  size="$2"
+                  iconAfter={popoverViewState.open ? ChevronDown : ChevronRight}
+                >
+                  {block.props.view}
+                </Button>
+              </Popover.Trigger>
+            </YStack>
+            <Popover.Content asChild>
+              <YGroup padding={0} width={250} zIndex={99999}>
+                <YGroup.Item>
+                  <ListItem
+                    size="$2"
+                    title="as Content"
+                    onPress={handleViewSelect('Content')}
+                    iconAfter={block.props.view == 'Content' ? Check : null}
+                    hoverStyle={{
+                      bg: '$backgroundHover',
+                    }}
+                  />
+                </YGroup.Item>
+                <Separator />
+                <YGroup.Item>
+                  <ListItem
+                    size="$2"
+                    title="as Card"
+                    onPress={handleViewSelect('Card')}
+                    iconAfter={block.props.view == 'Card' ? Check : null}
+                    hoverStyle={{
+                      bg: '$backgroundHover',
+                    }}
+                  />
+                </YGroup.Item>
+              </YGroup>
+            </Popover.Content>
+          </Popover>
+        )}
+        {allowVersionSwitcher && (
+          <Popover
+            {...popoverLatestState}
+            onOpenChange={(open) => {
+              popoverState.onOpenChange(open)
+              popoverLatestState.onOpenChange(open)
+            }}
+            placement="bottom"
+          >
+            <YStack>
+              <Label fontSize={13} marginBottom="$-2">
+                Sort
+              </Label>
+              <Popover.Trigger asChild>
+                <Button
+                  borderColor="$borderColorFocus"
+                  borderWidth="$1"
+                  borderRadius="$2"
+                  size="$2"
+                  iconAfter={
+                    popoverLatestState.open ? ChevronDown : ChevronRight
+                  }
+                >
+                  {isLatestVersion ? 'Latest Version' : 'Exact Version'}
+                </Button>
+              </Popover.Trigger>
+            </YStack>
+            <Popover.Content asChild>
+              <YGroup padding={0} width={250} elevation="$4" zIndex={99999}>
+                <YGroup.Item>
+                  <ListItem
+                    size="$2"
+                    title="Latest Version"
+                    onPress={handleVersionSelect('latest')}
+                    iconAfter={isLatestVersion ? Check : null}
+                    hoverStyle={{
+                      bg: '$backgroundHover',
+                    }}
+                  />
+                </YGroup.Item>
+                <Separator />
+                <YGroup.Item>
+                  <ListItem
+                    size="$2"
+                    title="Exact Version"
+                    onPress={handleVersionSelect('exact')}
+                    iconAfter={isLatestVersion ? null : Check}
+                    hoverStyle={{
+                      bg: '$backgroundHover',
+                    }}
+                  />
+                </YGroup.Item>
+              </YGroup>
+            </Popover.Content>
+          </Popover>
+        )}
+        {/* {hasBlockRef ? (
               <Popover {...popoverToDocumentState} placement="bottom-start">
                 <Popover.Trigger asChild>
                   <Button
@@ -548,8 +515,6 @@ function EmbedControl({
                 </Popover.Content>
               </Popover>
             ) : null} */}
-          </>
-        </HypermediaLinkForm>
       </YStack>
     )
   }
@@ -592,7 +557,7 @@ function EmbedControl({
         openUrl={openUrl}
         editor={editor}
         stopEditing={!showControl}
-        editComponent={EmbedEditForm}
+        formComponents={EmbedLinkComponents}
         type="embed"
         id={block.id}
       />

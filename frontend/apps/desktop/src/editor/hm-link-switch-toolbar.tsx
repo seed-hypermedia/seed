@@ -4,10 +4,12 @@ import {
   ExternalLink,
   Link,
   Pencil,
+  SizableText,
   Tooltip,
   Unlink,
   XGroup,
   XStack,
+  YStack,
 } from '@shm/ui'
 import {CircleDot, PanelBottom, Quote} from '@tamagui/lucide-icons'
 import {Fragment, Node} from '@tiptap/pm/model'
@@ -18,39 +20,26 @@ import {
   HyperlinkToolbarProps,
   PartialBlock,
 } from './blocknote'
+import {HypermediaLinkForm} from './hm-link-form'
 import {HMBlockSchema} from './schema'
 
 export function HypermediaLinkSwitchToolbar(
   props: HyperlinkToolbarProps & {
     openUrl: (url?: string | undefined, newWindow?: boolean | undefined) => void
     stopEditing: boolean
-    editComponent: React.ComponentType<{
-      url: string
-      text: string
-      updateHyperlink: (url: string, text: string) => void
-      editHyperlink: (url: string, text: string) => void
-      openUrl: (
-        url?: string | undefined,
-        newWindow?: boolean | undefined,
-      ) => void
-      onClose: () => void
-      editor: BlockNoteEditor
-      type: string
-      isSeedDocument: boolean
-      isFocused: boolean
-      setIsFocused: (focused: boolean) => void
-    }>
+    formComponents: () => React.JSX.Element
     type: string
   },
 ) {
   const [isEditing, setIsEditing] = useState(false)
   const [isFocused, setIsFocused] = useState(isEditing)
-  const {editComponent: EditComponent} = props
   const unpackedRef = useMemo(() => unpackHmId(props.url), [props.url])
 
   useEffect(() => {
-    if (props.stopEditing && isEditing && !isFocused) {
-      setIsEditing(false)
+    if (props.stopEditing && isEditing) {
+      if (props.type === 'embed') {
+        if (!isFocused) setIsEditing(false)
+      } else setIsEditing(false)
     }
   }, [props.stopEditing, isEditing, isFocused])
 
@@ -58,13 +47,38 @@ export function HypermediaLinkSwitchToolbar(
     <XStack zIndex="$zIndex.4">
       {isEditing ? (
         // Render the form when in editing mode
-        <EditComponent
-          onClose={() => setIsEditing(false)}
-          isSeedDocument={unpackedRef ? true : false}
-          isFocused={isFocused}
-          setIsFocused={setIsFocused}
-          {...props}
-        />
+        <YStack
+          paddingVertical="$4"
+          paddingHorizontal="$3"
+          gap="$2"
+          borderRadius="$4"
+          overflow="hidden"
+          bg="$backgroundFocus"
+          elevation="$3"
+          zIndex="$zIndex.5"
+          // bottom={-45}
+          // position="absolute"
+          onMouseEnter={props.stopHideTimer}
+          onMouseLeave={props.startHideTimer}
+        >
+          <SizableText fontWeight="700">{`${
+            props.type.charAt(0).toUpperCase() + props.type.slice(1)
+          } settings`}</SizableText>
+          {props.formComponents && props.formComponents()}
+          <HypermediaLinkForm
+            url={props.url}
+            text={props.text}
+            updateLink={props.updateHyperlink}
+            editLink={props.editHyperlink}
+            openUrl={props.openUrl}
+            type={props.type}
+            hasName={props.type !== 'embed'}
+            hasSearch={props.type !== 'link'}
+            isSeedDocument={unpackedRef ? true : false}
+            isFocused={isFocused}
+            setIsFocused={setIsFocused}
+          />
+        </YStack>
       ) : (
         // Render the toolbar by default
         <XGroup elevation="$5" paddingHorizontal={0}>
