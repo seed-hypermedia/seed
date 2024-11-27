@@ -1,6 +1,7 @@
 import {PlainMessage, Timestamp} from '@bufbuild/protobuf'
 import {
   HMBlockNode,
+  HMBlockQuery,
   HMDocument,
   HMDocumentListItem,
   HMMetadata,
@@ -88,6 +89,58 @@ function createTimeSort(
 
 function createTimeOfEntry(entry: {createTime?: PlainMessage<Timestamp>}) {
   return entry.createTime?.seconds ? Number(entry.createTime?.seconds) : 0
+}
+
+function titleOfEntry(entry: HMDocumentListItem) {
+  return entry.metadata.name
+}
+
+function titleSort(ea: HMDocumentListItem, eb: HMDocumentListItem) {
+  const a = titleOfEntry(ea)
+  const b = titleOfEntry(eb)
+  if (a < b) return 1
+  if (a > b) return -1
+  return 0
+}
+
+export function queryBlockSortedItems({
+  entries,
+  sort,
+}: {
+  entries: Array<HMDocumentListItem>
+  sort: NonNullable<HMBlockQuery['attributes']['query']['sort']>
+}) {
+  let res: Array<HMDocumentListItem> = []
+  if (!entries) return res
+
+  if (sort.length !== 1) return res
+
+  const sortTerm = sort[0].term
+
+  if (sortTerm == 'Title') {
+    res = [...entries].sort(titleSort)
+  }
+
+  if (sortTerm == 'CreateTime') {
+    res = [...entries].sort(createTimeSort)
+  }
+
+  if (sortTerm == 'UpdateTime') {
+    res = [...entries].sort(lastUpdateSort)
+  }
+
+  // if (sortTerm == 'Path') {
+  //   // TODO
+  //   return entries
+  // }
+
+  console.log('== querySort: SORTING!', {
+    value: sort[0].reverse,
+    prev: res,
+    after: sort[0].reverse ? [...res].reverse() : res,
+  })
+
+  return sort[0].reverse ? [...res].reverse() : res
 }
 
 export type RefDefinition = {

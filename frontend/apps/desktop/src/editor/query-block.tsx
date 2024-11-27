@@ -26,6 +26,7 @@ import {
   HMBlockQuery,
   hmId,
   NavRoute,
+  queryBlockSortedItems,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {NodeSelection, TextSelection} from 'prosemirror-state'
@@ -99,7 +100,7 @@ function Render(
     return JSON.parse(block.props.querySort || defaultQuerySort)
   }, [block.props.querySort])
 
-  console.log(`== ~ querySort ~ querySort:`, querySort)
+  console.log(`== ~ editor ~ querySort:`, querySort[0])
   const [queryId, setQueryId] = useState<UnpackedHypermediaId | null>(() => {
     if (queryIncludes?.[0].space) {
       console.log('QUERY ID', queryIncludes[0])
@@ -117,8 +118,19 @@ function Render(
     mode: queryIncludes[0].mode,
   })
 
+  const sortedItems = useMemo(() => {
+    if (directoryItems.data && querySort) {
+      console.log('QUERY SORT', querySort)
+      return queryBlockSortedItems({
+        entries: directoryItems.data,
+        sort: querySort,
+      })
+    }
+    return []
+  }, [directoryItems, querySort])
+
   const docResults = useEntities(
-    directoryItems.data?.map((item) =>
+    sortedItems.map((item) =>
       hmId('d', item.account, {
         path: item.path,
         latest: true,
@@ -244,7 +256,7 @@ function Render(
 }
 
 type HMQueryBlockIncludes = HMBlockQuery['attributes']['query']['includes']
-type HMQueryBlockSort = HMBlockQuery['attributes']['query']['sort']
+type HMQueryBlockSort = NonNullable<HMBlockQuery['attributes']['query']['sort']>
 
 function QuerySettings({
   queryDocName = '',
@@ -419,9 +431,9 @@ function QuerySettings({
                 ]}
               />
 
-              {/* <SelectField
+              <SelectField
                 size="$2"
-                value={block.props.querySort}
+                value={querySort[0].term}
                 onValue={(value) => {
                   console.log('SORT', querySort[0])
                   let newVal = [
@@ -435,7 +447,7 @@ function QuerySettings({
                     id: null,
                     props: {
                       ...block.props,
-                      queryIncludes: JSON.stringify(newVal),
+                      querySort: JSON.stringify(newVal),
                     },
                   })
                 }}
@@ -443,19 +455,43 @@ function QuerySettings({
                 id="sort"
                 options={[
                   {
-                    label: '1',
-                    value: '1',
+                    label: 'Update time',
+                    value: 'UpdateTime',
                   },
                   {
-                    label: '2',
-                    value: '2',
+                    label: 'Create time',
+                    value: 'CreateTime',
                   },
                   {
-                    label: '3',
-                    value: '3',
+                    label: 'By Path',
+                    value: 'Path',
+                  },
+                  {
+                    label: 'By Title',
+                    value: 'Title',
                   },
                 ]}
-              /> */}
+              />
+              <SwitchField
+                label="Reverse?"
+                id="sort-everse"
+                onCheckedChange={(value) => {
+                  let newVal = [
+                    {
+                      ...querySort[0],
+                      reverse: value,
+                    },
+                  ]
+
+                  onValuesChange({
+                    id: null,
+                    props: {
+                      ...block.props,
+                      querySort: JSON.stringify(newVal),
+                    },
+                  })
+                }}
+              />
             </YStack>
           </>
         ) : null}
@@ -548,8 +584,4 @@ function QuerySearch({
       ) : null}
     </YStack>
   )
-}
-
-function QueryResultItems({items}: {items: Array<{data: HMEntityContent}>}) {
-  return <></>
 }

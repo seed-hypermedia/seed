@@ -9,6 +9,7 @@ import {
   getDocumentTitle,
   hmId,
   packHmId,
+  queryBlockSortedItems,
 } from '@shm/shared'
 import {
   BlockContentUnknown,
@@ -417,8 +418,19 @@ export function QueryBlockDesktop({
     mode: block.attributes.query.includes[0].mode,
   })
 
+  const sortedItems = useMemo(() => {
+    if (directoryItems.data && block.attributes.query.sort) {
+      console.log(`== ~ document ~ querySort:`, block.attributes.query.sort[0])
+      return queryBlockSortedItems({
+        entries: directoryItems.data || [],
+        sort: block.attributes.query.sort,
+      })
+    }
+    return []
+  }, [block.attributes.query.sort, directoryItems])
+
   const docIds =
-    directoryItems.data?.map((item) =>
+    sortedItems.map((item) =>
       hmId('d', item.account, {
         path: item.path,
         latest: true,
@@ -426,7 +438,7 @@ export function QueryBlockDesktop({
     ) || []
 
   const authorIds = new Set<string>()
-  directoryItems.data?.forEach((item) =>
+  sortedItems.forEach((item) =>
     item.authors.forEach((authorId) => authorIds.add(authorId)),
   )
 
