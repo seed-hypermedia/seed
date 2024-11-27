@@ -79,6 +79,9 @@ var migrations = []migration{
 
 		return scheduleReindex(conn)
 	}},
+	{Version: "2024-11-27.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return sqlitex.ExecScript(conn, sqlfmt(`DELETE FROM wallets`)) // User will have to recreate the wallet
+	}},
 }
 
 func scheduleReindex(conn *sqlite.Conn) error {
