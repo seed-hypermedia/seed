@@ -98,6 +98,8 @@ function Render(
   const querySort = useMemo(() => {
     return JSON.parse(block.props.querySort || defaultQuerySort)
   }, [block.props.querySort])
+
+  console.log(`== ~ querySort ~ querySort:`, querySort)
   const [queryId, setQueryId] = useState<UnpackedHypermediaId | null>(() => {
     if (queryIncludes?.[0].space) {
       console.log('QUERY ID', queryIncludes[0])
@@ -389,7 +391,7 @@ function QuerySettings({
               />
               <SelectField
                 size="$2"
-                value={block.props.columnCount}
+                value={block.props.columnCount || '3'}
                 onValue={(value) => {
                   onValuesChange({
                     id: null,
@@ -416,6 +418,44 @@ function QuerySettings({
                   },
                 ]}
               />
+
+              {/* <SelectField
+                size="$2"
+                value={block.props.querySort}
+                onValue={(value) => {
+                  console.log('SORT', querySort[0])
+                  let newVal = [
+                    {
+                      ...querySort[0],
+                      term: value,
+                    },
+                  ]
+
+                  onValuesChange({
+                    id: null,
+                    props: {
+                      ...block.props,
+                      queryIncludes: JSON.stringify(newVal),
+                    },
+                  })
+                }}
+                label="Sort by"
+                id="sort"
+                options={[
+                  {
+                    label: '1',
+                    value: '1',
+                  },
+                  {
+                    label: '2',
+                    value: '2',
+                  },
+                  {
+                    label: '3',
+                    value: '3',
+                  },
+                ]}
+              /> */}
             </YStack>
           </>
         ) : null}

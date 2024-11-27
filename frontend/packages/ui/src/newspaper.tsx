@@ -63,7 +63,8 @@ function NewspaperCardImage({
   height?: number | string;
 }) {
   const coverImage = document.metadata.cover;
-  return (
+
+  return coverImage ? (
     <View
       height={height}
       // minHeight={120}
@@ -77,7 +78,7 @@ function NewspaperCardImage({
         />
       ) : null}
     </View>
-  );
+  ) : null;
 }
 
 function NewspaperCardContent({
@@ -186,7 +187,7 @@ export function NewspaperCard({
     <YStack
       {...cardProps}
       {...baseCardStyles}
-      marginTop="$5"
+      // marginTop="$5"
       //   marginTop="$4"
 
       //   maxWidth={208}
