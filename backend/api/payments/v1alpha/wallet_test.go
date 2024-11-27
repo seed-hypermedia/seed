@@ -49,7 +49,12 @@ func TestModifyWallets(t *testing.T) {
 	}, 3*time.Second, 1*time.Second)
 	require.EqualValues(t, lndhubsql.LndhubGoWalletType, defaultWallet.Type)
 	_, err = alice.RemoveWallet(ctx, &payments.WalletRequest{Id: defaultWallet.Id})
-	require.Error(t, err)
+	require.NoError(t, err, "Default wallet can be removed now!")
+	seedWallet, err = alice.CreateWallet(ctx, &payments.CreateWalletRequest{
+		Account: alicePk,
+		Name:    "myWallet",
+	})
+	require.NoError(t, err)
 	const newName = "new wallet name"
 	_, err = alice.UpdateWalletName(ctx, &payments.UpdateWalletNameRequest{Id: defaultWallet.Id, Name: newName})
 	require.NoError(t, err)
