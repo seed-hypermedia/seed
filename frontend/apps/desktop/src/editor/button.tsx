@@ -16,7 +16,6 @@ import {
   createReactBlockSpec,
   defaultProps,
 } from './blocknote'
-import {HypermediaLinkForm} from './hm-link-form'
 import {HypermediaLinkSwitchToolbar} from './hm-link-switch-toolbar'
 import {HMBlockSchema} from './schema'
 
@@ -90,72 +89,59 @@ const Render = (
     })
   }
 
-  function ButtonEditForm(props: any) {
+  function ButtonLinkComponents() {
     return (
-      <YStack
-        gap="$3"
-        padding="$5"
-        width={300}
-        backgroundColor="$color6"
-        borderRadius="$4"
-      >
-        <SizableText fontWeight="900">Button Settings</SizableText>
-        <YStack gap="$0.5">
-          <Label fontWeight="300">Alignment</Label>
-          <XStack gap="$3">
-            <Button
-              onPress={() => {
-                setAlignment('flex-start')
-                assign({props: {alignment: 'flex-start'}} as ButtonType)
-              }}
-              borderColor="$brand5"
-              backgroundColor={
-                alignment === 'flex-start' ? '$brand5' : '$colorTransparent'
-              }
-            >
-              <AlignLeft />
-            </Button>
-            <Button
-              onPress={() => {
-                setAlignment('center')
-                assign({props: {alignment: 'center'}} as ButtonType)
-              }}
-              borderColor="$brand5"
-              backgroundColor={
-                alignment === 'center' ? '$brand5' : '$colorTransparent'
-              }
-            >
-              <AlignCenter />
-            </Button>
-            <Button
-              onPress={() => {
-                setAlignment('flex-end')
-                assign({props: {alignment: 'flex-end'}} as ButtonType)
-              }}
-              borderColor="$brand5"
-              backgroundColor={
-                alignment === 'flex-end' ? '$brand5' : '$colorTransparent'
-              }
-            >
-              <AlignRight />
-            </Button>
-          </XStack>
-        </YStack>
-        <YStack gap="$0.5">
-          <HypermediaLinkForm
-            url={props.url}
-            text={props.text}
-            editLink={props.editHyperlink}
-            updateLink={props.updateHyperlink}
-            openUrl={props.openUrl}
-            type={props.type}
-            hasName={true}
-            hasSearch={true}
-            isSeedDocument={props.isSeedDocument}
-            isFocused={props.isFocused}
-            setIsFocused={props.setIsFocused}
-          />
-        </YStack>
+      <YStack gap="$0.25" paddingLeft="$1">
+        <Label opacity={0.6} fontSize={13} marginBottom="$-2">
+          Alignment
+        </Label>
+        <XStack gap="$3">
+          <Button
+            size="$2"
+            height="$3"
+            borderRadius="$3"
+            onPress={() => {
+              setAlignment('flex-start')
+              assign({props: {alignment: 'flex-start'}} as ButtonType)
+            }}
+            borderColor="$brand5"
+            backgroundColor={
+              alignment === 'flex-start' ? '$brand5' : '$colorTransparent'
+            }
+          >
+            <AlignLeft size="$1.5" />
+          </Button>
+          <Button
+            size="$2"
+            height="$3"
+            borderRadius="$3"
+            onPress={() => {
+              setAlignment('center')
+              assign({props: {alignment: 'center'}} as ButtonType)
+            }}
+            borderColor="$brand5"
+            backgroundColor={
+              alignment === 'center' ? '$brand5' : '$colorTransparent'
+            }
+          >
+            <AlignCenter size="$1.5" />
+          </Button>
+          <Button
+            size="$2"
+            height="$3"
+            borderRadius="$3"
+            onPress={() => {
+              setAlignment('flex-end')
+              assign({props: {alignment: 'flex-end'}} as ButtonType)
+            }}
+            borderColor="$brand5"
+            backgroundColor={
+              alignment === 'flex-end' ? '$brand5' : '$colorTransparent'
+            }
+          >
+            <AlignRight size="$1.5" />
+          </Button>
+        </XStack>
       </YStack>
     )
   }
@@ -194,7 +180,7 @@ const Render = (
                 </SizableText>
               </Button>
             </Popover.Trigger>
-            <Popover.Content size="$0" zIndex="$zIndex.8">
+            <Popover.Content size="$0" zIndex={99998}>
               <YStack marginBottom="$2">
                 <HypermediaLinkSwitchToolbar
                   url={block.props.url}
@@ -203,7 +189,7 @@ const Render = (
                     assign({props: {url: url, name: text}} as ButtonType)
                   }}
                   updateHyperlink={(url: string, text: string) => {
-                    // assign({props: {url: url, name: text}} as ButtonType)
+                    assign({props: {url: url, name: text}} as ButtonType)
                   }}
                   deleteHyperlink={() => {
                     assign({props: {url: ''}} as ButtonType)
@@ -215,7 +201,7 @@ const Render = (
                   openUrl={openUrl}
                   editor={editor}
                   stopEditing={false}
-                  editComponent={ButtonEditForm}
+                  formComponents={ButtonLinkComponents}
                   type="button"
                   id={block.id}
                 />

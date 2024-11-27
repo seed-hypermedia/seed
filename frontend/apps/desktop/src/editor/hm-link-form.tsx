@@ -243,7 +243,7 @@ const SearchInput = ({
       left={inputPosition ? inputPosition.left - 30 : 0}
       maxHeight={500}
       overflow="scroll"
-      zIndex="$zIndex.9"
+      zIndex={99999}
     >
       {isDisplayingRecents ? (
         <SizableText color="$color10" marginHorizontal="$4">

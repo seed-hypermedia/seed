@@ -9,7 +9,6 @@ import {
 import Tippy from '@tippyjs/react'
 import {FC, useEffect, useMemo, useRef, useState} from 'react'
 
-import {HypermediaLinkToolbar} from '@/editor/hyperlink-toolbar'
 import {HMBlockSchema} from '@/editor/schema'
 import {DefaultHyperlinkToolbar} from './DefaultHyperlinkToolbar'
 
@@ -94,14 +93,13 @@ export const HyperlinkToolbarPositioner = <
           }
         }}
         openUrl={props.openUrl}
-        stopEditing={false}
-        editComponent={HypermediaLinkToolbar}
+        stopEditing={!show}
         editor={props.editor}
         type={type}
         id={id}
       />
     )
-  }, [props.hyperlinkToolbar, props.editor, text, url])
+  }, [props.hyperlinkToolbar, props.editor, text, url, show])
 
   return (
     <Tippy
