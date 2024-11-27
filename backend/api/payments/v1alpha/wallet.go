@@ -80,15 +80,18 @@ func NewServer(log *zap.Logger, db *sqlitex.Pool, net *mttnet.Node, ks core.KeyS
 		log.Info("No keys installed yet, aborting wallet recovery")
 		return srv
 	}
+	log.Info("Keys installed, trying to recover wallets for those keys", zap.Int("Num Keys", len(keys)))
 	go func() {
 		accounts := []string{}
+		accountsMap := make(map[string]int)
 		keyNames := []string{}
 		ExistingUsers := make(map[string]int)
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
 		defer cancel()
-		for _, key := range keys {
+		for i, key := range keys {
 			keyNames = append(keyNames, key.Name)
 			accounts = append(accounts, key.PublicKey.String())
+			accountsMap[key.PublicKey.String()] = i
 		}
 
 		res, err := srv.lightningClient.Lndhub.Check(ctx, "https://"+lndhubDomain, accounts)
@@ -97,8 +100,12 @@ func NewServer(log *zap.Logger, db *sqlitex.Pool, net *mttnet.Node, ks core.KeyS
 			return
 		}
 
-		for i, account := range res.ExistingUsers {
-			ExistingUsers[account] = i
+		for _, account := range res.ExistingUsers {
+			accountIdx, ok := accountsMap[account]
+			if !ok {
+				continue
+			}
+			ExistingUsers[account] = accountIdx
 		}
 
 		for _, account := range accounts {
