@@ -1,6 +1,7 @@
 import {useNavigate} from "@remix-run/react";
 import {
   createWebHMUrl,
+  formattedDate,
   getDocumentTitle,
   HMBlockQuery,
   hmId,
@@ -9,6 +10,7 @@ import {
   HMQuerySort,
   UnpackedHypermediaId,
 } from "@shm/shared";
+import {Button} from "@shm/ui/src/button";
 import {
   ContentEmbed,
   EntityComponentProps,
@@ -19,10 +21,10 @@ import {
 import {HMIcon} from "@shm/ui/src/hm-icon";
 import {NewspaperCard} from "@shm/ui/src/newspaper";
 import {Spinner} from "@shm/ui/src/spinner";
-import {Text} from "@tamagui/core";
+import {StackProps, Text} from "@tamagui/core";
 import {XStack, YStack} from "@tamagui/stacks";
+import {SizableText} from "@tamagui/text";
 import {useMemo, useState} from "react";
-import {YStackProps} from "tamagui";
 import {useEntity} from "./models";
 
 function EmbedWrapper({
@@ -175,28 +177,7 @@ export function QueryBlockWeb({
     return (
       <ErrorBlock message="Only one QueryBlock.attributes.query.includes is supported for now" />
     );
-  const columnProps = useMemo(() => {
-    switch (block.attributes.columnCount) {
-      case 2:
-        return {
-          flexBasis: "100%",
-          $gtSm: {flexBasis: "50%"},
-          $gtMd: {flexBasis: "50%"},
-        } as YStackProps;
-      case 3:
-        return {
-          flexBasis: "100%",
-          $gtSm: {flexBasis: "50%"},
-          $gtMd: {flexBasis: "33.333%"},
-        } as YStackProps;
-      default:
-        return {
-          flexBasis: "100%",
-          $gtSm: {flexBasis: "100%"},
-          $gtMd: {flexBasis: "100%"},
-        } as YStackProps;
-    }
-  }, [block.attributes.columnCount]);
+
   const queryResults = supportQueries?.find((q) => {
     if (q.in.uid !== queryInclude.space) return false;
     const path = hmIdPathToEntityQueryPath(q.in.path);
@@ -205,9 +186,45 @@ export function QueryBlockWeb({
     return true;
   });
   // const sorted = sortQueryBlockResults(queryResults, block.attributes.query.sort);
-  console.log(queryResults);
   // queryResults?.results.map(resu)
   // return queryResults?.results
+  const DataComponent =
+    block.attributes.style == "List" ? QueryListStyle : QueryCardStyle;
+
+  return <DataComponent block={block} queryResults={queryResults} />;
+}
+
+function QueryCardStyle({
+  block,
+  queryResults,
+}: {
+  block: HMBlockQuery;
+  queryResults?: HMQueryResult;
+}) {
+  const ctx = useDocContentContext();
+
+  const columnProps = useMemo(() => {
+    switch (block.attributes.columnCount) {
+      case 2:
+        return {
+          flexBasis: "100%",
+          $gtSm: {flexBasis: "50%"},
+          $gtMd: {flexBasis: "50%"},
+        } as StackProps;
+      case 3:
+        return {
+          flexBasis: "100%",
+          $gtSm: {flexBasis: "50%"},
+          $gtMd: {flexBasis: "33.333%"},
+        } as StackProps;
+      default:
+        return {
+          flexBasis: "100%",
+          $gtSm: {flexBasis: "100%"},
+          $gtMd: {flexBasis: "100%"},
+        } as StackProps;
+    }
+  }, [block.attributes.columnCount]);
 
   return (
     <XStack f={1} flexWrap="wrap" marginHorizontal="$-3">
@@ -240,5 +257,75 @@ export function QueryBlockWeb({
       })}
     </XStack>
   );
-  return <Text>Hlelloo</Text>;
+}
+
+function QueryListStyle({
+  block,
+  queryResults,
+}: {
+  block: HMBlockQuery;
+  queryResults?: HMQueryResult;
+}) {
+  const navigate = useNavigate();
+
+  return (
+    <YStack gap="$3" w="100%">
+      {queryResults?.results?.map((item) => {
+        const id = hmId("d", item.account, {
+          path: item.path,
+          latest: true,
+        });
+        const icon =
+          id.path?.length == 0 || item.metadata?.icon ? (
+            <HMIcon size={28} id={id} metadata={item.metadata} />
+          ) : null;
+        return (
+          <Button
+            borderWidth={0}
+            backgroundColor="$colorTransparent"
+            hoverStyle={{
+              backgroundColor: "$color5",
+            }}
+            elevation="$1"
+            paddingHorizontal={16}
+            paddingVertical="$1"
+            h={60}
+            icon={icon}
+            onPress={() => {
+              navigate(
+                createWebHMUrl(id.type, id.uid, {
+                  hostname: null,
+                  blockRange: id.blockRange,
+                  blockRef: id.blockRef,
+                  version: id.version,
+                  latest: id.latest,
+                  path: id.path,
+                })
+              );
+            }}
+          >
+            <XStack
+              gap="$2"
+              alignItems="center"
+              flex={1}
+              paddingVertical="$2"
+              bg="red"
+            >
+              <SizableText
+                fontWeight="bold"
+                textOverflow="ellipsis"
+                whiteSpace="nowrap"
+                overflow="hidden"
+              >
+                {item.metadata.name}
+              </SizableText>
+            </XStack>
+            <SizableText size="$1" color="$color10">
+              {formattedDate(item.updateTime)}
+            </SizableText>
+          </Button>
+        );
+      })}
+    </YStack>
+  );
 }
