@@ -4,6 +4,9 @@ import {
   getDocumentTitle,
   HMBlockQuery,
   hmId,
+  hmIdPathToEntityQueryPath,
+  HMQueryResult,
+  HMQuerySort,
   UnpackedHypermediaId,
 } from "@shm/shared";
 import {
@@ -11,14 +14,16 @@ import {
   EntityComponentProps,
   ErrorBlock,
   InlineEmbedButton,
+  useDocContentContext,
 } from "@shm/ui/src/document-content";
 import {HMIcon} from "@shm/ui/src/hm-icon";
 import {NewspaperCard} from "@shm/ui/src/newspaper";
 import {Spinner} from "@shm/ui/src/spinner";
 import {Text} from "@tamagui/core";
-import {YStack} from "@tamagui/stacks";
-import {useState} from "react";
-import {useDirectory, useEntity} from "./models";
+import {XStack, YStack} from "@tamagui/stacks";
+import {useMemo, useState} from "react";
+import {YStackProps} from "tamagui";
+import {useEntity} from "./models";
 
 function EmbedWrapper({
   id,
@@ -147,14 +152,93 @@ export function EmbedDocContent(props: EntityComponentProps) {
   );
 }
 
-export function QueryBlockWeb(props: {
+function sortQueryBlockResults(
+  queryResults: HMQueryResult | undefined,
+  sort: HMQuerySort
+) {
+  return queryResults;
+}
+
+export function QueryBlockWeb({
+  id,
+  block,
+}: {
   id: UnpackedHypermediaId;
   block: HMBlockQuery;
 }) {
-  const directoryItems = useDirectory({id: props.id});
+  const ctx = useDocContentContext();
+  // const query
+  const {supportQueries, supportDocuments} = ctx || {};
+  const includes = block.attributes.query.includes || [];
+  const queryInclude = includes[0];
+  if (!queryInclude || includes.length !== 1)
+    return (
+      <ErrorBlock message="Only one QueryBlock.attributes.query.includes is supported for now" />
+    );
+  const columnProps = useMemo(() => {
+    switch (block.attributes.columnCount) {
+      case 2:
+        return {
+          flexBasis: "100%",
+          $gtSm: {flexBasis: "50%"},
+          $gtMd: {flexBasis: "50%"},
+        } as YStackProps;
+      case 3:
+        return {
+          flexBasis: "100%",
+          $gtSm: {flexBasis: "50%"},
+          $gtMd: {flexBasis: "33.333%"},
+        } as YStackProps;
+      default:
+        return {
+          flexBasis: "100%",
+          $gtSm: {flexBasis: "100%"},
+          $gtMd: {flexBasis: "100%"},
+        } as YStackProps;
+    }
+  }, [block.attributes.columnCount]);
+  const queryResults = supportQueries?.find((q) => {
+    if (q.in.uid !== queryInclude.space) return false;
+    const path = hmIdPathToEntityQueryPath(q.in.path);
+    if (path !== queryInclude.path) return false;
+    if (q.mode !== queryInclude.mode) return false;
+    return true;
+  });
+  // const sorted = sortQueryBlockResults(queryResults, block.attributes.query.sort);
+  console.log(queryResults);
+  // queryResults?.results.map(resu)
+  // return queryResults?.results
 
-  console.log(`========== ~ QueryBlockWeb ~ directoryItems:`, directoryItems);
   return (
-    <Text whiteSpace="pre-wrap">{JSON.stringify(directoryItems, null, 2)}</Text>
+    <XStack f={1} flexWrap="wrap" marginHorizontal="$-3">
+      {queryResults?.results?.map((item) => {
+        const id = hmId("d", item.account, {
+          path: item.path,
+          latest: true,
+        });
+        return (
+          <YStack {...columnProps} p="$3">
+            <NewspaperCard
+              id={id}
+              entity={{
+                id,
+                document: {metadata: item.metadata},
+              }}
+              key={item.path.join("/")}
+              accountsMetadata={
+                ctx.supportDocuments?.map((d) => ({
+                  id: d.id,
+                  metadata: d.document?.metadata,
+                })) || []
+              }
+              flexBasis="100%"
+              $gtSm={{flexBasis: "100%"}}
+              $gtMd={{flexBasis: "100%"}}
+            />
+          </YStack>
+        );
+      })}
+    </XStack>
   );
+  return <Text>Hlelloo</Text>;
 }

@@ -1,9 +1,10 @@
 import {toPlainMessage} from "@bufbuild/protobuf";
 import {
+  entityQueryPathToHmIdPath,
+  extractQueryBlocks,
   extractRefs,
   getParentPaths,
   HMDocument,
-  HMDocumentListItem,
   HMDocumentSchema,
   hmId,
   hmIdPathToEntityQueryPath,
@@ -59,17 +60,39 @@ async function getHMDocument(entityId: UnpackedHypermediaId) {
   return document;
 }
 
-async function getDirectory(id: UnpackedHypermediaId) {
-  const res = await queryClient.documents.listDocuments({
+async function getDirectory(
+  id: UnpackedHypermediaId,
+  mode: "Children" | "AllDescendants" = "AllDescendants"
+) {
+  const allDocs = await queryClient.documents.listDocuments({
     account: id.uid,
   });
-  const docs = res.documents
+
+  // filter allDocs by the id.path, and if mode is "Children", filter by the immediate children
+  return allDocs.documents
+    .filter((doc) => {
+      const docPathStr = doc.path;
+      const parentPath = id.path || [];
+      const parentPathStr = hmIdPathToEntityQueryPath(id.path);
+
+      // Skip if document is the parent itself
+      if (docPathStr === parentPathStr) return false;
+
+      // Check if document is a descendant of the parent
+      if (!docPathStr.startsWith(parentPathStr + "/")) return false;
+
+      if (mode === "Children") {
+        // For Children mode, only include immediate children
+        // (path should only be one level deeper than parent)
+        return doc.path.length === parentPath.length + 1;
+      }
+      // For AllDescendants mode, include all nested documents
+      return true;
+    })
     .map(toPlainMessage)
-    .filter((doc) => doc.path !== "")
     .map((doc) => {
-      return {...doc, path: doc.path.slice(1).split("/")};
+      return {...doc, path: entityQueryPathToHmIdPath(doc.path)};
     });
-  return docs as HMDocumentListItem[];
 }
 
 export async function getBaseDocument(
@@ -113,16 +136,36 @@ export async function getBaseDocument(
       })
     )
   ).filter((doc) => !!doc);
-  let supportQueries: {
-    in: UnpackedHypermediaId;
-    results: HMDocumentListItem[];
-  }[] = [];
+  let supportQueries: HMQueryResult[] = [];
 
-  const results = await getDirectory(entityId);
-  supportQueries = [{in: entityId, results}];
+  const queryBlocks = extractQueryBlocks(document.content);
+  console.log(queryBlocks);
+
+  const directoryResults = await getDirectory(entityId);
+  const queryBlockQueries = (
+    await Promise.all(
+      queryBlocks.map(async (block) => {
+        const {includes, limit, sort} = block.attributes.query;
+        if (includes.length !== 1) return null; // only support one include for now
+        const {path, mode, space} = includes[0];
+        const inId = hmId("d", space, {path: path?.split("/") || undefined});
+        const dir = await getDirectory(inId, mode);
+        console.log("path", path);
+        console.log("dir", path);
+        // const inId = unpackHmId( block.link);
+        if (!inId) return null;
+        return {in: inId, results: dir, mode} as HMQueryResult;
+      })
+    )
+  ).filter((result) => !!result);
+  supportQueries = [
+    {in: entityId, results: directoryResults},
+    ...queryBlockQueries,
+  ];
+  console.log("Queries", supportQueries);
   if (document.metadata.layout === "Seed/Experimental/Newspaper") {
     supportDocuments = await Promise.all(
-      results.map(async (item) => {
+      directoryResults.map(async (item) => {
         const id = hmId("d", entityId.uid, {path: item.path});
         return {
           id,
@@ -131,7 +174,7 @@ export async function getBaseDocument(
       })
     );
     const itemsAuthors = (
-      results.flatMap((entity) => entity.authors || []) || []
+      directoryResults.flatMap((entity) => entity.authors || []) || []
     ).map((authorId) => {
       return hmId("d", authorId);
     });

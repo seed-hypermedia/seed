@@ -172,3 +172,17 @@ export function extractRefs(
   children.forEach(extractRefsFromBlock)
   return refs
 }
+
+export function extractQueryBlocks(children: HMBlockNode[]): HMBlockQuery[] {
+  let queries: HMBlockQuery[] = []
+  function extractQueriesFromBlock(block: HMBlockNode) {
+    if (block.block?.type === 'Query') {
+      queries.push(block.block)
+    }
+    if (block.children) {
+      block.children.forEach(extractQueriesFromBlock)
+    }
+  }
+  children.forEach(extractQueriesFromBlock)
+  return queries
+}

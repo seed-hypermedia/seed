@@ -8,6 +8,7 @@ import {
   getNodesOutline,
   HMComment,
   HMDocument,
+  HMEntityContent,
   hmId,
   HMMetadata,
   HMQueryResult,
@@ -94,7 +95,16 @@ export const documentPageMeta: MetaFunction = ({
 };
 
 export function DocumentPage(props: SiteDocumentPayload) {
-  const {document, homeId, homeMetadata, id, authors, siteHost} = props;
+  const {
+    document,
+    homeId,
+    homeMetadata,
+    id,
+    authors,
+    siteHost,
+    supportDocuments,
+    supportQueries,
+  } = props;
   if (!id) return <NotFoundPage {...props} />;
   if (!document)
     return (
@@ -183,7 +193,13 @@ export function DocumentPage(props: SiteDocumentPayload) {
               authors={authors}
               updateTime={document.updateTime}
             />
-            <WebDocContentProvider homeId={homeId} id={id} siteHost={siteHost}>
+            <WebDocContentProvider
+              homeId={homeId}
+              id={id}
+              siteHost={siteHost}
+              supportDocuments={supportDocuments}
+              supportQueries={supportQueries}
+            >
               <DocContent document={document} />
             </WebDocContentProvider>
             <DocumentAppendix id={id} homeId={homeId} siteHost={siteHost} />
@@ -300,11 +316,15 @@ function WebDocContentProvider({
   id,
   homeId,
   siteHost,
+  supportDocuments,
+  supportQueries,
 }: {
   siteHost: string | undefined;
   id: UnpackedHypermediaId;
   homeId: UnpackedHypermediaId;
   children: React.ReactNode;
+  supportDocuments?: HMEntityContent[];
+  supportQueries?: HMQueryResult[];
 }) {
   return (
     <DocContentProvider
@@ -314,6 +334,8 @@ function WebDocContentProvider({
         Inline: EmbedInline,
         Query: QueryBlockWeb,
       }}
+      supportDocuments={supportDocuments}
+      supportQueries={supportQueries}
       onLinkClick={(href, e) => {
         e.preventDefault();
         e.stopPropagation();

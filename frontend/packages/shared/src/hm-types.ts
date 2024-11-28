@@ -347,6 +347,7 @@ export const HMQuerySortSchema = z.object({
     z.literal('UpdateTime'),
   ]),
 })
+export type HMQuerySort = z.infer<typeof HMQuerySortSchema>
 
 export const HMBlockQuerySchema = z
   .object({
@@ -479,6 +480,7 @@ export type HMDocumentListItem = Omit<
 export type HMQueryResult = {
   in: UnpackedHypermediaId
   results: HMDocumentListItem[]
+  mode?: 'Children' | 'AllDescendants'
 }
 
 export type HMRole = 'owner' | 'writer' | 'none'

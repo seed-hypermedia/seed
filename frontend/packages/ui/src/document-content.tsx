@@ -9,6 +9,8 @@ import {
   HMBlockNode,
   HMBlockQuery,
   HMDocument,
+  HMEntityContent,
+  HMQueryResult,
   Mention,
   UnpackedHypermediaId,
   clipContentBlocks,
@@ -118,6 +120,8 @@ export type DocContentContextValue = {
     blockRef?: string;
   };
   importWebFile?: any;
+  supportDocuments?: HMEntityContent[];
+  supportQueries?: HMQueryResult[];
 };
 
 export const docContentContext = createContext<DocContentContextValue | null>(
