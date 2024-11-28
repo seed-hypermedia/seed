@@ -89,6 +89,7 @@ function InlineEmbedNodeComponent(props: any) {
         value={props.node.attrs.link}
         title={props.node.attrs.title}
         selected={props.selected}
+        updateAttributes={props.updateAttributes}
       />
     </NodeViewWrapper>
   )
@@ -98,6 +99,7 @@ export function MentionToken(props: {
   value: string
   title: string
   selected?: boolean
+  updateAttributes: (attributes: {[key: string]: any}) => void
 }) {
   const unpackedRef = unpackHmId(props.value)
 
@@ -113,24 +115,26 @@ function DocumentMention({
   unpackedRef,
   title,
   selected,
+  updateAttributes,
 }: {
   unpackedRef: UnpackedHypermediaId
   title: string
   selected?: boolean
+  updateAttributes: (attributes: {[key: string]: any}) => void
 }) {
-  const entity = useEntity(unpackedRef)
-  // const newlabel = entity.data?.document
-  // ? getDocumentTitle(entity.data?.document)
-  // : unpackedRef.id
-  return (
-    <MentionText selected={selected}>
-      {title
-        ? title
-        : entity.data?.document
-        ? getDocumentTitle(entity.data?.document)
-        : unpackedRef.id}
-    </MentionText>
-  )
+  let mentionTitle = title
+  if (!mentionTitle) {
+    const entity = useEntity(unpackedRef)
+    const docTitle = entity.data?.document
+      ? getDocumentTitle(entity.data?.document)
+      : unpackedRef.id
+
+    if (!mentionTitle && docTitle) {
+      updateAttributes({title: docTitle})
+    }
+  }
+
+  return <MentionText selected={selected}>{mentionTitle}</MentionText>
 }
 
 export function MentionText(props: any) {
