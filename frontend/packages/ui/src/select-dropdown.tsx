@@ -1,24 +1,37 @@
 import {Check, ChevronDown, ChevronUp} from "@tamagui/lucide-icons";
 import {ReactNode} from "react";
-import {Select, SizableText, SizeTokens, XStack, YStack} from "tamagui";
+import {
+  Select,
+  SizableText,
+  SizeTokens,
+  XStack,
+  XStackProps,
+  YStack,
+} from "tamagui";
 
-export function SelectDropdown<
-  Options extends {label: string; value: string; icon?: ReactNode}[],
->({
+export type SelectOptions = Array<{
+  label: string;
+  value: string;
+  icon?: ReactNode;
+}>;
+
+export type SelectDropdownProps<Options extends SelectOptions> = {
+  options: Options;
+  value: Options[number]["value"];
+  onValue: (value: Options[number]["value"]) => void;
+  size?: SizeTokens;
+  placeholder?: string;
+  width?: XStackProps["width"];
+};
+
+export function SelectDropdown<Options extends SelectOptions>({
   options,
   value,
   onValue,
   size,
   placeholder = "Select...",
   width = 140,
-}: {
-  options: Options;
-  value: Options[number]["value"];
-  onValue: (value: Options[number]["value"]) => void;
-  size?: SizeTokens;
-  placeholder?: string;
-  width?: number;
-}) {
+}: SelectDropdownProps<Options>) {
   const selectedOption = options.find((option) => option.value === value);
   return (
     <Select
@@ -27,7 +40,13 @@ export function SelectDropdown<
       onValueChange={onValue}
       disablePreventBodyScroll
     >
-      <Select.Trigger size={size} width={width} iconAfter={ChevronDown}>
+      <Select.Trigger
+        size={size}
+        width={width}
+        borderRadius={0}
+        borderColor="$colorTransparent"
+        iconAfter={ChevronDown}
+      >
         <XStack gap="$2" ai="center" w="100%">
           {selectedOption ? (
             <>
@@ -54,7 +73,7 @@ export function SelectDropdown<
         </XStack>
       </Select.Trigger>
 
-      <Select.Content zIndex="$zIndex.6">
+      <Select.Content zIndex={999}>
         <Select.ScrollUpButton
           alignItems="center"
           justifyContent="center"

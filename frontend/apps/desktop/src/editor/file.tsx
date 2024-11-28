@@ -49,6 +49,7 @@ const Render = (
   return (
     <MediaRender
       block={block}
+      hideForm={!!block.props.url}
       editor={editor}
       mediaType="file"
       DisplayComponent={display}

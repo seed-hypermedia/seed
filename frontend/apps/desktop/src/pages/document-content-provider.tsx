@@ -1,5 +1,10 @@
 import {useAppContext} from '@/app-context'
-import {EmbedComment, EmbedDocument, EmbedInline} from '@/components/app-embeds'
+import {
+  EmbedComment,
+  EmbedDocument,
+  EmbedInline,
+  QueryBlockDesktop,
+} from '@/components/app-embeds'
 import {useExperiments} from '@/models/experiments'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
@@ -38,6 +43,7 @@ export function AppDocContentProvider({
           Document: EmbedDocument,
           Comment: EmbedComment,
           Inline: EmbedInline,
+          Query: QueryBlockDesktop,
         }}
         onLinkClick={(href, e) => {
           e.preventDefault()

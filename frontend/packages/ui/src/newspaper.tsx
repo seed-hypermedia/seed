@@ -9,7 +9,7 @@ import {
   useRouteLink,
 } from "@shm/shared";
 import {View} from "@tamagui/core";
-import {XStack, YStack} from "@tamagui/stacks";
+import {XStack, YStack, YStackProps} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import {useMemo} from "react";
 import {AccountsMetadata, FacePile} from "./face-pile";
@@ -37,9 +37,11 @@ export function BannerNewspaperCard({
       $gtMd={{flexDirection: "row", maxHeight: 300}}
       {...linkProps}
     >
-      <View height={200} width="100%" $gtMd={{width: "50%", height: "auto"}}>
-        <NewspaperCardImage document={entity.document} height="100%" />
-      </View>
+      {entity.document.metadata.cover ? (
+        <View height={200} width="100%" $gtMd={{width: "50%", height: "auto"}}>
+          <NewspaperCardImage document={entity.document} height="100%" />
+        </View>
+      ) : null}
       <YStack
         flex={1}
         width="100%"
@@ -63,6 +65,7 @@ function NewspaperCardImage({
   height?: number | string;
 }) {
   const coverImage = document.metadata.cover;
+
   return (
     <View
       height={height}
@@ -162,7 +165,8 @@ export function NewspaperCard({
   entity,
   accountsMetadata,
   isWeb = false,
-}: {
+  ...props
+}: YStackProps & {
   id: UnpackedHypermediaId;
   entity: HMEntityContent | null | undefined;
   accountsMetadata: AccountsMetadata;
@@ -185,7 +189,7 @@ export function NewspaperCard({
     <YStack
       {...cardProps}
       {...baseCardStyles}
-      marginTop="$5"
+      // marginTop="$5"
       //   marginTop="$4"
 
       //   maxWidth={208}
@@ -194,6 +198,7 @@ export function NewspaperCard({
       //     //   navigate({key: 'document', id})
       //   }}
       {...linkProps}
+      {...props}
     >
       <NewspaperCardImage document={entity.document} />
       <NewspaperCardContent entity={entity} />

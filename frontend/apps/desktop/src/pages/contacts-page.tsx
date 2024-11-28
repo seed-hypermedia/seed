@@ -1,6 +1,5 @@
 import {FavoriteButton} from '@/components/favoriting'
 import {MainWrapper} from '@/components/main-wrapper'
-import {ListItemSkeleton} from '@/components/skeleton'
 import {useListProfileDocuments} from '@/models/documents'
 import {useEntities} from '@/models/entities'
 import {useNavigate} from '@/utils/useNavigate'
@@ -12,6 +11,7 @@ import {
   getRandomColor,
   HMIcon,
   LinkIcon,
+  ListItemSkeleton,
   SizableText,
   Spinner,
   Text,

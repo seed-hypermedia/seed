@@ -71,6 +71,7 @@ export const loader = async ({
         return {id: hmId("d", authorUid), metadata: authorAccount.metadata};
       })
     );
+    console.log(`== ~ loader ~ authorsMetadata:`, directory);
     result = {directory, authorsMetadata};
   } catch (e: any) {
     result = {error: e.message};

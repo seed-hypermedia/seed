@@ -15,6 +15,7 @@ function toHMBlockType(
   if (editorBlockType === 'button') return 'Button'
   if (editorBlockType === 'embed') return 'Embed'
   if (editorBlockType === 'web-embed') return 'WebEmbed'
+  if (editorBlockType === 'query') return 'Query'
   return undefined
 }
 
@@ -45,9 +46,9 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     parentBlock.attributes.childrenType = 'Blockquote'
   }
 
-  if (parentBlock && editorBlock.props.start) {
-    parentBlock.attributes.start = editorBlock.props.start.toString()
-  }
+  // if (parentBlock && editorBlock.props.start) {
+  //   parentBlock.attributes.start = editorBlock.props.start.toString()
+  // }
 
   block.text = ''
 
@@ -109,15 +110,21 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
   const blockImage = block.type === 'Image' ? block : undefined
   if (blockImage && editorBlock.type == 'image') {
     if (editorBlock.props.url) blockImage.link = editorBlock.props.url
-    if (editorBlock.props.width)
-      blockImage.attributes.width = String(editorBlock.props.width)
+    const width = toNumber(editorBlock.props.width)
+    if (width) {
+      blockImage.attributes.width = width
+    }
   }
 
   const blockVideo = block.type === 'Video' ? block : undefined
   if (blockVideo && editorBlock.type == 'video') {
     if (editorBlock.props.url) blockVideo.link = editorBlock.props.url
-    if (editorBlock.props.width)
-      blockVideo.attributes.width = String(editorBlock.props.width)
+    const width = toNumber(editorBlock.props.width)
+    if (width) blockVideo.attributes.width = width
+
+    if (editorBlock.props.name) {
+      blockVideo.attributes.name = editorBlock.props.name
+    }
   }
 
   const blockFile = block.type === 'File' ? block : undefined
@@ -125,8 +132,8 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     if (editorBlock.props.url) blockFile.link = editorBlock.props.url
     if (editorBlock.props.name)
       blockFile.attributes.name = editorBlock.props.name
-    if (editorBlock.props.size)
-      blockFile.attributes.size = String(editorBlock.props.size)
+    const size = toNumber(editorBlock.props.size)
+    if (size) blockFile.attributes.size = size
   }
 
   const blockButton = block.type === 'Button' ? block : undefined
@@ -151,6 +158,22 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     if (editorBlock.props.url) blockEmbed.link = editorBlock.props.url
     if (editorBlock.props.view)
       blockEmbed.attributes.view = editorBlock.props.view
+  }
+
+  const blockQuery = block.type === 'Query' ? block : undefined
+  if (blockQuery && editorBlock.type == 'query') {
+    blockQuery.attributes.style = editorBlock.props.style
+    blockQuery.attributes.columnCount = Number(editorBlock.props.columnCount)
+    blockQuery.attributes.query = {
+      includes: [],
+      sort: [],
+    }
+    if (editorBlock.props.queryIncludes)
+      blockQuery.attributes.query.includes = JSON.parse(
+        editorBlock.props.queryIncludes,
+      )
+    if (editorBlock.props.querySort)
+      blockQuery.attributes.query.sort = JSON.parse(editorBlock.props.querySort)
   }
 
   const blockParse = HMBlockSchema.safeParse(block)
@@ -200,4 +223,22 @@ function getParentBlock(block: HMBlock) {
   if (block.type == 'Paragraph') return block
   if (block.type == 'Code') return block
   return undefined
+}
+
+function toNumber(value?: string): number | null {
+  // Handle empty or whitespace-only strings
+  if (!value || value.trim() === '') {
+    return null
+  }
+
+  // Convert to number and check if it's valid
+  const num = Number(value)
+
+  // Check if the conversion resulted in a valid number
+  // isNaN() will return true for NaN and invalid conversions
+  if (isNaN(num)) {
+    return null
+  }
+
+  return num
 }

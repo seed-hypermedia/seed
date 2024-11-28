@@ -12,7 +12,7 @@ export type EditorBlock =
   | EditorWebEmbedBlock
   | EditorMathBlock
   | EditorNostrBlock
-
+  | EditorQueryBlock
 export type EditorInlineContent = EditorText | EditorInlineEmbed | EditorLink
 
 // ===============
@@ -54,9 +54,9 @@ export interface MediaBlockProps extends EditorBlockProps {
   url?: string
   src?: string
   name?: string
-  width?: number
+  width?: string
   defaultOpen?: string
-  size?: number
+  size?: string
 }
 
 export interface EditorImageBlock extends EditorBaseBlock {
@@ -111,7 +111,19 @@ export type EditorNostrBlock = EditorBaseBlock & {
     name?: string
     url?: string
     text?: string
-    size: number
+    size?: string
+  }
+  content: Array<EditorInlineContent>
+}
+
+export type EditorQueryBlock = EditorBaseBlock & {
+  type: 'query'
+  props: EditorBlockProps & {
+    style: 'Card' | 'List'
+    columnCount?: '1' | '2' | '3'
+    queryLimit?: string
+    queryIncludes?: string
+    querySort?: string
   }
   content: Array<EditorInlineContent>
 }
@@ -154,3 +166,13 @@ export type EditorAnnotationType =
   | 'inline-embed'
 
 export type EditorBlockType = EditorBlock['type']
+
+export type SearchResult = {
+  key: string
+  title: string
+  subtitle?: string
+  icon?: string
+  onSelect: () => void | Promise<void>
+  onFocus: () => void
+  onMouseEnter: () => void
+}

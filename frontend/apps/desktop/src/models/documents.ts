@@ -8,8 +8,10 @@ import {trpc} from '@/trpc'
 import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
 import {
+  Block,
   DEFAULT_GATEWAY_URL,
   DocumentChange,
+  EditorBlock,
   HMBlock,
   HMBlockNode,
   HMDocument,
@@ -31,6 +33,7 @@ import {
   writeableStateStream,
 } from '@shm/shared'
 import {toast} from '@shm/ui'
+import type {UseQueryResult} from '@tanstack/react-query'
 import {
   UseInfiniteQueryOptions,
   UseMutationOptions,
@@ -45,12 +48,7 @@ import _, {flatMap} from 'lodash'
 import {nanoid} from 'nanoid'
 import {useEffect, useMemo, useRef} from 'react'
 import {ContextFrom, OutputFrom, fromPromise} from 'xstate'
-import {
-  BlockNoteEditor,
-  Block as EditorBlock,
-  hmBlockSchema,
-  useBlockNote,
-} from '../editor'
+import {BlockNoteEditor, hmBlockSchema, useBlockNote} from '../editor'
 import {useNavRoute} from '../utils/navigation'
 import {pathNameify} from '../utils/path'
 import {useNavigate} from '../utils/useNavigate'
@@ -191,6 +189,14 @@ export function usePublishDraft(
       const changes = compareBlocksWithMap(blocksMap, content, '')
 
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
+
+      console.log(`== ~ mutationFn: ~ changes:`, {
+        blocksMap,
+        content,
+        deleteChanges,
+        changes,
+      })
+      // return null
       if (accts.data?.length == 0) {
         dispatchWizardEvent(true)
       } else {
@@ -805,12 +811,15 @@ export function usePublishToSite() {
     id: UnpackedHypermediaId,
     siteHost?: string,
   ): Promise<boolean> => {
+    let path = hmIdPathToEntityQueryPath(id.path)
     const apiDoc = await grpcClient.documents.getDocument({
       account: id.uid,
-      path: hmIdPathToEntityQueryPath(id.path),
+      path,
       version: id.version || undefined,
     })
-    const doc = HMDocumentSchema.parse(toPlainMessage(apiDoc))
+
+    const doc = HMDocumentSchema.parse(apiDoc.toJson())
+
     const authors = new Set(doc.authors)
     await connectPeer.mutateAsync(siteHost)
     const parentPaths = getParentPaths(id.path)
@@ -866,32 +875,47 @@ export function usePublishToSite() {
   }
 }
 
-export function useListDirectory(id?: UnpackedHypermediaId) {
+export function useListDirectory(
+  id?: UnpackedHypermediaId | null,
+  options?: {mode: 'Children' | 'AllDescendants'},
+): UseQueryResult<Array<HMDocumentListItem>> {
   const grpcClient = useGRPCClient()
   const prefixPath = id?.path ? '/' + id.path.join('/') : ''
-  return useQuery({
-    queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.uid, prefixPath],
-    queryFn: async () => {
-      if (!id) return []
-      const res = await grpcClient.documents.listDocuments({
-        account: id.uid,
-      })
-      const docs = res.documents
-        .map(toPlainMessage)
-        .filter((doc) => {
-          return (
-            doc.path !== '/' &&
-            doc.path.startsWith(prefixPath) &&
-            doc.path !== prefixPath &&
-            doc.path.slice(1).split('/').length === (id.path?.length || 0) + 1
-          )
+  return useQuery(
+    {
+      queryKey: [
+        queryKeys.DOC_LIST_DIRECTORY,
+        id?.uid,
+        prefixPath,
+        options?.mode,
+      ],
+      queryFn: async () => {
+        if (!id) return []
+        const res = await grpcClient.documents.listDocuments({
+          account: id.uid,
         })
-        .map((doc) => {
-          return {...doc, path: doc.path.slice(1).split('/')}
-        })
-      return docs as HMDocumentListItem[]
+        const docs = res.documents
+          .map(toPlainMessage)
+          .filter((doc) => {
+            return (
+              doc.path !== '/' &&
+              doc.path.startsWith(prefixPath) &&
+              doc.path !== prefixPath &&
+              (options?.mode == 'Children'
+                ? doc.path.slice(1).split('/').length ==
+                  (id.path?.length || 0) + 1
+                : true)
+            )
+          })
+          .map((doc) => {
+            return {...doc, path: doc.path.slice(1).split('/')}
+          })
+
+        return docs as HMDocumentListItem[]
+      },
     },
-  })
+    [id, options?.mode],
+  )
 }
 
 export function useListSite(id?: UnpackedHypermediaId) {
@@ -967,7 +991,7 @@ export function compareBlocksWithMap(
         new DocumentChange({
           op: {
             case: 'replaceBlock',
-            value: serverBlock,
+            value: Block.fromJson(serverBlock),
           },
         }),
       )
@@ -994,7 +1018,7 @@ export function compareBlocksWithMap(
           new DocumentChange({
             op: {
               case: 'replaceBlock',
-              value: currentBlockState,
+              value: Block.fromJson(currentBlockState),
             },
           }),
         )
@@ -1060,7 +1084,7 @@ export function compareDraftWithMap(
           new DocumentChange({
             op: {
               case: 'replaceBlock',
-              value: serverBlock,
+              value: Block.fromJson(serverBlock),
             },
           }),
         )
@@ -1091,7 +1115,7 @@ export function compareDraftWithMap(
             new DocumentChange({
               op: {
                 case: 'replaceBlock',
-                value: currentBlockState,
+                value: Block.fromJson(currentBlockState),
               },
             }),
           )
@@ -1289,6 +1313,7 @@ function findDifferences(obj1, obj2) {
 function removeTrailingBlocks(
   blocks: Array<EditorBlock<typeof hmBlockSchema>>,
 ) {
+  console.log(`== ~ blocks:`, blocks)
   let trailedBlocks = [...blocks]
   while (true) {
     let lastBlock = trailedBlocks[trailedBlocks.length - 1]

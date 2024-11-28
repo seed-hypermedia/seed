@@ -428,14 +428,11 @@ export function DraftHeader({
   const name = useSelector(draftActor, (s) => {
     return s.context.metadata.name
   })
-
   const icon = useSelector(draftActor, (s) => {
     return s.context.metadata.icon
   })
 
-  const prevDoc = useSelector(draftActor, (s) => s.context.entity.document)
-
-  console.log(`== ~ prevDoc:`, prevDoc)
+  const prevDoc = useSelector(draftActor, (s) => s.context.entity?.document)
 
   const input = useRef<HTMLTextAreaElement | null>(null)
 

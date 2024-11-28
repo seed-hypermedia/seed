@@ -38,6 +38,7 @@ function toEditorBlockType(
   if (hmBlockType === 'Embed') return 'embed'
   if (hmBlockType === 'WebEmbed') return 'web-embed'
   if (hmBlockType === 'Nostr') return 'nostr'
+  if (hmBlockType === 'Query') return 'query'
   return undefined
 }
 
@@ -87,12 +88,12 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     out.props.childrenType = block.attributes.childrenType
   }
 
-  if (block.attributes?.start) {
-    out.props.start =
-      typeof block.attributes.start == 'number'
-        ? block.attributes.start.toString()
-        : block.attributes.start
-  }
+  // if (block.attributes?.start) {
+  //   out.props.start =
+  //     typeof block.attributes.start == 'number'
+  //       ? block.attributes.start.toString()
+  //       : block.attributes.start
+  // }
 
   if (
     [
@@ -118,7 +119,9 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     Object.entries(block.attributes).forEach(([key, value]) => {
       if (value !== undefined) {
         if (key == 'width' || key == 'size') {
-          out.props![key] = Number(value)
+          if (typeof value == 'number') {
+            out.props![key] = String(value)
+          }
         } else {
           out.props![key] = value
         }
@@ -126,6 +129,13 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     })
 
     // return out
+  }
+
+  if (block.type === 'Query') {
+    out.props.style = block.attributes.style
+    out.props.columnCount = String(block.attributes.columnCount)
+    out.props.queryIncludes = JSON.stringify(block.attributes.query.includes)
+    out.props.querySort = JSON.stringify(block.attributes.query.sort)
   }
 
   const blockText = block.text || ''

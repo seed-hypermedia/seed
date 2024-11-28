@@ -4,7 +4,7 @@
 // @ts-nocheck
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
+import { Message, proto3, Struct, Timestamp } from "@bufbuild/protobuf";
 
 /**
  * Request for getting a single document.
@@ -1017,11 +1017,18 @@ export class Block extends Message<Block> {
   link = "";
 
   /**
-   * Arbitrary attributes of the block.
+   * Remaining type-specific attribtues of the block.
+   * Logically, these attributes are on the same level as the other fields,
+   * i.e. the field `attributes` should not exist,
+   * but because protobuf doesn't support arbitrary fields, and we don't want/need
+   * to specify the types of all the possible fields, we use this approach of storing
+   * the rest of the fields in this open-ended attributes map.
+   * The side-effect of this is that `attributes` map must not have any keys
+   * that conflict with the names of the top-level fields.
    *
-   * @generated from field: map<string, string> attributes = 4;
+   * @generated from field: google.protobuf.Struct attributes = 4;
    */
-  attributes: { [key: string]: string } = {};
+  attributes?: Struct;
 
   /**
    * Annotation "layers" of the block.
@@ -1050,7 +1057,7 @@ export class Block extends Message<Block> {
     { no: 2, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "text", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 7, name: "link", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "attributes", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "scalar", T: 9 /* ScalarType.STRING */} },
+    { no: 4, name: "attributes", kind: "message", T: Struct },
     { no: 5, name: "annotations", kind: "message", T: Annotation, repeated: true },
     { no: 6, name: "revision", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);

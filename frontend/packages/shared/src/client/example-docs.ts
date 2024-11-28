@@ -46,7 +46,7 @@ function createSectionNode(
     type?: 'section' | 'paragraph' | 'heading'
     id: string
     annotations?: Annotation[]
-    attributes?: Record<string, string>
+    attributes?: Record<string, any>
   },
   children?: BlockNode[],
 ) {

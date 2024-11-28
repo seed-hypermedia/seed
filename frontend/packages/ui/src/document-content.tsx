@@ -7,7 +7,10 @@ import {
   HMBlock,
   HMBlockChildrenType,
   HMBlockNode,
+  HMBlockQuery,
   HMDocument,
+  HMEntityContent,
+  HMQueryResult,
   Mention,
   UnpackedHypermediaId,
   clipContentBlocks,
@@ -16,6 +19,7 @@ import {
   getDocumentTitle,
   getFileUrl,
   hmBlockToEditorBlock,
+  hmId,
   idToUrl,
   isHypermediaScheme,
   packHmId,
@@ -83,6 +87,10 @@ export type EntityComponentsRecord = {
   Document: React.FC<EntityComponentProps>;
   Comment: React.FC<EntityComponentProps>;
   Inline: React.FC<UnpackedHypermediaId>;
+  Query: React.FC<{
+    id: UnpackedHypermediaId;
+    query: HMBlockQuery["attributes"]["query"];
+  }>;
 };
 
 export type DocContentContextValue = {
@@ -112,6 +120,8 @@ export type DocContentContextValue = {
     blockRef?: string;
   };
   importWebFile?: any;
+  supportDocuments?: HMEntityContent[];
+  supportQueries?: HMQueryResult[];
 };
 
 export const docContentContext = createContext<DocContentContextValue | null>(
@@ -575,6 +585,12 @@ export function BlockNodeContent({
     return null;
   }
 
+  const isMediablock = useMemo(() => {
+    return ["Image", "Video", "File", "Embed", "WebEmbed", "Query"].includes(
+      blockNode.block!.type
+    );
+  }, [blockNode.block]);
+
   return (
     <YStack
       ref={elm}
@@ -627,7 +643,6 @@ export function BlockNodeContent({
               top={
                 ["Unordered", "Ordered"].includes(childrenType) ? 12 : undefined
               }
-              bg="$background"
               opacity={_expanded ? 0 : 1}
               hoverStyle={{
                 opacity: 1,
@@ -667,6 +682,9 @@ export function BlockNodeContent({
           </Tooltip>
         ) : null}
         <XStack
+          position={isMediablock ? "absolute" : "relative"}
+          right={isMediablock ? 8 : undefined}
+          top={isMediablock ? 8 : undefined}
           pl="$2"
           borderRadius={layoutUnit / 4}
           gap="$2"
@@ -693,6 +711,7 @@ export function BlockNodeContent({
                 borderRadius={layoutUnit / 4}
                 // theme="blue"
                 onPress={() => onCitationClick?.()}
+                bg="$background"
               >
                 <XStack gap="$2" ai="center">
                   {/* <BlockQuote size={layoutUnit / 2} color="$blue11" />  TODO FIX ME*/}
@@ -715,6 +734,7 @@ export function BlockNodeContent({
                     borderRadius={layoutUnit / 4}
                     chromeless
                     icon={Link}
+                    bg="$background"
                     onPress={() => {
                       if (blockNode.block?.id) {
                         onCopyBlock(blockNode.block.id, {expanded: true});
@@ -737,6 +757,7 @@ export function BlockNodeContent({
                     borderRadius={layoutUnit / 4}
                     chromeless
                     icon={Reply}
+                    bg="$background"
                     onPress={() => {
                       if (blockNode.block?.id) {
                         onReplyBlock(blockNode.block.id);
@@ -759,6 +780,7 @@ export function BlockNodeContent({
                     borderRadius={layoutUnit / 4}
                     chromeless
                     icon={MessageSquare}
+                    bg="$background"
                     onPress={() => {
                       if (blockNode.block?.id) {
                         onBlockComment(blockNode.block.id);
@@ -888,6 +910,10 @@ function BlockContent(props: BlockContentProps) {
 
   if (props.block.type == "Math") {
     return <BlockContentMath {...props} block={props.block} />;
+  }
+
+  if (props.block.type == "Query") {
+    return <BlockContentQuery {...props} block={props.block} />;
   }
 
   return <BlockContentUnknown {...props} />;
@@ -1733,6 +1759,33 @@ export function ContentEmbed({
       {content}
     </EmbedWrapper>
   );
+}
+
+// document -> BlockContentQuery -> EntityTypes.Query(block, id) -> QueryBlockDesktop / QueryBlockWeb
+// editor -> QueryBlock -> EditorQueryBlock
+export function BlockContentQuery({block}: {block: HMBlockQuery}) {
+  const EntityTypes = useDocContentContext().entityComponents;
+  if (block.type !== "Query")
+    throw new Error("BlockContentQuery requires a Query block type");
+
+  const query = block.attributes.query;
+  const id = hmId("d", query.includes[0].space, {
+    path: query.includes[0].path ? query.includes[0].path.split("/") : null,
+    latest: true,
+  });
+  return <EntityTypes.Query block={block} id={id} />;
+  // let docs = items?.filter((item) => !!item.data) || [];
+  // if (docs.length) {
+  //   return docs.map((item) => (
+  //     <NewspaperCard
+  //       id={item.data.id}
+  //       entity={item.data}
+  //       accountsMetadata={[]}
+  //     />
+  //   ));
+  // } else {
+  //   return <QueryBlockPlaceholder styleType={block.attributes.style} />;
+  // }
 }
 
 export function BlockNotFoundError({

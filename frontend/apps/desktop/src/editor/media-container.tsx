@@ -212,13 +212,13 @@ export const MediaContainer = ({
         </XStack>
       ) : null}
       <YStack
-        backgroundColor={selected ? '$color4' : '$color3'}
-        borderColor={selected ? '$color8' : '$color6'}
-        borderWidth={4}
+        // backgroundColor={selected ? '$color4' : '$color3'}
+        borderColor={selected ? '$color8' : '$colorTransparent'}
+        borderWidth={3}
         borderRadius="$2"
-        hoverStyle={{
-          backgroundColor: '$color4',
-        }}
+        // hoverStyle={{
+        //   backgroundColor: '$color4',
+        // }}
         {...mediaProps}
         // @ts-ignore
         contentEditable={false}

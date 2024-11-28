@@ -1,22 +1,30 @@
 import {useNavigate} from "@remix-run/react";
 import {
   createWebHMUrl,
+  formattedDate,
   getDocumentTitle,
+  HMBlockQuery,
+  HMDocumentListItem,
   hmId,
+  hmIdPathToEntityQueryPath,
+  queryBlockSortedItems,
   UnpackedHypermediaId,
 } from "@shm/shared";
+import {Button} from "@shm/ui/src/button";
 import {
   ContentEmbed,
   EntityComponentProps,
   ErrorBlock,
   InlineEmbedButton,
+  useDocContentContext,
 } from "@shm/ui/src/document-content";
 import {HMIcon} from "@shm/ui/src/hm-icon";
 import {NewspaperCard} from "@shm/ui/src/newspaper";
 import {Spinner} from "@shm/ui/src/spinner";
-import {Text} from "@tamagui/core";
-import {YStack} from "@tamagui/stacks";
-import {useState} from "react";
+import {StackProps, Text} from "@tamagui/core";
+import {XStack, YStack} from "@tamagui/stacks";
+import {SizableText} from "@tamagui/text";
+import {useMemo, useState} from "react";
 import {useEntity} from "./models";
 
 function EmbedWrapper({
@@ -143,5 +151,175 @@ export function EmbedDocContent(props: EntityComponentProps) {
         //   </Button>
       }
     />
+  );
+}
+
+export function QueryBlockWeb({
+  id,
+  block,
+}: {
+  id: UnpackedHypermediaId;
+  block: HMBlockQuery;
+}) {
+  const ctx = useDocContentContext();
+  // const query
+  const {supportQueries, supportDocuments} = ctx || {};
+  const includes = block.attributes.query.includes || [];
+
+  const queryInclude = includes[0];
+  if (!queryInclude || includes.length !== 1)
+    return (
+      <ErrorBlock message="Only one QueryBlock.attributes.query.includes is supported for now" />
+    );
+
+  const queryResults = supportQueries?.find((q) => {
+    if (q.in.uid !== queryInclude.space) return false;
+    const path = hmIdPathToEntityQueryPath(q.in.path);
+    if (path !== queryInclude.path) return false;
+    if (q.mode !== queryInclude.mode) return false;
+    return true;
+  });
+
+  // const sorted = sortQueryBlockResults(queryResults, block.attributes.query.sort);
+  // queryResults?.results.map(resu)
+  // return queryResults?.results
+
+  const sortedItems = queryBlockSortedItems({
+    entries: queryResults?.results || [],
+    sort: block.attributes.query.sort || [{term: "UpdateTime", reverse: false}],
+  });
+  const DataComponent =
+    block.attributes.style == "List" ? QueryListStyle : QueryCardStyle;
+
+  return <DataComponent block={block} items={sortedItems} />;
+}
+
+function QueryCardStyle({
+  block,
+  items,
+}: {
+  block: HMBlockQuery;
+  items: Array<HMDocumentListItem>;
+}) {
+  const ctx = useDocContentContext();
+
+  const columnProps = useMemo(() => {
+    switch (block.attributes.columnCount) {
+      case 2:
+        return {
+          flexBasis: "100%",
+          $gtSm: {flexBasis: "50%"},
+          $gtMd: {flexBasis: "50%"},
+        } as StackProps;
+      case 3:
+        return {
+          flexBasis: "100%",
+          $gtSm: {flexBasis: "50%"},
+          $gtMd: {flexBasis: "33.333%"},
+        } as StackProps;
+      default:
+        return {
+          flexBasis: "100%",
+          $gtSm: {flexBasis: "100%"},
+          $gtMd: {flexBasis: "100%"},
+        } as StackProps;
+    }
+  }, [block.attributes.columnCount]);
+
+  return (
+    <XStack f={1} flexWrap="wrap" marginHorizontal="$-3">
+      {items.map((item) => {
+        const id = hmId("d", item.account, {
+          path: item.path,
+          latest: true,
+        });
+        return (
+          <YStack {...columnProps} p="$3">
+            <NewspaperCard
+              id={id}
+              entity={{
+                id,
+                document: {metadata: item.metadata},
+              }}
+              key={item.path.join("/")}
+              accountsMetadata={
+                ctx.supportDocuments?.map((d) => ({
+                  id: d.id,
+                  metadata: d.document?.metadata,
+                })) || []
+              }
+              flexBasis="100%"
+              $gtSm={{flexBasis: "100%"}}
+              $gtMd={{flexBasis: "100%"}}
+            />
+          </YStack>
+        );
+      })}
+    </XStack>
+  );
+}
+
+function QueryListStyle({
+  block,
+  items,
+}: {
+  block: HMBlockQuery;
+  items: Array<HMDocumentListItem>;
+}) {
+  const navigate = useNavigate();
+
+  return (
+    <YStack gap="$3" w="100%">
+      {items?.map((item) => {
+        const id = hmId("d", item.account, {
+          path: item.path,
+          latest: true,
+        });
+        const icon =
+          id.path?.length == 0 || item.metadata?.icon ? (
+            <HMIcon size={28} id={id} metadata={item.metadata} />
+          ) : null;
+        return (
+          <Button
+            borderWidth={0}
+            backgroundColor="$colorTransparent"
+            hoverStyle={{
+              backgroundColor: "$color5",
+            }}
+            elevation="$1"
+            paddingHorizontal={16}
+            paddingVertical="$1"
+            h={60}
+            icon={icon}
+            onPress={() => {
+              navigate(
+                createWebHMUrl(id.type, id.uid, {
+                  hostname: null,
+                  blockRange: id.blockRange,
+                  blockRef: id.blockRef,
+                  version: id.version,
+                  latest: id.latest,
+                  path: id.path,
+                })
+              );
+            }}
+          >
+            <XStack gap="$2" alignItems="center" flex={1} paddingVertical="$2">
+              <SizableText
+                fontWeight="bold"
+                textOverflow="ellipsis"
+                whiteSpace="nowrap"
+                overflow="hidden"
+              >
+                {item.metadata.name}
+              </SizableText>
+            </XStack>
+            <SizableText size="$1" color="$color10">
+              {formattedDate(item.updateTime)}
+            </SizableText>
+          </Button>
+        );
+      })}
+    </YStack>
   );
 }

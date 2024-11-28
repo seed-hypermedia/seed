@@ -2,6 +2,7 @@ package networking
 
 import (
 	"context"
+	"errors"
 	"seed/backend/blob"
 	"seed/backend/config"
 	"seed/backend/core"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 )
 
 func TestNetworkingGetPeerInfo(t *testing.T) {
@@ -55,7 +57,10 @@ func makeTestServer(t *testing.T, u coretest.Tester) *Server {
 	}()
 
 	t.Cleanup(func() {
-		require.NoError(t, <-errc)
+		err := <-errc
+		if err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+			t.Fatal(err)
+		}
 	})
 
 	select {

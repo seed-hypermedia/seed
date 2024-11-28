@@ -201,6 +201,8 @@ function _MainDocumentPage({
     })
   }, [])
   const entity = useSubscribedEntity(id)
+
+  console.log(`== ~ entity:`, entity)
   const siteHomeEntity = useSubscribedEntity(hmId('d', id.uid))
 
   if (entity.isInitialLoading) return <Spinner />
@@ -253,7 +255,13 @@ function _MainDocumentPage({
               isBlockFocused={isBlockFocused}
             />
           </YStack>
-          <DocPageAppendix docId={id} />
+          <DocPageAppendix
+            centered={
+              entity.data.document.metadata.layout ==
+              'Seed/Experimental/Newspaper'
+            }
+            docId={id}
+          />
         </DocContainer>
       </YStack>
     </YStack>
@@ -615,9 +623,15 @@ function DocPageContent({
   )
 }
 
-function DocPageAppendix({docId}: {docId: UnpackedHypermediaId}) {
+function DocPageAppendix({
+  docId,
+  centered = false,
+}: {
+  docId: UnpackedHypermediaId
+  centered: boolean
+}) {
   return (
-    <Container centered>
+    <Container centered={centered}>
       <Discussion docId={docId} />
     </Container>
   )

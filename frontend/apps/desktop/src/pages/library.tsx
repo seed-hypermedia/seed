@@ -2,7 +2,8 @@ import {useAppContext} from '@/app-context'
 import {openAddAccountWizard} from '@/components/create-account'
 import {FavoriteButton} from '@/components/favoriting'
 import {MainWrapper} from '@/components/main-wrapper'
-import {ListItemSkeleton} from '@/components/skeleton'
+
+import {EditorBlock} from '@/editor'
 import {
   FilterItem,
   LibraryData,
@@ -15,7 +16,6 @@ import {useNavigate} from '@/utils/useNavigate'
 import {useTriggerWindowEvent} from '@/utils/window-events'
 import {
   DocumentRoute,
-  EditorBlock,
   formattedDate,
   getDocumentTitle,
   getMetadataName,
@@ -32,6 +32,7 @@ import {
   HMIcon,
   Input,
   LinkIcon,
+  ListItemSkeleton,
   Popover,
   Separator,
   SizableText,
@@ -774,31 +775,27 @@ function LibraryList({
           </SizableText>
         </XStack>
       )}
-      {library.items.length ? (
-        library.items.map((entry) => {
-          const selected = selectedDocuments.has(entry.id.id)
-          return (
-            <LibraryListItem
-              key={entry.id.id}
-              entry={entry}
-              exportMode={exportMode}
-              selected={selected}
-              toggleDocumentSelection={toggleDocumentSelection}
-            />
-          )
-        })
-      ) : (
-        <YStack gap="$3">
-          {[...Array(5)].map((_, index) => (
-            <ListItemSkeleton key={index} />
-          ))}
-        </YStack>
-      )}
+      <YStack gap="$3">
+        {library.items.length
+          ? library.items.map((entry) => {
+              const selected = selectedDocuments.has(entry.id.id)
+              return (
+                <LibraryListItem
+                  key={entry.id.id}
+                  entry={entry}
+                  exportMode={exportMode}
+                  selected={selected}
+                  toggleDocumentSelection={toggleDocumentSelection}
+                />
+              )
+            })
+          : [...Array(5)].map((_, index) => <ListItemSkeleton key={index} />)}
+      </YStack>
     </YStack>
   )
 }
 
-function LibraryListItem({
+export function LibraryListItem({
   entry,
   exportMode,
   selected,
@@ -836,6 +833,7 @@ function LibraryListItem({
         bg: hoverColor,
       }}
       bg="$colorTransparent"
+      elevation="$1"
       paddingHorizontal={16}
       paddingVertical="$1"
       onPress={() => {

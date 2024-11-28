@@ -169,6 +169,7 @@ const Render = (
   return (
     <MediaRender
       block={block}
+      hideForm={!!block.props.url}
       editor={editor}
       mediaType="embed"
       submit={submitEmbed}
@@ -306,12 +307,14 @@ function EmbedControl({
       y={0}
       zIndex="$zIndex.5"
       width="100%"
-      ai="center"
+      height="100%"
+      ai="flex-start"
       jc="flex-end"
       opacity={popoverState.open ? 1 : 0}
       padding="$2"
       gap="$2"
       $group-item-hover={{opacity: 1}}
+      bg="$colorTransparent"
     >
       <Tooltip content="Open in a new window">
         <Button
