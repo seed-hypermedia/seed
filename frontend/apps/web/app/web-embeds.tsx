@@ -4,10 +4,10 @@ import {
   formattedDate,
   getDocumentTitle,
   HMBlockQuery,
+  HMDocumentListItem,
   hmId,
   hmIdPathToEntityQueryPath,
-  HMQueryResult,
-  HMQuerySort,
+  queryBlockSortedItems,
   UnpackedHypermediaId,
 } from "@shm/shared";
 import {Button} from "@shm/ui/src/button";
@@ -154,13 +154,6 @@ export function EmbedDocContent(props: EntityComponentProps) {
   );
 }
 
-function sortQueryBlockResults(
-  queryResults: HMQueryResult | undefined,
-  sort: HMQuerySort
-) {
-  return queryResults;
-}
-
 export function QueryBlockWeb({
   id,
   block,
@@ -172,6 +165,7 @@ export function QueryBlockWeb({
   // const query
   const {supportQueries, supportDocuments} = ctx || {};
   const includes = block.attributes.query.includes || [];
+
   const queryInclude = includes[0];
   if (!queryInclude || includes.length !== 1)
     return (
@@ -185,21 +179,27 @@ export function QueryBlockWeb({
     if (q.mode !== queryInclude.mode) return false;
     return true;
   });
+
   // const sorted = sortQueryBlockResults(queryResults, block.attributes.query.sort);
   // queryResults?.results.map(resu)
   // return queryResults?.results
+
+  const sortedItems = queryBlockSortedItems({
+    entries: queryResults?.results || [],
+    sort: block.attributes.query.sort || [{term: "UpdateTime", reverse: false}],
+  });
   const DataComponent =
     block.attributes.style == "List" ? QueryListStyle : QueryCardStyle;
 
-  return <DataComponent block={block} queryResults={queryResults} />;
+  return <DataComponent block={block} items={sortedItems} />;
 }
 
 function QueryCardStyle({
   block,
-  queryResults,
+  items,
 }: {
   block: HMBlockQuery;
-  queryResults?: HMQueryResult;
+  items: Array<HMDocumentListItem>;
 }) {
   const ctx = useDocContentContext();
 
@@ -228,7 +228,7 @@ function QueryCardStyle({
 
   return (
     <XStack f={1} flexWrap="wrap" marginHorizontal="$-3">
-      {queryResults?.results?.map((item) => {
+      {items.map((item) => {
         const id = hmId("d", item.account, {
           path: item.path,
           latest: true,
@@ -261,16 +261,16 @@ function QueryCardStyle({
 
 function QueryListStyle({
   block,
-  queryResults,
+  items,
 }: {
   block: HMBlockQuery;
-  queryResults?: HMQueryResult;
+  items: Array<HMDocumentListItem>;
 }) {
   const navigate = useNavigate();
 
   return (
     <YStack gap="$3" w="100%">
-      {queryResults?.results?.map((item) => {
+      {items?.map((item) => {
         const id = hmId("d", item.account, {
           path: item.path,
           latest: true,
@@ -304,13 +304,7 @@ function QueryListStyle({
               );
             }}
           >
-            <XStack
-              gap="$2"
-              alignItems="center"
-              flex={1}
-              paddingVertical="$2"
-              bg="red"
-            >
+            <XStack gap="$2" alignItems="center" flex={1} paddingVertical="$2">
               <SizableText
                 fontWeight="bold"
                 textOverflow="ellipsis"
