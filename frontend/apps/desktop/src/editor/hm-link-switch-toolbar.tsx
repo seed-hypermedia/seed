@@ -132,7 +132,7 @@ export function HypermediaLinkSwitchToolbar(
                     $pos.start() + offset + 1,
 
                     state.schema.text(
-                      mention.attrs.title,
+                      mention.attrs.name,
                       // @ts-ignore
                       state.schema.marks['link'].create({href: props.url})!,
                     ),
@@ -428,7 +428,7 @@ function insertNode(
 
 function insertMentionNode(
   editor: BlockNoteEditor<HMBlockSchema>,
-  title: string,
+  name: string,
   node: Node,
 ) {
   const {state, view} = editor._tiptapEditor
@@ -447,7 +447,7 @@ function insertMentionNode(
 
   view.dispatch(
     tr
-      .deleteRange($pos.start() + offset, $pos.start() + offset + title.length)
+      .deleteRange($pos.start() + offset, $pos.start() + offset + name.length)
       .insert(
         $pos.start() + offset,
         Fragment.fromArray([node, view.state.schema.text(' ')]),

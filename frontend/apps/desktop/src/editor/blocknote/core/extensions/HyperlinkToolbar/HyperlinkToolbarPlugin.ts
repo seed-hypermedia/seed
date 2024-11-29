@@ -422,8 +422,8 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
             this.hyperlinkMarkRange!.to,
           ),
           url: this.hyperlinkMark!.attrs.link,
-          text: this.hyperlinkMark!.attrs.title
-            ? this.hyperlinkMark!.attrs.title
+          text: this.hyperlinkMark!.attrs.name
+            ? this.hyperlinkMark!.attrs.name
             : ' ',
           type: 'mention',
           id: container ? container.attrs.id : '',
