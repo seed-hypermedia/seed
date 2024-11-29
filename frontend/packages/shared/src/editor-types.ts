@@ -56,7 +56,7 @@ export interface MediaBlockProps extends EditorBlockProps {
   name?: string
   width?: string
   defaultOpen?: string
-  size?: number
+  size?: string
   alignment?: string
 }
 
