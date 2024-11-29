@@ -26,8 +26,6 @@ export type HypermediaLinkFormProps = {
   editLink: (url: string, text: string) => void
   openUrl: (url?: string | undefined, newWindow?: boolean | undefined) => void
   isSeedDocument?: boolean
-  isFocused: boolean
-  setIsFocused: (focused: boolean) => void
   hasName?: boolean
   hasSearch?: boolean
 }
@@ -45,18 +43,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
   }
 
   return (
-    <YStack
-      gap="$1.5"
-      zIndex="$zIndex.5"
-      onMouseEnter={(e) => {
-        e.stopPropagation()
-        if (!props.isFocused) props.setIsFocused(true)
-      }}
-      onMouseLeave={(e) => {
-        e.stopPropagation()
-        props.setIsFocused(false)
-      }}
-    >
+    <YStack gap="$1.5" zIndex="$zIndex.5">
       {props.hasName && (
         <XStack
           paddingHorizontal="$2"

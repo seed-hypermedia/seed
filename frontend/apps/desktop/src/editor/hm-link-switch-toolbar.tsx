@@ -29,22 +29,30 @@ export function HypermediaLinkSwitchToolbar(
     stopEditing: boolean
     formComponents: () => React.JSX.Element
     type: string
+    setHovered?: (hovered: boolean) => void
   },
 ) {
   const [isEditing, setIsEditing] = useState(false)
-  const [isFocused, setIsFocused] = useState(isEditing)
   const unpackedRef = useMemo(() => unpackHmId(props.url), [props.url])
 
   useEffect(() => {
     if (props.stopEditing && isEditing) {
-      if (props.type === 'embed') {
-        if (!isFocused) setIsEditing(false)
-      } else setIsEditing(false)
+      setIsEditing(false)
     }
-  }, [props.stopEditing, isEditing, isFocused])
+  }, [props.stopEditing, isEditing])
 
   return (
-    <XStack zIndex="$zIndex.4">
+    <XStack
+      zIndex="$zIndex.4"
+      {...(props.setHovered && {
+        onMouseEnter: () => {
+          props.setHovered?.(true)
+        },
+        onMouseLeave: () => {
+          props.setHovered?.(false)
+        },
+      })}
+    >
       {isEditing ? (
         // Render the form when in editing mode
         <YStack
@@ -75,8 +83,6 @@ export function HypermediaLinkSwitchToolbar(
             hasName={props.type !== 'embed'}
             hasSearch={props.type !== 'link'}
             isSeedDocument={unpackedRef ? true : false}
-            isFocused={isFocused}
-            setIsFocused={setIsFocused}
           />
         </YStack>
       ) : (
@@ -98,7 +104,6 @@ export function HypermediaLinkSwitchToolbar(
             tooltipText={`Edit ${props.type}`}
             icon={Pencil}
             onPress={() => {
-              setIsFocused(true)
               setIsEditing(true)
             }}
             active={false}
