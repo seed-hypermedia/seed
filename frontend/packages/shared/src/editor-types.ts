@@ -145,7 +145,6 @@ export interface EditorLink {
 export interface EditorInlineEmbed {
   type: 'inline-embed'
   link: string
-  name: string
   styles: EditorInlineStyles | {}
 }
 

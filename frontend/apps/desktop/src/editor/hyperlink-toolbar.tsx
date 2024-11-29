@@ -68,11 +68,9 @@ export function HypermediaLinkToolbar(
         editLink={props.editHyperlink}
         openUrl={props.openUrl}
         type={props.type}
-        hasName={true}
+        hasName={props.type !== 'mention'}
         hasSearch={props.type === 'mention'}
         isSeedDocument={props.isSeedDocument}
-        isFocused={props.isFocused}
-        setIsFocused={props.setIsFocused}
       />
     </YStack>
   )

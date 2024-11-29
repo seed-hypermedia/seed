@@ -80,7 +80,7 @@ export function HypermediaLinkSwitchToolbar(
             editLink={props.editHyperlink}
             openUrl={props.openUrl}
             type={props.type}
-            hasName={props.type !== 'embed'}
+            hasName={props.type !== 'embed' && props.type !== 'mention'}
             hasSearch={props.type !== 'link'}
             isSeedDocument={unpackedRef ? true : false}
           />
@@ -132,7 +132,7 @@ export function HypermediaLinkSwitchToolbar(
                     $pos.start() + offset + 1,
 
                     state.schema.text(
-                      mention.attrs.name,
+                      mention.attrs.link,
                       // @ts-ignore
                       state.schema.marks['link'].create({href: props.url})!,
                     ),
@@ -175,7 +175,6 @@ export function HypermediaLinkSwitchToolbar(
                 const node = state.schema.nodes['inline-embed'].create(
                   {
                     link: props.url,
-                    name: props.text,
                   },
                   state.schema.text(' '),
                 )
@@ -186,7 +185,6 @@ export function HypermediaLinkSwitchToolbar(
                   content: [],
                   props: {
                     link: props.url,
-                    name: props.text ? props.text : props.url,
                   },
                 } as PartialBlock<HMBlockSchema>
                 // props.editor.insertBlocks([mentionBlock], props.id, 'after')

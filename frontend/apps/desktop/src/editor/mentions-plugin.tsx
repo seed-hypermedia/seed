@@ -65,9 +65,6 @@ export function createInlineEmbedNode(bnEditor: any) {
         link: {
           default: '',
         },
-        name: {
-          default: '',
-        },
       }
     },
     addProseMirrorPlugins() {
@@ -83,24 +80,13 @@ function InlineEmbedNodeComponent(props: any) {
     <NodeViewWrapper
       className={`inline-embed-token${props.selected ? ' selected' : ''}`}
       data-inline-embed={props.node.attrs.link}
-      data-name={props.node.attrs.name}
     >
-      <MentionToken
-        value={props.node.attrs.link}
-        name={props.node.attrs.name}
-        selected={props.selected}
-        updateAttributes={props.updateAttributes}
-      />
+      <MentionToken value={props.node.attrs.link} selected={props.selected} />
     </NodeViewWrapper>
   )
 }
 
-export function MentionToken(props: {
-  value: string
-  name: string
-  selected?: boolean
-  updateAttributes: (attributes: {[key: string]: any}) => void
-}) {
+export function MentionToken(props: {value: string; selected?: boolean}) {
   const unpackedRef = unpackHmId(props.value)
 
   if (unpackedRef?.type == 'd') {
@@ -113,28 +99,20 @@ export function MentionToken(props: {
 
 function DocumentMention({
   unpackedRef,
-  name,
   selected,
-  updateAttributes,
 }: {
   unpackedRef: UnpackedHypermediaId
-  name: string
   selected?: boolean
-  updateAttributes: (attributes: {[key: string]: any}) => void
 }) {
-  let mentionName = name
-  if (!mentionName) {
-    const entity = useEntity(unpackedRef)
-    const docTitle = entity.data?.document
-      ? getDocumentTitle(entity.data?.document)
-      : unpackedRef.id
+  const entity = useEntity(unpackedRef)
 
-    if (!mentionName && docTitle) {
-      updateAttributes({name: docTitle})
-    }
-  }
-
-  return <MentionText selected={selected}>{mentionName}</MentionText>
+  return (
+    <MentionText selected={selected}>
+      {entity.data?.document
+        ? getDocumentTitle(entity.data?.document)
+        : unpackedRef.id}
+    </MentionText>
+  )
 }
 
 export function MentionText(props: any) {

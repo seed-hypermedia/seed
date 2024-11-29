@@ -183,12 +183,10 @@ export function createAutoCompletePlugin<N extends string, T>(args: {
 
           const onCreate = (
             link: string,
-            name: string,
             range: {from: number; to: number},
           ) => {
             const node = view.state.schema.nodes[nodeName].create({
               link,
-              name,
             })
             view.dispatch(
               view.state.tr.replaceWith(
@@ -359,7 +357,7 @@ function AutocompletePopupInner(
       ) {
         let item = suggestions[group][idx]
 
-        onCreate(item.value, item.title, range)
+        onCreate(item.value, range)
         onClose()
       }
       return true
@@ -469,7 +467,7 @@ function AutocompletePopupInner(
                         // setIndex(i)
                       }}
                       onPress={() => {
-                        onCreate(item.value, item.title, range)
+                        onCreate(item.value, range)
                         onClose()
                       }}
                     />
@@ -515,11 +513,7 @@ export type AutocompleteTokenPluginActiveState<T> = {
 }
 
 export type AutocompleteTokenPluginActions = {
-  onCreate: (
-    link: string,
-    name: string,
-    range: {from: number; to: number},
-  ) => void
+  onCreate: (link: string, range: {from: number; to: number}) => void
   onClose: () => void
 }
 

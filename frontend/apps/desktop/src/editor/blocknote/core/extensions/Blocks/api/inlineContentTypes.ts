@@ -31,7 +31,6 @@ export type BNLink = {
 export type InlineEmbed = {
   type: 'inline-embed'
   link: string
-  name: string
 }
 
 export type PartialLink = Omit<BNLink, 'content'> & {

@@ -200,7 +200,6 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         : this.pmView.state.selection.from
       tr = tr.setNodeMarkup(pos, null, {
         link: url,
-        name: text,
       })
       // return
     } else {
@@ -237,7 +236,6 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         : this.pmView.state.selection.from
       tr = tr.setNodeMarkup(pos, null, {
         link: url,
-        name: text,
       })
       // return
     } else {
@@ -422,9 +420,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
             this.hyperlinkMarkRange!.to,
           ),
           url: this.hyperlinkMark!.attrs.link,
-          text: this.hyperlinkMark!.attrs.name
-            ? this.hyperlinkMark!.attrs.name
-            : ' ',
+          text: ' ',
           type: 'mention',
           id: container ? container.attrs.id : '',
         }

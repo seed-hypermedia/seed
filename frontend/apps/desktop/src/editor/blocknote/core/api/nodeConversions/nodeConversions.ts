@@ -124,7 +124,6 @@ export function inlineContentToNodes(
       nodes.push(
         schema.nodes['inline-embed'].create({
           link: content.link,
-          name: content.name,
         }),
       )
     } else {
@@ -234,7 +233,6 @@ function contentNodeToInlineContent(contentNode: Node) {
       content.push({
         type: node.type.name,
         link: node.attrs.link,
-        name: node.attrs.name,
       })
 
       currentContent = undefined
@@ -412,10 +410,7 @@ export function nodeToBlock<BSchema extends BlockSchema>(
   })) {
     const blockSpec = blockSchema[blockInfo.contentType.name]
     if (!blockSpec) {
-      if (
-        blockInfo.contentType.name === 'code-block' ||
-        blockInfo.contentType.name === 'inline-embed'
-      ) {
+      if (blockInfo.contentType.name === 'code-block') {
         break
       } else
         throw Error(
