@@ -298,7 +298,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
         leaves.push({
           type: 'inline-embed',
           styles: {},
-          name: linkAnnotation.attributes.name,
+          name: linkAnnotation.name,
           link: linkAnnotation.link,
         } as EditorInlineEmbed)
         textStart = i + 1

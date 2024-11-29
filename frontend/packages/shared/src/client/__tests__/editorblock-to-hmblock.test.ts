@@ -282,6 +282,7 @@ describe('EditorBlock to HMBlock', () => {
             type: 'inline-embed',
             link: 'hm://asdf1234',
             styles: {},
+            name: 'test embed',
           },
         ],
       }
@@ -293,7 +294,9 @@ describe('EditorBlock to HMBlock', () => {
         annotations: [
           {
             type: 'Embed',
-            attributes: {},
+            attributes: {
+              name: 'test embed',
+            },
             starts: [6],
             ends: [7],
             link: 'hm://asdf1234',
@@ -322,6 +325,7 @@ describe('EditorBlock to HMBlock', () => {
             type: 'inline-embed',
             link: 'hm://asdf1234',
             styles: {},
+            name: 'test embed',
           },
           {
             type: 'text',
@@ -357,7 +361,9 @@ describe('EditorBlock to HMBlock', () => {
         annotations: [
           {
             type: 'Embed',
-            attributes: {},
+            attributes: {
+              name: 'test embed',
+            },
             starts: [6],
             ends: [7],
             link: 'hm://asdf1234',
