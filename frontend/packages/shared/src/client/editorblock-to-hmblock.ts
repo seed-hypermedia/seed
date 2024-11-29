@@ -123,6 +123,7 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
 
   const blockVideo = block.type === 'Video' ? block : undefined
   if (blockVideo && editorBlock.type == 'video') {
+    blockVideo.text = ''
     if (editorBlock.props.url) blockVideo.link = editorBlock.props.url
     const width = toNumber(editorBlock.props.width)
     if (width) blockVideo.attributes.width = width
