@@ -399,7 +399,8 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
       try {
         const rect: DOMRect = domAtPos.node.getBoundingClientRect()
         // Check if the cursor is off screen
-        if ((rect && rect.top < 0) || rect.bottom > window.innerHeight) {
+        // if (rect && (rect.top < 0 || rect.top > window.innerHeight)) {
+        if (rect && rect.top > window.innerHeight) {
           // Scroll the cursor into view if not caused by media drag
           // @ts-ignore
           if (!editor.sideMenu.sideMenuView?.isDragging)
