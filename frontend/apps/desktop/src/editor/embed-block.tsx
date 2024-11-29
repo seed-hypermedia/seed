@@ -31,8 +31,8 @@ import {
   Separator,
   SizableText,
   toast,
+  Tooltip,
   usePopoverState,
-  XStack,
   YGroup,
   YStack,
 } from '@shm/ui'
@@ -40,8 +40,10 @@ import {ChevronRight} from '@tamagui/lucide-icons'
 import {Fragment} from '@tiptap/pm/model'
 import {useCallback, useEffect, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
+import {GestureResponderEvent} from 'react-native'
 import {Block, BlockNoteEditor, HMBlockSchema} from '.'
 import {createReactBlockSpec} from './blocknote/react'
+import {useEmbedToolbarContext} from './embed-toolbar-context'
 import {HypermediaLinkSwitchToolbar} from './hm-link-switch-toolbar'
 import {LauncherItem, SwitcherItem} from './launcher-item'
 import {MediaContainer} from './media-container'
@@ -188,6 +190,7 @@ const display = ({
 }: DisplayComponentProps) => {
   const unpackedId = unpackHmId(block.props.url)
   const [showControl, setShowControl] = useState(false)
+  const {activeId, setActiveId} = useEmbedToolbarContext()
 
   return (
     <MediaContainer
@@ -197,8 +200,21 @@ const display = ({
       selected={selected}
       setSelected={setSelected}
       assign={assign}
-      onHoverIn={() => setShowControl(true)}
-      onHoverOut={() => setShowControl(false)}
+      styleProps={{
+        pointerEvents: activeId && activeId !== block.id ? 'none' : '',
+      }}
+      onHoverIn={() => {
+        if (!activeId) {
+          setShowControl(true)
+          setActiveId(block.id)
+        }
+      }}
+      onHoverOut={() => {
+        setShowControl(false)
+        if (activeId && activeId === block.id) {
+          setActiveId(null)
+        }
+      }}
     >
       <EmbedControl
         editor={editor}
@@ -206,6 +222,8 @@ const display = ({
         unpackedId={unpackedId}
         assign={assign}
         showControl={showControl}
+        activeId={activeId}
+        setActiveId={setActiveId}
       />
       {block.props.url && (
         <ErrorBoundary FallbackComponent={EmbedError}>
@@ -242,12 +260,16 @@ function EmbedControl({
   unpackedId,
   assign,
   showControl,
+  activeId,
+  setActiveId,
 }: {
   editor: BlockNoteEditor<HMBlockSchema>
   block: Block<HMBlockSchema>
   unpackedId: UnpackedHypermediaId | null
   assign: any
   showControl: boolean
+  activeId: string | null
+  setActiveId: (id: string | null) => void
 }) {
   const [url, setUrl] = useState<string>(block.props.url || '')
   const openUrl = useOpenUrl()
@@ -261,6 +283,13 @@ function EmbedControl({
   const allowVersionSwitcher = unpackedId?.type == 'd'
   const hasBlockRef = unpackedId?.blockRef
   const isLatestVersion = isEmbedUrlLatest(block.props.url)
+
+  const setHover = (hovered: boolean) => {
+    if (hovered && !activeId) setActiveId(block.id)
+    else if (!hovered && activeId === block.id) {
+      setActiveId(null)
+    }
+  }
 
   function isEmbedUrlLatest(url: string): boolean {
     const queryParams = parseCustomURL(url)
@@ -317,52 +346,6 @@ function EmbedControl({
   function EmbedLinkComponents() {
     return (
       <YStack gap="$0.25">
-        {/* {hasBlockRef ? (
-              <Tooltip
-                content={
-                  isBlockExpanded
-                    ? `Embed only the block's content`
-                    : `Embed the block and its children`
-                }
-              >
-                <Button
-                  {...expandButtonHover}
-                  size="$2"
-                  icon={
-                    isBlockExpanded
-                      ? expandButtonHover.hover
-                        ? ChevronRight
-                        : ChevronDown
-                      : expandButtonHover.hover
-                      ? ChevronDown
-                      : ChevronRight
-                  }
-                  backgroundColor="$backgroundStrong"
-                  onPress={(e: GestureResponderEvent) => {
-                    e.stopPropagation()
-                    let url = packHmId({
-                      ...unpackedId,
-                      blockRange: {expanded: !isBlockExpanded},
-                    })
-
-                    assign({
-                      props: {
-                        url,
-                      },
-                    })
-                  }}
-                >
-                  {isBlockExpanded
-                    ? expandButtonHover.hover
-                      ? 'Collapse'
-                      : 'Expand'
-                    : expandButtonHover.hover
-                    ? 'Expand'
-                    : 'Collapse'}
-                </Button>
-              </Tooltip>
-            ) : null} */}
-
         {allowViewSwitcher && (
           <Popover
             {...popoverViewState}
@@ -520,19 +503,18 @@ function EmbedControl({
   }
 
   return (
-    <XStack
+    <YStack
       position="absolute"
       x={0}
       y={0}
       zIndex="$zIndex.4"
       width="100%"
-      height="100%"
-      ai="flex-start"
+      ai="flex-end"
       jc="flex-end"
       opacity={showControl ? 1 : 0}
       // opacity={popoverState.open ? 1 : 0}
       padding="$2"
-      gap="$2"
+      gap="$0.5"
     >
       <HypermediaLinkSwitchToolbar
         url={url}
@@ -560,8 +542,54 @@ function EmbedControl({
         formComponents={EmbedLinkComponents}
         type="embed"
         id={block.id}
+        setHovered={setHover}
       />
-    </XStack>
+      {hasBlockRef ? (
+        <Tooltip
+          content={
+            isBlockExpanded
+              ? `Embed only the block's content`
+              : `Embed the block and its children`
+          }
+        >
+          <Button
+            {...expandButtonHover}
+            size="$2"
+            icon={
+              isBlockExpanded
+                ? expandButtonHover.hover
+                  ? ChevronRight
+                  : ChevronDown
+                : expandButtonHover.hover
+                ? ChevronDown
+                : ChevronRight
+            }
+            backgroundColor="$backgroundStrong"
+            onPress={(e: GestureResponderEvent) => {
+              e.stopPropagation()
+              let url = packHmId({
+                ...unpackedId,
+                blockRange: {expanded: !isBlockExpanded},
+              })
+
+              assign({
+                props: {
+                  url,
+                },
+              })
+            }}
+          >
+            {isBlockExpanded
+              ? expandButtonHover.hover
+                ? 'Collapse'
+                : 'Expand'
+              : expandButtonHover.hover
+              ? 'Expand'
+              : 'Collapse'}
+          </Button>
+        </Tooltip>
+      ) : null}
+    </YStack>
   )
 }
 
