@@ -1,4 +1,4 @@
-import { HMBlockChildrenType } from './hm-types'
+import {HMBlockChildrenType} from './hm-types'
 
 export type EditorBlock =
   | EditorParagraphBlock
@@ -56,12 +56,8 @@ export interface MediaBlockProps extends EditorBlockProps {
   name?: string
   width?: string
   defaultOpen?: string
-<<<<<<< HEAD
-  size?: string
-=======
   size?: number
   alignment?: string
->>>>>>> 6ed58648 (added saving of button alignment. fixed embed link form hiding when embed loses focus. improve and cleanup link switching code)
 }
 
 export interface EditorImageBlock extends EditorBaseBlock {
