@@ -200,7 +200,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         : this.pmView.state.selection.from
       tr = tr.setNodeMarkup(pos, null, {
         link: url,
-        title: text,
+        name: text,
       })
       // return
     } else {
@@ -237,7 +237,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         : this.pmView.state.selection.from
       tr = tr.setNodeMarkup(pos, null, {
         link: url,
-        title: text,
+        name: text,
       })
       // return
     } else {

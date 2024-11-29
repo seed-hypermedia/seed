@@ -183,12 +183,12 @@ export function createAutoCompletePlugin<N extends string, T>(args: {
 
           const onCreate = (
             link: string,
-            title: string,
+            name: string,
             range: {from: number; to: number},
           ) => {
             const node = view.state.schema.nodes[nodeName].create({
               link,
-              title,
+              name,
             })
             view.dispatch(
               view.state.tr.replaceWith(
@@ -517,7 +517,7 @@ export type AutocompleteTokenPluginActiveState<T> = {
 export type AutocompleteTokenPluginActions = {
   onCreate: (
     link: string,
-    title: string,
+    name: string,
     range: {from: number; to: number},
   ) => void
   onClose: () => void

@@ -175,7 +175,7 @@ export function HypermediaLinkSwitchToolbar(
                 const node = state.schema.nodes['inline-embed'].create(
                   {
                     link: props.url,
-                    title: props.text,
+                    name: props.text,
                   },
                   state.schema.text(' '),
                 )
@@ -186,7 +186,7 @@ export function HypermediaLinkSwitchToolbar(
                   content: [],
                   props: {
                     link: props.url,
-                    title: props.text ? props.text : props.url,
+                    name: props.text ? props.text : props.url,
                   },
                 } as PartialBlock<HMBlockSchema>
                 // props.editor.insertBlocks([mentionBlock], props.id, 'after')

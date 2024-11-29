@@ -278,7 +278,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
       if (l.type == 'Embed') {
         linkAnnotation = {
           type: 'inline-embed',
-          title: l.attributes.title,
+          name: l.attributes.name,
           link: l.link,
         }
       }
@@ -298,7 +298,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
         leaves.push({
           type: 'inline-embed',
           styles: {},
-          title: linkAnnotation.attributes.title,
+          name: linkAnnotation.attributes.name,
           link: linkAnnotation.link,
         } as EditorInlineEmbed)
         textStart = i + 1

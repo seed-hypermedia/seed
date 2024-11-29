@@ -124,7 +124,7 @@ export function inlineContentToNodes(
       nodes.push(
         schema.nodes['inline-embed'].create({
           link: content.link,
-          title: content.title,
+          name: content.name,
         }),
       )
     } else {
@@ -234,7 +234,7 @@ function contentNodeToInlineContent(contentNode: Node) {
       content.push({
         type: node.type.name,
         link: node.attrs.link,
-        title: node.attrs.title,
+        name: node.attrs.name,
       })
 
       currentContent = undefined

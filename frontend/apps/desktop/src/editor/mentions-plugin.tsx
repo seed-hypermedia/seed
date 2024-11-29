@@ -65,7 +65,7 @@ export function createInlineEmbedNode(bnEditor: any) {
         link: {
           default: '',
         },
-        title: {
+        name: {
           default: '',
         },
       }
@@ -83,11 +83,11 @@ function InlineEmbedNodeComponent(props: any) {
     <NodeViewWrapper
       className={`inline-embed-token${props.selected ? ' selected' : ''}`}
       data-inline-embed={props.node.attrs.link}
-      data-title={props.node.attrs.title}
+      data-name={props.node.attrs.name}
     >
       <MentionToken
         value={props.node.attrs.link}
-        title={props.node.attrs.title}
+        name={props.node.attrs.name}
         selected={props.selected}
         updateAttributes={props.updateAttributes}
       />
@@ -97,7 +97,7 @@ function InlineEmbedNodeComponent(props: any) {
 
 export function MentionToken(props: {
   value: string
-  title: string
+  name: string
   selected?: boolean
   updateAttributes: (attributes: {[key: string]: any}) => void
 }) {
@@ -113,28 +113,28 @@ export function MentionToken(props: {
 
 function DocumentMention({
   unpackedRef,
-  title,
+  name,
   selected,
   updateAttributes,
 }: {
   unpackedRef: UnpackedHypermediaId
-  title: string
+  name: string
   selected?: boolean
   updateAttributes: (attributes: {[key: string]: any}) => void
 }) {
-  let mentionTitle = title
-  if (!mentionTitle) {
+  let mentionName = name
+  if (!mentionName) {
     const entity = useEntity(unpackedRef)
     const docTitle = entity.data?.document
       ? getDocumentTitle(entity.data?.document)
       : unpackedRef.id
 
-    if (!mentionTitle && docTitle) {
-      updateAttributes({title: docTitle})
+    if (!mentionName && docTitle) {
+      updateAttributes({name: docTitle})
     }
   }
 
-  return <MentionText selected={selected}>{mentionTitle}</MentionText>
+  return <MentionText selected={selected}>{mentionName}</MentionText>
 }
 
 export function MentionText(props: any) {
