@@ -410,7 +410,10 @@ export function nodeToBlock<BSchema extends BlockSchema>(
   })) {
     const blockSpec = blockSchema[blockInfo.contentType.name]
     if (!blockSpec) {
-      if (blockInfo.contentType.name === 'code-block') {
+      if (
+        blockInfo.contentType.name === 'code-block' ||
+        blockInfo.contentType.name === 'inline-embed'
+      ) {
         break
       } else
         throw Error(

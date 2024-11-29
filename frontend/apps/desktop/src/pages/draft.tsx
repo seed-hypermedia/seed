@@ -54,6 +54,7 @@ import {useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {GestureResponderEvent} from 'react-native'
 // import 'show-keys'
+import {EmbedToolbarProvider} from '@/editor/embed-toolbar-context'
 import {Spinner, YStack} from '@shm/ui'
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
@@ -250,19 +251,21 @@ function DocumentEditor({
                 showCover={showCover}
                 setShowCover={setShowCover}
               />
-              <Container
-                paddingLeft="$4"
-                marginBottom={300}
-                onPress={(e: GestureResponderEvent) => {
-                  // this prevents to fire handleFocusAtMousePos on click
-                  e.stopPropagation()
-                  // editor?._tiptapEditor.commands.focus()
-                }}
-              >
-                {editor ? (
-                  <HyperMediaEditorView editable={true} editor={editor} />
-                ) : null}
-              </Container>
+              <EmbedToolbarProvider>
+                <Container
+                  paddingLeft="$4"
+                  marginBottom={300}
+                  onPress={(e: GestureResponderEvent) => {
+                    // this prevents to fire handleFocusAtMousePos on click
+                    e.stopPropagation()
+                    // editor?._tiptapEditor.commands.focus()
+                  }}
+                >
+                  {editor ? (
+                    <HyperMediaEditorView editable={true} editor={editor} />
+                  ) : null}
+                </Container>
+              </EmbedToolbarProvider>
             </YStack>
           </YStack>
         </AppDocContentProvider>
