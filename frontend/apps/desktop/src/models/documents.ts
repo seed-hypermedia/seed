@@ -190,12 +190,6 @@ export function usePublishDraft(
 
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
 
-      console.log(`== ~ mutationFn: ~ changes:`, {
-        blocksMap,
-        content,
-        deleteChanges,
-        changes,
-      })
       // return null
       if (accts.data?.length == 0) {
         dispatchWizardEvent(true)
@@ -574,17 +568,12 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
     const blocksMap2 = createBlocksMap(newEntity.document?.content || [], '')
     const editorContent = removeTrailingBlocks(editor.topLevelBlocks)
 
-    console.log(`editorContent:`, editorContent)
     const changes = compareBlocksWithMap(blocksMap1, editorContent, '')
     const changes2 = compareDraftWithMap(
       blocksMap1,
       newEntity.document?.content,
       '',
     )
-    console.log('blocksMap1', blocksMap1)
-    console.log('blocksMap2', blocksMap2)
-    console.log('changes', changes)
-    console.log('changes2', changes2)
 
     changes2.touchedBlocks.forEach((blockId) => {
       const blockContent = blocksMap2[blockId]
@@ -1314,7 +1303,6 @@ function findDifferences(obj1, obj2) {
 function removeTrailingBlocks(
   blocks: Array<EditorBlock<typeof hmBlockSchema>>,
 ) {
-  console.log(`== ~ blocks:`, blocks)
   let trailedBlocks = [...blocks]
   while (true) {
     let lastBlock = trailedBlocks[trailedBlocks.length - 1]

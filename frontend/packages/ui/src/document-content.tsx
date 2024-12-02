@@ -1769,10 +1769,13 @@ export function BlockContentQuery({block}: {block: HMBlockQuery}) {
     throw new Error("BlockContentQuery requires a Query block type");
 
   const query = block.attributes.query;
-  const id = hmId("d", query.includes[0].space, {
-    path: query.includes[0].path ? query.includes[0].path.split("/") : null,
-    latest: true,
-  });
+  const id =
+    query.includes[0].space &&
+    hmId("d", query.includes[0].space, {
+      path: query.includes[0].path ? query.includes[0].path.split("/") : null,
+      latest: true,
+    });
+  if (!id) return <ErrorBlock message="Empty Query" />;
   return <EntityTypes.Query block={block} id={id} />;
   // let docs = items?.filter((item) => !!item.data) || [];
   // if (docs.length) {

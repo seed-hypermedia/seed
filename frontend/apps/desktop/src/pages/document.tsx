@@ -202,7 +202,6 @@ function _MainDocumentPage({
   }, [])
   const entity = useSubscribedEntity(id)
 
-  console.log(`== ~ entity:`, entity)
   const siteHomeEntity = useSubscribedEntity(hmId('d', id.uid))
 
   if (entity.isInitialLoading) return <Spinner />

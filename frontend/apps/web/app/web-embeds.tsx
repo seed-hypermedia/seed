@@ -165,12 +165,13 @@ export function QueryBlockWeb({
   // const query
   const {supportQueries, supportDocuments} = ctx || {};
   const includes = block.attributes.query.includes || [];
-
+  if (includes.length == 0) return null;
   const queryInclude = includes[0];
   if (!queryInclude || includes.length !== 1)
     return (
       <ErrorBlock message="Only one QueryBlock.attributes.query.includes is supported for now" />
     );
+  if (!queryInclude.space) return <ErrorBlock message="Empty Query" />;
 
   const queryResults = supportQueries?.find((q) => {
     if (q.in.uid !== queryInclude.space) return false;
