@@ -284,6 +284,14 @@ function EmbedControl({
   const hasBlockRef = unpackedId?.blockRef
   const isLatestVersion = isEmbedUrlLatest(block.props.url)
 
+  useEffect(() => {
+    return () => {
+      if (activeId === block.id) {
+        setActiveId(null)
+      }
+    }
+  }, [activeId, setActiveId])
+
   const setHover = (hovered: boolean) => {
     if (hovered && !activeId) setActiveId(block.id)
     else if (!hovered && activeId === block.id) {
