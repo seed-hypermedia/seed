@@ -13,8 +13,7 @@ services:
       - "443:443"
       - "443:443/udp"
     restart: unless-stopped
-    networks:
-      - internal_network
+    network_mode: "host"
     environment:
       - "SEED_SITE_HOSTNAME=${SEED_SITE_HOSTNAME}"
       - "SEED_SITE_BACKEND_GRPCWEB_PORT=${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001}"
