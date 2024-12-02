@@ -104,7 +104,7 @@ reverse_proxy /.metrics* grafana:{\$SEED_SITE_MONITORING_PORT:3001}
 
 reverse_proxy @ipfsget seed-daemon:{\$SEED_SITE_BACKEND_GRPCWEB_PORT:56001}
 
-reverse_proxy * seed-web:{\$SEED_SITE_LOCAL_PORT:3000}
+reverse_proxy * 127.0.0.1:{\$SEED_SITE_LOCAL_PORT:3000}
 BLOCK
 
 mkdir -p ${workspace}/web

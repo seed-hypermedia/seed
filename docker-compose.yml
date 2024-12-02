@@ -1,6 +1,3 @@
-networks:
-  internal_network:
-    driver: bridge # the default
 services:
   proxy:
     container_name: seed-proxy
@@ -28,8 +25,7 @@ services:
     image: seedhypermedia/web:${SEED_SITE_TAG:-latest}
     depends_on:
       - seed-daemon
-    networks:
-      - internal_network
+    network_mode: "host"
     ports:
       - "${SEED_SITE_LOCAL_PORT:-3000}:${SEED_SITE_LOCAL_PORT:-3000}"
     restart: unless-stopped
@@ -38,7 +34,7 @@ services:
     environment:
       - "SEED_BASE_URL=${SEED_SITE_HOSTNAME}"
       - "SEED_IS_GATEWAY=${SEED_IS_GATEWAY:-false}"
-      - "DAEMON_HTTP_URL=http://seed-daemon:${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001}"
+      - "DAEMON_HTTP_URL=http://127.0.0.1:${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001}"
       - "PORT=${SEED_SITE_LOCAL_PORT:-3000}"
       - "DATA_DIR=/data"
 
@@ -49,8 +45,7 @@ services:
     ports:
       - "56000:56000"
       - "56000:56000/udp"
-    networks:
-      - internal_network
+    network_mode: "host"
     environment:
       - "SEED_P2P_TESTNET_NAME=${SEED_P2P_TESTNET_NAME}"
       - "SEED_LOG_LEVEL=${SEED_LOG_LEVEL:-info}"
@@ -72,8 +67,7 @@ services:
       - metrics
     depends_on:
       - seed-daemon
-    networks:
-      - internal_network
+    network_mode: "host"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -88,8 +82,7 @@ services:
       - prometheus
     profiles:
       - metrics
-    networks:
-      - internal_network
+    network_mode: "host"
     volumes:
       - grafana-data:/var/lib/grafana
       - ${SEED_SITE_MONITORING_WORKDIR:-./monitoring}/grafana/dashboards:/etc/grafana/dashboards:ro
