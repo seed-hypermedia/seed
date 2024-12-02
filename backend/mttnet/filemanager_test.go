@@ -122,7 +122,7 @@ func makeManager(t *testing.T, k crypto.PrivKey) *FileManager {
 
 	bs := blockstore.NewBlockstore(ds)
 
-	bitswap, err := ipfs.NewBitswap(n, n.DelegatedRouting, bs)
+	bitswap, err := ipfs.NewBitswap(n, n.Routing, bs)
 	require.NoError(t, err)
 
 	t.Cleanup(func() { require.NoError(t, bitswap.Close()) })
@@ -131,7 +131,7 @@ func makeManager(t *testing.T, k crypto.PrivKey) *FileManager {
 
 	t.Cleanup(func() { require.NoError(t, n.Close()) })
 
-	providing, err := ipfs.NewProviderSystem(ds, n.DelegatedRouting, bs.AllKeysChan)
+	providing, err := ipfs.NewProviderSystem(ds, n.Routing, bs.AllKeysChan)
 	require.NoError(t, err)
 
 	return NewFileManager(logging.New("seed/ipfs", "debug"), bs, bitswap, providing)

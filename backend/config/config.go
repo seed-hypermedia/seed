@@ -193,6 +193,10 @@ func (c Syncing) Default() Syncing {
 		Interval:        time.Minute,
 		TimeoutPerPeer:  time.Minute * 5,
 		RefreshInterval: time.Second * 50,
+
+		// TODO: These flags are flipped, and should be removed in the future.
+		SmartSyncing: true,
+		NoSyncBack:   true,
 	}
 }
 

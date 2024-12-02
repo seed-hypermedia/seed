@@ -128,7 +128,7 @@ func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool
 	}
 	clean.Add(closeHost)
 
-	bitswap, err := ipfs.NewBitswap(host, host.DelegatedRouting, index.IPFSBlockstore())
+	bitswap, err := ipfs.NewBitswap(host, host.Routing, index.IPFSBlockstore())
 	if err != nil {
 		return nil, fmt.Errorf("failed to start bitswap: %w", err)
 	}
@@ -140,7 +140,7 @@ func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool
 	if log.Level() != zapcore.InvalidLevel { // Usually test with zap.NewNop()
 		logLevel = log.Level().String()
 	}
-	providing, err := ipfs.NewProviderSystem(host.Datastore(), host.DelegatedRouting, makeProvidingStrategy(db, logLevel))
+	providing, err := ipfs.NewProviderSystem(host.Datastore(), host.Routing, makeProvidingStrategy(db, logLevel))
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize providing: %w", err)
 	}

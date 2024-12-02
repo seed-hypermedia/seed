@@ -80,7 +80,7 @@ func makePeer(t *testing.T, k crypto.PrivKey) *testNode {
 
 	bs := blockstore.NewBlockstore(ds)
 
-	bitswap, err := NewBitswap(n, n.DelegatedRouting, bs)
+	bitswap, err := NewBitswap(n, n.Routing, bs)
 	require.NoError(t, err)
 
 	t.Cleanup(func() { require.NoError(t, bitswap.Close()) })
