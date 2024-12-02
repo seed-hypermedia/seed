@@ -111,7 +111,7 @@ func indexRef(ictx *indexingCtx, id int64, c cid.Cid, v *Ref) error {
 		return err
 	}
 
-	var sb StructuralBlob
+	var sb structuralBlob
 	if v.Ts.Equal(unixZero) {
 		sb = newStructuralBlob(c, string(blobTypeRef), v.Signer, v.Ts, iri, v.GenesisBlob, space, v.Ts)
 	} else {

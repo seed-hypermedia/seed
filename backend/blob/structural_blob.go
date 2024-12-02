@@ -7,7 +7,7 @@ import (
 	"github.com/ipfs/go-cid"
 )
 
-type StructuralBlob struct {
+type structuralBlob struct {
 	CID         cid.Cid
 	Type        string
 	Author      core.Principal
@@ -19,13 +19,13 @@ type StructuralBlob struct {
 		GenesisBlob cid.Cid
 		CreateTime  time.Time
 	}
-	BlobLinks     []BlobLink
-	ResourceLinks []ResourceLink
+	BlobLinks     []blobLink
+	ResourceLinks []resourceLink
 	Meta          any
 }
 
-func newStructuralBlob(id cid.Cid, blobType string, author core.Principal, ts time.Time, resource IRI, resourceGenesis cid.Cid, resourceOwner core.Principal, resourceTimestamp time.Time) StructuralBlob {
-	sb := StructuralBlob{
+func newStructuralBlob(id cid.Cid, blobType string, author core.Principal, ts time.Time, resource IRI, resourceGenesis cid.Cid, resourceOwner core.Principal, resourceTimestamp time.Time) structuralBlob {
+	sb := structuralBlob{
 		CID:    id,
 		Type:   blobType,
 		Author: author,
@@ -39,24 +39,24 @@ func newStructuralBlob(id cid.Cid, blobType string, author core.Principal, ts ti
 	return sb
 }
 
-func newSimpleStructuralBlob(id cid.Cid, blobType string) StructuralBlob {
-	return StructuralBlob{CID: id, Type: blobType}
+func newSimpleStructuralBlob(id cid.Cid, blobType string) structuralBlob {
+	return structuralBlob{CID: id, Type: blobType}
 }
 
-func (sb *StructuralBlob) AddBlobLink(linkType string, target cid.Cid) {
-	sb.BlobLinks = append(sb.BlobLinks, BlobLink{Type: linkType, Target: target})
+func (sb *structuralBlob) AddBlobLink(linkType string, target cid.Cid) {
+	sb.BlobLinks = append(sb.BlobLinks, blobLink{Type: linkType, Target: target})
 }
 
-func (sb *StructuralBlob) AddResourceLink(linkType string, target IRI, isPinned bool, meta any) {
-	sb.ResourceLinks = append(sb.ResourceLinks, ResourceLink{Type: linkType, Target: target, IsPinned: isPinned, Meta: meta})
+func (sb *structuralBlob) AddResourceLink(linkType string, target IRI, isPinned bool, meta any) {
+	sb.ResourceLinks = append(sb.ResourceLinks, resourceLink{Type: linkType, Target: target, IsPinned: isPinned, Meta: meta})
 }
 
-type BlobLink struct {
+type blobLink struct {
 	Type   string
 	Target cid.Cid
 }
 
-type ResourceLink struct {
+type resourceLink struct {
 	Type     string
 	Target   IRI
 	IsPinned bool

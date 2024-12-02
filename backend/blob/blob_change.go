@@ -318,7 +318,7 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 		return fmt.Errorf("invalid change causality invariants: cid=%s genesis=%s deps=%v depth=%v", c, v.Genesis, v.Deps, v.Depth)
 	}
 
-	var sb StructuralBlob
+	var sb structuralBlob
 	{
 		var resourceTime time.Time
 		// Change with no deps is the genesis change.

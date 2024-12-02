@@ -106,7 +106,9 @@ func (idx *Index) IPFSBlockstore() blockstore.Blockstore {
 // indexBlob is an uber-function that knows about all types of blobs we want to index.
 // This is probably a bad idea to put here, but for now it's easier to work with that way.
 // TODO(burdiyan): eventually we might want to make this package agnostic to blob types.
-func (idx *Index) indexBlob(conn *sqlite.Conn, id int64, c cid.Cid, data []byte) error {
+func (idx *Index) indexBlob(conn *sqlite.Conn, id int64, c cid.Cid, data []byte) (err error) {
+	defer sqlitex.Save(conn)(&err)
+
 	ictx := newCtx(conn, idx.provider, idx.log)
 
 	for _, fn := range indexersList {
@@ -115,7 +117,7 @@ func (idx *Index) indexBlob(conn *sqlite.Conn, id int64, c cid.Cid, data []byte)
 		}
 	}
 
-	return nil
+	return err
 }
 
 // CanEditResource checks whether author can edit the resource.
@@ -745,7 +747,7 @@ func newCtx(conn *sqlite.Conn, provider provider.Provider, log *zap.Logger) *ind
 	}
 }
 
-func (idx *indexingCtx) SaveBlob(id int64, b StructuralBlob) error {
+func (idx *indexingCtx) SaveBlob(id int64, b structuralBlob) error {
 	var (
 		blobAuthor   maybe.Value[int64]
 		blobResource maybe.Value[int64]
@@ -1012,7 +1014,7 @@ func (idx *indexingCtx) ensureResourceMetadata(r IRI, genesis cid.Cid, owner cor
 	return nil
 }
 
-func indexURL(sb *StructuralBlob, log *zap.Logger, anchor, linkType, rawURL string) error {
+func indexURL(sb *structuralBlob, log *zap.Logger, anchor, linkType, rawURL string) error {
 	if rawURL == "" {
 		return nil
 	}
