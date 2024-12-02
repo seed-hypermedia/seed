@@ -50,6 +50,8 @@ services:
     ports:
       - "56000:56000"
       - "56000:56000/udp"
+    networks:
+      - internal_network
     environment:
       - "SEED_P2P_TESTNET_NAME=${SEED_P2P_TESTNET_NAME}"
       - "SEED_LOG_LEVEL=${SEED_LOG_LEVEL:-info}"
