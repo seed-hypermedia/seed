@@ -103,7 +103,6 @@ function Render(
     return JSON.parse(block.props.querySort || defaultQuerySort)
   }, [block.props.querySort])
 
-  console.log(`== ~ editor ~ querySort:`, querySort[0])
   const [queryId, setQueryId] = useState<UnpackedHypermediaId | null>(() => {
     if (queryIncludes?.[0].space) {
       console.log('QUERY ID', queryIncludes[0])
@@ -195,6 +194,9 @@ function Render(
       borderColor={selected ? '$color8' : '$colorTransparent'}
       borderWidth={3}
       borderRadius="$2"
+      marginLeft={-16}
+      marginRight={-16}
+      paddingHorizontal={16}
     >
       <QuerySettings
         queryDocName={entity.data?.document?.metadata.name || ''}
@@ -203,6 +205,7 @@ function Render(
         style={block.props.style as 'Card' | 'List'}
         // @ts-expect-error
         block={block}
+        editor={editor}
         onValuesChange={({id, props}) => {
           if (id) {
             setQueryId(id)
@@ -324,7 +327,7 @@ function QuerySettings({
   onValuesChange,
   queryIncludes,
   querySort,
-  style,
+  editor,
 }: {
   queryDocName: string
   block: EditorQueryBlock
@@ -337,6 +340,7 @@ function QuerySettings({
     id: UnpackedHypermediaId | null
     props: EditorQueryBlock['props']
   }) => void
+  editor: BlockNoteEditor<HMBlockSchema>
 }) {
   const popoverState = usePopoverState()
 
@@ -354,7 +358,8 @@ function QuerySettings({
               }
             : undefined
         }
-        y={8}
+        y={0}
+        x={-16}
         width="100%"
         height="100%"
         jc="flex-start"
