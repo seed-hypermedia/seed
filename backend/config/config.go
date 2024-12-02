@@ -256,6 +256,7 @@ func (p2p P2P) Default() P2P {
 		BootstrapPeers: bootstrapPeers(),
 		Port:           55000,
 		RelayBackoff:   time.Minute * 3,
+		NoDHT:          true,
 	}
 }
 
