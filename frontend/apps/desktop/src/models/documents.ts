@@ -883,6 +883,7 @@ export function useListDirectory(
         if (!id) return []
         const res = await grpcClient.documents.listDocuments({
           account: id.uid,
+          pageSize: 9001,
         })
         const docs = res.documents
           .map(toPlainMessage)
@@ -916,6 +917,7 @@ export function useListSite(id?: UnpackedHypermediaId) {
       if (!id) return []
       const res = await grpcClient.documents.listDocuments({
         account: id.uid,
+        pageSize: 9001,
       })
       const docs = res.documents
         .map(toPlainMessage)
@@ -1232,6 +1234,7 @@ export function useAccountDocuments(id?: UnpackedHypermediaId) {
       if (!account) return {documents: []}
       const result = await grpcClient.documents.listDocuments({
         account: id?.uid,
+        pageSize: 9001,
       })
       const documents = result.documents.map((response) =>
         toPlainMessage(response),
