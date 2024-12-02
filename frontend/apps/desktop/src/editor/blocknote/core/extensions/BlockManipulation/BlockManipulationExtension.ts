@@ -161,7 +161,7 @@ export const BlockManipulationExtension = Extension.create({
               if (prevBlockInfo) {
                 const {prevBlock, prevBlockPos} = prevBlockInfo
                 const prevNode = prevBlock.firstChild!
-                const prevNodePos = prevBlockPos - 2
+                const prevNodePos = prevBlockPos + 1
                 if (event.shiftKey) {
                   const blockInfoAtSelectionStart = getBlockInfoFromPos(
                     state.doc,
@@ -198,7 +198,9 @@ export const BlockManipulationExtension = Extension.create({
                     state.selection.to,
                     prevNodePos,
                   )
-                  view.dispatch(state.tr.setSelection(selection))
+                  let tr = state.tr.setSelection(selection)
+                  tr = tr.scrollIntoView()
+                  view.dispatch(tr)
                   return true
                 }
                 if (event.key === 'ArrowLeft') {
@@ -231,7 +233,9 @@ export const BlockManipulationExtension = Extension.create({
                   ].includes(prevNode.type.name)
                 ) {
                   const selection = NodeSelection.create(state.doc, prevNodePos)
-                  view.dispatch(state.tr.setSelection(selection))
+                  let tr = state.tr.setSelection(selection)
+                  tr = tr.scrollIntoView()
+                  view.dispatch(tr)
                   return true
                 }
               } else {
@@ -317,7 +321,9 @@ export const BlockManipulationExtension = Extension.create({
                         state.selection.anchor,
                         nextBlockPos + 2,
                       )
-                      view.dispatch(state.tr.setSelection(selection))
+                      let tr = state.tr.setSelection(selection)
+                      tr = tr.scrollIntoView()
+                      view.dispatch(tr)
                       return true
                     } else return false
                   }
@@ -353,7 +359,9 @@ export const BlockManipulationExtension = Extension.create({
                   ].includes(nextNode.type.name)
                 ) {
                   const selection = NodeSelection.create(state.doc, nextNodePos)
-                  view.dispatch(state.tr.setSelection(selection))
+                  let tr = state.tr.setSelection(selection)
+                  tr = tr.scrollIntoView()
+                  view.dispatch(tr)
                   return true
                 }
               }
