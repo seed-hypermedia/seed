@@ -43,9 +43,13 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
   const createDraft = useCreateDraft(id)
   const capability = useMyCapability(id)
   const siteList = useListSite(id)
+
+  console.log(`== ~ SiteNavigationLoader ~ siteList:`, siteList)
   const siteListQuery = siteList?.data
     ? {in: hmId('d', id.uid), results: siteList.data}
     : null
+
+  console.log(`== ~ SiteNavigationLoader ~ siteListQuery:`, siteListQuery)
   const embeds = useDocumentEmbeds(document)
 
   let createDirItem: null | ((opts: {indented: number}) => ReactNode) = null

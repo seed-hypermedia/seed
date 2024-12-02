@@ -186,6 +186,9 @@ export async function getBaseDocument(
     ];
   }
 
+  console.log("supportDocuments", supportDocuments);
+  console.log("supportQueries", supportQueries);
+
   return {
     document,
     supportDocuments,
