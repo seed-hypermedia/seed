@@ -92,6 +92,8 @@ export function useListInvoices(walletId: string) {
   const grpcClient = useGRPCClient()
   return useQuery({
     queryKey: [queryKeys.INVOICES, walletId],
+    useErrorBoundary: false,
+    retry: 1,
     queryFn: async () => {
       const receivedQuery = await grpcClient.invoices.listReceivedInvoices({
         id: walletId,
@@ -184,6 +186,8 @@ export function useWallet(walletId: string) {
   return useQuery({
     queryKey: [queryKeys.WALLETS, walletId],
     keepPreviousData: false,
+    useErrorBoundary: false,
+    retry: 1,
     queryFn: async () => {
       const walletResp = await grpcClient.wallets.getWallet({
         id: walletId,
@@ -197,22 +201,6 @@ export function useWallet(walletId: string) {
         balance: Number(balanceResp.balance),
       }
       return fullWallet
-    },
-  })
-}
-
-export function useAllowedPaymentRecipients(accountUids: string[]) {
-  return useQuery({
-    enabled: accountUids.length > 0,
-    queryKey: [queryKeys.PAYMENT_RECIPIENTS, accountUids.join(',')],
-    queryFn: async () => {
-      let url = `${LIGHTNING_API_URL}/v2/check`
-      accountUids.forEach((accountId, index) => {
-        url += `${index === 0 ? '?' : '&'}user=${accountId}`
-      })
-      const res = await fetch(url)
-      const output = await res.json()
-      return (output.existing_users as string[]) || []
     },
   })
 }

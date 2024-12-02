@@ -14,10 +14,16 @@ import {
   useInvoiceStatus,
 } from "@shm/shared";
 import {Button} from "@tamagui/button";
+import {View} from "@tamagui/core";
 import {DialogDescription} from "@tamagui/dialog";
 import {Input} from "@tamagui/input";
 import {Label} from "@tamagui/label";
-import {CircleDollarSign, Copy, PartyPopper} from "@tamagui/lucide-icons";
+import {
+  AlertCircle,
+  CircleDollarSign,
+  Copy,
+  PartyPopper,
+} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {Heading, SizableText} from "@tamagui/text";
 import {useState} from "react";
@@ -51,6 +57,14 @@ export function DonateButton({
   const allowedRecipients = useAllowedPaymentRecipients(
     authors.map((author) => author.id.uid) || []
   );
+  if (allowedRecipients.isError)
+    return (
+      <Tooltip content="Failed to query Seed server to check payment recipients">
+        <View>
+          <AlertCircle color="$yellow11" size={16} />
+        </View>
+      </Tooltip>
+    );
   if (allowedRecipients.isLoading) return null;
   if (!allowedRecipients.data?.length) return null;
   return (
@@ -135,6 +149,7 @@ function DonateInvoice({
   const status = useInvoiceStatus(invoice);
   const authors = Object.keys(invoice.share);
   const isSettled = status.data?.isSettled;
+  const isError = status.data?.isError || status.isError;
   if (isSettled) {
     return (
       <>
@@ -170,6 +185,9 @@ function DonateInvoice({
             Copy Invoice
           </Button>
         </Tooltip>
+        <XStack jc="flex-end">
+          <AlertCircle opacity={isError ? 1 : 0} color="$red10" />
+        </XStack>
       </YStack>
       <Button onPress={onClose}>Cancel</Button>
     </>

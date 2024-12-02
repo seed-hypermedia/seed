@@ -134,12 +134,6 @@ export function queryBlockSortedItems({
   //   return entries
   // }
 
-  console.log('== querySort: SORTING!', {
-    value: sort[0].reverse,
-    prev: res,
-    after: sort[0].reverse ? [...res].reverse() : res,
-  })
-
   return sort[0].reverse ? [...res].reverse() : res
 }
 

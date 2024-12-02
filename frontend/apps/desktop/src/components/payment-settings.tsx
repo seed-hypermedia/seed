@@ -43,6 +43,7 @@ import {
   YStack,
 } from '@shm/ui'
 import {
+  AlertCircle,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -130,6 +131,8 @@ function WalletButton({
               fontFamily="$mono"
               fontWeight="bold"
             >{`${wallet.data?.balance} SAT`}</SizableText>
+          ) : wallet.isError ? (
+            <AlertCircle color="$red10" size={16} />
           ) : null}
           <ChevronRight color="$brand5" size={16} />
         </XStack>
@@ -186,6 +189,12 @@ export function WalletPage({
       {
         wallet.isLoading ? (
           <Spinner />
+        ) : wallet.isError ? (
+          <YStack margin="$4">
+            <Heading fontWeight="bold" color="$red10">
+              Error Loading Wallet
+            </Heading>
+          </YStack>
         ) : wallet.data ? (
           <WalletDetails
             wallet={wallet.data}
@@ -199,6 +208,13 @@ export function WalletPage({
         <InfoListHeader title="Transaction History" />
         {invoices.data ? (
           <WalletTransactions invoices={invoices.data} />
+        ) : invoices.isError ? (
+          <YStack margin="$4">
+            <SizableText color="$red10">
+              Error Loading Transaction History. May be disconnected from Seed
+              Lightning Server.
+            </SizableText>
+          </YStack>
         ) : (
           <YStack margin="$4">
             <Spinner />

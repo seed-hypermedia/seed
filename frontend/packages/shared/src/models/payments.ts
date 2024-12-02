@@ -8,6 +8,8 @@ export function useAllowedPaymentRecipients(accountUids: string[]) {
   return useQuery({
     enabled: accountUids.length > 0,
     queryKey: [queryKeys.PAYMENT_RECIPIENTS, accountUids.join(',')],
+    useErrorBoundary: false,
+    retry: 1,
     queryFn: async () => {
       let url = `${LIGHTNING_API_URL}/v2/check`
       accountUids.forEach((accountId, index) => {
@@ -55,7 +57,11 @@ export function useCreateInvoice() {
 
 const InvoiceStatusSchema = z.array(
   z.object({
-    status: z.union([z.literal('open'), z.literal('settled')]),
+    status: z.union([
+      z.literal('open'),
+      z.literal('settled'),
+      z.literal('error'),
+    ]),
   }),
 )
 
@@ -64,6 +70,7 @@ export function useInvoiceStatus(invoice: HMInvoice | null) {
     queryKey: [queryKeys.INVOICE_STATUS, invoice?.hash],
     refetchInterval: 2000,
     refetchIntervalInBackground: true,
+    useErrorBoundary: false,
     queryFn: async () => {
       if (!invoice) return {isSettled: false}
       const url = `${LIGHTNING_API_URL}/v2/invoicemeta/${invoice.hash}`
@@ -71,7 +78,8 @@ export function useInvoiceStatus(invoice: HMInvoice | null) {
       const serverInvoice = await res.json()
       const invoiceMeta = InvoiceStatusSchema.parse(serverInvoice)
       const isSettled = invoiceMeta.every((meta) => meta.status === 'settled')
-      return {isSettled}
+      const isError = !!invoiceMeta.find((meta) => meta.status === 'error')
+      return {isSettled, isError}
     },
   })
   useEffect(() => {

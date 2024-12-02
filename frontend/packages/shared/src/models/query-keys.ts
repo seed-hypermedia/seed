@@ -148,6 +148,20 @@ export function labelOfQueryKey(key: QueryKey) {
     case queryKeys.SEARCH:
       return `Search "${arg1}"`
 
+    // payments
+    case queryKeys.WALLETS:
+      return 'Wallet'
+    case queryKeys.ACCOUNT_WALLETS:
+      return 'Account Wallets'
+    case queryKeys.INVOICES:
+      return 'Invoices'
+    case queryKeys.CURRENCY_COMPARISONS:
+      return 'Currency Comparisons'
+    case queryKeys.PAYMENT_RECIPIENTS:
+      return 'Payment Recipients'
+    case queryKeys.INVOICE_STATUS:
+      return 'Invoice Status'
+
     default:
       // return 'unknown'
       return discriminator
