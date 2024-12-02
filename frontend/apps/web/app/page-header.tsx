@@ -150,7 +150,7 @@ export function SiteHeader(props: {
 }) {
   if (props.homeMetadata?.layout === "Seed/Experimental/Newspaper") {
     const supportQuery = props.supportQueries?.find(
-      (q) => q.in.uid === props.homeId?.uid
+      (q) => q.in.uid === props.homeId?.uid && !q.in.path?.length
     );
     const items = supportQuery?.results
       ?.filter((item) => {

@@ -67,7 +67,6 @@ async function getDirectory(
   const allDocs = await queryClient.documents.listDocuments({
     account: id.uid,
   });
-
   // filter allDocs by the id.path, and if mode is "Children", filter by the immediate children
   return allDocs.documents
     .filter((doc) => {
@@ -139,8 +138,8 @@ export async function getBaseDocument(
   let supportQueries: HMQueryResult[] = [];
 
   const queryBlocks = extractQueryBlocks(document.content);
-  console.log(queryBlocks);
-
+  const homeId = hmId("d", uid);
+  const homeDirectoryResults = await getDirectory(homeId);
   const directoryResults = await getDirectory(entityId);
   const queryBlockQueries = (
     await Promise.all(
@@ -150,19 +149,17 @@ export async function getBaseDocument(
         const {path, mode, space} = includes[0];
         const inId = hmId("d", space, {path: path?.split("/") || undefined});
         const dir = await getDirectory(inId, mode);
-        console.log("path", path);
-        console.log("dir", path);
-        // const inId = unpackHmId( block.link);
         if (!inId) return null;
         return {in: inId, results: dir, mode} as HMQueryResult;
       })
     )
   ).filter((result) => !!result);
   supportQueries = [
+    // home directory
+    {in: homeId, results: homeDirectoryResults},
     {in: entityId, results: directoryResults},
     ...queryBlockQueries,
   ];
-  console.log("Queries", supportQueries);
   if (document.metadata.layout === "Seed/Experimental/Newspaper") {
     supportDocuments = await Promise.all(
       directoryResults.map(async (item) => {
@@ -185,9 +182,6 @@ export async function getBaseDocument(
       )),
     ];
   }
-
-  console.log("supportDocuments", supportDocuments);
-  console.log("supportQueries", supportQueries);
 
   return {
     document,
@@ -217,7 +211,6 @@ export async function getDocument(
       };
     })
   );
-
   return {
     ...document,
     breadcrumbs,
@@ -268,6 +261,7 @@ export async function loadSiteDocument(
     };
     return wrapJSON(loadedSiteDocument);
   } catch (e) {
+    console.error("Error Loading Site Document", e);
     // probably document not found. todo, handle other errors
   }
   return wrapJSON({homeMetadata, homeId});
