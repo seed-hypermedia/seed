@@ -1,3 +1,6 @@
+networks:
+  internal_network:
+    driver: bridge # the default
 services:
   proxy:
     container_name: seed-proxy
@@ -10,6 +13,8 @@ services:
       - "443:443"
       - "443:443/udp"
     restart: unless-stopped
+    networks:
+      - internal_network
     environment:
       - "SEED_SITE_HOSTNAME=${SEED_SITE_HOSTNAME}"
       - "SEED_SITE_BACKEND_GRPCWEB_PORT=${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001}"
@@ -24,6 +29,8 @@ services:
     image: seedhypermedia/web:${SEED_SITE_TAG:-latest}
     depends_on:
       - seed-daemon
+    networks:
+      - internal_network
     ports:
       - "${SEED_SITE_LOCAL_PORT:-3000}:${SEED_SITE_LOCAL_PORT:-3000}"
     restart: unless-stopped
@@ -64,6 +71,8 @@ services:
       - metrics
     depends_on:
       - seed-daemon
+    networks:
+      - internal_network
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -78,6 +87,8 @@ services:
       - prometheus
     profiles:
       - metrics
+    networks:
+      - internal_network
     volumes:
       - grafana-data:/var/lib/grafana
       - ${SEED_SITE_MONITORING_WORKDIR:-./monitoring}/grafana/dashboards:/etc/grafana/dashboards:ro
