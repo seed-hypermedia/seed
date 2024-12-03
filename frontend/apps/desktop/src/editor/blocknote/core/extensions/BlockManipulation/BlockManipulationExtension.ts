@@ -74,6 +74,7 @@ export const BlockManipulationExtension = Extension.create({
                 'web-embed',
                 'math',
                 'button',
+                'query',
               ].includes(node.type.name)
             ) {
               let tr = view.state.tr
@@ -184,6 +185,7 @@ export const BlockManipulationExtension = Extension.create({
                           'web-embed',
                           'math',
                           'button',
+                          'query',
                         ].includes(
                           blockInfoAtSelectionStart.contentType.name,
                         )) ||
@@ -195,6 +197,7 @@ export const BlockManipulationExtension = Extension.create({
                         'web-embed',
                         'math',
                         'button',
+                        'query',
                       ].includes(prevBlock.firstChild!.type.name)
                     )
                       return false
@@ -225,6 +228,7 @@ export const BlockManipulationExtension = Extension.create({
                       'web-embed',
                       'math',
                       'button',
+                      'query',
                     ].includes(blockInfo.contentType.name)
                   ) {
                     return false
@@ -239,6 +243,7 @@ export const BlockManipulationExtension = Extension.create({
                     'web-embed',
                     'math',
                     'button',
+                    'query',
                   ].includes(prevNode.type.name)
                 ) {
                   const selection = NodeSelection.create(state.doc, prevNodePos)
@@ -262,6 +267,7 @@ export const BlockManipulationExtension = Extension.create({
                     'web-embed',
                     'math',
                     'button',
+                    'query',
                   ].includes(blockInfo.contentType.name)
                 ) {
                   const newBlock =
@@ -310,6 +316,7 @@ export const BlockManipulationExtension = Extension.create({
                         'web-embed',
                         'math',
                         'button',
+                        'query',
                       ].includes(lastBlockInSelection.contentType.name)
                     ) {
                       return false
@@ -326,6 +333,7 @@ export const BlockManipulationExtension = Extension.create({
                         'web-embed',
                         'math',
                         'button',
+                        'query',
                       ].includes(nextBlock.firstChild!.type.name)
                     ) {
                       const selection = TextSelection.create(
@@ -356,6 +364,7 @@ export const BlockManipulationExtension = Extension.create({
                       'web-embed',
                       'math',
                       'button',
+                      'query',
                     ].includes(blockInfo.contentType.name)
                   ) {
                     return false
@@ -370,6 +379,7 @@ export const BlockManipulationExtension = Extension.create({
                     'web-embed',
                     'math',
                     'button',
+                    'query',
                   ].includes(nextNode.type.name)
                 ) {
                   const selection = NodeSelection.create(state.doc, nextNodePos)
