@@ -37,7 +37,7 @@ export const MediaContainer = ({
   className,
   onPress,
 }: ContainerProps) => {
-  const [replace, setReplace] = useState(false)
+  const [hover, setHover] = useState(false)
   const [drag, setDrag] = useState(false)
   const isEmbed = ['embed', 'web-embed'].includes(mediaType)
 
@@ -140,11 +140,11 @@ export const MediaContainer = ({
     ...(isEmbed ? {} : dragProps),
     onHoverIn: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
       if (onHoverIn) onHoverIn()
-      setReplace(true)
+      setHover(true)
     },
     onHoverOut: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
       if (onHoverOut) onHoverOut(e)
-      setReplace(false)
+      setHover(false)
     },
     outlineWidth: 0,
   }
@@ -225,7 +225,7 @@ export const MediaContainer = ({
         className={className ?? block.type}
         group="item"
       >
-        {replace && mediaType !== 'embed'
+        {(hover || selected) && mediaType !== 'embed'
           ? editor.isEditable && (
               <Button
                 position="absolute"
