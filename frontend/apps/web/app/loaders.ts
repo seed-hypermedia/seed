@@ -1,5 +1,6 @@
 import {toPlainMessage} from "@bufbuild/protobuf";
 import {
+  BIG_INT,
   entityQueryPathToHmIdPath,
   extractQueryBlocks,
   extractRefs,
@@ -66,6 +67,7 @@ async function getDirectory(
 ) {
   const allDocs = await queryClient.documents.listDocuments({
     account: id.uid,
+    pageSize: BIG_INT,
   });
   // filter allDocs by the id.path, and if mode is "Children", filter by the immediate children
   return allDocs.documents
@@ -83,7 +85,9 @@ async function getDirectory(
       if (mode === "Children") {
         // For Children mode, only include immediate children
         // (path should only be one level deeper than parent)
-        return doc.path.length === parentPath.length + 1;
+        const includeInDir =
+          doc.path.slice(1).split("/").length === parentPath.length + 1;
+        return includeInDir;
       }
       // For AllDescendants mode, include all nested documents
       return true;
@@ -147,7 +151,9 @@ export async function getBaseDocument(
         const {includes, limit, sort} = block.attributes.query;
         if (includes.length !== 1) return null; // only support one include for now
         const {path, mode, space} = includes[0];
-        const inId = hmId("d", space, {path: path?.split("/") || undefined});
+        const inId = hmId("d", space, {
+          path: path ? path.split("/") : [] || undefined,
+        });
         const dir = await getDirectory(inId, mode);
         if (!inId) return null;
         return {in: inId, results: dir, mode} as HMQueryResult;

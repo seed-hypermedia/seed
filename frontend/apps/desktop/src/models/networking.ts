@@ -1,7 +1,13 @@
 import appError from '@/errors'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
-import {ConnectionStatus, GRPCClient, PeerInfo, queryKeys} from '@shm/shared'
+import {
+  BIG_INT,
+  ConnectionStatus,
+  GRPCClient,
+  PeerInfo,
+  queryKeys,
+} from '@shm/shared'
 import {
   FetchQueryOptions,
   UseQueryOptions,
@@ -84,7 +90,9 @@ export function usePeers(
     queryKey: [queryKeys.PEERS, filterConnected],
     queryFn: async () => {
       try {
-        const listed = await client.networking.listPeers({})
+        const listed = await client.networking.listPeers({
+          pageSize: BIG_INT,
+        })
         if (filterConnected)
           return listed.peers.filter((info) => {
             return info.connectionStatus == ConnectionStatus.CONNECTED

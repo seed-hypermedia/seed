@@ -1,6 +1,7 @@
 import {useGRPCClient} from '@/app-context'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {
+  BIG_INT,
   hmId,
   hmIdPathToEntityQueryPath,
   HMRole,
@@ -139,6 +140,7 @@ export function useAllDocumentCapabilities(
       const result = await grpcClient.accessControl.listCapabilities({
         account: id.uid,
         path: hmIdPathToEntityQueryPath(id.path),
+        pageSize: BIG_INT,
       })
       const capabilities = result.capabilities.map(toPlainMessage)
       return capabilities

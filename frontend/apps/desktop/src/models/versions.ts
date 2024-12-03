@@ -1,6 +1,7 @@
 import {useGRPCClient} from '@/app-context'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {
+  BIG_INT,
   DocumentChangeInfo,
   hmIdPathToEntityQueryPath,
   queryKeys,
@@ -36,6 +37,7 @@ export function useDocumentChanges(
         account: id.uid,
         path,
         version,
+        pageSize: BIG_INT,
       })
       let changes = result.changes.map(toPlainMessage)
 

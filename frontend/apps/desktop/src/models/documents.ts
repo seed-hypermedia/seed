@@ -8,6 +8,7 @@ import {trpc} from '@/trpc'
 import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
 import {
+  BIG_INT,
   Block,
   DEFAULT_GATEWAY_URL,
   DocumentChange,
@@ -883,7 +884,7 @@ export function useListDirectory(
         if (!id) return []
         const res = await grpcClient.documents.listDocuments({
           account: id.uid,
-          pageSize: 9001,
+          pageSize: BIG_INT,
         })
         const docs = res.documents
           .map(toPlainMessage)
@@ -917,7 +918,7 @@ export function useListSite(id?: UnpackedHypermediaId) {
       if (!id) return []
       const res = await grpcClient.documents.listDocuments({
         account: id.uid,
-        pageSize: 9001,
+        pageSize: BIG_INT,
       })
       const docs = res.documents
         .map(toPlainMessage)
@@ -1234,7 +1235,7 @@ export function useAccountDocuments(id?: UnpackedHypermediaId) {
       if (!account) return {documents: []}
       const result = await grpcClient.documents.listDocuments({
         account: id?.uid,
-        pageSize: 9001,
+        pageSize: BIG_INT,
       })
       const documents = result.documents.map((response) =>
         toPlainMessage(response),
@@ -1251,7 +1252,9 @@ export function useListProfileDocuments() {
 
   return useQuery({
     queryFn: async () => {
-      const res = await grpcClient.documents.listRootDocuments({})
+      const res = await grpcClient.documents.listRootDocuments({
+        pageSize: BIG_INT,
+      })
       return res.documents.map(toPlainMessage)
     },
     queryKey: [queryKeys.LIST_ROOT_DOCUMENTS],

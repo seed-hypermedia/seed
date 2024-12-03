@@ -5,6 +5,7 @@ import {slashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {
+  BIG_INT,
   BlockNode,
   HMBlockNode,
   HMComment,
@@ -132,6 +133,7 @@ export function useAllDocumentComments(
       let res = await grpcClient.comments.listComments({
         targetAccount: docId.uid,
         targetPath: hmIdPathToEntityQueryPath(docId.path),
+        pageSize: BIG_INT,
       })
       return res.comments.map(toPlainMessage) as HMComment[]
     },

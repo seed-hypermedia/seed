@@ -1,6 +1,7 @@
 import {useGRPCClient} from '@/app-context'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {
+  BIG_INT,
   entityQueryPathToHmIdPath,
   hmId,
   hmIdPathToEntityQueryPath,
@@ -63,7 +64,9 @@ export function useListSubscriptions() {
   return useQuery({
     queryKey: [queryKeys.SUBSCRIPTIONS],
     queryFn: async () => {
-      const resp = await grpcClient.subscriptions.listSubscriptions({})
+      const resp = await grpcClient.subscriptions.listSubscriptions({
+        pageSize: BIG_INT,
+      })
       return resp.subscriptions.map(toPlainMessage).map((sub) => ({
         ...sub,
         id: hmId('d', sub.account, {

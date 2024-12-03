@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/electron/main'
 import {
+  BIG_INT,
   DAEMON_HTTP_URL,
   IS_PROD_DESKTOP,
   METRIC_SERVER_HTTP_PORT,
@@ -315,7 +316,9 @@ startMainDaemon(() => {
 async function initAccountSubscriptions() {
   logger.info('InitAccountSubscriptions')
   const keys = await grpcClient.daemon.listKeys({})
-  const subs = await grpcClient.subscriptions.listSubscriptions({})
+  const subs = await grpcClient.subscriptions.listSubscriptions({
+    pageSize: BIG_INT,
+  })
   const recursiveSubs = new Set(
     subs.subscriptions
       .map((sub) => {
