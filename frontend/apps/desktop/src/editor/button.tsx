@@ -15,8 +15,10 @@ import {
   BlockNoteEditor,
   createReactBlockSpec,
   defaultProps,
+  useEditorSelectionChange,
 } from './blocknote'
 import {HypermediaLinkSwitchToolbar} from './hm-link-switch-toolbar'
+import {updateSelection} from './media-render'
 import {HMBlockSchema} from './schema'
 
 export const ButtonBlock = createReactBlockSpec({
@@ -73,6 +75,7 @@ const Render = (
   const [alignment, setAlignment] = useState<ButtonAlignment>(
     (block.props.alignment as ButtonAlignment) || 'flex-start',
   )
+  const [selected, setSelected] = useState(false)
   // const [buttonText, setButtonText] = useState(
   //   block.props.name || 'Button Label',
   // )
@@ -88,6 +91,10 @@ const Render = (
       props: {...block.props, ...newProps.props},
     })
   }
+
+  useEditorSelectionChange(editor, () =>
+    updateSelection(editor, block, setSelected),
+  )
 
   function ButtonLinkComponents() {
     return (
@@ -165,7 +172,7 @@ const Render = (
             <Popover.Trigger>
               <Button
                 data-type="hm-button"
-                borderWidth={1}
+                borderWidth="$1.5"
                 bc="$brand10"
                 size="$3"
                 width="100%"
@@ -174,6 +181,7 @@ const Render = (
                 justifyContent="center"
                 textAlign="center"
                 userSelect="none"
+                borderColor={selected ? '$color8' : '$colorTransparent'}
               >
                 <SizableText numberOfLines={1} ellipsizeMode="tail">
                   {block.props.name}

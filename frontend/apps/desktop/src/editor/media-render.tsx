@@ -71,6 +71,39 @@ interface RenderProps {
   hideForm?: boolean
 }
 
+export function updateSelection(
+  editor: BlockNoteEditor<HMBlockSchema>,
+  block: Block<HMBlockSchema>,
+  setSelected: (selected: boolean) => void,
+) {
+  const {view} = editor._tiptapEditor
+  const {selection} = view.state
+  let isSelected = false
+
+  if (selection instanceof NodeSelection) {
+    // If the selection is a NodeSelection, check if this block is the selected node
+    const selectedNode = view.state.doc.resolve(selection.from).parent
+    if (
+      selectedNode &&
+      selectedNode.attrs &&
+      selectedNode.attrs.id === block.id
+    ) {
+      isSelected = true
+    }
+  } else if (
+    selection instanceof TextSelection ||
+    selection instanceof MultipleNodeSelection
+  ) {
+    // If it's a TextSelection or MultipleNodeSelection (TODO Fix for drag), check if this block's node is within the selection range
+    const selectedNodes = getNodesInSelection(view)
+    isSelected = selectedNodes.some(
+      (node) => node.attrs && node.attrs.id === block.id,
+    )
+  }
+
+  setSelected(isSelected)
+}
+
 export const MediaRender: React.FC<RenderProps> = ({
   block,
   editor,
@@ -83,40 +116,12 @@ export const MediaRender: React.FC<RenderProps> = ({
 }) => {
   const [selected, setSelected] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const tiptapEditor = editor._tiptapEditor
   const hasSrc = !!block.props?.src
   const {importWebFile} = useDocContentContext()
 
-  function updateSelection() {
-    const {view} = tiptapEditor
-    const {selection} = view.state
-    let isSelected = false
-
-    if (selection instanceof NodeSelection) {
-      // If the selection is a NodeSelection, check if this block is the selected node
-      const selectedNode = view.state.doc.resolve(selection.from).parent
-      if (
-        selectedNode &&
-        selectedNode.attrs &&
-        selectedNode.attrs.id === block.id
-      ) {
-        isSelected = true
-      }
-    } else if (
-      selection instanceof TextSelection ||
-      selection instanceof MultipleNodeSelection
-    ) {
-      // If it's a TextSelection or MultipleNodeSelection (TODO Fix for drag), check if this block's node is within the selection range
-      const selectedNodes = getNodesInSelection(view)
-      isSelected = selectedNodes.some(
-        (node) => node.attrs && node.attrs.id === block.id,
-      )
-    }
-
-    setSelected(isSelected)
-  }
-
-  useEditorSelectionChange(editor, updateSelection)
+  useEditorSelectionChange(editor, () =>
+    updateSelection(editor, block, setSelected),
+  )
 
   useEffect(() => {
     if (!uploading && hasSrc) {

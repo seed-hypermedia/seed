@@ -178,6 +178,7 @@ export const BlockManipulationExtension = Extension.create({
                           'video',
                           'web-embed',
                           'math',
+                          'button',
                         ].includes(
                           blockInfoAtSelectionStart.contentType.name,
                         )) ||
@@ -188,6 +189,7 @@ export const BlockManipulationExtension = Extension.create({
                         'video',
                         'web-embed',
                         'math',
+                        'button',
                       ].includes(prevBlock.firstChild!.type.name)
                     )
                       return false
@@ -217,6 +219,7 @@ export const BlockManipulationExtension = Extension.create({
                       'video',
                       'web-embed',
                       'math',
+                      'button',
                     ].includes(blockInfo.contentType.name)
                   ) {
                     return false
@@ -230,6 +233,7 @@ export const BlockManipulationExtension = Extension.create({
                     'video',
                     'web-embed',
                     'math',
+                    'button',
                   ].includes(prevNode.type.name)
                 ) {
                   const selection = NodeSelection.create(state.doc, prevNodePos)
@@ -252,6 +256,7 @@ export const BlockManipulationExtension = Extension.create({
                     'video',
                     'web-embed',
                     'math',
+                    'button',
                   ].includes(blockInfo.contentType.name)
                 ) {
                   const newBlock =
@@ -299,6 +304,7 @@ export const BlockManipulationExtension = Extension.create({
                         'video',
                         'web-embed',
                         'math',
+                        'button',
                       ].includes(lastBlockInSelection.contentType.name)
                     ) {
                       return false
@@ -314,6 +320,7 @@ export const BlockManipulationExtension = Extension.create({
                         'video',
                         'web-embed',
                         'math',
+                        'button',
                       ].includes(nextBlock.firstChild!.type.name)
                     ) {
                       const selection = TextSelection.create(
@@ -343,6 +350,7 @@ export const BlockManipulationExtension = Extension.create({
                       'video',
                       'web-embed',
                       'math',
+                      'button',
                     ].includes(blockInfo.contentType.name)
                   ) {
                     return false
@@ -356,6 +364,7 @@ export const BlockManipulationExtension = Extension.create({
                     'video',
                     'web-embed',
                     'math',
+                    'button',
                   ].includes(nextNode.type.name)
                 ) {
                   const selection = NodeSelection.create(state.doc, nextNodePos)
