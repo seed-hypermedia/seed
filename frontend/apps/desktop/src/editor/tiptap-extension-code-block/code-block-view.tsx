@@ -34,10 +34,10 @@ export const CodeBlockView = ({
           zIndex="$zIndex.5"
           ai="center"
           jc="flex-end"
-          opacity={hovered ? 1 : 0}
           padding="$1"
           gap="$4"
-          $group-item-hover={{opacity: 1}}
+          // @ts-ignore
+          contentEditable={false}
         >
           <Select value={language} onValueChange={handleChange}>
             <Select.Trigger iconAfter={ChevronDown} size="$2.5">
