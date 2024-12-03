@@ -1,4 +1,5 @@
-import {unpackHmId} from '@shm/shared'
+import {useEntity} from '@/models/entities'
+import {getDocumentTitle, unpackHmId} from '@shm/shared'
 import {
   Button,
   ExternalLink,
@@ -34,6 +35,7 @@ export function HypermediaLinkSwitchToolbar(
 ) {
   const [isEditing, setIsEditing] = useState(false)
   const unpackedRef = useMemo(() => unpackHmId(props.url), [props.url])
+  const entity = useEntity(unpackedRef)
 
   useEffect(() => {
     if (props.stopEditing && isEditing) {
@@ -112,6 +114,11 @@ export function HypermediaLinkSwitchToolbar(
             tooltipText="Change to a link"
             icon={Link}
             onPress={() => {
+              let title = props.text ? props.text : props.url
+              if (['mention', 'embed'].includes(props.type)) {
+                const docTitle = getDocumentTitle(entity.data?.document)
+                if (docTitle) title = docTitle
+              }
               if (props.type === 'mention') {
                 const tiptap = props.editor._tiptapEditor
                 const {view, state} = tiptap
@@ -132,7 +139,7 @@ export function HypermediaLinkSwitchToolbar(
                     $pos.start() + offset + 1,
 
                     state.schema.text(
-                      mention.attrs.link,
+                      title,
                       // @ts-ignore
                       state.schema.marks['link'].create({href: props.url})!,
                     ),
@@ -147,20 +154,12 @@ export function HypermediaLinkSwitchToolbar(
                     {
                       type: 'link',
                       href: props.url,
-                      content: props.text.length ? props.text : props.url,
+                      content: title,
                     },
                   ],
                 } as PartialBlock<HMBlockSchema>
-                // props.editor.insertBlocks([linkBlock], props.id, 'after')
                 props.editor.replaceBlocks([props.id], [linkBlock])
               }
-              // props.editor._tiptapEditor.state.tr.setMeta(
-              //   hyperlinkToolbarPluginKey,
-              //   {
-              //     type: 'link',
-              //     show: false,
-              //   },
-              // )
               props.resetHyperlink()
             }}
             active={props.type === 'link'}
@@ -187,18 +186,8 @@ export function HypermediaLinkSwitchToolbar(
                     link: props.url,
                   },
                 } as PartialBlock<HMBlockSchema>
-                // props.editor.insertBlocks([mentionBlock], props.id, 'after')
                 props.editor.replaceBlocks([props.id], [mentionBlock])
               }
-              // props.editor._tiptapEditor.view.dispatch(
-              //   props.editor._tiptapEditor.state.tr.setMeta(
-              //     hyperlinkToolbarPluginKey,
-              //     {
-              //       type: 'mention',
-              //       show: false,
-              //     },
-              //   ),
-              // )
               props.resetHyperlink()
             }}
             active={props.type === 'mention'}
@@ -207,11 +196,16 @@ export function HypermediaLinkSwitchToolbar(
             tooltipText="Change to a button"
             icon={CircleDot}
             onPress={() => {
+              let title = props.text ? props.text : props.url
+              if (['mention', 'embed'].includes(props.type)) {
+                const docTitle = getDocumentTitle(entity.data?.document)
+                if (docTitle) title = docTitle
+              }
               if (['mention', 'link'].includes(props.type)) {
                 const schema = props.editor._tiptapEditor.state.schema
                 const node = schema.nodes.button.create({
                   url: props.url,
-                  name: props.text ? props.text : props.url,
+                  name: title,
                 })
 
                 insertNode(
@@ -227,10 +221,9 @@ export function HypermediaLinkSwitchToolbar(
                   content: [],
                   props: {
                     url: props.url,
-                    name: props.text ? props.text : props.url,
+                    name: title,
                   },
                 } as PartialBlock<HMBlockSchema>
-                // props.editor.insertBlocks([buttonBlock], props.id, 'after')
                 props.editor.replaceBlocks([props.id], [buttonBlock])
               }
             }}
@@ -265,7 +258,6 @@ export function HypermediaLinkSwitchToolbar(
                     url: props.url,
                   },
                 } as PartialBlock<HMBlockSchema>
-                // props.editor.insertBlocks([embedBlock], props.id, 'after')
                 props.editor.replaceBlocks([props.id], [embedBlock])
               }
             }}
@@ -278,40 +270,17 @@ export function HypermediaLinkSwitchToolbar(
 }
 
 function LinkSwitchButton({
-  // editor,
-  // toggleStyle,
-
   tooltipText,
   icon: Icon,
   onPress,
   active,
 }: {
-  // editor: BlockNoteEditor<HMBlockSchema>
-  // toggleStyle: EditorToggledStyle
   tooltipText: string
   icon: any
   onPress: () => void
   active: boolean
 }) {
-  // const [active, setActive] = useState<boolean>(
-  //   // toggleStyle in editor.getActiveStyles(),
-  //   false,
-  // )
-
-  // function toggleCurrentStyle() {
-  //   setActive(toggleStyle in editor.getActiveStyles())
-  // }
-
-  // useEditorContentChange(editor, toggleCurrentStyle)
-  // useEditorSelectionChange(editor, toggleCurrentStyle)
-
-  // function handlePress(style: EditorToggledStyle) {
-  //   editor.focus()
-  //   editor.toggleStyles({[toggleStyle]: true})
-  // }
-
   return (
-    // <Theme inverse={active}>
     <XGroup.Item>
       <XStack p="$1.5" bg="$backgroundFocus">
         <Tooltip content={tooltipText}>
@@ -322,30 +291,13 @@ function LinkSwitchButton({
             size="$3"
             disabled={active}
             disabledStyle={{opacity: 1}}
-            // width="$2"
-            // height="$3"
-            // borderRadius={0}
             hoverStyle={{bg: '$brand5'}}
             icon={Icon}
             onPress={onPress}
           />
-          {/* <Button
-            borderRadius="$3"
-            bg={active ? '$brand5' : '$backgroundFocus'}
-            fontWeight={active ? 'bold' : '400'}
-            // size="$3"
-            width="$2"
-            height="$3"
-            // borderRadius={0}
-            // icon={icon}
-            onPress={onPress}
-          >
-            <Icon size="$5" />
-          </Button> */}
         </Tooltip>
       </XStack>
     </XGroup.Item>
-    // </Theme>
   )
 }
 
