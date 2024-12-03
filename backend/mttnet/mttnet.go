@@ -128,7 +128,7 @@ func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool
 	}
 	clean.Add(closeHost)
 
-	bitswap, err := ipfs.NewBitswap(host, host.DelegatedRouting, index.IPFSBlockstore())
+	bitswap, err := ipfs.NewBitswap(host, host.Routing, index.IPFSBlockstore())
 	if err != nil {
 		return nil, fmt.Errorf("failed to start bitswap: %w", err)
 	}
@@ -140,7 +140,7 @@ func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool
 	if log.Level() != zapcore.InvalidLevel { // Usually test with zap.NewNop()
 		logLevel = log.Level().String()
 	}
-	providing, err := ipfs.NewProviderSystem(host.Datastore(), host.DelegatedRouting, makeProvidingStrategy(db, logLevel))
+	providing, err := ipfs.NewProviderSystem(host.Datastore(), host.Routing, makeProvidingStrategy(db, logLevel))
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize providing: %w", err)
 	}
@@ -601,7 +601,7 @@ func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID, lo
 		opts = append(opts, libp2p.BandwidthReporter(m))
 	}
 
-	node, err := ipfs.NewLibp2pNode(device, ds, ps, protocolID, cfg.DelegatedDHTURL, cfg.NoDHT, log, opts...)
+	node, err := ipfs.NewLibp2pNode(device, ds, ps, protocolID, cfg.DelegatedDHTURL, log, opts...)
 	if err != nil {
 		return nil, nil, err
 	}

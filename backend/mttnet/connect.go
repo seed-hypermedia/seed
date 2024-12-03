@@ -133,6 +133,9 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 		return err
 	}
 
+	// Refresh the peer info after we've connected and identified each other.
+	info = n.p2p.Peerstore().PeerInfo(info.ID)
+
 	addrsStr := AddrInfoToStrings(info)
 	if len(addrsStr) == 0 {
 		n.p2p.ConnManager().Unprotect(info.ID, ProtocolSupportKey)
