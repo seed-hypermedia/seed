@@ -86,7 +86,13 @@ export function useMyAccountIds() {
     queryFn: async () => {
       try {
         const q = await client.daemon.listKeys({})
-        return q?.keys.map((k) => k.publicKey)
+        return [...q?.keys]
+          .sort((a, b) => {
+            // alphabetical based on public key:
+            return a.accountId.localeCompare(b.accountId)
+            // ideally we would sort based on creation time, but that is not available with this data
+          })
+          .map((k) => k.publicKey)
       } catch (e) {
         const connectError = ConnectError.from(e)
         console.error(
