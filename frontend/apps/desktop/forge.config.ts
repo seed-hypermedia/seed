@@ -2,6 +2,7 @@ import {MakerDeb, MakerDebConfig} from '@electron-forge/maker-deb'
 import {MakerRpm, MakerRpmConfig} from '@electron-forge/maker-rpm'
 import {MakerSquirrel} from '@electron-forge/maker-squirrel'
 import {MakerZIP} from '@electron-forge/maker-zip'
+import {PublisherS3} from '@electron-forge/publisher-s3'
 import type {ForgeConfig} from '@electron-forge/shared-types'
 // import {MakerRpm} from '@electron-forge/maker-rpm'
 import {VitePlugin} from '@electron-forge/plugin-vite'
@@ -159,6 +160,19 @@ function buildDMGMaybe() {
       format: 'ULFO',
     },
   })
+
+  config.publishers?.push(
+    new PublisherS3({
+      bucket: 'seed-demo',
+      accessKeyId: process.env.TEMP_S3_ACCESS_KEY,
+      secretAccessKey: process.env.TEMP_S3_SECRET_KEY,
+      folder: 'staging',
+      omitAcl: true,
+      public: true,
+      region: 'eu-west-2',
+      s3ForcePathStyle: true,
+    }),
+  )
 }
 
 function notarizeMaybe() {
