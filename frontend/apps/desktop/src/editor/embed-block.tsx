@@ -189,7 +189,7 @@ const display = ({
   setSelected,
 }: DisplayComponentProps) => {
   const unpackedId = unpackHmId(block.props.url)
-  const [showControl, setShowControl] = useState(false)
+  const [hovered, setHovered] = useState(false)
   const {activeId, setActiveId} = useEmbedToolbarContext()
 
   return (
@@ -205,12 +205,12 @@ const display = ({
       }}
       onHoverIn={() => {
         if (!activeId) {
-          setShowControl(true)
+          setHovered(true)
           setActiveId(block.id)
         }
       }}
       onHoverOut={() => {
-        setShowControl(false)
+        setHovered(false)
         if (activeId && activeId === block.id) {
           setActiveId(null)
         }
@@ -221,7 +221,8 @@ const display = ({
         block={block}
         unpackedId={unpackedId}
         assign={assign}
-        showControl={showControl}
+        hovered={hovered}
+        selected={selected}
         activeId={activeId}
         setActiveId={setActiveId}
       />
@@ -259,7 +260,8 @@ function EmbedControl({
   block,
   unpackedId,
   assign,
-  showControl,
+  hovered,
+  selected,
   activeId,
   setActiveId,
 }: {
@@ -267,7 +269,8 @@ function EmbedControl({
   block: Block<HMBlockSchema>
   unpackedId: UnpackedHypermediaId | null
   assign: any
-  showControl: boolean
+  hovered: boolean
+  selected: boolean
   activeId: string | null
   setActiveId: (id: string | null) => void
 }) {
@@ -292,9 +295,9 @@ function EmbedControl({
     }
   }, [activeId, setActiveId])
 
-  const setHover = (hovered: boolean) => {
-    if (hovered && !activeId) setActiveId(block.id)
-    else if (!hovered && activeId === block.id) {
+  const setHovered = (isHovered: boolean) => {
+    if (isHovered && !activeId) setActiveId(block.id)
+    else if (!isHovered && activeId === block.id && !selected) {
       setActiveId(null)
     }
   }
@@ -519,7 +522,7 @@ function EmbedControl({
       width="100%"
       ai="flex-end"
       jc="flex-end"
-      opacity={showControl ? 1 : 0}
+      opacity={hovered || selected ? 1 : 0}
       // opacity={popoverState.open ? 1 : 0}
       padding="$2"
       gap="$0.5"
@@ -546,11 +549,11 @@ function EmbedControl({
         }}
         openUrl={openUrl}
         editor={editor}
-        stopEditing={!showControl}
+        stopEditing={!hovered && !selected}
         formComponents={EmbedLinkComponents}
         type="embed"
         id={block.id}
-        setHovered={setHover}
+        setHovered={setHovered}
       />
       {hasBlockRef ? (
         <Tooltip
