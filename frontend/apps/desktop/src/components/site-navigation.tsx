@@ -13,9 +13,9 @@ import {useNavigate} from '@/utils/useNavigate'
 import {hmId} from '@shm/shared'
 import {
   Button,
+  DocNavigationContent,
   DocumentOutline,
   DraftOutline,
-  SiteNavigationContent,
   SiteNavigationWrapper,
   SmallListItem,
   XStack,
@@ -82,7 +82,7 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
   if (!document || !siteListQuery) return null
 
   return (
-    <SiteNavigationContent
+    <DocNavigationContent
       documentMetadata={document.metadata}
       id={id}
       supportDocuments={embeds}
@@ -134,7 +134,7 @@ export function SiteNavigationDraftLoader() {
 
   return (
     <SiteNavigationWrapper>
-      <SiteNavigationContent
+      <DocNavigationContent
         documentMetadata={metadata}
         id={id}
         supportDocuments={embeds}

@@ -30,9 +30,10 @@ import {HMIcon} from "@shm/ui/src/hm-icon";
 import {EmptyDiscussion} from "@shm/ui/src/icons";
 import {SmallListItem} from "@shm/ui/src/list-item";
 import {
+  DocNavigationContent,
   DocumentOutline,
   SiteNavigationContent,
-} from "@shm/ui/src/site-navigation";
+} from "@shm/ui/src/navigation";
 import {Button} from "@tamagui/button";
 import {GestureReponderEvent, Text, useTheme} from "@tamagui/core";
 import {X} from "@tamagui/lucide-icons";
@@ -132,8 +133,8 @@ export function DocumentPage(props: SiteDocumentPayload) {
       // onClose?.();
     }
   }, []);
-  const siteNavigation = (
-    <SiteNavigationContent
+  const docNavigation = (
+    <DocNavigationContent
       supportDocuments={props.supportDocuments}
       supportQueries={props.supportQueries}
       documentMetadata={document.metadata}
@@ -150,6 +151,14 @@ export function DocumentPage(props: SiteDocumentPayload) {
       )}
     />
   );
+  const siteNavigation =
+    !!id.path?.length &&
+    homeMetadata.layout !== "Seed/Experimental/Newspaper" ? null : (
+      <SiteNavigationContent
+        homeId={homeId}
+        supportQueries={props.supportQueries}
+      />
+    );
   return (
     <SiteRoutingProvider homeId={props.homeId}>
       <YStack>
@@ -163,6 +172,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
           isWeb
         >
           {siteNavigation}
+          {docNavigation}
         </SiteHeader>
 
         <DocumentCover cover={document.metadata.cover} id={id} />
@@ -180,7 +190,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
               // paddingTop={32}
               paddingBottom={32}
             >
-              {siteNavigation}
+              {docNavigation}
             </YStack>
           </YStack>
 

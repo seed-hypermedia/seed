@@ -1,7 +1,7 @@
 import {hmId, sortNewsEntries} from "@shm/shared";
 import {Container} from "@shm/ui/src/container";
+import {DocNavigationContent} from "@shm/ui/src/navigation";
 import {BannerNewspaperCard, NewspaperCard} from "@shm/ui/src/newspaper";
-import {SiteNavigationContent} from "@shm/ui/src/site-navigation";
 import {XStack, YStack} from "@tamagui/stacks";
 import {useCallback} from "react";
 import {SiteDocumentPayload} from "./loaders";
@@ -68,7 +68,7 @@ export function NewspaperPage(props: SiteDocumentPayload) {
           mobileSearchUI={<MobileSearchUI homeId={homeId} />}
           isWeb
         >
-          <SiteNavigationContent
+          <DocNavigationContent
             supportDocuments={props.supportDocuments}
             supportQueries={props.supportQueries}
             document={document}

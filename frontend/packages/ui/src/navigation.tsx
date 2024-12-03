@@ -18,10 +18,10 @@ import {
 import {XStack, YStack} from "@tamagui/stacks";
 import {GestureReponderEvent, useMedia} from "@tamagui/web";
 import {ReactNode, useLayoutEffect, useMemo} from "react";
-import {Popover} from "tamagui";
 import {usePopoverState} from ".";
 import {HMIcon} from "./hm-icon";
 import {SmallCollapsableListItem, SmallListItem} from "./list-item";
+import {Popover} from "./TamaguiPopover";
 
 function DocumentSmallListItem({
   metadata,
@@ -160,6 +160,39 @@ export function getSiteNavDirectory({
 }
 
 export function SiteNavigationContent({
+  homeId,
+  supportQueries,
+  onPress,
+}: {
+  homeId: UnpackedHypermediaId;
+  supportQueries?: HMQueryResult[];
+  onPress?: () => void;
+}) {
+  const directoryItems = getSiteNavDirectory({
+    id: homeId,
+    supportQueries,
+    drafts: undefined,
+  });
+  return (
+    <YStack gap="$2.5" paddingLeft="$4" marginBottom="$4">
+      {directoryItems
+        ? directoryItems.map((doc) => (
+            <DocumentSmallListItem
+              key={doc.id.path?.join("/") || doc.id.id}
+              metadata={doc.metadata}
+              id={doc.id}
+              onPress={onPress}
+              indented={0}
+              isDraft={doc.isDraft}
+              isPublished={doc.isPublished}
+            />
+          ))
+        : null}
+    </YStack>
+  );
+}
+
+export function DocNavigationContent({
   documentMetadata,
   supportDocuments,
   supportQueries,
