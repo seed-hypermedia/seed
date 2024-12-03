@@ -176,7 +176,14 @@ export function QueryBlockWeb({
   const queryResults = supportQueries?.find((q) => {
     if (q.in.uid !== queryInclude.space) return false;
     const path = hmIdPathToEntityQueryPath(q.in.path);
-    if (path !== queryInclude.path) return false;
+
+    let comparePath =
+      queryInclude.path?.[0] === "/"
+        ? queryInclude.path
+        : queryInclude.path
+        ? `/${queryInclude.path}`
+        : "";
+    if (path !== comparePath) return false;
     if (q.mode !== queryInclude.mode) return false;
     return true;
   });
