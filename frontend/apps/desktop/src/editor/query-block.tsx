@@ -122,7 +122,6 @@ function Render(
 
   const sortedItems = useMemo(() => {
     if (directoryItems.data && querySort) {
-      console.log('QUERY SORT', querySort)
       return queryBlockSortedItems({
         entries: directoryItems.data,
         sort: querySort,
@@ -427,8 +426,10 @@ function QuerySettings({
               <SwitchField
                 label="Show all Children"
                 id="mode"
+                defaultChecked={queryIncludes[0].mode == 'AllDescendants'}
+                opacity={queryIncludes[0].mode == 'AllDescendants' ? 1 : 0.4}
                 onCheckedChange={(value) => {
-                  console.log('MODE', queryIncludes[0])
+                  console.log(`== ~ value:`, value)
                   let newVal = [
                     {
                       ...queryIncludes[0],
@@ -542,7 +543,9 @@ function QuerySettings({
               />
               <SwitchField
                 label="Reverse?"
+                defaultChecked={querySort[0].reverse}
                 id="sort-everse"
+                opacity={querySort[0].reverse ? 1 : 0.4}
                 onCheckedChange={(value) => {
                   let newVal = [
                     {
@@ -607,6 +610,7 @@ function QuerySearch({
           overflow="hidden"
           textOverflow="ellipsis"
           whiteSpace="nowrap"
+          color={queryDocName ? '$color' : '$color9'}
         >
           {queryDocName || 'Search Hypermedia Document'}
         </SizableText>
@@ -643,6 +647,7 @@ function QuerySearch({
             <SearchInput
               onClose={() => setShowSearch(false)}
               onSelect={(data) => {
+                console.log('SELECT', data)
                 setShowSearch(false)
                 onSelect(data)
               }}
