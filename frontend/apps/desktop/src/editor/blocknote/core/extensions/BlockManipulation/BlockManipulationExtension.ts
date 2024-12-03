@@ -67,9 +67,14 @@ export const BlockManipulationExtension = Extension.create({
               (node.type.name === 'image' &&
                 // @ts-ignore
                 event.target?.nodeName === 'IMG') ||
-              ['file', 'embed', 'video', 'web-embed', 'math'].includes(
-                node.type.name,
-              )
+              [
+                'file',
+                'embed',
+                'video',
+                'web-embed',
+                'math',
+                'button',
+              ].includes(node.type.name)
             ) {
               let tr = view.state.tr
               const selection = NodeSelection.create(view.state.doc, nodePos)

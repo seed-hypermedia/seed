@@ -172,7 +172,7 @@ const Render = (
             <Popover.Trigger>
               <Button
                 data-type="hm-button"
-                borderWidth="$1.5"
+                borderWidth="$1"
                 bc="$brand10"
                 size="$3"
                 width="100%"
@@ -182,6 +182,7 @@ const Render = (
                 textAlign="center"
                 userSelect="none"
                 borderColor={selected ? '$color8' : '$colorTransparent'}
+                focusStyle={{borderWidth: '$1'}}
               >
                 <SizableText numberOfLines={1} ellipsizeMode="tail">
                   {block.props.name}
