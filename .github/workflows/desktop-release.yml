@@ -128,14 +128,15 @@ jobs:
         if: matrix.config.os != 'windows-latest'
         run: |
           yarn desktop:make --arch=${{ matrix.config.arch }}
+          yarn desktop:publish --arch=${{ matrix.config.arch }}
         env:
           NODE_OPTIONS: --max_old_space_size=4096
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           DAEMON_NAME: ${{ matrix.config.daemon_name }}
-          VITE_VERSION: "${{ needs.get-version.outputs.version }}"
-          # VITE_VERSION: "0.0.100"
+          # VITE_VERSION: "${{ needs.get-version.outputs.version }}"
+          VITE_VERSION: "0.0.100"
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           timeout-minutes: 10
           VITE_DESKTOP_P2P_PORT: "56000"
@@ -154,9 +155,11 @@ jobs:
         if: matrix.config.os == 'windows-latest'
         run: |
           yarn desktop:make --arch=${{ matrix.config.arch }}
+          yarn desktop:publish --arch=${{ matrix.config.arch }}
         env:
           DAEMON_NAME: "${{ matrix.config.daemon_name }}.exe"
-          VITE_VERSION: "${{ needs.get-version.outputs.version }}"
+          # VITE_VERSION: "${{ needs.get-version.outputs.version }}"
+          VITE_VERSION: "0.0.100"
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
