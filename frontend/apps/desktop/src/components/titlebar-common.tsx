@@ -3,7 +3,7 @@ import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {useDeleteDialog} from '@/components/delete-dialog'
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
-import {useEntity} from '@/models/entities'
+import {useEntity, useSubscribedEntity} from '@/models/entities'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {SidebarContext, SidebarWidth} from '@/sidebar-context'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
@@ -15,6 +15,7 @@ import {
 import {useNavigate} from '@/utils/useNavigate'
 import {
   DEFAULT_GATEWAY_URL,
+  DocumentRoute,
   HMBlockNode,
   displayHostname,
   hmBlocksToEditorContent,
@@ -237,8 +238,6 @@ function EditDocButton() {
 export function PageActionButtons(props: TitleBarProps) {
   const route = useNavRoute()
   const connectDialog = useAppDialog(AddConnectionDialog)
-  const favoriteButton =
-    route.key === 'document' ? <FavoriteButton id={route.id} /> : null
   let buttonGroup: ReactNode[] = []
   if (route.key === 'draft') {
     buttonGroup = [
@@ -265,17 +264,30 @@ export function PageActionButtons(props: TitleBarProps) {
       connectDialog.content,
     ]
   } else if (route.key === 'document' && route.id.type === 'd') {
-    buttonGroup = [
-      <LatestVersionButton />,
-      favoriteButton,
-      <EditDocButton key="editDoc" />,
-      // <CreateDropdown key="create" location={route.id} />, // TODO, new path selection workflow
-      <DocOptionsButton key="options" />,
-    ]
+    return <DocumentTitlebarButtons route={route} />
   }
   return <TitlebarSection>{buttonGroup}</TitlebarSection>
 }
 
+function DocumentTitlebarButtons({route}: {route: DocumentRoute}) {
+  const latestDoc = useSubscribedEntity({
+    ...route.id,
+    version: null,
+    latest: true,
+  })
+  const isLatest =
+    !route.id.version ||
+    route.id.latest ||
+    latestDoc.data?.id?.version == route.id.version
+  return (
+    <TitlebarSection>
+      {isLatest ? null : <GoToLatestVersionButton route={route} />}
+      <FavoriteButton id={route.id} />
+      {isLatest ? <EditDocButton key="editDoc" /> : null}
+      <DocOptionsButton key="options" />
+    </TitlebarSection>
+  )
+}
 export function NavigationButtons() {
   const state = useNavigationState()
   const dispatch = useNavigationDispatch()
@@ -377,21 +389,8 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
   )
 }
 
-function LatestVersionButton() {
-  const route = useNavRoute()
-  const latestDoc = useEntity(
-    route.key == 'document' ? {...route.id, version: null} : undefined,
-  )
+function GoToLatestVersionButton({route}: {route: DocumentRoute}) {
   const navigate = useNavigate('push')
-
-  if (
-    route.key != 'document' ||
-    !route.id.version ||
-    route.id.latest ||
-    latestDoc.data?.id?.version == route.id.version
-  ) {
-    return null
-  }
 
   return (
     <Button
@@ -401,13 +400,11 @@ function LatestVersionButton() {
       size="$2"
       iconAfter={ArrowRight}
       onPress={() => {
-        if (latestDoc.data?.id) {
-          navigate({
-            key: 'document',
-            id: {...latestDoc.data.id, version: null},
-            accessory: route.accessory,
-          })
-        }
+        navigate({
+          key: 'document',
+          id: {...route.id, version: null, latest: true},
+          accessory: route.accessory,
+        })
       }}
     >
       Latest Version
