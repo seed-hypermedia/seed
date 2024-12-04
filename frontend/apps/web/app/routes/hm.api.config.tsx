@@ -13,5 +13,6 @@ export const loader: LoaderFunction = async () => {
     registeredAccountUid: config.registeredAccountUid,
     peerId: daemonInfo.peerId,
     addrs: peerInfo.addrs,
+    hostname: process.env.SEED_SITE_HOSTNAME,
   });
 };
