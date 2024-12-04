@@ -223,10 +223,6 @@ export async function getDocument(
   };
 }
 
-export async function loadDocument(id: UnpackedHypermediaId) {
-  return wrapJSON(await getDocument(id));
-}
-
 export type SiteDocumentPayload = WebDocumentPayload & {
   homeMetadata: HMMetadata;
   homeId: UnpackedHypermediaId;

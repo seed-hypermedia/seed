@@ -16,12 +16,13 @@ export const loader = async ({
 }) => {
   const url = new URL(request.url);
   const version = url.searchParams.get("v");
+  const latest = url.searchParams.get("l") === "";
   const waitForSync = url.searchParams.get("waitForSync") !== null;
   const {registeredAccountUid} = getConfig();
   if (!registeredAccountUid) throw new Error("No registered account uid");
   const path = (params["*"] || "").split("/");
   return await loadSiteDocument(
-    hmId("d", registeredAccountUid, {path, version}),
+    hmId("d", registeredAccountUid, {path, version, latest}),
     waitForSync
   );
 };
