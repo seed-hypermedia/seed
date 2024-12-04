@@ -1926,6 +1926,10 @@ export function BlockContentButton({
       width="100%"
       justifyContent={block.attributes.alignment || "flex-start"}
       userSelect="none"
+      className="block-content block-file"
+      data-content-type="file"
+      data-url={block.link}
+      data-name={block.attributes?.name}
       {...props}
       {...hoverProps}
     >
