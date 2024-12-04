@@ -14,13 +14,8 @@ import {
 } from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {
-  BlockRange,
   DEFAULT_GATEWAY_URL,
-  ExpandedBlockRange,
   HMBlockNode,
-  UnpackedHypermediaId,
-  createSiteUrl,
-  createWebHMUrl,
   displayHostname,
   hmBlocksToEditorContent,
   hmId,
@@ -28,7 +23,6 @@ import {
 import {
   Back,
   Button,
-  ButtonProps,
   ColorProp,
   Forward,
   Menu,
@@ -50,14 +44,13 @@ import {
   ArrowRightFromLine,
   CloudOff,
   Download,
-  ExternalLink,
   Link,
   Pencil,
   Trash,
   UploadCloud,
   UserPlus,
 } from '@tamagui/lucide-icons'
-import {PropsWithChildren, ReactNode, useContext, useState} from 'react'
+import {ReactNode, useContext} from 'react'
 import {AddConnectionDialog} from './contacts-prompt'
 import {useAppDialog} from './dialog'
 import DiscardDraftButton from './discard-draft-button'
@@ -237,150 +230,6 @@ function EditDocButton() {
           {hasExistingDraft ? 'Resume Editing' : 'Edit'}
         </Button>
       </Tooltip>
-    </>
-  )
-}
-
-export function useDocumentUrl({
-  docId,
-  isBlockFocused,
-}: {
-  docId?: UnpackedHypermediaId
-  isBlockFocused: boolean
-}): {
-  label: string
-  url: string
-  onCopy: (
-    blockId?: string | undefined,
-    blockRange?: BlockRange | ExpandedBlockRange,
-  ) => void
-  content: ReactNode
-} | null {
-  const docEntity = useEntity(docId)
-  if (!docId?.uid) return null
-  const accountEntity = useEntity(hmId('d', docId?.uid!))
-  const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
-  const siteHostname = accountEntity.data?.document?.metadata?.siteUrl
-  const [copyDialogContent, onCopyReference] = useCopyReferenceUrl(
-    siteHostname || gwUrl,
-  )
-  if (!docId) return null
-  const url = siteHostname
-    ? createSiteUrl({
-        hostname: siteHostname,
-        path: docId.path,
-        version: docEntity.data?.document?.version,
-        latest: true,
-      })
-    : createWebHMUrl('d', docId.uid, {
-        version: docEntity.data?.document?.version,
-        hostname: gwUrl,
-        path: docId.path,
-      })
-  return {
-    url,
-    label: siteHostname ? 'Site' : 'Public',
-    content: copyDialogContent,
-    onCopy: (
-      blockId: string | undefined,
-      blockRange?: BlockRange | ExpandedBlockRange | null,
-    ) => {
-      const focusBlockId = isBlockFocused ? docId.blockRef : null
-      onCopyReference({
-        ...docId,
-        hostname: siteHostname || gwUrl,
-        version: docEntity.data?.document?.version || null,
-        blockRef: blockId || focusBlockId || null,
-        blockRange: blockRange || null,
-        path: docId.path,
-      })
-    },
-  }
-}
-
-export function CopyReferenceButton({
-  children,
-  docId,
-  isBlockFocused,
-  copyIcon = Link,
-  openIcon = ExternalLink,
-  iconPosition = 'before',
-  showIconOnHover = false,
-  ...props
-}: PropsWithChildren<
-  ButtonProps & {
-    docId: UnpackedHypermediaId
-    isBlockFocused: boolean
-    isIconAfter?: boolean
-    showIconOnHover?: boolean
-    copyIcon?: React.ElementType
-    openIcon?: React.ElementType
-    iconPosition?: 'before' | 'after'
-  }
->) {
-  const [shouldOpen, setShouldOpen] = useState(false)
-  const reference = useDocumentUrl({docId, isBlockFocused})
-  const {externalOpen} = useAppContext()
-  if (!reference) return null
-  const CurrentIcon = shouldOpen ? openIcon : copyIcon
-  const Icon = () => (
-    <CurrentIcon
-      size={12}
-      color="$color5"
-      opacity={shouldOpen ? 1 : showIconOnHover ? 0 : 1}
-      $group-item-hover={{opacity: 1, color: '$color6'}}
-    />
-  )
-  return (
-    <>
-      <Tooltip
-        content={
-          shouldOpen
-            ? `Open ${reference.label} URL in Web Browser`
-            : `Copy ${reference.label} URL`
-        }
-      >
-        <Button
-          flexShrink={0}
-          flexGrow={0}
-          onHoverOut={() => {
-            setShouldOpen(false)
-          }}
-          aria-label={`${shouldOpen ? 'Open' : 'Copy'} ${reference.label} Link`}
-          chromeless
-          size="$2"
-          group="item"
-          theme="brand"
-          bg="$colorTransparent"
-          borderColor="$colorTransparent"
-          onPress={(e) => {
-            e.stopPropagation()
-            e.preventDefault()
-            if (shouldOpen) {
-              setShouldOpen(false)
-              externalOpen(reference.url)
-            } else {
-              setShouldOpen(true)
-              // in theory we should save this timeout in a ref and deal with it upon unmount. in practice it doesn't matter
-              setTimeout(() => {
-                setShouldOpen(false)
-              }, 5000)
-              reference.onCopy()
-            }
-          }}
-          hoverStyle={{
-            backgroundColor: '$colorTransparent',
-            borderColor: '$colorTransparent',
-            ...props.hoverStyle,
-          }}
-          {...props}
-        >
-          {iconPosition == 'before' ? <Icon /> : null}
-          {children}
-          {iconPosition == 'after' ? <Icon /> : null}
-        </Button>
-      </Tooltip>
-      {reference.content}
     </>
   )
 }

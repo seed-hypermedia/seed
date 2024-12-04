@@ -726,7 +726,7 @@ export function BlockNodeContent({
           {!props.embedDepth && !renderOnly ? (
             <>
               {onCopyBlock ? (
-                <Tooltip content="Copy block reference" delay={800}>
+                <Tooltip content="Copy Block Link (Exact Version)" delay={800}>
                   <Button
                     userSelect="none"
                     size="$2"

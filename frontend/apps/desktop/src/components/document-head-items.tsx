@@ -2,10 +2,10 @@ import {useMyAccountIds} from '@/models/daemon'
 import {HMDocument, hmId, UnpackedHypermediaId} from '@shm/shared'
 import {Check, SizableText, XStack} from '@shm/ui'
 
-import {useEntities} from '@/models/entities'
+import {useEntities, useSubscribedEntity} from '@/models/entities'
 import {DonateButton} from '@shm/ui'
+import {CopyReferenceButton} from './copy-reference-button'
 import {SubscriptionButton} from './subscription'
-import {CopyReferenceButton} from './titlebar-common'
 
 export function DocumentHeadItems({
   docId,
@@ -21,6 +21,9 @@ export function DocumentHeadItems({
   const authors = useEntities(
     document.authors.map((author) => hmId('d', author)) || [],
   )
+  const latestDoc = useSubscribedEntity({...docId, version: null, latest: true})
+  const isLatest =
+    docId.latest || document.version === latestDoc.data?.document?.version
   return (
     <>
       {docIsInMyAccount ? (
@@ -44,6 +47,7 @@ export function DocumentHeadItems({
       />
       <CopyReferenceButton
         docId={docId}
+        latest={isLatest}
         isBlockFocused={isBlockFocused || false}
         size="$2"
       />

@@ -15,7 +15,7 @@ import {
   contentLayoutUnit,
   contentTextUnit,
 } from '@shm/ui'
-import {useDocumentUrl} from '../components/titlebar-common'
+import {useDocumentUrl} from '../components/copy-reference-button'
 
 export function AppDocContentProvider({
   children,

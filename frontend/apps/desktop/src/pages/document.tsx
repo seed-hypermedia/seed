@@ -202,7 +202,11 @@ function _MainDocumentPage({
   }, [])
   const entity = useSubscribedEntity(id)
 
-  const siteHomeEntity = useSubscribedEntity(hmId('d', id.uid))
+  const siteHomeEntity = useSubscribedEntity(
+    // if the route document ID matches the home document, then use it because it may be referring to a specific version
+    id.path?.length ? hmId('d', id.uid) : id,
+    // otherwise, create an ID with the latest version of the home document
+  )
 
   if (entity.isInitialLoading) return <Spinner />
   if (!entity.data?.document) return null

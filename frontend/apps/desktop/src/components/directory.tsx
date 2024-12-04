@@ -1,31 +1,15 @@
 import {useDraft} from '@/models/accounts'
 import {useDraftList, useListDirectory} from '@/models/documents'
-import {useEntities, useSubscribedEntity} from '@/models/entities'
-import {pathNameify} from '@/utils/path'
+import {useSubscribedEntity} from '@/models/entities'
 import {useNavigate} from '@/utils/useNavigate'
 import {
-  formattedDateLong,
-  formattedDateMedium,
   getMetadataName,
   hmId,
-  HMMetadata,
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
-import {
-  Button,
-  DirectoryItem,
-  HMIcon,
-  itemHoverBgColor,
-  SizableText,
-  SmallListItem,
-  Tooltip,
-  XStack,
-  YStack,
-} from '@shm/ui'
-import {Copy} from '@tamagui/lucide-icons'
+import {HMIcon, SizableText, SmallListItem} from '@shm/ui'
 import {useMemo} from 'react'
-import {CopyReferenceButton} from './titlebar-common'
 
 export function Directory({
   docId,
@@ -154,166 +138,5 @@ function DraftItem({
       iconAfter={<DraftTag />}
       onPress={goToDraft}
     />
-  )
-}
-function DraftItemLarge({id}: {id: UnpackedHypermediaId}) {
-  const navigate = useNavigate()
-
-  const draft = useDraft(id)
-  function goToDraft() {
-    navigate({key: 'draft', id})
-  }
-
-  return (
-    <Button
-      group="item"
-      borderWidth={0}
-      hoverStyle={{
-        bg: itemHoverBgColor,
-      }}
-      w="100%"
-      paddingHorizontal={16}
-      paddingVertical="$1"
-      onPress={goToDraft}
-      h={60}
-      icon={
-        draft.data?.metadata.icon ? (
-          <HMIcon size={28} id={id} metadata={draft.data.metadata} />
-        ) : undefined
-      }
-    >
-      <XStack gap="$2" ai="center" f={1} paddingVertical="$2">
-        <YStack f={1} gap="$1.5">
-          <XStack ai="center" gap="$2" paddingLeft={4} f={1} w="100%">
-            <SizableText
-              fontWeight="bold"
-              textOverflow="ellipsis"
-              whiteSpace="nowrap"
-              overflow="hidden"
-            >
-              {draft.data?.metadata.name || 'Untitled'}
-            </SizableText>
-            <DraftTag />
-          </XStack>
-          <PathButton
-            docId={id}
-            isDraft
-            path={
-              !!draft.data?.metadata?.name &&
-              id.path &&
-              id.path.at(-1)?.startsWith('_')
-                ? `${pathNameify(draft.data.metadata.name)}`
-                : id.path
-                ? `${id.path.at(-1)}`
-                : ''
-            }
-          />
-        </YStack>
-      </XStack>
-      <XStack gap="$3" ai="center">
-        {/* <Button theme="yellow" icon={Pencil} size="$2">
-          Resume Editing
-        </Button> */}
-        {draft.data?.lastUpdateTime ? (
-          <Tooltip
-            content={`Last update: ${formattedDateLong(
-              new Date(draft.data.lastUpdateTime),
-            )}`}
-          >
-            <SizableText size="$1">
-              {formattedDateMedium(new Date(draft.data.lastUpdateTime))}
-            </SizableText>
-          </Tooltip>
-        ) : null}
-
-        {/* <XStack>
-          <DocumentEditors entry={id} />
-        </XStack> */}
-      </XStack>
-    </Button>
-  )
-}
-
-function DirectoryItemWithAuthors({
-  entry,
-}: {
-  entry: {
-    id: UnpackedHypermediaId
-    hasDraft?: boolean
-    authors: string[]
-    path: string
-    metadata: HMMetadata
-  }
-}) {
-  const editorIds = useMemo(
-    () =>
-      entry.authors.length > 3 ? entry.authors.slice(0, 2) : entry.authors,
-    [entry.authors],
-  )
-  const editors = useEntities(editorIds.map((id) => hmId('d', id)))
-  const authorsMetadata = editors
-    .map((query) => query.data)
-    .filter((author) => !!author)
-    .map((data) => {
-      return {
-        id: data!.id!,
-        metadata: data?.document?.metadata,
-      }
-    })
-  return (
-    <DirectoryItem
-      PathButtonComponent={PathButton}
-      entry={entry}
-      authorsMetadata={authorsMetadata}
-    />
-  )
-}
-
-function PathButton({
-  path,
-  docId,
-  isDraft = false,
-}: {
-  path: string
-  docId: UnpackedHypermediaId
-  isDraft?: boolean
-}) {
-  const Comp = !isDraft ? CopyReferenceButton : XStack
-  return (
-    <Comp
-      isBlockFocused={false}
-      docId={docId}
-      alignSelf="flex-start"
-      ai="center"
-      group="item"
-      // gap="$2"
-      bg="$colorTransparent"
-      borderColor="$colorTransparent"
-      borderWidth={0}
-      size="$1"
-      maxWidth="100%"
-      overflow="hidden"
-      copyIcon={Copy}
-      iconPosition="after"
-      showIconOnHover
-    >
-      <SizableText
-        color="$brand5"
-        size="$1"
-        $group-item-hover={
-          isDraft
-            ? undefined
-            : {
-                color: '$brand6',
-                textDecorationLine: 'underline',
-              }
-        }
-        textOverflow="ellipsis"
-        whiteSpace="nowrap"
-        overflow="hidden"
-      >
-        {path}
-      </SizableText>
-    </Comp>
   )
 }

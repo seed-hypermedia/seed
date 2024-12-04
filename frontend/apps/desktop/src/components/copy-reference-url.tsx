@@ -42,6 +42,7 @@ export function useCopyReferenceUrl(hostname: string) {
       blockRange: input.blockRange,
       hostname,
       path: input.path,
+      latest: input.latest,
     })
     copyTextToClipboard(url)
     if (pushOnCopy.data === 'never') {
