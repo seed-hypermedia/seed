@@ -1919,49 +1919,43 @@ export function BlockContentButton({
   ...props
 }: BlockContentProps) {
   const {hover, ...hoverProps} = useHover();
-  const {layoutUnit, onLinkClick} = useDocContentContext();
+  const {onLinkClick} = useDocContentContext();
   if (block.type !== "Button") return null;
   return (
-    <YStack
-      // backgroundColor="$color3"
-      borderColor="$color6"
-      {...hoverProps}
-      borderRadius={layoutUnit / 4}
-      padding={layoutUnit / 2}
-      overflow="hidden"
-      f={1}
-      className="block-content block-file"
-      data-content-type="file"
-      data-url={block.link}
-      data-name={block.attributes?.name}
-      hoverStyle={{
-        backgroundColor: "$backgroundHover",
-      }}
+    <XStack
+      width="100%"
+      justifyContent={block.attributes.alignment || "flex-start"}
+      userSelect="none"
       {...props}
+      {...hoverProps}
     >
-      <XStack height="$5" width="100%" jc="center" ai="center">
+      <XStack
+        position="relative"
+        // @ts-ignore
+        contentEditable={false}
+      >
         <Button
-          borderWidth={1}
-          borderRadius={1}
+          borderWidth="$1"
           bc="$brand10"
           size="$3"
-          minWidth="$10"
-          maxWidth="100%"
-          px="$2"
+          width="100%"
+          p="$2"
           fontSize="$4"
           justifyContent="center"
           textAlign="center"
           userSelect="none"
+          borderColor="$colorTransparent"
+          focusStyle={{borderWidth: "$1"}}
           onPress={(e) => {
             onLinkClick(block.link, e);
           }}
         >
           <SizableText numberOfLines={1} ellipsizeMode="tail">
-            {block.attributes?.name}
+            {block.attributes.name}
           </SizableText>
         </Button>
       </XStack>
-    </YStack>
+    </XStack>
   );
 }
 
