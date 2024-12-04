@@ -11,6 +11,17 @@ import {
 import {findNextBlock, findPreviousBlock} from '../../../../block-utils'
 import {getBlockInfoFromPos} from '../Blocks/helpers/getBlockInfoFromPos'
 
+const selectableNodeTypes = [
+  'image',
+  'file',
+  'embed',
+  'video',
+  'web-embed',
+  'math',
+  'button',
+  'query',
+]
+
 export const BlockManipulationExtension = Extension.create({
   name: 'BlockManupulation',
 
@@ -123,16 +134,7 @@ export const BlockManipulationExtension = Extension.create({
                     })
                   }
                   if ($nextPos && nextNode) {
-                    if (
-                      [
-                        'file',
-                        'embed',
-                        'image',
-                        'video',
-                        'web-embed',
-                        'math',
-                      ].includes(nextNode.type.name)
-                    ) {
+                    if (selectableNodeTypes.includes(nextNode.type.name)) {
                       return false
                     }
                     const mergedTextContent =
@@ -177,28 +179,12 @@ export const BlockManipulationExtension = Extension.create({
                     if (
                       (state.selection.from - 1 !==
                         blockInfoAtSelectionStart.startPos &&
-                        ![
-                          'image',
-                          'file',
-                          'embed',
-                          'video',
-                          'web-embed',
-                          'math',
-                          'button',
-                          'query',
-                        ].includes(
+                        !selectableNodeTypes.includes(
                           blockInfoAtSelectionStart.contentType.name,
                         )) ||
-                      ![
-                        'image',
-                        'file',
-                        'embed',
-                        'video',
-                        'web-embed',
-                        'math',
-                        'button',
-                        'query',
-                      ].includes(prevBlock.firstChild!.type.name)
+                      !selectableNodeTypes.includes(
+                        prevBlock.firstChild!.type.name,
+                      )
                     )
                       return false
                   }
@@ -220,32 +206,12 @@ export const BlockManipulationExtension = Extension.create({
                   )!
                   if (
                     state.selection.$anchor.parentOffset !== 0 &&
-                    ![
-                      'image',
-                      'file',
-                      'embed',
-                      'video',
-                      'web-embed',
-                      'math',
-                      'button',
-                      'query',
-                    ].includes(blockInfo.contentType.name)
+                    !selectableNodeTypes.includes(blockInfo.contentType.name)
                   ) {
                     return false
                   }
                 }
-                if (
-                  [
-                    'image',
-                    'file',
-                    'embed',
-                    'video',
-                    'web-embed',
-                    'math',
-                    'button',
-                    'query',
-                  ].includes(prevNode.type.name)
-                ) {
+                if (selectableNodeTypes.includes(prevNode.type.name)) {
                   const selection = NodeSelection.create(state.doc, prevNodePos)
                   let tr = state.tr.setSelection(selection)
                   tr = tr.scrollIntoView()
@@ -258,18 +224,7 @@ export const BlockManipulationExtension = Extension.create({
                   state.doc,
                   state.selection.from,
                 )!
-                if (
-                  [
-                    'image',
-                    'file',
-                    'embed',
-                    'video',
-                    'web-embed',
-                    'math',
-                    'button',
-                    'query',
-                  ].includes(blockInfo.contentType.name)
-                ) {
+                if (selectableNodeTypes.includes(blockInfo.contentType.name)) {
                   const newBlock =
                     state.schema.nodes['blockContainer'].createAndFill()!
                   let tr = state.tr.insert(1, newBlock)
@@ -308,16 +263,9 @@ export const BlockManipulationExtension = Extension.create({
                       state.selection.to + 1 !==
                         lastBlockInSelection.startPos +
                           lastBlockInSelection.contentNode.nodeSize &&
-                      ![
-                        'image',
-                        'file',
-                        'embed',
-                        'video',
-                        'web-embed',
-                        'math',
-                        'button',
-                        'query',
-                      ].includes(lastBlockInSelection.contentType.name)
+                      !selectableNodeTypes.includes(
+                        lastBlockInSelection.contentType.name,
+                      )
                     ) {
                       return false
                     }
@@ -325,16 +273,9 @@ export const BlockManipulationExtension = Extension.create({
                   if (blockInfoAfterSelection) {
                     const {nextBlock, nextBlockPos} = blockInfoAfterSelection
                     if (
-                      [
-                        'image',
-                        'file',
-                        'embed',
-                        'video',
-                        'web-embed',
-                        'math',
-                        'button',
-                        'query',
-                      ].includes(nextBlock.firstChild!.type.name)
+                      selectableNodeTypes.includes(
+                        nextBlock.firstChild!.type.name,
+                      )
                     ) {
                       const selection = TextSelection.create(
                         state.doc,
@@ -356,32 +297,12 @@ export const BlockManipulationExtension = Extension.create({
                   if (
                     state.selection.$anchor.pos + 1 !==
                       blockInfo.startPos + blockInfo.contentNode.nodeSize &&
-                    ![
-                      'image',
-                      'file',
-                      'embed',
-                      'video',
-                      'web-embed',
-                      'math',
-                      'button',
-                      'query',
-                    ].includes(blockInfo.contentType.name)
+                    !selectableNodeTypes.includes(blockInfo.contentType.name)
                   ) {
                     return false
                   }
                 }
-                if (
-                  [
-                    'image',
-                    'file',
-                    'embed',
-                    'video',
-                    'web-embed',
-                    'math',
-                    'button',
-                    'query',
-                  ].includes(nextNode.type.name)
-                ) {
+                if (selectableNodeTypes.includes(nextNode.type.name)) {
                   const selection = NodeSelection.create(state.doc, nextNodePos)
                   let tr = state.tr.setSelection(selection)
                   tr = tr.scrollIntoView()
