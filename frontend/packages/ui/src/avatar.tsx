@@ -29,7 +29,7 @@ export function UIAvatar({
 
   return (
     <XStack
-      className="AAAAvatar"
+      className="avatar"
       width={size}
       height={size}
       borderRadius={borderRadius}

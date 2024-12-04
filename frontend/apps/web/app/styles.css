@@ -19,8 +19,16 @@ body {
   line-height: 1.5 !important;
 }
 
+.mobile-menu .mobile-menu-item .avatar {
+  margin-top: 5px !important;
+}
+
 @media (min-width: 768px) {
   .mobile-menu .mobile-menu-item-label {
     font-size: inherit !important;
+  }
+
+  .mobile-menu .mobile-menu-item .avatar {
+    margin-top: 0 !important;
   }
 }

@@ -91,6 +91,7 @@ export function SmallListItem({
   const activeBg = activeBgColor || "$brand12";
   return (
     <ListItem
+      className="mobile-menu-item"
       hoverTheme
       pressTheme
       focusTheme
@@ -130,7 +131,7 @@ export function SmallListItem({
       }
       {...props}
     >
-      <XStack gap="$2" jc="center" f={1} ai="center">
+      <XStack gap="$2" jc="center" f={1}>
         {isValidElement(icon) ? (
           icon
         ) : icon ? (
