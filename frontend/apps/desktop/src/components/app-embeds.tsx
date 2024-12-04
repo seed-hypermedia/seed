@@ -10,6 +10,7 @@ import {
   formattedDateMedium,
   getDocumentTitle,
   hmId,
+  narrowHmId,
   packHmId,
   queryBlockSortedItems,
 } from '@shm/shared'
@@ -220,11 +221,11 @@ export function EmbedDocument(props: EntityComponentProps) {
   if (props.block.attributes?.view == 'Card') {
     return <EmbedDocumentCard {...props} />
   } else {
-    return <EmbedDocContent {...props} />
+    return <EmbedDocumentContent {...props} />
   }
 }
 
-export function EmbedDocContent(props: EntityComponentProps) {
+export function EmbedDocumentContent(props: EntityComponentProps) {
   const [showReferenced, setShowReferenced] = useState(false)
   const doc = useSubscribedEntity(props)
   const navigate = useNavigate()
@@ -266,31 +267,11 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
     'Content'
   if (doc.isLoading) return <Spinner />
   if (!doc.data) return <ErrorBlock message="Could not load embed" />
-  const id: UnpackedHypermediaId = {
-    type: props.type,
-    id: props.id,
-    uid: props.uid,
-    path: props.path,
-    blockRef: props.blockRef,
-    blockRange: props.blockRange,
-    version: props.version,
-    hostname: props.hostname,
-    scheme: props.scheme,
-  }
+  const id = narrowHmId(props)
   return (
     <EmbedWrapper
       hideBorder
-      id={{
-        type: props.type,
-        id: props.id,
-        uid: props.uid,
-        path: props.path,
-        blockRef: props.blockRef,
-        blockRange: props.blockRange,
-        hostname: props.hostname,
-        scheme: props.scheme,
-        version: props.version,
-      }}
+      id={id}
       parentBlockId={props.parentBlockId}
       viewType={view}
     >
@@ -327,20 +308,7 @@ export function EmbedComment(props: EntityComponentProps) {
   const account = useAccount_deprecated(comment.data?.author)
   if (comment.isLoading) return null
   return (
-    <EmbedWrapper
-      id={{
-        type: props.type,
-        id: props.id,
-        uid: props.uid,
-        path: props.path,
-        blockRef: props.blockRef,
-        blockRange: props.blockRange,
-        hostname: props.hostname,
-        scheme: props.scheme,
-        version: props.version,
-      }}
-      parentBlockId={props.parentBlockId}
-    >
+    <EmbedWrapper id={narrowHmId(props)} parentBlockId={props.parentBlockId}>
       <XStack flexWrap="wrap" jc="space-between" p="$3">
         <XStack gap="$2">
           <UIAvatar
@@ -563,7 +531,6 @@ function QueryStyleList({
   const entries = useMemo(
     () =>
       items.map((item) => {
-        console.log('=== ITEMMMM', item)
         const id = hmId('d', item.account, {
           path: item.path,
           latest: true,

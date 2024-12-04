@@ -22,6 +22,7 @@ import {
   hmId,
   idToUrl,
   isHypermediaScheme,
+  narrowHmId,
   packHmId,
   pluralS,
   unpackHmId,
@@ -1743,17 +1744,7 @@ export function ContentEmbed({
   return (
     <EmbedWrapper
       depth={props.depth}
-      id={{
-        type: props.type,
-        id: props.id,
-        uid: props.uid,
-        path: props.path,
-        blockRef: props.blockRef,
-        blockRange: props.blockRange,
-        hostname: props.hostname,
-        scheme: props.scheme,
-        version: props.version,
-      }}
+      id={narrowHmId(props)}
       parentBlockId={parentBlockId || ""}
     >
       {content}

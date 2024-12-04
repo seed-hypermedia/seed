@@ -7,6 +7,7 @@ import {
   HMDocumentListItem,
   hmId,
   hmIdPathToEntityQueryPath,
+  narrowHmId,
   queryBlockSortedItems,
   UnpackedHypermediaId,
 } from "@shm/shared";
@@ -46,16 +47,15 @@ function EmbedWrapper({
       onPress={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        navigate(
-          createWebHMUrl(id.type, id.uid, {
-            hostname: null,
-            blockRange: id.blockRange,
-            blockRef: id.blockRef,
-            version: id.version,
-            latest: id.latest,
-            path: id.path,
-          })
-        );
+        const destUrl = createWebHMUrl(id.type, id.uid, {
+          hostname: null,
+          blockRange: id.blockRange,
+          blockRef: id.blockRef,
+          version: id.version,
+          latest: id.latest,
+          path: id.path,
+        });
+        navigate(destUrl);
       }}
     >
       {children}
@@ -96,7 +96,7 @@ function DocInlineEmbed(props: EntityComponentProps) {
   const doc = useEntity(props);
   const document = doc.data?.document;
   return (
-    <InlineEmbedButton id={props}>
+    <InlineEmbedButton id={narrowHmId(props)}>
       @{document ? getDocumentTitle(document) : "..."}
     </InlineEmbedButton>
   );
@@ -106,12 +106,13 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
   const doc = useEntity(props);
   if (doc.isLoading) return <Spinner />;
   if (!doc.data) return <ErrorBlock message="Could not load embed" />;
+  const id = narrowHmId(props);
   return (
-    <EmbedWrapper id={props} parentBlockId={props.parentBlockId} hideBorder>
+    <EmbedWrapper id={id} parentBlockId={props.parentBlockId} hideBorder>
       <NewspaperCard
         isWeb
         entity={{
-          id: props,
+          id,
           document: doc.data.document,
         }}
         id={props}

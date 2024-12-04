@@ -166,7 +166,7 @@ export function NewspaperCard({
   accountsMetadata,
   isWeb = false,
   ...props
-}: YStackProps & {
+}: Omit<YStackProps, "id"> & {
   id: UnpackedHypermediaId;
   entity: HMEntityContent | null | undefined;
   accountsMetadata: AccountsMetadata;

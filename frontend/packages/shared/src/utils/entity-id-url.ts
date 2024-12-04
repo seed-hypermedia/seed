@@ -123,7 +123,6 @@ export function createWebHMUrl(
   if (blockRef) {
     res += `#${blockRef}${serializeBlockRange(blockRange)}`
   }
-
   return res
 }
 
@@ -213,6 +212,22 @@ export const unpackedHmIdSchema = z.object({
 })
 
 export type UnpackedHypermediaId = z.infer<typeof unpackedHmIdSchema>
+
+// this is used to convert an object that is a superset of HMId to an exact HMId. This is used in the case of embed props (but maybe we should reconsider this approach of spreading id directly into embed props)
+export function narrowHmId(id: UnpackedHypermediaId): UnpackedHypermediaId {
+  return {
+    id: id.id,
+    type: id.type,
+    uid: id.uid,
+    path: id.path,
+    version: id.version,
+    blockRef: id.blockRef,
+    blockRange: id.blockRange,
+    hostname: id.hostname,
+    scheme: id.scheme,
+    latest: id.latest,
+  }
+}
 
 export function hmId(
   type: keyof typeof HYPERMEDIA_ENTITY_TYPES,
