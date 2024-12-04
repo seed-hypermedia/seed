@@ -538,6 +538,7 @@ function LatestVersionButton() {
   if (
     route.key != 'document' ||
     !route.id.version ||
+    route.id.latest ||
     latestDoc.data?.id?.version == route.id.version
   ) {
     return null
