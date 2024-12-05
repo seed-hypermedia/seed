@@ -54,14 +54,14 @@ jobs:
     strategy:
       matrix:
         config:
-          - os: macos-latest-xl
-            arch: x64
-            goarch: amd64
-            daemon_name: x86_64-apple-darwin
-          - os: macos-latest-xl
-            arch: arm64
-            goarch: arm64
-            daemon_name: aarch64-apple-darwin
+          #- os: macos-latest-xl
+          #  arch: x64
+          #  goarch: amd64
+          #  daemon_name: x86_64-apple-darwin
+          #- os: macos-latest-xl
+          #  arch: arm64
+          #  goarch: arm64
+          #  daemon_name: aarch64-apple-darwin
           - os: ubuntu-20.04
             arch: x64
             goarch: amd64
