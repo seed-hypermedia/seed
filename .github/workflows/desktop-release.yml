@@ -135,9 +135,8 @@ jobs:
       - name: Build, package & make (Unix)
         if: matrix.config.os != 'windows-latest'
         run: |
-          yarn desktop:make --arch=${{ matrix.config.arch }}
-          yarn desktop:publish --arch=${{ matrix.config.arch }}
-          # DEBUG=electron-notarize*
+          DEBUG=electron-notarize* yarn desktop:make --arch=${{ matrix.config.arch }}
+          DEBUG=electron-notarize* yarn desktop:publish --arch=${{ matrix.config.arch }}
         env:
           timeout-minutes: 10
           NODE_OPTIONS: --max_old_space_size=4096
