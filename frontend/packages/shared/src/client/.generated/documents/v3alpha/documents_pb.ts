@@ -307,6 +307,390 @@ export class ListRootDocumentsResponse extends Message<ListRootDocumentsResponse
 }
 
 /**
+ * Request to list accounts.
+ *
+ * @generated from message com.seed.documents.v3alpha.ListAccountsRequest
+ */
+export class ListAccountsRequest extends Message<ListAccountsRequest> {
+  /**
+   * Optional. Number of results to return per page.
+   * If not set, the server will pick some default number.
+   *
+   * @generated from field: int32 page_size = 1;
+   */
+  pageSize = 0;
+
+  /**
+   * Optional. Token of the page to request, obtained from
+   * a previous response.
+   *
+   * @generated from field: string page_token = 2;
+   */
+  pageToken = "";
+
+  /**
+   * Optional. If set to true, only accounts that the user is subscribed to will be returned.
+   * If at least one document in the account has a subscription, then the account is considered subscribed.
+   *
+   * @generated from field: bool subscribed_only = 3;
+   */
+  subscribedOnly = false;
+
+  /**
+   * Sorting mode for the list response.
+   *
+   * @generated from field: com.seed.documents.v3alpha.ListAccountsRequest.SortOrder sort_order = 4;
+   */
+  sortOrder = ListAccountsRequest_SortOrder.LATEST_ACTIVITY_FIRST;
+
+  constructor(data?: PartialMessage<ListAccountsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.ListAccountsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 2, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "subscribed_only", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 4, name: "sort_order", kind: "enum", T: proto3.getEnumType(ListAccountsRequest_SortOrder) },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListAccountsRequest {
+    return new ListAccountsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListAccountsRequest {
+    return new ListAccountsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListAccountsRequest {
+    return new ListAccountsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListAccountsRequest | PlainMessage<ListAccountsRequest> | undefined, b: ListAccountsRequest | PlainMessage<ListAccountsRequest> | undefined): boolean {
+    return proto3.util.equals(ListAccountsRequest, a, b);
+  }
+}
+
+/**
+ * Sorting options for the list of accounts.
+ *
+ * @generated from enum com.seed.documents.v3alpha.ListAccountsRequest.SortOrder
+ */
+export enum ListAccountsRequest_SortOrder {
+  /**
+   * Sorting by the most recent activity time.
+   *
+   * @generated from enum value: LATEST_ACTIVITY_FIRST = 0;
+   */
+  LATEST_ACTIVITY_FIRST = 0,
+
+  /**
+   * Sorting by the name of the account (i.e. title of the root document).
+   *
+   * @generated from enum value: NAME_ALPHABETICAL = 1;
+   */
+  NAME_ALPHABETICAL = 1,
+}
+// Retrieve enum metadata with: proto3.getEnumType(ListAccountsRequest_SortOrder)
+proto3.util.setEnumType(ListAccountsRequest_SortOrder, "com.seed.documents.v3alpha.ListAccountsRequest.SortOrder", [
+  { no: 0, name: "LATEST_ACTIVITY_FIRST" },
+  { no: 1, name: "NAME_ALPHABETICAL" },
+]);
+
+/**
+ * Response to list accounts.
+ *
+ * @generated from message com.seed.documents.v3alpha.ListAccountsResponse
+ */
+export class ListAccountsResponse extends Message<ListAccountsResponse> {
+  /**
+   * List of accounts.
+   *
+   * @generated from field: repeated com.seed.documents.v3alpha.Account accounts = 1;
+   */
+  accounts: Account[] = [];
+
+  /**
+   * Token for the next page if there're more results.
+   *
+   * @generated from field: string next_page_token = 2;
+   */
+  nextPageToken = "";
+
+  constructor(data?: PartialMessage<ListAccountsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.ListAccountsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "accounts", kind: "message", T: Account, repeated: true },
+    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListAccountsResponse {
+    return new ListAccountsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListAccountsResponse {
+    return new ListAccountsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListAccountsResponse {
+    return new ListAccountsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListAccountsResponse | PlainMessage<ListAccountsResponse> | undefined, b: ListAccountsResponse | PlainMessage<ListAccountsResponse> | undefined): boolean {
+    return proto3.util.equals(ListAccountsResponse, a, b);
+  }
+}
+
+/**
+ * Aggregated information about an account.
+ * Some of this information comes from the accounts' root document,
+ * some is aggregated from the other documents inside of the account.
+ *
+ * @generated from message com.seed.documents.v3alpha.Account
+ */
+export class Account extends Message<Account> {
+  /**
+   * ID of the account.
+   *
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * Metadata attributes from the root document of the account.
+   *
+   * @generated from field: map<string, string> metadata = 2;
+   */
+  metadata: { [key: string]: string } = {};
+
+  /**
+   * Summary of the activity in the entire account.
+   *
+   * @generated from field: com.seed.documents.v3alpha.ActivitySummary activity_summary = 3;
+   */
+  activitySummary?: ActivitySummary;
+
+  /**
+   * Whether the user is subscribed to this account.
+   * If at least one document in the account has a subscription, then the account is considered subscribed.
+   *
+   * @generated from field: bool is_subscribed = 4;
+   */
+  isSubscribed = false;
+
+  constructor(data?: PartialMessage<Account>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.Account";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "metadata", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "scalar", T: 9 /* ScalarType.STRING */} },
+    { no: 3, name: "activity_summary", kind: "message", T: ActivitySummary },
+    { no: 4, name: "is_subscribed", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Account {
+    return new Account().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Account {
+    return new Account().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Account {
+    return new Account().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: Account | PlainMessage<Account> | undefined, b: Account | PlainMessage<Account> | undefined): boolean {
+    return proto3.util.equals(Account, a, b);
+  }
+}
+
+/**
+ * Request to list a directory.
+ *
+ * @generated from message com.seed.documents.v3alpha.ListDirectoryRequest
+ */
+export class ListDirectoryRequest extends Message<ListDirectoryRequest> {
+  /**
+   * Optional. Size of the page.
+   *
+   * @generated from field: int32 page_size = 1;
+   */
+  pageSize = 0;
+
+  /**
+   * Optional. Pagination token.
+   *
+   * @generated from field: string page_token = 2;
+   */
+  pageToken = "";
+
+  /**
+   * Required. ID of the account to list the directory for.
+   *
+   * @generated from field: string account = 3;
+   */
+  account = "";
+
+  /**
+   * Required. Path of the directory to list documents for.
+   * Empty string means root directory.
+   *
+   * @generated from field: string directory_path = 4;
+   */
+  directoryPath = "";
+
+  /**
+   * Optional. If true, list documents recursively.
+   *
+   * @generated from field: bool recursive = 5;
+   */
+  recursive = false;
+
+  /**
+   * Optional. Sorting mode for the list response.
+   *
+   * @generated from field: com.seed.documents.v3alpha.ListDirectoryRequest.SortOrder sort_order = 6;
+   */
+  sortOrder = ListDirectoryRequest_SortOrder.LATEST_ACTIVITY_FIRST;
+
+  /**
+   * Optional. If set to true, only documents that the user is subscribed to will be returned.
+   *
+   * @generated from field: bool subscribed_only = 7;
+   */
+  subscribedOnly = false;
+
+  constructor(data?: PartialMessage<ListDirectoryRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.ListDirectoryRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 2, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "directory_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 6, name: "sort_order", kind: "enum", T: proto3.getEnumType(ListDirectoryRequest_SortOrder) },
+    { no: 7, name: "subscribed_only", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDirectoryRequest {
+    return new ListDirectoryRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListDirectoryRequest {
+    return new ListDirectoryRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListDirectoryRequest {
+    return new ListDirectoryRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListDirectoryRequest | PlainMessage<ListDirectoryRequest> | undefined, b: ListDirectoryRequest | PlainMessage<ListDirectoryRequest> | undefined): boolean {
+    return proto3.util.equals(ListDirectoryRequest, a, b);
+  }
+}
+
+/**
+ * Sorting options for the list of documents.
+ *
+ * @generated from enum com.seed.documents.v3alpha.ListDirectoryRequest.SortOrder
+ */
+export enum ListDirectoryRequest_SortOrder {
+  /**
+   * Sorting by the most recent activity time.
+   *
+   * @generated from enum value: LATEST_ACTIVITY_FIRST = 0;
+   */
+  LATEST_ACTIVITY_FIRST = 0,
+
+  /**
+   * Sorting by the name/title of the document.
+   *
+   * @generated from enum value: NAME_ALPHABETICAL = 1;
+   */
+  NAME_ALPHABETICAL = 1,
+
+  /**
+   * Sorting by the path of the document.
+   *
+   * @generated from enum value: PATH_ALPHABETICAL = 2;
+   */
+  PATH_ALPHABETICAL = 2,
+}
+// Retrieve enum metadata with: proto3.getEnumType(ListDirectoryRequest_SortOrder)
+proto3.util.setEnumType(ListDirectoryRequest_SortOrder, "com.seed.documents.v3alpha.ListDirectoryRequest.SortOrder", [
+  { no: 0, name: "LATEST_ACTIVITY_FIRST" },
+  { no: 1, name: "NAME_ALPHABETICAL" },
+  { no: 2, name: "PATH_ALPHABETICAL" },
+]);
+
+/**
+ * Response of the directory list.
+ *
+ * @generated from message com.seed.documents.v3alpha.ListDirectoryResponse
+ */
+export class ListDirectoryResponse extends Message<ListDirectoryResponse> {
+  /**
+   * List of documents.
+   *
+   * @generated from field: repeated com.seed.documents.v3alpha.DocumentListItem documents = 1;
+   */
+  documents: DocumentListItem[] = [];
+
+  /**
+   * Optional. Token for the next page if there're more results.
+   *
+   * @generated from field: string next_page_token = 2;
+   */
+  nextPageToken = "";
+
+  constructor(data?: PartialMessage<ListDirectoryResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.ListDirectoryResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "documents", kind: "message", T: DocumentListItem, repeated: true },
+    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDirectoryResponse {
+    return new ListDirectoryResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListDirectoryResponse {
+    return new ListDirectoryResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListDirectoryResponse {
+    return new ListDirectoryResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListDirectoryResponse | PlainMessage<ListDirectoryResponse> | undefined, b: ListDirectoryResponse | PlainMessage<ListDirectoryResponse> | undefined): boolean {
+    return proto3.util.equals(ListDirectoryResponse, a, b);
+  }
+}
+
+/**
  * Request for listing documents.
  *
  * @generated from message com.seed.documents.v3alpha.ListDocumentsRequest
@@ -727,8 +1111,11 @@ export class DocumentChangeInfo extends Message<DocumentChangeInfo> {
 }
 
 /**
- * Basic data about a document that is returned in list responses.
+ * Basic data about a document with some aggregations and metadata.
  * Content is omitted for efficiency reasons.
+ *
+ * TODO(burdiyan): rename this to DocumentSummary, DocumentInfo or something like that,
+ * it may be useful more than just in list responses.
  *
  * @generated from message com.seed.documents.v3alpha.DocumentListItem
  */
@@ -756,7 +1143,7 @@ export class DocumentListItem extends Message<DocumentListItem> {
   metadata: { [key: string]: string } = {};
 
   /**
-   * Every author ID who has modified this document's version.
+   * Every author ID who has ever made changes to this document.
    *
    * @generated from field: repeated string authors = 4;
    */
@@ -771,6 +1158,7 @@ export class DocumentListItem extends Message<DocumentListItem> {
 
   /**
    * Time when the document was updated.
+   * I.e. timestamp of the most recent change.
    *
    * @generated from field: google.protobuf.Timestamp update_time = 6;
    */
@@ -790,6 +1178,27 @@ export class DocumentListItem extends Message<DocumentListItem> {
    */
   version = "";
 
+  /**
+   * Breadcrumbs of this document.
+   * The number of items in this list corresponds to the number of segments
+   * in the path of the document minus 1 (the document itself).
+   *
+   * E.g. for a document "/cars/jp/honda" there will be 2 breadcrumbs: "cars" and "jp".
+   *
+   * If we don't have a document for some of the path segements for whatever reason,
+   * the corresponding breadcrumb segment will be null.
+   *
+   * @generated from field: repeated com.seed.documents.v3alpha.Breadcrumb breadcrumbs = 10;
+   */
+  breadcrumbs: Breadcrumb[] = [];
+
+  /**
+   * Summary of the activity on the document.
+   *
+   * @generated from field: com.seed.documents.v3alpha.ActivitySummary activity_summary = 11;
+   */
+  activitySummary?: ActivitySummary;
+
   constructor(data?: PartialMessage<DocumentListItem>) {
     super();
     proto3.util.initPartial(data, this);
@@ -806,6 +1215,8 @@ export class DocumentListItem extends Message<DocumentListItem> {
     { no: 6, name: "update_time", kind: "message", T: Timestamp },
     { no: 8, name: "genesis", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 9, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 10, name: "breadcrumbs", kind: "message", T: Breadcrumb, repeated: true },
+    { no: 11, name: "activity_summary", kind: "message", T: ActivitySummary },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentListItem {
@@ -822,6 +1233,120 @@ export class DocumentListItem extends Message<DocumentListItem> {
 
   static equals(a: DocumentListItem | PlainMessage<DocumentListItem> | undefined, b: DocumentListItem | PlainMessage<DocumentListItem> | undefined): boolean {
     return proto3.util.equals(DocumentListItem, a, b);
+  }
+}
+
+/**
+ * Summary of the activity on a document or account.
+ *
+ * @generated from message com.seed.documents.v3alpha.ActivitySummary
+ */
+export class ActivitySummary extends Message<ActivitySummary> {
+  /**
+   * Timestamp of the most recent comment.
+   *
+   * @generated from field: google.protobuf.Timestamp latest_comment_time = 1;
+   */
+  latestCommentTime?: Timestamp;
+
+  /**
+   * Total number of comments.
+   *
+   * @generated from field: int32 comment_count = 2;
+   */
+  commentCount = 0;
+
+  /**
+   * Timestamp of the most recent change.
+   *
+   * @generated from field: google.protobuf.Timestamp latest_change_time = 3;
+   */
+  latestChangeTime?: Timestamp;
+
+  constructor(data?: PartialMessage<ActivitySummary>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.ActivitySummary";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "latest_comment_time", kind: "message", T: Timestamp },
+    { no: 2, name: "comment_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "latest_change_time", kind: "message", T: Timestamp },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ActivitySummary {
+    return new ActivitySummary().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ActivitySummary {
+    return new ActivitySummary().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ActivitySummary {
+    return new ActivitySummary().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ActivitySummary | PlainMessage<ActivitySummary> | undefined, b: ActivitySummary | PlainMessage<ActivitySummary> | undefined): boolean {
+    return proto3.util.equals(ActivitySummary, a, b);
+  }
+}
+
+/**
+ * Basic information about ancestor documents in the path hierarchy.
+ *
+ * @generated from message com.seed.documents.v3alpha.Breadcrumb
+ */
+export class Breadcrumb extends Message<Breadcrumb> {
+  /**
+   * Title of the document.
+   *
+   * @generated from field: string name = 1;
+   */
+  name = "";
+
+  /**
+   * Path of the document.
+   *
+   * @generated from field: string path = 2;
+   */
+  path = "";
+
+  /**
+   * Will be true if we don't have any indexed information about this document.
+   *
+   * @generated from field: bool is_missing = 3;
+   */
+  isMissing = false;
+
+  constructor(data?: PartialMessage<Breadcrumb>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.Breadcrumb";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "is_missing", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Breadcrumb {
+    return new Breadcrumb().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Breadcrumb {
+    return new Breadcrumb().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Breadcrumb {
+    return new Breadcrumb().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: Breadcrumb | PlainMessage<Breadcrumb> | undefined, b: Breadcrumb | PlainMessage<Breadcrumb> | undefined): boolean {
+    return proto3.util.equals(Breadcrumb, a, b);
   }
 }
 

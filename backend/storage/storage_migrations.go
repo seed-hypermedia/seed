@@ -49,10 +49,63 @@ type migration struct {
 // Otherwise when you switch back to the main branch the program will complain about an unknown version of the data directory.
 //
 // Migrations should be idempotant as much as we can make them, to prevent issues with partially applied migrations.
+//
+// The list of migration is in descending order, because it's easier to add them to the top than having to scroll to the bottom all the time.
+//
+// To add a new migration, follow the pattern of the existing ones, and choose the current date accordingly as a version.
+// If multiple migrations need to be made in the same day, the incrementing suffix can be used.
+//
+// In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
-	// New beginning.
-	{Version: "2024-10-19.01", Run: func(_ *Store, _ *sqlite.Conn) error {
-		return nil
+	{Version: "2024-12-16.02", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			CREATE TABLE spaces (
+				id TEXT PRIMARY KEY CHECK (id != ''),
+				last_comment INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE,
+				last_comment_time INTEGER NOT NULL DEFAULT (0),
+				comment_count INTEGER NOT NULL DEFAULT (0),
+				last_change_time INTEGER NOT NULL DEFAULT (0)
+			) WITHOUT ROWID;
+
+			CREATE INDEX spaces_by_last_comment ON spaces (last_comment) WHERE last_comment IS NOT NULL;
+
+			CREATE TABLE document_generations (
+				resource INTEGER REFERENCES resources (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+				generation INTEGER NOT NULL,
+				genesis TEXT NOT NULL,
+				heads JSON NOT NULL DEFAULT ('[]'),
+				change_count INTEGER NOT NULL DEFAULT (0),
+				genesis_change_time INTEGER NOT NULL,
+				last_change_time INTEGER NOT NULL DEFAULT (0),
+				last_tombstone_ref_time INTEGER NOT NULL DEFAULT (0),
+				last_alive_ref_time INTEGER NOT NULL DEFAULT (0),
+				is_deleted GENERATED ALWAYS AS (last_tombstone_ref_time > last_alive_ref_time) VIRTUAL,
+				last_comment INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE,
+			    last_comment_time INTEGER NOT NULL DEFAULT (0),
+				last_activity_time GENERATED ALWAYS AS (MAX(last_comment_time, last_alive_ref_time)) VIRTUAL,
+			    comment_count INTEGER NOT NULL DEFAULT (0),
+				authors JSON NOT NULL DEFAULT ('[]'),
+				metadata JSON NOT NULL DEFAULT ('{}'),
+				changes BLOB,
+				PRIMARY KEY (resource, generation, genesis)
+			) WITHOUT ROWID;
+
+			CREATE INDEX document_generations_by_last_comment ON document_generations (last_comment) WHERE last_comment IS NOT NULL;
+		`)); err != nil {
+			return err
+		}
+
+		return scheduleReindex(conn)
+	}},
+	{Version: "2024-11-27.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return sqlitex.ExecScript(conn, sqlfmt(`DELETE FROM wallets`)) // User will have to recreate the wallet
+	}},
+	{Version: "2024-11-11.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := sqlitex.ExecScript(conn, "DROP TABLE IF EXISTS deleted_resources;"); err != nil {
+			return err
+		}
+
+		return scheduleReindex(conn)
 	}},
 	{Version: "2024-11-01.01", Run: func(_ *Store, conn *sqlite.Conn) error {
 		return sqlitex.ExecScript(conn, sqlfmt(`
@@ -72,16 +125,16 @@ var migrations = []migration{
 			DELETE FROM kv WHERE key = 'lndhub_login_signature';
 		`))
 	}},
-	{Version: "2024-11-11.01", Run: func(_ *Store, conn *sqlite.Conn) error {
-		if err := sqlitex.ExecScript(conn, "DROP TABLE IF EXISTS deleted_resources;"); err != nil {
-			return err
-		}
+	// New beginning.
+	{Version: "2024-10-19.01", Run: func(_ *Store, _ *sqlite.Conn) error {
+		return nil
+	}},
+}
 
-		return scheduleReindex(conn)
-	}},
-	{Version: "2024-11-27.01", Run: func(_ *Store, conn *sqlite.Conn) error {
-		return sqlitex.ExecScript(conn, sqlfmt(`DELETE FROM wallets`)) // User will have to recreate the wallet
-	}},
+func init() {
+	// Reversing the migrations because all the code depends on them being in ascending order (newest in the end),
+	// but for humans it's easier to write them the other way around, to prevent having to scroll the list to the bottom when it grows.
+	slices.Reverse(migrations)
 }
 
 func scheduleReindex(conn *sqlite.Conn) error {

@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateDocumentChangeRequest, CreateRefRequest, DeleteDocumentRequest, Document, GetDocumentRequest, GetRefRequest, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, Ref } from "./documents_pb";
+import { CreateDocumentChangeRequest, CreateRefRequest, DeleteDocumentRequest, Document, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListDirectoryRequest, ListDirectoryResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, Ref } from "./documents_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -51,9 +51,36 @@ export const Documents = {
       kind: MethodKind.Unary,
     },
     /**
+     * Lists all accounts.
+     *
+     * TODO(burdiyan): rename to spaces or sites.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Documents.ListAccounts
+     */
+    listAccounts: {
+      name: "ListAccounts",
+      I: ListAccountsRequest,
+      O: ListAccountsRequest,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Lists documents in a directory of an account.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Documents.ListDirectory
+     */
+    listDirectory: {
+      name: "ListDirectory",
+      I: ListDirectoryRequest,
+      O: ListDirectoryResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
      * Lists documents within the account. Only the most recent versions show up.
      *
+     * Deprecated: Use [ListDirectory].
+     *
      * @generated from rpc com.seed.documents.v3alpha.Documents.ListDocuments
+     * @deprecated
      */
     listDocuments: {
       name: "ListDocuments",

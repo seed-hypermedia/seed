@@ -125,6 +125,47 @@ CREATE TABLE resources (
 CREATE INDEX resources_by_owner ON resources (owner) WHERE owner IS NOT NULL;
 CREATE INDEX resources_by_genesis_blob ON resources (genesis_blob);
 
+-- Stores spaces and various aggregate information about them.
+CREATE TABLE spaces (
+    id TEXT PRIMARY KEY CHECK (id != ''),
+    last_comment INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE,
+    last_comment_time INTEGER NOT NULL DEFAULT (0),
+    comment_count INTEGER NOT NULL DEFAULT (0),
+    last_change_time INTEGER NOT NULL DEFAULT (0)
+) WITHOUT ROWID;
+
+-- Index to fullfill the rule of having an index on all foreign keys.
+CREATE INDEX spaces_by_last_comment ON spaces (last_comment) WHERE last_comment IS NOT NULL;
+
+-- Stores document generations, with lots of consolidated information.
+CREATE TABLE document_generations (
+    resource INTEGER REFERENCES resources (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+    generation INTEGER NOT NULL,
+    genesis TEXT NOT NULL,
+    heads JSON NOT NULL DEFAULT ('[]'),
+    change_count INTEGER NOT NULL DEFAULT (0),
+    genesis_change_time INTEGER NOT NULL,
+    last_change_time INTEGER NOT NULL DEFAULT (0),
+    last_tombstone_ref_time INTEGER NOT NULL DEFAULT (0),
+    last_alive_ref_time INTEGER NOT NULL DEFAULT (0),
+    is_deleted GENERATED ALWAYS AS (last_tombstone_ref_time > last_alive_ref_time) VIRTUAL,
+    last_comment INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE,
+    last_comment_time INTEGER NOT NULL DEFAULT (0),
+    last_activity_time GENERATED ALWAYS AS (MAX(last_comment_time, last_alive_ref_time)) VIRTUAL,
+    comment_count INTEGER NOT NULL DEFAULT (0),
+    -- Sorted JSON array of unique author ID values.
+    authors JSON NOT NULL DEFAULT ('[]'),
+    -- Indexed document attributes,
+    -- values are timestamped with the timestamped of the change that introduced them.
+    metadata JSON NOT NULL DEFAULT ('{}'),
+    -- Roaring bitmap of change blob IDs.
+    changes BLOB,
+    PRIMARY KEY (resource, generation, genesis)
+) WITHOUT ROWID;
+
+-- Index to fullfill the rule of having an index on all foreign keys.
+CREATE INDEX document_generations_by_last_comment ON document_generations (last_comment) WHERE last_comment IS NOT NULL;
+
 -- Stores content-addressable links between blobs.
 -- Links are typed (rel) and directed.
 CREATE TABLE blob_links (
@@ -206,5 +247,5 @@ CREATE TABLE wallets (
     -- Human readable name to help the user identify each wallet
     name TEXT NOT NULL
 );
-CREATE INDEX wallets_by_account ON wallets (account);
 
+CREATE INDEX wallets_by_account ON wallets (account);

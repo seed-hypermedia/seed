@@ -3,10 +3,10 @@ package documents
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
-	"net/url"
 	"seed/backend/api/documents/v3alpha/docmodel"
 	"seed/backend/blob"
 	"seed/backend/core"
@@ -18,6 +18,7 @@ import (
 	"seed/backend/util/maybe"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
+	"strings"
 	"time"
 
 	blocks "github.com/ipfs/go-block-format"
@@ -33,6 +34,9 @@ import (
 
 // Server implements Documents API v3.
 type Server struct {
+	documents.UnimplementedCommentsServer
+	documents.UnimplementedDocumentsServer
+
 	keys core.KeyStore
 	idx  *blob.Index
 	db   *sqlitex.Pool
@@ -201,26 +205,32 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 
 // ListRootDocuments implements Documents API v3.
 func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRootDocumentsRequest) (*documents.ListRootDocumentsResponse, error) {
-	type Cursor struct {
-		ID int64 `json:"i"`
-	}
-
-	var (
-		count      int32
-		lastCursor = Cursor{
-			ID: math.MaxInt64,
-		}
-	)
-
-	if in.PageSize <= 0 {
-		in.PageSize = 100
+	var cursor = struct {
+		IRI          string `json:"i"`
+		ActivityTime int64  `json:"t"`
+	}{
+		IRI:          "\uFFFF", // MaxString.
+		ActivityTime: math.MaxInt64,
 	}
 
 	if in.PageToken != "" {
-		if err := apiutil.DecodePageToken(in.PageToken, &lastCursor, nil); err != nil {
+		if err := apiutil.DecodePageToken(in.PageToken, &cursor, nil); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 		}
 	}
+
+	var count int32
+
+	if in.PageSize <= 0 {
+		in.PageSize = 30
+	}
+
+	out := &documents.ListRootDocumentsResponse{
+		Documents: make([]*documents.DocumentListItem, 0, in.PageSize),
+	}
+
+	namespaceGlob := "hm://*"
+	namespaceNotGlob := "hm://*/*"
 
 	conn, release, err := srv.db.Conn(ctx)
 	if err != nil {
@@ -228,52 +238,35 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 	}
 	defer release()
 
-	out := documents.ListRootDocumentsResponse{
-		Documents: make([]*documents.DocumentListItem, 0, in.PageSize),
-	}
+	lookup := blob.NewLookupCache(conn)
 
-	if err = sqlitex.Exec(conn, qListRootDocuments(), func(stmt *sqlite.Stmt) error {
+	rows, check := sqlitex.Query(conn, qLoadDocumentList(), namespaceGlob, namespaceNotGlob, cursor.ActivityTime, cursor.IRI, in.PageSize)
+	for row := range rows {
 		if count == in.PageSize {
-			var err error
-			out.NextPageToken, err = apiutil.EncodePageToken(lastCursor, nil)
-			return err
+			out.NextPageToken, err = apiutil.EncodePageToken(cursor, nil)
+			break
 		}
 		count++
 
-		var (
-			id  = stmt.ColumnInt64(0)
-			iri = stmt.ColumnText(1)
-		)
-
-		u, err := url.Parse(iri)
-		if err != nil {
-			return err
+		item, ierr := documentListItemFromRow(lookup, row)
+		if ierr != nil {
+			err = ierr
+			break
 		}
 
-		ns, err := core.DecodePrincipal(u.Host)
-		if err != nil {
-			return err
-		}
-		lastCursor.ID = id
+		cursor.ActivityTime = item.ActivitySummary.LatestChangeTime.AsTime().UnixMilli()
+		cursor.IRI = "hm://" + item.Account + "/" + item.Path
+		cursor.IRI = strings.TrimSuffix(cursor.IRI, "/")
 
-		doc, err := srv.GetDocument(ctx, &documents.GetDocumentRequest{
-			Account: ns.String(),
-			Path:    "",
-		})
-		if err != nil {
-			srv.log.Warn("Partial root document. Possibly got the genesis blob but not the content due to not syncing parent document", zap.Error(err))
-			return nil
-		}
+		out.Documents = append(out.Documents, item)
+	}
 
-		// TODO: use indexed data instead of loading the entire document.
-		out.Documents = append(out.Documents, DocumentToListItem(doc))
-
-		return nil
-	}, lastCursor.ID, in.PageSize); err != nil {
+	err = errors.Join(err, check())
+	if err != nil {
 		return nil, err
 	}
 
-	return &out, nil
+	return out, nil
 }
 
 var qListRootDocuments = dqb.Str(`
@@ -300,25 +293,24 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		return nil, fmt.Errorf("failed to decode account: %w", err)
 	}
 
-	type Cursor struct {
-		ID int64 `json:"i"`
-	}
-
-	var (
-		count      int32
-		lastCursor = Cursor{
-			ID: math.MaxInt64,
-		}
-	)
-
-	if in.PageSize <= 0 {
-		in.PageSize = 30
+	var cursor = struct {
+		IRI          string `json:"i"`
+		ActivityTime int64  `json:"t"`
+	}{
+		IRI:          "\uFFFF", // MaxString.
+		ActivityTime: math.MaxInt64,
 	}
 
 	if in.PageToken != "" {
-		if err := apiutil.DecodePageToken(in.PageToken, &lastCursor, nil); err != nil {
+		if err := apiutil.DecodePageToken(in.PageToken, &cursor, nil); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 		}
+	}
+
+	var count int32
+
+	if in.PageSize <= 0 {
+		in.PageSize = 30
 	}
 
 	out := &documents.ListDocumentsResponse{
@@ -331,63 +323,177 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 	if err != nil {
 		return nil, err
 	}
-	requests := []*documents.GetDocumentRequest{}
-	if err = sqlitex.Exec(conn, qListDocuments(), func(stmt *sqlite.Stmt) error {
+	defer release()
+
+	lookup := blob.NewLookupCache(conn)
+
+	rows, check := sqlitex.Query(conn, qLoadDocumentList(), namespaceGlob, "", cursor.ActivityTime, cursor.IRI, in.PageSize)
+	for row := range rows {
 		if count == in.PageSize {
-			var err error
-			out.NextPageToken, err = apiutil.EncodePageToken(lastCursor, nil)
-			return err
+			out.NextPageToken, err = apiutil.EncodePageToken(cursor, nil)
+			break
 		}
 		count++
 
-		var (
-			id  = stmt.ColumnInt64(0)
-			iri = stmt.ColumnText(1)
-		)
-
-		lastCursor.ID = id
-
-		// TODO(burdiyan): This is a hack to get the account from the IRI.
-		u, err := url.Parse(iri)
-		if err != nil {
-			return err
+		item, ierr := documentListItemFromRow(lookup, row)
+		if ierr != nil {
+			err = ierr
+			break
 		}
 
-		path := u.Path
-		// Since we don't want to call getDocument here, we buffer the request
-		// Otherwise we would have a transaction inside a transaction leading to
-		// a deadlock.
-		requests = append(requests, &documents.GetDocumentRequest{
-			Account: u.Host,
-			Path:    path,
-		})
+		cursor.ActivityTime = item.ActivitySummary.LatestChangeTime.AsTime().UnixMilli()
+		cursor.IRI = "hm://" + item.Account + "/" + item.Path
+		cursor.IRI = strings.TrimSuffix(cursor.IRI, "/")
 
-		return nil
-	}, lastCursor.ID, namespaceGlob, in.PageSize); err != nil {
-		release()
-		return nil, err
+		out.Documents = append(out.Documents, item)
 	}
-	release()
-	for _, req := range requests {
-		doc, err := srv.GetDocument(ctx, req)
-		if err != nil {
-			continue
-		}
-		out.Documents = append(out.Documents, DocumentToListItem(doc))
+
+	err = errors.Join(err, check())
+	if err != nil {
+		return nil, err
 	}
 
 	return out, nil
 }
 
-var qListDocuments = dqb.Str(`
+func documentListItemFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents.DocumentListItem, error) {
+	inc := sqlite.NewIncrementor(0)
+	var (
+		iriRaw            = row.ColumnText(inc())
+		genesis           = row.ColumnText(inc())
+		metadataJSON      = row.ColumnBytesUnsafe(inc())
+		commentCount      = row.ColumnInt64(inc())
+		headsJSON         = row.ColumnBytesUnsafe(inc())
+		authorsJSON       = row.ColumnBytesUnsafe(inc())
+		genesisChangeTime = row.ColumnInt64(inc())
+		lastCommentTime   = row.ColumnInt64(inc())
+		lastChangeTime    = row.ColumnInt64(inc())
+		lastActivityTime  = row.ColumnInt64(inc())
+		_                 = lastActivityTime
+	)
+
+	iri := blob.IRI(iriRaw)
+	space, path, err := iri.SpacePath()
+	if err != nil {
+		return nil, err
+	}
+
+	var attrs blob.DocIndexedAttrs
+	if err := json.Unmarshal(metadataJSON, &attrs); err != nil {
+		return nil, err
+	}
+
+	metadata := make(map[string]string, len(attrs))
+	for k, v := range attrs {
+		var vv string
+		switch iv := v.Value.(type) {
+		case string:
+			vv = iv
+		case int64, int:
+			vv = fmt.Sprintf("%d", iv)
+		}
+
+		metadata[k] = vv
+	}
+
+	var authorIDs []int64
+	if err := json.Unmarshal(authorsJSON, &authorIDs); err != nil {
+		return nil, err
+	}
+
+	authors := make([]string, len(authorIDs))
+	for i, a := range authorIDs {
+		aa, err := lookup.PublicKey(a)
+		if err != nil {
+			return nil, err
+		}
+		authors[i] = aa.String()
+	}
+
+	var headIDs []int64
+	if err := json.Unmarshal(headsJSON, &headIDs); err != nil {
+		return nil, err
+	}
+
+	cids := make([]cid.Cid, len(headIDs))
+	for i, h := range headIDs {
+		cids[i], err = lookup.CID(h)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	crumbIRIs := iri.Breadcrumbs()
+	crumbIRIs = crumbIRIs[:len(crumbIRIs)-1] // Minus 1 to skip the current document.
+
+	var crumbs []*documents.Breadcrumb
+	if len(crumbIRIs) > 0 {
+		crumbs = make([]*documents.Breadcrumb, len(crumbIRIs))
+
+		for i, iri := range crumbIRIs[:len(crumbIRIs)-1] { // Minus one to skip the current document
+			title, found, err := lookup.DocumentTitle(iri)
+			if err != nil {
+				return nil, err
+			}
+
+			_, path, err := iri.SpacePath()
+			if err != nil {
+				return nil, err
+			}
+
+			crumb := &documents.Breadcrumb{
+				Name:      title,
+				Path:      path,
+				IsMissing: !found,
+			}
+
+			crumbs[i] = crumb
+		}
+	}
+
+	out := &documents.DocumentListItem{
+		Account:     space.String(),
+		Path:        path,
+		Metadata:    metadata,
+		Authors:     authors,
+		CreateTime:  timestamppb.New(time.UnixMilli(genesisChangeTime)),
+		UpdateTime:  timestamppb.New(time.UnixMilli(lastChangeTime)),
+		Genesis:     genesis,
+		Version:     blob.NewVersion(cids...).String(),
+		Breadcrumbs: crumbs,
+		ActivitySummary: &documents.ActivitySummary{
+			CommentCount:      int32(commentCount), //nolint:gosec
+			LatestCommentTime: timestamppb.New(time.UnixMilli(lastCommentTime)),
+			LatestChangeTime:  timestamppb.New(time.UnixMilli(lastChangeTime)),
+		},
+	}
+
+	return out, nil
+}
+
+var qLoadDocumentList = dqb.Str(`
+	-- namespace_glob, namespace_not_glob, cursor_activity, cursor_iri, page_size
 	SELECT
-		id,
-		iri
-	FROM resources
-	WHERE id < :last_cursor
-	AND iri GLOB :namespace_glob
-	ORDER BY id DESC
-	LIMIT :page_size + 1;
+		r.iri,
+		dg.genesis,
+		dg.metadata,
+		dg.comment_count,
+		dg.heads,
+		dg.authors,
+		dg.genesis_change_time,
+		dg.last_comment_time,
+		dg.last_change_time,
+		dg.last_activity_time
+	FROM document_generations dg
+	JOIN resources r ON r.id = dg.resource
+		AND r.iri GLOB ?1
+		AND r.iri NOT GLOB ?2
+		AND dg.is_deleted = 0
+	WHERE last_activity_time < ?3
+		AND r.iri < ?4
+	GROUP BY dg.resource HAVING dg.generation = MAX(dg.generation)
+	ORDER BY last_activity_time DESC
+	LIMIT ?5 + 1;
 `)
 
 // DeleteDocument implements Documents API v3.

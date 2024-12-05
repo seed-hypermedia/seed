@@ -65,6 +65,29 @@ func (iri IRI) SpacePath() (space core.Principal, path string, err error) {
 	return space, u.Path, nil
 }
 
+// Breadcrumbs returns a list of IRIs for each parent of the IRI (including the original one at the end).
+func (iri IRI) Breadcrumbs() []IRI {
+	if !strings.HasPrefix(string(iri), "hm://") {
+		panic("BUG: calling Breadcrumbs on a non-hypermedia IRI")
+	}
+
+	components := strings.Count(string(iri), "/")
+	if components > 0 {
+		components -= 2 // Don't count the 2 slashes from hm:// part.
+	}
+
+	out := make([]IRI, 0, components+1) // +1 to account for the final result of the original IRI.
+	// Starting from 5 to skip the hm:// part.
+	for i := 5; i < len(iri); i++ {
+		if iri[i] == '/' {
+			out = append(out, IRI(iri[:i]))
+		}
+	}
+	out = append(out, iri)
+
+	return out
+}
+
 type Index struct {
 	bs       *blockStore
 	db       *sqlitex.Pool
@@ -109,7 +132,7 @@ func (idx *Index) IPFSBlockstore() blockstore.Blockstore {
 func (idx *Index) indexBlob(conn *sqlite.Conn, id int64, c cid.Cid, data []byte) (err error) {
 	defer sqlitex.Save(conn)(&err)
 
-	ictx := newCtx(conn, idx.provider, idx.log)
+	ictx := newCtx(conn, idx.bs, idx.provider, idx.log)
 
 	for _, fn := range indexersList {
 		if err := fn(ictx, id, c, data); err != nil {
@@ -128,7 +151,7 @@ func (idx *Index) CanEditResource(ctx context.Context, resource IRI, author core
 	}
 	defer release()
 
-	res, err := dbEntitiesLookupID(conn, string(resource))
+	res, err := dbResourcesLookupID(conn, string(resource))
 	if err != nil {
 		return ok, err
 	}
@@ -534,6 +557,9 @@ type generation struct {
 	Heads       []int64
 }
 
+// TODO: check caps for all parent docs explicitly, instead of relying on prefix matching,
+// because prefix matching doesn't know anything about hierarchical path structure,
+// and just matches strings naively, which may cause correctness issues.
 var qLoadGenerations = dqb.Str(`
 	WITH RECURSIVE
 	space (id, owner) AS (
@@ -725,25 +751,27 @@ func (eb Encoded[T]) Loggable() map[string]interface{} {
 }
 
 type indexingCtx struct {
-	conn     *sqlite.Conn
-	provider provider.Provider
-	log      *zap.Logger
+	conn       *sqlite.Conn
+	provider   provider.Provider
+	blockStore *blockStore
+	log        *zap.Logger
 
 	// Lookup tables for internal database IDs.
 	pubKeys   map[string]int64
 	resources map[IRI]int64
-	blobs     map[cid.Cid]int64
+	blobs     map[cid.Cid]blobsGetSizeResult
 }
 
-func newCtx(conn *sqlite.Conn, provider provider.Provider, log *zap.Logger) *indexingCtx {
+func newCtx(conn *sqlite.Conn, bs *blockStore, provider provider.Provider, log *zap.Logger) *indexingCtx {
 	return &indexingCtx{
-		conn:     conn,
-		provider: provider,
-		log:      log,
+		conn:       conn,
+		provider:   provider,
+		blockStore: bs,
+		log:        log,
 		// Setting arbitrary size for maps, to avoid dynamic resizing in most cases.
 		pubKeys:   make(map[string]int64, 16),
 		resources: make(map[IRI]int64, 16),
-		blobs:     make(map[cid.Cid]int64, 16),
+		blobs:     make(map[cid.Cid]blobsGetSizeResult, 16),
 	}
 }
 
@@ -790,8 +818,8 @@ func (idx *indexingCtx) SaveBlob(id int64, b structuralBlob) error {
 		}
 	}
 
-	if b.Meta != nil {
-		data, err := json.Marshal(b.Meta)
+	if b.ExtraAttrs != nil {
+		data, err := json.Marshal(b.ExtraAttrs)
 		if err != nil {
 			return err
 		}
@@ -904,8 +932,8 @@ func (idx *indexingCtx) ensurePubKey(key core.Principal) (int64, error) {
 }
 
 func (idx *indexingCtx) ensureBlob(c cid.Cid) (int64, error) {
-	if id, ok := idx.blobs[c]; ok {
-		return id, nil
+	if size, ok := idx.blobs[c]; ok {
+		return size.BlobsID, nil
 	}
 
 	codec, hash := ipfs.DecodeCID(c)
@@ -915,10 +943,7 @@ func (idx *indexingCtx) ensureBlob(c cid.Cid) (int64, error) {
 		return 0, err
 	}
 
-	var id int64
-	if size.BlobsID != 0 {
-		id = size.BlobsID
-	} else {
+	if size.BlobsID == 0 {
 		ins, err := dbBlobsInsert(idx.conn, 0, hash, int64(codec), nil, -1)
 		if err != nil {
 			return 0, err
@@ -926,11 +951,12 @@ func (idx *indexingCtx) ensureBlob(c cid.Cid) (int64, error) {
 		if ins == 0 {
 			return 0, fmt.Errorf("failed to ensure blob %s after insert", c)
 		}
-		id = ins
+		size.BlobsID = ins
+		size.BlobsSize = -1
 	}
 
-	idx.blobs[c] = id
-	return id, nil
+	idx.blobs[c] = size
+	return size.BlobsID, nil
 }
 
 func (idx *indexingCtx) ensureResource(r IRI) (int64, error) {
@@ -938,7 +964,7 @@ func (idx *indexingCtx) ensureResource(r IRI) (int64, error) {
 		return id, nil
 	}
 
-	res, err := dbEntitiesLookupID(idx.conn, string(r))
+	res, err := dbResourcesLookupID(idx.conn, string(r))
 	if err != nil {
 		return 0, err
 	}
@@ -1021,7 +1047,14 @@ func indexURL(sb *structuralBlob, log *zap.Logger, anchor, linkType, rawURL stri
 
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		log.Warn("FailedToParseURL", zap.String("url", rawURL), zap.Error(err))
+		log.Warn("FailedToParseURL",
+			zap.String("url", rawURL),
+			zap.Error(err),
+			// Hex hash is useful to lookup in the database.
+			zap.String("blobHashHex", sb.CID.Hash().HexString()),
+			// CID is useful to lookup in the debug browser at /debug/cid/<cid>.
+			zap.String("blobCID", sb.CID.String()),
+		)
 		return nil
 	}
 
@@ -1110,3 +1143,119 @@ func (idx *Index) Query(ctx context.Context, fn func(conn *sqlite.Conn) error) (
 
 	return fn(conn)
 }
+
+// LookupCache is used to lookup various table records,
+// caching the results in memory to avoid repeated database queries.
+// It's only valid for the lifetime of the current transaction.
+// Not safe for concurrent use.
+type LookupCache struct {
+	conn *sqlite.Conn
+
+	publicKeys     map[int64]core.Principal
+	cids           map[int64]cid.Cid
+	documentTitles map[IRI]string
+}
+
+// NewLookupCache creates a new [LookupCache].
+func NewLookupCache(conn *sqlite.Conn) *LookupCache {
+	return &LookupCache{
+		conn:           conn,
+		publicKeys:     make(map[int64]core.Principal),
+		cids:           make(map[int64]cid.Cid),
+		documentTitles: make(map[IRI]string),
+	}
+}
+
+// CID looks up a CID of a blob.
+func (l *LookupCache) CID(id int64) (c cid.Cid, err error) {
+	if сc, ok := l.cids[id]; ok {
+		return сc, nil
+	}
+
+	rows, check := sqlitex.Query(l.conn, qLookupCID(), id)
+	for row := range rows {
+		codec := row.ColumnInt64(0)
+		hash := row.ColumnBytesUnsafe(1)
+
+		c = cid.NewCidV1(uint64(codec), hash)
+		l.cids[id] = c
+		break
+	}
+
+	err = errors.Join(err, check())
+	if err != nil {
+		return cid.Undef, err
+	}
+
+	if !c.Defined() {
+		return cid.Undef, fmt.Errorf("not found CID with id %d", id)
+	}
+
+	return c, nil
+}
+
+var qLookupCID = dqb.Str(`
+	SELECT codec, multihash
+	FROM blobs INDEXED BY blobs_metadata
+	WHERE id = :id;
+`)
+
+// DocumentTitle looks up title of the document as per indexed attributes.
+func (l *LookupCache) DocumentTitle(iri IRI) (title string, ok bool, err error) {
+	if title, ok := l.documentTitles[iri]; ok {
+		return title, true, nil
+	}
+
+	rows, check := sqlitex.Query(l.conn, qLookupDocumentTitle(), iri)
+	for row := range rows {
+		title = row.ColumnText(0)
+		ok = true
+		break
+	}
+	err = errors.Join(err, check())
+
+	if ok {
+		l.documentTitles[iri] = title
+	}
+
+	return title, ok, err
+}
+
+var qLookupDocumentTitle = dqb.Str(`
+	SELECT COALESCE(metadata->>'$.name.v', metadata->>'$.title.v')
+	FROM document_generations
+	WHERE resource = (SELECT id FROM resources WHERE iri = :iri)
+	GROUP BY resource HAVING generation = MAX(generation)
+`)
+
+// PublicKey returns the public key by the internal database ID.
+func (l *LookupCache) PublicKey(id int64) (out core.Principal, err error) {
+	if key, ok := l.publicKeys[id]; ok {
+		return key, nil
+	}
+
+	rows, check := sqlitex.Query(l.conn, qLookupPublicKey(), id)
+	for row := range rows {
+		out = core.Principal(row.ColumnBytes(0))
+		break
+	}
+
+	err = errors.Join(err, check())
+	if err != nil {
+		return nil, err
+	}
+
+	if len(out) == 0 {
+		return nil, fmt.Errorf("principal %d not found", id)
+	}
+
+	l.publicKeys[id] = out
+
+	return out, nil
+}
+
+var qLookupPublicKey = dqb.Str(`
+	SELECT principal
+	FROM public_keys
+	WHERE id = :id;
+`)

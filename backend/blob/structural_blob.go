@@ -21,7 +21,7 @@ type structuralBlob struct {
 	}
 	BlobLinks     []blobLink
 	ResourceLinks []resourceLink
-	Meta          any
+	ExtraAttrs    any
 }
 
 func newStructuralBlob(id cid.Cid, blobType string, author core.Principal, ts time.Time, resource IRI, resourceGenesis cid.Cid, resourceOwner core.Principal, resourceTimestamp time.Time) structuralBlob {

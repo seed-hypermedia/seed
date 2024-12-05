@@ -27,6 +27,9 @@ issues:
     # It gets in the way as soon as you decide to wrap the last error instead of returning it.
     - text: "if-return"
       linters: ["revive"]
+    # Get rid of the annoying overflow conversion int64 -> uint64.
+    - text: "overflow conversion int64 -> uint64"
+      linters: ["gosec"]
   include:
     # Include revive rules that check comments on exported identifiers. These rules
     # are excluded by default, and IMHO this doesn't serve well the Go community.

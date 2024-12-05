@@ -8,6 +8,9 @@ import (
 	"net/url"
 	"seed/backend/core"
 	"seed/backend/ipfs"
+	"seed/backend/util/dqb"
+	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
 	"slices"
 	"time"
 
@@ -304,8 +307,6 @@ func init() {
 }
 
 func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
-	// TODO(burdiyan): ensure there's only one change that brings an entity into life.
-
 	author := v.Signer
 
 	switch {
@@ -342,9 +343,7 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 		sb.AddBlobLink("change/dep", dep)
 	}
 
-	var meta struct {
-		Title string `json:"title"`
-	}
+	var extra changeIndexedAttrs
 	for op, err := range v.Ops() {
 		if err != nil {
 			return err
@@ -353,14 +352,20 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 		case OpSetKey:
 			k, v := op.Key, op.Value
 
+			if extra.Metadata == nil {
+				extra.Metadata = make(map[string]any)
+			}
+
+			extra.Metadata[k] = v
+
 			vs, ok := v.(string)
 			if !ok {
 				continue
 			}
 
 			// TODO(hm24): index other relevant metadata for list response and so on.
-			if meta.Title == "" && (k == "title" || k == "name" || k == "alias") {
-				meta.Title = vs
+			if extra.Title == "" && (k == "title" || k == "name" || k == "alias") {
+				extra.Title = vs
 			}
 
 			u, err := url.Parse(vs)
@@ -393,12 +398,75 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 		}
 	}
 
-	if meta.Title != "" {
-		sb.Meta = meta
+	if extra.Title != "" {
+		sb.ExtraAttrs = extra
 	}
 
-	return ictx.SaveBlob(id, sb)
+	if err := ictx.SaveBlob(id, sb); err != nil {
+		return err
+	}
+
+	{
+		refs, err := loadRefsForChange(ictx.conn, ictx.blockStore, id)
+		if err != nil {
+			return err
+		}
+
+		for _, ref := range refs {
+			if err := crossLinkRefMaybe(ictx.conn, ref); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
+
+type changeIndexedAttrs struct {
+	Title    string         `json:"title"` // Deprecated. TODO(burdiyan): remove this in favor of metadata.
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+
+func loadRefsForChange(conn *sqlite.Conn, bs *blockStore, changeID int64) ([]*Ref, error) {
+	var out []*Ref
+	rows, check := sqlitex.Query(conn, qLoadRefsForChange(), changeID)
+	for row := range rows {
+		inc := sqlite.NewIncrementor(0)
+		var (
+			rawData = row.ColumnBytesUnsafe(inc())
+			size    = row.ColumnInt64(inc())
+		)
+
+		data, err := bs.decompress(rawData, int(size))
+		if err != nil {
+			return nil, err
+		}
+
+		ref := &Ref{}
+		if err := cbornode.DecodeInto(data, &ref); err != nil {
+			return nil, err
+		}
+		out = append(out, ref)
+	}
+
+	err := check()
+	if err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
+var qLoadRefsForChange = dqb.Str(`
+	SELECT
+		blobs.data,
+		blobs.size
+	FROM blob_links bl
+	JOIN blobs ON blobs.id = bl.source
+	WHERE bl.target = :changeID
+	AND bl.type = 'ref/head'
+	AND blobs.size > 0;
+`)
 
 // Block is a block of text with annotations.
 type Block struct {

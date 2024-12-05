@@ -7,6 +7,7 @@ toolchain go1.23.3
 require (
 	crawshaw.io/iox v0.0.0-20181124134642-c51c3df30797
 	github.com/99designs/gqlgen v0.17.22
+	github.com/RoaringBitmap/roaring/v2 v2.4.2
 	github.com/btcsuite/btcd v0.23.3
 	github.com/btcsuite/btcd/btcutil v1.1.2
 	github.com/burdiyan/go/mainutil v0.0.0-20200124222818-6f87e0e684b6
@@ -64,10 +65,12 @@ require (
 require (
 	github.com/Jorropo/jsync v1.0.1 // indirect
 	github.com/alessio/shellescape v1.4.1 // indirect
+	github.com/bits-and-blooms/bitset v1.12.0 // indirect
 	github.com/danieljoos/wincred v1.2.0 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/libp2p/go-libp2p-record v0.2.0 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
+	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pion/datachannel v1.5.9 // indirect
 	github.com/pion/dtls/v2 v2.2.12 // indirect

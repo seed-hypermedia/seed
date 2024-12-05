@@ -247,11 +247,11 @@ type entitiesLookupIDResult struct {
 	ResourcesOwner int64
 }
 
-func dbEntitiesLookupID(conn *sqlite.Conn, entities_eid string) (entitiesLookupIDResult, error) {
+func dbResourcesLookupID(conn *sqlite.Conn, iri string) (entitiesLookupIDResult, error) {
 	var out entitiesLookupIDResult
 
 	before := func(stmt *sqlite.Stmt) {
-		stmt.SetText(":entities_eid", entities_eid)
+		stmt.SetText(":entities_eid", iri)
 	}
 
 	onStep := func(i int, stmt *sqlite.Stmt) error {

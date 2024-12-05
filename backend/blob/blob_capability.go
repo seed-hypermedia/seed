@@ -102,7 +102,7 @@ func indexCapability(ictx *indexingCtx, id int64, c cid.Cid, v *Capability) erro
 		return err
 	}
 
-	sb.Meta = map[string]any{
+	sb.ExtraAttrs = map[string]any{
 		"role": v.Role,
 		"del":  del,
 	}

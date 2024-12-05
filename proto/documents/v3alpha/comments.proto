@@ -15,6 +15,9 @@ service Comments {
   // Gets a single comment by ID.
   rpc GetComment(GetCommentRequest) returns (Comment);
 
+  // Get multiple comments by ID.
+  rpc BatchGetComments(BatchGetCommentsRequest) returns (BatchGetCommentsResponse);
+
   // Lists comments for a given target.
   rpc ListComments(ListCommentsRequest) returns (ListCommentsResponse);
 }
@@ -50,6 +53,18 @@ message CreateCommentRequest {
 message GetCommentRequest {
   // Required. ID of the comment to retrieve.
   string id = 1;
+}
+
+// Request to get multiple comments.
+message BatchGetCommentsRequest {
+  // Required. List of comment IDs to retrieve.
+  repeated string ids = 1;
+}
+
+// Response with multiple comments.
+message BatchGetCommentsResponse {
+  // List of comments requested.
+  repeated Comment comments = 1;
 }
 
 // Request to list comments.

@@ -98,7 +98,7 @@ func (b *blockStore) checkEntityExists(ctx context.Context, eid string) (exists 
 	}
 	defer release()
 
-	res, err := dbEntitiesLookupID(conn, eid)
+	res, err := dbResourcesLookupID(conn, eid)
 	if err != nil || res.ResourcesID == 0 {
 		return false, nil
 	}

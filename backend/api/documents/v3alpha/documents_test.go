@@ -166,8 +166,14 @@ func TestListRootDocuments(t *testing.T) {
 	require.Equal(t, "", roots.NextPageToken, "must have no page token for a single item")
 
 	wantAlicesRoot := DocumentToListItem(profile)
-	testutil.StructsEqual(bobsRoot, roots.Documents[0]).Compare(t, "bobs root document must match and be first")
-	testutil.StructsEqual(wantAlicesRoot, roots.Documents[1]).Compare(t, "alice's root document must match and be second")
+
+	testutil.StructsEqual(bobsRoot, roots.Documents[0]).
+		IgnoreFields(documents.DocumentListItem{}, "Breadcrumbs", "ActivitySummary").
+		Compare(t, "bobs root document must match and be first")
+
+	testutil.StructsEqual(wantAlicesRoot, roots.Documents[1]).
+		IgnoreFields(documents.DocumentListItem{}, "Breadcrumbs", "ActivitySummary").
+		Compare(t, "alice's root document must match and be second")
 }
 
 func TestListDocument(t *testing.T) {
@@ -222,9 +228,17 @@ func TestListDocument(t *testing.T) {
 	want := []*documents.DocumentListItem{DocumentToListItem(namedDoc2), DocumentToListItem(namedDoc), DocumentToListItem(profile)}
 	require.Len(t, list.Documents, len(want))
 
-	testutil.StructsEqual(want[0], list.Documents[0]).Compare(t, "named2 must be the first doc in the list")
-	testutil.StructsEqual(want[1], list.Documents[1]).Compare(t, "named must be the second doc in the list")
-	testutil.StructsEqual(want[2], list.Documents[2]).Compare(t, "profile doc must be the last element in the list")
+	testutil.StructsEqual(want[0], list.Documents[0]).
+		IgnoreFields(documents.DocumentListItem{}, "Breadcrumbs", "ActivitySummary").
+		Compare(t, "named2 must be the first doc in the list")
+
+	testutil.StructsEqual(want[1], list.Documents[1]).
+		IgnoreFields(documents.DocumentListItem{}, "Breadcrumbs", "ActivitySummary").
+		Compare(t, "named must be the second doc in the list")
+
+	testutil.StructsEqual(want[2], list.Documents[2]).
+		IgnoreFields(documents.DocumentListItem{}, "Breadcrumbs", "ActivitySummary").
+		Compare(t, "profile doc must be the last element in the list")
 }
 
 func TestGetDocumentWithVersion(t *testing.T) {
@@ -587,7 +601,10 @@ func TestTombstoneRef(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, list.Documents, 1, "only initial root document must be in the list")
-		testutil.StructsEqual(DocumentToListItem(home), list.Documents[0]).Compare(t, "listing must only show home document")
+
+		testutil.StructsEqual(DocumentToListItem(home), list.Documents[0]).
+			IgnoreFields(documents.DocumentListItem{}, "Breadcrumbs", "ActivitySummary").
+			Compare(t, "listing must only show home document")
 	}
 
 	// But we also want to list the deleted docs.
@@ -667,7 +684,9 @@ func TestTombstoneRef(t *testing.T) {
 		slices.SortFunc(want.Documents, func(a, b *documents.DocumentListItem) int { return cmp.Compare(a.Version, b.Version) })
 		slices.SortFunc(list.Documents, func(a, b *documents.DocumentListItem) int { return cmp.Compare(a.Version, b.Version) })
 
-		testutil.StructsEqual(want, list).Compare(t, "listing must contain home doc and republished doc")
+		testutil.StructsEqual(want, list).
+			IgnoreFields(documents.DocumentListItem{}, "Breadcrumbs", "ActivitySummary").
+			Compare(t, "listing must contain home doc and republished doc")
 	}
 
 	// Changes with no base version must fail when there's a live document.

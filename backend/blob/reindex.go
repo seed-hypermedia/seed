@@ -21,6 +21,8 @@ var derivedTables = []string{
 	storage.T_ResourceLinks,
 	storage.T_StructuralBlobs,
 	storage.T_Resources,
+	storage.T_Spaces,
+	storage.T_DocumentGenerations,
 }
 
 // Reindex forces deletes all the information derived from the blobs and reindexes them.
@@ -41,8 +43,6 @@ func (bs *Index) reindex(conn *sqlite.Conn) (err error) {
 		bs.log.Info("ReindexingFinished", zap.Error(err), zap.Duration("duration", time.Since(start)))
 	}()
 
-	const q = "SELECT * FROM " + storage.T_Blobs
-
 	if err := sqlitex.WithTx(conn, func() error {
 		for _, table := range derivedTables {
 			if err := sqlitex.ExecTransient(conn, "DELETE FROM "+table, nil); err != nil {
@@ -51,7 +51,7 @@ func (bs *Index) reindex(conn *sqlite.Conn) (err error) {
 		}
 
 		scratch := make([]byte, 0, 1024*1024) // 1MB preallocated slice to reuse for decompressing.
-		if err := sqlitex.ExecTransient(conn, q, func(stmt *sqlite.Stmt) error {
+		if err := sqlitex.ExecTransient(conn, "SELECT * FROM blobs ORDER BY id", func(stmt *sqlite.Stmt) error {
 			codec := stmt.ColumnInt64(stmt.ColumnIndex(storage.BlobsCodec.ShortName()))
 
 			if !isIndexable(multicodec.Code(codec)) {

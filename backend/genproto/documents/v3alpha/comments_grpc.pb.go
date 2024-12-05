@@ -26,6 +26,8 @@ type CommentsClient interface {
 	CreateComment(ctx context.Context, in *CreateCommentRequest, opts ...grpc.CallOption) (*Comment, error)
 	// Gets a single comment by ID.
 	GetComment(ctx context.Context, in *GetCommentRequest, opts ...grpc.CallOption) (*Comment, error)
+	// Get multiple comments by ID.
+	BatchGetComments(ctx context.Context, in *BatchGetCommentsRequest, opts ...grpc.CallOption) (*BatchGetCommentsResponse, error)
 	// Lists comments for a given target.
 	ListComments(ctx context.Context, in *ListCommentsRequest, opts ...grpc.CallOption) (*ListCommentsResponse, error)
 }
@@ -56,6 +58,15 @@ func (c *commentsClient) GetComment(ctx context.Context, in *GetCommentRequest, 
 	return out, nil
 }
 
+func (c *commentsClient) BatchGetComments(ctx context.Context, in *BatchGetCommentsRequest, opts ...grpc.CallOption) (*BatchGetCommentsResponse, error) {
+	out := new(BatchGetCommentsResponse)
+	err := c.cc.Invoke(ctx, "/com.seed.documents.v3alpha.Comments/BatchGetComments", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *commentsClient) ListComments(ctx context.Context, in *ListCommentsRequest, opts ...grpc.CallOption) (*ListCommentsResponse, error) {
 	out := new(ListCommentsResponse)
 	err := c.cc.Invoke(ctx, "/com.seed.documents.v3alpha.Comments/ListComments", in, out, opts...)
@@ -73,6 +84,8 @@ type CommentsServer interface {
 	CreateComment(context.Context, *CreateCommentRequest) (*Comment, error)
 	// Gets a single comment by ID.
 	GetComment(context.Context, *GetCommentRequest) (*Comment, error)
+	// Get multiple comments by ID.
+	BatchGetComments(context.Context, *BatchGetCommentsRequest) (*BatchGetCommentsResponse, error)
 	// Lists comments for a given target.
 	ListComments(context.Context, *ListCommentsRequest) (*ListCommentsResponse, error)
 }
@@ -86,6 +99,9 @@ func (UnimplementedCommentsServer) CreateComment(context.Context, *CreateComment
 }
 func (UnimplementedCommentsServer) GetComment(context.Context, *GetCommentRequest) (*Comment, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetComment not implemented")
+}
+func (UnimplementedCommentsServer) BatchGetComments(context.Context, *BatchGetCommentsRequest) (*BatchGetCommentsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BatchGetComments not implemented")
 }
 func (UnimplementedCommentsServer) ListComments(context.Context, *ListCommentsRequest) (*ListCommentsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListComments not implemented")
@@ -138,6 +154,24 @@ func _Comments_GetComment_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Comments_BatchGetComments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BatchGetCommentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommentsServer).BatchGetComments(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/com.seed.documents.v3alpha.Comments/BatchGetComments",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommentsServer).BatchGetComments(ctx, req.(*BatchGetCommentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Comments_ListComments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListCommentsRequest)
 	if err := dec(in); err != nil {
@@ -170,6 +204,10 @@ var Comments_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetComment",
 			Handler:    _Comments_GetComment_Handler,
+		},
+		{
+			MethodName: "BatchGetComments",
+			Handler:    _Comments_BatchGetComments_Handler,
 		},
 		{
 			MethodName: "ListComments",

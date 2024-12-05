@@ -141,6 +141,88 @@ export class GetCommentRequest extends Message<GetCommentRequest> {
 }
 
 /**
+ * Request to get multiple comments.
+ *
+ * @generated from message com.seed.documents.v3alpha.BatchGetCommentsRequest
+ */
+export class BatchGetCommentsRequest extends Message<BatchGetCommentsRequest> {
+  /**
+   * Required. List of comment IDs to retrieve.
+   *
+   * @generated from field: repeated string ids = 1;
+   */
+  ids: string[] = [];
+
+  constructor(data?: PartialMessage<BatchGetCommentsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.BatchGetCommentsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "ids", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BatchGetCommentsRequest {
+    return new BatchGetCommentsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BatchGetCommentsRequest {
+    return new BatchGetCommentsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BatchGetCommentsRequest {
+    return new BatchGetCommentsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: BatchGetCommentsRequest | PlainMessage<BatchGetCommentsRequest> | undefined, b: BatchGetCommentsRequest | PlainMessage<BatchGetCommentsRequest> | undefined): boolean {
+    return proto3.util.equals(BatchGetCommentsRequest, a, b);
+  }
+}
+
+/**
+ * Response with multiple comments.
+ *
+ * @generated from message com.seed.documents.v3alpha.BatchGetCommentsResponse
+ */
+export class BatchGetCommentsResponse extends Message<BatchGetCommentsResponse> {
+  /**
+   * List of comments requested.
+   *
+   * @generated from field: repeated com.seed.documents.v3alpha.Comment comments = 1;
+   */
+  comments: Comment[] = [];
+
+  constructor(data?: PartialMessage<BatchGetCommentsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.BatchGetCommentsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "comments", kind: "message", T: Comment, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BatchGetCommentsResponse {
+    return new BatchGetCommentsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BatchGetCommentsResponse {
+    return new BatchGetCommentsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BatchGetCommentsResponse {
+    return new BatchGetCommentsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: BatchGetCommentsResponse | PlainMessage<BatchGetCommentsResponse> | undefined, b: BatchGetCommentsResponse | PlainMessage<BatchGetCommentsResponse> | undefined): boolean {
+    return proto3.util.equals(BatchGetCommentsResponse, a, b);
+  }
+}
+
+/**
  * Request to list comments.
  *
  * @generated from message com.seed.documents.v3alpha.ListCommentsRequest

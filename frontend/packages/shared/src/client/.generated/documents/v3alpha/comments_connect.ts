@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { Comment, CreateCommentRequest, GetCommentRequest, ListCommentsRequest, ListCommentsResponse } from "./comments_pb";
+import { BatchGetCommentsRequest, BatchGetCommentsResponse, Comment, CreateCommentRequest, GetCommentRequest, ListCommentsRequest, ListCommentsResponse } from "./comments_pb";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -34,6 +34,17 @@ export const Comments = {
       name: "GetComment",
       I: GetCommentRequest,
       O: Comment,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Get multiple comments by ID.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Comments.BatchGetComments
+     */
+    batchGetComments: {
+      name: "BatchGetComments",
+      I: BatchGetCommentsRequest,
+      O: BatchGetCommentsResponse,
       kind: MethodKind.Unary,
     },
     /**

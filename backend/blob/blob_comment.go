@@ -2,10 +2,14 @@ package blob
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net/url"
 	"seed/backend/core"
 	"seed/backend/ipfs"
+	"seed/backend/util/dqb"
+	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -111,7 +115,7 @@ func init() {
 }
 
 func indexComment(ictx *indexingCtx, id int64, c cid.Cid, v *Comment) error {
-	riri, err := NewIRI(v.GetSpace(), v.Path)
+	iri, err := NewIRI(v.GetSpace(), v.Path)
 	if err != nil {
 		return fmt.Errorf("invalid comment target: %v", err)
 	}
@@ -142,9 +146,9 @@ func indexComment(ictx *indexingCtx, id int64, c cid.Cid, v *Comment) error {
 		// - This comment must have a timestamp greater than any other predecessor comment.
 	}
 
-	sb := newStructuralBlob(c, string(v.Type), v.Signer, v.Ts, riri, cid.Undef, v.GetSpace(), time.Time{})
+	sb := newStructuralBlob(c, string(v.Type), v.Signer, v.Ts, iri, cid.Undef, v.GetSpace(), time.Time{})
 
-	targetURI, err := url.Parse(string(riri))
+	targetURI, err := url.Parse(string(iri))
 	if err != nil {
 		return err
 	}
@@ -197,5 +201,140 @@ func indexComment(ictx *indexingCtx, id int64, c cid.Cid, v *Comment) error {
 		return err
 	}
 
-	return ictx.SaveBlob(id, sb)
+	if err := ictx.SaveBlob(id, sb); err != nil {
+		return err
+	}
+
+	spaceID := v.GetSpace().String()
+
+	// Update space comment stats.
+	{
+		changeIDs := make([]int64, len(v.Version))
+		for i, v := range v.Version {
+			changeID, ok := ictx.blobs[v]
+			if !ok {
+				return fmt.Errorf("BUG: missing change for version %v when indexing comment target", v)
+			}
+
+			var cm changeMetadata
+			if err := cm.load(ictx.conn, changeID.BlobsID); err != nil {
+				return err
+			}
+
+			// If some of the comment target changes are not indexed yet, we skip updating any stats,
+			// because we don't know what document generation to update.
+			// We'll get to that later, if we ever receive a Ref that would incorporate those changes.
+			if cm.ID == 0 {
+				return nil
+			}
+
+			changeIDs[i] = cm.ID
+		}
+
+		resourceID, ok := ictx.resources[iri]
+		if !ok {
+			panic("BUG: missing resource for comment target")
+		}
+
+		generations, err := documentGeneration{}.loadAllByResource(ictx.conn, resourceID)
+		if err != nil {
+			return fmt.Errorf("failed to load generations for comment %s: %w", c, err)
+		}
+
+		for _, dg := range generations {
+			if !dg.containsAllChanges(changeIDs) {
+				continue
+			}
+
+			commentTime := v.Ts.UnixMilli()
+			if commentTime > dg.LastCommentTime {
+				dg.LastComment = id
+				dg.LastCommentTime = commentTime
+			}
+			dg.CommentCount++
+
+			if err := dg.save(ictx.conn); err != nil {
+				return err
+			}
+		}
+
+		var sm spaceCommentStats
+		if err := sm.load(ictx.conn, spaceID); err != nil {
+			return err
+		}
+
+		if commentTime := v.Ts.UnixMilli(); commentTime > sm.LastCommentTime {
+			sm.LastCommentTime = commentTime
+			sm.LastComment = id
+		}
+
+		sm.CommentCount++
+
+		if err := sm.save(ictx.conn); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
+
+type spaceCommentStats struct {
+	shouldUpdate bool
+
+	ID              string
+	LastComment     int64
+	LastCommentTime int64
+	CommentCount    int64
+}
+
+func (sm *spaceCommentStats) load(conn *sqlite.Conn, spaceID string) (err error) {
+	sm.ID = spaceID
+
+	rows, check := sqlitex.Query(conn, qLoadSpaceCommentStats(), spaceID)
+	for row := range rows {
+		sm.shouldUpdate = true
+		row.Scan(&sm.LastComment, &sm.LastCommentTime, &sm.CommentCount)
+		break
+	}
+
+	err = errors.Join(err, check())
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var qLoadSpaceCommentStats = dqb.Str(`
+	SELECT
+		last_comment,
+		last_comment_time,
+		comment_count
+	FROM spaces
+	WHERE id = :id;
+`)
+
+func (sm *spaceCommentStats) save(conn *sqlite.Conn) error {
+	var q string
+	if sm.shouldUpdate {
+		q = qUpdateSpaceCommentStats()
+	} else {
+		q = qInsertSpaceCommentStats()
+	}
+
+	return sqlitex.Exec(conn, q, nil, sm.ID, sm.LastComment, sm.LastCommentTime, sm.CommentCount)
+}
+
+var qInsertSpaceCommentStats = dqb.Str(`
+	INSERT INTO spaces (id, last_comment, last_comment_time, comment_count)
+	VALUES (?1, ?2, ?3, ?4);
+`)
+
+var qUpdateSpaceCommentStats = dqb.Str(`
+	UPDATE spaces
+	SET
+		last_comment = ?2,
+		last_comment_time = ?3,
+		comment_count = ?4
+	WHERE id = ?1;
+`)

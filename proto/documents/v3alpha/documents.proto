@@ -8,6 +8,8 @@ import "google/protobuf/struct.proto";
 
 option go_package = "seed/backend/genproto/documents/v3alpha;documents";
 
+// TODO(burdiyan): rename account to space/site everywhere in this API.
+
 // Documents service provides access to documents.
 service Documents {
   // Retrieves an existing document.
@@ -23,8 +25,20 @@ service Documents {
     option deprecated = true;
   };
 
+  // Lists all accounts.
+  //
+  // TODO(burdiyan): rename to spaces or sites.
+  rpc ListAccounts(ListAccountsRequest) returns (ListAccountsRequest);
+
+  // Lists documents in a directory of an account.
+  rpc ListDirectory(ListDirectoryRequest) returns (ListDirectoryResponse);
+
   // Lists documents within the account. Only the most recent versions show up.
-  rpc ListDocuments(ListDocumentsRequest) returns (ListDocumentsResponse);
+  //
+  // Deprecated: Use [ListDirectory].
+  rpc ListDocuments(ListDocumentsRequest) returns (ListDocumentsResponse) {
+    option deprecated = true;
+  };
 
   // Lists all the root documents that we know about.
   rpc ListRootDocuments(ListRootDocumentsRequest) returns (ListRootDocumentsResponse);
@@ -107,6 +121,106 @@ message ListRootDocumentsResponse {
   repeated DocumentListItem documents = 1;
 
   // Token for the next page if there're more results.
+  string next_page_token = 2;
+}
+
+// Request to list accounts.
+message ListAccountsRequest {
+  // Optional. Number of results to return per page.
+  // If not set, the server will pick some default number.
+  int32 page_size = 1;
+
+  // Optional. Token of the page to request, obtained from
+  // a previous response.
+  string page_token = 2;
+
+  // Optional. If set to true, only accounts that the user is subscribed to will be returned.
+  // If at least one document in the account has a subscription, then the account is considered subscribed.
+  bool subscribed_only = 3;
+
+  // Sorting mode for the list response.
+  SortOrder sort_order = 4;
+
+  // Sorting options for the list of accounts.
+  enum SortOrder {
+    // Sorting by the most recent activity time.
+    LATEST_ACTIVITY_FIRST = 0;
+
+    // Sorting by the name of the account (i.e. title of the root document).
+    NAME_ALPHABETICAL = 1;
+  }
+}
+
+// Response to list accounts.
+message ListAccountsResponse {
+  // List of accounts.
+  repeated Account accounts = 1;
+
+  // Token for the next page if there're more results.
+  string next_page_token = 2;
+}
+
+// Aggregated information about an account.
+// Some of this information comes from the accounts' root document,
+// some is aggregated from the other documents inside of the account.
+message Account {
+  // ID of the account.
+  string id = 1;
+
+  // Metadata attributes from the root document of the account.
+  map<string, string> metadata = 2;
+
+  // Summary of the activity in the entire account.
+  ActivitySummary activity_summary = 3;
+
+  // Whether the user is subscribed to this account.
+  // If at least one document in the account has a subscription, then the account is considered subscribed.
+  bool is_subscribed = 4;
+}
+
+// Request to list a directory.
+message ListDirectoryRequest {
+  // Optional. Size of the page.
+  int32 page_size = 1;
+
+  // Optional. Pagination token.
+  string page_token = 2;
+
+  // Required. ID of the account to list the directory for.
+  string account = 3;
+
+  // Required. Path of the directory to list documents for.
+  // Empty string means root directory.
+  string directory_path = 4;
+
+  // Optional. If true, list documents recursively.
+  bool recursive = 5;
+
+  // Optional. Sorting mode for the list response.
+  SortOrder sort_order = 6;
+
+  // Optional. If set to true, only documents that the user is subscribed to will be returned.
+  bool subscribed_only = 7;
+
+  // Sorting options for the list of documents.
+  enum SortOrder {
+    // Sorting by the most recent activity time.
+    LATEST_ACTIVITY_FIRST = 0;
+
+    // Sorting by the name/title of the document.
+    NAME_ALPHABETICAL = 1;
+
+    // Sorting by the path of the document.
+    PATH_ALPHABETICAL = 2;
+  }
+}
+
+// Response of the directory list.
+message ListDirectoryResponse {
+  // List of documents.
+  repeated DocumentListItem documents = 1;
+
+  // Optional. Token for the next page if there're more results.
   string next_page_token = 2;
 }
 
@@ -205,8 +319,11 @@ message DocumentChangeInfo {
   google.protobuf.Timestamp create_time = 4;
 }
 
-// Basic data about a document that is returned in list responses.
+// Basic data about a document with some aggregations and metadata.
 // Content is omitted for efficiency reasons.
+//
+// TODO(burdiyan): rename this to DocumentSummary, DocumentInfo or something like that,
+// it may be useful more than just in list responses.
 message DocumentListItem {
   // Account to which the document belongs.
   string account = 1;
@@ -218,13 +335,14 @@ message DocumentListItem {
   // User-defined metadata attributes of the document.
   map<string, string> metadata = 3;
 
-  // Every author ID who has modified this document's version.
+  // Every author ID who has ever made changes to this document.
   repeated string authors = 4;
 
   // Time when the document was created.
   google.protobuf.Timestamp create_time = 5;
 
   // Time when the document was updated.
+  // I.e. timestamp of the most recent change.
   google.protobuf.Timestamp update_time = 6;
 
   // ID of the genesis change of this document.
@@ -232,6 +350,43 @@ message DocumentListItem {
 
   // Current version of the document.
   string version = 9;
+
+  // Breadcrumbs of this document.
+  // The number of items in this list corresponds to the number of segments
+  // in the path of the document minus 1 (the document itself).
+  //
+  // E.g. for a document "/cars/jp/honda" there will be 2 breadcrumbs: "cars" and "jp".
+  //
+  // If we don't have a document for some of the path segements for whatever reason,
+  // the corresponding breadcrumb segment will be null.
+  repeated Breadcrumb breadcrumbs = 10;
+
+  // Summary of the activity on the document.
+  ActivitySummary activity_summary = 11;
+}
+
+// Summary of the activity on a document or account.
+message ActivitySummary {
+  // Timestamp of the most recent comment.
+  google.protobuf.Timestamp latest_comment_time = 1;
+
+  // Total number of comments.
+  int32 comment_count = 2;
+
+  // Timestamp of the most recent change.
+  google.protobuf.Timestamp latest_change_time = 3;
+}
+
+// Basic information about ancestor documents in the path hierarchy.
+message Breadcrumb {
+  // Title of the document.
+  string name = 1;
+
+  // Path of the document.
+  string path = 2;
+
+  // Will be true if we don't have any indexed information about this document.
+  bool is_missing = 3;
 }
 
 // Document represents metadata and content of a document.

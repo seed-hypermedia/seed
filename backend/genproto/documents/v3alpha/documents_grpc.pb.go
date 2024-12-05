@@ -32,7 +32,16 @@ type DocumentsClient interface {
 	//
 	// Deprecated: Use CreateRef API.
 	DeleteDocument(ctx context.Context, in *DeleteDocumentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Lists all accounts.
+	//
+	// TODO(burdiyan): rename to spaces or sites.
+	ListAccounts(ctx context.Context, in *ListAccountsRequest, opts ...grpc.CallOption) (*ListAccountsRequest, error)
+	// Lists documents in a directory of an account.
+	ListDirectory(ctx context.Context, in *ListDirectoryRequest, opts ...grpc.CallOption) (*ListDirectoryResponse, error)
+	// Deprecated: Do not use.
 	// Lists documents within the account. Only the most recent versions show up.
+	//
+	// Deprecated: Use [ListDirectory].
 	ListDocuments(ctx context.Context, in *ListDocumentsRequest, opts ...grpc.CallOption) (*ListDocumentsResponse, error)
 	// Lists all the root documents that we know about.
 	ListRootDocuments(ctx context.Context, in *ListRootDocumentsRequest, opts ...grpc.CallOption) (*ListRootDocumentsResponse, error)
@@ -80,6 +89,25 @@ func (c *documentsClient) DeleteDocument(ctx context.Context, in *DeleteDocument
 	return out, nil
 }
 
+func (c *documentsClient) ListAccounts(ctx context.Context, in *ListAccountsRequest, opts ...grpc.CallOption) (*ListAccountsRequest, error) {
+	out := new(ListAccountsRequest)
+	err := c.cc.Invoke(ctx, "/com.seed.documents.v3alpha.Documents/ListAccounts", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *documentsClient) ListDirectory(ctx context.Context, in *ListDirectoryRequest, opts ...grpc.CallOption) (*ListDirectoryResponse, error) {
+	out := new(ListDirectoryResponse)
+	err := c.cc.Invoke(ctx, "/com.seed.documents.v3alpha.Documents/ListDirectory", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Deprecated: Do not use.
 func (c *documentsClient) ListDocuments(ctx context.Context, in *ListDocumentsRequest, opts ...grpc.CallOption) (*ListDocumentsResponse, error) {
 	out := new(ListDocumentsResponse)
 	err := c.cc.Invoke(ctx, "/com.seed.documents.v3alpha.Documents/ListDocuments", in, out, opts...)
@@ -138,7 +166,16 @@ type DocumentsServer interface {
 	//
 	// Deprecated: Use CreateRef API.
 	DeleteDocument(context.Context, *DeleteDocumentRequest) (*emptypb.Empty, error)
+	// Lists all accounts.
+	//
+	// TODO(burdiyan): rename to spaces or sites.
+	ListAccounts(context.Context, *ListAccountsRequest) (*ListAccountsRequest, error)
+	// Lists documents in a directory of an account.
+	ListDirectory(context.Context, *ListDirectoryRequest) (*ListDirectoryResponse, error)
+	// Deprecated: Do not use.
 	// Lists documents within the account. Only the most recent versions show up.
+	//
+	// Deprecated: Use [ListDirectory].
 	ListDocuments(context.Context, *ListDocumentsRequest) (*ListDocumentsResponse, error)
 	// Lists all the root documents that we know about.
 	ListRootDocuments(context.Context, *ListRootDocumentsRequest) (*ListRootDocumentsResponse, error)
@@ -162,6 +199,12 @@ func (UnimplementedDocumentsServer) CreateDocumentChange(context.Context, *Creat
 }
 func (UnimplementedDocumentsServer) DeleteDocument(context.Context, *DeleteDocumentRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteDocument not implemented")
+}
+func (UnimplementedDocumentsServer) ListAccounts(context.Context, *ListAccountsRequest) (*ListAccountsRequest, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListAccounts not implemented")
+}
+func (UnimplementedDocumentsServer) ListDirectory(context.Context, *ListDirectoryRequest) (*ListDirectoryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListDirectory not implemented")
 }
 func (UnimplementedDocumentsServer) ListDocuments(context.Context, *ListDocumentsRequest) (*ListDocumentsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDocuments not implemented")
@@ -240,6 +283,42 @@ func _Documents_DeleteDocument_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DocumentsServer).DeleteDocument(ctx, req.(*DeleteDocumentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Documents_ListAccounts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAccountsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).ListAccounts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/com.seed.documents.v3alpha.Documents/ListAccounts",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).ListAccounts(ctx, req.(*ListAccountsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Documents_ListDirectory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDirectoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).ListDirectory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/com.seed.documents.v3alpha.Documents/ListDirectory",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).ListDirectory(ctx, req.(*ListDirectoryRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -352,6 +431,14 @@ var Documents_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteDocument",
 			Handler:    _Documents_DeleteDocument_Handler,
+		},
+		{
+			MethodName: "ListAccounts",
+			Handler:    _Documents_ListAccounts_Handler,
+		},
+		{
+			MethodName: "ListDirectory",
+			Handler:    _Documents_ListDirectory_Handler,
 		},
 		{
 			MethodName: "ListDocuments",

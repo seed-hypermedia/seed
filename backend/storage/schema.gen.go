@@ -44,6 +44,50 @@ const (
 	C_BlobsSize       = "blobs.size"
 )
 
+// Table document_generations.
+const (
+	DocumentGenerations                     sqlitegen.Table  = "document_generations"
+	DocumentGenerationsAuthors              sqlitegen.Column = "document_generations.authors"
+	DocumentGenerationsChangeCount          sqlitegen.Column = "document_generations.change_count"
+	DocumentGenerationsChanges              sqlitegen.Column = "document_generations.changes"
+	DocumentGenerationsCommentCount         sqlitegen.Column = "document_generations.comment_count"
+	DocumentGenerationsGeneration           sqlitegen.Column = "document_generations.generation"
+	DocumentGenerationsGenesis              sqlitegen.Column = "document_generations.genesis"
+	DocumentGenerationsGenesisChangeTime    sqlitegen.Column = "document_generations.genesis_change_time"
+	DocumentGenerationsHeads                sqlitegen.Column = "document_generations.heads"
+	DocumentGenerationsIsDeleted            sqlitegen.Column = "document_generations.is_deleted"
+	DocumentGenerationsLastActivityTime     sqlitegen.Column = "document_generations.last_activity_time"
+	DocumentGenerationsLastAliveRefTime     sqlitegen.Column = "document_generations.last_alive_ref_time"
+	DocumentGenerationsLastChangeTime       sqlitegen.Column = "document_generations.last_change_time"
+	DocumentGenerationsLastComment          sqlitegen.Column = "document_generations.last_comment"
+	DocumentGenerationsLastCommentTime      sqlitegen.Column = "document_generations.last_comment_time"
+	DocumentGenerationsLastTombstoneRefTime sqlitegen.Column = "document_generations.last_tombstone_ref_time"
+	DocumentGenerationsMetadata             sqlitegen.Column = "document_generations.metadata"
+	DocumentGenerationsResource             sqlitegen.Column = "document_generations.resource"
+)
+
+// Table document_generations. Plain strings.
+const (
+	T_DocumentGenerations                     = "document_generations"
+	C_DocumentGenerationsAuthors              = "document_generations.authors"
+	C_DocumentGenerationsChangeCount          = "document_generations.change_count"
+	C_DocumentGenerationsChanges              = "document_generations.changes"
+	C_DocumentGenerationsCommentCount         = "document_generations.comment_count"
+	C_DocumentGenerationsGeneration           = "document_generations.generation"
+	C_DocumentGenerationsGenesis              = "document_generations.genesis"
+	C_DocumentGenerationsGenesisChangeTime    = "document_generations.genesis_change_time"
+	C_DocumentGenerationsHeads                = "document_generations.heads"
+	C_DocumentGenerationsIsDeleted            = "document_generations.is_deleted"
+	C_DocumentGenerationsLastActivityTime     = "document_generations.last_activity_time"
+	C_DocumentGenerationsLastAliveRefTime     = "document_generations.last_alive_ref_time"
+	C_DocumentGenerationsLastChangeTime       = "document_generations.last_change_time"
+	C_DocumentGenerationsLastComment          = "document_generations.last_comment"
+	C_DocumentGenerationsLastCommentTime      = "document_generations.last_comment_time"
+	C_DocumentGenerationsLastTombstoneRefTime = "document_generations.last_tombstone_ref_time"
+	C_DocumentGenerationsMetadata             = "document_generations.metadata"
+	C_DocumentGenerationsResource             = "document_generations.resource"
+)
+
 // Table kv.
 const (
 	KV      sqlitegen.Table  = "kv"
@@ -152,6 +196,26 @@ const (
 	C_ResourcesOwner       = "resources.owner"
 )
 
+// Table spaces.
+const (
+	Spaces                sqlitegen.Table  = "spaces"
+	SpacesCommentCount    sqlitegen.Column = "spaces.comment_count"
+	SpacesID              sqlitegen.Column = "spaces.id"
+	SpacesLastChangeTime  sqlitegen.Column = "spaces.last_change_time"
+	SpacesLastComment     sqlitegen.Column = "spaces.last_comment"
+	SpacesLastCommentTime sqlitegen.Column = "spaces.last_comment_time"
+)
+
+// Table spaces. Plain strings.
+const (
+	T_Spaces                = "spaces"
+	C_SpacesCommentCount    = "spaces.comment_count"
+	C_SpacesID              = "spaces.id"
+	C_SpacesLastChangeTime  = "spaces.last_change_time"
+	C_SpacesLastComment     = "spaces.last_comment"
+	C_SpacesLastCommentTime = "spaces.last_comment_time"
+)
+
 // Table sqlite_sequence.
 const (
 	SQLiteSequence     sqlitegen.Table  = "sqlite_sequence"
@@ -237,59 +301,81 @@ const (
 // Schema describes SQLite columns.
 var Schema = sqlitegen.Schema{
 	Columns: map[sqlitegen.Column]sqlitegen.ColumnInfo{
-		BlobLinksSource:            {Table: BlobLinks, SQLType: "INTEGER"},
-		BlobLinksTarget:            {Table: BlobLinks, SQLType: "INTEGER"},
-		BlobLinksType:              {Table: BlobLinks, SQLType: "TEXT"},
-		BlobsCodec:                 {Table: Blobs, SQLType: "INTEGER"},
-		BlobsData:                  {Table: Blobs, SQLType: "BLOB"},
-		BlobsID:                    {Table: Blobs, SQLType: "INTEGER"},
-		BlobsInsertTime:            {Table: Blobs, SQLType: "INTEGER"},
-		BlobsMultihash:             {Table: Blobs, SQLType: "BLOB"},
-		BlobsSize:                  {Table: Blobs, SQLType: "INTEGER"},
-		KVKey:                      {Table: KV, SQLType: "TEXT"},
-		KVValue:                    {Table: KV, SQLType: "TEXT"},
-		MetaViewExtraAttrs:         {Table: MetaView, SQLType: "JSONB"},
-		MetaViewIRI:                {Table: MetaView, SQLType: "TEXT"},
-		MetaViewPrincipal:          {Table: MetaView, SQLType: "BLOB"},
-		PeersAddresses:             {Table: Peers, SQLType: "TEXT"},
-		PeersCreatedAt:             {Table: Peers, SQLType: "INTEGER"},
-		PeersExplicitlyConnected:   {Table: Peers, SQLType: "BOOLEAN"},
-		PeersID:                    {Table: Peers, SQLType: "INTEGER"},
-		PeersPid:                   {Table: Peers, SQLType: "TEXT"},
-		PeersUpdatedAt:             {Table: Peers, SQLType: "INTEGER"},
-		PublicKeysID:               {Table: PublicKeys, SQLType: "INTEGER"},
-		PublicKeysPrincipal:        {Table: PublicKeys, SQLType: "BLOB"},
-		ResourceLinksExtraAttrs:    {Table: ResourceLinks, SQLType: "JSONB"},
-		ResourceLinksID:            {Table: ResourceLinks, SQLType: "INTEGER"},
-		ResourceLinksIsPinned:      {Table: ResourceLinks, SQLType: "INTEGER"},
-		ResourceLinksSource:        {Table: ResourceLinks, SQLType: "INTEGER"},
-		ResourceLinksTarget:        {Table: ResourceLinks, SQLType: "INTEGER"},
-		ResourceLinksType:          {Table: ResourceLinks, SQLType: "TEXT"},
-		ResourcesCreateTime:        {Table: Resources, SQLType: "INTEGER"},
-		ResourcesGenesisBlob:       {Table: Resources, SQLType: "INTEGER"},
-		ResourcesID:                {Table: Resources, SQLType: "INTEGER"},
-		ResourcesIRI:               {Table: Resources, SQLType: "TEXT"},
-		ResourcesOwner:             {Table: Resources, SQLType: "INTEGER"},
-		SQLiteSequenceName:         {Table: SQLiteSequence, SQLType: ""},
-		SQLiteSequenceSeq:          {Table: SQLiteSequence, SQLType: ""},
-		StructuralBlobsAuthor:      {Table: StructuralBlobs, SQLType: "INTEGER"},
-		StructuralBlobsExtraAttrs:  {Table: StructuralBlobs, SQLType: "JSONB"},
-		StructuralBlobsGenesisBlob: {Table: StructuralBlobs, SQLType: "INTEGER"},
-		StructuralBlobsID:          {Table: StructuralBlobs, SQLType: "INTEGER"},
-		StructuralBlobsResource:    {Table: StructuralBlobs, SQLType: "INTEGER"},
-		StructuralBlobsTs:          {Table: StructuralBlobs, SQLType: "INTEGER"},
-		StructuralBlobsType:        {Table: StructuralBlobs, SQLType: "TEXT"},
-		SubscriptionsID:            {Table: Subscriptions, SQLType: "INTEGER"},
-		SubscriptionsInsertTime:    {Table: Subscriptions, SQLType: "INTEGER"},
-		SubscriptionsIRI:           {Table: Subscriptions, SQLType: "TEXT"},
-		SubscriptionsIsRecursive:   {Table: Subscriptions, SQLType: "BOOLEAN"},
-		WalletsAccount:             {Table: Wallets, SQLType: "INTEGER"},
-		WalletsAddress:             {Table: Wallets, SQLType: "TEXT"},
-		WalletsID:                  {Table: Wallets, SQLType: "TEXT"},
-		WalletsLogin:               {Table: Wallets, SQLType: "BLOB"},
-		WalletsName:                {Table: Wallets, SQLType: "TEXT"},
-		WalletsPassword:            {Table: Wallets, SQLType: "BLOB"},
-		WalletsToken:               {Table: Wallets, SQLType: "BLOB"},
-		WalletsType:                {Table: Wallets, SQLType: "TEXT"},
+		BlobLinksSource:                         {Table: BlobLinks, SQLType: "INTEGER"},
+		BlobLinksTarget:                         {Table: BlobLinks, SQLType: "INTEGER"},
+		BlobLinksType:                           {Table: BlobLinks, SQLType: "TEXT"},
+		BlobsCodec:                              {Table: Blobs, SQLType: "INTEGER"},
+		BlobsData:                               {Table: Blobs, SQLType: "BLOB"},
+		BlobsID:                                 {Table: Blobs, SQLType: "INTEGER"},
+		BlobsInsertTime:                         {Table: Blobs, SQLType: "INTEGER"},
+		BlobsMultihash:                          {Table: Blobs, SQLType: "BLOB"},
+		BlobsSize:                               {Table: Blobs, SQLType: "INTEGER"},
+		DocumentGenerationsAuthors:              {Table: DocumentGenerations, SQLType: "JSON"},
+		DocumentGenerationsChangeCount:          {Table: DocumentGenerations, SQLType: "INTEGER"},
+		DocumentGenerationsChanges:              {Table: DocumentGenerations, SQLType: "BLOB"},
+		DocumentGenerationsCommentCount:         {Table: DocumentGenerations, SQLType: "INTEGER"},
+		DocumentGenerationsGeneration:           {Table: DocumentGenerations, SQLType: "INTEGER"},
+		DocumentGenerationsGenesis:              {Table: DocumentGenerations, SQLType: "TEXT"},
+		DocumentGenerationsGenesisChangeTime:    {Table: DocumentGenerations, SQLType: "INTEGER"},
+		DocumentGenerationsHeads:                {Table: DocumentGenerations, SQLType: "JSON"},
+		DocumentGenerationsIsDeleted:            {Table: DocumentGenerations, SQLType: ""},
+		DocumentGenerationsLastActivityTime:     {Table: DocumentGenerations, SQLType: ""},
+		DocumentGenerationsLastAliveRefTime:     {Table: DocumentGenerations, SQLType: "INTEGER"},
+		DocumentGenerationsLastChangeTime:       {Table: DocumentGenerations, SQLType: "INTEGER"},
+		DocumentGenerationsLastComment:          {Table: DocumentGenerations, SQLType: "INTEGER"},
+		DocumentGenerationsLastCommentTime:      {Table: DocumentGenerations, SQLType: "INTEGER"},
+		DocumentGenerationsLastTombstoneRefTime: {Table: DocumentGenerations, SQLType: "INTEGER"},
+		DocumentGenerationsMetadata:             {Table: DocumentGenerations, SQLType: "JSON"},
+		DocumentGenerationsResource:             {Table: DocumentGenerations, SQLType: "INTEGER"},
+		KVKey:                                   {Table: KV, SQLType: "TEXT"},
+		KVValue:                                 {Table: KV, SQLType: "TEXT"},
+		MetaViewExtraAttrs:                      {Table: MetaView, SQLType: "JSONB"},
+		MetaViewIRI:                             {Table: MetaView, SQLType: "TEXT"},
+		MetaViewPrincipal:                       {Table: MetaView, SQLType: "BLOB"},
+		PeersAddresses:                          {Table: Peers, SQLType: "TEXT"},
+		PeersCreatedAt:                          {Table: Peers, SQLType: "INTEGER"},
+		PeersExplicitlyConnected:                {Table: Peers, SQLType: "BOOLEAN"},
+		PeersID:                                 {Table: Peers, SQLType: "INTEGER"},
+		PeersPid:                                {Table: Peers, SQLType: "TEXT"},
+		PeersUpdatedAt:                          {Table: Peers, SQLType: "INTEGER"},
+		PublicKeysID:                            {Table: PublicKeys, SQLType: "INTEGER"},
+		PublicKeysPrincipal:                     {Table: PublicKeys, SQLType: "BLOB"},
+		ResourceLinksExtraAttrs:                 {Table: ResourceLinks, SQLType: "JSONB"},
+		ResourceLinksID:                         {Table: ResourceLinks, SQLType: "INTEGER"},
+		ResourceLinksIsPinned:                   {Table: ResourceLinks, SQLType: "INTEGER"},
+		ResourceLinksSource:                     {Table: ResourceLinks, SQLType: "INTEGER"},
+		ResourceLinksTarget:                     {Table: ResourceLinks, SQLType: "INTEGER"},
+		ResourceLinksType:                       {Table: ResourceLinks, SQLType: "TEXT"},
+		ResourcesCreateTime:                     {Table: Resources, SQLType: "INTEGER"},
+		ResourcesGenesisBlob:                    {Table: Resources, SQLType: "INTEGER"},
+		ResourcesID:                             {Table: Resources, SQLType: "INTEGER"},
+		ResourcesIRI:                            {Table: Resources, SQLType: "TEXT"},
+		ResourcesOwner:                          {Table: Resources, SQLType: "INTEGER"},
+		SpacesCommentCount:                      {Table: Spaces, SQLType: "INTEGER"},
+		SpacesID:                                {Table: Spaces, SQLType: "TEXT"},
+		SpacesLastChangeTime:                    {Table: Spaces, SQLType: "INTEGER"},
+		SpacesLastComment:                       {Table: Spaces, SQLType: "INTEGER"},
+		SpacesLastCommentTime:                   {Table: Spaces, SQLType: "INTEGER"},
+		SQLiteSequenceName:                      {Table: SQLiteSequence, SQLType: ""},
+		SQLiteSequenceSeq:                       {Table: SQLiteSequence, SQLType: ""},
+		StructuralBlobsAuthor:                   {Table: StructuralBlobs, SQLType: "INTEGER"},
+		StructuralBlobsExtraAttrs:               {Table: StructuralBlobs, SQLType: "JSONB"},
+		StructuralBlobsGenesisBlob:              {Table: StructuralBlobs, SQLType: "INTEGER"},
+		StructuralBlobsID:                       {Table: StructuralBlobs, SQLType: "INTEGER"},
+		StructuralBlobsResource:                 {Table: StructuralBlobs, SQLType: "INTEGER"},
+		StructuralBlobsTs:                       {Table: StructuralBlobs, SQLType: "INTEGER"},
+		StructuralBlobsType:                     {Table: StructuralBlobs, SQLType: "TEXT"},
+		SubscriptionsID:                         {Table: Subscriptions, SQLType: "INTEGER"},
+		SubscriptionsInsertTime:                 {Table: Subscriptions, SQLType: "INTEGER"},
+		SubscriptionsIRI:                        {Table: Subscriptions, SQLType: "TEXT"},
+		SubscriptionsIsRecursive:                {Table: Subscriptions, SQLType: "BOOLEAN"},
+		WalletsAccount:                          {Table: Wallets, SQLType: "INTEGER"},
+		WalletsAddress:                          {Table: Wallets, SQLType: "TEXT"},
+		WalletsID:                               {Table: Wallets, SQLType: "TEXT"},
+		WalletsLogin:                            {Table: Wallets, SQLType: "BLOB"},
+		WalletsName:                             {Table: Wallets, SQLType: "TEXT"},
+		WalletsPassword:                         {Table: Wallets, SQLType: "BLOB"},
+		WalletsToken:                            {Table: Wallets, SQLType: "BLOB"},
+		WalletsType:                             {Table: Wallets, SQLType: "TEXT"},
 	},
 }
