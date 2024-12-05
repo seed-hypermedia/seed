@@ -10,9 +10,11 @@ import {
   HMDocument,
   HMEntityContent,
   hmId,
+  hmIdPathToEntityQueryPath,
   HMMetadata,
   HMQueryResult,
   NodeOutline,
+  SITE_BASE_URL,
   UnpackedHypermediaId,
   unpackHmId,
 } from "@shm/shared";
@@ -89,6 +91,19 @@ export const documentPageMeta: MetaFunction = ({
       name: "hypermedia_title",
       content: getDocumentTitle(siteDocument.document),
     });
+
+    meta.push({
+      property: "og:image",
+      content: `${SITE_BASE_URL}/hm/api/content-image?space=${
+        siteDocument.id.uid
+      }&path=${hmIdPathToEntityQueryPath(siteDocument.id.path)}&version=${
+        siteDocument.id.version
+      }`,
+    });
+    // meta.push({ // TODO
+    //   property: "og:image:alt",
+    //   content: "Description of the image for accessibility.",
+    // });
   } else {
     meta.push({title: "Not Found"});
   }
