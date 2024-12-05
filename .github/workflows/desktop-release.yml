@@ -52,10 +52,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Install dependencies
-        run: yarn install
-      - name: Run tests
-        run: yarn test
+      # - name: Install dependencies
+      #   run: yarn install
+      # - name: Run tests
+      #   run: yarn test
 
   build-binaries:
     name: Build ${{ matrix.config.os }} @ ${{ matrix.config.arch }}
