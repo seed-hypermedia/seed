@@ -52,7 +52,7 @@ runs:
 
     - name: Setup cache Macos
       uses: actions/cache@v3
-      if: inputs.matrix-os == 'macos-latest'
+      if: inputs.matrix-os == 'macos-latest-xlarge'
       with:
         path: |
           ~/Library/Caches/go-build

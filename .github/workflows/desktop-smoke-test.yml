@@ -26,7 +26,7 @@ jobs:
     strategy:
       matrix:
         config:
-          - os: macos-latest
+          - os: macos-latest-xlarge
             arch: x64
             goarch: amd64
             daemon_name: x86_64-apple-darwin
