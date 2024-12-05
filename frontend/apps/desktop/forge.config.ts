@@ -171,6 +171,36 @@ function buildDMGMaybe() {
       public: true,
       region: 'eu-west-2',
       s3ForcePathStyle: true,
+      // Function to determine the S3 key (path) for each uploaded file
+      keyResolver: (filePath) => {
+        // If the file is 'latest.yml', place it in the 'latest/' directory
+        if (filePath.endsWith('latest.yml')) {
+          return 'latest/latest.yml'
+        }
+
+        // Otherwise, upload to the 'latest/' directory with the file name
+        return `latest/${filePath.split('/').pop()}`
+      },
+    }),
+    new PublisherS3({
+      bucket: 'seed-demo',
+      accessKeyId: process.env.TEMP_S3_ACCESS_KEY,
+      secretAccessKey: process.env.TEMP_S3_SECRET_KEY,
+      folder: 'staging',
+      omitAcl: true,
+      public: true,
+      region: 'eu-west-2',
+      s3ForcePathStyle: true,
+
+      keyResolver: (filePath) => {
+        // Upload 'latest.yml' to the versioned folder
+        if (filePath.endsWith('latest.yml')) {
+          return `v${version}/latest.yml`
+        }
+
+        // Place other files in the versioned folder
+        return `v${process.env.VITE_VERSION}/${filePath.split('/').pop()}`
+      },
     }),
   )
 }
