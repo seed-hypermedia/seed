@@ -44,6 +44,7 @@ jobs:
       - name: Display Version
         run: |
           echo "App Version: ${{ steps.set_version.outputs.version }}"
+          echo "Commit Hash: ${{ steps.commit_hash.outputs.commit_hash }}"
 
   frontend-tests:
     runs-on: ubuntu-latest
