@@ -45,7 +45,12 @@ export const DESKTOP_APPDATA =
 export const VERSION =
   (import.meta.env && import.meta.env.VITE_VERSION) ||
   process.env.VITE_VERSION ||
-  '0.0.0'
+  '0.0.100'
+
+export const COMMIT_HASH =
+  (import.meta.env && import.meta.env.VITE_COMMIT_HASH) ||
+  process.env.VITE_COMMIT_HASH ||
+  '00000000'
 
 export const DAEMON_HTTP_URL =
   process.env.DAEMON_HTTP_URL ||

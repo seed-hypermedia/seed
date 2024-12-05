@@ -22,6 +22,7 @@ import {
 import {usePeerInfo} from '@/models/networking'
 import {trpc} from '@/trpc'
 import {
+  COMMIT_HASH,
   getAccountName,
   getFileUrl,
   hmId,
@@ -947,31 +948,7 @@ function AppSettings() {
   return (
     <YStack gap="$5">
       <TableList>
-        <InfoListHeader
-          title="Peer Info"
-          right={
-            addrs ? (
-              <Tooltip content="Copy routing info so others can connect to you">
-                <Button
-                  size="$2"
-                  icon={Copy}
-                  onPress={() => {
-                    navigator.clipboard.writeText(addrs)
-                    toast.success('Copied Routing Address successfully')
-                  }}
-                >
-                  Copy Addresses
-                </Button>
-              </Tooltip>
-            ) : null
-          }
-        />
-        <InfoListItem label="Peer ID" value={deviceInfo?.peerId} />
-        <InfoListItem label="Protocol ID" value={deviceInfo?.protocolId} />
-        <InfoListItem label="Addresses" value={addrs} />
-      </TableList>
-      <TableList>
-        <InfoListHeader title="Settings" />
+        <InfoListHeader title="Auto Update" />
         <TableList.Item ai="center">
           <SizableText size="$1" flex={0} minWidth={140} width={140}>
             Check for updates?
@@ -1003,6 +980,31 @@ function AppSettings() {
           </XStack>
         </TableList.Item>
       </TableList>
+      <TableList>
+        <InfoListHeader
+          title="Peer Info"
+          right={
+            addrs ? (
+              <Tooltip content="Copy routing info so others can connect to you">
+                <Button
+                  size="$2"
+                  icon={Copy}
+                  onPress={() => {
+                    navigator.clipboard.writeText(addrs)
+                    toast.success('Copied Routing Address successfully')
+                  }}
+                >
+                  Copy Addresses
+                </Button>
+              </Tooltip>
+            ) : null
+          }
+        />
+        <InfoListItem label="Peer ID" value={deviceInfo?.peerId} />
+        <InfoListItem label="Protocol ID" value={deviceInfo?.protocolId} />
+        <InfoListItem label="Addresses" value={addrs} />
+      </TableList>
+
       <TableList>
         <InfoListHeader title="User Data" />
         <InfoListItem
@@ -1039,7 +1041,7 @@ function AppSettings() {
           }}
         />
       </TableList>
-      <TableList>
+      <TableList marginBottom="$4">
         <InfoListHeader
           title="Bundle Information"
           right={
@@ -1053,7 +1055,8 @@ function AppSettings() {
                     Electron Version: ${versions.electron}
                     Chrome Version: ${versions.chrome}
                     Node Version: ${versions.node}
-                    ${goBuildInfo}
+                    Commit Hash: ${COMMIT_HASH}
+                    Go Build: ${goBuildInfo}
                     `)
                   toast.success('Copied Build Info successfully')
                 }}
@@ -1070,6 +1073,8 @@ function AppSettings() {
         <InfoListItem label="Chrome Version" value={versions.chrome} />
         <Separator />
         <InfoListItem label="Node Version" value={versions.node} />
+        <Separator />
+        <InfoListItem label="Commit Hash" value={COMMIT_HASH} />
         <Separator />
         <InfoListItem label="Go Build Info" value={goBuildInfo?.split('\n')} />
       </TableList>

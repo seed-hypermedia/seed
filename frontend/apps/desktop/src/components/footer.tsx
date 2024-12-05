@@ -1,6 +1,6 @@
 import {useConnectionSummary} from '@/models/contacts'
 import {useNavRoute} from '@/utils/navigation'
-import {VERSION} from '@shm/shared'
+import {COMMIT_HASH, VERSION} from '@shm/shared'
 import {Button, ButtonProps, FooterWrapper, SizableText, XStack} from '@shm/ui'
 import {Cable} from '@tamagui/lucide-icons'
 import {ReactNode} from 'react'
@@ -69,8 +69,7 @@ export default function Footer({children}: {children?: ReactNode}) {
           }}
           color="$color8"
         >
-          {`Seed ${VERSION}`}
-          {/* To do: include release date of this version. when this is clicked, we should help the user upgrade  */}
+          {`Seed ${VERSION} (${COMMIT_HASH})`}
         </SizableText>
       </XStack>
 

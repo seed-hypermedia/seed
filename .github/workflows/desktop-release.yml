@@ -7,7 +7,9 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - feat/s3-demo
+      - feat/release-process
+  # schedule:
+  #   - cron: "0 8 * * 1-5"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -32,6 +34,12 @@ jobs:
           chmod +x ./scripts/generate-daily-version.sh
           VERSION=$(./scripts/generate-daily-version.sh ${{ github.ref }})
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Get Short Commit Hash
+        id: commit_hash
+        run: |
+          COMMIT_HASH=$(git rev-parse --short=8 HEAD)
+          echo "commit_hash=$COMMIT_HASH" >> "$GITHUB_OUTPUT"
 
       - name: Display Version
         run: |
