@@ -100,7 +100,7 @@ jobs:
           CGO_ENABLED: 1
 
       - name: Set MacOS signing certs
-        if: matrix.config.os == 'macos-latest-xl'
+        if: matrix.config.os == 'macos-latest'
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
