@@ -1,3 +1,4 @@
+import {TwitterXIcon} from '@shm/ui'
 import {
   RiArticleFill,
   RiCodeBoxFill,
@@ -258,25 +259,25 @@ export const slashMenuItems = [
     },
   },
   // DISABLE TWITTER/X EMBEDS BECAUSE IT DOES NOT WORK ON WEB
-  // {
-  //   name: 'X Post',
-  //   aliases: ['tweet', 'twitter', 'x'],
-  //   group: 'Web embeds',
-  //   icon: <TwitterXIcon width={18} height={18} />,
-  //   hint: 'Insert an X Post embed',
-  //   execute: (editor) => {
-  //     insertOrUpdateBlock(
-  //       editor,
-  //       {
-  //         type: 'web-embed',
-  //         props: {
-  //           url: '',
-  //         },
-  //       } as PartialBlock<HMBlockSchema>,
-  //       true,
-  //     )
-  //     const { state, view } = editor._tiptapEditor
-  //     view.dispatch(state.tr.scrollIntoView())
-  //   },
-  // },
+  {
+    name: 'X Post',
+    aliases: ['tweet', 'twitter', 'web embed', 'x.com'],
+    group: 'Web embeds',
+    icon: <TwitterXIcon width={18} height={18} />,
+    hint: 'Insert an X Post embed',
+    execute: (editor) => {
+      insertOrUpdateBlock(
+        editor,
+        {
+          type: 'web-embed',
+          props: {
+            url: '',
+          },
+        } as PartialBlock<HMBlockSchema>,
+        true,
+      )
+      const {state, view} = editor._tiptapEditor
+      view.dispatch(state.tr.scrollIntoView())
+    },
+  },
 ]

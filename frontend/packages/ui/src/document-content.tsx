@@ -81,6 +81,7 @@ import {contentLayoutUnit, contentTextUnit} from "./document-content-constants";
 import "./document-content.css";
 import {SeedHeading} from "./heading";
 import {Comment} from "./icons";
+import {Spinner} from "./spinner";
 import {Tooltip} from "./tooltip";
 // import {XPostNotFound, XPostSkeleton} from "./x-components";
 
@@ -897,9 +898,9 @@ function BlockContent(props: BlockContentProps) {
     return <BlockContentButton {...props} {...dataProps} />;
   }
 
-  // if (props.block.type == "WebEmbed") {
-  //   return <BlockContentXPost {...props} {...dataProps} />;
-  // }
+  if (props.block.type == "WebEmbed") {
+    return <BlockContentXPost {...props} {...dataProps} />;
+  }
 
   if (props.block.type == "Embed") {
     return <BlockContentEmbed {...props} {...dataProps} />;
@@ -2063,62 +2064,77 @@ export function BlockContentButton({
 //   );
 // }
 
-// export function BlockContentXPost({
-//   block,
-//   parentBlockId,
-//   ...props
-// }: BlockContentProps) {
-//   const {layoutUnit, onLinkClick} = useDocContentContext();
-//   const urlArray = block.ref?.split("/");
-//   const xPostId = urlArray?.[urlArray.length - 1].split("?")[0];
-//   const {data, error, isLoading} = useTweet(xPostId);
+export function BlockContentXPost({
+  block,
+  parentBlockId,
+  ...props
+}: BlockContentProps) {
+  const {layoutUnit, onLinkClick} = useDocContentContext();
+  const urlArray = block.link?.split("/");
+  const xPostId = urlArray?.[urlArray.length - 1].split("?")[0];
+  const containerRef = useRef(null);
+  const isInitialized = useRef(false);
+  const [loading, setLoading] = useState(false);
 
-//   let xPostContent;
+  const loadTwitterScript = () => {
+    return new Promise((resolve) => {
+      if (window.twttr) {
+        resolve(window.twttr);
+      } else {
+        const script = document.createElement("script");
+        script.src = "https://platform.twitter.com/widgets.js";
+        script.async = true;
+        script.onload = () => resolve(window.twttr);
+        document.body.appendChild(script);
+      }
+    });
+  };
 
-//   if (isLoading) xPostContent = <XPostSkeleton />;
-//   else if (error || !data) {
-//     xPostContent = <XPostNotFound error={error} />;
-//   } else {
-//     const xPost = enrichTweet(data);
-//     xPostContent = (
-//       <YStack width="100%">
-//         <TweetHeader tweet={xPost} />
-//         {xPost.in_reply_to_status_id_str && <TweetInReplyTo tweet={xPost} />}
-//         <TweetBody tweet={xPost} />
-//         {xPost.mediaDetails?.length ? <TweetMedia tweet={xPost} /> : null}
-//         {xPost.quoted_tweet && <QuotedTweet tweet={xPost.quoted_tweet} />}
-//         <TweetInfo tweet={xPost} />
-//       </YStack>
-//     );
-//   }
+  useEffect(() => {
+    const initializeTweet = async () => {
+      const twttr = await loadTwitterScript();
+      if (!isInitialized.current && twttr) {
+        twttr.widgets.createTweet(xPostId, containerRef.current, {
+          theme: "dark",
+          align: "center",
+        });
+        isInitialized.current = true;
+      }
+    };
+    setLoading(true);
+    initializeTweet()
+      .then((res) => setLoading(false))
+      .catch((e) => setLoading(false));
+  }, [xPostId]);
 
-//   return (
-//     <YStack
-//       {...blockStyles}
-//       {...props}
-//       borderColor="$color6"
-//       backgroundColor="$color4"
-//       borderWidth={1}
-//       borderRadius={layoutUnit / 4}
-//       padding={layoutUnit / 2}
-//       overflow="hidden"
-//       width="100%"
-//       marginHorizontal={(-1 * layoutUnit) / 2}
-//       className="x-post-container"
-//       data-content-type="web-embed"
-//       data-url={block.ref}
-//       onPress={(e) => {
-//         e.preventDefault();
-//         e.stopPropagation();
-//         if (block.ref) {
-//           onLinkClick(block.ref, e);
-//         }
-//       }}
-//     >
-//       {xPostContent}
-//     </YStack>
-//   );
-// }
+  return (
+    <YStack
+      {...blockStyles}
+      {...props}
+      borderColor="$color6"
+      backgroundColor="$color4"
+      borderWidth={1}
+      borderRadius={layoutUnit / 4}
+      padding={layoutUnit / 2}
+      overflow="hidden"
+      width="100%"
+      marginHorizontal={(-1 * layoutUnit) / 2}
+      className="x-post-container"
+      data-content-type="web-embed"
+      data-url={block.link}
+      onPress={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (block.link) {
+          onLinkClick(block.link, e);
+        }
+      }}
+    >
+      {loading && <Spinner />}
+      <div ref={containerRef} />
+    </YStack>
+  );
+}
 
 export function BlockContentCode({
   block,

@@ -1,17 +1,8 @@
 import {isValidUrl} from '@/editor/utils'
 import {useOpenUrl} from '@/open-url'
-import {TwitterXIcon, XPostNotFound, XPostSkeleton, useTheme} from '@shm/ui'
+import {Spinner, TwitterXIcon, useTheme} from '@shm/ui'
 import {Fragment} from '@tiptap/pm/model'
-import {
-  QuotedTweet,
-  TweetBody,
-  TweetHeader,
-  TweetInReplyTo,
-  TweetInfo,
-  TweetMedia,
-  enrichTweet,
-  useTweet,
-} from 'react-tweet'
+import {useEffect, useRef, useState} from 'react'
 import {
   Block,
   BlockNoteEditor,
@@ -113,27 +104,99 @@ const display = ({
 }: DisplayComponentProps) => {
   const urlArray = block.props.url.split('/')
   const xPostId = urlArray[urlArray.length - 1].split('?')[0]
-  const {data, error, isLoading} = useTweet(xPostId)
   const openUrl = useOpenUrl()
+  const [loading, setLoading] = useState(false)
 
-  let xPostContent
+  // const iframeRef = useRef(null)
 
-  if (isLoading) xPostContent = <XPostSkeleton />
-  else if (error || !data) {
-    xPostContent = <XPostNotFound error={error} />
-  } else {
-    const xPost = enrichTweet(data)
-    xPostContent = (
-      <>
-        <TweetHeader tweet={xPost} />
-        {xPost.in_reply_to_status_id_str && <TweetInReplyTo tweet={xPost} />}
-        <TweetBody tweet={xPost} />
-        {xPost.mediaDetails?.length ? <TweetMedia tweet={xPost} /> : null}
-        {xPost.quoted_tweet && <QuotedTweet tweet={xPost.quoted_tweet} />}
-        <TweetInfo tweet={xPost} />
-      </>
-    )
+  // useEffect(() => {
+  //   const handleResize = (event: MessageEvent) => {
+  //     if (
+  //       event.origin === 'https://platform.twitter.com' &&
+  //       iframeRef.current
+  //     ) {
+  //       const {height} = event.data
+  //       console.log(height, event.data)
+  //       iframeRef.current.style.height = `${height}px`
+  //     }
+  //   }
+
+  const containerRef = useRef(null)
+  const isInitialized = useRef(false)
+  const scriptId = 'twitter-widgets-script'
+  const createdTweets = useRef(new Set())
+
+  let scriptLoadPromise: Promise<any> | null = null
+
+  const loadTwitterScript = () => {
+    // Check if the script was already added to the document
+    const script = document.getElementById(scriptId) as HTMLScriptElement | null
+
+    if (scriptLoadPromise) {
+      return scriptLoadPromise
+    }
+
+    if (script && window.twttr) {
+      // If the script is loaded and window.twttr is ready, resolve immediately
+      return Promise.resolve(window.twttr)
+    }
+
+    // If the script exists but window.twttr is not ready, wait for it
+    if (script) {
+      scriptLoadPromise = new Promise((resolve) => {
+        const checkTwttr = setInterval(() => {
+          if (window.twttr) {
+            clearInterval(checkTwttr)
+            resolve(window.twttr)
+          }
+        }, 50) // Retry every 50 ms
+      })
+      return scriptLoadPromise
+    }
+
+    // Load the script
+    scriptLoadPromise = new Promise((resolve) => {
+      const newScript = document.createElement('script')
+      newScript.id = scriptId
+      newScript.src = 'https://platform.twitter.com/widgets.js'
+      newScript.async = true
+      newScript.onload = () => resolve(window.twttr)
+      document.body.appendChild(newScript)
+    })
+
+    return scriptLoadPromise
   }
+
+  useEffect(() => {
+    const initializeTweet = async () => {
+      const twttr = await loadTwitterScript()
+      if (!isInitialized.current && twttr) {
+        console.log(`init tweet: ${block.id}`)
+        if (!createdTweets.current.has(block.id)) {
+          createdTweets.current.add(block.id)
+          await twttr.widgets.createTweet(xPostId, containerRef.current, {
+            theme: 'dark',
+            align: 'center',
+          })
+          isInitialized.current = true
+        }
+      }
+    }
+
+    setLoading(true)
+    initializeTweet()
+      .then(() => {
+        setLoading(false)
+      })
+      .catch((error) => {
+        console.error('Error initializing tweet:', error)
+        setLoading(false)
+      })
+
+    return () => {
+      isInitialized.current = false
+    }
+  }, [block.props.url])
 
   return (
     <MediaContainer
@@ -152,9 +215,26 @@ const display = ({
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto',
         fontWeight: '400',
       }}
-      className="x-post-container"
+      // className="x-post-container"
     >
-      {xPostContent}
+      {/* <iframe
+        // ref={iframeRef}
+        src={`https://platform.twitter.com/embed/index.html?id=${xPostId}&theme=dark`}
+        width="100%" // Set width to be responsive
+        height="auto"
+        style={{border: 'none', overflow: 'hidden'}}
+      ></iframe> */}
+      {loading && <Spinner />}
+      <div ref={containerRef} />
     </MediaContainer>
   )
+}
+
+const fetchOEmbed = async (tweetUrl: string) => {
+  const response = await fetch(
+    `https://publish.twitter.com/oembed?url=${encodeURIComponent(
+      tweetUrl,
+    )}&theme=dark`,
+  )
+  return response.json()
 }
