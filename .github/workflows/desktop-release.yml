@@ -23,6 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.set_version.outputs.version }}
+      commit_hash: ${{ steps.commit_hash.outputs.commit_hash }}
 
     steps:
       - name: Checkout code
@@ -142,8 +143,8 @@ jobs:
           NODE_OPTIONS: --max_old_space_size=4096
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           DAEMON_NAME: ${{ matrix.config.daemon_name }}
-          VITE_VERSION: "${{ needs.build-info.outputs.version }}"
-          # VITE_VERSION: "0.0.100"
+          # VITE_VERSION: "${{ needs.build-info.outputs.version }}"
+          VITE_VERSION: "2024.12.7"
           VITE_DESKTOP_P2P_PORT: "56000"
           VITE_DESKTOP_HTTP_PORT: "56001"
           VITE_DESKTOP_GRPC_PORT: "56002"
@@ -168,8 +169,8 @@ jobs:
           NODE_OPTIONS: --max_old_space_size=4096
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           DAEMON_NAME: "${{ matrix.config.daemon_name }}.exe"
-          VITE_VERSION: "${{ needs.build-info.outputs.version }}"
-          # VITE_VERSION: "0.0.100"
+          # VITE_VERSION: "${{ needs.build-info.outputs.version }}"
+          VITE_VERSION: "2024.12.7"
           VITE_DESKTOP_P2P_PORT: "56000"
           VITE_DESKTOP_HTTP_PORT: "56001"
           VITE_DESKTOP_GRPC_PORT: "56002"
