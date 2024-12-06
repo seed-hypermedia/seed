@@ -66,14 +66,14 @@ jobs:
     strategy:
       matrix:
         config:
-          - os: macos-13-large
-            arch: x64
-            goarch: amd64
-            daemon_name: x86_64-apple-darwin
-          # - os: macos-latest-xlarge
-          #   arch: arm64
-          #   goarch: arm64
-          #   daemon_name: aarch64-apple-darwin
+          # - os: macos-latest-large
+          #   arch: x64
+          #   goarch: amd64
+          #   daemon_name: x86_64-apple-darwin
+          - os: macos-latest-xlarge
+            arch: arm64
+            goarch: arm64
+            daemon_name: aarch64-apple-darwin
           # - os: ubuntu-24.04
           #   arch: x64
           #   goarch: amd64
@@ -131,8 +131,8 @@ jobs:
         run: |
           node scripts/set-desktop-version.mjs
         env:
-          VITE_VERSION: "${{ needs.build-info.outputs.version }}"
-
+          # VITE_VERSION: "${{ needs.build-info.outputs.version }}"
+          VITE_VERSION: "2024.12.7"
       - name: Build, package & make (Unix)
         if: matrix.config.os != 'windows-latest'
         run: |
@@ -145,6 +145,7 @@ jobs:
           DAEMON_NAME: ${{ matrix.config.daemon_name }}
           # VITE_VERSION: "${{ needs.build-info.outputs.version }}"
           VITE_VERSION: "2024.12.7"
+          VITE_COMMIT_HASH: "${{ needs.build-info.outputs.commit_hash }}"
           VITE_DESKTOP_P2P_PORT: "56000"
           VITE_DESKTOP_HTTP_PORT: "56001"
           VITE_DESKTOP_GRPC_PORT: "56002"
@@ -171,6 +172,7 @@ jobs:
           DAEMON_NAME: "${{ matrix.config.daemon_name }}.exe"
           # VITE_VERSION: "${{ needs.build-info.outputs.version }}"
           VITE_VERSION: "2024.12.7"
+          VITE_COMMIT_HASH: "${{ needs.build-info.outputs.commit_hash }}"
           VITE_DESKTOP_P2P_PORT: "56000"
           VITE_DESKTOP_HTTP_PORT: "56001"
           VITE_DESKTOP_GRPC_PORT: "56002"
