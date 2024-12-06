@@ -1,17 +1,14 @@
 import {IS_PROD_DESKTOP} from '@shm/shared'
 import {
-  BrowserWindow,
-  MessageBoxOptions,
   app,
   autoUpdater,
+  BrowserWindow,
   dialog,
+  MessageBoxOptions,
   shell,
 } from 'electron'
 import log from 'electron-log/main'
-
-autoUpdater.setFeedURL({
-  url: 'https://seed-demo.s3.eu-west-2.amazonaws.com/latest',
-})
+import {updateElectronApp, UpdateSourceType} from 'update-electron-app'
 
 export function defaultCheckForUpdates() {
   log.debug('[MAIN][AUTO-UPDATE]: checking for Updates')
@@ -154,4 +151,13 @@ export function linuxCheckForUpdates() {
     })
   } catch (error) {}
   // ipcMain.emit(ipcMainEvents.CHECK_FOR_UPDATES_END)
+}
+
+export function autoUpdateSetup() {
+  updateElectronApp({
+    updateSource: {
+      type: UpdateSourceType.StaticStorage,
+      baseUrl: `https://seed-demo.s3.eu-west-2.amazonaws.com/dev/${process.platform}/${process.arch}`,
+    },
+  })
 }

@@ -74,8 +74,16 @@ const config: ForgeConfig = {
   },
   makers: [
     new MakerDeb(commonLinuxConfig as MakerDebConfig),
-    new MakerZIP({}, ['darwin']),
-    new MakerSquirrel({
+    new MakerZIP(
+      (arch) => ({
+        // Note that we must provide this S3 URL here
+        // in order to support smooth version transitions
+        // especially when using a CDN to front your updates
+        macUpdateManifestBaseUrl: `https://seed-demo.s3.eu-west-2.amazonaws.com/dev/darwin/${arch}`,
+      }),
+      ['darwin'],
+    ),
+    new MakerSquirrel((arch) => ({
       name: 'Seed',
       authors: 'Mintter inc.',
       exe: 'seed.exe',
@@ -88,9 +96,13 @@ const config: ForgeConfig = {
       // The ICO file to use as the icon for the generated Setup.exe
       loadingGif: path.resolve(__dirname, 'assets', 'loading.gif'),
 
+      // Note that we must provide this S3 URL here
+      // in order to generate delta updates
+      remoteReleases: `https://seed-demo.s3.eu-west-2.amazonaws.com/dev/win32/${arch}`,
+
       // certificateFile: process.env.WINDOWS_PFX_FILE,
       // certificatePassword: process.env.WINDOWS_PFX_PASSWORD,
-    }),
+    })),
     new MakerRpm(commonLinuxConfig as MakerRpmConfig),
     // new MakerFlatpak(commonLinuxConfig as unknown as MakerFlatpakConfig),
   ],
@@ -166,7 +178,7 @@ function buildDMGMaybe() {
       bucket: 'seed-demo',
       accessKeyId: process.env.TEMP_S3_ACCESS_KEY,
       secretAccessKey: process.env.TEMP_S3_SECRET_KEY,
-      folder: 'staging',
+      folder: 'dev',
       omitAcl: true,
       public: true,
       region: 'eu-west-2',
@@ -186,7 +198,7 @@ function buildDMGMaybe() {
       bucket: 'seed-demo',
       accessKeyId: process.env.TEMP_S3_ACCESS_KEY,
       secretAccessKey: process.env.TEMP_S3_SECRET_KEY,
-      folder: 'staging',
+      folder: 'dev',
       omitAcl: true,
       public: true,
       region: 'eu-west-2',
