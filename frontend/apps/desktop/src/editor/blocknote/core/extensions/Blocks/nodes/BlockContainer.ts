@@ -808,7 +808,8 @@ export const BlockContainer = Node.create<{
             group.attrs.listType !== listType &&
             container &&
             !tab &&
-            !turnInto
+            !turnInto &&
+            !isSank
           ) {
             setTimeout(() => {
               this.editor
