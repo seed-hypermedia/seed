@@ -1306,14 +1306,16 @@ function findDifferences(obj1, obj2) {
   return differences
 }
 
-function removeTrailingBlocks(
-  blocks: Array<EditorBlock<typeof hmBlockSchema>>,
-) {
+function removeTrailingBlocks(blocks: Array<EditorBlock>) {
   let trailedBlocks = [...blocks]
   while (true) {
     let lastBlock = trailedBlocks[trailedBlocks.length - 1]
     if (!lastBlock) break
-    if (lastBlock.type == 'paragraph' && lastBlock.content.length == 0) {
+    if (
+      lastBlock.type == 'paragraph' &&
+      lastBlock.content.length == 0 &&
+      lastBlock.children.length == 0
+    ) {
       trailedBlocks.pop()
     } else {
       break
