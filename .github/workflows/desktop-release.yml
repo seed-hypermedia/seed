@@ -152,6 +152,8 @@ jobs:
           VITE_LIGHTNING_API_URL: "https://ln.seed.hyper.media"
           VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
           SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
+          TEMP_S3_ACCESS_KEY: ${{ secrets.TEMP_S3_ACCESS_KEY }}
+          TEMP_S3_SECRET_KEY: ${{ secrets.TEMP_S3_SECRET_KEY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -176,6 +178,8 @@ jobs:
           VITE_LIGHTNING_API_URL: "https://ln.seed.hyper.media"
           VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
           SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
+          TEMP_S3_ACCESS_KEY: ${{ secrets.TEMP_S3_ACCESS_KEY }}
+          TEMP_S3_SECRET_KEY: ${{ secrets.TEMP_S3_SECRET_KEY }}
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
