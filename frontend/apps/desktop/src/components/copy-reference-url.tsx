@@ -31,7 +31,10 @@ import {DialogTitle, useAppDialog} from './dialog'
 
 type IsPublishedState = null | boolean // null: determined checked yet
 
-export function useCopyReferenceUrl(hostname: string) {
+export function useCopyReferenceUrl(
+  hostname: string,
+  siteHomeId?: UnpackedHypermediaId | undefined,
+) {
   const dialog = useAppDialog(PushToGatewayDialog)
   const pushOnCopy = usePushOnCopy()
   const publishToSite = usePublishToSite()
@@ -43,6 +46,7 @@ export function useCopyReferenceUrl(hostname: string) {
       hostname,
       path: input.path,
       latest: input.latest,
+      siteHomeId,
     })
     copyTextToClipboard(url)
     if (pushOnCopy.data === 'never') {

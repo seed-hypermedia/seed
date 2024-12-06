@@ -73,10 +73,20 @@ export function DocOptionsButton() {
   const doc = useEntity(route.id)
   const rootEntity = useEntity(hmId('d', route.id.uid))
   const siteUrl = rootEntity.data?.document?.metadata.siteUrl
+  const copyLatest =
+    route.id.latest ||
+    !route.id.version ||
+    doc.data?.document?.version === route.id.version
   const [copyGatewayContent, onCopyGateway] = useCopyReferenceUrl(gwUrl)
   const [copySiteUrlContent, onCopySiteUrl] = useCopyReferenceUrl(
     siteUrl || gwUrl,
+    siteUrl ? hmId('d', route.id.uid) : undefined,
   )
+  const copyUrlId = {
+    ...route.id,
+    latest: copyLatest,
+    version: doc.data?.document?.version || null,
+  }
   const removeSite = useRemoveSiteDialog()
   const publishSite = usePublishSite()
   const capability = useMyCapability(route.id)
@@ -85,10 +95,10 @@ export function DocOptionsButton() {
   const menuItems: MenuItemType[] = [
     {
       key: 'link',
-      label: `Copy ${displayHostname(gwUrl)} URL`,
+      label: `Copy ${displayHostname(gwUrl)} Link`,
       icon: Link,
       onPress: () => {
-        onCopyGateway(route.id)
+        onCopyGateway(copyUrlId)
       },
     },
     {
@@ -139,10 +149,10 @@ export function DocOptionsButton() {
   if (siteUrl) {
     menuItems.unshift({
       key: 'link-site',
-      label: `Copy ${displayHostname(siteUrl)} URL`,
+      label: `Copy ${displayHostname(siteUrl)} Link`,
       icon: Link,
       onPress: () => {
-        onCopySiteUrl(route.id)
+        onCopySiteUrl(copyUrlId)
       },
     })
   }

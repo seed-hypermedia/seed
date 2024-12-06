@@ -34,11 +34,13 @@ export function useDocumentUrl({
 } | null {
   const docEntity = useEntity(docId)
   if (!docId?.uid) return null
-  const accountEntity = useEntity(hmId('d', docId?.uid!))
+  const accountId = hmId('d', docId.uid)
+  const accountEntity = useEntity(accountId)
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
   const siteHostname = accountEntity.data?.document?.metadata?.siteUrl
   const [copyDialogContent, onCopyReference] = useCopyReferenceUrl(
     siteHostname || gwUrl,
+    siteHostname ? accountId : undefined,
   )
   if (!docId) return null
   const url = siteHostname
@@ -57,7 +59,7 @@ export function useDocumentUrl({
   return {
     url,
     label: siteHostname
-      ? 'Site'
+      ? 'Site' + (latest ? ' Latest' : ' Exact Version')
       : 'Public' + (latest ? ' Latest' : ' Exact Version'),
     content: copyDialogContent,
     onCopy: (
