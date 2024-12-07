@@ -11,6 +11,7 @@ import {
   Menu,
   OpenDialogOptions,
   app,
+  autoUpdater,
   dialog,
   globalShortcut,
   ipcMain,
@@ -43,6 +44,12 @@ import autoUpdate from './auto-update'
 import {startMainDaemon} from './daemon'
 import {saveCidAsFile} from './save-cid-as-file'
 import {saveMarkdownFile} from './save-markdown-file'
+
+autoUpdater.setFeedURL({
+  url: `https://seed-demo.s3.eu-west-2.amazonaws.com/latest`,
+})
+
+logger.debug(`== FEED URL == ${autoUpdater.getFeedURL()}`)
 
 // @ts-ignore
 global.electronTRPC = {}
