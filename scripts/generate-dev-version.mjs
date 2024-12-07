@@ -1,5 +1,4 @@
 import {execSync} from "child_process";
-import fetch from "node-fetch";
 
 async function getLatestProdVersion() {
   try {
