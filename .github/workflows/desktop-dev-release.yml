@@ -1,4 +1,4 @@
-name: Desktop app release
+name: Desktop dev release
 
 permissions:
   contents: write
@@ -33,9 +33,8 @@ jobs:
       - name: Set Version
         id: set_version
         run: |
-          chmod +x ./scripts/generate-dev-version.mjs
-          VERSION=$(node ./scripts/generate-dev-version.mjs
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          node scripts/generate-dev-version.mjs
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Get Short Commit Hash
         id: commit_hash

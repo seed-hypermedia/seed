@@ -76,7 +76,8 @@ async function generateNextVersion() {
 // Execute and output the version
 generateNextVersion()
   .then((version) => {
-    console.log("\nFinal version:", version);
+    // console.log("\nFinal version:", version);
+    console.log(version);
     // For GitHub Actions output
     if (process.env.GITHUB_OUTPUT) {
       execSync(`echo "version=${version}" >> $GITHUB_OUTPUT`);
