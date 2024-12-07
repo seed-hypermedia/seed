@@ -241,7 +241,6 @@ function notarizeMaybe() {
     `[FORGE CONFIG]: 🎉 adding 'osxNotarize' and 'osxSign' values to the config. Proceed to Sign and Notarize`,
   )
 
-  // @ts-expect-error
   // config.packagerConfig.osxNotarize = {
   //   // tool: 'notarytool',
   //   appleId: process.env.APPLE_ID || '',
