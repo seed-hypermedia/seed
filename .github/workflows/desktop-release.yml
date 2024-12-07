@@ -132,7 +132,7 @@ jobs:
           node scripts/set-desktop-version.mjs
         env:
           # VITE_VERSION: "${{ needs.build-info.outputs.version }}"
-          VITE_VERSION: "2025.1.1-dev.2"
+          VITE_VERSION: "2025.1.1-dev.3"
       - name: Build, package & make (Unix)
         if: matrix.config.os != 'windows-latest'
         run: |
@@ -143,7 +143,7 @@ jobs:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           DAEMON_NAME: ${{ matrix.config.daemon_name }}
           # VITE_VERSION: "${{ needs.build-info.outputs.version }}"
-          VITE_VERSION: "2025.1.1-dev.2"
+          VITE_VERSION: "2025.1.1-dev.3"
           VITE_COMMIT_HASH: "${{ needs.build-info.outputs.commit_hash }}"
           VITE_DESKTOP_P2P_PORT: "56000"
           VITE_DESKTOP_HTTP_PORT: "56001"
@@ -169,7 +169,7 @@ jobs:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           DAEMON_NAME: "${{ matrix.config.daemon_name }}.exe"
           # VITE_VERSION: "${{ needs.build-info.outputs.version }}"
-          VITE_VERSION: "2025.1.1-dev.2"
+          VITE_VERSION: "2025.1.1-dev.3"
           VITE_COMMIT_HASH: "${{ needs.build-info.outputs.commit_hash }}"
           VITE_DESKTOP_P2P_PORT: "56000"
           VITE_DESKTOP_HTTP_PORT: "56001"
