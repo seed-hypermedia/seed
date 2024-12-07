@@ -98,7 +98,8 @@ const config: ForgeConfig = {
 
       // Note that we must provide this S3 URL here
       // in order to generate delta updates
-      remoteReleases: `https://seed-demo.s3.eu-west-2.amazonaws.com/dev/win32/${arch}`,
+      // remoteReleases: `https://seed-demo.s3.eu-west-2.amazonaws.com/dev/win32/${arch}`,
+      remoteReleases: `https://github.com/seed-hypermedia/seed`,
 
       // certificateFile: process.env.WINDOWS_PFX_FILE,
       // certificatePassword: process.env.WINDOWS_PFX_PASSWORD,

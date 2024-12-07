@@ -14,13 +14,16 @@ export function defaultCheckForUpdates() {
   log.debug('[MAIN][AUTO-UPDATE]: checking for Updates')
   // ipcMain.emit(ipcMainEvents.CHECK_FOR_UPDATES_START)
   try {
-    // autoUpdater.checkForUpdates()
-    updateElectronApp({
-      updateSource: {
-        type: UpdateSourceType.StaticStorage,
-        baseUrl: `https://seed-demo.s3.eu-west-2.amazonaws.com/dev/${process.platform}/${process.arch}`,
-      },
-    })
+    if (process.env.VITE_VERSION?.includes('-dev')) {
+      updateElectronApp({
+        updateSource: {
+          type: UpdateSourceType.StaticStorage,
+          baseUrl: `https://seed-demo.s3.eu-west-2.amazonaws.com/dev/${process.platform}/${process.arch}`,
+        },
+      })
+    } else {
+      autoUpdater.checkForUpdates()
+    }
   } catch (error) {}
   // ipcMain.emit(ipcMainEvents.CHECK_FOR_UPDATES_END)
   log.debug('[MAIN][AUTO-UPDATE]: checking for Updates END')
