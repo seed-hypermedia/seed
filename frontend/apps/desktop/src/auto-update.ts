@@ -15,19 +15,18 @@ export function defaultCheckForUpdates() {
   //   url: `https://seed-demo.s3.eu-west-2.amazonaws.com/dev/latest/RELEASES.json`,
   // })
 
-  updateElectronApp({
-    updateSource: {
-      type: UpdateSourceType.StaticStorage,
-      baseUrl: `https://seed-demo.s3.eu-west-2.amazonaws.com/dev/${process.platform}/${process.arch}`,
-    },
-  })
-
   log.debug(`== FEED URL == ${autoUpdater.getFeedURL()}`)
 
   log.debug('[MAIN][AUTO-UPDATE]: checking for Updates')
   // ipcMain.emit(ipcMainEvents.CHECK_FOR_UPDATES_START)
   try {
-    autoUpdater.checkForUpdates()
+    // autoUpdater.checkForUpdates()
+    updateElectronApp({
+      updateSource: {
+        type: UpdateSourceType.StaticStorage,
+        baseUrl: `https://seed-demo.s3.eu-west-2.amazonaws.com/dev/${process.platform}/${process.arch}`,
+      },
+    })
   } catch (error) {}
   // ipcMain.emit(ipcMainEvents.CHECK_FOR_UPDATES_END)
   log.debug('[MAIN][AUTO-UPDATE]: checking for Updates END')
