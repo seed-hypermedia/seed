@@ -17,8 +17,8 @@ async function getLatestProdVersion() {
         return bNum - aNum;
       });
 
-    console.log("Available production versions:", tags);
-    console.log("Latest production version:", tags[0]);
+    // console.log("Available production versions:", tags);
+    // console.log("Latest production version:", tags[0]);
     return tags[0]; // Latest version
   } catch (error) {
     console.error("Error getting production version:", error);
@@ -28,12 +28,12 @@ async function getLatestProdVersion() {
 
 async function getLatestDevVersion() {
   try {
-    console.log("Fetching dev version from S3...");
+    // console.log("Fetching dev version from S3...");
     const response = await fetch(
       "https://seed-demo.s3.eu-west-2.amazonaws.com/dev/latest/RELEASES.json"
     );
     const data = await response.json();
-    console.log("Current dev version from S3:", data.currentRelease);
+    // console.log("Current dev version from S3:", data.currentRelease);
     return data.currentRelease;
   } catch (error) {
     console.error("Error fetching dev version:", error);
@@ -45,15 +45,15 @@ async function generateNextVersion() {
   const prodVersion = await getLatestProdVersion();
   const devVersion = await getLatestDevVersion();
 
-  console.log("\nCalculating next version:");
-  console.log("- Production version:", prodVersion);
-  console.log("- Current dev version:", devVersion);
+  // console.log("\nCalculating next version:");
+  // console.log("- Production version:", prodVersion);
+  // console.log("- Current dev version:", devVersion);
 
   if (!devVersion || !devVersion.startsWith(prodVersion)) {
     // If no dev version exists or it doesn't match current prod version,
     // create first dev version
     const newVersion = `${prodVersion}-dev.1`;
-    console.log("- Next dev version:", newVersion);
+    // console.log("- Next dev version:", newVersion);
     return newVersion;
   }
 
@@ -62,20 +62,20 @@ async function generateNextVersion() {
   if (match) {
     const currentNum = parseInt(match[1], 10);
     const newVersion = `${prodVersion}-dev.${currentNum + 1}`;
-    console.log("- Incrementing dev version:", newVersion);
+    // console.log("- Incrementing dev version:", newVersion);
     return newVersion;
   }
 
   // Fallback to first dev version if pattern doesn't match
   const fallbackVersion = `${prodVersion}-dev.1`;
-  console.log("- Falling back to first dev version:", fallbackVersion);
+  // console.log("- Falling back to first dev version:", fallbackVersion);
   return fallbackVersion;
 }
 
 // Execute and output the version
 generateNextVersion()
   .then((version) => {
-    // console.log("\nFinal version:", version);
+    // // console.log("\nFinal version:", version);
     console.log(version);
     // For GitHub Actions output
     if (process.env.GITHUB_OUTPUT) {
