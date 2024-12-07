@@ -184,15 +184,15 @@ function buildDMGMaybe() {
       region: 'eu-west-2',
       s3ForcePathStyle: true,
       // Function to determine the S3 key (path) for each uploaded file
-      keyResolver: (filePath) => {
-        // If the file is 'latest.yml', place it in the 'latest/' directory
-        if (filePath.endsWith('latest.yml')) {
-          return 'dev/latest/latest.yml'
-        }
+      // keyResolver: (filePath) => {
+      //   // If the file is 'latest.yml', place it in the 'latest/' directory
+      //   if (filePath.endsWith('latest.yml')) {
+      //     return 'dev/latest/latest.yml'
+      //   }
 
-        // Otherwise, upload to the 'latest/' directory with the file name
-        return `dev/latest/${filePath.split('/').pop()}`
-      },
+      //   // Otherwise, upload to the 'latest/' directory with the file name
+      //   return `dev/latest/${filePath.split('/').pop()}`
+      // },
     }),
     new PublisherS3({
       bucket: 'seed-demo',
@@ -204,15 +204,15 @@ function buildDMGMaybe() {
       region: 'eu-west-2',
       s3ForcePathStyle: true,
 
-      keyResolver: (filePath) => {
-        // Upload 'latest.yml' to the versioned folder
-        if (filePath.endsWith('latest.yml')) {
-          return `dev/${version}/latest.yml`
-        }
+      // keyResolver: (filePath) => {
+      //   // Upload 'latest.yml' to the versioned folder
+      //   if (filePath.endsWith('latest.yml')) {
+      //     return `dev/${version}/latest.yml`
+      //   }
 
-        // Place other files in the versioned folder
-        return `dev/${process.env.VITE_VERSION}/${filePath.split('/').pop()}`
-      },
+      //   // Place other files in the versioned folder
+      //   return `dev/${process.env.VITE_VERSION}/${filePath.split('/').pop()}`
+      // },
     }),
   )
 }
@@ -242,12 +242,12 @@ function notarizeMaybe() {
   )
 
   // @ts-expect-error
-  config.packagerConfig.osxNotarize = {
-    // tool: 'notarytool',
-    appleId: process.env.APPLE_ID || '',
-    appleIdPassword: process.env.APPLE_ID_PASSWORD || '',
-    teamId: process.env.APPLE_TEAM_ID || '',
-  }
+  // config.packagerConfig.osxNotarize = {
+  //   // tool: 'notarytool',
+  //   appleId: process.env.APPLE_ID || '',
+  //   appleIdPassword: process.env.APPLE_ID_PASSWORD || '',
+  //   teamId: process.env.APPLE_TEAM_ID || '',
+  // }
 
   // @ts-expect-error
   config.packagerConfig.osxSign = {

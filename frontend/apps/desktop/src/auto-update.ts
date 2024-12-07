@@ -11,8 +11,15 @@ import log from 'electron-log/main'
 import {updateElectronApp, UpdateSourceType} from 'update-electron-app'
 
 export function defaultCheckForUpdates() {
-  autoUpdater.setFeedURL({
-    url: `https://seed-demo.s3.eu-west-2.amazonaws.com/dev/latest/RELEASES.json`,
+  // autoUpdater.setFeedURL({
+  //   url: `https://seed-demo.s3.eu-west-2.amazonaws.com/dev/latest/RELEASES.json`,
+  // })
+
+  updateElectronApp({
+    updateSource: {
+      type: UpdateSourceType.StaticStorage,
+      baseUrl: `https://seed-demo.s3.eu-west-2.amazonaws.com/dev/${process.platform}/${process.arch}`,
+    },
   })
 
   log.debug(`== FEED URL == ${autoUpdater.getFeedURL()}`)
@@ -157,13 +164,4 @@ export function linuxCheckForUpdates() {
     })
   } catch (error) {}
   // ipcMain.emit(ipcMainEvents.CHECK_FOR_UPDATES_END)
-}
-
-export function autoUpdateSetup() {
-  updateElectronApp({
-    updateSource: {
-      type: UpdateSourceType.StaticStorage,
-      baseUrl: `https://seed-demo.s3.eu-west-2.amazonaws.com/dev/${process.platform}/${process.arch}`,
-    },
-  })
 }
