@@ -187,11 +187,11 @@ function buildDMGMaybe() {
       keyResolver: (filePath) => {
         // If the file is 'latest.yml', place it in the 'latest/' directory
         if (filePath.endsWith('latest.yml')) {
-          return 'latest/latest.yml'
+          return 'dev/latest/latest.yml'
         }
 
         // Otherwise, upload to the 'latest/' directory with the file name
-        return `latest/${filePath.split('/').pop()}`
+        return `dev/latest/${filePath.split('/').pop()}`
       },
     }),
     new PublisherS3({
@@ -207,11 +207,11 @@ function buildDMGMaybe() {
       keyResolver: (filePath) => {
         // Upload 'latest.yml' to the versioned folder
         if (filePath.endsWith('latest.yml')) {
-          return `v${version}/latest.yml`
+          return `dev/${version}/latest.yml`
         }
 
         // Place other files in the versioned folder
-        return `v${process.env.VITE_VERSION}/${filePath.split('/').pop()}`
+        return `dev/${process.env.VITE_VERSION}/${filePath.split('/').pop()}`
       },
     }),
   )

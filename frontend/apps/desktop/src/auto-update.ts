@@ -12,7 +12,7 @@ import {updateElectronApp, UpdateSourceType} from 'update-electron-app'
 
 export function defaultCheckForUpdates() {
   autoUpdater.setFeedURL({
-    url: `https://seed-demo.s3.eu-west-2.amazonaws.com/latest`,
+    url: `https://seed-demo.s3.eu-west-2.amazonaws.com/dev/latest/RELEASES.json`,
   })
 
   log.debug(`== FEED URL == ${autoUpdater.getFeedURL()}`)
