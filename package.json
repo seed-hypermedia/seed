@@ -13,7 +13,7 @@
     "desktop:make": "yarn build && yarn workspace @shm/desktop make",
     "desktop:package": "yarn build && yarn workspace @shm/desktop package",
     "desktop:test:package": "yarn build && yarn workspace @shm/desktop package:test",
-    "desktop:publish": "yarn workspace @shm/desktop publish",
+    "desktop:publish": "yarn build && yarn workspace @shm/desktop publish",
     "desktop:test": "yarn workspace @shm/desktop test",
     "desktop:test:only": "yarn workspace @shm/desktop test:only",
     "desktop:devtools": "yarn workspace @shm/desktop devtools",
