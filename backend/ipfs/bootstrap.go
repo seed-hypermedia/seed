@@ -14,10 +14,12 @@ import (
 )
 
 const (
-	// ProductionGatewayPID is the Peer id of the production gateway
+	// ProductionGatewayPID is the Peer id of the production gateway.
 	ProductionGatewayPID = "12D3KooWEDdEeuY3oHCSKtn1eC7tU9qNWjF9bb8sCtHzpuCjvomQ"
-	// TestGatewayPID is the peer id of the test gateway
-	TestGatewayPID = "12D3KooWMjs8x6ST53ZuXAegedQ4dJ2HYYQmFpw1puGpBZmLRCGB"
+	// StagingGatewayPID is the peer id of the staging gateway.
+	StagingGatewayPID = "12D3KooWMK6YJNcLuwwLBQigfQUsu5B71mdwf89bKusbVoYHoHPH"
+	// DevGatewayPID is the peer id of the dev gateway.
+	DevGatewayPID = "12D3KooWMjs8x6ST53ZuXAegedQ4dJ2HYYQmFpw1puGpBZmLRCGB"
 
 	bootstrapSupportKey = "bootstrap-support" // This is what we use as a key to protect the connection in ConnManager.
 )
@@ -61,11 +63,14 @@ func PeriodicBootstrap(
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			prodGwPID, err := peer.Decode(ProductionGatewayPID)
-			testGwPID, err2 := peer.Decode(TestGatewayPID)
+			prodGwPID, errProd := peer.Decode(ProductionGatewayPID)
+			devGwPID, errDev := peer.Decode(DevGatewayPID)
+			stagGwPID, errStag := peer.Decode(StagingGatewayPID)
+
 			if len(h.Network().Peers()) >= minPeers &&
-				err == nil && h.Network().Connectedness(prodGwPID) == network.Connected &&
-				err2 == nil && h.Network().Connectedness(testGwPID) == network.Connected {
+				errProd == nil && h.Network().Connectedness(prodGwPID) == network.Connected &&
+				errStag == nil && h.Network().Connectedness(stagGwPID) == network.Connected &&
+				errDev == nil && h.Network().Connectedness(devGwPID) == network.Connected {
 				t.Reset(successBootstrapInterval)
 				continue
 			}
