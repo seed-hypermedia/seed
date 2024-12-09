@@ -688,10 +688,10 @@ export const BlockContainer = Node.create<{
         ({state, dispatch}) => {
           if (dispatch) {
             group.descendants((child, pos) => {
-              // If child is group and has the same list type update its' level
+              // If child is a group, update it's list level attribute
               if (
-                child.type.name === 'blockGroup' &&
-                child.attrs.listType === listType
+                child.type.name === 'blockGroup'
+                // && child.attrs.listType === listType
               ) {
                 const $pos = group.resolve(pos)
                 let newLevel: string
@@ -1310,7 +1310,7 @@ export const BlockContainer = Node.create<{
 
             if (
               group.type.name === 'blockGroup' &&
-              group.attrs.listType !== 'div'
+              group.attrs.listType !== 'Group'
             ) {
               setTimeout(() => {
                 this.editor
@@ -1324,7 +1324,29 @@ export const BlockContainer = Node.create<{
             return false
           }),
         () => {
-          commands.sinkListItem('blockContainer')
+          commands.command(({state}) => {
+            const {group, container, level, $pos} = getGroupInfoFromPos(
+              state.selection.from,
+              state,
+            )
+
+            if (container)
+              setTimeout(() => {
+                this.editor
+                  .chain()
+                  .sinkListItem('blockContainer')
+                  .UpdateGroupChildren(
+                    container,
+                    $pos,
+                    level + 1,
+                    group.attrs.listType,
+                    1,
+                  )
+                  .run()
+              })
+            else commands.sinkListItem('blockContainer')
+            return true
+          })
           return true
         },
       ])
@@ -1339,7 +1361,7 @@ export const BlockContainer = Node.create<{
               state,
             )
 
-            if (group.attrs.listType === 'div') return false
+            // if (group.attrs.listType === 'Group') return false
 
             if (container) {
               setTimeout(() => {
