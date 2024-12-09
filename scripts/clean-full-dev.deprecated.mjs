@@ -1,9 +1,9 @@
-import { execFileSync, spawn } from "child_process";
-import { existsSync } from "fs";
+import {execFileSync, spawn} from "child_process";
+import {existsSync} from "fs";
 import pkg from "fs-extra";
-import { homedir, platform } from "os";
-import { join } from "path";
-import { cwd } from "process";
+import {homedir, platform} from "os";
+import {join} from "path";
+import {cwd} from "process";
 const {mkdirpSync, moveSync} = pkg;
 const home = homedir();
 
@@ -13,13 +13,8 @@ if (platform() !== "darwin") {
   );
 }
 
-const seedDir = join(home, "Library", "Application Support", "Seed.dev");
-const seedSiteDir = join(
-  home,
-  "Library",
-  "Application Support",
-  "Seed.site"
-);
+const seedDir = join(home, "Library", "Application Support", "Seed-local");
+const seedSiteDir = join(home, "Library", "Application Support", "Seed-server");
 
 const seedArchive = join(home, "SeedArchive");
 mkdirpSync(seedArchive);
@@ -38,7 +33,7 @@ const nowLabel = getFormattedDateTime();
 
 if (existsSync(seedDir)) {
   console.log(`Seed App Exists. Moving to Seed`);
-  moveSync(seedDir, join(seedArchive, `Seed.dev.${nowLabel}`));
+  moveSync(seedDir, join(seedArchive, `Seed-local.${nowLabel}`));
 }
 if (existsSync(seedSiteDir)) {
   console.log(`Seed Site Exists. Moving to SeedArchive`);
