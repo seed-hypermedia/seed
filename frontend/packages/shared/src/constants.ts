@@ -10,7 +10,7 @@ export const HYPERMEDIA_SCHEME = 'hm'
 
 export const DEFAULT_GATEWAY_URL =
   process.env.SEED_P2P_TESTNET_NAME === 'dev'
-    ? 'https://test.hyper.media'
+    ? 'https://dev.hyper.media'
     : 'https://hyper.media'
 
 export const P2P_PORT =

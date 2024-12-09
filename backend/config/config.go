@@ -214,9 +214,9 @@ func (c *Syncing) BindFlags(fs *flag.FlagSet) {
 }
 
 var customBootstrapPeers = []string{
-	// Seed Test Gateway.
-	"/dns4/test.hyper.media/tcp/56001/p2p/" + ipfs.DevGatewayPID,
-	"/dns4/test.hyper.media/udp/56001/quic-v1/p2p/" + ipfs.DevGatewayPID,
+	// Seed Dev Gateway.
+	"/dns4/dev.hyper.media/tcp/56001/p2p/" + ipfs.DevGatewayPID,
+	"/dns4/dev.hyper.media/udp/56001/quic-v1/p2p/" + ipfs.DevGatewayPID,
 
 	// Seed Staging Gateway.
 	"/dns4/staging.hyper.media/tcp/55001/p2p/" + ipfs.StagingGatewayPID,
