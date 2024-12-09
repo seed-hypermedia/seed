@@ -7,3 +7,6 @@ node_modules
 .wrangler
 
 config.json
+
+VERSION
+BRANCH

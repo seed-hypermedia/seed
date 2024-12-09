@@ -84,6 +84,12 @@ jobs:
           text: ${{ github.ref }}
           regex: 'refs/tags/[0-9]{4}\.[0-9]+\.[0-9]+-rc[0-9]+$'
 
+      - name: Generate VERSION file with commit hash
+        run: git rev-parse HEAD > frontend/apps/web/VERSION
+
+      - name: Generate BRANCH file with branch name
+        run: echo ${{ github.ref }} > frontend/apps/web/BRANCH
+
       - name: Build and push edge web
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/build-push-action@v4
@@ -94,7 +100,7 @@ jobs:
           build-args: |
             SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
             SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
-      - name: Build and push rc nextjs
+      - name: Build and push rc remix
         if: (startsWith(github.ref, 'refs/tags/') && (steps.release-candidate-tag.outputs.match || steps.release-tag.outputs.match)) || startsWith(github.ref, 'refs/heads/release/')
         uses: docker/build-push-action@v4
         with:
@@ -104,7 +110,7 @@ jobs:
           build-args: |
             SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
             SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
-      - name: Build and push stable nextjs
+      - name: Build and push stable remix
         if: startsWith(github.ref, 'refs/tags/') && steps.release-tag.outputs.match
         uses: docker/build-push-action@v4
         with:
