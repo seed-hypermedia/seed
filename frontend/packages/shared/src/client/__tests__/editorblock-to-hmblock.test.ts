@@ -476,6 +476,7 @@ describe('EditorBlock to HMBlock', () => {
         children: [],
         props: {
           url: 'ipfs://foobarcid_IMAGE',
+          width: '400',
         },
         content: [
           {
@@ -492,7 +493,9 @@ describe('EditorBlock to HMBlock', () => {
         text: ``,
         link: 'ipfs://foobarcid_IMAGE',
         annotations: [],
-        attributes: {},
+        attributes: {
+          width: 400,
+        },
       }
       const val = editorBlockToHMBlock(editorBlock)
 
@@ -506,7 +509,7 @@ describe('EditorBlock to HMBlock', () => {
         children: [],
         props: {
           url: 'ipfs://foobarcid_IMAGE',
-          width: '',
+          width: '400',
         },
         content: [
           {
@@ -523,7 +526,9 @@ describe('EditorBlock to HMBlock', () => {
         text: ``,
         link: 'ipfs://foobarcid_IMAGE',
         annotations: [],
-        attributes: {},
+        attributes: {
+          width: 400,
+        },
       }
       const val = editorBlockToHMBlock(editorBlock)
 

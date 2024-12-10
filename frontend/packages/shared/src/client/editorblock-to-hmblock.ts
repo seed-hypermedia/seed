@@ -1,5 +1,11 @@
 import {EditorBlock, EditorInlineContent} from '../editor-types'
-import {HMAnnotations, HMBlock, HMBlockSchema, HMBlockType} from '../hm-types'
+import {
+  HMAnnotations,
+  HMBlock,
+  HMBlockSchema,
+  HMBlockType,
+  toNumber,
+} from '../hm-types'
 import {AnnotationSet, codePointLength} from './unicode'
 
 function toHMBlockType(
@@ -226,27 +232,4 @@ function getParentBlock(block: HMBlock) {
   if (block.type == 'Paragraph') return block
   if (block.type == 'Code') return block
   return undefined
-}
-
-function toNumber(value?: string): number | null {
-  // Handle empty or whitespace-only strings
-  if (!value) return null
-  if (typeof value !== 'string') {
-    console.error('Unexpected numeric value is not a string: ', value)
-    return null
-  }
-  if (value.trim() === '') {
-    return null
-  }
-
-  // Convert to number and check if it's valid
-  const num = Number(value)
-
-  // Check if the conversion resulted in a valid number
-  // isNaN() will return true for NaN and invalid conversions
-  if (isNaN(num)) {
-    return null
-  }
-
-  return num
 }

@@ -493,7 +493,9 @@ describe('HMBlock to EditorBlock', () => {
         text: ``,
         link: 'ipfs://foobarcid_IMAGE',
         annotations: [],
-        attributes: {},
+        attributes: {
+          width: 400,
+        },
         revision: 'revision123',
       }
 
@@ -504,6 +506,7 @@ describe('HMBlock to EditorBlock', () => {
         props: {
           url: 'ipfs://foobarcid_IMAGE',
           revision: 'revision123',
+          width: '400',
         },
         content: [
           {

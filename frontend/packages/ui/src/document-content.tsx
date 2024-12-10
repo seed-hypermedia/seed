@@ -1173,6 +1173,7 @@ function BlockContentImage({
       data-url={block?.link}
       data-alt={block?.attributes?.alt}
       data-width={block.attributes?.width}
+      maxWidth="100%"
       paddingVertical="$3"
       gap="$2"
       ai="center"
@@ -1182,6 +1183,7 @@ function BlockContentImage({
         width={
           block.attributes?.width ? `${block.attributes?.width}px` : undefined
         }
+        maxWidth="100%"
       >
         <img
           alt={block?.attributes?.alt}
@@ -1228,6 +1230,7 @@ function BlockContentVideo({
           width={
             block.attributes?.width ? `${block.attributes?.width}px` : "100%"
           }
+          maxWidth="100%"
           position="relative"
           paddingBottom={
             link.startsWith("ipfs://") || link.startsWith("http")

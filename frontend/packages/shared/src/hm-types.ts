@@ -217,24 +217,24 @@ export const HMBlockMathSchema = z
   })
   .strict()
 
-export function toNumber(value: any): number {
+export function toNumber(value: any): number | null {
   // If it's already a number, return it directly
-  if (typeof value === 'number' && !isNaN(value)) {
+  if (typeof value == 'number' && !isNaN(value)) {
     return value
   }
 
   // If it's a string, try to convert it
-  if (typeof value === 'string') {
+  if (typeof value == 'string') {
     const converted = Number(value)
     if (!isNaN(converted)) {
       return converted
     }
   }
-
-  // If we get here, throw an error
-  throw new Error(
+  console.warn(
     'Value must be a number or a string that can be converted to a number',
+    value,
   )
+  return null
 }
 
 export const HMBlockImageSchema = z
