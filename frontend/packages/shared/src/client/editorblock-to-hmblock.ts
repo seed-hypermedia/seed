@@ -230,7 +230,12 @@ function getParentBlock(block: HMBlock) {
 
 function toNumber(value?: string): number | null {
   // Handle empty or whitespace-only strings
-  if (!value || value.trim() === '') {
+  if (!value) return null
+  if (typeof value !== 'string') {
+    console.error('Unexpected numeric value is not a string: ', value)
+    return null
+  }
+  if (value.trim() === '') {
     return null
   }
 
