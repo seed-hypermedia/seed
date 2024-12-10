@@ -77,6 +77,7 @@ jobs:
         with:
           text: ${{ github.ref }}
           regex: 'refs/tags/[0-9]{4}\.[0-9]+\.[0-9]+$'
+
       - name: Check release candidate tag
         id: release-candidate-tag
         uses: actions-ecosystem/action-regex-match@v2
@@ -84,13 +85,7 @@ jobs:
           text: ${{ github.ref }}
           regex: 'refs/tags/[0-9]{4}\.[0-9]+\.[0-9]+-rc[0-9]+$'
 
-      - name: Generate VERSION file with commit hash
-        run: git rev-parse HEAD > frontend/apps/web/VERSION
-
-      - name: Generate BRANCH file with branch name
-        run: echo ${{ github.ref }} > frontend/apps/web/BRANCH
-
-      - name: Build and push edge web
+      - name: Build and push edge seedhypermedia/web:dev
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/build-push-action@v4
         with:
@@ -100,28 +95,25 @@ jobs:
           build-args: |
             SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
             SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
-      - name: Build and push rc remix
-        if: (startsWith(github.ref, 'refs/tags/') && (steps.release-candidate-tag.outputs.match || steps.release-tag.outputs.match)) || startsWith(github.ref, 'refs/heads/release/')
-        uses: docker/build-push-action@v4
-        with:
-          push: true
-          file: frontend/apps/site/Dockerfile
-          tags: seedhypermedia/gateway:rc
-          build-args: |
-            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
-            SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
-      - name: Build and push stable remix
+            COMMIT_HASH=${{ github.sha }}
+            BRANCH=${{ github.ref }}
+            DATE=${{ env.COMMIT_DATE }}
+
+      - name: Build and push stable seedhypermedia/web:latest
         if: startsWith(github.ref, 'refs/tags/') && steps.release-tag.outputs.match
         uses: docker/build-push-action@v4
         with:
           push: true
-          file: frontend/apps/site/Dockerfile
-          tags: seedhypermedia/gateway:latest
+          file: frontend/apps/web/Dockerfile
+          tags: seedhypermedia/web:latest
           build-args: |
             SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
             SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
+            COMMIT_HASH=${{ github.sha }}
+            BRANCH=${{ github.ref }}
+            DATE=${{ env.COMMIT_DATE }}
 
-      - name: Build and push edge seed-site
+      - name: Build and push edge seedhypermedia/site:dev
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/build-push-action@v4
         with:
@@ -132,18 +124,8 @@ jobs:
             DATE=${{ env.COMMIT_DATE }}
           file: backend/cmd/seed-daemon/Dockerfile
           tags: seedhypermedia/site:dev
-      - name: Build and push rc seed-site
-        if: (startsWith(github.ref, 'refs/tags/') && (steps.release-candidate-tag.outputs.match || steps.release-tag.outputs.match)) || startsWith(github.ref, 'refs/heads/release/')
-        uses: docker/build-push-action@v4
-        with:
-          push: true
-          build-args: |
-            COMMIT_HASH=${{ github.sha }}
-            BRANCH=${{ github.ref }}
-            DATE=${{ env.COMMIT_DATE }}
-          file: backend/cmd/seed-site/Dockerfile
-          tags: seedhypermedia/site:rc
-      - name: Build and push stable seed-site
+
+      - name: Build and push stable seedhypermedia/site:latest
         if: startsWith(github.ref, 'refs/tags/') && steps.release-tag.outputs.match
         uses: docker/build-push-action@v4
         with:
@@ -152,7 +134,7 @@ jobs:
             COMMIT_HASH=${{ github.sha }}
             BRANCH=${{ github.ref }}
             DATE=${{ env.COMMIT_DATE }}
-          file: backend/cmd/seed-site/Dockerfile
+          file: backend/cmd/seed-daemon/Dockerfile
           tags: seedhypermedia/site:latest
 
       - name: Build and push edge monitord

@@ -8,5 +8,6 @@ node_modules
 
 config.json
 
-VERSION
+COMMIT_HASH
 BRANCH
+DATE

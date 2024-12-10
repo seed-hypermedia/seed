@@ -2,11 +2,18 @@
 # docker run -e ENV_EXAMPLE=yes-it -p 3000:3000 --rm --name seed-web seed-web:latest
 
 FROM node:20-alpine AS builder
+ARG COMMIT_HASH
+ARG BRANCH
+ARG DATE
 
 RUN apk add git
 WORKDIR /app
 RUN apk add --no-cache libc6-compat
 COPY . .
+
+RUN echo $COMMIT_HASH > COMMIT_HASH
+RUN echo $BRANCH > BRANCH
+RUN echo $DATE > DATE
 
 ENV NODE_ENV production
 RUN rm -rf ./frontend/apps/desktop
