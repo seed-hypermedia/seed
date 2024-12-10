@@ -7,8 +7,6 @@ on:
   push:
     tags:
       - "*.*.*"
-    branches:
-      - feat/release-process
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
