@@ -224,6 +224,7 @@ export const MediaContainer = ({
         contentEditable={false}
         className={className ?? block.type}
         group="item"
+        maxWidth="100%"
       >
         {(hover || selected) && mediaType !== 'embed'
           ? editor.isEditable && (
