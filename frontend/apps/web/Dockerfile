@@ -24,6 +24,11 @@ COPY --from=builder /app/frontend/apps/web /app/frontend/apps/web
 COPY --from=builder /app/node_modules /app/node_modules
 COPY --from=builder /app/package.json /app/package.json
 
+RUN echo "$COMMIT_HASH" > /app/frontend/apps/web/COMMIT_HASH
+RUN echo "$BRANCH" > /app/frontend/apps/web/BRANCH
+RUN echo "$DATE" > /app/frontend/apps/web/DATE
+RUN echo "1" > /app/frontend/apps/web/IS_BUILD
+
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 seed-web
 USER seed-web
@@ -34,9 +39,5 @@ ENV PORT 3000
 
 WORKDIR /app/frontend/apps/web
 
-RUN echo "$COMMIT_HASH" > COMMIT_HASH
-RUN echo "$BRANCH" > BRANCH
-RUN echo "$DATE" > DATE
-RUN echo "1" > IS_BUILD
 
 CMD ["npm", "run", "start:prod"]
