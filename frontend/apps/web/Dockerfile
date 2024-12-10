@@ -11,14 +11,17 @@ WORKDIR /app
 RUN apk add --no-cache libc6-compat
 COPY . .
 
-RUN echo $COMMIT_HASH > COMMIT_HASH
-RUN echo $BRANCH > BRANCH
-RUN echo $DATE > DATE
+RUN echo "$COMMIT_HASH" > COMMIT_HASH
+RUN echo "$BRANCH" > BRANCH
+RUN echo "$DATE" > DATE
+RUN echo "1" > IS_BUILD
 
 ENV NODE_ENV production
 RUN rm -rf ./frontend/apps/desktop
 RUN yarn install
 RUN yarn web:prod
+
+RUN echo "COMMIT_HASH=$COMMIT_HASH, BRANCH=$BRANCH, DATE=$DATE"
 
 FROM node:20-alpine AS production
 
