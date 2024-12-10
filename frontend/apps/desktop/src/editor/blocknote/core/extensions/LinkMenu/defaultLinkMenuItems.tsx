@@ -209,35 +209,33 @@ export function getLinkMenuItems({
           ...linkMenuItems,
         ]
       }
-    } else if (false) {
-      // DISABLE TWITTER/X EMBEDS BECAUSE IT DOES NOT WORK ON WEB
+    } else if (media) {
       const mediaItem = {
-        name: `Convert to ${
+        name:
           media === 'twitter'
             ? 'X Post embed'
-            : media.charAt(0).toUpperCase() + media.slice(1)
-        }`,
+            : media.charAt(0).toUpperCase() + media.slice(1),
         disabled: false,
         icon:
           media === 'twitter' ? (
             <TwitterXIcon width={18} height={18} />
           ) : undefined,
-        execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
+        execute: (editor: BlockNoteEditor<HMBlockSchema>, link: string) => {
           const {state, schema} = editor._tiptapEditor
           const {selection} = state
           if (!selection.empty) return
           let embedUrl = ''
           if (media === 'video') {
-            let videoUrl = ''
-            if (ref.includes('youtu.be') || ref.includes('youtube')) {
-              let ytId = youtubeParser(ref)
+            let videoUrl = link ? link : sourceUrl ? sourceUrl : ''
+            if (videoUrl.includes('youtu.be') || videoUrl.includes('youtube')) {
+              let ytId = youtubeParser(videoUrl)
               if (ytId) {
                 videoUrl = `https://www.youtube.com/embed/${ytId}`
               } else {
                 videoUrl = ''
               }
-            } else if (ref.includes('vimeo')) {
-              const urlArray = ref.split('/')
+            } else if (videoUrl.includes('vimeo')) {
+              const urlArray = videoUrl.split('/')
               videoUrl =
                 'https://player.vimeo.com/video/' +
                 urlArray[urlArray.length - 1]
@@ -248,14 +246,14 @@ export function getLinkMenuItems({
             media !== 'twitter'
               ? schema.nodes[media].create({
                   url: embedUrl ? embedUrl : '',
-                  src: embedUrl ? '' : ref,
+                  src: embedUrl ? '' : link,
                   name: fileName ? fileName : '',
                 })
               : schema.nodes['web-embed'].create({
-                  url: ref,
+                  url: link ? link : sourceUrl,
                 })
 
-          insertNode(editor, sourceUrl ? sourceUrl : ref, node)
+          insertNode(editor, link ? link : sourceUrl ? sourceUrl : '', node)
         },
       }
 
