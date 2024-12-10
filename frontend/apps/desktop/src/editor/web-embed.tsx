@@ -1,6 +1,6 @@
 import {isValidUrl} from '@/editor/utils'
 import {useOpenUrl} from '@/open-url'
-import {Spinner, TwitterXIcon, useTheme} from '@shm/ui'
+import {SizableText, Spinner, TwitterXIcon, useTheme, YStack} from '@shm/ui'
 import {Fragment} from '@tiptap/pm/model'
 import {useEffect, useRef, useState} from 'react'
 import {
@@ -106,6 +106,7 @@ const display = ({
   const xPostId = urlArray[urlArray.length - 1].split('?')[0]
   const openUrl = useOpenUrl()
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(false)
 
   // const iframeRef = useRef(null)
 
@@ -171,14 +172,18 @@ const display = ({
     const initializeTweet = async () => {
       const twttr = await loadTwitterScript()
       if (!isInitialized.current && twttr) {
-        console.log(`init tweet: ${block.id}`)
         if (!createdTweets.current.has(block.id)) {
           createdTweets.current.add(block.id)
-          await twttr.widgets.createTweet(xPostId, containerRef.current, {
-            theme: 'dark',
-            align: 'center',
-          })
+          const result = await twttr.widgets.createTweet(
+            xPostId,
+            containerRef.current,
+            {
+              theme: 'dark',
+              align: 'center',
+            },
+          )
           isInitialized.current = true
+          if (!result) setError(true)
         }
       }
     }
@@ -188,8 +193,8 @@ const display = ({
       .then(() => {
         setLoading(false)
       })
-      .catch((error) => {
-        console.error('Error initializing tweet:', error)
+      .catch((err) => {
+        console.error('Error initializing tweet:', err)
         setLoading(false)
       })
 
@@ -225,16 +230,20 @@ const display = ({
         style={{border: 'none', overflow: 'hidden'}}
       ></iframe> */}
       {loading && <Spinner />}
+      {error && (
+        <YStack p="$7" ai="center" ac="center">
+          <SizableText
+            color="$red11"
+            p="$1"
+            // borderWidth="$1.5"
+            // borderRadius="$3"
+            // borderColor="$color8"
+          >
+            Error loading tweet, please check the tweet ID!
+          </SizableText>
+        </YStack>
+      )}
       <div ref={containerRef} />
     </MediaContainer>
   )
-}
-
-const fetchOEmbed = async (tweetUrl: string) => {
-  const response = await fetch(
-    `https://publish.twitter.com/oembed?url=${encodeURIComponent(
-      tweetUrl,
-    )}&theme=dark`,
-  )
-  return response.json()
 }
