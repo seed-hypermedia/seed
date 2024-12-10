@@ -146,6 +146,7 @@ jobs:
           VITE_DESKTOP_APPDATA: "Seed"
           VITE_DESKTOP_HOSTNAME: "http://localhost"
           VITE_LIGHTNING_API_URL: "https://ln.seed.hyper.media"
+          VITE_GATEWAY_URL: "https://hyper.media"
           VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
           SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -169,6 +170,7 @@ jobs:
           VITE_DESKTOP_APPDATA: "Seed"
           VITE_DESKTOP_HOSTNAME: "http://localhost"
           VITE_LIGHTNING_API_URL: "https://ln.seed.hyper.media"
+          VITE_GATEWAY_URL: "https://hyper.media"
           VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
           SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
 

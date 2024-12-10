@@ -2,16 +2,12 @@
 
 // we are using this ternary ugly thing with `import.meta.env?` and `process.env` because this variables will be loaded in different runtimes, and not in all runtines both "ways" are available.
 
-// this is injected by Vite, so it indicates if we are in the production build of the DESKTOP app
-export const IS_PROD_DESKTOP = !!import.meta.env?.PROD
-export const IS_DEV_DESKTOP = !!import.meta.env?.DEV
-
 export const HYPERMEDIA_SCHEME = 'hm'
 
 export const DEFAULT_GATEWAY_URL =
-  process.env.SEED_P2P_TESTNET_NAME === 'dev'
-    ? 'https://dev.hyper.media'
-    : 'https://hyper.media'
+  (import.meta.env && import.meta.env.VITE_GATEWAY_URL) ||
+  process.env.VITE_GATEWAY_URL ||
+  'https://hyper.media'
 
 export const P2P_PORT =
   (import.meta.env && import.meta.env.VITE_DESKTOP_P2P_PORT) ||
@@ -45,12 +41,17 @@ export const DESKTOP_APPDATA =
 export const VERSION =
   (import.meta.env && import.meta.env.VITE_VERSION) ||
   process.env.VITE_VERSION ||
-  '0.0.100'
+  '0.0.100-dev'
 
 export const COMMIT_HASH =
   (import.meta.env && import.meta.env.VITE_COMMIT_HASH) ||
   process.env.VITE_COMMIT_HASH ||
   '00000000'
+
+// this is injected by Vite, so it indicates if we are in the production build of the DESKTOP app
+export const IS_PROD_DESKTOP = !!import.meta.env?.PROD
+export const IS_DEV_DESKTOP = !!import.meta.env?.DEV
+export const IS_PROD_DEV = VERSION?.includes('-dev')
 
 export const DAEMON_HTTP_URL =
   process.env.DAEMON_HTTP_URL ||

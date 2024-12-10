@@ -1,4 +1,4 @@
-import {IS_PROD_DESKTOP} from '@shm/shared'
+import {IS_PROD_DESKTOP, IS_PROD_DEV} from '@shm/shared'
 import {
   app,
   autoUpdater,
@@ -9,8 +9,6 @@ import {
 } from 'electron'
 import log from 'electron-log/main'
 import {updateElectronApp, UpdateSourceType} from 'update-electron-app'
-
-const IS_PROD_DEV = process.env.VITE_VERSION?.includes('-dev')
 
 export function defaultCheckForUpdates() {
   log.debug('[MAIN][AUTO-UPDATE]: checking for Updates')
