@@ -2,9 +2,6 @@
 # docker run -e ENV_EXAMPLE=yes-it -p 3000:3000 --rm --name seed-web seed-web:latest
 
 FROM node:20-alpine AS builder
-ARG COMMIT_HASH
-ARG BRANCH
-ARG DATE
 
 RUN apk add git
 WORKDIR /app
@@ -18,6 +15,10 @@ RUN yarn install
 RUN yarn web:prod
 
 FROM node:20-alpine AS production
+
+ARG COMMIT_HASH
+ARG BRANCH
+ARG DATE
 
 COPY --from=builder /app/frontend/apps/web /app/frontend/apps/web
 # COPY --from=builder /app/frontend/apps/web/node_modules /app/frontend/apps/web/node_modules
