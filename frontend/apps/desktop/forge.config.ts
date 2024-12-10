@@ -158,9 +158,9 @@ function addPublishers() {
 
   config.publishers?.push(
     new PublisherS3({
-      bucket: 'seed-demo',
-      accessKeyId: process.env.TEMP_S3_ACCESS_KEY,
-      secretAccessKey: process.env.TEMP_S3_SECRET_KEY,
+      bucket: 'seedappdev',
+      accessKeyId: process.env.S3_ACCESS_KEY,
+      secretAccessKey: process.env.S3_SECRET_KEY,
       folder: 'dev',
       omitAcl: true,
       public: true,
@@ -178,9 +178,9 @@ function addPublishers() {
       // },
     }),
     new PublisherS3({
-      bucket: 'seed-demo',
-      accessKeyId: process.env.TEMP_S3_ACCESS_KEY,
-      secretAccessKey: process.env.TEMP_S3_SECRET_KEY,
+      bucket: 'seedappdev',
+      accessKeyId: process.env.S3_ACCESS_KEY,
+      secretAccessKey: process.env.S3_SECRET_KEY,
       folder: 'dev',
       omitAcl: true,
       public: true,

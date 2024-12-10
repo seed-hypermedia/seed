@@ -74,7 +74,7 @@ jobs:
             arch: arm64
             goarch: arm64
             daemon_name: aarch64-apple-darwin
-          - os: ubuntu-24.04
+          - os: ubuntu-latest
             arch: x64
             goarch: amd64
             daemon_name: x86_64-unknown-linux-gnu
@@ -152,8 +152,8 @@ jobs:
           VITE_GATEWAY_URL: "https://dev.hyper.media"
           VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
           SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
-          TEMP_S3_ACCESS_KEY: ${{ secrets.TEMP_S3_ACCESS_KEY }}
-          TEMP_S3_SECRET_KEY: ${{ secrets.TEMP_S3_SECRET_KEY }}
+          S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
+          S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -179,6 +179,6 @@ jobs:
           VITE_GATEWAY_URL: "https://dev.hyper.media"
           VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
           SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
-          TEMP_S3_ACCESS_KEY: ${{ secrets.TEMP_S3_ACCESS_KEY }}
-          TEMP_S3_SECRET_KEY: ${{ secrets.TEMP_S3_SECRET_KEY }}
+          S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
+          S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
           SEED_P2P_TESTNET_NAME: "dev"
