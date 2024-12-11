@@ -24,7 +24,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.set_version.outputs.version }}
-      commit_hash: ${{ steps.commit_hash.outputs.commit_hash }}
 
     steps:
       - name: Checkout code
@@ -36,16 +35,9 @@ jobs:
           VERSION=$(node scripts/generate-dev-version.mjs)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Get Short Commit Hash
-        id: commit_hash
-        run: |
-          COMMIT_HASH=$(git rev-parse --short=8 HEAD)
-          echo "commit_hash=$COMMIT_HASH" >> "$GITHUB_OUTPUT"
-
       - name: Display Version
         run: |
           echo "App Version: ${{ steps.set_version.outputs.version }}"
-          echo "Commit Hash: ${{ steps.commit_hash.outputs.commit_hash }}"
 
   frontend-tests:
     runs-on: ubuntu-latest
@@ -142,7 +134,7 @@ jobs:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           DAEMON_NAME: ${{ matrix.config.daemon_name }}
           VITE_VERSION: "${{ needs.build-info.outputs.version }}"
-          VITE_COMMIT_HASH: "${{ needs.build-info.outputs.commit_hash }}"
+          VITE_COMMIT_HASH: "${{ github.sha }}"
           VITE_DESKTOP_P2P_PORT: "57000"
           VITE_DESKTOP_HTTP_PORT: "57001"
           VITE_DESKTOP_GRPC_PORT: "57002"
@@ -169,7 +161,7 @@ jobs:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           DAEMON_NAME: "${{ matrix.config.daemon_name }}.exe"
           VITE_VERSION: "${{ needs.build-info.outputs.version }}"
-          VITE_COMMIT_HASH: "${{ needs.build-info.outputs.commit_hash }}"
+          VITE_COMMIT_HASH: "${{ github.sha }}"
           VITE_DESKTOP_P2P_PORT: "57000"
           VITE_DESKTOP_HTTP_PORT: "57001"
           VITE_DESKTOP_GRPC_PORT: "57002"

@@ -46,8 +46,9 @@ export const VERSION =
 export const COMMIT_HASH =
   (import.meta.env && import.meta.env.VITE_COMMIT_HASH) ||
   process.env.VITE_COMMIT_HASH ||
-  '00000000'
+  'LOCAL_abcdefghijklmnopqrst0123456789qwertyuiopasdfghjklzxcvbnm'
 
+console.log(`\n\n=============== ~ COMMIT_HASH:`, COMMIT_HASH, '\n\n')
 // this is injected by Vite, so it indicates if we are in the production build of the DESKTOP app
 export const IS_PROD_DESKTOP = !!import.meta.env?.PROD
 export const IS_DEV_DESKTOP = !!import.meta.env?.DEV

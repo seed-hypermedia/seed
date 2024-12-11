@@ -20,6 +20,7 @@ import {
   useSetPushOnPublish,
 } from '@/models/gateway-settings'
 import {usePeerInfo} from '@/models/networking'
+import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {
   COMMIT_HASH,
@@ -934,6 +935,7 @@ function AppSettings() {
   const ipc = useIPC()
   const versions = useMemo(() => ipc.versions(), [ipc])
   const appInfo = trpc.getAppInfo.useQuery().data
+  const openUrl = useOpenUrl()
   const {value: autoUpdate, setAutoUpdate} = useAutoUpdatePreference()
   const daemonInfo = trpc.getDaemonInfo.useQuery().data
   let goBuildInfo = ''
@@ -945,6 +947,7 @@ function AppSettings() {
   const {data: deviceInfo} = useDaemonInfo()
   const peer = usePeerInfo(deviceInfo?.peerId)
   const addrs = peer.data?.addrs?.join('\n')
+
   return (
     <YStack gap="$5">
       <TableList>
@@ -1055,7 +1058,7 @@ function AppSettings() {
                     Electron Version: ${versions.electron}
                     Chrome Version: ${versions.chrome}
                     Node Version: ${versions.node}
-                    Commit Hash: ${COMMIT_HASH}
+                    Commit Hash: ${COMMIT_HASH.slice(0, 8)}
                     Go Build: ${goBuildInfo}
                     `)
                   toast.success('Copied Build Info successfully')
@@ -1074,7 +1077,20 @@ function AppSettings() {
         <Separator />
         <InfoListItem label="Node Version" value={versions.node} />
         <Separator />
-        <InfoListItem label="Commit Hash" value={COMMIT_HASH} />
+        <InfoListItem
+          label="Commit Hash"
+          value={COMMIT_HASH}
+          onOpen={() => {
+            console.log(`== ~ onOpen ~ COMMIT_HASH:`, COMMIT_HASH)
+            openUrl(
+              `https://github.com/seed-hypermedia/seed/commit/${COMMIT_HASH}`,
+            )
+            // ipc.send(
+            //   'open_url',
+            //   `https://github.com/seed-hypermedia/seed/commit/${COMMIT_HASH}`,
+            // )
+          }}
+        />
         <Separator />
         <InfoListItem label="Go Build Info" value={goBuildInfo?.split('\n')} />
       </TableList>

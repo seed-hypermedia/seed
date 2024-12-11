@@ -57,6 +57,7 @@ function FooterNetworkingButton() {
 }
 
 export default function Footer({children}: {children?: ReactNode}) {
+  console.log(`== ~ Footer ~ COMMIT_HASH:`, COMMIT_HASH)
   return (
     <FooterWrapper style={{flex: 'none'}}>
       <FooterNetworkingButton />
@@ -69,7 +70,7 @@ export default function Footer({children}: {children?: ReactNode}) {
           }}
           color="$color8"
         >
-          {`Seed ${VERSION} (${COMMIT_HASH})`}
+          {`Seed ${VERSION} (${COMMIT_HASH.slice(0, 8)})`}
         </SizableText>
       </XStack>
 
