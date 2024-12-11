@@ -166,17 +166,8 @@ function addPublishers() {
       public: true,
       region: 'eu-west-2',
       s3ForcePathStyle: true,
-      // Function to determine the S3 key (path) for each uploaded file
-      // keyResolver: (filePath) => {
-      //   // If the file is 'latest.yml', place it in the 'latest/' directory
-      //   if (filePath.endsWith('latest.yml')) {
-      //     return 'dev/latest/latest.yml'
-      //   }
-
-      //   // Otherwise, upload to the 'latest/' directory with the file name
-      //   return `dev/latest/${filePath.split('/').pop()}`
-      // },
     }),
+    // this updates the latest folder
     new PublisherS3({
       bucket: 'seedappdev',
       accessKeyId: process.env.S3_ACCESS_KEY,
@@ -186,16 +177,12 @@ function addPublishers() {
       public: true,
       region: 'eu-west-2',
       s3ForcePathStyle: true,
-
-      // keyResolver: (filePath) => {
-      //   // Upload 'latest.yml' to the versioned folder
-      //   if (filePath.endsWith('latest.yml')) {
-      //     return `dev/${version}/latest.yml`
-      //   }
-
-      //   // Place other files in the versioned folder
-      //   return `dev/${process.env.VITE_VERSION}/${filePath.split('/').pop()}`
-      // },
+      keyResolver(fileName, platform, arch) {
+        if (fileName.endsWith('latest.yml')) {
+          return 'dev/latest/latest.yml'
+        }
+        return `dev/latest/${fileName}`
+      },
     }),
   )
 }
