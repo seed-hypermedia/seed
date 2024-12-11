@@ -131,7 +131,7 @@ jobs:
           CI: "1"
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: playwright-report-${{ matrix.config.daemon_name }}
           path: frontend/apps/desktop/playwright-report/**/*
