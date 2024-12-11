@@ -9,10 +9,10 @@ import {VitePlugin} from '@electron-forge/plugin-vite'
 import path from 'node:path'
 import packageJson from './package.json'
 // import setLanguages from 'electron-packager-languages'
-import {IS_PROD_DEV} from '@shm/shared'
 import fs from 'node:fs'
 
 const {version} = packageJson
+const IS_PROD_DEV = version.includes('dev')
 
 const devProjectRoot = path.join(process.cwd(), '../../..')
 const LLVM_TRIPLES = {
