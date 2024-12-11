@@ -9,6 +9,7 @@ import {VitePlugin} from '@electron-forge/plugin-vite'
 import path from 'node:path'
 import packageJson from './package.json'
 // import setLanguages from 'electron-packager-languages'
+import {IS_PROD_DEV} from '@shm/shared'
 import fs from 'node:fs'
 
 const {version} = packageJson
@@ -36,9 +37,9 @@ const daemonBinaryPath = path.join(
   `plz-out/bin/backend/seed-daemon-${getPlatformTriple()}`,
 )
 
-let iconsPath = process.env.CI
-  ? path.resolve(__dirname, 'assets', 'icons-prod', 'icon')
-  : path.resolve(__dirname, 'assets', 'icons', 'icon')
+let iconsPath = IS_PROD_DEV
+  ? path.resolve(__dirname, 'assets', 'icons', 'icon')
+  : path.resolve(__dirname, 'assets', 'icons-prod', 'icon')
 
 const commonLinuxConfig = {
   options: {
@@ -47,10 +48,10 @@ const commonLinuxConfig = {
     icon: `${iconsPath}.png`,
     maintainer: 'Mintter Inc.',
     description: 'Seed: a hyper.media protocol client',
-    productName: 'Seed',
+    productName: IS_PROD_DEV ? 'Seed Dev' : 'Seed',
     mimeType: ['x-scheme-handler/hm'],
     version,
-    bin: 'Seed',
+    bin: IS_PROD_DEV ? 'Seed Dev' : 'Seed',
     homepage: 'https://seedhypermedia.com',
   },
 }
@@ -61,28 +62,30 @@ const config: ForgeConfig = {
     asar: true,
     darwinDarkModeSupport: true,
     icon: iconsPath,
-    name: 'Seed',
-    appBundleId: 'com.seed.app',
-    executableName: 'Seed',
+    name: IS_PROD_DEV ? 'Seed Dev' : 'Seed',
+    appBundleId: IS_PROD_DEV ? 'com.seed.app.dev' : 'com.seed.app',
+    executableName: IS_PROD_DEV ? 'Seed Dev' : 'Seed',
     appCategoryType: 'public.app-category.productivity',
     // packageManager: 'yarn',
     extraResource: [daemonBinaryPath],
     // beforeCopy: [setLanguages(['en', 'en_US'])],
     win32metadata: {
       CompanyName: 'Mintter Inc.',
-      OriginalFilename: 'Seed',
+      OriginalFilename: IS_PROD_DEV ? 'Seed Dev' : 'Seed',
     },
     protocols: [{name: 'Seed Hypermedia', schemes: ['hm']}],
   },
   makers: [
     new MakerDeb(commonLinuxConfig as MakerDebConfig),
     new MakerZIP(
-      (arch) => ({
-        // Note that we must provide this S3 URL here
-        // in order to support smooth version transitions
-        // especially when using a CDN to front your updates
-        macUpdateManifestBaseUrl: `https://seedappweb.s3.eu-west-2.amazonaws.com/dev/darwin/${arch}`,
-      }),
+      IS_PROD_DEV
+        ? (arch) => ({
+            // Note that we must provide this S3 URL here
+            // in order to support smooth version transitions
+            // especially when using a CDN to front your updates
+            macUpdateManifestBaseUrl: `https://seedappweb.s3.eu-west-2.amazonaws.com/dev/darwin/${arch}`,
+          })
+        : {},
       ['darwin'],
     ),
     new MakerSquirrel((arch) => ({
@@ -94,14 +97,18 @@ const config: ForgeConfig = {
       iconUrl: `${iconsPath}.ico`,
       noMsi: true,
       setupIcon: `${iconsPath}.ico`,
-      setupExe: `seed-${version}-win32-${process.arch}-setup.exe`,
+      setupExe: `seed${IS_PROD_DEV ? '-dev' : ''}-${version}-win32-${
+        process.arch
+      }-setup.exe`,
       // The ICO file to use as the icon for the generated Setup.exe
       loadingGif: path.resolve(__dirname, 'assets', 'loading.gif'),
 
       // Note that we must provide this S3 URL here
       // in order to generate delta updates
       // remoteReleases: `https://seedappwebs3.eu-west-2.amazonaws.com/dev/win32/${arch}`,
-      remoteReleases: `https://github.com/seed-hypermedia/seed`,
+      remoteReleases: IS_PROD_DEV
+        ? `https://seedappwebs3.eu-west-2.amazonaws.com/dev/win32/${arch}`
+        : `https://github.com/seed-hypermedia/seed`,
 
       // certificateFile: process.env.WINDOWS_PFX_FILE,
       // certificatePassword: process.env.WINDOWS_PFX_PASSWORD,
