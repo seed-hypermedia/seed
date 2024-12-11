@@ -72,7 +72,7 @@ function setup() {
     updateSource: IS_PROD_DEV
       ? {
           type: UpdateSourceType.StaticStorage,
-          baseUrl: `https://seedappweb.s3.eu-west-2.amazonaws.com/dev/${process.platform}/${process.arch}`,
+          baseUrl: `https://seedappdev.s3.eu-west-2.amazonaws.com/dev/${process.platform}/${process.arch}`,
         }
       : {
           type: UpdateSourceType.ElectronPublicUpdateService,
@@ -125,7 +125,7 @@ function setup() {
 
 export function linuxCheckForUpdates() {
   const UPDATE_URL = IS_PROD_DEV
-    ? `https://seedappweb.s3.eu-west-2.amazonaws.com/dev/${process.platform}/${
+    ? `https://seedappdev.s3.eu-west-2.amazonaws.com/dev/${process.platform}/${
         process.arch
       }/${app.getVersion()}`
     : `https://update.electronjs.org/seed-hypermedia/seed/${process.platform}-${
