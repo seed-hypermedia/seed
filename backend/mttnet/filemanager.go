@@ -83,6 +83,11 @@ func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Cache-Control, ETag")
 	w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, GET")
 
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	if r.Method != "GET" {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		fmt.Fprintf(w, "Only GET method is supported.")
@@ -137,10 +142,11 @@ func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("ETag", cidStr)
+	w.Header().Set("Cache-Control", "public, max-age=29030400, immutable")
 	w.WriteHeader(http.StatusOK)
-	w.Header().Add("Content-Type", "application/octet-stream")
-	w.Header().Add("ETag", cidStr)
-	w.Header().Add("Cache-Control", "public, max-age=29030400, immutable")
 	_, _ = w.Write(buf.Bytes())
 }
 
