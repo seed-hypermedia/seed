@@ -9,6 +9,7 @@ import {VitePlugin} from '@electron-forge/plugin-vite'
 import path from 'node:path'
 import packageJson from './package.json'
 // import setLanguages from 'electron-packager-languages'
+import fs from 'node:fs'
 
 const {version} = packageJson
 
@@ -41,6 +42,7 @@ let iconsPath = process.env.CI
 
 const commonLinuxConfig = {
   options: {
+    name: 'seed',
     categories: ['Development', 'Utility'],
     icon: `${iconsPath}.png`,
     maintainer: 'Mintter Inc.',
@@ -149,6 +151,25 @@ const config: ForgeConfig = {
     }),
   ],
   publishers: [],
+  hooks: {
+    postPackage: async (_forgeConfig, options) => {
+      console.info('PostPackage output paths:', options.outputPaths)
+
+      for (const outputPath of options.outputPaths) {
+        console.info(`\nListing contents of: ${outputPath}`)
+        const files = fs.readdirSync(outputPath)
+        files.forEach((file) => {
+          const stats = fs.statSync(`${outputPath}/${file}`)
+          console.info(
+            `- ${file} (${stats.isDirectory() ? 'directory' : 'file'})`,
+          )
+        })
+      }
+    },
+    postMake: async (_forgeConfig, results) => {
+      console.info('PostMake results:', results)
+    },
+  },
 }
 
 function addPublishers() {
