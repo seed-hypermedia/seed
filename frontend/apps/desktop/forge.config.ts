@@ -90,9 +90,9 @@ const config: ForgeConfig = {
       ['darwin'],
     ),
     new MakerSquirrel((arch) => ({
-      name: 'Seed',
+      name: IS_PROD_DEV ? 'Seed Dev' : 'Seed',
       authors: 'Mintter inc.',
-      exe: 'seed.exe',
+      exe: IS_PROD_DEV ? 'seed-dev.exe' : 'seed.exe',
       description: `Seed: a hyper.media protocol client ${
         IS_PROD_DEV ? '(dev build)' : ''
       }`,
