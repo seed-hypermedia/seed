@@ -48,10 +48,10 @@ const commonLinuxConfig = {
     icon: `${iconsPath}.png`,
     maintainer: 'Mintter Inc.',
     description: 'Seed: a hyper.media protocol client',
-    productName: IS_PROD_DEV ? 'Seed Dev' : 'Seed',
+    productName: 'Seed',
     mimeType: ['x-scheme-handler/hm'],
     version,
-    bin: IS_PROD_DEV ? 'Seed Dev' : 'Seed',
+    bin: 'Seed',
     homepage: 'https://seedhypermedia.com',
   },
 }
@@ -62,16 +62,16 @@ const config: ForgeConfig = {
     asar: true,
     darwinDarkModeSupport: true,
     icon: iconsPath,
-    name: IS_PROD_DEV ? 'Seed Dev' : 'Seed',
+    name: 'Seed',
     appBundleId: IS_PROD_DEV ? 'com.seed.app.dev' : 'com.seed.app',
-    executableName: IS_PROD_DEV ? 'Seed Dev' : 'Seed',
+    executableName: 'Seed',
     appCategoryType: 'public.app-category.productivity',
     // packageManager: 'yarn',
     extraResource: [daemonBinaryPath],
     // beforeCopy: [setLanguages(['en', 'en_US'])],
     win32metadata: {
       CompanyName: 'Mintter Inc.',
-      OriginalFilename: IS_PROD_DEV ? 'Seed Dev' : 'Seed',
+      OriginalFilename: 'Seed',
     },
     protocols: [{name: 'Seed Hypermedia', schemes: ['hm']}],
   },
@@ -108,7 +108,7 @@ const config: ForgeConfig = {
       // remoteReleases: `https://seedappdev.s3.eu-west-2.amazonaws.com/dev/win32/${arch}`,
       remoteReleases: IS_PROD_DEV
         ? `https://seedappdev.s3.eu-west-2.amazonaws.com/dev/win32/${arch}`
-        : `https://github.com/seed-hypermedia/seed`,
+        : undefined,
 
       // certificateFile: process.env.WINDOWS_PFX_FILE,
       // certificatePassword: process.env.WINDOWS_PFX_PASSWORD,
