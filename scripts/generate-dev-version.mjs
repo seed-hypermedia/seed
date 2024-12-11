@@ -30,7 +30,7 @@ async function getLatestDevVersion() {
   try {
     // console.log("Fetching dev version from S3...");
     const response = await fetch(
-      "https://seed-demo.s3.eu-west-2.amazonaws.com/dev/latest/RELEASES.json"
+      "https://seedappweb.s3.eu-west-2.amazonaws.com/dev/latest/RELEASES.json"
     );
     const data = await response.json();
     // console.log("Current dev version from S3:", data.currentRelease);

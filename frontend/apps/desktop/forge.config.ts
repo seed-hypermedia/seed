@@ -79,7 +79,7 @@ const config: ForgeConfig = {
         // Note that we must provide this S3 URL here
         // in order to support smooth version transitions
         // especially when using a CDN to front your updates
-        macUpdateManifestBaseUrl: `https://seed-demo.s3.eu-west-2.amazonaws.com/dev/darwin/${arch}`,
+        macUpdateManifestBaseUrl: `https://seedappweb.s3.eu-west-2.amazonaws.com/dev/darwin/${arch}`,
       }),
       ['darwin'],
     ),
@@ -98,7 +98,7 @@ const config: ForgeConfig = {
 
       // Note that we must provide this S3 URL here
       // in order to generate delta updates
-      // remoteReleases: `https://seed-demo.s3.eu-west-2.amazonaws.com/dev/win32/${arch}`,
+      // remoteReleases: `https://seedappwebs3.eu-west-2.amazonaws.com/dev/win32/${arch}`,
       remoteReleases: `https://github.com/seed-hypermedia/seed`,
 
       // certificateFile: process.env.WINDOWS_PFX_FILE,

@@ -1,4 +1,4 @@
-import {IS_PROD_DESKTOP, IS_PROD_DEV} from '@shm/shared'
+import {IS_PROD_DESKTOP, IS_PROD_DEV, VERSION} from '@shm/shared'
 import {
   app,
   autoUpdater,
@@ -63,11 +63,16 @@ function setup() {
    * - adopt the `feedback` variable to show/hide dialogs
    */
 
+  log.debug(`== [MAIN][AUTO-UPDATE]: IS_PROD_DEV + VERSION:`, {
+    VERSION,
+    IS_PROD_DEV,
+  })
+
   updateElectronApp({
     updateSource: IS_PROD_DEV
       ? {
           type: UpdateSourceType.StaticStorage,
-          baseUrl: `https://seed-demo.s3.eu-west-2.amazonaws.com/dev/${process.platform}/${process.arch}`,
+          baseUrl: `https://seedappweb.s3.eu-west-2.amazonaws.com/dev/${process.platform}/${process.arch}`,
         }
       : {
           type: UpdateSourceType.ElectronPublicUpdateService,
@@ -75,6 +80,7 @@ function setup() {
         },
     logger: log,
   })
+
   // const updateUrl = `https://update.electronjs.org/seed-hypermedia/seed/${
   //   process.platform
   // }-${process.arch}/${app.getVersion()}`
@@ -119,7 +125,7 @@ function setup() {
 
 export function linuxCheckForUpdates() {
   const UPDATE_URL = IS_PROD_DEV
-    ? `https://seed-demo.s3.eu-west-2.amazonaws.com/dev/${process.platform}/${
+    ? `https://seedappweb.s3.eu-west-2.amazonaws.com/dev/${process.platform}/${
         process.arch
       }/${app.getVersion()}`
     : `https://update.electronjs.org/seed-hypermedia/seed/${process.platform}-${
