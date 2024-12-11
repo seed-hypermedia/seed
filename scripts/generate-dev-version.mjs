@@ -1,5 +1,8 @@
 import {execSync} from "child_process";
 
+const args = process.argv.slice(2);
+const DEBUG = args.includes("--debug") || false;
+
 async function getLatestProdVersion() {
   try {
     // Get all tags and sort them to find the latest one
@@ -33,7 +36,9 @@ async function getLatestDevVersion() {
       "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/RELEASES.json"
     );
     const data = await response.json();
-    // console.log("Current dev version from S3:", data.currentRelease);
+    if (DEBUG) {
+      console.log("Current dev version from S3:", data.currentRelease);
+    }
     return data.currentRelease;
   } catch (error) {
     console.error("Error fetching dev version:", error);
@@ -45,9 +50,11 @@ async function generateNextVersion() {
   const prodVersion = await getLatestProdVersion();
   const devVersion = await getLatestDevVersion();
 
-  // console.log("\nCalculating next version:");
-  // console.log("- Production version:", prodVersion);
-  // console.log("- Current dev version:", devVersion);
+  if (DEBUG) {
+    console.log("\nCalculating next version:");
+    console.log("- Production version:", prodVersion);
+    console.log("- Current dev version:", devVersion);
+  }
 
   if (!devVersion || !devVersion.startsWith(prodVersion)) {
     // If no dev version exists or it doesn't match current prod version,
@@ -75,8 +82,11 @@ async function generateNextVersion() {
 // Execute and output the version
 generateNextVersion()
   .then((version) => {
-    // // console.log("\nFinal version:", version);
-    console.log(version);
+    if (DEBUG) {
+      console.log("\nFinal version:", version);
+    } else {
+      console.log(version);
+    }
     // For GitHub Actions output
     if (process.env.GITHUB_OUTPUT) {
       execSync(`echo "version=${version}" >> $GITHUB_OUTPUT`);
