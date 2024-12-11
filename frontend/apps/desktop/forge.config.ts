@@ -43,15 +43,16 @@ let iconsPath = IS_PROD_DEV
 
 const commonLinuxConfig = {
   options: {
-    name: 'seed',
+    name: IS_PROD_DEV ? 'seed-dev' : 'seed',
     categories: ['Development', 'Utility'],
     icon: `${iconsPath}.png`,
     maintainer: 'Mintter Inc.',
+    genericName: IS_PROD_DEV ? 'Seed Dev' : 'Seed',
     description: 'Seed: a hyper.media protocol client',
-    productName: 'Seed',
+    productName: IS_PROD_DEV ? 'Seed Dev' : 'Seed',
     mimeType: ['x-scheme-handler/hm'],
     version,
-    bin: 'Seed',
+    bin: IS_PROD_DEV ? 'seed-dev' : 'seed',
     homepage: 'https://seedhypermedia.com',
   },
 }
@@ -62,9 +63,9 @@ const config: ForgeConfig = {
     asar: true,
     darwinDarkModeSupport: true,
     icon: iconsPath,
-    name: 'Seed',
+    name: IS_PROD_DEV ? 'Seed Dev' : 'Seed',
     appBundleId: IS_PROD_DEV ? 'com.seed.app.dev' : 'com.seed.app',
-    executableName: 'Seed',
+    executableName: IS_PROD_DEV ? 'seed-dev' : 'seed',
     appCategoryType: 'public.app-category.productivity',
     // packageManager: 'yarn',
     extraResource: [daemonBinaryPath],
@@ -92,7 +93,9 @@ const config: ForgeConfig = {
       name: 'Seed',
       authors: 'Mintter inc.',
       exe: 'seed.exe',
-      description: 'Seed: a hyper.media protocol client',
+      description: `Seed: a hyper.media protocol client ${
+        IS_PROD_DEV ? '(dev build)' : ''
+      }`,
       // An URL to an ICO file to use as the application icon (displayed in Control Panel > Programs and Features).
       iconUrl: `${iconsPath}.ico`,
       noMsi: true,
@@ -159,7 +162,7 @@ const config: ForgeConfig = {
   ],
   publishers: [],
   hooks: {
-    postPackage: async (_forgeConfig, options) => {
+    postPackage: async (_config, options) => {
       console.info('PostPackage output paths:', options.outputPaths)
 
       for (const outputPath of options.outputPaths) {
@@ -173,7 +176,7 @@ const config: ForgeConfig = {
         })
       }
     },
-    postMake: async (_forgeConfig, results) => {
+    postMake: async (_config, results) => {
       console.info('PostMake results:', results)
     },
   },
