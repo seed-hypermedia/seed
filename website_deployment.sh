@@ -97,6 +97,7 @@ cat << BLOCK > ${workspace}/proxy/CaddyFile
 
 @ipfsget {
 	method GET HEAD OPTIONS
+	encode zstd gzip
 	path /ipfs/*
 }
 
