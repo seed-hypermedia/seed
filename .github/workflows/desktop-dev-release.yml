@@ -175,3 +175,45 @@ jobs:
           S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
           S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
           SEED_P2P_TESTNET_NAME: "dev"
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-${{ matrix.config.daemon_name }}
+          path: frontend/apps/desktop/out/make/**/*
+
+  notify-on-discord:
+    needs: [build-info, build-binaries]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      # Step 3: Generate artifact URLs and send to Discord
+      - name: Send Discord Notification
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          # Get the GitHub Action Run URL base
+          BASE_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          # List all artifacts and construct URLs
+          MESSAGE="Artifacts Uploaded:\n"
+          for file in $(find artifacts -type f); do
+            FILE_NAME=$(basename "$file")
+            ARTIFACT_URL="${BASE_URL}/artifacts/${FILE_NAME}"
+            MESSAGE="${MESSAGE}\n- [${FILE_NAME}](${ARTIFACT_URL})"
+          done
+
+          # Send the message to Discord
+          echo "Sending Discord Notification..."
+          PAYLOAD=$(jq -n --arg content "$MESSAGE" '{content: $content}')
+          curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK_URL"
