@@ -196,6 +196,7 @@ function Render(
       marginLeft={-16}
       marginRight={-16}
       paddingHorizontal={16}
+      userSelect="none"
     >
       <QuerySettings
         queryDocName={entity.data?.document?.metadata.name || ''}
@@ -531,10 +532,10 @@ function QuerySettings({
                     label: 'Create time',
                     value: 'CreateTime',
                   },
-                  {
-                    label: 'By Path',
-                    value: 'Path',
-                  },
+                  // {
+                  //   label: 'By Path',
+                  //   value: 'Path',
+                  // },
                   {
                     label: 'By Title',
                     value: 'Title',
