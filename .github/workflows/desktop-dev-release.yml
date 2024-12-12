@@ -63,18 +63,18 @@ jobs:
             arch: x64
             goarch: amd64
             daemon_name: x86_64-apple-darwin
-          - os: macos-13-xlarge
-            arch: arm64
-            goarch: arm64
-            daemon_name: aarch64-apple-darwin
+          # - os: macos-13-xlarge
+          #   arch: arm64
+          #   goarch: arm64
+          #   daemon_name: aarch64-apple-darwin
           - os: ubuntu-latest
             arch: x64
             goarch: amd64
             daemon_name: x86_64-unknown-linux-gnu
-          - os: windows-latest
-            arch: x64
-            goarch: amd64
-            daemon_name: x86_64-pc-windows-msvc
+          # - os: windows-latest
+          #   arch: x64
+          #   goarch: amd64
+          #   daemon_name: x86_64-pc-windows-msvc
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -202,15 +202,19 @@ jobs:
           GITHUB_RUN_ID: ${{ github.run_id }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
+          # Debug: List all files in artifacts directory
+          echo "Listing all files in artifacts directory:"
+          find artifacts -type f -ls
+
           # Get the GitHub Action Run URL base
           BASE_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
           # List all artifacts and construct URLs
-          MESSAGE="Artifacts Uploaded:\n"
+          MESSAGE="Artifacts Uploaded:\n\n"
           for file in $(find artifacts -type f); do
             FILE_NAME=$(basename "$file")
             ARTIFACT_URL="${BASE_URL}/artifacts/${FILE_NAME}"
-            MESSAGE="${MESSAGE}\n- [${FILE_NAME}](${ARTIFACT_URL})"
+            MESSAGE="${MESSAGE}\n\n- ${ARTIFACT_URL}"
           done
 
           # Send the message to Discord
