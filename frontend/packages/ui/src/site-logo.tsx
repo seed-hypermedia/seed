@@ -34,7 +34,6 @@ export function SiteLogo({
   return (
     <View
       {...homeLinkProps}
-      bg="red"
       flex={1}
       ai="center"
       jc="center"
