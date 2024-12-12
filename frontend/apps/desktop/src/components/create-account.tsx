@@ -102,6 +102,8 @@ export function AccountWizardDialog() {
       const createdAccount = await register.mutateAsync({
         mnemonic: existing
           ? extractWords(existingWords)
+          : typeof words == 'string'
+          ? extractWords(words)
           : (words as Array<string>),
         name,
       })

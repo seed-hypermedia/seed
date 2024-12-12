@@ -420,7 +420,9 @@ function AccountKeys() {
                       disabled
                       value={
                         showWords
-                          ? mnemonics.join(', ')
+                          ? Array.isArray(mnemonics)
+                            ? mnemonics.join(', ')
+                            : mnemonics
                           : '**** **** **** **** **** **** **** **** **** **** **** ****'
                       }
                     />
@@ -434,6 +436,7 @@ function AccountKeys() {
                         size="$2"
                         icon={Copy}
                         onPress={() => {
+                          console.log('mnemonics', mnemonics)
                           copyTextToClipboard(mnemonics.join(', '))
                           toast.success('Words copied to clipboard')
                         }}
