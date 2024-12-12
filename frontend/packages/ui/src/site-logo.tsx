@@ -34,12 +34,13 @@ export function SiteLogo({
   return (
     <View
       {...homeLinkProps}
+      bg="red"
       flex={1}
       ai="center"
       jc="center"
       gap="$2"
       flexDirection="column"
-      $gtSm={{flexDirection: "row"}}
+      $gtSm={{flexDirection: "row", flex: 0}}
     >
       <HMIcon size={24} id={id} metadata={metadata} />
       <SizableText

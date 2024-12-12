@@ -230,7 +230,7 @@ export function DefaultSiteHeader({
             {homeMetadata?.name || "Seed Gateway"}
           </SizableText>
         </XStack> */}
-        <XStack flex={1} />
+        <XStack display="none" $gtSm={{display: "flex"}} flex={1} />
         {isWeb ? (
           <>
             <Button

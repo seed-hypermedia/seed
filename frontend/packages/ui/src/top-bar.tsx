@@ -58,32 +58,33 @@ export function NewsSiteHeader({
           searchUI={searchUI}
           isWeb={isWeb}
         />
-
-        <XStack
-          ai="center"
-          gap="$2"
-          padding="$2"
-          jc="center"
-          display="none"
-          $gtSm={{display: "flex"}}
-        >
-          {items?.map((item) => {
-            return (
-              <NewsSiteHeaderLink
-                id={item.id}
-                metadata={item.metadata}
-                isDraft={item.isDraft}
-                isPublished={item.isPublished}
-                active={
-                  !!docId?.path &&
-                  !!item.id.path &&
-                  item.id.path?.[0] === docId.path[0]
-                }
-              />
-            );
-          })}
-          {afterLinksContent}
-        </XStack>
+        {items?.length ? (
+          <XStack
+            ai="center"
+            gap="$2"
+            padding="$2"
+            jc="center"
+            display="none"
+            $gtSm={{display: "flex"}}
+          >
+            {items?.map((item) => {
+              return (
+                <NewsSiteHeaderLink
+                  id={item.id}
+                  metadata={item.metadata}
+                  isDraft={item.isDraft}
+                  isPublished={item.isPublished}
+                  active={
+                    !!docId?.path &&
+                    !!item.id.path &&
+                    item.id.path?.[0] === docId.path[0]
+                  }
+                />
+              );
+            })}
+            {afterLinksContent}
+          </XStack>
+        ) : null}
       </YStack>
       {isWeb ? (
         <MobileMenu
