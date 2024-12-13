@@ -17,6 +17,7 @@ export function OptionsPanel({
 }) {
   const isHome = !draftId.path || draftId.path.length === 0
   const isNewspaperLayout = metadata.layout === 'Seed/Experimental/Newspaper'
+  const isSplashLayout = metadata.layout === 'Seed/Experimental/Splash'
   return (
     <AccessoryContainer
       title={isHome ? 'Home Options' : 'Document Options'}
@@ -59,6 +60,7 @@ export function OptionsPanel({
             options={
               [
                 {label: 'Newspaper Home', value: 'Seed/Experimental/Newspaper'},
+                {label: 'Splash Home', value: 'Seed/Experimental/Splash'},
                 {label: 'Document', value: ''},
               ] as const
             }
@@ -67,46 +69,91 @@ export function OptionsPanel({
           />
         </YStack>
       </YStack>
+      <YStack>
+        <Label size="$1">Header Logo</Label>
+        <ImageForm
+          size={100}
+          id={`logo-${draftId.id}`}
+          label={metadata.seedExperimentalLogo}
+          url={
+            metadata.seedExperimentalLogo
+              ? getFileUrl(metadata.seedExperimentalLogo)
+              : ''
+          }
+          onImageUpload={(imgageCid) => {
+            if (imgageCid) {
+              onMetadata({
+                seedExperimentalLogo: `ipfs://${imgageCid}`,
+              })
+            }
+          }}
+          onRemove={() => {
+            onMetadata({
+              seedExperimentalLogo: '',
+            })
+          }}
+        />
+      </YStack>
       {isNewspaperLayout ? (
+        <YStack>
+          <Label size="$1">Sort Home Content</Label>
+          <SelectDropdown
+            width="100%"
+            options={
+              [
+                {label: 'Last Updated First', value: 'UpdatedFirst'},
+                {label: 'Last Created First', value: 'CreatedFirst'},
+              ] as const
+            }
+            value={metadata.seedExperimentalHomeOrder || 'UpdatedFirst'}
+            onValue={(seedExperimentalHomeOrder) =>
+              onMetadata({seedExperimentalHomeOrder})
+            }
+          />
+        </YStack>
+      ) : null}
+      {isSplashLayout ? (
         <>
           <YStack>
-            <Label size="$1">Header Logo</Label>
+            <Label size="$1">Splash Image</Label>
             <ImageForm
               size={100}
-              id={`logo-${draftId.id}`}
-              label={metadata.seedExperimentalLogo}
+              id={`splash-${draftId.id}`}
+              label={metadata.seedExperimentalSplashBackgroundImage}
               url={
-                metadata.seedExperimentalLogo
-                  ? getFileUrl(metadata.seedExperimentalLogo)
+                metadata.seedExperimentalSplashBackgroundImage
+                  ? getFileUrl(metadata.seedExperimentalSplashBackgroundImage)
                   : ''
               }
               onImageUpload={(imgageCid) => {
                 if (imgageCid) {
                   onMetadata({
-                    seedExperimentalLogo: `ipfs://${imgageCid}`,
+                    seedExperimentalSplashBackgroundImage: `ipfs://${imgageCid}`,
                   })
                 }
               }}
               onRemove={() => {
                 onMetadata({
-                  seedExperimentalLogo: '',
+                  seedExperimentalSplashBackgroundImage: '',
                 })
               }}
             />
           </YStack>
           <YStack>
-            <Label size="$1">Sort Home Content</Label>
+            <Label size="$1">Splash Hero Color</Label>
             <SelectDropdown
               width="100%"
               options={
                 [
-                  {label: 'Last Updated First', value: 'UpdatedFirst'},
-                  {label: 'Last Created First', value: 'CreatedFirst'},
+                  {label: 'blue', value: 'blue'},
+                  {label: 'green', value: 'green'},
+                  {label: 'red', value: 'red'},
+                  {label: 'yellow', value: 'yellow'},
                 ] as const
               }
-              value={metadata.seedExperimentalHomeOrder || 'UpdatedFirst'}
-              onValue={(seedExperimentalHomeOrder) =>
-                onMetadata({seedExperimentalHomeOrder})
+              value={metadata.seedExperimentalSplashBackgroundColor || 'blue'}
+              onValue={(seedExperimentalSplashBackgroundColor) =>
+                onMetadata({seedExperimentalSplashBackgroundColor})
               }
             />
           </YStack>

@@ -1,4 +1,4 @@
-import {PlainMessage} from '@bufbuild/protobuf'
+import { PlainMessage } from '@bufbuild/protobuf'
 import type {
   Block,
   BlockNode,
@@ -414,12 +414,14 @@ export const HMDocumentMetadataSchema = z.object({
   cover: z.string().optional(),
   siteUrl: z.string().optional(),
   layout: z
-    .union([z.literal('Seed/Experimental/Newspaper'), z.literal('')])
+    .union([z.literal('Seed/Experimental/Newspaper'), z.literal('Seed/Experimental/Splash'), z.literal('')])
     .optional(),
   seedExperimentalLogo: z.string().optional(),
   seedExperimentalHomeOrder: z
     .union([z.literal('UpdatedFirst'), z.literal('CreatedFirst')])
     .optional(),
+  seedExperimentalSplashBackgroundColor: z.string().optional(),
+  seedExperimentalSplashBackgroundImage: z.string().optional(),
 })
 
 export type HMMetadata = z.infer<typeof HMDocumentMetadataSchema>
