@@ -1,6 +1,6 @@
 import {BlockNoteEditor, getBlockInfoFromPos, setGroupTypes} from '@/editor'
-import {Extension} from '@tiptap/core'
-import {Node} from '@tiptap/pm/model'
+import {Editor, Extension} from '@tiptap/core'
+import {Fragment, Node} from '@tiptap/pm/model'
 import {Plugin} from 'prosemirror-state'
 import {MarkdownToBlocks} from './MarkdownToBlocks'
 
@@ -29,6 +29,34 @@ function containsMarkdownSymbols(pastedText: string) {
   return lines.some((line) => markdownUniqueSymbols.test(line))
 }
 
+// Get nodes of a fragment or block group to be pasted
+function getPastedNodes(parent: Node | Fragment, editor: Editor) {
+  const nodes: Node[] = []
+  parent.forEach((node) => {
+    if (node.type.name === 'blockGroup') {
+      const prevContainer = nodes.pop()
+      if (prevContainer) {
+        const container = editor.schema.nodes['blockContainer'].create(
+          prevContainer.attrs,
+          prevContainer.content.addToEnd(node),
+        )
+        nodes.push(container)
+      }
+    } else if (node.type.name !== 'blockContainer') {
+      let nodeToInsert = node
+      if (node.type.name === 'text') {
+        nodeToInsert = editor.schema.nodes.paragraph.create({}, node)
+      }
+      const container = editor.schema.nodes['blockContainer'].create(
+        null,
+        nodeToInsert,
+      )
+      nodes.push(container)
+    } else nodes.push(node)
+  })
+  return nodes
+}
+
 export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
   const MarkdownExtension = Extension.create({
     name: 'MarkdownPasteHandler',
@@ -43,6 +71,14 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
                 '== PASTE MarkdownExtension PLUGIN',
                 view.state.selection,
               )
+              const selectedNode = view.state.selection.$from.parent
+              // Don't proceed if pasting into code block
+              if (
+                selectedNode.type.name === 'code-block' ||
+                selectedNode.firstChild?.type.name === 'code-block'
+              ) {
+                return false
+              }
               const pastedText = event.clipboardData!.getData('text/plain')
               const pastedHtml = event.clipboardData!.getData('text/html')
               const hasList =
@@ -70,31 +106,14 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
                   // ).parse(doc.body, {
                   //   findPositions: findPositions,
                   // })
-                  const nodes: Node[] = []
-                  slice.content.forEach((node, offset) => {
-                    if (node.type.name === 'blockGroup') {
-                      const prevContainer = nodes.pop()
-                      if (prevContainer) {
-                        const container = this.editor.schema.nodes[
-                          'blockContainer'
-                        ].create(
-                          prevContainer.attrs,
-                          prevContainer.content.addToEnd(node),
-                        )
-                        nodes.push(container)
-                      }
-                    } else if (node.type.name !== 'blockContainer') {
-                      let nodeToInsert = node
-                      if (node.type.name === 'text') {
-                        nodeToInsert =
-                          this.editor.schema.nodes.paragraph.create({}, node)
-                      }
-                      const container = this.editor.schema.nodes[
-                        'blockContainer'
-                      ].create(null, nodeToInsert)
-                      nodes.push(container)
-                    } else nodes.push(node)
-                  })
+
+                  // If pasting HM editor content, first block will be block group
+                  const firstBlockGroup =
+                    slice.content.firstChild?.type.name === 'blockGroup'
+                  const nodes: Node[] = getPastedNodes(
+                    firstBlockGroup ? slice.content.firstChild : slice.content,
+                    this.editor,
+                  )
                   const root = this.editor.schema.nodes['blockGroup'].create(
                     {},
                     nodes,
