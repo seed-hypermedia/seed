@@ -55,11 +55,13 @@ import {ErrorBoundary} from 'react-error-boundary'
 import {GestureResponderEvent} from 'react-native'
 // import 'show-keys'
 import {EmbedToolbarProvider} from '@/editor/embed-toolbar-context'
-import {Spinner, YStack} from '@shm/ui'
+import {YStack} from '@shm/ui'
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'
 import './draft-page.css'
+
+const splashWidth = 900
 
 export default function DraftPage() {
   const route = useNavRoute()
@@ -88,6 +90,7 @@ export default function DraftPage() {
   if (accessoryKey == 'options' && route.id) {
     accessory = (
       <OptionsPanel
+        allowNewspaperLayout={!route.id?.path?.length}
         metadata={data.state.context.metadata}
         onMetadata={(metadata) => {
           if (!draft.data) return
@@ -108,13 +111,13 @@ export default function DraftPage() {
     }>
   }[] = []
 
-  if (!route.id?.path?.length) {
-    accessoryOptions.push({
-      key: 'options',
-      label: 'Options',
-      icon: Options,
-    })
-  }
+  // if (!route.id?.path?.length) {
+  accessoryOptions.push({
+    key: 'options',
+    label: 'Options',
+    icon: Options,
+  })
+  // }
 
   let draftContent = null
 
@@ -130,6 +133,11 @@ export default function DraftPage() {
         </MainWrapper>
       </XStack>
     )
+  } else if (
+    draft.data?.metadata?.layout == 'Seed/Experimental/Splash' &&
+    route.id
+  ) {
+    draftContent = <SplashLayoutEditor {...data} id={route.id} />
   } else if (!draft.isLoading && route.id) {
     draftContent = <DocumentEditor {...data} id={route.id} />
   }
@@ -144,7 +152,7 @@ export default function DraftPage() {
         }}
         accessoryOptions={accessoryOptions}
       >
-        {shouldRebase ? (
+        {/* {shouldRebase ? (
           <XStack
             theme="yellow"
             bg="$backgroundHover"
@@ -164,7 +172,7 @@ export default function DraftPage() {
               {isRebasing ? <Spinner /> : 'Merge'}
             </Button>
           </XStack>
-        ) : null}
+        ) : null} */}
         {draftContent}
       </AccessoryLayout>
     </ErrorBoundary>
@@ -262,11 +270,225 @@ function DocumentEditor({
                   }}
                 >
                   {editor ? (
-                    <HyperMediaEditorView editable={true} editor={editor} />
+                    <HyperMediaEditorView editor={editor} comment={false} />
                   ) : null}
                 </Container>
               </EmbedToolbarProvider>
             </YStack>
+          </YStack>
+        </AppDocContentProvider>
+      </YStack>
+    )
+
+  return null
+
+  function onDrop(event: DragEvent) {
+    if (!isDragging) return
+    const dataTransfer = event.dataTransfer
+
+    if (dataTransfer) {
+      const ttEditor = (editor as BlockNoteEditor)._tiptapEditor
+      const files: File[] = []
+
+      if (dataTransfer.files.length) {
+        for (let i = 0; i < dataTransfer.files.length; i++) {
+          files.push(dataTransfer.files[i])
+        }
+      } else if (dataTransfer.items.length) {
+        for (let i = 0; i < dataTransfer.items.length; i++) {
+          const item = dataTransfer.items[i].getAsFile()
+          if (item) {
+            files.push(item)
+          }
+        }
+      }
+
+      if (files.length > 0) {
+        const editorElement = document.getElementsByClassName(
+          'mantine-Editor-root',
+        )[0]
+        const editorBoundingBox = editorElement.getBoundingClientRect()
+        const posAtCoords = ttEditor.view.posAtCoords({
+          left: editorBoundingBox.left + editorBoundingBox.width / 2,
+          top: event.clientY,
+        })
+        let pos: number | null
+        if (posAtCoords && posAtCoords.inside !== -1) pos = posAtCoords.pos
+        else if (event.clientY > editorBoundingBox.bottom)
+          pos = ttEditor.view.state.doc.content.size - 4
+
+        let lastId: string
+
+        // using reduce so files get inserted sequentially
+        files
+          // @ts-expect-error
+          .reduce((previousPromise, file, index) => {
+            return previousPromise.then(() => {
+              event.preventDefault()
+              event.stopPropagation()
+
+              if (pos) {
+                return handleDragMedia(file).then((props) => {
+                  if (!props) return false
+
+                  const {state} = ttEditor.view
+                  let blockNode
+                  const newId = generateBlockId()
+
+                  if (chromiumSupportedImageMimeTypes.has(file.type)) {
+                    blockNode = {
+                      id: newId,
+                      type: 'image',
+                      props: {
+                        url: props.url,
+                        name: props.name,
+                      },
+                    }
+                  } else if (chromiumSupportedVideoMimeTypes.has(file.type)) {
+                    blockNode = {
+                      id: newId,
+                      type: 'video',
+                      props: {
+                        url: props.url,
+                        name: props.name,
+                      },
+                    }
+                  } else {
+                    blockNode = {
+                      id: newId,
+                      type: 'file',
+                      props: {
+                        ...props,
+                      },
+                    }
+                  }
+
+                  const blockInfo = getBlockInfoFromPos(state.doc, pos)
+
+                  if (index === 0) {
+                    ;(editor as BlockNoteEditor).insertBlocks(
+                      [blockNode],
+                      blockInfo.id,
+                      // blockInfo.node.textContent ? 'after' : 'before',
+                      'after',
+                    )
+                  } else {
+                    ;(editor as BlockNoteEditor).insertBlocks(
+                      [blockNode],
+                      lastId,
+                      'after',
+                    )
+                  }
+
+                  lastId = newId
+                })
+              }
+            })
+          }, Promise.resolve())
+        // .then(() => true) // TODO: @horacio ask Iskak about this
+        setIsDragging(false)
+        return true
+      }
+      setIsDragging(false)
+      return false
+    }
+    setIsDragging(false)
+
+    return false
+  }
+
+  function onCopyBlock(
+    blockId: string,
+    blockRange: BlockRange | ExpandedBlockRange | undefined,
+  ) {
+    const gwUrl = useGatewayUrl()
+
+    if (!id) throw new Error('draft route id is missing')
+
+    if (!id?.uid) throw new Error('uid could not be extracted from draft route')
+    copyUrlToClipboardWithFeedback(
+      createWebHMUrl(id.type, id.uid, {
+        blockRef: blockId,
+        blockRange,
+        hostname: gwUrl.data,
+      }),
+      'Block',
+    )
+  }
+}
+
+function SplashLayoutEditor({
+  editor,
+  state,
+  actor,
+  handleFocusAtMousePos,
+  id,
+}: ReturnType<typeof useDraftEditor> & {id: UnpackedHypermediaId}) {
+  const route = useNavRoute()
+  if (route.key != 'draft') throw new Error('DraftPage must have draft route')
+  const importWebFile = trpc.webImporting.importWebFile.useMutation()
+  const [isDragging, setIsDragging] = useState(false)
+  const [showCover, setShowCover] = useState(false)
+
+  const cover = useSelector(actor, (s) => s.context.metadata.cover)
+
+  useEffect(() => {
+    let val = !!cover
+    if (val != showCover) {
+      setShowCover(val)
+    }
+  }, [cover])
+
+  useEffect(() => {
+    if (!id?.id) return
+    return subscribeDraftFocus(id?.id, (blockId: string) => {
+      if (editor) {
+        editor._tiptapEditor.commands.focus()
+        editor.setTextCursorPosition(blockId, 'end')
+      }
+    })
+  }, [id?.id, editor])
+
+  if (state.matches('ready'))
+    return (
+      <YStack
+        onDragStart={() => {
+          setIsDragging(true)
+        }}
+        onDragEnd={() => {
+          setIsDragging(false)
+        }}
+        onDragOver={(event: DragEvent) => {
+          event.preventDefault()
+          setIsDragging(true)
+        }}
+        onDrop={onDrop}
+        onPress={handleFocusAtMousePos}
+      >
+        <AppDocContentProvider
+          disableEmbedClick
+          onCopyBlock={onCopyBlock}
+          importWebFile={importWebFile}
+          docId={id}
+        >
+          <YStack className="layout-splash">
+            <DraftHero />
+            <EmbedToolbarProvider>
+              <Container
+                maxWidth={splashWidth}
+                paddingLeft="$4"
+                marginBottom={300}
+                onPress={(e: GestureResponderEvent) => {
+                  // this prevents to fire handleFocusAtMousePos on click
+                  e.stopPropagation()
+                  // editor?._tiptapEditor.commands.focus()
+                }}
+              >
+                {editor ? (
+                  <HyperMediaEditorView comment={false} editor={editor} />
+                ) : null}
+              </Container>
+            </EmbedToolbarProvider>
           </YStack>
         </AppDocContentProvider>
       </YStack>
@@ -611,6 +833,24 @@ export function DraftHeader({
   )
 }
 
+export function DraftHero({}) {
+  return (
+    <YStack bg="$green7" h="35vh">
+      <Container
+        f={1}
+        ai="flex-start"
+        jc="center"
+        maxWidth={splashWidth}
+        gap="$4"
+      >
+        <SizableText size="$8" fontWeight="bold" maxWidth="50%">
+          Lorem ipsum dolor sit amet, consectetur adipiscing elit. (Metadata)
+        </SizableText>
+        <Button theme="brand">Click me now</Button>
+      </Container>
+    </YStack>
+  )
+}
 export function DraftCover({
   draftActor,
   disabled = false,
@@ -629,21 +869,6 @@ export function DraftCover({
   const cover = useSelector(draftActor, (s) => {
     return s.context.metadata.cover
   })
-
-  const input = useRef<HTMLTextAreaElement | null>(null)
-
-  useShowTitleObserver(input.current)
-
-  useEffect(() => {
-    // handle the initial size of the title
-    const target = input.current
-    if (!target) return
-    applyTitleResize(target)
-    draftActor.send({
-      type: 'SET.NAME.REF',
-      nameRef: target,
-    })
-  }, [input.current])
 
   return (
     <YStack

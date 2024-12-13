@@ -1,15 +1,17 @@
 import {ImageForm} from '@/pages/image-form'
 import {getFileUrl, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
-import {Input, Label, SelectDropdown, YStack} from '@shm/ui'
+import {Input, Label, SelectDropdown, XStack, YStack} from '@shm/ui'
 import {AccessoryContainer} from './accessory-sidebar'
 import {IconForm} from './icon-form'
 
 export function OptionsPanel({
+  allowNewspaperLayout = false,
   onClose,
   draftId,
   onMetadata,
   metadata,
 }: {
+  allowNewspaperLayout: boolean
   onClose: () => void
   draftId: UnpackedHypermediaId
   onMetadata: (values: Partial<HMMetadata>) => void
@@ -34,21 +36,67 @@ export function OptionsPanel({
         </YStack>
         <YStack>
           <Label size="$1">Icon</Label>
-          <IconForm
-            size={100}
-            id={`icon-${draftId.id}`}
-            label={metadata.name}
-            url={metadata.icon ? getFileUrl(metadata.icon) : ''}
-            onIconUpload={(icon) => {
-              if (icon) {
+          <XStack ai="center" jc="center">
+            <IconForm
+              size={100}
+              id={`icon-${draftId.id}`}
+              label={metadata.name}
+              url={metadata.icon ? getFileUrl(metadata.icon) : ''}
+              onIconUpload={(icon) => {
+                if (icon) {
+                  onMetadata({
+                    icon: `ipfs://${icon}`,
+                  })
+                }
+              }}
+              onRemoveIcon={() => {
                 onMetadata({
-                  icon: `ipfs://${icon}`,
+                  icon: '',
+                })
+              }}
+            />
+          </XStack>
+        </YStack>
+        <YStack>
+          <Label size="$1">Header Logo</Label>
+          <ImageForm
+            id={`logo-${draftId.id}`}
+            label={metadata.seedExperimentalLogo}
+            url={
+              metadata.seedExperimentalLogo
+                ? getFileUrl(metadata.seedExperimentalLogo)
+                : ''
+            }
+            onImageUpload={(imgageCid) => {
+              if (imgageCid) {
+                onMetadata({
+                  seedExperimentalLogo: `ipfs://${imgageCid}`,
                 })
               }
             }}
-            onRemoveIcon={() => {
+            onRemove={() => {
               onMetadata({
-                icon: '',
+                seedExperimentalLogo: '',
+              })
+            }}
+          />
+        </YStack>
+        <YStack>
+          <Label size="$1">Cover Image</Label>
+          <ImageForm
+            id={`cover-${draftId.id}`}
+            label={metadata.cover}
+            url={metadata.cover ? getFileUrl(metadata.cover) : ''}
+            onImageUpload={(imgageCid) => {
+              if (imgageCid) {
+                onMetadata({
+                  cover: `ipfs://${imgageCid}`,
+                })
+              }
+            }}
+            onRemove={() => {
+              onMetadata({
+                cover: '',
               })
             }}
           />
@@ -58,41 +106,24 @@ export function OptionsPanel({
           <SelectDropdown
             width="100%"
             options={
-              [
-                {label: 'Newspaper Home', value: 'Seed/Experimental/Newspaper'},
-                {label: 'Splash Home', value: 'Seed/Experimental/Splash'},
-                {label: 'Document', value: ''},
-              ] as const
+              allowNewspaperLayout
+                ? ([
+                    {label: 'Document', value: ''},
+                    {
+                      label: 'Newspaper Home',
+                      value: 'Seed/Experimental/Newspaper',
+                    },
+                    {label: 'Splash Home', value: 'Seed/Experimental/Splash'},
+                  ] as const)
+                : ([
+                    {label: 'Document', value: ''},
+                    {label: 'Splash Home', value: 'Seed/Experimental/Splash'},
+                  ] as const)
             }
             value={metadata.layout || ''}
             onValue={(layout) => onMetadata({layout})}
           />
         </YStack>
-      </YStack>
-      <YStack>
-        <Label size="$1">Header Logo</Label>
-        <ImageForm
-          size={100}
-          id={`logo-${draftId.id}`}
-          label={metadata.seedExperimentalLogo}
-          url={
-            metadata.seedExperimentalLogo
-              ? getFileUrl(metadata.seedExperimentalLogo)
-              : ''
-          }
-          onImageUpload={(imgageCid) => {
-            if (imgageCid) {
-              onMetadata({
-                seedExperimentalLogo: `ipfs://${imgageCid}`,
-              })
-            }
-          }}
-          onRemove={() => {
-            onMetadata({
-              seedExperimentalLogo: '',
-            })
-          }}
-        />
       </YStack>
       {isNewspaperLayout ? (
         <YStack>
