@@ -201,6 +201,7 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUN_ID: ${{ github.run_id }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          VERSION: ${{ needs.build-info.outputs.version }}
         run: |
           # Debug: List all files in artifacts directory
           echo "Listing all files in artifacts directory:"
@@ -210,7 +211,7 @@ jobs:
           BASE_URL="https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest"
 
           # List all artifacts and construct URLs
-          MESSAGE="**New dev version: ${VITE_VERSION}**"
+          MESSAGE="**New dev version: ${VERSION}**"
           for file in $(find artifacts -type f); do
             FILE_NAME=$(basename "$file")
             ARTIFACT_URL="${BASE_URL}/${FILE_NAME}"
