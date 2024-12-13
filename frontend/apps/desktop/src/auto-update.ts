@@ -1,20 +1,21 @@
-import {IS_PROD_DESKTOP} from '@shm/shared'
+import {IS_PROD_DESKTOP, IS_PROD_DEV, VERSION} from '@shm/shared'
 import {
-  BrowserWindow,
-  MessageBoxOptions,
   app,
   autoUpdater,
+  BrowserWindow,
   dialog,
+  MessageBoxOptions,
   shell,
 } from 'electron'
 import log from 'electron-log/main'
+import {updateElectronApp, UpdateSourceType} from 'update-electron-app'
 
 export function defaultCheckForUpdates() {
   log.debug('[MAIN][AUTO-UPDATE]: checking for Updates')
   // ipcMain.emit(ipcMainEvents.CHECK_FOR_UPDATES_START)
-  try {
-    autoUpdater.checkForUpdates()
-  } catch (error) {}
+
+  autoUpdater.checkForUpdates()
+
   // ipcMain.emit(ipcMainEvents.CHECK_FOR_UPDATES_END)
   log.debug('[MAIN][AUTO-UPDATE]: checking for Updates END')
 }
@@ -62,11 +63,29 @@ function setup() {
    * - adopt the `feedback` variable to show/hide dialogs
    */
 
-  const updateUrl = `https://update.electronjs.org/seed-hypermedia/seed/${
-    process.platform
-  }-${process.arch}/${app.getVersion()}`
+  log.debug(`== [MAIN][AUTO-UPDATE]: IS_PROD_DEV + VERSION:`, {
+    VERSION,
+    IS_PROD_DEV,
+  })
 
-  autoUpdater.setFeedURL({url: updateUrl})
+  updateElectronApp({
+    updateSource: IS_PROD_DEV
+      ? {
+          type: UpdateSourceType.StaticStorage,
+          baseUrl: `https://seedappdev.s3.eu-west-2.amazonaws.com/dev/${process.platform}/${process.arch}`,
+        }
+      : {
+          type: UpdateSourceType.ElectronPublicUpdateService,
+          repo: 'seed-hypermedia/seed',
+        },
+    logger: log,
+  })
+
+  // const updateUrl = `https://update.electronjs.org/seed-hypermedia/seed/${
+  //   process.platform
+  // }-${process.arch}/${app.getVersion()}`
+
+  // autoUpdater.setFeedURL({url: updateUrl})
 
   autoUpdater.on('error', (message) => {
     log.error(
@@ -92,8 +111,10 @@ function setup() {
     }
 
     dialog.showMessageBox(dialogOpts).then((returnValue: any) => {
-      log.debug('[MAIN][AUTO-UPDATE]: Quit and Install')
-      if (returnValue.response === 0) autoUpdater.quitAndInstall()
+      if (returnValue.response === 0) {
+        log.debug('[MAIN][AUTO-UPDATE]: Quit and Install')
+        autoUpdater.quitAndInstall()
+      }
     })
   })
 
@@ -103,16 +124,20 @@ function setup() {
 }
 
 export function linuxCheckForUpdates() {
-  log.debug(
-    '[MAIN][AUTO-UPDATE]: checking for Updates',
-    `https://update.electronjs.org/seed-hypermedia/seed/darwin-x64/${app.getVersion()}`,
-  )
+  const UPDATE_URL = IS_PROD_DEV
+    ? `https://seedappdev.s3.eu-west-2.amazonaws.com/dev/${process.platform}/${
+        process.arch
+      }/${app.getVersion()}`
+    : `https://update.electronjs.org/seed-hypermedia/seed/${process.platform}-${
+        process.arch
+      }/${app.getVersion()}`
+
+  log.debug('[MAIN][AUTO-UPDATE]: checking for Updates', UPDATE_URL)
+
   // ipcMain.emit(ipcMainEvents.CHECK_FOR_UPDATES_START)
   try {
     // TODO: change this to fetch THE LATEST version and compare it with `app.getVersion()`
-    fetch(
-      `https://update.electronjs.org/seed-hypermedia/seed/darwin-x64/${app.getVersion()}`,
-    ).then((res) => {
+    fetch(UPDATE_URL).then((res) => {
       log.debug('[MAIN][AUTO-UPDATE]: LINUX FETCH RES', res)
       if ('name' in res && res.name) {
         log.debug('[MAIN][AUTO-UPDATE]: LINUX NEED TO UPDATE', res)

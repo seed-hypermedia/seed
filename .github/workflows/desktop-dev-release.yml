@@ -1,12 +1,13 @@
-name: Desktop app release
+name: Desktop dev release
 
 permissions:
   contents: write
 
 on:
+  workflow_dispatch:
   push:
-    tags:
-      - "*.*.*"
+    branches:
+      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -28,8 +29,9 @@ jobs:
       - name: Set Version
         id: set_version
         run: |
-          VERSION=${{ github.ref_name }}
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          node scripts/generate-dev-version.mjs --debug
+          VERSION=$(node scripts/generate-dev-version.mjs)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Display Version
         run: |
@@ -49,6 +51,7 @@ jobs:
   build-binaries:
     name: Build ${{ matrix.config.os }} @ ${{ matrix.config.arch }}
     runs-on: ${{ matrix.config.os }}
+    # if: startsWith(github.ref, 'refs/tags/')
     needs: [build-info, frontend-tests]
     strategy:
       matrix:
@@ -122,7 +125,7 @@ jobs:
       - name: Build, package & make (Unix)
         if: matrix.config.os != 'windows-latest'
         run: |
-          yarn desktop:make --arch=${{ matrix.config.arch }}
+          yarn desktop:publish --arch=${{ matrix.config.arch }}
         env:
           timeout-minutes: 10
           NODE_OPTIONS: --max_old_space_size=4096
@@ -130,23 +133,26 @@ jobs:
           DAEMON_NAME: ${{ matrix.config.daemon_name }}
           VITE_VERSION: "${{ needs.build-info.outputs.version }}"
           VITE_COMMIT_HASH: "${{ github.sha }}"
-          VITE_DESKTOP_P2P_PORT: "56000"
-          VITE_DESKTOP_HTTP_PORT: "56001"
-          VITE_DESKTOP_GRPC_PORT: "56002"
-          VITE_DESKTOP_APPDATA: "Seed"
+          VITE_DESKTOP_P2P_PORT: "57000"
+          VITE_DESKTOP_HTTP_PORT: "57001"
+          VITE_DESKTOP_GRPC_PORT: "57002"
+          VITE_DESKTOP_APPDATA: "Seed-dev"
           VITE_DESKTOP_HOSTNAME: "http://localhost"
-          VITE_LIGHTNING_API_URL: "https://ln.seed.hyper.media"
-          VITE_GATEWAY_URL: "https://hyper.media"
+          VITE_LIGHTNING_API_URL: "https://ln.testnet.seed.hyper.media"
+          VITE_GATEWAY_URL: "https://dev.hyper.media"
           VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
           SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
+          S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
+          S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          SEED_P2P_TESTNET_NAME: "dev"
 
       - name: Build, package and make (Win32)
         if: startsWith(matrix.config.os, 'windows')
         run: |
-          yarn desktop:make --arch=${{ matrix.config.arch }}
+          yarn desktop:publish --arch=${{ matrix.config.arch }}
         env:
           timeout-minutes: 10
           NODE_OPTIONS: --max_old_space_size=4096
@@ -154,25 +160,28 @@ jobs:
           DAEMON_NAME: "${{ matrix.config.daemon_name }}.exe"
           VITE_VERSION: "${{ needs.build-info.outputs.version }}"
           VITE_COMMIT_HASH: "${{ github.sha }}"
-          VITE_DESKTOP_P2P_PORT: "56000"
-          VITE_DESKTOP_HTTP_PORT: "56001"
-          VITE_DESKTOP_GRPC_PORT: "56002"
-          VITE_DESKTOP_APPDATA: "Seed"
+          VITE_DESKTOP_P2P_PORT: "57000"
+          VITE_DESKTOP_HTTP_PORT: "57001"
+          VITE_DESKTOP_GRPC_PORT: "57002"
+          VITE_DESKTOP_APPDATA: "Seed-dev"
           VITE_DESKTOP_HOSTNAME: "http://localhost"
           VITE_LIGHTNING_API_URL: "https://ln.seed.hyper.media"
-          VITE_GATEWAY_URL: "https://hyper.media"
+          VITE_GATEWAY_URL: "https://dev.hyper.media"
           VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
           SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
+          S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
+          S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
+          SEED_P2P_TESTNET_NAME: "dev"
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: artifacts-${{ matrix.config.daemon_name }}
           path: frontend/apps/desktop/out/make/**/*
-  publish-to-github:
+
+  notify-on-discord:
     needs: [build-info, build-binaries]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -183,12 +192,30 @@ jobs:
         with:
           path: artifacts
 
-      - name: "create release"
-        uses: softprops/action-gh-release@v2
+      # Step 3: Generate artifact URLs and send to Discord
+      - name: Send Discord Notification
         env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-        with:
-          tag_name: "${{ needs.build-info.outputs.version }}"
-          prerelease: true
-          generate_release_notes: true
-          files: ./artifacts/artifacts-*/**/*
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          VERSION: ${{ needs.build-info.outputs.version }}
+        run: |
+          # Debug: List all files in artifacts directory
+          echo "Listing all files in artifacts directory:"
+          find artifacts -type f -ls
+
+          # Get the GitHub Action Run URL base
+          BASE_URL="https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest"
+
+          # List all artifacts and construct URLs
+          MESSAGE="**New dev version: ${VERSION}**"
+          for file in $(find artifacts -type f); do
+            FILE_NAME=$(basename "$file")
+            ARTIFACT_URL="${BASE_URL}/${FILE_NAME}"
+            MESSAGE="${MESSAGE}\n - [${FILE_NAME}](${ARTIFACT_URL})"
+          done
+
+          # Send the message to Discord
+          echo "Sending Discord Notification..."
+          PAYLOAD=$(printf '{"content": "%s"}' "$MESSAGE")
+          curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK_URL"

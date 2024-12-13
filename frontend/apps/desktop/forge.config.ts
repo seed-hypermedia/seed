@@ -2,14 +2,17 @@ import {MakerDeb, MakerDebConfig} from '@electron-forge/maker-deb'
 import {MakerRpm, MakerRpmConfig} from '@electron-forge/maker-rpm'
 import {MakerSquirrel} from '@electron-forge/maker-squirrel'
 import {MakerZIP} from '@electron-forge/maker-zip'
+import {PublisherS3} from '@electron-forge/publisher-s3'
 import type {ForgeConfig} from '@electron-forge/shared-types'
 // import {MakerRpm} from '@electron-forge/maker-rpm'
 import {VitePlugin} from '@electron-forge/plugin-vite'
 import path from 'node:path'
 import packageJson from './package.json'
 // import setLanguages from 'electron-packager-languages'
+import fs from 'node:fs'
 
 const {version} = packageJson
+const IS_PROD_DEV = version.includes('dev')
 
 const devProjectRoot = path.join(process.cwd(), '../../..')
 const LLVM_TRIPLES = {
@@ -34,20 +37,22 @@ const daemonBinaryPath = path.join(
   `plz-out/bin/backend/seed-daemon-${getPlatformTriple()}`,
 )
 
-let iconsPath = process.env.CI
-  ? path.resolve(__dirname, 'assets', 'icons-prod', 'icon')
-  : path.resolve(__dirname, 'assets', 'icons', 'icon')
+let iconsPath = IS_PROD_DEV
+  ? path.resolve(__dirname, 'assets', 'icons', 'icon')
+  : path.resolve(__dirname, 'assets', 'icons-prod', 'icon')
 
 const commonLinuxConfig = {
   options: {
+    name: IS_PROD_DEV ? 'seed-dev' : 'seed',
     categories: ['Development', 'Utility'],
     icon: `${iconsPath}.png`,
     maintainer: 'Mintter Inc.',
+    genericName: IS_PROD_DEV ? 'SeedDev' : 'Seed',
     description: 'Seed: a hyper.media protocol client',
-    productName: 'Seed',
+    productName: IS_PROD_DEV ? 'SeedDev' : 'Seed',
     mimeType: ['x-scheme-handler/hm'],
     version,
-    bin: 'Seed',
+    bin: IS_PROD_DEV ? 'seed-dev' : 'seed',
     homepage: 'https://seedhypermedia.com',
   },
 }
@@ -58,9 +63,9 @@ const config: ForgeConfig = {
     asar: true,
     darwinDarkModeSupport: true,
     icon: iconsPath,
-    name: 'Seed',
-    appBundleId: 'com.seed.app',
-    executableName: 'Seed',
+    name: IS_PROD_DEV ? 'SeedDev' : 'Seed',
+    appBundleId: IS_PROD_DEV ? 'com.seed.app.dev' : 'com.seed.app',
+    executableName: IS_PROD_DEV ? 'seed-dev' : 'seed',
     appCategoryType: 'public.app-category.productivity',
     // packageManager: 'yarn',
     extraResource: [daemonBinaryPath],
@@ -73,23 +78,44 @@ const config: ForgeConfig = {
   },
   makers: [
     new MakerDeb(commonLinuxConfig as MakerDebConfig),
-    new MakerZIP({}, ['darwin']),
-    new MakerSquirrel({
-      name: 'Seed',
+    new MakerZIP(
+      IS_PROD_DEV
+        ? (arch) => ({
+            // Note that we must provide this S3 URL here
+            // in order to support smooth version transitions
+            // especially when using a CDN to front your updates
+            macUpdateManifestBaseUrl: `https://seedappdev.s3.eu-west-2.amazonaws.com/dev/darwin/${arch}`,
+          })
+        : {},
+      ['darwin'],
+    ),
+    new MakerSquirrel((arch) => ({
+      name: IS_PROD_DEV ? 'SeedDev' : 'Seed',
       authors: 'Mintter inc.',
-      exe: 'seed.exe',
-      description: 'Seed: a hyper.media protocol client',
+      exe: IS_PROD_DEV ? 'seed-dev.exe' : 'seed.exe',
+      description: `Seed: a hyper.media protocol client ${
+        IS_PROD_DEV ? '(dev build)' : ''
+      }`,
       // An URL to an ICO file to use as the application icon (displayed in Control Panel > Programs and Features).
       iconUrl: `${iconsPath}.ico`,
       noMsi: true,
       setupIcon: `${iconsPath}.ico`,
-      setupExe: `seed-${version}-win32-${process.arch}-setup.exe`,
+      setupExe: `seed${IS_PROD_DEV ? '-dev' : ''}-${version}-win32-${
+        process.arch
+      }-setup.exe`,
       // The ICO file to use as the icon for the generated Setup.exe
       loadingGif: path.resolve(__dirname, 'assets', 'loading.gif'),
 
+      // Note that we must provide this S3 URL here
+      // in order to generate delta updates
+      // remoteReleases: `https://seedappdev.s3.eu-west-2.amazonaws.com/dev/win32/${arch}`,
+      remoteReleases: IS_PROD_DEV
+        ? `https://seedappdev.s3.eu-west-2.amazonaws.com/dev/win32/${arch}`
+        : undefined,
+
       // certificateFile: process.env.WINDOWS_PFX_FILE,
       // certificatePassword: process.env.WINDOWS_PFX_PASSWORD,
-    }),
+    })),
     new MakerRpm(commonLinuxConfig as MakerRpmConfig),
     // new MakerFlatpak(commonLinuxConfig as unknown as MakerFlatpakConfig),
   ],
@@ -135,6 +161,61 @@ const config: ForgeConfig = {
     }),
   ],
   publishers: [],
+  hooks: {
+    postPackage: async (_config, options) => {
+      console.info('PostPackage output paths:', options.outputPaths)
+
+      for (const outputPath of options.outputPaths) {
+        console.info(`\nListing contents of: ${outputPath}`)
+        const files = fs.readdirSync(outputPath)
+        files.forEach((file) => {
+          const stats = fs.statSync(`${outputPath}/${file}`)
+          console.info(
+            `- ${file} (${stats.isDirectory() ? 'directory' : 'file'})`,
+          )
+        })
+      }
+    },
+    postMake: async (_config, results) => {
+      console.info('PostMake results:', results)
+    },
+  },
+}
+
+function addPublishers() {
+  if (!process.env.CI) {
+    return
+  }
+
+  config.publishers?.push(
+    new PublisherS3({
+      bucket: 'seedappdev',
+      accessKeyId: process.env.S3_ACCESS_KEY,
+      secretAccessKey: process.env.S3_SECRET_KEY,
+      folder: 'dev',
+      omitAcl: true,
+      public: true,
+      region: 'eu-west-2',
+      s3ForcePathStyle: true,
+    }),
+    // this updates the latest folder
+    new PublisherS3({
+      bucket: 'seedappdev',
+      accessKeyId: process.env.S3_ACCESS_KEY,
+      secretAccessKey: process.env.S3_SECRET_KEY,
+      folder: 'dev',
+      omitAcl: true,
+      public: true,
+      region: 'eu-west-2',
+      s3ForcePathStyle: true,
+      keyResolver(fileName, platform, arch) {
+        if (fileName.endsWith('latest.yml')) {
+          return 'dev/latest/latest.yml'
+        }
+        return `dev/latest/${fileName}`
+      },
+    }),
+  )
 }
 
 function buildDMGMaybe() {
@@ -185,13 +266,12 @@ function notarizeMaybe() {
     `[FORGE CONFIG]: 🎉 adding 'osxNotarize' and 'osxSign' values to the config. Proceed to Sign and Notarize`,
   )
 
-  // @ts-expect-error
-  config.packagerConfig.osxNotarize = {
-    tool: 'notarytool',
-    appleId: process.env.APPLE_ID,
-    appleIdPassword: process.env.APPLE_ID_PASSWORD,
-    teamId: process.env.APPLE_TEAM_ID,
-  }
+  // config.packagerConfig.osxNotarize = {
+  //   // tool: 'notarytool',
+  //   appleId: process.env.APPLE_ID || '',
+  //   appleIdPassword: process.env.APPLE_ID_PASSWORD || '',
+  //   teamId: process.env.APPLE_TEAM_ID || '',
+  // }
 
   // @ts-expect-error
   config.packagerConfig.osxSign = {
@@ -209,5 +289,6 @@ function notarizeMaybe() {
 
 notarizeMaybe()
 buildDMGMaybe()
+addPublishers()
 
 module.exports = config

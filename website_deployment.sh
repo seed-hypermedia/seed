@@ -148,7 +148,7 @@ exit 0
 # sh <(curl -sL https://raw.githubusercontent.com/seed-hypermedia/seed/main/website_deployment.sh) https://my.example.domain --tag main --auto-update --testnet
 
 ## To Set up Test Gateway:
-# sh <(curl -sL https://raw.githubusercontent.com/seed-hypermedia/seed/main/website_deployment.sh) https://test.hyper.media --tag main --auto-update --testnet --gateway
+# sh <(curl -sL https://raw.githubusercontent.com/seed-hypermedia/seed/main/website_deployment.sh) https://dev.hyper.media --tag main --auto-update --testnet --gateway
 
 ### To clean the server for new testing:
 ## 1. stop and delete all running docker containers
