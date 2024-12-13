@@ -63,18 +63,18 @@ jobs:
             arch: x64
             goarch: amd64
             daemon_name: x86_64-apple-darwin
-          # - os: macos-13-xlarge
-          #   arch: arm64
-          #   goarch: arm64
-          #   daemon_name: aarch64-apple-darwin
+          - os: macos-13-xlarge
+            arch: arm64
+            goarch: arm64
+            daemon_name: aarch64-apple-darwin
           - os: ubuntu-latest
             arch: x64
             goarch: amd64
             daemon_name: x86_64-unknown-linux-gnu
-          # - os: windows-latest
-          #   arch: x64
-          #   goarch: amd64
-          #   daemon_name: x86_64-pc-windows-msvc
+          - os: windows-latest
+            arch: x64
+            goarch: amd64
+            daemon_name: x86_64-pc-windows-msvc
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -210,11 +210,11 @@ jobs:
           BASE_URL="https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest"
 
           # List all artifacts and construct URLs
-          MESSAGE="Artifacts Uploaded:"
+          MESSAGE="**New dev version: ${VITE_VERSION}**"
           for file in $(find artifacts -type f); do
             FILE_NAME=$(basename "$file")
             ARTIFACT_URL="${BASE_URL}/${FILE_NAME}"
-            MESSAGE="${MESSAGE}\n - ${ARTIFACT_URL}"
+            MESSAGE="${MESSAGE}\n - [${FILE_NAME}](${ARTIFACT_URL})"
           done
 
           # Send the message to Discord
