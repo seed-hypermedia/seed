@@ -1,6 +1,14 @@
 import {ImageForm} from '@/pages/image-form'
 import {getFileUrl, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
-import {Input, Label, SelectDropdown, YStack} from '@shm/ui'
+import {
+  ButtonText,
+  Input,
+  Label,
+  SelectDropdown,
+  SimpleDatePicker,
+  YStack,
+} from '@shm/ui'
+import {useState} from 'react'
 import {AccessoryContainer} from './accessory-sidebar'
 import {IconForm} from './icon-form'
 
@@ -112,6 +120,40 @@ export function OptionsPanel({
           </YStack>
         </>
       ) : null}
+      <OriginalPublishDate metadata={metadata} onMetadata={onMetadata} />
     </AccessoryContainer>
+  )
+}
+
+function OriginalPublishDate({
+  metadata,
+  onMetadata,
+}: {
+  metadata: HMMetadata
+  onMetadata: (values: Partial<HMMetadata>) => void
+}) {
+  const [isAdding, setIsAdding] = useState(false)
+  if (!isAdding && !metadata.originalPublishTime) {
+    return (
+      <ButtonText size="$1" color="$blue10" onPress={() => setIsAdding(true)}>
+        Set Original Publish Date
+      </ButtonText>
+    )
+  }
+  return (
+    <YStack>
+      <Label size="$1">Original Publish Date</Label>
+      <SimpleDatePicker
+        value={metadata.originalPublishTime || new Date().toDateString()}
+        onValue={(originalPublishTime) => {
+          console.log('onmeta', originalPublishTime)
+          onMetadata({originalPublishTime})
+        }}
+        onReset={() => {
+          setIsAdding(false)
+          onMetadata({originalPublishTime: ''})
+        }}
+      />
+    </YStack>
   )
 }

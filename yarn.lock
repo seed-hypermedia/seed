@@ -7923,6 +7923,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@rehookify/datepicker@npm:^6.6.8":
+  version: 6.6.8
+  resolution: "@rehookify/datepicker@npm:6.6.8"
+  peerDependencies:
+    react: ^16.8.0 || ^17 || ^18 || ^19
+  checksum: a055f58482acdcb914a800970ca0320fed18b9f64b53d283790f4f4c2a3c0514e9c878e073502415873e82f287a6876e1942021c81205004a64e86f40d7789d0
+  languageName: node
+  linkType: hard
+
 "@remirror/core-constants@npm:^2.0.2":
   version: 2.0.2
   resolution: "@remirror/core-constants@npm:2.0.2"
@@ -9105,6 +9114,7 @@ __metadata:
   resolution: "@shm/ui@workspace:frontend/packages/ui"
   dependencies:
     "@hookform/resolvers": 3.3.1
+    "@rehookify/datepicker": ^6.6.8
     "@shm/prettier": "*"
     "@shm/shared": "*"
     "@tamagui/animations-moti": 1.108.2

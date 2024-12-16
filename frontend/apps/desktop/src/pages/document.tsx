@@ -25,8 +25,6 @@ import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   DocAccessoryOption,
-  formattedDateLong,
-  formattedDateMedium,
   getDocumentTitle,
   getFileUrl,
   HMEntityContent,
@@ -40,6 +38,7 @@ import {
   CollaboratorsIcon,
   Container,
   DocContent,
+  DocumentDate,
   getSiteNavDirectory,
   HistoryIcon,
   HMIcon,
@@ -47,7 +46,6 @@ import {
   SeedHeading,
   SizableText,
   Spinner,
-  Tooltip,
   Separator as TSeparator,
   XStack,
   YStack,
@@ -429,21 +427,9 @@ function DocPageHeader({
                     <Separator />
                   </>
                 ) : null}
-                <Tooltip
-                  content={`Update time: ${formattedDateLong(
-                    entity.data?.document?.updateTime,
-                  )}`}
-                >
-                  <SizableText
-                    flexShrink={0}
-                    flexGrow={0}
-                    size="$1"
-                    hoverStyle={{cursor: 'default'}}
-                    color="$color9"
-                  >
-                    {formattedDateMedium(entity.data?.document?.updateTime)}
-                  </SizableText>
-                </Tooltip>
+                {entity.data?.document ? (
+                  <DocumentDate document={entity.data.document} />
+                ) : null}
               </XStack>
               {entity.data?.document && (
                 <DocumentHeadItems

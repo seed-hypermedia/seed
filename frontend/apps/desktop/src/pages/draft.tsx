@@ -108,13 +108,11 @@ export default function DraftPage() {
     }>
   }[] = []
 
-  if (!route.id?.path?.length) {
-    accessoryOptions.push({
-      key: 'options',
-      label: 'Options',
-      icon: Options,
-    })
-  }
+  accessoryOptions.push({
+    key: 'options',
+    label: 'Options',
+    icon: Options,
+  })
 
   let draftContent = null
 
