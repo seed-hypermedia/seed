@@ -110,15 +110,25 @@ function convertBlocksToHtml(blocks: EditorBlock[]) {
 export function generateFrontMatter(document: HMDocument) {
   const metadata = document.metadata || {}
   const createTime = document.createTime
-  const millis =
-    Number(createTime.seconds) * 1000 + createTime.nanos / 1_000_000
-  const date = new Date(millis)
+  let date = ''
+  if (typeof createTime === 'string') {
+    date = createTime
+  } else if (
+    createTime &&
+    typeof createTime === 'object' &&
+    'seconds' in createTime &&
+    'nanos' in createTime
+  ) {
+    const millis =
+      Number(createTime.seconds) * 1000 + Math.floor(createTime.nanos / 1e6)
+    date = new Date(millis).toISOString()
+  }
 
   const frontMatter = `---
 title: ${metadata.name || ''}
 icon: ${metadata.icon || ''}
 cover_image: ${metadata.cover || ''}
-created_at: ${date.toISOString()}
+created_at: ${date}
 path: ${document.path || ''}
 ---
 
