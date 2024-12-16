@@ -40,8 +40,8 @@ const (
 	// PeerBatchTimeout is the maximum time spent pert batch of checking.
 	PeerBatchTimeout = time.Second * 10
 	// StorePeersBatchSize is the number of shared peers to check at once for protocols.
-	StorePeersBatchSize    = 25
-	maxNonSeedPeersAllowed = 20
+	StorePeersBatchSize    = 20
+	maxNonSeedPeersAllowed = 15
 )
 
 var (
@@ -111,9 +111,9 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	ctx, cancel := context.WithTimeout(ctx, ConnectTimeout)
 	defer cancel()
 
-	log.Info("ConnectStarted")
+	log.Debug("ConnectStarted")
 	defer func() {
-		log.Info("ConnectFinished", zap.Error(err), zap.Any("addrs", info.Addrs))
+		log.Debug("ConnectFinished", zap.Error(err), zap.Any("addrs", info.Addrs))
 	}()
 
 	// Since we're explicitly connecting to a peer, we want to clear any backoffs
