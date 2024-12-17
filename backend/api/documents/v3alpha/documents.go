@@ -226,7 +226,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 	}
 
 	out := &documents.ListRootDocumentsResponse{
-		Documents: make([]*documents.DocumentListItem, 0, in.PageSize),
+		Documents: make([]*documents.DocumentListItem, 0, min(in.PageSize, 300)), // Avoid allocating huge slice if huge page size was requested. Number is arbitrary.
 	}
 
 	namespaceGlob := "hm://*"
@@ -314,7 +314,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 	}
 
 	out := &documents.ListDocumentsResponse{
-		Documents: make([]*documents.DocumentListItem, 0, in.PageSize),
+		Documents: make([]*documents.DocumentListItem, 0, min(in.PageSize, 300)), // Avoid allocating huge slice if huge page size was requested. Number is arbitrary.
 	}
 
 	namespaceGlob := "hm://" + ns.String() + "*"
