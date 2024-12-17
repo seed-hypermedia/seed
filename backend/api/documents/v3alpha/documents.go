@@ -282,21 +282,11 @@ var qListRootDocuments = dqb.Str(`
 
 // ListDocuments implements Documents API v3.
 func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocumentsRequest) (*documents.ListDocumentsResponse, error) {
-	{
-		if in.Account == "" {
-			return nil, errutil.MissingArgument("account")
-		}
-	}
-
-	ns, err := core.DecodePrincipal(in.Account)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode account: %w", err)
-	}
-
 	var cursor = struct {
 		IRI          string `json:"i"`
 		ActivityTime int64  `json:"t"`
 	}{
+		// Using max values here, because we want to list by activity time in descending order by default.
 		IRI:          "\uFFFF", // MaxString.
 		ActivityTime: math.MaxInt64,
 	}
@@ -307,8 +297,6 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		}
 	}
 
-	var count int32
-
 	if in.PageSize <= 0 {
 		in.PageSize = 30
 	}
@@ -317,7 +305,16 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		Documents: make([]*documents.DocumentListItem, 0, min(in.PageSize, 300)), // Avoid allocating huge slice if huge page size was requested. Number is arbitrary.
 	}
 
-	namespaceGlob := "hm://" + ns.String() + "*"
+	var namespaceGlob string
+	if in.Account == "" {
+		namespaceGlob = "hm://*"
+	} else {
+		ns, err := core.DecodePrincipal(in.Account)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode account: %w", err)
+		}
+		namespaceGlob = "hm://" + ns.String() + "*"
+	}
 
 	conn, release, err := srv.db.Conn(ctx)
 	if err != nil {
@@ -327,6 +324,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 
 	lookup := blob.NewLookupCache(conn)
 
+	var count int32
 	rows, check := sqlitex.Query(conn, qLoadDocumentList(), namespaceGlob, "", cursor.ActivityTime, cursor.IRI, in.PageSize)
 	for row := range rows {
 		if count == in.PageSize {
@@ -463,12 +461,21 @@ func documentListItemFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*docum
 		Breadcrumbs: crumbs,
 		ActivitySummary: &documents.ActivitySummary{
 			CommentCount:      int32(commentCount), //nolint:gosec
-			LatestCommentTime: timestamppb.New(time.UnixMilli(lastCommentTime)),
+			LatestCommentTime: maybeTimeToProto(time.UnixMilli(lastCommentTime)),
 			LatestChangeTime:  timestamppb.New(time.UnixMilli(lastChangeTime)),
 		},
 	}
 
 	return out, nil
+}
+
+// maybeTimeToProto does the same thing as timestamppb.New, but returns nil if the time is zero.
+func maybeTimeToProto(t time.Time) *timestamppb.Timestamp {
+	if t.IsZero() {
+		return nil
+	}
+
+	return timestamppb.New(t)
 }
 
 var qLoadDocumentList = dqb.Str(`
