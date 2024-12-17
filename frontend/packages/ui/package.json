@@ -27,6 +27,7 @@
     "@shm/shared": "*",
     "@tamagui/animations-moti": "1.108.2",
     "@tamagui/animations-react-native": "1.108.2",
+    "@tamagui/button": "1.108.2",
     "@tamagui/checkbox": "1.108.2",
     "@tamagui/cli": "1.108.2",
     "@tamagui/config": "1.108.2",
