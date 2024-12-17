@@ -60,11 +60,7 @@ export const CodeBlockView = ({
                 <Select.Group maxHeight={'60vh'}>
                   {languages.map((item, i) => {
                     return (
-                      <Select.Item
-                        index={i}
-                        key={item}
-                        value={item.toLowerCase()}
-                      >
+                      <Select.Item index={i} key={item} value={item}>
                         <Select.ItemText>{item}</Select.ItemText>
                         <Select.ItemIndicator marginLeft="auto">
                           <Check size={16} />
