@@ -416,7 +416,7 @@ export const HMDocumentMetadataSchema = z.object({
   layout: z
     .union([z.literal('Seed/Experimental/Newspaper'), z.literal('')])
     .optional(),
-  originalPublishTime: z.string().optional(),
+  displayPublishTime: z.string().optional(),
   seedExperimentalLogo: z.string().optional(),
   seedExperimentalHomeOrder: z
     .union([z.literal('UpdatedFirst'), z.literal('CreatedFirst')])

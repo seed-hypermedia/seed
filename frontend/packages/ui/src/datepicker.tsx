@@ -216,7 +216,7 @@ export function SimpleDatePicker({
           if (!date) {
             onReset();
           } else {
-            onValue(date.toDateString());
+            onValue(date.toISOString().slice(0, 10));
           }
         },
         calendar: {

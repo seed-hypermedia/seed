@@ -133,7 +133,7 @@ function OriginalPublishDate({
   onMetadata: (values: Partial<HMMetadata>) => void
 }) {
   const [isAdding, setIsAdding] = useState(false)
-  if (!isAdding && !metadata.originalPublishTime) {
+  if (!isAdding && !metadata.displayPublishTime) {
     return (
       <ButtonText size="$1" color="$blue10" onPress={() => setIsAdding(true)}>
         Set Original Publish Date
@@ -144,16 +144,23 @@ function OriginalPublishDate({
     <YStack>
       <Label size="$1">Original Publish Date</Label>
       <SimpleDatePicker
-        value={metadata.originalPublishTime || new Date().toDateString()}
-        onValue={(originalPublishTime) => {
-          console.log('onmeta', originalPublishTime)
-          onMetadata({originalPublishTime})
+        value={
+          metadata.displayPublishTime
+            ? dateStringToDate(metadata.displayPublishTime).toDateString()
+            : new Date().toDateString()
+        }
+        onValue={(displayPublishTime) => {
+          onMetadata({displayPublishTime})
         }}
         onReset={() => {
           setIsAdding(false)
-          onMetadata({originalPublishTime: ''})
+          onMetadata({displayPublishTime: ''})
         }}
       />
     </YStack>
   )
+}
+
+export function dateStringToDate(dateString: string) {
+  return new Date(dateString)
 }

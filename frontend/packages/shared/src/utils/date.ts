@@ -88,6 +88,19 @@ export function formattedDateMedium(
   })
   // return `${format(date, 'EEEE, MMMM do, yyyy')}`
 }
+
+export function formattedDateDayOnly(
+  value?: undefined | string | Date | Timestamp | HMTimestamp,
+) {
+  let date = normalizeDate(value)
+  if (!date) return ''
+  return intlFormat(date, {
+    day: 'numeric',
+    year: 'numeric',
+    month: 'long',
+  })
+}
+
 export function relativeFormattedDate(
   value?: undefined | string | Date | Timestamp | HMTimestamp,
   options?: {onlyRelative?: boolean},
