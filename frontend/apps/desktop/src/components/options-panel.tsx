@@ -136,13 +136,13 @@ function OriginalPublishDate({
   if (!isAdding && !metadata.displayPublishTime) {
     return (
       <ButtonText size="$1" color="$blue10" onPress={() => setIsAdding(true)}>
-        Set Original Publish Date
+        Set Publication Display Date
       </ButtonText>
     )
   }
   return (
     <YStack>
-      <Label size="$1">Original Publish Date</Label>
+      <Label size="$1">Publication Display Date</Label>
       <SimpleDatePicker
         value={
           metadata.displayPublishTime
