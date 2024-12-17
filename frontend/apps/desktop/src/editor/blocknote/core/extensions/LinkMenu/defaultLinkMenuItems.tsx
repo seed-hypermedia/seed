@@ -8,7 +8,14 @@ import {
   isPublicGatewayLink,
   normalizeHmId,
 } from '@shm/shared'
-import {Link, Spinner, TwitterXIcon} from '@shm/ui'
+import {
+  File as FileIcon,
+  ImageIcon,
+  Link,
+  Spinner,
+  TwitterXIcon,
+  VideoIcon,
+} from '@shm/ui'
 import {CircleDot, PanelBottom, Quote} from '@tamagui/lucide-icons'
 import {Fragment, Node} from '@tiptap/pm/model'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
@@ -210,21 +217,33 @@ export function getLinkMenuItems({
         ]
       }
     } else if (media) {
+      let mediaIcon
+      switch (media) {
+        case 'twitter':
+          mediaIcon = <TwitterXIcon width={18} height={18} />
+          break
+        case 'video':
+          mediaIcon = <VideoIcon width={18} height={18} />
+          break
+        case 'image':
+          mediaIcon = <ImageIcon width={18} height={18} />
+          break
+        default:
+          mediaIcon = <FileIcon width={18} height={18} />
+          break
+      }
       const mediaItem = {
         name:
           media === 'twitter'
             ? 'X Post embed'
             : media.charAt(0).toUpperCase() + media.slice(1),
         disabled: false,
-        icon:
-          media === 'twitter' ? (
-            <TwitterXIcon width={18} height={18} />
-          ) : undefined,
+        icon: mediaIcon,
         execute: (editor: BlockNoteEditor<HMBlockSchema>, link: string) => {
           const {state, schema} = editor._tiptapEditor
           const {selection} = state
           if (!selection.empty) return
-          let embedUrl = ''
+          let embedUrl = link ? link : sourceUrl ? sourceUrl : ''
           if (media === 'video') {
             let videoUrl = link ? link : sourceUrl ? sourceUrl : ''
             if (videoUrl.includes('youtu.be') || videoUrl.includes('youtube')) {

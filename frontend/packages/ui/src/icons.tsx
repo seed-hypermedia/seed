@@ -11,9 +11,9 @@ export {
   Book,
   Camera,
   ChevronDown,
-  ChevronUp,
   ChevronsDownUp,
   ChevronsUpDown,
+  ChevronUp,
   Clock,
   X as Close,
   XSquare as CloseAll,
@@ -77,6 +77,7 @@ export {
   Unlink,
   List as UnorderedList,
   User,
+  Video as VideoIcon,
   XCircle,
 } from "@tamagui/lucide-icons";
 
