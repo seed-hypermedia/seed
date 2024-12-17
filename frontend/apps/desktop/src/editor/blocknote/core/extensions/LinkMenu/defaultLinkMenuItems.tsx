@@ -1,12 +1,12 @@
 import {HMBlockSchema} from '@/editor/schema'
 import {youtubeParser} from '@/editor/utils'
 import {
-  StateStream,
-  UnpackedHypermediaId,
   createHMUrl,
   isHypermediaScheme,
   isPublicGatewayLink,
   normalizeHmId,
+  StateStream,
+  UnpackedHypermediaId,
 } from '@shm/shared'
 import {
   File as FileIcon,
@@ -243,7 +243,7 @@ export function getLinkMenuItems({
           const {state, schema} = editor._tiptapEditor
           const {selection} = state
           if (!selection.empty) return
-          let embedUrl = link ? link : sourceUrl ? sourceUrl : ''
+          let embedUrl = ''
           if (media === 'video') {
             let videoUrl = link ? link : sourceUrl ? sourceUrl : ''
             if (videoUrl.includes('youtu.be') || videoUrl.includes('youtube')) {
@@ -261,11 +261,12 @@ export function getLinkMenuItems({
             }
             embedUrl = videoUrl
           }
+
           const node =
             media !== 'twitter'
               ? schema.nodes[media].create({
                   url: embedUrl ? embedUrl : '',
-                  src: embedUrl ? '' : link,
+                  src: embedUrl ? '' : link ? link : sourceUrl ? sourceUrl : '',
                   name: fileName ? fileName : '',
                 })
               : schema.nodes['web-embed'].create({
