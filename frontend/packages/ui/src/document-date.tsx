@@ -10,22 +10,21 @@ import {dialogBoxShadow} from "./universal-dialog";
 
 export function DocumentDate({document}: {document: HMDocument}) {
   const displayText = document.metadata?.displayPublishTime
-    ? formattedDateDayOnly(new Date(document.metadata.displayPublishTime)) +
-      "lol"
+    ? formattedDateDayOnly(new Date(document.metadata.displayPublishTime))
     : formattedDateMedium(document?.updateTime);
   const content: React.ReactNode[] = [
     <SizableText size="$2">
-      Last update time: {formattedDateLong(document?.updateTime)}
+      Last Update: {formattedDateLong(document?.updateTime)}
     </SizableText>,
-    <SizableText size="$2">
-      First published: {formattedDateLong(document?.createTime)}
-    </SizableText>,
+    // // Disabled because this is always 1969 because the backend looks at the deterministic genesis blob instead of the actual creation time
+    // <SizableText size="$2">
+    //   First published: {formattedDateLong(document?.createTime)}
+    // </SizableText>,
   ];
   if (document.metadata?.displayPublishTime) {
     content.unshift(
       <SizableText color="$blue10" size="$2">
-        Original publish date:{" "}
-        {formattedDateMedium(new Date(document.metadata.displayPublishTime))}
+        Original Publish date: {displayText}
       </SizableText>
     );
   }
