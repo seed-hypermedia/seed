@@ -9001,7 +9001,6 @@ __metadata:
     copy-text-to-clipboard: 3.1.0
     electron: 33.2.1
     electron-context-menu: 3.6.1
-    electron-log: ^5.2.4
     electron-playwright-helpers: 1.6.0
     electron-squirrel-startup: 1.0.1
     electron-store: 10.0.0
@@ -17158,13 +17157,6 @@ __metadata:
   version: 2.0.0
   resolution: "electron-is-dev@npm:2.0.0"
   checksum: 7393f46f06153d70a427ea904c60a092e50fbf1015c26c342cebb8324ada8c9e0c0f1f02867af56d9cc76f47be17da8cb311ea6bdc83343e7ebd2323ec4014c8
-  languageName: node
-  linkType: hard
-
-"electron-log@npm:^5.2.4":
-  version: 5.2.4
-  resolution: "electron-log@npm:5.2.4"
-  checksum: b3216419b894084d1325d79503a196fbe3a4125d28a2e851492707300bd2f580704b883c3049e4f1c0856b668b861108af7b6c9e9a1ebbf5af6f47f0426e17b3
   languageName: node
   linkType: hard
 
