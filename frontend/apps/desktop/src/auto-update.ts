@@ -78,6 +78,7 @@ function setup() {
       },
     })
   } else {
+    // this was the old way of doing it
     const updateUrl = `https://update.electronjs.org/seed-hypermedia/seed/${
       process.platform
     }-${process.arch}/${app.getVersion()}`
