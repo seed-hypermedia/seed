@@ -8,8 +8,8 @@ import {
   MessageBoxOptions,
   shell,
 } from 'electron'
-import log from 'electron-log/main'
 import {updateElectronApp, UpdateSourceType} from 'update-electron-app'
+import * as log from './logger'
 
 export function defaultCheckForUpdates() {
   log.debug('[MAIN][AUTO-UPDATE]: checking for Updates')
@@ -79,7 +79,7 @@ function setup() {
           type: UpdateSourceType.ElectronPublicUpdateService,
           repo: 'seed-hypermedia/seed',
         },
-    logger: log,
+    logger: {log: log.debug, info: log.info, error: log.error, warn: log.warn},
   })
 
   // const updateUrl = `https://update.electronjs.org/seed-hypermedia/seed/${
