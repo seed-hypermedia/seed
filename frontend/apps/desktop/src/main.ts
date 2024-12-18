@@ -61,7 +61,7 @@ app.on('quit', async () => {
   await metricsServer.close()
 })
 
-if (IS_PROD_DESKTOP) {
+if (IS_PROD_DESKTOP && false) {
   if (squirrelStartup) {
     app.quit()
   }
