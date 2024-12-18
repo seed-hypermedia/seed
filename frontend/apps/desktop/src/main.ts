@@ -54,6 +54,8 @@ contextMenu({
   showInspectElement: !IS_PROD_DESKTOP,
 })
 
+logger.info('[MAIN]: Seed Desktop Main Code')
+
 const metricsServer = startMetricsServer(METRIC_SERVER_HTTP_PORT)
 app.on('quit', async () => {
   await metricsServer.close()
@@ -595,7 +597,7 @@ if (!gotTheLock) {
   app.on('activate', () => {
     logger.debug('[MAIN]: Seed Active (activate)')
     if (BrowserWindow.getAllWindows().length === 0) {
-      logger.debug('[MAIN]: will open the home window')
+      logger.debug('[MAIN]: no windows found. will open the home window')
       trpc.createAppWindow({
         routes: [defaultRoute],
       })
