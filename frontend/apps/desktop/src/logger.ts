@@ -1,18 +1,9 @@
 import {IS_PROD_DESKTOP} from '@shm/shared'
-import * as legacyLogger from 'electron-log'
-import {existsSync, rmSync} from 'fs'
 import {join} from 'path'
+import {MESSAGE} from 'triple-beam'
 import winston from 'winston'
 import DailyRotateFile from 'winston-daily-rotate-file'
 import {userDataPath} from './app-paths'
-import {MESSAGE} from 'triple-beam'
-
-export const legacyLogsFilePath = legacyLogger.transports.file.getFile().path
-
-if (existsSync(legacyLogsFilePath)) {
-  // throw away legacy logs for security reasons
-  rmSync(legacyLogsFilePath)
-}
 
 export const loggingDir = join(userDataPath, 'logs')
 

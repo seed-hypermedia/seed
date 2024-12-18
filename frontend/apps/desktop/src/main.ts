@@ -20,7 +20,6 @@ import {
 } from 'electron'
 
 import contextMenu from 'electron-context-menu'
-import log from 'electron-log/main'
 import squirrelStartup from 'electron-squirrel-startup'
 import path from 'node:path'
 import {
@@ -87,7 +86,7 @@ if (IS_PROD_DESKTOP) {
       maxQueueCount: 30,
       // Called every time the number of requests in the queue changes.
       queuedLengthChanged: (length) => {
-        log.debug('[MAIN]: Sentry queue changed', length)
+        logger.debug('[MAIN]: Sentry queue changed', length)
       },
       // Called before attempting to send an event to Sentry. Used to override queuing behavior.
       //
@@ -352,24 +351,17 @@ if (shouldAutoUpdate == 'true') {
   console.log('Auto-Update is set to OFF')
 }
 
-//Simple logging module Electron/Node.js/NW.js application. No dependencies. No complicated configuration.
-log.initialize({
-  preload: true,
-  // It makes a renderer logger available trough a global electronLog instance
-  spyRendererConsole: true,
-})
-
 app.on('did-become-active', () => {
-  log.debug('[MAIN]: did-become-active Seed active')
+  logger.debug('[MAIN]: Seed active (did-become-active)')
   if (BrowserWindow.getAllWindows().length === 0) {
-    log.debug('[MAIN]: will open the home window')
+    logger.debug('[MAIN]: will open the home window')
     trpc.createAppWindow({
       routes: [defaultRoute],
     })
   }
 })
 app.on('did-resign-active', () => {
-  // log.debug('[MAIN]: Seed no longer active')
+  // logger.debug('[MAIN]: Seed no longer active')
 })
 
 // dark mode support: https://www.electronjs.org/docs/latest/tutorial/dark-mode
@@ -580,20 +572,20 @@ ipcMain.on('open_path', (event, path) => {
 const gotTheLock = app.requestSingleInstanceLock()
 
 if (!gotTheLock) {
-  log.debug('[MAIN]: Another Seed already running. Quitting..')
+  logger.debug('[MAIN]: Another Seed already running. Quitting..')
   app.quit()
 } else {
   app.on('ready', () => {
-    log.debug('[MAIN]: Seed ready')
+    logger.debug('[MAIN]: Seed ready')
     openInitialWindows()
   })
   app.on('second-instance', handleSecondInstance)
 
   app.on('window-all-closed', () => {
-    log.debug('[MAIN]: window-all-closed')
+    logger.debug('[MAIN]: window-all-closed')
     globalShortcut.unregisterAll()
     if (process.platform != 'darwin') {
-      log.debug('[MAIN]: will quit the app')
+      logger.debug('[MAIN]: will quit the app')
       app.quit()
     }
   })
@@ -601,9 +593,9 @@ if (!gotTheLock) {
     handleUrlOpen(url)
   })
   app.on('activate', () => {
-    log.debug('[MAIN]: activate Seed Active')
+    logger.debug('[MAIN]: Seed Active (activate)')
     if (BrowserWindow.getAllWindows().length === 0) {
-      log.debug('[MAIN]: will open the home window')
+      logger.debug('[MAIN]: will open the home window')
       trpc.createAppWindow({
         routes: [defaultRoute],
       })

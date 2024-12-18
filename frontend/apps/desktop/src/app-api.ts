@@ -118,8 +118,8 @@ export function openInitialWindows() {
         id: windowId,
       })
     })
-  } catch (error) {
-    error(`[MAIN]: openInitialWindows Error: ${JSON.stringify(error)}`)
+  } catch (e) {
+    log.error(`[MAIN]: openInitialWindows Error: ${e.message}`)
     trpc.createAppWindow({routes: [defaultRoute]})
     return
   }
@@ -221,6 +221,7 @@ export const router = t.router({
       }),
     )
     .mutation(async ({input}) => {
+      log.info(`[MAIN]: will createAppWindow ${JSON.stringify(input.routes)}`)
       const allWindows = getWindowsState()
       const destRoute = input.routes[input.routeIndex]
       const destRouteKey = getRouteRefocusKey(destRoute)

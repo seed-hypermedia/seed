@@ -7,17 +7,17 @@ import {
   MessageBoxOptions,
   shell,
 } from 'electron'
-import log from 'electron-log/main'
 import {updateElectronApp, UpdateSourceType} from 'update-electron-app'
+import {debug, error} from './logger'
 
 export function defaultCheckForUpdates() {
-  log.debug('[MAIN][AUTO-UPDATE]: checking for Updates')
+  debug('[MAIN][AUTO-UPDATE]: checking for Updates')
   // ipcMain.emit(ipcMainEvents.CHECK_FOR_UPDATES_START)
 
   autoUpdater.checkForUpdates()
 
   // ipcMain.emit(ipcMainEvents.CHECK_FOR_UPDATES_END)
-  log.debug('[MAIN][AUTO-UPDATE]: checking for Updates END')
+  debug('[MAIN][AUTO-UPDATE]: checking for Updates END')
 }
 
 export const checkForUpdates =
@@ -25,11 +25,11 @@ export const checkForUpdates =
 
 export default function autoUpdate() {
   if (!IS_PROD_DESKTOP) {
-    log.debug('[MAIN][AUTO-UPDATE]: Not available in development')
+    debug('[MAIN][AUTO-UPDATE]: Not available in development')
     return
   }
   if (!isAutoUpdateSupported()) {
-    log.debug('[MAIN][AUTO-UPDATE]: Auto-Update is not supported')
+    debug('[MAIN][AUTO-UPDATE]: Auto-Update is not supported')
     return
   }
 
@@ -63,7 +63,7 @@ function setup() {
    * - adopt the `feedback` variable to show/hide dialogs
    */
 
-  log.debug(`== [MAIN][AUTO-UPDATE]: IS_PROD_DEV + VERSION:`, {
+  debug(`== [MAIN][AUTO-UPDATE]: IS_PROD_DEV + VERSION:`, {
     VERSION,
     IS_PROD_DEV,
   })
@@ -88,19 +88,19 @@ function setup() {
   // autoUpdater.setFeedURL({url: updateUrl})
 
   autoUpdater.on('error', (message) => {
-    log.error(
+    error(
       `[MAIN][AUTO-UPDATE]: There was a problem updating the application: ${message}`,
     )
   })
 
   autoUpdater.on('update-available', async () => {
-    log.debug(`[MAIN][AUTO-UPDATE]: update available, download will start`)
+    debug(`[MAIN][AUTO-UPDATE]: update available, download will start`)
     try {
     } catch (error) {}
   })
 
   autoUpdater.on('update-downloaded', (event, releaseNotes, releaseName) => {
-    log.debug('[MAIN][AUTO-UPDATE]: New version downloaded')
+    debug('[MAIN][AUTO-UPDATE]: New version downloaded')
     const dialogOpts: MessageBoxOptions = {
       type: 'info',
       buttons: ['Restart', 'Later'],
@@ -112,14 +112,14 @@ function setup() {
 
     dialog.showMessageBox(dialogOpts).then((returnValue: any) => {
       if (returnValue.response === 0) {
-        log.debug('[MAIN][AUTO-UPDATE]: Quit and Install')
+        debug('[MAIN][AUTO-UPDATE]: Quit and Install')
         autoUpdater.quitAndInstall()
       }
     })
   })
 
   autoUpdater.on('update-not-available', (event: any) => {
-    log.debug('[MAIN][AUTO-UPDATE]: update not available', event)
+    debug('[MAIN][AUTO-UPDATE]: update not available', event)
   })
 }
 
@@ -132,15 +132,15 @@ export function linuxCheckForUpdates() {
         process.arch
       }/${app.getVersion()}`
 
-  log.debug('[MAIN][AUTO-UPDATE]: checking for Updates', UPDATE_URL)
+  debug('[MAIN][AUTO-UPDATE]: checking for Updates', UPDATE_URL)
 
   // ipcMain.emit(ipcMainEvents.CHECK_FOR_UPDATES_START)
   try {
     // TODO: change this to fetch THE LATEST version and compare it with `app.getVersion()`
     fetch(UPDATE_URL).then((res) => {
-      log.debug('[MAIN][AUTO-UPDATE]: LINUX FETCH RES', res)
+      debug('[MAIN][AUTO-UPDATE]: LINUX FETCH RES', res)
       if ('name' in res && res.name) {
-        log.debug('[MAIN][AUTO-UPDATE]: LINUX NEED TO UPDATE', res)
+        debug('[MAIN][AUTO-UPDATE]: LINUX NEED TO UPDATE', res)
         const dialogOpts: MessageBoxOptions = {
           type: 'info',
           buttons: ['Go and Download', 'Close'],
@@ -154,7 +154,7 @@ export function linuxCheckForUpdates() {
 
         if (win) {
           dialog.showMessageBox(win, dialogOpts).then((returnValue: any) => {
-            log.debug('[MAIN][AUTO-UPDATE]: Quit and Install')
+            debug('[MAIN][AUTO-UPDATE]: Quit and Install')
             if (returnValue.response === 0)
               shell.openExternal(
                 'https://github.com/seed-hypermedia/seed/releases/latest',
@@ -162,7 +162,7 @@ export function linuxCheckForUpdates() {
           })
         } else {
           dialog.showMessageBox(dialogOpts).then((returnValue: any) => {
-            log.debug('[MAIN][AUTO-UPDATE]: Quit and Install')
+            debug('[MAIN][AUTO-UPDATE]: Quit and Install')
             if (returnValue.response === 0)
               shell.openExternal(
                 'https://github.com/seed-hypermedia/seed/releases/latest',
@@ -170,7 +170,7 @@ export function linuxCheckForUpdates() {
           })
         }
       } else {
-        log.debug('[MAIN][AUTO-UPDATE]: LINUX IS UPDATED', res)
+        debug('[MAIN][AUTO-UPDATE]: LINUX IS UPDATED', res)
       }
     })
   } catch (error) {}
