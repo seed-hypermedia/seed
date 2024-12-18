@@ -95,9 +95,10 @@ mkdir -p ${workspace}/proxy
 cat << BLOCK > ${workspace}/proxy/CaddyFile
 {\$SEED_SITE_HOSTNAME}
 
+encode zstd gzip
+
 @ipfsget {
 	method GET HEAD OPTIONS
-	encode zstd gzip
 	path /ipfs/*
 }
 
