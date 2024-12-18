@@ -38,6 +38,7 @@ export function AppDocContentProvider({
         layoutUnit={contentLayoutUnit}
         importWebFile={importWebFile}
         textUnit={contentTextUnit}
+        entityId={docId}
         debug={false}
         entityComponents={{
           Document: EmbedDocument,

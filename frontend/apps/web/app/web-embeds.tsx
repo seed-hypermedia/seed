@@ -68,7 +68,7 @@ export function EmbedDocument(props: EntityComponentProps) {
   if (props.block.attributes?.view == "Card") {
     return <EmbedDocumentCard {...props} />;
   } else {
-    return <EmbedDocContent {...props} />;
+    return <EmbedDocumentContent {...props} />;
   }
 }
 
@@ -122,9 +122,18 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
   );
 }
 
-export function EmbedDocContent(props: EntityComponentProps) {
+export function EmbedDocumentContent(props: EntityComponentProps) {
   const [showReferenced, setShowReferenced] = useState(false);
   const doc = useEntity(props);
+  const {entityId} = useDocContentContext();
+  if (props.id && entityId && props.id === entityId.id) {
+    return (
+      // avoid recursive embeds!
+      <SizableText color="$color9">
+        Embed: Parent document (skipped)
+      </SizableText>
+    );
+  }
   // return <div>{JSON.stringify(doc.data)}</div>;
   return (
     <ContentEmbed

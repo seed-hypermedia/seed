@@ -515,3 +515,20 @@ export function serializeBlockRange(
 export function displayHostname(fullHost: string): string {
   return fullHost.replace(/https?:\/\//, '')
 }
+
+export function hmIdMatches(a: UnpackedHypermediaId, b: UnpackedHypermediaId) {
+  return (
+    a.type === b.type &&
+    a.uid === b.uid &&
+    a.version == b.version &&
+    pathMatches(a.path, b.path)
+  )
+}
+
+export function pathMatches(
+  a: string[] | null,
+  b: string[] | null | undefined,
+) {
+  if (!a?.length || !b?.length) return a?.length || 0 === b?.length || 0
+  return a.length === b.length && a.every((v, i) => v === b[i])
+}

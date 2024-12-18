@@ -96,6 +96,7 @@ export type EntityComponentsRecord = {
 };
 
 export type DocContentContextValue = {
+  entityId: UnpackedHypermediaId | undefined;
   entityComponents: EntityComponentsRecord;
   onLinkClick: (dest: string, e: MouseEvent) => void;
   saveCidAsFile: (cid: string, name: string) => Promise<void>;
@@ -139,7 +140,7 @@ export function DocContentProvider({
   comment = false,
   renderOnly = false,
   routeParams = {},
-  ...PubContentContext
+  ...docContextContent
 }: PropsWithChildren<
   DocContentContextValue & {
     debugTop?: number;
@@ -154,7 +155,7 @@ export function DocContentProvider({
   return (
     <docContentContext.Provider
       value={{
-        ...PubContentContext,
+        ...docContextContent,
         layoutUnit: lUnit,
         textUnit: comment ? tUnit * 0.8 : tUnit,
         debug,

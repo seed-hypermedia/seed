@@ -359,6 +359,7 @@ function WebDocContentProvider({
         Inline: EmbedInline,
         Query: QueryBlockWeb,
       }}
+      entityId={id}
       supportDocuments={supportDocuments}
       supportQueries={supportQueries}
       onLinkClick={(href, e) => {

@@ -227,6 +227,15 @@ export function EmbedDocument(props: EntityComponentProps) {
 
 export function EmbedDocumentContent(props: EntityComponentProps) {
   const [showReferenced, setShowReferenced] = useState(false)
+  const {entityId} = useDocContentContext()
+  if (props.id && entityId && props.id === entityId.id) {
+    return (
+      // avoid recursive embeds!
+      <SizableText color="$color9">
+        Embed: Parent document (skipped)
+      </SizableText>
+    )
+  }
   const doc = useSubscribedEntity(props)
   const navigate = useNavigate()
   return (
