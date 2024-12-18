@@ -89,7 +89,7 @@ jobs:
           CGO_ENABLED: 1
 
       - name: Build Backend (Windows)
-        if: matrix.config.os == 'windows-latest'
+        if: startsWith(matrix.config.os, 'windows')
         run: |
           mkdir -p plz-out/bin/backend
           go build -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}.exe ./backend/cmd/seed-daemon
@@ -172,7 +172,6 @@ jobs:
   publish-to-github:
     needs: [build-info, build-binaries]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
         with:
