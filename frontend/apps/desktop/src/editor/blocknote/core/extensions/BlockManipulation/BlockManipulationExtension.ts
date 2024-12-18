@@ -162,6 +162,22 @@ export const BlockManipulationExtension = Extension.create({
                 }
               }
             } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
+              let hasHardBreak = false
+              const blockInfo = getBlockInfoFromPos(
+                state.doc,
+                state.selection.from,
+              )!
+              // Find if the selected node has break line and check if the selection's from position is before or after the hard break
+              blockInfo.contentNode.content.descendants((node, pos) => {
+                if (node.type.name === 'hardBreak') {
+                  if (blockInfo.startPos + pos + 1 < state.selection.from) {
+                    hasHardBreak = true
+                    return
+                  }
+                }
+              })
+              // Stop execution and let other handlers be called if the selection if after the hard break
+              if (hasHardBreak) return false
               const prevBlockInfo = findPreviousBlock(
                 view,
                 state.selection.from,
@@ -243,6 +259,20 @@ export const BlockManipulationExtension = Extension.create({
               event.key === 'ArrowDown' ||
               event.key === 'ArrowRight'
             ) {
+              let lastHardBreakPos: number | null = null
+              const blockInfo = getBlockInfoFromPos(
+                state.doc,
+                state.selection.from,
+              )!
+              // Find the position of last hard break in node content, if any
+              blockInfo.contentNode.content.descendants((node, pos) => {
+                if (node.type.name === 'hardBreak') {
+                  lastHardBreakPos = blockInfo.startPos + pos + 1
+                }
+              })
+              // Stop execution and let other handlers be called if selection's to position is before the last hard break pos
+              if (lastHardBreakPos && state.selection.to <= lastHardBreakPos)
+                return false
               const nextBlockInfo = findNextBlock(view, state.selection.from)
               if (nextBlockInfo) {
                 const blockInfo = getBlockInfoFromPos(
