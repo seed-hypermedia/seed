@@ -3487,7 +3487,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@electron-forge/maker-flatpak@npm:^7.6.0":
+"@electron-forge/maker-flatpak@npm:7.6.0":
   version: 7.6.0
   resolution: "@electron-forge/maker-flatpak@npm:7.6.0"
   dependencies:
@@ -3578,7 +3578,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@electron-forge/publisher-s3@npm:^7.6.0":
+"@electron-forge/publisher-s3@npm:7.6.0":
   version: 7.6.0
   resolution: "@electron-forge/publisher-s3@npm:7.6.0"
   dependencies:
@@ -7923,7 +7923,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rehookify/datepicker@npm:^6.6.8":
+"@rehookify/datepicker@npm:6.6.8":
   version: 6.6.8
   resolution: "@rehookify/datepicker@npm:6.6.8"
   peerDependencies:
@@ -8942,12 +8942,12 @@ __metadata:
     "@electron-forge/cli": 7.6.0
     "@electron-forge/maker-deb": 7.6.0
     "@electron-forge/maker-dmg": 7.6.0
-    "@electron-forge/maker-flatpak": ^7.6.0
+    "@electron-forge/maker-flatpak": 7.6.0
     "@electron-forge/maker-rpm": 7.6.0
     "@electron-forge/maker-squirrel": 7.6.0
     "@electron-forge/maker-zip": 7.6.0
     "@electron-forge/plugin-vite": 7.6.0
-    "@electron-forge/publisher-s3": ^7.6.0
+    "@electron-forge/publisher-s3": 7.6.0
     "@electron-forge/shared-types": 7.6.0
     "@emotion/cache": 11.11.0
     "@emotion/react": 11.11.1
@@ -8969,7 +8969,7 @@ __metadata:
     "@shm/ui": 0.1.0
     "@tamagui/lucide-icons": 1.108.2
     "@tamagui/vite-plugin": 1.108.2
-    "@tanstack/react-query-devtools": ^4.36.1
+    "@tanstack/react-query-devtools": 4.36.1
     "@tippyjs/react": 4.2.6
     "@tiptap/core": 2.0.3
     "@tiptap/extension-bold": 2.0.3
@@ -9001,6 +9001,7 @@ __metadata:
     copy-text-to-clipboard: 3.1.0
     electron: 33.2.1
     electron-context-menu: 3.6.1
+    electron-log: 5.2.4
     electron-playwright-helpers: 1.6.0
     electron-squirrel-startup: 1.0.1
     electron-store: 10.0.0
@@ -9008,7 +9009,7 @@ __metadata:
     fast-deep-equal: 3.1.3
     fs-extra: 11.1.1
     graphql-request: 6.0.0
-    gray-matter: ^4.0.3
+    gray-matter: 4.0.3
     happy-dom: 7.8.1
     hast-util-from-dom: 4.2.0
     highlight.js: 11.9.0
@@ -9033,8 +9034,8 @@ __metadata:
     react-error-boundary: 4.0.11
     react-hook-form: 7.46.1
     react-icons: 4.9.0
-    react-native-qrcode-svg: ^6.3.12
-    react-qr-code: ^2.0.15
+    react-native-qrcode-svg: 6.3.12
+    react-qr-code: 2.0.15
     react-resizable-panels: 2.0.20
     react-tweet: 3.2.0
     rehype: 12.0.1
@@ -9045,12 +9046,12 @@ __metadata:
     remark-parse: 10.0.1
     remark-rehype: 10.1.0
     remark-stringify: 10.0.2
-    show-keys: ^1.1.2
+    show-keys: 1.1.2
     superjson: 2.2.1
     tamagui: 1.108.2
     typescript: 5.5.2
     unified: 10.1.2
-    update-electron-app: ^3.0.0
+    update-electron-app: 3.0.0
     use-prefers-color-scheme: 1.1.3
     vite: 6.0.3
     vite-tsconfig-paths: 4.2.0
@@ -9113,7 +9114,7 @@ __metadata:
   resolution: "@shm/ui@workspace:frontend/packages/ui"
   dependencies:
     "@hookform/resolvers": 3.3.1
-    "@rehookify/datepicker": ^6.6.8
+    "@rehookify/datepicker": 6.6.8
     "@shm/prettier": "*"
     "@shm/shared": "*"
     "@tamagui/animations-moti": 1.108.2
@@ -9166,11 +9167,11 @@ __metadata:
     "@tamagui/vite-plugin": 1.108.2
     "@types/react": 18.2.55
     "@types/react-dom": 18.2.19
-    isbot: ^4
+    isbot: 4
     react: 18.2.0 || 19.0.0
     react-dom: 18.2.0 || 19.0.0
     react-native-svg: ">=12"
-    react-qr-code: ^2.0.15
+    react-qr-code: 2.0.15
     superjson: 2.2.1
     tamagui: 1.108.2
     typescript: 5.5.2
@@ -11697,7 +11698,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tanstack/react-query-devtools@npm:^4.36.1":
+"@tanstack/react-query-devtools@npm:4.36.1":
   version: 4.36.1
   resolution: "@tanstack/react-query-devtools@npm:4.36.1"
   dependencies:
@@ -17160,6 +17161,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"electron-log@npm:5.2.4":
+  version: 5.2.4
+  resolution: "electron-log@npm:5.2.4"
+  checksum: b3216419b894084d1325d79503a196fbe3a4125d28a2e851492707300bd2f580704b883c3049e4f1c0856b668b861108af7b6c9e9a1ebbf5af6f47f0426e17b3
+  languageName: node
+  linkType: hard
+
 "electron-playwright-helpers@npm:1.6.0":
   version: 1.6.0
   resolution: "electron-playwright-helpers@npm:1.6.0"
@@ -19677,7 +19685,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"gray-matter@npm:^4.0.3":
+"gray-matter@npm:4.0.3, gray-matter@npm:^4.0.3":
   version: 4.0.3
   resolution: "gray-matter@npm:4.0.3"
   dependencies:
@@ -21313,7 +21321,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"is-url@npm:^1.1.0":
+"is-url@npm:^1.1.0, is-url@npm:^1.2.4":
   version: 1.2.4
   resolution: "is-url@npm:1.2.4"
   checksum: 100e74b3b1feab87a43ef7653736e88d997eb7bd32e71fd3ebc413e58c1cbe56269699c776aaea84244b0567f2a7d68dfaa512a062293ed2f9fdecb394148432
@@ -21410,7 +21418,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"isbot@npm:^4":
+"isbot@npm:4":
   version: 4.4.0
   resolution: "isbot@npm:4.4.0"
   checksum: fea20d64ad2d7f23d5edb3af370a3e3f7cf2010d5f20fa00d89e45e0ba907f7f3cc9bf9cfdd5a7f408973934b6e665479ff3128f05d28ef18c3ded88a9971cd6
@@ -27284,7 +27292,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-native-qrcode-svg@npm:^6.3.12":
+"react-native-qrcode-svg@npm:6.3.12":
   version: 6.3.12
   resolution: "react-native-qrcode-svg@npm:6.3.12"
   dependencies:
@@ -27451,7 +27459,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-qr-code@npm:^2.0.15":
+"react-qr-code@npm:2.0.15":
   version: 2.0.15
   resolution: "react-qr-code@npm:2.0.15"
   dependencies:
@@ -28682,9 +28690,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"satori@npm:^0.11.2":
-  version: 0.11.3
-  resolution: "satori@npm:0.11.3"
+"satori@npm:0.11.2":
+  version: 0.11.2
+  resolution: "satori@npm:0.11.2"
   dependencies:
     "@shuding/opentype.js": 1.4.0-beta.0
     css-background-parser: ^0.1.0
@@ -28697,7 +28705,7 @@ __metadata:
     parse-css-color: ^0.2.1
     postcss-value-parser: ^4.2.0
     yoga-wasm-web: ^0.3.3
-  checksum: 3b70f20c2a78d0be17c630397c1ac497d13c9a16d6255ae2bd6aadd6404dda585ee309affb23bf89d0178a51d3ecf087a1d1e701af71e250bbb9d9b4664e17d4
+  checksum: 52b82282a9624c2c0baa0965752014661a5e29f6875103666cb711639684fb05d75d61e2a533192e14e11ece98710f31d39796d3120b6ac7c7c08222632ec717
   languageName: node
   linkType: hard
 
@@ -28806,8 +28814,8 @@ __metadata:
     prettier: 3.0.2
     react-native: 0.75.2
     react-native-svg: 15.6.0
-    satori: ^0.11.2
-    svg2img: ^1.0.0-beta.2
+    satori: 0.11.2
+    svg2img: 1.0.0-beta.2
     ts-node: 10.9.1
     typescript: 5.5.2
   languageName: unknown
@@ -29132,7 +29140,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"show-keys@npm:^1.1.2":
+"show-keys@npm:1.1.2":
   version: 1.1.2
   resolution: "show-keys@npm:1.1.2"
   checksum: bce9370e2d5b5e46f07729db440167ebeb69e9e2f84ae638e19b9cacae23858ce37aca4d4ef2398e92c29764c11b08f853efa534629f4cc361c14f26ce7cea57
@@ -30039,7 +30047,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"svg2img@npm:^1.0.0-beta.2":
+"svg2img@npm:1.0.0-beta.2":
   version: 1.0.0-beta.2
   resolution: "svg2img@npm:1.0.0-beta.2"
   dependencies:
@@ -31451,13 +31459,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"update-electron-app@npm:^3.0.0":
-  version: 3.1.0
-  resolution: "update-electron-app@npm:3.1.0"
+"update-electron-app@npm:3.0.0":
+  version: 3.0.0
+  resolution: "update-electron-app@npm:3.0.0"
   dependencies:
     github-url-to-object: ^4.0.4
+    is-url: ^1.2.4
     ms: ^2.1.1
-  checksum: 80d4210539dedc4cc1dca93c3506c9559da32e44949d895aa63505846b337db1aae8fed1a92bd99377228e4aee54ca6f56ce68281ca0237043630c269a606fe9
+  checksum: 17b8250a3d8e9b31318d715fd2033e044b3755a257cc941a04c4d3df895f36fe94eca3381e716a89abb0ebf38f51243819fdaa517f66c89094f0eca86141aa67
   languageName: node
   linkType: hard
 
