@@ -43,7 +43,7 @@ let iconsPath = IS_PROD_DEV
 
 const commonLinuxConfig = {
   options: {
-    name: IS_PROD_DEV ? 'seed-dev' : 'seed',
+    name: IS_PROD_DEV ? 'Seeddev' : 'Seed',
     categories: ['Development', 'Utility'],
     icon: `${iconsPath}.png`,
     maintainer: 'Mintter Inc.',
@@ -65,7 +65,7 @@ const config: ForgeConfig = {
     icon: iconsPath,
     name: IS_PROD_DEV ? 'SeedDev' : 'Seed',
     appBundleId: IS_PROD_DEV ? 'com.seed.app.dev' : 'com.seed.app',
-    executableName: IS_PROD_DEV ? 'seed-dev' : 'seed',
+    executableName: IS_PROD_DEV ? 'SeedDev' : 'Seed',
     appCategoryType: 'public.app-category.productivity',
     // packageManager: 'yarn',
     extraResource: [daemonBinaryPath],
@@ -92,7 +92,7 @@ const config: ForgeConfig = {
     new MakerSquirrel((arch) => ({
       name: IS_PROD_DEV ? 'SeedDev' : 'Seed',
       authors: 'Mintter inc.',
-      exe: IS_PROD_DEV ? 'seed-dev.exe' : 'seed.exe',
+      exe: IS_PROD_DEV ? 'seedDev.exe' : 'Seed.exe',
       description: `Seed: a hyper.media protocol client ${
         IS_PROD_DEV ? '(dev build)' : ''
       }`,
