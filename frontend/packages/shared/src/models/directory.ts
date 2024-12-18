@@ -1,0 +1,75 @@
+import {toPlainMessage} from '@bufbuild/protobuf'
+import {HMQuery, HMQueryResult} from '..'
+import {BIG_INT} from '../constants'
+import {GRPCClient} from '../grpc-client'
+import {
+  entityQueryPathToHmIdPath,
+  hmId,
+  hmIdPathToEntityQueryPath,
+  UnpackedHypermediaId,
+} from '../utils'
+
+export function getDiretoryWithClient(client: GRPCClient) {
+  async function getDirectory(
+    id: UnpackedHypermediaId,
+    mode: 'Children' | 'AllDescendants' = 'AllDescendants',
+  ) {
+    console.log('=== getDirectory === id', id.uid)
+    const listResult = await client.documents.listDocuments({
+      account: id.uid,
+      pageSize: BIG_INT,
+    })
+    console.log('=== getDirectory === listResult', listResult)
+    // filter listResult by the id.path, and if mode is "Children", filter by the immediate children
+    return listResult.documents
+      .filter((doc) => {
+        const docPathStr = doc.path
+        const parentPath = id.path || []
+        const parentPathStr = hmIdPathToEntityQueryPath(id.path)
+
+        // Skip if document is the parent itself
+        if (docPathStr === parentPathStr) return false
+
+        // Check if document is a descendant of the parent
+        if (!docPathStr.startsWith(parentPathStr + '/')) return false
+
+        if (mode === 'Children') {
+          // For Children mode, only include immediate children
+          // (path should only be one level deeper than parent)
+          const includeInDir =
+            doc.path.slice(1).split('/').length === parentPath.length + 1
+          return includeInDir
+        }
+        // For AllDescendants mode, include all nested documents
+        return true
+      })
+      .map(toPlainMessage)
+      .map((doc) => {
+        const path = entityQueryPathToHmIdPath(doc.path)
+        return {
+          ...doc,
+          path,
+          id: hmId('d', doc.account, {path, version: doc.version}),
+        }
+      })
+  }
+
+  return getDirectory
+}
+
+export function getQueryResultsWithClient(client: GRPCClient) {
+  const getDirectory = getDiretoryWithClient(client)
+  async function getQueryResults(query: HMQuery) {
+    const {includes, limit, sort} = query
+    if (includes.length !== 1) return null // only support one include for now
+    const {path, mode, space} = includes[0]
+    const inId = hmId('d', space, {
+      path: path ? path.split('/') : [] || undefined,
+    })
+    const dir = await getDirectory(inId, mode)
+    if (!inId) return null
+    return {in: inId, results: dir, mode} as HMQueryResult
+  }
+
+  return getQueryResults
+}

@@ -21,6 +21,7 @@ import {
   HMDraft,
   HMEntityContent,
   UnpackedHypermediaId,
+  createHMUrl,
   editorBlockToHMBlock,
   eventStream,
   extractRefs,
@@ -33,6 +34,7 @@ import {
   unpackHmId,
   writeableStateStream,
 } from '@shm/shared'
+import {getQueryResultsWithClient} from '@shm/shared/src/models/directory'
 import {toast} from '@shm/ui'
 import type {UseQueryResult} from '@tanstack/react-query'
 import {
@@ -45,7 +47,7 @@ import {
 import {Extension, findParentNode} from '@tiptap/core'
 import {NodeSelection, Selection} from '@tiptap/pm/state'
 import {useMachine} from '@xstate/react'
-import _, {flatMap} from 'lodash'
+import _ from 'lodash'
 import {nanoid} from 'nanoid'
 import {useEffect, useMemo, useRef} from 'react'
 import {ContextFrom, OutputFrom, fromPromise} from 'xstate'
@@ -776,33 +778,11 @@ export function createBlocksMap(
   return result
 }
 
-function extractEmbedIds(blockNodes: HMBlockNode[]): string[] {
-  return flatMap(
-    blockNodes.map((node) => {
-      const childEmbedUrls = extractEmbedIds(node.children || [])
-      if (node.block.type === 'Embed' && node.block.link) {
-        childEmbedUrls.push(node.block.link)
-      }
-      if (node.block.annotations) {
-        node.block.annotations.forEach((annotation) => {
-          if (annotation.type === 'Embed' && annotation.link) {
-            childEmbedUrls.push(annotation.link)
-          }
-        })
-      }
-      return childEmbedUrls
-    }),
-  )
-}
-
-export function usePublishToSite() {
-  const connectPeer = useConnectPeer()
+function useGetDoc() {
   const grpcClient = useGRPCClient()
-  return async (
-    id: UnpackedHypermediaId,
-    siteHost?: string,
-  ): Promise<boolean> => {
-    let path = hmIdPathToEntityQueryPath(id.path)
+
+  async function getDoc(id: UnpackedHypermediaId) {
+    const path = hmIdPathToEntityQueryPath(id.path)
     const apiDoc = await grpcClient.documents.getDocument({
       account: id.uid,
       path,
@@ -810,6 +790,94 @@ export function usePublishToSite() {
     })
 
     const doc = HMDocumentSchema.parse(apiDoc.toJson())
+    return doc
+  }
+  return getDoc
+}
+
+export function usePublishToSite() {
+  const connectPeer = useConnectPeer()
+  const grpcClient = useGRPCClient()
+  const getDoc = useGetDoc()
+  return async (
+    id: UnpackedHypermediaId,
+    siteHost?: string,
+  ): Promise<boolean> => {
+    const getQueryResults = getQueryResultsWithClient(grpcClient)
+
+    // list of all references. this should be populated with an ID before extractReferenceMaterials is called for it
+    const allReferenceIds: UnpackedHypermediaId[] = [] // do not include id, because it is the root document that does the referencing
+    // list of all hmUrls that have already been referenced. this is used to avoid infinite loops
+    const alreadyReferencedHmUrls = new Set<string>([])
+
+    async function extractReferenceMaterials(
+      id: UnpackedHypermediaId,
+      document: HMDocument,
+    ) {
+      const hmUrl = createHMUrl(id)
+      if (alreadyReferencedHmUrls.has(hmUrl)) {
+        return
+      }
+
+      async function extractQueryDependencies(blockNodes: HMBlockNode[]) {
+        await Promise.all(
+          blockNodes.map(async (node: HMBlockNode) => {
+            node.children &&
+              (await extractQueryDependencies(node.children || []))
+            if (node.block.type === 'Query') {
+              const query = node.block.attributes.query
+              const results = await getQueryResults(query)
+              if (results) {
+                await Promise.all(
+                  results.results.map(async (result) => {
+                    const id = hmId('d', result.account, {
+                      path: result.path,
+                      version: result.version,
+                    })
+                    allReferenceIds.push(id)
+                    await extractReferenceMaterials(id, document)
+                  }),
+                )
+              }
+            }
+          }),
+        )
+      }
+
+      async function extractEmbedDependencies(blockNodes: HMBlockNode[]) {
+        await Promise.all(
+          blockNodes.map(async (node) => {
+            node.children &&
+              (await extractEmbedDependencies(node.children || []))
+            if (node.block.type === 'Embed' && node.block.link) {
+              const id = unpackHmId(node.block.link)
+              if (id) {
+                allReferenceIds.push(id)
+                await extractReferenceMaterials(id, document)
+              }
+            }
+            if (node.block.annotations) {
+              await Promise.all(
+                node.block.annotations.map(async (annotation) => {
+                  if (annotation.type === 'Embed' && annotation.link) {
+                    const id = unpackHmId(annotation.link)
+                    if (id) {
+                      allReferenceIds.push(id)
+                      await extractReferenceMaterials(id, document)
+                    }
+                  }
+                }),
+              )
+            }
+          }),
+        )
+      }
+      alreadyReferencedHmUrls.add(hmUrl) // do this before running the queries and embeds, so that we don't recursively hit the same url
+      await extractQueryDependencies(document.content)
+      await extractEmbedDependencies(document.content)
+    }
+
+    const doc = await getDoc(id)
 
     const authors = new Set(doc.authors)
     await connectPeer.mutateAsync(siteHost)
@@ -845,23 +913,33 @@ export function usePublishToSite() {
         }),
       )
     ).filter((a) => !!a)
-    const embeds = extractEmbedIds(doc.content)
-    const remoteSyncIds = [
-      {...id, version: doc.version},
-      ...syncParentIds,
-      ...authorIds,
-      ...embeds.map(unpackHmId),
-    ].filter((id) => !!id)
-    await Promise.all(
-      remoteSyncIds.map((id) =>
-        siteDiscover({
-          uid: id.uid,
-          version: id.version,
-          path: id.path,
-          host: siteHost || DEFAULT_GATEWAY_URL,
-        }),
-      ),
-    )
+    await extractReferenceMaterials(id, doc)
+    const referenceMaterialIds = new Set<string>()
+    allReferenceIds.forEach((id) => {
+      referenceMaterialIds.add(createHMUrl(id))
+    })
+    authorIds.forEach((id) => {
+      referenceMaterialIds.add(createHMUrl(id))
+    })
+    syncParentIds.forEach((id) => {
+      referenceMaterialIds.add(createHMUrl(id))
+    })
+    siteDiscover({
+      uid: id.uid,
+      version: id.version,
+      path: id.path,
+      host: siteHost || DEFAULT_GATEWAY_URL,
+    })
+    referenceMaterialIds.forEach((url) => {
+      const id = unpackHmId(url)
+      if (!id) return
+      siteDiscover({
+        uid: id.uid,
+        version: id.version,
+        path: id.path,
+        host: siteHost || DEFAULT_GATEWAY_URL,
+      })
+    })
     return true
   }
 }

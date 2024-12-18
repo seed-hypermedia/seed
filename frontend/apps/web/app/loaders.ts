@@ -1,7 +1,5 @@
 import {toPlainMessage} from "@bufbuild/protobuf";
 import {
-  BIG_INT,
-  entityQueryPathToHmIdPath,
   extractQueryBlocks,
   extractRefs,
   getParentPaths,
@@ -15,6 +13,10 @@ import {
   SITE_BASE_URL,
   UnpackedHypermediaId,
 } from "@shm/shared";
+import {
+  getDiretoryWithClient,
+  getQueryResultsWithClient,
+} from "@shm/shared/src/models/directory";
 import {queryClient} from "./client";
 import {getConfig} from "./config";
 import {wrapJSON, WrappedResponse} from "./wrapping";
@@ -61,42 +63,8 @@ async function getHMDocument(entityId: UnpackedHypermediaId) {
   return document;
 }
 
-async function getDirectory(
-  id: UnpackedHypermediaId,
-  mode: "Children" | "AllDescendants" = "AllDescendants"
-) {
-  const allDocs = await queryClient.documents.listDocuments({
-    account: id.uid,
-    pageSize: BIG_INT,
-  });
-  // filter allDocs by the id.path, and if mode is "Children", filter by the immediate children
-  return allDocs.documents
-    .filter((doc) => {
-      const docPathStr = doc.path;
-      const parentPath = id.path || [];
-      const parentPathStr = hmIdPathToEntityQueryPath(id.path);
-
-      // Skip if document is the parent itself
-      if (docPathStr === parentPathStr) return false;
-
-      // Check if document is a descendant of the parent
-      if (!docPathStr.startsWith(parentPathStr + "/")) return false;
-
-      if (mode === "Children") {
-        // For Children mode, only include immediate children
-        // (path should only be one level deeper than parent)
-        const includeInDir =
-          doc.path.slice(1).split("/").length === parentPath.length + 1;
-        return includeInDir;
-      }
-      // For AllDescendants mode, include all nested documents
-      return true;
-    })
-    .map(toPlainMessage)
-    .map((doc) => {
-      return {...doc, path: entityQueryPathToHmIdPath(doc.path)};
-    });
-}
+const getDirectory = getDiretoryWithClient(queryClient);
+const getQueryResults = getQueryResultsWithClient(queryClient);
 
 export async function getBaseDocument(
   entityId: UnpackedHypermediaId,
@@ -148,15 +116,7 @@ export async function getBaseDocument(
   const queryBlockQueries = (
     await Promise.all(
       queryBlocks.map(async (block) => {
-        const {includes, limit, sort} = block.attributes.query;
-        if (includes.length !== 1) return null; // only support one include for now
-        const {path, mode, space} = includes[0];
-        const inId = hmId("d", space, {
-          path: path ? path.split("/") : [] || undefined,
-        });
-        const dir = await getDirectory(inId, mode);
-        if (!inId) return null;
-        return {in: inId, results: dir, mode} as HMQueryResult;
+        return await getQueryResults(block.attributes.query);
       })
     )
   ).filter((result) => !!result);

@@ -350,6 +350,14 @@ export const HMQuerySortSchema = z.object({
 })
 export type HMQuerySort = z.infer<typeof HMQuerySortSchema>
 
+export const HMQuerySchema = z.object({
+  includes: z.array(HMQueryInclusionSchema),
+  sort: z.array(HMQuerySortSchema).optional(),
+  limit: z.number().optional(),
+})
+
+export type HMQuery = z.infer<typeof HMQuerySchema>
+
 export const HMBlockQuerySchema = z
   .object({
     type: z.literal('Query'),
@@ -358,11 +366,7 @@ export const HMBlockQuerySchema = z
       ...parentBlockAttributes,
       style: HMQueryStyleSchema.optional().default('Card'),
       columnCount: z.number().optional().default(3),
-      query: z.object({
-        includes: z.array(HMQueryInclusionSchema),
-        sort: z.array(HMQuerySortSchema).optional(),
-        limit: z.number().optional(),
-      }),
+      query: HMQuerySchema,
     }),
   })
   .strict()
