@@ -360,7 +360,7 @@ log.initialize({
 })
 
 app.on('did-become-active', () => {
-  // log.debug('[MAIN]: Seed active')
+  log.debug('[MAIN]: did-become-active Seed active')
   if (BrowserWindow.getAllWindows().length === 0) {
     log.debug('[MAIN]: will open the home window')
     trpc.createAppWindow({
@@ -601,7 +601,7 @@ if (!gotTheLock) {
     handleUrlOpen(url)
   })
   app.on('activate', () => {
-    log.debug('[MAIN]: Seed Active')
+    log.debug('[MAIN]: activate Seed Active')
     if (BrowserWindow.getAllWindows().length === 0) {
       log.debug('[MAIN]: will open the home window')
       trpc.createAppWindow({
