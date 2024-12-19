@@ -7,6 +7,44 @@ import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialM
 import { Message, proto3, Struct, Timestamp } from "@bufbuild/protobuf";
 
 /**
+ * Attrbites that can be used for sorting.
+ *
+ * @generated from enum com.seed.documents.v3alpha.SortAttribute
+ */
+export enum SortAttribute {
+  /**
+   * Sorting by activity time,
+   * i.e. time of the latest comment or change.
+   *
+   * @generated from enum value: ACTIVITY_TIME = 0;
+   */
+  ACTIVITY_TIME = 0,
+
+  /**
+   * Sorting by name/title of the document.
+   *
+   * @generated from enum value: NAME = 1;
+   */
+  NAME = 1,
+
+  /**
+   * Sorting by path value.
+   * When documents from multiple accounts are returned in the same listing,
+   * the entire fully-qualified namespaced path is considered,
+   * i.e. <account-id>/<path>.
+   *
+   * @generated from enum value: PATH = 2;
+   */
+  PATH = 2,
+}
+// Retrieve enum metadata with: proto3.getEnumType(SortAttribute)
+proto3.util.setEnumType(SortAttribute, "com.seed.documents.v3alpha.SortAttribute", [
+  { no: 0, name: "ACTIVITY_TIME" },
+  { no: 1, name: "NAME" },
+  { no: 2, name: "PATH" },
+]);
+
+/**
  * Request for getting a single document.
  *
  * @generated from message com.seed.documents.v3alpha.GetDocumentRequest
@@ -560,18 +598,19 @@ export class ListDirectoryRequest extends Message<ListDirectoryRequest> {
   recursive = false;
 
   /**
-   * Optional. Sorting mode for the list response.
-   *
-   * @generated from field: com.seed.documents.v3alpha.ListDirectoryRequest.SortOrder sort_order = 6;
-   */
-  sortOrder = ListDirectoryRequest_SortOrder.LATEST_ACTIVITY_FIRST;
-
-  /**
    * Optional. If set to true, only documents that the user is subscribed to will be returned.
    *
-   * @generated from field: bool subscribed_only = 7;
+   * @generated from field: bool subscribed_only = 6;
    */
   subscribedOnly = false;
+
+  /**
+   * Optional. Configuration for sorting.
+   * If not specified the default sorting will be chosen.
+   *
+   * @generated from field: com.seed.documents.v3alpha.SortOptions sort_options = 7;
+   */
+  sortOptions?: SortOptions;
 
   constructor(data?: PartialMessage<ListDirectoryRequest>) {
     super();
@@ -586,8 +625,8 @@ export class ListDirectoryRequest extends Message<ListDirectoryRequest> {
     { no: 3, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "directory_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 5, name: "recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 6, name: "sort_order", kind: "enum", T: proto3.getEnumType(ListDirectoryRequest_SortOrder) },
-    { no: 7, name: "subscribed_only", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 6, name: "subscribed_only", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 7, name: "sort_options", kind: "message", T: SortOptions },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDirectoryRequest {
@@ -608,38 +647,54 @@ export class ListDirectoryRequest extends Message<ListDirectoryRequest> {
 }
 
 /**
- * Sorting options for the list of documents.
+ * Options for sorting list of documents.
  *
- * @generated from enum com.seed.documents.v3alpha.ListDirectoryRequest.SortOrder
+ * @generated from message com.seed.documents.v3alpha.SortOptions
  */
-export enum ListDirectoryRequest_SortOrder {
+export class SortOptions extends Message<SortOptions> {
   /**
-   * Sorting by the most recent activity time.
+   * Attributes by which the list can be sorted.
    *
-   * @generated from enum value: LATEST_ACTIVITY_FIRST = 0;
+   * @generated from field: com.seed.documents.v3alpha.SortAttribute attribute = 1;
    */
-  LATEST_ACTIVITY_FIRST = 0,
+  attribute = SortAttribute.ACTIVITY_TIME;
 
   /**
-   * Sorting by the name/title of the document.
+   * By default sort is ascending (smaller values first).
+   * This field can be specified to choose the opposing sorting.
    *
-   * @generated from enum value: NAME_ALPHABETICAL = 1;
+   * @generated from field: bool descending = 2;
    */
-  NAME_ALPHABETICAL = 1,
+  descending = false;
 
-  /**
-   * Sorting by the path of the document.
-   *
-   * @generated from enum value: PATH_ALPHABETICAL = 2;
-   */
-  PATH_ALPHABETICAL = 2,
+  constructor(data?: PartialMessage<SortOptions>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.SortOptions";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "attribute", kind: "enum", T: proto3.getEnumType(SortAttribute) },
+    { no: 2, name: "descending", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SortOptions {
+    return new SortOptions().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SortOptions {
+    return new SortOptions().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SortOptions {
+    return new SortOptions().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SortOptions | PlainMessage<SortOptions> | undefined, b: SortOptions | PlainMessage<SortOptions> | undefined): boolean {
+    return proto3.util.equals(SortOptions, a, b);
+  }
 }
-// Retrieve enum metadata with: proto3.getEnumType(ListDirectoryRequest_SortOrder)
-proto3.util.setEnumType(ListDirectoryRequest_SortOrder, "com.seed.documents.v3alpha.ListDirectoryRequest.SortOrder", [
-  { no: 0, name: "LATEST_ACTIVITY_FIRST" },
-  { no: 1, name: "NAME_ALPHABETICAL" },
-  { no: 2, name: "PATH_ALPHABETICAL" },
-]);
 
 /**
  * Response of the directory list.
@@ -697,7 +752,8 @@ export class ListDirectoryResponse extends Message<ListDirectoryResponse> {
  */
 export class ListDocumentsRequest extends Message<ListDocumentsRequest> {
   /**
-   * Required. ID of the account to list documents for.
+   * Optional. ID of the account to list documents for.
+   * If not specified, all documents are listed.
    *
    * @generated from field: string account = 1;
    */

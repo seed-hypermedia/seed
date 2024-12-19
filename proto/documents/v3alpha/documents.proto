@@ -196,23 +196,38 @@ message ListDirectoryRequest {
   // Optional. If true, list documents recursively.
   bool recursive = 5;
 
-  // Optional. Sorting mode for the list response.
-  SortOrder sort_order = 6;
-
   // Optional. If set to true, only documents that the user is subscribed to will be returned.
-  bool subscribed_only = 7;
+  bool subscribed_only = 6;
 
-  // Sorting options for the list of documents.
-  enum SortOrder {
-    // Sorting by the most recent activity time.
-    LATEST_ACTIVITY_FIRST = 0;
+  // Optional. Configuration for sorting.
+  // If not specified the default sorting will be chosen.
+  SortOptions sort_options = 7;
+}
 
-    // Sorting by the name/title of the document.
-    NAME_ALPHABETICAL = 1;
+// Options for sorting list of documents.
+message SortOptions {
+  // Attributes by which the list can be sorted.
+  SortAttribute attribute = 1;
 
-    // Sorting by the path of the document.
-    PATH_ALPHABETICAL = 2;
-  }
+  // By default sort is ascending (smaller values first).
+  // This field can be specified to choose the opposing sorting.
+  bool descending = 2;
+}
+
+// Attrbites that can be used for sorting.
+enum SortAttribute {
+  // Sorting by activity time,
+  // i.e. time of the latest comment or change.
+  ACTIVITY_TIME = 0;
+
+  // Sorting by name/title of the document.
+  NAME = 1;
+
+  // Sorting by path value.
+  // When documents from multiple accounts are returned in the same listing,
+  // the entire fully-qualified namespaced path is considered,
+  // i.e. <account-id>/<path>.
+  PATH = 2;
 }
 
 // Response of the directory list.
@@ -226,7 +241,8 @@ message ListDirectoryResponse {
 
 // Request for listing documents.
 message ListDocumentsRequest {
-  // Required. ID of the account to list documents for.
+  // Optional. ID of the account to list documents for.
+  // If not specified, all documents are listed.
   string account = 1;
 
   // Optional. Number of results per page. Default is defined by the server.
