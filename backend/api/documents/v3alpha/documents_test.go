@@ -176,7 +176,7 @@ func TestListRootDocuments(t *testing.T) {
 		Compare(t, "alice's root document must match and be second")
 }
 
-func TestListDocument(t *testing.T) {
+func TestListDocuments(t *testing.T) {
 	t.Parallel()
 
 	alice := newTestDocsAPI(t, "alice")
@@ -239,6 +239,11 @@ func TestListDocument(t *testing.T) {
 	testutil.StructsEqual(want[2], list.Documents[2]).
 		IgnoreFields(documents.DocumentListItem{}, "Breadcrumbs", "ActivitySummary").
 		Compare(t, "profile doc must be the last element in the list")
+
+	list2, err := alice.ListDocuments(ctx, &documents.ListDocumentsRequest{})
+	require.NoError(t, err)
+
+	testutil.StructsEqual(list, list2).Compare(t, "list with no account ID must be allowed")
 }
 
 func TestGetDocumentWithVersion(t *testing.T) {

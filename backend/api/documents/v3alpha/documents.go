@@ -273,17 +273,6 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 
 // ListDocuments implements Documents API v3.
 func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocumentsRequest) (*documents.ListDocumentsResponse, error) {
-	{
-		if in.Account == "" {
-			return nil, errutil.MissingArgument("account")
-		}
-	}
-
-	ns, err := core.DecodePrincipal(in.Account)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode account: %w", err)
-	}
-
 	var cursor = struct {
 		IRI          string `json:"i"`
 		ActivityTime int64  `json:"t"`
@@ -314,16 +303,28 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 
 	lookup := blob.NewLookupCache(conn)
 
-	iri, err := blob.NewIRI(ns, "")
-	if err != nil {
-		return nil, err
-	}
-
 	var (
-		baseIRIGlob   = string(iri)
-		directoryGlob = string(iri) + "/*"
-		notGlob       = ""
+		baseIRIGlob   string
+		directoryGlob string
+		notGlob       string
 	)
+
+	if in.Account != "" {
+		ns, err := core.DecodePrincipal(in.Account)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode account: %w", err)
+		}
+
+		iri, err := blob.NewIRI(ns, "")
+		if err != nil {
+			return nil, err
+		}
+
+		baseIRIGlob = string(iri) + "*"
+		directoryGlob = baseIRIGlob + "/*"
+	} else {
+		baseIRIGlob = "hm://*"
+	}
 
 	var count int32
 	rows, check := sqlitex.Query(conn, qListDocumentsByActivityDesc(), baseIRIGlob, directoryGlob, notGlob, cursor.ActivityTime, cursor.IRI, in.PageSize)
