@@ -742,6 +742,102 @@ func TestTombstoneRef(t *testing.T) {
 	}
 }
 
+func TestListDirectory(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	aliceSpace := alice.me.Account.Principal().String()
+
+	_, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        aliceSpace,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "name", Value: "Alice's profile"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Path:           "/doc-1",
+		Account:        aliceSpace,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "name", Value: "Doc1"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Path:           "/nested/doc-1",
+		Account:        aliceSpace,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "name", Value: "Doc1"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, err)
+
+	doTest := func(dir string, sort *documents.SortOptions, recursive bool, want []string) {
+		t.Helper()
+		list, err := alice.ListDirectory(ctx, &documents.ListDirectoryRequest{
+			Account:       aliceSpace,
+			DirectoryPath: dir,
+			SortOptions:   sort,
+			Recursive:     recursive,
+		})
+		require.NoError(t, err)
+
+		require.Len(t, list.Documents, len(want), "list must contain all wanted documents")
+
+		for i, w := range list.Documents {
+			require.Equal(t, want[i], w.Path, "list item %d doesn't match", i)
+		}
+	}
+
+	doTest("", nil, false, []string{"", "/doc-1"})
+	doTest("", nil, true, []string{"", "/doc-1", "/nested/doc-1"})
+
+	doTest("",
+		&documents.SortOptions{
+			Attribute: documents.SortAttribute_ACTIVITY_TIME,
+		},
+		false,
+		[]string{"", "/doc-1"},
+	)
+	doTest("",
+		&documents.SortOptions{
+			Attribute: documents.SortAttribute_ACTIVITY_TIME,
+		},
+		true,
+		[]string{"", "/doc-1", "/nested/doc-1"},
+	)
+
+	doTest("/nested",
+		&documents.SortOptions{
+			Attribute: documents.SortAttribute_ACTIVITY_TIME,
+		},
+		false,
+		[]string{"/nested/doc-1"},
+	)
+	doTest("/nested",
+		&documents.SortOptions{
+			Attribute: documents.SortAttribute_ACTIVITY_TIME,
+		},
+		true,
+		[]string{"/nested/doc-1"},
+	)
+}
+
 type testServer struct {
 	*Server
 	me coretest.Tester

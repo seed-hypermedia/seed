@@ -203,6 +203,129 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 	})
 }
 
+// ListDirectory implements Documents API v3.
+func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirectoryRequest) (*documents.ListDirectoryResponse, error) {
+	{
+		if in.Account == "" {
+			return nil, errutil.MissingArgument("account")
+		}
+
+		if in.SortOptions == nil {
+			in.SortOptions = &documents.SortOptions{
+				Attribute: documents.SortAttribute_ACTIVITY_TIME,
+			}
+		}
+	}
+
+	var cursor struct {
+		IRI          string `json:"i"`
+		ActivityTime int64  `json:"t,omitempty"` // Only used when filtering by activity time.
+		NameOrPath   string `json:"n,omitempty"` // Only used when filtering by name or path.
+	}
+
+	switch {
+	case in.PageToken == "" && in.SortOptions.Descending:
+		cursor.IRI = "\uFFFF" // MaxString.
+		cursor.ActivityTime = math.MaxInt64
+		cursor.NameOrPath = "\uFFFF" // MaxString.
+	case in.PageToken != "":
+		if err := apiutil.DecodePageToken(in.PageToken, &cursor, nil); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
+	}
+
+	if in.PageSize <= 0 {
+		in.PageSize = 30 // Arbitrary default page size.
+	}
+
+	ns, err := core.DecodePrincipal(in.Account)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, release, err := srv.db.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
+	lookup := blob.NewLookupCache(conn)
+
+	iri, err := blob.NewIRI(ns, in.DirectoryPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		baseIRIGlob   = string(iri)
+		directoryGlob = string(iri) + "/*"
+		notGlob       = ""
+	)
+
+	if !in.Recursive {
+		notGlob = string(iri) + "/*/*"
+	}
+
+	out := &documents.ListDirectoryResponse{
+		Documents: make([]*documents.DocumentListItem, 0, min(in.PageSize, 300)), // Avoid allocating huge slice if client requests huge page size.
+	}
+
+	var query func() string
+	switch {
+	case in.SortOptions.Attribute == documents.SortAttribute_ACTIVITY_TIME && in.SortOptions.Descending:
+		query = qListDocumentsByActivityDesc
+	case in.SortOptions.Attribute == documents.SortAttribute_ACTIVITY_TIME && !in.SortOptions.Descending:
+		query = qListDocumentsByActivityAsc
+	case in.SortOptions.Attribute == documents.SortAttribute_NAME && in.SortOptions.Descending:
+		query = qListDocumentsByNameDesc
+	case in.SortOptions.Attribute == documents.SortAttribute_NAME && !in.SortOptions.Descending:
+		query = qListDocumentsByNameAsc
+	case in.SortOptions.Attribute == documents.SortAttribute_PATH && in.SortOptions.Descending:
+		query = qListDocumentsByPathDesc
+	case in.SortOptions.Attribute == documents.SortAttribute_PATH && !in.SortOptions.Descending:
+		query = qListDocumentsByPathAsc
+	default:
+		return nil, status.Errorf(codes.InvalidArgument, "unsupported sort options %+v", in.SortOptions)
+	}
+
+	var cursorVar any
+	if in.SortOptions.Attribute == documents.SortAttribute_ACTIVITY_TIME {
+		cursorVar = cursor.ActivityTime
+	} else {
+		cursorVar = cursor.NameOrPath
+	}
+
+	var count int32
+	rows, check := sqlitex.Query(conn, query(), baseIRIGlob, directoryGlob, notGlob, cursorVar, cursor.IRI, in.PageSize)
+	for row := range rows {
+		if count == in.PageSize {
+			out.NextPageToken, err = apiutil.EncodePageToken(cursor, nil)
+			break
+		}
+		count++
+
+		item, ierr := documentListItemFromRow(lookup, row)
+		if ierr != nil {
+			err = ierr
+			break
+		}
+
+		cursor.ActivityTime = item.ActivitySummary.LatestChangeTime.AsTime().UnixMilli()
+		cursor.NameOrPath = item.Metadata["name"]
+		cursor.IRI = "hm://" + item.Account + "/" + item.Path
+		cursor.IRI = strings.TrimSuffix(cursor.IRI, "/")
+
+		out.Documents = append(out.Documents, item)
+	}
+
+	err = errors.Join(err, check())
+	if err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
 // ListRootDocuments implements Documents API v3.
 func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRootDocumentsRequest) (*documents.ListRootDocumentsResponse, error) {
 	var cursor = struct {
