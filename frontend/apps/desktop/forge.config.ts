@@ -266,12 +266,13 @@ function notarizeMaybe() {
     `[FORGE CONFIG]: 🎉 adding 'osxNotarize' and 'osxSign' values to the config. Proceed to Sign and Notarize`,
   )
 
-  // config.packagerConfig.osxNotarize = {
-  //   // tool: 'notarytool',
-  //   appleId: process.env.APPLE_ID || '',
-  //   appleIdPassword: process.env.APPLE_ID_PASSWORD || '',
-  //   teamId: process.env.APPLE_TEAM_ID || '',
-  // }
+  // @ts-expect-error
+  config.packagerConfig.osxNotarize = {
+    // tool: 'notarytool',
+    appleId: process.env.APPLE_ID || '',
+    appleIdPassword: process.env.APPLE_ID_PASSWORD || '',
+    teamId: process.env.APPLE_TEAM_ID || '',
+  }
 
   // @ts-expect-error
   config.packagerConfig.osxSign = {
