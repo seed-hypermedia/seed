@@ -52,7 +52,7 @@ const commonLinuxConfig = {
     productName: IS_PROD_DEV ? 'SeedDev' : 'Seed',
     mimeType: ['x-scheme-handler/hm'],
     version,
-    bin: IS_PROD_DEV ? 'seed-dev' : 'seed',
+    bin: IS_PROD_DEV ? 'SeedDev' : 'Seed',
     homepage: 'https://seedhypermedia.com',
   },
 }
@@ -65,7 +65,7 @@ const config: ForgeConfig = {
     icon: iconsPath,
     name: IS_PROD_DEV ? 'SeedDev' : 'Seed',
     appBundleId: IS_PROD_DEV ? 'com.seed.app.dev' : 'com.seed.app',
-    executableName: IS_PROD_DEV ? 'seed-dev' : 'seed',
+    executableName: IS_PROD_DEV ? 'SeedDev' : 'Seed',
     appCategoryType: 'public.app-category.productivity',
     // packageManager: 'yarn',
     extraResource: [daemonBinaryPath],
