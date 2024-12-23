@@ -650,6 +650,7 @@ export function BlockNodeContent({
               hoverStyle={{
                 opacity: 1,
               }}
+              bg="$background"
               $group-blocknode-hover={{
                 opacity: 1,
               }}
