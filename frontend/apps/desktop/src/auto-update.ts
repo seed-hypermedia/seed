@@ -14,8 +14,11 @@ import * as log from './logger'
 export function defaultCheckForUpdates() {
   log.debug('[MAIN][AUTO-UPDATE]: checking for Updates')
   // ipcMain.emit(ipcMainEvents.CHECK_FOR_UPDATES_START)
-
-  autoUpdater.checkForUpdates()
+  try {
+    autoUpdater.checkForUpdates()
+  } catch (error) {
+    log.error(`[MAIN][AUTO-UPDATE]: error checking for updates: ${error}`)
+  }
 
   // ipcMain.emit(ipcMainEvents.CHECK_FOR_UPDATES_END)
   log.debug('[MAIN][AUTO-UPDATE]: checking for Updates END')
