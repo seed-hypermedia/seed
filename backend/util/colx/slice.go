@@ -7,6 +7,12 @@ import (
 
 type Slice[T any] []T
 
+// Append is a convenience method to append an element to the slice
+// without the need to reassign the returned variable with the built-in append function.
+func (s *Slice[T]) Append(v ...T) {
+	*s = append(*s, v...)
+}
+
 // WrapSlice wraps a standard slice into a Slice,
 // which exposes various convenience methods for slice operations.
 func WrapSlice[S ~[]E, E any](in S) Slice[E] {

@@ -135,34 +135,77 @@ func exec(stmt *sqlite.Stmt, resultFn func(stmt *sqlite.Stmt) error, args []inte
 	return nil
 }
 
+func setAny(stmt *sqlite.Stmt, name string, arg any) {
+	v := reflect.ValueOf(arg)
+	k := v.Kind()
+	switch k {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		stmt.SetInt64(name, v.Int())
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		stmt.SetInt64(name, int64(v.Uint())) //nolint:gosec
+	case reflect.Float32, reflect.Float64:
+		stmt.SetFloat(name, v.Float())
+	case reflect.String:
+		stmt.SetText(name, v.String())
+	case reflect.Bool:
+		stmt.SetBool(name, v.Bool())
+	case reflect.Invalid:
+		stmt.SetNull(name)
+	case reflect.Slice:
+		if k == reflect.Slice && v.Type().Elem().Kind() == reflect.Uint8 {
+			stmt.SetBytes(name, v.Bytes())
+		} else {
+			panic("BUG: can't bind slices other than []byte")
+		}
+	default:
+		panic("invalid bind parameter type " + k.String())
+	}
+}
+
+func bindAny(stmt *sqlite.Stmt, i int, arg any) {
+	v := reflect.ValueOf(arg)
+	k := v.Kind()
+	switch k {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		stmt.BindInt64(i, v.Int())
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		stmt.BindInt64(i, int64(v.Uint())) //nolint:gosec
+	case reflect.Float32, reflect.Float64:
+		stmt.BindFloat(i, v.Float())
+	case reflect.String:
+		stmt.BindText(i, v.String())
+	case reflect.Bool:
+		stmt.BindBool(i, v.Bool())
+	case reflect.Invalid:
+		stmt.BindNull(i)
+	case reflect.Slice:
+		if k == reflect.Slice && v.Type().Elem().Kind() == reflect.Uint8 {
+			stmt.BindBytes(i, v.Bytes())
+		} else {
+			stmt.BindText(i, fmt.Sprintf("%v", arg))
+		}
+	default:
+		panic("invalid bind parameter type " + k.String())
+	}
+}
+
 // BindArgs to the prepared statement.
 func BindArgs(stmt *sqlite.Stmt, args ...interface{}) {
+	// Special case when passing only one argument as map[string]any,
+	// in which case we use it as named parameters, instead of positional bindings.
+	if len(args) == 1 {
+		if am, ok := args[0].(map[string]any); ok {
+			for k, v := range am {
+				setAny(stmt, k, v)
+			}
+
+			return
+		}
+	}
+
 	for i, arg := range args {
 		i++ // parameters are 1-indexed
-		v := reflect.ValueOf(arg)
-		k := v.Kind()
-		switch k {
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			stmt.BindInt64(i, v.Int())
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-			stmt.BindInt64(i, int64(v.Uint()))
-		case reflect.Float32, reflect.Float64:
-			stmt.BindFloat(i, v.Float())
-		case reflect.String:
-			stmt.BindText(i, v.String())
-		case reflect.Bool:
-			stmt.BindBool(i, v.Bool())
-		case reflect.Invalid:
-			stmt.BindNull(i)
-		case reflect.Slice:
-			if k == reflect.Slice && v.Type().Elem().Kind() == reflect.Uint8 {
-				stmt.BindBytes(i, v.Bytes())
-			} else {
-				stmt.BindText(i, fmt.Sprintf("%v", arg))
-			}
-		default:
-			panic("invalid bind parameter type " + k.String())
-		}
+		bindAny(stmt, i, arg)
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/util/apiutil"
 	"seed/backend/util/cclock"
+	"seed/backend/util/colx"
 	"seed/backend/util/dqb"
 	"seed/backend/util/errutil"
 	"seed/backend/util/maybe"
@@ -218,14 +219,12 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 	}
 
 	var cursor struct {
-		IRI          string `json:"i"`
 		ActivityTime int64  `json:"t,omitempty"` // Only used when filtering by activity time.
 		NameOrPath   string `json:"n,omitempty"` // Only used when filtering by name or path.
 	}
 
 	switch {
 	case in.PageToken == "" && in.SortOptions.Descending:
-		cursor.IRI = "\uFFFF" // MaxString.
 		cursor.ActivityTime = math.MaxInt64
 		cursor.NameOrPath = "\uFFFF" // MaxString.
 	case in.PageToken != "":
@@ -238,9 +237,69 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 		in.PageSize = 30 // Arbitrary default page size.
 	}
 
-	ns, err := core.DecodePrincipal(in.Account)
-	if err != nil {
-		return nil, err
+	var (
+		query string
+		args  colx.Slice[any]
+	)
+	{
+		ns, err := core.DecodePrincipal(in.Account)
+		if err != nil {
+			return nil, err
+		}
+
+		baseIRI, err := blob.NewIRI(ns, in.DirectoryPath)
+		if err != nil {
+			return nil, err
+		}
+
+		qb := baseListDocumentsQuery()
+
+		qb.Where("(r.iri = ? OR r.iri GLOB ?)")
+		args.Append(baseIRI, baseIRI+"/*")
+
+		if !in.Recursive {
+			qb.Where("r.iri NOT GLOB ?")
+			args.Append(baseIRI + "/*/*")
+		}
+
+		var (
+			order         string
+			paginationCmp string
+		)
+		if in.SortOptions.Descending {
+			order = "DESC"
+			paginationCmp = "<"
+		} else {
+			order = "ASC"
+			paginationCmp = ">"
+		}
+
+		switch in.SortOptions.Attribute {
+		case documents.SortAttribute_ACTIVITY_TIME:
+			qb.Where("last_activity_time " + paginationCmp + " ?")
+			args.Append(cursor.ActivityTime)
+
+			qb.OrderBy("last_activity_time " + order)
+		case documents.SortAttribute_NAME:
+			qb.Where("COALESCE(dg.metadata->>'name', '') " + paginationCmp + " ?")
+			args.Append(cursor.NameOrPath)
+
+			qb.OrderBy("COALESCE(dg.metadata->>'name', '') " + order)
+		case documents.SortAttribute_PATH:
+			qb.Where("r.iri " + paginationCmp + " ?")
+			args.Append(cursor.NameOrPath)
+
+			qb.OrderBy("r.iri " + order)
+		default:
+			return nil, status.Errorf(codes.InvalidArgument, "unsupported sort attribute %v", in.SortOptions.Attribute)
+		}
+
+		args.Append(in.PageSize)
+		query = qb.String()
+	}
+
+	out := &documents.ListDirectoryResponse{
+		Documents: make([]*documents.DocumentListItem, 0, min(in.PageSize, 300)), // Avoid allocating huge slice if client requests huge page size.
 	}
 
 	conn, release, err := srv.db.Conn(ctx)
@@ -251,52 +310,8 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 
 	lookup := blob.NewLookupCache(conn)
 
-	iri, err := blob.NewIRI(ns, in.DirectoryPath)
-	if err != nil {
-		return nil, err
-	}
-
-	var (
-		baseIRIGlob   = string(iri)
-		directoryGlob = string(iri) + "/*"
-		notGlob       = ""
-	)
-
-	if !in.Recursive {
-		notGlob = string(iri) + "/*/*"
-	}
-
-	out := &documents.ListDirectoryResponse{
-		Documents: make([]*documents.DocumentListItem, 0, min(in.PageSize, 300)), // Avoid allocating huge slice if client requests huge page size.
-	}
-
-	var query func() string
-	switch {
-	case in.SortOptions.Attribute == documents.SortAttribute_ACTIVITY_TIME && in.SortOptions.Descending:
-		query = qListDocumentsByActivityDesc
-	case in.SortOptions.Attribute == documents.SortAttribute_ACTIVITY_TIME && !in.SortOptions.Descending:
-		query = qListDocumentsByActivityAsc
-	case in.SortOptions.Attribute == documents.SortAttribute_NAME && in.SortOptions.Descending:
-		query = qListDocumentsByNameDesc
-	case in.SortOptions.Attribute == documents.SortAttribute_NAME && !in.SortOptions.Descending:
-		query = qListDocumentsByNameAsc
-	case in.SortOptions.Attribute == documents.SortAttribute_PATH && in.SortOptions.Descending:
-		query = qListDocumentsByPathDesc
-	case in.SortOptions.Attribute == documents.SortAttribute_PATH && !in.SortOptions.Descending:
-		query = qListDocumentsByPathAsc
-	default:
-		return nil, status.Errorf(codes.InvalidArgument, "unsupported sort options %+v", in.SortOptions)
-	}
-
-	var cursorVar any
-	if in.SortOptions.Attribute == documents.SortAttribute_ACTIVITY_TIME {
-		cursorVar = cursor.ActivityTime
-	} else {
-		cursorVar = cursor.NameOrPath
-	}
-
 	var count int32
-	rows, check := sqlitex.Query(conn, query(), baseIRIGlob, directoryGlob, notGlob, cursorVar, cursor.IRI, in.PageSize)
+	rows, check := sqlitex.Query(conn, query, args...)
 	for row := range rows {
 		if count == in.PageSize {
 			out.NextPageToken, err = apiutil.EncodePageToken(cursor, nil)
@@ -312,8 +327,6 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 
 		cursor.ActivityTime = item.ActivitySummary.LatestChangeTime.AsTime().UnixMilli()
 		cursor.NameOrPath = item.Metadata["name"]
-		cursor.IRI = "hm://" + item.Account + "/" + item.Path
-		cursor.IRI = strings.TrimSuffix(cursor.IRI, "/")
 
 		out.Documents = append(out.Documents, item)
 	}
@@ -351,10 +364,21 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 	}
 
 	var (
-		baseGlob         = "hm://*"
-		directoryGlob    = ""
-		namespaceNotGlob = "hm://*/*"
+		query string
+		args  colx.Slice[any]
 	)
+	{
+		qb := baseListDocumentsQuery().OrderBy("last_activity_time DESC")
+
+		qb.Where("r.iri GLOB 'hm://*'")
+		qb.Where("r.iri NOT GLOB 'hm://*/*'")
+
+		qb.Where("last_activity_time < ?", "r.iri < ?")
+		args.Append(cursor.ActivityTime, cursor.IRI)
+
+		args.Append(in.PageSize)
+		query = qb.String()
+	}
 
 	conn, release, err := srv.db.Conn(ctx)
 	if err != nil {
@@ -365,7 +389,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 	lookup := blob.NewLookupCache(conn)
 
 	var count int32
-	rows, check := sqlitex.Query(conn, qListDocumentsByActivityDesc(), baseGlob, directoryGlob, namespaceNotGlob, cursor.ActivityTime, cursor.IRI, in.PageSize)
+	rows, check := sqlitex.Query(conn, query, args...)
 	for row := range rows {
 		if count == in.PageSize {
 			out.NextPageToken, err = apiutil.EncodePageToken(cursor, nil)
@@ -418,6 +442,37 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		Documents: make([]*documents.DocumentListItem, 0, min(in.PageSize, 300)), // Avoid allocating huge slice if huge page size was requested. Number is arbitrary.
 	}
 
+	var (
+		query string
+		args  colx.Slice[any]
+	)
+	{
+		qb := baseListDocumentsQuery().OrderBy("last_activity_time DESC")
+
+		if in.Account == "" {
+			qb.Where("r.iri GLOB 'hm://*'")
+		} else {
+			ns, err := core.DecodePrincipal(in.Account)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decode account: %w", err)
+			}
+
+			iri, err := blob.NewIRI(ns, "")
+			if err != nil {
+				return nil, err
+			}
+
+			qb.Where("(r.iri = ? OR r.iri GLOB ?)")
+			args.Append(iri, iri+"/*")
+		}
+
+		qb.Where("last_activity_time < ?", "r.iri < ?")
+		args.Append(cursor.ActivityTime, cursor.IRI)
+
+		args.Append(in.PageSize)
+		query = qb.String()
+	}
+
 	conn, release, err := srv.db.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -426,31 +481,8 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 
 	lookup := blob.NewLookupCache(conn)
 
-	var (
-		baseIRIGlob   string
-		directoryGlob string
-		notGlob       string
-	)
-
-	if in.Account != "" {
-		ns, err := core.DecodePrincipal(in.Account)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode account: %w", err)
-		}
-
-		iri, err := blob.NewIRI(ns, "")
-		if err != nil {
-			return nil, err
-		}
-
-		baseIRIGlob = string(iri) + "*"
-		directoryGlob = baseIRIGlob + "/*"
-	} else {
-		baseIRIGlob = "hm://*"
-	}
-
 	var count int32
-	rows, check := sqlitex.Query(conn, qListDocumentsByActivityDesc(), baseIRIGlob, directoryGlob, notGlob, cursor.ActivityTime, cursor.IRI, in.PageSize)
+	rows, check := sqlitex.Query(conn, query, args...)
 	for row := range rows {
 		if count == in.PageSize {
 			out.NextPageToken, err = apiutil.EncodePageToken(cursor, nil)
@@ -477,6 +509,29 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 	}
 
 	return out, nil
+}
+
+func baseListDocumentsQuery() *dqb.SelectQuery {
+	// Page size must be the last binding parameter.
+	return dqb.Select(
+		"r.iri",
+		"dg.genesis",
+		"dg.metadata",
+		"dg.comment_count",
+		"dg.heads",
+		"dg.authors",
+		"dg.genesis_change_time",
+		"dg.last_comment_time",
+		"dg.last_change_time",
+		"dg.last_activity_time",
+	).
+		From(
+			"document_generations dg",
+			"resources r",
+		).
+		Where("r.id = dg.resource", "dg.is_deleted = 0").
+		GroupBy("dg.resource HAVING dg.generation = MAX(dg.generation)").
+		Limit("? + 1")
 }
 
 func documentListItemFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents.DocumentListItem, error) {
@@ -602,72 +657,6 @@ func maybeTimeToProto(t time.Time) *timestamppb.Timestamp {
 
 	return timestamppb.New(t)
 }
-
-var listDocumentsTemplate = `
-	-- globBaseIRI, globInclude, globExclude, cursorVar1, cursorVar2, pageSize
-	SELECT
-		r.iri,
-		dg.genesis,
-		dg.metadata,
-		dg.comment_count,
-		dg.heads,
-		dg.authors,
-		dg.genesis_change_time,
-		dg.last_comment_time,
-		dg.last_change_time,
-		dg.last_activity_time
-	FROM document_generations dg
-	JOIN resources r ON r.id = dg.resource
-		AND (r.iri GLOB ?1 OR r.iri GLOB ?2)
-		AND r.iri NOT GLOB ?3
-		AND dg.is_deleted = 0
-	$CURSOR_WHERE_CLAUSE
-	GROUP BY dg.resource HAVING dg.generation = MAX(dg.generation)
-	$ORDER_BY_CLAUSE
-	LIMIT ?6 + 1;
-`
-
-var qListDocumentsByActivityAsc = dqb.Q(func() string {
-	return strings.NewReplacer(
-		"$CURSOR_WHERE_CLAUSE", "WHERE last_activity_time > ?4 AND r.iri > ?5",
-		"$ORDER_BY_CLAUSE", "ORDER BY last_activity_time ASC",
-	).Replace(listDocumentsTemplate)
-})
-
-var qListDocumentsByActivityDesc = dqb.Q(func() string {
-	return strings.NewReplacer(
-		"$CURSOR_WHERE_CLAUSE", "WHERE last_activity_time < ?4 AND r.iri < ?5",
-		"$ORDER_BY_CLAUSE", "ORDER BY last_activity_time DESC",
-	).Replace(listDocumentsTemplate)
-})
-
-var qListDocumentsByNameAsc = dqb.Q(func() string {
-	return strings.NewReplacer(
-		"$CURSOR_WHERE_CLAUSE", "WHERE COALESCE(dg.metadata->>'name', '') > ?4 AND r.iri > ?5",
-		"$ORDER_BY_CLAUSE", "ORDER BY COALESCE(dg.metadata->>'name', '') ASC",
-	).Replace(listDocumentsTemplate)
-})
-
-var qListDocumentsByNameDesc = dqb.Q(func() string {
-	return strings.NewReplacer(
-		"$CURSOR_WHERE_CLAUSE", "WHERE dg.metadata->>'name' < ?4 AND r.iri < ?5",
-		"$ORDER_BY_CLAUSE", "ORDER BY dg.metadata->>'name' DESC",
-	).Replace(listDocumentsTemplate)
-})
-
-var qListDocumentsByPathAsc = dqb.Q(func() string {
-	return strings.NewReplacer(
-		"$CURSOR_WHERE_CLAUSE", "WHERE r.iri > ?4 AND r.iri > ?5",
-		"$ORDER_BY_CLAUSE", "ORDER BY r.iri ASC",
-	).Replace(listDocumentsTemplate)
-})
-
-var qListDocumentsByPathDesc = dqb.Q(func() string {
-	return strings.NewReplacer(
-		"$CURSOR_WHERE_CLAUSE", "WHERE r.iri < ?4 AND r.iri < ?5",
-		"$ORDER_BY_CLAUSE", "ORDER BY r.iri DESC",
-	).Replace(listDocumentsTemplate)
-})
 
 // DeleteDocument implements Documents API v3.
 func (srv *Server) DeleteDocument(ctx context.Context, in *documents.DeleteDocumentRequest) (*emptypb.Empty, error) {
