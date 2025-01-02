@@ -269,6 +269,13 @@ func crossLinkRefMaybe(conn *sqlite.Conn, v *Ref) error {
 		for _, cm := range pendingChanges {
 			dg.ensureChangeApplied(cm)
 		}
+
+		if len(pendingChanges) > 0 {
+			last := pendingChanges[len(pendingChanges)-1]
+			if err := touchSpaceStats(conn, v.GetSpace().String(), last.Ts); err != nil {
+				return fmt.Errorf("failed to touch space stats: %w", err)
+			}
+		}
 	}
 
 	refTime := v.Ts.UnixMilli()
@@ -285,6 +292,16 @@ func crossLinkRefMaybe(conn *sqlite.Conn, v *Ref) error {
 
 	return nil
 }
+
+func touchSpaceStats(conn *sqlite.Conn, spaceID string, lastChangeTime int64) error {
+	return sqlitex.Exec(conn, qTouchSpaceStats(), nil, spaceID, lastChangeTime)
+}
+
+var qTouchSpaceStats = dqb.Str(`
+	INSERT INTO spaces (id, last_change_time)
+	VALUES (?, ?)
+	ON CONFLICT (id) DO UPDATE SET last_change_time = MAX(spaces.last_change_time, excluded.last_change_time);
+`)
 
 type documentGeneration struct {
 	shouldUpdate bool

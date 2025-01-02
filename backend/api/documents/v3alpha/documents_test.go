@@ -176,6 +176,96 @@ func TestListRootDocuments(t *testing.T) {
 		Compare(t, "alice's root document must match and be second")
 }
 
+func TestListAccounts(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	// Create root document for Alice.
+	aliceRoot, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.Principal().String(),
+		Path:           "",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice's profile"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	aliceAcc := &documents.Account{
+		Id:       aliceRoot.Account,
+		Metadata: aliceRoot.Metadata,
+		ActivitySummary: &documents.ActivitySummary{
+			CommentCount:      0,
+			LatestChangeTime:  aliceRoot.UpdateTime,
+			LatestCommentTime: nil,
+		},
+	}
+
+	accs, err := alice.ListAccounts(ctx, &documents.ListAccountsRequest{})
+	require.NoError(t, err)
+	require.Len(t, accs.Accounts, 1)
+	testutil.StructsEqual(aliceAcc, accs.Accounts[0]).Compare(t, "alice's account must match")
+
+	bob := newTestDocsAPI(t, "bob")
+	bobRoot, err := bob.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        bob.me.Account.Principal().String(),
+		Path:           "",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Bob's profile"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	bobAcc := &documents.Account{
+		Id:       bobRoot.Account,
+		Metadata: bobRoot.Metadata,
+		ActivitySummary: &documents.ActivitySummary{
+			CommentCount:      0,
+			LatestChangeTime:  bobRoot.UpdateTime,
+			LatestCommentTime: nil,
+		},
+	}
+
+	accs, err = bob.ListAccounts(ctx, &documents.ListAccountsRequest{})
+	require.NoError(t, err)
+	require.Len(t, accs.Accounts, 1)
+	testutil.StructsEqual(bobAcc, accs.Accounts[0]).Compare(t, "bob's account must match")
+
+	// Sync bob and alice.
+	{
+		cids, err := bob.idx.AllKeysChan(ctx)
+		require.NoError(t, err)
+		var count int
+		for c := range cids {
+			count++
+			blk, err := bob.idx.Get(ctx, c)
+			require.NoError(t, err)
+			err = alice.idx.Put(ctx, blk)
+			require.NoError(t, err)
+		}
+		require.Greater(t, count, 0)
+	}
+
+	accs, err = alice.ListAccounts(ctx, &documents.ListAccountsRequest{})
+	require.NoError(t, err)
+	require.Len(t, accs.Accounts, 2)
+
+	testutil.StructsEqual(bobAcc, accs.Accounts[0]).
+		IgnoreFields(documents.DocumentListItem{}, "Breadcrumbs", "ActivitySummary").
+		Compare(t, "bobs root document must match and be first")
+
+	testutil.StructsEqual(aliceAcc, accs.Accounts[1]).
+		IgnoreFields(documents.DocumentListItem{}, "Breadcrumbs", "ActivitySummary").
+		Compare(t, "alice's root document must match and be second")
+}
+
 func TestListDocuments(t *testing.T) {
 	t.Parallel()
 
@@ -804,8 +894,8 @@ func TestListDirectory(t *testing.T) {
 		}
 	}
 
-	doTest("", nil, false, []string{"", "/doc-1"})
-	doTest("", nil, true, []string{"", "/doc-1", "/nested/doc-1"})
+	doTest("", nil, false, []string{"/doc-1", ""})
+	doTest("", nil, true, []string{"/nested/doc-1", "/doc-1", ""})
 
 	doTest("",
 		&documents.SortOptions{

@@ -33,10 +33,14 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+const (
+	defaultPageSize    = 100
+	maxPageAllocBuffer = 400 // Arbitrary limit to prevent allocating too much memory when client requested huge page size.
+)
+
 // Server implements Documents API v3.
 type Server struct {
 	documents.UnimplementedCommentsServer
-	documents.UnimplementedDocumentsServer
 
 	keys core.KeyStore
 	idx  *blob.Index
@@ -213,7 +217,8 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 
 		if in.SortOptions == nil {
 			in.SortOptions = &documents.SortOptions{
-				Attribute: documents.SortAttribute_ACTIVITY_TIME,
+				Attribute:  documents.SortAttribute_ACTIVITY_TIME,
+				Descending: true,
 			}
 		}
 	}
@@ -234,7 +239,7 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 	}
 
 	if in.PageSize <= 0 {
-		in.PageSize = 30 // Arbitrary default page size.
+		in.PageSize = defaultPageSize
 	}
 
 	var (
@@ -299,7 +304,7 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 	}
 
 	out := &documents.ListDirectoryResponse{
-		Documents: make([]*documents.DocumentListItem, 0, min(in.PageSize, 300)), // Avoid allocating huge slice if client requests huge page size.
+		Documents: make([]*documents.DocumentListItem, 0, min(in.PageSize, maxPageAllocBuffer)),
 	}
 
 	conn, release, err := srv.db.Conn(ctx)
@@ -339,6 +344,159 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 	return out, nil
 }
 
+// ListAccounts implements Documents API v3.
+func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsRequest) (*documents.ListAccountsResponse, error) {
+	var cursor = struct {
+		ID           string `json:"i"`
+		ActivityTime int64  `json:"t"`
+	}{
+		ID:           "\uFFFF", // MaxString.
+		ActivityTime: math.MaxInt64,
+	}
+
+	if in.PageToken != "" {
+		if err := apiutil.DecodePageToken(in.PageToken, &cursor, nil); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
+	}
+
+	if in.PageSize <= 0 {
+		in.PageSize = defaultPageSize
+	}
+
+	if in.SortOptions == nil {
+		in.SortOptions = &documents.SortOptions{
+			Attribute:  documents.SortAttribute_ACTIVITY_TIME,
+			Descending: true,
+		}
+	}
+
+	out := &documents.ListAccountsResponse{
+		Accounts: make([]*documents.Account, 0, min(in.PageSize, maxPageAllocBuffer)),
+	}
+
+	var (
+		query string
+		args  colx.Slice[any]
+	)
+	{
+		qb := dqb.
+			Select(
+				"spaces.id",
+				"spaces.last_comment_time",
+				"spaces.comment_count",
+				"spaces.last_change_time",
+				"MAX(last_comment_time, last_change_time) AS last_activity_time",
+				"subs.id IS NOT NULL AS is_subscribed",
+				"(SELECT metadata FROM document_generations WHERE resource = (SELECT resources.id FROM resources WHERE iri = 'hm://' || spaces.id) GROUP BY resource HAVING generation = MAX(generation)) AS metadata",
+			).
+			From("spaces").
+			LeftJoin("(SELECT DISTINCT substr(iri, 6, 48) AS id FROM subscriptions) subs", "spaces.id = subs.id").
+			Limit("? + 1")
+
+		var (
+			order         string
+			paginationCmp string
+		)
+		if in.SortOptions.Descending {
+			order = "DESC"
+			paginationCmp = "<"
+		} else {
+			order = "ASC"
+			paginationCmp = ">"
+		}
+
+		switch in.SortOptions.Attribute {
+		case documents.SortAttribute_ACTIVITY_TIME:
+			qb.Where(
+				"last_activity_time "+paginationCmp+" ?",
+				"spaces.id "+paginationCmp+" ?",
+			)
+			args.Append(cursor.ActivityTime, cursor.ID)
+
+			qb.OrderBy("last_activity_time " + order + ", spaces.id " + order)
+		case documents.SortAttribute_NAME, documents.SortAttribute_PATH:
+			qb.Where("spaces.id " + paginationCmp + " ?")
+			args.Append(cursor.ID)
+
+			qb.OrderBy("spaces.id " + order)
+		default:
+			return nil, status.Errorf(codes.InvalidArgument, "unsupported sort attribute %v", in.SortOptions.Attribute)
+		}
+
+		args.Append(in.PageSize)
+		query = qb.String()
+	}
+
+	conn, release, err := srv.db.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
+	var count int32
+	rows, check := sqlitex.Query(conn, query, args...)
+	for row := range rows {
+		if count == in.PageSize {
+			out.NextPageToken, err = apiutil.EncodePageToken(cursor, nil)
+			break
+		}
+		count++
+
+		seq := sqlite.NewIncrementor(0)
+		var (
+			spaceID          = row.ColumnText(seq())
+			lastCommentTime  = row.ColumnInt64(seq())
+			commentCount     = row.ColumnInt64(seq())
+			lastChangeTime   = row.ColumnInt64(seq())
+			lastActivityTime = row.ColumnInt64(seq())
+			isSubscribed     = row.ColumnInt(seq()) != 0
+			metadataJSON     = row.ColumnBytesUnsafe(seq())
+		)
+
+		var attrs blob.DocIndexedAttrs
+		if err := json.Unmarshal(metadataJSON, &attrs); err != nil {
+			return nil, err
+		}
+
+		metadata := make(map[string]string, len(attrs))
+		for k, v := range attrs {
+			var vv string
+			switch iv := v.Value.(type) {
+			case string:
+				vv = iv
+			case int64, int:
+				vv = fmt.Sprintf("%d", iv)
+			}
+
+			metadata[k] = vv
+		}
+
+		item := &documents.Account{
+			Id:       spaceID,
+			Metadata: metadata,
+			ActivitySummary: &documents.ActivitySummary{
+				CommentCount:      int32(commentCount), //nolint:gosec
+				LatestCommentTime: maybeTimeToProto(lastCommentTime),
+				LatestChangeTime:  timestamppb.New(time.UnixMilli(lastChangeTime)),
+			},
+			IsSubscribed: isSubscribed,
+		}
+
+		cursor.ActivityTime = lastActivityTime
+		cursor.ID = spaceID
+
+		out.Accounts = append(out.Accounts, item)
+	}
+
+	err = errors.Join(err, check())
+	if err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
 // ListRootDocuments implements Documents API v3.
 func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRootDocumentsRequest) (*documents.ListRootDocumentsResponse, error) {
 	var cursor = struct {
@@ -360,7 +518,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 	}
 
 	out := &documents.ListRootDocumentsResponse{
-		Documents: make([]*documents.DocumentListItem, 0, min(in.PageSize, 300)), // Avoid allocating huge slice if huge page size was requested. Number is arbitrary.
+		Documents: make([]*documents.DocumentListItem, 0, min(in.PageSize, maxPageAllocBuffer)),
 	}
 
 	var (
@@ -435,11 +593,11 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 	}
 
 	if in.PageSize <= 0 {
-		in.PageSize = 30 // Arbitrary default page size.
+		in.PageSize = defaultPageSize
 	}
 
 	out := &documents.ListDocumentsResponse{
-		Documents: make([]*documents.DocumentListItem, 0, min(in.PageSize, 300)), // Avoid allocating huge slice if huge page size was requested. Number is arbitrary.
+		Documents: make([]*documents.DocumentListItem, 0, min(in.PageSize, maxPageAllocBuffer)),
 	}
 
 	var (
@@ -513,18 +671,19 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 
 func baseListDocumentsQuery() *dqb.SelectQuery {
 	// Page size must be the last binding parameter.
-	return dqb.Select(
-		"r.iri",
-		"dg.genesis",
-		"dg.metadata",
-		"dg.comment_count",
-		"dg.heads",
-		"dg.authors",
-		"dg.genesis_change_time",
-		"dg.last_comment_time",
-		"dg.last_change_time",
-		"dg.last_activity_time",
-	).
+	return dqb.
+		Select(
+			"r.iri",
+			"dg.genesis",
+			"dg.metadata",
+			"dg.comment_count",
+			"dg.heads",
+			"dg.authors",
+			"dg.genesis_change_time",
+			"dg.last_comment_time",
+			"dg.last_change_time",
+			"dg.last_activity_time",
+		).
 		From(
 			"document_generations dg",
 			"resources r",
@@ -641,7 +800,7 @@ func documentListItemFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*docum
 		Breadcrumbs: crumbs,
 		ActivitySummary: &documents.ActivitySummary{
 			CommentCount:      int32(commentCount), //nolint:gosec
-			LatestCommentTime: maybeTimeToProto(time.UnixMilli(lastCommentTime)),
+			LatestCommentTime: maybeTimeToProto(lastCommentTime),
 			LatestChangeTime:  timestamppb.New(time.UnixMilli(lastChangeTime)),
 		},
 	}
@@ -650,12 +809,12 @@ func documentListItemFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*docum
 }
 
 // maybeTimeToProto does the same thing as timestamppb.New, but returns nil if the time is zero.
-func maybeTimeToProto(t time.Time) *timestamppb.Timestamp {
-	if t.IsZero() {
+func maybeTimeToProto(msec int64) *timestamppb.Timestamp {
+	if msec == 0 {
 		return nil
 	}
 
-	return timestamppb.New(t)
+	return timestamppb.New(time.UnixMilli(msec))
 }
 
 // DeleteDocument implements Documents API v3.

@@ -19,6 +19,7 @@ type SelectQuery struct {
 	tables       []string
 	selectCols   []string
 	whereClauses []string
+	joins        []string
 	groupBy      string
 	orderBy      string
 	limit        string
@@ -34,6 +35,12 @@ func Select(columns ...string) *SelectQuery {
 // From tables.
 func (qb *SelectQuery) From(tables ...string) *SelectQuery {
 	qb.tables = tables
+	return qb
+}
+
+// LeftJoin adds a LEFT JOIN clause.
+func (qb *SelectQuery) LeftJoin(table string, on string) *SelectQuery {
+	qb.joins = append(qb.joins, "LEFT JOIN "+table+" ON "+on)
 	return qb
 }
 
@@ -68,11 +75,12 @@ func (qb *SelectQuery) String() string {
 	defer bufferPool.Put(buf)
 
 	// SELECT clause.
-	buf.WriteString("SELECT ")
+	buf.WriteString("SELECT")
 	for i, col := range qb.selectCols {
 		if i > 0 {
-			buf.WriteString(", ")
+			buf.WriteString(",")
 		}
+		buf.WriteString("\n    ")
 		buf.WriteString(col)
 	}
 
@@ -83,6 +91,14 @@ func (qb *SelectQuery) String() string {
 			buf.WriteString(", ")
 		}
 		buf.WriteString(table)
+	}
+
+	// JOIN clause.
+	if len(qb.joins) > 0 {
+		for _, join := range qb.joins {
+			buf.WriteRune('\n')
+			buf.WriteString(join)
+		}
 	}
 
 	// WHERE clause.

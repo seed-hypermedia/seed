@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateDocumentChangeRequest, CreateRefRequest, DeleteDocumentRequest, Document, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListDirectoryRequest, ListDirectoryResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, Ref } from "./documents_pb";
+import { CreateDocumentChangeRequest, CreateRefRequest, DeleteDocumentRequest, Document, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, Ref } from "./documents_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -60,7 +60,7 @@ export const Documents = {
     listAccounts: {
       name: "ListAccounts",
       I: ListAccountsRequest,
-      O: ListAccountsRequest,
+      O: ListAccountsResponse,
       kind: MethodKind.Unary,
     },
     /**

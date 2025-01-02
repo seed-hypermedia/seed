@@ -57,6 +57,9 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	{Version: "2025-01-01.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return scheduleReindex(conn)
+	}},
 	{Version: "2024-12-16.02", Run: func(_ *Store, conn *sqlite.Conn) error {
 		if err := sqlitex.ExecScript(conn, sqlfmt(`
 			CREATE TABLE spaces (

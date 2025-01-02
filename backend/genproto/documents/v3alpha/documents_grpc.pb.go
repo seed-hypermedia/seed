@@ -35,7 +35,7 @@ type DocumentsClient interface {
 	// Lists all accounts.
 	//
 	// TODO(burdiyan): rename to spaces or sites.
-	ListAccounts(ctx context.Context, in *ListAccountsRequest, opts ...grpc.CallOption) (*ListAccountsRequest, error)
+	ListAccounts(ctx context.Context, in *ListAccountsRequest, opts ...grpc.CallOption) (*ListAccountsResponse, error)
 	// Lists documents in a directory of an account.
 	ListDirectory(ctx context.Context, in *ListDirectoryRequest, opts ...grpc.CallOption) (*ListDirectoryResponse, error)
 	// Deprecated: Do not use.
@@ -89,8 +89,8 @@ func (c *documentsClient) DeleteDocument(ctx context.Context, in *DeleteDocument
 	return out, nil
 }
 
-func (c *documentsClient) ListAccounts(ctx context.Context, in *ListAccountsRequest, opts ...grpc.CallOption) (*ListAccountsRequest, error) {
-	out := new(ListAccountsRequest)
+func (c *documentsClient) ListAccounts(ctx context.Context, in *ListAccountsRequest, opts ...grpc.CallOption) (*ListAccountsResponse, error) {
+	out := new(ListAccountsResponse)
 	err := c.cc.Invoke(ctx, "/com.seed.documents.v3alpha.Documents/ListAccounts", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -169,7 +169,7 @@ type DocumentsServer interface {
 	// Lists all accounts.
 	//
 	// TODO(burdiyan): rename to spaces or sites.
-	ListAccounts(context.Context, *ListAccountsRequest) (*ListAccountsRequest, error)
+	ListAccounts(context.Context, *ListAccountsRequest) (*ListAccountsResponse, error)
 	// Lists documents in a directory of an account.
 	ListDirectory(context.Context, *ListDirectoryRequest) (*ListDirectoryResponse, error)
 	// Deprecated: Do not use.
@@ -200,7 +200,7 @@ func (UnimplementedDocumentsServer) CreateDocumentChange(context.Context, *Creat
 func (UnimplementedDocumentsServer) DeleteDocument(context.Context, *DeleteDocumentRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteDocument not implemented")
 }
-func (UnimplementedDocumentsServer) ListAccounts(context.Context, *ListAccountsRequest) (*ListAccountsRequest, error) {
+func (UnimplementedDocumentsServer) ListAccounts(context.Context, *ListAccountsRequest) (*ListAccountsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAccounts not implemented")
 }
 func (UnimplementedDocumentsServer) ListDirectory(context.Context, *ListDirectoryRequest) (*ListDirectoryResponse, error) {

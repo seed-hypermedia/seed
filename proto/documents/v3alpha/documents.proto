@@ -28,7 +28,7 @@ service Documents {
   // Lists all accounts.
   //
   // TODO(burdiyan): rename to spaces or sites.
-  rpc ListAccounts(ListAccountsRequest) returns (ListAccountsRequest);
+  rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
 
   // Lists documents in a directory of an account.
   rpc ListDirectory(ListDirectoryRequest) returns (ListDirectoryResponse);
@@ -138,17 +138,9 @@ message ListAccountsRequest {
   // If at least one document in the account has a subscription, then the account is considered subscribed.
   bool subscribed_only = 3;
 
-  // Sorting mode for the list response.
-  SortOrder sort_order = 4;
-
-  // Sorting options for the list of accounts.
-  enum SortOrder {
-    // Sorting by the most recent activity time.
-    LATEST_ACTIVITY_FIRST = 0;
-
-    // Sorting by the name of the account (i.e. title of the root document).
-    NAME_ALPHABETICAL = 1;
-  }
+  // Optional. Configuration for sorting the response.
+  // If not specified, the default sorting is by activity time in descending order.
+  SortOptions sort_options = 4;
 }
 
 // Response to list accounts.
@@ -200,7 +192,7 @@ message ListDirectoryRequest {
   bool subscribed_only = 6;
 
   // Optional. Configuration for sorting.
-  // If not specified the default sorting will be chosen.
+  // If not specified, the default sorting is by activity time in descending order.
   SortOptions sort_options = 7;
 }
 

@@ -12,7 +12,10 @@ func TestSelect(t *testing.T) {
 	}
 
 	test(sqlfmt(`
-			SELECT id, name, email
+			SELECT
+				id,
+				name,
+				email
 			FROM users
 			WHERE age > 30 AND country = 'US'
 			ORDER BY name ASC
@@ -27,7 +30,10 @@ func TestSelect(t *testing.T) {
 	)
 
 	test(sqlfmt(`
-			SELECT id, name, email
+			SELECT
+				id,
+				name,
+				email
 			FROM users
 			WHERE age > 30 AND country = 'US'
 			ORDER BY name ASC
@@ -40,7 +46,10 @@ func TestSelect(t *testing.T) {
 	)
 
 	test(sqlfmt(`
-			SELECT id, name, email
+			SELECT
+				id,
+				name,
+				email
 			FROM users
 			WHERE age > 30
 			ORDER BY name ASC

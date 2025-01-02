@@ -375,11 +375,12 @@ export class ListAccountsRequest extends Message<ListAccountsRequest> {
   subscribedOnly = false;
 
   /**
-   * Sorting mode for the list response.
+   * Optional. Configuration for sorting the response.
+   * If not specified, the default sorting is by activity time in descending order.
    *
-   * @generated from field: com.seed.documents.v3alpha.ListAccountsRequest.SortOrder sort_order = 4;
+   * @generated from field: com.seed.documents.v3alpha.SortOptions sort_options = 4;
    */
-  sortOrder = ListAccountsRequest_SortOrder.LATEST_ACTIVITY_FIRST;
+  sortOptions?: SortOptions;
 
   constructor(data?: PartialMessage<ListAccountsRequest>) {
     super();
@@ -392,7 +393,7 @@ export class ListAccountsRequest extends Message<ListAccountsRequest> {
     { no: 1, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 2, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "subscribed_only", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 4, name: "sort_order", kind: "enum", T: proto3.getEnumType(ListAccountsRequest_SortOrder) },
+    { no: 4, name: "sort_options", kind: "message", T: SortOptions },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListAccountsRequest {
@@ -411,32 +412,6 @@ export class ListAccountsRequest extends Message<ListAccountsRequest> {
     return proto3.util.equals(ListAccountsRequest, a, b);
   }
 }
-
-/**
- * Sorting options for the list of accounts.
- *
- * @generated from enum com.seed.documents.v3alpha.ListAccountsRequest.SortOrder
- */
-export enum ListAccountsRequest_SortOrder {
-  /**
-   * Sorting by the most recent activity time.
-   *
-   * @generated from enum value: LATEST_ACTIVITY_FIRST = 0;
-   */
-  LATEST_ACTIVITY_FIRST = 0,
-
-  /**
-   * Sorting by the name of the account (i.e. title of the root document).
-   *
-   * @generated from enum value: NAME_ALPHABETICAL = 1;
-   */
-  NAME_ALPHABETICAL = 1,
-}
-// Retrieve enum metadata with: proto3.getEnumType(ListAccountsRequest_SortOrder)
-proto3.util.setEnumType(ListAccountsRequest_SortOrder, "com.seed.documents.v3alpha.ListAccountsRequest.SortOrder", [
-  { no: 0, name: "LATEST_ACTIVITY_FIRST" },
-  { no: 1, name: "NAME_ALPHABETICAL" },
-]);
 
 /**
  * Response to list accounts.
@@ -606,7 +581,7 @@ export class ListDirectoryRequest extends Message<ListDirectoryRequest> {
 
   /**
    * Optional. Configuration for sorting.
-   * If not specified the default sorting will be chosen.
+   * If not specified, the default sorting is by activity time in descending order.
    *
    * @generated from field: com.seed.documents.v3alpha.SortOptions sort_options = 7;
    */
