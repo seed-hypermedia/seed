@@ -21,8 +21,14 @@ This repo includes:
 
 ## ⚠️ Stability
 
-This is alpha-quality software. Have a copy of anything valuable you put into
-Seed Hypermedia.
+This is software is being actively developed, and may contain bugs and rough edges.
+We appreciate any feedback and bug reports, so if you find any, please open an issue.
+
+The permanent data format has been declared stable, and we don't expect any breaking changes there.
+Documentation is still missing though, but it will come.
+
+We still recommend you to have a copy of anything valuable you put into the app, while we are polishing it,
+and improving the overall stability.
 
 ## Dev Environment
 
