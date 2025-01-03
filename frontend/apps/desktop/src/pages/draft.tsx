@@ -9,7 +9,12 @@ import {SiteNavigationDraftLoader} from '@/components/site-navigation'
 import {subscribeDraftFocus} from '@/draft-focusing'
 import {BlockNoteEditor, getBlockInfoFromPos} from '@/editor'
 import {useDraft} from '@/models/accounts'
-import {useDraftEditor} from '@/models/documents'
+import {
+  useAccountDraftList,
+  useCreateDraft,
+  useDraftEditor,
+  useListDirectory,
+} from '@/models/documents'
 import {draftMachine} from '@/models/draft-machine'
 import {useSubscribedEntity} from '@/models/entities'
 import {useGatewayUrl} from '@/models/gateway-settings'
@@ -40,7 +45,9 @@ import {
   Button,
   Container,
   copyUrlToClipboardWithFeedback,
+  getSiteNavDirectory,
   Input,
+  NewsSiteHeader,
   Options,
   Separator,
   SizableText,
@@ -48,13 +55,16 @@ import {
   useHeadingTextStyles,
   XStack,
 } from '@shm/ui'
-import {Image, Smile} from '@tamagui/lucide-icons'
+import {Image, MoreHorizontal, Plus, Smile} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {GestureResponderEvent} from 'react-native'
 // import 'show-keys'
+import {DocumentHeadItems} from '@/components/document-head-items'
+import {ImportDropdownButton} from '@/components/import-doc-button'
 import {EmbedToolbarProvider} from '@/editor/embed-toolbar-context'
+import {roleCanWrite, useMyCapability} from '@/models/access-control'
 import {Spinner, YStack} from '@shm/ui'
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
@@ -114,6 +124,9 @@ export default function DraftPage() {
     icon: Options,
   })
 
+  const siteIsNewspaperLayout =
+    draft.data?.metadata?.layout === 'Seed/Experimental/Newspaper'
+
   let draftContent = null
 
   if (
@@ -163,9 +176,78 @@ export default function DraftPage() {
             </Button>
           </XStack>
         ) : null}
+        {siteIsNewspaperLayout ? (
+          <AppNewspaperHeader
+            siteHomeEntity={data.state.context.entity}
+            activeId={route.id}
+          />
+        ) : null}
         {draftContent}
       </AccessoryLayout>
     </ErrorBoundary>
+  )
+}
+
+function AppNewspaperHeader({
+  siteHomeEntity,
+  activeId,
+}: {
+  siteHomeEntity: HMEntityContent | undefined | null
+  activeId: UnpackedHypermediaId
+}) {
+  const dir = useListDirectory(siteHomeEntity?.id)
+  const capability = useMyCapability(siteHomeEntity?.id)
+  const canEditDoc = roleCanWrite(capability?.role)
+  const drafts = useAccountDraftList(activeId.uid)
+
+  if (!siteHomeEntity) return null
+  const navItems = getSiteNavDirectory({
+    id: siteHomeEntity.id,
+    supportQueries: dir.data
+      ? [{in: siteHomeEntity.id, results: dir.data}]
+      : [],
+    drafts: drafts.data,
+  })
+  return (
+    <NewsSiteHeader
+      homeId={siteHomeEntity.id}
+      homeMetadata={siteHomeEntity.document?.metadata || null}
+      items={navItems}
+      docId={activeId}
+      rightContent={
+        activeId.id === siteHomeEntity.id.id && siteHomeEntity.document ? (
+          <DocumentHeadItems
+            docId={siteHomeEntity.id}
+            isBlockFocused={false}
+            document={siteHomeEntity.document}
+          />
+        ) : null
+      }
+      afterLinksContent={
+        canEditDoc ? (
+          <NewSubDocumentButton parentDocId={siteHomeEntity.id} />
+        ) : null
+      }
+    />
+  )
+}
+
+function NewSubDocumentButton({
+  parentDocId,
+}: {
+  parentDocId: UnpackedHypermediaId
+}) {
+  const createDraft = useCreateDraft(parentDocId)
+  return (
+    <>
+      <Button icon={Plus} color="$green9" onPress={createDraft} size="$2">
+        Create
+      </Button>
+      <ImportDropdownButton
+        id={parentDocId}
+        button={<Button size="$1" circular icon={MoreHorizontal} />}
+      />
+    </>
   )
 }
 
