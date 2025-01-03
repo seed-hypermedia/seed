@@ -1,10 +1,10 @@
 import {useFetcher} from "@remix-run/react";
 import {UnpackedHypermediaId} from "@shm/shared";
+import {Search} from "@shm/ui";
 import {Popover} from "@shm/ui/src/TamaguiPopover";
 import {usePopoverState} from "@shm/ui/src/use-popover-state";
 import {Button} from "@tamagui/button";
 import {Input} from "@tamagui/input";
-import {Search} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {useEffect, useState} from "react";
 import {NativeSyntheticEvent, TextInputChangeEventData} from "react-native";

@@ -22,6 +22,7 @@ import {
   Button,
   Check,
   ChevronDown,
+  Forward as ChevronRight,
   ErrorBlock,
   ExternalLink,
   Input,
@@ -36,7 +37,6 @@ import {
   YGroup,
   YStack,
 } from '@shm/ui'
-import {ChevronRight} from '@tamagui/lucide-icons'
 import {Fragment} from '@tiptap/pm/model'
 import {useCallback, useEffect, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'

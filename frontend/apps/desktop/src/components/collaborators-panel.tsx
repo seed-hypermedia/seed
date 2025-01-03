@@ -21,6 +21,7 @@ import {
   unpackHmId,
 } from '@shm/shared'
 import {
+  ArrowRight,
   Button,
   HMIcon,
   ListItem,
@@ -28,12 +29,12 @@ import {
   SizableText,
   toast,
   UIAvatar,
+  X,
   XGroup,
   XStack,
   YGroup,
   YStack,
 } from '@shm/ui'
-import {ArrowRight, X} from '@tamagui/lucide-icons'
 import {forwardRef, useEffect, useId, useMemo, useRef, useState} from 'react'
 import {AccessoryContainer} from './accessory-sidebar'
 import './combobox.css'

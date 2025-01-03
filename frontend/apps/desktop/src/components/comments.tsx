@@ -18,11 +18,16 @@ import {
   unpackHmId,
 } from '@shm/shared'
 import {
+  ArrowUpRight,
   BlocksContent,
   Button,
   ButtonText,
+  Copy,
   MenuItemType,
+  MessageSquare,
   OptionsDropdown,
+  Pencil,
+  Reply,
   SizableText,
   Text,
   UIAvatar,
@@ -32,13 +37,6 @@ import {
   copyUrlToClipboardWithFeedback,
   useStream,
 } from '@shm/ui'
-import {
-  ArrowUpRight,
-  Copy,
-  MessageSquare,
-  Pencil,
-  Reply,
-} from '@tamagui/lucide-icons'
 import {useAppContext} from '../app-context'
 import type {CommentGroup} from '../models/comments'
 import {

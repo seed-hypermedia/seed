@@ -22,8 +22,7 @@ import {
   invalidateQueries,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {OptionsDropdown, toast} from '@shm/ui'
-import {FileInput, FolderInput} from '@tamagui/lucide-icons'
+import {FileInput, FolderInput, OptionsDropdown, toast} from '@shm/ui'
 import {Extension} from '@tiptap/core'
 import matter from 'gray-matter'
 import {ReactElement, useMemo, useState} from 'react'

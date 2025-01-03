@@ -19,7 +19,10 @@ import {
   writeableStateStream,
 } from '@shm/shared'
 import {
+  AlertCircle,
   Button,
+  Check,
+  ChevronDown,
   ErrorToastDecoration,
   HMIcon,
   Hostname,
@@ -35,7 +38,6 @@ import {
   YStack,
   YStackProps,
 } from '@shm/ui'
-import {AlertCircle, Check, ChevronDown} from '@tamagui/lucide-icons'
 import {PropsWithChildren, ReactNode, useEffect, useState} from 'react'
 import {useDraft} from '../models/accounts'
 import {

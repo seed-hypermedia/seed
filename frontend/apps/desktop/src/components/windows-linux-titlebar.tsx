@@ -10,6 +10,7 @@ import {
   Button,
   Close,
   CloseAll,
+  Contact,
   Delete,
   Hide,
   ListItem,
@@ -26,7 +27,6 @@ import {
   XStack,
   YGroup,
 } from '@shm/ui'
-import {Contact} from '@tamagui/lucide-icons'
 import {useMemo} from 'react'
 
 export function WindowsLinuxTitleBar({

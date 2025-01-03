@@ -1,5 +1,4 @@
-import {Select, SizableText, YStack} from '@shm/ui'
-import {ChevronDown, ChevronUp} from '@tamagui/lucide-icons'
+import {ChevronDown, ChevronUp, Select, SizableText, YStack} from '@shm/ui'
 import {Control, FieldValues, Path, useController} from 'react-hook-form'
 
 export function SelectInput<Fields extends FieldValues>({

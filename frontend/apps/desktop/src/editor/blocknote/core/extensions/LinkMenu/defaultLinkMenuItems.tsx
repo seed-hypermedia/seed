@@ -9,14 +9,16 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {
+  CircleDot,
   File as FileIcon,
   ImageIcon,
   Link,
+  PanelBottom,
+  Quote,
   Spinner,
   TwitterXIcon,
   VideoIcon,
 } from '@shm/ui'
-import {CircleDot, PanelBottom, Quote} from '@tamagui/lucide-icons'
 import {Fragment, Node} from '@tiptap/pm/model'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {getBlockInfoFromPos} from '../Blocks/helpers/getBlockInfoFromPos'

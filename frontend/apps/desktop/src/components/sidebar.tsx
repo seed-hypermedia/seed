@@ -6,21 +6,19 @@ import {useNavigate} from '@/utils/useNavigate'
 import {getDocumentTitle, hmId} from '@shm/shared'
 import {
   Button,
+  ChevronDown,
+  Forward as ChevronRight,
   Contact,
   HMIcon,
+  Library,
+  Add as Plus,
   SizableText,
   SmallListItem,
   Tooltip,
+  UserPlus2,
   XStack,
   YStack,
 } from '@shm/ui'
-import {
-  ChevronDown,
-  ChevronRight,
-  Library,
-  Plus,
-  UserPlus2,
-} from '@tamagui/lucide-icons'
 import React, {memo} from 'react'
 import {openAddAccountWizard} from './create-account'
 import {GenericSidebarContainer} from './sidebar-base'

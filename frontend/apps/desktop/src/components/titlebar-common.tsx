@@ -22,16 +22,26 @@ import {
   hmId,
 } from '@shm/shared'
 import {
+  ArrowLeftFromLine,
+  ArrowRight,
+  ArrowRightFromLine,
   Back,
   Button,
+  CloudOff,
   ColorProp,
+  Download,
   Forward,
+  Link,
   Menu,
   MenuItemType,
   OptionsDropdown,
+  Pencil,
   SizableText,
   TitlebarSection,
   Tooltip,
+  Trash,
+  UploadCloud,
+  UserPlus,
   View,
   XGroup,
   XStack,
@@ -39,18 +49,6 @@ import {
   toast,
   useStream,
 } from '@shm/ui'
-import {
-  ArrowLeftFromLine,
-  ArrowRight,
-  ArrowRightFromLine,
-  CloudOff,
-  Download,
-  Link,
-  Pencil,
-  Trash,
-  UploadCloud,
-  UserPlus,
-} from '@tamagui/lucide-icons'
 import {ReactNode, useContext} from 'react'
 import {AddConnectionDialog} from './contacts-prompt'
 import {useAppDialog} from './dialog'

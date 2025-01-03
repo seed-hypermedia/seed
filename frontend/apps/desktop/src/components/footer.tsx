@@ -1,8 +1,14 @@
 import {useConnectionSummary} from '@/models/contacts'
 import {useNavRoute} from '@/utils/navigation'
 import {COMMIT_HASH, VERSION} from '@shm/shared'
-import {Button, ButtonProps, FooterWrapper, SizableText, XStack} from '@shm/ui'
-import {Cable} from '@tamagui/lucide-icons'
+import {
+  Button,
+  ButtonProps,
+  Cable,
+  FooterWrapper,
+  SizableText,
+  XStack,
+} from '@shm/ui'
 import {ReactNode} from 'react'
 import {OnlineIndicator} from './indicator'
 import {useNetworkDialog} from './network-dialog'

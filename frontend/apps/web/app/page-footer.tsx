@@ -1,7 +1,7 @@
 import {createHMUrl, UnpackedHypermediaId} from "@shm/shared";
+import {ExternalLink} from "@shm/ui";
 import {Container} from "@shm/ui/src/container";
 import {Button, ButtonText} from "@tamagui/button";
-import {ExternalLink} from "@tamagui/lucide-icons";
 import {XStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 

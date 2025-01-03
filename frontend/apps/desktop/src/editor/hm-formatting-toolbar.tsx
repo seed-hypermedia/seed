@@ -21,12 +21,12 @@ import {
   Strong,
   Theme,
   Tooltip,
+  Type,
   Underline,
   UnorderedList,
   XGroup,
   XStack,
 } from '@shm/ui'
-import {Type} from '@tamagui/lucide-icons'
 import {useMemo, useState} from 'react'
 import {
   HMBlockSchema,

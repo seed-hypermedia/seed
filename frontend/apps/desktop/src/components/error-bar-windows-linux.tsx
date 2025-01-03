@@ -1,6 +1,5 @@
-import {XStack} from '@shm/ui'
-import {AlertCircle} from '@tamagui/lucide-icons'
-import {NavMenuButton, NavigationButtons} from './titlebar-common'
+import {AlertCircle, XStack} from '@shm/ui'
+import {NavigationButtons, NavMenuButton} from './titlebar-common'
 import {WindowsLinuxTitleBar} from './windows-linux-titlebar'
 
 export default function ErrorBarWindowsLinux() {

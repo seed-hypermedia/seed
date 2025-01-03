@@ -1,6 +1,13 @@
 import {fileUpload} from '@/utils/file-upload'
-import {Button, getRandomColor, Stack, Tooltip, XStack, YStack} from '@shm/ui'
-import {Trash} from '@tamagui/lucide-icons'
+import {
+  Button,
+  getRandomColor,
+  Stack,
+  Tooltip,
+  Trash,
+  XStack,
+  YStack,
+} from '@shm/ui'
 import {ChangeEvent, useMemo} from 'react'
 import appError from '../errors'
 

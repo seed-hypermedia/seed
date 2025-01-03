@@ -6,7 +6,9 @@ import {
   Button,
   Check,
   ChevronDown,
+  CircleOff,
   ColorTokens,
+  Folder,
   Popover,
   Subscribe,
   SubscribeSpace,
@@ -17,7 +19,6 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {CircleOff, Folder} from '@tamagui/lucide-icons'
 import {useAppDialog} from './dialog'
 
 export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {

@@ -23,10 +23,17 @@ import {
   useInvoiceStatus,
 } from '@shm/shared'
 import {
+  AlertCircle,
   Button,
   ButtonText,
+  ChevronDown,
+  Back as ChevronLeft,
+  Forward as ChevronRight,
+  ChevronUp,
+  Copy,
   copyTextToClipboard,
   DialogDescription,
+  Download,
   Field,
   Form,
   Heading,
@@ -38,23 +45,13 @@ import {
   TableList,
   toast,
   Tooltip,
+  Trash,
+  Upload,
   View,
   XStack,
   YStack,
 } from '@shm/ui'
-import {
-  AlertCircle,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronUp,
-  Copy,
-  Download,
-  Trash,
-  Upload,
-} from '@tamagui/lucide-icons'
 import {useState} from 'react'
-import QRCode from 'react-qr-code'
 
 export function AccountWallet({
   accountUid,

@@ -2,9 +2,16 @@ import {useEntity} from '@/models/entities'
 import {useRemoveSite, useSiteRegistration} from '@/models/site'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {getDocumentTitle, UnpackedHypermediaId} from '@shm/shared'
-import {AlertDialog, Button, Form, SizableText, XStack, YStack} from '@shm/ui'
+import {
+  AlertDialog,
+  Button,
+  Form,
+  SizableText,
+  UploadCloud,
+  XStack,
+  YStack,
+} from '@shm/ui'
 import {Spinner} from '@shm/ui/src/spinner'
-import {UploadCloud} from '@tamagui/lucide-icons'
 import {useEffect} from 'react'
 import {SubmitHandler, useForm} from 'react-hook-form'
 import {z} from 'zod'

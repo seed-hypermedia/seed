@@ -6,8 +6,15 @@ import {
   formattedDateMedium,
   unpackHmId,
 } from '@shm/shared'
-import {Button, List, SizableText, Tooltip, View, XStack} from '@shm/ui'
-import {ShieldX} from '@tamagui/lucide-icons'
+import {
+  Button,
+  List,
+  ShieldX,
+  SizableText,
+  Tooltip,
+  View,
+  XStack,
+} from '@shm/ui'
 
 export default function DeletedContent() {
   const deleted = useDeletedContent()

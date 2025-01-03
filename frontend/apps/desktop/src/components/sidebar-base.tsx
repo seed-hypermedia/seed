@@ -2,8 +2,16 @@ import {useAppContext} from '@/app-context'
 import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
 import {useNavigate} from '@/utils/useNavigate'
 import {UnpackedHypermediaId} from '@shm/shared'
-import {Button, Separator, Tooltip, useStream, XStack, YStack} from '@shm/ui'
-import {Hash, Settings} from '@tamagui/lucide-icons'
+import {
+  Button,
+  Hash,
+  Separator,
+  Settings,
+  Tooltip,
+  useStream,
+  XStack,
+  YStack,
+} from '@shm/ui'
 import {ComponentProps, FC, ReactNode, useEffect, useState} from 'react'
 
 const HoverRegionWidth = 30

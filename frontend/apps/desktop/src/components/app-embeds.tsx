@@ -15,6 +15,7 @@ import {
   queryBlockSortedItems,
 } from '@shm/shared'
 import {
+  ArrowUpRightSquare,
   BlockContentUnknown,
   BlockNodeContent,
   BlockNodeList,
@@ -37,7 +38,6 @@ import {
 } from '@shm/ui'
 import {AccountsMetadata} from '@shm/ui/src/face-pile'
 import {Spinner} from '@shm/ui/src/spinner'
-import {ArrowUpRightSquare} from '@tamagui/lucide-icons'
 import {
   ComponentProps,
   PropsWithChildren,

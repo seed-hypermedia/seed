@@ -1,5 +1,8 @@
 import {useOpenUrl} from '@/open-url'
 import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
   Button,
   Label,
   Popover,
@@ -8,7 +11,6 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {AlignCenter, AlignLeft, AlignRight} from '@tamagui/lucide-icons'
 import {useState} from 'react'
 import {
   Block,

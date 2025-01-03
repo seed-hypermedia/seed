@@ -15,6 +15,7 @@ import {
 } from '@shm/shared'
 import {hmId, UnpackedHypermediaId} from '@shm/shared/src/utils/entity-id-url'
 import {
+  ArrowUpRight,
   ButtonText,
   Copy,
   copyUrlToClipboardWithFeedback,
@@ -25,7 +26,6 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {ArrowUpRight} from '@tamagui/lucide-icons'
 import {EntityLinkIcon} from './components/account-link-icon'
 
 export function EntityVersionsAccessory({

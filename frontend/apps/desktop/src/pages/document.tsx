@@ -33,6 +33,8 @@ import {
 } from '@shm/shared'
 import '@shm/shared/src/styles/document.css'
 import {
+  Add,
+  ArrowRight,
   Button,
   ButtonText,
   CollaboratorsIcon,
@@ -42,7 +44,9 @@ import {
   getSiteNavDirectory,
   HistoryIcon,
   HMIcon,
+  MoreHorizontal,
   NewsSiteHeader,
+  RefreshCw,
   SeedHeading,
   SizableText,
   Spinner,
@@ -50,12 +54,6 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {
-  ArrowRight,
-  MoreHorizontal,
-  Plus,
-  RefreshCw,
-} from '@tamagui/lucide-icons'
 import React, {ReactNode, useEffect, useMemo} from 'react'
 import {EntityCitationsAccessory} from '../components/citations'
 import {AppDocContentProvider} from './document-content-provider'
@@ -322,7 +320,7 @@ function NewSubDocumentButton({
   const createDraft = useCreateDraft(parentDocId)
   return (
     <>
-      <Button icon={Plus} color="$green9" onPress={createDraft} size="$2">
+      <Button icon={Add} color="$green9" onPress={createDraft} size="$2">
         Create
       </Button>
       <ImportDropdownButton

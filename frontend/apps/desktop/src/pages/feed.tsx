@@ -20,9 +20,11 @@ import {
   unpackHmId,
 } from '@shm/shared'
 import {
+  ArrowRight,
   BlocksContent,
   Button,
   ButtonText,
+  ChevronUp,
   DocContent,
   List,
   PageContainer,
@@ -36,7 +38,6 @@ import {
   YStack,
   toast,
 } from '@shm/ui'
-import {ArrowRight, ChevronUp} from '@tamagui/lucide-icons'
 import React, {PropsWithChildren, ReactNode} from 'react'
 import {VirtuosoHandle} from 'react-virtuoso'
 import {AppDocContentProvider} from './document-content-provider'

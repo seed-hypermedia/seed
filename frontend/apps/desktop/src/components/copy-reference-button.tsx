@@ -11,8 +11,7 @@ import {
   createWebHMUrl,
   hmId,
 } from '@shm/shared'
-import {Button, ButtonProps, Tooltip} from '@shm/ui'
-import {ExternalLink, Link} from '@tamagui/lucide-icons'
+import {Button, ButtonProps, ExternalLink, Link, Tooltip} from '@shm/ui'
 import {PropsWithChildren, ReactNode, useState} from 'react'
 
 export function useDocumentUrl({

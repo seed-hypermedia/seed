@@ -3,12 +3,12 @@ import {
   Button,
   Dialog,
   Unspaced,
+  X,
   XStack,
   YStack,
   YStackProps,
   styled,
 } from '@shm/ui'
-import {X} from '@tamagui/lucide-icons'
 import {FC, useMemo, useState} from 'react'
 import {NavContextProvider, useNavigation} from '../utils/navigation'
 

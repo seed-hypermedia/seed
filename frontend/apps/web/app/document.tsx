@@ -20,6 +20,7 @@ import {
 } from "@shm/shared";
 import {SiteRoutingProvider, useRouteLink} from "@shm/shared/src/routing";
 import "@shm/shared/src/styles/document.css";
+import {X} from "@shm/ui";
 import {getRandomColor} from "@shm/ui/src/avatar";
 import {Container} from "@shm/ui/src/container";
 import {CommentGroup} from "@shm/ui/src/discussion";
@@ -38,7 +39,6 @@ import {
 } from "@shm/ui/src/navigation";
 import {Button} from "@tamagui/button";
 import {GestureReponderEvent, Text, useTheme} from "@tamagui/core";
-import {X} from "@tamagui/lucide-icons";
 import {ScrollView} from "@tamagui/scroll-view";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";

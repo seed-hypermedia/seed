@@ -1,6 +1,5 @@
 import {fileUpload} from '@/utils/file-upload'
-import {Button, SizableText, Stack, Tooltip, UIAvatar, XStack} from '@shm/ui'
-import {X} from '@tamagui/lucide-icons'
+import {Button, SizableText, Stack, Tooltip, UIAvatar, X, XStack} from '@shm/ui'
 import {ChangeEvent} from 'react'
 import {GestureResponderEvent} from 'react-native'
 import appError from '../errors'

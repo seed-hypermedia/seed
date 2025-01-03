@@ -2,9 +2,12 @@ import {useEntity} from '@/models/entities'
 import {getDocumentTitle, unpackHmId} from '@shm/shared'
 import {
   Button,
+  CircleDot,
   ExternalLink,
   Link,
+  PanelBottom,
   Pencil,
+  Quote,
   SizableText,
   Tooltip,
   Unlink,
@@ -12,7 +15,6 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {CircleDot, PanelBottom, Quote} from '@tamagui/lucide-icons'
 import {Fragment, Node} from '@tiptap/pm/model'
 import {useEffect, useMemo, useState} from 'react'
 import {

@@ -17,12 +17,12 @@ import {
   Button,
   ChevronUp,
   Copy,
+  Reply,
   Spinner,
   XStack,
   YStack,
   copyUrlToClipboardWithFeedback,
 } from '@shm/ui'
-import {Reply} from '@tamagui/lucide-icons'
 
 export default function CommentPage() {
   const route = useNavRoute()

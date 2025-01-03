@@ -26,13 +26,13 @@ import {
   SelectDropdown,
   SizableText,
   Tooltip,
+  Trash,
   useStream,
   useTheme,
   View,
   XStack,
   YStack,
 } from '@shm/ui'
-import {Trash} from '@tamagui/lucide-icons'
 import {memo, useEffect, useState} from 'react'
 import {HyperMediaEditorView} from './editor'
 

@@ -14,12 +14,16 @@ import {
   NavRoute,
 } from '@shm/shared'
 import {
+  AlertCircle,
   Button,
   Contact,
   FontSizeTokens,
   Home,
+  Library,
   Popover,
+  Sparkles,
   Spinner,
+  Star,
   TextProps,
   TitleText,
   TitleTextButton,
@@ -27,7 +31,6 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {AlertCircle, Library, Sparkles, Star} from '@tamagui/lucide-icons'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {AiOutlineEllipsis} from 'react-icons/ai'
 

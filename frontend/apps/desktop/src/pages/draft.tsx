@@ -42,20 +42,23 @@ import {
 } from '@shm/shared'
 import '@shm/shared/src/styles/document.css'
 import {
+  Add,
   Button,
   Container,
   copyUrlToClipboardWithFeedback,
   getSiteNavDirectory,
+  Image,
   Input,
+  MoreHorizontal,
   NewsSiteHeader,
   Options,
   Separator,
   SizableText,
+  Smile,
   useDocContentContext,
   useHeadingTextStyles,
   XStack,
 } from '@shm/ui'
-import {Image, MoreHorizontal, Plus, Smile} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
@@ -240,7 +243,7 @@ function NewSubDocumentButton({
   const createDraft = useCreateDraft(parentDocId)
   return (
     <>
-      <Button icon={Plus} color="$green9" onPress={createDraft} size="$2">
+      <Button icon={Add} color="$green9" onPress={createDraft} size="$2">
         Create
       </Button>
       <ImportDropdownButton
