@@ -11,3 +11,5 @@ config.json
 COMMIT_HASH
 BRANCH
 DATE
+
+cache

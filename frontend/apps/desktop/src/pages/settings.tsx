@@ -1081,14 +1081,9 @@ function AppSettings() {
           label="Commit Hash"
           value={COMMIT_HASH}
           onOpen={() => {
-            console.log(`== ~ onOpen ~ COMMIT_HASH:`, COMMIT_HASH)
             openUrl(
               `https://github.com/seed-hypermedia/seed/commit/${COMMIT_HASH}`,
             )
-            // ipc.send(
-            //   'open_url',
-            //   `https://github.com/seed-hypermedia/seed/commit/${COMMIT_HASH}`,
-            // )
           }}
         />
         <Separator />

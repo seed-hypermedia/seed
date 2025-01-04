@@ -14,12 +14,10 @@ export function getDiretoryWithClient(client: GRPCClient) {
     id: UnpackedHypermediaId,
     mode: 'Children' | 'AllDescendants' = 'AllDescendants',
   ) {
-    console.log('=== getDirectory === id', id.uid)
     const listResult = await client.documents.listDocuments({
       account: id.uid,
       pageSize: BIG_INT,
     })
-    console.log('=== getDirectory === listResult', listResult)
     // filter listResult by the id.path, and if mode is "Children", filter by the immediate children
     return listResult.documents
       .filter((doc) => {

@@ -63,7 +63,6 @@ function FooterNetworkingButton() {
 }
 
 export default function Footer({children}: {children?: ReactNode}) {
-  console.log(`== ~ Footer ~ COMMIT_HASH:`, COMMIT_HASH)
   return (
     <FooterWrapper style={{flex: 'none'}}>
       <FooterNetworkingButton />
