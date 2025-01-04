@@ -3,7 +3,6 @@ import {PassThrough} from "node:stream";
 import type {AppLoadContext, EntryContext} from "@remix-run/node";
 import {createReadableStreamFromReadable} from "@remix-run/node";
 import {RemixServer} from "@remix-run/react";
-import {SITE_BASE_URL} from "@shm/shared/src/constants";
 import fs from "fs";
 import {mkdir, readFile, stat, writeFile} from "fs/promises";
 import * as isbotModule from "isbot";
@@ -51,7 +50,7 @@ initializeServer()
   });
 
 async function warmCachePath(path: string) {
-  const resp = await fetch(`${SITE_BASE_URL}${path}`, {
+  const resp = await fetch(`http://localhost:3000${path}`, {
     headers: {
       "x-full-render": "true",
     },
