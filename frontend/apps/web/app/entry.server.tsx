@@ -52,19 +52,15 @@ initializeServer()
   });
 
 async function warmCachePath(path: string) {
-  // const resp = await fetch(
-  //   `http://localhost:${process.env.PORT || "3000"}${path}`,
-  //   {
-  //     headers: {
-  //       "x-full-render": "true",
-  //     },
-  //   }
-  // );
-  // const respHtml = await resp.text();
-
-  const resp = await handleCacheRequest(path);
-  const respHtml = resp.html;
-
+  const resp = await fetch(
+    `http://localhost:${process.env.PORT || "3000"}${path}`,
+    {
+      headers: {
+        "x-full-render": "true",
+      },
+    }
+  );
+  const respHtml = await resp.text();
   const links = new Set<string>();
   const matches = respHtml.match(/href="\/[^"]*"/g) || [];
   for (const match of matches) {
@@ -257,62 +253,6 @@ function handleBotRequest(
 
     setTimeout(abort, ABORT_DELAY);
   });
-}
-
-function handleCacheRequest(path: string) {
-  const responseHeaders = new Headers();
-  return new Promise<{html: string; status: number; headers: Headers}>(
-    (resolve, reject) => {
-      let shellRendered = false;
-      const url = new URL(
-        `http://localhost:${process.env.PORT || "3000"}${path}`
-      );
-      const {pipe, abort} = renderToPipeableStream(
-        <RemixServer
-          context={remixContext}
-          url={url}
-          abortDelay={ABORT_DELAY}
-        />,
-        {
-          onAllReady() {
-            shellRendered = true;
-            const body = new PassThrough();
-            const chunks: Buffer[] = [];
-            body.on("data", (chunk) => chunks.push(chunk));
-
-            responseHeaders.set("Content-Type", "text/html");
-            const outputHtml = new Promise<string>((resolve) => {
-              body.on("end", () => {
-                resolve(Buffer.concat(chunks).toString("utf-8"));
-              });
-            });
-            outputHtml
-              .then((html) => {
-                resolve({html, status: 200, headers: responseHeaders});
-              })
-              .catch((error) => {
-                reject(error);
-              });
-          },
-          onShellError(error: unknown) {
-            reject(error);
-          },
-          onError(error: unknown) {
-            // responseStatusCode = 500;
-            reject(error);
-            // Log streaming rendering errors from inside the shell.  Don't log
-            // errors encountered during initial shell rendering since they'll
-            // reject and get logged in handleDocumentRequest.
-            if (shellRendered) {
-              console.error(error);
-            }
-          },
-        }
-      );
-
-      setTimeout(abort, ABORT_DELAY);
-    }
-  );
 }
 
 function handleBrowserRequest(
