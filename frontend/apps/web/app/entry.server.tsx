@@ -11,7 +11,9 @@ import {renderToPipeableStream} from "react-dom/server";
 
 const ABORT_DELAY = 5_000;
 
-const CACHE_PATH = resolve("cache");
+const CACHE_PATH = resolve(
+  join(process.env.DATA_DIR || process.cwd(), "cache")
+);
 
 function recursiveRm(targetPath: string) {
   if (!fs.existsSync(targetPath)) return;
