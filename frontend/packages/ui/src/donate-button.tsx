@@ -14,7 +14,6 @@ import {
   useInvoiceStatus,
 } from "@shm/shared";
 import {Button} from "@tamagui/button";
-import {View} from "@tamagui/core";
 import {DialogDescription} from "@tamagui/dialog";
 import {Input} from "@tamagui/input";
 import {Label} from "@tamagui/label";
@@ -60,27 +59,33 @@ export function DonateButton({
   if (allowedRecipients.isError)
     return (
       <Tooltip content="Failed to query Seed server to check payment recipients">
-        <View>
-          <AlertCircle color="$yellow11" size={16} />
-        </View>
+        <AlertCircle color="$yellow11" size={16} />
       </Tooltip>
     );
   if (allowedRecipients.isLoading) return null;
   if (!allowedRecipients.data?.length) return null;
   return (
     <>
-      <Button
-        icon={CircleDollarSign}
-        theme="green"
-        onPress={() => {
-          donateDialog.open({
-            docId,
-            authors,
-            allowedRecipients: allowedRecipients.data,
-          });
-        }}
-        size="$2"
-      />
+      <Tooltip content="Donate">
+        <Button
+          icon={
+            <CircleDollarSign
+              color="$brand11"
+              $group-icon-hover={{color: "$brand8"}}
+            />
+          }
+          group="icon"
+          chromeless
+          onPress={() => {
+            donateDialog.open({
+              docId,
+              authors,
+              allowedRecipients: allowedRecipients.data,
+            });
+          }}
+          size="$2"
+        />
+      </Tooltip>
       {donateDialog.content}
     </>
   );
