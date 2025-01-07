@@ -167,7 +167,7 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 		case in.Path != "" && doc.NumChanges() == 0:
 		// Otherwise it's an error to not provide a base version.
 		default:
-			return nil, status.Errorf(codes.InvalidArgument, "base_version is required for updating existing documents")
+			return nil, status.Errorf(codes.FailedPrecondition, "document with this path already exists, `base_version` is required for updating existing documents")
 		}
 	}
 
