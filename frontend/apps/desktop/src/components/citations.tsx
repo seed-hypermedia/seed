@@ -140,6 +140,7 @@ function CommentCitationItem({mention}: {mention: Mention}) {
               size="$4"
               fontSize="$2"
               textDecorationLine="underline"
+              textDecorationColor="currentColor"
               textOverflow="ellipsis"
               whiteSpace="nowrap"
               width="100%"

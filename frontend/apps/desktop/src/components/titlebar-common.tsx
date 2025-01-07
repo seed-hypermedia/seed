@@ -125,6 +125,7 @@ export function DocOptionsButton() {
                   </SizableText>
                   <SizableText
                     textDecorationLine="underline"
+                    textDecorationColor="currentColor"
                     color="$brand5"
                     tag={'a'}
                     onPress={() => {

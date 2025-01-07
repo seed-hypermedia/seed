@@ -65,6 +65,7 @@ export const TitleTextButton = styled(ButtonText, {
   textTransform: "none",
   hoverStyle: {
     textDecorationLine: "underline",
+    textDecorationColor: "currentColor",
     cursor: "default",
   },
 });

@@ -32,6 +32,7 @@ export function LinkNameComponent({
       hoverStyle={{
         borderColor: '$colorTransparent',
         textDecorationLine: 'underline',
+        textDecorationColor: 'currentColor',
       }}
       size="$2"
       {...props}

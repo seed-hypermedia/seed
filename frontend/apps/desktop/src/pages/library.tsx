@@ -160,6 +160,7 @@ export default function LibraryPage() {
               </SizableText>
               <SizableText
                 textDecorationLine="underline"
+                textDecorationColor="currentColor"
                 color="$brand5"
                 tag={'a'}
                 onPress={() => {
@@ -1021,6 +1022,7 @@ function LibraryEntryLocation({
           color: '$brand6',
           bg: '$colorTransparent',
           textDecorationLine: 'underline',
+          textDecorationColor: 'currentColor',
         }}
         onPress={(e: MouseEvent) => {
           e.stopPropagation()
@@ -1056,6 +1058,7 @@ function LibraryEntryLocation({
                   hoverStyle={{
                     bg: '$colorTransparent',
                     textDecorationLine: 'underline',
+                    textDecorationColor: 'currentColor',
                   }}
                   onPress={(e: MouseEvent) => {
                     e.stopPropagation()

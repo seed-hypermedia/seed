@@ -371,6 +371,7 @@ export function CommentPageTitlebarWithDocId({
           fontSize="$4"
           className="no-window-drag"
           textDecorationLine="underline"
+          textDecorationColor="currentColor"
           textOverflow="ellipsis"
           whiteSpace="nowrap"
           width="100%"

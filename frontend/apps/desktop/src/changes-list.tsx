@@ -103,6 +103,7 @@ function ChangeItem({
         onPress={openAccount}
         hoverStyle={{
           textDecorationLine: 'underline',
+          textDecorationColor: 'currentColor',
         }}
       >
         {author?.data?.profile?.alias || change.author}

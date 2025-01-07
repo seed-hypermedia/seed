@@ -39,6 +39,7 @@
 .link,
 .hm-link {
   text-decoration-line: underline;
+  text-decoration-color: currentColor;
   text-underline-offset: 0.2em;
   text-decoration-skip-ink: none;
 }
@@ -314,6 +315,7 @@ ol > [data-node-type='block-outer']::marker {
 }
 .authorLink:hover {
   text-decoration-line: underline;
+  text-decoration-color: currentColor;
 }
 .authorVerified {
   display: inline-flex;
@@ -343,6 +345,7 @@ ol > [data-node-type='block-outer']::marker {
 }
 .follow:hover {
   text-decoration-line: underline;
+  text-decoration-color: currentColor;
 }
 .separator {
   padding: 0 0.25rem;

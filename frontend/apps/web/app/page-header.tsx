@@ -95,6 +95,7 @@ export function PageHeader({
                   <SizableText
                     hoverStyle={{
                       textDecorationLine: "underline",
+                      textDecorationColor: "currentColor",
                     }}
                     fontWeight="bold"
                     size="$2"
@@ -452,7 +453,10 @@ function Breadcrumbs({
             textOverflow="ellipsis"
             whiteSpace="nowrap"
             textDecorationLine="none"
-            hoverStyle={{textDecorationLine: "underline"}}
+            hoverStyle={{
+              textDecorationLine: "underline",
+              textDecorationColor: "currentColor",
+            }}
             maxWidth="15ch"
           >
             {first.metadata?.name}
@@ -472,7 +476,10 @@ function Breadcrumbs({
             size="$1"
             textDecorationLine="none"
             overflow="hidden"
-            hoverStyle={{textDecorationLine: "underline"}}
+            hoverStyle={{
+              textDecorationLine: "underline",
+              textDecorationColor: "currentColor",
+            }}
             textOverflow="ellipsis"
             whiteSpace="nowrap"
             textDecoration="none"

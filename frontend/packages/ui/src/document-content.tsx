@@ -1447,8 +1447,8 @@ function InlineContentView({
             <Text
               key={`${content.type}-${index}`}
               color={hmTextColor(linkType)}
-              textDecorationColor={hmTextColor(linkType)}
-              style={{textDecorationLine}}
+              textDecorationColor="currentColor"
+              style={{textDecorationLine, textDecorationColor: "currentColor"}}
               fontSize={fSize}
               lineHeight={fSize * 1.5}
               data-range-offset={inlineContentOffset}

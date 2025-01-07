@@ -548,7 +548,10 @@ function SiteURLButton({siteUrl}: {siteUrl?: string}) {
     <ButtonText
       color="$color10"
       size="$2"
-      hoverStyle={{textDecorationLine: 'underline'}}
+      hoverStyle={{
+        textDecorationLine: 'underline',
+        textDecorationColor: 'currentColor',
+      }}
       onPress={() => {
         open(siteUrl)
       }}

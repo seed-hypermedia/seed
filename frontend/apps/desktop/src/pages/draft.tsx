@@ -856,7 +856,10 @@ function PathDraft({
               size="$2"
               color="$brand5"
               userSelect="none"
-              hoverStyle={{textDecorationLine: 'underline'}}
+              hoverStyle={{
+                textDecorationLine: 'underline',
+                textDecorationColor: 'currentColor',
+              }}
               onPress={handleDraftChange}
             >
               Apply
@@ -865,7 +868,10 @@ function PathDraft({
               size="$2"
               color="$red9"
               userSelect="none"
-              hoverStyle={{textDecorationLine: 'underline'}}
+              hoverStyle={{
+                textDecorationLine: 'underline',
+                textDecorationColor: 'currentColor',
+              }}
               onPress={() => {
                 if (!!name && path.startsWith('_')) {
                   setPath(pathNameify(name))
@@ -887,7 +893,10 @@ function PathDraft({
               size="$2"
               color="$brand5"
               userSelect="none"
-              hoverStyle={{textDecorationLine: 'underline'}}
+              hoverStyle={{
+                textDecorationLine: 'underline',
+                textDecorationColor: 'currentColor',
+              }}
               onPress={() => {
                 setDirty(true)
                 setEditing(true)
