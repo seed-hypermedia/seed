@@ -1,11 +1,11 @@
 import {Button} from "@tamagui/button";
 import {YGroup} from "@tamagui/group";
 import {MoreHorizontal} from "@tamagui/lucide-icons";
-import {Separator} from "@tamagui/separator";
 import {XStack} from "@tamagui/stacks";
 import {GestureReponderEvent} from "@tamagui/web";
 import {FC} from "react";
 import {GestureResponderEvent} from "react-native";
+import {Separator} from "tamagui";
 import {MenuItem} from "./menu-item";
 import {Popover} from "./TamaguiPopover";
 import {usePopoverState} from "./use-popover-state";
@@ -67,23 +67,26 @@ export function OptionsDropdown({
           exitStyle={{y: -10, opacity: 0}}
           elevate={true}
         >
-          <YGroup separator={<Separator />}>
+          <YGroup>
             {menuItems.map(
-              (item) =>
+              (item, index) =>
                 item && (
-                  <YGroup.Item key={item.key}>
-                    <MenuItem
-                      onPress={(e: GestureResponderEvent) => {
-                        e.stopPropagation();
-                        popoverState.onOpenChange(false);
-                        item.onPress();
-                      }}
-                      subTitle={item.subLabel}
-                      title={item.label}
-                      icon={item.icon}
-                      color={item.color}
-                    />
-                  </YGroup.Item>
+                  <>
+                    {index > 0 && <Separator borderColor="$color7" />}
+                    <YGroup.Item key={item.key}>
+                      <MenuItem
+                        onPress={(e: GestureResponderEvent) => {
+                          e.stopPropagation();
+                          popoverState.onOpenChange(false);
+                          item.onPress();
+                        }}
+                        subTitle={item.subLabel}
+                        title={item.label}
+                        icon={item.icon}
+                        color={item.color}
+                      />
+                    </YGroup.Item>
+                  </>
                 )
             )}
           </YGroup>

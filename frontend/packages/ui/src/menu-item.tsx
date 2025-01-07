@@ -13,15 +13,16 @@ export function MenuItem({
     <ListItem
       hoverTheme
       pressTheme
-      size="$2"
       focusTheme
+      size="$2"
+      userSelect="none"
+      hoverStyle={{backgroundColor: "$color4", cursor: "default"}}
       paddingVertical="$2"
       paddingHorizontal="$4"
       textAlign="left"
       outlineColor="transparent"
-      space="$2"
+      bg="$colorTransparent"
       opacity={disabled ? 0.5 : 1}
-      userSelect="none"
       cursor={disabled ? "not-allowed" : "default"}
       title={
         title ? (
