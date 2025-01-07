@@ -22,7 +22,16 @@ export function SiteLogo({
   });
   if (metadata?.seedExperimentalLogo) {
     return (
-      <XStack {...homeLinkProps} height={60} flex={1} ai="center" jc="center">
+      <XStack
+        {...homeLinkProps}
+        height={60}
+        flex={1}
+        ai="center"
+        jc="center"
+        $gtSm={{
+          flex: 0,
+        }}
+      >
         <img
           src={getFileUrl(metadata.seedExperimentalLogo)}
           height={60}
