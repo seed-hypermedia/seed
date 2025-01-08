@@ -44,10 +44,17 @@ export function SiteRoutingProvider({
 }
 
 export function useRouteLink(
-  route: NavRoute,
+  route: NavRoute | null,
   siteHomeId?: UnpackedHypermediaId,
 ) {
   const context = useContext(UniversalRoutingContext)
+  if (!route)
+    return {
+      onPress: undefined,
+      href: undefined,
+      style: {textDecoration: 'none'},
+      tag: 'a',
+    }
   const href =
     route.key == 'document'
       ? idToUrl(route.id, {siteHomeId: siteHomeId || context?.siteHomeId})

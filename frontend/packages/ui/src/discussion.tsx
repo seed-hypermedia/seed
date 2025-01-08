@@ -6,8 +6,9 @@ import {
   hmId,
   HMMetadata,
   UnpackedHypermediaId,
+  useRouteLink,
 } from "@shm/shared";
-import {Button} from "@tamagui/button";
+import {Button, ButtonText} from "@tamagui/button";
 import {useTheme, View} from "@tamagui/core";
 import {ChevronDown, ChevronRight} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
@@ -120,10 +121,10 @@ function Comment({
   const [showReplies, setShowReplies] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
   const authorId = comment.author ? hmId("d", comment.author) : null;
+  const authorLink = useRouteLink(
+    authorId ? {key: "document", id: authorId} : null
+  );
   const theme = useTheme();
-  // const {data: author} = useEntity(authorId)
-  // const draft = useCommentDraft(docId, comment.id)
-
   return (
     <YStack>
       <View
@@ -165,6 +166,10 @@ function Comment({
             outlineStyle="solid"
             outlineWidth={4}
             borderRadius={100}
+            hoverStyle={{
+              outlineColor: "$backgroundStrong",
+            }}
+            {...authorLink}
           />
           {authorId && (
             <HMIcon
@@ -177,9 +182,16 @@ function Comment({
         </Stack>
         <YStack f={1}>
           <XStack minHeight={20} ai="center" gap="$2">
-            <SizableText size="$2" fontWeight="bold">
+            <ButtonText
+              size="$2"
+              fontWeight="bold"
+              hoverStyle={{
+                bg: "$backgroundStrong",
+              }}
+              {...authorLink}
+            >
               {authorMetadata?.name || "..."}
-            </SizableText>
+            </ButtonText>
             <Tooltip content={formattedDateLong(comment.createTime)}>
               <SizableText color="$color8" size="$1">
                 {formattedDateMedium(comment.createTime)}
