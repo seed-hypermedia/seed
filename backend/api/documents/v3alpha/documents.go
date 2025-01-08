@@ -40,8 +40,6 @@ const (
 
 // Server implements Documents API v3.
 type Server struct {
-	documents.UnimplementedCommentsServer
-
 	keys core.KeyStore
 	idx  *blob.Index
 	db   *sqlitex.Pool

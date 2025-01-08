@@ -131,6 +131,29 @@ func (b *blockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) {
 	return b.get(conn, c)
 }
 
+// GetMany is a batch request to get many blocks from the blockstore.
+func (b *blockStore) GetMany(ctx context.Context, cc []cid.Cid) ([]blocks.Block, error) {
+	mCallsTotal.WithLabelValues("GetMany").Inc()
+
+	conn, release, err := b.db.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
+	out := make([]blocks.Block, len(cc))
+
+	for i, c := range cc {
+		blk, err := b.get(conn, c)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = blk
+	}
+
+	return out, nil
+}
+
 func (b *blockStore) get(conn *sqlite.Conn, c cid.Cid) (blocks.Block, error) {
 	res, err := dbBlobsGet(conn, c.Hash())
 	if err != nil {

@@ -116,6 +116,44 @@ func (srv *Server) GetComment(ctx context.Context, in *documents.GetCommentReque
 	return commentToProto(c, cp)
 }
 
+// BatchGetComments implements Comments API.
+func (srv *Server) BatchGetComments(ctx context.Context, in *documents.BatchGetCommentsRequest) (*documents.BatchGetCommentsResponse, error) {
+	cc := make([]cid.Cid, len(in.Ids))
+
+	for i, id := range in.Ids {
+		c, err := cid.Decode(id)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "failed to parse comment ID %s as CID: %v", id, err)
+		}
+		cc[i] = c
+	}
+
+	blocks, err := srv.idx.GetMany(ctx, cc)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &documents.BatchGetCommentsResponse{
+		Comments: make([]*documents.Comment, len(blocks)),
+	}
+
+	for i, blk := range blocks {
+		cp := &blob.Comment{}
+		if err := cbornode.DecodeInto(blk.RawData(), cp); err != nil {
+			return nil, err
+		}
+
+		pb, err := commentToProto(cc[i], cp)
+		if err != nil {
+			return nil, err
+		}
+
+		resp.Comments[i] = pb
+	}
+
+	return resp, nil
+}
+
 // ListComments implements Comments API.
 func (srv *Server) ListComments(ctx context.Context, in *documents.ListCommentsRequest) (*documents.ListCommentsResponse, error) {
 	acc, err := core.DecodePrincipal(in.TargetAccount)
