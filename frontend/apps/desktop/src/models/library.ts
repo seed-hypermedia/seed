@@ -1,11 +1,18 @@
+import {useGRPCClient} from '@/app-context'
+import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {
+  BIG_INT,
+  DocumentListItem,
   HMDocument,
   HMDraft,
   hmId,
   HMMetadata,
+  queryKeys,
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
+import {useQuery} from '@tanstack/react-query'
+import {useMemo} from 'react'
 import {useDrafts} from './accounts'
 import {useDraftList} from './documents'
 import {getParentPaths, useEntities} from './entities'
@@ -58,6 +65,69 @@ function isSubscribedBy(
   if (!sub.recursive) return false
   if (idPath.startsWith(subPath)) return true
   return false
+}
+
+export type LibrarySite = {
+  entityUid: string
+  items: PlainMessage<DocumentListItem>[]
+  homeItem: PlainMessage<DocumentListItem> | null
+}
+
+export type AccountMetadata = {
+  id: UnpackedHypermediaId
+  metadata?: HMMetadata
+}
+
+export type AccountsMetadata = AccountMetadata[]
+
+export function useLibrary2() {
+  const grpcClient = useGRPCClient()
+  const q = useQuery({
+    queryKey: [queryKeys.LIBRARY],
+    queryFn: async () => {
+      const res = await grpcClient.documents.listDocuments({
+        pageSize: BIG_INT,
+      })
+      return toPlainMessage(res).documents
+    },
+  })
+  return {
+    ...q,
+    data: {
+      items: useMemo(() => {
+        const sites: Record<string, LibrarySite> = {}
+        const orderedSites: LibrarySite[] = []
+        q.data?.forEach((item) => {
+          const entityUid = item.account
+          if (!entityUid) return
+          if (!sites[entityUid]) {
+            sites[entityUid] = {items: [], homeItem: null, entityUid}
+            orderedSites.push(sites[entityUid])
+          }
+          if (item.path) {
+            sites[entityUid].items.push(item)
+          } else {
+            sites[entityUid].homeItem = item
+          }
+        })
+        return orderedSites
+      }, [q.data]),
+      authors: useMemo(() => {
+        const authors = new Set<string>()
+        q.data?.forEach((item) => {
+          item.authors?.forEach((author) => {
+            authors.add(author)
+          })
+        })
+        return Array.from(authors).map((author) => {
+          return {
+            id: hmId('d', author),
+            metadata: q.data?.find((item) => item.account === author)?.metadata,
+          }
+        })
+      }, [q.data]),
+    },
+  }
 }
 
 export function useLibrary(query: LibraryQueryState): LibraryData | null {

@@ -8,6 +8,8 @@ export const queryKeys = {
 
   // NOTE: Arguments to query keys documented in comments
 
+  LIBRARY: 'LIBRARY',
+
   // feed
   FEED: 'FEED', // trustedOnly: boolean
   FEED_LATEST_EVENT: 'FEED_LATEST_EVENT', // trustedOnly: boolean

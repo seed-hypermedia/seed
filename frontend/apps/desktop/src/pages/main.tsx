@@ -23,6 +23,7 @@ var Contacts = lazy(() => import('./contacts-page'))
 var Document = lazy(() => import('./document'))
 var Draft = lazy(() => import('./draft'))
 var Library = lazy(() => import('./library'))
+var Library2 = lazy(() => import('./library2'))
 var DeletedContent = lazy(() => import('./deleted-content'))
 var DraftRebase = lazy(() => import('./draft-rebase'))
 
@@ -144,6 +145,12 @@ function getPageComponent(navRoute: NavRoute) {
     case 'library': {
       return {
         PageComponent: Library,
+        Fallback: BaseLoading,
+      }
+    }
+    case 'library2': {
+      return {
+        PageComponent: Library2,
         Fallback: BaseLoading,
       }
     }

@@ -5,10 +5,12 @@ import {XStack} from "@tamagui/stacks";
 import {useMemo} from "react";
 import {HMIcon} from "./hm-icon";
 
-export type AccountsMetadata = {
+export type AccountMetadata = {
   id: UnpackedHypermediaId;
   metadata?: HMMetadata;
-}[];
+};
+
+export type AccountsMetadata = AccountMetadata[];
 
 export function FacePile({
   accounts,

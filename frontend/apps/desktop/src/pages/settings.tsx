@@ -64,6 +64,7 @@ import {
 } from '@shm/ui'
 import {
   AtSign,
+  Biohazard,
   Code2,
   Eye,
   EyeOff,
@@ -117,12 +118,12 @@ export default function Settings() {
           icon={Info}
           label="App Info"
         />
-        {/* <Tab
+        <Tab
           value="experiments"
           active={activeTab === 'experiments'}
           icon={Biohazard}
           label="Experiments"
-        /> */}
+        />
         <Tab
           value="developer"
           active={activeTab === 'developer'}
@@ -141,9 +142,9 @@ export default function Settings() {
         <AppSettings />
         {/* <DevicesInfo /> */}
       </TabsContent>
-      {/* <TabsContent value="experiments">
+      <TabsContent value="experiments">
         <ExperimentsSettings />
-      </TabsContent> */}
+      </TabsContent>
       <TabsContent value="developer">
         <DeveloperSettings />
       </TabsContent>
@@ -663,7 +664,7 @@ export function ExperimentSection({
 }: {
   id: string
   experiment: ExperimentType
-  onValue: (v) => void
+  onValue: (v: boolean) => void
   value: boolean
 }) {
   return (
@@ -723,21 +724,28 @@ type ExperimentType = {
   emoji: string
   description: string
 }
-const EXPERIMENTS: ExperimentType[] = [
-  // {
-  //   key: 'webImporting',
-  //   label: 'Web Importing',
-  //   emoji: '🛰️',
-  //   description:
-  //     'When opening a Web URL from the Quick Switcher, automatically convert to a Hypermedia Document.',
-  // },
-  {
-    key: 'nostr',
-    label: 'Nostr Embeds',
-    emoji: '🍀',
-    description: 'Embed Nostr notes into documents for permanent referencing.',
-  },
-]
+const EXPERIMENTS = //: ExperimentType[]
+  [
+    // {
+    //   key: 'webImporting',
+    //   label: 'Web Importing',
+    //   emoji: '🛰️',
+    //   description:
+    //     'When opening a Web URL from the Quick Switcher, automatically convert to a Hypermedia Document.',
+    // },
+    // {
+    //   key: 'nostr',
+    //   label: 'Nostr Embeds',
+    //   emoji: '🍀',
+    //   description: 'Embed Nostr notes into documents for permanent referencing.',
+    // },
+    {
+      key: 'newLibrary',
+      label: 'New Library',
+      emoji: '🏠',
+      description: 'Use the new library for storing documents.',
+    },
+  ] as const
 
 function GatewaySettings({}: {}) {
   const gatewayUrl = useGatewayUrl()
@@ -875,6 +883,7 @@ function ExperimentsSettings({}: {}) {
               value={!!experiments.data?.[experiment.key]}
               experiment={experiment}
               onValue={(isEnabled) => {
+                console.log(experiment.key, 'isEnabled', isEnabled)
                 writeExperiments.mutate({[experiment.key]: isEnabled})
               }}
             />

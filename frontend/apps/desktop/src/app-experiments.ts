@@ -4,17 +4,26 @@ import {t} from './app-trpc'
 
 const EXPERIMENTS_STORAGE_KEY = 'Experiments-v001'
 
-const experimentsZ = z.object({
-  webImporting: z.boolean().optional(),
-  nostr: z.boolean().optional(),
-  developerTools: z.boolean().optional(),
-  pubContentDevMenu: z.boolean().optional(),
-})
+const experimentsZ = z
+  .object({
+    webImporting: z.boolean().optional(),
+    nostr: z.boolean().optional(),
+    developerTools: z.boolean().optional(),
+    pubContentDevMenu: z.boolean().optional(),
+    newLibrary: z.boolean().optional(),
+  })
+  .strict()
 type Experiments = z.infer<typeof experimentsZ>
+console.log('~ get from app store', appStore.get(EXPERIMENTS_STORAGE_KEY))
 let experimentsState: Experiments = appStore.get(EXPERIMENTS_STORAGE_KEY) || {}
 
 export const experimentsApi = t.router({
   get: t.procedure.query(async () => {
+    console.log(
+      '~ get from app store',
+      appStore.get(EXPERIMENTS_STORAGE_KEY),
+      experimentsState,
+    )
     return experimentsState
   }),
   write: t.procedure.input(experimentsZ).mutation(async ({input}) => {
@@ -22,6 +31,7 @@ export const experimentsApi = t.router({
     const newExperimentsState = {...(prevExperimentsState || {}), ...input}
     experimentsState = newExperimentsState
     appStore.set(EXPERIMENTS_STORAGE_KEY, newExperimentsState)
+    console.log('~ set to app store', newExperimentsState)
     return undefined
   }),
 })

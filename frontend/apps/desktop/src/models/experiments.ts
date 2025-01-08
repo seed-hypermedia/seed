@@ -13,6 +13,7 @@ export function useWriteExperiments() {
       toast.error('Could not save this change')
     },
     onSuccess() {
+      console.log('onSuccess')
       invalidateQueries(['trpc.experiments.get'])
     },
   })
