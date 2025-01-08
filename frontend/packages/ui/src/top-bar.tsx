@@ -71,6 +71,7 @@ export function NewsSiteHeader({
               return (
                 <NewsSiteHeaderLink
                   id={item.id}
+                  key={item.id.id}
                   metadata={item.metadata}
                   isDraft={item.isDraft}
                   isPublished={item.isPublished}
