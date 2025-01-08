@@ -19,7 +19,7 @@ export function DirectoryItem({
   entry,
   PathButtonComponent,
   FavoriteButton,
-  authorsMetadata,
+  accountsMetadata,
   siteHomeId,
 }: {
   entry: {
@@ -39,7 +39,7 @@ export function DirectoryItem({
     id: UnpackedHypermediaId;
     hideUntilItemHover: boolean;
   }>;
-  authorsMetadata: AccountsMetadata;
+  accountsMetadata: AccountsMetadata;
   siteHomeId?: UnpackedHypermediaId;
 }) {
   const metadata = entry?.metadata;
@@ -88,7 +88,7 @@ export function DirectoryItem({
         <XStack>
           <FacePile
             accounts={entry.authors}
-            accountsMetadata={authorsMetadata}
+            accountsMetadata={accountsMetadata}
           />
         </XStack>
       </XStack>

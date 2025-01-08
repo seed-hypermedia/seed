@@ -17,7 +17,7 @@ export function NewspaperPage(props: SiteDocumentPayload) {
     id,
     supportDocuments,
     supportQueries,
-    authors,
+    accountsMetadata,
     siteHost,
   } = props;
   if (!id) return null;
@@ -86,7 +86,7 @@ export function NewspaperPage(props: SiteDocumentPayload) {
             <BannerNewspaperCard
               item={firstItem}
               entity={getEntity(firstItem.path)}
-              accountsMetadata={authors}
+              accountsMetadata={accountsMetadata}
             />
           )}
           <XStack
@@ -102,7 +102,7 @@ export function NewspaperPage(props: SiteDocumentPayload) {
                   id={itemId}
                   entity={getEntity(item.path)}
                   key={itemId.id}
-                  accountsMetadata={authors}
+                  accountsMetadata={accountsMetadata}
                 />
               );
             })}

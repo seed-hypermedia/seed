@@ -10,7 +10,10 @@ export type AccountMetadata = {
   metadata?: HMMetadata;
 };
 
-export type AccountsMetadata = AccountMetadata[];
+export type AccountsMetadata = Record<
+  string, // account uid
+  AccountMetadata
+>;
 
 export function FacePile({
   accounts,
@@ -26,10 +29,7 @@ export function FacePile({
   return (
     <>
       {showAccountIds.map((author, idx) => {
-        const authorInfo = accountsMetadata.find(
-          (authorMetadata: AccountsMetadata[number]) =>
-            authorMetadata.id.uid === author
-        );
+        const authorInfo = accountsMetadata[author];
         if (!authorInfo) return null;
         return (
           <XStack

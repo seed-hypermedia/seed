@@ -9,7 +9,7 @@ import {
   LibraryData,
   LibraryDependentData,
   LibraryQueryState,
-  useLibrary,
+  useClassicLibrary,
 } from '@/models/library'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {useNavigate} from '@/utils/useNavigate'
@@ -73,7 +73,7 @@ export default function LibraryPage() {
   )
   const [allSelected, setAllSelected] = useState(false)
 
-  const library = useLibrary(queryState)
+  const library = useClassicLibrary(queryState)
 
   const filteredLibrary = useMemo(() => {
     return exportMode

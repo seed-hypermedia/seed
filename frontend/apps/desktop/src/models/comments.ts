@@ -7,6 +7,7 @@ import {toPlainMessage} from '@bufbuild/protobuf'
 import {
   BIG_INT,
   BlockNode,
+  GRPCClient,
   HMBlockNode,
   HMComment,
   HMCommentDraft,
@@ -23,7 +24,12 @@ import {
   writeableStateStream,
 } from '@shm/shared'
 import {toast} from '@shm/ui'
-import {UseQueryOptions, useMutation, useQuery} from '@tanstack/react-query'
+import {
+  UseQueryOptions,
+  useMutation,
+  useQueries,
+  useQuery,
+} from '@tanstack/react-query'
 import {Extension} from '@tiptap/core'
 import {useEffect, useMemo, useRef} from 'react'
 import {useGRPCClient} from '../app-context'
@@ -104,22 +110,37 @@ export function useCommentDraft(
   }
 }
 
+function queryComment(
+  grpcClient: GRPCClient,
+  commentId: string | undefined,
+  opts?: UseQueryOptions<HMComment | null>,
+) {
+  return {
+    // ...opts,
+    queryKey: [queryKeys.COMMENT, commentId],
+    enabled: opts?.enabled !== false && !!commentId,
+    queryFn: async () => {
+      if (!commentId) return null
+      const comment = await grpcClient.comments.getComment({
+        id: commentId,
+      })
+      return toPlainMessage(comment)
+    },
+  }
+}
+
 export function useComment(
   id: UnpackedHypermediaId | null | undefined,
   opts?: UseQueryOptions<HMComment | null>,
 ) {
   const grpcClient = useGRPCClient()
-  return useQuery({
-    ...opts,
-    queryKey: [queryKeys.COMMENT, id?.id],
-    enabled: opts?.enabled !== false && !!id?.id,
-    queryFn: async () => {
-      if (!id?.id) return null
-      const comment = await grpcClient.comments.getComment({
-        id: id.id,
-      })
-      return toPlainMessage(comment)
-    },
+  return useQuery(queryComment(grpcClient, id?.id, opts))
+}
+
+export function useComments(commentIds: string[] = []) {
+  const grpcClient = useGRPCClient()
+  return useQueries({
+    queries: commentIds.map((commentId) => queryComment(grpcClient, commentId)),
   })
 }
 

@@ -21,7 +21,7 @@ export type DirectoryPayload = {
     id: UnpackedHypermediaId;
     authors: string[];
   }[];
-  authorsMetadata?: AccountsMetadata;
+  accountsMetadata?: AccountsMetadata;
   error?: string;
 };
 
@@ -62,7 +62,7 @@ export const loader = async ({
     directory.forEach((doc) => {
       doc.authors.forEach((author) => allAuthors.add(author));
     });
-    const authorsMetadata = await Promise.all(
+    const accounts = await Promise.all(
       Array.from(allAuthors).map(async (authorUid) => {
         const res = await queryClient.documents.getDocument({
           account: authorUid,
@@ -71,7 +71,10 @@ export const loader = async ({
         return {id: hmId("d", authorUid), metadata: authorAccount.metadata};
       })
     );
-    result = {directory, authorsMetadata};
+    result = {
+      directory,
+      accountsMetadata: Object.fromEntries(accounts.map((a) => [a.id.uid, a])),
+    };
   } catch (e: any) {
     result = {error: e.message};
   }

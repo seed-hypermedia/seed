@@ -1,8 +1,10 @@
 import {useGRPCClient} from '@/app-context'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {
+  Account,
   BIG_INT,
   DocumentListItem,
+  HMComment,
   HMDocument,
   HMDraft,
   hmId,
@@ -12,8 +14,8 @@ import {
   unpackHmId,
 } from '@shm/shared'
 import {useQuery} from '@tanstack/react-query'
-import {useMemo} from 'react'
-import {useDrafts} from './accounts'
+import {useAccounts, useDrafts} from './accounts'
+import {useComments} from './comments'
 import {useDraftList} from './documents'
 import {getParentPaths, useEntities} from './entities'
 import {useFavorites} from './favorites'
@@ -67,7 +69,7 @@ function isSubscribedBy(
   return false
 }
 
-export type LibrarySite = {
+export type ClassicLibrarySite = {
   entityUid: string
   items: PlainMessage<DocumentListItem>[]
   homeItem: PlainMessage<DocumentListItem> | null
@@ -80,57 +82,102 @@ export type AccountMetadata = {
 
 export type AccountsMetadata = AccountMetadata[]
 
-export function useLibrary2() {
-  const grpcClient = useGRPCClient()
-  const q = useQuery({
-    queryKey: [queryKeys.LIBRARY],
-    queryFn: async () => {
-      const res = await grpcClient.documents.listDocuments({
-        pageSize: BIG_INT,
-      })
-      return toPlainMessage(res).documents
-    },
-  })
-  return {
-    ...q,
-    data: {
-      items: useMemo(() => {
-        const sites: Record<string, LibrarySite> = {}
-        const orderedSites: LibrarySite[] = []
-        q.data?.forEach((item) => {
-          const entityUid = item.account
-          if (!entityUid) return
-          if (!sites[entityUid]) {
-            sites[entityUid] = {items: [], homeItem: null, entityUid}
-            orderedSites.push(sites[entityUid])
-          }
-          if (item.path) {
-            sites[entityUid].items.push(item)
-          } else {
-            sites[entityUid].homeItem = item
-          }
-        })
-        return orderedSites
-      }, [q.data]),
-      authors: useMemo(() => {
-        const authors = new Set<string>()
-        q.data?.forEach((item) => {
-          item.authors?.forEach((author) => {
-            authors.add(author)
-          })
-        })
-        return Array.from(authors).map((author) => {
-          return {
-            id: hmId('d', author),
-            metadata: q.data?.find((item) => item.account === author)?.metadata,
-          }
-        })
-      }, [q.data]),
-    },
-  }
+export type LibrarySite = PlainMessage<Account> & {
+  latestComment?: HMComment
 }
 
-export function useLibrary(query: LibraryQueryState): LibraryData | null {
+export function useLibrary() {
+  const accounts = useAccounts()
+  const commentIds = accounts.data?.accounts
+    .map((account) => account.activitySummary?.latestCommentId)
+    .filter((commentId) => commentId != null)
+    .filter((commentId) => commentId.length)
+  const comments = useComments(commentIds || [])
+  return accounts.data?.accounts.map((account) => {
+    return {
+      ...account,
+      latestComment: account.activitySummary?.latestCommentId
+        ? comments.find(
+            (c) => c.data?.id === account.activitySummary?.latestCommentId,
+          )?.data
+        : undefined,
+    }
+  })
+}
+
+// export function useLibrary() {
+//   const grpcClient = useGRPCClient()
+//   const q = useQuery({
+//     queryKey: [queryKeys.LIBRARY],
+//     queryFn: async () => {
+//       const res = await grpcClient.documents.listDocuments({
+//         pageSize: BIG_INT,
+//       })
+//       return toPlainMessage(res).documents
+//     },
+//   })
+//   return {
+//     ...q,
+//     data: {
+//       items: useMemo(() => {
+//         const sites: Record<string, LibrarySite> = {}
+//         const orderedSites: LibrarySite[] = []
+//         q.data?.forEach((item) => {
+//           const entityUid = item.account
+//           if (!entityUid) return
+//           if (!sites[entityUid]) {
+//             sites[entityUid] = {items: [], homeItem: null, entityUid}
+//             orderedSites.push(sites[entityUid])
+//           }
+//           if (item.path) {
+//             sites[entityUid].items.push(item)
+//           } else {
+//             sites[entityUid].homeItem = item
+//           }
+//         })
+//         return orderedSites
+//       }, [q.data]),
+//       authors: useMemo(() => {
+//         const authors = new Set<string>()
+//         q.data?.forEach((item) => {
+//           item.authors?.forEach((author) => {
+//             authors.add(author)
+//           })
+//         })
+//         return Array.from(authors).map((author) => {
+//           return {
+//             id: hmId('d', author),
+//             metadata: q.data?.find((item) => item.account === author)?.metadata,
+//           }
+//         })
+//       }, [q.data]),
+//     },
+//   }
+// }
+
+export function useSiteLibrary(siteUid: string) {
+  const grpcClient = useGRPCClient()
+  const q = useQuery({
+    queryKey: [queryKeys.SITE_LIBRARY, siteUid],
+    queryFn: async () => {
+      const res = await grpcClient.documents.listDocuments({
+        account: siteUid,
+        pageSize: BIG_INT,
+      })
+      console.log('docs', toPlainMessage(res).documents)
+      return {
+        documents: toPlainMessage(res).documents.filter(
+          (item) => item.path !== '',
+        ),
+      }
+    },
+  })
+  return q
+}
+
+export function useClassicLibrary(
+  query: LibraryQueryState,
+): LibraryData | null {
   const search = useSearch(query.filterString, {})
   const favorites = useFavorites()
   const subscriptions = useListSubscriptions()

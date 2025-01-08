@@ -17,6 +17,7 @@ import {
   getDiretoryWithClient,
   getQueryResultsWithClient,
 } from "@shm/shared/src/models/directory";
+import {AccountsMetadata} from "@shm/ui/src/face-pile";
 import {queryClient} from "./client";
 import {getConfig} from "./config";
 import {wrapJSON, WrappedResponse} from "./wrapping";
@@ -39,7 +40,7 @@ export async function getMetadata(
 
 export type WebBaseDocumentPayload = {
   document: HMDocument;
-  authors: {id: UnpackedHypermediaId; metadata: HMMetadata}[];
+  accountsMetadata: AccountsMetadata;
   id: UnpackedHypermediaId;
   siteHost: string | undefined;
   supportDocuments?: {id: UnpackedHypermediaId; document: HMDocument}[];
@@ -153,7 +154,9 @@ export async function getBaseDocument(
     document,
     supportDocuments,
     supportQueries,
-    authors,
+    accountsMetadata: Object.fromEntries(
+      authors.map((author) => [author.id.uid, author])
+    ),
     siteHost: SITE_BASE_URL,
     id: {...entityId, version: document.version},
   };

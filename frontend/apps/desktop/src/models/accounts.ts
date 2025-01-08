@@ -1,23 +1,45 @@
 import {useGRPCClient} from '@/app-context'
 import {useMyAccountIds} from '@/models/daemon'
 import {client, trpc} from '@/trpc'
+import {toPlainMessage} from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
 import {
   GRPCClient,
   HMDraft,
+  hmId,
   invalidateQueries,
   packHmId,
   queryKeys,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {useQueries, UseQueryOptions} from '@tanstack/react-query'
+import {useQueries, useQuery, UseQueryOptions} from '@tanstack/react-query'
 
 export function useAccount_deprecated() {
   throw new Error('useAccount_deprecated is fully broken')
 }
+
 export function useAccounts() {
-  throw new Error('useAccounts is fully broken')
+  const grpcClient = useGRPCClient()
+  const q = useQuery({
+    queryKey: [queryKeys.LIST_ACCOUNTS],
+    queryFn: async () => {
+      const res = await grpcClient.documents.listAccounts({})
+      const accounts = toPlainMessage(res).accounts
+      const accountsMetadata = Object.fromEntries(
+        accounts.map((account) => [
+          account.id,
+          {metadata: account.metadata, id: hmId('d', account.id)},
+        ]),
+      )
+      return {
+        accounts,
+        accountsMetadata,
+      }
+    },
+  })
+  return q
 }
+
 export function useAllAccounts() {
   throw new Error('useAllAccounts is fully broken')
 }

@@ -1,16 +1,19 @@
 import {MainWrapper} from '@/components/main-wrapper'
-import {useListProfileDocuments} from '@/models/documents'
+import {useAccounts} from '@/models/accounts'
 
-import {LibraryQueryState, LibrarySite, useLibrary2} from '@/models/library'
+import {LibrarySite, useLibrary, useSiteLibrary} from '@/models/library'
 import {useNavigate} from '@/utils/useNavigate'
 import {PlainMessage} from '@bufbuild/protobuf'
 import {
+  ActivitySummary,
+  BlockNode,
   Breadcrumb,
   DocumentListItem,
   DocumentRoute,
   entityQueryPathToHmIdPath,
   formattedDateMedium,
   getMetadataName,
+  HMComment,
   hmId,
   normalizeDate,
   UnpackedHypermediaId,
@@ -28,21 +31,21 @@ import {AccountsMetadata, FacePile} from '@shm/ui/src/face-pile'
 import {ChevronDown, ChevronRight, MessageSquare} from '@tamagui/lucide-icons'
 import {useState} from 'react'
 
-const defaultSort: LibraryQueryState['sort'] = 'lastUpdate'
+// const defaultSort: LibraryQueryState['sort'] = 'lastUpdate'
 
 export default function Library2Page() {
-  const contacts = useListProfileDocuments()
-  const lib = useLibrary2()
-  console.log('lib data', lib.data)
+  const library = useLibrary()
+  const accounts = useAccounts()
   return (
     <XStack flex={1} height="100%">
       <MainWrapper>
         <Container justifyContent="center" centered>
-          {lib.data?.items?.map((site) => (
+          {library?.map((site) => (
             <LibrarySiteItem
-              key={site.entityUid}
+              key={site.id}
               site={site}
-              accountsMetadata={lib.data?.authors}
+              accountsMetadata={accounts.data?.accountsMetadata}
+              isRead={Math.random() > 0.5}
             />
           ))}
         </Container>
@@ -53,48 +56,109 @@ export default function Library2Page() {
 
 function LibrarySiteItem({
   site,
+  isRead,
   accountsMetadata,
 }: {
   site: LibrarySite
-  accountsMetadata: AccountsMetadata
+  isRead: boolean
+  accountsMetadata?: AccountsMetadata
 }) {
   const [isCollapsed, setIsCollapsed] = useState(true)
-  if (!site.homeItem) return null
+  const navigate = useNavigate()
+  const metadata = site?.metadata
+  const id = hmId('d', site.id)
   return (
     <>
-      <LibraryListItem
-        item={site.homeItem}
-        accountsMetadata={accountsMetadata}
-        isCollapsed={site.items.length > 0 ? isCollapsed : undefined}
-        onSetCollapsed={setIsCollapsed}
-        margin
-      />
-      {isCollapsed ? null : (
-        <YStack>
-          {site.items.map((item) => (
-            <LibraryListItem
-              item={item}
+      <Button
+        group="item"
+        borderWidth={0}
+        hoverStyle={{
+          bg: '$color5',
+        }}
+        bg={isRead ? '$colorTransparent' : '$backgroundStrong'}
+        paddingHorizontal={16}
+        paddingVertical="$1"
+        onPress={() => {
+          navigate({key: 'document', id})
+        }}
+        h={68}
+        ai="center"
+      >
+        {isCollapsed == null ? (
+          <View width="$1" />
+        ) : (
+          <Button
+            icon={isCollapsed ? ChevronRight : ChevronDown}
+            onPress={(e) => {
+              e.stopPropagation()
+              setIsCollapsed(!isCollapsed)
+            }}
+            circular
+            size="$1"
+          />
+        )}
+        <HMIcon id={id} metadata={metadata} />
+        <YStack f={1}>
+          <XStack gap="$3" ai="center">
+            <SizableText
+              f={1}
+              fontWeight={isRead ? undefined : 'bold'}
+              textOverflow="ellipsis"
+              whiteSpace="nowrap"
+              overflow="hidden"
+            >
+              {getMetadataName(metadata)}
+            </SizableText>
+            {site.activitySummary && (
+              <LibraryEntryTime activitySummary={site.activitySummary} />
+            )}
+            {site.activitySummary && (
+              <LibraryEntryCommentCount
+                activitySummary={site.activitySummary}
+              />
+            )}
+            {/* <LibraryEntryAuthors
+            item={item}
+            accountsMetadata={accountsMetadata}
+          /> */}
+          </XStack>
+          {site.activitySummary && (
+            <LibraryEntryUpdateSummary
               accountsMetadata={accountsMetadata}
-              isRead={Math.random() > 0.5}
+              latestComment={site.latestComment}
+              activitySummary={site.activitySummary}
             />
-          ))}
+          )}
         </YStack>
-      )}
+      </Button>
+      {isCollapsed ? null : <LibrarySiteContent siteUid={site.id} />}
     </>
   )
 }
 
-export function LibraryListItem({
+function LibrarySiteContent({siteUid}: {siteUid: string}) {
+  const library = useSiteLibrary(siteUid)
+  const accounts = useAccounts()
+  return (
+    <YStack>
+      {library.data?.documents.map((item) => (
+        <LibraryDocumentItem
+          item={item}
+          accountsMetadata={accounts.data?.accountsMetadata || {}}
+          isRead={Math.random() > 0.5}
+        />
+      ))}
+    </YStack>
+  )
+}
+
+export function LibraryDocumentItem({
   item,
-  isCollapsed,
-  onSetCollapsed,
   isRead,
   margin,
   accountsMetadata,
 }: {
   item: PlainMessage<DocumentListItem>
-  isCollapsed?: boolean
-  onSetCollapsed?: (isCollapsed: boolean) => void
   isRead?: boolean
   margin?: boolean
   accountsMetadata: AccountsMetadata
@@ -104,14 +168,12 @@ export function LibraryListItem({
   const id = hmId('d', item.account, {
     path: entityQueryPathToHmIdPath(item.path),
   })
-
-  const hoverColor = '$color5'
   return (
     <Button
       group="item"
       borderWidth={0}
       hoverStyle={{
-        bg: hoverColor,
+        bg: '$color5',
       }}
       bg={isRead ? '$colorTransparent' : '$backgroundStrong'}
       // elevation="$1"
@@ -124,20 +186,9 @@ export function LibraryListItem({
       marginVertical={margin ? '$1' : undefined}
       ai="center"
     >
-      {isCollapsed == null ? (
-        <View width="$1" />
-      ) : (
-        <Button
-          icon={isCollapsed ? ChevronRight : ChevronDown}
-          onPress={(e) => {
-            e.stopPropagation()
-            onSetCollapsed?.(!isCollapsed)
-          }}
-          circular
-          size="$1"
-        />
-      )}
+      <View width="$1" />
       <HMIcon id={id} metadata={metadata} />
+
       <YStack f={1}>
         <LibraryEntryBreadcrumbs
           breadcrumbs={item.breadcrumbs}
@@ -154,73 +205,34 @@ export function LibraryListItem({
           >
             {getMetadataName(metadata)}
           </SizableText>
-          <LibraryEntryTime item={item} />
-          <LibraryEntryCommentCount item={item} />
+          {item.activitySummary && (
+            <LibraryEntryTime activitySummary={item.activitySummary} />
+          )}
+          {item.activitySummary && (
+            <LibraryEntryCommentCount activitySummary={item.activitySummary} />
+          )}
           <LibraryEntryAuthors
             item={item}
             accountsMetadata={accountsMetadata}
           />
         </XStack>
-        <LibraryEntryUpdateSummary item={item} />
+        {item.activitySummary && (
+          <LibraryEntryUpdateSummary
+            accountsMetadata={accountsMetadata}
+            // latestComment={item.}
+            activitySummary={item.activitySummary}
+          />
+        )}
       </YStack>
-      <XStack gap="$3" ai="center">
-        <XStack>
-          {/* {editors.map((author, idx) => (
-            <XStack
-              zIndex={idx + 1}
-              key={author.id.id}
-              borderColor="$background"
-              backgroundColor="$background"
-              $group-item-hover={{
-                borderColor: hoverColor,
-                backgroundColor: hoverColor,
-              }}
-              borderWidth={2}
-              borderRadius={100}
-              overflow="hidden"
-              marginLeft={-8}
-              animation="fast"
-            >
-              <LinkIcon
-                key={author.id.id}
-                id={author.id}
-                metadata={author.metadata}
-                size={20}
-              />
-            </XStack>
-          ))}
-          {entry.authors.length > editors.length && editors.length != 0 ? (
-            <XStack
-              zIndex="$zIndex.1"
-              borderColor="$background"
-              backgroundColor="$background"
-              borderWidth={2}
-              borderRadius={100}
-              marginLeft={-8}
-              animation="fast"
-              width={24}
-              height={24}
-              ai="center"
-              jc="center"
-            >
-              <Text
-                fontSize={10}
-                fontFamily="$body"
-                fontWeight="bold"
-                color="$color10"
-              >
-                +{entry.authors.length - editors.length - 1}
-              </Text>
-            </XStack>
-          ) : null} */}
-        </XStack>
-      </XStack>
     </Button>
   )
 }
 
-function LibraryEntryTime({item}: {item: PlainMessage<DocumentListItem>}) {
-  const {activitySummary} = item
+function LibraryEntryTime({
+  activitySummary,
+}: {
+  activitySummary: PlainMessage<ActivitySummary>
+}) {
   const latestChangeTime = normalizeDate(activitySummary?.latestChangeTime)
   const latestCommentTime = normalizeDate(activitySummary?.latestCommentTime)
   const displayTime =
@@ -240,11 +252,14 @@ function LibraryEntryTime({item}: {item: PlainMessage<DocumentListItem>}) {
 }
 
 function LibraryEntryUpdateSummary({
-  item,
+  activitySummary,
+  accountsMetadata,
+  latestComment,
 }: {
-  item: PlainMessage<DocumentListItem>
+  activitySummary: PlainMessage<ActivitySummary>
+  accountsMetadata: AccountsMetadata | undefined
+  latestComment: HMComment | undefined
 }) {
-  const {activitySummary} = item
   const latestChangeTime = normalizeDate(activitySummary?.latestChangeTime)
   const latestCommentTime = normalizeDate(activitySummary?.latestCommentTime)
   let summaryText = ''
@@ -252,9 +267,27 @@ function LibraryEntryUpdateSummary({
     summaryText = `Document Changed`
   }
   if (latestCommentTime) {
+    const author = latestComment?.author
+      ? accountsMetadata?.[latestComment?.author]
+      : undefined
+    const authorName = author?.metadata?.name
     summaryText = `Comment`
+    if (authorName && latestComment) {
+      summaryText = `${authorName}: ${plainTextOfContent(
+        latestComment.content,
+      )}`
+    }
   }
-  return <SizableText size="$1">{summaryText}</SizableText>
+  return (
+    <SizableText numberOfLines={1} size="$1">
+      {summaryText}
+    </SizableText>
+  )
+}
+
+function plainTextOfContent(content: PlainMessage<BlockNode>[]): string {
+  // todo, make this better
+  return content.map((block) => block.block?.text).join(' ')
 }
 
 function LibraryEntryBreadcrumbs({
@@ -267,7 +300,6 @@ function LibraryEntryBreadcrumbs({
   id: UnpackedHypermediaId
 }) {
   const displayCrumbs = breadcrumbs.slice(1, -1)
-  if (breadcrumbs.length > 3) console.log('~ displayCrumbs', displayCrumbs)
   if (!displayCrumbs.length) return null
   return (
     <XStack>
@@ -312,11 +344,10 @@ function LibraryEntryBreadcrumbs({
 }
 
 function LibraryEntryCommentCount({
-  item,
+  activitySummary,
 }: {
-  item: PlainMessage<DocumentListItem>
+  activitySummary: PlainMessage<ActivitySummary>
 }) {
-  const {activitySummary} = item
   const commentCount = activitySummary?.commentCount
   if (!commentCount) return null
   return (
