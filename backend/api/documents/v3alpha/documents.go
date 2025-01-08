@@ -381,6 +381,7 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 		qb := dqb.
 			Select(
 				"spaces.id",
+				"spaces.last_comment",
 				"spaces.last_comment_time",
 				"spaces.comment_count",
 				"spaces.last_change_time",
@@ -432,6 +433,8 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 	}
 	defer release()
 
+	lookup := blob.NewLookupCache(conn)
+
 	var count int32
 	rows, check := sqlitex.Query(conn, query, args...)
 	for row := range rows {
@@ -444,6 +447,7 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 		seq := sqlite.NewIncrementor(0)
 		var (
 			spaceID          = row.ColumnText(seq())
+			lastCommentID    = row.ColumnInt64(seq())
 			lastCommentTime  = row.ColumnInt64(seq())
 			commentCount     = row.ColumnInt64(seq())
 			lastChangeTime   = row.ColumnInt64(seq())
@@ -470,12 +474,27 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 			metadata[k] = vv
 		}
 
+		var (
+			latestCommentID   string
+			latestCommentTime *timestamppb.Timestamp
+		)
+		if lastCommentID != 0 {
+			lc, err := lookup.CID(lastCommentID)
+			if err != nil {
+				return nil, err
+			}
+
+			latestCommentID = lc.String()
+			latestCommentTime = timestamppb.New(time.UnixMilli(lastCommentTime))
+		}
+
 		item := &documents.Account{
 			Id:       spaceID,
 			Metadata: metadata,
 			ActivitySummary: &documents.ActivitySummary{
 				CommentCount:      int32(commentCount), //nolint:gosec
-				LatestCommentTime: maybeTimeToProto(lastCommentTime),
+				LatestCommentId:   latestCommentID,
+				LatestCommentTime: latestCommentTime,
 				LatestChangeTime:  timestamppb.New(time.UnixMilli(lastChangeTime)),
 			},
 			IsSubscribed: isSubscribed,
@@ -678,6 +697,7 @@ func baseListDocumentsQuery() *dqb.SelectQuery {
 			"dg.heads",
 			"dg.authors",
 			"dg.genesis_change_time",
+			"dg.last_comment",
 			"dg.last_comment_time",
 			"dg.last_change_time",
 			"dg.last_activity_time",
@@ -701,6 +721,7 @@ func documentListItemFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*docum
 		headsJSON         = row.ColumnBytesUnsafe(inc())
 		authorsJSON       = row.ColumnBytesUnsafe(inc())
 		genesisChangeTime = row.ColumnInt64(inc())
+		lastCommentID     = row.ColumnInt64(inc())
 		lastCommentTime   = row.ColumnInt64(inc())
 		lastChangeTime    = row.ColumnInt64(inc())
 		lastActivityTime  = row.ColumnInt64(inc())
@@ -786,6 +807,19 @@ func documentListItemFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*docum
 		}
 	}
 
+	var (
+		latestComment     string
+		latestCommentTime *timestamppb.Timestamp
+	)
+	if lastCommentID != 0 {
+		lc, err := lookup.CID(lastCommentID)
+		if err != nil {
+			return nil, err
+		}
+		latestComment = lc.String()
+		latestCommentTime = timestamppb.New(time.UnixMilli(lastCommentTime))
+	}
+
 	out := &documents.DocumentListItem{
 		Account:     space.String(),
 		Path:        path,
@@ -798,21 +832,13 @@ func documentListItemFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*docum
 		Breadcrumbs: crumbs,
 		ActivitySummary: &documents.ActivitySummary{
 			CommentCount:      int32(commentCount), //nolint:gosec
-			LatestCommentTime: maybeTimeToProto(lastCommentTime),
+			LatestCommentId:   latestComment,
+			LatestCommentTime: latestCommentTime,
 			LatestChangeTime:  timestamppb.New(time.UnixMilli(lastChangeTime)),
 		},
 	}
 
 	return out, nil
-}
-
-// maybeTimeToProto does the same thing as timestamppb.New, but returns nil if the time is zero.
-func maybeTimeToProto(msec int64) *timestamppb.Timestamp {
-	if msec == 0 {
-		return nil
-	}
-
-	return timestamppb.New(time.UnixMilli(msec))
 }
 
 // DeleteDocument implements Documents API v3.

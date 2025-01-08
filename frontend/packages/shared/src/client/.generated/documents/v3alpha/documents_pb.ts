@@ -1281,6 +1281,13 @@ export class ActivitySummary extends Message<ActivitySummary> {
   latestCommentTime?: Timestamp;
 
   /**
+   * ID of the most recent comment.
+   *
+   * @generated from field: string latest_comment_id = 4;
+   */
+  latestCommentId = "";
+
+  /**
    * Total number of comments.
    *
    * @generated from field: int32 comment_count = 2;
@@ -1303,6 +1310,7 @@ export class ActivitySummary extends Message<ActivitySummary> {
   static readonly typeName = "com.seed.documents.v3alpha.ActivitySummary";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "latest_comment_time", kind: "message", T: Timestamp },
+    { no: 4, name: "latest_comment_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "comment_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 3, name: "latest_change_time", kind: "message", T: Timestamp },
   ]);
