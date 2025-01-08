@@ -77,10 +77,7 @@ export const Documents = {
     /**
      * Lists documents within the account. Only the most recent versions show up.
      *
-     * Deprecated: Use [ListDirectory].
-     *
      * @generated from rpc com.seed.documents.v3alpha.Documents.ListDocuments
-     * @deprecated
      */
     listDocuments: {
       name: "ListDocuments",

@@ -38,10 +38,7 @@ type DocumentsClient interface {
 	ListAccounts(ctx context.Context, in *ListAccountsRequest, opts ...grpc.CallOption) (*ListAccountsResponse, error)
 	// Lists documents in a directory of an account.
 	ListDirectory(ctx context.Context, in *ListDirectoryRequest, opts ...grpc.CallOption) (*ListDirectoryResponse, error)
-	// Deprecated: Do not use.
 	// Lists documents within the account. Only the most recent versions show up.
-	//
-	// Deprecated: Use [ListDirectory].
 	ListDocuments(ctx context.Context, in *ListDocumentsRequest, opts ...grpc.CallOption) (*ListDocumentsResponse, error)
 	// Lists all the root documents that we know about.
 	ListRootDocuments(ctx context.Context, in *ListRootDocumentsRequest, opts ...grpc.CallOption) (*ListRootDocumentsResponse, error)
@@ -107,7 +104,6 @@ func (c *documentsClient) ListDirectory(ctx context.Context, in *ListDirectoryRe
 	return out, nil
 }
 
-// Deprecated: Do not use.
 func (c *documentsClient) ListDocuments(ctx context.Context, in *ListDocumentsRequest, opts ...grpc.CallOption) (*ListDocumentsResponse, error) {
 	out := new(ListDocumentsResponse)
 	err := c.cc.Invoke(ctx, "/com.seed.documents.v3alpha.Documents/ListDocuments", in, out, opts...)
@@ -172,10 +168,7 @@ type DocumentsServer interface {
 	ListAccounts(context.Context, *ListAccountsRequest) (*ListAccountsResponse, error)
 	// Lists documents in a directory of an account.
 	ListDirectory(context.Context, *ListDirectoryRequest) (*ListDirectoryResponse, error)
-	// Deprecated: Do not use.
 	// Lists documents within the account. Only the most recent versions show up.
-	//
-	// Deprecated: Use [ListDirectory].
 	ListDocuments(context.Context, *ListDocumentsRequest) (*ListDocumentsResponse, error)
 	// Lists all the root documents that we know about.
 	ListRootDocuments(context.Context, *ListRootDocumentsRequest) (*ListRootDocumentsResponse, error)

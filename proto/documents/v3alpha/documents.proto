@@ -34,11 +34,7 @@ service Documents {
   rpc ListDirectory(ListDirectoryRequest) returns (ListDirectoryResponse);
 
   // Lists documents within the account. Only the most recent versions show up.
-  //
-  // Deprecated: Use [ListDirectory].
-  rpc ListDocuments(ListDocumentsRequest) returns (ListDocumentsResponse) {
-    option deprecated = true;
-  };
+  rpc ListDocuments(ListDocumentsRequest) returns (ListDocumentsResponse);
 
   // Lists all the root documents that we know about.
   rpc ListRootDocuments(ListRootDocumentsRequest) returns (ListRootDocumentsResponse);
