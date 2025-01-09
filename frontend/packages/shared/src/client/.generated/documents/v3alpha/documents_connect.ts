@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateDocumentChangeRequest, CreateRefRequest, DeleteDocumentRequest, Document, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, Ref } from "./documents_pb";
+import { CreateDocumentChangeRequest, CreateRefRequest, DeleteDocumentRequest, Document, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, Ref, UpdateDocumentReadStatusRequest } from "./documents_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -105,6 +105,17 @@ export const Documents = {
       name: "ListDocumentChanges",
       I: ListDocumentChangesRequest,
       O: ListDocumentChangesResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Updates the read status of a document.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Documents.UpdateDocumentReadStatus
+     */
+    updateDocumentReadStatus: {
+      name: "UpdateDocumentReadStatus",
+      I: UpdateDocumentReadStatusRequest,
+      O: Empty,
       kind: MethodKind.Unary,
     },
     /**

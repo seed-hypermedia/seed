@@ -129,10 +129,11 @@ func (idx *Index) IPFSBlockstore() blockstore.Blockstore {
 // indexBlob is an uber-function that knows about all types of blobs we want to index.
 // This is probably a bad idea to put here, but for now it's easier to work with that way.
 // TODO(burdiyan): eventually we might want to make this package agnostic to blob types.
-func (idx *Index) indexBlob(conn *sqlite.Conn, id int64, c cid.Cid, data []byte) (err error) {
+func (idx *Index) indexBlob(ctx context.Context, conn *sqlite.Conn, id int64, c cid.Cid, data []byte) (err error) {
 	defer sqlitex.Save(conn)(&err)
 
 	ictx := newCtx(conn, idx.bs, idx.provider, idx.log)
+	ictx.mustTrackUnreads = unreadsTrackingEnabled(ctx) // TODO: refactor this. It's ugly af.
 
 	for _, fn := range indexersList {
 		if err := fn(ictx, id, c, data); err != nil {
@@ -755,6 +756,8 @@ type indexingCtx struct {
 	provider   provider.Provider
 	blockStore *blockStore
 	log        *zap.Logger
+
+	mustTrackUnreads bool
 
 	// Lookup tables for internal database IDs.
 	pubKeys   map[string]int64

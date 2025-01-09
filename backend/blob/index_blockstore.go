@@ -30,7 +30,7 @@ func (idx *Index) Put(ctx context.Context, blk blocks.Block) error {
 			return nil
 		}
 
-		return idx.indexBlob(conn, id, blk.Cid(), blk.RawData())
+		return idx.indexBlob(ctx, conn, id, blk.Cid(), blk.RawData())
 	})
 }
 
@@ -54,7 +54,7 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 				continue
 			}
 
-			if err := idx.indexBlob(conn, id, blk.Cid(), blk.RawData()); err != nil {
+			if err := idx.indexBlob(ctx, conn, id, blk.Cid(), blk.RawData()); err != nil {
 				return err
 			}
 		}

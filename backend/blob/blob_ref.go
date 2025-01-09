@@ -163,14 +163,16 @@ func indexRef(ictx *indexingCtx, id int64, c cid.Cid, v *Ref) error {
 		return err
 	}
 
-	if err := crossLinkRefMaybe(ictx.conn, v); err != nil {
+	if err := crossLinkRefMaybe(ictx, v); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func crossLinkRefMaybe(conn *sqlite.Conn, v *Ref) error {
+func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
+	conn := ictx.conn
+
 	memberID, err := DbPublicKeysLookupID(conn, v.Signer)
 	if err != nil {
 		return err
@@ -275,12 +277,18 @@ func crossLinkRefMaybe(conn *sqlite.Conn, v *Ref) error {
 			if err := touchSpaceStats(conn, v.GetSpace().String(), last.Ts); err != nil {
 				return fmt.Errorf("failed to touch space stats: %w", err)
 			}
+
+			if ictx.mustTrackUnreads && !isTombstone {
+				if err := ensureUnread(conn, iri); err != nil {
+					return err
+				}
+			}
 		}
 	}
 
 	refTime := v.Ts.UnixMilli()
 
-	if len(v.Heads) == 0 {
+	if isTombstone {
 		dg.LastTombstoneRefTime = max(dg.LastTombstoneRefTime, refTime)
 	} else {
 		dg.LastAliveRefTime = max(dg.LastAliveRefTime, refTime)

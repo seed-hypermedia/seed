@@ -178,7 +178,7 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 	}
 	activitySrv.SetSyncer(a.Syncing)
 
-	a.GRPCServer, a.GRPCListener, a.RPC, err = initGRPC(ctx, cfg.GRPC.Port, &a.clean, a.g, a.Storage, a.Index, a.Net,
+	a.GRPCServer, a.GRPCListener, a.RPC, err = initGRPC(cfg.GRPC.Port, &a.clean, a.g, a.Storage, a.Index, a.Net,
 		a.Syncing,
 		activitySrv,
 		cfg.LogLevel, cfg.Lndhub.Mainnet, opts.grpc)
@@ -372,7 +372,6 @@ func initSyncing(
 }
 
 func initGRPC(
-	ctx context.Context,
 	port int,
 	clean *cleanup.Stack,
 	g *errgroup.Group,

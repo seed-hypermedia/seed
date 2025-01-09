@@ -125,6 +125,11 @@ CREATE TABLE resources (
 CREATE INDEX resources_by_owner ON resources (owner) WHERE owner IS NOT NULL;
 CREATE INDEX resources_by_genesis_blob ON resources (genesis_blob);
 
+-- Stores resources that are unread by the user.
+CREATE TABLE unread_resources (
+    iri TEXT PRIMARY KEY NOT NULL
+) WITHOUT ROWID;
+
 -- Stores spaces and various aggregate information about them.
 CREATE TABLE spaces (
     id TEXT PRIMARY KEY CHECK (id != ''),

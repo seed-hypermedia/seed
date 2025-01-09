@@ -42,6 +42,9 @@ service Documents {
   // Lists all changes of a document.
   rpc ListDocumentChanges(ListDocumentChangesRequest) returns (ListDocumentChangesResponse);
 
+  // Updates the read status of a document.
+  rpc UpdateDocumentReadStatus(UpdateDocumentReadStatusRequest) returns (google.protobuf.Empty);
+
   // Creates a Ref blob for the specified account + path.
   rpc CreateRef(CreateRefRequest) returns (Ref);
 
@@ -276,6 +279,18 @@ message ListDocumentChangesResponse {
   string next_page_token = 2;
 }
 
+// Request to update document's read status.
+message UpdateDocumentReadStatusRequest {
+  // Required. ID of the account to update the document in.
+  string account = 1;
+
+  // Required. Path of the document to update.
+  string path = 2;
+
+  // Required. New read status of the document.
+  bool is_read = 3;
+}
+
 // Request to create a Ref.
 message CreateRefRequest {
   // Required. The ID of the account/space in which to create the Ref.
@@ -382,6 +397,9 @@ message ActivitySummary {
 
   // Timestamp of the most recent change.
   google.protobuf.Timestamp latest_change_time = 3;
+
+  // Whether there's any unread activity on this document/account.
+  bool is_unread = 5;
 }
 
 // Basic information about ancestor documents in the path hierarchy.

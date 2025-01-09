@@ -44,6 +44,8 @@ type DocumentsClient interface {
 	ListRootDocuments(ctx context.Context, in *ListRootDocumentsRequest, opts ...grpc.CallOption) (*ListRootDocumentsResponse, error)
 	// Lists all changes of a document.
 	ListDocumentChanges(ctx context.Context, in *ListDocumentChangesRequest, opts ...grpc.CallOption) (*ListDocumentChangesResponse, error)
+	// Updates the read status of a document.
+	UpdateDocumentReadStatus(ctx context.Context, in *UpdateDocumentReadStatusRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Creates a Ref blob for the specified account + path.
 	CreateRef(ctx context.Context, in *CreateRefRequest, opts ...grpc.CallOption) (*Ref, error)
 	// Returns details about a Ref.
@@ -131,6 +133,15 @@ func (c *documentsClient) ListDocumentChanges(ctx context.Context, in *ListDocum
 	return out, nil
 }
 
+func (c *documentsClient) UpdateDocumentReadStatus(ctx context.Context, in *UpdateDocumentReadStatusRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/com.seed.documents.v3alpha.Documents/UpdateDocumentReadStatus", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *documentsClient) CreateRef(ctx context.Context, in *CreateRefRequest, opts ...grpc.CallOption) (*Ref, error) {
 	out := new(Ref)
 	err := c.cc.Invoke(ctx, "/com.seed.documents.v3alpha.Documents/CreateRef", in, out, opts...)
@@ -174,6 +185,8 @@ type DocumentsServer interface {
 	ListRootDocuments(context.Context, *ListRootDocumentsRequest) (*ListRootDocumentsResponse, error)
 	// Lists all changes of a document.
 	ListDocumentChanges(context.Context, *ListDocumentChangesRequest) (*ListDocumentChangesResponse, error)
+	// Updates the read status of a document.
+	UpdateDocumentReadStatus(context.Context, *UpdateDocumentReadStatusRequest) (*emptypb.Empty, error)
 	// Creates a Ref blob for the specified account + path.
 	CreateRef(context.Context, *CreateRefRequest) (*Ref, error)
 	// Returns details about a Ref.
@@ -207,6 +220,9 @@ func (UnimplementedDocumentsServer) ListRootDocuments(context.Context, *ListRoot
 }
 func (UnimplementedDocumentsServer) ListDocumentChanges(context.Context, *ListDocumentChangesRequest) (*ListDocumentChangesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDocumentChanges not implemented")
+}
+func (UnimplementedDocumentsServer) UpdateDocumentReadStatus(context.Context, *UpdateDocumentReadStatusRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateDocumentReadStatus not implemented")
 }
 func (UnimplementedDocumentsServer) CreateRef(context.Context, *CreateRefRequest) (*Ref, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateRef not implemented")
@@ -370,6 +386,24 @@ func _Documents_ListDocumentChanges_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Documents_UpdateDocumentReadStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateDocumentReadStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).UpdateDocumentReadStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/com.seed.documents.v3alpha.Documents/UpdateDocumentReadStatus",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).UpdateDocumentReadStatus(ctx, req.(*UpdateDocumentReadStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Documents_CreateRef_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateRefRequest)
 	if err := dec(in); err != nil {
@@ -444,6 +478,10 @@ var Documents_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListDocumentChanges",
 			Handler:    _Documents_ListDocumentChanges_Handler,
+		},
+		{
+			MethodName: "UpdateDocumentReadStatus",
+			Handler:    _Documents_UpdateDocumentReadStatus_Handler,
 		},
 		{
 			MethodName: "CreateRef",

@@ -10,10 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"seed/backend/blob"
-
 	"seed/backend/util/sqlite/sqlitex"
 
+	"github.com/ipfs/boxo/blockstore"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -26,7 +25,7 @@ type worker struct {
 	log        *zap.Logger
 	clientFunc netDialFunc
 	host       host.Host
-	indexer    *blob.Index
+	indexer    blockstore.Blockstore
 	bswap      bitswap
 	db         *sqlitex.Pool
 	sema       chan struct{}
@@ -41,7 +40,7 @@ func newWorker(
 	log *zap.Logger,
 	clientFunc netDialFunc,
 	host host.Host,
-	indexer *blob.Index,
+	indexer blockstore.Blockstore,
 	bswap bitswap,
 	db *sqlitex.Pool,
 	semaphore chan struct{},

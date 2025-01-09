@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"seed/backend/blob"
 	"seed/backend/config"
 	activity_proto "seed/backend/genproto/activity/v1alpha"
 	documents_proto "seed/backend/genproto/documents/v3alpha"
@@ -17,8 +18,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"seed/backend/blob"
 
 	"container/list"
 
@@ -133,7 +132,7 @@ type Service struct {
 	cfg        config.Syncing
 	log        *zap.Logger
 	db         *sqlitex.Pool
-	indexer    *blob.Index
+	indexer    blockstore.Blockstore
 	bitswap    bitswap
 	rbsrClient netDialFunc
 	docGetter  LocalDocGetter
@@ -150,7 +149,7 @@ type Service struct {
 const peerRoutingConcurrency = 3 // how many concurrent requests for peer routing.
 
 // NewService creates a new syncing service. Users should call Start() to start the periodic syncing.
-func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer *blob.Index, net *mttnet.Node, sstore SubscriptionStore) *Service {
+func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer blockstore.Blockstore, net *mttnet.Node, sstore SubscriptionStore) *Service {
 	svc := &Service{
 		cfg:        cfg,
 		log:        log,
@@ -637,6 +636,8 @@ func syncEntities(
 	log *zap.Logger,
 	eids map[string]bool,
 ) (err error) {
+	ctx = blob.ContextWithUnreadsTracking(ctx)
+
 	mSyncsInFlight.Inc()
 	defer func() {
 		mSyncsInFlight.Dec()
@@ -783,7 +784,7 @@ func syncPeerRbsr(
 	ctx context.Context,
 	pid peer.ID,
 	c p2p.SyncingClient,
-	idx *blob.Index,
+	idx blockstore.Blockstore,
 	sess exchange.Fetcher,
 	db *sqlitex.Pool,
 	log *zap.Logger,

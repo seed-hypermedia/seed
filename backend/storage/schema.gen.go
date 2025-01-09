@@ -272,6 +272,18 @@ const (
 	C_SubscriptionsIsRecursive = "subscriptions.is_recursive"
 )
 
+// Table unread_resources.
+const (
+	UnreadResources    sqlitegen.Table  = "unread_resources"
+	UnreadResourcesIRI sqlitegen.Column = "unread_resources.iri"
+)
+
+// Table unread_resources. Plain strings.
+const (
+	T_UnreadResources    = "unread_resources"
+	C_UnreadResourcesIRI = "unread_resources.iri"
+)
+
 // Table wallets.
 const (
 	Wallets         sqlitegen.Table  = "wallets"
@@ -369,6 +381,7 @@ var Schema = sqlitegen.Schema{
 		SubscriptionsInsertTime:                 {Table: Subscriptions, SQLType: "INTEGER"},
 		SubscriptionsIRI:                        {Table: Subscriptions, SQLType: "TEXT"},
 		SubscriptionsIsRecursive:                {Table: Subscriptions, SQLType: "BOOLEAN"},
+		UnreadResourcesIRI:                      {Table: UnreadResources, SQLType: "TEXT"},
 		WalletsAccount:                          {Table: Wallets, SQLType: "INTEGER"},
 		WalletsAddress:                          {Table: Wallets, SQLType: "TEXT"},
 		WalletsID:                               {Table: Wallets, SQLType: "TEXT"},

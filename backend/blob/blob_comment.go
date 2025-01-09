@@ -273,6 +273,12 @@ func indexComment(ictx *indexingCtx, id int64, c cid.Cid, v *Comment) error {
 		if err := sm.save(ictx.conn); err != nil {
 			return err
 		}
+
+		if ictx.mustTrackUnreads {
+			if err := ensureUnread(ictx.conn, iri); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil

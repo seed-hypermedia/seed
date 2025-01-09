@@ -413,7 +413,7 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 		}
 
 		for _, ref := range refs {
-			if err := crossLinkRefMaybe(ictx.conn, ref); err != nil {
+			if err := crossLinkRefMaybe(ictx, ref); err != nil {
 				return err
 			}
 		}

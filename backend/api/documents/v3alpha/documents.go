@@ -387,6 +387,7 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 				"spaces.last_change_time",
 				"MAX(last_comment_time, last_change_time) AS last_activity_time",
 				"subs.id IS NOT NULL AS is_subscribed",
+				"(SELECT 1 FROM unread_resources WHERE iri >= 'hm://' || spaces.id AND iri < 'hm://' || spaces.id || X'FFFF') AS is_unread",
 				"(SELECT metadata FROM document_generations WHERE resource = (SELECT resources.id FROM resources WHERE iri = 'hm://' || spaces.id) GROUP BY resource HAVING generation = MAX(generation)) AS metadata",
 			).
 			From("spaces").
@@ -453,6 +454,7 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 			lastChangeTime   = row.ColumnInt64(seq())
 			lastActivityTime = row.ColumnInt64(seq())
 			isSubscribed     = row.ColumnInt(seq()) != 0
+			isUnread         = row.ColumnInt64(seq()) > 0
 			metadataJSON     = row.ColumnBytesUnsafe(seq())
 		)
 
@@ -496,6 +498,7 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 				LatestCommentId:   latestCommentID,
 				LatestCommentTime: latestCommentTime,
 				LatestChangeTime:  timestamppb.New(time.UnixMilli(lastChangeTime)),
+				IsUnread:          isUnread,
 			},
 			IsSubscribed: isSubscribed,
 		}
@@ -701,6 +704,7 @@ func baseListDocumentsQuery() *dqb.SelectQuery {
 			"dg.last_comment_time",
 			"dg.last_change_time",
 			"dg.last_activity_time",
+			"(SELECT 1 FROM unread_resources WHERE iri = r.iri) AS is_unread",
 		).
 		From(
 			"document_generations dg",
@@ -726,6 +730,7 @@ func documentListItemFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*docum
 		lastChangeTime    = row.ColumnInt64(inc())
 		lastActivityTime  = row.ColumnInt64(inc())
 		_                 = lastActivityTime
+		isUnread          = row.ColumnInt64(inc()) > 0
 	)
 
 	iri := blob.IRI(iriRaw)
@@ -835,6 +840,7 @@ func documentListItemFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*docum
 			LatestCommentId:   latestComment,
 			LatestCommentTime: latestCommentTime,
 			LatestChangeTime:  timestamppb.New(time.UnixMilli(lastChangeTime)),
+			IsUnread:          isUnread,
 		},
 	}
 
@@ -844,6 +850,31 @@ func documentListItemFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*docum
 // DeleteDocument implements Documents API v3.
 func (srv *Server) DeleteDocument(ctx context.Context, in *documents.DeleteDocumentRequest) (*emptypb.Empty, error) {
 	return nil, status.Error(codes.Unimplemented, "Deprecated: Use CreateRef")
+}
+
+// UpdateDocumentReadStatus implements Documents API v3.
+func (srv *Server) UpdateDocumentReadStatus(ctx context.Context, in *documents.UpdateDocumentReadStatusRequest) (*emptypb.Empty, error) {
+	{
+		if in.Account == "" {
+			return nil, errutil.MissingArgument("account")
+		}
+	}
+
+	ns, err := core.DecodePrincipal(in.Account)
+	if err != nil {
+		return nil, err
+	}
+
+	iri, err := blob.NewIRI(ns, in.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := srv.idx.SetReadStatus(ctx, iri, in.IsRead); err != nil {
+		return nil, err
+	}
+
+	return &emptypb.Empty{}, nil
 }
 
 // CreateRef implements Documents API v3.

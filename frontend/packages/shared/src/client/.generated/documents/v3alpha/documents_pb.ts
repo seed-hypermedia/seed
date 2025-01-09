@@ -950,6 +950,63 @@ export class ListDocumentChangesResponse extends Message<ListDocumentChangesResp
 }
 
 /**
+ * Request to update document's read status.
+ *
+ * @generated from message com.seed.documents.v3alpha.UpdateDocumentReadStatusRequest
+ */
+export class UpdateDocumentReadStatusRequest extends Message<UpdateDocumentReadStatusRequest> {
+  /**
+   * Required. ID of the account to update the document in.
+   *
+   * @generated from field: string account = 1;
+   */
+  account = "";
+
+  /**
+   * Required. Path of the document to update.
+   *
+   * @generated from field: string path = 2;
+   */
+  path = "";
+
+  /**
+   * Required. New read status of the document.
+   *
+   * @generated from field: bool is_read = 3;
+   */
+  isRead = false;
+
+  constructor(data?: PartialMessage<UpdateDocumentReadStatusRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.UpdateDocumentReadStatusRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "is_read", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateDocumentReadStatusRequest {
+    return new UpdateDocumentReadStatusRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UpdateDocumentReadStatusRequest {
+    return new UpdateDocumentReadStatusRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UpdateDocumentReadStatusRequest {
+    return new UpdateDocumentReadStatusRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: UpdateDocumentReadStatusRequest | PlainMessage<UpdateDocumentReadStatusRequest> | undefined, b: UpdateDocumentReadStatusRequest | PlainMessage<UpdateDocumentReadStatusRequest> | undefined): boolean {
+    return proto3.util.equals(UpdateDocumentReadStatusRequest, a, b);
+  }
+}
+
+/**
  * Request to create a Ref.
  *
  * @generated from message com.seed.documents.v3alpha.CreateRefRequest
@@ -1301,6 +1358,13 @@ export class ActivitySummary extends Message<ActivitySummary> {
    */
   latestChangeTime?: Timestamp;
 
+  /**
+   * Whether there's any unread activity on this document/account.
+   *
+   * @generated from field: bool is_unread = 5;
+   */
+  isUnread = false;
+
   constructor(data?: PartialMessage<ActivitySummary>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1313,6 +1377,7 @@ export class ActivitySummary extends Message<ActivitySummary> {
     { no: 4, name: "latest_comment_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "comment_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 3, name: "latest_change_time", kind: "message", T: Timestamp },
+    { no: 5, name: "is_unread", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ActivitySummary {

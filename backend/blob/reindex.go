@@ -82,7 +82,7 @@ func (bs *Index) reindex(conn *sqlite.Conn) (err error) {
 				return fmt.Errorf("BUG: failed to clone decompressed data: %s", c)
 			}
 
-			return bs.indexBlob(conn, id, c, data)
+			return bs.indexBlob(context.TODO(), conn, id, c, data)
 		}); err != nil {
 			return err
 		}
