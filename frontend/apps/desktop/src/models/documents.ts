@@ -271,6 +271,8 @@ export function usePublishDraft(
         invalidateQueries([queryKeys.ENTITY, documentId])
         invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, variables.id?.uid])
         invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
+        invalidateQueries([queryKeys.SITE_LIBRARY, variables.id?.uid])
+        invalidateQueries([queryKeys.LIST_ACCOUNTS])
       }
     },
   })

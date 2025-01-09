@@ -8,7 +8,6 @@ export const queryKeys = {
 
   // NOTE: Arguments to query keys documented in comments
 
-  LIBRARY: 'LIBRARY',
   SITE_LIBRARY: 'SITE_LIBRARY', // siteUid: string
 
   // feed

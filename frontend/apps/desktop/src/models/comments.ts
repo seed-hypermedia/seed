@@ -358,6 +358,8 @@ export function useCommentEditor(
         targetDocId.uid,
         ...(targetDocId.path || []),
       ])
+      invalidateQueries([queryKeys.SITE_LIBRARY, targetDocId.uid])
+      invalidateQueries([queryKeys.LIST_ACCOUNTS])
       invalidateQueries([queryKeys.FEED_LATEST_EVENT])
       invalidateQueries([queryKeys.RESOURCE_FEED_LATEST_EVENT])
       removeDraft.mutate({

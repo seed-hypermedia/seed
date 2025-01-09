@@ -147,6 +147,7 @@ function LibrarySiteItem({
             if (item.path === '') return null
             return (
               <LibraryDocumentItem
+                key={item.path}
                 item={item}
                 accountsMetadata={accountsMetadata || {}}
                 isRead={Math.random() > 0.5}
@@ -273,7 +274,11 @@ function LibraryEntryUpdateSummary({
   if (latestChangeTime) {
     summaryText = `Document Changed`
   }
-  if (latestCommentTime) {
+  if (
+    latestCommentTime &&
+    latestChangeTime &&
+    latestCommentTime > latestChangeTime
+  ) {
     const author = latestComment?.author
       ? accountsMetadata?.[latestComment?.author]
       : undefined
