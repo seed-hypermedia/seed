@@ -83,7 +83,11 @@ export type AccountMetadata = {
 export type AccountsMetadata = AccountMetadata[]
 
 export type LibrarySite = PlainMessage<Account> & {
-  latestComment?: HMComment
+  latestComment?: HMComment | null
+}
+
+export type LibraryDocument = PlainMessage<DocumentListItem> & {
+  latestComment?: HMComment | null
 }
 
 export function useLibrary() {
@@ -105,74 +109,36 @@ export function useLibrary() {
   })
 }
 
-// export function useLibrary() {
-//   const grpcClient = useGRPCClient()
-//   const q = useQuery({
-//     queryKey: [queryKeys.LIBRARY],
-//     queryFn: async () => {
-//       const res = await grpcClient.documents.listDocuments({
-//         pageSize: BIG_INT,
-//       })
-//       return toPlainMessage(res).documents
-//     },
-//   })
-//   return {
-//     ...q,
-//     data: {
-//       items: useMemo(() => {
-//         const sites: Record<string, LibrarySite> = {}
-//         const orderedSites: LibrarySite[] = []
-//         q.data?.forEach((item) => {
-//           const entityUid = item.account
-//           if (!entityUid) return
-//           if (!sites[entityUid]) {
-//             sites[entityUid] = {items: [], homeItem: null, entityUid}
-//             orderedSites.push(sites[entityUid])
-//           }
-//           if (item.path) {
-//             sites[entityUid].items.push(item)
-//           } else {
-//             sites[entityUid].homeItem = item
-//           }
-//         })
-//         return orderedSites
-//       }, [q.data]),
-//       authors: useMemo(() => {
-//         const authors = new Set<string>()
-//         q.data?.forEach((item) => {
-//           item.authors?.forEach((author) => {
-//             authors.add(author)
-//           })
-//         })
-//         return Array.from(authors).map((author) => {
-//           return {
-//             id: hmId('d', author),
-//             metadata: q.data?.find((item) => item.account === author)?.metadata,
-//           }
-//         })
-//       }, [q.data]),
-//     },
-//   }
-// }
-
-export function useSiteLibrary(siteUid: string) {
+export function useSiteLibrary(siteUid: string, enabled: boolean) {
   const grpcClient = useGRPCClient()
-  const q = useQuery({
+  const siteDocuments = useQuery({
     queryKey: [queryKeys.SITE_LIBRARY, siteUid],
+    enabled,
     queryFn: async () => {
       const res = await grpcClient.documents.listDocuments({
         account: siteUid,
         pageSize: BIG_INT,
       })
-      console.log('docs', toPlainMessage(res).documents)
       return {
-        documents: toPlainMessage(res).documents.filter(
-          (item) => item.path !== '',
-        ),
+        documents: toPlainMessage(res).documents,
       }
     },
   })
-  return q
+  const commentIds = siteDocuments.data?.documents
+    .map((doc) => doc.activitySummary?.latestCommentId)
+    .filter((commentId) => commentId != null)
+    .filter((commentId) => commentId.length)
+  const comments = useComments(commentIds || [])
+
+  return {
+    ...siteDocuments,
+    data: siteDocuments.data?.documents.map((doc) => ({
+      ...doc,
+      latestComment: comments.find(
+        (c) => c.data?.id === doc.activitySummary?.latestCommentId,
+      )?.data,
+    })),
+  }
 }
 
 export function useClassicLibrary(

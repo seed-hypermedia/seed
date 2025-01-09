@@ -1,7 +1,12 @@
 import {MainWrapper} from '@/components/main-wrapper'
 import {useAccounts} from '@/models/accounts'
 
-import {LibrarySite, useLibrary, useSiteLibrary} from '@/models/library'
+import {
+  LibraryDocument,
+  LibrarySite,
+  useLibrary,
+  useSiteLibrary,
+} from '@/models/library'
 import {useNavigate} from '@/utils/useNavigate'
 import {PlainMessage} from '@bufbuild/protobuf'
 import {
@@ -67,6 +72,15 @@ function LibrarySiteItem({
   const navigate = useNavigate()
   const metadata = site?.metadata
   const id = hmId('d', site.id)
+  const documents = useSiteLibrary(site.id, !isCollapsed)
+  const homeDocument = documents.data?.find((doc) => doc.path === '')
+  const siteDisplayActivitySummary =
+    !isCollapsed && homeDocument
+      ? homeDocument.activitySummary
+      : site.activitySummary
+  const latestComment = isCollapsed
+    ? site.latestComment
+    : homeDocument?.latestComment
   return (
     <>
       <Button
@@ -109,46 +123,39 @@ function LibrarySiteItem({
             >
               {getMetadataName(metadata)}
             </SizableText>
-            {site.activitySummary && (
-              <LibraryEntryTime activitySummary={site.activitySummary} />
+            {siteDisplayActivitySummary && (
+              <LibraryEntryTime activitySummary={siteDisplayActivitySummary} />
             )}
-            {site.activitySummary && (
+            {siteDisplayActivitySummary && (
               <LibraryEntryCommentCount
-                activitySummary={site.activitySummary}
+                activitySummary={siteDisplayActivitySummary}
               />
             )}
-            {/* <LibraryEntryAuthors
-            item={item}
-            accountsMetadata={accountsMetadata}
-          /> */}
           </XStack>
-          {site.activitySummary && (
+          {siteDisplayActivitySummary && (
             <LibraryEntryUpdateSummary
               accountsMetadata={accountsMetadata}
-              latestComment={site.latestComment}
-              activitySummary={site.activitySummary}
+              latestComment={latestComment}
+              activitySummary={siteDisplayActivitySummary}
             />
           )}
         </YStack>
       </Button>
-      {isCollapsed ? null : <LibrarySiteContent siteUid={site.id} />}
+      {isCollapsed ? null : (
+        <YStack>
+          {documents.data?.map((item) => {
+            if (item.path === '') return null
+            return (
+              <LibraryDocumentItem
+                item={item}
+                accountsMetadata={accountsMetadata || {}}
+                isRead={Math.random() > 0.5}
+              />
+            )
+          })}
+        </YStack>
+      )}
     </>
-  )
-}
-
-function LibrarySiteContent({siteUid}: {siteUid: string}) {
-  const library = useSiteLibrary(siteUid)
-  const accounts = useAccounts()
-  return (
-    <YStack>
-      {library.data?.documents.map((item) => (
-        <LibraryDocumentItem
-          item={item}
-          accountsMetadata={accounts.data?.accountsMetadata || {}}
-          isRead={Math.random() > 0.5}
-        />
-      ))}
-    </YStack>
   )
 }
 
@@ -158,7 +165,7 @@ export function LibraryDocumentItem({
   margin,
   accountsMetadata,
 }: {
-  item: PlainMessage<DocumentListItem>
+  item: LibraryDocument
   isRead?: boolean
   margin?: boolean
   accountsMetadata: AccountsMetadata
@@ -219,7 +226,7 @@ export function LibraryDocumentItem({
         {item.activitySummary && (
           <LibraryEntryUpdateSummary
             accountsMetadata={accountsMetadata}
-            // latestComment={item.}
+            latestComment={item.latestComment}
             activitySummary={item.activitySummary}
           />
         )}
@@ -258,7 +265,7 @@ function LibraryEntryUpdateSummary({
 }: {
   activitySummary: PlainMessage<ActivitySummary>
   accountsMetadata: AccountsMetadata | undefined
-  latestComment: HMComment | undefined
+  latestComment: HMComment | undefined | null
 }) {
   const latestChangeTime = normalizeDate(activitySummary?.latestChangeTime)
   const latestCommentTime = normalizeDate(activitySummary?.latestCommentTime)
