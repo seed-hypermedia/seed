@@ -35,6 +35,7 @@ import {
 import {AccountsMetadata, FacePile} from '@shm/ui/src/face-pile'
 import {ChevronDown, ChevronRight, MessageSquare} from '@tamagui/lucide-icons'
 import {useState} from 'react'
+import {GestureResponderEvent} from 'react-native'
 
 // const defaultSort: LibraryQueryState['sort'] = 'lastUpdate'
 
@@ -45,12 +46,11 @@ export default function Library2Page() {
     <XStack flex={1} height="100%">
       <MainWrapper>
         <Container justifyContent="center" centered>
-          {library?.map((site) => (
+          {library?.map((site: LibrarySite) => (
             <LibrarySiteItem
               key={site.id}
               site={site}
               accountsMetadata={accounts.data?.accountsMetadata}
-              isRead={Math.random() > 0.5}
             />
           ))}
         </Container>
@@ -61,11 +61,9 @@ export default function Library2Page() {
 
 function LibrarySiteItem({
   site,
-  isRead,
   accountsMetadata,
 }: {
   site: LibrarySite
-  isRead: boolean
   accountsMetadata?: AccountsMetadata
 }) {
   const [isCollapsed, setIsCollapsed] = useState(true)
@@ -73,7 +71,9 @@ function LibrarySiteItem({
   const metadata = site?.metadata
   const id = hmId('d', site.id)
   const documents = useSiteLibrary(site.id, !isCollapsed)
-  const homeDocument = documents.data?.find((doc) => doc.path === '')
+  const homeDocument = documents.data?.find(
+    (doc: LibraryDocument) => doc.path === '',
+  )
   const siteDisplayActivitySummary =
     !isCollapsed && homeDocument
       ? homeDocument.activitySummary
@@ -81,6 +81,7 @@ function LibrarySiteItem({
   const latestComment = isCollapsed
     ? site.latestComment
     : homeDocument?.latestComment
+  const isRead = !siteDisplayActivitySummary?.isUnread
   return (
     <>
       <Button
@@ -103,7 +104,7 @@ function LibrarySiteItem({
         ) : (
           <Button
             icon={isCollapsed ? ChevronRight : ChevronDown}
-            onPress={(e) => {
+            onPress={(e: GestureResponderEvent) => {
               e.stopPropagation()
               setIsCollapsed(!isCollapsed)
             }}
@@ -143,14 +144,13 @@ function LibrarySiteItem({
       </Button>
       {isCollapsed ? null : (
         <YStack>
-          {documents.data?.map((item) => {
+          {documents.data?.map((item: LibraryDocument) => {
             if (item.path === '') return null
             return (
               <LibraryDocumentItem
                 key={item.path}
                 item={item}
                 accountsMetadata={accountsMetadata || {}}
-                isRead={Math.random() > 0.5}
               />
             )
           })}
@@ -162,12 +162,10 @@ function LibrarySiteItem({
 
 export function LibraryDocumentItem({
   item,
-  isRead,
   margin,
   accountsMetadata,
 }: {
   item: LibraryDocument
-  isRead?: boolean
   margin?: boolean
   accountsMetadata: AccountsMetadata
 }) {
@@ -176,6 +174,7 @@ export function LibraryDocumentItem({
   const id = hmId('d', item.account, {
     path: entityQueryPathToHmIdPath(item.path),
   })
+  const isRead = !item.activitySummary?.isUnread
   return (
     <Button
       group="item"
@@ -334,7 +333,7 @@ function LibraryEntryBreadcrumbs({
             }}
             borderWidth={0}
             bg="$colorTransparent"
-            onPress={(e) => {
+            onPress={(e: GestureResponderEvent) => {
               e.stopPropagation()
               onNavigate({
                 key: 'document',

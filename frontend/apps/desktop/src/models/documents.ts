@@ -278,6 +278,26 @@ export function usePublishDraft(
   })
 }
 
+export function useDocumentRead(id: UnpackedHypermediaId | undefined | false) {
+  const grpcClient = useGRPCClient()
+  useEffect(() => {
+    if (!id) return
+    grpcClient.documents
+      .updateDocumentReadStatus({
+        account: id.uid,
+        path: hmIdPathToEntityQueryPath(id.path),
+        isRead: true,
+      })
+      .then(() => {
+        invalidateQueries([queryKeys.SITE_LIBRARY, id.uid])
+        invalidateQueries([queryKeys.LIST_ACCOUNTS])
+      })
+      .catch((error) => {
+        console.error('Error updating document read status', error)
+      })
+  }, [id])
+}
+
 export type EditorDraftState = {
   id: string
   children: Array<HMBlock>

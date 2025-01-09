@@ -17,6 +17,7 @@ import {roleCanWrite, useMyCapability} from '@/models/access-control'
 import {
   useAccountDraftList,
   useCreateDraft,
+  useDocumentRead,
   useListDirectory,
 } from '@/models/documents'
 import {useDiscoverEntity, useSubscribedEntity} from '@/models/entities'
@@ -61,6 +62,7 @@ import {AppDocContentProvider} from './document-content-provider'
 export default function DocumentPage() {
   const route = useNavRoute()
   const docId = route.key === 'document' && route.id
+  useDocumentRead(docId)
   if (!docId) throw new Error('Invalid route, no document id')
   const accessoryKey = route.accessory?.key
   const replace = useNavigate('replace')
