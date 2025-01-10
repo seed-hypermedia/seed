@@ -179,7 +179,6 @@ func (o OpMap) ToOp() (Op, error) {
 // Supported op types.
 const (
 	OpTypeSetKey       OpType = "SetKey"
-	OpTypeMoveBlock    OpType = "MoveBlock"
 	OpTypeMoveBlocks   OpType = "MoveBlocks"
 	OpTypeReplaceBlock OpType = "ReplaceBlock"
 	OpTypeDeleteBlocks OpType = "DeleteBlocks"
