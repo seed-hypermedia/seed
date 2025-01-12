@@ -127,9 +127,6 @@ export default function DraftPage() {
     icon: Options,
   })
 
-  const siteIsNewspaperLayout =
-    draft.data?.metadata?.layout === 'Seed/Experimental/Newspaper'
-
   let draftContent = null
 
   if (
@@ -178,12 +175,6 @@ export default function DraftPage() {
               {isRebasing ? <Spinner /> : 'Merge'}
             </Button>
           </XStack>
-        ) : null}
-        {siteIsNewspaperLayout ? (
-          <AppNewspaperHeader
-            siteHomeEntity={data.state.context.entity}
-            activeId={route.id}
-          />
         ) : null}
         {draftContent}
       </AccessoryLayout>
