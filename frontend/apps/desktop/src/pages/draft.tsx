@@ -42,23 +42,20 @@ import {
 } from '@shm/shared'
 import '@shm/shared/src/styles/document.css'
 import {
-  Add,
   Button,
   Container,
   copyUrlToClipboardWithFeedback,
   getSiteNavDirectory,
-  Image,
   Input,
-  MoreHorizontal,
   NewsSiteHeader,
   Options,
   Separator,
   SizableText,
-  Smile,
   useDocContentContext,
   useHeadingTextStyles,
   XStack,
 } from '@shm/ui'
+import {Image, MoreHorizontal, Plus, Smile} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
@@ -67,7 +64,6 @@ import {GestureResponderEvent} from 'react-native'
 import {DocumentHeadItems} from '@/components/document-head-items'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {EmbedToolbarProvider} from '@/editor/embed-toolbar-context'
-import {roleCanWrite, useMyCapability} from '@/models/access-control'
 import {Spinner, YStack} from '@shm/ui'
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
@@ -127,6 +123,9 @@ export default function DraftPage() {
     icon: Options,
   })
 
+  const siteIsNewspaperLayout =
+    draft.data?.metadata?.layout === 'Seed/Experimental/Newspaper'
+
   let draftContent = null
 
   if (
@@ -176,6 +175,12 @@ export default function DraftPage() {
             </Button>
           </XStack>
         ) : null}
+        {siteIsNewspaperLayout ? (
+          <AppNewspaperHeader
+            siteHomeEntity={data.state.context.entity}
+            activeId={route.id}
+          />
+        ) : null}
         {draftContent}
       </AccessoryLayout>
     </ErrorBoundary>
@@ -190,8 +195,6 @@ function AppNewspaperHeader({
   activeId: UnpackedHypermediaId
 }) {
   const dir = useListDirectory(siteHomeEntity?.id)
-  const capability = useMyCapability(siteHomeEntity?.id)
-  const canEditDoc = roleCanWrite(capability?.role)
   const drafts = useAccountDraftList(activeId.uid)
 
   if (!siteHomeEntity) return null
@@ -202,6 +205,7 @@ function AppNewspaperHeader({
       : [],
     drafts: drafts.data,
   })
+
   return (
     <NewsSiteHeader
       homeId={siteHomeEntity.id}
@@ -217,11 +221,11 @@ function AppNewspaperHeader({
           />
         ) : null
       }
-      afterLinksContent={
-        canEditDoc ? (
-          <NewSubDocumentButton parentDocId={siteHomeEntity.id} />
-        ) : null
-      }
+      // afterLinksContent={
+      //   canEditDoc ? (
+      //     <NewSubDocumentButton parentDocId={siteHomeEntity.id} />
+      //   ) : null
+      // }
     />
   )
 }
@@ -234,7 +238,7 @@ function NewSubDocumentButton({
   const createDraft = useCreateDraft(parentDocId)
   return (
     <>
-      <Button icon={Add} color="$green9" onPress={createDraft} size="$2">
+      <Button icon={Plus} color="$green9" onPress={createDraft} size="$2">
         Create
       </Button>
       <ImportDropdownButton
@@ -847,10 +851,7 @@ function PathDraft({
               size="$2"
               color="$brand5"
               userSelect="none"
-              hoverStyle={{
-                textDecorationLine: 'underline',
-                textDecorationColor: 'currentColor',
-              }}
+              hoverStyle={{textDecorationLine: 'underline'}}
               onPress={handleDraftChange}
             >
               Apply
@@ -859,10 +860,7 @@ function PathDraft({
               size="$2"
               color="$red9"
               userSelect="none"
-              hoverStyle={{
-                textDecorationLine: 'underline',
-                textDecorationColor: 'currentColor',
-              }}
+              hoverStyle={{textDecorationLine: 'underline'}}
               onPress={() => {
                 if (!!name && path.startsWith('_')) {
                   setPath(pathNameify(name))
@@ -884,10 +882,7 @@ function PathDraft({
               size="$2"
               color="$brand5"
               userSelect="none"
-              hoverStyle={{
-                textDecorationLine: 'underline',
-                textDecorationColor: 'currentColor',
-              }}
+              hoverStyle={{textDecorationLine: 'underline'}}
               onPress={() => {
                 setDirty(true)
                 setEditing(true)
