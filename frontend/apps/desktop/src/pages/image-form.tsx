@@ -20,7 +20,6 @@ export function ImageForm({
   onImageUpload?: (avatar: string) => Awaited<void>
   onRemove?: () => void
 }) {
-  console.log('~~ image form ', url)
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     event.stopPropagation()
     const fileList = event.target.files

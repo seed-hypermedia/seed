@@ -82,7 +82,6 @@ const Render = (
     setFileName: any,
     setLoading: any,
   ) => {
-    console.log('--- importWebFile', importWebFile)
     if (isValidUrl(url)) {
       setLoading(true)
       timeoutPromise(importWebFile.mutateAsync(url), 5000, {
