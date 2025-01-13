@@ -1,3 +1,4 @@
+import {EmbedToolbarProvider} from '@/editor/embed-toolbar-context'
 import {
   useCommentDraft,
   useCommentEditor,
@@ -294,7 +295,9 @@ function _CommentDraftEditor({
       paddingBottom="$2"
     >
       <AppDocContentProvider disableEmbedClick>
-        <HyperMediaEditorView editor={editor} comment />
+        <EmbedToolbarProvider>
+          <HyperMediaEditorView editor={editor} comment />
+        </EmbedToolbarProvider>
       </AppDocContentProvider>
       <XStack
         jc="flex-end"
