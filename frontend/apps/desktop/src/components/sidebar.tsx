@@ -1,6 +1,5 @@
 import {useDeleteKey, useMyAccountIds} from '@/models/daemon'
 import {useEntities} from '@/models/entities'
-import {useExperiments} from '@/models/experiments'
 import {useFavorites} from '@/models/favorites'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
@@ -20,7 +19,6 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {Home} from '@tamagui/lucide-icons'
 import React, {memo} from 'react'
 import {openAddAccountWizard} from './create-account'
 import {GenericSidebarContainer} from './sidebar-base'
@@ -30,29 +28,8 @@ export const AppSidebar = memo(MainAppSidebar)
 export function MainAppSidebar() {
   const route = useNavRoute()
   const navigate = useNavigate()
-  const experiments = useExperiments()
   return (
     <GenericSidebarContainer>
-      {/* <SmallListItem
-        active={route.key == 'home'}
-        onPress={() => {
-          navigate({key: 'home'})
-        }}
-        title="Home"
-        bold
-        icon={Home}
-      /> */}
-      {experiments.data?.newLibrary && (
-        <SmallListItem
-          active={route.key == 'library2'}
-          onPress={() => {
-            navigate({key: 'library2'})
-          }}
-          title="New Library"
-          bold
-          icon={Home}
-        />
-      )}
       <SmallListItem
         active={route.key == 'library'}
         onPress={() => {

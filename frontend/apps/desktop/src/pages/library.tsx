@@ -1,9 +1,10 @@
 import {useAppContext} from '@/app-context'
-import {openAddAccountWizard} from '@/components/create-account'
 import {FavoriteButton} from '@/components/favoriting'
+import {GettingStarted} from '@/components/getting-started'
 import {MainWrapper} from '@/components/main-wrapper'
 
 import {EditorBlock} from '@/editor'
+import {useExperiments} from '@/models/experiments'
 import {
   FilterItem,
   LibraryData,
@@ -13,7 +14,6 @@ import {
 } from '@/models/library'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {useNavigate} from '@/utils/useNavigate'
-import {useTriggerWindowEvent} from '@/utils/window-events'
 import {
   DocumentRoute,
   formattedDate,
@@ -28,7 +28,6 @@ import {
   Button,
   Check,
   Checkbox,
-  Contact,
   Container,
   Dialog,
   DialogContent,
@@ -40,7 +39,6 @@ import {
   Pencil,
   Popover,
   Search,
-  Separator,
   Settings2,
   SizableText,
   SizeTokens,
@@ -55,10 +53,21 @@ import {
   YStack,
 } from '@shm/ui'
 import {ComponentProps, useMemo, useRef, useState} from 'react'
+import LibraryPage from './library2'
 
 const defaultSort: LibraryQueryState['sort'] = 'lastUpdate'
 
-export default function LibraryPage() {
+export default function MainLibraryPage() {
+  const experiments = useExperiments()
+
+  if (experiments.data?.newLibrary) {
+    return <LibraryPage />
+  }
+
+  return <ClassicLibraryPage />
+}
+
+function ClassicLibraryPage() {
   const [queryState, setQueryState] = useState<LibraryQueryState>({
     sort: defaultSort,
     display: 'list',
@@ -178,6 +187,7 @@ export default function LibraryPage() {
         toast.error(err)
       })
   }
+
   const isLibraryEmpty = library?.totalItemCount === 0
   return (
     <XStack flex={1} height="100%">
@@ -1075,60 +1085,5 @@ function LibraryEntryLocation({
         </>
       ) : null}
     </XStack>
-  )
-}
-
-function GettingStarted() {
-  const openLauncher = useTriggerWindowEvent()
-  return (
-    <YStack
-      gap="$4"
-      padding="$4"
-      bg="$background"
-      borderColor="$color7"
-      borderWidth={1}
-      borderRadius="$5"
-      elevation="$2"
-      marginBottom={40}
-      animation="medium"
-      enterStyle={{opacity: 0, y: -10}}
-      exitStyle={{opacity: 0, y: -10}}
-    >
-      <SizableText size="$8" fontWeight="bold">
-        Lets Get Started!
-      </SizableText>
-      <SizableText>
-        Welcome to Seed Hypermedia. Ready to enhance the web?
-      </SizableText>
-      <SizableText>
-        You can Start by creating your first account. it's quick and easy and it
-        will unlock all the features of Seed Hypermedia.
-      </SizableText>
-      <Button
-        bg="$brand11"
-        borderColor="$brand10"
-        hoverStyle={{bg: '$brand12', borderColor: '$brand11'}}
-        icon={<Contact color="currentColor" />}
-        onPress={openAddAccountWizard}
-      >
-        Add Account
-      </Button>
-      <Separator />
-      <SizableText size="$7" fontWeight="bold">
-        Got a Seed Hypermedia Link?
-      </SizableText>
-      <SizableText>
-        If you got a Seed Hypermedia link, you can add it here.
-      </SizableText>
-      <Button
-        bg="$brand11"
-        borderColor="$brand10"
-        hoverStyle={{bg: '$brand12', borderColor: '$brand11'}}
-        icon={Search}
-        onPress={() => openLauncher('openLauncher')}
-      >
-        Open Document
-      </Button>
-    </YStack>
   )
 }

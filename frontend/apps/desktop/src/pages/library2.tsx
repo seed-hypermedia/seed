@@ -1,3 +1,4 @@
+import {GettingStarted} from '@/components/getting-started'
 import {MainWrapper} from '@/components/main-wrapper'
 import {useAccounts} from '@/models/accounts'
 
@@ -39,13 +40,14 @@ import {GestureResponderEvent} from 'react-native'
 
 // const defaultSort: LibraryQueryState['sort'] = 'lastUpdate'
 
-export default function Library2Page() {
+export default function LibraryPage() {
   const library = useLibrary()
   const accounts = useAccounts()
   return (
     <XStack flex={1} height="100%">
       <MainWrapper>
         <Container justifyContent="center" centered>
+          {library && library.length === 0 ? <GettingStarted /> : null}
           {library?.map((site: LibrarySite) => (
             <LibrarySiteItem
               key={site.id}

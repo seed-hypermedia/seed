@@ -3,11 +3,6 @@ import {unpackedHmIdSchema} from './utils'
 
 export const defaultRoute: NavRoute = {key: 'library'}
 
-export const library2RouteSchema = z.object({
-  key: z.literal('library2'),
-})
-export type Library2Route = z.infer<typeof library2RouteSchema>
-
 export const exploreRouteSchema = z.object({
   key: z.literal('explore'),
 })
@@ -141,7 +136,6 @@ export type LibraryRoute = z.infer<typeof libraryRouteSchema>
 
 export const navRouteSchema = z.discriminatedUnion('key', [
   libraryRouteSchema,
-  library2RouteSchema,
   contactsRouteSchema,
   settingsRouteSchema,
   documentRouteSchema,
