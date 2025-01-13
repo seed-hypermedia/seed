@@ -58,7 +58,7 @@ export function NewsSiteHeader({
           searchUI={searchUI}
           isWeb={isWeb}
         />
-        {items?.length ? (
+        {items?.length || afterLinksContent ? (
           <XStack
             ai="center"
             gap="$2"
