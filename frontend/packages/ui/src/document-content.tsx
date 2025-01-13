@@ -1926,11 +1926,14 @@ export function BlockContentButton({
 }: BlockContentProps) {
   const {hover, ...hoverProps} = useHover();
   const {onLinkClick} = useDocContentContext();
+  if (!block.attributes) {
+    console.error("Button Block without attributes?!", block);
+  }
   if (block.type !== "Button") return null;
   return (
     <XStack
       width="100%"
-      justifyContent={block.attributes.alignment || "flex-start"}
+      justifyContent={block.attributes?.alignment || "flex-start"}
       userSelect="none"
       className="block-content block-file"
       data-content-type="file"
@@ -1961,7 +1964,7 @@ export function BlockContentButton({
           }}
         >
           <SizableText numberOfLines={1} ellipsizeMode="tail">
-            {block.attributes.name}
+            {block.attributes?.name}
           </SizableText>
         </Button>
       </XStack>
