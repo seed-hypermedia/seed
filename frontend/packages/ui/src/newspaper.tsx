@@ -2,7 +2,7 @@ import {
   formattedDate,
   getFileUrl,
   HMDocument,
-  HMDocumentListItem,
+  HMDocumentInfo,
   HMEntityContent,
   hmId,
   UnpackedHypermediaId,
@@ -19,7 +19,7 @@ export function BannerNewspaperCard({
   entity,
   accountsMetadata,
 }: {
-  item: HMDocumentListItem;
+  item: HMDocumentInfo;
   entity: HMEntityContent | null | undefined;
   accountsMetadata: AccountsMetadata;
 }) {

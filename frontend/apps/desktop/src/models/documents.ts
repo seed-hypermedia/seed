@@ -16,7 +16,7 @@ import {
   HMBlock,
   HMBlockNode,
   HMDocument,
-  HMDocumentListItem,
+  HMDocumentInfo,
   HMDocumentSchema,
   HMDraft,
   HMEntityContent,
@@ -969,7 +969,7 @@ export function usePublishToSite() {
 export function useListDirectory(
   id?: UnpackedHypermediaId | null,
   options?: {mode: 'Children' | 'AllDescendants'},
-): UseQueryResult<Array<HMDocumentListItem>> {
+): UseQueryResult<Array<HMDocumentInfo>> {
   const grpcClient = useGRPCClient()
   const prefixPath = id?.path ? '/' + id.path.join('/') : ''
   return useQuery(
@@ -1003,7 +1003,7 @@ export function useListDirectory(
             return {...doc, path: doc.path.slice(1).split('/')}
           })
 
-        return docs as HMDocumentListItem[]
+        return docs as HMDocumentInfo[]
       },
     },
     [id, options?.mode],
@@ -1028,7 +1028,7 @@ export function useListSite(id?: UnpackedHypermediaId) {
         .map((doc) => {
           return {...doc, path: doc.path.slice(1).split('/')}
         })
-      return docs as HMDocumentListItem[]
+      return docs as HMDocumentInfo[]
     },
   })
 }

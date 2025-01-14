@@ -3,7 +3,7 @@ import {
   HMBlockNode,
   HMBlockQuery,
   HMDocument,
-  HMDocumentListItem,
+  HMDocumentInfo,
   HMMetadata,
 } from './hm-types'
 import {UnpackedHypermediaId, unpackHmId} from './utils'
@@ -59,7 +59,7 @@ export function getAccountName(document: HMDocument | null | undefined) {
 }
 
 export function sortNewsEntries(
-  items: HMDocumentListItem[] | undefined,
+  items: HMDocumentInfo[] | undefined,
   sort: HMMetadata['seedExperimentalHomeOrder'],
 ) {
   if (!items) return []
@@ -91,11 +91,11 @@ function createTimeOfEntry(entry: {createTime?: PlainMessage<Timestamp>}) {
   return entry.createTime?.seconds ? Number(entry.createTime?.seconds) : 0
 }
 
-function titleOfEntry(entry: HMDocumentListItem) {
+function titleOfEntry(entry: HMDocumentInfo) {
   return entry.metadata.name
 }
 
-function titleSort(ea: HMDocumentListItem, eb: HMDocumentListItem) {
+function titleSort(ea: HMDocumentInfo, eb: HMDocumentInfo) {
   const a = titleOfEntry(ea)
   const b = titleOfEntry(eb)
   if (a < b) return 1
@@ -107,10 +107,10 @@ export function queryBlockSortedItems({
   entries,
   sort,
 }: {
-  entries: Array<HMDocumentListItem>
+  entries: Array<HMDocumentInfo>
   sort: NonNullable<HMBlockQuery['attributes']['query']['sort']>
 }) {
-  let res: Array<HMDocumentListItem> = []
+  let res: Array<HMDocumentInfo> = []
   if (!entries) return res
 
   if (sort.length !== 1) return res

@@ -4,7 +4,7 @@ import {
   formattedDate,
   getDocumentTitle,
   HMBlockQuery,
-  HMDocumentListItem,
+  HMDocumentInfo,
   hmId,
   hmIdPathToEntityQueryPath,
   narrowHmId,
@@ -217,7 +217,7 @@ function QueryCardStyle({
   items,
 }: {
   block: HMBlockQuery;
-  items: Array<HMDocumentListItem>;
+  items: Array<HMDocumentInfo>;
 }) {
   const ctx = useDocContentContext();
 
@@ -282,7 +282,7 @@ function QueryListStyle({
   items,
 }: {
   block: HMBlockQuery;
-  items: Array<HMDocumentListItem>;
+  items: Array<HMDocumentInfo>;
 }) {
   const navigate = useNavigate();
 

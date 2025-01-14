@@ -14,7 +14,7 @@ import {
   ActivitySummary,
   BlockNode,
   Breadcrumb,
-  DocumentListItem,
+  DocumentInfo,
   DocumentRoute,
   entityQueryPathToHmIdPath,
   formattedDateMedium,
@@ -377,7 +377,7 @@ function LibraryEntryAuthors({
   item,
   accountsMetadata,
 }: {
-  item: PlainMessage<DocumentListItem>
+  item: PlainMessage<DocumentInfo>
   accountsMetadata: AccountsMetadata
 }) {
   const {authors} = item

@@ -126,7 +126,7 @@ func TestListRootDocuments(t *testing.T) {
 	require.NotNil(t, namedDoc)
 
 	// Create root doc for Bob and make sure Alice has it too.
-	var bobsRoot *documents.DocumentListItem
+	var bobsRoot *documents.DocumentInfo
 	{
 		bob := newTestDocsAPI(t, "bob")
 		_, err = bob.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
@@ -168,11 +168,11 @@ func TestListRootDocuments(t *testing.T) {
 	wantAlicesRoot := DocumentToListItem(profile)
 
 	testutil.StructsEqual(bobsRoot, roots.Documents[0]).
-		IgnoreFields(documents.DocumentListItem{}, "Breadcrumbs", "ActivitySummary").
+		IgnoreFields(documents.DocumentInfo{}, "Breadcrumbs", "ActivitySummary").
 		Compare(t, "bobs root document must match and be first")
 
 	testutil.StructsEqual(wantAlicesRoot, roots.Documents[1]).
-		IgnoreFields(documents.DocumentListItem{}, "Breadcrumbs", "ActivitySummary").
+		IgnoreFields(documents.DocumentInfo{}, "Breadcrumbs", "ActivitySummary").
 		Compare(t, "alice's root document must match and be second")
 }
 
@@ -258,11 +258,11 @@ func TestListAccounts(t *testing.T) {
 	require.Len(t, accs.Accounts, 2)
 
 	testutil.StructsEqual(bobAcc, accs.Accounts[0]).
-		IgnoreFields(documents.DocumentListItem{}, "Breadcrumbs", "ActivitySummary").
+		IgnoreFields(documents.DocumentInfo{}, "Breadcrumbs", "ActivitySummary").
 		Compare(t, "bobs root document must match and be first")
 
 	testutil.StructsEqual(aliceAcc, accs.Accounts[1]).
-		IgnoreFields(documents.DocumentListItem{}, "Breadcrumbs", "ActivitySummary").
+		IgnoreFields(documents.DocumentInfo{}, "Breadcrumbs", "ActivitySummary").
 		Compare(t, "alice's root document must match and be second")
 }
 
@@ -315,19 +315,19 @@ func TestListDocuments(t *testing.T) {
 	list, err := alice.ListDocuments(ctx, &documents.ListDocumentsRequest{Account: alice.me.Account.Principal().String()})
 	require.NoError(t, err)
 
-	want := []*documents.DocumentListItem{DocumentToListItem(namedDoc2), DocumentToListItem(namedDoc), DocumentToListItem(profile)}
+	want := []*documents.DocumentInfo{DocumentToListItem(namedDoc2), DocumentToListItem(namedDoc), DocumentToListItem(profile)}
 	require.Len(t, list.Documents, len(want))
 
 	testutil.StructsEqual(want[0], list.Documents[0]).
-		IgnoreFields(documents.DocumentListItem{}, "Breadcrumbs", "ActivitySummary").
+		IgnoreFields(documents.DocumentInfo{}, "Breadcrumbs", "ActivitySummary").
 		Compare(t, "named2 must be the first doc in the list")
 
 	testutil.StructsEqual(want[1], list.Documents[1]).
-		IgnoreFields(documents.DocumentListItem{}, "Breadcrumbs", "ActivitySummary").
+		IgnoreFields(documents.DocumentInfo{}, "Breadcrumbs", "ActivitySummary").
 		Compare(t, "named must be the second doc in the list")
 
 	testutil.StructsEqual(want[2], list.Documents[2]).
-		IgnoreFields(documents.DocumentListItem{}, "Breadcrumbs", "ActivitySummary").
+		IgnoreFields(documents.DocumentInfo{}, "Breadcrumbs", "ActivitySummary").
 		Compare(t, "profile doc must be the last element in the list")
 
 	list2, err := alice.ListDocuments(ctx, &documents.ListDocumentsRequest{})
@@ -698,7 +698,7 @@ func TestTombstoneRef(t *testing.T) {
 		require.Len(t, list.Documents, 1, "only initial root document must be in the list")
 
 		testutil.StructsEqual(DocumentToListItem(home), list.Documents[0]).
-			IgnoreFields(documents.DocumentListItem{}, "Breadcrumbs", "ActivitySummary").
+			IgnoreFields(documents.DocumentInfo{}, "Breadcrumbs", "ActivitySummary").
 			Compare(t, "listing must only show home document")
 	}
 
@@ -770,17 +770,17 @@ func TestTombstoneRef(t *testing.T) {
 		require.Len(t, list.Documents, 2, "list must contain the home doc and the second generation of the other doc")
 
 		want := &documents.ListDocumentsResponse{
-			Documents: []*documents.DocumentListItem{
+			Documents: []*documents.DocumentInfo{
 				DocumentToListItem(home),
 				DocumentToListItem(republished),
 			},
 		}
 
-		slices.SortFunc(want.Documents, func(a, b *documents.DocumentListItem) int { return cmp.Compare(a.Version, b.Version) })
-		slices.SortFunc(list.Documents, func(a, b *documents.DocumentListItem) int { return cmp.Compare(a.Version, b.Version) })
+		slices.SortFunc(want.Documents, func(a, b *documents.DocumentInfo) int { return cmp.Compare(a.Version, b.Version) })
+		slices.SortFunc(list.Documents, func(a, b *documents.DocumentInfo) int { return cmp.Compare(a.Version, b.Version) })
 
 		testutil.StructsEqual(want, list).
-			IgnoreFields(documents.DocumentListItem{}, "Breadcrumbs", "ActivitySummary").
+			IgnoreFields(documents.DocumentInfo{}, "Breadcrumbs", "ActivitySummary").
 			Compare(t, "listing must contain home doc and republished doc")
 	}
 

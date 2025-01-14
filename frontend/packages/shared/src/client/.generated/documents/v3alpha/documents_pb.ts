@@ -304,9 +304,9 @@ export class ListRootDocumentsResponse extends Message<ListRootDocumentsResponse
   /**
    * List of root documents.
    *
-   * @generated from field: repeated com.seed.documents.v3alpha.DocumentListItem documents = 1;
+   * @generated from field: repeated com.seed.documents.v3alpha.DocumentInfo documents = 1;
    */
-  documents: DocumentListItem[] = [];
+  documents: DocumentInfo[] = [];
 
   /**
    * Token for the next page if there're more results.
@@ -323,7 +323,7 @@ export class ListRootDocumentsResponse extends Message<ListRootDocumentsResponse
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.documents.v3alpha.ListRootDocumentsResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "documents", kind: "message", T: DocumentListItem, repeated: true },
+    { no: 1, name: "documents", kind: "message", T: DocumentInfo, repeated: true },
     { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
@@ -680,9 +680,9 @@ export class ListDirectoryResponse extends Message<ListDirectoryResponse> {
   /**
    * List of documents.
    *
-   * @generated from field: repeated com.seed.documents.v3alpha.DocumentListItem documents = 1;
+   * @generated from field: repeated com.seed.documents.v3alpha.DocumentInfo documents = 1;
    */
-  documents: DocumentListItem[] = [];
+  documents: DocumentInfo[] = [];
 
   /**
    * Optional. Token for the next page if there're more results.
@@ -699,7 +699,7 @@ export class ListDirectoryResponse extends Message<ListDirectoryResponse> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.documents.v3alpha.ListDirectoryResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "documents", kind: "message", T: DocumentListItem, repeated: true },
+    { no: 1, name: "documents", kind: "message", T: DocumentInfo, repeated: true },
     { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
@@ -787,9 +787,9 @@ export class ListDocumentsResponse extends Message<ListDocumentsResponse> {
   /**
    * List of documents.
    *
-   * @generated from field: repeated com.seed.documents.v3alpha.DocumentListItem documents = 1;
+   * @generated from field: repeated com.seed.documents.v3alpha.DocumentInfo documents = 1;
    */
-  documents: DocumentListItem[] = [];
+  documents: DocumentInfo[] = [];
 
   /**
    * Token for the next page if there're more results.
@@ -806,7 +806,7 @@ export class ListDocumentsResponse extends Message<ListDocumentsResponse> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.documents.v3alpha.ListDocumentsResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "documents", kind: "message", T: DocumentListItem, repeated: true },
+    { no: 1, name: "documents", kind: "message", T: DocumentInfo, repeated: true },
     { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
@@ -1200,14 +1200,11 @@ export class DocumentChangeInfo extends Message<DocumentChangeInfo> {
 
 /**
  * Basic data about a document with some aggregations and metadata.
- * Content is omitted for efficiency reasons.
+ * It's like Document, without the content, but with some additional info.
  *
- * TODO(burdiyan): rename this to DocumentSummary, DocumentInfo or something like that,
- * it may be useful more than just in list responses.
- *
- * @generated from message com.seed.documents.v3alpha.DocumentListItem
+ * @generated from message com.seed.documents.v3alpha.DocumentInfo
  */
-export class DocumentListItem extends Message<DocumentListItem> {
+export class DocumentInfo extends Message<DocumentInfo> {
   /**
    * Account to which the document belongs.
    *
@@ -1287,13 +1284,13 @@ export class DocumentListItem extends Message<DocumentListItem> {
    */
   activitySummary?: ActivitySummary;
 
-  constructor(data?: PartialMessage<DocumentListItem>) {
+  constructor(data?: PartialMessage<DocumentInfo>) {
     super();
     proto3.util.initPartial(data, this);
   }
 
   static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.DocumentListItem";
+  static readonly typeName = "com.seed.documents.v3alpha.DocumentInfo";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
@@ -1307,20 +1304,20 @@ export class DocumentListItem extends Message<DocumentListItem> {
     { no: 11, name: "activity_summary", kind: "message", T: ActivitySummary },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentListItem {
-    return new DocumentListItem().fromBinary(bytes, options);
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentInfo {
+    return new DocumentInfo().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentListItem {
-    return new DocumentListItem().fromJson(jsonValue, options);
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentInfo {
+    return new DocumentInfo().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentListItem {
-    return new DocumentListItem().fromJsonString(jsonString, options);
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentInfo {
+    return new DocumentInfo().fromJsonString(jsonString, options);
   }
 
-  static equals(a: DocumentListItem | PlainMessage<DocumentListItem> | undefined, b: DocumentListItem | PlainMessage<DocumentListItem> | undefined): boolean {
-    return proto3.util.equals(DocumentListItem, a, b);
+  static equals(a: DocumentInfo | PlainMessage<DocumentInfo> | undefined, b: DocumentInfo | PlainMessage<DocumentInfo> | undefined): boolean {
+    return proto3.util.equals(DocumentInfo, a, b);
   }
 }
 

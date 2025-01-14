@@ -302,7 +302,7 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 	}
 
 	out := &documents.ListDirectoryResponse{
-		Documents: make([]*documents.DocumentListItem, 0, min(in.PageSize, maxPageAllocBuffer)),
+		Documents: make([]*documents.DocumentInfo, 0, min(in.PageSize, maxPageAllocBuffer)),
 	}
 
 	conn, release, err := srv.db.Conn(ctx)
@@ -322,7 +322,7 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 		}
 		count++
 
-		item, ierr := documentListItemFromRow(lookup, row)
+		item, ierr := documentInfoFromRow(lookup, row)
 		if ierr != nil {
 			err = ierr
 			break
@@ -538,7 +538,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 	}
 
 	out := &documents.ListRootDocumentsResponse{
-		Documents: make([]*documents.DocumentListItem, 0, min(in.PageSize, maxPageAllocBuffer)),
+		Documents: make([]*documents.DocumentInfo, 0, min(in.PageSize, maxPageAllocBuffer)),
 	}
 
 	var (
@@ -575,7 +575,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 		}
 		count++
 
-		item, ierr := documentListItemFromRow(lookup, row)
+		item, ierr := documentInfoFromRow(lookup, row)
 		if ierr != nil {
 			err = ierr
 			break
@@ -617,7 +617,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 	}
 
 	out := &documents.ListDocumentsResponse{
-		Documents: make([]*documents.DocumentListItem, 0, min(in.PageSize, maxPageAllocBuffer)),
+		Documents: make([]*documents.DocumentInfo, 0, min(in.PageSize, maxPageAllocBuffer)),
 	}
 
 	var (
@@ -668,7 +668,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		}
 		count++
 
-		item, ierr := documentListItemFromRow(lookup, row)
+		item, ierr := documentInfoFromRow(lookup, row)
 		if ierr != nil {
 			err = ierr
 			break
@@ -715,7 +715,7 @@ func baseListDocumentsQuery() *dqb.SelectQuery {
 		Limit("? + 1")
 }
 
-func documentListItemFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents.DocumentListItem, error) {
+func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents.DocumentInfo, error) {
 	inc := sqlite.NewIncrementor(0)
 	var (
 		iriRaw            = row.ColumnText(inc())
@@ -825,7 +825,7 @@ func documentListItemFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*docum
 		latestCommentTime = timestamppb.New(time.UnixMilli(lastCommentTime))
 	}
 
-	out := &documents.DocumentListItem{
+	out := &documents.DocumentInfo{
 		Account:     space.String(),
 		Path:        path,
 		Metadata:    metadata,
@@ -1174,8 +1174,8 @@ func (srv *Server) checkWriteAccess(ctx context.Context, account core.Principal,
 }
 
 // DocumentToListItem converts a document to a document list item.
-func DocumentToListItem(doc *documents.Document) *documents.DocumentListItem {
-	return &documents.DocumentListItem{
+func DocumentToListItem(doc *documents.Document) *documents.DocumentInfo {
+	return &documents.DocumentInfo{
 		Account:    doc.Account,
 		Path:       doc.Path,
 		Metadata:   doc.Metadata,

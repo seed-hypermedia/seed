@@ -4,7 +4,7 @@ import {useListProfileDocuments} from '@/models/documents'
 import {useEntities} from '@/models/entities'
 import {useNavigate} from '@/utils/useNavigate'
 import {PlainMessage} from '@bufbuild/protobuf'
-import {DocumentListItem, getAccountName, hmId} from '@shm/shared'
+import {DocumentInfo, getAccountName, hmId} from '@shm/shared'
 import {
   Button,
   Container,
@@ -82,7 +82,7 @@ export default function ContactsPage() {
 
 const hoverColor = '$color5'
 
-function ContactListItem({entry}: {entry: PlainMessage<DocumentListItem>}) {
+function ContactListItem({entry}: {entry: PlainMessage<DocumentInfo>}) {
   const navigate = useNavigate()
   const id = hmId('d', entry.account, {
     version: entry.version,

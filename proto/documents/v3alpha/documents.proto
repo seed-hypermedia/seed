@@ -117,7 +117,7 @@ message ListRootDocumentsRequest {
 // Response for listing root documents.
 message ListRootDocumentsResponse {
   // List of root documents.
-  repeated DocumentListItem documents = 1;
+  repeated DocumentInfo documents = 1;
 
   // Token for the next page if there're more results.
   string next_page_token = 2;
@@ -224,7 +224,7 @@ enum SortAttribute {
 // Response of the directory list.
 message ListDirectoryResponse {
   // List of documents.
-  repeated DocumentListItem documents = 1;
+  repeated DocumentInfo documents = 1;
 
   // Optional. Token for the next page if there're more results.
   string next_page_token = 2;
@@ -246,7 +246,7 @@ message ListDocumentsRequest {
 // Response with list of documents.
 message ListDocumentsResponse {
   // List of documents.
-  repeated DocumentListItem documents = 1;
+  repeated DocumentInfo documents = 1;
 
   // Token for the next page if there're more results.
   string next_page_token = 2;
@@ -339,11 +339,8 @@ message DocumentChangeInfo {
 }
 
 // Basic data about a document with some aggregations and metadata.
-// Content is omitted for efficiency reasons.
-//
-// TODO(burdiyan): rename this to DocumentSummary, DocumentInfo or something like that,
-// it may be useful more than just in list responses.
-message DocumentListItem {
+// It's like Document, without the content, but with some additional info.
+message DocumentInfo {
   // Account to which the document belongs.
   string account = 1;
 

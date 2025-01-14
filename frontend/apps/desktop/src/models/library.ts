@@ -3,7 +3,7 @@ import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {
   Account,
   BIG_INT,
-  DocumentListItem,
+  DocumentInfo,
   HMComment,
   HMDocument,
   HMDraft,
@@ -71,8 +71,8 @@ function isSubscribedBy(
 
 export type ClassicLibrarySite = {
   entityUid: string
-  items: PlainMessage<DocumentListItem>[]
-  homeItem: PlainMessage<DocumentListItem> | null
+  items: PlainMessage<DocumentInfo>[]
+  homeItem: PlainMessage<DocumentInfo> | null
 }
 
 export type AccountMetadata = {
@@ -86,7 +86,7 @@ export type LibrarySite = PlainMessage<Account> & {
   latestComment?: HMComment | null
 }
 
-export type LibraryDocument = PlainMessage<DocumentListItem> & {
+export type LibraryDocument = PlainMessage<DocumentInfo> & {
   latestComment?: HMComment | null
 }
 

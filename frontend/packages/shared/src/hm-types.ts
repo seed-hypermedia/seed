@@ -5,7 +5,7 @@ import type {
   Comment,
   DeletedEntity,
   Document,
-  DocumentListItem,
+  DocumentInfo,
   EditorBlock,
   UnpackedHypermediaId,
 } from '@shm/shared'
@@ -478,14 +478,14 @@ export type HMCommentGroup = {
 
 export type HMBlockType = HMBlock['type']
 
-export type HMDocumentListItem = Omit<
-  PlainMessage<DocumentListItem>,
+export type HMDocumentInfo = Omit<
+  PlainMessage<DocumentInfo>,
   'path'
 > & {path: string[]}
 
 export type HMQueryResult = {
   in: UnpackedHypermediaId
-  results: HMDocumentListItem[]
+  results: HMDocumentInfo[]
   mode?: 'Children' | 'AllDescendants'
 }
 
