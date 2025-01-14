@@ -2,6 +2,7 @@ import {GettingStarted} from '@/components/getting-started'
 import {MainWrapper} from '@/components/main-wrapper'
 import {useAccounts} from '@/models/accounts'
 
+import {useExportDocuments} from '@/models/export-documents'
 import {
   LibraryDocument,
   LibrarySite,
@@ -26,6 +27,7 @@ import {
 } from '@shm/shared'
 import {
   Button,
+  Checkbox,
   Container,
   HMIcon,
   SizableText,
@@ -34,30 +36,153 @@ import {
   YStack,
 } from '@shm/ui'
 import {AccountsMetadata, FacePile} from '@shm/ui/src/face-pile'
-import {ChevronDown, ChevronRight, MessageSquare} from '@tamagui/lucide-icons'
-import {useState} from 'react'
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  FileOutput,
+  MessageSquare,
+  X,
+} from '@tamagui/lucide-icons'
+import {createContext, useContext, useState} from 'react'
 import {GestureResponderEvent} from 'react-native'
-
-// const defaultSort: LibraryQueryState['sort'] = 'lastUpdate'
 
 export default function LibraryPage() {
   const library = useLibrary()
   const accounts = useAccounts()
+  const [isSelecting, setIsSelecting] = useState(false)
+  const [selectedDocIds, setSelectedDocIds] = useState<string[]>([])
+  const exportDocuments = useExportDocuments()
+  const isLibraryEmpty = library && library.length === 0
   return (
     <XStack flex={1} height="100%">
       <MainWrapper>
         <Container justifyContent="center" centered>
-          {library && library.length === 0 ? <GettingStarted /> : null}
-          {library?.map((site: LibrarySite) => (
-            <LibrarySiteItem
-              key={site.id}
-              site={site}
-              accountsMetadata={accounts.data?.accountsMetadata}
-            />
-          ))}
+          <XStack jc="flex-end" marginVertical="$2" marginBottom="$4">
+            {isLibraryEmpty ? null : (
+              <XStack gap="$2">
+                <Button
+                  size="$2"
+                  onPress={() => {
+                    if (isSelecting) {
+                      exportDocuments(selectedDocIds).then((res) => {
+                        setIsSelecting(false)
+                        setSelectedDocIds([])
+                      })
+                    } else {
+                      setIsSelecting(true)
+                    }
+                  }}
+                  icon={FileOutput}
+                  bg="$brand5"
+                  borderColor="$brand5"
+                  color="white"
+                  hoverStyle={{
+                    bg: '$brand6',
+                    borderColor: '$brand6',
+                  }}
+                >
+                  Export
+                </Button>
+                {isSelecting ? (
+                  <Button
+                    size="$2"
+                    theme="red"
+                    onPress={() => {
+                      setIsSelecting(false)
+                      setSelectedDocIds([])
+                    }}
+                    iconAfter={X}
+                  >
+                    Cancel
+                  </Button>
+                ) : null}
+              </XStack>
+            )}
+          </XStack>
+          <librarySelectionContext.Provider
+            value={{
+              isSelecting,
+              selectedDocIds,
+              onSelect: (id, isSelected) => {
+                setSelectedDocIds(
+                  isSelected
+                    ? [...selectedDocIds, id]
+                    : selectedDocIds.filter((id) => id !== id),
+                )
+              },
+            }}
+          >
+            {isLibraryEmpty ? <GettingStarted /> : null}
+            {library?.map((site: LibrarySite) => (
+              <LibrarySiteItem
+                key={site.id}
+                site={site}
+                accountsMetadata={accounts.data?.accountsMetadata}
+              />
+            ))}
+          </librarySelectionContext.Provider>
         </Container>
       </MainWrapper>
     </XStack>
+  )
+}
+
+const librarySelectionContext = createContext<{
+  isSelecting: boolean
+  selectedDocIds: string[]
+  onSelect: (id: string, isSelected: boolean) => void
+}>({
+  isSelecting: false,
+  selectedDocIds: [],
+  onSelect: () => {},
+})
+
+function SelectionCollapseButton({
+  isCollapsed,
+  setIsCollapsed,
+  docId,
+}: {
+  isCollapsed: boolean | null
+  setIsCollapsed?: (isCollapsed: boolean) => void
+  docId: string
+}) {
+  const {isSelecting, selectedDocIds, onSelect} = useContext(
+    librarySelectionContext,
+  )
+  const isSelected = selectedDocIds.includes(docId)
+  if (isSelecting) {
+    return (
+      <Checkbox
+        checked={isSelected}
+        onCheckedChange={(isSelected) => onSelect(docId, !!isSelected)}
+        size="$3"
+        borderColor="$color8"
+        hoverStyle={{
+          borderColor: '$color9',
+        }}
+        onPress={(e: GestureResponderEvent) => {
+          e.stopPropagation()
+        }}
+        focusStyle={{borderColor: '$color10'}}
+      >
+        <Checkbox.Indicator borderColor="$color8">
+          <Check color="$brand5" />
+        </Checkbox.Indicator>
+      </Checkbox>
+    )
+  }
+  if (isCollapsed === null) return <View width="$1" />
+  return (
+    <Button
+      icon={isCollapsed ? ChevronRight : ChevronDown}
+      onPress={(e: GestureResponderEvent) => {
+        e.stopPropagation()
+        setIsCollapsed?.(!isCollapsed)
+      }}
+      circular
+      size="$1"
+    />
   )
 }
 
@@ -101,19 +226,11 @@ function LibrarySiteItem({
         h={68}
         ai="center"
       >
-        {isCollapsed == null ? (
-          <View width="$1" />
-        ) : (
-          <Button
-            icon={isCollapsed ? ChevronRight : ChevronDown}
-            onPress={(e: GestureResponderEvent) => {
-              e.stopPropagation()
-              setIsCollapsed(!isCollapsed)
-            }}
-            circular
-            size="$1"
-          />
-        )}
+        <SelectionCollapseButton
+          isCollapsed={isCollapsed}
+          setIsCollapsed={setIsCollapsed}
+          docId={id.id}
+        />
         <HMIcon id={id} metadata={metadata} />
         <YStack f={1}>
           <XStack gap="$3" ai="center">
@@ -195,7 +312,7 @@ export function LibraryDocumentItem({
       marginVertical={margin ? '$1' : undefined}
       ai="center"
     >
-      <View width="$1" />
+      <SelectionCollapseButton isCollapsed={null} docId={id.id} />
       <HMIcon id={id} metadata={metadata} />
 
       <YStack f={1}>

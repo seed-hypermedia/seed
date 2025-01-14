@@ -68,7 +68,7 @@ export function AppContextProvider({
         mediaFiles: {url: string; filename: string; placeholder: string}[]
       }
     }[],
-  ) => Promise<void>
+  ) => Promise<string>
   windowUtils: WindowUtils
   saveCidAsFile: (cid: string, name: string) => Promise<void>
   darkMode: boolean
