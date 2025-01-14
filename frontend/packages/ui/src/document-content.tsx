@@ -583,16 +583,16 @@ export function BlockNodeContent({
     }
   }, [elm.current, blockNode.block]);
 
-  // @ts-expect-error
-  if (isBlockNodeEmpty(blockNode)) {
-    return null;
-  }
-
   const isMediablock = useMemo(() => {
     return ["Image", "Video", "File", "Embed", "WebEmbed", "Query"].includes(
       blockNode.block!.type
     );
   }, [blockNode.block]);
+
+  // @ts-expect-error
+  if (isBlockNodeEmpty(blockNode)) {
+    return null;
+  }
 
   return (
     <YStack
