@@ -572,7 +572,6 @@ function DocumentCover({docId}: {docId: UnpackedHypermediaId}) {
     <XStack bg="black" height="25vh" width="100%" position="relative">
       <img
         src={getFileUrl(entity.data.document.metadata.cover)}
-        title={'cover image'}
         style={{
           width: '100%',
           height: '100%',

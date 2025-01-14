@@ -256,7 +256,6 @@ function DocumentCover({
     <XStack bg={coverBg} height="25vh" width="100%" position="relative">
       <img
         src={getFileUrl(cover)}
-        title={"cover image"}
         style={{
           width: "100%",
           height: "100%",
