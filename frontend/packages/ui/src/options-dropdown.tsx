@@ -68,11 +68,15 @@ export function OptionsDropdown({
           elevate={true}
         >
           <YGroup>
-            {menuItems.map(
-              (item, index) =>
-                item && (
-                  <>
-                    {index > 0 && <Separator borderColor="$color7" />}
+            {menuItems.flatMap((item, index) =>
+              item
+                ? [
+                    index > 0 ? (
+                      <Separator
+                        key={`${item.key}-separator`}
+                        borderColor="$color7"
+                      />
+                    ) : null,
                     <YGroup.Item key={item.key}>
                       <MenuItem
                         onPress={(e: GestureResponderEvent) => {
@@ -85,9 +89,9 @@ export function OptionsDropdown({
                         icon={item.icon}
                         color={item.color}
                       />
-                    </YGroup.Item>
-                  </>
-                )
+                    </YGroup.Item>,
+                  ]
+                : []
             )}
           </YGroup>
         </Popover.Content>
