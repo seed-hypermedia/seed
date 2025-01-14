@@ -116,17 +116,19 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
       out.type = 'code-block'
     }
 
-    Object.entries(block.attributes).forEach(([key, value]) => {
-      if (value !== undefined) {
-        if (key == 'width' || key == 'size') {
-          if (typeof value == 'number') {
-            out.props![key] = String(value)
+    if (block.attributes) {
+      Object.entries(block.attributes).forEach(([key, value]) => {
+        if (value !== undefined) {
+          if (key == 'width' || key == 'size') {
+            if (typeof value == 'number') {
+              out.props![key] = String(value)
+            }
+          } else {
+            out.props![key] = value
           }
-        } else {
-          out.props![key] = value
         }
-      }
-    })
+      })
+    }
 
     // return out
   }
