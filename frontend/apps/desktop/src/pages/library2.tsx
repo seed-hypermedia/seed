@@ -1,10 +1,10 @@
 import {GettingStarted} from '@/components/getting-started'
 import {MainWrapper} from '@/components/main-wrapper'
-import {useAccounts} from '@/models/accounts'
 
 import {useExportDocuments} from '@/models/export-documents'
 import {
   LibraryDocument,
+  LibraryItem,
   LibrarySite,
   useLibrary,
   useSiteLibrary,
@@ -30,9 +30,12 @@ import {
   Checkbox,
   Container,
   HMIcon,
+  Popover,
   SizableText,
+  usePopoverState,
   View,
   XStack,
+  YGroup,
   YStack,
 } from '@shm/ui'
 import {AccountsMetadata, FacePile} from '@shm/ui/src/face-pile'
@@ -41,24 +44,33 @@ import {
   ChevronDown,
   ChevronRight,
   FileOutput,
+  ListFilter,
   MessageSquare,
   X,
 } from '@tamagui/lucide-icons'
-import {createContext, useContext, useState} from 'react'
+import {ComponentProps, createContext, useContext, useState} from 'react'
 import {GestureResponderEvent} from 'react-native'
 
 export default function LibraryPage() {
-  const library = useLibrary()
-  const accounts = useAccounts()
+  const [grouping, setGrouping] = useState<'site' | 'none'>('site')
   const [isSelecting, setIsSelecting] = useState(false)
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>([])
   const exportDocuments = useExportDocuments()
-  const isLibraryEmpty = library && library.length === 0
+  const library = useLibrary({
+    grouping,
+  })
+  const isLibraryEmpty = library && library.items && library.items.length === 0
   return (
     <XStack flex={1} height="100%">
       <MainWrapper>
         <Container justifyContent="center" centered>
-          <XStack jc="flex-end" marginVertical="$2" marginBottom="$4">
+          <XStack jc="space-between" marginVertical="$2" marginBottom="$4">
+            <XStack gap="$2">
+              <GroupingControl
+                grouping={grouping}
+                onGroupingChange={setGrouping}
+              />
+            </XStack>
             {isLibraryEmpty ? null : (
               <XStack gap="$2">
                 <Button
@@ -114,17 +126,81 @@ export default function LibraryPage() {
             }}
           >
             {isLibraryEmpty ? <GettingStarted /> : null}
-            {library?.map((site: LibrarySite) => (
-              <LibrarySiteItem
-                key={site.id}
-                site={site}
-                accountsMetadata={accounts.data?.accountsMetadata}
-              />
-            ))}
+            {library?.items?.map((item: LibraryItem) => {
+              if (item.type === 'site') {
+                return (
+                  <LibrarySiteItem
+                    key={item.id}
+                    site={item}
+                    accountsMetadata={library.accountsMetadata}
+                  />
+                )
+              }
+              return (
+                <LibraryDocumentItem
+                  key={`${item.account}-${item.path}`}
+                  item={item}
+                  accountsMetadata={library.accountsMetadata || {}}
+                />
+              )
+            })}
           </librarySelectionContext.Provider>
         </Container>
       </MainWrapper>
     </XStack>
+  )
+}
+
+const commonPopoverProps: ComponentProps<typeof Popover.Content> = {
+  padding: 0,
+  elevation: '$2',
+  animation: [
+    'fast',
+    {
+      opacity: {
+        overshootClamping: true,
+      },
+    },
+  ],
+  enterStyle: {y: -10, opacity: 0},
+  exitStyle: {y: -10, opacity: 0},
+  elevate: true,
+}
+
+const groupingOptions: Readonly<{label: string; value: 'site' | 'none'}[]> = [
+  {label: 'All Documents', value: 'none'},
+  {label: 'Group by Site', value: 'site'},
+] as const
+
+function GroupingControl({
+  grouping,
+  onGroupingChange,
+}: {
+  grouping: 'site' | 'none'
+  onGroupingChange: (grouping: 'site' | 'none') => void
+}) {
+  const popoverState = usePopoverState()
+  return (
+    <Popover {...popoverState} placement="bottom-start">
+      <Popover.Trigger asChild>
+        <Button size="$2" paddingVertical={0} bg="$color5" icon={ListFilter} />
+      </Popover.Trigger>
+      <Popover.Content {...commonPopoverProps}>
+        <YGroup>
+          {groupingOptions.map((option) => (
+            <Button
+              size="$2"
+              onPress={() => onGroupingChange(option.value)}
+              key={option.value}
+              iconAfter={grouping === option.value ? Check : null}
+              justifyContent="flex-start"
+            >
+              {option.label}
+            </Button>
+          ))}
+        </YGroup>
+      </Popover.Content>
+    </Popover>
   )
 }
 
@@ -198,9 +274,7 @@ function LibrarySiteItem({
   const metadata = site?.metadata
   const id = hmId('d', site.id)
   const documents = useSiteLibrary(site.id, !isCollapsed)
-  const homeDocument = documents.data?.find(
-    (doc: LibraryDocument) => doc.path === '',
-  )
+  const homeDocument = documents.data?.find((doc) => doc.path === '')
   const siteDisplayActivitySummary =
     !isCollapsed && homeDocument
       ? homeDocument.activitySummary
@@ -263,7 +337,7 @@ function LibrarySiteItem({
       </Button>
       {isCollapsed ? null : (
         <YStack>
-          {documents.data?.map((item: LibraryDocument) => {
+          {documents.data?.map((item) => {
             if (item.path === '') return null
             return (
               <LibraryDocumentItem

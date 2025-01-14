@@ -83,33 +83,82 @@ export type AccountMetadata = {
 export type AccountsMetadata = AccountMetadata[]
 
 export type LibrarySite = PlainMessage<Account> & {
+  type: 'site'
   latestComment?: HMComment | null
 }
 
 export type LibraryDocument = PlainMessage<DocumentInfo> & {
+  type: 'document'
   latestComment?: HMComment | null
 }
+export type LibraryItem = LibrarySite | LibraryDocument
 
-export function useLibrary() {
+export function useLibrary({grouping}: {grouping: 'site' | 'none'}) {
   const accounts = useAccounts()
-  const commentIds = accounts.data?.accounts
-    .map((account) => account.activitySummary?.latestCommentId)
-    .filter((commentId) => commentId != null)
-    .filter((commentId) => commentId.length)
+  const allDocuments = useAllDocuments(grouping === 'none')
+  const commentIds =
+    grouping === 'none'
+      ? allDocuments.data?.documents
+          .map((doc) => doc.activitySummary?.latestCommentId)
+          .filter((commentId) => commentId != null)
+          .filter((commentId) => commentId.length)
+      : accounts.data?.accounts
+          .map((account) => account.activitySummary?.latestCommentId)
+          .filter((commentId) => commentId != null)
+          .filter((commentId) => commentId.length)
   const comments = useComments(commentIds || [])
-  return accounts.data?.accounts.map((account) => {
-    return {
-      ...account,
-      latestComment: account.activitySummary?.latestCommentId
+  let items: undefined | LibraryItem[]
+  if (grouping === 'none') {
+    items = allDocuments.data?.documents.map((doc) => ({
+      ...doc,
+      type: 'document',
+      latestComment: doc.activitySummary?.latestCommentId
         ? comments.find(
-            (c) => c.data?.id === account.activitySummary?.latestCommentId,
+            (c) => c.data?.id === doc.activitySummary?.latestCommentId,
           )?.data
         : undefined,
-    }
-  })
+    }))
+  } else {
+    items = accounts.data?.accounts.map((account) => {
+      return {
+        ...account,
+        type: 'site',
+        latestComment: account.activitySummary?.latestCommentId
+          ? comments.find(
+              (c) => c.data?.id === account.activitySummary?.latestCommentId,
+            )?.data
+          : undefined,
+      }
+    })
+  }
+  return {
+    items,
+    accounts: accounts.data?.accounts,
+    accountsMetadata: accounts.data?.accountsMetadata,
+  }
 }
 
-export function useSiteLibrary(siteUid: string, enabled: boolean) {
+function useAllDocuments(enabled: boolean) {
+  const grpcClient = useGRPCClient()
+  const allDocuments = useQuery({
+    queryKey: [queryKeys.LIBRARY],
+    enabled,
+    queryFn: async () => {
+      const res = await grpcClient.documents.listDocuments({
+        pageSize: BIG_INT,
+      })
+      return {
+        documents: toPlainMessage(res).documents,
+      }
+    },
+  })
+  return allDocuments
+}
+
+export function useSiteLibrary(
+  siteUid: string,
+  enabled: boolean,
+): {data: LibraryDocument[] | undefined} {
   const grpcClient = useGRPCClient()
   const siteDocuments = useQuery({
     queryKey: [queryKeys.SITE_LIBRARY, siteUid],
@@ -134,6 +183,7 @@ export function useSiteLibrary(siteUid: string, enabled: boolean) {
     ...siteDocuments,
     data: siteDocuments.data?.documents.map((doc) => ({
       ...doc,
+      type: 'document',
       latestComment: comments.find(
         (c) => c.data?.id === doc.activitySummary?.latestCommentId,
       )?.data,

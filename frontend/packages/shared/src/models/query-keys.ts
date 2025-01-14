@@ -8,6 +8,7 @@ export const queryKeys = {
 
   // NOTE: Arguments to query keys documented in comments
 
+  LIBRARY: 'LIBRARY',
   SITE_LIBRARY: 'SITE_LIBRARY', // siteUid: string
 
   // feed
@@ -86,6 +87,12 @@ export function labelOfQueryKey(key: QueryKey) {
   const discriminator = key[0]
   const arg1 = key[1] as string | undefined
   switch (discriminator) {
+    // library
+    case queryKeys.LIBRARY:
+      return 'Library'
+    case queryKeys.SITE_LIBRARY:
+      return `Site Library`
+
     // feed
     case queryKeys.FEED:
       return 'Activity Feed'
