@@ -50,27 +50,31 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
               backgroundColor={
                 isSubscribed ? '$backgroundTransparent' : '$brand5'
               }
-              color={isSubscribed ? '$brand7' : 'white'}
-              borderColor={isSubscribed ? '$brand9' : '$colorTransparent'}
+              color={isSubscribed ? '$brand5' : 'white'}
+              borderColor={isSubscribed ? '$brand6' : '$colorTransparent'}
               iconAfter={ChevronDown}
+              borderWidth={1}
+              pressStyle={{
+                borderWidth: 1,
+                bg: isSubscribed ? '$backgroundTransparent' : '$brand4',
+              }}
+              focusStyle={{borderWidth: 1}}
               hoverStyle={
                 isSubscribed
                   ? {
                       bg: '$backgroundTransparent',
-                      borderColor: '$brand10',
-                      color: '$brand8',
+                      borderColor: '$brand6',
                     }
                   : {
-                      bg: '$brand6',
+                      bg: '$brand4',
                       borderColor: '$colorTransparent',
-                      color: 'white',
                     }
               }
               icon={
                 subscription.subscription == 'space' ? (
-                  <SubscribeSpace size={20} color={theme.brand6.val} />
+                  <SubscribeSpace size={20} color={theme.brand5.val} />
                 ) : subscription.subscription == 'document' ? (
-                  <Subscribe size={20} color={theme.brand6.val} />
+                  <Subscribe size={20} color={theme.brand5.val} />
                 ) : undefined
               }
             >
@@ -232,7 +236,7 @@ function SubscriptionOptionButton({
   const theme = useTheme()
   let icon = null
   if (active) {
-    icon = <Check size={20} color={theme.brand5.val} />
+    icon = <Check size={20} color={theme.brand4.val} />
   } else if (Icon) {
     icon = <Icon size={20} color={theme.color.val} />
   }
@@ -260,9 +264,9 @@ function SubscriptionOptionButton({
         <YStack f={1} gap="$1.5">
           <XStack f={1} height={20} ai="center">
             <Text
-              fontWeight="bold"
               fontSize={14}
-              color={active ? theme.brand5 : color}
+              fontWeight="bold"
+              color={active ? theme.brand4 : color}
             >
               {title}
             </Text>
