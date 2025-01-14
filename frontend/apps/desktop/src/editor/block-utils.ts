@@ -6,7 +6,10 @@ import {
   Block as BlockNoteBlock,
   BlockNoteEditor,
   getBlockInfoFromPos,
+  getBlockInfoFromResolvedPos,
+  getBlockInfoFromSelection,
 } from './blocknote'
+import {updateGroupCommand} from './blocknote/core/api/blockManipulation/commands/updateGroup'
 import {getNodeById} from './blocknote/core/api/util/nodeUtil'
 import {HMBlockSchema} from './schema'
 
@@ -20,19 +23,14 @@ export function useSelected(
 
   useEffect(() => {
     if (editor) {
-      const selectedNode = getBlockInfoFromPos(
-        tiptapEditor.state.doc,
-        tiptapEditor.state.selection.from,
-      )
-      if (selectedNode && selectedNode.id) {
-        if (
-          selectedNode.id === block.id &&
-          selectedNode.startPos === selection.$anchor.pos
-        ) {
-          setSelected(true)
-        } else if (selectedNode.id !== block.id) {
-          setSelected(false)
-        }
+      const selectedNode = getBlockInfoFromSelection(tiptapEditor.state)
+      if (
+        selectedNode.block.node.attrs.id === block.id &&
+        selectedNode.block.beforePos + 2 === selection.$anchor.pos
+      ) {
+        setSelected(true)
+      } else if (selectedNode.block.node.attrs.id !== block.id) {
+        setSelected(false)
       }
     }
   }, [selection])
@@ -47,21 +45,23 @@ export function updateGroup(
 ) {
   let {posBeforeNode} = getNodeById(block.id, editor._tiptapEditor.state.doc)
 
-  const posData = getBlockInfoFromPos(
-    editor._tiptapEditor.state.doc,
-    posBeforeNode + 1,
+  const posData = getBlockInfoFromResolvedPos(
+    // editor._tiptapEditor.state.doc,
+    editor._tiptapEditor.state.doc.resolve(posBeforeNode + 1),
   )
 
   if (!posData) return
 
-  const {startPos} = posData
+  // const {} = posData
   editor.focus()
-  editor._tiptapEditor.commands.UpdateGroup(
-    startPos,
-    listType,
-    false,
-    undefined,
-    true,
+  editor._tiptapEditor.commands.command(
+    updateGroupCommand(
+      posData.block.beforePos + 2,
+      listType,
+      false,
+      undefined,
+      true,
+    ),
   )
 }
 
@@ -69,16 +69,18 @@ export function updateGroup(
 export function findNextBlock(view: EditorView, pos?: number) {
   const {state} = view
   const currentPos = pos ? pos : state.selection.from
-  const blockInfo = getBlockInfoFromPos(state.doc, currentPos)!
+  const blockInfo = getBlockInfoFromPos(state, currentPos)!
   let nextBlock: Node | undefined
   let nextBlockPos: number | undefined
   // Find first child
-  if (blockInfo.node.lastChild?.type.name === 'blockGroup') {
+  if (blockInfo.childContainer) {
     state.doc.nodesBetween(
-      blockInfo.startPos,
-      blockInfo.endPos,
+      blockInfo.block.beforePos + 1,
+      blockInfo.block.afterPos - 1,
       (node, pos) => {
-        if (node.attrs.id === blockInfo.node.lastChild?.firstChild?.attrs.id) {
+        if (
+          node.attrs.id === blockInfo.childContainer!.node.firstChild?.attrs.id
+        ) {
           nextBlock = node
           nextBlockPos = pos
         }
@@ -86,19 +88,20 @@ export function findNextBlock(view: EditorView, pos?: number) {
     )
   }
   const maybePos = pos ? state.doc.resolve(pos) : state.selection.$to
-  const nextBlockInfo = getBlockInfoFromPos(state.doc, maybePos.end() + 3)
+  const nextBlockInfo = getBlockInfoFromPos(state, maybePos.end() + 3)
   // If there is first child, return it as a next block
   if (nextBlock && nextBlockPos) {
-    if (!nextBlockInfo || nextBlockPos <= nextBlockInfo.startPos - 1)
+    if (!nextBlockInfo || nextBlockPos <= nextBlockInfo.block.beforePos)
       return {
         nextBlock,
         nextBlockPos,
       }
   }
-  if (!nextBlockInfo || nextBlockInfo.startPos < currentPos) return undefined
+  if (!nextBlockInfo || nextBlockInfo.block.beforePos + 1 < currentPos)
+    return undefined
   return {
-    nextBlock: nextBlockInfo.node,
-    nextBlockPos: nextBlockInfo.startPos - 1,
+    nextBlock: nextBlockInfo.block.node,
+    nextBlockPos: nextBlockInfo.block.beforePos,
   }
 }
 
@@ -108,21 +111,21 @@ export function findPreviousBlock(view: EditorView, pos?: number) {
   const currentPos = pos ? pos : state.selection.from
   const $currentPos = state.doc.resolve(currentPos)
   if ($currentPos.start() <= 3) return undefined
-  const blockInfo = getBlockInfoFromPos(state.doc, currentPos)!
-  const prevBlockInfo = getBlockInfoFromPos(state.doc, $currentPos.start() - 3)
+  const blockInfo = getBlockInfoFromPos(state, currentPos)!
+  const prevBlockInfo = getBlockInfoFromPos(state, $currentPos.start() - 3)
   // If prev block has no children, return it
-  if (prevBlockInfo.node.childCount === 1)
+  if (prevBlockInfo.block.node.childCount === 1)
     return {
-      prevBlock: prevBlockInfo.node,
-      prevBlockPos: prevBlockInfo.startPos - 1,
+      prevBlock: prevBlockInfo.block.node,
+      prevBlockPos: prevBlockInfo.block.beforePos,
     }
   let prevBlock: Node | undefined
   let prevBlockPos: number | undefined
   // Find last child of prev block and return it
-  if (prevBlockInfo.node.lastChild?.type.name === 'blockGroup') {
+  if (prevBlockInfo.childContainer) {
     state.doc.nodesBetween(
-      prevBlockInfo.startPos + 3,
-      blockInfo.startPos - 2,
+      prevBlockInfo.block.beforePos + 4,
+      blockInfo.block.beforePos - 1,
       (node, pos) => {
         if (node.type.name === 'blockContainer') {
           prevBlock = node

@@ -46,3 +46,17 @@ export function getGroupInfoFromPos(
     $pos,
   }
 }
+
+export function getParentGroupInfoFromPos(
+  group: Node,
+  $pos: ResolvedPos,
+  depth: number,
+) {
+  for (let parentDepth = depth; parentDepth > 0; parentDepth--) {
+    const node = $pos.node(parentDepth)
+    if (node.type.name === 'blockGroup' && !node.eq(group)) {
+      return {node, pos: $pos.before(depth)}
+    }
+  }
+  return {node: null, pos: 0}
+}

@@ -3,6 +3,7 @@ import {Node} from 'prosemirror-model'
 import {NodeSelection, Plugin, PluginKey, Selection} from 'prosemirror-state'
 import * as pv from 'prosemirror-view'
 import {EditorView} from 'prosemirror-view'
+import {updateBlockCommand} from '../../api/blockManipulation/commands/updateBlock'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import styles from '../../editor.module.css'
 import {BaseUiElementState} from '../../shared/BaseUiElementTypes'
@@ -539,11 +540,17 @@ export class SideMenuView<BSchema extends BlockSchema> implements PluginView {
     if (contentNode.textContent.length !== 0) {
       const newBlockInsertionPos = endPos + 1
       const newBlockContentPos = newBlockInsertionPos + 2
-
+      console.log('here????')
       this.editor._tiptapEditor
         .chain()
         .BNCreateBlock(newBlockInsertionPos)
-        .BNUpdateBlock(newBlockContentPos, {type: 'paragraph', props: {}})
+        // .BNUpdateBlock(newBlockContentPos, {type: 'paragraph', props: {}})
+        .command(
+          updateBlockCommand(newBlockInsertionPos, {
+            type: 'paragraph',
+            props: {},
+          }),
+        )
         .setTextSelection(newBlockContentPos)
         .run()
     } else {

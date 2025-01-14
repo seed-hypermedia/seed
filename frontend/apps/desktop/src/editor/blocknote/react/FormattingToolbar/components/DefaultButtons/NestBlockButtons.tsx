@@ -1,4 +1,8 @@
 import {BlockNoteEditor, BlockSchema} from '@/editor/blocknote/core'
+import {
+  canNestBlock as checkNestBlock,
+  canUnnestBlock as checkUnnestBlock,
+} from '@/editor/blocknote/core/api/blockManipulation/commands/nestBlock'
 import {useCallback, useState} from 'react'
 import {RiIndentDecrease, RiIndentIncrease} from 'react-icons/ri'
 import {ToolbarButton} from '../../../SharedComponents/Toolbar/components/ToolbarButton'
@@ -12,11 +16,11 @@ export const NestBlockButton = <BSchema extends BlockSchema>(props: {
   const [canNestBlock, setCanNestBlock] = useState<boolean>()
 
   useEditorContentChange(props.editor, () => {
-    setCanNestBlock(props.editor.canNestBlock())
+    setCanNestBlock(checkNestBlock(props.editor))
   })
 
   useEditorSelectionChange(props.editor, () => {
-    setCanNestBlock(props.editor.canNestBlock())
+    setCanNestBlock(checkNestBlock(props.editor))
   })
 
   const nestBlock = useCallback(() => {
@@ -41,11 +45,11 @@ export const UnnestBlockButton = <BSchema extends BlockSchema>(props: {
   const [canUnnestBlock, setCanUnnestBlock] = useState<boolean>()
 
   useEditorContentChange(props.editor, () => {
-    setCanUnnestBlock(props.editor.canUnnestBlock())
+    setCanUnnestBlock(checkUnnestBlock(props.editor))
   })
 
   useEditorSelectionChange(props.editor, () => {
-    setCanUnnestBlock(props.editor.canUnnestBlock())
+    setCanUnnestBlock(checkUnnestBlock(props.editor))
   })
 
   const unnestBlock = useCallback(() => {

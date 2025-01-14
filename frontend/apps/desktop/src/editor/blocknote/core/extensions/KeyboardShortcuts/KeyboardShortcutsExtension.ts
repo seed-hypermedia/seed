@@ -1,0 +1,826 @@
+import {Extension} from '@tiptap/core'
+import {Decoration, DecorationSet} from '@tiptap/pm/view'
+import {Fragment} from 'prosemirror-model'
+import {NodeSelection, TextSelection} from 'prosemirror-state'
+import {mergeBlocksCommand} from '../../api/blockManipulation/commands/mergeBlocks'
+import {nestBlock} from '../../api/blockManipulation/commands/nestBlock'
+import {splitBlockCommand} from '../../api/blockManipulation/commands/splitBlock'
+import {updateBlockCommand} from '../../api/blockManipulation/commands/updateBlock'
+import {updateGroupChildrenCommand} from '../../api/blockManipulation/commands/updateGroup'
+import {BlockNoteEditor} from '../../BlockNoteEditor'
+import {
+  getBlockInfoFromSelection,
+  getTestBlockInfoFromPos,
+} from '../Blocks/helpers/getBlockInfoFromPos'
+import {
+  getGroupInfoFromPos,
+  getParentGroupInfoFromPos,
+} from '../Blocks/helpers/getGroupInfoFromPos'
+import {
+  getParentBlockFromPos,
+  SelectionPluginKey,
+} from '../Blocks/nodes/BlockContainer'
+
+export const KeyboardShortcutsExtension = Extension.create<{
+  editor: BlockNoteEditor<any>
+  //   tabBehavior: 'prefer-navigate-ui' | 'prefer-indent'
+}>({
+  priority: 50,
+
+  // TODO: The shortcuts need a refactor. Do we want to use a command priority
+  //  design as there is now, or clump the logic into a single function?
+  addKeyboardShortcuts() {
+    // handleBackspace is partially adapted from https://github.com/ueberdosis/tiptap/blob/ed56337470efb4fd277128ab7ef792b37cfae992/packages/core/src/extensions/keymap.ts
+    const handleBackspace = () =>
+      this.editor.commands.first(({chain, commands}) => [
+        // Deletes the selection if it's not empty.
+        () => commands.deleteSelection(),
+        // Undoes an input rule if one was triggered in the last editor state change.
+        () => commands.undoInputRule(),
+        // Moves a first child block of a heading to be a part of the heading.
+        () =>
+          commands.command(({state, dispatch}) => {
+            const selectionAtBlockStart =
+              state.selection.$anchor.parentOffset === 0
+            const blockInfo = getTestBlockInfoFromPos(
+              state.doc,
+              state.selection.from,
+            )!
+
+            const isParagraph = blockInfo.contentType.name === 'paragraph'
+            let parentInfo = getParentBlockFromPos(state, state.selection.from)
+
+            if (selectionAtBlockStart && isParagraph && parentInfo) {
+              let {parentBlock, parentGroup, parentPos} = parentInfo
+              let isFirstChild =
+                blockInfo.node.attrs.id == parentGroup.firstChild?.attrs.id
+              let isParentBlockHeading = parentBlock?.type.name == 'heading'
+
+              if (
+                // is the first child of the parent group
+                isFirstChild &&
+                // the parent of the current block is type "heading"
+                isParentBlockHeading &&
+                // parentBlock is defined
+                parentBlock
+              ) {
+                const {startPos, node, depth, endPos, contentNode} = blockInfo
+
+                // the position in which we are inserting the current block content
+                const parentInsertPos = parentPos + parentBlock?.nodeSize - 1
+
+                // lift any children of current block (if any)
+                if (node.childCount == 2) {
+                  // the current block has children, we need to re-parent
+                  const childBlocksStart = state.doc.resolve(
+                    startPos + contentNode.nodeSize + 1,
+                  )
+                  const childBlocksEnd = state.doc.resolve(endPos - 1)
+                  const childBlocksRange =
+                    childBlocksStart.blockRange(childBlocksEnd)
+
+                  // Moves the block group node inside the block into
+                  // the block group node that the current block is in.
+                  if (dispatch) {
+                    state.tr.lift(childBlocksRange!, depth - 1)
+                  }
+                }
+
+                if (dispatch) {
+                  dispatch(
+                    state.tr
+                      // delete the current block content
+                      .deleteRange(startPos, startPos + contentNode.nodeSize)
+                      // insert the current block content into the parent heading
+                      .insert(parentInsertPos, contentNode.content),
+                  )
+
+                  // set the selection to the join between the previous heading content and the new content inserted
+                  // this needs to happen after the transaction above because the document now is "different", hence we need to set
+                  // the selection to a new pos.
+                  state.tr.setSelection(
+                    new TextSelection(state.doc.resolve(parentInsertPos)),
+                  )
+                }
+
+                return true
+              }
+            }
+            return false
+          }),
+        // Convert a list into a normal group if the selection is at the start of the list
+        // TODO: figure out if it's needed, because removing the first list item from the group seems reasonable.
+        // () =>
+        //   commands.command(({state, view}) => {
+        //     const {group, container, depth, $pos} = getGroupInfoFromPos(
+        //       state.selection.from,
+        //       state,
+        //     )
+
+        //     if (group.attrs.listType !== 'div' && $pos.pos === $pos.start()) {
+        //       // If block is first in the group change group type
+        //       if (
+        //         container &&
+        //         group.firstChild?.attrs.id === container.attrs.id
+        //       ) {
+        //         setTimeout(() => {
+        //           view.dispatch(
+        //             state.tr.setNodeMarkup($pos.before(depth), null, {
+        //               ...group.attrs,
+        //               listType: 'div',
+        //               listLevel: '1',
+        //             }),
+        //           )
+
+        //           this.editor.commands.UpdateGroupChildren(
+        //             group,
+        //             container,
+        //             $pos,
+        //             0,
+        //             group.attrs.listType,
+        //             -1,
+        //           )
+        //         })
+
+        //         return true
+        //       }
+        //     }
+        //     return false
+        //   }),
+        // If previous block is media, set Node Selection to that block.
+        () =>
+          commands.command(({state, dispatch, view}) => {
+            const blockInfo = getTestBlockInfoFromPos(
+              state.doc,
+              state.selection.from,
+            )!
+            const prevBlockInfo = getTestBlockInfoFromPos(
+              state.doc,
+              state.selection.$anchor.pos - state.selection.$anchor.depth,
+            )
+            const selectionAtBlockStart =
+              state.selection.$anchor.parentOffset === 0
+
+            const isParagraph = blockInfo.contentType.name === 'paragraph'
+
+            if (selectionAtBlockStart) {
+              if (isParagraph) {
+                // If the selection is inside the image caption, first select the image.
+                if (blockInfo.contentType.name === 'image') {
+                  let tr = state.tr
+                  const selection = NodeSelection.create(
+                    state.doc,
+                    blockInfo.startPos,
+                  )
+                  tr = tr.setSelection(selection)
+                  view.dispatch(tr)
+                  return true
+                }
+                if (!prevBlockInfo) return false
+                if (
+                  ['file', 'embed', 'video', 'web-embed', 'math'].includes(
+                    prevBlockInfo.contentType.name,
+                  ) ||
+                  (prevBlockInfo.contentType.name === 'image' &&
+                    prevBlockInfo.contentNode.attrs.url.length === 0)
+                ) {
+                  if (dispatch) {
+                    const {startPos, contentNode} = blockInfo
+                    state.tr.setSelection(
+                      NodeSelection.create(state.doc, prevBlockInfo.startPos),
+                    )
+
+                    // Uncomment to not delete the text where the current selection is in.
+                    // if (!blockInfo.contentNode.textContent) {
+                    state.tr.deleteRange(
+                      startPos,
+                      startPos + contentNode.nodeSize,
+                    )
+                    // }
+                    return true
+                  }
+                }
+                return false
+              }
+              // Instead of selecting the media block, first change
+              // the type of selected block to paragraph.
+              else {
+                return commands.command(
+                  updateBlockCommand(
+                    state.doc.resolve(state.selection.from).start() - 2,
+                    {
+                      type: 'paragraph',
+                      props: {},
+                    },
+                  ),
+                )
+              }
+            }
+
+            return false
+          }),
+        // move blockID with content if selection is at the start of block,
+        // the block has content AND the block above is empty.
+        // Note: not sure what this does, I believe Horacio added this code.
+        () =>
+          commands.command(({state, chain}) => {
+            const blockData = getTestBlockInfoFromPos(
+              state.doc,
+              state.selection.from,
+            )!
+            const groupData = getGroupInfoFromPos(state.selection.from!, state)
+            const selectionAtBlockStart =
+              state.selection.$anchor.parentOffset === 0
+
+            let prevBlockEndPos = blockData.startPos - 2
+            let prevBlockInfo = getTestBlockInfoFromPos(
+              state.doc,
+              prevBlockEndPos,
+            )
+
+            if (
+              // selection is at the start of the block
+              selectionAtBlockStart &&
+              // current block is not empty
+              blockData.node.textContent.length > 0 &&
+              // the selected block is not the first block of the child
+              groupData.group.firstChild?.attrs.id != blockData.id &&
+              // previous block is a blockContainer
+              prevBlockInfo.node.type.name == 'blockContainer' &&
+              // prev block is empty
+              prevBlockInfo.node.textContent.length == 0
+            ) {
+              chain().BNDeleteBlock(prevBlockInfo.startPos).run()
+
+              return true
+            }
+            return false
+          }),
+        // Merge block with the previous block, if it is in the middle of a list.
+        () =>
+          commands.command(({state, commands}) => {
+            const blockData = getBlockInfoFromSelection(state)
+            // getTestBlockInfoFromPos(
+            //   state.doc,
+            //   state.selection.from,
+            // )!
+            const groupData = getGroupInfoFromPos(state.selection.from!, state)
+            const selectionAtBlockStart =
+              state.selection.$anchor.parentOffset === 0
+
+            let prevBlockEndPos = blockData.block.beforePos
+            let prevBlockInfo = getTestBlockInfoFromPos(
+              state.doc,
+              prevBlockEndPos,
+            )
+
+            if (
+              // group is not a list or blockquote
+              groupData.group.attrs.listType !== 'Group' &&
+              // selection is at the start of the block
+              selectionAtBlockStart &&
+              // the selected block is not the first block of the child
+              groupData.group.firstChild?.attrs.id !=
+                blockData.block.node.attrs.id &&
+              // previous block is a blockContainer
+              prevBlockInfo.node.type.name == 'blockContainer'
+            ) {
+              return commands.command(
+                mergeBlocksCommand(blockData.block.beforePos),
+              )
+            }
+            return false
+          }),
+        // Reverts block content type to a paragraph if the selection is at the start of the block.
+        () =>
+          commands.command(({state}) => {
+            const {startPos, contentType} = getTestBlockInfoFromPos(
+              state.doc,
+              state.selection.from,
+            )!
+
+            const selectionAtBlockStart =
+              state.selection.$anchor.parentOffset === 0
+            const isParagraph = contentType.name === 'paragraph'
+
+            if (selectionAtBlockStart && !isParagraph) {
+              return commands.command(
+                updateBlockCommand(startPos, {
+                  type: 'paragraph',
+                  props: {},
+                }),
+              )
+            }
+
+            return false
+          }),
+        // Removes a level of nesting if the block is indented if the selection is at the start of the block.
+        () =>
+          commands.command(({state}) => {
+            const blockInfo = getBlockInfoFromSelection(state)
+            const {blockContent} = blockInfo
+
+            const selectionAtBlockStart =
+              state.selection.from === blockContent.beforePos + 1
+
+            if (selectionAtBlockStart) {
+              return commands.liftListItem('blockContainer')
+            }
+
+            return false
+          }),
+        // Merges block with the previous one if it isn't indented,
+        // and the selection is at the start of the block.
+        // The target block for merging must contain inline content.
+        () =>
+          commands.command(({state}) => {
+            const blockInfo = getBlockInfoFromSelection(state)
+            const {block: blockContainer, blockContent} = blockInfo
+
+            const selectionAtBlockStart =
+              state.selection.from === blockContent.beforePos + 1
+            const selectionEmpty = state.selection.empty
+
+            const posBetweenBlocks = blockContainer.beforePos
+
+            if (selectionAtBlockStart && selectionEmpty) {
+              return chain()
+                .command(mergeBlocksCommand(posBetweenBlocks))
+                .scrollIntoView()
+                .run()
+            }
+
+            return false
+          }),
+      ])
+
+    const handleDelete = () =>
+      this.editor.commands.first(({commands}) => [
+        // Deletes the selection if it's not empty.
+        () => commands.deleteSelection(),
+        // Merges block with the next one (at the same nesting level or lower),
+        // if one exists, the block has no children, and the selection is at the
+        // end of the block.
+        () =>
+          commands.command(({state}) => {
+            const blockInfo = getBlockInfoFromSelection(state)
+            const {
+              block: blockContainer,
+              blockContent,
+              childContainer,
+            } = blockInfo
+
+            const {depth} = state.doc.resolve(blockContainer.beforePos)
+            const blockAtDocEnd =
+              blockContainer.afterPos === state.doc.nodeSize - 3
+            const selectionAtBlockEnd =
+              state.selection.from === blockContent.afterPos - 1
+            const selectionEmpty = state.selection.empty
+            const hasChildBlocks = childContainer !== undefined
+
+            if (
+              !blockAtDocEnd &&
+              selectionAtBlockEnd &&
+              selectionEmpty &&
+              !hasChildBlocks
+            ) {
+              let oldDepth = depth
+              let newPos = blockContainer.afterPos + 1
+              let newDepth = state.doc.resolve(newPos).depth
+
+              while (newDepth < oldDepth) {
+                oldDepth = newDepth
+                newPos += 2
+                newDepth = state.doc.resolve(newPos).depth
+              }
+
+              return commands.command(mergeBlocksCommand(newPos - 1))
+            }
+
+            return false
+          }),
+      ])
+
+    const handleEnter = () =>
+      this.editor.commands.first(({commands}) => [
+        // Add a block on top of the current one, if the block is not
+        // empty and the selection is at the start of that block,
+        // to make sure the block ID will follow the content.
+        // Note: Horacio added this code.
+        () =>
+          commands.command(({state, chain}) => {
+            const data = getTestBlockInfoFromPos(
+              state.doc,
+              state.selection.from,
+            )!
+
+            const selectionAtBlockStart =
+              state.selection.$anchor.parentOffset === 0
+            const selectionEmpty =
+              state.selection.anchor === state.selection.head
+            const blockEmpty = data.node.textContent.length === 0
+            const newBlockInsertionPos = data.startPos - 1
+
+            if (selectionAtBlockStart && selectionEmpty && !blockEmpty) {
+              chain()
+                .BNCreateBlock(newBlockInsertionPos)
+                // .setTextSelection(newBlockContentPos)
+                .run()
+
+              return true
+            }
+
+            return false
+          }),
+        // When the current block is a heading,
+        // do a special splitBlock to suggest heading hierarchy.
+        // Note: Horacio added this code.
+        () =>
+          commands.command(({state, chain}) => {
+            const {contentNode} = getTestBlockInfoFromPos(
+              state.doc,
+              state.selection.from,
+            )!
+
+            const selectionAtBlockStart =
+              state.selection.$anchor.parentOffset === 0
+
+            // if selection is not in the beginning of the heading and is a heading,
+            // we need to check what we need to do
+            if (!selectionAtBlockStart && contentNode.type.name == 'heading') {
+              chain()
+                .deleteSelection()
+                .BNSplitHeadingBlock(state.selection.from)
+                .run()
+              return true
+            }
+
+            return false
+          }),
+        // Removes a level of nesting if the block is empty & indented,
+        // while the selection is also empty & at the start of the block.
+        () =>
+          commands.command(({state}) => {
+            const blockInfo = getBlockInfoFromSelection(state)
+            const {block: blockContainer, blockContent} = blockInfo
+
+            const {depth} = state.doc.resolve(blockContainer.beforePos)
+
+            const selectionAtBlockStart =
+              state.selection.$anchor.parentOffset === 0
+            const selectionEmpty =
+              state.selection.anchor === state.selection.head
+            const blockEmpty = blockContent.node.childCount === 0
+            const blockIndented = depth > 1
+
+            if (
+              selectionAtBlockStart &&
+              selectionEmpty &&
+              blockEmpty &&
+              blockIndented
+            ) {
+              return commands.liftListItem('blockContainer')
+            }
+
+            return false
+          }),
+        // Creates a new block and moves the selection to it
+        // if the current one is empty, while the selection is also
+        // empty & at the start of the block.
+        () =>
+          commands.command(({state, dispatch}) => {
+            const blockInfo = getBlockInfoFromSelection(state)
+            const {block: blockContainer, blockContent} = blockInfo
+
+            const selectionAtBlockStart =
+              state.selection.$anchor.parentOffset === 0
+            const selectionEmpty =
+              state.selection.anchor === state.selection.head
+            const blockEmpty = blockContent.node.childCount === 0
+
+            if (selectionAtBlockStart && selectionEmpty && blockEmpty) {
+              const newBlockInsertionPos = blockContainer.afterPos
+              const newBlockContentPos = newBlockInsertionPos + 2
+
+              if (dispatch) {
+                const newBlock =
+                  state.schema.nodes['blockContainer'].createAndFill()!
+
+                state.tr.insert(newBlockInsertionPos, newBlock).scrollIntoView()
+                state.tr.setSelection(
+                  new TextSelection(state.doc.resolve(newBlockContentPos)),
+                )
+              }
+
+              return true
+            }
+
+            return false
+          }),
+        // Splits the current block, moving content inside that's
+        // after the cursor to a new text block below. Also
+        // deletes the selection beforehand, if it's not empty.
+        () =>
+          commands.command(({state, chain}) => {
+            const blockInfo = getBlockInfoFromSelection(state)
+            const {blockContent} = blockInfo
+
+            const selectionAtBlockStart =
+              state.selection.$anchor.parentOffset === 0
+            const blockEmpty = blockContent.node.childCount === 0
+
+            if (!blockEmpty) {
+              chain()
+                .deleteSelection()
+                .command(
+                  splitBlockCommand(
+                    state.selection.from,
+                    selectionAtBlockStart,
+                    selectionAtBlockStart,
+                  ),
+                )
+                .run()
+
+              return true
+            }
+
+            return false
+          }),
+      ])
+
+    const handleTab = () =>
+      this.editor.commands.first(({commands}) => [
+        () =>
+          commands.command(({state}) => {
+            // Find block group, block container, and depth it is at
+            const {group, container, $pos} = getGroupInfoFromPos(
+              state.selection.from,
+              state,
+            )
+
+            if (
+              group.type.name === 'blockGroup' &&
+              group.attrs.listType !== 'Group'
+            ) {
+              setTimeout(() => {
+                // Try nesting the list item
+                const isNested = nestBlock(
+                  this.options.editor,
+                  group.attrs.listType,
+                  group.attrs.listType === 'Unordered'
+                    ? (parseInt(group.attrs.listLevel) + 1).toString()
+                    : '1',
+                )
+                // Update list children if nesting was successful
+                if (isNested)
+                  this.editor
+                    .chain()
+                    .command(
+                      updateGroupChildrenCommand(
+                        group,
+                        container!,
+                        $pos,
+                        group.attrs.listType === 'Unordered'
+                          ? parseInt(group.attrs.listLevel) + 1
+                          : 1,
+                        group.attrs.listType,
+                        true,
+                      ),
+                    )
+                    .run()
+              })
+              return true
+            }
+            return false
+          }),
+        () =>
+          // This command is needed for tab inside of the first level of nesting
+          commands.command(({state, chain}) => {
+            const {group, container, $pos} = getGroupInfoFromPos(
+              state.selection.from,
+              state,
+            )
+
+            if (container) {
+              // Try sinking the list item.
+              const result = chain().sinkListItem('blockContainer').run()
+              // Update group children if sinking was successful.
+              if (result) {
+                setTimeout(() => {
+                  try {
+                    this.editor
+                      .chain()
+                      .command(
+                        updateGroupChildrenCommand(
+                          group,
+                          container,
+                          $pos,
+                          parseInt(group.attrs.listLevel),
+                          group.attrs.listType,
+                          true,
+                        ),
+                      )
+                      .run()
+                  } catch (e) {
+                    console.log(e.message)
+                  }
+                })
+              }
+              return true
+            } else {
+              // Just sink the list item if not a list.
+              commands.sinkListItem('blockContainer')
+              return true
+            }
+          }),
+      ])
+
+    const handleShiftTab = (posInBlock: number) =>
+      this.editor.commands.command(({state, dispatch}) => {
+        const blockInfo = getTestBlockInfoFromPos(state.tr.doc, posInBlock)!
+
+        if (blockInfo.depth > 2 && dispatch) {
+          // If there are children, need to manually append siblings
+          // into block's children to avoid the range error.
+          if (blockInfo.numChildBlocks > 0) {
+            const blockChildren = state.tr.doc
+              .resolve(blockInfo.startPos + blockInfo.contentNode.nodeSize + 1)
+              .node().content
+
+            const parentBlockInfo = getTestBlockInfoFromPos(
+              state.tr.doc,
+              state.tr.doc.resolve(blockInfo.startPos).start(-2),
+            )!
+
+            const siblingBlocksAfter = state.tr.doc.slice(
+              blockInfo.endPos + 1,
+              parentBlockInfo.endPos - 1,
+            ).content
+
+            // If last child or the only child, just lift list item.
+            if (Fragment.empty.eq(siblingBlocksAfter)) {
+              const {group, container, $pos, depth} = getGroupInfoFromPos(
+                state.selection.from,
+                state,
+              )
+
+              const {node: parentGroup, pos: parentGroupPos} =
+                getParentGroupInfoFromPos(group, $pos, depth)
+
+              setTimeout(() => {
+                this.editor
+                  .chain()
+                  .liftListItem('blockContainer')
+                  .command(
+                    updateGroupChildrenCommand(
+                      group,
+                      container!,
+                      $pos,
+                      parentGroup?.attrs.listType === 'Unordered'
+                        ? parseInt(parentGroup.attrs.listLevel) + 1
+                        : parseInt(group.attrs.listLevel),
+                      group.attrs.listType,
+                      false,
+                    ),
+                  )
+                  .run()
+              })
+              return true
+            }
+
+            // Move all siblings after the block into its children.
+            const children = blockChildren.append(siblingBlocksAfter)
+
+            const childGroup = getGroupInfoFromPos(
+              blockInfo.startPos + blockInfo.contentNode.nodeSize + 1,
+              state,
+            )
+
+            // Checks if the block is the first child of its group,
+            // then delete the entire `blockGroup`
+            // of the parent. Otherwise, only delete the
+            // children after the block.
+            if (
+              parentBlockInfo.startPos +
+                parentBlockInfo.contentNode.nodeSize +
+                1 ===
+              blockInfo.startPos - 1
+            ) {
+              state.tr.delete(
+                parentBlockInfo.startPos + parentBlockInfo.contentNode.nodeSize,
+                parentBlockInfo.endPos,
+              )
+            } else {
+              state.tr.delete(
+                blockInfo.startPos - 1,
+                parentBlockInfo.endPos - 1,
+              )
+            }
+
+            const blockContent = [blockInfo.contentNode]
+            // If there are children of the unnested block,
+            // create a new group for them and attach to block content.
+            if (children) {
+              const blockGroup = state.schema.nodes['blockGroup'].create(
+                childGroup
+                  ? {
+                      listType: childGroup.group.attrs.listType,
+                      listLevel:
+                        childGroup.group.attrs.listLevel > 1
+                          ? childGroup.group.attrs.listLevel - 1
+                          : 1,
+                    }
+                  : null,
+                children,
+              )
+              blockContent.push(blockGroup)
+            }
+            // Create and insert the manually built block instead of
+            // using tiptap's liftListItem command.
+            const block = state.schema.nodes['blockContainer'].create(
+              blockInfo.node.attrs,
+              blockContent,
+            )
+
+            const insertPos =
+              state.tr.selection.from -
+              (childGroup.group.attrs.listLevel === '3' ? 4 : 2)
+
+            state.tr.insert(insertPos, block)
+            state.tr.setSelection(
+              new TextSelection(
+                state.tr.doc.resolve(state.tr.selection.from - block.nodeSize),
+              ),
+            )
+
+            dispatch(state.tr)
+
+            return true
+          } else {
+            setTimeout(() => {
+              this.editor.commands.liftListItem('blockContainer')
+            })
+            return true
+          }
+        }
+
+        return true
+      })
+
+    return {
+      Backspace: handleBackspace,
+      Delete: handleDelete,
+      Enter: handleEnter,
+      Tab: handleTab,
+      'Shift-Tab': () => {
+        const {startPos} = getTestBlockInfoFromPos(
+          this.editor.state.doc,
+          this.editor.state.selection.anchor,
+        )
+        return handleShiftTab(startPos)
+      },
+      // "Shift-Mod-ArrowUp": () => {
+      //   this.options.editor.moveBlocksUp();
+      //   return true;
+      // },
+      // "Shift-Mod-ArrowDown": () => {
+      //   this.options.editor.moveBlocksDown();
+      //   return true;
+      // },
+      'Shift-ArrowLeft': () => {
+        const {state, view} = this.editor
+        const {selection} = state
+        const {id: selectedId} = getTestBlockInfoFromPos(
+          state.doc,
+          selection.from - 1,
+        )
+        if (selection.from <= 3) {
+          return false
+        }
+        if (selection.from === selection.$from.start()) {
+          let currentPos = selection.from - 1
+          let currentNode = state.doc.resolve(currentPos).parent
+          let {id: currentId} = getTestBlockInfoFromPos(state.doc, currentPos)
+          while (
+            selectedId === currentId ||
+            ['blockContainer', 'blockGroup'].includes(currentNode.type.name)
+          ) {
+            currentPos--
+            currentNode = state.doc.resolve(currentPos).parent
+            currentId = getTestBlockInfoFromPos(state.doc, currentPos).id
+          }
+          const decoration = Decoration.widget(currentPos, () => {
+            const span = document.createElement('span')
+            span.style.backgroundColor = 'blue'
+            span.style.width = '10px'
+            span.style.height = '10px'
+            return span
+          })
+          const decorationSet = DecorationSet.create(state.doc, [decoration])
+          view.dispatch(state.tr.setMeta(SelectionPluginKey, decorationSet))
+        }
+        return false
+      },
+    }
+  },
+})

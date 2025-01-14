@@ -16,7 +16,7 @@ import {
   Styles,
   ToggledStyle,
 } from '../../extensions/Blocks/api/inlineContentTypes'
-import {getBlockInfo} from '../../extensions/Blocks/helpers/getBlockInfoFromPos'
+// import {getTestBlockInfo} from '../../extensions/Blocks/helpers/getBlockInfoFromPos'
 import {UniqueID} from '../../extensions/UniqueID/UniqueID'
 import {UnreachableCaseError} from '../../shared/utils'
 
@@ -180,7 +180,10 @@ export function blockToNode<BSchema extends BlockSchema>(
     }
   }
 
-  const groupNode = schema.nodes['blockGroup'].create({}, children)
+  const groupNode = schema.nodes['blockGroup'].create(
+    {listType: 'Group'},
+    children,
+  )
 
   return schema.nodes['blockContainer'].create(
     {
@@ -394,9 +397,9 @@ export function nodeToBlock<BSchema extends BlockSchema>(
     return cachedBlock
   }
 
-  const blockInfo = getBlockInfo(node)
+  // const blockInfo = getBlockInfo(node)
 
-  let id = blockInfo.id
+  let id = node.attrs.id
 
   // Only used for blocks converted from other formats.
   if (id === null) {
@@ -406,18 +409,18 @@ export function nodeToBlock<BSchema extends BlockSchema>(
   const props: any = {}
   for (const [attr, value] of Object.entries({
     ...node.attrs,
-    ...blockInfo.contentNode.attrs,
+    ...node.firstChild!.attrs,
   })) {
-    const blockSpec = blockSchema[blockInfo.contentType.name]
+    const blockSpec = blockSchema[node.firstChild!.type.name]
     if (!blockSpec) {
       if (
-        blockInfo.contentType.name === 'code-block' ||
-        blockInfo.contentType.name === 'inline-embed'
+        node.firstChild!.type.name === 'code-block' ||
+        node.firstChild!.type.name === 'inline-embed'
       ) {
         break
       } else
         throw Error(
-          'Block is of an unrecognized type: ' + blockInfo.contentType.name,
+          'Block is of an unrecognized type: ' + node.firstChild!.type.name,
         )
     }
 
@@ -447,10 +450,14 @@ export function nodeToBlock<BSchema extends BlockSchema>(
     props['start'] = start
   }
 
-  const content = contentNodeToInlineContent(blockInfo.contentNode)
+  const content = contentNodeToInlineContent(node.firstChild!)
 
   const children: Block<BSchema>[] = []
-  for (let i = 0; i < blockInfo.numChildBlocks; i++) {
+  for (
+    let i = 0;
+    i < (node.childCount === 2 ? node.lastChild!.childCount : 0);
+    i++
+  ) {
     children.push(
       nodeToBlock(node.lastChild!.child(i), blockSchema, blockCache),
     )
@@ -458,7 +465,7 @@ export function nodeToBlock<BSchema extends BlockSchema>(
 
   const block: Block<BSchema> = {
     id,
-    type: blockInfo.contentType.name,
+    type: node.firstChild!.type.name,
     props,
     content,
     children,
