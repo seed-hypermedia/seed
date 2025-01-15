@@ -2,38 +2,45 @@ name: Run on Release Published
 
 on:
   workflow_dispatch:
-  release:
-    types:
-      - published
-      - edited
-      - released
 
 jobs:
-  handle-latest-release:
+  generate-latest-json:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Check out the repository code
+      # Check out the repository code
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # Step 2: Print release details
-      - name: Print Release Info
-        env:
-          RELEASE_NAME: ${{ github.event.release.name }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-          IS_PRERELEASE: ${{ github.event.release.prerelease }}
-        run: |
-          echo "Release Name: $RELEASE_NAME"
-          echo "Release Tag: $RELEASE_TAG"
-          echo "Is Pre-release: $IS_PRERELEASE"
+      # Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-      # Step 3: Add your custom logic here
-      # Example: Notify an external service or perform a specific action
-      # - name: Notify External Service
-      #   run: |
-      #     curl -X POST -H "Content-Type: application/json" \
-      #     -d '{"release_name": "${{ github.event.release.name }}", "release_tag": "${{ github.event.release.tag_name }}"}' \
-      #     https://example.com/webhook
+      # Install AWS CLI
+      - name: Install AWS CLI
+        run: |
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install
+
+      # Configure AWS Credentials
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.S3_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.S3_SECRET_KEY }}
+          aws-region: eu-west-2
+
+      # Generate prod-latest.json
+      - name: Generate prod-latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/generate-prod-latest.js > .github/latest.json
+
+      # Upload to S3
+      - name: Upload latest.json to S3
+        run: aws s3 cp .github/latest.json s3://seedreleases/prod/latest.json
