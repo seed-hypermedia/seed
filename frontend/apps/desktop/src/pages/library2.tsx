@@ -10,17 +10,16 @@ import {
   useSiteLibrary,
 } from '@/models/library'
 import {useNavigate} from '@/utils/useNavigate'
-import {PlainMessage} from '@bufbuild/protobuf'
 import {
-  ActivitySummary,
-  BlockNode,
-  Breadcrumb,
-  DocumentInfo,
   DocumentRoute,
   entityQueryPathToHmIdPath,
   formattedDate,
   getMetadataName,
+  HMActivitySummary,
+  HMBlockNode,
+  HMBreadcrumb,
   HMComment,
+  HMDocumentInfo,
   hmId,
   normalizeDate,
   UnpackedHypermediaId,
@@ -293,11 +292,11 @@ function LibrarySiteItem({
         }}
         bg={isRead ? '$colorTransparent' : '$backgroundStrong'}
         paddingHorizontal={16}
-        paddingVertical="$1"
+        paddingVertical="$2"
         onPress={() => {
           navigate({key: 'document', id})
         }}
-        h={68}
+        h="auto"
         ai="center"
       >
         <SelectionCollapseButton
@@ -317,9 +316,6 @@ function LibrarySiteItem({
             >
               {getMetadataName(metadata)}
             </SizableText>
-            {siteDisplayActivitySummary && (
-              <LibraryEntryTime activitySummary={siteDisplayActivitySummary} />
-            )}
             {siteDisplayActivitySummary && (
               <LibraryEntryCommentCount
                 activitySummary={siteDisplayActivitySummary}
@@ -378,11 +374,11 @@ export function LibraryDocumentItem({
       bg={isRead ? '$colorTransparent' : '$backgroundStrong'}
       // elevation="$1"
       paddingHorizontal={16}
-      paddingVertical="$1"
+      paddingVertical="$2"
       onPress={() => {
         navigate({key: 'document', id})
       }}
-      h={68}
+      h="auto"
       marginVertical={margin ? '$1' : undefined}
       ai="center"
     >
@@ -406,9 +402,6 @@ export function LibraryDocumentItem({
             {getMetadataName(metadata)}
           </SizableText>
           {item.activitySummary && (
-            <LibraryEntryTime activitySummary={item.activitySummary} />
-          )}
-          {item.activitySummary && (
             <LibraryEntryCommentCount activitySummary={item.activitySummary} />
           )}
           <LibraryEntryAuthors
@@ -431,7 +424,7 @@ export function LibraryDocumentItem({
 function LibraryEntryTime({
   activitySummary,
 }: {
-  activitySummary: PlainMessage<ActivitySummary>
+  activitySummary: HMActivitySummary
 }) {
   const latestChangeTime = normalizeDate(activitySummary?.latestChangeTime)
   const latestCommentTime = normalizeDate(activitySummary?.latestCommentTime)
@@ -443,8 +436,8 @@ function LibraryEntryTime({
       : latestChangeTime
   if (displayTime) {
     return (
-      <SizableText flexShrink={0} numberOfLines={1} size="$1">
-        {formattedDate(displayTime)}
+      <SizableText flexShrink={0} numberOfLines={1} size="$1" color="$color9">
+        ({formattedDate(displayTime)})
       </SizableText>
     )
   }
@@ -456,7 +449,7 @@ function LibraryEntryUpdateSummary({
   accountsMetadata,
   latestComment,
 }: {
-  activitySummary: PlainMessage<ActivitySummary>
+  activitySummary: HMActivitySummary
   accountsMetadata: AccountsMetadata | undefined
   latestComment: HMComment | undefined | null
 }) {
@@ -483,13 +476,16 @@ function LibraryEntryUpdateSummary({
     }
   }
   return (
-    <SizableText numberOfLines={1} size="$1">
-      {summaryText}
-    </SizableText>
+    <XStack gap="$2">
+      <SizableText numberOfLines={1} size="$1" color="$color9">
+        {summaryText}
+      </SizableText>
+      <LibraryEntryTime activitySummary={activitySummary} />
+    </XStack>
   )
 }
 
-function plainTextOfContent(content: PlainMessage<BlockNode>[]): string {
+function plainTextOfContent(content: HMBlockNode[]): string {
   // todo, make this better
   return content.map((block) => block.block?.text).join(' ')
 }
@@ -499,7 +495,7 @@ function LibraryEntryBreadcrumbs({
   onNavigate,
   id,
 }: {
-  breadcrumbs: PlainMessage<Breadcrumb>[]
+  breadcrumbs: HMBreadcrumb[]
   onNavigate: (route: DocumentRoute) => void
   id: UnpackedHypermediaId
 }) {
@@ -550,7 +546,7 @@ function LibraryEntryBreadcrumbs({
 function LibraryEntryCommentCount({
   activitySummary,
 }: {
-  activitySummary: PlainMessage<ActivitySummary>
+  activitySummary: HMActivitySummary
 }) {
   const commentCount = activitySummary?.commentCount
   if (!commentCount) return null
@@ -566,7 +562,7 @@ function LibraryEntryAuthors({
   item,
   accountsMetadata,
 }: {
-  item: PlainMessage<DocumentInfo>
+  item: HMDocumentInfo
   accountsMetadata: AccountsMetadata
 }) {
   const {authors} = item

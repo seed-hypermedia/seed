@@ -1,14 +1,15 @@
 import {useGRPCClient} from '@/app-context'
-import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
+import {toPlainMessage} from '@bufbuild/protobuf'
 import {
-  Account,
   BIG_INT,
-  DocumentInfo,
+  HMAccount,
   HMComment,
   HMDocument,
+  HMDocumentInfo,
   HMDraft,
   hmId,
   HMMetadata,
+  HMMetadataPayload,
   queryKeys,
   UnpackedHypermediaId,
   unpackHmId,
@@ -71,18 +72,18 @@ function isSubscribedBy(
 
 export type ClassicLibrarySite = {
   entityUid: string
-  items: PlainMessage<DocumentInfo>[]
-  homeItem: PlainMessage<DocumentInfo> | null
+  items: HMDocumentInfo[]
+  homeItem: HMDocumentInfo | null
 }
 
 export type AccountsMetadata = Record<string, HMMetadataPayload>
 
-export type LibrarySite = PlainMessage<Account> & {
+export type LibrarySite = HMAccount & {
   type: 'site'
   latestComment?: HMComment | null
 }
 
-export type LibraryDocument = PlainMessage<DocumentInfo> & {
+export type LibraryDocument = HMDocumentInfo & {
   type: 'document'
   latestComment?: HMComment | null
 }

@@ -1,7 +1,10 @@
 import {PlainMessage} from '@bufbuild/protobuf'
 import type {
+  Account,
+  ActivitySummary,
   Block,
   BlockNode,
+  Breadcrumb,
   Comment,
   DeletedEntity,
   Document,
@@ -468,7 +471,15 @@ export type HMDraft = {
   lastUpdateTime: number // ms
 }
 
-export type HMComment = PlainMessage<Comment>
+export type HMComment = Omit<PlainMessage<Comment>, 'content'> & {
+  content: HMBlockNode[]
+}
+
+export type HMBreadcrumb = PlainMessage<Breadcrumb>
+
+export type HMActivitySummary = PlainMessage<ActivitySummary>
+
+export type HMAccount = PlainMessage<Account>
 
 export type HMCommentGroup = {
   comments: HMComment[]
