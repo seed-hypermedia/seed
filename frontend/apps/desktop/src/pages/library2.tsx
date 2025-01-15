@@ -18,7 +18,7 @@ import {
   DocumentInfo,
   DocumentRoute,
   entityQueryPathToHmIdPath,
-  formattedDateMedium,
+  formattedDate,
   getMetadataName,
   HMComment,
   hmId,
@@ -444,7 +444,7 @@ function LibraryEntryTime({
   if (displayTime) {
     return (
       <SizableText flexShrink={0} numberOfLines={1} size="$1">
-        {formattedDateMedium(displayTime)}
+        {formattedDate(displayTime)}
       </SizableText>
     )
   }
@@ -503,7 +503,7 @@ function LibraryEntryBreadcrumbs({
   onNavigate: (route: DocumentRoute) => void
   id: UnpackedHypermediaId
 }) {
-  const displayCrumbs = breadcrumbs.slice(1, -1)
+  const displayCrumbs = breadcrumbs.slice(1).filter((crumb) => !!crumb.name)
   if (!displayCrumbs.length) return null
   return (
     <XStack>
@@ -557,9 +557,7 @@ function LibraryEntryCommentCount({
   return (
     <XStack gap="$1" ai="center">
       <MessageSquare size={16} />
-      <SizableText size="$2" fontWeight="bold">
-        {commentCount}
-      </SizableText>
+      <SizableText size="$1">{commentCount}</SizableText>
     </XStack>
   )
 }
