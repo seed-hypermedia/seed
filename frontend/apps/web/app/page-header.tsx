@@ -49,7 +49,6 @@ export function PageHeader({
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata]);
   const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata]);
   const isHomeDoc = useMemo(() => docId?.id == homeId?.id, [docId, homeId]);
-  console.log("== authors", authors);
   return (
     <YStack id="page-header">
       <Container
