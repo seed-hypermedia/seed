@@ -98,13 +98,17 @@ export async function getBaseDocument(
       return await getMetadata(hmId("d", authorUid));
     })
   );
-
+  const refs = extractRefs(document.content);
   let supportDocuments: {id: UnpackedHypermediaId; document: HMDocument}[] = (
     await Promise.all(
-      extractRefs(document.content).map(async (ref) => {
-        const doc = await getHMDocument(ref.refId);
-        if (!doc) return null;
-        return {document: doc, id: ref.refId};
+      refs.map(async (ref) => {
+        try {
+          const doc = await getHMDocument(ref.refId);
+          if (!doc) return null;
+          return {document: doc, id: ref.refId};
+        } catch (e) {
+          console.error("error fetching supportDocument", ref, e);
+        }
       })
     )
   ).filter((doc) => !!doc);

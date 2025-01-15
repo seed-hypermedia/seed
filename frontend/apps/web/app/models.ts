@@ -1,29 +1,27 @@
 import {useFetcher} from "@remix-run/react";
 import {packHmId, UnpackedHypermediaId} from "@shm/shared";
+import {useQuery} from "@tanstack/react-query";
 import {useEffect} from "react";
-import {WebBaseDocumentPayload} from "./loaders";
 import {HMDocumentChangeInfo} from "./routes/hm.api.changes";
 import {unwrap} from "./wrapping";
 
 export function useEntity(id: UnpackedHypermediaId | undefined) {
-  const fetcher = useFetcher();
-  useEffect(() => {
-    if (!id?.uid) return;
-    const queryString = new URLSearchParams({
-      v: id.version || "",
-      l: id.latest ? "true" : "",
-    }).toString();
-    const url = `/hm/api/entity/${id.uid}${
-      id.path ? `/${id.path.join("/")}` : ""
-    }?${queryString}`;
-
-    fetcher.load(url);
-  }, [id?.uid, id?.path?.join("/"), id?.version, id?.latest]);
-
-  return {
-    data: fetcher.data ? unwrap<WebBaseDocumentPayload>(fetcher.data) : null,
-    isLoading: fetcher.state === "loading",
-  };
+  return useQuery({
+    queryKey: ["entity", id?.id, id?.version, id?.latest],
+    useErrorBoundary: false,
+    queryFn: async () => {
+      if (!id?.uid) return;
+      const queryString = new URLSearchParams({
+        v: id.version || "",
+        l: id.latest ? "true" : "",
+      }).toString();
+      const url = `/hm/api/entity/${id.uid}${
+        id.path ? `/${id.path.join("/")}` : ""
+      }?${queryString}`;
+      const response = await fetch(url);
+      return await response.json();
+    },
+  });
 }
 
 export function useDocumentChanges(id: UnpackedHypermediaId | undefined) {
