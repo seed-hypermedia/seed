@@ -5,6 +5,8 @@ on:
   release:
     types:
       - published
+      - edited
+      - released
 
 jobs:
   handle-latest-release:
