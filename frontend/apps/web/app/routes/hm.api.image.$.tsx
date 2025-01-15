@@ -1,5 +1,5 @@
 import {LoaderFunction} from "@remix-run/node";
-import {DAEMON_HTTP_PORT} from "@shm/shared";
+import {DAEMON_HTTP_URL} from "@shm/shared";
 import fs from "fs/promises";
 import path from "path";
 import sharp from "sharp";
@@ -45,7 +45,7 @@ export const loader: LoaderFunction = async ({params, request}) => {
 
   try {
     // Fetch the original image from the daemon
-    const imageUrl = `http://localhost:${DAEMON_HTTP_PORT}/${CID}`;
+    const imageUrl = `${DAEMON_HTTP_URL}/ipfs/${CID}`;
     const response = await fetch(imageUrl);
     if (!response.ok) {
       throw new Error(`Failed to fetch image from ${imageUrl}`);
