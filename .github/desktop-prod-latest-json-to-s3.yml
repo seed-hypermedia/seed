@@ -1,0 +1,34 @@
+name: Run on Release Published
+
+on:
+  release:
+    types:
+      - published
+
+jobs:
+  handle-latest-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out the repository code
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Step 2: Print release details
+      - name: Print Release Info
+        env:
+          RELEASE_NAME: ${{ github.event.release.name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          IS_PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          echo "Release Name: $RELEASE_NAME"
+          echo "Release Tag: $RELEASE_TAG"
+          echo "Is Pre-release: $IS_PRERELEASE"
+
+      # Step 3: Add your custom logic here
+      # Example: Notify an external service or perform a specific action
+      # - name: Notify External Service
+      #   run: |
+      #     curl -X POST -H "Content-Type: application/json" \
+      #     -d '{"release_name": "${{ github.event.release.name }}", "release_tag": "${{ github.event.release.tag_name }}"}' \
+      #     https://example.com/webhook
