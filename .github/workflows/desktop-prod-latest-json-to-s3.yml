@@ -1,6 +1,7 @@
 name: Run on Release Published
 
 on:
+  workflow_dispatch:
   release:
     types:
       - published
@@ -12,7 +13,9 @@ jobs:
     steps:
       # Step 1: Check out the repository code
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # Step 2: Print release details
       - name: Print Release Info
