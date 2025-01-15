@@ -387,7 +387,7 @@ export function LibraryDocumentItem({
       ai="center"
     >
       <SelectionCollapseButton isCollapsed={null} docId={id.id} />
-      <HMIcon id={id} metadata={metadata} />
+      <View width={32} />
 
       <YStack f={1}>
         <LibraryEntryBreadcrumbs
