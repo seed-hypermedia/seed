@@ -9114,7 +9114,7 @@ __metadata:
     cheerio: 1.0.0-rc.12
     console-log-colors: 0.4.0
     copy-text-to-clipboard: 3.1.0
-    electron: 33.2.1
+    electron: 34.0.0
     electron-context-menu: 3.6.1
     electron-playwright-helpers: 1.6.0
     electron-squirrel-startup: 1.0.1
@@ -9167,12 +9167,12 @@ __metadata:
     unified: 10.1.2
     update-electron-app: 3.0.0
     use-prefers-color-scheme: 1.1.3
-    vite: 6.0.3
-    vite-tsconfig-paths: 4.2.0
+    vite: 6.0.7
+    vite-tsconfig-paths: 5.1.4
     vitest: 0.34.2
     winston: 3.11.0
     winston-daily-rotate-file: 4.7.1
-    xstate: 5.18.2
+    xstate: 5.19.2
     xvfb-maybe: 0.2.1
     y-prosemirror: 1.2.1
     y-protocols: 1.0.5
@@ -9219,7 +9219,7 @@ __metadata:
     react-tweet: 3.2.0
     typescript: 5.5.2
     vitest: 0.34.2
-    xstate: 5.18.2
+    xstate: 5.19.2
   languageName: unknown
   linkType: soft
 
@@ -9290,11 +9290,11 @@ __metadata:
     superjson: 2.2.1
     tamagui: 1.108.2
     typescript: 5.5.2
-    vite: 6.0.3
+    vite: 6.0.7
     vite-bundle-analyzer: 0.9.2
     vite-plugin-commonjs: 0.10.1
     vite-plugin-replace: 0.1.1
-    vite-tsconfig-paths: 4.3.2
+    vite-tsconfig-paths: 5.1.4
     zod: 3.22.2
   languageName: unknown
   linkType: soft
@@ -17261,16 +17261,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron@npm:33.2.1":
-  version: 33.2.1
-  resolution: "electron@npm:33.2.1"
+"electron@npm:34.0.0":
+  version: 34.0.0
+  resolution: "electron@npm:34.0.0"
   dependencies:
     "@electron/get": ^2.0.0
     "@types/node": ^20.9.0
     extract-zip: ^2.0.1
   bin:
     electron: cli.js
-  checksum: c5b7d5fe56f831da5d14be9d24d0a29fdb392d5b4e593b31200a9c01e6260d87bba1216c4cc17297b2f4838e0893428464b9e2ca71c3eaff499dbff1981c0670
+  checksum: 0ee9a4bb3444cf13f8d0eeef928f9d8feee33d919c414672d794d6332d81fe3740c781060eba5374417742dd9f8159da2050c0fc14fac64d143be8ccb53e280c
   languageName: node
   linkType: hard
 
@@ -17851,7 +17851,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"esbuild@npm:^0.24.0":
+"esbuild@npm:^0.24.2":
   version: 0.24.2
   resolution: "esbuild@npm:0.24.2"
   dependencies:
@@ -30724,20 +30724,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tsconfck@npm:^2.1.0":
-  version: 2.1.2
-  resolution: "tsconfck@npm:2.1.2"
-  peerDependencies:
-    typescript: ^4.3.5 || ^5.0.0
-  peerDependenciesMeta:
-    typescript:
-      optional: true
-  bin:
-    tsconfck: bin/tsconfck.js
-  checksum: 6fd2f7de012a724f6b4bf48ae76cc7dae2b59dd5cad2dc50bac58d224d4ed7d5c43c6b26e55d3e00636f426f8b5373c996523d73b7830d05f8479a9b83282192
-  languageName: node
-  linkType: hard
-
 "tsconfck@npm:^3.0.3":
   version: 3.1.4
   resolution: "tsconfck@npm:3.1.4"
@@ -32034,25 +32020,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vite-tsconfig-paths@npm:4.2.0":
-  version: 4.2.0
-  resolution: "vite-tsconfig-paths@npm:4.2.0"
-  dependencies:
-    debug: ^4.1.1
-    globrex: ^0.1.2
-    tsconfck: ^2.1.0
-  peerDependencies:
-    vite: "*"
-  peerDependenciesMeta:
-    vite:
-      optional: true
-  checksum: 73a8467de72d7ac502328454fd00c19571cd4bad2dd5982643b24718bb95e449a3f4153cfc2d58a358bfc8f37e592fb442fc10884b59ae82138c1329160cd952
-  languageName: node
-  linkType: hard
-
-"vite-tsconfig-paths@npm:4.3.2":
-  version: 4.3.2
-  resolution: "vite-tsconfig-paths@npm:4.3.2"
+"vite-tsconfig-paths@npm:5.1.4":
+  version: 5.1.4
+  resolution: "vite-tsconfig-paths@npm:5.1.4"
   dependencies:
     debug: ^4.1.1
     globrex: ^0.1.2
@@ -32062,7 +32032,7 @@ __metadata:
   peerDependenciesMeta:
     vite:
       optional: true
-  checksum: 7105ff641379f9f7055110f33067b236c8ee71b1390c0e6482412cdcc7a98c2e139c1c2a483d14fe9045d1977c14dc931e1ff302d6257ec919c70379db9d2419
+  checksum: 9d868fcad7ac59049c08ce60f65a0e1b1caebb3d849c60ebe6ed47645255007fd8275c22a42155666fd76ee947bc36481d83c0527b2d9fa45ccafac4dbf99722
   languageName: node
   linkType: hard
 
@@ -32106,11 +32076,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vite@npm:6.0.3":
-  version: 6.0.3
-  resolution: "vite@npm:6.0.3"
+"vite@npm:6.0.7":
+  version: 6.0.7
+  resolution: "vite@npm:6.0.7"
   dependencies:
-    esbuild: ^0.24.0
+    esbuild: ^0.24.2
     fsevents: ~2.3.3
     postcss: ^8.4.49
     rollup: ^4.23.0
@@ -32154,7 +32124,7 @@ __metadata:
       optional: true
   bin:
     vite: bin/vite.js
-  checksum: b6738c1f78dbd58bc4d56cb3aba96d4fabc095c61633bbeff8778fd5ab72c4040eda2609a10d4163553b52b5481ed2f8bb6eba862798ed8b8320d60d5d29a4e6
+  checksum: 0a948bcd33cf1891a1079ccea6d7e2d1e030ed5d1ad86c9de41a5cb2935da50f77ef699a57ea12fa4a332d9def5494e80d75ea6504758d9d1d9a139f3c1c7fbe
   languageName: node
   linkType: hard
 
@@ -33043,10 +33013,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"xstate@npm:5.18.2":
-  version: 5.18.2
-  resolution: "xstate@npm:5.18.2"
-  checksum: cf131c38986bcb27ebd9467615e0a7b68ee1334fab2aa092917cae6041e604e5ef93ada41fb289094e7533513b3e5663f3595295d9a9b39251027382d6594cc3
+"xstate@npm:5.19.2":
+  version: 5.19.2
+  resolution: "xstate@npm:5.19.2"
+  checksum: 161d457e3b648bad17c7c434b8f1b06cb3f3880c76dca987b6c69b7dc6c1cec84315017ae6fdab95b0c08f0129e4c0e7b939ce6749cd06e5df55d7221920038b
   languageName: node
   linkType: hard
 
