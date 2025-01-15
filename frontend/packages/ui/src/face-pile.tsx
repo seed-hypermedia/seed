@@ -1,18 +1,12 @@
-import {HMMetadata} from "@shm/shared/src/hm-types";
-import {UnpackedHypermediaId} from "@shm/shared/src/utils/entity-id-url";
+import {HMMetadataPayload} from "@shm/shared/src/hm-types";
 import {Text} from "@tamagui/core";
 import {XStack} from "@tamagui/stacks";
 import {useMemo} from "react";
 import {HMIcon} from "./hm-icon";
 
-export type AccountMetadata = {
-  id: UnpackedHypermediaId;
-  metadata?: HMMetadata;
-};
-
 export type AccountsMetadata = Record<
   string, // account uid
-  AccountMetadata
+  HMMetadataPayload
 >;
 
 export function FacePile({

@@ -75,12 +75,7 @@ export type ClassicLibrarySite = {
   homeItem: PlainMessage<DocumentInfo> | null
 }
 
-export type AccountMetadata = {
-  id: UnpackedHypermediaId
-  metadata?: HMMetadata
-}
-
-export type AccountsMetadata = AccountMetadata[]
+export type AccountsMetadata = Record<string, HMMetadataPayload>
 
 export type LibrarySite = PlainMessage<Account> & {
   type: 'site'

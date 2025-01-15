@@ -21,7 +21,7 @@ import {Button} from "@tamagui/button";
 import {Separator} from "@tamagui/separator";
 import {XStack, YStack} from "@tamagui/stacks";
 import {H1, SizableText} from "@tamagui/text";
-import {useMemo, useState} from "react";
+import {ReactNode, useMemo, useState} from "react";
 import {ScrollView} from "react-native";
 import {getHref} from "./href";
 import {useDocumentChanges, useEntity} from "./models";
@@ -49,7 +49,7 @@ export function PageHeader({
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata]);
   const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata]);
   const isHomeDoc = useMemo(() => docId?.id == homeId?.id, [docId, homeId]);
-
+  console.log("== authors", authors);
   return (
     <YStack id="page-header">
       <Container
@@ -145,8 +145,8 @@ export function SiteHeader(props: {
   docId: UnpackedHypermediaId | null;
   openSheet?: () => void;
   supportQueries?: HMQueryResult[];
-  children: React.JSX.Element;
-  mobileSearchUI?: React.ReactNode;
+  children: ReactNode;
+  mobileSearchUI?: ReactNode;
   isWeb?: boolean;
 }) {
   if (props.homeMetadata?.layout === "Seed/Experimental/Newspaper") {

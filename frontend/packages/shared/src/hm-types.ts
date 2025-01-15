@@ -478,10 +478,9 @@ export type HMCommentGroup = {
 
 export type HMBlockType = HMBlock['type']
 
-export type HMDocumentInfo = Omit<
-  PlainMessage<DocumentInfo>,
-  'path'
-> & {path: string[]}
+export type HMDocumentInfo = Omit<PlainMessage<DocumentInfo>, 'path'> & {
+  path: string[]
+}
 
 export type HMQueryResult = {
   in: UnpackedHypermediaId
@@ -515,5 +514,5 @@ export type HMWallet = {
 
 export type HMMetadataPayload = {
   id: UnpackedHypermediaId
-  metadata: HMMetadata
+  metadata?: HMMetadata
 }

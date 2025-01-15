@@ -116,10 +116,10 @@ export function DocumentPage(props: SiteDocumentPayload) {
     homeId,
     homeMetadata,
     id,
-    authors,
     siteHost,
     supportDocuments,
     supportQueries,
+    accountsMetadata,
   } = props;
   if (!id) return <NotFoundPage {...props} />;
   if (!document)
@@ -215,7 +215,9 @@ export function DocumentPage(props: SiteDocumentPayload) {
               breadcrumbs={props.breadcrumbs}
               docMetadata={document.metadata}
               docId={id}
-              authors={authors}
+              authors={document.authors.map(
+                (author) => accountsMetadata[author]
+              )}
               updateTime={document.updateTime}
             />
             <WebDocContentProvider
