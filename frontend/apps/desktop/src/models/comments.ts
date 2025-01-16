@@ -248,7 +248,7 @@ export function useCommentEditor(
       grpcClient,
       openUrl,
       gwUrl,
-      checkWebUrl: checkWebUrl.mutate,
+      checkWebUrl: checkWebUrl.mutateAsync,
     },
 
     onEditorReady: (e) => {

@@ -197,7 +197,7 @@ export const Link = Mark.create<LinkOptions>({
     }
     plugins.push(
       pasteHandler({
-        client: (this.options as any).queryClient,
+        // client: (this.options as any).queryClient,
         grpcClient: (this.options as any).grpcClient,
         gwUrl: (this.options as any).gwUrl,
         editor: this.editor,
