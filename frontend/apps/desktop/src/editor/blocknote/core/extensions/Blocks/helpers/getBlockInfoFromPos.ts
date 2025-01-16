@@ -1,4 +1,4 @@
-import {ResolvedPos} from '@tiptap/pm/model'
+import {NodeType, ResolvedPos} from '@tiptap/pm/model'
 import {Node} from 'prosemirror-model'
 import {EditorState} from 'prosemirror-state'
 
@@ -134,7 +134,7 @@ export type BlockInfo = {
    * The type of BlockNote block that this node represents.
    * When dealing with a blockContainer, this is retrieved from the blockContent node, otherwise it's retrieved from the block node.
    */
-  blockNoteType: string
+  blockContentType: string
   /**
    * The Prosemirror node that holds block.children. For blockContainers, this is the blockGroup node, if it exists.
    */
@@ -278,7 +278,7 @@ export function getBlockInfoWithManualOffset(
     block,
     blockContent,
     childContainer: blockGroup,
-    blockNoteType: blockContent.node.type.name,
+    blockContentType: blockContent.node.type.name,
   }
 }
 

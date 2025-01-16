@@ -1,9 +1,5 @@
 import {EditorState} from 'prosemirror-state'
-import {
-  getBlockInfoFromPos,
-  getBlockInfoFromResolvedPos,
-  getNearestBlockPos,
-} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
+import {getBlockInfoFromPos} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
 
 export const splitBlockCommand = (
   posInBlock: number,
@@ -17,14 +13,14 @@ export const splitBlockCommand = (
     state: EditorState
     dispatch: ((args?: any) => any) | undefined
   }) => {
-    const blockInfo = getBlockInfoFromPos(state.doc, posInBlock)
-    const newBlockInfo = getBlockInfoFromResolvedPos(
-      state.doc.resolve(
-        getNearestBlockPos(state.doc, posInBlock).posBeforeNode,
-      ),
-    )
+    const blockInfo = getBlockInfoFromPos(state, posInBlock)
+    // const newBlockInfo = getBlockInfoFromResolvedPos(
+    //   state.doc.resolve(
+    //     getNearestBlockPos(state.doc, posInBlock).posBeforeNode,
+    //   ),
+    // )
 
-    if (blockInfo.node.type.name !== 'blockContainer') {
+    if (blockInfo.block.node.type.name !== 'blockContainer') {
       throw new Error(
         `BlockContainer expected when calling splitBlock, position ${posInBlock}`,
       )
@@ -32,18 +28,20 @@ export const splitBlockCommand = (
 
     const types = [
       {
-        type: blockInfo.node.type, // always keep blockcontainer type
-        attrs: keepProps ? {...blockInfo.node.attrs, id: undefined} : {},
+        type: blockInfo.block.node.type, // always keep blockcontainer type
+        attrs: keepProps ? {...blockInfo.block.node.attrs, id: undefined} : {},
       },
       {
         type: keepType
-          ? blockInfo.contentNode.type
+          ? blockInfo.blockContent.node.type
           : state.schema.nodes['paragraph'],
-        attrs: keepProps ? {...blockInfo.contentNode.attrs} : {},
+        attrs: keepProps ? {...blockInfo.blockContent.node.attrs} : {},
       },
     ]
 
     if (dispatch) {
+      const $pos = state.doc.resolve(posInBlock)
+      console.log($pos.parent)
       state.tr.split(posInBlock, 2, types)
     }
 

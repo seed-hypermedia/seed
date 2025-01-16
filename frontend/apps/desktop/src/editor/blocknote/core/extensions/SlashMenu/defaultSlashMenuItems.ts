@@ -16,7 +16,7 @@ export function insertOrUpdateBlock<BSchema extends BlockSchema>(
       currentBlock.content[0].text === '/') ||
     currentBlock.content.length === 0
   ) {
-    editor.newUpdateBlock(currentBlock, block)
+    editor.updateBlock(currentBlock, block)
     if (isNode) {
       const cursorPosition = editor.getTextCursorPosition()
       editor.focus()

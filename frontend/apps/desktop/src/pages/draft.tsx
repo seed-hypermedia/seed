@@ -433,12 +433,12 @@ function DocumentEditor({
                     }
                   }
 
-                  const blockInfo = getBlockInfoFromPos(state.doc, pos)
+                  const blockInfo = getBlockInfoFromPos(state, pos)
 
                   if (index === 0) {
                     ;(editor as BlockNoteEditor).insertBlocks(
                       [blockNode],
-                      blockInfo.id,
+                      blockInfo.block.node.attrs.id,
                       // blockInfo.node.textContent ? 'after' : 'before',
                       'after',
                     )

@@ -9,7 +9,10 @@ import {
   TextSelection,
 } from 'prosemirror-state'
 import {findNextBlock, findPreviousBlock} from '../../../../block-utils'
-import {getBlockInfoFromPos} from '../Blocks/helpers/getBlockInfoFromPos'
+import {
+  getBlockInfoFromPos,
+  getBlockInfoFromSelection,
+} from '../Blocks/helpers/getBlockInfoFromPos'
 
 const selectableNodeTypes = [
   'image',
@@ -110,15 +113,15 @@ export const BlockManipulationExtension = Extension.create({
                 const $pos = selection.$anchor
                 const isEnd = $pos.pos === $pos.end()
                 if (isEnd) {
-                  const node = getBlockInfoFromPos(doc, $pos.pos)
-                  if (node.contentNode.textContent.length === 0) {
+                  const blockInfo = getBlockInfoFromPos(state, $pos.pos)
+                  if (blockInfo.blockContent.node.textContent.length === 0) {
                     tr.deleteRange($pos.start() - 1, $pos.end() + 1)
                     view.dispatch(tr)
                     return true
                   }
                   let $nextPos: ResolvedPos | undefined
                   let nextNode
-                  if (node.numChildBlocks > 0) {
+                  if (blockInfo.childContainer?.node.childCount) {
                     $nextPos = doc.resolve($pos.after() + 3)
                     nextNode = $nextPos.parent
                   } else {
@@ -138,15 +141,16 @@ export const BlockManipulationExtension = Extension.create({
                       return false
                     }
                     const mergedTextContent =
-                      node.contentNode.textContent + nextNode.textContent
+                      blockInfo.blockContent.node.textContent +
+                      nextNode.textContent
                     const newNode = view.state.schema.node(
-                      node.contentType.name,
-                      node.contentNode.attrs,
+                      blockInfo.blockContentType,
+                      blockInfo.blockContent.node.attrs,
                       view.state.schema.text(
                         mergedTextContent,
-                        node.contentNode.lastChild?.marks,
+                        blockInfo.blockContent.node.lastChild?.marks,
                       ),
-                      node.contentNode.marks,
+                      blockInfo.blockContent.node.marks,
                     )
                     tr.deleteRange(
                       $nextPos.start() - 1,
@@ -163,14 +167,14 @@ export const BlockManipulationExtension = Extension.create({
               }
             } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
               let hasHardBreak = false
-              const blockInfo = getBlockInfoFromPos(
-                state.doc,
-                state.selection.from,
-              )!
+              const blockInfo = getBlockInfoFromSelection(state)
               // Find if the selected node has break line and check if the selection's from position is before or after the hard break
-              blockInfo.contentNode.content.descendants((node, pos) => {
+              blockInfo.blockContent.node.content.descendants((node, pos) => {
                 if (node.type.name === 'hardBreak') {
-                  if (blockInfo.startPos + pos + 1 < state.selection.from) {
+                  if (
+                    blockInfo.block.beforePos + pos + 2 <
+                    state.selection.from
+                  ) {
                     hasHardBreak = true
                     return
                   }
@@ -187,16 +191,14 @@ export const BlockManipulationExtension = Extension.create({
                 const prevNode = prevBlock.firstChild!
                 const prevNodePos = prevBlockPos + 1
                 if (event.shiftKey) {
-                  const blockInfoAtSelectionStart = getBlockInfoFromPos(
-                    state.doc,
-                    state.selection.from,
-                  )
+                  const blockInfoAtSelectionStart =
+                    getBlockInfoFromSelection(state)
                   if (event.key === 'ArrowLeft') {
                     if (
                       (state.selection.from - 1 !==
-                        blockInfoAtSelectionStart.startPos &&
+                        blockInfoAtSelectionStart.block.beforePos + 1 &&
                         !selectableNodeTypes.includes(
-                          blockInfoAtSelectionStart.contentType.name,
+                          blockInfoAtSelectionStart.blockContentType,
                         )) ||
                       !selectableNodeTypes.includes(
                         prevBlock.firstChild!.type.name,
@@ -216,13 +218,11 @@ export const BlockManipulationExtension = Extension.create({
                   return true
                 }
                 if (event.key === 'ArrowLeft') {
-                  const blockInfo = getBlockInfoFromPos(
-                    state.doc,
-                    state.selection.from,
-                  )!
+                  const blockInfo = getBlockInfoFromSelection(state)
+
                   if (
                     state.selection.$anchor.parentOffset !== 0 &&
-                    !selectableNodeTypes.includes(blockInfo.contentType.name)
+                    !selectableNodeTypes.includes(blockInfo.blockContentType)
                   ) {
                     return false
                   }
@@ -236,11 +236,9 @@ export const BlockManipulationExtension = Extension.create({
                 }
               } else {
                 if (event.shiftKey) return false
-                const blockInfo = getBlockInfoFromPos(
-                  state.doc,
-                  state.selection.from,
-                )!
-                if (selectableNodeTypes.includes(blockInfo.contentType.name)) {
+                const blockInfo = getBlockInfoFromSelection(state)
+
+                if (selectableNodeTypes.includes(blockInfo.blockContentType)) {
                   const newBlock =
                     state.schema.nodes['blockContainer'].createAndFill()!
                   let tr = state.tr.insert(1, newBlock)
@@ -260,14 +258,11 @@ export const BlockManipulationExtension = Extension.create({
               event.key === 'ArrowRight'
             ) {
               let lastHardBreakPos: number | null = null
-              const blockInfo = getBlockInfoFromPos(
-                state.doc,
-                state.selection.from,
-              )!
+              const blockInfo = getBlockInfoFromSelection(state)
               // Find the position of last hard break in node content, if any
-              blockInfo.contentNode.content.descendants((node, pos) => {
+              blockInfo.blockContent.node.content.descendants((node, pos) => {
                 if (node.type.name === 'hardBreak') {
-                  lastHardBreakPos = blockInfo.startPos + pos + 1
+                  lastHardBreakPos = blockInfo.block.beforePos + pos + 2
                 }
               })
               // Stop execution and let other handlers be called if selection's to position is before the last hard break pos
@@ -275,26 +270,22 @@ export const BlockManipulationExtension = Extension.create({
                 return false
               const nextBlockInfo = findNextBlock(view, state.selection.from)
               if (nextBlockInfo) {
-                const blockInfo = getBlockInfoFromPos(
-                  state.doc,
-                  state.selection.from,
-                )!
+                const blockInfo = getBlockInfoFromSelection(state)
                 if (event.shiftKey) {
                   const blockInfoAfterSelection = findNextBlock(
                     view,
                     state.selection.to,
                   )
                   if (event.key === 'ArrowRight') {
-                    const lastBlockInSelection = getBlockInfoFromPos(
-                      state.doc,
-                      state.selection.to,
-                    )
+                    const lastBlockInSelection =
+                      getBlockInfoFromSelection(state)
                     if (
                       state.selection.to + 1 !==
-                        lastBlockInSelection.startPos +
-                          lastBlockInSelection.contentNode.nodeSize &&
+                        lastBlockInSelection.block.beforePos +
+                          1 +
+                          lastBlockInSelection.blockContent.node.nodeSize &&
                       !selectableNodeTypes.includes(
-                        lastBlockInSelection.contentType.name,
+                        lastBlockInSelection.blockContentType,
                       )
                     ) {
                       return false
@@ -326,8 +317,10 @@ export const BlockManipulationExtension = Extension.create({
                 if (event.key === 'ArrowRight') {
                   if (
                     state.selection.$anchor.pos + 1 !==
-                      blockInfo.startPos + blockInfo.contentNode.nodeSize &&
-                    !selectableNodeTypes.includes(blockInfo.contentType.name)
+                      blockInfo.block.beforePos +
+                        1 +
+                        blockInfo.blockContent.node.nodeSize &&
+                    !selectableNodeTypes.includes(blockInfo.blockContentType)
                   ) {
                     return false
                   }

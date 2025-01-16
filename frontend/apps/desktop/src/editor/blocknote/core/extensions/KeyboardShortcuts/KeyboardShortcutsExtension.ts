@@ -448,6 +448,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
             // if selection is not in the beginning of the heading and is a heading,
             // we need to check what we need to do
             if (!selectionAtBlockStart && contentNode.type.name == 'heading') {
+              console.log('here???')
               chain()
                 .deleteSelection()
                 .BNSplitHeadingBlock(state.selection.from)

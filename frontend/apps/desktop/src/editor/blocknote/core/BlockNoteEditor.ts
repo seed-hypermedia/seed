@@ -8,7 +8,6 @@ import {
   // insertBlocks,
   removeBlocks,
   replaceBlocks,
-  updateBlock,
 } from './api/blockManipulation/blockManipulation'
 import {
   HTMLToBlocks,
@@ -43,7 +42,7 @@ import {HMBlockSchema, hmBlockSchema} from '../../schema'
 import {insertBlocks} from './api/blockManipulation/commands/insertBlocks'
 import {newRemoveBlocks} from './api/blockManipulation/commands/removeBlocks'
 import {newReplaceBlocks} from './api/blockManipulation/commands/replaceBlocks'
-import {newUpdateBlock} from './api/blockManipulation/commands/updateBlock'
+import {updateBlock} from './api/blockManipulation/commands/updateBlock'
 import {FormattingToolbarProsemirrorPlugin} from './extensions/FormattingToolbar/FormattingToolbarPlugin'
 import {HyperlinkToolbarProsemirrorPlugin} from './extensions/HyperlinkToolbar/HyperlinkToolbarPlugin'
 import {LinkMenuProsemirrorPlugin} from './extensions/LinkMenu/LinkMenuPlugin'
@@ -658,22 +657,22 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     blockToUpdate: BlockIdentifier,
     update: PartialBlock<BSchema>,
   ) {
-    updateBlock(blockToUpdate, update, this._tiptapEditor)
+    return updateBlock(this, blockToUpdate, update)
   }
 
-  /**
-   * Updates an existing block in the editor. Since updatedBlock is a PartialBlock object, some fields might not be
-   * defined. These undefined fields are kept as-is from the existing block. Throws an error if the block to update could
-   * not be found.
-   * @param blockToUpdate The block that should be updated.
-   * @param update A partial block which defines how the existing block should be changed.
-   */
-  public newUpdateBlock(
-    blockToUpdate: BlockIdentifier,
-    update: PartialBlock<BSchema>,
-  ) {
-    return newUpdateBlock(this, blockToUpdate, update)
-  }
+  // /**
+  //  * Updates an existing block in the editor. Since updatedBlock is a PartialBlock object, some fields might not be
+  //  * defined. These undefined fields are kept as-is from the existing block. Throws an error if the block to update could
+  //  * not be found.
+  //  * @param blockToUpdate The block that should be updated.
+  //  * @param update A partial block which defines how the existing block should be changed.
+  //  */
+  // public newUpdateBlock(
+  //   blockToUpdate: BlockIdentifier,
+  //   update: PartialBlock<BSchema>,
+  // ) {
+  //   return newUpdateBlock(this, blockToUpdate, update)
+  // }
 
   /**
    * Removes existing blocks from the editor. Throws an error if any of the blocks could not be found.

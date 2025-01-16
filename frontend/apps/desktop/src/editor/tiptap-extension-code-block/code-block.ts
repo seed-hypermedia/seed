@@ -7,7 +7,11 @@ import {
 } from '@tiptap/core'
 import {Fragment, Slice} from '@tiptap/pm/model'
 import {Plugin, PluginKey, TextSelection} from '@tiptap/pm/state'
-import {BlockNoteDOMAttributes, getBlockInfoFromPos, mergeCSSClasses} from '..'
+import {
+  BlockNoteDOMAttributes,
+  getTestBlockInfoFromPos,
+  mergeCSSClasses,
+} from '..'
 import {getGroupInfoFromPos} from '../blocknote/core/extensions/Blocks/helpers/getGroupInfoFromPos'
 
 declare module '@tiptap/core' {
@@ -151,12 +155,14 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
     function splitCodeBlock(editor: Editor) {
       const {state} = editor
       const codePos = state.doc.resolve(state.selection.$from.pos)
-      const blockInfo = getBlockInfoFromPos(state.doc, codePos.pos)
+      const blockInfo = getTestBlockInfoFromPos(state.doc, codePos.pos)
+      console.log(codePos, codePos.parent, blockInfo)
       if (blockInfo === undefined) {
         return false
       }
 
       const {depth} = blockInfo
+      console.log(depth, codePos.depth)
 
       const originalBlockContent = state.doc.cut(codePos.start(), codePos.pos)
       const newBlockContent = state.doc.cut(codePos.pos, codePos.end())

@@ -134,10 +134,10 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
               }
 
               MarkdownToBlocks(pastedText, bnEditor).then((organizedBlocks) => {
-                const blockInfo = getBlockInfoFromPos(state.doc, selection.from)
+                const blockInfo = getBlockInfoFromPos(state, selection.from)
 
                 bnEditor.replaceBlocks(
-                  [blockInfo.node.attrs.id],
+                  [blockInfo.block.node.attrs.id],
                   // @ts-ignore
                   organizedBlocks,
                 )

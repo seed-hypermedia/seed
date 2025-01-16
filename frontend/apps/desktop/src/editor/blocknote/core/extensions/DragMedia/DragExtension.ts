@@ -113,15 +113,17 @@ export const DragExtension = Extension.create<DragOptions>({
                             }
 
                             const blockInfo = getBlockInfoFromPos(
-                              state.doc,
+                              state,
                               pos.pos,
                             )
 
                             if (index === 0) {
                               this.options.editor.insertBlocks(
                                 [blockNode],
-                                blockInfo.id,
-                                blockInfo.node.textContent ? 'after' : 'before',
+                                blockInfo.block.node.attrs.id,
+                                blockInfo.block.node.textContent
+                                  ? 'after'
+                                  : 'before',
                               )
                             } else {
                               this.options.editor.insertBlocks(

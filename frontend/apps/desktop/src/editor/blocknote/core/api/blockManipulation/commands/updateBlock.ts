@@ -9,7 +9,10 @@ import {
   BlockSchema,
   PartialBlock,
 } from '../../../extensions/Blocks/api/blockTypes'
-import {getBlockInfoFromResolvedPos} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
+import {
+  BlockInfo,
+  getBlockInfoFromResolvedPos,
+} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
 import {UnreachableCaseError} from '../../../shared/utils'
 import {
   blockToNode,
@@ -37,9 +40,9 @@ export const updateBlockCommand =
 
     if (dispatch) {
       // Adds blockGroup node with child blocks if necessary.
-      const oldNodeType = state.schema.nodes[blockInfo.blockNoteType]
+      const oldNodeType = state.schema.nodes[blockInfo.blockContentType]
       const newNodeType =
-        state.schema.nodes[block.type || blockInfo.blockNoteType]
+        state.schema.nodes[block.type || blockInfo.blockContentType]
       const newBlockNodeType = newNodeType.isInGroup('block')
         ? newNodeType
         : state.schema.nodes['blockContainer']
@@ -179,7 +182,7 @@ function updateChildren<BSchema extends BlockSchema>(
   }
 }
 
-export function newUpdateBlock<BSchema extends BlockSchema>(
+export function updateBlock<BSchema extends BlockSchema>(
   editor: BlockNoteEditor<BSchema>,
   blockToUpdate: BlockIdentifier,
   update: PartialBlock<BSchema>,

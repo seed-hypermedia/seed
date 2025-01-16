@@ -6,6 +6,7 @@ import {Decoration, DecorationSet} from 'prosemirror-view'
 import {HMBlockChildrenType} from '@shm/shared'
 import {ResolvedPos} from '@tiptap/pm/model'
 import {EditorView} from '@tiptap/pm/view'
+import {splitBlockCommand} from '../../../api/blockManipulation/commands/splitBlock'
 import {mergeCSSClasses} from '../../../shared/utils'
 import {BlockNoteDOMAttributes} from '../api/blockTypes'
 import {getBlockInfoFromPos} from '../helpers/getBlockInfoFromPos'
@@ -607,32 +608,36 @@ export const BlockContainer = Node.create<{
           if (blockInfo === undefined) {
             return false
           }
-          let {node, startPos, contentNode, depth} = blockInfo
-          if (node.childCount == 1) {
+          let {block, blockContent} = blockInfo
+          if (block.node.childCount == 1) {
             setTimeout(() => {
               this.editor
                 .chain()
                 .deleteSelection()
-                .BNSplitBlock(state.selection.from, false)
+                .command(splitBlockCommand(state.selection.from, false))
                 .sinkListItem('blockContainer')
-                .UpdateGroup(-1, blockInfo.node.attrs.listType, true)
+                .UpdateGroup(-1, blockInfo.block.node.attrs.listType, true)
                 .run()
             })
           } else {
             const originalBlockContent = state.doc.cut(
-              startPos + 1,
+              block.beforePos + 2,
               state.selection.from,
             )
             let newBlockContent = state.doc.cut(
               state.selection.from,
-              startPos + contentNode.nodeSize - 1,
+              block.beforePos + blockContent.node.nodeSize,
             )
             const newBlock =
               state.schema.nodes['blockContainer'].createAndFill()!
-            const newBlockInsertionPos = startPos + contentNode.nodeSize + 1
+            const newBlockInsertionPos =
+              block.beforePos + blockContent.node.nodeSize + 2
             const newBlockContentPos = newBlockInsertionPos + 2
 
             if (dispatch) {
+              // Get the depth ?
+              const depth = state.doc.resolve(posInBlock).depth
+
               // Creates a new block. Since the schema requires it to have a content node, a paragraph node is created
               // automatically, spanning newBlockContentPos to newBlockContentPos + 1.
               state.tr.insert(newBlockInsertionPos, newBlock)
@@ -645,8 +650,8 @@ export const BlockContainer = Node.create<{
                 newBlockContent.content.size > 0
                   ? new Slice(
                       Fragment.from(newBlockContent),
-                      depth + 2,
-                      depth + 2,
+                      depth + 1,
+                      depth + 1,
                     )
                   : undefined,
               )
@@ -657,13 +662,13 @@ export const BlockContainer = Node.create<{
               )
 
               state.tr.replace(
-                startPos + 1,
-                startPos + contentNode.nodeSize - 1,
+                block.beforePos + 2,
+                block.beforePos + blockContent.node.nodeSize,
                 originalBlockContent.content.size > 0
                   ? new Slice(
                       Fragment.from(originalBlockContent),
-                      depth + 2,
-                      depth + 2,
+                      depth + 1,
+                      depth + 1,
                     )
                   : undefined,
               )

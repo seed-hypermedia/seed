@@ -1,10 +1,10 @@
+import { getBlockInfoFromSelection } from '@/editor'
 import {
   Block,
   BlockNoteEditor,
   DefaultBlockSchema,
   defaultProps
 } from '@app/blocknote-core'
-import { getBlockInfoFromPos } from '@app/blocknote-core/extensions/Blocks/helpers/getBlockInfoFromPos'
 import { insertOrUpdateBlock } from '@app/blocknote-core/extensions/SlashMenu/defaultSlashMenuItems'
 import {
   createReactBlockSpec,
@@ -109,17 +109,14 @@ function ImageComponent({
   const selection = tiptapEditor.state.selection
 
   useEffect(() => {
-    const selectedNode = getBlockInfoFromPos(
-      tiptapEditor.state.doc,
-      tiptapEditor.state.selection.from,
-    )
-    if (selectedNode && selectedNode.id) {
+    const {block: selectedNode} = getBlockInfoFromSelection(tiptapEditor.state)
+    if (selectedNode.node.attrs.id) {
       if (
-        selectedNode.id === block.id &&
-        selectedNode.startPos === selection.$anchor.pos
+        selectedNode.node.attrs.id === block.id &&
+        selectedNode.beforePos + 1 === selection.$anchor.pos
       ) {
         setSelected(true)
-      } else if (selectedNode.id !== block.id) {
+      } else if (selectedNode.node.attrs.id !== block.id) {
         setSelected(false)
       }
     }

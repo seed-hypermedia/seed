@@ -527,18 +527,18 @@ export class SideMenuView<BSchema extends BlockSchema> implements PluginView {
     }
 
     const blockInfo = getBlockInfoFromPos(
-      this.editor._tiptapEditor.state.doc,
+      this.editor._tiptapEditor.state,
       pos.pos,
     )
     if (blockInfo === undefined) {
       return
     }
 
-    const {contentNode, endPos} = blockInfo
+    const {blockContent: contentNode, block} = blockInfo
 
     // Creates a new block if current one is not empty for the suggestion menu to open in.
-    if (contentNode.textContent.length !== 0) {
-      const newBlockInsertionPos = endPos + 1
+    if (contentNode.node.textContent.length !== 0) {
+      const newBlockInsertionPos = block.afterPos
       const newBlockContentPos = newBlockInsertionPos + 2
       console.log('here????')
       this.editor._tiptapEditor
@@ -554,7 +554,7 @@ export class SideMenuView<BSchema extends BlockSchema> implements PluginView {
         .setTextSelection(newBlockContentPos)
         .run()
     } else {
-      this.editor._tiptapEditor.commands.setTextSelection(endPos)
+      this.editor._tiptapEditor.commands.setTextSelection(block.afterPos - 1)
     }
 
     // Focuses and activates the suggestion menu.
