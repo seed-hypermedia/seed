@@ -9,8 +9,8 @@ import {updateBlockCommand} from '../../api/blockManipulation/commands/updateBlo
 import {updateGroupChildrenCommand} from '../../api/blockManipulation/commands/updateGroup'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {
+  getBlockInfoFromPos,
   getBlockInfoFromSelection,
-  getTestBlockInfoFromPos,
 } from '../Blocks/helpers/getBlockInfoFromPos'
 import {
   getGroupInfoFromPos,
@@ -42,18 +42,16 @@ export const KeyboardShortcutsExtension = Extension.create<{
           commands.command(({state, dispatch}) => {
             const selectionAtBlockStart =
               state.selection.$anchor.parentOffset === 0
-            const blockInfo = getTestBlockInfoFromPos(
-              state.doc,
-              state.selection.from,
-            )!
+            const blockInfo = getBlockInfoFromSelection(state)
 
-            const isParagraph = blockInfo.contentType.name === 'paragraph'
+            const isParagraph = blockInfo.blockContentType === 'paragraph'
             let parentInfo = getParentBlockFromPos(state, state.selection.from)
 
             if (selectionAtBlockStart && isParagraph && parentInfo) {
               let {parentBlock, parentGroup, parentPos} = parentInfo
               let isFirstChild =
-                blockInfo.node.attrs.id == parentGroup.firstChild?.attrs.id
+                blockInfo.block.node.attrs.id ==
+                parentGroup.firstChild?.attrs.id
               let isParentBlockHeading = parentBlock?.type.name == 'heading'
 
               if (
@@ -64,25 +62,28 @@ export const KeyboardShortcutsExtension = Extension.create<{
                 // parentBlock is defined
                 parentBlock
               ) {
-                const {startPos, node, depth, endPos, contentNode} = blockInfo
+                const {block, blockContent} = blockInfo
 
                 // the position in which we are inserting the current block content
                 const parentInsertPos = parentPos + parentBlock?.nodeSize - 1
 
                 // lift any children of current block (if any)
-                if (node.childCount == 2) {
+                if (block.node.childCount == 2) {
                   // the current block has children, we need to re-parent
                   const childBlocksStart = state.doc.resolve(
-                    startPos + contentNode.nodeSize + 1,
+                    block.beforePos + blockContent.node.nodeSize + 2,
                   )
-                  const childBlocksEnd = state.doc.resolve(endPos - 1)
+                  const childBlocksEnd = state.doc.resolve(block.afterPos - 2)
                   const childBlocksRange =
                     childBlocksStart.blockRange(childBlocksEnd)
 
                   // Moves the block group node inside the block into
                   // the block group node that the current block is in.
                   if (dispatch) {
-                    state.tr.lift(childBlocksRange!, depth - 1)
+                    state.tr.lift(
+                      childBlocksRange!,
+                      state.doc.resolve(state.selection.from).depth - 2,
+                    )
                   }
                 }
 
@@ -90,9 +91,12 @@ export const KeyboardShortcutsExtension = Extension.create<{
                   dispatch(
                     state.tr
                       // delete the current block content
-                      .deleteRange(startPos, startPos + contentNode.nodeSize)
+                      .deleteRange(
+                        block.beforePos + 1,
+                        block.beforePos + blockContent.node.nodeSize + 1,
+                      )
                       // insert the current block content into the parent heading
-                      .insert(parentInsertPos, contentNode.content),
+                      .insert(parentInsertPos, blockContent.node.content),
                   )
 
                   // set the selection to the join between the previous heading content and the new content inserted
@@ -150,27 +154,24 @@ export const KeyboardShortcutsExtension = Extension.create<{
         // If previous block is media, set Node Selection to that block.
         () =>
           commands.command(({state, dispatch, view}) => {
-            const blockInfo = getTestBlockInfoFromPos(
-              state.doc,
-              state.selection.from,
-            )!
-            const prevBlockInfo = getTestBlockInfoFromPos(
-              state.doc,
+            const blockInfo = getBlockInfoFromSelection(state)
+            const prevBlockInfo = getBlockInfoFromPos(
+              state,
               state.selection.$anchor.pos - state.selection.$anchor.depth,
             )
             const selectionAtBlockStart =
               state.selection.$anchor.parentOffset === 0
 
-            const isParagraph = blockInfo.contentType.name === 'paragraph'
+            const isParagraph = blockInfo.blockContentType === 'paragraph'
 
             if (selectionAtBlockStart) {
               if (isParagraph) {
                 // If the selection is inside the image caption, first select the image.
-                if (blockInfo.contentType.name === 'image') {
+                if (blockInfo.blockContentType === 'image') {
                   let tr = state.tr
                   const selection = NodeSelection.create(
                     state.doc,
-                    blockInfo.startPos,
+                    blockInfo.block.beforePos + 1,
                   )
                   tr = tr.setSelection(selection)
                   view.dispatch(tr)
@@ -179,22 +180,26 @@ export const KeyboardShortcutsExtension = Extension.create<{
                 if (!prevBlockInfo) return false
                 if (
                   ['file', 'embed', 'video', 'web-embed', 'math'].includes(
-                    prevBlockInfo.contentType.name,
+                    prevBlockInfo.blockContentType,
                   ) ||
-                  (prevBlockInfo.contentType.name === 'image' &&
-                    prevBlockInfo.contentNode.attrs.url.length === 0)
+                  (prevBlockInfo.blockContentType === 'image' &&
+                    prevBlockInfo.blockContent.node.attrs.url.length === 0)
                 ) {
                   if (dispatch) {
-                    const {startPos, contentNode} = blockInfo
                     state.tr.setSelection(
-                      NodeSelection.create(state.doc, prevBlockInfo.startPos),
+                      NodeSelection.create(
+                        state.doc,
+                        prevBlockInfo.block.beforePos + 1,
+                      ),
                     )
 
                     // Uncomment to not delete the text where the current selection is in.
                     // if (!blockInfo.contentNode.textContent) {
                     state.tr.deleteRange(
-                      startPos,
-                      startPos + contentNode.nodeSize,
+                      blockInfo.block.beforePos + 1,
+                      blockInfo.block.beforePos +
+                        blockInfo.blockContent.node.nodeSize +
+                        1,
                     )
                     // }
                     return true
@@ -224,33 +229,30 @@ export const KeyboardShortcutsExtension = Extension.create<{
         // Note: not sure what this does, I believe Horacio added this code.
         () =>
           commands.command(({state, chain}) => {
-            const blockData = getTestBlockInfoFromPos(
-              state.doc,
-              state.selection.from,
-            )!
+            const blockInfo = getBlockInfoFromSelection(state)
             const groupData = getGroupInfoFromPos(state.selection.from!, state)
             const selectionAtBlockStart =
               state.selection.$anchor.parentOffset === 0
 
-            let prevBlockEndPos = blockData.startPos - 2
-            let prevBlockInfo = getTestBlockInfoFromPos(
-              state.doc,
-              prevBlockEndPos,
-            )
+            let prevBlockEndPos = blockInfo.block.beforePos - 1
+            let prevBlockInfo = getBlockInfoFromPos(state, prevBlockEndPos)
 
             if (
               // selection is at the start of the block
               selectionAtBlockStart &&
               // current block is not empty
-              blockData.node.textContent.length > 0 &&
+              blockInfo.block.node.textContent.length > 0 &&
               // the selected block is not the first block of the child
-              groupData.group.firstChild?.attrs.id != blockData.id &&
+              groupData.group.firstChild?.attrs.id !=
+                blockInfo.block.node.attrs.id &&
               // previous block is a blockContainer
-              prevBlockInfo.node.type.name == 'blockContainer' &&
+              prevBlockInfo.block.node.type.name == 'blockContainer' &&
               // prev block is empty
-              prevBlockInfo.node.textContent.length == 0
+              prevBlockInfo.block.node.textContent.length == 0
             ) {
-              chain().BNDeleteBlock(prevBlockInfo.startPos).run()
+              chain()
+                .BNDeleteBlock(prevBlockInfo.block.beforePos + 1)
+                .run()
 
               return true
             }
@@ -259,20 +261,13 @@ export const KeyboardShortcutsExtension = Extension.create<{
         // Merge block with the previous block, if it is in the middle of a list.
         () =>
           commands.command(({state, commands}) => {
-            const blockData = getBlockInfoFromSelection(state)
-            // getTestBlockInfoFromPos(
-            //   state.doc,
-            //   state.selection.from,
-            // )!
+            const blockInfo = getBlockInfoFromSelection(state)
             const groupData = getGroupInfoFromPos(state.selection.from!, state)
             const selectionAtBlockStart =
               state.selection.$anchor.parentOffset === 0
 
-            let prevBlockEndPos = blockData.block.beforePos
-            let prevBlockInfo = getTestBlockInfoFromPos(
-              state.doc,
-              prevBlockEndPos,
-            )
+            let prevBlockEndPos = blockInfo.block.beforePos
+            let prevBlockInfo = getBlockInfoFromPos(state, prevBlockEndPos)
 
             if (
               // group is not a list or blockquote
@@ -281,12 +276,12 @@ export const KeyboardShortcutsExtension = Extension.create<{
               selectionAtBlockStart &&
               // the selected block is not the first block of the child
               groupData.group.firstChild?.attrs.id !=
-                blockData.block.node.attrs.id &&
+                blockInfo.block.node.attrs.id &&
               // previous block is a blockContainer
-              prevBlockInfo.node.type.name == 'blockContainer'
+              prevBlockInfo.block.node.type.name == 'blockContainer'
             ) {
               return commands.command(
-                mergeBlocksCommand(blockData.block.beforePos),
+                mergeBlocksCommand(blockInfo.block.beforePos),
               )
             }
             return false
@@ -294,18 +289,15 @@ export const KeyboardShortcutsExtension = Extension.create<{
         // Reverts block content type to a paragraph if the selection is at the start of the block.
         () =>
           commands.command(({state}) => {
-            const {startPos, contentType} = getTestBlockInfoFromPos(
-              state.doc,
-              state.selection.from,
-            )!
+            const blockInfo = getBlockInfoFromSelection(state)
 
             const selectionAtBlockStart =
               state.selection.$anchor.parentOffset === 0
-            const isParagraph = contentType.name === 'paragraph'
+            const isParagraph = blockInfo.blockContentType === 'paragraph'
 
             if (selectionAtBlockStart && !isParagraph) {
               return commands.command(
-                updateBlockCommand(startPos, {
+                updateBlockCommand(blockInfo.block.beforePos + 1, {
                   type: 'paragraph',
                   props: {},
                 }),
@@ -409,17 +401,14 @@ export const KeyboardShortcutsExtension = Extension.create<{
         // Note: Horacio added this code.
         () =>
           commands.command(({state, chain}) => {
-            const data = getTestBlockInfoFromPos(
-              state.doc,
-              state.selection.from,
-            )!
+            const blockInfo = getBlockInfoFromSelection(state)
 
             const selectionAtBlockStart =
               state.selection.$anchor.parentOffset === 0
             const selectionEmpty =
               state.selection.anchor === state.selection.head
-            const blockEmpty = data.node.textContent.length === 0
-            const newBlockInsertionPos = data.startPos - 1
+            const blockEmpty = blockInfo.block.node.textContent.length === 0
+            const newBlockInsertionPos = blockInfo.block.beforePos
 
             if (selectionAtBlockStart && selectionEmpty && !blockEmpty) {
               chain()
@@ -437,17 +426,14 @@ export const KeyboardShortcutsExtension = Extension.create<{
         // Note: Horacio added this code.
         () =>
           commands.command(({state, chain}) => {
-            const {contentNode} = getTestBlockInfoFromPos(
-              state.doc,
-              state.selection.from,
-            )!
+            const {blockContentType} = getBlockInfoFromSelection(state)
 
             const selectionAtBlockStart =
               state.selection.$anchor.parentOffset === 0
 
             // if selection is not in the beginning of the heading and is a heading,
             // we need to check what we need to do
-            if (!selectionAtBlockStart && contentNode.type.name == 'heading') {
+            if (!selectionAtBlockStart && blockContentType == 'heading') {
               console.log('here???')
               chain()
                 .deleteSelection()
@@ -638,24 +624,28 @@ export const KeyboardShortcutsExtension = Extension.create<{
 
     const handleShiftTab = (posInBlock: number) =>
       this.editor.commands.command(({state, dispatch}) => {
-        const blockInfo = getTestBlockInfoFromPos(state.tr.doc, posInBlock)!
+        const blockInfo = getBlockInfoFromPos(state, posInBlock)!
 
-        if (blockInfo.depth > 2 && dispatch) {
+        if (state.doc.resolve(posInBlock).depth - 1 > 2 && dispatch) {
           // If there are children, need to manually append siblings
           // into block's children to avoid the range error.
-          if (blockInfo.numChildBlocks > 0) {
+          if (blockInfo.block.node.childCount > 0) {
             const blockChildren = state.tr.doc
-              .resolve(blockInfo.startPos + blockInfo.contentNode.nodeSize + 1)
+              .resolve(
+                blockInfo.block.beforePos +
+                  blockInfo.blockContent.node.nodeSize +
+                  2,
+              )
               .node().content
 
-            const parentBlockInfo = getTestBlockInfoFromPos(
-              state.tr.doc,
-              state.tr.doc.resolve(blockInfo.startPos).start(-2),
+            const parentBlockInfo = getBlockInfoFromPos(
+              state,
+              state.tr.doc.resolve(blockInfo.block.beforePos + 1).start(-2),
             )!
 
             const siblingBlocksAfter = state.tr.doc.slice(
-              blockInfo.endPos + 1,
-              parentBlockInfo.endPos - 1,
+              blockInfo.block.afterPos,
+              parentBlockInfo.block.afterPos - 2,
             ).content
 
             // If last child or the only child, just lift list item.
@@ -693,7 +683,9 @@ export const KeyboardShortcutsExtension = Extension.create<{
             const children = blockChildren.append(siblingBlocksAfter)
 
             const childGroup = getGroupInfoFromPos(
-              blockInfo.startPos + blockInfo.contentNode.nodeSize + 1,
+              blockInfo.block.beforePos +
+                blockInfo.blockContent.node.nodeSize +
+                2,
               state,
             )
 
@@ -702,23 +694,25 @@ export const KeyboardShortcutsExtension = Extension.create<{
             // of the parent. Otherwise, only delete the
             // children after the block.
             if (
-              parentBlockInfo.startPos +
-                parentBlockInfo.contentNode.nodeSize +
-                1 ===
-              blockInfo.startPos - 1
+              parentBlockInfo.block.beforePos +
+                parentBlockInfo.blockContent.node.nodeSize +
+                2 ===
+              blockInfo.block.beforePos
             ) {
               state.tr.delete(
-                parentBlockInfo.startPos + parentBlockInfo.contentNode.nodeSize,
-                parentBlockInfo.endPos,
+                parentBlockInfo.block.beforePos +
+                  parentBlockInfo.blockContent.node.nodeSize +
+                  1,
+                parentBlockInfo.block.afterPos - 1,
               )
             } else {
               state.tr.delete(
-                blockInfo.startPos - 1,
-                parentBlockInfo.endPos - 1,
+                blockInfo.block.beforePos,
+                parentBlockInfo.block.afterPos - 2,
               )
             }
 
-            const blockContent = [blockInfo.contentNode]
+            const blockContent = [blockInfo.blockContent.node]
             // If there are children of the unnested block,
             // create a new group for them and attach to block content.
             if (children) {
@@ -739,7 +733,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
             // Create and insert the manually built block instead of
             // using tiptap's liftListItem command.
             const block = state.schema.nodes['blockContainer'].create(
-              blockInfo.node.attrs,
+              blockInfo.block.node.attrs,
               blockContent,
             )
 
@@ -774,11 +768,8 @@ export const KeyboardShortcutsExtension = Extension.create<{
       Enter: handleEnter,
       Tab: handleTab,
       'Shift-Tab': () => {
-        const {startPos} = getTestBlockInfoFromPos(
-          this.editor.state.doc,
-          this.editor.state.selection.anchor,
-        )
-        return handleShiftTab(startPos)
+        const {block} = getBlockInfoFromSelection(this.editor.state)
+        return handleShiftTab(block.beforePos + 1)
       },
       // "Shift-Mod-ArrowUp": () => {
       //   this.options.editor.moveBlocksUp();
@@ -791,24 +782,23 @@ export const KeyboardShortcutsExtension = Extension.create<{
       'Shift-ArrowLeft': () => {
         const {state, view} = this.editor
         const {selection} = state
-        const {id: selectedId} = getTestBlockInfoFromPos(
-          state.doc,
-          selection.from - 1,
-        )
+        const {block} = getBlockInfoFromPos(state, selection.from - 1)
         if (selection.from <= 3) {
           return false
         }
         if (selection.from === selection.$from.start()) {
           let currentPos = selection.from - 1
           let currentNode = state.doc.resolve(currentPos).parent
-          let {id: currentId} = getTestBlockInfoFromPos(state.doc, currentPos)
+          let currentId = getBlockInfoFromPos(state, currentPos).block.node
+            .attrs.id
           while (
-            selectedId === currentId ||
+            block.node.attrs.id === currentId ||
             ['blockContainer', 'blockGroup'].includes(currentNode.type.name)
           ) {
             currentPos--
             currentNode = state.doc.resolve(currentPos).parent
-            currentId = getTestBlockInfoFromPos(state.doc, currentPos).id
+            currentId = getBlockInfoFromPos(state, currentPos).block.node.attrs
+              .id
           }
           const decoration = Decoration.widget(currentPos, () => {
             const span = document.createElement('span')

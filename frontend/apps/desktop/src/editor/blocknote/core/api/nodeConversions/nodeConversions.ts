@@ -16,7 +16,6 @@ import {
   Styles,
   ToggledStyle,
 } from '../../extensions/Blocks/api/inlineContentTypes'
-// import {getTestBlockInfo} from '../../extensions/Blocks/helpers/getBlockInfoFromPos'
 import {UniqueID} from '../../extensions/UniqueID/UniqueID'
 import {UnreachableCaseError} from '../../shared/utils'
 

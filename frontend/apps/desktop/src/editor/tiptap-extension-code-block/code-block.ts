@@ -7,11 +7,7 @@ import {
 } from '@tiptap/core'
 import {Fragment, Slice} from '@tiptap/pm/model'
 import {Plugin, PluginKey, TextSelection} from '@tiptap/pm/state'
-import {
-  BlockNoteDOMAttributes,
-  getTestBlockInfoFromPos,
-  mergeCSSClasses,
-} from '..'
+import {BlockNoteDOMAttributes, getBlockInfoFromPos, mergeCSSClasses} from '..'
 import {getGroupInfoFromPos} from '../blocknote/core/extensions/Blocks/helpers/getGroupInfoFromPos'
 
 declare module '@tiptap/core' {
@@ -155,14 +151,12 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
     function splitCodeBlock(editor: Editor) {
       const {state} = editor
       const codePos = state.doc.resolve(state.selection.$from.pos)
-      const blockInfo = getTestBlockInfoFromPos(state.doc, codePos.pos)
-      console.log(codePos, codePos.parent, blockInfo)
+      const blockInfo = getBlockInfoFromPos(state, codePos.pos)
       if (blockInfo === undefined) {
         return false
       }
 
-      const {depth} = blockInfo
-      console.log(depth, codePos.depth)
+      const depth = codePos.depth
 
       const originalBlockContent = state.doc.cut(codePos.start(), codePos.pos)
       const newBlockContent = state.doc.cut(codePos.pos, codePos.end())
@@ -177,14 +171,14 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
         nextBlockContentPos,
         nextBlockContentPos + 1,
         newBlockContent.content.size > 0
-          ? new Slice(Fragment.from(newBlockContent), depth + 2, depth + 2)
+          ? new Slice(Fragment.from(newBlockContent), depth + 1, depth + 1)
           : undefined,
       )
       tr = tr.replace(
         codePos.start(),
         codePos.end(),
         originalBlockContent.content.size > 0
-          ? new Slice(Fragment.from(originalBlockContent), depth + 2, depth + 2)
+          ? new Slice(Fragment.from(originalBlockContent), depth + 1, depth + 1)
           : undefined,
       )
 
