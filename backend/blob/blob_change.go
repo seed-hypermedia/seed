@@ -397,7 +397,7 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 		}
 	}
 
-	if extra.Title != "" {
+	if extra.Title != "" || len(extra.Metadata) > 0 {
 		sb.ExtraAttrs = extra
 	}
 

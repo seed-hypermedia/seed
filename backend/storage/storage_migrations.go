@@ -57,6 +57,9 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	{Version: "2025-01-16.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return scheduleReindex(conn)
+	}},
 	{Version: "2025-01-09.01", Run: func(_ *Store, conn *sqlite.Conn) error {
 		return sqlitex.ExecScript(conn, sqlfmt(`
 			CREATE TABLE unread_resources (
