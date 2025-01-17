@@ -36,7 +36,7 @@ export const loader = async ({request}: {request: Request}) => {
   const {registeredAccountUid} = serviceConfig;
   if (!registeredAccountUid) return wrapJSON("unregistered");
   return await loadSiteDocument(
-    url.hostname,
+    hostname,
     hmId("d", registeredAccountUid, {version, path: [], latest}),
     waitForSync
   );

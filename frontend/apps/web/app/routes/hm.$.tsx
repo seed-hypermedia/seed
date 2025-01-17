@@ -20,7 +20,7 @@ export const loader = async ({
   const path = (params["*"] || "").split("/").filter((term) => !!term);
   const [accountUid, ...restPath] = path;
   return await loadSiteDocument(
-    url.hostname,
+    hostname,
     hmId("d", accountUid, {path: restPath, version, latest}),
     waitForSync
   );
