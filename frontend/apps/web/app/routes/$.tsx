@@ -18,10 +18,13 @@ export const loader = async ({
   const version = url.searchParams.get("v");
   const latest = url.searchParams.get("l") === "";
   const waitForSync = url.searchParams.get("waitForSync") !== null;
-  const {registeredAccountUid} = getConfig();
+  const serviceConfig = await getConfig(url.hostname);
+  if (!serviceConfig) throw new Error(`No config defined for ${url.hostname}`);
+  const {registeredAccountUid} = serviceConfig;
   if (!registeredAccountUid) throw new Error("No registered account uid");
   const path = (params["*"] || "").split("/");
   return await loadSiteDocument(
+    url.hostname,
     hmId("d", registeredAccountUid, {path, version, latest}),
     waitForSync
   );

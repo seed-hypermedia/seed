@@ -26,7 +26,9 @@ export const action: ActionFunction = async ({request}) => {
   try {
     const data = await request.json();
     const input = registerSchema.parse(data);
-    const config = getConfig();
+    const url = new URL(request.url);
+    const config = await getConfig(url.hostname);
+    if (!config) throw new Error(`No config defined for ${url.hostname}`);
     if (!config.availableRegistrationSecret) {
       throw {message: "Registration is not available"};
     }
@@ -45,8 +47,8 @@ export const action: ActionFunction = async ({request}) => {
       path: "",
       recursive: true,
     });
-    console.log("writing config");
-    await writeConfig({
+    console.log("writing config for", url.hostname);
+    await writeConfig(url.hostname, {
       registeredAccountUid: input.accountUid,
       sourcePeerId: input.peerId,
     });

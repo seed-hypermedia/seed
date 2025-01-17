@@ -26,12 +26,16 @@ export const meta = ({
 
 export const loader = async ({request}: {request: Request}) => {
   const url = new URL(request.url);
+
   const version = url.searchParams.get("v");
   const latest = url.searchParams.get("l") === "";
   const waitForSync = url.searchParams.get("waitForSync") !== null;
-  const {registeredAccountUid} = getConfig();
+  const serviceConfig = await getConfig(url.hostname);
+  if (!serviceConfig) throw new Error(`No config defined for ${url.hostname}`);
+  const {registeredAccountUid} = serviceConfig;
   if (!registeredAccountUid) return wrapJSON("unregistered");
   return await loadSiteDocument(
+    url.hostname,
     hmId("d", registeredAccountUid, {version, path: [], latest}),
     waitForSync
   );

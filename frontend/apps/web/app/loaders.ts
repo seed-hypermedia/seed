@@ -196,10 +196,14 @@ export type SiteDocumentPayload = WebDocumentPayload & {
 };
 
 export async function loadSiteDocument(
+  hostname: string,
   id: UnpackedHypermediaId,
   waitForSync?: boolean
 ): Promise<WrappedResponse<SiteDocumentPayload>> {
-  const config = getConfig();
+  const config = await getConfig(hostname);
+  if (!config) {
+    throw new Error("No config found for hostname " + hostname);
+  }
   let homeMetadata = null;
   let homeId = null;
   if (config.registeredAccountUid) {
