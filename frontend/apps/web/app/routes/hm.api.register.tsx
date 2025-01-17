@@ -27,8 +27,9 @@ export const action: ActionFunction = async ({request}) => {
     const data = await request.json();
     const input = registerSchema.parse(data);
     const url = new URL(request.url);
-    const config = await getConfig(url.hostname);
-    if (!config) throw new Error(`No config defined for ${url.hostname}`);
+    const hostname = request.headers.get("x-forwarded-host") || url.hostname;
+    const config = await getConfig(hostname);
+    if (!config) throw new Error(`No config defined for ${hostname}`);
     if (!config.availableRegistrationSecret) {
       throw {message: "Registration is not available"};
     }

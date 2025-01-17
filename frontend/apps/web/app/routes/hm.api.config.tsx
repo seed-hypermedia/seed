@@ -6,8 +6,9 @@ import {getConfig} from "~/config";
 
 export const loader: LoaderFunction = async ({request}) => {
   const url = new URL(request.url);
-  const config = await getConfig(url.hostname);
-  if (!config) throw new Error(`No config defined for ${url.hostname}`);
+  const hostname = request.headers.get("x-forwarded-host") || url.hostname;
+  const config = await getConfig(hostname);
+  if (!config) throw new Error(`No config defined for ${hostname}`);
   const daemonInfo = await queryClient.daemon.getInfo({});
   const peerInfo = await queryClient.networking.getPeerInfo({
     deviceId: daemonInfo.peerId,

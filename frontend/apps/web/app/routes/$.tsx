@@ -15,11 +15,12 @@ export const loader = async ({
   request: Request;
 }) => {
   const url = new URL(request.url);
+  const hostname = request.headers.get("x-forwarded-host") || url.hostname;
   const version = url.searchParams.get("v");
   const latest = url.searchParams.get("l") === "";
   const waitForSync = url.searchParams.get("waitForSync") !== null;
-  const serviceConfig = await getConfig(url.hostname);
-  if (!serviceConfig) throw new Error(`No config defined for ${url.hostname}`);
+  const serviceConfig = await getConfig(hostname);
+  if (!serviceConfig) throw new Error(`No config defined for ${hostname}`);
   const {registeredAccountUid} = serviceConfig;
   if (!registeredAccountUid) throw new Error("No registered account uid");
   const path = (params["*"] || "").split("/");

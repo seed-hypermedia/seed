@@ -30,8 +30,9 @@ export const loader = async ({request}: {request: Request}) => {
   const version = url.searchParams.get("v");
   const latest = url.searchParams.get("l") === "";
   const waitForSync = url.searchParams.get("waitForSync") !== null;
-  const serviceConfig = await getConfig(url.hostname);
-  if (!serviceConfig) throw new Error(`No config defined for ${url.hostname}`);
+  const hostname = request.headers.get("x-forwarded-host") || url.hostname;
+  const serviceConfig = await getConfig(hostname);
+  if (!serviceConfig) throw new Error(`No config defined for ${hostname}`);
   const {registeredAccountUid} = serviceConfig;
   if (!registeredAccountUid) return wrapJSON("unregistered");
   return await loadSiteDocument(
