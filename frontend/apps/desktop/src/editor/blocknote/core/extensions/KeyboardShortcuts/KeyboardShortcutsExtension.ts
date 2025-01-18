@@ -8,6 +8,7 @@ import {splitBlockCommand} from '../../api/blockManipulation/commands/splitBlock
 import {updateBlockCommand} from '../../api/blockManipulation/commands/updateBlock'
 import {updateGroupChildrenCommand} from '../../api/blockManipulation/commands/updateGroup'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
+import {selectableNodeTypes} from '../BlockManipulation/BlockManipulationExtension'
 import {
   getBlockInfoFromPos,
   getBlockInfoFromSelection,
@@ -354,7 +355,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
         // if one exists, the block has no children, and the selection is at the
         // end of the block.
         () =>
-          commands.command(({state}) => {
+          commands.command(({state, dispatch}) => {
             const blockInfo = getBlockInfoFromSelection(state)
             const {
               block: blockContainer,
@@ -369,24 +370,47 @@ export const KeyboardShortcutsExtension = Extension.create<{
               state.selection.from === blockContent.afterPos - 1
             const selectionEmpty = state.selection.empty
             const hasChildBlocks = childContainer !== undefined
+            if (!blockAtDocEnd && selectionAtBlockEnd && selectionEmpty) {
+              if (hasChildBlocks) {
+                const nodesToLift = childContainer.node.content
+                if (dispatch) {
+                  let tr = state.tr
+                  tr.deleteRange(
+                    blockContainer.beforePos,
+                    blockContainer.afterPos,
+                  ).insert(blockContainer.beforePos, nodesToLift)
+                  if (
+                    selectableNodeTypes.includes(
+                      childContainer.node.firstChild!.firstChild!.type.name,
+                    )
+                  ) {
+                    tr.setSelection(
+                      new NodeSelection(
+                        tr.doc.resolve(blockContainer.beforePos + 1),
+                      ),
+                    )
+                  } else
+                    tr.setSelection(
+                      new TextSelection(
+                        tr.doc.resolve(blockContainer.beforePos + 1),
+                        tr.doc.resolve(blockContainer.beforePos + 2),
+                      ),
+                    )
+                }
+                return false
+              } else {
+                let oldDepth = depth
+                let newPos = blockContainer.afterPos + 1
+                let newDepth = state.doc.resolve(newPos).depth
 
-            if (
-              !blockAtDocEnd &&
-              selectionAtBlockEnd &&
-              selectionEmpty &&
-              !hasChildBlocks
-            ) {
-              let oldDepth = depth
-              let newPos = blockContainer.afterPos + 1
-              let newDepth = state.doc.resolve(newPos).depth
+                while (newDepth < oldDepth) {
+                  oldDepth = newDepth
+                  newPos += 2
+                  newDepth = state.doc.resolve(newPos).depth
+                }
 
-              while (newDepth < oldDepth) {
-                oldDepth = newDepth
-                newPos += 2
-                newDepth = state.doc.resolve(newPos).depth
+                return commands.command(mergeBlocksCommand(newPos - 1))
               }
-
-              return commands.command(mergeBlocksCommand(newPos - 1))
             }
 
             return false
@@ -434,7 +458,6 @@ export const KeyboardShortcutsExtension = Extension.create<{
             // if selection is not in the beginning of the heading and is a heading,
             // we need to check what we need to do
             if (!selectionAtBlockStart && blockContentType == 'heading') {
-              console.log('here???')
               chain()
                 .deleteSelection()
                 .BNSplitHeadingBlock(state.selection.from)
@@ -609,6 +632,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
                       )
                       .run()
                   } catch (e) {
+                    // @ts-expect-error
                     console.log(e.message)
                   }
                 })

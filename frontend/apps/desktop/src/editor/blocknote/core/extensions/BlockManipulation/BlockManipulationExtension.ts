@@ -1,5 +1,4 @@
 import {Extension} from '@tiptap/core'
-import {ResolvedPos} from '@tiptap/pm/model'
 import {EditorView} from '@tiptap/pm/view'
 import {Node} from 'prosemirror-model'
 import {
@@ -9,12 +8,9 @@ import {
   TextSelection,
 } from 'prosemirror-state'
 import {findNextBlock, findPreviousBlock} from '../../../../block-utils'
-import {
-  getBlockInfoFromPos,
-  getBlockInfoFromSelection,
-} from '../Blocks/helpers/getBlockInfoFromPos'
+import {getBlockInfoFromSelection} from '../Blocks/helpers/getBlockInfoFromPos'
 
-const selectableNodeTypes = [
+export const selectableNodeTypes = [
   'image',
   'file',
   'embed',
@@ -107,65 +103,67 @@ export const BlockManipulationExtension = Extension.create({
         props: {
           handleKeyDown(view, event) {
             const {state} = view
-            if (event.key === 'Delete') {
-              const {doc, selection, tr} = state
-              if (selection.empty) {
-                const $pos = selection.$anchor
-                const isEnd = $pos.pos === $pos.end()
-                if (isEnd) {
-                  const blockInfo = getBlockInfoFromPos(state, $pos.pos)
-                  if (blockInfo.blockContent.node.textContent.length === 0) {
-                    tr.deleteRange($pos.start() - 1, $pos.end() + 1)
-                    view.dispatch(tr)
-                    return true
-                  }
-                  let $nextPos: ResolvedPos | undefined
-                  let nextNode
-                  if (blockInfo.childContainer?.node.childCount) {
-                    $nextPos = doc.resolve($pos.after() + 3)
-                    nextNode = $nextPos.parent
-                  } else {
-                    doc.descendants((testNode, testPos) => {
-                      if (
-                        testNode.type.name === 'blockContainer' &&
-                        testPos > $pos.pos
-                      )
-                        if (!$nextPos || $nextPos.pos < $pos.pos) {
-                          $nextPos = doc.firstChild!.resolve(testPos)
-                          nextNode = testNode.firstChild
-                        }
-                    })
-                  }
-                  if ($nextPos && nextNode) {
-                    if (selectableNodeTypes.includes(nextNode.type.name)) {
-                      return false
-                    }
-                    const mergedTextContent =
-                      blockInfo.blockContent.node.textContent +
-                      nextNode.textContent
-                    const newNode = view.state.schema.node(
-                      blockInfo.blockContentType,
-                      blockInfo.blockContent.node.attrs,
-                      view.state.schema.text(
-                        mergedTextContent,
-                        blockInfo.blockContent.node.lastChild?.marks,
-                      ),
-                      blockInfo.blockContent.node.marks,
-                    )
-                    tr.deleteRange(
-                      $nextPos.start() - 1,
-                      $nextPos.end() < $nextPos.start() + nextNode.nodeSize
-                        ? $nextPos.end() + 1
-                        : $nextPos.start() + nextNode.nodeSize + 1,
-                    )
-                    tr.replaceWith($pos.start() - 1, $pos.end() + 1, newNode)
-                    view.dispatch(tr)
-                    return true
-                  }
-                  return false
-                }
-              }
-            } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
+            // if (event.key === 'Delete') {
+            //   const {doc, selection, tr} = state
+            //   if (selection.empty) {
+            //     const $pos = selection.$anchor
+            //     const isEnd = $pos.pos === $pos.end()
+            //     if (isEnd) {
+            //       const blockInfo = getBlockInfoFromPos(state, $pos.pos)
+            //       if (blockInfo.blockContent.node.textContent.length === 0) {
+            //         console.log('here????')
+            //         tr.deleteRange($pos.start() - 1, $pos.end() + 1)
+            //         view.dispatch(tr)
+            //         return true
+            //       }
+            //       let $nextPos: ResolvedPos | undefined
+            //       let nextNode
+            //       if (blockInfo.childContainer?.node.childCount) {
+            //         $nextPos = doc.resolve($pos.after() + 3)
+            //         nextNode = $nextPos.parent
+            //       } else {
+            //         doc.descendants((testNode, testPos) => {
+            //           if (
+            //             testNode.type.name === 'blockContainer' &&
+            //             testPos > $pos.pos
+            //           )
+            //             if (!$nextPos || $nextPos.pos < $pos.pos) {
+            //               $nextPos = doc.firstChild!.resolve(testPos)
+            //               nextNode = testNode.firstChild
+            //             }
+            //         })
+            //       }
+            //       if ($nextPos && nextNode) {
+            //         if (selectableNodeTypes.includes(nextNode.type.name)) {
+            //           return false
+            //         }
+            //         const mergedTextContent =
+            //           blockInfo.blockContent.node.textContent +
+            //           nextNode.textContent
+            //         const newNode = view.state.schema.node(
+            //           blockInfo.blockContentType,
+            //           blockInfo.blockContent.node.attrs,
+            //           view.state.schema.text(
+            //             mergedTextContent,
+            //             blockInfo.blockContent.node.lastChild?.marks,
+            //           ),
+            //           blockInfo.blockContent.node.marks,
+            //         )
+            //         tr.deleteRange(
+            //           $nextPos.start() - 1,
+            //           $nextPos.end() < $nextPos.start() + nextNode.nodeSize
+            //             ? $nextPos.end() + 1
+            //             : $nextPos.start() + nextNode.nodeSize + 1,
+            //         )
+            //         tr.replaceWith($pos.start() - 1, $pos.end() + 1, newNode)
+            //         view.dispatch(tr)
+            //         return true
+            //       }
+            //       return false
+            //     }
+            //   }
+            // } else
+            if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
               let hasHardBreak = false
               const blockInfo = getBlockInfoFromSelection(state)
               // Find if the selected node has break line and check if the selection's from position is before or after the hard break

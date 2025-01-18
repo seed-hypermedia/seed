@@ -75,7 +75,7 @@ const canMerge = (prevBlockInfo: BlockInfo, nextBlockInfo: BlockInfo) => {
   )
   return (
     prevBlockInfo.blockContent.node.type.spec.content === 'inline*' &&
-    prevBlockInfo.blockContent.node.childCount > 0 &&
+    // prevBlockInfo.blockContent.node.childCount > 0 &&
     nextBlockInfo.blockContent.node.type.spec.content === 'inline*'
   )
 }
