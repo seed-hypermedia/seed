@@ -1,4 +1,5 @@
-# Build from the root with `docker build -t seed-web . -f ./frontend/apps/web/Dockerfile`.
+# Build from the root with `docker build -t seedhypermedia/web:dev . -f ./frontend/apps/web/Dockerfile`.
+# Push to the server with `docker save seedhypermedia/web:dev | ssh -C <user>@<server_IP> docker load`
 # docker run -e ENV_EXAMPLE=yes-it -p 3000:3000 --rm --name seed-web seed-web:latest
 
 FROM node:20-alpine AS builder
