@@ -9,6 +9,7 @@ import {
   useLibrary,
   useSiteLibrary,
 } from '@/models/library'
+import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   DocumentRoute,
@@ -268,7 +269,20 @@ function LibrarySiteItem({
   site: LibrarySite
   accountsMetadata?: AccountsMetadata
 }) {
-  const [isCollapsed, setIsCollapsed] = useState(true)
+  const route = useNavRoute()
+  const replace = useNavigate('replace')
+  const expandedIds =
+    (route.key === 'library' ? route.expandedIds : undefined) || []
+  console.log('expandedIds', expandedIds)
+  const isCollapsed = !expandedIds.includes(site.id)
+  function setIsCollapsed(isCollapsed: boolean) {
+    replace({
+      key: 'library',
+      expandedIds: isCollapsed
+        ? expandedIds?.filter((id) => id !== site.id)
+        : [...expandedIds, site.id],
+    })
+  }
   const navigate = useNavigate()
   const metadata = site?.metadata
   const id = hmId('d', site.id)

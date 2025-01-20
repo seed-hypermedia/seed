@@ -131,6 +131,7 @@ export type DeletedContentRoute = z.infer<typeof deletedContentRouteSchema>
 
 export const libraryRouteSchema = z.object({
   key: z.literal('library'),
+  expandedIds: z.array(z.string()).optional(),
 })
 export type LibraryRoute = z.infer<typeof libraryRouteSchema>
 
