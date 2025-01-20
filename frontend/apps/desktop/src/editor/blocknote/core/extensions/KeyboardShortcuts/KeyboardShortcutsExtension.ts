@@ -675,7 +675,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
         if (state.doc.resolve(posInBlock).depth - 1 > 2 && dispatch) {
           // If there are children, need to manually append siblings
           // into block's children to avoid the range error.
-          if (blockInfo.block.node.childCount > 0) {
+          if (blockInfo.block.node.childCount > 1) {
             const blockChildren = state.tr.doc
               .resolve(
                 blockInfo.block.beforePos +
