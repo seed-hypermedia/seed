@@ -976,6 +976,13 @@ export class UpdateDocumentReadStatusRequest extends Message<UpdateDocumentReadS
    */
   isRead = false;
 
+  /**
+   * Optional. Whether the status should be updated recursively for children of the path.
+   *
+   * @generated from field: bool is_recursive = 4;
+   */
+  isRecursive = false;
+
   constructor(data?: PartialMessage<UpdateDocumentReadStatusRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -987,6 +994,7 @@ export class UpdateDocumentReadStatusRequest extends Message<UpdateDocumentReadS
     { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "is_read", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 4, name: "is_recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateDocumentReadStatusRequest {

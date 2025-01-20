@@ -870,7 +870,7 @@ func (srv *Server) UpdateDocumentReadStatus(ctx context.Context, in *documents.U
 		return nil, err
 	}
 
-	if err := srv.idx.SetReadStatus(ctx, iri, in.IsRead); err != nil {
+	if err := srv.idx.SetReadStatus(ctx, iri, in.IsRead, in.IsRecursive); err != nil {
 		return nil, err
 	}
 
