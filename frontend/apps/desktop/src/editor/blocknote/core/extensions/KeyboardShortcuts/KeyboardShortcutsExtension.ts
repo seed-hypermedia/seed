@@ -8,7 +8,6 @@ import {splitBlockCommand} from '../../api/blockManipulation/commands/splitBlock
 import {updateBlockCommand} from '../../api/blockManipulation/commands/updateBlock'
 import {updateGroupChildrenCommand} from '../../api/blockManipulation/commands/updateGroup'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
-import {selectableNodeTypes} from '../BlockManipulation/BlockManipulationExtension'
 import {
   getBlockInfoFromPos,
   getBlockInfoFromSelection,
@@ -371,34 +370,57 @@ export const KeyboardShortcutsExtension = Extension.create<{
             const selectionEmpty = state.selection.empty
             const hasChildBlocks = childContainer !== undefined
             if (!blockAtDocEnd && selectionAtBlockEnd && selectionEmpty) {
+              // If the block has children, merge with the first child and lift other children
               if (hasChildBlocks) {
-                const nodesToLift = childContainer.node.content
+                // Get boundaries of the child block group
+                const childBlocksStart = state.doc.resolve(
+                  blockInfo.childContainer!.beforePos + 1,
+                )
+                const childBlocksEnd = state.doc.resolve(
+                  blockInfo.childContainer!.afterPos - 1,
+                )
+                const childBlocksRange =
+                  childBlocksStart.blockRange(childBlocksEnd)
+
                 if (dispatch) {
+                  const pos = state.doc.resolve(blockInfo.block.beforePos)
                   let tr = state.tr
-                  tr.deleteRange(
-                    blockContainer.beforePos,
-                    blockContainer.afterPos,
-                  ).insert(blockContainer.beforePos, nodesToLift)
-                  if (
-                    selectableNodeTypes.includes(
-                      childContainer.node.firstChild!.firstChild!.type.name,
-                    )
-                  ) {
-                    tr.setSelection(
-                      new NodeSelection(
-                        tr.doc.resolve(blockContainer.beforePos + 1),
-                      ),
-                    )
-                  } else
-                    tr.setSelection(
-                      new TextSelection(
-                        tr.doc.resolve(blockContainer.beforePos + 1),
-                        tr.doc.resolve(blockContainer.beforePos + 2),
-                      ),
-                    )
+                  // Lift all children of the block
+                  tr.lift(childBlocksRange!, pos.depth)
+
+                  // Insert the first character of the first child at the end of the block
+                  // Note: This is a hacky fix, because when merging with first child, for
+                  // some reason it doesn't work with precise positions, so it needs to go into
+                  // the next block for 1 position, which removes the first character of the first child.
+                  tr.insertText(
+                    blockInfo.childContainer!.node.firstChild!.textContent[0],
+                    tr.doc.resolve(blockInfo.block.beforePos + 2).end(),
+                  )
+
+                  // Get position of the current block and first child after the lift.
+                  const afterStepPos = tr.doc.resolve(
+                    blockInfo.block.beforePos + 3,
+                  )
+                  const afterStepNextPos = tr.doc.resolve(
+                    afterStepPos.end() + 3,
+                  )
+
+                  // Delete the boundary between the block and first child.
+                  tr.delete(afterStepPos.end(), afterStepNextPos.start() + 1)
+
+                  // Set cursor in between of the end of block's and first child's text contents.
+                  // Needs slight delay, which is visible to the user. Might be worth to remove this code.
+                  setTimeout(() => {
+                    this.editor
+                      .chain()
+                      .setTextSelection(afterStepPos.end() - 1)
+                      .run()
+                  })
                 }
+
                 return false
               } else {
+                // Merge with next block
                 let oldDepth = depth
                 let newPos = blockContainer.afterPos + 1
                 let newDepth = state.doc.resolve(newPos).depth

@@ -50,7 +50,7 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
     }
   },
 
-  content: 'text*',
+  content: 'inline*',
 
   marks: '',
 
