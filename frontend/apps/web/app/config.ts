@@ -1,3 +1,4 @@
+import {SITE_BASE_URL} from "@shm/shared";
 import {readFileSync} from "fs";
 import fs, {readFile} from "fs/promises";
 import {join} from "path";
@@ -110,4 +111,20 @@ export async function reloadServiceConfig() {
   const serviceConfigData = await readFile(serviceConfigPath, "utf-8");
   const serviceConfigJSON = JSON.parse(serviceConfigData);
   serviceConfig = serviceConfigSchema.parse(serviceConfigJSON);
+}
+
+export function getHostnames() {
+  if (serviceConfig) {
+    const rootHostname = serviceConfig.rootHostname;
+    return [
+      rootHostname,
+      ...Object.keys(serviceConfig.namedServices).map(
+        (subdomain) => `${subdomain}.${rootHostname}`
+      ),
+    ];
+  }
+  const baseDomainWithPort = SITE_BASE_URL?.split("://")[1];
+  const baseDomain = baseDomainWithPort?.split(":")[0];
+  if (!baseDomain) return [];
+  return [baseDomain];
 }

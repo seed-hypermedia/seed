@@ -8,6 +8,7 @@ import {mkdir, readFile, stat, writeFile} from "fs/promises";
 import * as isbotModule from "isbot";
 import {dirname, join, resolve} from "path";
 import {renderToPipeableStream} from "react-dom/server";
+import {getHostnames} from "./config";
 
 const ABORT_DELAY = 5_000;
 
@@ -29,14 +30,20 @@ function recursiveRm(targetPath: string) {
 
 let nextWarm: Promise<void> | undefined = undefined;
 
+async function warmAllCaches() {
+  const hostnames = getHostnames();
+  console.log("WARMING CACHES FOR", hostnames);
+  await Promise.all(hostnames.map((hostname) => warmFullCache(hostname)));
+}
+
 async function initializeServer() {
   recursiveRm(CACHE_PATH);
   await mkdir(CACHE_PATH, {recursive: true});
-  await warmFullCache();
+  await warmAllCaches();
   // warm full cache 45 seconds, but only if the next warm is not already in progress
   setInterval(() => {
     if (nextWarm === undefined) {
-      nextWarm = warmFullCache().finally(() => {
+      nextWarm = warmAllCaches().finally(() => {
         nextWarm = undefined;
       });
     }
@@ -51,12 +58,13 @@ initializeServer()
     console.error("Error initializing server", e);
   });
 
-async function warmCachePath(path: string) {
+async function warmCachePath(path: string, hostname: string) {
   const resp = await fetch(
     `http://localhost:${process.env.PORT || "3000"}${path}`,
     {
       headers: {
         "x-full-render": "true",
+        "x-forwarded-host": hostname,
       },
     }
   );
@@ -97,13 +105,13 @@ async function fileExists(path: string) {
   }
 }
 
-async function warmFullCache() {
+async function warmFullCache(hostname: string) {
   const pathsToWarm = new Set<string>(["/"]);
   const warmedPaths = new Set<string>();
   // warm paths until we've warmed all paths
   while (pathsToWarm.size > 0) {
     const path = pathsToWarm.values().next().value;
-    const {html, status, contentLinks} = await warmCachePath(path);
+    const {html, status, contentLinks} = await warmCachePath(path, hostname);
     pathsToWarm.delete(path);
     warmedPaths.add(path);
     for (const link of contentLinks) {
@@ -141,7 +149,8 @@ export default async function handleRequest(
     );
   }
 
-  const cachePath = join(CACHE_PATH, `${url.pathname}/index.html`);
+  const hostname = request.headers.get("x-forwarded-host") || url.hostname;
+  const cachePath = join(CACHE_PATH, `${hostname}/${url.pathname}/index.html`);
   if (await fileExists(cachePath)) {
     const html = await readFile(cachePath, "utf8");
     responseHeaders.set("Content-Type", "text/html");
@@ -151,7 +160,7 @@ export default async function handleRequest(
     });
   }
   // return warm cache path html
-  const {html} = await warmCachePath(url.pathname);
+  const {html} = await warmCachePath(url.pathname, hostname);
   responseHeaders.set("Content-Type", "text/html");
   return new Response(html, {
     headers: responseHeaders,
