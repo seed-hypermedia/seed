@@ -58,9 +58,15 @@ initializeServer()
     console.error("Error initializing server", e);
   });
 
-async function warmCachePath(path: string, hostname: string) {
+async function warmCachePath(
+  hostname: string,
+  path: string,
+  version?: string | null
+) {
   const resp = await fetch(
-    `http://localhost:${process.env.PORT || "3000"}${path}`,
+    `http://localhost:${process.env.PORT || "3000"}${path}${
+      version ? `?v=${version}` : ""
+    }`,
     {
       headers: {
         "x-full-render": "true",
@@ -78,7 +84,13 @@ async function warmCachePath(path: string, hostname: string) {
     }
   }
   // save html to CACHE_PATH with every path is index.html and the path is a directory
-  const cachePath = join(CACHE_PATH, path, "index.html");
+  const cachePath = join(
+    CACHE_PATH,
+    hostname,
+    path,
+    version ? `.versions/${version}/` : "",
+    "index.html"
+  );
   if (!respHtml) {
     console.error("respHtml is empty for path", path);
     throw new Error("respHtml is empty for path " + path);
@@ -111,7 +123,7 @@ async function warmFullCache(hostname: string) {
   // warm paths until we've warmed all paths
   while (pathsToWarm.size > 0) {
     const path = pathsToWarm.values().next().value;
-    const {html, status, contentLinks} = await warmCachePath(path, hostname);
+    const {html, status, contentLinks} = await warmCachePath(hostname, path);
     pathsToWarm.delete(path);
     warmedPaths.add(path);
     for (const link of contentLinks) {
@@ -150,7 +162,13 @@ export default async function handleRequest(
   }
 
   const hostname = request.headers.get("x-forwarded-host") || url.hostname;
-  const cachePath = join(CACHE_PATH, `${hostname}/${url.pathname}/index.html`);
+  const queryVersion = url.searchParams.get("v");
+  const cachePath = join(
+    CACHE_PATH,
+    `${hostname}/${url.pathname}/${
+      queryVersion ? `.versions/${queryVersion}/` : ""
+    }index.html`
+  );
   if (await fileExists(cachePath)) {
     const html = await readFile(cachePath, "utf8");
     responseHeaders.set("Content-Type", "text/html");
@@ -160,7 +178,7 @@ export default async function handleRequest(
     });
   }
   // return warm cache path html
-  const {html} = await warmCachePath(url.pathname, hostname);
+  const {html} = await warmCachePath(hostname, url.pathname, queryVersion);
   responseHeaders.set("Content-Type", "text/html");
   return new Response(html, {
     headers: responseHeaders,
