@@ -24,7 +24,7 @@ export const action: ActionFunction = async ({request}) => {
   }
   // generate a 10 character random secret
   const secret = Math.random().toString(36).slice(0, 10);
-  await writeConfig(`${serviceConfig.rootHostname}.${payload.name}`, {
+  await writeConfig(`${payload.name}.${serviceConfig.rootHostname}`, {
     availableRegistrationSecret: secret,
   });
 
