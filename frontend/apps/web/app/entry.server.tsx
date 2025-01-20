@@ -95,9 +95,11 @@ async function warmCachePath(
     console.error("respHtml is empty for path", path);
     throw new Error("respHtml is empty for path " + path);
   }
-  // create the directory if it doesn't exist
-  await mkdir(dirname(cachePath), {recursive: true});
-  await writeFile(cachePath, respHtml);
+  if (resp.status === 200) {
+    // create the directory if it doesn't exist
+    await mkdir(dirname(cachePath), {recursive: true});
+    await writeFile(cachePath, respHtml);
+  }
   const contentLinks = new Set(
     Array.from(links).filter((link) => !link.startsWith("/assets"))
   );
