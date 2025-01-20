@@ -25,8 +25,10 @@ async function waitFor(check: () => Promise<void>, timeBetweenChecks = 1000) {
 export const action: ActionFunction = async ({request}) => {
   try {
     const data = await request.json();
+    console.log("~ REGISTER REQUEST ", data);
     const input = registerSchema.parse(data);
     const url = new URL(request.url);
+    console.log("~ REGISTER HEADERS ", request.headers);
     const hostname = request.headers.get("x-forwarded-host") || url.hostname;
     const config = await getConfig(hostname);
     if (!config) throw new Error(`No config defined for ${hostname}`);
