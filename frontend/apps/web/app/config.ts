@@ -88,18 +88,26 @@ export async function writeConfig(hostname: string, newConfig: Config) {
       };
       await writeServiceConfig(newServiceConfig);
     } else {
-      // split hostname into parts and validate format subdomain.rootHostname
-      const parts = hostname.split(".");
-      const rootParts = serviceConfig.rootHostname.split(".");
+      let subdomain: string | null = null;
       if (
-        parts.length !== rootParts.length + 1 ||
-        parts.slice(1).join(".") !== serviceConfig.rootHostname
+        serviceConfig.customDomains &&
+        serviceConfig.customDomains[hostname]
       ) {
-        throw new Error(
-          `Cannot write to service config for hostname ${hostname} - must be in format [subdomain].${serviceConfig.rootHostname}`
-        );
+        subdomain = serviceConfig.customDomains[hostname].service;
+      } else {
+        // split hostname into parts and validate format subdomain.rootHostname
+        const parts = hostname.split(".");
+        const rootParts = serviceConfig.rootHostname.split(".");
+        if (
+          parts.length !== rootParts.length + 1 ||
+          parts.slice(1).join(".") !== serviceConfig.rootHostname
+        ) {
+          throw new Error(
+            `Cannot write to service config for hostname ${hostname} - must be in format [subdomain].${serviceConfig.rootHostname}`
+          );
+        }
+        subdomain = parts[0];
       }
-      const subdomain = parts[0];
       const newServiceConfig = {
         ...serviceConfig,
         namedServices: {
