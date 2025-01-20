@@ -431,6 +431,12 @@ export const HMDocumentMetadataSchema = z.object({
 })
 
 export type HMMetadata = z.infer<typeof HMDocumentMetadataSchema>
+
+export type HMAccountsMetadata = Record<
+  string, // account uid
+  HMMetadataPayload
+>
+
 export const HMTimestampSchema = z
   .object({
     seconds: z.bigint(),

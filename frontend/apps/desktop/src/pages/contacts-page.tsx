@@ -1,16 +1,12 @@
 import {FavoriteButton} from '@/components/favoriting'
 import {MainWrapper} from '@/components/main-wrapper'
-import {useListProfileDocuments} from '@/models/documents'
-import {useEntities} from '@/models/entities'
+import {useAccounts} from '@/models/accounts'
 import {useNavigate} from '@/utils/useNavigate'
-import {PlainMessage} from '@bufbuild/protobuf'
-import {DocumentInfo, getAccountName, hmId} from '@shm/shared'
+import {getMetadataName, HMAccount, HMAccountsMetadata, hmId} from '@shm/shared'
 import {
   Button,
   Container,
-  getRandomColor,
   HMIcon,
-  LinkIcon,
   ListItemSkeleton,
   SizableText,
   Spinner,
@@ -18,7 +14,7 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {useMemo, useRef} from 'react'
+import {useRef} from 'react'
 import {useShowTitleObserver} from './app-title'
 
 function ErrorPage({}: {error: any}) {
@@ -35,10 +31,10 @@ function ErrorPage({}: {error: any}) {
 }
 
 export default function ContactsPage() {
-  const contacts = useListProfileDocuments()
+  const accounts = useAccounts()
   const ref = useRef(null)
   useShowTitleObserver(ref.current)
-  if (contacts.isLoading) {
+  if (accounts.isLoading) {
     return (
       <>
         <MainWrapper>
@@ -49,8 +45,8 @@ export default function ContactsPage() {
       </>
     )
   }
-  if (contacts.error) {
-    return <ErrorPage error={contacts.error} />
+  if (accounts.error) {
+    return <ErrorPage error={accounts.error} />
   }
 
   return (
@@ -58,9 +54,12 @@ export default function ContactsPage() {
       <MainWrapper height="100%">
         <Container centered>
           <YStack paddingVertical="$4" marginHorizontal={-8}>
-            {contacts.data?.length ? (
-              contacts.data.map((contact) => (
-                <ContactListItem entry={contact} />
+            {accounts.data?.accounts.length ? (
+              accounts.data.accounts.map((account) => (
+                <ContactListItem
+                  account={account}
+                  accountsMetadata={accounts.data.accountsMetadata}
+                />
               ))
             ) : (
               <YStack gap="$3">
@@ -82,24 +81,15 @@ export default function ContactsPage() {
 
 const hoverColor = '$color5'
 
-function ContactListItem({entry}: {entry: PlainMessage<DocumentInfo>}) {
+function ContactListItem({
+  account,
+  accountsMetadata,
+}: {
+  account: HMAccount
+  accountsMetadata: HMAccountsMetadata
+}) {
   const navigate = useNavigate()
-  const id = hmId('d', entry.account, {
-    version: entry.version,
-  })
-
-  const authors = useEntities(entry.authors.map((a) => hmId('d', a)))
-
-  const editors = useMemo(
-    () =>
-      (authors.length == 1
-        ? []
-        : authors.length > 3
-        ? authors.slice(0, 2)
-        : authors
-      ).filter((a) => !!a.data?.id.uid),
-    [authors],
-  )
+  const id = hmId('d', account.id, {})
   return (
     <Button
       group="item"
@@ -118,9 +108,8 @@ function ContactListItem({entry}: {entry: PlainMessage<DocumentInfo>}) {
         <HMIcon
           size={28}
           id={id}
-          metadata={entry.metadata}
+          metadata={account.metadata}
           borderRadius={40}
-          color={getRandomColor(entry.account)}
         />
       }
     >
@@ -133,63 +122,13 @@ function ContactListItem({entry}: {entry: PlainMessage<DocumentInfo>}) {
               whiteSpace="nowrap"
               overflow="hidden"
             >
-              {getAccountName(entry)}
+              {getMetadataName(account.metadata)}
             </SizableText>
           </XStack>
         </YStack>
       </XStack>
       <XStack gap="$3" ai="center">
         <FavoriteButton id={id} hideUntilItemHover />
-        <XStack>
-          {editors.map((author, idx) => (
-            <XStack
-              zIndex={idx + 1}
-              key={entry.account}
-              borderColor="$background"
-              backgroundColor="$background"
-              $group-item-hover={{
-                borderColor: hoverColor,
-                backgroundColor: hoverColor,
-              }}
-              borderWidth={2}
-              borderRadius={100}
-              overflow="hidden"
-              marginLeft={-8}
-              animation="fast"
-            >
-              <LinkIcon
-                key={author.data?.id.id}
-                id={author.data?.id}
-                metadata={author.data?.document?.metadata}
-                size={20}
-              />
-            </XStack>
-          ))}
-          {entry.authors.length > editors.length && editors.length != 0 ? (
-            <XStack
-              zIndex="$zIndex.1"
-              borderColor="$background"
-              backgroundColor="$background"
-              borderWidth={2}
-              borderRadius={100}
-              marginLeft={-8}
-              animation="fast"
-              width={24}
-              height={24}
-              ai="center"
-              jc="center"
-            >
-              <Text
-                fontSize={10}
-                fontFamily="$body"
-                fontWeight="bold"
-                color="$color10"
-              >
-                +{entry.authors.length - editors.length - 1}
-              </Text>
-            </XStack>
-          ) : null}
-        </XStack>
       </XStack>
     </Button>
   )
