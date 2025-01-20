@@ -23,6 +23,14 @@ const serviceConfigSchema = z.object({
   rootHostname: z.string(),
   rootConfig: configSchema,
   namedServices: z.record(z.string(), configSchema),
+  customDomains: z
+    .record(
+      z.string(),
+      z.object({
+        service: z.string(),
+      })
+    )
+    .optional(),
 });
 export type ServiceConfig = z.infer<typeof serviceConfigSchema>;
 
@@ -44,6 +52,15 @@ export async function getConfig(hostname: string) {
   if (serviceConfig) {
     if (hostname === serviceConfig.rootHostname)
       return serviceConfig.rootConfig;
+    if (serviceConfig.customDomains && serviceConfig.customDomains[hostname]) {
+      const customDomain = serviceConfig.customDomains[hostname];
+      if (
+        customDomain.service &&
+        serviceConfig.namedServices[customDomain.service]
+      ) {
+        return serviceConfig.namedServices[customDomain.service] || null;
+      }
+    }
     // if the hostname isn't in the format subdomain.rootHostname, return nothing
     const parts = hostname.split(".");
     const rootParts = serviceConfig.rootHostname.split(".");
@@ -95,6 +112,20 @@ export async function writeConfig(hostname: string, newConfig: Config) {
   } else {
     await writeSoloConfig(newConfig);
   }
+}
+
+export async function writeCustomDomainConfig(
+  hostname: string,
+  serviceName: string
+) {
+  if (!serviceConfig) throw new Error("Service config not loaded");
+  await writeServiceConfig({
+    ...serviceConfig,
+    customDomains: {
+      ...serviceConfig.customDomains,
+      [hostname]: {service: serviceName},
+    },
+  });
 }
 
 export async function writeSoloConfig(newConfig: Config) {
