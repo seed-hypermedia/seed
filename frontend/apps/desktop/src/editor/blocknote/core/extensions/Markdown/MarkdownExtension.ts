@@ -89,7 +89,9 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
 
               const isMarkdown = pastedHtml
                 ? containsMarkdownSymbols(pastedText)
-                : true
+                : pastedText
+                ? true
+                : false
 
               if (!isMarkdown) {
                 if (hasList) {

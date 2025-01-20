@@ -13,11 +13,14 @@ const handleLocalMediaPastePlugin = new Plugin({
   key: new PluginKey('pm-local-media-paste'),
   props: {
     handlePaste(view, event) {
-      let currentSelection = view.state.selection
+      const insertPos =
+        view.state.selection.$anchor.parent.type.name !== 'image' &&
+        view.state.selection.$anchor.parent.nodeSize <= 2
+          ? view.state.selection.$anchor.start() - 2
+          : view.state.selection.$anchor.end() + 2
       const items = Array.from(event.clipboardData?.items || [])
       if (items.length === 0) return false
       for (const item of items) {
-        // console.log('=== NEW ITEM', item)
         if (item.type.indexOf('image') === 0) {
           const img = item.getAsFile()
           if (img) {
@@ -30,9 +33,7 @@ const handleLocalMediaPastePlugin = new Plugin({
                   url: data,
                   name: name,
                 })
-                view.dispatch(
-                  view.state.tr.insert(currentSelection.anchor - 1, node),
-                )
+                view.dispatch(view.state.tr.insert(insertPos, node))
               })
               .catch((error) => {
                 console.log(error)
@@ -51,9 +52,7 @@ const handleLocalMediaPastePlugin = new Plugin({
                   url: data,
                   name: name,
                 })
-                view.dispatch(
-                  view.state.tr.insert(currentSelection.anchor - 1, node),
-                )
+                view.dispatch(view.state.tr.insert(insertPos, node))
               })
               .catch((error) => {
                 console.log(error)
@@ -74,9 +73,7 @@ const handleLocalMediaPastePlugin = new Plugin({
                   size: size,
                 })
 
-                view.dispatch(
-                  view.state.tr.insert(currentSelection.anchor - 1, node),
-                )
+                view.dispatch(view.state.tr.insert(insertPos, node))
               })
               .catch((error) => {
                 console.log(error)
