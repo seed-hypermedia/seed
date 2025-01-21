@@ -1317,7 +1317,8 @@ function InlineContentView({
   rangeOffset?: number;
   isRange?: boolean;
 }) {
-  const {onLinkClick, textUnit, entityComponents} = useDocContentContext();
+  const {onLinkClick, textUnit, entityComponents, comment} =
+    useDocContentContext();
 
   const InlineEmbed = entityComponents.Inline;
 
@@ -1483,7 +1484,13 @@ function InlineContentView({
 
         if (content.type == "inline-embed") {
           const unpackedRef = unpackHmId(content.link);
-          return <InlineEmbed key={content.link} {...unpackedRef} />;
+          return (
+            <InlineEmbed
+              comment={comment}
+              key={content.link}
+              {...unpackedRef}
+            />
+          );
         }
 
         if (content.type == "range") {
@@ -2334,7 +2341,7 @@ export function InlineEmbedButton({
       color="$brand5"
       fontWeight="bold"
       className="hm-link"
-      fontSize="$5"
+      fontSize="inherit"
       data-inline-embed={packHmId(id)}
     >
       {children}
