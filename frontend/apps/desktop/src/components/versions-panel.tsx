@@ -33,7 +33,7 @@ export function VersionsPanel({
   const navigate = useNavigate()
   if (!route.id) throw new Error('VersionsPanel must have document id')
   const activeChangeIds = useVersionChanges(route.id)
-  const currentEntity = useSubscribedEntity(route.id)
+  const currentEntity = useSubscribedEntity({...route.id, version: null})
   const changes = useDocumentChanges(route.id, route.key == 'draft')
   return (
     <AccessoryContainer title="Versions" onClose={onClose}>
