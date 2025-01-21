@@ -34,7 +34,6 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
 )
 
 func init() {
@@ -383,16 +382,15 @@ func initGRPC(
 	LogLevel string,
 	isMainnet bool,
 	opts grpcOpts,
-) (srv *grpc.Server, lis net.Listener, rpc api.Server, err error) {
+) (srv *grpc.Server, lis net.Listener, apis api.Server, err error) {
 	lis, err = net.Listen("tcp", ":"+strconv.Itoa(port))
 	if err != nil {
 		return
 	}
 
 	srv = grpc.NewServer(opts.serverOptions...)
-	rpc = api.New(repo, idx, node, sync, activity, LogLevel, isMainnet)
-	rpc.Register(srv)
-	reflection.Register(srv)
+	apis = api.New(repo, idx, node, sync, activity, LogLevel, isMainnet)
+	apis.Register(srv)
 
 	for _, extra := range opts.extraServices {
 		extra(srv)
