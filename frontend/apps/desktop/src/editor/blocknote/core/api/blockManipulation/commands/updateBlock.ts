@@ -153,7 +153,7 @@ function updateChildren<BSchema extends BlockSchema>(
   // editor: BlockNoteEditor<BSchema>,
   blockInfo: BlockInfo,
 ) {
-  if (block.children !== undefined) {
+  if (block.children && block.children.length > 0) {
     const childNodes = block.children.map((child) => {
       return blockToNode(child, state.schema)
     })

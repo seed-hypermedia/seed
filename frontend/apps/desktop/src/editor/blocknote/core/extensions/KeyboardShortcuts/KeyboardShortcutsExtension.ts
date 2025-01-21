@@ -48,7 +48,6 @@ export const KeyboardShortcutsExtension = Extension.create<{
               | {parentBlock: PMNode; parentGroup: PMNode; parentPos: number}
               | undefined
 
-            // if (depth > 3 && container.type.name == 'blockContainer') {
             if (depth > 3) {
               parentInfo = {
                 parentBlock: $pos.node(depth - 3).firstChild!,
