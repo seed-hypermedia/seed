@@ -1,9 +1,11 @@
 import {Extension} from '@tiptap/core'
 import {Decoration, DecorationSet} from '@tiptap/pm/view'
-import {Fragment} from 'prosemirror-model'
 import {NodeSelection, TextSelection} from 'prosemirror-state'
 import {mergeBlocksCommand} from '../../api/blockManipulation/commands/mergeBlocks'
-import {nestBlock} from '../../api/blockManipulation/commands/nestBlock'
+import {
+  nestBlock,
+  unnestBlock,
+} from '../../api/blockManipulation/commands/nestBlock'
 import {splitBlockCommand} from '../../api/blockManipulation/commands/splitBlock'
 import {updateBlockCommand} from '../../api/blockManipulation/commands/updateBlock'
 import {updateGroupChildrenCommand} from '../../api/blockManipulation/commands/updateGroup'
@@ -12,10 +14,7 @@ import {
   getBlockInfoFromPos,
   getBlockInfoFromSelection,
 } from '../Blocks/helpers/getBlockInfoFromPos'
-import {
-  getGroupInfoFromPos,
-  getParentGroupInfoFromPos,
-} from '../Blocks/helpers/getGroupInfoFromPos'
+import {getGroupInfoFromPos} from '../Blocks/helpers/getGroupInfoFromPos'
 import {
   getParentBlockFromPos,
   SelectionPluginKey,
@@ -113,7 +112,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
             return false
           }),
         // Convert a list into a normal group if the selection is at the start of the list
-        // TODO: figure out if it's needed, because removing the first list item from the group seems reasonable.
+        // TODO: figure out if it's needed, because lifting the first list item from the group seems reasonable.
         // () =>
         //   commands.command(({state, view}) => {
         //     const {group, container, depth, $pos} = getGroupInfoFromPos(
@@ -309,16 +308,17 @@ export const KeyboardShortcutsExtension = Extension.create<{
         // Removes a level of nesting if the block is indented if the selection is at the start of the block.
         () =>
           commands.command(({state}) => {
-            const blockInfo = getBlockInfoFromSelection(state)
-            const {blockContent} = blockInfo
-
+            const {blockContent} = getBlockInfoFromSelection(state)
             const selectionAtBlockStart =
               state.selection.from === blockContent.beforePos + 1
 
-            if (selectionAtBlockStart) {
-              return commands.liftListItem('blockContainer')
-            }
+            if (selectionAtBlockStart && state.selection.$from.depth - 1 > 2) {
+              setTimeout(() => {
+                unnestBlock(this.editor, state.selection.from)
+              })
 
+              return true
+            }
             return false
           }),
         // Merges block with the previous one if it isn't indented,
@@ -668,146 +668,6 @@ export const KeyboardShortcutsExtension = Extension.create<{
           }),
       ])
 
-    const handleShiftTab = (posInBlock: number) =>
-      this.editor.commands.command(({state, dispatch}) => {
-        const blockInfo = getBlockInfoFromPos(state, posInBlock)!
-
-        if (state.doc.resolve(posInBlock).depth - 1 > 2 && dispatch) {
-          // If there are children, need to manually append siblings
-          // into block's children to avoid the range error.
-          if (blockInfo.block.node.childCount > 1) {
-            const blockChildren = state.tr.doc
-              .resolve(
-                blockInfo.block.beforePos +
-                  blockInfo.blockContent.node.nodeSize +
-                  2,
-              )
-              .node().content
-
-            const parentBlockInfo = getBlockInfoFromPos(
-              state,
-              state.tr.doc.resolve(blockInfo.block.beforePos + 1).start(-2),
-            )!
-
-            const siblingBlocksAfter = state.tr.doc.slice(
-              blockInfo.block.afterPos,
-              parentBlockInfo.block.afterPos - 2,
-            ).content
-
-            // If last child or the only child, just lift list item.
-            if (Fragment.empty.eq(siblingBlocksAfter)) {
-              const {group, container, $pos, depth} = getGroupInfoFromPos(
-                state.selection.from,
-                state,
-              )
-
-              const {node: parentGroup, pos: parentGroupPos} =
-                getParentGroupInfoFromPos(group, $pos, depth)
-
-              setTimeout(() => {
-                this.editor
-                  .chain()
-                  .liftListItem('blockContainer')
-                  .command(
-                    updateGroupChildrenCommand(
-                      group,
-                      container!,
-                      $pos,
-                      parentGroup?.attrs.listType === 'Unordered'
-                        ? parseInt(parentGroup.attrs.listLevel) + 1
-                        : parseInt(group.attrs.listLevel),
-                      group.attrs.listType,
-                      false,
-                    ),
-                  )
-                  .run()
-              })
-              return true
-            }
-
-            // Move all siblings after the block into its children.
-            const children = blockChildren.append(siblingBlocksAfter)
-
-            const childGroup = getGroupInfoFromPos(
-              blockInfo.block.beforePos +
-                blockInfo.blockContent.node.nodeSize +
-                2,
-              state,
-            )
-
-            // Checks if the block is the first child of its group,
-            // then delete the entire `blockGroup`
-            // of the parent. Otherwise, only delete the
-            // children after the block.
-            if (
-              parentBlockInfo.block.beforePos +
-                parentBlockInfo.blockContent.node.nodeSize +
-                2 ===
-              blockInfo.block.beforePos
-            ) {
-              state.tr.delete(
-                parentBlockInfo.block.beforePos +
-                  parentBlockInfo.blockContent.node.nodeSize +
-                  1,
-                parentBlockInfo.block.afterPos - 1,
-              )
-            } else {
-              state.tr.delete(
-                blockInfo.block.beforePos,
-                parentBlockInfo.block.afterPos - 2,
-              )
-            }
-
-            const blockContent = [blockInfo.blockContent.node]
-            // If there are children of the unnested block,
-            // create a new group for them and attach to block content.
-            if (children) {
-              const blockGroup = state.schema.nodes['blockGroup'].create(
-                childGroup
-                  ? {
-                      listType: childGroup.group.attrs.listType,
-                      listLevel:
-                        childGroup.group.attrs.listLevel > 1
-                          ? childGroup.group.attrs.listLevel - 1
-                          : 1,
-                    }
-                  : null,
-                children,
-              )
-              blockContent.push(blockGroup)
-            }
-            // Create and insert the manually built block instead of
-            // using tiptap's liftListItem command.
-            const block = state.schema.nodes['blockContainer'].create(
-              blockInfo.block.node.attrs,
-              blockContent,
-            )
-
-            const insertPos =
-              state.tr.selection.from -
-              (childGroup.group.attrs.listLevel === '3' ? 4 : 2)
-
-            state.tr.insert(insertPos, block)
-            state.tr.setSelection(
-              new TextSelection(
-                state.tr.doc.resolve(state.tr.selection.from - block.nodeSize),
-              ),
-            )
-
-            dispatch(state.tr)
-
-            return true
-          } else {
-            setTimeout(() => {
-              this.editor.commands.liftListItem('blockContainer')
-            })
-            return true
-          }
-        }
-
-        return true
-      })
-
     return {
       Backspace: handleBackspace,
       Delete: handleDelete,
@@ -815,7 +675,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
       Tab: handleTab,
       'Shift-Tab': () => {
         const {block} = getBlockInfoFromSelection(this.editor.state)
-        return handleShiftTab(block.beforePos + 1)
+        return unnestBlock(this.editor, block.beforePos + 1)
       },
       // "Shift-Mod-ArrowUp": () => {
       //   this.options.editor.moveBlocksUp();

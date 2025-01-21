@@ -14,11 +14,6 @@ export const splitBlockCommand = (
     dispatch: ((args?: any) => any) | undefined
   }) => {
     const blockInfo = getBlockInfoFromPos(state, posInBlock)
-    // const newBlockInfo = getBlockInfoFromResolvedPos(
-    //   state.doc.resolve(
-    //     getNearestBlockPos(state.doc, posInBlock).posBeforeNode,
-    //   ),
-    // )
 
     if (blockInfo.block.node.type.name !== 'blockContainer') {
       throw new Error(

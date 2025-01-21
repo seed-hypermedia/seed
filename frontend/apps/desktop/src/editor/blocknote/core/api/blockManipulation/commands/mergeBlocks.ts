@@ -86,8 +86,7 @@ const mergeBlocks = (
   prevBlockInfo: BlockInfo,
   nextBlockInfo: BlockInfo,
 ) => {
-  // Removes a level of nesting all children of the next block by 1 level, if it contains both content and block
-  // group nodes.
+  // Remove a level of nesting all children of the block.
   if (nextBlockInfo.childContainer) {
     const childBlocksStart = state.doc.resolve(
       nextBlockInfo.childContainer.beforePos + 1,
@@ -103,7 +102,7 @@ const mergeBlocks = (
     }
   }
 
-  // Deletes the boundary between the two blocks. Can be thought of as
+  // Delete the boundary between the two blocks. Can be thought of as
   // removing the closing tags of the first block and the opening tags of the
   // second one to stitch them together.
   if (dispatch) {

@@ -1,9 +1,157 @@
 import {HMBlockChildrenType} from '@shm/shared'
-import {Fragment, NodeRange, NodeType, Slice} from '@tiptap/pm/model'
-import {canJoin, liftTarget, ReplaceAroundStep} from '@tiptap/pm/transform'
-import {EditorState, Transaction} from 'prosemirror-state'
+import {Editor} from '@tiptap/core'
+import {Fragment, NodeType, Slice} from '@tiptap/pm/model'
+import {ReplaceAroundStep} from '@tiptap/pm/transform'
+import {EditorState, TextSelection} from 'prosemirror-state'
 import {BlockNoteEditor} from '../../../BlockNoteEditor'
-import {getBlockInfoFromSelection} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
+import {
+  getBlockInfoFromPos,
+  getBlockInfoFromSelection,
+} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
+import {
+  getGroupInfoFromPos,
+  getParentGroupInfoFromPos,
+} from '../../../extensions/Blocks/helpers/getGroupInfoFromPos'
+import {updateGroupChildrenCommand} from './updateGroup'
+
+function liftListItem(editor: Editor, posInBlock: number) {
+  return function ({state, dispatch}: {state: EditorState; dispatch: any}) {
+    const blockInfo = getBlockInfoFromPos(state, posInBlock)
+
+    if (state.selection.$from.depth - 1 > 2 && dispatch) {
+      // If there are children, need to manually append siblings
+      // into block's children to avoid the range error.
+      if (blockInfo.block.node.childCount > 1) {
+        const blockChildren = state.tr.doc
+          .resolve(
+            blockInfo.block.beforePos +
+              blockInfo.blockContent.node.nodeSize +
+              2,
+          )
+          .node().content
+
+        const parentBlockInfo = getBlockInfoFromPos(
+          state,
+          state.tr.doc.resolve(blockInfo.block.beforePos + 1).start(-2),
+        )!
+
+        const siblingBlocksAfter = state.tr.doc.slice(
+          blockInfo.block.afterPos,
+          parentBlockInfo.block.afterPos - 2,
+        ).content
+
+        // If last child or the only child, just lift list item.
+        if (Fragment.empty.eq(siblingBlocksAfter)) {
+          const {group, container, $pos, depth} = getGroupInfoFromPos(
+            state.selection.from,
+            state,
+          )
+
+          const {node: parentGroup, pos: parentGroupPos} =
+            getParentGroupInfoFromPos(group, $pos, depth)
+
+          setTimeout(() => {
+            editor
+              .chain()
+              .liftListItem('blockContainer')
+              .command(
+                updateGroupChildrenCommand(
+                  group,
+                  container!,
+                  $pos,
+                  parentGroup?.attrs.listType === 'Unordered'
+                    ? parseInt(parentGroup.attrs.listLevel) + 1
+                    : parseInt(group.attrs.listLevel),
+                  group.attrs.listType,
+                  false,
+                ),
+              )
+              .run()
+          })
+          return true
+        }
+
+        // Move all siblings after the block into its children.
+        const children = blockChildren.append(siblingBlocksAfter)
+
+        const childGroup = getGroupInfoFromPos(
+          blockInfo.block.beforePos + blockInfo.blockContent.node.nodeSize + 2,
+          state,
+        )
+
+        // Checks if the block is the first child of its group,
+        // then delete the entire `blockGroup`
+        // of the parent. Otherwise, only delete the
+        // children after the block.
+        if (
+          parentBlockInfo.block.beforePos +
+            parentBlockInfo.blockContent.node.nodeSize +
+            2 ===
+          blockInfo.block.beforePos
+        ) {
+          state.tr.delete(
+            parentBlockInfo.block.beforePos +
+              parentBlockInfo.blockContent.node.nodeSize +
+              1,
+            parentBlockInfo.block.afterPos - 1,
+          )
+        } else {
+          state.tr.delete(
+            blockInfo.block.beforePos,
+            parentBlockInfo.block.afterPos - 2,
+          )
+        }
+
+        const blockContent = [blockInfo.blockContent.node]
+        // If there are children of the unnested block,
+        // create a new group for them and attach to block content.
+        if (children) {
+          const blockGroup = state.schema.nodes['blockGroup'].create(
+            childGroup
+              ? {
+                  listType: childGroup.group.attrs.listType,
+                  listLevel:
+                    childGroup.group.attrs.listLevel > 1
+                      ? childGroup.group.attrs.listLevel - 1
+                      : 1,
+                }
+              : null,
+            children,
+          )
+          blockContent.push(blockGroup)
+        }
+        // Create and insert the manually built block instead of
+        // using tiptap's liftListItem command.
+        const block = state.schema.nodes['blockContainer'].create(
+          blockInfo.block.node.attrs,
+          blockContent,
+        )
+
+        const insertPos =
+          state.tr.selection.from -
+          (childGroup.group.attrs.listLevel === '3' ? 4 : 2)
+
+        state.tr.insert(insertPos, block)
+        state.tr.setSelection(
+          new TextSelection(
+            state.tr.doc.resolve(state.tr.selection.from - block.nodeSize),
+          ),
+        )
+
+        dispatch(state.tr)
+
+        return true
+      } else {
+        setTimeout(() => {
+          editor.commands.liftListItem('blockContainer')
+        })
+        return true
+      }
+    }
+
+    return true
+  }
+}
 
 function sinkListItem(
   itemType: NodeType,
@@ -49,8 +197,6 @@ function sinkListItem(
         0,
       )
 
-      console.log(slice)
-
       const before = range.start
       const after = range.end
       dispatch(
@@ -73,214 +219,6 @@ function sinkListItem(
   }
 }
 
-/// Create a command to lift the list item around the selection up into
-/// a wrapping list.
-function liftListItem(itemType: NodeType) {
-  return function ({state, dispatch}: {state: EditorState; dispatch: any}) {
-    let {$from, $to} = state.selection
-    let range = $from.blockRange(
-      $to,
-      (node) => node.childCount > 0 && node.firstChild!.type == itemType,
-    )
-    // console.log(range, dispatch)
-    if (!range) return false
-    if (!dispatch) return true
-    console.log($from.node(range.depth - 1))
-    if ($from.node(range.depth - 1).type == itemType)
-      // Inside a parent list
-      return liftToOuterList(state, dispatch, itemType, range)
-    // Outer list node
-    else return liftOutOfList(state, dispatch, range)
-  }
-}
-
-// function liftToOuterList(
-//   state: EditorState,
-//   dispatch: (tr: Transaction) => void,
-//   itemType: NodeType,
-//   range: NodeRange,
-// ) {
-//   console.log('here 1')
-//   let tr = state.tr,
-//     end = range.end,
-//     endOfList = range.$to.end(range.depth)
-//   console.log(end, endOfList)
-//   if (end < endOfList) {
-//     // There are siblings after the lifted items, which must become
-//     // children of the last item
-//     const step = new ReplaceAroundStep(
-//       end - 1,
-//       endOfList,
-//       end,
-//       endOfList,
-//       new Slice(
-//         Fragment.from(itemType.create(null, range.parent.copy())),
-//         1,
-//         0,
-//       ),
-//       1,
-//       true,
-//     )
-//     console.log(
-//       // step,
-//       Fragment.from(itemType.create(null, range.parent.copy())),
-//       state.doc.resolve(end).parent,
-//       state.doc.resolve(endOfList).parent,
-//     )
-//     tr.step(
-//       new ReplaceAroundStep(
-//         end - 1,
-//         endOfList,
-//         end,
-//         endOfList,
-//         new Slice(
-//           Fragment.from(itemType.create(null, range.parent.copy())),
-//           1,
-//           0,
-//         ),
-//         1,
-//         true,
-//       ),
-//     )
-//     console.log('here 1.5')
-//     range = new NodeRange(
-//       tr.doc.resolve(range.$from.pos),
-//       tr.doc.resolve(endOfList),
-//       range.depth,
-//     )
-//   }
-//   console.log('here 2')
-//   const target = liftTarget(range)
-//   if (target == null) return false
-//   tr.lift(range, target)
-//   let after = tr.mapping.map(end, -1) - 1
-//   if (canJoin(tr.doc, after)) tr.join(after)
-//   console.log('here 3')
-//   dispatch(tr.scrollIntoView())
-//   return true
-// }
-
-function liftToOuterList(
-  state: EditorState,
-  dispatch: (tr: Transaction) => void,
-  itemType: NodeType,
-  range: NodeRange,
-) {
-  let tr = state.tr
-  console.log('Before lift:', range.parent.content.toString())
-  let end = range.end
-  let endOfList = range.$to.end(range.depth)
-
-  if (end < endOfList) {
-    // Adjust content to ensure valid schema
-    const content = range.parent.content
-    // const blockGroup = content.find((node) => node.type.name === 'blockGroup')
-    let blockGroup = null
-    content.forEach((node) => {
-      if (node.type.name === 'blockGroup') {
-        blockGroup = node
-      }
-    })
-
-    if (blockGroup) {
-      // Wrap the child blockGroup to ensure it remains nested correctly
-      const wrappedGroup = itemType.create(null, blockGroup.copy())
-      tr.step(
-        new ReplaceAroundStep(
-          end - 1,
-          endOfList,
-          end,
-          endOfList,
-          new Slice(Fragment.from(wrappedGroup), 1, 0),
-          1,
-          true,
-        ),
-      )
-    }
-  }
-
-  // Check the new range and lift
-  range = new NodeRange(
-    tr.doc.resolve(range.$from.pos),
-    tr.doc.resolve(endOfList),
-    range.depth,
-  )
-
-  const target = liftTarget(range)
-  if (target == null) return false
-  tr.lift(range, target)
-
-  // Merge nodes if necessary
-  let after = tr.mapping.map(end, -1) - 1
-  if (canJoin(tr.doc, after)) tr.join(after)
-
-  console.log('After lift:', tr.doc.content.toString())
-
-  dispatch(tr.scrollIntoView())
-  return true
-}
-
-function liftOutOfList(
-  state: EditorState,
-  dispatch: (tr: Transaction) => void,
-  range: NodeRange,
-) {
-  console.log('here 2')
-  let tr = state.tr,
-    list = range.parent
-  // Merge the list items into a single big item
-  for (
-    let pos = range.end, i = range.endIndex - 1, e = range.startIndex;
-    i > e;
-    i--
-  ) {
-    pos -= list.child(i).nodeSize
-    tr.delete(pos - 1, pos + 1)
-  }
-  let $start = tr.doc.resolve(range.start),
-    item = $start.nodeAfter!
-  if (tr.mapping.map(range.end) != range.start + $start.nodeAfter!.nodeSize)
-    return false
-  let atStart = range.startIndex == 0,
-    atEnd = range.endIndex == list.childCount
-  let parent = $start.node(-1),
-    indexBefore = $start.index(-1)
-  if (
-    !parent.canReplace(
-      indexBefore + (atStart ? 0 : 1),
-      indexBefore + 1,
-      item.content.append(atEnd ? Fragment.empty : Fragment.from(list)),
-    )
-  )
-    return false
-  let start = $start.pos,
-    end = start + item.nodeSize
-  // Strip off the surrounding list. At the sides where we're not at
-  // the end of the list, the existing list is closed. At sides where
-  // this is the end, it is overwritten to its end.
-  tr.step(
-    new ReplaceAroundStep(
-      start - (atStart ? 1 : 0),
-      end + (atEnd ? 1 : 0),
-      start + 1,
-      end - 1,
-      new Slice(
-        (atStart
-          ? Fragment.empty
-          : Fragment.from(list.copy(Fragment.empty))
-        ).append(
-          atEnd ? Fragment.empty : Fragment.from(list.copy(Fragment.empty)),
-        ),
-        atStart ? 0 : 1,
-        atEnd ? 0 : 1,
-      ),
-      atStart ? 0 : 1,
-    ),
-  )
-  dispatch(tr.scrollIntoView())
-  return true
-}
-
 export function nestBlock(
   editor: BlockNoteEditor<any>,
   listType: HMBlockChildrenType,
@@ -294,24 +232,10 @@ export function nestBlock(
       listLevel,
     ),
   )
-  // editor._tiptapEditor.commands.UpdateGroupChildren()
-  // editor._tiptapEditor.chain().(editor._tiptapEditor.commands.command(
-  //   sinkListItem(
-  //     editor._tiptapEditor.schema.nodes['blockContainer'],
-  //     editor._tiptapEditor.schema.nodes['blockGroup'],
-  //     listType,
-  //     listLevel,
-  //   )
-  // ))
-  // return true
 }
 
-export function unnestBlock(editor: BlockNoteEditor<any>) {
-  console.log('here')
-  // editor._tiptapEditor.commands.liftListItem('blockContainer')
-  return editor._tiptapEditor.commands.command(
-    liftListItem(editor._tiptapEditor.schema.nodes['blockContainer']),
-  )
+export function unnestBlock(editor: Editor, posInBlock: number) {
+  return editor.commands.command(liftListItem(editor, posInBlock))
 }
 
 export function canNestBlock(editor: BlockNoteEditor<any>) {
