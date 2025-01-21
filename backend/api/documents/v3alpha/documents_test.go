@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -238,31 +239,19 @@ func TestListAccounts(t *testing.T) {
 	require.Len(t, accs.Accounts, 1)
 	testutil.StructsEqual(bobAcc, accs.Accounts[0]).Compare(t, "bob's account must match")
 
-	// Sync bob and alice.
-	{
-		cids, err := bob.idx.AllKeysChan(ctx)
-		require.NoError(t, err)
-		var count int
-		for c := range cids {
-			count++
-			blk, err := bob.idx.Get(ctx, c)
-			require.NoError(t, err)
-			err = alice.idx.Put(ctx, blk)
-			require.NoError(t, err)
-		}
-		require.Greater(t, count, 0)
-	}
+	// Sync bob to alice.
+	syncStores(ctx, t, alice.idx, bob.idx)
 
 	accs, err = alice.ListAccounts(ctx, &documents.ListAccountsRequest{})
 	require.NoError(t, err)
 	require.Len(t, accs.Accounts, 2)
 
 	testutil.StructsEqual(bobAcc, accs.Accounts[0]).
-		IgnoreFields(documents.DocumentInfo{}, "Breadcrumbs", "ActivitySummary").
+		IgnoreTypes(&documents.Breadcrumb{}, &documents.ActivitySummary{}).
 		Compare(t, "bobs root document must match and be first")
 
 	testutil.StructsEqual(aliceAcc, accs.Accounts[1]).
-		IgnoreFields(documents.DocumentInfo{}, "Breadcrumbs", "ActivitySummary").
+		IgnoreTypes(&documents.Breadcrumb{}, &documents.ActivitySummary{}).
 		Compare(t, "alice's root document must match and be second")
 }
 
@@ -928,6 +917,101 @@ func TestListDirectory(t *testing.T) {
 	)
 }
 
+func TestUpdateReadStatus(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	bob := newTestDocsAPI(t, "bob")
+	ctx := context.Background()
+
+	// Create home document for Bob.
+	bobHome, err := bob.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        bob.me.Account.Principal().String(),
+		Path:           "",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Bob's profile"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create some nested documents for Bob.
+	bobDoc1, err := bob.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        bob.me.Account.Principal().String(),
+		Path:           "/doc-1",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Bob's Document 1"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	bobDoc2, err := bob.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        bob.me.Account.Principal().String(),
+		Path:           "/nested/doc-2",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Bob's Nested Document 2"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Verify the documents were created correctly.
+	require.NotNil(t, bobHome)
+	require.NotNil(t, bobDoc1)
+	require.NotNil(t, bobDoc2)
+
+	// Sync bob into alice.
+	syncStores(ctx, t, alice.idx, bob.idx)
+
+	list, err := alice.ListDocuments(ctx, &documents.ListDocumentsRequest{Account: bob.me.Account.Principal().String(), PageSize: 1000})
+	require.NoError(t, err)
+	require.Len(t, list.Documents, 3, "alice must have all bob's docs")
+
+	for _, x := range list.Documents {
+		require.True(t, x.ActivitySummary.IsUnread, "all bob's docs must be unread")
+	}
+
+	_, err = alice.UpdateDocumentReadStatus(ctx, &documents.UpdateDocumentReadStatusRequest{
+		Account: bobDoc1.Account,
+		Path:    bobDoc1.Path,
+		IsRead:  true,
+	})
+	require.NoError(t, err)
+
+	list, err = alice.ListDocuments(ctx, &documents.ListDocumentsRequest{Account: bob.me.Account.Principal().String(), PageSize: 1000})
+	require.NoError(t, err)
+
+	for _, x := range list.Documents {
+		if x.Account == bobDoc1.Account && x.Path == bobDoc1.Path {
+			require.False(t, x.ActivitySummary.IsUnread, "bob's doc 1 must be read")
+		} else {
+			require.True(t, x.ActivitySummary.IsUnread, "other bob's docs must be unread")
+		}
+	}
+
+	_, err = alice.UpdateDocumentReadStatus(ctx, &documents.UpdateDocumentReadStatusRequest{
+		Account:     bobDoc1.Account,
+		Path:        "",
+		IsRead:      true,
+		IsRecursive: true,
+	})
+	require.NoError(t, err)
+
+	list, err = alice.ListDocuments(ctx, &documents.ListDocumentsRequest{Account: bob.me.Account.Principal().String(), PageSize: 1000})
+	require.NoError(t, err)
+
+	for _, x := range list.Documents {
+		require.False(t, x.ActivitySummary.IsUnread, "all bob's docs must be unread")
+	}
+}
+
 type testServer struct {
 	*Server
 	me coretest.Tester
@@ -941,4 +1025,36 @@ func newTestDocsAPI(t *testing.T, name string) testServer {
 	idx := must.Do2(blob.OpenIndex(context.Background(), db, logging.New("seed/index"+"/"+name, "debug"), nil))
 	srv := NewServer(ks, idx, db, logging.New("seed/documents"+"/"+name, "debug"))
 	return testServer{Server: srv, me: u}
+}
+
+func syncStores(ctx context.Context, t *testing.T, dst, src *blob.Index) {
+	t.Helper()
+
+	ctx = blob.ContextWithUnreadsTracking(ctx)
+
+	cids, err := src.AllKeysChan(ctx)
+	require.NoError(t, err)
+
+	batch := make([]blocks.Block, 0, 50)
+
+	var count int
+	for c := range cids {
+		if len(batch) == cap(batch) {
+			err = dst.PutMany(ctx, batch)
+			require.NoError(t, err)
+			batch = batch[:0]
+		}
+
+		blk, err := src.Get(ctx, c)
+		require.NoError(t, err)
+		batch = append(batch, blk)
+		count++
+	}
+
+	if len(batch) > 0 {
+		err = dst.PutMany(ctx, batch)
+		require.NoError(t, err)
+	}
+
+	require.Greater(t, count, 0)
 }

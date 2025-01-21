@@ -21,13 +21,13 @@ func (idx *Index) SetReadStatus(ctx context.Context, iri IRI, wantRead, isRecurs
 
 	var q string
 	switch {
-	case wantRead, !isRecursive:
+	case wantRead && !isRecursive:
 		q = qDeleteFromUnreads()
-	case wantRead, isRecursive:
+	case wantRead && isRecursive:
 		q = qDeleteFromUnreadsRecursive()
-	case !wantRead, !isRecursive:
+	case !wantRead && !isRecursive:
 		q = qEnsureUnread()
-	case !wantRead, isRecursive:
+	case !wantRead && isRecursive:
 		q = qEnsureUnreadRecursive()
 	}
 

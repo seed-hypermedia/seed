@@ -114,6 +114,13 @@ func (sb *StructsEqualBuilder[T]) IgnoreFields(_type any, fields ...string) *Str
 	return sb
 }
 
+// IgnoreTypes allows to ignore fields on a certain type.
+// Type must be non-pointer value.
+func (sb *StructsEqualBuilder[T]) IgnoreTypes(typs ...any) *StructsEqualBuilder[T] {
+	sb.opts = append(sb.opts, cmpopts.IgnoreTypes(typs...))
+	return sb
+}
+
 // Diff returns a diff between the two structs.
 func (sb *StructsEqualBuilder[T]) Diff() string {
 	return cmp.Diff(sb.a, sb.b, sb.opts...)
