@@ -12,7 +12,7 @@ export const getParentBlockInfo = (doc: Node, beforePos: number) => {
     return undefined
   }
 
-  // get start pos of parent
+  // Get the start position of the parent
   const parentBeforePos = $pos.posAtIndex(
     $pos.index($pos.depth - 1),
     $pos.depth - 1,

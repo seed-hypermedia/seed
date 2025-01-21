@@ -1,5 +1,6 @@
 import {HMBlockChildrenType} from '@shm/shared'
 import {InputRule, mergeAttributes, Node} from '@tiptap/core'
+import {updateGroupCommand} from '../../../api/blockManipulation/commands/updateGroup'
 import {mergeCSSClasses} from '../../../shared/utils'
 import {BlockNoteDOMAttributes} from '../api/blockTypes'
 import styles from './Block.module.css'
@@ -51,7 +52,9 @@ export const BlockGroup = Node.create<{
         find: new RegExp(`^>\\s$`),
         handler: ({state, chain, range}) => {
           chain()
-            .UpdateGroup(state.selection.from, 'Blockquote', false)
+            .command(
+              updateGroupCommand(state.selection.from, 'Blockquote', false),
+            )
             // Removes the ">" character used to set the list.
             .deleteRange({from: range.from, to: range.to})
         },
@@ -64,7 +67,9 @@ export const BlockGroup = Node.create<{
             return
           }
           chain()
-            .UpdateGroup(state.selection.from, 'Unordered', false)
+            .command(
+              updateGroupCommand(state.selection.from, 'Unordered', false),
+            )
             // Removes the "-", "+", or "*" character used to set the list.
             .deleteRange({from: range.from, to: range.to})
         },
@@ -77,11 +82,13 @@ export const BlockGroup = Node.create<{
             return
           }
           chain()
-            .UpdateGroup(
-              state.selection.from,
-              'Ordered',
-              false,
-              // this.editor.state.doc.textBetween(range.from, range.to - 1),
+            .command(
+              updateGroupCommand(
+                state.selection.from,
+                'Ordered',
+                false,
+                // this.editor.state.doc.textBetween(range.from, range.to - 1),
+              ),
             )
             // Removes the "1." characters used to set the list.
             .deleteRange({from: range.from, to: range.to})

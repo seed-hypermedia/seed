@@ -30,7 +30,7 @@ export type BlockInfo = {
 }
 
 /**
- * Retrieves the position just before the nearest block node in a ProseMirror
+ * Retrieve the position just before the nearest block node in a ProseMirror
  * doc, relative to a position. If the position is within a block node or its
  * descendants, the position just before it is returned. If the position is not
  * within a block node or its descendants, the position just before the next
@@ -43,7 +43,7 @@ export type BlockInfo = {
 export function getNearestBlockPos(doc: Node, pos: number) {
   const $pos = doc.resolve(pos)
 
-  // Checks if the position provided is already just before a block node, in
+  // Check if the position provided is already just before a block node, in
   // which case we return the position.
   if ($pos.nodeAfter && $pos.nodeAfter.type.isInGroup('block')) {
     return {
@@ -52,7 +52,7 @@ export function getNearestBlockPos(doc: Node, pos: number) {
     }
   }
 
-  // Checks the node containing the position and its ancestors until a
+  // Check the node containing the position and its ancestors until a
   // block node is found and returned.
   let depth = $pos.depth
   let node = $pos.node(depth)
@@ -68,9 +68,9 @@ export function getNearestBlockPos(doc: Node, pos: number) {
     node = $pos.node(depth)
   }
 
-  // If the position doesn't lie within a block node, we instead find the
+  // If the position doesn't lie within a block node, find the
   // position of the next closest one. If the position is beyond the last block,
-  // we return the position of the last block. While running `doc.descendants`
+  // return the position of the last block. While running `doc.descendants`
   // is expensive, this case should be very rarely triggered. However, it's
   // possible for the position to sometimes be beyond the last block node. This
   // is a problem specifically when using the collaboration plugin.
@@ -95,7 +95,7 @@ export function getNearestBlockPos(doc: Node, pos: number) {
 }
 
 /**
- * Gets information regarding the ProseMirror nodes that make up a block in a
+ * Get information regarding the ProseMirror nodes that make up a block in a
  * BlockNote document. This includes the main `blockContainer` node, the
  * `blockContent` node with the block's main body, and the optional `blockGroup`
  * node which contains the block's children. As well as the nodes, also returns
@@ -167,7 +167,7 @@ export function getBlockInfoWithManualOffset(
 }
 
 /**
- * Gets information regarding the ProseMirror nodes that make up a block in a
+ * Get information regarding the ProseMirror nodes that make up a block in a
  * BlockNote document. This includes the main `blockContainer` node, the
  * `blockContent` node with the block's main body, and the optional `blockGroup`
  * node which contains the block's children. As well as the nodes, also returns
@@ -181,7 +181,7 @@ export function getBlockInfo(posInfo: {posBeforeNode: number; node: Node}) {
 }
 
 /**
- * Gets information regarding the ProseMirror nodes that make up a block from a
+ * Get information regarding the ProseMirror nodes that make up a block from a
  * resolved position just before the `blockContainer` node in the document that
  * corresponds to it.
  * @param resolvedPos The resolved position just before the `blockContainer`
@@ -197,7 +197,7 @@ export function getBlockInfoFromResolvedPos(resolvedPos: ResolvedPos) {
 }
 
 /**
- * Gets information regarding the ProseMirror nodes that make up a block. The
+ * Get information regarding the ProseMirror nodes that make up a block. The
  * block chosen is the one currently containing the current ProseMirror
  * selection.
  * @param state The ProseMirror editor state.
@@ -209,17 +209,12 @@ export function getBlockInfoFromSelection(state: EditorState) {
 }
 
 /**
- * Gets block information from a provided numeric position.
+ * Get block information from a provided numeric position.
  * @param state The ProseMirror editor state.
  * @param pos The numeric position that is within the node's boundaries.
  */
 export function getBlockInfoFromPos(state: EditorState, pos: number) {
   const posInfo = getNearestBlockPos(state.doc, pos)
 
-  // try {
-  //   return getBlockInfo(posInfo)
-  // } catch {
-  //   return undefined
-  // }
   return getBlockInfo(posInfo)
 }

@@ -1,5 +1,6 @@
 import {Extension} from '@tiptap/core'
 import {Decoration, DecorationSet} from '@tiptap/pm/view'
+import {Node as PMNode} from 'prosemirror-model'
 import {NodeSelection, TextSelection} from 'prosemirror-state'
 import {mergeBlocksCommand} from '../../api/blockManipulation/commands/mergeBlocks'
 import {
@@ -15,10 +16,7 @@ import {
   getBlockInfoFromSelection,
 } from '../Blocks/helpers/getBlockInfoFromPos'
 import {getGroupInfoFromPos} from '../Blocks/helpers/getGroupInfoFromPos'
-import {
-  getParentBlockFromPos,
-  SelectionPluginKey,
-} from '../Blocks/nodes/BlockContainer'
+import {SelectionPluginKey} from '../Blocks/nodes/BlockContainer'
 
 export const KeyboardShortcutsExtension = Extension.create<{
   editor: BlockNoteEditor<any>
@@ -44,10 +42,23 @@ export const KeyboardShortcutsExtension = Extension.create<{
             const blockInfo = getBlockInfoFromSelection(state)
 
             const isParagraph = blockInfo.blockContentType === 'paragraph'
-            let parentInfo = getParentBlockFromPos(state, state.selection.from)
+            const $pos = state.doc.resolve(state.selection.from)
+            const depth = $pos.depth
+            let parentInfo:
+              | {parentBlock: PMNode; parentGroup: PMNode; parentPos: number}
+              | undefined
+
+            // if (depth > 3 && container.type.name == 'blockContainer') {
+            if (depth > 3) {
+              parentInfo = {
+                parentBlock: $pos.node(depth - 3).firstChild!,
+                parentGroup: $pos.node(depth - 2),
+                parentPos: $pos.start(depth - 3),
+              }
+            }
 
             if (selectionAtBlockStart && isParagraph && parentInfo) {
-              let {parentBlock, parentGroup, parentPos} = parentInfo
+              const {parentBlock, parentGroup, parentPos} = parentInfo
               let isFirstChild =
                 blockInfo.block.node.attrs.id ==
                 parentGroup.firstChild?.attrs.id

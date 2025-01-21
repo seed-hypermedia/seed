@@ -57,13 +57,15 @@ export const updateGroupCommand = (
             }
             return false
           })
-          .UpdateGroupChildren(
-            group,
-            container,
-            $pos,
-            0,
-            group.attrs.listType,
-            false,
+          .command(
+            updateGroupChildrenCommand(
+              group,
+              container,
+              $pos,
+              0,
+              group.attrs.listType,
+              false,
+            ),
           )
           .run()
       })
@@ -90,7 +92,7 @@ export const updateGroupCommand = (
         editor
           .chain()
           .sinkListItem('blockContainer')
-          .UpdateGroup(-1, listType, tab, true)
+          .command(updateGroupCommand(-1, listType, tab, true))
           .run()
 
         return true
@@ -112,7 +114,7 @@ export const updateGroupCommand = (
         editor
           .chain()
           .sinkListItem('blockContainer')
-          .UpdateGroup(-1, listType, tab, true)
+          .command(updateGroupCommand(-1, listType, tab, true))
           .run()
 
         return true
@@ -122,18 +124,7 @@ export const updateGroupCommand = (
 
     if (dispatch && group.type.name === 'blockGroup') {
       let level = '1'
-      // if (depth > 7) level = '3'
-      // else {
-      //   switch (depth) {
-      //     case 7:
-      //       level = '3'
-      //       break
-      //     case 5:
-      //       level = '2'
-      //     default:
-      //       break
-      //   }
-      // }
+      // Set new level based on the level of the previous group, if any.
       if (depth >= 5) {
         const {node: parentGroup, pos: parentGroupPos} =
           getParentGroupInfoFromPos(group, $pos, depth)
@@ -157,20 +148,16 @@ export const updateGroupCommand = (
       })
 
       if (container) {
-        console.log(
-          'IN UPDATE GROUP BEFORE UPDATING CHILDREN. PRINTING LEVEL, GROUP and LIST TYPE',
-          level,
-          group,
-          listType,
-        )
         setTimeout(() => {
-          editor.commands.UpdateGroupChildren(
-            group,
-            container!,
-            $pos,
-            listType === 'Unordered' ? parseInt(level) : 0,
-            listType,
-            true,
+          editor.commands.command(
+            updateGroupChildrenCommand(
+              group,
+              container!,
+              $pos,
+              listType === 'Unordered' ? parseInt(level) : 0,
+              listType,
+              true,
+            ),
           )
         })
       }
@@ -198,34 +185,24 @@ export const updateGroupChildrenCommand = (
     if (dispatch) {
       let beforeSelectedContainer = true
       let tr = state.tr
+      // Update children level of each child of the group.
       group.content.forEach((childContainer, offset) => {
         if (childContainer.type.name === 'blockContainer') {
           if (childContainer.attrs.id === container.attrs.id) {
             beforeSelectedContainer = false
           }
           if (beforeSelectedContainer) {
-            console.log('NOT RIGHT CONTAINER')
             return
           }
-          // console.log('PRINTING GROUP', group)
-          console.log(
-            "PRINTING GROUP, GROUP'S CHILD CONTAINER AND POS",
-            group,
-            childContainer,
-            offset,
-          )
           childContainer.descendants((childGroup, pos, _parent, index) => {
-            // If child is a group, update it's list level attribute
+            // If the child has a group, update group's list level attribute.
             if (
               childGroup.type.name === 'blockGroup' &&
               childGroup.attrs.listType === 'Unordered'
             ) {
-              // console.log('PRINTING CHILD AND POS', child, pos)
               const $pos = childContainer.resolve(pos)
               let newLevel: string
-              // const {node: parentGroup, pos: parentGroupPos} =
-              //   getParentGroupInfoFromPos(group, groupPos, groupPos.depth)
-              // console.log(parentGroup, parentGroupPos)
+              // Set new level based on depth and indent.
               if (indent) {
                 let numericLevel = $pos.depth / 2 + groupLevel + 1
                 newLevel = numericLevel < 3 ? numericLevel.toString() : '3'
@@ -237,19 +214,7 @@ export const updateGroupChildrenCommand = (
                 groupPos.start() + pos - 1,
               ).parent
 
-              console.log(
-                'PRINTING MAYBE CONTAINER???',
-                maybeContainer,
-                childContainer,
-                group.lastChild,
-                group.firstChild,
-              )
-
-              // childContainer.eq(maybeContainer) && indent
-              //       ? -1
-              //       : -3
-
-              // Position adjustment based on where in the group the node is
+              // Position adjustment based on where the node is in the group.
               let posAddition =
                 maybeContainer.type.name === 'blockContainer'
                   ? indent && group.attrs.listType === listType
@@ -261,12 +226,6 @@ export const updateGroupChildrenCommand = (
                   ? 1
                   : 0
 
-              // console.log(
-              //   'PRINTING GROUP LIST TYPE AND NEW LIST TYPE',
-              //   group.attrs.listType,
-              //   listType,
-              // )
-
               if (
                 childContainer.eq(maybeContainer) &&
                 indent
@@ -275,32 +234,10 @@ export const updateGroupChildrenCommand = (
               )
                 posAddition = -1
 
+              // Add offset only when changing between list types.
               if (group.attrs.listType !== listType) posAddition += offset
 
-              // console.log(
-              //   'IN UPDATE CHILDREN BEFORE NODE ATTRS SET. PRINTING NEW LEVEL AND GROUP ATTRS LEVEL',
-              //   newLevel,
-              //   child.attrs.listLevel,
-              // )
               if (newLevel !== childGroup.attrs.listLevel) {
-                // console.log(
-                //   state.doc.resolve(groupPos.start() + pos - 5).parent,
-                //   newLevel,
-                // )
-                // console.log(
-                //   state.doc.resolve(groupPos.start() + pos + posAddition)
-                //     .parent,
-                //   newLevel,
-                // )
-                console.log(pos, offset)
-                console.log(
-                  // groupPos.start(),
-                  // state.doc.resolve(groupPos.start()).parent,
-                  state.doc.resolve(groupPos.start() + pos + posAddition)
-                    .parent,
-                  newLevel,
-                  posAddition,
-                )
                 tr = tr.setNodeAttribute(
                   groupPos.start() + pos + posAddition,
                   'listLevel',

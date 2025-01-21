@@ -11,7 +11,7 @@ import {
 } from '../../../extensions/Blocks/api/blockTypes'
 import {
   BlockInfo,
-  getBlockInfoFromResolvedPos,
+  getBlockInfoFromPos,
 } from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
 import {UnreachableCaseError} from '../../../shared/utils'
 import {
@@ -34,9 +34,7 @@ export const updateBlockCommand =
     state: EditorState
     dispatch: ((args?: any) => any) | undefined
   }) => {
-    const blockInfo = getBlockInfoFromResolvedPos(
-      state.doc.resolve(posBeforeBlock),
-    )
+    const blockInfo = getBlockInfoFromPos(state, posBeforeBlock)
 
     if (dispatch) {
       // Adds blockGroup node with child blocks if necessary.
