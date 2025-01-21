@@ -1,5 +1,6 @@
 import {
   formattedDateMedium,
+  getMetadataName,
   HMDocument,
   hmId,
   HMMetadata,
@@ -17,14 +18,14 @@ import {SiteLogo} from "@shm/ui/src/site-logo";
 import {Popover} from "@shm/ui/src/TamaguiPopover";
 import {MobileMenu, NewsSiteHeader} from "@shm/ui/src/top-bar";
 import {usePopoverState} from "@shm/ui/src/use-popover-state";
-import {Button} from "@tamagui/button";
+import {Button, ButtonText} from "@tamagui/button";
 import {Separator} from "@tamagui/separator";
 import {XStack, YStack} from "@tamagui/stacks";
 import {H1, SizableText} from "@tamagui/text";
 import {ReactNode, useMemo, useState} from "react";
 import {ScrollView} from "react-native";
 import {getHref} from "./href";
-import {useDocumentChanges, useEntity} from "./models";
+import {useDocumentChanges} from "./models";
 import {HMDocumentChangeInfo} from "./routes/hm.api.changes";
 import {SearchUI} from "./search";
 
@@ -91,17 +92,21 @@ export function PageHeader({
                 maxWidth="100%"
               >
                 {authors.flatMap((a, index) => [
-                  <SizableText
+                  <ButtonText
                     hoverStyle={{
                       textDecorationLine: "underline",
                       textDecorationColor: "currentColor",
                     }}
-                    fontWeight="bold"
                     size="$2"
+                    cursor="pointer"
+                    fontWeight="bold"
                     key={a.id.id}
+                    tag="a"
+                    href={getHref(homeId, a.id)}
+                    style={{textDecoration: "none"}}
                   >
-                    {a.metadata.name}
-                  </SizableText>,
+                    {getMetadataName(a.metadata)}
+                  </ButtonText>,
                   index !== authors.length - 1 ? (
                     index === authors.length - 2 ? (
                       <SizableText key={`${a}-and`} size="$2" fontWeight="bold">

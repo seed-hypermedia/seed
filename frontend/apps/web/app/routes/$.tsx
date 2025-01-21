@@ -3,6 +3,7 @@ import {hmId} from "@shm/shared";
 import {getConfig} from "~/config";
 import {DocumentPage, documentPageMeta} from "~/document";
 import {loadSiteDocument, SiteDocumentPayload} from "~/loaders";
+import {parseRequest} from "~/request";
 import {unwrap} from "~/wrapping";
 
 export const meta = documentPageMeta;
@@ -14,8 +15,7 @@ export const loader = async ({
   params: Params;
   request: Request;
 }) => {
-  const url = new URL(request.url);
-  const hostname = request.headers.get("x-forwarded-host") || url.hostname;
+  const {url, hostname} = parseRequest(request);
   const version = url.searchParams.get("v");
   const latest = url.searchParams.get("l") === "";
   const waitForSync = url.searchParams.get("waitForSync") !== null;

@@ -9,6 +9,7 @@ import * as isbotModule from "isbot";
 import {dirname, join, resolve} from "path";
 import {renderToPipeableStream} from "react-dom/server";
 import {getHostnames} from "./config";
+import {parseRequest} from "./request";
 
 const ABORT_DELAY = 5_000;
 
@@ -143,13 +144,14 @@ export default async function handleRequest(
   remixContext: EntryContext,
   loadContext: AppLoadContext
 ) {
-  const url = new URL(request.url);
+  const {url, hostname} = parseRequest(request);
   if (url.pathname.startsWith("/ipfs")) {
     return new Response("Not Found", {
       status: 404,
     });
   }
   if (
+    url.searchParams.get("full") ||
     request.headers.get("x-full-render") === "true" ||
     url.pathname.startsWith("/hm") ||
     url.pathname.startsWith("/assets")
@@ -163,7 +165,6 @@ export default async function handleRequest(
     );
   }
 
-  const hostname = request.headers.get("x-forwarded-host") || url.hostname;
   const queryVersion = url.searchParams.get("v");
   const cachePath = join(
     CACHE_PATH,

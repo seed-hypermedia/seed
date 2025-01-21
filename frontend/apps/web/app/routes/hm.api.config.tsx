@@ -3,10 +3,10 @@ import {json} from "@remix-run/node";
 import {SITE_BASE_URL} from "@shm/shared";
 import {queryClient} from "~/client";
 import {getConfig} from "~/config";
+import {parseRequest} from "~/request";
 
 export const loader: LoaderFunction = async ({request}) => {
-  const url = new URL(request.url);
-  const hostname = request.headers.get("x-forwarded-host") || url.hostname;
+  const {hostname} = parseRequest(request);
   const config = await getConfig(hostname);
   if (!config) throw new Error(`No config defined for ${hostname}`);
   const daemonInfo = await queryClient.daemon.getInfo({});

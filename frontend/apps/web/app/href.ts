@@ -1,7 +1,7 @@
 import {serializeBlockRange, UnpackedHypermediaId} from "@shm/shared";
 
 export function getHref(
-  homeId: UnpackedHypermediaId | undefined,
+  homeId: UnpackedHypermediaId | null | undefined,
   id: UnpackedHypermediaId,
   version?: string
 ) {
