@@ -33,7 +33,7 @@ export const loader = async ({request}: {request: Request}) => {
   const serviceConfig = await getConfig(hostname);
   if (!serviceConfig) throw new Error(`No config defined for ${hostname}`);
   const {registeredAccountUid} = serviceConfig;
-  if (!registeredAccountUid) return wrapJSON("unregistered");
+  if (!registeredAccountUid) return wrapJSON("unregistered", {status: 404});
   return await loadSiteDocument(
     hostname,
     hmId("d", registeredAccountUid, {version, path: [], latest}),

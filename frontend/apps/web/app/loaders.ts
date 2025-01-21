@@ -237,5 +237,5 @@ export async function loadSiteDocument(
     console.error("Error Loading Site Document", e);
     // probably document not found. todo, handle other errors
   }
-  return wrapJSON({homeMetadata, homeId});
+  return wrapJSON({homeMetadata, homeId}, {status: id ? 200 : 404});
 }
