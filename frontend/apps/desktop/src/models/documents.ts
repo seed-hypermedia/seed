@@ -298,6 +298,25 @@ export function useDocumentRead(id: UnpackedHypermediaId | undefined | false) {
   }, [id])
 }
 
+export function useMarkAsRead() {
+  const grpcClient = useGRPCClient()
+  return async (ids: UnpackedHypermediaId[]) => {
+    await Promise.all(
+      ids.map(async (id) => {
+        const path = hmIdPathToEntityQueryPath(id.path)
+        await grpcClient.documents.updateDocumentReadStatus({
+          account: id.uid,
+          path,
+          isRecursive: true,
+          isRead: true,
+        })
+        invalidateQueries([queryKeys.SITE_LIBRARY, id.uid])
+        invalidateQueries([queryKeys.LIST_ACCOUNTS])
+      }),
+    )
+  }
+}
+
 export type EditorDraftState = {
   id: string
   children: Array<HMBlock>

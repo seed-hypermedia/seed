@@ -1,5 +1,6 @@
 import {GettingStarted} from '@/components/getting-started'
 import {MainWrapper} from '@/components/main-wrapper'
+import {useMarkAsRead} from '@/models/documents'
 
 import {useExportDocuments} from '@/models/export-documents'
 import {
@@ -30,6 +31,7 @@ import {
   Checkbox,
   Container,
   HMIcon,
+  OptionsDropdown,
   Popover,
   SizableText,
   usePopoverState,
@@ -41,6 +43,7 @@ import {
 import {AccountsMetadata, FacePile} from '@shm/ui/src/face-pile'
 import {
   Check,
+  CheckCheck,
   ChevronDown,
   ChevronRight,
   FileOutput,
@@ -78,6 +81,7 @@ export default function LibraryPage() {
     grouping,
     displayMode,
   })
+  const markAsRead = useMarkAsRead()
   const isLibraryEmpty = library && library.items && library.items.length === 0
   return (
     <XStack flex={1} height="100%">
@@ -111,7 +115,7 @@ export default function LibraryPage() {
               />
             </XStack>
             {isLibraryEmpty ? null : (
-              <XStack gap="$2">
+              <XStack gap="$3" ai="center">
                 <Button
                   size="$2"
                   onPress={() => {
@@ -148,6 +152,31 @@ export default function LibraryPage() {
                     Cancel
                   </Button>
                 ) : null}
+                <OptionsDropdown
+                  menuItems={[
+                    {
+                      label: 'Mark all as read',
+                      key: 'mark-all-as-read',
+                      icon: CheckCheck,
+                      onPress: () => {
+                        markAsRead(
+                          library.items
+                            ?.map((item) => {
+                              if (item.type === 'site') {
+                                return hmId('d', item.id)
+                              }
+                              return hmId('d', item.account, {
+                                path: entityQueryPathToHmIdPath(item.path),
+                              })
+                            })
+                            .filter(
+                              (id) => id !== null,
+                            ) as UnpackedHypermediaId[],
+                        )
+                      },
+                    },
+                  ]}
+                />
               </XStack>
             )}
           </XStack>
