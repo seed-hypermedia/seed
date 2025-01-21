@@ -6,7 +6,6 @@ import {
   Block as BlockNoteBlock,
   BlockNoteEditor,
   getBlockInfoFromPos,
-  getBlockInfoFromResolvedPos,
   getBlockInfoFromSelection,
 } from './blocknote'
 import {updateGroupCommand} from './blocknote/core/api/blockManipulation/commands/updateGroup'
@@ -45,14 +44,13 @@ export function updateGroup(
 ) {
   let {posBeforeNode} = getNodeById(block.id, editor._tiptapEditor.state.doc)
 
-  const posData = getBlockInfoFromResolvedPos(
-    // editor._tiptapEditor.state.doc,
-    editor._tiptapEditor.state.doc.resolve(posBeforeNode + 1),
+  const posData = getBlockInfoFromPos(
+    editor._tiptapEditor.state,
+    posBeforeNode + 1,
   )
 
   if (!posData) return
 
-  // const {} = posData
   editor.focus()
   editor._tiptapEditor.commands.command(
     updateGroupCommand(
