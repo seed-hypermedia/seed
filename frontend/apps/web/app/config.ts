@@ -1,15 +1,15 @@
-import {SITE_BASE_URL} from "@shm/shared";
-import {readFileSync} from "fs";
-import fs, {readFile} from "fs/promises";
-import {join} from "path";
-import {z} from "zod";
+import { SITE_BASE_URL } from "@shm/shared";
+import { readFileSync } from "fs";
+import fs, { readFile } from "fs/promises";
+import { join } from "path";
+import { z } from "zod";
 
 export const adminSecret = process.env.SERVICE_ADMIN_SECRET;
 
 const configPath = join(process.env.DATA_DIR || process.cwd(), "config.json");
 const serviceConfigPath = join(
   process.env.DATA_DIR || process.cwd(),
-  "service-experimental.json"
+  "service-config.json"
 );
 
 const configSchema = z.object({

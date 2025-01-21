@@ -7,7 +7,7 @@ node_modules
 .wrangler
 
 config.json
-service-experimental.json
+service-config.json
 
 COMMIT_HASH
 BRANCH
