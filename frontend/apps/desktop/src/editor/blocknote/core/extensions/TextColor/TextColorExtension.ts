@@ -38,12 +38,16 @@ export const TextColorExtension = Extension.create({
       setBlockTextColor:
         (posInBlock, color) =>
         ({state, view}) => {
-          const blockInfo = getBlockInfoFromPos(state.doc, posInBlock)
+          const blockInfo = getBlockInfoFromPos(state, posInBlock)
           if (blockInfo === undefined) {
             return false
           }
 
-          state.tr.setNodeAttribute(blockInfo.startPos - 1, 'textColor', color)
+          state.tr.setNodeAttribute(
+            blockInfo.block.beforePos,
+            'textColor',
+            color,
+          )
 
           view.focus()
 

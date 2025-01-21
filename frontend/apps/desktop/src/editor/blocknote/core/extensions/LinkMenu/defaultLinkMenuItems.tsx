@@ -292,13 +292,13 @@ function insertNode(
   node: Node,
 ) {
   const {state, schema, view} = editor._tiptapEditor
-  const {doc, selection} = state
+  const {selection} = state
   const {$from} = selection
-  const block = getBlockInfoFromPos(doc, selection.$anchor.pos)
+  const blockInfo = getBlockInfoFromPos(state, selection.$anchor.pos)
   let tr = state.tr
 
   // If inserted link inline with other text (child count will be more than 1)
-  if (block.contentNode.content.childCount > 1) {
+  if (blockInfo.blockContent.node.content.childCount > 1) {
     const $pos = state.doc.resolve($from.pos)
     let originalStartContent = state.doc.cut(
       $pos.start(),
@@ -313,8 +313,8 @@ function insertNode(
       if (childNode.type.name === 'text') originalContent.push(childNode)
     })
     const originalNode = schema.node(
-      block.contentType,
-      block.contentNode.attrs,
+      blockInfo.blockContentType,
+      blockInfo.blockContent.node.attrs,
       originalContent,
     )
 

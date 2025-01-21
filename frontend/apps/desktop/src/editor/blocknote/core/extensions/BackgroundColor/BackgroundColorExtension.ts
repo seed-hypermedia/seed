@@ -38,13 +38,13 @@ export const BackgroundColorExtension = Extension.create({
       setBlockBackgroundColor:
         (posInBlock, color) =>
         ({state, view}) => {
-          const blockInfo = getBlockInfoFromPos(state.doc, posInBlock)
-          if (blockInfo === undefined) {
+          const blockInfo = getBlockInfoFromPos(state, posInBlock)
+          if (!blockInfo) {
             return false
           }
 
           state.tr.setNodeAttribute(
-            blockInfo.startPos - 1,
+            blockInfo.block.beforePos,
             'backgroundColor',
             color,
           )

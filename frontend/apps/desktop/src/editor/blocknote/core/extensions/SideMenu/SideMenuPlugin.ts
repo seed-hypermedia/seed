@@ -3,6 +3,7 @@ import {Node} from 'prosemirror-model'
 import {NodeSelection, Plugin, PluginKey, Selection} from 'prosemirror-state'
 import * as pv from 'prosemirror-view'
 import {EditorView} from 'prosemirror-view'
+import {updateBlockCommand} from '../../api/blockManipulation/commands/updateBlock'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import styles from '../../editor.module.css'
 import {BaseUiElementState} from '../../shared/BaseUiElementTypes'
@@ -526,28 +527,34 @@ export class SideMenuView<BSchema extends BlockSchema> implements PluginView {
     }
 
     const blockInfo = getBlockInfoFromPos(
-      this.editor._tiptapEditor.state.doc,
+      this.editor._tiptapEditor.state,
       pos.pos,
     )
     if (blockInfo === undefined) {
       return
     }
 
-    const {contentNode, endPos} = blockInfo
+    const {blockContent: contentNode, block} = blockInfo
 
     // Creates a new block if current one is not empty for the suggestion menu to open in.
-    if (contentNode.textContent.length !== 0) {
-      const newBlockInsertionPos = endPos + 1
+    if (contentNode.node.textContent.length !== 0) {
+      const newBlockInsertionPos = block.afterPos
       const newBlockContentPos = newBlockInsertionPos + 2
-
+      console.log('here????')
       this.editor._tiptapEditor
         .chain()
         .BNCreateBlock(newBlockInsertionPos)
-        .BNUpdateBlock(newBlockContentPos, {type: 'paragraph', props: {}})
+        // .BNUpdateBlock(newBlockContentPos, {type: 'paragraph', props: {}})
+        .command(
+          updateBlockCommand(newBlockInsertionPos, {
+            type: 'paragraph',
+            props: {},
+          }),
+        )
         .setTextSelection(newBlockContentPos)
         .run()
     } else {
-      this.editor._tiptapEditor.commands.setTextSelection(endPos)
+      this.editor._tiptapEditor.commands.setTextSelection(block.afterPos - 1)
     }
 
     // Focuses and activates the suggestion menu.

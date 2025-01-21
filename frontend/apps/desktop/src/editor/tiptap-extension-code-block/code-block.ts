@@ -50,7 +50,7 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
     }
   },
 
-  content: 'text*',
+  content: 'inline*',
 
   marks: '',
 
@@ -151,12 +151,12 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
     function splitCodeBlock(editor: Editor) {
       const {state} = editor
       const codePos = state.doc.resolve(state.selection.$from.pos)
-      const blockInfo = getBlockInfoFromPos(state.doc, codePos.pos)
+      const blockInfo = getBlockInfoFromPos(state, codePos.pos)
       if (blockInfo === undefined) {
         return false
       }
 
-      const {depth} = blockInfo
+      const depth = codePos.depth
 
       const originalBlockContent = state.doc.cut(codePos.start(), codePos.pos)
       const newBlockContent = state.doc.cut(codePos.pos, codePos.end())
@@ -171,14 +171,14 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
         nextBlockContentPos,
         nextBlockContentPos + 1,
         newBlockContent.content.size > 0
-          ? new Slice(Fragment.from(newBlockContent), depth + 2, depth + 2)
+          ? new Slice(Fragment.from(newBlockContent), depth + 1, depth + 1)
           : undefined,
       )
       tr = tr.replace(
         codePos.start(),
         codePos.end(),
         originalBlockContent.content.size > 0
-          ? new Slice(Fragment.from(originalBlockContent), depth + 2, depth + 2)
+          ? new Slice(Fragment.from(originalBlockContent), depth + 1, depth + 1)
           : undefined,
       )
 

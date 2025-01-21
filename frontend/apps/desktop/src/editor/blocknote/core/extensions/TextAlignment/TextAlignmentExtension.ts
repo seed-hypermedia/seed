@@ -41,13 +41,13 @@ export const TextAlignmentExtension = Extension.create({
         ({state}) => {
           const positionsBeforeSelectedContent = []
 
-          const blockInfo = getBlockInfoFromPos(state.doc, state.selection.from)
+          const blockInfo = getBlockInfoFromPos(state, state.selection.from)
           if (blockInfo === undefined) {
             return false
           }
 
           // Finds all blockContent nodes that the current selection is in.
-          let pos = blockInfo.startPos
+          let pos = blockInfo.block.beforePos + 1
           while (pos < state.selection.to) {
             if (
               state.doc.resolve(pos).node().type.spec.group === 'blockContent'

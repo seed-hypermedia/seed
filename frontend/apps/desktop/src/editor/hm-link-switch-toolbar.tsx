@@ -310,14 +310,14 @@ function insertNode(
   prevType: string,
   node: Node,
 ) {
-  const {state, schema, view} = editor._tiptapEditor
-  const {doc, selection} = state
+  const {state, view} = editor._tiptapEditor
+  const {selection} = state
   const {$from} = selection
-  const block = getBlockInfoFromPos(doc, selection.$anchor.pos)
+  const blockInfo = getBlockInfoFromPos(state, selection.$anchor.pos)
   let tr = state.tr
 
   // If mention or link is inline with other text the child count will be more than 1
-  if (block.contentNode.content.childCount > 1) {
+  if (blockInfo.blockContent.node.content.childCount > 1) {
     const $pos = state.doc.resolve($from.pos)
     let startPos = $pos.start()
     let endPos = $pos.end()

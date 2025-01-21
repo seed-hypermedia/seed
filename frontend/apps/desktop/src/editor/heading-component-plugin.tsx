@@ -1,6 +1,7 @@
 import {InputRule, mergeAttributes} from '@tiptap/core'
 
 import {createTipTapBlock} from './blocknote'
+import {updateBlockCommand} from './blocknote/core/api/blockManipulation/commands/updateBlock'
 import styles from './blocknote/core/extensions/Blocks/nodes/Block.module.css'
 
 export const HMHeadingBlockContent = createTipTapBlock<'heading'>({
@@ -29,12 +30,17 @@ export const HMHeadingBlockContent = createTipTapBlock<'heading'>({
           find: new RegExp(`^#\\s$`),
           handler: ({state, chain, range}) => {
             chain()
-              .BNUpdateBlock(state.selection.from, {
-                type: 'heading',
-                props: {
-                  level: '3',
-                },
-              })
+              .command(
+                updateBlockCommand(
+                  state.doc.resolve(state.selection.from).start() - 2,
+                  {
+                    type: 'heading',
+                    props: {
+                      level: '3',
+                    },
+                  },
+                ),
+              )
               // Removes the "#" character(s) used to set the heading.
               .deleteRange({from: range.from, to: range.to})
           },

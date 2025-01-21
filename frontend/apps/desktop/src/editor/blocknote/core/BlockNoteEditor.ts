@@ -5,10 +5,9 @@ import {Editor as TiptapEditor} from '@tiptap/core/dist/packages/core/src/Editor
 import * as Y from 'yjs'
 import {getBlockNoteExtensions} from './BlockNoteExtensions'
 import {
-  insertBlocks,
+  // insertBlocks,
   removeBlocks,
   replaceBlocks,
-  updateBlock,
 } from './api/blockManipulation/blockManipulation'
 import {
   HTMLToBlocks,
@@ -33,9 +32,17 @@ import {
   ToggledStyle,
 } from './extensions/Blocks/api/inlineContentTypes'
 import {Selection} from './extensions/Blocks/api/selectionTypes'
-import {getBlockInfoFromPos} from './extensions/Blocks/helpers/getBlockInfoFromPos'
+import {
+  getBlockInfoFromPos,
+  getBlockInfoFromSelection,
+} from './extensions/Blocks/helpers/getBlockInfoFromPos'
 
+import {Transaction} from 'prosemirror-state'
 import {HMBlockSchema, hmBlockSchema} from '../../schema'
+import {insertBlocks} from './api/blockManipulation/commands/insertBlocks'
+import {newRemoveBlocks} from './api/blockManipulation/commands/removeBlocks'
+import {newReplaceBlocks} from './api/blockManipulation/commands/replaceBlocks'
+import {updateBlock} from './api/blockManipulation/commands/updateBlock'
 import {FormattingToolbarProsemirrorPlugin} from './extensions/FormattingToolbar/FormattingToolbarPlugin'
 import {HyperlinkToolbarProsemirrorPlugin} from './extensions/HyperlinkToolbar/HyperlinkToolbarPlugin'
 import {LinkMenuProsemirrorPlugin} from './extensions/LinkMenu/LinkMenuPlugin'
@@ -259,7 +266,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
         const root = schema.node(
           'doc',
           undefined,
-          schema.node('blockGroup', undefined, ic),
+          schema.node('blockGroup', {listType: 'Group'}, ic),
         )
         // override the initialcontent
         editor.editor.options.content = root.toJSON()
@@ -309,6 +316,10 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     }) as Editor & {
       contentComponent: any
     }
+  }
+
+  dispatch(tr: Transaction) {
+    this._tiptapEditor.view.dispatch(tr)
   }
 
   public get prosemirrorView() {
@@ -441,42 +452,83 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
    * @returns A snapshot of the current text cursor position.
    */
   public getTextCursorPosition(): TextCursorPosition<BSchema> {
-    const {node, depth, startPos, endPos} = getBlockInfoFromPos(
-      this._tiptapEditor.state.doc,
-      this._tiptapEditor.state.selection.from,
-    )!
+    // const {node, depth, startPos, endPos} = getBlockInfoFromPos(
+    //   this._tiptapEditor.state.doc,
+    //   this._tiptapEditor.state.selection.from,
+    // )!
 
-    // Index of the current blockContainer node relative to its parent blockGroup.
-    const nodeIndex = this._tiptapEditor.state.doc
-      .resolve(endPos)
-      .index(depth - 1)
-    // Number of the parent blockGroup's child blockContainer nodes.
-    const numNodes = this._tiptapEditor.state.doc
-      .resolve(endPos + 1)
-      .node().childCount
+    // // Index of the current blockContainer node relative to its parent blockGroup.
+    // const nodeIndex = this._tiptapEditor.state.doc
+    //   .resolve(endPos)
+    //   .index(depth - 1)
+    // // Number of the parent blockGroup's child blockContainer nodes.
+    // const numNodes = this._tiptapEditor.state.doc
+    //   .resolve(endPos + 1)
+    //   .node().childCount
 
+    // // Gets previous blockContainer node at the same nesting level, if the current node isn't the first child.
+    // let prevNode: Node | undefined = undefined
+    // if (nodeIndex > 0) {
+    //   prevNode = this._tiptapEditor.state.doc.resolve(startPos - 2).node()
+    // }
+
+    // // Gets next blockContainer node at the same nesting level, if the current node isn't the last child.
+    // let nextNode: Node | undefined = undefined
+    // if (nodeIndex < numNodes - 1) {
+    //   nextNode = this._tiptapEditor.state.doc.resolve(endPos + 2).node()
+    // }
+
+    // return {
+    //   block: nodeToBlock(node, this.schema, this.blockCache),
+    //   prevBlock:
+    //     prevNode === undefined
+    //       ? undefined
+    //       : nodeToBlock(prevNode, this.schema, this.blockCache),
+    //   nextBlock:
+    //     nextNode === undefined
+    //       ? undefined
+    //       : nodeToBlock(nextNode, this.schema, this.blockCache),
+    // }
+    const {block} = getBlockInfoFromSelection(this._tiptapEditor.state)
+
+    const resolvedPos = this._tiptapEditor.state.doc.resolve(block.beforePos)
     // Gets previous blockContainer node at the same nesting level, if the current node isn't the first child.
-    let prevNode: Node | undefined = undefined
-    if (nodeIndex > 0) {
-      prevNode = this._tiptapEditor.state.doc.resolve(startPos - 2).node()
-    }
+    const prevNode = resolvedPos.nodeBefore
 
     // Gets next blockContainer node at the same nesting level, if the current node isn't the last child.
-    let nextNode: Node | undefined = undefined
-    if (nodeIndex < numNodes - 1) {
-      nextNode = this._tiptapEditor.state.doc.resolve(endPos + 2).node()
+    const nextNode = this._tiptapEditor.state.doc.resolve(
+      block.afterPos,
+    ).nodeAfter
+
+    // Gets parent blockContainer node, if the current node is nested.
+    let parentNode: Node | undefined = undefined
+    if (resolvedPos.depth > 1) {
+      // for nodes nested in blocks
+      parentNode = resolvedPos.node()
+      if (!parentNode.type.isInGroup('block')) {
+        // for blockGroups, we need to go one level up
+        parentNode = resolvedPos.node(resolvedPos.depth - 1)
+      }
     }
 
     return {
-      block: nodeToBlock(node, this.schema, this.blockCache),
+      block: nodeToBlock(block.node, this.schema, this.blockCache),
       prevBlock:
-        prevNode === undefined
+        prevNode === null
           ? undefined
           : nodeToBlock(prevNode, this.schema, this.blockCache),
       nextBlock:
-        nextNode === undefined
+        nextNode === null
           ? undefined
           : nodeToBlock(nextNode, this.schema, this.blockCache),
+      // parentBlock:
+      //   parentNode === undefined
+      //     ? undefined
+      //     : nodeToBlock(
+      //         parentNode,
+      //         this.schema,
+      //   this.blockCache
+      //       ),
     }
   }
 
@@ -493,16 +545,16 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     const id = typeof targetBlock === 'string' ? targetBlock : targetBlock.id
 
     const {posBeforeNode} = getNodeById(id, this._tiptapEditor.state.doc)
-    const {startPos, contentNode} = getBlockInfoFromPos(
-      this._tiptapEditor.state.doc,
+    const {block, blockContent} = getBlockInfoFromPos(
+      this._tiptapEditor.state,
       posBeforeNode + 2,
     )!
 
     if (placement === 'start') {
-      this._tiptapEditor.commands.setTextSelection(startPos + 1)
+      this._tiptapEditor.commands.setTextSelection(block.beforePos + 2)
     } else {
       this._tiptapEditor.commands.setTextSelection(
-        startPos + contentNode.nodeSize - 1,
+        block.beforePos + blockContent.node.nodeSize,
       )
     }
   }
@@ -562,20 +614,36 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     this._tiptapEditor.setEditable(editable)
   }
 
+  // /**
+  //  * Inserts new blocks into the editor. If a block's `id` is undefined, BlockNote generates one automatically. Throws an
+  //  * error if the reference block could not be found.
+  //  * @param blocksToInsert An array of partial blocks that should be inserted.
+  //  * @param referenceBlock An identifier for an existing block, at which the new blocks should be inserted.
+  //  * @param placement Whether the blocks should be inserted just before, just after, or nested inside the
+  //  * `referenceBlock`. Inserts the blocks at the start of the existing block's children if "nested" is used.
+  //  */
+  // public insertBlocks(
+  //   blocksToInsert: PartialBlock<BSchema>[],
+  //   referenceBlock: BlockIdentifier,
+  //   placement: 'before' | 'after' | 'nested' = 'before',
+  // ): void {
+  //   insertBlocks(blocksToInsert, referenceBlock, placement, this._tiptapEditor)
+  // }
+
   /**
    * Inserts new blocks into the editor. If a block's `id` is undefined, BlockNote generates one automatically. Throws an
    * error if the reference block could not be found.
    * @param blocksToInsert An array of partial blocks that should be inserted.
    * @param referenceBlock An identifier for an existing block, at which the new blocks should be inserted.
    * @param placement Whether the blocks should be inserted just before, just after, or nested inside the
-   * `referenceBlock`. Inserts the blocks at the start of the existing block's children if "nested" is used.
+   * `referenceBlock`.
    */
   public insertBlocks(
     blocksToInsert: PartialBlock<BSchema>[],
     referenceBlock: BlockIdentifier,
-    placement: 'before' | 'after' | 'nested' = 'before',
-  ): void {
-    insertBlocks(blocksToInsert, referenceBlock, placement, this._tiptapEditor)
+    placement: 'before' | 'after' = 'before',
+  ) {
+    return insertBlocks(this, blocksToInsert, referenceBlock, placement)
   }
 
   /**
@@ -589,8 +657,22 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     blockToUpdate: BlockIdentifier,
     update: PartialBlock<BSchema>,
   ) {
-    updateBlock(blockToUpdate, update, this._tiptapEditor)
+    return updateBlock(this, blockToUpdate, update)
   }
+
+  // /**
+  //  * Updates an existing block in the editor. Since updatedBlock is a PartialBlock object, some fields might not be
+  //  * defined. These undefined fields are kept as-is from the existing block. Throws an error if the block to update could
+  //  * not be found.
+  //  * @param blockToUpdate The block that should be updated.
+  //  * @param update A partial block which defines how the existing block should be changed.
+  //  */
+  // public newUpdateBlock(
+  //   blockToUpdate: BlockIdentifier,
+  //   update: PartialBlock<BSchema>,
+  // ) {
+  //   return newUpdateBlock(this, blockToUpdate, update)
+  // }
 
   /**
    * Removes existing blocks from the editor. Throws an error if any of the blocks could not be found.
@@ -598,6 +680,14 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
    */
   public removeBlocks(blocksToRemove: BlockIdentifier[]) {
     removeBlocks(blocksToRemove, this._tiptapEditor)
+  }
+
+  /**
+   * Removes existing blocks from the editor. Throws an error if any of the blocks could not be found.
+   * @param blocksToRemove An array of identifiers for existing blocks that should be removed.
+   */
+  public newRemoveBlocks(blocksToRemove: BlockIdentifier[]) {
+    return newRemoveBlocks(this, blocksToRemove)
   }
 
   /**
@@ -612,6 +702,20 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     blocksToInsert: PartialBlock<BSchema>[],
   ) {
     replaceBlocks(blocksToRemove, blocksToInsert, this._tiptapEditor)
+  }
+
+  /**
+   * Replaces existing blocks in the editor with new blocks. If the blocks that should be removed are not adjacent or
+   * are at different nesting levels, `blocksToInsert` will be inserted at the position of the first block in
+   * `blocksToRemove`. Throws an error if any of the blocks to remove could not be found.
+   * @param blocksToRemove An array of blocks that should be replaced.
+   * @param blocksToInsert An array of partial blocks to replace the old ones with.
+   */
+  public newReplaceBlocks(
+    blocksToRemove: BlockIdentifier[],
+    blocksToInsert: PartialBlock<BSchema>[],
+  ) {
+    return newReplaceBlocks(this, blocksToRemove, blocksToInsert)
   }
 
   /**
@@ -745,17 +849,17 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     )
   }
 
-  /**
-   * Checks if the block containing the text cursor can be nested.
-   */
-  public canNestBlock() {
-    const {startPos, depth} = getBlockInfoFromPos(
-      this._tiptapEditor.state.doc,
-      this._tiptapEditor.state.selection.from,
-    )!
+  // /**
+  //  * Checks if the block containing the text cursor can be nested.
+  //  */
+  // public canNestBlock() {
+  //   const {startPos, depth} = getBlockInfoFromPos(
+  //     this._tiptapEditor.state.doc,
+  //     this._tiptapEditor.state.selection.from,
+  //   )!
 
-    return this._tiptapEditor.state.doc.resolve(startPos).index(depth - 1) > 0
-  }
+  //   return this._tiptapEditor.state.doc.resolve(startPos).index(depth - 1) > 0
+  // }
 
   /**
    * Nests the block containing the text cursor into the block above it.
@@ -764,17 +868,17 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     this._tiptapEditor.commands.sinkListItem('blockContainer')
   }
 
-  /**
-   * Checks if the block containing the text cursor is nested.
-   */
-  public canUnnestBlock() {
-    const {depth} = getBlockInfoFromPos(
-      this._tiptapEditor.state.doc,
-      this._tiptapEditor.state.selection.from,
-    )!
+  // /**
+  //  * Checks if the block containing the text cursor is nested.
+  //  */
+  // public canUnnestBlock() {
+  //   const {depth} = getBlockInfoFromPos(
+  //     this._tiptapEditor.state.doc,
+  //     this._tiptapEditor.state.selection.from,
+  //   )!
 
-    return depth > 2
-  }
+  //   return depth > 2
+  // }
 
   /**
    * Lifts the block containing the text cursor out of its parent.

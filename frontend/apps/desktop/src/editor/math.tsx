@@ -10,7 +10,7 @@ import {
   BlockNoteEditor,
   createReactBlockSpec,
   defaultProps,
-  getBlockInfoFromPos,
+  getBlockInfoFromSelection,
 } from './blocknote'
 import {HMBlockSchema} from './schema'
 
@@ -62,18 +62,15 @@ const Render = (
   const selection = tiptapEditor.state.selection
 
   useEffect(() => {
-    const selectedNode = getBlockInfoFromPos(
-      tiptapEditor.state.doc,
-      tiptapEditor.state.selection.from,
-    )
-    if (selectedNode && selectedNode.id) {
+    const selectedNode = getBlockInfoFromSelection(tiptapEditor.state)
+    if (selectedNode && selectedNode.block.node.attrs.id) {
       if (
-        selectedNode.id === block.id &&
-        selectedNode.startPos === selection.$anchor.pos
+        selectedNode.block.node.attrs.id === block.id &&
+        selectedNode.block.beforePos + 1 === selection.$anchor.pos
       ) {
         setSelected(true)
         setOpened(true)
-      } else if (selectedNode.id !== block.id) {
+      } else if (selectedNode.block.node.attrs.id !== block.id) {
         setSelected(false)
         setOpened(false)
       }
@@ -145,14 +142,11 @@ const Render = (
         userSelect="none"
         onPress={() => {
           if (selected && !opened) {
-            const selectedNode = getBlockInfoFromPos(
-              tiptapEditor.state.doc,
-              tiptapEditor.state.selection.from,
-            )
-            if (selectedNode && selectedNode.id) {
+            const selectedNode = getBlockInfoFromSelection(tiptapEditor.state)
+            if (selectedNode && selectedNode.block.node.attrs.id) {
               if (
-                selectedNode.id === block.id &&
-                selectedNode.startPos === selection.$anchor.pos
+                selectedNode.block.node.attrs.id === block.id &&
+                selectedNode.block.beforePos + 1 === selection.$anchor.pos
               ) {
                 setSelected(true)
                 setOpened(true)

@@ -3,11 +3,12 @@ import {Node} from 'prosemirror-model'
 import {NodeSelection, Plugin, PluginKey, Selection} from 'prosemirror-state'
 import * as pv from 'prosemirror-view'
 import {EditorView} from 'prosemirror-view'
+import {updateBlockCommand} from '../../api/blockManipulation/commands/updateBlock'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import styles from '../../editor.module.css'
 import {BlockSchema} from '../Blocks/api/blockTypes'
 import {getBlockInfoFromPos} from '../Blocks/helpers/getBlockInfoFromPos'
-import {SlashMenuPluginKey} from '../SlashMenu/SlashMenuExtension'
+import {slashMenuPluginKey} from '../SlashMenu/SlashMenuPlugin'
 import {
   BlockSideMenu,
   BlockSideMenuDynamicParams,
@@ -545,32 +546,38 @@ export class BlockMenuView<BSchema extends BlockSchema> {
       return
     }
 
-    const blockInfo = getBlockInfoFromPos(this.ttEditor.state.doc, pos.pos)
+    const blockInfo = getBlockInfoFromPos(this.ttEditor.state, pos.pos)
     if (blockInfo === undefined) {
       return
     }
 
-    const {contentNode, endPos} = blockInfo
+    const {blockContent: contentNode, block} = blockInfo
 
     // Creates a new block if current one is not empty for the suggestion menu to open in.
-    if (contentNode.textContent.length !== 0) {
-      const newBlockInsertionPos = endPos + 1
+    if (contentNode.node.textContent.length !== 0) {
+      const newBlockInsertionPos = block.afterPos
       const newBlockContentPos = newBlockInsertionPos + 2
-
+      console.log('here???')
       this.ttEditor
         .chain()
         .BNCreateBlock(newBlockInsertionPos)
-        .BNUpdateBlock(newBlockContentPos, {type: 'paragraph', props: {}})
+        // .BNUpdateBlock(newBlockContentPos, {type: 'paragraph', props: {}})
+        .command(
+          updateBlockCommand(newBlockInsertionPos, {
+            type: 'paragraph',
+            props: {},
+          }),
+        )
         .setTextSelection(newBlockContentPos)
         .run()
     } else {
-      this.ttEditor.commands.setTextSelection(endPos)
+      this.ttEditor.commands.setTextSelection(block.afterPos - 1)
     }
 
     // Focuses and activates the suggestion menu.
     this.ttEditor.view.focus()
     this.ttEditor.view.dispatch(
-      this.ttEditor.view.state.tr.scrollIntoView().setMeta(SlashMenuPluginKey, {
+      this.ttEditor.view.state.tr.scrollIntoView().setMeta(slashMenuPluginKey, {
         // TODO import suggestion plugin key
         activate: true,
         type: 'drag',
