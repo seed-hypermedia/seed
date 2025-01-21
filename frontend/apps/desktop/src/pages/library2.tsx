@@ -52,18 +52,57 @@ import {ComponentProps, createContext, useContext, useState} from 'react'
 import {GestureResponderEvent} from 'react-native'
 
 export default function LibraryPage() {
-  const [grouping, setGrouping] = useState<'site' | 'none'>('site')
+  const route = useNavRoute()
+  const replace = useNavigate('replace')
+  const libraryRoute = route.key === 'library' ? route : undefined
+  const displayMode = libraryRoute?.displayMode || 'subscribed'
+  function setDisplayMode(mode: 'all' | 'subscribed' | 'favorites') {
+    replace({
+      key: 'library',
+      ...(libraryRoute || {}),
+      displayMode: mode,
+    })
+  }
+  const grouping = libraryRoute?.grouping || 'site'
+  const setGrouping = (grouping: 'site' | 'none') => {
+    replace({
+      key: 'library',
+      ...(libraryRoute || {}),
+      grouping,
+    })
+  }
   const [isSelecting, setIsSelecting] = useState(false)
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>([])
   const exportDocuments = useExportDocuments()
   const library = useLibrary({
     grouping,
+    displayMode,
   })
   const isLibraryEmpty = library && library.items && library.items.length === 0
   return (
     <XStack flex={1} height="100%">
       <MainWrapper>
         <Container justifyContent="center" centered>
+          <XStack marginBottom="$4">
+            <DisplayModeTab
+              label="Subscribed"
+              value="subscribed"
+              activeValue={displayMode}
+              onDisplayMode={setDisplayMode}
+            />
+            <DisplayModeTab
+              label="Favorites"
+              value="favorites"
+              activeValue={displayMode}
+              onDisplayMode={setDisplayMode}
+            />
+            <DisplayModeTab
+              label="All"
+              value="all"
+              activeValue={displayMode}
+              onDisplayMode={setDisplayMode}
+            />
+          </XStack>
           <XStack jc="space-between" marginVertical="$2" marginBottom="$4">
             <XStack gap="$2">
               <GroupingControl
@@ -148,6 +187,38 @@ export default function LibraryPage() {
         </Container>
       </MainWrapper>
     </XStack>
+  )
+}
+
+function DisplayModeTab({
+  label,
+  value,
+  activeValue,
+  onDisplayMode,
+}: {
+  label: string
+  value: 'all' | 'subscribed' | 'favorites'
+  activeValue: 'all' | 'subscribed' | 'favorites'
+  onDisplayMode: (value: 'all' | 'subscribed' | 'favorites') => void
+}) {
+  const activationColor = activeValue === value ? '$brand5' : undefined
+  return (
+    <Button
+      onPress={() => onDisplayMode(value)}
+      // bg={activeValue === value ? '$color5' : '$colorTransparent'}
+      borderBottomWidth={5}
+      borderRadius={0}
+      // borderWidth={0}
+      borderBottomColor={activationColor}
+      hoverStyle={{
+        borderBottomColor: activationColor,
+      }}
+      focusStyle={{
+        borderBottomColor: activationColor,
+      }}
+    >
+      {label}
+    </Button>
   )
 }
 
@@ -270,14 +341,15 @@ function LibrarySiteItem({
   accountsMetadata?: AccountsMetadata
 }) {
   const route = useNavRoute()
+  const libraryRoute = route.key === 'library' ? route : undefined
   const replace = useNavigate('replace')
   const expandedIds =
     (route.key === 'library' ? route.expandedIds : undefined) || []
-  console.log('expandedIds', expandedIds)
   const isCollapsed = !expandedIds.includes(site.id)
   function setIsCollapsed(isCollapsed: boolean) {
     replace({
       key: 'library',
+      ...(libraryRoute || {}),
       expandedIds: isCollapsed
         ? expandedIds?.filter((id) => id !== site.id)
         : [...expandedIds, site.id],

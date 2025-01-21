@@ -2,6 +2,7 @@ import {useGRPCClient} from '@/app-context'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {
   BIG_INT,
+  entityQueryPathToHmIdPath,
   HMAccount,
   HMComment,
   HMDocument,
@@ -89,8 +90,16 @@ export type LibraryDocument = HMDocumentInfo & {
 }
 export type LibraryItem = LibrarySite | LibraryDocument
 
-export function useLibrary({grouping}: {grouping: 'site' | 'none'}) {
+export function useLibrary({
+  grouping,
+  displayMode,
+}: {
+  grouping: 'site' | 'none'
+  displayMode: 'all' | 'subscribed' | 'favorites'
+}) {
   const accounts = useAccounts()
+  const favorites = useFavorites()
+  const subscriptions = useListSubscriptions()
   const allDocuments = useAllDocuments(grouping === 'none')
   const commentIds =
     grouping === 'none'
@@ -105,7 +114,35 @@ export function useLibrary({grouping}: {grouping: 'site' | 'none'}) {
   const comments = useComments(commentIds || [])
   let items: undefined | LibraryItem[]
   if (grouping === 'none') {
-    items = allDocuments.data?.documents.map((doc) => ({
+    let documents = allDocuments.data?.documents
+    if (displayMode === 'subscribed') {
+      documents = documents?.filter(
+        (doc) =>
+          subscriptions.data?.find((sub) =>
+            isSubscribedBy(
+              hmId('d', doc.account, {
+                path: entityQueryPathToHmIdPath(doc.path),
+              }),
+              sub,
+            ),
+          ),
+      )
+    } else if (displayMode === 'favorites') {
+      documents = documents?.filter(
+        (doc) =>
+          favorites?.find((fav) => {
+            console.log('filter.. doc.path', doc.path)
+            return (
+              fav &&
+              fav.id ===
+                hmId('d', doc.account, {
+                  path: entityQueryPathToHmIdPath(doc.path),
+                }).id
+            )
+          }),
+      )
+    }
+    items = documents?.map((doc) => ({
       ...doc,
       type: 'document',
       latestComment: doc.activitySummary?.latestCommentId
@@ -115,7 +152,17 @@ export function useLibrary({grouping}: {grouping: 'site' | 'none'}) {
         : undefined,
     }))
   } else {
-    items = accounts.data?.accounts.map((account) => {
+    let accts = accounts.data?.accounts
+    if (displayMode === 'subscribed') {
+      accts = accts?.filter(
+        (acct) => subscriptions.data?.find((sub) => sub.account === acct.id),
+      )
+    } else if (displayMode === 'favorites') {
+      accts = accts?.filter(
+        (acct) => favorites?.find((fav) => fav && fav.uid === acct.id),
+      )
+    }
+    items = accts?.map((account) => {
       return {
         ...account,
         type: 'site',

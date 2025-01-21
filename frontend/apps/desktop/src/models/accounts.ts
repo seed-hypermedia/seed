@@ -36,6 +36,7 @@ export function useAccounts() {
         accountsMetadata,
       }
     },
+    refetchInterval: 1000 * 15, // 15 seconds
   })
   return q
 }
