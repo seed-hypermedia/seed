@@ -268,24 +268,34 @@ function VersionsModal({
   docId: UnpackedHypermediaId;
   updateTime: HMDocument["updateTime"] | null;
 }) {
-  const entity = useEntity(docId);
   const popoverState = usePopoverState();
-
   const changes = useDocumentChanges(docId);
-
   return updateTime && !changes.isLoading ? (
     <Popover {...popoverState}>
       <Popover.Trigger
         color="$color9"
         flexDirection="row"
         gap="$2"
+        cursor="pointer"
         hoverStyle={{color: "$color12"}}
       >
-        <SizableText flexShrink={0} flexGrow={0} size="$1" color="inherit">
-          {formattedDateMedium(entity.data?.document?.updateTime)}
+        <SizableText
+          userSelect="none"
+          flexShrink={0}
+          flexGrow={0}
+          size="$1"
+          color="inherit"
+        >
+          {formattedDateMedium(updateTime)}
         </SizableText>
         {changes.data && changes.data.length > 1 ? (
-          <SizableText size="$1" flexShrink={0} flexGrow={0} color="inherit">
+          <SizableText
+            size="$1"
+            flexShrink={0}
+            flexGrow={0}
+            color="inherit"
+            userSelect="none"
+          >
             ({changes.data?.length} versions)
           </SizableText>
         ) : null}
