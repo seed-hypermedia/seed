@@ -64,7 +64,6 @@ import {
 } from '@shm/ui'
 import {
   AtSign,
-  Biohazard,
   Code2,
   Eye,
   EyeOff,
@@ -118,12 +117,12 @@ export default function Settings() {
           icon={Info}
           label="App Info"
         />
-        <Tab
+        {/* <Tab
           value="experiments"
           active={activeTab === 'experiments'}
           icon={Biohazard}
           label="Experiments"
-        />
+        /> */}
         <Tab
           value="developer"
           active={activeTab === 'developer'}
@@ -142,9 +141,9 @@ export default function Settings() {
         <AppSettings />
         {/* <DevicesInfo /> */}
       </TabsContent>
-      <TabsContent value="experiments">
+      {/* <TabsContent value="experiments">
         <ExperimentsSettings />
-      </TabsContent>
+      </TabsContent> */}
       <TabsContent value="developer">
         <DeveloperSettings />
       </TabsContent>

@@ -4,7 +4,6 @@ import {GettingStarted} from '@/components/getting-started'
 import {MainWrapper} from '@/components/main-wrapper'
 
 import {EditorBlock} from '@/editor'
-import {useExperiments} from '@/models/experiments'
 import {
   FilterItem,
   LibraryData,
@@ -58,13 +57,7 @@ import LibraryPage from './library2'
 const defaultSort: LibraryQueryState['sort'] = 'lastUpdate'
 
 export default function MainLibraryPage() {
-  const experiments = useExperiments()
-
-  if (experiments.data?.newLibrary) {
-    return <LibraryPage />
-  }
-
-  return <ClassicLibraryPage />
+  return <LibraryPage />
 }
 
 function ClassicLibraryPage() {
