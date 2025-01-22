@@ -5,7 +5,7 @@ import {
   getServiceConfig,
   siteConfigSchema,
   writeConfig,
-} from "~/config";
+} from "~/site-config";
 
 const postServiceSchema = z
   .object({

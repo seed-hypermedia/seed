@@ -1,9 +1,9 @@
 import {Params, useLoaderData} from "@remix-run/react";
 import {hmId} from "@shm/shared";
-import {getConfig} from "~/config";
 import {DocumentPage, documentPageMeta} from "~/document";
 import {loadSiteDocument, SiteDocumentPayload} from "~/loaders";
 import {parseRequest} from "~/request";
+import {getConfig} from "~/site-config";
 import {unwrap} from "~/wrapping";
 
 export const meta = documentPageMeta;

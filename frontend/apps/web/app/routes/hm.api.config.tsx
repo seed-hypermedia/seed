@@ -2,8 +2,8 @@ import type {LoaderFunction} from "@remix-run/node";
 import {json} from "@remix-run/node";
 import {SITE_BASE_URL} from "@shm/shared";
 import {queryClient} from "~/client";
-import {getConfig} from "~/config";
 import {parseRequest} from "~/request";
+import {getConfig} from "~/site-config";
 
 export const loader: LoaderFunction = async ({request}) => {
   const {hostname} = parseRequest(request);

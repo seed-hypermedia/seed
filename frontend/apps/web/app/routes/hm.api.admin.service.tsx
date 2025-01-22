@@ -1,6 +1,6 @@
 import {ActionFunction, json} from "@remix-run/node";
 import {z} from "zod";
-import {adminSecret, getServiceConfig, writeConfig} from "~/config";
+import {adminSecret, getServiceConfig, writeConfig} from "~/site-config";
 
 const postServiceSchema = z
   .object({
