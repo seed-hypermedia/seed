@@ -400,6 +400,30 @@ export const BlockContainer = Node.create<{
       ClickSelectionPlugin,
       PastePlugin,
       headingLinePlugin,
+      // Replace two short hyphen with a long dash
+      new Plugin({
+        props: {
+          handleTextInput(view, from, to, text) {
+            if (text === '-') {
+              const {state} = view
+              // Check if the previous character is also a hyphen
+              const previousChar = state.doc.textBetween(from - 1, from, null)
+              if (previousChar === '-') {
+                // Replace the two hyphens with a long dash
+                const tr = state.tr.replaceRangeWith(
+                  from - 1,
+                  to,
+                  state.schema.text('—'),
+                )
+                view.dispatch(tr)
+                return true
+              }
+            }
+
+            return false
+          },
+        },
+      }),
     ]
   },
 })
