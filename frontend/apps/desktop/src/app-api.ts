@@ -24,6 +24,7 @@ import {gatewaySettingsApi} from './app-gateway-settings'
 import {grpcClient} from './app-grpc'
 import {appInvalidateQueries, queryInvalidation} from './app-invalidation'
 import {userDataPath} from './app-paths'
+import {recentSignersApi} from './app-recent-signers'
 import {recentsApi} from './app-recents'
 
 import {secureStorageApi} from './app-secure-storage'
@@ -192,6 +193,7 @@ export const router = t.router({
       }),
   }),
   favorites: favoritesApi,
+  recentSigners: recentSignersApi,
   comments: commentsApi,
   gatewaySettings: gatewaySettingsApi,
   secureStorage: secureStorageApi,

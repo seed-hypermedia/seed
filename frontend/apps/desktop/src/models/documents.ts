@@ -175,6 +175,7 @@ export function usePublishDraft(
 ) {
   const grpcClient = useGRPCClient()
   const accts = useMyAccountIds()
+  const writeRecentSigner = trpc.recentSigners.writeRecentSigner.useMutation()
   return useMutation<
     HMDocument,
     any,
@@ -230,6 +231,9 @@ export function usePublishDraft(
                 )
               capabilityId = capability.id
             }
+            writeRecentSigner.mutateAsync(draft.signingAccount).then(() => {
+              invalidateQueries(['trpc.recentSigners.get'])
+            })
             const publishedDoc =
               await grpcClient.documents.createDocumentChange({
                 signingKeyName: draft.signingAccount,

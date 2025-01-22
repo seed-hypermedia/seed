@@ -217,6 +217,11 @@ export function useCommentEditor(
     setGroupTypes(editor._tiptapEditor, editorBlocks)
   }
   async function writeDraft() {
+    const signerUid = account.get()
+    if (!signerUid) {
+      console.warn('trying to write draft without account')
+      return
+    }
     setIsSaved(false)
     const blocks = serverBlockNodesFromEditorBlocks(
       editor,
@@ -226,7 +231,7 @@ export function useCommentEditor(
       blocks,
       targetDocId: targetDocId.id,
       replyCommentId,
-      account: account.get()!,
+      account: signerUid,
     })
     invalidateQueries(['trpc.comments.getCommentDraft'])
     setIsSaved(true)
@@ -326,13 +331,23 @@ export function useCommentEditor(
   // const initCommentDraft = useRef<HMCommentDraft | null | undefined>(
   //   draftQuery.data,
   // )
+  const recentSigners = trpc.recentSigners.get.useQuery()
+  console.log('recentSigners', recentSigners.data)
+  const availableRecentSigner = recentSigners.data
+    ? recentSigners.data.recentSigners.find((signer) =>
+        accounts.find((a) => a.id.uid === signer),
+      ) || accounts[0]?.id.uid
+    : null
   const accountRef = useRef(
     writeableStateStream<string | null>(
-      initCommentDraft?.account || accounts[0]?.id.uid || null,
+      initCommentDraft?.account || availableRecentSigner || null,
     ),
   )
   const [setAccountStream, account] = accountRef.current
-
+  if (availableRecentSigner && !account.get()) {
+    setAccountStream(availableRecentSigner)
+  }
+  const writeRecentSigner = trpc.recentSigners.writeRecentSigner.useMutation()
   const publishComment = useMutation({
     mutationFn: async ({
       content,
@@ -348,6 +363,9 @@ export function useCommentEditor(
         targetPath: hmIdPathToEntityQueryPath(targetDocId.path),
         signingKeyName,
         targetVersion: targetEntity.data?.document?.version!,
+      })
+      writeRecentSigner.mutateAsync(signingKeyName).then(() => {
+        invalidateQueries(['trpc.recentSigners.get'])
       })
       if (!resultComment) throw new Error('no resultComment')
       return resultComment

@@ -64,6 +64,7 @@ export default function PublishDraftButton() {
       invalidateQueries(['trpc.drafts.get'])
     },
   })
+  const recentSigners = trpc.recentSigners.get.useQuery()
   const accts = useMyAccountsWithWriteAccess(draftId)
   const rootDraftUid = draftId?.uid
   const rootEntity = useEntity(
@@ -114,14 +115,16 @@ export default function PublishDraftButton() {
   }, [signingAccount])
 
   useEffect(() => {
+    let defaultSigner = null
+    if (recentSigners.data) {
+      const defaultSignerUid = recentSigners.data.recentSigners.find(
+        (s) => !!accts.find((c) => c.data?.id.uid == s),
+      )
+      defaultSigner = defaultSignerUid
+        ? accts.find((c) => c.data?.id.uid == defaultSignerUid)
+        : accts[0]
+    }
     if (
-      accts.length == 1 &&
-      accts[0].data &&
-      signingAccount == null &&
-      signingAccount != accts[0].data.id.uid
-    ) {
-      setSigningAccount(accts[0].data)
-    } else if (
       draft.data?.signingAccount &&
       signingAccount == null &&
       draft.data?.signingAccount != signingAccount
@@ -130,6 +133,13 @@ export default function PublishDraftButton() {
       if (acc?.data) {
         setSigningAccount(acc.data)
       }
+    } else if (
+      defaultSigner?.data &&
+      !draft.data?.signingAccount &&
+      signingAccount == null &&
+      signingAccount != defaultSigner.data
+    ) {
+      setSigningAccount(defaultSigner.data)
     }
   }, [accts, draft.data])
 
