@@ -61,6 +61,7 @@ import {
   PropsWithChildren,
   createContext,
   createElement,
+  memo,
   useContext,
   useEffect,
   useMemo,
@@ -356,8 +357,9 @@ export function DocContent({
     </YStack>
   );
 }
+export const BlocksContent = memo(_BlocksContent);
 
-export function BlocksContent({
+function _BlocksContent({
   blocks,
   parentBlockId,
 }: {
