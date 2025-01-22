@@ -3,6 +3,7 @@ import {readFileSync} from "fs";
 import fs, {readFile} from "fs/promises";
 import {join} from "path";
 import {z} from "zod";
+import {queryClient} from "~/client";
 
 export const adminSecret = process.env.SERVICE_ADMIN_SECRET;
 
@@ -120,6 +121,56 @@ export async function writeConfig(hostname: string, newConfig: SiteConfig) {
   } else {
     await writeSoloConfig(newConfig);
   }
+  await applyConfigSubscriptions();
+}
+
+export async function applyConfigSubscriptions() {
+  const siteAccounts = new Set<string>();
+  if (serviceConfig) {
+    Object.values(serviceConfig.namedServices).forEach((config) => {
+      if (config.registeredAccountUid)
+        siteAccounts.add(config.registeredAccountUid);
+    });
+    if (serviceConfig.rootConfig.registeredAccountUid)
+      siteAccounts.add(serviceConfig.rootConfig.registeredAccountUid);
+  } else {
+    if (config.registeredAccountUid)
+      siteAccounts.add(config.registeredAccountUid);
+  }
+  const subs = await queryClient.subscriptions.listSubscriptions({});
+  const toUnsubscribe: {account: string; path: string}[] = [];
+  subs.subscriptions.forEach((sub) => {
+    if (!siteAccounts.has(sub.account) || sub.path !== "")
+      toUnsubscribe.push({account: sub.account, path: sub.path});
+  });
+  await Promise.all(
+    toUnsubscribe.map(async ({account, path}) => {
+      console.log("Unsubscribing from ", account, path);
+      await queryClient.subscriptions.unsubscribe({
+        account,
+        path,
+      });
+    })
+  );
+  const toSubscribe: {account: string}[] = [];
+  siteAccounts.forEach((account) => {
+    if (
+      !subs.subscriptions.some(
+        (sub) => sub.account === account && sub.path === ""
+      )
+    )
+      toSubscribe.push({account});
+  });
+  await Promise.all(
+    toSubscribe.map(async ({account}) => {
+      console.log("Subscribing to ", account);
+      await queryClient.subscriptions.subscribe({
+        account,
+        path: "",
+        recursive: true,
+      });
+    })
+  );
 }
 
 export async function writeCustomDomainConfig(

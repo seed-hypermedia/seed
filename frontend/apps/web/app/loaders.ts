@@ -19,7 +19,7 @@ import {
 } from "@shm/shared/src/models/directory";
 import {AccountsMetadata} from "@shm/ui/src/face-pile";
 import {queryClient} from "./client";
-import {getConfig} from "./config";
+import {getConfig} from "./site-config";
 import {wrapJSON, WrappedResponse} from "./wrapping";
 
 export async function getMetadata(

@@ -8,8 +8,8 @@ import {mkdir, readFile, stat, writeFile} from "fs/promises";
 import * as isbotModule from "isbot";
 import {dirname, join, resolve} from "path";
 import {renderToPipeableStream} from "react-dom/server";
-import {getHostnames} from "./config";
 import {parseRequest} from "./request";
+import {applyConfigSubscriptions, getHostnames} from "./site-config";
 
 const ABORT_DELAY = 5_000;
 
@@ -40,6 +40,13 @@ async function warmAllCaches() {
 async function initializeServer() {
   recursiveRm(CACHE_PATH);
   await mkdir(CACHE_PATH, {recursive: true});
+  await applyConfigSubscriptions()
+    .then(() => {
+      console.log("Config subscriptions applied");
+    })
+    .catch((e) => {
+      console.error("Error applying config subscriptions", e);
+    });
   await warmAllCaches();
   // warm full cache 45 seconds, but only if the next warm is not already in progress
   setInterval(() => {

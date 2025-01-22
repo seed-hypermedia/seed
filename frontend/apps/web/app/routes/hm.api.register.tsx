@@ -43,12 +43,6 @@ export const action: ActionFunction = async ({request}) => {
     await queryClient.networking.connect({
       addrs,
     });
-    console.log("subscribe");
-    await queryClient.subscriptions.subscribe({
-      account: input.accountUid,
-      path: "",
-      recursive: true,
-    });
     console.log("writing config for", url.hostname);
     await writeConfig(url.hostname, {
       registeredAccountUid: input.accountUid,
