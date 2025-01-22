@@ -1,7 +1,14 @@
 import {useFetcher} from "@remix-run/react";
-import {packHmId, UnpackedHypermediaId} from "@shm/shared";
+import {
+  HMAccountsMetadata,
+  HMDocument,
+  HMQueryResult,
+  packHmId,
+  UnpackedHypermediaId,
+} from "@shm/shared";
 import {useQuery} from "@tanstack/react-query";
 import {useEffect} from "react";
+import {deserialize} from "superjson";
 import {HMDocumentChangeInfo} from "./routes/hm.api.changes";
 import {unwrap} from "./wrapping";
 
@@ -19,7 +26,19 @@ export function useEntity(id: UnpackedHypermediaId | undefined) {
         id.path ? `/${id.path.join("/")}` : ""
       }?${queryString}`;
       const response = await fetch(url);
-      return await response.json();
+      const fullData = await response.json();
+      const data = deserialize(fullData) as any;
+      return {
+        id: data.id as UnpackedHypermediaId,
+        document: data.document as HMDocument,
+        supportDocuments: data.supportDocuments as {
+          id: UnpackedHypermediaId;
+          document: HMDocument;
+        }[],
+        supportQueries: data.supportQueries as HMQueryResult[],
+        siteHost: data.siteHost as string,
+        accountsMetadata: data.accountsMetadata as HMAccountsMetadata,
+      };
     },
   });
 }

@@ -97,7 +97,7 @@ function DocInlineEmbed(props: EntityComponentProps) {
   const document = doc.data?.document;
   return (
     <InlineEmbedButton id={narrowHmId(props)}>
-      @{document ? getDocumentTitle(document) : "..."}
+      {`@${getDocumentTitle(document) || "..."}`}
     </InlineEmbedButton>
   );
 }
@@ -116,7 +116,11 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
           document: doc.data.document,
         }}
         id={props}
-        accountsMetadata={doc.data.authors}
+        accountsMetadata={Object.fromEntries(
+          doc.data.document.authors
+            .map((uid) => [uid, doc.data?.accountsMetadata[uid]])
+            .filter(([_, metadata]) => !!metadata)
+        )}
       />
     </EmbedWrapper>
   );
