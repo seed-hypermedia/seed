@@ -103,66 +103,6 @@ export const BlockManipulationExtension = Extension.create({
         props: {
           handleKeyDown(view, event) {
             const {state} = view
-            // if (event.key === 'Delete') {
-            //   const {doc, selection, tr} = state
-            //   if (selection.empty) {
-            //     const $pos = selection.$anchor
-            //     const isEnd = $pos.pos === $pos.end()
-            //     if (isEnd) {
-            //       const blockInfo = getBlockInfoFromPos(state, $pos.pos)
-            //       if (blockInfo.blockContent.node.textContent.length === 0) {
-            //         console.log('here????')
-            //         tr.deleteRange($pos.start() - 1, $pos.end() + 1)
-            //         view.dispatch(tr)
-            //         return true
-            //       }
-            //       let $nextPos: ResolvedPos | undefined
-            //       let nextNode
-            //       if (blockInfo.childContainer?.node.childCount) {
-            //         $nextPos = doc.resolve($pos.after() + 3)
-            //         nextNode = $nextPos.parent
-            //       } else {
-            //         doc.descendants((testNode, testPos) => {
-            //           if (
-            //             testNode.type.name === 'blockContainer' &&
-            //             testPos > $pos.pos
-            //           )
-            //             if (!$nextPos || $nextPos.pos < $pos.pos) {
-            //               $nextPos = doc.firstChild!.resolve(testPos)
-            //               nextNode = testNode.firstChild
-            //             }
-            //         })
-            //       }
-            //       if ($nextPos && nextNode) {
-            //         if (selectableNodeTypes.includes(nextNode.type.name)) {
-            //           return false
-            //         }
-            //         const mergedTextContent =
-            //           blockInfo.blockContent.node.textContent +
-            //           nextNode.textContent
-            //         const newNode = view.state.schema.node(
-            //           blockInfo.blockContentType,
-            //           blockInfo.blockContent.node.attrs,
-            //           view.state.schema.text(
-            //             mergedTextContent,
-            //             blockInfo.blockContent.node.lastChild?.marks,
-            //           ),
-            //           blockInfo.blockContent.node.marks,
-            //         )
-            //         tr.deleteRange(
-            //           $nextPos.start() - 1,
-            //           $nextPos.end() < $nextPos.start() + nextNode.nodeSize
-            //             ? $nextPos.end() + 1
-            //             : $nextPos.start() + nextNode.nodeSize + 1,
-            //         )
-            //         tr.replaceWith($pos.start() - 1, $pos.end() + 1, newNode)
-            //         view.dispatch(tr)
-            //         return true
-            //       }
-            //       return false
-            //     }
-            //   }
-            // } else
             if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
               let hasHardBreak = false
               const blockInfo = getBlockInfoFromSelection(state)
@@ -182,40 +122,34 @@ export const BlockManipulationExtension = Extension.create({
               if (hasHardBreak) return false
               const prevBlockInfo = findPreviousBlock(
                 view,
-                state.selection.from,
+                state.selection.head,
               )
               if (prevBlockInfo) {
                 const {prevBlock, prevBlockPos} = prevBlockInfo
                 const prevNode = prevBlock.firstChild!
                 const prevNodePos = prevBlockPos + 1
                 if (event.shiftKey) {
-                  const blockInfoAtSelectionStart =
-                    getBlockInfoFromSelection(state)
-                  if (event.key === 'ArrowLeft') {
-                    if (
-                      (state.selection.from - 1 !==
-                        blockInfoAtSelectionStart.block.beforePos + 1 &&
-                        !selectableNodeTypes.includes(
-                          blockInfoAtSelectionStart.blockContentType,
-                        )) ||
-                      !selectableNodeTypes.includes(
-                        prevBlock.firstChild!.type.name,
-                      )
+                  if (event.key === 'ArrowLeft') return false
+
+                  // If shift key, check if the previous node is media type and set selection to include it.
+                  // Return false otherwise, to let tiptap handle shift selection.
+                  if (selectableNodeTypes.includes(prevNode.type.name)) {
+                    const selection = TextSelection.create(
+                      state.doc,
+                      state.selection.anchor,
+                      prevNodePos,
                     )
-                      return false
+                    let tr = state.tr.setSelection(selection)
+                    tr = tr.scrollIntoView()
+                    view.dispatch(tr)
+                    return true
                   }
 
-                  const selection = TextSelection.create(
-                    state.doc,
-                    state.selection.to,
-                    prevNodePos,
-                  )
-                  let tr = state.tr.setSelection(selection)
-                  tr = tr.scrollIntoView()
-                  view.dispatch(tr)
-                  return true
+                  return false
                 }
                 if (event.key === 'ArrowLeft') {
+                  // Return false if triggered by arrow left and the selection is not at block start,
+                  // to let tiptap set the selection to the previous character.
                   const blockInfo = getBlockInfoFromSelection(state)
 
                   if (
@@ -225,6 +159,7 @@ export const BlockManipulationExtension = Extension.create({
                     return false
                   }
                 }
+                // If previous block is media type, set node selection to it.
                 if (selectableNodeTypes.includes(prevNode.type.name)) {
                   const selection = NodeSelection.create(state.doc, prevNodePos)
                   let tr = state.tr.setSelection(selection)
@@ -233,6 +168,8 @@ export const BlockManipulationExtension = Extension.create({
                   return true
                 }
               } else {
+                // If media block is the first block in the document, create an empty block
+                // before it, and set the selection to the newly created block.
                 if (event.shiftKey) return false
                 const blockInfo = getBlockInfoFromSelection(state)
 
@@ -270,25 +207,15 @@ export const BlockManipulationExtension = Extension.create({
               if (nextBlockInfo) {
                 const blockInfo = getBlockInfoFromSelection(state)
                 if (event.shiftKey) {
+                  if (blockInfo.block.beforePos + 1 === state.selection.from)
+                    return false
+                  if (event.key === 'ArrowRight') return false
+                  // If shift key, check if the next node is media type, and set the selection include it.
+                  // Return false otherwise, to let tiptap handle shift selection.
                   const blockInfoAfterSelection = findNextBlock(
                     view,
-                    state.selection.to,
+                    state.selection.head,
                   )
-                  if (event.key === 'ArrowRight') {
-                    const lastBlockInSelection =
-                      getBlockInfoFromSelection(state)
-                    if (
-                      state.selection.to + 1 !==
-                        lastBlockInSelection.block.beforePos +
-                          1 +
-                          lastBlockInSelection.blockContent.node.nodeSize &&
-                      !selectableNodeTypes.includes(
-                        lastBlockInSelection.blockContentType,
-                      )
-                    ) {
-                      return false
-                    }
-                  }
                   if (blockInfoAfterSelection) {
                     const {nextBlock, nextBlockPos} = blockInfoAfterSelection
                     if (
@@ -299,13 +226,13 @@ export const BlockManipulationExtension = Extension.create({
                       const selection = TextSelection.create(
                         state.doc,
                         state.selection.anchor,
-                        nextBlockPos + 2,
+                        state.doc.resolve(nextBlockPos + 2).end() + 1,
                       )
                       let tr = state.tr.setSelection(selection)
                       tr = tr.scrollIntoView()
                       view.dispatch(tr)
                       return true
-                    } else return false
+                    }
                   }
                   return false
                 }
@@ -313,6 +240,8 @@ export const BlockManipulationExtension = Extension.create({
                 const nextNode = nextBlock.firstChild!
                 const nextNodePos = nextBlockPos + 1
                 if (event.key === 'ArrowRight') {
+                  // Return false if triggered by arrow right and the selection is not at the end of the block,
+                  // to let tiptap set the selection to the next character.
                   if (
                     state.selection.$anchor.pos + 1 !==
                       blockInfo.block.beforePos +
@@ -323,6 +252,7 @@ export const BlockManipulationExtension = Extension.create({
                     return false
                   }
                 }
+                // If the next block is media type, set node selection to it.
                 if (selectableNodeTypes.includes(nextNode.type.name)) {
                   const selection = NodeSelection.create(state.doc, nextNodePos)
                   let tr = state.tr.setSelection(selection)

@@ -34,6 +34,7 @@ const SelectionPlugin = new Plugin({
   },
 })
 
+// Set selection to content between current selection and shift + left mouse click location.
 const ClickSelectionPlugin = new Plugin({
   key: ClickSelectionPluginKey,
   props: {
