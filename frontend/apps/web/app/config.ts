@@ -1,8 +1,8 @@
-import { SITE_BASE_URL } from "@shm/shared";
-import { readFileSync } from "fs";
-import fs, { readFile } from "fs/promises";
-import { join } from "path";
-import { z } from "zod";
+import {SITE_BASE_URL} from "@shm/shared";
+import {readFileSync} from "fs";
+import fs, {readFile} from "fs/promises";
+import {join} from "path";
+import {z} from "zod";
 
 export const adminSecret = process.env.SERVICE_ADMIN_SECRET;
 
@@ -12,17 +12,17 @@ const serviceConfigPath = join(
   "service-config.json"
 );
 
-const configSchema = z.object({
+export const siteConfigSchema = z.object({
   availableRegistrationSecret: z.string().optional(),
   sourcePeerId: z.string().optional(),
   registeredAccountUid: z.string().optional(),
 });
-export type Config = z.infer<typeof configSchema>;
+export type SiteConfig = z.infer<typeof siteConfigSchema>;
 
 const serviceConfigSchema = z.object({
   rootHostname: z.string(),
-  rootConfig: configSchema,
-  namedServices: z.record(z.string(), configSchema),
+  rootConfig: siteConfigSchema,
+  namedServices: z.record(z.string(), siteConfigSchema),
   customDomains: z
     .record(
       z.string(),
@@ -36,7 +36,7 @@ export type ServiceConfig = z.infer<typeof serviceConfigSchema>;
 
 const configData = readFileSync(configPath, "utf-8");
 const configJSON = JSON.parse(configData);
-let config = configSchema.parse(configJSON);
+let config = siteConfigSchema.parse(configJSON);
 
 let serviceConfig: ServiceConfig | null = null;
 try {
@@ -79,7 +79,7 @@ export async function getServiceConfig() {
   return serviceConfig;
 }
 
-export async function writeConfig(hostname: string, newConfig: Config) {
+export async function writeConfig(hostname: string, newConfig: SiteConfig) {
   if (serviceConfig) {
     if (hostname === serviceConfig.rootHostname) {
       const newServiceConfig = {
@@ -136,7 +136,7 @@ export async function writeCustomDomainConfig(
   });
 }
 
-export async function writeSoloConfig(newConfig: Config) {
+export async function writeSoloConfig(newConfig: SiteConfig) {
   await fs.writeFile(configPath, JSON.stringify(newConfig));
   config = newConfig;
 }
