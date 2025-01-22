@@ -32,6 +32,8 @@ export function CommentGroup({
   renderCommentContent,
   RepliesEditor,
   CommentReplies,
+  homeId,
+  siteHost,
 }: {
   docId: UnpackedHypermediaId;
   commentGroup: HMCommentGroup;
@@ -48,7 +50,11 @@ export function CommentGroup({
   CommentReplies: React.FC<{
     docId: UnpackedHypermediaId;
     replyCommentId: string;
+    homeId?: UnpackedHypermediaId;
+    siteHost?: string;
   }>;
+  homeId?: UnpackedHypermediaId;
+  siteHost?: string;
 }) {
   const lastComment = commentGroup.comments.at(-1);
   return (
@@ -80,6 +86,8 @@ export function CommentGroup({
             }
             RepliesEditor={RepliesEditor}
             CommentReplies={CommentReplies}
+            homeId={homeId}
+            siteHost={siteHost}
           />
         );
       })}
@@ -94,10 +102,12 @@ function Comment({
   isFirst = false,
   isLast = false,
   isNested = false,
+  homeId,
   authorMetadata,
   renderCommentContent,
   RepliesEditor,
   CommentReplies,
+  siteHost,
 }: {
   docId: UnpackedHypermediaId;
   comment: HMComment;
@@ -107,6 +117,7 @@ function Comment({
   isNested?: boolean;
   authorMetadata?: HMMetadata;
   renderCommentContent: (comment: HMComment) => ReactNode;
+  homeId?: UnpackedHypermediaId;
   RepliesEditor?: React.FC<{
     isReplying: boolean;
     docId: UnpackedHypermediaId;
@@ -116,7 +127,10 @@ function Comment({
   CommentReplies: React.FC<{
     docId: UnpackedHypermediaId;
     replyCommentId: string;
+    homeId?: UnpackedHypermediaId;
+    siteHost?: string;
   }>;
+  siteHost?: string;
 }) {
   const [showReplies, setShowReplies] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
@@ -276,7 +290,12 @@ function Comment({
         />
       ) : null}
       {showReplies ? (
-        <CommentReplies docId={docId} replyCommentId={comment.id} />
+        <CommentReplies
+          docId={docId}
+          replyCommentId={comment.id}
+          homeId={homeId}
+          siteHost={siteHost}
+        />
       ) : null}
     </YStack>
   );

@@ -5,11 +5,8 @@ import {
   getDocumentTitle,
   getFileUrl,
   getMetadataName,
-  getNodesOutline,
   HMComment,
-  HMDocument,
   HMEntityContent,
-  hmId,
   hmIdPathToEntityQueryPath,
   HMMetadata,
   HMQueryResult,
@@ -491,6 +488,8 @@ function DocumentDiscussion({
           authors={commentAuthors}
           renderCommentContent={renderCommentContent}
           CommentReplies={CommentReplies}
+          homeId={homeId}
+          siteHost={siteHost}
         />
       );
     })
@@ -506,12 +505,26 @@ function DocumentDiscussion({
 
 function CommentReplies({
   docId,
+  homeId,
+  siteHost,
   replyCommentId,
 }: {
   docId: UnpackedHypermediaId;
+  homeId: UnpackedHypermediaId;
+  siteHost: string | undefined;
   replyCommentId: string;
 }) {
   const discussion = useDiscussion(docId, replyCommentId);
+  const renderCommentContent = useCallback(
+    (comment: HMComment) => {
+      return (
+        <WebDocContentProvider homeId={homeId} id={docId} siteHost={siteHost}>
+          <BlocksContent blocks={comment.content} parentBlockId={null} />
+        </WebDocContentProvider>
+      );
+    },
+    [homeId]
+  );
   if (!discussion) return null;
   const {commentGroups, commentAuthors} = discussion;
   if (!commentGroups) return null;
@@ -528,6 +541,8 @@ function CommentReplies({
             commentGroup={commentGroup}
             isLastGroup={commentGroup === commentGroups.at(-1)}
             CommentReplies={CommentReplies}
+            homeId={homeId}
+            siteHost={siteHost}
           />
         );
       })}
@@ -553,102 +568,6 @@ function DocumentSmallListItem({
       indented={indented}
       {...linkProps}
     />
-  );
-}
-
-function SiteNavigation({
-  document,
-  supportDocuments,
-  supportQueries,
-  onClose,
-  id,
-}: {
-  document: HMDocument;
-  onClose?: () => void;
-  supportDocuments?: {id: UnpackedHypermediaId; document: HMDocument}[];
-  supportQueries?: HMQueryResult[];
-  id: UnpackedHypermediaId;
-}) {
-  const outline = useMemo(() => {
-    return getNodesOutline(document.content);
-  }, [document.content]);
-
-  const directory = supportQueries?.find(
-    (query) => query.in.uid === document.account
-  );
-  const isTopLevel = !id.path || id.path?.length === 0;
-
-  const parentId = hmId(id.type, id.uid, {
-    path: id.path?.slice(0, -1) || [],
-  });
-  if (!directory) return null;
-  const parentListItem = directory.results.find(
-    (doc) => doc.path.join("/") === parentId.path?.join("/")
-  );
-  const parentIdPath = parentId.path;
-  const idPath = id.path;
-  const siblingDocs =
-    parentIdPath &&
-    directory.results.filter(
-      (doc) =>
-        doc.path.join("/").startsWith(parentIdPath.join("/")) &&
-        parentIdPath.length === doc.path.length - 1
-    );
-  const childrenDocs =
-    idPath &&
-    directory.results.filter(
-      (doc) =>
-        doc.path.join("/").startsWith(idPath.join("/")) &&
-        idPath.length === doc.path.length - 1
-    );
-  const documentIndent = isTopLevel ? 0 : 1;
-
-  return (
-    <YStack gap="$2" paddingLeft="$4">
-      {isTopLevel || !parentListItem ? null : (
-        <DocumentSmallListItem
-          metadata={parentListItem.metadata}
-          id={parentId}
-        />
-      )}
-
-      {siblingDocs?.flatMap((doc) => {
-        if (idPath && doc.path.join("/") === idPath.join("/"))
-          return [
-            <DocumentSmallListItem
-              metadata={document.metadata}
-              id={id}
-              key={id.id}
-              indented={documentIndent}
-            />,
-            ...outline.map((node) => (
-              <OutlineNode
-                node={node}
-                key={node.id}
-                onClose={onClose}
-                indented={documentIndent}
-              />
-            )),
-            childrenDocs?.map((doc) => (
-              <DocumentSmallListItem
-                key={doc.path.join("/")}
-                metadata={doc.metadata}
-                id={hmId("d", doc.account, {path: doc.path})}
-                indented={2}
-              />
-            )),
-          ];
-
-        return [
-          <DocumentSmallListItem
-            key={doc.path.join("/")}
-            metadata={doc.metadata}
-            id={hmId("d", doc.account, {path: doc.path})}
-            indented={1}
-          />,
-        ];
-      })}
-    </YStack>
   );
 }
 
