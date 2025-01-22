@@ -70,7 +70,7 @@ export function DonateButton({
         <Button
           icon={
             <CircleDollarSign
-              color="$brand11"
+              color="$brand9"
               $group-icon-hover={{color: "$brand8"}}
             />
           }
