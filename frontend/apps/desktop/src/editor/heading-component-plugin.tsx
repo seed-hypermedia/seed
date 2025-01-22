@@ -91,7 +91,12 @@ export const HMHeadingBlockContent = createTipTapBlock<'heading'>({
         class: `${styles.blockContent} block-heading`,
         'data-content-type': this.name,
       }),
-      [`p`, {class: `${styles.inlineContent} heading-content`}, 0],
+      [
+        `h${node.attrs.level}`,
+        // 'p',
+        {class: `${styles.inlineContent} heading-content`},
+        0,
+      ],
     ]
   },
 })
