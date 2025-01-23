@@ -57,6 +57,12 @@ func newClient(me peer.ID, h host.Host, protoID protocol.ID) *Client {
 			}),
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 			grpc.WithBlock(),
+			grpc.WithChainUnaryInterceptor(
+				rpcClientMetrics.UnaryClientInterceptor(),
+			),
+			grpc.WithChainStreamInterceptor(
+				rpcClientMetrics.StreamClientInterceptor(),
+			),
 		},
 		me:   me,
 		host: h,

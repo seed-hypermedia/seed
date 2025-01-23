@@ -20,6 +20,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
+
 	"seed/backend/util/sqlite/sqlitex"
 
 	provider "github.com/ipfs/boxo/provider"
@@ -42,6 +44,11 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
+)
+
+var (
+	rpcServerMetrics = grpcprom.NewServerMetrics()
+	rpcClientMetrics = grpcprom.NewClientMetrics()
 )
 
 // ProtocolSupportKey is what we use as a key to protect the connection in ConnManager.
@@ -161,9 +168,16 @@ func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool
 		p2p:       host,
 		bitswap:   bitswap,
 		providing: providing,
-		grpc:      grpc.NewServer(),
-		clean:     clean,
-		ready:     make(chan struct{}),
+		grpc: grpc.NewServer(
+			grpc.ChainUnaryInterceptor(
+				rpcServerMetrics.UnaryServerInterceptor(),
+			),
+			grpc.ChainStreamInterceptor(
+				rpcServerMetrics.StreamServerInterceptor(),
+			),
+		),
+		clean: clean,
+		ready: make(chan struct{}),
 	}
 	n.connectionCallback = n.defaultConnectionCallback
 	n.identificationCallback = n.defaultIdentificationCallback
@@ -610,7 +624,11 @@ func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID, lo
 	m.SetHost(node.Host)
 
 	if !cfg.NoMetrics {
-		prometheus.MustRegister(m)
+		prometheus.MustRegister(
+			m,
+			rpcServerMetrics,
+			rpcClientMetrics,
+		)
 	}
 
 	return node, &clean, nil
