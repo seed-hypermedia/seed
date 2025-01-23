@@ -203,6 +203,7 @@ export function useDiscoverEntity(id: UnpackedHypermediaId) {
         account: id.uid,
         path: hmIdPathToEntityQueryPath(id.path),
         version: id.latest ? undefined : id.version || undefined,
+        recursive: true,
       })
       return {}
     },

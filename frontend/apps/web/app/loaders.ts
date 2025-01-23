@@ -77,6 +77,7 @@ export async function getBaseDocument(
     .discoverEntity({
       account: uid,
       path,
+      recursive: true,
       // version ommitted intentionally here. we want to discover the latest version
     })
     .then(() => {

@@ -18,6 +18,7 @@ export const action: ActionFunction = async ({request}) => {
       account: input.uid,
       path: hmIdPathToEntityQueryPath(input.path),
       version: input.version,
+      recursive: true,
     });
     console.log("[discover][end] version: ", discovered.version);
     return json({message: "Success"});
