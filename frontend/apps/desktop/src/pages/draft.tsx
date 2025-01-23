@@ -661,12 +661,19 @@ export function DraftHeader({
             borderColor="transparent"
             defaultValue={name?.trim() || ''} // this is still a controlled input because of the value comparison in useLayoutEffect
             // value={title}
-            onChangeText={(name: string) => {
+            onChangeText={(newName: string) => {
+              // Replace two hyphens with a long dash
+              if (name && newName.length > name.length) {
+                const isHyphen =
+                  name.slice(-1) === '-' && newName.slice(-1) === '-'
+                if (isHyphen) newName = newName.slice(0, -2) + '—'
+              }
+
               // TODO: change title here
               draftActor.send({
                 type: 'CHANGE',
                 metadata: {
-                  name,
+                  name: newName,
                 },
               })
             }}
@@ -796,6 +803,7 @@ function PathDraft({
   useEffect(() => {
     if (isDirty) return
     if (!!name && currentPath?.startsWith('_')) {
+      console.log(name, pathNameify(name))
       setPath(pathNameify(name))
     }
   }, [name, isDirty])

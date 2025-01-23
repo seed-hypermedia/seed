@@ -7,6 +7,8 @@ export function pathNameify(name: string) {
       .replace(/[\u0300-\u036f]/g, '')
       // Replace spaces with dashes
       .replace(/\s+/g, '-')
+      // Replace long dashes with a short hyphen
+      .replace(/—/g, '-')
       // Remove consecutive dashes
       .replace(/-+/g, '-')
       // Replace forward slashes with empty string (as in original)
