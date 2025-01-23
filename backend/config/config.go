@@ -208,9 +208,9 @@ func (c *Syncing) BindFlags(fs *flag.FlagSet) {
 	fs.DurationVar(&c.RefreshInterval, "syncing.refresh-interval", c.RefreshInterval, "Periodic interval at which list of peers to sync is refreshed from the database")
 	fs.BoolVar(&c.AllowPush, "syncing.allow-push", c.AllowPush, "Allows direct content push. Anyone could force push content")
 	fs.BoolVar(&c.NoPull, "syncing.no-pull", c.NoPull, "Disables periodic content pulling")
-	fs.BoolVar(&c.SmartSyncing, "syncing.smart", c.SmartSyncing, "Enables subscription-based syncing and deactivates dumb syncing")
+	fs.BoolVar(&c.SmartSyncing, "syncing.smart", c.SmartSyncing, "Deprecated: Enables subscription-based syncing and deactivates dumb syncing")
 	fs.BoolVar(&c.NoDiscovery, "syncing.no-discovery", c.NoDiscovery, "Disables the ability to discover content from other peers")
-	fs.BoolVar(&c.NoSyncBack, "syncing.no-sync-back", c.NoSyncBack, "Disables syncing back all the content when a peer connects to us")
+	fs.BoolVar(&c.NoSyncBack, "syncing.no-sync-back", c.NoSyncBack, "Deprecated: Disables syncing back all the content when a peer connects to us")
 }
 
 var customBootstrapPeers = []string{
