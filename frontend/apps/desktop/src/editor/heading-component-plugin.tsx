@@ -36,7 +36,7 @@ export const HMHeadingBlockContent = createTipTapBlock<'heading'>({
                   {
                     type: 'heading',
                     props: {
-                      level: '3',
+                      level: '2',
                     },
                   },
                 ),
