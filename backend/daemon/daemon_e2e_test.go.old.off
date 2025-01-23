@@ -10,7 +10,7 @@ import (
 	entities "seed/backend/genproto/entities/v1alpha"
 	networking "seed/backend/genproto/networking/v1alpha"
 	"seed/backend/ipfs"
-	"seed/backend/mttnet"
+	"seed/backend/hmnet"
 	"seed/backend/pkg/must"
 	"seed/backend/testutil"
 	"strconv"
@@ -638,7 +638,7 @@ func TestAccountRootDocument(t *testing.T) {
 }
 
 func getAddrs(t *testing.T, a *App) []string {
-	return mttnet.AddrInfoToStrings(a.Net.AddrInfo())
+	return hmnet.AddrInfoToStrings(a.Net.AddrInfo())
 }
 
 func publishDocument(t *testing.T, ctx context.Context, publisher *App, link string, DocumentID string, DocumentVersion string) *documents.Publication {

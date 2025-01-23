@@ -6,8 +6,8 @@ import (
 	"math"
 	"net/netip"
 	networking "seed/backend/genproto/networking/v1alpha"
+	"seed/backend/hmnet"
 	"seed/backend/ipfs"
-	"seed/backend/mttnet"
 	"seed/backend/util/apiutil"
 	"seed/backend/util/dqb"
 	"strings"
@@ -26,7 +26,7 @@ import (
 
 // Server implements the networking API.
 type Server struct {
-	net *mttnet.Node
+	net *hmnet.Node
 	db  *sqlitex.Pool
 	log *zap.Logger
 }
@@ -38,7 +38,7 @@ type peerExtra struct {
 }
 
 // NewServer returns a new networking API server.
-func NewServer(node *mttnet.Node, db *sqlitex.Pool, log *zap.Logger) *Server {
+func NewServer(node *hmnet.Node, db *sqlitex.Pool, log *zap.Logger) *Server {
 	return &Server{
 		net: node,
 		db:  db,
@@ -61,7 +61,7 @@ func (srv *Server) Connect(ctx context.Context, in *networking.ConnectRequest) (
 		}
 	}
 
-	info, err := mttnet.AddrInfoFromStrings(in.Addrs...)
+	info, err := hmnet.AddrInfoFromStrings(in.Addrs...)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Can't connect due to bad addrs: %v", err)
 	}
@@ -76,7 +76,7 @@ func (srv *Server) Connect(ctx context.Context, in *networking.ConnectRequest) (
 }
 
 var qListPeers = dqb.Str(`
-	SELECT 
+	SELECT
 		id,
 		addresses,
 		pid,
@@ -136,7 +136,7 @@ func (srv *Server) ListPeers(ctx context.Context, in *networking.ListPeersReques
 		lastCursor.ID = id
 		lastCursor.Addr = maStr
 		maList := strings.Split(strings.Trim(maStr, " "), ",")
-		info, err := mttnet.AddrInfoFromStrings(maList...)
+		info, err := hmnet.AddrInfoFromStrings(maList...)
 		if err != nil {
 			srv.log.Warn("Invalid address found when listing peers", zap.String("PID", pid), zap.Error(err))
 			return nil
@@ -162,7 +162,7 @@ func (srv *Server) ListPeers(ctx context.Context, in *networking.ListPeersReques
 
 		var aidString string
 		pids := peer.ID.String()
-		addrs := mttnet.AddrInfoToStrings(peer)
+		addrs := hmnet.AddrInfoToStrings(peer)
 		aid, err := net.AccountForDevice(ctx, peer.ID)
 		if err == nil {
 			aidString = aid.String()

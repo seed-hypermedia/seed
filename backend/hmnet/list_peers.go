@@ -1,4 +1,4 @@
-package mttnet
+package hmnet
 
 import (
 	"context"
@@ -19,7 +19,7 @@ import (
 )
 
 var qListPeers = dqb.Str(`
-	SELECT 
+	SELECT
 		id,
 		addresses,
 		pid,

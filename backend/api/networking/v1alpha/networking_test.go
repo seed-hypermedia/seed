@@ -8,8 +8,8 @@ import (
 	"seed/backend/core"
 	"seed/backend/core/coretest"
 	networking "seed/backend/genproto/networking/v1alpha"
+	"seed/backend/hmnet"
 	"seed/backend/logging"
-	"seed/backend/mttnet"
 	"seed/backend/storage"
 	"seed/backend/util/must"
 	"testing"
@@ -46,7 +46,7 @@ func makeTestServer(t *testing.T, u coretest.Tester) *Server {
 	ks := core.NewMemoryKeyStore()
 	must.Do(ks.StoreKey(context.Background(), "main", u.Account))
 
-	n, err := mttnet.New(cfg, u.Device, ks, db, idx, zap.NewNop())
+	n, err := hmnet.New(cfg, u.Device, ks, db, idx, zap.NewNop())
 	require.NoError(t, err)
 
 	errc := make(chan error, 1)

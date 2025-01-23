@@ -1,4 +1,4 @@
-package mttnet
+package hmnet
 
 import (
 	"math/rand"

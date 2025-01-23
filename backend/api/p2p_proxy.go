@@ -5,7 +5,7 @@ import (
 	"errors"
 	"io"
 	p2p "seed/backend/genproto/p2p/v1alpha"
-	"seed/backend/mttnet"
+	"seed/backend/hmnet"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/grpc"
@@ -21,7 +21,7 @@ import (
 // All methods exposed by this server require a 'target-peer' metadata key,
 // which must be a valid string PeerID of the target peer that the client wants to interact with.
 type p2pProxy struct {
-	node *mttnet.Node
+	node *hmnet.Node
 }
 
 func (p *p2pProxy) RegisterServer(srv grpc.ServiceRegistrar) {

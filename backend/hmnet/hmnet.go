@@ -1,5 +1,5 @@
-// Package mttnet provides Seed P2P network functionality.
-package mttnet
+// Package hmnet provides Seed P2P network functionality.
+package hmnet
 
 import (
 	"context"

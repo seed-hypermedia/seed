@@ -18,8 +18,8 @@ import (
 	"seed/backend/blob"
 	"seed/backend/config"
 	"seed/backend/core"
+	"seed/backend/hmnet"
 	"seed/backend/logging"
-	"seed/backend/mttnet"
 	"seed/backend/syncing"
 	"seed/backend/util/cleanup"
 	"seed/backend/util/future"
@@ -56,7 +56,7 @@ type App struct {
 	GRPCListener net.Listener
 	GRPCServer   *grpc.Server
 	RPC          api.Server
-	Net          *mttnet.Node
+	Net          *hmnet.Node
 	Syncing      *syncing.Service
 	Index        *blob.Index
 }
@@ -185,7 +185,7 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 		return nil, err
 	}
 	a.Syncing.SetDocGetter(a.RPC.DocumentsV3)
-	var fm *mttnet.FileManager
+	var fm *hmnet.FileManager
 	{
 		bs := a.Index.IPFSBlockstore()
 		var e exchange.Interface = a.Net.Bitswap()
@@ -193,7 +193,7 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 			e = offline.Exchange(bs)
 		}
 
-		fm = mttnet.NewFileManager(logging.New("seed/file-manager", cfg.LogLevel), bs, e, a.Net.Provider())
+		fm = hmnet.NewFileManager(logging.New("seed/file-manager", cfg.LogLevel), bs, e, a.Net.Provider())
 	}
 
 	opts.extraHTTPHandlers = append(opts.extraHTTPHandlers, func(r *Router) {
@@ -219,7 +219,7 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 }
 
 type lazyFileManager struct {
-	fm future.Value[*mttnet.FileManager]
+	fm future.Value[*hmnet.FileManager]
 }
 
 func (l *lazyFileManager) GetFile(w http.ResponseWriter, r *http.Request) {
@@ -295,7 +295,7 @@ func initNetwork(
 	index *blob.Index,
 	LogLevel string,
 	extraServers ...func(grpc.ServiceRegistrar),
-) (*mttnet.Node, error) {
+) (*hmnet.Node, error) {
 	started := make(chan struct{})
 	done := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -313,7 +313,7 @@ func initNetwork(
 		}
 	})
 
-	n, err := mttnet.New(cfg, store.Device(), store.KeyStore(), store.DB(), index, logging.New("seed/network", LogLevel))
+	n, err := hmnet.New(cfg, store.Device(), store.KeyStore(), store.DB(), index, logging.New("seed/network", LogLevel))
 	if err != nil {
 		return nil, err
 	}
@@ -344,7 +344,7 @@ func initSyncing(
 	g *errgroup.Group,
 	db *sqlitex.Pool,
 	indexer *blob.Index,
-	node *mttnet.Node,
+	node *hmnet.Node,
 	sstore syncing.SubscriptionStore,
 	LogLevel string,
 ) (*syncing.Service, error) {
@@ -376,7 +376,7 @@ func initGRPC(
 	g *errgroup.Group,
 	repo Storage,
 	idx *blob.Index,
-	node *mttnet.Node,
+	node *hmnet.Node,
 	sync *syncing.Service,
 	activity *activity.Server,
 	LogLevel string,

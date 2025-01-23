@@ -10,7 +10,7 @@ import (
 	documents "seed/backend/genproto/documents/v3alpha"
 	entities "seed/backend/genproto/entities/v1alpha"
 	networking "seed/backend/genproto/networking/v1alpha"
-	"seed/backend/mttnet"
+	"seed/backend/hmnet"
 	"seed/backend/testutil"
 	"seed/backend/util/must"
 	"testing"
@@ -243,7 +243,7 @@ func TestConnectivity(t *testing.T) {
 	bob := makeTestApp(t, "bob", bobCfg, true)
 
 	_, err := bob.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
-		Addrs: mttnet.AddrInfoToStrings(alice.Net.AddrInfo()),
+		Addrs: hmnet.AddrInfoToStrings(alice.Net.AddrInfo()),
 	})
 	require.NoError(t, err)
 	time.Sleep(time.Millisecond * 200)
@@ -298,7 +298,7 @@ func TestSyncingProfiles(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_, err = bob.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
-		Addrs: mttnet.AddrInfoToStrings(alice.Net.AddrInfo()),
+		Addrs: hmnet.AddrInfoToStrings(alice.Net.AddrInfo()),
 	})
 	require.NoError(t, err)
 
@@ -389,7 +389,7 @@ func TestDiscoverHomeDocument(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_, err = bob.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
-		Addrs: mttnet.AddrInfoToStrings(alice.Net.AddrInfo()),
+		Addrs: hmnet.AddrInfoToStrings(alice.Net.AddrInfo()),
 	})
 	require.NoError(t, err)
 
@@ -614,7 +614,7 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_, err = bob.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
-		Addrs: mttnet.AddrInfoToStrings(alice.Net.AddrInfo()),
+		Addrs: hmnet.AddrInfoToStrings(alice.Net.AddrInfo()),
 	})
 	require.NoError(t, err)
 
@@ -820,7 +820,7 @@ func TestSubscriptions(t *testing.T) {
 	require.Len(t, bobsCap.Capabilities, 1, "must return the capability")
 
 	_, err = carol.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
-		Addrs: mttnet.AddrInfoToStrings(alice.Net.AddrInfo()),
+		Addrs: hmnet.AddrInfoToStrings(alice.Net.AddrInfo()),
 	})
 	require.NoError(t, err)
 

@@ -7,9 +7,9 @@ import (
 	"seed/backend/core"
 	"seed/backend/core/coretest"
 	payments "seed/backend/genproto/payments/v1alpha"
+	"seed/backend/hmnet"
 	"seed/backend/lndhub/lndhubsql"
 	"seed/backend/logging"
-	"seed/backend/mttnet"
 	"seed/backend/storage"
 	"seed/backend/testutil"
 	"seed/backend/util/future"
@@ -72,7 +72,7 @@ func makeTestService(t *testing.T, name string) *Server {
 	device := u.Device
 	ks := core.NewMemoryKeyStore()
 	require.NoError(t, ks.StoreKey(ctx, device.Principal().String(), device))
-	node, closenode := makeTestPeer(t, u, device, ks, db)
+	node, closenode := makeTestPeer(t, device, ks, db)
 	t.Cleanup(closenode)
 	/*
 		conn, release, err := db.Conn(context.Background())
@@ -90,10 +90,10 @@ func makeTestService(t *testing.T, name string) *Server {
 	return NewServer(logging.New("seed/wallet", "debug"), db, node, ks, false)
 }
 
-func makeTestPeer(t *testing.T, u coretest.Tester, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool) (*mttnet.Node, context.CancelFunc) {
+func makeTestPeer(t *testing.T, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool) (*hmnet.Node, context.CancelFunc) {
 	idx := must.Do2(blob.OpenIndex(context.Background(), db, logging.New("seed/hyper", "debug"), nil))
 
-	n, err := mttnet.New(config.P2P{
+	n, err := hmnet.New(config.P2P{
 		NoRelay:        true,
 		BootstrapPeers: nil,
 		NoMetrics:      true,
@@ -102,7 +102,7 @@ func makeTestPeer(t *testing.T, u coretest.Tester, device core.KeyPair, ks core.
 
 	errc := make(chan error, 1)
 	ctx, cancel := context.WithCancel(context.Background())
-	f := future.New[*mttnet.Node]()
+	f := future.New[*hmnet.Node]()
 	require.NoError(t, f.Resolve(n))
 	go func() {
 		errc <- n.Start(ctx)

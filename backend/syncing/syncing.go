@@ -10,8 +10,8 @@ import (
 	activity_proto "seed/backend/genproto/activity/v1alpha"
 	documents_proto "seed/backend/genproto/documents/v3alpha"
 	p2p "seed/backend/genproto/p2p/v1alpha"
+	"seed/backend/hmnet"
 	"seed/backend/ipfs"
-	"seed/backend/mttnet"
 	"seed/backend/syncing/rbsr"
 	"seed/backend/util/dqb"
 	"strings"
@@ -149,7 +149,7 @@ type Service struct {
 const peerRoutingConcurrency = 3 // how many concurrent requests for peer routing.
 
 // NewService creates a new syncing service. Users should call Start() to start the periodic syncing.
-func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer blockstore.Blockstore, net *mttnet.Node, sstore SubscriptionStore) *Service {
+func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer blockstore.Blockstore, net *hmnet.Node, sstore SubscriptionStore) *Service {
 	svc := &Service{
 		cfg:        cfg,
 		log:        log,
@@ -229,7 +229,7 @@ func (s *Service) refreshWorkers(ctx context.Context) error {
 		addresStr := stmt.ColumnText(0)
 		pid := stmt.ColumnText(1)
 		addrList := strings.Split(addresStr, ",")
-		info, err := mttnet.AddrInfoFromStrings(addrList...)
+		info, err := hmnet.AddrInfoFromStrings(addrList...)
 		if err != nil {
 			s.log.Warn("Can't periodically sync with peer because it has malformed addresses", zap.String("PID", pid), zap.Error(err))
 			return nil
@@ -339,7 +339,7 @@ func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
 		addresStr := stmt.ColumnText(0)
 		pid := stmt.ColumnText(1)
 		addrList := strings.Split(addresStr, ",")
-		info, err := mttnet.AddrInfoFromStrings(addrList...)
+		info, err := hmnet.AddrInfoFromStrings(addrList...)
 		if err != nil {
 			s.log.Warn("Can't sync with peer with malformed addresses", zap.String("PID", pid), zap.Error(err))
 			return nil
@@ -426,7 +426,7 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 		addresStr := stmt.ColumnText(0)
 		pid := stmt.ColumnText(1)
 		addrList := strings.Split(addresStr, ",")
-		info, err := mttnet.AddrInfoFromStrings(addrList...)
+		info, err := hmnet.AddrInfoFromStrings(addrList...)
 		if err != nil {
 			s.log.Warn("Can't sync subscribed content with peer with malformed addresses", zap.String("PID", pid), zap.Error(err))
 			return nil
@@ -591,7 +591,7 @@ func (s *Service) syncBack(ctx context.Context, event event.EvtPeerIdentificatio
 	if len(info.Addrs) == 0 {
 		return
 	}
-	addrsStr := mttnet.AddrInfoToStrings(info)
+	addrsStr := hmnet.AddrInfoToStrings(info)
 
 	const q = "SELECT addresses FROM peers WHERE pid = ?;"
 	var addresses string
@@ -610,7 +610,7 @@ func (s *Service) syncBack(ctx context.Context, event event.EvtPeerIdentificatio
 	var foundInfo peer.AddrInfo
 	foundAddressesStr := strings.Split(strings.Trim(addresses, " "), ",")
 	if len(foundAddressesStr) != 0 && len(foundAddressesStr[0]) != 0 {
-		foundInfo, err = mttnet.AddrInfoFromStrings(foundAddressesStr...)
+		foundInfo, err = hmnet.AddrInfoFromStrings(foundAddressesStr...)
 		if err != nil {
 			return
 		}

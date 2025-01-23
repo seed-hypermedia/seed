@@ -17,7 +17,7 @@ import (
 	"seed/backend/hlc"
 	"seed/backend/hyper"
 	"seed/backend/hyper/hypersql"
-	"seed/backend/mttnet"
+	"seed/backend/hmnet"
 	"seed/backend/pkg/colx"
 	"seed/backend/pkg/dqb"
 	"seed/backend/pkg/errutil"
@@ -45,11 +45,11 @@ type Server struct {
 	log   *zap.Logger
 	blobs *hyper.Storage
 	db    *DB
-	node  *future.ReadOnly[*mttnet.Node]
+	node  *future.ReadOnly[*hmnet.Node]
 }
 
 // NewServer creates a new groups server.
-func NewServer(me *future.ReadOnly[core.Identity], log *zap.Logger, db *DB, blobs *hyper.Storage, node *future.ReadOnly[*mttnet.Node]) *Server {
+func NewServer(me *future.ReadOnly[core.Identity], log *zap.Logger, db *DB, blobs *hyper.Storage, node *future.ReadOnly[*hmnet.Node]) *Server {
 	return &Server{
 		me:    me,
 		log:   log,

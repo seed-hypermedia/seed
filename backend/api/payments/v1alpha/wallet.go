@@ -10,9 +10,9 @@ import (
 	"regexp"
 	"seed/backend/core"
 	payments "seed/backend/genproto/payments/v1alpha"
+	"seed/backend/hmnet"
 	"seed/backend/lndhub"
 	"seed/backend/lndhub/lndhubsql"
-	"seed/backend/mttnet"
 	"seed/backend/wallet/walletsql"
 	"strings"
 	"time"
@@ -38,7 +38,7 @@ type AccountID = cid.Cid
 type Server struct {
 	lightningClient lnclient
 	pool            *sqlitex.Pool
-	net             *mttnet.Node
+	net             *hmnet.Node
 	log             *zap.Logger
 	ks              core.KeyStore
 }
@@ -53,7 +53,7 @@ type Credentials struct {
 }
 
 // NewServer is the constructor of the wallet service.
-func NewServer(log *zap.Logger, db *sqlitex.Pool, net *mttnet.Node, ks core.KeyStore, mainnet bool) *Server {
+func NewServer(log *zap.Logger, db *sqlitex.Pool, net *hmnet.Node, ks core.KeyStore, mainnet bool) *Server {
 	lndhubDomain := "ln.testnet.seed.hyper.media"
 	lnaddressDomain := "ln.testnet.seed.hyper.media"
 	if mainnet {
@@ -563,9 +563,6 @@ func (srv *Server) UpdateLNAddress(ctx context.Context, nickname, walletID strin
 	}
 	_, token := principal.Explode()
 
-	if err != nil {
-		return fmt.Errorf("Wrong account format%s: %w", principal.String(), err)
-	}
 	err = srv.lightningClient.Lndhub.UpdateNickname(ctx, w.ID, nickname, token)
 	if err != nil {
 		srv.log.Debug("couldn't update nickname: " + err.Error())

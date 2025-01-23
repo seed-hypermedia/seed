@@ -12,7 +12,7 @@ import (
 	accounts "seed/backend/genproto/accounts/v1alpha"
 	groups "seed/backend/genproto/groups/v1alpha"
 	"seed/backend/hyper"
-	"seed/backend/mttnet"
+	"seed/backend/hmnet"
 	"seed/backend/pkg/colx"
 	"seed/backend/pkg/future"
 	"seed/backend/pkg/libp2px"
@@ -51,7 +51,7 @@ func Load(ctx context.Context, address string, cfg config.Config, dir *storage.S
 		panic(fmt.Errorf("failed to parse announce addresses: %w", err))
 	}
 
-	nodePromise := future.New[*mttnet.Node]()
+	nodePromise := future.New[*hmnet.Node]()
 	dbPromise := future.New[*sqlitex.Pool]()
 	blobsPromise := future.New[*hyper.Storage]()
 

@@ -13,7 +13,7 @@ import (
 	groups "seed/backend/genproto/groups/v1alpha"
 	"seed/backend/hyper"
 	"seed/backend/hyper/hypersql"
-	"seed/backend/mttnet"
+	"seed/backend/hmnet"
 	"seed/backend/pkg/colx"
 	"seed/backend/pkg/future"
 	"sync"
@@ -33,7 +33,7 @@ import (
 // Website is the gate to manipulate internal node structures
 type Website struct {
 	blobs *future.ReadOnly[*hyper.Storage]
-	node  *future.ReadOnly[*mttnet.Node]
+	node  *future.ReadOnly[*hmnet.Node]
 	db    *future.ReadOnly[*sqlitex.Pool]
 	url   string
 
@@ -45,7 +45,7 @@ type Website struct {
 var errNodeNotReadyYet = errors.New("P2P node is not ready yet")
 
 // NewServer creates a new server for the site.
-func NewServer(url string, blobs *future.ReadOnly[*hyper.Storage], n *future.ReadOnly[*mttnet.Node], db *future.ReadOnly[*sqlitex.Pool], allowPush bool) *Website {
+func NewServer(url string, blobs *future.ReadOnly[*hyper.Storage], n *future.ReadOnly[*hmnet.Node], db *future.ReadOnly[*sqlitex.Pool], allowPush bool) *Website {
 	return &Website{
 		blobs:     blobs,
 		node:      n,

@@ -9,7 +9,7 @@ import (
 	groups "seed/backend/genproto/groups/v1alpha"
 	"seed/backend/hyper"
 	"seed/backend/logging"
-	"seed/backend/mttnet"
+	"seed/backend/hmnet"
 	"seed/backend/pkg/future"
 	"seed/backend/testutil"
 	"testing"
@@ -592,7 +592,7 @@ func newTestSrv(t *testing.T, name string) *Server {
 
 	bs := hyper.NewStorage(db, logging.New("seed/hyper", "debug"))
 
-	node := future.New[*mttnet.Node]()
+	node := future.New[*hmnet.Node]()
 	srv := NewServer(fut.ReadOnly, logging.New("seed/groups", "debug"), NewSQLiteDB(db), bs, node.ReadOnly)
 
 	_, err := daemon.Register(context.Background(), bs, u.Account, u.Device.PublicKey, time.Now())

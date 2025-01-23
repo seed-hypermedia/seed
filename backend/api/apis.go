@@ -12,7 +12,7 @@ import (
 	"seed/backend/core"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/logging"
-	"seed/backend/mttnet"
+	"seed/backend/hmnet"
 	"seed/backend/syncing"
 
 	"seed/backend/util/sqlite/sqlitex"
@@ -50,7 +50,7 @@ type Storage interface {
 func New(
 	repo Storage,
 	idx *blob.Index,
-	node *mttnet.Node,
+	node *hmnet.Node,
 	sync *syncing.Service,
 	activity *activity.Server,
 	LogLevel string,
@@ -84,7 +84,7 @@ func (s Server) Register(srv *grpc.Server) {
 }
 
 type p2pNodeSubset struct {
-	node *mttnet.Node
+	node *hmnet.Node
 	sync *syncing.Service
 }
 
