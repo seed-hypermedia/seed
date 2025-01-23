@@ -200,8 +200,6 @@ function _MainDocumentPage({
   }, [])
   const entity = useSubscribedEntity(id)
 
-  console.log(`== ~ entity:`, entity)
-
   const siteHomeEntity = useSubscribedEntity(
     // if the route document ID matches the home document, then use it because it may be referring to a specific version
     id.path?.length ? hmId('d', id.uid) : id,
@@ -236,13 +234,14 @@ function _MainDocumentPage({
             ? `document-container${
                 typeof entity.data?.document?.metadata.showOutline ==
                   'undefined' || entity.data?.document?.metadata.showOutline
-                  ? ''
+                  ? ' document-container'
                   : ' hide-outline'
               }`
             : ''
         }
       >
-        {typeof entity.data?.document?.metadata.showOutline == 'undefined' ||
+        {(!docIsNewspaperLayout &&
+          typeof entity.data?.document?.metadata.showOutline == 'undefined') ||
         entity.data?.document?.metadata.showOutline ? (
           <YStack
             marginTop={150}
@@ -293,6 +292,8 @@ function AppNewspaperHeader({
   activeId: UnpackedHypermediaId
 }) {
   const dir = useListDirectory(siteHomeEntity?.id)
+
+  console.log(`== ~ dir:`, dir)
   const capability = useMyCapability(siteHomeEntity?.id)
   const canEditDoc = roleCanWrite(capability?.role)
   const drafts = useAccountDraftList(activeId.uid)

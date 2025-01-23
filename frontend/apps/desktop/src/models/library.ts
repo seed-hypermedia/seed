@@ -163,8 +163,10 @@ export function useLibrary({
       )
     }
     items = accts?.map((account) => {
+      const plainAccount = account.toJson()
       return {
-        ...account,
+        // @ts-expect-error plainAccount is not typed
+        ...plainAccount,
         type: 'site',
         latestComment: account.activitySummary?.latestCommentId
           ? comments.find(

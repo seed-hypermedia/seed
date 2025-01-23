@@ -1,7 +1,6 @@
 import {useGRPCClient} from '@/app-context'
 import {useMyAccountIds} from '@/models/daemon'
 import {client, trpc} from '@/trpc'
-import {toPlainMessage} from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
 import {
   GRPCClient,
@@ -24,7 +23,7 @@ export function useAccounts() {
     queryKey: [queryKeys.LIST_ACCOUNTS],
     queryFn: async () => {
       const res = await grpcClient.documents.listAccounts({})
-      const accounts = toPlainMessage(res).accounts
+      const accounts = res.accounts
       const accountsMetadata = Object.fromEntries(
         accounts.map((account) => [
           account.id,

@@ -18,7 +18,7 @@
     "plugins": [
       {
         "name": "site"
-      },
+      }
       // {
       //   // docs: https://github.com/nderscore/tamagui-typescript-plugin#readme
       //   "name": "@nderscore/tamagui-typescript-plugin",
@@ -27,7 +27,8 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
-      "@shm/ui": ["../../packages/ui/src/index.tsx"]
+      "@shm/ui": ["../../packages/ui/src/index.tsx"],
+      "@shm/shared": ["../../packages/shared/src/index.ts"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
