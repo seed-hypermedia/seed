@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"seed/backend/syncing"
+	"seed/backend/hmnet/syncing"
 	"seed/backend/util/apiutil"
 	"seed/backend/util/cleanup"
 	"seed/backend/util/dqb"

@@ -11,9 +11,9 @@ import (
 	"seed/backend/blob"
 	"seed/backend/core"
 	p2p "seed/backend/genproto/p2p/v1alpha"
-	"seed/backend/logging"
 	"seed/backend/hmnet"
-	"seed/backend/syncing"
+	"seed/backend/hmnet/syncing"
+	"seed/backend/logging"
 
 	"seed/backend/util/sqlite/sqlitex"
 

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 	activity "seed/backend/genproto/activity/v1alpha"
-	"seed/backend/syncing"
+	"seed/backend/hmnet/syncing"
 	"seed/backend/util/apiutil"
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
@@ -170,7 +170,7 @@ func (srv *Server) ListSubscriptions(ctx context.Context, req *activity.ListSubs
 }
 
 var qListSubscriptions = dqb.Str(`
-	SELECT 
+	SELECT
 		id,
 		iri,
 		is_recursive,
@@ -181,7 +181,7 @@ var qListSubscriptions = dqb.Str(`
 `)
 
 var qGetResource = dqb.Str(`
-	SELECT 
+	SELECT
 		iri
 	FROM resources
 	WHERE iri = :wanted_iri LIMIT 1;

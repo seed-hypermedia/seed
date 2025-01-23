@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"seed/backend/blob"
 	p2p "seed/backend/genproto/p2p/v1alpha"
-	"seed/backend/syncing/rbsr"
+	"seed/backend/hmnet/syncing/rbsr"
 	"strings"
 
 	cbornode "github.com/ipfs/go-ipld-cbor"

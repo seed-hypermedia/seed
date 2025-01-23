@@ -3,7 +3,7 @@ package activity
 import (
 	context "context"
 	activity "seed/backend/genproto/activity/v1alpha"
-	"seed/backend/syncing"
+	"seed/backend/hmnet/syncing"
 	"testing"
 
 	"github.com/stretchr/testify/require"

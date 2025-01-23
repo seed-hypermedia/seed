@@ -22,7 +22,7 @@ import (
 	"seed/backend/pkg/dqb"
 	"seed/backend/pkg/errutil"
 	"seed/backend/pkg/future"
-	"seed/backend/syncing"
+	"seed/backend/hmnet/syncing"
 	"strings"
 	"sync"
 	"time"

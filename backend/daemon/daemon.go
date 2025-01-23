@@ -19,8 +19,8 @@ import (
 	"seed/backend/config"
 	"seed/backend/core"
 	"seed/backend/hmnet"
+	"seed/backend/hmnet/syncing"
 	"seed/backend/logging"
-	"seed/backend/syncing"
 	"seed/backend/util/cleanup"
 	"seed/backend/util/future"
 
