@@ -24,12 +24,12 @@ let config = {
   // ssr: {
   //   noExternal: ["react-tweet"],
   // },
-  build: {minify: false, sourcemap: true},
+  build: {minify: true, sourcemap: false},
   ssr: {
     noExternal: ["@tamagui/helpers-icon"],
   },
   define: {
-    "process.env.NODE_ENV": JSON.stringify("development"), // Force React to development mode
+    // "process.env.NODE_ENV": JSON.stringify("development"), // Force React to development mode
   },
   optimizeDeps: {
     exclude:
