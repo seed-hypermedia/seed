@@ -149,7 +149,9 @@ export function SiteHeader(props: {
   docId: UnpackedHypermediaId | null;
   openSheet?: () => void;
   supportQueries?: HMQueryResult[];
-  children: ReactNode;
+  renderMobileMenu: (props: {
+    onSetOpen: (open: boolean) => void;
+  }) => React.JSX.Element;
   mobileSearchUI?: ReactNode;
   isWeb?: boolean;
 }) {
@@ -195,14 +197,16 @@ export function SiteHeader(props: {
 export function DefaultSiteHeader({
   homeMetadata,
   homeId,
-  children,
+  renderMobileMenu,
   searchUI,
   mobileSearchUI,
   isWeb = false,
 }: {
   homeMetadata: HMMetadata | null;
   homeId: UnpackedHypermediaId | null;
-  children: React.JSX.Element;
+  renderMobileMenu: (props: {
+    onSetOpen: (open: boolean) => void;
+  }) => React.JSX.Element;
   searchUI?: React.ReactNode;
   mobileSearchUI?: React.ReactNode;
   isWeb?: boolean;
@@ -257,7 +261,7 @@ export function DefaultSiteHeader({
           onClose={() => setOpen(false)}
           mobileSearchUI={mobileSearchUI}
         >
-          {children}
+          {renderMobileMenu({onSetOpen: setOpen})}
         </MobileMenu>
       ) : null}
     </>

@@ -4,20 +4,17 @@ import {
   createWebHMUrl,
   getDocumentTitle,
   getFileUrl,
-  getMetadataName,
   HMComment,
   HMEntityContent,
   hmIdPathToEntityQueryPath,
   HMMetadata,
   HMQueryResult,
-  NodeOutline,
   SITE_BASE_URL,
   UnpackedHypermediaId,
   unpackHmId,
 } from "@shm/shared";
-import {SiteRoutingProvider, useRouteLink} from "@shm/shared/src/routing";
+import {SiteRoutingProvider} from "@shm/shared/src/routing";
 import "@shm/shared/src/styles/document.css";
-import {X} from "@shm/ui";
 import {getRandomColor} from "@shm/ui/src/avatar";
 import {Container} from "@shm/ui/src/container";
 import {CommentGroup} from "@shm/ui/src/discussion";
@@ -26,17 +23,13 @@ import {
   DocContent,
   DocContentProvider,
 } from "@shm/ui/src/document-content";
-import {HMIcon} from "@shm/ui/src/hm-icon";
 import {EmptyDiscussion} from "@shm/ui/src/icons";
-import {SmallListItem} from "@shm/ui/src/list-item";
 import {
   DocNavigationContent,
   DocumentOutline,
   SiteNavigationContent,
 } from "@shm/ui/src/navigation";
-import {Button} from "@tamagui/button";
-import {GestureReponderEvent, Text, useTheme} from "@tamagui/core";
-import {ScrollView} from "@tamagui/scroll-view";
+import {Text, useTheme} from "@tamagui/core";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import {useCallback, useEffect, useMemo} from "react";
@@ -145,7 +138,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
       // onClose?.();
     }
   }, []);
-  const docNavigation = (
+  const renderDocNavigation = ({onCloseNav}: {onCloseNav?: () => void}) => (
     <DocNavigationContent
       supportDocuments={props.supportDocuments}
       supportQueries={props.supportQueries}
@@ -156,6 +149,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
           onActivateBlock={onActivateBlock}
           document={document}
           id={id}
+          onCloseNav={onCloseNav}
           supportDocuments={props.supportDocuments}
           activeBlockId={id.blockRef}
           indented={indented}
@@ -163,7 +157,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
       )}
     />
   );
-  const siteNavigation =
+  const renderSiteNavigation = ({onCloseNav}: {onCloseNav?: () => void}) =>
     !!id.path?.length &&
     homeMetadata.layout !== "Seed/Experimental/Newspaper" ? null : (
       <SiteNavigationContent
@@ -181,10 +175,21 @@ export function DocumentPage(props: SiteDocumentPayload) {
           docId={id}
           supportQueries={props.supportQueries}
           mobileSearchUI={<MobileSearchUI homeId={homeId} />}
+          renderMobileMenu={({onSetOpen}) => {
+            const onCloseNav = () => {
+              onSetOpen(false);
+            };
+            return (
+              <>
+                {renderSiteNavigation({onCloseNav})}
+                {renderDocNavigation({onCloseNav})}
+              </>
+            );
+          }}
           isWeb
         >
-          {siteNavigation}
-          {docNavigation}
+          {renderSiteNavigation({onCloseNav: () => {}})}
+          {renderDocNavigation({onCloseNav: () => {}})}
         </SiteHeader>
 
         <DocumentCover cover={document.metadata.cover} id={id} />
@@ -202,7 +207,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
               // paddingTop={32}
               paddingBottom={32}
             >
-              {docNavigation}
+              {renderDocNavigation({onCloseNav: () => {}})}
             </YStack>
           </YStack>
 
@@ -548,93 +553,4 @@ function CommentReplies({
       })}
     </YStack>
   );
-}
-
-function DocumentSmallListItem({
-  metadata,
-  id,
-  indented,
-}: {
-  metadata?: HMMetadata;
-  id: UnpackedHypermediaId;
-  indented?: number;
-}) {
-  const linkProps = useRouteLink({key: "document", id});
-  return (
-    <SmallListItem
-      key={id.id}
-      title={getMetadataName(metadata)}
-      icon={<HMIcon id={id} metadata={metadata} size={20} />}
-      indented={indented}
-      {...linkProps}
-    />
-  );
-}
-
-function OutlineNode({
-  node,
-  onClose,
-  indented = 0,
-}: {
-  node: NodeOutline;
-  onClose?: () => void;
-  indented?: number;
-}) {
-  return (
-    <>
-      <SmallListItem
-        key={node.id}
-        title={node.title}
-        // icon={<HMIcon id={node.id} metadata={node.metadata} size={20} />}
-        indented={indented}
-        onPress={(e: GestureReponderEvent) => {
-          e.preventDefault();
-          const targetElement = document.querySelector(`#${node.id}`);
-
-          if (targetElement) {
-            const offset = 80; // header fixed height
-            const elementPosition = targetElement.getBoundingClientRect().top;
-            const offsetPosition = elementPosition + window.scrollY - offset;
-            window.scrollTo({top: offsetPosition, behavior: "smooth"});
-            onClose?.();
-          }
-        }}
-      />
-      {node.children?.length
-        ? node.children.map((child) => (
-            <OutlineNode node={child} key={child.id} indented={indented + 1} />
-          ))
-        : null}
-    </>
-  );
-}
-
-function MobileSiteNavigation({
-  open,
-  onClose,
-  children,
-}: {
-  open: boolean;
-  onClose: () => void;
-  children: React.JSX.Element;
-}) {
-  return open ? (
-    <YStack
-      fullscreen
-      zi="$zIndex.7"
-      // @ts-ignore
-      position="fixed"
-      // @ts-ignore
-      pointerEvents={open ? "inherit" : "none"}
-      backgroundColor="$background"
-    >
-      <XStack>
-        <XStack flex={1} />
-        <Button icon={<X width={20} height={20} />} onPress={onClose} />
-      </XStack>
-      <ScrollView paddingVertical="$6" paddingHorizontal="$4">
-        {children}
-      </ScrollView>
-    </YStack>
-  ) : null;
 }

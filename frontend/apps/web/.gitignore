@@ -7,7 +7,9 @@ node_modules
 .wrangler
 
 config.json
+config.off.json
 service-config.json
+service-config.off.json
 
 COMMIT_HASH
 BRANCH

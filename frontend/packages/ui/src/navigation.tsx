@@ -243,6 +243,7 @@ export function DocumentOutline({
   id,
   supportDocuments,
   activeBlockId,
+  onCloseNav,
 }: {
   document: HMDocument;
   indented?: number;
@@ -251,6 +252,7 @@ export function DocumentOutline({
   id: UnpackedHypermediaId;
   supportDocuments?: HMEntityContent[];
   activeBlockId: string | null;
+  onCloseNav?: () => void;
 }) {
   const outline = useMemo(() => {
     return getNodesOutline(document.content, id, supportDocuments);
@@ -263,6 +265,7 @@ export function DocumentOutline({
       onActivateBlock={onActivateBlock}
       onPress={onPress}
       activeBlockId={activeBlockId}
+      onCloseNav={onCloseNav}
     />
   ));
 }
@@ -303,12 +306,14 @@ function OutlineNode({
   activeBlockId,
   onActivateBlock,
   onPress,
+  onCloseNav,
 }: {
   node: NodeOutline;
   indented?: number;
   activeBlockId: string | null;
   onActivateBlock: (blockId: string) => void;
   onPress?: () => void;
+  onCloseNav?: () => void;
 }) {
   return (
     <>
@@ -321,6 +326,7 @@ function OutlineNode({
         onPress={(e: GestureReponderEvent) => {
           e.preventDefault();
           onPress?.();
+          onCloseNav?.();
           onActivateBlock(node.id);
         }}
       />
@@ -333,6 +339,7 @@ function OutlineNode({
               activeBlockId={activeBlockId}
               onActivateBlock={onActivateBlock}
               onPress={onPress}
+              onCloseNav={onCloseNav}
             />
           ))
         : null}

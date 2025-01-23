@@ -18,9 +18,9 @@ export function NewsSiteHeader({
   rightContent,
   docId,
   afterLinksContent,
-  children,
   searchUI,
   mobileSearchUI,
+  renderMobileMenu,
   isWeb = false,
   items,
 }: {
@@ -30,8 +30,10 @@ export function NewsSiteHeader({
   docId: UnpackedHypermediaId | null;
   afterLinksContent?: React.ReactNode;
   searchUI?: React.ReactNode;
-  children?: React.ReactNode;
   mobileSearchUI?: React.ReactNode;
+  renderMobileMenu: (props: {
+    onSetOpen: (open: boolean) => void;
+  }) => React.JSX.Element;
   isWeb?: boolean;
   items?: SiteNavigationDocument[];
 }) {
@@ -92,9 +94,8 @@ export function NewsSiteHeader({
           open={open}
           onClose={() => setOpen(false)}
           mobileSearchUI={mobileSearchUI}
-        >
-          {children}
-        </MobileMenu>
+          renderMobileMenu={renderMobileMenu}
+        />
       ) : null}
     </>
   );
