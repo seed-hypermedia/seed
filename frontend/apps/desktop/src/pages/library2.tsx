@@ -166,7 +166,7 @@ export default function LibraryPage() {
                                 return hmId('d', item.id)
                               }
                               return hmId('d', item.account, {
-                                path: entityQueryPathToHmIdPath(item.path),
+                                path: item.path,
                               })
                             })
                             .filter(
@@ -331,7 +331,7 @@ function SelectionCollapseButton({
     return (
       <Checkbox
         checked={isSelected}
-        onCheckedChange={(isSelected) => onSelect(docId, !!isSelected)}
+        onCheckedChange={(isSelected: boolean) => onSelect(docId, !!isSelected)}
         size="$3"
         borderColor="$color8"
         hoverStyle={{
@@ -388,7 +388,7 @@ function LibrarySiteItem({
   const metadata = site?.metadata
   const id = hmId('d', site.id)
   const documents = useSiteLibrary(site.id, !isCollapsed)
-  const homeDocument = documents.data?.find((doc) => doc.path === '')
+  const homeDocument = documents.data?.find((doc) => !doc.path?.length)
   const siteDisplayActivitySummary =
     !isCollapsed && homeDocument
       ? homeDocument.activitySummary
@@ -449,10 +449,10 @@ function LibrarySiteItem({
       {isCollapsed ? null : (
         <YStack>
           {documents.data?.map((item) => {
-            if (item.path === '') return null
+            if (item.path?.length === 0) return null
             return (
               <LibraryDocumentItem
-                key={item.path}
+                key={item.path?.join('/') || ''}
                 item={item}
                 accountsMetadata={accountsMetadata || {}}
               />
@@ -466,17 +466,17 @@ function LibrarySiteItem({
 
 export function LibraryDocumentItem({
   item,
-  margin,
+  indent,
   accountsMetadata,
 }: {
   item: LibraryDocument
-  margin?: boolean
+  indent?: boolean
   accountsMetadata: AccountsMetadata
 }) {
   const navigate = useNavigate()
   const metadata = item?.metadata
   const id = hmId('d', item.account, {
-    path: entityQueryPathToHmIdPath(item.path),
+    path: item.path,
   })
   const isRead = !item.activitySummary?.isUnread
   return (
@@ -494,7 +494,7 @@ export function LibraryDocumentItem({
         navigate({key: 'document', id})
       }}
       h="auto"
-      marginVertical={margin ? '$1' : undefined}
+      marginVertical={'$1'}
       ai="center"
     >
       <SelectionCollapseButton isCollapsed={null} docId={id.id} />

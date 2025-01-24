@@ -3,7 +3,7 @@ import {
   AccessoryLayout,
 } from '@/components/accessory-sidebar'
 import {CollaboratorsPanel} from '@/components/collaborators-panel'
-import {Discussion} from '@/components/discussion'
+import {DocumentActivity} from '@/components/document-activity'
 import {DocumentHeadItems} from '@/components/document-head-items'
 import {LinkNameComponent} from '@/components/document-name'
 import {ImportDropdownButton} from '@/components/import-doc-button'
@@ -623,7 +623,8 @@ function DocPageAppendix({
 }) {
   return (
     <Container centered={centered}>
-      <Discussion docId={docId} />
+      {/* <Discussion docId={docId} /> */}
+      <DocumentActivity docId={docId} />
     </Container>
   )
 }

@@ -64,7 +64,7 @@ export function VersionsPanel({
   )
 }
 
-function ChangeItem({
+export function ChangeItem({
   change,
   isActive,
   onPress,
@@ -89,7 +89,6 @@ function ChangeItem({
       paddingHorizontal="$1"
       paddingRight="$3"
       borderRadius="$2"
-      borderWidth={0}
       backgroundColor={isActive ? '$brand12' : '$backgroundTransparent'}
       hoverStyle={{
         backgroundColor: isActive ? '$brand11' : '$color6',

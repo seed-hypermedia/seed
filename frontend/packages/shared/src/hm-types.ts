@@ -8,6 +8,7 @@ import type {
   Comment,
   DeletedEntity,
   Document,
+  DocumentChangeInfo,
   DocumentInfo,
   EditorBlock,
   UnpackedHypermediaId,
@@ -491,12 +492,33 @@ export type HMCommentGroup = {
   comments: HMComment[]
   moreCommentsCount: number
   id: string
+  type: 'commentGroup'
+}
+
+export type HMDraftChange = {
+  id: string
+  type: 'draftChange'
+  author: string
+  deps: string[]
+  isDraft: boolean
+  lastUpdateTime?: number
+}
+
+export type HMChangeSummary = PlainMessage<DocumentChangeInfo> & {
+  type: 'change'
 }
 
 export type HMBlockType = HMBlock['type']
 
 export type HMDocumentInfo = Omit<PlainMessage<DocumentInfo>, 'path'> & {
+  type: 'document'
   path: string[]
+}
+
+export type HMChangeGroup = {
+  id: string
+  type: 'changeGroup'
+  changes: HMChangeSummary[]
 }
 
 export type HMQueryResult = {

@@ -124,7 +124,7 @@ function queryComment(
       const comment = await grpcClient.comments.getComment({
         id: commentId,
       })
-      return toPlainMessage(comment)
+      return toPlainMessage(comment) as HMComment
     },
   }
 }

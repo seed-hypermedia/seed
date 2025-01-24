@@ -103,8 +103,8 @@ export function useLibrary({
   const allDocuments = useAllDocuments(grouping === 'none')
   const commentIds =
     grouping === 'none'
-      ? allDocuments.data?.documents
-          .map((doc) => doc.activitySummary?.latestCommentId)
+      ? allDocuments.data
+          ?.map((doc) => doc.activitySummary?.latestCommentId)
           .filter((commentId) => commentId != null)
           .filter((commentId) => commentId.length)
       : accounts.data?.accounts
@@ -114,14 +114,14 @@ export function useLibrary({
   const comments = useComments(commentIds || [])
   let items: undefined | LibraryItem[]
   if (grouping === 'none') {
-    let documents = allDocuments.data?.documents
+    let documents = allDocuments.data
     if (displayMode === 'subscribed') {
       documents = documents?.filter(
         (doc) =>
           subscriptions.data?.find((sub) =>
             isSubscribedBy(
               hmId('d', doc.account, {
-                path: entityQueryPathToHmIdPath(doc.path),
+                path: doc.path,
               }),
               sub,
             ),
@@ -190,9 +190,13 @@ function useAllDocuments(enabled: boolean) {
       const res = await grpcClient.documents.listDocuments({
         pageSize: BIG_INT,
       })
-      return {
-        documents: toPlainMessage(res).documents,
-      }
+      return toPlainMessage(res).documents.map((docInfo) => {
+        return {
+          ...docInfo,
+          type: 'document',
+          path: entityQueryPathToHmIdPath(docInfo.path),
+        } as HMDocumentInfo
+      })
     },
   })
   return allDocuments
@@ -226,11 +230,28 @@ export function useSiteLibrary(
     ...siteDocuments,
     data: siteDocuments.data?.documents.map((doc) => ({
       ...doc,
+      path: entityQueryPathToHmIdPath(doc.path),
       type: 'document',
       latestComment: comments.find(
         (c) => c.data?.id === doc.activitySummary?.latestCommentId,
       )?.data,
     })),
+  }
+}
+
+export function useChildrenActivity(docId: UnpackedHypermediaId) {
+  const siteLibrary = useSiteLibrary(docId.uid, true)
+  const path = docId.path
+  const pathPrefix = docId.path?.join('/') || ''
+  return {
+    ...siteLibrary,
+    data: siteLibrary.data?.filter((item) => {
+      if (!item.path?.length) return false
+      if (item.path.length !== (path?.length || 0) + 1) return false
+      const pathStr = item.path.join('/')
+      if (!pathStr.startsWith(pathPrefix)) return false
+      return true
+    }),
   }
 }
 

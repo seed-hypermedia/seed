@@ -14,6 +14,7 @@ export function getCommentGroups(
         comments: [comment],
         moreCommentsCount: 0,
         id: comment.id,
+        type: 'commentGroup',
       })
     }
   })
