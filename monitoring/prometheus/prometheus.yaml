@@ -12,26 +12,26 @@ scrape_configs:
   - job_name: "seed-daemon"
     metrics_path: "/debug/metrics"
     static_configs:
-      - targets: ["host.docker.internal:55001"]
-        labels:
-          instance: "mintter-prod"
       - targets: ["host.docker.internal:56001"]
         labels:
           instance: "seed-prod"
       - targets: ["host.docker.internal:57001"]
         labels:
           instance: "seed-dev"
+      - targets: ["host.docker.internal:58001"]
+        labels:
+          instance: "seed-local"
 
   # Scrape the Electron process.
   - job_name: electron
     metrics_path: /debug/metrics
     static_configs:
-      - targets: ["host.docker.internal:55003"]
-        labels:
-          instance: "mintter-prod"
       - targets: ["host.docker.internal:56003"]
         labels:
           instance: "seed-prod"
       - targets: ["host.docker.internal:57003"]
         labels:
           instance: "seed-dev"
+      - targets: ["host.docker.internal:58003"]
+        labels:
+          instance: "seed-local"

@@ -14,13 +14,12 @@ import (
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/ipfs"
 	"seed/backend/util/cleanup"
+	"seed/backend/util/grpcprom"
 	"seed/backend/util/libp2px"
 	"seed/backend/util/must"
 	"seed/backend/util/sqlite"
 	"sync/atomic"
 	"time"
-
-	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 
 	"seed/backend/util/sqlite/sqlitex"
 
@@ -169,6 +168,7 @@ func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool
 		bitswap:   bitswap,
 		providing: providing,
 		grpc: grpc.NewServer(
+			grpc.StatsHandler(rpcServerMetrics),
 			grpc.ChainUnaryInterceptor(
 				rpcServerMetrics.UnaryServerInterceptor(),
 			),

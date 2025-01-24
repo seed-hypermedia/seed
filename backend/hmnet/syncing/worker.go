@@ -185,7 +185,7 @@ func (sw *worker) sync(ctx context.Context) {
 
 	c, err := sw.clientFunc(ctx, sw.pid)
 	if err != nil {
-		sw.log.Warn("FailedToGetClient", zap.Error(err))
+		sw.log.Debug("FailedToGetClient", zap.Error(err))
 		return
 	}
 
