@@ -69,7 +69,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
       decorations(state) {
         return this.getState(state)
       },
-      handlePaste: (view, event, slice) => {
+      handlePaste: (view, _event, slice) => {
         const {state} = view
         const {selection} = state
 
@@ -135,7 +135,6 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                 })
                 .run()
             }
-
             return true
           }
         }
@@ -238,7 +237,6 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                 }),
               )
             })
-
           return true
         }
 
@@ -419,7 +417,6 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
             default:
               break
           }
-
           return true
         }
 
@@ -437,7 +434,6 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
 
         slice.content.forEach((node) => {
           fragmentLinks = find(node.textContent)
-
           tr.insert(currentPos - 1, node)
 
           if (fragmentLinks.length > 0) {
@@ -465,14 +461,14 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           currentPos += node.nodeSize
         })
 
-        const hasFragmentLinks = fragmentLinks.length > 0
+        const hasFragmentLinks =
+          fragmentLinks.length > 0 && slice.content.content.length === 1
 
         if (tr.docChanged && !deleteOnly && hasFragmentLinks) {
           options.editor.view.dispatch(tr)
 
           return true
         }
-
         return false
       },
     },

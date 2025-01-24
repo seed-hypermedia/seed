@@ -4,6 +4,7 @@ import {Plugin, PluginKey} from 'prosemirror-state'
 
 export const LocalMediaPastePlugin = Extension.create({
   name: 'local-media-paste',
+  priority: 100,
   addProseMirrorPlugins() {
     return [handleLocalMediaPastePlugin]
   },

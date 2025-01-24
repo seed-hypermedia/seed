@@ -803,7 +803,6 @@ function PathDraft({
   useEffect(() => {
     if (isDirty) return
     if (!!name && currentPath?.startsWith('_')) {
-      console.log(name, pathNameify(name))
       setPath(pathNameify(name))
     }
   }, [name, isDirty])

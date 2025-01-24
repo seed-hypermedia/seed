@@ -42,6 +42,7 @@ export interface CodeBlockOptions {
 
 export const CodeBlock = Node.create<CodeBlockOptions>({
   name: 'code-block',
+  priority: 100,
 
   addOptions() {
     return {
@@ -201,7 +202,8 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
       // remove code block when at start of document or code block is empty
       Backspace: () => {
         const {empty, $anchor} = this.editor.state.selection
-        const isAtStart = $anchor.pos === 1
+        // The position is 3 because wrapping nodes take 1 position.
+        const isAtStart = $anchor.pos <= 3
 
         if (!empty || $anchor.parent.type.name !== this.name) {
           return false
@@ -565,7 +567,6 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
             tr.setMeta('paste', true)
 
             view.dispatch(tr)
-
             return true
           },
         },

@@ -1,4 +1,8 @@
-import {BlockNoteEditor, getBlockInfoFromPos, setGroupTypes} from '@/editor'
+import {
+  BlockNoteEditor,
+  getBlockInfoFromSelection,
+  setGroupTypes,
+} from '@/editor'
 import {Editor, Extension} from '@tiptap/core'
 import {Fragment, Node} from '@tiptap/pm/model'
 import {Plugin} from 'prosemirror-state'
@@ -60,7 +64,7 @@ function getPastedNodes(parent: Node | Fragment, editor: Editor) {
 export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
   const MarkdownExtension = Extension.create({
     name: 'MarkdownPasteHandler',
-    priority: 900,
+    priority: 25,
 
     addProseMirrorPlugins() {
       return [
@@ -92,6 +96,10 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
                 : pastedText
                 ? true
                 : false
+
+              // console.log('is markdown and has list', isMarkdown, hasList)
+
+              // console.log('pasted text and html', pastedText, pastedHtml)
 
               if (!isMarkdown) {
                 if (hasList) {
@@ -134,20 +142,17 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
               }
 
               MarkdownToBlocks(pastedText, bnEditor).then((organizedBlocks) => {
-                const blockInfo = getBlockInfoFromPos(state, selection.from)
+                const blockInfo = getBlockInfoFromSelection(state)
 
                 bnEditor.replaceBlocks(
                   [blockInfo.block.node.attrs.id],
                   // @ts-ignore
                   organizedBlocks,
                 )
-
                 setGroupTypes(bnEditor._tiptapEditor, organizedBlocks)
-
-                return
               })
 
-              // return true
+              return true
             },
           },
         }),
