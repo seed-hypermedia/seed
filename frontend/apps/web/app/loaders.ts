@@ -1,9 +1,9 @@
-import {toPlainMessage} from "@bufbuild/protobuf";
 import {
   extractQueryBlocks,
   extractRefs,
   getParentPaths,
   HMDocument,
+  HMDocumentMetadataSchema,
   HMDocumentSchema,
   hmId,
   hmIdPathToEntityQueryPath,
@@ -31,13 +31,11 @@ export async function getMetadata(
       path: hmIdPathToEntityQueryPath(id.path),
       version: id.version || undefined,
     });
-    const document = toPlainMessage(rawDoc);
     return {
       id,
-      metadata: {
-        ...document.metadata,
-        // showOutline: true,
-      },
+      metadata: HMDocumentMetadataSchema.parse(
+        rawDoc.metadata?.toJson({emitDefaultValues: true})
+      ),
     };
   } catch (e) {
     return {id, metadata: {}};
@@ -187,7 +185,9 @@ export async function getDocument(
       });
       return {
         id: hmId(entityId.type, entityId.uid, {path: crumbPath}),
-        metadata: toPlainMessage(document).metadata,
+        metadata: HMDocumentMetadataSchema.parse(
+          document.metadata?.toJson({emitDefaultValues: true})
+        ),
       };
     })
   );

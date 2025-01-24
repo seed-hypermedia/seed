@@ -1,4 +1,7 @@
-import {HMDocumentSchema} from '@shm/shared/src/hm-types'
+import {
+  HMDocumentMetadataSchema,
+  HMDocumentSchema,
+} from '@shm/shared/src/hm-types'
 import {toast} from '@shm/ui'
 
 import {useAppContext, useGRPCClient} from '@/app-context'
@@ -30,7 +33,12 @@ export function useExportDocuments() {
           account: id.uid,
           path: hmIdPathToEntityQueryPath(id.path),
         })
-        const hmDocParse = HMDocumentSchema.safeParse(toPlainMessage(doc))
+        const hmDocParse = HMDocumentSchema.safeParse({
+          ...toPlainMessage(doc),
+          metadata: HMDocumentMetadataSchema.parse(
+            doc.metadata?.toJson({emitDefaultValues: true}),
+          ),
+        })
         const hmDoc = hmDocParse.success ? hmDocParse.data : null
         if (!hmDoc) return null
         const editorBlocks: EditorBlock[] = hmBlocksToEditorContent(

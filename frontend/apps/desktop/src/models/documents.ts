@@ -18,6 +18,7 @@ import {
   HMBlockNode,
   HMDocument,
   HMDocumentInfo,
+  HMDocumentMetadataSchema,
   HMDocumentSchema,
   HMDraft,
   HMEntityContent,
@@ -275,7 +276,13 @@ export function usePublishDraft(
                 capability: capabilityId,
               })
 
-            const resultDoc = toPlainMessage(publishedDoc)
+            const resultDoc = {
+              ...toPlainMessage(publishedDoc),
+              metadata: HMDocumentMetadataSchema.parse(
+                publishedDoc.metadata?.toJson({emitDefaultValues: true}),
+              ),
+            }
+
             return resultDoc
           } else {
             // dispatchWizardEvent(true)
@@ -1031,7 +1038,13 @@ export function useListDirectory(
           pageSize: BIG_INT,
         })
         const docs = res.documents
-          .map(toPlainMessage)
+          .map((d) => ({
+            ...toPlainMessage(d),
+            metadata: HMDocumentMetadataSchema.parse(
+              d.metadata?.toJson({emitDefaultValues: true}),
+            ),
+          }))
+
           .filter((doc) => {
             return (
               doc.path !== '/' &&
@@ -1046,7 +1059,6 @@ export function useListDirectory(
           .map((doc) => {
             return {...doc, path: doc.path.slice(1).split('/')}
           })
-
         return docs as HMDocumentInfo[]
       },
     },
@@ -1065,7 +1077,12 @@ export function useListSite(id?: UnpackedHypermediaId) {
         pageSize: BIG_INT,
       })
       const docs = res.documents
-        .map(toPlainMessage)
+        .map((d) => ({
+          ...toPlainMessage(d),
+          metadata: HMDocumentMetadataSchema.parse(
+            d.metadata?.toJson({emitDefaultValues: true}),
+          ),
+        }))
         .filter((doc) => {
           return doc.path !== ''
         })
@@ -1381,9 +1398,12 @@ export function useAccountDocuments(id?: UnpackedHypermediaId) {
         account: id?.uid,
         pageSize: BIG_INT,
       })
-      const documents = result.documents.map((response) =>
-        toPlainMessage(response),
-      )
+      const documents = result.documents.map((response) => ({
+        ...toPlainMessage(response),
+        metadata: HMDocumentMetadataSchema.parse(
+          response.metadata?.toJson({emitDefaultValues: true}),
+        ),
+      }))
       return {
         documents,
       }

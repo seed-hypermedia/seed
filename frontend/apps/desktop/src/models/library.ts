@@ -7,6 +7,7 @@ import {
   HMComment,
   HMDocument,
   HMDocumentInfo,
+  HMDocumentMetadataSchema,
   HMDraft,
   hmId,
   HMMetadata,
@@ -163,10 +164,10 @@ export function useLibrary({
       )
     }
     items = accts?.map((account) => {
-      const plainAccount = account.toJson()
+      const plainAccount = toPlainMessage(account)
       return {
-        // @ts-expect-error plainAccount is not typed
         ...plainAccount,
+
         type: 'site',
         latestComment: account.activitySummary?.latestCommentId
           ? comments.find(
@@ -192,9 +193,11 @@ function useAllDocuments(enabled: boolean) {
       const res = await grpcClient.documents.listDocuments({
         pageSize: BIG_INT,
       })
-      return toPlainMessage(res).documents.map((docInfo) => {
+      return res.documents.map((docInfo) => {
+        console.log(`== ~ returntoPlainMessage ~ docInfo:`, docInfo)
         return {
-          ...docInfo,
+          ...toPlainMessage(docInfo),
+          metadata: HMDocumentMetadataSchema.parse(docInfo.metadata),
           type: 'document',
           path: entityQueryPathToHmIdPath(docInfo.path),
         } as HMDocumentInfo
@@ -217,8 +220,16 @@ export function useSiteLibrary(
         account: siteUid,
         pageSize: BIG_INT,
       })
+      console.log(`== ~ return ~ res:`, res)
       return {
-        documents: toPlainMessage(res).documents,
+        documents: res.documents.map((d) => {
+          return {
+            ...toPlainMessage(d),
+            metadata: HMDocumentMetadataSchema.parse(
+              d.metadata?.toJson({emitDefaultValues: true}),
+            ),
+          }
+        }),
       }
     },
   })
