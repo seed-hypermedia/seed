@@ -64,10 +64,6 @@ jobs:
             arch: arm64
             goarch: arm64
             daemon_name: aarch64-apple-darwin
-          - os: ubuntu-latest
-            arch: x64
-            goarch: amd64
-            daemon_name: x86_64-unknown-linux-gnu
           - os: ubuntu-20.04
             arch: x64
             goarch: amd64
@@ -87,7 +83,7 @@ jobs:
           # matrix-arch: ${{ matrix.config.arch }}
 
       - name: Build Backend (Unix)
-        if: matrix.config.os != 'windows-latest'
+        if: startsWith(matrix.config.os, 'ubuntu')
         run: |
           mkdir -p plz-out/bin/backend
           go build -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }} ./backend/cmd/seed-daemon
@@ -127,7 +123,7 @@ jobs:
         env:
           VITE_VERSION: "${{ needs.build-info.outputs.version }}"
       - name: Build, package & make (Unix)
-        if: matrix.config.os != 'windows-latest'
+        if: startsWith(matrix.config.os, 'ubuntu')
         run: |
           yarn desktop:publish --arch=${{ matrix.config.arch }}
         env:
