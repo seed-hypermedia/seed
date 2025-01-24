@@ -83,7 +83,7 @@ jobs:
           # matrix-arch: ${{ matrix.config.arch }}
 
       - name: Build Backend (Unix)
-        if: startsWith(matrix.config.os, 'ubuntu')
+        if: matrix.config.os != 'windows-latest'
         run: |
           mkdir -p plz-out/bin/backend
           go build -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }} ./backend/cmd/seed-daemon
@@ -123,7 +123,7 @@ jobs:
         env:
           VITE_VERSION: "${{ needs.build-info.outputs.version }}"
       - name: Build, package & make (Unix)
-        if: startsWith(matrix.config.os, 'ubuntu')
+        if: matrix.config.os != 'windows-latest'
         run: |
           yarn desktop:publish --arch=${{ matrix.config.arch }}
         env:
