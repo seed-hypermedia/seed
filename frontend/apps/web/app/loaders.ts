@@ -32,7 +32,13 @@ export async function getMetadata(
       version: id.version || undefined,
     });
     const document = toPlainMessage(rawDoc);
-    return {id, metadata: document.metadata};
+    return {
+      id,
+      metadata: {
+        ...document.metadata,
+        // showOutline: true,
+      },
+    };
   } catch (e) {
     return {id, metadata: {}};
   }

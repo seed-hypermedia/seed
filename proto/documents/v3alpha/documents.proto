@@ -159,7 +159,7 @@ message Account {
   string id = 1;
 
   // Metadata attributes from the root document of the account.
-  map<string, string> metadata = 2;
+  google.protobuf.Struct metadata = 2;
 
   // Summary of the activity in the entire account.
   ActivitySummary activity_summary = 3;
@@ -352,7 +352,7 @@ message DocumentInfo {
   string path = 2;
 
   // User-defined metadata attributes of the document.
-  map<string, string> metadata = 3;
+  google.protobuf.Struct metadata = 3;
 
   // Every author ID who has ever made changes to this document.
   repeated string authors = 4;
@@ -424,14 +424,22 @@ message Document {
   string path = 2;
 
   // Metadata values for a document.
-  map<string, string> metadata = 3;
+  google.protobuf.Struct metadata = 3;
 
   // Output only. Every account ID who has modified the document.
   // Includes the original author as well.
   repeated string authors = 5;
 
+  // Special block for the document header.
+  // Implicitly the ID of this block is a constant string "header".
+  BlockNode header = 11;
+
   // Blocks content of the document.
   repeated BlockNode content = 6;
+
+  // Special block for the document footer.
+  // Implicitly the ID of this block is a constant string "footer".
+  BlockNode footer = 12;
 
   // Output only. Time when document was created.
   google.protobuf.Timestamp create_time = 7;
@@ -505,7 +513,7 @@ message Annotation {
   string link = 5;
 
   // Arbitrary key-value attributes of the annotation.
-  map<string, string> attributes = 2;
+  google.protobuf.Struct attributes = 2;
 
   // Start offsets of possibly disjoint spans of text for which this annotation is applied.
   // Must be sorted and have the same number of items as `ends` list.
@@ -533,6 +541,8 @@ message DocumentChange {
   }
 
   // Operation to replace a metadata field with a new value
+  //
+  // Deprecated: Use SetAttribute instead.
   message SetMetadata {
     // Metadata key to set.
     string key = 1;
@@ -541,8 +551,34 @@ message DocumentChange {
     string value = 2;
   }
 
+  // Operation to set an attribute of a block or document.
+  message SetAttribute {
+    // ID of the block to set the attribute on.
+    //
+    // Empty string means the document itself.
+    // Special strings "footer" and "header" can be used to set attributes on the document footer and header blocks.
+    string block_id = 1;
+
+    // A path of keys to set the value for.
+    // It's a list to support nested attributes.
+    repeated string key = 2;
+
+    // Value to set.
+    oneof value {
+      string string_value = 3;
+
+      int64 int_value = 4;
+
+      bool bool_value = 5;
+
+      google.protobuf.Empty null_value = 6;
+    }
+  }
+
   oneof op {
     // New metadata to set on the document.
+    //
+    // Deprecated: Use SetAttribute instead.
     SetMetadata set_metadata = 1;
 
     // Move operation that creates/moves a block within the document hierarchy.
@@ -553,6 +589,9 @@ message DocumentChange {
 
     // ID of a block to delete.
     string delete_block = 4;
+
+    // Sets an attribute on a block.
+    SetAttribute set_attribute = 5;
   }
 }
 

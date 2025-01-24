@@ -1,6 +1,7 @@
 package colx
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 )
@@ -72,4 +73,19 @@ func SliceDeleteCopy[T any](s []T, i int) []T {
 func SliceDeleteUnordered[T any](s []T, i int) []T {
 	s[i] = s[len(s)-1]
 	return s[:len(s)-1]
+}
+
+// CommonPrefix returns the number os elements that are equal in both slices.
+func CommonPrefix[E cmp.Ordered, S ~[]E](a, b S) int {
+	n := min(len(a), len(b))
+	var i int
+	for i < n && a[i] == b[i] {
+		i++
+	}
+	return i
+}
+
+// HasPrefix returns whether s has the given prefix.
+func HasPrefix[E cmp.Ordered, S ~[]E](s, prefix S) bool {
+	return len(s) >= len(prefix) && slices.Equal(s[0:len(prefix)], prefix)
 }

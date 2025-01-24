@@ -15,6 +15,7 @@ export function CoverImage({
   url,
   label,
   id,
+  showOutline = true,
   show = true,
   onCoverUpload,
   onRemoveCover,
@@ -22,6 +23,7 @@ export function CoverImage({
   label?: string
   id?: string
   url?: string
+  showOutline?: boolean
   show: boolean
   onCoverUpload?: (avatar: string) => void
   onRemoveCover?: () => void
@@ -78,7 +80,7 @@ export function CoverImage({
     <Stack group="cover">
       {show ? (
         <YStack
-          className="document-container"
+          className={`document-container${showOutline ? '' : ' hide-outline'}`}
           position="absolute"
           top={0}
           left={0}
@@ -86,7 +88,7 @@ export function CoverImage({
           w="100%"
           zi="$zIndex.1"
         >
-          <YStack />
+          {showOutline ? <YStack /> : null}
           <YStack paddingHorizontal="$2">
             <XStack
               opacity={0}

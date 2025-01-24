@@ -12,6 +12,7 @@ import {
   Block,
   DEFAULT_GATEWAY_URL,
   DocumentChange,
+  DocumentChange_SetAttribute,
   EditorBlock,
   HMBlock,
   HMBlockNode,
@@ -193,7 +194,7 @@ export function usePublishDraft(
       const changes = compareBlocksWithMap(blocksMap, content, '')
 
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
-
+      console.log('=== DRAFT METADATA', draft.metadata)
       // return null
       if (accts.data?.length == 0) {
         dispatchWizardEvent(true)
@@ -202,19 +203,39 @@ export function usePublishDraft(
           if (draft.signingAccount && id?.id) {
             const allChanges = [
               ...Object.entries(draft.metadata).map(([key, value]) => {
-                return new DocumentChange({
-                  op: {
-                    case: 'setMetadata',
-                    value: {
-                      key,
-                      value,
+                if (key == 'showOutline') {
+                  return new DocumentChange({
+                    op: {
+                      case: 'setAttribute',
+                      value: new DocumentChange_SetAttribute({
+                        blockId: '',
+                        // Es array porque para anidar hay que pasar el path completo.
+                        // Por ejemplo ["localTheme", "showOutline"] sera {"localTheme": {"showOutline": true}}.
+                        key: ['showOutline'],
+                        value: {
+                          case: 'boolValue',
+                          value: value as boolean,
+                        },
+                      }),
                     },
-                  },
-                })
+                  })
+                } else {
+                  return new DocumentChange({
+                    op: {
+                      case: 'setMetadata',
+                      value: {
+                        key,
+                        value,
+                      },
+                    },
+                  })
+                }
               }),
               ...changes.changes,
               ...deleteChanges,
             ]
+
+            console.log('=== DRAFT ALL CHANGES', allChanges)
             let capabilityId = ''
             if (draft.signingAccount !== id.uid) {
               const capabilities =

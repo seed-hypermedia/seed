@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"seed/backend/api/apitest"
 	documentsimpl "seed/backend/api/documents/v3alpha"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
@@ -19,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func TestDaemonRegisterKey(t *testing.T) {
@@ -71,64 +73,6 @@ func TestDaemonRegisterKey(t *testing.T) {
 	}
 }
 
-type changeBuilder struct {
-	req *documents.CreateDocumentChangeRequest
-}
-
-func newChangeBuilder(account core.Principal, path, baseVersion, keyName string) *changeBuilder {
-	return &changeBuilder{
-		req: &documents.CreateDocumentChangeRequest{
-			Account:        account.String(),
-			Path:           path,
-			BaseVersion:    baseVersion,
-			SigningKeyName: keyName,
-		},
-	}
-}
-
-func (b *changeBuilder) SetMetadata(key, value string) *changeBuilder {
-	b.req.Changes = append(b.req.Changes, &documents.DocumentChange{
-		Op: &documents.DocumentChange_SetMetadata_{
-			SetMetadata: &documents.DocumentChange_SetMetadata{Key: key, Value: value},
-		},
-	})
-	return b
-}
-
-func (b *changeBuilder) MoveBlock(blockID, parent, leftSibling string) *changeBuilder {
-	b.req.Changes = append(b.req.Changes, &documents.DocumentChange{
-		Op: &documents.DocumentChange_MoveBlock_{
-			MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: blockID, Parent: parent, LeftSibling: leftSibling},
-		},
-	})
-	return b
-}
-
-func (b *changeBuilder) ReplaceBlock(block, btype, text string, annotations ...*documents.Annotation) *changeBuilder {
-	b.req.Changes = append(b.req.Changes, &documents.DocumentChange{
-		Op: &documents.DocumentChange_ReplaceBlock{
-			ReplaceBlock: &documents.Block{
-				Id:          block,
-				Type:        btype,
-				Text:        text,
-				Annotations: annotations,
-			},
-		},
-	})
-	return b
-}
-
-func (b *changeBuilder) DeleteBlock(block string) *changeBuilder {
-	b.req.Changes = append(b.req.Changes, &documents.DocumentChange{
-		Op: &documents.DocumentChange_DeleteBlock{DeleteBlock: block},
-	})
-	return b
-}
-
-func (b *changeBuilder) Build() *documents.CreateDocumentChangeRequest {
-	return b.req
-}
-
 func TestDaemonUpdateProfile(t *testing.T) {
 	t.Parallel()
 
@@ -136,7 +80,7 @@ func TestDaemonUpdateProfile(t *testing.T) {
 	ctx := context.Background()
 	alice := coretest.NewTester("alice").Account.Principal()
 
-	doc, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, newChangeBuilder(alice, "", "", "main").
+	doc, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice, "", "", "main").
 		SetMetadata("title", "Alice from the Wonderland").
 		MoveBlock("b1", "", "").
 		ReplaceBlock("b1", "paragraph", "Hello").
@@ -149,9 +93,9 @@ func TestDaemonUpdateProfile(t *testing.T) {
 	want := &documents.Document{
 		Account: alice.String(),
 		Path:    "",
-		Metadata: map[string]string{
+		Metadata: must.Do2(structpb.NewStruct(map[string]any{
 			"title": "Alice from the Wonderland",
-		},
+		})),
 		Authors: []string{alice.String()},
 		Content: []*documents.BlockNode{
 			{
@@ -181,7 +125,7 @@ func TestDaemonUpdateProfile(t *testing.T) {
 	// Do another update.
 
 	{
-		doc, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, newChangeBuilder(alice, "", doc.Version, "main").
+		doc, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice, "", doc.Version, "main").
 			SetMetadata("title", "Just Alice").
 			Build(),
 		)
@@ -190,9 +134,9 @@ func TestDaemonUpdateProfile(t *testing.T) {
 		want := &documents.Document{
 			Account: alice.String(),
 			Path:    "",
-			Metadata: map[string]string{
+			Metadata: must.Do2(structpb.NewStruct(map[string]any{
 				"title": "Just Alice",
-			},
+			})),
 			Authors: []string{alice.String()},
 			Content: []*documents.BlockNode{
 				{
@@ -907,7 +851,7 @@ func TestBug_BrokenFormattingAnnotations(t *testing.T) {
 	ctx := context.Background()
 	alice := coretest.NewTester("alice").Account.Principal()
 
-	doc, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, newChangeBuilder(alice, "", "", "main").
+	doc, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice, "", "", "main").
 		SetMetadata("title", "Alice from the Wonderland").
 		MoveBlock("b1", "", "").
 		ReplaceBlock("b1", "paragraph", "Hello world", &documents.Annotation{Type: "bold", Starts: []int32{0}, Ends: []int32{5}}).

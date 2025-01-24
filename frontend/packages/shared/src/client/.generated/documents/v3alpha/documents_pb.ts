@@ -4,7 +4,7 @@
 // @ts-nocheck
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Message, proto3, Struct, Timestamp } from "@bufbuild/protobuf";
+import { Empty, Message, proto3, Struct, Timestamp } from "@bufbuild/protobuf";
 
 /**
  * Attrbites that can be used for sorting.
@@ -480,9 +480,9 @@ export class Account extends Message<Account> {
   /**
    * Metadata attributes from the root document of the account.
    *
-   * @generated from field: map<string, string> metadata = 2;
+   * @generated from field: google.protobuf.Struct metadata = 2;
    */
-  metadata: { [key: string]: string } = {};
+  metadata?: Struct;
 
   /**
    * Summary of the activity in the entire account.
@@ -508,7 +508,7 @@ export class Account extends Message<Account> {
   static readonly typeName = "com.seed.documents.v3alpha.Account";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "metadata", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "scalar", T: 9 /* ScalarType.STRING */} },
+    { no: 2, name: "metadata", kind: "message", T: Struct },
     { no: 3, name: "activity_summary", kind: "message", T: ActivitySummary },
     { no: 4, name: "is_subscribed", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
@@ -1231,9 +1231,9 @@ export class DocumentInfo extends Message<DocumentInfo> {
   /**
    * User-defined metadata attributes of the document.
    *
-   * @generated from field: map<string, string> metadata = 3;
+   * @generated from field: google.protobuf.Struct metadata = 3;
    */
-  metadata: { [key: string]: string } = {};
+  metadata?: Struct;
 
   /**
    * Every author ID who has ever made changes to this document.
@@ -1302,7 +1302,7 @@ export class DocumentInfo extends Message<DocumentInfo> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "metadata", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "scalar", T: 9 /* ScalarType.STRING */} },
+    { no: 3, name: "metadata", kind: "message", T: Struct },
     { no: 4, name: "authors", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 5, name: "create_time", kind: "message", T: Timestamp },
     { no: 6, name: "update_time", kind: "message", T: Timestamp },
@@ -1483,9 +1483,9 @@ export class Document extends Message<Document> {
   /**
    * Metadata values for a document.
    *
-   * @generated from field: map<string, string> metadata = 3;
+   * @generated from field: google.protobuf.Struct metadata = 3;
    */
-  metadata: { [key: string]: string } = {};
+  metadata?: Struct;
 
   /**
    * Output only. Every account ID who has modified the document.
@@ -1496,11 +1496,27 @@ export class Document extends Message<Document> {
   authors: string[] = [];
 
   /**
+   * Special block for the document header.
+   * Implicitly the ID of this block is a constant string "header".
+   *
+   * @generated from field: com.seed.documents.v3alpha.BlockNode header = 11;
+   */
+  header?: BlockNode;
+
+  /**
    * Blocks content of the document.
    *
    * @generated from field: repeated com.seed.documents.v3alpha.BlockNode content = 6;
    */
   content: BlockNode[] = [];
+
+  /**
+   * Special block for the document footer.
+   * Implicitly the ID of this block is a constant string "footer".
+   *
+   * @generated from field: com.seed.documents.v3alpha.BlockNode footer = 12;
+   */
+  footer?: BlockNode;
 
   /**
    * Output only. Time when document was created.
@@ -1540,9 +1556,11 @@ export class Document extends Message<Document> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "metadata", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "scalar", T: 9 /* ScalarType.STRING */} },
+    { no: 3, name: "metadata", kind: "message", T: Struct },
     { no: 5, name: "authors", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 11, name: "header", kind: "message", T: BlockNode },
     { no: 6, name: "content", kind: "message", T: BlockNode, repeated: true },
+    { no: 12, name: "footer", kind: "message", T: BlockNode },
     { no: 7, name: "create_time", kind: "message", T: Timestamp },
     { no: 8, name: "update_time", kind: "message", T: Timestamp },
     { no: 9, name: "genesis", kind: "scalar", T: 9 /* ScalarType.STRING */ },
@@ -1744,9 +1762,9 @@ export class Annotation extends Message<Annotation> {
   /**
    * Arbitrary key-value attributes of the annotation.
    *
-   * @generated from field: map<string, string> attributes = 2;
+   * @generated from field: google.protobuf.Struct attributes = 2;
    */
-  attributes: { [key: string]: string } = {};
+  attributes?: Struct;
 
   /**
    * Start offsets of possibly disjoint spans of text for which this annotation is applied.
@@ -1774,7 +1792,7 @@ export class Annotation extends Message<Annotation> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 5, name: "link", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "attributes", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "scalar", T: 9 /* ScalarType.STRING */} },
+    { no: 2, name: "attributes", kind: "message", T: Struct },
     { no: 3, name: "starts", kind: "scalar", T: 5 /* ScalarType.INT32 */, repeated: true },
     { no: 4, name: "ends", kind: "scalar", T: 5 /* ScalarType.INT32 */, repeated: true },
   ]);
@@ -1809,6 +1827,8 @@ export class DocumentChange extends Message<DocumentChange> {
     /**
      * New metadata to set on the document.
      *
+     * Deprecated: Use SetAttribute instead.
+     *
      * @generated from field: com.seed.documents.v3alpha.DocumentChange.SetMetadata set_metadata = 1;
      */
     value: DocumentChange_SetMetadata;
@@ -1837,6 +1857,14 @@ export class DocumentChange extends Message<DocumentChange> {
      */
     value: string;
     case: "deleteBlock";
+  } | {
+    /**
+     * Sets an attribute on a block.
+     *
+     * @generated from field: com.seed.documents.v3alpha.DocumentChange.SetAttribute set_attribute = 5;
+     */
+    value: DocumentChange_SetAttribute;
+    case: "setAttribute";
   } | { case: undefined; value?: undefined } = { case: undefined };
 
   constructor(data?: PartialMessage<DocumentChange>) {
@@ -1851,6 +1879,7 @@ export class DocumentChange extends Message<DocumentChange> {
     { no: 2, name: "move_block", kind: "message", T: DocumentChange_MoveBlock, oneof: "op" },
     { no: 3, name: "replace_block", kind: "message", T: Block, oneof: "op" },
     { no: 4, name: "delete_block", kind: "scalar", T: 9 /* ScalarType.STRING */, oneof: "op" },
+    { no: 5, name: "set_attribute", kind: "message", T: DocumentChange_SetAttribute, oneof: "op" },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentChange {
@@ -1932,6 +1961,8 @@ export class DocumentChange_MoveBlock extends Message<DocumentChange_MoveBlock> 
 /**
  * Operation to replace a metadata field with a new value
  *
+ * Deprecated: Use SetAttribute instead.
+ *
  * @generated from message com.seed.documents.v3alpha.DocumentChange.SetMetadata
  */
 export class DocumentChange_SetMetadata extends Message<DocumentChange_SetMetadata> {
@@ -1975,6 +2006,94 @@ export class DocumentChange_SetMetadata extends Message<DocumentChange_SetMetada
 
   static equals(a: DocumentChange_SetMetadata | PlainMessage<DocumentChange_SetMetadata> | undefined, b: DocumentChange_SetMetadata | PlainMessage<DocumentChange_SetMetadata> | undefined): boolean {
     return proto3.util.equals(DocumentChange_SetMetadata, a, b);
+  }
+}
+
+/**
+ * Operation to set an attribute of a block or document.
+ *
+ * @generated from message com.seed.documents.v3alpha.DocumentChange.SetAttribute
+ */
+export class DocumentChange_SetAttribute extends Message<DocumentChange_SetAttribute> {
+  /**
+   * ID of the block to set the attribute on.
+   *
+   * Empty string means the document itself.
+   * Special strings "footer" and "header" can be used to set attributes on the document footer and header blocks.
+   *
+   * @generated from field: string block_id = 1;
+   */
+  blockId = "";
+
+  /**
+   * A path of keys to set the value for.
+   * It's a list to support nested attributes.
+   *
+   * @generated from field: repeated string key = 2;
+   */
+  key: string[] = [];
+
+  /**
+   * Value to set.
+   *
+   * @generated from oneof com.seed.documents.v3alpha.DocumentChange.SetAttribute.value
+   */
+  value: {
+    /**
+     * @generated from field: string string_value = 3;
+     */
+    value: string;
+    case: "stringValue";
+  } | {
+    /**
+     * @generated from field: int64 int_value = 4;
+     */
+    value: bigint;
+    case: "intValue";
+  } | {
+    /**
+     * @generated from field: bool bool_value = 5;
+     */
+    value: boolean;
+    case: "boolValue";
+  } | {
+    /**
+     * @generated from field: google.protobuf.Empty null_value = 6;
+     */
+    value: Empty;
+    case: "nullValue";
+  } | { case: undefined; value?: undefined } = { case: undefined };
+
+  constructor(data?: PartialMessage<DocumentChange_SetAttribute>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.DocumentChange.SetAttribute";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "block_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "key", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 3, name: "string_value", kind: "scalar", T: 9 /* ScalarType.STRING */, oneof: "value" },
+    { no: 4, name: "int_value", kind: "scalar", T: 3 /* ScalarType.INT64 */, oneof: "value" },
+    { no: 5, name: "bool_value", kind: "scalar", T: 8 /* ScalarType.BOOL */, oneof: "value" },
+    { no: 6, name: "null_value", kind: "message", T: Empty, oneof: "value" },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentChange_SetAttribute {
+    return new DocumentChange_SetAttribute().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentChange_SetAttribute {
+    return new DocumentChange_SetAttribute().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentChange_SetAttribute {
+    return new DocumentChange_SetAttribute().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DocumentChange_SetAttribute | PlainMessage<DocumentChange_SetAttribute> | undefined, b: DocumentChange_SetAttribute | PlainMessage<DocumentChange_SetAttribute> | undefined): boolean {
+    return proto3.util.equals(DocumentChange_SetAttribute, a, b);
   }
 }
 

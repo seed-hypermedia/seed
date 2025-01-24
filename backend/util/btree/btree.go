@@ -47,6 +47,12 @@ func (b *Map[K, V]) Set(k K, v V) (replaced bool) {
 	return replaced
 }
 
+// Delete key k to value v.
+func (b *Map[K, V]) Delete(k K) (deleted bool) {
+	_, deleted = b.tr.DeleteHint(newNode(k, *new(V)), &b.hint)
+	return deleted
+}
+
 // Swap is like Set but returns the previous value if any.
 func (b *Map[K, V]) Swap(k K, v V) (prev V, replaced bool) {
 	oldNode, replaced := b.tr.SetHint(newNode(k, v), &b.hint)
@@ -93,6 +99,9 @@ func (b *Map[K, V]) GetAt(idx int) (k K, v V, ok bool) {
 
 // Len returns the number of elements in the B-Tree.
 func (b *Map[K, V]) Len() int {
+	if b == nil {
+		return 0
+	}
 	return b.tr.Len()
 }
 
@@ -124,12 +133,18 @@ func (b *Map[K, V]) SeekReverse(k K) iter.Seq2[K, V] {
 }
 
 // Keys returns a slice of keys in the B-Tree in order.
-func (b *Map[K, V]) Keys() []K {
-	keys := make([]K, 0, b.Len())
-	for k := range b.Items() {
-		keys = append(keys, k)
+func (b *Map[K, V]) Keys() iter.Seq[K] {
+	return func(yield func(K) bool) {
+		if b == nil {
+			return
+		}
+
+		for k := range b.Items() {
+			if !yield(k) {
+				break
+			}
+		}
 	}
-	return keys
 }
 
 // Clear all elements in the map.

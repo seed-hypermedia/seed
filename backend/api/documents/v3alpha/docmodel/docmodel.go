@@ -12,6 +12,7 @@ import (
 	"seed/backend/blob"
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
+	"seed/backend/util/btree"
 	"seed/backend/util/cclock"
 	"seed/backend/util/maybe"
 	"slices"
@@ -46,7 +47,7 @@ type Document struct {
 	deletedBlocks map[string]struct{}
 
 	dirtyBlocks   map[string]mvRegValue[blob.Block]
-	dirtyMetadata map[string]mvRegValue[any]
+	dirtyMetadata *btree.Map[[]string, mvRegValue[any]]
 
 	Generation maybe.Value[int64]
 }
@@ -188,23 +189,37 @@ func (dm *Document) applyChangeUnsafe(c cid.Cid, ch *blob.Change) error {
 
 // SetMetadata sets the title of the document.
 func (dm *Document) SetMetadata(key, newValue string) error {
+	return dm.SetAttribute("", []string{key}, newValue)
+}
+
+// SetAttribute on a given block.
+// Empty block ID means the document metadata.
+func (dm *Document) SetAttribute(block string, keyPath []string, newValue any) error {
+	if block != "" {
+		return fmt.Errorf("TODO: setting attributes for non-root blocks")
+	}
+
+	if len(keyPath) == 0 {
+		return fmt.Errorf("must specify key path to set value for")
+	}
+
 	dm.dirty = true
 	if dm.dirtyMetadata == nil {
-		dm.dirtyMetadata = make(map[string]mvRegValue[any])
+		dm.dirtyMetadata = btree.New[[]string, mvRegValue[any]](8, slices.Compare)
 	}
 
 	var preds []opID
-	if reg := dm.crdt.stateMetadata[key]; reg != nil {
-		if newValue == reg.GetLatest() {
+	if reg := dm.crdt.stateMetadata.GetMaybe(keyPath); reg != nil {
+		if reflect.DeepEqual(newValue, reg.GetLatest()) {
 			// If metadata key already has the same value in the committed CRDT state,
 			// we do nothing, and just in case clear the dirty metadata value if any.
-			delete(dm.dirtyMetadata, key)
+			dm.dirtyMetadata.Delete(keyPath)
 			return nil
 		}
-		preds = reg.state.Keys()
+		preds = slices.Collect(reg.state.Keys())
 	}
 
-	dm.dirtyMetadata[key] = mvRegValue[any]{Value: newValue, Preds: preds}
+	dm.dirtyMetadata.Set(keyPath, mvRegValue[any]{Value: newValue, Preds: preds})
 
 	return nil
 }
@@ -254,7 +269,7 @@ func (dm *Document) ReplaceBlock(blkpb *documents.Block) error {
 			delete(dm.dirtyBlocks, blkpb.Id)
 			return nil
 		}
-		preds = reg.state.Keys()
+		preds = slices.Collect(reg.state.Keys())
 	}
 
 	dm.dirtyBlocks[blk.ID] = mvRegValue[blob.Block]{Value: blk, Preds: preds}
@@ -316,7 +331,10 @@ func (dm *Document) SignChangeAt(kp core.KeyPair, at time.Time) (hb blob.Encoded
 
 	dm.done = true
 
-	ops := dm.cleanupPatch()
+	ops, err := dm.cleanupPatch()
+	if err != nil {
+		return hb, err
+	}
 
 	at = at.Round(dm.crdt.clock.Precision)
 
@@ -357,9 +375,9 @@ func (dm *Document) Ref(kp core.KeyPair, cap cid.Cid) (ref blob.Encoded[*blob.Re
 	return blob.NewRef(kp, dm.Generation.Value(), genesis, space, path, []cid.Cid{headCID}, cap, head.Ts)
 }
 
-func (dm *Document) cleanupPatch() (out blob.ChangeBody) {
+func (dm *Document) cleanupPatch() (out blob.ChangeBody, err error) {
 	if !dm.dirty {
-		return out
+		return out, nil
 	}
 
 	addOp := func(op blob.OpMap, size int) {
@@ -430,12 +448,17 @@ func (dm *Document) cleanupPatch() (out blob.ChangeBody) {
 		}
 	}
 
-	metaKeys := slices.Collect(maps.Keys(dm.dirtyMetadata))
-	slices.Sort(metaKeys)
-
-	for _, key := range metaKeys {
-		reg := dm.dirtyMetadata[key]
-		addOp(blob.NewOpSetKey(key, reg.Value), 1)
+	nDirtyAttrs := dm.dirtyMetadata.Len()
+	if nDirtyAttrs > 0 {
+		attrs := make([]blob.KeyValue, 0, nDirtyAttrs)
+		for k, v := range dm.dirtyMetadata.Items() {
+			attrs = append(attrs, blob.KeyValue{
+				Key:   k,
+				Value: v.Value,
+			})
+		}
+		op := blob.NewOpSetAttributes("", attrs)
+		addOp(op, len(attrs))
 	}
 
 	// Remove state of those blocks that we created and deleted in the same change.
@@ -456,7 +479,7 @@ func (dm *Document) cleanupPatch() (out blob.ChangeBody) {
 		addOp(blob.NewOpReplaceBlock(blk.Value), 1)
 	}
 
-	return out
+	return out, nil
 }
 
 // NumChanges returns the number of changes in the current state of the document.
@@ -499,10 +522,15 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 	space := u.Host
 	path := u.Path
 
+	metastruct, err := structpb.NewStruct(e.GetMetadata())
+	if err != nil {
+		return nil, err
+	}
+
 	docpb := &documents.Document{
 		Account:    space,
 		Path:       path,
-		Metadata:   e.GetMetadata(),
+		Metadata:   metastruct,
 		CreateTime: timestamppb.New(first.Ts),
 		Genesis:    e.cids[0].String(),
 		Version:    e.Version().String(),
@@ -574,7 +602,7 @@ func BlockFromProto(b *documents.Block) (blob.Block, error) {
 		return blob.Block{}, errors.New("block ID is required")
 	}
 
-	remaining := b.Attributes.AsMap()
+	remaining := ProtoStructAsMap(b.Attributes)
 
 	return blob.Block{
 		ID:          b.Id,
@@ -586,6 +614,58 @@ func BlockFromProto(b *documents.Block) (blob.Block, error) {
 	}, nil
 }
 
+// ProtoStructAsMap is the same as structpb.Struct.AsMap,
+// but it uses int64 instead of float64 when numbers are integers.
+func ProtoStructAsMap(pb *structpb.Struct) map[string]any {
+	f := pb.GetFields()
+	vs := make(map[string]any, len(f))
+	for k, v := range f {
+		vs[k] = valueAsInterface(v)
+	}
+	return vs
+}
+
+func valueAsInterface(x *structpb.Value) any {
+	switch v := x.GetKind().(type) {
+	case *structpb.Value_NumberValue:
+		if v != nil {
+			switch {
+			case math.IsNaN(v.NumberValue):
+				return "NaN"
+			case math.IsInf(v.NumberValue, +1):
+				return "Infinity"
+			case math.IsInf(v.NumberValue, -1):
+				return "-Infinity"
+			default:
+				// If numeric value is a whole number we want to return it as int64 instead of float64.
+				n := int64(v.NumberValue)
+				if float64(n) == v.NumberValue {
+					return n
+				}
+
+				return v.NumberValue
+			}
+		}
+	case *structpb.Value_StringValue:
+		if v != nil {
+			return v.StringValue
+		}
+	case *structpb.Value_BoolValue:
+		if v != nil {
+			return v.BoolValue
+		}
+	case *structpb.Value_StructValue:
+		if v != nil {
+			return v.StructValue.AsMap()
+		}
+	case *structpb.Value_ListValue:
+		if v != nil {
+			return v.ListValue.AsSlice()
+		}
+	}
+	return nil
+}
+
 func annotationsFromProto(in []*documents.Annotation) []blob.Annotation {
 	if in == nil {
 		return nil
@@ -593,18 +673,15 @@ func annotationsFromProto(in []*documents.Annotation) []blob.Annotation {
 
 	out := make([]blob.Annotation, len(in))
 	for i, a := range in {
-		var remaining map[string]any
-		if len(a.Attributes) > 0 {
-			remaining = make(map[string]any, len(a.Attributes))
-			for k, v := range a.Attributes {
-				remaining[k] = v
-			}
+		var attrs map[string]any
+		if a.Attributes != nil {
+			attrs = ProtoStructAsMap(a.Attributes)
 		}
 
 		out[i] = blob.Annotation{
 			Type:       a.Type,
 			Link:       a.Link,
-			Attributes: remaining,
+			Attributes: attrs,
 			Starts:     a.Starts,
 			Ends:       a.Ends,
 		}
@@ -616,13 +693,18 @@ func annotationsFromProto(in []*documents.Annotation) []blob.Annotation {
 // BlockToProto converts our internal block representation into a protobuf block.
 // It's largely the same, but we use CBOR in our permanent data, and we use protobuf in our API.
 func BlockToProto(b blob.Block, revision cid.Cid) (*documents.Block, error) {
+	attrspb, err := annotationsToProto(b.Annotations)
+	if err != nil {
+		return nil, err
+	}
+
 	bpb := &documents.Block{
 		Id:          b.ID,
 		Type:        b.Type,
 		Text:        b.Text,
 		Link:        b.Link,
 		Attributes:  nil,
-		Annotations: annotationsToProto(b.Annotations),
+		Annotations: attrspb,
 		Revision:    revision.String(),
 	}
 	if len(b.Attributes) > 0 {
@@ -636,29 +718,26 @@ func BlockToProto(b blob.Block, revision cid.Cid) (*documents.Block, error) {
 	return bpb, nil
 }
 
-func annotationsToProto(in []blob.Annotation) []*documents.Annotation {
+func annotationsToProto(in []blob.Annotation) ([]*documents.Annotation, error) {
 	if in == nil {
-		return nil
+		return nil, nil
 	}
 
 	out := make([]*documents.Annotation, len(in))
 	for i, a := range in {
-		var attrs map[string]string
-		if len(a.Attributes) > 0 {
-			attrs = make(map[string]string, len(a.Attributes))
-			for k, v := range a.Attributes {
-				// TODO(burdiyan): eventually we will support other types.
-				attrs[k], _ = v.(string)
-			}
+		attrpb, err := structpb.NewStruct(a.Attributes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert annotation attributes to proto: %w", err)
 		}
+
 		out[i] = &documents.Annotation{
 			Type:       a.Type,
 			Link:       a.Link,
-			Attributes: attrs,
+			Attributes: attrpb,
 			Starts:     a.Starts,
 			Ends:       a.Ends,
 		}
 	}
 
-	return out
+	return out, nil
 }

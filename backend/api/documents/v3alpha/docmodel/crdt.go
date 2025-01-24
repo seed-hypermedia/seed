@@ -10,7 +10,9 @@ import (
 	"math"
 	"seed/backend/blob"
 	"seed/backend/core"
+	"seed/backend/util/btree"
 	"seed/backend/util/cclock"
+	"seed/backend/util/colx"
 	"sort"
 	"strings"
 	"time"
@@ -125,7 +127,7 @@ type docCRDT struct {
 
 	tree *treeOpSet
 
-	stateMetadata map[string]*mvReg[string]
+	stateMetadata *btree.Map[[]string, *mvReg[any]]
 	stateBlocks   map[string]*mvReg[blob.Block] // blockID -> opid -> block state.
 
 	clock        *cclock.Clock
@@ -133,13 +135,20 @@ type docCRDT struct {
 	vectorClock  map[string]time.Time
 }
 
+/*
+
+TODO: CRDT object. Set of (keypath, opid, value) + key => max opid mapping.
+
+
+*/
+
 func newCRDT(id blob.IRI, clock *cclock.Clock) *docCRDT {
 	e := &docCRDT{
 		id:            id,
 		applied:       make(map[cid.Cid]int),
 		heads:         make(map[cid.Cid]struct{}),
 		tree:          newTreeOpSet(),
-		stateMetadata: make(map[string]*mvReg[string]),
+		stateMetadata: btree.New[[]string, *mvReg[any]](8, slices.Compare),
 		stateBlocks:   make(map[string]*mvReg[blob.Block]),
 		clock:         cclock.New(),
 		actorsIntern:  make(map[string]string),
@@ -149,14 +158,31 @@ func newCRDT(id blob.IRI, clock *cclock.Clock) *docCRDT {
 	return e
 }
 
-func (e *docCRDT) GetMetadata() map[string]string {
-	out := make(map[string]string, len(e.stateMetadata))
+func (e *docCRDT) GetMetadata() map[string]any {
+	out := make(map[string]any, e.stateMetadata.Len())
 
-	for k, v := range e.stateMetadata {
-		vv, ok := v.GetLatestOK()
-		if ok {
-			out[k] = vv
+	var prevEntry struct {
+		Key   []string
+		ID    opID
+		Value any
+	}
+	for k, v := range e.stateMetadata.Items() {
+		id, vv, ok := v.GetLatestWithID()
+
+		// If current key has prefix of the previous key and the value timestamp is lower, then skip this.
+		// TODO(burdiyan): There're other places in the code where this is done. DRY.
+		if !ok || vv == nil || (colx.HasPrefix(k, prevEntry.Key) && id.Compare(prevEntry.ID) < 0) {
+			prevEntry.Key = k
+			prevEntry.ID = id
+			prevEntry.Value = vv
+			continue
 		}
+
+		colx.ObjectSet(out, k, vv)
+
+		prevEntry.Key = k
+		prevEntry.ID = id
+		prevEntry.Value = vv
 	}
 
 	return out
@@ -349,15 +375,15 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 			return err
 		}
 
-		opid := newOpID(ts, actorID, idx)
 		switch op := op.(type) {
 		case blob.OpSetKey:
-			reg := e.stateMetadata[op.Key]
+			reg := e.stateMetadata.GetMaybe([]string{op.Key})
 			if reg == nil {
-				reg = newMVReg[string]()
-				e.stateMetadata[op.Key] = reg
+				reg = newMVReg[any]()
+				e.stateMetadata.Set([]string{op.Key}, reg)
 			}
-			reg.Set(opid, op.Value.(string))
+			opid := newOpID(ts, actorID, idx)
+			reg.Set(opid, op.Value)
 		case blob.OpReplaceBlock:
 			blk := op.Block
 			reg := e.stateBlocks[blk.ID]
@@ -365,6 +391,7 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 				reg = newMVReg[blob.Block]()
 				e.stateBlocks[blk.ID] = reg
 			}
+			opid := newOpID(ts, actorID, idx)
 			reg.Set(opid, blk)
 		case blob.OpMoveBlocks:
 			if len(op.Blocks) == 0 {
@@ -400,6 +427,21 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 				if err := e.tree.Integrate(opid, TrashNodeID, blk, opID{}); err != nil {
 					return err
 				}
+			}
+		case blob.OpSetAttributes:
+			if op.Block != "" {
+				return fmt.Errorf("TODO: SetAttributes can only be used for document (empty block ID)")
+			}
+
+			for i, kv := range op.Attrs {
+				idx += i
+				opid := newOpID(ts, actorID, idx)
+				reg := e.stateMetadata.GetMaybe(kv.Key)
+				if reg == nil {
+					reg = newMVReg[any]()
+					e.stateMetadata.Set(kv.Key, reg)
+				}
+				reg.Set(opid, kv.Value)
 			}
 		default:
 			return fmt.Errorf("BUG?: unhandled op type: %T", op)
