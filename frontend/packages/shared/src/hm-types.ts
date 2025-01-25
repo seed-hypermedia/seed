@@ -429,6 +429,7 @@ export const HMDocumentMetadataSchema = z.object({
   seedExperimentalHomeOrder: z
     .union([z.literal('UpdatedFirst'), z.literal('CreatedFirst')])
     .optional(),
+  showOutline: z.boolean().optional(),
 })
 
 export type HMMetadata = z.infer<typeof HMDocumentMetadataSchema>

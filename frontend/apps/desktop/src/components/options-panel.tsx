@@ -6,6 +6,7 @@ import {
   Label,
   SelectDropdown,
   SimpleDatePicker,
+  SwitchField,
   YStack,
 } from '@shm/ui'
 import {useState} from 'react'
@@ -32,7 +33,9 @@ export function OptionsPanel({
     >
       <YStack gap="$4">
         <YStack>
-          <Label size="$1">Name</Label>
+          <Label color="$color9" size="$1">
+            Name
+          </Label>
           <Input
             size="$"
             value={metadata.name}
@@ -40,7 +43,9 @@ export function OptionsPanel({
           />
         </YStack>
         <YStack>
-          <Label size="$1">Icon</Label>
+          <Label color="$color9" size="$1">
+            Icon
+          </Label>
           <IconForm
             size={100}
             id={`icon-${draftId.id}`}
@@ -61,7 +66,9 @@ export function OptionsPanel({
           />
         </YStack>
         <YStack>
-          <Label size="$1">Layout</Label>
+          <Label color="$color9" size="$1">
+            Layout
+          </Label>
           <SelectDropdown
             width="100%"
             options={
@@ -78,7 +85,9 @@ export function OptionsPanel({
       {isNewspaperLayout ? (
         <>
           <YStack>
-            <Label size="$1">Header Logo</Label>
+            <Label color="$color9" size="$1">
+              Header Logo
+            </Label>
             <ImageForm
               size={100}
               id={`logo-${draftId.id}`}
@@ -103,7 +112,9 @@ export function OptionsPanel({
             />
           </YStack>
           <YStack>
-            <Label size="$1">Sort Home Content</Label>
+            <Label color="$color9" size="$1">
+              Sort Home Content
+            </Label>
             <SelectDropdown
               width="100%"
               options={
@@ -121,6 +132,9 @@ export function OptionsPanel({
         </>
       ) : null}
       <OriginalPublishDate metadata={metadata} onMetadata={onMetadata} />
+      {!isNewspaperLayout ? (
+        <OutlineVisibility metadata={metadata} onMetadata={onMetadata} />
+      ) : null}
     </AccessoryContainer>
   )
 }
@@ -142,7 +156,9 @@ function OriginalPublishDate({
   }
   return (
     <YStack>
-      <Label size="$1">Publication Display Date</Label>
+      <Label color="$color9" size="$1">
+        Publication Display Date
+      </Label>
       <SimpleDatePicker
         value={
           metadata.displayPublishTime
@@ -155,6 +171,43 @@ function OriginalPublishDate({
         onReset={() => {
           setIsAdding(false)
           onMetadata({displayPublishTime: ''})
+        }}
+      />
+    </YStack>
+  )
+}
+
+function OutlineVisibility({
+  metadata,
+  onMetadata,
+}: {
+  metadata: HMMetadata
+  onMetadata: (values: Partial<HMMetadata>) => void
+}) {
+  return (
+    <YStack
+    // borderTopWidth={1}
+    // // borderBottomWidth={1}
+    // borderColor="$color6"
+    // paddingVertical="$4"
+    >
+      <SwitchField
+        label="Show outline"
+        id="outline"
+        defaultChecked={
+          typeof metadata.showOutline == 'undefined'
+            ? true
+            : metadata.showOutline
+        }
+        opacity={
+          typeof metadata.showOutline == 'undefined'
+            ? 1
+            : metadata.showOutline
+            ? 1
+            : 0.4
+        }
+        onCheckedChange={(value) => {
+          onMetadata({showOutline: value})
         }}
       />
     </YStack>

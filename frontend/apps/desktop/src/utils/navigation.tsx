@@ -138,7 +138,7 @@ export function dispatchAppNavigation(action: NavAction) {
 export function useNavigation() {
   const nav = useContext(NavContext)
   if (!nav)
-    throw new Error('useNavRoute must be used within a NavigationProvider')
+    throw new Error('useNavigation must be used within a NavigationProvider')
   return nav
 }
 
@@ -157,14 +157,18 @@ export function useNavRoute() {
 export function useNavigationState() {
   const nav = useContext(NavContext)
   if (!nav)
-    throw new Error('useNavigation must be used within a NavigationProvider')
+    throw new Error(
+      'useNavigationState must be used within a NavigationProvider',
+    )
   return useStream<NavState>(nav.state)
 }
 
 export function useNavigationDispatch() {
   const nav = useContext(NavContext)
   if (!nav)
-    throw new Error('useNavigation must be used within a NavigationProvider')
+    throw new Error(
+      'useNavigationDispatch must be used within a NavigationProvider',
+    )
   return nav.dispatch
 }
 

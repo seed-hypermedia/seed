@@ -16,6 +16,7 @@ import (
 	"seed/backend/util/sqlite/sqlitex"
 	"seed/backend/util/strbytes"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/RoaringBitmap/roaring/v2/roaring64"
@@ -593,6 +594,18 @@ func (dg *documentGeneration) ensureChangeApplied(cm changeMetadata) {
 	// unless newer values are already set.
 	for k, v := range cm.ExtraAttrs.Metadata {
 		dg.Metadata.set(k, v, cm.Ts)
+
+		// When we set a key it means that we set it to a primitive value.
+		// It's possible that previously there was a nested map in this key.
+		// Because we store the keys as a flattened, we have to remove all the records
+		// where our new key is a prefix, and the value is with lower timestamp than the incoming key.
+		//
+		// TODO(burdiyan): this is very complicated, and hard to reason about. Fix it!
+		for kk, vv := range dg.Metadata {
+			if kk > k && strings.HasPrefix(kk, k) && vv.Ts <= cm.Ts {
+				delete(dg.Metadata, kk)
+			}
+		}
 	}
 
 	// Ensure author of the change is added to the set of authors.

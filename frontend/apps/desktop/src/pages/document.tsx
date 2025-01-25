@@ -227,8 +227,22 @@ function _MainDocumentPage({
         />
       ) : null}
       {!docIsNewspaperLayout && <DocumentCover docId={id} />}
-      <YStack className={!docIsNewspaperLayout ? 'document-container' : ''}>
-        {!docIsNewspaperLayout ? (
+
+      <YStack
+        className={
+          !docIsNewspaperLayout
+            ? `document-container${
+                typeof entity.data?.document?.metadata.showOutline ==
+                  'undefined' || entity.data?.document?.metadata.showOutline
+                  ? ' document-container'
+                  : ' hide-outline'
+              }`
+            : ''
+        }
+      >
+        {(!docIsNewspaperLayout &&
+          typeof entity.data?.document?.metadata.showOutline == 'undefined') ||
+        entity.data?.document?.metadata.showOutline ? (
           <YStack
             marginTop={150}
             $gtSm={{marginTop: 164}}
@@ -278,6 +292,8 @@ function AppNewspaperHeader({
   activeId: UnpackedHypermediaId
 }) {
   const dir = useListDirectory(siteHomeEntity?.id)
+
+  console.log(`== ~ dir:`, dir)
   const capability = useMyCapability(siteHomeEntity?.id)
   const canEditDoc = roleCanWrite(capability?.role)
   const drafts = useAccountDraftList(activeId.uid)

@@ -5,6 +5,7 @@ import {
   HMBlockImage,
   HMBlockNode,
   HMDocument,
+  HMDocumentMetadataSchema,
   HMDocumentSchema,
   HMMetadata,
   UnpackedHypermediaId,
@@ -332,11 +333,11 @@ export const loader = async ({request}: {request: Request}) => {
       });
       return {
         id: hmId("d", space, {path: crumbPath}),
-        metadata: toPlainMessage(document).metadata,
+        metadata: document.metadata?.toJson(),
       };
     })
   );
-  console.log("FETCHING OG =====", breadcrumbs);
+
   const document = HMDocumentSchema.parse(toPlainMessage(rawDoc));
   if (!document) throw new Error("Document not found");
   const authors = await Promise.all(
@@ -344,7 +345,13 @@ export const loader = async ({request}: {request: Request}) => {
       const rawDoc = await queryClient.documents.getDocument({
         account: authorUid,
       });
-      const document = HMDocumentSchema.parse(toPlainMessage(rawDoc));
+      const document = HMDocumentSchema.parse({
+        ...toPlainMessage(rawDoc),
+        metadata: HMDocumentMetadataSchema.parse(
+          rawDoc.metadata?.toJson({emitDefaultValues: true})
+        ),
+      });
+
       return document;
     })
   );

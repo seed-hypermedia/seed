@@ -11,7 +11,16 @@ func ObjectSet(v map[string]any, path []string, value any) {
 			v[key] = make(map[string]any)
 		}
 
-		v = v[key].(map[string]any)
+		{
+			vv, ok := v[key].(map[string]any)
+			if !ok {
+				m := map[string]any{}
+				v[key] = m
+				v = m
+			} else {
+				v = vv
+			}
+		}
 	}
 
 	v[path[len(path)-1]] = value
@@ -27,7 +36,11 @@ func ObjectDelete(v map[string]any, path []string) {
 			return
 		}
 
-		v = v[key].(map[string]any)
+		var ok bool
+		v, ok = v[key].(map[string]any)
+		if !ok {
+			return
+		}
 	}
 
 	delete(v, path[len(path)-1])

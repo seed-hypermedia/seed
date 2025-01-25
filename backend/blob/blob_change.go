@@ -12,6 +12,7 @@ import (
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/go-viper/mapstructure/v2"
@@ -93,6 +94,8 @@ func init() {
 	cbornode.RegisterCborType(OpReplaceBlock{})
 	cbornode.RegisterCborType(OpMoveBlocks{})
 	cbornode.RegisterCborType(OpDeleteBlocks{})
+	cbornode.RegisterCborType(OpSetAttributes{})
+	cbornode.RegisterCborType(KeyValue{})
 
 	// We decided to encode our union types with type-specific fields inlined.
 	// It's really painful in Go, so we need to do this crazy hackery
@@ -168,6 +171,10 @@ func (o OpMap) ToOp() (Op, error) {
 			var out OpDeleteBlocks
 			mapToCBOR(o, &out)
 			return out, nil
+		case OpTypeSetAttributes:
+			var out OpSetAttributes
+			mapToCBOR(o, &out)
+			return out, nil
 		default:
 			return nil, fmt.Errorf("unsupported op type %s", o)
 		}
@@ -178,10 +185,11 @@ func (o OpMap) ToOp() (Op, error) {
 
 // Supported op types.
 const (
-	OpTypeSetKey       OpType = "SetKey"
-	OpTypeMoveBlocks   OpType = "MoveBlocks"
-	OpTypeReplaceBlock OpType = "ReplaceBlock"
-	OpTypeDeleteBlocks OpType = "DeleteBlocks"
+	OpTypeSetKey        OpType = "SetKey" // Deprecated.
+	OpTypeSetAttributes OpType = "SetAttributes"
+	OpTypeMoveBlocks    OpType = "MoveBlocks"
+	OpTypeReplaceBlock  OpType = "ReplaceBlock"
+	OpTypeDeleteBlocks  OpType = "DeleteBlocks"
 )
 
 // Op a common interface implemented by all ops.
@@ -203,13 +211,25 @@ type OpSetKey struct {
 	Value any    `refmt:"value"`
 }
 
+const maxJSInt = 1<<53 - 1
+
 // NewOpSetKey creates the corresponding op.
-func NewOpSetKey(key string, value any) OpMap {
-	switch value.(type) {
-	case string, int, bool:
+func NewOpSetKey(key string, value any) (OpMap, error) {
+	var number int64
+
+	switch vv := value.(type) {
+	case string, bool, nil:
 	// OK.
+	case int:
+		number = int64(vv)
+	case int64:
+		number = vv
 	default:
 		panic(fmt.Sprintf("unsupported metadata value type: %T", value))
+	}
+
+	if number > maxJSInt {
+		return OpMap{}, fmt.Errorf("numeric value %v is greater than JS max safe int %v", value, maxJSInt)
 	}
 
 	op := OpSetKey{
@@ -218,6 +238,32 @@ func NewOpSetKey(key string, value any) OpMap {
 		},
 		Key:   key,
 		Value: value,
+	}
+
+	return cborToMap(op), nil
+}
+
+// OpSetAttributes represents the op to set a set of attributes to a given block or the document itself.
+type OpSetAttributes struct {
+	baseOp
+	Block string     `refmt:"block,omitempty"`
+	Attrs []KeyValue `refmt:"attrs,omitempty"`
+}
+
+// KeyValue is a pair representing the nested attribute.
+type KeyValue struct {
+	Key   []string `refmt:"key,omitempty"`
+	Value any      `refmt:"value"`
+}
+
+// NewOpSetAttributes creates a new op that sets some attributes on a block.
+func NewOpSetAttributes(block string, attrs []KeyValue) OpMap {
+	op := OpSetAttributes{
+		baseOp: baseOp{
+			Type: OpTypeSetAttributes,
+		},
+		Block: block,
+		Attrs: attrs,
 	}
 
 	return cborToMap(op)
@@ -382,6 +428,45 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 			}
 
 			sb.AddBlobLink("metadata/"+k, c)
+		case OpSetAttributes:
+			if op.Block != "" {
+				continue
+			}
+
+			if extra.Metadata == nil {
+				extra.Metadata = make(map[string]any)
+			}
+
+			for _, kv := range op.Attrs {
+				k := strings.Join(kv.Key, ".")
+				extra.Metadata[k] = kv.Value
+
+				vs, isStr := kv.Value.(string)
+				if len(kv.Key) == 1 && isStr {
+					k := kv.Key[0]
+
+					// TODO(hm24): index other relevant metadata for list response and so on.
+					if extra.Title == "" && (k == "title" || k == "name" || k == "alias") {
+						extra.Title = vs
+					}
+				}
+
+				u, err := url.Parse(vs)
+				if err != nil {
+					continue
+				}
+
+				if u.Scheme != "ipfs" {
+					continue
+				}
+
+				c, err := cid.Decode(u.Host)
+				if err != nil {
+					continue
+				}
+
+				sb.AddBlobLink("metadata/"+k, c)
+			}
 		case OpReplaceBlock:
 			blk := op.Block
 

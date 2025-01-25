@@ -10,20 +10,21 @@
   gap: 1rem; */
 }
 
+.document-container.hide-outline {
+  max-width: 720px;
+}
+
 @media (min-width: 768px) {
   .document-container {
     display: grid !important;
     grid-template-columns: 280px minmax(0, 1fr);
     gap: 1rem;
   }
-}
 
-/* @media (min-width: 1280px) {
-  .document-container {
-    grid-template-columns: 280px minmax(0, 1fr);
-    gap: 2rem;
+  .document-container.hide-outline {
+    display: flex !important;
   }
-} */
+}
 
 .document-aside {
   position: fixed !important;

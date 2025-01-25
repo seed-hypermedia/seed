@@ -5,6 +5,7 @@ import {toPlainMessage} from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
 import {
   GRPCClient,
+  HMDocumentMetadataSchema,
   HMDraft,
   hmId,
   invalidateQueries,
@@ -24,15 +25,27 @@ export function useAccounts() {
     queryKey: [queryKeys.LIST_ACCOUNTS],
     queryFn: async () => {
       const res = await grpcClient.documents.listAccounts({})
-      const accounts = toPlainMessage(res).accounts
+
+      console.log(`== ~ CONTACTS queryFn: ~ res:`, res)
+      const accounts = res.accounts
       const accountsMetadata = Object.fromEntries(
         accounts.map((account) => [
           account.id,
-          {metadata: account.metadata, id: hmId('d', account.id)},
+          {
+            metadata: HMDocumentMetadataSchema.parse(
+              account.metadata?.toJson({emitDefaultValues: true}),
+            ),
+            id: hmId('d', account.id),
+          },
         ]),
       )
       return {
-        accounts,
+        accounts: accounts.map((account) => ({
+          ...toPlainMessage(account),
+          metadata: HMDocumentMetadataSchema.parse(
+            account.metadata?.toJson({emitDefaultValues: true}),
+          ),
+        })),
         accountsMetadata,
       }
     },

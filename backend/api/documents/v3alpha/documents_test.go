@@ -3,6 +3,8 @@ package documents
 import (
 	"cmp"
 	"context"
+	"seed/backend/api/apitest"
+	"seed/backend/api/documents/v3alpha/docmodel"
 	"seed/backend/blob"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
@@ -19,6 +21,7 @@ import (
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -63,9 +66,9 @@ func TestCreateDocumentChange(t *testing.T) {
 	want := &documents.Document{
 		Account: alice.me.Account.Principal().String(),
 		Path:    "",
-		Metadata: map[string]string{
+		Metadata: must.Do2(structpb.NewStruct(map[string]any{
 			"title": "Alice from the Wonderland",
-		},
+		})),
 		Authors: []string{alice.me.Account.Principal().String()},
 		Content: []*documents.BlockNode{
 			{
@@ -520,9 +523,9 @@ func TestCreateDocumentChangeWithTimestamp(t *testing.T) {
 	want := &documents.Document{
 		Account: alice.me.Account.Principal().String(),
 		Path:    "",
-		Metadata: map[string]string{
+		Metadata: must.Do2(structpb.NewStruct(map[string]any{
 			"title": "Alice from the Wonderland",
-		},
+		})),
 		Authors: []string{alice.me.Account.Principal().String()},
 		Content: []*documents.BlockNode{
 			{
@@ -1009,6 +1012,59 @@ func TestUpdateReadStatus(t *testing.T) {
 
 	for _, x := range list.Documents {
 		require.False(t, x.ActivitySummary.IsUnread, "all bob's docs must be unread")
+	}
+}
+
+func TestDocumentAttributesFullJSONModel(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	want := map[string]any{
+		"stringValue":    "Hello World",
+		"intValue":       int64(42),
+		"boolValue":      true,
+		"boolValueFalse": false,
+		"a": map[string]any{
+			"b": map[string]any{
+				"c": "Nested String",
+			},
+		},
+	}
+
+	doc, err := alice.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "", "", "main").
+		SetAttribute("", []string{"stringValue"}, "Hello World").
+		SetAttribute("", []string{"intValue"}, 42).
+		SetAttribute("", []string{"boolValue"}, true).
+		SetAttribute("", []string{"boolValueFalse"}, false).
+		SetAttribute("", []string{"nullValue"}, nil).
+		SetAttribute("", []string{"a", "b", "c"}, "Nested String").
+		Build(),
+	)
+	require.NoError(t, err)
+	testutil.StructsEqual(want, docmodel.ProtoStructAsMap(doc.Metadata)).Compare(t, "document attributes must match")
+
+	accs, err := alice.ListAccounts(ctx, &documents.ListAccountsRequest{})
+	require.NoError(t, err)
+	testutil.StructsEqual(want, docmodel.ProtoStructAsMap(accs.Accounts[0].Metadata)).Compare(t, "document attributes must match")
+
+	{
+		doc, err := alice.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "", doc.Version, "main").
+			SetAttribute("", []string{"stringValue"}, "ChangedString").
+			SetAttribute("", []string{"intValue"}, 52).
+			SetAttribute("", []string{"boolValueFalse"}, nil). // Make sure value is removed.
+			SetAttribute("", []string{"nullValue"}, nil).
+			SetAttribute("", []string{"a"}, nil).
+			Build(),
+		)
+		require.NoError(t, err)
+		want := map[string]any{
+			"stringValue": "ChangedString",
+			"intValue":    int64(52),
+			"boolValue":   true,
+		}
+		testutil.StructsEqual(want, docmodel.ProtoStructAsMap(doc.Metadata)).Compare(t, "document attributes must match")
 	}
 }
 

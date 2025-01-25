@@ -1,6 +1,9 @@
 package docmodel
 
-import "seed/backend/util/btree"
+import (
+	"seed/backend/util/btree"
+	"slices"
+)
 
 type mvRegValue[V any] struct {
 	Value V
@@ -34,7 +37,7 @@ func (s *mvReg[V]) GetLatestWithID() (id opID, v V, ok bool) {
 }
 
 func (s *mvReg[V]) Set(oid opID, v V) {
-	preds := s.state.Keys()
+	preds := slices.Collect(s.state.Keys())
 	s.state.Clear()
 	if s.state.Set(oid, mvRegValue[V]{Value: v, Preds: preds}) {
 		panic("BUG: multiple values with the same op id")

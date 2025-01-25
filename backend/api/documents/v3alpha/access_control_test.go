@@ -2,6 +2,7 @@ package documents
 
 import (
 	"context"
+	"seed/backend/api/apitest"
 	"seed/backend/core/coretest"
 	pb "seed/backend/genproto/documents/v3alpha"
 	"testing"
@@ -18,38 +19,26 @@ func TestCapabilities_Smoke(t *testing.T) {
 	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
 
 	// Create the initial home document.
-	_, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
-		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
-		Path:           "",
-		Changes: []*pb.DocumentChange{
-			{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Alice's Home Page"}}},
-		},
-	})
+	_, err := alice.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "", "", "main").
+		SetMetadata("title", "Alice's Home Page").
+		Build(),
+	)
 	require.NoError(t, err)
 
 	// Try to create document with bob's key. It must fail.
 	{
-		_, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
-			SigningKeyName: "bob",
-			Account:        alice.me.Account.Principal().String(),
-			Path:           "/cars",
-			Changes: []*pb.DocumentChange{
-				{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Document about cars"}}},
-			},
-		})
+		_, err := alice.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/cars", "", "bob").
+			SetMetadata("title", "Document about cars").
+			Build(),
+		)
 		require.Error(t, err, "bob must not be allowed to sign for alice")
 	}
 
 	// Alice creates document about cars.
-	cars, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
-		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
-		Path:           "/cars",
-		Changes: []*pb.DocumentChange{
-			{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Document about cars"}}},
-		},
-	})
+	cars, err := alice.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/cars", "", "main").
+		SetMetadata("title", "Document about cars").
+		Build(),
+	)
 	require.NoError(t, err)
 
 	// Alice issued capability to bob for everything under /cars.
@@ -65,15 +54,11 @@ func TestCapabilities_Smoke(t *testing.T) {
 
 	// Bob creates a document under /cars.
 	{
-		jp, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
-			SigningKeyName: "bob",
-			Capability:     cpb.Id,
-			Account:        alice.me.Account.Principal().String(),
-			Path:           "/cars/jp",
-			Changes: []*pb.DocumentChange{
-				{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Catalogue of Japanese cars"}}},
-			},
-		})
+		jp, err := alice.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/cars/jp", "", "bob").
+			SetCapability(cpb.Id).
+			SetMetadata("title", "Catalogue of Japanese cars").
+			Build(),
+		)
 		require.NoError(t, err, "bob must be allowed to sign for alice with the capability")
 		require.NotNil(t, jp)
 	}

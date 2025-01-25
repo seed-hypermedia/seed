@@ -1,5 +1,6 @@
 import {PlainMessage, toPlainMessage} from "@bufbuild/protobuf";
 import {
+  HMDocumentMetadataSchema,
   hmId,
   HMMetadata,
   HMTimestamp,
@@ -40,8 +41,14 @@ export const loader = async ({
     });
     const pathPrefix = id.path ? "/" + id.path.join("/") : "/";
     const idPathLength = id.path?.length || 0;
-    const directory = toPlainMessage(res)
-      .documents.filter(
+    const directory = res.documents
+      .map((d) => ({
+        ...toPlainMessage(d),
+        metadata: HMDocumentMetadataSchema.parse(
+          d.metadata?.toJson({emitDefaultValues: true})
+        ),
+      }))
+      .filter(
         (doc) =>
           doc.path !== "/" &&
           doc.path !== "" &&
@@ -67,7 +74,12 @@ export const loader = async ({
         const res = await queryClient.documents.getDocument({
           account: authorUid,
         });
-        const authorAccount = toPlainMessage(res);
+        const authorAccount = {
+          ...toPlainMessage(res),
+          metadata: HMDocumentMetadataSchema.parse(
+            res.metadata?.toJson({emitDefaultValues: true})
+          ),
+        };
         return {id: hmId("d", authorUid), metadata: authorAccount.metadata};
       })
     );

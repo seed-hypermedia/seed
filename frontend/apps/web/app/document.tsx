@@ -193,24 +193,33 @@ export function DocumentPage(props: SiteDocumentPayload) {
         </SiteHeader>
 
         <DocumentCover cover={document.metadata.cover} id={id} />
-        <YStack className="document-container">
-          <YStack
-            marginTop={200}
-            $gtSm={{marginTop: 124}}
-            className="document-aside"
-            height="calc(100vh - 150px)"
-          >
+        <YStack
+          className={`document-container${
+            typeof document.metadata.showOutline == "undefined" ||
+            document.metadata.showOutline
+              ? ""
+              : " hide-outline"
+          }`}
+        >
+          {typeof document.metadata.showOutline == "undefined" ||
+          document.metadata.showOutline ? (
             <YStack
-              className="hide-scrollbar"
-              overflow="scroll"
-              height="100%"
-              // paddingTop={32}
-              paddingBottom={32}
+              marginTop={200}
+              $gtSm={{marginTop: 124}}
+              className="document-aside"
+              height="calc(100vh - 150px)"
             >
-              {renderDocNavigation({onCloseNav: () => {}})}
+              <YStack
+                className="hide-scrollbar"
+                overflow="scroll"
+                height="100%"
+                // paddingTop={32}
+                paddingBottom={32}
+              >
+                {renderDocNavigation({onCloseNav: () => {}})}
+              </YStack>
             </YStack>
-          </YStack>
-
+          ) : null}
           <YStack>
             <PageHeader
               homeId={homeId}

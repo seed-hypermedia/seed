@@ -30,6 +30,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -329,7 +330,7 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 		}
 
 		cursor.ActivityTime = item.ActivitySummary.LatestChangeTime.AsTime().UnixMilli()
-		cursor.NameOrPath = item.Metadata["name"]
+		cursor.NameOrPath = item.Metadata.Fields["name"].GetStringValue()
 
 		out.Documents = append(out.Documents, item)
 	}
@@ -463,17 +464,11 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 			return nil, err
 		}
 
-		metadata := make(map[string]string, len(attrs))
+		metadata := make(map[string]any, len(attrs))
 		for k, v := range attrs {
-			var vv string
-			switch iv := v.Value.(type) {
-			case string:
-				vv = iv
-			case int64, int:
-				vv = fmt.Sprintf("%d", iv)
+			if v.Value != nil {
+				colx.ObjectSet(metadata, strings.Split(k, "."), v.Value)
 			}
-
-			metadata[k] = vv
 		}
 
 		var (
@@ -490,9 +485,14 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 			latestCommentTime = timestamppb.New(time.UnixMilli(lastCommentTime))
 		}
 
+		metastruct, err := structpb.NewStruct(metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to collect struct metadata: %w", err)
+		}
+
 		item := &documents.Account{
 			Id:       spaceID,
-			Metadata: metadata,
+			Metadata: metastruct,
 			ActivitySummary: &documents.ActivitySummary{
 				CommentCount:      int32(commentCount), //nolint:gosec
 				LatestCommentId:   latestCommentID,
@@ -744,17 +744,11 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		return nil, err
 	}
 
-	metadata := make(map[string]string, len(attrs))
+	metadata := make(map[string]any, len(attrs))
 	for k, v := range attrs {
-		var vv string
-		switch iv := v.Value.(type) {
-		case string:
-			vv = iv
-		case int64, int:
-			vv = fmt.Sprintf("%d", iv)
+		if v.Value != nil {
+			colx.ObjectSet(metadata, strings.Split(k, "."), v.Value)
 		}
-
-		metadata[k] = vv
 	}
 
 	var authorIDs []int64
@@ -825,10 +819,15 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		latestCommentTime = timestamppb.New(time.UnixMilli(lastCommentTime))
 	}
 
+	metastruct, err := structpb.NewStruct(metadata)
+	if err != nil {
+		return nil, err
+	}
+
 	out := &documents.DocumentInfo{
 		Account:     space.String(),
 		Path:        path,
-		Metadata:    metadata,
+		Metadata:    metastruct,
 		Authors:     authors,
 		CreateTime:  timestamppb.New(time.UnixMilli(genesisChangeTime)),
 		UpdateTime:  timestamppb.New(time.UnixMilli(lastChangeTime)),
@@ -1117,12 +1116,31 @@ func applyChanges(doc *docmodel.Document, ops []*documents.DocumentChange) error
 			if err := doc.ReplaceBlock(o.ReplaceBlock); err != nil {
 				return err
 			}
+		case *documents.DocumentChange_SetAttribute_:
+			if err := doc.SetAttribute(o.SetAttribute.BlockId, o.SetAttribute.Key, getInterfaceValue(o.SetAttribute)); err != nil {
+				return err
+			}
 		default:
 			return status.Errorf(codes.Unimplemented, "unknown operation %T", o)
 		}
 	}
 
 	return nil
+}
+
+func getInterfaceValue(op *documents.DocumentChange_SetAttribute) any {
+	switch v := op.Value.(type) {
+	case *documents.DocumentChange_SetAttribute_StringValue:
+		return v.StringValue
+	case *documents.DocumentChange_SetAttribute_IntValue:
+		return v.IntValue
+	case *documents.DocumentChange_SetAttribute_BoolValue:
+		return v.BoolValue
+	case *documents.DocumentChange_SetAttribute_NullValue:
+		return nil
+	default:
+		panic(fmt.Errorf("TODO: unhandled value type in SetAttribute operation: %T", op.Value))
+	}
 }
 
 func (srv *Server) checkWriteAccess(ctx context.Context, account core.Principal, path string, kp core.KeyPair, capc cid.Cid) error {

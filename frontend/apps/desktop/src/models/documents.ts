@@ -12,11 +12,13 @@ import {
   Block,
   DEFAULT_GATEWAY_URL,
   DocumentChange,
+  DocumentChange_SetAttribute,
   EditorBlock,
   HMBlock,
   HMBlockNode,
   HMDocument,
   HMDocumentInfo,
+  HMDocumentMetadataSchema,
   HMDocumentSchema,
   HMDraft,
   HMEntityContent,
@@ -193,7 +195,7 @@ export function usePublishDraft(
       const changes = compareBlocksWithMap(blocksMap, content, '')
 
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
-
+      console.log('=== DRAFT METADATA', draft.metadata)
       // return null
       if (accts.data?.length == 0) {
         dispatchWizardEvent(true)
@@ -202,19 +204,39 @@ export function usePublishDraft(
           if (draft.signingAccount && id?.id) {
             const allChanges = [
               ...Object.entries(draft.metadata).map(([key, value]) => {
-                return new DocumentChange({
-                  op: {
-                    case: 'setMetadata',
-                    value: {
-                      key,
-                      value,
+                if (key == 'showOutline') {
+                  return new DocumentChange({
+                    op: {
+                      case: 'setAttribute',
+                      value: new DocumentChange_SetAttribute({
+                        blockId: '',
+                        // Es array porque para anidar hay que pasar el path completo.
+                        // Por ejemplo ["localTheme", "showOutline"] sera {"localTheme": {"showOutline": true}}.
+                        key: ['showOutline'],
+                        value: {
+                          case: 'boolValue',
+                          value: value as boolean,
+                        },
+                      }),
                     },
-                  },
-                })
+                  })
+                } else {
+                  return new DocumentChange({
+                    op: {
+                      case: 'setMetadata',
+                      value: {
+                        key,
+                        value,
+                      },
+                    },
+                  })
+                }
               }),
               ...changes.changes,
               ...deleteChanges,
             ]
+
+            console.log('=== DRAFT ALL CHANGES', allChanges)
             let capabilityId = ''
             if (draft.signingAccount !== id.uid) {
               const capabilities =
@@ -254,7 +276,13 @@ export function usePublishDraft(
                 capability: capabilityId,
               })
 
-            const resultDoc = toPlainMessage(publishedDoc)
+            const resultDoc = {
+              ...toPlainMessage(publishedDoc),
+              metadata: HMDocumentMetadataSchema.parse(
+                publishedDoc.metadata?.toJson({emitDefaultValues: true}),
+              ),
+            }
+
             return resultDoc
           } else {
             // dispatchWizardEvent(true)
@@ -1010,7 +1038,13 @@ export function useListDirectory(
           pageSize: BIG_INT,
         })
         const docs = res.documents
-          .map(toPlainMessage)
+          .map((d) => ({
+            ...toPlainMessage(d),
+            metadata: HMDocumentMetadataSchema.parse(
+              d.metadata?.toJson({emitDefaultValues: true}),
+            ),
+          }))
+
           .filter((doc) => {
             return (
               doc.path !== '/' &&
@@ -1025,7 +1059,6 @@ export function useListDirectory(
           .map((doc) => {
             return {...doc, path: doc.path.slice(1).split('/')}
           })
-
         return docs as HMDocumentInfo[]
       },
     },
@@ -1044,7 +1077,12 @@ export function useListSite(id?: UnpackedHypermediaId) {
         pageSize: BIG_INT,
       })
       const docs = res.documents
-        .map(toPlainMessage)
+        .map((d) => ({
+          ...toPlainMessage(d),
+          metadata: HMDocumentMetadataSchema.parse(
+            d.metadata?.toJson({emitDefaultValues: true}),
+          ),
+        }))
         .filter((doc) => {
           return doc.path !== ''
         })
@@ -1360,9 +1398,12 @@ export function useAccountDocuments(id?: UnpackedHypermediaId) {
         account: id?.uid,
         pageSize: BIG_INT,
       })
-      const documents = result.documents.map((response) =>
-        toPlainMessage(response),
-      )
+      const documents = result.documents.map((response) => ({
+        ...toPlainMessage(response),
+        metadata: HMDocumentMetadataSchema.parse(
+          response.metadata?.toJson({emitDefaultValues: true}),
+        ),
+      }))
       return {
         documents,
       }

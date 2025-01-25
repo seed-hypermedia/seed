@@ -4,6 +4,7 @@ import {loadWebLinkMeta} from '@/models/web-links'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {
   GRPCClient,
+  HMDocumentMetadataSchema,
   StateStream,
   UnpackedHypermediaId,
   extractBlockRefOfUrl,
@@ -507,7 +508,12 @@ async function fetchEntityTitle(
       path: hmIdPathToEntityQueryPath(hmId.path),
     })
     const doc = toPlainMessage(document)
-    const title = getDocumentTitle(doc)
+    const title = getDocumentTitle({
+      ...doc,
+      metadata: HMDocumentMetadataSchema.parse(
+        doc.metadata?.toJson({emitDefaultValues: true}),
+      ),
+    })
     return {
       title,
     }

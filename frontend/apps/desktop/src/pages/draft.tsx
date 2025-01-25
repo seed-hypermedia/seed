@@ -308,16 +308,32 @@ function DocumentEditor({
             disabled={!state.matches('ready')}
             show={showCover}
             setShow={setShowCover}
+            showOutline={
+              typeof state.context.metadata.showOutline == 'undefined'
+                ? true
+                : state.context.metadata.showOutline
+            }
           />
-          <YStack className="document-container">
-            <YStack
-              marginTop={200}
-              $gtSm={{marginTop: 164}}
-              className="is-desktop document-aside"
-              onPress={(e) => e.stopPropagation()}
-            >
-              <SiteNavigationDraftLoader />
-            </YStack>
+          <YStack
+            className={`document-container${
+              typeof state.context.metadata.showOutline == 'undefined'
+                ? ''
+                : state.context.metadata.showOutline
+                ? ''
+                : ' hide-outline'
+            }`}
+          >
+            {typeof state.context.metadata.showOutline == 'undefined' ||
+            state.context.metadata.showOutline ? (
+              <YStack
+                marginTop={200}
+                $gtSm={{marginTop: 164}}
+                className="is-desktop document-aside"
+                onPress={(e) => e.stopPropagation()}
+              >
+                <SiteNavigationDraftLoader />
+              </YStack>
+            ) : null}
             <YStack>
               <DraftHeader
                 draftActor={actor}
@@ -700,12 +716,13 @@ export function DraftCover({
   draftActor,
   disabled = false,
   show = false,
-  setShow,
+  showOutline = true,
+  setShowOutline,
 }: {
   draftActor: ActorRefFrom<typeof draftMachine>
   disabled?: boolean
-  show?: boolean
-  setShow?: (show: boolean) => void
+  showOutline?: boolean
+  setShowOutline?: (show: boolean) => void
 }) {
   const route = useNavRoute()
   if (route.key !== 'draft')
@@ -738,6 +755,7 @@ export function DraftCover({
     >
       <CoverImage
         show={show}
+        showOutline={showOutline}
         onCoverUpload={(cover) => {
           if (cover) {
             draftActor.send({
@@ -749,7 +767,7 @@ export function DraftCover({
           }
         }}
         onRemoveCover={() => {
-          setShow?.(false)
+          setShowOutline?.(true)
           draftActor.send({
             type: 'CHANGE',
             metadata: {
