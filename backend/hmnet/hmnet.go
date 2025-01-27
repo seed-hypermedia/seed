@@ -242,12 +242,6 @@ func (n *Node) SetConnectionCallback(fn func(context.Context, event.EvtPeerConne
 	n.connectionCallback = fn
 }
 
-// SetIdentificationCallback allows registering a callback to be called when initial identification
-// round for a peer is completed.
-func (n *Node) SetIdentificationCallback(fn func(context.Context, event.EvtPeerIdentificationCompleted)) {
-	n.identificationCallback = fn
-}
-
 // Bitswap returns the underlying Bitswap service.
 func (n *Node) Bitswap() *ipfs.Bitswap {
 	return n.bitswap

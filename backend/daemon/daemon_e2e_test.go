@@ -168,8 +168,6 @@ func TestDaemonUpdateProfile(t *testing.T) {
 func TestConnectivity(t *testing.T) {
 	t.Parallel()
 	aliceCfg := makeTestConfig(t)
-	aliceCfg.Syncing.NoSyncBack = true
-	aliceCfg.Syncing.SmartSyncing = true
 	aliceCfg.Syncing.Interval = time.Millisecond * 100
 	aliceCfg.Syncing.WarmupDuration = time.Millisecond * 200
 	aliceCfg.Syncing.NoPull = true
@@ -178,8 +176,6 @@ func TestConnectivity(t *testing.T) {
 	ctx := context.Background()
 
 	bobCfg := makeTestConfig(t)
-	bobCfg.Syncing.NoSyncBack = true
-	bobCfg.Syncing.SmartSyncing = true
 	bobCfg.Syncing.Interval = time.Millisecond * 100
 	bobCfg.Syncing.WarmupDuration = time.Millisecond * 200
 	bobCfg.Syncing.NoPull = true
@@ -295,14 +291,10 @@ func TestSyncingProfiles(t *testing.T) {
 func TestDiscoverHomeDocument(t *testing.T) {
 	t.Parallel()
 	aliceCfg := makeTestConfig(t)
-	aliceCfg.Syncing.NoSyncBack = true
-	aliceCfg.Syncing.SmartSyncing = true
 	aliceCfg.LogLevel = "debug"
 	alice := makeTestApp(t, "alice", aliceCfg, false)
 	ctx := context.Background()
 	bobCfg := makeTestConfig(t)
-	bobCfg.Syncing.NoSyncBack = true
-	bobCfg.Syncing.SmartSyncing = true
 	bobCfg.LogLevel = "debug"
 	bob := makeTestApp(t, "bob", bobCfg, true)
 
@@ -354,8 +346,6 @@ func TestDiscoverHomeDocument(t *testing.T) {
 func TestSubscriptions(t *testing.T) {
 	t.Parallel()
 	aliceCfg := makeTestConfig(t)
-	aliceCfg.Syncing.NoSyncBack = true
-	aliceCfg.Syncing.SmartSyncing = true
 	aliceCfg.Syncing.RefreshInterval = time.Millisecond * 250
 	aliceCfg.Syncing.Interval = time.Millisecond * 200
 	aliceCfg.Syncing.WarmupDuration = time.Millisecond * 300
@@ -365,8 +355,6 @@ func TestSubscriptions(t *testing.T) {
 	ctx := context.Background()
 	aliceIdentity := coretest.NewTester("alice")
 	bobCfg := makeTestConfig(t)
-	bobCfg.Syncing.NoSyncBack = true
-	bobCfg.Syncing.SmartSyncing = true
 	bobCfg.Syncing.RefreshInterval = time.Millisecond * 250
 	bobCfg.Syncing.Interval = time.Millisecond * 200
 	bobCfg.Syncing.WarmupDuration = time.Millisecond * 300
@@ -375,8 +363,6 @@ func TestSubscriptions(t *testing.T) {
 	bob := makeTestApp(t, "bob", bobCfg, true)
 	bobIdentity := coretest.NewTester("bob")
 	carolCfg := makeTestConfig(t)
-	carolCfg.Syncing.NoSyncBack = true
-	carolCfg.Syncing.SmartSyncing = true
 	carolCfg.Syncing.RefreshInterval = time.Millisecond * 250
 	carolCfg.Syncing.Interval = time.Millisecond * 200
 	carolCfg.Syncing.WarmupDuration = time.Millisecond * 300

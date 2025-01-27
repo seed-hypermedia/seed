@@ -28,9 +28,7 @@ import (
 	"github.com/ipfs/boxo/exchange"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
-	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/host"
-	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/protocol"
@@ -166,9 +164,6 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer b
 	svc.pc = protocolChecker{
 		checker: net.CheckHyperMediaProtocolVersion,
 		version: net.ProtocolVersion(),
-	}
-	if !cfg.NoSyncBack {
-		net.SetIdentificationCallback(svc.syncBack)
 	}
 
 	return svc
@@ -320,67 +315,7 @@ type SyncResult struct {
 
 // SyncAll attempts to sync the with all the peers at once.
 func (s *Service) SyncAll(ctx context.Context) (res SyncResult, err error) {
-	if s.cfg.SmartSyncing {
-		return s.SyncSubscribedContent(ctx)
-	}
-	if !s.mu.TryLock() {
-		return res, ErrSyncAlreadyRunning
-	}
-	defer s.mu.Unlock()
-
-	seedPeers := []peer.ID{}
-
-	conn, release, err := s.db.Conn(ctx)
-	if err != nil {
-		return res, err
-	}
-	defer release()
-	if err = sqlitex.Exec(conn, qListPeersWithPid(), func(stmt *sqlite.Stmt) error {
-		addresStr := stmt.ColumnText(0)
-		pid := stmt.ColumnText(1)
-		addrList := strings.Split(addresStr, ",")
-		info, err := hmnet.AddrInfoFromStrings(addrList...)
-		if err != nil {
-			s.log.Warn("Can't sync with peer with malformed addresses", zap.String("PID", pid), zap.Error(err))
-			return nil
-		}
-
-		s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
-		seedPeers = append(seedPeers, info.ID)
-		return nil
-	}); err != nil {
-		return res, err
-	}
-	res.Peers = make([]peer.ID, len(seedPeers))
-	res.Errs = make([]error, len(seedPeers))
-	var wg sync.WaitGroup
-	wg.Add(len(seedPeers))
-
-	for i, pid := range seedPeers {
-		go func(i int, pid peer.ID) {
-			var err error
-			defer func() {
-				res.Errs[i] = err
-				if err == nil {
-					atomic.AddInt64(&res.NumSyncOK, 1)
-				} else {
-					atomic.AddInt64(&res.NumSyncFailed, 1)
-				}
-
-				wg.Done()
-			}()
-
-			res.Peers[i] = pid
-
-			if xerr := s.SyncWithPeer(ctx, pid, nil); xerr != nil {
-				err = errors.Join(err, fmt.Errorf("failed to sync objects: %w", xerr))
-			}
-		}(i, pid)
-	}
-
-	wg.Wait()
-
-	return res, nil
+	return s.SyncSubscribedContent(ctx)
 }
 
 // SyncSubscribedContent attempts to sync all the content marked as subscribed.
@@ -539,91 +474,6 @@ func (s *Service) SyncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 	}
 	s.log.Debug("Sync Everything", zap.String("Peer", pid.String()))
 	return syncPeerRbsr(ctx, pid, c, s.indexer, bswap, s.db, s.log)
-}
-
-func (s *Service) syncBack(ctx context.Context, event event.EvtPeerIdentificationCompleted) {
-	if s.host.Network().Connectedness(event.Peer) != network.Connected {
-		return
-	}
-
-	if err := s.pc.checker(ctx, event.Peer, s.pc.version); err != nil {
-		return
-	}
-
-	c, err := s.p2pClient(ctx, event.Peer)
-	if err != nil {
-		s.log.Warn("Could not get p2p client", zap.Error(err))
-		return
-	}
-	res, err := c.ListPeers(ctx, &p2p.ListPeersRequest{PageSize: math.MaxInt32})
-	if err != nil {
-		s.log.Warn("Could not get list of peers", zap.Error(err))
-		return
-	}
-	conn, cancel, err := s.db.Conn(ctx)
-	if err != nil {
-		s.log.Error("Could not get connection")
-	}
-	defer cancel()
-	if len(res.Peers) > 0 {
-		vals := []interface{}{}
-		sqlStr := "INSERT OR REPLACE INTO peers (pid, addresses) VALUES "
-		for _, peer := range res.Peers {
-			if len(peer.Addrs) > 0 {
-				sqlStr += "(?, ?),"
-				vals = append(vals, peer.Id, strings.Join(peer.Addrs, ","))
-			}
-
-		}
-		sqlStr = sqlStr[0 : len(sqlStr)-1]
-
-		if err := sqlitex.Exec(conn, sqlStr, nil, vals...); err != nil {
-			s.log.Warn("Could not insert the remote list of peers: %w", zap.Error(err))
-			return
-		}
-	}
-
-	info := s.host.Peerstore().PeerInfo(event.Peer)
-
-	if info.ID == s.host.Network().LocalPeer() {
-		return
-	}
-	if len(info.Addrs) == 0 {
-		return
-	}
-	addrsStr := hmnet.AddrInfoToStrings(info)
-
-	const q = "SELECT addresses FROM peers WHERE pid = ?;"
-	var addresses string
-	if err := sqlitex.WithTx(conn, func() error {
-		if err := sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
-			addresses = stmt.ColumnText(0)
-			return nil
-		}, info.ID.String()); err != nil {
-			return err
-		}
-
-		return nil
-	}); err != nil {
-		return
-	}
-	var foundInfo peer.AddrInfo
-	foundAddressesStr := strings.Split(strings.Trim(addresses, " "), ",")
-	if len(foundAddressesStr) != 0 && len(foundAddressesStr[0]) != 0 {
-		foundInfo, err = hmnet.AddrInfoFromStrings(foundAddressesStr...)
-		if err != nil {
-			return
-		}
-	}
-	if foundInfo.String() != info.String() {
-		if err := sqlitex.Exec(conn, "INSERT OR REPLACE INTO peers (pid, addresses) VALUES (?, ?);", nil, info.ID.String(), strings.Join(addrsStr, ",")); err != nil {
-			s.log.Warn("Could not store peer", zap.Error(err))
-		} else {
-			s.log.Info("Syncing back", zap.String("PeerID", info.ID.String()))
-			go s.SyncWithPeer(ctx, info.ID, nil)
-		}
-	}
-
 }
 
 func syncEntities(

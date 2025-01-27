@@ -190,30 +190,24 @@ func (sw *worker) sync(ctx context.Context) {
 	}
 
 	sess := sw.bswap.NewSession(ctx)
-	if sw.cfg.SmartSyncing {
-		ret, err := sw.sstore.ListSubscriptions(ctx, &activity_proto.ListSubscriptionsRequest{
-			PageSize: math.MaxInt32,
-		})
-		if err != nil {
-			sw.log.Warn("Failed to list subscriptions in smart syncing", zap.Error(err))
-			return
-		}
-		sw.log.Debug("Periodic subscription update", zap.Int("Number of subscriptions to update", len(ret.Subscriptions)))
-		if len(ret.Subscriptions) == 0 {
-			return
-		}
-		eids := make(map[string]bool)
-		for _, subscription := range ret.Subscriptions {
-			eid := "hm://" + subscription.Account + subscription.Path
-			eids[eid] = subscription.Recursive
-		}
-		if err := syncEntities(ctx, sw.pid, c, sw.indexer, sess, sw.db, sw.log, eids); err != nil {
-			sw.log.Debug("Failed to smart sync", zap.Error(err))
-		}
+	ret, err := sw.sstore.ListSubscriptions(ctx, &activity_proto.ListSubscriptionsRequest{
+		PageSize: math.MaxInt32,
+	})
+	if err != nil {
+		sw.log.Warn("Failed to list subscriptions in smart syncing", zap.Error(err))
 		return
 	}
-	if err := syncPeerRbsr(ctx, sw.pid, c, sw.indexer, sess, sw.db, sw.log); err != nil {
-		sw.log.Debug("Failed to dumb Sync", zap.Error(err))
+	sw.log.Debug("Periodic subscription update", zap.Int("Number of subscriptions to update", len(ret.Subscriptions)))
+	if len(ret.Subscriptions) == 0 {
+		return
+	}
+	eids := make(map[string]bool)
+	for _, subscription := range ret.Subscriptions {
+		eid := "hm://" + subscription.Account + subscription.Path
+		eids[eid] = subscription.Recursive
+	}
+	if err := syncEntities(ctx, sw.pid, c, sw.indexer, sess, sw.db, sw.log, eids); err != nil {
+		sw.log.Debug("Failed to smart sync", zap.Error(err))
 	}
 }
 
