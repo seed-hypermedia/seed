@@ -4,14 +4,25 @@ import {
   ButtonText,
   Input,
   Label,
+  RadioGroup,
   SelectDropdown,
   SimpleDatePicker,
   SwitchField,
+  XStack,
   YStack,
 } from '@shm/ui'
-import {useState} from 'react'
+import {useId, useState} from 'react'
 import {AccessoryContainer} from './accessory-sidebar'
 import {IconForm} from './icon-form'
+
+// Add this type for the content width options
+type ContentWidth = 'S' | 'M' | 'L'
+
+let contentSize = {
+  S: 880,
+  M: 1080,
+  L: 1280,
+}
 
 export function OptionsPanel({
   onClose,
@@ -26,6 +37,8 @@ export function OptionsPanel({
 }) {
   const isHome = !draftId.path || draftId.path.length === 0
   const isNewspaperLayout = metadata.layout === 'Seed/Experimental/Newspaper'
+  const id = useId()
+
   return (
     <AccessoryContainer
       title={isHome ? 'Home Options' : 'Document Options'}
@@ -134,6 +147,47 @@ export function OptionsPanel({
       <OriginalPublishDate metadata={metadata} onMetadata={onMetadata} />
       {!isNewspaperLayout ? (
         <OutlineVisibility metadata={metadata} onMetadata={onMetadata} />
+      ) : null}
+      {!isNewspaperLayout ? (
+        <YStack>
+          <Label color="$color9" size="$1">
+            Content Width
+          </Label>
+          <RadioGroup
+            value={metadata.contentWidth || 'XL'}
+            onValueChange={(value: ContentWidth) => {
+              // onMetadata({contentWidth: value})
+
+              let root = document.documentElement
+              root.style.setProperty(
+                '--content-width',
+                `${contentSize[value]}px` || '1080px',
+              )
+            }}
+          >
+            <YStack gap="$2">
+              {[
+                {value: 'S', label: 'Small'},
+                {value: 'M', label: 'Medium'},
+                {value: 'L', label: 'Large'},
+                {value: 'XL', label: 'Extra Large'},
+              ].map((option) => (
+                <XStack key={option.value} gap="$2" ai="center">
+                  <RadioGroup.Item
+                    size="$2"
+                    value={option.value}
+                    id={`${id}-width-${option.value}`}
+                  >
+                    <RadioGroup.Indicator />
+                  </RadioGroup.Item>
+                  <Label size="$1" htmlFor={`${id}-width-${option.value}`}>
+                    {option.label}
+                  </Label>
+                </XStack>
+              ))}
+            </YStack>
+          </RadioGroup>
+        </YStack>
       ) : null}
     </AccessoryContainer>
   )
