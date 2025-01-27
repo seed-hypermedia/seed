@@ -439,6 +439,9 @@ export const HMDocumentMetadataSchema = z.object({
     .union([z.literal('UpdatedFirst'), z.literal('CreatedFirst')])
     .optional(),
   showOutline: z.boolean().optional(),
+  contentWidth: z
+    .union([z.literal('S'), z.literal('M'), z.literal('L')])
+    .optional(),
   theme: z
     .object({
       headerLayout: z.union([z.literal('Center'), z.literal('')]).optional(),

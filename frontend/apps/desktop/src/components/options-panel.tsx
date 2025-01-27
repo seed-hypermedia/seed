@@ -18,6 +18,15 @@ import {useState} from 'react'
 import {AccessoryContainer} from './accessory-sidebar'
 import {IconForm} from './icon-form'
 
+// Add this type for the content width options
+type ContentWidth = 'S' | 'M' | 'L'
+
+let contentSize = {
+  S: 880,
+  M: 1080,
+  L: 1280,
+}
+
 export function OptionsPanel({
   onClose,
   draftId,
@@ -32,6 +41,7 @@ export function OptionsPanel({
   onResetContent: (blockNodes: HMBlockNode[]) => void
 }) {
   const isHomeDoc = !draftId.path?.length
+
   return (
     <AccessoryContainer
       title={isHomeDoc ? 'Home Options' : 'Document Options'}
@@ -196,6 +206,30 @@ function OptionsPanelContent({
       {isHomeDoc ? null : (
         <OutlineVisibility metadata={metadata} onMetadata={onMetadata} />
       )}
+      <YStack>
+        <Label color="$color9" size="$1">
+          Content Width
+        </Label>
+        <SelectDropdown
+          width="100%"
+          options={
+            [
+              {value: 'S', label: 'Small'},
+              {value: 'M', label: 'Medium'},
+              {value: 'L', label: 'Large'},
+            ] as const
+          }
+          value={metadata.contentWidth || 'M'}
+          onValue={(contentWidth: ContentWidth) => {
+            onMetadata({contentWidth})
+            let root = document.documentElement
+            root.style.setProperty(
+              '--content-width',
+              `${contentSize[contentWidth]}px` || '1080px',
+            )
+          }}
+        />
+      </YStack>
     </>
   )
 }
