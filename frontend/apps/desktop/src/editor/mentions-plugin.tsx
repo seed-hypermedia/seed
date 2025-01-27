@@ -41,8 +41,11 @@ export function createInlineEmbedNode(bnEditor: any) {
     addNodeView() {
       return ReactNodeViewRenderer(InlineEmbedNodeComponent)
     },
-    renderHTML() {
-      return ['span']
+    renderHTML({HTMLAttributes}) {
+      return [
+        'span',
+        {...HTMLAttributes, 'data-inline-embed': HTMLAttributes.link},
+      ]
     },
     parseHTML() {
       return [
