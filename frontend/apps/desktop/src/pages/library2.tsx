@@ -230,19 +230,27 @@ function DisplayModeTab({
   activeValue: 'all' | 'subscribed' | 'favorites'
   onDisplayMode: (value: 'all' | 'subscribed' | 'favorites') => void
 }) {
+  const borderWidth = 4
   const activationColor = activeValue === value ? '$brand5' : undefined
   return (
     <Button
       onPress={() => onDisplayMode(value)}
-      // bg={activeValue === value ? '$color5' : '$colorTransparent'}
-      borderBottomWidth={5}
+      borderWidth={0}
+      borderColor="$colorTransparent"
       borderRadius={0}
-      // borderWidth={0}
+      borderBottomWidth={borderWidth}
       borderBottomColor={activationColor}
       hoverStyle={{
+        borderWidth: 0,
+        borderColor: '$colorTransparent',
+        borderBottomWidth: borderWidth,
         borderBottomColor: activationColor,
       }}
       focusStyle={{
+        bg: '$colorTransparent',
+        borderWidth: 0,
+        borderColor: '$colorTransparent',
+        borderBottomWidth: borderWidth,
         borderBottomColor: activationColor,
       }}
     >
