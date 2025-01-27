@@ -46,8 +46,8 @@ import (
 )
 
 var (
-	rpcServerMetrics = grpcprom.NewServerMetrics()
-	rpcClientMetrics = grpcprom.NewClientMetrics()
+	rpcServerMetrics = grpcprom.NewServerMetrics("seed", "p2p")
+	rpcClientMetrics = grpcprom.NewClientMetrics("seed", "p2p")
 )
 
 // ProtocolSupportKey is what we use as a key to protect the connection in ConnManager.

@@ -20,21 +20,34 @@ type ClientMetrics struct {
 }
 
 // NewClientMetrics creates a new ClientMetrics.
-func NewClientMetrics() *ClientMetrics {
+func NewClientMetrics(namespace, subsys string) *ClientMetrics {
 	return &ClientMetrics{
-		ClientMetrics: grpcprom.NewClientMetrics(),
+		ClientMetrics: grpcprom.NewClientMetrics(
+			grpcprom.WithClientCounterOptions(func(opts *prometheus.CounterOpts) {
+				opts.Namespace = namespace
+				opts.Subsystem = subsys
+			}),
+			grpcprom.WithClientHandlingTimeHistogram(func(opts *prometheus.HistogramOpts) {
+				opts.Namespace = namespace
+				opts.Subsystem = subsys
+			}),
+		),
 		statsHandler: &statsHandler{
 			recv: prometheus.NewCounterVec(
 				prometheus.CounterOpts{
-					Name: "grpc_client_bytes_received_total",
-					Help: "Total number of bytes received by the client.",
+					Namespace: namespace,
+					Subsystem: subsys,
+					Name:      "grpc_client_bytes_received_total",
+					Help:      "Total number of bytes received by the client.",
 				},
 				[]string{"grpc_service", "grpc_method"},
 			),
 			sent: prometheus.NewCounterVec(
 				prometheus.CounterOpts{
-					Name: "grpc_client_bytes_sent_total",
-					Help: "Total number of bytes sent by the client.",
+					Namespace: namespace,
+					Subsystem: subsys,
+					Name:      "grpc_client_bytes_sent_total",
+					Help:      "Total number of bytes sent by the client.",
 				},
 				[]string{"grpc_service", "grpc_method"},
 			),
@@ -64,21 +77,34 @@ type ServerMetrics struct {
 
 // NewServerMetrics creates a new ServerMetrics,
 // and a grpc stats handler for collecting more metrics about the server.
-func NewServerMetrics() *ServerMetrics {
+func NewServerMetrics(namespace, subsys string) *ServerMetrics {
 	return &ServerMetrics{
-		ServerMetrics: grpcprom.NewServerMetrics(),
+		ServerMetrics: grpcprom.NewServerMetrics(
+			grpcprom.WithServerCounterOptions(func(opts *prometheus.CounterOpts) {
+				opts.Namespace = namespace
+				opts.Subsystem = subsys
+			}),
+			grpcprom.WithServerHandlingTimeHistogram(func(opts *prometheus.HistogramOpts) {
+				opts.Namespace = namespace
+				opts.Subsystem = subsys
+			}),
+		),
 		statsHandler: &statsHandler{
 			recv: prometheus.NewCounterVec(
 				prometheus.CounterOpts{
-					Name: "grpc_server_bytes_received_total",
-					Help: "Total number of bytes received by the server.",
+					Namespace: namespace,
+					Subsystem: subsys,
+					Name:      "grpc_server_bytes_received_total",
+					Help:      "Total number of bytes received by the server.",
 				},
 				[]string{"grpc_service", "grpc_method"},
 			),
 			sent: prometheus.NewCounterVec(
 				prometheus.CounterOpts{
-					Name: "grpc_server_bytes_sent_total",
-					Help: "Total number of bytes sent by the server.",
+					Namespace: namespace,
+					Subsystem: subsys,
+					Name:      "grpc_server_bytes_sent_total",
+					Help:      "Total number of bytes sent by the server.",
 				},
 				[]string{"grpc_service", "grpc_method"},
 			),

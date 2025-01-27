@@ -17,14 +17,24 @@ import (
 	"seed/backend/daemon"
 	"seed/backend/logging"
 	"seed/backend/storage"
+	"seed/backend/util/grpcprom"
 
 	"github.com/burdiyan/go/mainutil"
 	"github.com/getsentry/sentry-go"
 	"github.com/peterbourgon/ff/v4"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
+
+var (
+	grpcServerMetrics = grpcprom.NewServerMetrics("seed", "daemon")
+)
+
+func init() {
+	prometheus.MustRegister(grpcServerMetrics)
+}
 
 func main() {
 	const envVarPrefix = "SEED"
@@ -84,11 +94,13 @@ func main() {
 		app, err := daemon.Load(ctx, cfg, dir,
 			daemon.WithGRPCServerOption(grpc.ChainUnaryInterceptor(
 				otelgrpc.UnaryServerInterceptor(),
-				daemon.GRPCDebugLoggingInterceptor(),
+				grpcServerMetrics.UnaryServerInterceptor(),
 			)),
 			daemon.WithGRPCServerOption(grpc.ChainStreamInterceptor(
 				otelgrpc.StreamServerInterceptor(),
+				grpcServerMetrics.StreamServerInterceptor(),
 			)),
+			daemon.WithGRPCServerOption(grpc.StatsHandler(grpcServerMetrics)),
 		)
 		if err != nil {
 			return err
