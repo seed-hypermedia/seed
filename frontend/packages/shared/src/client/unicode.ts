@@ -25,11 +25,14 @@ export class AnnotationSet {
         ends: [],
       })
 
+      // @ts-expect-error fix this type error to work with the new Struct type
+      annotation.attributes = annotation.attributes?.toJson()
+
       if (type == 'Link' || type == 'Embed') {
         annotation.link = attributes!.link
 
         // delete annotation.attributes
-        delete annotation.attributes.link
+        delete annotation.attributes?.link
       }
 
       // if (typeof annotation.link == 'string' && annotation.link.length == 0) {
