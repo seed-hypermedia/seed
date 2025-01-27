@@ -16,7 +16,6 @@ import (
 	"seed/backend/util/sqlite/sqlitex"
 	"seed/backend/util/strbytes"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/RoaringBitmap/roaring/v2/roaring64"
@@ -601,8 +600,12 @@ func (dg *documentGeneration) ensureChangeApplied(cm changeMetadata) {
 		// where our new key is a prefix, and the value is with lower timestamp than the incoming key.
 		//
 		// TODO(burdiyan): this is very complicated, and hard to reason about. Fix it!
+		// There're other places in the code where this is done.
+		// Search for "attrprefixhack" in the codebase.
 		for kk, vv := range dg.Metadata {
-			if kk > k && strings.HasPrefix(kk, k) && vv.Ts <= cm.Ts {
+			s := kk
+			prefix := k
+			if len(s) > len(prefix) && s[len(prefix)] == '.' && s[0:len(prefix)] == prefix && vv.Ts <= cm.Ts {
 				delete(dg.Metadata, kk)
 			}
 		}

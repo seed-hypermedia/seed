@@ -171,6 +171,7 @@ func (e *docCRDT) GetMetadata() map[string]any {
 
 		// If current key has prefix of the previous key and the value timestamp is lower, then skip this.
 		// TODO(burdiyan): There're other places in the code where this is done. DRY.
+		// Search for "attrprefixhack" in the codebase.
 		if !ok || vv == nil || (colx.HasPrefix(k, prevEntry.Key) && id.Compare(prevEntry.ID) < 0) {
 			prevEntry.Key = k
 			prevEntry.ID = id
