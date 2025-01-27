@@ -22,6 +22,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
   editor: BlockNoteEditor<any>
   //   tabBehavior: 'prefer-navigate-ui' | 'prefer-indent'
 }>({
+  // Ensures content-specific keyboard shortcuts trigger first.
   priority: 50,
 
   // TODO: The shortcuts need a refactor. Do we want to use a command priority

@@ -52,6 +52,12 @@ export const HMHeadingBlockContent = createTipTapBlock<'heading'>({
   parseHTML() {
     return [
       {
+        tag: 'span[role="heading"]',
+        attrs: {level: 2},
+        node: 'heading',
+        // priority: 500,
+      },
+      {
         tag: 'h1',
         attrs: {level: 2},
         node: 'heading',
