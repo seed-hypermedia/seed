@@ -1,14 +1,19 @@
 import {useAccounts} from '@/models/accounts'
 import {useDocumentCommentGroups} from '@/models/comments'
 import {useEntity} from '@/models/entities'
-import {useChildrenActivity} from '@/models/library'
+import {
+  AccountsMetadata,
+  LibraryDocument,
+  useChildrenActivity,
+} from '@/models/library'
 import {useDocumentPublishedChanges, useVersionChanges} from '@/models/versions'
-import {LibraryDocumentItem} from '@/pages/library2'
+import {LibraryEntryUpdateSummary} from '@/pages/library2'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   formattedDateMedium,
   getAccountName,
+  getMetadataName,
   HMChangeGroup,
   HMChangeSummary,
   HMCommentGroup,
@@ -199,7 +204,7 @@ function ActivityList({docId}: {docId: UnpackedHypermediaId}) {
         }
         if (activityItem.type === 'document') {
           return (
-            <LibraryDocumentItem
+            <SubDocumentItem
               item={activityItem}
               accountsMetadata={accounts.data?.accountsMetadata || {}}
             />
@@ -207,6 +212,77 @@ function ActivityList({docId}: {docId: UnpackedHypermediaId}) {
         }
       })}
     </>
+  )
+}
+
+export function SubDocumentItem({
+  item,
+  indent,
+  accountsMetadata,
+}: {
+  item: LibraryDocument
+  indent?: boolean
+  accountsMetadata: AccountsMetadata
+}) {
+  const navigate = useNavigate()
+  const metadata = item?.metadata
+  const id = hmId('d', item.account, {
+    path: item.path,
+  })
+  const isRead = !item.activitySummary?.isUnread
+  return (
+    <Button
+      group="item"
+      borderWidth={0}
+      hoverStyle={{
+        bg: '$color5',
+      }}
+      bg={isRead ? '$colorTransparent' : '$backgroundStrong'}
+      // elevation="$1"
+      paddingHorizontal={16}
+      paddingVertical="$2"
+      onPress={() => {
+        navigate({key: 'document', id})
+      }}
+      h="auto"
+      marginVertical={'$1'}
+      ai="center"
+    >
+      <XStack
+        flexGrow={0}
+        flexShrink={0}
+        w={20}
+        h={20}
+        zi="$zIndex.2"
+        ai="center"
+        bg={'#2C2C2C'}
+        jc="center"
+        borderRadius={10}
+        p={1}
+      >
+        <Version size={16} color="white" />
+      </XStack>
+      <YStack f={1}>
+        <XStack gap="$3" ai="center">
+          <SizableText
+            f={1}
+            fontWeight={isRead ? undefined : 'bold'}
+            textOverflow="ellipsis"
+            whiteSpace="nowrap"
+            overflow="hidden"
+          >
+            {getMetadataName(metadata)}
+          </SizableText>
+        </XStack>
+        {item.activitySummary && (
+          <LibraryEntryUpdateSummary
+            accountsMetadata={accountsMetadata}
+            latestComment={item.latestComment}
+            activitySummary={item.activitySummary}
+          />
+        )}
+      </YStack>
+    </Button>
   )
 }
 

@@ -567,7 +567,7 @@ function LibraryEntryTime({
   return null
 }
 
-function LibraryEntryUpdateSummary({
+export function LibraryEntryUpdateSummary({
   activitySummary,
   accountsMetadata,
   latestComment,
