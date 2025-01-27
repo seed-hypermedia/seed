@@ -12,7 +12,6 @@
   --content-width: var(--content-width-large);
 }
 
-
 .document-container {
   width: 100%;
   max-width: 100%;
@@ -24,7 +23,7 @@
 }
 
 .document-container.hide-document-aside {
-  max-width: var(--content-width)
+  max-width: var(--content-width);
 }
 
 @media (min-width: 768px) {

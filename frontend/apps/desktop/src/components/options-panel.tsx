@@ -18,6 +18,15 @@ import {useState} from 'react'
 import {AccessoryContainer} from './accessory-sidebar'
 import {IconForm} from './icon-form'
 
+// Add this type for the content width options
+type ContentWidth = 'S' | 'M' | 'L'
+
+let contentSize = {
+  S: 880,
+  M: 1080,
+  L: 1280,
+}
+
 export function OptionsPanel({
   onClose,
   draftId,
