@@ -396,17 +396,66 @@ export const KeyboardShortcutsExtension = Extension.create<{
                 if (dispatch) {
                   const pos = state.doc.resolve(blockInfo.block.beforePos)
                   let tr = state.tr
+
                   // Lift all children of the block
                   tr.lift(childBlocksRange!, pos.depth)
+
+                  // Check if the first child is a mention or has marks
+                  if (
+                    childContainer.node.firstChild!.firstChild!.content
+                      .firstChild?.type.name === 'inline-embed' ||
+                    childContainer.node.firstChild!.firstChild!.content
+                      .firstChild?.marks.length
+                  ) {
+                    // Get resolved position of the block content.
+                    const $contentPos = state.doc.resolve(
+                      blockInfo.block.beforePos + 2,
+                    )
+
+                    // Get resolved positions of the current block and first child after the lift.
+                    const afterStepPos = tr.doc.resolve(
+                      blockInfo.block.beforePos + 3,
+                    )
+                    const afterStepNextPos = tr.doc.resolve(
+                      afterStepPos.end() + 3,
+                    )
+
+                    // Replace the block's content with new merged content.
+                    tr.replaceRangeWith(
+                      $contentPos.start() - 1,
+                      $contentPos.end() + 1,
+                      state.schema.nodes['paragraph'].create(
+                        blockInfo.blockContent.node.attrs,
+                        [
+                          ...blockInfo.blockContent.node.content.content,
+                          ...childContainer.node.firstChild!.firstChild!.content
+                            .content,
+                        ],
+                      ),
+                    )
+
+                    // Delete the first child of the block.
+                    tr.delete(
+                      afterStepNextPos.start() - 1,
+                      afterStepNextPos.end() + 1,
+                    )
+
+                    // Set cursor in between of the end of block's and first child's text contents.
+                    tr.setSelection(
+                      new TextSelection(tr.doc.resolve(afterStepPos.end())),
+                    )
+
+                    return true
+                  }
 
                   // Insert the first character of the first child at the end of the block
                   // Note: This is a hacky fix, because when merging with first child, for
                   // some reason it doesn't work with precise positions, so it needs to go into
                   // the next block for 1 position, which removes the first character of the first child.
-                  tr.insertText(
-                    blockInfo.childContainer!.node.firstChild!.textContent[0],
-                    tr.doc.resolve(blockInfo.block.beforePos + 2).end(),
-                  )
+                  // tr.insertText(
+                  //   blockInfo.childContainer!.node.firstChild!.textContent[0],
+                  //   tr.doc.resolve(blockInfo.block.beforePos + 2).end(),
+                  // )
 
                   // Get position of the current block and first child after the lift.
                   const afterStepPos = tr.doc.resolve(
@@ -419,16 +468,8 @@ export const KeyboardShortcutsExtension = Extension.create<{
                   // Delete the boundary between the block and first child.
                   tr.delete(afterStepPos.end(), afterStepNextPos.start() + 1)
 
-                  // Set cursor in between of the end of block's and first child's text contents.
-                  // Needs slight delay, which is visible to the user. Might be worth to remove this code.
-                  setTimeout(() => {
-                    this.editor
-                      .chain()
-                      .setTextSelection(afterStepPos.end() - 1)
-                      .run()
-                  })
+                  return true
                 }
-
                 return false
               } else {
                 // Merge with next block
