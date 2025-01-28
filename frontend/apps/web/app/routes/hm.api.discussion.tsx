@@ -1,10 +1,11 @@
 import {PlainMessage, toPlainMessage} from "@bufbuild/protobuf";
 import {
   getCommentGroups,
+  HMAccountsMetadata,
+  HMComment,
   HMCommentGroup,
   hmId,
   hmIdPathToEntityQueryPath,
-  HMMetadata,
   ListDocumentsResponse,
   unpackHmId,
 } from "@shm/shared";
@@ -16,7 +17,7 @@ export type HMDiscussion = PlainMessage<ListDocumentsResponse>;
 
 export type DiscussionPayload = {
   commentGroups?: HMCommentGroup[];
-  commentAuthors?: Record<string, HMMetadata>;
+  commentAuthors?: HMAccountsMetadata;
   error?: string;
 };
 
@@ -37,7 +38,9 @@ export const loader = async ({
       targetAccount,
       targetPath,
     });
-    const allComments = res.comments.map((comment) => toPlainMessage(comment));
+    const allComments = res.comments.map((rawComment) => {
+      return toPlainMessage(rawComment) as HMComment;
+    });
     const commentGroups = getCommentGroups(
       allComments,
       targetCommentId || null
@@ -56,8 +59,11 @@ export const loader = async ({
     result = {
       commentGroups,
       commentAuthors: Object.fromEntries(
-        commentAuthors.map((author) => [author.id.uid, author.metadata])
-      ),
+        commentAuthors.map((author) => [
+          author.id.uid,
+          {id: author.id, metadata: author.metadata},
+        ])
+      ) as HMAccountsMetadata,
     };
   } catch (e: any) {
     result = {error: e.message};

@@ -4,7 +4,7 @@ import {NavRoute} from './routes'
 import {idToUrl, UnpackedHypermediaId} from './utils'
 
 type UniversalRoutingContextValue = {
-  openRoute: (route: NavRoute) => void
+  openRoute: (route: NavRoute, replace?: boolean) => void
   siteHomeId?: UnpackedHypermediaId | null
 }
 
@@ -46,6 +46,9 @@ export function SiteRoutingProvider({
 export function useRouteLink(
   route: NavRoute | null,
   siteHomeId?: UnpackedHypermediaId,
+  opts?: {
+    replace?: boolean
+  },
 ) {
   const context = useContext(UniversalRoutingContext)
   if (!route)
@@ -66,7 +69,7 @@ export function useRouteLink(
       ? (e: GestureResponderEvent) => {
           e.preventDefault()
           e.stopPropagation()
-          context.openRoute(route)
+          context.openRoute(route, opts?.replace)
         }
       : undefined,
     href: href || '/',

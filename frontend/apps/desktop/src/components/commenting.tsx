@@ -14,7 +14,6 @@ import {
   HMCommentGroup,
   HMEntityContent,
   hmId,
-  HMMetadata,
   StateStream,
   UnpackedHypermediaId,
 } from '@shm/shared'
@@ -87,7 +86,7 @@ export function CommentReplies({
 
 export function useCommentGroupAuthors(
   commentGroups: HMCommentGroup[],
-): Record<string, HMMetadata> {
+): HMAccountsMetadata {
   const commentGroupAuthors = new Set<string>()
   commentGroups.forEach((commentGroup) => {
     commentGroup.comments.forEach((comment) => {
@@ -101,7 +100,10 @@ export function useCommentGroupAuthors(
     authorEntities
       .map((q) => q.data)
       .filter((a) => !!a)
-      .map((author) => [author.id.uid, author.document?.metadata])
+      .map((author) => [
+        author.id.uid,
+        {id: author.id, metadata: author.document?.metadata},
+      ])
       .filter((author) => !!author[1]),
   )
 }

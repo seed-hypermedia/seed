@@ -1,15 +1,12 @@
 import {useEntity, useSubscribedEntity} from '@/models/entities'
-import {
-  HMChangeInfo,
-  useDocumentChanges,
-  useVersionChanges,
-} from '@/models/versions'
+import {useDocumentChanges, useVersionChanges} from '@/models/versions'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   DocumentRoute,
   DraftRoute,
   formattedDateMedium,
   getAccountName,
+  HMChangeInfo,
   hmId,
 } from '@shm/shared'
 import {

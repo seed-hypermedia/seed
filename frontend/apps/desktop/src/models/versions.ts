@@ -1,8 +1,7 @@
 import {useGRPCClient} from '@/app-context'
-import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
+import {toPlainMessage} from '@bufbuild/protobuf'
 import {
   BIG_INT,
-  DocumentChangeInfo,
   HMChangeSummary,
   HMDraftChange,
   hmIdPathToEntityQueryPath,
@@ -12,15 +11,6 @@ import {
 import {useQuery} from '@tanstack/react-query'
 import {useDraft} from './accounts'
 import {useEntity} from './entities'
-
-type DraftChangeInfo = {
-  author: string
-  id: string
-  deps: Array<string>
-  isDraft: boolean
-}
-
-export type HMChangeInfo = PlainMessage<DocumentChangeInfo> | DraftChangeInfo
 
 export function useDocumentPublishedChanges(id: UnpackedHypermediaId) {
   const grpcClient = useGRPCClient()

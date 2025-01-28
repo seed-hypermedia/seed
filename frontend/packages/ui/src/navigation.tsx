@@ -42,7 +42,6 @@ function DocumentSmallListItem({
   isDraft?: boolean;
   isPublished?: boolean;
 }) {
-  console.log(`== ~ DocumentSmallListItem:`, metadata);
   const route: NavRoute = isDraft ? {key: "draft", id} : {key: "document", id};
   const linkProps = useRouteLink(route);
   const color = isPublished === false ? "$color11" : undefined;

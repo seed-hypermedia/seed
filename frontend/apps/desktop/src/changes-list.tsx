@@ -1,5 +1,4 @@
 import {AccessoryContainer} from '@/components/accessory-sidebar'
-import {useAccount_deprecated} from '@/models/accounts'
 import {TimelineChange, useDocHistory} from '@/models/changes'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
@@ -9,6 +8,8 @@ import {
   Change,
   createWebHMUrl,
   formattedDateLong,
+  getMetadataName,
+  HMMetadataPayload,
   NavRoute,
   packHmId,
   unpackHmId,
@@ -27,6 +28,7 @@ import {
   YStack,
 } from '@shm/ui'
 import {EntityLinkIcon} from './components/account-link-icon'
+import {useEntities} from './models/entities'
 
 export function EntityVersionsAccessory({
   id,
@@ -38,6 +40,13 @@ export function EntityVersionsAccessory({
   variantVersion: string | undefined
 }) {
   const changes = useDocHistory(id?.id, variantVersion)
+  const authors = new Set<string>()
+  changes.forEach((item) => {
+    item?.change?.author && authors.add(item?.change?.author)
+  })
+  const authorAccounts = useEntities(
+    Array.from(authors).map((author) => hmId('d', author)),
+  )
   if (!id) return null
   return (
     <>
@@ -52,7 +61,16 @@ export function EntityVersionsAccessory({
           >
             {changes.map((item, index) => {
               const change = item?.change
-              if (!change) return null
+              const authorQ = change?.author
+                ? authorAccounts.find((d) => d.data?.id?.uid === change?.author)
+                : null
+              const author = authorQ?.data
+                ? {
+                    id: authorQ.data.id,
+                    metadata: authorQ.data.document?.metadata,
+                  }
+                : null
+              if (!change || !author) return null
               return (
                 <ChangeItem
                   prevListedChange={changes[index - 1]}
@@ -60,6 +78,7 @@ export function EntityVersionsAccessory({
                   key={change.id}
                   change={change}
                   activeVersion={activeVersion}
+                  author={author}
                 />
               )
             })}
@@ -75,13 +94,14 @@ function ChangeItem({
   prevListedChange,
   entityId,
   activeVersion,
+  author,
 }: {
   change: Change
   prevListedChange?: TimelineChange
   entityId: string
   activeVersion?: string
+  author: HMMetadataPayload
 }) {
-  const author = useAccount_deprecated(change.author)
   const navigate = useNavigate()
   const openAccount = (e: MouseEvent) => {
     e.stopPropagation()
@@ -98,7 +118,7 @@ function ChangeItem({
   )
   const topRow = shouldDisplayAuthorName ? (
     <XStack paddingTop="$2" gap="$2">
-      <EntityLinkIcon accountId={author?.data?.id} size={24} />
+      <EntityLinkIcon id={author.id} size={24} />
       <ButtonText
         onPress={openAccount}
         hoverStyle={{
@@ -106,7 +126,7 @@ function ChangeItem({
           textDecorationColor: 'currentColor',
         }}
       >
-        {author?.data?.profile?.alias || change.author}
+        {getMetadataName(author.metadata)}
       </ButtonText>
     </XStack>
   ) : (

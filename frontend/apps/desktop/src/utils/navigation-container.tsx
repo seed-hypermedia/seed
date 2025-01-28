@@ -72,7 +72,15 @@ export function NavigationContainer({
 
   return (
     <UniversalRoutingProvider
-      value={{openRoute: (route) => navigation.dispatch({type: 'push', route})}}
+      value={{
+        openRoute: (route, replace) => {
+          if (replace) {
+            navigation.dispatch({type: 'replace', route})
+          } else {
+            navigation.dispatch({type: 'push', route})
+          }
+        },
+      }}
     >
       <NavContextProvider value={navigation}>{children}</NavContextProvider>
     </UniversalRoutingProvider>

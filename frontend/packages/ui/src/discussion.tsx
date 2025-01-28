@@ -1,6 +1,7 @@
 import {
   formattedDateLong,
   formattedDateMedium,
+  HMAccountsMetadata,
   HMComment,
   HMCommentGroup,
   hmId,
@@ -39,7 +40,7 @@ export function CommentGroup({
   commentGroup: HMCommentGroup;
   isNested?: boolean;
   isLastGroup?: boolean;
-  authors?: Record<string, HMMetadata> | undefined;
+  authors?: HMAccountsMetadata | undefined;
   renderCommentContent: (comment: HMComment) => ReactNode;
   RepliesEditor?: React.FC<{
     isReplying: boolean;
@@ -79,7 +80,7 @@ export function CommentGroup({
             key={comment.id}
             docId={docId}
             comment={comment}
-            authorMetadata={authors?.[comment.author]}
+            authorMetadata={authors?.[comment.author]?.metadata}
             renderCommentContent={renderCommentContent}
             replyCount={
               isLastCommentInGroup ? commentGroup.moreCommentsCount : undefined

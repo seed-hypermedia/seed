@@ -116,7 +116,7 @@ export const LinkAnnotationSchema = z
   .object({
     type: z.literal('Link'),
     ...baseAnnotationProperties,
-    link: z.string(),
+    link: z.string().optional(), // this should be required but we have seen some data that is missing it
   })
   .strict()
 
@@ -460,7 +460,20 @@ export const HMDocumentSchema = z
   })
   .strict()
 
+export type HMLibraryDocument = HMDocumentInfo & {
+  type: 'document'
+  latestComment?: HMComment | null
+}
 export type HMDocument = z.infer<typeof HMDocumentSchema>
+
+type DraftChangeInfo = {
+  author: string
+  id: string
+  deps: Array<string>
+  isDraft: boolean
+}
+
+export type HMChangeInfo = PlainMessage<DocumentChangeInfo> | DraftChangeInfo
 
 export const HMCommentDraftSchema = z.object({
   blocks: z.array(HMBlockNodeSchema),
@@ -487,7 +500,9 @@ export type HMBreadcrumb = PlainMessage<Breadcrumb>
 
 export type HMActivitySummary = PlainMessage<ActivitySummary>
 
-export type HMAccount = PlainMessage<Account>
+export type HMAccount = Omit<PlainMessage<Account>, 'metadata'> & {
+  metadata?: HMMetadata
+}
 
 export type HMCommentGroup = {
   comments: HMComment[]
@@ -511,9 +526,13 @@ export type HMChangeSummary = PlainMessage<DocumentChangeInfo> & {
 
 export type HMBlockType = HMBlock['type']
 
-export type HMDocumentInfo = Omit<PlainMessage<DocumentInfo>, 'path'> & {
+export type HMDocumentInfo = Omit<
+  PlainMessage<DocumentInfo>,
+  'path' | 'metadata'
+> & {
   type: 'document'
   path: string[]
+  metadata: HMMetadata
 }
 
 export type HMChangeGroup = {

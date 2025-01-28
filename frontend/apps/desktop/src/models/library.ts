@@ -10,6 +10,7 @@ import {
   HMDocumentMetadataSchema,
   HMDraft,
   hmId,
+  HMLibraryDocument,
   HMMetadata,
   HMMetadataPayload,
   queryKeys,
@@ -85,11 +86,7 @@ export type LibrarySite = HMAccount & {
   latestComment?: HMComment | null
 }
 
-export type LibraryDocument = HMDocumentInfo & {
-  type: 'document'
-  latestComment?: HMComment | null
-}
-export type LibraryItem = LibrarySite | LibraryDocument
+export type LibraryItem = LibrarySite | HMLibraryDocument
 
 export function useLibrary({
   grouping,
@@ -210,7 +207,7 @@ function useAllDocuments(enabled: boolean) {
 export function useSiteLibrary(
   siteUid: string,
   enabled: boolean,
-): {data: LibraryDocument[] | undefined} {
+): {data: HMLibraryDocument[] | undefined} {
   const grpcClient = useGRPCClient()
   const siteDocuments = useQuery({
     queryKey: [queryKeys.SITE_LIBRARY, siteUid],
@@ -220,7 +217,6 @@ export function useSiteLibrary(
         account: siteUid,
         pageSize: BIG_INT,
       })
-      console.log(`== ~ return ~ res:`, res)
       return {
         documents: res.documents.map((d) => {
           return {

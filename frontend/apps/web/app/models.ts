@@ -1,45 +1,23 @@
 import {useFetcher} from "@remix-run/react";
-import {
-  HMAccountsMetadata,
-  HMDocument,
-  HMQueryResult,
-  packHmId,
-  UnpackedHypermediaId,
-} from "@shm/shared";
-import {useQuery} from "@tanstack/react-query";
+import {packHmId, UnpackedHypermediaId} from "@shm/shared";
+import {useQuery, UseQueryOptions} from "@tanstack/react-query";
 import {useEffect} from "react";
-import {deserialize} from "superjson";
+import {WebBaseDocumentPayload} from "./loaders";
+import {ActivityPayload} from "./routes/hm.api.activity";
 import {HMDocumentChangeInfo} from "./routes/hm.api.changes";
+import {DiscussionPayload} from "./routes/hm.api.discussion";
 import {unwrap} from "./wrapping";
 
 export function useEntity(id: UnpackedHypermediaId | undefined) {
-  return useQuery({
-    queryKey: ["entity", id?.id, id?.version, id?.latest],
-    useErrorBoundary: false,
-    queryFn: async () => {
-      if (!id?.uid) return;
-      const queryString = new URLSearchParams({
-        v: id.version || "",
-        l: id.latest ? "true" : "",
-      }).toString();
-      const url = `/hm/api/entity/${id.uid}${
-        id.path ? `/${id.path.join("/")}` : ""
-      }?${queryString}`;
-      const response = await fetch(url);
-      const fullData = await response.json();
-      const data = deserialize(fullData) as any;
-      return {
-        id: data.id as UnpackedHypermediaId,
-        document: data.document as HMDocument,
-        supportDocuments: data.supportDocuments as {
-          id: UnpackedHypermediaId;
-          document: HMDocument;
-        }[],
-        supportQueries: data.supportQueries as HMQueryResult[],
-        siteHost: data.siteHost as string,
-        accountsMetadata: data.accountsMetadata as HMAccountsMetadata,
-      };
-    },
+  const queryString = new URLSearchParams({
+    v: id?.version || "",
+    l: id?.latest ? "true" : "",
+  }).toString();
+  const url = `/hm/api/entity/${id?.uid}${
+    id?.path ? `/${id.path.join("/")}` : ""
+  }?${queryString}`;
+  return useAPI<WebBaseDocumentPayload>(url, {
+    enabled: !!id?.uid,
   });
 }
 
@@ -59,15 +37,44 @@ export function useDocumentChanges(id: UnpackedHypermediaId | undefined) {
   };
 }
 
-export function useAPI<ResponsePayloadType>(url?: string) {
-  const fetcher = useFetcher();
-  useEffect(() => {
-    if (!url) return;
-    fetcher.load(url);
-  }, [url]);
-  if (!url) return undefined;
-  const response = fetcher.data
-    ? unwrap<ResponsePayloadType>(fetcher.data)
-    : undefined;
+export function useAPI<ResponsePayloadType>(
+  url?: string,
+  queryOptions?: UseQueryOptions<unknown, unknown, ResponsePayloadType>
+) {
+  const query = useQuery({
+    queryKey: ["api", url],
+    queryFn: async () => {
+      if (!url) return;
+      const response = await fetch(url);
+      const fullData = await response.json();
+      const data = unwrap<ResponsePayloadType>(fullData);
+      return data;
+    },
+    ...queryOptions,
+  });
+  return query;
+}
+
+export function useDiscussion(
+  docId: UnpackedHypermediaId,
+  targetCommentId?: string
+) {
+  let url = `/hm/api/discussion?id=${docId.id}`;
+  if (targetCommentId) {
+    url += `&targetCommentId=${targetCommentId}`;
+  }
+  const response = useAPI<DiscussionPayload>(url);
+  return response;
+}
+
+export function useActivity(
+  docId: UnpackedHypermediaId,
+  targetCommentId?: string
+) {
+  let url = `/hm/api/activity?id=${docId.id}`;
+  if (targetCommentId) {
+    url += `&targetCommentId=${targetCommentId}`;
+  }
+  const response = useAPI<ActivityPayload>(url);
   return response;
 }

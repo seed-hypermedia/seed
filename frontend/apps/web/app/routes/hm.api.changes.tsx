@@ -33,7 +33,7 @@ export const loader = async ({
       path: id.path && id.path.length > 0 ? "/" + id.path.join("/") : "",
       version: id.version || undefined,
     });
-
+    // todo, avoid this dumb behavior of fetching the author metadata for every change. most changes will come from the same few authors.
     result = await Promise.all(
       res.changes.map(async (change) => {
         const author = await getMetadata(hmId("d", change.author));

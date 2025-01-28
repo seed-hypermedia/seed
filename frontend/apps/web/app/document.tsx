@@ -1,10 +1,11 @@
 import {MetaFunction} from "@remix-run/node";
-import {useFetcher} from "@remix-run/react";
 import {
   createWebHMUrl,
+  formattedDateMedium,
   getDocumentTitle,
   getFileUrl,
   HMComment,
+  HMDocument,
   HMEntityContent,
   hmIdPathToEntityQueryPath,
   HMMetadata,
@@ -13,8 +14,11 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
 } from "@shm/shared";
+import {getActivityTime} from "@shm/shared/src/models/activity";
 import {SiteRoutingProvider} from "@shm/shared/src/routing";
 import "@shm/shared/src/styles/document.css";
+import {Button} from "@shm/ui/src";
+import {ChangeGroup, SubDocumentItem} from "@shm/ui/src/activity";
 import {getRandomColor} from "@shm/ui/src/avatar";
 import {Container} from "@shm/ui/src/container";
 import {CommentGroup} from "@shm/ui/src/discussion";
@@ -23,24 +27,24 @@ import {
   DocContent,
   DocContentProvider,
 } from "@shm/ui/src/document-content";
-import {EmptyDiscussion} from "@shm/ui/src/icons";
 import {
   DocNavigationContent,
   DocumentOutline,
   SiteNavigationContent,
 } from "@shm/ui/src/navigation";
-import {Text, useTheme} from "@tamagui/core";
+import {useTheme} from "@tamagui/core";
+import {ChevronUp} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
-import {useCallback, useEffect, useMemo} from "react";
+import {useCallback, useEffect, useMemo, useState} from "react";
 import {getHref} from "./href";
 import type {SiteDocumentPayload} from "./loaders";
 import {defaultSiteIcon} from "./meta";
+import {useActivity, useDiscussion} from "./models";
 import {NewspaperPage} from "./newspaper";
 import {NotFoundPage} from "./not-found";
 import {PageFooter} from "./page-footer";
 import {PageHeader, SiteHeader} from "./page-header";
-import {DiscussionPayload} from "./routes/hm.api.discussion";
 import {MobileSearchUI} from "./search";
 import {EmbedDocument, EmbedInline, QueryBlockWeb} from "./web-embeds";
 import {unwrap, Wrapped} from "./wrapping";
@@ -240,7 +244,12 @@ export function DocumentPage(props: SiteDocumentPayload) {
             >
               <DocContent document={document} />
             </WebDocContentProvider>
-            <DocumentAppendix id={id} homeId={homeId} siteHost={siteHost} />
+            <DocumentAppendix
+              id={id}
+              document={document}
+              homeId={homeId}
+              siteHost={siteHost}
+            />
           </YStack>
         </YStack>
         <PageFooter id={id} />
@@ -414,10 +423,12 @@ function WebDocContentProvider({
 
 function DocumentAppendix({
   id,
+  document,
   homeId,
   siteHost,
 }: {
   id: UnpackedHypermediaId;
+  document: HMDocument;
   homeId: UnpackedHypermediaId;
   siteHost: string | undefined;
 }) {
@@ -425,58 +436,31 @@ function DocumentAppendix({
     <Container>
       <YStack paddingVertical="$6" marginBottom={100} gap="$4">
         <SizableText fontSize={20} fontWeight="600">
-          Discussions
+          Activity
         </SizableText>
-        <DocumentDiscussion id={id} homeId={homeId} siteHost={siteHost} />
+        <DocumentActivity
+          id={id}
+          document={document}
+          homeId={homeId}
+          siteHost={siteHost}
+        />
       </YStack>
     </Container>
   );
 }
 
-function useAPI<ResponsePayloadType>(url?: string) {
-  const fetcher = useFetcher();
-  useEffect(() => {
-    if (!url) return;
-    fetcher.load(url);
-  }, [url]);
-  if (!url) return undefined;
-  const response = fetcher.data
-    ? unwrap<ResponsePayloadType>(fetcher.data)
-    : undefined;
-  return response;
-}
-
-function PathButton() {
-  return null;
-}
-
-function ErrorComponent({error}: {error: string}) {
-  return (
-    <YStack backgroundColor="$red2" padding="$4">
-      <Text color="$red10">{error}</Text>
-    </YStack>
-  );
-}
-
-function useDiscussion(docId: UnpackedHypermediaId, targetCommentId?: string) {
-  let url = `/hm/api/discussion?id=${docId.id}`;
-  if (targetCommentId) {
-    url += `&targetCommentId=${targetCommentId}`;
-  }
-  const response = useAPI<DiscussionPayload>(url);
-  return response;
-}
-
-function DocumentDiscussion({
+function DocumentActivity({
   id,
   homeId,
+  document,
   siteHost,
 }: {
   id: UnpackedHypermediaId;
   homeId: UnpackedHypermediaId;
+  document: HMDocument;
   siteHost: string | undefined;
 }) {
-  const discussion = useDiscussion(id);
+  const activity = useActivity(id);
   const theme = useTheme();
   const renderCommentContent = useCallback(
     (comment: HMComment) => {
@@ -488,32 +472,75 @@ function DocumentDiscussion({
     },
     [homeId]
   );
-  if (!discussion) return null;
-  const {commentGroups, commentAuthors} = discussion;
-  if (!commentGroups) return null;
-  return commentGroups.length > 0 ? (
-    commentGroups.map((commentGroup) => {
-      return (
-        <CommentGroup
-          key={commentGroup.id}
-          docId={id}
-          commentGroup={commentGroup}
-          isLastGroup={commentGroup === commentGroups.at(-1)}
-          authors={commentAuthors}
-          renderCommentContent={renderCommentContent}
-          CommentReplies={CommentReplies}
-          homeId={homeId}
-          siteHost={siteHost}
-        />
-      );
-    })
-  ) : (
-    <YStack padding="$4" jc="center" ai="center" gap="$4">
-      <EmptyDiscussion color={theme.color7?.val} />
-      <SizableText color="$color7" fontWeight="500">
-        There are no active discussions
-      </SizableText>
-    </YStack>
+  const [visibleCount, setVisibleCount] = useState(10);
+  const activeChangeIds = new Set<string>(document.version?.split(".") || []);
+  const activityItems = activity.data?.activity;
+  const accountsMetadata = activity.data?.accountsMetadata;
+  const latestDocChanges = new Set<string>(
+    activity.data?.latestVersion?.split(".") || []
+  );
+  if (!activityItems || !accountsMetadata) return null;
+  if (!activity) return null;
+  const prevActivity = activityItems.at(-visibleCount);
+  const prevActivityTime = prevActivity && getActivityTime(prevActivity);
+
+  return (
+    <>
+      {visibleCount < activityItems.length && prevActivity && (
+        <Button
+          onPress={() => setVisibleCount((count) => count + 10)}
+          size="$2"
+          icon={ChevronUp}
+        >
+          {prevActivityTime
+            ? `Activity before ${formattedDateMedium(prevActivityTime)}`
+            : "Previous Activity"}
+        </Button>
+      )}
+      {activityItems.slice(-visibleCount).map((activityItem, index) => {
+        if (activityItem.type === "commentGroup") {
+          return (
+            <CommentGroup
+              key={activityItem.id}
+              docId={id}
+              commentGroup={activityItem}
+              isLastGroup={index === activityItems.length - 1}
+              authors={activity.data?.accountsMetadata}
+              renderCommentContent={renderCommentContent}
+              CommentReplies={CommentReplies}
+              homeId={homeId}
+              siteHost={siteHost}
+            />
+          );
+        }
+        if (activityItem.type === "document") {
+          return (
+            <SubDocumentItem
+              item={activityItem}
+              siteHomeId={homeId}
+              accountsMetadata={accountsMetadata}
+              markedAsRead
+            />
+          );
+        }
+        if (activityItem.type === "changeGroup") {
+          const author =
+            activity.data?.accountsMetadata?.[activityItem.changes[0].author];
+          if (!author) return null;
+          return (
+            <ChangeGroup
+              item={activityItem}
+              key={activityItem.id}
+              latestDocChanges={latestDocChanges}
+              activeChangeIds={activeChangeIds}
+              docId={id}
+              author={author}
+            />
+          );
+        }
+        return null;
+      })}
+    </>
   );
 }
 
@@ -524,8 +551,8 @@ function CommentReplies({
   replyCommentId,
 }: {
   docId: UnpackedHypermediaId;
-  homeId: UnpackedHypermediaId;
-  siteHost: string | undefined;
+  homeId?: UnpackedHypermediaId;
+  siteHost?: string | undefined;
   replyCommentId: string;
 }) {
   const discussion = useDiscussion(docId, replyCommentId);
@@ -539,8 +566,8 @@ function CommentReplies({
     },
     [homeId]
   );
-  if (!discussion) return null;
-  const {commentGroups, commentAuthors} = discussion;
+  if (!discussion.data) return null;
+  const {commentGroups, commentAuthors} = discussion.data;
   if (!commentGroups) return null;
   return (
     <YStack paddingLeft={22}>

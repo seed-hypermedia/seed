@@ -1,4 +1,4 @@
-import {Change, DAEMON_HTTP_PORT, queryKeys} from '@shm/shared'
+import {AuthorVersion, Change, DAEMON_HTTP_PORT, queryKeys} from '@shm/shared'
 import {UseQueryOptions, useQueries, useQuery} from '@tanstack/react-query'
 import {useMemo} from 'react'
 import {useGRPCClient} from '../app-context'
@@ -30,9 +30,9 @@ export function useDocHistory(docId?: string, variantVersion?: string) {
       }
       walkLeafVersions = nextLeafVersions
     }
-    return [...allVariantChanges]
+    return Array.from(allVariantChanges)
       .map((changeId) => data?.allChanges[changeId])
-      .filter(Boolean)
+      .filter((c) => !!c)
       .sort((a, b) => {
         let dateA = a?.change.createTime ? a.change.createTime.toDate() : 0
         let dateB = b?.change.createTime ? b.change.createTime.toDate() : 1
@@ -50,10 +50,21 @@ export type TimelineChange = {
   id: string
 }
 
+export type HMTimeline = {
+  changes: Record<string, Change>
+  allChanges: Record<string, TimelineChange>
+  authorVersions: AuthorVersion[]
+  timelineEntries: [string, Change][]
+  changesByTime: string[]
+  heads: string[]
+  owner: string
+  roots: string[]
+}
+
 export function useEntityTimeline(
   entityId?: string,
   includeDrafts: boolean = false,
-  opts?: UseQueryOptions<any>,
+  opts?: UseQueryOptions<unknown, unknown, HMTimeline>,
 ) {
   const grpcClient = useGRPCClient()
   return useQuery({
@@ -77,7 +88,7 @@ export function useEntityTimeline(
           allChanges[depId]?.citations.push(changeId)
         })
       })
-      return {
+      const timeline: HMTimeline = {
         changes: rawTimeline.changes,
         allChanges,
         authorVersions: rawTimeline.authorVersions,
@@ -87,6 +98,7 @@ export function useEntityTimeline(
         owner: rawTimeline.owner,
         roots: rawTimeline.roots,
       }
+      return timeline
     },
     queryKey: [queryKeys.ENTITY_TIMELINE, entityId, includeDrafts],
     enabled: !!entityId,

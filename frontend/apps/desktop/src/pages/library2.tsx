@@ -15,15 +15,11 @@ import {useNavigate} from '@/utils/useNavigate'
 import {
   DocumentRoute,
   entityQueryPathToHmIdPath,
-  formattedDate,
   getMetadataName,
   HMActivitySummary,
-  HMBlockNode,
   HMBreadcrumb,
-  HMComment,
   HMDocumentInfo,
   hmId,
-  normalizeDate,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {
@@ -40,6 +36,7 @@ import {
   YGroup,
   YStack,
 } from '@shm/ui'
+import {LibraryEntryUpdateSummary} from '@shm/ui/src/activity'
 import {AccountsMetadata, FacePile} from '@shm/ui/src/face-pile'
 import {
   Check,
@@ -542,75 +539,6 @@ export function LibraryDocumentItem({
       </YStack>
     </Button>
   )
-}
-
-function LibraryEntryTime({
-  activitySummary,
-}: {
-  activitySummary: HMActivitySummary
-}) {
-  const latestChangeTime = normalizeDate(activitySummary?.latestChangeTime)
-  const latestCommentTime = normalizeDate(activitySummary?.latestCommentTime)
-  const displayTime =
-    latestCommentTime &&
-    latestChangeTime &&
-    latestCommentTime > latestChangeTime
-      ? latestCommentTime
-      : latestChangeTime
-  if (displayTime) {
-    return (
-      <SizableText flexShrink={0} numberOfLines={1} size="$1" color="$color9">
-        ({formattedDate(displayTime)})
-      </SizableText>
-    )
-  }
-  return null
-}
-
-export function LibraryEntryUpdateSummary({
-  activitySummary,
-  accountsMetadata,
-  latestComment,
-}: {
-  activitySummary: HMActivitySummary
-  accountsMetadata: AccountsMetadata | undefined
-  latestComment: HMComment | undefined | null
-}) {
-  const latestChangeTime = normalizeDate(activitySummary?.latestChangeTime)
-  const latestCommentTime = normalizeDate(activitySummary?.latestCommentTime)
-  let summaryText = ''
-  if (latestChangeTime) {
-    summaryText = `Document Changed`
-  }
-  if (
-    latestCommentTime &&
-    latestChangeTime &&
-    latestCommentTime > latestChangeTime
-  ) {
-    const author = latestComment?.author
-      ? accountsMetadata?.[latestComment?.author]
-      : undefined
-    const authorName = author?.metadata?.name
-    summaryText = `Comment`
-    if (authorName && latestComment) {
-      summaryText = `${authorName}: ${plainTextOfContent(
-        latestComment.content,
-      )}`
-    }
-  }
-  return (
-    <XStack gap="$2">
-      <SizableText numberOfLines={1} size="$1" color="$color9">
-        {summaryText}
-      </SizableText>
-      <LibraryEntryTime activitySummary={activitySummary} />
-    </XStack>
-  )
-}
-
-function plainTextOfContent(content: HMBlockNode[]): string {
-  // todo, make this better
-  return content.map((block) => block.block?.text).join(' ')
 }
 
 function LibraryEntryBreadcrumbs({

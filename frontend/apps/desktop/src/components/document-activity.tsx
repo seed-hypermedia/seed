@@ -1,40 +1,30 @@
 import {useAccounts} from '@/models/accounts'
 import {useDocumentCommentGroups} from '@/models/comments'
-import {useEntity} from '@/models/entities'
-import {
-  AccountsMetadata,
-  LibraryDocument,
-  useChildrenActivity,
-} from '@/models/library'
+import {useEntities, useEntity} from '@/models/entities'
+import {useChildrenActivity} from '@/models/library'
 import {useDocumentPublishedChanges, useVersionChanges} from '@/models/versions'
-import {LibraryEntryUpdateSummary} from '@/pages/library2'
 import {useNavRoute} from '@/utils/navigation'
-import {useNavigate} from '@/utils/useNavigate'
 import {
   formattedDateMedium,
-  getAccountName,
-  getMetadataName,
   HMChangeGroup,
   HMChangeSummary,
   HMCommentGroup,
   HMDocumentInfo,
   hmId,
-  normalizeDate,
   UnpackedHypermediaId,
 } from '@shm/shared'
+import {getActivityTime} from '@shm/shared/src/models/activity'
 import {
   Button,
-  ChevronDown,
   ChevronUp,
   CommentGroup,
   EmptyDiscussion,
-  HMIcon,
   SizableText,
   useTheme,
-  Version,
   XStack,
   YStack,
 } from '@shm/ui'
+import {ChangeGroup, SubDocumentItem} from '@shm/ui/src/activity'
 import {useState} from 'react'
 import {
   CommentDraft,
@@ -43,7 +33,6 @@ import {
   RepliesEditor,
   useCommentGroupAuthors,
 } from './commenting'
-import {ChangeItem} from './versions-panel'
 
 export function DocumentActivity({docId}: {docId: UnpackedHypermediaId}) {
   return (
@@ -62,28 +51,6 @@ export function DocumentActivity({docId}: {docId: UnpackedHypermediaId}) {
       <CommentDraft docId={docId} />
     </YStack>
   )
-}
-
-function getActivityTime(
-  activity: HMCommentGroup | HMChangeSummary | HMDocumentInfo | HMChangeGroup,
-) {
-  if (activity.type === 'change') return normalizeDate(activity.createTime)
-  if (activity.type === 'commentGroup')
-    return normalizeDate(activity.comments[0].createTime)
-  if (activity.type === 'document') {
-    const updateTime = normalizeDate(activity.updateTime)
-    const commentTime = normalizeDate(
-      activity.activitySummary?.latestCommentTime,
-    )
-    // return the largest value
-    if (commentTime && updateTime && commentTime > updateTime)
-      return commentTime
-    return updateTime
-  }
-  if (activity.type === 'changeGroup') {
-    return normalizeDate(activity.changes.at(-1)?.createTime)
-  }
-  return undefined
 }
 
 function ActivityList({docId}: {docId: UnpackedHypermediaId}) {
@@ -148,7 +115,13 @@ function ActivityList({docId}: {docId: UnpackedHypermediaId}) {
   if (currentChangeGroup) {
     activityWithGroups.push(currentChangeGroup)
   }
-
+  const changeAuthors = new Set<string>()
+  changes.data?.forEach((item) => {
+    item?.author && changeAuthors.add(item?.author)
+  })
+  const authorAccounts = useEntities(
+    Array.from(changeAuthors).map((uid) => hmId('d', uid)),
+  )
   if (route.key !== 'document') return null
   if (activityWithGroups.length == 0) {
     return (
@@ -162,6 +135,7 @@ function ActivityList({docId}: {docId: UnpackedHypermediaId}) {
   }
   const prevActivity = activityWithGroups.at(-visibleCount)
   const prevActivityTime = prevActivity && getActivityTime(prevActivity)
+
   return (
     <>
       {visibleCount < activityWithGroups.length && prevActivity && (
@@ -193,12 +167,18 @@ function ActivityList({docId}: {docId: UnpackedHypermediaId}) {
           )
         }
         if (activityItem.type === 'changeGroup') {
+          const author = authorAccounts.find(
+            (a) => a.data?.id?.uid === activityItem.changes[0].author,
+          )?.data
+          if (!author) return null
           return (
             <ChangeGroup
               item={activityItem}
               key={activityItem.id}
               latestDocChanges={latestDocChanges}
               activeChangeIds={activeChangeIds}
+              docId={docId}
+              author={{id: author.id, metadata: author.document?.metadata}}
             />
           )
         }
@@ -212,206 +192,5 @@ function ActivityList({docId}: {docId: UnpackedHypermediaId}) {
         }
       })}
     </>
-  )
-}
-
-export function SubDocumentItem({
-  item,
-  indent,
-  accountsMetadata,
-}: {
-  item: LibraryDocument
-  indent?: boolean
-  accountsMetadata: AccountsMetadata
-}) {
-  const navigate = useNavigate()
-  const metadata = item?.metadata
-  const id = hmId('d', item.account, {
-    path: item.path,
-  })
-  const isRead = !item.activitySummary?.isUnread
-  return (
-    <Button
-      group="item"
-      borderWidth={0}
-      hoverStyle={{
-        bg: '$color5',
-      }}
-      bg={isRead ? '$colorTransparent' : '$backgroundStrong'}
-      // elevation="$1"
-      paddingHorizontal={16}
-      paddingVertical="$2"
-      onPress={() => {
-        navigate({key: 'document', id})
-      }}
-      h="auto"
-      marginVertical={'$1'}
-      ai="center"
-    >
-      <XStack
-        flexGrow={0}
-        flexShrink={0}
-        w={20}
-        h={20}
-        zi="$zIndex.2"
-        ai="center"
-        bg={'#2C2C2C'}
-        jc="center"
-        borderRadius={10}
-        p={1}
-      >
-        <Version size={16} color="white" />
-      </XStack>
-      <YStack f={1}>
-        <XStack gap="$3" ai="center">
-          <SizableText
-            f={1}
-            fontWeight={isRead ? undefined : 'bold'}
-            textOverflow="ellipsis"
-            whiteSpace="nowrap"
-            overflow="hidden"
-          >
-            {getMetadataName(metadata)}
-          </SizableText>
-        </XStack>
-        {item.activitySummary && (
-          <LibraryEntryUpdateSummary
-            accountsMetadata={accountsMetadata}
-            latestComment={item.latestComment}
-            activitySummary={item.activitySummary}
-          />
-        )}
-      </YStack>
-    </Button>
-  )
-}
-
-function ChangeGroup({
-  item,
-  latestDocChanges,
-  activeChangeIds,
-}: {
-  item: HMChangeGroup
-  latestDocChanges: Set<string>
-  activeChangeIds: Set<string> | null
-}) {
-  const replace = useNavigate('replace')
-  const route = useNavRoute()
-  if (route.key !== 'document') return null
-  const [isCollapsed, setIsCollapsed] = useState(true)
-  if (!isCollapsed || item.changes.length <= 1) {
-    return item.changes.map((change) => {
-      if (!change.createTime?.seconds) return null
-      const isActive = activeChangeIds?.has(change.id) || false
-      return (
-        <ChangeItem
-          key={change.id}
-          change={change}
-          onPress={() => {
-            replace({
-              ...route,
-              id: {
-                ...route.id,
-                version: change.id,
-              },
-            })
-          }}
-          isActive={isActive}
-          isLast={true}
-          isCurrent={latestDocChanges.has(item.id)}
-        />
-      )
-    })
-  }
-  return (
-    <ExpandChangeGroupButton
-      item={item}
-      onExpand={() => setIsCollapsed(false)}
-    />
-  )
-}
-
-function ExpandChangeGroupButton({
-  item,
-  onExpand,
-}: {
-  item: HMChangeGroup
-  onExpand: () => void
-}) {
-  const iconSize = 20
-  const authorEntity = useEntity(hmId('d', item.changes[0].author))
-
-  return (
-    <Button
-      onPress={onExpand}
-      key={item.id}
-      h="auto"
-      p="$3"
-      paddingHorizontal="$1.5"
-      paddingRight="$3"
-      borderRadius="$2"
-      hoverStyle={{
-        backgroundColor: '$color6',
-        borderColor: '$borderTransparent',
-      }}
-      ai="flex-start"
-      position="relative"
-    >
-      <XStack
-        flexGrow={0}
-        flexShrink={0}
-        w={20}
-        h={20}
-        zi="$zIndex.2"
-        ai="center"
-        bg={'#2C2C2C'}
-        jc="center"
-        borderRadius={10}
-        p={1}
-      >
-        <Version size={16} color="white" />
-      </XStack>
-      <HMIcon
-        flexGrow={0}
-        flexShrink={0}
-        size={iconSize}
-        id={authorEntity.data?.id}
-        metadata={authorEntity.data?.document?.metadata}
-      />
-      <YStack f={1}>
-        <XStack
-          h={iconSize}
-          ai="center"
-          gap="$2"
-          overflow="hidden"
-          width="100%"
-        >
-          <SizableText
-            size="$2"
-            flexShrink={1}
-            textOverflow="ellipsis"
-            overflow="hidden"
-            whiteSpace="nowrap"
-          >
-            {getAccountName(authorEntity.data?.document)}
-          </SizableText>
-
-          <SizableText size="$2" fontWeight={700} flexShrink={0}>
-            {item.changes.length} versions
-          </SizableText>
-          <ChevronDown size={16} />
-        </XStack>
-        <SizableText
-          size="$1"
-          color="$color9"
-          flexShrink={1}
-          textOverflow="ellipsis"
-          overflow="hidden"
-          whiteSpace="nowrap"
-        >
-          {formattedDateMedium(item.changes.at(-1)?.createTime)}
-        </SizableText>
-      </YStack>
-    </Button>
   )
 }
