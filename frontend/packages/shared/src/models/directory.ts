@@ -1,5 +1,10 @@
 import {toPlainMessage} from '@bufbuild/protobuf'
-import {HMQuery, HMQueryResult} from '..'
+import {
+  DocumentInfo,
+  HMDocumentMetadataSchema,
+  HMQuery,
+  HMQueryResult,
+} from '..'
 import {BIG_INT} from '../constants'
 import {GRPCClient} from '../grpc-client'
 import {
@@ -20,7 +25,7 @@ export function getDiretoryWithClient(client: GRPCClient) {
     })
     // filter listResult by the id.path, and if mode is "Children", filter by the immediate children
     return listResult.documents
-      .filter((doc) => {
+      .filter((doc: DocumentInfo) => {
         const docPathStr = doc.path
         const parentPath = id.path || []
         const parentPathStr = hmIdPathToEntityQueryPath(id.path)
@@ -41,7 +46,14 @@ export function getDiretoryWithClient(client: GRPCClient) {
         // For AllDescendants mode, include all nested documents
         return true
       })
-      .map(toPlainMessage)
+      .map((dirDoc: DocumentInfo) => {
+        return {
+          ...toPlainMessage(dirDoc),
+          metadata: HMDocumentMetadataSchema.parse(
+            dirDoc.metadata?.toJson() || {},
+          ),
+        }
+      })
       .map((doc) => {
         const path = entityQueryPathToHmIdPath(doc.path)
         return {
