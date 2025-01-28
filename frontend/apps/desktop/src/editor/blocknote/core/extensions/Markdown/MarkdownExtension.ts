@@ -1,11 +1,13 @@
 import {
   BlockNoteEditor,
+  getBlockInfoFromPos,
   getBlockInfoFromSelection,
   setGroupTypes,
 } from '@/editor'
 import {Editor, Extension} from '@tiptap/core'
 import {Fragment, Node} from '@tiptap/pm/model'
 import {Plugin} from 'prosemirror-state'
+import {getPrevBlockInfo} from '../../api/blockManipulation/commands/mergeBlocks'
 import {MarkdownToBlocks} from './MarkdownToBlocks'
 
 function containsMarkdownSymbols(pastedText: string) {
@@ -33,6 +35,72 @@ function containsMarkdownSymbols(pastedText: string) {
   return lines.some((line) => markdownUniqueSymbols.test(line))
 }
 
+// Function to insert a group, if it is the only node being pasted.
+function replaceSelectedBlock(group: Node, editor: Editor) {
+  const {state, view} = editor
+  const blockInfo = getBlockInfoFromSelection(state)
+  // Check whether the block is empty.
+  if (!state.selection.$from.parent.content.content.length) {
+    const prevBlockInfo = getPrevBlockInfo(state.doc, blockInfo.block.beforePos)
+    // Insert the pasted group content at the end of the previous block's child group,
+    // or add a child group to the previous block.
+    if (prevBlockInfo) {
+      const {block, childContainer} = prevBlockInfo
+      const newBlock = state.schema.nodes['blockContainer'].create(
+        block.node.attrs,
+        childContainer
+          ? [
+              block.node.firstChild!,
+              state.schema.nodes['blockGroup'].create(
+                childContainer.node.attrs,
+                [
+                  ...childContainer.node.content.content,
+                  ...group.content.content,
+                ],
+              ),
+            ]
+          : block.node.content.addToEnd(group),
+      )
+      // setTimeout(() => {
+      view.dispatch(
+        state.tr.replaceRangeWith(
+          block.beforePos + 1,
+          block.afterPos - 1,
+          newBlock,
+        ),
+      )
+      // })
+
+      return true
+    }
+    // Add the group's content to the child group selected. The selected block will be the
+    // first child of the child group, because otherwise the first 'if' check would pass.
+    else if (state.selection.$from.depth > 3) {
+      const parentBlockInfo = getBlockInfoFromPos(
+        state,
+        state.selection.$from.start() - 4,
+      )
+      const {block, childContainer} = parentBlockInfo
+      const newBlock = state.schema.nodes['blockContainer'].create(
+        block.node.attrs,
+        [block.node.firstChild!, group],
+      )
+
+      // setTimeout(() => {
+      view.dispatch(
+        state.tr.replaceRangeWith(
+          block.beforePos + 1,
+          block.afterPos - 1,
+          newBlock,
+        ),
+      )
+      // })
+      return true
+    }
+  }
+  return false
+}
+
 // Get nodes of a fragment or block group to be pasted
 function getPastedNodes(parent: Node | Fragment, editor: Editor) {
   const nodes: Node[] = []
@@ -56,6 +124,17 @@ function getPastedNodes(parent: Node | Fragment, editor: Editor) {
         nodeToInsert,
       )
       nodes.push(container)
+    } else if (node.firstChild!.type.name === 'blockGroup') {
+      const prevContainer = nodes.pop()
+      if (prevContainer) {
+        const container = editor.schema.nodes['blockContainer'].create(
+          prevContainer.attrs,
+          prevContainer.content.addToEnd(node.firstChild!),
+        )
+        nodes.push(container)
+      } else if (!replaceSelectedBlock(node.firstChild!, editor)) {
+        nodes.push(node.firstChild!)
+      }
     } else nodes.push(node)
   })
   return nodes
@@ -71,10 +150,6 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
         new Plugin({
           props: {
             handlePaste: (view, event, slice) => {
-              console.log(
-                '== PASTE MarkdownExtension PLUGIN',
-                view.state.selection,
-              )
               const selectedNode = view.state.selection.$from.parent
               // Don't proceed if pasting into code block
               if (
@@ -124,18 +199,21 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
                     firstBlockGroup ? slice.content.firstChild : slice.content,
                     this.editor,
                   )
-                  const root = this.editor.schema.nodes['blockGroup'].create(
-                    {},
-                    nodes,
-                  )
-                  let tr = state.tr
-                  tr = tr.replaceRangeWith(
-                    selection.from,
-                    selection.to,
-                    // @ts-ignore
-                    root.content.content,
-                  )
-                  view.dispatch(tr)
+
+                  if (nodes.length) {
+                    const root = this.editor.schema.nodes['blockGroup'].create(
+                      {},
+                      nodes,
+                    )
+                    let tr = state.tr
+                    tr = tr.replaceRangeWith(
+                      selection.from,
+                      selection.to,
+                      // @ts-ignore
+                      root.content.content,
+                    )
+                    view.dispatch(tr)
+                  }
                   return true
                 }
                 return false
