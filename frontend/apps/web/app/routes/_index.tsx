@@ -3,6 +3,7 @@ import {hmId} from "@shm/shared";
 import {Button} from "@tamagui/button";
 import {DocumentPage, documentPageMeta} from "~/document";
 import {loadSiteDocument, SiteDocumentPayload} from "~/loaders";
+import {logDebug, logDebugTiming} from "~/logger";
 import {defaultPageMeta} from "~/meta";
 import {NotRegisteredPage} from "~/not-registered";
 import {parseRequest} from "~/request";
@@ -26,6 +27,7 @@ export const meta = ({
 };
 
 export const loader = async ({request}: {request: Request}) => {
+  const debugTiming = logDebugTiming();
   const {url, hostname} = parseRequest(request);
   const version = url.searchParams.get("v");
   const latest = url.searchParams.get("l") === "";
@@ -34,14 +36,17 @@ export const loader = async ({request}: {request: Request}) => {
   if (!serviceConfig) throw new Error(`No config defined for ${hostname}`);
   const {registeredAccountUid} = serviceConfig;
   if (!registeredAccountUid) return wrapJSON("unregistered", {status: 404});
-  return await loadSiteDocument(
+  const result = await loadSiteDocument(
     hostname,
     hmId("d", registeredAccountUid, {version, path: [], latest}),
     waitForSync
   );
+  debugTiming("homepage loader resolved");
+  return result;
 };
 
 export default function SiteDocument() {
+  logDebug("homepage render");
   const data = unwrap<SiteDocumentPayload | "unregistered">(useLoaderData());
   if (data === "unregistered") {
     return <NotRegisteredPage />;

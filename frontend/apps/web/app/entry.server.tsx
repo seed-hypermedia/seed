@@ -66,6 +66,15 @@ async function initializeServer() {
   }
 }
 
+function logDebugRequest(path: string) {
+  if (!process.env.LOG_LEVEL) return () => {};
+  const startTime = Date.now();
+  return (msg: string) => {
+    const endTime = Date.now();
+    logDebug(`${path} - ${msg} - ${endTime - startTime}ms`);
+  };
+}
+
 initializeServer()
   .then(() => {
     console.log("Server initialized and cache warmed");
@@ -160,7 +169,8 @@ export default async function handleRequest(
   loadContext: AppLoadContext
 ) {
   const {url, hostname} = parseRequest(request);
-  logDebug("handleRequest", url.pathname);
+  const sendPerfLog = logDebugRequest(url.pathname);
+
   if (url.pathname.startsWith("/ipfs")) {
     return new Response("Not Found", {
       status: 404,
@@ -172,13 +182,14 @@ export default async function handleRequest(
     url.pathname.startsWith("/hm") ||
     url.pathname.startsWith("/assets")
   ) {
-    logDebug("requested full", url.pathname);
+    sendPerfLog("requested full");
     return handleFullRequest(
       request,
       responseStatusCode,
       responseHeaders,
       remixContext,
-      loadContext
+      loadContext,
+      sendPerfLog
     );
   }
 
@@ -192,7 +203,7 @@ export default async function handleRequest(
   if (await fileExists(cachePath)) {
     const html = await readFile(cachePath, "utf8");
     responseHeaders.set("Content-Type", "text/html");
-    logDebug("cache hit", url.pathname);
+    sendPerfLog("cache hit");
     return new Response(html, {
       headers: responseHeaders,
       status: responseStatusCode,
@@ -201,6 +212,7 @@ export default async function handleRequest(
   // return warm cache path html
   const {html} = await warmCachePath(hostname, url.pathname, queryVersion);
   responseHeaders.set("Content-Type", "text/html");
+  sendPerfLog("cache miss and loaded");
   return new Response(html, {
     headers: responseHeaders,
     status: responseStatusCode,
@@ -212,7 +224,8 @@ export function handleFullRequest(
   responseStatusCode: number,
   responseHeaders: Headers,
   remixContext: EntryContext,
-  loadContext: AppLoadContext
+  loadContext: AppLoadContext,
+  onComplete: (msg: string) => void
 ) {
   let prohibitOutOfOrderStreaming =
     isBotRequest(request.headers.get("user-agent")) || remixContext.isSpaMode;
@@ -222,13 +235,15 @@ export function handleFullRequest(
         request,
         responseStatusCode,
         responseHeaders,
-        remixContext
+        remixContext,
+        onComplete
       )
     : handleBrowserRequest(
         request,
         responseStatusCode,
         responseHeaders,
-        remixContext
+        remixContext,
+        onComplete
       );
 }
 
@@ -257,7 +272,8 @@ function handleBotRequest(
   request: Request,
   responseStatusCode: number,
   responseHeaders: Headers,
-  remixContext: EntryContext
+  remixContext: EntryContext,
+  onComplete: (msg: string) => void
 ) {
   return new Promise((resolve, reject) => {
     let shellRendered = false;
@@ -283,6 +299,9 @@ function handleBotRequest(
           );
 
           pipe(body);
+          body.on("end", () => {
+            onComplete("handleBotRequest full load sent");
+          });
         },
         onShellError(error: unknown) {
           reject(error);
@@ -307,7 +326,8 @@ function handleBrowserRequest(
   request: Request,
   responseStatusCode: number,
   responseHeaders: Headers,
-  remixContext: EntryContext
+  remixContext: EntryContext,
+  onComplete: (msg: string) => void
 ) {
   return new Promise((resolve, reject) => {
     let shellRendered = false;
@@ -331,7 +351,9 @@ function handleBrowserRequest(
               status: responseStatusCode,
             })
           );
-
+          body.on("end", () => {
+            onComplete("handleBrowserRequest full load sent");
+          });
           pipe(body);
         },
         onShellError(error: unknown) {

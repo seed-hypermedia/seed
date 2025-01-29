@@ -19,6 +19,7 @@ import {
 } from "@shm/shared/src/models/directory";
 import {AccountsMetadata} from "@shm/ui/src/face-pile";
 import {queryClient} from "./client";
+import {logDebug} from "./logger";
 import {getConfig} from "./site-config";
 import {wrapJSON, WrappedResponse} from "./wrapping";
 
@@ -175,6 +176,7 @@ export async function getDocument(
   entityId: UnpackedHypermediaId,
   waitForSync?: boolean
 ): Promise<WebDocumentPayload> {
+  logDebug("getDocument", entityId.id);
   const document = await getBaseDocument(entityId, waitForSync);
   const crumbs = getParentPaths(entityId.path).slice(0, -1);
   const breadcrumbs = await Promise.all(
@@ -207,6 +209,7 @@ export async function loadSiteDocument(
   id: UnpackedHypermediaId,
   waitForSync?: boolean
 ): Promise<WrappedResponse<SiteDocumentPayload>> {
+  logDebug("loadSiteDocument", id.id);
   const config = await getConfig(hostname);
   if (!config) {
     throw new Error("No config found for hostname " + hostname);
