@@ -8,6 +8,7 @@ import {mkdir, readFile, stat, writeFile} from "fs/promises";
 import * as isbotModule from "isbot";
 import {dirname, join, resolve} from "path";
 import {renderToPipeableStream} from "react-dom/server";
+import {logDebug} from "./logger";
 import {parseRequest} from "./request";
 import {applyConfigSubscriptions, getHostnames} from "./site-config";
 
@@ -37,6 +38,10 @@ async function warmAllCaches() {
   await Promise.all(hostnames.map((hostname) => warmFullCache(hostname)));
 }
 
+const CACHE_WARM_INTERVAL = process.env.CACHE_WARM_INTERVAL
+  ? parseInt(process.env.CACHE_WARM_INTERVAL) * 1000
+  : 45_000;
+
 async function initializeServer() {
   recursiveRm(CACHE_PATH);
   await mkdir(CACHE_PATH, {recursive: true});
@@ -47,15 +52,18 @@ async function initializeServer() {
     .catch((e) => {
       console.error("Error applying config subscriptions", e);
     });
-  await warmAllCaches();
-  // warm full cache 45 seconds, but only if the next warm is not already in progress
-  setInterval(() => {
-    if (nextWarm === undefined) {
-      nextWarm = warmAllCaches().finally(() => {
-        nextWarm = undefined;
-      });
-    }
-  }, 45_000);
+  if (CACHE_WARM_INTERVAL !== 0) {
+    await warmAllCaches();
+
+    // warm full cache 45 seconds, but only if the next warm is not already in progress
+    setInterval(() => {
+      if (nextWarm === undefined) {
+        nextWarm = warmAllCaches().finally(() => {
+          nextWarm = undefined;
+        });
+      }
+    }, CACHE_WARM_INTERVAL);
+  }
 }
 
 initializeServer()
@@ -152,6 +160,7 @@ export default async function handleRequest(
   loadContext: AppLoadContext
 ) {
   const {url, hostname} = parseRequest(request);
+  logDebug("handleRequest", url.pathname);
   if (url.pathname.startsWith("/ipfs")) {
     return new Response("Not Found", {
       status: 404,
@@ -163,6 +172,7 @@ export default async function handleRequest(
     url.pathname.startsWith("/hm") ||
     url.pathname.startsWith("/assets")
   ) {
+    logDebug("requested full", url.pathname);
     return handleFullRequest(
       request,
       responseStatusCode,
@@ -182,6 +192,7 @@ export default async function handleRequest(
   if (await fileExists(cachePath)) {
     const html = await readFile(cachePath, "utf8");
     responseHeaders.set("Content-Type", "text/html");
+    logDebug("cache hit", url.pathname);
     return new Response(html, {
       headers: responseHeaders,
       status: responseStatusCode,
