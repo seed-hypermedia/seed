@@ -16,6 +16,7 @@ export const loader: LoaderFunction = async ({request}) => {
   return json({
     registeredAccountUid: config.registeredAccountUid,
     peerId: daemonInfo.peerId,
+    protocolId: daemonInfo.protocolId,
     addrs: peerInfo.addrs,
     hostname: SITE_BASE_URL,
   });
