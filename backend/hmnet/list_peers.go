@@ -2,6 +2,10 @@ package hmnet
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
 	"math"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/util/apiutil"
@@ -63,6 +67,7 @@ func (srv *rpcMux) ListPeers(ctx context.Context, in *p2p.ListPeersRequest) (*p2
 			return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 		}
 	}
+	localPeers := make(map[string]interface{})
 	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
 		if count == in.PageSize {
 			var err error
@@ -83,11 +88,22 @@ func (srv *rpcMux) ListPeers(ctx context.Context, in *p2p.ListPeersRequest) (*p2
 			srv.Node.log.Warn("Invalid address found when listing peers", zap.String("PID", pid), zap.Error(err))
 			return nil
 		}
+
+		localPeers[info.ID.String()] = info.Addrs
 		peersInfo = append(peersInfo, info)
 		return nil
 	}, lastCursor.ID, in.PageSize); err != nil {
 		return nil, err
 	}
+	localPeersBytes, err := json.Marshal(localPeers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal localPeers: %w", err)
+	}
+	localHash := sha256.Sum256(localPeersBytes)
+	if in.ListHash == hex.EncodeToString(localHash[:]) {
+		return nil, nil
+	}
+
 	out.Peers = make([]*p2p.PeerInfo, 0, len(peersInfo))
 
 	for i, peer := range peersInfo {

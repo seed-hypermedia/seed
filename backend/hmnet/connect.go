@@ -2,6 +2,9 @@ package hmnet
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -175,33 +178,37 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 	if err != nil {
 		return fmt.Errorf("Could not get p2p client: %w", err)
 	}
-
-	res, err := c.ListPeers(ctxStore, &p2p.ListPeersRequest{PageSize: math.MaxInt32})
+	localPeers := make(map[string]interface{})
+	conn, release, err := n.db.Conn(ctxStore)
+	if err != nil {
+		return err
+	}
+	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
+		maStr := stmt.ColumnText(1)
+		maList := strings.Split(strings.Trim(maStr, " "), ",")
+		info, err := AddrInfoFromStrings(maList...)
+		if err != nil {
+			n.log.Warn("We have peers with wrong formatted addresses in our database", zap.String("PID", info.ID.String()), zap.Error(err))
+			return err
+		}
+		localPeers[info.ID.String()] = info.Addrs
+		return nil
+	}, math.MaxInt64, math.MaxInt64); err != nil {
+		release()
+		return err
+	}
+	release()
+	localPeersBytes, err := json.Marshal(localPeers)
+	if err != nil {
+		return fmt.Errorf("failed to marshal localPeers: %w", err)
+	}
+	hash := sha256.Sum256(localPeersBytes)
+	res, err := c.ListPeers(ctxStore, &p2p.ListPeersRequest{PageSize: math.MaxInt32, ListHash: hex.EncodeToString(hash[:])})
 	if err != nil {
 		return fmt.Errorf("Could not get list of peers from %s: %w", id.String(), err)
 	}
 
 	if len(res.Peers) > 0 {
-		localPeers := make(map[string]interface{})
-		conn, release, err := n.db.Conn(ctxStore)
-		if err != nil {
-			return err
-		}
-		if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
-			maStr := stmt.ColumnText(1)
-			maList := strings.Split(strings.Trim(maStr, " "), ",")
-			info, err := AddrInfoFromStrings(maList...)
-			if err != nil {
-				n.log.Warn("We have peers with wrong formatted addresses in our database", zap.String("PID", info.ID.String()), zap.Error(err))
-				return err
-			}
-			localPeers[info.ID.String()] = info.Addrs
-			return nil
-		}, math.MaxInt64, math.MaxInt64); err != nil {
-			release()
-			return err
-		}
-		release()
 		vals := []interface{}{}
 		sqlStr := "INSERT INTO peers (pid, addresses, explicitly_connected, updated_at) VALUES "
 		var nonSeedPeers uint32

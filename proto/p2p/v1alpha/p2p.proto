@@ -39,6 +39,9 @@ message ListPeersRequest {
 
   // Optional. Page token to continue listing peers from.
   string page_token = 2;
+
+  // Optional. Hash of the local peer list to reconciliate.
+  string list_hash = 3;
 }
 
 // Request to list spaces.
