@@ -1,6 +1,7 @@
 import {useLoaderData} from "@remix-run/react";
 import {hmId} from "@shm/shared";
 import {Button} from "@tamagui/button";
+import {useFullRender} from "~/cache-policy";
 import {DocumentPage, documentPageMeta} from "~/document";
 import {loadSiteDocument, SiteDocumentPayload} from "~/loaders";
 import {logDebug, logDebugTiming} from "~/logger";
@@ -27,8 +28,10 @@ export const meta = ({
 };
 
 export const loader = async ({request}: {request: Request}) => {
+  const parsedRequest = parseRequest(request);
+  if (!useFullRender(parsedRequest)) return null;
+  const {url, hostname} = parsedRequest;
   const debugTiming = logDebugTiming();
-  const {url, hostname} = parseRequest(request);
   const version = url.searchParams.get("v");
   const latest = url.searchParams.get("l") === "";
   const waitForSync = url.searchParams.get("waitForSync") !== null;

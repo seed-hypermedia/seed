@@ -1,5 +1,6 @@
 import {Params, useLoaderData} from "@remix-run/react";
 import {hmId} from "@shm/shared";
+import {useFullRender} from "~/cache-policy";
 import {DocumentPage, documentPageMeta} from "~/document";
 import {loadSiteDocument, SiteDocumentPayload} from "~/loaders";
 import {parseRequest} from "~/request";
@@ -14,7 +15,9 @@ export const loader = async ({
   params: Params;
   request: Request;
 }) => {
-  const {hostname, url} = parseRequest(request);
+  const parsedRequest = parseRequest(request);
+  if (!useFullRender(parsedRequest)) return null;
+  const {url, hostname} = parsedRequest;
   const version = url.searchParams.get("v");
   const latest = url.searchParams.get("l") === "";
   const waitForSync = url.searchParams.get("waitForSync") !== null;

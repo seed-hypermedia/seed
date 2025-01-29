@@ -8,6 +8,7 @@ import {mkdir, readFile, stat, writeFile} from "fs/promises";
 import * as isbotModule from "isbot";
 import {dirname, join, resolve} from "path";
 import {renderToPipeableStream} from "react-dom/server";
+import {useFullRender} from "./cache-policy";
 import {logDebug} from "./logger";
 import {parseRequest} from "./request";
 import {applyConfigSubscriptions, getHostnames} from "./site-config";
@@ -168,7 +169,8 @@ export default async function handleRequest(
   remixContext: EntryContext,
   loadContext: AppLoadContext
 ) {
-  const {url, hostname} = parseRequest(request);
+  const parsedRequest = parseRequest(request);
+  const {url, hostname} = parsedRequest;
   const sendPerfLog = logDebugRequest(url.pathname);
 
   if (url.pathname.startsWith("/ipfs")) {
@@ -176,12 +178,7 @@ export default async function handleRequest(
       status: 404,
     });
   }
-  if (
-    url.searchParams.get("full") ||
-    request.headers.get("x-full-render") === "true" ||
-    url.pathname.startsWith("/hm") ||
-    url.pathname.startsWith("/assets")
-  ) {
+  if (useFullRender(parsedRequest)) {
     sendPerfLog("requested full");
     return handleFullRequest(
       request,
