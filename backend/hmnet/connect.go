@@ -147,11 +147,6 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	sort.Strings(addrsStr)
 	initialAddrs := strings.ReplaceAll(strings.Join(addrsStr, ","), " ", "")
 
-	go func() {
-		if err := n.storeRemotePeers(info.ID); err != nil {
-			n.log.Warn("Problems storing some of the shared peer list", zap.String("Remote peer with bad peer list", info.ID.String()), zap.Error(err))
-		}
-	}()
 	if initialAddrs != "" {
 		conn, release, err = n.db.Conn(ctx)
 		if err != nil {
