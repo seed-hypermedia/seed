@@ -321,11 +321,18 @@ export class PeerInfo extends Message<PeerInfo> {
   createdAt?: Timestamp;
 
   /**
-   * When wthe peer updated its addresses for the last time.
+   * When the peer updated its addresses for the last time.
    *
    * @generated from field: google.protobuf.Timestamp updated_at = 7;
    */
   updatedAt?: Timestamp;
+
+  /**
+   * Seed protocol version the peer talks.
+   *
+   * @generated from field: string protocol = 9;
+   */
+  protocol = "";
 
   constructor(data?: PartialMessage<PeerInfo>) {
     super();
@@ -342,6 +349,7 @@ export class PeerInfo extends Message<PeerInfo> {
     { no: 5, name: "is_direct", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 6, name: "created_at", kind: "message", T: Timestamp },
     { no: 7, name: "updated_at", kind: "message", T: Timestamp },
+    { no: 9, name: "protocol", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PeerInfo {

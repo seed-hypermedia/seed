@@ -114,7 +114,7 @@ func makeManager(t *testing.T, k crypto.PrivKey) *FileManager {
 	t.Cleanup(func() { require.NoError(t, ds.Close()) })
 	ps, err := pstoremem.NewPeerstore()
 	require.NoError(t, err)
-	n, err := ipfs.NewLibp2pNode(k, ds, ps, protocolPrefix+protocolVersion, "", logging.New("test", "debug"), nil)
+	n, err := ipfs.NewLibp2pNode(k, ds, ps, ProtocolPrefix+protocolVersion, "", logging.New("test", "debug"), nil)
 	require.NoError(t, err)
 
 	ma, err := multiaddr.NewMultiaddr("/ip4/0.0.0.0/tcp/0")

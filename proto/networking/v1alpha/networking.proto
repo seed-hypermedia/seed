@@ -72,8 +72,11 @@ message PeerInfo {
   // When we first inserted that peer in the database.
   google.protobuf.Timestamp created_at = 6;
 
-   // When wthe peer updated its addresses for the last time.
-   google.protobuf.Timestamp updated_at = 7;
+  // When the peer updated its addresses for the last time.
+  google.protobuf.Timestamp updated_at = 7;
+
+  // Seed protocol version the peer talks.
+  string protocol = 9;
 }
 
 // Indicates connection status of our node with a remote peer.

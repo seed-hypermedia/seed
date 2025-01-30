@@ -167,13 +167,23 @@ func (srv *Server) ListPeers(ctx context.Context, in *networking.ListPeersReques
 		if err == nil {
 			aidString = aid.String()
 		}
-
+		var protocol string
+		protos, err := net.Libp2p().Peerstore().GetProtocols(peer.ID)
+		if err == nil && len(protos) > 0 {
+			for _, p := range protos {
+				version := strings.TrimPrefix(string(p), hmnet.ProtocolPrefix)
+				if version != string(p) {
+					protocol = string(p)
+					break
+				}
+			}
+		}
 		connectedness := net.Libp2p().Network().Connectedness(peer.ID)
-
 		out.Peers = append(out.Peers, &networking.PeerInfo{
 			Id:               pids,
 			AccountId:        aidString,
 			Addrs:            addrs,
+			Protocol:         protocol,
 			ConnectionStatus: networking.ConnectionStatus(connectedness),
 			IsDirect:         extraData[i].isDirect,
 			CreatedAt:        extraData[i].createdTS,

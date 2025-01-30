@@ -54,7 +54,8 @@ var (
 const ProtocolSupportKey = "seed-support"
 
 const (
-	protocolPrefix  = "/hypermedia/"
+	// ProtocolPrefix is the prefix for the seed protocol ID.
+	ProtocolPrefix  = "/hypermedia/"
 	protocolVersion = "0.9.1"
 )
 
@@ -126,7 +127,7 @@ func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool
 		testnetSuffix = "-" + cfg.TestnetName
 	}
 
-	protoInfo := newProtocolInfo(protocolPrefix, protocolVersion+testnetSuffix)
+	protoInfo := newProtocolInfo(ProtocolPrefix, protocolVersion+testnetSuffix)
 
 	host, closeHost, err := newLibp2p(cfg, device.Wrapped(), protoInfo.ID, log)
 	if err != nil {
