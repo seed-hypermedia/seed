@@ -1879,7 +1879,8 @@ export function BlockContentFile({
       hoverStyle={{
         backgroundColor: "$backgroundHover",
       }}
-      {...props}
+      // Props include some hover handlers that interrupt local hover handlers
+      // {...props}
     >
       <XStack
         borderWidth={0}
@@ -1914,6 +1915,7 @@ export function BlockContentFile({
               position="absolute"
               right={0}
               opacity={hover ? 1 : 0}
+              disabled={!hover}
               size="$2"
               onPress={() => {
                 saveCidAsFile(fileCid, block.attributes?.name || "File");
