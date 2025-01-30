@@ -1,13 +1,14 @@
 import {
   formattedDate,
-  getFileUrl,
   HMDocument,
   HMDocumentInfo,
   HMEntityContent,
   hmId,
+  OptimizedImageSize,
   UnpackedHypermediaId,
   useRouteLink,
 } from "@shm/shared";
+import {useImageUrl} from "@shm/ui/src/get-file-url";
 import {View} from "@tamagui/core";
 import {XStack, YStack, YStackProps} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
@@ -57,15 +58,18 @@ export function BannerNewspaperCard({
     </View>
   );
 }
+
 function NewspaperCardImage({
   document,
   height = 120,
+  imageOptimizedSize = "L",
 }: {
   document: HMDocument;
   height?: number | string;
+  imageOptimizedSize?: OptimizedImageSize;
 }) {
   const coverImage = document.metadata.cover;
-
+  const imageUrl = useImageUrl();
   return (
     <View
       height={height}
@@ -75,7 +79,7 @@ function NewspaperCardImage({
     >
       {coverImage ? (
         <img
-          src={getFileUrl(coverImage)}
+          src={imageUrl(coverImage, imageOptimizedSize)}
           style={{minWidth: "100%", minHeight: "100%", objectFit: "cover"}}
         />
       ) : null}
@@ -200,7 +204,7 @@ export function NewspaperCard({
       {...linkProps}
       {...props}
     >
-      <NewspaperCardImage document={entity.document} />
+      <NewspaperCardImage document={entity.document} imageOptimizedSize="L" />
       <NewspaperCardContent entity={entity} />
 
       {!isWeb && (

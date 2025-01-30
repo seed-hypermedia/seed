@@ -27,7 +27,6 @@ import {useNavigate} from '@/utils/useNavigate'
 import {
   DocAccessoryOption,
   getDocumentTitle,
-  getFileUrl,
   HMEntityContent,
   hmId,
   UnpackedHypermediaId,
@@ -55,6 +54,7 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
+import {useImageUrl} from '@shm/ui/src/get-file-url'
 import React, {ReactNode, useEffect, useMemo} from 'react'
 import {EntityCitationsAccessory} from '../components/citations'
 import {AppDocContentProvider} from './document-content-provider'
@@ -581,13 +581,14 @@ function SiteURLButton({siteUrl}: {siteUrl?: string}) {
 
 function DocumentCover({docId}: {docId: UnpackedHypermediaId}) {
   const entity = useSubscribedEntity(docId)
+  const imageUrl = useImageUrl()
   if (!entity.data?.document) return null
   if (!entity.data.document.metadata.cover) return null
 
   return (
     <XStack bg="black" height="25vh" width="100%" position="relative">
       <img
-        src={getFileUrl(entity.data.document.metadata.cover)}
+        src={imageUrl(entity.data.document.metadata.cover, 'XL')}
         style={{
           width: '100%',
           height: '100%',

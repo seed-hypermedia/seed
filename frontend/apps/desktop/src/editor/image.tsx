@@ -1,6 +1,6 @@
 import {isValidUrl, timeoutPromise} from '@/editor/utils'
-import {getFileUrl} from '@shm/shared'
 import {ResizeHandle, useDocContentContext, useTheme} from '@shm/ui'
+import {getDaemonFileUrl} from '@shm/ui/src/get-file-url'
 import {useEffect, useState} from 'react'
 import {RiImage2Line} from 'react-icons/ri'
 import {
@@ -157,7 +157,7 @@ const display = ({
 }: DisplayComponentProps) => {
   const imageUrl = block.props.url.includes('.')
     ? null
-    : getFileUrl(block.props.url)
+    : getDaemonFileUrl(block.props.url)
   // Min image width in px.
   const minWidth = 64
   let width: number =

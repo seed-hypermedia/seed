@@ -6,6 +6,7 @@ import {useListenAppEvent} from '@/utils/window-events'
 import type {Interceptor} from '@connectrpc/connect'
 import {createGrpcWebTransport} from '@connectrpc/connect-web'
 import {
+  DAEMON_FILE_URL,
   DAEMON_HTTP_URL,
   createGRPCClient,
   labelOfQueryKey,
@@ -15,6 +16,7 @@ import {
 } from '@shm/shared'
 import type {StateStream} from '@shm/shared/src/utils/stream'
 import {SizableText, Spinner, Toaster, YStack, toast, useStream} from '@shm/ui'
+import {UniversalAppProvider} from '@shm/ui/src/universal-app'
 import '@tamagui/core/reset.css'
 import '@tamagui/font-inter/css/400.css'
 import '@tamagui/font-inter/css/700.css'
@@ -271,87 +273,92 @@ function MainApp({}: {}) {
 
   if (daemonState?.t == 'ready') {
     return (
-      <AppContextProvider
-        grpcClient={grpcClient}
-        platform={appInfo.platform()}
-        queryClient={queryClient}
-        ipc={ipc}
-        externalOpen={async (url: string) => {
-          ipc.send?.('open-external-link', url)
-        }}
-        openDirectory={async (directory: string) => {
-          ipc.send?.('open-directory', directory)
-        }}
-        saveCidAsFile={async (cid: string, name: string) => {
-          ipc.send?.('save-file', {cid, name})
-        }}
-        openMarkdownFiles={(accountId: string) => {
-          // @ts-ignore
-          return window.docImport.openMarkdownFiles(accountId)
-        }}
-        openMarkdownDirectories={(accountId: string) => {
-          // @ts-ignore
-          return window.docImport.openMarkdownDirectories(accountId)
-        }}
-        readMediaFile={(filePath: string) => {
-          // @ts-ignore
-          return window.docImport.readMediaFile(filePath)
-        }}
-        exportDocument={async (
-          title: string,
-          markdownContent: string,
-          mediaFiles: {url: string; filename: string; placeholder: string}[],
-        ) => {
-          // @ts-ignore
-          return window.docExport.exportDocument(
-            title,
-            markdownContent,
-            mediaFiles,
-          )
-        }}
-        exportDocuments={async (
-          documents: {
-            title: string
-            markdown: {
-              markdownContent: string
-              mediaFiles: {url: string; filename: string; placeholder: string}[]
-            }
-          }[],
-        ) => {
-          // @ts-ignore
-          return window.docExport.exportDocuments(documents)
-        }}
-        windowUtils={windowUtils}
-        darkMode={darkMode!}
-      >
-        <Suspense fallback={<SpinnerWithText message="" />}>
-          <ErrorBoundary
-            FallbackComponent={RootAppError}
-            onReset={() => {
-              window.location.reload()
-            }}
-          >
-            <NavigationContainer
-              initialNav={
-                // @ts-expect-error
-                window.initNavState
+      <UniversalAppProvider ipfsFileUrl={DAEMON_FILE_URL}>
+        <AppContextProvider
+          grpcClient={grpcClient}
+          platform={appInfo.platform()}
+          ipc={ipc}
+          externalOpen={async (url: string) => {
+            ipc.send?.('open-external-link', url)
+          }}
+          openDirectory={async (directory: string) => {
+            ipc.send?.('open-directory', directory)
+          }}
+          saveCidAsFile={async (cid: string, name: string) => {
+            ipc.send?.('save-file', {cid, name})
+          }}
+          openMarkdownFiles={(accountId: string) => {
+            // @ts-ignore
+            return window.docImport.openMarkdownFiles(accountId)
+          }}
+          openMarkdownDirectories={(accountId: string) => {
+            // @ts-ignore
+            return window.docImport.openMarkdownDirectories(accountId)
+          }}
+          readMediaFile={(filePath: string) => {
+            // @ts-ignore
+            return window.docImport.readMediaFile(filePath)
+          }}
+          exportDocument={async (
+            title: string,
+            markdownContent: string,
+            mediaFiles: {url: string; filename: string; placeholder: string}[],
+          ) => {
+            // @ts-ignore
+            return window.docExport.exportDocument(
+              title,
+              markdownContent,
+              mediaFiles,
+            )
+          }}
+          exportDocuments={async (
+            documents: {
+              title: string
+              markdown: {
+                markdownContent: string
+                mediaFiles: {
+                  url: string
+                  filename: string
+                  placeholder: string
+                }[]
               }
+            }[],
+          ) => {
+            // @ts-ignore
+            return window.docExport.exportDocuments(documents)
+          }}
+          windowUtils={windowUtils}
+          darkMode={darkMode!}
+        >
+          <Suspense fallback={<SpinnerWithText message="" />}>
+            <ErrorBoundary
+              FallbackComponent={RootAppError}
+              onReset={() => {
+                window.location.reload()
+              }}
             >
-              <AccountWizardDialog />
-              <Main
-                className={
-                  // this is used by editor.css which doesn't know tamagui styles, boooo!
-                  darkMode ? 'seed-app-dark' : 'seed-app-light'
+              <NavigationContainer
+                initialNav={
+                  // @ts-expect-error
+                  window.initNavState
                 }
+              >
+                <AccountWizardDialog />
+                <Main
+                  className={
+                    // this is used by editor.css which doesn't know tamagui styles, boooo!
+                    darkMode ? 'seed-app-dark' : 'seed-app-light'
+                  }
+                />
+              </NavigationContainer>
+              <Toaster
+              // position="bottom-center"
+              // toastOptions={{className: 'toaster'}}
               />
-            </NavigationContainer>
-            <Toaster
-            // position="bottom-center"
-            // toastOptions={{className: 'toaster'}}
-            />
-          </ErrorBoundary>
-        </Suspense>
-      </AppContextProvider>
+            </ErrorBoundary>
+          </Suspense>
+        </AppContextProvider>
+      </UniversalAppProvider>
     )
   } else if (daemonState?.t == 'error') {
     console.error('Daemon error', daemonState?.message)

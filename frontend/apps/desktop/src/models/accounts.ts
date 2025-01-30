@@ -25,8 +25,6 @@ export function useAccounts() {
     queryKey: [queryKeys.LIST_ACCOUNTS],
     queryFn: async () => {
       const res = await grpcClient.documents.listAccounts({})
-
-      console.log(`== ~ CONTACTS queryFn: ~ res:`, res)
       const accounts = res.accounts
       const accountsMetadata = Object.fromEntries(
         accounts.map((account) => [

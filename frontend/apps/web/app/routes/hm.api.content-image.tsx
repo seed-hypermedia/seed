@@ -11,12 +11,12 @@ import {
   UnpackedHypermediaId,
   clipContentBlocks,
   entityQueryPathToHmIdPath,
-  getCIDFromIPFSUrl,
   getDocumentTitle,
   getParentPaths,
   hmId,
   hmIdPathToEntityQueryPath,
 } from "@shm/shared";
+import {extractIpfsUrlCid} from "@shm/ui/src/get-file-url";
 import {readFileSync} from "fs";
 import {join} from "path";
 import satori from "satori";
@@ -122,7 +122,7 @@ function ImageBlockDisplay({block}: {block: HMBlockImage}) {
   return (
     <img
       style={{borderRadius: 8}}
-      src={`${IPFS_RESOURCE_PREFIX}${getCIDFromIPFSUrl(block.link)}`}
+      src={`${IPFS_RESOURCE_PREFIX}${extractIpfsUrlCid(block.link)}`}
     />
   );
 }
@@ -250,7 +250,7 @@ function TitleMembersCard({
                   </span>
                 </div>
               );
-            const src = `${DAEMON_FILE_URL}/${getCIDFromIPFSUrl(
+            const src = `${DAEMON_FILE_URL}/${extractIpfsUrlCid(
               author.metadata.icon
             )}`;
             return (

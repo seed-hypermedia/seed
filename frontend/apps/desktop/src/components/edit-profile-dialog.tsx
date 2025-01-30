@@ -1,4 +1,4 @@
-import {getFileUrl} from '@shm/shared'
+import {getDaemonFileUrl} from '@shm/ui/src/get-file-url'
 import {Control, useController} from 'react-hook-form'
 import {z} from 'zod'
 import {useAppDialog} from './dialog'
@@ -25,7 +25,7 @@ function AvatarInput({control}: {control: Control<ProfileFields>}) {
   return (
     <IconForm
       onIconUpload={c.field.onChange}
-      url={c.field.value ? getFileUrl(c.field.value) : undefined}
+      url={c.field.value ? getDaemonFileUrl(c.field.value) : undefined}
     />
   )
 }

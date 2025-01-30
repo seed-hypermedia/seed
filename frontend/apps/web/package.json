@@ -38,6 +38,7 @@
     "@tamagui/vite-plugin": "1.108.2",
     "@types/react": "18.2.55",
     "@types/react-dom": "18.2.19",
+    "@types/sharp": "^0.32.0",
     "react-native-svg": ">=12",
     "tamagui": "1.108.2",
     "typescript": "5.5.2",

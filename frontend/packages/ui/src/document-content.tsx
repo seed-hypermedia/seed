@@ -15,9 +15,7 @@ import {
   UnpackedHypermediaId,
   clipContentBlocks,
   formatBytes,
-  getCIDFromIPFSUrl,
   getDocumentTitle,
-  getFileUrl,
   hmBlockToEditorBlock,
   hmId,
   idToUrl,
@@ -31,7 +29,6 @@ import {
   useRangeSelection,
   useRouteLink,
 } from "@shm/shared";
-
 import {Button, ButtonFrame, ButtonText} from "@tamagui/button";
 import {Checkbox, CheckboxProps} from "@tamagui/checkbox";
 import {SizeTokens, Text, TextProps, Theme} from "@tamagui/core";
@@ -51,6 +48,12 @@ import {
   Undo2,
 } from "@tamagui/lucide-icons";
 import {RadioGroup} from "@tamagui/radio-group";
+import {
+  extractIpfsUrlCid,
+  isIpfsUrl,
+  useFileUrl,
+  useImageUrl,
+} from "./get-file-url";
 
 import {XStack, XStackProps, YStack, YStackProps} from "@tamagui/stacks";
 import {SizableText, SizableTextProps} from "@tamagui/text";
@@ -1165,9 +1168,9 @@ function BlockContentImage({
 }: BlockContentProps) {
   let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block]);
   const {textUnit} = useDocContentContext();
+  const imageUrl = useImageUrl();
   if (block.type !== "Image") return null;
   if (!block?.link) return null;
-
   return (
     <YStack
       {...blockStyles}
@@ -1191,7 +1194,7 @@ function BlockContentImage({
       >
         <img
           alt={block?.attributes?.alt}
-          src={getFileUrl(block?.link)}
+          src={imageUrl(block?.link, "L")}
           style={{width: "100%"}}
         />
 
@@ -1213,7 +1216,9 @@ function BlockContentVideo({
   let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block]);
   const link = block.link || "";
   const {textUnit} = useDocContentContext();
+  const fileUrl = useFileUrl();
   if (block.type !== "Video") return null;
+  const isIpfs = isIpfsUrl(link);
 
   return (
     <YStack
@@ -1236,14 +1241,10 @@ function BlockContentVideo({
           }
           maxWidth="100%"
           position="relative"
-          paddingBottom={
-            link.startsWith("ipfs://") || link.startsWith("http")
-              ? "56.25%"
-              : "auto"
-          }
+          paddingBottom={isIpfs || link.startsWith("http") ? "56.25%" : "auto"}
           height={0}
         >
-          {link.startsWith("ipfs://") ? (
+          {isIpfs ? (
             <XStack
               tag="video"
               top={0}
@@ -1257,7 +1258,7 @@ function BlockContentVideo({
               preload="metadata"
             >
               <source
-                src={getFileUrl(link)}
+                src={fileUrl(link)}
                 type={getSourceType(block.attributes.name)}
               />
             </XStack>
@@ -1859,7 +1860,7 @@ export function BlockContentFile({
 }: BlockContentProps) {
   const {hover, ...hoverProps} = useHover();
   const {layoutUnit, saveCidAsFile} = useDocContentContext();
-  const fileCid = block.link ? getCIDFromIPFSUrl(block.link) : "";
+  const fileCid = block.link ? extractIpfsUrlCid(block.link) : "";
   if (block.type !== "File") return null;
   return (
     <YStack
@@ -2004,7 +2005,7 @@ export function BlockContentButton({
 //     block.ref !== "" &&
 //     (content === undefined || verified === undefined)
 //   ) {
-//     fetch(getFileUrl(block.ref), {
+//     fetch(getDaemonFileUrl(block.ref), { // TODO WHEN BRINGING BACK NOSTR: use useImageUrl
 //       method: "GET",
 //     }).then((response) => {
 //       if (response) {

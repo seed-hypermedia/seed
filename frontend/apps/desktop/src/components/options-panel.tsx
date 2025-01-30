@@ -1,5 +1,5 @@
 import {ImageForm} from '@/pages/image-form'
-import {getFileUrl, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
+import {HMMetadata, UnpackedHypermediaId} from '@shm/shared'
 import {
   ButtonText,
   Input,
@@ -9,6 +9,7 @@ import {
   SwitchField,
   YStack,
 } from '@shm/ui'
+import {getDaemonFileUrl} from '@shm/ui/src/get-file-url'
 import {useState} from 'react'
 import {AccessoryContainer} from './accessory-sidebar'
 import {IconForm} from './icon-form'
@@ -50,7 +51,7 @@ export function OptionsPanel({
             size={100}
             id={`icon-${draftId.id}`}
             label={metadata.name}
-            url={metadata.icon ? getFileUrl(metadata.icon) : ''}
+            url={metadata.icon ? getDaemonFileUrl(metadata.icon) : ''}
             onIconUpload={(icon) => {
               if (icon) {
                 onMetadata({
@@ -94,7 +95,7 @@ export function OptionsPanel({
               label={metadata.seedExperimentalLogo}
               url={
                 metadata.seedExperimentalLogo
-                  ? getFileUrl(metadata.seedExperimentalLogo)
+                  ? getDaemonFileUrl(metadata.seedExperimentalLogo)
                   : ''
               }
               onImageUpload={(imgageCid) => {

@@ -25,7 +25,6 @@ import {trpc} from '@/trpc'
 import {
   COMMIT_HASH,
   getAccountName,
-  getFileUrl,
   hmId,
   invalidateQueries,
   VERSION,
@@ -62,6 +61,8 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
+import {getDaemonFileUrl} from '@shm/ui/src/get-file-url'
+
 import {
   AtSign,
   Code2,
@@ -266,7 +267,7 @@ export function ProfileForm({
     <>
       <XStack gap="$4">
         <YStack flex={0} alignItems="center" flexGrow={0}>
-          <IconForm url={getFileUrl(profile?.icon)} />
+          <IconForm url={getDaemonFileUrl(profile?.icon)} />
         </YStack>
         <YStack flex={1} space>
           <YStack>

@@ -3,7 +3,6 @@ import {
   createWebHMUrl,
   formattedDateMedium,
   getDocumentTitle,
-  getFileUrl,
   HMComment,
   HMDocument,
   HMEntityContent,
@@ -27,11 +26,16 @@ import {
   DocContent,
   DocContentProvider,
 } from "@shm/ui/src/document-content";
+import {useImageUrl} from "@shm/ui/src/get-file-url";
 import {
   DocNavigationContent,
   DocumentOutline,
   SiteNavigationContent,
 } from "@shm/ui/src/navigation";
+import {
+  OptimizedImageSize,
+  UniversalAppProvider,
+} from "@shm/ui/src/universal-app";
 import {useTheme} from "@tamagui/core";
 import {ChevronUp} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
@@ -49,6 +53,12 @@ import {MobileSearchUI} from "./search";
 import {EmbedDocument, EmbedInline, QueryBlockWeb} from "./web-embeds";
 import {unwrap, Wrapped} from "./wrapping";
 
+function getOptimizedImageUrl(cid: string, size?: OptimizedImageSize) {
+  let url = `/hm/api/image/${cid}`;
+  if (size) url += `?size=${size}`;
+  return url;
+}
+
 export const documentPageMeta: MetaFunction = ({
   data,
 }: {
@@ -56,7 +66,7 @@ export const documentPageMeta: MetaFunction = ({
 }) => {
   const siteDocument = unwrap<SiteDocumentPayload>(data);
   const homeIcon = siteDocument?.homeMetadata?.icon
-    ? getFileUrl(siteDocument.homeMetadata.icon)
+    ? getOptimizedImageUrl(siteDocument.homeMetadata.icon, "S")
     : null;
   const meta: ReturnType<MetaFunction> = [];
 
@@ -104,6 +114,23 @@ export const documentPageMeta: MetaFunction = ({
   return meta;
 };
 
+function WebSiteProvider(props: {
+  homeId: UnpackedHypermediaId;
+  children: React.ReactNode;
+  siteHost?: string;
+}) {
+  return (
+    <UniversalAppProvider
+      homeId={props.homeId}
+      getOptimizedImageUrl={getOptimizedImageUrl}
+    >
+      <SiteRoutingProvider homeId={props.homeId}>
+        {props.children}
+      </SiteRoutingProvider>
+    </UniversalAppProvider>
+  );
+}
+
 export function DocumentPage(props: SiteDocumentPayload) {
   const {
     document,
@@ -126,9 +153,9 @@ export function DocumentPage(props: SiteDocumentPayload) {
     );
   if (document.metadata.layout == "Seed/Experimental/Newspaper") {
     return (
-      <SiteRoutingProvider homeId={props.homeId}>
+      <WebSiteProvider homeId={props.homeId}>
         <NewspaperPage {...props} />;
-      </SiteRoutingProvider>
+      </WebSiteProvider>
     );
   }
   const onActivateBlock = useCallback((blockId: string) => {
@@ -170,7 +197,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
       />
     );
   return (
-    <SiteRoutingProvider homeId={props.homeId}>
+    <WebSiteProvider homeId={props.homeId}>
       <YStack>
         <SiteHeader
           homeMetadata={homeMetadata}
@@ -254,7 +281,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
         </YStack>
         <PageFooter id={id} />
       </YStack>
-    </SiteRoutingProvider>
+    </WebSiteProvider>
   );
 }
 
@@ -272,12 +299,13 @@ function DocumentCover({
 
     return "black";
   }, [id]);
+  const imageUrl = useImageUrl();
   if (!cover) return null;
 
   return (
     <XStack bg={coverBg} height="25vh" width="100%" position="relative">
       <img
-        src={getFileUrl(cover)}
+        src={imageUrl(cover, "XL")}
         style={{
           width: "100%",
           height: "100%",

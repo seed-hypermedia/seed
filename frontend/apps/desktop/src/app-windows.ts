@@ -14,7 +14,7 @@ import path from 'node:path'
 import {updateRecentRoute} from './app-recents'
 import {appStore} from './app-store'
 import {getDaemonState, subscribeDaemonState} from './daemon'
-import {childLogger, info, warn, debug} from './logger'
+import {childLogger, debug, info, warn} from './logger'
 
 let windowIdCount = 1
 

@@ -32,7 +32,6 @@ import {
   BlockRange,
   createWebHMUrl,
   ExpandedBlockRange,
-  getFileUrl,
   HMDocument,
   HMDraft,
   HMEntityContent,
@@ -55,6 +54,8 @@ import {
   useHeadingTextStyles,
   XStack,
 } from '@shm/ui'
+import {getDaemonFileUrl} from '@shm/ui/src/get-file-url'
+
 import {Image, MoreHorizontal, Plus, Smile} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
 import {useEffect, useMemo, useRef, useState} from 'react'
@@ -605,7 +606,7 @@ export function DraftHeader({
                 size={100}
                 id={route.id ? route.id.uid : 'document-avatar'}
                 label={name}
-                url={icon ? getFileUrl(icon) : ''}
+                url={icon ? getDaemonFileUrl(icon) : ''}
                 onIconUpload={(icon) => {
                   if (icon) {
                     draftActor.send({
@@ -775,7 +776,7 @@ export function DraftCover({
             },
           })
         }}
-        url={cover ? getFileUrl(cover) : ''}
+        url={cover ? getDaemonFileUrl(cover) : ''}
         id={route.id?.id}
       />
     </YStack>

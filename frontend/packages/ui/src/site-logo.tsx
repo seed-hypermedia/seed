@@ -1,9 +1,5 @@
-import {
-  getFileUrl,
-  HMMetadata,
-  UnpackedHypermediaId,
-  useRouteLink,
-} from "@shm/shared";
+import {HMMetadata, UnpackedHypermediaId, useRouteLink} from "@shm/shared";
+import {useImageUrl} from "@shm/ui/src/get-file-url";
 import {View} from "@tamagui/core";
 import {XStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
@@ -16,6 +12,7 @@ export function SiteLogo({
   id: UnpackedHypermediaId;
   metadata?: HMMetadata | null;
 }) {
+  const imageUrl = useImageUrl();
   const homeLinkProps = useRouteLink({
     key: "document",
     id,
@@ -33,7 +30,7 @@ export function SiteLogo({
         }}
       >
         <img
-          src={getFileUrl(metadata.seedExperimentalLogo)}
+          src={imageUrl(metadata.seedExperimentalLogo, "M")}
           height={60}
           style={{objectFit: "contain"}}
         />

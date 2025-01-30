@@ -1,5 +1,5 @@
 import {LoaderFunction} from "@remix-run/node";
-import {DAEMON_HTTP_URL} from "@shm/shared";
+import {DAEMON_HTTP_URL, OptimizedImageSize} from "@shm/shared";
 import fs from "fs/promises";
 import path from "path";
 import sharp from "sharp";
@@ -7,10 +7,11 @@ import sharp from "sharp";
 const CACHE_PATH = path.resolve(
   path.join(process.env.DATA_DIR || process.cwd(), "image-cache")
 );
-const IMG_SIZE_WIDTHS: Record<string, number> = {
-  S: 100,
-  M: 250,
-  L: 900,
+const IMG_SIZE_WIDTHS: Record<OptimizedImageSize, number> = {
+  S: 60, // larger than any "icon" representations in the UI, so far
+  M: 325, // width of the newspaper cards
+  L: 800, // 525 is width of image in banner, 785 is the current max width of document content
+  XL: 3000, // the banner can be very wide
 };
 
 export const loader: LoaderFunction = async ({params, request}) => {
@@ -22,14 +23,15 @@ export const loader: LoaderFunction = async ({params, request}) => {
   if (!CID) {
     return new Response("No CID provided", {status: 400});
   }
-  if (!IMG_SIZE_WIDTHS[size]) {
+  if (!IMG_SIZE_WIDTHS[size as OptimizedImageSize]) {
     return new Response(
       `Invalid size, must be ${Object.keys(IMG_SIZE_WIDTHS).join(", ")}`,
       {status: 400}
     );
   }
+  const width = IMG_SIZE_WIDTHS[size as OptimizedImageSize];
 
-  const cacheFilePath = path.join(CACHE_PATH, `${CID}.${size}.png`);
+  const cacheFilePath = path.join(CACHE_PATH, `${CID}.${width}w.png`);
 
   try {
     // Check if cached file exists
@@ -56,7 +58,7 @@ export const loader: LoaderFunction = async ({params, request}) => {
 
     // Resize the image
     const resizedImage = await sharp(imageBuffer)
-      .resize({width: IMG_SIZE_WIDTHS[size]})
+      .resize({width, withoutEnlargement: true})
       .png()
       .toBuffer();
 

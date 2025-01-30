@@ -1,6 +1,6 @@
 import {isValidUrl, youtubeParser} from '@/editor/utils'
 import {DAEMON_FILE_URL} from '@shm/shared'
-import {ResizeHandle, SizableText, XStack, useTheme} from '@shm/ui'
+import {ResizeHandle, SizableText, XStack, isIpfsUrl, useTheme} from '@shm/ui'
 import {useEffect, useState} from 'react'
 import {RiVideoAddLine} from 'react-icons/ri'
 import {
@@ -288,7 +288,7 @@ const display = ({
           />
         </>
       )}
-      {block.props.url.startsWith('ipfs://') ? (
+      {isIpfsUrl(block.props.url) ? (
         <XStack
           tag="video"
           //@ts-expect-error

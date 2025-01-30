@@ -1,10 +1,10 @@
 import {
-  getFileUrl,
   getMetadataName,
   HMMetadata,
   UnpackedHypermediaId,
   useRouteLink,
 } from "@shm/shared";
+import {useImageUrl} from "@shm/ui/src/get-file-url";
 import {Button} from "@tamagui/button";
 import {AlertCircle} from "@tamagui/lucide-icons";
 import {YStack} from "@tamagui/stacks";
@@ -24,6 +24,7 @@ function _HMIcon({
   metadata?: HMMetadata | null;
   size?: number;
 }) {
+  const imageUrl = useImageUrl();
   if (!id) return null;
 
   return (
@@ -32,7 +33,7 @@ function _HMIcon({
       // id={id.path?.at(-1) || id.uid.slice(2)}
       id={id.id}
       label={metadata?.name}
-      url={getFileUrl(metadata?.icon)}
+      url={metadata?.icon ? imageUrl(metadata.icon, "S") : undefined}
       borderRadius={id.path && id.path.length != 0 ? size / 8 : undefined}
       flexShrink={0}
       flexGrow={0}
