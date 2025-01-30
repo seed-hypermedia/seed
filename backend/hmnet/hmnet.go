@@ -370,7 +370,6 @@ func (n *Node) Start(ctx context.Context) (err error) {
 		g.Go(func() error {
 			t := time.NewTimer(15 * time.Second)
 			localPeers := make(map[peer.ID]time.Time)
-			firstIteration := true
 			defer t.Stop()
 			for {
 				conn, release, err := n.db.Conn(ctx)
@@ -389,13 +388,12 @@ func (n *Node) Start(ctx context.Context) (err error) {
 						}
 					}
 
-					offset := time.Now().Add(10 * time.Minute)
-					if firstIteration {
-						firstIteration = false
-						// Not all peers at the same time
-						offset = time.Now().Add(time.Duration(rand.IntN(60*3)) * time.Second) //nolint:gosec // We don't need a secure random generator here.
+					_, ok := localPeers[pid]
+					if ok && time.Now().Before(localPeers[pid]) {
+						return nil
 					}
-					localPeers[pid] = offset
+
+					localPeers[pid] = time.Now().Add(time.Duration(rand.IntN(60*5)) * time.Second).Add(60 * time.Second) //nolint:gosec // We don't need a secure random generator here.
 					return nil
 				}, math.MaxInt64, math.MaxInt64); err != nil {
 					release()
