@@ -1,8 +1,9 @@
 import {PassThrough} from "node:stream";
 
 import type {AppLoadContext, EntryContext} from "@remix-run/node";
-import {createReadableStreamFromReadable} from "@remix-run/node";
+import {createReadableStreamFromReadable, redirect} from "@remix-run/node";
 import {RemixServer} from "@remix-run/react";
+import {SITE_BASE_URL} from "@shm/shared";
 import fs from "fs";
 import {mkdir, readFile, stat, writeFile} from "fs/promises";
 import * as isbotModule from "isbot";
@@ -178,6 +179,19 @@ export default async function handleRequest(
       status: 404,
     });
   }
+  if (
+    parsedRequest.pathParts.length > 1 &&
+    parsedRequest.pathParts.find((part) => part === "") == ""
+  ) {
+    // This block handles redirecting from trailing slash requests
+    const newPathParts = parsedRequest.pathParts.filter((part) => part !== "");
+    const newUrl = new URL(SITE_BASE_URL + "/" + newPathParts.join("/"));
+    for (const [key, value] of parsedRequest.url.searchParams.entries()) {
+      newUrl.searchParams.set(key, value);
+    }
+    return redirect(newUrl.toString());
+  }
+
   if (useFullRender(parsedRequest)) {
     sendPerfLog("requested full");
     return handleFullRequest(
