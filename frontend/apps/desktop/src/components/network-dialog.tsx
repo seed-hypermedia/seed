@@ -97,7 +97,8 @@ const PeerRow = React.memo(function PeerRow({
     copyTextToClipboard(id)
     toast.success('Copied Peer ID')
   }
-
+  const isConnected =
+    connectionStatus === ConnectionStatus.CONNECTED && protocol === myProtocol
   return (
     <XStack
       jc="space-between"
@@ -151,6 +152,26 @@ const PeerRow = React.memo(function PeerRow({
             {label}
           </ButtonText>
         </XStack> */}
+        {isConnected && (
+          <SizableText
+            size="$1"
+            color="$gray10"
+            opacity={0}
+            $group-item-hover={{opacity: 1}}
+          >
+            Connected
+          </SizableText>
+        )}
+        {peer.protocol && peer.protocol !== myProtocol && (
+          <SizableText
+            size="$1"
+            color="$gray10"
+            opacity={0}
+            $group-item-hover={{opacity: 1}}
+          >
+            Protocol: {peer.protocol.slice(12)}
+          </SizableText>
+        )}
         <OptionsDropdown
           hiddenUntilItemHover
           menuItems={[
