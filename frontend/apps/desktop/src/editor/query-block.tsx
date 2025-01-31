@@ -430,7 +430,6 @@ function QuerySettings({
                 defaultChecked={queryIncludes[0].mode == 'AllDescendants'}
                 opacity={queryIncludes[0].mode == 'AllDescendants' ? 1 : 0.4}
                 onCheckedChange={(value) => {
-                  console.log(`== ~ value:`, value)
                   let newVal = [
                     {
                       ...queryIncludes[0],

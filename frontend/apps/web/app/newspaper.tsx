@@ -65,7 +65,7 @@ export function NewspaperPage(props: SiteDocumentPayload) {
           docId={id}
           breadcrumbs={props.breadcrumbs}
           supportQueries={props.supportQueries}
-          mobileSearchUI={<MobileSearchUI homeId={homeId} />}
+          renderMobileMenu={() => <MobileSearchUI homeId={homeId} />}
           isWeb
         >
           <DocNavigationContent

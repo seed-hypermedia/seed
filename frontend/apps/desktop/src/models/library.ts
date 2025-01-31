@@ -191,7 +191,6 @@ function useAllDocuments(enabled: boolean) {
         pageSize: BIG_INT,
       })
       return res.documents.map((docInfo) => {
-        console.log(`== ~ returntoPlainMessage ~ docInfo:`, docInfo)
         return {
           ...toPlainMessage(docInfo),
           metadata: HMDocumentMetadataSchema.parse(docInfo.metadata),

@@ -1322,8 +1322,6 @@ function InlineContentView({
   const {onLinkClick, textUnit, entityComponents, comment} =
     useDocContentContext();
 
-  console.log("== ~ InlineContentView ~ inline:", inline);
-
   const InlineEmbed = entityComponents.Inline;
 
   let contentOffset = rangeOffset || 0;

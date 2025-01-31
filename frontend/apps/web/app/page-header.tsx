@@ -22,7 +22,7 @@ import {Button, ButtonText} from "@tamagui/button";
 import {Separator} from "@tamagui/separator";
 import {XStack, YStack} from "@tamagui/stacks";
 import {H1, SizableText} from "@tamagui/text";
-import {ReactNode, useMemo, useState} from "react";
+import {PropsWithChildren, ReactNode, useMemo, useState} from "react";
 import {ScrollView} from "react-native";
 import {getHref} from "./href";
 import {useDocumentChanges} from "./models";
@@ -142,19 +142,21 @@ export function PageHeader({
   );
 }
 
-export function SiteHeader(props: {
-  homeMetadata: HMMetadata | null;
-  homeId: UnpackedHypermediaId | null;
-  docMetadata: HMMetadata | null;
-  docId: UnpackedHypermediaId | null;
-  openSheet?: () => void;
-  supportQueries?: HMQueryResult[];
-  renderMobileMenu: (props: {
-    onSetOpen: (open: boolean) => void;
-  }) => React.JSX.Element;
-  mobileSearchUI?: ReactNode;
-  isWeb?: boolean;
-}) {
+export function SiteHeader(
+  props: PropsWithChildren<{
+    homeMetadata: HMMetadata | null;
+    homeId: UnpackedHypermediaId | null;
+    docMetadata: HMMetadata | null;
+    docId: UnpackedHypermediaId | null;
+    openSheet?: () => void;
+    supportQueries?: HMQueryResult[];
+    renderMobileMenu: (props: {
+      onSetOpen: (open: boolean) => void;
+    }) => React.JSX.Element;
+    mobileSearchUI?: ReactNode;
+    isWeb?: boolean;
+  }>
+) {
   if (props.homeMetadata?.layout === "Seed/Experimental/Newspaper") {
     const supportQuery = props.supportQueries?.find(
       (q) => q.in.uid === props.homeId?.uid && !q.in.path?.length

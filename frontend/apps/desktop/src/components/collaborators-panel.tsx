@@ -56,12 +56,9 @@ export function CollaboratorsPanel({
 }
 
 function PublisherCollaborator({id}: {id?: UnpackedHypermediaId}) {
-  console.log(`== ~ PublisherCollaborator ~ id:`, id)
   const navigate = useNavigate('push')
   const pubId = id ? hmId('d', id.uid) : null
   const entity = useEntity(pubId)
-
-  console.log(`== ~ PublisherCollaborator ~ entity:`, entity.data?.document)
 
   if (!id || !entity.data) return null
 

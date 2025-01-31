@@ -162,8 +162,6 @@ function DeletionListItem({
 
 export function useDeleteKeyDialog() {
   const c = useAppDialog(DeleteKeyDialog, {isAlert: true})
-
-  console.log(`== ~ useDeleteKeyDialog ~ c:`, c)
   return c
 }
 

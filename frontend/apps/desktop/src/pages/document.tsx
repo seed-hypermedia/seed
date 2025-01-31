@@ -293,7 +293,6 @@ function AppNewspaperHeader({
 }) {
   const dir = useListDirectory(siteHomeEntity?.id)
 
-  console.log(`== ~ dir:`, dir)
   const capability = useMyCapability(siteHomeEntity?.id)
   const canEditDoc = roleCanWrite(capability?.role)
   const drafts = useAccountDraftList(activeId.uid)

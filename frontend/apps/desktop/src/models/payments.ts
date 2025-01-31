@@ -227,7 +227,6 @@ export function useCreateInvoice() {
         {},
       )
       const serverInvoice = await res.json()
-      console.log(`== ~ serverInvoice`, serverInvoice)
       const invoice: HMInvoice = {
         payload: serverInvoice.pr,
         hash: serverInvoice.payment_hash,

@@ -161,11 +161,7 @@ export function useDeleteKey(
       const deletedKey = await grpcClient.daemon.deleteKey({
         name: keyToDelete.name,
       })
-
-      console.log(`== ~ mutationFn: ~ deletedKey:`, deletedKey)
       const words = await deleteWords.mutateAsync(keyToDelete.name)
-
-      console.log(`== ~ mutationFn: ~ words:`, words)
       return deletedKey
     },
     onSuccess: () => {
