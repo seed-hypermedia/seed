@@ -155,6 +155,7 @@ export interface EditorInlineStyles {
   strike?: boolean
   code?: boolean
   math?: boolean
+  range?: boolean
 }
 
 export type EditorAnnotationType =
@@ -165,7 +166,7 @@ export type EditorAnnotationType =
   | 'code'
   | 'link'
   | 'inline-embed'
-
+  | 'range'
 export type EditorBlockType = EditorBlock['type']
 
 export type SearchResult = {

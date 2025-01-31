@@ -71,6 +71,8 @@ export function hmBlocksToEditorContent(
 
 export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
   const blockType = toEditorBlockType(block.type)
+
+  console.log(`== ~ hmBlockToEditorBlock ~ blockType:`, blockType)
   if (!blockType) throw new Error('Unsupported block type ' + block.type)
 
   let out: EditorBlock = {
@@ -142,6 +144,8 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
 
   const blockText = block.text || ''
   const leaves = out.content
+
+  console.log(`== ~ hmBlockToEditorBlock ~ leaves:`, leaves)
 
   let leaf: EditorInlineContent | null = null
 
@@ -265,8 +269,8 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     }
 
     let linkAnnotation: LinkAnnotation | InlineEmbedAnnotation | null = null
-
     posAnnotations.forEach((l) => {
+      console.log('== ~ l.type: ', l.type)
       // if (['Link', 'Embed'].includes(l.type)) {
       //   linkAnnotation = l as LinkAnnotation | InlineEmbedAnnotation
       // }
@@ -283,7 +287,12 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
           link: l.link,
         }
       }
-      if (['Bold', 'Italic', 'Strike', 'Underline', 'Code'].includes(l.type)) {
+      if (
+        ['Bold', 'Italic', 'Strike', 'Underline', 'Code', 'Range'].includes(
+          l.type,
+        )
+      ) {
+        console.log('== ~ l.type: ', l.type)
         // @ts-ignore
         leaf.styles[l.type.toLowerCase()] = true
       }

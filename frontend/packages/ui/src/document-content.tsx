@@ -937,7 +937,6 @@ function BlockContentParagraph({
 
   let inline = useMemo(() => {
     const editorBlock = hmBlockToEditorBlock(block);
-
     return editorBlock.content;
   }, [block]);
   return (
@@ -1323,6 +1322,8 @@ function InlineContentView({
   const {onLinkClick, textUnit, entityComponents, comment} =
     useDocContentContext();
 
+  console.log("== ~ InlineContentView ~ inline:", inline);
+
   const InlineEmbed = entityComponents.Inline;
 
   let contentOffset = rangeOffset || 0;
@@ -1380,6 +1381,10 @@ function InlineContentView({
             );
           } else {
             children = content.text;
+          }
+
+          if (content.styles.range) {
+            children = <Text backgroundColor={rangeColor}>{children}</Text>;
           }
 
           if (content.styles.bold) {
@@ -1609,6 +1614,7 @@ export function ContentEmbed({
       props.blockRef && document?.content
         ? getBlockNodeById(document.content, props.blockRef)
         : null;
+
     const currentAnnotations = selectedBlock?.block?.annotations || [];
     const embedBlocks = props.blockRef
       ? selectedBlock
@@ -1622,7 +1628,7 @@ export function ContentEmbed({
                     ? [
                         ...currentAnnotations,
                         {
-                          type: "range",
+                          type: "Range",
                           starts: [props.blockRange.start],
                           ends: [props.blockRange.end],
                         },
@@ -1639,8 +1645,7 @@ export function ContentEmbed({
           ]
         : null
       : document?.content;
-
-    return {
+    let res = {
       ...document,
       data: {
         document,
@@ -1655,6 +1660,7 @@ export function ContentEmbed({
             : null,
       },
     };
+    return res;
   }, [props.blockRef, props.blockRange, document]);
 
   let content = <BlockContentUnknown {...props} />;
