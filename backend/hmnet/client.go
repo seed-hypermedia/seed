@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	p2p "seed/backend/genproto/p2p/v1alpha"
+	"seed/backend/hmnet/netutil"
 	"sync"
 
 	gostream "github.com/libp2p/go-libp2p-gostream"
@@ -99,7 +100,7 @@ func (c *Client) Close() (err error) {
 }
 
 func (c *Client) dialPeer(ctx context.Context, pid peer.ID) (*grpc.ClientConn, error) {
-	ctx, cancel := context.WithTimeout(ctx, ConnectTimeout)
+	ctx, cancel := context.WithTimeout(ctx, netutil.ConnectTimeout)
 	defer cancel()
 
 	if c.me == pid {

@@ -12,6 +12,7 @@ import (
 	"seed/backend/config"
 	"seed/backend/core"
 	p2p "seed/backend/genproto/p2p/v1alpha"
+	"seed/backend/hmnet/syncing"
 	"seed/backend/ipfs"
 	"seed/backend/util/cleanup"
 	"seed/backend/util/grpcprom"
@@ -211,8 +212,9 @@ func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool
 	}()
 
 	rpc := &rpcMux{Node: n}
+	syn := syncing.NewServer(n.db, n.index)
+	syn.RegisterServer(n.grpc)
 	p2p.RegisterP2PServer(n.grpc, rpc)
-	p2p.RegisterSyncingServer(n.grpc, rpc)
 	return n, nil
 }
 
@@ -508,35 +510,6 @@ func AddrInfoToStrings(info peer.AddrInfo) []string {
 	}
 
 	return addrs
-}
-
-// AddrInfoFromStrings converts a list of full multiaddrs belonging to the same peer ID into a AddrInfo structure.
-func AddrInfoFromStrings(addrs ...string) (out peer.AddrInfo, err error) {
-	for i, a := range addrs {
-		ma, err := multiaddr.NewMultiaddr(a)
-		if err != nil {
-			return out, fmt.Errorf("failed to parse multiaddr %s: %w", a, err)
-		}
-
-		transport, id := peer.SplitAddr(ma)
-		if id == "" {
-			return peer.AddrInfo{}, peer.ErrInvalidAddr
-		}
-
-		if i == 0 {
-			out.ID = id
-		} else {
-			if out.ID != id {
-				return out, fmt.Errorf("peer IDs do not match: %s != %s", out.ID, id)
-			}
-		}
-
-		if transport != nil {
-			out.Addrs = append(out.Addrs, transport)
-		}
-	}
-
-	return out, nil
 }
 
 func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID, log *zap.Logger) (*ipfs.Libp2p, io.Closer, error) {

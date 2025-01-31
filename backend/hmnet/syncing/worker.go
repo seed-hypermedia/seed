@@ -6,7 +6,7 @@ import (
 	"math"
 	"seed/backend/config"
 	activity_proto "seed/backend/genproto/activity/v1alpha"
-	"seed/backend/hmnet"
+	"seed/backend/hmnet/netutil"
 	"sync"
 	"time"
 
@@ -243,7 +243,7 @@ func (sw *worker) maybeConnect(ctx context.Context, attempts int) peerState {
 		panic("BUG: invalid peer state")
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, hmnet.ConnectTimeout)
+	ctx, cancel := context.WithTimeout(ctx, netutil.ConnectTimeout)
 	defer cancel()
 
 	if err := sw.host.Connect(ctx, peer.AddrInfo{ID: sw.pid}); err != nil {

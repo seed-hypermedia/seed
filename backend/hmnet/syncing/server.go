@@ -1,4 +1,4 @@
-package hmnet
+package syncing
 
 import (
 	"context"
@@ -8,7 +8,9 @@ import (
 	"seed/backend/hmnet/syncing/rbsr"
 	"strings"
 
+	"github.com/ipfs/boxo/blockstore"
 	cbornode "github.com/ipfs/go-ipld-cbor"
+	"google.golang.org/grpc"
 
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -16,9 +18,29 @@ import (
 	"github.com/ipfs/go-cid"
 )
 
+// Server is the RPC handler for the syncing service.
+type Server struct {
+	db    *sqlitex.Pool
+	blobs blockstore.Blockstore
+}
+
+// NewServer creates a new RPC handler instance.
+// It has to be further registered with the actual [grpc.Server].
+func NewServer(db *sqlitex.Pool, bs blockstore.Blockstore) *Server {
+	return &Server{
+		db:    db,
+		blobs: bs,
+	}
+}
+
+// RegisterServer registers the instance with the gRPC server.
+func (s *Server) RegisterServer(srv grpc.ServiceRegistrar) {
+	p2p.RegisterSyncingServer(srv, s)
+}
+
 // ReconcileBlobs reconciles a set of blobs from the initiator. Finds the difference from what we have.
-func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsRequest) (*p2p.ReconcileBlobsResponse, error) {
-	store, err := srv.loadStore(ctx, in.Filters)
+func (s *Server) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsRequest) (*p2p.ReconcileBlobsResponse, error) {
+	store, err := s.loadStore(ctx, in.Filters)
 	if err != nil {
 		return nil, err
 	}
@@ -37,14 +59,14 @@ func (srv *rpcMux) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 	}, nil
 }
 
-func (srv *rpcMux) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Store, error) {
+func (s *Server) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Store, error) {
 	store := rbsr.NewSliceStore()
 
 	var query string = qListAllBlobsStr
 	var queryParams []interface{}
 
 	if len(filters) != 0 {
-		query = QListrelatedBlobsStr
+		query = qListRelatedBlobsStr
 		filtersWithParentDoc := filters
 		for _, filter := range filters {
 			iri := strings.TrimPrefix(filter.Resource, "hm://")
@@ -68,7 +90,7 @@ func (srv *rpcMux) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.S
 				query += " OR iri GLOB "
 			}
 		}
-		query += QListrelatedCapabilitiesStr
+		query += qListRelatedCapabilitiesStr
 		for i, filter := range filters {
 			query += "?"
 			if filter.Recursive {
@@ -80,7 +102,7 @@ func (srv *rpcMux) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.S
 				query += " OR iri GLOB "
 			}
 		}
-		query += QListrelatedCommentsStr
+		query += qListRelatedCommentsStr
 		for i, filter := range filters {
 			query += "?"
 			if filter.Recursive {
@@ -92,7 +114,7 @@ func (srv *rpcMux) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.S
 				query += " OR iri GLOB "
 			}
 		}
-		query += QListrelatedEmbedsStr
+		query += qListRelatedEmbedsStr
 		for i, filter := range filters {
 			query += "?"
 			if filter.Recursive {
@@ -104,10 +126,10 @@ func (srv *rpcMux) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.S
 				query += " OR iri GLOB "
 			}
 		}
-		query += QListRelatedBlobsContStr
+		query += qListRelatedBlobsContStr
 	}
 	allCids := []cid.Cid{}
-	conn, release, err := srv.Node.db.Conn(ctx)
+	conn, release, err := s.db.Conn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("Could not get connection: %w", err)
 	}
@@ -123,10 +145,10 @@ func (srv *rpcMux) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.S
 		return nil, fmt.Errorf("Could not list related blobs: %w", err)
 	}
 	release()
-	query = QListrelatedBlobsStr
+	query = qListRelatedBlobsStr
 	authorFilters := []*p2p.Filter{}
 	for _, c := range allCids {
-		blk, err := srv.Node.index.Get(ctx, c)
+		blk, err := s.blobs.Get(ctx, c)
 		if err != nil {
 			return nil, fmt.Errorf("Could not get cid: %w", err)
 		}
@@ -196,7 +218,7 @@ JOIN structural_blobs sb ON sb.id = b.id
 ORDER BY sb.ts, b.multihash;`
 
 	if len(queryParams2) != 0 {
-		conn, release, err := srv.Node.db.Conn(ctx)
+		conn, release, err := s.db.Conn(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("Could not get connection: %w", err)
 		}
@@ -232,7 +254,7 @@ ORDER BY sb.ts, blobs.multihash;
 `)
 
 // QListrelatedBlobsString gets blobs related to multiple eids
-const QListrelatedBlobsStr = `
+const qListRelatedBlobsStr = `
 WITH RECURSIVE
 refs (id) AS (
 	SELECT id
@@ -240,8 +262,8 @@ refs (id) AS (
 	WHERE type = 'Ref'
 	AND resource IN (SELECT id FROM resources WHERE iri GLOB `
 
-// QListrelatedCapabilitiesStr gets blobs related to multiple eids
-const QListrelatedCapabilitiesStr = `)
+// qListRelatedCapabilitiesStr gets blobs related to multiple eids
+const qListRelatedCapabilitiesStr = `)
 ),
 capabilities (id) AS (
 	SELECT id
@@ -249,8 +271,8 @@ capabilities (id) AS (
 	WHERE type = 'Capability'
 	AND resource IN (SELECT id FROM resources WHERE iri GLOB `
 
-// QListrelatedCommentsStr gets blobs related to multiple eids
-const QListrelatedCommentsStr = `)
+// qListRelatedCommentsStr gets blobs related to multiple eids
+const qListRelatedCommentsStr = `)
 ),
 comments (id) AS (
 	SELECT rl.source
@@ -258,8 +280,8 @@ comments (id) AS (
 	WHERE rl.type GLOB 'comment/*'
 	AND rl.target IN (SELECT id FROM resources WHERE iri GLOB  `
 
-// QListrelatedEmbedsStr gets blobs related to multiple eids
-const QListrelatedEmbedsStr = `)
+// qListRelatedEmbedsStr gets blobs related to multiple eids
+const qListRelatedEmbedsStr = `)
 ),
 embeds (id) AS (
 	SELECT rl.source
@@ -267,8 +289,8 @@ embeds (id) AS (
 	WHERE rl.type GLOB 'doc/*'
 	AND rl.target IN (SELECT id FROM resources WHERE iri GLOB  `
 
-// QListRelatedBlobsContStr gets blobs related to multiple eids
-const QListRelatedBlobsContStr = `)
+// qListRelatedBlobsContStr gets blobs related to multiple eids
+const qListRelatedBlobsContStr = `)
 ),
 changes (id) AS (
 	SELECT bl.target

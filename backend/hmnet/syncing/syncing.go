@@ -10,7 +10,7 @@ import (
 	activity_proto "seed/backend/genproto/activity/v1alpha"
 	documents_proto "seed/backend/genproto/documents/v3alpha"
 	p2p "seed/backend/genproto/p2p/v1alpha"
-	"seed/backend/hmnet"
+	"seed/backend/hmnet/netutil"
 	"seed/backend/hmnet/syncing/rbsr"
 	"seed/backend/ipfs"
 	"seed/backend/util/dqb"
@@ -146,8 +146,18 @@ type Service struct {
 
 const peerRoutingConcurrency = 3 // how many concurrent requests for peer routing.
 
+// P2PNode is a subset of the hmnet Node that is used by syncing service.
+type P2PNode interface {
+	Bitswap() *ipfs.Bitswap
+	SyncingClient(context.Context, peer.ID) (p2p.SyncingClient, error)
+	Client(context.Context, peer.ID) (p2p.P2PClient, error)
+	Libp2p() *ipfs.Libp2p
+	CheckHyperMediaProtocolVersion(ctx context.Context, pid peer.ID, desiredVersion string, protos ...protocol.ID) (err error)
+	ProtocolVersion() string
+}
+
 // NewService creates a new syncing service. Users should call Start() to start the periodic syncing.
-func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer blockstore.Blockstore, net *hmnet.Node, sstore SubscriptionStore) *Service {
+func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer blockstore.Blockstore, net P2PNode, sstore SubscriptionStore) *Service {
 	svc := &Service{
 		cfg:        cfg,
 		log:        log,
@@ -223,7 +233,7 @@ func (s *Service) refreshWorkers(ctx context.Context) error {
 		addresStr := stmt.ColumnText(0)
 		pid := stmt.ColumnText(1)
 		addrList := strings.Split(addresStr, ",")
-		info, err := hmnet.AddrInfoFromStrings(addrList...)
+		info, err := netutil.AddrInfoFromStrings(addrList...)
 		if err != nil {
 			s.log.Warn("Can't periodically sync with peer because it has malformed addresses", zap.String("PID", pid), zap.Error(err))
 			return nil
@@ -360,7 +370,7 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 		addresStr := stmt.ColumnText(0)
 		pid := stmt.ColumnText(1)
 		addrList := strings.Split(addresStr, ",")
-		info, err := hmnet.AddrInfoFromStrings(addrList...)
+		info, err := netutil.AddrInfoFromStrings(addrList...)
 		if err != nil {
 			s.log.Warn("Can't sync subscribed content with peer with malformed addresses", zap.String("PID", pid), zap.Error(err))
 			return nil

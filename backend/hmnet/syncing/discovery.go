@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	documents "seed/backend/genproto/documents/v3alpha"
-	"seed/backend/hmnet"
+	"seed/backend/hmnet/netutil"
 	"seed/backend/ipfs"
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
@@ -70,7 +70,7 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string, 
 		addresStr := stmt.ColumnText(0)
 		pid := stmt.ColumnText(1)
 		addrList := strings.Split(addresStr, ",")
-		info, err := hmnet.AddrInfoFromStrings(addrList...)
+		info, err := netutil.AddrInfoFromStrings(addrList...)
 		if err != nil {
 			s.log.Warn("Can't discover from peer since it has malformed addresses", zap.String("PID", pid), zap.Error(err))
 			return nil
@@ -149,9 +149,9 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string, 
 }
 
 var qGetEntity = dqb.Str(`
-		SELECT
-			iri
-		FROM resources
-		WHERE iri = :iri
-		LIMIT 1;
-	`)
+	SELECT
+		iri
+	FROM resources
+	WHERE iri = :iri
+	LIMIT 1;
+`)

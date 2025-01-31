@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	p2p "seed/backend/genproto/p2p/v1alpha"
+	"seed/backend/hmnet/netutil"
 	"seed/backend/util/apiutil"
 	"seed/backend/util/dqb"
 	"strings"
@@ -83,7 +84,7 @@ func (srv *rpcMux) ListPeers(ctx context.Context, in *p2p.ListPeersRequest) (*p2
 		lastCursor.ID = id
 		lastCursor.Addr = maStr
 		maList := strings.Split(strings.Trim(maStr, " "), ",")
-		info, err := AddrInfoFromStrings(maList...)
+		info, err := netutil.AddrInfoFromStrings(maList...)
 		if err != nil {
 			srv.Node.log.Warn("Invalid address found when listing peers", zap.String("PID", pid), zap.Error(err))
 			return nil

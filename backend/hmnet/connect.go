@@ -10,6 +10,7 @@ import (
 	"math"
 	"math/rand"
 	p2p "seed/backend/genproto/p2p/v1alpha"
+	"seed/backend/hmnet/netutil"
 	"seed/backend/util/dqb"
 	"sort"
 	"strings"
@@ -34,8 +35,6 @@ import (
 )
 
 const (
-	// ConnectTimeout is the maximum time to spend connecting to a peer.
-	ConnectTimeout = time.Minute
 	// PeerSharingTimeout is the maximum time to try to store shared peer list.
 	PeerSharingTimeout = time.Second * 30
 	// CheckProtocolTimeout is the maximum time spent trying to check for protocols.
@@ -111,7 +110,7 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	}
 
 	log := n.log.With(zap.String("peerID", info.ID.String()))
-	ctx, cancel := context.WithTimeout(ctx, ConnectTimeout)
+	ctx, cancel := context.WithTimeout(ctx, netutil.ConnectTimeout)
 	defer cancel()
 
 	log.Debug("ConnectStarted")
@@ -181,7 +180,7 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
 		maStr := stmt.ColumnText(1)
 		maList := strings.Split(strings.Trim(maStr, " "), ",")
-		info, err := AddrInfoFromStrings(maList...)
+		info, err := netutil.AddrInfoFromStrings(maList...)
 		if err != nil {
 			n.log.Warn("We have peers with wrong formatted addresses in our database", zap.String("PID", info.ID.String()), zap.Error(err))
 			return err
@@ -249,7 +248,7 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 					if n.cfg.IsBootstrap(pid) {
 						return
 					}
-					info, err := AddrInfoFromStrings(p.Addrs...)
+					info, err := netutil.AddrInfoFromStrings(p.Addrs...)
 					if err != nil {
 						mu.Lock()
 						xerr = append(xerr, fmt.Errorf("Could not get peer info from shared addresses: %w", err))

@@ -7,6 +7,7 @@ import (
 	"net/netip"
 	networking "seed/backend/genproto/networking/v1alpha"
 	"seed/backend/hmnet"
+	"seed/backend/hmnet/netutil"
 	"seed/backend/ipfs"
 	"seed/backend/util/apiutil"
 	"seed/backend/util/dqb"
@@ -61,7 +62,7 @@ func (srv *Server) Connect(ctx context.Context, in *networking.ConnectRequest) (
 		}
 	}
 
-	info, err := hmnet.AddrInfoFromStrings(in.Addrs...)
+	info, err := netutil.AddrInfoFromStrings(in.Addrs...)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Can't connect due to bad addrs: %v", err)
 	}
@@ -136,7 +137,7 @@ func (srv *Server) ListPeers(ctx context.Context, in *networking.ListPeersReques
 		lastCursor.ID = id
 		lastCursor.Addr = maStr
 		maList := strings.Split(strings.Trim(maStr, " "), ",")
-		info, err := hmnet.AddrInfoFromStrings(maList...)
+		info, err := netutil.AddrInfoFromStrings(maList...)
 		if err != nil {
 			srv.log.Warn("Invalid address found when listing peers", zap.String("PID", pid), zap.Error(err))
 			return nil
