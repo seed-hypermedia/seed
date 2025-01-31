@@ -11,6 +11,10 @@ installGlobals();
 let config = {
   server: {
     port: 3000,
+    build: {
+      minify: false,
+      sourcemap: true,
+    },
   },
   clearScreen: false,
   // css: {
@@ -24,7 +28,7 @@ let config = {
   // ssr: {
   //   noExternal: ["react-tweet"],
   // },
-  build: {minify: true, sourcemap: false},
+  build: {minify: true, sourcemap: true},
   ssr: {
     noExternal: ["@tamagui/helpers-icon"],
   },
