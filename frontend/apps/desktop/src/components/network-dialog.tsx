@@ -1,3 +1,4 @@
+import {useDaemonInfo} from '@/models/daemon'
 import {ConnectionStatus} from '@shm/shared'
 import {
   Button,
@@ -32,6 +33,7 @@ export function NetworkDialog() {
   const peers = usePeers(false, {
     refetchInterval: 5_000,
   })
+  const {data: deviceInfo} = useDaemonInfo()
 
   return (
     <>
@@ -41,7 +43,13 @@ export function NetworkDialog() {
           <List
             items={peers.data}
             renderItem={({item: peer}: {item: HMPeerInfo}) => {
-              return <PeerRow key={peer.id} peer={peer} />
+              return (
+                <PeerRow
+                  key={peer.id}
+                  peer={peer}
+                  myProtocol={deviceInfo?.protocolId}
+                />
+              )
             }}
           />
         ) : (
@@ -57,8 +65,21 @@ export function NetworkDialog() {
   )
 }
 
-const PeerRow = React.memo(function PeerRow({peer}: {peer: HMPeerInfo}) {
-  const {id, addrs, connectionStatus} = peer
+function getProtocolMessage(peer: HMPeerInfo, myProtocol: string) {
+  if (!peer.protocol || peer.protocol === myProtocol) {
+    return ''
+  }
+  return ` (Protocol: ${peer.protocol})`
+}
+
+const PeerRow = React.memo(function PeerRow({
+  peer,
+  myProtocol,
+}: {
+  peer: HMPeerInfo
+  myProtocol: string
+}) {
+  const {id, addrs, connectionStatus, protocol} = peer
   // const isSite =
   //   account?.profile?.bio === 'Hypermedia Site. Powered by Mintter.'
   // const label = isSite
@@ -87,12 +108,17 @@ const PeerRow = React.memo(function PeerRow({peer}: {peer: HMPeerInfo}) {
       group="item"
     >
       <XStack gap="$2" ai="center">
-        <Tooltip content={getPeerStatus(connectionStatus)}>
+        <Tooltip
+          content={
+            getPeerStatus(connectionStatus) +
+            getProtocolMessage(peer, myProtocol)
+          }
+        >
           <XStack
             borderRadius={6}
             height={12}
             width={12}
-            {...getPeerStatusIndicator(connectionStatus)}
+            {...getPeerStatusIndicator(peer, myProtocol)}
             space="$4"
           />
         </Tooltip>
@@ -164,30 +190,38 @@ function getPeerStatus(status: ConnectionStatus) {
   return 'Unknown'
 }
 
-function getPeerStatusIndicator(status: ConnectionStatus): XStackProps {
-  if (status === ConnectionStatus.CONNECTED)
-    return {backgroundColor: '$green10'}
-  if (status === ConnectionStatus.CAN_CONNECT)
+function getPeerStatusIndicator(
+  peer: HMPeerInfo,
+  myProtocol: string,
+): XStackProps {
+  if (peer.connectionStatus === ConnectionStatus.CONNECTED) {
+    if (peer.protocol && peer.protocol !== myProtocol)
+      return {backgroundColor: '$yellow10'}
     return {
-      backgroundColor: '$backgroundTransparent',
-      borderWidth: 1,
-      borderColor: '$green10',
+      backgroundColor: '$green10',
     }
-  if (status === ConnectionStatus.CANNOT_CONNECT)
+  }
+  if (peer.connectionStatus === ConnectionStatus.CAN_CONNECT)
     return {
       backgroundColor: '$backgroundTransparent',
       borderWidth: 1,
       borderStyle: 'dotted',
       borderColor: '$green10',
     }
-  if (status === ConnectionStatus.LIMITED) {
+  if (peer.connectionStatus === ConnectionStatus.CANNOT_CONNECT)
+    return {
+      backgroundColor: '$backgroundTransparent',
+      borderWidth: 1,
+      borderStyle: 'dotted',
+      borderColor: '$red10',
+    }
+  if (peer.connectionStatus === ConnectionStatus.LIMITED)
     return {
       backgroundColor: '$backgroundTransparent',
       borderWidth: 1,
       borderStyle: 'dashed',
       borderColor: '$green10',
     }
-  }
 
   return {backgroundColor: '$gray8'}
 }

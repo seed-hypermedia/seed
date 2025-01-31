@@ -4,13 +4,20 @@ import {Device, fullInvalidate, invalidateQueries, queryKeys} from '@shm/shared'
 import {UseMutationOptions, useMutation} from '@tanstack/react-query'
 import {decompressFromEncodedURIComponent} from 'lz-string'
 import {useGRPCClient} from '../app-context'
+import {useDaemonInfo} from './daemon'
 import {useConnectedPeers} from './networking'
 
 export function useConnectionSummary() {
+  const {data: deviceInfo} = useDaemonInfo()
   const peerInfo = useConnectedPeers({
     refetchInterval: 15_000,
   })
-  const connectedPeers = peerInfo.data || []
+  const connectedPeers = (peerInfo.data || []).filter((peer) => {
+    if (peer.protocol && peer.protocol !== deviceInfo?.protocolId) {
+      return false
+    }
+    return true
+  })
   return {
     online: connectedPeers.length > 0,
     connectedCount: connectedPeers.length,
