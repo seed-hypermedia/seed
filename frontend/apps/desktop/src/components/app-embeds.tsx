@@ -432,7 +432,6 @@ export function QueryBlockDesktop({
   }
 
   const accountsMetadata: AccountsMetadata = documents
-
     .map((document) => {
       const d = document.data
       if (!d || !d.document) return null
@@ -499,30 +498,49 @@ function QueryStyleCard({
     }
   }, [block.attributes.columnCount])
 
-  return items?.length ? (
-    <XStack f={1} flexWrap="wrap" marginHorizontal="$-3">
-      {items.map((item) => {
-        const id = hmId('d', item.account, {
-          path: item.path,
-          latest: true,
-        })
-        return (
-          <YStack {...columnProps} p="$3">
-            <NewspaperCard
-              id={id}
-              entity={getEntity(item.path)}
-              key={item.path.join('/')}
-              accountsMetadata={accountsMetadata}
-              flexBasis="100%"
-              $gtSm={{flexBasis: '100%'}}
-              $gtMd={{flexBasis: '100%'}}
-            />
-          </YStack>
-        )
-      })}
-    </XStack>
-  ) : (
-    <QueryBlockPlaceholder styleType={block.attributes.style} />
+  const firstItem = true ? items[0] : null
+  const restItems = true ? items.slice(1) : items
+
+  return (
+    <>
+      {/* {firstItem ? (
+        <BannerNewspaperCard
+          item={firstItem}
+          entity={getEntity(firstItem.path)}
+          accountsMetadata={accountsMetadata}
+        />
+      ) : null} */}
+      {restItems?.length ? (
+        <XStack
+          f={1}
+          flexWrap="wrap"
+          marginHorizontal="$-3"
+          justifyContent="center"
+        >
+          {restItems.map((item) => {
+            const id = hmId('d', item.account, {
+              path: item.path,
+              latest: true,
+            })
+            return (
+              <YStack {...columnProps} p="$3">
+                <NewspaperCard
+                  id={id}
+                  entity={getEntity(item.path)}
+                  key={item.path.join('/')}
+                  accountsMetadata={accountsMetadata}
+                  flexBasis="100%"
+                  $gtSm={{flexBasis: '100%'}}
+                  $gtMd={{flexBasis: '100%'}}
+                />
+              </YStack>
+            )
+          })}
+        </XStack>
+      ) : (
+        <QueryBlockPlaceholder styleType={block.attributes.style} />
+      )}
+    </>
   )
 }
 

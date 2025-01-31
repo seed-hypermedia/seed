@@ -11831,14 +11831,14 @@ __metadata:
   linkType: hard
 
 "@tiptap/extension-bubble-menu@npm:^2.0.3":
-  version: 2.11.4
-  resolution: "@tiptap/extension-bubble-menu@npm:2.11.4"
+  version: 2.11.5
+  resolution: "@tiptap/extension-bubble-menu@npm:2.11.5"
   dependencies:
     tippy.js: ^6.3.7
   peerDependencies:
     "@tiptap/core": ^2.7.0
     "@tiptap/pm": ^2.7.0
-  checksum: a99a4e5b93ca332b42fc2812cd2fe62d216ccf9893c4ebdc56fd8179a275a370399e7aa66fa7b3910f63708a479f2004ab4bafebb526af9bd74ba12e93107133
+  checksum: 556524d07e7cfc520fb11a665a25df5f71f48adcd2bd8ef0040e99dbbca1587963e8f233efff3820101bfb4d049e0a48c91fce99d90eed59e76382b535f39668
   languageName: node
   linkType: hard
 
@@ -11883,14 +11883,14 @@ __metadata:
   linkType: hard
 
 "@tiptap/extension-floating-menu@npm:^2.0.3":
-  version: 2.11.4
-  resolution: "@tiptap/extension-floating-menu@npm:2.11.4"
+  version: 2.11.5
+  resolution: "@tiptap/extension-floating-menu@npm:2.11.5"
   dependencies:
     tippy.js: ^6.3.7
   peerDependencies:
     "@tiptap/core": ^2.7.0
     "@tiptap/pm": ^2.7.0
-  checksum: 6e2fe97513b24575ac26faaebe7551935ff89351cbe91d4120fbe7601692cbcb4deb6a3e980a38de4e8cd75714b0f6787b7246c3c7b90d67449c3726144e42c8
+  checksum: 0de53b6d6b111273326e1b6ef3c04ce5e466de5cc064ee5704c7b9fd1295018c5ad8faadda633027910f331fb155bcb1f533decfc4236f29f0a73e908b2ac70b
   languageName: node
   linkType: hard
 
@@ -15148,9 +15148,9 @@ __metadata:
   linkType: hard
 
 "cjs-module-lexer@npm:^1.2.2":
-  version: 1.4.2
-  resolution: "cjs-module-lexer@npm:1.4.2"
-  checksum: a11fca84b01d5e35c07d99ea23f13eab0a20f60a8bb607d9008bed82568b4e3d9cdd9f744e1c02bdb2ca908eb288f54e7f2367bb69cb1bce554c1f1ebec9172e
+  version: 1.4.3
+  resolution: "cjs-module-lexer@npm:1.4.3"
+  checksum: 221a1661a9ff4944b472c85ac7cd5029b2f2dc7f6c5f4ecf887f261503611110b43a48acb6c07f8f04109c772d1637fdb20b31252bf27058f35aa97bf5ad8b12
   languageName: node
   linkType: hard
 
@@ -26639,15 +26639,15 @@ __metadata:
   linkType: hard
 
 "prosemirror-tables@npm:^1.3.0":
-  version: 1.6.2
-  resolution: "prosemirror-tables@npm:1.6.2"
+  version: 1.6.3
+  resolution: "prosemirror-tables@npm:1.6.3"
   dependencies:
     prosemirror-keymap: ^1.2.2
     prosemirror-model: ^1.24.1
     prosemirror-state: ^1.4.3
     prosemirror-transform: ^1.10.2
     prosemirror-view: ^1.37.1
-  checksum: 0758dba56d43e02703d5c13fee80f194aa65f7d497d3179b4250ace479c8b01e24f44be4ec7e8dfdd88700f9ea925d5e9b80ba33608415470526f3d71a5aad5f
+  checksum: 60ac30846713b16681a345322de98c935f8ef3ab7cf68c54d3c183cc1bd7c60c6c8936567df61e76b01f24dc5ad10ac0297d371eee5c327ea82e7269d7ca1019
   languageName: node
   linkType: hard
 

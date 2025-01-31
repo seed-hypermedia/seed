@@ -139,6 +139,8 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     out.props.columnCount = String(block.attributes.columnCount)
     out.props.queryIncludes = JSON.stringify(block.attributes.query.includes)
     out.props.querySort = JSON.stringify(block.attributes.query.sort)
+    out.props.banner = block.attributes.banner ? 'true' : 'false'
+    out.props.queryLimit = String(block.attributes.query.limit)
   }
 
   const blockText = block.text || ''

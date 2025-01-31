@@ -125,6 +125,7 @@ export type EditorQueryBlock = EditorBaseBlock & {
     queryLimit?: string
     queryIncludes?: string
     querySort?: string
+    banner?: 'true' | 'false'
   }
   content: Array<EditorInlineContent>
 }
