@@ -37,8 +37,13 @@ export const loader: LoaderFunction = async ({params, request}) => {
     // Check if cached file exists
     const cachedFile = await fs.stat(cacheFilePath);
     if (cachedFile) {
-      return new Response(await fs.readFile(cacheFilePath), {
-        headers: {"Content-Type": "image/png"},
+      const png = await fs.readFile(cacheFilePath);
+      return new Response(png, {
+        headers: {
+          "Content-Type": "image/png",
+          "Content-Length": png.length.toString(),
+          "Cache-Control": "public, max-age=31536000, immutable",
+        },
       });
     }
   } catch (err) {
