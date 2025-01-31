@@ -269,7 +269,7 @@ export function useSubscribedEntities(
         const discoveryRequest = {
           account: id.uid,
           path: hmIdPathToEntityQueryPath(id.path),
-          recursive,
+          recursive: true,
         }
         grpcClient.entities
           .discoverEntity(discoveryRequest)
