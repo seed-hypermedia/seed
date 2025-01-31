@@ -1,3 +1,11 @@
+import {
+  BlockNoteEditor,
+  BlockSpec,
+  HMBlockSchema,
+  PartialBlock,
+  PropSchema,
+  insertOrUpdateBlock,
+} from '@shm/editor'
 import {TwitterXIcon} from '@shm/ui'
 import {
   RiArticleFill,
@@ -12,14 +20,6 @@ import {
   RiText,
   RiVideoAddFill,
 } from 'react-icons/ri'
-import {
-  BlockNoteEditor,
-  BlockSpec,
-  HMBlockSchema,
-  PartialBlock,
-  PropSchema,
-  insertOrUpdateBlock,
-} from './editor'
 
 export const slashMenuItems = [
   {

@@ -1,9 +1,15 @@
 import {useAppContext} from '@/app-context'
-import {EditorBlock, createHypermediaDocLinkPlugin} from '@/editor'
 import {useOpenUrl} from '@/open-url'
 import {slashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
+import {
+  EditorBlock,
+  createHypermediaDocLinkPlugin,
+  hmBlockSchema,
+  useBlockNote,
+} from '@shm/editor'
+import type {BlockNoteEditor} from '@shm/editor/blocknote'
 import {
   BIG_INT,
   BlockNode,
@@ -33,8 +39,6 @@ import {
 import {Extension} from '@tiptap/core'
 import {useEffect, useMemo, useRef} from 'react'
 import {useGRPCClient} from '../app-context'
-import {hmBlockSchema, useBlockNote} from '../editor'
-import type {BlockNoteEditor} from '../editor/blocknote'
 import {getBlockGroup, setGroupTypes} from './editor-utils'
 import {useEntity} from './entities'
 import {useGatewayUrlStream} from './gateway-settings'

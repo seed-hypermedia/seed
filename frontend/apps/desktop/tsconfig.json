@@ -28,7 +28,8 @@
     "paths": {
       "@/*": ["./src/*"],
       "@shm/ui": ["../../packages/ui/src/index.tsx"],
-      "@shm/shared/*": ["../../packages/shared/src/*"]
+      "@shm/shared/*": ["../../packages/shared/src/*"],
+      "@shm/editor/*": ["../../packages/editor/src/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

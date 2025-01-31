@@ -1,12 +1,17 @@
 import {useAppContext, useGRPCClient} from '@/app-context'
 import {dispatchWizardEvent} from '@/components/create-account'
-import {createHypermediaDocLinkPlugin} from '@/editor'
 import {useDraft} from '@/models/accounts'
 import {useOpenUrl} from '@/open-url'
 import {slashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
 import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
+import {
+  BlockNoteEditor,
+  createHypermediaDocLinkPlugin,
+  hmBlockSchema,
+  useBlockNote,
+} from '@shm/editor'
 import {
   BIG_INT,
   Block,
@@ -53,7 +58,6 @@ import _ from 'lodash'
 import {nanoid} from 'nanoid'
 import {useEffect, useMemo, useRef} from 'react'
 import {ContextFrom, OutputFrom, fromPromise} from 'xstate'
-import {BlockNoteEditor, hmBlockSchema, useBlockNote} from '../editor'
 import {useNavRoute} from '../utils/navigation'
 import {pathNameify} from '../utils/path'
 import {useNavigate} from '../utils/useNavigate'

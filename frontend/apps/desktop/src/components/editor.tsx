@@ -5,12 +5,12 @@ import {
   LinkMenuPositioner,
   SideMenuPositioner,
   SlashMenuPositioner,
-} from '@/editor/blocknote'
-import '@/editor/blocknote/core/style.css'
-import '@/editor/editor.css'
-import {HMFormattingToolbar} from '@/editor/hm-formatting-toolbar'
-import {HypermediaLinkSwitchToolbar} from '@/editor/hm-link-switch-toolbar'
-// import {HypermediaLinkToolbar} from '@/editor/hyperlink-toolbar'
+} from '@shm/editor/blocknote'
+import '@shm/editor/blocknote/core/style.css'
+import '@shm/editor/editor.css'
+import {HMFormattingToolbar} from '@shm/editor/hm-formatting-toolbar'
+import {HypermediaLinkSwitchToolbar} from '@shm/editor/hm-link-switch-toolbar'
+// import {HypermediaLinkToolbar} from '@shm/editor/hyperlink-toolbar'
 import {HyperDocsEditor} from '@/models/documents'
 import {useOpenUrl} from '@/open-url'
 

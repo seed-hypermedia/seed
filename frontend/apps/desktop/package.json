@@ -51,6 +51,7 @@
     "@sentry/electron": "4.7.0",
     "@sentry/tracing": "7.49.0",
     "@sentry/vite-plugin": "latest",
+    "@shm/editor": "*",
     "@shm/prettier": "*",
     "@shm/shared": "*",
     "@shm/ui": "0.1.0",

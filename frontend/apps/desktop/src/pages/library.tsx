@@ -3,7 +3,6 @@ import {FavoriteButton} from '@/components/favoriting'
 import {GettingStarted} from '@/components/getting-started'
 import {MainWrapper} from '@/components/main-wrapper'
 
-import {EditorBlock} from '@/editor'
 import {
   FilterItem,
   LibraryData,
@@ -13,6 +12,7 @@ import {
 } from '@/models/library'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {useNavigate} from '@/utils/useNavigate'
+import {EditorBlock} from '@shm/editor'
 import {
   DocumentRoute,
   formattedDate,

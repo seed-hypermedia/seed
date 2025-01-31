@@ -1,28 +1,28 @@
-import { getBlockInfoFromSelection } from '@/editor'
 import {
-  Block,
-  BlockNoteEditor,
-  DefaultBlockSchema,
-  defaultProps
+    Block,
+    BlockNoteEditor,
+    DefaultBlockSchema,
+    defaultProps
 } from '@app/blocknote-core'
 import { insertOrUpdateBlock } from '@app/blocknote-core/extensions/SlashMenu/defaultSlashMenuItems'
 import {
-  createReactBlockSpec,
-  InlineContent,
-  ReactSlashMenuItem
+    createReactBlockSpec,
+    InlineContent,
+    ReactSlashMenuItem
 } from '@app/blocknote-react'
 import { HDBlockSchema } from '@app/client/schema'
 import {
-  Button,
-  Form,
-  Input,
-  Label,
-  Popover,
-  SizableText,
-  Tabs,
-  XStack,
-  YStack
+    Button,
+    Form,
+    Input,
+    Label,
+    Popover,
+    SizableText,
+    Tabs,
+    XStack,
+    YStack
 } from '@mintter/ui'
+import { getBlockInfoFromSelection } from '@shm/editor'
 import { ChangeEvent, useEffect, useState } from 'react'
 import { RiImage2Fill } from 'react-icons/ri'
 

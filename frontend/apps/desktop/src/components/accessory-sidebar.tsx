@@ -1,4 +1,4 @@
-import {dispatchScroll} from '@/editor/editor-on-scroll-stream'
+import {dispatchScroll} from '@shm/editor/editor-on-scroll-stream'
 import {
   Button,
   ScrollView,

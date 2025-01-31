@@ -1,4 +1,4 @@
-import {dispatchScroll} from '@/editor/editor-on-scroll-stream'
+import {dispatchScroll} from '@shm/editor/editor-on-scroll-stream'
 import {ScrollView, View, XStack, YStackProps, useStream} from '@shm/ui'
 import {SidebarWidth, useSidebarContext} from '../sidebar-context'
 

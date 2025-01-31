@@ -7,7 +7,6 @@ import {NewspaperLayout} from '@/components/newspaper-layout'
 import {OptionsPanel} from '@/components/options-panel'
 import {SiteNavigationDraftLoader} from '@/components/site-navigation'
 import {subscribeDraftFocus} from '@/draft-focusing'
-import {BlockNoteEditor, getBlockInfoFromPos} from '@/editor'
 import {useDraft} from '@/models/accounts'
 import {
   useAccountDraftList,
@@ -28,6 +27,7 @@ import {
 import {useNavRoute} from '@/utils/navigation'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
+import {BlockNoteEditor, getBlockInfoFromPos} from '@shm/editor'
 import {
   BlockRange,
   createWebHMUrl,
@@ -63,7 +63,7 @@ import {GestureResponderEvent} from 'react-native'
 // import 'show-keys'
 import {DocumentHeadItems} from '@/components/document-head-items'
 import {ImportDropdownButton} from '@/components/import-doc-button'
-import {EmbedToolbarProvider} from '@/editor/embed-toolbar-context'
+import {EmbedToolbarProvider} from '@shm/editor/embed-toolbar-context'
 import {Spinner, YStack} from '@shm/ui'
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'

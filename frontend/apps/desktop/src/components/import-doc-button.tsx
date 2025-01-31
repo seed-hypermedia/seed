@@ -1,21 +1,21 @@
 import {useAppContext} from '@/app-context'
-import {
-  BlockNoteEditor,
-  BlockSchema,
-  createHypermediaDocLinkPlugin,
-  hmBlockSchema,
-} from '@/editor'
-import {
-  MarkdownToBlocks,
-  processLinkMarkdown,
-  processMediaMarkdown,
-} from '@/editor/blocknote/core/extensions/Markdown/MarkdownToBlocks'
 import {useMyAccountsWithWriteAccess} from '@/models/access-control'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
+import {
+  BlockNoteEditor,
+  BlockSchema,
+  createHypermediaDocLinkPlugin,
+  hmBlockSchema,
+} from '@shm/editor'
+import {
+  MarkdownToBlocks,
+  processLinkMarkdown,
+  processMediaMarkdown,
+} from '@shm/editor/blocknote/core/extensions/Markdown/MarkdownToBlocks'
 import {
   HMDraft,
   HMEntityContent,

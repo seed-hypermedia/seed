@@ -12,7 +12,6 @@ import {NewspaperLayout} from '@/components/newspaper-layout'
 import {OptionsPanel} from '@/components/options-panel'
 import {SiteNavigation} from '@/components/site-navigation'
 import {VersionsPanel} from '@/components/versions-panel'
-import '@/editor/editor.css'
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
 import {
   useAccountDraftList,
@@ -24,6 +23,7 @@ import {useDiscoverEntity, useSubscribedEntity} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
+import '@shm/editor/editor.css'
 import {
   DocAccessoryOption,
   getDocumentTitle,
