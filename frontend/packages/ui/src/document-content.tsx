@@ -1,8 +1,8 @@
 import {PlainMessage} from "@bufbuild/protobuf";
-import {EditorInlineContent} from "@shm/desktop/src/editor";
 import {
   BlockNode,
   BlockRange,
+  EditorInlineContent,
   ExpandedBlockRange,
   HMBlock,
   HMBlockChildrenType,

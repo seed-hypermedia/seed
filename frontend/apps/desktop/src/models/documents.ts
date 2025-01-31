@@ -7,12 +7,6 @@ import {trpc} from '@/trpc'
 import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
 import {
-  BlockNoteEditor,
-  createHypermediaDocLinkPlugin,
-  hmBlockSchema,
-  useBlockNote,
-} from '@shm/editor'
-import {
   BIG_INT,
   Block,
   DEFAULT_GATEWAY_URL,
@@ -42,7 +36,13 @@ import {
   writeableStateStream,
 } from '@shm/shared'
 import {getQueryResultsWithClient} from '@shm/shared/src/models/directory'
-import {toast} from '@shm/ui'
+import {
+  BlockNoteEditor,
+  createHypermediaDocLinkPlugin,
+  hmBlockSchema,
+  toast,
+  useBlockNote,
+} from '@shm/ui'
 import type {UseQueryResult} from '@tanstack/react-query'
 import {
   UseInfiniteQueryOptions,

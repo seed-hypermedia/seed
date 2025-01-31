@@ -1,5 +1,5 @@
-import {dispatchScroll} from '@shm/editor/editor-on-scroll-stream'
 import {ScrollView, View, XStack, YStackProps, useStream} from '@shm/ui'
+import {dispatchScroll} from '@shm/ui/src/editor/editor-on-scroll-stream'
 import {SidebarWidth, useSidebarContext} from '../sidebar-context'
 
 export function SidebarSpacer() {

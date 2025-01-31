@@ -1,5 +1,5 @@
 import {Extensions, extensions} from "@tiptap/core";
-import {HMBlockSchema} from "../../schema";
+import {HMBlockSchema} from "../../../schema";
 
 import {BlockNoteEditor} from "./BlockNoteEditor";
 
@@ -17,10 +17,10 @@ import {Strike} from "@tiptap/extension-strike";
 import {Text} from "@tiptap/extension-text";
 import {Underline} from "@tiptap/extension-underline";
 import * as Y from "yjs";
-import {LocalMediaPastePlugin} from "../../handle-local-media-paste-plugin";
-import {createInlineEmbedNode} from "../../mentions-plugin";
-import {debugPlugin} from "../../prosemirror-debugger";
-import Link from "../../tiptap-extension-link";
+import {LocalMediaPastePlugin} from "../../../handle-local-media-paste-plugin";
+import {createInlineEmbedNode} from "../../../mentions-plugin";
+import {debugPlugin} from "../../../prosemirror-debugger";
+import Link from "../../src/tiptap-extension-link";
 import styles from "./editor.module.css";
 import {BlockManipulationExtension} from "./extensions/BlockManipulation/BlockManipulationExtension";
 import {BlockContainer, BlockGroup, Doc} from "./extensions/Blocks";

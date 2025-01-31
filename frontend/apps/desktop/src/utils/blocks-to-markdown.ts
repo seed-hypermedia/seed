@@ -1,5 +1,4 @@
-import {EditorBlock} from '@shm/editor'
-import {HMDocument} from '@shm/shared'
+import {EditorBlock, HMDocument} from '@shm/shared'
 import rehypeParse from 'rehype-parse'
 import rehypeRemark from 'rehype-remark'
 import remarkGfm from 'remark-gfm'

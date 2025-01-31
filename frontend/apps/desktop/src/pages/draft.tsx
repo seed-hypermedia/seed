@@ -27,7 +27,6 @@ import {
 import {useNavRoute} from '@/utils/navigation'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
-import {BlockNoteEditor, getBlockInfoFromPos} from '@shm/editor'
 import {
   BlockRange,
   createWebHMUrl,
@@ -42,9 +41,11 @@ import {
 } from '@shm/shared'
 import '@shm/shared/src/styles/document.css'
 import {
+  BlockNoteEditor,
   Button,
   Container,
   copyUrlToClipboardWithFeedback,
+  getBlockInfoFromPos,
   getSiteNavDirectory,
   Input,
   NewsSiteHeader,
@@ -63,8 +64,8 @@ import {GestureResponderEvent} from 'react-native'
 // import 'show-keys'
 import {DocumentHeadItems} from '@/components/document-head-items'
 import {ImportDropdownButton} from '@/components/import-doc-button'
-import {EmbedToolbarProvider} from '@shm/editor/embed-toolbar-context'
 import {Spinner, YStack} from '@shm/ui'
+import {EmbedToolbarProvider} from '@shm/ui/src/editor/embed-toolbar-context'
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'

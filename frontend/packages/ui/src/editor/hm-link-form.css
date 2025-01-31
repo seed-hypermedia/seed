@@ -1,0 +1,9 @@
+/* Hide scrollbars for search inputs */
+.search-dropdown-content {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  
+  .search-dropdown-content::-webkit-scrollbar {
+    display: none;
+  }

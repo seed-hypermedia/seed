@@ -4,15 +4,9 @@ import {slashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {
-  EditorBlock,
-  createHypermediaDocLinkPlugin,
-  hmBlockSchema,
-  useBlockNote,
-} from '@shm/editor'
-import type {BlockNoteEditor} from '@shm/editor/blocknote'
-import {
   BIG_INT,
   BlockNode,
+  EditorBlock,
   GRPCClient,
   HMBlockNode,
   HMComment,
@@ -29,7 +23,13 @@ import {
   queryKeys,
   writeableStateStream,
 } from '@shm/shared'
-import {toast} from '@shm/ui'
+import {
+  createHypermediaDocLinkPlugin,
+  hmBlockSchema,
+  toast,
+  useBlockNote,
+} from '@shm/ui'
+import type {BlockNoteEditor} from '@shm/ui/src/editor/blocknote'
 import {
   UseQueryOptions,
   useMutation,

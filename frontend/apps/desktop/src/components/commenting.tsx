@@ -1,4 +1,3 @@
-import {EmbedToolbarProvider} from '@/editor/embed-toolbar-context'
 import {
   useCommentDraft,
   useCommentEditor,
@@ -30,6 +29,7 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
+import {EmbedToolbarProvider} from '@shm/ui/src/editor/embed-toolbar-context'
 import {memo, useEffect, useState} from 'react'
 import {HyperMediaEditorView} from './editor'
 

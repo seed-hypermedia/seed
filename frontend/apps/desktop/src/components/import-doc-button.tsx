@@ -6,23 +6,26 @@ import {trpc} from '@/trpc'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {
-  BlockNoteEditor,
-  BlockSchema,
-  createHypermediaDocLinkPlugin,
-  hmBlockSchema,
-} from '@shm/editor'
-import {
-  MarkdownToBlocks,
-  processLinkMarkdown,
-  processMediaMarkdown,
-} from '@shm/editor/blocknote/core/extensions/Markdown/MarkdownToBlocks'
-import {
   HMDraft,
   HMEntityContent,
   invalidateQueries,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {FileInput, FolderInput, OptionsDropdown, toast} from '@shm/ui'
+import {
+  BlockNoteEditor,
+  BlockSchema,
+  createHypermediaDocLinkPlugin,
+  FileInput,
+  FolderInput,
+  hmBlockSchema,
+  OptionsDropdown,
+  toast,
+} from '@shm/ui'
+import {
+  MarkdownToBlocks,
+  processLinkMarkdown,
+  processMediaMarkdown,
+} from '@shm/ui/src/editor/blocknote/core/extensions/Markdown/MarkdownToBlocks'
 import {Extension} from '@tiptap/core'
 import matter from 'gray-matter'
 import {ReactElement, useMemo, useState} from 'react'

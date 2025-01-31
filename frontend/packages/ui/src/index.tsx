@@ -3,8 +3,10 @@ export {config} from "./tamagui.config";
 
 export {
   Button as TButton,
+  Heading as THeading,
   Paragraph as TParagraph,
   Section as TSection,
+  Theme as TTheme,
   Tooltip as TTooltip,
 } from "tamagui";
 export * from "./avatar";
@@ -21,6 +23,7 @@ export * from "./document-content";
 export * from "./document-content-constants";
 export * from "./document-date";
 export * from "./donate-button";
+export * from "./editor";
 export * from "./entity-card";
 export * from "./footer";
 export * from "./form-fields";

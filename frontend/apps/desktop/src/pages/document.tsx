@@ -23,7 +23,6 @@ import {useDiscoverEntity, useSubscribedEntity} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import '@shm/editor/editor.css'
 import {
   DocAccessoryOption,
   getDocumentTitle,
@@ -55,6 +54,7 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
+import '@shm/ui/src/editor/editor.css'
 import React, {ReactNode, useEffect, useMemo} from 'react'
 import {EntityCitationsAccessory} from '../components/citations'
 import {AppDocContentProvider} from './document-content-provider'

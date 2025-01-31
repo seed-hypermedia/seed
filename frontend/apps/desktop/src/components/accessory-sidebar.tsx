@@ -1,4 +1,3 @@
-import {dispatchScroll} from '@shm/editor/editor-on-scroll-stream'
 import {
   Button,
   ScrollView,
@@ -8,6 +7,7 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
+import {dispatchScroll} from '@shm/ui/src/editor/editor-on-scroll-stream'
 import {ComponentProps} from 'react'
 import {Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
 

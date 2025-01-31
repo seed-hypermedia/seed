@@ -12,9 +12,9 @@ import {
 } from '@/models/library'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {useNavigate} from '@/utils/useNavigate'
-import {EditorBlock} from '@shm/editor'
 import {
   DocumentRoute,
+  EditorBlock,
   formattedDate,
   getDocumentTitle,
   getMetadataName,

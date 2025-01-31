@@ -4,9 +4,9 @@ import {
   HMBlockSchema,
   PartialBlock,
   PropSchema,
+  TwitterXIcon,
   insertOrUpdateBlock,
-} from '@shm/editor'
-import {TwitterXIcon} from '@shm/ui'
+} from '@shm/ui'
 import {
   RiArticleFill,
   RiCodeBoxFill,
