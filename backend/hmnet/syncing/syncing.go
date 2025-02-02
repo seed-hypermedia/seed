@@ -14,6 +14,7 @@ import (
 	"seed/backend/hmnet/syncing/rbsr"
 	"seed/backend/ipfs"
 	"seed/backend/util/dqb"
+	"seed/backend/util/singleflight"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -142,6 +143,7 @@ type Service struct {
 	wg         sync.WaitGroup
 	workers    map[peer.ID]*worker
 	semaphore  chan struct{}
+	single     singleflight.Group[discoveryKey, blob.Version]
 }
 
 const peerRoutingConcurrency = 3 // how many concurrent requests for peer routing.
@@ -415,11 +417,11 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 		subsMap[pid] = eidsMap
 	}
 
-	return s.SyncWithManyPeers(ctx, subsMap), nil
+	return s.syncWithManyPeers(ctx, subsMap), nil
 }
 
-// SyncWithManyPeers syncs with many peers in parallel
-func (s *Service) SyncWithManyPeers(ctx context.Context, subsMap subscriptionMap) (res SyncResult) {
+// syncWithManyPeers syncs with many peers in parallel
+func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap) (res SyncResult) {
 	var i int
 	var wg sync.WaitGroup
 	wg.Add(len(subsMap))
@@ -441,7 +443,7 @@ func (s *Service) SyncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 
 			res.Peers[i] = pid
 			s.log.Debug("Syncing with peer", zap.String("PID", pid.String()))
-			if xerr := s.SyncWithPeer(ctx, pid, eids); xerr != nil {
+			if xerr := s.syncWithPeer(ctx, pid, eids); xerr != nil {
 				s.log.Debug("Could not sync with content", zap.String("PID", pid.String()), zap.Error(xerr))
 				err = errors.Join(err, fmt.Errorf("failed to sync objects: %w", xerr))
 			}
@@ -454,9 +456,9 @@ func (s *Service) SyncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 	return res
 }
 
-// SyncWithPeer syncs all documents from a given peer. given no initial objectsOptionally.
+// syncWithPeer syncs all documents from a given peer. given no initial objectsOptionally.
 // If a non empty entity is provided, then only syncs blobs related to that entities.
-func (s *Service) SyncWithPeer(ctx context.Context, pid peer.ID, eids map[string]bool) error {
+func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string]bool) error {
 	// Can't sync with self.
 	if s.host.Network().LocalPeer() == pid {
 		s.log.Debug("Sync with self attempted")

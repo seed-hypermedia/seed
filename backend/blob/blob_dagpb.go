@@ -62,5 +62,5 @@ func indexDagPB(ictx *indexingCtx, id int64, c cid.Cid, v datamodel.Node) error 
 		return err
 	}
 
-	return ictx.SaveBlob(id, sb)
+	return ictx.SaveBlob(sb)
 }

@@ -230,6 +230,22 @@ const (
 	C_SQLiteSequenceSeq  = "sqlite_sequence.seq"
 )
 
+// Table stashed_blobs.
+const (
+	StashedBlobs           sqlitegen.Table  = "stashed_blobs"
+	StashedBlobsExtraAttrs sqlitegen.Column = "stashed_blobs.extra_attrs"
+	StashedBlobsID         sqlitegen.Column = "stashed_blobs.id"
+	StashedBlobsReason     sqlitegen.Column = "stashed_blobs.reason"
+)
+
+// Table stashed_blobs. Plain strings.
+const (
+	T_StashedBlobs           = "stashed_blobs"
+	C_StashedBlobsExtraAttrs = "stashed_blobs.extra_attrs"
+	C_StashedBlobsID         = "stashed_blobs.id"
+	C_StashedBlobsReason     = "stashed_blobs.reason"
+)
+
 // Table structural_blobs.
 const (
 	StructuralBlobs            sqlitegen.Table  = "structural_blobs"
@@ -370,6 +386,9 @@ var Schema = sqlitegen.Schema{
 		SpacesLastCommentTime:                   {Table: Spaces, SQLType: "INTEGER"},
 		SQLiteSequenceName:                      {Table: SQLiteSequence, SQLType: ""},
 		SQLiteSequenceSeq:                       {Table: SQLiteSequence, SQLType: ""},
+		StashedBlobsExtraAttrs:                  {Table: StashedBlobs, SQLType: "JSON"},
+		StashedBlobsID:                          {Table: StashedBlobs, SQLType: "INTEGER"},
+		StashedBlobsReason:                      {Table: StashedBlobs, SQLType: "TEXT"},
 		StructuralBlobsAuthor:                   {Table: StructuralBlobs, SQLType: "INTEGER"},
 		StructuralBlobsExtraAttrs:               {Table: StructuralBlobs, SQLType: "JSONB"},
 		StructuralBlobsGenesisBlob:              {Table: StructuralBlobs, SQLType: "INTEGER"},

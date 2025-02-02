@@ -159,7 +159,7 @@ func indexRef(ictx *indexingCtx, id int64, c cid.Cid, v *Ref) error {
 		sb.AddBlobLink("ref/capability", v.Capability)
 	}
 
-	if err := ictx.SaveBlob(id, sb); err != nil {
+	if err := ictx.SaveBlob(sb); err != nil {
 		return err
 	}
 
@@ -171,6 +171,10 @@ func indexRef(ictx *indexingCtx, id int64, c cid.Cid, v *Ref) error {
 }
 
 func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
+	if err := ictx.Unstash(); err != nil {
+		return err
+	}
+
 	conn := ictx.conn
 
 	memberID, err := DbPublicKeysLookupID(conn, v.Signer)
@@ -194,7 +198,9 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 	if !ok {
 		// If it's not a valid member, we don't fail.
 		// We just stop the indexing, and we'll take care of it later when/if we find the Capability.
-		return nil
+		return ictx.Stash(stashReasonPermissionDenied, stashMetadata{
+			DeniedSigners: []core.Principal{v.Signer},
+		})
 	}
 
 	resDB, err := dbResourcesLookupID(conn, string(iri))
@@ -223,8 +229,14 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 				return err
 			}
 
+			// If any of the heads is missing (i.e. wasn't indexed before),
+			// we don't want to index this Ref.
+			// I.e. this Ref won't be visible until all the heads are indexed first,
+			// so we have to stop here and avoid saving the document generation data.
 			if bsize.BlobsID == 0 || bsize.BlobsSize < 0 {
-				return nil
+				return ictx.Stash(stashReasonFailedPrecondition, stashMetadata{
+					MissingBlobs: []cid.Cid{h},
+				})
 			}
 
 			queue = append(queue, bsize.BlobsID)
@@ -249,12 +261,15 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 				return err
 			}
 
-			// If any of the heads is missing (i.e. wasn't indexed before),
-			// we don't want to index this Ref.
-			// I.e. this Ref won't be visible until all the heads are indexed first,
-			// so we have to stop here and avoid saving the document generation data.
 			if cm.ID == 0 {
-				return nil
+				c, err := ictx.lookup.CID(change)
+				if err != nil {
+					return err
+				}
+
+				return ictx.Stash(stashReasonFailedPrecondition, stashMetadata{
+					MissingBlobs: []cid.Cid{c},
+				})
 			}
 
 			pendingChangesMap[cm.ID] = cm

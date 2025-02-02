@@ -486,7 +486,7 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 		sb.ExtraAttrs = extra
 	}
 
-	if err := ictx.SaveBlob(id, sb); err != nil {
+	if err := ictx.SaveBlob(sb); err != nil {
 		return err
 	}
 
@@ -497,7 +497,14 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 		}
 
 		for _, ref := range refs {
-			if err := crossLinkRefMaybe(ictx, ref); err != nil {
+			if err := crossLinkRefMaybe(
+				// TODO(burdiyan): doing some ugly stuff here. We need a new indexing context,
+				// because now we are trying to index a Ref blob that might be related to the change we are currently indexing.
+				// Currently the indexing context is tied to a single blob, but it shouldn't be this way.
+				// There's more code like this. Search for (#ictxDRY).
+				newCtx(ictx.conn, ref.ID, ictx.blockStore, ictx.provider, ictx.log),
+				ref.Value,
+			); err != nil {
 				return err
 			}
 		}
@@ -511,14 +518,23 @@ type changeIndexedAttrs struct {
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
-func loadRefsForChange(conn *sqlite.Conn, bs *blockStore, changeID int64) ([]*Ref, error) {
-	var out []*Ref
+type decodedBlob[T any] struct {
+	ID    int64
+	CID   cid.Cid
+	Value T
+}
+
+func loadRefsForChange(conn *sqlite.Conn, bs *blockStore, changeID int64) ([]decodedBlob[*Ref], error) {
+	var out []decodedBlob[*Ref]
 	rows, check := sqlitex.Query(conn, qLoadRefsForChange(), changeID)
 	for row := range rows {
 		inc := sqlite.NewIncrementor(0)
 		var (
-			rawData = row.ColumnBytesUnsafe(inc())
-			size    = row.ColumnInt64(inc())
+			id        = row.ColumnInt64(inc())
+			codec     = row.ColumnInt64(inc())
+			multihash = row.ColumnBytes(inc())
+			rawData   = row.ColumnBytesUnsafe(inc())
+			size      = row.ColumnInt64(inc())
 		)
 
 		data, err := bs.decompress(rawData, int(size))
@@ -530,7 +546,11 @@ func loadRefsForChange(conn *sqlite.Conn, bs *blockStore, changeID int64) ([]*Re
 		if err := cbornode.DecodeInto(data, &ref); err != nil {
 			return nil, err
 		}
-		out = append(out, ref)
+		out = append(out, decodedBlob[*Ref]{
+			ID:    id,
+			CID:   cid.NewCidV1(uint64(codec), multihash),
+			Value: ref,
+		})
 	}
 
 	err := check()
@@ -543,6 +563,9 @@ func loadRefsForChange(conn *sqlite.Conn, bs *blockStore, changeID int64) ([]*Re
 
 var qLoadRefsForChange = dqb.Str(`
 	SELECT
+		blobs.id,
+		blobs.codec,
+		blobs.multihash,
 		blobs.data,
 		blobs.size
 	FROM blob_links bl

@@ -201,7 +201,7 @@ func indexComment(ictx *indexingCtx, id int64, c cid.Cid, v *Comment) error {
 		return err
 	}
 
-	if err := ictx.SaveBlob(id, sb); err != nil {
+	if err := ictx.SaveBlob(sb); err != nil {
 		return err
 	}
 

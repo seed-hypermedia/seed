@@ -57,6 +57,20 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	{Version: "2025-02-02.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := scheduleReindex(conn); err != nil {
+			return err
+		}
+
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			CREATE TABLE IF NOT EXISTS stashed_blobs (
+			    id INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+			    reason TEXT NOT NULL,
+			    extra_attrs JSON NOT NULL,
+				PRIMARY KEY (id, reason, extra_attrs)
+			) WITHOUT ROWID;
+		`))
+	}},
 	{Version: "2025-01-16.01", Run: func(_ *Store, conn *sqlite.Conn) error {
 		return scheduleReindex(conn)
 	}},

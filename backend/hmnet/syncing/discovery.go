@@ -3,8 +3,10 @@ package syncing
 import (
 	"context"
 	"fmt"
+	"seed/backend/blob"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/hmnet/netutil"
+	"seed/backend/hmnet/syncing/rbsr"
 	"seed/backend/ipfs"
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
@@ -95,7 +97,7 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string, 
 			subsMap[pid] = eidsMap
 		}
 
-		res := s.SyncWithManyPeers(ctxLocalPeers, subsMap)
+		res := s.syncWithManyPeers(ctxLocalPeers, subsMap)
 		if res.NumSyncOK > 0 {
 			doc, err := s.docGetter.GetDocument(ctxLocalPeers, &documents.GetDocumentRequest{
 				Account: acc,
@@ -133,7 +135,7 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string, 
 		subsMap[p.ID] = eidsMap
 	}
 
-	res := s.SyncWithManyPeers(ctxDHT, subsMap)
+	res := s.syncWithManyPeers(ctxDHT, subsMap)
 	if res.NumSyncOK > 0 {
 		doc, err := s.docGetter.GetDocument(ctxDHT, &documents.GetDocumentRequest{
 			Account: acc,
@@ -146,6 +148,60 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID, version string, 
 		}
 	}
 	return "", fmt.Errorf("Found some DHT providers but could not get document from them %s", c.String())
+}
+
+func (s *Service) discoverObject(ctx context.Context, iri blob.IRI, version blob.Version, recursive bool) (blob.Version, error) {
+	dkey := discoveryKey{
+		IRI:       iri,
+		Version:   version,
+		Recursive: recursive,
+	}
+
+	c := s.single.DoChanContext(ctx, dkey, func(ctx context.Context) (blob.Version, error) {
+		// Giving some time before letting another discovery for this key to happen.
+		// The frontend is currently calling this function very agressively.
+		defer time.AfterFunc(time.Second, func() {
+			s.single.Forget(dkey)
+		})
+
+		// Check if the entity exists in the local store.
+
+		// Fill up the RBSR store and spawn a goroutine to sync with the peers.
+		// store := rbsr.NewSliceStore()
+		panic("TODO")
+	})
+
+	select {
+	case res := <-c:
+		return res.Val, nil
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+}
+
+type discoveryKey struct {
+	IRI       blob.IRI
+	Version   blob.Version
+	Recursive bool
+}
+
+func loadRBSRStore(conn *sqlite.Conn, dkey discoveryKey) (rbsr.Store, error) {
+	return nil, nil
+
+	// store := rbsr.NewSliceStore()
+
+	// dqb.Select().From(storage.T_DocumentGenerations)
+
+	// Take Refs from all the valid authors.
+	// If recursive also take children Refs.
+	// Aggregate authors of all those Refs.
+	// Take their Caps.
+	// Take all the changes.
+	// If recursive take all the child Refs.
+}
+
+func (s *Service) checkVersionExists(conn *sqlite.Conn, lookup *blob.LookupCache) {
+
 }
 
 var qGetEntity = dqb.Str(`

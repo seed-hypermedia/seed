@@ -155,6 +155,21 @@ func (p Principal) DID() string {
 	return "did:key:" + p.String()
 }
 
+// MarshalText implements encoding.TextMarshaler.
+func (p Principal) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (p *Principal) UnmarshalText(data []byte) error {
+	pp, err := DecodePrincipal(string(data))
+	if err != nil {
+		return err
+	}
+	*p = pp
+	return nil
+}
+
 // PrincipalFromPubKey converts a Libp2p public key into Principal.
 func PrincipalFromPubKey(k crypto.PubKey) Principal {
 	codec, ok := pubKeyCodecs[int(k.Type())]

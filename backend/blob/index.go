@@ -132,7 +132,7 @@ func (idx *Index) IPFSBlockstore() blockstore.Blockstore {
 func (idx *Index) indexBlob(ctx context.Context, conn *sqlite.Conn, id int64, c cid.Cid, data []byte) (err error) {
 	defer sqlitex.Save(conn)(&err)
 
-	ictx := newCtx(conn, idx.bs, idx.provider, idx.log)
+	ictx := newCtx(conn, id, idx.bs, idx.provider, idx.log)
 	ictx.mustTrackUnreads = unreadsTrackingEnabled(ctx) // TODO: refactor this. It's ugly af.
 
 	for _, fn := range indexersList {
@@ -757,28 +757,70 @@ type indexingCtx struct {
 	blockStore *blockStore
 	log        *zap.Logger
 
+	blobID int64
+
 	mustTrackUnreads bool
 
 	// Lookup tables for internal database IDs.
 	pubKeys   map[string]int64
 	resources map[IRI]int64
 	blobs     map[cid.Cid]blobsGetSizeResult
+
+	lookup *LookupCache
 }
 
-func newCtx(conn *sqlite.Conn, bs *blockStore, provider provider.Provider, log *zap.Logger) *indexingCtx {
+func newCtx(conn *sqlite.Conn, id int64, bs *blockStore, provider provider.Provider, log *zap.Logger) *indexingCtx {
 	return &indexingCtx{
 		conn:       conn,
 		provider:   provider,
 		blockStore: bs,
 		log:        log,
+
+		blobID: id,
+
 		// Setting arbitrary size for maps, to avoid dynamic resizing in most cases.
 		pubKeys:   make(map[string]int64, 16),
 		resources: make(map[IRI]int64, 16),
 		blobs:     make(map[cid.Cid]blobsGetSizeResult, 16),
+
+		lookup: NewLookupCache(conn),
 	}
 }
 
-func (idx *indexingCtx) SaveBlob(id int64, b structuralBlob) error {
+type stashReason string
+
+const (
+	stashReasonFailedPrecondition stashReason = "FailedPrecondition"
+	stashReasonPermissionDenied   stashReason = "PermissionDenied"
+)
+
+type stashMetadata struct {
+	MissingBlobs  []cid.Cid        `json:"missingBlobs,omitempty"`
+	DeniedSigners []core.Principal `json:"deniedSigners,omitempty"`
+}
+
+func (idx *indexingCtx) Unstash() error {
+	return sqlitex.Exec(idx.conn, "DELETE FROM stashed_blobs WHERE id = ?", nil, idx.blobID)
+}
+
+func (idx *indexingCtx) Stash(reason stashReason, metadata any) error {
+	extraJSON := "{}"
+	if metadata != nil {
+		data, err := json.Marshal(metadata)
+		if err != nil {
+			return err
+		}
+		extraJSON = strbytes.String(data)
+	}
+
+	return sqlitex.Exec(idx.conn, qStashBlob(), nil, idx.blobID, reason, extraJSON)
+}
+
+var qStashBlob = dqb.Str(`
+	INSERT INTO stashed_blobs (id, reason, extra_attrs) VALUES (?, ?, ?);
+`)
+
+func (idx *indexingCtx) SaveBlob(b structuralBlob) error {
 	var (
 		blobAuthor   maybe.Value[int64]
 		blobResource maybe.Value[int64]
@@ -835,7 +877,7 @@ func (idx *indexingCtx) SaveBlob(id int64, b structuralBlob) error {
 		blobTime = maybe.New(b.Ts.UnixMilli())
 	}
 
-	if err := dbStructuralBlobsInsert(idx.conn, id, b.Type, blobAuthor, blobGenesis, blobResource, blobTime, blobMeta); err != nil {
+	if err := dbStructuralBlobsInsert(idx.conn, idx.blobID, b.Type, blobAuthor, blobGenesis, blobResource, blobTime, blobMeta); err != nil {
 		return err
 	}
 
@@ -844,7 +886,7 @@ func (idx *indexingCtx) SaveBlob(id int64, b structuralBlob) error {
 		if err != nil {
 			return fmt.Errorf("failed to ensure link target blob %s: %w", link.Target, err)
 		}
-		if err := dbBlobLinksInsertOrIgnore(idx.conn, id, link.Type, tgt); err != nil {
+		if err := dbBlobLinksInsertOrIgnore(idx.conn, idx.blobID, link.Type, tgt); err != nil {
 			return fmt.Errorf("failed to insert blob link: %w", err)
 		}
 	}
@@ -860,7 +902,7 @@ func (idx *indexingCtx) SaveBlob(id int64, b structuralBlob) error {
 			return fmt.Errorf("failed to encode resource link metadata as json: %w", err)
 		}
 
-		if err := dbResourceLinksInsert(idx.conn, id, tgt, link.Type, link.IsPinned, meta); err != nil {
+		if err := dbResourceLinksInsert(idx.conn, idx.blobID, tgt, link.Type, link.IsPinned, meta); err != nil {
 			return fmt.Errorf("failed to insert resource link: %w", err)
 		}
 	}

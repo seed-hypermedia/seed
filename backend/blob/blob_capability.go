@@ -2,8 +2,13 @@ package blob
 
 import (
 	"bytes"
+	"encoding/json"
 	"seed/backend/core"
 	"seed/backend/ipfs"
+	"seed/backend/util/dqb"
+	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
+	"seed/backend/util/strbytes"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -107,5 +112,98 @@ func indexCapability(ictx *indexingCtx, id int64, c cid.Cid, v *Capability) erro
 		"del":  del,
 	}
 
-	return ictx.SaveBlob(id, sb)
+	if err := ictx.SaveBlob(sb); err != nil {
+		return err
+	}
+
+	refs, err := loadRefsForCapability(ictx.conn, ictx.blockStore, del, iri, !v.NoRecursive)
+	if err != nil {
+		return err
+	}
+
+	for _, ref := range refs {
+		if err := crossLinkRefMaybe(
+			// TODO(burdiyan): doing some ugly stuff here. We need a new indexing context,
+			// because now we are trying to index a Ref blob that might be related to the change we are currently indexing.
+			// Currently the indexing context is tied to a single blob, but it shouldn't be this way.
+			// There's more code like this. Search for (#ictxDRY).
+			newCtx(ictx.conn, ref.ID, ictx.blockStore, ictx.provider, ictx.log),
+			ref.Value,
+		); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
+
+func loadRefsForCapability(conn *sqlite.Conn, bs *blockStore, delegate int64, iri IRI, recursive bool) ([]decodedBlob[*Ref], error) {
+	var crumbsJSON string
+	{
+		data, err := json.Marshal(iri.Breadcrumbs())
+		if err != nil {
+			return nil, err
+		}
+		crumbsJSON = strbytes.String(data)
+	}
+
+	var iriGlob string
+	if recursive {
+		iriGlob = string(iri) + "/*"
+	}
+
+	var out []decodedBlob[*Ref]
+	rows, check := sqlitex.Query(conn, qLoadRefsForCapability(), delegate, crumbsJSON, iriGlob)
+	for row := range rows {
+		inc := sqlite.NewIncrementor(0)
+		var (
+			id        = row.ColumnInt64(inc())
+			codec     = row.ColumnInt64(inc())
+			multihash = row.ColumnBytes(inc())
+			rawData   = row.ColumnBytesUnsafe(inc())
+			size      = row.ColumnInt64(inc())
+		)
+
+		data, err := bs.decompress(rawData, int(size))
+		if err != nil {
+			return nil, err
+		}
+
+		ref := &Ref{}
+		if err := cbornode.DecodeInto(data, &ref); err != nil {
+			return nil, err
+		}
+		out = append(out, decodedBlob[*Ref]{
+			ID:    id,
+			CID:   cid.NewCidV1(uint64(codec), multihash),
+			Value: ref,
+		})
+	}
+
+	err := check()
+	if err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
+var qLoadRefsForCapability = dqb.Str(`
+	SELECT
+		blobs.id,
+		blobs.codec,
+		blobs.multihash,
+		blobs.data,
+		blobs.size
+	FROM structural_blobs sb
+	JOIN blobs ON blobs.id = sb.id
+	WHERE sb.type = 'Ref'
+	AND sb.author = :delegate
+	AND sb.resource IN (
+		SELECT resources.id
+		FROM resources, json_each(:iris) AS iris
+		WHERE resources.iri = iris.value
+		UNION
+		SELECT resources.id FROM resources WHERE iri GLOB :iriGlob
+	)
+`)

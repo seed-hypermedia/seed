@@ -62,6 +62,20 @@ CREATE INDEX structural_blobs_by_resource ON structural_blobs (resource);
 CREATE INDEX structural_blobs_by_genesis_blob ON structural_blobs (genesis_blob);
 CREATE INDEX structural_blobs_by_author ON structural_blobs (author);
 
+-- Stores blobs that we have failed to index for some reason.
+-- Sometimes we still keep the blob, even if we have failed to index it,
+-- because we might be able to index it later, e.g. when some other related blobs arrive out of order.
+CREATE TABLE stashed_blobs (
+    -- ID of the blob that we failed to index.
+    id INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+    -- Reason why we failed to index the blob.
+    reason TEXT NOT NULL,
+    -- Some extra information that might be useful depending on the reason.
+    -- Application-level concern.
+    extra_attrs JSON NOT NULL,
+    PRIMARY KEY (id, reason, extra_attrs)
+) WITHOUT ROWID;
+
 -- View blobs metadata It returns the latest non null title or the
 -- latest blob in case of untitled meta.
 CREATE VIEW meta_view AS
