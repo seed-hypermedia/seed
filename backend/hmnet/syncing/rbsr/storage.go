@@ -37,7 +37,7 @@ func (v *sliceStore) Insert(createdAt int64, id []byte) error {
 
 	item := NewItem(createdAt, id)
 	for _, it := range v.items {
-		if it.Cmp(item) == 0 {
+		if it.Compare(item) == 0 {
 			return nil
 		}
 	}
@@ -56,7 +56,7 @@ func (v *sliceStore) Seal() error {
 	v.sealed = true
 
 	slices.SortFunc(v.items, func(a, b Item) int {
-		x := a.Cmp(b)
+		x := a.Compare(b)
 		if x == 0 {
 			panic("BUG: duplicate items in store when sealing")
 		}
@@ -103,7 +103,7 @@ func (v *sliceStore) FindLowerBound(startHint int, bound Item) (int, error) {
 	}
 
 	i := sort.Search(len(v.items[startHint:]), func(i int) bool {
-		return v.items[startHint+i].Cmp(bound) >= 0
+		return v.items[startHint+i].Compare(bound) >= 0
 	})
 	return startHint + i, nil
 }

@@ -27,7 +27,7 @@ const (
 	fingerprintSize = 16
 )
 
-var maxItem = Item{Timestamp: math.MaxInt64}
+var maxItem = NewItem(math.MaxInt64, nil)
 
 // Range is a subset of the data that needs to be reconciled.
 type Range = p2p.SetReconciliationRange
@@ -58,16 +58,29 @@ const (
 	ListMode        = p2p.SetReconciliationRange_LIST
 )
 
+// Item is a single element in the set to be reconciled.
 type Item struct {
 	Timestamp int64
 	Value     []byte
+	Hash      [32]byte
 }
 
+// NewItem creates a new item with the given timestamp and value.
 func NewItem(timestamp int64, id []byte) Item {
-	return Item{Timestamp: timestamp, Value: id}
+	it := Item{
+		Timestamp: timestamp,
+		Value:     id,
+	}
+
+	if id != nil {
+		it.Hash = sha256.Sum256(id)
+	}
+
+	return it
 }
 
-func (i Item) Cmp(other Item) int {
+// Compare the two items by their timestamps and values.
+func (i Item) Compare(other Item) int {
 	if i.Timestamp < other.Timestamp {
 		return -1
 	}
@@ -97,6 +110,7 @@ func NewSession(store Store, msgSizeLimitBytes uint64) (*Session, error) {
 	}, nil
 }
 
+// Initiate starts the reconciliation process by splitting the store into ranges.
 func (n *Session) Initiate() ([]*Range, error) {
 	if n.isInitiator {
 		return nil, errors.New("already initiated")
@@ -112,6 +126,7 @@ func (n *Session) Initiate() ([]*Range, error) {
 	return out.Ranges, nil
 }
 
+// Reconcile the given ranges with the other peer.
 func (n *Session) Reconcile(query []*Range) ([]*Range, error) {
 	if n.isInitiator {
 		return nil, errors.New("initiator not asking for have/need IDs")
@@ -130,6 +145,7 @@ func (n *Session) Reconcile(query []*Range) ([]*Range, error) {
 	return output, nil
 }
 
+// ReconcileWithIDs reconciles the given ranges with the other peer, and returns the IDs that are needed or have.
 func (n *Session) ReconcileWithIDs(query []*Range, haveIds, needIds *[][]byte) ([]*Range, error) {
 	if !n.isInitiator {
 		return nil, errors.New("non-initiator asking for have/need IDs")
@@ -289,6 +305,7 @@ func (n *Session) reconcile(query []*Range, haveIds, needIds *[][]byte) ([]*Rang
 	return fullOutput.Ranges, nil
 }
 
+// SplitRange splits the range into smaller ranges, and adds them to the output.
 func (n *Session) SplitRange(lower, upper int, upperBound Item, output *response) error {
 	if output == nil {
 		panic("BUG: output must be initialized when splitting range")
@@ -363,12 +380,12 @@ func (n *Session) checkMessageSize(size int) (ok bool) {
 	return n.msgSizeLimit != 0 && size > int(n.msgSizeLimit)-200
 }
 
+// Fingerprint computes the fingerprint of the given range.
 func (n *Session) Fingerprint(begin, end int) (Fingerprint, error) {
 	var out accumulator
 
 	if err := n.store.ForEach(begin, end, func(_ int, item Item) bool {
-		h := sha256.Sum256(item.Value) // TODO(burdiyan): cache the value of the hash between rounds.
-		out.Add(h)
+		out.Add(item.Hash)
 		return true
 	}); err != nil {
 		return Fingerprint{}, err

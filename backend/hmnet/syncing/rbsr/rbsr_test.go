@@ -23,10 +23,7 @@ func TestReplication(t *testing.T) {
 				ts++
 			}
 
-			dataset[i] = Item{
-				Timestamp: ts,
-				Value:     []byte("Hello " + strconv.Itoa(i)),
-			}
+			dataset[i] = NewItem(ts, []byte("Hello "+strconv.Itoa(i)))
 		}
 	}
 
