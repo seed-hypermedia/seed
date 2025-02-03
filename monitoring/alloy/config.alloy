@@ -1,0 +1,56 @@
+logging {
+    level = "info"
+    format = "logfmt"
+}
+
+pyroscope.write "pyroscope" {
+    endpoint {
+        url = "http://pyroscope:4040"
+    }
+}
+
+pyroscope.scrape "seed_daemon" {
+    targets = [
+        {"__address__" = "host.docker.internal:56001", "service_name" = "seed-daemon-prod"},
+        {"__address__" = "host.docker.internal:57001", "service_name" = "seed-daemon-dev"},
+        {"__address__" = "host.docker.internal:58001", "service_name" = "seed-daemon-local"},
+    ]
+    forward_to = [pyroscope.write.pyroscope.receiver]
+
+    profiling_config {
+        profile.process_cpu {
+            enabled = true
+        }
+
+        profile.godeltaprof_memory {
+            enabled = true
+        }
+
+        // disable memory, use godeltaprof_memory instead
+        profile.memory {
+            enabled = false
+        }
+
+        profile.godeltaprof_mutex {
+            enabled = true
+        }
+
+        // disable mutex, use godeltaprof_mutex instead
+        profile.mutex {
+            enabled = false
+        }
+
+        profile.godeltaprof_block {
+            enabled = true
+        }
+
+        // disable block, use godeltaprof_block instead
+        profile.block {
+            enabled = false
+        }
+
+        profile.goroutine {
+            enabled = true
+        }
+    }
+}

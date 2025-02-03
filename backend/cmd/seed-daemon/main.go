@@ -5,12 +5,15 @@ import (
 	"errors"
 	"flag"
 	"os"
+	"runtime"
 	"slices"
 	"strings"
 	"time"
 
 	_ "expvar"
 	_ "net/http/pprof"
+
+	_ "github.com/grafana/pyroscope-go/godeltaprof/http/pprof"
 
 	"seed/backend/config"
 	"seed/backend/core"
@@ -37,6 +40,10 @@ func init() {
 }
 
 func main() {
+	// These settings are recommended in this video by a DataDog profiling expert: https://www.youtube.com/watch?v=7hg4T2Qqowk.
+	runtime.SetBlockProfileRate(10000)
+	runtime.SetMutexProfileFraction(10)
+
 	const envVarPrefix = "SEED"
 
 	mainutil.Run(func() error {

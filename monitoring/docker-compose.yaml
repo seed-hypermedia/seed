@@ -19,6 +19,26 @@ services:
       - ./grafana/dashboards:/etc/grafana/dashboards
       - ./grafana/provisioning:/etc/grafana/provisioning
       - ./grafana/grafana.ini:/etc/grafana/grafana.ini
+
+  pyroscope:
+    image: grafana/pyroscope:latest
+    ports:
+      - "4040:4040"
+
+  alloy:
+    image: grafana/alloy:latest
+    ports:
+      - "12345:12345"
+    volumes:
+      - alloy-data:/var/lib/alloy/data
+      - ./alloy/config.alloy:/etc/alloy/config.alloy
+    command:
+      - "run"
+      - "--server.http.listen-addr=0.0.0.0:12345"
+      - "--storage.path=/var/lib/alloy/data"
+      - "/etc/alloy/config.alloy"
+
 volumes:
   grafana-data: {}
   prometheus-data: {}
+  alloy-data: {}

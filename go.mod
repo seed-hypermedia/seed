@@ -16,6 +16,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.2.1
 	github.com/google/go-cmp v0.6.0
 	github.com/gorilla/mux v1.8.1
+	github.com/grafana/pyroscope-go/godeltaprof v0.1.8
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.0.1
 	github.com/improbable-eng/grpc-web v0.15.0
 	github.com/ipfs/boxo v0.24.3

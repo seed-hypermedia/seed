@@ -7,6 +7,19 @@ datasources:
     orgId: 1
     url: http://prometheus:9090
     basicAuth: false
+    isDefault: true
+    version: 1
+    editable: false
+    jsonData:
+      httpMethod: GET
+
+  - name: Pyroscope
+    type: grafana-pyroscope-datasource
+    uid: pyroscope
+    access: proxy
+    orgId: 1
+    url: http://pyroscope:4040
+    basicAuth: false
     isDefault: false
     version: 1
     editable: false
