@@ -8,7 +8,6 @@ import {
   BIG_INT,
   BlockNode,
   GRPCClient,
-  HMBlockNode,
   HMComment,
   HMCommentDraft,
   HMCommentDraftSchema,
@@ -332,7 +331,6 @@ export function useCommentEditor(
   //   draftQuery.data,
   // )
   const recentSigners = trpc.recentSigners.get.useQuery()
-  console.log('recentSigners', recentSigners.data)
   const availableRecentSigner = recentSigners.data
     ? recentSigners.data.recentSigners.find((signer) =>
         accounts.find((a) => a.id.uid === signer),
@@ -353,7 +351,7 @@ export function useCommentEditor(
       content,
       signingKeyName,
     }: {
-      content: HMBlockNode[]
+      content: BlockNode[]
       signingKeyName: string
     }) => {
       const resultComment = await grpcClient.comments.createComment({
@@ -384,6 +382,9 @@ export function useCommentEditor(
         targetDocId: targetDocId.id,
         replyCommentId,
       })
+    },
+    onError: (err: {message: string}) => {
+      toast.error(`Failed to create comment: ${err.message}`)
     },
   })
   return useMemo(() => {
