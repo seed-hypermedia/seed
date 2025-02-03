@@ -16,6 +16,7 @@ import {
 } from '@shm/shared'
 import {
   ArrowUpRightSquare,
+  BannerNewspaperCard,
   BlockContentUnknown,
   BlockNodeContent,
   BlockNodeList,
@@ -498,18 +499,19 @@ function QueryStyleCard({
     }
   }, [block.attributes.columnCount])
 
-  const firstItem = true ? items[0] : null
-  const restItems = true ? items.slice(1) : items
+  const firstItem = block.attributes.banner ? items[0] : null
+  const restItems = block.attributes.banner ? items.slice(1) : items
 
   return (
-    <>
-      {/* {firstItem ? (
+    <YStack width="100%">
+      {firstItem ? (
         <BannerNewspaperCard
           item={firstItem}
           entity={getEntity(firstItem.path)}
+          key={firstItem.path.join('/')}
           accountsMetadata={accountsMetadata}
         />
-      ) : null} */}
+      ) : null}
       {restItems?.length ? (
         <XStack
           f={1}
@@ -540,7 +542,7 @@ function QueryStyleCard({
       ) : (
         <QueryBlockPlaceholder styleType={block.attributes.style} />
       )}
-    </>
+    </YStack>
   )
 }
 

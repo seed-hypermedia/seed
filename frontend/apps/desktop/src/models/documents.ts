@@ -1176,6 +1176,29 @@ export function compareBlocksWithMap(
             },
           }),
         )
+
+        if (
+          currentBlockState.type == 'Query' &&
+          typeof currentBlockState.attributes.banner != 'undefined'
+        ) {
+          changes.push(
+            new DocumentChange({
+              op: {
+                case: 'setAttribute',
+                value: new DocumentChange_SetAttribute({
+                  blockId: '',
+                  // Es array porque para anidar hay que pasar el path completo.
+                  // Por ejemplo ["localTheme", "showOutline"] sera {"localTheme": {"showOutline": true}}.
+                  key: ['banner'],
+                  value: {
+                    case: 'boolValue',
+                    value: currentBlockState.attributes.banner as boolean,
+                  },
+                }),
+              },
+            }),
+          )
+        }
       }
     }
 

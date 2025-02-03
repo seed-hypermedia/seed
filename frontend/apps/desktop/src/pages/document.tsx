@@ -200,6 +200,8 @@ function _MainDocumentPage({
   }, [])
   const entity = useSubscribedEntity(id)
 
+  console.log(`== ~ entity:`, entity)
+
   const siteHomeEntity = useSubscribedEntity(
     // if the route document ID matches the home document, then use it because it may be referring to a specific version
     id.path?.length ? hmId('d', id.uid) : id,
