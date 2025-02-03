@@ -6,6 +6,7 @@ import {trpc} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {
   BIG_INT,
+  Block,
   BlockNode,
   GRPCClient,
   HMComment,
@@ -60,7 +61,7 @@ function serverBlockNodesFromEditorBlocks(
         serverBlock.attributes.start = childGroup.start.toString()
     }
     return new BlockNode({
-      block: serverBlock,
+      block: Block.fromJson(serverBlock),
       children: serverBlockNodesFromEditorBlocks(editor, block.children),
     })
   })
