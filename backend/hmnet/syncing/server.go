@@ -5,6 +5,7 @@ import (
 	"seed/backend/blob"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet/syncing/rbsr"
+	"strings"
 
 	"github.com/ipfs/boxo/blockstore"
 	"google.golang.org/grpc"
@@ -57,19 +58,19 @@ func (s *Server) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReque
 func (s *Server) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Store, error) {
 	store := rbsr.NewSliceStore()
 
-	if err := s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		for _, f := range filters {
-			dkey := discoveryKey{
-				IRI:       blob.IRI(f.Resource),
-				Recursive: f.Recursive,
-			}
+	dkeys := make(map[discoveryKey]struct{}, len(filters))
 
-			if err := loadRBSRStore(conn, dkey, store); err != nil {
-				return err
-			}
+	for _, f := range filters {
+		f.Resource = strings.TrimSuffix(f.Resource, "/")
+		dkey := discoveryKey{
+			IRI:       blob.IRI(f.Resource),
+			Recursive: f.Recursive,
 		}
+		dkeys[dkey] = struct{}{}
+	}
 
-		return nil
+	if err := s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return loadRBSRStore(conn, dkeys, store)
 	}); err != nil {
 		return nil, err
 	}
