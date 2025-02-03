@@ -515,19 +515,19 @@ func syncEntities(
 
 	store := rbsr.NewSliceStore()
 
-	if err := db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		for eid, recursive := range eids {
-			dkey := discoveryKey{
-				IRI:       blob.IRI(eid),
-				Recursive: recursive,
-			}
+	dkeys := make(map[discoveryKey]struct{}, len(eids))
 
-			if err := loadRBSRStore(conn, dkey, store); err != nil {
-				return err
-			}
+	for eid, recursive := range eids {
+		eid = strings.TrimSuffix(eid, "/")
+		dkey := discoveryKey{
+			IRI:       blob.IRI(eid),
+			Recursive: recursive,
 		}
+		dkeys[dkey] = struct{}{}
+	}
 
-		return nil
+	if err := db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return loadRBSRStore(conn, dkeys, store)
 	}); err != nil {
 		return err
 	}
