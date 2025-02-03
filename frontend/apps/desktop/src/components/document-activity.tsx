@@ -11,6 +11,7 @@ import {
   HMCommentGroup,
   HMDocumentInfo,
   hmId,
+  normalizeDate,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {getActivityTime} from '@shm/shared/src/models/activity'
@@ -86,6 +87,11 @@ function ActivityList({docId}: {docId: UnpackedHypermediaId}) {
   )[] = []
   let currentChangeGroup: HMChangeGroup | null = null
   activity?.forEach((item) => {
+    if (item.type === 'change') {
+      const date = normalizeDate(item.createTime)
+      // if this is the genesis change, we don't want to show it as activity
+      if (!date || date.getTime() === 0) return
+    }
     if (item.type !== 'change') {
       if (currentChangeGroup) {
         activityWithGroups.push(currentChangeGroup)

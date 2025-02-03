@@ -15,13 +15,13 @@ import {
   UnpackedHypermediaId,
   useRouteLink,
 } from "@shm/shared";
-import { Button } from "@tamagui/button";
-import { ChevronDown } from "@tamagui/lucide-icons";
-import { XStack, YStack } from "@tamagui/stacks";
-import { SizableText } from "@tamagui/text";
-import { useState } from "react";
-import { HMIcon } from "./hm-icon";
-import { Version } from "./icons";
+import {Button} from "@tamagui/button";
+import {ChevronDown} from "@tamagui/lucide-icons";
+import {XStack, YStack} from "@tamagui/stacks";
+import {SizableText} from "@tamagui/text";
+import {useState} from "react";
+import {HMIcon} from "./hm-icon";
+import {Version} from "./icons";
 
 export function SubDocumentItem({
   item,
@@ -179,8 +179,6 @@ export function ChangeGroup({
   const [isCollapsed, setIsCollapsed] = useState(true);
   if (!isCollapsed || item.changes.length <= 1) {
     return item.changes.map((change) => {
-      const date = normalizeDate(change.createTime);
-      if (!date || date.getTime() === 0) return null;
       const isActive = activeChangeIds?.has(change.id) || false;
       return (
         <ChangeItem
