@@ -192,7 +192,7 @@ type discoveryKey struct {
 	Recursive bool
 }
 
-func loadRBSRStore(conn *sqlite.Conn, dkey discoveryKey, store rbsr.Store) error {
+func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbsr.Store) error {
 	if err := ensureTempTable(conn, "rbsr_iris"); err != nil {
 		return err
 	}
@@ -202,16 +202,18 @@ func loadRBSRStore(conn *sqlite.Conn, dkey discoveryKey, store rbsr.Store) error
 	}
 
 	// Fill IRIs.
-	{
-		if err := sqlitex.Exec(conn, `INSERT OR IGNORE INTO rbsr_iris
-			SELECT id FROM resources WHERE iri = :iri;`, nil, string(dkey.IRI)); err != nil {
-			return err
-		}
-
-		if dkey.Recursive {
+	for dkey := range dkeys {
+		{
 			if err := sqlitex.Exec(conn, `INSERT OR IGNORE INTO rbsr_iris
-				SELECT id FROM resources WHERE iri GLOB :pattern`, nil, string(dkey.IRI)+"/*"); err != nil {
+			SELECT id FROM resources WHERE iri = :iri;`, nil, string(dkey.IRI)); err != nil {
 				return err
+			}
+
+			if dkey.Recursive {
+				if err := sqlitex.Exec(conn, `INSERT OR IGNORE INTO rbsr_iris
+				SELECT id FROM resources WHERE iri GLOB :pattern`, nil, string(dkey.IRI)+"/*"); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -277,7 +279,8 @@ func loadRBSRStore(conn *sqlite.Conn, dkey discoveryKey, store rbsr.Store) error
 				b.multihash
 			FROM rbsr_blobs rb
 			CROSS JOIN structural_blobs sb ON sb.id = rb.id
-			CROSS JOIN blobs b INDEXED BY blobs_metadata ON b.id = sb.id;`
+			CROSS JOIN blobs b INDEXED BY blobs_metadata ON b.id = sb.id
+			ORDER BY sb.ts;`
 
 		if err := sqlitex.Exec(conn, q, func(row *sqlite.Stmt) error {
 			inc := sqlite.NewIncrementor(0)
