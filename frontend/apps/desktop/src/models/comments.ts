@@ -34,7 +34,7 @@ import {Extension} from '@tiptap/core'
 import {useEffect, useMemo, useRef} from 'react'
 import {useGRPCClient} from '../app-context'
 import {hmBlockSchema, useBlockNote} from '../editor'
-import type {BlockNoteEditor} from '../editor/blocknote'
+import type {BlockNoteEditor, BlockSchema} from '../editor/blocknote'
 import {getBlockGroup, setGroupTypes} from './editor-utils'
 import {useEntity} from './entities'
 import {useGatewayUrlStream} from './gateway-settings'
@@ -239,6 +239,13 @@ export function useCommentEditor(
     invalidateQueries(['trpc.comments.getCommentDraft'])
     setIsSaved(true)
   }
+
+  const commentsSchema = {
+    ...hmBlockSchema,
+  }
+
+  delete commentsSchema.query
+
   const gwUrl = useGatewayUrlStream()
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
@@ -263,10 +270,10 @@ export function useCommentEditor(
       readyEditor.current = e
       initDraft()
     },
-    blockSchema: hmBlockSchema,
+    blockSchema: getCommentEditorSchema(hmBlockSchema),
     slashMenuItems: !showNostr
-      ? slashMenuItems.filter((item) => item.name != 'Nostr')
-      : slashMenuItems,
+      ? slashMenuItems.filter((item) => !['Nostr', 'Query'].includes(item.name))
+      : slashMenuItems.filter((item) => !['Query'].includes(item.name)),
     onMentionsQuery: (query: string) => {
       inlineMentionsQuery(query)
     },
@@ -281,6 +288,16 @@ export function useCommentEditor(
       ],
     },
   })
+
+  function getCommentEditorSchema(schema: BlockSchema) {
+    const commentsSchema = {
+      ...schema,
+    }
+
+    // remove query block from schema on comments
+    delete commentsSchema.query
+    return commentsSchema
+  }
 
   useEffect(() => {
     if (inlineMentionsData) {
