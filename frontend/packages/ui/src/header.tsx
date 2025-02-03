@@ -88,6 +88,8 @@ export function SiteHeader({
             right="$4"
             height="100%"
             background="$background"
+            f={1}
+            overflow="scroll"
           >
             {items?.length || afterLinksContent ? (
               <XStack
