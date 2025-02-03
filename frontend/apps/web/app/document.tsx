@@ -53,8 +53,7 @@ import {MobileSearchUI} from "./search";
 import {EmbedDocument, EmbedInline, QueryBlockWeb} from "./web-embeds";
 import {unwrap, Wrapped} from "./wrapping";
 
-function getOptimizedImageUrl(ipfsUrl: string, size?: OptimizedImageSize) {
-  const cid = extractIpfsUrlCid(ipfsUrl);
+function getOptimizedImageUrl(cid: string, size?: OptimizedImageSize) {
   let url = `/hm/api/image/${cid}`;
   if (size) url += `?size=${size}`;
   return url;
@@ -67,7 +66,10 @@ export const documentPageMeta: MetaFunction = ({
 }) => {
   const siteDocument = unwrap<SiteDocumentPayload>(data);
   const homeIcon = siteDocument?.homeMetadata?.icon
-    ? getOptimizedImageUrl(siteDocument.homeMetadata.icon, "S")
+    ? getOptimizedImageUrl(
+        extractIpfsUrlCid(siteDocument.homeMetadata.icon),
+        "S"
+      )
     : null;
   const meta: ReturnType<MetaFunction> = [];
 

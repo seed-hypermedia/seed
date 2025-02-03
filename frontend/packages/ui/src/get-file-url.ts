@@ -1,4 +1,4 @@
-import { DAEMON_FILE_URL } from "@shm/shared";
+import {DAEMON_FILE_URL} from "@shm/shared";
 import {
   OptimizedImageSize,
   useUniversalAppContext,
@@ -13,10 +13,10 @@ export function getDaemonFileUrl(ipfsUrl?: string) {
   return "";
 }
 
-export function extractIpfsUrlCid(url: string): null | string {
+export function extractIpfsUrlCid(cidOrIPFSUrl: string): string {
   const regex = /^ipfs:\/\/(.+)$/;
-  const match = url.match(regex);
-  return match ? match[1] : null;
+  const match = cidOrIPFSUrl.match(regex);
+  return match ? match[1] : cidOrIPFSUrl;
 }
 
 export function isIpfsUrl(url: string): boolean {
