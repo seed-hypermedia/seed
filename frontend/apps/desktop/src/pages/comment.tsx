@@ -159,8 +159,8 @@ function MainComment({
         />
       </YStack>
       <YStack paddingVertical="$4">
-        {commentGroups.length && targetDocId ? (
-          commentGroups.map((group) => (
+        {commentGroups.data.length && targetDocId ? (
+          commentGroups.data.map((group) => (
             <CommentGroup
               group={group}
               key={group.id}

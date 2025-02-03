@@ -169,7 +169,10 @@ export function useDocumentCommentGroups(
   commentId: string | null = null,
 ) {
   const comments = useAllDocumentComments(docId)
-  return useCommentGroups(comments.data, commentId)
+  return {
+    ...comments,
+    data: useCommentGroups(comments.data, commentId),
+  }
 }
 
 export function useCommentEditor(

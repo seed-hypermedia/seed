@@ -231,7 +231,7 @@ export function EntityCommentsAccessory({
       }
     >
       <YStack gap="$5" paddingBottom="$4">
-        {commentGroups.map((group) => (
+        {commentGroups.data.map((group) => (
           <CommentGroup
             group={group}
             key={group.id}

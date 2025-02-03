@@ -61,7 +61,8 @@ export function CommentReplies({
   docId: UnpackedHypermediaId
   replyCommentId: string
 }) {
-  const comments = useDocumentCommentGroups(docId, replyCommentId)
+  const commentGroupQueries = useDocumentCommentGroups(docId, replyCommentId)
+  const comments = commentGroupQueries.data
   const authors = useCommentGroupAuthors(comments)
   return (
     <YStack paddingLeft={22}>

@@ -29,9 +29,9 @@ export function Discussion({docId}: {docId: UnpackedHypermediaId}) {
 
 function DiscussionComments({docId}: {docId: UnpackedHypermediaId}) {
   const comments = useDocumentCommentGroups(docId)
-  const authors = useCommentGroupAuthors(comments)
+  const authors = useCommentGroupAuthors(comments.data)
   const theme = useTheme()
-  if (comments.length == 0) {
+  if (comments.data.length == 0) {
     return (
       <YStack padding="$4" jc="center" ai="center" gap="$4">
         <EmptyDiscussion color={theme.color6.val} />
@@ -41,7 +41,7 @@ function DiscussionComments({docId}: {docId: UnpackedHypermediaId}) {
       </YStack>
     )
   }
-  return comments.map((commentGroup) => {
+  return comments.data.map((commentGroup) => {
     return (
       <CommentGroup
         key={commentGroup.id}

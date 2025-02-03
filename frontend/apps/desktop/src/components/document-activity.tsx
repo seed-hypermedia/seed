@@ -26,6 +26,7 @@ import {
   YStack,
 } from '@shm/ui'
 import {ChangeGroup, SubDocumentItem} from '@shm/ui/src/activity'
+import {Spinner} from '@shm/ui/src/spinner'
 import {useState} from 'react'
 import {
   CommentDraft,
@@ -65,11 +66,11 @@ function ActivityList({docId}: {docId: UnpackedHypermediaId}) {
   const accounts = useAccounts()
   const changes = useDocumentPublishedChanges(docId)
   const [visibleCount, setVisibleCount] = useState(10)
-  const authors = useCommentGroupAuthors(commentGroups)
+  const authors = useCommentGroupAuthors(commentGroups.data)
   const route = useNavRoute()
   const theme = useTheme()
   const activity: (HMCommentGroup | HMChangeSummary | HMDocumentInfo)[] = [
-    ...commentGroups,
+    ...commentGroups.data,
     ...(changes.data || []),
     ...(childrenActivity?.data || []),
   ]
@@ -129,6 +130,17 @@ function ActivityList({docId}: {docId: UnpackedHypermediaId}) {
     Array.from(changeAuthors).map((uid) => hmId('d', uid)),
   )
   if (route.key !== 'document') return null
+  const isInitialLoad =
+    commentGroups.isInitialLoading ||
+    changes.isInitialLoading ||
+    childrenActivity.isInitialLoading
+  if (isInitialLoad) {
+    return (
+      <YStack padding="$4" jc="center" ai="center" gap="$4">
+        <Spinner />
+      </YStack>
+    )
+  }
   if (activityWithGroups.length == 0) {
     return (
       <YStack padding="$4" jc="center" ai="center" gap="$4">

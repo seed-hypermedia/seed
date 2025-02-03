@@ -203,10 +203,7 @@ function useAllDocuments(enabled: boolean) {
   return allDocuments
 }
 
-export function useSiteLibrary(
-  siteUid: string,
-  enabled: boolean,
-): {data: HMLibraryDocument[] | undefined} {
+export function useSiteLibrary(siteUid: string, enabled: boolean) {
   const grpcClient = useGRPCClient()
   const siteDocuments = useQuery({
     queryKey: [queryKeys.SITE_LIBRARY, siteUid],
@@ -234,16 +231,20 @@ export function useSiteLibrary(
     .filter((commentId) => commentId.length)
   const comments = useComments(commentIds || [])
 
-  return {
-    ...siteDocuments,
-    data: siteDocuments.data?.documents.map((doc) => ({
+  const data: HMLibraryDocument[] = siteDocuments.data?.documents.map(
+    (doc) => ({
       ...doc,
       path: entityQueryPathToHmIdPath(doc.path),
       type: 'document',
       latestComment: comments.find(
         (c) => c.data?.id === doc.activitySummary?.latestCommentId,
       )?.data,
-    })),
+    }),
+  )
+
+  return {
+    ...siteDocuments,
+    data,
   }
 }
 
