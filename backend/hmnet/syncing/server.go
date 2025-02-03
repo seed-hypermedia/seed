@@ -2,20 +2,15 @@ package syncing
 
 import (
 	"context"
-	"fmt"
 	"seed/backend/blob"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet/syncing/rbsr"
-	"strings"
 
 	"github.com/ipfs/boxo/blockstore"
-	cbornode "github.com/ipfs/go-ipld-cbor"
 	"google.golang.org/grpc"
 
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
-
-	"github.com/ipfs/go-cid"
 )
 
 // Server is the RPC handler for the syncing service.
@@ -62,184 +57,24 @@ func (s *Server) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReque
 func (s *Server) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Store, error) {
 	store := rbsr.NewSliceStore()
 
-	var query string = qListAllBlobsStr
-	var queryParams []interface{}
+	if err := s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		for _, f := range filters {
+			dkey := discoveryKey{
+				IRI:       blob.IRI(f.Resource),
+				Recursive: f.Recursive,
+			}
 
-	if len(filters) != 0 {
-		query = qListRelatedBlobsStr
-		filtersWithParentDoc := filters
-		for _, filter := range filters {
-			iri := strings.TrimPrefix(filter.Resource, "hm://")
-			account := strings.Split(iri, "/")[0]
-			path := strings.TrimPrefix(iri, account)
-			if path != "" {
-				filtersWithParentDoc = append(filtersWithParentDoc, &p2p.Filter{
-					Resource:  "hm://" + account,
-					Recursive: false,
-				})
+			if err := loadRBSRStore(conn, dkey, store); err != nil {
+				return err
 			}
 		}
-		for i, filter := range filtersWithParentDoc {
-			query += "?"
-			if filter.Recursive {
-				queryParams = append(queryParams, filter.Resource+"*")
-			} else {
-				queryParams = append(queryParams, filter.Resource)
-			}
-			if i < len(filtersWithParentDoc)-1 {
-				query += " OR iri GLOB "
-			}
-		}
-		query += qListRelatedCapabilitiesStr
-		for i, filter := range filters {
-			query += "?"
-			if filter.Recursive {
-				queryParams = append(queryParams, filter.Resource+"*")
-			} else {
-				queryParams = append(queryParams, filter.Resource)
-			}
-			if i < len(filters)-1 {
-				query += " OR iri GLOB "
-			}
-		}
-		query += qListRelatedCommentsStr
-		for i, filter := range filters {
-			query += "?"
-			if filter.Recursive {
-				queryParams = append(queryParams, filter.Resource+"*")
-			} else {
-				queryParams = append(queryParams, filter.Resource)
-			}
-			if i < len(filters)-1 {
-				query += " OR iri GLOB "
-			}
-		}
-		query += qListRelatedEmbedsStr
-		for i, filter := range filters {
-			query += "?"
-			if filter.Recursive {
-				queryParams = append(queryParams, filter.Resource+"*")
-			} else {
-				queryParams = append(queryParams, filter.Resource)
-			}
-			if i < len(filters)-1 {
-				query += " OR iri GLOB "
-			}
-		}
-		query += qListRelatedBlobsContStr
-	}
-	allCids := []cid.Cid{}
-	conn, release, err := s.db.Conn(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("Could not get connection: %w", err)
-	}
-	if err = sqlitex.Exec(conn, query, func(stmt *sqlite.Stmt) error {
-		codec := stmt.ColumnInt64(0)
-		hash := stmt.ColumnBytesUnsafe(1)
-		ts := stmt.ColumnInt64(2)
-		c := cid.NewCidV1(uint64(codec), hash)
-		allCids = append(allCids, c)
-		return store.Insert(ts, c.Bytes())
-	}, queryParams...); err != nil {
-		release()
-		return nil, fmt.Errorf("Could not list related blobs: %w", err)
-	}
-	release()
-	query = qListRelatedBlobsStr
-	authorFilters := []*p2p.Filter{}
-	for _, c := range allCids {
-		blk, err := s.blobs.Get(ctx, c)
-		if err != nil {
-			return nil, fmt.Errorf("Could not get cid: %w", err)
-		}
-		co := &blob.Comment{}
-		ca := &blob.Capability{}
-		ch := &blob.Change{}
-		if err := cbornode.DecodeInto(blk.RawData(), co); err == nil {
-			authorFilters = append(authorFilters, &p2p.Filter{
-				Resource:  "hm://" + co.Signer.String(),
-				Recursive: false,
-			})
-		} else if err := cbornode.DecodeInto(blk.RawData(), ca); err == nil {
-			authorFilters = append(authorFilters, &p2p.Filter{
-				Resource:  "hm://" + ca.Delegate.String(),
-				Recursive: false,
-			})
-		} else if err := cbornode.DecodeInto(blk.RawData(), ch); err == nil {
-			authorFilters = append(authorFilters, &p2p.Filter{
-				Resource:  "hm://" + ch.Signer.String(),
-				Recursive: false,
-			})
-		}
-	}
-	var queryParams2 []interface{}
-	for i, filter := range authorFilters {
-		query += "?"
-		if filter.Recursive {
-			queryParams2 = append(queryParams2, filter.Resource+"*")
-		} else {
-			queryParams2 = append(queryParams2, filter.Resource)
-		}
-		if i < len(authorFilters)-1 {
-			query += " OR iri GLOB "
-		}
-	}
-	query += `)
-),
-changes (id) AS (
-	SELECT bl.target
-	FROM blob_links bl
-	JOIN refs r ON r.id = bl.source AND (bl.type = 'ref/head' OR bl.type GLOB 'metadata/*')
-	UNION
-	SELECT bl.target
-	FROM blob_links bl
-	JOIN changes c ON c.id = bl.source
-	WHERE bl.type = 'change/dep'
-)
-SELECT
-	codec,
-	b.multihash,
-	insert_time,
-	b.id,
-	sb.ts
-FROM blobs b
-JOIN refs r ON r.id = b.id
-JOIN structural_blobs sb ON sb.id = b.id
-UNION ALL
-SELECT
-	codec,
-	b.multihash,
-	insert_time,
-	b.id,
-	sb.ts
-FROM blobs b
-JOIN changes ch ON ch.id = b.id
-JOIN structural_blobs sb ON sb.id = b.id
-ORDER BY sb.ts, b.multihash;`
 
-	if len(queryParams2) != 0 {
-		conn, release, err := s.db.Conn(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("Could not get connection: %w", err)
-		}
-		if err = sqlitex.Exec(conn, query, func(stmt *sqlite.Stmt) error {
-			codec := stmt.ColumnInt64(0)
-			hash := stmt.ColumnBytesUnsafe(1)
-			ts := stmt.ColumnInt64(2)
-			c := cid.NewCidV1(uint64(codec), hash) //nolint:gosec
-			return store.Insert(ts, c.Bytes())
-		}, queryParams2...); err != nil {
-			release()
-			return nil, fmt.Errorf("Could not list related blobs: %w", err)
-		}
-		release()
-	}
-
-	if err = store.Seal(); err != nil {
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 
-	return store, nil
+	return store, store.Seal()
 }
 
 const qListAllBlobsStr = (`

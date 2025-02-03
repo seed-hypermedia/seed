@@ -479,12 +479,7 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 
 	bswap := s.bitswap.NewSession(ctx)
 
-	if len(eids) != 0 {
-		s.log.Debug("Sync with entities", zap.Int("num entities", len(eids)), zap.String("Peer", pid.String()))
-		return syncEntities(ctx, pid, c, s.indexer, bswap, s.db, s.log, eids)
-	}
-	s.log.Debug("Sync Everything", zap.String("Peer", pid.String()))
-	return syncPeerRbsr(ctx, pid, c, s.indexer, bswap, s.db, s.log)
+	return syncEntities(ctx, pid, c, s.indexer, bswap, s.db, s.log, eids)
 }
 
 func syncEntities(
@@ -498,6 +493,10 @@ func syncEntities(
 	eids map[string]bool,
 ) (err error) {
 	ctx = blob.ContextWithUnreadsTracking(ctx)
+
+	if len(eids) == 0 {
+		return fmt.Errorf("syncEntities: must specify entities to sync")
+	}
 
 	mSyncsInFlight.Inc()
 	defer func() {
@@ -514,36 +513,47 @@ func syncEntities(
 		return fmt.Errorf("BUG: syncEntity must have timeout")
 	}
 
-	// If we know what we want, it's a 1 way syncing so we don't share anything
 	store := rbsr.NewSliceStore()
-	ne, err := rbsr.NewSession(store, 50000)
 
-	if err != nil {
-		return fmt.Errorf("Failed to Init Syncing Session: %w", err)
-	}
-	conn, release, err := db.Conn(ctx)
-	if err != nil {
-		return fmt.Errorf("Could not get connection: %w", err)
-	}
-	var queryParams []interface{}
+	if err := db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		for eid, recursive := range eids {
+			dkey := discoveryKey{
+				IRI:       blob.IRI(eid),
+				Recursive: recursive,
+			}
 
-	localHaves := make(map[cid.Cid]struct{})
-	if err = sqlitex.Exec(conn, qListBlobs(), func(stmt *sqlite.Stmt) error {
-		codec := stmt.ColumnInt64(0)
-		hash := stmt.ColumnBytesUnsafe(1)
-		ts := stmt.ColumnInt64(2)
-		localCid := cid.NewCidV1(uint64(codec), hash)
+			if err := loadRBSRStore(conn, dkey, store); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	if err := store.Seal(); err != nil {
+		return err
+	}
+
+	localHaves := make(map[cid.Cid]struct{}, store.Size())
+
+	if err := store.ForEach(0, store.Size(), func(i int, it rbsr.Item) bool {
+		localCid, err := cid.Cast(it.Value)
+		if err != nil {
+			panic(err)
+		}
 		localHaves[localCid] = struct{}{}
-		return store.Insert(ts, localCid.Bytes())
-	}, queryParams...); err != nil {
-		release()
-		return fmt.Errorf("Could not list related blobs: %w", err)
+		return true
+	}); err != nil {
+		return err
 	}
 
-	release()
-	if err = store.Seal(); err != nil {
-		return fmt.Errorf("Failed to seal store: %w", err)
+	ne, err := rbsr.NewSession(store, 50000)
+	if err != nil {
+		return fmt.Errorf("failed to Init Syncing Session: %w", err)
 	}
+
 	msg, err := ne.Initiate()
 	if err != nil {
 		return err
@@ -640,139 +650,3 @@ func syncEntities(
 	log.Debug("Successfully synced new content")
 	return nil
 }
-
-func syncPeerRbsr(
-	ctx context.Context,
-	pid peer.ID,
-	c p2p.SyncingClient,
-	idx blockstore.Blockstore,
-	sess exchange.Fetcher,
-	db *sqlitex.Pool,
-	log *zap.Logger,
-) (err error) {
-	mSyncsInFlight.Inc()
-	defer func() {
-		mSyncsInFlight.Dec()
-		mSyncsTotal.Inc()
-		if err != nil {
-			mSyncErrorsTotal.Inc()
-		}
-	}()
-
-	if _, ok := ctx.Deadline(); !ok {
-		return fmt.Errorf("BUG: syncPeerRbsr must have timeout")
-	}
-
-	store := rbsr.NewSliceStore()
-	ne, err := rbsr.NewSession(store, 50000)
-
-	if err != nil {
-		return fmt.Errorf("Failed to Init Syncing Session: %w", err)
-	}
-
-	conn, release, err := db.Conn(ctx)
-	if err != nil {
-		return fmt.Errorf("Could not get connection: %w", err)
-	}
-	defer release()
-
-	localHaves := make(map[cid.Cid]struct{})
-	if err = sqlitex.Exec(conn, qListBlobs(), func(stmt *sqlite.Stmt) error {
-		codec := stmt.ColumnInt64(0)
-		hash := stmt.ColumnBytesUnsafe(1)
-		ts := stmt.ColumnInt64(2)
-		localCid := cid.NewCidV1(uint64(codec), hash)
-		localHaves[localCid] = struct{}{}
-		return store.Insert(ts, localCid.Bytes())
-	}); err != nil {
-		return fmt.Errorf("Could not list blobs: %w", err)
-	}
-	if err = store.Seal(); err != nil {
-		return fmt.Errorf("Failed to seal store: %w", err)
-	}
-
-	msg, err := ne.Initiate()
-	if err != nil {
-		return err
-	}
-
-	allWants := []cid.Cid{}
-	var rounds int
-	for msg != nil {
-		rounds++
-		if rounds > 1000 {
-			return fmt.Errorf("Too many rounds of interactive syncing")
-		}
-		res, err := c.ReconcileBlobs(ctx, &p2p.ReconcileBlobsRequest{Ranges: msg})
-		if err != nil {
-			return err
-		}
-		msg = res.Ranges
-		var haves, wants [][]byte
-		msg, err = ne.ReconcileWithIDs(msg, &haves, &wants)
-		if err != nil {
-			return err
-		}
-		for _, want := range wants {
-			blockCid, err := cid.Cast(want)
-			if err != nil {
-				return err
-			}
-			if _, ok := localHaves[blockCid]; !ok {
-				allWants = append(allWants, blockCid)
-			}
-		}
-	}
-
-	if len(allWants) == 0 {
-		return nil
-	}
-
-	MSyncingWantedBlobs.WithLabelValues("syncing").Add(float64(len(allWants)))
-	defer MSyncingWantedBlobs.WithLabelValues("syncing").Sub(float64(len(allWants)))
-
-	log = log.With(
-		zap.String("peer", pid.String()),
-	)
-	downloadedBlocks := list.New()
-	for _, blkID := range allWants {
-		blk, err := sess.GetBlock(ctx, blkID)
-		if err != nil {
-			log.Debug("FailedToGetWantedBlob", zap.String("cid", blkID.String()), zap.Error(err))
-			continue
-		}
-		downloadedBlocks.PushBack(blk)
-	}
-	var failed int
-	for downloadedBlocks.Len() > 0 {
-		item := downloadedBlocks.Front()
-		if failed == downloadedBlocks.Len() {
-			return fmt.Errorf("could not sync all content")
-		}
-		blk, ok := item.Value.(blocks.Block)
-		if !ok {
-			return fmt.Errorf("could not decode block from the list: %w", err)
-		}
-
-		if err := idx.Put(ctx, blk); err != nil {
-			log.Debug("FailedToSaveWantedBlob", zap.String("cid", blk.Cid().String()), zap.Error(err))
-			downloadedBlocks.MoveAfter(item, downloadedBlocks.Back())
-			failed++
-			continue
-		}
-		failed = 0
-		downloadedBlocks.Remove(item)
-	}
-
-	return nil
-}
-
-var qListBlobs = dqb.Str(`
-		SELECT
-			blobs.codec,
-			blobs.multihash,
-			blobs.insert_time
-		FROM blobs INDEXED BY blobs_metadata LEFT JOIN structural_blobs sb ON sb.id = blobs.id
-		WHERE blobs.size >= 0
-		ORDER BY sb.ts, blobs.multihash;
-	`)

@@ -25,7 +25,7 @@ import (
 
 // Discoverer is an interface for discovering objects.
 type Discoverer interface {
-	DiscoverObject(ctx context.Context, entityID, version string, recursive bool) (string, error)
+	DiscoverObject(ctx context.Context, i blob.IRI, v blob.Version, recursive bool) (string, error)
 }
 
 // Server implements Entities API.
@@ -316,31 +316,30 @@ func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEnti
 		return nil, errutil.MissingArgument("account")
 	}
 
-	if strings.HasPrefix(in.Account, "hm://") {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid account %q: must not start with hm://", in.Account)
+	in.Account = strings.TrimPrefix(in.Account, "hm://")
+
+	acc, err := core.DecodePrincipal(in.Account)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "bad account: %v", err)
 	}
 
-	// 	ver := hyper.Version(in.Version)
+	in.Path = strings.TrimSuffix(in.Path, "/")
 
-	// 	heads, err := ver.Parse()
-	// 	if err != nil {
-	// 		return nil, status.Errorf(codes.InvalidArgument, "invalid version %q: %v", in.Version, err)
-	// 	}
-	eid := "hm://" + in.Account + in.Path
-	version, err := api.disc.DiscoverObject(ctx, eid, in.Version, in.Recursive)
+	iri, err := blob.NewIRI(acc, in.Path)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "bad IRI: %v", err)
+	}
+
+	heads, err := blob.Version(in.Version).Parse()
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid version %q: %v", in.Version, err)
+	}
+	_ = heads
+
+	version, err := api.disc.DiscoverObject(ctx, iri, blob.Version(in.Version), in.Recursive)
 	if err != nil {
 		return nil, err
 	}
-
-	// 	for _, h := range heads {
-	// 		ok, err := api.blobs.IPFSBlockstore().Has(ctx, h)
-	// 		if err != nil {
-	// 			return nil, fmt.Errorf("failed to check if block %s exists: %w", h, err)
-	// 		}
-	// 		if !ok {
-	// 			return nil, status.Errorf(codes.Unavailable, "discovery attempt failed: couldn't find the desired version %q", in.Version)
-	// 		}
-	// 	}
 
 	return &entities.DiscoverEntityResponse{
 		Version: version,

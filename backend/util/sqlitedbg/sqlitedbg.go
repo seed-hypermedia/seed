@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"io"
 	"os"
+	"unicode/utf8"
 
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -63,8 +64,13 @@ func Exec[T *sqlitex.Pool | *sqlite.Conn](db T, w io.Writer, query string, args 
 		for n := 0; n < len(header); n++ {
 			var txt string
 			if stmt.ColumnType(n) == sqlite.SQLITE_BLOB {
-				data := stmt.ColumnBytes(n)
-				txt = base64.RawStdEncoding.EncodeToString(data)
+				if utf8.Valid(stmt.ColumnBytesUnsafe(n)) {
+					txt = stmt.ColumnText(n)
+					row[n] = txt
+				} else {
+					data := stmt.ColumnBytes(n)
+					txt = base64.RawStdEncoding.EncodeToString(data)
+				}
 			} else {
 				txt = stmt.ColumnText(n)
 			}
