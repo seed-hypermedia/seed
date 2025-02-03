@@ -16,6 +16,7 @@ import {
   queryKeys,
   UnpackedHypermediaId,
   unpackHmId,
+  useSearch,
 } from '@shm/shared'
 import {useQuery} from '@tanstack/react-query'
 import {useAccounts, useDrafts} from './accounts'
@@ -23,7 +24,6 @@ import {useComments} from './comments'
 import {useDraftList} from './documents'
 import {getParentPaths, useEntities} from './entities'
 import {useFavorites} from './favorites'
-import {useSearch} from './search'
 import {HMSubscription, useListSubscriptions} from './subscription'
 
 export type FilterItem =
@@ -271,21 +271,20 @@ export function useClassicLibrary(
   const favorites = useFavorites()
   const subscriptions = useListSubscriptions()
   const draftList = useDraftList()
-  const searchedIds =
-    search.data?.map((entity) => unpackHmId(entity.id)).filter((id) => !!id) ||
-    []
+  const searchedIds = search.data?.entities || []
   const draftQueryList = draftList.data?.filter(
     (draftId) =>
-      search.data?.findIndex((searchResult) => searchResult.id === draftId) ===
-      -1,
+      search.data?.entities.findIndex(
+        (searchResult) => searchResult.id.id === draftId,
+      ) === -1,
   )
   const selectedFilters = Object.entries(query.filter)
     .filter(([filterKey, value]) => value)
     .map(([filterKey]) => filterKey as FilterItem)
-  const entities = useEntities(searchedIds)
+  const entities = useEntities(searchedIds.map((item) => item.id))
   const alreadyFetchingIds = new Set<string>()
-  searchedIds.forEach((id) => {
-    alreadyFetchingIds.add(id.id)
+  searchedIds.forEach((item) => {
+    alreadyFetchingIds.add(item.id.id)
   })
   const dependentEntityIds: UnpackedHypermediaId[] = []
   function dependOnId(id: UnpackedHypermediaId) {
@@ -404,27 +403,31 @@ export function useClassicLibrary(
         }
       })
       .filter((result) => !!result) || []),
-    ...(search.data
+    ...(search.data?.entities
       ?.map((searchResult) => {
-        const id = unpackHmId(searchResult.id)
-        if (!id) return null
-
-        const entity = entities.find((entity) => entity.data?.id.id === id.id)
+        const entity = entities.find(
+          (entity) => entity.data?.id.id === searchResult.id.id,
+        )
 
         const hasDraft =
-          draftList.data?.findIndex((draftId) => draftId === id.id) !== -1
+          draftList.data?.findIndex(
+            (draftId) => draftId === searchResult.id.id,
+          ) !== -1
         return {
-          id,
+          id: searchResult.id,
           document: entity?.data?.document || undefined,
           draft: undefined,
           hasDraft,
-          location: getLocation(id),
+          location: getLocation(searchResult.id),
           authors: getAuthors(entity?.data?.document?.authors || []),
           isSubscribed:
-            subscriptions.data?.findIndex((sub) => isSubscribedBy(id, sub)) !==
-            -1,
+            subscriptions.data?.findIndex((sub) =>
+              isSubscribedBy(searchResult.id, sub),
+            ) !== -1,
           isFavorite:
-            favorites?.findIndex((fav) => fav && fav.id === id.id) !== -1,
+            favorites?.findIndex(
+              (fav) => fav && fav.id === searchResult.id.id,
+            ) !== -1,
         }
       })
       .filter((result) => !!result) || []),
@@ -454,7 +457,7 @@ export function useClassicLibrary(
     })
   }
   results = sortLibrary(results, query.sort)
-  return {items: results, totalItemCount: search.data.length}
+  return {items: results, totalItemCount: search.data?.entities.length || 0}
 }
 
 function sortLibrary(

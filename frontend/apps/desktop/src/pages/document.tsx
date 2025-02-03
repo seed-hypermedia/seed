@@ -31,6 +31,7 @@ import {useNavigate} from '@/utils/useNavigate'
 import {
   DocAccessoryOption,
   getDocumentTitle,
+  HMDocument,
   HMEntityContent,
   hmId,
   UnpackedHypermediaId,
@@ -49,9 +50,9 @@ import {
   HistoryIcon,
   HMIcon,
   MoreHorizontal,
-  NewsSiteHeader,
   RefreshCw,
   SeedHeading,
+  SiteHeader,
   SizableText,
   Spinner,
   Separator as TSeparator,
@@ -219,85 +220,90 @@ function _MainDocumentPage({
 
   const docIsNewspaperLayout =
     entity.data?.document?.metadata.layout === 'Seed/Experimental/Newspaper'
-  const siteIsNewspaperLayout =
-    siteHomeEntity.data?.document?.metadata.layout ===
-    'Seed/Experimental/Newspaper'
 
   const DocContainer = docIsNewspaperLayout
     ? NewspaperDocContainer
     : BaseDocContainer
   return (
     <YStack>
-      {siteIsNewspaperLayout ? (
-        <AppNewspaperHeader
-          siteHomeEntity={siteHomeEntity.data}
-          activeId={id}
-        />
-      ) : null}
-      {!docIsNewspaperLayout && <DocumentCover docId={id} />}
-
-      <YStack
-        className={
-          !docIsNewspaperLayout
-            ? `document-container${
-                typeof entity.data?.document?.metadata.showOutline ==
-                  'undefined' || entity.data?.document?.metadata.showOutline
-                  ? ' document-container'
-                  : ' hide-outline'
-              }`
-            : ''
-        }
+      <AppSiteHeader
+        siteHomeEntity={siteHomeEntity.data}
+        activeId={id}
+        document={entity.data?.document}
+        supportDocuments={[]} // todo: handle embeds for outline!!
       >
-        {(!docIsNewspaperLayout &&
-          typeof entity.data?.document?.metadata.showOutline == 'undefined') ||
-        entity.data?.document?.metadata.showOutline ? (
-          <YStack
-            marginTop={150}
-            $gtSm={{marginTop: 164}}
-            className="is-desktop document-aside"
-          >
-            <YStack
-              className="hide-scrollbar"
-              display="none"
-              $gtSm={{display: 'flex'}}
-              overflow="scroll"
-              height="100%"
-              // paddingVertical="$4"
-            >
-              <SiteNavigation />
-            </YStack>
-          </YStack>
-        ) : null}
+        {!docIsNewspaperLayout && <DocumentCover docId={id} />}
 
-        <DocContainer>
-          <DocPageHeader docId={id} isBlockFocused={isBlockFocused} />
-          <YStack flex={1} paddingLeft="$4" $gtSm={{paddingLeft: 0}}>
-            <DocPageContent
-              blockRef={id.blockRef}
-              entity={entity.data}
-              isBlockFocused={isBlockFocused}
+        <YStack
+          className={
+            !docIsNewspaperLayout
+              ? `document-container${
+                  typeof entity.data?.document?.metadata.showOutline ==
+                    'undefined' || entity.data?.document?.metadata.showOutline
+                    ? ' document-container'
+                    : ' hide-outline'
+                }`
+              : ''
+          }
+        >
+          {(!docIsNewspaperLayout &&
+            typeof entity.data?.document?.metadata.showOutline ==
+              'undefined') ||
+          entity.data?.document?.metadata.showOutline ? (
+            <YStack
+              marginTop={150}
+              $gtSm={{marginTop: 164}}
+              className="is-desktop document-aside"
+            >
+              <YStack
+                className="hide-scrollbar"
+                display="none"
+                $gtSm={{display: 'flex'}}
+                overflow="scroll"
+                height="100%"
+                // paddingVertical="$4"
+              >
+                <SiteNavigation />
+              </YStack>
+            </YStack>
+          ) : null}
+
+          <DocContainer>
+            <DocPageHeader docId={id} isBlockFocused={isBlockFocused} />
+            <YStack flex={1} paddingLeft="$4" $gtSm={{paddingLeft: 0}}>
+              <DocPageContent
+                blockRef={id.blockRef}
+                entity={entity.data}
+                isBlockFocused={isBlockFocused}
+              />
+            </YStack>
+            <DocPageAppendix
+              centered={
+                entity.data.document.metadata.layout ==
+                'Seed/Experimental/Newspaper'
+              }
+              docId={id}
             />
-          </YStack>
-          <DocPageAppendix
-            centered={
-              entity.data.document.metadata.layout ==
-              'Seed/Experimental/Newspaper'
-            }
-            docId={id}
-          />
-        </DocContainer>
-      </YStack>
+          </DocContainer>
+        </YStack>
+      </AppSiteHeader>
     </YStack>
   )
 }
 const MainDocumentPage = React.memo(_MainDocumentPage)
 
-function AppNewspaperHeader({
+function AppSiteHeader({
   siteHomeEntity,
   activeId,
+  children,
+  document,
+  supportDocuments,
 }: {
   siteHomeEntity: HMEntityContent | undefined | null
   activeId: UnpackedHypermediaId
+  children?: React.ReactNode
+  document?: HMDocument
+  supportDocuments?: HMEntityContent[]
 }) {
   const dir = useListDirectory(siteHomeEntity?.id)
 
@@ -314,25 +320,32 @@ function AppNewspaperHeader({
     drafts: drafts.data,
   })
   return (
-    <NewsSiteHeader
+    <SiteHeader
       homeId={siteHomeEntity.id}
       homeMetadata={siteHomeEntity.document?.metadata || null}
       items={navItems}
       docId={activeId}
-      rightContent={
-        activeId.id === siteHomeEntity.id.id && siteHomeEntity.document ? (
-          <DocumentHeadItems
-            docId={siteHomeEntity.id}
-            isBlockFocused={false}
-            document={siteHomeEntity.document}
-          />
-        ) : null
+      isCenterLayout={
+        siteHomeEntity.document?.metadata.layout ===
+        'Seed/Experimental/Newspaper'
       }
+      // headItems={
+      //   activeId.id === siteHomeEntity.id.id && siteHomeEntity.document ? (
+      //     <DocumentHeadItems
+      //       docId={siteHomeEntity.id}
+      //       isBlockFocused={false}
+      //       document={siteHomeEntity.document}
+      //     />
+      //   ) : null
+      // }
+      document={document}
+      supportDocuments={supportDocuments}
       afterLinksContent={
         canEditDoc ? (
           <NewSubDocumentButton parentDocId={siteHomeEntity.id} />
         ) : null
       }
+      children={children}
     />
   )
 }

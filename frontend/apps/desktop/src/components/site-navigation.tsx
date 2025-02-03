@@ -14,7 +14,7 @@ import {hmId} from '@shm/shared'
 import {
   Add,
   Button,
-  DocNavigationContent,
+  DocDirectory,
   DocumentOutline,
   DraftOutline,
   MoreHorizontal,
@@ -83,31 +83,28 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
   if (!document || !siteListQuery) return null
 
   return (
-    <DocNavigationContent
-      documentMetadata={document.metadata}
-      id={id}
-      supportDocuments={embeds}
-      supportQueries={[siteListQuery]}
-      drafts={drafts.data}
-      createDirItem={createDirItem}
-      onPress={onPress}
-      outline={({indented}) => (
-        <DocumentOutline
-          onActivateBlock={(blockId) => {
-            onPress?.()
-            navigate({
-              key: 'document',
-              id: hmId(id.type, id.uid, {blockRef: blockId, path: id.path}),
-            })
-          }}
-          document={document}
-          id={id}
-          supportDocuments={embeds}
-          activeBlockId={id.blockRef}
-          indented={indented}
-        />
-      )}
-    />
+    <>
+      <DocumentOutline
+        onActivateBlock={(blockId) => {
+          onPress?.()
+          navigate({
+            key: 'document',
+            id: hmId(id.type, id.uid, {blockRef: blockId, path: id.path}),
+          })
+        }}
+        document={document}
+        id={id}
+        supportDocuments={embeds}
+        activeBlockId={id.blockRef}
+      />
+      <DocDirectory
+        id={id}
+        drafts={drafts.data}
+        supportQueries={[siteListQuery]}
+        createDirItem={createDirItem}
+        onPress={onPress}
+      />
+    </>
   )
 }
 
@@ -135,26 +132,21 @@ export function SiteNavigationDraftLoader() {
 
   return (
     <SiteNavigationWrapper>
-      <DocNavigationContent
-        documentMetadata={metadata}
+      {draft ? (
+        <DraftOutline
+          onActivateBlock={(blockId: string) => {
+            focusDraftBlock(id.id, blockId)
+          }}
+          draft={draft}
+          id={id}
+          supportDocuments={embeds}
+          onPress={() => {}}
+        />
+      ) : null}
+      <DocDirectory
         id={id}
-        supportDocuments={embeds}
         drafts={drafts.data}
         supportQueries={[siteListQuery]}
-        outline={({indented}) =>
-          draft ? (
-            <DraftOutline
-              indented={indented}
-              onActivateBlock={(blockId: string) => {
-                focusDraftBlock(id.id, blockId)
-              }}
-              draft={draft}
-              id={id}
-              supportDocuments={embeds}
-              onPress={() => {}}
-            />
-          ) : null
-        }
       />
     </SiteNavigationWrapper>
   )

@@ -8,9 +8,11 @@ import {HMIcon} from "./hm-icon";
 export function SiteLogo({
   id,
   metadata,
+  isCenterLayout = false,
 }: {
   id: UnpackedHypermediaId;
   metadata?: HMMetadata | null;
+  isCenterLayout?: boolean;
 }) {
   const imageUrl = useImageUrl();
   const homeLinkProps = useRouteLink({
@@ -22,7 +24,6 @@ export function SiteLogo({
       <XStack
         {...homeLinkProps}
         height={60}
-        flex={1}
         ai="center"
         jc="center"
         $gtSm={{
@@ -40,12 +41,10 @@ export function SiteLogo({
   return (
     <View
       {...homeLinkProps}
-      flex={1}
       ai="center"
       jc="center"
       gap="$2"
-      flexDirection="column"
-      $gtSm={{flexDirection: "row", flex: 0}}
+      flexDirection={isCenterLayout ? "column" : "row"}
     >
       <HMIcon size={24} id={id} metadata={metadata} />
       <SizableText

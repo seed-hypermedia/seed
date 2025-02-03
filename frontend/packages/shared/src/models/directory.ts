@@ -49,6 +49,7 @@ export function getDiretoryWithClient(client: GRPCClient) {
       .map((dirDoc: DocumentInfo) => {
         return {
           ...toPlainMessage(dirDoc),
+          type: 'document',
           metadata: HMDocumentMetadataSchema.parse(
             dirDoc.metadata?.toJson() || {},
           ),

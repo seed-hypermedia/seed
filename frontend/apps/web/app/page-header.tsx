@@ -2,6 +2,7 @@ import {
   formattedDateMedium,
   getMetadataName,
   HMDocument,
+  HMEntityContent,
   hmId,
   HMMetadata,
   HMMetadataPayload,
@@ -10,24 +11,22 @@ import {
   relativeFormattedDate,
   UnpackedHypermediaId,
 } from "@shm/shared";
-import {Home, Menu} from "@shm/ui";
+import {Home} from "@shm/ui";
 import {Container} from "@shm/ui/src/container";
 import {DonateButton} from "@shm/ui/src/donate-button";
+import {SiteHeader} from "@shm/ui/src/header";
 import {HMIcon} from "@shm/ui/src/hm-icon";
-import {SiteLogo} from "@shm/ui/src/site-logo";
 import {Popover} from "@shm/ui/src/TamaguiPopover";
-import {MobileMenu, NewsSiteHeader} from "@shm/ui/src/top-bar";
 import {usePopoverState} from "@shm/ui/src/use-popover-state";
 import {Button, ButtonText} from "@tamagui/button";
 import {Separator} from "@tamagui/separator";
 import {XStack, YStack} from "@tamagui/stacks";
 import {H1, SizableText} from "@tamagui/text";
-import {PropsWithChildren, ReactNode, useMemo, useState} from "react";
+import {ReactNode, useMemo} from "react";
 import {ScrollView} from "react-native";
 import {getHref} from "./href";
 import {useDocumentChanges} from "./models";
 import {HMDocumentChangeInfo} from "./routes/hm.api.changes";
-import {SearchUI} from "./search";
 
 export function PageHeader({
   homeId,
@@ -142,131 +141,41 @@ export function PageHeader({
   );
 }
 
-export function SiteHeader(
-  props: PropsWithChildren<{
-    homeMetadata: HMMetadata | null;
-    homeId: UnpackedHypermediaId | null;
-    docMetadata: HMMetadata | null;
-    docId: UnpackedHypermediaId | null;
-    openSheet?: () => void;
-    supportQueries?: HMQueryResult[];
-    renderMobileMenu: (props: {
-      onSetOpen: (open: boolean) => void;
-    }) => React.JSX.Element;
-    mobileSearchUI?: ReactNode;
-    isWeb?: boolean;
-  }>
-) {
-  if (props.homeMetadata?.layout === "Seed/Experimental/Newspaper") {
-    const supportQuery = props.supportQueries?.find(
-      (q) => q.in.uid === props.homeId?.uid && !q.in.path?.length
-    );
-    const items = supportQuery?.results
-      ?.filter((item) => {
-        return item.path.length === 1;
-      })
-      ?.map((item) => {
-        const sortTime = normalizeDate(item.createTime);
-        if (!sortTime) return null;
-        return {
-          isPublished: true,
-          isDraft: false,
-          id: hmId("d", item.account, {path: item.path}),
-          sortTime,
-          metadata: item.metadata,
-        };
-      })
-      .filter((item) => !!item);
-    items
-      ?.sort((a, b) => b.sortTime.getTime() - a.sortTime.getTime())
-      .reverse();
-    return (
-      <NewsSiteHeader
-        {...props}
-        items={items || []}
-        searchUI={props.homeId ? <SearchUI homeId={props.homeId} /> : null}
-      />
-    );
-  }
-  return (
-    <DefaultSiteHeader
-      {...props}
-      searchUI={props.homeId ? <SearchUI homeId={props.homeId} /> : null}
-    />
-  );
-}
-
-export function DefaultSiteHeader({
-  homeMetadata,
-  homeId,
-  renderMobileMenu,
-  searchUI,
-  mobileSearchUI,
-  isWeb = false,
-}: {
+export function WebSiteHeader(props: {
   homeMetadata: HMMetadata | null;
   homeId: UnpackedHypermediaId | null;
-  renderMobileMenu: (props: {
-    onSetOpen: (open: boolean) => void;
-  }) => React.JSX.Element;
-  searchUI?: React.ReactNode;
-  mobileSearchUI?: React.ReactNode;
-  isWeb?: boolean;
+  docMetadata: HMMetadata | null;
+  docId: UnpackedHypermediaId | null;
+  supportQueries?: HMQueryResult[];
+  children: ReactNode | JSX.Element; // ugh can't find a children type that really works well
+  document?: HMDocument;
+  supportDocuments?: HMEntityContent[];
 }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <XStack
-        paddingHorizontal="$4"
-        paddingVertical="$2.5"
-        alignItems="center"
-        borderBottomWidth={1}
-        borderColor="$borderColor"
-        gap="$4"
-        zIndex="$zIndex.7"
-        // @ts-ignore
-        position="sticky"
-        top={0}
-        right={0}
-        left={0}
-        backgroundColor="$background"
-      >
-        {homeId ? <SiteLogo id={homeId} metadata={homeMetadata} /> : null}
-        {/* <XStack alignItems="center" gap="$2">
-          {homeMetadata?.icon && homeId ? (
-            <HMIcon size={30} id={homeId} metadata={homeMetadata} />
-          ) : null}
+  const isCenterLayout =
+    props.homeMetadata?.layout === "Seed/Experimental/Newspaper";
+  const supportQuery = props.supportQueries?.find(
+    (q) => q.in.uid === props.homeId?.uid && !q.in.path?.length
+  );
+  const items = supportQuery?.results
+    ?.filter((item) => {
+      return item.path.length === 1;
+    })
+    ?.map((item) => {
+      const sortTime = normalizeDate(item.createTime);
+      if (!sortTime) return null;
+      return {
+        isPublished: true,
+        isDraft: false,
+        id: hmId("d", item.account, {path: item.path}),
+        sortTime,
+        metadata: item.metadata,
+      };
+    })
+    .filter((item) => !!item);
+  items?.sort((a, b) => b.sortTime.getTime() - a.sortTime.getTime()).reverse();
 
-          <SizableText fontWeight="bold">
-            {homeMetadata?.name || "Seed Gateway"}
-          </SizableText>
-        </XStack> */}
-        <XStack display="none" $gtSm={{display: "flex"}} flex={1} />
-        {isWeb ? (
-          <>
-            <Button
-              $gtSm={{display: "none"}}
-              icon={<Menu size={20} />}
-              chromeless
-              size="$2"
-              onPress={() => {
-                setOpen(true);
-              }}
-            />
-            {searchUI}
-          </>
-        ) : null}
-      </XStack>
-      {isWeb ? (
-        <MobileMenu
-          open={open}
-          onClose={() => setOpen(false)}
-          mobileSearchUI={mobileSearchUI}
-        >
-          {renderMobileMenu({onSetOpen: setOpen})}
-        </MobileMenu>
-      ) : null}
-    </>
+  return (
+    <SiteHeader isCenterLayout={isCenterLayout} items={items} {...props} />
   );
 }
 
