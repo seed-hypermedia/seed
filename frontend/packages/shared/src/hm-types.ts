@@ -446,19 +446,18 @@ export const HMTimestampSchema = z
   })
   .strict()
 
-export const HMDocumentSchema = z
-  .object({
-    content: z.array(HMBlockNodeSchema).default([]),
-    version: z.string().default(''),
-    account: z.string().default(''),
-    authors: z.array(z.string()),
-    path: z.string().default(''),
-    createTime: z.union([HMTimestampSchema, z.string()]).default(''),
-    updateTime: z.union([HMTimestampSchema, z.string()]).default(''),
-    metadata: HMDocumentMetadataSchema,
-    genesis: z.string(),
-  })
-  .strict()
+export const HMDocumentSchema = z.object({
+  content: z.array(HMBlockNodeSchema).default([]),
+  version: z.string().default(''),
+  account: z.string().default(''),
+  authors: z.array(z.string()),
+  path: z.string().default(''),
+  createTime: z.union([HMTimestampSchema, z.string()]).default(''),
+  updateTime: z.union([HMTimestampSchema, z.string()]).default(''),
+  metadata: HMDocumentMetadataSchema,
+  genesis: z.string(),
+})
+// .strict() // avoid errors when the backend sends extra fields (most recently "header" and "footer")
 
 export type HMLibraryDocument = HMDocumentInfo & {
   type: 'document'
