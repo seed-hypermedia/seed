@@ -1,14 +1,6 @@
-import {UnpackedHypermediaId, unpackHmId} from "@shm/shared";
+import {SearchPayload, unpackHmId} from "@shm/shared";
 import {queryClient} from "~/client";
 import {wrapJSON} from "~/wrapping";
-
-export type SearchPayload = {
-  entities: {
-    id: UnpackedHypermediaId;
-    title: string;
-  }[];
-  searchQuery: string;
-};
 
 export const loader = async ({request}: {request: Request}) => {
   const url = new URL(request.url);

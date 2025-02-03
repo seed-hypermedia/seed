@@ -1,7 +1,6 @@
 import {useAppContext} from '@/app-context'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useRecents} from '@/models/recents'
-import {useSearch} from '@/models/search'
 import {loadWebLinkMeta} from '@/models/web-links'
 import {useOpenUrl} from '@/open-url'
 import {
@@ -16,6 +15,7 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
   useHover,
+  useSearch,
 } from '@shm/shared'
 import {
   BlockContentEmbed,
@@ -623,16 +623,15 @@ const EmbedLauncherInput = ({
   const searchResults = useSearch(search, {})
 
   const searchItems: SwitcherItem[] =
-    searchResults.data
+    searchResults.data?.entities
       ?.map((item) => {
-        const id = unpackHmId(item.id)
-        if (!id) return null
         return {
-          title: item.title || item.id,
+          title: item.title || item.id.uid,
+          key: item.id.uid,
           onSelect: () => {
-            assign({props: {url: id.id}} as MediaType)
+            assign({props: {url: item.id.id}} as MediaType)
           },
-          subtitle: HYPERMEDIA_ENTITY_TYPES[id.type],
+          subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
         }
       })
       .filter(Boolean) || []

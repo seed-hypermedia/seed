@@ -5,7 +5,6 @@ import {
   useMyCapability,
 } from '@/models/access-control'
 import {useEntity} from '@/models/entities'
-import {useSearch} from '@/models/search'
 import {useNavigate} from '@/utils/useNavigate'
 import * as Ariakit from '@ariakit/react'
 import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
@@ -19,6 +18,7 @@ import {
   Role,
   UnpackedHypermediaId,
   unpackHmId,
+  useSearch,
 } from '@shm/shared'
 import {
   ArrowRight,
@@ -114,11 +114,9 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
 
   const matches = useMemo(
     () =>
-      (search ? searchResults.data : [])
+      (search ? searchResults.data?.entities : [])
         ?.map((result) => {
-          const id = unpackHmId(result.id)
-          if (!id) return null
-          return {id, label: result.title}
+          return {id: result.id, label: result.title}
         })
         .filter((result) => {
           if (!result) return false // probably id was not parsed correctly

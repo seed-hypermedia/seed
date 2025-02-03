@@ -1,24 +1,20 @@
-import {useFetcher} from "@remix-run/react";
-import {UnpackedHypermediaId} from "@shm/shared";
-import {Search} from "@shm/ui";
+import {UnpackedHypermediaId, useRouteLink, useSearch} from "@shm/shared";
 import {Popover} from "@shm/ui/src/TamaguiPopover";
 import {usePopoverState} from "@shm/ui/src/use-popover-state";
 import {Button} from "@tamagui/button";
 import {Input} from "@tamagui/input";
+import {Search} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
-import {useEffect, useState} from "react";
+import {useState} from "react";
 import {NativeSyntheticEvent, TextInputChangeEventData} from "react-native";
-import {getHref} from "./href";
-import {SearchPayload} from "./routes/hm.api.search";
-import {unwrap} from "./wrapping";
 
-export function MobileSearchUI({
+export function MobileSearch({
   homeId,
 }: {
   homeId: UnpackedHypermediaId | undefined;
 }) {
   const [searchValue, setSearchValue] = useState("");
-  const searchResults = useSearch(searchValue);
+  const searchResults = useSearch(searchValue, {enabled: !!searchValue});
   return (
     <YStack
       gap="$2"
@@ -36,7 +32,7 @@ export function MobileSearchUI({
         }}
         placeholder="Search Documents"
       />
-      {searchResults?.entities.length ? (
+      {searchResults.data?.entities.length ? (
         <YStack
           position="absolute"
           backgroundColor="$background"
@@ -49,23 +45,13 @@ export function MobileSearchUI({
           borderWidth={1}
           elevation="$4"
         >
-          {searchResults?.entities.map((entity: any) => {
+          {searchResults.data?.entities.map((entity: any) => {
             return (
-              <Button
-                backgroundColor="$colorTransparent"
-                style={{textDecoration: "none"}}
+              <SearchResultItem
                 key={entity.id.id}
-                onPress={() => {}}
-                tag="a"
-                href={getHref(homeId, entity.id)}
-                justifyContent="flex-start"
-                hoverStyle={{
-                  backgroundColor: "$backgroundHover",
-                  borderColor: "transparent",
-                }}
-              >
-                {entity.title}
-              </Button>
+                entity={entity}
+                homeId={homeId}
+              />
             );
           })}
         </YStack>
@@ -74,10 +60,14 @@ export function MobileSearchUI({
   );
 }
 
-export function SearchUI({homeId}: {homeId: UnpackedHypermediaId | undefined}) {
+export function HeaderSearch({
+  homeId,
+}: {
+  homeId: UnpackedHypermediaId | undefined;
+}) {
   const popoverState = usePopoverState();
   const [searchValue, setSearchValue] = useState("");
-  const searchResults = useSearch(searchValue);
+  const searchResults = useSearch(searchValue, {enabled: !!searchValue});
   return (
     <XStack display="none" $gtSm={{display: "flex"}}>
       <Popover
@@ -116,21 +106,17 @@ export function SearchUI({homeId}: {homeId: UnpackedHypermediaId | undefined}) {
                 }}
               />
             </XStack>
-            {searchResults?.entities.map((entity: any) => {
-              return (
-                <Button
-                  backgroundColor="$colorTransparent"
-                  style={{textDecoration: "none"}}
-                  key={entity.id.id}
-                  onPress={() => {}}
-                  tag="a"
-                  href={getHref(homeId, entity.id)}
-                  justifyContent="flex-start"
-                >
-                  {entity.title}
-                </Button>
-              );
-            })}
+            {searchResults.data?.entities.map(
+              (entity: {id: UnpackedHypermediaId; title: string}) => {
+                return (
+                  <SearchResultItem
+                    key={entity.id.id}
+                    entity={entity}
+                    homeId={homeId}
+                  />
+                );
+              }
+            )}
           </YStack>
         </Popover.Content>
       </Popover>
@@ -138,15 +124,27 @@ export function SearchUI({homeId}: {homeId: UnpackedHypermediaId | undefined}) {
   );
 }
 
-function useSearch(input: string) {
-  const q = useFetcher();
-  useEffect(() => {
-    if (!input) return;
-    q.load(`/hm/api/search?q=${input}`);
-  }, [input]);
-  if (!input) return {entities: [], searchQuery: ""} as SearchPayload;
-  if (q.data) {
-    return unwrap<SearchPayload>(q.data);
-  }
-  return null;
+function SearchResultItem({
+  entity,
+  homeId,
+}: {
+  entity: {id: UnpackedHypermediaId; title: string};
+  homeId: UnpackedHypermediaId | undefined;
+}) {
+  const linkProps = useRouteLink(
+    {
+      key: "document",
+      id: entity.id,
+    },
+    homeId
+  );
+  return (
+    <Button
+      backgroundColor="$colorTransparent"
+      {...linkProps}
+      justifyContent="flex-start"
+    >
+      {entity.title}
+    </Button>
+  );
 }

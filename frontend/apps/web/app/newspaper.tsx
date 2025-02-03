@@ -1,13 +1,11 @@
 import {hmId, sortNewsEntries} from "@shm/shared";
 import {Container} from "@shm/ui/src/container";
-import {DocNavigationContent} from "@shm/ui/src/navigation";
 import {BannerNewspaperCard, NewspaperCard} from "@shm/ui/src/newspaper";
 import {XStack, YStack} from "@tamagui/stacks";
 import {useCallback} from "react";
 import {SiteDocumentPayload} from "./loaders";
 import {PageFooter} from "./page-footer";
-import {SiteHeader} from "./page-header";
-import {MobileSearchUI} from "./search";
+import {WebSiteHeader} from "./page-header";
 
 export function NewspaperPage(props: SiteDocumentPayload) {
   const {
@@ -58,56 +56,46 @@ export function NewspaperPage(props: SiteDocumentPayload) {
   return (
     <>
       <YStack marginBottom={300}>
-        <SiteHeader
+        <WebSiteHeader
           homeMetadata={homeMetadata}
           homeId={homeId}
           docMetadata={document.metadata}
           docId={id}
-          breadcrumbs={props.breadcrumbs}
           supportQueries={props.supportQueries}
-          renderMobileMenu={() => <MobileSearchUI homeId={homeId} />}
-          isWeb
         >
-          <DocNavigationContent
-            supportDocuments={props.supportDocuments}
-            supportQueries={props.supportQueries}
-            document={document}
-            id={id}
-            onActivateBlock={onActivateBlock}
-          />
-        </SiteHeader>
-        <Container
-          clearVerticalSpace
-          maxWidth={1080}
-          marginTop={60}
-          marginBottom={80}
-        >
-          {firstItem && (
-            <BannerNewspaperCard
-              item={firstItem}
-              entity={getEntity(firstItem.path)}
-              accountsMetadata={accountsMetadata}
-            />
-          )}
-          <XStack
-            flexWrap="wrap"
-            marginTop="$4"
-            justifyContent="center"
-            gap="$6"
+          <Container
+            clearVerticalSpace
+            maxWidth={1080}
+            marginTop={60}
+            marginBottom={80}
           >
-            {restItems.map((item) => {
-              const itemId = hmId("d", item.account, {path: item.path});
-              return (
-                <NewspaperCard
-                  id={itemId}
-                  entity={getEntity(item.path)}
-                  key={itemId.id}
-                  accountsMetadata={accountsMetadata}
-                />
-              );
-            })}
-          </XStack>
-        </Container>
+            {firstItem && (
+              <BannerNewspaperCard
+                item={firstItem}
+                entity={getEntity(firstItem.path)}
+                accountsMetadata={accountsMetadata}
+              />
+            )}
+            <XStack
+              flexWrap="wrap"
+              marginTop="$4"
+              justifyContent="center"
+              gap="$6"
+            >
+              {restItems.map((item) => {
+                const itemId = hmId("d", item.account, {path: item.path});
+                return (
+                  <NewspaperCard
+                    id={itemId}
+                    entity={getEntity(item.path)}
+                    key={itemId.id}
+                    accountsMetadata={accountsMetadata}
+                  />
+                );
+              })}
+            </XStack>
+          </Container>
+        </WebSiteHeader>
       </YStack>
       <PageFooter id={id} />
     </>
