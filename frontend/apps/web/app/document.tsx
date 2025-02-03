@@ -26,7 +26,7 @@ import {
   DocContent,
   DocContentProvider,
 } from "@shm/ui/src/document-content";
-import {useImageUrl} from "@shm/ui/src/get-file-url";
+import {extractIpfsUrlCid, useImageUrl} from "@shm/ui/src/get-file-url";
 import {
   DocNavigationContent,
   DocumentOutline,
@@ -53,7 +53,8 @@ import {MobileSearchUI} from "./search";
 import {EmbedDocument, EmbedInline, QueryBlockWeb} from "./web-embeds";
 import {unwrap, Wrapped} from "./wrapping";
 
-function getOptimizedImageUrl(cid: string, size?: OptimizedImageSize) {
+function getOptimizedImageUrl(ipfsUrl: string, size?: OptimizedImageSize) {
+  const cid = extractIpfsUrlCid(ipfsUrl);
   let url = `/hm/api/image/${cid}`;
   if (size) url += `?size=${size}`;
   return url;
