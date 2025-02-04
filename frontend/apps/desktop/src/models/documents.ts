@@ -195,7 +195,6 @@ export function usePublishDraft(
       const changes = compareBlocksWithMap(blocksMap, content, '')
 
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
-      console.log('=== DRAFT METADATA', draft.metadata)
       // return null
       if (accts.data?.length == 0) {
         dispatchWizardEvent(true)
@@ -236,7 +235,6 @@ export function usePublishDraft(
               ...deleteChanges,
             ]
 
-            console.log('=== DRAFT ALL CHANGES', allChanges)
             let capabilityId = ''
             if (draft.signingAccount !== id.uid) {
               const capabilities =
@@ -1176,29 +1174,6 @@ export function compareBlocksWithMap(
             },
           }),
         )
-
-        if (
-          currentBlockState.type == 'Query' &&
-          typeof currentBlockState.attributes.banner != 'undefined'
-        ) {
-          changes.push(
-            new DocumentChange({
-              op: {
-                case: 'setAttribute',
-                value: new DocumentChange_SetAttribute({
-                  blockId: '',
-                  // Es array porque para anidar hay que pasar el path completo.
-                  // Por ejemplo ["localTheme", "showOutline"] sera {"localTheme": {"showOutline": true}}.
-                  key: ['banner'],
-                  value: {
-                    case: 'boolValue',
-                    value: currentBlockState.attributes.banner as boolean,
-                  },
-                }),
-              },
-            }),
-          )
-        }
       }
     }
 
@@ -1363,7 +1338,8 @@ function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
     a1.link == a2.link &&
     a1.language == a2.language &&
     a1.view == a2.view &&
-    a1.width == a2.width
+    a1.width == a2.width &&
+    a1.banner == a2.banner
   )
 }
 

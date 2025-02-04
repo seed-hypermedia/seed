@@ -163,7 +163,7 @@ export async function getBaseDocument(
       queryBlockQueries
         .flatMap((item) => item.results)
         .map(async (item) => {
-          const id = hmId("d", entityId.uid, {path: item.path});
+          const id = hmId("d", item.account, {path: item.path});
           return {
             id,
             document: await getHMDocument(id),

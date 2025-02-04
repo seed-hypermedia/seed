@@ -183,6 +183,7 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
       )
     if (editorBlock.props.querySort)
       blockQuery.attributes.query.sort = JSON.parse(editorBlock.props.querySort)
+    blockQuery.attributes.banner = editorBlock.props.banner == 'true'
   }
 
   const blockParse = HMBlockSchema.safeParse(block)

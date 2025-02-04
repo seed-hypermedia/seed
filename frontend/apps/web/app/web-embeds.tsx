@@ -19,6 +19,7 @@ import {
   InlineEmbedButton,
   useDocContentContext,
 } from "@shm/ui/src/document-content";
+import {AccountsMetadata} from "@shm/ui/src/face-pile";
 import {HMIcon} from "@shm/ui/src/hm-icon";
 import {BannerNewspaperCard, NewspaperCard} from "@shm/ui/src/newspaper";
 import {Spinner} from "@shm/ui/src/spinner";
@@ -225,6 +226,7 @@ function QueryStyleCard({
 }) {
   const ctx = useDocContentContext();
   const {supportDocuments, supportQueries} = ctx || {};
+
   function getEntity(path: string[]) {
     return supportDocuments?.find(
       (entity) => entity?.id?.path?.join("/") === path?.join("/")
@@ -256,6 +258,16 @@ function QueryStyleCard({
   const firstItem = block.attributes.banner ? items[0] : null;
   const restItems = block.attributes.banner ? items.slice(1) : items;
 
+  const accountsMetadata =
+    ctx.supportDocuments?.reduce((acc, d) => {
+      if (!d.document?.metadata) return acc;
+      acc[d.id.uid] = {
+        id: d.id,
+        metadata: d.document.metadata,
+      };
+      return acc;
+    }, {} as AccountsMetadata) || {};
+
   return (
     <YStack width="100%">
       {firstItem ? (
@@ -263,10 +275,10 @@ function QueryStyleCard({
           item={firstItem}
           entity={getEntity(firstItem.path)}
           key={firstItem.path.join("/")}
-          accountsMetadata={{}}
+          accountsMetadata={accountsMetadata}
         />
       ) : null}
-      <XStack f={1} flexWrap="wrap" marginHorizontal="$-3">
+      <XStack flex={1} flexWrap="wrap" marginHorizontal="$-3">
         {restItems.map((item) => {
           const id = hmId("d", item.account, {
             path: item.path,
@@ -276,17 +288,9 @@ function QueryStyleCard({
             <YStack {...columnProps} p="$3">
               <NewspaperCard
                 id={id}
-                entity={{
-                  id,
-                  document: {metadata: item.metadata},
-                }}
+                entity={getEntity(item.path)}
                 key={item.path.join("/")}
-                // accountsMetadata={ctx.supportDocuments?.reduce((acc, d) => {
-                //   if (!d.document?.metadata) return acc;
-                //   acc[d.id.uid] = d.document?.metadata;
-                //   return acc;
-                // }, {} as AccountsMetadata)}
-                accountsMetadata={{}}
+                accountsMetadata={accountsMetadata}
                 flexBasis="100%"
                 $gtSm={{flexBasis: "100%"}}
                 $gtMd={{flexBasis: "100%"}}
