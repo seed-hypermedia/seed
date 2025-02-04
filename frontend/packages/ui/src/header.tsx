@@ -39,11 +39,24 @@ export function SiteHeader({
   supportDocuments?: HMEntityContent[];
 }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const headerSearch = homeId ? (
-    <XStack display="none" $gtSm={{display: "flex"}}>
-      <HeaderSearch homeId={homeId} />
-    </XStack>
-  ) : null;
+  const headerSearch = (
+    <>
+      <Button
+        $gtSm={{display: "none"}}
+        icon={<Menu size={20} />}
+        chromeless
+        size="$2"
+        onPress={() => {
+          setIsMobileMenuOpen(true);
+        }}
+      />
+      {homeId ? (
+        <XStack display="none" $gtSm={{display: "flex"}}>
+          <HeaderSearch homeId={homeId} />
+        </XStack>
+      ) : null}
+    </>
+  );
   console.log("iscenterlayout", isCenterLayout);
   if (!homeId) return null;
   return (
@@ -70,7 +83,9 @@ export function SiteHeader({
             ai="center"
             jc={isCenterLayout ? "center" : "flex-start"}
             alignSelf="stretch"
-            f={1}
+            // f={1}
+            // $gtSm={{flex: 0}}
+            flexShrink={0}
             // backgroundColor={isCenterLayout ? "red" : "yellow"}
           >
             <XStack f={1} jc="center">
@@ -82,54 +97,47 @@ export function SiteHeader({
             </XStack>
             {isCenterLayout ? headerSearch : null}
           </XStack>
-          <XStack
-            ai="center"
-            gap="$3"
-            right="$4"
-            height="100%"
-            background="$background"
-            f={1}
-            overflow="scroll"
-          >
-            {items?.length || afterLinksContent ? (
-              <XStack
-                ai="center"
-                gap="$2"
-                padding="$2"
-                jc="center"
-                display="none"
-                $gtSm={{display: "flex"}}
-              >
-                {items?.map((item) => {
-                  return (
-                    <HeaderLinkItem
-                      id={item.id}
-                      key={item.id.id}
-                      metadata={item.metadata}
-                      isDraft={item.isDraft}
-                      isPublished={item.isPublished}
-                      active={
-                        !!docId?.path &&
-                        !!item.id.path &&
-                        item.id.path?.[0] === docId.path[0]
-                      }
-                    />
-                  );
-                })}
-                {afterLinksContent}
-              </XStack>
-            ) : null}
+          <XStack flex={1} jc="flex-end" overflow="scroll">
+            <XStack
+              ai="center"
+              gap="$3"
+              // right="$4"
+              height="100%"
+              // background="$background"
+              f={1}
+              jc="flex-end"
+              // overflow="scroll"
+            >
+              {items?.length || afterLinksContent ? (
+                <XStack
+                  ai="center"
+                  gap="$2"
+                  padding="$2"
+                  jc="center"
+                  display="none"
+                  $gtSm={{display: "flex"}}
+                >
+                  {items?.map((item) => {
+                    return (
+                      <HeaderLinkItem
+                        id={item.id}
+                        key={item.id.id}
+                        metadata={item.metadata}
+                        isDraft={item.isDraft}
+                        isPublished={item.isPublished}
+                        active={
+                          !!docId?.path &&
+                          !!item.id.path &&
+                          item.id.path?.[0] === docId.path[0]
+                        }
+                      />
+                    );
+                  })}
+                  {afterLinksContent}
+                </XStack>
+              ) : null}
+            </XStack>
           </XStack>
-
-          <Button
-            $gtSm={{display: "none"}}
-            icon={<Menu size={20} />}
-            chromeless
-            size="$2"
-            onPress={() => {
-              setIsMobileMenuOpen(true);
-            }}
-          />
 
           {isCenterLayout ? null : headerSearch}
           {headItems}
