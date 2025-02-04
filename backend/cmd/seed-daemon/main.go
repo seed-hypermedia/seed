@@ -14,6 +14,7 @@ import (
 	_ "net/http/pprof"
 
 	_ "github.com/grafana/pyroscope-go/godeltaprof/http/pprof"
+	_ "golang.org/x/net/trace"
 
 	"seed/backend/config"
 	"seed/backend/core"

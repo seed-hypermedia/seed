@@ -53,6 +53,8 @@ func setupDebugHandlers(r *Router, blobs blockstore.Blockstore) {
 	r.Handle("/debug/cid/{cid}", corsMiddleware(makeBlobDebugHandler(blobs)), 0)
 	r.Handle("/debug/traces", eztrc.Handler(), RouteNav)
 	r.Handle("/debug/logs", logging.DebugHandler(), RouteNav)
+	r.Handle("/debug/requests", http.DefaultServeMux, RouteNav)
+	r.Handle("/debug/events", http.DefaultServeMux, RouteNav)
 }
 
 func makeBlobDebugHandler(bs blockstore.Blockstore) http.HandlerFunc {
