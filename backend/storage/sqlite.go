@@ -9,7 +9,6 @@ import (
 	"seed/backend/storage/dbext"
 	"seed/backend/testutil"
 	"testing"
-	"time"
 
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -47,8 +46,6 @@ func openSQLite(uri string, flags sqlite.OpenFlags, poolSize int, prelude ...str
 				return err
 			}
 		}
-
-		conn.SetBusyTimeout(time.Second * 3)
 
 		return nil
 	}); err != nil {
