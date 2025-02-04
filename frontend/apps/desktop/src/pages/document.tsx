@@ -611,6 +611,13 @@ function DocPageContent({
   isBlockFocused: boolean
   blockRef?: string | null | undefined
 }) {
+  const replace = useNavigate('replace')
+  const route = useNavRoute()
+
+  // useEffect(() => {
+  //   console.log(route)
+  // }, [route])
+
   if (entity.document!.metadata.layout === 'Seed/Experimental/Newspaper') {
     return (
       <NewspaperLayout id={entity.id} metadata={entity.document!.metadata} />
@@ -625,6 +632,13 @@ function DocPageContent({
       <DocContent
         document={entity.document!}
         focusBlockId={isBlockFocused ? blockRef || undefined : undefined}
+        handleBlockReplace={() => {
+          if (route.key === 'document') {
+            replace({...route, id: {...route.id, blockRef: null}})
+            return true
+          }
+          return false
+        }}
       />
     </AppDocContentProvider>
   )
