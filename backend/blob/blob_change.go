@@ -502,7 +502,7 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 				// because now we are trying to index a Ref blob that might be related to the change we are currently indexing.
 				// Currently the indexing context is tied to a single blob, but it shouldn't be this way.
 				// There's more code like this. Search for (#ictxDRY).
-				newCtx(ictx.conn, ref.ID, ictx.blockStore, ictx.provider, ictx.log),
+				newCtx(ictx.conn, ref.ID, ictx.blockStore, ictx.log),
 				ref.Value,
 			); err != nil {
 				return err

@@ -24,7 +24,6 @@ import (
 
 	"seed/backend/util/sqlite/sqlitex"
 
-	provider "github.com/ipfs/boxo/provider"
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
 	manet "github.com/multiformats/go-multiaddr/net"
@@ -42,7 +41,6 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoremem"
 	"github.com/multiformats/go-multiaddr"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
 )
 
@@ -104,7 +102,6 @@ type Node struct {
 	protocol               protocolInfo
 	p2p                    *ipfs.Libp2p
 	bitswap                *ipfs.Bitswap
-	providing              provider.System
 	grpc                   *grpc.Server
 	clean                  cleanup.Stack
 	ready                  chan struct{}
@@ -142,33 +139,22 @@ func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool
 	}
 	clean.Add(bitswap)
 
-	// TODO(burdiyan): find a better reproviding strategy than naive provide-everything.
-
-	logLevel := ""
-	if log.Level() != zapcore.InvalidLevel { // Usually test with zap.NewNop()
-		logLevel = log.Level().String()
-	}
-	providing, err := ipfs.NewProviderSystem(host.Datastore(), host.Routing, makeProvidingStrategy(db, logLevel))
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize providing: %w", err)
-	}
-	clean.Add(providing)
+	// TODO(burdiyan): enable providing and reproviding.
 
 	client := newClient(device.PeerID(), host, protoInfo.ID)
 	clean.Add(client)
 
 	n = &Node{
-		log:       log,
-		index:     index,
-		db:        db,
-		device:    device,
-		keys:      ks,
-		cfg:       cfg,
-		client:    client,
-		protocol:  protoInfo,
-		p2p:       host,
-		bitswap:   bitswap,
-		providing: providing,
+		log:      log,
+		index:    index,
+		db:       db,
+		device:   device,
+		keys:     ks,
+		cfg:      cfg,
+		client:   client,
+		protocol: protoInfo,
+		p2p:      host,
+		bitswap:  bitswap,
 		grpc: grpc.NewServer(
 			grpc.StatsHandler(rpcServerMetrics),
 			grpc.ChainUnaryInterceptor(

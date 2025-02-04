@@ -131,10 +131,7 @@ func makeManager(t *testing.T, k crypto.PrivKey) *FileManager {
 
 	t.Cleanup(func() { require.NoError(t, n.Close()) })
 
-	providing, err := ipfs.NewProviderSystem(ds, n.Routing, bs.AllKeysChan)
-	require.NoError(t, err)
-
-	return NewFileManager(logging.New("seed/ipfs", "debug"), bs, bitswap, providing)
+	return NewFileManager(logging.New("seed/ipfs", "debug"), bs, bitswap)
 }
 
 // createFile0toBound creates a file with the number 0 to bound.

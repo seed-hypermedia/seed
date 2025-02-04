@@ -20,7 +20,6 @@ import (
 	unixfile "github.com/ipfs/boxo/ipld/unixfs/file"
 	"github.com/ipfs/boxo/ipld/unixfs/importer/balanced"
 	"github.com/ipfs/boxo/ipld/unixfs/importer/helpers"
-	"github.com/ipfs/boxo/provider"
 	"github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
 	multihash "github.com/multiformats/go-multihash"
@@ -57,11 +56,10 @@ type HTTPHandler interface {
 type FileManager struct {
 	log        *zap.Logger
 	DAGService ipld.DAGService
-	provider   provider.Provider
 }
 
 // NewFileManager creates a new fileManager instance.
-func NewFileManager(log *zap.Logger, bs blockstore.Blockstore, bitswap exchange.Interface, prov provider.Provider) *FileManager {
+func NewFileManager(log *zap.Logger, bs blockstore.Blockstore, bitswap exchange.Interface) *FileManager {
 	bsvc := blockservice.New(bs, bitswap)
 	// Don't close the blockservice, because it doesn't do anything useful.
 	// It's actually closing the exchange, which is not even its responsibility.
@@ -72,7 +70,6 @@ func NewFileManager(log *zap.Logger, bs blockstore.Blockstore, bitswap exchange.
 
 	return &FileManager{
 		log:        log,
-		provider:   prov,
 		DAGService: dag,
 	}
 }
@@ -186,11 +183,6 @@ func (fm *FileManager) UploadFile(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintf(w, "Failed to add file to the IPFS blockstore: %v", err.Error())
 		return
-	}
-
-	// Providing is best-effort so we don't fail the request if it fails.
-	if err = fm.provider.Provide(n.Cid()); err != nil {
-		fm.log.Warn("Failed to provide file", zap.Error(err))
 	}
 
 	w.WriteHeader(http.StatusCreated)

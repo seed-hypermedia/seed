@@ -22,7 +22,6 @@ import (
 	"seed/backend/util/sqlite/sqlitex"
 
 	blockstore "github.com/ipfs/boxo/blockstore"
-	"github.com/ipfs/boxo/provider"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/multiformats/go-multicodec"
@@ -89,20 +88,18 @@ func (iri IRI) Breadcrumbs() []IRI {
 }
 
 type Index struct {
-	bs       *blockStore
-	db       *sqlitex.Pool
-	log      *zap.Logger
-	provider provider.Provider
+	bs  *blockStore
+	db  *sqlitex.Pool
+	log *zap.Logger
 }
 
 // OpenIndex creates the index and reindexes the data if necessary.
 // At some point we should probably make the reindexing a separate concern.
-func OpenIndex(ctx context.Context, db *sqlitex.Pool, log *zap.Logger, prov provider.Provider) (*Index, error) {
+func OpenIndex(ctx context.Context, db *sqlitex.Pool, log *zap.Logger) (*Index, error) {
 	idx := &Index{
-		bs:       newBlockstore(db),
-		db:       db,
-		log:      log,
-		provider: prov,
+		bs:  newBlockstore(db),
+		db:  db,
+		log: log,
 	}
 
 	if err := idx.MaybeReindex(ctx); err != nil {
@@ -110,16 +107,6 @@ func OpenIndex(ctx context.Context, db *sqlitex.Pool, log *zap.Logger, prov prov
 	}
 
 	return idx, nil
-}
-
-func (idx *Index) SetProvider(prov provider.Provider) {
-	// TODO(hm24): Providing doesn't really belong here,
-	// we should extract it into a separate component/subsystem.
-	// Indexing has no business caring about providing.
-
-	if prov != nil {
-		idx.provider = prov
-	}
 }
 
 func (idx *Index) IPFSBlockstore() blockstore.Blockstore {
@@ -132,7 +119,7 @@ func (idx *Index) IPFSBlockstore() blockstore.Blockstore {
 func (idx *Index) indexBlob(ctx context.Context, conn *sqlite.Conn, id int64, c cid.Cid, data []byte) (err error) {
 	defer sqlitex.Save(conn)(&err)
 
-	ictx := newCtx(conn, id, idx.bs, idx.provider, idx.log)
+	ictx := newCtx(conn, id, idx.bs, idx.log)
 	ictx.mustTrackUnreads = unreadsTrackingEnabled(ctx) // TODO: refactor this. It's ugly af.
 
 	for _, fn := range indexersList {
@@ -753,7 +740,6 @@ func (eb Encoded[T]) Loggable() map[string]interface{} {
 
 type indexingCtx struct {
 	conn       *sqlite.Conn
-	provider   provider.Provider
 	blockStore *blockStore
 	log        *zap.Logger
 
@@ -769,10 +755,9 @@ type indexingCtx struct {
 	lookup *LookupCache
 }
 
-func newCtx(conn *sqlite.Conn, id int64, bs *blockStore, provider provider.Provider, log *zap.Logger) *indexingCtx {
+func newCtx(conn *sqlite.Conn, id int64, bs *blockStore, log *zap.Logger) *indexingCtx {
 	return &indexingCtx{
 		conn:       conn,
-		provider:   provider,
 		blockStore: bs,
 		log:        log,
 
@@ -1025,19 +1010,6 @@ func (idx *indexingCtx) ensureResource(r IRI) (int64, error) {
 
 		if ins <= 0 {
 			panic("BUG: failed to insert resource for some reason")
-		}
-		if idx.provider != nil {
-			go func() {
-				c, err := ipfs.NewCID(uint64(multicodec.Raw), uint64(multicodec.Identity), []byte(string(r)))
-				if err != nil {
-					idx.log.Warn("failed to convert entity into CID", zap.String("eid", string(r)), zap.Error(err))
-				}
-				if err = idx.provider.Provide(c); err != nil {
-					idx.log.Warn("Failed to provide entity", zap.String("eid", string(r)), zap.Error(err))
-				}
-				idx.log.Debug("Providing resource", zap.String("eid", string(r)), zap.String("CID", c.String()))
-				return
-			}()
 		}
 
 		id = ins

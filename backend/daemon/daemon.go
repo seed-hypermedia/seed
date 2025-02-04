@@ -160,7 +160,7 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 
 	otel.SetTracerProvider(tp)
 
-	a.Index, err = blob.OpenIndex(ctx, a.Storage.DB(), logging.New("seed/indexing", cfg.LogLevel), nil)
+	a.Index, err = blob.OpenIndex(ctx, a.Storage.DB(), logging.New("seed/indexing", cfg.LogLevel))
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +169,6 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 	if err != nil {
 		return nil, err
 	}
-	a.Index.SetProvider(a.Net.Provider())
 	activitySrv := activity.NewServer(a.Storage.DB(), logging.New("seed/activity", cfg.LogLevel), &a.clean)
 	a.Syncing, err = initSyncing(cfg.Syncing, &a.clean, a.g, a.Storage.DB(), a.Index, a.Net, activitySrv, cfg.LogLevel)
 	if err != nil {
@@ -193,7 +192,7 @@ func Load(ctx context.Context, cfg config.Config, r Storage, oo ...Option) (a *A
 			e = offline.Exchange(bs)
 		}
 
-		fm = hmnet.NewFileManager(logging.New("seed/file-manager", cfg.LogLevel), bs, e, a.Net.Provider())
+		fm = hmnet.NewFileManager(logging.New("seed/file-manager", cfg.LogLevel), bs, e)
 	}
 
 	opts.extraHTTPHandlers = append(opts.extraHTTPHandlers, func(r *Router) {
