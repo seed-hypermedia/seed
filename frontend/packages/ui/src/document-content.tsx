@@ -264,12 +264,14 @@ export function DocContent({
   focusBlockId,
   maxBlockCount,
   marginVertical = "$5",
+  handleBlockReplace,
   ...props
 }: XStackProps & {
   document: HMDocument;
   focusBlockId?: string | undefined;
   maxBlockCount?: number;
   marginVertical?: any;
+  handleBlockReplace?: () => boolean;
 }) {
   const {wrapper, bubble, coords, state} = useRangeSelection();
 
@@ -357,7 +359,11 @@ export function DocContent({
           </Tooltip>
         ) : null}
       </XStack>
-      <BlocksContent blocks={displayBlocks} parentBlockId={null} />
+      <BlocksContent
+        blocks={displayBlocks}
+        parentBlockId={null}
+        handleBlockReplace={handleBlockReplace}
+      />
     </YStack>
   );
 }
@@ -366,9 +372,11 @@ export const BlocksContent = memo(_BlocksContent);
 function _BlocksContent({
   blocks,
   parentBlockId,
+  handleBlockReplace,
 }: {
   blocks?: Array<PlainMessage<BlockNode>> | Array<HMBlockNode> | null;
   parentBlockId: string | null;
+  handleBlockReplace?: () => boolean;
 }) {
   if (!blocks) return null;
 
@@ -399,6 +407,7 @@ function _BlocksContent({
               )}
               listLevel={1}
               index={idx}
+              handleBlockReplace={handleBlockReplace}
             />
           ))
         : null}
@@ -499,6 +508,7 @@ export function BlockNodeContent({
   expanded = true,
   embedDepth = 1,
   parentBlockId,
+  handleBlockReplace,
   ...props
 }: {
   isFirstChild: boolean;
@@ -510,6 +520,7 @@ export function BlockNodeContent({
   embedDepth?: number;
   expanded?: boolean;
   parentBlockId: string | null;
+  handleBlockReplace?: () => boolean;
 }) {
   const {
     layoutUnit,
@@ -570,12 +581,40 @@ export function BlockNodeContent({
 
   useEffect(() => {
     let val = routeParams?.blockRef == blockNode.block?.id && !comment;
-    if (val) {
-      setTimeout(() => {
-        setHighlight(false);
-      }, 1000);
-    }
+    // if (val) {
+    //   setTimeout(() => {
+    //     setHighlight(false);
+    //   }, 1000);
+    // }
     setHighlight(val);
+
+    if (!val || !elm.current) return;
+
+    // Add intersection observer to check if the user scrolled out of block view.
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) {
+          handleBlockReplace?.();
+        }
+      },
+      {threshold: 0.1} // Trigger when 10% of the block is still visible.
+    );
+
+    // Function to check if the user clicked outside the block bounds.
+    const handleClickOutside = (event: MouseEvent) => {
+      if (elm.current && !elm.current.contains(event.target as Node)) {
+        handleBlockReplace?.();
+      }
+    };
+
+    observer.observe(elm.current);
+    document.addEventListener("click", handleClickOutside);
+
+    // Remove listeners when unmounting
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("click", handleClickOutside);
+    };
   }, [routeParams?.blockRef, comment, blockNode.block]);
 
   function handleBlockNodeToggle() {
