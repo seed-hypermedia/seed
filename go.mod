@@ -246,7 +246,7 @@ require (
 	go.uber.org/mock v0.5.0 // indirect
 	golang.org/x/crypto v0.28.0 // indirect
 	golang.org/x/mod v0.21.0 // indirect
-	golang.org/x/net v0.30.0 // indirect
+	golang.org/x/net v0.30.0
 	golang.org/x/sys v0.26.0 // indirect
 	golang.org/x/term v0.25.0
 	golang.org/x/tools v0.26.0 // indirect
