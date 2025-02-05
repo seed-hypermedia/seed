@@ -44,7 +44,7 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
   const createDraft = useCreateDraft(id)
   const capability = useMyCapability(id)
   const siteList = useListSite(id)
-
+  const isHome = !id.path?.length
   const siteListQuery = siteList?.data
     ? {in: hmId('d', id.uid), results: siteList.data}
     : null
@@ -97,13 +97,15 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
         supportDocuments={embeds}
         activeBlockId={id.blockRef}
       />
-      <DocDirectory
-        id={id}
-        drafts={drafts.data}
-        supportQueries={[siteListQuery]}
-        createDirItem={createDirItem}
-        onPress={onPress}
-      />
+      {!isHome && (
+        <DocDirectory
+          id={id}
+          drafts={drafts.data}
+          supportQueries={[siteListQuery]}
+          createDirItem={createDirItem}
+          onPress={onPress}
+        />
+      )}
     </>
   )
 }

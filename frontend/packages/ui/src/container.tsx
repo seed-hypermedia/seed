@@ -70,7 +70,6 @@ export const ContainerLarge = styled(YStack, {
 export const ContainerXL = styled(YStack, {
   marginHorizontal: "auto",
   paddingHorizontal: "$4",
-  paddingVertical: "$6",
   width: "100%",
   $gtSm: {
     maxWidth: 980,

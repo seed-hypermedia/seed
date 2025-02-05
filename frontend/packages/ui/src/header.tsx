@@ -3,6 +3,7 @@ import {
   HMDocument,
   HMEntityContent,
   HMMetadata,
+  HMQueryResult,
   UnpackedHypermediaId,
   useRouteLink,
 } from "@shm/shared";
@@ -10,6 +11,7 @@ import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import React, {useEffect, useState} from "react";
 import {Button} from "./button";
+import {ContainerXL} from "./container";
 import {Close, Menu} from "./icons";
 import {DocumentOutline, SiteNavigationDocument} from "./navigation";
 import {HeaderSearch, MobileSearch} from "./search";
@@ -26,6 +28,7 @@ export function SiteHeader({
   children,
   document,
   supportDocuments,
+  supportQueries,
 }: {
   homeMetadata: HMMetadata | null;
   homeId: UnpackedHypermediaId | null;
@@ -37,6 +40,7 @@ export function SiteHeader({
   children?: React.ReactNode;
   document?: HMDocument;
   supportDocuments?: HMEntityContent[];
+  supportQueries?: HMQueryResult[];
 }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const headerSearch = (
@@ -57,6 +61,7 @@ export function SiteHeader({
       ) : null}
     </>
   );
+  const isHome = !docId?.path?.length;
   console.log("iscenterlayout", isCenterLayout);
   if (!homeId) return null;
   return (
@@ -72,49 +77,42 @@ export function SiteHeader({
         left={0}
         backgroundColor="$background"
       >
-        <XStack
-          paddingHorizontal="$4"
-          paddingVertical="$2"
-          ai="center"
-          gap="$2"
-          flexDirection={isCenterLayout ? "column" : "row"}
-        >
-          <XStack
+        <ContainerXL>
+          <XStack // Rendered as YStack when isCenterLayout
+            paddingVertical="$2"
             ai="center"
-            jc={isCenterLayout ? "center" : "flex-start"}
-            alignSelf="stretch"
-            // f={1}
-            // $gtSm={{flex: 0}}
-            flexShrink={0}
-            // backgroundColor={isCenterLayout ? "red" : "yellow"}
+            gap="$2"
+            flexDirection={isCenterLayout ? "column" : "row"}
           >
-            <XStack f={1} jc="center">
-              <SiteLogo
-                id={homeId}
-                metadata={homeMetadata}
-                isCenterLayout={isCenterLayout}
-              />
-            </XStack>
-            {isCenterLayout ? headerSearch : null}
-          </XStack>
-          <XStack flex={1} jc="flex-end" overflow="scroll">
             <XStack
               ai="center"
-              gap="$3"
-              // right="$4"
-              height="100%"
-              // background="$background"
-              f={1}
+              jc={isCenterLayout ? "center" : "flex-start"}
+              alignSelf="stretch"
+              flexShrink={0}
+            >
+              <XStack f={1} jc="center">
+                <SiteLogo id={homeId} metadata={homeMetadata} />
+              </XStack>
+              {isCenterLayout ? headerSearch : null}
+            </XStack>
+            <XStack
+              flex={1}
               jc="flex-end"
-              // overflow="scroll"
+              borderWidth={4}
+              borderColor="red"
+              overflow="scroll" // this isn't working but its supposed to allow horizontal scroll
+              // backgroundColor="red"
             >
               {items?.length || afterLinksContent ? (
                 <XStack
+                  // backgroundColor="green"
                   ai="center"
                   gap="$2"
+                  minWidth="fit-content"
                   padding="$2"
                   jc="center"
                   display="none"
+                  flexShrink={0}
                   $gtSm={{display: "flex"}}
                 >
                   {items?.map((item) => {
@@ -137,11 +135,11 @@ export function SiteHeader({
                 </XStack>
               ) : null}
             </XStack>
-          </XStack>
 
-          {isCenterLayout ? null : headerSearch}
-          {headItems}
-        </XStack>
+            {isCenterLayout ? null : headerSearch}
+            {headItems}
+          </XStack>
+        </ContainerXL>
       </YStack>
       {children}
       <MobileMenu
@@ -150,6 +148,7 @@ export function SiteHeader({
         renderContent={() => (
           <YStack>
             <MobileSearch homeId={homeId} />
+            {isHome ? null : <SizableText>Home Nav Items</SizableText>}
             {docId && document && (
               <DocumentOutline
                 onActivateBlock={() => {}}
@@ -160,6 +159,7 @@ export function SiteHeader({
                 activeBlockId={docId.blockRef}
               />
             )}
+            <SizableText>Doc Nav Items</SizableText>
           </YStack>
         )}
       />
@@ -191,6 +191,7 @@ function HeaderLinkItem({
   const baseColor = isPublished === false ? "$color9" : "$color10";
   return (
     <SizableText
+      numberOfLines={1}
       fontWeight="bold"
       backgroundColor={isDraft ? "$yellow4" : undefined}
       color={active ? "$color" : baseColor}

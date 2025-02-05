@@ -1,6 +1,5 @@
 import {HMMetadata, UnpackedHypermediaId, useRouteLink} from "@shm/shared";
 import {useImageUrl} from "@shm/ui/src/get-file-url";
-import {View} from "@tamagui/core";
 import {XStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import {HMIcon} from "./hm-icon";
@@ -8,11 +7,9 @@ import {HMIcon} from "./hm-icon";
 export function SiteLogo({
   id,
   metadata,
-  isCenterLayout = false,
 }: {
   id: UnpackedHypermediaId;
   metadata?: HMMetadata | null;
-  isCenterLayout?: boolean;
 }) {
   const imageUrl = useImageUrl();
   const homeLinkProps = useRouteLink({
@@ -39,13 +36,7 @@ export function SiteLogo({
     );
   }
   return (
-    <View
-      {...homeLinkProps}
-      ai="center"
-      jc="center"
-      gap="$2"
-      flexDirection={isCenterLayout ? "column" : "row"}
-    >
+    <XStack {...homeLinkProps} ai="center" jc="center" gap="$2">
       <HMIcon size={24} id={id} metadata={metadata} />
       <SizableText
         size="$4"
@@ -55,6 +46,6 @@ export function SiteLogo({
       >
         {metadata?.name}
       </SizableText>
-    </View>
+    </XStack>
   );
 }
