@@ -715,9 +715,11 @@ describe('EditorBlock to HMBlock', () => {
           },
         ],
         props: {
+          banner: 'true',
           queryIncludes:
             '[{"space": "FOO_SPACE", "path": "", "mode": "Children"}]',
           querySort: '[{"term": "UpdateTime", "reverse": false}]',
+
           style: 'Card',
           columnCount: '1',
         },
@@ -731,6 +733,7 @@ describe('EditorBlock to HMBlock', () => {
         attributes: {
           style: 'Card',
           columnCount: 1,
+          banner: true,
           query: {
             includes: [{space: 'FOO_SPACE', path: '', mode: 'Children'}],
             sort: [{term: 'UpdateTime', reverse: false}],

@@ -771,8 +771,10 @@ describe('HMBlock to EditorBlock', () => {
         props: {
           queryIncludes: '[{"space":"FOO_SPACE","path":"","mode":"Children"}]',
           querySort: '[{"term":"UpdateTime","reverse":false}]',
+          queryLimit: 'undefined',
           style: 'Card',
           columnCount: '1',
+          banner: 'false',
           revision: 'revision123',
         },
       }
