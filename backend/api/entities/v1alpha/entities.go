@@ -11,6 +11,8 @@ import (
 	"seed/backend/util/errutil"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/lithammer/fuzzysearch/fuzzy"
 	"google.golang.org/grpc/codes"
@@ -19,13 +21,12 @@ import (
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 )
 
 // Discoverer is an interface for discovering objects.
 type Discoverer interface {
-	DiscoverObject(ctx context.Context, i blob.IRI, v blob.Version, recursive bool) (string, error)
+	DiscoverObject(ctx context.Context, i blob.IRI, v blob.Version, recursive bool) (blob.Version, error)
 }
 
 // Server implements Entities API.
@@ -34,13 +35,17 @@ type Server struct {
 
 	idx  *blob.Index
 	disc Discoverer
+
+	mu             sync.Mutex
+	discoveryTasks map[discoveryTaskKey]*discoveryTask
 }
 
 // NewServer creates a new entities server.
 func NewServer(idx *blob.Index, disc Discoverer) *Server {
 	return &Server{
-		idx:  idx,
-		disc: disc,
+		idx:            idx,
+		disc:           disc,
+		discoveryTasks: make(map[discoveryTaskKey]*discoveryTask),
 	}
 }
 
@@ -49,262 +54,10 @@ func (srv *Server) RegisterServer(rpc grpc.ServiceRegistrar) {
 	entities.RegisterEntitiesServer(rpc, srv)
 }
 
-// // GetChange implements the Changes server.
-// func (api *Server) GetChange(ctx context.Context, in *entities.GetChangeRequest) (out *entities.Change, err error) {
-// 	if in.Id == "" {
-// 		return nil, errutil.MissingArgument("id")
-// 	}
-
-// 	c, err := cid.Decode(in.Id)
-// 	if err != nil {
-// 		return nil, errutil.ParseError("id", in.Id, c, err)
-// 	}
-
-// 	if err := api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
-// 		size, err := hypersql.BlobsGetSize(conn, c.Hash())
-// 		if err != nil {
-// 			return err
-// 		}
-// 		if size.BlobsSize < 0 {
-// 			return errutil.NotFound("no such change %s", c)
-// 		}
-
-// 		out, err = getChange(conn, c, size.BlobsID)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		return nil
-// 	}); err != nil {
-// 		return nil, err
-// 	}
-
-// 	return out, nil
-// }
-
-// func getChange(conn *sqlite.Conn, c cid.Cid, id int64) (*entities.Change, error) {
-// 	var out *entities.Change
-// 	info, err := hypersql.ChangesGetInfo(conn, id)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	out = &entities.Change{
-// 		Id:         c.String(),
-// 		Author:     core.Principal(info.PublicKeysPrincipal).String(),
-// 		CreateTime: timestamppb.New(hlc.Timestamp(info.StructuralBlobsTs).Time()),
-// 		IsTrusted:  info.IsTrusted > 0,
-// 	}
-
-// 	deps, err := hypersql.ChangesGetDeps(conn, info.StructuralBlobsID)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	if len(deps) > 0 {
-// 		out.Deps = make([]string, len(deps))
-// 		for i, d := range deps {
-// 			out.Deps[i] = cid.NewCidV1(uint64(d.BlobsCodec), d.BlobsMultihash).String()
-// 		}
-// 	}
-
-// 	return out, nil
-// }
-
-// GetEntityTimeline implements the Entities server.
-// func (api *Server) GetEntityTimeline(ctx context.Context, in *entities.GetEntityTimelineRequest) (*entities.EntityTimeline, error) {
-// 	if in.Id == "" {
-// 		return nil, errutil.MissingArgument("id")
-// 	}
-
-// 	// Prepare the response that will be filled in later.
-// 	out := &entities.EntityTimeline{
-// 		Id:      in.Id,
-// 		Changes: make(map[string]*entities.Change),
-// 	}
-
-// 	// Initialize some lookup tables and indexes.
-// 	var (
-// 		// Lookup for short database IDs to CID strings.
-// 		changeLookup = make(map[int64]string)
-
-// 		// Lookup for short database IDs to account IDs.
-// 		accountLookup = make(map[int64]string)
-
-// 		accounts colx.SmallSet[string]
-
-// 		// Set of leaf changes in the entire DAG.
-// 		heads colx.SmallSet[string]
-
-// 		headsByAuthor = make(map[string]*colx.SmallSet[string])
-
-// 		// Queue for doing tree traversal to find author heads.
-// 		queue [][]string
-// 	)
-
-// 	if err := api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
-// 		edb, err := hypersql.EntitiesLookupID(conn, in.Id)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		if edb.ResourcesID == 0 {
-// 			return errutil.NotFound("no such entity %s", in.Id)
-// 		}
-
-// 		// Process all the changes and their deps.
-// 		if err := sqlitex.Exec(conn, qGetEntityTimeline(), func(stmt *sqlite.Stmt) error {
-// 			var (
-// 				idShort     = stmt.ColumnInt64(0)
-// 				codec       = stmt.ColumnInt64(1)
-// 				hash        = stmt.ColumnBytesUnsafe(2)
-// 				ts          = stmt.ColumnInt64(3)
-// 				isTrusted   = stmt.ColumnInt(4)
-// 				authorID    = stmt.ColumnInt64(5)
-// 				authorBytes = stmt.ColumnBytesUnsafe(6)
-// 				deps        = stmt.ColumnText(7)
-// 				isDraft     = stmt.ColumnInt(8)
-// 			)
-
-// 			idLong := cid.NewCidV1(uint64(codec), hash).String()
-// 			changeLookup[idShort] = idLong
-
-// 			// The database query already sorts by timestamp,
-// 			// so we can just append.
-// 			out.ChangesByTime = append(out.ChangesByTime, idLong)
-
-// 			author, ok := accountLookup[authorID]
-// 			if !ok {
-// 				author = core.Principal(authorBytes).String()
-// 				accountLookup[authorID] = author
-// 			}
-
-// 			accounts.Put(author)
-
-// 			if _, ok := headsByAuthor[author]; !ok {
-// 				headsByAuthor[author] = &colx.SmallSet[string]{}
-// 			}
-
-// 			change := &entities.Change{
-// 				Id:         idLong,
-// 				Author:     author,
-// 				CreateTime: timestamppb.New(hlc.Timestamp(ts).Time()),
-// 				IsTrusted:  isTrusted > 0,
-// 				IsDraft:    isDraft > 0,
-// 			}
-
-// 			if deps == "" {
-// 				out.Roots = append(out.Roots, idLong)
-// 			} else {
-// 				depsShort := strings.Fields(deps)
-// 				change.Deps = make([]string, len(depsShort))
-// 				for i, depShort := range depsShort {
-// 					depInt, err := strconv.Atoi(depShort)
-// 					if err != nil {
-// 						return fmt.Errorf("failed to parse dep %q as int: %w", depShort, err)
-// 					}
-// 					depLong, ok := changeLookup[int64(depInt)]
-// 					if !ok {
-// 						return fmt.Errorf("missing causal dependency lookup %q for change %q", depShort, idLong)
-// 					}
-
-// 					change.Deps[i] = depLong
-// 					out.Changes[depLong].Children = append(out.Changes[depLong].Children, idLong)
-// 					heads.Delete(depLong)
-// 				}
-// 			}
-
-// 			heads.Put(idLong)
-// 			out.Changes[idLong] = change
-
-// 			// Iterate over author heads, and find path to the current change
-// 			// if found remove the head
-// 			// in the end add this change to the authors head
-// 			authorHeads := headsByAuthor[author]
-// 			for _, head := range authorHeads.Slice() {
-// 				if isDescendant(out, queue, head, idLong) {
-// 					authorHeads.Delete(head)
-// 				}
-// 			}
-
-// 			authorHeads.Put(idLong)
-// 			return nil
-// 		}, edb.ResourcesID, in.IncludeDrafts); err != nil {
-// 			return err
-// 		}
-
-// 		// Sometimes we know about a document from a link,
-// 		// but don't have any changes for it. We don't want this to be an error,
-// 		// so we just stop further processing and return an empty timeline.
-// 		if len(changeLookup) == 0 {
-// 			return nil
-// 		}
-
-// 		owner, ok := accountLookup[edb.ResourcesOwner]
-// 		if !ok {
-// 			return fmt.Errorf("BUG: missing owner for entity %q after processing the timeline", in.Id)
-// 		}
-
-// 		out.Owner = owner
-// 		out.Heads = sortChanges(out, heads.Slice())
-
-// 		for _, author := range accounts.Slice() {
-// 			av := &entities.AuthorVersion{
-// 				Author: author,
-// 				Heads:  sortChanges(out, headsByAuthor[author].Slice()),
-// 			}
-// 			av.Version = strings.Join(av.Heads, ".")
-// 			av.VersionTime = out.Changes[av.Heads[len(av.Heads)-1]].CreateTime
-// 			out.AuthorVersions = append(out.AuthorVersions, av)
-// 		}
-
-// 		return nil
-// 	}); err != nil {
-// 		return nil, err
-// 	}
-
-// 	return out, nil
-// }
-
-func sortChanges(timeline *entities.EntityTimeline, heads []string) []string {
-	slices.SortFunc(heads, func(a, b string) int {
-		aa := timeline.Changes[a]
-		bb := timeline.Changes[b]
-
-		at := aa.CreateTime.AsTime()
-		bt := bb.CreateTime.AsTime()
-
-		if at.Equal(bt) {
-			return strings.Compare(aa.Author, bb.Author)
-		}
-
-		if at.Before(bt) {
-			return -1
-		}
-
-		return +1
-	})
-
-	return heads
-}
-
-func isDescendant(timeline *entities.EntityTimeline, queue [][]string, parent, descendant string) bool {
-	queue = queue[:0]
-	queue = append(queue, timeline.Changes[parent].Children)
-
-	for len(queue) > 0 {
-		nodes := queue[len(queue)-1]
-		queue = queue[:len(queue)-1]
-		for _, node := range nodes {
-			if node == descendant {
-				return true
-			}
-			children := timeline.Changes[node].Children
-			if len(children) > 0 {
-				queue = append(queue, children)
-			}
-		}
-	}
-
-	return false
-}
+const (
+	lastResultTTL = time.Second * 20 // we cache the previous discovery result for this long
+	taskTTL       = time.Second * 40 // if the frontend didn't request discovery for this long we discard the task
+)
 
 // DiscoverEntity implements the Entities server.
 func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEntityRequest) (*entities.DiscoverEntityResponse, error) {
@@ -317,33 +70,107 @@ func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEnti
 	}
 
 	in.Account = strings.TrimPrefix(in.Account, "hm://")
+	in.Path = strings.TrimSuffix(in.Path, "/")
 
 	acc, err := core.DecodePrincipal(in.Account)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "bad account: %v", err)
 	}
 
-	in.Path = strings.TrimSuffix(in.Path, "/")
-
 	iri, err := blob.NewIRI(acc, in.Path)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "bad IRI: %v", err)
 	}
 
-	heads, err := blob.Version(in.Version).Parse()
-	if err != nil {
+	if _, err := blob.Version(in.Version).Parse(); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid version %q: %v", in.Version, err)
 	}
-	_ = heads
 
-	version, err := api.disc.DiscoverObject(ctx, iri, blob.Version(in.Version), in.Recursive)
-	if err != nil {
-		return nil, err
+	v := blob.Version(in.Version)
+
+	dkey := discoveryTaskKey{
+		IRI:       iri,
+		Version:   v,
+		Recursive: in.Recursive,
 	}
 
+	now := time.Now()
+
+	var task *discoveryTask
+	api.mu.Lock()
+	task = api.discoveryTasks[dkey]
+	if task == nil {
+		task = &discoveryTask{
+			key:          dkey,
+			createTime:   now,
+			callCount:    1,
+			lastCallTime: now,
+		}
+		api.discoveryTasks[dkey] = task
+		go task.start(api)
+		api.mu.Unlock()
+		return &entities.DiscoverEntityResponse{}, nil
+	}
+	api.mu.Unlock()
+
+	task.mu.Lock()
+	defer task.mu.Unlock()
+
+	task.callCount++
+	task.lastCallTime = now
+
 	return &entities.DiscoverEntityResponse{
-		Version: version,
-	}, nil
+		Version: task.lastResult.String(),
+	}, task.lastErr
+}
+
+type discoveryTaskKey struct {
+	IRI       blob.IRI
+	Version   blob.Version
+	Recursive bool
+}
+
+type discoveryTask struct {
+	mu sync.Mutex
+
+	key            discoveryTaskKey
+	createTime     time.Time
+	callCount      int
+	lastCallTime   time.Time
+	lastResultTime time.Time
+	lastResult     blob.Version
+	lastErr        error
+}
+
+func (task *discoveryTask) start(api *Server) {
+	for {
+		res, err := api.disc.DiscoverObject(context.Background(), task.key.IRI, task.key.Version, task.key.Recursive)
+		now := time.Now()
+		task.mu.Lock()
+		task.lastResultTime = now
+		task.lastResult = res
+		task.lastErr = err
+		task.mu.Unlock()
+
+		time.Sleep(lastResultTTL)
+
+		// If the frontend keeps periodically calling discovery,
+		// we want to keep this loop running.
+		task.mu.Lock()
+		if time.Since(task.lastCallTime) <= taskTTL {
+			task.mu.Unlock()
+			continue
+		}
+
+		// If the frontend stops calling discovery periodically,
+		// we want to stop this loop and remove the task from the map,
+		// to avoid the map growing boundlessly.
+		api.mu.Lock()
+		delete(api.discoveryTasks, task.key)
+		task.mu.Unlock()
+		api.mu.Unlock()
+		return
+	}
 }
 
 // SearchEntities implements the Fuzzy search of entities.

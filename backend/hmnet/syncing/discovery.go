@@ -32,7 +32,7 @@ const (
 // DiscoverObject discovers an object in the network. If not found, then it returns an error
 // If found, this function will store the object locally so that it can be gotten like any
 // other local object. This function blocks until either success or fails to find providers.
-func (s *Service) DiscoverObject(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool) (string, error) {
+func (s *Service) DiscoverObject(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool) (blob.Version, error) {
 	if s.cfg.NoDiscovery {
 		return "", fmt.Errorf("remote content discovery is disabled")
 	}
@@ -63,7 +63,7 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID blob.IRI, version
 		})
 		if err == nil && doc.Version == vstr {
 			s.log.Debug("It's your lucky day, the document was already in the db!. we avoided syncing with peers.")
-			return doc.Version, nil
+			return blob.Version(doc.Version), nil
 		}
 	}
 
@@ -112,7 +112,7 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID blob.IRI, version
 			})
 			if err == nil && (version == "" || doc.Version == vstr) {
 				s.log.Debug("Discovered content via local peer, we avoided hitting the DHT!")
-				return doc.Version, nil
+				return blob.Version(doc.Version), nil
 			}
 		}
 	}
@@ -151,7 +151,7 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID blob.IRI, version
 		})
 		if err == nil && (version == "" || doc.Version == vstr) {
 			s.log.Debug("Discovered content via DHT")
-			return doc.Version, nil
+			return blob.Version(doc.Version), nil
 		}
 	}
 	return "", fmt.Errorf("Found some DHT providers but could not get document from them %s", c.String())

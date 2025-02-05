@@ -317,11 +317,21 @@ func TestDiscoverHomeDocument(t *testing.T) {
 
 	require.NoError(t, bob.Net.ForceConnect(ctx, alice.Net.AddrInfo()))
 
-	_, err = bob.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
-		Account: aliceHome.Account,
-	})
-	_ = err
-	// require.NoError(t, err)
+	var count int
+	for {
+		count++
+		res, err := bob.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+			Account: aliceHome.Account,
+		})
+		require.NoError(t, err)
+		if res.Version == aliceHome.Version {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+		if count > 100 {
+			t.Fatalf("Failed to discover the document!")
+		}
+	}
 
 	bobGot, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: aliceHome.Account,
@@ -745,12 +755,26 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	entity, err := carol.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
-		Account: aliceHondaUpdated.Account,
-		Path:    aliceHondaUpdated.Path,
-	})
-	require.NoError(t, err)
-	require.Equal(t, aliceHondaUpdated.Version, entity.Version)
+	var entity *entities.DiscoverEntityResponse
+
+	var count int
+	for {
+		count++
+		resp, err := carol.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+			Account: aliceHondaUpdated.Account,
+			Path:    aliceHondaUpdated.Path,
+		})
+		require.NoError(t, err)
+		if resp.Version == aliceHondaUpdated.Version {
+			entity = resp
+			break
+		}
+
+		time.Sleep(100 * time.Millisecond)
+		if count > 100 {
+			t.Fatal("Couldn't discover the document")
+		}
+	}
 
 	carolRoots, err := carol.RPC.DocumentsV3.ListRootDocuments(ctx, &documents.ListRootDocumentsRequest{})
 	require.NoError(t, err)
