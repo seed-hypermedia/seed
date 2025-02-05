@@ -393,6 +393,7 @@ export function QueryBlockDesktop({
   block: HMBlockQuery
   id: UnpackedHypermediaId
 }) {
+  useSubscribedEntity(id, true)
   const directoryItems = useListDirectory(id, {
     mode: block.attributes.query.includes[0].mode,
   })

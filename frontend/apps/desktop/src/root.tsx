@@ -8,7 +8,6 @@ import {createGrpcWebTransport} from '@connectrpc/connect-web'
 import {
   DAEMON_FILE_URL,
   DAEMON_HTTP_URL,
-  createGRPCClient,
   labelOfQueryKey,
   onQueryCacheError,
   onQueryInvalidation,
@@ -30,6 +29,7 @@ import superjson from 'superjson'
 import {AppErrorContent, RootAppError} from './components/app-error'
 import {AccountWizardDialog} from './components/create-account'
 import type {GoDaemonState} from './daemon'
+import {grpcClient} from './grpc-client'
 import {ipc} from './ipc'
 import Main from './pages/main'
 import type {AppInfoType} from './preload'
@@ -194,7 +194,6 @@ onQueryCacheError((error, query) => {
 function MainApp({}: {}) {
   const darkMode = useStream<boolean>(window.darkMode)
   const daemonState = useGoDaemonState()
-  const grpcClient = useMemo(() => createGRPCClient(transport), [])
   const windowUtils = useWindowUtils(ipc)
   const utils = trpc.useContext()
 

@@ -2,7 +2,7 @@ import {useMyAccountIds} from '@/models/daemon'
 import {HMDocument, hmId, UnpackedHypermediaId} from '@shm/shared'
 import {Check, SizableText, XStack} from '@shm/ui'
 
-import {useEntities, useSubscribedEntity} from '@/models/entities'
+import {useEntities, useEntity} from '@/models/entities'
 import {DonateButton} from '@shm/ui'
 import {CopyReferenceButton} from './copy-reference-button'
 import {SubscriptionButton} from './subscription'
@@ -21,7 +21,7 @@ export function DocumentHeadItems({
   const authors = useEntities(
     document.authors.map((author) => hmId('d', author)) || [],
   )
-  const latestDoc = useSubscribedEntity({...docId, version: null, latest: true})
+  const latestDoc = useEntity({...docId, version: null, latest: true})
   const isLatest =
     docId.latest || document.version === latestDoc.data?.document?.version
   return (

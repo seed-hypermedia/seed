@@ -1,3 +1,4 @@
+import {grpcClient} from '@/grpc-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {
   DocumentRoute,
@@ -9,7 +10,7 @@ import {
   hmIdPathToEntityQueryPath,
   invalidateQueries,
   NavRoute,
-  packHmId,
+  queryClient,
   queryKeys,
   UnpackedHypermediaId,
   unpackHmId,
@@ -209,7 +210,8 @@ export function useDiscoverEntity(id: UnpackedHypermediaId) {
     },
     onSuccess: () => {
       invalidateQueries([queryKeys.SEARCH])
-      invalidateQueries([queryKeys.ENTITY, id.id])
+      invalidateQueries([queryKeys.ENTITY]) // because children may have changed, we have to invalidate all entities
+      invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, id.uid])
     },
   })
 }
@@ -233,93 +235,132 @@ export function useEntities(
   })
 }
 
-export function useSubscribedEntity(
-  id: UnpackedHypermediaId | null | undefined,
-  recursive?: boolean,
-) {
-  return useSubscribedEntities([{id, recursive}])[0]
+type EntitySubscription = {
+  id?: UnpackedHypermediaId | null
+  recursive?: boolean
+}
+
+async function updateEntitySubscription(sub: EntitySubscription) {
+  const {id, recursive} = sub
+  if (!id) return
+  const discoveryRequest = {
+    account: id.uid,
+    path: hmIdPathToEntityQueryPath(id.path),
+    recursive,
+  }
+  console.log('[sync] discovery request', discoveryRequest)
+  await grpcClient.entities
+    .discoverEntity(discoveryRequest)
+    .then((result) => {
+      console.log('[sync] discovery complete', sub)
+      const lastEntity = queryClient.getQueryData<HMEntityContent>([
+        queryKeys.ENTITY,
+        id?.id,
+        undefined,
+      ])
+      if (recursive) {
+        // with recursive directory, any document under this one may have changed
+        invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, id.uid])
+        // we have no way to invalidate all children, so we have to invalidate all entities
+        invalidateQueries([queryKeys.ENTITY])
+      } else {
+        if (!lastEntity || lastEntity.document?.version !== result.version) {
+          invalidateQueries([queryKeys.ENTITY, id.id])
+        }
+      }
+    })
+    .finally(() => {})
 }
 
 const entitySubscriptions: Record<string, () => void> = {}
 const entitySubscriptionCounts: Record<string, number> = {}
 
+function createEntitySubscription(sub: EntitySubscription) {
+  const key = getEntitySubscriptionKey(sub)
+  if (!key) return () => {}
+  console.log('[sync] createEntitySubscription', key)
+
+  let loopTimer: NodeJS.Timeout | null = null
+  function _updateSubscriptionLoop() {
+    updateEntitySubscription(sub).finally(() => {
+      loopTimer = setTimeout(_updateSubscriptionLoop, 10_000)
+    })
+  }
+  loopTimer = setTimeout(
+    _updateSubscriptionLoop,
+    500 + Math.random() * 1000, // delay the first discovery to avoid too many simultaneous updates
+  )
+
+  return () => {
+    console.log('[sync] releaseEntitySubscription', key)
+    loopTimer && clearTimeout(loopTimer)
+  }
+}
+
+function getEntitySubscriptionKey(sub: EntitySubscription) {
+  const {id, recursive} = sub
+  if (!id) return null
+  return id.id + (recursive ? '/*' : '')
+}
+
+function addSubscribedEntity(sub: EntitySubscription) {
+  const key = getEntitySubscriptionKey(sub)
+  // console.log('[sync] addSubscribedEntity', sub, key)
+  if (!key) return
+  if (!entitySubscriptionCounts[key]) {
+    entitySubscriptionCounts[key] = 1
+    if (!entitySubscriptions[key]) {
+      entitySubscriptions[key] = createEntitySubscription(sub)
+    }
+  } else {
+    entitySubscriptionCounts[key] = (entitySubscriptionCounts[key] ?? 0) + 1
+  }
+}
+
+function removeSubscribedEntity(sub: EntitySubscription) {
+  const key = getEntitySubscriptionKey(sub)
+  if (!key) return
+  // console.log('[sync] removeSubscribedEntity', key)
+  if (!entitySubscriptionCounts[key]) return
+  entitySubscriptionCounts[key] = entitySubscriptionCounts[key] - 1
+  if (entitySubscriptionCounts[key] === 0) {
+    setTimeout(() => {
+      // timeout in case another subscription arrives quickly afterward, just leave it going for a moment
+      if (entitySubscriptionCounts[key] === 0) {
+        entitySubscriptions[key]?.()
+        delete entitySubscriptions[key]
+      }
+    }, 300) // no rush
+  }
+}
+
 export function useSubscribedEntities(
   subs: {id: UnpackedHypermediaId | null | undefined; recursive?: boolean}[],
 ) {
   const entities = useEntities(subs.map((sub) => sub.id))
-  const grpcClient = useGRPCClient()
+  const isAllEntitiesInitialLoaded = entities.every(
+    (entity) => entity.isInitialLoading === false,
+  )
   useEffect(() => {
-    const idKeys = subs.map(({id, recursive}) => {
-      if (!id) return null
-      return packHmId(id) + (recursive ? '-recursive' : '')
-    })
-    idKeys.forEach((key, index) => {
-      const sub = subs[index]
-      const {id, recursive} = sub
-      const entity = entities[index]
-      const loadedVersion = entity.data?.document?.version
-      if (!key || !id) return
-      entitySubscriptionCounts[key] = (entitySubscriptionCounts[key] ?? 0) + 1
-      let discoveryComplete = loadedVersion === id.version && !id.latest
-      let nextDiscoverTimeout: NodeJS.Timeout | null = null
-
-      function handleDiscover() {
-        if (!id) return
-
-        const discoveryRequest = {
-          account: id.uid,
-          path: hmIdPathToEntityQueryPath(id.path),
-          recursive: true,
-        }
-        grpcClient.entities
-          .discoverEntity(discoveryRequest)
-          .then((result) => {
-            console.log('[sync] discovery completed', discoveryRequest, result)
-            // discovery completed. result.version is the new version
-            if (result.version === loadedVersion && !recursive)
-              discoveryComplete = true
-            invalidateQueries([queryKeys.ENTITY, id.id])
-            invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, id.uid])
-          })
-          .catch((e) => {
-            console.log('[sync] discovery error', e)
-          })
-          .finally(() => {
-            if (!discoveryComplete) {
-              nextDiscoverTimeout = setTimeout(handleDiscover, 10_000)
-            }
-          })
-      }
-      if (!entitySubscriptions[key]) {
-        if (loadedVersion === id.version && !id.latest && !recursive) return
-        handleDiscover()
-        entitySubscriptions[key] = () => {
-          discoveryComplete = true
-          nextDiscoverTimeout && clearTimeout(nextDiscoverTimeout)
-        }
-      }
-    })
+    if (!isAllEntitiesInitialLoaded) return
+    // console.log('[sync] useSubscribedEntities effect', subs)
+    subs.forEach(addSubscribedEntity)
     return () => {
-      idKeys.forEach((key, index) => {
-        if (!key) return
-        if (entitySubscriptionCounts[key]) {
-          entitySubscriptionCounts[key] = entitySubscriptionCounts[key] - 1
-          if (entitySubscriptionCounts[key] === 0) {
-            entitySubscriptions[key]?.()
-            delete entitySubscriptions[key]
-          }
-        } else {
-          entitySubscriptions[key]?.()
-          delete entitySubscriptions[key]
-        }
-        entitySubscriptionCounts[key] = (entitySubscriptionCounts[key] ?? 0) + 1
-      })
+      // console.log('[sync] unsubscribing', subs)
+      subs.forEach(removeSubscribedEntity)
     }
   }, [
     subs, // because subs/ids are expected to be volatile, this effect will probably run every time
-    entities,
+    isAllEntitiesInitialLoaded,
   ])
   return entities
+}
+
+export function useSubscribedEntity(
+  id: UnpackedHypermediaId | null | undefined,
+  recursive?: boolean,
+) {
+  return useSubscribedEntities([{id, recursive}])[0]
 }
 
 export function useRouteEntities(

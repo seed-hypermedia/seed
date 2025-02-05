@@ -7,7 +7,7 @@ import {
   useDocumentEmbeds,
   useListSite,
 } from '@/models/documents'
-import {useEntity} from '@/models/entities'
+import {useEntity, useSubscribedEntity} from '@/models/entities'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {hmId} from '@shm/shared'
@@ -38,7 +38,7 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
   if (route.key !== 'document')
     throw new Error('SiteNavigation only supports document route')
   const {id} = route
-  const entity = useEntity(id)
+  const entity = useSubscribedEntity(id, true) // recursive subscriptions to make sure children get loaded
   const navigate = useNavigate()
   const document = entity.data?.document
   const createDraft = useCreateDraft(id)

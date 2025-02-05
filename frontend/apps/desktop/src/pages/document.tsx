@@ -20,7 +20,11 @@ import {
   useDocumentRead,
   useListDirectory,
 } from '@/models/documents'
-import {useDiscoverEntity, useSubscribedEntity} from '@/models/entities'
+import {
+  useDiscoverEntity,
+  useEntity,
+  useSubscribedEntity,
+} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
@@ -198,12 +202,14 @@ function _MainDocumentPage({
       }
     })
   }, [])
-  const entity = useSubscribedEntity(id)
+  const entity = useSubscribedEntity(id, true) // true for recursive subscription. this component may not require children, but the directory will also be recursively subscribing, and we want to avoid an extra subscription
 
   const siteHomeEntity = useSubscribedEntity(
     // if the route document ID matches the home document, then use it because it may be referring to a specific version
     id.path?.length ? hmId('d', id.uid) : id,
     // otherwise, create an ID with the latest version of the home document
+
+    id.path?.length ? false : true, // avoiding redundant subscription if the doc is not the home document
   )
 
   if (entity.isInitialLoading) return <Spinner />
@@ -355,7 +361,7 @@ function DocPageHeader({
   docId: UnpackedHypermediaId
   isBlockFocused: boolean
 }) {
-  const entity = useSubscribedEntity(docId)
+  const entity = useEntity(docId)
   const hasCover = useMemo(
     () => !!entity.data?.document?.metadata.cover,
     [entity.data],
@@ -579,7 +585,7 @@ function SiteURLButton({siteUrl}: {siteUrl?: string}) {
 }
 
 function DocumentCover({docId}: {docId: UnpackedHypermediaId}) {
-  const entity = useSubscribedEntity(docId)
+  const entity = useEntity(docId)
   const imageUrl = useImageUrl()
   if (!entity.data?.document) return null
   if (!entity.data.document.metadata.cover) return null
