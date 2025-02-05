@@ -561,16 +561,16 @@ export const TagInputItem = forwardRef<HTMLDivElement, TagInputItemProps>(
         }
       >
         <XStack gap="$2" flex={1} jc="flex-start">
-          <Ariakit.SelectItemCheck />
+          {/* <Ariakit.SelectItemCheck /> */}
           {entity.data?.document?.metadata ? (
             <HMIcon
-              size={20}
+              size={16}
               metadata={entity.data?.document?.metadata}
               id={props.member?.id}
             />
           ) : null}
           <XStack flex={1}>
-            <SizableText size="$3" color="currentColor">
+            <SizableText size="$2" color="currentColor">
               {props.children || props.member?.label}
             </SizableText>
           </XStack>
@@ -586,7 +586,7 @@ const TagInputItemContent = forwardRef<any, any>(
 
     return (
       <YGroup.Item>
-        <ListItem ref={ref} {...restProps} className="combobox-item">
+        <ListItem size="$3" ref={ref} {...restProps} className="combobox-item">
           {render ? render : children}
         </ListItem>
       </YGroup.Item>

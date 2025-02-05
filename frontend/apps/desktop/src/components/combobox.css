@@ -3,7 +3,7 @@
 }
 */
 .is_ListItem[data-active-item] {
-  background-color: hsl(204 100% 40%) !important;
+  background-color: var(--brand5) !important;
   color: hsl(204 20% 100%) !important;
 }
 
