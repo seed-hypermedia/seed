@@ -19,8 +19,9 @@ import {
   InlineEmbedButton,
   useDocContentContext,
 } from "@shm/ui/src/document-content";
+import {AccountsMetadata} from "@shm/ui/src/face-pile";
 import {HMIcon} from "@shm/ui/src/hm-icon";
-import {NewspaperCard} from "@shm/ui/src/newspaper";
+import {BannerNewspaperCard, NewspaperCard} from "@shm/ui/src/newspaper";
 import {Spinner} from "@shm/ui/src/spinner";
 import {StackProps, Text} from "@tamagui/core";
 import {XStack, YStack} from "@tamagui/stacks";
@@ -211,12 +212,12 @@ export function QueryBlockWeb({
     sort: block.attributes.query.sort || [{term: "UpdateTime", reverse: false}],
   });
   const DataComponent =
-    block.attributes.style == "List" ? QueryListStyle : QueryCardStyle;
+    block.attributes.style == "List" ? QueryListStyle : QueryStyleCard;
 
   return <DataComponent block={block} items={sortedItems} />;
 }
 
-function QueryCardStyle({
+function QueryStyleCard({
   block,
   items,
 }: {
@@ -224,7 +225,13 @@ function QueryCardStyle({
   items: Array<HMDocumentInfo>;
 }) {
   const ctx = useDocContentContext();
+  const {supportDocuments, supportQueries} = ctx || {};
 
+  function getEntity(path: string[]) {
+    return supportDocuments?.find(
+      (entity) => entity?.id?.path?.join("/") === path?.join("/")
+    );
+  }
   const columnProps = useMemo(() => {
     switch (block.attributes.columnCount) {
       case 2:
@@ -248,36 +255,51 @@ function QueryCardStyle({
     }
   }, [block.attributes.columnCount]);
 
+  const firstItem = block.attributes.banner ? items[0] : null;
+  const restItems = block.attributes.banner ? items.slice(1) : items;
+
+  const accountsMetadata =
+    ctx.supportDocuments?.reduce((acc, d) => {
+      if (!d.document?.metadata) return acc;
+      acc[d.id.uid] = {
+        id: d.id,
+        metadata: d.document.metadata,
+      };
+      return acc;
+    }, {} as AccountsMetadata) || {};
+
   return (
-    <XStack f={1} flexWrap="wrap" marginHorizontal="$-3">
-      {items.map((item) => {
-        const id = hmId("d", item.account, {
-          path: item.path,
-          latest: true,
-        });
-        return (
-          <YStack {...columnProps} p="$3">
-            <NewspaperCard
-              id={id}
-              entity={{
-                id,
-                document: {metadata: item.metadata},
-              }}
-              key={item.path.join("/")}
-              accountsMetadata={
-                ctx.supportDocuments?.map((d) => ({
-                  id: d.id,
-                  metadata: d.document?.metadata,
-                })) || []
-              }
-              flexBasis="100%"
-              $gtSm={{flexBasis: "100%"}}
-              $gtMd={{flexBasis: "100%"}}
-            />
-          </YStack>
-        );
-      })}
-    </XStack>
+    <YStack width="100%">
+      {firstItem ? (
+        <BannerNewspaperCard
+          item={firstItem}
+          entity={getEntity(firstItem.path)}
+          key={firstItem.path.join("/")}
+          accountsMetadata={accountsMetadata}
+        />
+      ) : null}
+      <XStack flex={1} flexWrap="wrap" marginHorizontal="$-3">
+        {restItems.map((item) => {
+          const id = hmId("d", item.account, {
+            path: item.path,
+            latest: true,
+          });
+          return (
+            <YStack {...columnProps} p="$3">
+              <NewspaperCard
+                id={id}
+                entity={getEntity(item.path)}
+                key={item.path.join("/")}
+                accountsMetadata={accountsMetadata}
+                flexBasis="100%"
+                $gtSm={{flexBasis: "100%"}}
+                $gtMd={{flexBasis: "100%"}}
+              />
+            </YStack>
+          );
+        })}
+      </XStack>
+    </YStack>
   );
 }
 

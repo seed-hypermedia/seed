@@ -158,6 +158,18 @@ export async function getBaseDocument(
         itemsAuthors.map((authorId) => getMetadata(authorId))
       )),
     ];
+  } else {
+    supportDocuments = await Promise.all(
+      queryBlockQueries
+        .flatMap((item) => item.results)
+        .map(async (item) => {
+          const id = hmId("d", item.account, {path: item.path});
+          return {
+            id,
+            document: await getHMDocument(id),
+          };
+        })
+    );
   }
 
   return {

@@ -67,6 +67,10 @@ export const QueryBlock = createReactBlockSpec({
     querySort: {
       default: defaultQuerySort,
     },
+    banner: {
+      default: 'false',
+      values: ['true', 'false'],
+    },
   },
   containsInlineContent: true,
 
@@ -95,6 +99,7 @@ function Render(
 ) {
   const [selected, setSelected] = useState(false)
   const tiptapEditor = editor._tiptapEditor
+
   const queryIncludes: HMQueryBlockIncludes = useMemo(() => {
     return JSON.parse(block.props.queryIncludes || defaultQueryIncludes)
   }, [block.props.queryIncludes])
@@ -103,9 +108,12 @@ function Render(
     return JSON.parse(block.props.querySort || defaultQuerySort)
   }, [block.props.querySort])
 
+  const banner = useMemo(() => {
+    return Boolean(block.props.banner == 'true')
+  }, [block.props.banner])
+
   const [queryId, setQueryId] = useState<UnpackedHypermediaId | null>(() => {
     if (queryIncludes?.[0].space) {
-      console.log('QUERY ID', queryIncludes[0])
       return hmId('d', queryIncludes[0].space, {
         path: queryIncludes[0].path ? queryIncludes[0].path.split('/') : null,
         latest: true,
@@ -203,6 +211,7 @@ function Render(
         queryIncludes={queryIncludes}
         querySort={querySort}
         style={block.props.style as 'Card' | 'List'}
+        banner={banner}
         // @ts-expect-error
         block={block}
         editor={editor}
@@ -228,6 +237,12 @@ function CardView({
   block: EditorQueryBlock
   items: Array<UseQueryResult<HMEntityContent | null, unknown>>
 }) {
+  const banner = useMemo(() => {
+    return Boolean(block.props.banner == 'true')
+  }, [block.props.banner])
+
+  const firstItem = banner ? items[0] : null
+  const restItems = banner ? items.slice(1) : items
   const columnProps = useMemo(() => {
     switch (block.props.columnCount) {
       case '2':
@@ -251,26 +266,48 @@ function CardView({
     }
   }, [block.props])
 
-  return items?.length ? (
-    <XStack f={1} flexWrap="wrap" marginHorizontal="$-3">
-      {items
-        .filter((item) => !!item.data)
-        .map((item) => (
-          <XStack {...columnProps} p="$3">
-            <NewspaperCard
-              id={item.data?.id}
-              entity={item.data}
-              key={item.data?.id.id}
-              accountsMetadata={[]}
-              flexBasis="100%"
-              $gtSm={{flexBasis: '100%'}}
-              $gtMd={{flexBasis: '100%'}}
-            />
-          </XStack>
-        ))}
-    </XStack>
-  ) : (
-    <QueryBlockPlaceholder styleType={block.props.style as 'Card' | 'List'} />
+  return (
+    <>
+      {firstItem ? (
+        <NewspaperCard
+          id={firstItem.data?.id}
+          entity={firstItem.data}
+          key={firstItem.data?.id.id}
+          accountsMetadata={[]}
+          flexBasis="100%"
+          $gtSm={{flexBasis: '100%'}}
+          $gtMd={{flexBasis: '100%'}}
+        />
+      ) : null}
+      {restItems?.length ? (
+        <XStack
+          f={1}
+          flexWrap="wrap"
+          marginHorizontal="$-3"
+          justifyContent="center"
+        >
+          {restItems
+            .filter((item) => !!item.data)
+            .map((item) => (
+              <XStack {...columnProps} p="$3">
+                <NewspaperCard
+                  id={item.data?.id}
+                  entity={item.data}
+                  key={item.data?.id.id}
+                  accountsMetadata={[]}
+                  flexBasis="100%"
+                  $gtSm={{flexBasis: '100%'}}
+                  $gtMd={{flexBasis: '100%'}}
+                />
+              </XStack>
+            ))}
+        </XStack>
+      ) : (
+        <QueryBlockPlaceholder
+          styleType={block.props.style as 'Card' | 'List'}
+        />
+      )}
+    </>
   )
 }
 
@@ -328,11 +365,13 @@ function QuerySettings({
   queryIncludes,
   querySort,
   editor,
+  banner,
 }: {
   queryDocName: string
   block: EditorQueryBlock
   queryIncludes: HMQueryBlockIncludes
   querySort: HMQueryBlockSort
+  banner: boolean
   onValuesChange: ({
     id,
     props,
@@ -446,6 +485,7 @@ function QuerySettings({
                   })
                 }}
               />
+
               <SelectField
                 size="$2"
                 value={block.props.style}
@@ -469,35 +509,53 @@ function QuerySettings({
                 ]}
               />
               {block.props.style == 'Card' ? (
-                <SelectField
-                  size="$2"
-                  value={block.props.columnCount || '3'}
-                  onValue={(value) => {
-                    onValuesChange({
-                      id: null,
-                      props: {
-                        ...block.props,
-                        columnCount: value as '1' | '2' | '3',
+                <>
+                  <SelectField
+                    size="$2"
+                    value={block.props.columnCount || '3'}
+                    onValue={(value) => {
+                      onValuesChange({
+                        id: null,
+                        props: {
+                          ...block.props,
+                          columnCount: value as '1' | '2' | '3',
+                        },
+                      })
+                    }}
+                    label="Columns"
+                    id="columns"
+                    options={[
+                      {
+                        label: '1',
+                        value: '1',
                       },
-                    })
-                  }}
-                  label="Columns"
-                  id="columns"
-                  options={[
-                    {
-                      label: '1',
-                      value: '1',
-                    },
-                    {
-                      label: '2',
-                      value: '2',
-                    },
-                    {
-                      label: '3',
-                      value: '3',
-                    },
-                  ]}
-                />
+                      {
+                        label: '2',
+                        value: '2',
+                      },
+                      {
+                        label: '3',
+                        value: '3',
+                      },
+                    ]}
+                  />
+                  <SwitchField
+                    label="Show Banner"
+                    id="banner"
+                    defaultChecked={banner}
+                    opacity={banner ? 1 : 0.4}
+                    onCheckedChange={(value) => {
+                      console.log('== ~ banner value:', value)
+                      onValuesChange({
+                        id: null,
+                        props: {
+                          ...block.props,
+                          banner: value ? 'true' : 'false',
+                        },
+                      })
+                    }}
+                  />
+                </>
               ) : null}
 
               <SelectField

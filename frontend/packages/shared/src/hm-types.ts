@@ -371,6 +371,7 @@ export const HMBlockQuerySchema = z
       style: HMQueryStyleSchema.optional().default('Card'),
       columnCount: z.number().optional().default(3),
       query: HMQuerySchema,
+      banner: z.boolean().optional().default(false),
     }),
   })
   .strict()
