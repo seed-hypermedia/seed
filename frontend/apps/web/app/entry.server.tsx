@@ -9,7 +9,7 @@ import {mkdir, readFile, stat, writeFile} from "fs/promises";
 import * as isbotModule from "isbot";
 import {dirname, join, resolve} from "path";
 import {renderToPipeableStream} from "react-dom/server";
-import {useFullRender} from "./cache-policy";
+import {ENABLE_HTML_CACHE, useFullRender} from "./cache-policy";
 import {logDebug} from "./logger";
 import {parseRequest} from "./request";
 import {applyConfigSubscriptions, getHostnames} from "./site-config";
@@ -46,25 +46,27 @@ const CACHE_WARM_INTERVAL = process.env.CACHE_WARM_INTERVAL
 
 async function initializeServer() {
   recursiveRm(CACHE_PATH);
-  await mkdir(CACHE_PATH, {recursive: true});
-  await applyConfigSubscriptions()
-    .then(() => {
-      console.log("Config subscriptions applied");
-    })
-    .catch((e) => {
-      console.error("Error applying config subscriptions", e);
-    });
-  if (CACHE_WARM_INTERVAL !== 0) {
-    await warmAllCaches();
+  if (ENABLE_HTML_CACHE) {
+    await mkdir(CACHE_PATH, {recursive: true});
+    await applyConfigSubscriptions()
+      .then(() => {
+        console.log("Config subscriptions applied");
+      })
+      .catch((e) => {
+        console.error("Error applying config subscriptions", e);
+      });
+    if (CACHE_WARM_INTERVAL !== 0) {
+      await warmAllCaches();
 
-    // warm full cache 45 seconds, but only if the next warm is not already in progress
-    setInterval(() => {
-      if (nextWarm === undefined) {
-        nextWarm = warmAllCaches().finally(() => {
-          nextWarm = undefined;
-        });
-      }
-    }, CACHE_WARM_INTERVAL);
+      // warm full cache 45 seconds, but only if the next warm is not already in progress
+      setInterval(() => {
+        if (nextWarm === undefined) {
+          nextWarm = warmAllCaches().finally(() => {
+            nextWarm = undefined;
+          });
+        }
+      }, CACHE_WARM_INTERVAL);
+    }
   }
 }
 
@@ -192,7 +194,7 @@ export default async function handleRequest(
     return redirect(newUrl.toString());
   }
 
-  if (useFullRender(parsedRequest)) {
+  if (!ENABLE_HTML_CACHE || useFullRender(parsedRequest)) {
     sendPerfLog("requested full");
     return handleFullRequest(
       request,
