@@ -22,6 +22,7 @@ import (
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
+	"github.com/iancoleman/orderedmap"
 	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -174,7 +175,7 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 	if err != nil {
 		return fmt.Errorf("Could not get p2p client: %w", err)
 	}
-	localPeers := make(map[string]interface{})
+	om := orderedmap.New()
 
 	if err := n.db.WithSave(ctxStore, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
@@ -185,18 +186,20 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 				n.log.Warn("We have peers with wrong formatted addresses in our database", zap.String("PID", info.ID.String()), zap.Error(err))
 				return err
 			}
-			localPeers[info.ID.String()] = info.Addrs
+			om.Set(info.ID.String(), info.Addrs)
 			return nil
 		}, math.MaxInt64, math.MaxInt64)
 	}); err != nil {
 		return err
 	}
-
-	localPeersBytes, err := json.Marshal(localPeers)
+	om.SortKeys(func(keys []string) {
+		sort.Strings(keys)
+	})
+	orderedPeersBytes, err := json.Marshal(om)
 	if err != nil {
 		return fmt.Errorf("failed to marshal localPeers: %w", err)
 	}
-	hash := sha256.Sum256(localPeersBytes)
+	hash := sha256.Sum256(orderedPeersBytes)
 
 	res, err := c.ListPeers(ctxStore, &p2p.ListPeersRequest{PageSize: math.MaxInt32, ListHash: hex.EncodeToString(hash[:])})
 	if err != nil {
@@ -234,7 +237,7 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 					n.p2p.ConnManager().Unprotect(pid, ProtocolSupportKey)
 					return
 				}
-				if _, ok := localPeers[p.Id]; ok {
+				if _, ok := om.Get(p.Id); ok {
 					n.p2p.ConnManager().Protect(pid, ProtocolSupportKey)
 					return
 				}

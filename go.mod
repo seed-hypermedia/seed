@@ -160,6 +160,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
+	github.com/iancoleman/orderedmap v0.3.0
 	github.com/ipfs/bbloom v0.0.4 // indirect
 	github.com/ipfs/go-cidutil v0.1.0 // indirect
 	github.com/ipfs/go-ipfs-delay v0.0.1 // indirect

@@ -11,11 +11,13 @@ import (
 	"seed/backend/hmnet/netutil"
 	"seed/backend/util/apiutil"
 	"seed/backend/util/dqb"
+	"sort"
 	"strings"
 
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
+	"github.com/iancoleman/orderedmap"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -68,7 +70,7 @@ func (srv *rpcMux) ListPeers(ctx context.Context, in *p2p.ListPeersRequest) (*p2
 			return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 		}
 	}
-	localPeers := make(map[string]interface{})
+	om := orderedmap.New()
 	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
 		if count == in.PageSize {
 			var err error
@@ -90,18 +92,22 @@ func (srv *rpcMux) ListPeers(ctx context.Context, in *p2p.ListPeersRequest) (*p2
 			return nil
 		}
 
-		localPeers[info.ID.String()] = info.Addrs
+		om.Set(info.ID.String(), info.Addrs)
 		peersInfo = append(peersInfo, info)
 		return nil
 	}, lastCursor.ID, in.PageSize); err != nil {
 		return nil, err
 	}
-	localPeersBytes, err := json.Marshal(localPeers)
+	om.SortKeys(func(keys []string) {
+		sort.Strings(keys)
+	})
+	orderedPeersBytes, err := json.Marshal(om)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal localPeers: %w", err)
 	}
-	localHash := sha256.Sum256(localPeersBytes)
+	localHash := sha256.Sum256(orderedPeersBytes)
 	if in.ListHash == hex.EncodeToString(localHash[:]) {
+		srv.Node.log.Debug("Local peer list hash matches requested hash, no need to exchange peer list")
 		return nil, nil
 	}
 
