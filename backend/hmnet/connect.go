@@ -161,6 +161,8 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	return nil
 }
 
+var rng = rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec
+
 func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 	n.log.Debug("storeRemotePeers Called", zap.String("PID", id.String()))
 	defer n.log.Debug("Exiting storeRemotePeers", zap.String("PID", id.String()), zap.Error(err))
@@ -173,45 +175,44 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 		return fmt.Errorf("Could not get p2p client: %w", err)
 	}
 	localPeers := make(map[string]interface{})
-	conn, release, err := n.db.Conn(ctxStore)
-	if err != nil {
+
+	if err := n.db.WithSave(ctxStore, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
+			maStr := stmt.ColumnText(1)
+			maList := strings.Split(strings.Trim(maStr, " "), ",")
+			info, err := netutil.AddrInfoFromStrings(maList...)
+			if err != nil {
+				n.log.Warn("We have peers with wrong formatted addresses in our database", zap.String("PID", info.ID.String()), zap.Error(err))
+				return err
+			}
+			localPeers[info.ID.String()] = info.Addrs
+			return nil
+		}, math.MaxInt64, math.MaxInt64)
+	}); err != nil {
 		return err
 	}
-	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
-		maStr := stmt.ColumnText(1)
-		maList := strings.Split(strings.Trim(maStr, " "), ",")
-		info, err := netutil.AddrInfoFromStrings(maList...)
-		if err != nil {
-			n.log.Warn("We have peers with wrong formatted addresses in our database", zap.String("PID", info.ID.String()), zap.Error(err))
-			return err
-		}
-		localPeers[info.ID.String()] = info.Addrs
-		return nil
-	}, math.MaxInt64, math.MaxInt64); err != nil {
-		release()
-		return err
-	}
-	release()
+
 	localPeersBytes, err := json.Marshal(localPeers)
 	if err != nil {
 		return fmt.Errorf("failed to marshal localPeers: %w", err)
 	}
 	hash := sha256.Sum256(localPeersBytes)
+
 	res, err := c.ListPeers(ctxStore, &p2p.ListPeersRequest{PageSize: math.MaxInt32, ListHash: hex.EncodeToString(hash[:])})
 	if err != nil {
 		return fmt.Errorf("Could not get list of peers from %s: %w", id.String(), err)
 	}
 
 	if len(res.Peers) > 0 {
-		vals := []interface{}{}
+		var vals []any
 		sqlStr := "INSERT INTO peers (pid, addresses, explicitly_connected, updated_at) VALUES "
 		var nonSeedPeers uint32
 		var xerr []error
 		var mu sync.Mutex
 
 		var wg sync.WaitGroup
-		r := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec
-		r.Shuffle(len(res.Peers), func(i, j int) { res.Peers[i], res.Peers[j] = res.Peers[j], res.Peers[i] })
+
+		rng.Shuffle(len(res.Peers), func(i, j int) { res.Peers[i], res.Peers[j] = res.Peers[j], res.Peers[i] })
 		var waitThreshold = int(math.Min(float64(len(res.Peers)), StorePeersBatchSize))
 		ctxBatch, cancelBatch := context.WithTimeout(ctxStore, PeerBatchTimeout)
 		defer cancelBatch()
@@ -299,18 +300,17 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 		}
 		if len(vals) != 0 {
 			sqlStr = sqlStr[0:len(sqlStr)-1] + " ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=excluded.updated_at WHERE addresses!=excluded.addresses AND excluded.addresses !='' AND excluded.updated_at > updated_at"
-			conn, release, err := n.db.Conn(ctxStore)
-			if err != nil {
-				n.log.Warn("Couldn't store shared peers", zap.Error(err))
+			if err := n.db.WithTx(ctxStore, func(conn *sqlite.Conn) error {
+				return sqlitex.ExecTransient(conn, sqlStr, nil, vals...)
+			}); err != nil {
 				return err
 			}
-			defer release()
-			return sqlitex.Exec(conn, sqlStr, nil, vals...)
 		}
 		if nonSeedPeers > 0 {
 			return fmt.Errorf("We encounter at least %d non-seed (outdated) peers on the sharing table", nonSeedPeers)
 		}
 	}
+
 	return nil
 }
 func (n *Node) defaultConnectionCallback(_ context.Context, event event.EvtPeerConnectednessChanged) {
