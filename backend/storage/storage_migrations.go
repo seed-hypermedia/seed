@@ -57,6 +57,11 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	{Version: "2025-02-06.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			DROP VIEW IF EXISTS meta_view;
+		`))
+	}},
 	{Version: "2025-02-02.01", Run: func(_ *Store, conn *sqlite.Conn) error {
 		if err := scheduleReindex(conn); err != nil {
 			return err

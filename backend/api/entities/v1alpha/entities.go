@@ -173,22 +173,31 @@ func (task *discoveryTask) start(api *Server) {
 	}
 }
 
+var qGetMetadata = dqb.Str(`
+	select dg.metadata, r.iri, pk.principal from document_generations dg 
+	INNER JOIN resources r ON r.id = dg.resource 
+	INNER JOIN public_keys pk ON pk.id = r.owner
+	WHERE dg.is_deleted = False;`)
+
 // SearchEntities implements the Fuzzy search of entities.
-func (api *Server) SearchEntities(ctx context.Context, in *entities.SearchEntitiesRequest) (*entities.SearchEntitiesResponse, error) {
-	var titles []string
+func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntitiesRequest) (*entities.SearchEntitiesResponse, error) {
+	var names []string
 	var iris []string
 	var owners []string
 	const limit = 30
-	type meta struct {
-		Title string `json:"title"`
+	type value struct {
+		Value string `json:"v"`
 	}
-	if err := api.idx.Query(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, qGetEntityTitles(), func(stmt *sqlite.Stmt) error {
+	type meta struct {
+		Name value `json:"name"`
+	}
+	if err := srv.idx.Query(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, qGetMetadata(), func(stmt *sqlite.Stmt) error {
 			var attr meta
 			if err := json.Unmarshal(stmt.ColumnBytes(0), &attr); err != nil {
-				return err
+				return nil
 			}
-			titles = append(titles, attr.Title)
+			names = append(names, attr.Name.Value)
 			iris = append(iris, stmt.ColumnText(1))
 			ownerID := core.Principal(stmt.ColumnBytes(2)).String()
 			owners = append(owners, ownerID)
@@ -197,7 +206,7 @@ func (api *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	}); err != nil {
 		return nil, err
 	}
-	ranks := fuzzy.RankFindNormalizedFold(in.Query, titles)
+	ranks := fuzzy.RankFindNormalizedFold(in.Query, names)
 	sort.Slice(ranks, func(i, j int) bool {
 		return ranks[i].Distance < ranks[j].Distance
 	})
@@ -333,10 +342,6 @@ func (api *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 
 // 	return resp, err
 // }
-
-var qGetEntityTitles = dqb.Str(`
-	SELECT extra_attrs, iri, principal
-	FROM meta_view;`)
 
 // ListEntityMentions implements listing mentions of an entity in other resources.
 // func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEntityMentionsRequest) (*entities.ListEntityMentionsResponse, error) {
