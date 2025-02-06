@@ -67,7 +67,6 @@ export function SiteHeader({
     </>
   );
   const isHome = !docId?.path?.length;
-  console.log("iscenterlayout", isCenterLayout);
   if (!homeId) return null;
   return (
     <YStack position="relative">

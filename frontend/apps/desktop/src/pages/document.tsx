@@ -205,8 +205,6 @@ function _MainDocumentPage({
   }, [])
   const entity = useSubscribedEntity(id, true) // true for recursive subscription. this component may not require children, but the directory will also be recursively subscribing, and we want to avoid an extra subscription
 
-  console.log(`== ~ entity:`, entity)
-
   const siteHomeEntity = useSubscribedEntity(
     // if the route document ID matches the home document, then use it because it may be referring to a specific version
     id.path?.length ? hmId('d', id.uid) : id,
@@ -336,6 +334,7 @@ function AppSiteHeader({
           <NewSubDocumentButton parentDocId={siteHomeEntity.id} />
         ) : null
       }
+      // supportQueries={}
       children={children}
     />
   )

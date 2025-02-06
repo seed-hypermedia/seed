@@ -294,9 +294,6 @@ function ModalVersionItem({
       height="auto"
       padding="$2"
       href={href}
-      onPress={() => {
-        console.log(`== ~ {ModalVersionItem ~ href:`, href);
-      }}
       borderRadius="$2"
       borderWidth={0}
       backgroundColor={"$backgroundTransparent"}

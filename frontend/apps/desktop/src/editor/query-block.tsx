@@ -545,7 +545,6 @@ function QuerySettings({
                     defaultChecked={banner}
                     opacity={banner ? 1 : 0.4}
                     onCheckedChange={(value) => {
-                      console.log('== ~ banner value:', value)
                       onValuesChange({
                         id: null,
                         props: {
