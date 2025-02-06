@@ -9,7 +9,7 @@ import {
 } from "@shm/shared";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
-import React, {useEffect, useState} from "react";
+import React, {useState} from "react";
 import {Button} from "./button";
 import {ContainerXL} from "./container";
 import {Close, Menu} from "./icons";
@@ -34,6 +34,8 @@ export function SiteHeader({
   document,
   supportDocuments,
   supportQueries,
+  onBlockFocus,
+  onShowMobileMenu,
 }: {
   homeMetadata: HMMetadata | null;
   homeId: UnpackedHypermediaId | null;
@@ -46,8 +48,14 @@ export function SiteHeader({
   document?: HMDocument;
   supportDocuments?: HMEntityContent[];
   supportQueries?: HMQueryResult[];
+  onBlockFocus?: (blockId: string) => void;
+  onShowMobileMenu?: (isOpen: boolean) => void;
 }) {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false);
+  function setIsMobileMenuOpen(isOpen: boolean) {
+    _setIsMobileMenuOpen(isOpen);
+    onShowMobileMenu?.(isOpen);
+  }
   const headerSearch = (
     <>
       <Button
@@ -102,8 +110,6 @@ export function SiteHeader({
             <XStack
               flex={1}
               jc="flex-end"
-              borderWidth={4}
-              borderColor="blue"
               overflow="scroll" // this isn't working but its supposed to allow horizontal scroll
               // backgroundColor="red"
             >
@@ -166,9 +172,13 @@ export function SiteHeader({
                 ))}
               </YStack>
             )}
+
             {docId && document && (
               <DocumentOutline
-                onActivateBlock={() => {}}
+                onActivateBlock={(blockId) => {
+                  setIsMobileMenuOpen(false);
+                  onBlockFocus?.(blockId);
+                }}
                 document={document}
                 id={docId}
                 // onCloseNav={() => {}}
@@ -260,13 +270,6 @@ export function MobileMenu({
   open: boolean;
   onClose: () => void;
 }) {
-  useEffect(() => {
-    if (open) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "auto";
-    }
-  }, [open]);
   return (
     <YStack
       $gtSm={{

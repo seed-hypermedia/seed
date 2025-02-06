@@ -22,7 +22,7 @@ import {Button, ButtonText} from "@tamagui/button";
 import {Separator} from "@tamagui/separator";
 import {XStack, YStack} from "@tamagui/stacks";
 import {H1, SizableText} from "@tamagui/text";
-import {ReactNode, useMemo} from "react";
+import {useMemo} from "react";
 import {ScrollView} from "react-native";
 import {getHref} from "./href";
 import {useDocumentChanges} from "./models";
@@ -141,16 +141,16 @@ export function PageHeader({
   );
 }
 
-export function WebSiteHeader(props: {
-  homeMetadata: HMMetadata | null;
-  homeId: UnpackedHypermediaId | null;
-  docMetadata: HMMetadata | null;
-  docId: UnpackedHypermediaId | null;
-  supportQueries?: HMQueryResult[];
-  children: ReactNode | JSX.Element; // ugh can't find a children type that really works well
-  document?: HMDocument;
-  supportDocuments?: HMEntityContent[];
-}) {
+export function WebSiteHeader(
+  props: React.PropsWithChildren<{
+    homeMetadata: HMMetadata | null;
+    homeId: UnpackedHypermediaId | null;
+    docId: UnpackedHypermediaId | null;
+    document?: HMDocument;
+    supportDocuments?: HMEntityContent[];
+    supportQueries?: HMQueryResult[];
+  }>
+) {
   const isCenterLayout =
     props.homeMetadata?.layout === "Seed/Experimental/Newspaper";
   const supportQuery = props.supportQueries?.find(
@@ -175,7 +175,25 @@ export function WebSiteHeader(props: {
   items?.sort((a, b) => b.sortTime.getTime() - a.sortTime.getTime()).reverse();
 
   return (
-    <SiteHeader isCenterLayout={isCenterLayout} items={items} {...props} />
+    <SiteHeader
+      isCenterLayout={isCenterLayout}
+      items={items}
+      {...props}
+      onBlockFocus={(blockId) => {
+        window.location.hash = blockId;
+        const element = document.getElementById(blockId);
+        if (element) {
+          element.scrollIntoView({behavior: "smooth"});
+        }
+      }}
+      onShowMobileMenu={(open) => {
+        // if (open) {
+        //   document.body.style.overflow = "hidden";
+        // } else {
+        //   document.body.style.overflow = "auto";
+        // }
+      }}
+    />
   );
 }
 

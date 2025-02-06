@@ -174,7 +174,7 @@ export default function DraftPage() {
             </Button>
           </XStack>
         ) : null}
-        <DraftAppHeader siteHomeEntity={homeEntity.data} activeId={route.id}>
+        <DraftAppHeader siteHomeEntity={homeEntity.data} docId={route.id}>
           {draftContent}
         </DraftAppHeader>
       </AccessoryLayout>
@@ -184,15 +184,15 @@ export default function DraftPage() {
 
 function DraftAppHeader({
   siteHomeEntity,
-  activeId,
+  docId,
   children,
 }: {
   siteHomeEntity: HMEntityContent | undefined | null
-  activeId: UnpackedHypermediaId
+  docId: UnpackedHypermediaId
   children?: React.ReactNode
 }) {
   const dir = useListDirectory(siteHomeEntity?.id)
-  const drafts = useAccountDraftList(activeId.uid)
+  const drafts = useAccountDraftList(docId.uid)
   console.log('siteHomeEntity', siteHomeEntity)
   if (!siteHomeEntity) return null
   const navItems = getSiteNavDirectory({
@@ -202,33 +202,21 @@ function DraftAppHeader({
       : [],
     drafts: drafts.data,
   })
-
+  // const draft = useDraft(docId)
   return (
     <SiteHeader
       homeId={siteHomeEntity.id}
       homeMetadata={siteHomeEntity.document?.metadata || null}
       items={navItems}
-      docId={activeId}
+      docId={docId}
       isCenterLayout={
         siteHomeEntity.document?.metadata.layout ===
         'Seed/Experimental/Newspaper'
       }
+      // document={draft} // we have an issue with outline: the header expects the draft to be in HMDocument format, but the draft is editor
       children={children}
-      // headItems={
-      //   activeId.id === siteHomeEntity.id.id && siteHomeEntity.document ? (
-      //     <DocumentHeadItems
-      //       docId={siteHomeEntity.id}
-      //       isBlockFocused={false}
-      //       document={siteHomeEntity.document}
-      //     />
-      //   ) : null
-      // }
-
-      // afterLinksContent={
-      //   canEditDoc ? (
-      //     <NewSubDocumentButton parentDocId={siteHomeEntity.id} />
-      //   ) : null
-      // }
+      supportQueries={[]}
+      supportDocuments={[]}
     />
   )
 }

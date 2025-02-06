@@ -34,6 +34,7 @@ import {
   HMDocument,
   HMEntityContent,
   hmId,
+  HMQueryResult,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import '@shm/shared/src/styles/document.css'
@@ -224,9 +225,9 @@ function _MainDocumentPage({
     : BaseDocContainer
   return (
     <YStack>
-      <AppSiteHeader
+      <AppDocSiteHeader
         siteHomeEntity={siteHomeEntity.data}
-        activeId={id}
+        docId={id}
         document={entity.data?.document}
         supportDocuments={[]} // todo: handle embeds for outline!!
       >
@@ -284,32 +285,41 @@ function _MainDocumentPage({
             />
           </DocContainer>
         </YStack>
-      </AppSiteHeader>
+      </AppDocSiteHeader>
     </YStack>
   )
 }
 const MainDocumentPage = React.memo(_MainDocumentPage)
 
-function AppSiteHeader({
+function AppDocSiteHeader({
   siteHomeEntity,
-  activeId,
+  docId,
   children,
   document,
   supportDocuments,
 }: {
   siteHomeEntity: HMEntityContent | undefined | null
-  activeId: UnpackedHypermediaId
+  docId: UnpackedHypermediaId
   children?: React.ReactNode
   document?: HMDocument
   supportDocuments?: HMEntityContent[]
 }) {
   const dir = useListDirectory(siteHomeEntity?.id)
-
   const capability = useMyCapability(siteHomeEntity?.id)
   const canEditDoc = roleCanWrite(capability?.role)
-  const drafts = useAccountDraftList(activeId.uid)
-
+  const drafts = useAccountDraftList(docId.uid)
+  const docDir = useListDirectory(docId, {mode: 'Children'})
+  const replace = useNavigate('replace')
+  const route = useNavRoute()
+  const supportQueries = useMemo(() => {
+    const q: HMQueryResult[] = []
+    if (docDir.data) {
+      q.push({in: docId, results: docDir.data})
+    }
+    return q
+  }, [docId, docDir.data])
   if (!siteHomeEntity) return null
+  if (route.key !== 'document') return null
   const navItems = getSiteNavDirectory({
     id: siteHomeEntity.id,
     supportQueries: dir.data
@@ -322,19 +332,22 @@ function AppSiteHeader({
       homeId={siteHomeEntity.id}
       homeMetadata={siteHomeEntity.document?.metadata || null}
       items={navItems}
-      docId={activeId}
+      docId={docId}
       isCenterLayout={
         siteHomeEntity.document?.metadata.layout ===
         'Seed/Experimental/Newspaper'
       }
       document={document}
+      onBlockFocus={(blockId) => {
+        replace({...route, id: {...route.id, blockRef: blockId}})
+      }}
       supportDocuments={supportDocuments}
       afterLinksContent={
         canEditDoc ? (
           <NewSubDocumentButton parentDocId={siteHomeEntity.id} />
         ) : null
       }
-      // supportQueries={}
+      supportQueries={supportQueries}
       children={children}
     />
   )

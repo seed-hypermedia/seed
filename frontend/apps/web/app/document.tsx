@@ -172,9 +172,10 @@ export function DocumentPage(props: SiteDocumentPayload) {
         <WebSiteHeader
           homeMetadata={homeMetadata}
           homeId={homeId}
-          docMetadata={document.metadata}
           docId={id}
-          supportQueries={props.supportQueries}
+          document={document}
+          supportDocuments={supportDocuments}
+          supportQueries={supportQueries}
         >
           <DocumentCover cover={document.metadata.cover} id={id} />
           <YStack
@@ -213,7 +214,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                     supportQueries={props.supportQueries}
                     // documentMetadata={document.metadata}
                     id={id}
-                  />{" "}
+                  />
                 </YStack>
               </YStack>
             ) : null}

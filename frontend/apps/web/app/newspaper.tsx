@@ -59,8 +59,9 @@ export function NewspaperPage(props: SiteDocumentPayload) {
         <WebSiteHeader
           homeMetadata={homeMetadata}
           homeId={homeId}
-          docMetadata={document.metadata}
           docId={id}
+          document={document}
+          supportDocuments={supportDocuments}
           supportQueries={props.supportQueries}
         >
           <Container
