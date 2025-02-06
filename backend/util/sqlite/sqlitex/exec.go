@@ -218,7 +218,7 @@ func annotateErr(err error) error {
 		}
 		return err
 	}
-	return fmt.Errorf("sqlitex.Exec: %v", err)
+	return fmt.Errorf("sqlitex.Exec: %w", err)
 }
 
 // ExecScript executes a script of SQL statements.
