@@ -4,6 +4,7 @@ import {
   DocumentRoute,
   DraftRoute,
   GRPCClient,
+  HMDocumentInfo,
   HMDocumentSchema,
   HMEntityContent,
   hmId,
@@ -24,6 +25,7 @@ import {
 } from '@tanstack/react-query'
 import {useEffect, useMemo} from 'react'
 import {useGRPCClient} from '../app-context'
+import {queryListDirectory} from './documents'
 import {useDeleteRecent} from './recents'
 
 type DeleteEntitiesInput = {
@@ -240,6 +242,19 @@ type EntitySubscription = {
   recursive?: boolean
 }
 
+function invalidateEntityWithVersion(id: string, version?: string) {
+  if (!version) return
+  const lastEntity = queryClient.getQueryData<HMEntityContent>([
+    queryKeys.ENTITY,
+    id,
+    undefined,
+  ])
+  if (lastEntity && lastEntity.document?.version !== version) {
+    // console.log('[sync] new version discovered for entity', id, version)
+    invalidateQueries([queryKeys.ENTITY, id])
+  }
+}
+
 async function updateEntitySubscription(sub: EntitySubscription) {
   const {id, recursive} = sub
   if (!id) return
@@ -248,25 +263,24 @@ async function updateEntitySubscription(sub: EntitySubscription) {
     path: hmIdPathToEntityQueryPath(id.path),
     recursive,
   }
-  console.log('[sync] discovery request', discoveryRequest)
+  // console.log('[sync] discovery request', discoveryRequest)
   await grpcClient.entities
     .discoverEntity(discoveryRequest)
     .then((result) => {
-      console.log('[sync] discovery complete', sub)
-      const lastEntity = queryClient.getQueryData<HMEntityContent>([
-        queryKeys.ENTITY,
-        id?.id,
-        undefined,
-      ])
+      // console.log('[sync] discovery complete', sub)
+      invalidateEntityWithVersion(id.id, result.version)
       if (recursive) {
-        // with recursive directory, any document under this one may have changed
         invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, id.uid])
-        // we have no way to invalidate all children, so we have to invalidate all entities
-        invalidateQueries([queryKeys.ENTITY])
-      } else {
-        if (!lastEntity || lastEntity.document?.version !== result.version) {
-          invalidateQueries([queryKeys.ENTITY, id.id])
-        }
+        queryClient
+          .fetchQuery(queryListDirectory(id))
+          .then((newDir: HMDocumentInfo[]) => {
+            newDir.forEach((doc) => {
+              invalidateEntityWithVersion(
+                hmId('d', doc.account, {path: doc.path}).id,
+                doc.version,
+              )
+            })
+          })
       }
     })
     .finally(() => {})
@@ -278,7 +292,7 @@ const entitySubscriptionCounts: Record<string, number> = {}
 function createEntitySubscription(sub: EntitySubscription) {
   const key = getEntitySubscriptionKey(sub)
   if (!key) return () => {}
-  console.log('[sync] createEntitySubscription', key)
+  // console.log('[sync] createEntitySubscription', key)
 
   let loopTimer: NodeJS.Timeout | null = null
   function _updateSubscriptionLoop() {
@@ -292,7 +306,7 @@ function createEntitySubscription(sub: EntitySubscription) {
   )
 
   return () => {
-    console.log('[sync] releaseEntitySubscription', key)
+    // console.log('[sync] releaseEntitySubscription', key)
     loopTimer && clearTimeout(loopTimer)
   }
 }

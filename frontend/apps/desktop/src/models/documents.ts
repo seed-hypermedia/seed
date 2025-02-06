@@ -1,6 +1,7 @@
 import {useAppContext, useGRPCClient} from '@/app-context'
 import {dispatchWizardEvent} from '@/components/create-account'
 import {createHypermediaDocLinkPlugin} from '@/editor'
+import {grpcClient} from '@/grpc-client'
 import {useDraft} from '@/models/accounts'
 import {useOpenUrl} from '@/open-url'
 import {slashMenuItems} from '@/slash-menu-items'
@@ -25,6 +26,7 @@ import {
   UnpackedHypermediaId,
   createHMUrl,
   editorBlockToHMBlock,
+  entityQueryPathToHmIdPath,
   eventStream,
   extractRefs,
   hmBlockToEditorBlock,
@@ -1015,53 +1017,61 @@ export function usePublishToSite() {
   }
 }
 
+export function queryListDirectory(
+  id?: UnpackedHypermediaId | null,
+): UseQueryOptions<unknown, unknown, Array<HMDocumentInfo>> {
+  return {
+    queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.uid],
+    queryFn: async () => {
+      if (!id) return []
+      const results = await grpcClient.documents.listDocuments({
+        account: id.uid,
+        pageSize: BIG_INT,
+      })
+      const docs: HMDocumentInfo[] = results.documents
+        .filter((doc) => {
+          return doc.path !== ''
+        })
+        .map((d) => ({
+          ...toPlainMessage(d),
+          type: 'document',
+          metadata: HMDocumentMetadataSchema.parse(
+            d.metadata?.toJson({emitDefaultValues: true}),
+          ),
+          path: entityQueryPathToHmIdPath(d.path),
+        }))
+      return docs
+    },
+    enabled: !!id,
+  } as const
+}
+
 export function useListDirectory(
   id?: UnpackedHypermediaId | null,
   options?: {mode: 'Children' | 'AllDescendants'},
 ): UseQueryResult<Array<HMDocumentInfo>> {
-  const grpcClient = useGRPCClient()
-  const prefixPath = id?.path ? '/' + id.path.join('/') : ''
-  return useQuery(
-    {
-      queryKey: [
-        queryKeys.DOC_LIST_DIRECTORY,
-        id?.uid,
-        prefixPath,
-        options?.mode,
-      ],
-      queryFn: async () => {
-        if (!id) return []
-        const res = await grpcClient.documents.listDocuments({
-          account: id.uid,
-          pageSize: BIG_INT,
-        })
-        const docs = res.documents
-          .map((d) => ({
-            ...toPlainMessage(d),
-            metadata: HMDocumentMetadataSchema.parse(
-              d.metadata?.toJson({emitDefaultValues: true}),
-            ),
-          }))
+  const fullSpace = useQuery(queryListDirectory(id))
+  const result: UseQueryResult<Array<HMDocumentInfo>> = {
+    ...fullSpace,
+    data: useMemo(() => {
+      if (!fullSpace.data) return []
+      return fullSpace.data.filter((doc) => {
+        if (!id) return false
 
-          .filter((doc) => {
-            return (
-              doc.path !== '/' &&
-              doc.path.startsWith(prefixPath) &&
-              doc.path !== prefixPath &&
-              (options?.mode == 'Children'
-                ? doc.path.slice(1).split('/').length ==
-                  (id.path?.length || 0) + 1
-                : true)
-            )
-          })
-          .map((doc) => {
-            return {...doc, path: doc.path.slice(1).split('/')}
-          })
-        return docs as HMDocumentInfo[]
-      },
-    },
-    [id, options?.mode],
-  )
+        // if doc.path (string[]) is not prefixed by id.path (string[]), return false
+        if (id.path && !id?.path.every((p, idx) => p === doc.path[idx]))
+          return false
+
+        // if options.mode is 'Children', check if the number of segments in doc.path is one more than the number of segments in id.path
+        if (options?.mode == 'Children') {
+          if (doc.path.length !== (id.path?.length || 0) + 1) return false
+        }
+
+        return true
+      })
+    }, [fullSpace.data, options?.mode, id?.path]),
+  }
+  return result
 }
 
 export function useListSite(id?: UnpackedHypermediaId) {
