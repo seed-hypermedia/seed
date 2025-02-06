@@ -1,8 +1,7 @@
+import {createTipTapBlock} from '@shm/editor/blocknote'
+import {updateBlockCommand} from '@shm/editor/blocknote/core/api/blockManipulation/commands/updateBlock'
+import styles from '@shm/editor/blocknote/core/extensions/Blocks/nodes/Block.module.css'
 import {InputRule, mergeAttributes} from '@tiptap/core'
-
-import {createTipTapBlock} from './blocknote'
-import {updateBlockCommand} from './blocknote/core/api/blockManipulation/commands/updateBlock'
-import styles from './blocknote/core/extensions/Blocks/nodes/Block.module.css'
 
 export const HMHeadingBlockContent = createTipTapBlock<'heading'>({
   name: 'heading',

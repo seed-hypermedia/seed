@@ -1,14 +1,14 @@
 import {isValidUrl, youtubeParser} from '@/editor/utils'
-import {DAEMON_FILE_URL} from '@shm/shared'
-import {ResizeHandle, SizableText, XStack, isIpfsUrl, useTheme} from '@shm/ui'
-import {useEffect, useState} from 'react'
-import {RiVideoAddLine} from 'react-icons/ri'
 import {
   Block,
   BlockNoteEditor,
   createReactBlockSpec,
   defaultProps,
-} from './blocknote'
+} from '@shm/editor/blocknote'
+import {DAEMON_FILE_URL} from '@shm/shared'
+import {ResizeHandle, SizableText, XStack, isIpfsUrl, useTheme} from '@shm/ui'
+import {useEffect, useState} from 'react'
+import {RiVideoAddLine} from 'react-icons/ri'
 import {MediaContainer} from './media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
 import {HMBlockSchema} from './schema'

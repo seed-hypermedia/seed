@@ -1,10 +1,10 @@
+import {HMBlockSchema} from '@/editor'
 import {
   BlockNoteEditor,
   BlockNoteView,
   defaultBlockSchema,
-  HMBlockSchema,
   useBlockNote,
-} from '@/editor'
+} from '@shm/editor/blocknote'
 import {YStack} from '@shm/ui'
 
 export default function BlockNoteDemo() {

@@ -1,10 +1,10 @@
-import {common, createLowlight} from 'lowlight'
 import {
   BlockSchema,
   TypesMatch,
   defaultBlockSchema,
   defaultProps,
-} from './blocknote'
+} from '@shm/editor/blocknote'
+import {common, createLowlight} from 'lowlight'
 import {ButtonBlock} from './button'
 import {EmbedBlock} from './embed-block'
 import {FileBlock} from './file'

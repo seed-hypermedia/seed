@@ -1,14 +1,14 @@
 import {isValidUrl} from '@/editor/utils'
 import {useOpenUrl} from '@/open-url'
-import {SizableText, Spinner, TwitterXIcon, useTheme, YStack} from '@shm/ui'
-import {Fragment} from '@tiptap/pm/model'
-import {useEffect, useRef, useState} from 'react'
 import {
   Block,
   BlockNoteEditor,
   createReactBlockSpec,
   defaultProps,
-} from './blocknote'
+} from '@shm/editor/blocknote'
+import {SizableText, Spinner, TwitterXIcon, useTheme, YStack} from '@shm/ui'
+import {Fragment} from '@tiptap/pm/model'
+import {useEffect, useRef, useState} from 'react'
 import {MediaContainer} from './media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
 import {HMBlockSchema} from './schema'

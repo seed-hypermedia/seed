@@ -1,3 +1,9 @@
+import {
+  Block,
+  BlockNoteEditor,
+  useEditorSelectionChange,
+} from '@shm/editor/blocknote'
+import {MultipleNodeSelection} from '@shm/editor/blocknote/core/extensions/SideMenu/MultipleNodeSelection'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared'
 import {
   Button,
@@ -19,8 +25,6 @@ import {
   useState,
 } from 'react'
 import {RiUpload2Fill} from 'react-icons/ri'
-import {Block, BlockNoteEditor, useEditorSelectionChange} from './blocknote'
-import {MultipleNodeSelection} from './blocknote/core/extensions/SideMenu/MultipleNodeSelection'
 import {MaxFileSizeB, MaxFileSizeMB} from './file'
 import {HMBlockSchema} from './schema'
 import {getNodesInSelection} from './utils'

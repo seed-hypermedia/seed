@@ -5,7 +5,6 @@ import {IconForm} from '@/components/icon-form'
 import {OptionsPanel} from '@/components/options-panel'
 import {SiteNavigationDraftLoader} from '@/components/site-navigation'
 import {subscribeDraftFocus} from '@/draft-focusing'
-import {BlockNoteEditor, getBlockInfoFromPos} from '@/editor'
 import {useDraft} from '@/models/accounts'
 import {
   useAccountDraftList,
@@ -26,6 +25,7 @@ import {
 import {useNavRoute} from '@/utils/navigation'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
+import {BlockNoteEditor, getBlockInfoFromPos} from '@shm/editor/blocknote'
 import {
   BlockRange,
   createWebHMUrl,

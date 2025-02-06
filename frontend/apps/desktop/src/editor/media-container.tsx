@@ -1,9 +1,9 @@
+import {Block, BlockNoteEditor} from '@shm/editor/blocknote'
+import {InlineContent} from '@shm/editor/blocknote/react/ReactBlockSpec'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared'
 import {Button, Text, XStack, YStack, toast} from '@shm/ui'
 import {useState} from 'react'
-import {Block, HMBlockSchema, MaxFileSizeB, MaxFileSizeMB} from '.'
-import {BlockNoteEditor} from './blocknote'
-import {InlineContent} from './blocknote/react/ReactBlockSpec'
+import {HMBlockSchema, MaxFileSizeB, MaxFileSizeMB} from '.'
 import {MediaType} from './media-render'
 
 interface ContainerProps {

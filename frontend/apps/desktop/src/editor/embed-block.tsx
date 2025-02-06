@@ -3,6 +3,8 @@ import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useRecents} from '@/models/recents'
 import {loadWebLinkMeta} from '@/models/web-links'
 import {useOpenUrl} from '@/open-url'
+import {Block, BlockNoteEditor} from '@shm/editor/blocknote'
+import {createReactBlockSpec} from '@shm/editor/blocknote/react'
 import {
   HMEmbedViewSchema,
   hmIdWithVersion,
@@ -41,8 +43,7 @@ import {Fragment} from '@tiptap/pm/model'
 import {useCallback, useEffect, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {GestureResponderEvent} from 'react-native'
-import {Block, BlockNoteEditor, HMBlockSchema} from '.'
-import {createReactBlockSpec} from './blocknote/react'
+import {HMBlockSchema} from '.'
 import {useEmbedToolbarContext} from './embed-toolbar-context'
 import {HypermediaLinkSwitchToolbar} from './hm-link-switch-toolbar'
 import {LauncherItem, SwitcherItem} from './launcher-item'

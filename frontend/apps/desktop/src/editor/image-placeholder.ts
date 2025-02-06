@@ -1,6 +1,6 @@
+import {createTipTapBlock, mergeCSSClasses} from '@shm/editor/blocknote'
+import styles from '@shm/editor/blocknote/core/extensions/Blocks/nodes/Block.module.css'
 import {mergeAttributes} from '@tiptap/core'
-import {createTipTapBlock, mergeCSSClasses} from './blocknote'
-import styles from './blocknote/core/extensions/Blocks/nodes/Block.module.css'
 
 export const ImagePlaceholder = createTipTapBlock<'imagePlaceholder'>({
   name: 'imagePlaceholder',

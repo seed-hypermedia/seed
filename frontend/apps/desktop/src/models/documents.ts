@@ -8,6 +8,7 @@ import {slashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
 import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
+import {BlockNoteEditor, useBlockNote} from '@shm/editor/blocknote'
 import {
   BIG_INT,
   Block,
@@ -56,7 +57,7 @@ import _ from 'lodash'
 import {nanoid} from 'nanoid'
 import {useEffect, useMemo, useRef} from 'react'
 import {ContextFrom, OutputFrom, fromPromise} from 'xstate'
-import {BlockNoteEditor, hmBlockSchema, useBlockNote} from '../editor'
+import {hmBlockSchema} from '../editor'
 import {useNavRoute} from '../utils/navigation'
 import {pathNameify} from '../utils/path'
 import {useNavigate} from '../utils/useNavigate'

@@ -1,7 +1,7 @@
-import {getLinkMenuItems} from '@/editor/blocknote/core'
-import {linkMenuPluginKey} from '@/editor/blocknote/core/extensions/LinkMenu/LinkMenuPlugin'
 import {loadWebLinkMeta} from '@/models/web-links'
 import {toPlainMessage} from '@bufbuild/protobuf'
+import {getLinkMenuItems} from '@shm/editor/blocknote/core'
+import {linkMenuPluginKey} from '@shm/editor/blocknote/core/extensions/LinkMenu/LinkMenuPlugin'
 import {
   GRPCClient,
   HMDocumentMetadataSchema,

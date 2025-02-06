@@ -3,6 +3,12 @@ import {useListDirectory} from '@/models/documents'
 import {useEntities, useEntity} from '@/models/entities'
 import {LibraryData} from '@/models/library'
 import {LibraryListItem} from '@/pages/library'
+import {Block, BlockNoteEditor} from '@shm/editor/blocknote'
+import {MultipleNodeSelection} from '@shm/editor/blocknote/core/extensions/SideMenu/MultipleNodeSelection'
+import {
+  createReactBlockSpec,
+  useEditorSelectionChange,
+} from '@shm/editor/blocknote/react'
 import {
   EditorQueryBlock,
   HMBlockQuery,
@@ -34,9 +40,6 @@ import type {UseQueryResult} from '@tanstack/react-query'
 import {Fragment} from '@tiptap/pm/model'
 import {NodeSelection, TextSelection} from 'prosemirror-state'
 import {useCallback, useMemo, useState} from 'react'
-import {Block, BlockNoteEditor} from './blocknote'
-import {MultipleNodeSelection} from './blocknote/core/extensions/SideMenu/MultipleNodeSelection'
-import {createReactBlockSpec, useEditorSelectionChange} from './blocknote/react'
 import {HMBlockSchema} from './schema'
 import {getNodesInSelection} from './utils'
 

@@ -1,14 +1,19 @@
-import {useAppContext} from '@/app-context'
-import {EditorBlock, createHypermediaDocLinkPlugin} from '@/editor'
+import {createHypermediaDocLinkPlugin} from '@/editor'
 import {grpcClient} from '@/grpc-client'
 import {useOpenUrl} from '@/open-url'
 import {slashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {
+  useBlockNote,
+  type BlockNoteEditor,
+  type BlockSchema,
+} from '@shm/editor/blocknote'
+import {
   BIG_INT,
   Block,
   BlockNode,
+  EditorBlock,
   GRPCClient,
   HMComment,
   HMCommentDraft,
@@ -22,6 +27,7 @@ import {
   hmBlocksToEditorContent,
   hmIdPathToEntityQueryPath,
   invalidateQueries,
+  queryClient,
   queryKeys,
   writeableStateStream,
 } from '@shm/shared'
@@ -35,8 +41,7 @@ import {
 import {Extension} from '@tiptap/core'
 import {useEffect, useMemo, useRef} from 'react'
 import {useGRPCClient} from '../app-context'
-import {hmBlockSchema, useBlockNote} from '../editor'
-import type {BlockNoteEditor, BlockSchema} from '../editor/blocknote'
+import {hmBlockSchema} from '../editor'
 import {getBlockGroup, setGroupTypes} from './editor-utils'
 import {useEntity} from './entities'
 import {useGatewayUrlStream} from './gateway-settings'
@@ -194,7 +199,6 @@ export function useCommentEditor(
   const targetEntity = useEntity(targetDocId)
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
   const showNostr = trpc.experiments.get.useQuery().data?.nostr
-  const queryClient = useAppContext().queryClient
   const write = trpc.comments.writeCommentDraft.useMutation({
     onError: (err) => {
       toast.error(err.message)

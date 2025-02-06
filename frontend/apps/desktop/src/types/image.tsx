@@ -1,17 +1,4 @@
-import { getBlockInfoFromSelection } from '@/editor'
-import {
-  Block,
-  BlockNoteEditor,
-  DefaultBlockSchema,
-  defaultProps
-} from '@app/blocknote-core'
-import { insertOrUpdateBlock } from '@app/blocknote-core/extensions/SlashMenu/defaultSlashMenuItems'
-import {
-  createReactBlockSpec,
-  InlineContent,
-  ReactSlashMenuItem
-} from '@app/blocknote-react'
-import { HDBlockSchema } from '@app/client/schema'
+import { HMBlockSchema } from '@/schema'
 import {
   Button,
   Form,
@@ -23,9 +10,11 @@ import {
   XStack,
   YStack
 } from '@mintter/ui'
+import { Block, BlockNoteEditor, createReactBlockSpec } from '@shm/editor/blocknote'
 import { ChangeEvent, useEffect, useState } from 'react'
-import { RiImage2Fill } from 'react-icons/ri'
 
+import { defaultProps } from '@shm/editor/blocknote'
+import { InlineContent } from '@shm/editor/blocknote/react'
 export const ImageBlock = createReactBlockSpec({
   type: 'image',
   propSchema: {
@@ -44,8 +33,8 @@ export const ImageBlock = createReactBlockSpec({
     block,
     editor,
   }: {
-    block: Block<HDBlockSchema>
-    editor: BlockNoteEditor<HDBlockSchema>
+    block: Block<HMBlockSchema>
+    editor: BlockNoteEditor<HMBlockSchema>
   }) => Render(block, editor),
 })
 
@@ -62,8 +51,8 @@ type ImageType = {
 const boolRegex = new RegExp('true')
 
 const Render = (
-  block: Block<HDBlockSchema>,
-  editor: BlockNoteEditor<HDBlockSchema>,
+  block: Block<HMBlockSchema>,
+    editor: BlockNoteEditor<HMBlockSchema>,
 ) => {
   const [image, setImage] = useState<ImageType>({
     id: block.id,
@@ -99,8 +88,8 @@ function ImageComponent({
   editor,
   assign,
 }: {
-  block: Block<HDBlockSchema>
-  editor: BlockNoteEditor<HDBlockSchema>
+  block: Block<HMBlockSchema>
+  editor: BlockNoteEditor<HMBlockSchema>
   assign: any
 }) {
   const [replace, setReplace] = useState(false)
@@ -179,7 +168,7 @@ function ImageForm({
   block,
   assign,
 }: {
-  block: Block<HDBlockSchema>
+  block: Block<HMBlockSchema>
   assign: any
 }) {
   const [url, setUrl] = useState('')
@@ -450,22 +439,3 @@ function ImageForm({
     </div>
   )
 }
-
-export const insertImage = new ReactSlashMenuItem<
-  DefaultBlockSchema & {image: typeof ImageBlock}
->(
-  'Image',
-  // @ts-ignore
-  (editor: BlockNoteEditor<HDBlockSchema>) => {
-    insertOrUpdateBlock(editor, {
-      type: 'image',
-      props: {
-        url: '',
-      },
-    })
-  },
-  ['image', 'img', 'picture'],
-  'Media',
-  <RiImage2Fill size={18} />,
-  'Insert an image',
-)

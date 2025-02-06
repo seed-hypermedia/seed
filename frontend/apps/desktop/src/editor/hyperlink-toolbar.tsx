@@ -1,6 +1,6 @@
+import {HyperlinkToolbarProps} from '@shm/editor/blocknote'
 import {SizableText, SizeTokens, YStack} from '@shm/ui'
 import {useEffect, useState} from 'react'
-import {HyperlinkToolbarProps} from './blocknote'
 import {HypermediaLinkForm} from './hm-link-form'
 
 export function HypermediaLinkToolbar(

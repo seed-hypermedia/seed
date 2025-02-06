@@ -4,8 +4,11 @@ import {
   BlockTypeDropdownItem,
   DefaultBlockSchema,
   FormattingToolbarProps,
-} from './blocknote'
+  useEditorContentChange,
+  useEditorSelectionChange,
+} from '@shm/editor/blocknote'
 
+import {ToolbarDropdownItemProps} from '@shm/editor/blocknote/react/SharedComponents/Toolbar/components/ToolbarDropdownItem'
 import {EditorToggledStyle} from '@shm/shared'
 import {
   Button,
@@ -28,13 +31,9 @@ import {
   XStack,
 } from '@shm/ui'
 import {useMemo, useState} from 'react'
-import {
-  HMBlockSchema,
-  useEditorContentChange,
-  useEditorSelectionChange,
-} from '.'
-import {ToolbarDropdownItemProps} from './blocknote/react/SharedComponents/Toolbar/components/ToolbarDropdownItem'
+
 import {HMLinkToolbarButton} from './hm-toolbar-link-button'
+import {HMBlockSchema} from './schema'
 // import {TextAlignButton} from './DefaultButtons/TextAlignButton'
 // import {ColorStyleButton} from './DefaultButtons/ColorStyleButton'
 

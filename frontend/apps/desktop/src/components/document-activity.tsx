@@ -1,9 +1,9 @@
-import {useAccounts} from '@/models/accounts'
-import {useDocumentCommentGroups} from '@/models/comments'
-import {useEntities, useEntity} from '@/models/entities'
-import {useChildrenActivity} from '@/models/library'
-import {useDocumentPublishedChanges, useVersionChanges} from '@/models/versions'
-import {useNavRoute} from '@/utils/navigation'
+import { useAccounts } from '@/models/accounts'
+import { useDocumentCommentGroups } from '@/models/comments'
+import { useEntities, useEntity } from '@/models/entities'
+import { useChildrenActivity } from '@/models/library'
+import { useDocumentPublishedChanges, useVersionChanges } from '@/models/versions'
+import { useNavRoute } from '@/utils/navigation'
 import {
   formattedDateMedium,
   HMChangeGroup,
@@ -14,7 +14,7 @@ import {
   normalizeDate,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {getActivityTime} from '@shm/shared/src/models/activity'
+import { getActivityTime } from '@shm/shared/src/models/activity'
 import {
   ActivitySection,
   Button,
@@ -25,9 +25,9 @@ import {
   useTheme,
   YStack,
 } from '@shm/ui'
-import {ChangeGroup, SubDocumentItem} from '@shm/ui/src/activity'
-import {Spinner} from '@shm/ui/src/spinner'
-import {useState} from 'react'
+import { ChangeGroup, SubDocumentItem } from '@shm/ui/src/activity'
+import { Spinner } from '@shm/ui/src/spinner'
+import { useState } from 'react'
 import {
   CommentDraft,
   CommentReplies,

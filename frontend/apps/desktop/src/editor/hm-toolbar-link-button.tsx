@@ -1,4 +1,10 @@
 import {
+  BlockNoteEditor,
+  BlockSchema,
+  HyperlinkToolbarProps,
+  useEditorSelectionChange,
+} from '@shm/editor/blocknote'
+import {
   Button,
   Check,
   Close,
@@ -14,12 +20,6 @@ import {
   usePopoverState,
 } from '@shm/ui'
 import {useCallback, useEffect, useState} from 'react'
-import {
-  BlockNoteEditor,
-  BlockSchema,
-  HyperlinkToolbarProps,
-  useEditorSelectionChange,
-} from './blocknote'
 
 export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
   editor: BlockNoteEditor<BSchema>
