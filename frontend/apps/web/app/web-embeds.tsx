@@ -19,6 +19,7 @@ import {
   InlineEmbedButton,
   useDocContentContext,
 } from "@shm/ui/src/document-content";
+import {QueryBlockPlaceholder} from "@shm/ui/src/entity-card";
 import {AccountsMetadata} from "@shm/ui/src/face-pile";
 import {HMIcon} from "@shm/ui/src/hm-icon";
 import {BannerNewspaperCard, NewspaperCard} from "@shm/ui/src/newspaper";
@@ -278,27 +279,31 @@ function QueryStyleCard({
           accountsMetadata={accountsMetadata}
         />
       ) : null}
-      <XStack flex={1} flexWrap="wrap" marginHorizontal="$-3">
-        {restItems.map((item) => {
-          const id = hmId("d", item.account, {
-            path: item.path,
-            latest: true,
-          });
-          return (
-            <YStack {...columnProps} p="$3">
-              <NewspaperCard
-                id={id}
-                entity={getEntity(item.path)}
-                key={item.path.join("/")}
-                accountsMetadata={accountsMetadata}
-                flexBasis="100%"
-                $gtSm={{flexBasis: "100%"}}
-                $gtMd={{flexBasis: "100%"}}
-              />
-            </YStack>
-          );
-        })}
-      </XStack>
+      {restItems?.length ? (
+        <XStack flex={1} flexWrap="wrap" marginHorizontal="$-3">
+          {restItems.map((item) => {
+            const id = hmId("d", item.account, {
+              path: item.path,
+              latest: true,
+            });
+            return (
+              <YStack {...columnProps} p="$3">
+                <NewspaperCard
+                  id={id}
+                  entity={getEntity(item.path)}
+                  key={item.path.join("/")}
+                  accountsMetadata={accountsMetadata}
+                  flexBasis="100%"
+                  $gtSm={{flexBasis: "100%"}}
+                  $gtMd={{flexBasis: "100%"}}
+                />
+              </YStack>
+            );
+          })}
+        </XStack>
+      ) : items.length > 1 ? (
+        <QueryBlockPlaceholder styleType={block.attributes.style} />
+      ) : null}
     </YStack>
   );
 }

@@ -540,9 +540,9 @@ function QueryStyleCard({
             )
           })}
         </XStack>
-      ) : (
+      ) : items.length > 1 ? (
         <QueryBlockPlaceholder styleType={block.attributes.style} />
-      )}
+      ) : null}
     </YStack>
   )
 }
