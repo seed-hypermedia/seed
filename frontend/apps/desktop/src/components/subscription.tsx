@@ -1,3 +1,4 @@
+import {useMyAccountIds} from '@/models/daemon'
 import {useEntity} from '@/models/entities'
 import {HMSubscription, useSubscription} from '@/models/subscription'
 import {getDocumentTitle, UnpackedHypermediaId} from '@shm/shared'
@@ -19,12 +20,14 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
+import {SizableText} from '@shm/ui/src/datepicker-dateparts'
 import {useAppDialog} from './dialog'
 
 export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
   const theme = useTheme()
   const subscription = useSubscription(id)
-
+  const myAccountIds = useMyAccountIds()
+  const docIsInMyAccount = myAccountIds.data?.includes(id.uid)
   const popoverState = usePopoverState()
   const unsubscribeParent = useAppDialog(UnsubscribeParentDialog, {
     isAlert: true,
@@ -32,6 +35,16 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
 
   const isSubscribed = ['space', 'document'].includes(subscription.subscription)
 
+  if (docIsInMyAccount) {
+    return (
+      <XStack ai="center" gap="$2">
+        <Check color="green" />
+        <SizableText userSelect="none" color="$green10" size="$2">
+          Subscribed
+        </SizableText>
+      </XStack>
+    )
+  }
   return (
     <>
       <Popover {...popoverState} placement="bottom-end">

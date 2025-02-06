@@ -6,7 +6,7 @@ import {useState} from 'react'
 import {SearchInput} from './search-input'
 import {Title} from './titlebar-title'
 
-export function TitlebarSearch() {
+export function TitlebarTitleSearch() {
   const [showLauncher, setShowLauncher] = useState(false)
   useListenAppEvent('openLauncher', () => {
     setShowLauncher(true)

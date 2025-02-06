@@ -13,7 +13,12 @@ import React, {useEffect, useState} from "react";
 import {Button} from "./button";
 import {ContainerXL} from "./container";
 import {Close, Menu} from "./icons";
-import {DocumentOutline, SiteNavigationDocument} from "./navigation";
+import {
+  DocumentOutline,
+  DocumentSmallListItem,
+  getSiteNavDirectory,
+  SiteNavigationDocument,
+} from "./navigation";
 import {HeaderSearch, MobileSearch} from "./search";
 import {SiteLogo} from "./site-logo";
 
@@ -99,7 +104,7 @@ export function SiteHeader({
               flex={1}
               jc="flex-end"
               borderWidth={4}
-              borderColor="red"
+              borderColor="blue"
               overflow="scroll" // this isn't working but its supposed to allow horizontal scroll
               // backgroundColor="red"
             >
@@ -148,7 +153,20 @@ export function SiteHeader({
         renderContent={() => (
           <YStack>
             <MobileSearch homeId={homeId} />
-            {isHome ? null : <SizableText>Home Nav Items</SizableText>}
+
+            {isHome ? null : ( // if we are on the home page, we will see the home directory below the outline
+              <YStack gap="$2.5" marginTop="$2.5" marginBottom="$4">
+                {items?.map((item) => (
+                  <DocumentSmallListItem
+                    key={item.id.id}
+                    id={item.id}
+                    metadata={item.metadata}
+                    isDraft={item.isDraft}
+                    isPublished={item.isPublished}
+                  />
+                ))}
+              </YStack>
+            )}
             {docId && document && (
               <DocumentOutline
                 onActivateBlock={() => {}}
@@ -159,10 +177,40 @@ export function SiteHeader({
                 activeBlockId={docId.blockRef}
               />
             )}
-            <SizableText>Doc Nav Items</SizableText>
+            {docId && <NavItems id={docId} supportQueries={supportQueries} />}
           </YStack>
         )}
       />
+    </YStack>
+  );
+}
+
+function NavItems({
+  id,
+  supportQueries,
+}: {
+  id: UnpackedHypermediaId;
+  supportQueries?: HMQueryResult[];
+}) {
+  const directoryItems = getSiteNavDirectory({
+    id,
+    supportQueries,
+    // todo: pass drafts
+  });
+  return (
+    <YStack gap="$2.5">
+      {directoryItems
+        ? directoryItems.map((doc) => (
+            <DocumentSmallListItem
+              key={id.path?.join("/") || id.id}
+              metadata={doc.metadata}
+              id={doc.id}
+              indented={0}
+              isDraft={doc.isDraft}
+              isPublished={doc.isPublished}
+            />
+          ))
+        : null}
     </YStack>
   );
 }

@@ -23,7 +23,7 @@ import {HMIcon} from "./hm-icon";
 import {SmallCollapsableListItem, SmallListItem} from "./list-item";
 import {Popover} from "./TamaguiPopover";
 
-function DocumentSmallListItem({
+export function DocumentSmallListItem({
   metadata,
   id,
   indented,

@@ -106,12 +106,12 @@ export function CopyReferenceButton({
   const {externalOpen} = useAppContext()
   if (!reference) return null
   const CurrentIcon = shouldOpen ? openIcon : copyIcon
-  const Icon = () => (
+  const icon = (
     <CurrentIcon
-      size={12}
-      color="$color5"
+      size={14}
+      color="$color12"
       opacity={shouldOpen ? 1 : showIconOnHover ? 0 : 1}
-      $group-item-hover={{opacity: 1, color: '$color6'}}
+      // $group-item-hover={{opacity: 1, color: '$'}}
     />
   )
   return (
@@ -133,7 +133,7 @@ export function CopyReferenceButton({
           chromeless
           size="$2"
           group="item"
-          theme="brand"
+          className="no-window-drag"
           bg="$colorTransparent"
           borderColor="$colorTransparent"
           onPress={(e) => {
@@ -152,15 +152,15 @@ export function CopyReferenceButton({
             }
           }}
           hoverStyle={{
-            backgroundColor: '$colorTransparent',
+            backgroundColor: '$color3',
             borderColor: '$colorTransparent',
             ...props.hoverStyle,
           }}
           {...props}
         >
-          {iconPosition == 'before' ? <Icon /> : null}
+          {iconPosition == 'before' ? icon : null}
           {children}
-          {iconPosition == 'after' ? <Icon /> : null}
+          {iconPosition == 'after' ? icon : null}
         </Button>
       </Tooltip>
       {reference.content}

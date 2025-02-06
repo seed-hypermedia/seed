@@ -33,6 +33,8 @@ import {
 } from '@shm/ui'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {AiOutlineEllipsis} from 'react-icons/ai'
+import {CopyReferenceButton} from './copy-reference-button'
+import {FavoriteButton} from './favoriting'
 
 export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
   const route = useNavRoute()
@@ -96,7 +98,11 @@ export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
   }
 
   if (route.key === 'document') {
-    return <BreadcrumbTitle route={route} />
+    return (
+      <>
+        <BreadcrumbTitle route={route} />
+      </>
+    )
   }
   if (route.key === 'draft') {
     return <DraftTitle route={route} />
@@ -120,6 +126,9 @@ function BreadcrumbTitle({
   route: DocumentRoute
   overwriteActiveTitle?: string
 }) {
+  const latestDoc = useEntity({...route.id, version: null, latest: true})
+  const isLatest =
+    route.id.latest || route.id.version === latestDoc.data?.document?.version
   const entityRoutes = useRouteBreadcrumbRoutes(route)
   const entityContents = useRouteEntities(entityRoutes)
   const [collapsedCount, setCollapsedCount] = useState(0)
@@ -282,6 +291,15 @@ function BreadcrumbTitle({
             ) : null,
           ]
         })}
+        <XStack>
+          <FavoriteButton id={route.id} />
+          <CopyReferenceButton
+            docId={route.id}
+            isBlockFocused={route.isBlockFocused || false}
+            latest={isLatest}
+            size="$2"
+          />
+        </XStack>
       </XStack>
     </XStack>
   )

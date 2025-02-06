@@ -269,7 +269,7 @@ function _MainDocumentPage({
           ) : null}
 
           <DocContainer>
-            <DocPageHeader docId={id} isBlockFocused={isBlockFocused} />
+            <DocPageHeader docId={id} />
             <YStack flex={1} paddingLeft="$4" $gtSm={{paddingLeft: 0}}>
               <DocPageContent
                 blockRef={id.blockRef}
@@ -329,15 +329,6 @@ function AppSiteHeader({
         siteHomeEntity.document?.metadata.layout ===
         'Seed/Experimental/Newspaper'
       }
-      // headItems={
-      //   activeId.id === siteHomeEntity.id.id && siteHomeEntity.document ? (
-      //     <DocumentHeadItems
-      //       docId={siteHomeEntity.id}
-      //       isBlockFocused={false}
-      //       document={siteHomeEntity.document}
-      //     />
-      //   ) : null
-      // }
       document={document}
       supportDocuments={supportDocuments}
       afterLinksContent={
@@ -369,13 +360,7 @@ function NewSubDocumentButton({
   )
 }
 
-function DocPageHeader({
-  docId,
-  isBlockFocused,
-}: {
-  docId: UnpackedHypermediaId
-  isBlockFocused: boolean
-}) {
+function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
   const entity = useEntity(docId)
   const hasCover = useMemo(
     () => !!entity.data?.document?.metadata.cover,
@@ -471,7 +456,6 @@ function DocPageHeader({
                 <DocumentHeadItems
                   document={entity.data.document}
                   docId={docId}
-                  isBlockFocused={isBlockFocused}
                 />
               )}
             </XStack>
