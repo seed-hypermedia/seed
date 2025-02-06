@@ -48,6 +48,7 @@ jobs:
         run: yarn test
 
   build-binaries:
+    timeout-minutes: 30
     name: Build ${{ matrix.config.os }} @ ${{ matrix.config.arch }}
     runs-on: ${{ matrix.config.os }}
     needs: [build-info, frontend-tests]
@@ -126,6 +127,7 @@ jobs:
           yarn desktop:make --arch=${{ matrix.config.arch }}
         env:
           timeout-minutes: 10
+          DEBUG: electron-*
           NODE_OPTIONS: --max_old_space_size=4096
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           DAEMON_NAME: ${{ matrix.config.daemon_name }}
@@ -151,6 +153,7 @@ jobs:
           yarn desktop:make --arch=${{ matrix.config.arch }}
         env:
           timeout-minutes: 10
+          DEBUG: electron-*
           NODE_OPTIONS: --max_old_space_size=4096
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           DAEMON_NAME: "${{ matrix.config.daemon_name }}.exe"
