@@ -5,6 +5,7 @@ import {
   SizableText,
   Tooltip,
   useTheme,
+  View,
   XStack,
   YStack,
 } from '@shm/ui'
@@ -55,12 +56,14 @@ export function AccessoryLayout<
   accessoryKey,
   accessoryOptions,
   onAccessorySelect,
+  mainPanelRef,
 }: {
   children: React.ReactNode
   accessory: React.ReactNode | null
   accessoryKey: Options[number]['key'] | undefined
   accessoryOptions: Options
   onAccessorySelect: (key: Options[number]['key'] | undefined) => void
+  mainPanelRef?: React.RefObject<HTMLDivElement>
 }) {
   const theme = useTheme()
   return (
@@ -69,14 +72,24 @@ export function AccessoryLayout<
         <Panel
           minSize={50}
           style={{
-            overflowY: 'auto',
             borderRight: '1px solid var(--color7)',
-          }}
-          onScroll={() => {
-            dispatchScroll(true)
+            overflow: 'hidden',
           }}
         >
-          {children}
+          <View
+            style={{
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              flex: 1,
+              height: '100%',
+            }}
+            ref={mainPanelRef}
+            onScroll={() => {
+              dispatchScroll(true)
+            }}
+          >
+            {children}
+          </View>
         </Panel>
         {accessoryKey !== undefined ? (
           <PanelResizeHandle className="accessory-resize-handle" />

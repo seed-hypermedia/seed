@@ -16,9 +16,8 @@ import {
 import {getActivityTime} from "@shm/shared/src/models/activity";
 import {SiteRoutingProvider} from "@shm/shared/src/routing";
 import "@shm/shared/src/styles/document.css";
-import {Button} from "@shm/ui/src";
+import {Button, getRandomColor, useImageUrl, useTheme} from "@shm/ui/src";
 import {ChangeGroup, SubDocumentItem} from "@shm/ui/src/activity";
-import {getRandomColor} from "@shm/ui/src/avatar";
 import {Container} from "@shm/ui/src/container";
 import {CommentGroup} from "@shm/ui/src/discussion";
 import {
@@ -26,17 +25,12 @@ import {
   DocContent,
   DocContentProvider,
 } from "@shm/ui/src/document-content";
-import {extractIpfsUrlCid, useImageUrl} from "@shm/ui/src/get-file-url";
-import {
-  DocNavigationContent,
-  DocumentOutline,
-  SiteNavigationContent,
-} from "@shm/ui/src/navigation";
+import {extractIpfsUrlCid} from "@shm/ui/src/get-file-url";
+import {DocDirectory, DocumentOutline} from "@shm/ui/src/navigation";
 import {
   OptimizedImageSize,
   UniversalAppProvider,
 } from "@shm/ui/src/universal-app";
-import {useTheme} from "@tamagui/core";
 import {ChevronUp} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
@@ -48,8 +42,7 @@ import {useActivity, useDiscussion} from "./models";
 import {NewspaperPage} from "./newspaper";
 import {NotFoundPage} from "./not-found";
 import {PageFooter} from "./page-footer";
-import {PageHeader, SiteHeader} from "./page-header";
-import {MobileSearchUI} from "./search";
+import {PageHeader, WebSiteHeader} from "./page-header";
 import {EmbedDocument, EmbedInline, QueryBlockWeb} from "./web-embeds";
 import {unwrap, Wrapped} from "./wrapping";
 
@@ -172,117 +165,89 @@ export function DocumentPage(props: SiteDocumentPayload) {
       // onClose?.();
     }
   }, []);
-  const renderDocNavigation = ({onCloseNav}: {onCloseNav?: () => void}) => (
-    <DocNavigationContent
-      supportDocuments={props.supportDocuments}
-      supportQueries={props.supportQueries}
-      documentMetadata={document.metadata}
-      id={id}
-      outline={({indented}) => (
-        <DocumentOutline
-          onActivateBlock={onActivateBlock}
-          document={document}
-          id={id}
-          onCloseNav={onCloseNav}
-          supportDocuments={props.supportDocuments}
-          activeBlockId={id.blockRef}
-          indented={indented}
-        />
-      )}
-    />
-  );
-  const renderSiteNavigation = ({onCloseNav}: {onCloseNav?: () => void}) =>
-    !!id.path?.length &&
-    homeMetadata.layout !== "Seed/Experimental/Newspaper" ? null : (
-      <SiteNavigationContent
-        homeId={homeId}
-        supportQueries={props.supportQueries}
-      />
-    );
+
   return (
     <WebSiteProvider homeId={props.homeId}>
       <YStack>
-        <SiteHeader
+        <WebSiteHeader
           homeMetadata={homeMetadata}
           homeId={homeId}
-          docMetadata={document.metadata}
           docId={id}
-          supportQueries={props.supportQueries}
-          mobileSearchUI={<MobileSearchUI homeId={homeId} />}
-          renderMobileMenu={({onSetOpen}) => {
-            const onCloseNav = () => {
-              onSetOpen(false);
-            };
-            return (
-              <>
-                {renderSiteNavigation({onCloseNav})}
-                {renderDocNavigation({onCloseNav})}
-              </>
-            );
-          }}
-          isWeb
+          document={document}
+          supportDocuments={supportDocuments}
+          supportQueries={supportQueries}
         >
-          {renderSiteNavigation({onCloseNav: () => {}})}
-          {renderDocNavigation({onCloseNav: () => {}})}
-        </SiteHeader>
-
-        <DocumentCover cover={document.metadata.cover} id={id} />
-        <YStack
-          className={`document-container${
-            typeof document.metadata.showOutline == "undefined" ||
-            document.metadata.showOutline
-              ? ""
-              : " hide-outline"
-          }`}
-        >
-          {typeof document.metadata.showOutline == "undefined" ||
-          document.metadata.showOutline ? (
-            <YStack
-              marginTop={200}
-              $gtSm={{marginTop: 124}}
-              className="document-aside"
-              height="calc(100vh - 150px)"
-            >
+          <DocumentCover cover={document.metadata.cover} id={id} />
+          <YStack
+            className={`document-container${
+              typeof document.metadata.showOutline == "undefined" ||
+              document.metadata.showOutline
+                ? ""
+                : " hide-outline"
+            }`}
+          >
+            {typeof document.metadata.showOutline == "undefined" ||
+            document.metadata.showOutline ? (
               <YStack
-                className="hide-scrollbar"
-                overflow="scroll"
-                height="100%"
-                // paddingTop={32}
-                paddingBottom={32}
+                marginTop={200}
+                $gtSm={{marginTop: 124}}
+                className="document-aside"
+                height="calc(100vh - 150px)"
               >
-                {renderDocNavigation({onCloseNav: () => {}})}
+                <YStack
+                  className="hide-scrollbar"
+                  overflow="scroll"
+                  height="100%"
+                  // paddingTop={32}
+                  paddingBottom={32}
+                >
+                  <DocumentOutline
+                    onActivateBlock={onActivateBlock}
+                    document={document}
+                    id={id}
+                    // onCloseNav={() => {}}
+                    supportDocuments={props.supportDocuments}
+                    activeBlockId={id.blockRef}
+                  />
+                  <DocDirectory
+                    // supportDocuments={props.supportDocuments}
+                    supportQueries={props.supportQueries}
+                    // documentMetadata={document.metadata}
+                    id={id}
+                  />
+                </YStack>
               </YStack>
+            ) : null}
+            <YStack>
+              <PageHeader
+                homeId={homeId}
+                breadcrumbs={props.breadcrumbs}
+                docMetadata={document.metadata}
+                docId={id}
+                authors={document.authors.map(
+                  (author) => accountsMetadata[author]
+                )}
+                updateTime={document.updateTime}
+              />
+              <WebDocContentProvider
+                homeId={homeId}
+                id={id}
+                siteHost={siteHost}
+                supportDocuments={supportDocuments}
+                supportQueries={supportQueries}
+              >
+                <DocContent document={document} />
+              </WebDocContentProvider>
+              <DocumentAppendix
+                id={id}
+                document={document}
+                homeId={homeId}
+                siteHost={siteHost}
+              />
             </YStack>
-          ) : null}
-          <YStack>
-            <PageHeader
-              homeId={homeId}
-              breadcrumbs={props.breadcrumbs}
-              docMetadata={document.metadata}
-              docId={id}
-              authors={document.authors.map(
-                (author) => accountsMetadata[author]
-              )}
-              updateTime={document.updateTime}
-            />
-            <WebDocContentProvider
-              homeId={homeId}
-              id={id}
-              siteHost={siteHost}
-              supportDocuments={supportDocuments}
-              supportQueries={supportQueries}
-            >
-              <DocContent document={document} />
-            </WebDocContentProvider>
-            <DocumentAppendix
-              id={id}
-              document={document}
-              homeId={homeId}
-              siteHost={siteHost}
-            />
           </YStack>
-        </YStack>
-        <PageFooter id={id} />
+          <PageFooter id={id} />
+        </WebSiteHeader>
       </YStack>
     </WebSiteProvider>
   );
@@ -306,7 +271,12 @@ function DocumentCover({
   if (!cover) return null;
 
   return (
-    <XStack bg={coverBg} height="25vh" width="100%" position="relative">
+    <XStack
+      backgroundColor={coverBg}
+      height="25vh"
+      width="100%"
+      position="relative"
+    >
       <img
         src={imageUrl(cover, "XL")}
         style={{
@@ -590,9 +560,11 @@ function CommentReplies({
   const renderCommentContent = useCallback(
     (comment: HMComment) => {
       return (
-        <WebDocContentProvider homeId={homeId} id={docId} siteHost={siteHost}>
-          <BlocksContent blocks={comment.content} parentBlockId={null} />
-        </WebDocContentProvider>
+        homeId && (
+          <WebDocContentProvider homeId={homeId} id={docId} siteHost={siteHost}>
+            <BlocksContent blocks={comment.content} parentBlockId={null} />
+          </WebDocContentProvider>
+        )
       );
     },
     [homeId]

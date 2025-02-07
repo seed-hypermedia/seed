@@ -23,7 +23,7 @@ import {HMIcon} from "./hm-icon";
 import {SmallCollapsableListItem, SmallListItem} from "./list-item";
 import {Popover} from "./TamaguiPopover";
 
-function DocumentSmallListItem({
+export function DocumentSmallListItem({
   metadata,
   id,
   indented,
@@ -159,64 +159,55 @@ export function getSiteNavDirectory({
   return directoryItems;
 }
 
-export function SiteNavigationContent({
-  homeId,
-  supportQueries,
-  onPress,
-}: {
-  homeId: UnpackedHypermediaId;
-  supportQueries?: HMQueryResult[];
-  onPress?: () => void;
-}) {
-  const directoryItems = getSiteNavDirectory({
-    id: homeId,
-    supportQueries,
-    drafts: undefined,
-  });
-  return (
-    <YStack gap="$2.5" paddingLeft="$4" marginBottom="$4">
-      {directoryItems
-        ? directoryItems.map((doc) => (
-            <DocumentSmallListItem
-              key={doc.id.path?.join("/") || doc.id.id}
-              metadata={doc.metadata}
-              id={doc.id}
-              onPress={onPress}
-              indented={0}
-              isDraft={doc.isDraft}
-              isPublished={doc.isPublished}
-            />
-          ))
-        : null}
-    </YStack>
-  );
-}
+// export function SiteNavigationContent({
+//   homeId,
+//   supportQueries,
+//   onPress,
+// }: {
+//   homeId: UnpackedHypermediaId;
+//   supportQueries?: HMQueryResult[];
+//   onPress?: () => void;
+// }) {
+//   const directoryItems = getSiteNavDirectory({
+//     id: homeId,
+//     supportQueries,
+//     drafts: undefined,
+//   });
+//   return (
+//     <YStack gap="$2.5" paddingLeft="$4" marginBottom="$4">
+//       {directoryItems
+//         ? directoryItems.map((doc) => (
+//             <DocumentSmallListItem
+//               key={doc.id.path?.join("/") || doc.id.id}
+//               metadata={doc.metadata}
+//               id={doc.id}
+//               onPress={onPress}
+//               indented={0}
+//               isDraft={doc.isDraft}
+//               isPublished={doc.isPublished}
+//             />
+//           ))
+//         : null}
+//     </YStack>
+//   );
+// }
 
-export function DocNavigationContent({
-  documentMetadata,
-  supportDocuments,
+export function DocDirectory({
   supportQueries,
   id,
   createDirItem,
   onPress,
-  outline,
   drafts,
 }: {
-  documentMetadata: HMMetadata;
-  supportDocuments?: HMEntityContent[];
   supportQueries?: HMQueryResult[];
   id: UnpackedHypermediaId;
   createDirItem?: ((opts: {indented: number}) => ReactNode) | null;
   onPress?: () => void;
-  outline?: (opts: {indented: number}) => ReactNode;
   drafts?: HMListedDraft[];
 }) {
   const directoryItems = getSiteNavDirectory({id, supportQueries, drafts});
   return (
-    <YStack gap="$2.5" paddingLeft="$4">
-      {/* <Separator marginVertical="$2" /> */}
-      <YStack gap="$1.5">{outline?.({indented: 0})}</YStack>
-      {/* <Separator marginVertical="$2" /> */}
+    <YStack gap="$2.5">
       {directoryItems
         ? directoryItems.map((doc) => (
             <DocumentSmallListItem

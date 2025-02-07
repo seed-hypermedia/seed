@@ -1,34 +1,35 @@
+import {grpcClient} from '@/grpc-client'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {
   Entity,
   HYPERMEDIA_ENTITY_TYPES,
-  queryKeys,
+  SearchPayload,
+  setSearchQuery,
   unpackHmId,
 } from '@shm/shared'
-import {UseQueryOptions, useQuery} from '@tanstack/react-query'
 import {useCallback, useMemo, useState} from 'react'
 import {useGRPCClient} from '../app-context'
 import {useRecents} from './recents'
 
-export function useSearch(
-  query: string | undefined,
-  opts: UseQueryOptions<Entity[]>,
-) {
-  const grpcClient = useGRPCClient()
-  return useQuery({
-    ...opts,
-    queryKey: [queryKeys.SEARCH, query],
-    keepPreviousData: true,
-    enabled: query !== undefined,
-    queryFn: async () => {
-      const result = await grpcClient.entities.searchEntities({
-        query,
+export async function querySearch(searchQuery: string): Promise<SearchPayload> {
+  const result = await grpcClient.entities.searchEntities({query: searchQuery})
+  return {
+    searchQuery,
+    entities: result.entities
+      .map((entity) => {
+        const id = unpackHmId(entity.id)
+        return (
+          id && {
+            id,
+            title: entity.title,
+          }
+        )
       })
-      const entities = result.entities.map(toPlainMessage)
-      return entities
-    },
-  })
+      .filter((result) => !!result),
+  }
 }
+
+setSearchQuery(querySearch)
 
 export function useInlineMentions() {
   const recents = useRecents()

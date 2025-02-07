@@ -4,10 +4,8 @@ import {WindowUtils} from '@/models/window-utils'
 import {NavigationContainer} from '@/utils/navigation-container'
 import {useListenAppEvent} from '@/utils/window-events'
 import type {Interceptor} from '@connectrpc/connect'
-import {createGrpcWebTransport} from '@connectrpc/connect-web'
 import {
   DAEMON_FILE_URL,
-  DAEMON_HTTP_URL,
   labelOfQueryKey,
   onQueryCacheError,
   onQueryInvalidation,
@@ -35,6 +33,11 @@ import Main from './pages/main'
 import type {AppInfoType} from './preload'
 import './root.css'
 import {client, trpc} from './trpc'
+
+import * as search from './models/search'
+
+// reference this to ensure dependency injection happens before search is used
+search
 
 const logger = {
   log: wrapLogger(console.log),
@@ -98,11 +101,6 @@ const loggingInterceptor: Interceptor = (next) => async (req) => {
     throw error
   }
 }
-
-const transport = createGrpcWebTransport({
-  baseUrl: DAEMON_HTTP_URL,
-  interceptors: [loggingInterceptor],
-})
 
 function useWindowUtils(ipc: AppIPC): WindowUtils {
   // const win = getCurrent()

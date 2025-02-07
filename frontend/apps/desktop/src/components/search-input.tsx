@@ -3,7 +3,6 @@ import appError from '@/errors'
 import {useConnectPeer} from '@/models/contacts'
 import {useGatewayHost_DEPRECATED} from '@/models/gateway-settings'
 import {useRecents} from '@/models/recents'
-import {useSearch} from '@/models/search'
 import {loadWebLinkMeta} from '@/models/web-links'
 import {trpc} from '@/trpc'
 import {
@@ -22,6 +21,7 @@ import {
   parseCustomURL,
   parseFragment,
   unpackHmId,
+  useSearch,
 } from '@shm/shared'
 import {
   SearchInput as SearchInputUI,
@@ -106,16 +106,15 @@ export function SearchInput({
   }, [search])
 
   const searchItems: SearchResult[] =
-    searchResults?.data
+    searchResults?.data?.entities
       ?.map((item) => {
-        const id = unpackHmId(item.id)
-        if (!id) return null
         return {
-          title: item.title || item.id,
+          title: item.title || item.id.uid,
+          key: item.id.uid,
           onFocus: () => {},
           onMouseEnter: () => {},
-          onSelect: () => onSelect({id}),
-          subtitle: HYPERMEDIA_ENTITY_TYPES[id.type],
+          onSelect: () => onSelect({id: item.id}),
+          subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
         }
       })
       .filter(Boolean) ?? []

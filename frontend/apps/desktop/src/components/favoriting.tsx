@@ -18,7 +18,7 @@ function RemoveFavoriteButton({
         icon={hover ? Star : StarFull}
         onPress={onPress}
         color={hover ? undefined : '$yellow10'}
-        // theme={hover ? 'red' : undefined}
+        className="no-window-drag"
         chromeless
         backgroundColor="$colorTransparent"
       />
@@ -49,6 +49,12 @@ export function FavoriteButton({
       <Button
         icon={Star}
         size="$2"
+        className="no-window-drag"
+        backgroundColor="$colorTransparent"
+        chromeless
+        hoverStyle={{
+          backgroundColor: '$color3',
+        }}
         opacity={hideUntilItemHover ? 0 : 1}
         $group-item-hover={{opacity: 1}}
         onPress={(e: MouseEvent) => {

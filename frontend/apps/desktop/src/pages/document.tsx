@@ -31,8 +31,10 @@ import {useNavigate} from '@/utils/useNavigate'
 import {
   DocAccessoryOption,
   getDocumentTitle,
+  HMDocument,
   HMEntityContent,
   hmId,
+  HMQueryResult,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import '@shm/shared/src/styles/document.css'
@@ -49,9 +51,9 @@ import {
   HistoryIcon,
   HMIcon,
   MoreHorizontal,
-  NewsSiteHeader,
   RefreshCw,
   SeedHeading,
+  SiteHeader,
   SizableText,
   Spinner,
   Separator as TSeparator,
@@ -59,7 +61,7 @@ import {
   YStack,
 } from '@shm/ui'
 import {useImageUrl} from '@shm/ui/src/get-file-url'
-import React, {ReactNode, useEffect, useMemo} from 'react'
+import React, {ReactNode, useEffect, useMemo, useRef} from 'react'
 import {EntityCitationsAccessory} from '../components/citations'
 import {AppDocContentProvider} from './document-content-provider'
 
@@ -149,11 +151,13 @@ export default function DocumentPage() {
   //     icon: Contact,
   //   })
   // }
+  const mainPanelRef = useRef<HTMLDivElement>(null)
   return (
     <>
       <XStack flex={1} height="100%">
         <SidebarSpacer />
         <AccessoryLayout
+          mainPanelRef={mainPanelRef}
           accessory={accessory}
           accessoryKey={accessoryKey}
           onAccessorySelect={(key: typeof accessoryKey) => {
@@ -166,6 +170,12 @@ export default function DocumentPage() {
           <MainDocumentPage
             id={route.id}
             isBlockFocused={route.isBlockFocused || false}
+            onScrollParamSet={(isFrozen) => {
+              mainPanelRef.current?.style.setProperty(
+                'overflow',
+                isFrozen ? 'hidden' : 'auto',
+              )
+            }}
           />
         </AccessoryLayout>
       </XStack>
@@ -188,9 +198,11 @@ function NewspaperDocContainer({children}: {children: ReactNode}) {
 function _MainDocumentPage({
   id,
   isBlockFocused,
+  onScrollParamSet,
 }: {
   id: UnpackedHypermediaId
   isBlockFocused: boolean
+  onScrollParamSet: (isFrozen: boolean) => void
 }) {
   const discovery = useDiscoverEntity(id)
   useEffect(() => {
@@ -203,8 +215,6 @@ function _MainDocumentPage({
     })
   }, [])
   const entity = useSubscribedEntity(id, true) // true for recursive subscription. this component may not require children, but the directory will also be recursively subscribing, and we want to avoid an extra subscription
-
-  console.log(`== ~ entity:`, entity)
 
   const siteHomeEntity = useSubscribedEntity(
     // if the route document ID matches the home document, then use it because it may be referring to a specific version
@@ -219,93 +229,110 @@ function _MainDocumentPage({
 
   const docIsNewspaperLayout =
     entity.data?.document?.metadata.layout === 'Seed/Experimental/Newspaper'
-  const siteIsNewspaperLayout =
-    siteHomeEntity.data?.document?.metadata.layout ===
-    'Seed/Experimental/Newspaper'
 
   const DocContainer = docIsNewspaperLayout
     ? NewspaperDocContainer
     : BaseDocContainer
   return (
     <YStack>
-      {siteIsNewspaperLayout ? (
-        <AppNewspaperHeader
-          siteHomeEntity={siteHomeEntity.data}
-          activeId={id}
-        />
-      ) : null}
-      {!docIsNewspaperLayout && <DocumentCover docId={id} />}
-
-      <YStack
-        className={
-          !docIsNewspaperLayout
-            ? `document-container${
-                typeof entity.data?.document?.metadata.showOutline ==
-                  'undefined' || entity.data?.document?.metadata.showOutline
-                  ? ' document-container'
-                  : ' hide-outline'
-              }`
-            : ''
-        }
+      <AppDocSiteHeader
+        siteHomeEntity={siteHomeEntity.data}
+        docId={id}
+        document={entity.data?.document}
+        supportDocuments={[]} // todo: handle embeds for outline!!
+        onScrollParamSet={onScrollParamSet}
       >
-        {(!docIsNewspaperLayout &&
-          typeof entity.data?.document?.metadata.showOutline == 'undefined') ||
-        entity.data?.document?.metadata.showOutline ? (
-          <YStack
-            marginTop={150}
-            $gtSm={{marginTop: 164}}
-            className="is-desktop document-aside"
-          >
-            <YStack
-              className="hide-scrollbar"
-              display="none"
-              $gtSm={{display: 'flex'}}
-              overflow="scroll"
-              height="100%"
-              // paddingVertical="$4"
-            >
-              <SiteNavigation />
-            </YStack>
-          </YStack>
-        ) : null}
+        {!docIsNewspaperLayout && <DocumentCover docId={id} />}
 
-        <DocContainer>
-          <DocPageHeader docId={id} isBlockFocused={isBlockFocused} />
-          <YStack flex={1} paddingLeft="$4" $gtSm={{paddingLeft: 0}}>
-            <DocPageContent
-              blockRef={id.blockRef}
-              entity={entity.data}
-              isBlockFocused={isBlockFocused}
+        <YStack
+          className={
+            !docIsNewspaperLayout
+              ? `document-container${
+                  typeof entity.data?.document?.metadata.showOutline ==
+                    'undefined' || entity.data?.document?.metadata.showOutline
+                    ? ' document-container'
+                    : ' hide-outline'
+                }`
+              : ''
+          }
+        >
+          {(!docIsNewspaperLayout &&
+            typeof entity.data?.document?.metadata.showOutline ==
+              'undefined') ||
+          entity.data?.document?.metadata.showOutline ? (
+            <YStack
+              marginTop={150}
+              $gtSm={{marginTop: 164}}
+              className="is-desktop document-aside"
+            >
+              <YStack
+                className="hide-scrollbar"
+                display="none"
+                $gtSm={{display: 'flex'}}
+                overflow="scroll"
+                height="100%"
+                // paddingVertical="$4"
+              >
+                <SiteNavigation />
+              </YStack>
+            </YStack>
+          ) : null}
+
+          <DocContainer>
+            <DocPageHeader docId={id} />
+            <YStack flex={1} paddingLeft="$4" $gtSm={{paddingLeft: 0}}>
+              <DocPageContent
+                blockRef={id.blockRef}
+                entity={entity.data}
+                isBlockFocused={isBlockFocused}
+              />
+            </YStack>
+            <DocPageAppendix
+              centered={
+                entity.data.document.metadata.layout ==
+                'Seed/Experimental/Newspaper'
+              }
+              docId={id}
             />
-          </YStack>
-          <DocPageAppendix
-            centered={
-              entity.data.document.metadata.layout ==
-              'Seed/Experimental/Newspaper'
-            }
-            docId={id}
-          />
-        </DocContainer>
-      </YStack>
+          </DocContainer>
+        </YStack>
+      </AppDocSiteHeader>
     </YStack>
   )
 }
 const MainDocumentPage = React.memo(_MainDocumentPage)
 
-function AppNewspaperHeader({
+function AppDocSiteHeader({
   siteHomeEntity,
-  activeId,
+  docId,
+  children,
+  document,
+  supportDocuments,
+  onScrollParamSet,
 }: {
   siteHomeEntity: HMEntityContent | undefined | null
-  activeId: UnpackedHypermediaId
+  docId: UnpackedHypermediaId
+  children?: React.ReactNode
+  document?: HMDocument
+  supportDocuments?: HMEntityContent[]
+  onScrollParamSet: (isFrozen: boolean) => void
 }) {
   const dir = useListDirectory(siteHomeEntity?.id)
-
   const capability = useMyCapability(siteHomeEntity?.id)
   const canEditDoc = roleCanWrite(capability?.role)
-  const drafts = useAccountDraftList(activeId.uid)
-
+  const drafts = useAccountDraftList(docId.uid)
+  const docDir = useListDirectory(docId, {mode: 'Children'})
+  const replace = useNavigate('replace')
+  const route = useNavRoute()
+  const supportQueries = useMemo(() => {
+    const q: HMQueryResult[] = []
+    if (docDir.data) {
+      q.push({in: docId, results: docDir.data})
+    }
+    return q
+  }, [docId, docDir.data])
   if (!siteHomeEntity) return null
+  if (route.key !== 'document') return null
   const navItems = getSiteNavDirectory({
     id: siteHomeEntity.id,
     supportQueries: dir.data
@@ -314,25 +341,30 @@ function AppNewspaperHeader({
     drafts: drafts.data,
   })
   return (
-    <NewsSiteHeader
+    <SiteHeader
       homeId={siteHomeEntity.id}
       homeMetadata={siteHomeEntity.document?.metadata || null}
       items={navItems}
-      docId={activeId}
-      rightContent={
-        activeId.id === siteHomeEntity.id.id && siteHomeEntity.document ? (
-          <DocumentHeadItems
-            docId={siteHomeEntity.id}
-            isBlockFocused={false}
-            document={siteHomeEntity.document}
-          />
-        ) : null
+      docId={docId}
+      isCenterLayout={
+        siteHomeEntity.document?.metadata.layout ===
+        'Seed/Experimental/Newspaper'
       }
+      document={document}
+      onBlockFocus={(blockId) => {
+        replace({...route, id: {...route.id, blockRef: blockId}})
+      }}
+      supportDocuments={supportDocuments}
       afterLinksContent={
         canEditDoc ? (
           <NewSubDocumentButton parentDocId={siteHomeEntity.id} />
         ) : null
       }
+      supportQueries={supportQueries}
+      children={children}
+      onShowMobileMenu={(isShown) => {
+        onScrollParamSet(isShown)
+      }}
     />
   )
 }
@@ -356,13 +388,7 @@ function NewSubDocumentButton({
   )
 }
 
-function DocPageHeader({
-  docId,
-  isBlockFocused,
-}: {
-  docId: UnpackedHypermediaId
-  isBlockFocused: boolean
-}) {
+function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
   const entity = useEntity(docId)
   const hasCover = useMemo(
     () => !!entity.data?.document?.metadata.cover,
@@ -458,7 +484,6 @@ function DocPageHeader({
                 <DocumentHeadItems
                   document={entity.data.document}
                   docId={docId}
-                  isBlockFocused={isBlockFocused}
                 />
               )}
             </XStack>

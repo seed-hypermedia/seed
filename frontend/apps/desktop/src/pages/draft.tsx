@@ -16,7 +16,7 @@ import {
   useListDirectory,
 } from '@/models/documents'
 import {draftMachine} from '@/models/draft-machine'
-import {useSubscribedEntity} from '@/models/entities'
+import {useEntity, useSubscribedEntity} from '@/models/entities'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {trpc} from '@/trpc'
 import {
@@ -46,9 +46,9 @@ import {
   copyUrlToClipboardWithFeedback,
   getSiteNavDirectory,
   Input,
-  NewsSiteHeader,
   Options,
   Separator,
+  SiteHeader,
   SizableText,
   useDocContentContext,
   useHeadingTextStyles,
@@ -62,7 +62,6 @@ import {useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {GestureResponderEvent} from 'react-native'
 // import 'show-keys'
-import {DocumentHeadItems} from '@/components/document-head-items'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {EmbedToolbarProvider} from '@/editor/embed-toolbar-context'
 import {Spinner, YStack} from '@shm/ui'
@@ -124,8 +123,7 @@ export default function DraftPage() {
     icon: Options,
   })
 
-  const siteIsNewspaperLayout =
-    draft.data?.metadata?.layout === 'Seed/Experimental/Newspaper'
+  const homeEntity = useEntity(hmId('d', route.id.uid))
 
   let draftContent = null
 
@@ -176,28 +174,26 @@ export default function DraftPage() {
             </Button>
           </XStack>
         ) : null}
-        {siteIsNewspaperLayout ? (
-          <AppNewspaperHeader
-            siteHomeEntity={data.state.context.entity}
-            activeId={route.id}
-          />
-        ) : null}
-        {draftContent}
+        <DraftAppHeader siteHomeEntity={homeEntity.data} docId={route.id}>
+          {draftContent}
+        </DraftAppHeader>
       </AccessoryLayout>
     </ErrorBoundary>
   )
 }
 
-function AppNewspaperHeader({
+function DraftAppHeader({
   siteHomeEntity,
-  activeId,
+  docId,
+  children,
 }: {
   siteHomeEntity: HMEntityContent | undefined | null
-  activeId: UnpackedHypermediaId
+  docId: UnpackedHypermediaId
+  children?: React.ReactNode
 }) {
   const dir = useListDirectory(siteHomeEntity?.id)
-  const drafts = useAccountDraftList(activeId.uid)
-
+  const drafts = useAccountDraftList(docId.uid)
+  console.log('siteHomeEntity', siteHomeEntity)
   if (!siteHomeEntity) return null
   const navItems = getSiteNavDirectory({
     id: siteHomeEntity.id,
@@ -206,27 +202,21 @@ function AppNewspaperHeader({
       : [],
     drafts: drafts.data,
   })
-
+  // const draft = useDraft(docId)
   return (
-    <NewsSiteHeader
+    <SiteHeader
       homeId={siteHomeEntity.id}
       homeMetadata={siteHomeEntity.document?.metadata || null}
       items={navItems}
-      docId={activeId}
-      rightContent={
-        activeId.id === siteHomeEntity.id.id && siteHomeEntity.document ? (
-          <DocumentHeadItems
-            docId={siteHomeEntity.id}
-            isBlockFocused={false}
-            document={siteHomeEntity.document}
-          />
-        ) : null
+      docId={docId}
+      isCenterLayout={
+        siteHomeEntity.document?.metadata.layout ===
+        'Seed/Experimental/Newspaper'
       }
-      // afterLinksContent={
-      //   canEditDoc ? (
-      //     <NewSubDocumentButton parentDocId={siteHomeEntity.id} />
-      //   ) : null
-      // }
+      // document={draft} // we have an issue with outline: the header expects the draft to be in HMDocument format, but the draft is editor
+      children={children}
+      supportQueries={[]}
+      supportDocuments={[]}
     />
   )
 }

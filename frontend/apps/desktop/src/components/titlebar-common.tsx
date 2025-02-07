@@ -53,9 +53,9 @@ import {ReactNode, useContext} from 'react'
 import {AddConnectionDialog} from './contacts-prompt'
 import {useAppDialog} from './dialog'
 import DiscardDraftButton from './discard-draft-button'
-import {FavoriteButton} from './favoriting'
 import PublishDraftButton from './publish-draft-button'
 import {usePublishSite, useRemoveSiteDialog} from './publish-site'
+import {SubscriptionButton} from './subscription'
 import {TitleBarProps} from './titlebar'
 
 export function DocOptionsButton() {
@@ -290,8 +290,8 @@ function DocumentTitlebarButtons({route}: {route: DocumentRoute}) {
     latestDoc.data?.id?.version == route.id.version
   return (
     <TitlebarSection>
+      <SubscriptionButton id={route.id} />
       {isLatest ? null : <GoToLatestVersionButton route={route} />}
-      <FavoriteButton id={route.id} />
       {isLatest ? <EditDocButton key="editDoc" /> : null}
       <DocOptionsButton key="options" />
     </TitlebarSection>

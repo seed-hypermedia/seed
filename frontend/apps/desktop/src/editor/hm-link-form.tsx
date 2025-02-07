@@ -1,6 +1,5 @@
 import {useRecents} from '@/models/recents'
-import {useSearch} from '@/models/search'
-import {HYPERMEDIA_ENTITY_TYPES, unpackHmId} from '@shm/shared'
+import {HYPERMEDIA_ENTITY_TYPES, unpackHmId, useSearch} from '@shm/shared'
 import {
   Input,
   Link as LinkIcon,
@@ -153,19 +152,18 @@ const SearchInput = ({
   const searchResults = useSearch(search, {})
 
   const searchItems: SwitcherItem[] =
-    searchResults.data
+    searchResults.data?.entities
       ?.map((item) => {
-        const id = unpackHmId(item.id)
-        if (!id) return null
         return {
-          title: item.title || item.id,
+          title: item.title || item.id.uid,
+          key: item.id.uid,
           onSelect: () => {
             // assign({props: {url: id.id}} as ButtonType)
-            setLink(id.id)
-            setSearch(id.id)
-            updateLink(id.id, title ? item.title : '')
+            setLink(item.id.id)
+            setSearch(item.id.id)
+            updateLink(item.id.id, title ? item.title : '')
           },
-          subtitle: HYPERMEDIA_ENTITY_TYPES[id.type],
+          subtitle: HYPERMEDIA_ENTITY_TYPES[item.id.type],
         }
       })
       .filter(Boolean) || []
