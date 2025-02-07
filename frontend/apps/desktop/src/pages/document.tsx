@@ -29,6 +29,7 @@ import {useOpenUrl} from '@/open-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {
+  BlockRange,
   DocAccessoryOption,
   getDocumentTitle,
   HMDocument,
@@ -285,6 +286,7 @@ function _MainDocumentPage({
             <YStack flex={1} paddingLeft="$4" $gtSm={{paddingLeft: 0}}>
               <DocPageContent
                 blockRef={id.blockRef}
+                blockRange={id.blockRange}
                 entity={entity.data}
                 isBlockFocused={isBlockFocused}
               />
@@ -640,11 +642,13 @@ function DocPageContent({
   entity,
   isBlockFocused,
   blockRef,
+  blockRange,
 }: {
   entity: HMEntityContent
   blockId?: string
   isBlockFocused: boolean
-  blockRef?: string | null | undefined
+  blockRef?: string | null
+  blockRange?: BlockRange | null
 }) {
   const replace = useNavigate('replace')
   const route = useNavRoute()
@@ -660,7 +664,10 @@ function DocPageContent({
   }
   return (
     <AppDocContentProvider
-      routeParams={{blockRef: blockRef || undefined}}
+      routeParams={{
+        blockRef: blockRef || undefined,
+        blockRange: blockRange || undefined,
+      }}
       docId={entity.id}
       isBlockFocused={isBlockFocused}
     >
