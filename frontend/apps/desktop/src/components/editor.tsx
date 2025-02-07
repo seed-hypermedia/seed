@@ -11,17 +11,17 @@ import {
 import '@shm/editor/blocknote/core/style.css'
 import '@shm/editor/editor.css'
 // import {HypermediaLinkToolbar} from '@/editor/hyperlink-toolbar'
-import {HyperDocsEditor} from '@/models/documents'
-import {useOpenUrl} from '@/open-url'
+import type {HyperMediaEditor} from '@shm/editor/types'
 
 export function HyperMediaEditorView({
   editor,
   comment,
+  openUrl,
 }: {
-  editor: HyperDocsEditor
+  editor: HyperMediaEditor
   comment: boolean
+  openUrl: (url: string, newWindow?: boolean) => void
 }) {
-  const openUrl = useOpenUrl()
   return (
     <BlockNoteView editor={editor}>
       <FormattingToolbarPositioner

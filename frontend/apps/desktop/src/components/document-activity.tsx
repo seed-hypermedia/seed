@@ -14,7 +14,7 @@ import {
   normalizeDate,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import { getActivityTime } from '@shm/shared/src/models/activity'
+import { getActivityTime } from '@shm/shared/models/activity'
 import {
   ActivitySection,
   Button,

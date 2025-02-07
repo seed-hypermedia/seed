@@ -6,6 +6,7 @@ import {
 } from '@/models/comments'
 import {useMyAccounts} from '@/models/daemon'
 import {useSubscribedEntities} from '@/models/entities'
+import {useOpenUrl} from '@/open-url'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {
   getDocumentTitle,
@@ -237,6 +238,7 @@ function _CommentDraftEditor({
       replyCommentId,
       initCommentDraft,
     })
+  const openUrl = useOpenUrl()
   useEffect(() => {
     if (autoFocus) editor._tiptapEditor.commands.focus()
   }, [autoFocus, editor])
@@ -254,7 +256,7 @@ function _CommentDraftEditor({
     >
       <AppDocContentProvider disableEmbedClick>
         <EmbedToolbarProvider>
-          <HyperMediaEditorView editor={editor} comment />
+          <HyperMediaEditorView editor={editor} openUrl={openUrl} comment />
         </EmbedToolbarProvider>
       </AppDocContentProvider>
       <XStack

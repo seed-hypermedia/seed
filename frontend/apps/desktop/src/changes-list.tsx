@@ -1,9 +1,9 @@
-import {AccessoryContainer} from '@/components/accessory-sidebar'
-import {TimelineChange, useDocHistory} from '@/models/changes'
-import {useGatewayUrl} from '@/models/gateway-settings'
-import {useOpenUrl} from '@/open-url'
-import {useNavRoute} from '@/utils/navigation'
-import {useNavigate} from '@/utils/useNavigate'
+import { AccessoryContainer } from '@/components/accessory-sidebar'
+import { TimelineChange, useDocHistory } from '@/models/changes'
+import { useGatewayUrl } from '@/models/gateway-settings'
+import { useOpenUrl } from '@/open-url'
+import { useNavRoute } from '@/utils/navigation'
+import { useNavigate } from '@/utils/useNavigate'
 import {
   Change,
   createWebHMUrl,
@@ -14,7 +14,7 @@ import {
   packHmId,
   unpackHmId,
 } from '@shm/shared'
-import {hmId, UnpackedHypermediaId} from '@shm/shared/src/utils/entity-id-url'
+import { hmId, UnpackedHypermediaId } from '@shm/shared/utils/entity-id-url'
 import {
   ArrowUpRight,
   ButtonText,
@@ -27,8 +27,8 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {EntityLinkIcon} from './components/account-link-icon'
-import {useEntities} from './models/entities'
+import { EntityLinkIcon } from './components/account-link-icon'
+import { useEntities } from './models/entities'
 
 export function EntityVersionsAccessory({
   id,

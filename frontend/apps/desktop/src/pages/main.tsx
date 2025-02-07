@@ -24,7 +24,6 @@ var Document = lazy(() => import('./document'))
 var Draft = lazy(() => import('./draft'))
 var Library = lazy(() => import('./library'))
 var DeletedContent = lazy(() => import('./deleted-content'))
-var DraftRebase = lazy(() => import('./draft-rebase'))
 
 export default function Main({className}: {className?: string}) {
   const navR = useNavRoute()

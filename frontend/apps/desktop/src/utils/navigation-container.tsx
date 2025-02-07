@@ -1,9 +1,7 @@
 import {client} from '@/trpc'
-import {
-  defaultRoute,
-  UniversalRoutingProvider,
-  writeableStateStream,
-} from '@shm/shared'
+import {defaultRoute} from '@shm/shared/routes'
+import {UniversalRoutingProvider} from '@shm/shared/routing'
+import {writeableStateStream} from '@shm/shared/utils/stream'
 import {ReactNode, useEffect, useMemo} from 'react'
 import {useIPC} from '../app-context'
 import {

@@ -61,7 +61,9 @@ export default defineConfig(({command, mode}) => {
     plugins:
       command == 'build'
         ? [
-            tsConfigPaths(),
+            tsConfigPaths({
+              root: '../../',
+            }),
             sentryVitePlugin({
               authToken: process.env.SENTRY_AUTH_TOKEN,
               org: 'mintter',
@@ -71,7 +73,9 @@ export default defineConfig(({command, mode}) => {
             _tamaguiPlugin,
           ]
         : [
-            tsConfigPaths(),
+            tsConfigPaths({
+              root: '../../',
+            }),
             _tamaguiPlugin,
             // {
             //   name: 'log-files',

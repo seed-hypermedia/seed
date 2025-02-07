@@ -1,9 +1,9 @@
-import {GRPCClient, NavRoute, StateStream, defaultRoute} from '@shm/shared'
-import {UnpackedHypermediaId} from '@shm/shared/src/utils/entity-id-url'
-import {useStream, useStreamSelector} from '@shm/ui'
-import {Buffer} from 'buffer'
-import {createContext, useContext} from 'react'
-import {useGRPCClient} from '../app-context'
+import { GRPCClient, NavRoute, StateStream, defaultRoute } from '@shm/shared'
+import { UnpackedHypermediaId } from '@shm/shared/utils/entity-id-url'
+import { useStream, useStreamSelector } from '@shm/ui'
+import { Buffer } from 'buffer'
+import { createContext, useContext } from 'react'
+import { useGRPCClient } from '../app-context'
 
 global.Buffer = global.Buffer || Buffer
 

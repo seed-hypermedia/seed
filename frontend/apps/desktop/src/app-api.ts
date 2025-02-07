@@ -1,13 +1,13 @@
 import {resolveHmIdToAppRoute} from '@/utils/navigation'
 import type {AppWindowEvent} from '@/utils/window-events'
-import {NavRoute, defaultRoute, navRouteSchema, unpackHmId} from '@shm/shared'
-import {DAEMON_HTTP_URL} from '@shm/shared/src/constants'
+
+import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 
 import {
   BrowserWindow,
-  NativeImage,
   dialog,
   ipcMain,
+  NativeImage,
   nativeTheme,
 } from 'electron'
 import {createIPCHandler} from 'electron-trpc/main'
@@ -27,6 +27,8 @@ import {userDataPath} from './app-paths'
 import {recentSignersApi} from './app-recent-signers'
 import {recentsApi} from './app-recents'
 
+import {defaultRoute, NavRoute, navRouteSchema} from '@shm/shared/routes'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {secureStorageApi} from './app-secure-storage'
 import {appSettingsApi} from './app-settings'
 import {sitesApi} from './app-sites'

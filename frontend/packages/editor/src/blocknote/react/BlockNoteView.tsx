@@ -2,7 +2,6 @@ import {BlockNoteEditor, BlockSchema, mergeCSSClasses} from "@/blocknote/core";
 import {MantineProvider, createStyles} from "@mantine/core";
 import {EditorContent} from "@tiptap/react";
 import {HTMLAttributes, ReactNode, useMemo} from "react";
-import {usePrefersColorScheme} from "use-prefers-color-scheme";
 import {Theme, blockNoteToMantineTheme} from "./BlockNoteTheme";
 import {darkDefaultTheme, lightDefaultTheme} from "./defaultThemes";
 import {FormattingToolbarPositioner} from "./FormattingToolbar/components/FormattingToolbarPositioner";
@@ -60,7 +59,7 @@ export function BlockNoteView<BSchema extends BlockSchema>(
   const {theme = {light: lightDefaultTheme, dark: darkDefaultTheme}, ...rest} =
     props;
 
-  const preferredTheme = usePrefersColorScheme();
+  const preferredTheme = "light";
 
   const mantineTheme = useMemo(() => {
     if (theme === "light") {

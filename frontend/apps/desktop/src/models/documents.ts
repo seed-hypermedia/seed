@@ -1,14 +1,14 @@
-import {useAppContext, useGRPCClient} from '@/app-context'
-import {dispatchWizardEvent} from '@/components/create-account'
-import {createHypermediaDocLinkPlugin} from '@/editor'
-import {grpcClient} from '@/grpc-client'
-import {useDraft} from '@/models/accounts'
-import {useOpenUrl} from '@/open-url'
-import {slashMenuItems} from '@/slash-menu-items'
-import {trpc} from '@/trpc'
-import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
-import {ConnectError} from '@connectrpc/connect'
-import {BlockNoteEditor, useBlockNote} from '@shm/editor/blocknote'
+import { useAppContext, useGRPCClient } from '@/app-context'
+import { dispatchWizardEvent } from '@/components/create-account'
+import { createHypermediaDocLinkPlugin } from '@/editor'
+import { grpcClient } from '@/grpc-client'
+import { useDraft } from '@/models/accounts'
+import { useOpenUrl } from '@/open-url'
+import { slashMenuItems } from '@/slash-menu-items'
+import { trpc } from '@/trpc'
+import { Timestamp, toPlainMessage } from '@bufbuild/protobuf'
+import { ConnectError } from '@connectrpc/connect'
+import { BlockNoteEditor, useBlockNote } from '@shm/editor/blocknote'
 import {
   BIG_INT,
   Block,
@@ -40,9 +40,9 @@ import {
   unpackHmId,
   writeableStateStream,
 } from '@shm/shared'
-import {getQueryResultsWithClient} from '@shm/shared/src/models/directory'
-import {toast} from '@shm/ui'
-import type {UseQueryResult} from '@tanstack/react-query'
+import { getQueryResultsWithClient } from '@shm/shared/models/directory'
+import { toast } from '@shm/ui'
+import type { UseQueryResult } from '@tanstack/react-query'
 import {
   UseInfiniteQueryOptions,
   UseMutationOptions,
@@ -50,25 +50,25 @@ import {
   useMutation,
   useQuery,
 } from '@tanstack/react-query'
-import {Extension, findParentNode} from '@tiptap/core'
-import {NodeSelection, Selection} from '@tiptap/pm/state'
-import {useMachine} from '@xstate/react'
+import { Extension, findParentNode } from '@tiptap/core'
+import { NodeSelection, Selection } from '@tiptap/pm/state'
+import { useMachine } from '@xstate/react'
 import _ from 'lodash'
-import {nanoid} from 'nanoid'
-import {useEffect, useMemo, useRef} from 'react'
-import {ContextFrom, OutputFrom, fromPromise} from 'xstate'
-import {hmBlockSchema} from '../editor'
-import {useNavRoute} from '../utils/navigation'
-import {pathNameify} from '../utils/path'
-import {useNavigate} from '../utils/useNavigate'
-import {useConnectPeer} from './contacts'
-import {useMyAccountIds} from './daemon'
-import {draftMachine} from './draft-machine'
-import {setGroupTypes} from './editor-utils'
-import {getParentPaths, useEntities, useEntity} from './entities'
-import {useGatewayUrlStream} from './gateway-settings'
-import {useInlineMentions} from './search'
-import {siteDiscover} from './web-links'
+import { nanoid } from 'nanoid'
+import { useEffect, useMemo, useRef } from 'react'
+import { ContextFrom, OutputFrom, fromPromise } from 'xstate'
+import { hmBlockSchema } from '../editor'
+import { useNavRoute } from '../utils/navigation'
+import { pathNameify } from '../utils/path'
+import { useNavigate } from '../utils/useNavigate'
+import { useConnectPeer } from './contacts'
+import { useMyAccountIds } from './daemon'
+import { draftMachine } from './draft-machine'
+import { setGroupTypes } from './editor-utils'
+import { getParentPaths, useEntities, useEntity } from './entities'
+import { useGatewayUrlStream } from './gateway-settings'
+import { useInlineMentions } from './search'
+import { siteDiscover } from './web-links'
 
 export const [draftDispatch, draftEvents] = eventStream<{
   type: 'CHANGE'
@@ -878,7 +878,7 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
   }
 }
 
-export type HyperDocsEditor = Exclude<
+export type HyperMediaEditor = Exclude<
   ReturnType<typeof useDraftEditor>['editor'],
   null
 >

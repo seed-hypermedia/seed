@@ -43,7 +43,9 @@ export default defineConfig(({command, mode}) => {
       },
     },
     plugins: [
-      tsConfigPaths(),
+      tsConfigPaths({
+        root: '../../',
+      }),
       react(),
       tamaguiPlugin({
         components: ['@shm/ui', 'tamagui'],

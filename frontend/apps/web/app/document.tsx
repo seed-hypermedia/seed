@@ -1,5 +1,6 @@
 import {MetaFunction} from "@remix-run/node";
 import {useLocation, useNavigate} from "@remix-run/react";
+import {CommentEditor} from "@shm/editor";
 import {
   BlockRange,
   createWebHMUrl,
@@ -23,7 +24,7 @@ import {
   getRandomColor,
   useImageUrl,
   useTheme,
-} from "@shm/ui/src";
+} from "@shm/ui";
 import {ChangeGroup, SubDocumentItem} from "@shm/ui/src/activity";
 import {Container} from "@shm/ui/src/container";
 import {CommentGroup} from "@shm/ui/src/discussion";
@@ -254,6 +255,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                 siteHost={siteHost}
                 enableWebSigning={enableWebSigning}
               />
+              <CommentEditor />
             </YStack>
           </YStack>
           <PageFooter id={id} />

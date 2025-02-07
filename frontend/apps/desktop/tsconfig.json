@@ -25,6 +25,7 @@
     "paths": {
       "@/*": ["./src/*"],
       "@shm/ui": ["../../packages/ui/src/index.tsx"],
+      "@shm/shared": ["../../packages/shared/src/index.ts"],
       "@shm/shared/*": ["../../packages/shared/src/*"],
       "@shm/editor/*": ["../../packages/editor/src/*"]
     }

@@ -11,14 +11,14 @@ import '@shm/editor/editor.css'
 import {HMFormattingToolbar} from './hm-formatting-toolbar'
 import {HypermediaLinkSwitchToolbar} from './hm-link-switch-toolbar'
 // import {HypermediaLinkToolbar} from '@/editor/hyperlink-toolbar'
-import {HyperDocsEditor} from '../models/documents'
+import {HyperMediaEditor} from '../models/documents'
 import {useOpenUrl} from '../open-url'
 
 export function DocumentEditorView({
   editor,
   comment,
 }: {
-  editor: HyperDocsEditor
+  editor: HyperMediaEditor
   comment: boolean
 }) {
   const openUrl = useOpenUrl()

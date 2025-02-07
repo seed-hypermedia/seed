@@ -1,11 +1,11 @@
-import {AccessoryContainer} from '@/components/accessory-sidebar'
-import {EntityLinkIcon} from '@/components/account-link-icon'
-import {useAccount_deprecated} from '@/models/accounts'
-import {useComment} from '@/models/comments'
-import {useEntityMentions} from '@/models/content-graph'
-import {useDocTextContent} from '@/models/documents'
-import {useEntity} from '@/models/entities'
-import {useNavigate} from '@/utils/useNavigate'
+import { AccessoryContainer } from '@/components/accessory-sidebar'
+import { EntityLinkIcon } from '@/components/account-link-icon'
+import { useAccount_deprecated } from '@/models/accounts'
+import { useComment } from '@/models/comments'
+import { useEntityMentions } from '@/models/content-graph'
+import { useDocTextContent } from '@/models/documents'
+import { useEntity } from '@/models/entities'
+import { useNavigate } from '@/utils/useNavigate'
 import {
   BlockRange,
   DocumentRoute,
@@ -18,7 +18,7 @@ import {
   serializeBlockRange,
   unpackHmId,
 } from '@shm/shared'
-import {Mention} from '@shm/shared/src/client/.generated/entities/v1alpha/entities_pb'
+import { Mention } from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
 import {
   BlocksContent,
   ButtonText,
@@ -28,8 +28,8 @@ import {
   YStack,
   copyUrlToClipboardWithFeedback,
 } from '@shm/ui'
-import {useMemo} from 'react'
-import {AppDocContentProvider} from '../pages/document-content-provider'
+import { useMemo } from 'react'
+import { AppDocContentProvider } from '../pages/document-content-provider'
 
 function CitationItem({mention}: {mention: Mention}) {
   if (!mention.source) throw 'Invalid citation'

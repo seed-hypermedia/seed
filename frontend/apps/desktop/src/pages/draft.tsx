@@ -2,6 +2,7 @@ import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {CoverImage} from '@/components/cover-image'
 import {HyperMediaEditorView} from '@/components/editor'
 import {IconForm} from '@/components/icon-form'
+import {SidebarSpacer} from '@/components/main-wrapper'
 import {OptionsPanel} from '@/components/options-panel'
 import {SiteNavigationDraftLoader} from '@/components/site-navigation'
 import {subscribeDraftFocus} from '@/draft-focusing'
@@ -39,11 +40,12 @@ import {
   packHmId,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import '@shm/shared/src/styles/document.css'
+import '@shm/shared/styles/document.css'
 import {
   Button,
   Container,
   copyUrlToClipboardWithFeedback,
+  getDaemonFileUrl,
   getSiteNavDirectory,
   Heading,
   Input,
@@ -55,7 +57,6 @@ import {
   useHeadingTextStyles,
   XStack,
 } from '@shm/ui'
-import {getDaemonFileUrl} from '@shm/ui/src/get-file-url'
 
 import {Image, MoreHorizontal, Plus, Smile} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
@@ -65,13 +66,13 @@ import {GestureResponderEvent} from 'react-native'
 // import 'show-keys'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {EmbedToolbarProvider} from '@/editor/embed-toolbar-context'
+import {useOpenUrl} from '@/open-url'
 import {Spinner, YStack} from '@shm/ui'
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'
 import './draft-page.css'
 
-import {SidebarSpacer} from '@/components/main-wrapper'
 import {upgradeNewspaperLayoutModel} from '@/models/upgrade-document-model'
 import {dialogBoxShadow} from '@shm/ui/src/universal-dialog'
 export default function DraftPage() {
@@ -288,6 +289,7 @@ function DocumentEditor({
   id,
 }: ReturnType<typeof useDraftEditor> & {id: UnpackedHypermediaId}) {
   const route = useNavRoute()
+  const openUrl = useOpenUrl()
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
   const importWebFile = trpc.webImporting.importWebFile.useMutation()
   const [isDragging, setIsDragging] = useState(false)
@@ -390,7 +392,7 @@ function DocumentEditor({
                   }}
                 >
                   {editor ? (
-                    <HyperMediaEditorView editable={true} editor={editor} />
+                    <HyperMediaEditorView editor={editor} openUrl={openUrl} />
                   ) : null}
                 </Container>
               </EmbedToolbarProvider>
