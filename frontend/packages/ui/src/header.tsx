@@ -77,7 +77,7 @@ export function SiteHeader({
   const isHome = !docId?.path?.length;
   if (!homeId) return null;
   return (
-    <YStack position="relative">
+    <YStack position="relative" overflowX="hidden">
       <YStack
         borderBottomWidth={1}
         borderColor="$borderColor"
@@ -109,7 +109,9 @@ export function SiteHeader({
             </XStack>
             <XStack
               flex={1}
-              overflow="scroll" // this isn't working but its supposed to allow horizontal scroll
+              // @ts-ignore
+              overflowX="auto"
+              overflowY="hidden"
               maxWidth="100%"
             >
               <XStack minWidth="100%" jc="flex-end">
