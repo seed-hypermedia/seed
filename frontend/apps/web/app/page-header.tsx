@@ -187,11 +187,11 @@ export function WebSiteHeader(
         }
       }}
       onShowMobileMenu={(open) => {
-        // if (open) {
-        //   document.body.style.overflow = "hidden";
-        // } else {
-        //   document.body.style.overflow = "auto";
-        // }
+        if (open) {
+          document.body.style.overflow = "hidden";
+        } else {
+          document.body.style.overflow = "auto";
+        }
       }}
     />
   );

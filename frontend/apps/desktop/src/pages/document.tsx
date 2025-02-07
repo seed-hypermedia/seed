@@ -61,7 +61,7 @@ import {
   YStack,
 } from '@shm/ui'
 import {useImageUrl} from '@shm/ui/src/get-file-url'
-import React, {ReactNode, useEffect, useMemo} from 'react'
+import React, {ReactNode, useEffect, useMemo, useRef} from 'react'
 import {EntityCitationsAccessory} from '../components/citations'
 import {AppDocContentProvider} from './document-content-provider'
 
@@ -151,11 +151,13 @@ export default function DocumentPage() {
   //     icon: Contact,
   //   })
   // }
+  const mainPanelRef = useRef<HTMLDivElement>(null)
   return (
     <>
       <XStack flex={1} height="100%">
         <SidebarSpacer />
         <AccessoryLayout
+          mainPanelRef={mainPanelRef}
           accessory={accessory}
           accessoryKey={accessoryKey}
           onAccessorySelect={(key: typeof accessoryKey) => {
@@ -168,6 +170,12 @@ export default function DocumentPage() {
           <MainDocumentPage
             id={route.id}
             isBlockFocused={route.isBlockFocused || false}
+            onScrollParamSet={(isFrozen) => {
+              mainPanelRef.current?.style.setProperty(
+                'overflow',
+                isFrozen ? 'hidden' : 'auto',
+              )
+            }}
           />
         </AccessoryLayout>
       </XStack>
@@ -190,9 +198,11 @@ function NewspaperDocContainer({children}: {children: ReactNode}) {
 function _MainDocumentPage({
   id,
   isBlockFocused,
+  onScrollParamSet,
 }: {
   id: UnpackedHypermediaId
   isBlockFocused: boolean
+  onScrollParamSet: (isFrozen: boolean) => void
 }) {
   const discovery = useDiscoverEntity(id)
   useEffect(() => {
@@ -230,6 +240,7 @@ function _MainDocumentPage({
         docId={id}
         document={entity.data?.document}
         supportDocuments={[]} // todo: handle embeds for outline!!
+        onScrollParamSet={onScrollParamSet}
       >
         {!docIsNewspaperLayout && <DocumentCover docId={id} />}
 
@@ -297,12 +308,14 @@ function AppDocSiteHeader({
   children,
   document,
   supportDocuments,
+  onScrollParamSet,
 }: {
   siteHomeEntity: HMEntityContent | undefined | null
   docId: UnpackedHypermediaId
   children?: React.ReactNode
   document?: HMDocument
   supportDocuments?: HMEntityContent[]
+  onScrollParamSet: (isFrozen: boolean) => void
 }) {
   const dir = useListDirectory(siteHomeEntity?.id)
   const capability = useMyCapability(siteHomeEntity?.id)
@@ -349,6 +362,9 @@ function AppDocSiteHeader({
       }
       supportQueries={supportQueries}
       children={children}
+      onShowMobileMenu={(isShown) => {
+        onScrollParamSet(isShown)
+      }}
     />
   )
 }

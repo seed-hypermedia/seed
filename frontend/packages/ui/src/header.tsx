@@ -109,41 +109,41 @@ export function SiteHeader({
             </XStack>
             <XStack
               flex={1}
-              jc="flex-end"
               overflow="scroll" // this isn't working but its supposed to allow horizontal scroll
-              // backgroundColor="red"
+              maxWidth="100%"
             >
-              {items?.length || afterLinksContent ? (
-                <XStack
-                  // backgroundColor="green"
-                  ai="center"
-                  gap="$2"
-                  minWidth="fit-content"
-                  padding="$2"
-                  jc="center"
-                  display="none"
-                  flexShrink={0}
-                  $gtSm={{display: "flex"}}
-                >
-                  {items?.map((item) => {
-                    return (
-                      <HeaderLinkItem
-                        id={item.id}
-                        key={item.id.id}
-                        metadata={item.metadata}
-                        isDraft={item.isDraft}
-                        isPublished={item.isPublished}
-                        active={
-                          !!docId?.path &&
-                          !!item.id.path &&
-                          item.id.path?.[0] === docId.path[0]
-                        }
-                      />
-                    );
-                  })}
-                  {afterLinksContent}
-                </XStack>
-              ) : null}
+              <XStack minWidth="100%" jc="flex-end">
+                {items?.length || afterLinksContent ? (
+                  <XStack
+                    ai="center"
+                    gap="$2"
+                    minWidth="fit-content"
+                    padding="$2"
+                    jc="center"
+                    display="none"
+                    flexShrink={0}
+                    $gtSm={{display: "flex"}}
+                  >
+                    {items?.map((item) => {
+                      return (
+                        <HeaderLinkItem
+                          id={item.id}
+                          key={item.id.id}
+                          metadata={item.metadata}
+                          isDraft={item.isDraft}
+                          isPublished={item.isPublished}
+                          active={
+                            !!docId?.path &&
+                            !!item.id.path &&
+                            item.id.path?.[0] === docId.path[0]
+                          }
+                        />
+                      );
+                    })}
+                    {afterLinksContent}
+                  </XStack>
+                ) : null}
+              </XStack>
             </XStack>
 
             {isCenterLayout ? null : headerSearch}
@@ -286,22 +286,24 @@ export function MobileMenu({
       x={open ? 0 : "100%"}
       animation="fast"
     >
-      <XStack p="$4" alignItems="center">
-        <Button
-          icon={<Close size={24} />}
-          chromeless
-          size="$2"
-          onPress={onClose}
-        />
-      </XStack>
-      <YStack
-        p="$4"
-        paddingBottom={200}
-        flex={1}
-        overflow="scroll"
-        className="mobile-menu"
-      >
-        {open ? renderContent() : null}
+      <YStack height="calc(100vh - 64px)" position="sticky" top={0}>
+        <XStack p="$4" alignItems="center">
+          <Button
+            icon={<Close size={24} />}
+            chromeless
+            size="$2"
+            onPress={onClose}
+          />
+        </XStack>
+        <YStack
+          p="$4"
+          paddingBottom={50}
+          flex={1}
+          overflow="scroll"
+          className="mobile-menu"
+        >
+          {open ? renderContent() : null}
+        </YStack>
       </YStack>
     </YStack>
   );

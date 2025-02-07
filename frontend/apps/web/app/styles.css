@@ -14,16 +14,16 @@ body {
   scrollbar-width: none; /* Firefox */
 }
 
-.mobile-menu .mobile-menu-item-label {
+/* .mobile-menu .mobile-menu-item-label {
   font-size: 20px !important;
   line-height: 1.5 !important;
 }
 
 .mobile-menu .mobile-menu-item .avatar {
   margin-top: 5px !important;
-}
+} */
 
-@media (min-width: 768px) {
+/* @media (min-width: 768px) {
   .mobile-menu .mobile-menu-item-label {
     font-size: inherit !important;
   }
@@ -31,4 +31,4 @@ body {
   .mobile-menu .mobile-menu-item .avatar {
     margin-top: 0 !important;
   }
-}
+} */
