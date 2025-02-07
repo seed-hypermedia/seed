@@ -28,7 +28,7 @@ let config = {
   // ssr: {
   //   noExternal: ["react-tweet"],
   // },
-  build: {minify: true, sourcemap: true},
+  build: {minify: false, sourcemap: true},
   ssr: {
     noExternal: ["@tamagui/helpers-icon"],
   },

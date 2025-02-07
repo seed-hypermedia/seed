@@ -9,7 +9,7 @@ import {
   useRouteError,
 } from "@remix-run/react";
 import {captureRemixErrorBoundaryError, withSentry} from "@sentry/remix";
-import {IS_DEV_DESKTOP, LIGHTNING_API_URL} from "@shm/shared";
+import {IS_DEV_DESKTOP, LIGHTNING_API_URL, SITE_BASE_URL} from "@shm/shared";
 import {isClient} from "@tamagui/core";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
@@ -46,6 +46,7 @@ export function Layout({children}: {children: React.ReactNode}) {
             __html: `window.ENV = ${JSON.stringify({
               LIGHTNING_API_URL,
               IS_DEV_DESKTOP,
+              SITE_BASE_URL,
             })}`,
           }}
         />

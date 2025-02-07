@@ -50,6 +50,7 @@ export type WebBaseDocumentPayload = {
   siteHost: string | undefined;
   supportDocuments?: {id: UnpackedHypermediaId; document: HMDocument}[];
   supportQueries?: HMQueryResult[];
+  enableWebSigning?: boolean;
 };
 
 export type WebDocumentPayload = WebBaseDocumentPayload & {
@@ -181,6 +182,7 @@ export async function getBaseDocument(
     ),
     siteHost: SITE_BASE_URL,
     id: {...entityId, version: document.version},
+    enableWebSigning: process.env.WEB_SIGNING_ENABLED === "true",
   };
 }
 

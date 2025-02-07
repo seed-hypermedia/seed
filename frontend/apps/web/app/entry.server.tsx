@@ -10,6 +10,7 @@ import * as isbotModule from "isbot";
 import {dirname, join, resolve} from "path";
 import {renderToPipeableStream} from "react-dom/server";
 import {ENABLE_HTML_CACHE, useFullRender} from "./cache-policy";
+import {initDatabase} from "./db";
 import {logDebug} from "./logger";
 import {parseRequest} from "./request";
 import {applyConfigSubscriptions, getHostnames} from "./site-config";
@@ -45,6 +46,9 @@ const CACHE_WARM_INTERVAL = process.env.CACHE_WARM_INTERVAL
   : 45_000;
 
 async function initializeServer() {
+  if (process.env.WEB_SIGNING_ENABLED === "true") {
+    await initDatabase();
+  }
   recursiveRm(CACHE_PATH);
   if (ENABLE_HTML_CACHE) {
     await mkdir(CACHE_PATH, {recursive: true});

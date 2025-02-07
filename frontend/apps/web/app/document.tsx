@@ -34,7 +34,8 @@ import {
 import {ChevronUp} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
-import {useCallback, useEffect, useMemo, useState} from "react";
+import {lazy, useCallback, useEffect, useMemo, useState} from "react";
+import {WebCommenting} from "./commenting";
 import {getHref} from "./href";
 import type {SiteDocumentPayload} from "./loaders";
 import {defaultSiteIcon} from "./meta";
@@ -137,6 +138,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
     supportDocuments,
     supportQueries,
     accountsMetadata,
+    enableWebSigning,
   } = props;
   if (!id) return <NotFoundPage {...props} />;
   if (!document)
@@ -243,6 +245,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                 document={document}
                 homeId={homeId}
                 siteHost={siteHost}
+                enableWebSigning={enableWebSigning}
               />
             </YStack>
           </YStack>
@@ -422,16 +425,20 @@ function WebDocContentProvider({
   );
 }
 
+const WebCommenting = lazy(async () => await import("./commenting"));
+
 function DocumentAppendix({
   id,
   document,
   homeId,
   siteHost,
+  enableWebSigning,
 }: {
   id: UnpackedHypermediaId;
   document: HMDocument;
   homeId: UnpackedHypermediaId;
   siteHost: string | undefined;
+  enableWebSigning?: boolean;
 }) {
   return (
     <Container>
@@ -446,6 +453,7 @@ function DocumentAppendix({
           siteHost={siteHost}
         />
       </YStack>
+      {enableWebSigning ? <WebCommenting docId={id} /> : null}
     </Container>
   );
 }
