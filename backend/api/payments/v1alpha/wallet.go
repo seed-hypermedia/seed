@@ -304,12 +304,6 @@ func (srv *Server) ImportWallet(ctx context.Context, in *payments.ImportWalletRe
 	_, bynaryAcc := principal.Explode()
 	ret.Id = URL2Id(in.CredentialsUrl, in.Account)
 
-	conn, release, err := srv.pool.Conn(ctx)
-	if err != nil {
-		return ret, err
-	}
-	defer release()
-
 	ret.Type = creds.WalletType
 	ret.Address = "https://" + creds.Domain
 
@@ -350,6 +344,11 @@ func (srv *Server) ImportWallet(ctx context.Context, in *payments.ImportWalletRe
 		Name:    ret.Name,
 		Type:    ret.Type,
 	}
+	conn, release, err := srv.pool.Conn(ctx)
+	if err != nil {
+		return ret, err
+	}
+	defer release()
 	if err = walletsql.InsertWallet(conn, wallet2insert, []byte(creds.Login), []byte(creds.Password), bynaryAcc); err != nil {
 		srv.log.Debug("couldn't insert wallet", zap.Error(err))
 		if errors.Is(err, walletsql.ErrDuplicateIndex) {
@@ -424,12 +423,13 @@ func (srv *Server) GetWalletBalance(ctx context.Context, in *payments.WalletRequ
 	if err != nil {
 		return ret, err
 	}
-	defer release()
 
 	wallet, err := walletsql.GetWallet(conn, in.Id)
 	if err != nil {
+		release()
 		return ret, fmt.Errorf("Can't get the wallet with id %s", in.Id)
 	}
+	release()
 	if wallet.Type != lndhubsql.LndhubGoWalletType && wallet.Type != lndhubsql.LndhubWalletType {
 		return ret, fmt.Errorf("Wallet type %s is not eligible to get balance", wallet.Type)
 	}
@@ -549,11 +549,12 @@ func (srv *Server) UpdateLNAddress(ctx context.Context, nickname, walletID strin
 	if err != nil {
 		return err
 	}
-	defer release()
 	w, err := walletsql.GetWallet(conn, walletID)
 	if err != nil {
+		release()
 		return fmt.Errorf("Can't get wallet with ID %s: %w", walletID, err)
 	}
+	release()
 	if w.Type != lndhubsql.LndhubGoWalletType && w.Type != lndhubsql.LndhubWalletType {
 		return fmt.Errorf("Selected wallet does not support lndaddress")
 	}

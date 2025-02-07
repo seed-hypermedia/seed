@@ -71,11 +71,6 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			return nil, fmt.Errorf("failed to decode page token: %w", err)
 		}
 	}
-	conn, cancel, err := srv.db.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer cancel()
 
 	var events []*activity.Event
 
@@ -163,6 +158,11 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		WHERE %s %s %s;
 	`, selectStr, tableStr, joinIDStr, joinpkStr, joinLinksStr, leftjoinResourcesStr, filtersStr, linksStr, pageTokenStr)
 	var lastBlobID int64
+	conn, cancel, err := srv.db.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer cancel()
 	err = sqlitex.Exec(conn, dqb.Str(getEventsStr)(), func(stmt *sqlite.Stmt) error {
 		lastBlobID = stmt.ColumnInt64(0)
 		eventType := stmt.ColumnText(1)

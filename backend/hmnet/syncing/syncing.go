@@ -227,27 +227,24 @@ var qListPeersWithPid = dqb.Str(`
 
 func (s *Service) refreshWorkers(ctx context.Context) error {
 	peers := make(map[peer.ID]struct{}, int(float64(len(s.workers))*1.9)) // arbitrary multiplier to avoid map resizing.
-	conn, release, err := s.db.Conn(ctx)
-	if err != nil {
-		return err
-	}
-	if err = sqlitex.Exec(conn, qListPeersWithPid(), func(stmt *sqlite.Stmt) error {
-		addresStr := stmt.ColumnText(0)
-		pid := stmt.ColumnText(1)
-		addrList := strings.Split(addresStr, ",")
-		info, err := netutil.AddrInfoFromStrings(addrList...)
-		if err != nil {
-			s.log.Warn("Can't periodically sync with peer because it has malformed addresses", zap.String("PID", pid), zap.Error(err))
+
+	if err := s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, qListPeersWithPid(), func(stmt *sqlite.Stmt) error {
+			addresStr := stmt.ColumnText(0)
+			pid := stmt.ColumnText(1)
+			addrList := strings.Split(addresStr, ",")
+			info, err := netutil.AddrInfoFromStrings(addrList...)
+			if err != nil {
+				s.log.Warn("Can't periodically sync with peer because it has malformed addresses", zap.String("PID", pid), zap.Error(err))
+				return nil
+			}
+			s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
+			peers[info.ID] = struct{}{}
 			return nil
-		}
-		s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
-		peers[info.ID] = struct{}{}
-		return nil
+		})
 	}); err != nil {
-		release()
 		return err
 	}
-	release()
 
 	var workersDiff int
 
@@ -342,13 +339,7 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 		time.Sleep(time.Second)
 	}
 	defer s.mu.Unlock()
-	conn, release, err := s.db.Conn(ctx)
-	if err != nil {
-		s.log.Debug("Could not grab a connection", zap.Error(err))
-		return res, err
-	}
 
-	s.log.Debug("Got db connections")
 	if len(subscriptions) == 0 {
 		s.log.Debug("No subscriptions passed, grabbing all of them")
 		ret, err := s.sstore.ListSubscriptions(ctx, &activity_proto.ListSubscriptionsRequest{
@@ -356,35 +347,35 @@ func (s *Service) SyncSubscribedContent(ctx context.Context, subscriptions ...*a
 		})
 		s.log.Debug("List all subscriptions", zap.Error(err))
 		if err != nil {
-			release()
 			return res, err
 		}
 		subscriptions = ret.Subscriptions
 	}
 	s.log.Debug("SyncSubscribedContent called", zap.Int("Number of total subscriptions", len(subscriptions)))
 	if len(subscriptions) == 0 {
-		release()
 		return res, nil
 	}
 	subsMap := make(subscriptionMap)
 	allPeers := []peer.ID{} // TODO:(juligasa): Remove this when we have providers store
-	if err = sqlitex.Exec(conn, qListPeersWithPid(), func(stmt *sqlite.Stmt) error {
-		addresStr := stmt.ColumnText(0)
-		pid := stmt.ColumnText(1)
-		addrList := strings.Split(addresStr, ",")
-		info, err := netutil.AddrInfoFromStrings(addrList...)
-		if err != nil {
-			s.log.Warn("Can't sync subscribed content with peer with malformed addresses", zap.String("PID", pid), zap.Error(err))
+	if err = s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, qListPeersWithPid(), func(stmt *sqlite.Stmt) error {
+			addresStr := stmt.ColumnText(0)
+			pid := stmt.ColumnText(1)
+			addrList := strings.Split(addresStr, ",")
+			info, err := netutil.AddrInfoFromStrings(addrList...)
+			if err != nil {
+				s.log.Warn("Can't sync subscribed content with peer with malformed addresses", zap.String("PID", pid), zap.Error(err))
+				return nil
+			}
+			s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
+			allPeers = append(allPeers, info.ID)
 			return nil
-		}
-		s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
-		allPeers = append(allPeers, info.ID)
-		return nil
+		})
 	}); err != nil {
-		release()
+
 		return res, err
 	}
-	release()
+
 	s.log.Debug("Got list of peers", zap.Int("Number of total peers", len(allPeers)))
 	eidsMap := make(map[string]bool)
 	for _, subs := range subscriptions {

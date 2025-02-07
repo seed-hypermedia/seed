@@ -95,11 +95,6 @@ func (srv *Server) ListPeers(ctx context.Context, in *networking.ListPeersReques
 
 	out := &networking.ListPeersResponse{}
 
-	conn, release, err := srv.db.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer release()
 	type Cursor struct {
 		ID   int64  `json:"i"`
 		Addr string `json:"a"`
@@ -121,35 +116,37 @@ func (srv *Server) ListPeers(ctx context.Context, in *networking.ListPeersReques
 			return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 		}
 	}
-	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
-		if count == in.PageSize {
-			var err error
-			out.NextPageToken, err = apiutil.EncodePageToken(lastCursor, nil)
-			return err
-		}
-		count++
-		id := stmt.ColumnInt64(0)
-		maStr := stmt.ColumnText(1)
-		pid := stmt.ColumnText(2)
-		isDirect := stmt.ColumnInt(3)
-		createdTS := &timestamppb.Timestamp{Seconds: stmt.ColumnInt64(4)}
-		updatedTS := &timestamppb.Timestamp{Seconds: stmt.ColumnInt64(5)}
-		lastCursor.ID = id
-		lastCursor.Addr = maStr
-		maList := strings.Split(strings.Trim(maStr, " "), ",")
-		info, err := netutil.AddrInfoFromStrings(maList...)
-		if err != nil {
-			srv.log.Warn("Invalid address found when listing peers", zap.String("PID", pid), zap.Error(err))
+	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
+			if count == in.PageSize {
+				var err error
+				out.NextPageToken, err = apiutil.EncodePageToken(lastCursor, nil)
+				return err
+			}
+			count++
+			id := stmt.ColumnInt64(0)
+			maStr := stmt.ColumnText(1)
+			pid := stmt.ColumnText(2)
+			isDirect := stmt.ColumnInt(3)
+			createdTS := &timestamppb.Timestamp{Seconds: stmt.ColumnInt64(4)}
+			updatedTS := &timestamppb.Timestamp{Seconds: stmt.ColumnInt64(5)}
+			lastCursor.ID = id
+			lastCursor.Addr = maStr
+			maList := strings.Split(strings.Trim(maStr, " "), ",")
+			info, err := netutil.AddrInfoFromStrings(maList...)
+			if err != nil {
+				srv.log.Warn("Invalid address found when listing peers", zap.String("PID", pid), zap.Error(err))
+				return nil
+			}
+			peersInfo = append(peersInfo, info)
+			extraData = append(extraData, peerExtra{
+				createdTS: createdTS,
+				updatedTS: updatedTS,
+				isDirect:  isDirect != 0,
+			})
 			return nil
-		}
-		peersInfo = append(peersInfo, info)
-		extraData = append(extraData, peerExtra{
-			createdTS: createdTS,
-			updatedTS: updatedTS,
-			isDirect:  isDirect != 0,
-		})
-		return nil
-	}, lastCursor.ID, in.PageSize); err != nil {
+		}, lastCursor.ID, in.PageSize)
+	}); err != nil {
 		return nil, err
 	}
 

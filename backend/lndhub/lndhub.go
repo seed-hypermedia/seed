@@ -18,7 +18,6 @@ import (
 	"time"
 	"unicode"
 
-	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
 	"github.com/btcsuite/btcd/chaincfg"
@@ -138,13 +137,7 @@ func (c *Client) GetLndaddressDomain() string {
 func (c *Client) Create(ctx context.Context, connectionURL, walletID, login, pass, nickname string, token []byte) (CreateResponse, error) {
 	var resp CreateResponse
 
-	conn, release, err := c.db.Conn(ctx)
-	if err != nil {
-		return resp, err
-	}
-	defer release()
-
-	err = c.do(ctx, conn, walletID, httpRequest{
+	err := c.do(ctx, c.db, walletID, httpRequest{
 		URL:    connectionURL + createRoute,
 		Method: http.MethodPost,
 		Payload: createRequest{
@@ -168,11 +161,6 @@ func (c *Client) Check(ctx context.Context, baseURL string, users []string) (Che
 	if len(users) < 1 {
 		return resp, fmt.Errorf("At least one user must be provided")
 	}
-	conn, release, err := c.db.Conn(ctx)
-	if err != nil {
-		return resp, err
-	}
-	defer release()
 	var userList string
 	for i, user := range users {
 		if i == 0 {
@@ -181,7 +169,7 @@ func (c *Client) Check(ctx context.Context, baseURL string, users []string) (Che
 			userList += "&user=" + user
 		}
 	}
-	err = c.do(ctx, conn, "", httpRequest{
+	err := c.do(ctx, c.db, "", httpRequest{
 		URL:    baseURL + checkUsersRoute + "?user=" + userList,
 		Method: http.MethodGet,
 	}, 2, &resp)
@@ -208,22 +196,23 @@ func (c *Client) UpdateNickname(ctx context.Context, walletID, nickname string, 
 	if err != nil {
 		return err
 	}
-	defer release()
-
 	login, err := lndhub.GetLogin(conn, walletID)
 	if err != nil {
+		release()
 		return err
 	}
 	pass, err := lndhub.GetPassword(conn, walletID)
 	if err != nil {
+		release()
 		return err
 	}
 	connectionURL, err := lndhub.GetAPIURL(conn, walletID)
 	if err != nil {
+		release()
 		return err
 	}
-
-	err = c.do(ctx, conn, walletID, httpRequest{
+	release()
+	err = c.do(ctx, c.db, walletID, httpRequest{
 		URL:    connectionURL + createRoute,
 		Method: http.MethodPost,
 		Payload: createRequest{
@@ -251,24 +240,28 @@ func (c *Client) GetLnAddress(ctx context.Context, walletID string) (string, err
 	if err != nil {
 		return "", err
 	}
-	defer release()
 
 	login, err := lndhub.GetLogin(conn, walletID)
 	if err != nil {
+		release()
 		return "", err
 	}
 	pass, err := lndhub.GetPassword(conn, walletID)
 	if err != nil {
+		release()
 		return "", err
 	}
 	connectionURL, err := lndhub.GetAPIURL(conn, walletID)
 	if err != nil {
+		release()
 		return "", err
 	}
 	w, err := walletsql.GetWallet(conn, walletID)
 	if err != nil {
+		release()
 		return "", fmt.Errorf("wallet [%s] not found: %w", walletID, err)
 	}
+	release()
 	principal, err := core.DecodePrincipal(w.Account)
 	if err != nil {
 		return "", fmt.Errorf("Wrong account %s: %w", w.Account, err)
@@ -292,21 +285,24 @@ func (c *Client) Auth(ctx context.Context, walletID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer release()
 
 	login, err := lndhub.GetLogin(conn, walletID)
 	if err != nil {
+		release()
 		return resp.AccessToken, err
 	}
 	pass, err := lndhub.GetPassword(conn, walletID)
 	if err != nil {
+		release()
 		return resp.AccessToken, err
 	}
 	apiBaseURL, err := lndhub.GetAPIURL(conn, walletID)
 	if err != nil {
+		release()
 		return "", err
 	}
-	err = c.do(ctx, conn, walletID, httpRequest{
+	release()
+	err = c.do(ctx, c.db, walletID, httpRequest{
 		URL:    apiBaseURL + authRoute,
 		Method: http.MethodPost,
 		Payload: authRequest{
@@ -317,6 +313,11 @@ func (c *Client) Auth(ctx context.Context, walletID string) (string, error) {
 	if err != nil {
 		return resp.AccessToken, err
 	}
+	conn, release, err = c.db.Conn(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer release()
 	return resp.AccessToken, lndhub.SetToken(conn, walletID, resp.AccessToken)
 }
 
@@ -333,19 +334,20 @@ func (c *Client) GetBalance(ctx context.Context, walletID string) (uint64, error
 	if err != nil {
 		return 0, err
 	}
-	defer release()
 
 	var resp balanceResponse
 	token, err := lndhub.GetToken(conn, walletID)
 	if err != nil {
+		release()
 		return resp.Btc.Sats, err
 	}
 	apiBaseURL, err := lndhub.GetAPIURL(conn, walletID)
 	if err != nil {
+		release()
 		return resp.Btc.Sats, err
 	}
-
-	err = c.do(ctx, conn, walletID, httpRequest{
+	release()
+	err = c.do(ctx, c.db, walletID, httpRequest{
 		URL:    apiBaseURL + balanceRoute,
 		Method: http.MethodGet,
 		Token:  token,
@@ -359,7 +361,6 @@ func (c *Client) ListPaidInvoices(ctx context.Context, walletID string) ([]Invoi
 	if err != nil {
 		return nil, err
 	}
-	defer release()
 
 	type ListInvoicesResponse struct {
 		Invoices []Invoice `mapstructure:"invoices"`
@@ -368,14 +369,16 @@ func (c *Client) ListPaidInvoices(ctx context.Context, walletID string) ([]Invoi
 	var resp ListInvoicesResponse
 	token, err := lndhub.GetToken(conn, walletID)
 	if err != nil {
+		release()
 		return resp.Invoices, err
 	}
 	apiBaseURL, err := lndhub.GetAPIURL(conn, walletID)
 	if err != nil {
+		release()
 		return resp.Invoices, err
 	}
-
-	err = c.do(ctx, conn, walletID, httpRequest{
+	release()
+	err = c.do(ctx, c.db, walletID, httpRequest{
 		URL:    apiBaseURL + getPaidInvoicesRoute,
 		Method: http.MethodGet,
 		Token:  token,
@@ -389,7 +392,6 @@ func (c *Client) ListReceivedInvoices(ctx context.Context, walletID string) ([]I
 	if err != nil {
 		return nil, err
 	}
-	defer release()
 
 	type ListInvoicesResponse struct {
 		Invoices []Invoice `mapstructure:"invoices"`
@@ -398,14 +400,16 @@ func (c *Client) ListReceivedInvoices(ctx context.Context, walletID string) ([]I
 	var resp ListInvoicesResponse
 	token, err := lndhub.GetToken(conn, walletID)
 	if err != nil {
+		release()
 		return resp.Invoices, err
 	}
 	apiBaseURL, err := lndhub.GetAPIURL(conn, walletID)
 	if err != nil {
+		release()
 		return resp.Invoices, err
 	}
-
-	err = c.do(ctx, conn, walletID, httpRequest{
+	release()
+	err = c.do(ctx, c.db, walletID, httpRequest{
 		URL:    apiBaseURL + getReceivedInvoicesRoute,
 		Method: http.MethodGet,
 		Token:  token,
@@ -434,18 +438,19 @@ func (c *Client) CreateLocalInvoice(ctx context.Context, walletID string, sats i
 	if err != nil {
 		return "", err
 	}
-	defer release()
 
 	token, err := lndhub.GetToken(conn, walletID)
 	if err != nil {
+		release()
 		return resp.PayReq, err
 	}
 	apiBaseURL, err := lndhub.GetAPIURL(conn, walletID)
 	if err != nil {
+		release()
 		return resp.PayReq, err
 	}
-
-	err = c.do(ctx, conn, walletID, httpRequest{
+	release()
+	err = c.do(ctx, c.db, walletID, httpRequest{
 		URL:    apiBaseURL + createInvoiceRoute,
 		Method: http.MethodPost,
 		Token:  token,
@@ -470,13 +475,7 @@ func (c *Client) RequestLud6Invoice(ctx context.Context, baseURL, remoteUser str
 
 	var resp requestRemoteInvoiceResponse
 
-	conn, release, err := c.db.Conn(ctx)
-	if err != nil {
-		return "", err
-	}
-	defer release()
-
-	err = c.do(ctx, conn, "", httpRequest{
+	err := c.do(ctx, c.db, "", httpRequest{
 		URL:    baseURL + requestInvoiceRoute + "?user=" + remoteUser + "&amount=" + strconv.FormatInt(amountSats*1000, 10) + "&memo=" + strings.ReplaceAll(memo, " ", "+"),
 		Method: http.MethodGet,
 	}, 2, &resp)
@@ -515,18 +514,19 @@ func (c *Client) PayInvoice(ctx context.Context, walletID, payReq string, sats i
 	if err != nil {
 		return err
 	}
-	defer release()
 
 	token, err := lndhub.GetToken(conn, walletID)
 	if err != nil {
+		release()
 		return err
 	}
 	apiBaseURL, err := lndhub.GetAPIURL(conn, walletID)
 	if err != nil {
+		release()
 		return err
 	}
 
-	err = c.do(ctx, conn, walletID, httpRequest{
+	err = c.do(ctx, c.db, walletID, httpRequest{
 		URL:    apiBaseURL + payInvoiceRoute,
 		Method: http.MethodPost,
 		Token:  token,
@@ -538,7 +538,7 @@ func (c *Client) PayInvoice(ctx context.Context, walletID, payReq string, sats i
 	return err
 }
 
-func (c *Client) do(ctx context.Context, conn *sqlite.Conn, walletID string, request httpRequest, maxAttempts uint, respValue interface{}) error {
+func (c *Client) do(ctx context.Context, db *sqlitex.Pool, walletID string, request httpRequest, maxAttempts uint, respValue interface{}) error {
 	var bodyRaw io.Reader
 	var genericResponse map[string]interface{}
 	var errorRes lndhubErrorTemplate
@@ -590,20 +590,27 @@ func (c *Client) do(ctx context.Context, conn *sqlite.Conn, walletID string, req
 					var authResp authResponse
 					// Check if token expired and we need to issue one
 					if ok && strings.Contains(errMsg.(string), "bad auth") {
+						conn, release, err := db.Conn(ctx)
+						if err != nil {
+							return err
+						}
 						login, err := lndhub.GetLogin(conn, walletID)
 						if err != nil {
+							release()
 							return err
 						}
 						pass, err := lndhub.GetPassword(conn, walletID)
 						if err != nil {
+							release()
 							return err
 						}
 						apiBaseURL, err := lndhub.GetAPIURL(conn, walletID)
 						if err != nil {
+							release()
 							return err
 						}
-
-						err = c.do(ctx, conn, walletID, httpRequest{
+						release()
+						err = c.do(ctx, db, walletID, httpRequest{
 							URL:    apiBaseURL + authRoute,
 							Method: http.MethodPost,
 							Payload: authRequest{

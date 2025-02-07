@@ -24,13 +24,13 @@ func (srv *Server) ListPaidInvoices(ctx context.Context, in *payments.ListInvoic
 	if err != nil {
 		return nil, err
 	}
-	defer release()
-
 	w, err := walletsql.GetWallet(conn, in.Id)
 	if err != nil {
+		release()
 		srv.log.Debug("couldn't list wallets: " + err.Error())
 		return nil, fmt.Errorf("couldn't list wallets")
 	}
+	release()
 	if strings.ToLower(w.Type) != lndhubsql.LndhubWalletType && strings.ToLower(w.Type) != lndhubsql.LndhubGoWalletType {
 		err = fmt.Errorf("Couldn't get invoices form wallet type %s", w.Type)
 		srv.log.Debug(err.Error())
@@ -71,13 +71,14 @@ func (srv *Server) ListReceivedInvoices(ctx context.Context, in *payments.ListIn
 	if err != nil {
 		return nil, err
 	}
-	defer release()
 
 	w, err := walletsql.GetWallet(conn, in.Id)
 	if err != nil {
+		release()
 		srv.log.Debug("couldn't list wallets: " + err.Error())
 		return nil, fmt.Errorf("couldn't list wallets: %w", err)
 	}
+	release()
 	if strings.ToLower(w.Type) != lndhubsql.LndhubWalletType && strings.ToLower(w.Type) != lndhubsql.LndhubGoWalletType {
 		err = fmt.Errorf("Couldn't get invoices form wallet type %s", w.Type)
 		srv.log.Debug(err.Error())
@@ -214,19 +215,19 @@ func (srv *Server) PayInvoice(ctx context.Context, in *payments.PayInvoiceReques
 	var err error
 	var amountToPay int64
 
-	conn, release, err := srv.pool.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer release()
-
 	if in.Id != "" {
+		conn, release, err := srv.pool.Conn(ctx)
+		if err != nil {
+			return nil, err
+		}
 		w, err := walletsql.GetWallet(conn, in.Id)
 		if err != nil {
+			release()
 			publicErr := fmt.Errorf("couldn't get wallet %s", in.Id)
 			srv.log.Debug("Could not get wallet", zap.Error(publicErr))
 			return nil, publicErr
 		}
+		release()
 		walletToPay.Account = w.Account
 		walletToPay.Address = w.Address
 		walletToPay.Id = w.ID

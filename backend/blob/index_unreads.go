@@ -13,12 +13,6 @@ func ensureUnread(conn *sqlite.Conn, iri IRI) error {
 
 // SetReadStatus marks the resource as read.
 func (idx *Index) SetReadStatus(ctx context.Context, iri IRI, wantRead, isRecursive bool) error {
-	conn, release, err := idx.db.Conn(ctx)
-	if err != nil {
-		return err
-	}
-	defer release()
-
 	var q string
 	switch {
 	case wantRead && !isRecursive:
@@ -37,7 +31,11 @@ func (idx *Index) SetReadStatus(ctx context.Context, iri IRI, wantRead, isRecurs
 	} else {
 		args = []any{string(iri)}
 	}
-
+	conn, release, err := idx.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
 	return sqlitex.Exec(conn, q, nil, args...)
 }
 

@@ -44,11 +44,6 @@ func (srv *rpcMux) ListPeers(ctx context.Context, in *p2p.ListPeersRequest) (*p2
 	if srv.Node.cfg.NoPeerSharing {
 		return out, nil
 	}
-	conn, release, err := srv.Node.db.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer release()
 	type Cursor struct {
 		ID   int64  `json:"i"`
 		Addr string `json:"a"`
@@ -71,31 +66,33 @@ func (srv *rpcMux) ListPeers(ctx context.Context, in *p2p.ListPeersRequest) (*p2
 		}
 	}
 	om := orderedmap.New()
-	if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
-		if count == in.PageSize {
-			var err error
-			out.NextPageToken, err = apiutil.EncodePageToken(lastCursor, nil)
-			return err
-		}
-		count++
-		id := stmt.ColumnInt64(0)
-		maStr := stmt.ColumnText(1)
-		pid := stmt.ColumnText(2)
-		updatedAt := stmt.ColumnInt64(3)
-		extraAttrs = append(extraAttrs, updatedAt)
-		lastCursor.ID = id
-		lastCursor.Addr = maStr
-		maList := strings.Split(strings.Trim(maStr, " "), ",")
-		info, err := netutil.AddrInfoFromStrings(maList...)
-		if err != nil {
-			srv.Node.log.Warn("Invalid address found when listing peers", zap.String("PID", pid), zap.Error(err))
-			return nil
-		}
+	if err := srv.Node.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
+			if count == in.PageSize {
+				var err error
+				out.NextPageToken, err = apiutil.EncodePageToken(lastCursor, nil)
+				return err
+			}
+			count++
+			id := stmt.ColumnInt64(0)
+			maStr := stmt.ColumnText(1)
+			pid := stmt.ColumnText(2)
+			updatedAt := stmt.ColumnInt64(3)
+			extraAttrs = append(extraAttrs, updatedAt)
+			lastCursor.ID = id
+			lastCursor.Addr = maStr
+			maList := strings.Split(strings.Trim(maStr, " "), ",")
+			info, err := netutil.AddrInfoFromStrings(maList...)
+			if err != nil {
+				srv.Node.log.Warn("Invalid address found when listing peers", zap.String("PID", pid), zap.Error(err))
+				return nil
+			}
 
-		om.Set(info.ID.String(), info.Addrs)
-		peersInfo = append(peersInfo, info)
-		return nil
-	}, lastCursor.ID, in.PageSize); err != nil {
+			om.Set(info.ID.String(), info.Addrs)
+			peersInfo = append(peersInfo, info)
+			return nil
+		}, lastCursor.ID, in.PageSize)
+	}); err != nil {
 		return nil, err
 	}
 	om.SortKeys(func(keys []string) {

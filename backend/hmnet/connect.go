@@ -85,27 +85,25 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	}
 
 	isConnected := n.p2p.Host.Network().Connectedness(info.ID) == network.Connected
-	conn, release, err := n.db.Conn(ctx)
-	if err != nil {
-		return err
-	}
+
 	didHandshake := false
-	if err = sqlitex.Exec(conn, qGetPeer(), func(stmt *sqlite.Stmt) error {
-		pidStr := stmt.ColumnText(0)
-		pid, err := peer.Decode(pidStr)
-		if err != nil {
-			return err
-		}
-		if pid.String() != info.ID.String() {
-			return fmt.Errorf("found PID does not equal provided PID")
-		}
-		didHandshake = true
-		return nil
-	}, info.ID); err != nil {
-		release()
+	if err = n.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, qGetPeer(), func(stmt *sqlite.Stmt) error {
+			pidStr := stmt.ColumnText(0)
+			pid, err := peer.Decode(pidStr)
+			if err != nil {
+				return err
+			}
+			if pid.String() != info.ID.String() {
+				return fmt.Errorf("found PID does not equal provided PID")
+			}
+			didHandshake = true
+			return nil
+		}, info.ID)
+	}); err != nil {
 		return err
 	}
-	release()
+
 	if isConnected && didHandshake {
 		return nil
 	}
@@ -148,13 +146,9 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	initialAddrs := strings.ReplaceAll(strings.Join(addrsStr, ","), " ", "")
 
 	if initialAddrs != "" {
-		conn, release, err = n.db.Conn(ctx)
-		if err != nil {
-			return err
-		}
-		defer release()
-
-		if err = sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=strftime('%s', 'now') WHERE addresses!=excluded.addresses AND excluded.addresses !='';", nil, info.ID.String(), initialAddrs, true); err != nil {
+		if err = n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
+			return sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=strftime('%s', 'now') WHERE addresses!=excluded.addresses AND excluded.addresses !='';", nil, info.ID.String(), initialAddrs, true)
+		}); err != nil {
 			n.log.Warn("Failing to store peer", zap.Error(err))
 			return err
 		}
@@ -351,13 +345,10 @@ func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.Ev
 		addrsString = append(addrsString, strings.ReplaceAll(addrs.String(), "/p2p/"+event.Peer.String(), "")+"/p2p/"+event.Peer.String())
 	}
 	sort.Strings(addrsString)
-	conn, release, err := n.db.Conn(ctx)
-	if err != nil {
-		n.log.Warn("Could not get a connection", zap.Error(err))
-		return
-	}
-	defer release()
-	if err = sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=strftime('%s', 'now') WHERE addresses!=excluded.addresses AND excluded.addresses !='' AND excluded.updated_at > updated_at;", nil, event.Peer.String(), strings.ReplaceAll(strings.Join(addrsString, ","), " ", ""), bootstrapped); err != nil {
+
+	if err := n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=strftime('%s', 'now') WHERE addresses!=excluded.addresses AND excluded.addresses !='' AND excluded.updated_at > updated_at;", nil, event.Peer.String(), strings.ReplaceAll(strings.Join(addrsString, ","), " ", ""), bootstrapped)
+	}); err != nil {
 		n.log.Warn("Could not store new peer", zap.String("PID", event.Peer.String()), zap.Error(err))
 	}
 

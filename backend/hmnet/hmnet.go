@@ -360,37 +360,30 @@ func (n *Node) Start(ctx context.Context) (err error) {
 			localPeers := make(map[peer.ID]time.Time)
 			defer t.Stop()
 			for {
-				conn, release, err := n.db.Conn(ctx)
-				if err != nil {
-					if ctx.Err() == nil {
-						return err
-					}
-					return nil
-				}
-				if err = sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
-					pidStr := stmt.ColumnText(2)
-					pid, err := peer.Decode(pidStr)
-					if err != nil {
-						if ctx.Err() == nil {
-							return err
+				if err = n.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+					return sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
+						pidStr := stmt.ColumnText(2)
+						pid, err := peer.Decode(pidStr)
+						if err != nil {
+							if ctx.Err() == nil {
+								return err
+							}
 						}
-					}
 
-					_, ok := localPeers[pid]
-					if ok && time.Now().Before(localPeers[pid]) {
+						_, ok := localPeers[pid]
+						if ok && time.Now().Before(localPeers[pid]) {
+							return nil
+						}
+
+						localPeers[pid] = time.Now().Add(time.Duration(rand.IntN(60*5)) * time.Second).Add(60 * time.Second) //nolint:gosec // We don't need a secure random generator here.
 						return nil
-					}
-
-					localPeers[pid] = time.Now().Add(time.Duration(rand.IntN(60*5)) * time.Second).Add(60 * time.Second) //nolint:gosec // We don't need a secure random generator here.
-					return nil
-				}, math.MaxInt64, math.MaxInt64); err != nil {
-					release()
+					}, math.MaxInt64, math.MaxInt64)
+				}); err != nil {
 					if ctx.Err() == nil {
 						return err
 					}
 					return nil
 				}
-				release()
 				select {
 				case <-ctx.Done():
 					return nil
