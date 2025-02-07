@@ -25,7 +25,7 @@ try {
 } catch (error) {
   console.error(error);
 }
-const displaySiteUrl = SITE_BASE_URL?.replace(/^https?:\/\//, "") // strip protocol
+const REQUESTING_PARTY_HOST = SITE_BASE_URL?.replace(/^https?:\/\//, "") // strip protocol
   .replace(/\/$/, "");
 const userIdentity = {
   get: () => userIdState,
@@ -53,8 +53,8 @@ async function registerPasskey({
   const challengeData = new TextEncoder().encode(JSON.stringify(challenge));
   const userIdData = new TextEncoder().encode(userId);
 
-  if (!SITE_BASE_URL) {
-    throw new Error("No SITE_BASE_URL");
+  if (!REQUESTING_PARTY_HOST) {
+    throw new Error("No REQUESTING_PARTY_HOST");
   }
   const existingUser = await getAPI(`/hm/api/users/${userId}`).catch(
     () => null
@@ -62,17 +62,16 @@ async function registerPasskey({
   if (existingUser) {
     throw new Error("User already exists");
   }
-
   const publicKeyOptions: PublicKeyCredentialCreationOptions = {
     challenge: challengeData,
     rp: {
-      id: SITE_BASE_URL, // not working on localhost
+      id: REQUESTING_PARTY_HOST, // not working on localhost
       // id: "localhost",
-      name: `Site at ${displaySiteUrl}`,
+      name: `Site at ${REQUESTING_PARTY_HOST}`,
     },
     user: {
       id: userIdData,
-      name: `${userId}@${displaySiteUrl}`,
+      name: `${userId}@${REQUESTING_PARTY_HOST}`,
       displayName: displayName,
     },
     pubKeyCredParams: [
@@ -88,6 +87,12 @@ async function registerPasskey({
       // userVerification: "preferred",
     },
   };
+  console.log("registering", {
+    userId,
+    displayName,
+    REQUESTING_PARTY_HOST,
+    publicKeyOptions,
+  });
 
   try {
     const credential = await navigator.credentials.create({
@@ -185,7 +190,7 @@ async function signWithIdentity(
 
   const publicKey: PublicKeyCredentialRequestOptions = {
     challenge: challengeData,
-    rpId: SITE_BASE_URL,
+    rpId: REQUESTING_PARTY_HOST,
     timeout: 60000,
     allowCredentials: [
       {
@@ -203,7 +208,7 @@ async function signWithIdentity(
     const postData = {
       data,
       username: identity.username,
-      hostname: SITE_BASE_URL,
+      hostname: REQUESTING_PARTY_HOST,
       id: identity.credId,
       type: cred.type,
       response: {
@@ -260,7 +265,7 @@ function AuthDialogContent({
     return (
       <YStack gap="$2">
         <SizableText>
-          Comment as "{userId?.username}@{displaySiteUrl}"
+          Comment as "{userId?.username}@{REQUESTING_PARTY_HOST}"
         </SizableText>
         <Button
           onPress={() => {
@@ -275,7 +280,7 @@ function AuthDialogContent({
   if (!mode) {
     return (
       <YStack gap="$2">
-        <Heading>Authenticate on {displaySiteUrl}</Heading>
+        <Heading>Authenticate on {REQUESTING_PARTY_HOST}</Heading>
         <SizableText>Do you have an account here?</SizableText>
         <XStack gap="$2">
           <Button onPress={() => setMode("register")}>Create Account</Button>
@@ -289,7 +294,6 @@ function AuthDialogContent({
       <YStack gap="$2">
         <Input ref={usernameRef} />
         <Button
-          theme="brand"
           onPress={() => {
             const username = usernameRef.current?.value;
             if (!username) return;
@@ -361,7 +365,7 @@ export default function WebCommenting({docId}: {docId: UnpackedHypermediaId}) {
           signWithIdentity(userId, {content: comment});
         }}
       >
-        Comment as {`${userId.username}@${displaySiteUrl}`}
+        Comment as {`${userId.username}@${REQUESTING_PARTY_HOST}`}
       </Button>
       <Button
         onPress={() => {
@@ -382,7 +386,7 @@ export default function WebCommenting({docId}: {docId: UnpackedHypermediaId}) {
           authDialog.open({challenge: {content: comment}});
         }}
       >
-        Authenticate with {displaySiteUrl}
+        Authenticate with {REQUESTING_PARTY_HOST}
       </Button>
     </>
   );
