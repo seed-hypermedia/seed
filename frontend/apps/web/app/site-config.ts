@@ -35,17 +35,32 @@ const serviceConfigSchema = z.object({
 });
 export type ServiceConfig = z.infer<typeof serviceConfigSchema>;
 
-const configData = readFileSync(configPath, "utf-8");
-const configJSON = JSON.parse(configData);
-let config = siteConfigSchema.parse(configJSON);
+let singleSiteConfig: SiteConfig | null = null;
+let singleSiteConfigError: string | null = null;
+try {
+  const configData = readFileSync(configPath, "utf-8");
+  const configJSON = JSON.parse(configData);
+  singleSiteConfig = siteConfigSchema.parse(configJSON);
+} catch (e: any) {
+  singleSiteConfigError = e.message;
+}
 
 let serviceConfig: ServiceConfig | null = null;
 try {
   const serviceConfigData = readFileSync(serviceConfigPath, "utf-8");
   const serviceConfigJSON = JSON.parse(serviceConfigData);
   serviceConfig = serviceConfigSchema.parse(serviceConfigJSON);
-} catch (e) {
-  console.error("Service Config was not loaded", e);
+} catch (e: any) {}
+
+if (serviceConfig) {
+  console.log("Service config loaded.");
+} else if (singleSiteConfig) {
+  console.log("Single site config loaded.");
+} else {
+  console.error("Config error: ", singleSiteConfigError);
+  throw new Error(
+    "Failed to load configuration. Set DATA_DIR/config.json or DATA_DIR/service-config.json"
+  );
 }
 
 export async function getConfig(hostname: string) {
@@ -72,7 +87,7 @@ export async function getConfig(hostname: string) {
     // return the named service config
     return serviceConfig.namedServices[subdomain] || null;
   } else {
-    return config;
+    return singleSiteConfig;
   }
 }
 
@@ -134,8 +149,8 @@ export async function applyConfigSubscriptions() {
     if (serviceConfig.rootConfig.registeredAccountUid)
       siteAccounts.add(serviceConfig.rootConfig.registeredAccountUid);
   } else {
-    if (config.registeredAccountUid)
-      siteAccounts.add(config.registeredAccountUid);
+    if (singleSiteConfig.registeredAccountUid)
+      siteAccounts.add(singleSiteConfig.registeredAccountUid);
   }
   const subs = await queryClient.subscriptions.listSubscriptions({});
   const toUnsubscribe: {account: string; path: string}[] = [];
