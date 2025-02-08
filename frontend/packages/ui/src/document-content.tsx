@@ -50,6 +50,7 @@ import {
 import {RadioGroup} from "@tamagui/radio-group";
 import {
   extractIpfsUrlCid,
+  getDaemonFileUrl,
   isIpfsUrl,
   useFileUrl,
   useImageUrl,
@@ -103,7 +104,7 @@ export type DocContentContextValue = {
   entityId: UnpackedHypermediaId | undefined;
   entityComponents: EntityComponentsRecord;
   onLinkClick: (dest: string, e: MouseEvent) => void;
-  saveCidAsFile: (cid: string, name: string) => Promise<void>;
+  saveCidAsFile?: (cid: string, name: string) => Promise<void>;
   citations?: Mention[];
 
   onCitationClick?: () => void;
@@ -1922,9 +1923,20 @@ export function BlockContentFile({
               opacity={hover ? 1 : 0}
               disabled={!hover}
               size="$2"
-              onPress={() => {
-                saveCidAsFile(fileCid, block.attributes?.name || "File");
-              }}
+              {...(saveCidAsFile
+                ? {
+                    onPress: () => {
+                      saveCidAsFile(fileCid, block.attributes?.name || "File");
+                    },
+                  }
+                : {
+                    tag: "a",
+                    download: block.attributes?.name || true,
+                    href: getDaemonFileUrl(fileCid),
+                    style: {
+                      textDecoration: "none",
+                    },
+                  })}
             >
               Download
             </Button>

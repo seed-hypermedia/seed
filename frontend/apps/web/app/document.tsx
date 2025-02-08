@@ -415,7 +415,6 @@ function WebDocContentProvider({
         });
         window.navigator.clipboard.writeText(blockHref);
       }}
-      saveCidAsFile={async (cid, name) => {}}
       textUnit={18}
       layoutUnit={24}
       debug={false}
