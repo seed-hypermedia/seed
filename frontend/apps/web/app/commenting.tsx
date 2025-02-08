@@ -1,14 +1,18 @@
+import {decode as cborDecode, encode as cborEncode} from "@ipld/dag-cbor";
 import {base58} from "@scure/base";
-import {SITE_BASE_URL, UnpackedHypermediaId} from "@shm/shared";
+import {HMTimestamp, SITE_BASE_URL, UnpackedHypermediaId} from "@shm/shared";
 import {useAppDialog} from "@shm/ui/src/universal-dialog";
 import {Button} from "@tamagui/button";
 import {Input} from "@tamagui/input";
 import {Heading} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
-import {decode as cborDecode} from "cbor2";
 import {useRef, useState, useSyncExternalStore} from "react";
 import {z} from "zod";
+import type {
+  CreateCommentPayload,
+  HMUnsignedComment,
+} from "./routes/hm.api.comment";
 
 const userIdentitySchema = z.object({
   username: z.string(),
@@ -27,6 +31,7 @@ try {
 }
 const REQUESTING_PARTY_HOST = SITE_BASE_URL?.replace(/^https?:\/\//, "") // strip protocol
   .replace(/\/$/, "");
+// const REQUESTING_PARTY_HOST = "localhost"; // for local development
 const userIdentity = {
   get: () => userIdState,
   listen: (callback: () => void) => {
@@ -65,8 +70,7 @@ async function registerPasskey({
   const publicKeyOptions: PublicKeyCredentialCreationOptions = {
     challenge: challengeData,
     rp: {
-      id: REQUESTING_PARTY_HOST, // not working on localhost
-      // id: "localhost",
+      id: REQUESTING_PARTY_HOST,
       name: `Site at ${REQUESTING_PARTY_HOST}`,
     },
     user: {
@@ -75,16 +79,14 @@ async function registerPasskey({
       displayName: displayName,
     },
     pubKeyCredParams: [
+      // todo: review with @burdian
       {type: "public-key", alg: -7}, // ES256
       {type: "public-key", alg: -257}, // RS256
     ],
     timeout: 60000,
     attestation: "none",
     authenticatorSelection: {
-      // authenticatorAttachment: "platform",
       residentKey: "required",
-      // requireResidentKey: true,
-      // userVerification: "preferred",
     },
   };
   console.log("registering", {
@@ -98,23 +100,20 @@ async function registerPasskey({
     const credential = await navigator.credentials.create({
       publicKey: publicKeyOptions,
     });
+    console.log("creaetd credential", credential);
     if (!credential) {
       throw new Error("No credential");
     }
-    console.log("cred rawId", credential.rawId);
     const credId = base58.encode(new Uint8Array(credential.rawId));
     const authenticatorResponse: AuthenticatorResponse = credential.response;
     const clientDataJSON = new TextDecoder().decode(
       authenticatorResponse.clientDataJSON
     );
-    console.log("authenticatorResponse", authenticatorResponse);
-    const clientData = JSON.parse(clientDataJSON);
-    console.log("clientData", clientData);
     // Decode the attestation object
     const attObj = cborDecode(
       new Uint8Array(authenticatorResponse.attestationObject)
     );
-    console.log("attObj", attObj);
+    // console.log("attObj", attObj);
     const authData: Uint8Array = attObj.authData;
     let offset = 0;
 
@@ -134,7 +133,6 @@ async function registerPasskey({
     const publicKey = authData.slice(offset);
     const publicKeyB58 = base58.encode(publicKey);
 
-    // The signature is in the attestation statement
     const signature = attObj.attStmt.sig;
 
     console.log("will register", userId, publicKeyB58);
@@ -162,7 +160,6 @@ async function registerPasskey({
       challengeData,
     });
     return {
-      // credential,
       challenge,
       userId,
       displayName,
@@ -182,12 +179,17 @@ async function loginPasskey({username}: {username: string}) {
 
 async function signWithIdentity(
   identity: z.infer<typeof userIdentitySchema>,
-  data: any
+  comment: HMUnsignedComment
 ) {
-  const challengeData = new TextEncoder().encode(JSON.stringify(data));
-
+  const challengeData = cborEncode(comment);
   const userIdData = base58.decode(identity.credId);
-
+  console.log("signWithIdentity", {
+    comment,
+    challengeData,
+    userIdData,
+    REQUESTING_PARTY_HOST,
+    identity,
+  });
   const publicKey: PublicKeyCredentialRequestOptions = {
     challenge: challengeData,
     rpId: REQUESTING_PARTY_HOST,
@@ -204,15 +206,16 @@ async function signWithIdentity(
 
   try {
     const cred = await navigator.credentials.get({publicKey});
+    console.log("cred", cred);
     if (!cred) return null;
-    const postData = {
-      data,
+    if (cred.type !== "public-key") {
+      throw new Error("Invalid credential type. Required public-key.");
+    }
+    const postData: CreateCommentPayload = {
       username: identity.username,
       hostname: REQUESTING_PARTY_HOST,
-      id: identity.credId,
-      type: cred.type,
       response: {
-        clientDataJSON: bufferToB58(cred.response.clientDataJSON),
+        clientDataJSON: bufferToB58(cred.response.clientDataJSON), // this contains the challenge which is the encoded comment
         authenticatorData: bufferToB58(cred.response.authenticatorData),
         signature: bufferToB58(cred.response.signature),
       },
@@ -255,7 +258,7 @@ function AuthDialogContent({
   input,
   onClose,
 }: {
-  input: {comment: any};
+  input: {comment: HMUnsignedComment};
   onClose: () => void;
 }) {
   const [mode, setMode] = useState<"register" | "login" | null>(null);
@@ -269,7 +272,10 @@ function AuthDialogContent({
         </SizableText>
         <Button
           onPress={() => {
-            signWithIdentity(userId, input.comment);
+            signWithIdentity(userId, input.comment).then((result) => {
+              console.log("signWithIdentity result", result);
+              onClose();
+            });
           }}
         >
           Sign and Post Comment
@@ -298,7 +304,7 @@ function AuthDialogContent({
             const username = usernameRef.current?.value;
             if (!username) return;
             registerPasskey({
-              challenge: {junk: true},
+              challenge: {junk: true}, // do we need a real challenge for auth creation? only if server wants to limit account creation?
               userId: username,
               displayName: username,
             })
@@ -346,6 +352,31 @@ function useAuthDialog() {
   return useAppDialog(AuthDialogContent, {});
 }
 
+function generateTimetamp(): HMTimestamp {
+  const now = new Date();
+  return {
+    seconds: BigInt(Math.floor(now.getTime() / 1000)),
+    nanos: (now.getTime() % 1000) * 1000000,
+  };
+}
+
+function createComment(text: string): HMUnsignedComment {
+  return {
+    content: [
+      {
+        block: {
+          type: "Paragraph",
+          text,
+          attributes: {},
+          annotations: [],
+          id: "0",
+        },
+      },
+    ],
+    createTime: generateTimetamp(),
+  };
+}
+
 export default function WebCommenting({docId}: {docId: UnpackedHypermediaId}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const userId = useSyncExternalStore(
@@ -358,11 +389,11 @@ export default function WebCommenting({docId}: {docId: UnpackedHypermediaId}) {
     <>
       <Button
         onPress={() => {
-          const comment = inputRef.current?.value;
-          if (!comment) {
+          const commentText = inputRef.current?.value;
+          if (!commentText) {
             return;
           }
-          signWithIdentity(userId, {content: comment});
+          signWithIdentity(userId, createComment(commentText));
         }}
       >
         Comment as {`${userId.username}@${REQUESTING_PARTY_HOST}`}
@@ -379,11 +410,11 @@ export default function WebCommenting({docId}: {docId: UnpackedHypermediaId}) {
     <>
       <Button
         onPress={() => {
-          const comment = inputRef.current?.value;
-          if (!comment) {
+          const commentText = inputRef.current?.value;
+          if (!commentText) {
             return;
           }
-          authDialog.open({challenge: {content: comment}});
+          authDialog.open({comment: createComment(commentText)});
         }}
       >
         Authenticate with {REQUESTING_PARTY_HOST}

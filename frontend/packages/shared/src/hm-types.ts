@@ -442,10 +442,12 @@ export type HMAccountsMetadata = Record<
 
 export const HMTimestampSchema = z
   .object({
-    seconds: z.bigint(),
+    seconds: z.bigint().or(z.number()),
     nanos: z.number(),
   })
   .strict()
+
+export type HMTimestamp = z.infer<typeof HMTimestampSchema>
 
 export const HMDocumentSchema = z.object({
   content: z.array(HMBlockNodeSchema).default([]),

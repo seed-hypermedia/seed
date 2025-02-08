@@ -5399,6 +5399,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@ipld/dag-cbor@npm:^9.2.2":
+  version: 9.2.2
+  resolution: "@ipld/dag-cbor@npm:9.2.2"
+  dependencies:
+    cborg: ^4.0.0
+    multiformats: ^13.1.0
+  checksum: 7a8e983a5ed7e1721ef41147ae45a851000675ebcad28b49e028aab29165084b3b3eb901d62e59242ae2d9a26afc9560749297e1c3e7ed3d0403a6a48a5d5747
+  languageName: node
+  linkType: hard
+
 "@isaacs/cliui@npm:^8.0.2":
   version: 8.0.2
   resolution: "@isaacs/cliui@npm:8.0.2"
@@ -9212,6 +9222,7 @@ __metadata:
     "@bufbuild/protobuf": 1.10.0
     "@connectrpc/connect": 1.4.0
     "@connectrpc/connect-node": 1.4.0
+    "@ipld/dag-cbor": ^9.2.2
     "@remix-run/dev": 2.10.3
     "@remix-run/node": 2.10.3
     "@remix-run/react": 2.10.3
@@ -9231,7 +9242,6 @@ __metadata:
     "@types/react-dom": 18.2.19
     "@types/sharp": ^0.32.0
     better-sqlite3: ^11.8.1
-    cbor2: ^1.9.0
     isbot: 4
     react: 18.2.0 || 19.0.0
     react-dom: 18.2.0 || 19.0.0
@@ -14903,10 +14913,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"cbor2@npm:^1.9.0":
-  version: 1.9.0
-  resolution: "cbor2@npm:1.9.0"
-  checksum: 6d34908591c8d6e7a1b05d236b2a4ba8a8eff2ea3292227de2fbc7930fba812650cfd13e6243d7a2b189cb385a463ca0434ff9575d44ab171e1fc78c2e1b6e6f
+"cborg@npm:^4.0.0":
+  version: 4.2.8
+  resolution: "cborg@npm:4.2.8"
+  bin:
+    cborg: lib/bin.js
+  checksum: 65c5d9a3c8f88d02a5ef1432280d515d0bb988842e680b5a37d603bb20106a951bb0baf60d716991f83e585dbd676f1c15404435242c13db2a75adce4e81ed58
   languageName: node
   linkType: hard
 
@@ -24235,6 +24247,13 @@ __metadata:
   bin:
     multicast-dns: cli.js
   checksum: 00b8a57df152d4cd0297946320a94b7c3cdf75a46a2247f32f958a8927dea42958177f9b7fdae69fab2e4e033fb3416881af1f5e9055a3e1542888767139e2fb
+  languageName: node
+  linkType: hard
+
+"multiformats@npm:^13.1.0":
+  version: 13.3.1
+  resolution: "multiformats@npm:13.3.1"
+  checksum: de7ffc4ed1edc5c15b1b5b3881adbce1220efb320007aed1d786885e07c96db241e6d5dffa51198ebed9e7d540ec43d3d22df87638e4bb5410bb74f1fc10cd21
   languageName: node
   linkType: hard
 

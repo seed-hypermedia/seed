@@ -53,7 +53,7 @@ export function createUser({
 
 export function getUser(
   username: string
-): {username: string; publicKey: string} | null {
+): {username: string; publicKey: string; credId: string} | null {
   const stmt = db.prepare(
     "SELECT username, publicKey, credId FROM users WHERE username = ?"
   );

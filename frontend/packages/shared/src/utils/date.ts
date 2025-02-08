@@ -1,6 +1,7 @@
-import {PlainMessage, Timestamp} from '@bufbuild/protobuf'
+import {Timestamp} from '@bufbuild/protobuf'
 import {format, intlFormat} from 'date-fns'
 import type {Document} from '../client'
+import {HMTimestamp} from '../hm-types'
 
 type KeyOfType<T, U> = {
   [P in keyof T]: T[P] extends U ? P : never
@@ -26,8 +27,6 @@ var months = [
   'Dec',
 ]
 
-export type HMTimestamp = PlainMessage<Timestamp>
-
 const hasRelativeDate =
   typeof Intl !== 'undefined' && typeof Intl.RelativeTimeFormat !== 'undefined'
 
@@ -49,16 +48,16 @@ export function formattedDate(
   }
 }
 
-export function normalizeDate(
-  value: undefined | string | Date | Timestamp | HMTimestamp,
-) {
+export function normalizeDate(value: undefined | string | Date | HMTimestamp) {
   let date: Date | null = null
   if (typeof value == 'string') {
     date = new Date(value)
   } else if (value instanceof Date) {
     date = value
   } else if (value?.seconds) {
-    date = new Date(Number(value.seconds * 1000n))
+    const seconds =
+      typeof value.seconds === 'bigint' ? value.seconds : BigInt(value.seconds)
+    date = new Date(Number(seconds * 1000n))
   }
   return date
 }
