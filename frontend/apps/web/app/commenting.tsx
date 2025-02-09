@@ -29,9 +29,9 @@ try {
 } catch (error) {
   console.error(error);
 }
-const REQUESTING_PARTY_HOST = SITE_BASE_URL?.replace(/^https?:\/\//, "") // strip protocol
-  .replace(/\/$/, "");
-// const REQUESTING_PARTY_HOST = "localhost"; // for local development
+// const REQUESTING_PARTY_HOST = SITE_BASE_URL?.replace(/^https?:\/\//, "") // strip protocol
+//   .replace(/\/$/, "");
+const REQUESTING_PARTY_HOST = "localhost"; // for local development
 const userIdentity = {
   get: () => userIdState,
   listen: (callback: () => void) => {
@@ -86,7 +86,7 @@ async function registerPasskey({
     timeout: 60000,
     attestation: "none",
     authenticatorSelection: {
-      residentKey: "required",
+      residentKey: "preferred",
     },
   };
   console.log("registering", {
