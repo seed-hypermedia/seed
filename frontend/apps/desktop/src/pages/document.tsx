@@ -227,8 +227,14 @@ function _MainDocumentPage({
   if (entity.isInitialLoading) return <Spinner />
   if (!entity.data?.document) return null
 
+  const metadata = entity.data?.document?.metadata
   const docIsNewspaperLayout =
-    entity.data?.document?.metadata.layout === 'Seed/Experimental/Newspaper'
+    metadata?.layout === 'Seed/Experimental/Newspaper'
+  const isHomeDoc = !id.path?.length
+  const isShowOutline =
+    (typeof metadata.showOutline == 'undefined' || metadata.showOutline) &&
+    !isHomeDoc
+  const showSidebarOutlineDirectory = isShowOutline && !isHomeDoc
 
   const DocContainer = docIsNewspaperLayout
     ? NewspaperDocContainer
@@ -248,18 +254,14 @@ function _MainDocumentPage({
           className={
             !docIsNewspaperLayout
               ? `document-container${
-                  typeof entity.data?.document?.metadata.showOutline ==
-                    'undefined' || entity.data?.document?.metadata.showOutline
+                  showSidebarOutlineDirectory
                     ? ' document-container'
                     : ' hide-outline'
                 }`
               : ''
           }
         >
-          {(!docIsNewspaperLayout &&
-            typeof entity.data?.document?.metadata.showOutline ==
-              'undefined') ||
-          entity.data?.document?.metadata.showOutline ? (
+          {showSidebarOutlineDirectory ? (
             <YStack
               marginTop={150}
               $gtSm={{marginTop: 164}}
@@ -279,7 +281,7 @@ function _MainDocumentPage({
           ) : null}
 
           <DocContainer>
-            <DocPageHeader docId={id} />
+            {isHomeDoc ? null : <DocPageHeader docId={id} />}
             <YStack flex={1} paddingLeft="$4" $gtSm={{paddingLeft: 0}}>
               <DocPageContent
                 blockRef={id.blockRef}

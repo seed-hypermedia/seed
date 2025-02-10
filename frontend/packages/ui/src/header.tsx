@@ -74,7 +74,7 @@ export function SiteHeader({
       ) : null}
     </>
   );
-  const isHome = !docId?.path?.length;
+  const isHomeDoc = !docId?.path?.length;
   if (!homeId) return null;
   return (
     <YStack position="relative" overflowX="hidden">
@@ -161,7 +161,7 @@ export function SiteHeader({
           <YStack>
             <MobileSearch homeId={homeId} />
 
-            {isHome ? null : ( // if we are on the home page, we will see the home directory below the outline
+            {isHomeDoc ? null : ( // if we are on the home page, we will see the home directory below the outline
               <YStack gap="$2.5" marginTop="$2.5" marginBottom="$4">
                 {items?.map((item) => (
                   <DocumentSmallListItem
@@ -175,7 +175,7 @@ export function SiteHeader({
               </YStack>
             )}
 
-            {docId && document && (
+            {docId && document && !isHomeDoc && (
               <DocumentOutline
                 onActivateBlock={(blockId) => {
                   setIsMobileMenuOpen(false);

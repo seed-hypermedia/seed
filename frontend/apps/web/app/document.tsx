@@ -168,6 +168,13 @@ export function DocumentPage(props: SiteDocumentPayload) {
     }
   }, []);
 
+  const isHomeDoc = !id.path?.length;
+  const isShowOutline =
+    (typeof document.metadata.showOutline == "undefined" ||
+      document.metadata.showOutline) &&
+    !isHomeDoc;
+  const showSidebarOutlineDirectory = isShowOutline && !isHomeDoc;
+
   return (
     <WebSiteProvider homeId={props.homeId}>
       <YStack>
@@ -182,14 +189,10 @@ export function DocumentPage(props: SiteDocumentPayload) {
           <DocumentCover cover={document.metadata.cover} id={id} />
           <YStack
             className={`document-container${
-              typeof document.metadata.showOutline == "undefined" ||
-              document.metadata.showOutline
-                ? ""
-                : " hide-outline"
+              showSidebarOutlineDirectory ? "" : " hide-outline"
             }`}
           >
-            {typeof document.metadata.showOutline == "undefined" ||
-            document.metadata.showOutline ? (
+            {showSidebarOutlineDirectory ? (
               <YStack
                 marginTop={200}
                 $gtSm={{marginTop: 124}}
@@ -221,16 +224,18 @@ export function DocumentPage(props: SiteDocumentPayload) {
               </YStack>
             ) : null}
             <YStack>
-              <PageHeader
-                homeId={homeId}
-                breadcrumbs={props.breadcrumbs}
-                docMetadata={document.metadata}
-                docId={id}
-                authors={document.authors.map(
-                  (author) => accountsMetadata[author]
-                )}
-                updateTime={document.updateTime}
-              />
+              {isHomeDoc ? null : (
+                <PageHeader
+                  homeId={homeId}
+                  breadcrumbs={props.breadcrumbs}
+                  docMetadata={document.metadata}
+                  docId={id}
+                  authors={document.authors.map(
+                    (author) => accountsMetadata[author]
+                  )}
+                  updateTime={document.updateTime}
+                />
+              )}
               <WebDocContentProvider
                 homeId={homeId}
                 id={id}
