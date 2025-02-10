@@ -608,7 +608,7 @@ export function BlockNodeContent({
   }, [blockNode.block, routeParams]);
 
   useEffect(() => {
-    if (!routeParams?.blockRef || routeParams.blockRange) return;
+    if (routeParams?.blockRange) return;
 
     let val = routeParams?.blockRef == blockNode.block?.id && !comment;
     // if (val) {
