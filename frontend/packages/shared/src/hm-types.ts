@@ -439,6 +439,12 @@ export const HMDocumentMetadataSchema = z.object({
     .union([z.literal('UpdatedFirst'), z.literal('CreatedFirst')])
     .optional(),
   showOutline: z.boolean().optional(),
+  theme: z
+    .object({
+      headerLayout: z.union([z.literal('Center'), z.literal('')]).optional(),
+    })
+    .strict()
+    .default({}),
 })
 
 export type HMMetadata = z.infer<typeof HMDocumentMetadataSchema>

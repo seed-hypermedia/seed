@@ -2,8 +2,6 @@ import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {CoverImage} from '@/components/cover-image'
 import {HyperMediaEditorView} from '@/components/editor'
 import {IconForm} from '@/components/icon-form'
-import {MainWrapper, SidebarSpacer} from '@/components/main-wrapper'
-import {NewspaperLayout} from '@/components/newspaper-layout'
 import {OptionsPanel} from '@/components/options-panel'
 import {SiteNavigationDraftLoader} from '@/components/site-navigation'
 import {subscribeDraftFocus} from '@/draft-focusing'
@@ -32,10 +30,12 @@ import {
   BlockRange,
   createWebHMUrl,
   ExpandedBlockRange,
+  HMBlockNode,
   HMDocument,
   HMDraft,
   HMEntityContent,
   hmId,
+  HMMetadata,
   packHmId,
   UnpackedHypermediaId,
 } from '@shm/shared'
@@ -104,6 +104,9 @@ export default function DraftPage() {
         }}
         onClose={() => setAccessory(undefined)}
         draftId={route.id}
+        onResetContent={(blockNodes: HMBlockNode[]) => {
+          // data.actor.send({type: 'RESET.CONTENT', blockNodes})
+        }}
       />
     )
   }
@@ -124,24 +127,6 @@ export default function DraftPage() {
   })
 
   const homeEntity = useEntity(hmId('d', route.id.uid))
-
-  let draftContent = null
-
-  if (
-    draft.data?.metadata?.layout == 'Seed/Experimental/Newspaper' &&
-    route.id
-  ) {
-    draftContent = (
-      <XStack flex={1} height="100%">
-        <MainWrapper>
-          <SidebarSpacer />
-          <NewspaperLayout id={route.id} metadata={draft.data?.metadata} />
-        </MainWrapper>
-      </XStack>
-    )
-  } else if (!draft.isLoading && route.id) {
-    draftContent = <DocumentEditor {...data} id={route.id} />
-  }
 
   return (
     <ErrorBoundary FallbackComponent={() => null}>
@@ -174,8 +159,16 @@ export default function DraftPage() {
             </Button>
           </XStack>
         ) : null}
-        <DraftAppHeader siteHomeEntity={homeEntity.data} docId={route.id}>
-          {draftContent}
+        <DraftAppHeader
+          siteHomeMetadata={
+            route.id.path?.length
+              ? homeEntity.data?.document?.metadata
+              : draft.data?.metadata
+          }
+          siteHomeEntity={homeEntity.data}
+          docId={route.id}
+        >
+          <DocumentEditor {...data} id={route.id} />
         </DraftAppHeader>
       </AccessoryLayout>
     </ErrorBoundary>
@@ -183,17 +176,18 @@ export default function DraftPage() {
 }
 
 function DraftAppHeader({
+  siteHomeMetadata,
   siteHomeEntity,
   docId,
   children,
 }: {
+  siteHomeMetadata: HMMetadata | undefined | null
   siteHomeEntity: HMEntityContent | undefined | null
   docId: UnpackedHypermediaId
   children?: React.ReactNode
 }) {
   const dir = useListDirectory(siteHomeEntity?.id)
   const drafts = useAccountDraftList(docId.uid)
-  console.log('siteHomeEntity', siteHomeEntity)
   if (!siteHomeEntity) return null
   const navItems = getSiteNavDirectory({
     id: siteHomeEntity.id,
@@ -206,12 +200,12 @@ function DraftAppHeader({
   return (
     <SiteHeader
       homeId={siteHomeEntity.id}
-      homeMetadata={siteHomeEntity.document?.metadata || null}
+      homeMetadata={siteHomeMetadata || null}
       items={navItems}
       docId={docId}
       isCenterLayout={
-        siteHomeEntity.document?.metadata.layout ===
-        'Seed/Experimental/Newspaper'
+        siteHomeMetadata?.theme?.headerLayout === 'Center' ||
+        siteHomeMetadata?.layout === 'Seed/Experimental/Newspaper'
       }
       // document={draft} // we have an issue with outline: the header expects the draft to be in HMDocument format, but the draft is editor
       children={children}

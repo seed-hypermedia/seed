@@ -1,7 +1,9 @@
 import {ImageForm} from '@/pages/image-form'
-import {HMMetadata, UnpackedHypermediaId} from '@shm/shared'
+import {HMBlockNode, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
 import {
+  Button,
   ButtonText,
+  Heading,
   Input,
   Label,
   SelectDropdown,
@@ -19,19 +21,106 @@ export function OptionsPanel({
   draftId,
   onMetadata,
   metadata,
+  onResetContent,
 }: {
   onClose: () => void
   draftId: UnpackedHypermediaId
   onMetadata: (values: Partial<HMMetadata>) => void
   metadata: HMMetadata
+  onResetContent: (blockNodes: HMBlockNode[]) => void
 }) {
   const isHome = !draftId.path || draftId.path.length === 0
-  const isNewspaperLayout = metadata.layout === 'Seed/Experimental/Newspaper'
   return (
     <AccessoryContainer
       title={isHome ? 'Home Options' : 'Document Options'}
       onClose={onClose}
     >
+      <OptionsPanelContent
+        draftId={draftId}
+        metadata={metadata}
+        onMetadata={onMetadata}
+        onResetContent={onResetContent}
+      />
+    </AccessoryContainer>
+  )
+}
+
+function OptionsPanelContent({
+  draftId,
+  metadata,
+  onMetadata,
+  onResetContent,
+}: {
+  draftId: UnpackedHypermediaId
+  metadata: HMMetadata
+  onMetadata: (values: Partial<HMMetadata>) => void
+  onResetContent: (blockNodes: HMBlockNode[]) => void
+}) {
+  const isHome = !draftId.path || draftId.path.length === 0
+  const isNewspaperLayout = metadata.layout === 'Seed/Experimental/Newspaper'
+
+  if (isNewspaperLayout) {
+    return (
+      <>
+        <YStack
+          theme="yellow"
+          gap="$4"
+          padding="$4"
+          backgroundColor="$yellow3"
+          borderRadius="$4"
+        >
+          <Heading size="$3" fontSize="$4">
+            Document Model Upgrade Required
+          </Heading>
+          <Button
+            onPress={() => {
+              onMetadata({
+                layout: '',
+                theme: {
+                  headerLayout: 'Center',
+                },
+                showOutline: false,
+              })
+              onResetContent([
+                {
+                  block: {
+                    type: 'Query',
+                    id: 'site-news-query',
+                    attributes: {
+                      style: 'Card',
+                      columnCount: 3,
+                      banner: true,
+                      query: {
+                        includes: [
+                          {
+                            space: draftId.uid,
+                            path: '',
+                            mode: 'AllDescendants',
+                          },
+                        ],
+                        sort: [
+                          {
+                            reverse: false,
+                            term: 'UpdateTime',
+                          },
+                        ],
+                      },
+                    },
+                  },
+                  children: [],
+                },
+              ])
+            }}
+          >
+            Update to Document Layout
+          </Button>
+        </YStack>
+      </>
+    )
+  }
+
+  return (
+    <>
       <YStack gap="$4">
         <YStack>
           <Label color="$color9" size="$1">
@@ -66,25 +155,25 @@ export function OptionsPanel({
             }}
           />
         </YStack>
-        <YStack>
-          <Label color="$color9" size="$1">
-            Layout
-          </Label>
-          <SelectDropdown
-            width="100%"
-            options={
-              [
-                {label: 'Newspaper Home', value: 'Seed/Experimental/Newspaper'},
-                {label: 'Document', value: ''},
-              ] as const
-            }
-            value={metadata.layout || ''}
-            onValue={(layout) => onMetadata({layout})}
-          />
-        </YStack>
       </YStack>
-      {isNewspaperLayout ? (
+      {isHome ? (
         <>
+          <YStack>
+            <Label color="$color9" size="$1">
+              Header Layout
+            </Label>
+            <SelectDropdown
+              width="100%"
+              options={
+                [
+                  {label: 'Default', value: ''},
+                  {label: 'Centered', value: 'Center'},
+                ] as const
+              }
+              value={metadata.theme?.headerLayout || ''}
+              onValue={(headerLayout) => onMetadata({theme: {headerLayout}})}
+            />
+          </YStack>
           <YStack>
             <Label color="$color9" size="$1">
               Header Logo
@@ -112,31 +201,11 @@ export function OptionsPanel({
               }}
             />
           </YStack>
-          <YStack>
-            <Label color="$color9" size="$1">
-              Sort Home Content
-            </Label>
-            <SelectDropdown
-              width="100%"
-              options={
-                [
-                  {label: 'Last Updated First', value: 'UpdatedFirst'},
-                  {label: 'Last Created First', value: 'CreatedFirst'},
-                ] as const
-              }
-              value={metadata.seedExperimentalHomeOrder || 'UpdatedFirst'}
-              onValue={(seedExperimentalHomeOrder) =>
-                onMetadata({seedExperimentalHomeOrder})
-              }
-            />
-          </YStack>
         </>
       ) : null}
       <OriginalPublishDate metadata={metadata} onMetadata={onMetadata} />
-      {!isNewspaperLayout ? (
-        <OutlineVisibility metadata={metadata} onMetadata={onMetadata} />
-      ) : null}
-    </AccessoryContainer>
+      <OutlineVisibility metadata={metadata} onMetadata={onMetadata} />
+    </>
   )
 }
 
