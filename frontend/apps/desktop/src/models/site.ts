@@ -76,7 +76,7 @@ export function useSiteRegistration(accountUid: string) {
           }),
         ],
       })
-      return null
+      return siteUrl
     },
     onSuccess: (result, input) => {
       invalidateQueries([queryKeys.ENTITY, accountId.id])

@@ -1,5 +1,6 @@
 import {useEntity} from '@/models/entities'
 import {useRemoveSite, useSiteRegistration} from '@/models/site'
+import {useNavigate} from '@/utils/useNavigate'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {getDocumentTitle, UnpackedHypermediaId} from '@shm/shared'
 import {
@@ -7,6 +8,7 @@ import {
   Button,
   Form,
   SizableText,
+  toast,
   UploadCloud,
   XStack,
   YStack,
@@ -83,10 +85,14 @@ function PublishSiteDialog({
   onClose: () => void
 }) {
   const entity = useEntity(input)
+  const replace = useNavigate('replace')
   const register = useSiteRegistration(input.uid)
   const onSubmit: SubmitHandler<PublishSiteFields> = (data) => {
-    register.mutateAsync({url: data.url}).then(() => {
+    register.mutateAsync({url: data.url}).then((publishedUrl) => {
       onClose()
+      toast.success(`Site published to ${publishedUrl}`)
+      // make sure the user is seeing the latest version of the site that now includes the url
+      replace({key: 'document', id: {...input, version: null, latest: true}})
     })
   }
   const {
