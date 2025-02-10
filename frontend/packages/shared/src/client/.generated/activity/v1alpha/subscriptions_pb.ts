@@ -28,12 +28,20 @@ export class SubscribeRequest extends Message<SubscribeRequest> {
   path = "";
 
   /**
-   * Optional. Indicate if we not only subscribe to the resource 
-   * ID above but also to all documents on its directory. 
+   * Optional. Indicate if we not only subscribe to the resource
+   * ID above but also to all documents on its directory.
    *
    * @generated from field: bool recursive = 3;
    */
   recursive = false;
+
+  /**
+   * Optional. If true, the server will not wait for the subscription
+   * to be synced for the first time before returning.
+   *
+   * @generated from field: optional bool async = 4;
+   */
+  async?: boolean;
 
   constructor(data?: PartialMessage<SubscribeRequest>) {
     super();
@@ -46,6 +54,7 @@ export class SubscribeRequest extends Message<SubscribeRequest> {
     { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 4, name: "async", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SubscribeRequest {
@@ -235,7 +244,7 @@ export class Subscription extends Message<Subscription> {
   path = "";
 
   /**
-   * Whether this subscription also subscribes to 
+   * Whether this subscription also subscribes to
    * all documents in the document's directory.
    *
    * @generated from field: bool recursive = 3;

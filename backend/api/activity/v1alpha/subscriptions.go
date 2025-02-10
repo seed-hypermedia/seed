@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"seed/backend/blob"
+	"seed/backend/core"
 	activity "seed/backend/genproto/activity/v1alpha"
 	"seed/backend/hmnet/syncing"
 	"seed/backend/util/apiutil"
@@ -14,14 +16,14 @@ import (
 	"strings"
 
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Subscribe subscribes to a document.
 func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest) (*emptypb.Empty, error) {
-	vals := []interface{}{}
-
 	_, ok := ctx.Deadline()
 	if !ok {
 		srv.log.Debug("Inserting deadline", zap.String("Duration", syncing.DefaultDiscoveryTimeout.String()))
@@ -29,68 +31,72 @@ func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest
 		defer cancelCtx()
 		ctx = toCtx
 	}
-	conn, cancel, err := srv.db.Conn(ctx)
+
+	acc, err := core.DecodePrincipal(req.Account)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid account: %v", err)
 	}
 
-	// If the document is not present locally, then we make this call blocking,
-	// since we have to discover it first.
-	var blocking = true
-	req.Account = strings.TrimPrefix(req.Account, "hm://")
-	wantedIri := "hm://" + req.Account + req.Path
-	err = sqlitex.Exec(conn, qGetResource(), func(stmt *sqlite.Stmt) error {
-		iri := stmt.ColumnText(0)
-		if wantedIri != iri {
-			return fmt.Errorf("wantedIri [%s] does not match returned iri [%s]", wantedIri, iri)
+	wantedIRI, err := blob.NewIRI(acc, req.Path)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid path: %v", err)
+	}
+
+	var async bool
+	if req.Async != nil {
+		async = *req.Async
+	} else {
+		if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+			return sqlitex.Exec(conn, qGetResource(), func(stmt *sqlite.Stmt) error {
+				async = true
+				return nil
+			}, wantedIRI)
+		}); err != nil {
+			return nil, err
 		}
-		blocking = false
-		return nil
-	}, wantedIri)
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("Problem collecting subscriptions, Probably no subscriptions or token out of range: %w", err)
 	}
-	srv.log.Debug("Subscribe called", zap.Bool("Blocking", blocking))
 
-	if srv.syncer == nil && blocking {
-		cancel()
+	srv.log.Debug("Subscribe called", zap.Bool("async", async))
+
+	if srv.syncer == nil && !async {
 		return nil, fmt.Errorf("Syncer non defined on blocking call")
 	}
 
-	sqlStr := "INSERT OR REPLACE INTO subscriptions (iri, is_recursive) VALUES (?,?)"
-	vals = append(vals, "hm://"+req.Account+req.Path, req.Recursive)
-	if err := sqlitex.Exec(conn, sqlStr, nil, vals...); err != nil {
-		cancel()
-		return &emptypb.Empty{}, err
+	if err := srv.db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		const q = "INSERT OR REPLACE INTO subscriptions (iri, is_recursive) VALUES (?, ?);"
+		return sqlitex.Exec(conn, q, nil, string(wantedIRI), req.Recursive)
+	}); err != nil {
+		return nil, err
 	}
-	cancel()
-	subscriptionReq := activity.Subscription{
+
+	subscriptionReq := &activity.Subscription{
 		Account:   req.Account,
 		Path:      req.Path,
 		Recursive: req.Recursive,
 	}
-	if blocking {
-		ret, err := srv.syncer.SyncSubscribedContent(ctx, &subscriptionReq)
+
+	if async {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), syncing.DefaultDiscoveryTimeout)
+			defer cancel()
+			_, err := srv.syncer.SyncSubscribedContent(ctx, subscriptionReq)
+			if err != nil {
+				srv.log.Debug("Non blocking Sync failed", zap.Error(err))
+			}
+		}()
+	} else {
+		ret, err := srv.syncer.SyncSubscribedContent(ctx, subscriptionReq)
 		if err != nil {
 			srv.log.Debug("Blocking Sync failed", zap.Error(err))
-			return &emptypb.Empty{}, err
+			return nil, err
 		}
 		if ret.NumSyncOK == 0 {
 			const errMsg = "Could not sync subscribed content from any known peer"
 			srv.log.Debug(errMsg)
-			return &emptypb.Empty{}, fmt.Errorf("%s", errMsg)
+			return nil, fmt.Errorf("%s", errMsg)
 		}
-		return &emptypb.Empty{}, nil
 	}
-	go func() {
-		syncCtx, cancel := context.WithTimeout(context.Background(), syncing.DefaultDiscoveryTimeout)
-		_, err := srv.syncer.SyncSubscribedContent(syncCtx, &subscriptionReq)
-		if err != nil {
-			srv.log.Debug("Non blocking Sync failed", zap.Error(err))
-		}
-		cancel()
-	}()
+
 	return &emptypb.Empty{}, nil
 }
 
