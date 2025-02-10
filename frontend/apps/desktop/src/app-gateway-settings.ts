@@ -1,4 +1,4 @@
-import {DEFAULT_GATEWAY_URL} from '@shm/shared'
+import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import z from 'zod'
 import {appStore} from './app-store'
 import {t} from './app-trpc'

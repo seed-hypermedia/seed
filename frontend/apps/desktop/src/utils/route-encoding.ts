@@ -1,4 +1,4 @@
-import {NavRoute} from '@shm/shared'
+import {NavRoute} from '@shm/shared/routes'
 import {Buffer} from 'buffer'
 
 export function encodeRouteToPath(route: NavRoute): string {

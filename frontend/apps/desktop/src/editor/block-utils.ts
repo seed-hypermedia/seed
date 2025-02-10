@@ -1,7 +1,7 @@
 import {BlockNoteEditor, getBlockInfoFromPos} from '@shm/editor/blocknote'
 import {updateGroupCommand} from '@shm/editor/blocknote/core/api/blockManipulation/commands/updateGroup'
 import {getNodeById} from '@shm/editor/blocknote/core/api/util/nodeUtil'
-import {HMBlockChildrenType} from '@shm/shared'
+import {HMBlockChildrenType} from '@shm/shared/hm-types'
 import {Node} from '@tiptap/pm/model'
 import {EditorView} from '@tiptap/pm/view'
 import {HMBlockSchema} from './schema'

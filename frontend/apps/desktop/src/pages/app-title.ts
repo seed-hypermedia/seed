@@ -1,4 +1,4 @@
-import {eventStream} from '@shm/shared'
+import {eventStream} from '@shm/shared/utils/stream'
 import {useEffect, useRef, useState} from 'react'
 
 type TitlebatKeys = 'page' | 'titlebar'

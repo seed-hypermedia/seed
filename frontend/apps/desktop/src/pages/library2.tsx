@@ -4,7 +4,6 @@ import {useMarkAsRead} from '@/models/documents'
 
 import {useExportDocuments} from '@/models/export-documents'
 import {
-  LibraryDocument,
   LibraryItem,
   LibrarySite,
   useLibrary,
@@ -12,16 +11,16 @@ import {
 } from '@/models/library'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
+import {getMetadataName} from '@shm/shared/content'
 import {
-  DocumentRoute,
-  entityQueryPathToHmIdPath,
-  getMetadataName,
   HMActivitySummary,
   HMBreadcrumb,
   HMDocumentInfo,
-  hmId,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+  HMLibraryDocument,
+} from '@shm/shared/hm-types'
+import {DocumentRoute} from '@shm/shared/routes'
+import {hmId, UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
+import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {
   Button,
   Checkbox,
@@ -474,7 +473,7 @@ export function LibraryDocumentItem({
   indent,
   accountsMetadata,
 }: {
-  item: LibraryDocument
+  item: HMLibraryDocument
   indent?: boolean
   accountsMetadata: AccountsMetadata
 }) {

@@ -7,18 +7,13 @@ import {
 } from '@/models/entities'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {
-  DocumentRoute,
-  DraftRoute,
-  getDocumentTitle,
-  NavRoute,
-} from '@shm/shared'
+import {getDocumentTitle} from '@shm/shared/content'
+import {DocumentRoute, DraftRoute, NavRoute} from '@shm/shared/routes'
 import {
   AlertCircle,
   Button,
   Contact,
   FontSizeTokens,
-  Home,
   Library,
   Popover,
   Sparkles,
@@ -56,14 +51,6 @@ export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
     })
   }, [route])
 
-  if (route.key === 'feed') {
-    return (
-      <>
-        <Home size={12} />
-        <TitleText {...titleProps}>Feed</TitleText>
-      </>
-    )
-  }
   if (route.key === 'contacts') {
     return (
       <>

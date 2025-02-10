@@ -1,15 +1,14 @@
 import {useGRPCClient} from '@/app-context'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
+import {Subscription} from '@shm/shared/client/.generated/activity/v1alpha/subscriptions_pb'
+import {BIG_INT} from '@shm/shared/constants'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {hmId, UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {
-  BIG_INT,
   entityQueryPathToHmIdPath,
-  hmId,
   hmIdPathToEntityQueryPath,
-  invalidateQueries,
-  queryKeys,
-  Subscription,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+} from '@shm/shared/utils/path-api'
 import {useMutation, useQuery} from '@tanstack/react-query'
 
 export type HMSubscription = Omit<PlainMessage<Subscription>, 'path'> & {

@@ -1,9 +1,9 @@
-import {HMBlockChildrenType} from '@shm/shared'
-import {Editor} from '@tiptap/core'
-import {Fragment, NodeType, Slice} from '@tiptap/pm/model'
-import {ReplaceAroundStep} from '@tiptap/pm/transform'
-import {EditorState, TextSelection} from 'prosemirror-state'
-import {BlockNoteEditor} from '../../../BlockNoteEditor'
+import { HMBlockChildrenType } from '@shm/shared/hm-types'
+import { Editor } from '@tiptap/core'
+import { Fragment, NodeType, Slice } from '@tiptap/pm/model'
+import { ReplaceAroundStep } from '@tiptap/pm/transform'
+import { EditorState, TextSelection } from 'prosemirror-state'
+import { BlockNoteEditor } from '../../../BlockNoteEditor'
 import {
   getBlockInfoFromPos,
   getBlockInfoFromSelection,
@@ -12,7 +12,7 @@ import {
   getGroupInfoFromPos,
   getParentGroupInfoFromPos,
 } from '../../../extensions/Blocks/helpers/getGroupInfoFromPos'
-import {updateGroupChildrenCommand} from './updateGroup'
+import { updateGroupChildrenCommand } from './updateGroup'
 
 function liftListItem(editor: Editor, posInBlock: number) {
   return function ({state, dispatch}: {state: EditorState; dispatch: any}) {

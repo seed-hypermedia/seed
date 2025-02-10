@@ -3,7 +3,8 @@ import {useEntities} from '@/models/entities'
 import {useFavorites} from '@/models/favorites'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {getDocumentTitle, hmId} from '@shm/shared'
+import {getDocumentTitle} from '@shm/shared/content'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {
   Button,
   ChevronDown,

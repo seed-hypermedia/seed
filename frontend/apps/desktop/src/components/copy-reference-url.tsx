@@ -1,11 +1,11 @@
-import { usePublishToSite } from '@/models/documents'
+import {usePublishToSite} from '@/models/documents'
 import {
+  createWebHMUrl,
   HYPERMEDIA_ENTITY_TYPES,
-  StateStream,
+  packHmId,
   UnpackedHypermediaId,
-  writeableStateStream,
-} from '@shm/shared'
-import { createWebHMUrl, packHmId } from '@shm/shared/utils/entity-id-url'
+} from '@shm/shared/utils/entity-id-url'
+import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {
   Button,
   CheckboxField,
@@ -21,13 +21,13 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import { ReactNode, useState } from 'react'
+import {ReactNode, useState} from 'react'
 import {
   usePushOnCopy,
   useSetPushOnCopy,
   useSetPushOnPublish,
 } from '../models/gateway-settings'
-import { DialogTitle, useAppDialog } from './dialog'
+import {DialogTitle, useAppDialog} from './dialog'
 
 type IsPublishedState = null | boolean // null: determined checked yet
 

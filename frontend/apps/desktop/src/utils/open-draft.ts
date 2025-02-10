@@ -1,4 +1,5 @@
-import {DraftRoute, UnpackedHypermediaId} from '@shm/shared'
+import {DraftRoute} from '@shm/shared/routes'
+import {UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {NavMode} from './navigation'
 import {useNavigate} from './useNavigate'
 

@@ -1,4 +1,4 @@
-import {DAEMON_HTTP_URL} from '@shm/shared'
+import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {app, dialog, net} from 'electron'
 import fs from 'fs'
 import mime from 'mime'

@@ -1,20 +1,13 @@
-import {
-  HMDocumentMetadataSchema,
-  HMDocumentSchema,
-} from '@shm/shared/hm-types'
-import { toast } from '@shm/ui'
-
-import { useAppContext, useGRPCClient } from '@/app-context'
-import { convertBlocksToMarkdown } from '@/utils/blocks-to-markdown'
-import { toPlainMessage } from '@bufbuild/protobuf'
-import {
-  EditorBlock,
-  getDocumentTitle,
-  hmBlocksToEditorContent,
-} from '@shm/shared'
-import { unpackHmId } from '@shm/shared/utils/entity-id-url'
-import { hmIdPathToEntityQueryPath } from '@shm/shared/utils/path-api'
-import { SizableText, YStack } from '@shm/ui'
+import {useAppContext, useGRPCClient} from '@/app-context'
+import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
+import {toPlainMessage} from '@bufbuild/protobuf'
+import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
+import {getDocumentTitle} from '@shm/shared/content'
+import {EditorBlock} from '@shm/shared/editor-types'
+import {HMDocumentMetadataSchema, HMDocumentSchema} from '@shm/shared/hm-types'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
+import {SizableText, toast, YStack} from '@shm/ui'
 
 export function useExportDocuments() {
   const {exportDocuments, openDirectory} = useAppContext()

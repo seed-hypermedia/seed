@@ -5,7 +5,7 @@ import {
   defaultProps,
   getBlockInfoFromPos,
 } from '@shm/editor/blocknote'
-import {DAEMON_FILE_UPLOAD_URL, DAEMON_FILE_URL} from '@shm/shared'
+import {DAEMON_FILE_UPLOAD_URL, DAEMON_FILE_URL} from '@shm/shared/constants'
 import {
   Button,
   Card,

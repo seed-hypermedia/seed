@@ -1,19 +1,17 @@
-import {useGRPCClient} from '@/app-context'
+import {grpcClient} from '@/grpc-client'
 import {useMyAccountIds} from '@/models/daemon'
 import {client, trpc} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
+import {GRPCClient} from '@shm/shared/grpc-client'
+import {HMDocumentMetadataSchema, HMDraft} from '@shm/shared/hm-types'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {
-  GRPCClient,
-  HMDocumentMetadataSchema,
-  HMDraft,
   hmId,
-  hmMetadataJsonCorrection,
-  invalidateQueries,
   packHmId,
-  queryKeys,
   UnpackedHypermediaId,
-} from '@shm/shared'
+} from '@shm/shared/utils/entity-id-url'
 import {useQueries, useQuery, UseQueryOptions} from '@tanstack/react-query'
 
 export function useAccount_deprecated() {
@@ -21,7 +19,6 @@ export function useAccount_deprecated() {
 }
 
 export function useAccounts() {
-  const grpcClient = useGRPCClient()
   const q = useQuery({
     queryKey: [queryKeys.LIST_ACCOUNTS],
     queryFn: async () => {
@@ -98,7 +95,6 @@ export function useWriteDraft(id?: UnpackedHypermediaId) {
 }
 
 export function useDrafts(draftIds: string[]) {
-  const grpcClient = useGRPCClient()
   return useQueries({
     queries: draftIds.map((draftId) => queryDraft({grpcClient, draftId})),
   })
@@ -106,11 +102,10 @@ export function useDrafts(draftIds: string[]) {
 
 export function queryDraft({
   draftId,
-  grpcClient,
   ...options
 }: {
   draftId?: string
-  grpcClient: GRPCClient
+  grpcClient?: GRPCClient
 } & UseQueryOptions<HMDraft | null>): UseQueryOptions<HMDraft | null> {
   return {
     enabled: !!draftId,

@@ -1,39 +1,40 @@
-import { AppContextProvider, StyleProvider } from '@/app-context-provider'
-import { AppIPC } from '@/app-ipc'
-import { WindowUtils } from '@/models/window-utils'
-import { NavigationContainer } from '@/utils/navigation-container'
-import { useListenAppEvent } from '@/utils/window-events'
-import type { Interceptor } from '@connectrpc/connect'
-import {
-  DAEMON_FILE_URL,
-  labelOfQueryKey,
-  onQueryCacheError,
-  onQueryInvalidation,
-  queryClient,
-} from '@shm/shared'
-import type { StateStream } from '@shm/shared/utils/stream'
-import { SizableText, Spinner, Toaster, YStack, toast, useStream } from '@shm/ui'
-import { UniversalAppProvider } from '@shm/ui/src/universal-app'
+import {AppContextProvider, StyleProvider} from '@/app-context-provider'
+import {AppIPC} from '@/app-ipc'
+import {WindowUtils} from '@/models/window-utils'
+import {NavigationContainer} from '@/utils/navigation-container'
+import {useListenAppEvent} from '@/utils/window-events'
+import type {Interceptor} from '@connectrpc/connect'
+
+import type {StateStream} from '@shm/shared/utils/stream'
+import {SizableText, Spinner, Toaster, YStack, toast, useStream} from '@shm/ui'
+import {UniversalAppProvider} from '@shm/ui/src/universal-app'
 import '@tamagui/core/reset.css'
 import '@tamagui/font-inter/css/400.css'
 import '@tamagui/font-inter/css/700.css'
-import { QueryKey, onlineManager } from '@tanstack/react-query'
+import {QueryKey, onlineManager} from '@tanstack/react-query'
 import copyTextToClipboard from 'copy-text-to-clipboard'
-import { ipcLink } from 'electron-trpc/renderer'
-import React, { Suspense, useEffect, useMemo, useState } from 'react'
+import {ipcLink} from 'electron-trpc/renderer'
+import React, {Suspense, useEffect, useMemo, useState} from 'react'
 import ReactDOM from 'react-dom/client'
-import { ErrorBoundary } from 'react-error-boundary'
+import {ErrorBoundary} from 'react-error-boundary'
 import superjson from 'superjson'
-import { AppErrorContent, RootAppError } from './components/app-error'
-import { AccountWizardDialog } from './components/create-account'
-import type { GoDaemonState } from './daemon'
-import { grpcClient } from './grpc-client'
-import { ipc } from './ipc'
+import {AppErrorContent, RootAppError} from './components/app-error'
+import {AccountWizardDialog} from './components/create-account'
+import type {GoDaemonState} from './daemon'
+import {grpcClient} from './grpc-client'
+import {ipc} from './ipc'
 import Main from './pages/main'
-import type { AppInfoType } from './preload'
+import type {AppInfoType} from './preload'
 import './root.css'
-import { client, trpc } from './trpc'
+import {client, trpc} from './trpc'
 
+import {DAEMON_FILE_URL} from '@shm/shared/constants'
+import {
+  onQueryCacheError,
+  onQueryInvalidation,
+  queryClient,
+} from '@shm/shared/models/query-client'
+import {labelOfQueryKey} from '@shm/shared/models/query-keys'
 import * as search from './models/search'
 
 // reference this to ensure dependency injection happens before search is used

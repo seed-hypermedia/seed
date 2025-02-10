@@ -26,7 +26,7 @@
  * ```
  */
 import * as Sentry from '@sentry/electron/renderer'
-import {IS_PROD_DESKTOP} from '@shm/shared'
+import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 
 import './root.tsx'
 

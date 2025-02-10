@@ -6,18 +6,14 @@ import {trpc} from '@/trpc'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {PlainMessage} from '@bufbuild/protobuf'
-import {
-  DEFAULT_GATEWAY_URL,
-  Document,
-  DraftRoute,
-  entityQueryPathToHmIdPath,
-  HMEntityContent,
-  hmId,
-  invalidateQueries,
-  packHmId,
-  StateStream,
-  writeableStateStream,
-} from '@shm/shared'
+import {Document} from '@shm/shared/client/.generated/documents/v1alpha/documents_pb'
+import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
+import {HMEntityContent} from '@shm/shared/hm-types'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {DraftRoute} from '@shm/shared/routes'
+import {hmId, packHmId} from '@shm/shared/utils/entity-id-url'
+import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
+import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {
   AlertCircle,
   Button,

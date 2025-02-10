@@ -20,7 +20,6 @@ import {
   SiteNavigationDocument,
 } from "./navigation";
 import {HeaderSearch, MobileSearch} from "./search";
-import {SiteLogo} from "./site-logo";
 
 export function SiteHeader({
   homeMetadata,
@@ -107,7 +106,7 @@ export function SiteHeader({
               flexShrink={0}
             >
               <XStack f={1} jc="center">
-                <SiteLogo id={homeId} metadata={homeMetadata} />
+                {/* <SiteLogo id={homeId} metadata={homeMetadata} /> */}
               </XStack>
               {isCenterLayout ? headerSearch : null}
             </XStack>

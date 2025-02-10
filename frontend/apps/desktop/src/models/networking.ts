@@ -2,12 +2,12 @@ import appError from '@/errors'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
 import {
-  BIG_INT,
   ConnectionStatus,
-  GRPCClient,
   PeerInfo,
-  queryKeys,
-} from '@shm/shared'
+} from '@shm/shared/client/.generated/networking/v1alpha/networking_pb'
+import {BIG_INT} from '@shm/shared/constants'
+import {GRPCClient} from '@shm/shared/grpc-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {
   FetchQueryOptions,
   UseQueryOptions,

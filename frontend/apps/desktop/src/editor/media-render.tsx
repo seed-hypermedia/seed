@@ -4,7 +4,7 @@ import {
   useEditorSelectionChange,
 } from '@shm/editor/blocknote'
 import {MultipleNodeSelection} from '@shm/editor/blocknote/core/extensions/SideMenu/MultipleNodeSelection'
-import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared'
+import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 import {
   Button,
   Input,

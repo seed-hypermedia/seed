@@ -19,7 +19,7 @@ export function HyperMediaEditorView({
   openUrl,
 }: {
   editor: HyperMediaEditor
-  comment: boolean
+  comment?: boolean
   openUrl: (url: string, newWindow?: boolean) => void
 }) {
   return (

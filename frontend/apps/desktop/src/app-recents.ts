@@ -1,11 +1,8 @@
 import {toPlainMessage} from '@bufbuild/protobuf'
-import {
-  NavRoute,
-  getDocumentTitle,
-  getRecentsRouteEntityUrl,
-  hmIdPathToEntityQueryPath,
-  invalidateQueries,
-} from '@shm/shared'
+import {getDocumentTitle} from '@shm/shared/content'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {getRecentsRouteEntityUrl, NavRoute} from '@shm/shared/routes'
+import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {z} from 'zod'
 import {grpcClient} from './app-grpc'
 import {appStore} from './app-store'

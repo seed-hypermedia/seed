@@ -2,7 +2,9 @@ import {FavoriteButton} from '@/components/favoriting'
 import {MainWrapper} from '@/components/main-wrapper'
 import {useAccounts} from '@/models/accounts'
 import {useNavigate} from '@/utils/useNavigate'
-import {getMetadataName, HMAccount, HMAccountsMetadata, hmId} from '@shm/shared'
+import {getMetadataName} from '@shm/shared/content'
+import {HMAccount, HMAccountsMetadata} from '@shm/shared/hm-types'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {
   Button,
   Container,

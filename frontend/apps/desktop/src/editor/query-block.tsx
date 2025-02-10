@@ -9,15 +9,11 @@ import {
   createReactBlockSpec,
   useEditorSelectionChange,
 } from '@shm/editor/blocknote/react'
-import {
-  EditorQueryBlock,
-  HMBlockQuery,
-  HMEntityContent,
-  hmId,
-  NavRoute,
-  queryBlockSortedItems,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {queryBlockSortedItems} from '@shm/shared/content'
+import {EditorQueryBlock} from '@shm/shared/editor-types'
+import {HMBlockQuery, HMEntityContent} from '@shm/shared/hm-types'
+import {NavRoute} from '@shm/shared/routes'
+import {hmId, UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {
   Button,
   ButtonFrame,
@@ -276,7 +272,7 @@ function CardView({
           id={firstItem.data?.id}
           entity={firstItem.data}
           key={firstItem.data?.id.id}
-          accountsMetadata={[]}
+          accountsMetadata={{}}
           flexBasis="100%"
           $gtSm={{flexBasis: '100%'}}
           $gtMd={{flexBasis: '100%'}}
@@ -297,7 +293,7 @@ function CardView({
                   id={item.data?.id}
                   entity={item.data}
                   key={item.data?.id.id}
-                  accountsMetadata={[]}
+                  accountsMetadata={{}}
                   flexBasis="100%"
                   $gtSm={{flexBasis: '100%'}}
                   $gtMd={{flexBasis: '100%'}}

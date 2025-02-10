@@ -1,21 +1,20 @@
 import {grpcClient} from '@/grpc-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
+import {GRPCClient} from '@shm/shared/grpc-client'
 import {
-  DocumentRoute,
-  DraftRoute,
-  GRPCClient,
   HMDocumentInfo,
   HMDocumentSchema,
   HMEntityContent,
+} from '@shm/shared/hm-types'
+import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {DocumentRoute, DraftRoute, NavRoute} from '@shm/shared/routes'
+import {
   hmId,
-  hmIdPathToEntityQueryPath,
-  invalidateQueries,
-  NavRoute,
-  queryClient,
-  queryKeys,
   UnpackedHypermediaId,
   unpackHmId,
-} from '@shm/shared'
+} from '@shm/shared/utils/entity-id-url'
+import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {
   useMutation,
   UseMutationOptions,

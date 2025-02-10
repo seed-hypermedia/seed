@@ -1,20 +1,18 @@
-import { useAccounts } from '@/models/accounts'
-import { useDocumentCommentGroups } from '@/models/comments'
-import { useEntities, useEntity } from '@/models/entities'
-import { useChildrenActivity } from '@/models/library'
-import { useDocumentPublishedChanges, useVersionChanges } from '@/models/versions'
-import { useNavRoute } from '@/utils/navigation'
+import {useAccounts} from '@/models/accounts'
+import {useDocumentCommentGroups} from '@/models/comments'
+import {useEntities, useEntity} from '@/models/entities'
+import {useChildrenActivity} from '@/models/library'
+import {useDocumentPublishedChanges, useVersionChanges} from '@/models/versions'
+import {useNavRoute} from '@/utils/navigation'
 import {
-  formattedDateMedium,
   HMChangeGroup,
   HMChangeSummary,
   HMCommentGroup,
   HMDocumentInfo,
-  hmId,
-  normalizeDate,
-  UnpackedHypermediaId,
-} from '@shm/shared'
-import { getActivityTime } from '@shm/shared/models/activity'
+} from '@shm/shared/hm-types'
+import {getActivityTime} from '@shm/shared/models/activity'
+import {formattedDateMedium, normalizeDate} from '@shm/shared/utils/date'
+import {hmId, UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {
   ActivitySection,
   Button,
@@ -25,9 +23,9 @@ import {
   useTheme,
   YStack,
 } from '@shm/ui'
-import { ChangeGroup, SubDocumentItem } from '@shm/ui/src/activity'
-import { Spinner } from '@shm/ui/src/spinner'
-import { useState } from 'react'
+import {ChangeGroup, SubDocumentItem} from '@shm/ui/src/activity'
+import {Spinner} from '@shm/ui/src/spinner'
+import {useState} from 'react'
 import {
   CommentDraft,
   CommentReplies,

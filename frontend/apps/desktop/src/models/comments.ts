@@ -10,27 +10,28 @@ import {
   type BlockSchema,
 } from '@shm/editor/blocknote'
 import {
-  BIG_INT,
   Block,
   BlockNode,
-  EditorBlock,
-  GRPCClient,
+} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
+import {editorBlockToHMBlock} from '@shm/shared/client/editorblock-to-hmblock'
+import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
+import {BIG_INT} from '@shm/shared/constants'
+import {getCommentGroups} from '@shm/shared/discussion'
+import {EditorBlock} from '@shm/shared/editor-types'
+import {GRPCClient} from '@shm/shared/grpc-client'
+import {
   HMComment,
   HMCommentDraft,
   HMCommentDraftSchema,
   HMCommentGroup,
   HMDocumentMetadataSchema,
   HMEntityContent,
-  UnpackedHypermediaId,
-  editorBlockToHMBlock,
-  getCommentGroups,
-  hmBlocksToEditorContent,
-  hmIdPathToEntityQueryPath,
-  invalidateQueries,
-  queryClient,
-  queryKeys,
-  writeableStateStream,
-} from '@shm/shared'
+} from '@shm/shared/hm-types'
+import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
+import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
+import {writeableStateStream} from '@shm/shared/utils/stream'
 import {toast} from '@shm/ui'
 import {
   UseQueryOptions,

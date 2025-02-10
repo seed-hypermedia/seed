@@ -1,4 +1,5 @@
-import {HMDraft, hmId, unpackHmId} from '@shm/shared'
+import {HMDraft} from '@shm/shared/hm-types'
+import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import fs from 'fs/promises'
 import {join} from 'path'
 import z from 'zod'

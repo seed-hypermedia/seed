@@ -1,16 +1,15 @@
 import {useGRPCClient} from '@/app-context'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {
-  BIG_INT,
   Capability,
-  hmId,
-  hmIdPathToEntityQueryPath,
-  HMRole,
-  invalidateQueries,
-  queryKeys,
   Role,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+} from '@shm/shared/client/.generated/documents/v3alpha/access_control_pb'
+import {BIG_INT} from '@shm/shared/constants'
+import {HMRole} from '@shm/shared/hm-types'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {hmId, UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
+import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {toast} from '@shm/ui'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {useMyAccountIds} from './daemon'

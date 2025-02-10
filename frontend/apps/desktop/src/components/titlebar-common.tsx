@@ -13,14 +13,11 @@ import {
   useNavigationState,
 } from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {
-  DEFAULT_GATEWAY_URL,
-  DocumentRoute,
-  HMBlockNode,
-  displayHostname,
-  hmBlocksToEditorContent,
-  hmId,
-} from '@shm/shared'
+import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
+import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
+import {HMBlockNode} from '@shm/shared/hm-types'
+import {DocumentRoute} from '@shm/shared/routes'
+import {displayHostname, hmId} from '@shm/shared/utils/entity-id-url'
 import {
   ArrowLeftFromLine,
   ArrowRight,

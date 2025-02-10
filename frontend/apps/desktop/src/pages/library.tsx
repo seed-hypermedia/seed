@@ -13,14 +13,11 @@ import {
 } from '@/models/library'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {useNavigate} from '@/utils/useNavigate'
-import {
-  DocumentRoute,
-  formattedDate,
-  getDocumentTitle,
-  getMetadataName,
-  HMBlockNode,
-  hmBlocksToEditorContent,
-} from '@shm/shared'
+import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
+import {getDocumentTitle, getMetadataName} from '@shm/shared/content'
+import {HMBlockNode} from '@shm/shared/hm-types'
+import {DocumentRoute} from '@shm/shared/routes'
+import {formattedDate} from '@shm/shared/utils/date'
 import {
   Archive,
   ArrowDownUp,

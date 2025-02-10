@@ -1,17 +1,13 @@
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {
-  createWebHMUrl,
-  DAEMON_FILE_URL,
-  DEFAULT_GATEWAY_URL,
-  DocumentChange,
-  eventStream,
-  HMDraft,
-  hmId,
-  invalidateQueries,
-  queryKeys,
-} from '@shm/shared'
+import {DocumentChange} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
+import {DAEMON_FILE_URL, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
+import {HMDraft} from '@shm/shared/hm-types'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {createWebHMUrl, hmId} from '@shm/shared/utils/entity-id-url'
+import {eventStream} from '@shm/shared/utils/stream'
 import {
   Button,
   CheckboxField,

@@ -27,19 +27,6 @@ import {useNavRoute} from '@/utils/navigation'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {BlockNoteEditor, getBlockInfoFromPos} from '@shm/editor/blocknote'
-import {
-  BlockRange,
-  createWebHMUrl,
-  ExpandedBlockRange,
-  HMBlockNode,
-  HMDocument,
-  HMDraft,
-  HMEntityContent,
-  hmId,
-  HMMetadata,
-  packHmId,
-  UnpackedHypermediaId,
-} from '@shm/shared'
 import '@shm/shared/styles/document.css'
 import {
   Button,
@@ -67,6 +54,21 @@ import {GestureResponderEvent} from 'react-native'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {EmbedToolbarProvider} from '@/editor/embed-toolbar-context'
 import {useOpenUrl} from '@/open-url'
+import {
+  HMBlockNode,
+  HMDocument,
+  HMDraft,
+  HMEntityContent,
+  HMMetadata,
+} from '@shm/shared/hm-types'
+import {
+  BlockRange,
+  createWebHMUrl,
+  ExpandedBlockRange,
+  hmId,
+  packHmId,
+  UnpackedHypermediaId,
+} from '@shm/shared/utils/entity-id-url'
 import {Spinner, YStack} from '@shm/ui'
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
@@ -758,6 +760,7 @@ export function DraftCover({
   draftActor: ActorRefFrom<typeof draftMachine>
   disabled?: boolean
   showOutline?: boolean
+  show?: boolean
   setShowOutline?: (show: boolean) => void
 }) {
   const route = useNavRoute()

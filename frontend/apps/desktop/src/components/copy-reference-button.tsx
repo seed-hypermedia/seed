@@ -2,15 +2,15 @@ import {useAppContext} from '@/app-context'
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {useEntity} from '@/models/entities'
 import {useGatewayUrl} from '@/models/gateway-settings'
+import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {
   BlockRange,
-  DEFAULT_GATEWAY_URL,
-  ExpandedBlockRange,
-  UnpackedHypermediaId,
   createSiteUrl,
   createWebHMUrl,
+  ExpandedBlockRange,
   hmId,
-} from '@shm/shared'
+  UnpackedHypermediaId,
+} from '@shm/shared/utils/entity-id-url'
 import {Button, ButtonProps, ExternalLink, Link, Tooltip} from '@shm/ui'
 import {PropsWithChildren, ReactNode, useState} from 'react'
 

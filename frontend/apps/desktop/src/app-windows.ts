@@ -2,7 +2,7 @@ import appError from '@/errors'
 import type {NavState} from '@/utils/navigation'
 import type {AppWindowEvent} from '@/utils/window-events'
 import {getRouteWindowType} from '@/utils/window-types'
-import {NavRoute, defaultRoute} from '@shm/shared'
+import {NavRoute, defaultRoute} from '@shm/shared/routes'
 import {
   BrowserView,
   BrowserWindow,

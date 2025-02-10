@@ -1,5 +1,6 @@
 import {trpc} from '@/trpc'
-import {getRecentsRouteEntityUrl, invalidateQueries} from '@shm/shared'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {getRecentsRouteEntityUrl} from '@shm/shared/routes'
 import {useNavRoute} from '../utils/navigation'
 
 export function useRecents() {

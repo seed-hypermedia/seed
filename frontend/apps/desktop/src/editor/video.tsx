@@ -5,7 +5,7 @@ import {
   createReactBlockSpec,
   defaultProps,
 } from '@shm/editor/blocknote'
-import {DAEMON_FILE_URL} from '@shm/shared'
+import {DAEMON_FILE_URL} from '@shm/shared/constants'
 import {ResizeHandle, SizableText, XStack, isIpfsUrl, useTheme} from '@shm/ui'
 import {useEffect, useState} from 'react'
 import {RiVideoAddLine} from 'react-icons/ri'

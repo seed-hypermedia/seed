@@ -279,6 +279,7 @@ function _MainDocumentPage({
                 isBlockFocused={isBlockFocused}
               />
             </YStack>
+
             <DocPageAppendix
               centered={
                 entity.data.document?.metadata.layout ==

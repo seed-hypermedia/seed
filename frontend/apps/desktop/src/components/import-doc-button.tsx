@@ -16,13 +16,9 @@ import {
   processLinkMarkdown,
   processMediaMarkdown,
 } from '@shm/editor/blocknote/core/extensions/Markdown/MarkdownToBlocks'
-import {
-  HMDraft,
-  HMEntityContent,
-  invalidateQueries,
-  queryClient,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {HMDraft, HMEntityContent} from '@shm/shared/hm-types'
+import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
+import {UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {FileInput, FolderInput, OptionsDropdown, toast} from '@shm/ui'
 import {Extension} from '@tiptap/core'
 import matter from 'gray-matter'

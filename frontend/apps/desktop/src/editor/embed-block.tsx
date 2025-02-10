@@ -1,12 +1,14 @@
-import {useAppContext} from '@/app-context'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useRecents} from '@/models/recents'
 import {loadWebLinkMeta} from '@/models/web-links'
 import {useOpenUrl} from '@/open-url'
 import {Block, BlockNoteEditor} from '@shm/editor/blocknote'
 import {createReactBlockSpec} from '@shm/editor/blocknote/react'
+import {HMEmbedViewSchema} from '@shm/shared/hm-types'
+import {queryClient} from '@shm/shared/models/query-client'
+import {useSearch} from '@shm/shared/models/search'
+import {useHover} from '@shm/shared/use-hover'
 import {
-  HMEmbedViewSchema,
   hmIdWithVersion,
   HYPERMEDIA_ENTITY_TYPES,
   isHypermediaScheme,
@@ -16,9 +18,7 @@ import {
   parseCustomURL,
   UnpackedHypermediaId,
   unpackHmId,
-  useHover,
-  useSearch,
-} from '@shm/shared'
+} from '@shm/shared/utils/entity-id-url'
 import {
   BlockContentEmbed,
   Button,
@@ -94,7 +94,6 @@ const Render = (
   block: Block<HMBlockSchema>,
   editor: BlockNoteEditor<HMBlockSchema>,
 ) => {
-  const {queryClient} = useAppContext()
   const gwUrl = useGatewayUrlStream()
   const submitEmbed = async (
     url: string,

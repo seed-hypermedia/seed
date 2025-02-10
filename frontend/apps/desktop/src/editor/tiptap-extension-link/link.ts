@@ -1,4 +1,4 @@
-import {isHypermediaScheme} from '@shm/shared'
+import {isHypermediaScheme} from '@shm/shared/utils/entity-id-url'
 import {Mark, mergeAttributes} from '@tiptap/core'
 import {Plugin} from '@tiptap/pm/state'
 import {registerCustomProtocol, reset} from 'linkifyjs'

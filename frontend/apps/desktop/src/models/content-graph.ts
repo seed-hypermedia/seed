@@ -1,9 +1,6 @@
-import {
-  GRPCClient,
-  queryKeys,
-  UnpackedHypermediaId,
-  unpackHmId,
-} from '@shm/shared'
+import {GRPCClient} from '@shm/shared/grpc-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {UnpackedHypermediaId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useQuery} from '@tanstack/react-query'
 import {useGRPCClient} from '../app-context'
 

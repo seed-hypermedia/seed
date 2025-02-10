@@ -1,6 +1,7 @@
 import {useEntity} from '@/models/entities'
 import {useNavigate} from '@/utils/useNavigate'
-import {getAccountName, hmId} from '@shm/shared'
+import {getAccountName} from '@shm/shared/content'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {ButtonProps, ButtonText, SizableText, SizableTextProps} from '@shm/ui'
 
 export function NameComponent({

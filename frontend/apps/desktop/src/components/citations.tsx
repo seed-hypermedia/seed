@@ -1,35 +1,35 @@
-import { AccessoryContainer } from '@/components/accessory-sidebar'
-import { EntityLinkIcon } from '@/components/account-link-icon'
-import { useAccount_deprecated } from '@/models/accounts'
-import { useComment } from '@/models/comments'
-import { useEntityMentions } from '@/models/content-graph'
-import { useDocTextContent } from '@/models/documents'
-import { useEntity } from '@/models/entities'
-import { useNavigate } from '@/utils/useNavigate'
+import {AccessoryContainer} from '@/components/accessory-sidebar'
+import {EntityLinkIcon} from '@/components/account-link-icon'
+import {useAccount_deprecated} from '@/models/accounts'
+import {useComment} from '@/models/comments'
+import {useEntityMentions} from '@/models/content-graph'
+import {useDocTextContent} from '@/models/documents'
+import {useEntity} from '@/models/entities'
+import {useNavigate} from '@/utils/useNavigate'
+import {Mention} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
+import {HYPERMEDIA_SCHEME} from '@shm/shared/constants'
+import {getDocumentTitle} from '@shm/shared/content'
+import {DocumentRoute} from '@shm/shared/routes'
+import {formattedDateMedium} from '@shm/shared/utils/date'
 import {
   BlockRange,
-  DocumentRoute,
   ExpandedBlockRange,
-  HYPERMEDIA_SCHEME,
-  UnpackedHypermediaId,
-  formattedDateMedium,
-  getDocumentTitle,
-  pluralS,
   serializeBlockRange,
+  UnpackedHypermediaId,
   unpackHmId,
-} from '@shm/shared'
-import { Mention } from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
+} from '@shm/shared/utils/entity-id-url'
+import {pluralS} from '@shm/shared/utils/language'
 import {
   BlocksContent,
   ButtonText,
+  copyUrlToClipboardWithFeedback,
   PanelCard,
   SizableText,
   XStack,
   YStack,
-  copyUrlToClipboardWithFeedback,
 } from '@shm/ui'
-import { useMemo } from 'react'
-import { AppDocContentProvider } from '../pages/document-content-provider'
+import {useMemo} from 'react'
+import {AppDocContentProvider} from '../pages/document-content-provider'
 
 function CitationItem({mention}: {mention: Mention}) {
   if (!mention.source) throw 'Invalid citation'

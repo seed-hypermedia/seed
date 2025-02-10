@@ -1,5 +1,6 @@
 import {trpc} from '@/trpc'
-import {invalidateQueries, UnpackedHypermediaId, unpackHmId} from '@shm/shared'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {UnpackedHypermediaId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useMemo} from 'react'
 
 export type FavoriteItem = {

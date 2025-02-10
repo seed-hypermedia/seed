@@ -1,5 +1,9 @@
 import {useRecents} from '@/models/recents'
-import {HYPERMEDIA_ENTITY_TYPES, unpackHmId, useSearch} from '@shm/shared'
+import {useSearch} from '@shm/shared/models/search'
+import {
+  HYPERMEDIA_ENTITY_TYPES,
+  unpackHmId,
+} from '@shm/shared/utils/entity-id-url'
 import {
   Input,
   Link as LinkIcon,

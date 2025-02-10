@@ -1,7 +1,12 @@
-import {AuthorVersion, Change, DAEMON_HTTP_PORT, queryKeys} from '@shm/shared'
+import {grpcClient} from '@/grpc-client'
+import {
+  AuthorVersion,
+  Change,
+} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
+import {DAEMON_HTTP_PORT} from '@shm/shared/constants'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {UseQueryOptions, useQueries, useQuery} from '@tanstack/react-query'
 import {useMemo} from 'react'
-import {useGRPCClient} from '../app-context'
 
 export function useDocHistory(docId?: string, variantVersion?: string) {
   const {data} = useEntityTimeline(docId)
@@ -20,7 +25,7 @@ export function useDocHistory(docId?: string, variantVersion?: string) {
     while (walkLeafVersions?.length) {
       const nextLeafVersions: TimelineChange[] = []
       for (const change of walkLeafVersions) {
-        change?.change.deps?.map((depChangeId) => {
+        change?.change.deps?.map((depChangeId: string) => {
           allVariantChanges.add(depChangeId)
           const depChange = data?.allChanges[depChangeId]
           if (depChange) {
@@ -66,7 +71,6 @@ export function useEntityTimeline(
   includeDrafts: boolean = false,
   opts?: UseQueryOptions<unknown, unknown, HMTimeline>,
 ) {
-  const grpcClient = useGRPCClient()
   return useQuery({
     queryFn: async () => {
       const rawTimeline = await grpcClient.entities.getEntityTimeline({
@@ -107,7 +111,6 @@ export function useEntityTimeline(
 }
 
 export function useChange(changeId?: string) {
-  const grpcClient = useGRPCClient()
   return useQuery({
     queryFn: () =>
       grpcClient.entities.getChange({

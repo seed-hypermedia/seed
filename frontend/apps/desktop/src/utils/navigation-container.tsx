@@ -1,5 +1,5 @@
 import {client} from '@/trpc'
-import {defaultRoute} from '@shm/shared/routes'
+import {defaultRoute, NavRoute} from '@shm/shared/routes'
 import {UniversalRoutingProvider} from '@shm/shared/routing'
 import {writeableStateStream} from '@shm/shared/utils/stream'
 import {ReactNode, useEffect, useMemo} from 'react'
@@ -68,18 +68,23 @@ export function NavigationContainer({
     }
   }, [])
 
+  const routingContext = useMemo(() => {
+    return {
+      openRoute: (route: NavRoute, replace?: boolean) => {
+        console.log(`== ~ openRoute:`, route, replace)
+        if (replace) {
+          navigation.dispatch({type: 'replace', route})
+        } else {
+          navigation.dispatch({type: 'push', route})
+        }
+      },
+    }
+  }, [])
+
+  console.log(`== ~ routingContext ~ routingContext:`, routingContext)
+
   return (
-    <UniversalRoutingProvider
-      value={{
-        openRoute: (route, replace) => {
-          if (replace) {
-            navigation.dispatch({type: 'replace', route})
-          } else {
-            navigation.dispatch({type: 'push', route})
-          }
-        },
-      }}
-    >
+    <UniversalRoutingProvider value={routingContext}>
       <NavContextProvider value={navigation}>{children}</NavContextProvider>
     </UniversalRoutingProvider>
   )

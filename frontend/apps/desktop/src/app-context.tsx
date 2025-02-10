@@ -1,4 +1,4 @@
-import {GRPCClient} from '@shm/shared'
+import {GRPCClient} from '@shm/shared/grpc-client'
 import {createContext, useContext, useEffect} from 'react'
 
 import {AppIPC, Event, EventCallback} from './app-ipc'

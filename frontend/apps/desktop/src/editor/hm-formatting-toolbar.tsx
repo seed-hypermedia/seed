@@ -7,9 +7,6 @@ import {
   useEditorContentChange,
   useEditorSelectionChange,
 } from '@shm/editor/blocknote'
-
-import {ToolbarDropdownItemProps} from '@shm/editor/blocknote/react/SharedComponents/Toolbar/components/ToolbarDropdownItem'
-import {EditorToggledStyle} from '@shm/shared'
 import {
   Button,
   Check,
@@ -32,6 +29,7 @@ import {
 } from '@shm/ui'
 import {useMemo, useState} from 'react'
 
+import {EditorToggledStyle} from '@shm/shared/hm-types'
 import {HMLinkToolbarButton} from './hm-toolbar-link-button'
 import {HMBlockSchema} from './schema'
 // import {TextAlignButton} from './DefaultButtons/TextAlignButton'

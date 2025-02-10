@@ -1,4 +1,4 @@
-import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared'
+import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 import {toast} from '@shm/ui'
 import {Node, NodeType} from 'prosemirror-model'
 

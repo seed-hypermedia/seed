@@ -1,14 +1,7 @@
 import {useGRPCClient} from '@/app-context'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
-import {
-  HMInvoice,
-  HMWallet,
-  invalidateQueries,
-  Invoice,
-  LIGHTNING_API_URL,
-  queryKeys,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {useEffect, useRef, useState} from 'react'
 

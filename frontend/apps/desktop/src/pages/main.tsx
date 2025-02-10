@@ -4,7 +4,7 @@ import {SidebarContextProvider} from '@/sidebar-context'
 import {getRouteKey, useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {getWindowType} from '@/utils/window-types'
-import {NavRoute} from '@shm/shared'
+import {NavRoute} from '@shm/shared/routes'
 import {YStack} from '@shm/ui'
 import {ReactElement, lazy, useMemo} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
@@ -17,7 +17,6 @@ import {BaseLoading, NotFoundPage} from './base'
 import {DocumentPlaceholder} from './document-placeholder'
 import './polyfills'
 
-var Feed = lazy(() => import('./feed'))
 var Settings = lazy(() => import('./settings'))
 var Contacts = lazy(() => import('./contacts-page'))
 var Document = lazy(() => import('./document'))
@@ -115,11 +114,6 @@ export default function Main({className}: {className?: string}) {
 
 function getPageComponent(navRoute: NavRoute) {
   switch (navRoute.key) {
-    case 'feed':
-      return {
-        PageComponent: Feed,
-        Fallback: BaseLoading,
-      }
     case 'contacts':
       return {
         PageComponent: Contacts,
@@ -149,11 +143,6 @@ function getPageComponent(navRoute: NavRoute) {
     case 'deleted-content':
       return {
         PageComponent: DeletedContent,
-        Fallback: BaseLoading,
-      }
-    case 'draft-rebase':
-      return {
-        PageComponent: DraftRebase,
         Fallback: BaseLoading,
       }
     default:

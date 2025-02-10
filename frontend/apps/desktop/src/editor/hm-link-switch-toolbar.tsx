@@ -5,7 +5,8 @@ import {
   HyperlinkToolbarProps,
   PartialBlock,
 } from '@shm/editor/blocknote'
-import {getDocumentTitle, unpackHmId} from '@shm/shared'
+import {getDocumentTitle} from '@shm/shared/content'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {
   Button,
   CircleDot,
