@@ -395,6 +395,7 @@ export function useCommentEditor(
         targetDocId.uid,
         ...(targetDocId.path || []),
       ])
+      invalidateQueries([queryKeys.LIBRARY])
       invalidateQueries([queryKeys.SITE_LIBRARY, targetDocId.uid])
       invalidateQueries([queryKeys.LIST_ACCOUNTS])
       invalidateQueries([queryKeys.FEED_LATEST_EVENT])
