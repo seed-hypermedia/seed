@@ -1,8 +1,9 @@
 import {PlainMessage} from "@bufbuild/protobuf";
-import {EditorInlineContent} from "@shm/desktop/src/editor";
+// import {EditorInlineContent} from "@shm/desktop/src/editor";
 import {
   BlockNode,
   BlockRange,
+  EditorInlineContent,
   ExpandedBlockRange,
   HMBlock,
   HMBlockChildrenType,
@@ -126,6 +127,7 @@ export type DocContentContextValue = {
     documentId?: string;
     version?: string;
     blockRef?: string;
+    blockRange?: BlockRange;
   };
   importWebFile?: any;
   supportDocuments?: HMEntityContent[];
@@ -264,12 +266,14 @@ export function DocContent({
   focusBlockId,
   maxBlockCount,
   marginVertical = "$5",
+  handleBlockReplace,
   ...props
 }: XStackProps & {
   document: HMDocument;
   focusBlockId?: string | undefined;
   maxBlockCount?: number;
   marginVertical?: any;
+  handleBlockReplace?: () => boolean;
 }) {
   const {wrapper, bubble, coords, state} = useRangeSelection();
 
@@ -357,7 +361,11 @@ export function DocContent({
           </Tooltip>
         ) : null}
       </XStack>
-      <BlocksContent blocks={displayBlocks} parentBlockId={null} />
+      <BlocksContent
+        blocks={displayBlocks}
+        parentBlockId={null}
+        handleBlockReplace={handleBlockReplace}
+      />
     </YStack>
   );
 }
@@ -366,9 +374,11 @@ export const BlocksContent = memo(_BlocksContent);
 function _BlocksContent({
   blocks,
   parentBlockId,
+  handleBlockReplace,
 }: {
   blocks?: Array<PlainMessage<BlockNode>> | Array<HMBlockNode> | null;
   parentBlockId: string | null;
+  handleBlockReplace?: () => boolean;
 }) {
   if (!blocks) return null;
 
@@ -389,7 +399,7 @@ function _BlocksContent({
         ? blocks?.map((bn, idx) => (
             <BlockNodeContent
               parentBlockId={parentBlockId}
-              isFirstChild={idx == 0}
+              isFirstChild={idx === 0}
               key={bn.block?.id}
               blockNode={bn}
               depth={1}
@@ -399,6 +409,7 @@ function _BlocksContent({
               )}
               listLevel={1}
               index={idx}
+              handleBlockReplace={handleBlockReplace}
             />
           ))
         : null}
@@ -499,6 +510,7 @@ export function BlockNodeContent({
   expanded = true,
   embedDepth = 1,
   parentBlockId,
+  handleBlockReplace,
   ...props
 }: {
   isFirstChild: boolean;
@@ -510,6 +522,7 @@ export function BlockNodeContent({
   embedDepth?: number;
   expanded?: boolean;
   parentBlockId: string | null;
+  handleBlockReplace?: () => boolean;
 }) {
   const {
     layoutUnit,
@@ -550,6 +563,7 @@ export function BlockNodeContent({
           index={index}
           parentBlockId={blockNode.block?.id || null}
           embedDepth={embedDepth ? embedDepth + 1 : embedDepth}
+          handleBlockReplace={handleBlockReplace}
         />
       ))
     : null;
@@ -568,14 +582,68 @@ export function BlockNodeContent({
 
   const [isHighlight, setHighlight] = useState(false);
 
+  // Clone block and add the highlight annotation
+  const modifiedBlock = useMemo(() => {
+    if (
+      !(
+        routeParams?.blockRef === blockNode.block?.id && routeParams?.blockRange
+      )
+    )
+      return blockNode.block;
+
+    const clonedBlock = {
+      ...blockNode.block,
+      annotations: [...(blockNode!.block!.annotations || [])],
+    };
+
+    // Add the highlight annotation
+    clonedBlock.annotations.push({
+      type: "Range",
+      starts: [routeParams.blockRange.start],
+      ends: [routeParams.blockRange.end],
+      attributes: {},
+    });
+
+    return clonedBlock;
+  }, [blockNode.block, routeParams]);
+
   useEffect(() => {
+    if (routeParams?.blockRange) return;
+
     let val = routeParams?.blockRef == blockNode.block?.id && !comment;
-    if (val) {
-      setTimeout(() => {
-        setHighlight(false);
-      }, 1000);
-    }
+
     setHighlight(val);
+
+    if (!val || !elm.current) return;
+
+    // Uncomment to enable unhighlighting when scrolling outside of the block view.
+    // // Add intersection observer to check if the user scrolled out of block view.
+    // const observer = new IntersectionObserver(
+    //   ([entry]) => {
+    //     console.log(entry.isIntersecting);
+    //     // && !routeParams.blockRange
+    //     if (!entry.isIntersecting) {
+    //       handleBlockReplace?.();
+    //     }
+    //   },
+    //   {threshold: 0.1} // Trigger when 10% of the block is still visible.
+    // );
+
+    // Function to check if the user clicked outside the block bounds.
+    const handleClickOutside = (event: MouseEvent) => {
+      if (elm.current && !elm.current.contains(event.target as Node)) {
+        handleBlockReplace?.();
+      }
+    };
+
+    // observer.observe(elm.current);
+    document.addEventListener("click", handleClickOutside);
+
+    // Remove listeners when unmounting
+    return () => {
+      // observer.disconnect();
+      document.removeEventListener("click", handleClickOutside);
+    };
   }, [routeParams?.blockRef, comment, blockNode.block]);
 
   function handleBlockNodeToggle() {
@@ -686,7 +754,7 @@ export function BlockNodeContent({
           start={props.start}
         /> */}
         <BlockContent
-          block={blockNode.block!}
+          block={modifiedBlock}
           depth={depth}
           parentBlockId={parentBlockId}
           {...interactiveProps}

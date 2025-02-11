@@ -128,6 +128,13 @@ export const InlineEmbedAnnotationSchema = z
   })
   .strict()
 
+export const HighlightAnnotationSchema = z
+  .object({
+    type: z.literal('Range'),
+    ...baseAnnotationProperties,
+  })
+  .strict()
+
 export const HMAnnotationSchema = z.discriminatedUnion('type', [
   BoldAnnotationSchema,
   ItalicAnnotationSchema,
@@ -136,6 +143,7 @@ export const HMAnnotationSchema = z.discriminatedUnion('type', [
   CodeAnnotationSchema,
   LinkAnnotationSchema,
   InlineEmbedAnnotationSchema,
+  HighlightAnnotationSchema,
 ])
 export type HMAnnotation = z.infer<typeof HMAnnotationSchema>
 

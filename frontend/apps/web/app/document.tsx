@@ -1,5 +1,7 @@
 import {MetaFunction} from "@remix-run/node";
+import {useLocation, useNavigate} from "@remix-run/react";
 import {
+  BlockRange,
   createWebHMUrl,
   formattedDateMedium,
   getDocumentTitle,
@@ -175,6 +177,15 @@ export function DocumentPage(props: SiteDocumentPayload) {
     !isHomeDoc;
   const showSidebarOutlineDirectory = isShowOutline && !isHomeDoc;
 
+  const location = useLocation();
+  const replace = useNavigate();
+  const match = location.hash.match(/^([^[]+)(?:\[(\d+):(\d+)\])?$/);
+  const blockRef = match ? match[1].substring(1) : undefined;
+
+  const blockRange = match
+    ? {start: parseInt(match[2]), end: parseInt(match[3])}
+    : undefined;
+
   return (
     <WebSiteProvider homeId={props.homeId}>
       <YStack>
@@ -242,8 +253,21 @@ export function DocumentPage(props: SiteDocumentPayload) {
                 siteHost={siteHost}
                 supportDocuments={supportDocuments}
                 supportQueries={supportQueries}
+                routeParams={{
+                  blockRef: blockRef,
+                  blockRange: blockRange,
+                }}
               >
-                <DocContent document={document} />
+                <DocContent
+                  document={document}
+                  handleBlockReplace={() => {
+                    // Replace the URL to not include fragment.
+                    replace(location.pathname + location.search, {
+                      replace: true,
+                    });
+                    return true;
+                  }}
+                />
               </WebDocContentProvider>
               <DocumentAppendix
                 id={id}
@@ -373,6 +397,7 @@ function WebDocContentProvider({
   siteHost,
   supportDocuments,
   supportQueries,
+  routeParams,
 }: {
   siteHost: string | undefined;
   id: UnpackedHypermediaId;
@@ -380,6 +405,12 @@ function WebDocContentProvider({
   children: React.ReactNode;
   supportDocuments?: HMEntityContent[];
   supportQueries?: HMQueryResult[];
+  routeParams?: {
+    documentId?: string;
+    version?: string;
+    blockRef?: string;
+    blockRange?: BlockRange;
+  };
 }) {
   return (
     <DocContentProvider
@@ -420,6 +451,7 @@ function WebDocContentProvider({
         });
         window.navigator.clipboard.writeText(blockHref);
       }}
+      routeParams={routeParams}
       textUnit={18}
       layoutUnit={24}
       debug={false}

@@ -16,7 +16,7 @@ import {
   useRouteLink,
 } from "@shm/shared";
 import {XStack, YStack} from "@tamagui/stacks";
-import {GestureReponderEvent, useMedia} from "@tamagui/web";
+import {useMedia} from "@tamagui/web";
 import {ReactNode, useLayoutEffect, useMemo} from "react";
 import {usePopoverState} from ".";
 import {HMIcon} from "./hm-icon";
@@ -248,17 +248,34 @@ export function DocumentOutline({
   const outline = useMemo(() => {
     return getNodesOutline(document.content, id, supportDocuments);
   }, [id, document.content, supportDocuments]);
-  return outline.map((node) => (
-    <OutlineNode
-      node={node}
-      key={node.id}
-      indented={indented}
-      onActivateBlock={onActivateBlock}
-      onPress={onPress}
-      activeBlockId={activeBlockId}
-      onCloseNav={onCloseNav}
-    />
-  ));
+  return outline.map((node) => {
+    const outlineProps = useRouteLink(
+      {
+        key: "document",
+        id: {
+          ...id,
+          blockRef: node.id,
+        },
+      },
+      undefined,
+      {
+        replace: true,
+      }
+    );
+    return (
+      <OutlineNode
+        node={node}
+        key={node.id}
+        indented={indented}
+        onActivateBlock={onActivateBlock}
+        onPress={onPress}
+        activeBlockId={activeBlockId}
+        onCloseNav={onCloseNav}
+        outlineProps={outlineProps}
+        docId={id}
+      />
+    );
+  });
 }
 
 export function DraftOutline({
@@ -287,6 +304,7 @@ export function DraftOutline({
       onActivateBlock={onActivateBlock}
       onPress={onPress}
       activeBlockId={null}
+      docId={id}
     />
   ));
 }
@@ -298,6 +316,8 @@ function OutlineNode({
   onActivateBlock,
   onPress,
   onCloseNav,
+  outlineProps,
+  docId,
 }: {
   node: NodeOutline;
   indented?: number;
@@ -305,34 +325,58 @@ function OutlineNode({
   onActivateBlock: (blockId: string) => void;
   onPress?: () => void;
   onCloseNav?: () => void;
+  outlineProps?: any;
+  docId: UnpackedHypermediaId;
 }) {
   return (
     <>
       <SmallListItem
+        {...outlineProps}
         key={node.id}
         multiline
         active={node.id === activeBlockId}
         title={node.title}
         indented={indented}
-        onPress={(e: GestureReponderEvent) => {
-          e.preventDefault();
-          onPress?.();
-          onCloseNav?.();
-          onActivateBlock(node.id);
-        }}
+        // onPress={(e: GestureReponderEvent) => {
+        //   e.preventDefault();
+        // outlineProps?.onPress?.();
+        // if (outlineProps.onPress) {
+        //   outlineProps.onPress(e);
+        // }
+        //   onPress?.();
+        //   onCloseNav?.();
+        //   onActivateBlock(node.id);
+        // }}
       />
       {node.children?.length
-        ? node.children.map((child) => (
-            <OutlineNode
-              node={child}
-              key={child.id}
-              indented={indented + 1}
-              activeBlockId={activeBlockId}
-              onActivateBlock={onActivateBlock}
-              onPress={onPress}
-              onCloseNav={onCloseNav}
-            />
-          ))
+        ? node.children.map((child) => {
+            const childOutlineProps = useRouteLink(
+              {
+                key: "document",
+                id: {
+                  ...docId,
+                  blockRef: child.id,
+                },
+              },
+              undefined,
+              {
+                replace: true,
+              }
+            );
+            return (
+              <OutlineNode
+                node={child}
+                key={child.id}
+                indented={indented + 1}
+                activeBlockId={activeBlockId}
+                onActivateBlock={onActivateBlock}
+                onPress={onPress}
+                onCloseNav={onCloseNav}
+                outlineProps={childOutlineProps}
+                docId={docId}
+              />
+            );
+          })
         : null}
     </>
   );
