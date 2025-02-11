@@ -105,7 +105,7 @@ export default function DraftPage() {
         onClose={() => setAccessory(undefined)}
         draftId={route.id}
         onResetContent={(blockNodes: HMBlockNode[]) => {
-          // data.actor.send({type: 'RESET.CONTENT', blockNodes})
+          data.actor.send({type: 'RESET.CONTENT', blockNodes})
         }}
       />
     )

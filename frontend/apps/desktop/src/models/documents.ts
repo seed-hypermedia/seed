@@ -559,7 +559,6 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
           let content: Array<EditorBlock> = []
           if (context.entity && !context.draft && context.entity.document) {
             // populate draft from document
-
             content = hmBlocksToEditorContent(context.entity.document.content, {
               childrenType: 'Group',
             })
@@ -569,7 +568,6 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
           ) {
             content = context.draft.content
           }
-
           editor.replaceBlocks(editor.topLevelBlocks, content)
           const tiptap = editor?._tiptapEditor
           // this is a hack to set the current blockGroups in the editor to the correct type, because from the BN API we don't have access to those nodes.
@@ -611,6 +609,15 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
           invalidateQueries(['trpc.drafts.list'])
           invalidateQueries(['trpc.drafts.listAccount'])
           invalidateQueries([queryKeys.ENTITY, id?.id])
+        },
+        resetContent: function ({event}) {
+          if (event.type !== 'RESET.CONTENT') return
+          const content = hmBlocksToEditorContent(event.blockNodes, {
+            childrenType: 'Group',
+          })
+          editor.replaceBlocks(editor.topLevelBlocks, content)
+          const tiptap = editor?._tiptapEditor
+          setGroupTypes(tiptap, content)
         },
       },
       actors: {

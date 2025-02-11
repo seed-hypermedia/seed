@@ -1,5 +1,5 @@
 import {dispatchDraftStatus, DraftStatus} from '@/draft-status'
-import {HMDraft, HMEntityContent, HMMetadata} from '@shm/shared'
+import {HMBlockNode, HMDraft, HMEntityContent, HMMetadata} from '@shm/shared'
 import {assign, setup, StateFrom} from 'xstate'
 
 export type DraftMachineState = StateFrom<typeof draftMachine>
@@ -36,7 +36,8 @@ export const draftMachine = setup({
           entity: HMEntityContent | null
         }
       | {type: 'SAVE.ON.EXIT'}
-      | {type: 'EMPTY.ID'},
+      | {type: 'EMPTY.ID'}
+      | {type: 'RESET.CONTENT'; blockNodes: HMBlockNode[]},
   },
 
   actions: {
@@ -144,6 +145,7 @@ export const draftMachine = setup({
     focusEditor: function () {},
     focusName: function () {},
     onSaveSuccess: function ({context}) {},
+    resetContent: function () {},
   },
   guards: {
     didChangeWhileSaving: ({context}) => context.hasChangedWhileSaving,
@@ -230,6 +232,10 @@ export const draftMachine = setup({
               target: 'changed',
               actions: [{type: 'setAttributes'}, {type: 'setSigningAccount'}],
             },
+            'RESET.CONTENT': {
+              target: 'changed',
+              actions: [{type: 'resetContent'}],
+            },
           },
         },
         changed: {
@@ -243,6 +249,11 @@ export const draftMachine = setup({
             CHANGE: {
               target: 'changed',
               actions: [{type: 'setAttributes'}, {type: 'setSigningAccount'}],
+              reenter: true,
+            },
+            'RESET.CONTENT': {
+              target: 'changed',
+              actions: [{type: 'resetContent'}],
               reenter: true,
             },
           },
@@ -272,6 +283,14 @@ export const draftMachine = setup({
               ],
               reenter: false,
             },
+            'RESET.CONTENT': {
+              target: 'saving',
+              actions: [
+                {type: 'setHasChangedWhileSaving'},
+                {type: 'resetContent'},
+              ],
+              reenter: false,
+            },
           },
           invoke: {
             input: ({context}) => ({
@@ -285,7 +304,6 @@ export const draftMachine = setup({
             onDone: [
               {
                 target: 'saving',
-
                 guard: {
                   type: 'didChangeWhileSaving',
                 },
