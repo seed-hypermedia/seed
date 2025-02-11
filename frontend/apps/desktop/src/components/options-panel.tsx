@@ -1,3 +1,4 @@
+import {upgradeNewspaperLayoutModel} from '@/models/upgrade-document-model'
 import {ImageForm} from '@/pages/image-form'
 import {HMBlockNode, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
 import {
@@ -63,10 +64,10 @@ function OptionsPanelContent({
     return (
       <>
         <YStack
-          theme="yellow"
+          theme="red"
           gap="$4"
           padding="$4"
-          backgroundColor="$yellow3"
+          backgroundColor="$red3"
           borderRadius="$4"
         >
           <Heading size="$3" fontSize="$4">
@@ -74,45 +75,10 @@ function OptionsPanelContent({
           </Heading>
           <Button
             onPress={() => {
-              onMetadata({
-                layout: '',
-                theme: {
-                  headerLayout: 'Center',
-                },
-                showOutline: false,
-              })
-              onResetContent([
-                {
-                  block: {
-                    type: 'Query',
-                    id: 'site-news-query',
-                    attributes: {
-                      style: 'Card',
-                      columnCount: 3,
-                      banner: true,
-                      query: {
-                        includes: [
-                          {
-                            space: draftId.uid,
-                            path: '',
-                            mode: 'AllDescendants',
-                          },
-                        ],
-                        sort: [
-                          {
-                            reverse: false,
-                            term: 'UpdateTime',
-                          },
-                        ],
-                      },
-                    },
-                  },
-                  children: [],
-                },
-              ])
+              upgradeNewspaperLayoutModel(draftId, onMetadata, onResetContent)
             }}
           >
-            Update to Document Layout
+            Upgrade Document
           </Button>
         </YStack>
       </>

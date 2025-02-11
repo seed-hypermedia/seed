@@ -45,6 +45,7 @@ import {
   Container,
   copyUrlToClipboardWithFeedback,
   getSiteNavDirectory,
+  Heading,
   Input,
   Options,
   Separator,
@@ -71,6 +72,7 @@ import {AppDocContentProvider} from './document-content-provider'
 import './draft-page.css'
 
 import {SidebarSpacer} from '@/components/main-wrapper'
+import {upgradeNewspaperLayoutModel} from '@/models/upgrade-document-model'
 export default function DraftPage() {
   const route = useNavRoute()
 
@@ -111,7 +113,8 @@ export default function DraftPage() {
       />
     )
   }
-
+  const isNewspaperLayout =
+    data.state.context.metadata.layout === 'Seed/Experimental/Newspaper'
   const accessoryOptions: {
     key: 'options'
     label: string
@@ -129,6 +132,43 @@ export default function DraftPage() {
 
   const homeEntity = useEntity(hmId('d', route.id.uid))
 
+  const documentEditorContent = (
+    <>
+      {shouldRebase ? (
+        <XStack
+          theme="yellow"
+          bg="$backgroundHover"
+          ai="center"
+          jc="center"
+          p="$3"
+          gap="$4"
+        >
+          <SizableText size="$2">
+            A new change has been published to this document.{' '}
+          </SizableText>
+          <Button
+            bg="$backgroundFocus"
+            size="$2"
+            onPress={() => performRebase()}
+          >
+            {isRebasing ? <Spinner /> : 'Merge'}
+          </Button>
+        </XStack>
+      ) : null}
+      <DraftAppHeader
+        siteHomeMetadata={
+          route.id.path?.length
+            ? homeEntity.data?.document?.metadata
+            : draft.data?.metadata
+        }
+        siteHomeEntity={homeEntity.data}
+        docId={route.id}
+      >
+        <DocumentEditor {...data} id={route.id} />
+      </DraftAppHeader>
+    </>
+  )
+
   return (
     <ErrorBoundary FallbackComponent={() => null}>
       <XStack flex={1} height="100%">
@@ -141,38 +181,36 @@ export default function DraftPage() {
           }}
           accessoryOptions={accessoryOptions}
         >
-          {shouldRebase ? (
-            <XStack
-              theme="yellow"
-              bg="$backgroundHover"
-              ai="center"
-              jc="center"
-              p="$3"
+          {isNewspaperLayout ? (
+            <YStack
+              theme="red"
               gap="$4"
+              padding="$4"
+              backgroundColor="$red3"
+              borderRadius="$4"
             >
-              <SizableText size="$2">
-                A new change has been published to this document.{' '}
-              </SizableText>
+              <Heading size="$3" fontSize="$4">
+                Document Model Upgrade Required
+              </Heading>
               <Button
-                bg="$backgroundFocus"
-                size="$2"
-                onPress={() => performRebase()}
+                onPress={() => {
+                  upgradeNewspaperLayoutModel(
+                    route.id,
+                    (metadata) => {
+                      data.actor.send({type: 'CHANGE', metadata})
+                    },
+                    (blockNodes: HMBlockNode[]) => {
+                      data.actor.send({type: 'RESET.CONTENT', blockNodes})
+                    },
+                  )
+                }}
               >
-                {isRebasing ? <Spinner /> : 'Merge'}
+                Upgrade Document
               </Button>
-            </XStack>
-          ) : null}
-          <DraftAppHeader
-            siteHomeMetadata={
-              route.id.path?.length
-                ? homeEntity.data?.document?.metadata
-                : draft.data?.metadata
-            }
-            siteHomeEntity={homeEntity.data}
-            docId={route.id}
-          >
-            <DocumentEditor {...data} id={route.id} />
-          </DraftAppHeader>
+            </YStack>
+          ) : (
+            documentEditorContent
+          )}
         </AccessoryLayout>
       </XStack>
     </ErrorBoundary>
