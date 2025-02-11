@@ -77,7 +77,11 @@ export function SiteHeader({
   const isHomeDoc = !docId?.path?.length;
   if (!homeId) return null;
   return (
-    <YStack position="relative" overflowX="hidden">
+    <YStack
+      position="relative"
+      overflowX="hidden"
+      $gtSm={{overflowX: "inherit"}}
+    >
       <YStack
         borderBottomWidth={1}
         borderColor="$borderColor"
