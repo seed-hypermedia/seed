@@ -73,6 +73,7 @@ import './draft-page.css'
 
 import {SidebarSpacer} from '@/components/main-wrapper'
 import {upgradeNewspaperLayoutModel} from '@/models/upgrade-document-model'
+import {dialogBoxShadow} from '@shm/ui/src/universal-dialog'
 export default function DraftPage() {
   const route = useNavRoute()
 
@@ -182,31 +183,34 @@ export default function DraftPage() {
           accessoryOptions={accessoryOptions}
         >
           {isNewspaperLayout ? (
-            <YStack
-              theme="red"
-              gap="$4"
-              padding="$4"
-              backgroundColor="$red3"
-              borderRadius="$4"
-            >
-              <Heading size="$3" fontSize="$4">
-                Document Model Upgrade Required
-              </Heading>
-              <Button
-                onPress={() => {
-                  upgradeNewspaperLayoutModel(
-                    route.id,
-                    (metadata) => {
-                      data.actor.send({type: 'CHANGE', metadata})
-                    },
-                    (blockNodes: HMBlockNode[]) => {
-                      data.actor.send({type: 'RESET.CONTENT', blockNodes})
-                    },
-                  )
-                }}
+            <YStack f={1} ai="center" jc="center">
+              <YStack
+                theme="red"
+                gap="$4"
+                padding="$4"
+                backgroundColor="$red3"
+                borderRadius="$4"
+                boxShadow={dialogBoxShadow}
               >
-                Upgrade Document
-              </Button>
+                <Heading size="$3" fontSize="$4">
+                  Document Model Upgrade Required
+                </Heading>
+                <Button
+                  onPress={() => {
+                    upgradeNewspaperLayoutModel(
+                      route.id,
+                      (metadata) => {
+                        data.actor.send({type: 'CHANGE', metadata})
+                      },
+                      (blockNodes: HMBlockNode[]) => {
+                        data.actor.send({type: 'RESET.CONTENT', blockNodes})
+                      },
+                    )
+                  }}
+                >
+                  Upgrade Document
+                </Button>
+              </YStack>
             </YStack>
           ) : (
             documentEditorContent
