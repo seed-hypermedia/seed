@@ -125,7 +125,6 @@ export default function DownloadPage() {
   useEffect(() => {
     getPlatform().then(setPlatform);
   }, []);
-  console.log("~~", data);
   const suggestedButtons: React.ReactNode[] = [];
   if (platform?.os === "mac") {
     if (platform.isArm64 || platform.isArm64 == null) {
