@@ -195,12 +195,6 @@ function BreadcrumbTitle({
     widthInfo.current.container = width
     updateWidths()
   })
-  if (isAllError)
-    return (
-      <XStack ai="center" alignSelf="stretch">
-        <BreadcrumbErrorIcon />
-      </XStack>
-    )
   const activeItem: CrumbDetails | null = crumbDetails[crumbDetails.length - 1]
   const firstInactiveDetail =
     crumbDetails[0] === activeItem ? null : crumbDetails[0]
@@ -263,6 +257,8 @@ function BreadcrumbTitle({
       }}
     />,
   )
+  if (isAllError || !displayItems.length) return null
+
   return (
     <XStack
       f={1}

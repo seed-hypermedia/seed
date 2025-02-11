@@ -20,11 +20,7 @@ import {
   useDocumentRead,
   useListDirectory,
 } from '@/models/documents'
-import {
-  useDiscoverEntity,
-  useEntity,
-  useSubscribedEntity,
-} from '@/models/entities'
+import {useEntity, useSubscribedEntity} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
@@ -52,7 +48,6 @@ import {
   HistoryIcon,
   HMIcon,
   MoreHorizontal,
-  RefreshCw,
   SeedHeading,
   SiteHeader,
   SizableText,
@@ -62,7 +57,7 @@ import {
   YStack,
 } from '@shm/ui'
 import {useImageUrl} from '@shm/ui/src/get-file-url'
-import React, {ReactNode, useEffect, useMemo, useRef} from 'react'
+import React, {ReactNode, useMemo, useRef} from 'react'
 import {EntityCitationsAccessory} from '../components/citations'
 import {AppDocContentProvider} from './document-content-provider'
 
@@ -205,16 +200,6 @@ function _MainDocumentPage({
   isBlockFocused: boolean
   onScrollParamSet: (isFrozen: boolean) => void
 }) {
-  const discovery = useDiscoverEntity(id)
-  useEffect(() => {
-    // @ts-expect-error
-    return window.appWindowEvents?.subscribe((event: AppWindowEvent) => {
-      if (event === 'discover') {
-        console.log('=== DISCOVERING!')
-        discovery.mutate()
-      }
-    })
-  }, [])
   const entity = useSubscribedEntity(id, true) // true for recursive subscription. this component may not require children, but the directory will also be recursively subscribing, and we want to avoid an extra subscription
 
   const siteHomeEntity = useSubscribedEntity(
@@ -225,21 +210,25 @@ function _MainDocumentPage({
     id.path?.length ? false : true, // avoiding redundant subscription if the doc is not the home document
   )
 
-  if (entity.isInitialLoading) return <Spinner />
-  if (!entity.data?.document) return null
+  if (entity.isInitialLoading) return null
 
   const metadata = entity.data?.document?.metadata
   const docIsNewspaperLayout =
     metadata?.layout === 'Seed/Experimental/Newspaper'
   const isHomeDoc = !id.path?.length
   const isShowOutline =
-    (typeof metadata.showOutline == 'undefined' || metadata.showOutline) &&
+    (typeof metadata?.showOutline == 'undefined' || metadata?.showOutline) &&
     !isHomeDoc
   const showSidebarOutlineDirectory = isShowOutline && !isHomeDoc
 
   const DocContainer = docIsNewspaperLayout
     ? NewspaperDocContainer
     : BaseDocContainer
+
+  if (entity.data?.document === undefined) {
+    return <DocDiscovery docId={id} />
+  }
+
   return (
     <YStack>
       <AppDocSiteHeader
@@ -293,7 +282,7 @@ function _MainDocumentPage({
             </YStack>
             <DocPageAppendix
               centered={
-                entity.data.document.metadata.layout ==
+                entity.data.document?.metadata.layout ==
                 'Seed/Experimental/Newspaper'
               }
               docId={id}
@@ -406,11 +395,8 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
   // hm://z6MkqYME8XHQpnxBLVjDWxCkEwbjKQ4ghxpUB8stgzBCNSwD/advances-in-distributed-security?v=bafy2bzaceckzk7vdca2to6o2ms6gdvjyizvfsimp7txftm7mx3ohp7loqskpk
   const authors = useMemo(() => entity.data?.document?.authors, [entity.data])
 
-  if (entity.isLoading) return <Spinner />
-
-  if (entity.data?.document === undefined) {
-    return <DocDiscovery docId={docId} />
-  }
+  if (entity.isLoading) return null
+  if (entity.data?.document === undefined) return null
 
   if (entity.data?.document?.metadata.layout == 'Seed/Experimental/Newspaper')
     return null
@@ -535,13 +521,7 @@ function DocVersionNotFound({docId}: {docId: UnpackedHypermediaId}) {
 }
 
 function DocDiscovery({docId}: {docId: UnpackedHypermediaId}) {
-  const discover = useDiscoverEntity(docId)
-  useEffect(() => {
-    discover.mutate()
-  }, [docId.id])
-  const didCompleteDiscover =
-    !discover.error && !discover.isLoading && !!discover.data
-  if (didCompleteDiscover) return <DocVersionNotFound docId={docId} />
+  // if (didCompleteDiscover) return <DocVersionNotFound docId={docId} />
   return (
     <YStack paddingVertical="$8">
       <YStack
@@ -554,28 +534,28 @@ function DocDiscovery({docId}: {docId: UnpackedHypermediaId}) {
         padding="$5"
         elevation="$4"
       >
-        {discover.error ? (
+        {/* {discover.error ? (
           <SizableText size="$8" fontWeight="bold" color="$red11">
             Could not find this document
           </SizableText>
-        ) : (
-          <SizableText size="$8" fontWeight="bold">
-            Looking for this document...
-          </SizableText>
-        )}
-        {discover.error ? (
+        ) : ( */}
+        <SizableText size="$8" fontWeight="bold">
+          Looking for this document...
+        </SizableText>
+        {/* )} */}
+        {/* {discover.error ? (
           <SizableText color="$red11">{discover.error.message}</SizableText>
         ) : null}
         {discover.isLoading ? (
-          <>
-            <Spinner />
-            <SizableText>
-              This document is not on your node yet. Now finding a peer who can
-              provide it.
-            </SizableText>
-          </>
-        ) : null}
-        <XStack>
+          <> */}
+        <Spinner />
+        <SizableText>
+          This document is not on your node yet. Now finding a peer who can
+          provide it.
+        </SizableText>
+        {/* </>
+        ) : null} */}
+        {/* <XStack>
           {discover.isError ? (
             <Button
               icon={RefreshCw}
@@ -588,7 +568,7 @@ function DocDiscovery({docId}: {docId: UnpackedHypermediaId}) {
               Retry Document Discovery
             </Button>
           ) : null}
-        </XStack>
+        </XStack> */}
       </YStack>
     </YStack>
   )

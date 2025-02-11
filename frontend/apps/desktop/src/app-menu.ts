@@ -89,15 +89,6 @@ export function createAppMenu() {
       submenu: [
         {role: 'reload'},
         {role: 'forceReload'},
-        {
-          id: 'discover',
-          label: 'Discover current Document',
-          accelerator: 'CmdOrCtrl+D',
-
-          click: () => {
-            dispatchFocusedWindowAppEvent('discover')
-          },
-        },
         {role: 'toggleDevTools'},
         {type: 'separator'},
         {

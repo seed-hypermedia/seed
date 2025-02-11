@@ -198,26 +198,6 @@ export function queryEntity(
   }
 }
 
-export function useDiscoverEntity(id: UnpackedHypermediaId) {
-  const grpcClient = useGRPCClient()
-  return useMutation({
-    mutationFn: async () => {
-      await grpcClient.entities.discoverEntity({
-        account: id.uid,
-        path: hmIdPathToEntityQueryPath(id.path),
-        version: id.latest ? undefined : id.version || undefined,
-        recursive: true,
-      })
-      return {}
-    },
-    onSuccess: () => {
-      invalidateQueries([queryKeys.SEARCH])
-      invalidateQueries([queryKeys.ENTITY]) // because children may have changed, we have to invalidate all entities
-      invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, id.uid])
-    },
-  })
-}
-
 export function useEntity(
   id: UnpackedHypermediaId | null | undefined,
   options?: UseQueryOptions<HMEntityContent | null>,
@@ -297,12 +277,12 @@ function createEntitySubscription(sub: EntitySubscription) {
   let loopTimer: NodeJS.Timeout | null = null
   function _updateSubscriptionLoop() {
     updateEntitySubscription(sub).finally(() => {
-      loopTimer = setTimeout(_updateSubscriptionLoop, 10_000)
+      loopTimer = setTimeout(_updateSubscriptionLoop, 2_000)
     })
   }
   loopTimer = setTimeout(
     _updateSubscriptionLoop,
-    500 + Math.random() * 1000, // delay the first discovery to avoid too many simultaneous updates
+    100 + Math.random() * 300, // delay the first discovery to avoid too many simultaneous updates
   )
 
   return () => {
