@@ -653,10 +653,6 @@ function DocPageContent({
   const replace = useNavigate('replace')
   const route = useNavRoute()
 
-  // useEffect(() => {
-  //   console.log(route)
-  // }, [route])
-
   if (entity.document!.metadata.layout === 'Seed/Experimental/Newspaper') {
     return (
       <NewspaperLayout id={entity.id} metadata={entity.document!.metadata} />
@@ -676,6 +672,7 @@ function DocPageContent({
         focusBlockId={isBlockFocused ? blockRef || undefined : undefined}
         handleBlockReplace={() => {
           if (route.key === 'document') {
+            // Remove block ref from the route.
             replace({...route, id: {...route.id, blockRef: null}})
             return true
           }

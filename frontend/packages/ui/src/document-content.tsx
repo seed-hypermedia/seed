@@ -611,41 +611,37 @@ export function BlockNodeContent({
     if (routeParams?.blockRange) return;
 
     let val = routeParams?.blockRef == blockNode.block?.id && !comment;
-    // if (val) {
-    //   setTimeout(() => {
-    //     setHighlight(false);
-    //   }, 1000);
-    // }
+
     setHighlight(val);
 
     if (!val || !elm.current) return;
 
-    // Add intersection observer to check if the user scrolled out of block view.
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        console.log(entry.isIntersecting);
-        // && !routeParams.blockRange
-        if (!entry.isIntersecting) {
-          handleBlockReplace?.();
-        }
-      },
-      {threshold: 0.1} // Trigger when 10% of the block is still visible.
-    );
+    // Uncomment to enable unhighlighting when scrolling outside of the block view.
+    // // Add intersection observer to check if the user scrolled out of block view.
+    // const observer = new IntersectionObserver(
+    //   ([entry]) => {
+    //     console.log(entry.isIntersecting);
+    //     // && !routeParams.blockRange
+    //     if (!entry.isIntersecting) {
+    //       handleBlockReplace?.();
+    //     }
+    //   },
+    //   {threshold: 0.1} // Trigger when 10% of the block is still visible.
+    // );
 
     // Function to check if the user clicked outside the block bounds.
     const handleClickOutside = (event: MouseEvent) => {
-      console.log(elm.current, elm.current?.contains(event.target as Node));
       if (elm.current && !elm.current.contains(event.target as Node)) {
         handleBlockReplace?.();
       }
     };
 
-    observer.observe(elm.current);
+    // observer.observe(elm.current);
     document.addEventListener("click", handleClickOutside);
 
     // Remove listeners when unmounting
     return () => {
-      observer.disconnect();
+      // observer.disconnect();
       document.removeEventListener("click", handleClickOutside);
     };
   }, [routeParams?.blockRef, comment, blockNode.block]);

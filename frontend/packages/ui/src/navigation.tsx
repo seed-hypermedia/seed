@@ -330,7 +330,6 @@ function OutlineNode({
 }) {
   return (
     <>
-      {/* <Button */}
       <SmallListItem
         {...outlineProps}
         key={node.id}

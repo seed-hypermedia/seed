@@ -180,21 +180,11 @@ export function DocumentPage(props: SiteDocumentPayload) {
   const location = useLocation();
   const replace = useNavigate();
   const match = location.hash.match(/^([^[]+)(?:\[(\d+):(\d+)\])?$/);
-  const blockRef = match
-    ? match[1].substring(1)
-    : // : homeId && homeId.blockRef
-      // ? homeId.blockRef
-      undefined;
+  const blockRef = match ? match[1].substring(1) : undefined;
 
   const blockRange = match
     ? {start: parseInt(match[2]), end: parseInt(match[3])}
     : undefined;
-
-  // console.log(blockRef, blockRange)
-
-  // useEffect(() => {
-  //   console.log(window);
-  // }, []);
 
   return (
     <WebSiteProvider homeId={props.homeId}>
@@ -271,13 +261,11 @@ export function DocumentPage(props: SiteDocumentPayload) {
                 <DocContent
                   document={document}
                   handleBlockReplace={() => {
-                    console.log(location);
-                    // if (route.key === "document") {
-                    // Uncomment for removal of range highlight
-                    // replace(location.pathname + location.search, {replace: true});
+                    // Replace the URL to not include fragment.
+                    replace(location.pathname + location.search, {
+                      replace: true,
+                    });
                     return true;
-                    // }
-                    // return false;
                   }}
                 />
               </WebDocContentProvider>
