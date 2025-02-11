@@ -339,7 +339,7 @@ async function initAccountSubscriptions() {
     await grpcClient.subscriptions.subscribe({
       account: key.accountId,
       recursive: true,
-      path: '/',
+      path: '',
     })
   }
 }
