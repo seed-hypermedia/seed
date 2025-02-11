@@ -371,6 +371,18 @@ function _BlocksContent({
   parentBlockId: string | null;
 }) {
   if (!blocks) return null;
+
+  // Get attribute from plain JSON format (document) and protobuff format (comments)
+  function getBlockAttribute(attributes, key): HMBlockChildrenType | undefined {
+    if (!attributes) return;
+
+    if (attributes?.[key]) {
+      return attributes[key];
+    }
+
+    return attributes?.fields?.[key]?.kind?.value || undefined;
+  }
+
   return (
     <BlockNodeList childrenType={"Group"}>
       {blocks?.length
@@ -381,7 +393,10 @@ function _BlocksContent({
               key={bn.block?.id}
               blockNode={bn}
               depth={1}
-              childrenType={bn.block.attributes?.childrenType}
+              childrenType={getBlockAttribute(
+                bn.block.attributes,
+                "childrenType"
+              )}
               listLevel={1}
               index={idx}
             />
