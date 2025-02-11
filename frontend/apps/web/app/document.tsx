@@ -221,7 +221,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
               )}
               <WebDocContentProvider
                 homeId={homeId}
-                id={id}
+                id={{...id, version: document.version}}
                 siteHost={siteHost}
                 supportDocuments={supportDocuments}
                 supportQueries={supportQueries}
@@ -415,12 +415,16 @@ function WebDocContentProvider({
         } else window.open(href, "_blank");
       }}
       onCopyBlock={(blockId, blockRange) => {
-        const blockHref = getHref(homeId, {
-          ...id,
-          hostname: siteHost || null,
-          blockRange: blockRange || null,
-          blockRef: blockId,
-        });
+        const blockHref = getHref(
+          homeId,
+          {
+            ...id,
+            hostname: siteHost || null,
+            blockRange: blockRange || null,
+            blockRef: blockId,
+          },
+          id.version || undefined
+        );
         window.navigator.clipboard.writeText(blockHref);
       }}
       routeParams={routeParams}
