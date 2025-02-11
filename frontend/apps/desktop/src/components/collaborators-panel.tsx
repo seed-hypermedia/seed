@@ -4,7 +4,7 @@ import {
   useAllDocumentCapabilities,
   useMyCapability,
 } from '@/models/access-control'
-import {useEntity} from '@/models/entities'
+import {useEntity, useSubscribedEntity} from '@/models/entities'
 import {useNavigate} from '@/utils/useNavigate'
 import * as Ariakit from '@ariakit/react'
 import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
@@ -304,7 +304,7 @@ function CollaboratorItem({
 }) {
   const navigate = useNavigate('push')
   const collaboratorId = hmId('d', capability.delegate)
-  const entity = useEntity(collaboratorId)
+  const entity = useSubscribedEntity(collaboratorId)
   return (
     <ListItem
       bg="$colorTransparent"

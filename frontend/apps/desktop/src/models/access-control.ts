@@ -1,7 +1,8 @@
 import {useGRPCClient} from '@/app-context'
-import {toPlainMessage} from '@bufbuild/protobuf'
+import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {
   BIG_INT,
+  Capability,
   hmId,
   hmIdPathToEntityQueryPath,
   HMRole,
@@ -143,7 +144,15 @@ export function useAllDocumentCapabilities(
         pageSize: BIG_INT,
       })
       const capabilities = result.capabilities.map(toPlainMessage)
-      return capabilities
+      const alreadyCapKeys = new Set<string>()
+      const outputCaps: PlainMessage<Capability>[] = []
+      for (const cap of capabilities) {
+        const key = `${cap.delegate}-${cap.role}`
+        if (alreadyCapKeys.has(key)) continue
+        alreadyCapKeys.add(key)
+        outputCaps.push(cap)
+      }
+      return outputCaps
     },
   })
 }
