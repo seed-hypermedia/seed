@@ -29,10 +29,10 @@ export function OptionsPanel({
   metadata: HMMetadata
   onResetContent: (blockNodes: HMBlockNode[]) => void
 }) {
-  const isHome = !draftId.path || draftId.path.length === 0
+  const isHomeDoc = !draftId.path?.length
   return (
     <AccessoryContainer
-      title={isHome ? 'Home Options' : 'Document Options'}
+      title={isHomeDoc ? 'Home Options' : 'Document Options'}
       onClose={onClose}
     >
       <OptionsPanelContent
@@ -56,7 +56,7 @@ function OptionsPanelContent({
   onMetadata: (values: Partial<HMMetadata>) => void
   onResetContent: (blockNodes: HMBlockNode[]) => void
 }) {
-  const isHome = !draftId.path || draftId.path.length === 0
+  const isHomeDoc = !draftId.path || draftId.path.length === 0
   const isNewspaperLayout = metadata.layout === 'Seed/Experimental/Newspaper'
 
   if (isNewspaperLayout) {
@@ -178,7 +178,7 @@ function OptionsPanelContent({
           />
         </YStack>
       </YStack>
-      {isHome ? (
+      {isHomeDoc ? (
         <>
           <YStack>
             <Label color="$color9" size="$1">
@@ -226,7 +226,9 @@ function OptionsPanelContent({
         </>
       ) : null}
       <OriginalPublishDate metadata={metadata} onMetadata={onMetadata} />
-      <OutlineVisibility metadata={metadata} onMetadata={onMetadata} />
+      {isHomeDoc ? null : (
+        <OutlineVisibility metadata={metadata} onMetadata={onMetadata} />
+      )}
     </>
   )
 }

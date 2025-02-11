@@ -250,6 +250,10 @@ function DocumentEditor({
   const importWebFile = trpc.webImporting.importWebFile.useMutation()
   const [isDragging, setIsDragging] = useState(false)
   const [showCover, setShowCover] = useState(false)
+  const isHomeDoc = !route.id.path?.length
+  const showOutline =
+    typeof state.context.metadata.showOutline == 'undefined' ||
+    state.context.metadata.showOutline
 
   const cover = useSelector(actor, (s) => s.context.metadata.cover)
 
@@ -312,8 +316,7 @@ function DocumentEditor({
                 : ' hide-outline'
             }`}
           >
-            {typeof state.context.metadata.showOutline == 'undefined' ||
-            state.context.metadata.showOutline ? (
+            {showOutline && !isHomeDoc ? (
               <YStack
                 marginTop={200}
                 $gtSm={{marginTop: 164}}
