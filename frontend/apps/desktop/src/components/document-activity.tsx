@@ -16,13 +16,13 @@ import {
 } from '@shm/shared'
 import {getActivityTime} from '@shm/shared/src/models/activity'
 import {
+  ActivitySection,
   Button,
   ChevronUp,
   CommentGroup,
   EmptyDiscussion,
   SizableText,
   useTheme,
-  XStack,
   YStack,
 } from '@shm/ui'
 import {ChangeGroup, SubDocumentItem} from '@shm/ui/src/activity'
@@ -38,20 +38,10 @@ import {
 
 export function DocumentActivity({docId}: {docId: UnpackedHypermediaId}) {
   return (
-    <YStack paddingVertical="$6" marginBottom={100} gap="$4">
-      <XStack
-        borderBottomWidth={2}
-        borderBottomColor="$brand4"
-        pb="$2"
-        paddingHorizontal="$2"
-      >
-        <SizableText fontSize={20} fontWeight="600">
-          Activity
-        </SizableText>
-      </XStack>
+    <ActivitySection>
       <ActivityList docId={docId} />
       <CommentDraft docId={docId} />
-    </YStack>
+    </ActivitySection>
   )
 }
 

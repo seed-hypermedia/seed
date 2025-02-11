@@ -140,3 +140,21 @@ export const PageSection = {Root, Content, Side};
 export const PageHeading = styled(H2, {
   fontWeight: "bold",
 });
+
+export function ActivitySection({children}: {children: React.ReactNode}) {
+  return (
+    <YStack paddingVertical="$6" marginBottom={100} gap="$4">
+      <XStack
+        borderBottomWidth={2}
+        borderBottomColor="$brand4"
+        pb="$2"
+        paddingHorizontal="$2"
+      >
+        <SizableText fontSize={20} fontWeight="600">
+          Activity
+        </SizableText>
+      </XStack>
+      {children}
+    </YStack>
+  );
+}

@@ -17,7 +17,13 @@ import {
 } from "@shm/shared";
 import {getActivityTime} from "@shm/shared/src/models/activity";
 import "@shm/shared/src/styles/document.css";
-import {Button, getRandomColor, useImageUrl, useTheme} from "@shm/ui/src";
+import {
+  ActivitySection,
+  Button,
+  getRandomColor,
+  useImageUrl,
+  useTheme,
+} from "@shm/ui/src";
 import {ChangeGroup, SubDocumentItem} from "@shm/ui/src/activity";
 import {Container} from "@shm/ui/src/container";
 import {CommentGroup} from "@shm/ui/src/discussion";
@@ -454,18 +460,16 @@ function DocumentAppendix({
 }) {
   return (
     <Container>
-      <YStack paddingVertical="$6" marginBottom={100} gap="$4">
-        <SizableText fontSize={20} fontWeight="600">
-          Activity
-        </SizableText>
+      <ActivitySection>
         <DocumentActivity
           id={id}
           document={document}
           homeId={homeId}
           siteHost={siteHost}
         />
-      </YStack>
-      {enableWebSigning ? <WebCommenting docId={id} /> : null}
+
+        {enableWebSigning ? <WebCommenting docId={id} /> : null}
+      </ActivitySection>
     </Container>
   );
 }
