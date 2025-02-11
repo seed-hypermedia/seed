@@ -1,8 +1,9 @@
 import {useLoaderData} from "@remix-run/react";
 import {hmId} from "@shm/shared";
+import {Linux, Macos, Win32} from "@shm/ui/src/icons";
 import {Button} from "@tamagui/button";
 import {Download} from "@tamagui/lucide-icons";
-import {XStack, YStack} from "@tamagui/stacks";
+import {SizableStack, XStack, YStack} from "@tamagui/stacks";
 import {Heading, SizableText} from "@tamagui/text";
 import {useEffect, useState} from "react";
 import {z} from "zod";
@@ -178,70 +179,73 @@ export default function DownloadPage() {
           supportDocuments={supportDocuments}
           supportQueries={supportQueries}
         >
+          <YStack
+            height="40vh"
+            justifyContent="center"
+            backgroundColor="$brand12"
+            alignItems="center"
+          >
+            <Container gap="$4" paddingHorizontal="$6">
+              <Heading size="$9" textAlign="center" fontWeight="bold">
+                Download Seed Hypermedia Today!
+              </Heading>
+              <SizableText size="$6" textAlign="center">
+                Start writing and collaborating with your peers.
+              </SizableText>
+              {suggestedButtons.length > 0 && suggestedButtons}
+            </Container>
+          </YStack>
           <Container>
-            <YStack
-              alignSelf="center"
-              width={600}
-              gap="$5"
-              borderWidth={1}
-              borderColor="$color8"
-              borderRadius="$4"
-              padding="$5"
-              elevation="$4"
-            >
-              <XStack alignItems="center" gap="$3">
-                <SizableText size="$8" fontWeight="bold">
-                  Download Seed Hypermedia {stableRelease.name}
-                </SizableText>
-              </XStack>
-              <YStack gap="$4">
-                {suggestedButtons.length > 0 && (
-                  <YStack
-                    gap="$2"
-                    padding="$4"
-                    backgroundColor="$brand10"
-                    borderRadius="$4"
-                  >
-                    <XStack gap="$2" flexWrap="wrap">
-                      {suggestedButtons}
-                    </XStack>
-                  </YStack>
-                )}
-                <Heading size="$2">All Platforms</Heading>
-                {stableRelease.assets?.macos && (
-                  <ReleaseSection label="MacOS">
-                    <ReleaseEntry
-                      label="Intel"
-                      asset={stableRelease.assets?.macos?.x64}
-                    />
-                    <ReleaseEntry
-                      label="Apple Silicon"
-                      asset={stableRelease.assets?.macos?.arm64}
-                    />
-                  </ReleaseSection>
-                )}
-                {stableRelease.assets?.win32 && (
-                  <ReleaseSection label="Windows">
-                    <ReleaseEntry
-                      label="x64"
-                      asset={stableRelease.assets?.win32?.x64}
-                    />
-                  </ReleaseSection>
-                )}
-                {stableRelease.assets?.linux && (
-                  <ReleaseSection label="Linux">
-                    <ReleaseEntry
-                      label="rpm"
-                      asset={stableRelease.assets?.linux?.rpm}
-                    />
-                    <ReleaseEntry
-                      label="deb"
-                      asset={stableRelease.assets?.linux?.deb}
-                    />
-                  </ReleaseSection>
-                )}
-              </YStack>
+            <YStack gap="$4" ai="center">
+              <SizableText size="$8" fontWeight="bold">
+                Download Seed Hypermedia {stableRelease.name}
+              </SizableText>
             </YStack>
+            <SizableStack
+              flexDirection="column"
+              $gtSm={{flexDirection: "row"}}
+              gap="$4"
+              ai="center"
+              jc="center"
+              p="$4"
+            >
+              {stableRelease.assets?.macos && (
+                <PlatformItem
+                  label="MacOS"
+                  icon={Macos}
+                  assets={Object.entries(stableRelease.assets.macos).map(
+                    ([key, value]) => ({
+                      label: key,
+                      url: value?.download_url,
+                    })
+                  )}
+                />
+              )}
+              {stableRelease.assets?.win32 && (
+                <PlatformItem
+                  label="Windows"
+                  icon={Win32}
+                  assets={Object.entries(stableRelease.assets.win32).map(
+                    ([key, value]) => ({
+                      label: key,
+                      url: value?.download_url,
+                    })
+                  )}
+                />
+              )}
+              {stableRelease.assets?.linux && (
+                <PlatformItem
+                  label="Linux"
+                  icon={Linux}
+                  assets={Object.entries(stableRelease.assets.macos).map(
+                    ([key, value]) => ({
+                      label: key,
+                      url: value?.download_url,
+                    })
+                  )}
+                />
+              )}
+            </SizableStack>
           </Container>
         </WebSiteHeader>
         <PageFooter />
@@ -250,17 +254,46 @@ export default function DownloadPage() {
   );
 }
 
-function ReleaseSection({
+function PlatformItem({
   label,
-  children,
+  icon: Icon,
+  assets = [],
 }: {
   label: string;
-  children: React.ReactNode;
+  icon: React.ReactNode;
+  assets: Array<{
+    label: string;
+    url: string;
+  }>;
 }) {
   return (
-    <YStack gap="$2">
-      <Heading size="$3">{label}</Heading>
-      <XStack gap="$2">{children}</XStack>
+    <YStack
+      $gtSm={{minWidth: 250, width: "auto"}}
+      width="100%"
+      bg="$backgroundStrong"
+      p="$4"
+      gap="$3"
+      borderRadius="$4"
+      elevation="$2"
+      ai="center"
+    >
+      <Icon color="hsl(171, 96%, 28%)" size={60} />
+      <SizableText size="$5" fontWeight="bold">
+        {label}
+      </SizableText>
+      <XStack gap="$2">
+        {assets.map((asset) => (
+          <Button
+            size="$2"
+            icon={Download}
+            tag="a"
+            href={asset.url}
+            style={{textDecoration: "none"}}
+          >
+            {asset.label}
+          </Button>
+        ))}
+      </XStack>
     </YStack>
   );
 }
@@ -283,6 +316,11 @@ function ReleaseEntry({
       download
       icon={Download}
       size={large ? "$6" : "$4"}
+      borderRadius="$4"
+      backgroundColor="$brand5"
+      color="white"
+      hoverStyle={{backgroundColor: "$brand4", color: "white"}}
+      focusStyle={{backgroundColor: "$brand3", color: "white"}}
     >
       {label}
     </Button>

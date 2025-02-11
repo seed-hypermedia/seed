@@ -32,7 +32,6 @@ import {ChevronUp} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import {lazy, useCallback, useEffect, useMemo, useState} from "react";
-import {WebCommenting} from "./commenting";
 import {getHref} from "./href";
 import type {SiteDocumentPayload} from "./loaders";
 import {defaultSiteIcon} from "./meta";
