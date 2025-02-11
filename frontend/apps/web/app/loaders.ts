@@ -218,11 +218,12 @@ export type SiteDocumentPayload = WebDocumentPayload & {
   homeId: UnpackedHypermediaId;
 };
 
-export async function loadSiteDocument(
+export async function loadSiteDocument<T>(
   hostname: string,
   id: UnpackedHypermediaId,
-  waitForSync?: boolean
-): Promise<WrappedResponse<SiteDocumentPayload>> {
+  waitForSync?: boolean,
+  extraData?: T
+): Promise<WrappedResponse<SiteDocumentPayload & T>> {
   logDebug("loadSiteDocument", id.id);
   const config = await getConfig(hostname);
   if (!config) {
@@ -251,6 +252,7 @@ export async function loadSiteDocument(
       supportQueries = [...(supportQueries || []), {in: homeId, results}];
     }
     const loadedSiteDocument = {
+      ...(extraData || {}),
       ...docContent,
       homeMetadata,
       supportQueries,
@@ -261,5 +263,8 @@ export async function loadSiteDocument(
     console.error("Error Loading Site Document", e);
     // probably document not found. todo, handle other errors
   }
-  return wrapJSON({homeMetadata, homeId}, {status: id ? 200 : 404});
+  return wrapJSON(
+    {homeMetadata, homeId, ...(extraData || {})},
+    {status: id ? 200 : 404}
+  );
 }

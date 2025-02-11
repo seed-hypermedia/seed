@@ -1,5 +1,13 @@
-import {UniversalRoutingProvider} from "@shm/shared";
+import {
+  SiteRoutingProvider,
+  UniversalRoutingProvider,
+  UnpackedHypermediaId,
+} from "@shm/shared";
 import {Toaster} from "@shm/ui/src/toast";
+import {
+  OptimizedImageSize,
+  UniversalAppProvider,
+} from "@shm/ui/src/universal-app";
 import {TamaguiProvider} from "@tamagui/core";
 import {PortalProvider} from "@tamagui/portal";
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
@@ -30,5 +38,28 @@ export function ThemeProvider({children}: {children: React.ReactNode}) {
     <TamaguiProvider defaultTheme="light" config={tamaConf}>
       {children}
     </TamaguiProvider>
+  );
+}
+
+export function getOptimizedImageUrl(cid: string, size?: OptimizedImageSize) {
+  let url = `/hm/api/image/${cid}`;
+  if (size) url += `?size=${size}`;
+  return url;
+}
+
+export function WebSiteProvider(props: {
+  homeId: UnpackedHypermediaId;
+  children: React.ReactNode;
+  siteHost?: string;
+}) {
+  return (
+    <UniversalAppProvider
+      homeId={props.homeId}
+      getOptimizedImageUrl={getOptimizedImageUrl}
+    >
+      <SiteRoutingProvider homeId={props.homeId}>
+        {props.children}
+      </SiteRoutingProvider>
+    </UniversalAppProvider>
   );
 }

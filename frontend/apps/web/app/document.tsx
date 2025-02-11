@@ -16,7 +16,6 @@ import {
   unpackHmId,
 } from "@shm/shared";
 import {getActivityTime} from "@shm/shared/src/models/activity";
-import {SiteRoutingProvider} from "@shm/shared/src/routing";
 import "@shm/shared/src/styles/document.css";
 import {Button, getRandomColor, useImageUrl, useTheme} from "@shm/ui/src";
 import {ChangeGroup, SubDocumentItem} from "@shm/ui/src/activity";
@@ -29,10 +28,6 @@ import {
 } from "@shm/ui/src/document-content";
 import {extractIpfsUrlCid} from "@shm/ui/src/get-file-url";
 import {DocDirectory, DocumentOutline} from "@shm/ui/src/navigation";
-import {
-  OptimizedImageSize,
-  UniversalAppProvider,
-} from "@shm/ui/src/universal-app";
 import {ChevronUp} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
@@ -46,14 +41,9 @@ import {NewspaperPage} from "./newspaper";
 import {NotFoundPage} from "./not-found";
 import {PageFooter} from "./page-footer";
 import {PageHeader, WebSiteHeader} from "./page-header";
+import {getOptimizedImageUrl, WebSiteProvider} from "./providers";
 import {EmbedDocument, EmbedInline, QueryBlockWeb} from "./web-embeds";
 import {unwrap, Wrapped} from "./wrapping";
-
-function getOptimizedImageUrl(cid: string, size?: OptimizedImageSize) {
-  let url = `/hm/api/image/${cid}`;
-  if (size) url += `?size=${size}`;
-  return url;
-}
 
 export const documentPageMeta: MetaFunction = ({
   data,
@@ -112,23 +102,6 @@ export const documentPageMeta: MetaFunction = ({
   }
   return meta;
 };
-
-function WebSiteProvider(props: {
-  homeId: UnpackedHypermediaId;
-  children: React.ReactNode;
-  siteHost?: string;
-}) {
-  return (
-    <UniversalAppProvider
-      homeId={props.homeId}
-      getOptimizedImageUrl={getOptimizedImageUrl}
-    >
-      <SiteRoutingProvider homeId={props.homeId}>
-        {props.children}
-      </SiteRoutingProvider>
-    </UniversalAppProvider>
-  );
-}
 
 export function DocumentPage(props: SiteDocumentPayload) {
   const {

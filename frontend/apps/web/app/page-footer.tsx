@@ -5,7 +5,7 @@ import {Button, ButtonText} from "@tamagui/button";
 import {XStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 
-export function PageFooter({id}: {id: UnpackedHypermediaId}) {
+export function PageFooter({id}: {id?: UnpackedHypermediaId}) {
   return (
     <Container>
       <XStack padding="$4" gap="$4" ai="center">
@@ -20,19 +20,21 @@ export function PageFooter({id}: {id: UnpackedHypermediaId}) {
             Seed Hypermedia
           </ButtonText>
         </SizableText>
-        <Button
-          tag="a"
-          size="$1"
-          href={createHMUrl(id)}
-          style={{textDecoration: "none"}}
-          icon={ExternalLink}
-          backgroundColor="$green9"
-          hoverStyle={{backgroundColor: "$green8"}}
-          themeInverse
-          padding="$3"
-        >
-          Open App
-        </Button>
+        {id ? (
+          <Button
+            tag="a"
+            size="$1"
+            href={createHMUrl(id)}
+            style={{textDecoration: "none"}}
+            icon={ExternalLink}
+            backgroundColor="$green9"
+            hoverStyle={{backgroundColor: "$green8"}}
+            themeInverse
+            padding="$3"
+          >
+            Open App
+          </Button>
+        ) : null}
       </XStack>
     </Container>
   );
