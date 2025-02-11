@@ -4,7 +4,6 @@ import {
   getMetadataName,
   HMAccountsMetadata,
   HMActivitySummary,
-  HMBlockNode,
   HMChangeGroup,
   HMChangeInfo,
   HMComment,
@@ -12,6 +11,7 @@ import {
   HMLibraryDocument,
   HMMetadataPayload,
   normalizeDate,
+  plainTextOfContent,
   UnpackedHypermediaId,
   useRouteLink,
 } from "@shm/shared";
@@ -133,11 +133,6 @@ export function LibraryEntryUpdateSummary({
       <ActivityTime activitySummary={activitySummary} />
     </XStack>
   );
-}
-
-function plainTextOfContent(content: HMBlockNode[]): string {
-  // todo, make this better
-  return content.map((block) => block.block?.text).join(" ");
 }
 
 export function ActivityTime({

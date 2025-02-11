@@ -180,3 +180,13 @@ export function extractQueryBlocks(children: HMBlockNode[]): HMBlockQuery[] {
   children.forEach(extractQueriesFromBlock)
   return queries
 }
+
+export function plainTextOfContent(content?: HMBlockNode[]): string {
+  let textContent = ''
+  content?.forEach((bn) => {
+    if (bn.block?.text) {
+      textContent += bn.block?.text + ' '
+    }
+  })
+  return textContent
+}

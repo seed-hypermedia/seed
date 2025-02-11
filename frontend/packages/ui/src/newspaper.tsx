@@ -5,6 +5,7 @@ import {
   HMEntityContent,
   hmId,
   OptimizedImageSize,
+  plainTextOfContent,
   UnpackedHypermediaId,
   useRouteLink,
 } from "@shm/shared";
@@ -95,13 +96,7 @@ function NewspaperCardContent({
   banner?: boolean;
 }) {
   let textContent = useMemo(() => {
-    if (entity?.document?.content) {
-      let content = "";
-      entity?.document?.content.forEach((bn) => {
-        content += bn.block?.text + " ";
-      });
-      return content;
-    }
+    return plainTextOfContent(entity?.document?.content);
   }, [entity?.document]);
   return (
     <YStack padding={banner ? "$5" : "$3"} gap="$3" f={1}>
