@@ -1,5 +1,6 @@
 import {useAppContext} from '@/app-context'
 import {EditorBlock, createHypermediaDocLinkPlugin} from '@/editor'
+import {grpcClient} from '@/grpc-client'
 import {useOpenUrl} from '@/open-url'
 import {slashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
@@ -13,6 +14,7 @@ import {
   HMCommentDraft,
   HMCommentDraftSchema,
   HMCommentGroup,
+  HMDocumentMetadataSchema,
   HMEntityContent,
   UnpackedHypermediaId,
   editorBlockToHMBlock,
@@ -39,6 +41,7 @@ import {getBlockGroup, setGroupTypes} from './editor-utils'
 import {useEntity} from './entities'
 import {useGatewayUrlStream} from './gateway-settings'
 import {useInlineMentions} from './search'
+import {siteDiscover} from './web-links'
 
 function serverBlockNodesFromEditorBlocks(
   editor: BlockNoteEditor,
@@ -203,6 +206,7 @@ export function useCommentEditor(
       onDiscardDraft?.()
     },
   })
+  const pushComments = usePushComments()
   const openUrl = useOpenUrl()
   const [setIsSaved, isSaved] = writeableStateStream<boolean>(true)
   const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>()
@@ -404,6 +408,9 @@ export function useCommentEditor(
         targetDocId: targetDocId.id,
         replyCommentId,
       })
+      pushComments.mutate({
+        targetDocId,
+      })
     },
     onError: (err: {message: string}) => {
       toast.error(`Failed to create comment: ${err.message}`)
@@ -453,4 +460,34 @@ export function useCommentEditor(
       onSetAccount,
     }
   }, [targetDocId])
+}
+
+function usePushComments() {
+  const gatewayUrl = useGatewayUrlStream()
+  return useMutation({
+    mutationFn: async ({targetDocId}: {targetDocId: UnpackedHypermediaId}) => {
+      const doc = await grpcClient.documents.getDocument({
+        account: targetDocId.uid,
+        path: hmIdPathToEntityQueryPath(targetDocId.path),
+      })
+      const rawMeta = doc.metadata?.toJson()
+      const siteUrl = rawMeta
+        ? HMDocumentMetadataSchema.parse(rawMeta).siteUrl
+        : null
+      const gwUrl = gatewayUrl.get()
+      const primaryHost = siteUrl || gwUrl
+      await siteDiscover({
+        host: primaryHost,
+        path: targetDocId.path,
+        uid: targetDocId.uid,
+      })
+      if (gwUrl && gwUrl !== primaryHost) {
+        await siteDiscover({
+          host: gwUrl,
+          path: targetDocId.path,
+          uid: targetDocId.uid,
+        })
+      }
+    },
+  })
 }
