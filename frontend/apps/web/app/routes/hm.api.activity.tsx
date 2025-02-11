@@ -103,12 +103,14 @@ export const loader = async ({
     changesQuery.changes.forEach((change) => {
       allAccounts.add(change.author);
     });
-    const changes = changesQuery.changes.map((change) => {
-      return {
-        ...change,
-        type: "change",
-      } as HMChangeSummary;
-    });
+    const changes = changesQuery.changes
+      .map((change) => {
+        return {
+          ...change,
+          type: "change",
+        } as HMChangeSummary;
+      })
+      .filter((change) => change.createTime.seconds !== 0n);
     const accounts = await Promise.all(
       Array.from(allAccounts).map(async (accountUid) => {
         return await getMetadata(hmId("d", accountUid));
