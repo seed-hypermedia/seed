@@ -238,14 +238,30 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
 function CollaboratorsList({id}: {id: UnpackedHypermediaId}) {
   const capabilities = useAllDocumentCapabilities(id)
   const [tab, setTab] = useState<'granted' | 'pending'>('granted')
-  let content = <GrantedCollabs capabilities={capabilities.data || []} />
+  let content = (
+    <GrantedCollabs
+      capabilities={
+        capabilities.data?.filter((cap) => !cap.isGrantedToParent) || []
+      }
+    />
+  )
+
+  const parentCapabilities =
+    capabilities.data?.filter((cap) => cap.isGrantedToParent) || []
 
   // if (tab == 'pending') {
   //   content = <PendingCollabs capabilities={capabilities.data || []} />
   // }
 
   return (
-    <YStack gap="$2">
+    <YStack gap="$3">
+      {parentCapabilities ? (
+        <YStack marginBottom="$3">
+          {parentCapabilities.map((cap) => (
+            <CollaboratorItem key={cap.account} capability={cap} />
+          ))}
+        </YStack>
+      ) : null}
       <XStack>
         <RadioButtons
           activeColor="$brand5"
@@ -300,7 +316,7 @@ function PendingCollabs({
 function CollaboratorItem({
   capability,
 }: {
-  capability: PlainMessage<Capability>
+  capability: PlainMessage<Capability> & {isGrantedToParent: boolean}
 }) {
   const navigate = useNavigate('push')
   const collaboratorId = hmId('d', capability.delegate)
@@ -330,7 +346,8 @@ function CollaboratorItem({
           {getDocumentTitle(entity.data?.document)}
         </SizableText>
         <SizableText size="$1" color="$color9">
-          {getRoleName(capability.role)}
+          {getRoleName(capability.role)}{' '}
+          {capability.isGrantedToParent ? '(Parent Capability)' : ''}
         </SizableText>
       </XStack>
     </ListItem>

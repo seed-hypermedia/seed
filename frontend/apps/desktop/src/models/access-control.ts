@@ -152,7 +152,10 @@ export function useAllDocumentCapabilities(
         alreadyCapKeys.add(key)
         outputCaps.push(cap)
       }
-      return outputCaps
+      return outputCaps.map((cap) => ({
+        ...cap,
+        isGrantedToParent: cap.path !== hmIdPathToEntityQueryPath(id.path),
+      }))
     },
   })
 }
