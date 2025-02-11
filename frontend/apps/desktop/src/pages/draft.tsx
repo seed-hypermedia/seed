@@ -70,6 +70,7 @@ import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'
 import './draft-page.css'
 
+import {SidebarSpacer} from '@/components/main-wrapper'
 export default function DraftPage() {
   const route = useNavRoute()
 
@@ -130,47 +131,50 @@ export default function DraftPage() {
 
   return (
     <ErrorBoundary FallbackComponent={() => null}>
-      <AccessoryLayout
-        accessory={accessory}
-        accessoryKey={accessoryKey}
-        onAccessorySelect={(key: typeof accessoryKey) => {
-          setAccessory(key)
-        }}
-        accessoryOptions={accessoryOptions}
-      >
-        {shouldRebase ? (
-          <XStack
-            theme="yellow"
-            bg="$backgroundHover"
-            ai="center"
-            jc="center"
-            p="$3"
-            gap="$4"
-          >
-            <SizableText size="$2">
-              A new change has been published to this document.{' '}
-            </SizableText>
-            <Button
-              bg="$backgroundFocus"
-              size="$2"
-              onPress={() => performRebase()}
-            >
-              {isRebasing ? <Spinner /> : 'Merge'}
-            </Button>
-          </XStack>
-        ) : null}
-        <DraftAppHeader
-          siteHomeMetadata={
-            route.id.path?.length
-              ? homeEntity.data?.document?.metadata
-              : draft.data?.metadata
-          }
-          siteHomeEntity={homeEntity.data}
-          docId={route.id}
+      <XStack flex={1} height="100%">
+        <SidebarSpacer />
+        <AccessoryLayout
+          accessory={accessory}
+          accessoryKey={accessoryKey}
+          onAccessorySelect={(key: typeof accessoryKey) => {
+            setAccessory(key)
+          }}
+          accessoryOptions={accessoryOptions}
         >
-          <DocumentEditor {...data} id={route.id} />
-        </DraftAppHeader>
-      </AccessoryLayout>
+          {shouldRebase ? (
+            <XStack
+              theme="yellow"
+              bg="$backgroundHover"
+              ai="center"
+              jc="center"
+              p="$3"
+              gap="$4"
+            >
+              <SizableText size="$2">
+                A new change has been published to this document.{' '}
+              </SizableText>
+              <Button
+                bg="$backgroundFocus"
+                size="$2"
+                onPress={() => performRebase()}
+              >
+                {isRebasing ? <Spinner /> : 'Merge'}
+              </Button>
+            </XStack>
+          ) : null}
+          <DraftAppHeader
+            siteHomeMetadata={
+              route.id.path?.length
+                ? homeEntity.data?.document?.metadata
+                : draft.data?.metadata
+            }
+            siteHomeEntity={homeEntity.data}
+            docId={route.id}
+          >
+            <DocumentEditor {...data} id={route.id} />
+          </DraftAppHeader>
+        </AccessoryLayout>
+      </XStack>
     </ErrorBoundary>
   )
 }
@@ -320,7 +324,7 @@ function DocumentEditor({
               </YStack>
             ) : null}
             <YStack>
-              <DraftHeader
+              {/* <DraftHeader
                 draftActor={actor}
                 onEnter={() => {
                   editor._tiptapEditor.commands.focus()
@@ -329,7 +333,7 @@ function DocumentEditor({
                 disabled={!state.matches('ready')}
                 showCover={showCover}
                 setShowCover={setShowCover}
-              />
+              /> */}
               <EmbedToolbarProvider>
                 <Container
                   paddingLeft="$4"

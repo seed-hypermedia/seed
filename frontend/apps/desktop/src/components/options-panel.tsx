@@ -155,6 +155,28 @@ function OptionsPanelContent({
             }}
           />
         </YStack>
+        <YStack>
+          <Label color="$color9" size="$1">
+            Cover Image
+          </Label>
+          <ImageForm
+            id={`cover-${draftId.id}`}
+            label={metadata.cover}
+            url={metadata.cover ? getDaemonFileUrl(metadata.cover) : ''}
+            onImageUpload={(imageCid) => {
+              if (imageCid) {
+                onMetadata({
+                  cover: `ipfs://${imageCid}`,
+                })
+              }
+            }}
+            onRemove={() => {
+              onMetadata({
+                cover: '',
+              })
+            }}
+          />
+        </YStack>
       </YStack>
       {isHome ? (
         <>
