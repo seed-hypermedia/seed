@@ -53,7 +53,7 @@ const commonLinuxConfig = {
     mimeType: ['x-scheme-handler/hm'],
     version,
     bin: IS_PROD_DEV ? 'SeedDev' : 'Seed',
-    homepage: 'https://seedhypermedia.com',
+    homepage: 'https://seed.hyper.media',
   },
 }
 

@@ -14,7 +14,7 @@ export function PageFooter({id}: {id?: UnpackedHypermediaId}) {
           <ButtonText
             size="$1"
             tag="a"
-            href="https://seedhypermedia.com"
+            href="https://seed.hyper.media"
             target="_blank"
           >
             Seed Hypermedia
