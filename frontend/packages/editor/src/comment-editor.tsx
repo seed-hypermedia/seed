@@ -1,8 +1,10 @@
-import {YStack} from "@shm/ui";
-import {BlockNoteEditor, useBlockNote} from "./blocknote";
-import {HyperMediaEditorView} from "./editor-view";
-import {hmBlockSchema} from "./schema";
-import {slashMenuItems} from "./slash-menu-items";
+import { YStack } from "@tamagui/stacks";
+import { BlockNoteEditor, useBlockNote } from "./blocknote";
+import { HyperMediaEditorView } from "./editor-view";
+import { hmBlockSchema } from "./schema";
+import { slashMenuItems } from "./slash-menu-items";
+const bgColor = '$color4'
+
 
 export default function CommentEditor() {
   const {editor} = useCommentEditor();
