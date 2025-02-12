@@ -6,7 +6,7 @@ import {DocumentPage, documentPageMeta} from "~/document";
 import {loadSiteDocument, SiteDocumentPayload} from "~/loaders";
 import {logDebug, logDebugTiming} from "~/logger";
 import {defaultPageMeta} from "~/meta";
-import {NotRegisteredPage} from "~/not-registered";
+import {NoSitePage, NotRegisteredPage} from "~/not-registered";
 import {parseRequest} from "~/request";
 import {getConfig} from "~/site-config";
 import {unwrap, wrapJSON, Wrapped} from "~/wrapping";
@@ -17,13 +17,12 @@ Button;
 
 const unregisteredMeta = defaultPageMeta("Welcome to Seed Hypermedia");
 
-export const meta = ({
-  data,
-}: {
-  data: Wrapped<SiteDocumentPayload | "unregistered">;
-}) => {
-  const payload = unwrap<SiteDocumentPayload | "unregistered">(data);
+type HomePagePayload = SiteDocumentPayload | "unregistered" | "no-site";
+
+export const meta = ({data}: {data: Wrapped<HomePagePayload>}) => {
+  const payload = unwrap<HomePagePayload>(data);
   if (payload === "unregistered") return unregisteredMeta();
+  if (payload === "no-site") return unregisteredMeta();
   return documentPageMeta({data});
 };
 
@@ -36,7 +35,7 @@ export const loader = async ({request}: {request: Request}) => {
   const latest = url.searchParams.get("l") === "";
   const waitForSync = url.searchParams.get("waitForSync") !== null;
   const serviceConfig = await getConfig(hostname);
-  if (!serviceConfig) throw new Error(`No config defined for ${hostname}`);
+  if (!serviceConfig) return wrapJSON("no-site", {status: 404});
   const {registeredAccountUid} = serviceConfig;
   if (!registeredAccountUid) return wrapJSON("unregistered", {status: 404});
   const result = await loadSiteDocument(
@@ -49,10 +48,15 @@ export const loader = async ({request}: {request: Request}) => {
 };
 
 export default function SiteDocument() {
+  return <NoSitePage />;
   logDebug("homepage render");
-  const data = unwrap<SiteDocumentPayload | "unregistered">(useLoaderData());
+  const data = unwrap<HomePagePayload>(useLoaderData());
   if (data === "unregistered") {
     return <NotRegisteredPage />;
   }
+  if (data === "no-site") {
+    return <NoSitePage />;
+  }
+
   return <DocumentPage {...data} />;
 }
