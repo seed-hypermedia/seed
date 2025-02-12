@@ -17,6 +17,7 @@ import (
 	"seed/backend/util/maybe"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 	"unique"
 
@@ -201,6 +202,12 @@ func (dm *Document) SetAttribute(block string, keyPath []string, newValue any) e
 
 	if len(keyPath) == 0 {
 		return fmt.Errorf("must specify key path to set value for")
+	}
+
+	for _, k := range keyPath {
+		if strings.Contains(k, ".") {
+			return fmt.Errorf("key segments must not contain dots, got: %s", k)
+		}
 	}
 
 	dm.dirty = true
