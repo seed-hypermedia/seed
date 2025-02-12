@@ -5,6 +5,7 @@
   "type": "module",
   "main": "./src/index.ts",
   "dependencies": {
+    "@emotion/react": "^11.14.0",
     "@shm/ui": "workspace:*",
     "@tippyjs/react": "4.2.6",
     "@tiptap/core": "2.0.3",
