@@ -9290,6 +9290,21 @@ __metadata:
     "@eslint/js": ^9.17.0
     "@shm/ui": "workspace:*"
     "@tippyjs/react": 4.2.6
+    "@tiptap/core": 2.0.3
+    "@tiptap/extension-bold": 2.0.3
+    "@tiptap/extension-code": 2.0.3
+    "@tiptap/extension-collaboration": 2.0.3
+    "@tiptap/extension-collaboration-cursor": 2.0.3
+    "@tiptap/extension-dropcursor": 2.0.3
+    "@tiptap/extension-gapcursor": 2.0.3
+    "@tiptap/extension-hard-break": 2.0.3
+    "@tiptap/extension-history": 2.0.3
+    "@tiptap/extension-italic": 2.0.3
+    "@tiptap/extension-strike": 2.0.3
+    "@tiptap/extension-text": 2.0.3
+    "@tiptap/extension-underline": 2.0.3
+    "@tiptap/pm": 2.0.3
+    "@tiptap/react": 2.0.3
     "@types/react": ^18.3.18
     "@types/react-dom": ^18.3.5
     "@vitejs/plugin-react": ^4.3.4
@@ -9297,11 +9312,23 @@ __metadata:
     eslint-plugin-react-hooks: ^5.0.0
     eslint-plugin-react-refresh: ^0.4.16
     globals: ^15.14.0
+    prosemirror-state: 1.4.3
     react: ^18.3.1
     react-dom: ^18.3.1
+    rehype: 12.0.1
+    rehype-parse: 8.0.4
+    rehype-remark: 9.1.2
+    rehype-stringify: 9.0.3
+    remark-gfm: 3.0.1
+    remark-parse: 10.0.1
+    remark-rehype: 10.1.0
+    remark-stringify: 10.0.2
     typescript: ~5.6.2
     typescript-eslint: ^8.18.2
     vite: ^6.0.5
+    y-prosemirror: 1.2.1
+    y-protocols: 1.0.5
+    yjs: 13.6.4
   languageName: unknown
   linkType: soft
 
