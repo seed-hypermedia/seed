@@ -8,6 +8,7 @@ import {
   HMDocumentMetadataSchema,
   HMDraft,
   hmId,
+  hmMetadataJsonCorrection,
   invalidateQueries,
   packHmId,
   queryKeys,
@@ -25,25 +26,27 @@ export function useAccounts() {
     queryKey: [queryKeys.LIST_ACCOUNTS],
     queryFn: async () => {
       const res = await grpcClient.documents.listAccounts({})
-      const accounts = res.accounts
+      const accounts = res.accounts.map((account) => ({
+        ...toPlainMessage(account),
+        metadata: HMDocumentMetadataSchema.parse(
+          hmMetadataJsonCorrection(
+            account.metadata?.toJson({
+              emitDefaultValues: true,
+            }),
+          ),
+        ),
+      }))
       const accountsMetadata = Object.fromEntries(
         accounts.map((account) => [
           account.id,
           {
-            metadata: HMDocumentMetadataSchema.parse(
-              account.metadata?.toJson({emitDefaultValues: true}),
-            ),
+            metadata: account.metadata,
             id: hmId('d', account.id),
           },
         ]),
       )
       return {
-        accounts: accounts.map((account) => ({
-          ...toPlainMessage(account),
-          metadata: HMDocumentMetadataSchema.parse(
-            account.metadata?.toJson({emitDefaultValues: true}),
-          ),
-        })),
+        accounts,
         accountsMetadata,
       }
     },

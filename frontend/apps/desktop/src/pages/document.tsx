@@ -228,7 +228,6 @@ function _MainDocumentPage({
   if (entity.data?.document === undefined) {
     return <DocDiscovery docId={id} />
   }
-
   return (
     <YStack>
       <AppDocSiteHeader
@@ -295,7 +294,8 @@ function _MainDocumentPage({
 }
 const MainDocumentPage = React.memo(_MainDocumentPage)
 
-function AppDocSiteHeader({
+const AppDocSiteHeader = React.memo(_AppDocSiteHeader)
+function _AppDocSiteHeader({
   siteHomeEntity,
   docId,
   children,
@@ -340,8 +340,9 @@ function AppDocSiteHeader({
       items={navItems}
       docId={docId}
       isCenterLayout={
+        siteHomeEntity.document?.metadata.theme?.headerLayout === 'Center' ||
         siteHomeEntity.document?.metadata.layout ===
-        'Seed/Experimental/Newspaper'
+          'Seed/Experimental/Newspaper'
       }
       document={document}
       onBlockFocus={(blockId) => {

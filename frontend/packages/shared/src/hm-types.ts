@@ -443,9 +443,18 @@ export const HMDocumentMetadataSchema = z.object({
     .object({
       headerLayout: z.union([z.literal('Center'), z.literal('')]).optional(),
     })
-    .strict()
-    .default({}),
+    .optional(),
 })
+
+export function hmMetadataJsonCorrection(metadata: any): any {
+  if (typeof metadata.theme === 'string') {
+    return {
+      ...metadata,
+      theme: {},
+    }
+  }
+  return metadata
+}
 
 export type HMMetadata = z.infer<typeof HMDocumentMetadataSchema>
 

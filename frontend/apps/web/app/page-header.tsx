@@ -152,6 +152,7 @@ export function WebSiteHeader(
   }>
 ) {
   const isCenterLayout =
+    props.homeMetadata?.theme?.headerLayout === "Center" ||
     props.homeMetadata?.layout === "Seed/Experimental/Newspaper";
   const supportQuery = props.supportQueries?.find(
     (q) => q.in.uid === props.homeId?.uid && !q.in.path?.length
