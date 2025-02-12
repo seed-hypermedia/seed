@@ -33,6 +33,8 @@ const serviceConfigSchema = z.object({
 });
 export type ServiceConfig = z.infer<typeof serviceConfigSchema>;
 
+export {customDomainConfigSchema, serviceConfigSchema};
+
 let singleSiteConfig: SiteConfig | null = null;
 let singleSiteConfigError: string | null = null;
 try {
