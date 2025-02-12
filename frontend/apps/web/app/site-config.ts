@@ -20,18 +20,16 @@ export const siteConfigSchema = z.object({
 });
 export type SiteConfig = z.infer<typeof siteConfigSchema>;
 
+const customDomainConfigSchema = z.object({
+  service: z.string(),
+});
+export type CustomDomainConfig = z.infer<typeof customDomainConfigSchema>;
+
 const serviceConfigSchema = z.object({
   rootHostname: z.string(),
   rootConfig: siteConfigSchema,
   namedServices: z.record(z.string(), siteConfigSchema),
-  customDomains: z
-    .record(
-      z.string(),
-      z.object({
-        service: z.string(),
-      })
-    )
-    .optional(),
+  customDomains: z.record(z.string(), customDomainConfigSchema).optional(),
 });
 export type ServiceConfig = z.infer<typeof serviceConfigSchema>;
 
@@ -124,6 +122,7 @@ export async function writeConfig(hostname: string, newConfig: SiteConfig) {
         }
         subdomain = parts[0];
       }
+      if (!subdomain) throw new Error("Invalid hostname");
       const newServiceConfig = {
         ...serviceConfig,
         namedServices: {
@@ -142,15 +141,17 @@ export async function writeConfig(hostname: string, newConfig: SiteConfig) {
 export async function applyConfigSubscriptions() {
   const siteAccounts = new Set<string>();
   if (serviceConfig) {
-    Object.values(serviceConfig.namedServices).forEach((config) => {
+    Object.values(serviceConfig.namedServices).forEach((config: SiteConfig) => {
       if (config.registeredAccountUid)
         siteAccounts.add(config.registeredAccountUid);
     });
     if (serviceConfig.rootConfig.registeredAccountUid)
       siteAccounts.add(serviceConfig.rootConfig.registeredAccountUid);
-  } else {
+  } else if (singleSiteConfig) {
     if (singleSiteConfig.registeredAccountUid)
       siteAccounts.add(singleSiteConfig.registeredAccountUid);
+  } else {
+    throw new Error("No site config loaded!");
   }
   const subs = await queryClient.subscriptions.listSubscriptions({});
   const toUnsubscribe: {account: string; path: string}[] = [];
@@ -202,9 +203,37 @@ export async function writeCustomDomainConfig(
   });
 }
 
+export async function rmCustomDomain(hostname: string) {
+  if (!serviceConfig) throw new Error("Service config not loaded");
+  const customDomains = {...serviceConfig.customDomains};
+  delete customDomains[hostname];
+  await writeServiceConfig({
+    ...serviceConfig,
+    customDomains,
+  });
+}
+
+export async function rmService(name: string) {
+  if (!serviceConfig) throw new Error("Service config not loaded");
+  if (!serviceConfig.namedServices[name])
+    throw new Error(`Service ${name} not found`);
+  const namedServices = {...serviceConfig.namedServices};
+  delete namedServices[name];
+  await writeServiceConfig({
+    ...serviceConfig,
+    namedServices,
+    // also remove any custom domains that point to this service
+    customDomains: Object.fromEntries(
+      Object.entries(serviceConfig.customDomains || {}).filter(
+        ([_, customDomain]) => customDomain && customDomain.service !== name
+      )
+    ),
+  });
+}
+
 export async function writeSoloConfig(newConfig: SiteConfig) {
   await fs.writeFile(configPath, JSON.stringify(newConfig));
-  config = newConfig;
+  singleSiteConfig = newConfig;
 }
 
 export async function writeServiceConfig(newConfig: ServiceConfig) {

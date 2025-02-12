@@ -1,4 +1,5 @@
 import {ActionFunction, json} from "@remix-run/node";
+import {randomBytes} from "crypto";
 import {z} from "zod";
 import {adminSecret, getServiceConfig, writeConfig} from "~/site-config";
 
@@ -18,12 +19,20 @@ export const action: ActionFunction = async ({request}) => {
   if (payload.adminSecret !== adminSecret || !adminSecret) {
     return json({message: "Invalid admin secret"}, {status: 401});
   }
+  // verify the name is a valid subdomain, no dots, underscores, or special characters
+  if (!/^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/.test(payload.name)) {
+    return json({message: "Invalid service name"}, {status: 400});
+  }
   const serviceConfig = await getServiceConfig();
   if (!serviceConfig) {
     return json({message: "Service config not found"}, {status: 404});
   }
+  // verify the name is not already taken
+  if (serviceConfig.namedServices[payload.name]) {
+    return json({message: "Service name already taken"}, {status: 400});
+  }
   // generate a 10 character random secret
-  const secret = Math.random().toString(36).slice(0, 10);
+  const secret = randomBytes(10).toString("hex").slice(0, 10);
   await writeConfig(`${payload.name}.${serviceConfig.rootHostname}`, {
     availableRegistrationSecret: secret,
   });
