@@ -8,6 +8,8 @@ import {
 import "@/blocknote/core/style.css";
 import "@/editor.css";
 import type {HyperMediaEditor} from "@/types";
+import {HMFormattingToolbar} from "./hm-formatting-toolbar";
+import {HypermediaLinkSwitchToolbar} from "./hm-link-switch-toolbar";
 
 export function HyperMediaEditorView({
   editor,
@@ -20,15 +22,16 @@ export function HyperMediaEditorView({
     <BlockNoteView editor={editor}>
       <FormattingToolbarPositioner
         editor={editor}
-        // formattingToolbar={HMFormattingToolbar}
+        formattingToolbar={HMFormattingToolbar}
       />
       <HyperlinkToolbarPositioner
         // hyperlinkToolbar={HypermediaLinkToolbar}
-        // hyperlinkToolbar={HypermediaLinkSwitchToolbar}
+        hyperlinkToolbar={HypermediaLinkSwitchToolbar}
         editor={editor}
         openUrl={openUrl}
       />
       <SlashMenuPositioner editor={editor} />
+      {/* {comment ? null : <SideMenuPositioner editor={editor} placement="left" />} */}
       <LinkMenuPositioner editor={editor} />
     </BlockNoteView>
   );

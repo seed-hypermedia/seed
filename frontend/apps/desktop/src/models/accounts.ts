@@ -4,7 +4,11 @@ import {client, trpc} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
 import {GRPCClient} from '@shm/shared/grpc-client'
-import {HMDocumentMetadataSchema, HMDraft} from '@shm/shared/hm-types'
+import {
+  HMDocumentMetadataSchema,
+  HMDraft,
+  hmMetadataJsonCorrection,
+} from '@shm/shared/hm-types'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {

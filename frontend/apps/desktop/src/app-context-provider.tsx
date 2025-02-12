@@ -1,16 +1,14 @@
+import {GRPCClient} from '@shm/shared/grpc-client'
+import {queryClient} from '@shm/shared/models/query-client'
+import {UniversalRoutingProvider} from '@shm/shared/routing'
 import {TamaguiProvider, TamaguiProviderProps, View} from '@shm/ui'
 import {QueryClientProvider} from '@tanstack/react-query'
 import {ReactQueryDevtools} from '@tanstack/react-query-devtools'
 import {ReactNode, useMemo} from 'react'
-
 import tamaguiConfig from '../tamagui.config'
+import {AppContext, AppPlatform} from './app-context'
 import {AppIPC} from './app-ipc'
 import {useExperiments} from './models/experiments'
-
-import {GRPCClient} from '@shm/shared/grpc-client'
-import {queryClient} from '@shm/shared/models/query-client'
-import {UniversalRoutingProvider} from '@shm/shared/routing'
-import {AppContext, AppPlatform} from './app-context'
 import {WindowUtils} from './models/window-utils'
 
 export function AppContextProvider({

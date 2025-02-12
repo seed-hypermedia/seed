@@ -1,10 +1,12 @@
-import { YStack } from "@tamagui/stacks";
-import { BlockNoteEditor, useBlockNote } from "./blocknote";
-import { HyperMediaEditorView } from "./editor-view";
-import { hmBlockSchema } from "./schema";
-import { slashMenuItems } from "./slash-menu-items";
-const bgColor = '$color4'
-
+import {queryClient} from "@shm/shared/models/query-client";
+import {YStack} from "@tamagui/stacks";
+import {Extension} from "@tiptap/core";
+import {BlockNoteEditor, useBlockNote} from "./blocknote";
+import {HyperMediaEditorView} from "./editor-view";
+import {createHypermediaDocLinkPlugin} from "./hypermedia-link-plugin";
+import {hmBlockSchema} from "./schema";
+import {slashMenuItems} from "./slash-menu-items";
+const bgColor = "$color4";
 
 export default function CommentEditor() {
   const {editor} = useCommentEditor();
@@ -30,14 +32,14 @@ export function useCommentEditor() {
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
       console.log("editor content changed", editor.topLevelBlocks);
     },
-    // linkExtensionOptions: {
-    //   openOnClick: false,
-    //   queryClient,
-    //   grpcClient,
-    //   openUrl,
-    //   gwUrl,
-    //   checkWebUrl: checkWebUrl.mutateAsync,
-    // },
+    linkExtensionOptions: {
+      openOnClick: false,
+      queryClient,
+      grpcClient,
+      openUrl,
+      gwUrl,
+      checkWebUrl: checkWebUrl.mutateAsync,
+    },
 
     // onEditorReady: (e) => {
     //   readyEditor.current = e;
@@ -50,16 +52,16 @@ export function useCommentEditor() {
     // onMentionsQuery: (query: string) => {
     //   inlineMentionsQuery(query);
     // },
-    // _tiptapOptions: {
-    //   extensions: [
-    //     Extension.create({
-    //       name: "hypermedia-link",
-    //       addProseMirrorPlugins() {
-    //         return [createHypermediaDocLinkPlugin({}).plugin];
-    //       },
-    //     }),
-    //   ],
-    // },
+    _tiptapOptions: {
+      extensions: [
+        Extension.create({
+          name: "hypermedia-link",
+          addProseMirrorPlugins() {
+            return [createHypermediaDocLinkPlugin({}).plugin];
+          },
+        }),
+      ],
+    },
   });
 
   return {
