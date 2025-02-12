@@ -48,7 +48,6 @@ export const loader = async ({request}: {request: Request}) => {
 };
 
 export default function SiteDocument() {
-  return <NoSitePage />;
   logDebug("homepage render");
   const data = unwrap<HomePagePayload>(useLoaderData());
   if (data === "unregistered") {
