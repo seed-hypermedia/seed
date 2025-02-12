@@ -1,12 +1,12 @@
-import {Mark} from '@tiptap/pm/model'
-import {Node, Schema} from 'prosemirror-model'
+import {Mark} from "@tiptap/pm/model";
+import {Node, Schema} from "prosemirror-model";
 import {
   Block,
   BlockSchema,
   PartialBlock,
-} from '../../extensions/Blocks/api/blockTypes'
+} from "../../extensions/Blocks/api/blockTypes";
 
-import {defaultProps} from '../../extensions/Blocks/api/defaultBlocks'
+import {defaultProps} from "../../extensions/Blocks/api/defaultBlocks";
 import {
   ColorStyle,
   InlineContent,
@@ -15,31 +15,31 @@ import {
   StyledText,
   Styles,
   ToggledStyle,
-} from '../../extensions/Blocks/api/inlineContentTypes'
-import {UniqueID} from '../../extensions/UniqueID/UniqueID'
-import {UnreachableCaseError} from '../../shared/utils'
+} from "../../extensions/Blocks/api/inlineContentTypes";
+import {UniqueID} from "../../extensions/UniqueID/UniqueID";
+import {UnreachableCaseError} from "../../shared/utils";
 
 const toggleStyles = new Set<ToggledStyle>([
-  'bold',
-  'italic',
-  'underline',
-  'strike',
-  'code',
-])
-const colorStyles = new Set<ColorStyle>(['textColor', 'backgroundColor'])
+  "bold",
+  "italic",
+  "underline",
+  "strike",
+  "code",
+]);
+const colorStyles = new Set<ColorStyle>(["textColor", "backgroundColor"]);
 
 /**
  * Convert a StyledText inline element to a
  * prosemirror text node with the appropriate marks
  */
 function styledTextToNodes(styledText: StyledText, schema: Schema): Node[] {
-  const marks: Mark[] = []
+  const marks: Mark[] = [];
 
   for (const [style, value] of Object.entries(styledText.styles)) {
     if (toggleStyles.has(style as ToggledStyle)) {
-      marks.push(schema.mark(style))
+      marks.push(schema.mark(style));
     } else if (colorStyles.has(style as ColorStyle)) {
-      marks.push(schema.mark(style, {color: value}))
+      marks.push(schema.mark(style, {color: value}));
     }
   }
 
@@ -52,13 +52,13 @@ function styledTextToNodes(styledText: StyledText, schema: Schema): Node[] {
       .filter((text) => text.length > 0)
       // Converts text & line breaks to nodes.
       .map((text) => {
-        if (text === '\n') {
-          return schema.nodes['hardBreak'].create()
+        if (text === "\n") {
+          return schema.nodes["hardBreak"].create();
         } else {
-          return schema.text(text, marks)
+          return schema.text(text, marks);
         }
       })
-  )
+  );
 }
 
 /**
@@ -66,20 +66,21 @@ function styledTextToNodes(styledText: StyledText, schema: Schema): Node[] {
  * prosemirror text nodes with the appropriate marks
  */
 function linkToNodes(link: PartialLink, schema: Schema): Node[] {
+  console.log(`== ~ linkToNodes ~ schema.marks:`, schema.marks);
   const linkMark = schema.marks.link.create({
     href: link.href,
-  })
+  });
 
   return styledTextArrayToNodes(link.content, schema).map((node) => {
-    if (node.type.name === 'text') {
-      return node.mark([...node.marks, linkMark])
+    if (node.type.name === "text") {
+      return node.mark([...node.marks, linkMark]);
     }
 
-    if (node.type.name === 'hardBreak') {
-      return node
+    if (node.type.name === "hardBreak") {
+      return node;
     }
-    throw new Error('unexpected node type')
-  })
+    throw new Error("unexpected node type");
+  });
 }
 
 /**
@@ -88,21 +89,21 @@ function linkToNodes(link: PartialLink, schema: Schema): Node[] {
  */
 function styledTextArrayToNodes(
   content: string | StyledText[],
-  schema: Schema,
+  schema: Schema
 ): Node[] {
-  const nodes: Node[] = []
+  const nodes: Node[] = [];
 
-  if (typeof content === 'string') {
+  if (typeof content === "string") {
     nodes.push(
-      ...styledTextToNodes({type: 'text', text: content, styles: {}}, schema),
-    )
-    return nodes
+      ...styledTextToNodes({type: "text", text: content, styles: {}}, schema)
+    );
+    return nodes;
   }
 
   for (const styledText of content) {
-    nodes.push(...styledTextToNodes(styledText, schema))
+    nodes.push(...styledTextToNodes(styledText, schema));
   }
-  return nodes
+  return nodes;
 }
 
 /**
@@ -110,26 +111,26 @@ function styledTextArrayToNodes(
  */
 export function inlineContentToNodes(
   blockContent: PartialInlineContent[],
-  schema: Schema,
+  schema: Schema
 ): Node[] {
-  const nodes: Node[] = []
+  const nodes: Node[] = [];
 
   for (const content of blockContent) {
-    if (content.type === 'link') {
-      nodes.push(...linkToNodes(content, schema))
-    } else if (content.type === 'text') {
-      nodes.push(...styledTextArrayToNodes([content], schema))
-    } else if (content.type == 'inline-embed') {
+    if (content.type === "link") {
+      nodes.push(...linkToNodes(content, schema));
+    } else if (content.type === "text") {
+      nodes.push(...styledTextArrayToNodes([content], schema));
+    } else if (content.type == "inline-embed") {
       nodes.push(
-        schema.nodes['inline-embed'].create({
+        schema.nodes["inline-embed"].create({
           link: content.link,
-        }),
-      )
+        })
+      );
     } else {
-      throw new UnreachableCaseError(content)
+      throw new UnreachableCaseError(content);
     }
   }
-  return nodes
+  return nodes;
 }
 
 /**
@@ -137,121 +138,122 @@ export function inlineContentToNodes(
  */
 export function blockToNode<BSchema extends BlockSchema>(
   block: PartialBlock<BSchema>,
-  schema: Schema,
+  schema: Schema
 ) {
-  let id = block.id
+  let id = block.id;
 
   if (id === undefined) {
-    id = UniqueID.options.generateID()
+    id = UniqueID.options.generateID();
   }
 
-  let type = block.type
+  let type = block.type;
 
   if (type === undefined) {
-    type = 'paragraph'
+    type = "paragraph";
   }
 
-  let contentNode: Node
+  let contentNode: Node;
 
   if (!block.content) {
-    contentNode = schema.nodes[type].create(block.props)
-  } else if (typeof block.content === 'string') {
+    contentNode = schema.nodes[type].create(block.props);
+  } else if (typeof block.content === "string") {
     contentNode = schema.nodes[type].create(
       block.props,
-      schema.text(block.content),
-    )
+      schema.text(block.content)
+    );
   } else {
-    let nodes: Node[] = []
+    let nodes: Node[] = [];
     // Don't want hard breaks inserted as nodes in codeblock
-    if (block.type === 'code-block' && block.content.length) {
+    if (block.type === "code-block" && block.content.length) {
       // @ts-ignore
-      const textNode = schema.text(block.content[0].text || '')
-      nodes.push(textNode)
-    } else nodes = inlineContentToNodes(block.content, schema)
-    contentNode = schema.nodes[type].create(block.props, nodes)
+      const textNode = schema.text(block.content[0].text || "");
+      nodes.push(textNode);
+    } else nodes = inlineContentToNodes(block.content, schema);
+    contentNode = schema.nodes[type].create(block.props, nodes);
   }
 
-  const children: Node[] = []
+  const children: Node[] = [];
 
   if (block.children) {
     for (const child of block.children) {
-      children.push(blockToNode(child, schema))
+      children.push(blockToNode(child, schema));
     }
   }
 
-  const groupNode = schema.nodes['blockGroup'].create(
-    {listType: 'Group'},
-    children,
-  )
+  const groupNode = schema.nodes["blockGroup"].create(
+    {listType: "Group"},
+    children
+  );
 
-  return schema.nodes['blockContainer'].create(
+  return schema.nodes["blockContainer"].create(
     {
       id: id,
       ...block.props,
     },
-    children.length > 0 ? [contentNode, groupNode] : contentNode,
-  )
+    children.length > 0 ? [contentNode, groupNode] : contentNode
+  );
 }
 
 /**
  * Converts an internal (prosemirror) content node to a BlockNote InlineContent array.
  */
 function contentNodeToInlineContent(contentNode: Node) {
-  const content: InlineContent[] = []
-  let currentContent: InlineContent | undefined = undefined
+  const content: InlineContent[] = [];
+  let currentContent: InlineContent | undefined = undefined;
 
   // Most of the logic below is for handling links because in ProseMirror links are marks
   // while in BlockNote links are a type of inline content
   contentNode.content.forEach((node) => {
     // hardBreak nodes do not have an InlineContent equivalent, instead we
     // add a newline to the previous node.
-    if (node.type.name === 'hardBreak') {
+    if (node.type.name === "hardBreak") {
       if (currentContent) {
         // Current content exists.
-        if (currentContent.type === 'text') {
+        if (currentContent.type === "text") {
           // Current content is text.
-          currentContent.text += '\n'
-        } else if (currentContent.type === 'link') {
+          currentContent.text += "\n";
+        } else if (currentContent.type === "link") {
           // Current content is a link.
-          currentContent.content[currentContent.content.length - 1].text += '\n'
+          currentContent.content[currentContent.content.length - 1].text +=
+            "\n";
         }
       } else {
         // Current content does not exist.
         currentContent = {
-          type: 'text',
-          text: '\n',
+          type: "text",
+          text: "\n",
           styles: {},
-        }
+        };
       }
 
-      return
+      return;
     }
 
-    if (node.type.name == 'inline-embed') {
+    if (node.type.name == "inline-embed") {
       if (currentContent) {
-        content.push(currentContent)
+        content.push(currentContent);
       }
 
       content.push({
         type: node.type.name,
         link: node.attrs.link,
-      })
+      });
 
-      currentContent = undefined
+      currentContent = undefined;
     }
 
-    const styles: Styles = {}
-    let linkMark: Mark | undefined
+    const styles: Styles = {};
+    let linkMark: Mark | undefined;
 
     for (const mark of node.marks) {
-      if (mark.type.name === 'link') {
-        linkMark = mark
+      if (mark.type.name === "link") {
+        linkMark = mark;
       } else if (toggleStyles.has(mark.type.name as ToggledStyle)) {
-        styles[mark.type.name as ToggledStyle] = true
+        styles[mark.type.name as ToggledStyle] = true;
       } else if (colorStyles.has(mark.type.name as ColorStyle)) {
-        styles[mark.type.name as ColorStyle] = mark.attrs.color
+        styles[mark.type.name as ColorStyle] = mark.attrs.color;
       } else {
-        throw Error('Mark is of an unrecognized type: ' + mark.type.name)
+        throw Error("Mark is of an unrecognized type: " + mark.type.name);
       }
     }
 
@@ -259,39 +261,39 @@ function contentNodeToInlineContent(contentNode: Node) {
     // Current content exists.
     if (currentContent) {
       // Current content is text.
-      if (currentContent.type === 'text') {
+      if (currentContent.type === "text") {
         if (!linkMark) {
           // Node is text (same type as current content).
           if (
             JSON.stringify(currentContent.styles) === JSON.stringify(styles)
           ) {
             // Styles are the same.
-            currentContent.text += node.textContent
+            currentContent.text += node.textContent;
           } else {
             // Styles are different.
-            content.push(currentContent)
+            content.push(currentContent);
             currentContent = {
-              type: 'text',
+              type: "text",
               text: node.textContent,
               styles,
-            }
+            };
           }
         } else {
           // Node is a link (different type to current content).
-          content.push(currentContent)
+          content.push(currentContent);
           currentContent = {
-            type: 'link',
+            type: "link",
             href: linkMark.attrs.href,
             content: [
               {
-                type: 'text',
+                type: "text",
                 text: node.textContent,
                 styles,
               },
             ],
-          }
+          };
         }
-      } else if (currentContent.type === 'link') {
+      } else if (currentContent.type === "link") {
         // Current content is a link.
         if (linkMark) {
           // Node is a link (same type as current content).
@@ -300,43 +302,42 @@ function contentNodeToInlineContent(contentNode: Node) {
             // Styles are the same.
             if (
               JSON.stringify(
-                currentContent.content[currentContent.content.length - 1]
-                  .styles,
+                currentContent.content[currentContent.content.length - 1].styles
               ) === JSON.stringify(styles)
             ) {
               currentContent.content[currentContent.content.length - 1].text +=
-                node.textContent
+                node.textContent;
             } else {
               // Styles are different.
               currentContent.content.push({
-                type: 'text',
+                type: "text",
                 text: node.textContent,
                 styles,
-              })
+              });
             }
           } else {
             // Link URLs are different.
-            content.push(currentContent)
+            content.push(currentContent);
             currentContent = {
-              type: 'link',
+              type: "link",
               href: linkMark.attrs.href,
               content: [
                 {
-                  type: 'text',
+                  type: "text",
                   text: node.textContent,
                   styles,
                 },
               ],
-            }
+            };
           }
         } else {
           // Node is text (different type to current content).
-          content.push(currentContent)
+          content.push(currentContent);
           currentContent = {
-            type: 'text',
+            type: "text",
             text: node.textContent,
             styles,
-          }
+          };
         }
       }
     }
@@ -345,33 +346,33 @@ function contentNodeToInlineContent(contentNode: Node) {
       // Node is text.
       if (!linkMark) {
         currentContent = {
-          type: 'text',
+          type: "text",
           text: node.textContent,
           styles,
-        }
+        };
       }
       // Node is a link.
       else {
         currentContent = {
-          type: 'link',
+          type: "link",
           href: linkMark.attrs.href,
           content: [
             {
-              type: 'text',
+              type: "text",
               text: node.textContent,
               styles,
             },
           ],
-        }
+        };
       }
     }
-  })
+  });
 
   if (currentContent) {
-    content.push(currentContent)
+    content.push(currentContent);
   }
 
-  return content
+  return content;
 }
 
 /**
@@ -380,53 +381,53 @@ function contentNodeToInlineContent(contentNode: Node) {
 export function nodeToBlock<BSchema extends BlockSchema>(
   node: Node,
   blockSchema: BSchema,
-  blockCache?: WeakMap<Node, Block<BSchema>>,
+  blockCache?: WeakMap<Node, Block<BSchema>>
 ): Block<BSchema> {
-  if (node.type.name !== 'blockContainer') {
+  if (node.type.name !== "blockContainer") {
     throw Error(
-      'Node must be of type blockContainer, but is of type' +
+      "Node must be of type blockContainer, but is of type" +
         node.type.name +
-        '.',
-    )
+        "."
+    );
   }
 
-  const cachedBlock = blockCache?.get(node)
+  const cachedBlock = blockCache?.get(node);
 
   if (cachedBlock) {
-    return cachedBlock
+    return cachedBlock;
   }
 
   // const blockInfo = getBlockInfo(node)
 
-  let id = node.attrs.id
+  let id = node.attrs.id;
 
   // Only used for blocks converted from other formats.
   if (id === null) {
-    id = UniqueID.options.generateID()
+    id = UniqueID.options.generateID();
   }
 
-  const props: any = {}
+  const props: any = {};
   for (const [attr, value] of Object.entries({
     ...node.attrs,
     ...node.firstChild!.attrs,
   })) {
-    const blockSpec = blockSchema[node.firstChild!.type.name]
+    const blockSpec = blockSchema[node.firstChild!.type.name];
     if (!blockSpec) {
       if (
-        node.firstChild!.type.name === 'code-block' ||
-        node.firstChild!.type.name === 'inline-embed'
+        node.firstChild!.type.name === "code-block" ||
+        node.firstChild!.type.name === "inline-embed"
       ) {
-        break
+        break;
       } else
         throw Error(
-          'Block is of an unrecognized type: ' + node.firstChild!.type.name,
-        )
+          "Block is of an unrecognized type: " + node.firstChild!.type.name
+        );
     }
 
-    const propSchema = blockSpec.propSchema
+    const propSchema = blockSpec.propSchema;
 
     if (attr in propSchema) {
-      props[attr] = value
+      props[attr] = value;
     }
     // Block ids are stored as node attributes the same way props are, so we
     // need to ensure we don't attempt to read block ids as props.
@@ -437,29 +438,29 @@ export function nodeToBlock<BSchema extends BlockSchema>(
     // The blockContainer node is the same for all block types, but some custom blocks might not use backgroundColor & textColor,
     // so these 2 props are technically unexpected but we shouldn't log a warning.
     // (this is a bit hacky)
-    else if (attr !== 'id' && !(attr in defaultProps)) {
+    else if (attr !== "id" && !(attr in defaultProps)) {
       // console.warn('Block has an unrecognized attribute: ' + attr)
     }
   }
 
   if (node.lastChild!.attrs.listType) {
-    const {listType, listLevel, start} = node.lastChild!.attrs
-    props['childrenType'] = listType
-    props['listLevel'] = listLevel
-    props['start'] = start
+    const {listType, listLevel, start} = node.lastChild!.attrs;
+    props["childrenType"] = listType;
+    props["listLevel"] = listLevel;
+    props["start"] = start;
   }
 
-  const content = contentNodeToInlineContent(node.firstChild!)
+  const content = contentNodeToInlineContent(node.firstChild!);
 
-  const children: Block<BSchema>[] = []
+  const children: Block<BSchema>[] = [];
   for (
     let i = 0;
     i < (node.childCount === 2 ? node.lastChild!.childCount : 0);
     i++
   ) {
     children.push(
-      nodeToBlock(node.lastChild!.child(i), blockSchema, blockCache),
-    )
+      nodeToBlock(node.lastChild!.child(i), blockSchema, blockCache)
+    );
   }
 
   const block: Block<BSchema> = {
@@ -468,9 +469,9 @@ export function nodeToBlock<BSchema extends BlockSchema>(
     props,
     content,
     children,
-  }
+  };
 
-  blockCache?.set(node, block)
+  blockCache?.set(node, block);
 
-  return block
+  return block;
 }

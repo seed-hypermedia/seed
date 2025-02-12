@@ -1,6 +1,7 @@
 import {useAppContext, useGRPCClient} from '@/app-context'
 import {dispatchWizardEvent} from '@/components/create-account'
 import {createHypermediaDocLinkPlugin} from '@/editor'
+import {useBlockNote} from '@/editor/useBlockNote'
 import {grpcClient} from '@/grpc-client'
 import {useDraft} from '@/models/accounts'
 import {useOpenUrl} from '@/open-url'
@@ -8,7 +9,7 @@ import {slashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
 import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
-import {BlockNoteEditor, useBlockNote} from '@shm/editor/blocknote'
+import {BlockNoteEditor} from '@shm/editor/blocknote/core'
 import {
   Block,
   DocumentChange,
@@ -583,7 +584,6 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
       } catch {}
       return
     },
-
     linkExtensionOptions: {
       openOnClick: false,
       grpcClient,

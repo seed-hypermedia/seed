@@ -5,3 +5,6 @@
 - embed-block
 - query-block
 - mentions-plugin
+- useBlockNote
+- BlockNoteExtensions
+- BlockNoteEditor
