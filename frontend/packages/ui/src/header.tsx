@@ -121,7 +121,7 @@ export function SiteHeader({
                 {items?.length || afterLinksContent ? (
                   <XStack
                     ai="center"
-                    gap="$2"
+                    gap="$5"
                     minWidth="fit-content"
                     padding="$2"
                     jc="center"
