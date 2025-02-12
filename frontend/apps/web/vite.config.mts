@@ -1,6 +1,7 @@
 import {vitePlugin as remix} from "@remix-run/dev";
 import {installGlobals} from "@remix-run/node";
 import {tamaguiExtractPlugin, tamaguiPlugin} from "@tamagui/vite-plugin";
+import path from "path";
 import {defineConfig} from "vite";
 import commonjs from "vite-plugin-commonjs";
 import tsconfigPaths from "vite-tsconfig-paths";
@@ -30,7 +31,7 @@ let config = {
   // },
   build: {minify: false, sourcemap: true},
   ssr: {
-    noExternal: ["@tamagui/helpers-icon"],
+    noExternal: ["@tamagui/helpers-icon", "react-icons"],
   },
   define: {
     // "process.env.NODE_ENV": JSON.stringify("development"), // Force React to development mode
@@ -39,7 +40,13 @@ let config = {
     exclude:
       process.env.NODE_ENV === "production"
         ? []
-        : ["expo-linear-gradient", "@tamagui/*", "tamagui"],
+        : [
+            "expo-linear-gradient",
+            "@tamagui/*",
+            "tamagui",
+            "react-icons",
+            "@shm/editor",
+          ],
   },
   plugins: [
     tamaguiPlugin({config: "./tamagui.config.ts"}) as any,
@@ -72,6 +79,13 @@ let config = {
     //   },
     // },
   ].filter(Boolean),
+  resolve: {
+    dedupe: ["@shm/editor", "@shm/shared", "@shm/ui", "react", "react-dom"],
+    alias: {
+      "@shm/editor": path.resolve(__dirname, "../../packages/editor/src"),
+      "@shm/shared": path.resolve(__dirname, "../../packages/shared/src"),
+    },
+  },
 };
 // console.log("VITE CONFIG", JSON.stringify(config, null, 4));
 export default defineConfig(config);

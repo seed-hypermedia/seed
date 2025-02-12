@@ -10,9 +10,11 @@ import {formattedDateMedium} from '@shm/shared/utils/date'
 import {
   hmId,
   narrowHmId,
+  packHmId,
   UnpackedHypermediaId,
 } from '@shm/shared/utils/entity-id-url'
 import {
+  AccountsMetadata,
   ArrowUpRightSquare,
   BannerNewspaperCard,
   BlockContentUnknown,
@@ -35,7 +37,6 @@ import {
   YStack,
   YStackProps,
 } from '@shm/ui'
-import {AccountsMetadata} from '@shm/ui/src/face-pile'
 import {Spinner} from '@shm/ui/src/spinner'
 import {
   ComponentProps,

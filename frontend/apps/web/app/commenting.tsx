@@ -1,5 +1,6 @@
 import {decode as cborDecode, encode as cborEncode} from "@ipld/dag-cbor";
 import {base58} from "@scure/base";
+import CommentEditor from "@shm/editor/comment-editor";
 import {HMTimestamp, SITE_BASE_URL, UnpackedHypermediaId} from "@shm/shared";
 import {useAppDialog} from "@shm/ui/src/universal-dialog";
 import {Button} from "@tamagui/button";
@@ -7,7 +8,7 @@ import {Input} from "@tamagui/input";
 import {Heading} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
-import {useRef, useState, useSyncExternalStore} from "react";
+import {useEffect, useRef, useState, useSyncExternalStore} from "react";
 import {z} from "zod";
 import type {
   CreateCommentPayload,
@@ -378,12 +379,18 @@ function createComment(text: string): HMUnsignedComment {
 }
 
 export default function WebCommenting({docId}: {docId: UnpackedHypermediaId}) {
+  const [ready, setReady] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const userId = useSyncExternalStore(
     userIdentity.listen,
     userIdentity.get,
     () => null
   );
+
+  useEffect(() => {
+    setReady(true);
+  }, []);
+
   const authDialog = useAuthDialog();
   const submit = userId ? (
     <>
@@ -423,7 +430,7 @@ export default function WebCommenting({docId}: {docId: UnpackedHypermediaId}) {
   );
   return (
     <YStack gap="$2">
-      <Input ref={inputRef} placeholder="Write a comment..." />
+      {ready ? <CommentEditor /> : null}
       {submit}
       {authDialog.content}
     </YStack>

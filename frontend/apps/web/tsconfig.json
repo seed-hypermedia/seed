@@ -5,8 +5,9 @@
     "**/.server/**/*.ts",
     "**/.server/**/*.tsx",
     "**/.client/**/*.ts",
-    "**/.client/**/*.tsx"
-, "app/shims/react-native-svg.js"  ],
+    "**/.client/**/*.tsx",
+    "app/shims/react-native-svg.js"
+  ],
   "compilerOptions": {
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "types": ["vite/client"],
@@ -23,7 +24,10 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
-      "~/*": ["./app/*"]
+      "~/*": ["./app/*"],
+      "@shm/editor/*": ["../../packages/editor/src/*"],
+      "@shm/shared": ["../../packages/shared/src/index.ts"],
+      "@shm/shared/*": ["../../packages/shared/src/*"]
     },
     "noEmit": true
   }

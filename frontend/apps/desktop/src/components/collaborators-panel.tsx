@@ -109,6 +109,8 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
     SearchResult[]
   >([])
   const capabilities = useAllDocumentCapabilities(id)
+
+  console.log(`== ~ AddCollaboratorForm ~ capabilities:`, capabilities)
   const [search, setSearch] = useState('')
   const searchResults = useSearch(search, {})
 

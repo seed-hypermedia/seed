@@ -1,5 +1,6 @@
 import {
   BlockNoteView,
+  FormattingToolbarPositioner,
   HyperlinkToolbarPositioner,
   LinkMenuPositioner,
   SlashMenuPositioner,
@@ -10,19 +11,17 @@ import type {HyperMediaEditor} from "@/types";
 
 export function HyperMediaEditorView({
   editor,
-  comment,
   openUrl,
 }: {
   editor: HyperMediaEditor;
-  comment: boolean;
   openUrl: (url: string, newWindow?: boolean) => void;
 }) {
   return (
     <BlockNoteView editor={editor}>
-      {/* <FormattingToolbarPositioner
+      <FormattingToolbarPositioner
         editor={editor}
-        formattingToolbar={HMFormattingToolbar}
-      /> */}
+        // formattingToolbar={HMFormattingToolbar}
+      />
       <HyperlinkToolbarPositioner
         // hyperlinkToolbar={HypermediaLinkToolbar}
         // hyperlinkToolbar={HypermediaLinkSwitchToolbar}

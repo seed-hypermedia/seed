@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
-    "rootDir": ".",
+    "baseUrl": "./frontend",
+    "rootDir": "./frontend",
     "importHelpers": true,
     "allowJs": false,
     "allowSyntheticDefaultImports": true,

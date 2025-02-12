@@ -2,7 +2,9 @@ import {YStack} from "@shm/ui";
 import {BlockNoteEditor, useBlockNote} from "./blocknote";
 import {HyperMediaEditorView} from "./editor-view";
 import {hmBlockSchema} from "./schema";
-export function CommentEditor() {
+import {slashMenuItems} from "./slash-menu-items";
+
+export default function CommentEditor() {
   const {editor} = useCommentEditor();
   return (
     <YStack
@@ -16,14 +18,16 @@ export function CommentEditor() {
       gap="$4"
       paddingBottom="$2"
     >
-      <HyperMediaEditorView editor={editor} openUrl={() => {}} comment />
+      <HyperMediaEditorView editor={editor} openUrl={() => {}} />
     </YStack>
   );
 }
 
 export function useCommentEditor() {
   const editor = useBlockNote<typeof hmBlockSchema>({
-    onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {},
+    onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
+      console.log("editor content changed", editor.topLevelBlocks);
+    },
     // linkExtensionOptions: {
     //   openOnClick: false,
     //   queryClient,
@@ -38,9 +42,9 @@ export function useCommentEditor() {
     //   initDraft();
     // },
     blockSchema: hmBlockSchema,
-    // slashMenuItems: slashMenuItems.filter(
-    //   (item) => !["Nostr", "Query"].includes(item.name)
-    // ),
+    slashMenuItems: slashMenuItems.filter(
+      (item) => !["Nostr", "Query"].includes(item.name)
+    ),
     // onMentionsQuery: (query: string) => {
     //   inlineMentionsQuery(query);
     // },

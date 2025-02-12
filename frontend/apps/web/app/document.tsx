@@ -1,6 +1,5 @@
 import {MetaFunction} from "@remix-run/node";
 import {useLocation, useNavigate} from "@remix-run/react";
-import {CommentEditor} from "@shm/editor";
 import {
   BlockRange,
   createWebHMUrl,
@@ -16,25 +15,25 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
 } from "@shm/shared";
-import {getActivityTime} from "@shm/shared/src/models/activity";
-import "@shm/shared/src/styles/document.css";
+import {getActivityTime} from "@shm/shared/models/activity";
+import "@shm/shared/styles/document.css";
 import {
   ActivitySection,
+  BlocksContent,
   Button,
+  ChangeGroup,
+  CommentGroup,
+  Container,
+  DocContent,
+  DocContentProvider,
+  DocDirectory,
+  DocumentOutline,
+  extractIpfsUrlCid,
   getRandomColor,
+  SubDocumentItem,
   useImageUrl,
   useTheme,
 } from "@shm/ui";
-import {ChangeGroup, SubDocumentItem} from "@shm/ui/src/activity";
-import {Container} from "@shm/ui/src/container";
-import {CommentGroup} from "@shm/ui/src/discussion";
-import {
-  BlocksContent,
-  DocContent,
-  DocContentProvider,
-} from "@shm/ui/src/document-content";
-import {extractIpfsUrlCid} from "@shm/ui/src/get-file-url";
-import {DocDirectory, DocumentOutline} from "@shm/ui/src/navigation";
 import {ChevronUp} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
@@ -255,7 +254,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
                 siteHost={siteHost}
                 enableWebSigning={enableWebSigning}
               />
-              <CommentEditor />
             </YStack>
           </YStack>
           <PageFooter id={id} />

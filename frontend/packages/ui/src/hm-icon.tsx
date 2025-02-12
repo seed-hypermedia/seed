@@ -1,4 +1,4 @@
-import {UnpackedHypermediaId} from "@shm/shared/utils/entity-id-url";
+import {HMMetadata, UnpackedHypermediaId} from "@shm/shared";
 import {useImageUrl} from "@shm/ui/src/get-file-url";
 import {Button} from "@tamagui/button";
 import {AlertCircle} from "@tamagui/lucide-icons";

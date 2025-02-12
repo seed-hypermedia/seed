@@ -1,8 +1,5 @@
 import {DAEMON_FILE_URL} from "@shm/shared";
-import {
-  OptimizedImageSize,
-  useUniversalAppContext,
-} from "@shm/ui/src/universal-app";
+import {OptimizedImageSize, useUniversalAppContext} from "./universal-app";
 
 console.log("=== import get-file-url");
 

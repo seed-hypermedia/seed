@@ -23,6 +23,7 @@ import {usePeerInfo} from '@/models/networking'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
+import {getMetadataName} from '@shm/shared/content'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {

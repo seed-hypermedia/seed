@@ -25,7 +25,7 @@
   "dependencies": {
     "@hookform/resolvers": "3.3.1",
     "@rehookify/datepicker": "6.6.8",
-    "@shm/shared": "*",
+    "@shm/shared": "workspace:*",
     "@tamagui/animations-moti": "1.108.2",
     "@tamagui/animations-react-native": "1.108.2",
     "@tamagui/button": "1.108.2",
@@ -52,7 +52,7 @@
     "tamagui": "1.108.2"
   },
   "devDependencies": {
-    "@shm/prettier": "*",
+    "@shm/prettier": "workspace:*",
     "@tamagui/build": "1.108.2",
     "@tamagui/use-did-finish-ssr": "1.100.5"
   }

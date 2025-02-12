@@ -68,23 +68,18 @@ export function NavigationContainer({
     }
   }, [])
 
-  const routingContext = useMemo(() => {
-    return {
-      openRoute: (route: NavRoute, replace?: boolean) => {
-        console.log(`== ~ openRoute:`, route, replace)
-        if (replace) {
-          navigation.dispatch({type: 'replace', route})
-        } else {
-          navigation.dispatch({type: 'push', route})
-        }
-      },
-    }
-  }, [])
-
-  console.log(`== ~ routingContext ~ routingContext:`, routingContext)
-
   return (
-    <UniversalRoutingProvider value={routingContext}>
+    <UniversalRoutingProvider
+      value={{
+        openRoute: (route: NavRoute, replace?: boolean) => {
+          if (replace) {
+            navigation.dispatch({type: 'replace', route})
+          } else {
+            navigation.dispatch({type: 'push', route})
+          }
+        },
+      }}
+    >
       <NavContextProvider value={navigation}>{children}</NavContextProvider>
     </UniversalRoutingProvider>
   )

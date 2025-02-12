@@ -1,11 +1,11 @@
-import {Root} from 'remark-parse/lib'
-import {Plugin} from 'unified'
-import {Node} from 'unist'
-import visit from 'unist-util-visit'
+import {Root} from "remark-parse/lib";
+import {Plugin} from "unified";
+import {Node} from "unist";
+import {visit} from "unist-util-visit";
 
 export const remarkCodeClass: Plugin<void[], Root> = () => {
   return (tree: Node) => {
-    visit(tree, 'code', (node: any) => {
+    visit(tree, "code", (node: any) => {
       if (node.lang) {
         node.data = {
           ...node.data,
@@ -13,8 +13,8 @@ export const remarkCodeClass: Plugin<void[], Root> = () => {
             ...node.data?.hProperties,
             className: node.lang ? [`language-${node.lang}`] : [],
           },
-        }
+        };
       }
-    })
-  }
-}
+    });
+  };
+};

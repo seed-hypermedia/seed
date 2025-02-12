@@ -15,7 +15,7 @@ import {
   hmIdPathToEntityQueryPath,
   unpackHmId,
 } from "@shm/shared";
-import {getActivityTime} from "@shm/shared/src/models/activity";
+import {getActivityTime} from "@shm/shared/models/activity";
 import {queryClient} from "~/client";
 import {getMetadata} from "~/loaders";
 import {wrapJSON, WrappedResponse} from "~/wrapping";

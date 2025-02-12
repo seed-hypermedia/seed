@@ -1,4 +1,4 @@
-import {HMMetadataPayload} from "@shm/shared/src/hm-types";
+import {HMMetadataPayload} from "@shm/shared";
 import {Text} from "@tamagui/core";
 import {XStack} from "@tamagui/stacks";
 import {useMemo} from "react";
