@@ -6834,9 +6834,9 @@ __metadata:
   linkType: hard
 
 "@opentelemetry/semantic-conventions@npm:^1.17.0, @opentelemetry/semantic-conventions@npm:^1.27.0":
-  version: 1.29.0
-  resolution: "@opentelemetry/semantic-conventions@npm:1.29.0"
-  checksum: c2ae975a7f8201a15eab209a1f7de0a9daf14a3331e2c5aa6c75171af0c867054b4026adc5c67787ca9a19a8a46806008474a619d480632d3f4c79d336256c20
+  version: 1.30.0
+  resolution: "@opentelemetry/semantic-conventions@npm:1.30.0"
+  checksum: 53d3489f11eeae07d12e878e4ae6df2de72b6a05ea434cfa2c2301023b9d3df35bcaafaeb294be708b93ae946b510067baf35008a3fd0275f52f0e0790014240
   languageName: node
   linkType: hard
 
@@ -25479,9 +25479,9 @@ __metadata:
   linkType: hard
 
 "pathe@npm:^2.0.1":
-  version: 2.0.2
-  resolution: "pathe@npm:2.0.2"
-  checksum: f99e40ac6e5a9d31c7192a8262cb66f286c2619684d2ff6ae1b30f276c6cf3373c319dc8994ba25ced133b51edff13152b20c7554d63ac3be142d6c70220ef32
+  version: 2.0.3
+  resolution: "pathe@npm:2.0.3"
+  checksum: 0602bdd4acb54d91044e0c56f1fb63467ae7d44ab3afea1f797947b0eb2b4d1d91cf0d58d065fdb0a8ab0c4acbbd8d3a5b424983eaf10dd5285d37a16f6e3ee9
   languageName: node
   linkType: hard
 
@@ -25557,9 +25557,9 @@ __metadata:
   linkType: hard
 
 "pg-protocol@npm:*":
-  version: 1.7.0
-  resolution: "pg-protocol@npm:1.7.0"
-  checksum: 2dba740f6fc4b7f9761682c4c42d183b444292cdc7638b373f5247ec995c8199c369953343479281da3c41611fe34130a80c8668348d49a399c164f802f76be2
+  version: 1.7.1
+  resolution: "pg-protocol@npm:1.7.1"
+  checksum: 88df68e8c09727311bbd0cc4344ac168962578aed3377d9dc0e2a5175ce4dfc6aa6d8c402de3a231a3aeda24f3e085d442ca47ad7c52f803e1abcdc98ddcbc7e
   languageName: node
   linkType: hard
 
@@ -26831,13 +26831,13 @@ __metadata:
   linkType: hard
 
 "prosemirror-view@npm:^1.0.0, prosemirror-view@npm:^1.1.0, prosemirror-view@npm:^1.24.0, prosemirror-view@npm:^1.27.0, prosemirror-view@npm:^1.28.2, prosemirror-view@npm:^1.31.0, prosemirror-view@npm:^1.37.2, prosemirror-view@npm:^1.5.3":
-  version: 1.37.2
-  resolution: "prosemirror-view@npm:1.37.2"
+  version: 1.38.0
+  resolution: "prosemirror-view@npm:1.38.0"
   dependencies:
     prosemirror-model: ^1.20.0
     prosemirror-state: ^1.0.0
     prosemirror-transform: ^1.1.0
-  checksum: 1db70cab868624bbdee5ce13bd8c9ac7275f20c0d4cbacc18dd27cae5ff56eac6d566e38158617df289958c15f0bd4f3360181b7c7044a21216aa894e775bbe8
+  checksum: 0d0f17c1b29d4ee90285752cbce7fa7b0deca1525534eadb6587f5b95b71d925269982f4d1f8d44824b37ea35096bde37e3446ba580c58e1a1f50fb235153ed8
   languageName: node
   linkType: hard
 

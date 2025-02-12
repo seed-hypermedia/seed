@@ -350,13 +350,17 @@ function DocumentEditor({
             }
           />
           <YStack
-            className={`document-container${
-              typeof state.context.metadata.showOutline == 'undefined'
-                ? ''
-                : state.context.metadata.showOutline
-                ? ''
-                : ' hide-outline'
-            }`}
+            className={
+              showOutline && !isHomeDoc
+                ? `document-container${
+                    typeof state.context.metadata.showOutline == 'undefined'
+                      ? ''
+                      : state.context.metadata.showOutline
+                      ? ''
+                      : ' hide-outline'
+                  }`
+                : 'document-container hide-outline'
+            }
           >
             {showOutline && !isHomeDoc ? (
               <YStack
@@ -367,18 +371,22 @@ function DocumentEditor({
               >
                 <SiteNavigationDraftLoader />
               </YStack>
-            ) : null}
+            ) : (
+              <XStack />
+            )}
             <YStack>
-              {/* <DraftHeader
-                draftActor={actor}
-                onEnter={() => {
-                  editor._tiptapEditor.commands.focus()
-                  editor._tiptapEditor.commands.setTextSelection(0)
-                }}
-                disabled={!state.matches('ready')}
-                showCover={showCover}
-                setShowCover={setShowCover}
-              /> */}
+              {!isHomeDoc ? (
+                <DraftHeader
+                  draftActor={actor}
+                  onEnter={() => {
+                    editor._tiptapEditor.commands.focus()
+                    editor._tiptapEditor.commands.setTextSelection(0)
+                  }}
+                  disabled={!state.matches('ready')}
+                  showCover={showCover}
+                  setShowCover={setShowCover}
+                />
+              ) : null}
               <EmbedToolbarProvider>
                 <Container
                   paddingLeft="$4"
