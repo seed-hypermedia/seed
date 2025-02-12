@@ -1,10 +1,7 @@
 import {trpc} from '@/trpc'
-import {
-  DEFAULT_GATEWAY_URL,
-  invalidateQueries,
-  StateStream,
-  writeableStateStream,
-} from '@shm/shared'
+import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {useEffect, useMemo} from 'react'
 
 export function useGatewayUrl() {

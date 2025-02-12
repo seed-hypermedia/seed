@@ -1,7 +1,8 @@
 import {useMyAccountIds} from '@/models/daemon'
 import {useEntity} from '@/models/entities'
 import {HMSubscription, useSubscription} from '@/models/subscription'
-import {getDocumentTitle, UnpackedHypermediaId} from '@shm/shared'
+import {getDocumentTitle} from '@shm/shared/content'
+import {UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {
   AlertDialog,
   Button,

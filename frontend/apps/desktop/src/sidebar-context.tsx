@@ -1,4 +1,4 @@
-import {StateStream, writeableStateStream} from '@shm/shared'
+import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {PropsWithChildren, createContext, useContext, useMemo} from 'react'
 import {useNavigationDispatch, useNavigationState} from './utils/navigation'
 

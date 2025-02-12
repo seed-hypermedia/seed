@@ -3,7 +3,7 @@ import {
   DAEMON_HTTP_PORT,
   P2P_PORT,
   VERSION,
-} from '@shm/shared'
+} from '@shm/shared/constants'
 import {spawn} from 'child_process'
 import {app} from 'electron'
 import * as readline from 'node:readline'

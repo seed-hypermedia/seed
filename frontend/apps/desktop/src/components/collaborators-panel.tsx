@@ -9,17 +9,17 @@ import {useNavigate} from '@/utils/useNavigate'
 import * as Ariakit from '@ariakit/react'
 import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
 import {PlainMessage} from '@bufbuild/protobuf'
+
+import {Capability, Role} from '@shm/shared/client/grpc-types'
+import {getDocumentTitle} from '@shm/shared/content'
+import {useSearch} from '@shm/shared/models/search'
+import {DocumentRoute} from '@shm/shared/routes'
 import {
-  Capability,
   createHMUrl,
-  DocumentRoute,
-  getDocumentTitle,
   hmId,
-  Role,
   UnpackedHypermediaId,
   unpackHmId,
-  useSearch,
-} from '@shm/shared'
+} from '@shm/shared/utils/entity-id-url'
 import {
   ArrowRight,
   Button,
@@ -109,6 +109,8 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
     SearchResult[]
   >([])
   const capabilities = useAllDocumentCapabilities(id)
+
+  console.log(`== ~ AddCollaboratorForm ~ capabilities:`, capabilities)
   const [search, setSearch] = useState('')
   const searchResults = useSearch(search, {})
 

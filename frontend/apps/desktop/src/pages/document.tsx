@@ -34,7 +34,7 @@ import {
   HMQueryResult,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import '@shm/shared/src/styles/document.css'
+import '@shm/shared/styles/document.css'
 import {
   Add,
   ArrowRight,
@@ -279,6 +279,7 @@ function _MainDocumentPage({
                 isBlockFocused={isBlockFocused}
               />
             </YStack>
+
             <DocPageAppendix
               centered={
                 entity.data.document?.metadata.layout ==

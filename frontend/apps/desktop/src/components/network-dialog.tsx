@@ -1,5 +1,5 @@
 import {useDaemonInfo} from '@/models/daemon'
-import {ConnectionStatus} from '@shm/shared'
+import {ConnectionStatus} from '@shm/shared/client/grpc-types'
 import {
   Button,
   ButtonText,

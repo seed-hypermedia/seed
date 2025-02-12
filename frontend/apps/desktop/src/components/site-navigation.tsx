@@ -10,7 +10,7 @@ import {
 import {useEntity, useSubscribedEntity} from '@/models/entities'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {hmId} from '@shm/shared'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {
   Add,
   Button,

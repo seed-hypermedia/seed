@@ -1,11 +1,10 @@
 import {useDeletedContent, useUndeleteEntity} from '@/models/entities'
+import {HMDeletedEntity} from '@shm/shared/hm-types'
+import {formattedDateLong, formattedDateMedium} from '@shm/shared/utils/date'
 import {
-  HMDeletedEntity,
   HYPERMEDIA_ENTITY_TYPES,
-  formattedDateLong,
-  formattedDateMedium,
   unpackHmId,
-} from '@shm/shared'
+} from '@shm/shared/utils/entity-id-url'
 import {
   Button,
   List,

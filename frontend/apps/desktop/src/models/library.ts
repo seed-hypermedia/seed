@@ -1,23 +1,25 @@
 import {useGRPCClient} from '@/app-context'
 import {toPlainMessage} from '@bufbuild/protobuf'
+import {BIG_INT} from '@shm/shared/constants'
 import {
-  BIG_INT,
-  entityQueryPathToHmIdPath,
   HMAccount,
   HMComment,
   HMDocument,
   HMDocumentInfo,
   HMDocumentMetadataSchema,
   HMDraft,
-  hmId,
   HMLibraryDocument,
   HMMetadata,
   HMMetadataPayload,
-  queryKeys,
+} from '@shm/shared/hm-types'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {useSearch} from '@shm/shared/models/search'
+import {
+  hmId,
   UnpackedHypermediaId,
   unpackHmId,
-  useSearch,
-} from '@shm/shared'
+} from '@shm/shared/utils/entity-id-url'
+import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {useQuery} from '@tanstack/react-query'
 import {useAccounts, useDrafts} from './accounts'
 import {useComments} from './comments'

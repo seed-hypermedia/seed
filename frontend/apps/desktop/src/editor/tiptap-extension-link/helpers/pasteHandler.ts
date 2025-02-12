@@ -1,22 +1,22 @@
-import {getLinkMenuItems} from '@/editor/blocknote/core'
-import {linkMenuPluginKey} from '@/editor/blocknote/core/extensions/LinkMenu/LinkMenuPlugin'
+import {grpcClient} from '@/grpc-client'
 import {loadWebLinkMeta} from '@/models/web-links'
-import {toPlainMessage} from '@bufbuild/protobuf'
+import {getLinkMenuItems} from '@shm/editor/blocknote/core'
+import {linkMenuPluginKey} from '@shm/editor/blocknote/core/extensions/LinkMenu/LinkMenuPlugin'
+import {getDocumentTitle} from '@shm/shared/content'
+import {GRPCClient} from '@shm/shared/grpc-client'
+import {HMDocument, HMDocumentMetadataSchema} from '@shm/shared/hm-types'
 import {
-  GRPCClient,
-  HMDocumentMetadataSchema,
-  StateStream,
-  UnpackedHypermediaId,
   extractBlockRefOfUrl,
-  getDocumentTitle,
   hmId,
-  hmIdPathToEntityQueryPath,
   hmIdWithVersion,
   isHypermediaScheme,
   isPublicGatewayLink,
   packHmId,
+  UnpackedHypermediaId,
   unpackHmId,
-} from '@shm/shared'
+} from '@shm/shared/utils/entity-id-url'
+import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
+import {StateStream} from '@shm/shared/utils/stream'
 import {Editor} from '@tiptap/core'
 import {Mark, MarkType} from '@tiptap/pm/model'
 import {Plugin, PluginKey} from '@tiptap/pm/state'
@@ -25,7 +25,7 @@ import {find} from 'linkifyjs'
 import {nanoid} from 'nanoid'
 
 type PasteHandlerOptions = {
-  grpcClient: GRPCClient
+  grpcClient?: GRPCClient
   editor: Editor
   type: MarkType
   linkOnPaste?: boolean
@@ -163,7 +163,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
             }),
           )
 
-          fetchEntityTitle(unpackedHmId, options.grpcClient)
+          fetchEntityTitle(unpackedHmId, grpcClient)
             .then(({title}) => {
               if (title) {
                 view.dispatch(
@@ -507,13 +507,13 @@ async function fetchEntityTitle(
       account: hmId.uid,
       path: hmIdPathToEntityQueryPath(hmId.path),
     })
-    const doc = toPlainMessage(document)
+    const doc = document
     const title = getDocumentTitle({
       ...doc,
       metadata: HMDocumentMetadataSchema.parse(
         doc.metadata?.toJson({emitDefaultValues: true}),
       ),
-    })
+    } as HMDocument)
     return {
       title,
     }

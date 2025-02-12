@@ -1,4 +1,4 @@
-import {IS_PROD_DESKTOP, IS_PROD_DEV} from '@shm/shared'
+import {IS_PROD_DESKTOP, IS_PROD_DEV} from '@shm/shared/constants'
 
 import {
   app,

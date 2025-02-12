@@ -13,15 +13,12 @@ import {
   useWallet,
 } from '@/models/payments'
 import {PlainMessage} from '@bufbuild/protobuf'
-import {
-  formattedDateMedium,
-  getAccountName,
-  hmId,
-  HMInvoice,
-  HMWallet,
-  Invoice,
-  useInvoiceStatus,
-} from '@shm/shared'
+import {Invoice} from '@shm/shared/client/.generated/payments/v1alpha/invoices_pb'
+import {getAccountName} from '@shm/shared/content'
+import {HMInvoice, HMWallet} from '@shm/shared/hm-types'
+import {useInvoiceStatus} from '@shm/shared/models/payments'
+import {formattedDateMedium} from '@shm/shared/utils/date'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {
   AlertCircle,
   Button,
@@ -52,6 +49,7 @@ import {
   YStack,
 } from '@shm/ui'
 import {useState} from 'react'
+import QRCode from 'react-qr-code'
 
 export function AccountWallet({
   accountUid,

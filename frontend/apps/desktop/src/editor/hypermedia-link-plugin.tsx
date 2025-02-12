@@ -1,5 +1,8 @@
 import {loadWebLinkMeta} from '@/models/web-links'
-import {extractBlockRefOfUrl, hmIdWithVersion} from '@shm/shared'
+import {
+  extractBlockRefOfUrl,
+  hmIdWithVersion,
+} from '@shm/shared/utils/entity-id-url'
 import {EditorView} from '@tiptap/pm/view'
 import {Plugin, PluginKey} from 'prosemirror-state'
 

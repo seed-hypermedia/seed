@@ -1,6 +1,7 @@
-import { useEntity } from '@/models/entities'
-import { UnpackedHypermediaId } from '@shm/shared'
-import { FontSizeTokens, LinkIcon } from '@shm/ui'
+import {useEntity} from '@/models/entities'
+import {UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
+
+import {FontSizeTokens, LinkIcon} from '@shm/ui'
 
 export function EntityLinkIcon({
   id,

@@ -6,17 +6,18 @@ import {
 } from '@/models/comments'
 import {useMyAccounts} from '@/models/daemon'
 import {useSubscribedEntities} from '@/models/entities'
+import {useOpenUrl} from '@/open-url'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
+import {getDocumentTitle} from '@shm/shared/content'
 import {
-  getDocumentTitle,
+  HMAccountsMetadata,
   HMComment,
   HMCommentDraft,
   HMCommentGroup,
   HMEntityContent,
-  hmId,
-  StateStream,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+} from '@shm/shared/hm-types'
+import {hmId, UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
+import {StateStream} from '@shm/shared/utils/stream'
 import {
   BlocksContent,
   Button,
@@ -237,6 +238,7 @@ function _CommentDraftEditor({
       replyCommentId,
       initCommentDraft,
     })
+  const openUrl = useOpenUrl()
   useEffect(() => {
     if (autoFocus) editor._tiptapEditor.commands.focus()
   }, [autoFocus, editor])
@@ -254,7 +256,7 @@ function _CommentDraftEditor({
     >
       <AppDocContentProvider disableEmbedClick>
         <EmbedToolbarProvider>
-          <HyperMediaEditorView editor={editor} comment />
+          <HyperMediaEditorView editor={editor} openUrl={openUrl} comment />
         </EmbedToolbarProvider>
       </AppDocContentProvider>
       <XStack

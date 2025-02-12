@@ -16,7 +16,7 @@ import {
 import {
   getDiretoryWithClient,
   getQueryResultsWithClient,
-} from "@shm/shared/src/models/directory";
+} from "@shm/shared/models/directory";
 import {AccountsMetadata} from "@shm/ui/src/face-pile";
 import {queryClient} from "./client";
 import {logDebug} from "./logger";

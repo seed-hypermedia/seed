@@ -1,9 +1,4 @@
-import {
-  getMetadataName,
-  HMMetadata,
-  UnpackedHypermediaId,
-  useRouteLink,
-} from "@shm/shared";
+import {HMMetadata, UnpackedHypermediaId} from "@shm/shared";
 import {useImageUrl} from "@shm/ui/src/get-file-url";
 import {Button} from "@tamagui/button";
 import {AlertCircle} from "@tamagui/lucide-icons";

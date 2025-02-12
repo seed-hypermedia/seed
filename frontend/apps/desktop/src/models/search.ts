@@ -1,12 +1,11 @@
 import {grpcClient} from '@/grpc-client'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
+import {Entity} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
+import {SearchPayload, setSearchQuery} from '@shm/shared/models/search'
 import {
-  Entity,
   HYPERMEDIA_ENTITY_TYPES,
-  SearchPayload,
-  setSearchQuery,
   unpackHmId,
-} from '@shm/shared'
+} from '@shm/shared/utils/entity-id-url'
 import {useCallback, useMemo, useState} from 'react'
 import {useGRPCClient} from '../app-context'
 import {useRecents} from './recents'

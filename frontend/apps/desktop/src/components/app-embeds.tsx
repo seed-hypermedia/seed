@@ -3,41 +3,40 @@ import {useListDirectory} from '@/models/documents'
 import {useEntities, useSubscribedEntity} from '@/models/entities'
 import {LibraryData} from '@/models/library'
 import {LibraryListItem} from '@/pages/library'
+import {DAEMON_FILE_URL} from '@shm/shared/constants'
+import {getDocumentTitle, queryBlockSortedItems} from '@shm/shared/content'
+import {HMBlockQuery} from '@shm/shared/hm-types'
+import {formattedDateMedium} from '@shm/shared/utils/date'
 import {
-  DAEMON_FILE_URL,
-  HMBlockQuery,
-  UnpackedHypermediaId,
-  formattedDateMedium,
-  getDocumentTitle,
   hmId,
   narrowHmId,
   packHmId,
-  queryBlockSortedItems,
-} from '@shm/shared'
+  UnpackedHypermediaId,
+} from '@shm/shared/utils/entity-id-url'
 import {
+  AccountsMetadata,
   ArrowUpRightSquare,
   BannerNewspaperCard,
   BlockContentUnknown,
   BlockNodeContent,
   BlockNodeList,
+  blockStyles,
   Button,
   ContentEmbed,
   EntityComponentProps,
   ErrorBlock,
+  getBlockNodeById,
   HMIcon,
   InlineEmbedButton,
   NewspaperCard,
   QueryBlockPlaceholder,
   SizableText,
   UIAvatar,
+  useDocContentContext,
   XStack,
   YStack,
   YStackProps,
-  blockStyles,
-  getBlockNodeById,
-  useDocContentContext,
 } from '@shm/ui'
-import {AccountsMetadata} from '@shm/ui/src/face-pile'
 import {Spinner} from '@shm/ui/src/spinner'
 import {
   ComponentProps,

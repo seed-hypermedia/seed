@@ -5,16 +5,14 @@ import {useChildrenActivity} from '@/models/library'
 import {useDocumentPublishedChanges, useVersionChanges} from '@/models/versions'
 import {useNavRoute} from '@/utils/navigation'
 import {
-  formattedDateMedium,
   HMChangeGroup,
   HMChangeSummary,
   HMCommentGroup,
   HMDocumentInfo,
-  hmId,
-  normalizeDate,
-  UnpackedHypermediaId,
-} from '@shm/shared'
-import {getActivityTime} from '@shm/shared/src/models/activity'
+} from '@shm/shared/hm-types'
+import {getActivityTime} from '@shm/shared/models/activity'
+import {formattedDateMedium, normalizeDate} from '@shm/shared/utils/date'
+import {hmId, UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {
   ActivitySection,
   Button,

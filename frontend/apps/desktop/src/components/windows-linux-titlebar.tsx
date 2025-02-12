@@ -4,7 +4,7 @@ import {useNavRoute, useNavigationDispatch} from '@/utils/navigation'
 import {useOpenDraft} from '@/utils/open-draft'
 import {useNavigate} from '@/utils/useNavigate'
 import {useTriggerWindowEvent} from '@/utils/window-events'
-import {defaultRoute} from '@shm/shared'
+import {defaultRoute} from '@shm/shared/routes'
 import {
   AddSquare,
   Button,

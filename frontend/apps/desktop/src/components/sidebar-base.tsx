@@ -1,7 +1,7 @@
 import {useAppContext} from '@/app-context'
 import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
 import {useNavigate} from '@/utils/useNavigate'
-import {UnpackedHypermediaId} from '@shm/shared'
+import {UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {
   Button,
   Hash,

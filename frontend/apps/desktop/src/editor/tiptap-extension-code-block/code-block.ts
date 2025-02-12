@@ -1,4 +1,10 @@
-import styles from '@/editor/blocknote/core/extensions/Blocks/nodes/Block.module.css'
+import {
+  BlockNoteDOMAttributes,
+  getBlockInfoFromPos,
+  mergeCSSClasses,
+} from '@shm/editor/blocknote'
+import {getGroupInfoFromPos} from '@shm/editor/blocknote/core/extensions/Blocks/helpers/getGroupInfoFromPos'
+import styles from '@shm/editor/blocknote/core/extensions/Blocks/nodes/Block.module.css'
 import {
   Editor,
   mergeAttributes,
@@ -7,8 +13,6 @@ import {
 } from '@tiptap/core'
 import {Fragment, Slice} from '@tiptap/pm/model'
 import {Plugin, PluginKey, TextSelection} from '@tiptap/pm/state'
-import {BlockNoteDOMAttributes, getBlockInfoFromPos, mergeCSSClasses} from '..'
-import {getGroupInfoFromPos} from '../blocknote/core/extensions/Blocks/helpers/getGroupInfoFromPos'
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {

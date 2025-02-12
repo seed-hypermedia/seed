@@ -22,13 +22,10 @@ import {
 import {usePeerInfo} from '@/models/networking'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
-import {
-  COMMIT_HASH,
-  getAccountName,
-  hmId,
-  invalidateQueries,
-  VERSION,
-} from '@shm/shared'
+import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
+import {getMetadataName} from '@shm/shared/content'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {
   AlertDialog,
   Button,
@@ -407,7 +404,7 @@ function AccountKeys() {
               ) : null}
               <YStack f={1} gap="$3" marginTop="$2">
                 <Field id="username" label="Profile name">
-                  <Input disabled value={getAccountName(profile?.document)} />
+                  <Input disabled value={getMetadataName(profile?.document)} />
                 </Field>
                 <Field id="accountid" label="Account Id">
                   <Input disabled value={selectedAccount} />

@@ -1,6 +1,8 @@
 import {useEntity} from '@/models/entities'
+import {useGatewayUrl} from '@/models/gateway-settings'
 import {AccessURLRow} from '@/url'
-import {DEFAULT_GATEWAY_URL, getAccountName, hmId} from '@shm/shared'
+import {getAccountName} from '@shm/shared/content'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button, Spinner, TextArea, toast, UserPlus, XStack} from '@shm/ui'
 import {compressToEncodedURIComponent} from 'lz-string'
 import {useMemo, useState} from 'react'
@@ -24,6 +26,7 @@ export function AddConnectionDialog({
   const profile = useEntity(account ? hmId('d', account) : undefined)
   const deviceId = daemonInfo.data?.peerId
   const peerInfo = usePeerInfo(deviceId)
+  const gatewayUrl = useGatewayUrl()
   const connectionString =
     typeof input === 'object' ? input.connectionString : undefined
   const name = typeof input === 'object' ? input?.name : undefined
@@ -74,7 +77,7 @@ export function AddConnectionDialog({
           </DialogDescription>
           {deviceId && (
             <AccessURLRow
-              url={`${DEFAULT_GATEWAY_URL}/hypermedia-connect/${connectInfo}`}
+              url={`${gatewayUrl.data}/hypermedia-connect/${connectInfo}`}
             />
           )}
           <DialogDescription>

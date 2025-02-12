@@ -1,4 +1,4 @@
-import {HMCommentDraft} from '@shm/shared'
+import {HMCommentDraft} from '@shm/shared/hm-types'
 import z from 'zod'
 import {commentDraftStore} from './app-store'
 import {t} from './app-trpc'

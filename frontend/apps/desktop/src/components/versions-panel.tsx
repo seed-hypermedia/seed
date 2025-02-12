@@ -1,14 +1,11 @@
 import {useEntity, useSubscribedEntity} from '@/models/entities'
 import {useDocumentChanges, useVersionChanges} from '@/models/versions'
 import {useNavigate} from '@/utils/useNavigate'
-import {
-  DocumentRoute,
-  DraftRoute,
-  formattedDateMedium,
-  getAccountName,
-  HMChangeInfo,
-  hmId,
-} from '@shm/shared'
+import {getAccountName} from '@shm/shared/content'
+import {HMChangeInfo} from '@shm/shared/hm-types'
+import {DocumentRoute, DraftRoute} from '@shm/shared/routes'
+import {formattedDateMedium} from '@shm/shared/utils/date'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {
   Button,
   Draft,

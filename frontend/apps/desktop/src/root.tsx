@@ -4,14 +4,8 @@ import {WindowUtils} from '@/models/window-utils'
 import {NavigationContainer} from '@/utils/navigation-container'
 import {useListenAppEvent} from '@/utils/window-events'
 import type {Interceptor} from '@connectrpc/connect'
-import {
-  DAEMON_FILE_URL,
-  labelOfQueryKey,
-  onQueryCacheError,
-  onQueryInvalidation,
-  queryClient,
-} from '@shm/shared'
-import type {StateStream} from '@shm/shared/src/utils/stream'
+
+import type {StateStream} from '@shm/shared/utils/stream'
 import {SizableText, Spinner, Toaster, YStack, toast, useStream} from '@shm/ui'
 import {UniversalAppProvider} from '@shm/ui/src/universal-app'
 import '@tamagui/core/reset.css'
@@ -34,6 +28,13 @@ import type {AppInfoType} from './preload'
 import './root.css'
 import {client, trpc} from './trpc'
 
+import {DAEMON_FILE_URL} from '@shm/shared/constants'
+import {
+  onQueryCacheError,
+  onQueryInvalidation,
+  queryClient,
+} from '@shm/shared/models/query-client'
+import {labelOfQueryKey} from '@shm/shared/models/query-keys'
 import * as search from './models/search'
 
 // reference this to ensure dependency injection happens before search is used

@@ -1,6 +1,7 @@
-import {UnpackedHypermediaId, useHover} from '@shm/shared'
 import {Button, Star, StarFull, Tooltip} from '@shm/ui'
 
+import {useHover} from '@shm/shared/use-hover'
+import {UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {ComponentProps} from 'react'
 import {useFavorite} from '../models/favorites'
 

@@ -1,5 +1,12 @@
 import {useOpenUrl} from '@/open-url'
 import {
+  Block,
+  BlockNoteEditor,
+  createReactBlockSpec,
+  defaultProps,
+  useEditorSelectionChange,
+} from '@shm/editor/blocknote'
+import {
   AlignCenter,
   AlignLeft,
   AlignRight,
@@ -12,13 +19,6 @@ import {
   YStack,
 } from '@shm/ui'
 import {useState} from 'react'
-import {
-  Block,
-  BlockNoteEditor,
-  createReactBlockSpec,
-  defaultProps,
-  useEditorSelectionChange,
-} from './blocknote'
 import {HypermediaLinkSwitchToolbar} from './hm-link-switch-toolbar'
 import {updateSelection} from './media-render'
 import {HMBlockSchema} from './schema'

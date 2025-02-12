@@ -1,5 +1,12 @@
 import {useEntity} from '@/models/entities'
-import {getDocumentTitle, unpackHmId} from '@shm/shared'
+import {
+  BlockNoteEditor,
+  getBlockInfoFromPos,
+  HyperlinkToolbarProps,
+  PartialBlock,
+} from '@shm/editor/blocknote'
+import {getDocumentTitle} from '@shm/shared/content'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {
   Button,
   CircleDot,
@@ -17,12 +24,6 @@ import {
 } from '@shm/ui'
 import {Fragment, Node} from '@tiptap/pm/model'
 import {useEffect, useMemo, useState} from 'react'
-import {
-  BlockNoteEditor,
-  getBlockInfoFromPos,
-  HyperlinkToolbarProps,
-  PartialBlock,
-} from './blocknote'
 import {HypermediaLinkForm} from './hm-link-form'
 import {HMBlockSchema} from './schema'
 

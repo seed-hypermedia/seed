@@ -1,3 +1,10 @@
+import {
+  BlockNoteEditor,
+  BlockSpec,
+  PartialBlock,
+  PropSchema,
+  insertOrUpdateBlock,
+} from '@shm/editor/blocknote'
 import {TwitterXIcon} from '@shm/ui'
 import {
   RiArticleFill,
@@ -12,20 +19,13 @@ import {
   RiText,
   RiVideoAddFill,
 } from 'react-icons/ri'
-import {
-  BlockNoteEditor,
-  BlockSpec,
-  HMBlockSchema,
-  PartialBlock,
-  PropSchema,
-  insertOrUpdateBlock,
-} from './editor'
-
+import {HMBlockSchema} from './editor'
 export const slashMenuItems = [
   {
     name: 'Heading',
     aliases: ['h', 'heading1', 'subheading'],
     group: 'Text blocks',
+
     icon: <RiHeading size={18} />,
     execute: (
       editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,

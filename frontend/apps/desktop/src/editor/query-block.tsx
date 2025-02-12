@@ -3,15 +3,17 @@ import {useListDirectory} from '@/models/documents'
 import {useEntities, useEntity} from '@/models/entities'
 import {LibraryData} from '@/models/library'
 import {LibraryListItem} from '@/pages/library'
+import {Block, BlockNoteEditor} from '@shm/editor/blocknote'
+import {MultipleNodeSelection} from '@shm/editor/blocknote/core/extensions/SideMenu/MultipleNodeSelection'
 import {
-  EditorQueryBlock,
-  HMBlockQuery,
-  HMEntityContent,
-  hmId,
-  NavRoute,
-  queryBlockSortedItems,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+  createReactBlockSpec,
+  useEditorSelectionChange,
+} from '@shm/editor/blocknote/react'
+import {queryBlockSortedItems} from '@shm/shared/content'
+import {EditorQueryBlock} from '@shm/shared/editor-types'
+import {HMBlockQuery, HMEntityContent} from '@shm/shared/hm-types'
+import {NavRoute} from '@shm/shared/routes'
+import {hmId, UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {
   Button,
   ButtonFrame,
@@ -34,9 +36,6 @@ import type {UseQueryResult} from '@tanstack/react-query'
 import {Fragment} from '@tiptap/pm/model'
 import {NodeSelection, TextSelection} from 'prosemirror-state'
 import {useCallback, useMemo, useState} from 'react'
-import {Block, BlockNoteEditor} from './blocknote'
-import {MultipleNodeSelection} from './blocknote/core/extensions/SideMenu/MultipleNodeSelection'
-import {createReactBlockSpec, useEditorSelectionChange} from './blocknote/react'
 import {HMBlockSchema} from './schema'
 import {getNodesInSelection} from './utils'
 
@@ -273,7 +272,7 @@ function CardView({
           id={firstItem.data?.id}
           entity={firstItem.data}
           key={firstItem.data?.id.id}
-          accountsMetadata={[]}
+          accountsMetadata={{}}
           flexBasis="100%"
           $gtSm={{flexBasis: '100%'}}
           $gtMd={{flexBasis: '100%'}}
@@ -294,7 +293,7 @@ function CardView({
                   id={item.data?.id}
                   entity={item.data}
                   key={item.data?.id.id}
-                  accountsMetadata={[]}
+                  accountsMetadata={{}}
                   flexBasis="100%"
                   $gtSm={{flexBasis: '100%'}}
                   $gtMd={{flexBasis: '100%'}}

@@ -1,12 +1,12 @@
+import {BlockNoteEditor, BlockSchema} from '@shm/editor/blocknote/core'
 import {
-  BlockNoteEditor,
-  BlockSchema,
   BlockTypeDropdownItem,
-  DefaultBlockSchema,
   FormattingToolbarProps,
-} from './blocknote'
-
-import {EditorToggledStyle} from '@shm/shared'
+  useEditorContentChange,
+  useEditorSelectionChange,
+} from '@shm/editor/blocknote/react'
+import {ToolbarDropdownItemProps} from '@shm/editor/blocknote/react/SharedComponents/Toolbar/components/ToolbarDropdownItem'
+import {EditorToggledStyle} from '@shm/shared/hm-types'
 import {
   Button,
   Check,
@@ -28,13 +28,8 @@ import {
   XStack,
 } from '@shm/ui'
 import {useMemo, useState} from 'react'
-import {
-  HMBlockSchema,
-  useEditorContentChange,
-  useEditorSelectionChange,
-} from '.'
-import {ToolbarDropdownItemProps} from './blocknote/react/SharedComponents/Toolbar/components/ToolbarDropdownItem'
 import {HMLinkToolbarButton} from './hm-toolbar-link-button'
+import {HMBlockSchema} from './schema'
 // import {TextAlignButton} from './DefaultButtons/TextAlignButton'
 // import {ColorStyleButton} from './DefaultButtons/ColorStyleButton'
 
@@ -164,9 +159,7 @@ function ToggleStyleButton({
   )
 }
 
-const BlockTypeToolbarDropdown = <
-  BSchema extends BlockSchema = DefaultBlockSchema,
->({
+const BlockTypeToolbarDropdown = <BSchema extends BlockSchema = HMBlockSchema>({
   editor,
   items,
 }: {

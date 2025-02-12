@@ -1,4 +1,4 @@
-import {NavRoute} from '@shm/shared'
+import {NavRoute} from '@shm/shared/routes'
 
 export type WindowTypeInfo = {
   key: 'settings' | 'comment' | 'main' | 'deleted-content'

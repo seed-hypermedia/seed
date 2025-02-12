@@ -1,14 +1,14 @@
 import {isValidUrl, timeoutPromise} from '@/editor/utils'
-import {ResizeHandle, useDocContentContext, useTheme} from '@shm/ui'
-import {getDaemonFileUrl} from '@shm/ui/src/get-file-url'
-import {useEffect, useState} from 'react'
-import {RiImage2Line} from 'react-icons/ri'
 import {
   Block,
   BlockNoteEditor,
   createReactBlockSpec,
   defaultProps,
-} from './blocknote'
+} from '@shm/editor/blocknote'
+import {ResizeHandle, useDocContentContext, useTheme} from '@shm/ui'
+import {getDaemonFileUrl} from '@shm/ui/src/get-file-url'
+import {useEffect, useState} from 'react'
+import {RiImage2Line} from 'react-icons/ri'
 import {MediaContainer} from './media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
 import {HMBlockSchema} from './schema'

@@ -1,13 +1,10 @@
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
 import {useDeleteKey} from '@/models/daemon'
 import {useListSite} from '@/models/documents'
-import {
-  getDocumentTitle,
-  getMetadataName,
-  hmId,
-  HMMetadata,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+
+import {getDocumentTitle, getMetadataName} from '@shm/shared/content'
+import {HMMetadata} from '@shm/shared/hm-types'
+import {hmId, UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {
   AlertDialog,
   AlertDialogContentProps,

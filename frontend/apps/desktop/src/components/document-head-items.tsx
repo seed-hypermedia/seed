@@ -1,6 +1,6 @@
-import {HMDocument, hmId, UnpackedHypermediaId} from '@shm/shared'
-
 import {useEntities} from '@/models/entities'
+import {HMDocument} from '@shm/shared/hm-types'
+import {hmId, UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {DonateButton} from '@shm/ui'
 
 export function DocumentHeadItems({

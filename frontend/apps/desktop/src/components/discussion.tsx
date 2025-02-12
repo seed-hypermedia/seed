@@ -1,5 +1,5 @@
 import {useDocumentCommentGroups} from '@/models/comments'
-import {UnpackedHypermediaId} from '@shm/shared'
+import {UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {
   CommentGroup,
   EmptyDiscussion,

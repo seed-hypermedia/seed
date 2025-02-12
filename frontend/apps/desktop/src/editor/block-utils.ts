@@ -1,41 +1,10 @@
-import {HMBlockChildrenType} from '@shm/shared'
+import {BlockNoteEditor, getBlockInfoFromPos} from '@shm/editor/blocknote'
+import {updateGroupCommand} from '@shm/editor/blocknote/core/api/blockManipulation/commands/updateGroup'
+import {getNodeById} from '@shm/editor/blocknote/core/api/util/nodeUtil'
+import {HMBlockChildrenType} from '@shm/shared/hm-types'
 import {Node} from '@tiptap/pm/model'
 import {EditorView} from '@tiptap/pm/view'
-import {useEffect, useState} from 'react'
-import {
-  Block as BlockNoteBlock,
-  BlockNoteEditor,
-  getBlockInfoFromPos,
-  getBlockInfoFromSelection,
-} from './blocknote'
-import {updateGroupCommand} from './blocknote/core/api/blockManipulation/commands/updateGroup'
-import {getNodeById} from './blocknote/core/api/util/nodeUtil'
 import {HMBlockSchema} from './schema'
-
-export function useSelected(
-  block: BlockNoteBlock<HMBlockSchema>,
-  editor: BlockNoteEditor<HMBlockSchema>,
-) {
-  const [selected, setSelected] = useState(false)
-  const tiptapEditor = editor._tiptapEditor
-  const selection = tiptapEditor.state.selection
-
-  useEffect(() => {
-    if (editor) {
-      const selectedNode = getBlockInfoFromSelection(tiptapEditor.state)
-      if (
-        selectedNode.block.node.attrs.id === block.id &&
-        selectedNode.block.beforePos + 2 === selection.$anchor.pos
-      ) {
-        setSelected(true)
-      } else if (selectedNode.block.node.attrs.id !== block.id) {
-        setSelected(false)
-      }
-    }
-  }, [selection])
-
-  return selected
-}
 
 export function updateGroup(
   editor: BlockNoteEditor<HMBlockSchema>,

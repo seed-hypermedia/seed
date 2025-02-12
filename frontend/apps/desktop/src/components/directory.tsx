@@ -2,12 +2,12 @@ import {useDraft} from '@/models/accounts'
 import {useDraftList, useListDirectory} from '@/models/documents'
 import {useSubscribedEntity} from '@/models/entities'
 import {useNavigate} from '@/utils/useNavigate'
+import {getMetadataName} from '@shm/shared/content'
 import {
-  getMetadataName,
   hmId,
   UnpackedHypermediaId,
   unpackHmId,
-} from '@shm/shared'
+} from '@shm/shared/utils/entity-id-url'
 import {HMIcon, SizableText, SmallListItem} from '@shm/ui'
 import {useMemo} from 'react'
 

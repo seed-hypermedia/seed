@@ -1,9 +1,11 @@
 import {upgradeNewspaperLayoutModel} from '@/models/upgrade-document-model'
 import {ImageForm} from '@/pages/image-form'
-import {HMBlockNode, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
+import {HMBlockNode, HMMetadata} from '@shm/shared/hm-types'
+import {UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {
   Button,
   ButtonText,
+  getDaemonFileUrl,
   Heading,
   Input,
   Label,
@@ -12,7 +14,6 @@ import {
   SwitchField,
   YStack,
 } from '@shm/ui'
-import {getDaemonFileUrl} from '@shm/ui/src/get-file-url'
 import {useState} from 'react'
 import {AccessoryContainer} from './accessory-sidebar'
 import {IconForm} from './icon-form'

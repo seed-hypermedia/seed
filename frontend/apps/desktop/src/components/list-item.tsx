@@ -1,5 +1,6 @@
 import {Timestamp} from '@bufbuild/protobuf'
-import {formattedDate, formattedDateLong, useHover} from '@shm/shared'
+import {useHover} from '@shm/shared/use-hover'
+import {formattedDate, formattedDateLong} from '@shm/shared/utils/date'
 import {
   Button,
   ButtonProps,
@@ -104,7 +105,7 @@ export function TimeAccessory({
   tooltipLabel,
 }: {
   time: Timestamp | undefined
-  onPress: (e) => void
+  onPress: (e: MouseEvent) => void
   tooltipLabel?: string
 }) {
   return (

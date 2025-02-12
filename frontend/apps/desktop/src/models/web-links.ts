@@ -1,16 +1,7 @@
 import {client} from '@/trpc'
-import {queryClient, queryKeys} from '@shm/shared'
+import {queryClient} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {useEffect, useRef, useState} from 'react'
-
-function parseHTML(html: string): Document {
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(html, 'text/html')
-  return doc
-}
-function extractMetaTagValue(doc: Document, name: string): string | null {
-  const metaTag = doc.querySelector(`meta[name="${name}"]`)
-  return metaTag ? metaTag.getAttribute('content') : null
-}
 
 export type WebLinkMeta = {
   hmId: string | null

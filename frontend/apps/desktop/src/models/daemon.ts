@@ -1,15 +1,15 @@
 import {useGRPCClient} from '@/app-context'
-import {Code, ConnectError} from '@connectrpc/connect'
-import {invalidateQueries, queryKeys} from '@shm/shared'
-
 import {trpc} from '@/trpc'
+import {Code, ConnectError} from '@connectrpc/connect'
 import {
   GenMnemonicResponse,
-  GRPCClient,
-  hmId,
   Info,
   RegisterKeyRequest,
-} from '@shm/shared'
+} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
+import {GRPCClient} from '@shm/shared/grpc-client'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {
   FetchQueryOptions,
   useMutation,

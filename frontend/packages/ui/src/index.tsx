@@ -7,6 +7,7 @@ export {
   Section as TSection,
   Tooltip as TTooltip,
 } from "tamagui";
+export * from "./activity";
 export * from "./avatar";
 export * from "./button";
 export {Button} from "./button";
@@ -22,6 +23,7 @@ export * from "./document-content-constants";
 export * from "./document-date";
 export * from "./donate-button";
 export * from "./entity-card";
+export * from "./face-pile";
 export * from "./footer";
 export * from "./form-fields";
 export * from "./get-file-url";

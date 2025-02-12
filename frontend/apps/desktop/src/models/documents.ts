@@ -8,13 +8,21 @@ import {slashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
 import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
+import {BlockNoteEditor, useBlockNote} from '@shm/editor/blocknote'
 import {
-  BIG_INT,
   Block,
-  DEFAULT_GATEWAY_URL,
   DocumentChange,
   DocumentChange_SetAttribute,
-  EditorBlock,
+} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
+import {editorBlockToHMBlock} from '@shm/shared/client/editorblock-to-hmblock'
+import {
+  hmBlocksToEditorContent,
+  hmBlockToEditorBlock,
+} from '@shm/shared/client/hmblock-to-editorblock'
+import {BIG_INT, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
+import {extractRefs} from '@shm/shared/content'
+import {EditorBlock} from '@shm/shared/editor-types'
+import {
   HMBlock,
   HMBlockNode,
   HMDocument,
@@ -23,31 +31,29 @@ import {
   HMDocumentSchema,
   HMDraft,
   HMEntityContent,
-  HMMetadata,
-  UnpackedHypermediaId,
+} from '@shm/shared/hm-types'
+import {getQueryResultsWithClient} from '@shm/shared/models/directory'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {
   createHMUrl,
-  editorBlockToHMBlock,
-  entityQueryPathToHmIdPath,
-  eventStream,
-  extractRefs,
-  hmBlockToEditorBlock,
-  hmBlocksToEditorContent,
   hmId,
-  hmIdPathToEntityQueryPath,
-  invalidateQueries,
-  queryKeys,
+  UnpackedHypermediaId,
   unpackHmId,
-  writeableStateStream,
-} from '@shm/shared'
-import {getQueryResultsWithClient} from '@shm/shared/src/models/directory'
+} from '@shm/shared/utils/entity-id-url'
+import {
+  entityQueryPathToHmIdPath,
+  hmIdPathToEntityQueryPath,
+} from '@shm/shared/utils/path-api'
+import {eventStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {toast} from '@shm/ui'
 import type {UseQueryResult} from '@tanstack/react-query'
 import {
   UseInfiniteQueryOptions,
-  UseMutationOptions,
-  UseQueryOptions,
   useMutation,
+  UseMutationOptions,
   useQuery,
+  UseQueryOptions,
 } from '@tanstack/react-query'
 import {Extension, findParentNode} from '@tiptap/core'
 import {NodeSelection, Selection} from '@tiptap/pm/state'
@@ -55,8 +61,8 @@ import {useMachine} from '@xstate/react'
 import _ from 'lodash'
 import {nanoid} from 'nanoid'
 import {useEffect, useMemo, useRef} from 'react'
-import {ContextFrom, OutputFrom, fromPromise} from 'xstate'
-import {BlockNoteEditor, hmBlockSchema, useBlockNote} from '../editor'
+import {ContextFrom, fromPromise, OutputFrom} from 'xstate'
+import {hmBlockSchema} from '../editor'
 import {useNavRoute} from '../utils/navigation'
 import {pathNameify} from '../utils/path'
 import {useNavigate} from '../utils/useNavigate'
@@ -877,7 +883,7 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
   }
 }
 
-export type HyperDocsEditor = Exclude<
+export type HyperMediaEditor = Exclude<
   ReturnType<typeof useDraftEditor>['editor'],
   null
 >
@@ -1537,51 +1543,6 @@ export function useListProfileDocuments() {
     },
     queryKey: [queryKeys.LIST_ROOT_DOCUMENTS],
   })
-}
-
-function findDifferences(obj1, obj2) {
-  let differences = {}
-
-  function compare(obj1, obj2, path = '') {
-    if (
-      typeof obj1 !== 'object' ||
-      obj1 === null ||
-      typeof obj2 !== 'object' ||
-      obj2 === null
-    ) {
-      if (obj1 !== obj2) {
-        differences[path] = {obj1, obj2} // Difference found
-      }
-      return
-    }
-
-    const keys1 = Object.keys(obj1)
-    const keys2 = Object.keys(obj2)
-
-    // Keys only in obj1
-    keys1.forEach((key) => {
-      if (!keys2.includes(key)) {
-        differences[`${path}${key}`] = {obj1: obj1[key], obj2: undefined}
-      }
-    })
-
-    // Keys only in obj2
-    keys2.forEach((key) => {
-      if (!keys1.includes(key)) {
-        differences[`${path}${key}`] = {obj1: undefined, obj2: obj2[key]}
-      }
-    })
-
-    // Keys present in both, compare values recursively
-    keys1.forEach((key) => {
-      if (keys2.includes(key)) {
-        compare(obj1[key], obj2[key], `${path}${key}.`)
-      }
-    })
-  }
-
-  compare(obj1, obj2)
-  return differences
 }
 
 function removeTrailingBlocks(blocks: Array<EditorBlock>) {

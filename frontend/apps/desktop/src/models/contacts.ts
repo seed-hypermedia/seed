@@ -1,6 +1,7 @@
 import {useAccount_deprecated} from '@/models/accounts'
 import {client} from '@/trpc'
-import {Device, fullInvalidate, invalidateQueries, queryKeys} from '@shm/shared'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {fullInvalidate, queryKeys} from '@shm/shared/models/query-keys'
 import {UseMutationOptions, useMutation} from '@tanstack/react-query'
 import {decompressFromEncodedURIComponent} from 'lz-string'
 import {useGRPCClient} from '../app-context'
@@ -32,7 +33,8 @@ export function useAccountWithDevices(accountId: string) {
     profile: account.data?.profile,
 
     devices: Object.values(account?.data?.devices || {}).map(
-      (device: Device) => {
+      // TODO: FIX TYPES
+      (device: any) => {
         const deviceId = device.deviceId
         return {
           deviceId,

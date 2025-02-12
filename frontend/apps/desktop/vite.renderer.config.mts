@@ -1,6 +1,7 @@
 import {sentryVitePlugin} from '@sentry/vite-plugin'
 import {tamaguiPlugin} from '@tamagui/vite-plugin'
 import react from '@vitejs/plugin-react'
+import path from 'path'
 import {defineConfig, loadEnv} from 'vite'
 import tsConfigPaths from 'vite-tsconfig-paths'
 
@@ -43,7 +44,9 @@ export default defineConfig(({command, mode}) => {
       },
     },
     plugins: [
-      tsConfigPaths(),
+      tsConfigPaths({
+        root: '../../',
+      }),
       react(),
       tamaguiPlugin({
         components: ['@shm/ui', 'tamagui'],
@@ -56,6 +59,11 @@ export default defineConfig(({command, mode}) => {
     ],
     resolve: {
       extensions,
+      dedupe: ['@shm/shared', '@shm/shared/*', '@shm/ui', 'react', 'react-dom'],
+      alias: {
+        '@shm/shared': path.resolve(__dirname, '../../packages/shared/src'),
+        '@shm/editor': path.resolve(__dirname, '../../packages/editor/src'),
+      },
     },
     alias: {
       'react-native': 'react-native-web',

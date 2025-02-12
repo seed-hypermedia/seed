@@ -1,6 +1,6 @@
 import {useConnectionSummary} from '@/models/contacts'
 import {useNavRoute} from '@/utils/navigation'
-import {COMMIT_HASH, VERSION} from '@shm/shared'
+import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
 import {
   Button,
   ButtonProps,

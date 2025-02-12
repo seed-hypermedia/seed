@@ -1,4 +1,4 @@
-import {queryKeys} from '@shm/shared'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {useQuery} from '@tanstack/react-query'
 
 export const displayCurrencies = [

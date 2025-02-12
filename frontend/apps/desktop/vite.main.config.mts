@@ -1,5 +1,6 @@
 import {sentryVitePlugin} from '@sentry/vite-plugin'
 import {tamaguiPlugin} from '@tamagui/vite-plugin'
+import path from 'path'
 import {defineConfig} from 'vite'
 import tsConfigPaths from 'vite-tsconfig-paths'
 
@@ -57,11 +58,18 @@ export default defineConfig(({command, mode}) => {
       browserField: false,
       mainFields: ['module', 'jsnext:main', 'jsnext'],
       extensions,
+      dedupe: ['@shm/shared', '@shm/shared/*', '@shm/ui', 'react', 'react-dom'],
+      alias: {
+        '@shm/shared': path.resolve(__dirname, '../../packages/shared/src'),
+        '@shm/editor': path.resolve(__dirname, '../../packages/editor/src'),
+      },
     },
     plugins:
       command == 'build'
         ? [
-            tsConfigPaths(),
+            tsConfigPaths({
+              root: '../../',
+            }),
             sentryVitePlugin({
               authToken: process.env.SENTRY_AUTH_TOKEN,
               org: 'mintter',
@@ -71,7 +79,9 @@ export default defineConfig(({command, mode}) => {
             _tamaguiPlugin,
           ]
         : [
-            tsConfigPaths(),
+            tsConfigPaths({
+              root: '../../',
+            }),
             _tamaguiPlugin,
             // {
             //   name: 'log-files',

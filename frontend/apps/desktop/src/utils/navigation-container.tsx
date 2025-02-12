@@ -1,9 +1,7 @@
 import {client} from '@/trpc'
-import {
-  defaultRoute,
-  UniversalRoutingProvider,
-  writeableStateStream,
-} from '@shm/shared'
+import {defaultRoute, NavRoute} from '@shm/shared/routes'
+import {UniversalRoutingProvider} from '@shm/shared/routing'
+import {writeableStateStream} from '@shm/shared/utils/stream'
 import {ReactNode, useEffect, useMemo} from 'react'
 import {useIPC} from '../app-context'
 import {
@@ -73,7 +71,7 @@ export function NavigationContainer({
   return (
     <UniversalRoutingProvider
       value={{
-        openRoute: (route, replace) => {
+        openRoute: (route: NavRoute, replace?: boolean) => {
           if (replace) {
             navigation.dispatch({type: 'replace', route})
           } else {

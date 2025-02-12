@@ -2,7 +2,8 @@ import {useEntity} from '@/models/entities'
 import {useRemoveSite, useSiteRegistration} from '@/models/site'
 import {useNavigate} from '@/utils/useNavigate'
 import {zodResolver} from '@hookform/resolvers/zod'
-import {getDocumentTitle, UnpackedHypermediaId} from '@shm/shared'
+import {getDocumentTitle} from '@shm/shared/content'
+import {UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {
   AlertDialog,
   Button,

@@ -1,7 +1,7 @@
+import {Block, BlockSchema} from '@shm/editor/blocknote'
 import {Editor} from '@tiptap/core'
 import {Node as TipTapNode} from '@tiptap/pm/model'
 import {EditorView} from '@tiptap/pm/view'
-import {Block, BlockSchema} from './blocknote'
 
 export function youtubeParser(url: string) {
   var regExp =

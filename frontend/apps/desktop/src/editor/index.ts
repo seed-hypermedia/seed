@@ -1,6 +1,5 @@
 export * from './autocomplete'
 export * from './block-utils'
-export * from './blocknote'
 export * from './embed-block'
 export * from './file'
 export * from './handle-local-media-paste-plugin'

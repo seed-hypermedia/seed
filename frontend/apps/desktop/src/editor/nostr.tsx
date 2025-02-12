@@ -1,4 +1,11 @@
-import {DAEMON_FILE_UPLOAD_URL, DAEMON_FILE_URL} from '@shm/shared'
+import {
+  Block,
+  BlockNoteEditor,
+  createReactBlockSpec,
+  defaultProps,
+  getBlockInfoFromPos,
+} from '@shm/editor/blocknote'
+import {DAEMON_FILE_UPLOAD_URL, DAEMON_FILE_URL} from '@shm/shared/constants'
 import {
   Button,
   Card,
@@ -28,13 +35,6 @@ import {
   RiCloseCircleLine,
   RiRefreshLine,
 } from 'react-icons/ri/index.js'
-import {
-  Block,
-  BlockNoteEditor,
-  createReactBlockSpec,
-  defaultProps,
-  getBlockInfoFromPos,
-} from './blocknote'
 import {HMBlockSchema} from './schema'
 
 export const RELAY_LIST = [

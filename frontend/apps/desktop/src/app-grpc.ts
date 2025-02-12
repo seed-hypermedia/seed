@@ -1,6 +1,7 @@
 import type {Interceptor} from '@connectrpc/connect'
 import {createGrpcWebTransport} from '@connectrpc/connect-node'
-import {DAEMON_HTTP_URL, createGRPCClient} from '@shm/shared'
+import {DAEMON_HTTP_URL} from '@shm/shared/constants'
+import {createGRPCClient} from '@shm/shared/grpc-client'
 
 const loggingInterceptor: Interceptor = (next) => async (req) => {
   try {

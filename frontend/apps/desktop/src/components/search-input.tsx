@@ -1,5 +1,5 @@
-import {useGRPCClient} from '@/app-context'
 import appError from '@/errors'
+import {grpcClient} from '@/grpc-client'
 import {useConnectPeer} from '@/models/contacts'
 import {useGatewayHost_DEPRECATED} from '@/models/gateway-settings'
 import {useRecents} from '@/models/recents'
@@ -10,27 +10,27 @@ import {
   resolveHmIdToAppRoute,
   useHmIdToAppRouteResolver,
 } from '@/utils/navigation'
+import {HYPERMEDIA_SCHEME} from '@shm/shared/constants'
+import {SearchResult} from '@shm/shared/editor-types'
+import {useSearch} from '@shm/shared/models/search'
+import {NavRoute} from '@shm/shared/routes'
 import {
-  HYPERMEDIA_ENTITY_TYPES,
-  HYPERMEDIA_SCHEME,
-  NavRoute,
-  SearchResult,
-  UnpackedHypermediaId,
   hmId,
+  HYPERMEDIA_ENTITY_TYPES,
   isHypermediaScheme,
   parseCustomURL,
   parseFragment,
+  UnpackedHypermediaId,
   unpackHmId,
-  useSearch,
-} from '@shm/shared'
+} from '@shm/shared/utils/entity-id-url'
 import {
   SearchInput as SearchInputUI,
   SearchResultItem,
   SizableText,
   Spinner,
+  toast,
   XStack,
   YStack,
-  toast,
 } from '@shm/ui'
 import {useEffect, useMemo, useState} from 'react'
 
@@ -43,7 +43,6 @@ export function SearchInput({
 }) {
   const [search, setSearch] = useState('')
   const [focusedIndex, setFocusedIndex] = useState(0)
-  const grpcClient = useGRPCClient()
   const [actionPromise, setActionPromise] = useState<Promise<void> | null>(null)
   const gwHost = useGatewayHost_DEPRECATED()
   const handleUrl = useURLHandler()

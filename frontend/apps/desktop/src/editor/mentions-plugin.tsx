@@ -3,7 +3,8 @@ import {
   createAutoCompletePlugin,
 } from '@/editor/autocomplete'
 import {useEntity} from '@/models/entities'
-import {getDocumentTitle, UnpackedHypermediaId, unpackHmId} from '@shm/shared'
+import {getDocumentTitle} from '@shm/shared/content'
+import {UnpackedHypermediaId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {SizableText} from '@shm/ui'
 import {Node} from '@tiptap/core'
 import {NodeViewWrapper, ReactNodeViewRenderer} from '@tiptap/react'

@@ -1,4 +1,4 @@
-import {NavRoute} from '@shm/shared'
+import {NavRoute} from '@shm/shared/routes'
 import {startTransition, useCallback} from 'react'
 import {useIPC} from '../app-context'
 import {NavMode, useNavigationDispatch} from './navigation'

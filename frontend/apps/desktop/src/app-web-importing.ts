@@ -1,4 +1,4 @@
-import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared'
+import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 import * as cheerio from 'cheerio'
 import http from 'http'
 import https from 'https'

@@ -15,25 +15,25 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
 } from "@shm/shared";
-import {getActivityTime} from "@shm/shared/src/models/activity";
-import "@shm/shared/src/styles/document.css";
+import {getActivityTime} from "@shm/shared/models/activity";
+import "@shm/shared/styles/document.css";
 import {
   ActivitySection,
-  Button,
-  getRandomColor,
-  useImageUrl,
-  useTheme,
-} from "@shm/ui/src";
-import {ChangeGroup, SubDocumentItem} from "@shm/ui/src/activity";
-import {Container} from "@shm/ui/src/container";
-import {CommentGroup} from "@shm/ui/src/discussion";
-import {
   BlocksContent,
+  Button,
+  ChangeGroup,
+  CommentGroup,
+  Container,
   DocContent,
   DocContentProvider,
-} from "@shm/ui/src/document-content";
-import {extractIpfsUrlCid} from "@shm/ui/src/get-file-url";
-import {DocDirectory, DocumentOutline} from "@shm/ui/src/navigation";
+  DocDirectory,
+  DocumentOutline,
+  extractIpfsUrlCid,
+  getRandomColor,
+  SubDocumentItem,
+  useImageUrl,
+  useTheme,
+} from "@shm/ui";
 import {ChevronUp} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";

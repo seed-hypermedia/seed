@@ -1,11 +1,5 @@
 import * as Sentry from '@sentry/electron/main'
-import {
-  BIG_INT,
-  DAEMON_HTTP_URL,
-  IS_PROD_DESKTOP,
-  METRIC_SERVER_HTTP_PORT,
-  defaultRoute,
-} from '@shm/shared'
+
 import {
   BrowserWindow,
   Menu,
@@ -33,6 +27,14 @@ import {startMetricsServer} from './app-metrics'
 import {initPaths} from './app-paths'
 import * as logger from './logger'
 
+import {
+  BIG_INT,
+  DAEMON_HTTP_URL,
+  IS_PROD_DESKTOP,
+  METRIC_SERVER_HTTP_PORT,
+  VERSION,
+} from '@shm/shared/constants'
+import {defaultRoute} from '@shm/shared/routes'
 import fs from 'fs'
 import mime from 'mime'
 import {grpcClient} from './app-grpc'
@@ -61,7 +63,7 @@ app.on('quit', async () => {
   await metricsServer.close()
 })
 
-if (IS_PROD_DESKTOP && false) {
+if (IS_PROD_DESKTOP) {
   if (squirrelStartup) {
     app.quit()
   }
@@ -78,9 +80,9 @@ if (IS_PROD_DESKTOP && false) {
 
   Sentry.init({
     debug: false,
-    release: import.meta.env.VITE_VERSION,
+    release: VERSION,
     environment: import.meta.env.MODE,
-    dsn: import.meta.env.VITE_DESKTOP_SENTRY_DSN,
+    dsn: import.meta.env.SENTRY_DESKTOP_DSN,
     transportOptions: {
       // The maximum number of days to keep an event in the queue.
       maxQueueAgeDays: 30,

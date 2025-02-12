@@ -1,11 +1,11 @@
 import {usePublishToSite} from '@/models/documents'
 import {
+  createWebHMUrl,
   HYPERMEDIA_ENTITY_TYPES,
-  StateStream,
+  packHmId,
   UnpackedHypermediaId,
-  writeableStateStream,
-} from '@shm/shared'
-import {createWebHMUrl, packHmId} from '@shm/shared/src/utils/entity-id-url'
+} from '@shm/shared/utils/entity-id-url'
+import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {
   Button,
   CheckboxField,

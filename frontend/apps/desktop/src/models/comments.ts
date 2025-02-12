@@ -1,30 +1,37 @@
-import {useAppContext} from '@/app-context'
-import {EditorBlock, createHypermediaDocLinkPlugin} from '@/editor'
+import {createHypermediaDocLinkPlugin} from '@/editor'
 import {grpcClient} from '@/grpc-client'
 import {useOpenUrl} from '@/open-url'
 import {slashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {
-  BIG_INT,
+  useBlockNote,
+  type BlockNoteEditor,
+  type BlockSchema,
+} from '@shm/editor/blocknote'
+import {
   Block,
   BlockNode,
-  GRPCClient,
+} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
+import {editorBlockToHMBlock} from '@shm/shared/client/editorblock-to-hmblock'
+import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
+import {BIG_INT} from '@shm/shared/constants'
+import {getCommentGroups} from '@shm/shared/discussion'
+import {EditorBlock} from '@shm/shared/editor-types'
+import {GRPCClient} from '@shm/shared/grpc-client'
+import {
   HMComment,
   HMCommentDraft,
   HMCommentDraftSchema,
   HMCommentGroup,
   HMDocumentMetadataSchema,
   HMEntityContent,
-  UnpackedHypermediaId,
-  editorBlockToHMBlock,
-  getCommentGroups,
-  hmBlocksToEditorContent,
-  hmIdPathToEntityQueryPath,
-  invalidateQueries,
-  queryKeys,
-  writeableStateStream,
-} from '@shm/shared'
+} from '@shm/shared/hm-types'
+import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
+import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
+import {writeableStateStream} from '@shm/shared/utils/stream'
 import {toast} from '@shm/ui'
 import {
   UseQueryOptions,
@@ -35,8 +42,7 @@ import {
 import {Extension} from '@tiptap/core'
 import {useEffect, useMemo, useRef} from 'react'
 import {useGRPCClient} from '../app-context'
-import {hmBlockSchema, useBlockNote} from '../editor'
-import type {BlockNoteEditor, BlockSchema} from '../editor/blocknote'
+import {hmBlockSchema} from '../editor'
 import {getBlockGroup, setGroupTypes} from './editor-utils'
 import {useEntity} from './entities'
 import {useGatewayUrlStream} from './gateway-settings'
@@ -194,7 +200,6 @@ export function useCommentEditor(
   const targetEntity = useEntity(targetDocId)
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
   const showNostr = trpc.experiments.get.useQuery().data?.nostr
-  const queryClient = useAppContext().queryClient
   const write = trpc.comments.writeCommentDraft.useMutation({
     onError: (err) => {
       toast.error(err.message)

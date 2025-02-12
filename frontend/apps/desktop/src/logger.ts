@@ -1,4 +1,4 @@
-import {IS_PROD_DESKTOP} from '@shm/shared'
+import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {join} from 'path'
 import {MESSAGE} from 'triple-beam'
 import winston from 'winston'

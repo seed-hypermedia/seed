@@ -1,5 +1,5 @@
 import {trpc} from '@/trpc'
-import {invalidateQueries} from '@shm/shared'
+import {invalidateQueries} from '@shm/shared/models/query-client'
 import {toast} from '@shm/ui'
 
 export function useExperiments() {

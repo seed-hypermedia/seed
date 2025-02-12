@@ -8,7 +8,11 @@ import {
 import {useExperiments} from '@/models/experiments'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
-import {BlockRange, ExpandedBlockRange, UnpackedHypermediaId} from '@shm/shared'
+import {
+  BlockRange,
+  ExpandedBlockRange,
+  UnpackedHypermediaId,
+} from '@shm/shared/utils/entity-id-url'
 import {
   DocContentContextValue,
   DocContentProvider,

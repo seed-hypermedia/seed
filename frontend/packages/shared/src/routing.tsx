@@ -51,6 +51,9 @@ export function useRouteLink(
   },
 ) {
   const context = useContext(UniversalRoutingContext)
+
+  console.log(`== ~ context 123:`, context)
+
   if (!route)
     return {
       onPress: undefined,

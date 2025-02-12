@@ -1,5 +1,10 @@
 import {dispatchDraftStatus, DraftStatus} from '@/draft-status'
-import {HMBlockNode, HMDraft, HMEntityContent, HMMetadata} from '@shm/shared'
+import {
+  HMBlockNode,
+  HMDraft,
+  HMEntityContent,
+  HMMetadata,
+} from '@shm/shared/hm-types'
 import {assign, setup, StateFrom} from 'xstate'
 
 export type DraftMachineState = StateFrom<typeof draftMachine>

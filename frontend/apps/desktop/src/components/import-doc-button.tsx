@@ -1,27 +1,24 @@
 import {useAppContext} from '@/app-context'
 import {
-  BlockNoteEditor,
   BlockSchema,
   createHypermediaDocLinkPlugin,
   hmBlockSchema,
 } from '@/editor'
-import {
-  MarkdownToBlocks,
-  processLinkMarkdown,
-  processMediaMarkdown,
-} from '@/editor/blocknote/core/extensions/Markdown/MarkdownToBlocks'
 import {useMyAccountsWithWriteAccess} from '@/models/access-control'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
+import {BlockNoteEditor} from '@shm/editor/blocknote'
 import {
-  HMDraft,
-  HMEntityContent,
-  invalidateQueries,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+  MarkdownToBlocks,
+  processLinkMarkdown,
+  processMediaMarkdown,
+} from '@shm/editor/blocknote/core/extensions/Markdown/MarkdownToBlocks'
+import {HMDraft, HMEntityContent} from '@shm/shared/hm-types'
+import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
+import {UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {FileInput, FolderInput, OptionsDropdown, toast} from '@shm/ui'
 import {Extension} from '@tiptap/core'
 import matter from 'gray-matter'
@@ -42,7 +39,7 @@ export function ImportDropdownButton({
   }, [accts])
   const navigate = useNavigate()
   const createDraft = trpc.drafts.write.useMutation()
-  const {queryClient, grpcClient} = useAppContext()
+  const {grpcClient} = useAppContext()
   const openUrl = useOpenUrl()
   const gwUrl = useGatewayUrlStream()
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
