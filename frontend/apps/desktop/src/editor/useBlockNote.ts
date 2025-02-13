@@ -1,12 +1,12 @@
 import {HMBlockSchema} from '@/editor/schema'
 import {
-  BlockNoteEditor,
   BlockNoteEditorOptions,
   defaultBlockSchema,
   DefaultBlockSchema,
 } from '@shm/editor/blocknote/core'
 import {getDefaultReactSlashMenuItems} from '@shm/editor/blocknote/react/SlashMenu/defaultReactSlashMenuItems'
 import {DependencyList, useMemo, useRef} from 'react'
+import {BlockNoteEditor} from './BlockNoteEditor'
 
 const initEditor = <BSchema extends HMBlockSchema>(
   options: Partial<BlockNoteEditorOptions<BSchema>>,

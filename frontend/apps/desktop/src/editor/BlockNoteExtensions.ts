@@ -4,19 +4,8 @@ import {Extensions, extensions} from '@tiptap/core'
 import {BlockNoteEditor} from './BlockNoteEditor'
 
 import {LocalMediaPastePlugin} from '@/editor/handle-local-media-paste-plugin'
+import {createInlineEmbedNode} from '@/editor/mentions-plugin'
 import {debugPlugin} from '@/editor/prosemirror-debugger'
-import {Bold} from '@tiptap/extension-bold'
-import {Code} from '@tiptap/extension-code'
-import {Dropcursor} from '@tiptap/extension-dropcursor'
-import {Gapcursor} from '@tiptap/extension-gapcursor'
-import {HardBreak} from '@tiptap/extension-hard-break'
-import {History} from '@tiptap/extension-history'
-import {Italic} from '@tiptap/extension-italic'
-import {Strike} from '@tiptap/extension-strike'
-import {Text} from '@tiptap/extension-text'
-import {Underline} from '@tiptap/extension-underline'
-import * as Y from 'yjs'
-// import {createInlineEmbedNode} from "../../mentions-plugin";
 import Link from '@/editor/tiptap-extension-link'
 import {BlockManipulationExtension} from '@shm/editor/blocknote/core/extensions/BlockManipulation/BlockManipulationExtension'
 import {
@@ -32,6 +21,17 @@ import {createMarkdownExtension} from '@shm/editor/blocknote/core/extensions/Mar
 import {Placeholder} from '@shm/editor/blocknote/core/extensions/Placeholder/PlaceholderExtension'
 import {TrailingNode} from '@shm/editor/blocknote/core/extensions/TrailingNode/TrailingNodeExtension'
 import {UniqueID} from '@shm/editor/blocknote/core/extensions/UniqueID/UniqueID'
+import {Bold} from '@tiptap/extension-bold'
+import {Code} from '@tiptap/extension-code'
+import {Dropcursor} from '@tiptap/extension-dropcursor'
+import {Gapcursor} from '@tiptap/extension-gapcursor'
+import {HardBreak} from '@tiptap/extension-hard-break'
+import {History} from '@tiptap/extension-history'
+import {Italic} from '@tiptap/extension-italic'
+import {Strike} from '@tiptap/extension-strike'
+import {Text} from '@tiptap/extension-text'
+import {Underline} from '@tiptap/extension-underline'
+import * as Y from 'yjs'
 
 /**
  * Get all the Tiptap extensions BlockNote is configured with by default
@@ -55,7 +55,7 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
   }
 }) => {
   const ret: Extensions = [
-    // createInlineEmbedNode(opts.editor),
+    createInlineEmbedNode(opts.editor),
     extensions.ClipboardTextSerializer,
     extensions.Commands,
     extensions.Editable,

@@ -256,9 +256,9 @@ export function DocumentPage(props: SiteDocumentPayload) {
               />
             </YStack>
           </YStack>
-          <PageFooter id={id} />
         </WebSiteHeader>
       </YStack>
+      <PageFooter id={id} />
     </WebSiteProvider>
   );
 }

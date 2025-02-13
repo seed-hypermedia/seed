@@ -18,6 +18,7 @@ import {
   nodeToBlock,
 } from '@shm/editor/blocknote/core/api/nodeConversions/nodeConversions'
 import {getNodeById} from '@shm/editor/blocknote/core/api/util/nodeUtil'
+import styles from '@shm/editor/blocknote/core/editor.module.css'
 import {
   Block,
   BlockIdentifier,
@@ -38,7 +39,6 @@ import {
 } from '@shm/editor/blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
 import {Editor as TiptapEditor} from '@tiptap/core/dist/packages/core/src/Editor'
 import * as Y from 'yjs'
-import styles from './editor.module.css'
 
 import {insertBlocks} from '@shm/editor/blocknote/core/api/blockManipulation/commands/insertBlocks'
 import {newRemoveBlocks} from '@shm/editor/blocknote/core/api/blockManipulation/commands/removeBlocks'
