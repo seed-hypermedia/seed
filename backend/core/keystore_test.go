@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"crypto/rand"
 	"seed/backend/testutil"
 	"testing"
 
@@ -10,10 +11,10 @@ import (
 
 func TestOSKeyStore(t *testing.T) {
 	testutil.Manual(t)
-	kp, err := NewKeyPairRandom()
+	kp, err := GenerateKeyPair(Ed25519, rand.Reader)
 	require.NoError(t, err)
 
-	kp2, err := NewKeyPairRandom()
+	kp2, err := GenerateKeyPair(Ed25519, rand.Reader)
 	require.NoError(t, err)
 
 	ks := NewOSKeyStore("test-manual")

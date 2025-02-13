@@ -36,7 +36,7 @@ func run() error {
 		return err
 	}
 
-	dir, err := storage.Open(cfg.Base.DataDir, alice.Device.Wrapped(), core.NewMemoryKeyStore(), cfg.LogLevel)
+	dir, err := storage.Open(cfg.Base.DataDir, alice.Device.Libp2pKey(), core.NewMemoryKeyStore(), cfg.LogLevel)
 	if err != nil {
 		return err
 	}

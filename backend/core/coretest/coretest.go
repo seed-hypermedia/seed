@@ -35,9 +35,8 @@ var fakeUsers = map[string]struct {
 
 // Tester is a fake test user with full identity.
 type Tester struct {
-	Device   core.KeyPair
-	Account  core.KeyPair
-	Identity core.Identity
+	Device  *core.KeyPair
+	Account *core.KeyPair
 }
 
 // NewTester creates a new Tester with a given name. Data should exist
@@ -53,7 +52,7 @@ func NewTester(name string) Tester {
 		panic(err)
 	}
 
-	dev, err := core.NewKeyPair(dpriv.(*crypto.Ed25519PrivateKey))
+	dev, err := core.KeyPairFromLibp2p(dpriv.(*crypto.Ed25519PrivateKey))
 	if err != nil {
 		panic(err)
 	}
@@ -63,14 +62,13 @@ func NewTester(name string) Tester {
 		panic(err)
 	}
 
-	acc, err := core.NewKeyPair(apriv.(*crypto.Ed25519PrivateKey))
+	acc, err := core.KeyPairFromLibp2p(apriv.(*crypto.Ed25519PrivateKey))
 	if err != nil {
 		panic(err)
 	}
 
 	return Tester{
-		Device:   dev,
-		Account:  acc,
-		Identity: core.NewIdentity(acc.PublicKey, dev),
+		Device:  dev,
+		Account: acc,
 	}
 }

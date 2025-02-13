@@ -43,7 +43,7 @@ type Storage interface {
 	DB() *sqlitex.Pool
 	KeyStore() core.KeyStore
 	Migrate() error
-	Device() core.KeyPair
+	Device() *core.KeyPair
 }
 
 // New creates a new API server.

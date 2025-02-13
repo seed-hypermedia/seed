@@ -3,7 +3,6 @@ package payments
 import (
 	"context"
 	"encoding/hex"
-	"seed/backend/core"
 	payments "seed/backend/genproto/payments/v1alpha"
 	"seed/backend/lndhub"
 	"seed/backend/lndhub/lndhubsql"
@@ -21,18 +20,18 @@ func TestRequestLndHubInvoice(t *testing.T) {
 	aliceAccs, err := alice.ks.ListKeys(ctx)
 	require.NoError(t, err)
 	require.Len(t, aliceAccs, 1)
-	alicePk, err := aliceAccs[0].PublicKey.Libp2pKey()
+	alicePk, err := aliceAccs[0].PublicKey.Parse()
 	require.NoError(t, err)
 	bob := makeTestService(t, "bob")
 	bobAccs, err := bob.ks.ListKeys(ctx)
 	require.NoError(t, err)
 	require.Len(t, bobAccs, 1)
-	bobPk, err := bobAccs[0].PublicKey.Libp2pKey()
+	bobPk, err := bobAccs[0].PublicKey.Parse()
 	require.NoError(t, err)
-	bobKp, err := bob.ks.GetKey(ctx, core.PrincipalFromPubKey(bobPk).String())
+	bobKp, err := bob.ks.GetKey(ctx, bobPk.String())
 
 	require.NoError(t, err)
-	alicesWallet, err := alice.CreateWallet(ctx, &payments.CreateWalletRequest{Account: core.PrincipalFromPubKey(alicePk).String(), Name: "myWallet"})
+	alicesWallet, err := alice.CreateWallet(ctx, &payments.CreateWalletRequest{Account: alicePk.String(), Name: "myWallet"})
 	require.NoError(t, err)
 	defaultWallet, err := alice.GetDefaultWallet(ctx, &payments.GetDefaultWalletRequest{Account: alicesWallet.Account})
 	require.NoError(t, err)
@@ -43,8 +42,8 @@ func TestRequestLndHubInvoice(t *testing.T) {
 	login, err := bobKp.Sign([]byte(lndhub.SigningMessage))
 	require.NoError(t, err)
 
-	uri := "lndhub.go://" + core.PrincipalFromPubKey(bobPk).String() + ":" + hex.EncodeToString(login) + "@https://ln.testnet.seed.hyper.media"
-	bobsWallet, err := bob.ImportWallet(ctx, &payments.ImportWalletRequest{CredentialsUrl: uri, Account: core.PrincipalFromPubKey(bobPk).String(), Name: "default"})
+	uri := "lndhub.go://" + bobPk.String() + ":" + hex.EncodeToString(login) + "@https://ln.testnet.seed.hyper.media"
+	bobsWallet, err := bob.ImportWallet(ctx, &payments.ImportWalletRequest{CredentialsUrl: uri, Account: bobPk.String(), Name: "default"})
 	require.NoError(t, err)
 
 	var amt int64 = 23
@@ -53,7 +52,7 @@ func TestRequestLndHubInvoice(t *testing.T) {
 
 	var payreq *payments.InvoiceResponse
 
-	defaultWallet, err = bob.GetDefaultWallet(ctx, &payments.GetDefaultWalletRequest{Account: core.PrincipalFromPubKey(bobPk).String()})
+	defaultWallet, err = bob.GetDefaultWallet(ctx, &payments.GetDefaultWalletRequest{Account: bobPk.String()})
 	require.NoError(t, err)
 	require.Equal(t, bobsWallet, defaultWallet)
 	require.Eventually(t, func() bool {
@@ -67,7 +66,7 @@ func TestRequestLndHubInvoice(t *testing.T) {
 	require.Eventually(t, func() bool {
 		payreq, err = alice.RequestLud6Invoice(ctx, &payments.RequestLud6InvoiceRequest{
 			URL:    bobsWallet.Address,
-			User:   core.PrincipalFromPubKey(bobPk).String(),
+			User:   bobPk.String(),
 			Amount: int64(amt),
 			Memo:   memo,
 		})

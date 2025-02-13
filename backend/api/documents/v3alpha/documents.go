@@ -979,7 +979,7 @@ func (srv *Server) GetRef(ctx context.Context, in *documents.GetRefRequest) (*do
 func refToProto(c cid.Cid, ref *blob.Ref) (*documents.Ref, error) {
 	pb := &documents.Ref{
 		Id:        c.String(),
-		Account:   ref.GetSpace().String(),
+		Account:   ref.Space().String(),
 		Path:      ref.Path,
 		Signer:    ref.Signer.String(),
 		Timestamp: timestamppb.New(ref.Ts),
@@ -1025,7 +1025,7 @@ func (srv *Server) getRef(ctx context.Context, c cid.Cid) (hb blob.WithCID[*blob
 	}, nil
 }
 
-func (srv *Server) ensureProfileGenesis(ctx context.Context, kp core.KeyPair) error {
+func (srv *Server) ensureProfileGenesis(ctx context.Context, kp *core.KeyPair) error {
 	ebc, err := blob.NewChange(kp, cid.Undef, nil, 0, blob.ChangeBody{}, blob.ZeroUnixTime())
 	if err != nil {
 		return err
@@ -1143,7 +1143,7 @@ func getInterfaceValue(op *documents.DocumentChange_SetAttribute) any {
 	}
 }
 
-func (srv *Server) checkWriteAccess(ctx context.Context, account core.Principal, path string, kp core.KeyPair, capc cid.Cid) error {
+func (srv *Server) checkWriteAccess(ctx context.Context, account core.Principal, path string, kp *core.KeyPair, capc cid.Cid) error {
 	if account.Equal(kp.Principal()) {
 		return nil
 	}
@@ -1162,7 +1162,7 @@ func (srv *Server) checkWriteAccess(ctx context.Context, account core.Principal,
 		return err
 	}
 
-	if !cpb.GetSpace().Equal(account) {
+	if !cpb.Space().Equal(account) {
 		return status.Errorf(codes.PermissionDenied, "capability %s is not from account %s", capc, account)
 	}
 
@@ -1170,7 +1170,7 @@ func (srv *Server) checkWriteAccess(ctx context.Context, account core.Principal,
 		return status.Errorf(codes.PermissionDenied, "capability %s is not delegated to key %s", capc, kp.Principal())
 	}
 
-	grantedIRI, err := makeIRI(cpb.GetSpace(), cpb.Path)
+	grantedIRI, err := makeIRI(cpb.Space(), cpb.Path)
 	if err != nil {
 		return err
 	}

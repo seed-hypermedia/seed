@@ -21,7 +21,7 @@ func TestListDocumentChanges(t *testing.T) {
 	// Create the initial home document.
 	_, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
 		Changes: []*pb.DocumentChange{
 			{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Alice's Home Page"}}},
@@ -31,7 +31,7 @@ func TestListDocumentChanges(t *testing.T) {
 
 	d1, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "/cars",
 		Changes: []*pb.DocumentChange{
 			{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Document about cars"}}},

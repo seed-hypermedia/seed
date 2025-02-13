@@ -43,9 +43,9 @@ func TestCreate(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(640)*time.Second)
 	defer cancel()
-	keypair, err := core.NewKeyPairRandom()
+	keypair, err := core.GenerateKeyPair(core.Ed25519, nil)
 	require.NoError(t, err)
-	token, err := keypair.PublicKey.Wrapped().Raw()
+	token, err := keypair.PublicKey.Libp2pKey().Raw()
 	require.NoError(t, err)
 
 	login := keypair.String()
@@ -60,7 +60,7 @@ func TestCreate(t *testing.T) {
 		Address: connectionURL,
 		Name:    nickname,
 		Type:    "lndhub.go",
-		Account: keypair.Principal().String(),
+		Account: keypair.PublicKey.String(),
 	}, login, password, hex.EncodeToString(token))
 
 	user, err := lndHubClient.Create(ctx, connectionURL, walletID, login, password, nickname, token)

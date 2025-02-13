@@ -44,7 +44,7 @@ func TestCapabilities_Smoke(t *testing.T) {
 	// Alice issued capability to bob for everything under /cars.
 	cpb, err := alice.CreateCapability(ctx, &pb.CreateCapabilityRequest{
 		SigningKeyName: "main",
-		Delegate:       bob.Account.Principal().String(),
+		Delegate:       bob.Account.PublicKey.String(),
 		Account:        cars.Account,
 		Path:           cars.Path,
 		Role:           pb.Role_WRITER,

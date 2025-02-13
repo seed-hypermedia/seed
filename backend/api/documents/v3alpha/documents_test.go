@@ -33,7 +33,7 @@ func TestCreateDocumentChange(t *testing.T) {
 
 	doc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
@@ -64,12 +64,12 @@ func TestCreateDocumentChange(t *testing.T) {
 	require.NoError(t, err)
 
 	want := &documents.Document{
-		Account: alice.me.Account.Principal().String(),
+		Account: alice.me.Account.PublicKey.String(),
 		Path:    "",
 		Metadata: must.Do2(structpb.NewStruct(map[string]any{
 			"title": "Alice from the Wonderland",
 		})),
-		Authors: []string{alice.me.Account.Principal().String()},
+		Authors: []string{alice.me.Account.PublicKey.String()},
 		Content: []*documents.BlockNode{
 			{
 				Block: &documents.Block{
@@ -105,7 +105,7 @@ func TestListRootDocuments(t *testing.T) {
 	// Create root document for Alice.
 	profile, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
@@ -118,7 +118,7 @@ func TestListRootDocuments(t *testing.T) {
 	// Create a named doc for Alice to make sure only roots are returned in list requests.
 	namedDoc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "/named/foo",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
@@ -135,7 +135,7 @@ func TestListRootDocuments(t *testing.T) {
 		bob := newTestDocsAPI(t, "bob")
 		_, err = bob.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 			SigningKeyName: "main",
-			Account:        bob.me.Account.Principal().String(),
+			Account:        bob.me.Account.PublicKey.String(),
 			Path:           "",
 			Changes: []*documents.DocumentChange{
 				{Op: &documents.DocumentChange_SetMetadata_{
@@ -189,7 +189,7 @@ func TestListAccounts(t *testing.T) {
 	// Create root document for Alice.
 	aliceRoot, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
@@ -217,7 +217,7 @@ func TestListAccounts(t *testing.T) {
 	bob := newTestDocsAPI(t, "bob")
 	bobRoot, err := bob.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        bob.me.Account.Principal().String(),
+		Account:        bob.me.Account.PublicKey.String(),
 		Path:           "",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
@@ -266,7 +266,7 @@ func TestListDocuments(t *testing.T) {
 
 	profile, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
@@ -280,7 +280,7 @@ func TestListDocuments(t *testing.T) {
 	// Create a named doc for Alice to make sure we have things to list.
 	namedDoc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "/named/foo",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
@@ -293,7 +293,7 @@ func TestListDocuments(t *testing.T) {
 
 	namedDoc2, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "/named/bar",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
@@ -304,7 +304,7 @@ func TestListDocuments(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, namedDoc2)
 
-	list, err := alice.ListDocuments(ctx, &documents.ListDocumentsRequest{Account: alice.me.Account.Principal().String()})
+	list, err := alice.ListDocuments(ctx, &documents.ListDocumentsRequest{Account: alice.me.Account.PublicKey.String()})
 	require.NoError(t, err)
 
 	want := []*documents.DocumentInfo{DocumentToListItem(namedDoc2), DocumentToListItem(namedDoc), DocumentToListItem(profile)}
@@ -336,7 +336,7 @@ func TestGetDocumentWithVersion(t *testing.T) {
 
 	doc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
@@ -368,7 +368,7 @@ func TestGetDocumentWithVersion(t *testing.T) {
 
 	doc2, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
 		BaseVersion:    doc.Version,
 		Changes: []*documents.DocumentChange{
@@ -379,7 +379,7 @@ func TestGetDocumentWithVersion(t *testing.T) {
 
 	doc3, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
 		BaseVersion:    doc2.Version,
 		Changes: []*documents.DocumentChange{
@@ -419,7 +419,7 @@ func TestConcurrentChanges(t *testing.T) {
 
 	doc1, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
@@ -431,7 +431,7 @@ func TestConcurrentChanges(t *testing.T) {
 
 	doc21, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
 		BaseVersion:    doc1.Version,
 		Changes: []*documents.DocumentChange{
@@ -444,7 +444,7 @@ func TestConcurrentChanges(t *testing.T) {
 
 	doc22, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
 		BaseVersion:    doc1.Version,
 		Changes: []*documents.DocumentChange{
@@ -466,7 +466,7 @@ func TestConcurrentChanges(t *testing.T) {
 
 	merged, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
 		BaseVersion:    concurrent.Version,
 		Changes: []*documents.DocumentChange{
@@ -489,7 +489,7 @@ func TestCreateDocumentChangeWithTimestamp(t *testing.T) {
 
 	doc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
@@ -521,12 +521,12 @@ func TestCreateDocumentChangeWithTimestamp(t *testing.T) {
 	require.NoError(t, err)
 
 	want := &documents.Document{
-		Account: alice.me.Account.Principal().String(),
+		Account: alice.me.Account.PublicKey.String(),
 		Path:    "",
 		Metadata: must.Do2(structpb.NewStruct(map[string]any{
 			"title": "Alice from the Wonderland",
 		})),
-		Authors: []string{alice.me.Account.Principal().String()},
+		Authors: []string{alice.me.Account.PublicKey.String()},
 		Content: []*documents.BlockNode{
 			{
 				Block: &documents.Block{
@@ -556,7 +556,7 @@ func TestCreateDocumentChangeWithTimestamp(t *testing.T) {
 
 	doc, err = alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.PublicKey.String(),
 		BaseVersion:    doc.Version,
 		Path:           "",
 		Changes: []*documents.DocumentChange{
@@ -577,7 +577,7 @@ func TestTombstoneRef(t *testing.T) {
 
 	home, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
@@ -605,7 +605,7 @@ func TestTombstoneRef(t *testing.T) {
 
 	doc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "/hello",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
@@ -683,7 +683,7 @@ func TestTombstoneRef(t *testing.T) {
 	// Deleted docs must disappear from the lists.
 	{
 		list, err := alice.ListDocuments(ctx, &documents.ListDocumentsRequest{
-			Account:  alice.me.Account.Principal().String(),
+			Account:  alice.me.Account.PublicKey.String(),
 			PageSize: 100,
 		})
 		require.NoError(t, err)
@@ -710,7 +710,7 @@ func TestTombstoneRef(t *testing.T) {
 	// Now I want to republish some document to the same path.
 	republished, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "/hello",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
@@ -755,7 +755,7 @@ func TestTombstoneRef(t *testing.T) {
 	// Check list contains latest.
 	{
 		list, err := alice.ListDocuments(ctx, &documents.ListDocumentsRequest{
-			Account:  alice.me.Account.Principal().String(),
+			Account:  alice.me.Account.PublicKey.String(),
 			PageSize: 100,
 		})
 		require.NoError(t, err)
@@ -780,7 +780,7 @@ func TestTombstoneRef(t *testing.T) {
 	{
 		_, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 			SigningKeyName: "main",
-			Account:        alice.me.Account.Principal().String(),
+			Account:        alice.me.Account.PublicKey.String(),
 			Path:           "/hello",
 			Changes: []*documents.DocumentChange{
 				{Op: &documents.DocumentChange_SetMetadata_{
@@ -830,7 +830,7 @@ func TestListDirectory(t *testing.T) {
 	alice := newTestDocsAPI(t, "alice")
 	ctx := context.Background()
 
-	aliceSpace := alice.me.Account.Principal().String()
+	aliceSpace := alice.me.Account.PublicKey.String()
 
 	_, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
@@ -930,7 +930,7 @@ func TestUpdateReadStatus(t *testing.T) {
 	// Create home document for Bob.
 	bobHome, err := bob.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        bob.me.Account.Principal().String(),
+		Account:        bob.me.Account.PublicKey.String(),
 		Path:           "",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
@@ -943,7 +943,7 @@ func TestUpdateReadStatus(t *testing.T) {
 	// Create some nested documents for Bob.
 	bobDoc1, err := bob.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        bob.me.Account.Principal().String(),
+		Account:        bob.me.Account.PublicKey.String(),
 		Path:           "/doc-1",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
@@ -955,7 +955,7 @@ func TestUpdateReadStatus(t *testing.T) {
 
 	bobDoc2, err := bob.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        bob.me.Account.Principal().String(),
+		Account:        bob.me.Account.PublicKey.String(),
 		Path:           "/nested/doc-2",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
@@ -973,7 +973,7 @@ func TestUpdateReadStatus(t *testing.T) {
 	// Sync bob into alice.
 	syncStores(ctx, t, alice.idx, bob.idx)
 
-	list, err := alice.ListDocuments(ctx, &documents.ListDocumentsRequest{Account: bob.me.Account.Principal().String(), PageSize: 1000})
+	list, err := alice.ListDocuments(ctx, &documents.ListDocumentsRequest{Account: bob.me.Account.PublicKey.String(), PageSize: 1000})
 	require.NoError(t, err)
 	require.Len(t, list.Documents, 3, "alice must have all bob's docs")
 
@@ -988,7 +988,7 @@ func TestUpdateReadStatus(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	list, err = alice.ListDocuments(ctx, &documents.ListDocumentsRequest{Account: bob.me.Account.Principal().String(), PageSize: 1000})
+	list, err = alice.ListDocuments(ctx, &documents.ListDocumentsRequest{Account: bob.me.Account.PublicKey.String(), PageSize: 1000})
 	require.NoError(t, err)
 
 	for _, x := range list.Documents {
@@ -1007,7 +1007,7 @@ func TestUpdateReadStatus(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	list, err = alice.ListDocuments(ctx, &documents.ListDocumentsRequest{Account: bob.me.Account.Principal().String(), PageSize: 1000})
+	list, err = alice.ListDocuments(ctx, &documents.ListDocumentsRequest{Account: bob.me.Account.PublicKey.String(), PageSize: 1000})
 	require.NoError(t, err)
 
 	for _, x := range list.Documents {

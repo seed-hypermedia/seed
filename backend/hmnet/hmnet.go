@@ -92,7 +92,7 @@ type Node struct {
 	log                    *zap.Logger
 	index                  *blob.Index
 	db                     *sqlitex.Pool
-	device                 core.KeyPair
+	device                 *core.KeyPair
 	keys                   core.KeyStore
 	cfg                    config.P2P
 	invoicer               Invoicer
@@ -111,7 +111,7 @@ type Node struct {
 
 // New creates a new P2P Node. The users must call Start() before using the node, and can use Ready() to wait
 // for when the node is ready to use.
-func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool, index *blob.Index, log *zap.Logger) (n *Node, err error) {
+func New(cfg config.P2P, device *core.KeyPair, ks core.KeyStore, db *sqlitex.Pool, index *blob.Index, log *zap.Logger) (n *Node, err error) {
 	var clean cleanup.Stack
 	defer func() {
 		// Make sure to close everything if we fail in the middle of the initialization.
@@ -127,7 +127,7 @@ func New(cfg config.P2P, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool
 
 	protoInfo := newProtocolInfo(ProtocolPrefix, protocolVersion+testnetSuffix)
 
-	host, closeHost, err := newLibp2p(cfg, device.Wrapped(), protoInfo.ID, log)
+	host, closeHost, err := newLibp2p(cfg, device.Libp2pKey(), protoInfo.ID, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start libp2p host: %w", err)
 	}

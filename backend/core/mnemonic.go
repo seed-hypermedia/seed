@@ -6,43 +6,20 @@ import (
 	"seed/backend/util/slip10"
 	"strings"
 
-	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/tyler-smith/go-bip39"
 )
 
-type Identity struct {
-	account PublicKey
-	device  KeyPair
-}
-
-func NewIdentity(account PublicKey, device KeyPair) Identity {
-	return Identity{
-		account: account,
-		device:  device,
-	}
-}
-
-func (i Identity) Account() PublicKey {
-	return i.account
-}
-
-func (i Identity) DeviceKey() KeyPair { return i.device }
-
-func (i Identity) IsWritable() bool {
-	return i.device.k != nil
-}
-
-// AccountFromMnemonic returns a key pair (priv + pub) derived
+// KeyPairFromMnemonic returns a key pair (priv + pub) derived
 // from the entropy associated to the given mnemonics and a passphrase.
 // Different passphrase (null passphrase is a valid passphrase) lead to
 // different and valid accounts.
-func AccountFromMnemonic(m []string, passphrase string) (KeyPair, error) {
+func KeyPairFromMnemonic(m []string, passphrase string) (*KeyPair, error) {
 	seed, err := bip39.NewSeedWithErrorChecking(strings.Join(m, " "), passphrase)
 	if err != nil {
-		return KeyPair{}, fmt.Errorf("unable to derive a seed from mnemonics and password: %w", err)
+		return nil, fmt.Errorf("unable to derive a seed from mnemonics and password: %w", err)
 	}
 
-	return AccountFromSeed(seed)
+	return KeyPairFromSeed(seed)
 }
 
 // keyDerivationPath value according to SLIP-10 and BIP-44.
@@ -50,19 +27,14 @@ func AccountFromMnemonic(m []string, passphrase string) (KeyPair, error) {
 // The first zero segment can be incremented to derive multiple accounts eventually.
 const keyDerivationPath = "m/44'/104109'/0'"
 
-// AccountFromSeed creates an account key pair from a previously generated entropy.
-func AccountFromSeed(rand []byte) (KeyPair, error) {
+// KeyPairFromSeed creates an account key pair from a previously generated entropy.
+func KeyPairFromSeed(rand []byte) (*KeyPair, error) {
 	slipSeed, err := slip10.DeriveForPath(keyDerivationPath, rand)
 	if err != nil {
-		return KeyPair{}, err
+		return nil, err
 	}
 
-	priv, _, err := crypto.GenerateEd25519Key(bytes.NewReader(slipSeed.Seed()))
-	if err != nil {
-		return KeyPair{}, err
-	}
-
-	return NewKeyPair(priv.(*crypto.Ed25519PrivateKey))
+	return GenerateKeyPair(Ed25519, bytes.NewReader(slipSeed.Seed()))
 }
 
 // NewBIP39Mnemonic creates a new random BIP-39 compatible mnemonic words.

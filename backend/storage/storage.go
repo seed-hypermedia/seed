@@ -2,6 +2,7 @@
 package storage
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"os"
@@ -21,7 +22,7 @@ type Store struct {
 	path string
 	log  *zap.Logger
 
-	device core.KeyPair
+	device *core.KeyPair
 
 	db  *sqlitex.Pool
 	kms core.KeyStore
@@ -66,12 +67,12 @@ func Open(dataDir string, device crypto.PrivKey, kms core.KeyStore, logLevel str
 
 	if ver == "" {
 		if device == nil {
-			kp, err := core.NewKeyPairRandom()
+			kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
 			if err != nil {
 				return nil, fmt.Errorf("failed to generate device key pair: %w", err)
 			}
 
-			device = kp.Wrapped()
+			device = kp.Libp2pKey()
 		}
 
 		if err := InitSQLiteSchema(db); err != nil {
@@ -93,8 +94,8 @@ func Open(dataDir string, device crypto.PrivKey, kms core.KeyStore, logLevel str
 	}
 
 	if device != nil {
-		if !kp.Wrapped().Equals(device) {
-			return nil, fmt.Errorf("provided device key (%s) doesn't match the stored one (%s)", device, kp.Wrapped())
+		if !kp.Libp2pKey().Equals(device) {
+			return nil, fmt.Errorf("provided device key (%s) doesn't match the stored one (%s)", device, kp.Libp2pKey())
 		}
 	}
 
@@ -148,7 +149,7 @@ func (s *Store) Migrate() error {
 }
 
 // Device returns the device key pair.
-func (s *Store) Device() core.KeyPair {
+func (s *Store) Device() *core.KeyPair {
 	return s.device
 }
 

@@ -2,10 +2,8 @@ package ipfs
 
 import (
 	"encoding/binary"
-	"fmt"
 
 	"github.com/ipfs/go-cid"
-	crypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/multiformats/go-multicodec"
 	multihash "github.com/multiformats/go-multihash"
 )
@@ -27,21 +25,6 @@ func MustNewCID[T ~uint64](codec, hashType T, data []byte) cid.Cid {
 		panic(err)
 	}
 	return c
-}
-
-// PubKeyAsCID encodes public key as CID.
-func PubKeyAsCID(key crypto.PubKey) (cid.Cid, error) {
-	_, ok := key.(*crypto.Ed25519PublicKey)
-	if !ok {
-		return cid.Undef, fmt.Errorf("only Ed25519 keys can be encoded as CIDs, got %T", key)
-	}
-
-	data, err := crypto.MarshalPublicKey(key)
-	if err != nil {
-		return cid.Undef, err
-	}
-
-	return NewCID(cid.Libp2pKey, multihash.IDENTITY, data)
 }
 
 // DecodeCID reads the CID multicodec and the multihash part of it.

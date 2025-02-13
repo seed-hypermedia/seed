@@ -123,7 +123,7 @@ func makeTestSite(t *testing.T, name string) *App {
 	user := coretest.NewTester(name)
 
 	cfg := testConfig(t)
-	dir, err := storage.Open(cfg.Base.DataDir, user.Device.Wrapped(), core.NewMemoryKeyStore(), "debug")
+	dir, err := storage.Open(cfg.Base.DataDir, user.Device.Libp2pKey(), core.NewMemoryKeyStore(), "debug")
 	require.NoError(t, err)
 
 	app, err := Load(ctx, "http://127.0.0.1:"+strconv.Itoa(cfg.HTTP.Port), cfg, dir)

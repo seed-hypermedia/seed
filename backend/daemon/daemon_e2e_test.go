@@ -205,7 +205,7 @@ func TestSyncingProfiles(t *testing.T) {
 	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
 	bobIdentity := coretest.NewTester("bob")
 	doc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
-		Account:        aliceIdentity.Account.Principal().String(),
+		Account:        aliceIdentity.Account.PublicKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
 		Changes: []*documents.DocumentChange{
@@ -250,14 +250,14 @@ func TestSyncingProfiles(t *testing.T) {
 	//require.NoError(t, err)
 	time.Sleep(time.Millisecond * 500)
 	doc2, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
-		Account: aliceIdentity.Account.Principal().String(),
+		Account: aliceIdentity.Account.PublicKey.String(),
 		Path:    "",
 	})
 	require.NoError(t, err)
 	require.Equal(t, doc.Content, doc2.Content)
 
 	bobsProfile, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
-		Account:        bobIdentity.Account.Principal().String(),
+		Account:        bobIdentity.Account.PublicKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
 		Changes: []*documents.DocumentChange{
@@ -368,7 +368,7 @@ func TestSubscriptions(t *testing.T) {
 	ctx := context.Background()
 
 	carolHome, err := carol.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
-		Account:        carolIdentity.Account.Principal().String(),
+		Account:        carolIdentity.Account.PublicKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
 		Changes: []*documents.DocumentChange{
@@ -400,7 +400,7 @@ func TestSubscriptions(t *testing.T) {
 	require.NoError(t, err)
 
 	aliceHome, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
-		Account:        aliceIdentity.Account.Principal().String(),
+		Account:        aliceIdentity.Account.PublicKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
 		Changes: []*documents.DocumentChange{
@@ -432,7 +432,7 @@ func TestSubscriptions(t *testing.T) {
 	require.NoError(t, err)
 
 	aliceToyota, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
-		Account:        aliceIdentity.Account.Principal().String(),
+		Account:        aliceIdentity.Account.PublicKey.String(),
 		Path:           "/cars/toyota",
 		SigningKeyName: "main",
 		Changes: []*documents.DocumentChange{
@@ -464,7 +464,7 @@ func TestSubscriptions(t *testing.T) {
 	require.NoError(t, err)
 
 	aliceHonda, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
-		Account:        aliceIdentity.Account.Principal().String(),
+		Account:        aliceIdentity.Account.PublicKey.String(),
 		Path:           "/cars/honda",
 		SigningKeyName: "main",
 		Changes: []*documents.DocumentChange{
@@ -511,7 +511,7 @@ func TestSubscriptions(t *testing.T) {
 	require.NoError(t, err)
 
 	bobHome, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
-		Account:        bobIdentity.Account.Principal().String(),
+		Account:        bobIdentity.Account.PublicKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
 		Changes: []*documents.DocumentChange{
@@ -641,7 +641,7 @@ func TestSubscriptions(t *testing.T) {
 	require.Error(t, err, "bob is not explicitly subscribed to alice's home, so should not have it")
 
 	aliceHondaUpdated, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
-		Account:        aliceIdentity.Account.Principal().String(),
+		Account:        aliceIdentity.Account.PublicKey.String(),
 		BaseVersion:    aliceHonda.Version,
 		Path:           "/cars/honda",
 		SigningKeyName: "main",
@@ -720,14 +720,14 @@ func TestSubscriptions(t *testing.T) {
 	cpb, err := alice.RPC.DocumentsV3.CreateCapability(ctx, &documents.CreateCapabilityRequest{
 		SigningKeyName: "main",
 		Delegate:       bobIdentity.Account.String(),
-		Account:        aliceIdentity.Account.Principal().String(),
+		Account:        aliceIdentity.Account.PublicKey.String(),
 		Path:           aliceHonda.Path,
 		Role:           documents.Role_WRITER,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, cpb)
 	list, err := alice.RPC.DocumentsV3.ListCapabilities(ctx, &documents.ListCapabilitiesRequest{
-		Account: aliceIdentity.Account.Principal().String(),
+		Account: aliceIdentity.Account.PublicKey.String(),
 		Path:    aliceHonda.Path,
 	})
 	require.NoError(t, err)
@@ -744,7 +744,7 @@ func TestSubscriptions(t *testing.T) {
 	require.Equal(t, reply.Content, comments.Comments[1].Content)
 
 	bobsCap, err := bob.RPC.DocumentsV3.ListCapabilities(ctx, &documents.ListCapabilitiesRequest{
-		Account: aliceIdentity.Account.Principal().String(),
+		Account: aliceIdentity.Account.PublicKey.String(),
 		Path:    aliceHonda.Path,
 	})
 	require.NoError(t, err)
@@ -819,7 +819,7 @@ func TestSubscriptions(t *testing.T) {
 	require.Error(t, err, "Commenter's profiles might be missing and need to be fetched separately")
 
 	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
-		Account: carolIdentity.Account.Principal().String(),
+		Account: carolIdentity.Account.PublicKey.String(),
 	})
 	require.Error(t, err, "bob is not subscribed to carol's home")
 	time.Sleep(time.Millisecond * 100)

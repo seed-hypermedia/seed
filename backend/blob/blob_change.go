@@ -48,7 +48,7 @@ type ChangeBody struct {
 }
 
 // NewChange creates a new Change.
-func NewChange(kp core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, body ChangeBody, ts time.Time) (eb Encoded[*Change], err error) {
+func NewChange(kp *core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, body ChangeBody, ts time.Time) (eb Encoded[*Change], err error) {
 	if !slices.IsSortedFunc(deps, func(a, b cid.Cid) int {
 		return cmp.Compare(a.KeyString(), b.KeyString())
 	}) {

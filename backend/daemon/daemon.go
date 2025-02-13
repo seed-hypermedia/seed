@@ -102,7 +102,7 @@ type Storage interface {
 	DB() *sqlitex.Pool
 	KeyStore() core.KeyStore
 	Migrate() error
-	Device() core.KeyPair
+	Device() *core.KeyPair
 }
 
 // Load all of the dependencies for the app, and start

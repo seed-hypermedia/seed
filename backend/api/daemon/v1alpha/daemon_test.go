@@ -61,7 +61,7 @@ func TestRegister(t *testing.T) {
 func newTestServer(t *testing.T, name string) *Server {
 	u := coretest.NewTester(name)
 
-	store, err := storage.Open(t.TempDir(), u.Device.Wrapped(), core.NewMemoryKeyStore(), "debug")
+	store, err := storage.Open(t.TempDir(), u.Device.Libp2pKey(), core.NewMemoryKeyStore(), "debug")
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, store.Close()) })
 

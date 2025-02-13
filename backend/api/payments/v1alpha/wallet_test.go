@@ -71,7 +71,7 @@ func makeTestService(t *testing.T, name string) *Server {
 	db := storage.MakeTestMemoryDB(t)
 	device := u.Device
 	ks := core.NewMemoryKeyStore()
-	require.NoError(t, ks.StoreKey(ctx, device.Principal().String(), device))
+	require.NoError(t, ks.StoreKey(ctx, device.PublicKey.String(), device))
 	node, closenode := makeTestPeer(t, device, ks, db)
 	t.Cleanup(closenode)
 	/*
@@ -90,7 +90,7 @@ func makeTestService(t *testing.T, name string) *Server {
 	return NewServer(logging.New("seed/wallet", "debug"), db, node, ks, false)
 }
 
-func makeTestPeer(t *testing.T, device core.KeyPair, ks core.KeyStore, db *sqlitex.Pool) (*hmnet.Node, context.CancelFunc) {
+func makeTestPeer(t *testing.T, device *core.KeyPair, ks core.KeyStore, db *sqlitex.Pool) (*hmnet.Node, context.CancelFunc) {
 	idx := must.Do2(blob.OpenIndex(context.Background(), db, logging.New("seed/hyper", "debug")))
 
 	n, err := hmnet.New(config.P2P{

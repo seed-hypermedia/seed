@@ -324,13 +324,13 @@ func (dm *Document) ensureTreeMutation() (*blockTreeMutation, error) {
 
 // SignChange creates a change.
 // After this the Document instance must be discarded. The change must be applied to a different state.
-func (dm *Document) SignChange(kp core.KeyPair) (hb blob.Encoded[*blob.Change], err error) {
+func (dm *Document) SignChange(kp *core.KeyPair) (hb blob.Encoded[*blob.Change], err error) {
 	return dm.SignChangeAt(kp, dm.crdt.clock.MustNow())
 }
 
 // SignChangeAt creates a change at the given timestamp, ignoring the internal clock.
 // The timestamp must still satisfy the causality rules, i.e. be strictly greater than any previously observed timestamp.
-func (dm *Document) SignChangeAt(kp core.KeyPair, at time.Time) (hb blob.Encoded[*blob.Change], err error) {
+func (dm *Document) SignChangeAt(kp *core.KeyPair, at time.Time) (hb blob.Encoded[*blob.Change], err error) {
 	// TODO(burdiyan): we should make them reusable.
 	if dm.done {
 		return hb, fmt.Errorf("using already committed mutation")
@@ -358,7 +358,7 @@ func (dm *Document) SignChangeAt(kp core.KeyPair, at time.Time) (hb blob.Encoded
 }
 
 // Ref creates a Ref blob for the current heads.
-func (dm *Document) Ref(kp core.KeyPair, cap cid.Cid) (ref blob.Encoded[*blob.Ref], err error) {
+func (dm *Document) Ref(kp *core.KeyPair, cap cid.Cid) (ref blob.Encoded[*blob.Ref], err error) {
 	// TODO(hm24): make genesis detection more reliable.
 	genesis := dm.crdt.cids[0]
 

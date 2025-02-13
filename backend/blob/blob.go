@@ -33,6 +33,17 @@ func init() {
 		})).
 		Complete(),
 	)
+
+	cbornode.RegisterCborType(atlas.BuildEntry(core.PublicKey{}).
+		Transform().
+		TransformMarshal(atlas.MakeMarshalTransformFunc(func(v core.PublicKey) ([]byte, error) {
+			return v.Bytes(), nil
+		})).
+		TransformUnmarshal(atlas.MakeUnmarshalTransformFunc(func(in []byte) (core.PublicKey, error) {
+			return core.DecodePublicKey(in)
+		})).
+		Complete(),
+	)
 }
 
 var unixZero = time.Unix(0, 0).UTC().Round(ClockPrecision)
@@ -74,14 +85,25 @@ func mapToCBOR(data map[string]any, v any) {
 }
 
 type baseBlob struct {
-	Type   blobType       `refmt:"type"`
-	Signer core.Principal `refmt:"signer"`
-	Sig    core.Signature `refmt:"sig"`
-	Ts     time.Time      `refmt:"ts"`
+	Type    blobType       `refmt:"type"`
+	Author_ core.Principal `refmt:"author,omitempty"`
+	Signer  core.Principal `refmt:"signer"`
+	Sig     core.Signature `refmt:"sig"`
+	Ts      time.Time      `refmt:"ts"`
+}
+
+// Author returns the author of the blob.
+// Normally it's just the signer, but for delegated signatures there's a dedicated author field.
+func (b baseBlob) Author() core.Principal {
+	if len(b.Author_) == 0 {
+		return b.Signer
+	}
+
+	return b.Author_
 }
 
 // signBlob and fill in the signature.
-func signBlob(kp core.KeyPair, v any, sig *core.Signature) error {
+func signBlob(kp *core.KeyPair, v any, sig *core.Signature) error {
 	// Unlike some other projects that use a nil signature or omit the field entirely for signing,
 	// we fill the space for the signature with zeros.
 	// This leaves us room for optimizations to avoid double-serialization:
@@ -99,7 +121,12 @@ func signBlob(kp core.KeyPair, v any, sig *core.Signature) error {
 }
 
 // verifyBlob checks the signature of a blob.
-func verifyBlob(signer core.Principal, v any, sig *core.Signature) error {
+func verifyBlob(pubkey core.Principal, v any, sig *core.Signature) error {
+	signer, err := pubkey.Parse()
+	if err != nil {
+		return err
+	}
+
 	sigCopy := slices.Clone(*sig)
 
 	*sig = make([]byte, signer.SignatureSize())

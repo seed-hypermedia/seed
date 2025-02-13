@@ -4,6 +4,7 @@ package daemon
 
 import (
 	context "context"
+	"fmt"
 	"seed/backend/core"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	sync "sync"
@@ -19,7 +20,7 @@ import (
 
 // Storage is a subset of the [ondisk.OnDisk] used by this server.
 type Storage interface {
-	Device() core.KeyPair
+	Device() *core.KeyPair
 	KeyStore() core.KeyStore
 }
 
@@ -83,7 +84,7 @@ func (srv *Server) RegisterKey(ctx context.Context, req *daemon.RegisterKeyReque
 		return nil, status.Errorf(codes.InvalidArgument, "name is required for a key")
 	}
 
-	acc, err := core.AccountFromMnemonic(req.Mnemonic, req.Passphrase)
+	acc, err := core.KeyPairFromMnemonic(req.Mnemonic, req.Passphrase)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to create account: %v", err)
 	}
@@ -93,9 +94,9 @@ func (srv *Server) RegisterKey(ctx context.Context, req *daemon.RegisterKeyReque
 	}
 
 	return &daemon.NamedKey{
-		PublicKey: acc.Principal().String(),
+		PublicKey: acc.PublicKey.String(),
 		Name:      req.Name,
-		AccountId: acc.Principal().String(),
+		AccountId: acc.PublicKey.String(),
 	}, nil
 }
 
@@ -111,19 +112,18 @@ func (srv *Server) DeleteAllKeys(ctx context.Context, req *daemon.DeleteAllKeysR
 
 // ListKeys implement the corresponding gRPC method.
 func (srv *Server) ListKeys(ctx context.Context, req *daemon.ListKeysRequest) (*daemon.ListKeysResponse, error) {
-	//var ret []*daemon.NamedKey
 	out := &daemon.ListKeysResponse{}
 	keys, err := srv.store.KeyStore().ListKeys(ctx)
 	if err != nil {
-		return out, err
+		return nil, fmt.Errorf("failed to list keys: %w", err)
 	}
-	out.Keys = make([]*daemon.NamedKey, 0, len(keys))
-	for _, key := range keys {
-		out.Keys = append(out.Keys, &daemon.NamedKey{
+	out.Keys = make([]*daemon.NamedKey, len(keys))
+	for i, key := range keys {
+		out.Keys[i] = &daemon.NamedKey{
 			Name:      key.Name,
 			PublicKey: key.PublicKey.String(),
 			AccountId: key.PublicKey.String(),
-		})
+		}
 	}
 	return out, nil
 }
@@ -146,8 +146,8 @@ func (srv *Server) UpdateKey(ctx context.Context, req *daemon.UpdateKeyRequest) 
 	}, nil
 }
 
-func (srv *Server) RegisterAccount(ctx context.Context, name string, kp core.KeyPair) error {
-	if kp, err := srv.store.KeyStore().GetKey(ctx, name); err == nil || kp.PeerID() != "" {
+func (srv *Server) RegisterAccount(ctx context.Context, name string, kp *core.KeyPair) error {
+	if kp, err := srv.store.KeyStore().GetKey(ctx, name); err == nil || kp != nil {
 		return status.Errorf(codes.AlreadyExists, "key with name %s already exists: %v", name, err)
 	}
 
@@ -173,11 +173,11 @@ func (srv *Server) GetInfo(context.Context, *daemon.GetInfoRequest) (*daemon.Inf
 // ForceSync implements the corresponding gRPC method.
 func (srv *Server) ForceSync(context.Context, *daemon.ForceSyncRequest) (*emptypb.Empty, error) {
 	if srv.p2p == nil {
-		return &emptypb.Empty{}, status.Error(codes.FailedPrecondition, "force sync function is not set")
+		return nil, status.Error(codes.FailedPrecondition, "force sync function is not set")
 	}
 
 	if err := srv.p2p.ForceSync(); err != nil {
-		return &emptypb.Empty{}, err
+		return nil, err
 	}
 
 	return &emptypb.Empty{}, nil

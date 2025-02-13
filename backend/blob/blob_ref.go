@@ -36,9 +36,7 @@ func init() {
 type Ref struct {
 	baseBlob
 
-	// Don't access field Space! Use GetSpace() method!
-
-	Space       core.Principal `refmt:"space,omitempty"`
+	Space_      core.Principal `refmt:"space,omitempty"` // Use Space() method.
 	Path        string         `refmt:"path,omitempty"`
 	GenesisBlob cid.Cid        `refmt:"genesisBlob,omitempty"`
 	Capability  cid.Cid        `refmt:"capability,omitempty"`
@@ -47,7 +45,7 @@ type Ref struct {
 }
 
 // NewRef creates a new Ref blob.
-func NewRef(kp core.KeyPair, generation int64, genesis cid.Cid, space core.Principal, path string, heads []cid.Cid, capc cid.Cid, ts time.Time) (eb Encoded[*Ref], err error) {
+func NewRef(kp *core.KeyPair, generation int64, genesis cid.Cid, space core.Principal, path string, heads []cid.Cid, capc cid.Cid, ts time.Time) (eb Encoded[*Ref], err error) {
 	// TODO(burdiyan): we thought we wanted to attach caps to refs, then we figured out we were not doing it,
 	// then we wanted to fix it, then we realized we haven't, and then we decided that it was never needed anyway.
 	// So this should just go away, but we'll do it later.
@@ -66,7 +64,7 @@ func NewRef(kp core.KeyPair, generation int64, genesis cid.Cid, space core.Princ
 	}
 
 	if !kp.Principal().Equal(space) {
-		ru.Space = space
+		ru.Space_ = space
 	}
 
 	if err := signBlob(kp, ru, &ru.baseBlob.Sig); err != nil {
@@ -76,13 +74,13 @@ func NewRef(kp core.KeyPair, generation int64, genesis cid.Cid, space core.Princ
 	return encodeBlob(ru)
 }
 
-// GetSpace returns the space the Ref is applied to.
-func (r *Ref) GetSpace() core.Principal {
-	if len(r.Space) == 0 {
+// Space returns the space the Ref is applied to.
+func (r *Ref) Space() core.Principal {
+	if len(r.Space_) == 0 {
 		return r.Signer
 	}
 
-	return r.Space
+	return r.Space_
 }
 
 func init() {
@@ -116,7 +114,7 @@ func indexRef(ictx *indexingCtx, id int64, c cid.Cid, v *Ref) error {
 		Generation int64 `json:"generation,omitempty"`
 	}
 
-	space := v.GetSpace()
+	space := v.Space()
 
 	iri, err := NewIRI(space, v.Path)
 	if err != nil {
@@ -185,7 +183,7 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 		panic("BUG: Ref signer is not indexed")
 	}
 
-	iri, err := NewIRI(v.GetSpace(), v.Path)
+	iri, err := NewIRI(v.Space(), v.Path)
 	if err != nil {
 		return err
 	}
@@ -289,7 +287,7 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 
 		if len(pendingChanges) > 0 {
 			last := pendingChanges[len(pendingChanges)-1]
-			if err := touchSpaceStats(conn, v.GetSpace().String(), last.Ts); err != nil {
+			if err := touchSpaceStats(conn, v.Space().String(), last.Ts); err != nil {
 				return fmt.Errorf("failed to touch space stats: %w", err)
 			}
 

@@ -3,54 +3,17 @@ package core
 import (
 	"crypto/sha256"
 	"encoding/binary"
-	"fmt"
 	"unsafe"
 
-	"github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/crypto/pb"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multibase"
 	"github.com/multiformats/go-multicodec"
 )
 
-var pubKeyCodecs = map[int]multicodec.Code{
-	crypto.Ed25519:   multicodec.Ed25519Pub,
-	crypto.Secp256k1: multicodec.Secp256k1Pub,
-}
-
-var codecToPB = map[multicodec.Code]pb.KeyType{
-	multicodec.Ed25519Pub:   pb.KeyType_Ed25519,
-	multicodec.Secp256k1Pub: pb.KeyType_Secp256k1,
-}
-
-var pubKeyCodecBytes = map[multicodec.Code][]byte{
-	multicodec.Ed25519Pub:   binary.AppendUvarint(nil, uint64(multicodec.Ed25519Pub)),
-	multicodec.Secp256k1Pub: binary.AppendUvarint(nil, uint64(multicodec.Secp256k1Pub)),
-}
-
-// Principal is the byte representation of a public key.
-// We don't use libp2p encoding for keys, because it's very tied to libp2p,
-// as it uses bespoke protobuf encoding and limited number of key types.
-//
-// Later, some new approaches emerged in the community for encoding public keys,
-// with additional multicodecs defined in the common table[codecs] for different key types.
-//
-// So we define principal here similar to how DID Key type is defined[did-key], but binary
-// instead of being a multibase string.
-//
-// Basically this is a binary string of `<multicodec-key-type-varint><raw-public-key-bytes>`.
-//
-// [did-key]: https://w3c-ccg.github.io/did-method-key/#format
+// Principal is a packed, typed, binary public key representation.
+// It's the same as what [PublicKey.Bytes] returns.
+// It's used when the full parsed public key structure is not needed.
 type Principal []byte
-
-// ActorID is a 56-bit replica/actor/origin ID
-// that we use in our CRDT Op IDs.
-// 56 bits should be enough to avoid collisions for our use case,
-// because each OpID also contains a millisecond timestamp,
-// and it's more compatible with other environments, like JS, that may not work well with uint64.
-// It's derived from the public key of the actor, by hashing it with sha256,
-// and taking the first 56 bits of the hash as a *little-endian* unsigned integer.
-type ActorID uint64
 
 // ActorID returns a derived ActorID from the principal.
 // It performs calculations, so it's better to cache the result if it's used multiple times.
@@ -62,23 +25,14 @@ func (p Principal) ActorID() ActorID {
 
 // PeerID returns the Libp2p PeerID representation of a key.
 func (p Principal) PeerID() (peer.ID, error) {
-	pk, err := p.Libp2pKey()
+	pk, err := DecodePublicKey(p)
 	if err != nil {
 		return "", err
 	}
+	_ = pk
+	panic("TODO")
 
-	pid, err := peer.IDFromPublicKey(pk)
-	if err != nil {
-		return "", fmt.Errorf("failed to convert principal to peer ID: %w", err)
-	}
-	return pid, nil
-}
-
-// KeyType returns the multicodec from the byte prefix of the binary representation.
-// It doesn't check if it's a valid key type.
-func (p Principal) KeyType() multicodec.Code {
-	code, _ := binary.Uvarint(p)
-	return multicodec.Code(code)
+	// return pk.PeerID(), nil
 }
 
 // Explode splits the principal into it's multicodec and raw key bytes.
@@ -111,48 +65,9 @@ func (p Principal) Equal(pp Principal) bool {
 	return p.UnsafeString() == pp.UnsafeString()
 }
 
-// Verify implements Verifier.
-func (p Principal) Verify(data []byte, sig Signature) error {
-	code, key := p.Explode()
-	if code != multicodec.Ed25519Pub {
-		panic("BUG: unsupported key type")
-	}
-
-	pk, err := crypto.UnmarshalEd25519PublicKey(key)
-	if err != nil {
-		return err
-	}
-
-	return sig.verify(pk, data)
-}
-
-// SignatureSize implements Verifier.
-func (p Principal) SignatureSize() int {
-	pbkt, ok := codecToPB[p.KeyType()]
-	if !ok {
-		panic("BUG: unsupported key type")
-	}
-
-	return signatureSize(pbkt)
-}
-
-// Libp2pKey converts principal into a Libp2p public key.
-func (p Principal) Libp2pKey() (crypto.PubKey, error) {
-	codec, n := binary.Uvarint(p)
-
-	switch multicodec.Code(codec) {
-	case multicodec.Ed25519Pub:
-		return crypto.UnmarshalEd25519PublicKey(p[n:])
-	case multicodec.Secp256k1Pub:
-		return crypto.UnmarshalSecp256k1PublicKey(p[n:])
-	default:
-		return nil, fmt.Errorf("unsupported principal key type prefix %x", codec)
-	}
-}
-
-// DID converts principal into a DID Key representation.
-func (p Principal) DID() string {
-	return "did:key:" + p.String()
+// Parse the packed public key into the full [PublicKey] structure.
+func (p Principal) Parse() (PublicKey, error) {
+	return DecodePublicKey(p)
 }
 
 // MarshalText implements encoding.TextMarshaler.
@@ -170,62 +85,12 @@ func (p *Principal) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// PrincipalFromPubKey converts a Libp2p public key into Principal.
-func PrincipalFromPubKey(k crypto.PubKey) Principal {
-	codec, ok := pubKeyCodecs[int(k.Type())]
-	if !ok {
-		panic("BUG: invalid principal key type")
-	}
-
-	raw, err := k.Raw()
-	if err != nil {
-		panic(err)
-	}
-
-	prefix, ok := pubKeyCodecBytes[codec]
-	if !ok {
-		panic("BUG: no prefix for codec " + codec.String())
-	}
-
-	out := make([]byte, 0, len(raw)+len(prefix))
-	out = append(out, prefix...)
-	out = append(out, raw...)
-
-	return Principal(out)
-}
-
 // DecodePrincipal decodes the principal from its string representation.
-func DecodePrincipal[T string | []byte](s T) (Principal, error) {
-	var sb []byte
-
-	switch s := any(s).(type) {
-	case string:
-		if s == "" {
-			return nil, fmt.Errorf("must specify principal to decode")
-		}
-
-		enc, data, err := multibase.Decode(s)
-		if err != nil {
-			return nil, err
-		}
-
-		if enc != multibase.Base58BTC {
-			return nil, fmt.Errorf("unsupported principal multibase: %s", multicodec.Code(enc).String())
-		}
-		sb = data
-	case []byte:
-		sb = s
+func DecodePrincipal[T string | []byte](raw T) (Principal, error) {
+	pk, err := DecodePublicKey(raw)
+	if err != nil {
+		return nil, err
 	}
 
-	codec, n := binary.Uvarint(sb)
-	key := sb[n:]
-
-	if multicodec.Code(codec) != multicodec.Ed25519Pub {
-		return nil, fmt.Errorf("invalid principal key type")
-	}
-
-	// TODO(burdiyan): should we validate the key bytes here?
-	_ = key
-
-	return Principal(sb), nil
+	return pk.Principal(), nil
 }

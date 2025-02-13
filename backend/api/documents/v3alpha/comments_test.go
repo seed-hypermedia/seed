@@ -21,7 +21,7 @@ func TestComments_Smoke(t *testing.T) {
 	// Create the initial home document.
 	homeDoc, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
 		SigningKeyName: "main",
-		Account:        alice.me.Account.Principal().String(),
+		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
 		Changes: []*pb.DocumentChange{
 			{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Alice's Home Page"}}},
@@ -32,7 +32,7 @@ func TestComments_Smoke(t *testing.T) {
 	// Create comment with Bob's key.
 	cmt, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
 		SigningKeyName: "bob",
-		TargetAccount:  alice.me.Account.Principal().String(),
+		TargetAccount:  alice.me.Account.PublicKey.String(),
 		TargetPath:     "",
 		TargetVersion:  homeDoc.Version,
 		Content: []*pb.BlockNode{
@@ -49,7 +49,7 @@ func TestComments_Smoke(t *testing.T) {
 	// Create a reply by Alice.
 	reply, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
 		SigningKeyName: "main",
-		TargetAccount:  alice.me.Account.Principal().String(),
+		TargetAccount:  alice.me.Account.PublicKey.String(),
 		TargetPath:     "",
 		TargetVersion:  homeDoc.Version,
 		ReplyParent:    cmt.Id,
@@ -64,7 +64,7 @@ func TestComments_Smoke(t *testing.T) {
 	// Create further reply.
 	reply2, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
 		SigningKeyName: "bob",
-		TargetAccount:  alice.me.Account.Principal().String(),
+		TargetAccount:  alice.me.Account.PublicKey.String(),
 		TargetPath:     "",
 		TargetVersion:  homeDoc.Version,
 		ReplyParent:    reply.Id,
@@ -82,7 +82,7 @@ func TestComments_Smoke(t *testing.T) {
 	}
 
 	list, err := alice.ListComments(ctx, &pb.ListCommentsRequest{
-		TargetAccount: alice.me.Account.Principal().String(),
+		TargetAccount: alice.me.Account.PublicKey.String(),
 		TargetPath:    "",
 	})
 	require.NoError(t, err)

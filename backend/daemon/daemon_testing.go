@@ -17,7 +17,7 @@ func makeTestApp(t *testing.T, name string, cfg config.Config, register bool) *A
 
 	u := coretest.NewTester(name)
 
-	repo, err := storage.Open(cfg.Base.DataDir, u.Device.Wrapped(), core.NewMemoryKeyStore(), "debug")
+	repo, err := storage.Open(cfg.Base.DataDir, u.Device.Libp2pKey(), core.NewMemoryKeyStore(), "debug")
 	require.NoError(t, err)
 
 	app, err := Load(ctx, cfg, repo)

@@ -11,19 +11,21 @@ import (
 func TestKeys(t *testing.T) {
 	alice := NewTester("alice")
 
-	pid, err := peer.IDFromPrivateKey(alice.Device.Wrapped())
+	pid, err := peer.IDFromPrivateKey(alice.Device.Libp2pKey())
 	require.NoError(t, err)
 
-	require.True(t, alice.Device.ID() == pid)
+	require.True(t, alice.Device.PeerID() == pid)
 }
 
 func TestEncoding(t *testing.T) {
 	alice := NewTester("alice")
 
-	data, err := alice.Account.MarshalBinary()
+	data, err := alice.Account.PublicKey.MarshalBinary()
 	require.NoError(t, err)
 
-	pk, err := core.ParsePublicKey(data)
-	require.NoError(t, err)
-	require.Equal(t, alice.Account.String(), pk.String())
+	var pub core.PublicKey
+	require.NoError(t, pub.UnmarshalBinary(data))
+
+	require.True(t, pub.Equal(alice.Account.PublicKey))
+	require.Equal(t, alice.Account.String(), pub.String())
 }

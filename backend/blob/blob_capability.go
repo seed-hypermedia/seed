@@ -26,14 +26,14 @@ func init() {
 type Capability struct {
 	baseBlob
 	Delegate    core.Principal `refmt:"delegate"`
-	Spc         core.Principal `refmt:"space,omitempty"` // if empty, then signer is the space.
+	Space_      core.Principal `refmt:"space,omitempty"` // if empty, then signer is the space.
 	Path        string         `refmt:"path,omitempty"`
-	Role        string         `refmt:"role"`
+	Role        string         `refmt:"role,omitempty"`
 	NoRecursive bool           `refmt:"noRecursive,omitempty"`
 }
 
 // NewCapability creates a new Capability blob.
-func NewCapability(issuer core.KeyPair, delegate, space core.Principal, path string, role string, ts time.Time, noRecursive bool) (eb Encoded[*Capability], err error) {
+func NewCapability(issuer *core.KeyPair, delegate, space core.Principal, path string, role string, ts time.Time, noRecursive bool) (eb Encoded[*Capability], err error) {
 	cu := &Capability{
 		baseBlob: baseBlob{
 			Type:   blobTypeCapability,
@@ -47,7 +47,7 @@ func NewCapability(issuer core.KeyPair, delegate, space core.Principal, path str
 	}
 
 	if !issuer.Principal().Equal(space) {
-		cu.Spc = space
+		cu.Space_ = space
 	}
 
 	if err := signBlob(issuer, cu, &cu.baseBlob.Sig); err != nil {
@@ -57,13 +57,13 @@ func NewCapability(issuer core.KeyPair, delegate, space core.Principal, path str
 	return encodeBlob(cu)
 }
 
-// GetSpace returns the space of the capability.
+// Space returns the space of the capability.
 // Normally it's the same as the signer, but can be different in case of nested delegations.
-func (c *Capability) GetSpace() core.Principal {
-	if len(c.Spc) == 0 {
+func (c *Capability) Space() core.Principal {
+	if len(c.Space_) == 0 {
 		return c.Signer
 	}
-	return c.Spc
+	return c.Space_
 }
 
 func init() {
@@ -91,12 +91,12 @@ func init() {
 }
 
 func indexCapability(ictx *indexingCtx, id int64, c cid.Cid, v *Capability) error {
-	iri, err := NewIRI(v.GetSpace(), v.Path)
+	iri, err := NewIRI(v.Space(), v.Path)
 	if err != nil {
 		return err
 	}
 
-	sb := newStructuralBlob(c, string(blobTypeCapability), v.Signer, v.Ts, iri, cid.Undef, v.GetSpace(), time.Time{})
+	sb := newStructuralBlob(c, string(blobTypeCapability), v.Signer, v.Ts, iri, cid.Undef, v.Space(), time.Time{})
 
 	if _, err := ictx.ensurePubKey(v.Signer); err != nil {
 		return err

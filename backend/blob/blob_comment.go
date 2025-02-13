@@ -28,7 +28,7 @@ func init() {
 type Comment struct {
 	baseBlob
 	Capability  cid.Cid        `refmt:"capability,omitempty"`
-	Spc         core.Principal `refmt:"space,omitempty"`
+	Space_      core.Principal `refmt:"space,omitempty"`
 	Path        string         `refmt:"path,omitempty"`
 	Version     []cid.Cid      `refmt:"version,omitempty"`
 	ThreadRoot  cid.Cid        `refmt:"threadRoot,omitempty"`
@@ -38,7 +38,7 @@ type Comment struct {
 
 // NewComment creates a new Comment blob.
 func NewComment(
-	kp core.KeyPair,
+	kp *core.KeyPair,
 	cpb cid.Cid,
 	space core.Principal,
 	path string,
@@ -63,7 +63,7 @@ func NewComment(
 	}
 
 	if !kp.Principal().Equal(space) {
-		cu.Spc = space
+		cu.Space_ = space
 	}
 
 	if err := signBlob(kp, cu, &cu.baseBlob.Sig); err != nil {
@@ -75,11 +75,11 @@ func NewComment(
 
 // GetSpace returns the space for the comment.
 // Field Space may be empty if it's the same as the signer.
-func (c *Comment) GetSpace() core.Principal {
-	if len(c.Spc) == 0 {
+func (c *Comment) Space() core.Principal {
+	if len(c.Space_) == 0 {
 		return c.Signer
 	}
-	return c.Spc
+	return c.Space_
 }
 
 // CommentBlock is a block of text with annotations.
@@ -115,7 +115,7 @@ func init() {
 }
 
 func indexComment(ictx *indexingCtx, id int64, c cid.Cid, v *Comment) error {
-	iri, err := NewIRI(v.GetSpace(), v.Path)
+	iri, err := NewIRI(v.Space(), v.Path)
 	if err != nil {
 		return fmt.Errorf("invalid comment target: %v", err)
 	}
@@ -146,7 +146,7 @@ func indexComment(ictx *indexingCtx, id int64, c cid.Cid, v *Comment) error {
 		// - This comment must have a timestamp greater than any other predecessor comment.
 	}
 
-	sb := newStructuralBlob(c, string(v.Type), v.Signer, v.Ts, iri, cid.Undef, v.GetSpace(), time.Time{})
+	sb := newStructuralBlob(c, string(v.Type), v.Signer, v.Ts, iri, cid.Undef, v.Space(), time.Time{})
 
 	targetURI, err := url.Parse(string(iri))
 	if err != nil {
@@ -205,7 +205,7 @@ func indexComment(ictx *indexingCtx, id int64, c cid.Cid, v *Comment) error {
 		return err
 	}
 
-	spaceID := v.GetSpace().String()
+	spaceID := v.Space().String()
 
 	// Update space comment stats.
 	{

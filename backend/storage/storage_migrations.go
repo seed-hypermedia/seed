@@ -269,8 +269,8 @@ func (s *Store) migrate(currentVersion string) error {
 			return fmt.Errorf("failed to load device key from file: %w", err)
 		}
 
-		if s.device.Wrapped() != nil {
-			if !s.device.Wrapped().Equals(kp.Wrapped()) {
+		if s.device.Libp2pKey() != nil {
+			if !s.device.Libp2pKey().Equals(kp.Libp2pKey()) {
 				return fmt.Errorf("device key loaded from file (%s) doesn't match the desired key (%s)", kp.PeerID(), s.device.PeerID())
 			}
 		} else {
@@ -303,7 +303,7 @@ func writeDeviceKeyFile(dir string, pk crypto.PrivKey) error {
 	return os.WriteFile(filepath.Join(dir, devicePrivateKeyPath), data, 0600)
 }
 
-func readDeviceKeyFile(dir string) (kp core.KeyPair, err error) {
+func readDeviceKeyFile(dir string) (kp *core.KeyPair, err error) {
 	data, err := os.ReadFile(filepath.Join(dir, devicePrivateKeyPath))
 	if err != nil {
 		return kp, fmt.Errorf("failed to read the file: %w", err)
@@ -314,5 +314,5 @@ func readDeviceKeyFile(dir string) (kp core.KeyPair, err error) {
 		return kp, fmt.Errorf("failed to unmarshal private key for device: %w", err)
 	}
 
-	return core.NewKeyPair(pk)
+	return core.KeyPairFromLibp2p(pk)
 }

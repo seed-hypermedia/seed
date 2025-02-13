@@ -26,7 +26,7 @@ func TestRelay(t *testing.T) {
 
 	cfg := defaultConfig()
 	cfg.Port = freePort(t)
-	cfg.PrivKey = must.Do2(newPrivKeyString(alice.Device.Wrapped()))
+	cfg.PrivKey = must.Do2(newPrivKeyString(alice.Device.Libp2pKey()))
 	relayNode, err := NewRelay(log, cfg)
 	require.NoError(t, err)
 
@@ -74,7 +74,7 @@ func makePrivateHost(t *testing.T, relayInfo peer.AddrInfo, name string) host.Ho
 
 	host, err := libp2p.New(
 		libp2p.UserAgent("seed/testing/"+name),
-		libp2p.Identity(tester.Device.Wrapped()),
+		libp2p.Identity(tester.Device.Libp2pKey()),
 		libp2p.ListenAddrStrings(libp2px.DefaultListenAddrs(freePort(t))...),
 		libp2p.EnableHolePunching(),
 		libp2p.EnableRelay(),

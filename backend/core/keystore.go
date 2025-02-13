@@ -7,14 +7,13 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/zalando/go-keyring"
 )
 
 // KeyStore is an interface for managing signing keys.
 type KeyStore interface {
-	GetKey(ctx context.Context, name string) (KeyPair, error)
-	StoreKey(ctx context.Context, name string, kp KeyPair) error
+	GetKey(ctx context.Context, name string) (*KeyPair, error)
+	StoreKey(ctx context.Context, name string, kp *KeyPair) error
 	ListKeys(ctx context.Context) ([]NamedKey, error)
 	DeleteKey(ctx context.Context, name string) error
 	DeleteAllKeys(ctx context.Context) error
@@ -57,45 +56,33 @@ func NewOSKeyStore(environment string) KeyStore {
 	}
 }
 
-func (ks *osKeyStore) GetKey(ctx context.Context, name string) (kp KeyPair, err error) {
+func (ks *osKeyStore) GetKey(ctx context.Context, name string) (*KeyPair, error) {
 	secret, err := keyring.Get(ks.serviceName, collectionName)
 	if err != nil {
-		return kp, err
+		return nil, err
 	}
 
 	collection := keyCollection{}
 	if err := json.Unmarshal([]byte(secret), &collection); err != nil {
-		return kp, err
+		return nil, err
 	}
 
 	privBytes, ok := collection[name]
 	if !ok {
-		return kp, errKeyNotFound
+		return nil, errKeyNotFound
 	}
 
-	priv, err := crypto.UnmarshalPrivateKey(privBytes)
-	if err != nil {
-		return kp, err
-	}
-
-	pub, err := NewPublicKey(priv.GetPublic())
-	if err != nil {
-		return kp, err
-	}
-
-	return KeyPair{
-		k:         priv,
-		PublicKey: pub,
-	}, nil
+	kp := new(KeyPair)
+	return kp, kp.UnmarshalBinary(privBytes)
 }
 
-func (ks *osKeyStore) StoreKey(ctx context.Context, name string, kp KeyPair) error {
+func (ks *osKeyStore) StoreKey(ctx context.Context, name string, kp *KeyPair) error {
 	if !nameFormat.MatchString(name) {
-		return fmt.Errorf("Invalid name format")
+		return fmt.Errorf("invalid name format")
 	}
 
-	if kp.k == nil {
-		return fmt.Errorf("invalid key format")
+	if kp == nil {
+		return fmt.Errorf("can't store empty key")
 	}
 
 	collection := keyCollection{}
@@ -110,7 +97,7 @@ func (ks *osKeyStore) StoreKey(ctx context.Context, name string, kp KeyPair) err
 		}
 	}
 
-	keyBytes, err := crypto.MarshalPrivateKey(kp.k)
+	keyBytes, err := kp.MarshalBinary()
 	if err != nil {
 		return err
 	}
@@ -135,30 +122,27 @@ func (ks *osKeyStore) ListKeys(ctx context.Context) ([]NamedKey, error) {
 	// so it shouldn't be a practical issue, unless you store dozens and dozens of keys.
 	// Another issues is that if your OS keychain is synced across multiple devices (like iCloud Keychain for macOS and iOS),
 	// you might end up overwriting the keys if they are not synced up to date.
-	var ret []NamedKey
 
 	secret, err := keyring.Get(ks.serviceName, collectionName)
 	if err != nil {
-		return ret, nil
+		return nil, nil
 	}
 
 	collection := keyCollection{}
 	if err := json.Unmarshal([]byte(secret), &collection); err != nil {
-		return ret, err
+		return nil, fmt.Errorf("failed to unmarshal json record: %w", err)
 	}
 
+	var ret []NamedKey
 	for name, privBytes := range collection {
-		priv, err := crypto.UnmarshalPrivateKey(privBytes)
-		if err != nil {
-			return ret, err
+		priv := new(KeyPair)
+		if err := priv.UnmarshalBinary(privBytes); err != nil {
+			return nil, err
 		}
-		pub, err := NewPublicKey(priv.GetPublic())
-		if err != nil {
-			return ret, err
-		}
+
 		ret = append(ret, NamedKey{
 			Name:      name,
-			PublicKey: pub.Principal(),
+			PublicKey: priv.PublicKey.Principal(),
 		})
 	}
 	return ret, nil
@@ -230,24 +214,24 @@ func (ks *osKeyStore) ChangeKeyName(ctx context.Context, currentName, newName st
 }
 
 type memoryKeyStore struct {
-	keys map[string]KeyPair
+	keys map[string]*KeyPair
 }
 
 // NewMemoryKeyStore creates an in-memory key store implementation.
 func NewMemoryKeyStore() KeyStore {
 	return &memoryKeyStore{
-		keys: make(map[string]KeyPair),
+		keys: make(map[string]*KeyPair),
 	}
 }
 
-func (mks *memoryKeyStore) GetKey(ctx context.Context, name string) (kp KeyPair, err error) {
+func (mks *memoryKeyStore) GetKey(ctx context.Context, name string) (kp *KeyPair, err error) {
 	if key, exists := mks.keys[name]; exists {
 		return key, nil
 	}
 	return kp, errKeyNotFound
 }
 
-func (mks *memoryKeyStore) StoreKey(ctx context.Context, name string, kp KeyPair) error {
+func (mks *memoryKeyStore) StoreKey(ctx context.Context, name string, kp *KeyPair) error {
 	mks.keys[name] = kp
 	return nil
 }
@@ -266,7 +250,7 @@ func (mks *memoryKeyStore) DeleteKey(ctx context.Context, name string) error {
 }
 
 func (mks *memoryKeyStore) DeleteAllKeys(ctx context.Context) error {
-	mks.keys = map[string]KeyPair{}
+	mks.keys = map[string]*KeyPair{}
 	return nil
 }
 

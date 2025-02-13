@@ -30,7 +30,7 @@ const (
 	fileCID      = "bafybeiecq2irw4fl5vunnxo6cegoutv4de63h7n27tekkjtak3jrvrzzhe"
 )
 
-var akey = coretest.NewTester("alice").Device.Wrapped()
+var akey = coretest.NewTester("alice").Device.Libp2pKey()
 
 func TestAddFile(t *testing.T) {
 	server := makeManager(t, akey)

@@ -28,7 +28,7 @@ func (srv *rpcMux) ListSpaces(ctx context.Context, in *p2p.ListSpacesRequest) (*
 	}
 
 	if in.PageToken != "" {
-		if err := apiutil.DecodePageToken(in.PageToken, &pageToken, srv.Node.device); err != nil {
+		if err := apiutil.DecodePageToken(in.PageToken, &pageToken, nil); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "failed to decode page token: %v", err)
 		}
 	}
@@ -54,7 +54,7 @@ func (srv *rpcMux) ListSpaces(ctx context.Context, in *p2p.ListSpacesRequest) (*
 		return nil, err
 	}
 
-	out.NextPageToken, err = apiutil.EncodePageToken(pageToken, srv.Node.device)
+	out.NextPageToken, err = apiutil.EncodePageToken(pageToken, nil)
 	if err != nil {
 		return nil, err
 	}

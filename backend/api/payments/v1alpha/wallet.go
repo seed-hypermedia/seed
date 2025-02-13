@@ -128,9 +128,9 @@ func NewServer(log *zap.Logger, db *sqlitex.Pool, net *hmnet.Node, ks core.KeySt
 			creds := Credentials{
 				Domain:     lndhubDomain,
 				WalletType: lndhubsql.LndhubGoWalletType,
-				Login:      kp.Principal().String(),
+				Login:      kp.PublicKey.String(),
 				Password:   hex.EncodeToString(signature),
-				Nickname:   kp.Principal().String(),
+				Nickname:   kp.PublicKey.String(),
 			}
 
 			credentialsURL, err := EncodeCredentialsURL(creds)
@@ -265,9 +265,9 @@ func (srv *Server) CreateWallet(ctx context.Context, in *payments.CreateWalletRe
 	creds := Credentials{
 		Domain:     srv.lightningClient.Lndhub.GetLndaddressDomain(),
 		WalletType: lndhubsql.LndhubGoWalletType,
-		Login:      kp.Principal().String(),
+		Login:      kp.PublicKey.String(),
 		Password:   hex.EncodeToString(signature),
-		Nickname:   kp.Principal().String(),
+		Nickname:   kp.PublicKey.String(),
 	}
 	credentialsURL, err := EncodeCredentialsURL(creds)
 	if err != nil {
