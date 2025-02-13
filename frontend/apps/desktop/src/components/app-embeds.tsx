@@ -436,7 +436,6 @@ export function QueryBlockDesktop({
     documents
       .map((document) => {
         const d = document.data
-        console.log('~~ d', d)
         if (!d || !d.document) return null
         if (d.id.path && d.id.path.length !== 0) return null
         return [
