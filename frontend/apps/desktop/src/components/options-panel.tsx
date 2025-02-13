@@ -15,7 +15,7 @@ import {
   YStack,
 } from '@shm/ui'
 import {useState} from 'react'
-import {AccessoryContainer} from './accessory-sidebar'
+import {AccessoryContainer, AccessorySection} from './accessory-sidebar'
 import {IconForm} from './icon-form'
 
 export function OptionsPanel({
@@ -62,6 +62,7 @@ function OptionsPanelContent({
   const isHomeDoc = !draftId.path || draftId.path.length === 0
   const isNewspaperLayout = metadata.layout === 'Seed/Experimental/Newspaper'
 
+  console.log('~~', draftId)
   if (isNewspaperLayout) {
     return (
       <>
@@ -87,137 +88,242 @@ function OptionsPanelContent({
     )
   }
 
+  if (isHomeDoc) {
+    return (
+      <>
+        <NameInput metadata={metadata} onMetadata={onMetadata} />
+        <DocumentIconForm
+          draftId={draftId}
+          metadata={metadata}
+          onMetadata={onMetadata}
+        />
+        <HeaderLayout metadata={metadata} onMetadata={onMetadata} />
+        <HeaderLogo
+          draftId={draftId}
+          metadata={metadata}
+          onMetadata={onMetadata}
+        />
+        <AccessorySection title="Document Options">
+          <CoverImage
+            draftId={draftId}
+            metadata={metadata}
+            onMetadata={onMetadata}
+          />
+          <OriginalPublishDate metadata={metadata} onMetadata={onMetadata} />
+          <ActivityVisibility metadata={metadata} onMetadata={onMetadata} />
+          <ContentWidth metadata={metadata} onMetadata={onMetadata} />
+        </AccessorySection>
+      </>
+    )
+  }
+
   return (
     <>
-      <YStack gap="$4">
-        <YStack>
-          <Label color="$color9" size="$1">
-            Name
-          </Label>
-          <Input
-            size="$"
-            value={metadata.name}
-            onChangeText={(name) => onMetadata({name})}
-          />
-        </YStack>
-        <YStack>
-          <Label color="$color9" size="$1">
-            Icon
-          </Label>
-          <IconForm
-            size={100}
-            id={`icon-${draftId.id}`}
-            label={metadata.name}
-            url={metadata.icon ? getDaemonFileUrl(metadata.icon) : ''}
-            onIconUpload={(icon) => {
-              if (icon) {
-                onMetadata({
-                  icon: `ipfs://${icon}`,
-                })
-              }
-            }}
-            onRemoveIcon={() => {
-              onMetadata({
-                icon: '',
-              })
-            }}
-          />
-        </YStack>
-        <YStack>
-          <Label color="$color9" size="$1">
-            Cover Image
-          </Label>
-          <ImageForm
-            id={`cover-${draftId.id}`}
-            label={metadata.cover}
-            url={metadata.cover ? getDaemonFileUrl(metadata.cover) : ''}
-            onImageUpload={(imageCid) => {
-              if (imageCid) {
-                onMetadata({
-                  cover: `ipfs://${imageCid}`,
-                })
-              }
-            }}
-            onRemove={() => {
-              onMetadata({
-                cover: '',
-              })
-            }}
-          />
-        </YStack>
-      </YStack>
-      {isHomeDoc ? (
-        <>
-          <YStack>
-            <Label color="$color9" size="$1">
-              Header Layout
-            </Label>
-            <SelectDropdown
-              width="100%"
-              options={
-                [
-                  {label: 'Default', value: ''},
-                  {label: 'Centered', value: 'Center'},
-                ] as const
-              }
-              value={metadata.theme?.headerLayout || ''}
-              onValue={(headerLayout) => onMetadata({theme: {headerLayout}})}
-            />
-          </YStack>
-          <YStack>
-            <Label color="$color9" size="$1">
-              Header Logo
-            </Label>
-            <ImageForm
-              size={100}
-              id={`logo-${draftId.id}`}
-              label={metadata.seedExperimentalLogo}
-              url={
-                metadata.seedExperimentalLogo
-                  ? getDaemonFileUrl(metadata.seedExperimentalLogo)
-                  : ''
-              }
-              onImageUpload={(imgageCid) => {
-                if (imgageCid) {
-                  onMetadata({
-                    seedExperimentalLogo: `ipfs://${imgageCid}`,
-                  })
-                }
-              }}
-              onRemove={() => {
-                onMetadata({
-                  seedExperimentalLogo: '',
-                })
-              }}
-            />
-          </YStack>
-        </>
-      ) : null}
+      <NameInput metadata={metadata} onMetadata={onMetadata} />
+      <DocumentIconForm
+        draftId={draftId}
+        metadata={metadata}
+        onMetadata={onMetadata}
+      />
+      <CoverImage
+        draftId={draftId}
+        metadata={metadata}
+        onMetadata={onMetadata}
+      />
       <OriginalPublishDate metadata={metadata} onMetadata={onMetadata} />
-      {isHomeDoc ? null : (
-        <OutlineVisibility metadata={metadata} onMetadata={onMetadata} />
-      )}
+      <OutlineVisibility metadata={metadata} onMetadata={onMetadata} />
       <ActivityVisibility metadata={metadata} onMetadata={onMetadata} />
-      <YStack>
-        <Label color="$color9" size="$1">
-          Content Width
-        </Label>
-        <SelectDropdown
-          width="100%"
-          options={
-            [
-              {value: 'S', label: 'Small'},
-              {value: 'M', label: 'Medium'},
-              {value: 'L', label: 'Large'},
-            ] as const
-          }
-          value={metadata.contentWidth || 'M'}
-          onValue={(contentWidth: ContentWidth) => {
-            onMetadata({contentWidth})
-          }}
-        />
-      </YStack>
+      <ContentWidth metadata={metadata} onMetadata={onMetadata} />
     </>
+  )
+}
+
+function NameInput({
+  metadata,
+  onMetadata,
+}: {
+  metadata: HMMetadata
+  onMetadata: (values: Partial<HMMetadata>) => void
+}) {
+  return (
+    <YStack>
+      <Label color="$color9" size="$1">
+        Name
+      </Label>
+      <Input
+        size="$"
+        value={metadata.name}
+        onChangeText={(name) => onMetadata({name})}
+      />
+    </YStack>
+  )
+}
+
+function DocumentIconForm({
+  draftId,
+  metadata,
+  onMetadata,
+}: {
+  draftId: UnpackedHypermediaId
+  metadata: HMMetadata
+  onMetadata: (values: Partial<HMMetadata>) => void
+}) {
+  return (
+    <YStack>
+      <Label color="$color9" size="$1">
+        Icon
+      </Label>
+      <IconForm
+        size={100}
+        id={`icon-${draftId.id}`}
+        label={metadata.name}
+        url={metadata.icon ? getDaemonFileUrl(metadata.icon) : ''}
+        onIconUpload={(icon) => {
+          if (icon) {
+            onMetadata({
+              icon: `ipfs://${icon}`,
+            })
+          }
+        }}
+        onRemoveIcon={() => {
+          onMetadata({
+            icon: '',
+          })
+        }}
+      />
+    </YStack>
+  )
+}
+
+function CoverImage({
+  draftId,
+  metadata,
+  onMetadata,
+}: {
+  draftId: UnpackedHypermediaId
+  metadata: HMMetadata
+  onMetadata: (values: Partial<HMMetadata>) => void
+}) {
+  return (
+    <YStack>
+      <Label color="$color9" size="$1">
+        Cover Image
+      </Label>
+      <ImageForm
+        id={`cover-${draftId.id}`}
+        label={metadata.cover}
+        url={metadata.cover ? getDaemonFileUrl(metadata.cover) : ''}
+        onImageUpload={(imageCid) => {
+          if (imageCid) {
+            onMetadata({
+              cover: `ipfs://${imageCid}`,
+            })
+          }
+        }}
+        onRemove={() => {
+          onMetadata({
+            cover: '',
+          })
+        }}
+      />
+    </YStack>
+  )
+}
+
+function ContentWidth({
+  metadata,
+  onMetadata,
+}: {
+  metadata: HMMetadata
+  onMetadata: (values: Partial<HMMetadata>) => void
+}) {
+  return (
+    <YStack>
+      <Label color="$color9" size="$1">
+        Content Width
+      </Label>
+      <SelectDropdown
+        width="100%"
+        options={
+          [
+            {value: 'S', label: 'Small'},
+            {value: 'M', label: 'Medium'},
+            {value: 'L', label: 'Large'},
+          ] as const
+        }
+        value={metadata.contentWidth || 'M'}
+        onValue={(contentWidth) => {
+          onMetadata({contentWidth})
+        }}
+      />
+    </YStack>
+  )
+}
+
+function HeaderLayout({
+  metadata,
+  onMetadata,
+}: {
+  metadata: HMMetadata
+  onMetadata: (values: Partial<HMMetadata>) => void
+}) {
+  return (
+    <YStack>
+      <Label color="$color9" size="$1">
+        Header Layout
+      </Label>
+      <SelectDropdown
+        width="100%"
+        options={
+          [
+            {label: 'Default', value: ''},
+            {label: 'Centered', value: 'Center'},
+          ] as const
+        }
+        value={metadata.theme?.headerLayout || ''}
+        onValue={(headerLayout) => onMetadata({theme: {headerLayout}})}
+      />
+    </YStack>
+  )
+}
+
+function HeaderLogo({
+  draftId,
+  metadata,
+  onMetadata,
+}: {
+  draftId: UnpackedHypermediaId
+  metadata: HMMetadata
+  onMetadata: (values: Partial<HMMetadata>) => void
+}) {
+  return (
+    <YStack>
+      <Label color="$color9" size="$1">
+        Header Logo
+      </Label>
+      <ImageForm
+        size={100}
+        id={`logo-${draftId.id}`}
+        label={metadata.seedExperimentalLogo}
+        url={
+          metadata.seedExperimentalLogo
+            ? getDaemonFileUrl(metadata.seedExperimentalLogo)
+            : ''
+        }
+        onImageUpload={(imgageCid) => {
+          if (imgageCid) {
+            onMetadata({
+              seedExperimentalLogo: `ipfs://${imgageCid}`,
+            })
+          }
+        }}
+        onRemove={() => {
+          onMetadata({
+            seedExperimentalLogo: '',
+          })
+        }}
+      />
+    </YStack>
   )
 }
 

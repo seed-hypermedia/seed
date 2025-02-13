@@ -28,16 +28,34 @@ export function AccessoryContainer({
     <YStack height="100%" {...props} backgroundColor="$color4" gap="$4">
       <ScrollView f={1}>
         <YStack paddingVertical="$3" paddingHorizontal="$4" gap="$4">
-          {title ? (
-            <SizableText userSelect="none" size="$3" fontWeight="600">
-              {title}
-            </SizableText>
-          ) : null}
-
+          {title ? <AccessoryTitle title={title} /> : null}
           <YStack gap="$5">{children}</YStack>
           {footer}
         </YStack>
       </ScrollView>
+    </YStack>
+  )
+}
+
+export function AccessoryTitle({title}: {title: string}) {
+  return (
+    <SizableText userSelect="none" size="$3" fontWeight="600">
+      {title}
+    </SizableText>
+  )
+}
+
+export function AccessorySection({
+  children,
+  title,
+}: {
+  children: React.ReactNode
+  title: string
+}) {
+  return (
+    <YStack gap="$3">
+      <AccessoryTitle title={title} />
+      <YStack gap="$5">{children}</YStack>
     </YStack>
   )
 }
