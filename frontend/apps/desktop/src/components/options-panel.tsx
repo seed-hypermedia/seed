@@ -197,6 +197,7 @@ function OptionsPanelContent({
       {isHomeDoc ? null : (
         <OutlineVisibility metadata={metadata} onMetadata={onMetadata} />
       )}
+      <ActivityVisibility metadata={metadata} onMetadata={onMetadata} />
       <YStack>
         <Label color="$color9" size="$1">
           Content Width
@@ -265,30 +266,41 @@ function OutlineVisibility({
   metadata: HMMetadata
   onMetadata: (values: Partial<HMMetadata>) => void
 }) {
+  const checked =
+    typeof metadata.showOutline == 'undefined' || metadata.showOutline
   return (
-    <YStack
-    // borderTopWidth={1}
-    // // borderBottomWidth={1}
-    // borderColor="$color6"
-    // paddingVertical="$4"
-    >
+    <YStack>
       <SwitchField
-        label="Show outline"
+        label="Show Outline"
         id="outline"
-        defaultChecked={
-          typeof metadata.showOutline == 'undefined'
-            ? true
-            : metadata.showOutline
-        }
-        opacity={
-          typeof metadata.showOutline == 'undefined'
-            ? 1
-            : metadata.showOutline
-            ? 1
-            : 0.4
-        }
+        defaultChecked={checked}
+        opacity={checked ? 1 : 0.4}
         onCheckedChange={(value) => {
           onMetadata({showOutline: value})
+        }}
+      />
+    </YStack>
+  )
+}
+
+function ActivityVisibility({
+  metadata,
+  onMetadata,
+}: {
+  metadata: HMMetadata
+  onMetadata: (values: Partial<HMMetadata>) => void
+}) {
+  const checked =
+    typeof metadata.showActivity == 'undefined' || metadata.showActivity
+  return (
+    <YStack>
+      <SwitchField
+        label="Show Activity"
+        id="activity"
+        defaultChecked={checked}
+        opacity={checked ? 1 : 0.4}
+        onCheckedChange={(value) => {
+          onMetadata({showActivity: value})
         }}
       />
     </YStack>

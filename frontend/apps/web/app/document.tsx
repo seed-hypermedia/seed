@@ -249,13 +249,16 @@ export function DocumentPage(props: SiteDocumentPayload) {
                   }}
                 />
               </WebDocContentProvider>
-              <DocumentAppendix
-                id={id}
-                document={document}
-                homeId={homeId}
-                siteHost={siteHost}
-                enableWebSigning={enableWebSigning}
-              />
+              {document.metadata &&
+              document.metadata.showActivity === false ? null : (
+                <DocumentAppendix
+                  id={id}
+                  document={document}
+                  homeId={homeId}
+                  siteHost={siteHost}
+                  enableWebSigning={enableWebSigning}
+                />
+              )}
             </YStack>
           </YStack>
         </WebSiteHeader>

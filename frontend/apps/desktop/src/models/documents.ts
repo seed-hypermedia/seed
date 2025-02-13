@@ -300,6 +300,11 @@ function getDocAttributeChanges(metadata: HMMetadata) {
       docAttributeChangeString(['contentWidth'], metadata.contentWidth),
     )
   }
+  if (metadata.showActivity !== undefined) {
+    changes.push(
+      docAttributeChangeBool(['showActivity'], metadata.showActivity),
+    )
+  }
   return changes
 }
 

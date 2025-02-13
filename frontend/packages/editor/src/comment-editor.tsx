@@ -35,10 +35,10 @@ export function useCommentEditor() {
     linkExtensionOptions: {
       openOnClick: false,
       queryClient,
-      grpcClient,
-      openUrl,
-      gwUrl,
-      checkWebUrl: checkWebUrl.mutateAsync,
+      // grpcClient,
+      // openUrl,
+      // gwUrl,
+      // checkWebUrl: checkWebUrl.mutateAsync,
     },
 
     // onEditorReady: (e) => {

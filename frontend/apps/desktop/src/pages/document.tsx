@@ -31,6 +31,7 @@ import {
   HMDocument,
   HMEntityContent,
   hmId,
+  HMMetadata,
   HMQueryResult,
   UnpackedHypermediaId,
 } from '@shm/shared'
@@ -277,10 +278,8 @@ function _MainDocumentPage({
             </YStack>
 
             <DocPageAppendix
-              centered={
-                entity.data.document?.metadata.layout ==
-                'Seed/Experimental/Newspaper'
-              }
+              centered={metadata?.layout == 'Seed/Experimental/Newspaper'}
+              metadata={metadata}
               docId={id}
             />
           </DocContainer>
@@ -664,14 +663,18 @@ function DocPageContent({
 function DocPageAppendix({
   docId,
   centered = false,
+  metadata,
 }: {
   docId: UnpackedHypermediaId
   centered: boolean
+  metadata?: HMMetadata
 }) {
   return (
     <Container centered={centered}>
       {/* <Discussion docId={docId} /> */}
-      <DocumentActivity docId={docId} />
+      {metadata && metadata.showActivity === false ? null : (
+        <DocumentActivity docId={docId} />
+      )}
     </Container>
   )
 }
