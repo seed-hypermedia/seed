@@ -160,16 +160,18 @@ export async function getBaseDocument(
       )),
     ];
   } else {
-    supportDocuments = await Promise.all(
-      queryBlockQueries
-        .flatMap((item) => item.results)
-        .map(async (item) => {
-          const id = hmId("d", item.account, {path: item.path});
-          return {
-            id,
-            document: await getHMDocument(id),
-          };
-        })
+    supportDocuments.push(
+      ...(await Promise.all(
+        queryBlockQueries
+          .flatMap((item) => item.results)
+          .map(async (item) => {
+            const id = hmId("d", item.account, {path: item.path});
+            return {
+              id,
+              document: await getHMDocument(id),
+            };
+          })
+      ))
     );
   }
 
