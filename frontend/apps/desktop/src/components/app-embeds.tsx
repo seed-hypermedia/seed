@@ -432,17 +432,23 @@ export function QueryBlockDesktop({
     )?.data
   }
 
-  const accountsMetadata: AccountsMetadata = documents
-    .map((document) => {
-      const d = document.data
-      if (!d || !d.document) return null
-      if (d.id.path && d.id.path.length !== 0) return null
-      return {
-        id: d.id,
-        metadata: d.document.metadata,
-      }
-    })
-    .filter((m) => !!m)
+  const accountsMetadata: AccountsMetadata = Object.fromEntries(
+    documents
+      .map((document) => {
+        const d = document.data
+        console.log('~~ d', d)
+        if (!d || !d.document) return null
+        if (d.id.path && d.id.path.length !== 0) return null
+        return [
+          d.id.uid,
+          {
+            id: d.id,
+            metadata: d.document.metadata,
+          },
+        ]
+      })
+      .filter((m) => !!m),
+  )
 
   if (directoryItems.status == 'loading') {
     return (
@@ -474,7 +480,7 @@ function QueryStyleCard({
   items: any[]
   block: HMBlockQuery
   getEntity: any
-  accountsMetadata: any
+  accountsMetadata: AccountsMetadata
 }) {
   const columnProps = useMemo(() => {
     switch (block.attributes.columnCount) {
