@@ -439,6 +439,7 @@ export const HMDocumentMetadataSchema = z.object({
     .union([z.literal('UpdatedFirst'), z.literal('CreatedFirst')])
     .optional(),
   showOutline: z.boolean().optional(),
+  showActivity: z.boolean().optional(),
   contentWidth: z
     .union([z.literal('S'), z.literal('M'), z.literal('L')])
     .optional(),
