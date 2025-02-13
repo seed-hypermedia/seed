@@ -35,3 +35,9 @@ scrape_configs:
       - targets: ["host.docker.internal:58003"]
         labels:
           instance: "seed-local"
+  
+  # Scrape Traefik in servers.
+  - job_name: traefik
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["10.0.0.11:8899"]
