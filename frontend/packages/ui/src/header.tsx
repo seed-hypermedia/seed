@@ -11,7 +11,6 @@ import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import React, {useState} from "react";
 import {Button} from "./button";
-import {ContainerXL} from "./container";
 import {Close, Menu} from "./icons";
 import {
   DocumentOutline,
@@ -20,6 +19,7 @@ import {
   SiteNavigationDocument,
 } from "./navigation";
 import {HeaderSearch, MobileSearch} from "./search";
+import {SiteLogo} from "./site-logo";
 
 export function SiteHeader({
   homeMetadata,
@@ -92,69 +92,69 @@ export function SiteHeader({
         left={0}
         backgroundColor="$background"
       >
-        <ContainerXL>
-          <XStack // Rendered as YStack when isCenterLayout
-            paddingVertical="$2"
+        <XStack // Rendered as YStack when isCenterLayout
+          paddingVertical="$2"
+          ai="center"
+          paddingHorizontal="$4"
+          minHeight={56}
+          gap="$2"
+          flexDirection={isCenterLayout ? "column" : "row"}
+        >
+          <XStack
             ai="center"
-            gap="$2"
-            flexDirection={isCenterLayout ? "column" : "row"}
+            jc={isCenterLayout ? "center" : "flex-start"}
+            alignSelf="stretch"
+            flexShrink={0}
           >
-            <XStack
-              ai="center"
-              jc={isCenterLayout ? "center" : "flex-start"}
-              alignSelf="stretch"
-              flexShrink={0}
-            >
-              <XStack f={1} jc="center">
-                {/* <SiteLogo id={homeId} metadata={homeMetadata} /> */}
-              </XStack>
-              {isCenterLayout ? headerSearch : null}
+            <XStack f={1} jc="center">
+              <SiteLogo id={homeId} metadata={homeMetadata} />
             </XStack>
-            <XStack
-              flex={1}
-              // @ts-ignore
-              overflowX="auto"
-              overflowY="hidden"
-              maxWidth="100%"
-            >
-              <XStack minWidth="100%" jc="flex-end">
-                {items?.length || afterLinksContent ? (
-                  <XStack
-                    ai="center"
-                    gap="$5"
-                    minWidth="fit-content"
-                    padding="$2"
-                    jc="center"
-                    display="none"
-                    flexShrink={0}
-                    $gtSm={{display: "flex"}}
-                  >
-                    {items?.map((item) => {
-                      return (
-                        <HeaderLinkItem
-                          id={item.id}
-                          key={item.id.id}
-                          metadata={item.metadata}
-                          isDraft={item.isDraft}
-                          isPublished={item.isPublished}
-                          active={
-                            !!docId?.path &&
-                            !!item.id.path &&
-                            item.id.path?.[0] === docId.path[0]
-                          }
-                        />
-                      );
-                    })}
-                    {afterLinksContent}
-                  </XStack>
-                ) : null}
-              </XStack>
-            </XStack>
-
-            {isCenterLayout ? null : headerSearch}
-            {headItems}
+            {isCenterLayout ? headerSearch : null}
           </XStack>
-        </ContainerXL>
+          <XStack
+            flex={1}
+            // @ts-ignore
+            overflowX="auto"
+            overflowY="hidden"
+            maxWidth="100%"
+          >
+            <XStack minWidth="100%" jc="flex-end">
+              {items?.length || afterLinksContent ? (
+                <XStack
+                  ai="center"
+                  gap="$5"
+                  minWidth="fit-content"
+                  padding="$2"
+                  jc="center"
+                  display="none"
+                  flexShrink={0}
+                  $gtSm={{display: "flex"}}
+                >
+                  {items?.map((item) => {
+                    return (
+                      <HeaderLinkItem
+                        id={item.id}
+                        key={item.id.id}
+                        metadata={item.metadata}
+                        isDraft={item.isDraft}
+                        isPublished={item.isPublished}
+                        active={
+                          !!docId?.path &&
+                          !!item.id.path &&
+                          item.id.path?.[0] === docId.path[0]
+                        }
+                      />
+                    );
+                  })}
+                  {afterLinksContent}
+                </XStack>
+              ) : null}
+            </XStack>
+          </XStack>
+
+          {isCenterLayout ? null : headerSearch}
+          {headItems}
+        </XStack>
       </YStack>
       {children}
       <MobileMenu
