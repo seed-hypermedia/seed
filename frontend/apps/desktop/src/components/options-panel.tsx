@@ -18,15 +18,6 @@ import {useState} from 'react'
 import {AccessoryContainer} from './accessory-sidebar'
 import {IconForm} from './icon-form'
 
-// Add this type for the content width options
-type ContentWidth = 'S' | 'M' | 'L'
-
-let contentSize = {
-  S: 880,
-  M: 1080,
-  L: 1280,
-}
-
 export function OptionsPanel({
   onClose,
   draftId,
@@ -222,11 +213,6 @@ function OptionsPanelContent({
           value={metadata.contentWidth || 'M'}
           onValue={(contentWidth: ContentWidth) => {
             onMetadata({contentWidth})
-            let root = document.documentElement
-            root.style.setProperty(
-              '--content-width',
-              `${contentSize[contentWidth]}px` || '1080px',
-            )
           }}
         />
       </YStack>

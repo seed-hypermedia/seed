@@ -34,6 +34,7 @@ import {
   useImageUrl,
   useTheme,
 } from "@shm/ui";
+import {documentContainerClassName} from "@shm/ui/src/document-content";
 import {ChevronUp} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
@@ -177,9 +178,10 @@ export function DocumentPage(props: SiteDocumentPayload) {
         >
           <DocumentCover cover={document.metadata.cover} id={id} />
           <YStack
-            className={`document-container${
-              showSidebarOutlineDirectory ? "" : " hide-outline"
-            }`}
+            className={documentContainerClassName(
+              showSidebarOutlineDirectory,
+              document.metadata?.contentWidth
+            )}
           >
             {showSidebarOutlineDirectory ? (
               <YStack

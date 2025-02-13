@@ -32,6 +32,7 @@ import {
   Button,
   Container,
   copyUrlToClipboardWithFeedback,
+  documentContainerClassName,
   getDaemonFileUrl,
   getSiteNavDirectory,
   Heading,
@@ -354,17 +355,10 @@ function DocumentEditor({
             }
           />
           <YStack
-            className={
-              showOutline && !isHomeDoc
-                ? `document-container${
-                    typeof state.context.metadata.showOutline == 'undefined'
-                      ? ''
-                      : state.context.metadata.showOutline
-                      ? ''
-                      : ' hide-outline'
-                  }`
-                : 'document-container hide-outline'
-            }
+            className={documentContainerClassName(
+              showOutline && !isHomeDoc,
+              state.context.metadata.contentWidth,
+            )}
           >
             {showOutline && !isHomeDoc ? (
               <YStack

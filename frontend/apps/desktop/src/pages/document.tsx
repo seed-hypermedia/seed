@@ -43,6 +43,7 @@ import {
   CollaboratorsIcon,
   Container,
   DocContent,
+  documentContainerClassName,
   DocumentDate,
   getSiteNavDirectory,
   HistoryIcon,
@@ -240,15 +241,10 @@ function _MainDocumentPage({
         {!docIsNewspaperLayout && <DocumentCover docId={id} />}
 
         <YStack
-          className={
-            !docIsNewspaperLayout
-              ? `document-container${
-                  showSidebarOutlineDirectory
-                    ? ' document-container'
-                    : ' hide-outline'
-                }`
-              : ''
-          }
+          className={documentContainerClassName(
+            showSidebarOutlineDirectory,
+            metadata?.contentWidth,
+          )}
         >
           {showSidebarOutlineDirectory ? (
             <YStack
