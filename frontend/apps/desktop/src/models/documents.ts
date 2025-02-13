@@ -295,7 +295,11 @@ function getDocAttributeChanges(metadata: HMMetadata) {
         ),
       )
   }
-  console.log('changes', changes)
+  if (metadata.contentWidth !== undefined) {
+    changes.push(
+      docAttributeChangeString(['contentWidth'], metadata.contentWidth),
+    )
+  }
   return changes
 }
 

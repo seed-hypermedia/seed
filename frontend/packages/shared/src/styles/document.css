@@ -1,17 +1,30 @@
+:root {
+  --content-width: 784px;
+  --content-width-small: 584px;
+  --content-width-large: 1184px;
+}
+
+.content-width-small {
+  --content-width: var(--content-width-small);
+}
+
+.content-width-large {
+  --content-width: var(--content-width-large);
+}
+
+
 .document-container {
   width: 100%;
   max-width: 100%;
   flex: 1 1 0%;
   align-items: flex-start;
-  max-width: 1080px;
+  max-width: calc(var(--content-width) + 280px + 1rem);
+  /* sidebar width difference is usually 296 because 280px sidebar with 1rem gap */
   margin: 0 auto 120px auto;
-  /* 
-  grid-template-columns: 20px minmax(0, 1fr);
-  gap: 1rem; */
 }
 
-.document-container.hide-outline {
-  max-width: 720px;
+.document-container.hide-document-aside {
+  max-width: var(--content-width)
 }
 
 @media (min-width: 768px) {
@@ -21,8 +34,9 @@
     gap: 1rem;
   }
 
-  .document-container.hide-outline {
+  .document-container.hide-document-aside {
     display: flex !important;
+    gap: 0;
   }
 }
 

@@ -32,6 +32,7 @@ export function OptionsPanel({
   onResetContent: (blockNodes: HMBlockNode[]) => void
 }) {
   const isHomeDoc = !draftId.path?.length
+
   return (
     <AccessoryContainer
       title={isHomeDoc ? 'Home Options' : 'Document Options'}
@@ -196,6 +197,25 @@ function OptionsPanelContent({
       {isHomeDoc ? null : (
         <OutlineVisibility metadata={metadata} onMetadata={onMetadata} />
       )}
+      <YStack>
+        <Label color="$color9" size="$1">
+          Content Width
+        </Label>
+        <SelectDropdown
+          width="100%"
+          options={
+            [
+              {value: 'S', label: 'Small'},
+              {value: 'M', label: 'Medium'},
+              {value: 'L', label: 'Large'},
+            ] as const
+          }
+          value={metadata.contentWidth || 'M'}
+          onValue={(contentWidth: ContentWidth) => {
+            onMetadata({contentWidth})
+          }}
+        />
+      </YStack>
     </>
   )
 }
