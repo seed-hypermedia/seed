@@ -138,6 +138,13 @@ export async function getBaseDocument(
     {in: entityId, results: directoryResults},
     ...queryBlockQueries,
   ];
+  const alreadySupportDocIds = new Set<string>();
+  supportDocuments.forEach((doc) => {
+    if (doc.id.latest || doc.id.version == null) {
+      alreadySupportDocIds.add(doc.id.id);
+    }
+  });
+  const supportAuthorsUidsToFetch = new Set<string>();
   if (document.metadata.layout === "Seed/Experimental/Newspaper") {
     supportDocuments = await Promise.all(
       directoryResults.map(async (item) => {
@@ -166,14 +173,33 @@ export async function getBaseDocument(
           .flatMap((item) => item.results)
           .map(async (item) => {
             const id = hmId("d", item.account, {path: item.path});
+            const document = await getHMDocument(id);
+            document.authors.forEach((author) => {
+              if (!alreadySupportDocIds.has(hmId("d", author).id)) {
+                supportAuthorsUidsToFetch.add(author);
+              }
+            });
             return {
               id,
-              document: await getHMDocument(id),
+              document,
             };
           })
       ))
     );
   }
+
+  // now we need to get the author content for queried docs
+  supportDocuments.push(
+    ...(await Promise.all(
+      Array.from(supportAuthorsUidsToFetch).map(async (uid) => {
+        const document = await getHMDocument(hmId("d", uid));
+        return {
+          id: hmId("d", uid),
+          document,
+        };
+      })
+    ))
+  );
 
   return {
     document,
