@@ -1,4 +1,4 @@
-import {LinksFunction} from "@remix-run/node";
+import { LinksFunction } from "@remix-run/node";
 import {
   isRouteErrorResponse,
   Links,
@@ -8,16 +8,16 @@ import {
   ScrollRestoration,
   useRouteError,
 } from "@remix-run/react";
-import {captureRemixErrorBoundaryError, withSentry} from "@sentry/remix";
-import {IS_DEV_DESKTOP, LIGHTNING_API_URL, SITE_BASE_URL} from "@shm/shared";
-import {isClient} from "@tamagui/core";
-import {XStack, YStack} from "@tamagui/stacks";
-import {SizableText} from "@tamagui/text";
+import { captureRemixErrorBoundaryError, withSentry } from "@sentry/remix";
+import { IS_DEV_DESKTOP, LIGHTNING_API_URL, SITE_BASE_URL } from "@shm/shared";
+import { isClient } from "@tamagui/core";
+import { XStack, YStack } from "@tamagui/stacks";
+import { SizableText } from "@tamagui/text";
 import Tamagui from "../tamagui.config";
-import {Providers, ThemeProvider} from "./providers";
+import { Providers, ThemeProvider } from "./providers";
 import globalStyles from "./styles.css?url";
 import globalTamaguiStyles from "./tamagui.css?url";
-import {Container} from "./ui/container";
+import { Container } from "./ui/container";
 
 export const links: LinksFunction = () => {
   return [
@@ -36,6 +36,20 @@ export function Layout({children}: {children: React.ReactNode}) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
         <Links />
+        {process.env.MONITORING_DOMAIN && (
+          <>
+            <script
+              defer
+              data-domain={process.env.MONITORING_DOMAIN}
+              src="https://plausible.io/js/script.file-downloads.hash.outbound-links.pageview-props.revenue.tagged-events.js"
+            ></script>
+            <script>
+              {`window.plausible = window.plausible || function() {
+                (window.plausible.q = window.plausible.q || []).push(arguments)
+              }`}
+            </script>
+          </>
+        )}
         <Styles />
       </head>
       <body>
