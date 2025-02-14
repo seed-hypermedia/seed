@@ -5,6 +5,9 @@ permissions:
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feat/windows-sign
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
