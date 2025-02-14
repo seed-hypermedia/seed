@@ -1,7 +1,10 @@
-import {Block, BlockSchema} from "@/blocknote";
+import {editorBlockToHMBlock} from "@shm/shared/client/editorblock-to-hmblock";
+import {Block, BlockNode} from "@shm/shared/client/grpc-types";
+import {EditorBlock} from "@shm/shared/editor-types";
 import {Editor} from "@tiptap/core";
 import {Node as TipTapNode} from "@tiptap/pm/model";
 import {EditorView} from "@tiptap/pm/view";
+import {BlockIdentifier, BlockNoteEditor, BlockSchema} from ".";
 
 export function youtubeParser(url: string) {
   var regExp =
@@ -86,4 +89,68 @@ export function getNodesInSelection(view: EditorView) {
   });
 
   return nodes;
+}
+
+export function getBlockGroup(
+  editor: BlockNoteEditor,
+  blockId: BlockIdentifier
+) {
+  const tiptap = editor?._tiptapEditor;
+  if (tiptap) {
+    const id = typeof blockId === "string" ? blockId : blockId.id;
+    let group: {type: string; listLevel: string; start?: number} | undefined;
+    tiptap.state.doc.firstChild!.descendants((node: TipTapNode) => {
+      if (typeof group !== "undefined") {
+        return false;
+      }
+
+      if (node.attrs.id !== id) {
+        return true;
+      }
+
+      node.descendants((child: TipTapNode) => {
+        if (child.attrs.listType && child.type.name === "blockGroup") {
+          group = {
+            type: child.attrs.listType,
+            start: child.attrs.start,
+            listLevel: child.attrs.listLevel,
+          } as const;
+          return false;
+        }
+        return true;
+      });
+
+      return true;
+    });
+    return group;
+  }
+
+  return undefined;
+}
+
+export function serverBlockNodesFromEditorBlocks(
+  editor: BlockNoteEditor,
+  editorBlocks: EditorBlock[]
+): BlockNode[] {
+  if (!editorBlocks) return [];
+  return editorBlocks.map((block: EditorBlock) => {
+    const childGroup = getBlockGroup(editor, block.id) || {};
+    const serverBlock = editorBlockToHMBlock(block);
+    if (childGroup) {
+      if (!serverBlock.attributes) {
+        serverBlock.attributes = {};
+      }
+      serverBlock.attributes.childrenType = childGroup.type
+        ? childGroup.type
+        : "Group";
+      if (childGroup.listLevel)
+        serverBlock.attributes.listLevel = childGroup.listLevel;
+      if (childGroup.start)
+        serverBlock.attributes.start = childGroup.start.toString();
+    }
+    return new BlockNode({
+      block: Block.fromJson(serverBlock),
+      children: serverBlockNodesFromEditorBlocks(editor, block.children),
+    });
+  });
 }

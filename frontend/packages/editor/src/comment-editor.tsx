@@ -1,4 +1,6 @@
 import {queryClient} from "@shm/shared/models/query-client";
+import {HMBlockNode} from "@shm/shared/src/hm-types";
+import {Button} from "@shm/ui/src/button";
 import {YStack} from "@tamagui/stacks";
 import {Extension} from "@tiptap/core";
 import {BlockNoteEditor, useBlockNote} from "./blocknote";
@@ -6,9 +8,13 @@ import {HyperMediaEditorView} from "./editor-view";
 import {createHypermediaDocLinkPlugin} from "./hypermedia-link-plugin";
 import {hmBlockSchema} from "./schema";
 import {slashMenuItems} from "./slash-menu-items";
-const bgColor = "$color4";
+import {serverBlockNodesFromEditorBlocks} from "./utils";
 
-export default function CommentEditor() {
+export default function CommentEditor({
+  onCommentSubmit,
+}: {
+  onCommentSubmit: (content: HMBlockNode[]) => void;
+}) {
   const {editor} = useCommentEditor();
   return (
     <YStack
@@ -23,6 +29,20 @@ export default function CommentEditor() {
       paddingBottom="$2"
     >
       <HyperMediaEditorView editor={editor} openUrl={() => {}} />
+      <Button
+        onPress={() => {
+          const blocks = serverBlockNodesFromEditorBlocks(
+            editor,
+            editor.topLevelBlocks
+          );
+          const commentContent = blocks.map((block) =>
+            block.toJson()
+          ) as HMBlockNode[];
+          onCommentSubmit(commentContent);
+        }}
+      >
+        Submit
+      </Button>
     </YStack>
   );
 }
@@ -30,7 +50,7 @@ export default function CommentEditor() {
 export function useCommentEditor() {
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
-      console.log("editor content changed", editor.topLevelBlocks);
+      // console.log("editor content changed", editor.topLevelBlocks);
     },
     linkExtensionOptions: {
       openOnClick: false,

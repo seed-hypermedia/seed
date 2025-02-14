@@ -1,47 +1,15 @@
 import {encode as cborEncode} from "@ipld/dag-cbor";
 import {base58} from "@scure/base";
 import CommentEditor from "@shm/editor/comment-editor";
-import {HMTimestamp, SITE_BASE_URL, UnpackedHypermediaId} from "@shm/shared";
-import {useAppDialog} from "@shm/ui/src/universal-dialog";
-import {Button} from "@tamagui/button";
+import {
+  HMBlockNode,
+  HMTimestamp,
+  SITE_BASE_URL,
+  UnpackedHypermediaId,
+} from "@shm/shared";
 import {YStack} from "@tamagui/stacks";
-import {SizableText} from "@tamagui/text";
-import {useEffect, useRef, useState, useSyncExternalStore} from "react";
-import {z} from "zod";
-import type {HMUnsignedComment} from "./routes/hm.api.comment";
-
-const userIdentitySchema = z.object({
-  username: z.string(),
-  publicKey: z.string(),
-  credId: z.string(),
-});
-const userIdentityHandlers = new Set<() => void>();
-let userIdState: z.infer<typeof userIdentitySchema> | null = null;
-try {
-  const identity = localStorage.getItem("userIdentity");
-  if (identity && identity !== "null") {
-    userIdState = userIdentitySchema.parse(JSON.parse(identity));
-  }
-} catch (error) {
-  console.error(error);
-}
-// const REQUESTING_PARTY_HOST = SITE_BASE_URL?.replace(/^https?:\/\//, "") // strip protocol
-//   .replace(/\/$/, "");
-const REQUESTING_PARTY_HOST = "localhost"; // for local development
-const userIdentity = {
-  get: () => userIdState,
-  listen: (callback: () => void) => {
-    userIdentityHandlers.add(callback);
-    return () => {
-      userIdentityHandlers.delete(callback);
-    };
-  },
-};
-function setUserIdentity(identity: z.infer<typeof userIdentitySchema> | null) {
-  localStorage.setItem("userIdentity", JSON.stringify(identity));
-  userIdState = identity;
-  userIdentityHandlers.forEach((callback) => callback());
-}
+import {varint} from "multiformats";
+import {useEffect, useSyncExternalStore} from "react";
 
 function bufferToB58(buf: ArrayBuffer) {
   return base58.encode(new Uint8Array(buf));
@@ -68,46 +36,11 @@ async function getAPI(path: string) {
   return await response.json();
 }
 
-function AuthDialogContent({
-  input,
-  onClose,
-}: {
-  input: {comment: HMUnsignedComment};
-  onClose: () => void;
-}) {
-  const [mode, setMode] = useState<"register" | "login" | null>(null);
-  const usernameRef = useRef<HTMLInputElement>(null);
-  const userId = useSyncExternalStore(userIdentity.listen, userIdentity.get);
-
-  return <SizableText>Huh?</SizableText>;
-}
-
-function useAuthDialog() {
-  return useAppDialog(AuthDialogContent, {});
-}
-
 function generateTimetamp(): HMTimestamp {
   const now = new Date();
   return {
     seconds: BigInt(Math.floor(now.getTime() / 1000)),
     nanos: (now.getTime() % 1000) * 1000000,
-  };
-}
-
-function createComment(text: string): HMUnsignedComment {
-  return {
-    content: [
-      {
-        block: {
-          type: "Paragraph",
-          text,
-          attributes: {},
-          annotations: [],
-          id: "0",
-        },
-      },
-    ],
-    createTime: generateTimetamp(),
   };
 }
 
@@ -188,8 +121,7 @@ async function storeKeyPair(keyPair: CryptoKeyPair): Promise<void> {
   });
 }
 
-async function createWebIdentity() {
-  // Check for existing key first
+async function getKeyPair() {
   const existingKeyPair = await getStoredKeyPair();
   let keyPair: CryptoKeyPair;
 
@@ -206,64 +138,91 @@ async function createWebIdentity() {
     );
     await storeKeyPair(keyPair);
   }
+  return keyPair;
+}
 
+async function signObject(
+  keyPair: CryptoKeyPair,
+  data: any
+): Promise<ArrayBuffer> {
+  const cborData = cborEncode(data);
+  const signature = await crypto.subtle.sign(
+    {
+      name: "ECDSA",
+      hash: {name: "SHA-256"},
+    },
+    keyPair.privateKey,
+    cborData
+  );
+  return signature;
+}
+
+async function createComment(content: HMBlockNode[], keyPair: CryptoKeyPair) {
   const publicKeyRaw = await crypto.subtle.exportKey("raw", keyPair.publicKey);
-  const publicKeyB58 = bufferToB58(publicKeyRaw);
-
-  async function signObject(data: any) {
-    const cborData = cborEncode(data);
-    const signature = await crypto.subtle.sign(
-      {
-        name: "ECDSA",
-        hash: {name: "SHA-256"},
-      },
-      keyPair.privateKey,
-      cborData
-    );
-    return signature;
-  }
-
+  const unsignedComment = {
+    content,
+    author: varint.encodeTo(0x1200, new Uint8Array(publicKeyRaw)),
+    createTime: generateTimetamp(),
+  };
+  const signature = await signObject(keyPair, unsignedComment);
   return {
-    publicKey: publicKeyB58,
-    signObject,
+    ...unsignedComment,
+    signature,
   };
 }
 
+let keyPair: CryptoKeyPair | null = null;
+const keyPairHandlers = new Set<() => void>();
+
+function setKeyPair(kp: CryptoKeyPair | null) {
+  keyPair = kp;
+  keyPairHandlers.forEach((callback) => callback());
+}
+
+// run this on the client
+if (typeof window !== "undefined") {
+  getKeyPair()
+    .then((kp) => {
+      console.log("Set up user key pair", kp);
+      setKeyPair(kp);
+    })
+    .catch((err) => {
+      console.error("Error getting key pair", err);
+    });
+}
+
+const keyPairStore = {
+  get: () => keyPair,
+  listen: (callback: () => void) => {
+    keyPairHandlers.add(callback);
+    return () => {
+      keyPairHandlers.delete(callback);
+    };
+  },
+};
+
 export default function WebCommenting({docId}: {docId: UnpackedHypermediaId}) {
-  const [ready, setReady] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const userId = useSyncExternalStore(
-    userIdentity.listen,
-    userIdentity.get,
+  const userKeyPair = useSyncExternalStore(
+    keyPairStore.listen,
+    keyPairStore.get,
     () => null
   );
-
   useEffect(() => {
-    setReady(true);
+    // setReady(true);
   }, []);
 
-  const authDialog = useAuthDialog();
-  const submit = (
-    <Button
-      onPress={() => {
-        createWebIdentity().then(({publicKey, signObject}) => {
-          console.log("identity", publicKey);
-          signObject({
-            hello: 42,
-          }).then((signature) => {
-            console.log("signature", bufferToB58(signature));
-          });
-        });
-      }}
-    >
-      Authenticate with {REQUESTING_PARTY_HOST}
-    </Button>
-  );
+  if (!userKeyPair) return null;
   return (
     <YStack borderRadius="$4" minHeight={105} bg="$color4">
-      {ready ? <CommentEditor /> : null}
-      {submit}
-      {authDialog.content}
+      {true ? (
+        <CommentEditor
+          onCommentSubmit={(content) => {
+            createComment(content, userKeyPair).then((comment) => {
+              console.log("NEW COMMENT", comment);
+            });
+          }}
+        />
+      ) : null}
     </YStack>
   );
 }

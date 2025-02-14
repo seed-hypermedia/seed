@@ -9478,6 +9478,7 @@ __metadata:
     "@types/sharp": ^0.32.0
     better-sqlite3: ^11.8.1
     isbot: 4
+    multiformats: ^13.3.2
     prosemirror-state: 1.4.3
     react: 18.2.0 || 19.0.0
     react-dom: 18.2.0 || 19.0.0
@@ -24877,7 +24878,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"multiformats@npm:^13.1.0":
+"multiformats@npm:^13.1.0, multiformats@npm:^13.3.2":
   version: 13.3.2
   resolution: "multiformats@npm:13.3.2"
   checksum: 53179c6f33be0609f7cae810366ef9cd8657516ec5ebae198d7e066ddde73adc2ac0b941ff8a11f467bc3c2f9856a9125c7d50ddf333d9945366091c7dbcde33

@@ -4,20 +4,16 @@ import {useOpenUrl} from '@/open-url'
 import {slashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
+import {serverBlockNodesFromEditorBlocks} from '@shm/editor'
 import {
   useBlockNote,
   type BlockNoteEditor,
   type BlockSchema,
 } from '@shm/editor/blocknote'
-import {
-  Block,
-  BlockNode,
-} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
-import {editorBlockToHMBlock} from '@shm/shared/client/editorblock-to-hmblock'
+import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {BIG_INT} from '@shm/shared/constants'
 import {getCommentGroups} from '@shm/shared/discussion'
-import {EditorBlock} from '@shm/shared/editor-types'
 import {GRPCClient} from '@shm/shared/grpc-client'
 import {
   HMComment,
@@ -43,38 +39,11 @@ import {Extension} from '@tiptap/core'
 import {useEffect, useMemo, useRef} from 'react'
 import {useGRPCClient} from '../app-context'
 import {hmBlockSchema} from '../editor'
-import {getBlockGroup, setGroupTypes} from './editor-utils'
+import {setGroupTypes} from './editor-utils'
 import {useEntity} from './entities'
 import {useGatewayUrlStream} from './gateway-settings'
 import {useInlineMentions} from './search'
 import {siteDiscover} from './web-links'
-
-function serverBlockNodesFromEditorBlocks(
-  editor: BlockNoteEditor,
-  editorBlocks: EditorBlock[],
-): BlockNode[] {
-  if (!editorBlocks) return []
-  return editorBlocks.map((block: EditorBlock) => {
-    const childGroup = getBlockGroup(editor, block.id) || {}
-    const serverBlock = editorBlockToHMBlock(block)
-    if (childGroup) {
-      if (!serverBlock.attributes) {
-        serverBlock.attributes = {}
-      }
-      serverBlock.attributes.childrenType = childGroup.type
-        ? childGroup.type
-        : 'Group'
-      if (childGroup.listLevel)
-        serverBlock.attributes.listLevel = childGroup.listLevel
-      if (childGroup.start)
-        serverBlock.attributes.start = childGroup.start.toString()
-    }
-    return new BlockNode({
-      block: Block.fromJson(serverBlock),
-      children: serverBlockNodesFromEditorBlocks(editor, block.children),
-    })
-  })
-}
 
 export function useCommentGroups(
   comments: HMComment[] | undefined,

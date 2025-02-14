@@ -1,44 +1,6 @@
-import {BlockIdentifier, BlockNoteEditor} from '@shm/editor/blocknote/core'
 import {HMBlock} from '@shm/shared/hm-types'
 import {Editor} from '@tiptap/react'
 import {Node} from 'prosemirror-model'
-
-export function getBlockGroup(
-  editor: BlockNoteEditor,
-  blockId: BlockIdentifier,
-) {
-  const tiptap = editor?._tiptapEditor
-  if (tiptap) {
-    const id = typeof blockId === 'string' ? blockId : blockId.id
-    let group: {type: string; listLevel: string; start?: number} | undefined
-    tiptap.state.doc.firstChild!.descendants((node: Node) => {
-      if (typeof group !== 'undefined') {
-        return false
-      }
-
-      if (node.attrs.id !== id) {
-        return true
-      }
-
-      node.descendants((child: Node) => {
-        if (child.attrs.listType && child.type.name === 'blockGroup') {
-          group = {
-            type: child.attrs.listType,
-            start: child.attrs.start,
-            listLevel: child.attrs.listLevel,
-          } as const
-          return false
-        }
-        return true
-      })
-
-      return true
-    })
-    return group
-  }
-
-  return undefined
-}
 
 export function setGroupTypes(tiptap: Editor, blocks: Array<Partial<HMBlock>>) {
   blocks.forEach((block: Partial<HMBlock>) => {
