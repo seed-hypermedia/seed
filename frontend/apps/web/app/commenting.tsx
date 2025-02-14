@@ -1,5 +1,5 @@
-import {encode as cborEncode} from "@ipld/dag-cbor";
-import {base58} from "@scure/base";
+import { encode as cborEncode } from "@ipld/dag-cbor";
+import { base58 } from "@scure/base";
 import CommentEditor from "@shm/editor/comment-editor";
 import {
   HMBlockNode,
@@ -7,9 +7,9 @@ import {
   SITE_BASE_URL,
   UnpackedHypermediaId,
 } from "@shm/shared";
-import {YStack} from "@tamagui/stacks";
-import {varint} from "multiformats";
-import {useEffect, useSyncExternalStore} from "react";
+import { YStack } from "@tamagui/stacks";
+import { varint } from "multiformats";
+import { useEffect, useSyncExternalStore } from "react";
 
 function bufferToB58(buf: ArrayBuffer) {
   return base58.encode(new Uint8Array(buf));
@@ -81,14 +81,14 @@ async function getStoredKeyPair(): Promise<CryptoKeyPair | null> {
     privateRequest.onsuccess = () => {
       privateKey = privateRequest.result;
       if (publicKey !== null) {
-        resolve(privateKey && publicKey ? {privateKey, publicKey} : null);
+        resolve(privateKey && publicKey ? { privateKey, publicKey } : null);
       }
     };
 
     publicRequest.onsuccess = () => {
       publicKey = publicRequest.result;
       if (privateKey !== null) {
-        resolve(privateKey && publicKey ? {privateKey, publicKey} : null);
+        resolve(privateKey && publicKey ? { privateKey, publicKey } : null);
       }
     };
   });
@@ -149,7 +149,7 @@ async function signObject(
   const signature = await crypto.subtle.sign(
     {
       name: "ECDSA",
-      hash: {name: "SHA-256"},
+      hash: { name: "SHA-256" },
     },
     keyPair.privateKey,
     cborData
@@ -169,6 +169,22 @@ async function createComment(content: HMBlockNode[], keyPair: CryptoKeyPair) {
     ...unsignedComment,
     signature,
   };
+}
+
+async function compressPublicKey(publicKey: CryptoKey) {
+  // Export raw key first
+  const raw = await crypto.subtle.exportKey("raw", publicKey);
+  const bytes = new Uint8Array(raw);
+
+  // Raw format is 65 bytes: 0x04 + x (32) + y (32)
+  const x = bytes.slice(1, 33);
+  const y = bytes.slice(33);
+
+  // Check if y is odd
+  const prefix = y[31] & 1 ? 0x03 : 0x02;
+
+  // Combine prefix and x
+  return new Uint8Array([prefix, ...x]);
 }
 
 let keyPair: CryptoKeyPair | null = null;
@@ -201,7 +217,11 @@ const keyPairStore = {
   },
 };
 
-export default function WebCommenting({docId}: {docId: UnpackedHypermediaId}) {
+export default function WebCommenting({
+  docId,
+}: {
+  docId: UnpackedHypermediaId;
+}) {
   const userKeyPair = useSyncExternalStore(
     keyPairStore.listen,
     keyPairStore.get,
