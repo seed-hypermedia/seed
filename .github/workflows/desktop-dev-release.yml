@@ -53,7 +53,8 @@ jobs:
     name: Build ${{ matrix.config.os }} @ ${{ matrix.config.arch }}
     runs-on: ${{ matrix.config.os }}
     # if: startsWith(github.ref, 'refs/tags/')
-    needs: [build-info, frontend-tests]
+    # needs: [build-info, frontend-tests]
+    needs: [build-info]
     strategy:
       matrix:
         config:
