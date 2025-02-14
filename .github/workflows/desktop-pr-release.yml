@@ -29,7 +29,8 @@ jobs:
       - name: Set Version
         id: set_version
         run: |
-          echo "version=alpha.${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
+          VERSION=$(node scripts/generate-dev-version.mjs)
+          echo "version=$VERSION-alpha.${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
 
       - name: Display Version
         run: |
