@@ -280,7 +280,12 @@ function QueryStyleCard({
         />
       ) : null}
       {restItems?.length ? (
-        <XStack flex={1} flexWrap="wrap" marginHorizontal="$-3">
+        <XStack
+          f={1}
+          flexWrap="wrap"
+          marginHorizontal="$-3"
+          justifyContent="center"
+        >
           {restItems.map((item) => {
             const id = hmId("d", item.account, {
               path: item.path,
