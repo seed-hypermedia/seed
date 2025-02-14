@@ -1,17 +1,14 @@
-import {
-  Block,
-  BlockNoteEditor,
-  createReactBlockSpec,
-  defaultProps,
-} from "@/blocknote";
-import {isValidUrl} from "@/editor/utils";
-import {useOpenUrl} from "@/open-url";
+import {BlockNoteEditor} from "@/blocknote/core/BlockNoteEditor";
+import {Block} from "@/blocknote/core/extensions/Blocks/api/blockTypes";
+import {defaultProps} from "@/blocknote/core/extensions/Blocks/api/defaultBlocks";
+import {createReactBlockSpec} from "@/blocknote/react/ReactBlockSpec";
+import {MediaContainer} from "@/media-container";
+import {DisplayComponentProps, MediaRender, MediaType} from "@/media-render";
+import {HMBlockSchema} from "@/schema";
+import {isValidUrl} from "@/utils";
 import {SizableText, Spinner, TwitterXIcon, useTheme, YStack} from "@shm/ui";
 import {Fragment} from "@tiptap/pm/model";
 import {useEffect, useRef, useState} from "react";
-import {MediaContainer} from "./media-container";
-import {DisplayComponentProps, MediaRender, MediaType} from "./media-render";
-import {HMBlockSchema} from "./schema";
 
 export const WebEmbed = createReactBlockSpec({
   type: "web-embed",
@@ -90,7 +87,7 @@ const Render = (
       mediaType="web-embed"
       submit={submitTwitterLink}
       DisplayComponent={display}
-      icon={<TwitterXIcon fill={theme.color12.get()} />}
+      icon={<TwitterXIcon fill={theme.color12?.get()} />}
     />
   );
 };
@@ -104,7 +101,6 @@ const display = ({
 }: DisplayComponentProps) => {
   const urlArray = block.props.url.split("/");
   const xPostId = urlArray[urlArray.length - 1].split("?")[0];
-  const openUrl = useOpenUrl();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
 
@@ -214,7 +210,9 @@ const display = ({
       setSelected={setSelected}
       assign={assign}
       onPress={() => {
-        openUrl(block.props.link);
+        // open URl disabled for now
+        // openUrl(block.props.link);
+        console.log("openUrl: IMPLEMENT ME", block.props.link);
       }}
       styleProps={{
         padding: "$3",

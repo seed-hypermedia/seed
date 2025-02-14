@@ -1,5 +1,8 @@
-import {Block, BlockNoteEditor, useEditorSelectionChange} from "@/blocknote";
 import {MultipleNodeSelection} from "@/blocknote/core/extensions/SideMenu/MultipleNodeSelection";
+import {useEditorSelectionChange} from "@/blocknote/react/hooks/useEditorSelectionChange";
+import {MaxFileSizeB, MaxFileSizeMB} from "@/file";
+import {HMBlockSchema} from "@/schema";
+import {getNodesInSelection} from "@/utils";
 import {DAEMON_FILE_UPLOAD_URL} from "@shm/shared/constants";
 import {
   Button,
@@ -21,9 +24,8 @@ import {
   useState,
 } from "react";
 import {RiUpload2Fill} from "react-icons/ri";
-import {MaxFileSizeB, MaxFileSizeMB} from "./file";
-import {HMBlockSchema} from "./schema";
-import {getNodesInSelection} from "./utils";
+import {BlockNoteEditor} from "./blocknote/core/BlockNoteEditor";
+import {Block} from "./blocknote/core/extensions/Blocks/api/blockTypes";
 
 export type MediaType = {
   id: string;
@@ -38,8 +40,6 @@ export type MediaType = {
   content: [];
   type: string;
 };
-
-const boolRegex = new RegExp("true");
 
 export interface DisplayComponentProps {
   editor: BlockNoteEditor<HMBlockSchema>;

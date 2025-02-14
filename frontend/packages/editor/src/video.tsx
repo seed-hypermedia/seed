@@ -1,17 +1,15 @@
-import {
-  Block,
-  BlockNoteEditor,
-  createReactBlockSpec,
-  defaultProps,
-} from "@/blocknote";
-import {isValidUrl, youtubeParser} from "@/editor/utils";
+import {BlockNoteEditor} from "@/blocknote/core/BlockNoteEditor";
+import {Block} from "@/blocknote/core/extensions/Blocks/api/blockTypes";
+import {defaultProps} from "@/blocknote/core/extensions/Blocks/api/defaultBlocks";
+import {createReactBlockSpec} from "@/blocknote/react/ReactBlockSpec";
+import {MediaContainer} from "@/media-container";
+import {DisplayComponentProps, MediaRender, MediaType} from "@/media-render";
+import {HMBlockSchema} from "@/schema";
+import {isValidUrl, youtubeParser} from "@/utils";
 import {DAEMON_FILE_URL} from "@shm/shared/constants";
 import {ResizeHandle, SizableText, XStack, isIpfsUrl, useTheme} from "@shm/ui";
 import {useEffect, useState} from "react";
 import {RiVideoAddLine} from "react-icons/ri";
-import {MediaContainer} from "./media-container";
-import {DisplayComponentProps, MediaRender, MediaType} from "./media-render";
-import {HMBlockSchema} from "./schema";
 
 export const getSourceType = (name: string) => {
   const nameArray = name.split(".");
@@ -121,7 +119,7 @@ const Render = (
       mediaType="video"
       submit={submitVideo}
       DisplayComponent={display}
-      icon={<RiVideoAddLine fill={theme.color12.get()} />}
+      icon={<RiVideoAddLine fill={theme.color12?.get()} />}
     />
   );
 };
@@ -213,7 +211,7 @@ const display = ({
   window.addEventListener("mouseup", windowMouseUpHandler);
 
   // Hides the resize handles when the cursor leaves the video
-  const videoMouseLeaveHandler = (event) => {
+  const videoMouseLeaveHandler = () => {
     if (resizeParams) {
       return;
     }

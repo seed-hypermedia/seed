@@ -1,10 +1,11 @@
-import {Block, BlockNoteEditor} from "@/blocknote";
+import {BlockNoteEditor} from "@/blocknote/core/BlockNoteEditor";
+import {Block} from "@/blocknote/core/extensions/Blocks/api/blockTypes";
 import {InlineContent} from "@/blocknote/react/ReactBlockSpec";
+import {MediaType} from "@/media-render";
+import {HMBlockSchema} from "@/schema";
 import {DAEMON_FILE_UPLOAD_URL} from "@shm/shared/constants";
 import {Button, Text, XStack, YStack, toast} from "@shm/ui";
 import {useState} from "react";
-import {MediaType} from "./media-render";
-import {HMBlockSchema} from "./schema";
 
 interface ContainerProps {
   editor: BlockNoteEditor<HMBlockSchema>;

@@ -1,18 +1,16 @@
-import {
-  Block,
-  BlockNoteEditor,
-  createReactBlockSpec,
-  defaultProps,
-  getBlockInfoFromSelection,
-} from "@/blocknote";
+import {findNextBlock, findPreviousBlock} from "@/block-utils";
+import {BlockNoteEditor} from "@/blocknote/core/BlockNoteEditor";
+import {Block} from "@/blocknote/core/extensions/Blocks/api/blockTypes";
+import {defaultProps} from "@/blocknote/core/extensions/Blocks/api/defaultBlocks";
+import {getBlockInfoFromSelection} from "@/blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos";
+import {createReactBlockSpec} from "@/blocknote/react/ReactBlockSpec";
+import {HMBlockSchema} from "@/schema";
 import {Separator, SizableText, TextArea, XStack, YStack} from "@shm/ui";
 import {Fragment} from "@tiptap/pm/model";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 import {NodeSelection} from "prosemirror-state";
 import {useEffect, useRef, useState} from "react";
-import {findNextBlock, findPreviousBlock} from "./block-utils";
-import {HMBlockSchema} from "./schema";
 
 export const MathBlock = (type: "math") =>
   createReactBlockSpec({

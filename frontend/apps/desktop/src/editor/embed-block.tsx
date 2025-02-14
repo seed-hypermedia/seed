@@ -5,7 +5,6 @@ import {useOpenUrl} from '@/open-url'
 import {Block, BlockNoteEditor} from '@shm/editor/blocknote'
 import {createReactBlockSpec} from '@shm/editor/blocknote/react'
 import {HMEmbedViewSchema} from '@shm/shared/hm-types'
-import {queryClient} from '@shm/shared/models/query-client'
 import {useSearch} from '@shm/shared/models/search'
 import {useHover} from '@shm/shared/use-hover'
 import {
@@ -124,7 +123,7 @@ const Render = (
       }
     } else {
       setLoading(true)
-      loadWebLinkMeta(queryClient, url)
+      loadWebLinkMeta(url)
         .then((res) => {
           const fullHmId = hmIdWithVersion(
             res?.hmId,

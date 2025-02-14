@@ -1,17 +1,15 @@
-import {
-  Block,
-  BlockNoteEditor,
-  createReactBlockSpec,
-  defaultProps,
-} from "@/blocknote";
+import {BlockNoteEditor} from "@/blocknote/core/BlockNoteEditor";
+import {Block} from "@/blocknote/core/extensions/Blocks/api/blockTypes";
+import {defaultProps} from "@/blocknote/core/extensions/Blocks/api/defaultBlocks";
+import {createReactBlockSpec} from "@/blocknote/react";
+import {MediaContainer} from "@/media-container";
+import {DisplayComponentProps, MediaRender, MediaType} from "@/media-render";
+import {HMBlockSchema} from "@/schema";
 import {isValidUrl, timeoutPromise} from "@/utils";
 import {ResizeHandle, useDocContentContext, useTheme} from "@shm/ui";
 import {getDaemonFileUrl} from "@shm/ui/src/get-file-url";
 import {useEffect, useState} from "react";
 import {RiImage2Line} from "react-icons/ri";
-import {MediaContainer} from "./media-container";
-import {DisplayComponentProps, MediaRender, MediaType} from "./media-render";
-import {HMBlockSchema} from "./schema";
 
 export const ImageBlock = createReactBlockSpec({
   type: "image",
@@ -143,7 +141,7 @@ const Render = (
       mediaType="image"
       submit={submitImage}
       DisplayComponent={display}
-      icon={<RiImage2Line fill={theme.color12.get()} />}
+      icon={<RiImage2Line fill={theme.color12?.get()} />}
     />
   );
 };
@@ -238,7 +236,7 @@ const display = ({
   window.addEventListener("mouseup", windowMouseUpHandler);
 
   // Hides the resize handles when the cursor leaves the image
-  const imageMouseLeaveHandler = (event) => {
+  const imageMouseLeaveHandler = () => {
     if (resizeParams) {
       return;
     }

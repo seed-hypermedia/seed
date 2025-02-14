@@ -1,10 +1,9 @@
-import {
-  Block,
-  BlockNoteEditor,
-  createReactBlockSpec,
-  defaultProps,
-  getBlockInfoFromPos,
-} from "@/blocknote";
+import {BlockNoteEditor} from "@/blocknote/core/BlockNoteEditor";
+import {Block} from "@/blocknote/core/extensions/Blocks/api/blockTypes";
+import {defaultProps} from "@/blocknote/core/extensions/Blocks/api/defaultBlocks";
+import {getBlockInfoFromPos} from "@/blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos";
+import {createReactBlockSpec} from "@/blocknote/react/ReactBlockSpec";
+import {HMBlockSchema} from "@/schema";
 import {DAEMON_FILE_UPLOAD_URL, DAEMON_FILE_URL} from "@shm/shared/constants";
 import {
   Button,
@@ -35,7 +34,6 @@ import {
   RiCloseCircleLine,
   RiRefreshLine,
 } from "react-icons/ri/index.js";
-import {HMBlockSchema} from "./schema";
 
 export const RELAY_LIST = [
   "wss://relayable.org",

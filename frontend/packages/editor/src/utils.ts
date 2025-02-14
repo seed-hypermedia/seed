@@ -1,10 +1,15 @@
+import {BlockNoteEditor} from "@/blocknote/core/BlockNoteEditor";
+import type {
+  Block,
+  BlockIdentifier,
+} from "@/blocknote/core/extensions/Blocks/api/blockTypes";
+import {HMBlockSchema} from "@/schema";
 import {editorBlockToHMBlock} from "@shm/shared/client/editorblock-to-hmblock";
-import {Block, BlockNode} from "@shm/shared/client/grpc-types";
+import {BlockNode} from "@shm/shared/client/grpc-types";
 import {EditorBlock} from "@shm/shared/editor-types";
 import {Editor} from "@tiptap/core";
 import {Node as TipTapNode} from "@tiptap/pm/model";
 import {EditorView} from "@tiptap/pm/view";
-import {BlockIdentifier, BlockNoteEditor, BlockSchema} from ".";
 
 export function youtubeParser(url: string) {
   var regExp =
@@ -41,9 +46,9 @@ export const timeoutPromise = (promise, delay, reason) =>
 
 export function setGroupTypes(
   tiptap: Editor,
-  blocks: Array<Partial<Block<BlockSchema>>>
+  blocks: Array<Partial<Block<HMBlockSchema>>>
 ) {
-  blocks.forEach((block: Partial<Block<BlockSchema>>) => {
+  blocks.forEach((block: Partial<Block<HMBlockSchema>>) => {
     tiptap.state.doc.descendants((node: TipTapNode, pos: number) => {
       if (
         node.attrs.id === block.id &&

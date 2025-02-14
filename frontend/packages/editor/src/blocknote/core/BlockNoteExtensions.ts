@@ -17,17 +17,21 @@ import {Text} from "@tiptap/extension-text";
 import {Underline} from "@tiptap/extension-underline";
 import * as Y from "yjs";
 // import {createInlineEmbedNode} from "../../mentions-plugin";
-import Link from "../../tiptap-extension-link";
-import {BlockManipulationExtension} from "./extensions/BlockManipulation/BlockManipulationExtension";
-import {BlockContainer, BlockGroup, Doc} from "./extensions/Blocks";
-import {BlockNoteDOMAttributes} from "./extensions/Blocks/api/blockTypes";
-import {CustomBlockSerializerExtension} from "./extensions/Blocks/api/serialization";
-import blockStyles from "./extensions/Blocks/nodes/Block.module.css";
-import {KeyboardShortcutsExtension} from "./extensions/KeyboardShortcuts/KeyboardShortcutsExtension";
-import {createMarkdownExtension} from "./extensions/Markdown/MarkdownExtension";
-import {Placeholder} from "./extensions/Placeholder/PlaceholderExtension";
-import {TrailingNode} from "./extensions/TrailingNode/TrailingNodeExtension";
-import {UniqueID} from "./extensions/UniqueID/UniqueID";
+import {BlockManipulationExtension} from "@/blocknote/core/extensions/BlockManipulation/BlockManipulationExtension";
+import {
+  BlockContainer,
+  BlockGroup,
+  Doc,
+} from "@/blocknote/core/extensions/Blocks";
+import {BlockNoteDOMAttributes} from "@/blocknote/core/extensions/Blocks/api/blockTypes";
+import {CustomBlockSerializerExtension} from "@/blocknote/core/extensions/Blocks/api/serialization";
+import blockStyles from "@/blocknote/core/extensions/Blocks/nodes/Block.module.css";
+import {KeyboardShortcutsExtension} from "@/blocknote/core/extensions/KeyboardShortcuts/KeyboardShortcutsExtension";
+import {createMarkdownExtension} from "@/blocknote/core/extensions/Markdown/MarkdownExtension";
+import {Placeholder} from "@/blocknote/core/extensions/Placeholder/PlaceholderExtension";
+import {TrailingNode} from "@/blocknote/core/extensions/TrailingNode/TrailingNodeExtension";
+import {UniqueID} from "@/blocknote/core/extensions/UniqueID/UniqueID";
+import Link from "@/tiptap-extension-link";
 
 /**
  * Get all the Tiptap extensions BlockNote is configured with by default

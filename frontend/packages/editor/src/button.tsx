@@ -1,11 +1,12 @@
 // import {useOpenUrl} from '@/open-url'
-import {
-  Block,
-  BlockNoteEditor,
-  createReactBlockSpec,
-  defaultProps,
-  useEditorSelectionChange,
-} from "@/blocknote";
+import {BlockNoteEditor} from "@/blocknote/core/BlockNoteEditor";
+import {Block} from "@/blocknote/core/extensions/Blocks/api/blockTypes";
+import {defaultProps} from "@/blocknote/core/extensions/Blocks/api/defaultBlocks";
+import {useEditorSelectionChange} from "@/blocknote/react/hooks/useEditorSelectionChange";
+import {createReactBlockSpec} from "@/blocknote/react/ReactBlockSpec";
+import {HypermediaLinkSwitchToolbar} from "@/hm-link-switch-toolbar";
+import {updateSelection} from "@/media-render";
+import {HMBlockSchema} from "@/schema";
 import {
   AlignCenter,
   AlignLeft,
@@ -19,9 +20,6 @@ import {
   YStack,
 } from "@shm/ui";
 import {useState} from "react";
-import {HypermediaLinkSwitchToolbar} from "./hm-link-switch-toolbar";
-import {updateSelection} from "./media-render";
-import {HMBlockSchema} from "./schema";
 
 export const ButtonBlock = createReactBlockSpec({
   type: "button",
