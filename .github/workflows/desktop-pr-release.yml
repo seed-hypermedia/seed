@@ -155,7 +155,7 @@ jobs:
       - name: Build, package and make (Win32)
         if: startsWith(matrix.config.os, 'windows')
         run: |
-          yarn desktop:publish --arch=${{ matrix.config.arch }}
+          yarn desktop:make --arch=${{ matrix.config.arch }}
         env:
           timeout-minutes: 10
           DEBUG: electron-*
