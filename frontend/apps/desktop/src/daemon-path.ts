@@ -1,13 +1,22 @@
+import {app} from 'electron'
 import path from 'path'
+
+export function getDaemonName() {
+  return `seed-daemon-${getPlatformTriple()}`
+}
 
 export function getDaemonBinaryPath() {
   if (process.env.NODE_ENV == 'production') {
-    return path.join(process.resourcesPath, `seed-daemon-${getPlatformTriple()}`)
+    if (process.platform == 'win32') {
+      return path.join(app.getPath('exe'), getDaemonName())
+    } else {
+      return path.join(process.resourcesPath, getDaemonName())
+    }
   } else {
     return path.join(
       process.cwd(),
       '../../..',
-      `plz-out/bin/backend/seed-daemon-${getPlatformTriple()}`,
+      `plz-out/bin/backend/${getDaemonName()}`,
     )
   }
 }

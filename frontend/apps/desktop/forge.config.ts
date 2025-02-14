@@ -9,6 +9,8 @@ import {VitePlugin} from '@electron-forge/plugin-vite'
 import path from 'node:path'
 import packageJson from './package.json'
 // import setLanguages from 'electron-packager-languages'
+import {getDaemonName} from '@/daemon-path'
+import {app} from 'electron'
 import fs from 'node:fs'
 
 const {version} = packageJson
@@ -174,6 +176,30 @@ const config: ForgeConfig = {
             `- ${file} (${stats.isDirectory() ? 'directory' : 'file'})`,
           )
         })
+      }
+
+      if (process.platform == 'win32') {
+        // move the daemon to the location of the exe file
+
+        const appDataPath = app.getPath('exe')
+
+        console.log(`== ~ postPackage: ~ appDataPath:`, appDataPath)
+        if (!fs.existsSync(appDataPath)) {
+          fs.mkdirSync(appDataPath, {recursive: true})
+        }
+        const daemonSource = path.join(
+          options.outputPaths[0],
+          'resources',
+          getDaemonName(),
+        )
+
+        const daemonDest = path.join(appDataPath, getDaemonName())
+        console.log(`== ~ postPackage: ~ daemonSource:`, daemonSource)
+        console.log(`== ~ postPackage: ~ daemonDest:`, daemonDest)
+        if (fs.existsSync(daemonSource)) {
+          console.log(`== ~ postPackage: ~ copying daemon to ${daemonDest}`)
+          fs.copyFileSync(daemonSource, daemonDest)
+        }
       }
     },
     postMake: async (_config, results) => {
