@@ -1,4 +1,5 @@
 import {
+  DAEMON_FILE_URL,
   SiteRoutingProvider,
   UniversalRoutingProvider,
   UnpackedHypermediaId,
@@ -56,6 +57,7 @@ export function WebSiteProvider(props: {
     <UniversalAppProvider
       homeId={props.homeId}
       getOptimizedImageUrl={getOptimizedImageUrl}
+      ipfsFileUrl={DAEMON_FILE_URL}
     >
       <SiteRoutingProvider homeId={props.homeId}>
         {props.children}
