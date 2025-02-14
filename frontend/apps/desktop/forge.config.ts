@@ -9,9 +9,9 @@ import {VitePlugin} from '@electron-forge/plugin-vite'
 import path from 'node:path'
 import packageJson from './package.json'
 // import setLanguages from 'electron-packager-languages'
-import {getDaemonName} from '@/daemon-path'
 import {app} from 'electron'
 import fs from 'node:fs'
+import {getDaemonName} from './src/daemon-path'
 
 const {version} = packageJson
 const IS_PROD_DEV = version.includes('dev')
@@ -200,6 +200,10 @@ const config: ForgeConfig = {
           console.log(`== ~ postPackage: ~ copying daemon to ${daemonDest}`)
           fs.copyFileSync(daemonSource, daemonDest)
         }
+      } else {
+        console.log(
+          `== ~ postPackage: ~ skipping daemon copy for ${process.platform}`,
+        )
       }
     },
     postMake: async (_config, results) => {
