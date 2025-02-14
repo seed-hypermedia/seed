@@ -9,7 +9,6 @@ import {VitePlugin} from '@electron-forge/plugin-vite'
 import path from 'node:path'
 import packageJson from './package.json'
 // import setLanguages from 'electron-packager-languages'
-import {app} from 'electron'
 import fs from 'node:fs'
 import {getDaemonName} from './src/daemon-path'
 
@@ -181,7 +180,7 @@ const config: ForgeConfig = {
       if (process.platform == 'win32') {
         // move the daemon to the location of the exe file
 
-        const appDataPath = app.getPath('exe')
+        const appDataPath = options.outputPaths[0]
 
         console.log(`== ~ postPackage: ~ appDataPath:`, appDataPath)
         if (!fs.existsSync(appDataPath)) {
