@@ -93,7 +93,7 @@ export function useDocumentList(
 export function useDraftList() {
   return trpc.drafts.list.useQuery(undefined, {})
 }
-export function useAccountDraftList(accountUid: string) {
+export function useAccountDraftList(accountUid?: string) {
   return trpc.drafts.listAccount.useQuery(accountUid, {})
 }
 

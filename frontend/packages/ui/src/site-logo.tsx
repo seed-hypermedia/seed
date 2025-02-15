@@ -39,6 +39,7 @@ export function SiteLogo({
     <XStack {...homeLinkProps} ai="center" jc="center" gap="$2">
       <HMIcon size={24} id={id} metadata={metadata} />
       <SizableText
+        userSelect="none"
         size="$4"
         fontWeight="bold"
         textAlign="center"

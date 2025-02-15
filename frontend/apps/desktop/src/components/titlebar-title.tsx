@@ -1,19 +1,28 @@
 import {useSizeObserver} from '@/components/app-embeds'
-import {useDraftName} from '@/models/documents'
+import {roleCanWrite, useMyCapability} from '@/models/access-control'
+import {
+  useAccountDraftList,
+  useDraftName,
+  useListDirectory,
+} from '@/models/documents'
 import {
   useEntity,
   useRouteBreadcrumbRoutes,
   useRouteEntities,
 } from '@/models/entities'
+import {NewSubDocumentButton} from '@/pages/document'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
+import {hmId} from '@shm/shared'
 import {getDocumentTitle} from '@shm/shared/content'
 import {DocumentRoute, DraftRoute, NavRoute} from '@shm/shared/routes'
 import {
   AlertCircle,
   Button,
   Contact,
+  DocumentSmallListItem,
   FontSizeTokens,
+  getSiteNavDirectory,
   Library,
   Popover,
   Sparkles,
@@ -23,9 +32,11 @@ import {
   TitleText,
   TitleTextButton,
   Tooltip,
+  View,
   XStack,
   YStack,
 } from '@shm/ui'
+import {HoverCard} from '@shm/ui/src/hover-card'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {AiOutlineEllipsis} from 'react-icons/ai'
 import {CopyReferenceButton} from './copy-reference-button'
@@ -85,11 +96,7 @@ export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
   }
 
   if (route.key === 'document') {
-    return (
-      <>
-        <BreadcrumbTitle route={route} />
-      </>
-    )
+    return <BreadcrumbTitle route={route} />
   }
   if (route.key === 'draft') {
     return <DraftTitle route={route} />
@@ -251,9 +258,10 @@ function BreadcrumbTitle({
       f={1}
       marginRight={'$4'}
       margin={0}
-      ai="center"
+      ai="stretch"
       alignSelf="stretch"
       overflow="hidden"
+      height="100%"
       ref={containerObserverRef}
       width="100%"
     >
@@ -264,6 +272,8 @@ function BreadcrumbTitle({
         marginRight={'$4'}
         ai="center"
         width="100%"
+        // className="no-window-drag"
+        height="100%"
       >
         {displayItems.flatMap((item, itemIndex) => {
           if (!item) return null
@@ -393,16 +403,16 @@ function BreadcrumbItem({
     return <BreadcrumbErrorIcon />
   }
   if (!details?.name) return null
-  if (isActive) {
-    return (
-      <TitleText ref={observerRef} fontWeight="bold">
-        {details.name}
-      </TitleText>
-    )
-  }
-  return (
+
+  let content = isActive ? (
+    <TitleText ref={observerRef} fontWeight="bold">
+      {details.name}
+    </TitleText>
+  ) : (
     <TitleTextButton
       ref={observerRef}
+      alignItems="center"
+      justifyContent="center"
       className="no-window-drag"
       onPress={() => {
         if (details.route) navigate(details.route)
@@ -411,6 +421,63 @@ function BreadcrumbItem({
     >
       {details.name}
     </TitleTextButton>
+  )
+  return (
+    <View
+      marginTop="$4"
+      paddingBottom="$4"
+      className="no-window-drag"
+      minHeight={40}
+      justifyContent="center"
+    >
+      <HoverCard content={<PathItemCard details={details} />}>
+        {content}
+      </HoverCard>
+    </View>
+  )
+}
+
+function PathItemCard({details}: {details: CrumbDetails}) {
+  const docId = details.route?.key === 'document' ? details.route.id : undefined
+  const dir = useListDirectory(docId, {mode: 'Children'})
+  const capability = useMyCapability(docId)
+  const canEditDoc = roleCanWrite(capability?.role)
+  const drafts = useAccountDraftList(docId?.uid)
+  if (!docId) return null
+
+  const directoryItems = getSiteNavDirectory({
+    id: docId,
+    supportQueries: [
+      {
+        in: hmId('d', docId.uid),
+        results: dir.data,
+      },
+    ],
+    drafts: drafts.data,
+  })
+
+  return (
+    <YStack paddingVertical="$2" gap="$3">
+      <YStack gap="$1">
+        {directoryItems?.map((item) => {
+          return (
+            <DocumentSmallListItem
+              key={item.id.path?.join('/') || item.id.id}
+              metadata={item.metadata}
+              id={item.id}
+              onPress={() => {}}
+              isDraft={item.isDraft}
+              isPublished={item.isPublished}
+            />
+          )
+        })}
+      </YStack>
+      {canEditDoc ? (
+        <XStack gap="$2" ai="center" paddingHorizontal="$2">
+          <NewSubDocumentButton parentDocId={docId} />
+        </XStack>
+      ) : null}
+    </YStack>
   )
 }
 

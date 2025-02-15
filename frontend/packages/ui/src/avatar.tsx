@@ -63,6 +63,7 @@ export function UIAvatar({
           lineHeight={size / 2}
           textAlign="center"
           color="black"
+          userSelect="none"
         >
           {text.toUpperCase()}
         </SizableText>

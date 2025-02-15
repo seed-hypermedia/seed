@@ -254,6 +254,7 @@ function HeaderLinkItem({
   return (
     <SizableText
       numberOfLines={1}
+      userSelect="none"
       fontWeight="bold"
       backgroundColor={isDraft ? "$yellow4" : undefined}
       color={active ? "$color" : baseColor}

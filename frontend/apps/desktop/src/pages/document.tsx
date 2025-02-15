@@ -359,7 +359,7 @@ function _AppDocSiteHeader({
   )
 }
 
-function NewSubDocumentButton({
+export function NewSubDocumentButton({
   parentDocId,
 }: {
   parentDocId: UnpackedHypermediaId

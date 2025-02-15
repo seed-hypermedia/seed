@@ -29,6 +29,7 @@ export default function TitleBarMacos(props: TitleBarProps) {
         paddingRight="$2"
         justifyContent="space-between"
         className="window-drag"
+        height="100%"
       >
         <XStack
           minWidth={'min-content'}

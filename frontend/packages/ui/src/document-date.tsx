@@ -5,15 +5,15 @@ import {
   HMDocument,
 } from "@shm/shared";
 import {SizableText} from "@tamagui/text";
-import {Popover} from "./TamaguiPopover";
-import {dialogBoxShadow} from "./universal-dialog";
+import {YStack} from "tamagui";
+import {HoverCard} from "./hover-card";
 
 export function DocumentDate({document}: {document: HMDocument}) {
   const displayText = document.metadata?.displayPublishTime
     ? formattedDateDayOnly(new Date(document.metadata.displayPublishTime))
     : formattedDateMedium(document?.updateTime);
   const content: React.ReactNode[] = [
-    <SizableText size="$2">
+    <SizableText size="$3">
       Last Update: {formattedDateLong(document?.updateTime)}
     </SizableText>,
     // // Disabled because this is always 1969 because the backend looks at the deterministic genesis blob instead of the actual creation time
@@ -23,13 +23,19 @@ export function DocumentDate({document}: {document: HMDocument}) {
   ];
   if (document.metadata?.displayPublishTime) {
     content.unshift(
-      <SizableText color="$blue10" size="$2">
+      <SizableText color="$blue10" size="$3">
         Original Publish date: {displayText}
       </SizableText>
     );
   }
   return (
-    <HoverCard content={content}>
+    <HoverCard
+      content={
+        <YStack gap="$4" padding="$4">
+          {content}
+        </YStack>
+      }
+    >
       <SizableText
         flexShrink={0}
         flexGrow={0}
@@ -40,27 +46,5 @@ export function DocumentDate({document}: {document: HMDocument}) {
         {displayText}
       </SizableText>
     </HoverCard>
-  );
-}
-
-export function HoverCard({
-  children,
-  content,
-}: {
-  children: React.ReactNode;
-  content: React.ReactNode;
-}) {
-  return (
-    <Popover hoverable placement="bottom-start">
-      <Popover.Trigger className="no-window-drag">{children}</Popover.Trigger>
-      <Popover.Content
-        boxShadow={dialogBoxShadow}
-        gap="$2"
-        padding="$2"
-        ai="flex-start"
-      >
-        {content}
-      </Popover.Content>
-    </Popover>
   );
 }
