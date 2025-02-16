@@ -286,7 +286,12 @@ export async function loadSiteDocument<T>(
       supportQueries,
       homeId,
     };
-    return wrapJSON(loadedSiteDocument);
+    const headers: Record<string, string> = {};
+    headers["x-hypermedia-id"] = id.id;
+    headers["x-hypermedia-version"] = docContent.document.version;
+    return wrapJSON(loadedSiteDocument, {
+      headers,
+    });
   } catch (e) {
     console.error("Error Loading Site Document", e);
     // probably document not found. todo, handle other errors

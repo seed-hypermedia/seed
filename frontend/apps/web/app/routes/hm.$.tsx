@@ -1,12 +1,14 @@
 import {Params, useLoaderData} from "@remix-run/react";
 import {hmId} from "@shm/shared";
 import {useFullRender} from "~/cache-policy";
-import {DocumentPage, documentPageMeta} from "~/document";
+import {DocumentPage, documentPageHeaders, documentPageMeta} from "~/document";
 import {loadSiteDocument, SiteDocumentPayload} from "~/loaders";
 import {parseRequest} from "~/request";
 import {unwrap} from "~/wrapping";
 
 export const meta = documentPageMeta;
+
+export const headers = documentPageHeaders;
 
 export const loader = async ({
   params,

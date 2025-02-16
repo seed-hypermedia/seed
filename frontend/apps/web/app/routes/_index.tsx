@@ -2,7 +2,7 @@ import {useLoaderData} from "@remix-run/react";
 import {hmId} from "@shm/shared";
 import {Button} from "@tamagui/button";
 import {useFullRender} from "~/cache-policy";
-import {DocumentPage, documentPageMeta} from "~/document";
+import {DocumentPage, documentPageHeaders, documentPageMeta} from "~/document";
 import {loadSiteDocument, SiteDocumentPayload} from "~/loaders";
 import {logDebug, logDebugTiming} from "~/logger";
 import {defaultPageMeta} from "~/meta";
@@ -25,6 +25,8 @@ export const meta = ({data}: {data: Wrapped<HomePagePayload>}) => {
   if (payload === "no-site") return unregisteredMeta();
   return documentPageMeta({data});
 };
+
+export const headers = documentPageHeaders;
 
 export const loader = async ({request}: {request: Request}) => {
   const parsedRequest = parseRequest(request);

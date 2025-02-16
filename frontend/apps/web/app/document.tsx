@@ -1,4 +1,4 @@
-import {MetaFunction} from "@remix-run/node";
+import {HeadersFunction, MetaFunction} from "@remix-run/node";
 import {useLocation, useNavigate} from "@remix-run/react";
 import {
   BlockRange,
@@ -50,6 +50,9 @@ import {PageHeader, WebSiteHeader} from "./page-header";
 import {getOptimizedImageUrl, WebSiteProvider} from "./providers";
 import {EmbedDocument, EmbedInline, QueryBlockWeb} from "./web-embeds";
 import {unwrap, Wrapped} from "./wrapping";
+
+export const documentPageHeaders: HeadersFunction = ({loaderHeaders}) =>
+  loaderHeaders;
 
 export const documentPageMeta: MetaFunction = ({
   data,
