@@ -41,7 +41,7 @@ const daemonArguments = [
   '-syncing.no-sync-back=true',
 
   lndhubFlags,
-  `SENTRY_DSN=${__SENTRY_DSN__}`,
+  // `SENTRY_DSN=${__SENTRY_DSN__}`,
 ]
 
 type ReadyState = {t: 'ready'}

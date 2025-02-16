@@ -172,7 +172,7 @@ jobs:
           VITE_DESKTOP_HOSTNAME: "http://localhost"
           VITE_LIGHTNING_API_URL: "https://ln.testnet.seed.hyper.media"
           VITE_GATEWAY_URL: "https://dev.hyper.media"
-          # VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
+          VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
           # SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
           # S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
           # S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
