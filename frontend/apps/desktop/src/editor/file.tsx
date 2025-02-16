@@ -1,5 +1,6 @@
 import {Block, BlockNoteEditor, defaultProps} from '@shm/editor/blocknote/core'
 import {createReactBlockSpec} from '@shm/editor/blocknote/react'
+import {formatBytes} from '@shm/shared'
 import {Button, File, SizableText} from '@shm/ui'
 import {MediaContainer} from './media-container'
 import {DisplayComponentProps, MediaRender} from './media-render'
