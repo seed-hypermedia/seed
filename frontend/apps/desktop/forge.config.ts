@@ -10,7 +10,6 @@ import path from 'node:path'
 import packageJson from './package.json'
 // import setLanguages from 'electron-packager-languages'
 import fs from 'node:fs'
-import {getDaemonName} from './src/daemon-path'
 
 const {version} = packageJson
 const IS_PROD_DEV = version.includes('dev')
@@ -177,33 +176,33 @@ const config: ForgeConfig = {
         })
       }
 
-      if (process.platform == 'win32') {
-        // move the daemon to the location of the exe file
+      // if (process.platform == 'win32') {
+      //   // move the daemon to the location of the exe file
 
-        const appDataPath = options.outputPaths[0]
+      //   const appDataPath = options.outputPaths[0]
 
-        console.log(`== ~ postPackage: ~ appDataPath:`, appDataPath)
-        if (!fs.existsSync(appDataPath)) {
-          fs.mkdirSync(appDataPath, {recursive: true})
-        }
-        const daemonSource = path.join(
-          options.outputPaths[0],
-          'resources',
-          getDaemonName(),
-        )
+      //   console.log(`== ~ postPackage: ~ appDataPath:`, appDataPath)
+      //   if (!fs.existsSync(appDataPath)) {
+      //     fs.mkdirSync(appDataPath, {recursive: true})
+      //   }
+      //   const daemonSource = path.join(
+      //     options.outputPaths[0],
+      //     'resources',
+      //     getDaemonName(),
+      //   )
 
-        const daemonDest = path.join(appDataPath, getDaemonName())
-        console.log(`== ~ postPackage: ~ daemonSource:`, daemonSource)
-        console.log(`== ~ postPackage: ~ daemonDest:`, daemonDest)
-        if (fs.existsSync(daemonSource)) {
-          console.log(`== ~ postPackage: ~ copying daemon to ${daemonDest}`)
-          fs.copyFileSync(daemonSource, daemonDest)
-        }
-      } else {
-        console.log(
-          `== ~ postPackage: ~ skipping daemon copy for ${process.platform}`,
-        )
-      }
+      //   const daemonDest = path.join(appDataPath, getDaemonName())
+      //   console.log(`== ~ postPackage: ~ daemonSource:`, daemonSource)
+      //   console.log(`== ~ postPackage: ~ daemonDest:`, daemonDest)
+      //   if (fs.existsSync(daemonSource)) {
+      //     console.log(`== ~ postPackage: ~ copying daemon to ${daemonDest}`)
+      //     fs.copyFileSync(daemonSource, daemonDest)
+      //   }
+      // } else {
+      //   console.log(
+      //     `== ~ postPackage: ~ skipping daemon copy for ${process.platform}`,
+      //   )
+      // }
     },
     postMake: async (_config, results) => {
       console.info('PostMake results:', results)
