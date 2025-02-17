@@ -319,6 +319,13 @@ export const HMBlockFileSchema = z
   })
   .strict()
 
+export const HMBlockButtonAlignmentSchema = z
+  .union([z.literal('flex-start'), z.literal('center'), z.literal('flex-end')])
+  .optional()
+export type HMBlockButtonAlignment = z.infer<
+  typeof HMBlockButtonAlignmentSchema
+>
+
 export const HMBlockButtonSchema = z
   .object({
     type: z.literal('Button'),
@@ -327,10 +334,11 @@ export const HMBlockButtonSchema = z
       .object({
         ...parentBlockAttributes,
         name: z.string().optional(),
-        alignment: z.string().optional(), // button alignment, as a string
+        alignment: HMBlockButtonAlignmentSchema,
       })
       .optional()
       .default({}),
+    text: z.string().optional(),
     link: z.string(),
   })
   .strict()
@@ -440,6 +448,121 @@ const baseBlockNodeSchema = z.object({
 export type HMBlockNode = z.infer<typeof baseBlockNodeSchema> & {
   children?: HMBlockNode[]
 }
+
+export type HMPublishableAnnotation =
+  | {
+      type: 'Bold' | 'Italic' | 'Underline' | 'Strike' | 'Code'
+      starts: number[]
+      ends: number[]
+    }
+  | {
+      type: 'Link'
+      starts: number[]
+      ends: number[]
+      link: string
+    }
+  | {
+      type: 'Embed'
+      starts: number[]
+      ends: number[]
+      link: string
+    }
+
+export type HMPublishableBlockParagraph = {
+  id: string
+  type: 'Paragraph'
+  text: string
+  annotations: HMPublishableAnnotation[]
+  childrenType?: HMBlockChildrenType
+  children?: HMPublishableBlock[]
+}
+
+export type HMPublishableBlockHeading = {
+  id: string
+  type: 'Heading'
+  text: string
+  annotations: HMPublishableAnnotation[]
+  childrenType?: HMBlockChildrenType
+  children?: HMPublishableBlock[]
+}
+
+export type HMPublishableBlockCode = {
+  id: string
+  type: 'Code'
+  text: string
+  annotations: HMPublishableAnnotation[]
+  childrenType?: HMBlockChildrenType
+  children?: HMPublishableBlock[]
+}
+
+export type HMPublishableBlockMath = {
+  id: string
+  type: 'Math'
+  text: string
+  annotations: HMPublishableAnnotation[]
+  childrenType?: HMBlockChildrenType
+  children?: HMPublishableBlock[]
+}
+
+export type HMPublishableBlockImage = {
+  id: string
+  type: 'Image'
+  text: string
+  link: string
+  annotations: HMPublishableAnnotation[]
+  childrenType?: HMBlockChildrenType
+  width?: number
+  name?: string
+  children?: HMPublishableBlock[]
+}
+
+export type HMPublishableBlockVideo = {
+  id: string
+  type: 'Video'
+  text: ''
+  link: string
+  name?: string
+  width?: number
+  children?: HMPublishableBlock[]
+}
+
+export type HMPublishableBlockFile = {
+  id: string
+  type: 'File'
+  link: string
+  name?: string
+  size: number | null
+  children?: HMPublishableBlock[]
+}
+
+export type HMPublishableBlockButton = {
+  id: string
+  type: 'Button'
+  text?: string | undefined
+  link: string
+  alignment?: 'center' | 'flex-start' | 'flex-end' | undefined
+  children?: HMPublishableBlock[]
+}
+
+export type HMPublishableBlockEmbed = {
+  id: string
+  type: 'Embed'
+  link: string
+  view?: HMEmbedView | undefined
+  children?: HMPublishableBlock[]
+}
+
+export type HMPublishableBlock =
+  | HMPublishableBlockParagraph
+  | HMPublishableBlockHeading
+  | HMPublishableBlockMath
+  | HMPublishableBlockCode
+  | HMPublishableBlockImage
+  | HMPublishableBlockVideo
+  | HMPublishableBlockFile
+  | HMPublishableBlockButton
+  | HMPublishableBlockEmbed
+
 export const HMBlockNodeSchema: z.ZodType<HMBlockNode> =
   baseBlockNodeSchema.extend({
     children: z.lazy(() => z.array(HMBlockNodeSchema).optional()),

@@ -1,6 +1,7 @@
 import {BlockNoteEditor} from "@/blocknote/core/BlockNoteEditor";
 import type {BlockIdentifier} from "@/blocknote/core/extensions/Blocks/api/blockTypes";
 import {HMBlockSchema} from "@/schema";
+import {HMBlockChildrenTypeSchema} from "@shm/shared";
 import {editorBlockToHMBlock} from "@shm/shared/client/editorblock-to-hmblock";
 import {Block, BlockNode} from "@shm/shared/client/grpc-types";
 import {EditorBlock} from "@shm/shared/editor-types";
@@ -96,7 +97,7 @@ export function getNodesInSelection(view: EditorView) {
 export function getBlockGroup(
   editor: BlockNoteEditor,
   blockId: BlockIdentifier
-) {
+): undefined | {type: string; listLevel: string; start?: number} {
   const tiptap = editor?._tiptapEditor;
   if (tiptap) {
     const id = typeof blockId === "string" ? blockId : blockId.id;
@@ -136,17 +137,18 @@ export function serverBlockNodesFromEditorBlocks(
 ): BlockNode[] {
   if (!editorBlocks) return [];
   return editorBlocks.map((block: EditorBlock) => {
-    const childGroup = getBlockGroup(editor, block.id) || {};
+    const childGroup = getBlockGroup(editor, block.id);
     const serverBlock = editorBlockToHMBlock(block);
     if (childGroup) {
       if (!serverBlock.attributes) {
         serverBlock.attributes = {};
       }
-      serverBlock.attributes.childrenType = childGroup.type
-        ? childGroup.type
-        : "Group";
-      if (childGroup.listLevel)
-        serverBlock.attributes.listLevel = childGroup.listLevel;
+      const childrenType = HMBlockChildrenTypeSchema.safeParse(childGroup.type);
+      if (childrenType.success) {
+        serverBlock.attributes.childrenType = childrenType.data;
+      } else {
+        serverBlock.attributes.childrenType = "Group";
+      }
       if (childGroup.start)
         serverBlock.attributes.start = childGroup.start.toString();
     }

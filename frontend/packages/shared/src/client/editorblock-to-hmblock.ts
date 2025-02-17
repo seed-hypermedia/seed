@@ -2,6 +2,7 @@ import {EditorBlock, EditorInlineContent} from '../editor-types'
 import {
   HMAnnotations,
   HMBlock,
+  HMBlockButtonAlignmentSchema,
   HMBlockSchema,
   HMBlockType,
   toNumber,
@@ -149,7 +150,9 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     if (editorBlock.props.name)
       blockButton.attributes.name = editorBlock.props.name
     if (editorBlock.props.alignment)
-      blockButton.attributes.alignment = editorBlock.props.alignment
+      blockButton.attributes.alignment = HMBlockButtonAlignmentSchema.parse(
+        editorBlock.props.alignment,
+      )
   }
 
   const blockWebEmbed = block.type === 'WebEmbed' ? block : undefined

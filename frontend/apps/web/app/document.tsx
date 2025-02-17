@@ -495,7 +495,9 @@ function DocumentAppendix({
           siteHost={siteHost}
         />
 
-        {enableWebSigning ? <WebCommenting docId={id} /> : null}
+        {enableWebSigning ? (
+          <WebCommenting docId={id} docVersion={document.version} />
+        ) : null}
       </ActivitySection>
     </Container>
   );

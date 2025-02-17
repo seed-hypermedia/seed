@@ -15,6 +15,7 @@ import {ChevronDown, ChevronRight} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import {ReactNode, useState} from "react";
+import {copyTextToClipboard} from "./copy-to-clipboard";
 import {HMIcon} from "./hm-icon";
 import {ReplyArrow} from "./icons";
 import {Tooltip} from "./tooltip";
@@ -208,9 +209,15 @@ function Comment({
               {authorMetadata?.name || "..."}
             </ButtonText>
             <Tooltip content={formattedDateLong(comment.createTime)}>
-              <SizableText color="$color8" size="$1">
+              <ButtonText
+                color="$color8"
+                size="$1"
+                onPress={() => {
+                  copyTextToClipboard(comment.id);
+                }}
+              >
                 {formattedDateMedium(comment.createTime)}
-              </SizableText>
+              </ButtonText>
             </Tooltip>
           </XStack>
           <XStack marginLeft={-8}>{renderCommentContent(comment)}</XStack>

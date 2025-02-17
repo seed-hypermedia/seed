@@ -1,47 +1,29 @@
-import { encode as cborEncode } from "@ipld/dag-cbor";
-import { base58 } from "@scure/base";
+import {encode as cborEncode} from "@ipld/dag-cbor";
 import CommentEditor from "@shm/editor/comment-editor";
 import {
+  HMAnnotation,
   HMBlockNode,
-  HMTimestamp,
+  hmIdPathToEntityQueryPath,
+  HMPublishableAnnotation,
+  HMPublishableBlock,
   SITE_BASE_URL,
   UnpackedHypermediaId,
 } from "@shm/shared";
-import { YStack } from "@tamagui/stacks";
-import { varint } from "multiformats";
-import { useEffect, useSyncExternalStore } from "react";
+import {YStack} from "@tamagui/stacks";
+import {useMutation} from "@tanstack/react-query";
+import {CID, varint} from "multiformats";
+import {base58btc} from "multiformats/bases/base58";
+import {useEffect, useSyncExternalStore} from "react";
 
-function bufferToB58(buf: ArrayBuffer) {
-  return base58.encode(new Uint8Array(buf));
-}
-
-async function postAPI(path: string, body: any) {
+async function postCBOR(path: string, body: Uint8Array) {
   const response = await fetch(`${SITE_BASE_URL}${path}`, {
     method: "POST",
-    body: JSON.stringify(body),
+    body,
     headers: {
-      "Content-Type": "application/json",
+      "Content-Type": "application/cbor",
     },
   });
   return await response.json();
-}
-
-async function getAPI(path: string) {
-  const response = await fetch(`${SITE_BASE_URL}${path}`, {
-    method: "GET",
-  });
-  if (!response.ok) {
-    throw new Error("Failed to fetch");
-  }
-  return await response.json();
-}
-
-function generateTimetamp(): HMTimestamp {
-  const now = new Date();
-  return {
-    seconds: BigInt(Math.floor(now.getTime() / 1000)),
-    nanos: (now.getTime() % 1000) * 1000000,
-  };
 }
 
 const DB_NAME = "keyStore-01";
@@ -81,14 +63,14 @@ async function getStoredKeyPair(): Promise<CryptoKeyPair | null> {
     privateRequest.onsuccess = () => {
       privateKey = privateRequest.result;
       if (publicKey !== null) {
-        resolve(privateKey && publicKey ? { privateKey, publicKey } : null);
+        resolve(privateKey && publicKey ? {privateKey, publicKey} : null);
       }
     };
 
     publicRequest.onsuccess = () => {
       publicKey = publicRequest.result;
       if (privateKey !== null) {
-        resolve(privateKey && publicKey ? { privateKey, publicKey } : null);
+        resolve(privateKey && publicKey ? {privateKey, publicKey} : null);
       }
     };
   });
@@ -149,7 +131,7 @@ async function signObject(
   const signature = await crypto.subtle.sign(
     {
       name: "ECDSA",
-      hash: { name: "SHA-256" },
+      hash: {name: "SHA-256"},
     },
     keyPair.privateKey,
     cborData
@@ -157,21 +139,152 @@ async function signObject(
   return signature;
 }
 
-async function createComment(content: HMBlockNode[], keyPair: CryptoKeyPair) {
-  const publicKeyRaw = await crypto.subtle.exportKey("raw", keyPair.publicKey);
+function annotationsToPublishable(
+  annotations: HMAnnotation[]
+): HMPublishableAnnotation[] {
+  return annotations.map((annotation) => {
+    const {type, starts, ends} = annotation;
+    if (type === "Bold") return {type: "Bold", starts, ends};
+    if (type === "Italic") return {type: "Italic", starts, ends};
+    if (type === "Underline") return {type: "Underline", starts, ends};
+    if (type === "Strike") return {type: "Strike", starts, ends};
+    if (type === "Code") return {type: "Code", starts, ends};
+    if (type === "Link")
+      return {type: "Link", starts, ends, link: annotation.link || ""};
+    if (type === "Embed")
+      return {type: "Embed", starts, ends, link: annotation.link || ""};
+    throw new Error(`Unsupported annotation type: ${type}`);
+  });
+}
+
+function blockToPublishable(blockNode: HMBlockNode): HMPublishableBlock | null {
+  const block = blockNode.block;
+  if (block.type === "Paragraph") {
+    if (block.text === "") return null;
+    if (block.text === undefined) return null;
+    return {
+      id: block.id,
+      type: "Paragraph",
+      text: block.text,
+      annotations: annotationsToPublishable(block.annotations || []),
+      ...block.attributes,
+      children: hmBlocksToPublishable(blockNode.children || []),
+    };
+  } else if (block.type === "Heading") {
+    return {
+      id: block.id,
+      type: "Heading",
+      text: block.text,
+      annotations: annotationsToPublishable(block.annotations || []),
+      ...block.attributes,
+      children: hmBlocksToPublishable(blockNode.children || []),
+    };
+  } else if (block.type === "Math") {
+    return {
+      id: block.id,
+      type: "Math",
+      text: block.text,
+      annotations: annotationsToPublishable(block.annotations || []),
+      ...block.attributes,
+      children: hmBlocksToPublishable(blockNode.children || []),
+    };
+  } else if (block.type === "Code") {
+    return {
+      id: block.id,
+      type: "Code",
+      text: block.text,
+      annotations: annotationsToPublishable(block.annotations || []),
+      ...block.attributes,
+      children: hmBlocksToPublishable(blockNode.children || []),
+    };
+  } else if (block.type === "Image") {
+    return {
+      id: block.id,
+      type: "Image",
+      text: block.text,
+      link: block.link,
+      annotations: annotationsToPublishable(block.annotations || []),
+      ...block.attributes,
+      children: hmBlocksToPublishable(blockNode.children || []),
+    };
+  } else if (block.type === "Video") {
+    return {
+      id: block.id,
+      type: "Video",
+      text: "",
+      link: block.link,
+      ...block.attributes,
+      children: hmBlocksToPublishable(blockNode.children || []),
+    };
+  } else if (block.type === "File") {
+    return {
+      id: block.id,
+      type: "File",
+      link: block.link,
+      ...block.attributes,
+      children: hmBlocksToPublishable(blockNode.children || []),
+    };
+  } else if (block.type === "Button") {
+    return {
+      id: block.id,
+      type: "Button",
+      text: block.text,
+      link: block.link,
+      ...block.attributes,
+      children: hmBlocksToPublishable(blockNode.children || []),
+    };
+  } else if (block.type === "Embed") {
+    return {
+      id: block.id,
+      type: "Embed",
+      link: block.link,
+      ...block.attributes,
+      children: hmBlocksToPublishable(blockNode.children || []),
+    };
+  }
+  throw new Error(`Unsupported block type: ${block.type}`);
+}
+
+function hmBlocksToPublishable(
+  blockNodes: HMBlockNode[]
+): HMPublishableBlock[] {
+  return blockNodes
+    .map((blockNode) => {
+      const block = blockToPublishable(blockNode);
+      if (!block) return null;
+      return block;
+    })
+    .filter((blockNode) => blockNode !== null);
+}
+
+async function createComment(
+  content: HMBlockNode[],
+  docId: UnpackedHypermediaId,
+  docVersion: string,
+  keyPair: CryptoKeyPair
+) {
+  const signerKey = await preparePublicKey(keyPair.publicKey);
   const unsignedComment = {
-    content,
-    author: varint.encodeTo(0x1200, new Uint8Array(publicKeyRaw)),
-    createTime: generateTimetamp(),
+    type: "Comment",
+    body: hmBlocksToPublishable(content),
+    space: base58btc.decode(docId.uid),
+    path: hmIdPathToEntityQueryPath(docId.path),
+    version: docVersion.split(".").map((changeId) => CID.parse(changeId)),
+    // threadRoot: cid of the root comment
+    // replyParent: cid of the parent comment this is in reply to, if this is a reply
+    // capability: cid of the capability that is being exercised
+    // author: prepared account id of the comment author, if it is different from the signer
+    signer: signerKey,
+    ts: BigInt(Date.now()),
   };
   const signature = await signObject(keyPair, unsignedComment);
   return {
     ...unsignedComment,
-    signature,
+    sig: signature,
   };
 }
 
-async function compressPublicKey(publicKey: CryptoKey) {
+async function preparePublicKey(publicKey: CryptoKey) {
   // Export raw key first
   const raw = await crypto.subtle.exportKey("raw", publicKey);
   const bytes = new Uint8Array(raw);
@@ -184,7 +297,9 @@ async function compressPublicKey(publicKey: CryptoKey) {
   const prefix = y[31] & 1 ? 0x03 : 0x02;
 
   // Combine prefix and x
-  return new Uint8Array([prefix, ...x]);
+  const outputKey = new Uint8Array([prefix, ...x]);
+  varint.encodeTo(0x1200, outputKey);
+  return outputKey;
 }
 
 let keyPair: CryptoKeyPair | null = null;
@@ -219,8 +334,10 @@ const keyPairStore = {
 
 export default function WebCommenting({
   docId,
+  docVersion,
 }: {
   docId: UnpackedHypermediaId;
+  docVersion: string;
 }) {
   const userKeyPair = useSyncExternalStore(
     keyPairStore.listen,
@@ -231,15 +348,37 @@ export default function WebCommenting({
     // setReady(true);
   }, []);
 
+  const postComment = useMutation({
+    mutationFn: async ({
+      content,
+      docId,
+      docVersion,
+      userKeyPair,
+    }: {
+      content: HMBlockNode[];
+      docId: UnpackedHypermediaId;
+      docVersion: string;
+      userKeyPair: CryptoKeyPair;
+    }) => {
+      const comment = await createComment(
+        content,
+        docId,
+        docVersion,
+        userKeyPair
+      );
+      console.log("SENDING COMMENT", comment);
+      const result = await postCBOR("/hm/api/comment", cborEncode(comment));
+      console.log("COMMENT SENT", result);
+    },
+  });
+
   if (!userKeyPair) return null;
   return (
     <YStack borderRadius="$4" minHeight={105} bg="$color4">
       {true ? (
         <CommentEditor
           onCommentSubmit={(content) => {
-            createComment(content, userKeyPair).then((comment) => {
-              console.log("NEW COMMENT", comment);
-            });
+            postComment.mutate({content, docId, docVersion, userKeyPair});
           }}
         />
       ) : null}
