@@ -1,15 +1,13 @@
 import {createHypermediaDocLinkPlugin} from '@/editor'
+import type {BlockNoteEditor} from '@/editor/BlockNoteEditor'
+import {useBlockNote} from '@/editor/useBlockNote'
 import {grpcClient} from '@/grpc-client'
 import {useOpenUrl} from '@/open-url'
 import {slashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {serverBlockNodesFromEditorBlocks} from '@shm/editor'
-import {
-  useBlockNote,
-  type BlockNoteEditor,
-  type BlockSchema,
-} from '@shm/editor/blocknote'
+import {type BlockSchema} from '@shm/editor/blocknote'
 import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {BIG_INT} from '@shm/shared/constants'
@@ -22,10 +20,10 @@ import {
   HMCommentGroup,
   HMDocumentMetadataSchema,
   HMEntityContent,
+  UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {writeableStateStream} from '@shm/shared/utils/stream'
 import {toast} from '@shm/ui'
