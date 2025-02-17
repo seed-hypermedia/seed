@@ -7,7 +7,7 @@ package(default_visibility = ["PUBLIC"])
 
 go_binary(
     name = "protoc-gen-go",
-    srcs = ["//:tools.go"],
+    srcs = [],
     gomod = "//:gomod",
     package = "google.golang.org/protobuf/cmd/protoc-gen-go",
     workdir = "../..",
@@ -15,7 +15,7 @@ go_binary(
 
 go_binary(
     name = "protoc-gen-go-grpc",
-    srcs = ["//:tools.go"],
+    srcs = [],
     gomod = "//:gomod",
     package = "google.golang.org/grpc/cmd/protoc-gen-go-grpc",
     workdir = "../..",
@@ -23,7 +23,7 @@ go_binary(
 
 go_binary(
     name = "gqlgen",
-    srcs = ["//:tools.go"],
+    srcs = [],
     gomod = "//:gomod",
     package = "github.com/99designs/gqlgen",
     workdir = "../..",
@@ -58,12 +58,4 @@ go_binary(
     srcs = ["gorun/main.go"],
     gomod = ":" + tag("gorun", "gomod"),
     workdir = "gorun",
-)
-
-go_binary(
-    name = "protoc-gen-go-vtproto",
-    srcs = ["//:tools.go"],
-    gomod = "//:gomod",
-    package = "github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto",
-    workdir = "../../",
 )

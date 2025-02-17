@@ -1,4 +1,12 @@
-// goexec is a command line tool to execute Go code. Output is printed as goons to stdout.
+// Command gorun is a command line tool that lets you execute any exported function in a Go file,
+// even if it's not in the main package. It basically creates an ephemeral main package that imports the target package,
+// and invokes the specified function.
+// The output is printed to stdout.
+// The function to be invoked must be of type `func() error`.
+//
+// This tool can be useful as a poor man's macros system for code generation.
+// Instead of writing your own tool to generate some code, you'd simply write a function,
+// and then invoke it with gorun from inside of `go generate` or other build system.
 package main
 
 import (

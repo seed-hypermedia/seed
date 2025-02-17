@@ -643,7 +643,7 @@ func (c *Client) do(ctx context.Context, db *sqlitex.Pool, walletID string, requ
 			continue
 		}
 		if err != nil {
-			return fmt.Errorf("Couldn't decode received payload: " + err.Error())
+			return fmt.Errorf("Couldn't decode received payload: %w", err)
 		}
 		if err := mapstructure.Decode(genericResponse, &errorRes); err == nil && errorRes.Error {
 			return fmt.Errorf("failed to make a request url=%s method=%s error_code=%d error_message=%s",
