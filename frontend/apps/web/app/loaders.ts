@@ -1,22 +1,38 @@
 import {
+  EditorInlineContent,
+  EditorText,
   extractQueryBlocks,
   extractRefs,
   getParentPaths,
+  HMAccountsMetadata,
+  HMBlock,
+  HMBlockChildrenType,
+  HMBlockNode,
+  hmBlockToEditorBlock,
   HMDocument,
   HMDocumentMetadataSchema,
   HMDocumentSchema,
   hmId,
   hmIdPathToEntityQueryPath,
+  HMLoadedBlock,
+  HMLoadedBlockNode,
+  HMLoadedDocument,
+  HMLoadedInlineEmbedNode,
+  HMLoadedLinkNode,
+  HMLoadedText,
+  HMLoadedTextContentNode,
   HMMetadata,
   HMMetadataPayload,
   HMQueryResult,
   SITE_BASE_URL,
   UnpackedHypermediaId,
+  unpackHmId,
 } from "@shm/shared";
 import {
   getDiretoryWithClient,
   getQueryResultsWithClient,
 } from "@shm/shared/models/directory";
+import {getBlockNodeById} from "@shm/ui/src";
 import {AccountsMetadata} from "@shm/ui/src/face-pile";
 import {queryClient} from "./client";
 import {logDebug} from "./logger";
@@ -238,6 +254,244 @@ export async function getDocument(
   return {
     ...document,
     breadcrumbs,
+  };
+}
+
+function textNodeAttributes(
+  node: EditorText
+): Partial<HMLoadedTextContentNode> {
+  const attributes: Partial<HMLoadedTextContentNode> = {};
+  if (node.styles.bold) attributes.bold = true;
+  if (node.styles.italic) attributes.italic = true;
+  if (node.styles.underline) attributes.underline = true;
+  if (node.styles.strike) attributes.strike = true;
+  if (node.styles.code) attributes.code = true;
+  return attributes;
+}
+
+async function loadEditorNodes(
+  nodes: EditorInlineContent[]
+): Promise<HMLoadedText> {
+  const content = await Promise.all(
+    nodes.map(async (editorNode) => {
+      if (editorNode.type === "inline-embed") {
+        const id = unpackHmId(editorNode.link);
+        if (!id)
+          return {
+            type: "InlineEmbed",
+            ref: editorNode.link,
+            text: null,
+            id: null,
+          } satisfies HMLoadedInlineEmbedNode;
+        try {
+          const document = await getHMDocument(id);
+          return {
+            type: "InlineEmbed",
+            ref: editorNode.link,
+            id,
+            text: document.metadata.name || "(?)",
+          } satisfies HMLoadedInlineEmbedNode;
+        } catch (e) {
+          console.error("Error loading inline embed", editorNode, e);
+          return {
+            type: "InlineEmbed",
+            ref: editorNode.link,
+            text: null,
+            id,
+          } satisfies HMLoadedInlineEmbedNode;
+        }
+      }
+      if (editorNode.type === "text") {
+        return {
+          type: "Text",
+          text: editorNode.text,
+          ...textNodeAttributes(editorNode),
+        } satisfies HMLoadedTextContentNode;
+      }
+      if (editorNode.type === "link") {
+        return {
+          type: "Link",
+          link: editorNode.href,
+          content: editorNode.content
+            .map((node) => {
+              if (node.type === "inline-embed") return null;
+              if (node.type === "link") return null;
+              return {
+                type: "Text",
+                text: node.text,
+                ...textNodeAttributes(node),
+              } satisfies HMLoadedTextContentNode;
+            })
+            .filter((node) => !!node),
+        } satisfies HMLoadedLinkNode;
+      }
+      console.log("Unhandled editor node", editorNode);
+      return null;
+    })
+  );
+  return content.filter((node) => !!node);
+}
+
+async function loadDocumentBlock(block: HMBlock): Promise<HMLoadedBlock> {
+  if (block.type === "Paragraph") {
+    const editorBlock = hmBlockToEditorBlock(block);
+    if (editorBlock.type !== "paragraph")
+      throw new Error("Unexpected situation with paragraph block conversion");
+    const content = await loadEditorNodes(editorBlock.content);
+    return {
+      type: "Paragraph",
+      id: block.id,
+      content,
+    };
+  }
+  if (block.type === "Heading") {
+    const editorBlock = hmBlockToEditorBlock(block);
+    if (editorBlock.type !== "heading")
+      throw new Error("Unexpected situation with heading block conversion");
+    const content = await loadEditorNodes(editorBlock.content);
+    return {
+      type: "Heading",
+      id: block.id,
+      content,
+    };
+  }
+  if (block.type === "Embed") {
+    const id = unpackHmId(block.link);
+    if (!id) {
+      return {
+        type: "Embed",
+        id: block.id,
+        link: block.link,
+        metadata: null,
+        content: null,
+      };
+    }
+    try {
+      const document = await getHMDocument(id);
+      const selectedBlock = id.blockRef
+        ? getBlockNodeById(document.content, id.blockRef)
+        : null;
+      const selectedContent = selectedBlock
+        ? [selectedBlock]
+        : document.content;
+      if (!selectedContent) {
+        return {
+          type: "Embed",
+          id: block.id,
+          link: block.link,
+          metadata: document.metadata,
+          content: null,
+        };
+      }
+      return {
+        type: "Embed",
+        id: block.id,
+        link: block.link,
+        metadata: document.metadata,
+        content: await loadDocumentContent(selectedContent),
+      };
+    } catch (e) {
+      console.error("Error loading embed", block, e);
+      return {
+        type: "Embed",
+        id: block.id,
+        link: block.link,
+        metadata: null,
+        content: null,
+      };
+    }
+  }
+  if (block.type === "Video") {
+    return {
+      type: "Video",
+      id: block.id,
+      link: block.link,
+      name: block.attributes.name,
+      width: block.attributes.width,
+    };
+  }
+  if (block.type === "File") {
+    return {
+      type: "File",
+      id: block.id,
+      link: block.link,
+      name: block.attributes.name,
+      size: block.attributes.size,
+    };
+  }
+  if (block.type === "Image") {
+    return {
+      type: "Image",
+      id: block.id,
+      link: block.link,
+      name: block.attributes.name,
+      width: block.attributes.width,
+    };
+  }
+  return {
+    type: "Unsupported",
+    id: block.id,
+  };
+}
+
+function getChildrenType(block: HMBlock): HMBlockChildrenType | undefined {
+  if (block.type === "Paragraph") return block.attributes.childrenType;
+  if (block.type === "Heading") return block.attributes.childrenType;
+  if (block.type === "Embed") return block.attributes.childrenType;
+  if (block.type === "Video") return block.attributes.childrenType;
+  if (block.type === "File") return block.attributes.childrenType;
+  if (block.type === "Image") return block.attributes.childrenType;
+  if (block.type === "Query") return block.attributes.childrenType;
+  if (block.type === "Math") return block.attributes.childrenType;
+  if (block.type === "Code") return block.attributes.childrenType;
+  if (block.type === "Button") return block.attributes.childrenType;
+  return undefined;
+}
+
+async function loadDocumentBlockNode(
+  blockNode: HMBlockNode
+): Promise<HMLoadedBlockNode> {
+  const childrenType = getChildrenType(blockNode.block);
+  const outputBlockNode: HMLoadedBlockNode = {
+    block: await loadDocumentBlock(blockNode.block),
+    children: await loadDocumentContent(blockNode.children),
+  };
+  if (childrenType) {
+    outputBlockNode.childrenType = childrenType;
+  }
+  return outputBlockNode;
+}
+
+async function loadDocumentContent(
+  blockNodes: undefined | HMBlockNode[]
+): Promise<HMLoadedBlockNode[]> {
+  if (!blockNodes) return [];
+  return await Promise.all(blockNodes.map(loadDocumentBlockNode));
+}
+
+export async function loadAuthors(
+  authors: string[]
+): Promise<HMAccountsMetadata> {
+  return Object.fromEntries(
+    await Promise.all(
+      authors.map(async (author) => {
+        const metadata = await getMetadata(hmId("d", author));
+        return [author, metadata];
+      })
+    )
+  );
+}
+
+export async function loadDocument(
+  entityId: UnpackedHypermediaId
+): Promise<HMLoadedDocument> {
+  const doc = await getHMDocument(entityId);
+  return {
+    id: entityId,
+    version: doc.version,
+    content: await loadDocumentContent(doc.content),
+    metadata: doc.metadata,
+    authors: await loadAuthors(doc.authors),
   };
 }
 

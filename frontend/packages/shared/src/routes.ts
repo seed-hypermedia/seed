@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {unpackedHmIdSchema} from './utils'
+import {unpackedHmIdSchema} from '.'
 
 export const defaultRoute: NavRoute = {key: 'library'}
 

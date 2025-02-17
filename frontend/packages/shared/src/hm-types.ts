@@ -1,19 +1,40 @@
 import {PlainMessage} from '@bufbuild/protobuf'
-import type {
-  Account,
-  ActivitySummary,
-  Block,
-  BlockNode,
-  Breadcrumb,
-  Comment,
-  DeletedEntity,
-  Document,
-  DocumentChangeInfo,
-  DocumentInfo,
-  EditorBlock,
-  UnpackedHypermediaId,
+import {
+  type Account,
+  type ActivitySummary,
+  type Block,
+  type BlockNode,
+  type Breadcrumb,
+  type Comment,
+  type DeletedEntity,
+  type Document,
+  type DocumentChangeInfo,
+  type DocumentInfo,
+  type EditorBlock,
 } from '@shm/shared'
 import * as z from 'zod'
+
+export const unpackedHmIdSchema = z.object({
+  id: z.string(),
+  type: z.union([z.literal('d'), z.literal('comment'), z.literal('draft')]),
+  uid: z.string(),
+  path: z.array(z.string()).nullable(),
+  version: z.string().nullable(),
+  blockRef: z.string().nullable(),
+  blockRange: z
+    .object({start: z.number(), end: z.number()})
+    .or(
+      z.object({
+        expanded: z.boolean(),
+      }),
+    )
+    .nullable(),
+  hostname: z.string().nullable(),
+  scheme: z.string().nullable(),
+  latest: z.boolean().nullable().optional(),
+})
+
+export type UnpackedHypermediaId = z.infer<typeof unpackedHmIdSchema>
 
 export const HMBlockChildrenTypeSchema = z.union([
   z.literal('Group'),
@@ -462,11 +483,6 @@ export function hmMetadataJsonCorrection(metadata: any): any {
 
 export type HMMetadata = z.infer<typeof HMDocumentMetadataSchema>
 
-export type HMAccountsMetadata = Record<
-  string, // account uid
-  HMMetadataPayload
->
-
 export const HMTimestampSchema = z
   .object({
     seconds: z.bigint().or(z.number()),
@@ -600,7 +616,184 @@ export type HMWallet = {
   type: string
 }
 
-export type HMMetadataPayload = {
+// Manual Export zone:
+
+export const HMMetadataPayloadSchema = z
+  .object({
+    id: unpackedHmIdSchema,
+    metadata: HMDocumentMetadataSchema.or(z.null()),
+  })
+  .strict()
+export type HMMetadataPayload = z.infer<typeof HMMetadataPayloadSchema>
+
+export const HMAccountsMetadataSchema = z.record(
+  z.string(), // account uid
+  HMMetadataPayloadSchema,
+)
+export type HMAccountsMetadata = z.infer<typeof HMAccountsMetadataSchema>
+
+export const HMLoadedTextContentNodeSchema = z
+  .object({
+    type: z.literal('Text'),
+    text: z.string(),
+    bold: z.boolean().optional(),
+    italic: z.boolean().optional(),
+    underline: z.boolean().optional(),
+    strike: z.boolean().optional(),
+    code: z.boolean().optional(),
+  })
+  .strict()
+
+export const HMLoadedLinkNodeSchema = z
+  .object({
+    type: z.literal('Link'),
+    link: z.string(),
+    content: z.array(HMLoadedTextContentNodeSchema),
+  })
+  .strict()
+
+export const HMLoadedInlineEmbedNodeSchema = z
+  .object({
+    type: z.literal('InlineEmbed'),
+    ref: z.string(),
+    id: z.union([z.custom<UnpackedHypermediaId>(), z.null()]),
+    text: z.string().nullable(),
+  })
+  .strict()
+
+export const HMLoadedTextSchema = z.array(
+  z.discriminatedUnion('type', [
+    HMLoadedTextContentNodeSchema,
+    HMLoadedInlineEmbedNodeSchema,
+    HMLoadedLinkNodeSchema,
+  ]),
+)
+
+export const HMLoadedParagraphSchema = z
+  .object({
+    type: z.literal('Paragraph'),
+    id: z.string(),
+    content: HMLoadedTextSchema,
+  })
+  .strict()
+
+export const HMLoadedHeadingSchema = z
+  .object({
+    type: z.literal('Heading'),
+    id: z.string(),
+    content: HMLoadedTextSchema,
+  })
+  .strict()
+
+export const HMLoadedVideoSchema = z
+  .object({
+    type: z.literal('Video'),
+    id: z.string(),
+    link: z.string(),
+    name: z.string().optional(),
+    width: z.number().optional(),
+  })
+  .strict()
+
+export const HMLoadedFileSchema = z
+  .object({
+    type: z.literal('File'),
+    id: z.string(),
+    link: z.string(),
+    name: z.string().optional(),
+    size: z.number().nullable(),
+  })
+  .strict()
+
+export const HMLoadedImageSchema = z
+  .object({
+    type: z.literal('Image'),
+    id: z.string(),
+    link: z.string(),
+    name: z.string().optional(),
+    width: z.number().optional(),
+  })
+  .strict()
+
+export const HMLoadedEmbedSchema = z
+  .object({
+    type: z.literal('Embed'),
+    id: z.string(),
+    link: z.string(),
+    metadata: HMDocumentMetadataSchema.nullable(),
+    content: z.array(z.lazy(() => HMLoadedBlockNodeSchema)).nullable(),
+  })
+  .strict()
+
+export const HMLoadedBlockNodeSchema: z.ZodType = z.lazy(() =>
+  z
+    .object({
+      block: HMLoadedBlockSchema,
+      children: z.array(z.lazy(() => HMLoadedBlockNodeSchema)),
+      childrenType: HMBlockChildrenTypeSchema.optional(),
+    })
+    .strict(),
+)
+
+export const HMLoadedBlockSchema: z.ZodType = z.discriminatedUnion('type', [
+  HMLoadedParagraphSchema,
+  HMLoadedHeadingSchema,
+  HMLoadedEmbedSchema,
+  HMLoadedVideoSchema,
+  HMLoadedFileSchema,
+  HMLoadedImageSchema,
+  z.object({type: z.literal('Unsupported'), id: z.string()}).strict(),
+])
+
+export const HMLoadedDocumentSchema = z
+  .object({
+    id: z.custom<UnpackedHypermediaId>(),
+    version: z.string(),
+    content: z.array(HMLoadedBlockNodeSchema),
+    metadata: HMDocumentMetadataSchema,
+    authors: HMAccountsMetadataSchema,
+  })
+  .strict()
+
+export type HMLoadedTextContentNode = z.infer<
+  typeof HMLoadedTextContentNodeSchema
+>
+export type HMLoadedLinkNode = z.infer<typeof HMLoadedLinkNodeSchema>
+export type HMLoadedInlineEmbedNode = z.infer<
+  typeof HMLoadedInlineEmbedNodeSchema
+>
+export type HMLoadedText = z.infer<typeof HMLoadedTextSchema>
+export type HMLoadedParagraph = z.infer<typeof HMLoadedParagraphSchema>
+export type HMLoadedHeading = z.infer<typeof HMLoadedHeadingSchema>
+export type HMLoadedVideo = z.infer<typeof HMLoadedVideoSchema>
+export type HMLoadedFile = z.infer<typeof HMLoadedFileSchema>
+export type HMLoadedImage = z.infer<typeof HMLoadedImageSchema>
+export type HMLoadedEmbed = {
+  type: 'Embed'
+  id: string
+  link: string
+  metadata: HMMetadata | null
+  content: HMLoadedBlockNode[] | null
+}
+export type HMLoadedBlock =
+  | HMLoadedParagraph
+  | HMLoadedHeading
+  | HMLoadedEmbed
+  | HMLoadedVideo
+  | HMLoadedFile
+  | HMLoadedImage
+  | {type: 'Unsupported'; id: string}
+
+export type HMLoadedBlockNode = {
+  block: HMLoadedBlock
+  children: HMLoadedBlockNode[]
+  childrenType?: HMBlockChildrenType
+}
+
+export type HMLoadedDocument = {
   id: UnpackedHypermediaId
-  metadata?: HMMetadata
+  version: string
+  content: HMLoadedBlockNode[]
+  metadata: HMMetadata
+  authors: HMAccountsMetadata
 }

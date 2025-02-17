@@ -1,4 +1,4 @@
-import {z} from 'zod'
+import {UnpackedHypermediaId} from '..'
 import {DEFAULT_GATEWAY_URL, HYPERMEDIA_SCHEME} from '../constants'
 import {StateStream} from './stream'
 
@@ -190,28 +190,6 @@ function inKeys<V extends string>(
   if (values[key]) return key as V
   return null
 }
-
-export const unpackedHmIdSchema = z.object({
-  id: z.string(),
-  type: z.union([z.literal('d'), z.literal('comment'), z.literal('draft')]),
-  uid: z.string(),
-  path: z.array(z.string()).nullable(),
-  version: z.string().nullable(),
-  blockRef: z.string().nullable(),
-  blockRange: z
-    .object({start: z.number(), end: z.number()})
-    .or(
-      z.object({
-        expanded: z.boolean(),
-      }),
-    )
-    .nullable(),
-  hostname: z.string().nullable(),
-  scheme: z.string().nullable(),
-  latest: z.boolean().nullable().optional(),
-})
-
-export type UnpackedHypermediaId = z.infer<typeof unpackedHmIdSchema>
 
 // this is used to convert an object that is a superset of HMId to an exact HMId. This is used in the case of embed props (but maybe we should reconsider this approach of spreading id directly into embed props)
 export function narrowHmId(id: UnpackedHypermediaId): UnpackedHypermediaId {
