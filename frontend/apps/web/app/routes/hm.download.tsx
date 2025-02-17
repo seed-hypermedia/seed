@@ -9,6 +9,7 @@ import {useEffect, useState} from "react";
 import {z} from "zod";
 import {useFullRender} from "~/cache-policy";
 import {loadSiteDocument, SiteDocumentPayload} from "~/loaders";
+import downloadBg from "~/massets/download-bg.png";
 import {defaultPageMeta} from "~/meta";
 import {PageFooter} from "~/page-footer";
 import {WebSiteHeader} from "~/page-header";
@@ -170,7 +171,11 @@ export default function DownloadPage() {
   }
   return (
     <WebSiteProvider homeId={homeId}>
-      <YStack>
+      <YStack
+        backgroundImage={`url(${downloadBg})`}
+        backgroundSize="cover"
+        backgroundPosition="top"
+      >
         <WebSiteHeader
           homeMetadata={homeMetadata}
           homeId={homeId}
@@ -182,8 +187,9 @@ export default function DownloadPage() {
           <YStack
             height="40vh"
             justifyContent="center"
-            backgroundColor="$brand12"
+            // backgroundColor="$brand12"
             alignItems="center"
+            paddingVertical="$8"
           >
             <Container gap="$4" paddingHorizontal="$6">
               <Heading size="$9" textAlign="center" fontWeight="bold">
