@@ -38,7 +38,7 @@ import {documentContainerClassName} from "@shm/ui/src/document-content";
 import {ChevronUp} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
-import {lazy, useCallback, useEffect, useMemo, useState} from "react";
+import React, {lazy, useCallback, useEffect, useMemo, useState} from "react";
 import {getHref} from "./href";
 import type {SiteDocumentPayload} from "./loaders";
 import {defaultSiteIcon} from "./meta";
@@ -161,12 +161,13 @@ export function DocumentPage(props: SiteDocumentPayload) {
 
   const location = useLocation();
   const replace = useNavigate();
-  const match = location.hash.match(/^([^[]+)(?:\[(\d+):(\d+)\])?$/);
+  const match = location.hash.match(/^(.+?)(?:\[(\d+):(\d+)\])?$/);
   const blockRef = match ? match[1].substring(1) : undefined;
 
-  const blockRange = match
-    ? {start: parseInt(match[2]), end: parseInt(match[3])}
-    : undefined;
+  const blockRange =
+    match && match[2] && match[3]
+      ? {start: parseInt(match[2]), end: parseInt(match[3])}
+      : undefined;
 
   return (
     <WebSiteProvider homeId={props.homeId}>
@@ -398,6 +399,7 @@ function WebDocContentProvider({
     blockRange?: BlockRange;
   };
 }) {
+  const navigate = useNavigate();
   return (
     <DocContentProvider
       entityComponents={{
@@ -440,6 +442,23 @@ function WebDocContentProvider({
           id.version || undefined
         );
         window.navigator.clipboard.writeText(blockHref);
+        // window.history.replaceState(
+        //   null,
+        //   "",
+        //   window.location.pathname +
+        //     window.location.search +
+        //     `#${blockId}[${blockRange.start}:${blockRange.end}]`
+        // );
+        navigate(
+          window.location.pathname +
+            window.location.search +
+            `#${blockId}${
+              blockRange.start && blockRange.end
+                ? `[${blockRange.start}:${blockRange.end}]`
+                : ""
+            }`,
+          {replace: true}
+        );
       }}
       routeParams={routeParams}
       textUnit={18}

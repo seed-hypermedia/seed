@@ -649,8 +649,11 @@ function DocPageContent({
         focusBlockId={isBlockFocused ? blockRef || undefined : undefined}
         handleBlockReplace={() => {
           if (route.key === 'document') {
-            // Remove block ref from the route.
-            replace({...route, id: {...route.id, blockRef: null}})
+            // Remove block ref and range from the route.
+            replace({
+              ...route,
+              id: {...route.id, blockRef: null, blockRange: null},
+            })
             return true
           }
           return false

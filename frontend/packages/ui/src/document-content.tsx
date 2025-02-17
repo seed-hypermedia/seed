@@ -620,14 +620,12 @@ export function BlockNodeContent({
     });
 
     return clonedBlock;
-  }, [blockNode.block, routeParams]);
+  }, [blockNode.block, routeParams?.blockRef, routeParams?.blockRange]);
 
   useEffect(() => {
-    if (routeParams?.blockRange) return;
-
     let val = routeParams?.blockRef == blockNode.block?.id && !comment;
 
-    setHighlight(val);
+    if (!routeParams?.blockRange) setHighlight(val);
 
     if (!val || !elm.current) return;
 
@@ -646,6 +644,7 @@ export function BlockNodeContent({
 
     // Function to check if the user clicked outside the block bounds.
     const handleClickOutside = (event: MouseEvent) => {
+      // console.log(elm.current, elm.current?.contains(event.target as Node));
       if (elm.current && !elm.current.contains(event.target as Node)) {
         handleBlockReplace?.();
       }
@@ -659,7 +658,12 @@ export function BlockNodeContent({
       // observer.disconnect();
       document.removeEventListener("click", handleClickOutside);
     };
-  }, [routeParams?.blockRef, comment, blockNode.block]);
+  }, [
+    routeParams?.blockRef,
+    routeParams?.blockRange,
+    comment,
+    blockNode.block,
+  ]);
 
   function handleBlockNodeToggle() {
     setExpanded(!_expanded);
@@ -1426,7 +1430,7 @@ function InlineContentView({
   let contentOffset = rangeOffset || 0;
 
   const fSize = fontSize || textUnit;
-  const rangeColor = "$yellow6";
+  const rangeColor = "$brandHighlight";
   return (
     <Text
       fontSize={fSize}

@@ -8,6 +8,8 @@ import {
 import {useExperiments} from '@/models/experiments'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
+import {useNavRoute} from '@/utils/navigation'
+import {useNavigate} from '@/utils/useNavigate'
 import {
   BlockRange,
   ExpandedBlockRange,
@@ -33,6 +35,8 @@ export function AppDocContentProvider({
   const {saveCidAsFile} = useAppContext()
   const openUrl = useOpenUrl()
   const reference = useDocumentUrl({docId, isBlockFocused})
+  const replace = useNavigate('replace')
+  const route = useNavRoute()
   const experiments = useExperiments()
   const importWebFile = trpc.webImporting.importWebFile.useMutation()
   return (
@@ -63,6 +67,16 @@ export function AppDocContentProvider({
               ) => {
                 if (blockId && reference) {
                   reference.onCopy(blockId, blockRange || {expanded: true})
+                }
+                if (route.key === 'document') {
+                  replace({
+                    ...route,
+                    id: {
+                      ...route.id,
+                      blockRef: blockId,
+                      blockRange: blockRange || null,
+                    },
+                  })
                 }
               }
             : null
