@@ -1,11 +1,8 @@
 import {BlockNoteEditor} from "@/blocknote/core/BlockNoteEditor";
-import type {
-  Block,
-  BlockIdentifier,
-} from "@/blocknote/core/extensions/Blocks/api/blockTypes";
+import type {BlockIdentifier} from "@/blocknote/core/extensions/Blocks/api/blockTypes";
 import {HMBlockSchema} from "@/schema";
 import {editorBlockToHMBlock} from "@shm/shared/client/editorblock-to-hmblock";
-import {BlockNode} from "@shm/shared/client/grpc-types";
+import {Block, BlockNode} from "@shm/shared/client/grpc-types";
 import {EditorBlock} from "@shm/shared/editor-types";
 import {Editor} from "@tiptap/core";
 import {Node as TipTapNode} from "@tiptap/pm/model";

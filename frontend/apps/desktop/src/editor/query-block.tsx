@@ -301,11 +301,11 @@ function CardView({
               </XStack>
             ))}
         </XStack>
-      ) : (
+      ) : items.length > 1 ? (
         <QueryBlockPlaceholder
           styleType={block.props.style as 'Card' | 'List'}
         />
-      )}
+      ) : null}
     </>
   )
 }

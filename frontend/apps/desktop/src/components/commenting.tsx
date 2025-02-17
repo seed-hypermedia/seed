@@ -253,6 +253,7 @@ function _CommentDraftEditor({
       }}
       gap="$4"
       paddingBottom="$2"
+      className="comment-editor"
     >
       <AppDocContentProvider disableEmbedClick>
         <EmbedToolbarProvider>
