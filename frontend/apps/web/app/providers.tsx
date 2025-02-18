@@ -36,7 +36,12 @@ export const Providers = (props: {children: any}) => {
 
 export function ThemeProvider({children}: {children: React.ReactNode}) {
   return (
-    <TamaguiProvider defaultTheme="light" config={tamaConf}>
+    <TamaguiProvider
+      defaultTheme="light"
+      disableInjectCSS
+      disableRootThemeClass
+      config={tamaConf}
+    >
       {children}
     </TamaguiProvider>
   );
