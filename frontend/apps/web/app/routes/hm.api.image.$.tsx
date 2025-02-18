@@ -8,10 +8,10 @@ const CACHE_PATH = path.resolve(
   path.join(process.env.DATA_DIR || process.cwd(), "image-cache")
 );
 const IMG_SIZE_WIDTHS: Record<OptimizedImageSize, number> = {
-  S: 60, // larger than any "icon" representations in the UI, so far
-  M: 325, // width of the newspaper cards
-  L: 800, // 525 is width of image in banner, 785 is the current max width of document content
-  XL: 3000, // the banner can be very wide
+  S: 120, // larger than any "icon" representations in the UI, so far
+  M: 650, // width of the newspaper cards
+  L: 1600, // 525 is width of image in banner, 785 is the current max width of document content
+  XL: 4000, // the banner can be very wide
 };
 
 export const loader: LoaderFunction = async ({params, request}) => {
