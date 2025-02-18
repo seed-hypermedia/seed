@@ -36,6 +36,7 @@ import {
 import {getQueryResultsWithClient} from '@shm/shared/models/directory'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
+import {validatePath} from '@shm/shared/utils/document-path'
 import {
   createHMUrl,
   hmId,
@@ -370,22 +371,29 @@ export function usePublishDraft(
             writeRecentSigner.mutateAsync(draft.signingAccount).then(() => {
               invalidateQueries(['trpc.recentSigners.get'])
             })
+            const path = id.path?.length
+              ? `/${id.path
+                  .map((p, idx) =>
+                    idx == id.path!.length - 1
+                      ? p.startsWith('_') && draft.metadata.name
+                        ? pathNameify(draft.metadata.name)
+                        : p.replace('_', '')
+                      : p.replace('_', ''),
+                  )
+                  .join('/')}`
+              : ''
+            const invalid = validatePath(path)
+
+            console.log(`== ~ mutationFn: ~ invalid:`, invalid)
+            if (invalid) {
+              throw new Error(invalid.error)
+            }
             const publishedDoc =
               await grpcClient.documents.createDocumentChange({
                 signingKeyName: draft.signingAccount,
                 account: id.uid,
                 baseVersion: draft.previousId?.version || '',
-                path: id.path?.length
-                  ? `/${id.path
-                      .map((p, idx) =>
-                        idx == id.path!.length - 1
-                          ? p.startsWith('_') && draft.metadata.name
-                            ? pathNameify(draft.metadata.name)
-                            : p.replace('_', '')
-                          : p.replace('_', ''),
-                      )
-                      .join('/')}`
-                  : '',
+                path,
                 changes: allChanges,
                 capability: capabilityId,
               })

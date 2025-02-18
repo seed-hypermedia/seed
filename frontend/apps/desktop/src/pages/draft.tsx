@@ -28,6 +28,7 @@ import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {BlockNoteEditor, getBlockInfoFromPos} from '@shm/editor/blocknote'
 import '@shm/shared/styles/document.css'
+import {validatePath} from '@shm/shared/utils/document-path'
 import {
   Button,
   Container,
@@ -841,7 +842,7 @@ function PathDraft({
   const route = useNavRoute()
   if (route.key != 'draft') throw new Error('not a draft')
   const replaceRoute = useNavigate('replace')
-
+  const input = useRef<HTMLTextAreaElement | null>(null)
   const draftContext = useSelector(draftActor, (s) => s.context)
   const name = useMemo(
     () => draftContext.metadata.name,
@@ -849,6 +850,7 @@ function PathDraft({
   )
   const routePath = useMemo(() => route.id?.path, [route])
   const [isDirty, setDirty] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [isEditing, setEditing] = useState(false)
   const [paths, currentPath] = useMemo(
     () => separateLastItem(routePath),
@@ -869,7 +871,14 @@ function PathDraft({
   const [path, setPath] = useState('')
 
   async function handleDraftChange() {
+    setError(null)
     if (route.key != 'draft') return
+    const invalid = validatePath(path)
+    if (invalid) {
+      setError(invalid.error)
+      input.current?.focus()
+      return
+    }
     const newId = hmId('d', route.id.uid, {path: [...paths, path]})
     const packedId = packHmId(newId)
 
@@ -890,76 +899,84 @@ function PathDraft({
   }
 
   return (
-    <XStack ai="center" gap="$2" f={1} w="100%">
-      <SizableText size="$1">Path:</SizableText>
-      <XStack ai="center" gap="$2" f={1}>
-        {!isEditing || paths.length ? (
-          <SizableText
-            size="$2"
-            textOverflow="ellipsis"
-            whiteSpace="nowrap"
-            overflow="hidden"
-          >
-            {paths.map((p) => `/${p}`)}
-            {!isEditing ? `/${path || currentPath}` : ''}
-          </SizableText>
-        ) : null}
+    <YStack>
+      <XStack ai="center" gap="$2" f={1} w="100%">
+        <SizableText size="$1">Path:</SizableText>
+        <XStack ai="center" gap="$2" f={1}>
+          {!isEditing || paths.length ? (
+            <SizableText
+              size="$2"
+              textOverflow="ellipsis"
+              whiteSpace="nowrap"
+              overflow="hidden"
+            >
+              {paths.map((p) => `/${p}`)}
+              {!isEditing ? `/${path || currentPath}` : ''}
+            </SizableText>
+          ) : null}
 
-        {isEditing ? (
-          <>
-            <Input
-              f={1}
-              size="$1"
-              value={path}
-              onChangeText={(t: string) => setPath(pathNameify(t))}
-            />
-            <SizableText
-              size="$2"
-              color="$brand5"
-              userSelect="none"
-              hoverStyle={{textDecorationLine: 'underline'}}
-              onPress={handleDraftChange}
-            >
-              Apply
-            </SizableText>
-            <SizableText
-              size="$2"
-              color="$red9"
-              userSelect="none"
-              hoverStyle={{textDecorationLine: 'underline'}}
-              onPress={() => {
-                if (!!name && path.startsWith('_')) {
-                  setPath(pathNameify(name))
-                } else {
-                  setPath(currentPath || '')
-                }
-                setDirty(false)
-                setEditing(false)
-              }}
-            >
-              Cancel
-            </SizableText>
-          </>
-        ) : canEditPath ? (
-          <>
-            <SizableText
-              flexGrow={0}
-              flexShrink={0}
-              size="$2"
-              color="$brand5"
-              userSelect="none"
-              hoverStyle={{textDecorationLine: 'underline'}}
-              onPress={() => {
-                setDirty(true)
-                setEditing(true)
-              }}
-            >
-              Edit
-            </SizableText>
-          </>
-        ) : null}
+          {isEditing ? (
+            <>
+              <Input
+                f={1}
+                size="$1"
+                value={path}
+                onChangeText={(t: string) => setPath(pathNameify(t))}
+                ref={input}
+              />
+              <SizableText
+                size="$2"
+                color="$brand5"
+                userSelect="none"
+                hoverStyle={{textDecorationLine: 'underline'}}
+                onPress={handleDraftChange}
+              >
+                Apply
+              </SizableText>
+              <SizableText
+                size="$2"
+                color="$red9"
+                userSelect="none"
+                hoverStyle={{textDecorationLine: 'underline'}}
+                onPress={() => {
+                  if (!!name && path.startsWith('_')) {
+                    setPath(pathNameify(name))
+                  } else {
+                    setPath(currentPath || '')
+                  }
+                  setDirty(false)
+                  setEditing(false)
+                }}
+              >
+                Cancel
+              </SizableText>
+            </>
+          ) : canEditPath ? (
+            <>
+              <SizableText
+                flexGrow={0}
+                flexShrink={0}
+                size="$2"
+                color="$brand5"
+                userSelect="none"
+                hoverStyle={{textDecorationLine: 'underline'}}
+                onPress={() => {
+                  setDirty(true)
+                  setEditing(true)
+                }}
+              >
+                Edit
+              </SizableText>
+            </>
+          ) : null}
+        </XStack>
       </XStack>
-    </XStack>
+      {error ? (
+        <SizableText color="$red9" size="$2">
+          {error}
+        </SizableText>
+      ) : null}
+    </YStack>
   )
 }
 
