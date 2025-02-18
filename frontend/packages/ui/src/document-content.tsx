@@ -2066,6 +2066,7 @@ export function BlockContentButton({
       userSelect="none"
       className="block-content block-file"
       data-content-type="file"
+      maxWidth="100%"
       data-url={block.link}
       data-name={block.attributes?.name}
       {...props}
@@ -2075,24 +2076,40 @@ export function BlockContentButton({
         position="relative"
         // @ts-ignore
         contentEditable={false}
+        maxWidth="100%"
       >
         <Button
           borderWidth="$1"
-          bc="$brand10"
-          size="$3"
+          bg="$brand5"
+          color="white"
           width="100%"
-          p="$2"
-          fontSize="$4"
+          // p="$2"
+          // fontSize="$4"
           justifyContent="center"
           textAlign="center"
           userSelect="none"
           borderColor="$colorTransparent"
-          focusStyle={{borderWidth: "$1"}}
           onPress={(e) => {
             onLinkClick(block.link, e);
           }}
+          size="$5"
+          maxWidth="100%"
+          hoverStyle={{
+            bg: "$brand4",
+            borderColor: "$color8",
+          }}
+          focusStyle={{
+            bg: "$brand3",
+            borderColor: "$color8",
+          }}
         >
-          <SizableText numberOfLines={1} ellipsizeMode="tail">
+          <SizableText
+            size="$5"
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            fontWeight="bold"
+            color="white"
+          >
             {block.attributes?.name}
           </SizableText>
         </Button>

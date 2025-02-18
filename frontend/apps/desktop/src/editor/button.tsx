@@ -163,31 +163,52 @@ const Render = (
         popoverState.onOpenChange(open)
       }}
     >
-      <YStack justifyContent={alignment} alignItems={alignment}>
-        <XStack width="100%" justifyContent={alignment} userSelect="none">
+      <YStack justifyContent={alignment} alignItems={alignment} maxWidth="100%">
+        <XStack
+          width="100%"
+          justifyContent={alignment}
+          userSelect="none"
+          maxWidth="100%"
+        >
           <XStack
+            maxWidth="100%"
             position="relative"
+            // bg="red"
             // width={sizing === 'fill-width' ? '92.5%' : ''}
             // @ts-ignore
             contentEditable={false}
           >
-            <Popover.Trigger>
+            <Popover.Trigger asChild>
               <Button
                 data-type="hm-button"
                 borderWidth="$1"
-                bc="$brand10"
-                size="$3"
+                bg={selected ? '$brand4' : '$brand5'}
+                size="$5"
                 width="100%"
-                p="$2"
-                fontSize="$4"
+                // p="$2"
+                // fontSize="$4"
                 justifyContent="center"
+                hoverStyle={{
+                  bg: '$brand4',
+                  borderColor: '$color8',
+                }}
+                focusStyle={{
+                  bg: '$brand3',
+                  borderColor: '$color8',
+                }}
                 textAlign="center"
                 userSelect="none"
+                maxWidth="100%"
                 borderColor={selected ? '$color8' : '$colorTransparent'}
-                focusStyle={{borderWidth: '$1'}}
               >
-                <SizableText numberOfLines={1} ellipsizeMode="tail">
-                  {block.props.name}
+                <SizableText
+                  size="$5"
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  fontWeight="bold"
+                  color="white"
+                >
+                  {block.props.name || 'Untitled Button'}
                 </SizableText>
               </Button>
             </Popover.Trigger>
