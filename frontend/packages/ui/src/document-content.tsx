@@ -644,7 +644,6 @@ export function BlockNodeContent({
 
     // Function to check if the user clicked outside the block bounds.
     const handleClickOutside = (event: MouseEvent) => {
-      // console.log(elm.current, elm.current?.contains(event.target as Node));
       if (elm.current && !elm.current.contains(event.target as Node)) {
         handleBlockReplace?.();
       }

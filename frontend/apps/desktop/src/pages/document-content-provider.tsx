@@ -74,7 +74,12 @@ export function AppDocContentProvider({
                     id: {
                       ...route.id,
                       blockRef: blockId,
-                      blockRange: blockRange || null,
+                      blockRange:
+                        blockRange &&
+                        'start' in blockRange &&
+                        'end' in blockRange
+                          ? blockRange
+                          : null,
                     },
                   })
                 }

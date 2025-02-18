@@ -39,7 +39,7 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
     throw new Error('SiteNavigation only supports document route')
   const {id} = route
   const entity = useSubscribedEntity(id, true) // recursive subscriptions to make sure children get loaded
-  const navigate = useNavigate()
+  const navigate = useNavigate('replace')
   const document = entity.data?.document
   const createDraft = useCreateDraft(id)
   const capability = useMyCapability(id)
@@ -91,6 +91,11 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
             key: 'document',
             id: hmId(id.type, id.uid, {blockRef: blockId, path: id.path}),
           })
+          const selectedBlock = window.document.querySelector(`#${blockId}`)
+
+          if (selectedBlock) {
+            selectedBlock.scrollIntoView({behavior: 'smooth', block: 'start'})
+          }
         }}
         document={document}
         id={id}

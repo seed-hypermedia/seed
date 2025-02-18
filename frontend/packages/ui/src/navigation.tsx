@@ -16,7 +16,7 @@ import {
   useRouteLink,
 } from "@shm/shared";
 import {XStack, YStack} from "@tamagui/stacks";
-import {useMedia} from "@tamagui/web";
+import {GestureReponderEvent, useMedia} from "@tamagui/web";
 import {ReactNode, useLayoutEffect, useMemo} from "react";
 import {usePopoverState} from ".";
 import {HMIcon} from "./hm-icon";
@@ -338,16 +338,15 @@ function OutlineNode({
         active={node.id === activeBlockId}
         title={node.title}
         indented={indented}
-        // onPress={(e: GestureReponderEvent) => {
-        //   e.preventDefault();
-        // outlineProps?.onPress?.();
-        // if (outlineProps.onPress) {
-        //   outlineProps.onPress(e);
-        // }
-        //   onPress?.();
-        //   onCloseNav?.();
-        //   onActivateBlock(node.id);
-        // }}
+        onPress={(e: GestureReponderEvent) => {
+          e.preventDefault();
+          if (outlineProps.onPress) {
+            outlineProps.onPress(e);
+          }
+          onPress?.();
+          onCloseNav?.();
+          onActivateBlock(node.id);
+        }}
       />
       {node.children?.length
         ? node.children.map((child) => {

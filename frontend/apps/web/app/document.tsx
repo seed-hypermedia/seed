@@ -140,17 +140,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
       </WebSiteProvider>
     );
   }
-  const onActivateBlock = useCallback((blockId: string) => {
-    const targetElement = window.document.querySelector(`#${blockId}`);
-
-    if (targetElement) {
-      const offset = 80; // header fixed height
-      const elementPosition = targetElement.getBoundingClientRect().top;
-      const offsetPosition = elementPosition + window.scrollY - offset;
-      window.scrollTo({top: offsetPosition, behavior: "smooth"});
-      // onClose?.();
-    }
-  }, []);
 
   const isHomeDoc = !id.path?.length;
   const isShowOutline =
@@ -161,13 +150,39 @@ export function DocumentPage(props: SiteDocumentPayload) {
 
   const location = useLocation();
   const replace = useNavigate();
-  const match = location.hash.match(/^(.+?)(?:\[(\d+):(\d+)\])?$/);
-  const blockRef = match ? match[1].substring(1) : undefined;
+  // const match = location.hash.match(/^(.+?)(?:\[(\d+):(\d+)\])?$/);
+  // const blockRef = match ? match[1].substring(1) : undefined;
 
-  const blockRange =
-    match && match[2] && match[3]
-      ? {start: parseInt(match[2]), end: parseInt(match[3])}
-      : undefined;
+  // const blockRange =
+  //   match && match[2] && match[3]
+  //     ? {start: parseInt(match[2]), end: parseInt(match[3])}
+  //     : undefined;
+
+  const {blockRef, blockRange} = useMemo(() => {
+    const match = location.hash.match(/^(.+?)(?:\[(\d+):(\d+)\])?$/);
+    const blockRef = match ? match[1].substring(1) : undefined;
+    const blockRange =
+      match && match[2] && match[3]
+        ? {start: parseInt(match[2]), end: parseInt(match[3])}
+        : undefined;
+
+    return {blockRef, blockRange};
+  }, [location.hash]);
+
+  const onActivateBlock = useCallback((blockId: string) => {
+    replace(window.location.pathname + window.location.search + `#${blockId}`, {
+      replace: true,
+    });
+    const targetElement = window.document.querySelector(`#${blockId}`);
+
+    if (targetElement) {
+      const offset = 80; // header fixed height
+      const elementPosition = targetElement.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.scrollY - offset;
+      window.scrollTo({top: offsetPosition, behavior: "smooth"});
+      // onClose?.();
+    }
+  }, []);
 
   return (
     <WebSiteProvider homeId={props.homeId}>
@@ -246,8 +261,9 @@ export function DocumentPage(props: SiteDocumentPayload) {
                   document={document}
                   handleBlockReplace={() => {
                     // Replace the URL to not include fragment.
-                    replace(location.pathname + location.search, {
+                    replace(window.location.pathname + window.location.search, {
                       replace: true,
+                      preventScrollReset: true,
                     });
                     return true;
                   }}
@@ -442,22 +458,15 @@ function WebDocContentProvider({
           id.version || undefined
         );
         window.navigator.clipboard.writeText(blockHref);
-        // window.history.replaceState(
-        //   null,
-        //   "",
-        //   window.location.pathname +
-        //     window.location.search +
-        //     `#${blockId}[${blockRange.start}:${blockRange.end}]`
-        // );
         navigate(
           window.location.pathname +
             window.location.search +
             `#${blockId}${
-              blockRange.start && blockRange.end
+              "start" in blockRange && "end" in blockRange
                 ? `[${blockRange.start}:${blockRange.end}]`
                 : ""
             }`,
-          {replace: true}
+          {replace: true, preventScrollReset: true}
         );
       }}
       routeParams={routeParams}
