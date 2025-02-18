@@ -374,81 +374,6 @@ export const HMBlockNostrSchema = z
   })
   .strict()
 
-export const HMQueryInclusionSchema = z.object({
-  space: z.string(),
-  path: z.string().optional(),
-  mode: z.union([z.literal('Children'), z.literal('AllDescendants')]),
-})
-
-export const HMQuerySortSchema = z.object({
-  reverse: z.boolean().default(false),
-  term: z.union([
-    z.literal('Path'),
-    z.literal('Title'),
-    z.literal('CreateTime'),
-    z.literal('UpdateTime'),
-  ]),
-})
-export type HMQuerySort = z.infer<typeof HMQuerySortSchema>
-
-export const HMQuerySchema = z.object({
-  includes: z.array(HMQueryInclusionSchema),
-  sort: z.array(HMQuerySortSchema).optional(),
-  limit: z.number().optional(),
-})
-
-export type HMQuery = z.infer<typeof HMQuerySchema>
-
-export const HMBlockQuerySchema = z
-  .object({
-    type: z.literal('Query'),
-    ...blockBaseProperties,
-    attributes: z.object({
-      ...parentBlockAttributes,
-      style: HMQueryStyleSchema.optional().default('Card'),
-      columnCount: z.number().optional().default(3),
-      query: HMQuerySchema,
-      banner: z.boolean().optional().default(false),
-    }),
-  })
-  .strict()
-
-export const HMBlockSchema = z.discriminatedUnion('type', [
-  HMBlockParagraphSchema,
-  HMBlockHeadingSchema,
-  HMBlockCodeSchema,
-  HMBlockMathSchema,
-  HMBlockImageSchema,
-  HMBlockVideoSchema,
-  HMBlockFileSchema,
-  HMBlockButtonSchema,
-  HMBlockEmbedSchema,
-  HMBlockWebEmbedSchema,
-  HMBlockNostrSchema,
-  HMBlockQuerySchema,
-])
-
-export type HMBlockParagraph = z.infer<typeof HMBlockParagraphSchema>
-export type HMBlockHeading = z.infer<typeof HMBlockHeadingSchema>
-export type HMBlockCode = z.infer<typeof HMBlockCodeSchema>
-export type HMBlockMath = z.infer<typeof HMBlockMathSchema>
-export type HMBlockImage = z.infer<typeof HMBlockImageSchema>
-export type HMBlockVideo = z.infer<typeof HMBlockVideoSchema>
-export type HMBlockFile = z.infer<typeof HMBlockFileSchema>
-export type HMBlockButton = z.infer<typeof HMBlockButtonSchema>
-export type HMBlockEmbed = z.infer<typeof HMBlockEmbedSchema>
-export type HMBlockWebEmbed = z.infer<typeof HMBlockWebEmbedSchema>
-export type HMBlockQuery = z.infer<typeof HMBlockQuerySchema>
-export type HMBlock = z.infer<typeof HMBlockSchema>
-export type HMBlockNostr = z.infer<typeof HMBlockNostrSchema>
-
-const baseBlockNodeSchema = z.object({
-  block: HMBlockSchema,
-})
-export type HMBlockNode = z.infer<typeof baseBlockNodeSchema> & {
-  children?: HMBlockNode[]
-}
-
 export type HMPublishableAnnotation =
   | {
       type: 'Bold' | 'Italic' | 'Underline' | 'Strike' | 'Code'
@@ -563,10 +488,17 @@ export type HMPublishableBlock =
   | HMPublishableBlockButton
   | HMPublishableBlockEmbed
 
-export const HMBlockNodeSchema: z.ZodType<HMBlockNode> =
-  baseBlockNodeSchema.extend({
-    children: z.lazy(() => z.array(HMBlockNodeSchema).optional()),
-  })
+export type HMBlockNode = {
+  children?: HMBlockNode[]
+  block: HMBlock
+}
+
+export const HMBlockNodeSchema: z.ZodType<HMBlockNode> = z.lazy(() =>
+  z.object({
+    children: z.array(HMBlockNodeSchema).optional(),
+    block: HMBlockSchema,
+  }),
+)
 
 export const HMDocumentMetadataSchema = z.object({
   name: z.string().optional(),
@@ -606,33 +538,10 @@ export function hmMetadataJsonCorrection(metadata: any): any {
 
 export type HMMetadata = z.infer<typeof HMDocumentMetadataSchema>
 
-export const HMTimestampSchema = z
-  .object({
-    seconds: z.bigint().or(z.number()),
-    nanos: z.number(),
-  })
-  .strict()
-
-export type HMTimestamp = z.infer<typeof HMTimestampSchema>
-
-export const HMDocumentSchema = z.object({
-  content: z.array(HMBlockNodeSchema).default([]),
-  version: z.string().default(''),
-  account: z.string().default(''),
-  authors: z.array(z.string()),
-  path: z.string().default(''),
-  createTime: z.union([HMTimestampSchema, z.string()]).default(''),
-  updateTime: z.union([HMTimestampSchema, z.string()]).default(''),
-  metadata: HMDocumentMetadataSchema,
-  genesis: z.string(),
-})
-// .strict() // avoid errors when the backend sends extra fields (most recently "header" and "footer")
-
 export type HMLibraryDocument = HMDocumentInfo & {
   type: 'document'
   latestComment?: HMComment | null
 }
-export type HMDocument = z.infer<typeof HMDocumentSchema>
 
 type DraftChangeInfo = {
   author: string
@@ -848,6 +757,76 @@ export const HMLoadedEmbedSchema = z
   })
   .strict()
 
+export const HMQueryInclusionSchema = z.object({
+  space: z.string(),
+  path: z.string().optional(),
+  mode: z.union([z.literal('Children'), z.literal('AllDescendants')]),
+})
+
+export const HMQuerySortSchema = z.object({
+  reverse: z.boolean().default(false),
+  term: z.union([
+    z.literal('Path'),
+    z.literal('Title'),
+    z.literal('CreateTime'),
+    z.literal('UpdateTime'),
+  ]),
+})
+export type HMQuerySort = z.infer<typeof HMQuerySortSchema>
+
+export const HMQuerySchema = z.object({
+  includes: z.array(HMQueryInclusionSchema),
+  sort: z.array(HMQuerySortSchema).optional(),
+  limit: z.number().optional(),
+})
+export type HMQuery = z.infer<typeof HMQuerySchema>
+
+export const HMTimestampSchema = z
+  .object({
+    seconds: z.bigint().or(z.number()),
+    nanos: z.number(),
+  })
+  .strict()
+
+export type HMTimestamp = z.infer<typeof HMTimestampSchema>
+
+const HMLoadedQueryBlockResultSchema = z.object({
+  type: z.literal('document'),
+  path: z.array(z.string()),
+  metadata: HMDocumentMetadataSchema.nullable(),
+  account: z.string(),
+  version: z.string(),
+  createTime: HMTimestampSchema.optional(),
+  updateTime: HMTimestampSchema.optional(),
+  genesis: z.string(),
+  authors: HMAccountsMetadataSchema,
+  breadcrumbs: z.any(), // todo
+  activitySummary: z.any(),
+})
+export type HMLoadedQueryBlockResult = z.infer<
+  typeof HMLoadedQueryBlockResultSchema
+>
+
+export const HMLoadedQuerySchema = z.object({
+  type: z.literal('Query'),
+  id: z.string(),
+  query: HMQuerySchema,
+  results: z.array(HMLoadedQueryBlockResultSchema).nullable(),
+})
+
+export type HMLoadedQuery = z.infer<typeof HMLoadedQuerySchema>
+
+export const HMLoadedBlockSchema: z.ZodType = z.discriminatedUnion('type', [
+  HMLoadedParagraphSchema,
+  HMLoadedHeadingSchema,
+  HMLoadedEmbedSchema,
+  HMLoadedVideoSchema,
+  HMLoadedFileSchema,
+  HMLoadedImageSchema,
+  HMLoadedQuerySchema,
+  z.object({type: z.literal('Unsupported'), id: z.string()}).strict(),
+])
+
 export const HMLoadedBlockNodeSchema: z.ZodType = z.lazy(() =>
   z
     .object({
@@ -857,16 +836,6 @@ export const HMLoadedBlockNodeSchema: z.ZodType = z.lazy(() =>
     })
     .strict(),
 )
-
-export const HMLoadedBlockSchema: z.ZodType = z.discriminatedUnion('type', [
-  HMLoadedParagraphSchema,
-  HMLoadedHeadingSchema,
-  HMLoadedEmbedSchema,
-  HMLoadedVideoSchema,
-  HMLoadedFileSchema,
-  HMLoadedImageSchema,
-  z.object({type: z.literal('Unsupported'), id: z.string()}).strict(),
-])
 
 export const HMLoadedDocumentSchema = z
   .object({
@@ -905,6 +874,7 @@ export type HMLoadedBlock =
   | HMLoadedVideo
   | HMLoadedFile
   | HMLoadedImage
+  | HMLoadedQuery
   | {type: 'Unsupported'; id: string}
 
 export type HMLoadedBlockNode = {
@@ -920,3 +890,62 @@ export type HMLoadedDocument = {
   metadata: HMMetadata
   authors: HMAccountsMetadata
 }
+
+// END MANUAL EXPORT ZONE
+
+export const HMBlockQuerySchema = z
+  .object({
+    type: z.literal('Query'),
+    ...blockBaseProperties,
+    attributes: z.object({
+      ...parentBlockAttributes,
+      style: HMQueryStyleSchema.optional().default('Card'),
+      columnCount: z.number().optional().default(3),
+      query: HMQuerySchema,
+      banner: z.boolean().optional().default(false),
+    }),
+  })
+  .strict()
+
+export const HMBlockSchema = z.discriminatedUnion('type', [
+  HMBlockParagraphSchema,
+  HMBlockHeadingSchema,
+  HMBlockCodeSchema,
+  HMBlockMathSchema,
+  HMBlockImageSchema,
+  HMBlockVideoSchema,
+  HMBlockFileSchema,
+  HMBlockButtonSchema,
+  HMBlockEmbedSchema,
+  HMBlockWebEmbedSchema,
+  HMBlockNostrSchema,
+  HMBlockQuerySchema,
+])
+
+export type HMBlockParagraph = z.infer<typeof HMBlockParagraphSchema>
+export type HMBlockHeading = z.infer<typeof HMBlockHeadingSchema>
+export type HMBlockCode = z.infer<typeof HMBlockCodeSchema>
+export type HMBlockMath = z.infer<typeof HMBlockMathSchema>
+export type HMBlockImage = z.infer<typeof HMBlockImageSchema>
+export type HMBlockVideo = z.infer<typeof HMBlockVideoSchema>
+export type HMBlockFile = z.infer<typeof HMBlockFileSchema>
+export type HMBlockButton = z.infer<typeof HMBlockButtonSchema>
+export type HMBlockEmbed = z.infer<typeof HMBlockEmbedSchema>
+export type HMBlockWebEmbed = z.infer<typeof HMBlockWebEmbedSchema>
+export type HMBlockQuery = z.infer<typeof HMBlockQuerySchema>
+export type HMBlock = z.infer<typeof HMBlockSchema>
+export type HMBlockNostr = z.infer<typeof HMBlockNostrSchema>
+
+export const HMDocumentSchema = z.object({
+  content: z.array(HMBlockNodeSchema).default([]),
+  version: z.string().default(''),
+  account: z.string().default(''),
+  authors: z.array(z.string()),
+  path: z.string().default(''),
+  createTime: z.union([HMTimestampSchema, z.string()]).default(''),
+  updateTime: z.union([HMTimestampSchema, z.string()]).default(''),
+  metadata: HMDocumentMetadataSchema,
+  genesis: z.string(),
+})
+// .strict() // avoid errors when the backend sends extra fields (most recently "header" and "footer")
+export type HMDocument = z.infer<typeof HMDocumentSchema>

@@ -70,7 +70,9 @@ export function getDiretoryWithClient(client: GRPCClient) {
 
 export function getQueryResultsWithClient(client: GRPCClient) {
   const getDirectory = getDiretoryWithClient(client)
-  async function getQueryResults(query: HMQuery) {
+  async function getQueryResults(
+    query: HMQuery,
+  ): Promise<HMQueryResult | null> {
     const {includes, limit, sort} = query
     if (includes.length !== 1) return null // only support one include for now
     const {path, mode, space} = includes[0]

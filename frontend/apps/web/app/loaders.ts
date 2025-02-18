@@ -428,6 +428,22 @@ async function loadDocumentBlock(block: HMBlock): Promise<HMLoadedBlock> {
       width: block.attributes.width,
     };
   }
+  if (block.type === "Query") {
+    const q = await getQueryResults(block.attributes.query);
+    return {
+      type: "Query",
+      id: block.id,
+      query: block.attributes.query,
+      results: q?.results
+        ? await Promise.all(
+            q.results.map(async (result) => ({
+              ...result,
+              authors: await loadAuthors(result.authors),
+            }))
+          )
+        : null,
+    };
+  }
   return {
     type: "Unsupported",
     id: block.id,
