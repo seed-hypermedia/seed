@@ -1,5 +1,6 @@
 import {queryClient} from "@shm/shared/models/query-client";
 import {HMBlockNode} from "@shm/shared/src/hm-types";
+import {Tooltip, Trash, XStack} from "@shm/ui/src";
 import {Button} from "@shm/ui/src/button";
 import {YStack} from "@tamagui/stacks";
 import {Extension} from "@tiptap/core";
@@ -12,37 +13,50 @@ import {serverBlockNodesFromEditorBlocks} from "./utils";
 
 export default function CommentEditor({
   onCommentSubmit,
+  onDiscardDraft,
 }: {
   onCommentSubmit: (content: HMBlockNode[]) => void;
+  onDiscardDraft: () => void;
 }) {
   const {editor} = useCommentEditor();
   return (
-    <YStack
-      f={1}
-      marginTop="$1"
-      paddingHorizontal="$4"
-      onPress={(e: MouseEvent) => {
-        e.stopPropagation();
-        editor._tiptapEditor.commands.focus();
-      }}
-      gap="$4"
-      paddingBottom="$2"
-    >
-      <HyperMediaEditorView editor={editor} openUrl={() => {}} />
-      <Button
-        onPress={() => {
-          const blocks = serverBlockNodesFromEditorBlocks(
-            editor,
-            editor.topLevelBlocks
-          );
-          const commentContent = blocks.map((block) =>
-            block.toJson()
-          ) as HMBlockNode[];
-          onCommentSubmit(commentContent);
+    <YStack gap="$3">
+      <YStack
+        marginTop="$1"
+        borderRadius="$4"
+        minHeight={105}
+        bg="$color4"
+        paddingHorizontal="$4"
+        onPress={(e: MouseEvent) => {
+          e.stopPropagation();
+          editor._tiptapEditor.commands.focus();
         }}
+        gap="$4"
+        paddingBottom="$2"
       >
-        Submit
-      </Button>
+        <HyperMediaEditorView editor={editor} openUrl={() => {}} />
+      </YStack>
+      <XStack gap="$3" paddingHorizontal="$4" jc="flex-end">
+        <Tooltip content="Discard Comment Draft">
+          <Button theme="red" size="$2" onPress={onDiscardDraft} icon={Trash} />
+        </Tooltip>
+        <Button
+          size="$2"
+          theme="brand"
+          onPress={() => {
+            const blocks = serverBlockNodesFromEditorBlocks(
+              editor,
+              editor.topLevelBlocks
+            );
+            const commentContent = blocks.map((block) =>
+              block.toJson()
+            ) as HMBlockNode[];
+            onCommentSubmit(commentContent);
+          }}
+        >
+          Publish Comment
+        </Button>
+      </XStack>
     </YStack>
   );
 }

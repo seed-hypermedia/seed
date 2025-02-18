@@ -36,22 +36,26 @@ export function CommentGroup({
   CommentReplies,
   homeId,
   siteHost,
+  rootReplyCommentId,
 }: {
   docId: UnpackedHypermediaId;
   commentGroup: HMCommentGroup;
   isNested?: boolean;
   isLastGroup?: boolean;
   authors?: HMAccountsMetadata | undefined;
+  rootReplyCommentId: string | null;
   renderCommentContent: (comment: HMComment) => ReactNode;
   RepliesEditor?: React.FC<{
     isReplying: boolean;
     docId: UnpackedHypermediaId;
     replyCommentId: string;
+    rootReplyCommentId: string;
     onDiscardDraft: () => void;
   }>;
   CommentReplies: React.FC<{
     docId: UnpackedHypermediaId;
     replyCommentId: string;
+    rootReplyCommentId: string;
     homeId?: UnpackedHypermediaId;
     siteHost?: string;
   }>;
@@ -81,6 +85,9 @@ export function CommentGroup({
             key={comment.id}
             docId={docId}
             comment={comment}
+            rootReplyCommentId={
+              rootReplyCommentId || commentGroup.comments[0].id || null
+            }
             authorMetadata={authors?.[comment.author]?.metadata}
             renderCommentContent={renderCommentContent}
             replyCount={
@@ -104,6 +111,7 @@ function Comment({
   isFirst = false,
   isLast = false,
   isNested = false,
+  rootReplyCommentId,
   homeId,
   authorMetadata,
   renderCommentContent,
@@ -117,6 +125,7 @@ function Comment({
   isFirst?: boolean;
   isLast?: boolean;
   isNested?: boolean;
+  rootReplyCommentId: string | null;
   authorMetadata?: HMMetadata;
   renderCommentContent: (comment: HMComment) => ReactNode;
   homeId?: UnpackedHypermediaId;
@@ -124,11 +133,13 @@ function Comment({
     isReplying: boolean;
     docId: UnpackedHypermediaId;
     replyCommentId: string;
+    rootReplyCommentId: string;
     onDiscardDraft: () => void;
   }>;
   CommentReplies: React.FC<{
     docId: UnpackedHypermediaId;
     replyCommentId: string;
+    rootReplyCommentId: string;
     homeId?: UnpackedHypermediaId;
     siteHost?: string;
   }>;
@@ -294,6 +305,7 @@ function Comment({
           isReplying={isReplying}
           docId={docId}
           replyCommentId={comment.id}
+          rootReplyCommentId={rootReplyCommentId || comment.id}
           onDiscardDraft={() => setIsReplying(false)}
         />
       ) : null}
@@ -301,6 +313,7 @@ function Comment({
         <CommentReplies
           docId={docId}
           replyCommentId={comment.id}
+          rootReplyCommentId={rootReplyCommentId || comment.id}
           homeId={homeId}
           siteHost={siteHost}
         />

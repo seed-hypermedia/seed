@@ -494,19 +494,21 @@ function DocumentAppendix({
   siteHost: string | undefined;
   enableWebSigning?: boolean;
 }) {
+  const docIdWithVersion: UnpackedHypermediaId = {
+    ...id,
+    version: document.version,
+  };
   return (
     <Container>
       <ActivitySection>
         <DocumentActivity
-          id={id}
+          id={docIdWithVersion}
           document={document}
           homeId={homeId}
           siteHost={siteHost}
         />
 
-        {enableWebSigning ? (
-          <WebCommenting docId={id} docVersion={document.version} />
-        ) : null}
+        {enableWebSigning ? <WebCommenting docId={docIdWithVersion} /> : null}
       </ActivitySection>
     </Container>
   );
@@ -573,6 +575,7 @@ function DocumentActivity({
               CommentReplies={CommentReplies}
               homeId={homeId}
               siteHost={siteHost}
+              RepliesEditor={CommentRepliesEditor}
             />
           );
         }
@@ -612,11 +615,13 @@ function CommentReplies({
   homeId,
   siteHost,
   replyCommentId,
+  rootReplyCommentId,
 }: {
   docId: UnpackedHypermediaId;
   homeId?: UnpackedHypermediaId;
   siteHost?: string | undefined;
   replyCommentId: string;
+  rootReplyCommentId: string | null;
 }) {
   const discussion = useDiscussion(docId, replyCommentId);
   const renderCommentContent = useCallback(
@@ -649,9 +654,35 @@ function CommentReplies({
             CommentReplies={CommentReplies}
             homeId={homeId}
             siteHost={siteHost}
+            CommentRepliesEditor={CommentRepliesEditor}
+            rootReplyCommentId={rootReplyCommentId}
           />
         );
       })}
     </YStack>
+  );
+}
+
+function CommentRepliesEditor({
+  isReplying,
+  docId,
+  replyCommentId,
+  rootReplyCommentId,
+  onDiscardDraft,
+}: {
+  isReplying: boolean;
+  docId: UnpackedHypermediaId;
+  replyCommentId: string;
+  rootReplyCommentId: string;
+  onDiscardDraft: () => void;
+}) {
+  if (!isReplying) return null;
+  return (
+    <WebCommenting
+      docId={docId}
+      replyCommentId={replyCommentId}
+      rootReplyCommentId={rootReplyCommentId}
+      onDiscardDraft={onDiscardDraft}
+    />
   );
 }

@@ -58,9 +58,11 @@ export function renderCommentContent(comment: HMComment) {
 export function CommentReplies({
   docId,
   replyCommentId,
+  rootReplyCommentId,
 }: {
   docId: UnpackedHypermediaId
   replyCommentId: string
+  rootReplyCommentId: string | null
 }) {
   const commentGroupQueries = useDocumentCommentGroups(docId, replyCommentId)
   const comments = commentGroupQueries.data
@@ -79,6 +81,7 @@ export function CommentReplies({
             isLastGroup={commentGroup === comments[comments.length - 1]}
             RepliesEditor={RepliesEditor}
             CommentReplies={CommentReplies}
+            rootReplyCommentId={rootReplyCommentId}
           />
         )
       })}

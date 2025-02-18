@@ -9,7 +9,6 @@ import {
   SITE_BASE_URL,
   UnpackedHypermediaId,
 } from "@shm/shared";
-import {YStack} from "@tamagui/stacks";
 import {useMutation} from "@tanstack/react-query";
 import {CID, varint} from "multiformats";
 import {base58btc} from "multiformats/bases/base58";
@@ -257,31 +256,59 @@ function hmBlocksToPublishable(
     .filter((blockNode) => blockNode !== null);
 }
 
-async function createComment(
-  content: HMBlockNode[],
-  docId: UnpackedHypermediaId,
-  docVersion: string,
-  keyPair: CryptoKeyPair
-) {
+type UnsignedComment = {
+  type: "Comment";
+  body: HMPublishableBlock[];
+  space: Uint8Array;
+  path: string;
+  version: CID[];
+  replyParent?: CID;
+  threadRoot?: CID;
+  signer: Uint8Array;
+  ts: bigint;
+};
+type SignedComment = UnsignedComment & {
+  sig: ArrayBuffer;
+};
+
+async function createComment({
+  content,
+  docId,
+  docVersion,
+  keyPair,
+  replyCommentId,
+  rootReplyCommentId,
+}: {
+  content: HMBlockNode[];
+  docId: UnpackedHypermediaId;
+  docVersion: string;
+  keyPair: CryptoKeyPair;
+  replyCommentId?: string;
+  rootReplyCommentId?: string;
+}) {
   const signerKey = await preparePublicKey(keyPair.publicKey);
-  const unsignedComment = {
+  const unsignedComment: UnsignedComment = {
     type: "Comment",
     body: hmBlocksToPublishable(content),
     space: base58btc.decode(docId.uid),
     path: hmIdPathToEntityQueryPath(docId.path),
     version: docVersion.split(".").map((changeId) => CID.parse(changeId)),
-    // threadRoot: cid of the root comment
-    // replyParent: cid of the parent comment this is in reply to, if this is a reply
     // capability: cid of the capability that is being exercised
     // author: prepared account id of the comment author, if it is different from the signer
     signer: signerKey,
     ts: BigInt(Date.now()),
   };
+  if (replyCommentId) {
+    unsignedComment.replyParent = CID.parse(replyCommentId);
+    if (rootReplyCommentId) {
+      unsignedComment.threadRoot = CID.parse(rootReplyCommentId);
+    }
+  }
   const signature = await signObject(keyPair, unsignedComment);
   return {
     ...unsignedComment,
     sig: signature,
-  };
+  } satisfies SignedComment;
 }
 
 async function preparePublicKey(publicKey: CryptoKey) {
@@ -332,13 +359,30 @@ const keyPairStore = {
   },
 };
 
-export default function WebCommenting({
-  docId,
-  docVersion,
-}: {
+type CreateCommentPayload = {
+  content: HMBlockNode[];
   docId: UnpackedHypermediaId;
   docVersion: string;
+  userKeyPair: CryptoKeyPair;
+  replyCommentId?: string;
+  rootReplyCommentId?: string;
+};
+
+export default function WebCommenting({
+  docId,
+  replyCommentId,
+  rootReplyCommentId,
+  onDiscardDraft,
+}: {
+  docId: UnpackedHypermediaId;
+  replyCommentId: string | null;
+  rootReplyCommentId: string | null;
+  onDiscardDraft: () => void;
 }) {
+  console.log("COMMENTING", {
+    replyCommentId,
+    rootReplyCommentId,
+  });
   const userKeyPair = useSyncExternalStore(
     keyPairStore.listen,
     keyPairStore.get,
@@ -354,18 +398,21 @@ export default function WebCommenting({
       docId,
       docVersion,
       userKeyPair,
-    }: {
-      content: HMBlockNode[];
-      docId: UnpackedHypermediaId;
-      docVersion: string;
-      userKeyPair: CryptoKeyPair;
-    }) => {
-      const comment = await createComment(
+      replyCommentId,
+      rootReplyCommentId,
+    }: CreateCommentPayload) => {
+      console.log("CREATING COMMENT", {
+        replyCommentId,
+        rootReplyCommentId,
+      });
+      const comment = await createComment({
         content,
         docId,
         docVersion,
-        userKeyPair
-      );
+        keyPair: userKeyPair,
+        replyCommentId,
+        rootReplyCommentId,
+      });
       console.log("SENDING COMMENT", comment);
       const result = await postCBOR("/hm/api/comment", cborEncode(comment));
       console.log("COMMENT SENT", result);
@@ -373,15 +420,24 @@ export default function WebCommenting({
   });
 
   if (!userKeyPair) return null;
+  const docVersion = docId.version;
+  if (!docVersion) return null;
   return (
-    <YStack borderRadius="$4" minHeight={105} bg="$color4">
-      {true ? (
-        <CommentEditor
-          onCommentSubmit={(content) => {
-            postComment.mutate({content, docId, docVersion, userKeyPair});
-          }}
-        />
-      ) : null}
-    </YStack>
+    <CommentEditor
+      onCommentSubmit={(content) => {
+        const mutatePayload: CreateCommentPayload = {
+          content,
+          docId,
+          docVersion,
+          userKeyPair,
+        };
+        if (replyCommentId && rootReplyCommentId) {
+          mutatePayload.replyCommentId = replyCommentId;
+          mutatePayload.rootReplyCommentId = rootReplyCommentId;
+        }
+        postComment.mutate(mutatePayload);
+      }}
+      onDiscardDraft={onDiscardDraft}
+    />
   );
 }
