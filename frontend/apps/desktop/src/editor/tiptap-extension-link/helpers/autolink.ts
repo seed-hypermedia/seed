@@ -37,6 +37,10 @@ export function autolink(options: AutolinkOptions): Plugin {
       let needsAutolink = true
 
       changes.forEach(({oldRange, newRange}) => {
+        console.log('===== autolink: oldRange: ', {
+          oldRange,
+          newRange,
+        })
         // At first we check if we have to remove links.
         getMarksBetween(oldRange.from, oldRange.to, oldState.doc)
           .filter((item) => item.mark.type === options.type)
