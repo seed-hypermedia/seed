@@ -185,7 +185,7 @@ export default function DownloadPage() {
           supportQueries={supportQueries}
         >
           <YStack
-            height="40vh"
+            height="45vh"
             justifyContent="center"
             // backgroundColor="$brand12"
             alignItems="center"
