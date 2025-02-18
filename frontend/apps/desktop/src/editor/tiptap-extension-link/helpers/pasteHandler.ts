@@ -57,7 +57,6 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
         } else if (action && action.remove) {
           set = set.remove(
             set.find(
-              // @ts-expect-error
               null,
               null,
               (spec) => spec.link.href == action.remove.link.href,
@@ -72,6 +71,10 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
         return this.getState(state)
       },
       handlePaste: (view, _event, slice) => {
+<<<<<<< Updated upstream
+=======
+        console.log('===== handlePaste: slice', slice)
+>>>>>>> Stashed changes
         const {state} = view
         const {selection} = state
 
@@ -93,6 +96,8 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           })
         })
 
+        console.log('=== handlePaste: pastedLinkMarks: ', pastedLinkMarks)
+
         textContent = textContent.trim()
 
         if (!textContent) {
@@ -108,7 +113,10 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           isPublicGatewayLink(textContent, options.gwUrl)
             ? unpackHmId(textContent)
             : null
+<<<<<<< Updated upstream
 
+=======
+>>>>>>> Stashed changes
         if (!selection.empty && options.linkOnPaste) {
           const pastedLink = unpackedHmId
             ? packHmId(unpackedHmId)
