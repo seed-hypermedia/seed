@@ -379,10 +379,6 @@ export default function WebCommenting({
   rootReplyCommentId: string | null;
   onDiscardDraft: () => void;
 }) {
-  console.log("COMMENTING", {
-    replyCommentId,
-    rootReplyCommentId,
-  });
   const userKeyPair = useSyncExternalStore(
     keyPairStore.listen,
     keyPairStore.get,
@@ -401,10 +397,6 @@ export default function WebCommenting({
       replyCommentId,
       rootReplyCommentId,
     }: CreateCommentPayload) => {
-      console.log("CREATING COMMENT", {
-        replyCommentId,
-        rootReplyCommentId,
-      });
       const comment = await createComment({
         content,
         docId,
