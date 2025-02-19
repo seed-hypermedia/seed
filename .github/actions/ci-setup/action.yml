@@ -38,7 +38,7 @@ runs:
       run: |
         echo "=== Setup Flatpak"
         git config --global protocol.file.allow always
-        sudo flatpak --user remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+        sudo flatpak --system remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
         which flatpak-builder
         which eu-strip
       shell: bash
