@@ -625,7 +625,7 @@ export function BlockNodeContent({
   useEffect(() => {
     let val = routeParams?.blockRef == blockNode.block?.id && !comment;
 
-    if (!routeParams?.blockRange) setHighlight(val);
+    if (!routeParams?.blockRange || isHighlight) setHighlight(val);
 
     if (!val || !elm.current) return;
 

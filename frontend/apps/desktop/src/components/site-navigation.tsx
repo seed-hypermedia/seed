@@ -89,10 +89,11 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
             key: 'document',
             id: hmId(id.type, id.uid, {blockRef: blockId, path: id.path}),
           })
-          const selectedBlock = window.document.querySelector(`#${blockId}`)
-
-          if (selectedBlock) {
-            selectedBlock.scrollIntoView({behavior: 'smooth', block: 'start'})
+          const targetElement = window.document.getElementById(blockId)
+          if (targetElement) {
+            targetElement.scrollIntoView({behavior: 'smooth', block: 'start'})
+          } else {
+            console.error('Element not found:', blockId)
           }
         }}
         document={document}
