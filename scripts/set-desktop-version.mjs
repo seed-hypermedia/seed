@@ -5,7 +5,6 @@ const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
 
 // Update the version attribute
 packageJson.version = process.env.VITE_VERSION;
-packageJson.name = "SeedDev"
 
 try {
   // Write the updated package.json back to the file
