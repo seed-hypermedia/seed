@@ -71,10 +71,6 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
         return this.getState(state)
       },
       handlePaste: (view, _event, slice) => {
-<<<<<<< Updated upstream
-=======
-        console.log('===== handlePaste: slice', slice)
->>>>>>> Stashed changes
         const {state} = view
         const {selection} = state
 
@@ -113,10 +109,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           isPublicGatewayLink(textContent, options.gwUrl)
             ? unpackHmId(textContent)
             : null
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
         if (!selection.empty && options.linkOnPaste) {
           const pastedLink = unpackedHmId
             ? packHmId(unpackedHmId)

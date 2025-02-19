@@ -1,10 +1,13 @@
 import {getLinkMenuItems} from "@/blocknote/core/extensions/LinkMenu/defaultLinkMenuItems";
 import {linkMenuPluginKey} from "@/blocknote/core/extensions/LinkMenu/LinkMenuPlugin";
+import {resolveHypermediaUrl} from "@/link-utils";
 import {getDocumentTitle} from "@shm/shared/content";
 import {GRPCClient} from "@shm/shared/grpc-client";
 import {HMDocument, HMDocumentMetadataSchema} from "@shm/shared/hm-types";
 import {
+  extractBlockRefOfUrl,
   hmId,
+  hmIdWithVersion,
   isHypermediaScheme,
   isPublicGatewayLink,
   packHmId,
@@ -324,51 +327,51 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
               );
               break;
             case 0: {
-              console.log("handlePaste: case 0");
-              // const metaPromise = loadWebLinkMeta(link.href)
-              //   .then((res) => {
-              //     if (res) {
-              //       const title = res.hypermedia_title;
-              //       const fullHmUrl = hmIdWithVersion(
-              //         res.hypermedia_id,
-              //         res.hypermedia_version,
-              //         extractBlockRefOfUrl(link.href)
-              //       );
-              //       if (title && fullHmUrl) {
-              //         view.dispatch(
-              //           view.state.tr
-              //             .deleteRange(pos, pos + link.href.length)
-              //             .insertText(title, pos)
-              //             .addMark(
-              //               pos,
-              //               pos + title.length,
-              //               options.editor.schema.mark("link", {
-              //                 href: fullHmUrl,
-              //               })
-              //             )
-              //         );
-              //       }
-              //       if (fullHmUrl) {
-              //         view.dispatch(
-              //           view.state.tr.setMeta(linkMenuPluginKey, {
-              //             link: fullHmUrl,
-              //             items: getLinkMenuItems({
-              //               hmId: unpackHmId(fullHmUrl),
-              //               isLoading: false,
-              //               sourceUrl: fullHmUrl,
-              //               docTitle: res.hypermedia_title,
-              //               gwUrl: options.gwUrl,
-              //             }),
-              //           })
-              //         );
-              //         return true;
-              //       }
-              //     }
-              //   })
-              //   .catch((err) => {
-              //     console.log("ERROR FETCHING web link");
-              //     console.log(err);
-              //   });
+              const metaPromise = resolveHypermediaUrl(link.href)
+                .then((linkMetaResult) => {
+                  if (!linkMetaResult) return;
+                  console.log("Resolved Hypermedia Meta", linkMetaResult);
+                  const fullHmUrl = hmIdWithVersion(
+                    linkMetaResult.id,
+                    linkMetaResult.version,
+                    extractBlockRefOfUrl(link.href)
+                  );
+                  const title = linkMetaResult.title;
+                  if (title && fullHmUrl) {
+                    view.dispatch(
+                      view.state.tr
+                        .deleteRange(pos, pos + link.href.length)
+                        .insertText(title, pos)
+                        .addMark(
+                          pos,
+                          pos + title.length,
+                          options.editor.schema.mark("link", {
+                            href: fullHmUrl,
+                          })
+                        )
+                    );
+                  }
+                  if (fullHmUrl) {
+                    view.dispatch(
+                      view.state.tr.setMeta(linkMenuPluginKey, {
+                        link: fullHmUrl,
+                        items: getLinkMenuItems({
+                          hmId: unpackHmId(fullHmUrl),
+                          isLoading: false,
+                          sourceUrl: fullHmUrl,
+                          docTitle: title,
+                          gwUrl: options.gwUrl,
+                        }),
+                      })
+                    );
+                    return true;
+                  }
+                })
+                .catch((err) => {
+                  console.log("ERROR FETCHING web link");
+                  console.log(err);
+                });
+              const mediaPromise = Promise.resolve(false);
               // const mediaPromise = options
               //   .checkWebUrl(link.href)
               //   .then((response) => {
@@ -394,24 +397,24 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
               //   .catch((err) => {
               //     console.log(err);
               //   });
-              // Promise.all([metaPromise, mediaPromise])
-              //   .then((results) => {
-              //     const [embedResult, mediaResult] = results;
-              //     if (!embedResult && !mediaResult) {
-              //       view.dispatch(
-              //         view.state.tr.setMeta(linkMenuPluginKey, {
-              //           items: getLinkMenuItems({
-              //             isLoading: false,
-              //             sourceUrl: link.href,
-              //             gwUrl: options.gwUrl,
-              //           }),
-              //         })
-              //       );
-              //     }
-              //   })
-              //   .catch((err) => {
-              //     console.log(err);
-              //   });
+              Promise.all([metaPromise, mediaPromise])
+                .then((results) => {
+                  const [embedResult, mediaResult] = results;
+                  if (!embedResult && !mediaResult) {
+                    view.dispatch(
+                      view.state.tr.setMeta(linkMenuPluginKey, {
+                        items: getLinkMenuItems({
+                          isLoading: false,
+                          sourceUrl: link.href,
+                          gwUrl: options.gwUrl,
+                        }),
+                      })
+                    );
+                  }
+                })
+                .catch((err) => {
+                  console.log(err);
+                });
             }
             default:
               break;

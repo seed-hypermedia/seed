@@ -1,3 +1,4 @@
+import {writeableStateStream} from "@shm/shared";
 import {queryClient} from "@shm/shared/models/query-client";
 import {HMBlockNode} from "@shm/shared/src/hm-types";
 import {Tooltip, Trash, XStack} from "@shm/ui/src";
@@ -61,6 +62,10 @@ export default function CommentEditor({
   );
 }
 
+const [setGwUrl, gwUrl] = writeableStateStream<string | null>(
+  "https://hyper.media"
+);
+
 export function useCommentEditor() {
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
@@ -71,7 +76,7 @@ export function useCommentEditor() {
       queryClient,
       // grpcClient,
       // openUrl,
-      // gwUrl,
+      gwUrl,
       // checkWebUrl: checkWebUrl.mutateAsync,
     },
 

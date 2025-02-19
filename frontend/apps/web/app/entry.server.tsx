@@ -226,13 +226,15 @@ export default async function handleRequest(
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, OPTIONS, HEAD",
         "Access-Control-Allow-Headers": "Content-Type",
-        "Access-Control-Expose-Headers": "X-HM-Id, X-HM-Version",
+        "Access-Control-Expose-Headers":
+          "X-Hypermedia-Id, X-Hypermedia-Version, X-Hypermedia-Title",
       };
       if (hmId) {
         const doc = await getHMDocument(hmId);
         if (doc) {
-          headers["X-HM-Id"] = hmId.id;
-          headers["X-HM-Version"] = doc.version;
+          headers["X-Hypermedia-Id"] = hmId.id;
+          headers["X-Hypermedia-Version"] = doc.version;
+          headers["X-Hypermedia-Title"] = doc.metadata.name || "";
         }
       }
       return new Response(null, {

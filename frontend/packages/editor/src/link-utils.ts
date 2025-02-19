@@ -18,11 +18,16 @@ export async function checkWebUrl(url: string) {
 }
 
 export async function resolveHypermediaUrl(url: string) {
-  /**
-   * TODO ERIC
-   * https://github.com/seed-hypermedia/seed/blob/509cc0e68e813d4b64b586a57bd256a5787b88e3/frontend/apps/desktop/src/models/web-links.ts#L93
-   *
-   * should return the UnpackedHypermediaId (partial) or null if the url is not a hypermedia page
-   
-   */
+  const response = await fetch(url, {
+    method: "OPTIONS",
+  });
+  if (response.status === 200) {
+    const id = response.headers.get("x-hypermedia-id");
+    const version = response.headers.get("x-hypermedia-version");
+    const title = response.headers.get("x-hypermedia-title");
+    if (id && version) {
+      return {id, version, title};
+    }
+  }
+  return null;
 }
