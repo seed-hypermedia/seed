@@ -38,6 +38,7 @@ describe('validatePath', () => {
     '/valid-path',
     '/valid_path',
     '/valid.path',
+    '',
   ])('should return null for valid path: %s', (path) => {
     expect(validatePath(path)).toBeNull()
   })

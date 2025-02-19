@@ -1,4 +1,5 @@
 export function validatePath(path: string): {error: string} | null {
+  if (path === '') return null // this is for site home documents
   if (path.startsWith('/')) {
     path = path.slice(1)
     // Return error for reserved paths
