@@ -1,10 +1,11 @@
 import {
   BlockNoteEditor,
   BlockSpec,
+  insertOrUpdateBlock,
   PartialBlock,
   PropSchema,
-  insertOrUpdateBlock,
 } from '@shm/editor/blocknote'
+import {hmIdPathToEntityQueryPath, UnpackedHypermediaId} from '@shm/shared'
 import {TwitterXIcon} from '@shm/ui'
 import {
   RiArticleFill,
@@ -20,8 +21,19 @@ import {
   RiVideoAddFill,
 } from 'react-icons/ri'
 import {HMBlockSchema} from './editor'
-export const slashMenuItems = [
-  {
+
+export function getSlashMenuItems({
+  showNostr = true,
+  showQuery = true,
+  docId,
+}: {
+  showNostr?: boolean
+  showQuery?: boolean
+  docId: UnpackedHypermediaId
+}) {
+  const slashMenuItems = []
+
+  slashMenuItems.push({
     name: 'Heading',
     aliases: ['h', 'heading1', 'subheading'],
     group: 'Text blocks',
@@ -37,8 +49,8 @@ export const slashMenuItems = [
       const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },
-  },
-  {
+  })
+  slashMenuItems.push({
     name: 'Paragraph',
     aliases: ['p'],
     group: 'Text blocks',
@@ -52,8 +64,8 @@ export const slashMenuItems = [
       const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },
-  },
-  {
+  })
+  slashMenuItems.push({
     name: 'Code Block',
     aliases: ['code', 'pre', 'code-block'],
     group: 'Text blocks',
@@ -69,8 +81,8 @@ export const slashMenuItems = [
       const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },
-  },
-  {
+  })
+  slashMenuItems.push({
     name: 'Image',
     aliases: ['image', 'img', 'picture'],
     group: 'Media blocks',
@@ -93,8 +105,8 @@ export const slashMenuItems = [
       const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },
-  },
-  {
+  })
+  slashMenuItems.push({
     name: 'Video',
     aliases: ['video', 'vid', 'media'],
     group: 'Media blocks',
@@ -117,8 +129,8 @@ export const slashMenuItems = [
       const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },
-  },
-  {
+  })
+  slashMenuItems.push({
     name: 'File',
     aliases: ['file', 'folder'],
     group: 'Media blocks',
@@ -141,8 +153,8 @@ export const slashMenuItems = [
       const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },
-  },
-  {
+  })
+  slashMenuItems.push({
     name: 'Embed',
     aliases: ['embed', 'card'],
     group: 'Media blocks',
@@ -164,8 +176,8 @@ export const slashMenuItems = [
       const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },
-  },
-  {
+  })
+  slashMenuItems.push({
     name: 'Math',
     aliases: ['math', 'mathematics', 'equation', 'katex', 'tex'],
     group: 'Media blocks',
@@ -184,8 +196,8 @@ export const slashMenuItems = [
       const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },
-  },
-  {
+  })
+  slashMenuItems.push({
     name: 'Button',
     aliases: ['button', 'click', 'press'],
     group: '',
@@ -207,59 +219,68 @@ export const slashMenuItems = [
       const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },
-  },
-  {
-    name: 'Nostr',
-    aliases: ['nostr', 'note', 'event'],
-    group: 'Web embeds',
-    icon: <RiMessage2Fill size={18} />,
-    hint: 'Insert a nostr note',
-    execute: (
-      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
-    ) => {
-      insertOrUpdateBlock(
-        editor,
-        {
-          type: 'nostr',
-          props: {
-            url: '',
-          },
-        } as PartialBlock<HMBlockSchema>,
-        true,
-      )
-      const {state, view} = editor._tiptapEditor
-      view.dispatch(state.tr.scrollIntoView())
-    },
-  },
-  {
-    name: 'Query',
-    aliases: ['query'],
-    group: 'Web embeds',
-    icon: <RiGridFill size={18} />,
-    hint: 'Insert a Query Block',
-    execute: (
-      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
-    ) => {
-      insertOrUpdateBlock(
-        editor,
-        {
-          type: 'query',
-          props: {
-            style: 'Card',
-            columnCount: '3',
-            queryLimit: '',
-            queryIncludes: '[{"space": "", "path": "", "mode": "Children"}]',
-            querySort: '[{"term": "UpdateTime", "reverse": false}]',
-          },
-        } as PartialBlock<HMBlockSchema>,
-        true,
-      )
-      const {state, view} = editor._tiptapEditor
-      view.dispatch(state.tr.scrollIntoView())
-    },
-  },
-  // DISABLE TWITTER/X EMBEDS BECAUSE IT DOES NOT WORK ON WEB
-  {
+  })
+  if (showNostr) {
+    slashMenuItems.push({
+      name: 'Nostr',
+      aliases: ['nostr', 'note', 'event'],
+      group: 'Web embeds',
+      icon: <RiMessage2Fill size={18} />,
+      hint: 'Insert a nostr note',
+      execute: (
+        editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
+      ) => {
+        insertOrUpdateBlock(
+          editor,
+          {
+            type: 'nostr',
+            props: {
+              url: '',
+            },
+          } as PartialBlock<HMBlockSchema>,
+          true,
+        )
+        const {state, view} = editor._tiptapEditor
+        view.dispatch(state.tr.scrollIntoView())
+      },
+    })
+  }
+  if (showQuery) {
+    slashMenuItems.push({
+      name: 'Query',
+      aliases: ['query'],
+      group: 'Web embeds',
+      icon: <RiGridFill size={18} />,
+      hint: 'Insert a Query Block',
+      execute: (
+        editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
+      ) => {
+        insertOrUpdateBlock(
+          editor,
+          {
+            type: 'query',
+            props: {
+              style: 'Card',
+              columnCount: '3',
+              queryLimit: '',
+              queryIncludes: JSON.stringify([
+                {
+                  space: docId.uid,
+                  path: hmIdPathToEntityQueryPath(docId.path).slice(1),
+                  mode: 'Children',
+                },
+              ]),
+              querySort: '[{"term": "UpdateTime", "reverse": false}]',
+            },
+          } as PartialBlock<HMBlockSchema>,
+          true,
+        )
+        const {state, view} = editor._tiptapEditor
+        view.dispatch(state.tr.scrollIntoView())
+      },
+    })
+  }
+  slashMenuItems.push({
     name: 'X Post',
     aliases: ['tweet', 'twitter', 'web embed', 'x.com'],
     group: 'Web embeds',
@@ -279,5 +300,6 @@ export const slashMenuItems = [
       const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },
-  },
-]
+  })
+  return slashMenuItems
+}

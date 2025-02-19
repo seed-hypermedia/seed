@@ -3,7 +3,7 @@ import type {BlockNoteEditor} from '@/editor/BlockNoteEditor'
 import {useBlockNote} from '@/editor/useBlockNote'
 import {grpcClient} from '@/grpc-client'
 import {useOpenUrl} from '@/open-url'
-import {slashMenuItems} from '@/slash-menu-items'
+import {getSlashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {serverBlockNodesFromEditorBlocks} from '@shm/editor'
@@ -247,9 +247,11 @@ export function useCommentEditor(
       initDraft()
     },
     blockSchema: getCommentEditorSchema(hmBlockSchema),
-    slashMenuItems: !showNostr
-      ? slashMenuItems.filter((item) => !['Nostr', 'Query'].includes(item.name))
-      : slashMenuItems.filter((item) => !['Query'].includes(item.name)),
+    slashMenuItems: getSlashMenuItems({
+      showNostr,
+      docId: targetDocId, // in theory this should be the comment ID but it doesn't really matter here
+      showQuery: false,
+    }),
     onMentionsQuery: (query: string) => {
       inlineMentionsQuery(query)
     },

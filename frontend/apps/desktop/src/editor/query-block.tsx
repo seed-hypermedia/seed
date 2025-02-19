@@ -9,6 +9,7 @@ import {
   createReactBlockSpec,
   useEditorSelectionChange,
 } from '@shm/editor/blocknote/react'
+import {entityQueryPathToHmIdPath} from '@shm/shared'
 import {queryBlockSortedItems} from '@shm/shared/content'
 import {EditorQueryBlock} from '@shm/shared/editor-types'
 import {HMBlockQuery, HMEntityContent} from '@shm/shared/hm-types'
@@ -20,7 +21,6 @@ import {
   ErrorBlock,
   NewspaperCard,
   Pencil,
-  QueryBlockPlaceholder,
   Search,
   SelectField,
   SizableText,
@@ -301,10 +301,9 @@ function CardView({
               </XStack>
             ))}
         </XStack>
-      ) : items.length > 1 ? (
-        <QueryBlockPlaceholder
-          styleType={block.props.style as 'Card' | 'List'}
-        />
+      ) : null}
+      {!items.length ? (
+        <EmptyQueryBlock queryIncludes={block.props.queryIncludes} />
       ) : null}
     </>
   )
@@ -322,7 +321,6 @@ function ListView({
       items
         .filter((item) => !!item.data)
         .map((item) => {
-          console.log('== ITEM', item)
           return {
             id: item.data.id,
             document: item.data?.document,
@@ -348,8 +346,45 @@ function ListView({
           />
         ))
       ) : (
-        <QueryBlockPlaceholder styleType={block.props.style} />
+        <EmptyQueryBlock queryIncludes={block.props.queryIncludes} />
       )}
+    </YStack>
+  )
+}
+
+function EmptyQueryBlock({queryIncludes}: {queryIncludes: string | undefined}) {
+  const queryIncludesData = queryIncludes ? JSON.parse(queryIncludes) : null
+  const queryIncludesFirst = queryIncludesData?.[0]
+  const includesEntity = useEntity(
+    queryIncludesFirst
+      ? hmId('d', queryIncludesFirst.space, {
+          path: entityQueryPathToHmIdPath(queryIncludesFirst.path),
+        })
+      : null,
+  )
+  if (!queryIncludesFirst || !queryIncludesFirst.space) {
+    return (
+      <BlankQueryBlockMessage message="Empty Query. Select a Document to Query the Children Documents." />
+    )
+  }
+  return (
+    <BlankQueryBlockMessage
+      message={`No Documents found in "${includesEntity.data?.document?.metadata.name}". Add a Document there, or query for other Parent Documents.`}
+    />
+  )
+}
+
+function BlankQueryBlockMessage({message}: {message: string}) {
+  return (
+    <YStack backgroundColor="$color4" p="$4" borderRadius="$4" ai="center">
+      <SizableText
+        fontSize="$4"
+        color="$color9"
+        fontWeight="bold"
+        fontStyle="italic"
+      >
+        {message}
+      </SizableText>
     </YStack>
   )
 }

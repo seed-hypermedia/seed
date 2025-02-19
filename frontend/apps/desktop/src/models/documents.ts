@@ -5,7 +5,7 @@ import {useBlockNote} from '@/editor/useBlockNote'
 import {grpcClient} from '@/grpc-client'
 import {useDraft} from '@/models/accounts'
 import {useOpenUrl} from '@/open-url'
-import {slashMenuItems} from '@/slash-menu-items'
+import {getSlashMenuItems} from '@/slash-menu-items'
 import {trpc} from '@/trpc'
 import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
@@ -611,9 +611,7 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
       inlineMentionsQuery(query)
     },
     blockSchema: hmBlockSchema,
-    slashMenuItems: !showNostr
-      ? slashMenuItems.filter((item) => item.name != 'Nostr')
-      : slashMenuItems,
+    slashMenuItems: getSlashMenuItems({showNostr, docId: id}),
     _tiptapOptions: {
       extensions: [
         Extension.create({
