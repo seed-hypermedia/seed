@@ -11,6 +11,7 @@ import {
   queryBlockSortedItems,
   UnpackedHypermediaId,
 } from "@shm/shared";
+import {useUniversalAppContext} from "@shm/ui/src";
 import {Button} from "@shm/ui/src/button";
 import {
   ContentEmbed,
@@ -40,6 +41,7 @@ function EmbedWrapper({
   parentBlockId: string | null;
   hideBorder?: boolean;
 }>) {
+  const {originHomeId} = useUniversalAppContext();
   const navigate = useNavigate();
   return (
     <YStack
@@ -56,6 +58,7 @@ function EmbedWrapper({
           version: id.version,
           latest: id.latest,
           path: id.path,
+          siteHomeId: originHomeId,
         });
         navigate(destUrl);
       }}
