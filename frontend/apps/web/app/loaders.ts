@@ -73,7 +73,7 @@ export type WebDocumentPayload = WebBaseDocumentPayload & {
   breadcrumbs: Array<{id: UnpackedHypermediaId; metadata: HMMetadata}>;
 };
 
-async function getHMDocument(entityId: UnpackedHypermediaId) {
+export async function getHMDocument(entityId: UnpackedHypermediaId) {
   const {version, uid, latest} = entityId;
   const path = hmIdPathToEntityQueryPath(entityId.path);
   const apiDoc = await queryClient.documents.getDocument({

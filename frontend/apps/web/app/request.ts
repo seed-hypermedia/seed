@@ -1,11 +1,15 @@
 export function parseRequest(request: Request) {
   const url = new URL(request.url);
   const hostname = request.headers.get("x-forwarded-host") || url.hostname;
-  const pathParts = url.pathname.split("/").slice(1);
+  let pathParts = url.pathname.split("/").slice(1);
+  if (pathParts.at(-1) === "") {
+    pathParts = pathParts.slice(0, -1);
+  }
   return {
     hostname,
     url,
     pathParts,
+    method: request.method,
     headers: request.headers,
   };
 }

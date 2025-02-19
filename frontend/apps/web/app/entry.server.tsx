@@ -3,7 +3,7 @@ import {PassThrough} from "node:stream";
 import type {AppLoadContext, EntryContext} from "@remix-run/node";
 import {createReadableStreamFromReadable, redirect} from "@remix-run/node";
 import {RemixServer} from "@remix-run/react";
-import {SITE_BASE_URL} from "@shm/shared";
+import {hmId, SITE_BASE_URL} from "@shm/shared";
 import fs from "fs";
 import {mkdir, readFile, stat, writeFile} from "fs/promises";
 import * as isbotModule from "isbot";
@@ -11,9 +11,10 @@ import {dirname, join, resolve} from "path";
 import {renderToPipeableStream} from "react-dom/server";
 import {ENABLE_HTML_CACHE, useFullRender} from "./cache-policy";
 import {initDatabase} from "./db";
+import {getHMDocument} from "./loaders";
 import {logDebug} from "./logger";
-import {parseRequest} from "./request";
-import {applyConfigSubscriptions, getHostnames} from "./site-config";
+import {ParsedRequest, parseRequest} from "./request";
+import {applyConfigSubscriptions, getConfig, getHostnames} from "./site-config";
 
 const ABORT_DELAY = 5_000;
 
@@ -169,6 +170,23 @@ async function warmFullCache(hostname: string) {
   }
 }
 
+function getHmIdOfRequest(
+  {pathParts, url}: ParsedRequest,
+  originAccountId: string | undefined
+) {
+  const version = url.searchParams.get("v");
+  const latest = url.searchParams.get("l") === "";
+  if (pathParts.length === 0) {
+    if (!originAccountId) return null;
+    return hmId("d", originAccountId, {path: [], version, latest});
+  }
+  if (pathParts[0] === "hm") {
+    return hmId("d", pathParts[1], {path: pathParts.slice(2), version, latest});
+  }
+  if (!originAccountId) return null;
+  return hmId("d", originAccountId, {path: pathParts, version, latest});
+}
+
 export default async function handleRequest(
   request: Request,
   responseStatusCode: number,
@@ -177,7 +195,7 @@ export default async function handleRequest(
   loadContext: AppLoadContext
 ) {
   const parsedRequest = parseRequest(request);
-  const {url, hostname} = parsedRequest;
+  const {url, hostname, method} = parsedRequest;
   const sendPerfLog = logDebugRequest(url.pathname);
 
   if (url.pathname.startsWith("/ipfs")) {
@@ -198,7 +216,31 @@ export default async function handleRequest(
     return redirect(newUrl.toString());
   }
 
+  const serviceConfig = await getConfig(hostname);
+  const originAccountId = serviceConfig?.registeredAccountUid;
+
   if (!ENABLE_HTML_CACHE || useFullRender(parsedRequest)) {
+    if (method === "OPTIONS" || method === "HEAD") {
+      const hmId = getHmIdOfRequest(parsedRequest, originAccountId);
+      const headers: Record<string, string> = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS, HEAD",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Expose-Headers": "X-HM-Id, X-HM-Version",
+      };
+      if (hmId) {
+        const doc = await getHMDocument(hmId);
+        if (doc) {
+          headers["X-HM-Id"] = hmId.id;
+          headers["X-HM-Version"] = doc.version;
+        }
+      }
+      return new Response(null, {
+        status: 200,
+        headers,
+      });
+    }
+
     sendPerfLog("requested full");
     return handleFullRequest(
       request,
