@@ -7,11 +7,11 @@ export type ImportedDocument = {
   directoryPath: string
 }
 
-export function useImportDialog() {
-  return useAppDialog(ImportDialog, {isAlert: true})
+export function useImportConfirmDialog() {
+  return useAppDialog(ImportConfirmDialog, {isAlert: true})
 }
 
-function ImportDialog({
+function ImportConfirmDialog({
   onClose,
   input,
 }: {

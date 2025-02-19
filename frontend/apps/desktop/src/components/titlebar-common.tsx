@@ -3,6 +3,7 @@ import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {useDeleteDialog} from '@/components/delete-dialog'
 import {roleCanWrite, useMyCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
+import {useCreateDraft} from '@/models/documents'
 import {useEntity, useSubscribedEntity} from '@/models/entities'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {SidebarContext, SidebarWidth} from '@/sidebar-context'
@@ -46,10 +47,12 @@ import {
   toast,
   useStream,
 } from '@shm/ui'
+import {FilePlus, Import} from '@tamagui/lucide-icons'
 import {ReactNode, useContext} from 'react'
 import {AddConnectionDialog} from './contacts-prompt'
 import {useAppDialog} from './dialog'
 import DiscardDraftButton from './discard-draft-button'
+import {useImportDialog, useImporting} from './import-doc-button'
 import PublishDraftButton from './publish-draft-button'
 import {usePublishSite, useRemoveSiteDialog} from './publish-site'
 import {SubscriptionButton} from './subscription'
@@ -197,6 +200,29 @@ export function DocOptionsButton() {
         },
       })
   }
+  const createDraft = useCreateDraft(route.id)
+  const importDialog = useImportDialog()
+  const importing = useImporting(route.id)
+  if (canEditDoc) {
+    menuItems.push({
+      key: 'create-draft',
+      label: 'New Document...',
+      icon: FilePlus,
+      onPress: createDraft,
+    })
+    menuItems.push({
+      key: 'import',
+      label: 'Import...',
+      icon: Import,
+      onPress: () => {
+        importDialog.open({
+          onImportFile: importing.importFile,
+          onImportDirectory: importing.importDirectory,
+        })
+      },
+    })
+  }
+
   return (
     <>
       {copyGatewayContent}
@@ -204,6 +230,8 @@ export function DocOptionsButton() {
       {deleteEntity.content}
       {publishSite.content}
       {removeSite.content}
+      {importDialog.content}
+      {importing.content}
       <OptionsDropdown menuItems={menuItems} />
     </>
   )

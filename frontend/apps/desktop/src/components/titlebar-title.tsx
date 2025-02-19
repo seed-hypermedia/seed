@@ -1,5 +1,4 @@
 import {useSizeObserver} from '@/components/app-embeds'
-import {roleCanWrite, useMyCapability} from '@/models/access-control'
 import {
   useAccountDraftList,
   useDraftName,
@@ -10,7 +9,6 @@ import {
   useRouteBreadcrumbRoutes,
   useRouteEntities,
 } from '@/models/entities'
-import {NewSubDocumentButton} from '@/pages/document'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {HMQueryResult} from '@shm/shared'
@@ -440,8 +438,6 @@ function BreadcrumbItem({
 function PathItemCard({details}: {details: CrumbDetails}) {
   const docId = details.route?.key === 'document' ? details.route.id : undefined
   const dir = useListDirectory(docId, {mode: 'Children'})
-  const capability = useMyCapability(docId)
-  const canEditDoc = roleCanWrite(capability?.role)
   const drafts = useAccountDraftList(docId?.uid)
   if (!docId) return null
   const supportQueries: HMQueryResult[] = []
@@ -472,11 +468,6 @@ function PathItemCard({details}: {details: CrumbDetails}) {
           )
         })}
       </YStack>
-      {canEditDoc ? (
-        <XStack gap="$2" ai="center" paddingHorizontal="$2">
-          <NewSubDocumentButton parentDocId={docId} />
-        </XStack>
-      ) : null}
     </YStack>
   )
 }

@@ -9,7 +9,6 @@ import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {pathNameify} from '@/utils/path'
-import {useNavigate} from '@/utils/useNavigate'
 import {BlockNoteEditor} from '@shm/editor/blocknote'
 import {
   MarkdownToBlocks,
@@ -19,11 +18,64 @@ import {
 import {HMDraft, HMEntityContent} from '@shm/shared/hm-types'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
-import {FileInput, FolderInput, OptionsDropdown, toast} from '@shm/ui'
+import {
+  Button,
+  FileInput,
+  FolderInput,
+  OptionsDropdown,
+  XStack,
+  toast,
+} from '@shm/ui'
 import {Extension} from '@tiptap/core'
 import matter from 'gray-matter'
-import {ReactElement, useMemo, useState} from 'react'
-import {ImportedDocument, useImportDialog} from './import-doc-dialog'
+import {ReactElement, useMemo} from 'react'
+import {
+  DialogCloseButton,
+  DialogDescription,
+  DialogTitle,
+  useAppDialog,
+} from './dialog'
+import {ImportedDocument, useImportConfirmDialog} from './import-doc-dialog'
+
+export function useImportDialog() {
+  return useAppDialog(ImportDialog)
+}
+
+export function ImportDialog({
+  input,
+  onClose,
+}: {
+  input: {onImportFile: () => void; onImportDirectory: () => void}
+  onClose: () => void
+}) {
+  return (
+    <>
+      <DialogTitle>Import Documents</DialogTitle>
+      <DialogDescription>
+        You can import a single Markdown file, or a folder of Markdown files.
+      </DialogDescription>
+      <DialogCloseButton />
+      <XStack>
+        <Button
+          onPress={() => {
+            onClose()
+            input.onImportFile()
+          }}
+        >
+          Import File
+        </Button>
+        <Button
+          onPress={() => {
+            onClose()
+            input.onImportDirectory()
+          }}
+        >
+          Import Directory
+        </Button>
+      </XStack>
+    </>
+  )
+}
 
 export function ImportDropdownButton({
   id,
@@ -32,30 +84,54 @@ export function ImportDropdownButton({
   id: UnpackedHypermediaId
   button: ReactElement
 }) {
+  const {importFile, importDirectory, content} = useImporting(id)
+
+  return (
+    <>
+      <OptionsDropdown
+        button={button}
+        menuItems={[
+          {
+            key: 'file',
+            label: 'Import Markdown File',
+            onPress: () => importFile(),
+            icon: FileInput,
+          },
+          {
+            key: 'directory',
+            label: 'Import Markdown Folder',
+            onPress: () => importDirectory(),
+            icon: FolderInput,
+          },
+        ]}
+      />
+
+      {content}
+    </>
+  )
+}
+
+export function useImporting(parentId: UnpackedHypermediaId) {
   const {openMarkdownDirectories, openMarkdownFiles} = useAppContext()
-  const accts = useMyAccountsWithWriteAccess(id)
+  const accts = useMyAccountsWithWriteAccess(parentId)
   const signingAccount = useMemo(() => {
     return accts.length ? accts[0].data : undefined
   }, [accts])
-  const navigate = useNavigate()
   const createDraft = trpc.drafts.write.useMutation()
   const {grpcClient} = useAppContext()
   const openUrl = useOpenUrl()
   const gwUrl = useGatewayUrlStream()
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
-  const [loading, setLoading] = useState(false)
 
-  const importDialog = useImportDialog()
+  const importDialog = useImportConfirmDialog()
 
-  const importDocuments = async (type: 'directory' | 'file') => {
-    const openFunction =
-      type === 'directory' ? openMarkdownDirectories : openMarkdownFiles
-
-    if (typeof openFunction !== 'function') {
-      return
-    }
-
-    openFunction(id.id)
+  function startImport(
+    importFunction: (id: string) => Promise<{
+      documents: ImportedDocument[]
+      docMap: Map<string, {name: string; path: string}>
+    }>,
+  ) {
+    importFunction(parentId.id)
       .then(async (result) => {
         const docs = result.documents
         if (docs.length) {
@@ -79,8 +155,6 @@ export function ImportDropdownButton({
     documents: ImportedDocument[],
     docMap: Map<string, {name: string; path: string}>,
   ) => {
-    setLoading(true)
-
     const editor = new BlockNoteEditor<BlockSchema>({
       linkExtensionOptions: {
         openOnClick: false,
@@ -111,7 +185,7 @@ export function ImportDropdownButton({
 
     toast.promise(
       ImportDocumentsWithFeedback(
-        id,
+        parentId,
         createDraft,
         signingAccount,
         documents,
@@ -126,29 +200,11 @@ export function ImportDropdownButton({
     )
   }
 
-  return (
-    <>
-      <OptionsDropdown
-        button={button}
-        menuItems={[
-          {
-            key: 'file',
-            label: 'Import Markdown File',
-            onPress: () => importDocuments('file'),
-            icon: FileInput,
-          },
-          {
-            key: 'directory',
-            label: 'Import Markdown Folder',
-            onPress: () => importDocuments('directory'),
-            icon: FolderInput,
-          },
-        ]}
-      />
-
-      {importDialog.content}
-    </>
-  )
+  return {
+    importFile: () => startImport(openMarkdownFiles),
+    importDirectory: () => startImport(openMarkdownDirectories),
+    content: importDialog.content,
+  }
 }
 
 const ImportDocumentsWithFeedback = (
