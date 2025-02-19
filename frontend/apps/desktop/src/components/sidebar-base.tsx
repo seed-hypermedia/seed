@@ -43,7 +43,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
           bg="$backgroundStrong"
           width={HoverRegionWidth + 20} // this 20 is to make sure the rounded radius is not visible on the edge
           top={top}
-          zi="$zIndex.7"
+          zi={3000}
           opacity={0}
           hoverStyle={{
             opacity: 0.1,
@@ -60,7 +60,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
         borderColor={'$color4'}
         animation="fast"
         position="absolute"
-        zi="$zIndex.7"
+        zi={3000}
         x={isVisible ? 0 : -SidebarWidth}
         width="100%"
         maxWidth={SidebarWidth}
