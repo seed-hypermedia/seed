@@ -347,7 +347,10 @@ function _AppDocSiteHeader({
       supportDocuments={[...(supportDocuments || []), siteHomeEntity]}
       afterLinksContent={
         canEditDoc ? (
-          <NewSubDocumentButton parentDocId={siteHomeEntity.id} />
+          <NewSubDocumentButton
+            parentDocId={siteHomeEntity.id}
+            importDropdown={false}
+          />
         ) : null
       }
       supportQueries={supportQueries}
@@ -361,8 +364,10 @@ function _AppDocSiteHeader({
 
 export function NewSubDocumentButton({
   parentDocId,
+  importDropdown = true,
 }: {
   parentDocId: UnpackedHypermediaId
+  importDropdown?: boolean
 }) {
   const createDraft = useCreateDraft(parentDocId)
   return (
@@ -370,10 +375,12 @@ export function NewSubDocumentButton({
       <Button icon={Add} color="$green9" onPress={createDraft} size="$2">
         Create
       </Button>
-      <ImportDropdownButton
-        id={parentDocId}
-        button={<Button size="$1" circular icon={MoreHorizontal} />}
-      />
+      {importDropdown && (
+        <ImportDropdownButton
+          id={parentDocId}
+          button={<Button size="$1" circular icon={MoreHorizontal} />}
+        />
+      )}
     </>
   )
 }
