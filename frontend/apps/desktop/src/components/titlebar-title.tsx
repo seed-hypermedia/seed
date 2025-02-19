@@ -9,15 +9,19 @@ import {
   useRouteBreadcrumbRoutes,
   useRouteEntities,
 } from '@/models/entities'
+import {useGatewayUrlStream} from '@/models/gateway-settings'
+import {useOpenUrl} from '@/open-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {HMQueryResult} from '@shm/shared'
+import {HMMetadata, HMQueryResult, hostnameStripProtocol} from '@shm/shared'
 import {getDocumentTitle} from '@shm/shared/content'
 import {DocumentRoute, DraftRoute, NavRoute} from '@shm/shared/routes'
 import {
   AlertCircle,
   Button,
+  ButtonText,
   Contact,
+  Copy,
   DocumentSmallListItem,
   FontSizeTokens,
   getSiteNavDirectory,
@@ -26,10 +30,12 @@ import {
   Sparkles,
   Spinner,
   Star,
+  Text,
   TextProps,
   TitleText,
   TitleTextButton,
   Tooltip,
+  useStream,
   View,
   XStack,
   YStack,
@@ -123,6 +129,7 @@ function BreadcrumbTitle({
     route.id.latest || route.id.version === latestDoc.data?.document?.version
   const entityRoutes = useRouteBreadcrumbRoutes(route)
   const entityContents = useRouteEntities(entityRoutes)
+  const homeMetadata = entityContents.at(0)?.entity?.document?.metadata
   const [collapsedCount, setCollapsedCount] = useState(0)
   const widthInfo = useRef({} as Record<string, number>)
   const crumbDetails: (CrumbDetails | null)[] = useMemo(
@@ -193,6 +200,7 @@ function BreadcrumbTitle({
   if (!activeItem) return null
   const firstItem = firstInactiveDetail ? (
     <BreadcrumbItem
+      homeMetadata={homeMetadata}
       details={firstInactiveDetail}
       key={firstInactiveDetail.crumbKey}
       onSize={({width}: DOMRect) => {
@@ -210,6 +218,7 @@ function BreadcrumbTitle({
       if (!details) return null
       return (
         <BreadcrumbItem
+          homeMetadata={homeMetadata}
           key={details.crumbKey}
           details={details}
           onSize={({width}: DOMRect) => {
@@ -234,6 +243,7 @@ function BreadcrumbTitle({
   displayItems.push(...remainderItems)
   displayItems.push(
     <BreadcrumbItem
+      homeMetadata={homeMetadata}
       details={
         overwriteActiveTitle
           ? {...activeItem, isError: false, name: overwriteActiveTitle}
@@ -351,10 +361,12 @@ function BreadcrumbItem({
   details,
   isActive,
   onSize,
+  homeMetadata,
 }: {
   details: CrumbDetails
   isActive?: boolean
   onSize: (rect: DOMRect) => void
+  homeMetadata: HMMetadata | undefined
 }) {
   const navigate = useNavigate()
   const observerRef = useSizeObserver(onSize)
@@ -428,14 +440,22 @@ function BreadcrumbItem({
       minHeight={40}
       justifyContent="center"
     >
-      <HoverCard content={<PathItemCard details={details} />}>
+      <HoverCard
+        content={<PathItemCard details={details} homeMetadata={homeMetadata} />}
+      >
         {content}
       </HoverCard>
     </View>
   )
 }
 
-function PathItemCard({details}: {details: CrumbDetails}) {
+function PathItemCard({
+  details,
+  homeMetadata,
+}: {
+  details: CrumbDetails
+  homeMetadata: HMMetadata | undefined
+}) {
   const docId = details.route?.key === 'document' ? details.route.id : undefined
   const dir = useListDirectory(docId, {mode: 'Children'})
   const drafts = useAccountDraftList(docId?.uid)
@@ -453,21 +473,80 @@ function PathItemCard({details}: {details: CrumbDetails}) {
     drafts: drafts.data,
   })
   return (
-    <YStack paddingVertical="$2" gap="$3">
-      <YStack gap="$1">
-        {directoryItems?.map((item) => {
-          return (
-            <DocumentSmallListItem
-              key={item.id.path?.join('/') || item.id.id}
-              metadata={item.metadata}
-              id={item.id}
-              onPress={() => {}}
-              isDraft={item.isDraft}
-              isPublished={item.isPublished}
-            />
-          )
-        })}
+    <YStack>
+      <URLCardSection homeMetadata={homeMetadata} crumbDetails={details} />
+      <YStack paddingVertical="$2" gap="$3">
+        <YStack gap="$1">
+          {directoryItems?.map((item) => {
+            return (
+              <DocumentSmallListItem
+                key={item.id.path?.join('/') || item.id.id}
+                metadata={item.metadata}
+                id={item.id}
+                onPress={() => {}}
+                isDraft={item.isDraft}
+                isPublished={item.isPublished}
+              />
+            )
+          })}
+        </YStack>
       </YStack>
+    </YStack>
+  )
+}
+
+function URLCardSection({
+  homeMetadata,
+  crumbDetails,
+}: {
+  homeMetadata: HMMetadata | undefined
+  crumbDetails: CrumbDetails
+}) {
+  const docId =
+    crumbDetails.route?.key === 'document' ? crumbDetails.route.id : undefined
+  const gwUrlStream = useGatewayUrlStream()
+  const gwUrl = useStream(gwUrlStream)
+  const siteBaseUrlWithProtocol =
+    homeMetadata?.siteUrl || `${gwUrl || ''}/hm/${docId?.uid}`
+  const siteBaseUrl = hostnameStripProtocol(siteBaseUrlWithProtocol)
+  const openUrl = useOpenUrl()
+  const path = docId?.path || []
+  const isHome = !path.length
+  if (!docId) return null
+  return (
+    <YStack padding="$2" borderBottomWidth={1} borderColor="$borderColor">
+      <XStack ai="center" gap="$2">
+        <ButtonText
+          cursor="pointer"
+          onPress={() => {
+            openUrl(siteBaseUrlWithProtocol + '/' + path.join('/'))
+          }}
+          group="item"
+        >
+          <Text
+            color={isHome ? '$brand5' : '$color8'}
+            $group-item-hover={{color: '$blue9'}}
+          >
+            {siteBaseUrl}
+          </Text>
+          {path &&
+            path.map((p, index) => (
+              <Text
+                color={index === path.length - 1 ? '$brand5' : '$color8'}
+                $group-item-hover={{color: '$blue9'}}
+              >
+                {`/${p}`}
+              </Text>
+            ))}
+        </ButtonText>
+        <CopyReferenceButton
+          docId={docId}
+          isBlockFocused={false}
+          latest={true}
+          size="$2"
+          copyIcon={Copy}
+        />
+      </XStack>
     </YStack>
   )
 }
