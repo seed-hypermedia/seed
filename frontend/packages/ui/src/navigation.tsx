@@ -97,12 +97,18 @@ export function getSiteNavDirectory({
   id,
   supportQueries,
   drafts,
+  what,
 }: {
   id: UnpackedHypermediaId;
   supportQueries?: HMQueryResult[];
   drafts?: HMListedDraft[];
+  what?: boolean;
 }): SiteNavigationDocument[] {
-  const directory = supportQueries?.find((query) => query.in.uid === id.uid);
+  const directory = supportQueries?.find(
+    (query) =>
+      query.in.uid === id.uid &&
+      (query.in.path || []).join("/") === (id.path || []).join("/")
+  );
   const directoryDrafts = drafts?.filter(
     (draft) =>
       !!draft.id.path &&
@@ -125,27 +131,26 @@ export function getSiteNavDirectory({
         isPublished: false,
       })) || [];
   const publishedItems: SiteNavigationDocument[] =
-    directory && idPath
-      ? directory.results
-          .filter(
-            (doc) =>
-              doc.path.join("/").startsWith(idPath.join("/")) &&
-              idPath.length === doc.path.length - 1
-          )
-          .map((item) => {
-            const id = hmId("d", item.account, {path: item.path});
-            const sortTime = normalizeDate(item.createTime);
-            if (!sortTime) return null;
-            return {
-              id,
-              metadata: item.metadata,
-              sortTime,
-              isDraft: draftIds.has(id.id),
-              isPublished: true,
-            };
-          })
-          .filter((item) => !!item)
-      : [];
+    directory?.results
+      ?.filter((doc) => {
+        return (
+          (doc.path || []).join("/").startsWith(idPath.join("/")) &&
+          idPath.length === (doc.path || []).length - 1
+        );
+      })
+      ?.map((item) => {
+        const id = hmId("d", item.account, {path: item.path});
+        const sortTime = normalizeDate(item.createTime);
+        if (!sortTime) return null;
+        return {
+          id,
+          metadata: item.metadata,
+          sortTime,
+          isDraft: draftIds.has(id.id),
+          isPublished: true,
+        };
+      })
+      ?.filter((item) => !!item) || [];
   unpublishedDraftItems
     .sort((a, b) => b.sortTime.getTime() - a.sortTime.getTime())
     .reverse();

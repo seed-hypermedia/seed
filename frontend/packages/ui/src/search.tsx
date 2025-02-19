@@ -9,9 +9,9 @@ import {useState} from "react";
 import {NativeSyntheticEvent, TextInputChangeEventData} from "react-native";
 
 export function MobileSearch({
-  homeId,
+  originHomeId,
 }: {
-  homeId: UnpackedHypermediaId | undefined;
+  originHomeId: UnpackedHypermediaId | null;
 }) {
   const [searchValue, setSearchValue] = useState("");
   const searchResults = useSearch(searchValue, {enabled: !!searchValue});
@@ -50,7 +50,7 @@ export function MobileSearch({
               <SearchResultItem
                 key={entity.id.id}
                 entity={entity}
-                homeId={homeId}
+                originHomeId={originHomeId}
               />
             );
           })}
@@ -61,9 +61,9 @@ export function MobileSearch({
 }
 
 export function HeaderSearch({
-  homeId,
+  originHomeId,
 }: {
-  homeId: UnpackedHypermediaId | undefined;
+  originHomeId: UnpackedHypermediaId | null;
 }) {
   const popoverState = usePopoverState();
   const [searchValue, setSearchValue] = useState("");
@@ -112,7 +112,7 @@ export function HeaderSearch({
                   <SearchResultItem
                     key={entity.id.id}
                     entity={entity}
-                    homeId={homeId}
+                    originHomeId={originHomeId}
                   />
                 );
               }
@@ -126,17 +126,17 @@ export function HeaderSearch({
 
 function SearchResultItem({
   entity,
-  homeId,
+  originHomeId,
 }: {
   entity: {id: UnpackedHypermediaId; title: string};
-  homeId: UnpackedHypermediaId | undefined;
+  originHomeId: UnpackedHypermediaId | null;
 }) {
   const linkProps = useRouteLink(
     {
       key: "document",
       id: entity.id,
     },
-    homeId
+    originHomeId
   );
   return (
     <Button

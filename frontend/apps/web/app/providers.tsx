@@ -54,17 +54,17 @@ export function getOptimizedImageUrl(cid: string, size?: OptimizedImageSize) {
 }
 
 export function WebSiteProvider(props: {
-  homeId: UnpackedHypermediaId;
+  originHomeId: UnpackedHypermediaId;
   children: React.ReactNode;
   siteHost?: string;
 }) {
   return (
     <UniversalAppProvider
-      homeId={props.homeId}
+      originHomeId={props.originHomeId}
       getOptimizedImageUrl={getOptimizedImageUrl}
       ipfsFileUrl={DAEMON_FILE_URL}
     >
-      <SiteRoutingProvider homeId={props.homeId}>
+      <SiteRoutingProvider originHomeId={props.originHomeId}>
         {props.children}
       </SiteRoutingProvider>
     </UniversalAppProvider>

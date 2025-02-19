@@ -29,14 +29,13 @@ import {useDocumentChanges} from "./models";
 import {HMDocumentChangeInfo} from "./routes/hm.api.changes";
 
 export function PageHeader({
-  homeId,
   docMetadata,
   docId,
   authors = [],
   updateTime = null,
   breadcrumbs = [],
+  originHomeId,
 }: {
-  homeId: UnpackedHypermediaId | null;
   docMetadata: HMMetadata | null;
   docId: UnpackedHypermediaId | null;
   authors: HMMetadataPayload[];
@@ -45,10 +44,11 @@ export function PageHeader({
     id: UnpackedHypermediaId;
     metadata: HMMetadata;
   }>;
+  originHomeId: UnpackedHypermediaId | null;
 }) {
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata]);
   const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata]);
-  const isHomeDoc = useMemo(() => docId?.id == homeId?.id, [docId, homeId]);
+  const isHomeDoc = !docId?.path?.length;
   return (
     <YStack id="page-header">
       <Container
@@ -67,12 +67,7 @@ export function PageHeader({
               <HMIcon size={100} id={docId} metadata={docMetadata} />
             </XStack>
           ) : null}
-          <Breadcrumbs
-            breadcrumbs={breadcrumbs}
-            homeId={homeId}
-            docId={docId}
-            docMetadata={docMetadata}
-          />
+          <Breadcrumbs breadcrumbs={breadcrumbs} originHomeId={originHomeId} />
           <H1 size="$9" style={{fontWeight: "bold"}}>
             {docMetadata?.name}
           </H1>
@@ -101,7 +96,7 @@ export function PageHeader({
                     fontWeight="bold"
                     key={a.id.id}
                     tag="a"
-                    href={getHref(homeId, a.id)}
+                    href={getHref(originHomeId, a.id)}
                     style={{textDecoration: "none"}}
                   >
                     {getMetadataName(a.metadata)}
@@ -127,7 +122,7 @@ export function PageHeader({
             {authors?.length ? <VerticalSeparator /> : null}
             {docId ? (
               <VersionsModal
-                homeId={homeId}
+                originHomeId={originHomeId}
                 docId={docId}
                 updateTime={updateTime}
               />
@@ -144,7 +139,7 @@ export function PageHeader({
 export function WebSiteHeader(
   props: React.PropsWithChildren<{
     homeMetadata: HMMetadata | null;
-    homeId: UnpackedHypermediaId | null;
+    originHomeId: UnpackedHypermediaId | null;
     docId: UnpackedHypermediaId | null;
     document?: HMDocument;
     supportDocuments?: HMEntityContent[];
@@ -155,7 +150,7 @@ export function WebSiteHeader(
     props.homeMetadata?.theme?.headerLayout === "Center" ||
     props.homeMetadata?.layout === "Seed/Experimental/Newspaper";
   const supportQuery = props.supportQueries?.find(
-    (q) => q.in.uid === props.homeId?.uid && !q.in.path?.length
+    (q) => q.in.uid === props.docId?.uid && !q.in.path?.length
   );
   const items = supportQuery?.results
     ?.filter((item) => {
@@ -199,11 +194,11 @@ export function WebSiteHeader(
 }
 
 function VersionsModal({
-  homeId,
+  originHomeId,
   docId,
   updateTime,
 }: {
-  homeId: UnpackedHypermediaId | null;
+  originHomeId: UnpackedHypermediaId | null;
   docId: UnpackedHypermediaId;
   updateTime: HMDocument["updateTime"] | null;
 }) {
@@ -260,8 +255,8 @@ function VersionsModal({
           <YStack overflow="hidden" maxHeight={220}>
             <ScrollView>
               {changes?.data?.map((change) => {
-                let href = homeId
-                  ? getHref(homeId, docId, change.id)
+                let href = originHomeId
+                  ? getHref(originHomeId, docId, change.id)
                   : undefined;
 
                 return (
@@ -358,15 +353,13 @@ const VerticalSeparator = () => (
 
 function Breadcrumbs({
   breadcrumbs,
-  homeId,
+  originHomeId,
 }: {
   breadcrumbs: Array<{
     id: UnpackedHypermediaId;
     metadata: HMMetadata;
   }>;
-  homeId: UnpackedHypermediaId | null;
-  docId: UnpackedHypermediaId | null;
-  docMetadata: HMMetadata | null;
+  originHomeId: UnpackedHypermediaId | null;
 }) {
   // const displayBreadcrumbs = breadcrumbs.filter((breadcrumb) => {
   //   if (
@@ -392,7 +385,7 @@ function Breadcrumbs({
             color="$color10"
             tag="a"
             key={first.id.id}
-            href={homeId ? getHref(homeId, first.id) : undefined}
+            href={originHomeId ? getHref(originHomeId, first.id) : undefined}
             size="$1"
             overflow="hidden"
             textOverflow="ellipsis"
@@ -417,7 +410,7 @@ function Breadcrumbs({
             color="$color10"
             tag="a"
             key={crumb.id.id}
-            href={homeId ? getHref(homeId, crumb.id) : undefined}
+            href={originHomeId ? getHref(originHomeId, crumb.id) : undefined}
             size="$1"
             textDecorationLine="none"
             overflow="hidden"

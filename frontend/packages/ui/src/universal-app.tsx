@@ -5,7 +5,7 @@ console.log("=== import universal-app " + DAEMON_FILE_URL);
 export type OptimizedImageSize = "S" | "M" | "L" | "XL";
 
 type UniversalAppContextValue = {
-  homeId?: UnpackedHypermediaId;
+  originHomeId?: UnpackedHypermediaId;
   ipfsFileUrl?: string;
   getOptimizedImageUrl?: (cid: string, size?: OptimizedImageSize) => string;
 };
@@ -16,14 +16,14 @@ export const UniversalAppContext = createContext<UniversalAppContextValue>({
 
 export function UniversalAppProvider(props: {
   children: React.ReactNode;
-  homeId?: UnpackedHypermediaId;
+  originHomeId?: UnpackedHypermediaId;
   ipfsFileUrl?: string;
   getOptimizedImageUrl?: (cid: string, size?: OptimizedImageSize) => string;
 }) {
   return (
     <UniversalAppContext.Provider
       value={{
-        homeId: props.homeId,
+        originHomeId: props.originHomeId,
         ipfsFileUrl: props.ipfsFileUrl,
         getOptimizedImageUrl: props.getOptimizedImageUrl,
       }}

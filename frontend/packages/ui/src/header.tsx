@@ -4,9 +4,12 @@ import {
   HMEntityContent,
   HMMetadata,
   HMQueryResult,
+  hostnameStripProtocol,
+  SITE_BASE_URL,
   UnpackedHypermediaId,
   useRouteLink,
 } from "@shm/shared";
+import {ButtonText} from "@tamagui/button";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import React, {useState} from "react";
@@ -22,39 +25,40 @@ import {HeaderSearch, MobileSearch} from "./search";
 import {SiteLogo} from "./site-logo";
 
 export function SiteHeader({
-  homeMetadata,
-  homeId,
+  originHomeId,
   docId,
   afterLinksContent,
   items,
-  headItems,
   isCenterLayout = false,
   children,
   document,
   supportDocuments,
-  supportQueries,
   onBlockFocus,
   onShowMobileMenu,
+  supportQueries,
 }: {
-  homeMetadata: HMMetadata | null;
-  homeId: UnpackedHypermediaId | null;
+  originHomeId: UnpackedHypermediaId | null;
   docId: UnpackedHypermediaId | null;
   afterLinksContent?: React.ReactNode;
   items?: SiteNavigationDocument[];
-  headItems?: React.ReactNode;
   isCenterLayout?: boolean;
   children?: React.ReactNode;
   document?: HMDocument;
   supportDocuments?: HMEntityContent[];
-  supportQueries?: HMQueryResult[];
   onBlockFocus?: (blockId: string) => void;
   onShowMobileMenu?: (isOpen: boolean) => void;
+  supportQueries?: HMQueryResult[];
 }) {
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false);
   function setIsMobileMenuOpen(isOpen: boolean) {
     _setIsMobileMenuOpen(isOpen);
     onShowMobileMenu?.(isOpen);
   }
+  const homeDoc = !docId?.path?.length
+    ? {document, id: docId}
+    : supportDocuments?.find(
+        (doc) => doc.id.uid === docId?.uid && !doc.id.path?.length
+      );
   const headerSearch = (
     <>
       <Button
@@ -66,16 +70,18 @@ export function SiteHeader({
           setIsMobileMenuOpen(true);
         }}
       />
-      {homeId ? (
+      {originHomeId ? (
         <XStack display="none" $gtSm={{display: "flex"}}>
-          <HeaderSearch homeId={homeId} />
+          <HeaderSearch originHomeId={originHomeId} />
         </XStack>
       ) : null}
     </>
   );
   const isHomeDoc = !docId?.path?.length;
-  if (!homeId) return null;
-  return (
+  if (!homeDoc) return null;
+  const headerHomeId = homeDoc.id;
+  if (!headerHomeId) return null;
+  const mainHeader = (
     <YStack
       position="relative"
       overflowX="hidden"
@@ -84,7 +90,7 @@ export function SiteHeader({
       <YStack
         borderBottomWidth={1}
         borderColor="$borderColor"
-        zIndex="$zIndex.7"
+        zIndex={1000}
         // @ts-ignore
         position="sticky"
         top={0}
@@ -107,7 +113,10 @@ export function SiteHeader({
             flexShrink={0}
           >
             <XStack f={1} jc="center">
-              <SiteLogo id={homeId} metadata={homeMetadata} />
+              <SiteLogo
+                id={headerHomeId}
+                metadata={homeDoc.document?.metadata}
+              />
             </XStack>
             {isCenterLayout ? headerSearch : null}
           </XStack>
@@ -153,7 +162,6 @@ export function SiteHeader({
           </XStack>
 
           {isCenterLayout ? null : headerSearch}
-          {headItems}
         </XStack>
       </YStack>
       {children}
@@ -162,7 +170,7 @@ export function SiteHeader({
         onClose={() => setIsMobileMenuOpen(false)}
         renderContent={() => (
           <YStack>
-            <MobileSearch homeId={homeId} />
+            <MobileSearch originHomeId={originHomeId} />
 
             {isHomeDoc ? null : ( // if we are on the home page, we will see the home directory below the outline
               <YStack gap="$2.5" marginTop="$2.5" marginBottom="$4">
@@ -196,6 +204,31 @@ export function SiteHeader({
         )}
       />
     </YStack>
+  );
+  return (
+    <>
+      {docId && originHomeId && originHomeId.uid !== docId.uid ? (
+        <YStack padding="$2" alignItems="center" backgroundColor="$brand5">
+          <SizableText color="white" size="$3">
+            Hosted on{" "}
+            <ButtonText color="white" tag="a" href="/">
+              {hostnameStripProtocol(SITE_BASE_URL)}
+            </ButtonText>{" "}
+            via the{" "}
+            <ButtonText
+              color="white"
+              tag="a"
+              target="_blank"
+              href="https://hyper.media"
+            >
+              Hypermedia Protocol
+            </ButtonText>
+            .
+          </SizableText>
+        </YStack>
+      ) : null}
+      {mainHeader}
+    </>
   );
 }
 
@@ -288,7 +321,7 @@ export function MobileMenu({
       top={0}
       right={0}
       bottom={0}
-      zIndex="$zIndex.7"
+      zIndex={2000}
       x={open ? 0 : "100%"}
       animation="fast"
     >

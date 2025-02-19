@@ -13,7 +13,7 @@ import {
 import {NewSubDocumentButton} from '@/pages/document'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {hmId} from '@shm/shared'
+import {HMQueryResult} from '@shm/shared'
 import {getDocumentTitle} from '@shm/shared/content'
 import {DocumentRoute, DraftRoute, NavRoute} from '@shm/shared/routes'
 import {
@@ -444,18 +444,18 @@ function PathItemCard({details}: {details: CrumbDetails}) {
   const canEditDoc = roleCanWrite(capability?.role)
   const drafts = useAccountDraftList(docId?.uid)
   if (!docId) return null
-
+  const supportQueries: HMQueryResult[] = []
+  if (dir.data) {
+    supportQueries.push({
+      in: docId,
+      results: dir.data,
+    })
+  }
   const directoryItems = getSiteNavDirectory({
     id: docId,
-    supportQueries: [
-      {
-        in: hmId('d', docId.uid),
-        results: dir.data,
-      },
-    ],
+    supportQueries,
     drafts: drafts.data,
   })
-
   return (
     <YStack paddingVertical="$2" gap="$3">
       <YStack gap="$1">

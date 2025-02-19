@@ -251,7 +251,6 @@ function DraftAppHeader({
   return (
     <SiteHeader
       homeId={siteHomeEntity.id}
-      homeMetadata={siteHomeMetadata || null}
       items={navItems}
       docId={docId}
       isCenterLayout={
@@ -260,8 +259,13 @@ function DraftAppHeader({
       }
       // document={draft} // we have an issue with outline: the header expects the draft to be in HMDocument format, but the draft is editor
       children={children}
-      supportQueries={[]}
-      supportDocuments={[]}
+      supportQueries={[
+        {
+          in: siteHomeEntity.id,
+          results: dir.data || [],
+        },
+      ]}
+      supportDocuments={[siteHomeEntity]}
     />
   )
 }

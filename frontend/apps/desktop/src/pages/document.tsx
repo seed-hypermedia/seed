@@ -306,7 +306,7 @@ function _AppDocSiteHeader({
   supportDocuments?: HMEntityContent[]
   onScrollParamSet: (isFrozen: boolean) => void
 }) {
-  const dir = useListDirectory(siteHomeEntity?.id)
+  const homeDir = useListDirectory(siteHomeEntity?.id)
   const capability = useMyCapability(siteHomeEntity?.id)
   const canEditDoc = roleCanWrite(capability?.role)
   const drafts = useAccountDraftList(docId.uid)
@@ -318,21 +318,21 @@ function _AppDocSiteHeader({
     if (docDir.data) {
       q.push({in: docId, results: docDir.data})
     }
+    if (homeDir.data && siteHomeEntity?.id) {
+      q.push({in: siteHomeEntity.id, results: homeDir.data})
+    }
     return q
-  }, [docId, docDir.data])
+  }, [docId, docDir.data, homeDir.data, siteHomeEntity?.id])
   if (!siteHomeEntity) return null
   if (route.key !== 'document') return null
   const navItems = getSiteNavDirectory({
     id: siteHomeEntity.id,
-    supportQueries: dir.data
-      ? [{in: siteHomeEntity.id, results: dir.data}]
-      : [],
+    supportQueries,
     drafts: drafts.data,
   })
   return (
     <SiteHeader
-      homeId={siteHomeEntity.id}
-      homeMetadata={siteHomeEntity.document?.metadata || null}
+      originHomeId={null}
       items={navItems}
       docId={docId}
       isCenterLayout={
@@ -344,7 +344,7 @@ function _AppDocSiteHeader({
       onBlockFocus={(blockId) => {
         replace({...route, id: {...route.id, blockRef: blockId}})
       }}
-      supportDocuments={supportDocuments}
+      supportDocuments={[...(supportDocuments || []), siteHomeEntity]}
       afterLinksContent={
         canEditDoc ? (
           <NewSubDocumentButton parentDocId={siteHomeEntity.id} />

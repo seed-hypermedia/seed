@@ -23,10 +23,10 @@ export function useOpenRoute() {
 }
 
 export function SiteRoutingProvider({
-  homeId,
+  originHomeId,
   children,
 }: PropsWithChildren<{
-  homeId?: UnpackedHypermediaId | null
+  originHomeId?: UnpackedHypermediaId | null
 }>) {
   const context = useContext(UniversalRoutingContext)
   return (
@@ -35,7 +35,7 @@ export function SiteRoutingProvider({
         ...(context || {
           openRoute: () => {},
         }),
-        siteHomeId: homeId,
+        siteHomeId: originHomeId,
       }}
     >
       {children}

@@ -139,7 +139,13 @@ export async function getBaseDocument(
 
   const queryBlocks = extractQueryBlocks(document.content);
   const homeId = hmId("d", uid);
-  const homeDirectoryResults = await getDirectory(homeId);
+  const homeDocument = await getHMDocument(homeId);
+  supportDocuments.push({
+    id: homeId,
+    document: homeDocument,
+  });
+  const homeDirectoryResults = await getDirectory(homeId, "Children");
+  const homeDirectoryQuery = {in: homeId, results: homeDirectoryResults};
   const directoryResults = await getDirectory(entityId);
   const queryBlockQueries = (
     await Promise.all(
@@ -149,8 +155,7 @@ export async function getBaseDocument(
     )
   ).filter((result) => !!result);
   supportQueries = [
-    // home directory
-    {in: homeId, results: homeDirectoryResults},
+    homeDirectoryQuery,
     {in: entityId, results: directoryResults},
     ...queryBlockQueries,
   ];
@@ -513,7 +518,7 @@ export async function loadDocument(
 
 export type SiteDocumentPayload = WebDocumentPayload & {
   homeMetadata: HMMetadata;
-  homeId: UnpackedHypermediaId;
+  originHomeId: UnpackedHypermediaId;
 };
 
 export async function loadSiteDocument<T>(
@@ -528,33 +533,33 @@ export async function loadSiteDocument<T>(
     throw new Error("No config found for hostname " + hostname);
   }
   let homeMetadata = null;
-  let homeId = null;
+  let originHomeId = null;
   if (config.registeredAccountUid) {
     try {
       const {id, metadata} = await getMetadata(
         hmId("d", config.registeredAccountUid)
       );
       homeMetadata = metadata;
-      homeId = id;
+      originHomeId = id;
     } catch (e) {}
   }
   try {
     const docContent = await getDocument(id, waitForSync);
     let supportQueries = docContent.supportQueries;
     if (
-      homeId &&
+      originHomeId &&
       homeMetadata?.layout === "Seed/Experimental/Newspaper" &&
-      !docContent.supportQueries?.find((q) => q.in.uid === homeId.uid)
+      !docContent.supportQueries?.find((q) => q.in.uid === originHomeId.uid)
     ) {
-      const results = await getDirectory(homeId);
-      supportQueries = [...(supportQueries || []), {in: homeId, results}];
+      const results = await getDirectory(originHomeId);
+      supportQueries = [...(supportQueries || []), {in: originHomeId, results}];
     }
     const loadedSiteDocument = {
       ...(extraData || {}),
       ...docContent,
       homeMetadata,
       supportQueries,
-      homeId,
+      originHomeId,
     };
     const headers: Record<string, string> = {};
     headers["x-hypermedia-id"] = id.id;
@@ -567,7 +572,7 @@ export async function loadSiteDocument<T>(
     // probably document not found. todo, handle other errors
   }
   return wrapJSON(
-    {homeMetadata, homeId, ...(extraData || {})},
+    {homeMetadata, originHomeId, ...(extraData || {})},
     {status: id ? 200 : 404}
   );
 }

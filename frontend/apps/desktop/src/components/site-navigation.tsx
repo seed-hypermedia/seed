@@ -45,9 +45,7 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
   const capability = useMyCapability(id)
   const siteList = useListSite(id)
   const isHome = !id.path?.length
-  const siteListQuery = siteList?.data
-    ? {in: hmId('d', id.uid), results: siteList.data}
-    : null
+  const siteListQuery = siteList?.data ? {in: id, results: siteList.data} : null
 
   const embeds = useDocumentEmbeds(document)
 

@@ -25,13 +25,13 @@ import {Version} from "./icons";
 
 export function SubDocumentItem({
   item,
-  siteHomeId,
+  originHomeId,
   accountsMetadata,
   markedAsRead,
 }: {
   item: HMLibraryDocument;
   accountsMetadata: HMAccountsMetadata;
-  siteHomeId?: UnpackedHypermediaId;
+  originHomeId?: UnpackedHypermediaId;
   markedAsRead?: boolean;
 }) {
   const metadata = item?.metadata;
@@ -39,7 +39,7 @@ export function SubDocumentItem({
     path: item.path,
   });
   const isRead = markedAsRead || !item.activitySummary?.isUnread;
-  const linkProps = useRouteLink({key: "document", id}, siteHomeId);
+  const linkProps = useRouteLink({key: "document", id}, originHomeId);
   return (
     <Button
       group="item"

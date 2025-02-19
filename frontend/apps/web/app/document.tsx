@@ -115,7 +115,7 @@ export const documentPageMeta: MetaFunction = ({
 export function DocumentPage(props: SiteDocumentPayload) {
   const {
     document,
-    homeId,
+    originHomeId,
     homeMetadata,
     id,
     siteHost,
@@ -129,13 +129,13 @@ export function DocumentPage(props: SiteDocumentPayload) {
     return (
       <DocumentDiscoveryPage
         id={id}
-        homeId={homeId}
+        originHomeId={originHomeId}
         homeMetadata={homeMetadata}
       />
     );
   if (document.metadata.layout == "Seed/Experimental/Newspaper") {
     return (
-      <WebSiteProvider homeId={props.homeId}>
+      <WebSiteProvider originHomeId={props.originHomeId}>
         <NewspaperPage {...props} />;
       </WebSiteProvider>
     );
@@ -185,11 +185,11 @@ export function DocumentPage(props: SiteDocumentPayload) {
   }, []);
 
   return (
-    <WebSiteProvider homeId={props.homeId}>
+    <WebSiteProvider originHomeId={props.originHomeId}>
       <YStack>
         <WebSiteHeader
           homeMetadata={homeMetadata}
-          homeId={homeId}
+          originHomeId={originHomeId}
           docId={id}
           document={document}
           supportDocuments={supportDocuments}
@@ -236,7 +236,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
             <YStack>
               {isHomeDoc ? null : (
                 <PageHeader
-                  homeId={homeId}
+                  originHomeId={originHomeId}
                   breadcrumbs={props.breadcrumbs}
                   docMetadata={document.metadata}
                   docId={id}
@@ -247,7 +247,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                 />
               )}
               <WebDocContentProvider
-                homeId={homeId}
+                originHomeId={originHomeId}
                 id={{...id, version: document.version}}
                 siteHost={siteHost}
                 supportDocuments={supportDocuments}
@@ -274,7 +274,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                 <DocumentAppendix
                   id={id}
                   document={document}
-                  homeId={homeId}
+                  originHomeId={originHomeId}
                   siteHost={siteHost}
                   enableWebSigning={enableWebSigning}
                 />
@@ -330,11 +330,11 @@ function DocumentCover({
 function DocumentDiscoveryPage({
   id,
   homeMetadata,
-  homeId,
+  originHomeId,
 }: {
   id: UnpackedHypermediaId;
   homeMetadata: HMMetadata | null;
-  homeId: UnpackedHypermediaId | null;
+  originHomeId: UnpackedHypermediaId | null;
 }) {
   useEffect(() => {
     fetch("/hm/api/discover", {
@@ -351,7 +351,7 @@ function DocumentDiscoveryPage({
     <YStack>
       <PageHeader
         homeMetadata={homeMetadata}
-        homeId={homeId}
+        originHomeId={originHomeId}
         docMetadata={null}
         docId={id}
         authors={[]}
@@ -396,7 +396,7 @@ function DocumentDiscoveryPage({
 function WebDocContentProvider({
   children,
   id,
-  homeId,
+  originHomeId,
   siteHost,
   supportDocuments,
   supportQueries,
@@ -404,7 +404,7 @@ function WebDocContentProvider({
 }: {
   siteHost: string | undefined;
   id: UnpackedHypermediaId;
-  homeId: UnpackedHypermediaId;
+  originHomeId: UnpackedHypermediaId;
   children: React.ReactNode;
   supportDocuments?: HMEntityContent[];
   supportQueries?: HMQueryResult[];
@@ -448,7 +448,7 @@ function WebDocContentProvider({
       }}
       onCopyBlock={(blockId, blockRange) => {
         const blockHref = getHref(
-          homeId,
+          originHomeId,
           {
             ...id,
             hostname: siteHost || null,
@@ -484,13 +484,13 @@ const WebCommenting = lazy(async () => await import("./commenting"));
 function DocumentAppendix({
   id,
   document,
-  homeId,
+  originHomeId,
   siteHost,
   enableWebSigning,
 }: {
   id: UnpackedHypermediaId;
   document: HMDocument;
-  homeId: UnpackedHypermediaId;
+  originHomeId: UnpackedHypermediaId;
   siteHost: string | undefined;
   enableWebSigning?: boolean;
 }) {
@@ -504,7 +504,7 @@ function DocumentAppendix({
         <DocumentActivity
           id={docIdWithVersion}
           document={document}
-          homeId={homeId}
+          originHomeId={originHomeId}
           siteHost={siteHost}
         />
 
@@ -516,12 +516,12 @@ function DocumentAppendix({
 
 function DocumentActivity({
   id,
-  homeId,
+  originHomeId,
   document,
   siteHost,
 }: {
   id: UnpackedHypermediaId;
-  homeId: UnpackedHypermediaId;
+  originHomeId: UnpackedHypermediaId;
   document: HMDocument;
   siteHost: string | undefined;
 }) {
@@ -530,12 +530,16 @@ function DocumentActivity({
   const renderCommentContent = useCallback(
     (comment: HMComment) => {
       return (
-        <WebDocContentProvider homeId={homeId} id={id} siteHost={siteHost}>
+        <WebDocContentProvider
+          originHomeId={originHomeId}
+          id={id}
+          siteHost={siteHost}
+        >
           <BlocksContent blocks={comment.content} parentBlockId={null} />
         </WebDocContentProvider>
       );
     },
-    [homeId]
+    [originHomeId]
   );
   const [visibleCount, setVisibleCount] = useState(10);
   const activeChangeIds = new Set<string>(document.version?.split(".") || []);
@@ -573,7 +577,7 @@ function DocumentActivity({
               authors={activity.data?.accountsMetadata}
               renderCommentContent={renderCommentContent}
               CommentReplies={CommentReplies}
-              homeId={homeId}
+              originHomeId={originHomeId}
               siteHost={siteHost}
               RepliesEditor={CommentRepliesEditor}
             />
@@ -583,7 +587,7 @@ function DocumentActivity({
           return (
             <SubDocumentItem
               item={activityItem}
-              siteHomeId={homeId}
+              originHomeId={originHomeId}
               accountsMetadata={accountsMetadata}
               markedAsRead
             />

@@ -4,6 +4,7 @@ import {
   HMDocumentMetadataSchema,
   HMQuery,
   HMQueryResult,
+  UnpackedHypermediaId,
 } from '..'
 import {BIG_INT} from '../constants'
 import {GRPCClient} from '../grpc-client'
@@ -11,7 +12,6 @@ import {
   entityQueryPathToHmIdPath,
   hmId,
   hmIdPathToEntityQueryPath,
-  UnpackedHypermediaId,
 } from '../utils'
 
 export function getDiretoryWithClient(client: GRPCClient) {
@@ -53,7 +53,7 @@ export function getDiretoryWithClient(client: GRPCClient) {
           metadata: HMDocumentMetadataSchema.parse(
             dirDoc.metadata?.toJson() || {},
           ),
-        }
+        } as const
       })
       .map((doc) => {
         const path = entityQueryPathToHmIdPath(doc.path)

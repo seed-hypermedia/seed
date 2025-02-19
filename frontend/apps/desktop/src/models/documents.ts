@@ -384,7 +384,6 @@ export function usePublishDraft(
               : ''
             const invalid = validatePath(path)
 
-            console.log(`== ~ mutationFn: ~ invalid:`, invalid)
             if (invalid) {
               throw new Error(invalid.error)
             }
