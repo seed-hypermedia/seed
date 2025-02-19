@@ -24,7 +24,7 @@ runs:
         go-version: "1.24.0"
 
     - name: "Install native packages"
-      if: startsWith(inputs.matrix.os, 'ubuntu')
+      if: startsWith(inputs.matrix-os, 'ubuntu')
       run: |
         echo "=== Installing native packages"
         sudo apt-get update
@@ -34,7 +34,7 @@ runs:
     # flatpak gnome-software-plugin-flatpak flatpak-builder elfutils
 
     - name: "Setup Flatpak"
-      if: startsWith(inputs.matrix.os, 'ubuntu')
+      if: startsWith(inputs.matrix-os, 'ubuntu')
       run: |
         echo "=== Setup Flatpak"
         git config --global protocol.file.allow always
@@ -45,7 +45,7 @@ runs:
 
     - name: Setup cache Ubuntu
       uses: actions/cache@v3
-      if: startsWith(inputs.matrix.os, 'ubuntu')
+      if: startsWith(inputs.matrix-os, 'ubuntu')
       with:
         path: |
           ~/.cache/go-build
@@ -56,7 +56,7 @@ runs:
 
     - name: Setup cache Macos
       uses: actions/cache@v3
-      if: startsWith(inputs.matrix.os, 'macos')
+      if: startsWith(inputs.matrix-os, 'macos')
       with:
         path: |
           ~/Library/Caches/go-build

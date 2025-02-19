@@ -1,4 +1,4 @@
-name: Desktop Flatpak Release test
+name: Desktop Dev Release
 
 permissions:
   contents: write
