@@ -1,4 +1,4 @@
-name: Desktop Dev Release
+name: Desktop Flatpak Release test
 
 permissions:
   contents: write
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - main
+      - feat/flatpak
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -57,22 +57,22 @@ jobs:
     strategy:
       matrix:
         config:
-          - os: macos-13-large
-            arch: x64
-            goarch: amd64
-            daemon_name: x86_64-apple-darwin
-          - os: macos-13-xlarge
-            arch: arm64
-            goarch: arm64
-            daemon_name: aarch64-apple-darwin
-          - os: ubuntu-20.04
+          # - os: macos-13-large
+          #   arch: x64
+          #   goarch: amd64
+          #   daemon_name: x86_64-apple-darwin
+          # - os: macos-13-xlarge
+          #   arch: arm64
+          #   goarch: arm64
+          #   daemon_name: aarch64-apple-darwin
+          - os: ubuntu-latest
             arch: x64
             goarch: amd64
             daemon_name: x86_64-unknown-linux-gnu
-          - os: windows-latest
-            arch: x64
-            goarch: amd64
-            daemon_name: x86_64-pc-windows-msvc
+          # - os: windows-latest
+          #   arch: x64
+          #   goarch: amd64
+          #   daemon_name: x86_64-pc-windows-msvc
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -126,10 +126,11 @@ jobs:
       - name: Build, package & make (Unix)
         if: matrix.config.os != 'windows-latest'
         run: |
-          yarn desktop:publish --arch=${{ matrix.config.arch }}
+          git config --global protocol.file.allow always
+          yarn desktop:make --arch=${{ matrix.config.arch }}
         env:
           timeout-minutes: 10
-          DEBUG: electron-*
+          DEBUG: electron-installer-flatpak,@malept/flatpak-bundler
           NODE_OPTIONS: --max_old_space_size=4096
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           DAEMON_NAME: ${{ matrix.config.daemon_name }}

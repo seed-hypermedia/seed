@@ -1,11 +1,12 @@
-import {MakerDeb, MakerDebConfig} from '@electron-forge/maker-deb'
-import {MakerRpm, MakerRpmConfig} from '@electron-forge/maker-rpm'
-import {MakerSquirrel} from '@electron-forge/maker-squirrel'
-import {MakerZIP} from '@electron-forge/maker-zip'
-import {PublisherS3} from '@electron-forge/publisher-s3'
-import type {ForgeConfig} from '@electron-forge/shared-types'
+import { MakerDeb, MakerDebConfig } from '@electron-forge/maker-deb'
+import { MakerRpm, MakerRpmConfig } from '@electron-forge/maker-rpm'
+import { MakerSquirrel } from '@electron-forge/maker-squirrel'
+import { MakerZIP } from '@electron-forge/maker-zip'
+import { PublisherS3 } from '@electron-forge/publisher-s3'
+import type { ForgeConfig } from '@electron-forge/shared-types'
 // import {MakerRpm} from '@electron-forge/maker-rpm'
-import {VitePlugin} from '@electron-forge/plugin-vite'
+import { MakerFlatpak, MakerFlatpakConfig } from "@electron-forge/maker-flatpak"
+import { VitePlugin } from '@electron-forge/plugin-vite'
 import path from 'node:path'
 import packageJson from './package.json'
 // import setLanguages from 'electron-packager-languages'
@@ -78,6 +79,7 @@ const config: ForgeConfig = {
   },
   makers: [
     new MakerDeb(commonLinuxConfig as MakerDebConfig),
+    new MakerFlatpak(commonLinuxConfig as unknown as MakerFlatpakConfig),
     new MakerZIP(
       IS_PROD_DEV
         ? (arch) => ({
