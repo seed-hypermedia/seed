@@ -83,16 +83,6 @@ jobs:
           # matrix-target: ${{ matrix.config.daemon_name }}
           # matrix-arch: ${{ matrix.config.arch }}
 
-      - name: "Setup Flatpak"
-        if: startsWith(matrix.config.os, 'ubuntu')
-        run: |
-          echo "=== Setup Flatpak"
-          git config --global protocol.file.allow always
-          sudo flatpak --user remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-          which flatpak-builder
-          which eu-strip
-        shell: bash
-
       - name: Build Backend (Unix)
         if: matrix.config.os != 'windows-latest'
         run: |
