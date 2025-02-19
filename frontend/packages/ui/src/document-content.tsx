@@ -85,6 +85,7 @@ import {
 // } from "react-tweet";
 import {contentLayoutUnit, contentTextUnit} from "./document-content-constants";
 import "./document-content.css";
+import {BlankQueryBlockMessage} from "./entity-card";
 import {SeedHeading} from "./heading";
 import {Comment} from "./icons";
 import {Spinner} from "./spinner";
@@ -1888,20 +1889,8 @@ export function BlockContentQuery({block}: {block: HMBlockQuery}) {
       path: query.includes[0].path ? query.includes[0].path.split("/") : null,
       latest: true,
     });
-  if (!id) return <ErrorBlock message="Empty Query" />;
+  if (!id) return <BlankQueryBlockMessage message="Empty Query" />;
   return <EntityTypes.Query block={block} id={id} />;
-  // let docs = items?.filter((item) => !!item.data) || [];
-  // if (docs.length) {
-  //   return docs.map((item) => (
-  //     <NewspaperCard
-  //       id={item.data.id}
-  //       entity={item.data}
-  //       accountsMetadata={[]}
-  //     />
-  //   ));
-  // } else {
-  //   return <QueryBlockPlaceholder styleType={block.attributes.style} />;
-  // }
 }
 
 export function BlockNotFoundError({

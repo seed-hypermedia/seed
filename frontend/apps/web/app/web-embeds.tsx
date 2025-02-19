@@ -20,7 +20,7 @@ import {
   InlineEmbedButton,
   useDocContentContext,
 } from "@shm/ui/src/document-content";
-import {QueryBlockPlaceholder} from "@shm/ui/src/entity-card";
+import {BlankQueryBlockMessage} from "@shm/ui/src/entity-card";
 import {AccountsMetadata} from "@shm/ui/src/face-pile";
 import {HMIcon} from "@shm/ui/src/hm-icon";
 import {BannerNewspaperCard, NewspaperCard} from "@shm/ui/src/newspaper";
@@ -309,8 +309,9 @@ function QueryStyleCard({
             );
           })}
         </XStack>
-      ) : items.length > 1 ? (
-        <QueryBlockPlaceholder styleType={block.attributes.style} />
+      ) : null}
+      {items.length == 0 ? (
+        <BlankQueryBlockMessage message="No Documents found in this Query Block." />
       ) : null}
     </YStack>
   );

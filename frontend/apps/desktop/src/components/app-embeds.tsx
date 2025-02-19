@@ -17,6 +17,7 @@ import {
   AccountsMetadata,
   ArrowUpRightSquare,
   BannerNewspaperCard,
+  BlankQueryBlockMessage,
   BlockContentUnknown,
   BlockNodeContent,
   BlockNodeList,
@@ -449,7 +450,7 @@ export function QueryBlockDesktop({
       .filter((m) => !!m),
   )
 
-  if (directoryItems.status == 'loading') {
+  if (directoryItems.isInitialLoading) {
     return (
       <XStack className="block-query" w="100%" data-content-type="query">
         <QueryBlockPlaceholder styleType={block.attributes?.style} />
@@ -544,8 +545,9 @@ function QueryStyleCard({
             )
           })}
         </XStack>
-      ) : items.length > 1 ? (
-        <QueryBlockPlaceholder styleType={block.attributes.style} />
+      ) : null}
+      {items.length == 0 ? (
+        <BlankQueryBlockMessage message="No Documents found in this Query Block." />
       ) : null}
     </YStack>
   )
@@ -604,7 +606,7 @@ function QueryStyleList({
           )
         })
       ) : (
-        <QueryBlockPlaceholder styleType={block.attributes.style} />
+        <BlankQueryBlockMessage message="No Documents found in this Query Block." />
       )}
     </YStack>
   )
