@@ -56,7 +56,7 @@ function LauncherContent({onClose}: {onClose: () => void}) {
         bottom={0}
         // @ts-ignore
         position="fixed"
-        zIndex="$zIndex.8"
+        zIndex={5000}
       />
       <YStack
         elevation="$4"
@@ -65,7 +65,7 @@ function LauncherContent({onClose}: {onClose: () => void}) {
         position="absolute"
         top={0}
         left={0}
-        zi="$zIndex.8"
+        zi={5000}
         width="100%"
         maxWidth={800}
         bg="$backgroundStrong"
