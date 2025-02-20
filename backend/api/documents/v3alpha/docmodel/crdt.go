@@ -387,10 +387,10 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 			reg.Set(opid, op.Value)
 		case blob.OpReplaceBlock:
 			blk := op.Block
-			reg := e.stateBlocks[blk.ID]
+			reg := e.stateBlocks[blk.ID()]
 			if reg == nil {
 				reg = newMVReg[blob.Block]()
-				e.stateBlocks[blk.ID] = reg
+				e.stateBlocks[blk.ID()] = reg
 			}
 			opid := newOpID(ts, actorID, idx)
 			reg.Set(opid, blk)

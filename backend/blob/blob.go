@@ -2,11 +2,12 @@
 package blob
 
 import (
+	"errors"
 	"seed/backend/core"
 	"seed/backend/util/cclock"
-	"slices"
 	"time"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/polydawn/refmt/obj/atlas"
@@ -121,15 +122,21 @@ func signBlob(kp *core.KeyPair, v any, sig *core.Signature) error {
 }
 
 // verifyBlob checks the signature of a blob.
-func verifyBlob(pubkey core.Principal, v any, sig *core.Signature) error {
+func verifyBlob(pubkey core.Principal, v any, sig core.Signature) error {
 	signer, err := pubkey.Parse()
 	if err != nil {
 		return err
 	}
 
-	sigCopy := slices.Clone(*sig)
+	if len(sig) != signer.SignatureSize() {
+		return errors.New("signature size mismatch")
+	}
 
-	*sig = make([]byte, signer.SignatureSize())
+	sigCopy := make([]byte, len(sig))
+	for i, b := range sig {
+		sigCopy[i] = b
+		sig[i] = 0
+	}
 
 	unsignedBytes, err := cbornode.DumpObject(v)
 	if err != nil {
@@ -140,7 +147,7 @@ func verifyBlob(pubkey core.Principal, v any, sig *core.Signature) error {
 		return err
 	}
 
-	*sig = sigCopy
+	copy(sig, sigCopy)
 
 	return nil
 }
@@ -152,4 +159,19 @@ func verifyBlob(pubkey core.Principal, v any, sig *core.Signature) error {
 type WithCID[T any] struct {
 	CID   cid.Cid
 	Value T
+}
+
+func mapstruct(from, to any) error {
+	cfg := &mapstructure.DecoderConfig{
+		Metadata:  nil,
+		Result:    to,
+		MatchName: func(a, b string) bool { return a == b },
+	}
+
+	dec, err := mapstructure.NewDecoder(cfg)
+	if err != nil {
+		return err
+	}
+
+	return dec.Decode(from)
 }

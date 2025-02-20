@@ -15,13 +15,32 @@ import (
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/multiformats/go-multicodec"
+	"github.com/polydawn/refmt/obj/atlas"
 )
 
 const blobTypeComment blobType = "Comment"
 
 func init() {
 	cbornode.RegisterCborType(Comment{})
-	cbornode.RegisterCborType(CommentBlock{})
+
+	cbornode.RegisterCborType(atlas.BuildEntry(CommentBlock{}).Transform().
+		TransformMarshal(atlas.MakeMarshalTransformFunc(func(in CommentBlock) (map[string]any, error) {
+			var v map[string]any
+			if err := mapstruct(in, &v); err != nil {
+				return nil, err
+			}
+
+			return v, nil
+		})).
+		TransformUnmarshal(atlas.MakeUnmarshalTransformFunc(func(in map[string]any) (CommentBlock, error) {
+			var v CommentBlock
+			if err := mapstruct(in, &v); err != nil {
+				return v, err
+			}
+			return v, nil
+		})).
+		Complete(),
+	)
 }
 
 // Comment is a blob that represents a comment to some document, or a reply to some other comment.
@@ -84,9 +103,9 @@ func (c *Comment) Space() core.Principal {
 
 // CommentBlock is a block of text with annotations.
 type CommentBlock struct {
-	Block
+	Block `mapstructure:",squash"`
 
-	Children []CommentBlock `refmt:"children,omitempty"`
+	Children []CommentBlock `mapstructure:"children,omitempty"`
 }
 
 func init() {
@@ -99,12 +118,33 @@ func init() {
 				return nil, errSkipIndexing
 			}
 
-			v := &Comment{}
-			if err := cbornode.DecodeInto(data, v); err != nil {
-				return nil, err
+			// We validate the comment signature as an opaque map first,
+			// because we messed up the encoding of comments previously.
+			{
+				var v map[string]any
+				if err := cbornode.DecodeInto(data, &v); err != nil {
+					return nil, err
+				}
+
+				signerBytes, ok := v["signer"].([]byte)
+				if !ok {
+					return nil, fmt.Errorf("signer field must be bytes, but got %T", v["signer"])
+				}
+
+				signatureBytes, ok := v["sig"].([]byte)
+				if !ok {
+					return nil, fmt.Errorf("sig field must be bytes, but got %T", v["sig"])
+				}
+
+				if err := verifyBlob(core.Principal(signerBytes), v, signatureBytes); err != nil {
+					return nil, err
+				}
 			}
 
-			if err := verifyBlob(v.Signer, v, &v.Sig); err != nil {
+			// Now we decode the CBOR again into a proper struct.
+
+			v := &Comment{}
+			if err := cbornode.DecodeInto(data, v); err != nil {
 				return nil, err
 			}
 
@@ -179,12 +219,12 @@ func indexComment(ictx *indexingCtx, id int64, c cid.Cid, v *Comment) error {
 	var indexCommentContent func([]CommentBlock) error // Declaring function to allow recursive calls.
 	indexCommentContent = func(in []CommentBlock) error {
 		for _, blk := range in {
-			if err := indexURL(&sb, ictx.log, blk.ID, "comment/"+blk.Type, blk.Link); err != nil {
+			if err := indexURL(&sb, ictx.log, blk.ID(), "comment/"+blk.Type, blk.Link); err != nil {
 				return err
 			}
 
 			for _, a := range blk.Annotations {
-				if err := indexURL(&sb, ictx.log, blk.ID, "comment/"+a.Type, a.Link); err != nil {
+				if err := indexURL(&sb, ictx.log, blk.ID(), "comment/"+a.Type, a.Link); err != nil {
 					return err
 				}
 			}

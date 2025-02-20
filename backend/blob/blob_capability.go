@@ -80,7 +80,7 @@ func init() {
 				return nil, err
 			}
 
-			if err := verifyBlob(v.Signer, v, &v.Sig); err != nil {
+			if err := verifyBlob(v.Signer, v, v.Sig); err != nil {
 				return nil, err
 			}
 

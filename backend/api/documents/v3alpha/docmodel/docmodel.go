@@ -279,7 +279,7 @@ func (dm *Document) ReplaceBlock(blkpb *documents.Block) error {
 		preds = slices.Collect(reg.state.Keys())
 	}
 
-	dm.dirtyBlocks[blk.ID] = mvRegValue[blob.Block]{Value: blk, Preds: preds}
+	dm.dirtyBlocks[blk.ID()] = mvRegValue[blob.Block]{Value: blk, Preds: preds}
 
 	return nil
 }
@@ -612,12 +612,12 @@ func BlockFromProto(b *documents.Block) (blob.Block, error) {
 	remaining := ProtoStructAsMap(b.Attributes)
 
 	return blob.Block{
-		ID:          b.Id,
-		Type:        b.Type,
-		Text:        b.Text,
-		Link:        b.Link,
-		Attributes:  remaining,
-		Annotations: annotationsFromProto(b.Annotations),
+		ID_Good:           b.Id,
+		Type:              b.Type,
+		Text:              b.Text,
+		Link:              b.Link,
+		InlineAttributes_: remaining,
+		Annotations:       annotationsFromProto(b.Annotations),
 	}, nil
 }
 
@@ -686,11 +686,11 @@ func annotationsFromProto(in []*documents.Annotation) []blob.Annotation {
 		}
 
 		out[i] = blob.Annotation{
-			Type:       a.Type,
-			Link:       a.Link,
-			Attributes: attrs,
-			Starts:     a.Starts,
-			Ends:       a.Ends,
+			Type:              a.Type,
+			Link:              a.Link,
+			InlineAttributes_: attrs,
+			Starts:            a.Starts,
+			Ends:              a.Ends,
 		}
 	}
 
@@ -706,7 +706,7 @@ func BlockToProto(b blob.Block, revision cid.Cid) (*documents.Block, error) {
 	}
 
 	bpb := &documents.Block{
-		Id:          b.ID,
+		Id:          b.ID(),
 		Type:        b.Type,
 		Text:        b.Text,
 		Link:        b.Link,
@@ -714,8 +714,8 @@ func BlockToProto(b blob.Block, revision cid.Cid) (*documents.Block, error) {
 		Annotations: attrspb,
 		Revision:    revision.String(),
 	}
-	if len(b.Attributes) > 0 {
-		attrs, err := structpb.NewStruct(b.Attributes)
+	if aa := b.Attributes(); len(aa) > 0 {
+		attrs, err := structpb.NewStruct(aa)
 		if err != nil {
 			return nil, err
 		}
@@ -732,7 +732,7 @@ func annotationsToProto(in []blob.Annotation) ([]*documents.Annotation, error) {
 
 	out := make([]*documents.Annotation, len(in))
 	for i, a := range in {
-		attrpb, err := structpb.NewStruct(a.Attributes)
+		attrpb, err := structpb.NewStruct(a.Attributes())
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert annotation attributes to proto: %w", err)
 		}

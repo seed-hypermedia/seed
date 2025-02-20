@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-viper/mapstructure/v2"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/multiformats/go-multicodec"
@@ -106,7 +105,7 @@ func init() {
 	cbornode.RegisterCborType(atlas.BuildEntry(Block{}).Transform().
 		TransformMarshal(atlas.MakeMarshalTransformFunc(func(in Block) (map[string]any, error) {
 			var v map[string]any
-			if err := mapstructure.Decode(in, &v); err != nil {
+			if err := mapstruct(in, &v); err != nil {
 				return nil, err
 			}
 
@@ -114,7 +113,7 @@ func init() {
 		})).
 		TransformUnmarshal(atlas.MakeUnmarshalTransformFunc(func(in map[string]any) (Block, error) {
 			var v Block
-			if err := mapstructure.Decode(in, &v); err != nil {
+			if err := mapstruct(in, &v); err != nil {
 				return v, err
 			}
 			return v, nil
@@ -125,14 +124,14 @@ func init() {
 	cbornode.RegisterCborType(atlas.BuildEntry(Annotation{}).Transform().
 		TransformMarshal(atlas.MakeMarshalTransformFunc(func(in Annotation) (map[string]any, error) {
 			var v map[string]any
-			if err := mapstructure.Decode(in, &v); err != nil {
+			if err := mapstruct(in, &v); err != nil {
 				return nil, err
 			}
 			return v, nil
 		})).
 		TransformUnmarshal(atlas.MakeUnmarshalTransformFunc(func(in map[string]any) (Annotation, error) {
 			var v Annotation
-			if err := mapstructure.Decode(in, &v); err != nil {
+			if err := mapstruct(in, &v); err != nil {
 				return v, err
 			}
 			return v, nil
@@ -341,7 +340,7 @@ func init() {
 				return nil, err
 			}
 
-			if err := verifyBlob(v.Signer, v, &v.Sig); err != nil {
+			if err := verifyBlob(v.Signer, v, v.Sig); err != nil {
 				return nil, err
 			}
 
@@ -470,12 +469,12 @@ func indexChange(ictx *indexingCtx, id int64, c cid.Cid, v *Change) error {
 		case OpReplaceBlock:
 			blk := op.Block
 
-			if err := indexURL(&sb, ictx.log, blk.ID, "doc/"+blk.Type, blk.Link); err != nil {
+			if err := indexURL(&sb, ictx.log, blk.ID(), "doc/"+blk.Type, blk.Link); err != nil {
 				return err
 			}
 
 			for _, ann := range blk.Annotations {
-				if err := indexURL(&sb, ictx.log, blk.ID, "doc/"+ann.Type, ann.Link); err != nil {
+				if err := indexURL(&sb, ictx.log, blk.ID(), "doc/"+ann.Type, ann.Link); err != nil {
 					return err
 				}
 			}
@@ -577,19 +576,63 @@ var qLoadRefsForChange = dqb.Str(`
 
 // Block is a block of text with annotations.
 type Block struct {
-	ID          string         `mapstructure:"id,omitempty"` // Omitempty when used in Documents.
-	Type        string         `mapstructure:"type,omitempty"`
-	Text        string         `mapstructure:"text,omitempty"`
-	Link        string         `mapstructure:"link,omitempty"`
-	Attributes  map[string]any `mapstructure:",remain"`
-	Annotations []Annotation   `mapstructure:"annotations,omitempty"`
+	ID_Good string `mapstructure:"id,omitempty"` // Omitempty when used in Documents.
+
+	// We messed up the encoding of blocks in some comment early on,
+	// so we have to be able to support the format forever.
+	// In the old encoding the ID field was encoded as "iD",
+	// and attributes that should be inlined with the top-level map
+	// were encoded as a map inside of an "attributes" field.
+	ID_Bad         string         `mapstructure:"iD,omitempty"`
+	Attributes_Old map[string]any `mapstructure:"attributes,omitempty"`
+
+	Type              string         `mapstructure:"type,omitempty"`
+	Text              string         `mapstructure:"text,omitempty"`
+	Link              string         `mapstructure:"link,omitempty"`
+	InlineAttributes_ map[string]any `mapstructure:",remain"`
+	Annotations       []Annotation   `mapstructure:"annotations,omitempty"`
+}
+
+// ID returns the ID of the block, respecting the old and new field names.
+func (b Block) ID() string {
+	if b.ID_Good != "" {
+		return b.ID_Good
+	}
+
+	return b.ID_Bad
+}
+
+// Attributes returns the attributes of the block, respecting the old and new field names.
+func (b Block) Attributes() map[string]any {
+	if len(b.Attributes_Old) > 0 {
+		return b.Attributes_Old
+	}
+
+	return b.InlineAttributes_
 }
 
 // Annotation is a range of text that has a type and attributes.
 type Annotation struct {
-	Type       string         `mapstructure:"type"`
-	Link       string         `mapstructure:"link,omitempty"`
-	Attributes map[string]any `mapstructure:",remain"`
-	Starts     []int32        `mapstructure:"starts,omitempty"`
-	Ends       []int32        `mapstructure:"ends,omitempty"`
+	Type string `mapstructure:"type"`
+	Link string `mapstructure:"link,omitempty"`
+
+	// We messed up the encoding of blocks in some comment early on,
+	// so we have to be able to support the format forever.
+	// In the old encoding the ID field was encoded as "iD",
+	// and attributes that should be inlined with the top-level map
+	// were encoded as a map inside of an "attributes" field.
+	Attributes_Old    map[string]any `mapstructure:"attributes,omitempty"`
+	InlineAttributes_ map[string]any `mapstructure:",remain"`
+
+	Starts []int32 `mapstructure:"starts,omitempty"`
+	Ends   []int32 `mapstructure:"ends,omitempty"`
+}
+
+// Attributes returns the attributes of the annotation, respecting the old and new field names.
+func (a Annotation) Attributes() map[string]any {
+	if len(a.Attributes_Old) > 0 {
+		return a.Attributes_Old
+	}
+
+	return a.InlineAttributes_
 }

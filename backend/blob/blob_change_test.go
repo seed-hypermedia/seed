@@ -8,21 +8,25 @@ import (
 )
 
 func TestBlockEncoding_FieldInlining(t *testing.T) {
-	blk := Block{
-		Type: "Paragraph",
-		Text: "Hello World",
-		Attributes: map[string]any{
-			"foo": "bar",
-		},
-		Annotations: []Annotation{
-			{
-				Type:   "bold",
-				Starts: []int32{0},
-				Ends:   []int32{5},
-				Attributes: map[string]any{
-					"hey": "ho",
+	blk := Comment{
+		Body: []CommentBlock{
+			{Block: Block{
+				Type: "Paragraph",
+				Text: "Hello World",
+				InlineAttributes_: map[string]any{
+					"foo": "bar",
 				},
-			},
+				Annotations: []Annotation{
+					{
+						Type:   "bold",
+						Starts: []int32{0},
+						Ends:   []int32{5},
+						InlineAttributes_: map[string]any{
+							"hey": "ho",
+						},
+					},
+				},
+			}},
 		},
 	}
 
@@ -46,7 +50,7 @@ func TestBlockEncoding_FieldInlining(t *testing.T) {
 	var mapValue map[string]any
 	require.NoError(t, cbornode.DecodeInto(raw, &mapValue))
 
-	require.Equal(t, wantMap, mapValue, "the resulting encoding doesn't match")
+	require.Equal(t, wantMap, mapValue["body"].([]any)[0], "the resulting encoding doesn't match")
 
 	var blk2 Block
 	require.NoError(t, cbornode.DecodeInto(raw, &blk2), "round-trip decoding failed")
