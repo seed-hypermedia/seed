@@ -23,7 +23,6 @@ export const loader = async ({
   const {url, hostname} = parsedRequest;
   const version = url.searchParams.get("v");
   const latest = url.searchParams.get("l") === "";
-  const waitForSync = url.searchParams.get("waitForSync") !== null;
   const serviceConfig = await getConfig(hostname);
   if (!serviceConfig) throw new Error(`No config defined for ${hostname}`);
   const {registeredAccountUid} = serviceConfig;
@@ -31,8 +30,7 @@ export const loader = async ({
   const path = (params["*"] || "").split("/");
   return await loadSiteDocument(
     hostname,
-    hmId("d", registeredAccountUid, {path, version, latest}),
-    waitForSync
+    hmId("d", registeredAccountUid, {path, version, latest})
   );
 };
 

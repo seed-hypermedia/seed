@@ -24,7 +24,6 @@ import {
   HMMetadata,
   HMMetadataPayload,
   HMQueryResult,
-  SITE_BASE_URL,
   UnpackedHypermediaId,
   unpackHmId,
 } from "@shm/shared";
@@ -91,7 +90,7 @@ const getQueryResults = getQueryResultsWithClient(queryClient);
 
 export async function getBaseDocument(
   entityId: UnpackedHypermediaId,
-  waitForSync?: boolean
+  hostname: string
 ): Promise<WebBaseDocumentPayload> {
   const {uid} = entityId;
   const path = hmIdPathToEntityQueryPath(entityId.path);
@@ -108,13 +107,7 @@ export async function getBaseDocument(
     .catch((e) => {
       console.error("error discovering entity", entityId.id, e);
     });
-  if (waitForSync) {
-    await discoverPromise;
-  } else {
-    discoverPromise.catch((e) => {
-      console.error("discovery error " + entityId.id, e);
-    });
-  }
+
   const document = await getHMDocument(entityId);
   let authors = await Promise.all(
     document.authors.map(async (authorUid) => {
@@ -229,7 +222,7 @@ export async function getBaseDocument(
     accountsMetadata: Object.fromEntries(
       authors.map((author) => [author.id.uid, author])
     ),
-    siteHost: SITE_BASE_URL,
+    siteHost: hostname,
     id: {...entityId, version: document.version},
     enableWebSigning: process.env.WEB_SIGNING_ENABLED === "true",
   };
@@ -237,10 +230,10 @@ export async function getBaseDocument(
 
 export async function getDocument(
   entityId: UnpackedHypermediaId,
-  waitForSync?: boolean
+  hostname: string
 ): Promise<WebDocumentPayload> {
   logDebug("getDocument", entityId.id);
-  const document = await getBaseDocument(entityId, waitForSync);
+  const document = await getBaseDocument(entityId, hostname);
   const crumbs = getParentPaths(entityId.path).slice(0, -1);
   const breadcrumbs = await Promise.all(
     crumbs.map(async (crumbPath) => {
@@ -524,7 +517,6 @@ export type SiteDocumentPayload = WebDocumentPayload & {
 export async function loadSiteDocument<T>(
   hostname: string,
   id: UnpackedHypermediaId,
-  waitForSync?: boolean,
   extraData?: T
 ): Promise<WrappedResponse<SiteDocumentPayload & T>> {
   logDebug("loadSiteDocument", id.id);
@@ -544,7 +536,7 @@ export async function loadSiteDocument<T>(
     } catch (e) {}
   }
   try {
-    const docContent = await getDocument(id, waitForSync);
+    const docContent = await getDocument(id, hostname);
     let supportQueries = docContent.supportQueries;
     if (
       originHomeId &&

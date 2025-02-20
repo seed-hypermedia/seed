@@ -1,4 +1,4 @@
-import { LinksFunction } from "@remix-run/node";
+import {LinksFunction} from "@remix-run/node";
 import {
   isRouteErrorResponse,
   Links,
@@ -8,16 +8,15 @@ import {
   ScrollRestoration,
   useRouteError,
 } from "@remix-run/react";
-import { captureRemixErrorBoundaryError, withSentry } from "@sentry/remix";
-import { IS_DEV_DESKTOP, LIGHTNING_API_URL, SITE_BASE_URL } from "@shm/shared";
-import { isClient } from "@tamagui/core";
-import { XStack, YStack } from "@tamagui/stacks";
-import { SizableText } from "@tamagui/text";
+import {captureRemixErrorBoundaryError, withSentry} from "@sentry/remix";
+import {isClient} from "@tamagui/core";
+import {XStack, YStack} from "@tamagui/stacks";
+import {SizableText} from "@tamagui/text";
 import Tamagui from "../tamagui.config";
-import { Providers, ThemeProvider } from "./providers";
+import {Providers, ThemeProvider} from "./providers";
 import globalStyles from "./styles.css?url";
 import globalTamaguiStyles from "./tamagui.css?url";
-import { Container } from "./ui/container";
+import {Container} from "./ui/container";
 
 export const links: LinksFunction = () => {
   return [
@@ -55,15 +54,6 @@ export function Layout({children}: {children: React.ReactNode}) {
       <body>
         <Providers>{children}</Providers>
         <ScrollRestoration />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `window.ENV = ${JSON.stringify({
-              LIGHTNING_API_URL,
-              IS_DEV_DESKTOP,
-              SITE_BASE_URL,
-            })}`,
-          }}
-        />
         <Scripts />
       </body>
     </html>

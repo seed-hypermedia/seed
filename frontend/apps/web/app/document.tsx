@@ -135,7 +135,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
     );
   if (document.metadata.layout == "Seed/Experimental/Newspaper") {
     return (
-      <WebSiteProvider originHomeId={props.originHomeId}>
+      <WebSiteProvider originHomeId={props.originHomeId} siteHost={siteHost}>
         <NewspaperPage {...props} />;
       </WebSiteProvider>
     );
@@ -185,7 +185,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
   }, []);
 
   return (
-    <WebSiteProvider originHomeId={props.originHomeId}>
+    <WebSiteProvider originHomeId={props.originHomeId} siteHost={siteHost}>
       <YStack>
         <WebSiteHeader
           homeMetadata={homeMetadata}

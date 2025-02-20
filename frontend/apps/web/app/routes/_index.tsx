@@ -35,15 +35,13 @@ export const loader = async ({request}: {request: Request}) => {
   const debugTiming = logDebugTiming();
   const version = url.searchParams.get("v");
   const latest = url.searchParams.get("l") === "";
-  const waitForSync = url.searchParams.get("waitForSync") !== null;
   const serviceConfig = await getConfig(hostname);
   if (!serviceConfig) return wrapJSON("no-site", {status: 404});
   const {registeredAccountUid} = serviceConfig;
   if (!registeredAccountUid) return wrapJSON("unregistered", {status: 404});
   const result = await loadSiteDocument(
     hostname,
-    hmId("d", registeredAccountUid, {version, path: [], latest}),
-    waitForSync
+    hmId("d", registeredAccountUid, {version, path: [], latest})
   );
   debugTiming("homepage loader resolved");
   return result;

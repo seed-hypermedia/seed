@@ -1,5 +1,7 @@
 import {
   DAEMON_FILE_URL,
+  LIGHTNING_API_URL,
+  SITE_BASE_URL,
   SiteRoutingProvider,
   UniversalRoutingProvider,
   UnpackedHypermediaId,
@@ -64,6 +66,14 @@ export function WebSiteProvider(props: {
       getOptimizedImageUrl={getOptimizedImageUrl}
       ipfsFileUrl={DAEMON_FILE_URL}
     >
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `window.ENV = ${JSON.stringify({
+            LIGHTNING_API_URL,
+            SITE_BASE_URL: props.siteHost || SITE_BASE_URL,
+          })}`,
+        }}
+      />
       <SiteRoutingProvider originHomeId={props.originHomeId}>
         {props.children}
       </SiteRoutingProvider>

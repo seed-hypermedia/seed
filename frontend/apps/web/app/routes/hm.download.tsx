@@ -113,7 +113,8 @@ export default function DownloadPage() {
   >(useLoaderData());
   const {
     stableRelease,
-    homeId,
+    originHomeId,
+    siteHost,
     homeMetadata,
     id,
     document,
@@ -170,7 +171,7 @@ export default function DownloadPage() {
     );
   }
   return (
-    <WebSiteProvider homeId={homeId}>
+    <WebSiteProvider originHomeId={originHomeId} siteHost={siteHost}>
       <YStack
         backgroundImage={`url(${downloadBg})`}
         backgroundSize="cover"
@@ -178,7 +179,7 @@ export default function DownloadPage() {
       >
         <WebSiteHeader
           homeMetadata={homeMetadata}
-          homeId={homeId}
+          originHomeId={originHomeId}
           docId={id}
           document={document}
           supportDocuments={supportDocuments}

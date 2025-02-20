@@ -50,7 +50,6 @@ export const COMMIT_HASH =
 
 // this is injected by Vite, so it indicates if we are in the production build of the DESKTOP app
 export const IS_PROD_DESKTOP = !!import.meta.env?.PROD
-export const IS_DEV_DESKTOP = !!import.meta.env?.DEV
 export const IS_PROD_DEV = VERSION?.includes('-dev')
 
 export const DAEMON_HTTP_URL =

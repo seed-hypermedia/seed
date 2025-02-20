@@ -22,13 +22,11 @@ export const loader = async ({
   const {url, hostname} = parsedRequest;
   const version = url.searchParams.get("v");
   const latest = url.searchParams.get("l") === "";
-  const waitForSync = url.searchParams.get("waitForSync") !== null;
   const path = (params["*"] || "").split("/").filter((term) => !!term);
   const [accountUid, ...restPath] = path;
   return await loadSiteDocument(
     hostname,
-    hmId("d", accountUid, {path: restPath, version, latest}),
-    waitForSync
+    hmId("d", accountUid, {path: restPath, version, latest})
   );
 };
 
