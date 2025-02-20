@@ -244,7 +244,7 @@ export default function DownloadPage() {
                 <PlatformItem
                   label="Linux"
                   icon={Linux}
-                  assets={Object.entries(stableRelease.assets.macos).map(
+                  assets={Object.entries(stableRelease.assets.linux).map(
                     ([key, value]) => ({
                       label: key,
                       url: value?.download_url,
