@@ -1,16 +1,12 @@
 import {
   DAEMON_FILE_URL,
   LIGHTNING_API_URL,
+  OptimizedImageSize,
   SITE_BASE_URL,
-  SiteRoutingProvider,
-  UniversalRoutingProvider,
+  UniversalAppProvider,
   UnpackedHypermediaId,
 } from "@shm/shared";
 import {Toaster} from "@shm/ui/src/toast";
-import {
-  OptimizedImageSize,
-  UniversalAppProvider,
-} from "@shm/ui/src/universal-app";
 import {TamaguiProvider} from "@tamagui/core";
 import {PortalProvider} from "@tamagui/portal";
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
@@ -23,13 +19,11 @@ export const Providers = (props: {children: any}) => {
     <ThemeProvider>
       <PortalProvider>
         <QueryClientProvider client={queryClient}>
-          <UniversalRoutingProvider value={{}}>
-            {props.children}
-            <Toaster
-            // position="bottom-center"
-            // toastOptions={{className: 'toaster'}}
-            />
-          </UniversalRoutingProvider>
+          {props.children}
+          <Toaster
+          // position="bottom-center"
+          // toastOptions={{className: 'toaster'}}
+          />
         </QueryClientProvider>
       </PortalProvider>
     </ThemeProvider>
@@ -65,6 +59,9 @@ export function WebSiteProvider(props: {
       originHomeId={props.originHomeId}
       getOptimizedImageUrl={getOptimizedImageUrl}
       ipfsFileUrl={DAEMON_FILE_URL}
+      openUrl={(url) => {
+        window.open(url, "_blank");
+      }}
     >
       <script
         dangerouslySetInnerHTML={{
@@ -74,9 +71,7 @@ export function WebSiteProvider(props: {
           })}`,
         }}
       />
-      <SiteRoutingProvider originHomeId={props.originHomeId}>
-        {props.children}
-      </SiteRoutingProvider>
+      {props.children}
     </UniversalAppProvider>
   );
 }

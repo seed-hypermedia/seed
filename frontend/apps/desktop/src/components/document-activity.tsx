@@ -160,6 +160,7 @@ function ActivityList({docId}: {docId: UnpackedHypermediaId}) {
           return (
             <YStack key={activityItem.id} paddingHorizontal="$1.5">
               <CommentGroup
+                rootReplyCommentId={null}
                 key={activityItem.id}
                 docId={docId}
                 commentGroup={activityItem}
@@ -192,6 +193,7 @@ function ActivityList({docId}: {docId: UnpackedHypermediaId}) {
           return (
             <SubDocumentItem
               item={activityItem}
+              key={activityItem.account + '/' + activityItem.path.join('/')}
               accountsMetadata={accounts.data?.accountsMetadata || {}}
             />
           )

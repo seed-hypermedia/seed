@@ -145,7 +145,6 @@ export type BlockNoteEditorOptions<BSchema extends BlockSchema> = {
 };
 
 export type LinkExtensionOptions = {
-  onLinkClick?: ({url, external}: {url: string; external: boolean}) => void;
   resolveHypermediaLink?: (
     url: string
   ) => Promise<Partial<UnpackedHypermediaId> | null>;

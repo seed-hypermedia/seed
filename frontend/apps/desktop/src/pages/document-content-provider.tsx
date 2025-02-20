@@ -54,11 +54,6 @@ export function AppDocContentProvider({
           Inline: EmbedInline,
           Query: QueryBlockDesktop,
         }}
-        onLinkClick={(href, e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          openUrl(href, e.metaKey)
-        }}
         onCopyBlock={
           reference
             ? (

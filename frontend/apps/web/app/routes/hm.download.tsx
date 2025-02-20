@@ -95,7 +95,7 @@ export const loader = async ({request}: {request: Request}) => {
   if (!registeredAccountUid)
     throw new Error(`No registered account uid defined for ${hostname}`);
   const result = await loadSiteDocument(
-    hostname,
+    parsedRequest,
     hmId("d", registeredAccountUid, {path: [], latest: true}),
     false,
     {

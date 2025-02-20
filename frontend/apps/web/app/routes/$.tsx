@@ -29,7 +29,7 @@ export const loader = async ({
   if (!registeredAccountUid) throw new Error("No registered account uid");
   const path = (params["*"] || "").split("/");
   return await loadSiteDocument(
-    hostname,
+    parsedRequest,
     hmId("d", registeredAccountUid, {path, version, latest})
   );
 };

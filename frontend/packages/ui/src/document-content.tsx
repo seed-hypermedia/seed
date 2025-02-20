@@ -20,7 +20,6 @@ import {
   getDocumentTitle,
   hmBlockToEditorBlock,
   hmId,
-  idToUrl,
   isHypermediaScheme,
   narrowHmId,
   packHmId,
@@ -28,8 +27,10 @@ import {
   unpackHmId,
   useHover,
   useLowlight,
+  useOpenUrl,
   useRangeSelection,
   useRouteLink,
+  useRouteLinkHref,
 } from "@shm/shared";
 import {Button, ButtonFrame, ButtonText} from "@tamagui/button";
 import {Checkbox, CheckboxProps} from "@tamagui/checkbox";
@@ -64,6 +65,7 @@ import katex from "katex";
 import "katex/dist/katex.min.css";
 import {common} from "lowlight";
 import {
+  ComponentProps,
   PropsWithChildren,
   createContext,
   createElement,
@@ -106,7 +108,6 @@ export type EntityComponentsRecord = {
 export type DocContentContextValue = {
   entityId: UnpackedHypermediaId | undefined;
   entityComponents: EntityComponentsRecord;
-  onLinkClick: (dest: string, e: MouseEvent) => void;
   saveCidAsFile?: (cid: string, name: string) => Promise<void>;
   citations?: Mention[];
 
@@ -1427,8 +1428,7 @@ function InlineContentView({
   rangeOffset?: number;
   isRange?: boolean;
 }) {
-  const {onLinkClick, textUnit, entityComponents, comment} =
-    useDocContentContext();
+  const {textUnit, entityComponents, comment} = useDocContentContext();
 
   const InlineEmbed = entityComponents.Inline;
 
@@ -1577,17 +1577,15 @@ function InlineContentView({
           );
         }
         if (content.type === "link") {
-          const hmId = unpackHmId(content.href);
           const isHmScheme = isHypermediaScheme(content.href);
-          const href = isHmScheme && hmId ? idToUrl(hmId) : content.href;
-          if (!href) return null;
           return (
-            <a
-              href={href}
-              className={isHmScheme ? "hm-link" : "link"}
+            <HrefLink
+              href={content.href}
               key={index}
-              target={isHmScheme ? undefined : "_blank"}
-              onClick={(e) => onLinkClick(content.href, e)}
+              buttonProps={{
+                className: isHmScheme ? "hm-link" : "link",
+                target: isHmScheme ? undefined : "_blank",
+              }}
             >
               <InlineContentView
                 fontSize={fSize}
@@ -1596,7 +1594,7 @@ function InlineContentView({
                 linkType={isHmScheme ? "hypermedia" : "basic"}
                 rangeOffset={inlineContentOffset}
               />
-            </a>
+            </HrefLink>
           );
         }
 
@@ -1627,6 +1625,22 @@ function InlineContentView({
         return null;
       })}
     </Text>
+  );
+}
+
+function HrefLink({
+  href,
+  children,
+  buttonProps,
+}: PropsWithChildren<{
+  href: string;
+  buttonProps: ComponentProps<"a">;
+}>) {
+  const {onPress, ...linkProps} = useRouteLinkHref(href);
+  return (
+    <a {...linkProps} onClick={onPress} {...buttonProps}>
+      {children}
+    </a>
   );
 }
 
@@ -2048,7 +2062,8 @@ export function BlockContentButton({
   ...props
 }: BlockContentProps) {
   const {hover, ...hoverProps} = useHover();
-  const {onLinkClick} = useDocContentContext();
+  const buttonLink = block.type === "Button" ? block.link : null;
+  const linkProps = useRouteLinkHref(buttonLink || "");
   if (!block.attributes) {
     console.error("Button Block without attributes?!", block);
   }
@@ -2077,15 +2092,11 @@ export function BlockContentButton({
           bg="$brand5"
           color="white"
           width="100%"
-          // p="$2"
-          // fontSize="$4"
           justifyContent="center"
           textAlign="center"
           userSelect="none"
           borderColor="$colorTransparent"
-          onPress={(e) => {
-            onLinkClick(block.link, e);
-          }}
+          {...linkProps}
           size="$5"
           maxWidth="100%"
           hoverStyle={{
@@ -2217,7 +2228,8 @@ export function BlockContentXPost({
   parentBlockId,
   ...props
 }: BlockContentProps) {
-  const {layoutUnit, onLinkClick} = useDocContentContext();
+  const {layoutUnit} = useDocContentContext();
+  const openUrl = useOpenUrl();
   const urlArray = block.link?.split("/");
   const xPostId = urlArray?.[urlArray.length - 1].split("?")[0];
   const containerRef = useRef(null);
@@ -2274,7 +2286,7 @@ export function BlockContentXPost({
         e.preventDefault();
         e.stopPropagation();
         if (block.link) {
-          onLinkClick(block.link, e);
+          openUrl(block.link);
         }
       }}
     >

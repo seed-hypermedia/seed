@@ -25,7 +25,7 @@ export const loader = async ({
   const path = (params["*"] || "").split("/").filter((term) => !!term);
   const [accountUid, ...restPath] = path;
   return await loadSiteDocument(
-    hostname,
+    parsedRequest,
     hmId("d", accountUid, {path: restPath, version, latest})
   );
 };

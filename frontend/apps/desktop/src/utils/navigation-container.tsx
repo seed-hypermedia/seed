@@ -1,9 +1,10 @@
 import {client} from '@/trpc'
+import {DAEMON_FILE_URL} from '@shm/shared'
 import {defaultRoute, NavRoute} from '@shm/shared/routes'
-import {UniversalRoutingProvider} from '@shm/shared/routing'
+import {UniversalAppProvider} from '@shm/shared/routing'
 import {writeableStateStream} from '@shm/shared/utils/stream'
 import {ReactNode, useEffect, useMemo} from 'react'
-import {useIPC} from '../app-context'
+import {useAppContext, useIPC} from '../app-context'
 import {
   NavAction,
   NavContextProvider,
@@ -25,6 +26,7 @@ export function NavigationContainer({
   children: ReactNode
   initialNav?: NavState
 }) {
+  const {externalOpen} = useAppContext()
   const navigation = useMemo(() => {
     const [updateNavState, navState] = writeableStateStream(initialNav)
     return {
@@ -69,18 +71,20 @@ export function NavigationContainer({
   }, [])
 
   return (
-    <UniversalRoutingProvider
-      value={{
-        openRoute: (route: NavRoute, replace?: boolean) => {
-          if (replace) {
-            navigation.dispatch({type: 'replace', route})
-          } else {
-            navigation.dispatch({type: 'push', route})
-          }
-        },
+    <UniversalAppProvider
+      ipfsFileUrl={DAEMON_FILE_URL}
+      openRoute={(route: NavRoute, replace?: boolean) => {
+        if (replace) {
+          navigation.dispatch({type: 'replace', route})
+        } else {
+          navigation.dispatch({type: 'push', route})
+        }
+      }}
+      openUrl={(url: string) => {
+        externalOpen(url)
       }}
     >
       <NavContextProvider value={navigation}>{children}</NavContextProvider>
-    </UniversalRoutingProvider>
+    </UniversalAppProvider>
   )
 }

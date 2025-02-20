@@ -194,6 +194,7 @@ export default async function handleRequest(
   remixContext: EntryContext,
   loadContext: AppLoadContext
 ) {
+  console.log("handleRequest", request.method, request.url);
   const parsedRequest = parseRequest(request);
   const {url, hostname, method} = parsedRequest;
   const sendPerfLog = logDebugRequest(url.pathname);

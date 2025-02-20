@@ -31,7 +31,7 @@ export const headers = documentPageHeaders;
 export const loader = async ({request}: {request: Request}) => {
   const parsedRequest = parseRequest(request);
   if (!useFullRender(parsedRequest)) return null;
-  const {url, hostname} = parsedRequest;
+  const {url, hostname, origin} = parsedRequest;
   const debugTiming = logDebugTiming();
   const version = url.searchParams.get("v");
   const latest = url.searchParams.get("l") === "";
@@ -40,7 +40,7 @@ export const loader = async ({request}: {request: Request}) => {
   const {registeredAccountUid} = serviceConfig;
   if (!registeredAccountUid) return wrapJSON("unregistered", {status: 404});
   const result = await loadSiteDocument(
-    hostname,
+    parsedRequest,
     hmId("d", registeredAccountUid, {version, path: [], latest})
   );
   debugTiming("homepage loader resolved");

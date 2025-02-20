@@ -35,6 +35,7 @@ import {getBlockNodeById} from "@shm/ui/src";
 import {AccountsMetadata} from "@shm/ui/src/face-pile";
 import {queryClient} from "./client";
 import {logDebug} from "./logger";
+import {ParsedRequest} from "./request";
 import {getConfig} from "./site-config";
 import {wrapJSON, WrappedResponse} from "./wrapping";
 
@@ -233,6 +234,7 @@ export async function getDocument(
   hostname: string
 ): Promise<WebDocumentPayload> {
   logDebug("getDocument", entityId.id);
+  console.log("getDocument", hostname);
   const document = await getBaseDocument(entityId, hostname);
   const crumbs = getParentPaths(entityId.path).slice(0, -1);
   const breadcrumbs = await Promise.all(
@@ -512,13 +514,15 @@ export async function loadDocument(
 export type SiteDocumentPayload = WebDocumentPayload & {
   homeMetadata: HMMetadata;
   originHomeId: UnpackedHypermediaId;
+  origin: string;
 };
 
 export async function loadSiteDocument<T>(
-  hostname: string,
+  parsedRequest: ParsedRequest,
   id: UnpackedHypermediaId,
   extraData?: T
 ): Promise<WrappedResponse<SiteDocumentPayload & T>> {
+  const {hostname, origin} = parsedRequest;
   logDebug("loadSiteDocument", id.id);
   const config = await getConfig(hostname);
   if (!config) {
@@ -551,6 +555,7 @@ export async function loadSiteDocument<T>(
       ...docContent,
       homeMetadata,
       supportQueries,
+      origin,
       originHomeId,
     };
     const headers: Record<string, string> = {};
@@ -564,7 +569,7 @@ export async function loadSiteDocument<T>(
     // probably document not found. todo, handle other errors
   }
   return wrapJSON(
-    {homeMetadata, originHomeId, ...(extraData || {})},
+    {homeMetadata, origin, originHomeId, ...(extraData || {})},
     {status: id ? 200 : 404}
   );
 }

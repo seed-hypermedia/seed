@@ -2,7 +2,6 @@ import {HeadersFunction, MetaFunction} from "@remix-run/node";
 import {useLocation, useNavigate} from "@remix-run/react";
 import {
   BlockRange,
-  createWebHMUrl,
   formattedDateMedium,
   getDocumentTitle,
   HMComment,
@@ -11,9 +10,7 @@ import {
   hmIdPathToEntityQueryPath,
   HMMetadata,
   HMQueryResult,
-  SITE_BASE_URL,
   UnpackedHypermediaId,
-  unpackHmId,
 } from "@shm/shared";
 import {getActivityTime} from "@shm/shared/models/activity";
 import "@shm/shared/styles/document.css";
@@ -96,7 +93,7 @@ export const documentPageMeta: MetaFunction = ({
 
     meta.push({
       property: "og:image",
-      content: `${SITE_BASE_URL}/hm/api/content-image?space=${
+      content: `${siteDocument.origin}/hm/api/content-image?space=${
         siteDocument.id.uid
       }&path=${hmIdPathToEntityQueryPath(siteDocument.id.path)}&version=${
         siteDocument.id.version
@@ -425,25 +422,6 @@ function WebDocContentProvider({
       entityId={id}
       supportDocuments={supportDocuments}
       supportQueries={supportQueries}
-      onLinkClick={(href, e) => {
-        e.preventDefault();
-        e.stopPropagation();
-
-        const unpackedId = unpackHmId(href);
-        if (unpackedId) {
-          const {uid, path, version, latest, blockRef, blockRange, type} =
-            unpackedId;
-          const hmUrl = createWebHMUrl(type, uid, {
-            version,
-            blockRef,
-            blockRange,
-            hostname: siteHost,
-            latest,
-            path,
-          });
-          window.open(hmUrl, "_self");
-        } else window.open(href, "_blank");
-      }}
       onCopyBlock={(blockId, blockRange) => {
         const blockHref = getHref(
           originHomeId,
@@ -529,6 +507,7 @@ function DocumentActivity({
     (comment: HMComment) => {
       return (
         <WebDocContentProvider
+          key={comment.id}
           originHomeId={originHomeId}
           id={id}
           siteHost={siteHost}
@@ -584,6 +563,7 @@ function DocumentActivity({
         if (activityItem.type === "document") {
           return (
             <SubDocumentItem
+              key={activityItem.account + "/" + activityItem.path.join("/")}
               item={activityItem}
               originHomeId={originHomeId}
               accountsMetadata={accountsMetadata}

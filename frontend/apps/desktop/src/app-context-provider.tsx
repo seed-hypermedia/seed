@@ -1,6 +1,5 @@
 import {GRPCClient} from '@shm/shared/grpc-client'
 import {queryClient} from '@shm/shared/models/query-client'
-import {UniversalRoutingProvider} from '@shm/shared/routing'
 import {TamaguiProvider, TamaguiProviderProps, View} from '@shm/ui'
 import {QueryClientProvider} from '@tanstack/react-query'
 import {ReactQueryDevtools} from '@tanstack/react-query-devtools'
@@ -92,20 +91,12 @@ export function AppContextProvider({
     [],
   )
   return (
-    <UniversalRoutingProvider
-      value={{
-        openRoute: () => {
-          console.log('openRoute')
-        },
-      }}
-    >
-      <AppContext.Provider value={appCtx}>
-        <QueryClientProvider client={queryClient}>
-          <StyleProvider darkMode={darkMode}>{children}</StyleProvider>
-          <ReactQueryTools />
-        </QueryClientProvider>
-      </AppContext.Provider>
-    </UniversalRoutingProvider>
+    <AppContext.Provider value={appCtx}>
+      <QueryClientProvider client={queryClient}>
+        <StyleProvider darkMode={darkMode}>{children}</StyleProvider>
+        <ReactQueryTools />
+      </QueryClientProvider>
+    </AppContext.Provider>
   )
 }
 

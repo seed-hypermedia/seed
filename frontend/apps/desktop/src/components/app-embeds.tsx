@@ -531,7 +531,11 @@ function QueryStyleCard({
               latest: true,
             })
             return (
-              <YStack {...columnProps} p="$3">
+              <YStack
+                {...columnProps}
+                p="$3"
+                key={item.account + '/' + item.path.join('/')}
+              >
                 <NewspaperCard
                   id={id}
                   entity={getEntity(item.path)}

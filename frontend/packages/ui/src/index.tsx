@@ -53,7 +53,6 @@ export * from "./titlebar";
 export * from "./toast";
 export {Tooltip} from "./tooltip";
 export * from "./ui-constants";
-export * from "./universal-app";
 export * from "./use-popover-state";
 export * from "./use-stream";
 export * from "./x-components";
