@@ -672,10 +672,11 @@ export function BlockNodeContent({
   }
 
   useEffect(() => {
-    if (elm.current && isHighlight) {
-      elm.current.scrollIntoView({behavior: "smooth", block: "start"});
+    if (elm.current) {
+      if (routeParams && routeParams.blockRef === blockNode.block?.id)
+        elm.current.scrollIntoView({behavior: "smooth", block: "start"});
     }
-  }, [isHighlight]);
+  }, [routeParams]);
 
   const contentH = useMemo(() => {
     // this calculates the position the collapse button should be at, based on the height of the content
