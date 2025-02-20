@@ -1112,10 +1112,7 @@ export function DocHeading({
   children?: string;
   right?: React.ReactNode;
 }) {
-  const {textUnit, debug, layoutUnit} = useDocContentContext();
-  let headingTextStyles = useHeadingTextStyles(1, textUnit);
-  let headingMarginStyles = useHeadingMarginStyles(1, layoutUnit);
-
+  const {debug, layoutUnit} = useDocContentContext();
   return (
     <Theme name="subtle">
       <YStack
@@ -1288,7 +1285,7 @@ function BlockContentImage({
       className="block-content block-image"
       data-content-type="image"
       data-url={block?.link}
-      data-alt={block?.attributes?.alt}
+      data-name={block?.attributes?.name}
       data-width={block.attributes?.width}
       maxWidth="100%"
       paddingVertical="$3"
@@ -1303,7 +1300,7 @@ function BlockContentImage({
         maxWidth="100%"
       >
         <img
-          alt={block?.attributes?.alt}
+          alt={block?.attributes?.name}
           src={imageUrl(block?.link, "L")}
           style={{width: "100%"}}
         />
@@ -1776,7 +1773,7 @@ export function ContentEmbed({
     return res;
   }, [props.blockRef, props.blockRange, document]);
 
-  let content = <BlockContentUnknown {...props} />;
+  let content: null | JSX.Element = <BlockContentUnknown {...props} />;
   if (isLoading) {
     content = null;
   }
@@ -1960,11 +1957,7 @@ export function getBlockNodeById(
   return res || null;
 }
 
-export function BlockContentFile({
-  block,
-  parentBlockId,
-  ...props
-}: BlockContentProps) {
+export function BlockContentFile({block, parentBlockId}: BlockContentProps) {
   const {hover, ...hoverProps} = useHover();
   const {layoutUnit, saveCidAsFile} = useDocContentContext();
   const fileCid = block.link ? extractIpfsUrlCid(block.link) : "";
@@ -2324,7 +2317,7 @@ export function BlockContentCode({
     return null;
   };
   const lowlight = useLowlight(common);
-  const language = block.attributes?.language;
+  const language = block.type === "Code" ? block.attributes?.language : null;
   const nodes: any[] =
     language && language.length > 0
       ? getHighlightNodes(lowlight.highlight(language, block.text))
