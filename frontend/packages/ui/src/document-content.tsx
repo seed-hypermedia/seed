@@ -1,11 +1,9 @@
 import {PlainMessage} from "@bufbuild/protobuf";
-// import {EditorInlineContent} from "@shm/desktop/src/editor";
 import {
   BlockNode,
   BlockRange,
   CONTENT_HIGHLIGHT_COLOR_DARK,
   CONTENT_HIGHLIGHT_COLOR_LIGHT,
-  EditorInlineContent,
   ExpandedBlockRange,
   HMBlock,
   HMBlockChildrenType,
@@ -13,6 +11,7 @@ import {
   HMBlockQuery,
   HMDocument,
   HMEntityContent,
+  HMInlineContent,
   HMQueryResult,
   Mention,
   UnpackedHypermediaId,
@@ -1407,7 +1406,7 @@ function hmTextColor(linkType: LinkType): string {
   return "$color12";
 }
 
-function getInlineContentOffset(inline: EditorInlineContent): number {
+function getInlineContentOffset(inline: HMInlineContent): number {
   if (inline.type === "link") {
     return inline.content
       .map(getInlineContentOffset)
@@ -1425,7 +1424,7 @@ function InlineContentView({
   isRange = false,
   ...props
 }: SizableTextProps & {
-  inline: EditorInlineContent[];
+  inline: HMInlineContent[];
   linkType?: LinkType;
   fontSize?: number;
   rangeOffset?: number;

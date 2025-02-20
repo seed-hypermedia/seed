@@ -1,5 +1,4 @@
 import {
-  EditorInlineContent,
   EditorText,
   extractQueryBlocks,
   extractRefs,
@@ -14,6 +13,7 @@ import {
   HMDocumentSchema,
   hmId,
   hmIdPathToEntityQueryPath,
+  HMInlineContent,
   HMLoadedBlock,
   HMLoadedBlockNode,
   HMLoadedDocument,
@@ -268,7 +268,7 @@ function textNodeAttributes(
 }
 
 async function loadEditorNodes(
-  nodes: EditorInlineContent[]
+  nodes: HMInlineContent[]
 ): Promise<HMLoadedText> {
   const content = await Promise.all(
     nodes.map(async (editorNode) => {

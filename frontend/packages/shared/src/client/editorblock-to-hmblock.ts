@@ -1,4 +1,4 @@
-import {EditorBlock, EditorInlineContent} from '../editor-types'
+import {EditorBlock, HMInlineContent} from '../editor-types'
 import {
   HMAnnotations,
   HMBlock,
@@ -197,8 +197,8 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
 }
 
 function flattenLeaves(
-  content: Array<EditorInlineContent>,
-): Array<EditorInlineContent> {
+  content: Array<HMInlineContent>,
+): Array<HMInlineContent> {
   let result = []
 
   for (let i = 0; i < content.length; i++) {
@@ -206,7 +206,7 @@ function flattenLeaves(
 
     if (leaf.type == 'link') {
       let nestedLeaves = flattenLeaves(leaf.content).map(
-        (l: EditorInlineContent) =>
+        (l: HMInlineContent) =>
           ({
             ...l,
             href: leaf.href,

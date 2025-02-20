@@ -13,7 +13,7 @@ export type EditorBlock =
   | EditorMathBlock
   | EditorNostrBlock
   | EditorQueryBlock
-export type EditorInlineContent = EditorText | EditorInlineEmbed | EditorLink
+export type HMInlineContent = EditorText | EditorInlineEmbed | EditorLink
 
 // ===============
 
@@ -34,17 +34,17 @@ export interface EditorBlockProps {
 
 export interface EditorParagraphBlock extends EditorBaseBlock {
   type: 'paragraph'
-  content: Array<EditorInlineContent>
+  content: Array<HMInlineContent>
 }
 
 export interface EditorHeadingBlock extends EditorBaseBlock {
   type: 'heading'
-  content: Array<EditorInlineContent>
+  content: Array<HMInlineContent>
 }
 
 export interface EditorCodeBlock extends EditorBaseBlock {
   type: 'code-block'
-  content: Array<EditorInlineContent>
+  content: Array<HMInlineContent>
   props: EditorBlockProps & {
     language?: string
   }
@@ -63,25 +63,25 @@ export interface MediaBlockProps extends EditorBlockProps {
 export interface EditorImageBlock extends EditorBaseBlock {
   type: 'image'
   props: MediaBlockProps
-  content: Array<EditorInlineContent>
+  content: Array<HMInlineContent>
 }
 
 export interface EditorVideoBlock extends EditorBaseBlock {
   type: 'video'
   props: MediaBlockProps
-  content: Array<EditorInlineContent>
+  content: Array<HMInlineContent>
 }
 
 export interface EditorFileBlock extends EditorBaseBlock {
   type: 'file'
   props: MediaBlockProps
-  content: Array<EditorInlineContent>
+  content: Array<HMInlineContent>
 }
 
 export interface EditorButtonBlock extends EditorBaseBlock {
   type: 'button'
   props: MediaBlockProps
-  content: Array<EditorInlineContent>
+  content: Array<HMInlineContent>
 }
 
 export interface EditorEmbedBlock extends EditorBaseBlock {
@@ -90,12 +90,12 @@ export interface EditorEmbedBlock extends EditorBaseBlock {
     view: 'Content' | 'Card'
     url: string
   }
-  content: Array<EditorInlineContent>
+  content: Array<HMInlineContent>
 }
 
 export interface EditorMathBlock extends EditorBaseBlock {
   type: 'math'
-  content: Array<EditorInlineContent>
+  content: Array<HMInlineContent>
 }
 
 export type EditorWebEmbedBlock = EditorBaseBlock & {
@@ -103,7 +103,7 @@ export type EditorWebEmbedBlock = EditorBaseBlock & {
   props: EditorBlockProps & {
     url?: string
   }
-  content: Array<EditorInlineContent>
+  content: Array<HMInlineContent>
 }
 
 export type EditorNostrBlock = EditorBaseBlock & {
@@ -114,7 +114,7 @@ export type EditorNostrBlock = EditorBaseBlock & {
     text?: string
     size?: string
   }
-  content: Array<EditorInlineContent>
+  content: Array<HMInlineContent>
 }
 
 export type EditorQueryBlock = EditorBaseBlock & {
@@ -127,7 +127,7 @@ export type EditorQueryBlock = EditorBaseBlock & {
     querySort?: string
     banner?: 'true' | 'false'
   }
-  content: Array<EditorInlineContent>
+  content: Array<HMInlineContent>
 }
 
 export interface EditorText {
@@ -140,7 +140,7 @@ export interface EditorLink {
   type: 'link'
   // TODO: change to link
   href: string
-  content: Array<EditorInlineContent>
+  content: Array<HMInlineContent>
 }
 
 export interface EditorInlineEmbed {

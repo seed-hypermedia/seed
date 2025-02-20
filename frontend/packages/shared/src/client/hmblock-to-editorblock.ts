@@ -3,8 +3,8 @@ import _ from 'lodash'
 import {
   EditorBlock,
   EditorBlockType,
-  EditorInlineContent,
   EditorInlineEmbed,
+  HMInlineContent,
 } from '../editor-types'
 import {
   HMBlock,
@@ -146,9 +146,9 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
   const blockText = block.text || ''
   const leaves = out.content
 
-  let leaf: EditorInlineContent | null = null
+  let leaf: HMInlineContent | null = null
 
-  let inlineBlockContent: EditorInlineContent | null = null
+  let inlineBlockContent: HMInlineContent | null = null
 
   let textStart = 0
 
@@ -437,6 +437,6 @@ export function annotationContains(
   return -1
 }
 
-function isText(entry: EditorInlineContent): boolean {
+function isText(entry: HMInlineContent): boolean {
   return entry?.type && entry.type == 'text' && typeof entry.text == 'string'
 }
