@@ -14,13 +14,13 @@ const handleLocalMediaPastePlugin = new Plugin({
   key: new PluginKey('pm-local-media-paste'),
   props: {
     handlePaste(view, event) {
+      const items = Array.from(event.clipboardData?.items || [])
+      if (items.length === 0) return false
       const insertPos =
         view.state.selection.$anchor.parent.type.name !== 'image' &&
         view.state.selection.$anchor.parent.nodeSize <= 2
           ? view.state.selection.$anchor.start() - 2
           : view.state.selection.$anchor.end() + 2
-      const items = Array.from(event.clipboardData?.items || [])
-      if (items.length === 0) return false
       for (const item of items) {
         if (item.type.indexOf('image') === 0) {
           const img = item.getAsFile()

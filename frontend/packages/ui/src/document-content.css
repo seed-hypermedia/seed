@@ -35,6 +35,10 @@
   display: none !important;
 }
 
+.blocknode-content {
+  scroll-margin-top: 72px;
+}
+
 .blocknode-list[data-list-type='Unordered'] > ul > .blocknode-content {
   display: list-item !important;
 }

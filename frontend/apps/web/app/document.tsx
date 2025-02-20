@@ -173,14 +173,12 @@ export function DocumentPage(props: SiteDocumentPayload) {
     replace(window.location.pathname + window.location.search + `#${blockId}`, {
       replace: true,
     });
-    const targetElement = window.document.querySelector(`#${blockId}`);
+    const targetElement = window.document.getElementById(blockId);
 
     if (targetElement) {
-      const offset = 80; // header fixed height
-      const elementPosition = targetElement.getBoundingClientRect().top;
-      const offsetPosition = elementPosition + window.scrollY - offset;
-      window.scrollTo({top: offsetPosition, behavior: "smooth"});
-      // onClose?.();
+      targetElement.scrollIntoView({behavior: "smooth", block: "start"});
+    } else {
+      console.error("Element not found:", blockId);
     }
   }, []);
 
