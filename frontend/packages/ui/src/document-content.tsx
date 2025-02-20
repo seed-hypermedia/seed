@@ -3,6 +3,8 @@ import {PlainMessage} from "@bufbuild/protobuf";
 import {
   BlockNode,
   BlockRange,
+  CONTENT_HIGHLIGHT_COLOR_DARK,
+  CONTENT_HIGHLIGHT_COLOR_LIGHT,
   EditorInlineContent,
   ExpandedBlockRange,
   HMBlock,
@@ -32,7 +34,7 @@ import {
 } from "@shm/shared";
 import {Button, ButtonFrame, ButtonText} from "@tamagui/button";
 import {Checkbox, CheckboxProps} from "@tamagui/checkbox";
-import {SizeTokens, Text, TextProps, Theme} from "@tamagui/core";
+import {SizeTokens, Text, TextProps, Theme, useThemeName} from "@tamagui/core";
 import {ColorProp} from "@tamagui/helpers-tamagui";
 import {Label} from "@tamagui/label";
 import {
@@ -697,6 +699,12 @@ export function BlockNodeContent({
     );
   }, [blockNode.block]);
 
+  const themeName = useThemeName();
+  const highlightColor =
+    themeName === "dark"
+      ? CONTENT_HIGHLIGHT_COLOR_DARK
+      : CONTENT_HIGHLIGHT_COLOR_LIGHT;
+
   // @ts-expect-error
   if (isBlockNodeEmpty(blockNode)) {
     return null;
@@ -710,7 +718,7 @@ export function BlockNodeContent({
       borderColor={isHighlight ? "$brandHighlight" : "$colorTransparent"}
       borderWidth={1}
       borderRadius={layoutUnit / 4}
-      bg={isHighlight ? "$brandHighlight" : "$backgroundTransparent"}
+      bg={isHighlight ? highlightColor : "$backgroundTransparent"}
       data-node-type="blockContainer"
       // onHoverIn={() => (props.embedDepth ? undefined : hoverProps.onHoverIn())}
       // onHoverOut={() =>
@@ -1428,9 +1436,13 @@ function InlineContentView({
   const InlineEmbed = entityComponents.Inline;
 
   let contentOffset = rangeOffset || 0;
+  const theme = useThemeName();
 
   const fSize = fontSize || textUnit;
-  const rangeColor = "$brandHighlight";
+  const rangeColor =
+    theme === "dark"
+      ? CONTENT_HIGHLIGHT_COLOR_DARK
+      : CONTENT_HIGHLIGHT_COLOR_LIGHT;
   return (
     <Text
       fontSize={fSize}

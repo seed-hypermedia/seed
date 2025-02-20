@@ -92,3 +92,6 @@ export const VITE_DESKTOP_SENTRY_DSN =
   process.env.VITE_DESKTOP_SENTRY_DSN
 
 export const BIG_INT = 2 ** 25 // 2^31 was too big for grpc
+
+export const CONTENT_HIGHLIGHT_COLOR_LIGHT = '$brand8'
+export const CONTENT_HIGHLIGHT_COLOR_DARK = '#054f44'
