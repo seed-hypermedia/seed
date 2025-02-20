@@ -187,6 +187,45 @@ function getHmIdOfRequest(
   return hmId("d", originAccountId, {path: pathParts, version, latest});
 }
 
+async function handleOptionsRequest(request: Request) {
+  const parsedRequest = parseRequest(request);
+  const {hostname} = parsedRequest;
+  const serviceConfig = await getConfig(hostname);
+  const originAccountId = serviceConfig?.registeredAccountUid;
+
+  console.log("handleOptionsRequest", parsedRequest, originAccountId);
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, OPTIONS, HEAD",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Expose-Headers":
+      "X-Hypermedia-Id, X-Hypermedia-Version, X-Hypermedia-Title",
+  };
+
+  try {
+    const hmId = getHmIdOfRequest(parsedRequest, originAccountId);
+    if (hmId) {
+      console.log("hmId", hmId);
+      const doc = await getHMDocument(hmId);
+      if (doc) {
+        headers["X-Hypermedia-Id"] = hmId.id;
+        headers["X-Hypermedia-Version"] = doc.version;
+        headers["X-Hypermedia-Title"] = doc.metadata.name || "";
+      }
+      return new Response(null, {
+        status: 200,
+        headers,
+      });
+    }
+  } catch (e) {
+    console.error("Error handling options request", e);
+  }
+  return new Response(null, {
+    status: 200,
+    headers,
+  });
+}
+
 export default async function handleRequest(
   request: Request,
   responseStatusCode: number,
@@ -195,6 +234,10 @@ export default async function handleRequest(
   loadContext: AppLoadContext
 ) {
   console.log("handleRequest", request.method, request.url);
+
+  if (request.method === "OPTIONS") {
+    return await handleOptionsRequest(request);
+  }
   const parsedRequest = parseRequest(request);
   const {url, hostname, method} = parsedRequest;
   const sendPerfLog = logDebugRequest(url.pathname);
@@ -221,29 +264,6 @@ export default async function handleRequest(
   const originAccountId = serviceConfig?.registeredAccountUid;
 
   if (!ENABLE_HTML_CACHE || useFullRender(parsedRequest)) {
-    if (method === "OPTIONS" || method === "HEAD") {
-      const hmId = getHmIdOfRequest(parsedRequest, originAccountId);
-      const headers: Record<string, string> = {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, OPTIONS, HEAD",
-        "Access-Control-Allow-Headers": "Content-Type",
-        "Access-Control-Expose-Headers":
-          "X-Hypermedia-Id, X-Hypermedia-Version, X-Hypermedia-Title",
-      };
-      if (hmId) {
-        const doc = await getHMDocument(hmId);
-        if (doc) {
-          headers["X-Hypermedia-Id"] = hmId.id;
-          headers["X-Hypermedia-Version"] = doc.version;
-          headers["X-Hypermedia-Title"] = doc.metadata.name || "";
-        }
-      }
-      return new Response(null, {
-        status: 200,
-        headers,
-      });
-    }
-
     sendPerfLog("requested full");
     return handleFullRequest(
       request,
