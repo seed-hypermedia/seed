@@ -621,9 +621,16 @@ func (c *Client) do(ctx context.Context, db *sqlitex.Pool, walletID string, requ
 						if err != nil {
 							return err
 						}
-						if err = lndhub.SetToken(conn, walletID, authResp.AccessToken); err != nil {
+						conn, release, err = db.Conn(ctx)
+						if err != nil {
 							return err
 						}
+						if err = lndhub.SetToken(conn, walletID, authResp.AccessToken); err != nil {
+							release()
+							return err
+						}
+						request.Token = authResp.AccessToken
+						release()
 					}
 				} else if resp.StatusCode == http.StatusTooManyRequests {
 					waitingTime := int(rand.Float32() + 1.0)
@@ -640,6 +647,7 @@ func (c *Client) do(ctx context.Context, db *sqlitex.Pool, walletID string, requ
 			return err
 		}()
 		if errors.Is(err, errContinue) {
+			genericResponse = map[string]interface{}{}
 			continue
 		}
 		if err != nil {
