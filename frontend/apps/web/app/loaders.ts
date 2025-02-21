@@ -91,9 +91,10 @@ const getQueryResults = getQueryResultsWithClient(queryClient);
 
 export async function getBaseDocument(
   entityId: UnpackedHypermediaId,
-  hostname: string
+  parsedRequest: ParsedRequest
 ): Promise<WebBaseDocumentPayload> {
   const {uid} = entityId;
+  const {hostname} = parsedRequest;
   const path = hmIdPathToEntityQueryPath(entityId.path);
   const discoverPromise = queryClient.entities
     .discoverEntity({
@@ -102,9 +103,7 @@ export async function getBaseDocument(
       recursive: true,
       // version ommitted intentionally here. we want to discover the latest version
     })
-    .then(() => {
-      console.log("discovered entity " + entityId.id);
-    })
+    .then(() => {})
     .catch((e) => {
       console.error("error discovering entity", entityId.id, e);
     });
@@ -223,7 +222,7 @@ export async function getBaseDocument(
     accountsMetadata: Object.fromEntries(
       authors.map((author) => [author.id.uid, author])
     ),
-    siteHost: hostname,
+    siteHost: parsedRequest.origin,
     id: {...entityId, version: document.version},
     enableWebSigning: process.env.WEB_SIGNING_ENABLED === "true",
   };
@@ -231,11 +230,10 @@ export async function getBaseDocument(
 
 export async function getDocument(
   entityId: UnpackedHypermediaId,
-  hostname: string
+  parsedRequest: ParsedRequest
 ): Promise<WebDocumentPayload> {
   logDebug("getDocument", entityId.id);
-  console.log("getDocument", hostname);
-  const document = await getBaseDocument(entityId, hostname);
+  const document = await getBaseDocument(entityId, parsedRequest);
   const crumbs = getParentPaths(entityId.path).slice(0, -1);
   const breadcrumbs = await Promise.all(
     crumbs.map(async (crumbPath) => {
@@ -540,7 +538,7 @@ export async function loadSiteDocument<T>(
     } catch (e) {}
   }
   try {
-    const docContent = await getDocument(id, hostname);
+    const docContent = await getDocument(id, parsedRequest);
     let supportQueries = docContent.supportQueries;
     if (
       originHomeId &&

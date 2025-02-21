@@ -62,6 +62,7 @@ export function WebSiteProvider(props: {
       openUrl={(url) => {
         window.open(url, "_blank");
       }}
+      openRoute={null}
     >
       <script
         dangerouslySetInnerHTML={{

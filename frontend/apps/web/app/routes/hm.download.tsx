@@ -97,7 +97,6 @@ export const loader = async ({request}: {request: Request}) => {
   const result = await loadSiteDocument(
     parsedRequest,
     hmId("d", registeredAccountUid, {path: [], latest: true}),
-    false,
     {
       stableRelease: await loadStableRelease(),
     }

@@ -11,7 +11,7 @@ type UniversalAppContextValue = {
   originHomeId?: UnpackedHypermediaId
   ipfsFileUrl?: string
   getOptimizedImageUrl?: (cid: string, size?: OptimizedImageSize) => string
-  openRoute?: (route: NavRoute, replace?: boolean) => void
+  openRoute?: null | ((route: NavRoute, replace?: boolean) => void)
   siteHomeId?: UnpackedHypermediaId | undefined
   openUrl: (url: string) => void
 }
@@ -29,7 +29,7 @@ export function UniversalAppProvider(props: {
   ipfsFileUrl?: string
   openUrl: (url: string) => void
   getOptimizedImageUrl?: (cid: string, size?: OptimizedImageSize) => string
-  openRoute: (route: NavRoute, replace?: boolean) => void
+  openRoute: null | ((route: NavRoute, replace?: boolean) => void)
 }) {
   return (
     <UniversalAppContext.Provider
