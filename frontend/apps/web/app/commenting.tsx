@@ -9,7 +9,7 @@ import {
   UnpackedHypermediaId,
 } from "@shm/shared";
 import {useMutation} from "@tanstack/react-query";
-import {CID, varint} from "multiformats";
+import {CID} from "multiformats";
 import {base58btc} from "multiformats/bases/base58";
 import {useEffect, useSyncExternalStore} from "react";
 
@@ -24,8 +24,8 @@ async function postCBOR(path: string, body: Uint8Array) {
   return await response.json();
 }
 
-const DB_NAME = "keyStore-01";
-const STORE_NAME = "keys-02";
+const DB_NAME = "keyStore-03";
+const STORE_NAME = "keys-01";
 const DB_VERSION = 1;
 
 async function openKeyDB() {
@@ -265,8 +265,9 @@ type UnsignedComment = {
   threadRoot?: CID;
   signer: Uint8Array;
   ts: bigint;
+  sig: Uint8Array; // new Uint8Array(64); // we are expected to sign a blob with empty signature
 };
-type SignedComment = UnsignedComment & {
+type SignedComment = Omit<UnsignedComment, "sig"> & {
   sig: ArrayBuffer;
 };
 
@@ -296,6 +297,7 @@ async function createComment({
     // author: prepared account id of the comment author, if it is different from the signer
     signer: signerKey,
     ts: BigInt(Date.now()),
+    sig: new Uint8Array(64),
   };
   if (replyCommentId) {
     unsignedComment.replyParent = CID.parse(replyCommentId);
@@ -322,10 +324,14 @@ async function preparePublicKey(publicKey: CryptoKey) {
   // Check if y is odd
   const prefix = y[31] & 1 ? 0x03 : 0x02;
 
-  // Combine prefix and x
-  const outputKey = new Uint8Array([prefix, ...x]);
-  varint.encodeTo(0x1200, outputKey);
-  return outputKey;
+  const outputKeyValue = new Uint8Array([
+    // varint prefix for 0x1200
+    128,
+    36,
+    prefix,
+    ...x,
+  ]);
+  return outputKeyValue;
 }
 
 let keyPair: CryptoKeyPair | null = null;
