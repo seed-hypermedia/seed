@@ -121,7 +121,7 @@ if [ "$auto_update" -eq "1" ]; then
     # Remove any existing cron job for this task, add the new cron job, and install the new crontab
     { crontab -l 2>/dev/null || true; echo "$clean_images_cron"; } | crontab -
   fi
-  docker run -d --restart unless-stopped --name autoupdater -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower --include-restarting -i 300 seed-web seed-daemon >/dev/null 2>&1
+  docker run -d --restart unless-stopped --name autoupdater -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower --include-restarting --include-stopped --revive-stopped -i 300 seed-web seed-daemon >/dev/null 2>&1
 fi
 
 did_init_registration_secret="0"
