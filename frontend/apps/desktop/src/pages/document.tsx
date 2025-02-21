@@ -37,7 +37,6 @@ import {
 } from '@shm/shared'
 import '@shm/shared/styles/document.css'
 import {
-  Add,
   ArrowRight,
   Button,
   ButtonText,
@@ -54,11 +53,13 @@ import {
   SiteHeader,
   SizableText,
   Spinner,
+  Tooltip,
   Separator as TSeparator,
   XStack,
   YStack,
 } from '@shm/ui'
 import {useImageUrl} from '@shm/ui/src/get-file-url'
+import {Plus} from '@tamagui/lucide-icons'
 import React, {ReactNode, useMemo, useRef} from 'react'
 import {EntityCitationsAccessory} from '../components/citations'
 import {AppDocContentProvider} from './document-content-provider'
@@ -372,9 +373,9 @@ export function NewSubDocumentButton({
   const createDraft = useCreateDraft(parentDocId)
   return (
     <>
-      <Button icon={Add} color="$green9" onPress={createDraft} size="$2">
-        Create
-      </Button>
+      <Tooltip content="Create Document in Navigation">
+        <Button icon={Plus} color="$green9" onPress={createDraft} size="$2" />
+      </Tooltip>
       {importDropdown && (
         <ImportDropdownButton
           id={parentDocId}
