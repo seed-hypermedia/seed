@@ -265,6 +265,7 @@ function QueryStyleCard({
   const accountsMetadata =
     ctx.supportDocuments?.reduce((acc, d) => {
       if (!d.document?.metadata) return acc;
+      if (d.id.path?.length) return acc;
       acc[d.id.uid] = {
         id: d.id,
         metadata: d.document.metadata,
