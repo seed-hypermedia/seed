@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { DeleteAllKeysRequest, DeleteKeyRequest, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetInfoRequest, Info, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, UpdateKeyRequest } from "./daemon_pb";
+import { DeleteAllKeysRequest, DeleteKeyRequest, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetInfoRequest, Info, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -103,6 +103,18 @@ export const Daemon = {
       name: "DeleteAllKeys",
       I: DeleteAllKeysRequest,
       O: Empty,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Receives raw blobs to be stored.
+     * The request may fail if blobs can't be recognized by the daemon.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.StoreBlobs
+     */
+    storeBlobs: {
+      name: "StoreBlobs",
+      I: StoreBlobsRequest,
+      O: StoreBlobsResponse,
       kind: MethodKind.Unary,
     },
   }

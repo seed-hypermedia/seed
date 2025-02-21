@@ -7,10 +7,14 @@ import (
 	"fmt"
 	"seed/backend/core"
 	daemon "seed/backend/genproto/daemon/v1alpha"
+	"seed/backend/ipfs"
 	sync "sync"
 	"time"
 
+	blocks "github.com/ipfs/go-block-format"
+	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/multiformats/go-multicodec"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -31,10 +35,16 @@ type Node interface {
 	ProtocolVersion() string
 }
 
+// Blockstore is a subset of the IPFS blockstore.
+type Blockstore interface {
+	PutMany(context.Context, []blocks.Block) error
+}
+
 // Server implements the Daemon gRPC API.
 type Server struct {
 	store     Storage
 	startTime time.Time
+	blocks    Blockstore
 
 	p2p Node
 
@@ -42,7 +52,7 @@ type Server struct {
 }
 
 // NewServer creates a new Server.
-func NewServer(store Storage, n Node) *Server {
+func NewServer(store Storage, n Node, bs Blockstore) *Server {
 	if n == nil {
 		panic("BUG: p2p node is required")
 	}
@@ -51,7 +61,8 @@ func NewServer(store Storage, n Node) *Server {
 		store:     store,
 		startTime: time.Now(),
 		// wallet:        w, // TODO(hm24): Put the wallet back.
-		p2p: n,
+		p2p:    n,
+		blocks: bs,
 	}
 }
 
@@ -146,6 +157,7 @@ func (srv *Server) UpdateKey(ctx context.Context, req *daemon.UpdateKeyRequest) 
 	}, nil
 }
 
+// RegisterAccount stores the keypair in the key store.
 func (srv *Server) RegisterAccount(ctx context.Context, name string, kp *core.KeyPair) error {
 	if kp, err := srv.store.KeyStore().GetKey(ctx, name); err == nil || kp != nil {
 		return status.Errorf(codes.AlreadyExists, "key with name %s already exists: %v", name, err)
@@ -181,4 +193,47 @@ func (srv *Server) ForceSync(context.Context, *daemon.ForceSyncRequest) (*emptyp
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+// StoreBlobs implements the corresponding gRPC method.
+func (srv *Server) StoreBlobs(ctx context.Context, in *daemon.StoreBlobsRequest) (*daemon.StoreBlobsResponse, error) {
+	blks := make([]blocks.Block, len(in.Blobs))
+	for i, b := range in.Blobs {
+		if b.Cid != "" {
+			c, err := cid.Decode(b.Cid)
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "failed to decode cid at index %d: %v", i, err)
+			}
+
+			cc, err := c.Prefix().Sum(b.Data)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "failed to hash data at index %d: %v", i, err)
+			}
+
+			if !c.Equals(cc) {
+				return nil, status.Errorf(codes.InvalidArgument, "cid at index %d doesn't match its data", i)
+			}
+
+			blks[i], err = blocks.NewBlockWithCid(b.Data, cc)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "failed to process block at index %d: %v", i, err)
+			}
+		} else {
+			blks[i] = ipfs.NewBlock(multicodec.DagCbor, b.Data)
+		}
+	}
+
+	if err := srv.blocks.PutMany(ctx, blks); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to store blocks: %v", err)
+	}
+
+	resp := &daemon.StoreBlobsResponse{
+		Cids: make([]string, len(blks)),
+	}
+
+	for i, b := range blks {
+		resp.Cids[i] = b.Cid().String()
+	}
+
+	return resp, nil
 }

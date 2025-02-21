@@ -59,13 +59,15 @@ var qEnsureUnreadRecursive = dqb.Str(`
 	WHERE r.iri = :iri OR r.iri GLOB :iriGlob;
 `)
 
-var unreadsKey = struct{}{}
+var (
+	unreadsKey = "seed/index/trackUnreads"
+)
 
 // ContextWithUnreadsTracking returns a new context with unreads tracking enabled.
 func ContextWithUnreadsTracking(ctx context.Context) context.Context {
-	return context.WithValue(ctx, unreadsKey, true)
+	return context.WithValue(ctx, &unreadsKey, true)
 }
 
 func unreadsTrackingEnabled(ctx context.Context) bool {
-	return ctx.Value(unreadsKey) != nil
+	return ctx.Value(&unreadsKey) != nil
 }

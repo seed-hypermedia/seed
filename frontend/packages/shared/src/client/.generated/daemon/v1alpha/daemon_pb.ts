@@ -448,6 +448,141 @@ export class DeleteKeyRequest extends Message<DeleteKeyRequest> {
 }
 
 /**
+ * Request to store blobs.
+ *
+ * @generated from message com.seed.daemon.v1alpha.StoreBlobsRequest
+ */
+export class StoreBlobsRequest extends Message<StoreBlobsRequest> {
+  /**
+   * Required. List of blobs to be stored.
+   * The request is atomic: either all blobs are stored or none of them.
+   *
+   * @generated from field: repeated com.seed.daemon.v1alpha.Blob blobs = 1;
+   */
+  blobs: Blob[] = [];
+
+  constructor(data?: PartialMessage<StoreBlobsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.StoreBlobsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "blobs", kind: "message", T: Blob, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): StoreBlobsRequest {
+    return new StoreBlobsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): StoreBlobsRequest {
+    return new StoreBlobsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): StoreBlobsRequest {
+    return new StoreBlobsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: StoreBlobsRequest | PlainMessage<StoreBlobsRequest> | undefined, b: StoreBlobsRequest | PlainMessage<StoreBlobsRequest> | undefined): boolean {
+    return proto3.util.equals(StoreBlobsRequest, a, b);
+  }
+}
+
+/**
+ * Response after storing blobs.
+ *
+ * @generated from message com.seed.daemon.v1alpha.StoreBlobsResponse
+ */
+export class StoreBlobsResponse extends Message<StoreBlobsResponse> {
+  /**
+   * List of CIDs for the stored blobs.
+   * The order is the same as in the request.
+   *
+   * @generated from field: repeated string cids = 1;
+   */
+  cids: string[] = [];
+
+  constructor(data?: PartialMessage<StoreBlobsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.StoreBlobsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "cids", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): StoreBlobsResponse {
+    return new StoreBlobsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): StoreBlobsResponse {
+    return new StoreBlobsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): StoreBlobsResponse {
+    return new StoreBlobsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: StoreBlobsResponse | PlainMessage<StoreBlobsResponse> | undefined, b: StoreBlobsResponse | PlainMessage<StoreBlobsResponse> | undefined): boolean {
+    return proto3.util.equals(StoreBlobsResponse, a, b);
+  }
+}
+
+/**
+ * Raw blob to be stored.
+ *
+ * @generated from message com.seed.daemon.v1alpha.Blob
+ */
+export class Blob extends Message<Blob> {
+  /**
+   * Optional. The client can provide a CID for the blob (the server will verify it).
+   * If not provided, the data is assumed to be DAG-CBOR encoded, and the server will generate a CID
+   * using its default hash function.
+   *
+   * @generated from field: string cid = 1;
+   */
+  cid = "";
+
+  /**
+   * Required. Raw data of the blob.
+   *
+   * @generated from field: bytes data = 2;
+   */
+  data = new Uint8Array(0);
+
+  constructor(data?: PartialMessage<Blob>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.Blob";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "cid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "data", kind: "scalar", T: 12 /* ScalarType.BYTES */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Blob {
+    return new Blob().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Blob {
+    return new Blob().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Blob {
+    return new Blob().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: Blob | PlainMessage<Blob> | undefined, b: Blob | PlainMessage<Blob> | undefined): boolean {
+    return proto3.util.equals(Blob, a, b);
+  }
+}
+
+/**
  * Info is a generic information about the running node.
  *
  * @generated from message com.seed.daemon.v1alpha.Info

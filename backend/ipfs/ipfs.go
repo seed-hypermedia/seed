@@ -35,8 +35,8 @@ const defaultReprovideInterval = 12 * time.Hour
 // Apparently IPFS comunity is leaning towards using it in place of SHA256.
 // It can panic if invalid codec is used, or data is bad (too large or whatever).
 // Mostly it means that there's a bug somewhere.
-func NewBlock(codec uint64, data []byte) blocks.Block {
-	id, err := NewCID(codec, multihash.BLAKE2B_MIN+31, data)
+func NewBlock[Codec ~uint64 | ~int | ~int64](codec Codec, data []byte) blocks.Block {
+	id, err := NewCID(uint64(codec), multihash.BLAKE2B_MIN+31, data)
 	if err != nil {
 		panic(err)
 	}

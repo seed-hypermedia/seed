@@ -131,7 +131,9 @@ type statsHandler struct {
 	recv *prometheus.CounterVec
 }
 
-var serviceInfoKey = struct{}{}
+var (
+	serviceInfoKey = "seed/grpcprom/serviceInfo"
+)
 
 type serviceInfo struct {
 	Service string
@@ -151,11 +153,11 @@ func (h *statsHandler) TagRPC(ctx context.Context, info *stats.RPCTagInfo) conte
 		sinfo.Method = "unknown"
 	}
 
-	return context.WithValue(ctx, serviceInfoKey, sinfo)
+	return context.WithValue(ctx, &serviceInfoKey, sinfo)
 }
 
 func (h *statsHandler) HandleRPC(ctx context.Context, s stats.RPCStats) {
-	sinfo, ok := ctx.Value(serviceInfoKey).(serviceInfo)
+	sinfo, ok := ctx.Value(&serviceInfoKey).(serviceInfo)
 	if !ok {
 		panic("BUG: stats handler isn't tagged with service info")
 	}

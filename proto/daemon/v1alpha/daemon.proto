@@ -35,6 +35,10 @@ service Daemon {
 
   // Deletes all Seed keys from the underlying key store.
   rpc DeleteAllKeys(DeleteAllKeysRequest) returns (google.protobuf.Empty);
+
+  // Receives raw blobs to be stored.
+  // The request may fail if blobs can't be recognized by the daemon.
+  rpc StoreBlobs(StoreBlobsRequest) returns (StoreBlobsResponse);
 }
 
 // Request to generate mnemonic words.
@@ -96,6 +100,31 @@ message UpdateKeyRequest {
 message DeleteKeyRequest {
   // Name of the key to delete.
   string name = 1;
+}
+
+// Request to store blobs.
+message StoreBlobsRequest {
+  // Required. List of blobs to be stored.
+  // The request is atomic: either all blobs are stored or none of them.
+  repeated Blob blobs = 1;
+}
+
+// Response after storing blobs.
+message StoreBlobsResponse {
+  // List of CIDs for the stored blobs.
+  // The order is the same as in the request.
+  repeated string cids = 1;
+}
+
+// Raw blob to be stored.
+message Blob {
+  // Optional. The client can provide a CID for the blob (the server will verify it).
+  // If not provided, the data is assumed to be DAG-CBOR encoded, and the server will generate a CID
+  // using its default hash function.
+  string cid = 1;
+
+  // Required. Raw data of the blob.
+  bytes data = 2;
 }
 
 // Info is a generic information about the running node.

@@ -61,7 +61,7 @@ func New(
 
 	return Server{
 		Activity:    activity,
-		Daemon:      daemon.NewServer(repo, &p2pNodeSubset{node: node, sync: sync}),
+		Daemon:      daemon.NewServer(repo, &p2pNodeSubset{node: node, sync: sync}, idx),
 		Networking:  networking.NewServer(node, db, logging.New("seed/networking", LogLevel)),
 		Entities:    entities.NewServer(idx, sync),
 		DocumentsV3: documentsv3.NewServer(repo.KeyStore(), idx, db, logging.New("seed/documents", LogLevel)),

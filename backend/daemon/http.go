@@ -261,7 +261,9 @@ var (
 	)
 )
 
-var ctxKeyHandlerName struct{}
+var (
+	ctxKeyHandlerName = "seed/http/handlerName"
+)
 
 func handlerNameMiddleware(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

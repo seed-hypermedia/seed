@@ -8,6 +8,7 @@ import (
 	"seed/backend/storage"
 	"testing"
 
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -65,7 +66,13 @@ func newTestServer(t *testing.T, name string) *Server {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, store.Close()) })
 
-	return NewServer(store, &mockedP2PNode{})
+	return NewServer(store, &mockedP2PNode{}, &mockedBlockstore{})
+}
+
+type mockedBlockstore struct{}
+
+func (*mockedBlockstore) PutMany(context.Context, []blocks.Block) error {
+	return nil
 }
 
 type mockedP2PNode struct{}
