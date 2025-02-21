@@ -19,6 +19,7 @@ import {
   RiRadioButtonFill,
   RiText,
   RiVideoAddFill,
+  RiWindow2Fill,
 } from 'react-icons/ri'
 import {HMBlockSchema} from './editor'
 
@@ -156,7 +157,7 @@ export function getSlashMenuItems({
   })
   slashMenuItems.push({
     name: 'Embed',
-    aliases: ['embed', 'card'],
+    aliases: ['embed'],
     group: 'Media blocks',
     icon: <RiArticleFill size={18} />,
     hint: 'Insert a Hypermedia Embed',
@@ -169,6 +170,30 @@ export function getSlashMenuItems({
           type: 'embed',
           props: {
             link: '',
+          },
+        } as PartialBlock<HMBlockSchema>,
+        true,
+      )
+      const {state, view} = editor._tiptapEditor
+      view.dispatch(state.tr.scrollIntoView())
+    },
+  })
+  slashMenuItems.push({
+    name: 'Card',
+    aliases: ['card'],
+    group: 'Media blocks',
+    icon: <RiWindow2Fill size={18} />,
+    hint: 'Insert a Hypermedia Card Embed',
+    execute: (
+      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
+    ) => {
+      insertOrUpdateBlock(
+        editor,
+        {
+          type: 'embed',
+          props: {
+            link: '',
+            view: 'Card',
           },
         } as PartialBlock<HMBlockSchema>,
         true,
