@@ -6,7 +6,6 @@ import {
   hmIdPathToEntityQueryPath,
   HMPublishableAnnotation,
   HMPublishableBlock,
-  SITE_BASE_URL,
   UnpackedHypermediaId,
 } from "@shm/shared";
 import {useMutation} from "@tanstack/react-query";
@@ -15,7 +14,7 @@ import {base58btc} from "multiformats/bases/base58";
 import {useEffect, useSyncExternalStore} from "react";
 
 async function postCBOR(path: string, body: Uint8Array) {
-  const response = await fetch(`${SITE_BASE_URL}${path}`, {
+  const response = await fetch(`${path}`, {
     method: "POST",
     body,
     headers: {
@@ -26,7 +25,7 @@ async function postCBOR(path: string, body: Uint8Array) {
 }
 
 const DB_NAME = "keyStore-01";
-const STORE_NAME = "keys-01";
+const STORE_NAME = "keys-02";
 const DB_VERSION = 1;
 
 async function openKeyDB() {

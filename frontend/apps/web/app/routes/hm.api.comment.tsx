@@ -2,6 +2,7 @@ import {decode as cborDecode} from "@ipld/dag-cbor";
 import {ActionFunction, json} from "@remix-run/node";
 import {HMBlockNodeSchema, HMTimestampSchema} from "@shm/shared";
 import {z} from "zod";
+import {queryClient} from "~/client";
 
 const createCommentSchema = z
   .object({
@@ -37,8 +38,16 @@ export const action: ActionFunction = async ({request}) => {
 
   const cborData = await request.arrayBuffer();
   const comment = cborDecode(new Uint8Array(cborData));
-
   console.log("COMMENT IN SERVER", comment);
+  const storedResult = await queryClient.daemon.storeBlobs({
+    blobs: [
+      {
+        // cid: comment.id.id,
+        data: new Uint8Array(cborData),
+      },
+    ],
+  });
+  console.log("STORED IN SERVER", storedResult);
 
   return json({
     message: "Success",
