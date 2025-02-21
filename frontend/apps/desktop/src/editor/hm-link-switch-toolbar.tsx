@@ -294,8 +294,9 @@ function LinkSwitchButton({
             size="$3"
             disabled={active}
             disabledStyle={{opacity: 1}}
-            hoverStyle={{bg: '$brand5'}}
+            hoverStyle={{bg: active ? '$brand4' : '$brand9'}}
             icon={Icon}
+            color={active ? '$color1' : '$textSecondary'}
             onPress={onPress}
           />
         </Tooltip>

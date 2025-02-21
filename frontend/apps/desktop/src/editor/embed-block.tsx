@@ -421,7 +421,7 @@ function EmbedControl({
           >
             <YStack>
               <Label fontSize={13} marginBottom="$-2">
-                Sort
+                Version
               </Label>
               <Popover.Trigger asChild>
                 <Button
