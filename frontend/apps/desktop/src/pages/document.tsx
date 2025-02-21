@@ -348,7 +348,7 @@ function _AppDocSiteHeader({
       supportDocuments={[...(supportDocuments || []), siteHomeEntity]}
       afterLinksContent={
         canEditDoc ? (
-          <NewSubDocumentButton
+          <NewNavigationDocumentButton
             parentDocId={siteHomeEntity.id}
             importDropdown={false}
           />
@@ -363,7 +363,7 @@ function _AppDocSiteHeader({
   )
 }
 
-export function NewSubDocumentButton({
+export function NewNavigationDocumentButton({
   parentDocId,
   importDropdown = true,
 }: {
@@ -376,6 +376,29 @@ export function NewSubDocumentButton({
       <Tooltip content="Create Document in Navigation">
         <Button icon={Plus} color="$green9" onPress={createDraft} size="$2" />
       </Tooltip>
+      {importDropdown && (
+        <ImportDropdownButton
+          id={parentDocId}
+          button={<Button size="$1" circular icon={MoreHorizontal} />}
+        />
+      )}
+    </>
+  )
+}
+
+export function NewSubDocumentButton({
+  parentDocId,
+  importDropdown = true,
+}: {
+  parentDocId: UnpackedHypermediaId
+  importDropdown?: boolean
+}) {
+  const createDraft = useCreateDraft(parentDocId)
+  return (
+    <>
+      <Button icon={Plus} color="$green9" onPress={createDraft} size="$2">
+        Create
+      </Button>
       {importDropdown && (
         <ImportDropdownButton
           id={parentDocId}
