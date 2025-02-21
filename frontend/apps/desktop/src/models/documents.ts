@@ -32,17 +32,13 @@ import {
   HMDocumentSchema,
   HMDraft,
   HMEntityContent,
+  UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {getQueryResultsWithClient} from '@shm/shared/models/directory'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {validatePath} from '@shm/shared/utils/document-path'
-import {
-  createHMUrl,
-  hmId,
-  UnpackedHypermediaId,
-  unpackHmId,
-} from '@shm/shared/utils/entity-id-url'
+import {createHMUrl, hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {
   entityQueryPathToHmIdPath,
   hmIdPathToEntityQueryPath,
@@ -1182,10 +1178,13 @@ export function useListDirectory(
       if (!fullSpace.data) return []
       return fullSpace.data.filter((doc) => {
         if (!id) return false
-
         // if doc.path (string[]) is not prefixed by id.path (string[]), return false
         if (id.path && !id?.path.every((p, idx) => p === doc.path[idx]))
           return false
+
+        if (id.path && id.path.length === doc.path.length) {
+          return !id.path.every((p, idx) => p === doc.path[idx])
+        }
 
         // if options.mode is 'Children', check if the number of segments in doc.path is one more than the number of segments in id.path
         if (options?.mode == 'Children') {
