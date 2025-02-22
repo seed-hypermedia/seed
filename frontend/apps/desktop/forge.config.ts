@@ -5,12 +5,13 @@ import {MakerZIP} from '@electron-forge/maker-zip'
 import {PublisherS3} from '@electron-forge/publisher-s3'
 import type {ForgeConfig} from '@electron-forge/shared-types'
 // import {MakerRpm} from '@electron-forge/maker-rpm'
-import {MakerFlatpak, MakerFlatpakConfig} from '@electron-forge/maker-flatpak'
+import {MakerFlatpakConfig} from '@electron-forge/maker-flatpak'
 import {VitePlugin} from '@electron-forge/plugin-vite'
 import path from 'node:path'
 import packageJson from './package.json'
 // import setLanguages from 'electron-packager-languages'
 import fs from 'node:fs'
+import MakerCustomFlatpak from './custom-flatpak-maker'
 
 const {version} = packageJson
 const IS_PROD_DEV = version.includes('dev')
@@ -82,7 +83,7 @@ const config: ForgeConfig = {
   },
   makers: [
     new MakerDeb(commonLinuxConfig as MakerDebConfig),
-    new MakerFlatpak({
+    new MakerCustomFlatpak({
       options: {
         ...commonLinuxConfig.options,
         icon: commonLinuxConfig.options.icon,

@@ -3402,6 +3402,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@electron-forge/maker-base@npm:^7.7.0":
+  version: 7.7.0
+  resolution: "@electron-forge/maker-base@npm:7.7.0"
+  dependencies:
+    "@electron-forge/shared-types": 7.7.0
+    fs-extra: ^10.0.0
+    which: ^2.0.2
+  checksum: bd95193ffd51f7b60da2ecc22709acf6ca342c8a6b9fc4387424e041c37748a284eda40031d616e13a63aff0b0fdfba615d0cab244d201bfb6a2c77bf6450b71
+  languageName: node
+  linkType: hard
+
 "@electron-forge/maker-deb@npm:7.6.0":
   version: 7.6.0
   resolution: "@electron-forge/maker-deb@npm:7.6.0"
@@ -3558,6 +3569,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@electron-forge/shared-types@npm:7.7.0, @electron-forge/shared-types@npm:^7.7.0":
+  version: 7.7.0
+  resolution: "@electron-forge/shared-types@npm:7.7.0"
+  dependencies:
+    "@electron-forge/tracer": 7.7.0
+    "@electron/packager": ^18.3.5
+    "@electron/rebuild": ^3.7.0
+    listr2: ^7.0.2
+  checksum: 31934de8ded00b8f3beee351bd09f49ca5474617dd264287978c3415714f75ac4e71761598cfc2c8e235053b358f789c9f76c3d6ae3507b57e6b0743e042ebdb
+  languageName: node
+  linkType: hard
+
 "@electron-forge/template-base@npm:7.6.0":
   version: 7.6.0
   resolution: "@electron-forge/template-base@npm:7.6.0"
@@ -3621,6 +3644,15 @@ __metadata:
   dependencies:
     chrome-trace-event: ^1.0.3
   checksum: 8921746becc5ab1d11423a6aa635208d4973103100db9a99ff660ee42ae9b0715f1c197351bbc52c6ac1cbeab53115dcf41329b9106ac18167b994f604d94609
+  languageName: node
+  linkType: hard
+
+"@electron-forge/tracer@npm:7.7.0":
+  version: 7.7.0
+  resolution: "@electron-forge/tracer@npm:7.7.0"
+  dependencies:
+    chrome-trace-event: ^1.0.3
+  checksum: 1acbf656d4873f97fa57ac23476ea61fe6312fafd04e55c8b81cd4dc347c5747a8496a919fb56d8077bb5e34da746d1bef1ea4f80bece0d9aa3c8c6170093bb1
   languageName: node
   linkType: hard
 
@@ -9239,6 +9271,7 @@ __metadata:
     "@dnd-kit/core": 6.1.0
     "@dnd-kit/sortable": 8.0.0
     "@electron-forge/cli": 7.6.0
+    "@electron-forge/maker-base": ^7.7.0
     "@electron-forge/maker-deb": 7.6.0
     "@electron-forge/maker-dmg": 7.6.0
     "@electron-forge/maker-flatpak": 7.6.0
@@ -9247,7 +9280,7 @@ __metadata:
     "@electron-forge/maker-zip": 7.6.0
     "@electron-forge/plugin-vite": 7.6.0
     "@electron-forge/publisher-s3": 7.6.0
-    "@electron-forge/shared-types": 7.6.0
+    "@electron-forge/shared-types": ^7.7.0
     "@emotion/cache": 11.11.0
     "@emotion/react": 11.11.1
     "@emotion/serialize": 1.1.2
