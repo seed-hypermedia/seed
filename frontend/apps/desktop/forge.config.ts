@@ -84,6 +84,7 @@ const config: ForgeConfig = {
       options: {
         ...commonLinuxConfig.options,
         id: IS_PROD_DEV ? 'media.hyper.seed.dev' : 'media.hyper.seed',
+        runtimeVersion: '22.08',
       },
     } as unknown as MakerFlatpakConfig),
     new MakerZIP(
