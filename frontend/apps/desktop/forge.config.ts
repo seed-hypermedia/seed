@@ -84,32 +84,9 @@ const config: ForgeConfig = {
       options: {
         ...commonLinuxConfig.options,
         id: 'media.hyper.seed.dev',
-        runtime: 'org.freedesktop.Platform',
-        runtimeVersion: '22.08',
-        sdk: 'org.freedesktop.Sdk',
-        modules: [
-          {
-            name: 'zypak',
-            patches: ['./zypak-cxx.patch'],
-            sources: [
-              {
-                type: 'git',
-                url: 'https://github.com/refi64/zypak',
-                tag: 'v2021.02',
-              },
-            ],
-          },
-        ],
-        finishArgs: [
-          '--socket=x11',
-          '--share=ipc',
-          '--device=dri',
-          '--socket=pulseaudio',
-          '--filesystem=home',
-          '--env=TMPDIR=/var/tmp',
-          '--share=network',
-          '--talk-name=org.freedesktop.Notifications',
-        ],
+        runtime: 'org.gnome.Platform',
+        runtimeVersion: '47',
+        sdk: 'org.gnome.Sdk',
       },
     } as unknown as MakerFlatpakConfig),
     new MakerZIP(
