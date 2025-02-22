@@ -53,9 +53,11 @@ const commonLinuxConfig = {
     description: 'Seed: a hyper.media protocol client',
     productName: IS_PROD_DEV ? 'SeedDev' : 'Seed',
     mimeType: ['x-scheme-handler/hm'],
-    version,
+    appVersion: process.env.VITE_VERSION,
     bin: IS_PROD_DEV ? 'SeedDev' : 'Seed',
-    homepage: 'https://seed.hyper.media',
+    homepage: IS_PROD_DEV
+      ? 'https://seed.hyper.media'
+      : 'https://dev.hyper.media',
   },
 }
 
@@ -64,7 +66,7 @@ const config: ForgeConfig = {
     appVersion: process.env.VITE_VERSION,
     asar: true,
     darwinDarkModeSupport: true,
-    icon: iconsPath,
+    icon: `${iconsPath}.png`,
     name: IS_PROD_DEV ? 'SeedDev' : 'Seed',
     appBundleId: IS_PROD_DEV ? 'com.seed.app.dev' : 'com.seed.app',
     executableName: IS_PROD_DEV ? 'SeedDev' : 'Seed',
@@ -74,7 +76,7 @@ const config: ForgeConfig = {
     // beforeCopy: [setLanguages(['en', 'en_US'])],
     win32metadata: {
       CompanyName: 'Mintter Inc.',
-      OriginalFilename: 'Seed',
+      OriginalFilename: IS_PROD_DEV ? 'SeedDev' : 'Seed',,
     },
     protocols: [{name: 'Seed Hypermedia', schemes: ['hm']}],
   },
@@ -83,7 +85,8 @@ const config: ForgeConfig = {
     new MakerFlatpak({
       options: {
         ...commonLinuxConfig.options,
-        id: IS_PROD_DEV ? 'media.hyper.seed.dev' : 'media.hyper.seed',
+        icon: commonLinuxConfig.options.icon,
+        id: 'media.hyper.seed.dev',
         runtimeVersion: '22.08',
       },
     } as unknown as MakerFlatpakConfig),
@@ -125,8 +128,7 @@ const config: ForgeConfig = {
       // certificateFile: process.env.WINDOWS_PFX_FILE,
       // certificatePassword: process.env.WINDOWS_PFX_PASSWORD,
     })),
-    new MakerRpm(commonLinuxConfig as MakerRpmConfig),
-    // new MakerFlatpak(commonLinuxConfig as unknown as MakerFlatpakConfig),
+    // new MakerRpm(commonLinuxConfig as MakerRpmConfig),
   ],
   plugins: [
     // {
