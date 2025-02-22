@@ -1,0 +1,5 @@
+--- a/Makefile
++++ b/Makefile
+@@
+- CXX ?= clang++
++ CXX ?= g++

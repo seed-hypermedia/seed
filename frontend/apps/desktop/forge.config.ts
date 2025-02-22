@@ -1,4 +1,3 @@
-import {MakerDeb, MakerDebConfig} from '@electron-forge/maker-deb'
 import {MakerSquirrel} from '@electron-forge/maker-squirrel'
 import {MakerZIP} from '@electron-forge/maker-zip'
 import {PublisherS3} from '@electron-forge/publisher-s3'
@@ -80,7 +79,7 @@ const config: ForgeConfig = {
     protocols: [{name: 'Seed Hypermedia', schemes: ['hm']}],
   },
   makers: [
-    new MakerDeb(commonLinuxConfig as MakerDebConfig),
+    // new MakerDeb(commonLinuxConfig as MakerDebConfig),
     new MakerFlatpak({
       options: {
         ...commonLinuxConfig.options,
@@ -91,11 +90,7 @@ const config: ForgeConfig = {
         modules: [
           {
             name: 'zypak',
-            'build-options': {
-              env: {
-                CXX: 'g++',
-              },
-            },
+            patches: ['./zypak-cxx.patch'],
             sources: [
               {
                 type: 'git',
