@@ -1,17 +1,15 @@
 import {MakerDeb, MakerDebConfig} from '@electron-forge/maker-deb'
-import {MakerRpm, MakerRpmConfig} from '@electron-forge/maker-rpm'
 import {MakerSquirrel} from '@electron-forge/maker-squirrel'
 import {MakerZIP} from '@electron-forge/maker-zip'
 import {PublisherS3} from '@electron-forge/publisher-s3'
 import type {ForgeConfig} from '@electron-forge/shared-types'
 // import {MakerRpm} from '@electron-forge/maker-rpm'
-import {MakerFlatpakConfig} from '@electron-forge/maker-flatpak'
+import {MakerFlatpak, MakerFlatpakConfig} from '@electron-forge/maker-flatpak'
 import {VitePlugin} from '@electron-forge/plugin-vite'
 import path from 'node:path'
 import packageJson from './package.json'
 // import setLanguages from 'electron-packager-languages'
 import fs from 'node:fs'
-import MakerCustomFlatpak from './custom-flatpak-maker'
 
 const {version} = packageJson
 const IS_PROD_DEV = version.includes('dev')
@@ -77,13 +75,13 @@ const config: ForgeConfig = {
     // beforeCopy: [setLanguages(['en', 'en_US'])],
     win32metadata: {
       CompanyName: 'Mintter Inc.',
-      OriginalFilename: IS_PROD_DEV ? 'SeedDev' : 'Seed',,
+      OriginalFilename: IS_PROD_DEV ? 'SeedDev' : 'Seed',
     },
     protocols: [{name: 'Seed Hypermedia', schemes: ['hm']}],
   },
   makers: [
     new MakerDeb(commonLinuxConfig as MakerDebConfig),
-    new MakerCustomFlatpak({
+    new MakerFlatpak({
       options: {
         ...commonLinuxConfig.options,
         icon: commonLinuxConfig.options.icon,
