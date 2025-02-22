@@ -39,8 +39,7 @@ runs:
         git config --global protocol.file.allow always
         git config --global protocol.http.allow always
         sudo flatpak --system remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-        flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-        sudo flatpak --system install flathub org.freedesktop.Platform//22.08 org.freedesktop.Sdk//22.08 -y
+        sudo flatpak --system install flathub org.gnome.Platform//47 org.gnome.Sdk//47 -y
         which flatpak-builder
         which eu-strip
       shell: bash
