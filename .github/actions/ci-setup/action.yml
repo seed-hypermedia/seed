@@ -39,9 +39,12 @@ runs:
         git config --global protocol.file.allow always
         git config --global protocol.http.allow always
         sudo flatpak --system remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-        sudo flatpak --system install flathub org.gnome.Platform//47 org.gnome.Sdk//47 -y
-        which flatpak-builder
-        which eu-strip
+        sudo flatpak --system install flathub org.gnome.Platform//47 -y
+        sudo flatpak --system install flathub org.gnome.Sdk//47 -y
+        flatpak list | grep org.gnome
+        sudo chown -R $USER:$USER /run/user/$(id -u)
+
+        which clang++
       shell: bash
 
     - name: Setup cache Ubuntu
