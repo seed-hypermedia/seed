@@ -3,15 +3,22 @@ import CommentEditor from "@shm/editor/comment-editor";
 import {
   HMAnnotation,
   HMBlockNode,
+  HMDocumentOperation,
   hmIdPathToEntityQueryPath,
   HMPublishableAnnotation,
   HMPublishableBlock,
+  queryKeys,
   UnpackedHypermediaId,
 } from "@shm/shared";
-import {useMutation} from "@tanstack/react-query";
-import {CID} from "multiformats";
+import {Button, Dialog, DialogTitle} from "@shm/ui/index";
+import {useAppDialog} from "@shm/ui/universal-dialog";
+import {useMutation, useQueryClient} from "@tanstack/react-query";
 import {base58btc} from "multiformats/bases/base58";
-import {useEffect, useSyncExternalStore} from "react";
+import * as Block from "multiformats/block";
+import {CID} from "multiformats/cid";
+import * as raw from "multiformats/codecs/raw";
+import {sha256} from "multiformats/hashes/sha2";
+import {useSyncExternalStore} from "react";
 
 async function postCBOR(path: string, body: Uint8Array) {
   const response = await fetch(`${path}`, {
@@ -103,23 +110,88 @@ async function storeKeyPair(keyPair: CryptoKeyPair): Promise<void> {
 
 async function getKeyPair() {
   const existingKeyPair = await getStoredKeyPair();
-  let keyPair: CryptoKeyPair;
 
+  return existingKeyPair;
+}
+
+async function getObjectCID(data: any): Promise<CID> {
+  const block = await Block.encode({
+    value: data,
+    codec: raw,
+    hasher: sha256,
+  });
+  const cid = block.cid;
+  return cid;
+}
+
+async function createAccount({name}: {name: string}) {
+  const existingKeyPair = await getStoredKeyPair();
   if (existingKeyPair) {
-    keyPair = existingKeyPair;
-  } else {
-    keyPair = await crypto.subtle.generateKey(
-      {
-        name: "ECDSA",
-        namedCurve: "P-256",
-      },
-      false, // non-extractable
-      ["sign", "verify"]
-    );
-    await storeKeyPair(keyPair);
+    throw new Error("Account already exists");
   }
+  const keyPair = await crypto.subtle.generateKey(
+    {
+      name: "ECDSA",
+      namedCurve: "P-256",
+    },
+    false, // non-extractable
+    ["sign", "verify"]
+  );
+  const genesisChange = await createDocumentGenesisChange({
+    keyPair,
+  });
+  const genesisChangeEncoded = cborEncode(genesisChange);
+  const genesisChangeCID = await getObjectCID(genesisChangeEncoded);
+  console.log("GENESIS CHANGE", genesisChange, genesisChangeCID);
+  const changeHome = await createHomeDocumentChange({
+    keyPair,
+    genesisChangeCid: genesisChangeCID,
+    operations: [
+      {
+        type: "SetAttributes",
+        attrs: [{key: ["name"], value: name}],
+      },
+    ],
+    deps: [genesisChangeCID],
+    depth: 0,
+  });
+  const changeHomeEncoded = cborEncode(changeHome);
+  const changeHomeCID = await getObjectCID(changeHomeEncoded);
+  console.log("CHANGE HOME", changeHome, changeHomeCID);
+  const ref = await createRef({
+    keyPair,
+    genesisCid: genesisChangeCID,
+    head: changeHomeCID,
+    space: genesisChange.signer,
+    path: "",
+    generation: 1,
+  });
+  const createAccountPayload: {
+    genesis: BlobPayload;
+    home: BlobPayload;
+    ref: Uint8Array;
+  } = {
+    genesis: {
+      data: genesisChangeEncoded,
+      cid: genesisChangeCID,
+    },
+    home: {
+      data: changeHomeEncoded,
+      cid: changeHomeCID,
+    },
+    ref: cborEncode(ref),
+  };
+  const createAccountData = cborEncode(createAccountPayload);
+  console.log("CREATE ACCOUNT", createAccountPayload);
+  await postCBOR("/hm/api/create-account", createAccountData);
+  // await storeKeyPair(keyPair);
   return keyPair;
 }
+
+type BlobPayload = {
+  data: Uint8Array;
+  cid: CID;
+};
 
 async function signObject(
   keyPair: CryptoKeyPair,
@@ -271,6 +343,39 @@ type SignedComment = Omit<UnsignedComment, "sig"> & {
   sig: ArrayBuffer;
 };
 
+type UnsignedDocumentChange = {
+  type: "Change";
+  body?: {
+    ops: HMDocumentOperation[];
+    opCount: number;
+  };
+  signer: Uint8Array;
+  sig: Uint8Array; // new Uint8Array(64); // we are expected to sign a blob with empty signature
+  ts: bigint;
+  depth?: number;
+  genesis?: CID;
+  deps?: CID[];
+};
+type SignedDocumentChange = Omit<UnsignedDocumentChange, "sig"> & {
+  sig: ArrayBuffer;
+};
+
+type UnsignedRef = {
+  type: "Ref";
+  space: Uint8Array;
+  path: string;
+  genesisBlob: CID;
+  capability?: CID;
+  heads: CID[];
+  generation: number;
+  signer: Uint8Array;
+  ts: bigint;
+  sig: Uint8Array; // new Uint8Array(64); // we are expected to sign a blob with empty signature
+};
+type SignedRef = Omit<UnsignedRef, "sig"> & {
+  sig: ArrayBuffer;
+};
+
 async function createComment({
   content,
   docId,
@@ -312,6 +417,93 @@ async function createComment({
   } satisfies SignedComment;
 }
 
+async function createDocumentGenesisChange({
+  keyPair,
+}: {
+  keyPair: CryptoKeyPair;
+}) {
+  const signerKey = await preparePublicKey(keyPair.publicKey);
+  const unsignedChange: UnsignedDocumentChange = {
+    type: "Change",
+    signer: signerKey,
+    ts: BigInt(Date.now()),
+    sig: new Uint8Array(64),
+  };
+  const signature = await signObject(keyPair, unsignedChange);
+  return {
+    ...unsignedChange,
+    sig: signature,
+  } satisfies SignedDocumentChange;
+}
+
+async function createHomeDocumentChange({
+  operations,
+  keyPair,
+  genesisChangeCid,
+  deps,
+  depth,
+}: {
+  operations: HMDocumentOperation[];
+  keyPair: CryptoKeyPair;
+  genesisChangeCid: CID;
+  deps: CID[];
+  depth: number;
+}) {
+  const signerKey = await preparePublicKey(keyPair.publicKey);
+  const unsignedChange: UnsignedDocumentChange = {
+    type: "Change",
+    body: {
+      ops: operations,
+      opCount: operations.length,
+    },
+    signer: signerKey,
+    ts: BigInt(Date.now()),
+    sig: new Uint8Array(64),
+    genesis: genesisChangeCid,
+    deps,
+    depth,
+  };
+  const signature = await signObject(keyPair, unsignedChange);
+  return {
+    ...unsignedChange,
+    sig: signature,
+  } satisfies SignedDocumentChange;
+}
+
+async function createRef({
+  keyPair,
+  genesisCid,
+  head,
+  space,
+  path,
+  generation,
+}: {
+  keyPair: CryptoKeyPair;
+  genesisCid: CID;
+  head: CID;
+  space: Uint8Array;
+  path: string;
+  generation: number;
+}) {
+  const signerKey = await preparePublicKey(keyPair.publicKey);
+  const unsignedRef: UnsignedRef = {
+    type: "Ref",
+    signer: signerKey,
+    ts: BigInt(Date.now()),
+    sig: new Uint8Array(64),
+    space,
+    path,
+    genesisBlob: genesisCid,
+    heads: [head],
+    generation,
+  };
+  const signature = await signObject(keyPair, unsignedRef);
+  return {
+    ...unsignedRef,
+    sig: signature,
+  } satisfies SignedRef;
+}
+
 async function preparePublicKey(publicKey: CryptoKey) {
   // Export raw key first
   const raw = await crypto.subtle.exportKey("raw", publicKey);
@@ -334,24 +526,24 @@ async function preparePublicKey(publicKey: CryptoKey) {
   return outputKeyValue;
 }
 
+// run this on the client
+if (typeof window !== "undefined") {
+  getKeyPair()
+    .then((kp) => {
+      console.log("Set up user key pair", kp);
+      if (kp) setKeyPair(kp);
+    })
+    .catch((err) => {
+      console.error("Error getting key pair", err);
+    });
+}
+
 let keyPair: CryptoKeyPair | null = null;
 const keyPairHandlers = new Set<() => void>();
 
 function setKeyPair(kp: CryptoKeyPair | null) {
   keyPair = kp;
   keyPairHandlers.forEach((callback) => callback());
-}
-
-// run this on the client
-if (typeof window !== "undefined") {
-  getKeyPair()
-    .then((kp) => {
-      console.log("Set up user key pair", kp);
-      setKeyPair(kp);
-    })
-    .catch((err) => {
-      console.error("Error getting key pair", err);
-    });
 }
 
 const keyPairStore = {
@@ -363,6 +555,15 @@ const keyPairStore = {
     };
   },
 };
+
+function useKeyPair() {
+  const keyPair = useSyncExternalStore(
+    keyPairStore.listen,
+    keyPairStore.get,
+    () => null
+  );
+  return keyPair;
+}
 
 type CreateCommentPayload = {
   content: HMBlockNode[];
@@ -384,15 +585,9 @@ export default function WebCommenting({
   rootReplyCommentId: string | null;
   onDiscardDraft: () => void;
 }) {
-  const userKeyPair = useSyncExternalStore(
-    keyPairStore.listen,
-    keyPairStore.get,
-    () => null
-  );
-  useEffect(() => {
-    // setReady(true);
-  }, []);
-
+  if (typeof window === "undefined") return null; // this component is not rendered on the server
+  const userKeyPair = useKeyPair();
+  const queryClient = useQueryClient();
   const postComment = useMutation({
     mutationFn: async ({
       content,
@@ -414,27 +609,64 @@ export default function WebCommenting({
       const result = await postCBOR("/hm/api/comment", cborEncode(comment));
       console.log("COMMENT SENT", result);
     },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.DOCUMENT_ACTIVITY, docId.id],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.DOCUMENT_COMMENTS, docId.id],
+      });
+      console.log("COMMENT SENT SUCCESS", data);
+    },
   });
 
-  if (!userKeyPair) return null;
   const docVersion = docId.version;
+  const createAccountDialog = useAppDialog(CreateAccountDialog);
   if (!docVersion) return null;
   return (
-    <CommentEditor
-      onCommentSubmit={(content) => {
-        const mutatePayload: CreateCommentPayload = {
-          content,
-          docId,
-          docVersion,
-          userKeyPair,
-        };
-        if (replyCommentId && rootReplyCommentId) {
-          mutatePayload.replyCommentId = replyCommentId;
-          mutatePayload.rootReplyCommentId = rootReplyCommentId;
-        }
-        postComment.mutate(mutatePayload);
-      }}
-      onDiscardDraft={onDiscardDraft}
-    />
+    <>
+      <CommentEditor
+        onCommentSubmit={async (content) => {
+          if (!userKeyPair) {
+            createAccountDialog.open({});
+            return;
+          }
+          const mutatePayload: CreateCommentPayload = {
+            content,
+            docId,
+            docVersion,
+            userKeyPair,
+          };
+          if (replyCommentId && rootReplyCommentId) {
+            mutatePayload.replyCommentId = replyCommentId;
+            mutatePayload.rootReplyCommentId = rootReplyCommentId;
+          }
+          await postComment.mutateAsync(mutatePayload);
+        }}
+        onDiscardDraft={onDiscardDraft}
+      />
+      {createAccountDialog.content}
+    </>
+  );
+}
+
+function CreateAccountDialog({
+  input,
+  onClose,
+}: {
+  input: {};
+  onClose: () => void;
+}) {
+  return (
+    <Dialog>
+      <DialogTitle>Create Account</DialogTitle>
+      <Button
+        onPress={() => {
+          createAccount({name: "web-user-2"});
+        }}
+      >
+        Create Account
+      </Button>
+    </Dialog>
   );
 }

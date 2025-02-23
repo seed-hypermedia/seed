@@ -573,6 +573,16 @@ export type HMComment = Omit<PlainMessage<Comment>, 'content'> & {
   content: HMBlockNode[]
 }
 
+export type HMDocumentOperation = HMDocumentOperationSetAttributes // | HMDocumentOperationReplaceBlock | HMDocumentOperationMoveBlock
+
+export type HMDocumentOperationSetAttributes = {
+  attrs: Array<{
+    key: Array<string>
+    value: string | number | boolean
+  }>
+  type: 'SetAttributes'
+}
+
 export type HMBreadcrumb = PlainMessage<Breadcrumb>
 
 export type HMActivitySummary = PlainMessage<ActivitySummary>
