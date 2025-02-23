@@ -12,13 +12,14 @@ import {
 } from "@shm/shared";
 import {Button, Dialog, DialogTitle} from "@shm/ui/index";
 import {useAppDialog} from "@shm/ui/universal-dialog";
+import {Input} from "@tamagui/input";
 import {useMutation, useQueryClient} from "@tanstack/react-query";
 import {base58btc} from "multiformats/bases/base58";
 import * as Block from "multiformats/block";
 import {CID} from "multiformats/cid";
 import * as raw from "multiformats/codecs/raw";
 import {sha256} from "multiformats/hashes/sha2";
-import {useSyncExternalStore} from "react";
+import {useRef, useSyncExternalStore} from "react";
 
 async function postCBOR(path: string, body: Uint8Array) {
   const response = await fetch(`${path}`, {
@@ -31,7 +32,7 @@ async function postCBOR(path: string, body: Uint8Array) {
   return await response.json();
 }
 
-const DB_NAME = "keyStore-03";
+const DB_NAME = "keyStore-04";
 const STORE_NAME = "keys-01";
 const DB_VERSION = 1;
 
@@ -162,10 +163,9 @@ async function createAccount({name}: {name: string}) {
     keyPair,
     genesisCid: genesisChangeCID,
     head: changeHomeCID,
-    space: genesisChange.signer,
-    path: "",
     generation: 1,
   });
+  console.log("REF", ref);
   const createAccountPayload: {
     genesis: BlobPayload;
     home: BlobPayload;
@@ -184,7 +184,7 @@ async function createAccount({name}: {name: string}) {
   const createAccountData = cborEncode(createAccountPayload);
   console.log("CREATE ACCOUNT", createAccountPayload);
   await postCBOR("/hm/api/create-account", createAccountData);
-  // await storeKeyPair(keyPair);
+  await storeKeyPair(keyPair);
   return keyPair;
 }
 
@@ -362,8 +362,8 @@ type SignedDocumentChange = Omit<UnsignedDocumentChange, "sig"> & {
 
 type UnsignedRef = {
   type: "Ref";
-  space: Uint8Array;
-  path: string;
+  space?: Uint8Array;
+  path?: string;
   genesisBlob: CID;
   capability?: CID;
   heads: CID[];
@@ -481,8 +481,8 @@ async function createRef({
   keyPair: CryptoKeyPair;
   genesisCid: CID;
   head: CID;
-  space: Uint8Array;
-  path: string;
+  space?: Uint8Array;
+  path?: string;
   generation: number;
 }) {
   const signerKey = await preparePublicKey(keyPair.publicKey);
@@ -491,12 +491,16 @@ async function createRef({
     signer: signerKey,
     ts: BigInt(Date.now()),
     sig: new Uint8Array(64),
-    space,
-    path,
     genesisBlob: genesisCid,
     heads: [head],
     generation,
   };
+  if (path) {
+    unsignedRef.path = path;
+  }
+  if (space) {
+    unsignedRef.space = space;
+  }
   const signature = await signObject(keyPair, unsignedRef);
   return {
     ...unsignedRef,
@@ -526,7 +530,6 @@ async function preparePublicKey(publicKey: CryptoKey) {
   return outputKeyValue;
 }
 
-// run this on the client
 if (typeof window !== "undefined") {
   getKeyPair()
     .then((kp) => {
@@ -657,12 +660,19 @@ function CreateAccountDialog({
   input: {};
   onClose: () => void;
 }) {
+  const nameValue = useRef("");
   return (
     <Dialog>
       <DialogTitle>Create Account</DialogTitle>
+      <Input
+        placeholder="Account Name"
+        onChangeText={(e) => {
+          nameValue.current = e.nativeEvent.text;
+        }}
+      />
       <Button
         onPress={() => {
-          createAccount({name: "web-user-2"});
+          createAccount({name: nameValue.current}).then(() => onClose());
         }}
       >
         Create Account
