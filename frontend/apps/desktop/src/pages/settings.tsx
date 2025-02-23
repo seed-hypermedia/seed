@@ -58,7 +58,7 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {getDaemonFileUrl} from '@shm/ui/src/get-file-url'
+import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 
 import {
   AtSign,

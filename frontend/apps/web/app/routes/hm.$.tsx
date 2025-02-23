@@ -1,10 +1,10 @@
+import {useFullRender} from "@/cache-policy";
+import {DocumentPage, documentPageHeaders, documentPageMeta} from "@/document";
+import {loadSiteDocument, SiteDocumentPayload} from "@/loaders";
+import {parseRequest} from "@/request";
+import {unwrap} from "@/wrapping";
 import {Params, useLoaderData} from "@remix-run/react";
 import {hmId} from "@shm/shared";
-import {useFullRender} from "~/cache-policy";
-import {DocumentPage, documentPageHeaders, documentPageMeta} from "~/document";
-import {loadSiteDocument, SiteDocumentPayload} from "~/loaders";
-import {parseRequest} from "~/request";
-import {unwrap} from "~/wrapping";
 
 export const meta = documentPageMeta;
 

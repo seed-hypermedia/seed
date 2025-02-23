@@ -1,7 +1,7 @@
+import {queryClient} from "@/client";
 import {ActionFunction, json} from "@remix-run/node";
 import {hmIdPathToEntityQueryPath} from "@shm/shared";
 import {z} from "zod";
-import {queryClient} from "~/client";
 
 const discoverSchema = z.object({
   uid: z.string(),

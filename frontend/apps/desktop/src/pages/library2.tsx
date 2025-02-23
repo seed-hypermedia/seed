@@ -35,8 +35,8 @@ import {
   YGroup,
   YStack,
 } from '@shm/ui'
-import {LibraryEntryUpdateSummary} from '@shm/ui/src/activity'
-import {AccountsMetadata, FacePile} from '@shm/ui/src/face-pile'
+import {LibraryEntryUpdateSummary} from '@shm/ui/activity'
+import {AccountsMetadata, FacePile} from '@shm/ui/face-pile'
 import {
   Check,
   CheckCheck,

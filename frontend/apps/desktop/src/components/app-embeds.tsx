@@ -38,7 +38,7 @@ import {
   YStack,
   YStackProps,
 } from '@shm/ui'
-import {Spinner} from '@shm/ui/src/spinner'
+import {Spinner} from '@shm/ui/spinner'
 import {
   ComponentProps,
   PropsWithChildren,

@@ -1,6 +1,3 @@
-import {ActionFunction, json} from "@remix-run/node";
-import {randomBytes} from "crypto";
-import {z} from "zod";
 import {
   adminSecret,
   getServiceConfig,
@@ -10,7 +7,10 @@ import {
   writeConfig,
   writeCustomDomainConfig,
   type ServiceConfig,
-} from "~/site-config";
+} from "@/site-config";
+import {ActionFunction, json} from "@remix-run/node";
+import {randomBytes} from "crypto";
+import {z} from "zod";
 
 const AdminActionCreateService = z
   .object({

@@ -12,19 +12,19 @@ import {
   UnpackedHypermediaId,
   useUniversalAppContext,
 } from "@shm/shared";
-import {Button} from "@shm/ui/src/button";
+import {Button} from "@shm/ui/button";
 import {
   ContentEmbed,
   EntityComponentProps,
   ErrorBlock,
   InlineEmbedButton,
   useDocContentContext,
-} from "@shm/ui/src/document-content";
-import {BlankQueryBlockMessage} from "@shm/ui/src/entity-card";
-import {AccountsMetadata} from "@shm/ui/src/face-pile";
-import {HMIcon} from "@shm/ui/src/hm-icon";
-import {BannerNewspaperCard, NewspaperCard} from "@shm/ui/src/newspaper";
-import {Spinner} from "@shm/ui/src/spinner";
+} from "@shm/ui/document-content";
+import {BlankQueryBlockMessage} from "@shm/ui/entity-card";
+import {AccountsMetadata} from "@shm/ui/face-pile";
+import {HMIcon} from "@shm/ui/hm-icon";
+import {BannerNewspaperCard, NewspaperCard} from "@shm/ui/newspaper";
+import {Spinner} from "@shm/ui/spinner";
 import {StackProps, Text} from "@tamagui/core";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";

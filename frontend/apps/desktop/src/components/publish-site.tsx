@@ -14,7 +14,7 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {Spinner} from '@shm/ui/src/spinner'
+import {Spinner} from '@shm/ui/spinner'
 import {useEffect} from 'react'
 import {SubmitHandler, useForm} from 'react-hook-form'
 import {z} from 'zod'

@@ -21,7 +21,7 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {SizableText} from '@shm/ui/src/datepicker-dateparts'
+import {SizableText} from '@shm/ui/datepicker-dateparts'
 import {useAppDialog} from './dialog'
 
 export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {

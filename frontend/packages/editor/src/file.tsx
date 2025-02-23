@@ -1,5 +1,5 @@
 import {createReactBlockSpec} from "@/blocknote/react";
-import {formatBytes} from "@shm/shared/src/utils/format-bytes";
+import {formatBytes} from "@shm/shared/utils/format-bytes";
 import {Button, File, SizableText} from "@shm/ui";
 import {Block, BlockNoteEditor, defaultProps} from "./blocknote/core";
 import {MediaContainer} from "./media-container";

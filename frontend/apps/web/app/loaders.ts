@@ -31,8 +31,8 @@ import {
   getDiretoryWithClient,
   getQueryResultsWithClient,
 } from "@shm/shared/models/directory";
+import {AccountsMetadata} from "@shm/ui/face-pile";
 import {getBlockNodeById} from "@shm/ui/src";
-import {AccountsMetadata} from "@shm/ui/src/face-pile";
 import {queryClient} from "./client";
 import {logDebug} from "./logger";
 import {ParsedRequest} from "./request";

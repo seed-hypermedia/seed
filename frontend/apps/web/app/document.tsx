@@ -31,7 +31,7 @@ import {
   useImageUrl,
   useTheme,
 } from "@shm/ui";
-import {documentContainerClassName} from "@shm/ui/src/document-content";
+import {documentContainerClassName} from "@shm/ui/document-content";
 import {ChevronUp} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";

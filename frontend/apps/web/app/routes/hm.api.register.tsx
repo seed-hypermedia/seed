@@ -1,9 +1,9 @@
+import {queryClient} from "@/client";
+import {parseRequest} from "@/request";
+import {getConfig, writeConfig} from "@/site-config";
 import type {ActionFunction} from "@remix-run/node";
 import {json} from "@remix-run/node";
 import {z} from "zod";
-import {queryClient} from "~/client";
-import {parseRequest} from "~/request";
-import {getConfig, writeConfig} from "~/site-config";
 
 const registerSchema = z.object({
   registrationSecret: z.string(),

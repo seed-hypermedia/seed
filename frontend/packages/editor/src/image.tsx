@@ -7,7 +7,7 @@ import {DisplayComponentProps, MediaRender, MediaType} from "@/media-render";
 import {HMBlockSchema} from "@/schema";
 import {isValidUrl, timeoutPromise} from "@/utils";
 import {ResizeHandle, useDocContentContext, useTheme} from "@shm/ui";
-import {getDaemonFileUrl} from "@shm/ui/src/get-file-url";
+import {getDaemonFileUrl} from "@shm/ui/get-file-url";
 import {useEffect, useState} from "react";
 import {RiImage2Line} from "react-icons/ri";
 

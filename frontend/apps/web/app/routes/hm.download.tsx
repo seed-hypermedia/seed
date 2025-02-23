@@ -1,22 +1,22 @@
+import {useFullRender} from "@/cache-policy";
+import {loadSiteDocument, SiteDocumentPayload} from "@/loaders";
+import downloadBg from "@/massets/download-bg.png";
+import {defaultPageMeta} from "@/meta";
+import {PageFooter} from "@/page-footer";
+import {WebSiteHeader} from "@/page-header";
+import {WebSiteProvider} from "@/providers";
+import {parseRequest} from "@/request";
+import {getConfig} from "@/site-config";
+import {unwrap} from "@/wrapping";
 import {useLoaderData} from "@remix-run/react";
 import {hmId} from "@shm/shared";
-import {Linux, Macos, Win32} from "@shm/ui/src/icons";
+import {Linux, Macos, Win32} from "@shm/ui/icons";
 import {Button} from "@tamagui/button";
 import {Download} from "@tamagui/lucide-icons";
 import {SizableStack, XStack, YStack} from "@tamagui/stacks";
 import {Heading, SizableText} from "@tamagui/text";
 import {useEffect, useState} from "react";
 import {z} from "zod";
-import {useFullRender} from "~/cache-policy";
-import {loadSiteDocument, SiteDocumentPayload} from "~/loaders";
-import downloadBg from "~/massets/download-bg.png";
-import {defaultPageMeta} from "~/meta";
-import {PageFooter} from "~/page-footer";
-import {WebSiteHeader} from "~/page-header";
-import {WebSiteProvider} from "~/providers";
-import {parseRequest} from "~/request";
-import {getConfig} from "~/site-config";
-import {unwrap} from "~/wrapping";
 import {Container} from "../ui/container";
 
 async function isArm64(): Promise<boolean | null> {

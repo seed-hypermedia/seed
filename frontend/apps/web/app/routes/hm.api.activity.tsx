@@ -1,3 +1,6 @@
+import {queryClient} from "@/client";
+import {getMetadata} from "@/loaders";
+import {wrapJSON, WrappedResponse} from "@/wrapping";
 import {PlainMessage, toPlainMessage} from "@bufbuild/protobuf";
 import {
   BIG_INT,
@@ -16,9 +19,6 @@ import {
   unpackHmId,
 } from "@shm/shared";
 import {getActivityTime} from "@shm/shared/models/activity";
-import {queryClient} from "~/client";
-import {getMetadata} from "~/loaders";
-import {wrapJSON, WrappedResponse} from "~/wrapping";
 
 export type ActivityPayload = {
   activity?: (HMCommentGroup | HMChangeGroup | HMDocumentInfo)[];

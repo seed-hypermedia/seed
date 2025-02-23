@@ -4,7 +4,7 @@ import {sortNewsEntries} from '@shm/shared/content'
 import {HMMetadata} from '@shm/shared/hm-types'
 import {hmId, UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {BannerNewspaperCard, Container, NewspaperCard, XStack} from '@shm/ui'
-import {AccountsMetadata} from '@shm/ui/src/face-pile'
+import {AccountsMetadata} from '@shm/ui/face-pile'
 
 export function NewspaperLayout({
   id,

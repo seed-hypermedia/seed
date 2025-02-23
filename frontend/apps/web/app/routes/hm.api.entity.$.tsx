@@ -1,7 +1,7 @@
+import {getBaseDocument, WebBaseDocumentPayload} from "@/loaders";
+import {wrapJSON, WrappedResponse} from "@/wrapping";
 import {Params} from "@remix-run/react";
 import {hmId} from "@shm/shared";
-import {getBaseDocument, WebBaseDocumentPayload} from "~/loaders";
-import {wrapJSON, WrappedResponse} from "~/wrapping";
 
 export const loader = async ({
   request,

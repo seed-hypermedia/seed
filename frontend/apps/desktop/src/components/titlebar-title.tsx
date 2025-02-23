@@ -42,7 +42,7 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {HoverCard} from '@shm/ui/src/hover-card'
+import {HoverCard} from '@shm/ui/hover-card'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {AiOutlineEllipsis} from 'react-icons/ai'
 import {CopyReferenceButton} from './copy-reference-button'

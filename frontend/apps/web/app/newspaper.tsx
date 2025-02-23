@@ -1,6 +1,6 @@
 import {hmId, sortNewsEntries} from "@shm/shared";
-import {Container} from "@shm/ui/src/container";
-import {BannerNewspaperCard, NewspaperCard} from "@shm/ui/src/newspaper";
+import {Container} from "@shm/ui/container";
+import {BannerNewspaperCard, NewspaperCard} from "@shm/ui/newspaper";
 import {XStack, YStack} from "@tamagui/stacks";
 import {useCallback} from "react";
 import {SiteDocumentPayload} from "./loaders";

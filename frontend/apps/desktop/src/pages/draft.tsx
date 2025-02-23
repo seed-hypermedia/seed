@@ -78,7 +78,7 @@ import {AppDocContentProvider} from './document-content-provider'
 import './draft-page.css'
 
 import {upgradeNewspaperLayoutModel} from '@/models/upgrade-document-model'
-import {dialogBoxShadow} from '@shm/ui/src/universal-dialog'
+import {dialogBoxShadow} from '@shm/ui/universal-dialog'
 export default function DraftPage() {
   const route = useNavRoute()
 

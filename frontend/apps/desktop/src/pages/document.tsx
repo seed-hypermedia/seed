@@ -58,7 +58,7 @@ import {
   XStack,
   YStack,
 } from '@shm/ui'
-import {useImageUrl} from '@shm/ui/src/get-file-url'
+import {useImageUrl} from '@shm/ui/get-file-url'
 import {Plus} from '@tamagui/lucide-icons'
 import React, {ReactNode, useMemo, useRef} from 'react'
 import {EntityCitationsAccessory} from '../components/citations'

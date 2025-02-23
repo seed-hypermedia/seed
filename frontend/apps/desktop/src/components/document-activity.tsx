@@ -23,8 +23,8 @@ import {
   useTheme,
   YStack,
 } from '@shm/ui'
-import {ChangeGroup, SubDocumentItem} from '@shm/ui/src/activity'
-import {Spinner} from '@shm/ui/src/spinner'
+import {ChangeGroup, SubDocumentItem} from '@shm/ui/activity'
+import {Spinner} from '@shm/ui/spinner'
 import {useState} from 'react'
 import {
   CommentDraft,

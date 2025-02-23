@@ -6,7 +6,7 @@ import {
   UniversalAppProvider,
   UnpackedHypermediaId,
 } from "@shm/shared";
-import {Toaster} from "@shm/ui/src/toast";
+import {Toaster} from "@shm/ui/toast";
 import {TamaguiProvider} from "@tamagui/core";
 import {PortalProvider} from "@tamagui/portal";
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
