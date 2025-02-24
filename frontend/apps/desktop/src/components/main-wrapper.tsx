@@ -1,5 +1,6 @@
 import {dispatchScroll} from '@/editor/editor-on-scroll-stream'
-import {ScrollView, View, XStack, YStackProps, useStream} from '@shm/ui'
+import {useStream} from '@shm/ui/use-stream'
+import {ScrollView, View, XStack, YStackProps} from 'tamagui'
 import {SidebarWidth, useSidebarContext} from '../sidebar-context'
 
 export function SidebarSpacer() {

@@ -26,7 +26,7 @@ import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {writeableStateStream} from '@shm/shared/utils/stream'
-import {toast} from '@shm/ui'
+import {toast} from '@shm/ui/toast'
 import {
   UseQueryOptions,
   useMutation,

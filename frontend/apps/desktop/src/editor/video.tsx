@@ -6,9 +6,11 @@ import {
   defaultProps,
 } from '@shm/editor/blocknote'
 import {DAEMON_FILE_URL} from '@shm/shared/constants'
-import {ResizeHandle, SizableText, XStack, isIpfsUrl, useTheme} from '@shm/ui'
+import {isIpfsUrl} from '@shm/ui/get-file-url'
+import {ResizeHandle} from '@shm/ui/src/resize-handle'
 import {useEffect, useState} from 'react'
 import {RiVideoAddLine} from 'react-icons/ri'
+import {SizableText, XStack, useTheme} from 'tamagui'
 import {MediaContainer} from './media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
 import {HMBlockSchema} from './schema'

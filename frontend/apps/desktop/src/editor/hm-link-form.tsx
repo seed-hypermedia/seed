@@ -4,19 +4,11 @@ import {
   HYPERMEDIA_ENTITY_TYPES,
   unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
-import {
-  Input,
-  Link as LinkIcon,
-  Search,
-  SizableText,
-  SizeTokens,
-  TextCursorInput,
-  toast,
-  XStack,
-  YStack,
-} from '@shm/ui'
+import {Link as LinkIcon, Search, TextCursorInput} from '@shm/ui/icons'
+import {toast} from '@shm/ui/toast'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
+import {Input, SizableText, SizeTokens, XStack, YStack} from 'tamagui'
 import './hm-link-form.css'
 import {LauncherItem, SwitcherItem} from './launcher-item'
 

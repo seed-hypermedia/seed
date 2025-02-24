@@ -1,9 +1,10 @@
 import {writeableStateStream} from "@shm/shared";
 import {HMBlockNode} from "@shm/shared/hm-types";
 import {queryClient} from "@shm/shared/models/query-client";
-import {Tooltip, Trash, XStack} from "@shm/ui";
 import {Button} from "@shm/ui/button";
-import {YStack} from "@tamagui/stacks";
+import {Trash} from "@shm/ui/icons";
+import {Tooltip} from "@shm/ui/tooltip";
+import {XStack, YStack} from "@tamagui/stacks";
 import {Extension} from "@tiptap/core";
 import {BlockNoteEditor, useBlockNote} from "./blocknote";
 import {HyperMediaEditorView} from "./editor-view";

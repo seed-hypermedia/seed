@@ -5,39 +5,33 @@ import {LibraryData} from '@/models/library'
 import {LibraryListItem} from '@/pages/library'
 import {DAEMON_FILE_URL} from '@shm/shared/constants'
 import {getDocumentTitle, queryBlockSortedItems} from '@shm/shared/content'
-import {HMBlockQuery} from '@shm/shared/hm-types'
-import {formattedDateMedium} from '@shm/shared/utils/date'
 import {
-  hmId,
-  narrowHmId,
-  packHmId,
+  HMAccountsMetadata,
+  HMBlockQuery,
   UnpackedHypermediaId,
-} from '@shm/shared/utils/entity-id-url'
+} from '@shm/shared/hm-types'
+import {formattedDateMedium} from '@shm/shared/utils/date'
+import {hmId, narrowHmId, packHmId} from '@shm/shared/utils/entity-id-url'
+import {UIAvatar} from '@shm/ui/avatar'
 import {
-  AccountsMetadata,
-  ArrowUpRightSquare,
-  BannerNewspaperCard,
-  BlankQueryBlockMessage,
   BlockContentUnknown,
   BlockNodeContent,
   BlockNodeList,
   blockStyles,
-  Button,
   ContentEmbed,
   EntityComponentProps,
   ErrorBlock,
   getBlockNodeById,
-  HMIcon,
   InlineEmbedButton,
-  NewspaperCard,
-  QueryBlockPlaceholder,
-  SizableText,
-  UIAvatar,
   useDocContentContext,
-  XStack,
-  YStack,
-  YStackProps,
-} from '@shm/ui'
+} from '@shm/ui/document-content'
+import {
+  BlankQueryBlockMessage,
+  QueryBlockPlaceholder,
+} from '@shm/ui/entity-card'
+import {HMIcon} from '@shm/ui/hm-icon'
+import {ArrowUpRightSquare} from '@shm/ui/icons'
+import {BannerNewspaperCard, NewspaperCard} from '@shm/ui/newspaper'
 import {Spinner} from '@shm/ui/spinner'
 import {
   ComponentProps,
@@ -47,6 +41,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import {Button, SizableText, XStack, YStack, YStackProps} from 'tamagui'
 import {useComment} from '../models/comments'
 import {useNavigate} from '../utils/useNavigate'
 
@@ -433,7 +428,7 @@ export function QueryBlockDesktop({
     )?.data
   }
 
-  const accountsMetadata: AccountsMetadata = Object.fromEntries(
+  const accountsMetadata: HMAccountsMetadata = Object.fromEntries(
     documents
       .map((document) => {
         const d = document.data

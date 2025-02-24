@@ -1,15 +1,8 @@
-import {
-  Button,
-  Copy,
-  ExternalLink,
-  Separator,
-  SizableText,
-  Stack,
-  XGroup,
-  copyTextToClipboard,
-  toast,
-} from '@shm/ui'
+import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {toast} from '@shm/ui/toast'
+import {Copy, ExternalLink} from '@tamagui/lucide-icons'
 import {ComponentProps, FC, useState} from 'react'
+import {Button, Separator, SizableText, Stack, XGroup} from 'tamagui'
 import {useOpenUrl} from './open-url'
 
 export function AccessURLRow({

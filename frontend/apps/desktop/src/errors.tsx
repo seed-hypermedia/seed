@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/electron'
-import {toast} from '@shm/ui'
+import {toast} from '@shm/ui/toast'
 
 export default function appError(message: string, metadata?: any) {
   toast.error(message)

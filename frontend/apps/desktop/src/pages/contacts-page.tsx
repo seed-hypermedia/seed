@@ -5,18 +5,13 @@ import {useNavigate} from '@/utils/useNavigate'
 import {getMetadataName} from '@shm/shared/content'
 import {HMAccount, HMAccountsMetadata} from '@shm/shared/hm-types'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {
-  Button,
-  Container,
-  HMIcon,
-  ListItemSkeleton,
-  SizableText,
-  Spinner,
-  Text,
-  XStack,
-  YStack,
-} from '@shm/ui'
+import {Button} from '@shm/ui/button'
+import {Container} from '@shm/ui/container'
+import {ListItemSkeleton} from '@shm/ui/entity-card'
+import {HMIcon} from '@shm/ui/hm-icon'
+import {Spinner} from '@shm/ui/spinner'
 import {useRef} from 'react'
+import {SizableText, Text, XStack, YStack} from 'tamagui'
 import {useShowTitleObserver} from './app-title'
 
 function ErrorPage({}: {error: any}) {

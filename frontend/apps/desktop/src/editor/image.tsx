@@ -5,10 +5,12 @@ import {
   createReactBlockSpec,
   defaultProps,
 } from '@shm/editor/blocknote'
-import {ResizeHandle, useDocContentContext, useTheme} from '@shm/ui'
+import {useDocContentContext} from '@shm/ui/document-content'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
+import {ResizeHandle} from '@shm/ui/resize-handle'
 import {useEffect, useState} from 'react'
 import {RiImage2Line} from 'react-icons/ri'
+import {useTheme} from 'tamagui'
 import {MediaContainer} from './media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
 import {HMBlockSchema} from './schema'

@@ -1,5 +1,7 @@
 import {useWindowUtils} from '@/app-context'
-import {Button, Close, XStack, useTheme} from '@shm/ui'
+import {Button} from '@shm/ui/button'
+import {Close} from '@shm/ui/icons'
+import {XStack, useTheme} from 'tamagui'
 
 export function CloseButton() {
   const {close} = useWindowUtils()

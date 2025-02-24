@@ -1,10 +1,11 @@
-import {Spinner, YStack} from '@shm/ui'
+import {Spinner} from '@shm/ui/spinner'
 import '@tamagui/core/reset.css'
 import '@tamagui/font-inter/css/400.css'
 import '@tamagui/font-inter/css/700.css'
 import React, {Suspense, useDeferredValue, useEffect, useState} from 'react'
 import ReactDOM from 'react-dom/client'
 import {ErrorBoundary} from 'react-error-boundary'
+import {YStack} from 'tamagui'
 import './root.css'
 // import {trpc} from './trpc'
 

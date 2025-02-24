@@ -1,15 +1,11 @@
 import {useConnectionSummary} from '@/models/contacts'
 import {useNavRoute} from '@/utils/navigation'
 import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
-import {
-  Button,
-  ButtonProps,
-  Cable,
-  FooterWrapper,
-  SizableText,
-  XStack,
-} from '@shm/ui'
+import {Button} from '@shm/ui/button'
+import {FooterWrapper} from '@shm/ui/footer'
+import {Cable} from '@shm/ui/icons'
 import {ReactNode} from 'react'
+import {ButtonProps, SizableText, XStack} from 'tamagui'
 import {OnlineIndicator} from './indicator'
 import {useNetworkDialog} from './network-dialog'
 

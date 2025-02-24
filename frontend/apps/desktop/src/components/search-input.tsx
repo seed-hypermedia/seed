@@ -12,6 +12,7 @@ import {
 } from '@/utils/navigation'
 import {HYPERMEDIA_SCHEME} from '@shm/shared/constants'
 import {SearchResult} from '@shm/shared/editor-types'
+import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useSearch} from '@shm/shared/models/search'
 import {NavRoute} from '@shm/shared/routes'
 import {
@@ -20,19 +21,16 @@ import {
   isHypermediaScheme,
   parseCustomURL,
   parseFragment,
-  UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
 import {
   SearchInput as SearchInputUI,
   SearchResultItem,
-  SizableText,
-  Spinner,
-  toast,
-  XStack,
-  YStack,
-} from '@shm/ui'
+} from '@shm/ui/search-input'
+import {Spinner} from '@shm/ui/spinner'
+import {toast} from '@shm/ui/toast'
 import {useEffect, useMemo, useState} from 'react'
+import {SizableText, XStack, YStack} from 'tamagui'
 
 export function SearchInput({
   onClose,

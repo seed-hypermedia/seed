@@ -14,28 +14,25 @@ import {
 } from "@shm/shared";
 import {getActivityTime} from "@shm/shared/models/activity";
 import "@shm/shared/styles/document.css";
+import {ChangeGroup, SubDocumentItem} from "@shm/ui/activity";
+import {getRandomColor} from "@shm/ui/avatar";
+import {Button} from "@shm/ui/button";
+import {Container} from "@shm/ui/container";
+import {CommentGroup} from "@shm/ui/discussion";
 import {
-  ActivitySection,
   BlocksContent,
-  Button,
-  ChangeGroup,
-  CommentGroup,
-  Container,
   DocContent,
   DocContentProvider,
-  DocDirectory,
-  DocumentOutline,
-  extractIpfsUrlCid,
-  getRandomColor,
-  SubDocumentItem,
-  useImageUrl,
-  useTheme,
-} from "@shm/ui";
-import {documentContainerClassName} from "@shm/ui/document-content";
+  documentContainerClassName,
+} from "@shm/ui/document-content";
+import {extractIpfsUrlCid, useImageUrl} from "@shm/ui/get-file-url";
+import {DocDirectory, DocumentOutline} from "@shm/ui/navigation";
+import {ActivitySection} from "@shm/ui/page-components";
 import {ChevronUp} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import React, {lazy, useCallback, useEffect, useMemo, useState} from "react";
+import {useTheme} from "tamagui";
 import {getHref} from "./href";
 import type {SiteDocumentPayload} from "./loaders";
 import {defaultSiteIcon} from "./meta";
@@ -400,7 +397,7 @@ function WebDocContentProvider({
   siteHost: string | undefined;
   id: UnpackedHypermediaId;
   originHomeId: UnpackedHypermediaId;
-  children: React.ReactNode;
+  children: React.ReactNode | JSX.Element;
   supportDocuments?: HMEntityContent[];
   supportQueries?: HMQueryResult[];
   routeParams?: {

@@ -36,31 +36,32 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared'
 import '@shm/shared/styles/document.css'
+import {Button} from '@shm/ui/button'
+import {Container} from '@shm/ui/container'
+import {DocContent, documentContainerClassName} from '@shm/ui/document-content'
+import {DocumentDate} from '@shm/ui/document-date'
+import {useImageUrl} from '@shm/ui/get-file-url'
+import {SiteHeader} from '@shm/ui/header'
+import {SeedHeading} from '@shm/ui/heading'
+import {HMIcon} from '@shm/ui/hm-icon'
 import {
   ArrowRight,
-  Button,
-  ButtonText,
   CollaboratorsIcon,
-  Container,
-  DocContent,
-  documentContainerClassName,
-  DocumentDate,
-  getSiteNavDirectory,
   HistoryIcon,
-  HMIcon,
   MoreHorizontal,
-  SeedHeading,
-  SiteHeader,
+} from '@shm/ui/icons'
+import {getSiteNavDirectory} from '@shm/ui/navigation'
+import {Plus} from '@tamagui/lucide-icons'
+import React, {ReactNode, useMemo, useRef} from 'react'
+import {
+  ButtonText,
   SizableText,
   Spinner,
   Tooltip,
   Separator as TSeparator,
   XStack,
   YStack,
-} from '@shm/ui'
-import {useImageUrl} from '@shm/ui/get-file-url'
-import {Plus} from '@tamagui/lucide-icons'
-import React, {ReactNode, useMemo, useRef} from 'react'
+} from 'tamagui'
 import {EntityCitationsAccessory} from '../components/citations'
 import {AppDocContentProvider} from './document-content-provider'
 

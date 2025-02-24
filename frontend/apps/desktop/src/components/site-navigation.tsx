@@ -11,18 +11,17 @@ import {useEntity, useSubscribedEntity} from '@/models/entities'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {Button} from '@shm/ui/button'
+import {SmallListItem} from '@shm/ui/list-item'
 import {
-  Add,
-  Button,
   DocDirectory,
   DocumentOutline,
   DraftOutline,
-  MoreHorizontal,
   SiteNavigationWrapper,
-  SmallListItem,
-  XStack,
-} from '@shm/ui'
+} from '@shm/ui/navigation'
+import {Plus as Add, MoreHorizontal} from '@tamagui/lucide-icons'
 import {ReactNode} from 'react'
+import {XStack} from 'tamagui'
 import {ImportDropdownButton} from './import-doc-button'
 
 export function SiteNavigation() {

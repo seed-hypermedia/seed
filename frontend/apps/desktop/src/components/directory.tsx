@@ -3,13 +3,12 @@ import {useDraftList, useListDirectory} from '@/models/documents'
 import {useSubscribedEntity} from '@/models/entities'
 import {useNavigate} from '@/utils/useNavigate'
 import {getMetadataName} from '@shm/shared/content'
-import {
-  hmId,
-  UnpackedHypermediaId,
-  unpackHmId,
-} from '@shm/shared/utils/entity-id-url'
-import {HMIcon, SizableText, SmallListItem} from '@shm/ui'
+import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {HMIcon} from '@shm/ui/hm-icon'
+import {SmallListItem} from '@shm/ui/list-item'
 import {useMemo} from 'react'
+import {SizableText} from 'tamagui'
 
 export function Directory({
   docId,

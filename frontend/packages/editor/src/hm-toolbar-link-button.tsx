@@ -4,22 +4,20 @@ import {
   HyperlinkToolbarProps,
   useEditorSelectionChange,
 } from "@/blocknote";
+import {Close} from "@shm/ui/src/icons";
+import {usePopoverState} from "@shm/ui/use-popover-state";
+import {Check, Link, Unlink} from "@tamagui/lucide-icons";
+import {useCallback, useEffect, useState} from "react";
 import {
   Button,
-  Check,
-  Close,
   Input,
-  Link,
   Popover,
   SizeTokens,
   Theme,
   Tooltip,
-  Unlink,
   XGroup,
   XStack,
-  usePopoverState,
-} from "@shm/ui";
-import {useCallback, useEffect, useState} from "react";
+} from "tamagui";
 
 export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
   editor: BlockNoteEditor<BSchema>;

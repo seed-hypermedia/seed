@@ -6,21 +6,7 @@ import {
   getBlockInfoFromPos,
 } from '@shm/editor/blocknote'
 import {DAEMON_FILE_UPLOAD_URL, DAEMON_FILE_URL} from '@shm/shared/constants'
-import {
-  Button,
-  Card,
-  Form,
-  H2,
-  Input,
-  Paragraph,
-  SizableText,
-  Tabs,
-  Text,
-  Tooltip,
-  XStack,
-  YStack,
-  useTheme,
-} from '@shm/ui'
+import {Button} from '@shm/ui/button'
 import {
   Event as NostrEvent,
   nip19,
@@ -35,6 +21,20 @@ import {
   RiCloseCircleLine,
   RiRefreshLine,
 } from 'react-icons/ri/index.js'
+import {
+  Card,
+  Form,
+  H2,
+  Input,
+  Paragraph,
+  SizableText,
+  Tabs,
+  Text,
+  Tooltip,
+  XStack,
+  YStack,
+  useTheme,
+} from 'tamagui'
 import {HMBlockSchema} from './schema'
 
 export const RELAY_LIST = [

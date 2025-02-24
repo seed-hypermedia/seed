@@ -18,33 +18,33 @@ import {useNavigate} from '@/utils/useNavigate'
 import {HMMetadata, HMQueryResult, hostnameStripProtocol} from '@shm/shared'
 import {getDocumentTitle} from '@shm/shared/content'
 import {DocumentRoute, DraftRoute, NavRoute} from '@shm/shared/routes'
+import {HoverCard} from '@shm/ui/hover-card'
 import {
   AlertCircle,
-  Button,
-  ButtonText,
   Contact,
   Copy,
-  DocumentSmallListItem,
-  FontSizeTokens,
-  getSiteNavDirectory,
   Library,
-  Popover,
   Sparkles,
-  Spinner,
   Star,
+} from '@shm/ui/icons'
+import {DocumentSmallListItem, getSiteNavDirectory} from '@shm/ui/navigation'
+import {Spinner} from '@shm/ui/spinner'
+import {TitleText, TitleTextButton} from '@shm/ui/titlebar'
+import {useStream} from '@shm/ui/use-stream'
+import {useEffect, useMemo, useRef, useState} from 'react'
+import {AiOutlineEllipsis} from 'react-icons/ai'
+import {
+  Button,
+  ButtonText,
+  FontSizeTokens,
+  Popover,
   Text,
   TextProps,
-  TitleText,
-  TitleTextButton,
   Tooltip,
-  useStream,
   View,
   XStack,
   YStack,
-} from '@shm/ui'
-import {HoverCard} from '@shm/ui/hover-card'
-import {useEffect, useMemo, useRef, useState} from 'react'
-import {AiOutlineEllipsis} from 'react-icons/ai'
+} from 'tamagui'
 import {CopyReferenceButton} from './copy-reference-button'
 import {FavoriteButton} from './favoriting'
 

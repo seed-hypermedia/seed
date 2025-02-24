@@ -1,6 +1,6 @@
-import {Fieldset, Label, SizableText, XStack} from '@shm/ui'
 import {PropsWithChildren} from 'react'
 import {FieldErrors, FieldValues} from 'react-hook-form'
+import {Fieldset, Label, SizableText, XStack} from 'tamagui'
 
 export function FormErrors<Fields extends FieldValues>({
   errors,

@@ -1,6 +1,6 @@
-import {ButtonText} from '@shm/ui'
+import {NavRoute} from '@shm/shared/routes'
 import {ComponentProps} from 'react'
-import {NavRoute} from '../utils/navigation'
+import {ButtonText} from 'tamagui'
 import {useNavigate} from '../utils/useNavigate'
 
 export function AppLinkText({

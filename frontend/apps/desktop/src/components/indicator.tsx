@@ -1,4 +1,4 @@
-import {Circle, XStack} from '@shm/ui'
+import {Circle, XStack} from 'tamagui'
 
 export function OnlineIndicator({online}: {online: boolean}) {
   return (

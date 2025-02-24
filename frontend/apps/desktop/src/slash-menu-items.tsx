@@ -6,7 +6,7 @@ import {
   PropSchema,
 } from '@shm/editor/blocknote'
 import {hmIdPathToEntityQueryPath, UnpackedHypermediaId} from '@shm/shared'
-import {TwitterXIcon} from '@shm/ui'
+import {TwitterXIcon} from '@shm/ui/icons'
 import {
   RiArticleFill,
   RiCodeBoxFill,

@@ -1,6 +1,6 @@
 import {trpc} from '@/trpc'
 import {invalidateQueries} from '@shm/shared/models/query-client'
-import {toast} from '@shm/ui'
+import {toast} from '@shm/ui/toast'
 
 export function useExperiments() {
   const experiments = trpc.experiments.get.useQuery()

@@ -14,27 +14,27 @@ import {DraftRoute} from '@shm/shared/routes'
 import {hmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
+import {Button} from '@shm/ui/button'
+import {HMIcon} from '@shm/ui/hm-icon'
+import {AlertCircle, Check, ChevronDown} from '@shm/ui/icons'
+import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {
-  AlertCircle,
-  Button,
-  Check,
-  ChevronDown,
   ErrorToastDecoration,
-  HMIcon,
   Hostname,
-  OptionsDropdown,
-  SizableText,
-  Spinner,
   SuccessToastDecoration,
   toast,
+} from '@shm/ui/toast'
+import {useStream} from '@shm/ui/use-stream'
+import {PropsWithChildren, ReactNode, useEffect, useState} from 'react'
+import {
+  SizableText,
+  Spinner,
   Tooltip,
-  useStream,
   XGroup,
   XStack,
   YStack,
   YStackProps,
-} from '@shm/ui'
-import {PropsWithChildren, ReactNode, useEffect, useState} from 'react'
+} from 'tamagui'
 import {useDraft} from '../models/accounts'
 import {
   draftDispatch,

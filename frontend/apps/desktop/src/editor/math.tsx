@@ -5,12 +5,12 @@ import {
   defaultProps,
   getBlockInfoFromSelection,
 } from '@shm/editor/blocknote'
-import {Separator, SizableText, TextArea, XStack, YStack} from '@shm/ui'
 import {Fragment} from '@tiptap/pm/model'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import {NodeSelection} from 'prosemirror-state'
 import {useEffect, useRef, useState} from 'react'
+import {Separator, SizableText, TextArea, XStack, YStack} from 'tamagui'
 import {findNextBlock, findPreviousBlock} from './block-utils'
 import {HMBlockSchema} from './schema'
 

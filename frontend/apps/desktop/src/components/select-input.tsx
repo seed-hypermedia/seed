@@ -1,5 +1,6 @@
-import {ChevronDown, ChevronUp, Select, SizableText, YStack} from '@shm/ui'
+import {ChevronDown, ChevronUp} from '@shm/ui/icons'
 import {Control, FieldValues, Path, useController} from 'react-hook-form'
+import {Select, SizableText, YStack} from 'tamagui'
 
 export function SelectInput<Fields extends FieldValues>({
   control,

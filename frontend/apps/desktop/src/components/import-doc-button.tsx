@@ -15,20 +15,20 @@ import {
   processLinkMarkdown,
   processMediaMarkdown,
 } from '@shm/editor/blocknote/core/extensions/Markdown/MarkdownToBlocks'
-import {HMDraft, HMEntityContent} from '@shm/shared/hm-types'
-import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
-import {UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {
-  Button,
-  FileInput,
-  FolderInput,
-  OptionsDropdown,
-  XStack,
-  toast,
-} from '@shm/ui'
+  HMDraft,
+  HMEntityContent,
+  UnpackedHypermediaId,
+} from '@shm/shared/hm-types'
+import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
+import {Button} from '@shm/ui/button'
+import {FileInput, FolderInput} from '@shm/ui/icons'
+import {OptionsDropdown} from '@shm/ui/options-dropdown'
+import {toast} from '@shm/ui/toast'
 import {Extension} from '@tiptap/core'
 import matter from 'gray-matter'
 import {ReactElement, useMemo} from 'react'
+import {XStack} from 'tamagui'
 import {
   DialogCloseButton,
   DialogDescription,

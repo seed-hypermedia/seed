@@ -4,7 +4,7 @@ import {loadWebLinkMeta} from '@/models/web-links'
 import {useOpenUrl} from '@/open-url'
 import {Block, BlockNoteEditor} from '@shm/editor/blocknote'
 import {createReactBlockSpec} from '@shm/editor/blocknote/react'
-import {HMEmbedViewSchema} from '@shm/shared/hm-types'
+import {HMEmbedViewSchema, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useSearch} from '@shm/shared/models/search'
 import {useHover} from '@shm/shared/use-hover'
 import {
@@ -15,33 +15,33 @@ import {
   normalizeHmId,
   packHmId,
   parseCustomURL,
-  UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
+import {Popover} from '@shm/ui/TamaguiPopover'
+import {BlockContentEmbed, ErrorBlock} from '@shm/ui/document-content'
 import {
-  BlockContentEmbed,
-  Button,
   Check,
   ChevronDown,
   Forward as ChevronRight,
-  ErrorBlock,
   ExternalLink,
-  Input,
-  Label,
-  ListItem,
-  Popover,
-  Separator,
-  SizableText,
-  toast,
-  Tooltip,
-  usePopoverState,
-  YGroup,
-  YStack,
-} from '@shm/ui'
+} from '@shm/ui/icons'
+import {toast} from '@shm/ui/toast'
+import {usePopoverState} from '@shm/ui/use-popover-state'
 import {Fragment} from '@tiptap/pm/model'
 import {useCallback, useEffect, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {GestureResponderEvent} from 'react-native'
+import {
+  Button,
+  Input,
+  Label,
+  ListItem,
+  Separator,
+  SizableText,
+  Tooltip,
+  YGroup,
+  YStack,
+} from 'tamagui'
 import {HMBlockSchema} from '.'
 import {useEmbedToolbarContext} from './embed-toolbar-context'
 import {HypermediaLinkSwitchToolbar} from './hm-link-switch-toolbar'

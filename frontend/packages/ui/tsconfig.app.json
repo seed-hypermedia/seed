@@ -20,7 +20,12 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+
+    "paths": {
+      "@shm/ui/*": ["../../packages/ui/src/*"],
+      "@shm/shared/*": ["../../packages/shared/src/*"]
+    }
   },
   "include": ["src"]
 }

@@ -5,29 +5,29 @@ import {useOpenDraft} from '@/utils/open-draft'
 import {useNavigate} from '@/utils/useNavigate'
 import {useTriggerWindowEvent} from '@/utils/window-events'
 import {defaultRoute} from '@shm/shared/routes'
+import {Button} from '@shm/ui/button'
 import {
   AddSquare,
-  Button,
   Close,
   CloseAll,
   Contact,
   Delete,
   Hide,
+  Reload,
+  Search,
+  Settings,
+} from '@shm/ui/icons'
+import {TitlebarRow, TitlebarSection, TitlebarWrapper} from '@shm/ui/titlebar'
+import {useMemo} from 'react'
+import {
   ListItem,
   ListItemProps,
   Popover,
-  Reload,
-  Search,
   Separator,
-  Settings,
   SizableText,
-  TitlebarRow,
-  TitlebarSection,
-  TitlebarWrapper,
   XStack,
   YGroup,
-} from '@shm/ui'
-import {useMemo} from 'react'
+} from 'tamagui'
 
 export function WindowsLinuxTitleBar({
   left,

@@ -29,23 +29,19 @@ import {useNavigate} from '@/utils/useNavigate'
 import {BlockNoteEditor, getBlockInfoFromPos} from '@shm/editor/blocknote'
 import '@shm/shared/styles/document.css'
 import {validatePath} from '@shm/shared/utils/document-path'
+import {Button} from '@shm/ui/button'
+import {Container} from '@shm/ui/container'
+import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {
-  Button,
-  Container,
-  copyUrlToClipboardWithFeedback,
   documentContainerClassName,
-  getDaemonFileUrl,
-  getSiteNavDirectory,
-  Heading,
-  Input,
-  Options,
-  Separator,
-  SiteHeader,
-  SizableText,
   useDocContentContext,
   useHeadingTextStyles,
-  XStack,
-} from '@shm/ui'
+} from '@shm/ui/document-content'
+import {getDaemonFileUrl} from '@shm/ui/get-file-url'
+import {SiteHeader} from '@shm/ui/header'
+import {Options} from '@shm/ui/icons'
+import {getSiteNavDirectory} from '@shm/ui/navigation'
+import {Heading, Input, Separator, SizableText, XStack} from 'tamagui'
 
 import {Image, MoreHorizontal, Plus, Smile} from '@tamagui/lucide-icons'
 import {useSelector} from '@xstate/react'
@@ -62,6 +58,7 @@ import {
   HMDraft,
   HMEntityContent,
   HMMetadata,
+  UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {
   BlockRange,
@@ -69,9 +66,9 @@ import {
   ExpandedBlockRange,
   hmId,
   packHmId,
-  UnpackedHypermediaId,
 } from '@shm/shared/utils/entity-id-url'
-import {Spinner, YStack} from '@shm/ui'
+import {Spinner} from '@shm/ui/spinner'
+import {YStack} from 'tamagui'
 import {ActorRefFrom} from 'xstate'
 import {useShowTitleObserver} from './app-title'
 import {AppDocContentProvider} from './document-content-provider'

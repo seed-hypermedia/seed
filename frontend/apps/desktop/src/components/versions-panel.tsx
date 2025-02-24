@@ -6,15 +6,10 @@ import {HMChangeInfo} from '@shm/shared/hm-types'
 import {DocumentRoute, DraftRoute} from '@shm/shared/routes'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {
-  Button,
-  Draft,
-  HMIcon,
-  SizableText,
-  Version,
-  XStack,
-  YStack,
-} from '@shm/ui'
+import {Button} from '@shm/ui/button'
+import {HMIcon} from '@shm/ui/hm-icon'
+import {Draft, Version} from '@shm/ui/icons'
+import {SizableText, XStack, YStack} from 'tamagui'
 import {AccessoryContainer} from './accessory-sidebar'
 
 export function VersionsPanel({

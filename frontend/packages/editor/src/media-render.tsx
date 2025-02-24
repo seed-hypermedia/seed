@@ -4,17 +4,12 @@ import {MaxFileSizeB, MaxFileSizeMB} from "@/file";
 import {HMBlockSchema} from "@/schema";
 import {getNodesInSelection} from "@/utils";
 import {DAEMON_FILE_UPLOAD_URL} from "@shm/shared/constants";
-import {
-  Button,
-  Input,
-  Label,
-  SizableText,
-  Spinner,
-  Tooltip,
-  XStack,
-  YStack,
-  useDocContentContext,
-} from "@shm/ui";
+import {Button} from "@shm/ui/button";
+import {useDocContentContext} from "@shm/ui/document-content";
+import {Upload} from "@shm/ui/icons";
+import {Spinner} from "@shm/ui/spinner";
+import {Tooltip} from "@shm/ui/tooltip";
+import {XStack, YStack} from "@tamagui/stacks";
 import {NodeSelection, TextSelection} from "prosemirror-state";
 import {
   ChangeEvent,
@@ -23,7 +18,7 @@ import {
   useEffect,
   useState,
 } from "react";
-import {RiUpload2Fill} from "react-icons/ri";
+import {Input, Label, SizableText} from "tamagui";
 import {BlockNoteEditor} from "./blocknote/core/BlockNoteEditor";
 import {Block} from "./blocknote/core/extensions/Blocks/api/blockTypes";
 
@@ -608,7 +603,7 @@ function MediaForm({
             >
               {!drag && (
                 <>
-                  <RiUpload2Fill size="18" />
+                  <Upload size={18} />
                   <SizableText
                     padding="$2"
                     overflow="hidden"

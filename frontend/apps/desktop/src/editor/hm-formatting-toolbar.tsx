@@ -7,27 +7,22 @@ import {
 } from '@shm/editor/blocknote/react'
 import {ToolbarDropdownItemProps} from '@shm/editor/blocknote/react/SharedComponents/Toolbar/components/ToolbarDropdownItem'
 import {EditorToggledStyle} from '@shm/shared/hm-types'
+import {Button} from '@shm/ui/button'
 import {
-  Button,
   Check,
   ChevronDown,
   Code,
   Emphasis,
   HeadingIcon,
   OrderedList,
-  Select,
-  SizeTokens,
   Strikethrough,
   Strong,
-  Theme,
-  Tooltip,
   Type,
   Underline,
   UnorderedList,
-  XGroup,
-  XStack,
-} from '@shm/ui'
+} from '@shm/ui/icons'
 import {useMemo, useState} from 'react'
+import {Select, SizeTokens, Theme, Tooltip, XGroup, XStack} from 'tamagui'
 import {HMLinkToolbarButton} from './hm-toolbar-link-button'
 import {HMBlockSchema} from './schema'
 // import {TextAlignButton} from './DefaultButtons/TextAlignButton'

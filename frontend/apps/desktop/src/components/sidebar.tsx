@@ -5,22 +5,18 @@ import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {getDocumentTitle} from '@shm/shared/content'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {HMIcon} from '@shm/ui/hm-icon'
+import {SmallListItem} from '@shm/ui/list-item'
 import {
-  Button,
   ChevronDown,
   Forward as ChevronRight,
   Contact,
-  HMIcon,
   Library,
-  Add as Plus,
-  SizableText,
-  SmallListItem,
-  Tooltip,
+  Plus,
   UserPlus2,
-  XStack,
-  YStack,
-} from '@shm/ui'
+} from '@tamagui/lucide-icons'
 import React, {memo} from 'react'
+import {Button, SizableText, Tooltip, XStack, YStack} from 'tamagui'
 import {openAddAccountWizard} from './create-account'
 import {GenericSidebarContainer} from './sidebar-base'
 

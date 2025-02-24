@@ -1,6 +1,6 @@
 import {trpc} from '@/trpc'
 import {invalidateQueries} from '@shm/shared/models/query-client'
-import {toast} from '@shm/ui'
+import {toast} from '@shm/ui/toast'
 
 export function useAutoUpdatePreference() {
   const value = trpc.appSettings.getAutoUpdatePreference.useQuery()

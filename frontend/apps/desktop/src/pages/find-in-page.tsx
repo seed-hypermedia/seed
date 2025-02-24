@@ -1,14 +1,7 @@
 import {ipc} from '@/ipc'
-import {
-  Button,
-  ChevronDown,
-  ChevronUp,
-  Close,
-  Input,
-  XGroup,
-  XStack,
-} from '@shm/ui'
+import {ChevronDown, ChevronUp, Close} from '@shm/ui/icons'
 import {useEffect, useRef, useState} from 'react'
+import {Button, Input, XGroup, XStack} from 'tamagui'
 
 export function FindInPage({}: {}) {
   const size = '$2'

@@ -1,5 +1,5 @@
-import {Button, SizableText, XStack, YStack} from '@shm/ui'
 import {useState} from 'react'
+import {Button, SizableText, XStack, YStack} from 'tamagui'
 import {useHasDevTools} from '../models/experiments'
 
 export function DebugData({data}: {data: any}) {

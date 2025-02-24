@@ -12,30 +12,32 @@ import {
 import {entityQueryPathToHmIdPath} from '@shm/shared'
 import {queryBlockSortedItems} from '@shm/shared/content'
 import {EditorQueryBlock} from '@shm/shared/editor-types'
-import {HMBlockQuery, HMEntityContent} from '@shm/shared/hm-types'
-import {NavRoute} from '@shm/shared/routes'
-import {hmId, UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {
-  Button,
-  ButtonFrame,
-  ErrorBlock,
-  NewspaperCard,
-  Pencil,
-  Search,
-  SelectField,
-  SizableText,
-  SwitchField,
-  Tooltip,
-  usePopoverState,
-  View,
-  XStack,
-  YStack,
-  YStackProps,
-} from '@shm/ui'
+  HMBlockQuery,
+  HMEntityContent,
+  UnpackedHypermediaId,
+} from '@shm/shared/hm-types'
+import {NavRoute} from '@shm/shared/routes'
+import {hmId} from '@shm/shared/utils/entity-id-url'
+import {Button} from '@shm/ui/button'
+import {ErrorBlock} from '@shm/ui/document-content'
+import {SelectField, SwitchField} from '@shm/ui/form-fields'
+import {Pencil, Search} from '@shm/ui/icons'
+import {NewspaperCard} from '@shm/ui/newspaper'
+import {usePopoverState} from '@shm/ui/use-popover-state'
 import type {UseQueryResult} from '@tanstack/react-query'
 import {Fragment} from '@tiptap/pm/model'
 import {NodeSelection, TextSelection} from 'prosemirror-state'
 import {useCallback, useMemo, useState} from 'react'
+import {
+  ButtonFrame,
+  SizableText,
+  Tooltip,
+  View,
+  XStack,
+  YStack,
+  YStackProps,
+} from 'tamagui'
 import {HMBlockSchema} from './schema'
 import {getNodesInSelection} from './utils'
 

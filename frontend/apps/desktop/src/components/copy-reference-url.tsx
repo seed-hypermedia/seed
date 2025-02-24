@@ -1,27 +1,24 @@
 import {usePublishToSite} from '@/models/documents'
+import {UnpackedHypermediaId} from '@shm/shared'
 import {
   createWebHMUrl,
   HYPERMEDIA_ENTITY_TYPES,
   packHmId,
-  UnpackedHypermediaId,
 } from '@shm/shared/utils/entity-id-url'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
+import {CheckboxField} from '@shm/ui/checkbox-field'
+import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {SizableText} from '@shm/ui/datepicker-dateparts'
+import {Spinner} from '@shm/ui/spinner'
 import {
-  Button,
-  CheckboxField,
-  copyTextToClipboard,
-  DialogDescription,
   ErrorToastDecoration,
   Hostname,
-  SizableText,
-  Spinner,
   SuccessToastDecoration,
   toast,
-  useStream,
-  XStack,
-  YStack,
-} from '@shm/ui'
+} from '@shm/ui/toast'
+import {useStream} from '@shm/ui/use-stream'
 import {ReactNode, useState} from 'react'
+import {Button, DialogDescription, XStack, YStack} from 'tamagui'
 import {
   usePushOnCopy,
   useSetPushOnCopy,
@@ -163,7 +160,7 @@ export function PushToGatewayDialog({
       <CheckboxField
         value={shouldDoAlways}
         id="do-every-time"
-        onValue={(checked) => setShouldDoAlways(checked)}
+        onValue={(checked: boolean) => setShouldDoAlways(checked)}
       >
         Do this every time
       </CheckboxField>

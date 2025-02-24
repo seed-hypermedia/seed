@@ -15,10 +15,10 @@ import {
   Link,
   PanelBottom,
   Quote,
-  Spinner,
   TwitterXIcon,
   VideoIcon,
-} from "@shm/ui";
+} from "@shm/ui/icons";
+import {Spinner} from "@shm/ui/spinner";
 import {Fragment, Node} from "@tiptap/pm/model";
 import {BlockNoteEditor} from "../../BlockNoteEditor";
 import {getBlockInfoFromPos} from "../Blocks/helpers/getBlockInfoFromPos";

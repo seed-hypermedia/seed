@@ -4,8 +4,10 @@ import {InlineContent} from "@/blocknote/react/ReactBlockSpec";
 import {MediaType} from "@/media-render";
 import {HMBlockSchema} from "@/schema";
 import {DAEMON_FILE_UPLOAD_URL} from "@shm/shared/constants";
-import {Button, Text, XStack, YStack, toast} from "@shm/ui";
+import {Button} from "@shm/ui/button";
+import {toast} from "@shm/ui/toast";
 import {useState} from "react";
+import {Text, XStack, YStack} from "tamagui";
 
 interface ContainerProps {
   editor: BlockNoteEditor<HMBlockSchema>;

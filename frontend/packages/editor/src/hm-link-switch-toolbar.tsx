@@ -1,23 +1,17 @@
-// import {useEntity} from '@/models/entities'
 import {getDocumentTitle} from "@shm/shared/content";
 import {unpackHmId} from "@shm/shared/utils/entity-id-url";
 import {
-  Button,
   CircleDot,
   ExternalLink,
   Link,
   PanelBottom,
   Pencil,
   Quote,
-  SizableText,
-  Tooltip,
   Unlink,
-  XGroup,
-  XStack,
-  YStack,
-} from "@shm/ui";
+} from "@tamagui/lucide-icons";
 import {Fragment, Node} from "@tiptap/pm/model";
 import {useEffect, useMemo, useState} from "react";
+import {Button, SizableText, Tooltip, XGroup, XStack, YStack} from "tamagui";
 import {
   BlockNoteEditor,
   getBlockInfoFromPos,

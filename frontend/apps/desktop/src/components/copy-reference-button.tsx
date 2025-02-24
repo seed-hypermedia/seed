@@ -3,16 +3,20 @@ import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {useEntity} from '@/models/entities'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
+import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {
   BlockRange,
   createSiteUrl,
   createWebHMUrl,
   ExpandedBlockRange,
   hmId,
-  UnpackedHypermediaId,
 } from '@shm/shared/utils/entity-id-url'
-import {Button, ButtonProps, ExternalLink, Link, Tooltip} from '@shm/ui'
+import {Button} from '@shm/ui/button'
+import {ExternalLink} from '@shm/ui/icons'
+import {Tooltip} from '@shm/ui/tooltip'
+import {Link} from '@tamagui/lucide-icons'
 import {PropsWithChildren, ReactNode, useState} from 'react'
+import {ButtonProps} from 'tamagui'
 
 export function useDocumentUrl({
   docId,

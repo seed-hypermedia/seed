@@ -1,6 +1,7 @@
 import {AppPlatform, useAppContext} from '@/app-context'
-import {TitlebarWrapper, YStackProps} from '@shm/ui'
+import {TitlebarWrapper} from '@shm/ui/titlebar'
 import {Suspense, lazy} from 'react'
+import {YStackProps} from 'tamagui'
 
 var TitleBarMacos = lazy(() => import('./titlebar-macos'))
 var TitleBarWindowsLinux = lazy(() => import('./titlebar-windows-linux'))

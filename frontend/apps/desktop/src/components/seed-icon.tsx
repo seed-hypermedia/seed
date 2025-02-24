@@ -1,4 +1,4 @@
-import { XStack } from '@shm/ui'
+import {XStack} from 'tamagui'
 
 type IconSize = '$1' | '$2' | '$3' | '$4'
 

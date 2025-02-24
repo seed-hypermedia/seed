@@ -1,12 +1,8 @@
 import {useDocumentCommentGroups} from '@/models/comments'
-import {UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
-import {
-  CommentGroup,
-  EmptyDiscussion,
-  SizableText,
-  useTheme,
-  YStack,
-} from '@shm/ui'
+import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {CommentGroup} from '@shm/ui/discussion'
+import {EmptyDiscussion} from '@shm/ui/icons'
+import {SizableText, useTheme, YStack} from 'tamagui'
 import {
   CommentDraft,
   CommentReplies,

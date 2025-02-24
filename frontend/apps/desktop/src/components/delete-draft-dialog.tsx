@@ -1,5 +1,6 @@
 import {useDeleteDraft} from '@/models/documents'
-import {AlertDialog, Button, XStack, YStack} from '@shm/ui'
+import {Button} from '@shm/ui/button'
+import {AlertDialog, XStack, YStack} from 'tamagui'
 import {useAppDialog} from './dialog'
 
 export function useDeleteDraftDialog() {

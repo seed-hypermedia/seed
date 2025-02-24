@@ -2,26 +2,28 @@ import {useMyAccountIds} from '@/models/daemon'
 import {useEntity} from '@/models/entities'
 import {HMSubscription, useSubscription} from '@/models/subscription'
 import {getDocumentTitle} from '@shm/shared/content'
-import {UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
+import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {SizableText} from '@shm/ui/datepicker-dateparts'
 import {
-  AlertDialog,
-  Button,
   Check,
   ChevronDown,
   CircleOff,
-  ColorTokens,
   Folder,
-  Popover,
   Subscribe,
   SubscribeSpace,
+} from '@shm/ui/icons'
+import {usePopoverState} from '@shm/ui/use-popover-state'
+import {
+  AlertDialog,
+  Button,
+  ColorTokens,
+  Popover,
   Text,
   Tooltip,
-  usePopoverState,
   useTheme,
   XStack,
   YStack,
-} from '@shm/ui'
-import {SizableText} from '@shm/ui/datepicker-dateparts'
+} from 'tamagui'
 import {useAppDialog} from './dialog'
 
 export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {

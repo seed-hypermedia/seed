@@ -1,5 +1,6 @@
 import {
   formattedDate,
+  HMAccountsMetadata,
   HMDocument,
   HMDocumentInfo,
   HMEntityContent,
@@ -14,7 +15,7 @@ import {View} from "@tamagui/core";
 import {XStack, YStack, YStackProps} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import {useMemo} from "react";
-import {AccountsMetadata, FacePile} from "./face-pile";
+import {FacePile} from "./face-pile";
 
 export function BannerNewspaperCard({
   item,
@@ -23,7 +24,7 @@ export function BannerNewspaperCard({
 }: {
   item: HMDocumentInfo;
   entity: HMEntityContent | null | undefined;
-  accountsMetadata: AccountsMetadata;
+  accountsMetadata: HMAccountsMetadata;
 }) {
   const id = hmId("d", item.account, {path: item.path});
   // const navigate = useNavigate()

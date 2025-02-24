@@ -1,7 +1,8 @@
 import {useEntity} from '@/models/entities'
-import {UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
+import {UnpackedHypermediaId} from '@shm/shared'
 
-import {FontSizeTokens, LinkIcon} from '@shm/ui'
+import {Link} from '@shm/ui/icons'
+import {FontSizeTokens} from 'tamagui'
 
 export function EntityLinkIcon({
   id,
@@ -13,7 +14,7 @@ export function EntityLinkIcon({
   const entity = useEntity(id)
   if (!id) return null
   return (
-    <LinkIcon
+    <Link
       metadata={entity.data?.document?.metadata}
       size={size}
       id={id}

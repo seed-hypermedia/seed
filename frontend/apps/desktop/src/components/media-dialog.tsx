@@ -1,4 +1,5 @@
-import {AlertDialog, Button, XStack, YStack, toast} from '@shm/ui'
+import {toast} from '@shm/ui/toast'
+import {AlertDialog, Button, XStack, YStack} from 'tamagui'
 import {useAppDialog} from './dialog'
 
 export function useMediaDialog() {

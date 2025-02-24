@@ -5,7 +5,10 @@ import {defaultProps} from "@/blocknote/core/extensions/Blocks/api/defaultBlocks
 import {getBlockInfoFromSelection} from "@/blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos";
 import {createReactBlockSpec} from "@/blocknote/react/ReactBlockSpec";
 import {HMBlockSchema} from "@/schema";
-import {Separator, SizableText, TextArea, XStack, YStack} from "@shm/ui";
+import {TextArea} from "@tamagui/input";
+import {Separator} from "@tamagui/separator";
+import {XStack, YStack} from "@tamagui/stacks";
+import {SizableText} from "@tamagui/text";
 import {Fragment} from "@tiptap/pm/model";
 import katex from "katex";
 import "katex/dist/katex.min.css";

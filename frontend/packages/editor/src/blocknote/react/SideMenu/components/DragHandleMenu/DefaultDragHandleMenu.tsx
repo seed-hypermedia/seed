@@ -1,7 +1,7 @@
 import {Block, BlockNoteEditor, HMBlockSchema} from "@";
 import {updateGroup} from "@/block-utils";
 import {Box, Menu} from "@mantine/core";
-import {Forward, RefreshCcw, XStack} from "@shm/ui";
+import {Forward, RefreshCcw} from "@shm/ui/icons";
 import * as _ from "lodash";
 import {useCallback, useRef, useState} from "react";
 import {
@@ -13,6 +13,7 @@ import {
   RiMenuLine,
   RiText,
 } from "react-icons/ri";
+import {XStack} from "tamagui";
 import {CopyLinkToBlockButton} from "./DefaultButtons/CopyLinkToBlockButton";
 import {RemoveBlockButton} from "./DefaultButtons/RemoveBlockButton";
 import {DragHandleMenu, DragHandleMenuProps} from "./DragHandleMenu";

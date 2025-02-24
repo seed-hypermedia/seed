@@ -1,6 +1,7 @@
 import {BlockSchema} from "@/blocknote/core";
-
-import {Link, XStack, useDocContentContext} from "@shm/ui";
+import {useDocContentContext} from "@shm/ui/document-content";
+import {Link} from "@shm/ui/icons";
+import {XStack} from "tamagui";
 import {DragHandleMenuProps} from "../DragHandleMenu";
 import {DragHandleMenuItem} from "../DragHandleMenuItem";
 

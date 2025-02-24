@@ -1,15 +1,15 @@
+import {X} from '@tamagui/lucide-icons'
+import {FC, useMemo, useState} from 'react'
 import {
   AlertDialog,
   Button,
   Dialog,
   Unspaced,
-  X,
   XStack,
   YStack,
   YStackProps,
   styled,
-} from '@shm/ui'
-import {FC, useMemo, useState} from 'react'
+} from 'tamagui'
 import {NavContextProvider, useNavigation} from '../utils/navigation'
 
 export function DialogOverlay(props) {

@@ -6,9 +6,11 @@ import {
   createReactBlockSpec,
   defaultProps,
 } from '@shm/editor/blocknote'
-import {SizableText, Spinner, TwitterXIcon, useTheme, YStack} from '@shm/ui'
+import {TwitterXIcon} from '@shm/ui/icons'
+import {Spinner} from '@shm/ui/spinner'
 import {Fragment} from '@tiptap/pm/model'
 import {useEffect, useRef, useState} from 'react'
+import {SizableText, useTheme, YStack} from 'tamagui'
 import {MediaContainer} from './media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
 import {HMBlockSchema} from './schema'

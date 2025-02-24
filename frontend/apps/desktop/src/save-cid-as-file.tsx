@@ -1,5 +1,5 @@
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
-import {toast} from '@shm/ui'
+import {toast} from '@shm/ui/toast'
 import {app, dialog, net} from 'electron'
 import fs from 'fs'
 

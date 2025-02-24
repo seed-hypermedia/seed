@@ -1,4 +1,5 @@
-import {AlertCircle, XStack} from '@shm/ui'
+import {AlertCircle} from '@tamagui/lucide-icons'
+import {XStack} from 'tamagui'
 import {NavigationButtons, NavMenuButton} from './titlebar-common'
 import {WindowsLinuxTitleBar} from './windows-linux-titlebar'
 

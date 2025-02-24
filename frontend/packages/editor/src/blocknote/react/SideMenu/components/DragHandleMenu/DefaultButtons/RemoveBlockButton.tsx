@@ -1,7 +1,7 @@
 import {BlockSchema} from "@/blocknote/core";
+import {Delete} from "@shm/ui/icons";
 import {ReactNode} from "react";
-
-import {Delete, XStack} from "@shm/ui";
+import {XStack} from "tamagui";
 import {DragHandleMenuProps} from "../DragHandleMenu";
 import {DragHandleMenuItem} from "../DragHandleMenuItem";
 

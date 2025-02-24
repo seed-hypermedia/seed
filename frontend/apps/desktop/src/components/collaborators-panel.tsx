@@ -12,30 +12,25 @@ import {PlainMessage} from '@bufbuild/protobuf'
 
 import {Capability, Role} from '@shm/shared/client/grpc-types'
 import {getDocumentTitle} from '@shm/shared/content'
+import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useSearch} from '@shm/shared/models/search'
 import {DocumentRoute} from '@shm/shared/routes'
+import {createHMUrl, hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {UIAvatar} from '@shm/ui/avatar'
+import {HMIcon} from '@shm/ui/hm-icon'
+import {ArrowRight, X} from '@shm/ui/icons'
+import {RadioButtons} from '@shm/ui/radio-buttons'
+import {toast} from '@shm/ui/toast'
+import {forwardRef, useEffect, useId, useMemo, useRef, useState} from 'react'
 import {
-  createHMUrl,
-  hmId,
-  UnpackedHypermediaId,
-  unpackHmId,
-} from '@shm/shared/utils/entity-id-url'
-import {
-  ArrowRight,
   Button,
-  HMIcon,
   ListItem,
-  RadioButtons,
   SizableText,
-  toast,
-  UIAvatar,
-  X,
   XGroup,
   XStack,
   YGroup,
   YStack,
-} from '@shm/ui'
-import {forwardRef, useEffect, useId, useMemo, useRef, useState} from 'react'
+} from 'tamagui'
 import {AccessoryContainer} from './accessory-sidebar'
 import './combobox.css'
 

@@ -7,7 +7,8 @@ import {EditorBlock} from '@shm/shared/editor-types'
 import {HMDocumentMetadataSchema, HMDocumentSchema} from '@shm/shared/hm-types'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
-import {SizableText, toast, YStack} from '@shm/ui'
+import {toast} from '@shm/ui/toast'
+import {SizableText, YStack} from 'tamagui'
 
 export function useExportDocuments() {
   const {exportDocuments, openDirectory} = useAppContext()
