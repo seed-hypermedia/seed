@@ -1,5 +1,5 @@
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
-import {toast} from '@shm/ui'
+import {toast} from '@shm/ui/toast'
 import {Node, NodeType} from 'prosemirror-model'
 
 export type BlockInfoWithoutPositions = {

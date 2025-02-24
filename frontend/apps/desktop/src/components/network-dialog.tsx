@@ -1,26 +1,25 @@
 import {useDaemonInfo} from '@/models/daemon'
 import {ConnectionStatus} from '@shm/shared/client/grpc-types'
+import {Button} from '@shm/ui/button'
+import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {Copy, NoConnection} from '@shm/ui/icons'
+import {List} from '@shm/ui/list'
+import {OptionsDropdown} from '@shm/ui/options-dropdown'
+import {Spinner} from '@shm/ui/spinner'
+import {toast} from '@shm/ui/toast'
+import {Tooltip} from '@shm/ui/tooltip'
+import React from 'react'
+import {ColorValue} from 'react-native'
 import {
-  Button,
   ButtonText,
-  Copy,
-  copyTextToClipboard,
   Dialog,
-  List,
-  NoConnection,
-  OptionsDropdown,
   SizableText,
-  Spinner,
-  toast,
-  Tooltip,
   useTheme,
   View,
   XStack,
   XStackProps,
   YStack,
-} from '@shm/ui'
-import React from 'react'
-import {ColorValue} from 'react-native'
+} from 'tamagui'
 import {HMPeerInfo, useIsGatewayConnected, usePeers} from '../models/networking'
 import {useAppDialog} from './dialog'
 

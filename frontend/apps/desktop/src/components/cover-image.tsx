@@ -1,14 +1,9 @@
 import {fileUpload} from '@/utils/file-upload'
-import {
-  Button,
-  getRandomColor,
-  Stack,
-  Tooltip,
-  Trash,
-  XStack,
-  YStack,
-} from '@shm/ui'
+import {getRandomColor} from '@shm/ui/avatar'
+import {Tooltip} from '@shm/ui/tooltip'
+import {Trash} from '@tamagui/lucide-icons'
 import {ChangeEvent, useMemo} from 'react'
+import {Button, Stack, XStack, YStack} from 'tamagui'
 import appError from '../errors'
 
 export function CoverImage({

@@ -1,9 +1,9 @@
+import {queryClient} from "@/client";
 import {SITE_BASE_URL} from "@shm/shared";
 import {readFileSync} from "fs";
 import fs, {readFile} from "fs/promises";
 import {join} from "path";
 import {z} from "zod";
-import {queryClient} from "~/client";
 
 export const adminSecret = process.env.SERVICE_ADMIN_SECRET;
 

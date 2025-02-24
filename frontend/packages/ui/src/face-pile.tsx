@@ -1,20 +1,15 @@
-import {HMMetadataPayload} from "@shm/shared";
+import {HMAccountsMetadata} from "@shm/shared";
 import {Text} from "@tamagui/core";
 import {XStack} from "@tamagui/stacks";
 import {useMemo} from "react";
 import {HMIcon} from "./hm-icon";
-
-export type AccountsMetadata = Record<
-  string, // account uid
-  HMMetadataPayload
->;
 
 export function FacePile({
   accounts,
   accountsMetadata,
 }: {
   accounts: string[];
-  accountsMetadata: AccountsMetadata;
+  accountsMetadata: HMAccountsMetadata;
 }) {
   const showAccountIds = useMemo(
     () => (accounts.length > 3 ? accounts.slice(0, 2) : accounts),

@@ -1,17 +1,11 @@
 import {Timestamp} from '@bufbuild/protobuf'
 import {useHover} from '@shm/shared/use-hover'
 import {formattedDate, formattedDateLong} from '@shm/shared/utils/date'
-import {
-  Button,
-  ButtonProps,
-  ButtonText,
-  Link,
-  MenuItemType,
-  OptionsDropdown,
-  Tooltip,
-  XStack,
-} from '@shm/ui'
+import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
+import {Tooltip} from '@shm/ui/tooltip'
+import {Link} from '@tamagui/lucide-icons'
 import {ComponentProps, ReactElement, useState} from 'react'
+import {Button, ButtonProps, ButtonText, XStack} from 'tamagui'
 
 export function ListItem({
   accessory,

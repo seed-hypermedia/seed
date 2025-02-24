@@ -1,7 +1,8 @@
-import {Check, ChevronDown, ChevronUp, Select, XStack, YStack} from '@shm/ui'
+import {Check, ChevronDown, ChevronUp} from '@shm/ui/icons'
 import {NodeViewProps} from '@tiptap/core'
 import {NodeViewContent} from '@tiptap/react'
 import {useState} from 'react'
+import {Select, XStack, YStack} from 'tamagui'
 
 export const CodeBlockView = ({
   props,

@@ -26,39 +26,34 @@ import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
 import {getMetadataName} from '@shm/shared/content'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {Field} from '@shm/ui/form-fields'
+import {getDaemonFileUrl} from '@shm/ui/get-file-url'
+import {HMIcon} from '@shm/ui/hm-icon'
+import {Check, Copy, ExternalLink, Pencil} from '@shm/ui/icons'
+import {InfoListHeader, InfoListItem, TableList} from '@shm/ui/table-list'
+import {toast} from '@shm/ui/toast'
 import {
   AlertDialog,
   Button,
-  Check,
   Checkbox,
-  Copy,
-  ExternalLink,
-  Field,
   Heading,
-  HMIcon,
-  InfoListHeader,
-  InfoListItem,
   Input,
   Label,
   ListItem,
-  Pencil,
   RadioGroup,
   ScrollView,
   Separator,
   SizableText,
-  TableList,
   Tabs,
   TabsContentProps,
   TabsProps,
   TextArea,
-  toast,
   Tooltip,
   View,
   XGroup,
   XStack,
   YStack,
-} from '@shm/ui'
-import {getDaemonFileUrl} from '@shm/ui/src/get-file-url'
+} from 'tamagui'
 
 import {
   AtSign,

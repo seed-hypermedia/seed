@@ -1,4 +1,4 @@
-import {SizableText} from '@shm/ui'
+import {SizableText} from 'tamagui'
 
 export function Slash() {
   return (

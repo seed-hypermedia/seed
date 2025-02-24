@@ -1,6 +1,6 @@
+import {queryClient} from "@/client";
+import {wrapJSON} from "@/wrapping";
 import {SearchPayload, unpackHmId} from "@shm/shared";
-import {queryClient} from "~/client";
-import {wrapJSON} from "~/wrapping";
 
 export const loader = async ({request}: {request: Request}) => {
   const url = new URL(request.url);

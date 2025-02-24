@@ -1,8 +1,8 @@
+import {queryClient} from "@/client";
+import {getMetadata} from "@/loaders";
+import {wrapJSON, WrappedResponse} from "@/wrapping";
 import {Params} from "@remix-run/react";
 import {hmId, HMMetadata, UnpackedHypermediaId, unpackHmId} from "@shm/shared";
-import {queryClient} from "~/client";
-import {getMetadata} from "~/loaders";
-import {wrapJSON, WrappedResponse} from "~/wrapping";
 
 export type HMDocumentChangeInfo = {
   author: {id: UnpackedHypermediaId; metadata: HMMetadata};

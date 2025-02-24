@@ -20,13 +20,3 @@ yarn_install(
         "//frontend/...",
     ],
 )
-
-# Exposes tsconfig to the frontend targets.
-filegroup(
-    name = "tsconfig",
-    srcs = [
-        "tsconfig.base.json",
-        "tsconfig.json",
-    ],
-    visibility = ["//frontend/..."],
-)

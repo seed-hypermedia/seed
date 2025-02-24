@@ -3,8 +3,9 @@
     "strictNullChecks": true,
     "noUncheckedIndexedAccess": true,
     "paths": {
-      // "@shm/ui/*": ["./frontend/packages/ui/*"],
-      // "@shm/shared/*": ["./frontend/packages/shared/*"]
+      "@shm/ui/*": ["./frontend/packages/ui/src/*"],
+      "@shm/shared/*": ["./frontend/packages/shared/src/*"],
+      "@shm/editor/*": ["./frontend/packages/editor/src/*"]
     },
     "plugins": [
       {
@@ -19,5 +20,4 @@
       }
     ]
   }
-  // "extends": "expo/tsconfig.base"
 }

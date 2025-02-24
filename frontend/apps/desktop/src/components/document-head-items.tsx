@@ -1,7 +1,7 @@
 import {useEntities} from '@/models/entities'
-import {HMDocument} from '@shm/shared/hm-types'
-import {hmId, UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
-import {DonateButton} from '@shm/ui'
+import {HMDocument, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {hmId} from '@shm/shared/utils/entity-id-url'
+import {DonateButton} from '@shm/ui/donate-button'
 
 export function DocumentHeadItems({
   docId,

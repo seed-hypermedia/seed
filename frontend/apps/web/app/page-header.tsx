@@ -11,14 +11,14 @@ import {
   relativeFormattedDate,
   UnpackedHypermediaId,
 } from "@shm/shared";
-import {Home} from "@shm/ui";
-import {Container} from "@shm/ui/src/container";
-import {DonateButton} from "@shm/ui/src/donate-button";
-import {SiteHeader} from "@shm/ui/src/header";
-import {HMIcon} from "@shm/ui/src/hm-icon";
-import {Popover} from "@shm/ui/src/TamaguiPopover";
-import {usePopoverState} from "@shm/ui/src/use-popover-state";
+import {Container} from "@shm/ui/container";
+import {DonateButton} from "@shm/ui/donate-button";
+import {SiteHeader} from "@shm/ui/header";
+import {HMIcon} from "@shm/ui/hm-icon";
+import {Popover} from "@shm/ui/TamaguiPopover";
+import {usePopoverState} from "@shm/ui/use-popover-state";
 import {Button, ButtonText} from "@tamagui/button";
+import {Home} from "@tamagui/lucide-icons";
 import {Separator} from "@tamagui/separator";
 import {XStack, YStack} from "@tamagui/stacks";
 import {H1, SizableText} from "@tamagui/text";

@@ -1,7 +1,8 @@
-import {Button, Star, StarFull, Tooltip} from '@shm/ui'
-
+import {UnpackedHypermediaId} from '@shm/shared'
 import {useHover} from '@shm/shared/use-hover'
-import {UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
+import {Button} from '@shm/ui/button'
+import {Tooltip} from '@shm/ui/tooltip'
+import {Star, StarFull} from '@tamagui/lucide-icons'
 import {ComponentProps} from 'react'
 import {useFavorite} from '../models/favorites'
 

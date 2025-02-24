@@ -1,4 +1,6 @@
-import {AlertCircle, TitlebarWrapper, XStack} from '@shm/ui'
+import {TitlebarWrapper} from '@shm/ui/titlebar'
+import {AlertCircle} from '@tamagui/lucide-icons'
+import {XStack} from 'tamagui'
 import {ErrorBarProps} from './error-bar'
 import {NavMenuButton, NavigationButtons} from './titlebar-common'
 

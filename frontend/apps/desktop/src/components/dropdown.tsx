@@ -1,14 +1,14 @@
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
+import {Button} from '@shm/ui/button'
+import {MenuItem} from '@shm/ui/menu-item'
+import {forwardRef} from 'react'
 import {
-  Button,
   ButtonProps,
   ListItemProps,
-  MenuItem,
   SizableText,
   SizableTextProps,
   YStack,
-} from '@shm/ui'
-import {forwardRef} from 'react'
+} from 'tamagui'
 import {DialogOverlay} from './dialog'
 
 const Content = ({

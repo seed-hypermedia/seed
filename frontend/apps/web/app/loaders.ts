@@ -3,7 +3,6 @@ import {
   extractQueryBlocks,
   extractRefs,
   getParentPaths,
-  HMAccountsMetadata,
   HMBlock,
   HMBlockChildrenType,
   HMBlockNode,
@@ -27,12 +26,12 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
 } from "@shm/shared";
+import {HMAccountsMetadata} from "@shm/shared/hm-types";
 import {
   getDiretoryWithClient,
   getQueryResultsWithClient,
 } from "@shm/shared/models/directory";
-import {getBlockNodeById} from "@shm/ui/src";
-import {AccountsMetadata} from "@shm/ui/src/face-pile";
+import {getBlockNodeById} from "@shm/ui/document-content";
 import {queryClient} from "./client";
 import {logDebug} from "./logger";
 import {ParsedRequest} from "./request";

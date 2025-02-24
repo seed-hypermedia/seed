@@ -44,7 +44,7 @@ import {
   hmIdPathToEntityQueryPath,
 } from '@shm/shared/utils/path-api'
 import {eventStream, writeableStateStream} from '@shm/shared/utils/stream'
-import {toast} from '@shm/ui'
+import {toast} from '@shm/ui/toast'
 import type {UseQueryResult} from '@tanstack/react-query'
 import {
   UseInfiniteQueryOptions,

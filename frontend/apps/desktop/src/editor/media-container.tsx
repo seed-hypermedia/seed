@@ -1,8 +1,10 @@
 import {Block, BlockNoteEditor} from '@shm/editor/blocknote'
 import {InlineContent} from '@shm/editor/blocknote/react/ReactBlockSpec'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
-import {Button, Text, XStack, YStack, toast} from '@shm/ui'
+import {Button} from '@shm/ui/button'
+import {toast} from '@shm/ui/toast'
 import {useState} from 'react'
+import {Text, XStack, YStack} from 'tamagui'
 import {HMBlockSchema, MaxFileSizeB, MaxFileSizeMB} from '.'
 import {MediaType} from './media-render'
 

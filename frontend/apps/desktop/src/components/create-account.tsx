@@ -8,27 +8,27 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {createWebHMUrl, hmId} from '@shm/shared/utils/entity-id-url'
 import {eventStream} from '@shm/shared/utils/stream'
+import {Button} from '@shm/ui/button'
+import {CheckboxField} from '@shm/ui/checkbox-field'
+import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {Field} from '@shm/ui/form-fields'
+import {Link, Reload} from '@shm/ui/icons'
+import * as Onboarding from '@shm/ui/onboarding'
+import {toast} from '@shm/ui/toast'
+import {Copy} from '@tamagui/lucide-icons'
+import {nanoid} from 'nanoid'
+import {SVGProps, useEffect, useMemo, useRef, useState} from 'react'
+import {TextInput} from 'react-native'
 import {
-  Button,
-  CheckboxField,
-  Copy,
-  copyTextToClipboard,
   Dialog,
-  Field,
   Input,
-  Link,
-  Onboarding,
-  Reload,
   Separator,
   SizableText,
   TextArea,
-  toast,
   useTheme,
   XStack,
   YStack,
-} from '@shm/ui'
-import {nanoid} from 'nanoid'
-import {SVGProps, useEffect, useMemo, useRef, useState} from 'react'
+} from 'tamagui'
 import {useGRPCClient} from '../app-context'
 import {
   NamedKey,
@@ -65,7 +65,7 @@ export function AccountWizardDialog() {
   const [isExistingWordsSave, setExistingWordsSave] = useState<boolean>(false)
   const [createdAccount, setCreatedAccount] = useState<NamedKey | null>(null)
   const openDraft = useOpenDraft('push')
-  const inputWords = useRef<HTMLTextAreaElement | null>(null)
+  const inputWords = useRef<TextInput | null>(null)
 
   const saveWords = trpc.secureStorage.write.useMutation()
   const grpcClient = useGRPCClient()
@@ -228,7 +228,6 @@ export function AccountWizardDialog() {
           setNewAccount(true)
         }
       }}
-      defaultValue={false}
     >
       <Dialog.Portal>
         <Dialog.Overlay
@@ -388,7 +387,7 @@ export function AccountWizardDialog() {
                   onValue={setExistingWordsSave}
                   id="existing-save-words"
                 >
-                  I have my words save somewhere
+                  I have my words saved somewhere
                 </CheckboxField>
                 <YStack gap="$4" marginTop="auto">
                   <Button

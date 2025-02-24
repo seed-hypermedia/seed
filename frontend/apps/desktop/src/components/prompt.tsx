@@ -1,6 +1,7 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog'
-import {Button, H3, SizableText} from '@shm/ui'
+import {Button} from '@shm/ui/button'
 import type {ComponentProps} from 'react'
+import {H3, SizableText} from 'tamagui'
 import {DialogContent, DialogFooter, DialogOverlay} from './dialog'
 
 function Root({children, ...props}: DialogPrimitive.DialogProps) {

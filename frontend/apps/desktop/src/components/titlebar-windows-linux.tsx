@@ -2,11 +2,12 @@ import {
   CloseButton,
   WindowsLinuxWindowControls,
 } from '@/components/window-controls'
-import {TitleText, TitlebarWrapper, XStack, YStack} from '@shm/ui'
+import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
+import {XStack, YStack} from 'tamagui'
 import {TitleBarProps} from './titlebar'
 import {
-  NavMenuButton,
   NavigationButtons,
+  NavMenuButton,
   PageActionButtons,
 } from './titlebar-common'
 import {TitlebarTitleSearch} from './titlebar-search'

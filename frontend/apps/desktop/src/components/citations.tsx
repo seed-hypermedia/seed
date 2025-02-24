@@ -9,26 +9,21 @@ import {useNavigate} from '@/utils/useNavigate'
 import {Mention} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
 import {HYPERMEDIA_SCHEME} from '@shm/shared/constants'
 import {getDocumentTitle} from '@shm/shared/content'
+import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {DocumentRoute} from '@shm/shared/routes'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {
   BlockRange,
   ExpandedBlockRange,
   serializeBlockRange,
-  UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
 import {pluralS} from '@shm/shared/utils/language'
-import {
-  BlocksContent,
-  ButtonText,
-  copyUrlToClipboardWithFeedback,
-  PanelCard,
-  SizableText,
-  XStack,
-  YStack,
-} from '@shm/ui'
+import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
+import {BlocksContent} from '@shm/ui/document-content'
+import {PanelCard} from '@shm/ui/panel-card'
 import {useMemo} from 'react'
+import {ButtonText, SizableText, XStack, YStack} from 'tamagui'
 import {AppDocContentProvider} from '../pages/document-content-provider'
 
 function CitationItem({mention}: {mention: Mention}) {

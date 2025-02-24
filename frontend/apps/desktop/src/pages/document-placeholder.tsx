@@ -1,5 +1,5 @@
 import {Placeholder} from '@/components/placeholder-box'
-import {YStack} from '@shm/ui'
+import {YStack} from 'tamagui'
 
 export function DocumentPlaceholder() {
   return (

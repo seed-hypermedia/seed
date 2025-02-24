@@ -1,4 +1,4 @@
-import {getDaemonFileUrl} from '@shm/ui/src/get-file-url'
+import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {Control, useController} from 'react-hook-form'
 import {z} from 'zod'
 import {useAppDialog} from './dialog'

@@ -15,23 +15,18 @@ import {
   HMCommentDraft,
   HMCommentGroup,
   HMEntityContent,
+  UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {hmId, UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {StateStream} from '@shm/shared/utils/stream'
-import {
-  BlocksContent,
-  Button,
-  CommentGroup,
-  HMIcon,
-  SelectDropdown,
-  Tooltip,
-  Trash,
-  useStream,
-  View,
-  XStack,
-  YStack,
-} from '@shm/ui'
+import {CommentGroup} from '@shm/ui/discussion'
+import {BlocksContent} from '@shm/ui/document-content'
+import {HMIcon} from '@shm/ui/hm-icon'
+import {Trash} from '@shm/ui/icons'
+import {SelectDropdown} from '@shm/ui/select-dropdown'
+import {useStream} from '@shm/ui/use-stream'
 import {memo, useEffect, useState} from 'react'
+import {Button, Tooltip, View, XStack, YStack} from 'tamagui'
 import {HyperMediaEditorView} from './editor'
 
 export function renderCommentContent(comment: HMComment) {

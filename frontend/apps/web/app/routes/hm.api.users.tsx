@@ -1,6 +1,6 @@
+import {createUser} from "@/db";
 import {ActionFunction, json} from "@remix-run/node";
 import {z} from "zod";
-import {createUser} from "~/db";
 
 const createUserSchema = z
   .object({

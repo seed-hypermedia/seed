@@ -1,4 +1,4 @@
-import {AlertDialog, Button, Text, XStack, YStack} from '@shm/ui'
+import {AlertDialog, Button, Text, XStack, YStack} from 'tamagui'
 import {useAppDialog} from './dialog'
 
 export type ImportedDocument = {

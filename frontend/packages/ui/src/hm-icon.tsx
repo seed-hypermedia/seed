@@ -1,5 +1,5 @@
 import {HMMetadata, UnpackedHypermediaId} from "@shm/shared";
-import {useImageUrl} from "@shm/ui/src/get-file-url";
+import {useImageUrl} from "@shm/ui/get-file-url";
 import {Button} from "@tamagui/button";
 import {AlertCircle} from "@tamagui/lucide-icons";
 import {YStack} from "@tamagui/stacks";

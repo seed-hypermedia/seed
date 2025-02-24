@@ -1,7 +1,10 @@
 import {fileUpload} from '@/utils/file-upload'
-import {Button, SizableText, Stack, Tooltip, View, X, XStack} from '@shm/ui'
+import {Button} from '@shm/ui/button'
+import {Tooltip} from '@shm/ui/tooltip'
+import {X} from '@tamagui/lucide-icons'
 import {ChangeEvent} from 'react'
 import {GestureResponderEvent} from 'react-native'
+import {SizableText, Stack, View, XStack} from 'tamagui'
 import appError from '../errors'
 
 export function ImageForm({

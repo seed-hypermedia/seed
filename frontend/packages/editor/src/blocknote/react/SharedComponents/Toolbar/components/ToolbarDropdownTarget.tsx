@@ -1,5 +1,5 @@
 import {Button} from "@mantine/core";
-import {ChevronDown} from "@shm/ui";
+import {ChevronDown} from "@shm/ui/icons";
 import {MouseEventHandler, forwardRef} from "react";
 import {IconType} from "react-icons";
 

@@ -9,23 +9,19 @@ import {
   HMChangeSummary,
   HMCommentGroup,
   HMDocumentInfo,
+  UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {getActivityTime} from '@shm/shared/models/activity'
 import {formattedDateMedium, normalizeDate} from '@shm/shared/utils/date'
-import {hmId, UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
-import {
-  ActivitySection,
-  Button,
-  ChevronUp,
-  CommentGroup,
-  EmptyDiscussion,
-  SizableText,
-  useTheme,
-  YStack,
-} from '@shm/ui'
-import {ChangeGroup, SubDocumentItem} from '@shm/ui/src/activity'
-import {Spinner} from '@shm/ui/src/spinner'
+import {hmId} from '@shm/shared/utils/entity-id-url'
+import {ChangeGroup, SubDocumentItem} from '@shm/ui/activity'
+import {Button} from '@shm/ui/button'
+import {CommentGroup} from '@shm/ui/discussion'
+import {ChevronUp, EmptyDiscussion} from '@shm/ui/icons'
+import {ActivitySection} from '@shm/ui/page-components'
+import {Spinner} from '@shm/ui/spinner'
 import {useState} from 'react'
+import {SizableText, useTheme, YStack} from 'tamagui'
 import {
   CommentDraft,
   CommentReplies,

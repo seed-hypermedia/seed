@@ -1,4 +1,3 @@
-// import {useOpenUrl} from '@/open-url'
 import {BlockNoteEditor} from "@/blocknote/core/BlockNoteEditor";
 import {Block} from "@/blocknote/core/extensions/Blocks/api/blockTypes";
 import {defaultProps} from "@/blocknote/core/extensions/Blocks/api/defaultBlocks";
@@ -7,19 +6,13 @@ import {createReactBlockSpec} from "@/blocknote/react/ReactBlockSpec";
 import {HypermediaLinkSwitchToolbar} from "@/hm-link-switch-toolbar";
 import {updateSelection} from "@/media-render";
 import {HMBlockSchema} from "@/schema";
-import {
-  AlignCenter,
-  AlignLeft,
-  AlignRight,
-  Button,
-  Label,
-  Popover,
-  SizableText,
-  usePopoverState,
-  XStack,
-  YStack,
-} from "@shm/ui";
+import {Button} from "@shm/ui/button";
+import {usePopoverState} from "@shm/ui/use-popover-state";
+import {AlignCenter, AlignLeft, AlignRight} from "@tamagui/lucide-icons";
+import {XStack, YStack} from "@tamagui/stacks";
 import {useState} from "react";
+import {Label, SizableText} from "tamagui";
+import {Popover} from "../../ui/src/TamaguiPopover";
 
 export const ButtonBlock = createReactBlockSpec({
   type: "button",
@@ -176,10 +169,10 @@ const Render = (
               <Button
                 data-type="hm-button"
                 borderWidth="$1"
-                bc="$brand10"
+                backgroundColor="$brand10"
                 size="$3"
                 width="100%"
-                p="$2"
+                padding="$2"
                 fontSize="$4"
                 justifyContent="center"
                 textAlign="center"

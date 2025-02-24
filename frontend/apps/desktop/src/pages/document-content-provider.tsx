@@ -10,17 +10,16 @@ import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {
-  BlockRange,
-  ExpandedBlockRange,
-  UnpackedHypermediaId,
-} from '@shm/shared/utils/entity-id-url'
+import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {BlockRange, ExpandedBlockRange} from '@shm/shared/utils/entity-id-url'
 import {
   DocContentContextValue,
   DocContentProvider,
+} from '@shm/ui/document-content'
+import {
   contentLayoutUnit,
   contentTextUnit,
-} from '@shm/ui'
+} from '@shm/ui/document-content-constants'
 import {useDocumentUrl} from '../components/copy-reference-button'
 
 export function AppDocContentProvider({

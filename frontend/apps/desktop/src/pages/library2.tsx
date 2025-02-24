@@ -13,30 +13,22 @@ import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {getMetadataName} from '@shm/shared/content'
 import {
+  HMAccountsMetadata,
   HMActivitySummary,
   HMBreadcrumb,
   HMDocumentInfo,
   HMLibraryDocument,
+  UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {DocumentRoute} from '@shm/shared/routes'
-import {hmId, UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
-import {
-  Button,
-  Checkbox,
-  Container,
-  HMIcon,
-  OptionsDropdown,
-  Popover,
-  SizableText,
-  usePopoverState,
-  View,
-  XStack,
-  YGroup,
-  YStack,
-} from '@shm/ui'
-import {LibraryEntryUpdateSummary} from '@shm/ui/src/activity'
-import {AccountsMetadata, FacePile} from '@shm/ui/src/face-pile'
+import {LibraryEntryUpdateSummary} from '@shm/ui/activity'
+import {Container} from '@shm/ui/container'
+import {FacePile} from '@shm/ui/face-pile'
+import {HMIcon} from '@shm/ui/hm-icon'
+import {OptionsDropdown} from '@shm/ui/options-dropdown'
+import {usePopoverState} from '@shm/ui/use-popover-state'
 import {
   Check,
   CheckCheck,
@@ -49,6 +41,16 @@ import {
 } from '@tamagui/lucide-icons'
 import {ComponentProps, createContext, useContext, useState} from 'react'
 import {GestureResponderEvent} from 'react-native'
+import {
+  Button,
+  Checkbox,
+  Popover,
+  SizableText,
+  View,
+  XStack,
+  YGroup,
+  YStack,
+} from 'tamagui'
 
 export default function LibraryPage() {
   const route = useNavRoute()
@@ -371,7 +373,7 @@ function LibrarySiteItem({
   accountsMetadata,
 }: {
   site: LibrarySite
-  accountsMetadata?: AccountsMetadata
+  accountsMetadata?: HMAccountsMetadata
 }) {
   const route = useNavRoute()
   const libraryRoute = route.key === 'library' ? route : undefined
@@ -475,7 +477,7 @@ export function LibraryDocumentItem({
 }: {
   item: HMLibraryDocument
   indent?: boolean
-  accountsMetadata: AccountsMetadata
+  accountsMetadata: HMAccountsMetadata
 }) {
   const navigate = useNavigate()
   const metadata = item?.metadata
@@ -613,7 +615,7 @@ function LibraryEntryAuthors({
   accountsMetadata,
 }: {
   item: HMDocumentInfo
-  accountsMetadata: AccountsMetadata
+  accountsMetadata: HMAccountsMetadata
 }) {
   const {authors} = item
   return <FacePile accounts={authors} accountsMetadata={accountsMetadata} />

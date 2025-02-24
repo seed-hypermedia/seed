@@ -3,23 +3,24 @@ import {useDeleteKey} from '@/models/daemon'
 import {useListSite} from '@/models/documents'
 
 import {getDocumentTitle, getMetadataName} from '@shm/shared/content'
-import {HMMetadata} from '@shm/shared/hm-types'
-import {hmId, UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
+import {HMMetadata, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {hmId} from '@shm/shared/utils/entity-id-url'
+
+import {Button} from '@shm/ui/button'
+import {toast} from '@shm/ui/toast'
+import {ReactNode} from 'react'
 import {
   AlertDialog,
   AlertDialogContentProps,
   AlertDialogProps,
-  Button,
   HeadingProps,
   ParagraphProps,
   SizableText,
   Spinner,
-  toast,
   XStack,
   XStackProps,
   YStack,
-} from '@shm/ui'
-import {ReactNode} from 'react'
+} from 'tamagui'
 import {useDeleteEntities, useEntity} from '../models/entities'
 import {useAppDialog} from './dialog'
 

@@ -1,5 +1,5 @@
 import {StyleProvider} from '@/app-context-provider'
-import {useStream} from '@shm/ui'
+import {useStream} from '@shm/ui/use-stream'
 import '@tamagui/core/reset.css'
 import '@tamagui/font-inter/css/400.css'
 import '@tamagui/font-inter/css/700.css'

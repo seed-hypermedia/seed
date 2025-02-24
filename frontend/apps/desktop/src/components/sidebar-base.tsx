@@ -1,18 +1,12 @@
 import {useAppContext} from '@/app-context'
 import {SidebarWidth, useSidebarContext} from '@/sidebar-context'
 import {useNavigate} from '@/utils/useNavigate'
-import {UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
-import {
-  Button,
-  Hash,
-  Separator,
-  Settings,
-  Tooltip,
-  useStream,
-  XStack,
-  YStack,
-} from '@shm/ui'
+import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {Button} from '@shm/ui/button'
+import {useStream} from '@shm/ui/use-stream'
+import {Hash, Settings} from '@tamagui/lucide-icons'
 import {ComponentProps, FC, ReactNode, useEffect, useState} from 'react'
+import {Separator, Tooltip, XStack, YStack} from 'tamagui'
 
 const HoverRegionWidth = 30
 

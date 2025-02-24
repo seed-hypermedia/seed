@@ -5,15 +5,11 @@ import {
   HYPERMEDIA_ENTITY_TYPES,
   unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
-import {
-  Button,
-  List,
-  ShieldX,
-  SizableText,
-  Tooltip,
-  View,
-  XStack,
-} from '@shm/ui'
+import {Button} from '@shm/ui/button'
+import {ShieldX} from '@shm/ui/icons'
+import {List} from '@shm/ui/list'
+import {Tooltip} from '@shm/ui/tooltip'
+import {SizableText, View, XStack} from 'tamagui'
 
 export default function DeletedContent() {
   const deleted = useDeletedContent()

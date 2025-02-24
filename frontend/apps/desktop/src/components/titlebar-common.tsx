@@ -24,31 +24,32 @@ import {
   ArrowRight,
   ArrowRightFromLine,
   Back,
-  Button,
   CloudOff,
-  ColorProp,
   Download,
   Forward,
   Link,
   Menu,
-  MenuItemType,
-  OptionsDropdown,
   Pencil,
-  SizableText,
-  TitlebarSection,
-  Tooltip,
   Trash,
   UploadCloud,
   UserPlus,
+} from '@shm/ui/icons'
+import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
+import {TitlebarSection} from '@shm/ui/titlebar'
+import {toast} from '@shm/ui/toast'
+import {useStream} from '@shm/ui/use-stream'
+import {FilePlus, Import} from '@tamagui/lucide-icons'
+import {ReactNode, useContext} from 'react'
+import {
+  Button,
+  ColorProp,
+  SizableText,
+  Tooltip,
   View,
   XGroup,
   XStack,
   YStack,
-  toast,
-  useStream,
-} from '@shm/ui'
-import {FilePlus, Import} from '@tamagui/lucide-icons'
-import {ReactNode, useContext} from 'react'
+} from 'tamagui'
 import {AddConnectionDialog} from './contacts-prompt'
 import {useAppDialog} from './dialog'
 import DiscardDraftButton from './discard-draft-button'

@@ -1,10 +1,15 @@
 import {useListSite} from '@/models/documents'
 import {useEntities, useSubscribedEntity} from '@/models/entities'
 import {sortNewsEntries} from '@shm/shared/content'
-import {HMMetadata} from '@shm/shared/hm-types'
-import {hmId, UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
-import {BannerNewspaperCard, Container, NewspaperCard, XStack} from '@shm/ui'
-import {AccountsMetadata} from '@shm/ui/src/face-pile'
+import {
+  HMAccountsMetadata,
+  HMMetadata,
+  UnpackedHypermediaId,
+} from '@shm/shared/hm-types'
+import {hmId} from '@shm/shared/utils/entity-id-url'
+import {Container} from '@shm/ui/container'
+import {BannerNewspaperCard, NewspaperCard} from '@shm/ui/newspaper'
+import {XStack} from 'tamagui'
 
 export function NewspaperLayout({
   id,
@@ -42,7 +47,7 @@ export function NewspaperLayout({
   )
   const firstItem = sortedItems[0]
   const restItems = sortedItems.slice(1)
-  const accountsMetadata: AccountsMetadata = documents
+  const accountsMetadata: HMAccountsMetadata = documents
     .map((document) => {
       const d = document.data
       if (!d || !d.document) return null

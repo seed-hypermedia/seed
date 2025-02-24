@@ -1,4 +1,5 @@
-import {TitleText, TitlebarWrapper, View, XStack} from '@shm/ui'
+import {TitleText, TitlebarWrapper} from '@shm/ui/titlebar'
+import {View, XStack} from 'tamagui'
 import {TitleBarProps} from './titlebar'
 import {
   NavMenuButton,

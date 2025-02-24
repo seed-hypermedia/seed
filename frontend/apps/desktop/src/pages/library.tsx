@@ -18,37 +18,39 @@ import {getDocumentTitle, getMetadataName} from '@shm/shared/content'
 import {HMBlockNode} from '@shm/shared/hm-types'
 import {DocumentRoute} from '@shm/shared/routes'
 import {formattedDate} from '@shm/shared/utils/date'
+import {Button} from '@shm/ui/button'
+import {Container} from '@shm/ui/container'
+import {ListItemSkeleton} from '@shm/ui/entity-card'
+import {HMIcon} from '@shm/ui/hm-icon'
 import {
   Archive,
   ArrowDownUp,
-  Button,
   Check,
-  Checkbox,
-  Container,
-  Dialog,
-  DialogContent,
   FileOutput,
-  HMIcon,
-  Input,
-  LinkIcon,
-  ListItemSkeleton,
+  Link as LinkIcon,
   Pencil,
-  Popover,
   Search,
   Settings2,
+  Star,
+  X,
+} from '@shm/ui/icons'
+import {toast} from '@shm/ui/toast'
+import {usePopoverState} from '@shm/ui/use-popover-state'
+import {ComponentProps, useMemo, useRef, useState} from 'react'
+import {
+  Checkbox,
+  Dialog,
+  DialogContent,
+  Input,
+  Popover,
   SizableText,
   SizeTokens,
   Square,
-  Star,
   Text,
-  toast,
-  usePopoverState,
-  X,
   XStack,
   YGroup,
   YStack,
-} from '@shm/ui'
-import {ComponentProps, useMemo, useRef, useState} from 'react'
+} from 'tamagui'
 import LibraryPage from './library2'
 
 const defaultSort: LibraryQueryState['sort'] = 'lastUpdate'

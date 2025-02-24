@@ -4,11 +4,12 @@ import {
 } from '@/editor/autocomplete'
 import {useEntity} from '@/models/entities'
 import {getDocumentTitle} from '@shm/shared/content'
-import {UnpackedHypermediaId, unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {SizableText} from '@shm/ui'
+import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {Node} from '@tiptap/core'
 import {NodeViewWrapper, ReactNodeViewRenderer} from '@tiptap/react'
 import ReactDOM from 'react-dom/client'
+import {SizableText} from 'tamagui'
 import './inline-embed.css'
 /**
  * we need

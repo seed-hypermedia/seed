@@ -7,23 +7,19 @@ import {
 } from '@shm/editor/blocknote'
 import {getDocumentTitle} from '@shm/shared/content'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {Button} from '@shm/ui/button'
 import {
-  Button,
   CircleDot,
   ExternalLink,
   Link,
   PanelBottom,
   Pencil,
   Quote,
-  SizableText,
-  Tooltip,
   Unlink,
-  XGroup,
-  XStack,
-  YStack,
-} from '@shm/ui'
+} from '@shm/ui/icons'
 import {Fragment, Node} from '@tiptap/pm/model'
 import {useEffect, useMemo, useState} from 'react'
+import {SizableText, Tooltip, XGroup, XStack, YStack} from 'tamagui'
 import {HypermediaLinkForm} from './hm-link-form'
 import {HMBlockSchema} from './schema'
 

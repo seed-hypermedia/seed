@@ -1,5 +1,5 @@
-import {SizableText, XStack} from '@shm/ui'
 import {ReactNode} from 'react'
+import {SizableText, XStack} from 'tamagui'
 
 export function AppBanner({
   children,

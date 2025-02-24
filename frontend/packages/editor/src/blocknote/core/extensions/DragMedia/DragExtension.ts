@@ -1,19 +1,19 @@
-import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared'
-import {toast} from '@shm/ui'
-import {Extension} from '@tiptap/core'
-import {Plugin, PluginKey} from 'prosemirror-state'
-import {HMBlockSchema} from '../../../../schema'
-import {BlockNoteEditor} from '../../BlockNoteEditor'
-import {getBlockInfoFromPos} from '../Blocks/helpers/getBlockInfoFromPos'
+import {DAEMON_FILE_UPLOAD_URL} from "@shm/shared";
+import {toast} from "@shm/ui/toast";
+import {Extension} from "@tiptap/core";
+import {Plugin, PluginKey} from "prosemirror-state";
+import {HMBlockSchema} from "../../../../schema";
+import {BlockNoteEditor} from "../../BlockNoteEditor";
+import {getBlockInfoFromPos} from "../Blocks/helpers/getBlockInfoFromPos";
 
-const PLUGIN_KEY = new PluginKey(`drop-plugin`)
+const PLUGIN_KEY = new PluginKey(`drop-plugin`);
 
 export interface DragOptions {
-  editor: BlockNoteEditor<HMBlockSchema>
+  editor: BlockNoteEditor<HMBlockSchema>;
 }
 
 export const DragExtension = Extension.create<DragOptions>({
-  name: 'drag',
+  name: "drag",
 
   addProseMirrorPlugins() {
     return [
@@ -22,37 +22,37 @@ export const DragExtension = Extension.create<DragOptions>({
         props: {
           handleDOMEvents: {
             dragstart: (_, event) => {
-              event.preventDefault()
-              return false
+              event.preventDefault();
+              return false;
             },
             dragleave: (_, event) => {
-              event.preventDefault()
-              return false
+              event.preventDefault();
+              return false;
             },
             dragend: (_, event) => {
-              event.preventDefault()
-              return false
+              event.preventDefault();
+              return false;
             },
             dragover: (_, event) => {
-              event.preventDefault()
-              return false
+              event.preventDefault();
+              return false;
             },
             drop: (view, event) => {
-              const data = event.dataTransfer
+              const data = event.dataTransfer;
 
               if (data) {
-                console.log(data)
-                const files: File[] = []
+                console.log(data);
+                const files: File[] = [];
 
                 if (data.files.length) {
                   for (let i = 0; i < data.files.length; i++) {
-                    files.push(data.files[i])
+                    files.push(data.files[i]);
                   }
                 } else if (data.items.length) {
                   for (let i = 0; i < data.items.length; i++) {
-                    const item = data.items[i].getAsFile()
+                    const item = data.items[i].getAsFile();
                     if (item) {
-                      files.push(item)
+                      files.push(item);
                     }
                   }
                 }
@@ -61,160 +61,160 @@ export const DragExtension = Extension.create<DragOptions>({
                   const pos = this.editor.view.posAtCoords({
                     left: event.clientX,
                     top: event.clientY,
-                  })
+                  });
 
-                  let lastId: string
+                  let lastId: string;
 
                   // using reduce so files get inserted sequentially
                   files
                     .reduce((previousPromise, file, index) => {
                       return previousPromise.then(() => {
-                        event.preventDefault()
-                        event.stopPropagation()
+                        event.preventDefault();
+                        event.stopPropagation();
 
                         if (pos && pos.inside !== -1) {
                           return handleDragMedia(file).then((props) => {
-                            if (!props) return false
+                            if (!props) return false;
 
-                            const {state} = view
-                            let blockNode
-                            const newId = generateBlockId()
+                            const {state} = view;
+                            let blockNode;
+                            const newId = generateBlockId();
 
                             if (
                               chromiumSupportedImageMimeTypes.has(file.type)
                             ) {
                               blockNode = {
                                 id: newId,
-                                type: 'image',
+                                type: "image",
                                 props: {
                                   url: props.url,
                                   name: props.name,
                                 },
-                              }
+                              };
                             } else if (
                               chromiumSupportedVideoMimeTypes.has(file.type)
                             ) {
                               blockNode = {
                                 id: newId,
-                                type: 'video',
+                                type: "video",
                                 props: {
                                   url: props.url,
                                   name: props.name,
                                 },
-                              }
+                              };
                             } else {
                               blockNode = {
                                 id: newId,
-                                type: 'file',
+                                type: "file",
                                 props: {
                                   ...props,
                                 },
-                              }
+                              };
                             }
 
                             const blockInfo = getBlockInfoFromPos(
                               state,
-                              pos.pos,
-                            )
+                              pos.pos
+                            );
 
                             if (index === 0) {
                               this.options.editor.insertBlocks(
                                 [blockNode],
                                 blockInfo.block.node.attrs.id,
                                 blockInfo.block.node.textContent
-                                  ? 'after'
-                                  : 'before',
-                              )
+                                  ? "after"
+                                  : "before"
+                              );
                             } else {
                               this.options.editor.insertBlocks(
                                 [blockNode],
                                 lastId,
-                                'after',
-                              )
+                                "after"
+                              );
                             }
 
-                            lastId = newId
-                          })
+                            lastId = newId;
+                          });
                         }
-                      })
+                      });
                     }, Promise.resolve())
-                    .then(() => true)
+                    .then(() => true);
 
-                  return true
+                  return true;
                 }
 
-                return false
+                return false;
               }
 
-              return false
+              return false;
             },
           },
         },
       }),
-    ]
+    ];
   },
-})
+});
 
 type FileType = {
-  id: string
+  id: string;
   props: {
-    url: string
-    name: string
-    size: string
-  }
-  children: []
-  content: []
-  type: string
-}
+    url: string;
+    name: string;
+    size: string;
+  };
+  children: [];
+  content: [];
+  type: string;
+};
 
 async function handleDragMedia(file: File) {
   if (file.size > 62914560) {
-    toast.error(`The size of ${file.name} exceeds 60 MB.`)
-    return null
+    toast.error(`The size of ${file.name} exceeds 60 MB.`);
+    return null;
   }
 
-  const formData = new FormData()
-  formData.append('file', file)
+  const formData = new FormData();
+  formData.append("file", file);
 
   try {
     const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
-      method: 'POST',
+      method: "POST",
       body: formData,
-    })
-    const data = await response.text()
+    });
+    const data = await response.text();
     return {
-      url: data ? `ipfs://${data}` : '',
+      url: data ? `ipfs://${data}` : "",
       name: file.name,
       size: file.size.toString(),
-    } as FileType['props']
+    } as FileType["props"];
   } catch (error) {
-    console.log(error.message)
-    toast.error('Failed to upload file.')
+    console.log(error.message);
+    toast.error("Failed to upload file.");
   }
 }
 
 function generateBlockId(length: number = 8): string {
   const characters =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-  let result = ''
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let result = "";
   for (let i = 0; i < length; i++) {
-    result += characters.charAt(Math.floor(Math.random() * characters.length))
+    result += characters.charAt(Math.floor(Math.random() * characters.length));
   }
-  return result
+  return result;
 }
 
 const chromiumSupportedImageMimeTypes = new Set([
-  'image/jpeg',
-  'image/jpg',
-  'image/png',
-  'image/gif',
-  'image/webp',
-  'image/bmp',
-  'image/svg+xml',
-  'image/x-icon',
-  'image/vnd.microsoft.icon',
-  'image/apng',
-  'image/avif',
-])
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/bmp",
+  "image/svg+xml",
+  "image/x-icon",
+  "image/vnd.microsoft.icon",
+  "image/apng",
+  "image/avif",
+]);
 
-const chromiumSupportedVideoMimeTypes = new Set(['video/mp4', 'video/webm'])
+const chromiumSupportedVideoMimeTypes = new Set(["video/mp4", "video/webm"]);

@@ -1,8 +1,10 @@
 import {appRouteOfId} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
-import {Button, Search, toast, View, XStack, YStack} from '@shm/ui'
+import {toast} from '@shm/ui/toast'
+import {Search} from '@tamagui/lucide-icons'
 import {useState} from 'react'
+import {Button, View, XStack, YStack} from 'tamagui'
 import {SearchInput} from './search-input'
 import {Title} from './titlebar-title'
 

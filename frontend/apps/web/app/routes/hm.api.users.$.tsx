@@ -1,6 +1,6 @@
+import {getUser} from "@/db";
 import {LoaderFunction} from "@remix-run/node";
 import {json} from "@remix-run/react";
-import {getUser} from "~/db";
 
 export const loader: LoaderFunction = async ({request, params}) => {
   const url = new URL(request.url);

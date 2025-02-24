@@ -1,3 +1,6 @@
+import {queryClient} from "@/client";
+import {getMetadata} from "@/loaders";
+import {wrapJSON, WrappedResponse} from "@/wrapping";
 import {PlainMessage, toPlainMessage} from "@bufbuild/protobuf";
 import {
   getCommentGroups,
@@ -9,9 +12,6 @@ import {
   ListDocumentsResponse,
   unpackHmId,
 } from "@shm/shared";
-import {queryClient} from "~/client";
-import {getMetadata} from "~/loaders";
-import {wrapJSON, WrappedResponse} from "~/wrapping";
 
 export type HMDiscussion = PlainMessage<ListDocumentsResponse>;
 

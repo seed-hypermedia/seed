@@ -3,20 +3,14 @@ import {useRemoveSite, useSiteRegistration} from '@/models/site'
 import {useNavigate} from '@/utils/useNavigate'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {getDocumentTitle} from '@shm/shared/content'
-import {UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
-import {
-  AlertDialog,
-  Button,
-  Form,
-  SizableText,
-  toast,
-  UploadCloud,
-  XStack,
-  YStack,
-} from '@shm/ui'
-import {Spinner} from '@shm/ui/src/spinner'
+import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {Button} from '@shm/ui/button'
+import {UploadCloud} from '@shm/ui/icons'
+import {Spinner} from '@shm/ui/spinner'
+import {toast} from '@shm/ui/toast'
 import {useEffect} from 'react'
 import {SubmitHandler, useForm} from 'react-hook-form'
+import {AlertDialog, Form, SizableText, XStack, YStack} from 'tamagui'
 import {z} from 'zod'
 import {DialogTitle, useAppDialog} from './dialog'
 import {FormInput} from './form-input'

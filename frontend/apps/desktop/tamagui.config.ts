@@ -1,4 +1,4 @@
-import {config} from '@shm/ui'
+import {config} from '@shm/ui/tamagui.config'
 
 type Conf = typeof config
 

@@ -1,5 +1,5 @@
 import {HMMetadata, UnpackedHypermediaId, useRouteLink} from "@shm/shared";
-import {useImageUrl} from "@shm/ui/src/get-file-url";
+import {useImageUrl} from "@shm/ui/get-file-url";
 import {XStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import {HMIcon} from "./hm-icon";

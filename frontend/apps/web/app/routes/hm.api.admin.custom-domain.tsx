@@ -1,10 +1,10 @@
-import {ActionFunction, json} from "@remix-run/node";
-import {z} from "zod";
 import {
   adminSecret,
   getServiceConfig,
   writeCustomDomainConfig,
-} from "~/site-config";
+} from "@/site-config";
+import {ActionFunction, json} from "@remix-run/node";
+import {z} from "zod";
 
 const postCustomDomainSchema = z
   .object({

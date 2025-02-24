@@ -1,7 +1,7 @@
 import {openAddAccountWizard} from '@/components/create-account'
-
 import {useTriggerWindowEvent} from '@/utils/window-events'
-import {Button, Contact, Search, Separator, SizableText, YStack} from '@shm/ui'
+import {Contact, Search} from '@tamagui/lucide-icons'
+import {Button, Separator, SizableText, YStack} from 'tamagui'
 
 export function GettingStarted() {
   const openLauncher = useTriggerWindowEvent()

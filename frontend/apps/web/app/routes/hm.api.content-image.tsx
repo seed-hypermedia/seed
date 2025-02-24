@@ -1,3 +1,4 @@
+import {queryClient} from "@/client";
 import {
   DAEMON_FILE_URL,
   HMBlock,
@@ -16,12 +17,11 @@ import {
   hmId,
   hmIdPathToEntityQueryPath,
 } from "@shm/shared";
-import {extractIpfsUrlCid} from "@shm/ui/src/get-file-url";
+import {extractIpfsUrlCid} from "@shm/ui/get-file-url";
 import {readFileSync} from "fs";
 import {join} from "path";
 import satori from "satori";
 import svg2img from "svg2img";
-import {queryClient} from "~/client";
 
 import {toPlainMessage} from "@bufbuild/protobuf";
 import {InlineContent} from "@shm/desktop/src/editor";

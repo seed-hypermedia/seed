@@ -1,5 +1,6 @@
-import {Button, SizableText, XStack} from '@shm/ui'
+import {Button} from '@shm/ui/button'
 import {useLayoutEffect, useRef} from 'react'
+import {SizableText, XStack} from 'tamagui'
 
 export type SwitcherItem = {
   key: string

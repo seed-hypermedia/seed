@@ -1,4 +1,4 @@
-import {SizeTokens, XStack} from '@shm/ui'
+import {SizeTokens, XStack} from 'tamagui'
 
 export const Placeholder = ({
   width = '100%',

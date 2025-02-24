@@ -1,20 +1,16 @@
 import {upgradeNewspaperLayoutModel} from '@/models/upgrade-document-model'
 import {ImageForm} from '@/pages/image-form'
-import {HMBlockNode, HMMetadata} from '@shm/shared/hm-types'
-import {UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {
-  Button,
-  ButtonText,
-  getDaemonFileUrl,
-  Heading,
-  Input,
-  Label,
-  SelectDropdown,
-  SimpleDatePicker,
-  SwitchField,
-  YStack,
-} from '@shm/ui'
+  HMBlockNode,
+  HMMetadata,
+  UnpackedHypermediaId,
+} from '@shm/shared/hm-types'
+import {SimpleDatePicker} from '@shm/ui/datepicker'
+import {SwitchField} from '@shm/ui/form-fields'
+import {getDaemonFileUrl} from '@shm/ui/get-file-url'
+import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {useState} from 'react'
+import {Button, ButtonText, Heading, Input, Label, YStack} from 'tamagui'
 import {AccessoryContainer, AccessorySection} from './accessory-sidebar'
 import {IconForm} from './icon-form'
 

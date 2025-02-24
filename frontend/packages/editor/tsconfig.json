@@ -23,9 +23,11 @@
       // }
     ],
     "paths": {
-      "@shm/ui": ["../../packages/ui/src/index.tsx"],
+      "@shm/ui/*": ["../../packages/ui/src/*"],
       "@shm/shared/*": ["../../packages/shared/src/*"],
-      "@/*": ["./src/*"]
+      "@shm/editor/*": ["../../packages/editor/src/*"],
+      "@/*": ["./src/*"],
+      "@": ["./src/index"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

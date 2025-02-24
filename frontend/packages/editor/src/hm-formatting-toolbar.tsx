@@ -7,30 +7,29 @@ import {
 import {ToolbarDropdownItemProps} from "@/blocknote/react/SharedComponents/Toolbar/components/ToolbarDropdownItem";
 import {EditorToggledStyle} from "@shm/shared/hm-types";
 import {
-  Button,
-  Check,
-  ChevronDown,
-  Code,
   Emphasis,
   HeadingIcon,
   OrderedList,
-  Select,
-  SizeTokens,
-  Strikethrough,
   Strong,
-  Theme,
-  Tooltip,
   Type,
   Underline,
   UnorderedList,
+} from "@shm/ui/src/icons";
+import {Check, ChevronDown, Code, Strikethrough} from "@tamagui/lucide-icons";
+import {useMemo, useState} from "react";
+import {
+  Button,
+  Select,
+  SizeTokens,
+  Theme,
+  Tooltip,
   XGroup,
   XStack,
-} from "@shm/ui";
-import {useMemo, useState} from "react";
+} from "tamagui";
+import {BlockSchema} from ".";
+import {BlockNoteEditor} from "./blocknote/core/BlockNoteEditor";
 import {HMLinkToolbarButton} from "./hm-toolbar-link-button";
 import {HMBlockSchema} from "./schema";
-// import {TextAlignButton} from './DefaultButtons/TextAlignButton'
-// import {ColorStyleButton} from './DefaultButtons/ColorStyleButton'
 
 const size: SizeTokens = "$3";
 
@@ -242,7 +241,7 @@ const BlockTypeToolbarDropdown = <BSchema extends BlockSchema = HMBlockSchema>({
         <Select.Trigger
           width={140}
           borderColor="$colorTransparent"
-          bg="$backgroundFocus"
+          backgroundColor="$backgroundFocus"
           borderRadius={0}
           borderWidth={2}
         >

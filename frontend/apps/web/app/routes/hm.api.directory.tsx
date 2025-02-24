@@ -1,3 +1,5 @@
+import {queryClient} from "@/client";
+import {wrapJSON, WrappedResponse} from "@/wrapping";
 import {PlainMessage, toPlainMessage} from "@bufbuild/protobuf";
 import {
   HMDocumentMetadataSchema,
@@ -8,9 +10,7 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
 } from "@shm/shared";
-import {AccountsMetadata} from "@shm/ui/src/face-pile";
-import {queryClient} from "~/client";
-import {wrapJSON, WrappedResponse} from "~/wrapping";
+import {AccountsMetadata} from "@shm/ui/face-pile";
 
 export type HMDirectory = PlainMessage<ListDocumentsResponse>;
 

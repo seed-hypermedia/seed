@@ -1,4 +1,3 @@
-import {Input, Text, TextArea} from '@shm/ui'
 import {
   Control,
   FieldErrors,
@@ -6,6 +5,7 @@ import {
   Path,
   useController,
 } from 'react-hook-form'
+import {Input, Text, TextArea} from 'tamagui'
 
 export function FormInput<Fields extends FieldValues>({
   control,

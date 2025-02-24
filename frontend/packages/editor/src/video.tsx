@@ -7,9 +7,11 @@ import {DisplayComponentProps, MediaRender, MediaType} from "@/media-render";
 import {HMBlockSchema} from "@/schema";
 import {isValidUrl, youtubeParser} from "@/utils";
 import {DAEMON_FILE_URL} from "@shm/shared/constants";
-import {ResizeHandle, SizableText, XStack, isIpfsUrl, useTheme} from "@shm/ui";
+import {isIpfsUrl} from "@shm/ui/src/get-file-url";
+import {ResizeHandle} from "@shm/ui/src/resize-handle";
 import {useEffect, useState} from "react";
 import {RiVideoAddLine} from "react-icons/ri";
+import {SizableText, XStack, useTheme} from "tamagui";
 
 export const getSourceType = (name: string) => {
   const nameArray = name.split(".");

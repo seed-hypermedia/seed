@@ -19,37 +19,38 @@ import {HMInvoice, HMWallet} from '@shm/shared/hm-types'
 import {useInvoiceStatus} from '@shm/shared/models/payments'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {Button} from '@shm/ui/button'
+import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {Field} from '@shm/ui/form-fields'
 import {
   AlertCircle,
-  Button,
-  ButtonText,
   ChevronDown,
   Back as ChevronLeft,
   Forward as ChevronRight,
   ChevronUp,
   Copy,
-  copyTextToClipboard,
-  DialogDescription,
   Download,
-  Field,
-  Form,
-  Heading,
-  InfoListHeader,
-  Input,
-  SelectDropdown,
-  SizableText,
-  Spinner,
-  TableList,
-  toast,
-  Tooltip,
   Trash,
   Upload,
+} from '@shm/ui/icons'
+import {SelectDropdown} from '@shm/ui/select-dropdown'
+import {InfoListHeader, TableList} from '@shm/ui/table-list'
+import {toast} from '@shm/ui/toast'
+import {useState} from 'react'
+import QRCode from 'react-qr-code'
+import {
+  ButtonText,
+  DialogDescription,
+  Form,
+  Heading,
+  Input,
+  SizableText,
+  Spinner,
+  Tooltip,
   View,
   XStack,
   YStack,
-} from '@shm/ui'
-import {useState} from 'react'
-import QRCode from 'react-qr-code'
+} from 'tamagui'
 
 export function AccountWallet({
   accountUid,

@@ -1,18 +1,9 @@
-// import {useRecents} from '@/models/recents'
 import {useSearch} from "@shm/shared/models/search";
 import {HYPERMEDIA_ENTITY_TYPES} from "@shm/shared/utils/entity-id-url";
-import {
-  Input,
-  Link as LinkIcon,
-  Search,
-  SizableText,
-  SizeTokens,
-  TextCursorInput,
-  XStack,
-  YStack,
-} from "@shm/ui";
+import {Link as LinkIcon, Search} from "@tamagui/lucide-icons";
 import {ReactNode, useEffect, useRef, useState} from "react";
 import {createPortal} from "react-dom";
+import {Input, SizableText, SizeTokens, XStack, YStack} from "tamagui";
 import "./hm-link-form.css";
 import {LauncherItem, SwitcherItem} from "./launcher-item";
 

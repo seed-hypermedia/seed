@@ -1,6 +1,6 @@
+import {defaultPageMeta} from "@/meta";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
-import {defaultPageMeta} from "~/meta";
 import {Container} from "../ui/container";
 
 export const loader = async ({request}: {request: Request}) => {

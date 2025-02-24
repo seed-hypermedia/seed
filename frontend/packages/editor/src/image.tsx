@@ -6,10 +6,12 @@ import {MediaContainer} from "@/media-container";
 import {DisplayComponentProps, MediaRender, MediaType} from "@/media-render";
 import {HMBlockSchema} from "@/schema";
 import {isValidUrl, timeoutPromise} from "@/utils";
-import {ResizeHandle, useDocContentContext, useTheme} from "@shm/ui";
-import {getDaemonFileUrl} from "@shm/ui/src/get-file-url";
+import {getDaemonFileUrl} from "@shm/ui/get-file-url";
+import {useDocContentContext} from "@shm/ui/src/document-content";
+import {ResizeHandle} from "@shm/ui/src/resize-handle";
 import {useEffect, useState} from "react";
 import {RiImage2Line} from "react-icons/ri";
+import {useTheme} from "tamagui";
 
 export const ImageBlock = createReactBlockSpec({
   type: "image",

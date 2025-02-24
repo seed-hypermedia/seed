@@ -6,21 +6,6 @@ import {createReactBlockSpec} from "@/blocknote/react/ReactBlockSpec";
 import {HMBlockSchema} from "@/schema";
 import {DAEMON_FILE_UPLOAD_URL, DAEMON_FILE_URL} from "@shm/shared/constants";
 import {
-  Button,
-  Card,
-  Form,
-  H2,
-  Input,
-  Paragraph,
-  SizableText,
-  Tabs,
-  Text,
-  Tooltip,
-  XStack,
-  YStack,
-  useTheme,
-} from "@shm/ui";
-import {
   Event as NostrEvent,
   nip19,
   nip21,
@@ -34,6 +19,21 @@ import {
   RiCloseCircleLine,
   RiRefreshLine,
 } from "react-icons/ri/index.js";
+import {
+  Button,
+  Card,
+  Form,
+  H2,
+  Input,
+  Paragraph,
+  SizableText,
+  Tabs,
+  Text,
+  Tooltip,
+  XStack,
+  YStack,
+  useTheme,
+} from "tamagui";
 
 export const RELAY_LIST = [
   "wss://relayable.org",
