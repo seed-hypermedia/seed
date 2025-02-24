@@ -10,7 +10,6 @@ import {
   resolveHmIdToAppRoute,
   useHmIdToAppRouteResolver,
 } from '@/utils/navigation'
-import {UnpackedHypermediaId} from '@shm/shared'
 import {HYPERMEDIA_SCHEME} from '@shm/shared/constants'
 import {SearchResult} from '@shm/shared/editor-types'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
