@@ -1,4 +1,4 @@
-import {encode as cborEncode} from "@ipld/dag-cbor";
+import {decode as cborDecode, encode as cborEncode} from "@ipld/dag-cbor";
 import CommentEditor from "@shm/editor/comment-editor";
 import {
   HMAnnotation,
@@ -158,8 +158,9 @@ function dumbSerializeBlock(value: any) {
   return "?";
 }
 
-function seralizeDebug(value: any) {
-  return JSON.stringify(dumbSerializeBlock(value), null, 2);
+function seralizeDebug(block: any) {
+  const value = cborDecode(block.bytes);
+  return value;
 }
 
 async function createAccount({name}: {name: string}) {
@@ -179,29 +180,35 @@ async function createAccount({name}: {name: string}) {
     keyPair,
   });
   const genesisChangeBlock = await encodeBlock(genesisChange);
-  console.log("GENESIS CHANGE", seralizeDebug(genesisChange));
+  console.log("GENESIS CHANGE", seralizeDebug(genesisChangeBlock));
   const changeHome = await createHomeDocumentChange({
     keyPair,
-    genesisChangeCid: genesisChangeBlock.cid.bytes,
+    genesisChangeCid: genesisChangeBlock.cid,
     operations: [
       {
         type: "SetAttributes",
         attrs: [{key: ["name"], value: name}],
       },
     ],
-    deps: [genesisChangeBlock.cid.bytes],
-    depth: 0,
+    deps: [genesisChangeBlock.cid],
+    depth: 1,
   });
   const changeHomeBlock = await encodeBlock(changeHome);
-  console.log("HOME CHANGE", seralizeDebug(changeHome));
+  console.log(
+    "HOME CHANGE RAW",
+    Array.from(changeHomeBlock.bytes)
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("")
+  );
+  console.log("HOME CHANGE", seralizeDebug(changeHomeBlock));
   const ref = await createRef({
     keyPair,
-    genesisCid: genesisChangeBlock.cid.bytes,
-    head: changeHomeBlock.cid.bytes,
+    genesisCid: genesisChangeBlock.cid,
+    head: changeHomeBlock.cid,
     generation: 1,
   });
   const refBlock = await encodeBlock(ref);
-  console.log("REF", seralizeDebug(ref));
+  console.log("REF", seralizeDebug(refBlock));
   const createAccountPayload: {
     genesis: BlobPayload;
     home: BlobPayload;
@@ -389,8 +396,8 @@ type UnsignedDocumentChange = {
   sig: Uint8Array; // new Uint8Array(64); // we are expected to sign a blob with empty signature
   ts: bigint;
   depth?: number;
-  genesis?: Uint8Array;
-  deps?: Uint8Array[];
+  genesis?: CID;
+  deps?: CID[];
 };
 type SignedDocumentChange = Omit<UnsignedDocumentChange, "sig"> & {
   sig: ArrayBuffer;
@@ -400,9 +407,9 @@ type UnsignedRef = {
   type: "Ref";
   space?: Uint8Array;
   path?: string;
-  genesisBlob: Uint8Array;
+  genesisBlob: CID;
   capability?: Uint8Array;
-  heads: Uint8Array[];
+  heads: CID[];
   generation: number;
   signer: Uint8Array;
   ts: bigint;
@@ -481,8 +488,8 @@ async function createHomeDocumentChange({
 }: {
   operations: HMDocumentOperation[];
   keyPair: CryptoKeyPair;
-  genesisChangeCid: Uint8Array;
-  deps: Uint8Array[];
+  genesisChangeCid: CID;
+  deps: CID[];
   depth: number;
 }) {
   const signerKey = await preparePublicKey(keyPair.publicKey);
@@ -515,8 +522,8 @@ async function createRef({
   generation,
 }: {
   keyPair: CryptoKeyPair;
-  genesisCid: Uint8Array;
-  head: Uint8Array;
+  genesisCid: CID;
+  head: CID;
   space?: Uint8Array;
   path?: string;
   generation: number;
