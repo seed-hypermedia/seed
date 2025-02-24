@@ -14,6 +14,7 @@ import {Button} from "@shm/ui/button";
 import {DialogTitle, useAppDialog} from "@shm/ui/universal-dialog";
 import {Input} from "@tamagui/input";
 import {useMutation, useQueryClient} from "@tanstack/react-query";
+import {BlockView} from "multiformats";
 import {base58btc} from "multiformats/bases/base58";
 import * as Block from "multiformats/block";
 import {CID} from "multiformats/cid";
@@ -115,19 +116,50 @@ async function getKeyPair() {
   return existingKeyPair;
 }
 
-async function getObjectCID(data: any): Promise<CID> {
+async function encodeBlock(data: any): Promise<BlockView<any, 113, 18, 1>> {
   const block = await Block.encode({
     value: data,
     codec: {
       code: 0x71,
-      encode: (input: Uint8Array) => input,
+      encode: (input: any) => cborEncode(input),
       name: "DAG-CBOR",
     },
     // codec: raw,
     hasher: sha256,
   });
-  const cid = block.cid;
-  return cid;
+  console.log("ENCODED BLOCK", block.cid);
+  return block;
+  // const cid = block.cid;
+  // const data = block.value
+  // return cid;
+}
+
+function dumbSerializeBlock(value: any) {
+  if (value === null) return null;
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return value;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "bigint") return value.toString();
+  // check if its a buffer or array buffer, then base58btc.encode()
+  if (value instanceof ArrayBuffer || value instanceof Uint8Array) {
+    return {"/": {bytes: base58btc.encode(new Uint8Array(value))}};
+  }
+  if (Array.isArray(value)) {
+    return value.map(dumbSerializeBlock);
+  }
+  if (typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, value]) => [
+        key,
+        dumbSerializeBlock(value),
+      ])
+    );
+  }
+  return "?";
+}
+
+function seralizeDebug(value: any) {
+  return JSON.stringify(dumbSerializeBlock(value), null, 2);
 }
 
 async function createAccount({name}: {name: string}) {
@@ -146,45 +178,44 @@ async function createAccount({name}: {name: string}) {
   const genesisChange = await createDocumentGenesisChange({
     keyPair,
   });
-  const genesisChangeEncoded = cborEncode(genesisChange);
-  const genesisChangeCID = await getObjectCID(genesisChangeEncoded);
-  console.log("GENESIS CHANGE", genesisChange, genesisChangeCID);
+  const genesisChangeBlock = await encodeBlock(genesisChange);
+  console.log("GENESIS CHANGE", seralizeDebug(genesisChange));
   const changeHome = await createHomeDocumentChange({
     keyPair,
-    genesisChangeCid: genesisChangeCID,
+    genesisChangeCid: genesisChangeBlock.cid.bytes,
     operations: [
       {
         type: "SetAttributes",
         attrs: [{key: ["name"], value: name}],
       },
     ],
-    deps: [genesisChangeCID],
+    deps: [genesisChangeBlock.cid.bytes],
     depth: 0,
   });
-  const changeHomeEncoded = cborEncode(changeHome);
-  const changeHomeCID = await getObjectCID(changeHomeEncoded);
-  console.log("HOME CHANGE", changeHome, changeHomeCID);
+  const changeHomeBlock = await encodeBlock(changeHome);
+  console.log("HOME CHANGE", seralizeDebug(changeHome));
   const ref = await createRef({
     keyPair,
-    genesisCid: genesisChangeCID,
-    head: changeHomeCID,
+    genesisCid: genesisChangeBlock.cid.bytes,
+    head: changeHomeBlock.cid.bytes,
     generation: 1,
   });
-  console.log("REF", ref);
+  const refBlock = await encodeBlock(ref);
+  console.log("REF", seralizeDebug(ref));
   const createAccountPayload: {
     genesis: BlobPayload;
     home: BlobPayload;
     ref: Uint8Array;
   } = {
     genesis: {
-      data: genesisChangeEncoded,
-      cid: genesisChangeCID,
+      data: genesisChangeBlock.bytes,
+      cid: genesisChangeBlock.cid.toString(),
     },
     home: {
-      data: changeHomeEncoded,
-      cid: changeHomeCID,
+      data: changeHomeBlock.bytes,
+      cid: changeHomeBlock.cid.toString(),
     },
-    ref: cborEncode(ref),
+    ref: refBlock.bytes,
   };
   const createAccountData = cborEncode(createAccountPayload);
   console.log("CREATE ACCOUNT", createAccountPayload);
@@ -195,7 +226,7 @@ async function createAccount({name}: {name: string}) {
 
 type BlobPayload = {
   data: Uint8Array;
-  cid: CID;
+  cid: string;
 };
 
 async function signObject(
@@ -358,8 +389,8 @@ type UnsignedDocumentChange = {
   sig: Uint8Array; // new Uint8Array(64); // we are expected to sign a blob with empty signature
   ts: bigint;
   depth?: number;
-  genesis?: CID;
-  deps?: CID[];
+  genesis?: Uint8Array;
+  deps?: Uint8Array[];
 };
 type SignedDocumentChange = Omit<UnsignedDocumentChange, "sig"> & {
   sig: ArrayBuffer;
@@ -369,9 +400,9 @@ type UnsignedRef = {
   type: "Ref";
   space?: Uint8Array;
   path?: string;
-  genesisBlob: CID;
-  capability?: CID;
-  heads: CID[];
+  genesisBlob: Uint8Array;
+  capability?: Uint8Array;
+  heads: Uint8Array[];
   generation: number;
   signer: Uint8Array;
   ts: bigint;
@@ -450,8 +481,8 @@ async function createHomeDocumentChange({
 }: {
   operations: HMDocumentOperation[];
   keyPair: CryptoKeyPair;
-  genesisChangeCid: CID;
-  deps: CID[];
+  genesisChangeCid: Uint8Array;
+  deps: Uint8Array[];
   depth: number;
 }) {
   const signerKey = await preparePublicKey(keyPair.publicKey);
@@ -484,8 +515,8 @@ async function createRef({
   generation,
 }: {
   keyPair: CryptoKeyPair;
-  genesisCid: CID;
-  head: CID;
+  genesisCid: Uint8Array;
+  head: Uint8Array;
   space?: Uint8Array;
   path?: string;
   generation: number;
@@ -678,7 +709,7 @@ function CreateAccountDialog({
       />
       <Button
         onPress={() => {
-          createAccount({name: nameValue.current}).then(() => onClose());
+          createAccount({name: "Cat Dog"}).then(() => onClose());
         }}
       >
         Create Account

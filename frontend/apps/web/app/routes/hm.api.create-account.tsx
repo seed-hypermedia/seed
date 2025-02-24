@@ -37,8 +37,7 @@ export const action: ActionFunction = async ({request}) => {
   const storedRefResult = await queryClient.daemon.storeBlobs({
     blobs: [
       {
-        cid: payload.ref.cid,
-        data: payload.ref.data,
+        data: payload.ref,
       },
     ],
   });

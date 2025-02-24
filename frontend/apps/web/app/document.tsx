@@ -470,7 +470,6 @@ function clientLazy<ComponentProps extends {}>(
     useEffect(() => {
       setIsClientAwake(true);
     }, []);
-    console.log("RenderingClientAwoken", !!ClientComponent, props);
     return isClientAwake ? <ClientComponent {...props} /> : null;
   }
   return ClientAwokenComponent;
