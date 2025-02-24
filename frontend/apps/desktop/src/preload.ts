@@ -1,10 +1,10 @@
-import { AppWindowEvent } from '@/utils/window-events'
+import {AppWindowEvent} from '@/utils/window-events'
 import '@sentry/electron/preload'
-import { contextBridge, ipcRenderer } from 'electron'
-import { exposeElectronTRPC } from 'electron-trpc/main'
+import {contextBridge, ipcRenderer} from 'electron'
+import {exposeElectronTRPC} from 'electron-trpc/main'
 // import directly from this deep path for shared/utils/stream! Bad things happen if you try to directly import from @shm/shared
-import { eventStream, writeableStateStream } from '@shm/shared/utils/stream'
-import { GoDaemonState } from './daemon'
+import {eventStream, writeableStateStream} from '@shm/shared/utils/stream'
+import {GoDaemonState} from './daemon'
 
 process.once('loaded', async () => {
   exposeElectronTRPC()
@@ -180,5 +180,26 @@ contextBridge.exposeInMainWorld('ipc', {
   },
   versions: () => {
     return process.versions
+  },
+})
+
+contextBridge.exposeInMainWorld('autoUpdate', {
+  onCheckForUpdates: (handler: (event: any) => void) => {
+    ipcRenderer.on('auto-update:check-for-updates', (_event, value) => {
+      handler(value)
+    })
+  },
+  onUpdateAvailable: (handler: (updateInfo: any) => void) => {
+    ipcRenderer.on('auto-update:update-available', (_event, updateInfo) => {
+      handler(updateInfo)
+    })
+  },
+  downloadAndInstall: () => {
+    ipcRenderer.send('auto-update:download-and-install')
+  },
+  onDownloadProgress: (handler: (progress: number) => void) => {
+    ipcRenderer.on('auto-update:download-progress', (_event, progress) => {
+      handler(progress)
+    })
   },
 })
