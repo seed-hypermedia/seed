@@ -426,7 +426,7 @@ export class AutoUpdater {
                   rm -f "${filePath}"
                   
                   # Start the new version
-                  nohup /usr/bin/seed-desktop > /dev/null 2>&1 &
+                  seed
                 `
 
                 try {
