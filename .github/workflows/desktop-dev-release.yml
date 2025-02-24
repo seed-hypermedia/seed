@@ -224,3 +224,46 @@ jobs:
           echo "Sending Discord Notification..."
           PAYLOAD=$(printf '{"content": "%s"}' "$MESSAGE")
           curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK_URL"
+
+      - name: Generate and upload latest-dev.json
+        env:
+          VERSION: ${{ needs.build-info.outputs.version }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_KEY }}
+          AWS_DEFAULT_REGION: eu-west-2
+        run: |
+          # Create the JSON structure
+          cat > latest-dev.json << EOF
+          {
+            "name": "Seed Desktop ${VERSION}",
+            "tag_name": "${VERSION}",
+            "release_notes": "Development build ${VERSION}",
+            "assets": {
+              "linux": {
+                "deb": {
+                  "url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/seed-desktop_${VERSION}_amd64.deb",
+                  "size": "$(find artifacts -name "*amd64.deb" -exec stat -f%z {} \;)"
+                }
+              },
+              "macos": {
+                "x64": {
+                  "url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/Seed-Desktop-${VERSION}-x64.dmg",
+                  "size": "$(find artifacts -name "*-x64.dmg" -exec stat -f%z {} \;)"
+                },
+                "arm64": {
+                  "url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/Seed-Desktop-${VERSION}-arm64.dmg",
+                  "size": "$(find artifacts -name "*-arm64.dmg" -exec stat -f%z {} \;)"
+                }
+              },
+              "win32": {
+                "x64": {
+                  "url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/Seed-Desktop-Setup-${VERSION}.exe",
+                  "size": "$(find artifacts -name "*.exe" -exec stat -f%z {} \;)"
+                }
+              }
+            }
+          }
+          EOF
+
+          # Upload to S3
+          aws s3 cp latest-dev.json s3://seedappdev/dev/latest-dev.json --acl public-read
