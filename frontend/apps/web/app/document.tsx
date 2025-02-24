@@ -31,7 +31,8 @@ import {ActivitySection} from "@shm/ui/page-components";
 import {ChevronUp} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
-import React, {lazy, useCallback, useEffect, useMemo, useState} from "react";
+import React, {useCallback, useEffect, useMemo, useState} from "react";
+import type {WebCommentingProps} from "./commenting";
 import {getHref} from "./href";
 import type {SiteDocumentPayload} from "./loaders";
 import {defaultSiteIcon} from "./meta";
@@ -460,7 +461,24 @@ function WebDocContentProvider({
 //     : await import("./commenting")
 // );
 
-const WebCommenting = lazy(() => import("./commenting"));
+function clientLazy<ComponentProps extends {}>(
+  doImport: () => Promise<{default: React.FC<ComponentProps>}>
+) {
+  const ClientComponent = React.lazy(doImport);
+  function ClientAwokenComponent(props: ComponentProps) {
+    const [isClientAwake, setIsClientAwake] = useState(false);
+    useEffect(() => {
+      setIsClientAwake(true);
+    }, []);
+    console.log("RenderingClientAwoken", !!ClientComponent, props);
+    return isClientAwake ? <ClientComponent {...props} /> : null;
+  }
+  return ClientAwokenComponent;
+}
+
+const WebCommenting = clientLazy<WebCommentingProps>(
+  () => import("./commenting")
+);
 
 function DocumentAppendix({
   id,

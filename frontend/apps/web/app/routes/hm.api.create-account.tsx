@@ -1,6 +1,6 @@
+import {queryClient} from "@/client";
 import {decode as cborDecode} from "@ipld/dag-cbor";
 import {ActionFunction, json} from "@remix-run/node";
-import {queryClient} from "~/client";
 
 export const action: ActionFunction = async ({request}) => {
   if (request.method !== "POST") {
@@ -16,22 +16,33 @@ export const action: ActionFunction = async ({request}) => {
   const cborData = await request.arrayBuffer();
   const payload = cborDecode(new Uint8Array(cborData));
   console.log("CreateAccount IN SERVER", payload);
-  const storedResult = await queryClient.daemon.storeBlobs({
+  const storedGenesisResult = await queryClient.daemon.storeBlobs({
     blobs: [
       {
         cid: payload.genesis.cid,
         data: payload.genesis.data,
       },
+    ],
+  });
+  console.log("saved genesis", storedGenesisResult);
+  const storedHomeResult = await queryClient.daemon.storeBlobs({
+    blobs: [
       {
         cid: payload.home.cid,
         data: payload.home.data,
       },
+    ],
+  });
+  console.log("saved home", storedHomeResult);
+  const storedRefResult = await queryClient.daemon.storeBlobs({
+    blobs: [
       {
-        data: payload.ref,
+        cid: payload.ref.cid,
+        data: payload.ref.data,
       },
     ],
   });
-  console.log("STORED IN SERVER", storedResult);
+  console.log("saved ref", storedRefResult);
 
   return json({
     message: "Success",

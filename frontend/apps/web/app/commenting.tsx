@@ -10,14 +10,14 @@ import {
   queryKeys,
   UnpackedHypermediaId,
 } from "@shm/shared";
-import {Button, Dialog, DialogTitle} from "@shm/ui/index";
-import {useAppDialog} from "@shm/ui/universal-dialog";
+import {Button} from "@shm/ui/button";
+import {DialogTitle, useAppDialog} from "@shm/ui/universal-dialog";
 import {Input} from "@tamagui/input";
 import {useMutation, useQueryClient} from "@tanstack/react-query";
 import {base58btc} from "multiformats/bases/base58";
 import * as Block from "multiformats/block";
 import {CID} from "multiformats/cid";
-import * as raw from "multiformats/codecs/raw";
+// import * as raw from "multiformats/codecs/raw";
 import {sha256} from "multiformats/hashes/sha2";
 import {useRef, useSyncExternalStore} from "react";
 
@@ -118,7 +118,12 @@ async function getKeyPair() {
 async function getObjectCID(data: any): Promise<CID> {
   const block = await Block.encode({
     value: data,
-    codec: raw,
+    codec: {
+      code: 0x71,
+      encode: (input: Uint8Array) => input,
+      name: "DAG-CBOR",
+    },
+    // codec: raw,
     hasher: sha256,
   });
   const cid = block.cid;
@@ -158,7 +163,7 @@ async function createAccount({name}: {name: string}) {
   });
   const changeHomeEncoded = cborEncode(changeHome);
   const changeHomeCID = await getObjectCID(changeHomeEncoded);
-  console.log("CHANGE HOME", changeHome, changeHomeCID);
+  console.log("HOME CHANGE", changeHome, changeHomeCID);
   const ref = await createRef({
     keyPair,
     genesisCid: genesisChangeCID,
@@ -577,18 +582,19 @@ type CreateCommentPayload = {
   rootReplyCommentId?: string;
 };
 
+export type WebCommentingProps = {
+  docId: UnpackedHypermediaId;
+  replyCommentId: string | null;
+  rootReplyCommentId: string | null;
+  onDiscardDraft: () => void;
+};
+
 export default function WebCommenting({
   docId,
   replyCommentId,
   rootReplyCommentId,
   onDiscardDraft,
-}: {
-  docId: UnpackedHypermediaId;
-  replyCommentId: string | null;
-  rootReplyCommentId: string | null;
-  onDiscardDraft: () => void;
-}) {
-  if (typeof window === "undefined") return null; // this component is not rendered on the server
+}: WebCommentingProps) {
   const userKeyPair = useKeyPair();
   const queryClient = useQueryClient();
   const postComment = useMutation({
@@ -662,7 +668,7 @@ function CreateAccountDialog({
 }) {
   const nameValue = useRef("");
   return (
-    <Dialog>
+    <>
       <DialogTitle>Create Account</DialogTitle>
       <Input
         placeholder="Account Name"
@@ -677,6 +683,6 @@ function CreateAccountDialog({
       >
         Create Account
       </Button>
-    </Dialog>
+    </>
   );
 }
