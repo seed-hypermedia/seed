@@ -241,24 +241,24 @@ jobs:
             "assets": {
               "linux": {
                 "deb": {
-                  "url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/seed-desktop_${VERSION}_amd64.deb",
-                  "size": "$(find artifacts -name "*amd64.deb" -exec stat -f%z {} \;)"
+                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/seed-dev_${VERSION}_amd64.deb",
+                },
+                "rpm": {
+                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/seed-dev-${VERSION}.x86_64.rpm",
                 }
               },
               "macos": {
                 "x64": {
-                  "url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/Seed-Desktop-${VERSION}-x64.dmg",
-                  "size": "$(find artifacts -name "*-x64.dmg" -exec stat -f%z {} \;)"
+                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/SeedDev-${VERSION}-x64.dmg",
+                  "zip_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/SeedDev-darwin-x64-${VERSION}.zip",
                 },
                 "arm64": {
-                  "url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/Seed-Desktop-${VERSION}-arm64.dmg",
-                  "size": "$(find artifacts -name "*-arm64.dmg" -exec stat -f%z {} \;)"
-                }
+                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/SeedDev-${VERSION}-arm64.dmg",
+                  "zip_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/SeedDev-darwin-arm64-${VERSION}.zip",
               },
               "win32": {
                 "x64": {
-                  "url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/Seed-Desktop-Setup-${VERSION}.exe",
-                  "size": "$(find artifacts -name "*.exe" -exec stat -f%z {} \;)"
+                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/seed-dev-${VERSION}-win32-x64-setup.exe",
                 }
               }
             }
