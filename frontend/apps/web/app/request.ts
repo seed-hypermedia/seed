@@ -10,7 +10,6 @@ export function parseRequest(request: Request) {
   if (pathParts.at(-1) === "") {
     pathParts = pathParts.slice(0, -1);
   }
-  console.log("protocol", protocol);
   return {
     hostname,
     origin: `${protocol}//${hostname}`,
