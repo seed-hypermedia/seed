@@ -1,5 +1,10 @@
 import {useFetcher} from "@remix-run/react";
-import {packHmId, setSearchQuery, UnpackedHypermediaId} from "@shm/shared";
+import {
+  packHmId,
+  queryKeys,
+  setSearchQuery,
+  UnpackedHypermediaId,
+} from "@shm/shared";
 import {useQuery, UseQueryOptions} from "@tanstack/react-query";
 import {useEffect} from "react";
 import {WebBaseDocumentPayload} from "./loaders";
@@ -68,7 +73,9 @@ export function useDiscussion(
   if (targetCommentId) {
     url += `&targetCommentId=${targetCommentId}`;
   }
-  const response = useAPI<DiscussionPayload>(url);
+  const response = useAPI<DiscussionPayload>(url, {
+    queryKey: [queryKeys.DOCUMENT_DISCUSSION, docId.id, targetCommentId],
+  });
   return response;
 }
 
@@ -80,7 +87,10 @@ export function useActivity(
   if (targetCommentId) {
     url += `&targetCommentId=${targetCommentId}`;
   }
-  const response = useAPI<ActivityPayload>(url);
+  const response = useAPI<ActivityPayload>(url, {
+    queryKey: [queryKeys.DOCUMENT_ACTIVITY, docId.id],
+  });
+
   return response;
 }
 

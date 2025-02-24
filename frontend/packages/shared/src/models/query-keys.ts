@@ -81,6 +81,10 @@ export const queryKeys = {
   CURRENCY_COMPARISONS: 'CURRENCY_COMPARISONS',
   PAYMENT_RECIPIENTS: 'PAYMENT_RECIPIENTS', // string: "accountUid,accountUid"
   INVOICE_STATUS: 'INVOICE_STATUS', // invoiceId: string
+
+  // web stuff is queried differently...
+  DOCUMENT_ACTIVITY: 'DOCUMENT_ACTIVITY', //, docId.id: string
+  DOCUMENT_DISCUSSION: 'DOCUMENT_DISCUSSION', //, docId.id: string, targetCommentId?: string
 } as const
 
 export function labelOfQueryKey(key: QueryKey) {
@@ -131,7 +135,7 @@ export function labelOfQueryKey(key: QueryKey) {
     case queryKeys.COMMENT:
       return 'Comment'
     case queryKeys.DOCUMENT_COMMENTS:
-      return 'Publication Comments'
+      return 'Document Comments'
 
     // content-graph
     case queryKeys.ENTITY_CITATIONS:

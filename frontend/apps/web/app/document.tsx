@@ -31,8 +31,8 @@ import {ActivitySection} from "@shm/ui/page-components";
 import {ChevronUp} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
-import React, {lazy, useCallback, useEffect, useMemo, useState} from "react";
-import {useTheme} from "tamagui";
+import React, {useCallback, useEffect, useMemo, useState} from "react";
+import type {WebCommentingProps} from "./commenting";
 import {getHref} from "./href";
 import type {SiteDocumentPayload} from "./loaders";
 import {defaultSiteIcon} from "./meta";
@@ -455,7 +455,29 @@ function WebDocContentProvider({
   );
 }
 
-const WebCommenting = lazy(async () => await import("./commenting"));
+// const WebCommenting = lazy(async () =>
+//   typeof window === "undefined"
+//     ? {default: () => null}
+//     : await import("./commenting")
+// );
+
+function clientLazy<ComponentProps extends {}>(
+  doImport: () => Promise<{default: React.FC<ComponentProps>}>
+) {
+  const ClientComponent = React.lazy(doImport);
+  function ClientAwokenComponent(props: ComponentProps) {
+    const [isClientAwake, setIsClientAwake] = useState(false);
+    useEffect(() => {
+      setIsClientAwake(true);
+    }, []);
+    return isClientAwake ? <ClientComponent {...props} /> : null;
+  }
+  return ClientAwokenComponent;
+}
+
+const WebCommenting = clientLazy<WebCommentingProps>(
+  () => import("./commenting")
+);
 
 function DocumentAppendix({
   id,
@@ -502,7 +524,6 @@ function DocumentActivity({
   siteHost: string | undefined;
 }) {
   const activity = useActivity(id);
-  const theme = useTheme();
   const renderCommentContent = useCallback(
     (comment: HMComment) => {
       return (
@@ -512,7 +533,11 @@ function DocumentActivity({
           id={id}
           siteHost={siteHost}
         >
-          <BlocksContent blocks={comment.content} parentBlockId={null} />
+          <BlocksContent
+            blocks={comment.content}
+            parentBlockId={null}
+            renderCommentContent={renderCommentContent}
+          />
         </WebDocContentProvider>
       );
     },
@@ -606,12 +631,28 @@ function CommentReplies({
   rootReplyCommentId: string | null;
 }) {
   const discussion = useDiscussion(docId, replyCommentId);
+  console.log("CommentReplies", {
+    replyCommentId,
+    rootReplyCommentId,
+    docId,
+    discussion: discussion.data,
+  });
   const renderCommentContent = useCallback(
     (comment: HMComment) => {
+      console.log("comment content", comment);
       return (
         homeId && (
-          <WebDocContentProvider homeId={homeId} id={docId} siteHost={siteHost}>
-            <BlocksContent blocks={comment.content} parentBlockId={null} />
+          <WebDocContentProvider
+            key={comment.id}
+            originHomeId={homeId}
+            id={docId}
+            siteHost={siteHost}
+          >
+            <BlocksContent
+              blocks={comment.content}
+              parentBlockId={null}
+              renderCommentContent={renderCommentContent}
+            />
           </WebDocContentProvider>
         )
       );

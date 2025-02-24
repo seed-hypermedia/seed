@@ -17,7 +17,7 @@ export default function CommentEditor({
   onCommentSubmit,
   onDiscardDraft,
 }: {
-  onCommentSubmit: (content: HMBlockNode[]) => void;
+  onCommentSubmit: (content: HMBlockNode[]) => Promise<void>;
   onDiscardDraft: () => void;
 }) {
   const {editor} = useCommentEditor();
@@ -44,7 +44,7 @@ export default function CommentEditor({
         </Tooltip>
         <Button
           size="$2"
-          theme="brand"
+          theme="blue"
           onPress={() => {
             const blocks = serverBlockNodesFromEditorBlocks(
               editor,
@@ -53,7 +53,9 @@ export default function CommentEditor({
             const commentContent = blocks.map((block) =>
               block.toJson()
             ) as HMBlockNode[];
-            onCommentSubmit(commentContent);
+            onCommentSubmit(commentContent).then(() => {
+              editor.removeBlocks(editor.topLevelBlocks);
+            });
           }}
         >
           Publish Comment
