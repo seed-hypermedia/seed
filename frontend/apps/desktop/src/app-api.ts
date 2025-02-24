@@ -265,6 +265,7 @@ export const router = t.router({
         height: 1200,
         webPreferences: {
           offscreen: true,
+          spellcheck: true,
         },
         icon: process.env.CI
           ? path.resolve(__dirname, '../assets/icons-prod/icon.png')

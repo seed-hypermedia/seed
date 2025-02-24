@@ -194,7 +194,7 @@ export function createAppWindow(input: {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       disableDialogs: true,
-      spellcheck: false,
+      spellcheck: true,
     },
     minWidth: windowType.minWidth,
     minHeight: windowType.minHeight,

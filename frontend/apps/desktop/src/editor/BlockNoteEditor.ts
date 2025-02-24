@@ -306,6 +306,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
             newOptions.defaultStyles ? styles.defaultStyles : '',
             newOptions.domAttributes?.editor?.class || '',
           ),
+          spellCheck: 'true',
         },
       },
     }
