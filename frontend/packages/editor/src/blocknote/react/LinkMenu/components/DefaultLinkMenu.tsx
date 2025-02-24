@@ -13,7 +13,7 @@ export function DefaultLinkMenu<BSchema extends BlockSchema>(
 
   if (props.items.length > 1) {
     renderedItems.push(
-      <Menu.Label style={{fontWeight: "bold", fontSize: 14}}>
+      <Menu.Label key="list-label" style={{fontWeight: "bold", fontSize: 14}}>
         Insert as:
       </Menu.Label>
     );
@@ -23,7 +23,7 @@ export function DefaultLinkMenu<BSchema extends BlockSchema>(
   for (const item of props.items) {
     renderedItems.push(
       <LinkMenuItem
-        key={item.name}
+        key={item.key}
         name={item.name}
         icon={item.icon}
         hint={item.hint}

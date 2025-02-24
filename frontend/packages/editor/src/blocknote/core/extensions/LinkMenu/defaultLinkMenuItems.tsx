@@ -46,6 +46,7 @@ export function getLinkMenuItems({
   if (sourceUrl && !isHypermediaScheme(sourceUrl)) {
     linkMenuItems = [
       {
+        key: "link",
         name: "Link",
         disabled: false,
         icon: <Link size={18} />,
@@ -68,6 +69,7 @@ export function getLinkMenuItems({
         },
       },
       {
+        key: "button",
         name: "Button",
         disabled: false,
         icon: <CircleDot size={18} />,
@@ -90,6 +92,7 @@ export function getLinkMenuItems({
   if (isLoading) {
     const loadingItem = {
       name: "Checking link...",
+      key: "loading",
       // hm://z6Mkj5NQAYGQSLRAV2L6g4R2LC8D2FL47XW5miJsPaRvkerg?v=bafy2bzacecwv74orbeuwfdzyvnbyzqnwzdn3gorznjku7ythcyyj6aqqktcqu
       icon: <Spinner size="small" />,
       disabled: true,
@@ -138,6 +141,7 @@ export function getLinkMenuItems({
             //     ? '"' + docTitle + '"'
             //     : HYPERMEDIA_ENTITY_TYPES[hmId.type]
             // }`,
+            key: "embed",
             name: "Embed",
             disabled: false,
             icon: <PanelBottom size={18} />,
@@ -165,6 +169,7 @@ export function getLinkMenuItems({
         linkMenuItems = [
           {
             // name: `Link as "${docTitle}"`,
+            key: "link",
             name: "Link",
             disabled: false,
             icon: <Link size={18} />,
@@ -174,6 +179,7 @@ export function getLinkMenuItems({
           },
           {
             // name: `Mention "${docTitle}"`,
+            key: "mention",
             name: "Mention",
             disabled: false,
             icon: <Quote size={18} />,
@@ -200,6 +206,7 @@ export function getLinkMenuItems({
             },
           },
           {
+            key: "button",
             name: "Button",
             disabled: false,
             icon: <CircleDot size={18} />,
