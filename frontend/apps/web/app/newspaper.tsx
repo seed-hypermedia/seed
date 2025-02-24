@@ -5,7 +5,7 @@ import {XStack, YStack} from "@tamagui/stacks";
 import {useCallback} from "react";
 import {SiteDocumentPayload} from "./loaders";
 import {PageFooter} from "./page-footer";
-import {WebSiteHeader} from "./page-header";
+import {WebSiteHeader} from "./web-site-header";
 
 export function NewspaperPage(props: SiteDocumentPayload) {
   const {

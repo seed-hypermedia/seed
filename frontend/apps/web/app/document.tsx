@@ -40,9 +40,10 @@ import {useActivity, useDiscussion} from "./models";
 import {NewspaperPage} from "./newspaper";
 import {NotFoundPage} from "./not-found";
 import {PageFooter} from "./page-footer";
-import {PageHeader, WebSiteHeader} from "./page-header";
+import {PageHeader} from "./page-header";
 import {getOptimizedImageUrl, WebSiteProvider} from "./providers";
 import {EmbedDocument, EmbedInline, QueryBlockWeb} from "./web-embeds";
+import {WebSiteHeader} from "./web-site-header";
 import {unwrap, Wrapped} from "./wrapping";
 
 export const documentPageHeaders: HeadersFunction = ({loaderHeaders}) =>
