@@ -17,6 +17,7 @@ export function NewspaperPage(props: SiteDocumentPayload) {
     supportQueries,
     accountsMetadata,
     siteHost,
+    origin,
   } = props;
   if (!id) return null;
   if (!document) return null;
@@ -63,6 +64,7 @@ export function NewspaperPage(props: SiteDocumentPayload) {
           document={document}
           supportDocuments={supportDocuments}
           supportQueries={props.supportQueries}
+          origin={origin}
         >
           <Container
             clearVerticalSpace

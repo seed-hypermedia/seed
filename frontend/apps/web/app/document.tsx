@@ -117,6 +117,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
     supportQueries,
     accountsMetadata,
     enableWebSigning,
+    origin,
   } = props;
   if (!id) return <NotFoundPage {...props} />;
   if (!document)
@@ -186,6 +187,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
           document={document}
           supportDocuments={supportDocuments}
           supportQueries={supportQueries}
+          origin={origin}
         >
           <DocumentCover cover={document.metadata.cover} id={id} />
           <YStack

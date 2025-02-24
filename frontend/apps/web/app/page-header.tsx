@@ -144,6 +144,7 @@ export function WebSiteHeader(
     document?: HMDocument;
     supportDocuments?: HMEntityContent[];
     supportQueries?: HMQueryResult[];
+    origin?: string;
   }>
 ) {
   const isCenterLayout =
@@ -175,6 +176,7 @@ export function WebSiteHeader(
       isCenterLayout={isCenterLayout}
       items={items}
       {...props}
+      origin={props.origin}
       onBlockFocus={(blockId) => {
         window.location.hash = blockId;
         const element = document.getElementById(blockId);

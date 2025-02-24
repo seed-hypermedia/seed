@@ -5,7 +5,6 @@ import {
   HMMetadata,
   HMQueryResult,
   hostnameStripProtocol,
-  SITE_BASE_URL,
   UnpackedHypermediaId,
   useRouteLink,
 } from "@shm/shared";
@@ -36,6 +35,7 @@ export function SiteHeader({
   onBlockFocus,
   onShowMobileMenu,
   supportQueries,
+  origin,
 }: {
   originHomeId: UnpackedHypermediaId | null;
   docId: UnpackedHypermediaId | null;
@@ -48,6 +48,7 @@ export function SiteHeader({
   onBlockFocus?: (blockId: string) => void;
   onShowMobileMenu?: (isOpen: boolean) => void;
   supportQueries?: HMQueryResult[];
+  origin?: string;
 }) {
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false);
   function setIsMobileMenuOpen(isOpen: boolean) {
@@ -207,12 +208,12 @@ export function SiteHeader({
   );
   return (
     <>
-      {docId && originHomeId && originHomeId.uid !== docId.uid ? (
+      {docId && origin && originHomeId && originHomeId.uid !== docId.uid ? (
         <YStack padding="$2" alignItems="center" backgroundColor="$brand5">
           <SizableText color="white" size="$3">
             Hosted on{" "}
             <ButtonText color="white" tag="a" href="/">
-              {hostnameStripProtocol(SITE_BASE_URL)}
+              {hostnameStripProtocol(origin)}
             </ButtonText>{" "}
             via the{" "}
             <ButtonText

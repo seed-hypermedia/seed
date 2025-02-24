@@ -119,6 +119,7 @@ export default function DownloadPage() {
     document,
     supportDocuments,
     supportQueries,
+    origin,
   } = data;
   //   const os = getOS();
   const [platform, setPlatform] = useState<
@@ -183,6 +184,7 @@ export default function DownloadPage() {
           document={document}
           supportDocuments={supportDocuments}
           supportQueries={supportQueries}
+          origin={origin}
         >
           <YStack
             height="45vh"
