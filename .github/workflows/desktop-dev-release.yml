@@ -225,7 +225,7 @@ jobs:
           PAYLOAD=$(printf '{"content": "%s"}' "$MESSAGE")
           curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK_URL"
 
-      - name: Generate and upload latest-dev.json
+      - name: Generate and upload latest.json (Dev)
         env:
           VERSION: ${{ needs.build-info.outputs.version }}
           AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY }}
@@ -233,9 +233,9 @@ jobs:
           AWS_DEFAULT_REGION: eu-west-2
         run: |
           # Create the JSON structure
-          cat > latest-dev.json << EOF
+          cat > latest.json << EOF
           {
-            "name": "Seed Desktop ${VERSION}",
+            "name": "${VERSION}",
             "tag_name": "${VERSION}",
             "release_notes": "Development build ${VERSION}",
             "assets": {
@@ -266,4 +266,4 @@ jobs:
           EOF
 
           # Upload to S3
-          aws s3 cp latest-dev.json s3://seedappdev/dev/latest-dev.json
+          aws s3 cp latest.json s3://seedappdev/dev/latest.json
