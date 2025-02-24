@@ -266,4 +266,4 @@ jobs:
           EOF
 
           # Upload to S3
-          aws s3 cp latest-dev.json s3://seedappdev/dev/latest-dev.json --acl public-read
+          aws s3 cp latest-dev.json s3://seedappdev/dev/latest-dev.json
