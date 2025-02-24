@@ -3,14 +3,17 @@ export function parseRequest(request: Request) {
   const forwardedHost = request.headers.get("x-forwarded-host");
   const forwardedProto = request.headers.get("x-forwarded-proto");
   const hostname = forwardedHost || url.hostname;
-  const protocol = forwardedProto || url.protocol || "http";
+  const protocol = forwardedProto
+    ? `${forwardedProto}:`
+    : url.protocol || "http:";
   let pathParts = url.pathname.split("/").slice(1);
   if (pathParts.at(-1) === "") {
     pathParts = pathParts.slice(0, -1);
   }
+  console.log("protocol", protocol);
   return {
     hostname,
-    origin: `${protocol}://${hostname}`,
+    origin: `${protocol}//${hostname}`,
     url,
     pathParts,
     method: request.method,
