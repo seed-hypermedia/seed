@@ -264,6 +264,17 @@ function getFocusedBlocks(blocks: HMBlockNode[], blockId?: string) {
   return null;
 }
 
+// Get attribute from plain JSON format (document) and protobuff format (comments)
+function getBlockAttribute(attributes, key): HMBlockChildrenType | undefined {
+  if (!attributes) return;
+
+  if (attributes?.[key]) {
+    return attributes[key];
+  }
+
+  return attributes?.fields?.[key]?.kind?.value || undefined;
+}
+
 export function documentContainerClassName(
   showSidebarOutlineDirectory: boolean,
   contentWidth: undefined | "S" | "M" | "L"
@@ -400,17 +411,6 @@ function _BlocksContent({
 }) {
   if (!blocks) return null;
 
-  // Get attribute from plain JSON format (document) and protobuff format (comments)
-  function getBlockAttribute(attributes, key): HMBlockChildrenType | undefined {
-    if (!attributes) return;
-
-    if (attributes?.[key]) {
-      return attributes[key];
-    }
-
-    return attributes?.fields?.[key]?.kind?.value || undefined;
-  }
-
   return (
     <BlockNodeList childrenType={"Group"}>
       {blocks?.length
@@ -422,7 +422,7 @@ function _BlocksContent({
               blockNode={bn}
               depth={1}
               childrenType={getBlockAttribute(
-                bn.block.attributes,
+                bn.block?.attributes,
                 "childrenType"
               )}
               listLevel={1}
@@ -577,7 +577,12 @@ export function BlockNodeContent({
           isFirstChild={index == 0}
           blockNode={bn}
           childrenType={bn.block!.attributes?.childrenType}
-          listLevel={listLevel + 1}
+          listLevel={
+            childrenType === "Unordered" &&
+            bn.block!.attributes?.childrenType === "Unordered"
+              ? listLevel + 1
+              : listLevel
+          }
           index={index}
           parentBlockId={blockNode.block?.id || null}
           embedDepth={embedDepth ? embedDepth + 1 : embedDepth}
