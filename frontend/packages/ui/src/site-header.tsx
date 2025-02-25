@@ -91,7 +91,7 @@ export function SiteHeader({
       <YStack
         borderBottomWidth={1}
         borderColor="$borderColor"
-        zIndex={1000}
+        zIndex="$zIndex.8"
         // @ts-ignore
         position="sticky"
         top={0}
