@@ -475,6 +475,7 @@ export class AutoUpdater {
                 const packageName = IS_PROD_DEV ? 'seed-dev' : 'seed' // Replace with your actual package name
                 const removeCmd = isRpm ? 'rpm -e' : 'dpkg -r'
                 const installCmd = isRpm ? 'rpm -U' : 'dpkg -i'
+                const appName = IS_PROD_DEV ? 'seed-dev' : 'seed'
 
                 // Create temp directory for the update script
                 const tempPath = path.join(app.getPath('temp'), 'SeedUpdate')
@@ -499,7 +500,7 @@ export class AutoUpdater {
                   rm -f "${filePath}"
                   
                   # Start the new version
-                  seed
+                  ${appName}
                 `
 
                 try {
