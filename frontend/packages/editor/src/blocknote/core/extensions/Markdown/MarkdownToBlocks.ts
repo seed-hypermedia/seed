@@ -1,4 +1,4 @@
-import {hmBlockSchema} from "@/schema";
+import {hmBlockSchema} from "@/full-schema";
 import {DAEMON_FILE_UPLOAD_URL} from "@shm/shared";
 import {DOMParser as ProseMirrorDOMParser} from "@tiptap/pm/model";
 import rehypeStringify from "rehype-stringify";
@@ -253,7 +253,7 @@ export const MarkdownToBlocks = async (
   doc = unwrapImagesFromParagraphs(doc);
 
   // Get ProseMirror fragment from parsed HTML
-  const fragment = ProseMirrorDOMParser.fromSchema(view.state.schema).parse(
+  const fragment = ProseMirrorDOMParser.fromSchema(state.schema).parse(
     doc.body
   );
 
