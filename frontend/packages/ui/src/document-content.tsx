@@ -711,10 +711,10 @@ export function BlockNodeContent({
       ? CONTENT_HIGHLIGHT_COLOR_DARK
       : CONTENT_HIGHLIGHT_COLOR_LIGHT;
 
-  // @ts-expect-error
-  if (isBlockNodeEmpty(blockNode)) {
-    return null;
-  }
+  // // @ts-expect-error
+  // if (isBlockNodeEmpty(blockNode)) {
+  //   return null;
+  // }
 
   return (
     <YStack
