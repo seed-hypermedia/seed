@@ -145,8 +145,8 @@ export function customAutoUpdates() {
 
   const updater = new AutoUpdater(
     IS_PROD_DEV
-      ? 'https://seedreleases.s3.eu-west-2.amazonaws.com/prod/latest.json'
-      : 'https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest.json',
+      ? 'https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest.json'
+      : 'https://seedreleases.s3.eu-west-2.amazonaws.com/prod/latest.json',
   )
   updater.startAutoCheck()
   updater.checkForUpdates()
