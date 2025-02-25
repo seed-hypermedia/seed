@@ -241,25 +241,25 @@ jobs:
             "assets": {
               "linux": {
                 "deb": {
-                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/seed-dev_${VERSION}_amd64.deb",
+                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/seed-dev_${VERSION}_amd64.deb"
                 },
                 "rpm": {
-                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/seed-dev-${VERSION}.x86_64.rpm",
+                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/seed-dev-${VERSION}-1.x86_64.rpm"
                 }
               },
               "macos": {
                 "x64": {
                   "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/SeedDev-${VERSION}-x64.dmg",
-                  "zip_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/SeedDev-darwin-x64-${VERSION}.zip",
+                  "zip_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/SeedDev-darwin-x64-${VERSION}.zip"
                 },
                 "arm64": {
                   "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/SeedDev-${VERSION}-arm64.dmg",
-                  "zip_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/SeedDev-darwin-arm64-${VERSION}.zip",
+                  "zip_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/SeedDev-darwin-arm64-${VERSION}.zip"
                 }
               },
               "win32": {
                 "x64": {
-                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/seed-dev-${VERSION}-win32-x64-setup.exe",
+                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/seed-dev-${VERSION}-win32-x64-setup.exe"
                 }
               }
             }
