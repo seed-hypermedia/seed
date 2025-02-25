@@ -53,9 +53,11 @@ export function WebSiteProvider(props: {
   originHomeId: UnpackedHypermediaId;
   children: React.ReactNode;
   siteHost?: string;
+  origin?: string;
 }) {
   return (
     <UniversalAppProvider
+      origin={props.origin}
       originHomeId={props.originHomeId}
       getOptimizedImageUrl={getOptimizedImageUrl}
       ipfsFileUrl={DAEMON_FILE_URL}

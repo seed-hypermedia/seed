@@ -12,6 +12,7 @@ type UniversalAppContextValue = {
   getOptimizedImageUrl?: (cid: string, size?: OptimizedImageSize) => string
   openRoute?: null | ((route: NavRoute, replace?: boolean) => void)
   originHomeId?: UnpackedHypermediaId | undefined
+  origin?: string
   openUrl: (url: string) => void
 }
 
@@ -25,6 +26,7 @@ export const UniversalAppContext = createContext<UniversalAppContextValue>({
 export function UniversalAppProvider(props: {
   children: React.ReactNode
   originHomeId?: UnpackedHypermediaId
+  origin?: string
   ipfsFileUrl?: string
   openUrl: (url: string) => void
   getOptimizedImageUrl?: (cid: string, size?: OptimizedImageSize) => string
@@ -34,6 +36,7 @@ export function UniversalAppProvider(props: {
     <UniversalAppContext.Provider
       value={{
         originHomeId: props.originHomeId,
+        origin: props.origin,
         ipfsFileUrl: props.ipfsFileUrl,
         getOptimizedImageUrl: props.getOptimizedImageUrl,
         openUrl: props.openUrl,

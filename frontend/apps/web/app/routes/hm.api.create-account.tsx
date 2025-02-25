@@ -1,6 +1,31 @@
 import {queryClient} from "@/client";
 import {decode as cborDecode} from "@ipld/dag-cbor";
 import {ActionFunction, json} from "@remix-run/node";
+import {DAEMON_FILE_UPLOAD_URL} from "@shm/shared/constants";
+
+type BlobPayload = {
+  data: Uint8Array;
+  cid: string;
+  serverSignature?: string;
+};
+
+export type CreateAccountPayload = {
+  genesis: BlobPayload;
+  home: BlobPayload;
+  ref: Uint8Array;
+  icon: BlobPayload | null;
+};
+
+export async function uploadFile(file: Blob) {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
+    method: "POST",
+    body: formData,
+  });
+  const data = await response.text();
+  return data;
+}
 
 export const action: ActionFunction = async ({request}) => {
   if (request.method !== "POST") {
@@ -14,8 +39,21 @@ export const action: ActionFunction = async ({request}) => {
   }
 
   const cborData = await request.arrayBuffer();
-  const payload = cborDecode(new Uint8Array(cborData));
-  console.log("CreateAccount IN SERVER", payload);
+  const payload = cborDecode(new Uint8Array(cborData)) as CreateAccountPayload;
+
+  if (payload.icon) {
+    const iconBlob = new Blob([payload.icon.data]);
+    const iconCID = await uploadFile(iconBlob);
+    if (iconCID !== payload.icon.cid) {
+      return json(
+        {
+          message: `Failed to upload icon. Expected CID: ${payload.icon.cid}, got: ${iconCID}`,
+        },
+        {status: 500}
+      );
+    }
+  }
+
   const storedGenesisResult = await queryClient.daemon.storeBlobs({
     blobs: [
       {
@@ -24,7 +62,6 @@ export const action: ActionFunction = async ({request}) => {
       },
     ],
   });
-  console.log("saved genesis", storedGenesisResult);
   const storedHomeResult = await queryClient.daemon.storeBlobs({
     blobs: [
       {
@@ -33,7 +70,6 @@ export const action: ActionFunction = async ({request}) => {
       },
     ],
   });
-  console.log("saved home", storedHomeResult);
   const storedRefResult = await queryClient.daemon.storeBlobs({
     blobs: [
       {
@@ -41,7 +77,6 @@ export const action: ActionFunction = async ({request}) => {
       },
     ],
   });
-  console.log("saved ref", storedRefResult);
 
   return json({
     message: "Success",

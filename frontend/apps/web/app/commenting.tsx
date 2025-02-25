@@ -9,12 +9,15 @@ import {
   hmIdPathToEntityQueryPath,
   HMPublishableAnnotation,
   HMPublishableBlock,
+  hostnameStripProtocol,
   queryKeys,
   UnpackedHypermediaId,
+  useUniversalAppContext,
 } from "@shm/shared";
 import {Button} from "@shm/ui/button";
 import {Field} from "@shm/ui/form-fields";
 import {FormInput} from "@shm/ui/form-input";
+import {HMIcon} from "@shm/ui/hm-icon";
 import {
   DialogDescription,
   DialogTitle,
@@ -25,12 +28,21 @@ import {BlockView} from "multiformats";
 import {base58btc} from "multiformats/bases/base58";
 import * as Block from "multiformats/block";
 import {CID} from "multiformats/cid";
+import * as rawCodec from "multiformats/codecs/raw";
 import {sha256} from "multiformats/hashes/sha2";
 import {useEffect, useSyncExternalStore} from "react";
-import {SubmitHandler, useForm} from "react-hook-form";
-import {Form, XStack} from "tamagui";
+import {
+  Control,
+  FieldValues,
+  Path,
+  SubmitHandler,
+  useController,
+  useForm,
+} from "react-hook-form";
+import {Form, SizableText, Stack, XStack, YStack} from "tamagui";
 import {z} from "zod";
 import {useEntity} from "./models";
+import type {CreateAccountPayload} from "./routes/hm.api.create-account";
 
 async function postCBOR(path: string, body: Uint8Array) {
   const response = await fetch(`${path}`, {
@@ -133,14 +145,19 @@ async function getKeyPair() {
   return existingKeyPair;
 }
 
-async function encodeBlock(data: any): Promise<BlockView<any, 113, 18, 1>> {
+const cborCodec = {
+  code: 0x71,
+  encode: (input: any) => cborEncode(input),
+  name: "DAG-CBOR",
+};
+
+async function encodeBlock(
+  data: any,
+  codec?: Parameters<typeof Block.encode>[0]["codec"]
+): Promise<BlockView<unknown, number, 18, 1>> {
   const block = await Block.encode({
     value: data,
-    codec: {
-      code: 0x71,
-      encode: (input: any) => cborEncode(input),
-      name: "DAG-CBOR",
-    },
+    codec: codec || cborCodec,
     // codec: raw,
     hasher: sha256,
   });
@@ -151,7 +168,7 @@ async function encodeBlock(data: any): Promise<BlockView<any, 113, 18, 1>> {
   // return cid;
 }
 
-async function createAccount({name}: {name: string}) {
+async function createAccount({name, icon}: {name: string; icon: Blob | null}) {
   const existingKeyPair = await getStoredKeyPair();
   if (existingKeyPair) {
     throw new Error("Account already exists");
@@ -168,15 +185,25 @@ async function createAccount({name}: {name: string}) {
     keyPair,
   });
   const genesisChangeBlock = await encodeBlock(genesisChange);
+  const iconBlock = icon
+    ? await encodeBlock(await icon.arrayBuffer(), rawCodec)
+    : null;
+  const operations: HMDocumentOperation[] = [
+    {
+      type: "SetAttributes",
+      attrs: [{key: ["name"], value: name}],
+    },
+  ];
+  if (iconBlock) {
+    operations.push({
+      type: "SetAttributes",
+      attrs: [{key: ["icon"], value: iconBlock.cid.toString()}],
+    });
+  }
   const changeHome = await createHomeDocumentChange({
     keyPair,
     genesisChangeCid: genesisChangeBlock.cid,
-    operations: [
-      {
-        type: "SetAttributes",
-        attrs: [{key: ["name"], value: name}],
-      },
-    ],
+    operations,
     deps: [genesisChangeBlock.cid],
     depth: 1,
   });
@@ -188,11 +215,7 @@ async function createAccount({name}: {name: string}) {
     generation: 1,
   });
   const refBlock = await encodeBlock(ref);
-  const createAccountPayload: {
-    genesis: BlobPayload;
-    home: BlobPayload;
-    ref: Uint8Array;
-  } = {
+  const createAccountPayload: CreateAccountPayload = {
     genesis: {
       data: genesisChangeBlock.bytes,
       cid: genesisChangeBlock.cid.toString(),
@@ -202,6 +225,12 @@ async function createAccount({name}: {name: string}) {
       cid: changeHomeBlock.cid.toString(),
     },
     ref: refBlock.bytes,
+    icon: iconBlock
+      ? {
+          data: iconBlock.bytes,
+          cid: iconBlock.cid.toString(),
+        }
+      : null,
   };
   const createAccountData = cborEncode(createAccountPayload);
   await postCBOR("/hm/api/create-account", createAccountData);
@@ -228,11 +257,6 @@ async function updateProfile(
   const updateBlock = await encodeBlock(updatePayload);
   await postCBOR("/hm/api/update-account", updateBlock.bytes);
 }
-
-type BlobPayload = {
-  data: Uint8Array;
-  cid: string;
-};
 
 async function signObject(
   keyPair: CryptoKeyPair,
@@ -672,9 +696,7 @@ export default function WebCommenting({
         replyCommentId,
         rootReplyCommentId,
       });
-      console.log("SENDING COMMENT", comment);
       const result = await postCBOR("/hm/api/comment", cborEncode(comment));
-      console.log("COMMENT SENT", result);
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({
@@ -683,7 +705,6 @@ export default function WebCommenting({
       queryClient.invalidateQueries({
         queryKey: [queryKeys.DOCUMENT_COMMENTS, docId.id],
       });
-      console.log("COMMENT SENT SUCCESS", data);
     },
   });
 
@@ -704,6 +725,15 @@ export default function WebCommenting({
             <Button
               size="$2"
               theme="blue"
+              icon={
+                myAccountId ? (
+                  <HMIcon
+                    id={myAccountId}
+                    metadata={myAccount.data?.document?.metadata}
+                    size={24}
+                  />
+                ) : undefined
+              }
               onPress={() => {
                 const content = getContent();
                 if (!userKeyPair) {
@@ -738,6 +768,7 @@ export default function WebCommenting({
 }
 const siteMetaSchema = z.object({
   name: z.string(),
+  icon: z.instanceof(Blob).nullable(),
 });
 type SiteMetaFields = z.infer<typeof siteMetaSchema>;
 function CreateAccountDialog({
@@ -747,14 +778,23 @@ function CreateAccountDialog({
   input: {};
   onClose: () => void;
 }) {
+  const {origin} = useUniversalAppContext();
   const onSubmit: SubmitHandler<SiteMetaFields> = (data) => {
-    createAccount({name: data.name}).then(() => onClose());
+    createAccount({name: data.name, icon: data.icon}).then(() => onClose());
   };
-
+  const siteName = hostnameStripProtocol(origin);
   return (
     <>
-      <DialogTitle>Create Account</DialogTitle>
-      <EditProfileForm onSubmit={onSubmit} />
+      <DialogTitle>Create Account on {siteName}</DialogTitle>
+      <DialogDescription>
+        Your account key will be securely stored in this browser. The identity
+        will be accessible only on this domain, but you can link it to other
+        domains and devices.
+      </DialogDescription>
+      <EditProfileForm
+        onSubmit={onSubmit}
+        submitLabel={`Create ${siteName} Account`}
+      />
     </>
   );
 }
@@ -762,19 +802,22 @@ function CreateAccountDialog({
 function EditProfileForm({
   onSubmit,
   defaultValues,
+  submitLabel,
 }: {
   onSubmit: (data: SiteMetaFields) => void;
   defaultValues?: SiteMetaFields;
+  submitLabel?: string;
 }) {
   const {
     control,
     handleSubmit,
     setFocus,
     formState: {errors},
-  } = useForm<{name: string}>({
+  } = useForm<SiteMetaFields>({
     resolver: zodResolver(siteMetaSchema),
     defaultValues: defaultValues || {
       name: "",
+      icon: null,
     },
   });
   useEffect(() => {
@@ -784,13 +827,133 @@ function EditProfileForm({
   }, [setFocus]);
   return (
     <Form onSubmit={handleSubmit(onSubmit)}>
-      <Field id="name" label="Account Name">
-        <FormInput control={control} name="name" placeholder="Account Name" />
-      </Field>
-      <Form.Trigger asChild>
-        <Button>Create Account</Button>
-      </Form.Trigger>
+      <YStack gap="$2">
+        <Field id="name" label="Account Name">
+          <FormInput control={control} name="name" placeholder="Account Name" />
+        </Field>
+        <ImageField control={control} name="icon" label="Site Icon" />
+        <XStack jc="center">
+          <Form.Trigger asChild>
+            <Button>{submitLabel || "Save Account"}</Button>
+          </Form.Trigger>
+        </XStack>
+      </YStack>
     </Form>
+  );
+}
+
+async function optimizeImage(file: File): Promise<Blob> {
+  const response = await fetch("/hm/api/site-image", {
+    method: "POST",
+    body: await file.arrayBuffer(),
+  });
+  const signature = response.headers.get("signature");
+  if (!signature) {
+    throw new Error("No signature found");
+  }
+  if (signature !== "SIG-TODO") {
+    // todo: real signature checking.. not here but at re-upload time
+    throw new Error("Invalid signature");
+  }
+  const contentType = response.headers.get("content-type") || "image/png";
+  const responseBlob = await response.blob();
+  return new Blob([responseBlob], {type: contentType});
+}
+
+function ImageField<Fields extends FieldValues>({
+  control,
+  name,
+  label,
+}: {
+  control: Control<Fields>;
+  name: Path<Fields>;
+  label: string;
+}) {
+  const c = useController({control, name});
+
+  return (
+    <Stack
+      position="relative"
+      group="icon"
+      overflow="hidden"
+      height={128}
+      width={128}
+      borderRadius="$2"
+      alignSelf="stretch"
+      flex={1}
+    >
+      <input
+        type="file"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (!file) return;
+          optimizeImage(file).then((blob) => {
+            c.field.onChange(blob);
+          });
+        }}
+        style={{
+          opacity: 0,
+          display: "flex",
+          position: "absolute",
+          left: 0,
+          right: 0,
+          top: 0,
+          bottom: 0,
+          zIndex: 100,
+        }}
+      />
+      {!c.field.value && (
+        <XStack
+          bg="rgba(0,0,0,0.3)"
+          position="absolute"
+          gap="$2"
+          zi="$zIndex.5"
+          w="100%"
+          $group-icon-hover={{opacity: 0.5}}
+          h="100%"
+          opacity={1}
+          ai="center"
+          jc="center"
+          pointerEvents="none"
+        >
+          <SizableText textAlign="center" size="$1" color="white">
+            Add {label}
+          </SizableText>
+        </XStack>
+      )}
+      {c.field.value && (
+        <img
+          src={URL.createObjectURL(c.field.value)}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            position: "absolute",
+            left: 0,
+            top: 0,
+          }}
+        />
+      )}
+      {c.field.value && (
+        <XStack
+          bg="rgba(0,0,0,0.3)"
+          position="absolute"
+          gap="$2"
+          zi="$zIndex.5"
+          w="100%"
+          $group-icon-hover={{opacity: 1}}
+          h="100%"
+          opacity={0}
+          ai="center"
+          jc="center"
+          pointerEvents="none"
+        >
+          <SizableText textAlign="center" size="$1" color="white">
+            Edit {label}
+          </SizableText>
+        </XStack>
+      )}
+    </Stack>
   );
 }
 

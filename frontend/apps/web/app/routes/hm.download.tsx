@@ -172,7 +172,11 @@ export default function DownloadPage() {
     );
   }
   return (
-    <WebSiteProvider originHomeId={originHomeId} siteHost={siteHost}>
+    <WebSiteProvider
+      origin={origin}
+      originHomeId={originHomeId}
+      siteHost={siteHost}
+    >
       <YStack
         backgroundImage={`url(${downloadBg})`}
         backgroundSize="cover"
