@@ -255,6 +255,7 @@ jobs:
                 "arm64": {
                   "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/SeedDev-${VERSION}-arm64.dmg",
                   "zip_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/SeedDev-darwin-arm64-${VERSION}.zip",
+                }
               },
               "win32": {
                 "x64": {

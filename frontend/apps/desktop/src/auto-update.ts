@@ -11,8 +11,6 @@ import {
   MessageBoxOptions,
 } from 'electron'
 import {updateElectronApp, UpdateSourceType} from 'update-electron-app'
-import {APP_AUTO_UPDATE_PREFERENCE} from './app-settings'
-import {appStore} from './app-store'
 
 export function defaultCheckForUpdates() {
   log.debug('[MAIN][AUTO-UPDATE]: checking for Updates')
@@ -51,7 +49,7 @@ export default function autoUpdate() {
       // Initial check after window is ready
       setTimeout(() => {
         checkForUpdates()
-      }, 5_000)
+      }, 2000)
 
       // Set up periodic checks
       setInterval(checkForUpdates, 3_600_000) // every 1 hour
@@ -65,12 +63,7 @@ export default function autoUpdate() {
 
 function isAutoUpdateSupported() {
   // TODO: we need to enable a setting so people can disable auto-updates
-  log.info(
-    `[AUTO-UPDATE] isAutoUpdateSupported: ${appStore.get(
-      APP_AUTO_UPDATE_PREFERENCE,
-    )}`,
-  )
-  return appStore.get(APP_AUTO_UPDATE_PREFERENCE) || 'true' === 'true'
+  return true
 }
 
 function setup() {
