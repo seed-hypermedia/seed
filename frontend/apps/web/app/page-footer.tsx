@@ -1,10 +1,11 @@
 import {createHMUrl, UnpackedHypermediaId} from "@shm/shared";
+import {Button} from "@shm/ui/button";
 import {Container} from "@shm/ui/container";
-import {Button, ButtonText} from "@tamagui/button";
+import {ButtonText} from "@tamagui/button";
 import {ExternalLink} from "@tamagui/lucide-icons";
 import {XStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
-import {WebIdentityFooter} from "./client-lazy";
+import {AccountFooterActionsLazy} from "./client-lazy";
 
 export function PageFooter({
   id,
@@ -15,35 +16,37 @@ export function PageFooter({
 }) {
   return (
     <Container>
-      <XStack padding="$4" gap="$4" ai="center">
-        <SizableText size="$1">
-          Powered by{" "}
-          <ButtonText
-            size="$1"
-            tag="a"
-            href="https://seed.hyper.media"
-            target="_blank"
-          >
-            Seed Hypermedia
-          </ButtonText>
-        </SizableText>
-        {id ? (
-          <Button
-            tag="a"
-            size="$1"
-            href={createHMUrl(id)}
-            style={{textDecoration: "none"}}
-            icon={ExternalLink}
-            backgroundColor="$green9"
-            hoverStyle={{backgroundColor: "$green8"}}
-            themeInverse
-            padding="$3"
-          >
-            Open App
-          </Button>
-        ) : null}
+      <XStack jc="space-between" ai="center">
+        <XStack padding="$4" gap="$4" ai="center">
+          <SizableText size="$1">
+            Powered by{" "}
+            <ButtonText
+              size="$1"
+              tag="a"
+              href="https://seed.hyper.media"
+              target="_blank"
+            >
+              Seed Hypermedia
+            </ButtonText>
+          </SizableText>
+          {id ? (
+            <Button
+              tag="a"
+              size="$1"
+              href={createHMUrl(id)}
+              style={{textDecoration: "none"}}
+              icon={ExternalLink}
+              backgroundColor="$green9"
+              hoverStyle={{backgroundColor: "$green8"}}
+              themeInverse
+              padding="$3"
+            >
+              Open App
+            </Button>
+          ) : null}
+        </XStack>
+        {enableWebSigning ? <AccountFooterActionsLazy /> : <View />}
       </XStack>
-      {enableWebSigning ? <WebIdentityFooter /> : null}
     </Container>
   );
 }

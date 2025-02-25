@@ -307,7 +307,6 @@ export function idToUrl(
   hmId: UnpackedHypermediaId,
   opts?: {originHomeId?: UnpackedHypermediaId},
 ) {
-  console.log('id', opts?.originHomeId)
   if (!hmId?.type) return null
   return createWebHMUrl(hmId.type, hmId.uid, {
     version: hmId.version,

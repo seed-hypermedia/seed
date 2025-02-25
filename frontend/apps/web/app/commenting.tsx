@@ -5,6 +5,7 @@ import {
   HMAnnotation,
   HMBlockNode,
   HMDocumentOperation,
+  hmId,
   hmIdPathToEntityQueryPath,
   HMPublishableAnnotation,
   HMPublishableBlock,
@@ -23,8 +24,9 @@ import {CID} from "multiformats/cid";
 import {sha256} from "multiformats/hashes/sha2";
 import {useEffect, useSyncExternalStore} from "react";
 import {SubmitHandler, useForm} from "react-hook-form";
-import {Form} from "tamagui";
+import {Form, XStack} from "tamagui";
 import {z} from "zod";
+import {useEntity} from "./models";
 
 async function postCBOR(path: string, body: Uint8Array) {
   const response = await fetch(`${path}`, {
@@ -200,7 +202,10 @@ async function createAccount({name}: {name: string}) {
   const createAccountData = cborEncode(createAccountPayload);
   await postCBOR("/hm/api/create-account", createAccountData);
   await storeKeyPair(keyPair);
-  setKeyPair(keyPair);
+  setKeyPair({
+    ...keyPair,
+    id: base58btc.encode(await preparePublicKey(keyPair.publicKey)),
+  });
   return keyPair;
 }
 
@@ -548,6 +553,14 @@ async function preparePublicKey(publicKey: CryptoKey) {
 
 if (typeof window !== "undefined") {
   getKeyPair()
+    .then(async (kp) => {
+      if (!kp) return null;
+      const id = await preparePublicKey(kp.publicKey);
+      return {
+        ...kp,
+        id: base58btc.encode(id),
+      } satisfies WebIdentity;
+    })
     .then((kp) => {
       console.log("Set up user key pair", kp);
       if (kp) setKeyPair(kp);
@@ -557,10 +570,13 @@ if (typeof window !== "undefined") {
     });
 }
 
-let keyPair: CryptoKeyPair | null = null;
+type WebIdentity = CryptoKeyPair & {
+  id: string;
+};
+let keyPair: WebIdentity | null = null;
 const keyPairHandlers = new Set<() => void>();
 
-function setKeyPair(kp: CryptoKeyPair | null) {
+function setKeyPair(kp: WebIdentity | null) {
   keyPair = kp;
   keyPairHandlers.forEach((callback) => callback());
 }
@@ -608,7 +624,7 @@ export type WebCommentingProps = {
   docId: UnpackedHypermediaId;
   replyCommentId: string | null;
   rootReplyCommentId: string | null;
-  onDiscardDraft: () => void;
+  onDiscardDraft?: () => void;
 };
 
 export default function WebCommenting({
@@ -653,27 +669,45 @@ export default function WebCommenting({
 
   const docVersion = docId.version;
   const createAccountDialog = useAppDialog(CreateAccountDialog);
+  const myAccountId = userKeyPair ? hmId("d", userKeyPair.id) : null;
+  const myAccount = useEntity(myAccountId || undefined);
+  const myName = myAccount.data?.document?.metadata?.name;
+  const commentActionMessage = myName
+    ? `Comment as ${myName}`
+    : "Submit Comment";
   if (!docVersion) return null;
   return (
     <>
       <CommentEditor
-        onCommentSubmit={async (content) => {
-          if (!userKeyPair) {
-            createAccountDialog.open({});
-            return {didPublish: false};
-          }
-          const mutatePayload: CreateCommentPayload = {
-            content,
-            docId,
-            docVersion,
-            userKeyPair,
-          };
-          if (replyCommentId && rootReplyCommentId) {
-            mutatePayload.replyCommentId = replyCommentId;
-            mutatePayload.rootReplyCommentId = rootReplyCommentId;
-          }
-          await postComment.mutateAsync(mutatePayload);
-          return {didPublish: true};
+        submitButton={({getContent, reset}) => {
+          return (
+            <Button
+              size="$2"
+              theme="blue"
+              onPress={() => {
+                const content = getContent();
+                if (!userKeyPair) {
+                  createAccountDialog.open({});
+                  return;
+                }
+                const mutatePayload: CreateCommentPayload = {
+                  content,
+                  docId,
+                  docVersion,
+                  userKeyPair,
+                };
+                if (replyCommentId && rootReplyCommentId) {
+                  mutatePayload.replyCommentId = replyCommentId;
+                  mutatePayload.rootReplyCommentId = rootReplyCommentId;
+                }
+                postComment.mutateAsync(mutatePayload).then(() => {
+                  reset();
+                });
+              }}
+            >
+              {userKeyPair ? commentActionMessage : "Create Account"}
+            </Button>
+          );
         }}
         onDiscardDraft={onDiscardDraft}
       />
@@ -736,12 +770,17 @@ function CreateAccountDialog({
 //   return null;
 // }
 
-export function FooterActions() {
+export function AccountFooterActions() {
   const userKeyPair = useKeyPair();
   if (!userKeyPair) return null;
   return (
-    <>
-      <Button onPress={logout}>Logout</Button>
-    </>
+    <XStack gap="$2">
+      <Button size="$2" onPress={logout} backgroundColor="$color4">
+        Logout
+      </Button>
+      <Button size="$2" onPress={() => {}} backgroundColor="$color4">
+        Edit Profile
+      </Button>
+    </XStack>
   );
 }

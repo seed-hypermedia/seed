@@ -20,6 +20,6 @@ export const WebCommenting = clientLazy<WebCommentingProps>(async () => ({
   default: (await import("./commenting")).default,
 }));
 
-export const WebIdentityFooter = clientLazy<{}>(async () => ({
-  default: (await import("./commenting")).FooterActions,
+export const AccountFooterActionsLazy = clientLazy<{}>(async () => ({
+  default: (await import("./commenting")).AccountFooterActions,
 }));

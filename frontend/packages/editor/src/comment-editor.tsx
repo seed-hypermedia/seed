@@ -14,11 +14,14 @@ import {slashMenuItems} from "./slash-menu-items";
 import {serverBlockNodesFromEditorBlocks} from "./utils";
 
 export default function CommentEditor({
-  onCommentSubmit,
   onDiscardDraft,
+  submitButton,
 }: {
-  onCommentSubmit: (content: HMBlockNode[]) => Promise<{didPublish: boolean}>;
-  onDiscardDraft: () => void;
+  onDiscardDraft?: () => void;
+  submitButton: (opts: {
+    reset: () => void;
+    getContent: () => HMBlockNode[];
+  }) => JSX.Element;
 }) {
   const {editor} = useCommentEditor();
   return (
@@ -39,13 +42,21 @@ export default function CommentEditor({
         <HyperMediaEditorView editor={editor} openUrl={() => {}} />
       </YStack>
       <XStack gap="$3" paddingHorizontal="$4" jc="flex-end">
-        <Tooltip content="Discard Comment Draft">
-          <Button theme="red" size="$2" onPress={onDiscardDraft} icon={Trash} />
-        </Tooltip>
-        <Button
-          size="$2"
-          theme="blue"
-          onPress={() => {
+        {onDiscardDraft ? (
+          <Tooltip content="Discard Comment Draft">
+            <Button
+              theme="red"
+              size="$2"
+              onPress={onDiscardDraft}
+              icon={Trash}
+            />
+          </Tooltip>
+        ) : null}
+        {submitButton({
+          reset: () => {
+            editor.removeBlocks(editor.topLevelBlocks);
+          },
+          getContent: () => {
             const blocks = serverBlockNodesFromEditorBlocks(
               editor,
               editor.topLevelBlocks
@@ -53,13 +64,9 @@ export default function CommentEditor({
             const commentContent = blocks.map((block) =>
               block.toJson()
             ) as HMBlockNode[];
-            onCommentSubmit(commentContent).then(({didPublish}) => {
-              if (didPublish) editor.removeBlocks(editor.topLevelBlocks);
-            });
-          }}
-        >
-          Publish Comment
-        </Button>
+            return commentContent;
+          },
+        })}
       </XStack>
     </YStack>
   );
