@@ -235,7 +235,7 @@ export const MediaContainer = ({
                 position="absolute"
                 top="$1.5"
                 right="$1.5"
-                zIndex="$4"
+                zIndex="$zIndex.4"
                 size="$1"
                 width={60}
                 onPress={() =>

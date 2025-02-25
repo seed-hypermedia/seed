@@ -5372,57 +5372,58 @@ __metadata:
   linkType: hard
 
 "@graphql-tools/executor@npm:^1.0.0":
-  version: 1.4.1
-  resolution: "@graphql-tools/executor@npm:1.4.1"
+  version: 1.4.2
+  resolution: "@graphql-tools/executor@npm:1.4.2"
   dependencies:
-    "@graphql-tools/utils": ^10.8.2
+    "@graphql-tools/utils": ^10.8.3
     "@graphql-typed-document-node/core": ^3.2.0
     "@repeaterjs/repeater": ^3.0.4
-    "@whatwg-node/disposablestack": ^0.0.5
+    "@whatwg-node/disposablestack": ^0.0.6
+    "@whatwg-node/promise-helpers": ^1.0.0
     tslib: ^2.4.0
-    value-or-promise: ^1.0.12
   peerDependencies:
     graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
-  checksum: ab990f40b75a4bcbef6d5ae8ae0de9ff8ab62412c5fcb47d96604d85f429d2b507c2a004463720b105c506abc1d95102bddaee9096437b900b98621dde19c78e
+  checksum: a71ab7e7af6ae6917559d465bd795d17c464513032b8f4f24ed3688e3cd040c9387b5b16398bd1b0923d38d1e36942f2f06e24699f324570227e7e32381e6ef7
   languageName: node
   linkType: hard
 
-"@graphql-tools/merge@npm:^9.0.20":
-  version: 9.0.20
-  resolution: "@graphql-tools/merge@npm:9.0.20"
+"@graphql-tools/merge@npm:^9.0.21":
+  version: 9.0.21
+  resolution: "@graphql-tools/merge@npm:9.0.21"
   dependencies:
-    "@graphql-tools/utils": ^10.8.2
+    "@graphql-tools/utils": ^10.8.3
     tslib: ^2.4.0
   peerDependencies:
     graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
-  checksum: d7cf53903f2f334fe02a756b31311e3e8fd0ae736ee3d5822d7fa337d5f4937cf1ef1878165bc34e770b80f97d6daa88edbbe7e7398f9c0b52e42fd63cf5bf9a
+  checksum: 72fddd9a85f7a47f762ccd19c6d8e853d4df0589a22f87f660e73664ae229acdd8e7336e207453da5f8c7b15fd379a7146a18333cff6433c594e489004e0b4b3
   languageName: node
   linkType: hard
 
 "@graphql-tools/schema@npm:^10.0.0":
-  version: 10.0.19
-  resolution: "@graphql-tools/schema@npm:10.0.19"
+  version: 10.0.20
+  resolution: "@graphql-tools/schema@npm:10.0.20"
   dependencies:
-    "@graphql-tools/merge": ^9.0.20
-    "@graphql-tools/utils": ^10.8.2
+    "@graphql-tools/merge": ^9.0.21
+    "@graphql-tools/utils": ^10.8.3
     tslib: ^2.4.0
   peerDependencies:
     graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
-  checksum: ca4277c74ba9576f96434e6bd73fa698a47b3b8ebe81ed93082d8e10a7b8e193a3516c4d20bc8b5b9e254dc78ccad902068d2fdf9e00f8cce6e557261e67a38b
+  checksum: 7884c62691521c3cdd400347a051f88598cff1bf86d6f75eec032e0e8b69ac7b2115644e9336b87299b55928766cfdf8bac6349d2f2863c48d2c85aaf3a725f2
   languageName: node
   linkType: hard
 
-"@graphql-tools/utils@npm:^10.0.0, @graphql-tools/utils@npm:^10.8.2":
-  version: 10.8.2
-  resolution: "@graphql-tools/utils@npm:10.8.2"
+"@graphql-tools/utils@npm:^10.0.0, @graphql-tools/utils@npm:^10.8.3":
+  version: 10.8.3
+  resolution: "@graphql-tools/utils@npm:10.8.3"
   dependencies:
     "@graphql-typed-document-node/core": ^3.1.1
+    "@whatwg-node/promise-helpers": ^1.0.0
     cross-inspect: 1.0.1
     dset: ^3.1.4
     tslib: ^2.4.0
   peerDependencies:
     graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
-  checksum: 73654d2b5ad8f5442d4c838346d04e8af2d8e16ed41db7e5bc960350b67cc1192d2e2a709f445acc2cd64ed4392f0241efcb43a1ab61e8589510c299b4ed25cc
+  checksum: 8240e3d2b40e82a7bded4746378e2e7f86276861b2821f8e3b755ce4a007d6b76696b5113bb09e4932cb49a92d7a58f34a72aa88a74ddb8c930920f776e61b0f
   languageName: node
   linkType: hard
 
@@ -13928,12 +13929,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@whatwg-node/disposablestack@npm:^0.0.5":
-  version: 0.0.5
-  resolution: "@whatwg-node/disposablestack@npm:0.0.5"
+"@whatwg-node/disposablestack@npm:^0.0.6":
+  version: 0.0.6
+  resolution: "@whatwg-node/disposablestack@npm:0.0.6"
   dependencies:
+    "@whatwg-node/promise-helpers": ^1.0.0
     tslib: ^2.6.3
-  checksum: d2df8ba46c567c3cc07767821fcedc8f4c9247f1f5488c7dadc42f86ca6429bace4451e48506ac2de15afe8e5baa1cd0951a7aa6419f091d48c671844e399931
+  checksum: dae7f8f05b56409858156cdb092345ecefa170a899e27750e17f7800b9489021b4865f40b427fc7f5c979d668a8ffef5ac0adaa284e7f56222127bbe4ee9b114
   languageName: node
   linkType: hard
 
@@ -13979,24 +13981,35 @@ __metadata:
   linkType: hard
 
 "@whatwg-node/node-fetch@npm:^0.7.11":
-  version: 0.7.11
-  resolution: "@whatwg-node/node-fetch@npm:0.7.11"
+  version: 0.7.12
+  resolution: "@whatwg-node/node-fetch@npm:0.7.12"
   dependencies:
-    "@whatwg-node/disposablestack": ^0.0.5
+    "@whatwg-node/disposablestack": ^0.0.6
+    "@whatwg-node/promise-helpers": ^1.0.0
     busboy: ^1.6.0
     tslib: ^2.6.3
-  checksum: d881d40270d184b6e650447a3e35c6f9b6c63b7c258f03ae4c034c601cfdce937064c14fa33e74bc902a1dbef5d2383fe5eabee2d1fcfddf2ac1c876e1d0d918
+  checksum: eab60470f9f73bb8cab07e90ce494f6db9186513c6e89d052b1128d1b09e0d6253eb3f0eee690b9c2eb1c947febb9ba3671b5d0bd39d12ad31ad47c5feed48ac
+  languageName: node
+  linkType: hard
+
+"@whatwg-node/promise-helpers@npm:^1.0.0":
+  version: 1.2.1
+  resolution: "@whatwg-node/promise-helpers@npm:1.2.1"
+  dependencies:
+    tslib: ^2.6.3
+  checksum: df6de9d02f43d49e204b79719bb40ffa1dd17fe43da8033d89133e9f3cfa7ae1cd020ae795e37e666afe679e49797015712e60f0d5be0baf75941bb9553e8bdb
   languageName: node
   linkType: hard
 
 "@whatwg-node/server@npm:^0.9.1":
-  version: 0.9.69
-  resolution: "@whatwg-node/server@npm:0.9.69"
+  version: 0.9.70
+  resolution: "@whatwg-node/server@npm:0.9.70"
   dependencies:
-    "@whatwg-node/disposablestack": ^0.0.5
+    "@whatwg-node/disposablestack": ^0.0.6
     "@whatwg-node/fetch": ^0.10.5
+    "@whatwg-node/promise-helpers": ^1.0.0
     tslib: ^2.6.3
-  checksum: 60a547fc24e2797053da3e51660abf86614c6b1f6823a203c64bad48f8a3596454aa029c5922066def52d5a2102a6d322ec63f7869298dba6f327baccc09eb11
+  checksum: e4a03b425a9c1a92a6dbc706effe4e34520e7f35248e5b7a428be282ea6c12d782d14b40c0dba96350e5f1c890c30a2cb202abe9ee65d813407d7873277bd0fe
   languageName: node
   linkType: hard
 
@@ -29448,9 +29461,9 @@ __metadata:
   linkType: hard
 
 "reusify@npm:^1.0.4":
-  version: 1.0.4
-  resolution: "reusify@npm:1.0.4"
-  checksum: c3076ebcc22a6bc252cb0b9c77561795256c22b757f40c0d8110b1300723f15ec0fc8685e8d4ea6d7666f36c79ccc793b1939c748bf36f18f542744a4e379fcc
+  version: 1.1.0
+  resolution: "reusify@npm:1.1.0"
+  checksum: 64cb3142ac5e9ad689aca289585cb41d22521f4571f73e9488af39f6b1bd62f0cbb3d65e2ecc768ec6494052523f473f1eb4b55c3e9014b3590c17fc6a03e22a
   languageName: node
   linkType: hard
 
@@ -32987,13 +33000,6 @@ __metadata:
   version: 1.0.1
   resolution: "value-equal@npm:1.0.1"
   checksum: bb7ae1facc76b5cf8071aeb6c13d284d023fdb370478d10a5d64508e0e6e53bb459c4bbe34258df29d82e6f561f874f0105eba38de0e61fe9edd0bdce07a77a2
-  languageName: node
-  linkType: hard
-
-"value-or-promise@npm:^1.0.12":
-  version: 1.0.12
-  resolution: "value-or-promise@npm:1.0.12"
-  checksum: f53a66c75b7447c90bbaf946a757ca09c094629cb80ba742f59c980ec3a69be0a385a0e75505dedb4e757862f1a994ca4beaf083a831f24d3ffb3d4bb18cd1e1
   languageName: node
   linkType: hard
 

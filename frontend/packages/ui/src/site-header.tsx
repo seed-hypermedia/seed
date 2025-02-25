@@ -91,7 +91,7 @@ export function SiteHeader({
       <YStack
         borderBottomWidth={1}
         borderColor="$borderColor"
-        zIndex="$zIndex.8"
+        zIndex={800} // TODO: fix this when we have the actual zIndex values on web.
         // @ts-ignore
         position="sticky"
         top={0}
@@ -322,7 +322,7 @@ export function MobileMenu({
       top={0}
       right={0}
       bottom={0}
-      zIndex={2000}
+      zIndex="var(--z-index-9, 800)"
       x={open ? 0 : "100%"}
       animation="fast"
     >

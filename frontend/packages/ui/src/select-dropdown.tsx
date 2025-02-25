@@ -73,7 +73,7 @@ export function SelectDropdown<Options extends SelectOptions>({
         </XStack>
       </Select.Trigger>
 
-      <Select.Content zIndex={999}>
+      <Select.Content zIndex="$zIndex.9">
         <Select.ScrollUpButton
           alignItems="center"
           justifyContent="center"

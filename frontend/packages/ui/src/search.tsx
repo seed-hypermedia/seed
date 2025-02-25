@@ -38,7 +38,7 @@ export function MobileSearch({
           backgroundColor="$background"
           top="100%"
           width="calc(100% - 16px)"
-          zIndex="$zIndex.7"
+          zIndex="$zIndex.1"
           padding="$2"
           borderRadius="$4"
           borderColor="$borderColor"
