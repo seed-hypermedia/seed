@@ -7,7 +7,7 @@ import {
   normalizeDate,
   UnpackedHypermediaId,
 } from "@shm/shared";
-import {SiteHeader} from "@shm/ui/header";
+import {SiteHeader} from "@shm/ui/site-header";
 
 export function WebSiteHeader(
   props: React.PropsWithChildren<{

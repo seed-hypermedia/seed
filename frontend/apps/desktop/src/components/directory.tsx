@@ -72,14 +72,8 @@ export function Directory({
     <>
       {drafts.map((id) => {
         if (!id) return null
-        // return <DraftItem key={id.id} id={id} />
         return <DraftItem id={id} key={id.id} indented={indented} />
-        // return <SmallListItem key={id.id} title="Draft" icon={<Plus />} right={<DraftTag />} />
       })}
-
-      {/* {directory.map((item) => (
-        <DirectoryItemWithAuthors key={item.id.id} entry={item} />
-      ))} */}
 
       {directory.map((item) => (
         <SmallListItem

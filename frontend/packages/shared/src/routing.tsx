@@ -8,11 +8,10 @@ console.log('=== import routing.tsx ' + DAEMON_FILE_URL)
 export type OptimizedImageSize = 'S' | 'M' | 'L' | 'XL'
 
 type UniversalAppContextValue = {
-  originHomeId?: UnpackedHypermediaId
   ipfsFileUrl?: string
   getOptimizedImageUrl?: (cid: string, size?: OptimizedImageSize) => string
   openRoute?: null | ((route: NavRoute, replace?: boolean) => void)
-  siteHomeId?: UnpackedHypermediaId | undefined
+  originHomeId?: UnpackedHypermediaId | undefined
   openUrl: (url: string) => void
 }
 
@@ -104,7 +103,7 @@ export function useRouteLink(
     typeof route === 'string'
       ? route
       : route.key == 'document'
-      ? idToUrl(route.id, {siteHomeId: context.siteHomeId})
+      ? idToUrl(route.id, {originHomeId: context.originHomeId})
       : undefined
   return {
     onPress: context.openRoute

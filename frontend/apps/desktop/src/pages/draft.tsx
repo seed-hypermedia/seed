@@ -38,9 +38,9 @@ import {
   useHeadingTextStyles,
 } from '@shm/ui/document-content'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
-import {SiteHeader} from '@shm/ui/header'
 import {Options} from '@shm/ui/icons'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
+import {SiteHeader} from '@shm/ui/site-header'
 import {Heading, Input, Separator, SizableText, XStack} from 'tamagui'
 
 import {Image, MoreHorizontal, Plus, Smile} from '@tamagui/lucide-icons'

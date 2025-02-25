@@ -58,7 +58,7 @@ function EmbedWrapper({
           version: id.version,
           latest: id.latest,
           path: id.path,
-          siteHomeId: originHomeId,
+          originHomeId,
         });
         navigate(destUrl);
       }}

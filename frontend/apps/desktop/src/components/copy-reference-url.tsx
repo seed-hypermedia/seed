@@ -30,7 +30,7 @@ type IsPublishedState = null | boolean // null: determined checked yet
 
 export function useCopyReferenceUrl(
   hostname: string,
-  siteHomeId?: UnpackedHypermediaId | undefined,
+  originHomeId?: UnpackedHypermediaId | undefined,
 ) {
   const dialog = useAppDialog(PushToGatewayDialog)
   const pushOnCopy = usePushOnCopy()
@@ -43,7 +43,7 @@ export function useCopyReferenceUrl(
       hostname,
       path: input.path,
       latest: input.latest,
-      siteHomeId,
+      originHomeId,
     })
     copyTextToClipboard(url)
     if (pushOnCopy.data === 'never') {

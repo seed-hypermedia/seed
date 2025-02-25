@@ -41,7 +41,6 @@ import {Container} from '@shm/ui/container'
 import {DocContent, documentContainerClassName} from '@shm/ui/document-content'
 import {DocumentDate} from '@shm/ui/document-date'
 import {useImageUrl} from '@shm/ui/get-file-url'
-import {SiteHeader} from '@shm/ui/header'
 import {SeedHeading} from '@shm/ui/heading'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {
@@ -51,6 +50,7 @@ import {
   MoreHorizontal,
 } from '@shm/ui/icons'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
+import {SiteHeader} from '@shm/ui/site-header'
 import {Plus} from '@tamagui/lucide-icons'
 import React, {ReactNode, useMemo, useRef} from 'react'
 import {
