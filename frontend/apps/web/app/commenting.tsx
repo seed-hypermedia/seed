@@ -1,4 +1,5 @@
-import {decode as cborDecode, encode as cborEncode} from "@ipld/dag-cbor";
+import {zodResolver} from "@hookform/resolvers/zod";
+import {encode as cborEncode} from "@ipld/dag-cbor";
 import CommentEditor from "@shm/editor/comment-editor";
 import {
   HMAnnotation,
@@ -11,16 +12,19 @@ import {
   UnpackedHypermediaId,
 } from "@shm/shared";
 import {Button} from "@shm/ui/button";
+import {Field} from "@shm/ui/form-fields";
+import {FormInput} from "@shm/ui/form-input";
 import {DialogTitle, useAppDialog} from "@shm/ui/universal-dialog";
-import {Input} from "@tamagui/input";
 import {useMutation, useQueryClient} from "@tanstack/react-query";
 import {BlockView} from "multiformats";
 import {base58btc} from "multiformats/bases/base58";
 import * as Block from "multiformats/block";
 import {CID} from "multiformats/cid";
-// import * as raw from "multiformats/codecs/raw";
 import {sha256} from "multiformats/hashes/sha2";
-import {useRef, useSyncExternalStore} from "react";
+import {useEffect, useSyncExternalStore} from "react";
+import {SubmitHandler, useForm} from "react-hook-form";
+import {Form} from "tamagui";
+import {z} from "zod";
 
 async function postCBOR(path: string, body: Uint8Array) {
   const response = await fetch(`${path}`, {
@@ -110,6 +114,13 @@ async function storeKeyPair(keyPair: CryptoKeyPair): Promise<void> {
   });
 }
 
+async function deleteKeyPair() {
+  const db = await openKeyDB();
+  const transaction = db.transaction(STORE_NAME, "readwrite");
+  const store = transaction.objectStore(STORE_NAME);
+  store.clear();
+}
+
 async function getKeyPair() {
   const existingKeyPair = await getStoredKeyPair();
 
@@ -134,35 +145,6 @@ async function encodeBlock(data: any): Promise<BlockView<any, 113, 18, 1>> {
   // return cid;
 }
 
-function dumbSerializeBlock(value: any) {
-  if (value === null) return null;
-  if (typeof value === "string") return value;
-  if (typeof value === "number") return value;
-  if (typeof value === "boolean") return value;
-  if (typeof value === "bigint") return value.toString();
-  // check if its a buffer or array buffer, then base58btc.encode()
-  if (value instanceof ArrayBuffer || value instanceof Uint8Array) {
-    return {"/": {bytes: base58btc.encode(new Uint8Array(value))}};
-  }
-  if (Array.isArray(value)) {
-    return value.map(dumbSerializeBlock);
-  }
-  if (typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, value]) => [
-        key,
-        dumbSerializeBlock(value),
-      ])
-    );
-  }
-  return "?";
-}
-
-function seralizeDebug(block: any) {
-  const value = cborDecode(block.bytes);
-  return value;
-}
-
 async function createAccount({name}: {name: string}) {
   const existingKeyPair = await getStoredKeyPair();
   if (existingKeyPair) {
@@ -180,7 +162,6 @@ async function createAccount({name}: {name: string}) {
     keyPair,
   });
   const genesisChangeBlock = await encodeBlock(genesisChange);
-  console.log("GENESIS CHANGE", seralizeDebug(genesisChangeBlock));
   const changeHome = await createHomeDocumentChange({
     keyPair,
     genesisChangeCid: genesisChangeBlock.cid,
@@ -194,13 +175,6 @@ async function createAccount({name}: {name: string}) {
     depth: 1,
   });
   const changeHomeBlock = await encodeBlock(changeHome);
-  console.log(
-    "HOME CHANGE RAW",
-    Array.from(changeHomeBlock.bytes)
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("")
-  );
-  console.log("HOME CHANGE", seralizeDebug(changeHomeBlock));
   const ref = await createRef({
     keyPair,
     genesisCid: genesisChangeBlock.cid,
@@ -208,7 +182,6 @@ async function createAccount({name}: {name: string}) {
     generation: 1,
   });
   const refBlock = await encodeBlock(ref);
-  console.log("REF", seralizeDebug(refBlock));
   const createAccountPayload: {
     genesis: BlobPayload;
     home: BlobPayload;
@@ -225,9 +198,9 @@ async function createAccount({name}: {name: string}) {
     ref: refBlock.bytes,
   };
   const createAccountData = cborEncode(createAccountPayload);
-  console.log("CREATE ACCOUNT", createAccountPayload);
   await postCBOR("/hm/api/create-account", createAccountData);
   await storeKeyPair(keyPair);
+  setKeyPair(keyPair);
   return keyPair;
 }
 
@@ -592,6 +565,17 @@ function setKeyPair(kp: CryptoKeyPair | null) {
   keyPairHandlers.forEach((callback) => callback());
 }
 
+function logout() {
+  deleteKeyPair()
+    .then(() => {
+      setKeyPair(null);
+      console.log("Logged out");
+    })
+    .catch((e) => {
+      console.error("Failed to log out", e);
+    });
+}
+
 const keyPairStore = {
   get: () => keyPair,
   listen: (callback: () => void) => {
@@ -676,7 +660,7 @@ export default function WebCommenting({
         onCommentSubmit={async (content) => {
           if (!userKeyPair) {
             createAccountDialog.open({});
-            return;
+            return {didPublish: false};
           }
           const mutatePayload: CreateCommentPayload = {
             content,
@@ -689,6 +673,7 @@ export default function WebCommenting({
             mutatePayload.rootReplyCommentId = rootReplyCommentId;
           }
           await postComment.mutateAsync(mutatePayload);
+          return {didPublish: true};
         }}
         onDiscardDraft={onDiscardDraft}
       />
@@ -696,7 +681,10 @@ export default function WebCommenting({
     </>
   );
 }
-
+const createAccountSchema = z.object({
+  name: z.string(),
+});
+type CreateAccountFields = z.infer<typeof createAccountSchema>;
 function CreateAccountDialog({
   input,
   onClose,
@@ -704,23 +692,56 @@ function CreateAccountDialog({
   input: {};
   onClose: () => void;
 }) {
-  const nameValue = useRef("");
+  const {
+    control,
+    handleSubmit,
+    setFocus,
+    formState: {errors},
+  } = useForm<{name: string}>({
+    resolver: zodResolver(createAccountSchema),
+    defaultValues: {
+      name: "",
+    },
+  });
+  const onSubmit: SubmitHandler<CreateAccountFields> = (data) => {
+    createAccount({name: data.name}).then(() => onClose());
+  };
+  useEffect(() => {
+    setTimeout(() => {
+      setFocus("name");
+    }, 300); // wait for animation
+  }, [setFocus]);
   return (
     <>
       <DialogTitle>Create Account</DialogTitle>
-      <Input
-        placeholder="Account Name"
-        onChangeText={(e) => {
-          nameValue.current = e.nativeEvent.text;
-        }}
-      />
-      <Button
-        onPress={() => {
-          createAccount({name: "Cat Dog"}).then(() => onClose());
-        }}
-      >
-        Create Account
-      </Button>
+      <Form onSubmit={handleSubmit(onSubmit)}>
+        <Field id="name" label="Account Name">
+          <FormInput control={control} name="name" placeholder="Account Name" />
+        </Field>
+        <Form.Trigger asChild>
+          <Button>Create Account</Button>
+        </Form.Trigger>
+      </Form>
+    </>
+  );
+}
+
+// function CreateAccountDialog({
+//   input,
+//   onClose,
+// }: {
+//   input: {};
+//   onClose: () => void;
+// }) {
+//   return null;
+// }
+
+export function FooterActions() {
+  const userKeyPair = useKeyPair();
+  if (!userKeyPair) return null;
+  return (
+    <>
+      <Button onPress={logout}>Logout</Button>
     </>
   );
 }

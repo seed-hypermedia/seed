@@ -17,7 +17,7 @@ export default function CommentEditor({
   onCommentSubmit,
   onDiscardDraft,
 }: {
-  onCommentSubmit: (content: HMBlockNode[]) => Promise<void>;
+  onCommentSubmit: (content: HMBlockNode[]) => Promise<{didPublish: boolean}>;
   onDiscardDraft: () => void;
 }) {
   const {editor} = useCommentEditor();
@@ -53,8 +53,8 @@ export default function CommentEditor({
             const commentContent = blocks.map((block) =>
               block.toJson()
             ) as HMBlockNode[];
-            onCommentSubmit(commentContent).then(() => {
-              editor.removeBlocks(editor.topLevelBlocks);
+            onCommentSubmit(commentContent).then(({didPublish}) => {
+              if (didPublish) editor.removeBlocks(editor.topLevelBlocks);
             });
           }}
         >

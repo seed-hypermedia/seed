@@ -45,6 +45,7 @@
     "@tamagui/web": "1.108.2",
     "nostr-tools": "1.16.0",
     "react": "18.2.0",
+    "react-hook-form": "7.46.1",
     "react-icons": "4.9.0",
     "react-native-reanimated": "3.7.0",
     "react-virtuoso": "4.6.2",

@@ -5,6 +5,8 @@ import {zodResolver} from '@hookform/resolvers/zod'
 import {getDocumentTitle} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {Button} from '@shm/ui/button'
+import {FormInput} from '@shm/ui/form-input'
+import {FormField} from '@shm/ui/forms'
 import {UploadCloud} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
@@ -13,8 +15,6 @@ import {SubmitHandler, useForm} from 'react-hook-form'
 import {AlertDialog, Form, SizableText, XStack, YStack} from 'tamagui'
 import {z} from 'zod'
 import {DialogTitle, useAppDialog} from './dialog'
-import {FormInput} from './form-input'
-import {FormField} from './forms'
 
 export function usePublishSite() {
   return useAppDialog(PublishSiteDialog)

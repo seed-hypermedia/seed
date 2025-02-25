@@ -4,8 +4,15 @@ import {Button, ButtonText} from "@tamagui/button";
 import {ExternalLink} from "@tamagui/lucide-icons";
 import {XStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
+import {WebIdentityFooter} from "./client-lazy";
 
-export function PageFooter({id}: {id?: UnpackedHypermediaId}) {
+export function PageFooter({
+  id,
+  enableWebSigning,
+}: {
+  id?: UnpackedHypermediaId;
+  enableWebSigning?: boolean;
+}) {
   return (
     <Container>
       <XStack padding="$4" gap="$4" ai="center">
@@ -36,6 +43,7 @@ export function PageFooter({id}: {id?: UnpackedHypermediaId}) {
           </Button>
         ) : null}
       </XStack>
+      {enableWebSigning ? <WebIdentityFooter /> : null}
     </Container>
   );
 }

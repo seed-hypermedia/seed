@@ -32,7 +32,7 @@ import {ChevronUp} from "@tamagui/lucide-icons";
 import {XStack, YStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
 import React, {useCallback, useEffect, useMemo, useState} from "react";
-import type {WebCommentingProps} from "./commenting";
+import {WebCommenting} from "./client-lazy";
 import {getHref} from "./href";
 import type {SiteDocumentPayload} from "./loaders";
 import {defaultSiteIcon} from "./meta";
@@ -127,6 +127,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
         id={id}
         originHomeId={originHomeId}
         homeMetadata={homeMetadata}
+        enableWebSigning={enableWebSigning}
       />
     );
   if (document.metadata.layout == "Seed/Experimental/Newspaper") {
@@ -278,7 +279,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
           </YStack>
         </WebSiteHeader>
       </YStack>
-      <PageFooter id={id} />
+      <PageFooter enableWebSigning={enableWebSigning} id={id} />
     </WebSiteProvider>
   );
 }
@@ -326,10 +327,12 @@ function DocumentDiscoveryPage({
   id,
   homeMetadata,
   originHomeId,
+  enableWebSigning,
 }: {
   id: UnpackedHypermediaId;
   homeMetadata: HMMetadata | null;
   originHomeId: UnpackedHypermediaId | null;
+  enableWebSigning?: boolean;
 }) {
   useEffect(() => {
     fetch("/hm/api/discover", {
@@ -383,7 +386,7 @@ function DocumentDiscoveryPage({
           </YStack>
         </Container>
       </YStack>
-      <PageFooter id={id} />
+      <PageFooter enableWebSigning={enableWebSigning} id={id} />
     </YStack>
   );
 }
@@ -460,24 +463,6 @@ function WebDocContentProvider({
 //     ? {default: () => null}
 //     : await import("./commenting")
 // );
-
-function clientLazy<ComponentProps extends {}>(
-  doImport: () => Promise<{default: React.FC<ComponentProps>}>
-) {
-  const ClientComponent = React.lazy(doImport);
-  function ClientAwokenComponent(props: ComponentProps) {
-    const [isClientAwake, setIsClientAwake] = useState(false);
-    useEffect(() => {
-      setIsClientAwake(true);
-    }, []);
-    return isClientAwake ? <ClientComponent {...props} /> : null;
-  }
-  return ClientAwokenComponent;
-}
-
-const WebCommenting = clientLazy<WebCommentingProps>(
-  () => import("./commenting")
-);
 
 function DocumentAppendix({
   id,

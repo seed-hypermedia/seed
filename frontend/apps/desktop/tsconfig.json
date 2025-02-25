@@ -31,6 +31,13 @@
       "@shm/editor/*": ["../../packages/editor/src/*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "../../packages/ui/src/forms.tsx",
+    "../../packages/ui/src/form-input.tsx"
+  ],
   "exclude": ["node_modules"]
 }

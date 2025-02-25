@@ -4,7 +4,7 @@ import {
   HyperlinkToolbarProps,
   useEditorSelectionChange,
 } from "@/blocknote";
-import {Close} from "@shm/ui/src/icons";
+import {Close} from "@shm/ui/icons";
 import {usePopoverState} from "@shm/ui/use-popover-state";
 import {Check, Link, Unlink} from "@tamagui/lucide-icons";
 import {useCallback, useEffect, useState} from "react";

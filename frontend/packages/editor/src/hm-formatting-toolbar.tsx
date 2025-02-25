@@ -14,7 +14,7 @@ import {
   Type,
   Underline,
   UnorderedList,
-} from "@shm/ui/src/icons";
+} from "@shm/ui/icons";
 import {Check, ChevronDown, Code, Strikethrough} from "@tamagui/lucide-icons";
 import {useMemo, useState} from "react";
 import {

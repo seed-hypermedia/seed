@@ -10,13 +10,13 @@ import {WebSiteHeader} from "./web-site-header";
 export function NewspaperPage(props: SiteDocumentPayload) {
   const {
     document,
-    homeId,
     homeMetadata,
     id,
     supportDocuments,
     supportQueries,
     accountsMetadata,
-    siteHost,
+    enableWebSigning,
+    originHomeId,
     origin,
   } = props;
   if (!id) return null;
@@ -59,7 +59,7 @@ export function NewspaperPage(props: SiteDocumentPayload) {
       <YStack marginBottom={300}>
         <WebSiteHeader
           homeMetadata={homeMetadata}
-          homeId={homeId}
+          originHomeId={originHomeId}
           docId={id}
           document={document}
           supportDocuments={supportDocuments}
@@ -100,7 +100,7 @@ export function NewspaperPage(props: SiteDocumentPayload) {
           </Container>
         </WebSiteHeader>
       </YStack>
-      <PageFooter id={id} />
+      <PageFooter enableWebSigning={enableWebSigning} id={id} />
     </>
   );
 }
