@@ -372,7 +372,7 @@ type UnsignedDocumentChange = {
   };
   signer: Uint8Array;
   sig: Uint8Array; // new Uint8Array(64); // we are expected to sign a blob with empty signature
-  ts: bigint;
+  ts?: bigint; // undefined for genesis only!
   depth?: number;
   genesis?: CID;
   deps?: CID[];
@@ -447,7 +447,6 @@ async function createDocumentGenesisChange({
   const unsignedChange: UnsignedDocumentChange = {
     type: "Change",
     signer: signerKey,
-    ts: BigInt(Date.now()),
     sig: new Uint8Array(64),
   };
   const signature = await signObject(keyPair, unsignedChange);
