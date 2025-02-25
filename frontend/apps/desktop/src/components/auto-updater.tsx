@@ -40,7 +40,7 @@ export function AutoUpdater() {
       elevation="$4"
       bg="$backgroundStrong"
       padding="$4"
-      x={updateStatus?.type == 'idle' ? 500 : 0}
+      x={updateStatus == null || updateStatus?.type == 'idle' ? 500 : 0}
       animation={[
         'slow',
         {
@@ -53,7 +53,7 @@ export function AutoUpdater() {
       exitStyle={{y: 500, opacity: 0}}
     >
       <SizableText size="$2">{getUpdateStatusLabel(updateStatus)}</SizableText>
-      {updateStatus?.type == 'update-available' ? (
+      {updateStatus?.type == 'update-available' && updateStatus.updateInfo ? (
         <XStack gap="$2">
           <Button
             size="$2"
