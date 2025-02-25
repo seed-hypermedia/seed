@@ -2,7 +2,6 @@ import {useAccount_deprecated} from '@/models/accounts'
 import {useListDirectory} from '@/models/documents'
 import {useEntities, useSubscribedEntity} from '@/models/entities'
 import {LibraryData} from '@/models/library'
-import {LibraryListItem} from '@/pages/library'
 import {DAEMON_FILE_URL} from '@shm/shared/constants'
 import {getDocumentTitle, queryBlockSortedItems} from '@shm/shared/content'
 import {
@@ -44,6 +43,7 @@ import {
 import {Button, SizableText, XStack, YStack, YStackProps} from 'tamagui'
 import {useComment} from '../models/comments'
 import {useNavigate} from '../utils/useNavigate'
+import {LibraryListItem} from './list-item'
 
 function EmbedWrapper({
   id,

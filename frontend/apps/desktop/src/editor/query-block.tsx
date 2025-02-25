@@ -1,8 +1,8 @@
+import {LibraryListItem} from '@/components/list-item'
 import {SearchInput} from '@/components/search-input'
 import {useListDirectory} from '@/models/documents'
 import {useEntities, useEntity} from '@/models/entities'
 import {LibraryData} from '@/models/library'
-import {LibraryListItem} from '@/pages/library'
 import {Block, BlockNoteEditor} from '@shm/editor/blocknote'
 import {MultipleNodeSelection} from '@shm/editor/blocknote/core/extensions/SideMenu/MultipleNodeSelection'
 import {

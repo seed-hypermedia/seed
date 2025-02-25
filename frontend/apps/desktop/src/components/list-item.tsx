@@ -1,11 +1,27 @@
+import {FavoriteButton} from '@/components/favoriting'
+
+import {LibraryData, LibraryDependentData} from '@/models/library'
+import {useNavigate} from '@/utils/useNavigate'
 import {Timestamp} from '@bufbuild/protobuf'
+import {getMetadataName} from '@shm/shared/content'
+import {DocumentRoute} from '@shm/shared/routes'
 import {useHover} from '@shm/shared/use-hover'
 import {formattedDate, formattedDateLong} from '@shm/shared/utils/date'
+import {HMIcon} from '@shm/ui/hm-icon'
+import {Check, Link, Pencil} from '@shm/ui/icons'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Tooltip} from '@shm/ui/tooltip'
-import {Link} from '@tamagui/lucide-icons'
-import {ComponentProps, ReactElement, useState} from 'react'
-import {Button, ButtonProps, ButtonText, XStack} from 'tamagui'
+import {ComponentProps, ReactElement, useMemo, useState} from 'react'
+import {
+  Button,
+  ButtonProps,
+  ButtonText,
+  Checkbox,
+  SizableText,
+  Text,
+  XStack,
+  YStack,
+} from 'tamagui'
 
 export function ListItem({
   accessory,
@@ -122,5 +138,289 @@ export function TimeAccessory({
         {time ? formattedDate(time) : '...'}
       </ButtonText>
     </Tooltip>
+  )
+}
+
+export function LibraryListItem({
+  entry,
+  exportMode,
+  selected,
+  toggleDocumentSelection,
+}: {
+  entry: LibraryData['items'][number]
+  exportMode: boolean
+  selected: boolean
+  toggleDocumentSelection: (id: string) => void
+}) {
+  const navigate = useNavigate()
+  const metadata = entry.document?.metadata || entry.draft?.metadata
+  const isUnpublished = !!entry.draft && !entry.document
+  const editors = useMemo(
+    () =>
+      entry.authors.length > 3 ? entry.authors.slice(0, 2) : entry.authors,
+    [entry.authors],
+  )
+
+  const icon =
+    entry.id.path?.length == 0 || entry.document?.metadata.icon ? (
+      <HMIcon
+        size={28}
+        id={entry.id}
+        metadata={entry.document?.metadata || entry.draft?.metadata}
+      />
+    ) : null
+
+  const hoverColor = '$color5'
+  return (
+    <Button
+      group="item"
+      borderWidth={0}
+      hoverStyle={{
+        bg: hoverColor,
+      }}
+      bg="$colorTransparent"
+      elevation="$1"
+      paddingHorizontal={16}
+      paddingVertical="$1"
+      onPress={() => {
+        if (!exportMode) {
+          if (isUnpublished) navigate({key: 'draft', id: entry.id})
+          else navigate({key: 'document', id: entry.id})
+        }
+        // else {
+        //   toggleDocumentSelection(entry.id.id)
+        // }
+      }}
+      h={60}
+      icon={
+        exportMode ? (
+          <XStack ai="center" gap="$3">
+            {exportMode && (
+              <Checkbox
+                size="$3"
+                borderColor="$color9"
+                focusStyle={{
+                  borderColor: '$color9',
+                }}
+                hoverStyle={{
+                  borderColor: '$color9',
+                }}
+                checked={selected}
+                onCheckedChange={() => {
+                  toggleDocumentSelection(entry.id.id)
+                }}
+              >
+                <Checkbox.Indicator>
+                  <Check color="$brand5" />
+                </Checkbox.Indicator>
+              </Checkbox>
+            )}
+
+            {icon}
+          </XStack>
+        ) : (
+          icon
+        )
+      }
+    >
+      <XStack gap="$2" ai="center" f={1} paddingVertical="$2">
+        <YStack f={1} gap="$1.5">
+          <XStack ai="center" gap="$2" paddingLeft={4}>
+            <SizableText
+              fontWeight="bold"
+              textOverflow="ellipsis"
+              whiteSpace="nowrap"
+              overflow="hidden"
+            >
+              {getMetadataName(metadata)}
+            </SizableText>
+            {isUnpublished && (
+              <SizableText
+                size="$1"
+                color="$yellow11"
+                paddingHorizontal="$2"
+                paddingVertical="$1"
+                bg="$yellow3"
+                borderRadius="$1"
+                borderColor="$yellow10"
+                borderWidth={1}
+              >
+                Unpublished
+              </SizableText>
+            )}
+          </XStack>
+          {entry.location.length ? (
+            <LibraryEntryLocation
+              location={entry.location}
+              onNavigate={navigate}
+            />
+          ) : null}
+        </YStack>
+      </XStack>
+      <XStack gap="$3" ai="center">
+        {isUnpublished ? null : (
+          <FavoriteButton id={entry.id} hideUntilItemHover />
+        )}
+        {entry.hasDraft && !isUnpublished && !exportMode ? (
+          <Button
+            theme="yellow"
+            icon={Pencil}
+            size="$2"
+            onPress={(e: MouseEvent) => {
+              e.stopPropagation()
+              navigate({key: 'draft', id: entry.id})
+            }}
+          >
+            Resume Editing
+          </Button>
+        ) : (
+          <LibraryEntryTime entry={entry} />
+        )}
+        <XStack>
+          {editors.map((author, idx) => (
+            <XStack
+              zIndex={idx + 1}
+              key={author.id.id}
+              borderColor="$background"
+              backgroundColor="$background"
+              $group-item-hover={{
+                borderColor: hoverColor,
+                backgroundColor: hoverColor,
+              }}
+              borderWidth={2}
+              borderRadius={100}
+              overflow="hidden"
+              marginLeft={-8}
+              animation="fast"
+            >
+              <LinkIcon
+                key={author.id.id}
+                id={author.id}
+                metadata={author.metadata}
+                size={20}
+              />
+            </XStack>
+          ))}
+          {entry.authors.length > editors.length && editors.length != 0 ? (
+            <XStack
+              zIndex="$zIndex.1"
+              borderColor="$background"
+              backgroundColor="$background"
+              borderWidth={2}
+              borderRadius={100}
+              marginLeft={-8}
+              animation="fast"
+              width={24}
+              height={24}
+              ai="center"
+              jc="center"
+            >
+              <Text
+                fontSize={10}
+                fontFamily="$body"
+                fontWeight="bold"
+                color="$color10"
+              >
+                +{entry.authors.length - editors.length - 1}
+              </Text>
+            </XStack>
+          ) : null}
+        </XStack>
+      </XStack>
+    </Button>
+  )
+}
+
+function LibraryEntryTime({entry}: {entry: LibraryData[0]}) {
+  if (entry.document?.updateTime) {
+    return (
+      <SizableText size="$1">
+        {formattedDate(entry.document.updateTime)}
+      </SizableText>
+    )
+  }
+  if (entry.draft?.lastUpdateTime) {
+    return (
+      <SizableText size="$1">
+        {formattedDate(new Date(entry.draft.lastUpdateTime))}
+      </SizableText>
+    )
+  }
+  return null
+}
+
+function LibraryEntryLocation({
+  location,
+  onNavigate,
+}: {
+  location: LibraryDependentData[]
+  onNavigate: (route: DocumentRoute) => void
+}) {
+  const [space, ...names] = location
+  return (
+    <XStack gap="$2" w="100%" overflow="hidden">
+      <Button
+        color="$brand5"
+        fontWeight="400"
+        size="$1"
+        borderWidth={0}
+        bg="$colorTransparent"
+        hoverStyle={{
+          color: '$brand6',
+          bg: '$colorTransparent',
+          textDecorationLine: 'underline',
+          textDecorationColor: 'currentColor',
+        }}
+        onPress={(e: MouseEvent) => {
+          e.stopPropagation()
+          onNavigate({key: 'document', id: space.id})
+        }}
+      >
+        {getMetadataName(space.metadata)}
+      </Button>
+
+      {names.length ? (
+        <>
+          <SizableText size="$1" color="$color9">
+            |
+          </SizableText>
+          <XStack ai="center" gap="$0.5">
+            {names.map(({id, metadata}, idx) => (
+              <>
+                {idx != 0 ? (
+                  <SizableText
+                    key={`slash-${id.id}`}
+                    color="$color10"
+                    size="$1"
+                  >
+                    /
+                  </SizableText>
+                ) : null}
+                <Button
+                  key={id.id}
+                  size="$1"
+                  borderWidth={0}
+                  bg="$colorTransparent"
+                  color="$color10"
+                  hoverStyle={{
+                    bg: '$colorTransparent',
+                    textDecorationLine: 'underline',
+                    textDecorationColor: 'currentColor',
+                  }}
+                  onPress={(e: MouseEvent) => {
+                    e.stopPropagation()
+                    onNavigate({key: 'document', id})
+                  }}
+                >
+                  {metadata
+                    ? getMetadataName(metadata)
+                    : id.path?.at(-1) || 'Untitled'}
+                </Button>
+              </>
+            ))}
+          </XStack>
+        </>
+      ) : null}
+    </XStack>
   )
 }
