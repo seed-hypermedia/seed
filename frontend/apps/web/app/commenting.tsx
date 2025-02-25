@@ -15,7 +15,11 @@ import {
 import {Button} from "@shm/ui/button";
 import {Field} from "@shm/ui/form-fields";
 import {FormInput} from "@shm/ui/form-input";
-import {DialogTitle, useAppDialog} from "@shm/ui/universal-dialog";
+import {
+  DialogDescription,
+  DialogTitle,
+  useAppDialog,
+} from "@shm/ui/universal-dialog";
 import {useMutation, useQueryClient} from "@tanstack/react-query";
 import {BlockView} from "multiformats";
 import {base58btc} from "multiformats/bases/base58";
@@ -207,6 +211,22 @@ async function createAccount({name}: {name: string}) {
     id: base58btc.encode(await preparePublicKey(keyPair.publicKey)),
   });
   return keyPair;
+}
+
+async function updateProfile(
+  keyPair: CryptoKeyPair,
+  newValues: SiteMetaFields,
+  genesisChangeCid: CID,
+  deps: CID[]
+) {
+  const updatePayload = await createHomeDocumentChange({
+    keyPair,
+    genesisChangeCid,
+    operations: [{type: "SetAttributes", attrs: newValues}],
+    deps,
+  });
+  const updateBlock = await encodeBlock(updatePayload);
+  await postCBOR("/hm/api/update-account", updateBlock.bytes);
 }
 
 type BlobPayload = {
@@ -702,6 +722,7 @@ export default function WebCommenting({
                 }
                 postComment.mutateAsync(mutatePayload).then(() => {
                   reset();
+                  onDiscardDraft?.();
                 });
               }}
             >
@@ -715,10 +736,10 @@ export default function WebCommenting({
     </>
   );
 }
-const createAccountSchema = z.object({
+const siteMetaSchema = z.object({
   name: z.string(),
 });
-type CreateAccountFields = z.infer<typeof createAccountSchema>;
+type SiteMetaFields = z.infer<typeof siteMetaSchema>;
 function CreateAccountDialog({
   input,
   onClose,
@@ -726,61 +747,136 @@ function CreateAccountDialog({
   input: {};
   onClose: () => void;
 }) {
+  const onSubmit: SubmitHandler<SiteMetaFields> = (data) => {
+    createAccount({name: data.name}).then(() => onClose());
+  };
+
+  return (
+    <>
+      <DialogTitle>Create Account</DialogTitle>
+      <EditProfileForm onSubmit={onSubmit} />
+    </>
+  );
+}
+
+function EditProfileForm({
+  onSubmit,
+  defaultValues,
+}: {
+  onSubmit: (data: SiteMetaFields) => void;
+  defaultValues?: SiteMetaFields;
+}) {
   const {
     control,
     handleSubmit,
     setFocus,
     formState: {errors},
   } = useForm<{name: string}>({
-    resolver: zodResolver(createAccountSchema),
-    defaultValues: {
+    resolver: zodResolver(siteMetaSchema),
+    defaultValues: defaultValues || {
       name: "",
     },
   });
-  const onSubmit: SubmitHandler<CreateAccountFields> = (data) => {
-    createAccount({name: data.name}).then(() => onClose());
-  };
   useEffect(() => {
     setTimeout(() => {
       setFocus("name");
     }, 300); // wait for animation
   }, [setFocus]);
   return (
+    <Form onSubmit={handleSubmit(onSubmit)}>
+      <Field id="name" label="Account Name">
+        <FormInput control={control} name="name" placeholder="Account Name" />
+      </Field>
+      <Form.Trigger asChild>
+        <Button>Create Account</Button>
+      </Form.Trigger>
+    </Form>
+  );
+}
+
+function LogoutDialog({onClose}: {onClose: () => void}) {
+  return (
     <>
-      <DialogTitle>Create Account</DialogTitle>
-      <Form onSubmit={handleSubmit(onSubmit)}>
-        <Field id="name" label="Account Name">
-          <FormInput control={control} name="name" placeholder="Account Name" />
-        </Field>
-        <Form.Trigger asChild>
-          <Button>Create Account</Button>
-        </Form.Trigger>
-      </Form>
+      <DialogTitle>Really Logout?</DialogTitle>
+      <DialogDescription>
+        This account key is not saved anywhere else. By logging out, you will
+        loose access to this identity forever.
+      </DialogDescription>
+      <Button
+        onPress={() => {
+          logout();
+          onClose();
+        }}
+        theme="red"
+      >
+        Log out Forever
+      </Button>
     </>
   );
 }
 
-// function CreateAccountDialog({
-//   input,
-//   onClose,
-// }: {
-//   input: {};
-//   onClose: () => void;
-// }) {
-//   return null;
-// }
+function EditProfileDialog({
+  onClose,
+  input,
+}: {
+  onClose: () => void;
+  input: {accountUid: string};
+}) {
+  const account = useEntity(hmId("d", input.accountUid));
+  return (
+    <>
+      <DialogTitle>Edit Profile</DialogTitle>
+      <EditProfileForm
+        defaultValues={{name: account.data?.document?.metadata?.name || "?"}}
+        onSubmit={(newValues) => {
+          const deps = account.data?.document?.version
+            .split(".")
+            .map((cidStr) => CID.parse(cidStr));
+          const genesisStr = account.data?.document?.genesis;
+          // const uhShitDepth = account.data?.document?.depth;
+          const genesis = genesisStr ? CID.parse(genesisStr) : null;
+          if (!keyPair) {
+            throw new Error("No key pair found");
+          }
+          if (!deps) {
+            throw new Error("No deps found");
+          }
+          if (!genesis) {
+            throw new Error("No genesis found");
+          }
+          console.log("DO EDIT!", newValues, genesis, deps);
+          updateProfile(keyPair, newValues, genesis, deps).then(() =>
+            onClose()
+          );
+        }}
+      />
+    </>
+  );
+}
 
 export function AccountFooterActions() {
   const userKeyPair = useKeyPair();
+  const logoutDialog = useAppDialog(LogoutDialog);
+  const editProfileDialog = useAppDialog(EditProfileDialog);
   if (!userKeyPair) return null;
   return (
     <XStack gap="$2">
-      <Button size="$2" onPress={logout} backgroundColor="$color4">
+      <Button
+        size="$2"
+        onPress={() => logoutDialog.open({})}
+        backgroundColor="$color4"
+      >
         Logout
       </Button>
-      <Button size="$2" onPress={() => {}} backgroundColor="$color4">
+      <Button
+        size="$2"
+        onPress={() => editProfileDialog.open({accountUid: userKeyPair.id})}
+        backgroundColor="$color4"
+      >
         Edit Profile
       </Button>
+      {logoutDialog.content}
+      {editProfileDialog.content}
     </XStack>
   );
 }
