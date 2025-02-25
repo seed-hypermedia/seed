@@ -448,6 +448,7 @@ async function createDocumentGenesisChange({
     type: "Change",
     signer: signerKey,
     sig: new Uint8Array(64),
+    ts: 0n,
   };
   const signature = await signObject(keyPair, unsignedChange);
   return {
