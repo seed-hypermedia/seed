@@ -117,26 +117,24 @@ func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 			fm.log.Debug("Could not get file", zap.String("CID", cid.String()), zap.Error(err))
 			fmt.Fprintf(w, "Could not get file with provided CID[%s]: %s", cid.String(), err.Error())
 		}
-
-		return
-	}
-
-	unixFSNode, err := unixfile.NewUnixfsFile(ctx, fm.DAGService, n)
-
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fm.log.Debug("Found the node but could not download it", zap.String("CID", cidStr), zap.Error(err))
-		fmt.Fprintf(w, "Found the node but could not download it: %s", err.Error())
 		return
 	}
 
 	var buf bytes.Buffer
-	if f, ok := unixFSNode.(files.File); ok {
-		if _, err := io.Copy(&buf, f); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fm.log.Debug("Found the node but could not reconstruct the file", zap.String("CID", cidStr), zap.Error(err))
-			fmt.Fprintf(w, "Found the Node but could not reconstruct the file: %s", err.Error())
-			return
+	unixFSNode, err := unixfile.NewUnixfsFile(ctx, fm.DAGService, n)
+	if err != nil {
+		// If not a UnixFS file, try to get raw data
+		fm.log.Debug("Not a UnixFS file, attempting to get raw data", zap.String("CID", cidStr))
+		rawData := n.RawData()
+		buf.Write(rawData)
+	} else {
+		if f, ok := unixFSNode.(files.File); ok {
+			if _, err := io.Copy(&buf, f); err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				fm.log.Debug("Found the node but could not reconstruct the file", zap.String("CID", cidStr), zap.Error(err))
+				fmt.Fprintf(w, "Found the Node but could not reconstruct the file: %s", err.Error())
+				return
+			}
 		}
 	}
 
