@@ -1,3 +1,4 @@
+import {getUpdateStatusLabel, useUpdateStatus} from '@/components/auto-updater'
 import {useConnectionSummary} from '@/models/contacts'
 import {useNavRoute} from '@/utils/navigation'
 import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
@@ -8,6 +9,43 @@ import {ReactNode} from 'react'
 import {ButtonProps, SizableText, XStack} from 'tamagui'
 import {OnlineIndicator} from './indicator'
 import {useNetworkDialog} from './network-dialog'
+
+export default function Footer({children}: {children?: ReactNode}) {
+  const updateStatus = useUpdateStatus()
+  return (
+    <FooterWrapper style={{flex: 'none'}}>
+      <FooterNetworkingButton />
+      <XStack alignItems="center" paddingHorizontal="$2" gap="$4">
+        <SizableText
+          fontSize={10}
+          userSelect="none"
+          hoverStyle={{
+            cursor: 'default',
+          }}
+          color="$color8"
+        >
+          {`Seed ${VERSION} (${COMMIT_HASH.slice(0, 8)})`}
+        </SizableText>
+        {updateStatus && updateStatus?.type != 'idle' && (
+          <SizableText
+            fontSize={10}
+            userSelect="none"
+            hoverStyle={{
+              cursor: 'default',
+            }}
+            color="$color8"
+          >
+            {getUpdateStatusLabel(updateStatus)}
+          </SizableText>
+        )}
+      </XStack>
+
+      <XStack flex={1} alignItems="center" justifyContent="flex-end" gap="$1">
+        {children}
+      </XStack>
+    </FooterWrapper>
+  )
+}
 
 export function FooterButton({
   active,
@@ -55,29 +93,5 @@ function FooterNetworkingButton() {
       </Button>
       {networkDialog.content}
     </XStack>
-  )
-}
-
-export default function Footer({children}: {children?: ReactNode}) {
-  return (
-    <FooterWrapper style={{flex: 'none'}}>
-      <FooterNetworkingButton />
-      <XStack alignItems="center" paddingHorizontal="$2">
-        <SizableText
-          fontSize={10}
-          userSelect="none"
-          hoverStyle={{
-            cursor: 'default',
-          }}
-          color="$color8"
-        >
-          {`Seed ${VERSION} (${COMMIT_HASH.slice(0, 8)})`}
-        </SizableText>
-      </XStack>
-
-      <XStack flex={1} alignItems="center" justifyContent="flex-end" gap="$1">
-        {children}
-      </XStack>
-    </FooterWrapper>
   )
 }

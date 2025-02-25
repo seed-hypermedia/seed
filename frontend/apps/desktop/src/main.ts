@@ -1,5 +1,4 @@
 import * as Sentry from '@sentry/electron/main'
-
 import {
   BrowserWindow,
   Menu,
@@ -55,8 +54,6 @@ initPaths()
 contextMenu({
   showInspectElement: !IS_PROD_DESKTOP,
 })
-
-logger.info('[MAIN]: Seed Desktop Main Code')
 
 const metricsServer = startMetricsServer(METRIC_SERVER_HTTP_PORT)
 app.on('quit', async () => {
@@ -347,13 +344,16 @@ async function initAccountSubscriptions() {
 }
 
 Menu.setApplicationMenu(createAppMenu())
-let shouldAutoUpdate = appStore.get(APP_AUTO_UPDATE_PREFERENCE) || 'true'
 
-if (shouldAutoUpdate == 'true') {
-  autoUpdate()
-} else {
-  console.log('Auto-Update is set to OFF')
-}
+app.whenReady().then(() => {
+  let shouldAutoUpdate = appStore.get(APP_AUTO_UPDATE_PREFERENCE) || 'true'
+
+  if (shouldAutoUpdate == 'true') {
+    autoUpdate()
+  } else {
+    console.log('Auto-Update is set to OFF')
+  }
+})
 
 app.on('did-become-active', () => {
   logger.debug('[MAIN]: Seed active (did-become-active)')

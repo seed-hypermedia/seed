@@ -10,6 +10,7 @@ import {ErrorBoundary} from 'react-error-boundary'
 import {Panel, PanelGroup} from 'react-resizable-panels'
 import {YStack} from 'tamagui'
 import {AppErrorPage} from '../components/app-error'
+import {AutoUpdater} from '../components/auto-updater'
 import Footer from '../components/footer'
 import {AppSidebar} from '../components/sidebar'
 import {TitleBar} from '../components/titlebar'
@@ -106,6 +107,7 @@ export default function Main({className}: {className?: string}) {
           </PanelGroup>
           {sidebar}
           <Footer />
+          <AutoUpdater />
         </ErrorBoundary>
       </SidebarContextProvider>
     </YStack>
