@@ -1,5 +1,5 @@
+import {getUpdateStatusLabel, useUpdateStatus} from '@/components/auto-updater'
 import {useConnectionSummary} from '@/models/contacts'
-import {useCheckForUpdates} from '@/pages/auto-updater'
 import {useNavRoute} from '@/utils/navigation'
 import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
 import {Button} from '@shm/ui/button'
@@ -11,7 +11,7 @@ import {OnlineIndicator} from './indicator'
 import {useNetworkDialog} from './network-dialog'
 
 export default function Footer({children}: {children?: ReactNode}) {
-  const checkForUpdates = useCheckForUpdates()
+  const updateStatus = useUpdateStatus()
   return (
     <FooterWrapper style={{flex: 'none'}}>
       <FooterNetworkingButton />
@@ -26,7 +26,7 @@ export default function Footer({children}: {children?: ReactNode}) {
         >
           {`Seed ${VERSION} (${COMMIT_HASH.slice(0, 8)})`}
         </SizableText>
-        {checkForUpdates && (
+        {updateStatus && updateStatus?.type != 'idle' && (
           <SizableText
             fontSize={10}
             userSelect="none"
@@ -35,7 +35,7 @@ export default function Footer({children}: {children?: ReactNode}) {
             }}
             color="$color8"
           >
-            Checking for updates...
+            {getUpdateStatusLabel(updateStatus)}
           </SizableText>
         )}
       </XStack>

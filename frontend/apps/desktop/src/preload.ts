@@ -5,6 +5,7 @@ import {exposeElectronTRPC} from 'electron-trpc/main'
 // import directly from this deep path for shared/utils/stream! Bad things happen if you try to directly import from @shm/shared
 import {eventStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {GoDaemonState} from './daemon'
+import {UpdateStatus} from './types/updater-types'
 
 process.once('loaded', async () => {
   exposeElectronTRPC()
@@ -184,22 +185,18 @@ contextBridge.exposeInMainWorld('ipc', {
 })
 
 contextBridge.exposeInMainWorld('autoUpdate', {
-  onCheckForUpdates: (handler: (event: any) => void) => {
-    ipcRenderer.on('auto-update:check-for-updates', (_event, value) => {
-      handler(value)
+  onUpdateStatus: (handler: (status: UpdateStatus) => void) => {
+    ipcRenderer.on('auto-update:status', (_event, status: UpdateStatus) => {
+      handler(status)
     })
   },
-  onUpdateAvailable: (handler: (updateInfo: any) => void) => {
-    ipcRenderer.on('auto-update:update-available', (_event, updateInfo) => {
-      handler(updateInfo)
-    })
+  setUpdateStatus: (status: UpdateStatus) => {
+    ipcRenderer.send('auto-update:set-status', status)
   },
   downloadAndInstall: () => {
     ipcRenderer.send('auto-update:download-and-install')
   },
-  onDownloadProgress: (handler: (progress: number) => void) => {
-    ipcRenderer.on('auto-update:download-progress', (_event, progress) => {
-      handler(progress)
-    })
+  releaseNotes: () => {
+    ipcRenderer.send('auto-update:release-notes')
   },
 })

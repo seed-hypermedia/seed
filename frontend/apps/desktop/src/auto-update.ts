@@ -3,7 +3,7 @@ import {app, BrowserWindow, ipcMain, session} from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as log from './logger'
-import {UpdateAsset, UpdateInfo} from './types/updater-types'
+import {UpdateAsset, UpdateInfo, UpdateStatus} from './types/updater-types'
 
 import {
   autoUpdater as defaultAutoUpdater,
@@ -11,6 +11,8 @@ import {
   MessageBoxOptions,
 } from 'electron'
 import {updateElectronApp, UpdateSourceType} from 'update-electron-app'
+import {APP_AUTO_UPDATE_PREFERENCE} from './app-settings'
+import {appStore} from './app-store'
 
 export function defaultCheckForUpdates() {
   log.debug('[MAIN][AUTO-UPDATE]: checking for Updates')
@@ -25,34 +27,34 @@ export function defaultCheckForUpdates() {
   log.debug('[MAIN][AUTO-UPDATE]: checking for Updates END')
 }
 
-export const checkForUpdates = linuxCheckForUpdates
-// process.platform == 'linux' ? linuxCheckForUpdates : defaultCheckForUpdates
+export const checkForUpdates =
+  process.platform == 'win32' ? defaultCheckForUpdates : customAutoUpdates
 
 export default function autoUpdate() {
-  // if (!IS_PROD_DESKTOP) {
-  //   log.debug('[MAIN][AUTO-UPDATE]: Not available in development')
-  //   return
-  // }
-  // if (!isAutoUpdateSupported()) {
-  //   log.debug('[MAIN][AUTO-UPDATE]: Auto-Update is not supported')
-  //   return
-  // }
+  if (!IS_PROD_DESKTOP) {
+    log.debug('[MAIN][AUTO-UPDATE]: Not available in development')
+    return
+  }
+  if (!isAutoUpdateSupported()) {
+    log.debug('[MAIN][AUTO-UPDATE]: Auto-Update is not supported')
+    return
+  }
 
-  // if (process.platform != 'linux') {
-  //   setup()
-  // }
+  if (process.platform == 'win32') {
+    setup()
+  }
 
   // Listen for when the window is ready
   app.on('browser-window-created', (_, window) => {
-    window.once('ready-to-show', () => {
+    window.once('show', () => {
       log.debug('[MAIN][AUTO-UPDATE]: Window is ready, starting update check')
       // Initial check after window is ready
       setTimeout(() => {
         checkForUpdates()
-      }, 2000)
+      }, 5_000)
 
       // Set up periodic checks
-      setInterval(checkForUpdates, 600_000) // every 10 minutes
+      setInterval(checkForUpdates, 3_600_000) // every 1 hour
     })
   })
 }
@@ -63,17 +65,15 @@ export default function autoUpdate() {
 
 function isAutoUpdateSupported() {
   // TODO: we need to enable a setting so people can disable auto-updates
-  return true
+  log.info(
+    `[AUTO-UPDATE] isAutoUpdateSupported: ${appStore.get(
+      APP_AUTO_UPDATE_PREFERENCE,
+    )}`,
+  )
+  return appStore.get(APP_AUTO_UPDATE_PREFERENCE) || 'true' === 'true'
 }
 
 function setup() {
-  /**
-   * - disables autoDownload
-   * - enables autoInstall and app  quit
-   * - sets the logger
-   * - adopt the `feedback` variable to show/hide dialogs
-   */
-
   if (IS_PROD_DEV) {
     updateElectronApp({
       updateSource: {
@@ -135,12 +135,18 @@ function setup() {
   })
 }
 
-export function linuxCheckForUpdates() {
-  log.info(
-    '[AUTO-UPDATE]: =============================== checking for Updates',
-  )
+export function customAutoUpdates() {
+  log.info('[AUTO-UPDATE]: checking for Updates')
+
+  if (!isAutoUpdateSupported()) {
+    log.debug('[AUTO-UPDATE]: Auto-Update is not supported')
+    return
+  }
+
   const updater = new AutoUpdater(
-    'https://seedreleases.s3.eu-west-2.amazonaws.com/prod/latest.json',
+    IS_PROD_DEV
+      ? 'https://seedreleases.s3.eu-west-2.amazonaws.com/prod/latest.json'
+      : 'https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest.json',
   )
   updater.startAutoCheck()
   updater.checkForUpdates()
@@ -151,12 +157,14 @@ export class AutoUpdater {
   private updateUrl: string
   private checkIntervalMs: number
   private currentUpdateInfo: UpdateInfo | null = null
+  private status: UpdateStatus = {type: 'idle'}
 
   constructor(updateUrl: string, checkIntervalMs: number = 3600000) {
     // 1 hour default
     this.updateUrl = updateUrl
     this.checkIntervalMs = checkIntervalMs
     this.currentUpdateInfo = null
+    this.status = {type: 'idle'}
 
     // Listen for download and install request from renderer
     ipcMain.on('auto-update:download-and-install', () => {
@@ -172,16 +180,50 @@ export class AutoUpdater {
         log.error('[AUTO-UPDATE] No update info available for download')
       }
     })
+
+    ipcMain.on('auto-update:set-status', (_, status: UpdateStatus) => {
+      this.status = status
+      const win = BrowserWindow.getFocusedWindow()
+      if (win) {
+        win.webContents.send('auto-update:status', this.status)
+      }
+    })
+
+    ipcMain.on('auto-update:release-notes', () => {
+      log.info('[AUTO-UPDATE] Received release notes request')
+      if (this.currentUpdateInfo) {
+        this.showReleaseNotes()
+      }
+    })
+  }
+
+  private showReleaseNotes() {
+    log.info('[AUTO-UPDATE] Showing release notes')
+    if (this.currentUpdateInfo?.release_notes) {
+      dialog.showMessageBoxSync({
+        type: 'info',
+        title: 'Update Available',
+        message: `${this.currentUpdateInfo?.name}`,
+        detail:
+          this.currentUpdateInfo.release_notes || 'No release notes available',
+        buttons: ['OK'],
+      })
+    } else {
+      log.info('[AUTO-UPDATE] No release notes available')
+    }
   }
 
   async checkForUpdates(): Promise<void> {
+    log.info('[AUTO-UPDATE] Checking for updates...')
     const win = BrowserWindow.getFocusedWindow()
     if (!win) {
       log.error('[AUTO-UPDATE] No window found')
       return
     }
-    win.webContents.send('auto-update:check-for-updates', true)
-    log.info('[AUTO-UPDATE] Checking for updates...')
+
+    this.status = {type: 'checking'}
+    win.webContents.send('auto-update:status', this.status)
+
     try {
       const response = await fetch(this.updateUrl)
       const updateInfo: UpdateInfo = await response.json()
@@ -195,17 +237,20 @@ export class AutoUpdater {
         log.info(
           '[AUTO-UPDATE] New version available, initiating update process',
         )
-        win.webContents.send('auto-update:check-for-updates', false)
+        this.status = {type: 'update-available', updateInfo: updateInfo}
+        win.webContents.send('auto-update:status', this.status)
         this.currentUpdateInfo = updateInfo // Store the update info
         await this.handleUpdate(updateInfo)
       } else {
         log.info('[AUTO-UPDATE] Application is up to date')
-        win.webContents.send('auto-update:check-for-updates', false)
+        this.status = {type: 'idle'}
+        win.webContents.send('auto-update:status', this.status)
         this.currentUpdateInfo = null
       }
     } catch (error) {
-      log.error('[AUTO-UPDATE] Error checking for updates:', error)
-      win.webContents.send('auto-update:check-for-updates', false)
+      log.error(`[AUTO-UPDATE] Error checking for updates: ${error}`)
+      this.status = {type: 'error', error: JSON.stringify(error)}
+      win.webContents.send('auto-update:status', this.status)
       this.currentUpdateInfo = null
     }
   }
@@ -219,15 +264,38 @@ export class AutoUpdater {
 
   private compareVersions(v1: string, v2: string): number {
     log.info(`[AUTO-UPDATE] Comparing versions: ${v1} vs ${v2}`)
-    const v1Parts = v1.split('.').map(Number)
-    const v2Parts = v2.split('.').map(Number)
 
+    // Split version and dev suffix
+    const [v1Base, v1Dev] = v1.split('-dev.')
+    const [v2Base, v2Dev] = v2.split('-dev.')
+
+    // Compare main version numbers first (2025.2.8)
+    const v1Parts = v1Base.split('.').map(Number)
+    const v2Parts = v2Base.split('.').map(Number)
+
+    // Compare year.month.patch
     for (let i = 0; i < Math.max(v1Parts.length, v2Parts.length); i++) {
       const v1Part = v1Parts[i] || 0
       const v2Part = v2Parts[i] || 0
       if (v1Part > v2Part) return 1
       if (v1Part < v2Part) return -1
     }
+
+    // If base versions are equal, compare dev versions
+    if (v1Base === v2Base) {
+      // If one is dev and other isn't, non-dev is newer
+      if (!v1Dev && v2Dev) return 1
+      if (v1Dev && !v2Dev) return -1
+      // If both are dev versions, compare dev numbers
+      if (v1Dev && v2Dev) {
+        const v1DevNum = parseInt(v1Dev)
+        const v2DevNum = parseInt(v2Dev)
+        return v1DevNum - v2DevNum
+      }
+      return 0
+    }
+
+    // If we get here, base versions were different
     return 0
   }
 
@@ -299,6 +367,8 @@ export class AutoUpdater {
 
     try {
       log.info('[AUTO-UPDATE] Downloading update...')
+      this.status = {type: 'downloading', progress: 0}
+      win.webContents.send('auto-update:status', this.status)
       session.defaultSession.downloadURL(downloadUrl)
       session.defaultSession.on('will-download', (event: any, item: any) => {
         // Set download path
@@ -307,7 +377,7 @@ export class AutoUpdater {
         item.setSavePath(filePath)
 
         // Monitor download progress
-        item.on('updated', (event, state) => {
+        item.on('updated', (_event: any, state: any) => {
           if (state === 'progressing') {
             if (item.isPaused()) {
               log.info('[AUTO-UPDATE] Download paused')
@@ -316,7 +386,8 @@ export class AutoUpdater {
               const total = item.getTotalBytes()
               const progress = Math.round((received / total) * 100)
               log.info(`[AUTO-UPDATE] Download progress: ${progress}%`)
-              win.webContents.send('auto-update:download-progress', progress)
+              this.status = {type: 'downloading', progress: progress}
+              win.webContents.send('auto-update:status', this.status)
             }
           }
         })
@@ -324,6 +395,8 @@ export class AutoUpdater {
         // Download complete
         item.once('done', async (event: any, state: any) => {
           if (state === 'completed') {
+            this.status = {type: 'restarting'}
+            win.webContents.send('auto-update:status', this.status)
             log.info(`[AUTO-UPDATE] Download successfully saved to ${filePath}`)
 
             if (process.platform === 'darwin') {
@@ -333,7 +406,7 @@ export class AutoUpdater {
               const fs = require('fs/promises') // Use promises version of fs
 
               const volumePath = '/Volumes/Seed'
-              const appName = 'Seed.app'
+              const appName = IS_PROD_DEV ? 'SeedDev.app' : 'Seed.app'
               const tempPath = path.join(app.getPath('temp'), 'SeedUpdate')
               try {
                 // Ensure temp directory exists
@@ -351,7 +424,7 @@ export class AutoUpdater {
 
                 // Mount the DMG
                 log.info('[AUTO-UPDATE] Mounting DMG...')
-                // await execPromise(`hdiutil attach "${filePath}"`)
+                await execPromise(`hdiutil attach "${filePath}"`)
 
                 // Create update script
                 const scriptPath = path.join(tempPath, 'update.sh')
@@ -382,12 +455,12 @@ export class AutoUpdater {
                 exec(`"${scriptPath}"`, {detached: true, stdio: 'ignore'})
                 app.quit()
               } catch (error) {
-                log.error('[AUTO-UPDATE] Installation error:', error)
+                log.error(`[AUTO-UPDATE] Installation error: ${error}`)
                 // Clean up if possible
                 try {
                   await execPromise(`hdiutil detach "${volumePath}" || true`)
                 } catch (cleanupError) {
-                  log.error('[AUTO-UPDATE] Cleanup error:', cleanupError)
+                  log.error(`[AUTO-UPDATE] Cleanup error: ${cleanupError}`)
                 }
               }
             } else if (process.platform === 'linux') {
@@ -399,7 +472,7 @@ export class AutoUpdater {
 
                 // Determine package type and commands
                 const isRpm = filePath.endsWith('.rpm')
-                const packageName = 'seed-desktop' // Replace with your actual package name
+                const packageName = IS_PROD_DEV ? 'seed-dev' : 'seed' // Replace with your actual package name
                 const removeCmd = isRpm ? 'rpm -e' : 'dpkg -r'
                 const installCmd = isRpm ? 'rpm -U' : 'dpkg -i'
 
@@ -444,38 +517,21 @@ export class AutoUpdater {
                 exec(`"${scriptPath}"`, {detached: true, stdio: 'ignore'})
                 app.quit()
               } catch (error) {
-                log.error('[AUTO-UPDATE] Installation error:', error)
+                log.error(`[AUTO-UPDATE] Installation error: ${error}`)
+                this.status = {type: 'error', error: 'Installation error'}
+                win.webContents.send('auto-update:status', this.status)
               }
             }
-          } else {
             log.info(`[AUTO-UPDATE] Download failed: ${state}`)
+            this.status = {type: 'error', error: 'Download failed'}
+            win.webContents.send('auto-update:status', this.status)
           }
         })
       })
-
-      log.info('[AUTO-UPDATE] Download completed, starting installation')
-      // Install the package
-      // if (process.platform === 'linux') {
-      //   const isRpm = dl.filename.endsWith('.rpm')
-      //   const command = isRpm
-      //     ? `sudo rpm -U "${dl.savePath}"`
-      //     : `sudo dpkg -i "${dl.savePath}"`
-
-      //   log.info(`[AUTO-UPDATE] Running install command: ${command}`)
-      //   exec(command, (error) => {
-      //     if (error) {
-      //       log.error('[AUTO-UPDATE] Installation error:', error)
-      //       return
-      //     }
-      //     log.info(
-      //       '[AUTO-UPDATE] Installation successful, relaunching application',
-      //     )
-      //     app.relaunch()
-      //     app.quit()
-      //   })
-      // }
     } catch (error) {
-      log.error('[AUTO-UPDATE] Download error:', error)
+      this.status = {type: 'error', error: 'Download error'}
+      win.webContents.send('auto-update:status', this.status)
+      log.error(`[AUTO-UPDATE] Download error: ${error}`)
     }
   }
 
