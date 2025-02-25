@@ -142,12 +142,12 @@ export function customAutoUpdates() {
     log.debug('[AUTO-UPDATE]: Auto-Update is not supported')
     return
   }
+  const JSONUrl = IS_PROD_DEV
+    ? 'https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest.json'
+    : 'https://seedreleases.s3.eu-west-2.amazonaws.com/prod/latest.json'
 
-  const updater = new AutoUpdater(
-    IS_PROD_DEV
-      ? 'https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest.json'
-      : 'https://seedreleases.s3.eu-west-2.amazonaws.com/prod/latest.json',
-  )
+  const updater = new AutoUpdater(JSONUrl)
+  log.info(`[AUTO-UPDATE] Starting auto-check on ${JSONUrl}`)
   updater.startAutoCheck()
   updater.checkForUpdates()
 }
@@ -314,21 +314,8 @@ export class AutoUpdater {
       return
     }
 
-    win.webContents.send('auto-update:update-available', updateInfo)
-
-    // const dialogResult = await dialog.showMessageBox({
-    //   type: 'info',
-    //   title: 'Update Available',
-    //   message: `Version ${updateInfo.name} is available. Would you like to update now?`,
-    //   detail: updateInfo.release_notes || 'No release notes available',
-    //   buttons: ['Yes', 'No'],
-    // })
-
-    // this.downloadAndInstall(asset.download_url)
-
-    // if (dialogResult.response === 0) {
-    //   await this.downloadAndInstall(asset.download_url)
-    // }
+    this.status = {type: 'update-available', updateInfo: updateInfo}
+    win.webContents.send('auto-update:status', this.status)
   }
 
   private getAssetForCurrentPlatform(
@@ -434,9 +421,16 @@ export class AutoUpdater {
 
                 const scriptContent = `#!/bin/bash
                   sleep 2
-                  # rm -rf "/Applications/${appName}"
-                  # cp -R "${tempPath}/${appName}" "/Applications/"
-                  # rm -rf "${tempPath}"
+                  # Remove existing app
+                  rm -rf "/Applications/${appName}"
+                  
+                  # Copy new app
+                  cp -R "${tempPath}/${appName}" "/Applications/"
+
+                  # Clean up
+                  rm -rf "${tempPath}"
+
+                  # Open the new app
                   open "/Applications/${appName}"
                 `
 

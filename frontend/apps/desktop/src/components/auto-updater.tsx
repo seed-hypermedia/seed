@@ -19,6 +19,8 @@ declare global {
 export function AutoUpdater() {
   const updateStatus = useUpdateStatus()
 
+  console.log(`== ~ AutoUpdater ~ updateStatus:`, updateStatus)
+
   const handleDownloadAndInstall = () => {
     window.autoUpdate?.downloadAndInstall()
   }
