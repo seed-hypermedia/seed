@@ -9,10 +9,9 @@ type BlobPayload = {
   serverSignature?: string;
 };
 
-export type CreateAccountPayload = {
-  genesis: BlobPayload;
-  home: BlobPayload;
-  ref: Uint8Array;
+export type UpdateDocumentPayload = {
+  change: BlobPayload;
+  ref: BlobPayload;
   icon: BlobPayload | null;
 };
 
@@ -28,7 +27,7 @@ export const action: ActionFunction = async ({request}) => {
   }
 
   const cborData = await request.arrayBuffer();
-  const payload = cborDecode(new Uint8Array(cborData)) as CreateAccountPayload;
+  const payload = cborDecode(new Uint8Array(cborData)) as UpdateDocumentPayload;
 
   if (payload.icon) {
     const iconBlob = new Blob([payload.icon.data]);
@@ -43,26 +42,19 @@ export const action: ActionFunction = async ({request}) => {
     }
   }
 
-  const storedGenesisResult = await queryClient.daemon.storeBlobs({
-    blobs: [
-      {
-        cid: payload.genesis.cid,
-        data: payload.genesis.data,
-      },
-    ],
-  });
   const storedHomeResult = await queryClient.daemon.storeBlobs({
     blobs: [
       {
-        cid: payload.home.cid,
-        data: payload.home.data,
+        cid: payload.change.cid,
+        data: payload.change.data,
       },
     ],
   });
   const storedRefResult = await queryClient.daemon.storeBlobs({
     blobs: [
       {
-        data: payload.ref,
+        cid: payload.ref.cid,
+        data: payload.ref.data,
       },
     ],
   });

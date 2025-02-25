@@ -1,9 +1,10 @@
 import {zodResolver} from "@hookform/resolvers/zod";
-import {encode as cborEncode} from "@ipld/dag-cbor";
+import {decode as cborDecode, encode as cborEncode} from "@ipld/dag-cbor";
 import CommentEditor from "@shm/editor/comment-editor";
 import {
   HMAnnotation,
   HMBlockNode,
+  HMDocument,
   HMDocumentOperation,
   hmId,
   hmIdPathToEntityQueryPath,
@@ -17,6 +18,7 @@ import {
 import {Button} from "@shm/ui/button";
 import {Field} from "@shm/ui/form-fields";
 import {FormInput} from "@shm/ui/form-input";
+import {getDaemonFileUrl} from "@shm/ui/get-file-url";
 import {HMIcon} from "@shm/ui/hm-icon";
 import {
   DialogDescription,
@@ -43,6 +45,7 @@ import {Form, SizableText, Stack, XStack, YStack} from "tamagui";
 import {z} from "zod";
 import {useEntity} from "./models";
 import type {CreateAccountPayload} from "./routes/hm.api.create-account";
+import type {UpdateDocumentPayload} from "./routes/hm.api.document-update";
 
 async function postCBOR(path: string, body: Uint8Array) {
   const response = await fetch(`${path}`, {
@@ -158,17 +161,21 @@ async function encodeBlock(
   const block = await Block.encode({
     value: data,
     codec: codec || cborCodec,
-    // codec: raw,
     hasher: sha256,
   });
-  console.log("ENCODED BLOCK", block.cid);
   return block;
-  // const cid = block.cid;
-  // const data = block.value
-  // return cid;
 }
 
-async function createAccount({name, icon}: {name: string; icon: Blob | null}) {
+async function createAccount({
+  name,
+  icon,
+}: {
+  name: string;
+  icon: string | Blob | null;
+}) {
+  if (typeof icon === "string") {
+    throw new Error("Must provide an image or null for account creation");
+  }
   const existingKeyPair = await getStoredKeyPair();
   if (existingKeyPair) {
     throw new Error("Account already exists");
@@ -242,20 +249,85 @@ async function createAccount({name, icon}: {name: string; icon: Blob | null}) {
   return keyPair;
 }
 
-async function updateProfile(
-  keyPair: CryptoKeyPair,
-  newValues: SiteMetaFields,
-  genesisChangeCid: CID,
-  deps: CID[]
-) {
-  const updatePayload = await createHomeDocumentChange({
+async function getChangesDepth(deps: string[]) {
+  const allDepths = await Promise.all(
+    deps.map(async (dep) => {
+      const res = await fetch(getDaemonFileUrl(dep));
+      const data = await res.arrayBuffer();
+      const cborData = new Uint8Array(data);
+      const decoded = cborDecode(cborData) as {depth: number};
+      return decoded.depth;
+    })
+  );
+  return Math.max(...allDepths);
+}
+
+async function updateProfile({
+  keyPair,
+  document,
+  updates,
+}: {
+  keyPair: CryptoKeyPair;
+  document: HMDocument;
+  updates: SiteMetaFields;
+}) {
+  const depsStrs = document.version.split(".");
+  const deps = depsStrs.map((cidStr) => CID.parse(cidStr));
+  const genesisStr = document.genesis;
+  const genesisChangeCid = genesisStr ? CID.parse(genesisStr) : null;
+  if (!genesisChangeCid) {
+    throw new Error("No genesis found on document");
+  }
+  const lastDepth = await getChangesDepth(depsStrs);
+  const operations: HMDocumentOperation[] = [];
+  if (updates.name && updates.name !== document.metadata.name) {
+    operations.push({
+      type: "SetAttributes",
+      attrs: [{key: ["name"], value: updates.name}],
+    });
+  }
+  let iconBlock: BlockView<unknown, number, 18, 1> | null = null;
+  if (updates.icon && typeof updates.icon !== "string") {
+    // we are uploading a new icon
+    iconBlock = await encodeBlock(await updates.icon.arrayBuffer(), rawCodec);
+    operations.push({
+      type: "SetAttributes",
+      attrs: [{key: ["icon"], value: iconBlock.cid.toString()}],
+    });
+  }
+  const changePayload = await createHomeDocumentChange({
     keyPair,
+    operations,
     genesisChangeCid,
-    operations: [{type: "SetAttributes", attrs: newValues}],
     deps,
+    depth: lastDepth + 1,
   });
-  const updateBlock = await encodeBlock(updatePayload);
-  await postCBOR("/hm/api/update-account", updateBlock.bytes);
+  const changeBlock = await encodeBlock(changePayload);
+  const refPayload = await createRef({
+    keyPair,
+    genesisCid: genesisChangeCid,
+    head: changeBlock.cid,
+    generation: lastDepth + 1,
+  });
+  const refBlock = await encodeBlock(refPayload);
+  const updatePayload: UpdateDocumentPayload = {
+    icon: iconBlock
+      ? {
+          data: iconBlock.bytes,
+          cid: iconBlock.cid.toString(),
+        }
+      : null,
+    change: {
+      data: changeBlock.bytes,
+      cid: changeBlock.cid.toString(),
+    },
+    ref: {
+      data: refBlock.bytes,
+      cid: refBlock.cid.toString(),
+    },
+  };
+  const updateData = cborEncode(updatePayload);
+  await postCBOR("/hm/api/document-update", updateData);
 }
 
 async function signObject(
@@ -768,7 +840,7 @@ export default function WebCommenting({
 }
 const siteMetaSchema = z.object({
   name: z.string(),
-  icon: z.instanceof(Blob).nullable(),
+  icon: z.string().or(z.instanceof(Blob)).nullable(),
 });
 type SiteMetaFields = z.infer<typeof siteMetaSchema>;
 function CreateAccountDialog({
@@ -870,7 +942,10 @@ function ImageField<Fields extends FieldValues>({
   label: string;
 }) {
   const c = useController({control, name});
-
+  const currentImgURL =
+    typeof c.field.value === "string"
+      ? getDaemonFileUrl(c.field.value)
+      : URL.createObjectURL(c.field.value);
   return (
     <Stack
       position="relative"
@@ -923,7 +998,7 @@ function ImageField<Fields extends FieldValues>({
       )}
       {c.field.value && (
         <img
-          src={URL.createObjectURL(c.field.value)}
+          src={currentImgURL}
           style={{
             width: "100%",
             height: "100%",
@@ -986,33 +1061,41 @@ function EditProfileDialog({
   input: {accountUid: string};
 }) {
   const account = useEntity(hmId("d", input.accountUid));
+  const queryClient = useQueryClient();
+  const document = account.data?.document;
+  const update = useMutation({
+    mutationFn: (updates: SiteMetaFields) => {
+      if (!keyPair) {
+        throw new Error("No key pair found");
+      }
+      if (!document) {
+        throw new Error("No document found");
+      }
+      return updateProfile({keyPair, document, updates});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.DOCUMENT_ACTIVITY],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.DOCUMENT_COMMENTS],
+      });
+    },
+  });
   return (
     <>
       <DialogTitle>Edit Profile</DialogTitle>
-      <EditProfileForm
-        defaultValues={{name: account.data?.document?.metadata?.name || "?"}}
-        onSubmit={(newValues) => {
-          const deps = account.data?.document?.version
-            .split(".")
-            .map((cidStr) => CID.parse(cidStr));
-          const genesisStr = account.data?.document?.genesis;
-          // const uhShitDepth = account.data?.document?.depth;
-          const genesis = genesisStr ? CID.parse(genesisStr) : null;
-          if (!keyPair) {
-            throw new Error("No key pair found");
-          }
-          if (!deps) {
-            throw new Error("No deps found");
-          }
-          if (!genesis) {
-            throw new Error("No genesis found");
-          }
-          console.log("DO EDIT!", newValues, genesis, deps);
-          updateProfile(keyPair, newValues, genesis, deps).then(() =>
-            onClose()
-          );
-        }}
-      />
+      {document && (
+        <EditProfileForm
+          defaultValues={{
+            name: account.data?.document?.metadata?.name || "?",
+            icon: account.data?.document?.metadata?.icon || null,
+          }}
+          onSubmit={(newValues) => {
+            update.mutateAsync(newValues).then(() => onClose());
+          }}
+        />
+      )}
     </>
   );
 }
