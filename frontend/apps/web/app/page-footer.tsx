@@ -2,6 +2,7 @@ import {createHMUrl, UnpackedHypermediaId} from "@shm/shared";
 import {Button} from "@shm/ui/button";
 import {Container} from "@shm/ui/container";
 import {ButtonText} from "@tamagui/button";
+import {View} from "@tamagui/core";
 import {ExternalLink} from "@tamagui/lucide-icons";
 import {XStack} from "@tamagui/stacks";
 import {SizableText} from "@tamagui/text";
