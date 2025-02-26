@@ -34,7 +34,7 @@ export const DialogContent = styled(YStack, {
   display: "flex",
   gap: "$4",
   borderWidth: 0,
-  zIndex: "$zIndex.9",
+  zIndex: 800, // TODO: fix this when we have the actual zIndex values on web.
 });
 
 export function AlertDialogContent(props) {
