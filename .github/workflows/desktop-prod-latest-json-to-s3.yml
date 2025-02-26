@@ -1,6 +1,8 @@
 name: Generate latest.json (prod)
 
 on:
+  release:
+    types: [released]
   workflow_dispatch:
 
 jobs:
