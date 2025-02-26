@@ -942,10 +942,11 @@ function ImageField<Fields extends FieldValues>({
   label: string;
 }) {
   const c = useController({control, name});
-  const currentImgURL =
-    typeof c.field.value === "string"
+  const currentImgURL = c.field.value
+    ? typeof c.field.value === "string"
       ? getDaemonFileUrl(c.field.value)
-      : URL.createObjectURL(c.field.value);
+      : URL.createObjectURL(c.field.value)
+    : null;
   return (
     <Stack
       position="relative"
