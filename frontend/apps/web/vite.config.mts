@@ -49,10 +49,20 @@ let config = {
           ],
   },
   plugins: [
-    tamaguiPlugin({config: "./tamagui.config.ts"}) as any,
+    tamaguiPlugin({
+      config: "./tamagui.config.ts",
+      themeBuilder: {
+        input: "../../packages/ui/src/themes/theme.ts",
+        output: "../../packages/ui/src/themes-generated.ts",
+      },
+    }) as any,
     process.env.NODE_ENV === "production"
       ? tamaguiExtractPlugin({
           config: "./tamagui.config.ts",
+          themeBuilder: {
+            input: "../../packages/ui/src/themes/theme.ts",
+            output: "../../packages/ui/src/themes-generated.ts",
+          },
         })
       : null,
     // tamaguiExtractPlugin({

@@ -10,7 +10,7 @@ export function DialogOverlay(props) {
   // for somer reason this is required for the overlay to go behind the DialogContent. maybe because of the DialogContent position:fixed below
   return (
     <Dialog.Overlay
-      zIndex={800} // TODO: fix this when we have the actual zIndex values on web.
+      zIndex="$zIndex.9"
       animation="medium"
       enterStyle={{opacity: 0}}
       exitStyle={{opacity: 0}}
@@ -34,7 +34,7 @@ export const DialogContent = styled(YStack, {
   display: "flex",
   gap: "$4",
   borderWidth: 0,
-  zIndex: 800, // TODO: fix this when we have the actual zIndex values on web.
+  zIndex: "$zIndex.9",
 });
 
 export function AlertDialogContent(props) {

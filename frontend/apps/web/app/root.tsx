@@ -133,7 +133,7 @@ export const Styles = () => {
       dangerouslySetInnerHTML={{
         __html: Tamagui.getCSS({
           // design system generated into tamagui.css
-          exclude: "design-system",
+          // exclude: "design-system",
         }),
       }}
     />
