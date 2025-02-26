@@ -6,22 +6,22 @@ import {
   HMMetadataPayload,
   relativeFormattedDate,
   UnpackedHypermediaId,
-} from "@shm/shared";
-import {Container} from "@shm/ui/container";
-import {DonateButton} from "@shm/ui/donate-button";
-import {HMIcon} from "@shm/ui/hm-icon";
-import {Popover} from "@shm/ui/TamaguiPopover";
-import {usePopoverState} from "@shm/ui/use-popover-state";
-import {Button, ButtonText} from "@tamagui/button";
-import {Home} from "@tamagui/lucide-icons";
-import {Separator} from "@tamagui/separator";
-import {XStack, YStack} from "@tamagui/stacks";
-import {H1, SizableText} from "@tamagui/text";
-import {useMemo} from "react";
-import {ScrollView} from "react-native";
-import {getHref} from "./href";
-import {useDocumentChanges} from "./models";
-import {HMDocumentChangeInfo} from "./routes/hm.api.changes";
+} from '@shm/shared'
+import {Container} from '@shm/ui/container'
+import {DonateButton} from '@shm/ui/donate-button'
+import {HMIcon} from '@shm/ui/hm-icon'
+import {Popover} from '@shm/ui/TamaguiPopover'
+import {usePopoverState} from '@shm/ui/use-popover-state'
+import {Button, ButtonText} from '@tamagui/button'
+import {Home} from '@tamagui/lucide-icons'
+import {Separator} from '@tamagui/separator'
+import {XStack, YStack} from '@tamagui/stacks'
+import {H1, SizableText} from '@tamagui/text'
+import {useMemo} from 'react'
+import {ScrollView} from 'react-native'
+import {getHref} from './href'
+import {useDocumentChanges} from './models'
+import {HMDocumentChangeInfo} from './routes/hm.api.changes'
 
 export function PageHeader({
   docMetadata,
@@ -31,25 +31,25 @@ export function PageHeader({
   breadcrumbs = [],
   originHomeId,
 }: {
-  docMetadata: HMMetadata | null;
-  docId: UnpackedHypermediaId | null;
-  authors: HMMetadataPayload[];
-  updateTime: HMDocument["updateTime"] | null;
+  docMetadata: HMMetadata | null
+  docId: UnpackedHypermediaId | null
+  authors: HMMetadataPayload[]
+  updateTime: HMDocument['updateTime'] | null
   breadcrumbs: Array<{
-    id: UnpackedHypermediaId;
-    metadata: HMMetadata;
-  }>;
-  originHomeId: UnpackedHypermediaId | null;
+    id: UnpackedHypermediaId
+    metadata: HMMetadata
+  }>
+  originHomeId: UnpackedHypermediaId | null
 }) {
-  const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata]);
-  const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata]);
-  const isHomeDoc = !docId?.path?.length;
+  const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata])
+  const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata])
+  const isHomeDoc = !docId?.path?.length
   return (
     <YStack id="page-header">
       <Container
         $gtSm={{
           marginTop: hasCover ? -40 : 0,
-          paddingTop: !hasCover ? 60 : "$4",
+          paddingTop: !hasCover ? 60 : '$4',
         }}
         $gtLg={{maxWidth: 1200}}
         backgroundColor="$background"
@@ -63,7 +63,7 @@ export function PageHeader({
             </XStack>
           ) : null}
           <Breadcrumbs breadcrumbs={breadcrumbs} originHomeId={originHomeId} />
-          <H1 size="$9" style={{fontWeight: "bold"}}>
+          <H1 size="$9" style={{fontWeight: 'bold'}}>
             {docMetadata?.name}
           </H1>
           <XStack
@@ -83,8 +83,8 @@ export function PageHeader({
                 {authors.flatMap((a, index) => [
                   <ButtonText
                     hoverStyle={{
-                      textDecorationLine: "underline",
-                      textDecorationColor: "currentColor",
+                      textDecorationLine: 'underline',
+                      textDecorationColor: 'currentColor',
                     }}
                     size="$2"
                     cursor="pointer"
@@ -92,14 +92,14 @@ export function PageHeader({
                     key={a.id.id}
                     tag="a"
                     href={getHref(originHomeId, a.id)}
-                    style={{textDecoration: "none"}}
+                    style={{textDecoration: 'none'}}
                   >
                     {getMetadataName(a.metadata)}
                   </ButtonText>,
                   index !== authors.length - 1 ? (
                     index === authors.length - 2 ? (
                       <SizableText key={`${a}-and`} size="$2" fontWeight="bold">
-                        {" & "}
+                        {' & '}
                       </SizableText>
                     ) : (
                       <SizableText
@@ -107,7 +107,7 @@ export function PageHeader({
                         key={`${a}-comma`}
                         fontWeight="bold"
                       >
-                        {", "}
+                        {', '}
                       </SizableText>
                     )
                   ) : null,
@@ -128,7 +128,7 @@ export function PageHeader({
         </YStack>
       </Container>
     </YStack>
-  );
+  )
 }
 
 function VersionsModal({
@@ -136,12 +136,12 @@ function VersionsModal({
   docId,
   updateTime,
 }: {
-  originHomeId: UnpackedHypermediaId | null;
-  docId: UnpackedHypermediaId;
-  updateTime: HMDocument["updateTime"] | null;
+  originHomeId: UnpackedHypermediaId | null
+  docId: UnpackedHypermediaId
+  updateTime: HMDocument['updateTime'] | null
 }) {
-  const popoverState = usePopoverState();
-  const changes = useDocumentChanges(docId);
+  const popoverState = usePopoverState()
+  const changes = useDocumentChanges(docId)
   return updateTime && !changes.isLoading ? (
     <Popover {...popoverState}>
       <Popover.Trigger
@@ -149,7 +149,7 @@ function VersionsModal({
         flexDirection="row"
         gap="$2"
         cursor="pointer"
-        hoverStyle={{color: "$color12"}}
+        hoverStyle={{color: '$color12'}}
       >
         <SizableText
           userSelect="none"
@@ -181,7 +181,7 @@ function VersionsModal({
           elevation="$5"
           padding="$2"
           animation={[
-            "fast",
+            'fast',
             {
               opacity: {
                 overshootClamping: true,
@@ -195,7 +195,7 @@ function VersionsModal({
               {changes?.data?.map((change) => {
                 let href = originHomeId
                   ? getHref(originHomeId, docId, change.id)
-                  : undefined;
+                  : undefined
 
                 return (
                   <ModalVersionItem
@@ -203,14 +203,14 @@ function VersionsModal({
                     key={change.id}
                     change={change}
                   />
-                );
+                )
               })}
             </ScrollView>
           </YStack>
         </Popover.Content>
       ) : null}
     </Popover>
-  ) : null;
+  ) : null
 
   /**
    * <Tooltip
@@ -235,8 +235,8 @@ function ModalVersionItem({
   change,
   href,
 }: {
-  change: HMDocumentChangeInfo;
-  href?: string;
+  change: HMDocumentChangeInfo
+  href?: string
 }) {
   return (
     <Button
@@ -248,16 +248,16 @@ function ModalVersionItem({
       href={href}
       borderRadius="$2"
       borderWidth={0}
-      backgroundColor={"$backgroundTransparent"}
+      backgroundColor={'$backgroundTransparent'}
       hoverStyle={{
-        backgroundColor: "$brand12",
-        borderColor: "$borderTransparent",
+        backgroundColor: '$brand12',
+        borderColor: '$borderTransparent',
       }}
       alignItems="flex-start"
       position="relative"
       overflow="hidden"
       maxWidth={260}
-      style={{textDecoration: "none"}}
+      style={{textDecoration: 'none'}}
       icon={
         <HMIcon
           flexGrow={0}
@@ -282,22 +282,22 @@ function ModalVersionItem({
         {relativeFormattedDate(change.createTime)}
       </SizableText>
     </Button>
-  );
+  )
 }
 
 const VerticalSeparator = () => (
   <XStack flexShrink={0} flexGrow={0} width={1} height={20} bg="$color8" />
-);
+)
 
 function Breadcrumbs({
   breadcrumbs,
   originHomeId,
 }: {
   breadcrumbs: Array<{
-    id: UnpackedHypermediaId;
-    metadata: HMMetadata;
-  }>;
-  originHomeId: UnpackedHypermediaId | null;
+    id: UnpackedHypermediaId
+    metadata: HMMetadata
+  }>
+  originHomeId: UnpackedHypermediaId | null
 }) {
   // const displayBreadcrumbs = breadcrumbs.filter((breadcrumb) => {
   //   if (
@@ -312,7 +312,7 @@ function Breadcrumbs({
   //   return true;
   // });
 
-  const [first, ...rest] = breadcrumbs;
+  const [first, ...rest] = breadcrumbs
 
   return (
     <XStack flex={1} gap="$2" alignItems="center">
@@ -330,8 +330,8 @@ function Breadcrumbs({
             whiteSpace="nowrap"
             textDecorationLine="none"
             hoverStyle={{
-              textDecorationLine: "underline",
-              textDecorationColor: "currentColor",
+              textDecorationLine: 'underline',
+              textDecorationColor: 'currentColor',
             }}
             maxWidth="15ch"
           >
@@ -353,8 +353,8 @@ function Breadcrumbs({
             textDecorationLine="none"
             overflow="hidden"
             hoverStyle={{
-              textDecorationLine: "underline",
-              textDecorationColor: "currentColor",
+              textDecorationLine: 'underline',
+              textDecorationColor: 'currentColor',
             }}
             textOverflow="ellipsis"
             whiteSpace="nowrap"
@@ -364,7 +364,7 @@ function Breadcrumbs({
           >
             {crumb.metadata?.name}
           </SizableText>,
-        ];
+        ]
       })}
       {/* {docId?.id != homeId?.id ? (
         <SizableText
@@ -379,5 +379,5 @@ function Breadcrumbs({
         </SizableText>
       ) : null} */}
     </XStack>
-  );
+  )
 }

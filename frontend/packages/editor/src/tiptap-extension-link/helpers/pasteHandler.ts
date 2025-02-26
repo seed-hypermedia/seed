@@ -1,9 +1,9 @@
-import {getLinkMenuItems} from "@/blocknote/core/extensions/LinkMenu/defaultLinkMenuItems";
-import {linkMenuPluginKey} from "@/blocknote/core/extensions/LinkMenu/LinkMenuPlugin";
-import {resolveHypermediaUrl} from "@/link-utils";
-import {getDocumentTitle} from "@shm/shared/content";
-import {GRPCClient} from "@shm/shared/grpc-client";
-import {HMDocument, HMDocumentMetadataSchema} from "@shm/shared/hm-types";
+import {getLinkMenuItems} from '@/blocknote/core/extensions/LinkMenu/defaultLinkMenuItems'
+import {linkMenuPluginKey} from '@/blocknote/core/extensions/LinkMenu/LinkMenuPlugin'
+import {resolveHypermediaUrl} from '@/link-utils'
+import {getDocumentTitle} from '@shm/shared/content'
+import {GRPCClient} from '@shm/shared/grpc-client'
+import {HMDocument, HMDocumentMetadataSchema} from '@shm/shared/hm-types'
 import {
   extractBlockRefOfUrl,
   hmId,
@@ -13,106 +13,106 @@ import {
   packHmId,
   UnpackedHypermediaId,
   unpackHmId,
-} from "@shm/shared/utils/entity-id-url";
-import {hmIdPathToEntityQueryPath} from "@shm/shared/utils/path-api";
-import {StateStream} from "@shm/shared/utils/stream";
-import {Editor} from "@tiptap/core";
-import {Mark, MarkType} from "@tiptap/pm/model";
-import {Plugin, PluginKey} from "@tiptap/pm/state";
-import {Decoration, DecorationSet} from "@tiptap/pm/view";
-import {find} from "linkifyjs";
-import {nanoid} from "nanoid";
+} from '@shm/shared/utils/entity-id-url'
+import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
+import {StateStream} from '@shm/shared/utils/stream'
+import {Editor} from '@tiptap/core'
+import {Mark, MarkType} from '@tiptap/pm/model'
+import {Plugin, PluginKey} from '@tiptap/pm/state'
+import {Decoration, DecorationSet} from '@tiptap/pm/view'
+import {find} from 'linkifyjs'
+import {nanoid} from 'nanoid'
 
 type PasteHandlerOptions = {
-  grpcClient?: GRPCClient;
-  editor: Editor;
-  type: MarkType;
-  linkOnPaste?: boolean;
-  gwUrl: StateStream<string>;
-  checkWebUrl: (url: string) => Promise<any>;
-};
+  grpcClient?: GRPCClient
+  editor: Editor
+  type: MarkType
+  linkOnPaste?: boolean
+  gwUrl: StateStream<string>
+  checkWebUrl: (url: string) => Promise<any>
+}
 
 export function pasteHandler(options: PasteHandlerOptions): Plugin {
   let pastePlugin = new Plugin({
-    key: new PluginKey("handlePasteLink"),
+    key: new PluginKey('handlePasteLink'),
     state: {
       init() {
-        return DecorationSet.empty;
+        return DecorationSet.empty
       },
       apply(tr, set) {
         // Adjust decoration positions to changes made by the transaction
-        set = set.map(tr.mapping, tr.doc);
+        set = set.map(tr.mapping, tr.doc)
         // See if the transaction adds or removes any placeholders
-        let action = tr.getMeta("link-placeholder");
+        let action = tr.getMeta('link-placeholder')
         if (action && action.add) {
-          let widget = document.createElement("span");
-          widget.contentEditable = "false";
-          widget.classList.add("link-placeholder");
+          let widget = document.createElement('span')
+          widget.contentEditable = 'false'
+          widget.classList.add('link-placeholder')
           let deco = Decoration.widget(action.add.pos, widget, {
             link: action.add.link,
-          });
-          set = set.add(tr.doc, [deco]);
+          })
+          set = set.add(tr.doc, [deco])
         } else if (action && action.remove) {
           set = set.remove(
             set.find(
               // @ts-expect-error
               null,
               null,
-              (spec) => spec.link.href == action.remove.link.href
-            )
-          );
+              (spec) => spec.link.href == action.remove.link.href,
+            ),
+          )
         }
-        return set;
+        return set
       },
     },
     props: {
       decorations(state) {
-        return this.getState(state);
+        return this.getState(state)
       },
       handlePaste: (view, _event, slice) => {
-        const {state} = view;
-        const {selection} = state;
+        const {state} = view
+        const {selection} = state
 
         // Do not proceed if in code block.
         if (state.doc.resolve(selection.from).parent.type.spec.code) {
-          return false;
+          return false
         }
 
-        const pastedLinkMarks: Mark[] = [];
-        let textContent = "";
+        const pastedLinkMarks: Mark[] = []
+        let textContent = ''
 
         slice.content.forEach((node) => {
-          textContent += node.textContent;
+          textContent += node.textContent
 
           node.marks.forEach((mark) => {
             if (mark.type.name === options.type.name) {
-              pastedLinkMarks.push(mark);
+              pastedLinkMarks.push(mark)
             }
-          });
-        });
+          })
+        })
 
-        textContent = textContent.trim();
+        textContent = textContent.trim()
 
         if (!textContent) {
-          return false;
+          return false
         }
 
-        const hasPastedLink = pastedLinkMarks.length > 0;
+        const hasPastedLink = pastedLinkMarks.length > 0
         const link = find(textContent).find(
-          (item) => item.isLink && item.value === textContent
-        );
+          (item) => item.isLink && item.value === textContent,
+        )
         const unpackedHmId =
           isHypermediaScheme(textContent) ||
           isPublicGatewayLink(textContent, options.gwUrl)
             ? unpackHmId(textContent)
-            : null;
+            : null
 
         if (!selection.empty && options.linkOnPaste) {
           const pastedLink = unpackedHmId
             ? packHmId(unpackedHmId)
             : hasPastedLink
             ? pastedLinkMarks[0].attrs.href
-            : link?.href || null;
+            : link?.href || null
           if (pastedLink) {
             if (unpackedHmId) {
               options.editor
@@ -120,38 +120,38 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                 .setMark(options.type, {
                   href: pastedLink,
                 })
-                .run();
+                .run()
             } else {
-              let id = nanoid(8);
+              let id = nanoid(8)
               options.editor
                 .chain()
                 .command(({tr}) => {
-                  tr.setMeta("hmPlugin:uncheckedLink", id);
-                  return true;
+                  tr.setMeta('hmPlugin:uncheckedLink', id)
+                  return true
                 })
                 .setMark(options.type, {
                   href: pastedLink,
                   id,
                 })
-                .run();
+                .run()
             }
-            return true;
+            return true
           }
         }
 
-        const firstChildIsText = slice.content.firstChild?.type.name === "text";
+        const firstChildIsText = slice.content.firstChild?.type.name === 'text'
         const firstChildContainsLinkMark = slice.content.firstChild?.marks.some(
-          (mark) => mark.type.name === options.type.name
-        );
+          (mark) => mark.type.name === options.type.name,
+        )
 
         if (firstChildIsText && firstChildContainsLinkMark) {
-          return false;
+          return false
         }
 
         if (selection.empty && unpackedHmId?.uid && unpackedHmId.type) {
-          let tr = view.state.tr;
+          let tr = view.state.tr
 
-          let pos = tr.selection.from;
+          let pos = tr.selection.from
           const normalizedHmUrl = packHmId(
             hmId(unpackedHmId.type, unpackedHmId.uid, {
               blockRef: unpackedHmId.blockRef,
@@ -159,8 +159,8 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
               version: unpackedHmId.version,
               latest: unpackedHmId.latest,
               path: unpackedHmId.path,
-            })
-          );
+            }),
+          )
 
           if (options.grpcClient) {
             fetchEntityTitle(unpackedHmId, options.grpcClient)
@@ -170,11 +170,11 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                     tr.insertText(title, pos).addMark(
                       pos,
                       pos + title.length,
-                      options.editor.schema.mark("link", {
+                      options.editor.schema.mark('link', {
                         href: normalizedHmUrl,
-                      })
-                    )
-                  );
+                      }),
+                    ),
+                  )
 
                   view.dispatch(
                     view.state.tr.scrollIntoView().setMeta(linkMenuPluginKey, {
@@ -187,18 +187,18 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                         docTitle: title,
                         gwUrl: options.gwUrl,
                       }),
-                    })
-                  );
+                    }),
+                  )
                 } else {
                   view.dispatch(
                     tr.insertText(normalizedHmUrl, pos).addMark(
                       pos,
                       pos + normalizedHmUrl.length,
-                      options.editor.schema.mark("link", {
+                      options.editor.schema.mark('link', {
                         href: normalizedHmUrl,
-                      })
-                    )
-                  );
+                      }),
+                    ),
+                  )
 
                   view.dispatch(
                     view.state.tr.scrollIntoView().setMeta(linkMenuPluginKey, {
@@ -210,8 +210,8 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                         hmId: unpackHmId(normalizedHmUrl),
                         gwUrl: options.gwUrl,
                       }),
-                    })
-                  );
+                    }),
+                  )
                 }
               })
               .catch((err) => {
@@ -219,11 +219,11 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                   tr.insertText(normalizedHmUrl, pos).addMark(
                     pos,
                     pos + normalizedHmUrl.length,
-                    options.editor.schema.mark("link", {
+                    options.editor.schema.mark('link', {
                       href: normalizedHmUrl,
-                    })
-                  )
-                );
+                    }),
+                  ),
+                )
 
                 view.dispatch(
                   view.state.tr.scrollIntoView().setMeta(linkMenuPluginKey, {
@@ -235,30 +235,30 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                       hmId: unpackHmId(normalizedHmUrl),
                       gwUrl: options.gwUrl,
                     }),
-                  })
-                );
-              });
-            return true;
+                  }),
+                )
+              })
+            return true
           }
         }
 
         if (link && selection.empty) {
-          let tr = view.state.tr;
-          if (!tr.selection.empty) tr.deleteSelection();
+          let tr = view.state.tr
+          if (!tr.selection.empty) tr.deleteSelection()
 
-          const [mediaCase, fileName] = checkMediaUrl(link.href);
+          const [mediaCase, fileName] = checkMediaUrl(link.href)
 
-          const pos = selection.$from.pos;
+          const pos = selection.$from.pos
 
           view.dispatch(
             tr.insertText(link.href, pos).addMark(
               pos,
               pos + link.href.length,
-              options.editor.schema.mark("link", {
+              options.editor.schema.mark('link', {
                 href: link.href,
-              })
-            )
-          );
+              }),
+            ),
+          )
 
           view.dispatch(
             view.state.tr.scrollIntoView().setMeta(linkMenuPluginKey, {
@@ -268,8 +268,8 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                 isLoading: true,
                 gwUrl: options.gwUrl,
               }),
-            })
-          );
+            }),
+          )
 
           switch (mediaCase) {
             case 1:
@@ -278,65 +278,65 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                   link: link.href,
                   items: getLinkMenuItems({
                     isLoading: false,
-                    media: "image",
+                    media: 'image',
                     fileName: fileName,
                     gwUrl: options.gwUrl,
                   }),
-                })
-              );
-              break;
+                }),
+              )
+              break
             case 2:
               view.dispatch(
                 view.state.tr.setMeta(linkMenuPluginKey, {
                   link: link.href,
                   items: getLinkMenuItems({
                     isLoading: false,
-                    media: "file",
+                    media: 'file',
                     fileName: fileName,
                     gwUrl: options.gwUrl,
                   }),
-                })
-              );
-              break;
+                }),
+              )
+              break
             case 3:
               view.dispatch(
                 view.state.tr.setMeta(linkMenuPluginKey, {
                   link: link.href,
                   items: getLinkMenuItems({
                     isLoading: false,
-                    media: "video",
+                    media: 'video',
                     sourceUrl: link.href,
                     fileName: fileName,
                     gwUrl: options.gwUrl,
                   }),
-                })
-              );
-              break;
+                }),
+              )
+              break
             case 4:
               view.dispatch(
                 view.state.tr.setMeta(linkMenuPluginKey, {
                   link: link.href,
                   items: getLinkMenuItems({
                     isLoading: false,
-                    media: "twitter",
+                    media: 'twitter',
                     sourceUrl: link.href,
                     fileName: fileName,
                     gwUrl: options.gwUrl,
                   }),
-                })
-              );
-              break;
+                }),
+              )
+              break
             case 0: {
               const metaPromise = resolveHypermediaUrl(link.href)
                 .then((linkMetaResult) => {
-                  if (!linkMetaResult) return;
-                  console.log("Resolved Hypermedia Meta", linkMetaResult);
+                  if (!linkMetaResult) return
+                  console.log('Resolved Hypermedia Meta', linkMetaResult)
                   const fullHmUrl = hmIdWithVersion(
                     linkMetaResult.id,
                     linkMetaResult.version,
-                    extractBlockRefOfUrl(link.href)
-                  );
-                  const title = linkMetaResult.title;
+                    extractBlockRefOfUrl(link.href),
+                  )
+                  const title = linkMetaResult.title
                   if (title && fullHmUrl) {
                     view.dispatch(
                       view.state.tr
@@ -345,11 +345,11 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                         .addMark(
                           pos,
                           pos + title.length,
-                          options.editor.schema.mark("link", {
+                          options.editor.schema.mark('link', {
                             href: fullHmUrl,
-                          })
-                        )
-                    );
+                          }),
+                        ),
+                    )
                   }
                   if (fullHmUrl) {
                     view.dispatch(
@@ -362,16 +362,16 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                           docTitle: title,
                           gwUrl: options.gwUrl,
                         }),
-                      })
-                    );
-                    return true;
+                      }),
+                    )
+                    return true
                   }
                 })
                 .catch((err) => {
-                  console.log("ERROR FETCHING web link");
-                  console.log(err);
-                });
-              const mediaPromise = Promise.resolve(false);
+                  console.log('ERROR FETCHING web link')
+                  console.log(err)
+                })
+              const mediaPromise = Promise.resolve(false)
               // const mediaPromise = options
               //   .checkWebUrl(link.href)
               //   .then((response) => {
@@ -399,7 +399,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
               //   });
               Promise.all([metaPromise, mediaPromise])
                 .then((results) => {
-                  const [embedResult, mediaResult] = results;
+                  const [embedResult, mediaResult] = results
                   if (!embedResult && !mediaResult) {
                     view.dispatch(
                       view.state.tr.setMeta(linkMenuPluginKey, {
@@ -408,143 +408,142 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                           sourceUrl: link.href,
                           gwUrl: options.gwUrl,
                         }),
-                      })
-                    );
+                      }),
+                    )
                   }
                 })
                 .catch((err) => {
-                  console.log(err);
-                });
+                  console.log(err)
+                })
             }
             default:
-              break;
+              break
           }
-          return true;
+          return true
         }
 
-        const {tr} = state;
-        let deleteOnly = false;
+        const {tr} = state
+        let deleteOnly = false
 
         if (!selection.empty) {
-          deleteOnly = true;
+          deleteOnly = true
 
-          tr.delete(selection.from, selection.to);
+          tr.delete(selection.from, selection.to)
         }
 
-        let currentPos = selection.from;
-        let fragmentLinks = [];
+        let currentPos = selection.from
+        let fragmentLinks = []
 
         slice.content.forEach((node) => {
-          fragmentLinks = find(node.textContent);
-          tr.insert(currentPos - 1, node);
+          fragmentLinks = find(node.textContent)
+          tr.insert(currentPos - 1, node)
 
           if (fragmentLinks.length > 0) {
-            deleteOnly = false;
+            deleteOnly = false
 
             fragmentLinks.forEach((fragmentLink) => {
-              const linkStart = currentPos + fragmentLink.start;
-              const linkEnd = currentPos + fragmentLink.end;
+              const linkStart = currentPos + fragmentLink.start
+              const linkEnd = currentPos + fragmentLink.end
               const hasMark = tr.doc.rangeHasMark(
                 linkStart,
                 linkEnd,
-                options.type
-              );
+                options.type,
+              )
 
               if (!hasMark) {
-                let id = nanoid(8);
+                let id = nanoid(8)
                 tr.addMark(
                   linkStart,
                   linkEnd,
-                  options.type.create({href: fragmentLink.href, id})
-                ).setMeta("hmPlugin:uncheckedLink", id);
+                  options.type.create({href: fragmentLink.href, id}),
+                ).setMeta('hmPlugin:uncheckedLink', id)
               }
-            });
+            })
           }
-          currentPos += node.nodeSize;
-        });
+          currentPos += node.nodeSize
+        })
 
         const hasFragmentLinks =
-          fragmentLinks.length > 0 && slice.content.content.length === 1;
+          fragmentLinks.length > 0 && slice.content.content.length === 1
 
         if (tr.docChanged && !deleteOnly && hasFragmentLinks) {
-          options.editor.view.dispatch(tr);
+          options.editor.view.dispatch(tr)
 
-          return true;
+          return true
         }
-        return false;
+        return false
       },
     },
-  });
+  })
 
   function checkMediaUrl(url: string): [number, string] {
-    const matchResult = url.match(/[^/\\&\?]+\.\w{3,4}(?=([\?&].*$|$))/);
+    const matchResult = url.match(/[^/\\&\?]+\.\w{3,4}(?=([\?&].*$|$))/)
     if (matchResult) {
-      const extensionArray = matchResult[0].split(".");
-      const extension = extensionArray[extensionArray.length - 1];
-      if (["png", "jpg", "jpeg"].includes(extension))
-        return [1, matchResult[0]];
-      else if (["pdf", "xml", "csv"].includes(extension))
-        return [2, matchResult[0]];
-      else if (["mp4", "webm", "ogg"].includes(extension))
-        return [3, matchResult[0]];
+      const extensionArray = matchResult[0].split('.')
+      const extension = extensionArray[extensionArray.length - 1]
+      if (['png', 'jpg', 'jpeg'].includes(extension)) return [1, matchResult[0]]
+      else if (['pdf', 'xml', 'csv'].includes(extension))
+        return [2, matchResult[0]]
+      else if (['mp4', 'webm', 'ogg'].includes(extension))
+        return [3, matchResult[0]]
     } else if (
-      ["youtu.be", "youtube", "vimeo"].some((value) => url.includes(value))
+      ['youtu.be', 'youtube', 'vimeo'].some((value) => url.includes(value))
     ) {
-      return [3, ""];
-    } else if (["twitter", "x.com"].some((value) => url.includes(value))) {
-      return [4, ""];
+      return [3, '']
+    } else if (['twitter', 'x.com'].some((value) => url.includes(value))) {
+      return [4, '']
     }
-    return [0, ""];
+    return [0, '']
   }
 
-  return pastePlugin;
+  return pastePlugin
 }
 
 async function fetchEntityTitle(
   hmId: UnpackedHypermediaId,
-  grpcClient: GRPCClient
+  grpcClient: GRPCClient,
 ) {
-  if (hmId.type == "d") {
+  if (hmId.type == 'd') {
     const document = await grpcClient.documents.getDocument({
       account: hmId.uid,
       path: hmIdPathToEntityQueryPath(hmId.path),
-    });
-    const doc = document;
+    })
+    const doc = document
     const title = getDocumentTitle({
       ...doc,
       metadata: HMDocumentMetadataSchema.parse(
-        doc.metadata?.toJson({emitDefaultValues: true})
+        doc.metadata?.toJson({emitDefaultValues: true}),
       ),
-    } as HMDocument);
+    } as HMDocument)
     return {
       title,
-    };
-  } else if (hmId.type == "comment") {
+    }
+  } else if (hmId.type == 'comment') {
     try {
       const comment = await grpcClient.comments.getComment({
         id: hmId.id,
-      });
+      })
 
       if (comment) {
         const profile = await grpcClient.documents.getProfileDocument({
           accountId: comment.author,
-        });
+        })
 
         return {
           title: `Comment from ${
             profile.metadata?.alias ||
             `${profile.id.slice(0, 5)}...${profile.id.slice(-5)}`
           }`,
-        };
+        }
       } else {
         return {
           title: null,
-        };
+        }
       }
     } catch (error) {
-      console.error(`fetchEntityTitle error: ${JSON.stringify(error)}`);
-      return {title: null};
+      console.error(`fetchEntityTitle error: ${JSON.stringify(error)}`)
+      return {title: null}
     }
   }
-  return {title: null};
+  return {title: null}
 }

@@ -5,14 +5,14 @@ import {
   SITE_BASE_URL,
   UniversalAppProvider,
   UnpackedHypermediaId,
-} from "@shm/shared";
-import {Toaster} from "@shm/ui/toast";
-import {TamaguiProvider} from "@tamagui/core";
-import {PortalProvider} from "@tamagui/portal";
-import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
-import tamaConf from "../tamagui.config";
+} from '@shm/shared'
+import {Toaster} from '@shm/ui/toast'
+import {TamaguiProvider} from '@tamagui/core'
+import {PortalProvider} from '@tamagui/portal'
+import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
+import tamaConf from '../tamagui.config'
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient()
 
 export const Providers = (props: {children: any}) => {
   return (
@@ -27,8 +27,8 @@ export const Providers = (props: {children: any}) => {
         </QueryClientProvider>
       </PortalProvider>
     </ThemeProvider>
-  );
-};
+  )
+}
 
 export function ThemeProvider({children}: {children: React.ReactNode}) {
   return (
@@ -40,20 +40,20 @@ export function ThemeProvider({children}: {children: React.ReactNode}) {
     >
       {children}
     </TamaguiProvider>
-  );
+  )
 }
 
 export function getOptimizedImageUrl(cid: string, size?: OptimizedImageSize) {
-  let url = `/hm/api/image/${cid}`;
-  if (size) url += `?size=${size}`;
-  return url;
+  let url = `/hm/api/image/${cid}`
+  if (size) url += `?size=${size}`
+  return url
 }
 
 export function WebSiteProvider(props: {
-  originHomeId: UnpackedHypermediaId;
-  children: React.ReactNode;
-  siteHost?: string;
-  origin?: string;
+  originHomeId: UnpackedHypermediaId
+  children: React.ReactNode
+  siteHost?: string
+  origin?: string
 }) {
   return (
     <UniversalAppProvider
@@ -62,7 +62,7 @@ export function WebSiteProvider(props: {
       getOptimizedImageUrl={getOptimizedImageUrl}
       ipfsFileUrl={DAEMON_FILE_URL}
       openUrl={(url) => {
-        window.open(url, "_blank");
+        window.open(url, '_blank')
       }}
       openRoute={null}
     >
@@ -76,5 +76,5 @@ export function WebSiteProvider(props: {
       />
       {props.children}
     </UniversalAppProvider>
-  );
+  )
 }

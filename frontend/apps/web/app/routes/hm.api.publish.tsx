@@ -1,5 +1,5 @@
-import {ActionFunction, json} from "@remix-run/node";
-import {z} from "zod";
+import {ActionFunction, json} from '@remix-run/node'
+import {z} from 'zod'
 
 const publishSchema = z
   .object({
@@ -8,17 +8,17 @@ const publishSchema = z
     publicKey: z.string(),
     signature: z.string(),
   })
-  .strict();
+  .strict()
 
 export const action: ActionFunction = async ({request}) => {
-  if (request.method !== "POST") {
-    return json({message: "Method not allowed"}, {status: 405});
+  if (request.method !== 'POST') {
+    return json({message: 'Method not allowed'}, {status: 405})
   }
-  const data = await request.json();
-  const payload = publishSchema.parse(data);
-  console.log(payload);
+  const data = await request.json()
+  const payload = publishSchema.parse(data)
+  console.log(payload)
 
   return json({
-    message: "Success",
-  });
-};
+    message: 'Success',
+  })
+}

@@ -1,25 +1,25 @@
-import {Check, ChevronDown, ChevronUp} from "@tamagui/lucide-icons";
-import {NodeViewProps} from "@tiptap/core";
-import {NodeViewContent} from "@tiptap/react";
-import {useState} from "react";
-import {Select, XStack, YStack} from "tamagui";
+import {Check, ChevronDown, ChevronUp} from '@tamagui/lucide-icons'
+import {NodeViewProps} from '@tiptap/core'
+import {NodeViewContent} from '@tiptap/react'
+import {useState} from 'react'
+import {Select, XStack, YStack} from 'tamagui'
 
 export const CodeBlockView = ({
   props,
   languages,
 }: {
-  props: NodeViewProps;
-  languages: string[];
+  props: NodeViewProps
+  languages: string[]
 }) => {
-  const {node, updateAttributes} = props;
-  const [hovered, setHovered] = useState(false);
+  const {node, updateAttributes} = props
+  const [hovered, setHovered] = useState(false)
   const [language, setLanguage] = useState(
-    node.attrs.language ? node.attrs.language : "plaintext"
-  );
+    node.attrs.language ? node.attrs.language : 'plaintext',
+  )
   const handleChange = (newLanguage: string) => {
-    updateAttributes({language: newLanguage});
-    setLanguage(newLanguage);
-  };
+    updateAttributes({language: newLanguage})
+    setLanguage(newLanguage)
+  }
 
   return (
     <YStack
@@ -58,7 +58,7 @@ export const CodeBlockView = ({
                 </YStack>
               </Select.ScrollUpButton>
               <Select.Viewport minWidth={200}>
-                <Select.Group maxHeight={"60vh"}>
+                <Select.Group maxHeight={'60vh'}>
                   {languages.map((item, i) => {
                     return (
                       <Select.Item index={i} key={item} value={item}>
@@ -67,7 +67,7 @@ export const CodeBlockView = ({
                           <Check size={16} />
                         </Select.ItemIndicator>
                       </Select.Item>
-                    );
+                    )
                   })}
                 </Select.Group>
               </Select.Viewport>
@@ -92,5 +92,5 @@ export const CodeBlockView = ({
         </code>
       </pre>
     </YStack>
-  );
-};
+  )
+}

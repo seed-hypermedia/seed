@@ -1,6 +1,6 @@
-import { DESKTOP_APPDATA } from '@shm/shared/constants'
-import { app } from 'electron'
-import { mkdtempSync } from 'fs'
+import {DESKTOP_APPDATA} from '@shm/shared/constants'
+import {app} from 'electron'
+import {mkdtempSync} from 'fs'
 import os from 'os'
 import path from 'path'
 

@@ -3,11 +3,11 @@ import {
   BlockSchema,
   HyperlinkToolbarProps,
   useEditorSelectionChange,
-} from "@/blocknote";
-import {Close} from "@shm/ui/icons";
-import {usePopoverState} from "@shm/ui/use-popover-state";
-import {Check, Link, Unlink} from "@tamagui/lucide-icons";
-import {useCallback, useEffect, useState} from "react";
+} from '@/blocknote'
+import {Close} from '@shm/ui/icons'
+import {usePopoverState} from '@shm/ui/use-popover-state'
+import {Check, Link, Unlink} from '@tamagui/lucide-icons'
+import {useCallback, useEffect, useState} from 'react'
 import {
   Button,
   Input,
@@ -17,63 +17,61 @@ import {
   Tooltip,
   XGroup,
   XStack,
-} from "tamagui";
+} from 'tamagui'
 
 export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
-  editor: BlockNoteEditor<BSchema>;
-  size: SizeTokens;
+  editor: BlockNoteEditor<BSchema>
+  size: SizeTokens
 }) => {
   const [url, setUrl] = useState<string>(
-    props.editor.getSelectedLinkUrl() || ""
-  );
-  const [text, setText] = useState<string>(
-    props.editor.getSelectedText() || ""
-  );
+    props.editor.getSelectedLinkUrl() || '',
+  )
+  const [text, setText] = useState<string>(props.editor.getSelectedText() || '')
 
-  const {open, ...popoverProps} = usePopoverState();
+  const {open, ...popoverProps} = usePopoverState()
 
   useEditorSelectionChange(props.editor, () => {
-    setText(props.editor.getSelectedText() || "");
-    setUrl(props.editor.getSelectedLinkUrl() || "");
-  });
+    setText(props.editor.getSelectedText() || '')
+    setUrl(props.editor.getSelectedLinkUrl() || '')
+  })
 
   useEffect(() => {
-    props.editor.hyperlinkToolbar.on("update", (state) => {
-      setText(state.text || "");
-      setUrl(state.url || "");
-    });
-  }, [props.editor]);
+    props.editor.hyperlinkToolbar.on('update', (state) => {
+      setText(state.text || '')
+      setUrl(state.url || '')
+    })
+  }, [props.editor])
 
   const setLink = useCallback(
     (url: string, text?: string, currentUrl?: string) => {
       if (currentUrl) {
-        deleteLink();
+        deleteLink()
       }
-      popoverProps.onOpenChange(false);
-      props.editor.focus();
-      props.editor.createLink(url, text);
+      popoverProps.onOpenChange(false)
+      props.editor.focus()
+      props.editor.createLink(url, text)
     },
-    [props.editor]
-  );
+    [props.editor],
+  )
 
   const deleteLink = () => {
-    const url = props.editor.getSelectedLinkUrl();
+    const url = props.editor.getSelectedLinkUrl()
     if (url) {
-      const {view} = props.editor._tiptapEditor;
-      const {state} = view;
-      const $urlPos = state.doc.resolve(state.selection.from);
-      const linkMarks = $urlPos.parent.firstChild!.marks;
+      const {view} = props.editor._tiptapEditor
+      const {state} = view
+      const $urlPos = state.doc.resolve(state.selection.from)
+      const linkMarks = $urlPos.parent.firstChild!.marks
       if (linkMarks && linkMarks.length > 0) {
-        const linkMark = linkMarks.find((mark) => mark.type.name == "link");
+        const linkMark = linkMarks.find((mark) => mark.type.name == 'link')
         view.dispatch(
           view.state.tr
             .removeMark($urlPos.start(), $urlPos.end(), linkMark)
-            .setMeta("preventAutolink", true)
-        );
-        view.focus();
+            .setMeta('preventAutolink', true),
+        )
+        view.focus()
       }
     }
-  };
+  }
 
   return (
     <XGroup.Item>
@@ -83,7 +81,7 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
             <Button
               size="$3"
               icon={Link}
-              bg={"$backgroundFocus"}
+              bg={'$backgroundFocus'}
               borderRadius={0}
             />
           </Popover.Trigger>
@@ -97,12 +95,12 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
           <AddHyperlink
             url={url}
             setLink={(_url: string) => {
-              popoverProps.onOpenChange(false);
-              props.editor.focus();
+              popoverProps.onOpenChange(false)
+              props.editor.focus()
               if (url) {
-                setLink(_url, text, url);
+                setLink(_url, text, url)
               } else {
-                setLink(_url, text);
+                setLink(_url, text)
               }
             }}
             onCancel={() => popoverProps.onOpenChange(false)}
@@ -111,20 +109,20 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
         </Popover.Content>
       </Popover>
     </XGroup.Item>
-  );
-};
+  )
+}
 
 function AddHyperlink({
   setLink,
   onCancel,
-  url = "",
+  url = '',
   deleteHyperlink,
 }: {
-  setLink: (url: string) => void;
-  onCancel: () => void;
-  url?: string;
+  setLink: (url: string) => void
+  onCancel: () => void
+  url?: string
 } & Partial<HyperlinkToolbarProps>) {
-  const [_url, setUrl] = useState<string>(url);
+  const [_url, setUrl] = useState<string>(url)
 
   return (
     <XStack elevation="$4" padding="$2" borderRadius="$4" space>
@@ -137,9 +135,9 @@ function AddHyperlink({
         borderWidth={0}
         placeholder="Enter a link"
         onKeyPress={(e: KeyboardEvent) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            setLink(_url);
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            setLink(_url)
           }
         }}
         flex={1}
@@ -154,7 +152,7 @@ function AddHyperlink({
             disabled={!_url}
             borderRadius={0}
             onClick={() => {
-              setLink(_url);
+              setLink(_url)
             }}
           />
         </XGroup.Item>
@@ -176,5 +174,5 @@ function AddHyperlink({
         </XGroup.Item>
       </XGroup>
     </XStack>
-  );
+  )
 }

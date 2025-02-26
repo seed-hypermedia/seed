@@ -1,3 +1,3 @@
-export * from "./core";
-export type {InlineContent, LinkMenuItem} from "./core";
-export * from "./react";
+export * from './core'
+export type {InlineContent, LinkMenuItem} from './core'
+export * from './react'

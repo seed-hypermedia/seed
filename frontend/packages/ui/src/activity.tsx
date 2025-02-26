@@ -14,14 +14,14 @@ import {
   plainTextOfContent,
   UnpackedHypermediaId,
   useRouteLink,
-} from "@shm/shared";
-import {Button} from "@tamagui/button";
-import {ChevronDown} from "@tamagui/lucide-icons";
-import {XStack, YStack} from "@tamagui/stacks";
-import {SizableText} from "@tamagui/text";
-import {useState} from "react";
-import {HMIcon} from "./hm-icon";
-import {Version} from "./icons";
+} from '@shm/shared'
+import {Button} from '@tamagui/button'
+import {ChevronDown} from '@tamagui/lucide-icons'
+import {XStack, YStack} from '@tamagui/stacks'
+import {SizableText} from '@tamagui/text'
+import {useState} from 'react'
+import {HMIcon} from './hm-icon'
+import {Version} from './icons'
 
 export function SubDocumentItem({
   item,
@@ -29,30 +29,30 @@ export function SubDocumentItem({
   accountsMetadata,
   markedAsRead,
 }: {
-  item: HMLibraryDocument;
-  accountsMetadata: HMAccountsMetadata;
-  originHomeId?: UnpackedHypermediaId;
-  markedAsRead?: boolean;
+  item: HMLibraryDocument
+  accountsMetadata: HMAccountsMetadata
+  originHomeId?: UnpackedHypermediaId
+  markedAsRead?: boolean
 }) {
-  const metadata = item?.metadata;
-  const id = hmId("d", item.account, {
+  const metadata = item?.metadata
+  const id = hmId('d', item.account, {
     path: item.path,
-  });
-  const isRead = markedAsRead || !item.activitySummary?.isUnread;
-  const linkProps = useRouteLink({key: "document", id}, originHomeId);
+  })
+  const isRead = markedAsRead || !item.activitySummary?.isUnread
+  const linkProps = useRouteLink({key: 'document', id}, originHomeId)
   return (
     <Button
       group="item"
       borderWidth={0}
       hoverStyle={{
-        bg: "$color5",
+        bg: '$color5',
       }}
-      bg={isRead ? "$colorTransparent" : "$backgroundStrong"}
+      bg={isRead ? '$colorTransparent' : '$backgroundStrong'}
       // elevation="$1"
       paddingHorizontal={16}
       paddingVertical="$2"
       height="auto"
-      marginVertical={"$1"}
+      marginVertical={'$1'}
       alignItems="center"
       {...linkProps}
     >
@@ -63,7 +63,7 @@ export function SubDocumentItem({
         height={20}
         zIndex="$zIndex.2"
         alignItems="center"
-        backgroundColor={"#2C2C2C"}
+        backgroundColor={'#2C2C2C'}
         justifyContent="center"
         borderRadius={10}
         padding={1}
@@ -74,7 +74,7 @@ export function SubDocumentItem({
         <XStack gap="$3" ai="center">
           <SizableText
             f={1}
-            fontWeight={isRead ? undefined : "bold"}
+            fontWeight={isRead ? undefined : 'bold'}
             textOverflow="ellipsis"
             whiteSpace="nowrap"
             overflow="hidden"
@@ -91,7 +91,7 @@ export function SubDocumentItem({
         )}
       </YStack>
     </Button>
-  );
+  )
 }
 
 export function LibraryEntryUpdateSummary({
@@ -99,15 +99,15 @@ export function LibraryEntryUpdateSummary({
   accountsMetadata,
   latestComment,
 }: {
-  activitySummary: HMActivitySummary;
-  accountsMetadata: HMAccountsMetadata | undefined;
-  latestComment: HMComment | undefined | null;
+  activitySummary: HMActivitySummary
+  accountsMetadata: HMAccountsMetadata | undefined
+  latestComment: HMComment | undefined | null
 }) {
-  const latestChangeTime = normalizeDate(activitySummary?.latestChangeTime);
-  const latestCommentTime = normalizeDate(activitySummary?.latestCommentTime);
-  let summaryText = "";
+  const latestChangeTime = normalizeDate(activitySummary?.latestChangeTime)
+  const latestCommentTime = normalizeDate(activitySummary?.latestCommentTime)
+  let summaryText = ''
   if (latestChangeTime) {
-    summaryText = `Document Changed`;
+    summaryText = `Document Changed`
   }
   if (
     latestCommentTime &&
@@ -116,13 +116,13 @@ export function LibraryEntryUpdateSummary({
   ) {
     const author = latestComment?.author
       ? accountsMetadata?.[latestComment?.author]
-      : undefined;
-    const authorName = author?.metadata?.name;
-    summaryText = `Comment`;
+      : undefined
+    const authorName = author?.metadata?.name
+    summaryText = `Comment`
     if (authorName && latestComment) {
       summaryText = `${authorName}: ${plainTextOfContent(
-        latestComment.content
-      )}`;
+        latestComment.content,
+      )}`
     }
   }
   return (
@@ -132,30 +132,30 @@ export function LibraryEntryUpdateSummary({
       </SizableText>
       <ActivityTime activitySummary={activitySummary} />
     </XStack>
-  );
+  )
 }
 
 export function ActivityTime({
   activitySummary,
 }: {
-  activitySummary: HMActivitySummary;
+  activitySummary: HMActivitySummary
 }) {
-  const latestChangeTime = normalizeDate(activitySummary?.latestChangeTime);
-  const latestCommentTime = normalizeDate(activitySummary?.latestCommentTime);
+  const latestChangeTime = normalizeDate(activitySummary?.latestChangeTime)
+  const latestCommentTime = normalizeDate(activitySummary?.latestCommentTime)
   const displayTime =
     latestCommentTime &&
     latestChangeTime &&
     latestCommentTime > latestChangeTime
       ? latestCommentTime
-      : latestChangeTime;
+      : latestChangeTime
   if (displayTime) {
     return (
       <SizableText flexShrink={0} numberOfLines={1} size="$1" color="$color9">
         ({formattedDate(displayTime)})
       </SizableText>
-    );
+    )
   }
-  return null;
+  return null
 }
 
 export function ChangeGroup({
@@ -165,16 +165,16 @@ export function ChangeGroup({
   activeChangeIds,
   author,
 }: {
-  item: HMChangeGroup;
-  docId: UnpackedHypermediaId;
-  latestDocChanges: Set<string>;
-  activeChangeIds: Set<string> | null;
-  author: HMMetadataPayload;
+  item: HMChangeGroup
+  docId: UnpackedHypermediaId
+  latestDocChanges: Set<string>
+  activeChangeIds: Set<string> | null
+  author: HMMetadataPayload
 }) {
-  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [isCollapsed, setIsCollapsed] = useState(true)
   if (!isCollapsed || item.changes.length <= 1) {
     return item.changes.map((change) => {
-      const isActive = activeChangeIds?.has(change.id) || false;
+      const isActive = activeChangeIds?.has(change.id) || false
       return (
         <ChangeItem
           key={change.id}
@@ -185,8 +185,8 @@ export function ChangeGroup({
           docId={docId}
           author={author}
         />
-      );
-    });
+      )
+    })
   }
   return (
     <ExpandChangeGroupButton
@@ -194,7 +194,7 @@ export function ChangeGroup({
       onExpand={() => setIsCollapsed(false)}
       author={author}
     />
-  );
+  )
 }
 
 export function ChangeItem({
@@ -205,17 +205,17 @@ export function ChangeItem({
   author,
   docId,
 }: {
-  change: HMChangeInfo;
-  isActive: boolean;
-  isLast: boolean;
-  isCurrent: boolean;
-  docId: UnpackedHypermediaId;
-  author: HMMetadataPayload;
+  change: HMChangeInfo
+  isActive: boolean
+  isLast: boolean
+  isCurrent: boolean
+  docId: UnpackedHypermediaId
+  author: HMMetadataPayload
 }) {
-  const iconSize = 20;
+  const iconSize = 20
   const linkProps = useRouteLink(
     {
-      key: "document",
+      key: 'document',
       id: {
         ...docId,
         version: change.id,
@@ -224,8 +224,8 @@ export function ChangeItem({
     undefined,
     {
       replace: true,
-    }
-  );
+    },
+  )
   return (
     <Button
       key={change.id}
@@ -234,10 +234,10 @@ export function ChangeItem({
       paddingHorizontal="$1"
       paddingRight="$3"
       borderRadius="$2"
-      backgroundColor={isActive ? "$brand12" : "$backgroundTransparent"}
+      backgroundColor={isActive ? '$brand12' : '$backgroundTransparent'}
       hoverStyle={{
-        backgroundColor: isActive ? "$brand11" : "$color6",
-        borderColor: "$borderTransparent",
+        backgroundColor: isActive ? '$brand11' : '$color6',
+        borderColor: '$borderTransparent',
       }}
       alignItems="flex-start"
       position="relative"
@@ -261,7 +261,7 @@ export function ChangeItem({
         height={20}
         zIndex="$zIndex.2"
         alignItems="center"
-        backgroundColor={"#2C2C2C"}
+        backgroundColor={'#2C2C2C'}
         justifyContent="center"
         borderRadius={10}
         padding={1}
@@ -293,7 +293,7 @@ export function ChangeItem({
             {getMetadataName(author.metadata)}
           </SizableText>
           <SizableText size="$2" fontWeight={700} flexShrink={0}>
-            {isCurrent ? "current version" : "version"}
+            {isCurrent ? 'current version' : 'version'}
           </SizableText>
         </XStack>
         <SizableText
@@ -308,7 +308,7 @@ export function ChangeItem({
         </SizableText>
       </YStack>
     </Button>
-  );
+  )
 }
 
 function ExpandChangeGroupButton({
@@ -316,11 +316,11 @@ function ExpandChangeGroupButton({
   onExpand,
   author,
 }: {
-  item: HMChangeGroup;
-  onExpand: () => void;
-  author: HMMetadataPayload;
+  item: HMChangeGroup
+  onExpand: () => void
+  author: HMMetadataPayload
 }) {
-  const iconSize = 20;
+  const iconSize = 20
   // const authorEntity = useEntity(hmId('d', item.changes[0].author))
 
   return (
@@ -331,8 +331,8 @@ function ExpandChangeGroupButton({
       padding="$3"
       borderRadius="$2"
       hoverStyle={{
-        backgroundColor: "$color6",
-        borderColor: "$borderTransparent",
+        backgroundColor: '$color6',
+        borderColor: '$borderTransparent',
       }}
       alignItems="flex-start"
       position="relative"
@@ -344,7 +344,7 @@ function ExpandChangeGroupButton({
         height={20}
         zIndex="$zIndex.2"
         alignItems="center"
-        backgroundColor={"#2C2C2C"}
+        backgroundColor={'#2C2C2C'}
         justifyContent="center"
         borderRadius={10}
         padding={1}
@@ -393,5 +393,5 @@ function ExpandChangeGroupButton({
         </SizableText>
       </YStack>
     </Button>
-  );
+  )
 }

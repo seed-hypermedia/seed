@@ -1,10 +1,10 @@
-import {AlertDialog} from "@tamagui/alert-dialog";
-import {Button} from "@tamagui/button";
-import {styled, Unspaced} from "@tamagui/core";
-import {Dialog} from "@tamagui/dialog";
-import {X} from "@tamagui/lucide-icons";
-import {XStack, YStack, YStackProps} from "@tamagui/stacks";
-import {FC, useMemo, useState} from "react";
+import {AlertDialog} from '@tamagui/alert-dialog'
+import {Button} from '@tamagui/button'
+import {styled, Unspaced} from '@tamagui/core'
+import {Dialog} from '@tamagui/dialog'
+import {X} from '@tamagui/lucide-icons'
+import {XStack, YStack, YStackProps} from '@tamagui/stacks'
+import {FC, useMemo, useState} from 'react'
 
 export function DialogOverlay(props) {
   // for somer reason this is required for the overlay to go behind the DialogContent. maybe because of the DialogContent position:fixed below
@@ -16,36 +16,36 @@ export function DialogOverlay(props) {
       exitStyle={{opacity: 0}}
       {...props}
     />
-  );
+  )
 }
 
 export const dialogBoxShadow =
-  "hsl(206 22% 7% / 35%) 0px 10px 38px -10px, hsl(206 22% 7% / 20%) 0px 10px 20px -15px";
+  'hsl(206 22% 7% / 35%) 0px 10px 38px -10px, hsl(206 22% 7% / 20%) 0px 10px 20px -15px'
 
 export const DialogContent = styled(YStack, {
-  backgroundColor: "$base-background-normal",
+  backgroundColor: '$base-background-normal',
   borderRadius: 6,
   boxShadow: dialogBoxShadow,
-  position: "fixed",
-  width: "90vw",
-  maxWidth: "500px",
-  maxHeight: "85vh",
-  padding: "$4",
-  display: "flex",
-  gap: "$4",
+  position: 'fixed',
+  width: '90vw',
+  maxWidth: '500px',
+  maxHeight: '85vh',
+  padding: '$4',
+  display: 'flex',
+  gap: '$4',
   borderWidth: 0,
-  zIndex: "$zIndex.9",
-});
+  zIndex: '$zIndex.9',
+})
 
 export function AlertDialogContent(props) {
-  return <AlertDialog.Content borderWidth={0} {...props} />;
+  return <AlertDialog.Content borderWidth={0} {...props} />
 }
 
 export function DialogFooter(props) {
-  return <XStack justifyContent="flex-end" gap="$4" {...props} />;
+  return <XStack justifyContent="flex-end" gap="$4" {...props} />
 }
 export function DialogTitle(props) {
-  return <Dialog.Title fontSize="$7" fontWeight="bold" {...props} />;
+  return <Dialog.Title fontSize="$7" fontWeight="bold" {...props} />
 }
 
 export function DialogCloseButton() {
@@ -62,10 +62,10 @@ export function DialogCloseButton() {
         />
       </Dialog.Close>
     </Unspaced>
-  );
+  )
 }
 
-export const DialogDescription = Dialog.Description;
+export const DialogDescription = Dialog.Description
 
 function getComponent(isAlert?: boolean) {
   const Component = isAlert
@@ -82,8 +82,8 @@ function getComponent(isAlert?: boolean) {
         Portal: Dialog.Portal,
         Overlay: DialogOverlay,
         Content: DialogContent,
-      };
-  return Component;
+      }
+  return Component
 }
 
 export function AppDialog<
@@ -99,27 +99,27 @@ export function AppDialog<
 }: {
   TriggerComponent: React.FC<
     {
-      onPress?: (e: MouseEvent) => void;
-      children: React.ReactNode;
+      onPress?: (e: MouseEvent) => void
+      children: React.ReactNode
     } & TriggerComponentProps
-  >;
+  >
   ContentComponent: React.FC<
     {onClose: () => void; isOpen: boolean} & ContentComponentProps
-  >;
-  isAlert?: boolean;
-  triggerLabel?: string;
-  triggerComponentProps: TriggerComponentProps;
-  contentComponentProps: ContentComponentProps;
+  >
+  isAlert?: boolean
+  triggerLabel?: string
+  triggerComponentProps: TriggerComponentProps
+  contentComponentProps: ContentComponentProps
 }) {
-  const Component = getComponent(isAlert);
-  const [isOpen, setIsOpen] = useState(false);
+  const Component = getComponent(isAlert)
+  const [isOpen, setIsOpen] = useState(false)
   return (
     <Component.Root onOpenChange={setIsOpen} open={isOpen}>
       <Component.Trigger asChild>
         <TriggerComponent
           onPress={(e) => {
-            e.stopPropagation();
-            setIsOpen(true);
+            e.stopPropagation()
+            setIsOpen(true)
           }}
           {...triggerComponentProps}
         >
@@ -130,7 +130,7 @@ export function AppDialog<
         <Component.Overlay
           height="100vh"
           id="popover-overlay"
-          bg={"#00000088"}
+          bg={'#00000088'}
           width="100vw"
           animation="fast"
           zIndex={10000000}
@@ -140,9 +140,9 @@ export function AppDialog<
           onPress={() => setIsOpen(false)}
         />
         <Component.Content
-          backgroundColor={"$background"}
+          backgroundColor={'$background'}
           animation={[
-            "fast",
+            'fast',
             {
               opacity: {
                 overshootClamping: true,
@@ -155,39 +155,39 @@ export function AppDialog<
           <ContentComponent
             isOpen={isOpen}
             onClose={() => {
-              setIsOpen(false);
+              setIsOpen(false)
             }}
             {...contentComponentProps}
           />
         </Component.Content>
       </Component.Portal>
     </Component.Root>
-  );
+  )
 }
 
 export function useAppDialog<DialogInput>(
   DialogContentComponent: FC<{
-    onClose: () => void;
-    input: DialogInput;
+    onClose: () => void
+    input: DialogInput
   }>,
   options?: {
-    isAlert?: boolean;
-    onClose?: () => void;
-    contentProps?: YStackProps;
-  }
+    isAlert?: boolean
+    onClose?: () => void
+    contentProps?: YStackProps
+  },
 ) {
-  const [openState, setOpenState] = useState<null | DialogInput>(null);
+  const [openState, setOpenState] = useState<null | DialogInput>(null)
 
-  const Component = getComponent(options?.isAlert);
-  const onClose = options?.onClose;
+  const Component = getComponent(options?.isAlert)
+  const onClose = options?.onClose
   return useMemo(() => {
     function open(input: DialogInput) {
-      setOpenState(input);
+      setOpenState(input)
     }
 
     function close() {
-      setOpenState(null);
-      onClose?.();
+      setOpenState(null)
+      onClose?.()
     }
     return {
       open,
@@ -196,15 +196,15 @@ export function useAppDialog<DialogInput>(
         <Component.Root
           modal
           onOpenChange={(isOpen) => {
-            if (isOpen) throw new Error("Cannot open app dialog");
-            close();
+            if (isOpen) throw new Error('Cannot open app dialog')
+            close()
           }}
           open={!!openState}
         >
           <Component.Portal>
             <Component.Overlay
               height="100vh"
-              bg={"#00000088"}
+              bg={'#00000088'}
               width="100vw"
               animation="fast"
               opacity={0.8}
@@ -213,9 +213,9 @@ export function useAppDialog<DialogInput>(
               onPress={close}
             />
             <Component.Content
-              backgroundColor={"$background"}
+              backgroundColor={'$background'}
               animation={[
-                "fast",
+                'fast',
                 {
                   opacity: {
                     overshootClamping: true,
@@ -230,8 +230,8 @@ export function useAppDialog<DialogInput>(
                 <DialogContentComponent
                   input={openState}
                   onClose={() => {
-                    setOpenState(null);
-                    onClose?.();
+                    setOpenState(null)
+                    onClose?.()
                   }}
                 />
               )}
@@ -239,6 +239,6 @@ export function useAppDialog<DialogInput>(
           </Component.Portal>
         </Component.Root>
       ),
-    };
-  }, [Component, DialogContentComponent, openState, onClose]);
+    }
+  }, [Component, DialogContentComponent, openState, onClose])
 }

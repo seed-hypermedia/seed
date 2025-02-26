@@ -12,36 +12,36 @@ import {
   useAllowedPaymentRecipients,
   useCreateInvoice,
   useInvoiceStatus,
-} from "@shm/shared";
-import {Button} from "@tamagui/button";
-import {DialogDescription} from "@tamagui/dialog";
-import {Input} from "@tamagui/input";
-import {Label} from "@tamagui/label";
+} from '@shm/shared'
+import {Button} from '@tamagui/button'
+import {DialogDescription} from '@tamagui/dialog'
+import {Input} from '@tamagui/input'
+import {Label} from '@tamagui/label'
 import {
   AlertCircle,
   CircleDollarSign,
   Copy,
   PartyPopper,
-} from "@tamagui/lucide-icons";
-import {XStack, YStack} from "@tamagui/stacks";
-import {Heading, SizableText} from "@tamagui/text";
-import {useState} from "react";
-import QRCode from "react-qr-code";
-import {CheckboxField} from "./checkbox-field";
-import {copyTextToClipboard} from "./copy-to-clipboard";
-import {HMIcon} from "./hm-icon";
-import {Spinner} from "./spinner";
-import {toast} from "./toast";
-import {Tooltip} from "./tooltip";
-import {DialogTitle, useAppDialog} from "./universal-dialog";
+} from '@tamagui/lucide-icons'
+import {XStack, YStack} from '@tamagui/stacks'
+import {Heading, SizableText} from '@tamagui/text'
+import {useState} from 'react'
+import QRCode from 'react-qr-code'
+import {CheckboxField} from './checkbox-field'
+import {copyTextToClipboard} from './copy-to-clipboard'
+import {HMIcon} from './hm-icon'
+import {Spinner} from './spinner'
+import {toast} from './toast'
+import {Tooltip} from './tooltip'
+import {DialogTitle, useAppDialog} from './universal-dialog'
 
 async function sendWeblnPayment(invoice: string) {
   // @ts-expect-error
-  if (typeof window.webln !== "undefined") {
+  if (typeof window.webln !== 'undefined') {
     // @ts-expect-error
-    await window.webln.enable();
+    await window.webln.enable()
     // @ts-expect-error
-    return await window.webln.sendPayment(invoice);
+    return await window.webln.sendPayment(invoice)
   }
 }
 
@@ -49,21 +49,21 @@ export function DonateButton({
   docId,
   authors,
 }: {
-  docId: UnpackedHypermediaId;
-  authors: HMMetadataPayload[];
+  docId: UnpackedHypermediaId
+  authors: HMMetadataPayload[]
 }) {
-  const donateDialog = useAppDialog(DonateDialog);
+  const donateDialog = useAppDialog(DonateDialog)
   const allowedRecipients = useAllowedPaymentRecipients(
-    authors.map((author) => author.id.uid) || []
-  );
+    authors.map((author) => author.id.uid) || [],
+  )
   if (allowedRecipients.isError)
     return (
       <Tooltip content="Failed to query Seed server to check payment recipients">
         <AlertCircle color="$yellow11" size={16} />
       </Tooltip>
-    );
-  if (allowedRecipients.isLoading) return null;
-  if (!allowedRecipients.data?.length) return null;
+    )
+  if (allowedRecipients.isLoading) return null
+  if (!allowedRecipients.data?.length) return null
   return (
     <>
       <Tooltip content="Donate">
@@ -71,7 +71,7 @@ export function DonateButton({
           icon={
             <CircleDollarSign
               color="$brand9"
-              $group-icon-hover={{color: "$brand8"}}
+              $group-icon-hover={{color: '$brand8'}}
             />
           }
           group="icon"
@@ -81,14 +81,14 @@ export function DonateButton({
               docId,
               authors,
               allowedRecipients: allowedRecipients.data,
-            });
+            })
           }}
           size="$2"
         />
       </Tooltip>
       {donateDialog.content}
     </>
-  );
+  )
 }
 
 function DonateDialog({
@@ -96,17 +96,17 @@ function DonateDialog({
   onClose,
 }: {
   input: {
-    docId: UnpackedHypermediaId;
-    authors: HMMetadataPayload[];
-    allowedRecipients: string[];
-  };
-  onClose: () => void;
+    docId: UnpackedHypermediaId
+    authors: HMMetadataPayload[]
+    allowedRecipients: string[]
+  }
+  onClose: () => void
 }) {
-  const {docId, authors, allowedRecipients} = input;
-  const [openInvoice, setOpenInvoice] = useState<HMInvoice | null>(null);
-  const allowed = new Set(allowedRecipients);
+  const {docId, authors, allowedRecipients} = input
+  const [openInvoice, setOpenInvoice] = useState<HMInvoice | null>(null)
+  const allowed = new Set(allowedRecipients)
 
-  let content = <SizableText>No available recipents to pay</SizableText>;
+  let content = <SizableText>No available recipents to pay</SizableText>
   if (openInvoice)
     return (
       <DonateInvoice
@@ -114,32 +114,32 @@ function DonateDialog({
         onReset={() => setOpenInvoice(null)}
         onClose={onClose}
       />
-    );
+    )
   else if (allowed.size)
     content = (
       <DonateForm
         authors={authors}
         allowed={allowed}
         onInvoice={(invoice) => {
-          setOpenInvoice(invoice);
+          setOpenInvoice(invoice)
           sendWeblnPayment(invoice.payload)
             .then(() => {
-              console.log("Payment sent: ", invoice.payload, invoice.hash);
+              console.log('Payment sent: ', invoice.payload, invoice.hash)
             })
             .catch((e) => {
-              console.error("Error sending webln payment", e);
-            });
+              console.error('Error sending webln payment', e)
+            })
         }}
         docId={docId}
       />
-    );
+    )
   return (
     <>
       <DialogTitle>Donate to Authors</DialogTitle>
       <DialogDescription>Send Bitcoin to authors</DialogDescription>
       {content}
     </>
-  );
+  )
 }
 
 function DonateInvoice({
@@ -147,14 +147,14 @@ function DonateInvoice({
   onReset,
   onClose,
 }: {
-  invoice: HMInvoice;
-  onReset: () => void;
-  onClose: () => void;
+  invoice: HMInvoice
+  onReset: () => void
+  onClose: () => void
 }) {
-  const status = useInvoiceStatus(invoice);
-  const authors = Object.keys(invoice.share);
-  const isSettled = status.data?.isSettled;
-  const isError = status.data?.isError || status.isError;
+  const status = useInvoiceStatus(invoice)
+  const authors = Object.keys(invoice.share)
+  const isSettled = status.data?.isSettled
+  const isError = status.data?.isError || status.isError
   if (isSettled) {
     return (
       <>
@@ -163,25 +163,25 @@ function DonateInvoice({
           <PartyPopper size={120} />
         </YStack>
         <DialogDescription>
-          {invoice.amount} SATS has been sent to the{" "}
-          {authors.length > 1 ? "authors" : "author"}.
+          {invoice.amount} SATS has been sent to the{' '}
+          {authors.length > 1 ? 'authors' : 'author'}.
         </DialogDescription>
         <Button onPress={onClose}>Done</Button>
       </>
-    );
+    )
   }
   return (
     <>
       <DialogTitle>
-        Pay Invoice to {authors.length > 1 ? "Authors" : "Author"}
+        Pay Invoice to {authors.length > 1 ? 'Authors' : 'Author'}
       </DialogTitle>
       <YStack ai="center" gap="$4">
         <QRCode value={invoice.payload} />
         <Tooltip content="Click to Copy Invoice Text">
           <Button
             onPress={() => {
-              copyTextToClipboard(invoice.payload);
-              toast.success("Copied Invoice to Clipboard");
+              copyTextToClipboard(invoice.payload)
+              toast.success('Copied Invoice to Clipboard')
             }}
             icon={Copy}
             size="$2"
@@ -196,7 +196,7 @@ function DonateInvoice({
       </YStack>
       <Button onPress={onClose}>Cancel</Button>
     </>
-  );
+  )
 }
 
 function DonateForm({
@@ -205,29 +205,29 @@ function DonateForm({
   allowed,
   docId,
 }: {
-  onInvoice: (invoice: HMInvoice) => void;
-  authors: HMMetadataPayload[];
-  allowed: Set<string>;
-  docId: UnpackedHypermediaId;
+  onInvoice: (invoice: HMInvoice) => void
+  authors: HMMetadataPayload[]
+  allowed: Set<string>
+  docId: UnpackedHypermediaId
 }) {
   const [paymentAllocation, setPaymentAllocation] = useState<PaymentAllocation>(
     {
-      mode: "even",
+      mode: 'even',
       amount: DEFAULT_PAYMENT_AMOUNTS[0],
       recipients: authors
         .filter((a) => allowed.has(a.id.uid))
         .map((a) => a.id.uid),
-    }
-  );
-  const createInvoice = useCreateInvoice();
-  const {fee, recipients, total, isEven} = getAllocations(paymentAllocation);
+    },
+  )
+  const createInvoice = useCreateInvoice()
+  const {fee, recipients, total, isEven} = getAllocations(paymentAllocation)
   if (createInvoice.isLoading)
     return (
       <YStack ai="center" gap="$4">
         <Heading>Creating Invoice</Heading>
         <Spinner />
       </YStack>
-    );
+    )
   return (
     <>
       <Heading>Distribution Overview</Heading>
@@ -238,8 +238,8 @@ function DonateForm({
         // borderWidth={0}
         value={`${total}`}
         onChange={(e) => {
-          const amountText = e.target.value;
-          setPaymentAllocation(applyTotalAmount(amountText));
+          const amountText = e.target.value
+          setPaymentAllocation(applyTotalAmount(amountText))
         }}
       />
       <CheckboxField
@@ -253,15 +253,15 @@ function DonateForm({
       </CheckboxField>
       <YStack>
         {authors.map((author) => {
-          if (!author.metadata) return null;
-          const isAllowedRecipient = allowed.has(author.id.uid);
+          if (!author.metadata) return null
+          const isAllowedRecipient = allowed.has(author.id.uid)
           const recieveAmount =
-            recipients.find((r) => r.account === author.id.uid)?.amount || 0;
+            recipients.find((r) => r.account === author.id.uid)?.amount || 0
           return (
             <XStack key={author.id.uid} jc="space-between">
               <XStack ai="center" gap="$4">
                 <HMIcon id={author.id} metadata={author.metadata} />
-                <SizableText color={isAllowedRecipient ? undefined : "$color9"}>
+                <SizableText color={isAllowedRecipient ? undefined : '$color9'}>
                   {getMetadataName(author.metadata)}
                 </SizableText>
               </XStack>
@@ -269,17 +269,17 @@ function DonateForm({
                 <Input
                   value={`${recieveAmount}`}
                   onChange={(e) => {
-                    const amountText = e.target.value;
+                    const amountText = e.target.value
                     setPaymentAllocation(
-                      applyRecipientAmount(author.id.uid, amountText)
-                    );
+                      applyRecipientAmount(author.id.uid, amountText),
+                    )
                   }}
                 />
               ) : (
                 <SizableText>Donations Disabled</SizableText>
               )}
             </XStack>
-          );
+          )
         })}
       </YStack>
       <DialogDescription>Fee: {fee} SAT</DialogDescription>
@@ -293,18 +293,18 @@ function DonateForm({
               amountSats: total,
               recipients: Object.fromEntries(
                 recipients.map((recipient) => {
-                  return [recipient.account, recipient.amount / total];
-                })
+                  return [recipient.account, recipient.amount / total]
+                }),
               ),
               docId,
             })
             .then((invoice) => {
-              onInvoice(invoice);
-            });
+              onInvoice(invoice)
+            })
         }}
       >
         Donate
       </Button>
     </>
-  );
+  )
 }

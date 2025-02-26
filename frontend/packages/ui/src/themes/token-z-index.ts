@@ -9,4 +9,4 @@ export const zIndex = {
   7: 700,
   8: 800,
   9: 900,
-};
+}

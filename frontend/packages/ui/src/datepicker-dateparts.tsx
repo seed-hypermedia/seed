@@ -1,12 +1,12 @@
-import type {DatePickerProviderProps} from "@rehookify/datepicker";
+import type {DatePickerProviderProps} from '@rehookify/datepicker'
 import {
   DatePickerProvider as _DatePickerProvider,
   useDatePickerContext,
-} from "@rehookify/datepicker";
-import {getFontSized} from "@tamagui/get-font-sized";
-import {Calendar, ChevronLeft, ChevronRight, X} from "@tamagui/lucide-icons";
-import type {GestureReponderEvent} from "@tamagui/web";
-import type {PopoverProps} from "tamagui";
+} from '@rehookify/datepicker'
+import {getFontSized} from '@tamagui/get-font-sized'
+import {Calendar, ChevronLeft, ChevronRight, X} from '@tamagui/lucide-icons'
+import type {GestureReponderEvent} from '@tamagui/web'
+import type {PopoverProps} from 'tamagui'
 import {
   Adapt,
   AnimatePresence,
@@ -18,56 +18,56 @@ import {
   isWeb,
   styled,
   withStaticProperties,
-} from "tamagui";
+} from 'tamagui'
 
-import {useEffect, useRef} from "react";
-import {Input} from "./datepicker-inputparts";
-import {useDateAnimation} from "./datepicker-usedateanimation";
+import {useEffect, useRef} from 'react'
+import {Input} from './datepicker-inputparts'
+import {useDateAnimation} from './datepicker-usedateanimation'
 
 /** rehookify internally return `onClick` and that's incompatible with native */
 export function swapOnClick<D>(d: D) {
   //@ts-ignore
-  d.onPress = d.onClick;
-  return d;
+  d.onPress = d.onClick
+  return d
 }
 
 const DatePickerProvider =
-  _DatePickerProvider as React.ComponentType<DatePickerProviderProps>;
+  _DatePickerProvider as React.ComponentType<DatePickerProviderProps>
 
 type DatePickerProps = PopoverProps & {
-  config: DatePickerProviderProps["config"];
-};
+  config: DatePickerProviderProps['config']
+}
 
 export const {Provider: HeaderTypeProvider, useStyledContext: useHeaderType} =
   createStyledContext({
-    type: "day",
-    setHeader: (_: "day" | "month" | "year") => {},
-  });
+    type: 'day',
+    setHeader: (_: 'day' | 'month' | 'year') => {},
+  })
 
 const DatePickerImpl = (props: DatePickerProps) => {
-  const {children, config, ...rest} = props;
-  const popoverRef = useRef<Popover>(null);
+  const {children, config, ...rest} = props
+  const popoverRef = useRef<Popover>(null)
 
   // hide date picker on scroll (web)
   useEffect(() => {
     if (isWeb) {
-      const controller = new AbortController();
+      const controller = new AbortController()
 
       document.body.addEventListener(
-        "scroll",
+        'scroll',
         () => {
-          popoverRef.current?.close();
+          popoverRef.current?.close()
         },
         {
           signal: controller.signal,
-        }
-      );
+        },
+      )
 
       return () => {
-        controller.abort();
-      };
+        controller.abort()
+      }
     }
-  }, []);
+  }, [])
 
   return (
     <DatePickerProvider config={config}>
@@ -93,14 +93,14 @@ const DatePickerImpl = (props: DatePickerProps) => {
         {children}
       </Popover>
     </DatePickerProvider>
-  );
-};
+  )
+}
 
-const Trigger = Popover.Trigger;
+const Trigger = Popover.Trigger
 
 const DatePickerContent = styled(Popover.Content, {
   animation: [
-    "100ms",
+    '100ms',
     {
       opacity: {
         overshootClamping: true,
@@ -112,7 +112,7 @@ const DatePickerContent = styled(Popover.Content, {
       false: {
         padding: 12,
         borderWidth: 1,
-        borderColor: "$borderColor",
+        borderColor: '$borderColor',
         enterStyle: {y: -10, opacity: 0},
         exitStyle: {y: -10, opacity: 0},
         elevate: true,
@@ -120,30 +120,30 @@ const DatePickerContent = styled(Popover.Content, {
     },
   } as const,
   defaultVariants: {
-    unstyled: process.env.TAMAGUI_HEADLESS === "1",
+    unstyled: process.env.TAMAGUI_HEADLESS === '1',
   },
-});
+})
 
 export const DatePicker = withStaticProperties(DatePickerImpl, {
   Trigger,
   Content: withStaticProperties(DatePickerContent, {
     Arrow: styled(Popover.Arrow, {
       borderWidth: 1,
-      borderColor: "$borderColor",
+      borderColor: '$borderColor',
     }),
   }),
-});
+})
 
 type DatePickerInputProps = {
-  onReset: () => void;
-  onButtonPress?: (e: GestureReponderEvent) => void;
-};
+  onReset: () => void
+  onButtonPress?: (e: GestureReponderEvent) => void
+}
 
 export const DatePickerInput = Input.Area.styleable<DatePickerInputProps>(
   (props, ref) => {
-    const {value, onButtonPress, size = "$3", onReset, ...rest} = props;
+    const {value, onButtonPress, size = '$3', onReset, ...rest} = props
     return (
-      <View $platform-native={{minWidth: "100%"}}>
+      <View $platform-native={{minWidth: '100%'}}>
         <Input size={size}>
           <Input.Box>
             <Input.Section>
@@ -153,10 +153,10 @@ export const DatePickerInput = Input.Area.styleable<DatePickerInputProps>(
               <Input.Button
                 onPress={(e) => {
                   if (value) {
-                    e.stopPropagation();
-                    onReset();
+                    e.stopPropagation()
+                    onReset()
                   } else {
-                    onButtonPress?.(e);
+                    onButtonPress?.(e)
                   }
                 }}
               >
@@ -174,25 +174,25 @@ export const DatePickerInput = Input.Area.styleable<DatePickerInputProps>(
           </Input.Box>
         </Input>
       </View>
-    );
-  }
-);
+    )
+  },
+)
 
 export function MonthPicker({
   onChange = (_e, _date) => {
-    "noop";
+    'noop'
   },
 }: {
-  onChange?: (e: MouseEvent, date: Date) => void;
+  onChange?: (e: MouseEvent, date: Date) => void
 }) {
   const {
     data: {months},
     propGetters: {monthButton},
-  } = useDatePickerContext();
+  } = useDatePickerContext()
 
   const {prevNextAnimation, prevNextAnimationKey} = useDateAnimation({
-    listenTo: "year",
-  });
+    listenTo: 'year',
+  })
 
   return (
     <AnimatePresence key={prevNextAnimationKey}>
@@ -204,8 +204,8 @@ export function MonthPicker({
         animation="100ms"
         flexGrow={0}
         $platform-native={{
-          justifyContent: "space-between",
-          width: "100%",
+          justifyContent: 'space-between',
+          width: '100%',
         }}
         $gtXs={{width: 285}}
       >
@@ -215,50 +215,50 @@ export function MonthPicker({
             borderRadius="$true"
             flexShrink={0}
             flexBasis={90}
-            backgroundColor={month.active ? "$background" : "transparent"}
+            backgroundColor={month.active ? '$background' : 'transparent'}
             key={month.$date.toString()}
             chromeless
             padding={0}
             {...swapOnClick(
               monthButton(month, {
                 onClick: onChange as any,
-              })
+              }),
             )}
           >
-            <Button.Text color={month.active ? "$gray12" : "$gray11"}>
+            <Button.Text color={month.active ? '$gray12' : '$gray11'}>
               {month.month}
             </Button.Text>
           </Button>
         ))}
       </View>
     </AnimatePresence>
-  );
+  )
 }
 
 export function YearPicker({
   onChange = () => {},
 }: {
-  onChange?: (e: MouseEvent, date: Date) => void;
+  onChange?: (e: MouseEvent, date: Date) => void
 }) {
   const {
     data: {years, calendars},
     propGetters: {yearButton},
-  } = useDatePickerContext();
-  const selectedYear = calendars[0].year;
+  } = useDatePickerContext()
+  const selectedYear = calendars[0].year
 
   const {prevNextAnimation, prevNextAnimationKey} = useDateAnimation({
-    listenTo: "years",
-  });
+    listenTo: 'years',
+  })
 
   return (
     <AnimatePresence key={prevNextAnimationKey}>
       <View
         {...prevNextAnimation()}
-        animation={"quick"}
+        animation={'quick'}
         flexDirection="row"
         flexWrap="wrap"
         gap="$2"
-        width={"100%"}
+        width={'100%'}
         maxWidth={280}
         justifyContent="space-between"
       >
@@ -269,7 +269,7 @@ export function YearPicker({
             flexBasis="30%"
             flexGrow={1}
             backgroundColor={
-              year.year === Number(selectedYear) ? "$background" : "transparent"
+              year.year === Number(selectedYear) ? '$background' : 'transparent'
             }
             key={year.$date.toString()}
             chromeless
@@ -277,11 +277,11 @@ export function YearPicker({
             {...swapOnClick(
               yearButton(year, {
                 onClick: onChange as any,
-              })
+              }),
             )}
           >
             <Button.Text
-              color={year.year === Number(selectedYear) ? "$gray12" : "$gray11"}
+              color={year.year === Number(selectedYear) ? '$gray12' : '$gray11'}
             >
               {year.year}
             </Button.Text>
@@ -289,13 +289,13 @@ export function YearPicker({
         ))}
       </View>
     </AnimatePresence>
-  );
+  )
 }
 export function YearRangeSlider() {
   const {
     data: {years},
     propGetters: {previousYearsButton, nextYearsButton},
-  } = useDatePickerContext();
+  } = useDatePickerContext()
 
   return (
     <View
@@ -320,16 +320,16 @@ export function YearRangeSlider() {
         </Button.Icon>
       </Button>
     </View>
-  );
+  )
 }
 
 export function YearSlider() {
   const {
     data: {calendars},
     propGetters: {subtractOffset},
-  } = useDatePickerContext();
-  const {setHeader} = useHeaderType();
-  const {year} = calendars[0];
+  } = useDatePickerContext()
+  const {setHeader} = useHeaderType()
+  const {year} = calendars[0]
   return (
     <View
       flexDirection="row"
@@ -344,14 +344,14 @@ export function YearSlider() {
         </Button.Icon>
       </Button>
       <SizableText
-        onPress={() => setHeader("year")}
+        onPress={() => setHeader('year')}
         selectable
         tabIndex={0}
         size="$6"
         cursor="pointer"
         color="$color11"
         hoverStyle={{
-          color: "$color12",
+          color: '$color12',
         }}
       >
         {year}
@@ -366,20 +366,20 @@ export function YearSlider() {
         </Button.Icon>
       </Button>
     </View>
-  );
+  )
 }
 
 export const SizableText = styled(Text, {
-  name: "SizableText",
-  fontFamily: "$body",
+  name: 'SizableText',
+  fontFamily: '$body',
 
   variants: {
     size: {
-      "...fontSize": getFontSized,
+      '...fontSize': getFontSized,
     },
   } as const,
 
   defaultVariants: {
-    size: "$true",
+    size: '$true',
   },
-});
+})

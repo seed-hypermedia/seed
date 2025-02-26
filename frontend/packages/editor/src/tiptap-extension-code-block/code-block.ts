@@ -2,64 +2,64 @@ import {
   BlockNoteDOMAttributes,
   getBlockInfoFromPos,
   mergeCSSClasses,
-} from "@/blocknote";
-import {getGroupInfoFromPos} from "@/blocknote/core/extensions/Blocks/helpers/getGroupInfoFromPos";
-import styles from "@/blocknote/core/extensions/Blocks/nodes/Block.module.css";
+} from '@/blocknote'
+import {getGroupInfoFromPos} from '@/blocknote/core/extensions/Blocks/helpers/getGroupInfoFromPos'
+import styles from '@/blocknote/core/extensions/Blocks/nodes/Block.module.css'
 import {
   Editor,
   mergeAttributes,
   Node,
   textblockTypeInputRule,
-} from "@tiptap/core";
-import {Fragment, Slice} from "@tiptap/pm/model";
-import {Plugin, PluginKey, TextSelection} from "@tiptap/pm/state";
+} from '@tiptap/core'
+import {Fragment, Slice} from '@tiptap/pm/model'
+import {Plugin, PluginKey, TextSelection} from '@tiptap/pm/state'
 
-declare module "@tiptap/core" {
+declare module '@tiptap/core' {
   interface Commands<ReturnType> {
-    "code-block": {
+    'code-block': {
       /**
        * Set a code block
        */
-      setCodeBlock: (attributes?: {language: string}) => ReturnType;
+      setCodeBlock: (attributes?: {language: string}) => ReturnType
       /**
        * Toggle a code block
        */
-      toggleCodeBlock: (attributes?: {language: string}) => ReturnType;
-    };
+      toggleCodeBlock: (attributes?: {language: string}) => ReturnType
+    }
   }
 }
 
-export const backtickInputRegex = /^```([a-z]+)?[\s\n]$/;
-export const tildeInputRegex = /^~~~([a-z]+)?[\s\n]$/;
+export const backtickInputRegex = /^```([a-z]+)?[\s\n]$/
+export const tildeInputRegex = /^~~~([a-z]+)?[\s\n]$/
 
 export interface CodeBlockOptions {
   /**
    * Adds a prefix to language classes that are applied to code tags.
    * Defaults to `'language-'`.
    */
-  languageClassPrefix: string;
+  languageClassPrefix: string
   /**
    * BlockNote's default DOM attributes
    */
-  domAttributes?: BlockNoteDOMAttributes;
+  domAttributes?: BlockNoteDOMAttributes
 }
 
 export const CodeBlock = Node.create<CodeBlockOptions>({
-  name: "code-block",
+  name: 'code-block',
   priority: 100,
 
   addOptions() {
     return {
-      languageClassPrefix: "language-",
+      languageClassPrefix: 'language-',
       domAttributes: {},
-    };
+    }
   },
 
-  content: "inline*",
+  content: 'inline*',
 
-  marks: "",
+  marks: '',
 
-  group: "blockContent",
+  group: 'blockContent',
 
   code: true,
 
@@ -68,49 +68,49 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
   addAttributes() {
     return {
       language: {
-        default: "",
+        default: '',
         parseHTML: (element) => {
-          const {languageClassPrefix} = this.options;
+          const {languageClassPrefix} = this.options
           const getClassNames = (classList: DOMTokenList) =>
-            Array.from(classList || []);
+            Array.from(classList || [])
 
           const classNames = [
             ...getClassNames(element.classList),
             ...getClassNames(element.firstElementChild?.classList || []),
-          ];
+          ]
           const languages = classNames
             .filter((className) => className.startsWith(languageClassPrefix))
-            .map((className) => className.replace(languageClassPrefix, ""));
-          const language = languages[0];
+            .map((className) => className.replace(languageClassPrefix, ''))
+          const language = languages[0]
 
           if (!language) {
-            return "";
+            return ''
           }
 
-          return language;
+          return language
         },
         rendered: false,
       },
-    };
+    }
   },
 
   parseHTML() {
     return [
       {
-        tag: "pre",
-        preserveWhitespace: "full",
+        tag: 'pre',
+        preserveWhitespace: 'full',
       },
-    ];
+    ]
   },
 
   renderHTML({HTMLAttributes, node}) {
     const blockContentDOMAttributes =
-      this.options.domAttributes?.blockContent || {};
+      this.options.domAttributes?.blockContent || {}
     const inlineContentDOMAttributes =
-      this.options.domAttributes?.inlineContent || {};
+      this.options.domAttributes?.inlineContent || {}
 
     return [
-      "pre",
+      'pre',
       mergeAttributes(HTMLAttributes, {
         ...blockContentDOMAttributes,
         class: mergeCSSClasses(
@@ -118,23 +118,23 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
           blockContentDOMAttributes.class,
           node.attrs.language.length
             ? this.options.languageClassPrefix + node.attrs.language
-            : ""
+            : '',
         ),
-        "data-content-type": this.name,
-        "data-language": HTMLAttributes.language,
+        'data-content-type': this.name,
+        'data-language': HTMLAttributes.language,
       }),
       [
-        "code",
+        'code',
         {
           ...inlineContentDOMAttributes,
           class: mergeCSSClasses(
             styles.inlineContent,
-            inlineContentDOMAttributes.class
+            inlineContentDOMAttributes.class,
           ),
         },
         0,
       ],
-    ];
+    ]
   },
 
   addCommands() {
@@ -142,361 +142,361 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
       setCodeBlock:
         (attributes) =>
         ({commands}) => {
-          return commands.setNode(this.name, attributes);
+          return commands.setNode(this.name, attributes)
         },
       toggleCodeBlock:
         (attributes) =>
         ({commands}) => {
-          return commands.toggleNode(this.name, "paragraph", attributes);
+          return commands.toggleNode(this.name, 'paragraph', attributes)
         },
-    };
+    }
   },
 
   addKeyboardShortcuts() {
     function splitCodeBlock(editor: Editor) {
-      const {state} = editor;
-      const codePos = state.doc.resolve(state.selection.$from.pos);
-      const blockInfo = getBlockInfoFromPos(state, codePos.pos);
+      const {state} = editor
+      const codePos = state.doc.resolve(state.selection.$from.pos)
+      const blockInfo = getBlockInfoFromPos(state, codePos.pos)
       if (blockInfo === undefined) {
-        return false;
+        return false
       }
 
-      const depth = codePos.depth;
+      const depth = codePos.depth
 
-      const originalBlockContent = state.doc.cut(codePos.start(), codePos.pos);
-      const newBlockContent = state.doc.cut(codePos.pos, codePos.end());
+      const originalBlockContent = state.doc.cut(codePos.start(), codePos.pos)
+      const newBlockContent = state.doc.cut(codePos.pos, codePos.end())
 
-      const newBlock = state.schema.nodes["blockContainer"].createAndFill()!;
-      const nextBlockPos = codePos.end() + 2;
-      const nextBlockContentPos = nextBlockPos + 2;
+      const newBlock = state.schema.nodes['blockContainer'].createAndFill()!
+      const nextBlockPos = codePos.end() + 2
+      const nextBlockContentPos = nextBlockPos + 2
 
-      let tr = state.tr;
-      tr = tr.insert(nextBlockPos, newBlock);
+      let tr = state.tr
+      tr = tr.insert(nextBlockPos, newBlock)
       tr = tr.replace(
         nextBlockContentPos,
         nextBlockContentPos + 1,
         newBlockContent.content.size > 0
           ? new Slice(Fragment.from(newBlockContent), depth + 1, depth + 1)
-          : undefined
-      );
+          : undefined,
+      )
       tr = tr.replace(
         codePos.start(),
         codePos.end(),
         originalBlockContent.content.size > 0
           ? new Slice(Fragment.from(originalBlockContent), depth + 1, depth + 1)
-          : undefined
-      );
+          : undefined,
+      )
 
-      editor.view.dispatch(tr);
+      editor.view.dispatch(tr)
 
       editor.commands.setTextSelection(
-        nextBlockContentPos - newBlockContent.textContent?.length
-      );
+        nextBlockContentPos - newBlockContent.textContent?.length,
+      )
 
-      return true;
+      return true
     }
 
     return {
-      "Mod-Alt-c": () => this.editor.commands.toggleCodeBlock(),
+      'Mod-Alt-c': () => this.editor.commands.toggleCodeBlock(),
 
       // Split code block's content on current selection and move other content to the next block.
-      "Shift-Enter": ({editor}) => splitCodeBlock(editor),
-      "Mod-Enter": ({editor}) => splitCodeBlock(editor),
+      'Shift-Enter': ({editor}) => splitCodeBlock(editor),
+      'Mod-Enter': ({editor}) => splitCodeBlock(editor),
 
       // remove code block when at start of document or code block is empty
       Backspace: () => {
-        const {empty, $anchor} = this.editor.state.selection;
+        const {empty, $anchor} = this.editor.state.selection
         // The position is 3 because wrapping nodes take 1 position.
-        const isAtStart = $anchor.pos <= 3;
+        const isAtStart = $anchor.pos <= 3
 
         if (!empty || $anchor.parent.type.name !== this.name) {
-          return false;
+          return false
         }
 
         if (isAtStart || !$anchor.parent.textContent.length) {
-          return this.editor.commands.clearNodes();
+          return this.editor.commands.clearNodes()
         }
 
-        return false;
+        return false
       },
 
       // remove double space (if any) from the current line on shift+tab click
-      "Shift-Tab": ({editor}) => {
-        const {state, view} = editor;
-        const {selection} = state;
-        const {$from, $to, empty} = selection;
+      'Shift-Tab': ({editor}) => {
+        const {state, view} = editor
+        const {selection} = state
+        const {$from, $to, empty} = selection
 
         if ($from.parent.type !== this.type) {
-          return false;
+          return false
         }
 
-        const codePos = state.doc.resolve($from.pos);
+        const codePos = state.doc.resolve($from.pos)
 
         if (codePos.pos === codePos.start() && empty) {
-          return false;
+          return false
         }
 
-        const codeBlock = codePos.parent;
-        let currentPosInBlock = codePos.pos - codePos.start();
-        let currentChar: string = "";
-        const tabSpace = "  ";
+        const codeBlock = codePos.parent
+        let currentPosInBlock = codePos.pos - codePos.start()
+        let currentChar: string = ''
+        const tabSpace = '  '
 
         do {
-          currentPosInBlock--;
+          currentPosInBlock--
 
           currentChar = codeBlock.textBetween(
             currentPosInBlock,
-            currentPosInBlock + 1
-          );
-        } while (currentChar !== "\n" && currentPosInBlock != -1);
+            currentPosInBlock + 1,
+          )
+        } while (currentChar !== '\n' && currentPosInBlock != -1)
 
         if (currentPosInBlock + 2 >= codePos.end() - codePos.start())
-          return true;
+          return true
 
         do {
-          currentPosInBlock++;
+          currentPosInBlock++
           currentChar = codeBlock.textBetween(
             currentPosInBlock,
-            currentPosInBlock + 2
-          );
+            currentPosInBlock + 2,
+          )
         } while (
           currentChar !== tabSpace &&
-          !currentChar.includes("\n") &&
+          !currentChar.includes('\n') &&
           currentPosInBlock + 2 < codePos.end() - codePos.start()
-        );
+        )
 
-        const breakLinePositions: number[] = [];
+        const breakLinePositions: number[] = []
 
         if (!empty) {
-          let currentPos = $from.pos - codePos.start();
-          let currentChar: string = "";
+          let currentPos = $from.pos - codePos.start()
+          let currentChar: string = ''
           while (currentPos !== $to.pos - codePos.start()) {
-            currentChar = codeBlock.textBetween(currentPos, currentPos + 1);
+            currentChar = codeBlock.textBetween(currentPos, currentPos + 1)
 
-            if (currentChar === "\n") {
+            if (currentChar === '\n') {
               const nextChars = codeBlock.textBetween(
                 currentPos + 1,
-                currentPos + 3
-              );
+                currentPos + 3,
+              )
               if (nextChars === tabSpace)
-                breakLinePositions.push(currentPos + 1);
+                breakLinePositions.push(currentPos + 1)
             }
 
-            currentPos++;
+            currentPos++
           }
         }
 
-        let shouldDispatch = false;
-        let tr = state.tr;
+        let shouldDispatch = false
+        let tr = state.tr
         if (currentChar === tabSpace) {
           tr = tr.deleteRange(
             currentPosInBlock + codePos.start(),
-            currentPosInBlock + codePos.start() + 2
-          );
-          shouldDispatch = true;
+            currentPosInBlock + codePos.start() + 2,
+          )
+          shouldDispatch = true
         }
         if (breakLinePositions.length > 0) {
           breakLinePositions.forEach((pos, index) => {
-            let startPos = pos + codePos.start();
-            let endPos = pos + codePos.start() + 2;
+            let startPos = pos + codePos.start()
+            let endPos = pos + codePos.start() + 2
             if (shouldDispatch) {
               tr = tr.deleteRange(
                 startPos - (index + 1) * 2,
-                endPos - (index + 1) * 2
-              );
+                endPos - (index + 1) * 2,
+              )
             } else {
-              tr = tr.deleteRange(startPos - index * 2, endPos - index * 2);
+              tr = tr.deleteRange(startPos - index * 2, endPos - index * 2)
             }
-            return;
-          });
-          shouldDispatch = true;
+            return
+          })
+          shouldDispatch = true
         }
 
-        view.dispatch(tr);
+        view.dispatch(tr)
 
-        return true;
+        return true
       },
 
       // add double space to the current line on tab click
       Tab: ({editor}) => {
-        const {state, view} = editor;
-        const {selection} = state;
-        const {$from, $to, empty} = selection;
-        const tabSpace = "  ";
+        const {state, view} = editor
+        const {selection} = state
+        const {$from, $to, empty} = selection
+        const tabSpace = '  '
 
         if ($from.parent.type !== this.type) {
-          return false;
+          return false
         }
 
-        const codePos = state.doc.resolve($from.pos);
+        const codePos = state.doc.resolve($from.pos)
 
         if (codePos.pos === codePos.start() && empty) {
-          return false;
+          return false
         }
 
-        const codeBlock = codePos.parent;
-        let currentPosInBlock = codePos.pos - codePos.start();
-        let currentChar: string = "";
+        const codeBlock = codePos.parent
+        let currentPosInBlock = codePos.pos - codePos.start()
+        let currentChar: string = ''
 
-        while (currentChar !== "\n" && currentPosInBlock != -1) {
-          currentPosInBlock--;
+        while (currentChar !== '\n' && currentPosInBlock != -1) {
+          currentPosInBlock--
 
           currentChar = codeBlock.textBetween(
             currentPosInBlock,
-            currentPosInBlock + 1
-          );
+            currentPosInBlock + 1,
+          )
         }
 
-        const breakLinePositions: number[] = [];
+        const breakLinePositions: number[] = []
 
         if (!empty) {
-          let currentPos = $from.pos - codePos.start();
-          let currentChar: string = "";
+          let currentPos = $from.pos - codePos.start()
+          let currentChar: string = ''
           while (currentPos !== $to.pos - codePos.start()) {
-            currentChar = codeBlock.textBetween(currentPos, currentPos + 1);
+            currentChar = codeBlock.textBetween(currentPos, currentPos + 1)
 
-            if (currentChar === "\n") {
-              breakLinePositions.push(currentPos);
+            if (currentChar === '\n') {
+              breakLinePositions.push(currentPos)
             }
 
-            currentPos++;
+            currentPos++
           }
         }
 
-        let tr = state.tr;
+        let tr = state.tr
         tr = tr.insert(
           currentPosInBlock + codePos.start() + 1,
-          state.schema.text(tabSpace)
-        );
+          state.schema.text(tabSpace),
+        )
         if (breakLinePositions.length > 0) {
           breakLinePositions.forEach((pos, index) => {
             tr = tr.insert(
               pos + codePos.start() + 1 + (index + 1) * 2,
-              state.schema.text(tabSpace)
-            );
-            return;
-          });
+              state.schema.text(tabSpace),
+            )
+            return
+          })
         }
-        view.dispatch(tr);
-        return true;
+        view.dispatch(tr)
+        return true
       },
 
       // exit node on enter if at end of the block and at the new line or add a new line
       Enter: ({editor}) => {
-        const {state, view} = editor;
-        const {selection} = state;
-        const {$from, empty} = selection;
+        const {state, view} = editor
+        const {selection} = state
+        const {$from, empty} = selection
 
         if (!empty || $from.parent.type !== this.type) {
-          return false;
+          return false
         }
 
-        const codePos = state.doc.resolve($from.pos);
-        const codeBlock = codePos.parent;
-        const isAtEnd = codePos.parentOffset === codeBlock.nodeSize - 2;
-        const endsWithNewline = codeBlock.textContent.endsWith("\n");
+        const codePos = state.doc.resolve($from.pos)
+        const codeBlock = codePos.parent
+        const isAtEnd = codePos.parentOffset === codeBlock.nodeSize - 2
+        const endsWithNewline = codeBlock.textContent.endsWith('\n')
         if (isAtEnd && endsWithNewline) {
-          const nextBlockPos = codePos.end() + 2;
+          const nextBlockPos = codePos.end() + 2
           const {group, container, $pos, depth} = getGroupInfoFromPos(
             codePos.pos,
-            state
-          );
+            state,
+          )
           if (
-            group.type.name === "blockGroup" &&
+            group.type.name === 'blockGroup' &&
             group.lastChild?.firstChild?.eq(codeBlock)
           ) {
             editor
               .chain()
               .command(({tr}) => {
                 if (group.child(group.childCount - 1).childCount > 1) {
-                  const groupContent = group.content;
-                  const lastBlockContent = groupContent.lastChild!.lastChild!;
+                  const groupContent = group.content
+                  const lastBlockContent = groupContent.lastChild!.lastChild!
                   const newBlockContent = [
-                    state.schema.nodes["paragraph"].createAndFill()!,
+                    state.schema.nodes['paragraph'].createAndFill()!,
                     lastBlockContent,
-                  ];
+                  ]
                   const newContainer = state.schema.nodes[
-                    "blockContainer"
-                  ].createAndFill(null, newBlockContent)!;
+                    'blockContainer'
+                  ].createAndFill(null, newBlockContent)!
                   const replaceContainer = state.schema.nodes[
-                    "blockContainer"
-                  ].createAndFill(container?.attrs, codeBlock)!;
+                    'blockContainer'
+                  ].createAndFill(container?.attrs, codeBlock)!
                   const newGroupContent = group.content
                     .replaceChild(group.childCount - 1, replaceContainer)
-                    .addToEnd(newContainer);
+                    .addToEnd(newContainer)
                   const newGroup = state.schema.nodes[
-                    "blockGroup"
-                  ].createAndFill(group.attrs, newGroupContent)!;
-                  const groupPos = state.doc.resolve($pos.after(depth + 1));
+                    'blockGroup'
+                  ].createAndFill(group.attrs, newGroupContent)!
+                  const groupPos = state.doc.resolve($pos.after(depth + 1))
                   tr.replaceRangeWith(
                     groupPos.start(),
                     groupPos.end(),
-                    newGroup
-                  );
+                    newGroup,
+                  )
                 } else {
                   const newContainer =
-                    state.schema.nodes["blockContainer"].createAndFill()!;
-                  tr.insert(nextBlockPos, newContainer);
+                    state.schema.nodes['blockContainer'].createAndFill()!
+                  tr.insert(nextBlockPos, newContainer)
                 }
-                return false;
+                return false
               })
               .focus(nextBlockPos)
               .command(({tr}) => {
-                tr.delete($from.pos - 1, $from.pos);
-                return true;
+                tr.delete($from.pos - 1, $from.pos)
+                return true
               })
-              .run();
-            return true;
+              .run()
+            return true
           } else {
             editor
               .chain()
               .focus(nextBlockPos)
               .command(({tr}) => {
-                tr.delete($from.pos - 1, $from.pos);
-                return true;
+                tr.delete($from.pos - 1, $from.pos)
+                return true
               })
-              .run();
+              .run()
 
-            return true;
+            return true
           }
         }
-        let tr = state.tr;
-        tr = tr.replaceSelectionWith(state.schema.text("\n"));
-        view.dispatch(tr);
-        return true;
+        let tr = state.tr
+        tr = tr.replaceSelectionWith(state.schema.text('\n'))
+        view.dispatch(tr)
+        return true
       },
 
       // exit node on arrow down
       ArrowDown: ({editor}) => {
-        const {state} = editor;
-        const {selection, doc} = state;
-        const {$from, empty} = selection;
+        const {state} = editor
+        const {selection, doc} = state
+        const {$from, empty} = selection
 
         if (!empty || $from.parent.type !== this.type) {
-          return false;
+          return false
         }
 
-        const isAtEnd = $from.parentOffset === $from.parent.nodeSize - 2;
+        const isAtEnd = $from.parentOffset === $from.parent.nodeSize - 2
 
         if (!isAtEnd) {
-          return false;
+          return false
         }
 
-        const after = $from.after();
+        const after = $from.after()
 
         if (after === undefined) {
-          return false;
+          return false
         }
 
-        const nodeAfter = doc.nodeAt(after);
+        const nodeAfter = doc.nodeAt(after)
 
         if (nodeAfter) {
-          return false;
+          return false
         }
 
-        return editor.commands.exitCode();
+        return editor.commands.exitCode()
       },
-    };
+    }
   },
 
   addInputRules() {
@@ -515,7 +515,7 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
           language: match[1],
         }),
       }),
-    ];
+    ]
   },
 
   addProseMirrorPlugins() {
@@ -523,58 +523,58 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
       // this plugin creates a code block for pasted content from VS Code
       // we can also detect the copied code language
       new Plugin({
-        key: new PluginKey("codeBlockVSCodeHandler"),
+        key: new PluginKey('codeBlockVSCodeHandler'),
         props: {
           handlePaste: (view, event) => {
             if (!event.clipboardData) {
-              return false;
+              return false
             }
 
             // don’t create a new code block within code blocks
             if (this.editor.isActive(this.type.name)) {
-              return false;
+              return false
             }
 
-            const text = event.clipboardData.getData("text/plain");
-            const vscode = event.clipboardData.getData("vscode-editor-data");
-            const vscodeData = vscode ? JSON.parse(vscode) : undefined;
-            const language = vscodeData?.mode;
+            const text = event.clipboardData.getData('text/plain')
+            const vscode = event.clipboardData.getData('vscode-editor-data')
+            const vscodeData = vscode ? JSON.parse(vscode) : undefined
+            const language = vscodeData?.mode
 
             if (!text || !language) {
-              return false;
+              return false
             }
 
-            const {tr} = view.state;
-            const {selection} = view.state;
-            const {$from, $to} = selection;
+            const {tr} = view.state
+            const {selection} = view.state
+            const {$from, $to} = selection
 
             // create an empty code block
             tr.replaceWith(
               $from.before($from.depth),
               $to.pos,
-              this.type.create({language})
-            );
+              this.type.create({language}),
+            )
 
             // put cursor inside the newly created code block
             tr.setSelection(
-              TextSelection.near(tr.doc.resolve(Math.max(0, $from.pos - 2)))
-            );
+              TextSelection.near(tr.doc.resolve(Math.max(0, $from.pos - 2))),
+            )
 
             // add text to code block
             // strip carriage return chars from text pasted as code
             // see: https://github.com/ProseMirror/prosemirror-view/commit/a50a6bcceb4ce52ac8fcc6162488d8875613aacd
-            tr.insertText(text.replace(/\r\n?/g, "\n"));
+            tr.insertText(text.replace(/\r\n?/g, '\n'))
 
             // store meta information
             // this is useful for other plugins that depends on the paste event
             // like the paste rule plugin
-            tr.setMeta("paste", true);
+            tr.setMeta('paste', true)
 
-            view.dispatch(tr);
-            return true;
+            view.dispatch(tr)
+            return true
           },
         },
       }),
-    ];
+    ]
   },
-});
+})

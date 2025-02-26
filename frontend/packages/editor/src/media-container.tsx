@@ -1,28 +1,28 @@
-import {BlockNoteEditor} from "@/blocknote/core/BlockNoteEditor";
-import {Block} from "@/blocknote/core/extensions/Blocks/api/blockTypes";
-import {InlineContent} from "@/blocknote/react/ReactBlockSpec";
-import {MediaType} from "@/media-render";
-import {HMBlockSchema} from "@/schema";
-import {DAEMON_FILE_UPLOAD_URL} from "@shm/shared/constants";
-import {Button} from "@shm/ui/button";
-import {toast} from "@shm/ui/toast";
-import {useState} from "react";
-import {Text, XStack, YStack} from "tamagui";
+import {BlockNoteEditor} from '@/blocknote/core/BlockNoteEditor'
+import {Block} from '@/blocknote/core/extensions/Blocks/api/blockTypes'
+import {InlineContent} from '@/blocknote/react/ReactBlockSpec'
+import {MediaType} from '@/media-render'
+import {HMBlockSchema} from '@/schema'
+import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
+import {Button} from '@shm/ui/button'
+import {toast} from '@shm/ui/toast'
+import {useState} from 'react'
+import {Text, XStack, YStack} from 'tamagui'
 
 interface ContainerProps {
-  editor: BlockNoteEditor<HMBlockSchema>;
-  block: Block<HMBlockSchema>;
-  mediaType: string;
-  styleProps?: Object;
-  selected: boolean;
-  setSelected: any;
-  assign: any;
-  children: any;
-  onHoverIn?: () => void;
-  onHoverOut?: (e: any) => void;
-  width?: number | string;
-  className?: string;
-  onPress?: (e: Event) => void;
+  editor: BlockNoteEditor<HMBlockSchema>
+  block: Block<HMBlockSchema>
+  mediaType: string
+  styleProps?: Object
+  selected: boolean
+  setSelected: any
+  assign: any
+  children: any
+  onHoverIn?: () => void
+  onHoverOut?: (e: any) => void
+  width?: number | string
+  className?: string
+  onPress?: (e: Event) => void
 }
 
 export const MediaContainer = ({
@@ -36,121 +36,121 @@ export const MediaContainer = ({
   children,
   onHoverIn,
   onHoverOut,
-  width = "100%",
+  width = '100%',
   className,
   onPress,
 }: ContainerProps) => {
-  const [hover, setHover] = useState(false);
-  const [drag, setDrag] = useState(false);
-  const isEmbed = ["embed", "web-embed"].includes(mediaType);
+  const [hover, setHover] = useState(false)
+  const [drag, setDrag] = useState(false)
+  const isEmbed = ['embed', 'web-embed'].includes(mediaType)
 
   const handleDragReplace = async (file: File) => {
     if (file.size > MaxFileSizeB) {
-      toast.error(`The size of ${file.name} exceeds ${MaxFileSizeMB} MB.`);
-      return;
+      toast.error(`The size of ${file.name} exceeds ${MaxFileSizeMB} MB.`)
+      return
     }
 
-    const formData = new FormData();
-    formData.append("file", file);
+    const formData = new FormData()
+    formData.append('file', file)
 
     try {
       const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
-        method: "POST",
+        method: 'POST',
         body: formData,
-      });
-      const data = await response.text();
+      })
+      const data = await response.text()
 
       assign({
         props: {
-          url: data ? `ipfs://${data}` : "",
+          url: data ? `ipfs://${data}` : '',
           name: file.name,
           size: file.size.toString(),
         },
-      } as MediaType);
+      } as MediaType)
     } catch (error) {
       console.error(
-        `Editor: ${mediaType} upload error (MediaComponent): ${mediaType}: ${file.name} error: ${error}`
-      );
+        `Editor: ${mediaType} upload error (MediaComponent): ${mediaType}: ${file.name} error: ${error}`,
+      )
     }
-  };
+  }
 
   const dragProps = {
     onDrop: (e: React.DragEvent<HTMLDivElement>) => {
-      if (e.dataTransfer.effectAllowed === "move") return;
-      e.preventDefault();
-      e.stopPropagation();
-      setDrag(false);
-      if (selected) setSelected(false);
+      if (e.dataTransfer.effectAllowed === 'move') return
+      e.preventDefault()
+      e.stopPropagation()
+      setDrag(false)
+      if (selected) setSelected(false)
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        const file = Array.from(e.dataTransfer.files)[0];
-        if (!file.type.includes(`${mediaType}/`) && mediaType !== "file") {
+        const file = Array.from(e.dataTransfer.files)[0]
+        if (!file.type.includes(`${mediaType}/`) && mediaType !== 'file') {
           toast.error(
             `The dragged file is not ${
-              mediaType === "image" ? "an" : "a"
-            } ${mediaType}.`
-          );
-          return;
+              mediaType === 'image' ? 'an' : 'a'
+            } ${mediaType}.`,
+          )
+          return
         }
-        handleDragReplace(file);
-        return;
+        handleDragReplace(file)
+        return
       }
     },
     onDragOver: (e: React.DragEvent<HTMLDivElement>) => {
       if (
         e.dataTransfer &&
         e.dataTransfer.types &&
-        Array.from(e.dataTransfer.types).includes("Files")
+        Array.from(e.dataTransfer.types).includes('Files')
       ) {
-        e.preventDefault();
-        e.stopPropagation();
-        setDrag(true);
+        e.preventDefault()
+        e.stopPropagation()
+        setDrag(true)
       }
     },
     onDragEnter: (e: React.DragEvent<HTMLDivElement>) => {
       if (
         e.dataTransfer &&
         e.dataTransfer.types &&
-        Array.from(e.dataTransfer.types).includes("Files")
+        Array.from(e.dataTransfer.types).includes('Files')
       ) {
-        const relatedTarget = e.relatedTarget as HTMLElement;
-        e.preventDefault();
-        e.stopPropagation();
-        setDrag(true);
+        const relatedTarget = e.relatedTarget as HTMLElement
+        e.preventDefault()
+        e.stopPropagation()
+        setDrag(true)
         if (
           (!relatedTarget || !e.currentTarget.contains(relatedTarget)) &&
-          e.dataTransfer.effectAllowed !== "move"
+          e.dataTransfer.effectAllowed !== 'move'
         ) {
-          setSelected(true);
+          setSelected(true)
         }
       }
     },
     onDragLeave: (e: React.DragEvent<HTMLDivElement>) => {
-      const relatedTarget = e.relatedTarget as HTMLElement;
-      e.preventDefault();
-      e.stopPropagation();
-      setDrag(false);
+      const relatedTarget = e.relatedTarget as HTMLElement
+      e.preventDefault()
+      e.stopPropagation()
+      setDrag(false)
       if (
         (!relatedTarget || !e.currentTarget.contains(relatedTarget)) &&
-        e.dataTransfer.effectAllowed !== "move"
+        e.dataTransfer.effectAllowed !== 'move'
       ) {
-        setSelected(false);
+        setSelected(false)
       }
     },
-  };
+  }
 
   const mediaProps = {
     ...styleProps,
     ...(isEmbed ? {} : dragProps),
     onHoverIn: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
-      if (onHoverIn) onHoverIn();
-      setHover(true);
+      if (onHoverIn) onHoverIn()
+      setHover(true)
     },
     onHoverOut: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
-      if (onHoverOut) onHoverOut(e);
-      setHover(false);
+      if (onHoverOut) onHoverOut(e)
+      setHover(false)
     },
     outlineWidth: 0,
-  };
+  }
 
   return (
     <YStack
@@ -167,19 +167,19 @@ export const MediaContainer = ({
         //   e.preventDefault()
         //   return
         // }
-        e.stopPropagation();
-        editor.sideMenu.blockDragStart(e);
+        e.stopPropagation()
+        editor.sideMenu.blockDragStart(e)
       }}
       onDragEnd={(e: any) => {
-        e.stopPropagation();
-        editor.sideMenu.blockDragEnd();
+        e.stopPropagation()
+        editor.sideMenu.blockDragEnd()
       }}
       onPress={
         onPress
           ? (e: MouseEvent) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onPress(e);
+              e.preventDefault()
+              e.stopPropagation()
+              onPress(e)
             }
           : undefined
       }
@@ -199,7 +199,7 @@ export const MediaContainer = ({
             backgroundColor="$backgroundColor"
             borderWidth={2}
             borderRadius="$2"
-            borderColor={"$color8"}
+            borderColor={'$color8'}
           >
             <Text fontFamily="$mono" fontSize="$3" zIndex={2}>
               Drop to replace
@@ -216,7 +216,7 @@ export const MediaContainer = ({
       ) : null}
       <YStack
         // backgroundColor={selected ? '$color4' : '$color3'}
-        borderColor={selected ? "$color8" : "$colorTransparent"}
+        borderColor={selected ? '$color8' : '$colorTransparent'}
         borderWidth={3}
         borderRadius="$2"
         // hoverStyle={{
@@ -229,7 +229,7 @@ export const MediaContainer = ({
         group="item"
         maxWidth="100%"
       >
-        {(hover || selected) && mediaType !== "embed"
+        {(hover || selected) && mediaType !== 'embed'
           ? editor.isEditable && (
               <Button
                 position="absolute"
@@ -241,11 +241,11 @@ export const MediaContainer = ({
                 onPress={() =>
                   assign({
                     props: {
-                      url: "",
-                      name: "",
-                      size: "0",
+                      url: '',
+                      name: '',
+                      size: '0',
                       width:
-                        mediaType === "image"
+                        mediaType === 'image'
                           ? editor.domElement.firstElementChild!.clientWidth
                           : undefined,
                     },
@@ -255,7 +255,7 @@ export const MediaContainer = ({
                   } as MediaType)
                 }
                 hoverStyle={{
-                  backgroundColor: "$backgroundHover",
+                  backgroundColor: '$backgroundHover',
                 }}
               >
                 replace
@@ -264,7 +264,7 @@ export const MediaContainer = ({
           : null}
         {children}
       </YStack>
-      {mediaType === "image" && <InlineContent className="image-caption" />}
+      {mediaType === 'image' && <InlineContent className="image-caption" />}
     </YStack>
-  );
-};
+  )
+}

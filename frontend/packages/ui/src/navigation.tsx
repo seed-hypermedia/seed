@@ -14,14 +14,14 @@ import {
   normalizeDate,
   UnpackedHypermediaId,
   useRouteLink,
-} from "@shm/shared";
-import {GestureReponderEvent, useMedia} from "@tamagui/web";
-import {ReactNode, useLayoutEffect, useMemo} from "react";
-import {XStack, YStack} from "tamagui";
-import {HMIcon} from "./hm-icon";
-import {SmallCollapsableListItem, SmallListItem} from "./list-item";
-import {Popover} from "./TamaguiPopover";
-import {usePopoverState} from "./use-popover-state";
+} from '@shm/shared'
+import {GestureReponderEvent, useMedia} from '@tamagui/web'
+import {ReactNode, useLayoutEffect, useMemo} from 'react'
+import {XStack, YStack} from 'tamagui'
+import {HMIcon} from './hm-icon'
+import {SmallCollapsableListItem, SmallListItem} from './list-item'
+import {Popover} from './TamaguiPopover'
+import {usePopoverState} from './use-popover-state'
 
 export function DocumentSmallListItem({
   metadata,
@@ -33,20 +33,20 @@ export function DocumentSmallListItem({
   isDraft,
   isPublished,
 }: {
-  metadata?: HMMetadata;
-  id: UnpackedHypermediaId;
-  indented?: number;
-  items?: null | ReactNode;
-  active?: boolean;
-  onPress?: () => void;
-  isDraft?: boolean;
-  isPublished?: boolean;
+  metadata?: HMMetadata
+  id: UnpackedHypermediaId
+  indented?: number
+  items?: null | ReactNode
+  active?: boolean
+  onPress?: () => void
+  isDraft?: boolean
+  isPublished?: boolean
 }) {
-  const route: NavRoute = isDraft ? {key: "draft", id} : {key: "document", id};
-  const linkProps = useRouteLink(route);
-  const color = isPublished === false ? "$color11" : undefined;
-  const backgroundColor = isDraft ? "$yellow3" : undefined;
-  const hoverBackgroundColor = isDraft ? "$yellow4" : "$color4";
+  const route: NavRoute = isDraft ? {key: 'draft', id} : {key: 'document', id}
+  const linkProps = useRouteLink(route)
+  const color = isPublished === false ? '$color11' : undefined
+  const backgroundColor = isDraft ? '$yellow3' : undefined
+  const hoverBackgroundColor = isDraft ? '$yellow4' : '$color4'
   if (items)
     return (
       <SmallCollapsableListItem
@@ -61,13 +61,13 @@ export function DocumentSmallListItem({
         active={active}
         {...linkProps}
         onPress={(e) => {
-          onPress?.();
-          linkProps.onPress?.(e);
+          onPress?.()
+          linkProps.onPress?.(e)
         }}
       >
         {items}
       </SmallCollapsableListItem>
-    );
+    )
   return (
     <SmallListItem
       multiline
@@ -82,16 +82,16 @@ export function DocumentSmallListItem({
       active={active}
       {...linkProps}
     />
-  );
+  )
 }
 
 export type SiteNavigationDocument = {
-  metadata: HMMetadata;
-  isDraft: boolean;
-  isPublished: boolean;
-  sortTime: Date;
-  id: UnpackedHypermediaId;
-};
+  metadata: HMMetadata
+  isDraft: boolean
+  isPublished: boolean
+  sortTime: Date
+  id: UnpackedHypermediaId
+}
 
 export function getSiteNavDirectory({
   id,
@@ -99,27 +99,29 @@ export function getSiteNavDirectory({
   drafts,
   what,
 }: {
-  id: UnpackedHypermediaId;
-  supportQueries?: HMQueryResult[];
-  drafts?: HMListedDraft[];
-  what?: boolean;
+  id: UnpackedHypermediaId
+  supportQueries?: HMQueryResult[]
+  drafts?: HMListedDraft[]
+  what?: boolean
 }): SiteNavigationDocument[] {
   const directory = supportQueries?.find(
     (query) =>
       query.in.uid === id.uid &&
-      (query.in.path || []).join("/") === (id.path || []).join("/")
-  );
+      (query.in.path || []).join('/') === (id.path || []).join('/'),
+  )
   const directoryDrafts = drafts?.filter(
     (draft) =>
       !!draft.id.path &&
-      draft.id.path.join("/").startsWith(id.path ? id.path.join("/") : "") &&
-      draft.id.path.length === (id.path?.length || 0) + 1
-  );
-  const idPath = id.path || [];
+      draft.id.path.join('/').startsWith(id.path ? id.path.join('/') : '') &&
+      draft.id.path.length === (id.path?.length || 0) + 1,
+  )
+  const idPath = id.path || []
   const publishedIds = new Set(
-    directory?.results.map((doc) => hmId("d", doc.account, {path: doc.path}).id)
-  );
-  const draftIds = new Set(directoryDrafts?.map((draft) => draft.id.id));
+    directory?.results.map(
+      (doc) => hmId('d', doc.account, {path: doc.path}).id,
+    ),
+  )
+  const draftIds = new Set(directoryDrafts?.map((draft) => draft.id.id))
   const unpublishedDraftItems: SiteNavigationDocument[] =
     directoryDrafts
       ?.filter((draft) => !publishedIds.has(draft.id.id))
@@ -129,39 +131,39 @@ export function getSiteNavDirectory({
         sortTime: new Date(draft.lastUpdateTime),
         isDraft: true,
         isPublished: false,
-      })) || [];
+      })) || []
   const publishedItems: SiteNavigationDocument[] =
     directory?.results
       ?.filter((doc) => {
         return (
-          (doc.path || []).join("/").startsWith(idPath.join("/")) &&
+          (doc.path || []).join('/').startsWith(idPath.join('/')) &&
           idPath.length === (doc.path || []).length - 1
-        );
+        )
       })
       ?.map((item) => {
-        const id = hmId("d", item.account, {path: item.path});
-        const sortTime = normalizeDate(item.createTime);
-        if (!sortTime) return null;
+        const id = hmId('d', item.account, {path: item.path})
+        const sortTime = normalizeDate(item.createTime)
+        if (!sortTime) return null
         return {
           id,
           metadata: item.metadata,
           sortTime,
           isDraft: draftIds.has(id.id),
           isPublished: true,
-        };
+        }
       })
-      ?.filter((item) => !!item) || [];
+      ?.filter((item) => !!item) || []
   unpublishedDraftItems
     .sort((a, b) => b.sortTime.getTime() - a.sortTime.getTime())
-    .reverse();
+    .reverse()
   publishedItems
     .sort((a, b) => b.sortTime.getTime() - a.sortTime.getTime())
-    .reverse();
+    .reverse()
   const directoryItems: SiteNavigationDocument[] = [
     ...publishedItems,
     ...unpublishedDraftItems,
-  ];
-  return directoryItems;
+  ]
+  return directoryItems
 }
 
 // export function SiteNavigationContent({
@@ -204,19 +206,19 @@ export function DocDirectory({
   onPress,
   drafts,
 }: {
-  supportQueries?: HMQueryResult[];
-  id: UnpackedHypermediaId;
-  createDirItem?: ((opts: {indented: number}) => ReactNode) | null;
-  onPress?: () => void;
-  drafts?: HMListedDraft[];
+  supportQueries?: HMQueryResult[]
+  id: UnpackedHypermediaId
+  createDirItem?: ((opts: {indented: number}) => ReactNode) | null
+  onPress?: () => void
+  drafts?: HMListedDraft[]
 }) {
-  const directoryItems = getSiteNavDirectory({id, supportQueries, drafts});
+  const directoryItems = getSiteNavDirectory({id, supportQueries, drafts})
   return (
     <YStack gap="$2.5">
       {directoryItems
         ? directoryItems.map((doc) => (
             <DocumentSmallListItem
-              key={doc.id.path?.join("/") || doc.id.id}
+              key={doc.id.path?.join('/') || doc.id.id}
               metadata={doc.metadata}
               id={doc.id}
               onPress={onPress}
@@ -228,7 +230,7 @@ export function DocDirectory({
         : null}
       {createDirItem?.({indented: 0})}
     </YStack>
-  );
+  )
 }
 
 export function DocumentOutline({
@@ -241,22 +243,22 @@ export function DocumentOutline({
   activeBlockId,
   onCloseNav,
 }: {
-  document: HMDocument;
-  indented?: number;
-  onActivateBlock: (blockId: string) => void;
-  onPress?: () => void;
-  id: UnpackedHypermediaId;
-  supportDocuments?: HMEntityContent[];
-  activeBlockId: string | null;
-  onCloseNav?: () => void;
+  document: HMDocument
+  indented?: number
+  onActivateBlock: (blockId: string) => void
+  onPress?: () => void
+  id: UnpackedHypermediaId
+  supportDocuments?: HMEntityContent[]
+  activeBlockId: string | null
+  onCloseNav?: () => void
 }) {
   const outline = useMemo(() => {
-    return getNodesOutline(document.content, id, supportDocuments);
-  }, [id, document.content, supportDocuments]);
+    return getNodesOutline(document.content, id, supportDocuments)
+  }, [id, document.content, supportDocuments])
   return outline.map((node) => {
     const outlineProps = useRouteLink(
       {
-        key: "document",
+        key: 'document',
         id: {
           ...id,
           blockRef: node.id,
@@ -266,8 +268,8 @@ export function DocumentOutline({
       undefined,
       {
         replace: true,
-      }
-    );
+      },
+    )
     return (
       <OutlineNode
         node={node}
@@ -280,8 +282,8 @@ export function DocumentOutline({
         outlineProps={outlineProps}
         docId={id}
       />
-    );
-  });
+    )
+  })
 }
 
 export function DraftOutline({
@@ -292,16 +294,16 @@ export function DraftOutline({
   indented,
   onPress,
 }: {
-  draft: HMDraft;
-  id: UnpackedHypermediaId;
-  supportDocuments: HMEntityContent[];
-  onActivateBlock: (blockId: string) => void;
-  indented?: number;
-  onPress?: () => void;
+  draft: HMDraft
+  id: UnpackedHypermediaId
+  supportDocuments: HMEntityContent[]
+  onActivateBlock: (blockId: string) => void
+  indented?: number
+  onPress?: () => void
 }) {
   const outline = useMemo(() => {
-    return getDraftNodesOutline(draft.content, id, supportDocuments);
-  }, [id, draft.content, supportDocuments]);
+    return getDraftNodesOutline(draft.content, id, supportDocuments)
+  }, [id, draft.content, supportDocuments])
   return outline.map((node) => (
     <OutlineNode
       node={node}
@@ -312,7 +314,7 @@ export function DraftOutline({
       activeBlockId={null}
       docId={id}
     />
-  ));
+  ))
 }
 
 function OutlineNode({
@@ -325,14 +327,14 @@ function OutlineNode({
   outlineProps,
   docId,
 }: {
-  node: NodeOutline;
-  indented?: number;
-  activeBlockId: string | null;
-  onActivateBlock: (blockId: string) => void;
-  onPress?: () => void;
-  onCloseNav?: () => void;
-  outlineProps?: any;
-  docId: UnpackedHypermediaId;
+  node: NodeOutline
+  indented?: number
+  activeBlockId: string | null
+  onActivateBlock: (blockId: string) => void
+  onPress?: () => void
+  onCloseNav?: () => void
+  outlineProps?: any
+  docId: UnpackedHypermediaId
 }) {
   return (
     <>
@@ -344,20 +346,20 @@ function OutlineNode({
         title={node.title}
         indented={indented}
         onPress={(e: GestureReponderEvent) => {
-          e.preventDefault();
+          e.preventDefault()
           if (outlineProps.onPress) {
-            outlineProps.onPress(e);
+            outlineProps.onPress(e)
           }
-          onPress?.();
-          onCloseNav?.();
-          onActivateBlock(node.id);
+          onPress?.()
+          onCloseNav?.()
+          onActivateBlock(node.id)
         }}
       />
       {node.children?.length
         ? node.children.map((child) => {
             const childOutlineProps = useRouteLink(
               {
-                key: "document",
+                key: 'document',
                 id: {
                   ...docId,
                   blockRef: child.id,
@@ -367,8 +369,8 @@ function OutlineNode({
               undefined,
               {
                 replace: true,
-              }
-            );
+              },
+            )
             return (
               <OutlineNode
                 node={child}
@@ -381,25 +383,25 @@ function OutlineNode({
                 outlineProps={childOutlineProps}
                 docId={docId}
               />
-            );
+            )
           })
         : null}
     </>
-  );
+  )
 }
 
 export function SiteNavigationWrapper({children}: {children: ReactNode}) {
-  const popoverState = usePopoverState();
-  const media = useMedia();
+  const popoverState = usePopoverState()
+  const media = useMedia()
   useLayoutEffect(() => {
     if (media.gtSm && popoverState.open) {
-      popoverState.onOpenChange(false);
+      popoverState.onOpenChange(false)
     }
-  }, [media.gtSm]);
+  }, [media.gtSm])
 
   return (
     <>
-      <YStack $gtSm={{display: "none"}}>
+      <YStack $gtSm={{display: 'none'}}>
         <Popover placement="right" {...popoverState}>
           <Popover.Trigger
             opacity={popoverState.open ? 0 : 1}
@@ -437,7 +439,7 @@ export function SiteNavigationWrapper({children}: {children: ReactNode}) {
       <YStack
         className="hide-scrollbar"
         display="none"
-        $gtSm={{display: "flex"}}
+        $gtSm={{display: 'flex'}}
         overflow="scroll"
         height="100%"
         // paddingVertical="$4"
@@ -445,5 +447,5 @@ export function SiteNavigationWrapper({children}: {children: ReactNode}) {
         {children}
       </YStack>
     </>
-  );
+  )
 }

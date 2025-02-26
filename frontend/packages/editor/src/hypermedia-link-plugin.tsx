@@ -1,8 +1,8 @@
 // import {loadWebLinkMeta} from '@/models/web-links'
-import {EditorView} from "@tiptap/pm/view";
-import {Plugin, PluginKey} from "prosemirror-state";
+import {EditorView} from '@tiptap/pm/view'
+import {Plugin, PluginKey} from 'prosemirror-state'
 
-export const hypermediaPluginKey = new PluginKey("hypermedia-link");
+export const hypermediaPluginKey = new PluginKey('hypermedia-link')
 
 // TODO: use `createX` function instead of just exporting the plugin
 export function createHypermediaDocLinkPlugin({}: {}) {
@@ -11,68 +11,68 @@ export function createHypermediaDocLinkPlugin({}: {}) {
     view(editorView) {
       return {
         update(view, prevState) {
-          let state = plugin.getState(view.state);
+          let state = plugin.getState(view.state)
           if (state?.size && state?.size > 0) {
             if (state) {
               for (const entry of state) {
-                checkHyperLink(view, entry);
+                checkHyperLink(view, entry)
               }
             }
           }
         },
-      };
+      }
     },
     state: {
       init() {
-        return new Map();
+        return new Map()
       },
       apply(tr, map, oldState, newState) {
-        let removeKey: string = tr.getMeta("hmPlugin:removeId");
+        let removeKey: string = tr.getMeta('hmPlugin:removeId')
         if (removeKey) {
-          map.delete(removeKey);
+          map.delete(removeKey)
         }
-        if (!tr.docChanged) return map;
-        let linkId = tr.getMeta("hmPlugin:uncheckedLink");
-        if (!linkId) return map;
+        if (!tr.docChanged) return map
+        let linkId = tr.getMeta('hmPlugin:uncheckedLink')
+        if (!linkId) return map
         let markStep = tr.steps.find((step) => {
-          if (step.jsonID == "addMark") {
-            let mark = step.toJSON().mark;
-            if (mark.type == "link" && mark.attrs.id == linkId) {
-              return true;
+          if (step.jsonID == 'addMark') {
+            let mark = step.toJSON().mark
+            if (mark.type == 'link' && mark.attrs.id == linkId) {
+              return true
             }
           }
-          return false;
-        });
+          return false
+        })
 
-        if (!markStep) return map;
-        let mark = markStep.toJSON().mark;
-        map.set(mark.attrs.id, mark.attrs.href);
-        return map;
+        if (!markStep) return map
+        let mark = markStep.toJSON().mark
+        map.set(mark.attrs.id, mark.attrs.href)
+        return map
       },
     },
-  });
+  })
 
   return {
     plugin,
-  };
+  }
 }
 
 async function checkHyperLink(
   view: EditorView,
-  entry: [key: string, value: string]
+  entry: [key: string, value: string],
 ): Promise<
   | {
-      documentId: string;
-      versionId?: string;
-      blockId?: string;
+      documentId: string
+      versionId?: string
+      blockId?: string
     }
   | undefined
 > {
-  let [id, entryUrl] = entry;
-  if (!entryUrl) return;
-  view.dispatch(view.state.tr.setMeta("hmPlugin:removeId", id));
+  let [id, entryUrl] = entry
+  if (!entryUrl) return
+  view.dispatch(view.state.tr.setMeta('hmPlugin:removeId', id))
   try {
-    console.log("checkHyperLink", id, entryUrl);
+    console.log('checkHyperLink', id, entryUrl)
     // let res = await loadWebLinkMeta(entryUrl)
     // if (res && res.hmId) {
     //   const fullHmId = hmIdWithVersion(
@@ -97,8 +97,8 @@ async function checkHyperLink(
     //   })
     // }
   } catch (error) {
-    console.error(`Editor: hm-link check error: ${error}`);
+    console.error(`Editor: hm-link check error: ${error}`)
   }
 
-  return;
+  return
 }

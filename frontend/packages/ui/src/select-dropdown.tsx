@@ -1,5 +1,5 @@
-import {Check, ChevronDown, ChevronUp} from "@tamagui/lucide-icons";
-import {ReactNode} from "react";
+import {Check, ChevronDown, ChevronUp} from '@tamagui/lucide-icons'
+import {ReactNode} from 'react'
 import {
   Select,
   SizableText,
@@ -7,32 +7,32 @@ import {
   XStack,
   XStackProps,
   YStack,
-} from "tamagui";
+} from 'tamagui'
 
 export type SelectOptions = Array<{
-  label: string;
-  value: string;
-  icon?: ReactNode;
-}>;
+  label: string
+  value: string
+  icon?: ReactNode
+}>
 
 export type SelectDropdownProps<Options extends SelectOptions> = {
-  options: Options;
-  value: Options[number]["value"];
-  onValue: (value: Options[number]["value"]) => void;
-  size?: SizeTokens;
-  placeholder?: string;
-  width?: XStackProps["width"];
-};
+  options: Options
+  value: Options[number]['value']
+  onValue: (value: Options[number]['value']) => void
+  size?: SizeTokens
+  placeholder?: string
+  width?: XStackProps['width']
+}
 
 export function SelectDropdown<Options extends SelectOptions>({
   options,
   value,
   onValue,
   size,
-  placeholder = "Select...",
+  placeholder = 'Select...',
   width = 140,
 }: SelectDropdownProps<Options>) {
-  const selectedOption = options.find((option) => option.value === value);
+  const selectedOption = options.find((option) => option.value === value)
   return (
     <Select
       value={value}
@@ -106,7 +106,7 @@ export function SelectDropdown<Options extends SelectOptions>({
                   <Check size={16} />
                 </Select.ItemIndicator>
               </Select.Item>
-            );
+            )
           })}
         </Select.Viewport>
 
@@ -123,5 +123,5 @@ export function SelectDropdown<Options extends SelectOptions>({
         </Select.ScrollDownButton>
       </Select.Content>
     </Select>
-  );
+  )
 }

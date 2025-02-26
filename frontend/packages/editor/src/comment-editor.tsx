@@ -1,29 +1,29 @@
-import {writeableStateStream} from "@shm/shared";
-import {HMBlockNode} from "@shm/shared/hm-types";
-import {queryClient} from "@shm/shared/models/query-client";
-import {Button} from "@shm/ui/button";
-import {Trash} from "@shm/ui/icons";
-import {Tooltip} from "@shm/ui/tooltip";
-import {XStack, YStack} from "@tamagui/stacks";
-import {Extension} from "@tiptap/core";
-import {BlockNoteEditor, useBlockNote} from "./blocknote";
-import {HyperMediaEditorView} from "./editor-view";
-import {createHypermediaDocLinkPlugin} from "./hypermedia-link-plugin";
-import {hmBlockSchema} from "./schema";
-import {slashMenuItems} from "./slash-menu-items";
-import {serverBlockNodesFromEditorBlocks} from "./utils";
+import {writeableStateStream} from '@shm/shared'
+import {HMBlockNode} from '@shm/shared/hm-types'
+import {queryClient} from '@shm/shared/models/query-client'
+import {Button} from '@shm/ui/button'
+import {Trash} from '@shm/ui/icons'
+import {Tooltip} from '@shm/ui/tooltip'
+import {XStack, YStack} from '@tamagui/stacks'
+import {Extension} from '@tiptap/core'
+import {BlockNoteEditor, useBlockNote} from './blocknote'
+import {HyperMediaEditorView} from './editor-view'
+import {createHypermediaDocLinkPlugin} from './hypermedia-link-plugin'
+import {hmBlockSchema} from './schema'
+import {slashMenuItems} from './slash-menu-items'
+import {serverBlockNodesFromEditorBlocks} from './utils'
 
 export default function CommentEditor({
   onDiscardDraft,
   submitButton,
 }: {
-  onDiscardDraft?: () => void;
+  onDiscardDraft?: () => void
   submitButton: (opts: {
-    reset: () => void;
-    getContent: () => HMBlockNode[];
-  }) => JSX.Element;
+    reset: () => void
+    getContent: () => HMBlockNode[]
+  }) => JSX.Element
 }) {
-  const {editor} = useCommentEditor();
+  const {editor} = useCommentEditor()
   return (
     <YStack gap="$3">
       <YStack
@@ -33,8 +33,8 @@ export default function CommentEditor({
         bg="$color4"
         paddingHorizontal="$4"
         onPress={(e: MouseEvent) => {
-          e.stopPropagation();
-          editor._tiptapEditor.commands.focus();
+          e.stopPropagation()
+          editor._tiptapEditor.commands.focus()
         }}
         gap="$4"
         paddingBottom="$2"
@@ -54,27 +54,27 @@ export default function CommentEditor({
         ) : null}
         {submitButton({
           reset: () => {
-            editor.removeBlocks(editor.topLevelBlocks);
+            editor.removeBlocks(editor.topLevelBlocks)
           },
           getContent: () => {
             const blocks = serverBlockNodesFromEditorBlocks(
               editor,
-              editor.topLevelBlocks
-            );
+              editor.topLevelBlocks,
+            )
             const commentContent = blocks.map((block) =>
-              block.toJson()
-            ) as HMBlockNode[];
-            return commentContent;
+              block.toJson(),
+            ) as HMBlockNode[]
+            return commentContent
           },
         })}
       </XStack>
     </YStack>
-  );
+  )
 }
 
 const [setGwUrl, gwUrl] = writeableStateStream<string | null>(
-  "https://hyper.media"
-);
+  'https://hyper.media',
+)
 
 export function useCommentEditor() {
   const editor = useBlockNote<typeof hmBlockSchema>({
@@ -96,7 +96,7 @@ export function useCommentEditor() {
     // },
     blockSchema: hmBlockSchema,
     slashMenuItems: slashMenuItems.filter(
-      (item) => !["Nostr", "Query"].includes(item.name)
+      (item) => !['Nostr', 'Query'].includes(item.name),
     ),
     // onMentionsQuery: (query: string) => {
     //   inlineMentionsQuery(query);
@@ -104,16 +104,16 @@ export function useCommentEditor() {
     _tiptapOptions: {
       extensions: [
         Extension.create({
-          name: "hypermedia-link",
+          name: 'hypermedia-link',
           addProseMirrorPlugins() {
-            return [createHypermediaDocLinkPlugin({}).plugin];
+            return [createHypermediaDocLinkPlugin({}).plugin]
           },
         }),
       ],
     },
-  });
+  })
 
   return {
     editor,
-  };
+  }
 }

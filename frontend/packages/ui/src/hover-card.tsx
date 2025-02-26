@@ -1,12 +1,12 @@
-import {Popover} from "./TamaguiPopover";
-import {dialogBoxShadow} from "./universal-dialog";
+import {Popover} from './TamaguiPopover'
+import {dialogBoxShadow} from './universal-dialog'
 
 export function HoverCard({
   children,
   content,
 }: {
-  children: React.ReactNode;
-  content: React.ReactNode;
+  children: React.ReactNode
+  content: React.ReactNode
 }) {
   return (
     <Popover hoverable placement="bottom-start">
@@ -27,5 +27,5 @@ export function HoverCard({
         {content}
       </Popover.Content>
     </Popover>
-  );
+  )
 }

@@ -1,4 +1,4 @@
-import {Variable} from "@tamagui/web";
+import {Variable} from '@tamagui/web'
 
 import {
   blue,
@@ -19,7 +19,7 @@ import {
   redDark,
   yellow,
   yellowDark,
-} from "./colors";
+} from './colors'
 
 export {
   darkColor,
@@ -28,7 +28,7 @@ export {
   lightColor,
   lightPalette,
   lightTransparent,
-} from "./colors";
+} from './colors'
 
 export const colorTokens = {
   light: {
@@ -54,7 +54,7 @@ export const colorTokens = {
     yellow: yellowDark,
     brand: brandDark,
   },
-};
+}
 
 export const darkColors = {
   ...colorTokens.dark.blue,
@@ -66,7 +66,7 @@ export const darkColors = {
   ...colorTokens.dark.red,
   ...colorTokens.dark.yellow,
   ...colorTokens.dark.brand,
-};
+}
 
 export const lightColors = {
   ...colorTokens.light.blue,
@@ -78,25 +78,25 @@ export const lightColors = {
   ...colorTokens.light.red,
   ...colorTokens.light.yellow,
   ...colorTokens.light.brand,
-};
+}
 
 export const color = {
-  ...postfixObjKeys(lightColors, "Light"),
-  ...postfixObjKeys(darkColors, "Dark"),
-};
+  ...postfixObjKeys(lightColors, 'Light'),
+  ...postfixObjKeys(darkColors, 'Dark'),
+}
 
 function postfixObjKeys<
   A extends {[key: string]: Variable<string> | string},
   B extends string,
 >(
   obj: A,
-  postfix: B
+  postfix: B,
 ): {
   [Key in `${keyof A extends string ? keyof A : never}${B}`]:
     | Variable<string>
-    | string;
+    | string
 } {
   return Object.fromEntries(
-    Object.entries(obj).map(([k, v]) => [`${k}${postfix}`, v])
-  ) as never;
+    Object.entries(obj).map(([k, v]) => [`${k}${postfix}`, v]),
+  ) as never
 }

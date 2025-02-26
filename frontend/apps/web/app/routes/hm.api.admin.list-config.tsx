@@ -1,25 +1,25 @@
-import {adminSecret, getServiceConfig} from "@/site-config";
-import {ActionFunction, json} from "@remix-run/node";
-import {z} from "zod";
+import {adminSecret, getServiceConfig} from '@/site-config'
+import {ActionFunction, json} from '@remix-run/node'
+import {z} from 'zod'
 
 const listConfigSchema = z
   .object({
     adminSecret: z.string(),
   })
-  .strict();
+  .strict()
 
 export const action: ActionFunction = async ({request}) => {
-  if (request.method !== "POST") {
-    return json({message: "Method not allowed"}, {status: 405});
+  if (request.method !== 'POST') {
+    return json({message: 'Method not allowed'}, {status: 405})
   }
-  const data = await request.json();
-  const payload = listConfigSchema.parse(data);
+  const data = await request.json()
+  const payload = listConfigSchema.parse(data)
   if (payload.adminSecret !== adminSecret || !adminSecret) {
-    return json({message: "Invalid admin secret"}, {status: 401});
+    return json({message: 'Invalid admin secret'}, {status: 401})
   }
-  const serviceConfig = await getServiceConfig();
+  const serviceConfig = await getServiceConfig()
   if (!serviceConfig) {
-    return json({message: "Service config not found"}, {status: 404});
+    return json({message: 'Service config not found'}, {status: 404})
   }
-  return json(serviceConfig);
-};
+  return json(serviceConfig)
+}

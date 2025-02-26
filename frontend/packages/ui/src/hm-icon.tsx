@@ -1,26 +1,26 @@
-import {HMMetadata, UnpackedHypermediaId} from "@shm/shared";
-import {useImageUrl} from "@shm/ui/get-file-url";
-import {Button} from "@tamagui/button";
-import {AlertCircle} from "@tamagui/lucide-icons";
-import {YStack} from "@tamagui/stacks";
-import {memo} from "react";
-import {UIAvatar, UIAvatarProps} from "./avatar";
-import {Tooltip} from "./tooltip";
+import {HMMetadata, UnpackedHypermediaId} from '@shm/shared'
+import {useImageUrl} from '@shm/ui/get-file-url'
+import {Button} from '@tamagui/button'
+import {AlertCircle} from '@tamagui/lucide-icons'
+import {YStack} from '@tamagui/stacks'
+import {memo} from 'react'
+import {UIAvatar, UIAvatarProps} from './avatar'
+import {Tooltip} from './tooltip'
 
-export const HMIcon = memo(_HMIcon);
+export const HMIcon = memo(_HMIcon)
 
 function _HMIcon({
   id,
   metadata,
   size = 32,
   ...props
-}: Omit<UIAvatarProps, "id"> & {
-  id: UnpackedHypermediaId;
-  metadata?: HMMetadata | null;
-  size?: number;
+}: Omit<UIAvatarProps, 'id'> & {
+  id: UnpackedHypermediaId
+  metadata?: HMMetadata | null
+  size?: number
 }) {
-  const imageUrl = useImageUrl();
-  if (!id) return null;
+  const imageUrl = useImageUrl()
+  if (!id) return null
 
   return (
     <UIAvatar
@@ -28,13 +28,13 @@ function _HMIcon({
       // id={id.path?.at(-1) || id.uid.slice(2)}
       id={id.id}
       label={metadata?.name}
-      url={metadata?.icon ? imageUrl(metadata.icon, "S") : undefined}
+      url={metadata?.icon ? imageUrl(metadata.icon, 'S') : undefined}
       borderRadius={id.path && id.path.length != 0 ? size / 8 : undefined}
       flexShrink={0}
       flexGrow={0}
       {...props}
     />
-  );
+  )
 }
 
 export function LinkIcon({
@@ -43,18 +43,18 @@ export function LinkIcon({
   size,
   error,
 }: {
-  id: UnpackedHypermediaId;
-  metadata?: HMMetadata | null;
-  size?: number;
-  error?: boolean;
+  id: UnpackedHypermediaId
+  metadata?: HMMetadata | null
+  size?: number
+  error?: boolean
 }) {
-  const linkProps = useRouteLink({key: "document", id});
+  const linkProps = useRouteLink({key: 'document', id})
   let content = (
     <>
       <HMIcon id={id} size={size} metadata={metadata} />
       <ErrorDot error={error} />
     </>
-  );
+  )
 
   return (
     <Tooltip
@@ -67,7 +67,7 @@ export function LinkIcon({
         className="no-window-drag"
         size="$1"
         backgroundColor="transparent"
-        hoverStyle={{backgroundColor: "transparent"}}
+        hoverStyle={{backgroundColor: 'transparent'}}
         minWidth={20}
         minHeight={20}
         padding={0}
@@ -78,7 +78,7 @@ export function LinkIcon({
         {content}
       </Button>
     </Tooltip>
-  );
+  )
 }
 
 export function ErrorDot({error}: {error?: boolean}) {
@@ -97,5 +97,5 @@ export function ErrorDot({error}: {error?: boolean}) {
     >
       <AlertCircle size={16} />
     </YStack>
-  ) : null;
+  ) : null
 }

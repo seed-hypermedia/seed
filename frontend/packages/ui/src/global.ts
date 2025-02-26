@@ -1,14 +1,14 @@
 // @ts-nocheck
-import {config} from "./tamagui.config";
+import {config} from './tamagui.config'
 
-export type Conf = typeof config;
+export type Conf = typeof config
 
-declare module "tamagui" {
+declare module 'tamagui' {
   interface TamaguiCustomConfig extends Conf {}
 
   interface TypeOverride {
-    groupNames(): "header" | "item" | "blocknode" | "pathitem" | "icon";
+    groupNames(): 'header' | 'item' | 'blocknode' | 'pathitem' | 'icon'
   }
 }
 
-export default config;
+export default config

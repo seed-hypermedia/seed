@@ -19,15 +19,15 @@ export async function checkWebUrl(url: string) {
 
 export async function resolveHypermediaUrl(url: string) {
   const response = await fetch(url, {
-    method: "OPTIONS",
-  });
+    method: 'OPTIONS',
+  })
   if (response.status === 200) {
-    const id = response.headers.get("x-hypermedia-id");
-    const version = response.headers.get("x-hypermedia-version");
-    const title = response.headers.get("x-hypermedia-title");
+    const id = response.headers.get('x-hypermedia-id')
+    const version = response.headers.get('x-hypermedia-version')
+    const title = response.headers.get('x-hypermedia-title')
     if (id && version) {
-      return {id, version, title};
+      return {id, version, title}
     }
   }
-  return null;
+  return null
 }

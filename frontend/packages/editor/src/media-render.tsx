@@ -1,102 +1,102 @@
-import {MultipleNodeSelection} from "@/blocknote/core/extensions/SideMenu/MultipleNodeSelection";
-import {useEditorSelectionChange} from "@/blocknote/react/hooks/useEditorSelectionChange";
-import {MaxFileSizeB, MaxFileSizeMB} from "@/file";
-import {HMBlockSchema} from "@/schema";
-import {getNodesInSelection} from "@/utils";
-import {DAEMON_FILE_UPLOAD_URL} from "@shm/shared/constants";
-import {Button} from "@shm/ui/button";
-import {useDocContentContext} from "@shm/ui/document-content";
-import {Upload} from "@shm/ui/icons";
-import {Spinner} from "@shm/ui/spinner";
-import {Tooltip} from "@shm/ui/tooltip";
-import {XStack, YStack} from "@tamagui/stacks";
-import {NodeSelection, TextSelection} from "prosemirror-state";
+import {MultipleNodeSelection} from '@/blocknote/core/extensions/SideMenu/MultipleNodeSelection'
+import {useEditorSelectionChange} from '@/blocknote/react/hooks/useEditorSelectionChange'
+import {MaxFileSizeB, MaxFileSizeMB} from '@/file'
+import {HMBlockSchema} from '@/schema'
+import {getNodesInSelection} from '@/utils'
+import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
+import {Button} from '@shm/ui/button'
+import {useDocContentContext} from '@shm/ui/document-content'
+import {Upload} from '@shm/ui/icons'
+import {Spinner} from '@shm/ui/spinner'
+import {Tooltip} from '@shm/ui/tooltip'
+import {XStack, YStack} from '@tamagui/stacks'
+import {NodeSelection, TextSelection} from 'prosemirror-state'
 import {
   ChangeEvent,
   FunctionComponent,
   SetStateAction,
   useEffect,
   useState,
-} from "react";
-import {Input, Label, SizableText} from "tamagui";
-import {BlockNoteEditor} from "./blocknote/core/BlockNoteEditor";
-import {Block} from "./blocknote/core/extensions/Blocks/api/blockTypes";
+} from 'react'
+import {Input, Label, SizableText} from 'tamagui'
+import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
+import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 
 export type MediaType = {
-  id: string;
+  id: string
   props: {
-    url: string;
-    name: string;
-    size?: string;
-    view?: "Content" | "Card";
-    width?: string;
-  };
-  children: [];
-  content: [];
-  type: string;
-};
+    url: string
+    name: string
+    size?: string
+    view?: 'Content' | 'Card'
+    width?: string
+  }
+  children: []
+  content: []
+  type: string
+}
 
 export interface DisplayComponentProps {
-  editor: BlockNoteEditor<HMBlockSchema>;
-  block: Block<HMBlockSchema>;
-  selected: boolean;
-  setSelected: any;
-  assign?: any;
+  editor: BlockNoteEditor<HMBlockSchema>
+  block: Block<HMBlockSchema>
+  selected: boolean
+  setSelected: any
+  assign?: any
 }
 
 interface RenderProps {
-  block: Block<HMBlockSchema>;
-  editor: BlockNoteEditor<HMBlockSchema>;
-  mediaType: string;
+  block: Block<HMBlockSchema>
+  editor: BlockNoteEditor<HMBlockSchema>
+  mediaType: string
   submit?: (
     url: string,
     assign: any,
     setFileName: any,
-    setLoading: any
-  ) => Promise<void> | void | undefined;
-  icon: JSX.Element | FunctionComponent<{color?: string; size?: number}>;
-  DisplayComponent: React.ComponentType<DisplayComponentProps>;
+    setLoading: any,
+  ) => Promise<void> | void | undefined
+  icon: JSX.Element | FunctionComponent<{color?: string; size?: number}>
+  DisplayComponent: React.ComponentType<DisplayComponentProps>
   CustomInput?: React.ComponentType<{
-    editor: BlockNoteEditor<HMBlockSchema>;
-    assign: any;
-    setUrl: any;
-    fileName: any;
-    setFileName: any;
-  }>;
-  hideForm?: boolean;
+    editor: BlockNoteEditor<HMBlockSchema>
+    assign: any
+    setUrl: any
+    fileName: any
+    setFileName: any
+  }>
+  hideForm?: boolean
 }
 
 export function updateSelection(
   editor: BlockNoteEditor<HMBlockSchema>,
   block: Block<HMBlockSchema>,
-  setSelected: (selected: boolean) => void
+  setSelected: (selected: boolean) => void,
 ) {
-  const {view} = editor._tiptapEditor;
-  const {selection} = view.state;
-  let isSelected = false;
+  const {view} = editor._tiptapEditor
+  const {selection} = view.state
+  let isSelected = false
 
   if (selection instanceof NodeSelection) {
     // If the selection is a NodeSelection, check if this block is the selected node
-    const selectedNode = view.state.doc.resolve(selection.from).parent;
+    const selectedNode = view.state.doc.resolve(selection.from).parent
     if (
       selectedNode &&
       selectedNode.attrs &&
       selectedNode.attrs.id === block.id
     ) {
-      isSelected = true;
+      isSelected = true
     }
   } else if (
     selection instanceof TextSelection ||
     selection instanceof MultipleNodeSelection
   ) {
     // If it's a TextSelection or MultipleNodeSelection (TODO Fix for drag), check if this block's node is within the selection range
-    const selectedNodes = getNodesInSelection(view);
+    const selectedNodes = getNodesInSelection(view)
     isSelected = selectedNodes.some(
-      (node) => node.attrs && node.attrs.id === block.id
-    );
+      (node) => node.attrs && node.attrs.id === block.id,
+    )
   }
 
-  setSelected(isSelected);
+  setSelected(isSelected)
 }
 
 export const MediaRender: React.FC<RenderProps> = ({
@@ -109,48 +109,48 @@ export const MediaRender: React.FC<RenderProps> = ({
   icon,
   hideForm,
 }) => {
-  const [selected, setSelected] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const hasSrc = !!block.props?.src;
-  const {importWebFile} = useDocContentContext();
+  const [selected, setSelected] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const hasSrc = !!block.props?.src
+  const {importWebFile} = useDocContentContext()
 
   useEditorSelectionChange(editor, () =>
-    updateSelection(editor, block, setSelected)
-  );
+    updateSelection(editor, block, setSelected),
+  )
 
   useEffect(() => {
     if (!uploading && hasSrc) {
-      if (block.props.src.startsWith("ipfs")) {
+      if (block.props.src.startsWith('ipfs')) {
         editor.updateBlock(block, {
-          props: {url: block.props.src, src: ""},
-        });
-        return;
+          props: {url: block.props.src, src: ''},
+        })
+        return
       }
-      setUploading(true);
+      setUploading(true)
 
       importWebFile
         .mutateAsync(block.props.src)
         .then(({cid, size}: {cid: string; size: number}) => {
-          setUploading(false);
+          setUploading(false)
           editor.updateBlock(block, {
             props: {
               url: `ipfs://${cid}`,
               size: size.toString(),
-              src: "",
+              src: '',
             },
-          });
-        });
+          })
+        })
     }
-  }, [hasSrc, block, uploading, editor]);
+  }, [hasSrc, block, uploading, editor])
 
   const assignMedia = (props: MediaType) => {
     // we used to spread the current block.props into the new props, but now we just overwrite the whole thing because it was causing bugs
-    editor.updateBlock(block.id, props);
-  };
+    editor.updateBlock(block.id, props)
+  }
 
   const setSelection = (isSelected: boolean) => {
-    setSelected(isSelected);
-  };
+    setSelected(isSelected)
+  }
 
   if (hasSrc || uploading) {
     // this means we have a URL in the props.url that is not starting with `ipfs://`, which means we are uploading the image to IPFS
@@ -166,7 +166,7 @@ export const MediaRender: React.FC<RenderProps> = ({
       >
         uploading...
       </Button>
-    );
+    )
   }
 
   return (
@@ -195,8 +195,8 @@ export const MediaRender: React.FC<RenderProps> = ({
         <></>
       )}
     </YStack>
-  );
-};
+  )
+}
 
 function MediaComponent({
   block,
@@ -206,12 +206,12 @@ function MediaComponent({
   setSelected,
   DisplayComponent,
 }: {
-  block: Block<HMBlockSchema>;
-  editor: BlockNoteEditor<HMBlockSchema>;
-  assign: any;
-  selected: boolean;
-  setSelected: any;
-  DisplayComponent: React.ComponentType<DisplayComponentProps>;
+  block: Block<HMBlockSchema>
+  editor: BlockNoteEditor<HMBlockSchema>
+  assign: any
+  selected: boolean
+  setSelected: any
+  DisplayComponent: React.ComponentType<DisplayComponentProps>
 }) {
   return (
     <DisplayComponent
@@ -221,7 +221,7 @@ function MediaComponent({
       setSelected={setSelected}
       assign={assign}
     />
-  );
+  )
 }
 
 function MediaForm({
@@ -234,181 +234,181 @@ function MediaForm({
   icon,
   CustomInput,
 }: {
-  block: Block<HMBlockSchema>;
-  assign: any;
-  editor: BlockNoteEditor<HMBlockSchema>;
-  selected: boolean;
-  mediaType: string;
+  block: Block<HMBlockSchema>
+  assign: any
+  editor: BlockNoteEditor<HMBlockSchema>
+  selected: boolean
+  mediaType: string
   submit?: (
     url: string,
     assign: any,
     setFileName: any,
-    setLoading: any
-  ) => Promise<void> | void | undefined;
-  icon: JSX.Element | FunctionComponent<{color?: string; size?: number}> | null;
+    setLoading: any,
+  ) => Promise<void> | void | undefined
+  icon: JSX.Element | FunctionComponent<{color?: string; size?: number}> | null
   CustomInput?: React.ComponentType<{
-    editor: BlockNoteEditor<HMBlockSchema>;
-    assign: any;
-    setUrl: any;
-    fileName: any;
-    setFileName: any;
-  }>;
+    editor: BlockNoteEditor<HMBlockSchema>
+    assign: any
+    setUrl: any
+    fileName: any
+    setFileName: any
+  }>
 }) {
-  const [url, setUrl] = useState("");
-  const [loading, setLoading] = useState(false);
-  const isEmbed = ["embed", "web-embed"].includes(mediaType);
+  const [url, setUrl] = useState('')
+  const [loading, setLoading] = useState(false)
+  const isEmbed = ['embed', 'web-embed'].includes(mediaType)
   const [fileName, setFileName] = useState<{
-    name: string;
-    color: string | undefined;
+    name: string
+    color: string | undefined
   }>({
-    name: "Upload File",
+    name: 'Upload File',
     color: undefined,
-  });
-  const [drag, setDrag] = useState(false);
+  })
+  const [drag, setDrag] = useState(false)
   const dragProps = {
     onDrop: (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (drag) setDrag(false);
+      e.preventDefault()
+      e.stopPropagation()
+      if (drag) setDrag(false)
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        if (mediaType === "file") {
-          const files = Array.from(e.dataTransfer.files);
-          handleUpload(Array.from(files));
-          return;
+        if (mediaType === 'file') {
+          const files = Array.from(e.dataTransfer.files)
+          handleUpload(Array.from(files))
+          return
         }
-        let isMedia = true;
-        const files = Array.from(e.dataTransfer.files);
+        let isMedia = true
+        const files = Array.from(e.dataTransfer.files)
         files.forEach((file) => {
           if (!file.type.includes(`${mediaType}/`)) {
             setFileName({
               name: `File ${
                 file.name.length < 36
                   ? file.name
-                  : file.name.slice(0, 32) + "..."
-              } is not ${mediaType === "image" ? "an" : "a"} ${mediaType}.`,
-              color: "red",
-            });
-            isMedia = false;
-            return;
+                  : file.name.slice(0, 32) + '...'
+              } is not ${mediaType === 'image' ? 'an' : 'a'} ${mediaType}.`,
+              color: 'red',
+            })
+            isMedia = false
+            return
           }
-        });
-        if (isMedia) handleUpload(Array.from(files));
-        return;
+        })
+        if (isMedia) handleUpload(Array.from(files))
+        return
       }
     },
     onDragOver: (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      e.stopPropagation();
+      e.preventDefault()
+      e.stopPropagation()
     },
     onDragEnter: (e: React.DragEvent<HTMLDivElement>) => {
-      const relatedTarget = e.relatedTarget as HTMLElement;
-      e.preventDefault();
-      e.stopPropagation();
+      const relatedTarget = e.relatedTarget as HTMLElement
+      e.preventDefault()
+      e.stopPropagation()
       if (!relatedTarget || !e.currentTarget.contains(relatedTarget)) {
-        setDrag(true);
+        setDrag(true)
       }
     },
     onDragLeave: (e: React.DragEvent<HTMLDivElement>) => {
-      const relatedTarget = e.relatedTarget as HTMLElement;
-      e.preventDefault();
-      e.stopPropagation();
+      const relatedTarget = e.relatedTarget as HTMLElement
+      e.preventDefault()
+      e.stopPropagation()
       if (!relatedTarget || !e.currentTarget.contains(relatedTarget)) {
-        setDrag(false);
+        setDrag(false)
       }
     },
-  };
+  }
 
   const handleUpload = async (files: File[]) => {
-    const largeFileIndex = files.findIndex((file) => file.size > MaxFileSizeB);
+    const largeFileIndex = files.findIndex((file) => file.size > MaxFileSizeB)
     if (largeFileIndex > -1) {
-      const largeFile = files[largeFileIndex];
+      const largeFile = files[largeFileIndex]
       setFileName({
         name:
           largeFileIndex > 0
             ? `The size of ${
                 largeFile.name.length < 36
                   ? largeFile.name
-                  : largeFile.name.slice(0, 32) + "..."
+                  : largeFile.name.slice(0, 32) + '...'
               } exceeds ${MaxFileSizeMB} MB.`
             : `The file size exceeds ${MaxFileSizeMB} MB.`,
-        color: "red",
-      });
-      return;
+        color: 'red',
+      })
+      return
     }
 
-    const {name} = files[0];
-    const formData = new FormData();
-    formData.append("file", files[0]);
+    const {name} = files[0]
+    const formData = new FormData()
+    formData.append('file', files[0])
 
     try {
       const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
-        method: "POST",
+        method: 'POST',
         body: formData,
-      });
-      const data = await response.text();
+      })
+      const data = await response.text()
       assign({
         props: {
-          url: data ? `ipfs://${data}` : "",
+          url: data ? `ipfs://${data}` : '',
           name: name,
-          size: mediaType === "file" ? files[0].size.toString() : undefined,
+          size: mediaType === 'file' ? files[0].size.toString() : undefined,
         },
-      } as MediaType);
+      } as MediaType)
     } catch (error) {
-      console.error(`Editor: ${mediaType} upload error (MediaForm): ${error}`);
+      console.error(`Editor: ${mediaType} upload error (MediaForm): ${error}`)
     }
     for (let i = files.length - 1; i > 0; i--) {
-      const {name} = files[i];
-      const formData = new FormData();
-      formData.append("file", files[i]);
+      const {name} = files[i]
+      const formData = new FormData()
+      formData.append('file', files[i])
 
       try {
         const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
-          method: "POST",
+          method: 'POST',
           body: formData,
-        });
-        const data = await response.text();
+        })
+        const data = await response.text()
         assign({
           props: {
-            url: data ? `ipfs://${data}` : "",
+            url: data ? `ipfs://${data}` : '',
             name: name,
-            size: mediaType === "file" ? files[0].size.toString() : undefined,
+            size: mediaType === 'file' ? files[0].size.toString() : undefined,
           },
-        } as MediaType);
+        } as MediaType)
       } catch (error) {
         console.error(
-          `Editor: ${mediaType} upload error (MediaForm forloop): ${error}`
-        );
+          `Editor: ${mediaType} upload error (MediaForm forloop): ${error}`,
+        )
       }
     }
-    const cursorPosition = editor.getTextCursorPosition();
-    editor.focus();
+    const cursorPosition = editor.getTextCursorPosition()
+    editor.focus()
     if (cursorPosition.block.id === block.id) {
       if (cursorPosition.nextBlock)
-        editor.setTextCursorPosition(cursorPosition.nextBlock, "start");
+        editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
       else {
         editor.insertBlocks(
-          [{type: "paragraph", content: ""}],
+          [{type: 'paragraph', content: ''}],
           block.id,
-          "after"
-        );
+          'after',
+        )
         editor.setTextCursorPosition(
           editor.getTextCursorPosition().nextBlock!,
-          "start"
-        );
+          'start',
+        )
       }
     }
-  };
+  }
 
   return (
     <YStack
       position="relative"
       borderColor={
-        drag ? "$color8" : selected ? "$color8" : "$colorTransparent"
+        drag ? '$color8' : selected ? '$color8' : '$colorTransparent'
       }
       borderWidth={3}
-      backgroundColor={selected ? "$color4" : "$color4"}
+      backgroundColor={selected ? '$color4' : '$color4'}
       borderRadius="$2"
-      borderStyle={drag ? "dashed" : "solid"}
+      borderStyle={drag ? 'dashed' : 'solid'}
       outlineWidth={0}
       contentEditable={false}
       {...(isEmbed ? {} : dragProps)}
@@ -435,7 +435,7 @@ function MediaForm({
         // backgroundColor="$background"
         borderRadius="$2"
       >
-        {mediaType !== "file" ? (
+        {mediaType !== 'file' ? (
           <YStack flex={1}>
             <XStack flex={1} gap="$3" width="100%">
               {CustomInput ? (
@@ -456,28 +456,28 @@ function MediaForm({
                   height="$3"
                   width="100%"
                   placeholder={`Input ${
-                    mediaType === "web-embed" ? "X.com" : mediaType
+                    mediaType === 'web-embed' ? 'X.com' : mediaType
                   } URL here...`}
                   hoverStyle={{
-                    borderColor: "$color11",
+                    borderColor: '$color11',
                   }}
                   focusStyle={{
-                    borderColor: "$color11",
+                    borderColor: '$color11',
                   }}
                   onChange={(e: {
-                    nativeEvent: {text: SetStateAction<string>};
+                    nativeEvent: {text: SetStateAction<string>}
                   }) => {
-                    setUrl(e.nativeEvent.text);
+                    setUrl(e.nativeEvent.text)
                     if (fileName.color)
                       setFileName({
-                        name: "Upload File",
+                        name: 'Upload File',
                         color: undefined,
-                      });
+                      })
                   }}
                   autoFocus={true}
                 />
               )}
-              {["image", "video"].includes(mediaType) ? (
+              {['image', 'video'].includes(mediaType) ? (
                 <>
                   <Tooltip
                     content="Select file if the input is empty"
@@ -491,25 +491,25 @@ function MediaForm({
                       fontWeight="normal"
                       size="$3"
                       backgroundColor={
-                        fileName.color === "red" ? "$color5" : "$color7"
+                        fileName.color === 'red' ? '$color5' : '$color7'
                       }
-                      disabled={fileName.color === "red"}
+                      disabled={fileName.color === 'red'}
                       hoverStyle={
-                        fileName.color !== "red"
+                        fileName.color !== 'red'
                           ? {
-                              backgroundColor: "$color5",
+                              backgroundColor: '$color5',
                             }
-                          : {cursor: "auto"}
+                          : {cursor: 'auto'}
                       }
                       onClick={(event: any) => {
                         if (url) {
                           // Submit the form if the input is not empty
-                          submit!(url, assign, setFileName, setLoading);
+                          submit!(url, assign, setFileName, setLoading)
                         } else {
                           // Trigger the file picker dialog if input is empty
                           document
-                            .getElementById("file-upload" + block.id)
-                            ?.click();
+                            .getElementById('file-upload' + block.id)
+                            ?.click()
                         }
                       }}
                     >
@@ -520,21 +520,21 @@ function MediaForm({
                           paddingHorizontal="$3"
                         />
                       ) : (
-                        "UPLOAD"
+                        'UPLOAD'
                       )}
                     </Button>
                   </Tooltip>
                   <input
-                    id={"file-upload" + block.id}
+                    id={'file-upload' + block.id}
                     type="file"
                     multiple
-                    accept={mediaType !== "file" ? `${mediaType}/*` : undefined}
+                    accept={mediaType !== 'file' ? `${mediaType}/*` : undefined}
                     style={{
-                      display: "none",
+                      display: 'none',
                     }}
                     onChange={(event: ChangeEvent<HTMLInputElement>) => {
                       if (event.target.files) {
-                        handleUpload(Array.from(event.target.files));
+                        handleUpload(Array.from(event.target.files))
                       }
                     }}
                   />
@@ -548,19 +548,19 @@ function MediaForm({
                   fontWeight="normal"
                   size="$3"
                   backgroundColor={
-                    fileName.color === "red" ? "$color5" : "$color7"
+                    fileName.color === 'red' ? '$color5' : '$color7'
                   }
-                  disabled={fileName.color === "red"}
+                  disabled={fileName.color === 'red'}
                   hoverStyle={
-                    fileName.color !== "red"
+                    fileName.color !== 'red'
                       ? {
-                          backgroundColor: "$color5",
+                          backgroundColor: '$color5',
                         }
-                      : {cursor: "auto"}
+                      : {cursor: 'auto'}
                   }
                   onClick={(event: any) => {
                     if (url) {
-                      submit!(url, assign, setFileName, setLoading);
+                      submit!(url, assign, setFileName, setLoading)
                     }
                   }}
                 >
@@ -571,12 +571,12 @@ function MediaForm({
                       paddingHorizontal="$3"
                     />
                   ) : (
-                    "UPLOAD"
+                    'UPLOAD'
                   )}
                 </Button>
               )}
             </XStack>
-            {fileName.color && fileName.color === "red" && (
+            {fileName.color && fileName.color === 'red' && (
               <SizableText size="$2" color={fileName.color} paddingTop="$2">
                 {fileName.name}
               </SizableText>
@@ -590,14 +590,14 @@ function MediaForm({
             height="$3"
           >
             <Label
-              htmlFor={"file-upload" + block.id}
+              htmlFor={'file-upload' + block.id}
               borderColor="$color12"
               borderWidth="$0.5"
               width="100%"
               height="$3"
               justifyContent="center"
               hoverStyle={{
-                backgroundColor: "$borderColorHover",
+                backgroundColor: '$borderColorHover',
               }}
               gap={3}
             >
@@ -616,17 +616,17 @@ function MediaForm({
               )}
             </Label>
             <input
-              id={"file-upload" + block.id}
+              id={'file-upload' + block.id}
               type="file"
               multiple
               style={{
-                background: "white",
-                padding: "0 2px",
-                display: "none",
+                background: 'white',
+                padding: '0 2px',
+                display: 'none',
               }}
               onChange={(event: ChangeEvent<HTMLInputElement>) => {
                 if (event.target.files) {
-                  handleUpload(Array.from(event.target.files));
+                  handleUpload(Array.from(event.target.files))
                 }
               }}
             />
@@ -634,5 +634,5 @@ function MediaForm({
         )}
       </XStack>
     </YStack>
-  );
+  )
 }

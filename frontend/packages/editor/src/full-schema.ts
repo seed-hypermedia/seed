@@ -3,19 +3,19 @@ import {
   TypesMatch,
   defaultBlockSchema,
   defaultProps,
-} from "@/blocknote";
-import {common, createLowlight} from "lowlight";
-import {ButtonBlock} from "./button";
+} from '@/blocknote'
+import {common, createLowlight} from 'lowlight'
+import {ButtonBlock} from './button'
 // import {EmbedBlock} from "./embed-block";
-import {FileBlock} from "./file";
-import {HMHeadingBlockContent} from "./heading-component-plugin";
-import {ImageBlock} from "./image";
-import {MathBlock} from "./math";
-import {NostrBlock} from "./nostr";
+import {FileBlock} from './file'
+import {HMHeadingBlockContent} from './heading-component-plugin'
+import {ImageBlock} from './image'
+import {MathBlock} from './math'
+import {NostrBlock} from './nostr'
 // import {QueryBlock} from "./query-block";
-import CodeBlockLowlight from "./tiptap-extension-code-block";
-import {VideoBlock} from "./video";
-import {WebEmbed} from "./web-embed";
+import CodeBlockLowlight from './tiptap-extension-code-block'
+import {VideoBlock} from './video'
+import {WebEmbed} from './web-embed'
 
 export const hmBlockSchema: BlockSchema = {
   paragraph: defaultBlockSchema.paragraph,
@@ -23,21 +23,21 @@ export const hmBlockSchema: BlockSchema = {
   heading: {
     propSchema: {
       ...defaultProps,
-      level: {default: "1"},
+      level: {default: '1'},
     },
     node: HMHeadingBlockContent,
   },
   image: ImageBlock,
-  ["code-block"]: {
+  ['code-block']: {
     propSchema: {
       ...defaultProps,
-      language: {default: ""},
+      language: {default: ''},
     },
     // @ts-ignore
     node: CodeBlockLowlight.configure({
-      defaultLanguage: "plaintext",
+      defaultLanguage: 'plaintext',
       lowlight: createLowlight(common),
-      languageClassPrefix: "language-",
+      languageClassPrefix: 'language-',
     }),
   },
 
@@ -46,9 +46,9 @@ export const hmBlockSchema: BlockSchema = {
   file: FileBlock,
   button: ButtonBlock,
   nostr: NostrBlock,
-  ["web-embed"]: WebEmbed,
-  math: MathBlock("math"),
+  ['web-embed']: WebEmbed,
+  math: MathBlock('math'),
   // query: QueryBlock,
-};
+}
 
-export type HMBlockSchema = TypesMatch<typeof hmBlockSchema>;
+export type HMBlockSchema = TypesMatch<typeof hmBlockSchema>

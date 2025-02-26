@@ -1,3 +1,3 @@
-import {eventStream} from "@shm/shared";
+import {eventStream} from '@shm/shared'
 
-export const [dispatchScroll, scrollEvents] = eventStream<any>();
+export const [dispatchScroll, scrollEvents] = eventStream<any>()

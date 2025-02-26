@@ -1,31 +1,31 @@
-import {updateBlockCommand} from "@/blocknote/core/api/blockManipulation/commands/updateBlock";
-import {InputRule, mergeAttributes} from "@tiptap/core";
-import {mergeCSSClasses} from "../../../../../shared/utils";
-import {createTipTapBlock} from "../../../api/block";
-import styles from "../../Block.module.css";
+import {updateBlockCommand} from '@/blocknote/core/api/blockManipulation/commands/updateBlock'
+import {InputRule, mergeAttributes} from '@tiptap/core'
+import {mergeCSSClasses} from '../../../../../shared/utils'
+import {createTipTapBlock} from '../../../api/block'
+import styles from '../../Block.module.css'
 
-export const HeadingBlockContent = createTipTapBlock<"heading">({
-  name: "heading",
-  content: "inline*",
+export const HeadingBlockContent = createTipTapBlock<'heading'>({
+  name: 'heading',
+  content: 'inline*',
 
   addAttributes() {
     return {
       level: {
-        default: "1",
+        default: '1',
         // instead of "level" attributes, use "data-level"
-        parseHTML: (element) => element.getAttribute("data-level"),
+        parseHTML: (element) => element.getAttribute('data-level'),
         renderHTML: (attributes) => {
           return {
-            "data-level": attributes.level,
-          };
+            'data-level': attributes.level,
+          }
         },
       },
-    };
+    }
   },
 
   addInputRules() {
     return [
-      ...["1", "2", "3", "4", "5"].map((level) => {
+      ...['1', '2', '3', '4', '5'].map((level) => {
         // Creates a heading of appropriate level when starting with "#", "##", or "###".
         return new InputRule({
           find: new RegExp(`^(#{${parseInt(level)}})\\s$`),
@@ -41,76 +41,76 @@ export const HeadingBlockContent = createTipTapBlock<"heading">({
                 updateBlockCommand(
                   state.doc.resolve(state.selection.from).start() - 2,
                   {
-                    type: "heading",
+                    type: 'heading',
                     props: {
                       level: level,
                     },
-                  }
-                )
+                  },
+                ),
               )
               // Removes the "#" character(s) used to set the heading.
-              .deleteRange({from: range.from, to: range.to});
+              .deleteRange({from: range.from, to: range.to})
           },
-        });
+        })
       }),
-    ];
+    ]
   },
 
   parseHTML() {
     return [
       {
-        tag: "h1",
-        attrs: {level: "1"},
-        node: "heading",
+        tag: 'h1',
+        attrs: {level: '1'},
+        node: 'heading',
       },
       {
-        tag: "h2",
-        attrs: {level: "2"},
-        node: "heading",
+        tag: 'h2',
+        attrs: {level: '2'},
+        node: 'heading',
       },
       {
-        tag: "h3",
-        attrs: {level: "3"},
-        node: "heading",
+        tag: 'h3',
+        attrs: {level: '3'},
+        node: 'heading',
       },
       {
-        tag: "h4",
-        attrs: {level: "3"},
-        node: "heading",
+        tag: 'h4',
+        attrs: {level: '3'},
+        node: 'heading',
       },
       {
-        tag: "h5",
-        attrs: {level: "3"},
-        node: "heading",
+        tag: 'h5',
+        attrs: {level: '3'},
+        node: 'heading',
       },
-    ];
+    ]
   },
 
   renderHTML({node, HTMLAttributes}) {
     const blockContentDOMAttributes =
-      this.options.domAttributes?.blockContent || {};
+      this.options.domAttributes?.blockContent || {}
     const inlineContentDOMAttributes =
-      this.options.domAttributes?.inlineContent || {};
+      this.options.domAttributes?.inlineContent || {}
 
     return [
-      "div",
+      'div',
       mergeAttributes(HTMLAttributes, {
         class: mergeCSSClasses(
           styles.blockContent,
-          blockContentDOMAttributes.class
+          blockContentDOMAttributes.class,
         ),
-        "data-content-type": this.name,
+        'data-content-type': this.name,
       }),
       [
-        "h" + node.attrs.level,
+        'h' + node.attrs.level,
         {
           class: mergeCSSClasses(
             styles.inlineContent,
-            inlineContentDOMAttributes.class
+            inlineContentDOMAttributes.class,
           ),
         },
         0,
       ],
-    ];
+    ]
   },
-});
+})

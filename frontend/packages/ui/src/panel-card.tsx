@@ -1,6 +1,6 @@
 // @ts-nocheck
-import * as React from "react";
-import {SizableText, XStack, YStack} from "tamagui";
+import * as React from 'react'
+import {SizableText, XStack, YStack} from 'tamagui'
 
 export function PanelCard({
   title,
@@ -12,26 +12,26 @@ export function PanelCard({
   active = false,
   shorter = false,
 }: {
-  title?: string;
-  content?: string;
-  author?: any;
-  date?: any;
-  onPress?: () => void;
-  avatar?: React.ReactNode | null;
-  active?: boolean;
-  shorter?: boolean;
+  title?: string
+  content?: string
+  author?: any
+  date?: any
+  onPress?: () => void
+  avatar?: React.ReactNode | null
+  active?: boolean
+  shorter?: boolean
 }) {
   return (
     <YStack
       overflow="hidden"
       borderRadius="$2"
-      backgroundColor={active ? "$backgroundHover" : "$backgroundTransparent"}
+      backgroundColor={active ? '$backgroundHover' : '$backgroundTransparent'}
       hoverStyle={{
-        backgroundColor: "$backgroundHover",
+        backgroundColor: '$backgroundHover',
       }}
       margin="$4"
       padding="$4"
-      paddingVertical={shorter ? "$1" : "$4"}
+      paddingVertical={shorter ? '$1' : '$4'}
       gap="$2"
       onPress={onPress}
     >
@@ -50,7 +50,7 @@ export function PanelCard({
       >
         {avatar}
         {author && (
-          <SizableText size="$2">{author.profile?.alias || "..."}</SizableText>
+          <SizableText size="$2">{author.profile?.alias || '...'}</SizableText>
         )}
         <XStack flex={1} />
         {date && (
@@ -83,5 +83,5 @@ export function PanelCard({
         )}
       </YStack>
     </YStack>
-  );
+  )
 }

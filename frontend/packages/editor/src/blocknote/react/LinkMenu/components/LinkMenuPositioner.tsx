@@ -4,60 +4,60 @@ import {
   DefaultBlockSchema,
   LinkMenuProsemirrorPlugin,
   LinkMenuState,
-} from "@/blocknote/core";
-import Tippy from "@tippyjs/react";
-import {FC, useEffect, useMemo, useRef, useState} from "react";
+} from '@/blocknote/core'
+import Tippy from '@tippyjs/react'
+import {FC, useEffect, useMemo, useRef, useState} from 'react'
 
-import {LinkMenuItem} from "@/blocknote/core/extensions/LinkMenu/LinkMenuItem";
-import {DefaultLinkMenu} from "./DefaultLinkMenu";
+import {LinkMenuItem} from '@/blocknote/core/extensions/LinkMenu/LinkMenuItem'
+import {DefaultLinkMenu} from './DefaultLinkMenu'
 
 export type LinkMenuProps<BSchema extends BlockSchema = DefaultBlockSchema> =
-  Pick<LinkMenuProsemirrorPlugin<BSchema, any>, "itemCallback"> &
+  Pick<LinkMenuProsemirrorPlugin<BSchema, any>, 'itemCallback'> &
     Pick<
       LinkMenuState<LinkMenuItem<BSchema>>,
-      "items" | "keyboardHoveredItemIndex"
-    >;
+      'items' | 'keyboardHoveredItemIndex'
+    >
 
 export const LinkMenuPositioner = <
   BSchema extends BlockSchema = DefaultBlockSchema,
 >(props: {
-  editor: BlockNoteEditor<BSchema>;
-  linkMenu?: FC<LinkMenuProps<BSchema>>;
+  editor: BlockNoteEditor<BSchema>
+  linkMenu?: FC<LinkMenuProps<BSchema>>
 }) => {
-  const [placement, setPlacement] = useState("bottom-start");
-  const [show, setShow] = useState<boolean>(false);
-  const [ref, setRef] = useState<string>("");
-  const [items, setItems] = useState<LinkMenuItem<BSchema>[]>([]);
+  const [placement, setPlacement] = useState('bottom-start')
+  const [show, setShow] = useState<boolean>(false)
+  const [ref, setRef] = useState<string>('')
+  const [items, setItems] = useState<LinkMenuItem<BSchema>[]>([])
   const [keyboardHoveredItemIndex, setKeyboardHoveredItemIndex] =
-    useState<number>();
-  const scroller = useRef<HTMLElement | null>(null);
+    useState<number>()
+  const scroller = useRef<HTMLElement | null>(null)
 
-  const referencePos = useRef<DOMRect>();
+  const referencePos = useRef<DOMRect>()
   useEffect(() => {
     setTimeout(() => {
-      scroller.current = document.getElementById("scroll-page-wrapper");
-    }, 100);
-  }, []);
+      scroller.current = document.getElementById('scroll-page-wrapper')
+    }, 100)
+  }, [])
 
   useEffect(() => {
     return props.editor.linkMenu.onUpdate((linkMenuState) => {
-      setShow(linkMenuState.show);
-      setRef(linkMenuState.ref);
+      setShow(linkMenuState.show)
+      setRef(linkMenuState.ref)
       // @ts-ignore
-      setItems(linkMenuState.items);
-      setKeyboardHoveredItemIndex(linkMenuState.keyboardHoveredItemIndex);
+      setItems(linkMenuState.items)
+      setKeyboardHoveredItemIndex(linkMenuState.keyboardHoveredItemIndex)
 
-      referencePos.current = linkMenuState.referencePos;
-    });
-  }, [props.editor, props.editor.linkMenu]);
+      referencePos.current = linkMenuState.referencePos
+    })
+  }, [props.editor, props.editor.linkMenu])
 
   const getReferenceClientRect = useMemo(
     () => {
       if (!referencePos.current) {
-        return undefined;
+        return undefined
       }
 
-      const boundingRect = referencePos.current!;
+      const boundingRect = referencePos.current!
       const newRect = {
         top: boundingRect.top,
         right: boundingRect.right,
@@ -65,39 +65,39 @@ export const LinkMenuPositioner = <
         left: boundingRect.left,
         width: boundingRect.width,
         height: boundingRect.height,
-      };
+      }
       if (
         boundingRect.bottom > window.innerHeight ||
         window.innerHeight / boundingRect.bottom < 1.2
       ) {
-        setPlacement("top-start");
+        setPlacement('top-start')
         switch (items.length) {
           case 4:
-            newRect.top = window.innerHeight / 1.25;
-            break;
+            newRect.top = window.innerHeight / 1.25
+            break
           case 2:
-            newRect.top = window.innerHeight / 1.14;
-            break;
+            newRect.top = window.innerHeight / 1.14
+            break
           case 1:
           default:
-            break;
+            break
         }
       } else {
-        setPlacement("bottom-start");
+        setPlacement('bottom-start')
       }
 
-      return () => newRect as DOMRect;
+      return () => newRect as DOMRect
     },
-    [referencePos.current, items] // eslint-disable-line
-  );
+    [referencePos.current, items], // eslint-disable-line
+  )
 
   const linkMenuElement = useMemo(
     () => {
       if (keyboardHoveredItemIndex === undefined) {
-        return null;
+        return null
       }
 
-      const LinkMenu = props.linkMenu || DefaultLinkMenu;
+      const LinkMenu = props.linkMenu || DefaultLinkMenu
 
       return (
         <LinkMenu
@@ -105,7 +105,7 @@ export const LinkMenuPositioner = <
           itemCallback={(item) => props.editor.linkMenu.itemCallback(item, ref)}
           keyboardHoveredItemIndex={keyboardHoveredItemIndex}
         />
-      );
+      )
     },
     [
       keyboardHoveredItemIndex,
@@ -113,8 +113,8 @@ export const LinkMenuPositioner = <
       props.linkMenu,
       ref,
       items,
-    ] // eslint-disable-line
-  );
+    ], // eslint-disable-line
+  )
 
   return (
     <Tippy
@@ -123,9 +123,9 @@ export const LinkMenuPositioner = <
       getReferenceClientRect={getReferenceClientRect}
       interactive={true}
       visible={show}
-      animation={"fade"}
+      animation={'fade'}
       // @ts-ignore
       placement={placement}
     />
-  );
-};
+  )
+}

@@ -1,44 +1,44 @@
-import {BlockNoteEditor} from "@/blocknote/core/BlockNoteEditor";
-import {Block} from "@/blocknote/core/extensions/Blocks/api/blockTypes";
-import {defaultProps} from "@/blocknote/core/extensions/Blocks/api/defaultBlocks";
-import {createReactBlockSpec} from "@/blocknote/react/ReactBlockSpec";
-import {MediaContainer} from "@/media-container";
-import {DisplayComponentProps, MediaRender, MediaType} from "@/media-render";
-import {HMBlockSchema} from "@/schema";
-import {isValidUrl, youtubeParser} from "@/utils";
-import {DAEMON_FILE_URL} from "@shm/shared/constants";
-import {isIpfsUrl} from "@shm/ui/get-file-url";
-import {ResizeHandle} from "@shm/ui/resize-handle";
-import {useEffect, useState} from "react";
-import {RiVideoAddLine} from "react-icons/ri";
-import {SizableText, XStack, useTheme} from "tamagui";
+import {BlockNoteEditor} from '@/blocknote/core/BlockNoteEditor'
+import {Block} from '@/blocknote/core/extensions/Blocks/api/blockTypes'
+import {defaultProps} from '@/blocknote/core/extensions/Blocks/api/defaultBlocks'
+import {createReactBlockSpec} from '@/blocknote/react/ReactBlockSpec'
+import {MediaContainer} from '@/media-container'
+import {DisplayComponentProps, MediaRender, MediaType} from '@/media-render'
+import {HMBlockSchema} from '@/schema'
+import {isValidUrl, youtubeParser} from '@/utils'
+import {DAEMON_FILE_URL} from '@shm/shared/constants'
+import {isIpfsUrl} from '@shm/ui/get-file-url'
+import {ResizeHandle} from '@shm/ui/resize-handle'
+import {useEffect, useState} from 'react'
+import {RiVideoAddLine} from 'react-icons/ri'
+import {SizableText, XStack, useTheme} from 'tamagui'
 
 export const getSourceType = (name: string) => {
-  const nameArray = name.split(".");
+  const nameArray = name.split('.')
   return nameArray[nameArray.length - 1]
     ? `video/${nameArray[nameArray.length - 1]}`
-    : undefined;
-};
+    : undefined
+}
 
 export const VideoBlock = createReactBlockSpec({
-  type: "video",
+  type: 'video',
   propSchema: {
     ...defaultProps,
     url: {
-      default: "",
+      default: '',
     },
     src: {
-      default: "",
+      default: '',
     },
     name: {
-      default: "",
+      default: '',
     },
     width: {
-      default: "",
+      default: '',
     },
     defaultOpen: {
-      values: ["false", "true"],
-      default: "false",
+      values: ['false', 'true'],
+      default: 'false',
     },
   },
   containsInlineContent: true,
@@ -47,71 +47,71 @@ export const VideoBlock = createReactBlockSpec({
     block,
     editor,
   }: {
-    block: Block<HMBlockSchema>;
-    editor: BlockNoteEditor<HMBlockSchema>;
+    block: Block<HMBlockSchema>
+    editor: BlockNoteEditor<HMBlockSchema>
   }) => Render(block, editor),
 
   parseHTML: [
     {
-      tag: "video[src]",
+      tag: 'video[src]',
       getAttrs: (element) => {
-        return {src: element.getAttribute("src")};
+        return {src: element.getAttribute('src')}
       },
     },
     {
-      tag: "iframe",
+      tag: 'iframe',
       getAttrs: (element) => {
-        return {src: element.getAttribute("src")};
+        return {src: element.getAttribute('src')}
       },
     },
   ],
-});
+})
 
 const Render = (
   block: Block<HMBlockSchema>,
-  editor: BlockNoteEditor<HMBlockSchema>
+  editor: BlockNoteEditor<HMBlockSchema>,
 ) => {
-  const theme = useTheme();
+  const theme = useTheme()
   const submitVideo = (url: string, assign: any, setFileName: any) => {
     if (isValidUrl(url)) {
-      let embedUrl = "https://www.youtube.com/embed/";
-      if (url.includes("youtu.be") || url.includes("youtube")) {
-        let ytId = youtubeParser(url);
+      let embedUrl = 'https://www.youtube.com/embed/'
+      if (url.includes('youtu.be') || url.includes('youtube')) {
+        let ytId = youtubeParser(url)
         if (ytId) {
-          embedUrl = embedUrl + ytId;
+          embedUrl = embedUrl + ytId
         } else {
-          setFileName({name: `Unsupported Youtube Url:${url}`, color: "red"});
-          return;
+          setFileName({name: `Unsupported Youtube Url:${url}`, color: 'red'})
+          return
         }
-      } else if (url.includes("vimeo")) {
-        const urlArray = url.split("/");
+      } else if (url.includes('vimeo')) {
+        const urlArray = url.split('/')
         embedUrl = `https://player.vimeo.com/video/${
           urlArray[urlArray.length - 1]
-        }`;
+        }`
       } else {
-        setFileName({name: "Unsupported video source.", color: "red"});
-        return;
+        setFileName({name: 'Unsupported video source.', color: 'red'})
+        return
       }
-      assign({props: {url: embedUrl}} as MediaType);
-    } else setFileName({name: "The provided URL is invalid.", color: "red"});
-    const cursorPosition = editor.getTextCursorPosition();
-    editor.focus();
+      assign({props: {url: embedUrl}} as MediaType)
+    } else setFileName({name: 'The provided URL is invalid.', color: 'red'})
+    const cursorPosition = editor.getTextCursorPosition()
+    editor.focus()
     if (cursorPosition.block.id === block.id) {
       if (cursorPosition.nextBlock)
-        editor.setTextCursorPosition(cursorPosition.nextBlock, "start");
+        editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
       else {
         editor.insertBlocks(
-          [{type: "paragraph", content: ""}],
+          [{type: 'paragraph', content: ''}],
           block.id,
-          "after"
-        );
+          'after',
+        )
         editor.setTextCursorPosition(
           editor.getTextCursorPosition().nextBlock!,
-          "start"
-        );
+          'start',
+        )
       }
     }
-  };
+  }
 
   return (
     <MediaRender
@@ -123,8 +123,8 @@ const Render = (
       DisplayComponent={display}
       icon={<RiVideoAddLine fill={theme.color12?.get()} />}
     />
-  );
-};
+  )
+}
 
 const display = ({
   editor,
@@ -134,72 +134,72 @@ const display = ({
   assign,
 }: DisplayComponentProps) => {
   // Min video width in px.
-  const minWidth = 256;
+  const minWidth = 256
   let width: number =
     parseFloat(block.props.width) ||
-    editor.domElement.firstElementChild!.clientWidth;
-  const [currentWidth, setCurrentWidth] = useState(width);
-  const [showHandle, setShowHandle] = useState(false);
+    editor.domElement.firstElementChild!.clientWidth
+  const [currentWidth, setCurrentWidth] = useState(width)
+  const [showHandle, setShowHandle] = useState(false)
   let resizeParams:
     | {
-        handleUsed: "left" | "right";
-        initialWidth: number;
-        initialClientX: number;
+        handleUsed: 'left' | 'right'
+        initialWidth: number
+        initialClientX: number
       }
-    | undefined;
+    | undefined
 
   useEffect(() => {
     if (block.props.width) {
-      width = parseFloat(block.props.width);
-      setCurrentWidth(parseFloat(block.props.width));
+      width = parseFloat(block.props.width)
+      setCurrentWidth(parseFloat(block.props.width))
     }
-  }, [block.props.width]);
+  }, [block.props.width])
 
   const windowMouseMoveHandler = (event: MouseEvent) => {
     if (!resizeParams) {
-      return;
+      return
     }
 
-    let newWidth: number;
-    if (resizeParams.handleUsed === "left") {
+    let newWidth: number
+    if (resizeParams.handleUsed === 'left') {
       newWidth =
         resizeParams.initialWidth +
-        (resizeParams.initialClientX - event.clientX) * 2;
+        (resizeParams.initialClientX - event.clientX) * 2
     } else {
       newWidth =
         resizeParams.initialWidth +
-        (event.clientX - resizeParams.initialClientX) * 2;
+        (event.clientX - resizeParams.initialClientX) * 2
     }
 
     // Ensures the video is not wider than the editor and not smaller than a
     // predetermined minimum width.
     if (newWidth < minWidth) {
-      width = minWidth;
-      setCurrentWidth(minWidth);
+      width = minWidth
+      setCurrentWidth(minWidth)
     } else if (newWidth > editor.domElement.firstElementChild!.clientWidth) {
-      width = editor.domElement.firstElementChild!.clientWidth;
-      setCurrentWidth(editor.domElement.firstElementChild!.clientWidth);
+      width = editor.domElement.firstElementChild!.clientWidth
+      setCurrentWidth(editor.domElement.firstElementChild!.clientWidth)
     } else {
-      width = newWidth;
-      setCurrentWidth(newWidth);
+      width = newWidth
+      setCurrentWidth(newWidth)
     }
-  };
+  }
 
   // Stops mouse movements from resizing the video and updates the block's
   // `width` prop to the new value.
   const windowMouseUpHandler = (event: MouseEvent) => {
-    setShowHandle(false);
+    setShowHandle(false)
 
     if (!resizeParams) {
-      return;
+      return
     }
-    resizeParams = undefined;
+    resizeParams = undefined
 
     assign({
       props: {
         width: width.toString(),
       },
-    });
+    })
 
     // @ts-expect-error
     editor.updateBlock(block.id, {
@@ -207,57 +207,57 @@ const display = ({
       props: {
         width: width.toString(),
       },
-    });
-  };
-  window.addEventListener("mousemove", windowMouseMoveHandler);
-  window.addEventListener("mouseup", windowMouseUpHandler);
+    })
+  }
+  window.addEventListener('mousemove', windowMouseMoveHandler)
+  window.addEventListener('mouseup', windowMouseUpHandler)
 
   // Hides the resize handles when the cursor leaves the video
   const videoMouseLeaveHandler = () => {
     if (resizeParams) {
-      return;
+      return
     }
 
-    setShowHandle(false);
-  };
+    setShowHandle(false)
+  }
 
   // Sets the resize params, allowing the user to begin resizing the video by
   // moving the cursor left or right.
   const leftResizeHandleMouseDownHandler = (
-    event: React.MouseEvent<HTMLDivElement>
+    event: React.MouseEvent<HTMLDivElement>,
   ) => {
-    event.preventDefault();
+    event.preventDefault()
 
-    setShowHandle(true);
+    setShowHandle(true)
 
     resizeParams = {
-      handleUsed: "left",
+      handleUsed: 'left',
       initialWidth: width || parseFloat(block.props.width),
       initialClientX: event.clientX,
-    };
-    editor.setTextCursorPosition(block.id, "start");
-  };
+    }
+    editor.setTextCursorPosition(block.id, 'start')
+  }
 
   const rightResizeHandleMouseDownHandler = (
-    event: React.MouseEvent<HTMLDivElement>
+    event: React.MouseEvent<HTMLDivElement>,
   ) => {
-    event.preventDefault();
+    event.preventDefault()
 
-    setShowHandle(true);
+    setShowHandle(true)
 
     resizeParams = {
-      handleUsed: "right",
+      handleUsed: 'right',
       initialWidth: width || parseFloat(block.props.width),
       initialClientX: event.clientX,
-    };
-    editor.setTextCursorPosition(block.id, "start");
-  };
+    }
+    editor.setTextCursorPosition(block.id, 'start')
+  }
 
   const videoProps = {
-    paddingBottom: "56.25%",
-    position: "relative",
+    paddingBottom: '56.25%',
+    position: 'relative',
     height: 0,
-  };
+  }
 
   return (
     <MediaContainer
@@ -270,7 +270,7 @@ const display = ({
       assign={assign}
       onHoverIn={() => {
         if (editor.isEditable) {
-          setShowHandle(true);
+          setShowHandle(true)
         }
       }}
       onHoverOut={videoMouseLeaveHandler}
@@ -303,14 +303,14 @@ const display = ({
           height="100%"
         >
           <source
-            src={`${DAEMON_FILE_URL}/${block.props.url.replace("ipfs://", "")}`}
+            src={`${DAEMON_FILE_URL}/${block.props.url.replace('ipfs://', '')}`}
             type={getSourceType(block.props.name)}
           />
           <SizableText>Something is wrong with the video file.</SizableText>
         </XStack>
       ) : (
         <XStack
-          pointerEvents={editor.isEditable ? "none" : "auto"}
+          pointerEvents={editor.isEditable ? 'none' : 'auto'}
           tag="iframe"
           position="absolute"
           className="video-iframe"
@@ -325,5 +325,5 @@ const display = ({
         />
       )}
     </MediaContainer>
-  );
-};
+  )
+}

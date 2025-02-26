@@ -1,13 +1,13 @@
-import {IconProps} from "@tamagui/helpers-icon";
-import {Label} from "@tamagui/label";
-import {YStack} from "@tamagui/stacks";
-import {NamedExoticComponent, PropsWithChildren} from "react";
-import {Input, InputProps, Switch, SwitchProps, XStack} from "tamagui";
+import {IconProps} from '@tamagui/helpers-icon'
+import {Label} from '@tamagui/label'
+import {YStack} from '@tamagui/stacks'
+import {NamedExoticComponent, PropsWithChildren} from 'react'
+import {Input, InputProps, Switch, SwitchProps, XStack} from 'tamagui'
 import {
   SelectDropdown,
   SelectDropdownProps,
   SelectOptions,
-} from "./select-dropdown";
+} from './select-dropdown'
 
 export function Field({
   id,
@@ -21,7 +21,7 @@ export function Field({
       </Label>
       {children}
     </YStack>
-  );
+  )
 }
 
 export function TextField({
@@ -30,9 +30,9 @@ export function TextField({
   id,
   ...props
 }: InputProps & {
-  label?: string;
-  Icon?: NamedExoticComponent<IconProps>;
-  id: string;
+  label?: string
+  Icon?: NamedExoticComponent<IconProps>
+  id: string
 }) {
   let content = (
     <XStack
@@ -56,7 +56,7 @@ export function TextField({
         {...props}
       />
     </XStack>
-  );
+  )
 
   if (label) {
     return (
@@ -66,9 +66,9 @@ export function TextField({
         </Label>
         {content}
       </YStack>
-    );
+    )
   } else {
-    return content;
+    return content
   }
 }
 
@@ -81,9 +81,9 @@ export function SelectField({
   onValue,
   ...props
 }: SelectDropdownProps<SelectOptions> & {
-  label?: string;
-  Icon?: NamedExoticComponent<IconProps>;
-  id: string;
+  label?: string
+  Icon?: NamedExoticComponent<IconProps>
+  id: string
 }) {
   let content = (
     <XStack
@@ -103,7 +103,7 @@ export function SelectField({
         {...props}
       />
     </XStack>
-  );
+  )
 
   if (label) {
     return (
@@ -113,9 +113,9 @@ export function SelectField({
         </Label>
         {content}
       </YStack>
-    );
+    )
   } else {
-    return content;
+    return content
   }
 }
 
@@ -144,5 +144,5 @@ export function SwitchField({
         />
       </Switch>
     </XStack>
-  );
+  )
 }

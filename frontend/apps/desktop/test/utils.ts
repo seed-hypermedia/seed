@@ -1,11 +1,11 @@
 // Helpers copied from https://github.com/kubeshop/monokle/blob/main/tests/electronHelpers.ts
-import { Page, _electron as electron } from '@playwright/test'
+import {Page, _electron as electron} from '@playwright/test'
 import * as ASAR from 'asar'
 import * as fs from 'fs'
 import log from 'loglevel'
 import os from 'os'
 import * as path from 'path'
-import { ElectronAppInfo } from './types'
+import {ElectronAppInfo} from './types'
 
 /**
  * Find the latest build and start monokle app for testing

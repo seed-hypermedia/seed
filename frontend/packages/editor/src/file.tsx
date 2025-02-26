@@ -1,36 +1,36 @@
-import {createReactBlockSpec} from "@/blocknote/react";
-import {formatBytes} from "@shm/shared/utils/format-bytes";
-import {Button} from "@shm/ui/button";
-import {File} from "@shm/ui/icons";
-import {SizableText} from "tamagui";
-import {Block, BlockNoteEditor, defaultProps} from "./blocknote/core";
-import {MediaContainer} from "./media-container";
-import {DisplayComponentProps, MediaRender} from "./media-render";
-import {HMBlockSchema} from "./schema";
+import {createReactBlockSpec} from '@/blocknote/react'
+import {formatBytes} from '@shm/shared/utils/format-bytes'
+import {Button} from '@shm/ui/button'
+import {File} from '@shm/ui/icons'
+import {SizableText} from 'tamagui'
+import {Block, BlockNoteEditor, defaultProps} from './blocknote/core'
+import {MediaContainer} from './media-container'
+import {DisplayComponentProps, MediaRender} from './media-render'
+import {HMBlockSchema} from './schema'
 
-export const MaxFileSizeMB = 150;
-export const MaxFileSizeB = MaxFileSizeMB * 1024 * 1024;
+export const MaxFileSizeMB = 150
+export const MaxFileSizeB = MaxFileSizeMB * 1024 * 1024
 
 export const FileBlock = createReactBlockSpec({
-  type: "file",
+  type: 'file',
   propSchema: {
     ...defaultProps,
 
     url: {
-      default: "",
+      default: '',
     },
     name: {
-      default: "",
+      default: '',
     },
     src: {
-      default: "",
+      default: '',
     },
     defaultOpen: {
-      values: ["false", "true"],
-      default: "false",
+      values: ['false', 'true'],
+      default: 'false',
     },
     size: {
-      default: "0",
+      default: '0',
     },
   },
   containsInlineContent: true,
@@ -39,14 +39,14 @@ export const FileBlock = createReactBlockSpec({
     block,
     editor,
   }: {
-    block: Block<HMBlockSchema>;
-    editor: BlockNoteEditor<HMBlockSchema>;
+    block: Block<HMBlockSchema>
+    editor: BlockNoteEditor<HMBlockSchema>
   }) => Render(block, editor),
-});
+})
 
 const Render = (
   block: Block<HMBlockSchema>,
-  editor: BlockNoteEditor<HMBlockSchema>
+  editor: BlockNoteEditor<HMBlockSchema>,
 ) => {
   return (
     <MediaRender
@@ -57,8 +57,8 @@ const Render = (
       DisplayComponent={display}
       icon={<File />}
     />
-  );
-};
+  )
+}
 
 const display = ({
   editor,
@@ -101,5 +101,5 @@ const display = ({
         </SizableText>
       </Button>
     </MediaContainer>
-  );
-};
+  )
+}

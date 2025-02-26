@@ -4,41 +4,41 @@ import {
   insertOrUpdateBlock,
   PartialBlock,
   PropSchema,
-} from "@/blocknote/core";
-import {RiHeading, RiText} from "react-icons/ri";
-import {HMBlockSchema} from "./schema";
+} from '@/blocknote/core'
+import {RiHeading, RiText} from 'react-icons/ri'
+import {HMBlockSchema} from './schema'
 
 export const slashMenuItems = [
   {
-    name: "Heading",
-    aliases: ["h", "heading1", "subheading"],
-    group: "Text blocks ",
+    name: 'Heading',
+    aliases: ['h', 'heading1', 'subheading'],
+    group: 'Text blocks ',
 
     icon: <RiHeading size={18} />,
     execute: (
-      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>
+      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
     ) => {
       insertOrUpdateBlock(editor, {
-        type: "heading",
-        props: {level: "2"},
-      } as PartialBlock<HMBlockSchema>);
-      const {state, view} = editor._tiptapEditor;
-      view.dispatch(state.tr.scrollIntoView());
+        type: 'heading',
+        props: {level: '2'},
+      } as PartialBlock<HMBlockSchema>)
+      const {state, view} = editor._tiptapEditor
+      view.dispatch(state.tr.scrollIntoView())
     },
   },
   {
-    name: "Paragraph",
-    aliases: ["p"],
-    group: "Text blocks",
+    name: 'Paragraph',
+    aliases: ['p'],
+    group: 'Text blocks',
     icon: <RiText size={18} />,
     execute: (
-      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>
+      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
     ) => {
       insertOrUpdateBlock(editor, {
-        type: "paragraph",
-      } as PartialBlock<HMBlockSchema>);
-      const {state, view} = editor._tiptapEditor;
-      view.dispatch(state.tr.scrollIntoView());
+        type: 'paragraph',
+      } as PartialBlock<HMBlockSchema>)
+      const {state, view} = editor._tiptapEditor
+      view.dispatch(state.tr.scrollIntoView())
     },
   },
   //   {
@@ -268,4 +268,4 @@ export const slashMenuItems = [
   //       view.dispatch(state.tr.scrollIntoView());
   //     },
   //   },
-];
+]

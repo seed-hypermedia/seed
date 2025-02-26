@@ -7,21 +7,21 @@ import {
   hostnameStripProtocol,
   UnpackedHypermediaId,
   useRouteLink,
-} from "@shm/shared";
-import {ButtonText} from "@tamagui/button";
-import {XStack, YStack} from "@tamagui/stacks";
-import {SizableText} from "@tamagui/text";
-import React, {useState} from "react";
-import {Button} from "./button";
-import {Close, Menu} from "./icons";
+} from '@shm/shared'
+import {ButtonText} from '@tamagui/button'
+import {XStack, YStack} from '@tamagui/stacks'
+import {SizableText} from '@tamagui/text'
+import React, {useState} from 'react'
+import {Button} from './button'
+import {Close, Menu} from './icons'
 import {
   DocumentOutline,
   DocumentSmallListItem,
   getSiteNavDirectory,
   SiteNavigationDocument,
-} from "./navigation";
-import {HeaderSearch, MobileSearch} from "./search";
-import {SiteLogo} from "./site-logo";
+} from './navigation'
+import {HeaderSearch, MobileSearch} from './search'
+import {SiteLogo} from './site-logo'
 
 export function SiteHeader({
   originHomeId,
@@ -37,56 +37,56 @@ export function SiteHeader({
   supportQueries,
   origin,
 }: {
-  originHomeId: UnpackedHypermediaId | null;
-  docId: UnpackedHypermediaId | null;
-  afterLinksContent?: React.ReactNode;
-  items?: SiteNavigationDocument[];
-  isCenterLayout?: boolean;
-  children?: React.ReactNode;
-  document?: HMDocument;
-  supportDocuments?: HMEntityContent[];
-  onBlockFocus?: (blockId: string) => void;
-  onShowMobileMenu?: (isOpen: boolean) => void;
-  supportQueries?: HMQueryResult[];
-  origin?: string;
+  originHomeId: UnpackedHypermediaId | null
+  docId: UnpackedHypermediaId | null
+  afterLinksContent?: React.ReactNode
+  items?: SiteNavigationDocument[]
+  isCenterLayout?: boolean
+  children?: React.ReactNode
+  document?: HMDocument
+  supportDocuments?: HMEntityContent[]
+  onBlockFocus?: (blockId: string) => void
+  onShowMobileMenu?: (isOpen: boolean) => void
+  supportQueries?: HMQueryResult[]
+  origin?: string
 }) {
-  const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false);
+  const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false)
   function setIsMobileMenuOpen(isOpen: boolean) {
-    _setIsMobileMenuOpen(isOpen);
-    onShowMobileMenu?.(isOpen);
+    _setIsMobileMenuOpen(isOpen)
+    onShowMobileMenu?.(isOpen)
   }
   const homeDoc = !docId?.path?.length
     ? {document, id: docId}
     : supportDocuments?.find(
-        (doc) => doc.id.uid === docId?.uid && !doc.id.path?.length
-      );
+        (doc) => doc.id.uid === docId?.uid && !doc.id.path?.length,
+      )
   const headerSearch = (
     <>
       <Button
-        $gtSm={{display: "none"}}
+        $gtSm={{display: 'none'}}
         icon={<Menu size={20} />}
         chromeless
         size="$2"
         onPress={() => {
-          setIsMobileMenuOpen(true);
+          setIsMobileMenuOpen(true)
         }}
       />
       {originHomeId ? (
-        <XStack display="none" $gtSm={{display: "flex"}}>
+        <XStack display="none" $gtSm={{display: 'flex'}}>
           <HeaderSearch originHomeId={originHomeId} />
         </XStack>
       ) : null}
     </>
-  );
-  const isHomeDoc = !docId?.path?.length;
-  if (!homeDoc) return null;
-  const headerHomeId = homeDoc.id;
-  if (!headerHomeId) return null;
+  )
+  const isHomeDoc = !docId?.path?.length
+  if (!homeDoc) return null
+  const headerHomeId = homeDoc.id
+  if (!headerHomeId) return null
   const mainHeader = (
     <YStack
       position="relative"
       overflowX="hidden"
-      $gtSm={{overflowX: "inherit"}}
+      $gtSm={{overflowX: 'inherit'}}
     >
       <YStack
         borderBottomWidth={1}
@@ -105,11 +105,11 @@ export function SiteHeader({
           paddingHorizontal="$4"
           minHeight={56}
           gap="$2"
-          flexDirection={isCenterLayout ? "column" : "row"}
+          flexDirection={isCenterLayout ? 'column' : 'row'}
         >
           <XStack
             ai="center"
-            jc={isCenterLayout ? "center" : "flex-start"}
+            jc={isCenterLayout ? 'center' : 'flex-start'}
             alignSelf="stretch"
             flexShrink={0}
           >
@@ -138,7 +138,7 @@ export function SiteHeader({
                   jc="center"
                   display="none"
                   flexShrink={0}
-                  $gtSm={{display: "flex"}}
+                  $gtSm={{display: 'flex'}}
                 >
                   {items?.map((item) => {
                     return (
@@ -154,7 +154,7 @@ export function SiteHeader({
                           item.id.path?.[0] === docId.path[0]
                         }
                       />
-                    );
+                    )
                   })}
                   {afterLinksContent}
                 </XStack>
@@ -190,8 +190,8 @@ export function SiteHeader({
             {docId && document && !isHomeDoc && (
               <DocumentOutline
                 onActivateBlock={(blockId) => {
-                  setIsMobileMenuOpen(false);
-                  onBlockFocus?.(blockId);
+                  setIsMobileMenuOpen(false)
+                  onBlockFocus?.(blockId)
                 }}
                 document={document}
                 id={docId}
@@ -205,17 +205,17 @@ export function SiteHeader({
         )}
       />
     </YStack>
-  );
+  )
   return (
     <>
       {docId && origin && originHomeId && originHomeId.uid !== docId.uid ? (
         <YStack padding="$2" alignItems="center" backgroundColor="$brand5">
           <SizableText color="white" size="$3">
-            Hosted on{" "}
+            Hosted on{' '}
             <ButtonText color="white" tag="a" href="/">
               {hostnameStripProtocol(origin)}
-            </ButtonText>{" "}
-            via the{" "}
+            </ButtonText>{' '}
+            via the{' '}
             <ButtonText
               color="white"
               tag="a"
@@ -230,27 +230,27 @@ export function SiteHeader({
       ) : null}
       {mainHeader}
     </>
-  );
+  )
 }
 
 function NavItems({
   id,
   supportQueries,
 }: {
-  id: UnpackedHypermediaId;
-  supportQueries?: HMQueryResult[];
+  id: UnpackedHypermediaId
+  supportQueries?: HMQueryResult[]
 }) {
   const directoryItems = getSiteNavDirectory({
     id,
     supportQueries,
     // todo: pass drafts
-  });
+  })
   return (
     <YStack gap="$2.5">
       {directoryItems
         ? directoryItems.map((doc) => (
             <DocumentSmallListItem
-              key={id.path?.join("/") || id.id}
+              key={id.path?.join('/') || id.id}
               metadata={doc.metadata}
               id={doc.id}
               indented={0}
@@ -260,7 +260,7 @@ function NavItems({
           ))
         : null}
     </YStack>
-  );
+  )
 }
 
 function HeaderLinkItem({
@@ -270,35 +270,35 @@ function HeaderLinkItem({
   isDraft,
   isPublished,
 }: {
-  id: UnpackedHypermediaId;
-  metadata: HMMetadata;
-  active: boolean;
-  isDraft?: boolean;
-  isPublished?: boolean;
+  id: UnpackedHypermediaId
+  metadata: HMMetadata
+  active: boolean
+  isDraft?: boolean
+  isPublished?: boolean
 }) {
   const linkProps = useRouteLink(
     isDraft
-      ? {key: "draft", id}
+      ? {key: 'draft', id}
       : {
-          key: "document",
+          key: 'document',
           id,
-        }
-  );
-  const baseColor = isPublished === false ? "$color9" : "$color10";
+        },
+  )
+  const baseColor = isPublished === false ? '$color9' : '$color10'
   return (
     <SizableText
       numberOfLines={1}
       userSelect="none"
       fontWeight="bold"
-      backgroundColor={isDraft ? "$yellow4" : undefined}
-      color={active ? "$color" : baseColor}
+      backgroundColor={isDraft ? '$yellow4' : undefined}
+      color={active ? '$color' : baseColor}
       paddingHorizontal="$1"
-      hoverStyle={{cursor: "pointer", color: active ? "$color" : "$color11"}}
+      hoverStyle={{cursor: 'pointer', color: active ? '$color' : '$color11'}}
       {...linkProps}
     >
       {getMetadataName(metadata)}
     </SizableText>
-  );
+  )
 }
 
 export function MobileMenu({
@@ -306,14 +306,14 @@ export function MobileMenu({
   open,
   onClose,
 }: {
-  renderContent: () => React.JSX.Element;
-  open: boolean;
-  onClose: () => void;
+  renderContent: () => React.JSX.Element
+  open: boolean
+  onClose: () => void
 }) {
   return (
     <YStack
       $gtSm={{
-        display: "none",
+        display: 'none',
       }}
       backgroundColor="$background"
       fullscreen
@@ -323,7 +323,7 @@ export function MobileMenu({
       right={0}
       bottom={0}
       zIndex="var(--z-index-9, 800)"
-      x={open ? 0 : "100%"}
+      x={open ? 0 : '100%'}
       animation="fast"
     >
       <YStack height="calc(100vh - 64px)" position="sticky" top={0}>
@@ -346,5 +346,5 @@ export function MobileMenu({
         </YStack>
       </YStack>
     </YStack>
-  );
+  )
 }

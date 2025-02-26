@@ -1,4 +1,4 @@
-import {LinksFunction} from "@remix-run/node";
+import {LinksFunction} from '@remix-run/node'
 import {
   isRouteErrorResponse,
   Links,
@@ -7,23 +7,23 @@ import {
   Scripts,
   ScrollRestoration,
   useRouteError,
-} from "@remix-run/react";
-import {captureRemixErrorBoundaryError, withSentry} from "@sentry/remix";
-import {isClient} from "@tamagui/core";
-import {XStack, YStack} from "@tamagui/stacks";
-import {SizableText} from "@tamagui/text";
-import Tamagui from "../tamagui.config";
-import {Providers, ThemeProvider} from "./providers";
-import globalStyles from "./styles.css?url";
-import globalTamaguiStyles from "./tamagui.css?url";
-import {Container} from "./ui/container";
+} from '@remix-run/react'
+import {captureRemixErrorBoundaryError, withSentry} from '@sentry/remix'
+import {isClient} from '@tamagui/core'
+import {XStack, YStack} from '@tamagui/stacks'
+import {SizableText} from '@tamagui/text'
+import Tamagui from '../tamagui.config'
+import {Providers, ThemeProvider} from './providers'
+import globalStyles from './styles.css?url'
+import globalTamaguiStyles from './tamagui.css?url'
+import {Container} from './ui/container'
 
 export const links: LinksFunction = () => {
   return [
-    {rel: "stylesheet", href: globalStyles},
-    {rel: "stylesheet", href: globalTamaguiStyles},
-  ];
-};
+    {rel: 'stylesheet', href: globalStyles},
+    {rel: 'stylesheet', href: globalTamaguiStyles},
+  ]
+}
 
 // onQueryInvalidation(queryClient.invalidateQueries);
 
@@ -57,20 +57,20 @@ export function Layout({children}: {children: React.ReactNode}) {
         <Scripts />
       </body>
     </html>
-  );
+  )
 }
 
 export function ErrorBoundary({}: {}) {
-  const error = useRouteError();
+  const error = useRouteError()
 
-  let errorMessage = "Unknown Error";
+  let errorMessage = 'Unknown Error'
   if (isRouteErrorResponse(error)) {
-    errorMessage = error.data.message;
+    errorMessage = error.data.message
   } else if (error instanceof Error) {
-    errorMessage = error.message;
+    errorMessage = error.message
   }
 
-  captureRemixErrorBoundaryError(error);
+  captureRemixErrorBoundaryError(error)
 
   return (
     <html>
@@ -115,18 +115,18 @@ export function ErrorBoundary({}: {}) {
         <Scripts />
       </body>
     </html>
-  );
+  )
 }
 
 function App() {
-  return <Outlet />;
+  return <Outlet />
 }
 
-export default withSentry(App);
+export default withSentry(App)
 
 export const Styles = () => {
   if (isClient) {
-    return null;
+    return null
   }
   return (
     <style
@@ -137,5 +137,5 @@ export const Styles = () => {
         }),
       }}
     />
-  );
-};
+  )
+}

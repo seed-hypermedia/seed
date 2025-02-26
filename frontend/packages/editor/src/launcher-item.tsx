@@ -1,14 +1,14 @@
-import {Button} from "@shm/ui/button";
-import {XStack} from "@tamagui/stacks";
-import {useLayoutEffect, useRef} from "react";
-import {SizableText} from "tamagui";
+import {Button} from '@shm/ui/button'
+import {XStack} from '@tamagui/stacks'
+import {useLayoutEffect, useRef} from 'react'
+import {SizableText} from 'tamagui'
 
 export type SwitcherItem = {
-  key: string;
-  title: string;
-  subtitle?: string;
-  onSelect: () => void;
-};
+  key: string
+  title: string
+  subtitle?: string
+  onSelect: () => void
+}
 
 export function LauncherItem({
   item,
@@ -16,29 +16,29 @@ export function LauncherItem({
   onFocus,
   onMouseEnter,
 }: {
-  item: SwitcherItem;
-  selected: boolean;
-  onFocus: any;
-  onMouseEnter: any;
+  item: SwitcherItem
+  selected: boolean
+  onFocus: any
+  onMouseEnter: any
 }) {
-  const elm = useRef<HTMLDivElement>(null);
+  const elm = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
     if (selected) {
-      elm.current?.scrollIntoView({block: "nearest"});
+      elm.current?.scrollIntoView({block: 'nearest'})
     }
-  }, [selected]);
+  }, [selected])
 
   return (
     <Button
       ref={elm}
       key={item.key}
       onPress={() => {
-        item.onSelect();
+        item.onSelect()
       }}
-      backgroundColor={selected ? "$brand4" : undefined}
+      backgroundColor={selected ? '$brand4' : undefined}
       hoverStyle={{
-        backgroundColor: selected ? "$brand4" : undefined,
+        backgroundColor: selected ? '$brand4' : undefined,
       }}
       onFocus={onFocus}
       onMouseEnter={onMouseEnter}
@@ -49,5 +49,5 @@ export function LauncherItem({
         <SizableText color="$color10">{item.subtitle}</SizableText>
       </XStack>
     </Button>
-  );
+  )
 }

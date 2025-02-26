@@ -1,11 +1,11 @@
-import {hmId, sortNewsEntries} from "@shm/shared";
-import {Container} from "@shm/ui/container";
-import {BannerNewspaperCard, NewspaperCard} from "@shm/ui/newspaper";
-import {XStack, YStack} from "@tamagui/stacks";
-import {useCallback} from "react";
-import {SiteDocumentPayload} from "./loaders";
-import {PageFooter} from "./page-footer";
-import {WebSiteHeader} from "./web-site-header";
+import {hmId, sortNewsEntries} from '@shm/shared'
+import {Container} from '@shm/ui/container'
+import {BannerNewspaperCard, NewspaperCard} from '@shm/ui/newspaper'
+import {XStack, YStack} from '@tamagui/stacks'
+import {useCallback} from 'react'
+import {SiteDocumentPayload} from './loaders'
+import {PageFooter} from './page-footer'
+import {WebSiteHeader} from './web-site-header'
 
 export function NewspaperPage(props: SiteDocumentPayload) {
   const {
@@ -18,41 +18,41 @@ export function NewspaperPage(props: SiteDocumentPayload) {
     enableWebSigning,
     originHomeId,
     origin,
-  } = props;
-  if (!id) return null;
-  if (!document) return null;
-  if (document.metadata.layout !== "Seed/Experimental/Newspaper") {
-    return null;
+  } = props
+  if (!id) return null
+  if (!document) return null
+  if (document.metadata.layout !== 'Seed/Experimental/Newspaper') {
+    return null
   }
   const newsQuery = supportQueries?.find((q) => {
-    return q.in.uid === id.uid && q.in.path?.join("/") === id.path?.join("/");
-  });
-  if (!newsQuery) return null;
+    return q.in.uid === id.uid && q.in.path?.join('/') === id.path?.join('/')
+  })
+  if (!newsQuery) return null
 
   function getEntity(path: string[]) {
     return supportDocuments?.find(
-      (item) => item?.id?.path?.join("/") === path?.join("/")
-    );
+      (item) => item?.id?.path?.join('/') === path?.join('/'),
+    )
   }
 
   const sortedItems = sortNewsEntries(
     newsQuery.results,
-    homeMetadata.seedExperimentalHomeOrder
-  );
-  const firstItem = sortedItems[0];
-  const restItems = sortedItems.slice(1);
+    homeMetadata.seedExperimentalHomeOrder,
+  )
+  const firstItem = sortedItems[0]
+  const restItems = sortedItems.slice(1)
 
   const onActivateBlock = useCallback((blockId: string) => {
-    const targetElement = window.document.querySelector(`#${blockId}`);
+    const targetElement = window.document.querySelector(`#${blockId}`)
 
     if (targetElement) {
-      const offset = 80; // header fixed height
-      const elementPosition = targetElement.getBoundingClientRect().top;
-      const offsetPosition = elementPosition + window.scrollY - offset;
-      window.scrollTo({top: offsetPosition, behavior: "smooth"});
+      const offset = 80 // header fixed height
+      const elementPosition = targetElement.getBoundingClientRect().top
+      const offsetPosition = elementPosition + window.scrollY - offset
+      window.scrollTo({top: offsetPosition, behavior: 'smooth'})
       // onClose?.();
     }
-  }, []);
+  }, [])
 
   return (
     <>
@@ -86,7 +86,7 @@ export function NewspaperPage(props: SiteDocumentPayload) {
               gap="$6"
             >
               {restItems.map((item) => {
-                const itemId = hmId("d", item.account, {path: item.path});
+                const itemId = hmId('d', item.account, {path: item.path})
                 return (
                   <NewspaperCard
                     id={itemId}
@@ -94,7 +94,7 @@ export function NewspaperPage(props: SiteDocumentPayload) {
                     key={itemId.id}
                     accountsMetadata={accountsMetadata}
                   />
-                );
+                )
               })}
             </XStack>
           </Container>
@@ -102,5 +102,5 @@ export function NewspaperPage(props: SiteDocumentPayload) {
       </YStack>
       <PageFooter enableWebSigning={enableWebSigning} id={id} />
     </>
-  );
+  )
 }

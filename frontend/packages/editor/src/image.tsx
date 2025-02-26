@@ -1,40 +1,40 @@
-import {BlockNoteEditor} from "@/blocknote/core/BlockNoteEditor";
-import {Block} from "@/blocknote/core/extensions/Blocks/api/blockTypes";
-import {defaultProps} from "@/blocknote/core/extensions/Blocks/api/defaultBlocks";
-import {createReactBlockSpec} from "@/blocknote/react";
-import {MediaContainer} from "@/media-container";
-import {DisplayComponentProps, MediaRender, MediaType} from "@/media-render";
-import {HMBlockSchema} from "@/schema";
-import {isValidUrl, timeoutPromise} from "@/utils";
-import {useDocContentContext} from "@shm/ui/document-content";
-import {getDaemonFileUrl} from "@shm/ui/get-file-url";
-import {ResizeHandle} from "@shm/ui/resize-handle";
-import {useEffect, useState} from "react";
-import {RiImage2Line} from "react-icons/ri";
-import {useTheme} from "tamagui";
+import {BlockNoteEditor} from '@/blocknote/core/BlockNoteEditor'
+import {Block} from '@/blocknote/core/extensions/Blocks/api/blockTypes'
+import {defaultProps} from '@/blocknote/core/extensions/Blocks/api/defaultBlocks'
+import {createReactBlockSpec} from '@/blocknote/react'
+import {MediaContainer} from '@/media-container'
+import {DisplayComponentProps, MediaRender, MediaType} from '@/media-render'
+import {HMBlockSchema} from '@/schema'
+import {isValidUrl, timeoutPromise} from '@/utils'
+import {useDocContentContext} from '@shm/ui/document-content'
+import {getDaemonFileUrl} from '@shm/ui/get-file-url'
+import {ResizeHandle} from '@shm/ui/resize-handle'
+import {useEffect, useState} from 'react'
+import {RiImage2Line} from 'react-icons/ri'
+import {useTheme} from 'tamagui'
 
 export const ImageBlock = createReactBlockSpec({
-  type: "image",
+  type: 'image',
   propSchema: {
     ...defaultProps,
     url: {
-      default: "",
+      default: '',
     },
     src: {
-      default: "",
+      default: '',
     },
     alt: {
-      default: "",
+      default: '',
     },
     name: {
-      default: "",
+      default: '',
     },
     width: {
-      default: "",
+      default: '',
     },
     defaultOpen: {
-      values: ["false", "true"],
-      default: "false",
+      values: ['false', 'true'],
+      default: 'false',
     },
   },
   containsInlineContent: true,
@@ -43,98 +43,98 @@ export const ImageBlock = createReactBlockSpec({
     block,
     editor,
   }: {
-    block: Block<HMBlockSchema>;
-    editor: BlockNoteEditor<HMBlockSchema>;
+    block: Block<HMBlockSchema>
+    editor: BlockNoteEditor<HMBlockSchema>
   }) => Render(block, editor),
 
   parseHTML: [
     {
-      tag: "img[src]",
+      tag: 'img[src]',
       getAttrs: (element) => {
-        const name = element.getAttribute("title");
-        const width = element.getAttribute("width") || element.style.width;
-        const alt = element.getAttribute("alt");
+        const name = element.getAttribute('title')
+        const width = element.getAttribute('width') || element.style.width
+        const alt = element.getAttribute('alt')
         return {
-          src: element.getAttribute("src"),
+          src: element.getAttribute('src'),
           name,
           width,
           alt,
           // content: [
           //   {type: 'paragraph', content: [{type: 'text', text: altText}]},
           // ],
-        };
+        }
       },
-      node: "image",
+      node: 'image',
     },
   ],
-});
+})
 
 const Render = (
   block: Block<HMBlockSchema>,
-  editor: BlockNoteEditor<HMBlockSchema>
+  editor: BlockNoteEditor<HMBlockSchema>,
 ) => {
-  const theme = useTheme();
-  const {importWebFile} = useDocContentContext();
+  const theme = useTheme()
+  const {importWebFile} = useDocContentContext()
 
   const submitImage = (
     url: string,
     assign: any,
     setFileName: any,
-    setLoading: any
+    setLoading: any,
   ) => {
     if (isValidUrl(url)) {
-      setLoading(true);
+      setLoading(true)
       timeoutPromise(importWebFile.mutateAsync(url), 5000, {
-        reason: "Error fetching the image.",
+        reason: 'Error fetching the image.',
       })
         .then((imageData) => {
-          setLoading(false);
+          setLoading(false)
           if (imageData?.cid) {
-            if (!imageData.type.includes("image")) {
+            if (!imageData.type.includes('image')) {
               setFileName({
-                name: "The provided URL is not an image.",
-                color: "red",
-              });
-              return;
+                name: 'The provided URL is not an image.',
+                color: 'red',
+              })
+              return
             }
-            assign({props: {url: `ipfs://${imageData.cid}`}} as MediaType);
-            setLoading(false);
+            assign({props: {url: `ipfs://${imageData.cid}`}} as MediaType)
+            setLoading(false)
           } else {
-            let imgTypeSplit = imageData.type.split("/");
+            let imgTypeSplit = imageData.type.split('/')
             setFileName({
               name: `uploadedImage.${imgTypeSplit[imgTypeSplit.length - 1]}`,
-              color: "red",
-            });
-            setLoading(false);
+              color: 'red',
+            })
+            setLoading(false)
           }
         })
         .catch((e) => {
           setFileName({
             name: e.reason,
-            color: "red",
-          });
-          setLoading(false);
-        });
-    } else setFileName({name: "The provided URL is invalid.", color: "red"});
+            color: 'red',
+          })
+          setLoading(false)
+        })
+    } else setFileName({name: 'The provided URL is invalid.', color: 'red'})
 
-    const cursorPosition = editor.getTextCursorPosition();
-    editor.focus();
+    const cursorPosition = editor.getTextCursorPosition()
+    editor.focus()
     if (cursorPosition.block.id === block.id) {
       if (cursorPosition.nextBlock)
-        editor.setTextCursorPosition(cursorPosition.nextBlock, "start");
+        editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
       else {
         editor.insertBlocks(
-          [{type: "paragraph", content: ""}],
+          [{type: 'paragraph', content: ''}],
           block.id,
-          "after"
-        );
+          'after',
+        )
         editor.setTextCursorPosition(
           editor.getTextCursorPosition().nextBlock!,
-          "start"
-        );
+          'start',
+        )
       }
     }
-  };
+  }
   return (
     <MediaRender
       block={block}
@@ -145,8 +145,8 @@ const Render = (
       DisplayComponent={display}
       icon={<RiImage2Line fill={theme.color12?.get()} />}
     />
-  );
-};
+  )
+}
 
 const display = ({
   editor,
@@ -155,76 +155,76 @@ const display = ({
   setSelected,
   assign,
 }: DisplayComponentProps) => {
-  const imageUrl = block.props.url.includes(".")
+  const imageUrl = block.props.url.includes('.')
     ? null
-    : getDaemonFileUrl(block.props.url);
+    : getDaemonFileUrl(block.props.url)
   // Min image width in px.
-  const minWidth = 64;
+  const minWidth = 64
   let width: number =
     parseFloat(block.props.width) ||
-    editor.domElement.firstElementChild!.clientWidth;
-  const [currentWidth, setCurrentWidth] = useState(width);
-  const [showHandle, setShowHandle] = useState(false);
+    editor.domElement.firstElementChild!.clientWidth
+  const [currentWidth, setCurrentWidth] = useState(width)
+  const [showHandle, setShowHandle] = useState(false)
   let resizeParams:
     | {
-        handleUsed: "left" | "right";
-        initialWidth: number;
-        initialClientX: number;
+        handleUsed: 'left' | 'right'
+        initialWidth: number
+        initialClientX: number
       }
-    | undefined;
+    | undefined
 
   useEffect(() => {
     if (block.props.width) {
-      width = parseFloat(block.props.width);
-      setCurrentWidth(parseFloat(block.props.width));
+      width = parseFloat(block.props.width)
+      setCurrentWidth(parseFloat(block.props.width))
     }
-  }, [block.props.width]);
+  }, [block.props.width])
 
   const windowMouseMoveHandler = (event: MouseEvent) => {
     if (!resizeParams) {
-      return;
+      return
     }
 
-    let newWidth: number;
-    if (resizeParams.handleUsed === "left") {
+    let newWidth: number
+    if (resizeParams.handleUsed === 'left') {
       newWidth =
         resizeParams.initialWidth +
-        (resizeParams.initialClientX - event.clientX) * 2;
+        (resizeParams.initialClientX - event.clientX) * 2
     } else {
       newWidth =
         resizeParams.initialWidth +
-        (event.clientX - resizeParams.initialClientX) * 2;
+        (event.clientX - resizeParams.initialClientX) * 2
     }
 
     // Ensures the image is not wider than the editor and not smaller than a
     // predetermined minimum width.
     if (newWidth < minWidth) {
-      width = minWidth;
-      setCurrentWidth(minWidth);
+      width = minWidth
+      setCurrentWidth(minWidth)
     } else if (newWidth > editor.domElement.firstElementChild!.clientWidth) {
-      width = editor.domElement.firstElementChild!.clientWidth;
-      setCurrentWidth(editor.domElement.firstElementChild!.clientWidth);
+      width = editor.domElement.firstElementChild!.clientWidth
+      setCurrentWidth(editor.domElement.firstElementChild!.clientWidth)
     } else {
-      width = newWidth;
-      setCurrentWidth(newWidth);
+      width = newWidth
+      setCurrentWidth(newWidth)
     }
-  };
+  }
 
   // Stops mouse movements from resizing the image and updates the block's
   // `width` prop to the new value.
   const windowMouseUpHandler = (event: MouseEvent) => {
-    setShowHandle(false);
+    setShowHandle(false)
 
     if (!resizeParams) {
-      return;
+      return
     }
-    resizeParams = undefined;
+    resizeParams = undefined
 
     assign({
       props: {
         width: width.toString(),
       },
-    });
+    })
 
     // @ts-expect-error
     editor.updateBlock(block.id, {
@@ -232,51 +232,51 @@ const display = ({
       props: {
         width: width.toString(),
       },
-    });
-  };
-  window.addEventListener("mousemove", windowMouseMoveHandler);
-  window.addEventListener("mouseup", windowMouseUpHandler);
+    })
+  }
+  window.addEventListener('mousemove', windowMouseMoveHandler)
+  window.addEventListener('mouseup', windowMouseUpHandler)
 
   // Hides the resize handles when the cursor leaves the image
   const imageMouseLeaveHandler = () => {
     if (resizeParams) {
-      return;
+      return
     }
 
-    setShowHandle(false);
-  };
+    setShowHandle(false)
+  }
 
   // Sets the resize params, allowing the user to begin resizing the image by
   // moving the cursor left or right.
   const leftResizeHandleMouseDownHandler = (
-    event: React.MouseEvent<HTMLDivElement>
+    event: React.MouseEvent<HTMLDivElement>,
   ) => {
-    event.preventDefault();
+    event.preventDefault()
 
-    setShowHandle(true);
+    setShowHandle(true)
 
     resizeParams = {
-      handleUsed: "left",
+      handleUsed: 'left',
       initialWidth: width || parseFloat(block.props.width),
       initialClientX: event.clientX,
-    };
-    editor.setTextCursorPosition(block.id, "start");
-  };
+    }
+    editor.setTextCursorPosition(block.id, 'start')
+  }
 
   const rightResizeHandleMouseDownHandler = (
-    event: React.MouseEvent<HTMLDivElement>
+    event: React.MouseEvent<HTMLDivElement>,
   ) => {
-    event.preventDefault();
+    event.preventDefault()
 
-    setShowHandle(true);
+    setShowHandle(true)
 
     resizeParams = {
-      handleUsed: "right",
+      handleUsed: 'right',
       initialWidth: width || parseFloat(block.props.width),
       initialClientX: event.clientX,
-    };
-    editor.setTextCursorPosition(block.id, "start");
-  };
+    }
+    editor.setTextCursorPosition(block.id, 'start')
+  }
 
   return (
     <MediaContainer
@@ -288,7 +288,7 @@ const display = ({
       assign={assign}
       onHoverIn={() => {
         if (editor.isEditable) {
-          setShowHandle(true);
+          setShowHandle(true)
         }
       }}
       onHoverOut={imageMouseLeaveHandler}
@@ -315,5 +315,5 @@ const display = ({
         />
       )}
     </MediaContainer>
-  );
-};
+  )
+}

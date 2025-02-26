@@ -1,13 +1,13 @@
-import {BlockNoteEditor, BlockSpec, PropSchema} from "@/blocknote/core";
+import {BlockNoteEditor, BlockSpec, PropSchema} from '@/blocknote/core'
 import {
   BlockTypeDropdownItem,
   FormattingToolbarProps,
   useEditorContentChange,
   useEditorSelectionChange,
-} from "@/blocknote/react";
-import {HMLinkToolbarButton} from "@/hm-toolbar-link-button";
-import {EditorToggledStyle} from "@shm/shared/hm-types";
-import {Button} from "@shm/ui/button";
+} from '@/blocknote/react'
+import {HMLinkToolbarButton} from '@/hm-toolbar-link-button'
+import {EditorToggledStyle} from '@shm/shared/hm-types'
+import {Button} from '@shm/ui/button'
 import {
   Code,
   Emphasis,
@@ -18,69 +18,69 @@ import {
   Type,
   Underline,
   UnorderedList,
-} from "@shm/ui/icons";
-import {useState} from "react";
-import {SizeTokens, Theme, Tooltip, XGroup, XStack} from "tamagui";
+} from '@shm/ui/icons'
+import {useState} from 'react'
+import {SizeTokens, Theme, Tooltip, XGroup, XStack} from 'tamagui'
 
-const size: SizeTokens = "$3";
+const size: SizeTokens = '$3'
 
 const toggleStyles = [
   {
-    name: "Bold (Mod+B)",
+    name: 'Bold (Mod+B)',
     icon: Strong,
-    style: "bold" as EditorToggledStyle,
+    style: 'bold' as EditorToggledStyle,
   },
   {
-    name: "Italic (Mod+I)",
+    name: 'Italic (Mod+I)',
     icon: Emphasis,
-    style: "italic" as EditorToggledStyle,
+    style: 'italic' as EditorToggledStyle,
   },
   {
-    name: "Underline (Mod+U)",
+    name: 'Underline (Mod+U)',
     icon: Underline,
-    style: "underline" as EditorToggledStyle,
+    style: 'underline' as EditorToggledStyle,
   },
   {
-    name: "Strikethrough (Mod+Shift+X)",
+    name: 'Strikethrough (Mod+Shift+X)',
     icon: Strikethrough,
-    style: "strike" as EditorToggledStyle,
+    style: 'strike' as EditorToggledStyle,
   },
   {
-    name: "Code (Mod+E)",
+    name: 'Code (Mod+E)',
     icon: Code,
-    style: "code" as EditorToggledStyle,
+    style: 'code' as EditorToggledStyle,
   },
-];
+]
 
 export const blockDropdownItems: BlockTypeDropdownItem[] = [
   {
-    name: "Paragraph",
-    type: "paragraph",
+    name: 'Paragraph',
+    type: 'paragraph',
     icon: Type,
   },
   {
-    name: "Heading",
-    type: "heading",
+    name: 'Heading',
+    type: 'heading',
     icon: HeadingIcon,
   },
   {
-    name: "Bullet List",
-    type: "bulletListItem",
+    name: 'Bullet List',
+    type: 'bulletListItem',
     icon: UnorderedList,
   },
   {
-    name: "Numbered List",
-    type: "numberedListItem",
+    name: 'Numbered List',
+    type: 'numberedListItem',
     icon: OrderedList,
   },
-];
+]
 
 export function HMFormattingToolbar<
   Schema extends Record<string, BlockSpec<string, PropSchema>>,
 >(
   props: FormattingToolbarProps<Schema> & {
-    blockTypeDropdownItems?: BlockTypeDropdownItem[];
-  }
+    blockTypeDropdownItems?: BlockTypeDropdownItem[]
+  },
 ) {
   // return <XStack bg="red" ref={currentRef} width={200} height={10} />
   return (
@@ -101,7 +101,7 @@ export function HMFormattingToolbar<
         <HMLinkToolbarButton editor={props.editor} size={size} />
       </XGroup>
     </XStack>
-  );
+  )
 }
 
 function ToggleStyleButton<
@@ -113,25 +113,25 @@ function ToggleStyleButton<
   name,
   icon,
 }: {
-  editor: BlockNoteEditor<Schema>;
-  toggleStyle: EditorToggledStyle;
-  name: string;
-  icon: any;
+  editor: BlockNoteEditor<Schema>
+  toggleStyle: EditorToggledStyle
+  name: string
+  icon: any
 }) {
   const [active, setActive] = useState<boolean>(
-    toggleStyle in editor.getActiveStyles()
-  );
+    toggleStyle in editor.getActiveStyles(),
+  )
 
   function toggleCurrentStyle() {
-    setActive(toggleStyle in editor.getActiveStyles());
+    setActive(toggleStyle in editor.getActiveStyles())
   }
 
-  useEditorContentChange(editor, toggleCurrentStyle);
-  useEditorSelectionChange(editor, toggleCurrentStyle);
+  useEditorContentChange(editor, toggleCurrentStyle)
+  useEditorSelectionChange(editor, toggleCurrentStyle)
 
   function handlePress(style: EditorToggledStyle) {
-    editor.focus();
-    editor.toggleStyles({[toggleStyle]: true});
+    editor.focus()
+    editor.toggleStyles({[toggleStyle]: true})
   }
 
   return (
@@ -139,8 +139,8 @@ function ToggleStyleButton<
       <XGroup.Item>
         <Tooltip content={name}>
           <Button
-            bg={active ? "$background" : "$backgroundFocus"}
-            fontWeight={active ? "bold" : "400"}
+            bg={active ? '$background' : '$backgroundFocus'}
+            fontWeight={active ? 'bold' : '400'}
             size={size}
             borderRadius={0}
             icon={icon}
@@ -149,5 +149,5 @@ function ToggleStyleButton<
         </Tooltip>
       </XGroup.Item>
     </Theme>
-  );
+  )
 }

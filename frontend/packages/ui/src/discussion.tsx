@@ -8,21 +8,21 @@ import {
   HMMetadata,
   UnpackedHypermediaId,
   useRouteLink,
-} from "@shm/shared";
-import {Button, ButtonText} from "@tamagui/button";
-import {useTheme, View} from "@tamagui/core";
-import {ChevronDown, ChevronRight} from "@tamagui/lucide-icons";
-import {XStack, YStack} from "@tamagui/stacks";
-import {SizableText} from "@tamagui/text";
-import {ReactNode, useState} from "react";
-import {copyTextToClipboard} from "./copy-to-clipboard";
-import {HMIcon} from "./hm-icon";
-import {ReplyArrow} from "./icons";
-import {Tooltip} from "./tooltip";
+} from '@shm/shared'
+import {Button, ButtonText} from '@tamagui/button'
+import {useTheme, View} from '@tamagui/core'
+import {ChevronDown, ChevronRight} from '@tamagui/lucide-icons'
+import {XStack, YStack} from '@tamagui/stacks'
+import {SizableText} from '@tamagui/text'
+import {ReactNode, useState} from 'react'
+import {copyTextToClipboard} from './copy-to-clipboard'
+import {HMIcon} from './hm-icon'
+import {ReplyArrow} from './icons'
+import {Tooltip} from './tooltip'
 
-const Stack = View;
-const lineColor = "$color7";
-const lineWidth = 1;
+const Stack = View
+const lineColor = '$color7'
+const lineWidth = 1
 
 // this is a LINEARIZED set of comments, where one comment is directly replying to another. the commentGroup.moreCommentsCount should be the number of replies to the last comment in the group.
 export function CommentGroup({
@@ -38,31 +38,31 @@ export function CommentGroup({
   siteHost,
   rootReplyCommentId,
 }: {
-  docId: UnpackedHypermediaId;
-  commentGroup: HMCommentGroup;
-  isNested?: boolean;
-  isLastGroup?: boolean;
-  authors?: HMAccountsMetadata | undefined;
-  rootReplyCommentId: string | null;
-  renderCommentContent: (comment: HMComment) => ReactNode;
+  docId: UnpackedHypermediaId
+  commentGroup: HMCommentGroup
+  isNested?: boolean
+  isLastGroup?: boolean
+  authors?: HMAccountsMetadata | undefined
+  rootReplyCommentId: string | null
+  renderCommentContent: (comment: HMComment) => ReactNode
   RepliesEditor?: React.FC<{
-    isReplying: boolean;
-    docId: UnpackedHypermediaId;
-    replyCommentId: string;
-    rootReplyCommentId: string;
-    onDiscardDraft: () => void;
-  }>;
+    isReplying: boolean
+    docId: UnpackedHypermediaId
+    replyCommentId: string
+    rootReplyCommentId: string
+    onDiscardDraft: () => void
+  }>
   CommentReplies: React.FC<{
-    docId: UnpackedHypermediaId;
-    replyCommentId: string;
-    rootReplyCommentId: string;
-    homeId?: UnpackedHypermediaId;
-    siteHost?: string;
-  }>;
-  homeId?: UnpackedHypermediaId;
-  siteHost?: string;
+    docId: UnpackedHypermediaId
+    replyCommentId: string
+    rootReplyCommentId: string
+    homeId?: UnpackedHypermediaId
+    siteHost?: string
+  }>
+  homeId?: UnpackedHypermediaId
+  siteHost?: string
 }) {
-  const lastComment = commentGroup.comments.at(-1);
+  const lastComment = commentGroup.comments.at(-1)
   return (
     <YStack>
       {isLastGroup ? (
@@ -76,7 +76,7 @@ export function CommentGroup({
         />
       ) : null}
       {commentGroup.comments.map((comment, idx) => {
-        const isLastCommentInGroup = !!lastComment && comment === lastComment;
+        const isLastCommentInGroup = !!lastComment && comment === lastComment
         return (
           <Comment
             isFirst={idx == 0}
@@ -98,10 +98,10 @@ export function CommentGroup({
             homeId={homeId}
             siteHost={siteHost}
           />
-        );
+        )
       })}
     </YStack>
-  );
+  )
 }
 
 function Comment({
@@ -119,44 +119,44 @@ function Comment({
   CommentReplies,
   siteHost,
 }: {
-  docId: UnpackedHypermediaId;
-  comment: HMComment;
-  replyCount?: number;
-  isFirst?: boolean;
-  isLast?: boolean;
-  isNested?: boolean;
-  rootReplyCommentId: string | null;
-  authorMetadata?: HMMetadata;
-  renderCommentContent: (comment: HMComment) => ReactNode;
-  homeId?: UnpackedHypermediaId;
+  docId: UnpackedHypermediaId
+  comment: HMComment
+  replyCount?: number
+  isFirst?: boolean
+  isLast?: boolean
+  isNested?: boolean
+  rootReplyCommentId: string | null
+  authorMetadata?: HMMetadata
+  renderCommentContent: (comment: HMComment) => ReactNode
+  homeId?: UnpackedHypermediaId
   RepliesEditor?: React.FC<{
-    isReplying: boolean;
-    docId: UnpackedHypermediaId;
-    replyCommentId: string;
-    rootReplyCommentId: string;
-    onDiscardDraft: () => void;
-  }>;
+    isReplying: boolean
+    docId: UnpackedHypermediaId
+    replyCommentId: string
+    rootReplyCommentId: string
+    onDiscardDraft: () => void
+  }>
   CommentReplies: React.FC<{
-    docId: UnpackedHypermediaId;
-    replyCommentId: string;
-    rootReplyCommentId: string;
-    homeId?: UnpackedHypermediaId;
-    siteHost?: string;
-  }>;
-  siteHost?: string;
+    docId: UnpackedHypermediaId
+    replyCommentId: string
+    rootReplyCommentId: string
+    homeId?: UnpackedHypermediaId
+    siteHost?: string
+  }>
+  siteHost?: string
 }) {
-  const [showReplies, setShowReplies] = useState(false);
-  const [isReplying, setIsReplying] = useState(false);
-  const authorId = comment.author ? hmId("d", comment.author) : null;
+  const [showReplies, setShowReplies] = useState(false)
+  const [isReplying, setIsReplying] = useState(false)
+  const authorId = comment.author ? hmId('d', comment.author) : null
   const authorLink = useRouteLink(
-    authorId ? {key: "document", id: authorId} : null
-  );
-  const theme = useTheme();
+    authorId ? {key: 'document', id: authorId} : null,
+  )
+  const theme = useTheme()
   return (
     <YStack>
       <View
         width={lineWidth}
-        height={isLast && !showReplies ? 20 : "100%"}
+        height={isLast && !showReplies ? 20 : '100%'}
         position="absolute"
         top={isFirst ? 8 : 0}
         left={16}
@@ -194,7 +194,7 @@ function Comment({
             outlineWidth={4}
             borderRadius={100}
             hoverStyle={{
-              outlineColor: "$backgroundStrong",
+              outlineColor: '$backgroundStrong',
             }}
             {...authorLink}
           />
@@ -213,18 +213,18 @@ function Comment({
               size="$2"
               fontWeight="bold"
               hoverStyle={{
-                bg: "$backgroundStrong",
+                bg: '$backgroundStrong',
               }}
               {...authorLink}
             >
-              {authorMetadata?.name || "..."}
+              {authorMetadata?.name || '...'}
             </ButtonText>
             <Tooltip content={formattedDateLong(comment.createTime)}>
               <ButtonText
                 color="$color8"
                 size="$1"
                 onPress={() => {
-                  copyTextToClipboard(comment.id);
+                  copyTextToClipboard(comment.id)
                 }}
               >
                 {formattedDateMedium(comment.createTime)}
@@ -242,24 +242,24 @@ function Comment({
                 color="$brand5"
                 borderColor="$colorTransparent"
                 hoverStyle={{
-                  bg: "$color4",
-                  borderColor: "$color5",
+                  bg: '$color4',
+                  borderColor: '$color5',
                 }}
                 focusStyle={{
-                  bg: "$color5",
-                  borderColor: "$color6",
+                  bg: '$color5',
+                  borderColor: '$color6',
                 }}
                 pressStyle={{
-                  bg: "$color5",
-                  borderColor: "$color6",
+                  bg: '$color5',
+                  borderColor: '$color6',
                 }}
               >
                 <SizableText
                   size="$1"
                   color="$brand5"
-                  hoverStyle={{color: "$brand6"}}
-                  focusStyle={{color: "$brand7"}}
-                  pressStyle={{color: "$brand7"}}
+                  hoverStyle={{color: '$brand6'}}
+                  focusStyle={{color: '$brand7'}}
+                  pressStyle={{color: '$brand7'}}
                 >
                   Replies ({replyCount})
                 </SizableText>
@@ -274,24 +274,24 @@ function Comment({
                 color="$brand5"
                 borderColor="$colorTransparent"
                 hoverStyle={{
-                  bg: "$color4",
-                  borderColor: "$color5",
+                  bg: '$color4',
+                  borderColor: '$color5',
                 }}
                 focusStyle={{
-                  bg: "$color5",
-                  borderColor: "$color6",
+                  bg: '$color5',
+                  borderColor: '$color6',
                 }}
                 pressStyle={{
-                  bg: "$color5",
-                  borderColor: "$color6",
+                  bg: '$color5',
+                  borderColor: '$color6',
                 }}
               >
                 <SizableText
                   size="$1"
                   color="$brand5"
-                  hoverStyle={{color: "$brand6"}}
-                  focusStyle={{color: "$brand7"}}
-                  pressStyle={{color: "$brand7"}}
+                  hoverStyle={{color: '$brand6'}}
+                  focusStyle={{color: '$brand7'}}
+                  pressStyle={{color: '$brand7'}}
                 >
                   Reply
                 </SizableText>
@@ -319,5 +319,5 @@ function Comment({
         />
       ) : null}
     </YStack>
-  );
+  )
 }

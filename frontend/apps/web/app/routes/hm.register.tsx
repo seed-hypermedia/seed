@@ -1,13 +1,13 @@
-import {defaultPageMeta} from "@/meta";
-import {XStack, YStack} from "@tamagui/stacks";
-import {SizableText} from "@tamagui/text";
-import {Container} from "../ui/container";
+import {defaultPageMeta} from '@/meta'
+import {XStack, YStack} from '@tamagui/stacks'
+import {SizableText} from '@tamagui/text'
+import {Container} from '../ui/container'
 
 export const loader = async ({request}: {request: Request}) => {
-  return null;
-};
+  return null
+}
 
-export const meta = defaultPageMeta("Site Registration");
+export const meta = defaultPageMeta('Site Registration')
 
 export default function RegisterPage() {
   return (
@@ -52,5 +52,5 @@ export default function RegisterPage() {
         </YStack>
       </Container>
     </YStack>
-  );
+  )
 }

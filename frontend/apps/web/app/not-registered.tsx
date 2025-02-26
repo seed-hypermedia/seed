@@ -1,7 +1,7 @@
-import {Link} from "@remix-run/react";
-import {XStack, YStack} from "@tamagui/stacks";
-import {SizableText} from "@tamagui/text";
-import {Container} from "./ui/container";
+import {Link} from '@remix-run/react'
+import {XStack, YStack} from '@tamagui/stacks'
+import {SizableText} from '@tamagui/text'
+import {Container} from './ui/container'
 
 export function NotRegisteredPage({}: {}) {
   return (
@@ -38,7 +38,7 @@ export function NotRegisteredPage({}: {}) {
         </YStack>
       </Container>
     </YStack>
-  );
+  )
 }
 
 export function NoSitePage({}: {}) {
@@ -65,19 +65,19 @@ export function NoSitePage({}: {}) {
           <YStack gap="$3">
             <SizableText>
               You can create Hypermedia content and publish it to your network
-              for free by{" "}
+              for free by{' '}
               <Link to="https://seed.hyper.media/hm/download">
                 downloading the Seed Hypermedia app
               </Link>
               .
             </SizableText>
             <SizableText>
-              To publish something here,{" "}
+              To publish something here,{' '}
               <Link to="https://discord.com/invite/xChFt8WPN8">
                 join our Discord server
-              </Link>{" "}
+              </Link>{' '}
               and ask about our hosting service. If you have a domain and a
-              server, you can also{" "}
+              server, you can also{' '}
               <Link to="https://seed.hyper.media/resources/self-host-seed">
                 self-host your site
               </Link>
@@ -87,5 +87,5 @@ export function NoSitePage({}: {}) {
         </YStack>
       </Container>
     </YStack>
-  );
+  )
 }

@@ -1,1 +1,1 @@
-export const itemHoverBgColor = "$color5";
+export const itemHoverBgColor = '$color5'

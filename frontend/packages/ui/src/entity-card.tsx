@@ -1,18 +1,18 @@
-import {XStack, XStackProps, YStack} from "@tamagui/stacks";
-import "katex/dist/katex.min.css";
-import {Button, ColorTokens, SizableText, View, ViewProps} from "tamagui";
-import "./document-content.css";
+import {XStack, XStackProps, YStack} from '@tamagui/stacks'
+import 'katex/dist/katex.min.css'
+import {Button, ColorTokens, SizableText, View, ViewProps} from 'tamagui'
+import './document-content.css'
 
 export function QueryBlockPlaceholder({
   styleType,
 }: {
-  styleType: "Card" | "List";
+  styleType: 'Card' | 'List'
 }) {
-  if (styleType === "Card") {
-    return <QueryBlockCardPlaceholder />;
+  if (styleType === 'Card') {
+    return <QueryBlockCardPlaceholder />
   }
 
-  return <QueryBlockListPlaceholder />;
+  return <QueryBlockListPlaceholder />
 }
 
 export function QueryBlockCardPlaceholder() {
@@ -22,7 +22,7 @@ export function QueryBlockCardPlaceholder() {
       <EntityCardPlaceholder />
       <EntityCardPlaceholder />
     </XStack>
-  );
+  )
 }
 
 export function QueryBlockListPlaceholder() {
@@ -32,7 +32,7 @@ export function QueryBlockListPlaceholder() {
       <ListItemSkeleton />
       <ListItemSkeleton />
     </YStack>
-  );
+  )
 }
 
 export function EntityCardPlaceholder() {
@@ -41,8 +41,8 @@ export function EntityCardPlaceholder() {
       flexGrow={0}
       flexShrink={0}
       flexBasis="100%"
-      $gtSm={{flexBasis: "50%"}}
-      $gtMd={{flexBasis: "33.33%"}}
+      $gtSm={{flexBasis: '50%'}}
+      $gtMd={{flexBasis: '33.33%'}}
       p="$2"
     >
       <YStack
@@ -75,21 +75,21 @@ export function EntityCardPlaceholder() {
         </YStack>
       </YStack>
     </YStack>
-  );
+  )
 }
 
 function CoverPlaceholder() {
-  return <XStack height={180} width="100%" bg="$color6" />;
+  return <XStack height={180} width="100%" bg="$color6" />
 }
 
 function TextPlaceholder({
   height = 16,
-  width = "100%",
-  color = "$color6",
+  width = '100%',
+  color = '$color6',
 }: {
-  height?: XStackProps["height"];
-  width?: XStackProps["width"];
-  color?: ColorTokens;
+  height?: XStackProps['height']
+  width?: XStackProps['width']
+  color?: ColorTokens
 }) {
   return (
     <XStack
@@ -99,7 +99,7 @@ function TextPlaceholder({
       borderRadius={100}
       overflow="hidden"
     />
-  );
+  )
 }
 
 export function ListItemSkeleton() {
@@ -131,11 +131,11 @@ export function ListItemSkeleton() {
         <Skeleton width={24} height={24} borderRadius={100} marginLeft={-8} />
       </XStack>
     </Button>
-  );
+  )
 }
 
 function Skeleton(props: ViewProps) {
-  return <View {...props} bg="$color6" />;
+  return <View {...props} bg="$color6" />
 }
 
 export function BlankQueryBlockMessage({message}: {message: string}) {
@@ -150,5 +150,5 @@ export function BlankQueryBlockMessage({message}: {message: string}) {
         {message}
       </SizableText>
     </YStack>
-  );
+  )
 }

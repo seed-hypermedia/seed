@@ -1,12 +1,12 @@
-import {BlockSchema} from "@/blocknote/core";
-import {Delete} from "@shm/ui/icons";
-import {ReactNode} from "react";
-import {XStack} from "tamagui";
-import {DragHandleMenuProps} from "../DragHandleMenu";
-import {DragHandleMenuItem} from "../DragHandleMenuItem";
+import {BlockSchema} from '@/blocknote/core'
+import {Delete} from '@shm/ui/icons'
+import {ReactNode} from 'react'
+import {XStack} from 'tamagui'
+import {DragHandleMenuProps} from '../DragHandleMenu'
+import {DragHandleMenuItem} from '../DragHandleMenuItem'
 
 export const RemoveBlockButton = <BSchema extends BlockSchema>(
-  props: DragHandleMenuProps<BSchema> & {children: ReactNode}
+  props: DragHandleMenuProps<BSchema> & {children: ReactNode},
 ) => {
   return (
     <DragHandleMenuItem
@@ -17,5 +17,5 @@ export const RemoveBlockButton = <BSchema extends BlockSchema>(
         {props.children}
       </XStack>
     </DragHandleMenuItem>
-  );
-};
+  )
+}

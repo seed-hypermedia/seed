@@ -1,7 +1,7 @@
-import {XStack, YStack} from "@tamagui/stacks";
-import {SizableText} from "@tamagui/text";
-import {SiteDocumentPayload} from "./loaders";
-import {Container} from "./ui/container";
+import {XStack, YStack} from '@tamagui/stacks'
+import {SizableText} from '@tamagui/text'
+import {SiteDocumentPayload} from './loaders'
+import {Container} from './ui/container'
 
 export function NotFoundPage({
   homeMetadata,
@@ -43,5 +43,5 @@ export function NotFoundPage({
         </YStack>
       </Container>
     </YStack>
-  );
+  )
 }

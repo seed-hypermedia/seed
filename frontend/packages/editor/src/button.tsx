@@ -1,36 +1,36 @@
-import {BlockNoteEditor} from "@/blocknote/core/BlockNoteEditor";
-import {Block} from "@/blocknote/core/extensions/Blocks/api/blockTypes";
-import {defaultProps} from "@/blocknote/core/extensions/Blocks/api/defaultBlocks";
-import {useEditorSelectionChange} from "@/blocknote/react/hooks/useEditorSelectionChange";
-import {createReactBlockSpec} from "@/blocknote/react/ReactBlockSpec";
-import {HypermediaLinkSwitchToolbar} from "@/hm-link-switch-toolbar";
-import {updateSelection} from "@/media-render";
-import {HMBlockSchema} from "@/schema";
-import {Button} from "@shm/ui/button";
-import {usePopoverState} from "@shm/ui/use-popover-state";
-import {AlignCenter, AlignLeft, AlignRight} from "@tamagui/lucide-icons";
-import {XStack, YStack} from "@tamagui/stacks";
-import {useState} from "react";
-import {Label, SizableText} from "tamagui";
-import {Popover} from "../../ui/src/TamaguiPopover";
+import {BlockNoteEditor} from '@/blocknote/core/BlockNoteEditor'
+import {Block} from '@/blocknote/core/extensions/Blocks/api/blockTypes'
+import {defaultProps} from '@/blocknote/core/extensions/Blocks/api/defaultBlocks'
+import {useEditorSelectionChange} from '@/blocknote/react/hooks/useEditorSelectionChange'
+import {createReactBlockSpec} from '@/blocknote/react/ReactBlockSpec'
+import {HypermediaLinkSwitchToolbar} from '@/hm-link-switch-toolbar'
+import {updateSelection} from '@/media-render'
+import {HMBlockSchema} from '@/schema'
+import {Button} from '@shm/ui/button'
+import {usePopoverState} from '@shm/ui/use-popover-state'
+import {AlignCenter, AlignLeft, AlignRight} from '@tamagui/lucide-icons'
+import {XStack, YStack} from '@tamagui/stacks'
+import {useState} from 'react'
+import {Label, SizableText} from 'tamagui'
+import {Popover} from '../../ui/src/TamaguiPopover'
 
 export const ButtonBlock = createReactBlockSpec({
-  type: "button",
+  type: 'button',
   propSchema: {
     ...defaultProps,
 
     url: {
-      default: "",
+      default: '',
     },
     name: {
-      default: "",
+      default: '',
     },
     alignment: {
-      default: "",
+      default: '',
     },
     defaultOpen: {
-      values: ["false", "true"],
-      default: "false",
+      values: ['false', 'true'],
+      default: 'false',
     },
   },
   containsInlineContent: true,
@@ -39,36 +39,36 @@ export const ButtonBlock = createReactBlockSpec({
     block,
     editor,
   }: {
-    block: Block<HMBlockSchema>;
-    editor: BlockNoteEditor<HMBlockSchema>;
+    block: Block<HMBlockSchema>
+    editor: BlockNoteEditor<HMBlockSchema>
   }) => Render(block, editor),
-});
+})
 
-type ButtonAlignment = "flex-start" | "center" | "flex-end";
+type ButtonAlignment = 'flex-start' | 'center' | 'flex-end'
 
 export type ButtonType = {
-  id: string;
+  id: string
   props: {
-    url: string;
-    name: string;
-    alignment?: string;
-  };
-  children: [];
-  content: [];
-  type: string;
-};
+    url: string
+    name: string
+    alignment?: string
+  }
+  children: []
+  content: []
+  type: string
+}
 
 const Render = (
   block: Block<HMBlockSchema>,
-  editor: BlockNoteEditor<HMBlockSchema>
+  editor: BlockNoteEditor<HMBlockSchema>,
 ) => {
-  const popoverState = usePopoverState();
+  const popoverState = usePopoverState()
   // const [focused, setFocused] = useState(false)
   // const [sizing, setSizing] = useState('hug-content')
   const [alignment, setAlignment] = useState<ButtonAlignment>(
-    (block.props.alignment as ButtonAlignment) || "flex-start"
-  );
-  const [selected, setSelected] = useState(false);
+    (block.props.alignment as ButtonAlignment) || 'flex-start',
+  )
+  const [selected, setSelected] = useState(false)
   // const [buttonText, setButtonText] = useState(
   //   block.props.name || 'Button Label',
   // )
@@ -79,18 +79,18 @@ const Render = (
   // const [link, setLink] = useState(block.props.url)
   // const openUrl = useOpenUrl()
   const openUrl = (...params: any) => {
-    console.log("openUrl inside editor package", params);
-  };
+    console.log('openUrl inside editor package', params)
+  }
 
   const assign = (newProps: ButtonType) => {
     editor.updateBlock(block.id, {
       props: {...block.props, ...newProps.props},
-    });
-  };
+    })
+  }
 
   useEditorSelectionChange(editor, () =>
-    updateSelection(editor, block, setSelected)
-  );
+    updateSelection(editor, block, setSelected),
+  )
 
   function ButtonLinkComponents() {
     return (
@@ -104,12 +104,12 @@ const Render = (
             height="$3"
             borderRadius="$3"
             onPress={() => {
-              setAlignment("flex-start");
-              assign({props: {alignment: "flex-start"}} as ButtonType);
+              setAlignment('flex-start')
+              assign({props: {alignment: 'flex-start'}} as ButtonType)
             }}
             borderColor="$brand5"
             backgroundColor={
-              alignment === "flex-start" ? "$brand5" : "$colorTransparent"
+              alignment === 'flex-start' ? '$brand5' : '$colorTransparent'
             }
           >
             <AlignLeft size="$1.5" />
@@ -119,12 +119,12 @@ const Render = (
             height="$3"
             borderRadius="$3"
             onPress={() => {
-              setAlignment("center");
-              assign({props: {alignment: "center"}} as ButtonType);
+              setAlignment('center')
+              assign({props: {alignment: 'center'}} as ButtonType)
             }}
             borderColor="$brand5"
             backgroundColor={
-              alignment === "center" ? "$brand5" : "$colorTransparent"
+              alignment === 'center' ? '$brand5' : '$colorTransparent'
             }
           >
             <AlignCenter size="$1.5" />
@@ -134,19 +134,19 @@ const Render = (
             height="$3"
             borderRadius="$3"
             onPress={() => {
-              setAlignment("flex-end");
-              assign({props: {alignment: "flex-end"}} as ButtonType);
+              setAlignment('flex-end')
+              assign({props: {alignment: 'flex-end'}} as ButtonType)
             }}
             borderColor="$brand5"
             backgroundColor={
-              alignment === "flex-end" ? "$brand5" : "$colorTransparent"
+              alignment === 'flex-end' ? '$brand5' : '$colorTransparent'
             }
           >
             <AlignRight size="$1.5" />
           </Button>
         </XStack>
       </YStack>
-    );
+    )
   }
 
   return (
@@ -154,7 +154,7 @@ const Render = (
       placement="top"
       open={popoverState.open}
       onOpenChange={(open) => {
-        popoverState.onOpenChange(open);
+        popoverState.onOpenChange(open)
       }}
     >
       <YStack justifyContent={alignment} alignItems={alignment}>
@@ -177,8 +177,8 @@ const Render = (
                 justifyContent="center"
                 textAlign="center"
                 userSelect="none"
-                borderColor={selected ? "$color8" : "$colorTransparent"}
-                focusStyle={{borderWidth: "$1"}}
+                borderColor={selected ? '$color8' : '$colorTransparent'}
+                focusStyle={{borderWidth: '$1'}}
               >
                 <SizableText numberOfLines={1} ellipsizeMode="tail">
                   {block.props.name}
@@ -191,13 +191,13 @@ const Render = (
                   url={block.props.url}
                   text={block.props.name}
                   editHyperlink={(url: string, text: string) => {
-                    assign({props: {url: url, name: text}} as ButtonType);
+                    assign({props: {url: url, name: text}} as ButtonType)
                   }}
                   updateHyperlink={(url: string, text: string) => {
-                    assign({props: {url: url, name: text}} as ButtonType);
+                    assign({props: {url: url, name: text}} as ButtonType)
                   }}
                   deleteHyperlink={() => {
-                    assign({props: {url: ""}} as ButtonType);
+                    assign({props: {url: ''}} as ButtonType)
                   }}
                   startHideTimer={() => {}}
                   stopHideTimer={() => {}}
@@ -216,5 +216,5 @@ const Render = (
         </XStack>
       </YStack>
     </Popover>
-  );
-};
+  )
+}

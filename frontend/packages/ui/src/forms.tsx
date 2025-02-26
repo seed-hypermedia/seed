@@ -1,16 +1,16 @@
-import {PropsWithChildren} from "react";
-import {FieldErrors, FieldValues} from "react-hook-form";
-import {Fieldset, Label, SizableText, XStack} from "tamagui";
+import {PropsWithChildren} from 'react'
+import {FieldErrors, FieldValues} from 'react-hook-form'
+import {Fieldset, Label, SizableText, XStack} from 'tamagui'
 
 export function FormErrors<Fields extends FieldValues>({
   errors,
 }: {
-  errors: FieldErrors<Fields>;
+  errors: FieldErrors<Fields>
 }) {
   if (errors.root) {
-    return <SizableText color="$red10">{errors.root.message}</SizableText>;
+    return <SizableText color="$red10">{errors.root.message}</SizableText>
   }
-  return null;
+  return null
 }
 
 export function FormField<Fields extends FieldValues>({
@@ -19,9 +19,9 @@ export function FormField<Fields extends FieldValues>({
   errors,
   children,
 }: PropsWithChildren<{
-  name: keyof Fields;
-  errors: FieldErrors<Fields>;
-  label?: string;
+  name: keyof Fields
+  errors: FieldErrors<Fields>
+  label?: string
 }>) {
   return (
     <Fieldset borderColor="transparent">
@@ -29,7 +29,7 @@ export function FormField<Fields extends FieldValues>({
         {label ? (
           <Label
             htmlFor={String(name)}
-            color={errors[name]?.message ? "$red10" : undefined}
+            color={errors[name]?.message ? '$red10' : undefined}
           >
             {label}
           </Label>
@@ -38,5 +38,5 @@ export function FormField<Fields extends FieldValues>({
       </XStack>
       {children}
     </Fieldset>
-  );
+  )
 }

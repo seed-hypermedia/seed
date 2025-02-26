@@ -1,24 +1,24 @@
-import {BlockSchema} from "@/blocknote/core";
-import {createStyles, Menu} from "@mantine/core";
-import {LinkMenuItem} from "./LinkMenuItem";
-import {LinkMenuProps} from "./LinkMenuPositioner";
+import {BlockSchema} from '@/blocknote/core'
+import {createStyles, Menu} from '@mantine/core'
+import {LinkMenuItem} from './LinkMenuItem'
+import {LinkMenuProps} from './LinkMenuPositioner'
 
 export function DefaultLinkMenu<BSchema extends BlockSchema>(
-  props: LinkMenuProps<BSchema>
+  props: LinkMenuProps<BSchema>,
 ) {
   const {classes} = createStyles({root: {}})(undefined, {
-    name: "LinkMenu",
-  });
-  const renderedItems: any[] = [];
+    name: 'LinkMenu',
+  })
+  const renderedItems: any[] = []
 
   if (props.items.length > 1) {
     renderedItems.push(
-      <Menu.Label key="list-label" style={{fontWeight: "bold", fontSize: 14}}>
+      <Menu.Label key="list-label" style={{fontWeight: 'bold', fontSize: 14}}>
         Insert as:
-      </Menu.Label>
-    );
+      </Menu.Label>,
+    )
   }
-  let index = 0;
+  let index = 0
 
   for (const item of props.items) {
     renderedItems.push(
@@ -29,10 +29,10 @@ export function DefaultLinkMenu<BSchema extends BlockSchema>(
         hint={item.hint}
         disabled={item.disabled}
         isSelected={props.keyboardHoveredItemIndex === index}
-        set={() => props.itemCallback(item, "")}
-      />
-    );
-    index++;
+        set={() => props.itemCallback(item, '')}
+      />,
+    )
+    index++
   }
 
   return (
@@ -44,7 +44,7 @@ export function DefaultLinkMenu<BSchema extends BlockSchema>(
        * close due to trigger="hover".
        */
       defaultOpened={true}
-      trigger={"hover"}
+      trigger={'hover'}
       closeDelay={10000000}
     >
       <Menu.Dropdown
@@ -59,5 +59,5 @@ export function DefaultLinkMenu<BSchema extends BlockSchema>(
         )}
       </Menu.Dropdown>
     </Menu>
-  );
+  )
 }

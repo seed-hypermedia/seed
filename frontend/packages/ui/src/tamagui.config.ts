@@ -1,20 +1,20 @@
-import {createTamagui} from "@tamagui/core";
-import {shorthands} from "@tamagui/shorthands";
-import {createTokens} from "@tamagui/web";
-import {animations} from "./config/animations";
-import {bodyFont, editorBody, headingFont, monoFont} from "./config/fonts";
-import {media, mediaQueryDefaultActive} from "./config/media";
-import {radius} from "./themes/token-radius";
-import {size} from "./themes/token-size";
-import {space} from "./themes/token-space";
-import {zIndex} from "./themes/token-z-index";
+import {createTamagui} from '@tamagui/core'
+import {shorthands} from '@tamagui/shorthands'
+import {createTokens} from '@tamagui/web'
+import {animations} from './config/animations'
+import {bodyFont, editorBody, headingFont, monoFont} from './config/fonts'
+import {media, mediaQueryDefaultActive} from './config/media'
+import {radius} from './themes/token-radius'
+import {size} from './themes/token-size'
+import {space} from './themes/token-space'
+import {zIndex} from './themes/token-z-index'
 
-import * as themes from "./themes-generated";
-import {color} from "./themes/token-colors";
+import * as themes from './themes-generated'
+import {color} from './themes/token-colors'
 
 const conf = {
   themes,
-  defaultFont: "body",
+  defaultFont: 'body',
   animations,
   shouldAddPrefersColorThemes: true,
   themeClassNameOnRoot: true,
@@ -34,11 +34,11 @@ const conf = {
   }),
   media,
   settings: {
-    webContainerType: "inherit",
+    webContainerType: 'inherit',
   },
-} satisfies Parameters<typeof createTamagui>["0"];
+} satisfies Parameters<typeof createTamagui>['0']
 
 // @ts-ignore - passing this directly breaks TS types
-conf.mediaQueryDefaultActive = mediaQueryDefaultActive;
+conf.mediaQueryDefaultActive = mediaQueryDefaultActive
 
-export const config = createTamagui(conf);
+export const config = createTamagui(conf)

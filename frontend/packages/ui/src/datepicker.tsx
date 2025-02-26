@@ -1,8 +1,8 @@
-import type {DPDay} from "@rehookify/datepicker";
-import {useDatePickerContext} from "@rehookify/datepicker";
-import {ChevronLeft, ChevronRight} from "@tamagui/lucide-icons";
-import {useEffect, useMemo, useState} from "react";
-import {AnimatePresence, Button, View} from "tamagui";
+import type {DPDay} from '@rehookify/datepicker'
+import {useDatePickerContext} from '@rehookify/datepicker'
+import {ChevronLeft, ChevronRight} from '@tamagui/lucide-icons'
+import {useEffect, useMemo, useState} from 'react'
+import {AnimatePresence, Button, View} from 'tamagui'
 
 import {
   DatePicker,
@@ -14,22 +14,22 @@ import {
   YearRangeSlider,
   swapOnClick,
   useHeaderType,
-} from "./datepicker-dateparts";
-import {useDateAnimation} from "./datepicker-usedateanimation";
+} from './datepicker-dateparts'
+import {useDateAnimation} from './datepicker-usedateanimation'
 
 function CalendarHeader() {
   const {
     data: {calendars},
     propGetters: {subtractOffset},
-  } = useDatePickerContext();
-  const {type: header, setHeader} = useHeaderType();
-  const {year, month} = calendars[0];
+  } = useDatePickerContext()
+  const {type: header, setHeader} = useHeaderType()
+  const {year, month} = calendars[0]
 
-  if (header === "year") {
-    return <YearRangeSlider />;
+  if (header === 'year') {
+    return <YearRangeSlider />
   }
 
-  if (header === "month") {
+  if (header === 'month') {
     return (
       <SizableText
         width="100%"
@@ -40,7 +40,7 @@ function CalendarHeader() {
       >
         Select a month
       </SizableText>
-    );
+    )
   }
   return (
     <View
@@ -57,20 +57,20 @@ function CalendarHeader() {
       </Button>
       <View flexDirection="column" height={50} alignItems="center">
         <SizableText
-          onPress={() => setHeader("year")}
+          onPress={() => setHeader('year')}
           userSelect="auto"
           tabIndex={0}
           size="$4"
           cursor="pointer"
           color="$color11"
           hoverStyle={{
-            color: "$color12",
+            color: '$color12',
           }}
         >
           {year}
         </SizableText>
         <SizableText
-          onPress={() => setHeader("month")}
+          onPress={() => setHeader('month')}
           userSelect="auto"
           cursor="pointer"
           tabIndex={0}
@@ -79,7 +79,7 @@ function CalendarHeader() {
           fontWeight="600"
           lineHeight="$1"
           hoverStyle={{
-            color: "$gray10",
+            color: '$gray10',
           }}
         >
           {month}
@@ -91,33 +91,33 @@ function CalendarHeader() {
         </Button.Icon>
       </Button>
     </View>
-  );
+  )
 }
 
 function DayPicker() {
   const {
     data: {calendars, weekDays},
     propGetters: {dayButton},
-  } = useDatePickerContext();
+  } = useDatePickerContext()
 
-  const {days} = calendars[0];
+  const {days} = calendars[0]
 
   const {prevNextAnimation, prevNextAnimationKey} = useDateAnimation({
-    listenTo: "month",
-  });
+    listenTo: 'month',
+  })
 
   // divide days array into sub arrays that each has 7 days, for better stylings
   const subDays = useMemo(
     () =>
       days.reduce((acc, day, i) => {
         if (i % 7 === 0) {
-          acc.push([]);
+          acc.push([])
         }
-        acc[acc.length - 1].push(day);
-        return acc;
+        acc[acc.length - 1].push(day)
+        return acc
       }, [] as DPDay[][]),
-    [days]
-  );
+    [days],
+  )
 
   return (
     <AnimatePresence key={prevNextAnimationKey}>
@@ -141,17 +141,17 @@ function DayPicker() {
                     padding={0}
                     width={45}
                     {...swapOnClick(dayButton(d))}
-                    backgroundColor={d.selected ? "$background" : "transparent"}
+                    backgroundColor={d.selected ? '$background' : 'transparent'}
                     themeInverse={d.selected}
                     disabled={!d.inCurrentMonth}
                   >
                     <Button.Text
                       color={
                         d.selected
-                          ? "$gray12"
+                          ? '$gray12'
                           : d.inCurrentMonth
-                          ? "$gray11"
-                          : "$gray6"
+                          ? '$gray11'
+                          : '$gray6'
                       }
                     >
                       {d.day}
@@ -159,16 +159,16 @@ function DayPicker() {
                   </Button>
                 ))}
               </View>
-            );
+            )
           })}
         </View>
       </View>
     </AnimatePresence>
-  );
+  )
 }
 
 function DatePickerBody() {
-  const [header, setHeader] = useState<"day" | "month" | "year">("day");
+  const [header, setHeader] = useState<'day' | 'month' | 'year'>('day')
 
   return (
     <HeaderTypeProvider type={header} setHeader={setHeader}>
@@ -179,14 +179,14 @@ function DatePickerBody() {
         maxWidth={325}
       >
         <CalendarHeader />
-        {header === "month" && (
-          <MonthPicker onChange={() => setHeader("day")} />
+        {header === 'month' && (
+          <MonthPicker onChange={() => setHeader('day')} />
         )}
-        {header === "year" && <YearPicker onChange={() => setHeader("day")} />}
-        {header === "day" && <DayPicker />}
+        {header === 'year' && <YearPicker onChange={() => setHeader('day')} />}
+        {header === 'day' && <DayPicker />}
       </View>
     </HeaderTypeProvider>
-  );
+  )
 }
 
 export function SimpleDatePicker({
@@ -194,15 +194,15 @@ export function SimpleDatePicker({
   value,
   onValue,
 }: {
-  onReset: () => void;
-  value: string;
-  onValue: (value: string) => void;
+  onReset: () => void
+  value: string
+  onValue: (value: string) => void
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false)
 
   useEffect(() => {
-    setOpen(false);
-  }, [value]);
+    setOpen(false)
+  }, [value])
 
   return (
     <DatePicker
@@ -212,11 +212,11 @@ export function SimpleDatePicker({
       config={{
         selectedDates: [new Date(value)],
         onDatesChange: (dates) => {
-          const date = dates[0];
+          const date = dates[0]
           if (!date) {
-            onReset();
+            onReset()
           } else {
-            onValue(date.toISOString().slice(0, 10));
+            onValue(date.toISOString().slice(0, 10))
           }
         },
         calendar: {
@@ -237,5 +237,5 @@ export function SimpleDatePicker({
         <DatePickerBody />
       </DatePicker.Content>
     </DatePicker>
-  );
+  )
 }

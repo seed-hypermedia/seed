@@ -1,37 +1,37 @@
-import {SizableText, styled, XStack, YStack} from "tamagui";
+import {SizableText, styled, XStack, YStack} from 'tamagui'
 
-export const onboardingColor = "#755EFF";
+export const onboardingColor = '#755EFF'
 
 export const Title = styled(SizableText, {
-  size: "$7",
-  fontWeight: "bold",
-});
+  size: '$7',
+  fontWeight: 'bold',
+})
 
-export const Text = styled(SizableText, {});
+export const Text = styled(SizableText, {})
 
 export const AccentSection = styled(YStack, {
   w: 220,
-  flex: "none",
+  flex: 'none',
   flexGrow: 0,
   flexShrink: 0,
-  bg: "$brand5",
-  paddingHorizontal: "$4",
-  paddingVertical: "$6",
-  gap: "$4",
-  borderRadius: "$4",
-});
+  bg: '$brand5',
+  paddingHorizontal: '$4',
+  paddingVertical: '$6',
+  gap: '$4',
+  borderRadius: '$4',
+})
 
 export const MainSection = styled(YStack, {
   f: 1,
-  bg: "$background",
-  p: "$6",
-  gap: "$4",
-});
+  bg: '$background',
+  p: '$6',
+  gap: '$4',
+})
 
 export const Wrapper = styled(XStack, {
-  jc: "stretch",
+  jc: 'stretch',
   f: 1,
-});
+})
 
 export const SuccessIcon = (props: any) => (
   <svg
@@ -48,4 +48,4 @@ export const SuccessIcon = (props: any) => (
       clipRule="evenodd"
     />
   </svg>
-);
+)

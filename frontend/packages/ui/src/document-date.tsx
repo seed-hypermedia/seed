@@ -3,15 +3,15 @@ import {
   formattedDateLong,
   formattedDateMedium,
   HMDocument,
-} from "@shm/shared";
-import {SizableText} from "@tamagui/text";
-import {YStack} from "tamagui";
-import {HoverCard} from "./hover-card";
+} from '@shm/shared'
+import {SizableText} from '@tamagui/text'
+import {YStack} from 'tamagui'
+import {HoverCard} from './hover-card'
 
 export function DocumentDate({document}: {document: HMDocument}) {
   const displayText = document.metadata?.displayPublishTime
     ? formattedDateDayOnly(new Date(document.metadata.displayPublishTime))
-    : formattedDateMedium(document?.updateTime);
+    : formattedDateMedium(document?.updateTime)
   const content: React.ReactNode[] = [
     <SizableText size="$3">
       Last Update: {formattedDateLong(document?.updateTime)}
@@ -20,13 +20,13 @@ export function DocumentDate({document}: {document: HMDocument}) {
     // <SizableText size="$2">
     //   First published: {formattedDateLong(document?.createTime)}
     // </SizableText>,
-  ];
+  ]
   if (document.metadata?.displayPublishTime) {
     content.unshift(
       <SizableText color="$blue10" size="$3">
         Original Publish date: {displayText}
-      </SizableText>
-    );
+      </SizableText>,
+    )
   }
   return (
     <HoverCard
@@ -40,11 +40,11 @@ export function DocumentDate({document}: {document: HMDocument}) {
         flexShrink={0}
         flexGrow={0}
         size="$1"
-        hoverStyle={{cursor: "default"}}
-        color={document.metadata?.displayPublishTime ? "$blue10" : "$color9"}
+        hoverStyle={{cursor: 'default'}}
+        color={document.metadata?.displayPublishTime ? '$blue10' : '$color9'}
       >
         {displayText}
       </SizableText>
     </HoverCard>
-  );
+  )
 }

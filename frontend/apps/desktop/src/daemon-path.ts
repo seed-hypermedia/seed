@@ -2,7 +2,10 @@ import path from 'path'
 
 export function getDaemonBinaryPath() {
   if (process.env.NODE_ENV == 'production') {
-    return path.join(process.resourcesPath, `seed-daemon-${getPlatformTriple()}`)
+    return path.join(
+      process.resourcesPath,
+      `seed-daemon-${getPlatformTriple()}`,
+    )
   } else {
     return path.join(
       process.cwd(),

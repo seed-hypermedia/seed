@@ -1,9 +1,9 @@
-import {createTipTapBlock, mergeCSSClasses} from "@/blocknote";
-import styles from "@/blocknote/core/extensions/Blocks/nodes/Block.module.css";
-import {mergeAttributes} from "@tiptap/core";
+import {createTipTapBlock, mergeCSSClasses} from '@/blocknote'
+import styles from '@/blocknote/core/extensions/Blocks/nodes/Block.module.css'
+import {mergeAttributes} from '@tiptap/core'
 
-export const ImagePlaceholder = createTipTapBlock<"imagePlaceholder">({
-  name: "imagePlaceholder",
+export const ImagePlaceholder = createTipTapBlock<'imagePlaceholder'>({
+  name: 'imagePlaceholder',
 
   addAttributes() {
     return {
@@ -13,32 +13,32 @@ export const ImagePlaceholder = createTipTapBlock<"imagePlaceholder">({
       title: {
         default: null,
       },
-    };
+    }
   },
 
   parseHTML() {
     return [
       {
-        tag: "img[src]",
+        tag: 'img[src]',
       },
-    ];
+    ]
   },
 
   renderHTML({HTMLAttributes}) {
     const blockContentDOMAttributes =
-      this.options.domAttributes?.blockContent || {};
+      this.options.domAttributes?.blockContent || {}
     return [
-      "img",
+      'img',
       mergeAttributes({
         ...blockContentDOMAttributes,
         class: mergeCSSClasses(
           styles.blockContent,
-          blockContentDOMAttributes.class
+          blockContentDOMAttributes.class,
         ),
-        "data-content-type": this.name,
-        "data-src": HTMLAttributes.src,
-        "data-title": HTMLAttributes.title,
+        'data-content-type': this.name,
+        'data-src': HTMLAttributes.src,
+        'data-title': HTMLAttributes.title,
       }),
-    ];
+    ]
   },
-});
+})

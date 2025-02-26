@@ -4,57 +4,57 @@ import {
   DefaultBlockSchema,
   SlashMenuProsemirrorPlugin,
   SuggestionsMenuState,
-} from "@/blocknote/core";
-import Tippy from "@tippyjs/react";
-import {FC, useEffect, useMemo, useRef, useState} from "react";
+} from '@/blocknote/core'
+import Tippy from '@tippyjs/react'
+import {FC, useEffect, useMemo, useRef, useState} from 'react'
 
-import {ReactSlashMenuItem} from "../ReactSlashMenuItem";
-import {DefaultSlashMenu} from "./DefaultSlashMenu";
+import {ReactSlashMenuItem} from '../ReactSlashMenuItem'
+import {DefaultSlashMenu} from './DefaultSlashMenu'
 
 export type SlashMenuProps<BSchema extends BlockSchema = DefaultBlockSchema> =
-  Pick<SlashMenuProsemirrorPlugin<BSchema, any>, "itemCallback"> &
+  Pick<SlashMenuProsemirrorPlugin<BSchema, any>, 'itemCallback'> &
     Pick<
       SuggestionsMenuState<ReactSlashMenuItem<BSchema>>,
-      "filteredItems" | "keyboardHoveredItemIndex"
-    >;
+      'filteredItems' | 'keyboardHoveredItemIndex'
+    >
 
 export const SlashMenuPositioner = <
   BSchema extends BlockSchema = DefaultBlockSchema,
 >(props: {
-  editor: BlockNoteEditor<BSchema>;
-  slashMenu?: FC<SlashMenuProps<BSchema>>;
+  editor: BlockNoteEditor<BSchema>
+  slashMenu?: FC<SlashMenuProps<BSchema>>
 }) => {
-  const [show, setShow] = useState<boolean>(false);
+  const [show, setShow] = useState<boolean>(false)
   const [filteredItems, setFilteredItems] =
-    useState<ReactSlashMenuItem<BSchema>[]>();
+    useState<ReactSlashMenuItem<BSchema>[]>()
   const [keyboardHoveredItemIndex, setKeyboardHoveredItemIndex] =
-    useState<number>();
-  const scroller = useRef<HTMLElement | null>(null);
+    useState<number>()
+  const scroller = useRef<HTMLElement | null>(null)
 
-  const referencePos = useRef<DOMRect>();
+  const referencePos = useRef<DOMRect>()
   useEffect(() => {
     setTimeout(() => {
-      scroller.current = document.getElementById("scroll-page-wrapper");
-    }, 100);
-  }, []);
+      scroller.current = document.getElementById('scroll-page-wrapper')
+    }, 100)
+  }, [])
 
   useEffect(() => {
     return props.editor.slashMenu.onUpdate((slashMenuState) => {
-      setShow(slashMenuState.show);
-      setFilteredItems(slashMenuState.filteredItems);
-      setKeyboardHoveredItemIndex(slashMenuState.keyboardHoveredItemIndex);
+      setShow(slashMenuState.show)
+      setFilteredItems(slashMenuState.filteredItems)
+      setKeyboardHoveredItemIndex(slashMenuState.keyboardHoveredItemIndex)
 
-      referencePos.current = slashMenuState.referencePos;
-    });
-  }, [props.editor]);
+      referencePos.current = slashMenuState.referencePos
+    })
+  }, [props.editor])
 
   const getReferenceClientRect = useMemo(
     () => {
       if (!referencePos.current) {
-        return undefined;
+        return undefined
       }
 
-      const boundingRect = referencePos.current!;
+      const boundingRect = referencePos.current!
       const newRect = {
         top: boundingRect.top,
         right: boundingRect.right,
@@ -62,22 +62,22 @@ export const SlashMenuPositioner = <
         left: boundingRect.left,
         width: boundingRect.width,
         height: boundingRect.height,
-      };
+      }
       if (boundingRect.bottom > window.innerHeight) {
-        newRect.top = window.innerHeight / 2.15;
+        newRect.top = window.innerHeight / 2.15
       }
 
-      return () => newRect as DOMRect;
+      return () => newRect as DOMRect
     },
-    [referencePos.current] // eslint-disable-line
-  );
+    [referencePos.current], // eslint-disable-line
+  )
 
   const slashMenuElement = useMemo(() => {
     if (!filteredItems || keyboardHoveredItemIndex === undefined) {
-      return null;
+      return null
     }
 
-    const SlashMenu = props.slashMenu || DefaultSlashMenu;
+    const SlashMenu = props.slashMenu || DefaultSlashMenu
 
     return (
       <SlashMenu
@@ -85,13 +85,13 @@ export const SlashMenuPositioner = <
         itemCallback={(item) => props.editor.slashMenu.itemCallback(item)}
         keyboardHoveredItemIndex={keyboardHoveredItemIndex}
       />
-    );
+    )
   }, [
     filteredItems,
     keyboardHoveredItemIndex,
     props.editor.slashMenu,
     props.slashMenu,
-  ]);
+  ])
 
   return (
     <Tippy
@@ -100,8 +100,8 @@ export const SlashMenuPositioner = <
       getReferenceClientRect={getReferenceClientRect}
       interactive={true}
       visible={show}
-      animation={"fade"}
-      placement={"auto"}
+      animation={'fade'}
+      placement={'auto'}
     />
-  );
-};
+  )
+}

@@ -1,5 +1,5 @@
-import {getDocumentTitle} from "@shm/shared/content";
-import {unpackHmId} from "@shm/shared/utils/entity-id-url";
+import {getDocumentTitle} from '@shm/shared/content'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {
   CircleDot,
   ExternalLink,
@@ -8,51 +8,48 @@ import {
   Pencil,
   Quote,
   Unlink,
-} from "@tamagui/lucide-icons";
-import {Fragment, Node} from "@tiptap/pm/model";
-import {useEffect, useMemo, useState} from "react";
-import {Button, SizableText, Tooltip, XGroup, XStack, YStack} from "tamagui";
+} from '@tamagui/lucide-icons'
+import {Fragment, Node} from '@tiptap/pm/model'
+import {useEffect, useMemo, useState} from 'react'
+import {Button, SizableText, Tooltip, XGroup, XStack, YStack} from 'tamagui'
 import {
   BlockNoteEditor,
   getBlockInfoFromPos,
   HyperlinkToolbarProps,
   PartialBlock,
-} from "./blocknote";
-import {HypermediaLinkForm} from "./hm-link-form";
-import {HMBlockSchema} from "./schema";
+} from './blocknote'
+import {HypermediaLinkForm} from './hm-link-form'
+import {HMBlockSchema} from './schema'
 
 export function HypermediaLinkSwitchToolbar(
   props: HyperlinkToolbarProps & {
-    openUrl: (
-      url?: string | undefined,
-      newWindow?: boolean | undefined
-    ) => void;
-    stopEditing: boolean;
-    formComponents: () => React.JSX.Element;
-    type: string;
-    setHovered?: (hovered: boolean) => void;
-  }
+    openUrl: (url?: string | undefined, newWindow?: boolean | undefined) => void
+    stopEditing: boolean
+    formComponents: () => React.JSX.Element
+    type: string
+    setHovered?: (hovered: boolean) => void
+  },
 ) {
-  const [isEditing, setIsEditing] = useState(false);
-  const unpackedRef = useMemo(() => unpackHmId(props.url), [props.url]);
+  const [isEditing, setIsEditing] = useState(false)
+  const unpackedRef = useMemo(() => unpackHmId(props.url), [props.url])
   // const entity = useEntity(unpackedRef)
-  const entity = {data: null};
+  const entity = {data: null}
 
   useEffect(() => {
     if (props.stopEditing && isEditing) {
-      setIsEditing(false);
+      setIsEditing(false)
     }
-  }, [props.stopEditing, isEditing]);
+  }, [props.stopEditing, isEditing])
 
   return (
     <XStack
       zIndex="$zIndex.4"
       {...(props.setHovered && {
         onMouseEnter: () => {
-          props.setHovered?.(true);
+          props.setHovered?.(true)
         },
         onMouseLeave: () => {
-          props.setHovered?.(false);
+          props.setHovered?.(false)
         },
       })}
     >
@@ -83,8 +80,8 @@ export function HypermediaLinkSwitchToolbar(
             editLink={props.editHyperlink}
             openUrl={props.openUrl}
             type={props.type}
-            hasName={props.type !== "embed" && props.type !== "mention"}
-            hasSearch={props.type !== "link"}
+            hasName={props.type !== 'embed' && props.type !== 'mention'}
+            hasSearch={props.type !== 'link'}
             isSeedDocument={unpackedRef ? true : false}
           />
         </YStack>
@@ -107,7 +104,7 @@ export function HypermediaLinkSwitchToolbar(
             tooltipText={`Edit ${props.type}`}
             icon={Pencil}
             onPress={() => {
-              setIsEditing(true);
+              setIsEditing(true)
             }}
             active={false}
           />
@@ -115,24 +112,24 @@ export function HypermediaLinkSwitchToolbar(
             tooltipText="Change to a link"
             icon={Link}
             onPress={() => {
-              let title = props.text ? props.text : props.url;
-              if (["mention", "embed"].includes(props.type)) {
-                const docTitle = getDocumentTitle(entity.data?.document);
-                if (docTitle) title = docTitle;
+              let title = props.text ? props.text : props.url
+              if (['mention', 'embed'].includes(props.type)) {
+                const docTitle = getDocumentTitle(entity.data?.document)
+                if (docTitle) title = docTitle
               }
-              if (props.type === "mention") {
-                const tiptap = props.editor._tiptapEditor;
-                const {view, state} = tiptap;
-                const $pos = state.doc.resolve(state.selection.from);
+              if (props.type === 'mention') {
+                const tiptap = props.editor._tiptapEditor
+                const {view, state} = tiptap
+                const $pos = state.doc.resolve(state.selection.from)
 
-                let offset = 0;
-                let mention: Node;
+                let offset = 0
+                let mention: Node
                 $pos.parent.descendants((node, pos) => {
-                  if (node.type.name === "inline-embed") {
-                    mention = node;
-                    offset = pos;
+                  if (node.type.name === 'inline-embed') {
+                    mention = node
+                    offset = pos
                   }
-                });
+                })
                 // @ts-ignore
                 if (mention) {
                   let tr = state.tr.replaceWith(
@@ -142,132 +139,132 @@ export function HypermediaLinkSwitchToolbar(
                     state.schema.text(
                       title,
                       // @ts-ignore
-                      state.schema.marks["link"].create({href: props.url})!
-                    )
-                  );
-                  view.dispatch(tr);
+                      state.schema.marks['link'].create({href: props.url})!,
+                    ),
+                  )
+                  view.dispatch(tr)
                 }
               } else {
                 const linkBlock = {
-                  type: "paragraph",
+                  type: 'paragraph',
                   props: {},
                   content: [
                     {
-                      type: "link",
+                      type: 'link',
                       href: props.url,
                       content: title,
                     },
                   ],
-                } as PartialBlock<HMBlockSchema>;
-                props.editor.replaceBlocks([props.id], [linkBlock]);
+                } as PartialBlock<HMBlockSchema>
+                props.editor.replaceBlocks([props.id], [linkBlock])
               }
-              props.resetHyperlink();
+              props.resetHyperlink()
             }}
-            active={props.type === "link"}
+            active={props.type === 'link'}
           />
           <LinkSwitchButton
             tooltipText="Change to a mention"
             icon={Quote}
             onPress={() => {
-              if (props.type === "link") {
-                const tiptap = props.editor._tiptapEditor;
-                const {state} = tiptap;
-                const node = state.schema.nodes["inline-embed"].create(
+              if (props.type === 'link') {
+                const tiptap = props.editor._tiptapEditor
+                const {state} = tiptap
+                const node = state.schema.nodes['inline-embed'].create(
                   {
                     link: props.url,
                   },
-                  state.schema.text(" ")
-                );
-                insertMentionNode(props.editor, props.text, node);
+                  state.schema.text(' '),
+                )
+                insertMentionNode(props.editor, props.text, node)
               } else {
                 const mentionBlock = {
-                  type: "inline-embed",
+                  type: 'inline-embed',
                   content: [],
                   props: {
                     link: props.url,
                   },
-                } as PartialBlock<HMBlockSchema>;
-                props.editor.replaceBlocks([props.id], [mentionBlock]);
+                } as PartialBlock<HMBlockSchema>
+                props.editor.replaceBlocks([props.id], [mentionBlock])
               }
-              props.resetHyperlink();
+              props.resetHyperlink()
             }}
-            active={props.type === "mention"}
+            active={props.type === 'mention'}
           />
           <LinkSwitchButton
             tooltipText="Change to a button"
             icon={CircleDot}
             onPress={() => {
-              let title = props.text ? props.text : props.url;
-              if (["mention", "embed"].includes(props.type)) {
-                const docTitle = getDocumentTitle(entity.data?.document);
-                if (docTitle) title = docTitle;
+              let title = props.text ? props.text : props.url
+              if (['mention', 'embed'].includes(props.type)) {
+                const docTitle = getDocumentTitle(entity.data?.document)
+                if (docTitle) title = docTitle
               }
-              if (["mention", "link"].includes(props.type)) {
-                const schema = props.editor._tiptapEditor.state.schema;
+              if (['mention', 'link'].includes(props.type)) {
+                const schema = props.editor._tiptapEditor.state.schema
                 const node = schema.nodes.button.create({
                   url: props.url,
                   name: title,
-                });
+                })
 
                 insertNode(
                   props.editor,
                   props.url,
                   props.text,
                   props.type,
-                  node
-                );
+                  node,
+                )
               } else {
                 const buttonBlock = {
-                  type: "button",
+                  type: 'button',
                   content: [],
                   props: {
                     url: props.url,
                     name: title,
                   },
-                } as PartialBlock<HMBlockSchema>;
-                props.editor.replaceBlocks([props.id], [buttonBlock]);
+                } as PartialBlock<HMBlockSchema>
+                props.editor.replaceBlocks([props.id], [buttonBlock])
               }
             }}
-            active={props.type === "button"}
+            active={props.type === 'button'}
           />
           <LinkSwitchButton
             tooltipText="Change to an embed"
             icon={PanelBottom}
             onPress={() => {
-              if (["mention", "link"].includes(props.type)) {
-                const schema = props.editor._tiptapEditor.state.schema;
+              if (['mention', 'link'].includes(props.type)) {
+                const schema = props.editor._tiptapEditor.state.schema
                 const node = schema.nodes.embed.create(
                   {
                     url: props.url,
-                    view: "Content",
+                    view: 'Content',
                   },
-                  schema.text(" ")
-                );
+                  schema.text(' '),
+                )
 
                 insertNode(
                   props.editor,
                   props.url,
                   props.text,
                   props.type,
-                  node
-                );
+                  node,
+                )
               } else {
                 const embedBlock = {
-                  type: "embed",
+                  type: 'embed',
                   content: [],
                   props: {
                     url: props.url,
                   },
-                } as PartialBlock<HMBlockSchema>;
-                props.editor.replaceBlocks([props.id], [embedBlock]);
+                } as PartialBlock<HMBlockSchema>
+                props.editor.replaceBlocks([props.id], [embedBlock])
               }
             }}
-            active={props.type === "embed"}
+            active={props.type === 'embed'}
           />
         </XGroup>
       )}
     </XStack>
-  );
+  )
 }
 
 function LinkSwitchButton({
@@ -276,10 +273,10 @@ function LinkSwitchButton({
   onPress,
   active,
 }: {
-  tooltipText: string;
-  icon: any;
-  onPress: () => void;
-  active: boolean;
+  tooltipText: string
+  icon: any
+  onPress: () => void
+  active: boolean
 }) {
   return (
     <XGroup.Item>
@@ -287,19 +284,19 @@ function LinkSwitchButton({
         <Tooltip content={tooltipText}>
           <Button
             borderRadius="$3"
-            bg={active ? "$brand5" : "$backgroundFocus"}
-            fontWeight={active ? "bold" : "400"}
+            bg={active ? '$brand5' : '$backgroundFocus'}
+            fontWeight={active ? 'bold' : '400'}
             size="$3"
             disabled={active}
             disabledStyle={{opacity: 1}}
-            hoverStyle={{bg: "$brand5"}}
+            hoverStyle={{bg: '$brand5'}}
             icon={Icon}
             onPress={onPress}
           />
         </Tooltip>
       </XStack>
     </XGroup.Item>
-  );
+  )
 }
 
 function insertNode(
@@ -307,101 +304,101 @@ function insertNode(
   link: string,
   text: string,
   prevType: string,
-  node: Node
+  node: Node,
 ) {
-  const {state, view} = editor._tiptapEditor;
-  const {selection} = state;
-  const {$from} = selection;
-  const blockInfo = getBlockInfoFromPos(state, selection.$anchor.pos);
-  let tr = state.tr;
+  const {state, view} = editor._tiptapEditor
+  const {selection} = state
+  const {$from} = selection
+  const blockInfo = getBlockInfoFromPos(state, selection.$anchor.pos)
+  let tr = state.tr
 
   // If mention or link is inline with other text the child count will be more than 1
   if (blockInfo.blockContent.node.content.childCount > 1) {
-    const $pos = state.doc.resolve($from.pos);
-    let startPos = $pos.start();
-    let endPos = $pos.end();
-    let endContent = Fragment.empty;
-    if (prevType === "link") {
+    const $pos = state.doc.resolve($from.pos)
+    let startPos = $pos.start()
+    let endPos = $pos.end()
+    let endContent = Fragment.empty
+    if (prevType === 'link') {
       $pos.parent.descendants((node, pos, _parent, index) => {
         if (node.marks.length > 0 && node.marks[0].attrs.href === link) {
-          startPos = index === 0 ? $pos.start() + pos - 2 : $pos.start() + pos;
-          endPos = index === 0 ? $pos.end() : $pos.start() + pos + text.length;
+          startPos = index === 0 ? $pos.start() + pos - 2 : $pos.start() + pos
+          endPos = index === 0 ? $pos.end() : $pos.start() + pos + text.length
         } else if (startPos !== $pos.start() && endPos !== $pos.end()) {
-          endContent = endContent.addToEnd(node);
+          endContent = endContent.addToEnd(node)
         }
-      });
-    } else if (prevType === "mention") {
+      })
+    } else if (prevType === 'mention') {
       $pos.parent.descendants((node, pos, _parent, index) => {
-        if (node.type.name === "inline-embed" && node.attrs.link === link) {
-          startPos = index === 0 ? $pos.start() - 1 : $pos.start() + pos;
-          endPos = index === 0 ? $pos.end() : $pos.start() + pos + 1;
+        if (node.type.name === 'inline-embed' && node.attrs.link === link) {
+          startPos = index === 0 ? $pos.start() - 1 : $pos.start() + pos
+          endPos = index === 0 ? $pos.end() : $pos.start() + pos + 1
         } else if (startPos !== $pos.start() && endPos !== $pos.end()) {
-          endContent = endContent.addToEnd(node);
+          endContent = endContent.addToEnd(node)
         }
-      });
+      })
     }
 
-    const newBlock = state.schema.nodes["blockContainer"].createAndFill()!;
-    const nextBlockPos = $pos.end() + 2;
-    const nextBlockContentPos = nextBlockPos + 2;
-    const $nextBlockPos = state.doc.resolve(nextBlockContentPos);
+    const newBlock = state.schema.nodes['blockContainer'].createAndFill()!
+    const nextBlockPos = $pos.end() + 2
+    const nextBlockContentPos = nextBlockPos + 2
+    const $nextBlockPos = state.doc.resolve(nextBlockContentPos)
     if (
       endContent.childCount &&
       !(
         endContent.childCount === 1 &&
-        endContent.firstChild?.textContent.trim() === ""
+        endContent.firstChild?.textContent.trim() === ''
       )
     ) {
-      tr = tr.insert(nextBlockPos, newBlock);
+      tr = tr.insert(nextBlockPos, newBlock)
 
-      const endNode = $pos.parent.copy(endContent);
+      const endNode = $pos.parent.copy(endContent)
       tr = tr.replaceWith(
         $nextBlockPos.before($nextBlockPos.depth),
         nextBlockContentPos + 1,
-        endNode
-      );
+        endNode,
+      )
     }
 
-    tr = tr.insert(nextBlockPos, newBlock);
+    tr = tr.insert(nextBlockPos, newBlock)
     tr = tr.replaceWith(
       $nextBlockPos.before($nextBlockPos.depth),
       nextBlockContentPos + 1,
-      node
-    );
-    tr = tr.deleteRange(startPos, $pos.end());
+      node,
+    )
+    tr = tr.deleteRange(startPos, $pos.end())
   } else {
-    const $pos = state.doc.resolve($from.pos);
-    tr = tr.replaceWith($pos.start() - 2, $pos.end(), node);
+    const $pos = state.doc.resolve($from.pos)
+    tr = tr.replaceWith($pos.start() - 2, $pos.end(), node)
   }
-  view.dispatch(tr);
-  editor._tiptapEditor.commands.focus();
+  view.dispatch(tr)
+  editor._tiptapEditor.commands.focus()
 }
 
 function insertMentionNode(
   editor: BlockNoteEditor<HMBlockSchema>,
   name: string,
-  node: Node
+  node: Node,
 ) {
-  const {state, view} = editor._tiptapEditor;
-  const {selection} = state;
-  const {$from} = selection;
-  let tr = state.tr;
+  const {state, view} = editor._tiptapEditor
+  const {selection} = state
+  const {$from} = selection
+  let tr = state.tr
 
-  const $pos = state.doc.resolve($from.pos);
+  const $pos = state.doc.resolve($from.pos)
 
-  let offset = 0;
+  let offset = 0
   $pos.parent.descendants((node, pos) => {
     if (node.marks.length > 0) {
-      offset = pos;
+      offset = pos
     }
-  });
+  })
 
   view.dispatch(
     tr
       .deleteRange($pos.start() + offset, $pos.start() + offset + name.length)
       .insert(
         $pos.start() + offset,
-        Fragment.fromArray([node, view.state.schema.text(" ")])
-      )
-  );
+        Fragment.fromArray([node, view.state.schema.text(' ')]),
+      ),
+  )
 }

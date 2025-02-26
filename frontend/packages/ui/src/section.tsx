@@ -1,5 +1,5 @@
-import {ComponentProps} from "react";
-import {YStack} from "tamagui";
+import {ComponentProps} from 'react'
+import {YStack} from 'tamagui'
 
 export function Section({children, ...props}: ComponentProps<typeof YStack>) {
   return (
@@ -12,5 +12,5 @@ export function Section({children, ...props}: ComponentProps<typeof YStack>) {
     >
       {children}
     </YStack>
-  );
+  )
 }

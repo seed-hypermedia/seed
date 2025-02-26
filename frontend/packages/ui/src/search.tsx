@@ -1,20 +1,20 @@
-import {UnpackedHypermediaId, useRouteLink, useSearch} from "@shm/shared";
-import {Popover} from "@shm/ui/TamaguiPopover";
-import {usePopoverState} from "@shm/ui/use-popover-state";
-import {Button} from "@tamagui/button";
-import {Input} from "@tamagui/input";
-import {Search} from "@tamagui/lucide-icons";
-import {XStack, YStack} from "@tamagui/stacks";
-import {useState} from "react";
-import {NativeSyntheticEvent, TextInputChangeEventData} from "react-native";
+import {UnpackedHypermediaId, useRouteLink, useSearch} from '@shm/shared'
+import {Popover} from '@shm/ui/TamaguiPopover'
+import {usePopoverState} from '@shm/ui/use-popover-state'
+import {Button} from '@tamagui/button'
+import {Input} from '@tamagui/input'
+import {Search} from '@tamagui/lucide-icons'
+import {XStack, YStack} from '@tamagui/stacks'
+import {useState} from 'react'
+import {NativeSyntheticEvent, TextInputChangeEventData} from 'react-native'
 
 export function MobileSearch({
   originHomeId,
 }: {
-  originHomeId: UnpackedHypermediaId | null;
+  originHomeId: UnpackedHypermediaId | null
 }) {
-  const [searchValue, setSearchValue] = useState("");
-  const searchResults = useSearch(searchValue, {enabled: !!searchValue});
+  const [searchValue, setSearchValue] = useState('')
+  const searchResults = useSearch(searchValue, {enabled: !!searchValue})
   return (
     <YStack
       gap="$2"
@@ -28,7 +28,7 @@ export function MobileSearch({
         size="$3"
         flex={1}
         onChange={(e: NativeSyntheticEvent<TextInputChangeEventData>) => {
-          setSearchValue(e.nativeEvent.target.value);
+          setSearchValue(e.nativeEvent.target.value)
         }}
         placeholder="Search Documents"
       />
@@ -52,28 +52,28 @@ export function MobileSearch({
                 entity={entity}
                 originHomeId={originHomeId}
               />
-            );
+            )
           })}
         </YStack>
       ) : null}
     </YStack>
-  );
+  )
 }
 
 export function HeaderSearch({
   originHomeId,
 }: {
-  originHomeId: UnpackedHypermediaId | null;
+  originHomeId: UnpackedHypermediaId | null
 }) {
-  const popoverState = usePopoverState();
-  const [searchValue, setSearchValue] = useState("");
-  const searchResults = useSearch(searchValue, {enabled: !!searchValue});
+  const popoverState = usePopoverState()
+  const [searchValue, setSearchValue] = useState('')
+  const searchResults = useSearch(searchValue, {enabled: !!searchValue})
   return (
-    <XStack display="none" $gtSm={{display: "flex"}}>
+    <XStack display="none" $gtSm={{display: 'flex'}}>
       <Popover
         {...popoverState}
         onOpenChange={(open) => {
-          popoverState.onOpenChange(open);
+          popoverState.onOpenChange(open)
         }}
         placement="bottom-start"
       >
@@ -100,9 +100,9 @@ export function HeaderSearch({
                 value={searchValue}
                 size="$3"
                 onChange={(
-                  e: NativeSyntheticEvent<TextInputChangeEventData>
+                  e: NativeSyntheticEvent<TextInputChangeEventData>,
                 ) => {
-                  setSearchValue(e.nativeEvent.target.value);
+                  setSearchValue(e.nativeEvent.target.value)
                 }}
               />
             </XStack>
@@ -114,30 +114,30 @@ export function HeaderSearch({
                     entity={entity}
                     originHomeId={originHomeId}
                   />
-                );
-              }
+                )
+              },
             )}
           </YStack>
         </Popover.Content>
       </Popover>
     </XStack>
-  );
+  )
 }
 
 function SearchResultItem({
   entity,
   originHomeId,
 }: {
-  entity: {id: UnpackedHypermediaId; title: string};
-  originHomeId: UnpackedHypermediaId | null;
+  entity: {id: UnpackedHypermediaId; title: string}
+  originHomeId: UnpackedHypermediaId | null
 }) {
   const linkProps = useRouteLink(
     {
-      key: "document",
+      key: 'document',
       id: entity.id,
     },
-    originHomeId
-  );
+    originHomeId,
+  )
   return (
     <Button
       backgroundColor="$colorTransparent"
@@ -146,5 +146,5 @@ function SearchResultItem({
     >
       {entity.title}
     </Button>
-  );
+  )
 }

@@ -1,28 +1,28 @@
-import {Button} from "@tamagui/button";
-import {ColorTokens, SizeTokens} from "@tamagui/core";
-import {XGroup} from "@tamagui/group";
-import {ComponentProps} from "react";
+import {Button} from '@tamagui/button'
+import {ColorTokens, SizeTokens} from '@tamagui/core'
+import {XGroup} from '@tamagui/group'
+import {ComponentProps} from 'react'
 
 export function RadioButtons<
   Options extends ReadonlyArray<{
-    key: string;
-    label: string;
-    icon?: ComponentProps<typeof Button>["icon"] | undefined;
+    key: string
+    label: string
+    icon?: ComponentProps<typeof Button>['icon'] | undefined
   }>,
 >({
-  size = "$4",
-  color = "$color10",
-  activeColor = "$color12",
+  size = '$4',
+  color = '$color10',
+  activeColor = '$color12',
   options,
   value,
   onValue,
 }: {
-  size?: SizeTokens;
-  color?: ColorTokens;
-  activeColor?: ColorTokens;
-  options: Options;
-  value: Options[number]["key"];
-  onValue: (value: Options[number]["key"]) => void;
+  size?: SizeTokens
+  color?: ColorTokens
+  activeColor?: ColorTokens
+  options: Options
+  value: Options[number]['key']
+  onValue: (value: Options[number]['key']) => void
 }) {
   return (
     <XGroup borderRadius={0} borderColor="$color4" borderWidth={0}>
@@ -36,12 +36,12 @@ export function RadioButtons<
           icon={option.icon}
           active={value === option.key}
           onPress={() => {
-            onValue(option.key);
+            onValue(option.key)
           }}
         />
       ))}
     </XGroup>
-  );
+  )
 }
 
 function RadioButton({
@@ -53,13 +53,13 @@ function RadioButton({
   color,
   activeColor,
 }: {
-  size?: SizeTokens;
-  color?: ColorTokens;
-  activeColor?: ColorTokens;
-  label: string;
-  icon: ComponentProps<typeof Button>["icon"] | undefined;
-  active: boolean;
-  onPress: () => void;
+  size?: SizeTokens
+  color?: ColorTokens
+  activeColor?: ColorTokens
+  label: string
+  icon: ComponentProps<typeof Button>['icon'] | undefined
+  active: boolean
+  onPress: () => void
 }) {
   return (
     <XGroup.Item>
@@ -73,16 +73,16 @@ function RadioButton({
         color={active ? activeColor : color}
         hoverStyle={{
           color: active ? activeColor : color,
-          cursor: "default",
+          cursor: 'default',
         }}
         cursor="default"
         borderBottomWidth={2}
-        borderBottomColor={active ? activeColor : "$colorTransparent"}
+        borderBottomColor={active ? activeColor : '$colorTransparent'}
         onPress={onPress}
         borderRadius={0}
       >
         {label}
       </Button>
     </XGroup.Item>
-  );
+  )
 }

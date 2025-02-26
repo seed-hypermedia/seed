@@ -1,9 +1,9 @@
 import '@sentry/electron/preload'
-import { contextBridge, ipcRenderer } from 'electron'
-import { exposeElectronTRPC } from 'electron-trpc/main'
+import {contextBridge, ipcRenderer} from 'electron'
+import {exposeElectronTRPC} from 'electron-trpc/main'
 // import directly from this deep path for shared/utils/stream! Bad things happen if you try to directly import from @shm/shared
-import { AppWindowEvent } from '@/utils/window-events'
-import { eventStream } from '@shm/shared/utils/stream'
+import {AppWindowEvent} from '@/utils/window-events'
+import {eventStream} from '@shm/shared/utils/stream'
 // import directly from this deep path for shared/utils/stream! Bad things happen if you try to directly import from @shm/shared
 
 process.once('loaded', async () => {

@@ -4,19 +4,19 @@ import {
   HyperlinkToolbarPositioner,
   LinkMenuPositioner,
   SlashMenuPositioner,
-} from "@/blocknote";
-import "@/blocknote/core/style.css";
-import "@/editor.css";
-import {HMFormattingToolbar} from "@/hm-formatting-toolbar";
-import {HypermediaLinkSwitchToolbar} from "@/hm-link-switch-toolbar";
-import type {HyperMediaEditor} from "@/types";
+} from '@/blocknote'
+import '@/blocknote/core/style.css'
+import '@/editor.css'
+import {HMFormattingToolbar} from '@/hm-formatting-toolbar'
+import {HypermediaLinkSwitchToolbar} from '@/hm-link-switch-toolbar'
+import type {HyperMediaEditor} from '@/types'
 
 export function HyperMediaEditorView({
   editor,
   openUrl,
 }: {
-  editor: HyperMediaEditor;
-  openUrl: (url: string, newWindow?: boolean) => void;
+  editor: HyperMediaEditor
+  openUrl: (url: string, newWindow?: boolean) => void
 }) {
   return (
     <BlockNoteView editor={editor}>
@@ -34,5 +34,5 @@ export function HyperMediaEditorView({
       {/* {comment ? null : <SideMenuPositioner editor={editor} placement="left" />} */}
       <LinkMenuPositioner editor={editor} />
     </BlockNoteView>
-  );
+  )
 }

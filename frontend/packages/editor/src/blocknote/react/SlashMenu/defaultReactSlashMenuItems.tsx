@@ -4,8 +4,8 @@ import {
   defaultBlockSchema,
   DefaultBlockSchema,
   getDefaultSlashMenuItems,
-} from "@/blocknote/core";
-import {MdPreview} from "react-icons/md";
+} from '@/blocknote/core'
+import {MdPreview} from 'react-icons/md'
 import {
   RiChatQuoteLine,
   RiCodeLine,
@@ -13,8 +13,8 @@ import {
   RiH1,
   RiPlayCircleLine,
   RiText,
-} from "react-icons/ri";
-import {ReactSlashMenuItem} from "./ReactSlashMenuItem";
+} from 'react-icons/ri'
+import {ReactSlashMenuItem} from './ReactSlashMenuItem'
 
 const extraFields: Record<
   string,
@@ -24,9 +24,9 @@ const extraFields: Record<
   >
 > = {
   Heading: {
-    group: "Text Content",
+    group: 'Text Content',
     icon: <RiH1 size={18} />,
-    hint: "Group content with a title",
+    hint: 'Group content with a title',
     // shortcut: formatKeyboardShortcut('Mod-Alt-1'),
   },
   // 'Heading 2': {
@@ -54,56 +54,56 @@ const extraFields: Record<
   //   // shortcut: formatKeyboardShortcut('Mod-Alt-9'),
   // },
   Paragraph: {
-    group: "Text Content",
+    group: 'Text Content',
     icon: <RiText size={18} />,
-    hint: "Used for the body of your document",
+    hint: 'Used for the body of your document',
     // shortcut: formatKeyboardShortcut('Mod-Alt-0'),
   },
   Code: {
-    group: "Text Content",
+    group: 'Text Content',
     icon: <RiCodeLine size={18} />,
-    hint: "Test code",
+    hint: 'Test code',
   },
 
   Blockquote: {
-    group: "Text Content",
+    group: 'Text Content',
     icon: <RiChatQuoteLine size={18} />,
-    hint: "Test blockquote",
+    hint: 'Test blockquote',
   },
 
-  "Video / Audio": {
-    group: "Media",
+  'Video / Audio': {
+    group: 'Media',
     icon: <RiPlayCircleLine size={18} />,
-    hint: "Multimedia player",
+    hint: 'Multimedia player',
     // shortcut: formatKeyboardShortcut('Mod-Alt-0'),
   },
 
-  "File / Folder": {
-    group: "Media",
+  'File / Folder': {
+    group: 'Media',
     icon: <RiFolder2Line size={18} />,
-    hint: "Include Files and Folders for downloading",
+    hint: 'Include Files and Folders for downloading',
     // shortcut: formatKeyboardShortcut('Mod-Alt-0'),
   },
   Embed: {
-    group: "Media",
+    group: 'Media',
     icon: <MdPreview size={18} />,
-    hint: "Include a HyperDocs Section or Document",
+    hint: 'Include a HyperDocs Section or Document',
     // shortcut: formatKeyboardShortcut('Mod-Alt-0'),
   },
-};
+}
 
 export function getDefaultReactSlashMenuItems<BSchema extends BlockSchema>(
   // This type casting is weird, but it's the best way of doing it, as it allows
   // the schema type to be automatically inferred if it is defined, or be
   // inferred as any if it is not defined. I don't think it's possible to make it
   // infer to DefaultBlockSchema if it is not defined.
-  schema: BSchema = defaultBlockSchema as unknown as BSchema
+  schema: BSchema = defaultBlockSchema as unknown as BSchema,
 ): ReactSlashMenuItem<BSchema>[] {
   const slashMenuItems: BaseSlashMenuItem<BSchema>[] =
-    getDefaultSlashMenuItems(schema);
+    getDefaultSlashMenuItems(schema)
 
   return slashMenuItems.map((item) => ({
     ...item,
     ...extraFields[item.name],
-  }));
+  }))
 }

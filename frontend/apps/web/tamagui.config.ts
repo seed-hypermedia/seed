@@ -1,13 +1,13 @@
-import {config} from "@shm/ui/tamagui.config";
+import {config} from '@shm/ui/tamagui.config'
 
-type Conf = typeof config;
+type Conf = typeof config
 
-declare module "tamagui" {
+declare module 'tamagui' {
   interface TamaguiCustomConfig extends Conf {}
 
   interface TypeOverride {
-    groupNames(): "header" | "item" | "blocknode" | "pathitem" | "icon";
+    groupNames(): 'header' | 'item' | 'blocknode' | 'pathitem' | 'icon'
   }
 }
 
-export default config;
+export default config

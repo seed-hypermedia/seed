@@ -4,7 +4,7 @@ import {
   ReactNode,
   useMemo,
   useState,
-} from "react";
+} from 'react'
 import {
   Button,
   ButtonProps,
@@ -14,12 +14,12 @@ import {
   XStack,
   XStackProps,
   YStack,
-} from "tamagui";
-import {Copy, ExternalLink} from "./icons";
-import {Tooltip} from "./tooltip";
+} from 'tamagui'
+import {Copy, ExternalLink} from './icons'
+import {Tooltip} from './tooltip'
 
 function useHover() {
-  const [hover, setHover] = useState(false);
+  const [hover, setHover] = useState(false)
 
   return useMemo(
     () => ({
@@ -27,12 +27,12 @@ function useHover() {
       onHoverIn: () => setHover(true),
       onHoverOut: () => setHover(false),
     }),
-    [hover]
-  );
+    [hover],
+  )
 }
 
-TableList.Header = TableHeader;
-TableList.Item = TableItem;
+TableList.Header = TableHeader
+TableList.Item = TableItem
 
 export function TableList({
   children,
@@ -42,7 +42,7 @@ export function TableList({
     <YStack
       userSelect="none"
       hoverStyle={{
-        cursor: "default",
+        cursor: 'default',
       }}
       borderWidth={1}
       borderColor="$borderColor"
@@ -60,7 +60,7 @@ export function TableList({
     >
       {children}
     </YStack>
-  );
+  )
 }
 
 function TableHeader({children, ...props}: PropsWithChildren<XStackProps>) {
@@ -76,7 +76,7 @@ function TableHeader({children, ...props}: PropsWithChildren<XStackProps>) {
     >
       {children}
     </XStack>
-  );
+  )
 }
 
 function TableItem({children, ...props}: PropsWithChildren<ListItemProps>) {
@@ -86,15 +86,15 @@ function TableItem({children, ...props}: PropsWithChildren<ListItemProps>) {
         {children}
       </XStack>
     </ListItem>
-  );
+  )
 }
 
 export function InfoListHeader({
   title,
   right,
 }: {
-  title: string;
-  right?: ReactNode;
+  title: string
+  right?: ReactNode
 }) {
   return (
     <TableList.Header>
@@ -103,7 +103,7 @@ export function InfoListHeader({
         {right}
       </XStack>
     </TableList.Header>
-  );
+  )
 }
 
 export function InfoListItem({
@@ -112,13 +112,13 @@ export function InfoListItem({
   onCopy,
   onOpen,
 }: {
-  label: string;
-  value?: string | string[];
-  onCopy?: ButtonProps["onPress"] | undefined;
-  onOpen?: ButtonProps["onPress"] | undefined;
+  label: string
+  value?: string | string[]
+  onCopy?: ButtonProps['onPress'] | undefined
+  onOpen?: ButtonProps['onPress'] | undefined
 }) {
-  const values = Array.isArray(value) ? value : [value];
-  const {hover, ...hoverProps} = useHover();
+  const values = Array.isArray(value) ? value : [value]
+  const {hover, ...hoverProps} = useHover()
   return (
     <TableList.Item {...hoverProps}>
       <SizableText size="$1" flex={0} minWidth={140} width={140}>
@@ -163,5 +163,5 @@ export function InfoListItem({
         </Tooltip>
       ) : null}
     </TableList.Item>
-  );
+  )
 }

@@ -1,50 +1,47 @@
-import {HyperlinkToolbarProps} from "@/blocknote";
-import {useEffect, useState} from "react";
-import {SizableText, SizeTokens, YStack} from "tamagui";
-import {HypermediaLinkForm} from "./hm-link-form";
+import {HyperlinkToolbarProps} from '@/blocknote'
+import {useEffect, useState} from 'react'
+import {SizableText, SizeTokens, YStack} from 'tamagui'
+import {HypermediaLinkForm} from './hm-link-form'
 
 export function HypermediaLinkToolbar(
   props: HyperlinkToolbarProps & {
-    openUrl: (
-      url?: string | undefined,
-      newWindow?: boolean | undefined
-    ) => void;
-    onClose: (bool: boolean) => void;
-    type: string;
-    isSeedDocument?: boolean;
-    isFocused: boolean;
-    setIsFocused: (focused: boolean) => void;
-  }
+    openUrl: (url?: string | undefined, newWindow?: boolean | undefined) => void
+    onClose: (bool: boolean) => void
+    type: string
+    isSeedDocument?: boolean
+    isFocused: boolean
+    setIsFocused: (focused: boolean) => void
+  },
 ) {
-  const formSize: SizeTokens = "$2";
+  const formSize: SizeTokens = '$2'
 
-  const [_url, setUrl] = useState(props.url || "");
-  const [_text, setText] = useState(props.text || "");
+  const [_url, setUrl] = useState(props.url || '')
+  const [_text, setText] = useState(props.text || '')
   // const unpackedRef = useMemo(() => unpackHmId(_url), [_url])
   // const _latest = unpackedRef?.latest || false
 
   function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape" || event.key == "Enter") {
-      event.preventDefault();
-      props.editHyperlink(_url, _text);
+    if (event.key === 'Escape' || event.key == 'Enter') {
+      event.preventDefault()
+      props.editHyperlink(_url, _text)
     }
   }
 
   useEffect(() => {
-    props.editor.hyperlinkToolbar.on("update", (state) => {
-      if (!state.show) props.onClose(false);
-      setText(state.text || "");
-      setUrl(state.url || "");
-    });
-  }, [props.editor]);
+    props.editor.hyperlinkToolbar.on('update', (state) => {
+      if (!state.show) props.onClose(false)
+      setText(state.text || '')
+      setUrl(state.url || '')
+    })
+  }, [props.editor])
 
   useEffect(() => {
-    window.addEventListener("keydown", handleKeydown);
+    window.addEventListener('keydown', handleKeydown)
 
     return () => {
-      window.removeEventListener("keydown", handleKeydown);
-    };
-  }, []);
+      window.removeEventListener('keydown', handleKeydown)
+    }
+  }, [])
 
   return (
     <YStack
@@ -71,10 +68,10 @@ export function HypermediaLinkToolbar(
         editLink={props.editHyperlink}
         openUrl={props.openUrl}
         type={props.type}
-        hasName={props.type !== "mention"}
-        hasSearch={props.type === "mention"}
+        hasName={props.type !== 'mention'}
+        hasSearch={props.type === 'mention'}
         isSeedDocument={props.isSeedDocument}
       />
     </YStack>
-  );
+  )
 }

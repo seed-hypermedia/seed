@@ -1,4 +1,4 @@
-import { HMBlockSchema } from '@/schema'
+import {HMBlockSchema} from '@/schema'
 import {
   Button,
   Form,
@@ -8,13 +8,17 @@ import {
   SizableText,
   Tabs,
   XStack,
-  YStack
+  YStack,
 } from '@mintter/ui'
-import { Block, BlockNoteEditor, createReactBlockSpec } from '@shm/editor/blocknote'
-import { ChangeEvent, useEffect, useState } from 'react'
+import {
+  Block,
+  BlockNoteEditor,
+  createReactBlockSpec,
+} from '@shm/editor/blocknote'
+import {ChangeEvent, useEffect, useState} from 'react'
 
-import { defaultProps } from '@shm/editor/blocknote'
-import { InlineContent } from '@shm/editor/blocknote/react'
+import {defaultProps} from '@shm/editor/blocknote'
+import {InlineContent} from '@shm/editor/blocknote/react'
 export const ImageBlock = createReactBlockSpec({
   type: 'image',
   propSchema: {
@@ -52,7 +56,7 @@ const boolRegex = new RegExp('true')
 
 const Render = (
   block: Block<HMBlockSchema>,
-    editor: BlockNoteEditor<HMBlockSchema>,
+  editor: BlockNoteEditor<HMBlockSchema>,
 ) => {
   const [image, setImage] = useState<ImageType>({
     id: block.id,
@@ -159,7 +163,10 @@ function ImageComponent({
           contentEditable={false}
         />
       </YStack>
-      <InlineContent className="image-caption" onClick={() => (setSelected(false))} />
+      <InlineContent
+        className="image-caption"
+        onClick={() => setSelected(false)}
+      />
     </div>
   )
 }
@@ -316,7 +323,6 @@ function ImageForm({
                   borderBottomWidth={tabState == 'upload' ? '$1' : '$0'}
                   hoverStyle={{
                     backgroundColor: 'lightgrey',
-                    
                   }}
                 >
                   <SizableText size="$2" color="black">
@@ -335,7 +341,6 @@ function ImageForm({
                   borderBottomWidth={tabState == 'embed' ? '$1' : '$0'}
                   hoverStyle={{
                     backgroundColor: 'lightgrey',
-                    
                   }}
                 >
                   <SizableText size="$2" color="black">
@@ -360,7 +365,6 @@ function ImageForm({
                       justifyContent="center"
                       hoverStyle={{
                         backgroundColor: 'lightgrey',
-                        
                       }}
                     >
                       <SizableText
@@ -410,7 +414,6 @@ function ImageForm({
                         focusStyle={{
                           borderColor: 'lightgrey',
                           outlineWidth: 0,
-                          
                         }}
                         onChange={(e) => setUrl(e.nativeEvent.text)}
                       />

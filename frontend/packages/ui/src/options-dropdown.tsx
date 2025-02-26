@@ -1,35 +1,35 @@
-import {Button} from "@tamagui/button";
-import {YGroup} from "@tamagui/group";
-import {MoreHorizontal} from "@tamagui/lucide-icons";
-import {XStack} from "@tamagui/stacks";
-import {GestureReponderEvent} from "@tamagui/web";
-import {FC} from "react";
-import {GestureResponderEvent} from "react-native";
-import {Separator} from "tamagui";
-import {MenuItem} from "./menu-item";
-import {Popover} from "./TamaguiPopover";
-import {usePopoverState} from "./use-popover-state";
+import {Button} from '@tamagui/button'
+import {YGroup} from '@tamagui/group'
+import {MoreHorizontal} from '@tamagui/lucide-icons'
+import {XStack} from '@tamagui/stacks'
+import {GestureReponderEvent} from '@tamagui/web'
+import {FC} from 'react'
+import {GestureResponderEvent} from 'react-native'
+import {Separator} from 'tamagui'
+import {MenuItem} from './menu-item'
+import {Popover} from './TamaguiPopover'
+import {usePopoverState} from './use-popover-state'
 
 export type MenuItemType = {
-  key: string;
-  label: string;
-  subLabel?: string;
-  icon: FC;
-  onPress: () => void;
-  color?: string;
-};
+  key: string
+  label: string
+  subLabel?: string
+  icon: FC
+  onPress: () => void
+  color?: string
+}
 
 export function OptionsDropdown({
   menuItems,
   hiddenUntilItemHover,
   button,
 }: {
-  menuItems: (MenuItemType | null)[];
-  hiddenUntilItemHover?: boolean;
-  hover?: boolean;
-  button?: JSX.Element;
+  menuItems: (MenuItemType | null)[]
+  hiddenUntilItemHover?: boolean
+  hover?: boolean
+  button?: JSX.Element
 }) {
-  const popoverState = usePopoverState();
+  const popoverState = usePopoverState()
   return (
     <XStack
       opacity={!popoverState.open && hiddenUntilItemHover ? 0 : 1}
@@ -46,7 +46,7 @@ export function OptionsDropdown({
               data-trigger
               onPress={(e: GestureReponderEvent) => {
                 // because we are nested in the outer button, we need to stop propagation or else onPress is triggered by parent button
-                e.stopPropagation();
+                e.stopPropagation()
               }}
               icon={MoreHorizontal}
             />
@@ -56,7 +56,7 @@ export function OptionsDropdown({
           padding={0}
           elevation="$2"
           animation={[
-            "fast",
+            'fast',
             {
               opacity: {
                 overshootClamping: true,
@@ -80,9 +80,9 @@ export function OptionsDropdown({
                     <YGroup.Item key={item.key}>
                       <MenuItem
                         onPress={(e: GestureResponderEvent) => {
-                          e.stopPropagation();
-                          popoverState.onOpenChange(false);
-                          item.onPress();
+                          e.stopPropagation()
+                          popoverState.onOpenChange(false)
+                          item.onPress()
                         }}
                         subTitle={item.subLabel}
                         title={item.label}
@@ -91,11 +91,11 @@ export function OptionsDropdown({
                       />
                     </YGroup.Item>,
                   ]
-                : []
+                : [],
             )}
           </YGroup>
         </Popover.Content>
       </Popover>
     </XStack>
-  );
+  )
 }

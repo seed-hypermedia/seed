@@ -1,5 +1,5 @@
-import {ListItem, ListItemProps} from "@tamagui/list-item";
-import {SizableText} from "@tamagui/text";
+import {ListItem, ListItemProps} from '@tamagui/list-item'
+import {SizableText} from '@tamagui/text'
 
 export function MenuItem({
   disabled,
@@ -16,19 +16,19 @@ export function MenuItem({
       focusTheme
       size="$2"
       userSelect="none"
-      hoverStyle={{backgroundColor: "$color4", cursor: "default"}}
+      hoverStyle={{backgroundColor: '$color4', cursor: 'default'}}
       paddingVertical="$2"
       paddingHorizontal="$4"
       textAlign="left"
       outlineColor="transparent"
       bg="$colorTransparent"
       opacity={disabled ? 0.5 : 1}
-      cursor={disabled ? "not-allowed" : "default"}
+      cursor={disabled ? 'not-allowed' : 'default'}
       title={
         title ? (
           <SizableText
             fontSize="$2"
-            cursor={disabled ? "not-allowed" : "default"}
+            cursor={disabled ? 'not-allowed' : 'default'}
             userSelect="none"
             color={props.color}
           >
@@ -42,5 +42,5 @@ export function MenuItem({
     >
       {children}
     </ListItem>
-  );
+  )
 }

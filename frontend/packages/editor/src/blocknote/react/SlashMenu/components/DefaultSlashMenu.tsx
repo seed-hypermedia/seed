@@ -1,28 +1,28 @@
-import {createStyles, Menu} from "@mantine/core";
-import * as _ from "lodash";
+import {createStyles, Menu} from '@mantine/core'
+import * as _ from 'lodash'
 
-import {BlockSchema} from "@/blocknote/core";
-import {SlashMenuItem} from "./SlashMenuItem";
-import {SlashMenuProps} from "./SlashMenuPositioner";
+import {BlockSchema} from '@/blocknote/core'
+import {SlashMenuItem} from './SlashMenuItem'
+import {SlashMenuProps} from './SlashMenuPositioner'
 
 export function DefaultSlashMenu<BSchema extends BlockSchema>(
-  props: SlashMenuProps<BSchema>
+  props: SlashMenuProps<BSchema>,
 ) {
   const {classes} = createStyles({root: {}})(undefined, {
-    name: "SlashMenu",
-  });
-  const renderedItems: any[] = [];
-  let index = 0;
+    name: 'SlashMenu',
+  })
+  const renderedItems: any[] = []
+  let index = 0
 
-  const groups = _.groupBy(props.filteredItems, (i) => i.group);
+  const groups = _.groupBy(props.filteredItems, (i) => i.group)
   // const showNostr = trpc.experiments.get.useQuery().data?.nostr
 
   _.forEach(groups, (groupedItems) => {
     renderedItems.push(
       <Menu.Label key={groupedItems[0].group}>
         {groupedItems[0].group}
-      </Menu.Label>
-    );
+      </Menu.Label>,
+    )
 
     for (const item of groupedItems) {
       // if (item.name !== 'Nostr' || showNostr) {
@@ -35,12 +35,12 @@ export function DefaultSlashMenu<BSchema extends BlockSchema>(
           shortcut={item.shortcut}
           isSelected={props.keyboardHoveredItemIndex === index}
           set={() => props.itemCallback(item)}
-        />
-      );
+        />,
+      )
       // }
-      index++;
+      index++
     }
-  });
+  })
 
   return (
     <Menu
@@ -51,7 +51,7 @@ export function DefaultSlashMenu<BSchema extends BlockSchema>(
        * close due to trigger="hover".
        */
       defaultOpened={true}
-      trigger={"hover"}
+      trigger={'hover'}
       closeDelay={10000000}
     >
       <Menu.Dropdown
@@ -66,5 +66,5 @@ export function DefaultSlashMenu<BSchema extends BlockSchema>(
         )}
       </Menu.Dropdown>
     </Menu>
-  );
+  )
 }

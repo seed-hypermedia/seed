@@ -1,9 +1,9 @@
-import {Button as TButton} from "@tamagui/button";
-import {ThemeableStack} from "@tamagui/stacks";
-import {styled} from "@tamagui/web";
+import {Button as TButton} from '@tamagui/button'
+import {ThemeableStack} from '@tamagui/stacks'
+import {styled} from '@tamagui/web'
 
 export const Button = styled(TButton, {
-  className: "btn",
+  className: 'btn',
   // bg: "$color4",
   borderWidth: 2,
   // bg: "$color4",
@@ -16,32 +16,32 @@ export const Button = styled(TButton, {
   disabledStyle: {
     opacity: 0.5,
     borderWidth: 2,
-    borderColor: "$colorTransparent",
+    borderColor: '$colorTransparent',
     elevation: 0,
   },
 
   focusStyle: {
-    borderColor: "$color8",
+    borderColor: '$color8',
     borderWidth: 2,
     elevation: 0,
   },
   hoverStyle: {
-    cursor: "default",
+    cursor: 'default',
   },
-});
+})
 
 export const AccountTypeButton = styled(ThemeableStack, {
-  tag: "button",
-  role: "button",
+  tag: 'button',
+  role: 'button',
   focusable: true,
-  p: "$4",
-  paddingBottom: "$2",
+  p: '$4',
+  paddingBottom: '$2',
   w: 150,
   h: 150,
-  borderRadius: "$2",
-  gap: "$2",
-  bg: "$color4",
+  borderRadius: '$2',
+  gap: '$2',
+  bg: '$color4',
   hoverStyle: {
-    bg: "$color6",
+    bg: '$color6',
   },
-});
+})

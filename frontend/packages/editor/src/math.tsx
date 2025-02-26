@@ -1,21 +1,21 @@
-import {findNextBlock, findPreviousBlock} from "@/block-utils";
-import {BlockNoteEditor} from "@/blocknote/core/BlockNoteEditor";
-import {Block} from "@/blocknote/core/extensions/Blocks/api/blockTypes";
-import {defaultProps} from "@/blocknote/core/extensions/Blocks/api/defaultBlocks";
-import {getBlockInfoFromSelection} from "@/blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos";
-import {createReactBlockSpec} from "@/blocknote/react/ReactBlockSpec";
-import {HMBlockSchema} from "@/schema";
-import {TextArea} from "@tamagui/input";
-import {Separator} from "@tamagui/separator";
-import {XStack, YStack} from "@tamagui/stacks";
-import {SizableText} from "@tamagui/text";
-import {Fragment} from "@tiptap/pm/model";
-import katex from "katex";
-import "katex/dist/katex.min.css";
-import {NodeSelection} from "prosemirror-state";
-import {useEffect, useRef, useState} from "react";
+import {findNextBlock, findPreviousBlock} from '@/block-utils'
+import {BlockNoteEditor} from '@/blocknote/core/BlockNoteEditor'
+import {Block} from '@/blocknote/core/extensions/Blocks/api/blockTypes'
+import {defaultProps} from '@/blocknote/core/extensions/Blocks/api/defaultBlocks'
+import {getBlockInfoFromSelection} from '@/blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
+import {createReactBlockSpec} from '@/blocknote/react/ReactBlockSpec'
+import {HMBlockSchema} from '@/schema'
+import {TextArea} from '@tamagui/input'
+import {Separator} from '@tamagui/separator'
+import {XStack, YStack} from '@tamagui/stacks'
+import {SizableText} from '@tamagui/text'
+import {Fragment} from '@tiptap/pm/model'
+import katex from 'katex'
+import 'katex/dist/katex.min.css'
+import {NodeSelection} from 'prosemirror-state'
+import {useEffect, useRef, useState} from 'react'
 
-export const MathBlock = (type: "math") =>
+export const MathBlock = (type: 'math') =>
   createReactBlockSpec({
     type,
     propSchema: {
@@ -27,105 +27,105 @@ export const MathBlock = (type: "math") =>
       block,
       editor,
     }: {
-      block: Block<HMBlockSchema>;
-      editor: BlockNoteEditor<HMBlockSchema>;
+      block: Block<HMBlockSchema>
+      editor: BlockNoteEditor<HMBlockSchema>
     }) => Render(block, editor),
 
     parseHTML: [
       {
-        tag: "div[data-content-type=math]",
+        tag: 'div[data-content-type=math]',
         priority: 1000,
         getContent: (node, schema) => {
-          const element = node instanceof HTMLElement ? node : null;
-          const content = element?.getAttribute("data-content");
+          const element = node instanceof HTMLElement ? node : null
+          const content = element?.getAttribute('data-content')
 
           if (content) {
-            const textNode = schema.text(content);
-            const fragment = Fragment.from(textNode);
-            return fragment;
+            const textNode = schema.text(content)
+            const fragment = Fragment.from(textNode)
+            return fragment
           }
 
-          return Fragment.empty;
+          return Fragment.empty
         },
       },
     ],
-  });
+  })
 
 const Render = (
   block: Block<HMBlockSchema>,
-  editor: BlockNoteEditor<HMBlockSchema>
+  editor: BlockNoteEditor<HMBlockSchema>,
 ) => {
-  const [selected, setSelected] = useState(false);
-  const [opened, setOpened] = useState(false);
-  const mathRef = useRef<HTMLSpanElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  const tiptapEditor = editor._tiptapEditor;
-  const selection = tiptapEditor.state.selection;
+  const [selected, setSelected] = useState(false)
+  const [opened, setOpened] = useState(false)
+  const mathRef = useRef<HTMLSpanElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const tiptapEditor = editor._tiptapEditor
+  const selection = tiptapEditor.state.selection
 
   useEffect(() => {
-    const selectedNode = getBlockInfoFromSelection(tiptapEditor.state);
+    const selectedNode = getBlockInfoFromSelection(tiptapEditor.state)
     if (selectedNode && selectedNode.block.node.attrs.id) {
       if (
         selectedNode.block.node.attrs.id === block.id &&
         selectedNode.block.beforePos + 1 === selection.$anchor.pos
       ) {
-        setSelected(true);
-        setOpened(true);
+        setSelected(true)
+        setOpened(true)
       } else if (selectedNode.block.node.attrs.id !== block.id) {
-        setSelected(false);
-        setOpened(false);
+        setSelected(false)
+        setOpened(false)
       }
     }
-  }, [selection, block.id]);
+  }, [selection, block.id])
 
   useEffect(() => {
     if (mathRef.current) {
       if (block.content[0]) {
         try {
-          mathRef.current.style.color = "";
+          mathRef.current.style.color = ''
           katex.render(block.content[0].text, mathRef.current, {
             throwOnError: true,
             displayMode: true,
-          });
+          })
         } catch (e) {
           if (e instanceof katex.ParseError) {
             mathRef.current.innerText =
               "Error in LaTeX '" +
               block.content[0].text +
               "':\n" +
-              e.message.split(":")[1];
-            mathRef.current.style.color = "red";
+              e.message.split(':')[1]
+            mathRef.current.style.color = 'red'
           } else {
-            throw e;
+            throw e
           }
         }
       } else {
-        katex.render("\\color{gray} TeX math", mathRef.current, {
+        katex.render('\\color{gray} TeX math', mathRef.current, {
           throwOnError: false,
           displayMode: true,
-        });
+        })
       }
     }
-  }, [block.content]);
+  }, [block.content])
 
   useEffect(() => {
     if (opened && inputRef.current) {
       // @ts-ignore
-      inputRef.current.focus();
-      const length = inputRef.current.value.length;
-      inputRef.current.setSelectionRange(length, length);
+      inputRef.current.focus()
+      const length = inputRef.current.value.length
+      inputRef.current.setSelectionRange(length, length)
     }
-  }, [opened]);
+  }, [opened])
 
   return (
     <YStack
-      backgroundColor={selected ? "$color3" : "$color4"}
-      borderColor={selected ? "$color8" : "transparent"}
+      backgroundColor={selected ? '$color3' : '$color4'}
+      borderColor={selected ? '$color8' : 'transparent'}
       borderWidth={2}
       borderRadius="$2"
       overflow="hidden"
       hoverStyle={{
-        backgroundColor: "$color3",
+        backgroundColor: '$color3',
       }}
       // @ts-ignore
       contentEditable={false}
@@ -143,14 +143,14 @@ const Render = (
         userSelect="none"
         onPress={() => {
           if (selected && !opened) {
-            const selectedNode = getBlockInfoFromSelection(tiptapEditor.state);
+            const selectedNode = getBlockInfoFromSelection(tiptapEditor.state)
             if (selectedNode && selectedNode.block.node.attrs.id) {
               if (
                 selectedNode.block.node.attrs.id === block.id &&
                 selectedNode.block.beforePos + 1 === selection.$anchor.pos
               ) {
-                setSelected(true);
-                setOpened(true);
+                setSelected(true)
+                setOpened(true)
               }
             }
           }
@@ -172,102 +172,102 @@ const Render = (
               ref={inputRef}
               onBlur={(e) => {
                 // if (!selected)
-                setOpened(false);
+                setOpened(false)
               }}
               onKeyPress={(e) => {
                 // @ts-ignore
-                if (e.key === "ArrowUp") {
-                  e.preventDefault();
-                  const {state, view} = tiptapEditor;
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  const {state, view} = tiptapEditor
                   const prevBlockInfo = findPreviousBlock(
                     view,
-                    state.selection.from
-                  );
+                    state.selection.from,
+                  )
                   if (prevBlockInfo) {
-                    const {prevBlock, prevBlockPos} = prevBlockInfo;
-                    const prevNode = prevBlock.firstChild!;
-                    const prevNodePos = prevBlockPos + 1;
+                    const {prevBlock, prevBlockPos} = prevBlockInfo
+                    const prevNode = prevBlock.firstChild!
+                    const prevNodePos = prevBlockPos + 1
                     if (
                       [
-                        "image",
-                        "file",
-                        "embed",
-                        "video",
-                        "web-embed",
-                        "math",
+                        'image',
+                        'file',
+                        'embed',
+                        'video',
+                        'web-embed',
+                        'math',
                       ].includes(prevNode.type.name)
                     ) {
                       const selection = NodeSelection.create(
                         state.doc,
-                        prevNodePos
-                      );
-                      view.dispatch(state.tr.setSelection(selection));
-                      return true;
+                        prevNodePos,
+                      )
+                      view.dispatch(state.tr.setSelection(selection))
+                      return true
                     } else {
                       editor.setTextCursorPosition(
                         editor.getTextCursorPosition().prevBlock!,
-                        "end"
-                      );
+                        'end',
+                      )
                     }
-                    editor.focus();
-                    setOpened(false);
+                    editor.focus()
+                    setOpened(false)
                   }
                 }
                 // @ts-ignore
-                else if (e.key === "ArrowDown") {
-                  e.preventDefault();
-                  const {state, view} = tiptapEditor;
-                  let nextBlockInfo = findNextBlock(view, state.selection.from);
+                else if (e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  const {state, view} = tiptapEditor
+                  let nextBlockInfo = findNextBlock(view, state.selection.from)
                   if (nextBlockInfo) {
-                    const {nextBlock, nextBlockPos} = nextBlockInfo;
-                    const nextNode = nextBlock.firstChild!;
-                    const nextNodePos = nextBlockPos + 1;
+                    const {nextBlock, nextBlockPos} = nextBlockInfo
+                    const nextNode = nextBlock.firstChild!
+                    const nextNodePos = nextBlockPos + 1
                     if (
                       [
-                        "image",
-                        "file",
-                        "embed",
-                        "video",
-                        "web-embed",
-                        "math",
+                        'image',
+                        'file',
+                        'embed',
+                        'video',
+                        'web-embed',
+                        'math',
                       ].includes(nextNode.type.name)
                     ) {
                       const selection = NodeSelection.create(
                         state.doc,
-                        nextNodePos
-                      );
-                      view.dispatch(state.tr.setSelection(selection));
+                        nextNodePos,
+                      )
+                      view.dispatch(state.tr.setSelection(selection))
                     } else {
                       editor.setTextCursorPosition(
                         editor.getTextCursorPosition().nextBlock!,
-                        "start"
-                      );
+                        'start',
+                      )
                     }
-                    editor.focus();
-                    setOpened(false);
+                    editor.focus()
+                    setOpened(false)
                   }
                 }
               }}
-              width={"100%"}
+              width={'100%'}
               placeholder="E = mc^2"
-              value={block.content[0] ? block.content[0].text : ""}
+              value={block.content[0] ? block.content[0].text : ''}
               onChange={(e) => {
                 // @ts-ignore
                 editor.updateBlock(block, {
                   ...block,
                   content: [
                     {
-                      type: "text",
+                      type: 'text',
                       text: e.nativeEvent.text,
                       styles: {},
                     },
                   ],
-                });
+                })
               }}
             />
           </XStack>
         </YStack>
       )}
     </YStack>
-  );
-};
+  )
+}

@@ -4,25 +4,25 @@
 
 .block-paragraph .content-inline,
 .block-paragraph .content-inline * :not(code) {
-  font-family: Georgia, "Times New Roman", Times, serif !important;
+  font-family: Georgia, 'Times New Roman', Times, serif !important;
 }
 
 .block-paragraph .content-inline.is-comment,
 .block-paragraph .content-inline.is-comment *:not(code) {
   font-family:
-    "Inter",
-    "SF Pro Display",
+    'Inter',
+    'SF Pro Display',
     -apple-system,
     BlinkMacSystemFont,
-    "Open Sans",
-    "Segoe UI",
-    "Roboto",
-    "Oxygen",
-    "Ubuntu",
-    "Cantarell",
-    "Fira Sans",
-    "Droid Sans",
-    "Helvetica Neue",
+    'Open Sans',
+    'Segoe UI',
+    'Roboto',
+    'Oxygen',
+    'Ubuntu',
+    'Cantarell',
+    'Fira Sans',
+    'Droid Sans',
+    'Helvetica Neue',
     sans-serif !important;
 }
 
@@ -47,44 +47,44 @@
   display: list-item !important;
 }
 
-.blocknode-list[data-list-type="Unordered"] > ul {
+.blocknode-list[data-list-type='Unordered'] > ul {
   margin-left: 0.2em;
   list-style-type: disc !important;
   list-style-position: outside;
 }
 
-.blocknode-list[data-list-type="Ordered"] > ol {
+.blocknode-list[data-list-type='Ordered'] > ol {
   margin-left: 0.2em;
   list-style-type: decimal !important;
   list-style-position: outside;
 }
 
-.blocknode-list[data-list-type="Blockquote"] > blockquote {
+.blocknode-list[data-list-type='Blockquote'] > blockquote {
   all: unset !important;
 }
 
-.blocknode-list[data-list-type="Blockquote"] {
+.blocknode-list[data-list-type='Blockquote'] {
   border-left: 3px solid var(--color8);
   padding-left: 15px;
   margin: 1em 0;
   /* font-style: italic; */
 }
 
-.blocknode-list[data-list-level="2"] > ul {
+.blocknode-list[data-list-level='2'] > ul {
   list-style-type: circle !important;
   list-style-position: outside;
 }
 
-.blocknode-list[data-list-level="3"] > ul {
+.blocknode-list[data-list-level='3'] > ul {
   list-style-type: square !important;
   list-style-position: outside;
 }
 
-.blocknode-content-heading + .blocknode-list[data-list-type="Group"] {
+.blocknode-content-heading + .blocknode-list[data-list-type='Group'] {
   margin-left: 0 !important;
 }
 
-[data-node-type="blockGroup"] > ul,
-[data-node-type="blockGroup"] > ol {
+[data-node-type='blockGroup'] > ul,
+[data-node-type='blockGroup'] > ol {
   all: unset !important;
 }

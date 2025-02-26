@@ -1,25 +1,25 @@
-import {HMAccountsMetadata} from "@shm/shared";
-import {Text} from "@tamagui/core";
-import {XStack} from "@tamagui/stacks";
-import {useMemo} from "react";
-import {HMIcon} from "./hm-icon";
+import {HMAccountsMetadata} from '@shm/shared'
+import {Text} from '@tamagui/core'
+import {XStack} from '@tamagui/stacks'
+import {useMemo} from 'react'
+import {HMIcon} from './hm-icon'
 
 export function FacePile({
   accounts,
   accountsMetadata,
 }: {
-  accounts: string[];
-  accountsMetadata: HMAccountsMetadata;
+  accounts: string[]
+  accountsMetadata: HMAccountsMetadata
 }) {
   const showAccountIds = useMemo(
     () => (accounts.length > 3 ? accounts.slice(0, 2) : accounts),
-    [accounts]
-  );
+    [accounts],
+  )
   return (
     <>
       {showAccountIds.map((author, idx) => {
-        const authorInfo = accountsMetadata[author];
-        if (!authorInfo) return null;
+        const authorInfo = accountsMetadata[author]
+        if (!authorInfo) return null
         return (
           <XStack
             zIndex={idx + 1}
@@ -43,7 +43,7 @@ export function FacePile({
               size={20}
             />
           </XStack>
-        );
+        )
       })}
       {accounts.length > 2 ? (
         <XStack
@@ -70,5 +70,5 @@ export function FacePile({
         </XStack>
       ) : null}
     </>
-  );
+  )
 }
