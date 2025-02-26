@@ -1,4 +1,4 @@
-import {IS_PROD_DEV} from '@shm/shared/constants'
+import {IS_PROD_DESKTOP, IS_PROD_DEV} from '@shm/shared/constants'
 import {app, BrowserWindow, ipcMain, session} from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -29,14 +29,20 @@ export const checkForUpdates =
   process.platform == 'win32' ? defaultCheckForUpdates : customAutoUpdates
 
 export default function autoUpdate() {
+  console.log(
+    `[AUTO-UPDATE] autoUpdate call INIT`,
+    BrowserWindow.getFocusedWindow()?.id,
+  )
+
   if (!IS_PROD_DESKTOP) {
     log.debug('[MAIN][AUTO-UPDATE]: Not available in development')
     return
   }
-  if (!isAutoUpdateSupported()) {
-    log.debug('[MAIN][AUTO-UPDATE]: Auto-Update is not supported')
-    return
-  }
+
+  // if (!isAutoUpdateSupported()) {
+  //   log.debug('[MAIN][AUTO-UPDATE]: Auto-Update is not supported')
+  //   return
+  // }
 
   if (process.platform == 'win32') {
     setup()
@@ -44,15 +50,18 @@ export default function autoUpdate() {
 
   // Listen for when the window is ready
   app.on('browser-window-created', (_, window) => {
-    window.once('show', () => {
-      log.debug('[MAIN][AUTO-UPDATE]: Window is ready, starting update check')
+    window.once('ready-to-show', () => {
+      log.debug('[AUTO-UPDATE]: Window is ready')
       // Initial check after window is ready
       setTimeout(() => {
+        log.debug('[AUTO-UPDATE]: TIMEOUT 2000')
         checkForUpdates()
       }, 2000)
 
-      // Set up periodic checks
-      setInterval(checkForUpdates, 3_600_000) // every 1 hour
+      if (process.platform === 'win32') {
+        // Set up periodic checks
+        setInterval(checkForUpdates, 600_000) // every 10 mins
+      }
     })
   })
 }
@@ -129,19 +138,24 @@ function setup() {
 }
 
 export function customAutoUpdates() {
-  log.info('[AUTO-UPDATE]: checking for Updates')
+  log.info(
+    `[AUTO-UPDATE]: checking for Updates START: ${BrowserWindow.getFocusedWindow()
+      ?.id}`,
+  )
 
-  if (!isAutoUpdateSupported()) {
-    log.debug('[AUTO-UPDATE]: Auto-Update is not supported')
-    return
-  }
+  // if (!isAutoUpdateSupported()) {
+  //   log.debug('[AUTO-UPDATE]: Auto-Update is not supported')
+  //   return
+  // }
+
   const JSONUrl = IS_PROD_DEV
     ? 'https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest.json'
     : 'https://seedreleases.s3.eu-west-2.amazonaws.com/prod/latest.json'
 
   const updater = new AutoUpdater(JSONUrl)
-  log.info(`[AUTO-UPDATE] Starting auto-check on ${JSONUrl}`)
+
   updater.startAutoCheck()
+  log.info(`[AUTO-UPDATE] Starting auto-check on ${JSONUrl}`)
   updater.checkForUpdates()
 }
 
@@ -152,7 +166,8 @@ export class AutoUpdater {
   private currentUpdateInfo: UpdateInfo | null = null
   private status: UpdateStatus = {type: 'idle'}
 
-  constructor(updateUrl: string, checkIntervalMs: number = 3600000) {
+  constructor(updateUrl: string, checkIntervalMs: number = 600_000) {
+    console.log(`[AUTO-UPDATE] AutoUpdater constructor call START`)
     // 1 hour default
     this.updateUrl = updateUrl
     this.checkIntervalMs = checkIntervalMs
@@ -175,9 +190,9 @@ export class AutoUpdater {
     })
 
     ipcMain.on('auto-update:set-status', (_, status: UpdateStatus) => {
-      this.status = status
       const win = BrowserWindow.getFocusedWindow()
       if (win) {
+        this.status = status
         win.webContents.send('auto-update:status', this.status)
       }
     })
@@ -188,6 +203,8 @@ export class AutoUpdater {
         this.showReleaseNotes()
       }
     })
+
+    console.log(`[AUTO-UPDATE] AutoUpdater constructor call FINISH`)
   }
 
   private showReleaseNotes() {
@@ -207,7 +224,7 @@ export class AutoUpdater {
   }
 
   async checkForUpdates(): Promise<void> {
-    log.info('[AUTO-UPDATE] Checking for updates...')
+    log.info('[AUTO-UPDATE] Checking for updates START')
     const win = BrowserWindow.getFocusedWindow()
     if (!win) {
       log.error('[AUTO-UPDATE] No window found')
@@ -258,6 +275,7 @@ export class AutoUpdater {
   private compareVersions(v1: string, v2: string): number {
     log.info(`[AUTO-UPDATE] Comparing versions: ${v1} vs ${v2}`)
 
+    return v1 === v2 ? 0 : 1
     // Split version and dev suffix
     const [v1Base, v1Dev] = v1.split('-dev.')
     const [v2Base, v2Dev] = v2.split('-dev.')

@@ -37,8 +37,6 @@ import {defaultRoute} from '@shm/shared/routes'
 import fs from 'fs'
 import mime from 'mime'
 import {grpcClient} from './app-grpc'
-import {APP_AUTO_UPDATE_PREFERENCE} from './app-settings'
-import {appStore} from './app-store'
 import autoUpdate from './auto-update'
 import {startMainDaemon} from './daemon'
 import {saveCidAsFile} from './save-cid-as-file'
@@ -346,13 +344,7 @@ async function initAccountSubscriptions() {
 Menu.setApplicationMenu(createAppMenu())
 
 app.whenReady().then(() => {
-  let shouldAutoUpdate = appStore.get(APP_AUTO_UPDATE_PREFERENCE) || 'true'
-
-  if (shouldAutoUpdate == 'true') {
-    autoUpdate()
-  } else {
-    console.log('Auto-Update is set to OFF')
-  }
+  autoUpdate()
 })
 
 app.on('did-become-active', () => {
