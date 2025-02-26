@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "main": "src/index.ts",
   "scripts": {
-    "format": "prettier \"**/*.{ts,tsx,md,mdx,json,js}\" --check --ignore-path ../../../.prettierignore",
+    "format:check": "prettier --check .",
+    "format:write": "prettier --write .",
     "test": "vitest --run",
     "test:w": "vitest",
     "typecheck": "tsc --noEmit"

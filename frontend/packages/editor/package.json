@@ -4,6 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "main": "./src/index.ts",
+  "scripts": {
+    "format:check": "prettier --check .",
+    "format:write": "prettier --write ."
+  },
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@shm/ui": "workspace:*",

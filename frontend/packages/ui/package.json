@@ -14,7 +14,8 @@
   "scripts": {
     "build": "tamagui-build --skip-types",
     "watch": "tamagui-build --skip-types --watch",
-    "format": "prettier \"**/*.{ts,tsx,md,mdx,json,js}\" --check --ignore-path ../../../.prettierignore",
+    "format:check": "prettier --check .",
+    "format:write": "prettier --write .",
     "clean": "tamagui-build clean",
     "clean:build": "tamagui-build clean:build",
     "test": "echo NO TESTS",

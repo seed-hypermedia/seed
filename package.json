@@ -3,8 +3,8 @@
   "private": true,
   "scripts": {
     "test": "yarn workspace @shm/shared test",
-    "validate": "yarn format",
-    "validate:fix": "yarn format:fix",
+    "format:check": "yarn workspaces foreach -pt run format:check",
+    "format:write": "yarn workspaces foreach -pt run format:write",
     "web": "yarn workspace @shm/web dev",
     "web:prod": "yarn build && node frontend/apps/web/crazy-hack-web-build.mjs",
     "web:start": "yarn workspace @shm/web start",
