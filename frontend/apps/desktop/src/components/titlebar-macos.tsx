@@ -12,11 +12,13 @@ export default function TitleBarMacos(props: TitleBarProps) {
   if (props.clean) {
     return (
       <TitlebarWrapper {...props}>
-        <XStack>
-          <View
-            width={72} // this width to stay away from the macOS window traffic lights
-          />
-          <TitleText marginHorizontal="$4" fontWeight="bold">
+        <XStack className="window-drag" ai="center" jc="center" w="100%">
+          <TitleText
+            marginHorizontal="$4"
+            fontWeight="bold"
+            f={1}
+            textAlign="center"
+          >
             {props.cleanTitle}
           </TitleText>
         </XStack>
