@@ -118,9 +118,9 @@ jobs:
           VITE_DESKTOP_DESKTOP_APPDATA: "Seed.test"
           VITE_DESKTOP_HOSTNAME: "http://localhost"
 
-      - name: Validate code
+      - name: Validate Frontend Formatting
         run: |
-          yarn validate
+          yarn format:check
 
       - name: Install Playwright Browsers
         run: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npx playwright install
