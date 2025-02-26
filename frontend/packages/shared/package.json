@@ -12,7 +12,6 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@shm/prettier": "*",
     "typescript": "5.5.2",
     "vitest": "0.34.2"
   },

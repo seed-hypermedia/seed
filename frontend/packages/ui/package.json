@@ -52,7 +52,6 @@
     "tamagui": "1.108.2"
   },
   "devDependencies": {
-    "@shm/prettier": "workspace:*",
     "@tamagui/build": "1.108.2",
     "@tamagui/use-did-finish-ssr": "1.100.5"
   }
