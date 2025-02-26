@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"seed/backend/ipfs"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/ipfs/boxo/ipld/unixfs/importer/helpers"
 	"github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
+	"github.com/multiformats/go-multicodec"
 	multihash "github.com/multiformats/go-multihash"
 	"go.uber.org/zap"
 )
@@ -94,13 +96,13 @@ func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 	cidStr, ok := vars["cid"]
 	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "Url format not recognized")
+		fmt.Fprintf(w, "URL format not recognized.")
 		return
 	}
 	cid, err := cid.Decode(cidStr)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "Wrong provided cid[%s]: %s", cidStr, err.Error())
+		fmt.Fprintf(w, "Failed to decode CID %s: %v.", cidStr, err)
 		return
 	}
 
@@ -110,39 +112,40 @@ func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			w.WriteHeader(http.StatusRequestTimeout)
-			fm.log.Debug("Timeout. Could not get the file", zap.String("CID", cid.String()), zap.Error(err))
-			fmt.Fprintf(w, "Timeout. Could not get file with provided CID[%s].", cid.String())
 		} else {
 			w.WriteHeader(http.StatusInternalServerError)
-			fm.log.Debug("Could not get file", zap.String("CID", cid.String()), zap.Error(err))
-			fmt.Fprintf(w, "Could not get file with provided CID[%s]: %s", cid.String(), err.Error())
 		}
+		fmt.Fprintf(w, "Could not get the data with the given CID %s: %v", cid, err)
 		return
 	}
 
-	var buf bytes.Buffer
-	unixFSNode, err := unixfile.NewUnixfsFile(ctx, fm.DAGService, n)
-	if err != nil {
-		// If not a UnixFS file, try to get raw data
-		fm.log.Debug("Not a UnixFS file, attempting to get raw data", zap.String("CID", cidStr))
-		rawData := n.RawData()
-		buf.Write(rawData)
-	} else {
-		if f, ok := unixFSNode.(files.File); ok {
-			if _, err := io.Copy(&buf, f); err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				fm.log.Debug("Found the node but could not reconstruct the file", zap.String("CID", cidStr), zap.Error(err))
-				fmt.Fprintf(w, "Found the Node but could not reconstruct the file: %s", err.Error())
-				return
+	// If the CID is not a UnixFS file we want to return the raw bytes.
+	// Otherwise we assemble the file and return it as a file.
+	var response io.Reader
+	codec, _ := ipfs.DecodeCID(n.Cid())
+	if codec == multicodec.DagPb {
+		ufsNode, err := unixfile.NewUnixfsFile(ctx, fm.DAGService, n)
+		if err != nil {
+			response = bytes.NewReader(n.RawData())
+		} else {
+			f, ok := ufsNode.(files.File)
+			if ok {
+				response = f
+			} else {
+				response = bytes.NewReader(n.RawData())
 			}
 		}
+	} else {
+		response = bytes.NewReader(n.RawData())
 	}
 
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("ETag", cidStr)
 	w.Header().Set("Cache-Control", "public, max-age=29030400, immutable")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(buf.Bytes())
+	if _, err := io.Copy(w, response); err != nil {
+		fm.log.Warn("GetFile: failed to write response in full", zap.Error(err), zap.String("cid", cidStr))
+	}
 }
 
 // UploadFile uploads a file to ipfs.
