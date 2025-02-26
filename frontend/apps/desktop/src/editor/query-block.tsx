@@ -28,7 +28,7 @@ import {usePopoverState} from '@shm/ui/use-popover-state'
 import type {UseQueryResult} from '@tanstack/react-query'
 import {Fragment} from '@tiptap/pm/model'
 import {NodeSelection, TextSelection} from 'prosemirror-state'
-import {useCallback, useMemo, useState} from 'react'
+import {useCallback, useEffect, useMemo, useState} from 'react'
 import {
   ButtonFrame,
   SizableText,
@@ -69,6 +69,10 @@ export const QueryBlock = createReactBlockSpec({
       default: defaultQuerySort,
     },
     banner: {
+      default: 'false',
+      values: ['true', 'false'],
+    },
+    defaultOpen: {
       default: 'false',
       values: ['true', 'false'],
     },
@@ -417,7 +421,16 @@ function QuerySettings({
   }) => void
   editor: BlockNoteEditor<HMBlockSchema>
 }) {
-  const popoverState = usePopoverState()
+  const popoverState = usePopoverState(block.props.defaultOpen === 'true')
+
+  useEffect(() => {
+    if (block.props.defaultOpen === 'true') {
+      editor.updateBlock(block.id, {
+        ...block,
+        props: {...block.props, defaultOpen: 'false'},
+      })
+    }
+  }, [block.props.defaultOpen])
 
   return (
     <>
@@ -694,6 +707,8 @@ function QuerySearch({
         h={38}
         gap="$2"
         ai="center"
+        borderWidth="$0.5"
+        borderColor="$brand5"
       >
         <Search flexShrink={0} size={16} />
         <SizableText
