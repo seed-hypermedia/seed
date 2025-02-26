@@ -1,11 +1,11 @@
-import {useSearch} from "@shm/shared/models/search";
-import {HYPERMEDIA_ENTITY_TYPES} from "@shm/shared/utils/entity-id-url";
-import {Link as LinkIcon, Search} from "@tamagui/lucide-icons";
-import {ReactNode, useEffect, useRef, useState} from "react";
-import {createPortal} from "react-dom";
-import {Input, SizableText, SizeTokens, XStack, YStack} from "tamagui";
+import { LauncherItem, SwitcherItem } from "@/launcher-item";
+import { useSearch } from "@shm/shared/models/search";
+import { HYPERMEDIA_ENTITY_TYPES } from "@shm/shared/utils/entity-id-url";
+import { Link as LinkIcon, Search } from "@tamagui/lucide-icons";
+import { ReactNode, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { Input, SizableText, SizeTokens, XStack, YStack } from "tamagui";
 import "./hm-link-form.css";
-import {LauncherItem, SwitcherItem} from "./launcher-item";
 
 export type HypermediaLinkFormProps = {
   children?: ReactNode;
@@ -14,7 +14,6 @@ export type HypermediaLinkFormProps = {
   type: string;
   updateLink: (url: string, text: string) => void;
   editLink: (url: string, text: string) => void;
-  openUrl: (url?: string | undefined, newWindow?: boolean | undefined) => void;
   isSeedDocument?: boolean;
   hasName?: boolean;
   hasSearch?: boolean;

@@ -1,10 +1,10 @@
-import {isValidUrl, timeoutPromise} from '@/editor/utils'
 import {
   Block,
   BlockNoteEditor,
   createReactBlockSpec,
   defaultProps,
 } from '@shm/editor/blocknote'
+import {isValidUrl, timeoutPromise} from '@shm/editor/utils'
 import {useDocContentContext} from '@shm/ui/document-content'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {ResizeHandle} from '@shm/ui/resize-handle'

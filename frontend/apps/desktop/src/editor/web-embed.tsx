@@ -1,4 +1,3 @@
-import {isValidUrl} from '@/editor/utils'
 import {useOpenUrl} from '@/open-url'
 import {
   Block,
@@ -6,6 +5,7 @@ import {
   createReactBlockSpec,
   defaultProps,
 } from '@shm/editor/blocknote'
+import {isValidUrl} from '@shm/editor/utils'
 import {TwitterXIcon} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {Fragment} from '@tiptap/pm/model'

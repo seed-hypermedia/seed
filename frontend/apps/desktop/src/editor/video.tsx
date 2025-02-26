@@ -1,10 +1,10 @@
-import {isValidUrl, youtubeParser} from '@/editor/utils'
 import {
   Block,
   BlockNoteEditor,
   createReactBlockSpec,
   defaultProps,
 } from '@shm/editor/blocknote'
+import {isValidUrl, youtubeParser} from '@shm/editor/utils'
 import {DAEMON_FILE_URL} from '@shm/shared/constants'
 import {isIpfsUrl} from '@shm/ui/get-file-url'
 import {ResizeHandle} from '@shm/ui/resize-handle'

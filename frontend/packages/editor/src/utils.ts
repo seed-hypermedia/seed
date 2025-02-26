@@ -1,34 +1,35 @@
-import {BlockNoteEditor} from "@/blocknote/core/BlockNoteEditor";
-import type {BlockIdentifier} from "@/blocknote/core/extensions/Blocks/api/blockTypes";
-import {HMBlockSchema} from "@/schema";
-import {HMBlockChildrenTypeSchema} from "@shm/shared";
-import {editorBlockToHMBlock} from "@shm/shared/client/editorblock-to-hmblock";
-import {Block, BlockNode} from "@shm/shared/client/grpc-types";
-import {EditorBlock} from "@shm/shared/editor-types";
-import {Editor} from "@tiptap/core";
-import {Node as TipTapNode} from "@tiptap/pm/model";
-import {EditorView} from "@tiptap/pm/view";
+import {BlockNoteEditor} from '@/blocknote/core/BlockNoteEditor'
+import type {BlockIdentifier} from '@/blocknote/core/extensions/Blocks/api/blockTypes'
+import type {BlockSchema} from '@shm/editor/blocknote'
+import type {Block as BNBlock} from '@shm/editor/blocknote/core/extensions/Blocks/api/blockTypes'
+import {HMBlockChildrenTypeSchema} from '@shm/shared'
+import {editorBlockToHMBlock} from '@shm/shared/client/editorblock-to-hmblock'
+import {Block, BlockNode} from '@shm/shared/client/grpc-types'
+import {EditorBlock} from '@shm/shared/editor-types'
+import {Editor} from '@tiptap/core'
+import {Node as TipTapNode} from '@tiptap/pm/model'
+import {EditorView} from '@tiptap/pm/view'
 
 export function youtubeParser(url: string) {
   var regExp =
-    /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
-  var match = url.match(regExp);
-  return match && match[7].length == 11 ? match[7] : false;
+    /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/
+  var match = url.match(regExp)
+  return match && match[7].length == 11 ? match[7] : false
 }
 
 export function isValidUrl(urlString: string) {
   try {
-    return Boolean(new URL(urlString));
+    return Boolean(new URL(urlString))
   } catch (e) {
-    console.log(e);
-    return false;
+    console.log(e)
+    return false
   }
 }
 
 export function camelToFlat(camel: string) {
-  const camelCase = camel.replace(/([a-z])([A-Z])/g, "$1 $2");
+  const camelCase = camel.replace(/([a-z])([A-Z])/g, '$1 $2')
 
-  return camelCase;
+  return camelCase
 }
 
 export const timeoutPromise = (promise, delay, reason) =>
@@ -37,16 +38,16 @@ export const timeoutPromise = (promise, delay, reason) =>
     new Promise((resolve, reject) =>
       setTimeout(
         () => (reason === undefined ? resolve(null) : reject(reason)),
-        delay
-      )
+        delay,
+      ),
     ),
-  ]);
+  ])
 
 export function setGroupTypes(
   tiptap: Editor,
-  blocks: Array<Partial<Block<HMBlockSchema>>>
+  blocks: Array<Partial<BNBlock<BlockSchema>>>,
 ) {
-  blocks.forEach((block: Partial<Block<HMBlockSchema>>) => {
+  blocks.forEach((block: Partial<BNBlock<BlockSchema>>) => {
     tiptap.state.doc.descendants((node: TipTapNode, pos: number) => {
       if (
         node.attrs.id === block.id &&
@@ -54,9 +55,9 @@ export function setGroupTypes(
         block.props.childrenType
       ) {
         node.descendants((child: TipTapNode, childPos: number) => {
-          if (child.type.name === "blockGroup") {
+          if (child.type.name === 'blockGroup') {
             setTimeout(() => {
-              let tr = tiptap.state.tr;
+              let tr = tiptap.state.tr
               tr = block.props?.start
                 ? tr.setNodeMarkup(pos + childPos + 1, null, {
                     listType: block.props?.childrenType,
@@ -66,95 +67,95 @@ export function setGroupTypes(
                 : tr.setNodeMarkup(pos + childPos + 1, null, {
                     listType: block.props?.childrenType,
                     listLevel: block.props?.listLevel,
-                  });
-              tiptap.view.dispatch(tr);
-            });
-            return false;
+                  })
+              tiptap.view.dispatch(tr)
+            })
+            return false
           }
-        });
+        })
       }
-    });
+    })
     if (block.children) {
-      setGroupTypes(tiptap, block.children);
+      setGroupTypes(tiptap, block.children)
     }
-  });
+  })
 }
 
 export function getNodesInSelection(view: EditorView) {
-  const {state} = view;
-  const {from, to} = state.selection;
-  const nodes: TipTapNode[] = [];
+  const {state} = view
+  const {from, to} = state.selection
+  const nodes: TipTapNode[] = []
 
   state.doc.nodesBetween(from, to, (node) => {
-    if (node.type.name === "blockContainer") {
-      nodes.push(node);
+    if (node.type.name === 'blockContainer') {
+      nodes.push(node)
     }
-  });
+  })
 
-  return nodes;
+  return nodes
 }
 
 export function getBlockGroup(
   editor: BlockNoteEditor,
-  blockId: BlockIdentifier
+  blockId: BlockIdentifier,
 ): undefined | {type: string; listLevel: string; start?: number} {
-  const tiptap = editor?._tiptapEditor;
+  const tiptap = editor?._tiptapEditor
   if (tiptap) {
-    const id = typeof blockId === "string" ? blockId : blockId.id;
-    let group: {type: string; listLevel: string; start?: number} | undefined;
+    const id = typeof blockId === 'string' ? blockId : blockId.id
+    let group: {type: string; listLevel: string; start?: number} | undefined
     tiptap.state.doc.firstChild!.descendants((node: TipTapNode) => {
-      if (typeof group !== "undefined") {
-        return false;
+      if (typeof group !== 'undefined') {
+        return false
       }
 
       if (node.attrs.id !== id) {
-        return true;
+        return true
       }
 
       node.descendants((child: TipTapNode) => {
-        if (child.attrs.listType && child.type.name === "blockGroup") {
+        if (child.attrs.listType && child.type.name === 'blockGroup') {
           group = {
             type: child.attrs.listType,
             start: child.attrs.start,
             listLevel: child.attrs.listLevel,
-          } as const;
-          return false;
+          } as const
+          return false
         }
-        return true;
-      });
+        return true
+      })
 
-      return true;
-    });
-    return group;
+      return true
+    })
+    return group
   }
 
-  return undefined;
+  return undefined
 }
 
 export function serverBlockNodesFromEditorBlocks(
   editor: BlockNoteEditor,
-  editorBlocks: EditorBlock[]
+  editorBlocks: EditorBlock[],
 ): BlockNode[] {
-  if (!editorBlocks) return [];
+  if (!editorBlocks) return []
   return editorBlocks.map((block: EditorBlock) => {
-    const childGroup = getBlockGroup(editor, block.id);
-    const serverBlock = editorBlockToHMBlock(block);
+    const childGroup = getBlockGroup(editor, block.id)
+    const serverBlock = editorBlockToHMBlock(block)
     if (childGroup) {
       if (!serverBlock.attributes) {
-        serverBlock.attributes = {};
+        serverBlock.attributes = {}
       }
-      const childrenType = HMBlockChildrenTypeSchema.safeParse(childGroup.type);
+      const childrenType = HMBlockChildrenTypeSchema.safeParse(childGroup.type)
       if (childrenType.success) {
-        serverBlock.attributes.childrenType = childrenType.data;
+        serverBlock.attributes.childrenType = childrenType.data
       } else {
-        serverBlock.attributes.childrenType = "Group";
+        serverBlock.attributes.childrenType = 'Group'
       }
       if (childGroup.start)
-        serverBlock.attributes.start = childGroup.start.toString();
+        serverBlock.attributes.start = childGroup.start.toString()
     }
     return new BlockNode({
       block: Block.fromJson(serverBlock),
       children: serverBlockNodesFromEditorBlocks(editor, block.children),
-    });
-  });
+    })
+  })
 }

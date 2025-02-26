@@ -6,12 +6,12 @@ import {
   defaultProps,
   useEditorSelectionChange,
 } from '@shm/editor/blocknote'
+import {HypermediaLinkSwitchToolbar} from '@shm/editor/hm-link-switch-toolbar'
 import {Button} from '@shm/ui/button'
 import {AlignCenter, AlignLeft, AlignRight} from '@shm/ui/icons'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {useState} from 'react'
 import {Label, Popover, SizableText, XStack, YStack} from 'tamagui'
-import {HypermediaLinkSwitchToolbar} from './hm-link-switch-toolbar'
 import {updateSelection} from './media-render'
 import {HMBlockSchema} from './schema'
 

@@ -9,6 +9,7 @@ import {
   createReactBlockSpec,
   useEditorSelectionChange,
 } from '@shm/editor/blocknote/react'
+import {getNodesInSelection} from '@shm/editor/utils'
 import {entityQueryPathToHmIdPath} from '@shm/shared'
 import {queryBlockSortedItems} from '@shm/shared/content'
 import {EditorQueryBlock} from '@shm/shared/editor-types'
@@ -39,7 +40,6 @@ import {
   YStackProps,
 } from 'tamagui'
 import {HMBlockSchema} from './schema'
-import {getNodesInSelection} from './utils'
 
 function BlockError() {
   return <ErrorBlock message="Failed to load this Embedded document" />

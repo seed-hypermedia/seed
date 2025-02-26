@@ -4,6 +4,7 @@ import {
   useEditorSelectionChange,
 } from '@shm/editor/blocknote'
 import {MultipleNodeSelection} from '@shm/editor/blocknote/core/extensions/SideMenu/MultipleNodeSelection'
+import {getNodesInSelection} from '@shm/editor/utils'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 import {Button} from '@shm/ui/button'
 import {useDocContentContext} from '@shm/ui/document-content'
@@ -21,7 +22,6 @@ import {RiUpload2Fill} from 'react-icons/ri'
 import {Input, Label, SizableText, XStack, YStack} from 'tamagui'
 import {MaxFileSizeB, MaxFileSizeMB} from './file'
 import {HMBlockSchema} from './schema'
-import {getNodesInSelection} from './utils'
 
 export type MediaType = {
   id: string
