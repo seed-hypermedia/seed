@@ -34,7 +34,7 @@ export function ThemeProvider({children}: {children: React.ReactNode}) {
   return (
     <TamaguiProvider
       defaultTheme="light"
-      disableInjectCSS
+      // disableInjectCSS
       disableRootThemeClass
       config={tamaConf}
     >
