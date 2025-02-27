@@ -497,6 +497,7 @@ function DocumentAppendix({
           document={document}
           originHomeId={originHomeId}
           siteHost={siteHost}
+          enableReplies={enableWebSigning}
         />
 
         {enableWebSigning ? (
@@ -516,11 +517,13 @@ function DocumentActivity({
   originHomeId,
   document,
   siteHost,
+  enableReplies,
 }: {
   id: UnpackedHypermediaId
   originHomeId: UnpackedHypermediaId
   document: HMDocument
   siteHost: string | undefined
+  enableReplies: boolean
 }) {
   const activity = useActivity(id)
   const renderCommentContent = useCallback(
@@ -578,8 +581,10 @@ function DocumentActivity({
               authors={activity.data?.accountsMetadata}
               renderCommentContent={renderCommentContent}
               CommentReplies={CommentReplies}
-              originHomeId={originHomeId}
+              homeId={originHomeId}
+              rootReplyCommentId={null}
               siteHost={siteHost}
+              enableReplies={enableReplies}
               RepliesEditor={CommentRepliesEditor}
             />
           )
@@ -622,12 +627,14 @@ function CommentReplies({
   siteHost,
   replyCommentId,
   rootReplyCommentId,
+  enableReplies = true,
 }: {
   docId: UnpackedHypermediaId
   homeId?: UnpackedHypermediaId
   siteHost?: string | undefined
   replyCommentId: string
   rootReplyCommentId: string | null
+  enableReplies?: boolean
 }) {
   const discussion = useDiscussion(docId, replyCommentId)
   console.log('CommentReplies', {
@@ -676,7 +683,8 @@ function CommentReplies({
             CommentReplies={CommentReplies}
             homeId={homeId}
             siteHost={siteHost}
-            CommentRepliesEditor={CommentRepliesEditor}
+            enableReplies={enableReplies}
+            CommentRepliesEditor={enableReplies ? CommentRepliesEditor : null}
             rootReplyCommentId={rootReplyCommentId}
           />
         )

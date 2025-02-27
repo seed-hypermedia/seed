@@ -37,6 +37,7 @@ export function CommentGroup({
   homeId,
   siteHost,
   rootReplyCommentId,
+  enableReplies = true,
 }: {
   docId: UnpackedHypermediaId
   commentGroup: HMCommentGroup
@@ -61,6 +62,7 @@ export function CommentGroup({
   }>
   homeId?: UnpackedHypermediaId
   siteHost?: string
+  enableReplies?: boolean
 }) {
   const lastComment = commentGroup.comments.at(-1)
   return (
@@ -95,6 +97,7 @@ export function CommentGroup({
             }
             RepliesEditor={RepliesEditor}
             CommentReplies={CommentReplies}
+            enableReplies={enableReplies}
             homeId={homeId}
             siteHost={siteHost}
           />
@@ -118,6 +121,7 @@ function Comment({
   RepliesEditor,
   CommentReplies,
   siteHost,
+  enableReplies = true,
 }: {
   docId: UnpackedHypermediaId
   comment: HMComment
@@ -144,6 +148,7 @@ function Comment({
     siteHost?: string
   }>
   siteHost?: string
+  enableReplies?: boolean
 }) {
   const [showReplies, setShowReplies] = useState(false)
   const [isReplying, setIsReplying] = useState(false)
@@ -265,7 +270,7 @@ function Comment({
                 </SizableText>
               </Button>
             ) : null}
-            {RepliesEditor ? (
+            {RepliesEditor && enableReplies ? (
               <Button
                 chromeless
                 size="$1"
