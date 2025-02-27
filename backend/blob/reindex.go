@@ -38,9 +38,18 @@ func (bs *Index) Reindex(ctx context.Context) (err error) {
 
 func (bs *Index) reindex(conn *sqlite.Conn) (err error) {
 	start := time.Now()
+	var (
+		blobsTotal   int
+		blobsIndexed int
+	)
 	bs.log.Info("ReindexingStarted")
 	defer func() {
-		bs.log.Info("ReindexingFinished", zap.Error(err), zap.Duration("duration", time.Since(start)))
+		bs.log.Info("ReindexingFinished",
+			zap.Error(err),
+			zap.Duration("duration", time.Since(start)),
+			zap.Int("blobsTotal", blobsTotal),
+			zap.Int("blobsIndexed", blobsIndexed),
+		)
 	}()
 
 	if err := sqlitex.WithTx(conn, func() error {
@@ -53,6 +62,7 @@ func (bs *Index) reindex(conn *sqlite.Conn) (err error) {
 		scratch := make([]byte, 0, 1024*1024) // 1MB preallocated slice to reuse for decompressing.
 		if err := sqlitex.ExecTransient(conn, "SELECT * FROM blobs ORDER BY id", func(stmt *sqlite.Stmt) error {
 			codec := stmt.ColumnInt64(stmt.ColumnIndex(storage.BlobsCodec.ShortName()))
+			blobsTotal++
 
 			if !isIndexable(multicodec.Code(codec)) {
 				return nil
@@ -82,6 +92,7 @@ func (bs *Index) reindex(conn *sqlite.Conn) (err error) {
 				return fmt.Errorf("BUG: failed to clone decompressed data: %s", c)
 			}
 
+			blobsIndexed++
 			return bs.indexBlob(context.TODO(), conn, id, c, data)
 		}); err != nil {
 			return err
