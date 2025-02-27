@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
-    "target": "esnext",
+    // "target": "ESNext",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "module": "NodeNext",
+    "module": "commonjs",
     "baseUrl": ".",
     "allowJs": true,
     "skipLibCheck": true,
@@ -10,12 +10,11 @@
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
     "esModuleInterop": true,
-    "moduleResolution": "NodeNext",
+    "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
-    "allowImportingTsExtensions": true,
     "plugins": [
       // {
       //   // docs: https://github.com/nderscore/tamagui-typescript-plugin#readme
@@ -38,8 +37,7 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     "../../packages/ui/src/forms.tsx",
-    "../../packages/ui/src/form-input.tsx",
-    "src/app-store.mts"
+    "../../packages/ui/src/form-input.tsx"
   ],
   "exclude": ["node_modules"]
 }
