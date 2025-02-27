@@ -213,6 +213,8 @@ export class AutoUpdater {
 
   async checkForUpdates(): Promise<void> {
     log.info('[AUTO-UPDATE] Checking for updates START')
+    log.info(`[AUTO-UPDATE] Update URL: ${this.updateUrl}`)
+
     const win = BrowserWindow.getFocusedWindow()
     if (!win) {
       log.error('[AUTO-UPDATE] No window found')
@@ -262,40 +264,7 @@ export class AutoUpdater {
 
   private compareVersions(v1: string, v2: string): number {
     log.info(`[AUTO-UPDATE] Comparing versions: ${v1} vs ${v2}`)
-
     return v1 === v2 ? 0 : 1
-    // Split version and dev suffix
-    const [v1Base, v1Dev] = v1.split('-dev.')
-    const [v2Base, v2Dev] = v2.split('-dev.')
-
-    // Compare main version numbers first (2025.2.8)
-    const v1Parts = v1Base.split('.').map(Number)
-    const v2Parts = v2Base.split('.').map(Number)
-
-    // Compare year.month.patch
-    for (let i = 0; i < Math.max(v1Parts.length, v2Parts.length); i++) {
-      const v1Part = v1Parts[i] || 0
-      const v2Part = v2Parts[i] || 0
-      if (v1Part > v2Part) return 1
-      if (v1Part < v2Part) return -1
-    }
-
-    // If base versions are equal, compare dev versions
-    if (v1Base === v2Base) {
-      // If one is dev and other isn't, non-dev is newer
-      if (!v1Dev && v2Dev) return 1
-      if (v1Dev && !v2Dev) return -1
-      // If both are dev versions, compare dev numbers
-      if (v1Dev && v2Dev) {
-        const v1DevNum = parseInt(v1Dev)
-        const v2DevNum = parseInt(v2Dev)
-        return v1DevNum - v2DevNum
-      }
-      return 0
-    }
-
-    // If we get here, base versions were different
-    return 0
   }
 
   private async handleUpdate(updateInfo: UpdateInfo): Promise<void> {
@@ -389,11 +358,12 @@ export class AutoUpdater {
               const {exec} = require('child_process')
               const util = require('util')
               const execPromise = util.promisify(exec)
-              const fs = require('fs/promises') // Use promises version of fs
+              const fs = require('fs/promises')
 
-              const volumePath = '/Volumes/Seed'
-              const appName = IS_PROD_DEV ? 'SeedDev.app' : 'Seed.app'
+              const appName = IS_PROD_DEV ? 'SeedDev' : 'Seed'
+              const volumePath = `/Volumes/${appName}`
               const tempPath = path.join(app.getPath('temp'), 'SeedUpdate')
+              const scriptPath = path.join(tempPath, 'update.sh')
 
               log.info(`[AUTO-UPDATE] Variables for macOS update:`)
               log.info(`[AUTO-UPDATE] - volumePath: ${volumePath}`)
@@ -420,84 +390,6 @@ export class AutoUpdater {
                 await execPromise(`hdiutil attach "${filePath}"`)
 
                 // Create update script
-                const scriptPath = path.join(tempPath, 'update.sh')
-                log.info(
-                  `[AUTO-UPDATE] Creating update script at: ${scriptPath}`,
-                )
-
-                const scriptContent = `#!/bin/bash
-                  sleep 2
-                  # Remove existing app
-                  rm -rf "/Applications/${appName}"
-                  
-                  # Copy new app from mounted DMG to Applications
-                  cp -R "${volumePath}/${appName}" "/Applications/"
-
-                  # Unmount the DMG
-                  hdiutil detach "${volumePath}" || true
-
-                  # Clean up
-                  rm -rf "${tempPath}"
-                  rm -f "${filePath}"
-
-                  # Open the new app
-                  open "/Applications/${appName}"
-                `
-
-                try {
-                  await fs.writeFile(scriptPath, scriptContent, {mode: 0o755}) // Set executable permissions
-                  log.info('[AUTO-UPDATE] Update script created successfully')
-                } catch (err) {
-                  log.error(
-                    `[AUTO-UPDATE] Error creating update script: ${err}`,
-                  )
-                  throw err
-                }
-
-                // Execute the update script and quit
-                log.info('[AUTO-UPDATE] Executing update script...')
-                exec(`"${scriptPath}"`, {detached: true, stdio: 'ignore'})
-                app.quit()
-              } catch (error) {
-                log.error(`[AUTO-UPDATE] Installation error: ${error}`)
-                // Clean up if possible
-                try {
-                  await execPromise(`hdiutil detach "${volumePath}" || true`)
-                } catch (cleanupError) {
-                  log.error(`[AUTO-UPDATE] Cleanup error: ${cleanupError}`)
-                }
-              }
-            } else if (process.platform === 'linux') {
-              try {
-                const {exec} = require('child_process')
-                const util = require('util')
-                const execPromise = util.promisify(exec)
-                const fs = require('fs/promises')
-
-                // Determine package type and commands
-                const isRpm = filePath.endsWith('.rpm')
-                const packageName = IS_PROD_DEV ? 'seed-dev' : 'seed' // Replace with your actual package name
-                const removeCmd = isRpm ? 'rpm -e' : 'dpkg -r'
-                const installCmd = isRpm ? 'rpm -U' : 'dpkg -i'
-                const appName = IS_PROD_DEV ? 'seed-dev' : 'seed'
-
-                // Create temp directory for the update script
-                const tempPath = path.join(app.getPath('temp'), 'SeedUpdate')
-
-                log.info(`[AUTO-UPDATE] Variables for Linux update:`)
-                log.info(
-                  `[AUTO-UPDATE] - Package type: ${isRpm ? 'RPM' : 'DEB'}`,
-                )
-                log.info(`[AUTO-UPDATE] - Package name: ${packageName}`)
-                log.info(`[AUTO-UPDATE] - Remove command: ${removeCmd}`)
-                log.info(`[AUTO-UPDATE] - Install command: ${installCmd}`)
-                log.info(`[AUTO-UPDATE] - App name: ${appName}`)
-                log.info(`[AUTO-UPDATE] - Temp path: ${tempPath}`)
-                log.info(`[AUTO-UPDATE] - IS_PROD_DEV: ${IS_PROD_DEV}`)
-                log.info(`[AUTO-UPDATE] - File path: ${filePath}`)
-
-                // Create update script
-                const scriptPath = path.join(tempPath, 'update.sh')
                 log.info(
                   `[AUTO-UPDATE] Creating update script at: ${scriptPath}`,
                 )
@@ -505,34 +397,52 @@ export class AutoUpdater {
                 const scriptContent = `#!/bin/bash
                   set -e  # Exit on any error
                   
-                  echo "[UPDATE] Starting update process..."
+                  echo "[UPDATE] Starting macOS update process..."
                   
-                  # Remove existing package
-                  if pkexec ${removeCmd} ${packageName}; then
-                    echo "[UPDATE] Successfully removed old package"
-                  else
-                    echo "[UPDATE] Failed to remove old package, but continuing..."
-                  fi
+                  # Wait for any file operations to complete
+                  sleep 2
                   
-                  # Install new package
-                  if ! pkexec ${installCmd} "${filePath}"; then
-                    echo "[UPDATE] Failed to install new package"
+                  # Check if the DMG is properly mounted and find the actual mount point
+                  MOUNT_POINT=$(hdiutil info | grep "${volumePath}" | awk '{print $1}')
+                  if [ -z "$MOUNT_POINT" ]; then
+                    echo "[UPDATE] Error: DMG not properly mounted"
                     exit 1
                   fi
-                  echo "[UPDATE] Successfully installed new package"
                   
-                  # Wait a moment for the installation to settle
-                  sleep 3
+                  # Check if the new app exists in the DMG
+                  if [ ! -d "${volumePath}/${appName}.app" ]; then
+                    echo "[UPDATE] Error: New app not found in DMG at ${volumePath}/${appName}.app"
+                    ls -la "${volumePath}" || true
+                    exit 1
+                  fi
+                  
+                  echo "[UPDATE] Removing existing app..."
+                  # Remove existing app (with sudo if needed)
+                  if [ -d "/Applications/${appName}.app" ]; then
+                    rm -rf "/Applications/${appName}.app" || sudo rm -rf "/Applications/${appName}.app"
+                  fi
+                  
+                  echo "[UPDATE] Installing new version..."
+                  # Copy new app from mounted DMG to Applications
+                  cp -R "${volumePath}/${appName}.app" "/Applications/" || sudo cp -R "${volumePath}/${appName}.app" "/Applications/"
+                  
+                  # Verify the copy was successful
+                  if [ ! -d "/Applications/${appName}.app" ]; then
+                    echo "[UPDATE] Error: Failed to copy new app to Applications"
+                    exit 1
+                  fi
+                  
+                  echo "[UPDATE] Cleaning up..."
+                  # Unmount the DMG
+                  hdiutil detach "$MOUNT_POINT" -force || true
                   
                   # Clean up
                   rm -rf "${tempPath}"
                   rm -f "${filePath}"
-                  echo "[UPDATE] Cleanup completed"
                   
-                  # Start the new version
-                  # Use nohup to ensure it runs even after this script exits
                   echo "[UPDATE] Starting new version..."
-                  ( sleep 2; nohup ${appName} > /dev/null 2>&1 & )
+                  # Open the new app
+                  open "/Applications/${appName}.app"
                 `
 
                 try {
@@ -547,8 +457,111 @@ export class AutoUpdater {
 
                 // Execute the update script and quit
                 log.info('[AUTO-UPDATE] Executing update script...')
-                exec(`"${scriptPath}"`, {detached: true, stdio: 'ignore'})
-                app.quit()
+                // Remove quotes around scriptPath and use absolute path
+                exec(scriptPath, {detached: true, stdio: 'inherit'})
+                setTimeout(() => {
+                  log.info('[AUTO-UPDATE] Quitting app...')
+                  app.quit()
+                }, 10) // Give the script a chance to start
+              } catch (error) {
+                log.error(`[AUTO-UPDATE] Installation error: ${error}`)
+                // Clean up if possible
+                try {
+                  log.info('[AUTO-UPDATE] Detaching DMG...')
+                  await execPromise(`hdiutil detach "${volumePath}" || true`)
+                } catch (cleanupError) {
+                  log.error(`[AUTO-UPDATE] Cleanup error: ${cleanupError}`)
+                }
+              }
+            } else if (process.platform === 'linux') {
+              try {
+                const {exec} = require('child_process')
+                const fs = require('fs/promises')
+
+                // Determine package type and commands
+                const isRpm = filePath.endsWith('.rpm')
+                const appName = IS_PROD_DEV ? 'seed-dev' : 'seed'
+                const removeCmd = isRpm ? 'rpm -e' : 'dpkg -r'
+                const installCmd = isRpm ? 'rpm -U' : 'dpkg -i'
+                const tempPath = path.join(app.getPath('temp'), 'SeedUpdate')
+                const scriptPath = path.join(tempPath, 'update.sh')
+
+                log.info(`[AUTO-UPDATE] Variables for Linux update:`)
+                log.info(
+                  `[AUTO-UPDATE] - Package type: ${isRpm ? 'RPM' : 'DEB'}`,
+                )
+                log.info(`[AUTO-UPDATE] - App name: ${appName}`)
+                log.info(`[AUTO-UPDATE] - Remove command: ${removeCmd}`)
+                log.info(`[AUTO-UPDATE] - Install command: ${installCmd}`)
+                log.info(`[AUTO-UPDATE] - Temp path: ${tempPath}`)
+                log.info(`[AUTO-UPDATE] - IS_PROD_DEV: ${IS_PROD_DEV}`)
+                log.info(`[AUTO-UPDATE] - File path: ${filePath}`)
+
+                const scriptContent = `#!/bin/bash
+                  set -e  # Exit on any error
+                  
+                  echo "[UPDATE] Starting Linux update process..."
+                  
+                  
+                  echo "[UPDATE] Removing existing package..."
+                  # Remove existing package with error handling
+                  if command -v pkexec > /dev/null; then
+                    if ! pkexec ${removeCmd} ${appName}; then
+                      echo "[UPDATE] Warning: Failed to remove old package, continuing anyway..."
+                    fi
+                  else
+                    echo "[UPDATE] Error: pkexec not found, trying with sudo..."
+                    if ! sudo ${removeCmd} ${appName}; then
+                      echo "[UPDATE] Warning: Failed to remove old package, continuing anyway..."
+                    fi
+                  fi
+                  
+                  echo "[UPDATE] Installing new package..."
+                  # Install new package
+                  if command -v pkexec > /dev/null; then
+                    
+                    if ! sudo ${installCmd} "${filePath}"; then
+                      echo "[UPDATE] Error: Failed to install new package"
+                      exit 1
+                    fi
+                  fi
+                  
+                  echo "[UPDATE] Verifying installation..."
+                  # Verify the installation
+                  if ! command -v ${appName} > /dev/null; then
+                    echo "[UPDATE] Error: New version not properly installed"
+                    dpkg -l ${appName} || rpm -q ${appName} || true
+                    exit 1
+                  fi
+                  
+                  echo "[UPDATE] Cleaning up..."
+                  # Clean up
+                  rm -rf "${tempPath}"
+                  rm -f "${filePath}"
+                  echo "[UPDATE] Cleanup completed"
+                  
+                  echo "[UPDATE] Starting new version..."
+                  # Start the new version using nohup to keep it running
+                  ( nohup ${appName} > /dev/null 2>&1 & )
+                  
+                  echo "[UPDATE] Update completed successfully"
+                `
+
+                try {
+                  await fs.writeFile(scriptPath, scriptContent, {mode: 0o755})
+                  log.info('[AUTO-UPDATE] Update script created successfully')
+                } catch (err) {
+                  log.error(
+                    `[AUTO-UPDATE] Error creating update script: ${err}`,
+                  )
+                  throw err
+                }
+
+                // Execute the update script and quit
+                log.info('[AUTO-UPDATE] Executing update script...')
+                // Remove quotes around scriptPath and use absolute path
+                exec(scriptPath, {detached: true, stdio: 'inherit'})
+                app.quit() // Give the script a chance to start
               } catch (error) {
                 log.error(`[AUTO-UPDATE] Installation error: ${error}`)
                 this.status = {type: 'error', error: 'Installation error'}
