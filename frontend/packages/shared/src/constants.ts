@@ -56,7 +56,7 @@ export const DAEMON_HTTP_URL =
   process.env.DAEMON_HTTP_URL ||
   `${DAEMON_HOSTNAME || 'http://localhost'}:${DAEMON_HTTP_PORT}`
 
-export const DAEMON_FILE_UPLOAD_URL = `${DAEMON_HOSTNAME}:${DAEMON_HTTP_PORT}/ipfs/file-upload`
+export const DAEMON_FILE_UPLOAD_URL = `${DAEMON_HTTP_URL}/ipfs/file-upload`
 
 const appFileURL = DAEMON_HOSTNAME
   ? `${DAEMON_HOSTNAME}:${DAEMON_HTTP_PORT}/ipfs`
