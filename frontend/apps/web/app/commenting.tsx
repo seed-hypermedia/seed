@@ -26,6 +26,7 @@ import {
   DialogTitle,
   useAppDialog,
 } from '@shm/ui/universal-dialog'
+import {LogOut, Pencil} from '@tamagui/lucide-icons'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
 import {BlockView} from 'multiformats'
 import {base58btc} from 'multiformats/bases/base58'
@@ -1110,17 +1111,19 @@ export function AccountFooterActions() {
     <XStack gap="$2">
       <Button
         size="$2"
-        onPress={() => logoutDialog.open({})}
+        onPress={() => editProfileDialog.open({accountUid: userKeyPair.id})}
         backgroundColor="$color4"
+        icon={Pencil}
       >
-        Logout
+        Edit Profile
       </Button>
       <Button
         size="$2"
-        onPress={() => editProfileDialog.open({accountUid: userKeyPair.id})}
+        onPress={() => logoutDialog.open({})}
         backgroundColor="$color4"
+        icon={LogOut}
       >
-        Edit Profile
+        Logout
       </Button>
       {logoutDialog.content}
       {editProfileDialog.content}
