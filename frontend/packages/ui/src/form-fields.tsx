@@ -140,7 +140,7 @@ export function SwitchField({
           animation="fast"
           bg="$brand5"
           borderColor="$background"
-          borderWidth={2}
+          borderWidth="$1"
         />
       </Switch>
     </XStack>

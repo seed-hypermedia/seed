@@ -21,32 +21,32 @@ export const lightTransparent = 'rgba(255,255,255,0)'
 export const darkTransparent = 'rgba(10,10,10,0)'
 
 export const brand = {
-  brand1: 'hsl(180, 29%, 17%)',
-  brand2: 'hsl(180, 36%, 22%)',
-  brand3: 'hsl(166, 30%, 29%)',
-  brand4: 'hsl(166, 55%, 31%)',
+  brand1: 'hsl(123, 50%, 93%)',
+  brand2: 'hsl(122, 53%, 88%)',
+  brand3: 'hsl(133, 63%, 83%)',
+  brand4: 'hsl(133, 54%, 78%)',
+  brand5: 'hsl(144, 73%, 68%)',
+  brand6: 'hsl(144, 55%, 57%)',
+  brand7: 'hsl(148, 44%, 47%)',
+  brand8: 'hsl(171, 96%, 28%)',
+  brand9: 'hsl(166, 55%, 31%)',
+  brand10: 'hsl(166, 30%, 29%)',
+  brand11: 'hsl(180, 36%, 22%)',
+  brand12: 'hsl(180, 29%, 17%)',
+  brandHighlight: 'hsl(125, 50%, 96%)', // PLEASE manually sync with editor.css .seed-app-dark .ProseMirror .hm-link
+}
+
+export const brandDark = {
+  brand1: brand.brand12,
+  brand2: brand.brand11,
+  brand3: brand.brand10,
+  brand4: brand.brand9,
   brand5: 'hsl(171, 96%, 28%)',
   brand6: 'hsl(148, 44%, 47%)',
   brand7: 'hsl(144, 55%, 57%)',
   brand8: 'hsl(144, 73%, 68%)',
   brand9: 'hsl(133, 54%, 78%)',
   brand10: 'hsl(133, 63%, 83%)',
-  brand11: 'hsl(122, 53%, 88%)', // PLEASE manually sync with editor.css .seed-app-dark .ProseMirror .hm-link
-  brand12: 'hsl(123, 50%, 93%)',
-  brandHighlight: 'hsl(125, 50%, 96%)',
-}
-
-export const brandDark = {
-  brand1: brand.brand12,
-  brand2: brand.brand11,
-  brand3: 'hsl(125, 100%, 98%)',
-  brand4: 'hsl(166, 55%, 31%)',
-  brand5: 'hsl(171, 96%, 28%)',
-  brand6: 'hsl(148, 44%, 47%)',
-  brand7: 'hsl(144, 55%, 57%)',
-  brand8: 'hsl(144, 73%, 68%)',
-  brand9: 'hsl(133, 54%, 78%)',
-  brand10: 'hsl(166, 30%, 29%)',
   brand11: brand.brand2,
   brand12: brand.brand1,
   brandHighlight: 'hsl(180, 41%, 8%)',

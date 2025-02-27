@@ -169,7 +169,7 @@ const Render = (
               <Button
                 data-type="hm-button"
                 borderWidth="$1"
-                backgroundColor="$brand10"
+                backgroundColor="$brand5"
                 size="$3"
                 width="100%"
                 padding="$2"
