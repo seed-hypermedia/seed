@@ -76,8 +76,8 @@ def main():
 
     @cmd(cmds, "run-desktop", "Run frontend desktop app for development.")
     def run_desktop(args):
-        run("./scripts/cleanup-desktop.sh")
-        run("yarn install")
+        run("node scripts/cleanup-desktop.js")
+        run("plz build //backend:seed-daemon //:yarn")
         run("yarn workspace @shm/ui generate")
 
         if "SEED_NO_DAEMON_SPAWN" not in os.environ:
@@ -94,9 +94,8 @@ def main():
 
     @cmd(cmds, "build-desktop", "Builds the desktop app for the current platform.")
     def build_desktop(args):
+        run("node scripts/cleanup-desktop.js")
         run("./scripts/cleanup-frontend.sh")
-        run("./scripts/cleanup-desktop.sh")
-        run("yarn install")
         run("plz build //backend:seed-daemon //:yarn")
 
         testnet_var = "SEED_P2P_TESTNET_NAME"
@@ -109,8 +108,9 @@ def main():
 
     @cmd(cmds, "test-desktop", "Run frontend desktop tests.")
     def test_desktop(args):
-        run("yarn workspace @shm/ui generate")
+        run("node scripts/cleanup-desktop.js")
         run("plz build //backend:seed-daemon //:yarn")
+        run("yarn workspace @shm/ui generate")
 
         testnet_var = "SEED_P2P_TESTNET_NAME"
         if testnet_var not in os.environ:
@@ -141,6 +141,7 @@ def main():
 
     @cmd(cmds, "frontend-validate", "Formats, Validates")
     def frontend_validate(args):
+        run("node scripts/cleanup-desktop.js")
         run("yarn validate")
 
     @cmd(

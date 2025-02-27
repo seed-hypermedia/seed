@@ -15,7 +15,7 @@
   },
   "main": ".vite/build/main.js",
   "scripts": {
-    "dev": "electron-forge start --inspect-electron",
+    "dev": "electron-forge start",
     "format:check": "prettier --check .",
     "format:write": "prettier --write .",
     "make": "electron-forge make",
