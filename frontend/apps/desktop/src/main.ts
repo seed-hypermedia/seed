@@ -244,6 +244,11 @@ app.whenReady().then(() => {
     performance.mark('app-ready-start')
   }
 
+  // Register global shortcuts
+  globalShortcut.register('CommandOrControl+N', () => {
+    ipcMain.emit('new_window')
+  })
+
   autoUpdate()
   openInitialWindows()
 
@@ -338,6 +343,10 @@ function initializeIpcHandlers() {
 
   ipcMain.on('focusedWindowAppEvent', (_event, info) => {
     dispatchFocusedWindowAppEvent(info)
+  })
+
+  ipcMain.on('new_window', () => {
+    trpc.createAppWindow({routes: [defaultRoute]})
   })
 
   ipcMain.on('minimize_window', (_event, _info) => {
