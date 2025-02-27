@@ -3,8 +3,6 @@ set -e  # Exit on any error
 
 echo "[UPDATE] Starting Linux update process..."
 
-# Kill the current app process to ensure clean update
-pkill -x "seed-dev" || true
 sleep 2
 
 echo "[UPDATE] Removing existing package..."
@@ -23,12 +21,8 @@ fi
 echo "[UPDATE] Installing new package..."
 # Install new package
 if command -v pkexec > /dev/null; then
-if ! pkexec dpkg -i seed-dev; then
-	echo "[UPDATE] Error: Failed to install new package"
-	exit 1
-fi
-else
-if ! sudo dpkg -i seed-dev; then
+
+if ! sudo dpkg -i /home/cooler/Downloads/seed-dev_2025.2.9-dev.12_amd64.deb; then
 	echo "[UPDATE] Error: Failed to install new package"
 	exit 1
 fi
@@ -44,12 +38,10 @@ fi
 
 echo "[UPDATE] Cleaning up..."
 # Clean up
-rm -rf "${tempPath}"
-rm -f "${filePath}"
+# rm -rf "${tempPath}"
+# rm -f "${filePath}"
 
 echo "[UPDATE] Starting new version..."
-# Wait briefly before launching
-sleep 2
 # Start the new version using nohup to keep it running
 ( nohup seed-dev > /dev/null 2>&1 & )
 

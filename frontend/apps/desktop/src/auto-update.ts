@@ -509,9 +509,6 @@ export class AutoUpdater {
                   
                   echo "[UPDATE] Starting Linux update process..."
                   
-                  # Kill the current app process to ensure clean update
-                  pkill -x "${appName}" || true
-                  sleep 2
                   
                   echo "[UPDATE] Removing existing package..."
                   # Remove existing package with error handling
@@ -529,11 +526,7 @@ export class AutoUpdater {
                   echo "[UPDATE] Installing new package..."
                   # Install new package
                   if command -v pkexec > /dev/null; then
-                    if ! pkexec ${installCmd} "${filePath}"; then
-                      echo "[UPDATE] Error: Failed to install new package"
-                      exit 1
-                    fi
-                  else
+                    
                     if ! sudo ${installCmd} "${filePath}"; then
                       echo "[UPDATE] Error: Failed to install new package"
                       exit 1
@@ -554,8 +547,6 @@ export class AutoUpdater {
                   rm -f "${filePath}"
                   
                   echo "[UPDATE] Starting new version..."
-                  # Wait briefly before launching
-                  sleep 2
                   # Start the new version using nohup to keep it running
                   ( nohup ${appName} > /dev/null 2>&1 & )
                   
