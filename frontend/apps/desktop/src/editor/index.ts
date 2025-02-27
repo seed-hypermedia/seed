@@ -1,5 +1,4 @@
 export * from './block-utils'
-export * from './embed-block'
 export * from './handle-local-media-paste-plugin'
 export * from './hyperlink-toolbar'
 export * from './hypermedia-link-plugin'

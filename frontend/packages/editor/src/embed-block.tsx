@@ -1,7 +1,6 @@
-import {useGatewayUrlStream} from '@/models/gateway-settings'
-import {useRecents} from '@/models/recents'
-import {loadWebLinkMeta} from '@/models/web-links'
-import {useOpenUrl} from '@/open-url'
+import {useEmbedToolbarContext} from '@/embed-toolbar-context'
+import {resolveHypermediaUrl} from '@/link-utils'
+import {HMBlockSchema} from '@/schema'
 import {Block, BlockNoteEditor} from '@shm/editor/blocknote'
 import {createReactBlockSpec} from '@shm/editor/blocknote/react'
 import {HypermediaLinkSwitchToolbar} from '@shm/editor/hm-link-switch-toolbar'
@@ -12,6 +11,7 @@ import {
   MediaRender,
   MediaType,
 } from '@shm/editor/media-render'
+import {useGatewayUrlStream} from '@shm/shared/gateway-url'
 import {HMEmbedViewSchema, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useSearch} from '@shm/shared/models/search'
 import {useHover} from '@shm/shared/use-hover'
@@ -33,7 +33,6 @@ import {
   Forward as ChevronRight,
   ExternalLink,
 } from '@shm/ui/icons'
-import {toast} from '@shm/ui/toast'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {Fragment} from '@tiptap/pm/model'
 import {useCallback, useEffect, useState} from 'react'
@@ -50,8 +49,6 @@ import {
   YGroup,
   YStack,
 } from 'tamagui'
-import {HMBlockSchema} from '.'
-import {useEmbedToolbarContext} from './embed-toolbar-context'
 
 function EmbedError() {
   return <ErrorBlock message="Failed to load this Embedded document" />
@@ -127,12 +124,13 @@ const Render = (
       }
     } else {
       setLoading(true)
-      loadWebLinkMeta(url)
+      resolveHypermediaUrl(url)
         .then((res) => {
           const fullHmId = hmIdWithVersion(
-            res?.hmId,
-            res?.hmVersion,
+            res?.id,
+            res?.version,
             res?.blockRef,
+            res?.blockRange,
           )
           if (fullHmId) {
             assign({props: {url: fullHmId}} as MediaType)
@@ -278,7 +276,6 @@ function EmbedControl({
   setActiveId: (id: string | null) => void
 }) {
   const [url, setUrl] = useState<string>(block.props.url || '')
-  const openUrl = useOpenUrl()
   const popoverState = usePopoverState()
   const popoverViewState = usePopoverState()
   const popoverLatestState = usePopoverState()
@@ -550,7 +547,6 @@ function EmbedControl({
             setUrl(value)
           }
         }}
-        openUrl={openUrl}
         editor={editor}
         stopEditing={!hovered && !selected}
         formComponents={EmbedLinkComponents}
@@ -622,7 +618,7 @@ const EmbedLauncherInput = ({
 }) => {
   const [search, setSearch] = useState('')
   const [focused, setFocused] = useState(false)
-  const recents = useRecents()
+  // const recents = useRecents()
   const searchResults = useSearch(search, {})
 
   const searchItems: SwitcherItem[] =
@@ -638,22 +634,23 @@ const EmbedLauncherInput = ({
         }
       })
       .filter(Boolean) || []
-  const recentItems =
-    recents.data?.map(({url, title, subtitle, type}) => {
-      return {
-        key: url,
-        title,
-        subtitle,
-        onSelect: () => {
-          const id = unpackHmId(url)
-          if (!id) {
-            toast.error('Failed to open recent: ' + url)
-            return
-          }
-          assign({props: {url: id.id}} as MediaType)
-        },
-      }
-    }) || []
+  // const recentItems =
+  //   recents.data?.map(({url, title, subtitle, type}) => {
+  //     return {
+  //       key: url,
+  //       title,
+  //       subtitle,
+  //       onSelect: () => {
+  //         const id = unpackHmId(url)
+  //         if (!id) {
+  //           toast.error('Failed to open recent: ' + url)
+  //           return
+  //         }
+  //         assign({props: {url: id.id}} as MediaType)
+  //       },
+  //     }
+  //   }) || []
+  const recentItems = []
   const isDisplayingRecents = !search.length
   const activeItems = isDisplayingRecents ? recentItems : searchItems
 

@@ -12,6 +12,7 @@ import {
   navStateReducer,
   setAppNavDispatch,
 } from './navigation'
+import {encodeRouteToPath} from './route-encoding'
 import {AppWindowEvent} from './window-events'
 
 export function NavigationContainer({
@@ -42,7 +43,8 @@ export function NavigationContainer({
       state: navState,
     }
   }, [])
-  const {send} = useIPC()
+
+  const {send, invoke} = useIPC()
 
   useEffect(() => {
     return navigation.state.subscribe(() => {
@@ -73,8 +75,11 @@ export function NavigationContainer({
   return (
     <UniversalAppProvider
       ipfsFileUrl={DAEMON_FILE_URL}
-      openRoute={(route: NavRoute, replace?: boolean) => {
-        if (replace) {
+      openRoute={(route: NavRoute, replace?: boolean, newWindow?: boolean) => {
+        if (newWindow) {
+          const path = encodeRouteToPath(route)
+          invoke('plugin:window|open', {path})
+        } else if (replace) {
           navigation.dispatch({type: 'replace', route})
         } else {
           navigation.dispatch({type: 'push', route})

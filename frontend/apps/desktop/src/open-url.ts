@@ -1,5 +1,8 @@
 import {useAppContext} from '@/app-context'
-import {isHttpUrl, useHmIdToAppRouteResolver} from '@/utils/navigation'
+import {
+  isHttpUrl,
+  useHmIdToAppRouteResolver_deprecated,
+} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {toast} from '@shm/ui/toast'
@@ -7,7 +10,7 @@ import {useMemo} from 'react'
 
 export function useOpenUrl() {
   const {externalOpen} = useAppContext()
-  const resolveRoute = useHmIdToAppRouteResolver()
+  const resolveRoute = useHmIdToAppRouteResolver_deprecated()
 
   const spawn = useNavigate('spawn')
   const push = useNavigate('push')
@@ -15,10 +18,10 @@ export function useOpenUrl() {
     return (url?: string, newWindow?: boolean) => {
       if (!url) return
       const unpacked = unpackHmId(url)
-      // if (!unpacked) {
-      //   toast.error(`Failed to resolve route for "${url}"`)
-      //   return
-      // }
+      if (!unpacked) {
+        toast.error(`Failed to resolve route for "${url}"`)
+        return
+      }
       resolveRoute(unpacked).then((resolved) => {
         if (resolved?.navRoute) {
           if (newWindow) {

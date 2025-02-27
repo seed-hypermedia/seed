@@ -10,7 +10,9 @@ export type OptimizedImageSize = 'S' | 'M' | 'L' | 'XL'
 type UniversalAppContextValue = {
   ipfsFileUrl?: string
   getOptimizedImageUrl?: (cid: string, size?: OptimizedImageSize) => string
-  openRoute?: null | ((route: NavRoute, replace?: boolean) => void)
+  openRoute?:
+    | null
+    | ((route: NavRoute, replace?: boolean, newWindow?: boolean) => void)
   originHomeId?: UnpackedHypermediaId | undefined
   origin?: string
   openUrl: (url: string) => void
@@ -30,7 +32,9 @@ export function UniversalAppProvider(props: {
   ipfsFileUrl?: string
   openUrl: (url: string) => void
   getOptimizedImageUrl?: (cid: string, size?: OptimizedImageSize) => string
-  openRoute: null | ((route: NavRoute, replace?: boolean) => void)
+  openRoute:
+    | null
+    | ((route: NavRoute, replace?: boolean, newWindow?: boolean) => void)
 }) {
   return (
     <UniversalAppContext.Provider
@@ -89,6 +93,7 @@ export function useRouteLink(
   route: NavRoute | string | null,
   opts?: {
     replace?: boolean
+    newWindow?: boolean
   },
 ) {
   const context = useContext(UniversalAppContext)
@@ -116,7 +121,7 @@ export function useRouteLink(
           if (typeof route === 'string') {
             context.openUrl(route)
           } else if (context.openRoute) {
-            context.openRoute(route, opts?.replace)
+            context.openRoute(route, opts?.replace, opts?.newWindow)
           } else {
             console.error(
               'No openRoute function in UniversalAppContext. Cannot open route',
@@ -125,6 +130,7 @@ export function useRouteLink(
           }
         }
       : undefined,
+    target: opts?.newWindow ? '_blank' : undefined,
     href: href || '/',
     style: {
       textDecoration: 'none',

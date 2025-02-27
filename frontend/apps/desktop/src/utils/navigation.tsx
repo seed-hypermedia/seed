@@ -1,11 +1,9 @@
-import {GRPCClient} from '@shm/shared/grpc-client'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {defaultRoute, NavRoute} from '@shm/shared/routes'
 import {StateStream} from '@shm/shared/utils/stream'
 import {useStream, useStreamSelector} from '@shm/ui/use-stream'
 import {Buffer} from 'buffer'
 import {createContext, useContext} from 'react'
-import {useGRPCClient} from '../app-context'
 
 global.Buffer = global.Buffer || Buffer
 
@@ -196,12 +194,11 @@ export function isHttpUrl(url: string) {
   return /^https?:\/\//.test(url)
 }
 
-export function useHmIdToAppRouteResolver() {
-  const grpcClient = useGRPCClient()
+export function useHmIdToAppRouteResolver_deprecated() {
   return (
     id: UnpackedHypermediaId,
   ): Promise<null | (UnpackedHypermediaId & {navRoute?: NavRoute})> => {
-    return resolveHmIdToAppRoute(id, grpcClient).catch((e) => {
+    return resolveHmIdToAppRoute(id).catch((e) => {
       console.error(e)
       // toast.error('Failed to resolve ID to app route')
       return null
@@ -211,7 +208,6 @@ export function useHmIdToAppRouteResolver() {
 
 export async function resolveHmIdToAppRoute(
   hmId: UnpackedHypermediaId,
-  grpcClient: GRPCClient,
 ): Promise<null | (UnpackedHypermediaId & {navRoute?: NavRoute})> {
   if (hmId?.type === 'd') {
     return {

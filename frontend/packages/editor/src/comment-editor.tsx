@@ -11,7 +11,7 @@ import {BlockNoteEditor, useBlockNote} from './blocknote'
 import {HyperMediaEditorView} from './editor-view'
 import {createHypermediaDocLinkPlugin} from './hypermedia-link-plugin'
 import {hmBlockSchema} from './schema'
-import {slashMenuItems} from './slash-menu-items'
+import {getSlashMenuItems} from './slash-menu-items'
 import {serverBlockNodesFromEditorBlocks} from './utils'
 
 export default function CommentEditor({
@@ -98,9 +98,11 @@ export function useCommentEditor() {
     //   initDraft();
     // },
     blockSchema: hmBlockSchema,
-    slashMenuItems: slashMenuItems.filter(
-      (item) => !['Nostr', 'Query'].includes(item.name),
-    ),
+    slashMenuItems: getSlashMenuItems({
+      showNostr: false,
+      showQuery: false,
+      docId: null,
+    }),
     onMentionsQuery,
     _tiptapOptions: {
       extensions: [

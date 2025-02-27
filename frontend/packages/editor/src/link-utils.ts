@@ -1,3 +1,8 @@
+import {
+  extractBlockRangeOfUrl,
+  extractBlockRefOfUrl,
+} from '@shm/shared/utils/entity-id-url'
+
 export async function checkWebUrl(url: string) {
   /**
    
@@ -26,7 +31,13 @@ export async function resolveHypermediaUrl(url: string) {
     const version = response.headers.get('x-hypermedia-version')
     const title = response.headers.get('x-hypermedia-title')
     if (id && version) {
-      return {id, version, title}
+      return {
+        id,
+        version,
+        title,
+        blockRef: extractBlockRefOfUrl(url),
+        blockRange: extractBlockRangeOfUrl(url),
+      }
     }
   }
   return null

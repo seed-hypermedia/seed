@@ -8,7 +8,7 @@ import {trpc} from '@/trpc'
 import {
   isHttpUrl,
   resolveHmIdToAppRoute,
-  useHmIdToAppRouteResolver,
+  useHmIdToAppRouteResolver_deprecated,
 } from '@/utils/navigation'
 import {HYPERMEDIA_SCHEME} from '@shm/shared/constants'
 import {SearchResult} from '@shm/shared/editor-types'
@@ -245,7 +245,7 @@ function useURLHandler() {
       // toast.error('Connection Error : ' + err?.rawMessage)
     },
   })
-  const resolveHmUrl = useHmIdToAppRouteResolver()
+  const resolveHmUrl = useHmIdToAppRouteResolver_deprecated()
   return async (search: string): Promise<NavRoute | null> => {
     const httpSearch = isHttpUrl(search) ? search : `https://${search}`
     connect.mutate(httpSearch)

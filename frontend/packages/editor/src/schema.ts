@@ -3,6 +3,7 @@ import {
   defaultBlockSchema,
   defaultProps,
 } from '@/blocknote/core/extensions/Blocks/api/defaultBlocks'
+import {EmbedBlock} from '@/embed-block'
 import {FileBlock} from '@/file'
 import {HMHeadingBlockContent} from '@/heading-component-plugin'
 import CodeBlockLowlight from '@/tiptap-extension-code-block'
@@ -29,6 +30,7 @@ export const hmBlockSchema: BlockSchema = {
     }),
   },
   FileBlock,
+  EmbedBlock,
 }
 
 export type HMBlockSchema = TypesMatch<typeof hmBlockSchema>
