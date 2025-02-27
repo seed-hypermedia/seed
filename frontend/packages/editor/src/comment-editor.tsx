@@ -1,3 +1,4 @@
+import {EmbedToolbarProvider} from '@/embed-toolbar-context'
 import {writeableStateStream} from '@shm/shared'
 import {HMBlockNode} from '@shm/shared/hm-types'
 import {useInlineMentions} from '@shm/shared/models/inline-mentions'
@@ -40,7 +41,9 @@ export default function CommentEditor({
         gap="$4"
         paddingBottom="$2"
       >
-        <HyperMediaEditorView editor={editor} openUrl={() => {}} />
+        <EmbedToolbarProvider>
+          <HyperMediaEditorView editor={editor} openUrl={() => {}} />
+        </EmbedToolbarProvider>
       </YStack>
       <XStack gap="$3" paddingHorizontal="$4" jc="flex-end">
         {onDiscardDraft ? (
