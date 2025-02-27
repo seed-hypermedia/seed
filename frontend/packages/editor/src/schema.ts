@@ -29,8 +29,8 @@ export const hmBlockSchema: BlockSchema = {
       languageClassPrefix: 'language-',
     }),
   },
-  FileBlock,
-  EmbedBlock,
+  file: FileBlock,
+  embed: EmbedBlock,
 }
 
 export type HMBlockSchema = TypesMatch<typeof hmBlockSchema>
