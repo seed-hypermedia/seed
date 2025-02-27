@@ -65,7 +65,7 @@ func (srv *Server) CreateCapability(ctx context.Context, in *documents.CreateCap
 	// TODO(burdiyan): Validate role according to the chain of capabilities.
 	role := in.Role.String()
 
-	cpb, err := blob.NewCapability(kp, del, acc, in.Path, role, cclock.New().MustNow(), in.NoRecursive)
+	cpb, err := blob.NewCapability(kp, del, acc, in.Path, role, cclock.New().MustNow())
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ func capToProto(c cid.Cid, cpb *blob.Capability) (*documents.Capability, error) 
 		Account:    cpb.Space().String(),
 		Path:       cpb.Path,
 		Role:       documents.Role(role),
-		IsExact:    cpb.NoRecursive,
+		IsExact:    false,
 		CreateTime: timestamppb.New(cpb.Ts),
 	}
 
