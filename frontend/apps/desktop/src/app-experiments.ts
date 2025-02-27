@@ -1,5 +1,5 @@
 import z from 'zod'
-import {appStore} from './app-store'
+import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
 
 const EXPERIMENTS_STORAGE_KEY = 'Experiments-v001'
@@ -14,16 +14,10 @@ const experimentsZ = z
   })
   .strict()
 type Experiments = z.infer<typeof experimentsZ>
-console.log('~ get from app store', appStore.get(EXPERIMENTS_STORAGE_KEY))
 let experimentsState: Experiments = appStore.get(EXPERIMENTS_STORAGE_KEY) || {}
 
 export const experimentsApi = t.router({
   get: t.procedure.query(async () => {
-    console.log(
-      '~ get from app store',
-      appStore.get(EXPERIMENTS_STORAGE_KEY),
-      experimentsState,
-    )
     return experimentsState
   }),
   write: t.procedure.input(experimentsZ).mutation(async ({input}) => {

@@ -12,7 +12,7 @@ import {
 } from 'electron'
 import path from 'node:path'
 import {updateRecentRoute} from './app-recents'
-import {appStore} from './app-store'
+import {appStore} from './app-store.mts'
 import {getDaemonState, subscribeDaemonState} from './daemon'
 import {childLogger, debug, info, warn} from './logger'
 

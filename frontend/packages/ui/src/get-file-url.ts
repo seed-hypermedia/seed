@@ -4,8 +4,6 @@ import {
   useUniversalAppContext,
 } from '@shm/shared'
 
-console.log('=== import get-file-url')
-
 export function getDaemonFileUrl(ipfsUrl?: string) {
   if (ipfsUrl) {
     return `${DAEMON_FILE_URL}/${extractIpfsUrlCid(ipfsUrl)}`

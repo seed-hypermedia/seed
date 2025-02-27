@@ -10,6 +10,9 @@
     "web:start": "yarn workspace @shm/web start",
     "web:extract": "DISABLE_EXTRACTION=false yarn workspace @shm/site dev",
     "desktop": "concurrently -n \"DESKTOP:APP,UI\" -c \"blue,green\" -p \"[{name}]\" \"yarn workspace @shm/desktop dev\" \"yarn watch\"",
+    "desktop:debug": "concurrently -n \"DESKTOP:APP,UI\" -c \"blue,green\" -p \"[{name}]\" \"yarn workspace @shm/desktop dev:debug\" \"yarn watch\"",
+    "desktop:metrics": "concurrently -n \"DESKTOP:APP,UI\" -c \"blue,green\" -p \"[{name}]\" \"yarn workspace @shm/desktop metrics\" \"yarn watch\"",
+    "desktop:metrics:analyze": "yarn workspace @shm/desktop metrics:analyze",
     "desktop:make": "yarn build && yarn workspace @shm/desktop make",
     "desktop:package": "yarn build && yarn workspace @shm/desktop package",
     "desktop:test:package": "yarn build && yarn workspace @shm/desktop package:test",
@@ -21,7 +24,8 @@
     "fix": "manypkg fix",
     "build": "yarn ui:build",
     "docs": "yarn workspace @shm/docs start",
-    "ui:build": "yarn workspace @shm/ui generate && yarn workspace @shm/ui build"
+    "ui:build": "yarn workspace @shm/ui generate && yarn workspace @shm/ui build",
+    "desktop:metrics:open": "yarn workspace @shm/front-analytics dev"
   },
   "repository": "github:mintterhypermedia/mintter",
   "packageManager": "yarn@3.6.1",

@@ -92,6 +92,58 @@ def main():
 
         return run("yarn desktop", args=args)
 
+    @cmd(cmds, "metrics-desktop", "Run desktop app and collect performance metrics.")
+    def metrics_desktop(args):
+        run("yarn workspace @shm/ui generate")
+
+        if "SEED_NO_DAEMON_SPAWN" not in os.environ:
+            run("plz build //backend:seed-daemon")
+
+        testnet_var = "SEED_P2P_TESTNET_NAME"
+        if testnet_var not in os.environ:
+            os.environ[testnet_var] = "dev"
+
+        os.environ["VITE_DESKTOP_APPDATA"] = "Seed-local"
+        os.environ["VITE_LIGHTNING_API_URL"] = "https://ln.testnet.seed.hyper.media"
+
+        # Run metrics collection
+        timestamp = (
+            run("date +%Y%m%d-%H%M%S", capture_output=True)
+            .stdout.decode("utf-8")
+            .strip()
+        )
+
+        # Define paths relative to the workspace root
+        desktop_metrics_dir = "frontend/apps/desktop/metrics"
+        metrics_file = f"{desktop_metrics_dir}/metrics-{timestamp}.log"
+
+        # Create metrics directory if it doesn't exist
+        run(f"mkdir -p {desktop_metrics_dir}")
+
+        print(f"\nStarting metrics collection. Output will be saved to: {metrics_file}")
+        print("Use Ctrl+C to stop the collection when you're done.")
+        print(f"Then run: ./dev analyze-metrics {timestamp} > results.txt")
+
+        # Run metrics collection and save to file
+        run(f"yarn desktop:metrics > {metrics_file} 2>&1")
+
+    @cmd(
+        cmds,
+        "analyze-metrics",
+        "Analyze metrics and output results. Optionally specify a timestamp to analyze.",
+    )
+    def analyze_metrics(args):
+        if len(args) > 0:
+            # If timestamp is provided, analyze that specific file
+            timestamp = args[0]
+            desktop_metrics_dir = "frontend/apps/desktop/metrics"
+            metrics_file = f"{desktop_metrics_dir}/metrics-{timestamp}.log"
+            print(f"\nAnalyzing metrics from: {metrics_file}")
+            run(f"yarn desktop:metrics:analyze {timestamp}")
+        else:
+            # Analyze the most recent metrics file
+            run("yarn desktop:metrics:analyze")
+
     @cmd(cmds, "build-desktop", "Builds the desktop app for the current platform.")
     def build_desktop(args):
         run("node scripts/cleanup-desktop.js")
