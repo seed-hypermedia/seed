@@ -23,13 +23,13 @@ export function insertOrUpdateBlock<BSchema extends BlockSchema>(
       if (cursorPosition.nextBlock)
         editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
       else {
-        editor.insertBlocks(
-          [{type: 'paragraph', content: ''}],
-          currentBlock,
-          'after',
-        )
+        // editor.insertBlocks(
+        //   [{type: 'paragraph', content: ''}],
+        //   currentBlock,
+        //   'after',
+        // )
         editor.setTextCursorPosition(
-          editor.getTextCursorPosition().nextBlock!,
+          editor.getTextCursorPosition().block,
           'start',
         )
       }

@@ -296,6 +296,7 @@ export function getSlashMenuItems({
                 },
               ]),
               querySort: '[{"term": "UpdateTime", "reverse": false}]',
+              defaultOpen: 'true',
             },
           } as PartialBlock<HMBlockSchema>,
           true,
