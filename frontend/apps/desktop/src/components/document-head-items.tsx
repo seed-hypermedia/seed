@@ -1,5 +1,5 @@
-import {useEntities} from '@/models/entities'
 import {HMDocument, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {useEntities} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {DonateButton} from '@shm/ui/donate-button'
 

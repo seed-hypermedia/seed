@@ -1,17 +1,19 @@
 import {useFetcher} from '@remix-run/react'
 import {
+  HMDocument,
   packHmId,
   queryKeys,
   setSearchQuery,
   UnpackedHypermediaId,
 } from '@shm/shared'
+import {setEntityQuery} from '@shm/shared/models/entity'
+import {SearchPayload} from '@shm/shared/models/search'
 import {useQuery, UseQueryOptions} from '@tanstack/react-query'
 import {useEffect} from 'react'
 import {WebBaseDocumentPayload} from './loaders'
 import {ActivityPayload} from './routes/hm.api.activity'
 import {HMDocumentChangeInfo} from './routes/hm.api.changes'
 import {DiscussionPayload} from './routes/hm.api.discussion'
-import {SearchPayload} from './routes/hm.api.search'
 import {unwrap} from './wrapping'
 
 export function useEntity(id: UnpackedHypermediaId | undefined) {
@@ -43,8 +45,7 @@ export function useDocumentChanges(id: UnpackedHypermediaId | undefined) {
   }
 }
 
-async function queryAPI<ResponsePayloadType>(url: string | undefined) {
-  if (!url) return
+async function queryAPI<ResponsePayloadType>(url: string) {
   const response = await fetch(url)
   const fullData = await response.json()
   const data = unwrap<ResponsePayloadType>(fullData)
@@ -58,6 +59,7 @@ export function useAPI<ResponsePayloadType>(
   const query = useQuery({
     queryKey: ['api', url],
     queryFn: async () => {
+      if (!url) return
       return await queryAPI<ResponsePayloadType>(url)
     },
     ...queryOptions,
@@ -99,3 +101,16 @@ export function searchQuery(input: string) {
 }
 
 setSearchQuery(searchQuery)
+
+export function entityQuery(id: UnpackedHypermediaId): Promise<HMDocument> {
+  const queryString = new URLSearchParams({
+    v: id?.version || '',
+    l: id?.latest ? 'true' : '',
+  }).toString()
+  const url = `/hm/api/entity/${id?.uid}${
+    id?.path ? `/${id.path.join('/')}` : ''
+  }?${queryString}`
+  return queryAPI<HMDocument>(url)
+}
+
+setEntityQuery(entityQuery)

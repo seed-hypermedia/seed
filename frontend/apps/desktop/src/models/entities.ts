@@ -2,10 +2,12 @@ import {grpcClient} from '@/grpc-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {GRPCClient} from '@shm/shared/grpc-client'
 import {
+  HMDocument,
   HMDocumentInfo,
   HMDocumentSchema,
   HMEntityContent,
 } from '@shm/shared/hm-types'
+import {setEntityQuery, useEntities} from '@shm/shared/models/entity'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {DocumentRoute, DraftRoute, NavRoute} from '@shm/shared/routes'
@@ -18,7 +20,6 @@ import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {
   useMutation,
   UseMutationOptions,
-  useQueries,
   useQuery,
   UseQueryOptions,
 } from '@tanstack/react-query'
@@ -158,6 +159,18 @@ function catchNotFound<Result>(
   })
 }
 
+setEntityQuery(async (hmId) => {
+  const grpcDocument = await grpcClient.documents.getDocument({
+    account: hmId.uid,
+    path: hmIdPathToEntityQueryPath(hmId.path),
+    version: hmId.latest ? undefined : hmId.version,
+  })
+
+  const serverDocument = grpcDocument.toJson()
+
+  return serverDocument as HMDocument // zod validation is done by the entity model
+})
+
 export function queryEntity(
   grpcClient: GRPCClient,
   id: UnpackedHypermediaId | null | undefined,
@@ -197,24 +210,24 @@ export function queryEntity(
   }
 }
 
-export function useEntity(
-  id: UnpackedHypermediaId | null | undefined,
-  options?: UseQueryOptions<HMEntityContent | null>,
-) {
-  const grpcClient = useGRPCClient()
-  return useQuery(queryEntity(grpcClient, id, options))
-}
+// export function useEntity(
+//   id: UnpackedHypermediaId | null | undefined,
+//   options?: UseQueryOptions<HMEntityContent | null>,
+// ) {
+//   const grpcClient = useGRPCClient()
+//   return useQuery(queryEntity(grpcClient, id, options))
+// }
 
-export function useEntities(
-  ids: (UnpackedHypermediaId | null | undefined)[],
-  options?: UseQueryOptions<HMEntityContent | null>,
-) {
-  const grpcClient = useGRPCClient()
-  return useQueries({
-    queries: ids.map((id) => queryEntity(grpcClient, id)),
-    ...(options || {}),
-  })
-}
+// export function useEntities(
+//   ids: (UnpackedHypermediaId | null | undefined)[],
+//   options?: UseQueryOptions<HMEntityContent | null>,
+// ) {
+//   const grpcClient = useGRPCClient()
+//   return useQueries({
+//     queries: ids.map((id) => queryEntity(grpcClient, id)),
+//     ...(options || {}),
+//   })
+// }
 
 type EntitySubscription = {
   id?: UnpackedHypermediaId | null

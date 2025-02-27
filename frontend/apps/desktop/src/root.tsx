@@ -36,10 +36,12 @@ import {
   queryClient,
 } from '@shm/shared/models/query-client'
 import {labelOfQueryKey} from '@shm/shared/models/query-keys'
+import * as entities from './models/entities'
 import * as search from './models/search'
 
-// reference this to ensure dependency injection happens before search is used
+// reference this to ensure dependency injection happens before the injected queries are used
 search
+entities
 
 const logger = {
   log: wrapLogger(console.log),

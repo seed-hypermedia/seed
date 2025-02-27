@@ -321,8 +321,6 @@ function ExpandChangeGroupButton({
   author: HMMetadataPayload
 }) {
   const iconSize = 20
-  // const authorEntity = useEntity(hmId('d', item.changes[0].author))
-
   return (
     <Button
       onPress={onExpand}

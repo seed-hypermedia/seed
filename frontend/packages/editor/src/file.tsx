@@ -1,12 +1,12 @@
+import {Block, BlockNoteEditor, defaultProps} from '@/blocknote/core'
 import {createReactBlockSpec} from '@/blocknote/react'
+import {MediaContainer} from '@/media-container'
+import {DisplayComponentProps, MediaRender} from '@/media-render'
+import {HMBlockSchema} from '@/schema'
 import {formatBytes} from '@shm/shared/utils/format-bytes'
 import {Button} from '@shm/ui/button'
 import {File} from '@shm/ui/icons'
 import {SizableText} from 'tamagui'
-import {Block, BlockNoteEditor, defaultProps} from './blocknote/core'
-import {MediaContainer} from './media-container'
-import {DisplayComponentProps, MediaRender} from './media-render'
-import {HMBlockSchema} from './schema'
 
 export const MaxFileSizeMB = 150
 export const MaxFileSizeB = MaxFileSizeMB * 1024 * 1024

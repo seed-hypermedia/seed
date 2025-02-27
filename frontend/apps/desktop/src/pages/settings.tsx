@@ -9,7 +9,6 @@ import {
   useMyAccountIds,
   useSavedMnemonics,
 } from '@/models/daemon'
-import {useEntity} from '@/models/entities'
 import {useExperiments, useWriteExperiments} from '@/models/experiments'
 import {
   useGatewayUrl,
@@ -24,6 +23,7 @@ import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
 import {getMetadataName} from '@shm/shared/content'
+import {useEntity} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Field} from '@shm/ui/form-fields'

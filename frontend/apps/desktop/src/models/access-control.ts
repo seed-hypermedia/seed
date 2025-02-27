@@ -6,6 +6,7 @@ import {
 } from '@shm/shared/client/.generated/documents/v3alpha/access_control_pb'
 import {BIG_INT} from '@shm/shared/constants'
 import {HMRole, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {useEntities} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -13,7 +14,7 @@ import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {toast} from '@shm/ui/toast'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {useMyAccountIds} from './daemon'
-import {getParentPaths, useEntities} from './entities'
+import {getParentPaths} from './entities'
 
 export function useDocumentCollaborators(id: UnpackedHypermediaId) {
   //

@@ -7,8 +7,8 @@ import {
 import {common, createLowlight} from 'lowlight'
 import {ButtonBlock} from './button'
 // import {EmbedBlock} from "./embed-block";
+import {HMHeadingBlockContent} from '@/heading-component-plugin'
 import {FileBlock} from './file'
-import {HMHeadingBlockContent} from './heading-component-plugin'
 import {ImageBlock} from './image'
 import {MathBlock} from './math'
 import {NostrBlock} from './nostr'

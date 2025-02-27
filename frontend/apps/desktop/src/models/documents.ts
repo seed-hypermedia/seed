@@ -35,6 +35,8 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {getQueryResultsWithClient} from '@shm/shared/models/directory'
+import {useEntities, useEntity} from '@shm/shared/models/entity'
+import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {validatePath} from '@shm/shared/utils/document-path'
@@ -68,9 +70,8 @@ import {useConnectPeer} from './contacts'
 import {useMyAccountIds} from './daemon'
 import {draftMachine} from './draft-machine'
 import {setGroupTypes} from './editor-utils'
-import {getParentPaths, useEntities, useEntity} from './entities'
+import {getParentPaths} from './entities'
 import {useGatewayUrlStream} from './gateway-settings'
-import {useInlineMentions} from './search'
 import {siteDiscover} from './web-links'
 
 export const [draftDispatch, draftEvents] = eventStream<{
@@ -556,7 +557,7 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
   const showNostr = trpc.experiments.get.useQuery().data?.nostr
   const [writeEditorStream] = useRef(writeableStateStream<any>(null)).current
   const saveDraft = trpc.drafts.write.useMutation()
-  const {inlineMentionsQuery, inlineMentionsData} = useInlineMentions()
+  const {onMentionsQuery} = useInlineMentions()
   const isNewDraft = route.key == 'draft' && !!route.new
 
   const editor = useBlockNote<typeof hmBlockSchema>({
@@ -603,9 +604,7 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
       openUrl,
       checkWebUrl: checkWebUrl.mutateAsync,
     },
-    onMentionsQuery: (query: string) => {
-      inlineMentionsQuery(query)
-    },
+    onMentionsQuery,
     blockSchema: hmBlockSchema,
     slashMenuItems: getSlashMenuItems({showNostr, docId: id}),
     _tiptapOptions: {
@@ -619,12 +618,6 @@ export function useDraftEditor({id}: {id?: UnpackedHypermediaId}) {
       ],
     },
   })
-
-  useEffect(() => {
-    if (inlineMentionsData) {
-      editor?.setInlineEmbedOptions(inlineMentionsData)
-    }
-  }, [inlineMentionsData])
 
   const createOrUpdateDraft = fromPromise<
     HMDraft & {id?: string},

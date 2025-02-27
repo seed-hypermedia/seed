@@ -4,16 +4,16 @@ import {
   defaultBlockSchema,
   defaultProps,
 } from '@shm/editor/blocknote'
+import {ButtonBlock} from '@shm/editor/button'
+import {FileBlock} from '@shm/editor/file'
+import {HMHeadingBlockContent} from '@shm/editor/heading-component-plugin'
+import CodeBlockLowlight from '@shm/editor/tiptap-extension-code-block'
 import {common, createLowlight} from 'lowlight'
-import {ButtonBlock} from './button'
 import {EmbedBlock} from './embed-block'
-import {FileBlock} from './file'
-import {HMHeadingBlockContent} from './heading-component-plugin'
 import {ImageBlock} from './image'
 import {MathBlock} from './math'
 import {NostrBlock} from './nostr'
 import {QueryBlock} from './query-block'
-import CodeBlockLowlight from './tiptap-extension-code-block'
 import {VideoBlock} from './video'
 import {WebEmbed} from './web-embed'
 

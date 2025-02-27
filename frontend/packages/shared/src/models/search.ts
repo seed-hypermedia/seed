@@ -1,16 +1,19 @@
 import {useQuery} from '@tanstack/react-query'
-import {UnpackedHypermediaId} from '../utils'
+import {UnpackedHypermediaId} from '../hm-types'
 import {queryKeys} from './query-keys'
 
+export type SearchResultItem = {
+  id: UnpackedHypermediaId
+  title: string
+}
+
 export type SearchPayload = {
-  entities: {
-    id: UnpackedHypermediaId
-    title: string
-  }[]
+  entities: SearchResultItem[]
   searchQuery: string
 }
 
-let searchQuery: ((query: string) => Promise<SearchPayload>) | null = null
+export let searchQuery: ((query: string) => Promise<SearchPayload>) | null =
+  null
 
 export function setSearchQuery(
   handler: (query: string) => Promise<SearchPayload>,
@@ -23,7 +26,16 @@ export function useSearch(query: string, opts?: {enabled?: boolean}) {
     queryKey: [queryKeys.SEARCH, query],
     queryFn: async () => {
       if (!searchQuery) throw new Error('searchQuery not injected')
-      return await searchQuery(query)
+      const out = await searchQuery(query)
+      const alreadySeenIds = new Set<string>()
+      const entities: SearchResultItem[] = []
+      out.entities.forEach((result) => {
+        if (!alreadySeenIds.has(result.id.id)) {
+          alreadySeenIds.add(result.id.id)
+          entities.push(result)
+        }
+      })
+      return {out, entities}
     },
     enabled: opts?.enabled,
   })

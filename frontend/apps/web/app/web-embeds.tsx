@@ -3,6 +3,7 @@ import {
   createWebHMUrl,
   formattedDate,
   getDocumentTitle,
+  HMAccountsMetadata,
   HMBlockQuery,
   HMDocumentInfo,
   hmId,
@@ -12,6 +13,7 @@ import {
   UnpackedHypermediaId,
   useUniversalAppContext,
 } from '@shm/shared'
+import {useEntities, useEntity} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {
   ContentEmbed,
@@ -21,7 +23,6 @@ import {
   useDocContentContext,
 } from '@shm/ui/document-content'
 import {BlankQueryBlockMessage} from '@shm/ui/entity-card'
-import {AccountsMetadata} from '@shm/ui/face-pile'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {BannerNewspaperCard, NewspaperCard} from '@shm/ui/newspaper'
 import {Spinner} from '@shm/ui/spinner'
@@ -29,7 +30,6 @@ import {StackProps, Text} from '@tamagui/core'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
 import {useMemo, useState} from 'react'
-import {useEntity} from './models'
 
 function EmbedWrapper({
   id,
@@ -77,13 +77,6 @@ export function EmbedDocument(props: EntityComponentProps) {
   }
 }
 
-export function HMIconComponent({accountId}: {accountId?: string | undefined}) {
-  const id = accountId ? hmId('d', accountId) : undefined
-  const entity = useEntity(id)
-  if (!id) return null
-  return <HMIcon size={20} id={id} metadata={entity.data?.document?.metadata} />
-}
-
 export function EmbedInline(props: EntityComponentProps) {
   if (props?.type == 'd') {
     return <DocInlineEmbed {...props} />
@@ -107,6 +100,9 @@ function DocInlineEmbed(props: EntityComponentProps) {
 
 export function EmbedDocumentCard(props: EntityComponentProps) {
   const doc = useEntity(props)
+  const authors = useEntities(
+    doc.data?.document?.authors.map((uid) => hmId('d', uid)) || [],
+  )
   if (doc.isLoading) return <Spinner />
   if (!doc.data) return <ErrorBlock message="Could not load embed" />
   const id = narrowHmId(props)
@@ -120,8 +116,16 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
         }}
         id={props}
         accountsMetadata={Object.fromEntries(
-          doc.data.document.authors
-            .map((uid) => [uid, doc.data?.accountsMetadata[uid]])
+          authors
+            .map((d) => d.data)
+            .filter((d) => !!d)
+            .map((authorDoc) => [
+              authorDoc.id.uid,
+              {
+                id: authorDoc.id,
+                metadata: authorDoc.document?.metadata,
+              },
+            ])
             .filter(([_, metadata]) => !!metadata),
         )}
       />
@@ -269,7 +273,7 @@ function QueryStyleCard({
         metadata: d.document.metadata,
       }
       return acc
-    }, {} as AccountsMetadata) || {}
+    }, {} as HMAccountsMetadata) || {}
 
   return (
     <YStack width="100%">

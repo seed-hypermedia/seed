@@ -7,9 +7,10 @@ import {
   useDocumentEmbeds,
   useListSite,
 } from '@/models/documents'
-import {useEntity, useSubscribedEntity} from '@/models/entities'
+import {useSubscribedEntity} from '@/models/entities'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
+import {useEntity} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {SmallListItem} from '@shm/ui/list-item'

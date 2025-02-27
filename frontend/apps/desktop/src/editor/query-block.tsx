@@ -1,7 +1,6 @@
 import {LibraryListItem} from '@/components/list-item'
 import {SearchInput} from '@/components/search-input'
 import {useListDirectory} from '@/models/documents'
-import {useEntities, useEntity} from '@/models/entities'
 import {LibraryData} from '@/models/library'
 import {Block, BlockNoteEditor} from '@shm/editor/blocknote'
 import {MultipleNodeSelection} from '@shm/editor/blocknote/core/extensions/SideMenu/MultipleNodeSelection'
@@ -18,6 +17,7 @@ import {
   HMEntityContent,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
+import {useEntities, useEntity} from '@shm/shared/models/entity'
 import {NavRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'

@@ -1,6 +1,6 @@
 import {useAccount_deprecated} from '@/models/accounts'
 import {useListDirectory} from '@/models/documents'
-import {useEntities, useSubscribedEntity} from '@/models/entities'
+import {useSubscribedEntity} from '@/models/entities'
 import {LibraryData} from '@/models/library'
 import {DAEMON_FILE_URL} from '@shm/shared/constants'
 import {getDocumentTitle, queryBlockSortedItems} from '@shm/shared/content'
@@ -9,6 +9,7 @@ import {
   HMBlockQuery,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
+import {useEntities} from '@shm/shared/models/entity'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {hmId, narrowHmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {UIAvatar} from '@shm/ui/avatar'

@@ -1,5 +1,5 @@
-import {useEntity} from '@/models/entities'
 import {UnpackedHypermediaId} from '@shm/shared'
+import {useEntity} from '@shm/shared/models/entity'
 
 import {Link} from '@shm/ui/icons'
 import {FontSizeTokens} from 'tamagui'

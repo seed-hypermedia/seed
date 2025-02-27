@@ -1,6 +1,5 @@
 import {DialogTitle, useAppDialog} from '@/components/dialog'
 import {useCurrencyComparisons} from '@/models/compare-currencies'
-import {useEntity} from '@/models/entities'
 import {
   useCreateLocalInvoice,
   useCreateWallet,
@@ -16,6 +15,7 @@ import {PlainMessage} from '@bufbuild/protobuf'
 import {Invoice} from '@shm/shared/client/.generated/payments/v1alpha/invoices_pb'
 import {getAccountName} from '@shm/shared/content'
 import {HMInvoice, HMWallet} from '@shm/shared/hm-types'
+import {useEntity} from '@shm/shared/models/entity'
 import {useInvoiceStatus} from '@shm/shared/models/payments'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {hmId} from '@shm/shared/utils/entity-id-url'

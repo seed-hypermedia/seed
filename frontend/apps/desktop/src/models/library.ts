@@ -11,20 +11,18 @@ import {
   HMLibraryDocument,
   HMMetadata,
   HMMetadataPayload,
+  UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
+import {useEntities} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useSearch} from '@shm/shared/models/search'
-import {
-  hmId,
-  UnpackedHypermediaId,
-  unpackHmId,
-} from '@shm/shared/utils/entity-id-url'
+import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {useQuery} from '@tanstack/react-query'
 import {useAccounts, useDrafts} from './accounts'
 import {useComments} from './comments'
 import {useDraftList} from './documents'
-import {getParentPaths, useEntities} from './entities'
+import {getParentPaths} from './entities'
 import {useFavorites} from './favorites'
 import {HMSubscription, useListSubscriptions} from './subscription'
 

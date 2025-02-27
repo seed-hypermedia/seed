@@ -38,6 +38,7 @@ import {
 } from './extensions/Blocks/helpers/getBlockInfoFromPos'
 
 import {UnpackedHypermediaId} from '@shm/shared'
+import {InlineMentionsResult} from '@shm/shared/src/models/inline-mentions'
 import {Transaction} from 'prosemirror-state'
 import {HMBlockSchema, hmBlockSchema} from '../../schema'
 import {insertBlocks} from './api/blockManipulation/commands/insertBlocks'
@@ -162,7 +163,11 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
   public readonly schema: BSchema
   public ready = false
 
-  public inlineEmbedOptions = []
+  public inlineEmbedOptions: InlineMentionsResult = {
+    Sites: [],
+    Documents: [],
+    Recents: [],
+  }
 
   public readonly sideMenu: SideMenuProsemirrorPlugin<BSchema>
   public readonly formattingToolbar: FormattingToolbarProsemirrorPlugin<BSchema>
@@ -179,7 +184,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
       blockSchema: BSchema
       // TODO: add proper types to this
       linkExtensionOptions?: any
-      inlineEmbedOptions?: any
+      inlineEmbedOptions?: InlineMentionsResult
       onMentionsQuery?: (query: string) => void
     } = {
       defaultStyles: true,
@@ -345,7 +350,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     this._tiptapEditor.view.focus()
   }
 
-  public setInlineEmbedOptions(newOpts: any) {
+  public setInlineEmbedOptions(newOpts: InlineMentionsResult) {
     this.inlineEmbedOptions = newOpts
   }
 

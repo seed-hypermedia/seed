@@ -1,6 +1,5 @@
 import {useAccounts} from '@/models/accounts'
 import {useDocumentCommentGroups} from '@/models/comments'
-import {useEntities, useEntity} from '@/models/entities'
 import {useChildrenActivity} from '@/models/library'
 import {useDocumentPublishedChanges, useVersionChanges} from '@/models/versions'
 import {useNavRoute} from '@/utils/navigation'
@@ -12,6 +11,7 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {getActivityTime} from '@shm/shared/models/activity'
+import {useEntities, useEntity} from '@shm/shared/models/entity'
 import {formattedDateMedium, normalizeDate} from '@shm/shared/utils/date'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {ChangeGroup, SubDocumentItem} from '@shm/ui/activity'

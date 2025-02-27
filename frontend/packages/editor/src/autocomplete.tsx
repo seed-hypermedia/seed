@@ -1,4 +1,5 @@
 import {Entity} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
+import {InlineMentionsResult} from '@shm/shared/src/models/inline-mentions'
 import {Button} from '@shm/ui/button'
 import {Fragment, NodeSpec} from '@tiptap/pm/model'
 import {Decoration, DecorationSet} from '@tiptap/pm/view'
@@ -281,26 +282,28 @@ function AutocompletePopupInner(
 ) {
   const {rect, text, onClose, range, onCreate, editor} = props
 
-  const misses = useRef(0)
-  const [index, setIndex] = useState<[string, number]>(['Recents', 0])
-
-  const suggestions = useMemo(() => {
-    editor.options.onMentionsQuery(text)
-    const results = {
-      ...editor.mentionOptions,
-      Recents: getSuggestions(editor.mentionOptions.Recents || [], text),
-    }
-
-    if (isOptionsEmpty(results)) {
-      misses.current++
-    } else {
-      misses.current = 0
-      setIndex(['Recents', 0])
-    }
-    return results
+  const [index, setIndex] = useState<[keyof InlineMentionsResult, number]>([
+    'Recents',
+    0,
+  ])
+  const [suggestions, setSuggestions] = useState<InlineMentionsResult>({
+    Recents: [],
+    Sites: [],
+    Documents: [],
+  })
+  useEffect(() => {
+    if (text.length)
+      editor.options
+        .onMentionsQuery(text)
+        .then((results: InlineMentionsResult) => {
+          setSuggestions(results)
+          if (isOptionsEmpty(results) && text.length > 5) {
+            onClose()
+          }
+        })
   }, [text])
 
-  const groupsOrder = ['Recents', 'Accounts', 'Documents', 'Groups']
+  const groupsOrder = ['Recents', 'Sites', 'Documents'] as const
   const groups = useMemo(() => {
     return groupsOrder.filter(
       (g) => suggestions.hasOwnProperty(g) && suggestions[g].length,
@@ -368,12 +371,6 @@ function AutocompletePopupInner(
       return true
     },
   })
-
-  useEffect(() => {
-    if (misses.current > 5) {
-      onClose()
-    }
-  }, [misses.current > 5])
 
   return (
     <div
@@ -461,11 +458,11 @@ function AutocompletePopupInner(
                     <SuggestionItem
                       selected={currentGroup == group && idx == i}
                       value={item.value}
-                      key={item.value}
+                      key={`${group}-${item.value}`}
                       title={item.title}
                       subtitle={item.subtitle}
                       onMouseEnter={() => {
-                        // setIndex(i)
+                        setIndex([group, i])
                       }}
                       onPress={() => {
                         onCreate(item.value, range)
@@ -525,7 +522,7 @@ export type AutocompleteTokenPluginAction =
 const SuggestionItem = React.memo(function SuggestionItem(props: {
   value?: Entity
   title: string
-  subtitle: string
+  subtitle: boolean
   selected: boolean
   onPress: ButtonProps['onPress']
   onMouseEnter: ButtonProps['onMouseEnter']
@@ -553,8 +550,8 @@ const SuggestionItem = React.memo(function SuggestionItem(props: {
       bg={props.selected ? '$brand11' : '$backgroundFocus'}
       color="$color"
       hoverStyle={{
-        bg: '$brand11',
-        borderColor: '$colorTransparent',
+        backgroundColor: props.selected ? '$brand11' : '$backgroundFocus',
+        // borderColor: 'inherit',
       }}
       height="auto"
       minHeight={28}
@@ -571,25 +568,6 @@ const SuggestionItem = React.memo(function SuggestionItem(props: {
   )
 })
 
-function getSuggestions(options: Array<any>, queryText: string) {
-  let result = options
-    .filter((item) => {
-      return item.title.toLowerCase().includes(queryText.toLowerCase())
-    })
-    .map((item) => ({
-      title: item.title,
-      subtitle: 'Recent',
-      value: item.url,
-    }))
-
-  return result
-}
-
-function isOptionsEmpty(obj) {
-  for (let key in obj) {
-    if (obj.hasOwnProperty(key) && obj[key].length !== 0) {
-      return false // If any property is not empty, return false
-    }
-  }
-  return true // If all properties are empty, return true
+function isOptionsEmpty(obj: InlineMentionsResult) {
+  return Object.values(obj).every((value) => value.length === 0)
 }

@@ -54,6 +54,7 @@ import {getDefaultSlashMenuItems} from '@shm/editor/blocknote/core/extensions/Sl
 import {UniqueID} from '@shm/editor/blocknote/core/extensions/UniqueID/UniqueID'
 import {mergeCSSClasses} from '@shm/editor/blocknote/core/shared/utils'
 import {HMBlockSchema, hmBlockSchema} from '@shm/editor/schema'
+import {InlineMentionsResult} from '@shm/shared/models/inline-mentions'
 import {Transaction} from 'prosemirror-state'
 
 export type BlockNoteEditorOptions<BSchema extends BlockSchema> = {
@@ -158,7 +159,11 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
   public readonly schema: BSchema
   public ready = false
 
-  public inlineEmbedOptions = []
+  public inlineEmbedOptions: InlineMentionsResult = {
+    Sites: [],
+    Documents: [],
+    Recents: [],
+  }
 
   public readonly sideMenu: SideMenuProsemirrorPlugin<BSchema>
   public readonly formattingToolbar: FormattingToolbarProsemirrorPlugin<BSchema>
@@ -342,7 +347,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     this._tiptapEditor.view.focus()
   }
 
-  public setInlineEmbedOptions(newOpts: any) {
+  public setInlineEmbedOptions(newOpts: InlineMentionsResult) {
     this.inlineEmbedOptions = newOpts
   }
 

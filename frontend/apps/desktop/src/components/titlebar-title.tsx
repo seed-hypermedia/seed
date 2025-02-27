@@ -5,11 +5,7 @@ import {
   useDraftName,
   useListDirectory,
 } from '@/models/documents'
-import {
-  useEntity,
-  useRouteBreadcrumbRoutes,
-  useRouteEntities,
-} from '@/models/entities'
+import {useRouteBreadcrumbRoutes, useRouteEntities} from '@/models/entities'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {NewSubDocumentButton} from '@/pages/document'
@@ -17,6 +13,7 @@ import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
 import {HMMetadata, HMQueryResult, hostnameStripProtocol} from '@shm/shared'
 import {getDocumentTitle} from '@shm/shared/content'
+import {useEntity} from '@shm/shared/models/entity'
 import {DocumentRoute, DraftRoute, NavRoute} from '@shm/shared/routes'
 import {HoverCard} from '@shm/ui/hover-card'
 import {

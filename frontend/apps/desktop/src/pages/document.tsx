@@ -20,7 +20,7 @@ import {
   useDocumentRead,
   useListDirectory,
 } from '@/models/documents'
-import {useEntity, useSubscribedEntity} from '@/models/entities'
+import {useSubscribedEntity} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
@@ -35,6 +35,7 @@ import {
   HMQueryResult,
   UnpackedHypermediaId,
 } from '@shm/shared'
+import {useEntity} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {Button} from '@shm/ui/button'
 import {Container} from '@shm/ui/container'

@@ -1,12 +1,13 @@
 import {useGRPCClient} from '@/app-context'
 import {grpcClient} from '@/grpc-client'
 import {trpc} from '@/trpc'
+import {hmId} from '@shm/shared'
 import {DocumentChange} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
+import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {useEntity} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {hmId, UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {useMutation} from '@tanstack/react-query'
-import {useEntity} from './entities'
 
 export function useSiteRegistration(accountUid: string) {
   const accountId = hmId('d', accountUid)

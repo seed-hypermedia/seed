@@ -1,6 +1,7 @@
 import {BlockNoteEditor} from '@/blocknote/core/BlockNoteEditor'
 import {Block} from '@/blocknote/core/extensions/Blocks/api/blockTypes'
 import {InlineContent} from '@/blocknote/react/ReactBlockSpec'
+import {MaxFileSizeB, MaxFileSizeMB} from '@/file'
 import {MediaType} from '@/media-render'
 import {HMBlockSchema} from '@/schema'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'

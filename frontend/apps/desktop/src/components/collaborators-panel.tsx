@@ -4,11 +4,12 @@ import {
   useAllDocumentCapabilities,
   useMyCapability,
 } from '@/models/access-control'
-import {useEntity, useSubscribedEntity} from '@/models/entities'
+import {useSubscribedEntity} from '@/models/entities'
 import {useNavigate} from '@/utils/useNavigate'
 import * as Ariakit from '@ariakit/react'
 import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
 import {PlainMessage} from '@bufbuild/protobuf'
+import {useEntity} from '@shm/shared/models/entity'
 
 import {Capability, Role} from '@shm/shared/client/grpc-types'
 import {getDocumentTitle} from '@shm/shared/content'

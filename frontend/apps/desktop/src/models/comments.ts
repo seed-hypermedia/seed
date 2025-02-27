@@ -22,6 +22,8 @@ import {
   HMEntityContent,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
+import {useEntity} from '@shm/shared/models/entity'
+import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
@@ -38,9 +40,7 @@ import {useEffect, useMemo, useRef} from 'react'
 import {useGRPCClient} from '../app-context'
 import {hmBlockSchema} from '../editor'
 import {setGroupTypes} from './editor-utils'
-import {useEntity} from './entities'
 import {useGatewayUrlStream} from './gateway-settings'
-import {useInlineMentions} from './search'
 import {siteDiscover} from './web-links'
 
 export function useCommentGroups(
@@ -184,7 +184,7 @@ export function useCommentEditor(
   const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>()
   const readyEditor = useRef<BlockNoteEditor>()
   const grpcClient = useGRPCClient()
-  const {inlineMentionsData, inlineMentionsQuery} = useInlineMentions()
+  const {onMentionsQuery} = useInlineMentions()
   function initDraft() {
     if (!readyEditor.current || !initCommentDraft) return
     const editor = readyEditor.current
@@ -252,9 +252,7 @@ export function useCommentEditor(
       docId: targetDocId, // in theory this should be the comment ID but it doesn't really matter here
       showQuery: false,
     }),
-    onMentionsQuery: (query: string) => {
-      inlineMentionsQuery(query)
-    },
+    onMentionsQuery,
     _tiptapOptions: {
       extensions: [
         Extension.create({
@@ -276,12 +274,6 @@ export function useCommentEditor(
     delete commentsSchema.query
     return commentsSchema
   }
-
-  useEffect(() => {
-    if (inlineMentionsData) {
-      editor?.setInlineEmbedOptions(inlineMentionsData)
-    }
-  }, [inlineMentionsData])
 
   useEffect(() => {
     function handleSelectAll(event: KeyboardEvent) {

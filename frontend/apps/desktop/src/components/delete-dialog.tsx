@@ -6,6 +6,7 @@ import {getDocumentTitle, getMetadataName} from '@shm/shared/content'
 import {HMMetadata, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 
+import {useEntity} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {toast} from '@shm/ui/toast'
 import {ReactNode} from 'react'
@@ -21,7 +22,7 @@ import {
   XStackProps,
   YStack,
 } from 'tamagui'
-import {useDeleteEntities, useEntity} from '../models/entities'
+import {useDeleteEntities} from '../models/entities'
 import {useAppDialog} from './dialog'
 
 export type DeleteDialogProps = AlertDialogProps & {

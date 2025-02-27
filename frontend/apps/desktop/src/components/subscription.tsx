@@ -1,8 +1,8 @@
 import {useMyAccountIds} from '@/models/daemon'
-import {useEntity} from '@/models/entities'
 import {HMSubscription, useSubscription} from '@/models/subscription'
 import {getDocumentTitle} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {useEntity} from '@shm/shared/models/entity'
 import {SizableText} from '@shm/ui/datepicker-dateparts'
 import {
   Check,

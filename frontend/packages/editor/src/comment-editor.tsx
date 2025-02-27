@@ -1,5 +1,6 @@
 import {writeableStateStream} from '@shm/shared'
 import {HMBlockNode} from '@shm/shared/hm-types'
+import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {queryClient} from '@shm/shared/models/query-client'
 import {Button} from '@shm/ui/button'
 import {Trash} from '@shm/ui/icons'
@@ -77,6 +78,8 @@ const [setGwUrl, gwUrl] = writeableStateStream<string | null>(
 )
 
 export function useCommentEditor() {
+  const {onMentionsQuery} = useInlineMentions()
+
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
       // console.log("editor content changed", editor.topLevelBlocks);
@@ -98,9 +101,7 @@ export function useCommentEditor() {
     slashMenuItems: slashMenuItems.filter(
       (item) => !['Nostr', 'Query'].includes(item.name),
     ),
-    // onMentionsQuery: (query: string) => {
-    //   inlineMentionsQuery(query);
-    // },
+    onMentionsQuery,
     _tiptapOptions: {
       extensions: [
         Extension.create({

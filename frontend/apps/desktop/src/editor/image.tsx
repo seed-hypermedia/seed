@@ -4,6 +4,12 @@ import {
   createReactBlockSpec,
   defaultProps,
 } from '@shm/editor/blocknote'
+import {MediaContainer} from '@shm/editor/media-container'
+import {
+  DisplayComponentProps,
+  MediaRender,
+  MediaType,
+} from '@shm/editor/media-render'
 import {isValidUrl, timeoutPromise} from '@shm/editor/utils'
 import {useDocContentContext} from '@shm/ui/document-content'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
@@ -11,8 +17,6 @@ import {ResizeHandle} from '@shm/ui/resize-handle'
 import {useEffect, useState} from 'react'
 import {RiImage2Line} from 'react-icons/ri'
 import {useTheme} from 'tamagui'
-import {MediaContainer} from './media-container'
-import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
 import {HMBlockSchema} from './schema'
 
 export const ImageBlock = createReactBlockSpec({
@@ -228,7 +232,6 @@ const display = ({
       },
     })
 
-    // @ts-expect-error
     editor.updateBlock(block.id, {
       ...block,
       props: {

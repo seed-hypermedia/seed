@@ -4,6 +4,12 @@ import {
   createReactBlockSpec,
   defaultProps,
 } from '@shm/editor/blocknote'
+import {MediaContainer} from '@shm/editor/media-container'
+import {
+  DisplayComponentProps,
+  MediaRender,
+  MediaType,
+} from '@shm/editor/media-render'
 import {isValidUrl, youtubeParser} from '@shm/editor/utils'
 import {DAEMON_FILE_URL} from '@shm/shared/constants'
 import {isIpfsUrl} from '@shm/ui/get-file-url'
@@ -11,8 +17,6 @@ import {ResizeHandle} from '@shm/ui/resize-handle'
 import {useEffect, useState} from 'react'
 import {RiVideoAddLine} from 'react-icons/ri'
 import {SizableText, XStack, useTheme} from 'tamagui'
-import {MediaContainer} from './media-container'
-import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
 import {HMBlockSchema} from './schema'
 
 export const getSourceType = (name: string) => {

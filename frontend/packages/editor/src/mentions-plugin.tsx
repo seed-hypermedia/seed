@@ -1,10 +1,10 @@
 import {
   AutocompletePopup,
   createAutoCompletePlugin,
-} from '@/editor/autocomplete'
-import {useEntity} from '@/models/entities'
+} from '@shm/editor/autocomplete'
 import {getDocumentTitle} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {useEntity} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {Node} from '@tiptap/core'
 import {NodeViewWrapper, ReactNodeViewRenderer} from '@tiptap/react'

@@ -1,11 +1,12 @@
 import {useListSite} from '@/models/documents'
-import {useEntities, useSubscribedEntity} from '@/models/entities'
+import {useSubscribedEntity} from '@/models/entities'
 import {sortNewsEntries} from '@shm/shared/content'
 import {
   HMAccountsMetadata,
   HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
+import {useEntities} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Container} from '@shm/ui/container'
 import {BannerNewspaperCard, NewspaperCard} from '@shm/ui/newspaper'

@@ -1,13 +1,16 @@
 import {useGRPCClient} from '@/app-context'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {BIG_INT} from '@shm/shared/constants'
-import {HMChangeSummary, HMDraftChange} from '@shm/shared/hm-types'
+import {
+  HMChangeSummary,
+  HMDraftChange,
+  UnpackedHypermediaId,
+} from '@shm/shared/hm-types'
+import {useEntity} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {useQuery} from '@tanstack/react-query'
 import {useDraft} from './accounts'
-import {useEntity} from './entities'
 
 export function useDocumentPublishedChanges(id: UnpackedHypermediaId) {
   const grpcClient = useGRPCClient()

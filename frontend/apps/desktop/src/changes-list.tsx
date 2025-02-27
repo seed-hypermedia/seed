@@ -1,9 +1,9 @@
 import {AccessoryContainer} from '@/components/accessory-sidebar'
 import {useDocHistory} from '@/models/changes'
 import {UnpackedHypermediaId, useRouteLink} from '@shm/shared'
+import {useEntities} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Theme, YStack} from 'tamagui'
-import {useEntities} from './models/entities'
 
 export function EntityVersionsAccessory({
   id,

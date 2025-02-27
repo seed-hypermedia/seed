@@ -14,7 +14,7 @@ import {
   useListDirectory,
 } from '@/models/documents'
 import {draftMachine} from '@/models/draft-machine'
-import {useEntity, useSubscribedEntity} from '@/models/entities'
+import {useSubscribedEntity} from '@/models/entities'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {trpc} from '@/trpc'
 import {
@@ -27,6 +27,7 @@ import {useNavRoute} from '@/utils/navigation'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {BlockNoteEditor, getBlockInfoFromPos} from '@shm/editor/blocknote'
+import {useEntity} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {validatePath} from '@shm/shared/utils/document-path'
 import {Button} from '@shm/ui/button'

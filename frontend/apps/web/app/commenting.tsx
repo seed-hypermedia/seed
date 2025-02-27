@@ -15,6 +15,7 @@ import {
   UnpackedHypermediaId,
   useUniversalAppContext,
 } from '@shm/shared'
+import {useEntity} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {Field} from '@shm/ui/form-fields'
 import {FormInput} from '@shm/ui/form-input'
@@ -43,7 +44,6 @@ import {
 } from 'react-hook-form'
 import {Form, SizableText, Stack, XStack, YStack} from 'tamagui'
 import {z} from 'zod'
-import {useEntity} from './models'
 import type {CreateAccountPayload} from './routes/hm.api.create-account'
 import type {UpdateDocumentPayload} from './routes/hm.api.document-update'
 

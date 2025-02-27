@@ -1,6 +1,6 @@
-import {useEntity} from '@/models/entities'
 import {useNavigate} from '@/utils/useNavigate'
 import {getAccountName} from '@shm/shared/content'
+import {useEntity} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {ButtonProps, ButtonText, SizableText, SizableTextProps} from 'tamagui'
 

@@ -3,20 +3,6 @@ import {HMBlockSchema} from '../../schema'
 
 import {BlockNoteEditor} from './BlockNoteEditor'
 
-import {LocalMediaPastePlugin} from '@/handle-local-media-paste-plugin'
-import {debugPlugin} from '@/prosemirror-debugger'
-import {Bold} from '@tiptap/extension-bold'
-import {Code} from '@tiptap/extension-code'
-import {Dropcursor} from '@tiptap/extension-dropcursor'
-import {Gapcursor} from '@tiptap/extension-gapcursor'
-import {HardBreak} from '@tiptap/extension-hard-break'
-import {History} from '@tiptap/extension-history'
-import {Italic} from '@tiptap/extension-italic'
-import {Strike} from '@tiptap/extension-strike'
-import {Text} from '@tiptap/extension-text'
-import {Underline} from '@tiptap/extension-underline'
-import * as Y from 'yjs'
-// import {createInlineEmbedNode} from "../../mentions-plugin";
 import {BlockManipulationExtension} from '@/blocknote/core/extensions/BlockManipulation/BlockManipulationExtension'
 import {
   BlockContainer,
@@ -31,7 +17,21 @@ import {createMarkdownExtension} from '@/blocknote/core/extensions/Markdown/Mark
 import {Placeholder} from '@/blocknote/core/extensions/Placeholder/PlaceholderExtension'
 import {TrailingNode} from '@/blocknote/core/extensions/TrailingNode/TrailingNodeExtension'
 import {UniqueID} from '@/blocknote/core/extensions/UniqueID/UniqueID'
+import {LocalMediaPastePlugin} from '@/handle-local-media-paste-plugin'
+import {createInlineEmbedNode} from '@/mentions-plugin'
+import {debugPlugin} from '@/prosemirror-debugger'
 import Link from '@/tiptap-extension-link'
+import {Bold} from '@tiptap/extension-bold'
+import {Code} from '@tiptap/extension-code'
+import {Dropcursor} from '@tiptap/extension-dropcursor'
+import {Gapcursor} from '@tiptap/extension-gapcursor'
+import {HardBreak} from '@tiptap/extension-hard-break'
+import {History} from '@tiptap/extension-history'
+import {Italic} from '@tiptap/extension-italic'
+import {Strike} from '@tiptap/extension-strike'
+import {Text} from '@tiptap/extension-text'
+import {Underline} from '@tiptap/extension-underline'
+import * as Y from 'yjs'
 
 /**
  * Get all the Tiptap extensions BlockNote is configured with by default
@@ -55,7 +55,7 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
   }
 }) => {
   const ret: Extensions = [
-    // createInlineEmbedNode(opts.editor),
+    createInlineEmbedNode(opts.editor),
     extensions.ClipboardTextSerializer,
     extensions.Commands,
     extensions.Editable,

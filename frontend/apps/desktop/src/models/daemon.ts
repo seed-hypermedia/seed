@@ -7,6 +7,7 @@ import {
   RegisterKeyRequest,
 } from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {GRPCClient} from '@shm/shared/grpc-client'
+import {useEntities} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -17,7 +18,6 @@ import {
   useQuery,
   UseQueryOptions,
 } from '@tanstack/react-query'
-import {useEntities} from './entities'
 
 export type NamedKey = {
   name: string

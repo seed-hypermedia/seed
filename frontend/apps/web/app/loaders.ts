@@ -60,7 +60,7 @@ export async function getMetadata(
 
 export type WebBaseDocumentPayload = {
   document: HMDocument
-  accountsMetadata: AccountsMetadata
+  accountsMetadata: HMAccountsMetadata
   id: UnpackedHypermediaId
   siteHost: string | undefined
   supportDocuments?: {id: UnpackedHypermediaId; document: HMDocument}[]

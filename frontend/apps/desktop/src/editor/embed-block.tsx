@@ -6,6 +6,12 @@ import {Block, BlockNoteEditor} from '@shm/editor/blocknote'
 import {createReactBlockSpec} from '@shm/editor/blocknote/react'
 import {HypermediaLinkSwitchToolbar} from '@shm/editor/hm-link-switch-toolbar'
 import {LauncherItem, SwitcherItem} from '@shm/editor/launcher-item'
+import {MediaContainer} from '@shm/editor/media-container'
+import {
+  DisplayComponentProps,
+  MediaRender,
+  MediaType,
+} from '@shm/editor/media-render'
 import {HMEmbedViewSchema, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useSearch} from '@shm/shared/models/search'
 import {useHover} from '@shm/shared/use-hover'
@@ -46,8 +52,6 @@ import {
 } from 'tamagui'
 import {HMBlockSchema} from '.'
 import {useEmbedToolbarContext} from './embed-toolbar-context'
-import {MediaContainer} from './media-container'
-import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
 
 function EmbedError() {
   return <ErrorBlock message="Failed to load this Embedded document" />
