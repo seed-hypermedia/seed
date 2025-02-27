@@ -25,25 +25,23 @@ func init() {
 // Capability is a blob that represents some granted rights from the issuer to the delegate key.
 type Capability struct {
 	baseBlob
-	Delegate    core.Principal `refmt:"delegate"`
-	Space_      core.Principal `refmt:"space,omitempty"` // if empty, then signer is the space.
-	Path        string         `refmt:"path,omitempty"`
-	Role        string         `refmt:"role,omitempty"`
-	NoRecursive bool           `refmt:"noRecursive,omitempty"`
+	Delegate core.Principal `refmt:"delegate"`
+	Space_   core.Principal `refmt:"space,omitempty"` // if empty, then signer is the space.
+	Path     string         `refmt:"path,omitempty"`
+	Role     string         `refmt:"role,omitempty"`
 }
 
 // NewCapability creates a new Capability blob.
-func NewCapability(issuer *core.KeyPair, delegate, space core.Principal, path string, role string, ts time.Time, noRecursive bool) (eb Encoded[*Capability], err error) {
+func NewCapability(issuer *core.KeyPair, delegate, space core.Principal, path string, role string, ts time.Time) (eb Encoded[*Capability], err error) {
 	cu := &Capability{
 		baseBlob: baseBlob{
 			Type:   blobTypeCapability,
 			Signer: issuer.Principal(),
 			Ts:     ts,
 		},
-		Delegate:    delegate,
-		Path:        path,
-		Role:        role,
-		NoRecursive: noRecursive,
+		Delegate: delegate,
+		Path:     path,
+		Role:     role,
 	}
 
 	if !issuer.Principal().Equal(space) {
@@ -116,7 +114,7 @@ func indexCapability(ictx *indexingCtx, id int64, c cid.Cid, v *Capability) erro
 		return err
 	}
 
-	refs, err := loadRefsForCapability(ictx.conn, ictx.blockStore, del, iri, !v.NoRecursive)
+	refs, err := loadRefsForCapability(ictx.conn, ictx.blockStore, del, iri, true)
 	if err != nil {
 		return err
 	}
