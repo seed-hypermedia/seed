@@ -17,8 +17,16 @@ export function PageFooter({
 }) {
   return (
     <Container>
-      <XStack jc="space-between" ai="center">
-        <XStack padding="$4" gap="$4" ai="center">
+      <XStack
+        jc="space-between"
+        ai="center"
+        flexWrap="wrap"
+        flexDirection="row-reverse"
+        marginBottom="$4"
+        gap="$4"
+      >
+        {enableWebSigning ? <AccountFooterActionsLazy /> : <View />}
+        <XStack gap="$4" ai="center">
           <SizableText size="$1">
             Powered by{' '}
             <ButtonText
@@ -33,20 +41,18 @@ export function PageFooter({
           {id ? (
             <Button
               tag="a"
-              size="$1"
+              size="$2"
               href={createHMUrl(id)}
               style={{textDecoration: 'none'}}
               icon={ExternalLink}
-              backgroundColor="$green9"
-              hoverStyle={{backgroundColor: '$green8'}}
+              backgroundColor="$green4"
+              hoverStyle={{backgroundColor: '$green5'}}
               themeInverse
-              padding="$3"
             >
               Open App
             </Button>
           ) : null}
         </XStack>
-        {enableWebSigning ? <AccountFooterActionsLazy /> : <View />}
       </XStack>
     </Container>
   )
