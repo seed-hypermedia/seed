@@ -49,6 +49,10 @@ const OS_REGISTER_SCHEME = 'hm'
 
 initPaths()
 
+app.whenReady().then(() => {
+  autoUpdate()
+})
+
 contextMenu({
   showInspectElement: !IS_PROD_DESKTOP,
 })
@@ -343,10 +347,6 @@ async function initAccountSubscriptions() {
 
 Menu.setApplicationMenu(createAppMenu())
 
-app.whenReady().then(() => {
-  autoUpdate()
-})
-
 app.on('did-become-active', () => {
   logger.debug('[MAIN]: Seed active (did-become-active)')
   if (BrowserWindow.getAllWindows().length === 0) {
@@ -571,10 +571,12 @@ if (!gotTheLock) {
   logger.debug('[MAIN]: Another Seed already running. Quitting..')
   app.quit()
 } else {
-  app.on('ready', () => {
+  app.whenReady().then(() => {
     logger.debug('[MAIN]: Seed ready')
     openInitialWindows()
+    autoUpdate()
   })
+
   app.on('second-instance', handleSecondInstance)
 
   app.on('window-all-closed', () => {

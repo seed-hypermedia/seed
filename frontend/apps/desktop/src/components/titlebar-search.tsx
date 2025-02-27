@@ -10,7 +10,7 @@ import {Title} from './titlebar-title'
 
 export function TitlebarTitleSearch() {
   const [showLauncher, setShowLauncher] = useState(false)
-  useListenAppEvent('openLauncher', () => {
+  useListenAppEvent('open_launcher', () => {
     setShowLauncher(true)
   })
   return (

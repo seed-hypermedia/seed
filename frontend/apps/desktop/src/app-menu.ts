@@ -27,7 +27,7 @@ export function createAppMenu() {
           label: 'Search / Open',
           accelerator: 'CmdOrCtrl+k',
           click: () => {
-            dispatchFocusedWindowAppEvent('openLauncher')
+            dispatchFocusedWindowAppEvent('open_launcher')
           },
         },
         {type: 'separator'},
@@ -35,7 +35,7 @@ export function createAppMenu() {
           label: 'Trigger Sync with Peers',
           accelerator: 'CmdOrCtrl+Option+r',
           click: () => {
-            dispatchFocusedWindowAppEvent('triggerPeerSync')
+            dispatchFocusedWindowAppEvent('trigger_peer_sync')
           },
         },
         {

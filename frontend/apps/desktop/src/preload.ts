@@ -193,6 +193,9 @@ contextBridge.exposeInMainWorld('autoUpdate', {
   setUpdateStatus: (status: UpdateStatus) => {
     ipcRenderer.send('auto-update:set-status', status)
   },
+  checkForUpdates: () => {
+    ipcRenderer.send('auto-update:check-for-updates')
+  },
   downloadAndInstall: () => {
     ipcRenderer.send('auto-update:download-and-install')
   },

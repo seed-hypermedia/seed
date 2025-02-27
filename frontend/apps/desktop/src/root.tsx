@@ -199,7 +199,7 @@ function MainApp({}: {}) {
   const windowUtils = useWindowUtils(ipc)
   const utils = trpc.useContext()
 
-  useListenAppEvent('triggerPeerSync', () => {
+  useListenAppEvent('trigger_peer_sync', () => {
     grpcClient.daemon
       .forceSync({})
       .then(() => {

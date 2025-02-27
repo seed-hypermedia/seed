@@ -14,14 +14,13 @@ import {updateElectronApp, UpdateSourceType} from 'update-electron-app'
 
 export function defaultCheckForUpdates() {
   log.debug('[MAIN][AUTO-UPDATE]: checking for Updates')
-  // ipcMain.emit(ipcMainEvents.CHECK_FOR_UPDATES_START)
+
   try {
     defaultAutoUpdater.checkForUpdates()
   } catch (error) {
     log.error(`[MAIN][AUTO-UPDATE]: error checking for updates: ${error}`)
   }
 
-  // ipcMain.emit(ipcMainEvents.CHECK_FOR_UPDATES_END)
   log.debug('[MAIN][AUTO-UPDATE]: checking for Updates END')
 }
 
@@ -49,21 +48,16 @@ export default function autoUpdate() {
   }
 
   // Listen for when the window is ready
-  app.on('browser-window-created', (_, window) => {
-    window.once('ready-to-show', () => {
-      log.debug('[AUTO-UPDATE]: Window is ready')
-      // Initial check after window is ready
-      setTimeout(() => {
-        log.debug('[AUTO-UPDATE]: TIMEOUT 2000')
-        checkForUpdates()
-      }, 2000)
 
-      if (process.platform === 'win32') {
-        // Set up periodic checks
-        setInterval(checkForUpdates, 600_000) // every 10 mins
-      }
-    })
-  })
+  setTimeout(() => {
+    log.debug('[AUTO-UPDATE]: TIMEOUT 5000')
+    checkForUpdates()
+  }, 5000)
+
+  if (process.platform === 'win32') {
+    // Set up periodic checks
+    setInterval(checkForUpdates, 600_000) // every 10 mins
+  }
 }
 
 // ======================================
@@ -132,27 +126,16 @@ function setup() {
     },
   )
 
-  defaultAutoUpdater.on('update-not-available', (event: any) => {
-    log.debug('[MAIN][AUTO-UPDATE]: update not available', event)
+  defaultAutoUpdater.on('update-not-available', () => {
+    log.debug('[AUTO-UPDATE]: update not available')
   })
 }
 
 export function customAutoUpdates() {
-  log.info(
-    `[AUTO-UPDATE]: checking for Updates START: ${BrowserWindow.getFocusedWindow()
-      ?.id}`,
-  )
-
   // if (!isAutoUpdateSupported()) {
   //   log.debug('[AUTO-UPDATE]: Auto-Update is not supported')
   //   return
   // }
-
-  const JSONUrl = IS_PROD_DEV
-    ? 'https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest.json'
-    : 'https://seedreleases.s3.eu-west-2.amazonaws.com/prod/latest.json'
-
-  const updater = new AutoUpdater(JSONUrl)
 
   updater.startAutoCheck()
   log.info(`[AUTO-UPDATE] Starting auto-check on ${JSONUrl}`)
@@ -202,6 +185,11 @@ export class AutoUpdater {
       if (this.currentUpdateInfo) {
         this.showReleaseNotes()
       }
+    })
+
+    ipcMain.on('auto-update:check-for-updates', () => {
+      log.info('[AUTO-UPDATE] Received check for updates request')
+      this.checkForUpdates()
     })
 
     console.log(`[AUTO-UPDATE] AutoUpdater constructor call FINISH`)
@@ -406,6 +394,13 @@ export class AutoUpdater {
               const volumePath = '/Volumes/Seed'
               const appName = IS_PROD_DEV ? 'SeedDev.app' : 'Seed.app'
               const tempPath = path.join(app.getPath('temp'), 'SeedUpdate')
+
+              log.info(`[AUTO-UPDATE] Variables for macOS update:`)
+              log.info(`[AUTO-UPDATE] - volumePath: ${volumePath}`)
+              log.info(`[AUTO-UPDATE] - appName: ${appName}`)
+              log.info(`[AUTO-UPDATE] - tempPath: ${tempPath}`)
+              log.info(`[AUTO-UPDATE] - IS_PROD_DEV: ${IS_PROD_DEV}`)
+
               try {
                 // Ensure temp directory exists
                 log.info(
@@ -435,11 +430,15 @@ export class AutoUpdater {
                   # Remove existing app
                   rm -rf "/Applications/${appName}"
                   
-                  # Copy new app
-                  cp -R "${tempPath}/${appName}" "/Applications/"
+                  # Copy new app from mounted DMG to Applications
+                  cp -R "${volumePath}/${appName}" "/Applications/"
+
+                  # Unmount the DMG
+                  hdiutil detach "${volumePath}" || true
 
                   # Clean up
                   rm -rf "${tempPath}"
+                  rm -f "${filePath}"
 
                   # Open the new app
                   open "/Applications/${appName}"
@@ -484,7 +483,18 @@ export class AutoUpdater {
 
                 // Create temp directory for the update script
                 const tempPath = path.join(app.getPath('temp'), 'SeedUpdate')
-                await fs.mkdir(tempPath, {recursive: true})
+
+                log.info(`[AUTO-UPDATE] Variables for Linux update:`)
+                log.info(
+                  `[AUTO-UPDATE] - Package type: ${isRpm ? 'RPM' : 'DEB'}`,
+                )
+                log.info(`[AUTO-UPDATE] - Package name: ${packageName}`)
+                log.info(`[AUTO-UPDATE] - Remove command: ${removeCmd}`)
+                log.info(`[AUTO-UPDATE] - Install command: ${installCmd}`)
+                log.info(`[AUTO-UPDATE] - App name: ${appName}`)
+                log.info(`[AUTO-UPDATE] - Temp path: ${tempPath}`)
+                log.info(`[AUTO-UPDATE] - IS_PROD_DEV: ${IS_PROD_DEV}`)
+                log.info(`[AUTO-UPDATE] - File path: ${filePath}`)
 
                 // Create update script
                 const scriptPath = path.join(tempPath, 'update.sh')
@@ -493,19 +503,36 @@ export class AutoUpdater {
                 )
 
                 const scriptContent = `#!/bin/bash
-                  sleep 2
+                  set -e  # Exit on any error
+                  
+                  echo "[UPDATE] Starting update process..."
+                  
                   # Remove existing package
-                  pkexec ${removeCmd} ${packageName}
+                  if pkexec ${removeCmd} ${packageName}; then
+                    echo "[UPDATE] Successfully removed old package"
+                  else
+                    echo "[UPDATE] Failed to remove old package, but continuing..."
+                  fi
                   
                   # Install new package
-                  pkexec ${installCmd} "${filePath}"
+                  if ! pkexec ${installCmd} "${filePath}"; then
+                    echo "[UPDATE] Failed to install new package"
+                    exit 1
+                  fi
+                  echo "[UPDATE] Successfully installed new package"
+                  
+                  # Wait a moment for the installation to settle
+                  sleep 3
                   
                   # Clean up
                   rm -rf "${tempPath}"
                   rm -f "${filePath}"
+                  echo "[UPDATE] Cleanup completed"
                   
                   # Start the new version
-                  ${appName}
+                  # Use nohup to ensure it runs even after this script exits
+                  echo "[UPDATE] Starting new version..."
+                  ( sleep 2; nohup ${appName} > /dev/null 2>&1 & )
                 `
 
                 try {
@@ -567,3 +594,9 @@ export class AutoUpdater {
     }
   }
 }
+
+const JSONUrl = IS_PROD_DEV
+  ? 'https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest.json'
+  : 'https://seedreleases.s3.eu-west-2.amazonaws.com/prod/latest.json'
+
+const updater = new AutoUpdater(JSONUrl)

@@ -8,6 +8,7 @@ import {useEffect} from 'react'
 declare global {
   interface Window {
     autoUpdate?: {
+      checkForUpdates: () => void
       onUpdateStatus: (handler: (status: UpdateStatus) => void) => void
       setUpdateStatus: (status: UpdateStatus) => void
       downloadAndInstall: () => void

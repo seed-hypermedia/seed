@@ -4,8 +4,8 @@ import {useIPC} from '../app-context'
 export type AppWindowSimpleEvent =
   | 'back'
   | 'forward'
-  | 'triggerPeerSync'
-  | 'openLauncher'
+  | 'trigger_peer_sync'
+  | 'open_launcher'
   | 'find_in_page'
   | 'discover'
 

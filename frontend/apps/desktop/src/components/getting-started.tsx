@@ -50,7 +50,7 @@ export function GettingStarted() {
         borderColor="$brand10"
         hoverStyle={{bg: '$brand12', borderColor: '$brand11'}}
         icon={Search}
-        onPress={() => openLauncher('openLauncher')}
+        onPress={() => openLauncher('open_launcher')}
       >
         Open Document
       </Button>

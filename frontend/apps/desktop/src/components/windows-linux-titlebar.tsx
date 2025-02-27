@@ -115,14 +115,19 @@ export function SystemMenu() {
             id: 'quickswitcher',
             title: 'Search / Open',
             accelerator: 'Ctrl+K',
-            onSelect: () => triggerFocusedWindow('openLauncher'),
+            onSelect: () => triggerFocusedWindow('open_launcher'),
             icon: Search,
           },
           {
             id: 'forcesync',
             title: 'Trigger sync with Peers',
             accelerator: 'Opt+Ctrl+R',
-            onSelect: () => triggerFocusedWindow('triggerPeerSync'),
+            onSelect: () => triggerFocusedWindow('trigger_peer_sync'),
+          },
+          {
+            id: 'app-update',
+            title: 'Check for Updates',
+            onSelect: () => window.autoUpdate?.checkForUpdates(),
           },
           {
             id: 'hide',

@@ -82,9 +82,7 @@ export default function Settings() {
       borderColor="$backgroundStrong"
     >
       <Tabs.List
-        className="window-drag"
         aria-label="Manage your account"
-        separator={<Separator vertical />}
         alignItems="center"
         justifyContent="center"
         flexShrink={0}
