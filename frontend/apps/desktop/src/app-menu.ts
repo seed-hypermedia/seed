@@ -57,20 +57,11 @@ export function createAppMenu() {
   appMenu.append(
     new MenuItem({
       role: 'fileMenu',
+      label: 'File',
       submenu: [
-        // {
-        //   label: 'New Document',
-        //   accelerator: 'CmdOrCtrl+n',
-        //   click: () => {
-        //     trpc.createAppWindow({
-        //       routes: [defaultRoute],
-        //       sidebarLocked: false,
-        //     })
-        //   },
-        // },
         {
           label: 'New Window',
-          accelerator: 'CmdOrCtrl+n',
+          accelerator: 'CmdOrCtrl+N',
           click: () => {
             trpc.createAppWindow({routes: [defaultRoute]})
           },

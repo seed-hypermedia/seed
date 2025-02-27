@@ -101,6 +101,7 @@ export function openInitialWindows() {
   const windowsState = getWindowsState()
   const validWindowEntries = Object.entries(windowsState).filter(
     ([windowId, window]) => {
+      if (!window || !Array.isArray(window.routes)) return false
       if (window.routes.length === 0) return false
       return window.routes.every((route) => {
         return navRouteSchema.safeParse(route).success
@@ -121,7 +122,8 @@ export function openInitialWindows() {
         id: windowId,
       })
     })
-  } catch (e) {
+  } catch (error: unknown) {
+    const e = error as Error
     log.error(`[MAIN]: openInitialWindows Error: ${e.message}`)
     trpc.createAppWindow({routes: [defaultRoute]})
     return
@@ -188,9 +190,10 @@ export const router = t.router({
           const discoverOutput = await res.json()
           if (res.status !== 200) throw new Error(discoverOutput.message)
           return discoverOutput
-        } catch (e) {
-          log.error('error discovering', e)
-          throw e
+        } catch (error: unknown) {
+          const e = error as Error
+          log.error('error discovering', {error: e.message})
+          throw error
         }
       }),
   }),
@@ -231,8 +234,17 @@ export const router = t.router({
       const destRouteKey = getRouteRefocusKey(destRoute)
       const matchedWindow = Object.entries(allWindows).find(
         ([windowId, window]) => {
-          const {routes, routeIndex} = window
-          const activeRoute = routes[routeIndex]
+          if (
+            !window ||
+            !Array.isArray(window.routes) ||
+            typeof window.routeIndex !== 'number'
+          ) {
+            return false
+          }
+          const activeRoute = window.routes[window.routeIndex]
+          if (!activeRoute) {
+            return false
+          }
           const activeRouteKey = getRouteRefocusKey(activeRoute)
           return activeRouteKey && activeRouteKey === destRouteKey
         },
@@ -246,6 +258,8 @@ export const router = t.router({
         }
       }
       const browserWindow = createAppWindow(input)
+
+      log.info(`== ~ .mutation ~ browserWindow: {browserWindow.id}`)
       trpcHandlers.attachWindow(browserWindow)
       browserWindow.on('close', () => {
         trpcHandlers.detachWindow(browserWindow)
@@ -328,7 +342,8 @@ export const router = t.router({
     try {
       const daemonVersionReq = await fetch(buildInfoUrl)
       daemonVersion = await daemonVersionReq.text()
-    } catch (e) {
+    } catch (error: unknown) {
+      const e = error as Error
       errors.push(
         `Failed to fetch daemon info from ${buildInfoUrl} url. "${e.message}"`,
       )
