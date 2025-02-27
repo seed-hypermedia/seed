@@ -96,6 +96,7 @@ def main():
     def build_desktop(args):
         run("node scripts/cleanup-desktop.js")
         run("./scripts/cleanup-frontend.sh")
+        run("yarn install")
         run("plz build //backend:seed-daemon //:yarn")
 
         testnet_var = "SEED_P2P_TESTNET_NAME"
