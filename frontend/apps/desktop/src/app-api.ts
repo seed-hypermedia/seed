@@ -1,5 +1,4 @@
 import {resolveHmIdToAppRoute} from '@/utils/navigation'
-import type {AppWindowEvent} from '@/utils/window-events'
 
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 
@@ -37,15 +36,18 @@ import {sitesApi} from './app-sites'
 import {t} from './app-trpc'
 import {extractMetaTags, uploadFile, webImportingApi} from './app-web-importing'
 import {welcomingApi} from './app-welcoming'
+import * as log from './logger'
 import {
   closeAppWindow,
   createAppWindow,
+  dispatchFocusedWindowAppEvent,
   ensureFocusedWindowVisible,
   getAllWindows,
   getFocusedWindow,
   getWindowsState,
-} from './app-windows'
-import * as log from './logger'
+} from './window-manager'
+
+export {dispatchFocusedWindowAppEvent} from './window-manager'
 
 ipcMain.on('invalidate_queries', (_event, info) => {
   appInvalidateQueries(info)
@@ -131,13 +133,6 @@ export function openInitialWindows() {
     log.error(`[MAIN]: openInitialWindows Error: ${e.message}`)
     trpc.createAppWindow({routes: [defaultRoute]})
     return
-  }
-}
-
-export function dispatchFocusedWindowAppEvent(event: AppWindowEvent) {
-  const focusedWindow = getFocusedWindow()
-  if (focusedWindow) {
-    focusedWindow.webContents.send('appWindowEvent', event)
   }
 }
 
@@ -266,13 +261,35 @@ export const router = t.router({
           return
         }
       }
-      const browserWindow = createAppWindow(input)
+      try {
+        log.info(`[MAIN]: will createAppWindow ${JSON.stringify(input.routes)}`)
+        const allWindows = getWindowsState()
+        log.info(`[MAIN]: current windows state: ${JSON.stringify(allWindows)}`)
 
-      log.info(`== ~ .mutation ~ browserWindow: {browserWindow.id}`)
-      trpcHandlers.attachWindow(browserWindow)
-      browserWindow.on('close', () => {
-        trpcHandlers.detachWindow(browserWindow)
-      })
+        // Create a new window with a unique ID
+        const browserWindow = createAppWindow({
+          ...input,
+          id:
+            input.id ||
+            `window.${Date.now()}.${Math.random().toString(36).slice(2)}`,
+        })
+        log.info(`[MAIN]: window created with id: ${browserWindow.id}`)
+
+        trpcHandlers.attachWindow(browserWindow)
+        browserWindow.on('close', () => {
+          trpcHandlers.detachWindow(browserWindow)
+        })
+
+        // Return success
+        return {success: true, windowId: browserWindow.id}
+      } catch (error) {
+        log.error(
+          `[MAIN]: Error creating window: ${
+            error instanceof Error ? error.message : 'Unknown error'
+          }`,
+        )
+        throw error
+      }
     }),
 
   webQuery: t.procedure

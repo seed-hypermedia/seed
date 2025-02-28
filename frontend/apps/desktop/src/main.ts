@@ -48,12 +48,12 @@ import {appInvalidateQueries} from './app-invalidation'
 import {createAppMenu} from './app-menu'
 import {startMetricsServer} from './app-metrics'
 import {initPaths} from './app-paths'
-import {getFocusedWindow} from './app-windows'
 import autoUpdate from './auto-update'
 import {startMainDaemon} from './daemon'
 import * as logger from './logger'
 import {saveCidAsFile} from './save-cid-as-file'
 import {saveMarkdownFile} from './save-markdown-file'
+import {getFocusedWindow} from './window-manager'
 
 import {
   BIG_INT,
