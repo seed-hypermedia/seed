@@ -1,10 +1,10 @@
-name: Dev Docker Images
+name: Dev - Docker Images
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - "main"
+      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
