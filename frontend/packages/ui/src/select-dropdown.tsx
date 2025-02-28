@@ -33,6 +33,7 @@ export function SelectDropdown<Options extends SelectOptions>({
   width = 140,
 }: SelectDropdownProps<Options>) {
   const selectedOption = options.find((option) => option.value === value)
+
   return (
     <Select
       value={value}
@@ -73,7 +74,7 @@ export function SelectDropdown<Options extends SelectOptions>({
         </XStack>
       </Select.Trigger>
 
-      <Select.Content zIndex="$zIndex.9">
+      <Select.Content>
         <Select.ScrollUpButton
           alignItems="center"
           justifyContent="center"
