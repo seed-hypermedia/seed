@@ -1,6 +1,6 @@
 import {IS_PROD_DESKTOP, SKIP_ONBOARDING} from '@shm/shared/constants'
 
-export type OnboardingStep = 'welcome' | 'profile'
+export type OnboardingStep = 'welcome' | 'profile' | 'recovery' | 'ready'
 
 export interface OnboardingFormData {
   name: string

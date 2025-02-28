@@ -2,14 +2,18 @@ import {grpcClient} from '@/grpc-client'
 import {useMnemonics, useRegisterKey} from '@/models/daemon'
 import {trpc} from '@/trpc'
 import {fileUpload} from '@/utils/file-upload'
+import {useOpenUrl} from '@shm/shared'
 import {DocumentChange} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {toast} from '@shm/ui/toast'
+import {Copy, ExternalLink, Eye, EyeOff} from '@tamagui/lucide-icons'
+import copyTextToClipboard from 'copy-text-to-clipboard'
 import {nanoid} from 'nanoid'
 import React, {useCallback, useEffect, useState} from 'react'
-import {Button, Form, Input, Text, XStack, YStack} from 'tamagui'
+import {Button, Form, Input, Text, TextArea, XStack, YStack} from 'tamagui'
 import {
   OnboardingState,
   OnboardingStep,
@@ -36,7 +40,12 @@ const WelcomeStep = ({onNext}: {onNext: () => void}) => {
       alignItems="center"
       justifyContent="center"
     >
-      <Text fontSize="$8" fontWeight="bold" textAlign="center">
+      <Text
+        fontSize="$8"
+        fontWeight="bold"
+        textAlign="center"
+        className="no-window-drag"
+      >
         WELCOME TO THE OPEN WEB
       </Text>
 
@@ -45,6 +54,120 @@ const WelcomeStep = ({onNext}: {onNext: () => void}) => {
           NEXT
         </Button>
       </XStack>
+    </YStack>
+  )
+}
+
+const RecoveryStep = ({onNext}: {onNext: () => void}) => {
+  const [showWords, setShowWords] = useState(false)
+  const mnemonics = useMnemonics()
+
+  return (
+    <YStack
+      className="window-drag"
+      flex={1}
+      padding="$4"
+      space="$4"
+      alignItems="center"
+      justifyContent="center"
+    >
+      <Text
+        fontSize="$8"
+        fontWeight="bold"
+        textAlign="center"
+        className="no-window-drag"
+      >
+        SAVE YOUR ACCOUNT
+      </Text>
+      <Text
+        fontSize="$6"
+        textAlign="center"
+        color="$gray11"
+        className="no-window-drag"
+      >
+        Save these secret words somewhere safe. You'll need them to recover your
+        account if you lose access.
+      </Text>
+
+      <YStack space="$4" width="100%" maxWidth={500} className="no-window-drag">
+        <XStack gap="$3">
+          <TextArea
+            flex={1}
+            disabled
+            value={
+              showWords
+                ? Array.isArray(mnemonics.data)
+                  ? mnemonics.data.join(', ')
+                  : mnemonics.data
+                : '**** **** **** **** **** **** **** **** **** **** **** ****'
+            }
+          />
+          <YStack gap="$2">
+            <Button
+              size="$2"
+              icon={showWords ? EyeOff : Eye}
+              onPress={() => setShowWords((v) => !v)}
+            />
+            <Button
+              size="$2"
+              icon={Copy}
+              onPress={() => {
+                if (mnemonics.data) {
+                  copyTextToClipboard(
+                    Array.isArray(mnemonics.data)
+                      ? mnemonics.data.join(', ')
+                      : mnemonics.data,
+                  )
+                  toast.success('Words copied to clipboard')
+                }
+              }}
+            />
+          </YStack>
+        </XStack>
+
+        <XStack marginTop="$4" space="$4" justifyContent="center">
+          <Button onPress={onNext} backgroundColor="$blue10">
+            I SAVED MY WORDS
+          </Button>
+        </XStack>
+      </YStack>
+    </YStack>
+  )
+}
+
+const ReadyStep = ({onComplete}: {onComplete: () => void}) => {
+  const openUrl = useOpenUrl()
+
+  return (
+    <YStack
+      className="window-drag"
+      flex={1}
+      padding="$4"
+      space="$4"
+      alignItems="center"
+      justifyContent="center"
+    >
+      <Text
+        fontSize="$8"
+        fontWeight="bold"
+        textAlign="center"
+        className="no-window-drag"
+      >
+        READY TO GO
+      </Text>
+
+      <YStack marginTop="$8" space="$4" className="no-window-drag">
+        <Button
+          onPress={() => openUrl('https://discord.gg/seed')}
+          backgroundColor="$purple10"
+          icon={ExternalLink}
+        >
+          JOIN DISCORD
+        </Button>
+        <Button onPress={onComplete} backgroundColor="$blue10">
+          DONE
+        </Button>
+      </YStack>
     </YStack>
   )
 }
@@ -399,11 +522,17 @@ export const Onboarding: React.FC<OnboardingProps> = ({onComplete}) => {
 
     if (currentStep === 'welcome') {
       console.log('Moving from welcome to profile')
-      // Update store first
       setOnboardingStep('profile')
-      // Force immediate state update
       setCurrentStep('profile')
     } else if (currentStep === 'profile') {
+      console.log('Moving from profile to recovery')
+      setOnboardingStep('recovery')
+      setCurrentStep('recovery')
+    } else if (currentStep === 'recovery') {
+      console.log('Moving from recovery to ready')
+      setOnboardingStep('ready')
+      setCurrentStep('ready')
+    } else if (currentStep === 'ready') {
       console.log('Completing onboarding')
       setHasCompletedOnboarding(true)
       resetOnboardingState()
@@ -422,6 +551,8 @@ export const Onboarding: React.FC<OnboardingProps> = ({onComplete}) => {
       {currentStep === 'profile' && (
         <ProfileStep onSkip={handleSkip} onNext={handleNext} />
       )}
+      {currentStep === 'recovery' && <RecoveryStep onNext={handleNext} />}
+      {currentStep === 'ready' && <ReadyStep onComplete={handleNext} />}
     </YStack>
   )
 }
