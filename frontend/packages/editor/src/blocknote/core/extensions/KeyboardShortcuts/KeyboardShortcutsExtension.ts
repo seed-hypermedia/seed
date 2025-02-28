@@ -362,8 +362,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
         // Deletes the selection if it's not empty.
         () => commands.deleteSelection(),
         // Merges block with the next one (at the same nesting level or lower),
-        // if one exists, the block has no children, and the selection is at the
-        // end of the block.
+        // if one exists and the selection is at the end of the block.
         () =>
           commands.command(({state, dispatch}) => {
             const blockInfo = getBlockInfoFromSelection(state)
@@ -412,37 +411,39 @@ export const KeyboardShortcutsExtension = Extension.create<{
                       blockInfo.block.beforePos + 2,
                     )
 
-                    // Get resolved positions of the current block and first child after the lift.
-                    const afterStepPos = tr.doc.resolve(
-                      blockInfo.block.beforePos + 3,
+                    // Get block info of the first child after the lift.
+                    const afterStepBlockInfo = getBlockInfoFromPos(
+                      state,
+                      $contentPos.end() + 4,
                     )
-                    const afterStepNextPos = tr.doc.resolve(
-                      afterStepPos.end() + 3,
+
+                    const mergedBlock = state.schema.nodes['paragraph'].create(
+                      blockInfo.blockContent.node.attrs,
+                      [
+                        ...blockInfo.blockContent.node.content.content,
+                        ...childContainer.node.firstChild!.firstChild!.content
+                          .content,
+                      ],
                     )
 
                     // Replace the block's content with new merged content.
                     tr.replaceRangeWith(
                       $contentPos.start() - 1,
                       $contentPos.end() + 1,
-                      state.schema.nodes['paragraph'].create(
-                        blockInfo.blockContent.node.attrs,
-                        [
-                          ...blockInfo.blockContent.node.content.content,
-                          ...childContainer.node.firstChild!.firstChild!.content
-                            .content,
-                        ],
-                      ),
+                      mergedBlock,
                     )
 
                     // Delete the first child of the block.
                     tr.delete(
-                      afterStepNextPos.start() - 1,
-                      afterStepNextPos.end() + 1,
+                      afterStepBlockInfo.blockContent.beforePos - 1,
+                      afterStepBlockInfo.blockContent.afterPos + 1,
                     )
 
                     // Set cursor in between of the end of block's and first child's text contents.
                     tr.setSelection(
-                      new TextSelection(tr.doc.resolve(afterStepPos.end())),
+                      new TextSelection(
+                        tr.doc.resolve(afterStepBlockInfo.block.beforePos - 2),
+                      ),
                     )
 
                     return true
@@ -452,10 +453,10 @@ export const KeyboardShortcutsExtension = Extension.create<{
                   // Note: This is a hacky fix, because when merging with first child, for
                   // some reason it doesn't work with precise positions, so it needs to go into
                   // the next block for 1 position, which removes the first character of the first child.
-                  // tr.insertText(
-                  //   blockInfo.childContainer!.node.firstChild!.textContent[0],
-                  //   tr.doc.resolve(blockInfo.block.beforePos + 2).end(),
-                  // )
+                  tr.insertText(
+                    blockInfo.childContainer!.node.firstChild!.textContent[0],
+                    tr.doc.resolve(blockInfo.block.beforePos + 2).end(),
+                  )
 
                   // Get position of the current block and first child after the lift.
                   const afterStepPos = tr.doc.resolve(
@@ -466,7 +467,12 @@ export const KeyboardShortcutsExtension = Extension.create<{
                   )
 
                   // Delete the boundary between the block and first child.
-                  tr.delete(afterStepPos.end(), afterStepNextPos.start() + 1)
+                  tr.delete(
+                    afterStepNextPos.parent.textContent // If the next block is empty, it will delete a first character of current block if 1 is subtracted from it...
+                      ? afterStepPos.end() - 1
+                      : afterStepPos.end(),
+                    afterStepNextPos.start() + 1,
+                  )
 
                   return true
                 }

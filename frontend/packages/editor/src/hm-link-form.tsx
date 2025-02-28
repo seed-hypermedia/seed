@@ -5,6 +5,7 @@ import {Link as LinkIcon, Search} from '@tamagui/lucide-icons'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {Input, SizableText, SizeTokens, XStack, YStack} from 'tamagui'
+import {TextCursorInput} from '../../ui/src/icons'
 import './hm-link-form.css'
 
 export type HypermediaLinkFormProps = {
