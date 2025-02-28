@@ -113,11 +113,13 @@ export function RepliesEditor({
   replyCommentId,
   docId,
   onDiscardDraft,
+  onReplied,
 }: {
   isReplying: boolean
   docId: UnpackedHypermediaId
   replyCommentId: string
   onDiscardDraft: () => void
+  onReplied: () => void
 }) {
   const myAccountsQuery = useMyAccounts()
   const accounts = myAccountsQuery.map((query) => query.data).filter((a) => !!a)
@@ -140,6 +142,7 @@ export function RepliesEditor({
         autoFocus={isReplying}
         initCommentDraft={draft.data}
         onDiscardDraft={onDiscardDraft}
+        onReplied={onReplied}
       />
     </XStack>
   )
@@ -222,6 +225,7 @@ function _CommentDraftEditor({
   autoFocus,
   replyCommentId,
   initCommentDraft,
+  onReplied,
 }: {
   docId: UnpackedHypermediaId
   accounts: HMEntityContent[]
@@ -229,12 +233,14 @@ function _CommentDraftEditor({
   autoFocus?: boolean
   replyCommentId?: string
   initCommentDraft?: HMCommentDraft | null | undefined
+  onReplied?: () => void
 }) {
   const {editor, onSubmit, onDiscard, isSaved, account, onSetAccount} =
     useCommentEditor(docId, accounts, {
       onDiscardDraft,
       replyCommentId,
       initCommentDraft,
+      onReplied,
     })
   const openUrl = useOpenUrl()
   useEffect(() => {

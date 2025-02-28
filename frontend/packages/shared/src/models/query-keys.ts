@@ -41,7 +41,7 @@ export const queryKeys = {
   DRAFT: 'DRAFT', // , id: string
   LIST_ROOT_DOCUMENTS: 'LIST_ROOT_DOCUMENTS', //
 
-  ENTITY: 'ENTITY',
+  ENTITY: 'ENTITY', // , id.id: string, version: string
   ENTITY_CHANGES: 'ENTITY_CHANGES',
 
   CAPABILITIES: 'CAPABILITIES', //, id.uid: string, ...id.path

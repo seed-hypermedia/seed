@@ -742,6 +742,7 @@ export type WebCommentingProps = {
   replyCommentId: string | null
   rootReplyCommentId: string | null
   onDiscardDraft?: () => void
+  onReplied?: () => void
 }
 
 export default function WebCommenting({
@@ -749,6 +750,7 @@ export default function WebCommenting({
   replyCommentId,
   rootReplyCommentId,
   onDiscardDraft,
+  onReplied,
 }: WebCommentingProps) {
   const userKeyPair = useKeyPair()
   const queryClient = useQueryClient()
@@ -772,11 +774,12 @@ export default function WebCommenting({
       const result = await postCBOR('/hm/api/comment', cborEncode(comment))
     },
     onSuccess: (data) => {
+      onReplied?.()
       queryClient.invalidateQueries({
         queryKey: [queryKeys.DOCUMENT_ACTIVITY, docId.id],
       })
       queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_COMMENTS, docId.id],
+        queryKey: [queryKeys.DOCUMENT_DISCUSSION, docId.id],
       })
     },
   })
@@ -1062,7 +1065,8 @@ function EditProfileDialog({
   onClose: () => void
   input: {accountUid: string}
 }) {
-  const account = useEntity(hmId('d', input.accountUid))
+  const id = hmId('d', input.accountUid)
+  const account = useEntity(id)
   const queryClient = useQueryClient()
   const document = account.data?.document
   const update = useMutation({
@@ -1076,11 +1080,15 @@ function EditProfileDialog({
       return updateProfile({keyPair, document, updates})
     },
     onSuccess: () => {
+      // invalidate the activity and discussion for all documents because they may be affected by the profile change
       queryClient.invalidateQueries({
         queryKey: [queryKeys.DOCUMENT_ACTIVITY],
       })
       queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_COMMENTS],
+        queryKey: [queryKeys.DOCUMENT_DISCUSSION],
+      })
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.ENTITY, id.id],
       })
     },
   })
