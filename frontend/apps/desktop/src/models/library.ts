@@ -13,7 +13,10 @@ import {
   HMMetadataPayload,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useEntities} from '@shm/shared/models/entity'
+import {
+  documentMetadataParseAdjustments,
+  useEntities,
+} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useSearch} from '@shm/shared/models/search'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
@@ -212,6 +215,9 @@ export function useSiteLibrary(siteUid: string, enabled: boolean) {
       const res = await grpcClient.documents.listDocuments({
         account: siteUid,
         pageSize: BIG_INT,
+      })
+      res.documents?.forEach((d) => {
+        documentMetadataParseAdjustments(d.metadata)
       })
       return {
         documents: res.documents.map((d) => {

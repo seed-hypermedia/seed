@@ -32,6 +32,7 @@ import {
   HMDocumentSchema,
   HMDraft,
   HMEntityContent,
+  HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {getQueryResultsWithClient} from '@shm/shared/models/directory'
