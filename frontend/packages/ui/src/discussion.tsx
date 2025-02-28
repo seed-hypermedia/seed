@@ -47,11 +47,13 @@ export function CommentGroup({
   rootReplyCommentId: string | null
   renderCommentContent: (comment: HMComment) => ReactNode
   RepliesEditor?: React.FC<{
+    enableReplies?: boolean
     isReplying: boolean
     docId: UnpackedHypermediaId
     replyCommentId: string
     rootReplyCommentId: string
     onDiscardDraft: () => void
+    onReplied: () => void
   }>
   CommentReplies: React.FC<{
     docId: UnpackedHypermediaId
@@ -139,6 +141,7 @@ function Comment({
     replyCommentId: string
     rootReplyCommentId: string
     onDiscardDraft: () => void
+    onReplied: () => void
   }>
   CommentReplies: React.FC<{
     docId: UnpackedHypermediaId
@@ -146,6 +149,7 @@ function Comment({
     rootReplyCommentId: string
     homeId?: UnpackedHypermediaId
     siteHost?: string
+    enableReplies?: boolean
   }>
   siteHost?: string
   enableReplies?: boolean
@@ -312,6 +316,12 @@ function Comment({
           replyCommentId={comment.id}
           rootReplyCommentId={rootReplyCommentId || comment.id}
           onDiscardDraft={() => setIsReplying(false)}
+          onReplied={() => {
+            // we want to show the replies if it was collapsed, because the new one should be visible
+            if (replyCount === undefined || replyCount > 0) {
+              setShowReplies(true)
+            }
+          }}
         />
       ) : null}
       {showReplies ? (
@@ -321,6 +331,7 @@ function Comment({
           rootReplyCommentId={rootReplyCommentId || comment.id}
           homeId={homeId}
           siteHost={siteHost}
+          enableReplies={enableReplies}
         />
       ) : null}
     </YStack>

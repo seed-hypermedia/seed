@@ -523,7 +523,7 @@ function DocumentActivity({
   originHomeId: UnpackedHypermediaId
   document: HMDocument
   siteHost: string | undefined
-  enableReplies: boolean
+  enableReplies: boolean | undefined
 }) {
   const activity = useActivity(id)
   const renderCommentContent = useCallback(
@@ -637,15 +637,8 @@ function CommentReplies({
   enableReplies?: boolean
 }) {
   const discussion = useDiscussion(docId, replyCommentId)
-  console.log('CommentReplies', {
-    replyCommentId,
-    rootReplyCommentId,
-    docId,
-    discussion: discussion.data,
-  })
   const renderCommentContent = useCallback(
     (comment: HMComment) => {
-      console.log('comment content', comment)
       return (
         homeId && (
           <WebDocContentProvider
@@ -684,7 +677,7 @@ function CommentReplies({
             homeId={homeId}
             siteHost={siteHost}
             enableReplies={enableReplies}
-            CommentRepliesEditor={enableReplies ? CommentRepliesEditor : null}
+            RepliesEditor={enableReplies ? CommentRepliesEditor : undefined}
             rootReplyCommentId={rootReplyCommentId}
           />
         )
@@ -699,12 +692,14 @@ function CommentRepliesEditor({
   replyCommentId,
   rootReplyCommentId,
   onDiscardDraft,
+  onReplied,
 }: {
   isReplying: boolean
   docId: UnpackedHypermediaId
   replyCommentId: string
   rootReplyCommentId: string
   onDiscardDraft: () => void
+  onReplied: () => void
 }) {
   if (!isReplying) return null
   return (
@@ -713,6 +708,7 @@ function CommentRepliesEditor({
       replyCommentId={replyCommentId}
       rootReplyCommentId={rootReplyCommentId}
       onDiscardDraft={onDiscardDraft}
+      onReplied={onReplied}
     />
   )
 }

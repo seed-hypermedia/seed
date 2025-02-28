@@ -158,10 +158,12 @@ export function useCommentEditor(
     onDiscardDraft,
     replyCommentId,
     initCommentDraft,
+    onReplied,
   }: {
     initCommentDraft?: HMCommentDraft | null | undefined
     onDiscardDraft?: () => void
     replyCommentId?: string
+    onReplied?: () => void
   } = {},
 ) {
   const targetEntity = useEntity(targetDocId)
@@ -377,6 +379,7 @@ export function useCommentEditor(
       pushComments.mutate({
         targetDocId,
       })
+      onReplied?.()
     },
     onError: (err: {message: string}) => {
       toast.error(`Failed to create comment: ${err.message}`)
