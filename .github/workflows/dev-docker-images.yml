@@ -1,4 +1,4 @@
-name: Update Docker Images
+name: Dev Docker Images
 
 on:
   workflow_dispatch:
