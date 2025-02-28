@@ -1,3 +1,4 @@
+import {grpcClient} from '@/grpc-client'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
@@ -29,7 +30,6 @@ import {
   XStack,
   YStack,
 } from 'tamagui'
-import {useGRPCClient} from '../app-context'
 import {
   NamedKey,
   useMnemonics,
@@ -68,7 +68,6 @@ export function AccountWizardDialog() {
   const inputWords = useRef<TextInput | null>(null)
 
   const saveWords = trpc.secureStorage.write.useMutation()
-  const grpcClient = useGRPCClient()
 
   const {data: genWords, refetch: refetchWords} = useMnemonics()
 
@@ -142,7 +141,6 @@ export function AccountWizardDialog() {
   }
 
   async function handleDocEdit() {
-    // TODO: horacio create home document with name and icon data
     if (!name) {
       toast.error('Name is required. Please add one')
     } else {
