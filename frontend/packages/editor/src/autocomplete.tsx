@@ -558,7 +558,14 @@ const SuggestionItem = React.memo(function SuggestionItem(props: {
       onMouseEnter={props.onMouseEnter}
       // icon={<Avatar size={18} url={props.embedRef?.profile?.avatar} />} avatars make everything slooow
     >
-      <SizableText size="$2" p={0} fontWeight="400" f={1} color="$color">
+      <SizableText
+        size="$2"
+        p={0}
+        fontWeight="400"
+        f={1}
+        color="$color"
+        textAlign="left"
+      >
         {props.title}
       </SizableText>
       <SizableText p={0} size="$1" color="$color">
