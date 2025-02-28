@@ -17,6 +17,7 @@ import {
 } from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
+import {DocContentProvider} from '@shm/ui/document-content'
 import {Field} from '@shm/ui/form-fields'
 import {FormInput} from '@shm/ui/form-input'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
@@ -46,6 +47,7 @@ import {Form, SizableText, Stack, XStack, YStack} from 'tamagui'
 import {z} from 'zod'
 import type {CreateAccountPayload} from './routes/hm.api.create-account'
 import type {UpdateDocumentPayload} from './routes/hm.api.document-update'
+import {EmbedDocument, EmbedInline, QueryBlockWeb} from './web-embeds'
 
 async function postCBOR(path: string, body: Uint8Array) {
   const response = await fetch(`${path}`, {
@@ -791,49 +793,56 @@ export default function WebCommenting({
   if (!docVersion) return null
   return (
     <>
-      <CommentEditor
-        submitButton={({getContent, reset}) => {
-          return (
-            <Button
-              size="$2"
-              theme="blue"
-              icon={
-                myAccountId ? (
-                  <HMIcon
-                    id={myAccountId}
-                    metadata={myAccount.data?.document?.metadata}
-                    size={24}
-                  />
-                ) : undefined
-              }
-              onPress={() => {
-                const content = getContent()
-                if (!userKeyPair) {
-                  createAccountDialog.open({})
-                  return
+      <EditorDocContentProvider
+        key={docId.id}
+        // originHomeId={originHomeId}
+        // id={docId}
+        // siteHost={siteHost}
+      >
+        <CommentEditor
+          submitButton={({getContent, reset}) => {
+            return (
+              <Button
+                size="$2"
+                theme="blue"
+                icon={
+                  myAccountId ? (
+                    <HMIcon
+                      id={myAccountId}
+                      metadata={myAccount.data?.document?.metadata}
+                      size={24}
+                    />
+                  ) : undefined
                 }
-                const mutatePayload: CreateCommentPayload = {
-                  content,
-                  docId,
-                  docVersion,
-                  userKeyPair,
-                }
-                if (replyCommentId && rootReplyCommentId) {
-                  mutatePayload.replyCommentId = replyCommentId
-                  mutatePayload.rootReplyCommentId = rootReplyCommentId
-                }
-                postComment.mutateAsync(mutatePayload).then(() => {
-                  reset()
-                  onDiscardDraft?.()
-                })
-              }}
-            >
-              {userKeyPair ? commentActionMessage : 'Create Account'}
-            </Button>
-          )
-        }}
-        onDiscardDraft={onDiscardDraft}
-      />
+                onPress={() => {
+                  const content = getContent()
+                  if (!userKeyPair) {
+                    createAccountDialog.open({})
+                    return
+                  }
+                  const mutatePayload: CreateCommentPayload = {
+                    content,
+                    docId,
+                    docVersion,
+                    userKeyPair,
+                  }
+                  if (replyCommentId && rootReplyCommentId) {
+                    mutatePayload.replyCommentId = replyCommentId
+                    mutatePayload.rootReplyCommentId = rootReplyCommentId
+                  }
+                  postComment.mutateAsync(mutatePayload).then(() => {
+                    reset()
+                    onDiscardDraft?.()
+                  })
+                }}
+              >
+                {userKeyPair ? commentActionMessage : 'Create Account'}
+              </Button>
+            )
+          }}
+          onDiscardDraft={onDiscardDraft}
+        />
+      </EditorDocContentProvider>
       {createAccountDialog.content}
     </>
   )
@@ -1125,5 +1134,70 @@ export function AccountFooterActions() {
       {logoutDialog.content}
       {editProfileDialog.content}
     </XStack>
+  )
+}
+
+function EditorDocContentProvider({
+  children, // originHomeId,
+} // id,
+// siteHost,
+// supportDocuments,
+// supportQueries,
+// routeParams,
+: {
+  // siteHost: string | undefined
+  // id: UnpackedHypermediaId
+  // originHomeId: UnpackedHypermediaId
+  children: React.ReactNode | JSX.Element
+  // supportDocuments?: HMEntityContent[]
+  // supportQueries?: HMQueryResult[]
+  // routeParams?: {
+  //   documentId?: string
+  //   version?: string
+  //   blockRef?: string
+  //   blockRange?: BlockRange
+  // }
+}) {
+  return (
+    <DocContentProvider
+      entityComponents={{
+        Document: EmbedDocument,
+        Comment: () => null,
+        Inline: EmbedInline,
+        Query: QueryBlockWeb,
+      }}
+      // entityId={id}
+      // supportDocuments={supportDocuments}
+      // supportQueries={supportQueries}
+      // onCopyBlock={(blockId, blockRange) => {
+      //   const blockHref = getHref(
+      //     originHomeId,
+      //     {
+      //       ...id,
+      //       hostname: siteHost || null,
+      //       blockRange: blockRange || null,
+      //       blockRef: blockId,
+      //     },
+      //     id.version || undefined,
+      //   )
+      //   window.navigator.clipboard.writeText(blockHref)
+      //   navigate(
+      //     window.location.pathname +
+      //       window.location.search +
+      //       `#${blockId}${
+      //         'start' in blockRange && 'end' in blockRange
+      //           ? `[${blockRange.start}:${blockRange.end}]`
+      //           : ''
+      //       }`,
+      //     {replace: true, preventScrollReset: true},
+      //   )
+      // }}
+      // routeParams={routeParams}
+      // textUnit={18}
+      // layoutUnit={24}
+      // debug={false}
+    >
+      {children}
+    </DocContentProvider>
   )
 }
