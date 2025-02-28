@@ -16,6 +16,12 @@ export function setEntityQuery(
   queryEntity = handler
 }
 
+function documentParseAdjustments(document: any) {
+  if (document?.metadata?.theme === '[object Object]') {
+    document.metadata.theme = undefined
+  }
+}
+
 export function getEntityQuery(
   id: UnpackedHypermediaId | null | undefined,
   options?: UseQueryOptions<HMEntityContent | null>,
@@ -31,6 +37,8 @@ export function getEntityQuery(
         if (!queryEntity) throw new Error('queryEntity not injected')
 
         const serverDocument = await queryEntity(id)
+
+        documentParseAdjustments(serverDocument)
 
         const result = HMDocumentSchema.safeParse(serverDocument)
 

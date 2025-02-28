@@ -1,12 +1,6 @@
 import {grpcClient} from '@/grpc-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
-import {GRPCClient} from '@shm/shared/grpc-client'
-import {
-  HMDocument,
-  HMDocumentInfo,
-  HMDocumentSchema,
-  HMEntityContent,
-} from '@shm/shared/hm-types'
+import {HMDocument, HMDocumentInfo, HMEntityContent} from '@shm/shared/hm-types'
 import {setEntityQuery, useEntities} from '@shm/shared/models/entity'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -17,12 +11,7 @@ import {
   unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
-import {
-  useMutation,
-  UseMutationOptions,
-  useQuery,
-  UseQueryOptions,
-} from '@tanstack/react-query'
+import {useMutation, UseMutationOptions, useQuery} from '@tanstack/react-query'
 import {useEffect, useMemo} from 'react'
 import {useGRPCClient} from '../app-context'
 import {queryListDirectory} from './documents'
@@ -170,64 +159,6 @@ setEntityQuery(async (hmId) => {
 
   return serverDocument as HMDocument // zod validation is done by the entity model
 })
-
-export function queryEntity(
-  grpcClient: GRPCClient,
-  id: UnpackedHypermediaId | null | undefined,
-  options?: UseQueryOptions<HMEntityContent | null>,
-): UseQueryOptions<HMEntityContent | null> {
-  const version = id?.latest ? undefined : id?.version || undefined
-  return {
-    ...options,
-    enabled: options?.enabled ?? !!id,
-    queryKey: [queryKeys.ENTITY, id?.id, version],
-    queryFn: async (): Promise<HMEntityContent | null> => {
-      if (!id) return null
-      try {
-        const grpcDocument = await grpcClient.documents.getDocument({
-          account: id.uid,
-          path: hmIdPathToEntityQueryPath(id.path),
-          version,
-        })
-
-        const serverDocument = grpcDocument.toJson()
-
-        const result = HMDocumentSchema.safeParse(serverDocument)
-        if (result.success) {
-          const document = result.data
-          return {
-            id: {...id, version: document.version},
-            document,
-          }
-        } else {
-          console.error('Invalid Document!', serverDocument, result.error)
-          return {id, document: undefined}
-        }
-      } catch (e) {
-        return {id, document: undefined}
-      }
-    },
-  }
-}
-
-// export function useEntity(
-//   id: UnpackedHypermediaId | null | undefined,
-//   options?: UseQueryOptions<HMEntityContent | null>,
-// ) {
-//   const grpcClient = useGRPCClient()
-//   return useQuery(queryEntity(grpcClient, id, options))
-// }
-
-// export function useEntities(
-//   ids: (UnpackedHypermediaId | null | undefined)[],
-//   options?: UseQueryOptions<HMEntityContent | null>,
-// ) {
-//   const grpcClient = useGRPCClient()
-//   return useQueries({
-//     queries: ids.map((id) => queryEntity(grpcClient, id)),
-//     ...(options || {}),
-//   })
-// }
 
 type EntitySubscription = {
   id?: UnpackedHypermediaId | null
