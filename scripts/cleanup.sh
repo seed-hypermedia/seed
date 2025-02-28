@@ -1,3 +1,3 @@
 ./scripts/cleanup-frontend.sh
-./scripts/cleanup-desktop.sh
+node ./scripts/cleanup-desktop.js
 ./scripts/cleanup-site.sh

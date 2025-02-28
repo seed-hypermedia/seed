@@ -7,7 +7,7 @@
     "upgrade:tamagui": "yarn up '@tamagui/*'@latest",
     "format:check": "prettier --check .",
     "format:write": "prettier --write .",
-    "build": "remix vite:build",
+    "build": "NODE_ENV=development remix vite:build",
     "dev": "DAEMON_HTTP_PORT=58001 DAEMON_FILE_URL=\"http://localhost:58001/ipfs\" remix vite:dev",
     "start": "NODE_OPTIONS='--import ./instrumentation.server.mjs' DAEMON_HTTP_PORT=58001 DAEMON_FILE_URL=\"http://localhost:58001/ipfs\" LIGHTNING_API_URL='https://ln.testnet.seed.hyper.media' remix-serve ./build/server/index.js",
     "start:prod": "NODE_OPTIONS='--import ./instrumentation.server.mjs' remix-serve ./build/server/index.js",
