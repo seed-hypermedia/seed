@@ -16,10 +16,14 @@ export function setEntityQuery(
   queryEntity = handler
 }
 
-function documentParseAdjustments(document: any) {
-  if (document?.metadata?.theme === '[object Object]') {
-    document.metadata.theme = undefined
+export function documentMetadataParseAdjustments(metadata: any) {
+  if (metadata?.theme === '[object Object]') {
+    metadata.theme = undefined
   }
+}
+
+export function documentParseAdjustments(document: any) {
+  documentMetadataParseAdjustments(document?.metadata)
 }
 
 export function getEntityQuery(
