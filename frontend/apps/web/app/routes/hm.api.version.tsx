@@ -3,6 +3,10 @@ import {json} from '@remix-run/node'
 import {DAEMON_HTTP_URL} from '@shm/shared'
 import fs from 'fs/promises'
 
+function stripNewlines(str: string) {
+  return str.replace(/\r?\n|\r/g, '')
+}
+
 async function getVersionInfo() {
   let commit: string | null = null
   let branch: string | null = null
@@ -22,7 +26,11 @@ async function getVersionInfo() {
   } catch (e) {
     console.error('Failed to read DATE file', e)
   }
-  return {commit, branch, date}
+  return {
+    commit: commit ? stripNewlines(commit) : null,
+    branch: branch ? stripNewlines(branch) : null,
+    date: date ? stripNewlines(date) : null,
+  }
 }
 
 async function getDaemonVersionInfo() {
