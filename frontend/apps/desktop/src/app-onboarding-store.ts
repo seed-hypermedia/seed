@@ -2,7 +2,11 @@ import {DESKTOP_APPDATA} from '@shm/shared/constants'
 import {app, ipcMain} from 'electron'
 import Store from 'electron-store'
 import path from 'path'
-import type {OnboardingState} from './app-onboarding'
+import type {
+  OnboardingFormData,
+  OnboardingState,
+  OnboardingStep,
+} from './app-onboarding'
 
 const store = new Store<OnboardingState>({
   name: 'onboarding',
@@ -10,22 +14,67 @@ const store = new Store<OnboardingState>({
   defaults: {
     hasCompletedOnboarding: false,
     hasSkippedOnboarding: false,
+    currentStep: 'welcome',
+    formData: {
+      name: '',
+    },
+  },
+})
+
+const getInitialState = (): OnboardingState => ({
+  hasCompletedOnboarding: false,
+  hasSkippedOnboarding: false,
+  currentStep: 'welcome',
+  formData: {
+    name: '',
   },
 })
 
 export function setupOnboardingHandlers() {
   ipcMain.on('get-onboarding-state', (event) => {
-    event.returnValue = {
-      hasCompletedOnboarding: store.get('hasCompletedOnboarding'),
-      hasSkippedOnboarding: store.get('hasSkippedOnboarding'),
-    }
+    console.log('📥 Getting onboarding state:', store.store)
+    event.returnValue = store.store
   })
 
   ipcMain.on('set-onboarding-completed', (_, value: boolean) => {
+    console.log('📝 Setting completed:', value)
     store.set('hasCompletedOnboarding', value)
+    if (value) {
+      // Reset state when completing
+      store.set(getInitialState())
+    }
+    console.log('📝 New store state:', store.store)
   })
 
   ipcMain.on('set-onboarding-skipped', (_, value: boolean) => {
+    console.log('📝 Setting skipped:', value)
     store.set('hasSkippedOnboarding', value)
+    if (value) {
+      // Reset state when skipping
+      store.set(getInitialState())
+    }
+    console.log('📝 New store state:', store.store)
+  })
+
+  ipcMain.on('set-onboarding-step', (_, step: OnboardingStep) => {
+    console.log('📝 Setting onboarding step:', step)
+    store.set('currentStep', step)
+    console.log('📝 New store state:', store.store)
+  })
+
+  ipcMain.on(
+    'set-onboarding-form-data',
+    (_, data: Partial<OnboardingFormData>) => {
+      console.log('📝 Setting form data:', data)
+      const currentData = store.get('formData')
+      store.set('formData', {...currentData, ...data})
+      console.log('📝 New store state:', store.store)
+    },
+  )
+
+  ipcMain.on('reset-onboarding-state', () => {
+    console.log('🔄 Resetting onboarding state')
+    store.set(getInitialState())
+    console.log('📝 New store state:', store.store)
   })
 }

@@ -14,12 +14,14 @@ export function ImageForm({
   onImageUpload,
   onRemove,
   emptyLabel,
+  uploadOnChange = true,
   ...props
 }: {
   label?: string
   emptyLabel?: string
   id?: string
   url?: string
+  uploadOnChange?: boolean
   onImageUpload?: (avatar: string) => Awaited<void>
   onRemove?: () => void
 }) {
@@ -29,16 +31,22 @@ export function ImageForm({
     const file = fileList?.[0]
     if (!file) return
     if (!onImageUpload) return
-    fileUpload(file)
-      .then((data) => {
-        onImageUpload(data)
-      })
-      .catch((error) => {
-        appError(`Failed to upload icon: ${error.message}`, {error})
-      })
-      .finally(() => {
-        event.target.value = ''
-      })
+
+    if (uploadOnChange) {
+      fileUpload(file)
+        .then((data) => {
+          onImageUpload(data)
+        })
+        .catch((error) => {
+          appError(`Failed to upload icon: ${error.message}`, {error})
+        })
+        .finally(() => {
+          event.target.value = ''
+        })
+    } else {
+      // Just call onImageUpload with the file directly
+      onImageUpload(URL.createObjectURL(file))
+    }
   }
 
   const image = (
