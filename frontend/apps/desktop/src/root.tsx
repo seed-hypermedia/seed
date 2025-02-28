@@ -3,7 +3,7 @@ import {AppIPC} from '@/app-ipc'
 import {WindowUtils} from '@/models/window-utils'
 import {NavigationContainer} from '@/utils/navigation-container'
 import {useListenAppEvent} from '@/utils/window-events'
-
+import {queryClient} from '@shm/shared/models/query-client'
 import type {StateStream} from '@shm/shared/utils/stream'
 import {Spinner} from '@shm/ui/spinner'
 import {toast, Toaster} from '@shm/ui/toast'
@@ -11,7 +11,11 @@ import {useStream} from '@shm/ui/use-stream'
 import '@tamagui/core/reset.css'
 import '@tamagui/font-inter/css/400.css'
 import '@tamagui/font-inter/css/700.css'
-import {onlineManager, QueryKey} from '@tanstack/react-query'
+import {
+  onlineManager,
+  QueryClientProvider,
+  QueryKey,
+} from '@tanstack/react-query'
 import copyTextToClipboard from 'copy-text-to-clipboard'
 import {ipcLink} from 'electron-trpc/renderer'
 import React, {Suspense, useEffect, useMemo, useState} from 'react'
@@ -35,7 +39,6 @@ import {SKIP_ONBOARDING} from '@shm/shared/constants'
 import {
   onQueryCacheError,
   onQueryInvalidation,
-  queryClient,
 } from '@shm/shared/models/query-client'
 import {labelOfQueryKey} from '@shm/shared/models/query-keys'
 import * as entities from './models/entities'
@@ -286,9 +289,11 @@ function MainApp({}: {}) {
   if (daemonState?.t == 'ready') {
     if (showOnboarding) {
       return (
-        <StyleProvider darkMode={darkMode!}>
-          <Onboarding onComplete={() => setShowOnboarding(false)} />
-        </StyleProvider>
+        <QueryClientProvider client={queryClient}>
+          <StyleProvider darkMode={darkMode!}>
+            <Onboarding onComplete={() => setShowOnboarding(false)} />
+          </StyleProvider>
+        </QueryClientProvider>
       )
     } else {
       return (

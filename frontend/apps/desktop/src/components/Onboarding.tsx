@@ -7,6 +7,7 @@ import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {nanoid} from 'nanoid'
 import React, {useCallback, useEffect, useState} from 'react'
 import {Button, Form, Input, Text, XStack, YStack} from 'tamagui'
 import {
@@ -28,6 +29,7 @@ interface OnboardingProps {
 const WelcomeStep = ({onNext}: {onNext: () => void}) => {
   return (
     <YStack
+      className="window-drag"
       flex={1}
       padding="$4"
       space="$4"
@@ -38,7 +40,7 @@ const WelcomeStep = ({onNext}: {onNext: () => void}) => {
         WELCOME TO THE OPEN WEB
       </Text>
 
-      <XStack marginTop="$8" space="$4">
+      <XStack marginTop="$8" space="$4" className="no-window-drag">
         <Button onPress={onNext} backgroundColor="$blue10">
           NEXT
         </Button>
@@ -76,102 +78,159 @@ const ProfileStep = ({
   })
 
   const handleSubmit = async () => {
-    console.log('Submitting form data to backend:', formData)
+    try {
+      console.group('📝 Submitting Profile Form')
+      console.log('Initial form data:', formData)
 
-    // Upload the images if they are Files
-    if (formData.icon instanceof File) {
-      const ipfsIcon = await fileUpload(formData.icon)
-      console.log('Uploaded icon:', ipfsIcon)
-      setOnboardingFormData({...formData, icon: ipfsIcon})
-    }
-    if (formData.seedExperimentalLogo instanceof File) {
-      const ipfsSeedExperimentalLogo = await fileUpload(
-        formData.seedExperimentalLogo,
-      )
-      console.log('Uploaded seedExperimentalLogo:', ipfsSeedExperimentalLogo)
-      setOnboardingFormData({
-        ...formData,
-        seedExperimentalLogo: ipfsSeedExperimentalLogo,
-      })
-    }
+      // Upload the images if they are Files
+      try {
+        if (formData.icon instanceof File) {
+          console.log('Uploading site icon...')
+          const ipfsIcon = await fileUpload(formData.icon)
+          console.log('✅ Site icon uploaded:', ipfsIcon)
+          setOnboardingFormData({...formData, icon: ipfsIcon})
+        }
+        if (formData.seedExperimentalLogo instanceof File) {
+          console.log('Uploading site logo...')
+          const ipfsSeedExperimentalLogo = await fileUpload(
+            formData.seedExperimentalLogo,
+          )
+          console.log('✅ Site logo uploaded:', ipfsSeedExperimentalLogo)
+          setOnboardingFormData({
+            ...formData,
+            seedExperimentalLogo: ipfsSeedExperimentalLogo,
+          })
+        }
+      } catch (error) {
+        console.error('❌ Failed to upload images:', error)
+        throw new Error('Failed to upload images: ' + (error as Error).message)
+      }
 
-    // Create the Account
-    if (!mnemonics.data) {
-      throw new Error('Mnemonics not found')
-    }
-    const createdAccount = await register.mutateAsync({
-      name: formData.name,
-      mnemonic: mnemonics.data,
-    })
+      // Create the Account
+      let createdAccount
+      const name = `temp${nanoid(8)}`
+      try {
+        if (!mnemonics.data) {
+          throw new Error('Mnemonics not found')
+        }
+        console.log('Creating account...')
 
-    // Update account key name
-    const renamedKey = await grpcClient.daemon.updateKey({
-      currentName: formData.name,
-      newName: createdAccount.accountId,
-    })
+        createdAccount = await register.mutateAsync({
+          name,
+          mnemonic: mnemonics.data,
+        })
+        console.log('✅ Account created:', createdAccount)
+      } catch (error) {
+        console.error('❌ Failed to create account:', error)
+        throw new Error('Failed to create account: ' + (error as Error).message)
+      }
 
-    // Save mnemonics to secure storage
-    saveWords.mutate({key: renamedKey.name, value: mnemonics.data})
+      // Update account key name
+      let renamedKey
+      try {
+        console.log('Updating account key name...')
+        renamedKey = await grpcClient.daemon.updateKey({
+          currentName: name,
+          newName: createdAccount.accountId,
+        })
+        console.log('✅ Account key updated:', renamedKey)
+      } catch (error) {
+        console.error('❌ Failed to update account key:', error)
+        throw new Error(
+          'Failed to update account key: ' + (error as Error).message,
+        )
+      }
 
-    // doc metadata edit
-    let changes = [
-      new DocumentChange({
-        op: {
-          case: 'setMetadata',
-          value: {
-            key: 'name',
-            value: formData.name,
-          },
-        },
-      }),
-    ]
+      // Save mnemonics to secure storage
+      try {
+        console.log('Saving mnemonics to secure storage...')
+        saveWords.mutate({key: renamedKey.name, value: mnemonics.data})
+        console.log('✅ Mnemonics saved')
+      } catch (error) {
+        console.error('❌ Failed to save mnemonics:', error)
+        throw new Error('Failed to save mnemonics: ' + (error as Error).message)
+      }
 
-    if (typeof formData.icon == 'string') {
-      changes.push(
-        new DocumentChange({
-          op: {
-            case: 'setMetadata',
-            value: {
-              key: 'icon',
-              value: `ipfs://${formData.icon}`,
+      // doc metadata edit
+      try {
+        console.log('Creating document changes...')
+        let changes = [
+          new DocumentChange({
+            op: {
+              case: 'setMetadata',
+              value: {
+                key: 'name',
+                value: formData.name,
+              },
             },
-          },
-        }),
-      )
+          }),
+        ]
+
+        if (typeof formData.icon == 'string') {
+          changes.push(
+            new DocumentChange({
+              op: {
+                case: 'setMetadata',
+                value: {
+                  key: 'icon',
+                  value: `ipfs://${formData.icon}`,
+                },
+              },
+            }),
+          )
+        }
+
+        if (typeof formData.seedExperimentalLogo == 'string') {
+          changes.push(
+            new DocumentChange({
+              op: {
+                case: 'setMetadata',
+                value: {
+                  key: 'seedExperimentalLogo',
+                  value: `ipfs://${formData.seedExperimentalLogo}`,
+                },
+              },
+            }),
+          )
+        }
+
+        const doc = await grpcClient.documents.createDocumentChange({
+          account: createdAccount.accountId,
+          signingKeyName: createdAccount.publicKey,
+          baseVersion: undefined, // undefined because this is the first change of this document
+          changes,
+        })
+
+        if (doc) {
+          console.log('✅ Document changes created')
+          invalidateQueries([
+            queryKeys.ENTITY,
+            hmId('d', createdAccount!.accountId).id,
+          ])
+          invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
+        }
+      } catch (error) {
+        console.error('❌ Failed to create document changes:', error)
+        throw new Error(
+          'Failed to create document changes: ' + (error as Error).message,
+        )
+      }
+
+      // Remove onboarding state
+      console.log('Cleaning up onboarding state...')
+      resetOnboardingState()
+      console.log('✅ Onboarding state reset')
+
+      console.log('✅ Profile submission completed successfully')
+      console.groupEnd()
+      onNext()
+    } catch (error) {
+      console.error('❌ Profile submission failed:', error)
+      console.groupEnd()
+      // Here you might want to show an error message to the user
+      // For now, we'll just rethrow to prevent proceeding with broken state
+      throw error
     }
-
-    if (typeof formData.seedExperimentalLogo == 'string') {
-      changes.push(
-        new DocumentChange({
-          op: {
-            case: 'setMetadata',
-            value: {
-              key: 'seedExperimentalLogo',
-              value: `ipfs://${formData.seedExperimentalLogo}`,
-            },
-          },
-        }),
-      )
-    }
-    const doc = await grpcClient.documents.createDocumentChange({
-      account: createdAccount.accountId,
-      signingKeyName: createdAccount.publicKey,
-      baseVersion: undefined, // undefined because this is the first change of this document
-      changes,
-    })
-
-    if (doc) {
-      invalidateQueries([
-        queryKeys.ENTITY,
-        hmId('d', createdAccount!.accountId).id,
-      ])
-      invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
-    }
-
-    // Remove onboarding state
-    resetOnboardingState()
-
-    onNext()
   }
 
   const updateFormData = (updates: Partial<ProfileFormData>) => {
@@ -190,6 +249,7 @@ const ProfileStep = ({
 
   return (
     <YStack
+      className="window-drag"
       flex={1}
       padding="$4"
       space="$4"
@@ -203,8 +263,13 @@ const ProfileStep = ({
         Let's set up your personal space on the open web
       </Text>
 
-      <Form width="100%" maxWidth={400} onSubmit={handleSubmit}>
-        <YStack space="$4" width="100%">
+      <Form
+        width="100%"
+        maxWidth={400}
+        onSubmit={handleSubmit}
+        className="no-window-drag"
+      >
+        <YStack space="$4" width="100%" className="no-window-drag">
           <Input
             size="$4"
             placeholder="Site name"
@@ -247,7 +312,7 @@ const ProfileStep = ({
           </YStack>
         </YStack>
 
-        <XStack marginTop="$8" space="$4">
+        <XStack marginTop="$8" space="$4" className="no-window-drag">
           <Button onPress={onSkip} variant="outlined">
             SKIP
           </Button>
@@ -291,6 +356,7 @@ const DebugBox = () => {
       opacity={0.8}
       elevation={4}
       zIndex={1000}
+      className="no-window-drag"
     >
       <Text fontSize="$3" fontFamily="$mono">
         Debug: Onboarding State
@@ -350,7 +416,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({onComplete}) => {
   }, [currentStep, onComplete])
 
   return (
-    <YStack flex={1} backgroundColor="$background">
+    <YStack flex={1} backgroundColor="$background" className="window-drag">
       <DebugBox />
       {currentStep === 'welcome' && <WelcomeStep onNext={handleNext} />}
       {currentStep === 'profile' && (
