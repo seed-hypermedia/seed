@@ -2,15 +2,9 @@ name: Update Docker Images
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "50 6 * * 0-6"
-
   push:
     tags:
       - "*.*.*"
-    branches:
-      - "release/*"
-      - "main"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -80,28 +74,7 @@ jobs:
           text: ${{ github.ref }}
           regex: 'refs/tags/[0-9]{4}\.[0-9]+\.[0-9]+$'
 
-      - name: Check release candidate tag
-        id: release-candidate-tag
-        uses: actions-ecosystem/action-regex-match@v2
-        with:
-          text: ${{ github.ref }}
-          regex: 'refs/tags/[0-9]{4}\.[0-9]+\.[0-9]+-rc[0-9]+$'
-
-      - name: Build and push edge seedhypermedia/web:dev
-        if: ${{ github.ref == 'refs/heads/main' }}
-        uses: docker/build-push-action@v4
-        with:
-          push: true
-          file: frontend/apps/web/Dockerfile
-          tags: seedhypermedia/web:dev
-          build-args: |
-            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
-            SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
-            COMMIT_HASH=${{ github.sha }}
-            BRANCH=${{ github.ref }}
-            DATE=${{ env.COMMIT_DATE }}
-
-      - name: Build and push stable seedhypermedia/web:latest
+      - name: DockerHub Release seedhypermedia/web:latest
         if: startsWith(github.ref, 'refs/tags/') && steps.release-tag.outputs.match
         uses: docker/build-push-action@v4
         with:
@@ -115,19 +88,7 @@ jobs:
             BRANCH=${{ github.ref }}
             DATE=${{ env.COMMIT_DATE }}
 
-      - name: Build and push edge seedhypermedia/site:dev
-        if: ${{ github.ref == 'refs/heads/main' }}
-        uses: docker/build-push-action@v4
-        with:
-          push: true
-          build-args: |
-            COMMIT_HASH=${{ github.sha }}
-            BRANCH=${{ github.ref }}
-            DATE=${{ env.COMMIT_DATE }}
-          file: backend/cmd/seed-daemon/Dockerfile
-          tags: seedhypermedia/site:dev
-
-      - name: Build and push stable seedhypermedia/site:latest
+      - name: DockerHub Release seedhypermedia/site:latest
         if: startsWith(github.ref, 'refs/tags/') && steps.release-tag.outputs.match
         uses: docker/build-push-action@v4
         with:
@@ -139,23 +100,7 @@ jobs:
           file: backend/cmd/seed-daemon/Dockerfile
           tags: seedhypermedia/site:latest
 
-      - name: Build and push edge monitord
-        if: ${{ github.ref == 'refs/heads/main' }}
-        uses: docker/build-push-action@v4
-        with:
-          push: true
-          file: backend/cmd/monitord/Dockerfile
-          tags: seedhypermedia/monitord:dev
-
-      - name: Build and push rc monitord
-        if: (startsWith(github.ref, 'refs/tags/') && (steps.release-candidate-tag.outputs.match || steps.release-tag.outputs.match)) || startsWith(github.ref, 'refs/heads/release/')
-        uses: docker/build-push-action@v4
-        with:
-          push: true
-          file: backend/cmd/monitord/Dockerfile
-          tags: seedhypermedia/monitord:rc
-
-      - name: Build and push stable monitord
+      - name: DockerHub Release seedhypermedia/monitord:latest
         if: startsWith(github.ref, 'refs/tags/') && steps.release-tag.outputs.match
         uses: docker/build-push-action@v4
         with:
@@ -163,21 +108,7 @@ jobs:
           file: backend/cmd/monitord/Dockerfile
           tags: seedhypermedia/monitord:latest
 
-      - name: Build and push edge relay
-        if: ${{ github.ref == 'refs/heads/main' }}
-        uses: docker/build-push-action@v4
-        with:
-          push: true
-          file: backend/cmd/relayd/Dockerfile
-          tags: seedhypermedia/relayd:dev
-      - name: Build and push rc relay
-        if: (startsWith(github.ref, 'refs/tags/') && (steps.release-candidate-tag.outputs.match || steps.release-tag.outputs.match)) || startsWith(github.ref, 'refs/heads/release/')
-        uses: docker/build-push-action@v4
-        with:
-          push: true
-          file: backend/cmd/relayd/Dockerfile
-          tags: seedhypermedia/relayd:rc
-      - name: Build and push stable relay
+      - name: DockerHub Release seedhypermedia/relayd:latest
         if: startsWith(github.ref, 'refs/tags/') && steps.release-tag.outputs.match
         uses: docker/build-push-action@v4
         with:
