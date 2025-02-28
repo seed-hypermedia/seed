@@ -23,6 +23,7 @@ import {
   HMMetadata,
   HMMetadataPayload,
   HMQueryResult,
+  SITE_BASE_URL,
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
@@ -214,6 +215,11 @@ export async function getBaseDocument(
     )),
   )
 
+  console.log({
+    origin,
+    SITE_BASE_URL,
+    webSigningEnabled: process.env.WEB_SIGNING_ENABLED,
+  })
   return {
     document,
     supportDocuments,
@@ -223,7 +229,8 @@ export async function getBaseDocument(
     ),
     siteHost: parsedRequest.origin,
     id: {...entityId, version: document.version},
-    enableWebSigning: process.env.WEB_SIGNING_ENABLED === 'true',
+    enableWebSigning:
+      process.env.WEB_SIGNING_ENABLED === 'true' && origin === SITE_BASE_URL,
   }
 }
 
