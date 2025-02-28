@@ -62,6 +62,7 @@ import {
   VERSION,
 } from '@shm/shared/constants'
 import {defaultRoute} from '@shm/shared/routes'
+import {setupOnboardingHandlers} from './app-onboarding-store'
 
 const OS_REGISTER_SCHEME = 'hm'
 // @ts-ignore
@@ -336,6 +337,8 @@ async function initAccountSubscriptions() {
 }
 
 function initializeIpcHandlers() {
+  setupOnboardingHandlers()
+
   // Window management handlers
   ipcMain.on('invalidate_queries', (_event, info) => {
     appInvalidateQueries(info)

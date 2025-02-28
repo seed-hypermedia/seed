@@ -4,6 +4,7 @@ import {contextBridge, ipcRenderer} from 'electron'
 import {exposeElectronTRPC} from 'electron-trpc/main'
 // import directly from this deep path for shared/utils/stream! Bad things happen if you try to directly import from @shm/shared
 import {eventStream, writeableStateStream} from '@shm/shared/utils/stream'
+import type {OnboardingState} from './app-onboarding'
 import {GoDaemonState} from './daemon'
 import {UpdateStatus} from './types/updater-types'
 
@@ -203,3 +204,14 @@ contextBridge.exposeInMainWorld('autoUpdate', {
     ipcRenderer.send('auto-update:release-notes')
   },
 })
+
+// Expose onboarding methods
+const onboarding = {
+  getState: (): OnboardingState => ipcRenderer.sendSync('get-onboarding-state'),
+  setCompleted: (value: boolean) =>
+    ipcRenderer.send('set-onboarding-completed', value),
+  setSkipped: (value: boolean) =>
+    ipcRenderer.send('set-onboarding-skipped', value),
+}
+
+contextBridge.exposeInMainWorld('onboarding', onboarding)

@@ -57,6 +57,12 @@ export const IS_PROD_DESKTOP =
 export const IS_PROD_DEV = IS_PROD_DESKTOP && VERSION?.includes('-dev')
 export const IS_TEST = process.env.NODE_ENV == 'test'
 
+// Development flags
+export const SKIP_ONBOARDING =
+  !IS_PROD_DESKTOP &&
+  ((import.meta.env && import.meta.env.VITE_SKIP_ONBOARDING === 'true') ||
+    process.env.VITE_SKIP_ONBOARDING === 'true')
+
 export const DAEMON_HTTP_URL =
   process.env.DAEMON_HTTP_URL ||
   `${DAEMON_HOSTNAME || 'http://localhost'}:${DAEMON_HTTP_PORT}`

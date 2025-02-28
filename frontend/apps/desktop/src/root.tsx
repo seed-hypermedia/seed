@@ -3,7 +3,6 @@ import {AppIPC} from '@/app-ipc'
 import {WindowUtils} from '@/models/window-utils'
 import {NavigationContainer} from '@/utils/navigation-container'
 import {useListenAppEvent} from '@/utils/window-events'
-import type {Interceptor} from '@connectrpc/connect'
 
 import type {StateStream} from '@shm/shared/utils/stream'
 import {Spinner} from '@shm/ui/spinner'
@@ -20,8 +19,10 @@ import ReactDOM from 'react-dom/client'
 import {ErrorBoundary} from 'react-error-boundary'
 import superjson from 'superjson'
 import {SizableText, YStack} from 'tamagui'
+import {getOnboardingState} from './app-onboarding'
 import {AppErrorContent, RootAppError} from './components/app-error'
 import {AccountWizardDialog} from './components/create-account'
+import {Onboarding} from './components/Onboarding'
 import type {GoDaemonState} from './daemon'
 import {grpcClient} from './grpc-client'
 import {ipc} from './ipc'
@@ -30,6 +31,7 @@ import type {AppInfoType} from './preload'
 import './root.css'
 import {client, trpc} from './trpc'
 
+import {SKIP_ONBOARDING} from '@shm/shared/constants'
 import {
   onQueryCacheError,
   onQueryInvalidation,
@@ -75,36 +77,36 @@ const hiddenLogMessages = new Set<string>([
   'Daemon.GetInfo',
   'Networking.GetPeerInfo',
 ])
-const loggingInterceptor: Interceptor = (next) => async (req) => {
-  const serviceLabel = req.service.typeName.split('.').at(-1)
-  const methodFullname = `${serviceLabel}.${req.method.name}`
-  const isSensitive = securitySensitiveMethods.has(methodFullname)
-  try {
-    const result = await next(req)
-    if (
-      enabledLogMessages.has(methodFullname) &&
-      !hiddenLogMessages.has(methodFullname)
-    ) {
-      const request = req.message
-      const response = result?.message
-      logger.log(`🔃 to ${methodFullname}`, request, response)
-    } else if (!hiddenLogMessages.has(methodFullname)) {
-      logger.log(`🔃 to ${methodFullname}`)
-    }
-    return result
-  } catch (e) {
-    let error = e
-    if (e.message.match('stream.getReader is not a function')) {
-      error = new Error('RPC broken, try running yarn and ./dev gen')
-    }
-    if (isSensitive) {
-      logger.error(`🚨 to ${methodFullname} `, 'HIDDEN FROM LOGS', error)
-      throw error
-    }
-    logger.error(`🚨 to ${methodFullname} `, req.message, error)
-    throw error
-  }
-}
+// const loggingInterceptor: Interceptor = (next) => async (req) => {
+//   const serviceLabel = req.service.typeName.split('.').at(-1)
+//   const methodFullname = `${serviceLabel}.${req.method.name}`
+//   const isSensitive = securitySensitiveMethods.has(methodFullname)
+//   try {
+//     const result = await next(req)
+//     if (
+//       enabledLogMessages.has(methodFullname) &&
+//       !hiddenLogMessages.has(methodFullname)
+//     ) {
+//       const request = req.message
+//       const response = result?.message
+//       logger.log(`🔃 to ${methodFullname}`, request, response)
+//     } else if (!hiddenLogMessages.has(methodFullname)) {
+//       logger.log(`🔃 to ${methodFullname}`)
+//     }
+//     return result
+//   } catch (e) {
+//     let error = e
+//     if (e.message.match('stream.getReader is not a function')) {
+//       error = new Error('RPC broken, try running yarn and ./dev gen')
+//     }
+//     if (isSensitive) {
+//       logger.error(`🚨 to ${methodFullname} `, 'HIDDEN FROM LOGS', error)
+//       throw error
+//     }
+//     logger.error(`🚨 to ${methodFullname} `, req.message, error)
+//     throw error
+//   }
+// }
 
 function useWindowUtils(ipc: AppIPC): WindowUtils {
   // const win = getCurrent()
@@ -198,6 +200,14 @@ function MainApp({}: {}) {
   const daemonState = useGoDaemonState()
   const windowUtils = useWindowUtils(ipc)
   const utils = trpc.useContext()
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    // Skip onboarding if the development flag is set
+    if (SKIP_ONBOARDING) {
+      return false
+    }
+    const {hasCompletedOnboarding, hasSkippedOnboarding} = getOnboardingState()
+    return !hasCompletedOnboarding && !hasSkippedOnboarding
+  })
 
   useListenAppEvent('trigger_peer_sync', () => {
     grpcClient.daemon
@@ -212,6 +222,7 @@ function MainApp({}: {}) {
   })
 
   useEffect(() => {
+    if (showOnboarding) return
     const sub = client.queryInvalidation.subscribe(undefined, {
       // called when invalidation happens in any window (including this one), here we are performing the local invalidation
       onData: (value: unknown[]) => {
@@ -251,7 +262,7 @@ function MainApp({}: {}) {
     return () => {
       sub.unsubscribe()
     }
-  }, [utils])
+  }, [utils, showOnboarding])
 
   // const openMarkdownFiles = () => {
   //   // @ts-ignore
@@ -273,92 +284,100 @@ function MainApp({}: {}) {
   }, [])
 
   if (daemonState?.t == 'ready') {
-    return (
-      <AppContextProvider
-        grpcClient={grpcClient}
-        platform={appInfo.platform()}
-        ipc={ipc}
-        externalOpen={async (url: string) => {
-          ipc.send?.('open-external-link', url)
-        }}
-        openDirectory={async (directory: string) => {
-          ipc.send?.('open-directory', directory)
-        }}
-        saveCidAsFile={async (cid: string, name: string) => {
-          ipc.send?.('save-file', {cid, name})
-        }}
-        openMarkdownFiles={(accountId: string) => {
-          // @ts-ignore
-          return window.docImport.openMarkdownFiles(accountId)
-        }}
-        openMarkdownDirectories={(accountId: string) => {
-          // @ts-ignore
-          return window.docImport.openMarkdownDirectories(accountId)
-        }}
-        readMediaFile={(filePath: string) => {
-          // @ts-ignore
-          return window.docImport.readMediaFile(filePath)
-        }}
-        exportDocument={async (
-          title: string,
-          markdownContent: string,
-          mediaFiles: {url: string; filename: string; placeholder: string}[],
-        ) => {
-          // @ts-ignore
-          return window.docExport.exportDocument(
-            title,
-            markdownContent,
-            mediaFiles,
-          )
-        }}
-        exportDocuments={async (
-          documents: {
-            title: string
-            markdown: {
-              markdownContent: string
-              mediaFiles: {
-                url: string
-                filename: string
-                placeholder: string
-              }[]
-            }
-          }[],
-        ) => {
-          // @ts-ignore
-          return window.docExport.exportDocuments(documents)
-        }}
-        windowUtils={windowUtils}
-        darkMode={darkMode!}
-      >
-        <Suspense fallback={<SpinnerWithText message="" />}>
-          <ErrorBoundary
-            FallbackComponent={RootAppError}
-            onReset={() => {
-              window.location.reload()
-            }}
-          >
-            <NavigationContainer
-              initialNav={
-                // @ts-expect-error
-                window.initNavState
+    if (showOnboarding) {
+      return (
+        <StyleProvider darkMode={darkMode!}>
+          <Onboarding onComplete={() => setShowOnboarding(false)} />
+        </StyleProvider>
+      )
+    } else {
+      return (
+        <AppContextProvider
+          grpcClient={grpcClient}
+          platform={appInfo.platform()}
+          ipc={ipc}
+          externalOpen={async (url: string) => {
+            ipc.send?.('open-external-link', url)
+          }}
+          openDirectory={async (directory: string) => {
+            ipc.send?.('open-directory', directory)
+          }}
+          saveCidAsFile={async (cid: string, name: string) => {
+            ipc.send?.('save-file', {cid, name})
+          }}
+          openMarkdownFiles={(accountId: string) => {
+            // @ts-ignore
+            return window.docImport.openMarkdownFiles(accountId)
+          }}
+          openMarkdownDirectories={(accountId: string) => {
+            // @ts-ignore
+            return window.docImport.openMarkdownDirectories(accountId)
+          }}
+          readMediaFile={(filePath: string) => {
+            // @ts-ignore
+            return window.docImport.readMediaFile(filePath)
+          }}
+          exportDocument={async (
+            title: string,
+            markdownContent: string,
+            mediaFiles: {url: string; filename: string; placeholder: string}[],
+          ) => {
+            // @ts-ignore
+            return window.docExport.exportDocument(
+              title,
+              markdownContent,
+              mediaFiles,
+            )
+          }}
+          exportDocuments={async (
+            documents: {
+              title: string
+              markdown: {
+                markdownContent: string
+                mediaFiles: {
+                  url: string
+                  filename: string
+                  placeholder: string
+                }[]
               }
+            }[],
+          ) => {
+            // @ts-ignore
+            return window.docExport.exportDocuments(documents)
+          }}
+          windowUtils={windowUtils}
+          darkMode={darkMode!}
+        >
+          <Suspense fallback={<SpinnerWithText message="" />}>
+            <ErrorBoundary
+              FallbackComponent={RootAppError}
+              onReset={() => {
+                window.location.reload()
+              }}
             >
-              <AccountWizardDialog />
-              <Main
-                className={
-                  // this is used by editor.css which doesn't know tamagui styles, boooo!
-                  darkMode ? 'seed-app-dark' : 'seed-app-light'
+              <NavigationContainer
+                initialNav={
+                  // @ts-expect-error
+                  window.initNavState
                 }
+              >
+                <AccountWizardDialog />
+                <Main
+                  className={
+                    // this is used by editor.css which doesn't know tamagui styles, boooo!
+                    darkMode ? 'seed-app-dark' : 'seed-app-light'
+                  }
+                />
+              </NavigationContainer>
+              <Toaster
+              // position="bottom-center"
+              // toastOptions={{className: 'toaster'}}
               />
-            </NavigationContainer>
-            <Toaster
-            // position="bottom-center"
-            // toastOptions={{className: 'toaster'}}
-            />
-          </ErrorBoundary>
-        </Suspense>
-      </AppContextProvider>
-    )
+            </ErrorBoundary>
+          </Suspense>
+        </AppContextProvider>
+      )
+    }
   } else if (daemonState?.t == 'error') {
     console.error('Daemon error', daemonState?.message)
     return (
