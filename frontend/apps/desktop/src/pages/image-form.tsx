@@ -22,7 +22,7 @@ export function ImageForm({
   id?: string
   url?: string
   uploadOnChange?: boolean
-  onImageUpload?: (avatar: string) => Awaited<void>
+  onImageUpload?: (avatar: string | File) => Awaited<void>
   onRemove?: () => void
 }) {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -44,8 +44,8 @@ export function ImageForm({
           event.target.value = ''
         })
     } else {
-      // Just call onImageUpload with the file directly
-      onImageUpload(URL.createObjectURL(file))
+      // Just call onImageUpload with the file directly to handle it at the parent level
+      onImageUpload(file)
     }
   }
 

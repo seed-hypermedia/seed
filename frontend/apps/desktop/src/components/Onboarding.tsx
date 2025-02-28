@@ -9,20 +9,23 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {toast} from '@shm/ui/toast'
-import {Copy, ExternalLink, Eye, EyeOff} from '@tamagui/lucide-icons'
+import {Copy, ExternalLink} from '@tamagui/lucide-icons'
 import copyTextToClipboard from 'copy-text-to-clipboard'
 import {nanoid} from 'nanoid'
-import React, {useCallback, useEffect, useState} from 'react'
+import {useCallback, useEffect, useState} from 'react'
 import {Button, Form, Input, Text, TextArea, XStack, YStack} from 'tamagui'
 import {
+  getOnboardingState,
+  ImageData,
+  ImageValidationError,
   OnboardingState,
   OnboardingStep,
-  getOnboardingState,
   resetOnboardingState,
   setHasCompletedOnboarding,
   setHasSkippedOnboarding,
   setOnboardingFormData,
   setOnboardingStep,
+  validateImage,
 } from '../app-onboarding'
 import {ImageForm} from '../pages/image-form'
 
@@ -30,468 +33,47 @@ interface OnboardingProps {
   onComplete: () => void
 }
 
-const WelcomeStep = ({onNext}: {onNext: () => void}) => {
-  return (
-    <YStack
-      className="window-drag"
-      flex={1}
-      padding="$4"
-      space="$4"
-      alignItems="center"
-      justifyContent="center"
-    >
-      <Text
-        fontSize="$8"
-        fontWeight="bold"
-        textAlign="center"
-        className="no-window-drag"
-      >
-        WELCOME TO THE OPEN WEB
-      </Text>
-
-      <XStack marginTop="$8" space="$4" className="no-window-drag">
-        <Button onPress={onNext} backgroundColor="$blue10">
-          NEXT
-        </Button>
-      </XStack>
-    </YStack>
-  )
-}
-
-const RecoveryStep = ({onNext}: {onNext: () => void}) => {
-  const [showWords, setShowWords] = useState(false)
-  const mnemonics = useMnemonics()
-
-  return (
-    <YStack
-      className="window-drag"
-      flex={1}
-      padding="$4"
-      space="$4"
-      alignItems="center"
-      justifyContent="center"
-    >
-      <Text
-        fontSize="$8"
-        fontWeight="bold"
-        textAlign="center"
-        className="no-window-drag"
-      >
-        SAVE YOUR ACCOUNT
-      </Text>
-      <Text
-        fontSize="$6"
-        textAlign="center"
-        color="$gray11"
-        className="no-window-drag"
-      >
-        Save these secret words somewhere safe. You'll need them to recover your
-        account if you lose access.
-      </Text>
-
-      <YStack space="$4" width="100%" maxWidth={500} className="no-window-drag">
-        <XStack gap="$3">
-          <TextArea
-            flex={1}
-            disabled
-            value={
-              showWords
-                ? Array.isArray(mnemonics.data)
-                  ? mnemonics.data.join(', ')
-                  : mnemonics.data
-                : '**** **** **** **** **** **** **** **** **** **** **** ****'
-            }
-          />
-          <YStack gap="$2">
-            <Button
-              size="$2"
-              icon={showWords ? EyeOff : Eye}
-              onPress={() => setShowWords((v) => !v)}
-            />
-            <Button
-              size="$2"
-              icon={Copy}
-              onPress={() => {
-                if (mnemonics.data) {
-                  copyTextToClipboard(
-                    Array.isArray(mnemonics.data)
-                      ? mnemonics.data.join(', ')
-                      : mnemonics.data,
-                  )
-                  toast.success('Words copied to clipboard')
-                }
-              }}
-            />
-          </YStack>
-        </XStack>
-
-        <XStack marginTop="$4" space="$4" justifyContent="center">
-          <Button onPress={onNext} backgroundColor="$blue10">
-            I SAVED MY WORDS
-          </Button>
-        </XStack>
-      </YStack>
-    </YStack>
-  )
-}
-
-const ReadyStep = ({onComplete}: {onComplete: () => void}) => {
-  const openUrl = useOpenUrl()
-
-  return (
-    <YStack
-      className="window-drag"
-      flex={1}
-      padding="$4"
-      space="$4"
-      alignItems="center"
-      justifyContent="center"
-    >
-      <Text
-        fontSize="$8"
-        fontWeight="bold"
-        textAlign="center"
-        className="no-window-drag"
-      >
-        READY TO GO
-      </Text>
-
-      <YStack marginTop="$8" space="$4" className="no-window-drag">
-        <Button
-          onPress={() => openUrl('https://discord.gg/seed')}
-          backgroundColor="$purple10"
-          icon={ExternalLink}
-        >
-          JOIN DISCORD
-        </Button>
-        <Button onPress={onComplete} backgroundColor="$blue10">
-          DONE
-        </Button>
-      </YStack>
-    </YStack>
-  )
-}
-
 interface ProfileFormData {
   name: string
-  icon?: string | File
-  seedExperimentalLogo?: string | File
+  icon?: ImageData
+  seedExperimentalLogo?: ImageData
 }
 
-const ProfileStep = ({
-  onSkip,
-  onNext,
-}: {
-  onSkip: () => void
-  onNext: () => void
-}) => {
-  const register = useRegisterKey()
-  const mnemonics = useMnemonics()
-  const saveWords = trpc.secureStorage.write.useMutation()
-  // Initialize form data from store
-  const [formData, setFormData] = useState<ProfileFormData>(() => {
-    const state = getOnboardingState()
-    return {
-      name: state.formData.name || '',
-      icon: state.formData.icon as string | undefined,
-      seedExperimentalLogo: state.formData.seedExperimentalLogo as
-        | string
-        | undefined,
+async function fileToImageData(file: File): Promise<ImageData> {
+  // Validate the file first
+  validateImage(file)
+
+  // Convert to base64
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      resolve({
+        base64: reader.result as string,
+        type: file.type,
+        name: file.name,
+        size: file.size,
+      })
     }
+    reader.onerror = () => reject(new Error('Failed to read file'))
+    reader.readAsDataURL(file)
   })
-
-  const handleSubmit = async () => {
-    try {
-      console.group('📝 Submitting Profile Form')
-      console.log('Initial form data:', formData)
-
-      // Upload the images if they are Files
-      try {
-        if (formData.icon instanceof File) {
-          console.log('Uploading site icon...')
-          const ipfsIcon = await fileUpload(formData.icon)
-          console.log('✅ Site icon uploaded:', ipfsIcon)
-          setOnboardingFormData({...formData, icon: ipfsIcon})
-        }
-        if (formData.seedExperimentalLogo instanceof File) {
-          console.log('Uploading site logo...')
-          const ipfsSeedExperimentalLogo = await fileUpload(
-            formData.seedExperimentalLogo,
-          )
-          console.log('✅ Site logo uploaded:', ipfsSeedExperimentalLogo)
-          setOnboardingFormData({
-            ...formData,
-            seedExperimentalLogo: ipfsSeedExperimentalLogo,
-          })
-        }
-      } catch (error) {
-        console.error('❌ Failed to upload images:', error)
-        throw new Error('Failed to upload images: ' + (error as Error).message)
-      }
-
-      // Create the Account
-      let createdAccount
-      const name = `temp${nanoid(8)}`
-      try {
-        if (!mnemonics.data) {
-          throw new Error('Mnemonics not found')
-        }
-        console.log('Creating account...')
-
-        createdAccount = await register.mutateAsync({
-          name,
-          mnemonic: mnemonics.data,
-        })
-        console.log('✅ Account created:', createdAccount)
-      } catch (error) {
-        console.error('❌ Failed to create account:', error)
-        throw new Error('Failed to create account: ' + (error as Error).message)
-      }
-
-      // Update account key name
-      let renamedKey
-      try {
-        console.log('Updating account key name...')
-        renamedKey = await grpcClient.daemon.updateKey({
-          currentName: name,
-          newName: createdAccount.accountId,
-        })
-        console.log('✅ Account key updated:', renamedKey)
-      } catch (error) {
-        console.error('❌ Failed to update account key:', error)
-        throw new Error(
-          'Failed to update account key: ' + (error as Error).message,
-        )
-      }
-
-      // Save mnemonics to secure storage
-      try {
-        console.log('Saving mnemonics to secure storage...')
-        saveWords.mutate({key: renamedKey.name, value: mnemonics.data})
-        console.log('✅ Mnemonics saved')
-      } catch (error) {
-        console.error('❌ Failed to save mnemonics:', error)
-        throw new Error('Failed to save mnemonics: ' + (error as Error).message)
-      }
-
-      // doc metadata edit
-      try {
-        console.log('Creating document changes...')
-        let changes = [
-          new DocumentChange({
-            op: {
-              case: 'setMetadata',
-              value: {
-                key: 'name',
-                value: formData.name,
-              },
-            },
-          }),
-        ]
-
-        if (typeof formData.icon == 'string') {
-          changes.push(
-            new DocumentChange({
-              op: {
-                case: 'setMetadata',
-                value: {
-                  key: 'icon',
-                  value: `ipfs://${formData.icon}`,
-                },
-              },
-            }),
-          )
-        }
-
-        if (typeof formData.seedExperimentalLogo == 'string') {
-          changes.push(
-            new DocumentChange({
-              op: {
-                case: 'setMetadata',
-                value: {
-                  key: 'seedExperimentalLogo',
-                  value: `ipfs://${formData.seedExperimentalLogo}`,
-                },
-              },
-            }),
-          )
-        }
-
-        const doc = await grpcClient.documents.createDocumentChange({
-          account: createdAccount.accountId,
-          signingKeyName: createdAccount.publicKey,
-          baseVersion: undefined, // undefined because this is the first change of this document
-          changes,
-        })
-
-        if (doc) {
-          console.log('✅ Document changes created')
-          invalidateQueries([
-            queryKeys.ENTITY,
-            hmId('d', createdAccount!.accountId).id,
-          ])
-          invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
-        }
-      } catch (error) {
-        console.error('❌ Failed to create document changes:', error)
-        throw new Error(
-          'Failed to create document changes: ' + (error as Error).message,
-        )
-      }
-
-      // Remove onboarding state
-      console.log('Cleaning up onboarding state...')
-      resetOnboardingState()
-      console.log('✅ Onboarding state reset')
-
-      console.log('✅ Profile submission completed successfully')
-      console.groupEnd()
-      onNext()
-    } catch (error) {
-      console.error('❌ Profile submission failed:', error)
-      console.groupEnd()
-      // Here you might want to show an error message to the user
-      // For now, we'll just rethrow to prevent proceeding with broken state
-      throw error
-    }
-  }
-
-  const updateFormData = (updates: Partial<ProfileFormData>) => {
-    const newData = {...formData, ...updates}
-    setFormData(newData)
-    // Only send string URLs to the store, not File objects
-    setOnboardingFormData({
-      ...newData,
-      icon: typeof newData.icon === 'string' ? newData.icon : undefined,
-      seedExperimentalLogo:
-        typeof newData.seedExperimentalLogo === 'string'
-          ? newData.seedExperimentalLogo
-          : undefined,
-    })
-  }
-
-  return (
-    <YStack
-      className="window-drag"
-      flex={1}
-      padding="$4"
-      space="$4"
-      alignItems="center"
-      justifyContent="center"
-    >
-      <Text fontSize="$8" fontWeight="bold" textAlign="center">
-        CREATE YOUR SITE
-      </Text>
-      <Text fontSize="$6" textAlign="center" color="$gray11">
-        Let's set up your personal space on the open web
-      </Text>
-
-      <Form
-        width="100%"
-        maxWidth={400}
-        onSubmit={handleSubmit}
-        className="no-window-drag"
-      >
-        <YStack space="$4" width="100%" className="no-window-drag">
-          <Input
-            size="$4"
-            placeholder="Site name"
-            value={formData.name}
-            onChange={(e) => updateFormData({name: e.nativeEvent.text})}
-          />
-
-          <YStack space="$2">
-            <Text fontSize="$3" color="$gray11">
-              Site Icon
-            </Text>
-            <ImageForm
-              emptyLabel="ADD SITE ICON"
-              url={
-                typeof formData.icon === 'string' ? formData.icon : undefined
-              }
-              uploadOnChange={false}
-              onImageUpload={(url) => updateFormData({icon: url})}
-              onRemove={() => updateFormData({icon: undefined})}
-            />
-          </YStack>
-
-          <YStack space="$2">
-            <Text fontSize="$3" color="$gray11">
-              Site Logo
-            </Text>
-            <ImageForm
-              emptyLabel="ADD SITE LOGO"
-              url={
-                typeof formData.seedExperimentalLogo === 'string'
-                  ? formData.seedExperimentalLogo
-                  : undefined
-              }
-              uploadOnChange={false}
-              onImageUpload={(url) =>
-                updateFormData({seedExperimentalLogo: url})
-              }
-              onRemove={() => updateFormData({seedExperimentalLogo: undefined})}
-            />
-          </YStack>
-        </YStack>
-
-        <XStack marginTop="$8" space="$4" className="no-window-drag">
-          <Button onPress={onSkip} variant="outlined">
-            SKIP
-          </Button>
-          <Button
-            backgroundColor="$blue10"
-            disabled={!formData.name.trim()}
-            onPress={handleSubmit}
-          >
-            NEXT
-          </Button>
-        </XStack>
-      </Form>
-    </YStack>
-  )
 }
 
-const DebugBox = () => {
-  const [state, setState] = useState<OnboardingState>(getOnboardingState())
+function base64ToFile(imageData: ImageData): File {
+  // Convert base64 to blob
+  const byteString = atob(imageData.base64.split(',')[1])
+  const ab = new ArrayBuffer(byteString.length)
+  const ia = new Uint8Array(ab)
+  for (let i = 0; i < byteString.length; i++) {
+    ia[i] = byteString.charCodeAt(i)
+  }
+  const blob = new Blob([ab], {type: imageData.type})
 
-  useEffect(() => {
-    // Update state every second to see changes
-    const interval = setInterval(() => {
-      setState(getOnboardingState())
-    }, 1000)
-
-    return () => clearInterval(interval)
-  }, [])
-
-  if (IS_PROD_DESKTOP) return null
-
-  return (
-    <YStack
-      position="absolute"
-      top={16}
-      right={16}
-      backgroundColor="$background"
-      padding="$2"
-      borderRadius="$4"
-      borderWidth={1}
-      borderColor="$border"
-      opacity={0.8}
-      elevation={4}
-      zIndex={1000}
-      className="no-window-drag"
-    >
-      <Text fontSize="$3" fontFamily="$mono">
-        Debug: Onboarding State
-      </Text>
-      <Text fontSize="$2" fontFamily="$mono" color="$gray11">
-        {JSON.stringify(state, null, 2)}
-      </Text>
-    </YStack>
-  )
+  // Create File from blob
+  return new File([blob], imageData.name, {type: imageData.type})
 }
 
-export const Onboarding: React.FC<OnboardingProps> = ({onComplete}) => {
+export function Onboarding({onComplete}: OnboardingProps) {
   // Initialize step from store
   const [currentStep, setCurrentStep] = useState<OnboardingStep>(() => {
     const state = getOnboardingState()
@@ -553,6 +135,556 @@ export const Onboarding: React.FC<OnboardingProps> = ({onComplete}) => {
       )}
       {currentStep === 'recovery' && <RecoveryStep onNext={handleNext} />}
       {currentStep === 'ready' && <ReadyStep onComplete={handleNext} />}
+    </YStack>
+  )
+}
+
+function WelcomeStep({onNext}: {onNext: () => void}) {
+  return (
+    <YStack
+      className="window-drag"
+      flex={1}
+      padding="$4"
+      gap="$4"
+      alignItems="center"
+      justifyContent="center"
+    >
+      <Text
+        fontSize="$8"
+        fontWeight="bold"
+        textAlign="center"
+        className="no-window-drag"
+      >
+        WELCOME TO THE OPEN WEB
+      </Text>
+
+      <XStack marginTop="$8" gap="$4" className="no-window-drag">
+        <Button onPress={onNext} backgroundColor="$blue10">
+          NEXT
+        </Button>
+      </XStack>
+    </YStack>
+  )
+}
+
+function ProfileStep({
+  onSkip,
+  onNext,
+}: {
+  onSkip: () => void
+  onNext: () => void
+}) {
+  // Initialize form data from store
+  const [formData, setFormData] = useState<ProfileFormData>(() => {
+    const state = getOnboardingState()
+    return {
+      name: state.formData.name || '',
+      icon: state.formData.icon,
+      seedExperimentalLogo: state.formData.seedExperimentalLogo,
+    }
+  })
+
+  const handleImageUpload = async (
+    file: File,
+    type: 'icon' | 'seedExperimentalLogo',
+  ) => {
+    try {
+      const imageData = await fileToImageData(file)
+      const newData = {
+        ...formData,
+        [type]: imageData,
+      }
+      setFormData(newData)
+      setOnboardingFormData(newData)
+    } catch (error) {
+      if (error instanceof ImageValidationError) {
+        toast.error(error.message)
+      } else {
+        toast.error('Failed to process image')
+        console.error('Image processing error:', error)
+      }
+    }
+  }
+
+  const handleImageRemove = (type: 'icon' | 'seedExperimentalLogo') => {
+    const newData = {
+      ...formData,
+      [type]: undefined,
+    }
+    setFormData(newData)
+    setOnboardingFormData(newData)
+  }
+
+  const updateFormData = (updates: Partial<ProfileFormData>) => {
+    const newData = {...formData, ...updates}
+    setFormData(newData)
+    setOnboardingFormData(newData)
+  }
+
+  return (
+    <YStack
+      className="window-drag"
+      flex={1}
+      padding="$4"
+      gap="$4"
+      alignItems="center"
+      justifyContent="center"
+    >
+      <Text fontSize="$8" fontWeight="bold" textAlign="center">
+        CREATE YOUR SITE
+      </Text>
+      <Text fontSize="$6" textAlign="center" color="$gray11">
+        Let's set up your personal space on the open web
+      </Text>
+
+      <Form
+        width="100%"
+        maxWidth={400}
+        onSubmit={onNext}
+        className="no-window-drag"
+      >
+        <YStack gap="$4" width="100%" className="no-window-drag">
+          <Input
+            size="$4"
+            placeholder="Site name"
+            value={formData.name}
+            onChange={(e) => updateFormData({name: e.nativeEvent.text})}
+          />
+
+          <YStack gap="$2">
+            <Text fontSize="$3" color="$gray11">
+              Site Icon
+            </Text>
+            <ImageForm
+              emptyLabel="ADD SITE ICON"
+              url={formData.icon?.base64}
+              uploadOnChange={false}
+              onImageUpload={(file) => {
+                if (file instanceof File) {
+                  handleImageUpload(file, 'icon')
+                }
+              }}
+              onRemove={() => handleImageRemove('icon')}
+            />
+          </YStack>
+
+          <YStack gap="$2">
+            <Text fontSize="$3" color="$gray11">
+              Site Logo
+            </Text>
+            <ImageForm
+              emptyLabel="ADD SITE LOGO"
+              url={formData.seedExperimentalLogo?.base64}
+              uploadOnChange={false}
+              onImageUpload={(file) => {
+                if (file instanceof File) {
+                  handleImageUpload(file, 'seedExperimentalLogo')
+                }
+              }}
+              onRemove={() => handleImageRemove('seedExperimentalLogo')}
+            />
+          </YStack>
+        </YStack>
+
+        <XStack marginTop="$8" gap="$4" className="no-window-drag">
+          <Button onPress={onSkip} variant="outlined">
+            SKIP
+          </Button>
+          <Button
+            backgroundColor="$blue10"
+            disabled={!formData.name.trim()}
+            onPress={onNext}
+          >
+            NEXT
+          </Button>
+        </XStack>
+      </Form>
+    </YStack>
+  )
+}
+
+function RecoveryStep({onNext}: {onNext: () => void}) {
+  const register = useRegisterKey()
+  const mnemonics = useMnemonics()
+  const saveWords = trpc.secureStorage.write.useMutation()
+
+  const [formData, setFormData] = useState<ProfileFormData>(() => {
+    const state = getOnboardingState()
+    return {
+      name: state.formData.name || '',
+      icon: state.formData.icon,
+      seedExperimentalLogo: state.formData.seedExperimentalLogo,
+    }
+  })
+
+  let icon = ''
+  let seedExperimentalLogo = ''
+  async function handleSubmit() {
+    try {
+      console.group('📝 Starting Profile Submission')
+
+      // Log initial state
+      const initialState = getOnboardingState()
+      console.log('Initial onboarding state:', initialState)
+      console.log('Current form data:', formData)
+
+      // Upload the images if they exist
+      try {
+        console.group('🖼️ Processing Images')
+
+        // Handle icon
+        if (formData.icon) {
+          console.group('📤 Processing Site Icon')
+          console.log('Image data:', {
+            type: formData.icon.type,
+            size: formData.icon.size,
+            name: formData.icon.name,
+          })
+
+          console.log('Converting base64 to File...')
+          const iconFile = base64ToFile(formData.icon)
+          console.log('File created:', {
+            type: iconFile.type,
+            size: iconFile.size,
+            name: iconFile.name,
+          })
+
+          console.log('Uploading to IPFS...')
+          const ipfsIcon = await fileUpload(iconFile)
+
+          icon = ipfsIcon
+          console.log('✅ Icon uploaded to IPFS:', icon)
+          console.groupEnd()
+        } else {
+          console.log('ℹ️ No icon to process')
+        }
+
+        // Handle logo
+        if (formData.seedExperimentalLogo) {
+          console.group('📤 Processing Site Logo')
+          console.log('Image data:', {
+            type: formData.seedExperimentalLogo.type,
+            size: formData.seedExperimentalLogo.size,
+            name: formData.seedExperimentalLogo.name,
+          })
+
+          console.log('Converting base64 to File...')
+          const logoFile = base64ToFile(formData.seedExperimentalLogo)
+          console.log('File created:', {
+            type: logoFile.type,
+            size: logoFile.size,
+            name: logoFile.name,
+          })
+
+          console.log('Uploading to IPFS...')
+          const ipfsSeedExperimentalLogo = await fileUpload(logoFile)
+          seedExperimentalLogo = ipfsSeedExperimentalLogo
+          console.log('✅ Logo uploaded to IPFS:', seedExperimentalLogo)
+          console.groupEnd()
+        } else {
+          console.log('ℹ️ No logo to process')
+        }
+
+        console.groupEnd()
+      } catch (error) {
+        console.error('❌ Failed to upload images:', error)
+        throw new Error('Failed to upload images: ' + (error as Error).message)
+      }
+
+      // Create the Account
+      let createdAccount
+      const name = `temp${nanoid(8)}`
+      try {
+        console.group('👤 Creating Account')
+        if (!mnemonics.data) {
+          throw new Error('Mnemonics not found')
+        }
+        console.log('Using temporary name:', name)
+
+        createdAccount = await register.mutateAsync({
+          name,
+          mnemonic: mnemonics.data,
+        })
+        console.log('✅ Account created:', createdAccount)
+        console.groupEnd()
+      } catch (error) {
+        console.error('❌ Failed to create account:', error)
+        throw new Error('Failed to create account: ' + (error as Error).message)
+      }
+
+      // Update account key name
+      let renamedKey
+      try {
+        console.group('🔑 Updating Account Key')
+        console.log('Renaming from', name, 'to', createdAccount.accountId)
+
+        renamedKey = await grpcClient.daemon.updateKey({
+          currentName: name,
+          newName: createdAccount.accountId,
+        })
+        console.log('✅ Account key updated:', renamedKey)
+        console.groupEnd()
+      } catch (error) {
+        console.error('❌ Failed to update account key:', error)
+        throw new Error(
+          'Failed to update account key: ' + (error as Error).message,
+        )
+      }
+
+      // Save mnemonics to secure storage
+      try {
+        console.group('💾 Saving Mnemonics')
+        console.log('Saving to key:', renamedKey.name)
+
+        saveWords.mutate({key: renamedKey.name, value: mnemonics.data})
+        console.log('✅ Mnemonics saved')
+        console.groupEnd()
+      } catch (error) {
+        console.error('❌ Failed to save mnemonics:', error)
+        throw new Error('Failed to save mnemonics: ' + (error as Error).message)
+      }
+
+      // doc metadata edit
+      try {
+        console.group('📝 Creating Document Changes')
+        console.log('Current uploaded URLs:', {icon, seedExperimentalLogo})
+
+        let changes = [
+          new DocumentChange({
+            op: {
+              case: 'setMetadata',
+              value: {
+                key: 'name',
+                value: formData.name,
+              },
+            },
+          }),
+        ]
+
+        if (icon) {
+          changes.push(
+            new DocumentChange({
+              op: {
+                case: 'setMetadata',
+                value: {
+                  key: 'icon',
+                  value: `ipfs://${icon}`,
+                },
+              },
+            }),
+          )
+        }
+
+        if (seedExperimentalLogo) {
+          console.log('Adding logo metadata:', `ipfs://${seedExperimentalLogo}`)
+          changes.push(
+            new DocumentChange({
+              op: {
+                case: 'setMetadata',
+                value: {
+                  key: 'seedExperimentalLogo',
+                  value: `ipfs://${seedExperimentalLogo}`,
+                },
+              },
+            }),
+          )
+        }
+
+        console.log('Final changes to apply:', changes)
+        const doc = await grpcClient.documents.createDocumentChange({
+          account: createdAccount.accountId,
+          signingKeyName: createdAccount.publicKey,
+          baseVersion: undefined, // undefined because this is the first change of this document
+          changes,
+        })
+
+        if (doc) {
+          console.log('✅ Document changes created:', doc)
+          console.log('Invalidating queries...')
+          invalidateQueries([
+            queryKeys.ENTITY,
+            hmId('d', createdAccount!.accountId).id,
+          ])
+          invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
+          console.log('✅ Queries invalidated')
+        }
+        console.groupEnd()
+      } catch (error) {
+        console.error('❌ Failed to create document changes:', error)
+        throw new Error(
+          'Failed to create document changes: ' + (error as Error).message,
+        )
+      }
+
+      // Remove onboarding state
+      console.log('🧹 Cleaning up onboarding state...')
+      resetOnboardingState()
+      console.log('✅ Onboarding state reset')
+
+      console.log('✅ Profile submission completed successfully')
+      console.groupEnd()
+      onNext()
+    } catch (error) {
+      console.error('❌ Profile submission failed:', error)
+      console.groupEnd()
+      throw error
+    }
+  }
+
+  return (
+    <YStack
+      className="window-drag"
+      flex={1}
+      padding="$4"
+      gap="$4"
+      alignItems="center"
+      justifyContent="center"
+    >
+      <Text
+        fontSize="$8"
+        fontWeight="bold"
+        textAlign="center"
+        className="no-window-drag"
+      >
+        SAVE YOUR ACCOUNT
+      </Text>
+      <Text
+        fontSize="$6"
+        textAlign="center"
+        color="$gray11"
+        className="no-window-drag"
+      >
+        Save these secret words somewhere safe. You'll need them to recover your
+        account if you lose access.
+      </Text>
+
+      <YStack gap="$4" width="100%" maxWidth={500} className="no-window-drag">
+        <XStack gap="$3">
+          <TextArea
+            flex={1}
+            disabled
+            value={
+              Array.isArray(mnemonics.data)
+                ? mnemonics.data.join(', ')
+                : mnemonics.data
+            }
+          />
+          <YStack gap="$2">
+            <Button
+              size="$2"
+              icon={Copy}
+              onPress={() => {
+                if (mnemonics.data) {
+                  copyTextToClipboard(
+                    Array.isArray(mnemonics.data)
+                      ? mnemonics.data.join(', ')
+                      : mnemonics.data,
+                  )
+                  toast.success('Words copied to clipboard')
+                }
+              }}
+            />
+          </YStack>
+        </XStack>
+        <XStack gap="$4">
+          <Button onPress={() => mnemonics.refetch()}>regenerate</Button>
+          <Button
+            onPress={() => {
+              if (mnemonics.data) {
+                copyTextToClipboard(
+                  Array.isArray(mnemonics.data)
+                    ? mnemonics.data.join(', ')
+                    : mnemonics.data,
+                )
+              }
+            }}
+          >
+            Copy
+          </Button>
+        </XStack>
+
+        <XStack marginTop="$4" gap="$4" justifyContent="center">
+          <Button onPress={handleSubmit} backgroundColor="$blue10">
+            I SAVED MY WORDS
+          </Button>
+        </XStack>
+      </YStack>
+    </YStack>
+  )
+}
+
+function ReadyStep({onComplete}: {onComplete: () => void}) {
+  const openUrl = useOpenUrl()
+
+  return (
+    <YStack
+      className="window-drag"
+      flex={1}
+      padding="$4"
+      gap="$4"
+      alignItems="center"
+      justifyContent="center"
+    >
+      <Text
+        fontSize="$8"
+        fontWeight="bold"
+        textAlign="center"
+        className="no-window-drag"
+      >
+        READY TO GO
+      </Text>
+
+      <YStack marginTop="$8" gap="$4" className="no-window-drag">
+        <Button
+          onPress={() => openUrl('https://discord.gg/seed')}
+          backgroundColor="$purple10"
+          icon={ExternalLink}
+        >
+          JOIN DISCORD
+        </Button>
+        <Button onPress={onComplete} backgroundColor="$blue10">
+          DONE
+        </Button>
+      </YStack>
+    </YStack>
+  )
+}
+
+function DebugBox() {
+  const [state, setState] = useState<OnboardingState>(getOnboardingState())
+
+  useEffect(() => {
+    // Update state every second to see changes
+    const interval = setInterval(() => {
+      setState(getOnboardingState())
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [])
+
+  if (IS_PROD_DESKTOP) return null
+
+  return (
+    <YStack
+      position="absolute"
+      top={16}
+      right={16}
+      backgroundColor="$background"
+      padding="$2"
+      borderRadius="$4"
+      borderWidth={1}
+      borderColor="$border"
+      opacity={0.8}
+      elevation={4}
+      zIndex={1000}
+      className="no-window-drag"
+    >
+      <Text fontSize="$3" fontFamily="$mono">
+        Debug: Onboarding State
+      </Text>
+      <Text fontSize="$2" fontFamily="$mono" color="$gray11">
+        {JSON.stringify(state, null, 2)}
+      </Text>
     </YStack>
   )
 }

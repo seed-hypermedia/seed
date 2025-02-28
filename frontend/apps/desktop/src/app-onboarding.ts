@@ -1,11 +1,28 @@
 import {IS_PROD_DESKTOP, SKIP_ONBOARDING} from '@shm/shared/constants'
 
+// Maximum file size (5MB)
+export const MAX_IMAGE_SIZE = 5 * 1024 * 1024
+// Allowed image types
+export const ALLOWED_IMAGE_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+]
+
 export type OnboardingStep = 'welcome' | 'profile' | 'recovery' | 'ready'
+
+export interface ImageData {
+  base64: string
+  type: string
+  name: string
+  size: number
+}
 
 export interface OnboardingFormData {
   name: string
-  icon?: string | File
-  seedExperimentalLogo?: string | File
+  icon?: ImageData
+  seedExperimentalLogo?: ImageData
 }
 
 export interface OnboardingState {
@@ -13,6 +30,26 @@ export interface OnboardingState {
   hasSkippedOnboarding: boolean
   currentStep: OnboardingStep
   formData: OnboardingFormData
+}
+
+export class ImageValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ImageValidationError'
+  }
+}
+
+export function validateImage(file: File): void {
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    throw new ImageValidationError(
+      `Invalid file type. Allowed types: ${ALLOWED_IMAGE_TYPES.join(', ')}`,
+    )
+  }
+  if (file.size > MAX_IMAGE_SIZE) {
+    throw new ImageValidationError(
+      `File too large. Maximum size: ${MAX_IMAGE_SIZE / 1024 / 1024}MB`,
+    )
+  }
 }
 
 declare global {
