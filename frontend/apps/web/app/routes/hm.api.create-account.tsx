@@ -1,5 +1,4 @@
 import {queryClient} from '@/client'
-import {uploadFile} from '@/ipfs-upload'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {ActionFunction, json} from '@remix-run/node'
 
@@ -31,16 +30,14 @@ export const action: ActionFunction = async ({request}) => {
   const payload = cborDecode(new Uint8Array(cborData)) as CreateAccountPayload
 
   if (payload.icon) {
-    const iconBlob = new Blob([payload.icon.data])
-    const iconCID = await uploadFile(iconBlob)
-    if (iconCID !== payload.icon.cid) {
-      return json(
+    const storedImageResult = await queryClient.daemon.storeBlobs({
+      blobs: [
         {
-          message: `Failed to upload icon. Expected CID: ${payload.icon.cid}, got: ${iconCID}`,
+          cid: payload.icon.cid,
+          data: payload.icon.data,
         },
-        {status: 500},
-      )
-    }
+      ],
+    })
   }
 
   const storedGenesisResult = await queryClient.daemon.storeBlobs({
