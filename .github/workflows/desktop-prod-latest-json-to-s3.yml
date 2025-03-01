@@ -14,14 +14,24 @@ jobs:
       - name: Check if latest release
         id: check_latest
         run: |
-          latest_tag=$(curl -L \
+          echo "Fetching latest release information..."
+          api_response=$(curl -L \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${{ github.token }}" \
-            https://api.github.com/repos/${{ github.repository }}/releases/latest \
-            | jq -r '.tag_name')
+            https://api.github.com/repos/${{ github.repository }}/releases/latest)
+
+          echo "API Response received:"
+          echo "$api_response" | jq '.'
+
+          latest_tag=$(echo "$api_response" | jq -r '.tag_name')
+          echo "Latest release tag: ${latest_tag}"
+          echo "Current release tag: ${{ github.event.release.tag_name }}"
+
           if [[ "${latest_tag}" == "${{ github.event.release.tag_name }}" ]]; then
+            echo "✅ This is the latest release"
             echo "is_latest=true" >> $GITHUB_OUTPUT
           else
+            echo "❌ This is not the latest release"
             echo "is_latest=false" >> $GITHUB_OUTPUT
           fi
 
