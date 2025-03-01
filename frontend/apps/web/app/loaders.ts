@@ -215,11 +215,6 @@ export async function getBaseDocument(
     )),
   )
 
-  console.log({
-    origin: parsedRequest.origin,
-    SITE_BASE_URL,
-    webSigningEnabled: process.env.WEB_SIGNING_ENABLED,
-  })
   return {
     document,
     supportDocuments,
