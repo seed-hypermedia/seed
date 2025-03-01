@@ -1,8 +1,6 @@
 name: Generate latest.json (prod)
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
 
 jobs:
@@ -10,48 +8,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Check if this is the latest release
-      - name: Check if latest release
-        id: check_latest
-        run: |
-          echo "Fetching latest release information..."
-          api_response=$(curl -L \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${{ github.token }}" \
-            https://api.github.com/repos/${{ github.repository }}/releases/latest)
-
-          echo "API Response received:"
-          echo "$api_response" | jq '.'
-
-          latest_tag=$(echo "$api_response" | jq -r '.tag_name')
-          echo "Latest release tag: ${latest_tag}"
-          echo "Current release tag: ${{ github.event.release.tag_name }}"
-
-          if [[ "${latest_tag}" == "${{ github.event.release.tag_name }}" ]]; then
-            echo "✅ This is the latest release"
-            echo "is_latest=true" >> $GITHUB_OUTPUT
-          else
-            echo "❌ This is not the latest release"
-            echo "is_latest=false" >> $GITHUB_OUTPUT
-          fi
-
       # Check out the repository code
       - name: Checkout repository
-        if: steps.check_latest.outputs.is_latest == 'true'
+
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       # Setup Node.js
       - name: Setup Node.js
-        if: steps.check_latest.outputs.is_latest == 'true'
+
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
       # Configure AWS Credentials
       - name: Configure AWS Credentials
-        if: steps.check_latest.outputs.is_latest == 'true'
+
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.S3_ACCESS_KEY }}
@@ -60,12 +33,12 @@ jobs:
 
       # Generate prod-latest.json
       - name: Generate prod-latest.json
-        if: steps.check_latest.outputs.is_latest == 'true'
+
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/generate-prod-latest.js > .github/latest.json
 
       # Upload to S3
       - name: Upload latest.json to S3
-        if: steps.check_latest.outputs.is_latest == 'true'
+
         run: aws s3 cp .github/latest.json s3://seedreleases/prod/latest.json
