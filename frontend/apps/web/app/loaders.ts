@@ -216,7 +216,7 @@ export async function getBaseDocument(
   )
 
   console.log({
-    origin,
+    origin: parsedRequest.origin,
     SITE_BASE_URL,
     webSigningEnabled: process.env.WEB_SIGNING_ENABLED,
   })
@@ -230,7 +230,8 @@ export async function getBaseDocument(
     siteHost: parsedRequest.origin,
     id: {...entityId, version: document.version},
     enableWebSigning:
-      process.env.WEB_SIGNING_ENABLED === 'true' && origin === SITE_BASE_URL,
+      process.env.WEB_SIGNING_ENABLED === 'true' &&
+      parsedRequest.origin === SITE_BASE_URL,
   }
 }
 
