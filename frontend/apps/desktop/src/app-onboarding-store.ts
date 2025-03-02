@@ -8,27 +8,21 @@ import type {
   OnboardingStep,
 } from './app-onboarding'
 
-const store = new Store<OnboardingState>({
-  name: 'onboarding',
-  cwd: path.join(app?.getPath('userData') || process.cwd(), DESKTOP_APPDATA),
-  defaults: {
-    hasCompletedOnboarding: false,
-    hasSkippedOnboarding: false,
-    currentStep: 'welcome',
-    formData: {
-      name: '',
-    },
-  },
-})
-
-const getInitialState = (): OnboardingState => ({
+const ONBOARDING_INITIAL_STATE: OnboardingState = {
   hasCompletedOnboarding: false,
   hasSkippedOnboarding: false,
   currentStep: 'welcome',
   formData: {
     name: '',
   },
+}
+const store = new Store<OnboardingState>({
+  name: 'onboarding',
+  cwd: path.join(app?.getPath('userData') || process.cwd(), DESKTOP_APPDATA),
+  defaults: ONBOARDING_INITIAL_STATE,
 })
+
+const getInitialState = (): OnboardingState => ONBOARDING_INITIAL_STATE
 
 export function setupOnboardingHandlers() {
   ipcMain.on('get-onboarding-state', (event) => {
@@ -41,7 +35,10 @@ export function setupOnboardingHandlers() {
     store.set('hasCompletedOnboarding', value)
     if (value) {
       // Reset state when completing
-      store.set(getInitialState())
+      store.set({
+        ...getInitialState(),
+        hasCompletedOnboarding: true,
+      })
     }
     console.log('📝 New store state:', store.store)
   })
@@ -51,7 +48,10 @@ export function setupOnboardingHandlers() {
     store.set('hasSkippedOnboarding', value)
     if (value) {
       // Reset state when skipping
-      store.set(getInitialState())
+      store.set({
+        ...getInitialState(),
+        hasSkippedOnboarding: true,
+      })
     }
     console.log('📝 New store state:', store.store)
   })

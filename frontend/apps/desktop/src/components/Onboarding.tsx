@@ -15,12 +15,12 @@ import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useState} from 'react'
 import {Button, Form, Input, Text, TextArea, XStack, YStack} from 'tamagui'
 import {
+  cleanupOnboardingFormData,
   getOnboardingState,
   ImageData,
   ImageValidationError,
   OnboardingState,
   OnboardingStep,
-  resetOnboardingState,
   setHasCompletedOnboarding,
   setHasSkippedOnboarding,
   setOnboardingFormData,
@@ -74,9 +74,21 @@ function base64ToFile(imageData: ImageData): File {
 }
 
 export function Onboarding({onComplete}: OnboardingProps) {
+  // Check if onboarding has been completed or skipped
+  const state = getOnboardingState()
+
+  // If onboarding has been completed or skipped, don't show it
+  useEffect(() => {
+    if (state.hasCompletedOnboarding || state.hasSkippedOnboarding) {
+      console.log(
+        'Onboarding already completed or skipped, skipping to main app',
+      )
+      onComplete()
+    }
+  }, [onComplete])
+
   // Initialize step from store
   const [currentStep, setCurrentStep] = useState<OnboardingStep>(() => {
-    const state = getOnboardingState()
     console.log('🔄 Initializing onboarding with state:', state)
     return state.currentStep
   })
@@ -87,7 +99,8 @@ export function Onboarding({onComplete}: OnboardingProps) {
     console.log('Before state:', beforeState)
 
     setHasSkippedOnboarding(true)
-    resetOnboardingState()
+    // Clean up form data but keep the skipped flag
+    cleanupOnboardingFormData()
 
     const afterState = getOnboardingState()
     console.log('After state:', afterState)
@@ -117,7 +130,8 @@ export function Onboarding({onComplete}: OnboardingProps) {
     } else if (currentStep === 'ready') {
       console.log('Completing onboarding')
       setHasCompletedOnboarding(true)
-      resetOnboardingState()
+      // Clean up form data but keep the completed flag
+      cleanupOnboardingFormData()
       onComplete()
     }
 
@@ -140,6 +154,8 @@ export function Onboarding({onComplete}: OnboardingProps) {
 }
 
 function WelcomeStep({onNext}: {onNext: () => void}) {
+  const openUrl = useOpenUrl()
+
   return (
     <YStack
       className="window-drag"
@@ -148,21 +164,112 @@ function WelcomeStep({onNext}: {onNext: () => void}) {
       gap="$4"
       alignItems="center"
       justifyContent="center"
+      backgroundColor="$brand12"
+      backgroundImage="linear-gradient(to bottom, $green3, $green4)"
     >
-      <Text
-        fontSize="$8"
-        fontWeight="bold"
-        textAlign="center"
-        className="no-window-drag"
-      >
-        WELCOME TO THE OPEN WEB
-      </Text>
+      <YStack gap="$8" alignItems="center" maxWidth={800}>
+        <Text
+          fontSize="$8"
+          fontWeight="bold"
+          textAlign="center"
+          className="no-window-drag"
+        >
+          WELCOME TO THE OPEN WEB
+        </Text>
 
-      <XStack marginTop="$8" gap="$4" className="no-window-drag">
-        <Button onPress={onNext} backgroundColor="$blue10">
-          NEXT
-        </Button>
-      </XStack>
+        <XStack gap="$6" width="100%" paddingHorizontal="$4">
+          <YStack
+            backgroundColor="$background"
+            padding="$4"
+            borderRadius="$4"
+            flex={1}
+          >
+            <Text fontSize="$5" fontWeight="bold" marginBottom="$2">
+              Collaborate With Your Peers
+            </Text>
+            <Text color="$gray11">
+              Work together seamlessly in a decentralized environment
+            </Text>
+          </YStack>
+
+          <YStack
+            backgroundColor="$background"
+            padding="$4"
+            borderRadius="$4"
+            flex={1}
+          >
+            <Text fontSize="$5" fontWeight="bold" marginBottom="$2">
+              Publish To The Web
+            </Text>
+            <Text color="$gray11">
+              Share your content directly to the decentralized web
+            </Text>
+          </YStack>
+
+          <YStack
+            backgroundColor="$background"
+            padding="$4"
+            borderRadius="$4"
+            flex={1}
+          >
+            <Text fontSize="$5" fontWeight="bold" marginBottom="$2">
+              Archive Content, Available Offline
+            </Text>
+            <Text color="$gray11">
+              Keep your content accessible even when offline
+            </Text>
+          </YStack>
+        </XStack>
+
+        <YStack gap="$4" alignItems="center" className="no-window-drag">
+          <Button
+            variant="outlined"
+            onPress={() => openUrl('https://docs.seed.io/getting-started')}
+            icon={ExternalLink}
+          >
+            Getting Started Guides
+          </Button>
+          <Button
+            onPress={onNext}
+            backgroundColor="$brand2"
+            color="white"
+            size="$4"
+            borderRadius="$2"
+            borderWidth={0}
+            hoverStyle={{backgroundColor: '$brand3'}}
+            focusStyle={{backgroundColor: '$brand3'}}
+          >
+            NEXT
+          </Button>
+        </YStack>
+
+        <XStack gap="$2" paddingTop="$4">
+          <YStack
+            width={8}
+            height={8}
+            backgroundColor="$blue10"
+            borderRadius="$round"
+          />
+          <YStack
+            width={8}
+            height={8}
+            backgroundColor="$gray8"
+            borderRadius="$round"
+          />
+          <YStack
+            width={8}
+            height={8}
+            backgroundColor="$gray8"
+            borderRadius="$round"
+          />
+          <YStack
+            width={8}
+            height={8}
+            backgroundColor="$gray8"
+            borderRadius="$round"
+          />
+        </XStack>
+      </YStack>
     </YStack>
   )
 }
@@ -292,6 +399,7 @@ function ProfileStep({
           </Button>
           <Button
             backgroundColor="$blue10"
+            color="white"
             disabled={!formData.name.trim()}
             onPress={onNext}
           >
@@ -516,10 +624,11 @@ function RecoveryStep({onNext}: {onNext: () => void}) {
         )
       }
 
-      // Remove onboarding state
-      console.log('🧹 Cleaning up onboarding state...')
-      resetOnboardingState()
-      console.log('✅ Onboarding state reset')
+      // Clean up onboarding form data
+      console.log('🧹 Cleaning up onboarding form data...')
+      // Don't reset the entire state, just clean up the form data
+      cleanupOnboardingFormData()
+      console.log('✅ Onboarding form data cleaned up')
 
       console.log('✅ Profile submission completed successfully')
       console.groupEnd()

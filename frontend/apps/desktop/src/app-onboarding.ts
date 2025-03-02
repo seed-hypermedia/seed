@@ -1,4 +1,41 @@
-import {IS_PROD_DESKTOP, SKIP_ONBOARDING} from '@shm/shared/constants'
+export function getOnboardingState(): OnboardingState {
+  return window.onboarding.getState()
+}
+
+export function setHasCompletedOnboarding(value: boolean) {
+  window.onboarding.setCompleted(value)
+}
+
+export function setHasSkippedOnboarding(value: boolean) {
+  window.onboarding.setSkipped(value)
+}
+
+export function setOnboardingStep(step: OnboardingStep) {
+  window.onboarding.setStep(step)
+}
+
+export function setOnboardingFormData(data: Partial<OnboardingFormData>) {
+  window.onboarding.setFormData(data)
+}
+
+export function resetOnboardingState() {
+  window.onboarding.resetState()
+}
+
+// This function only clears the form data, but keeps the hasCompletedOnboarding and hasSkippedOnboarding flags
+export function cleanupOnboardingFormData() {
+  const currentState = window.onboarding.getState()
+
+  // Set the form data to empty but keep the completion flags
+  window.onboarding.setFormData({
+    name: '',
+    icon: undefined,
+    seedExperimentalLogo: undefined,
+  })
+
+  // Reset the step to welcome for next time
+  window.onboarding.setStep('welcome')
+}
 
 // Maximum file size (5MB)
 export const MAX_IMAGE_SIZE = 5 * 1024 * 1024
@@ -63,46 +100,4 @@ declare global {
       resetState: () => void
     }
   }
-}
-
-export const getOnboardingState = (): OnboardingState => {
-  // In development, if SKIP_ONBOARDING is true, always return completed state
-  if (!IS_PROD_DESKTOP && SKIP_ONBOARDING) {
-    return {
-      hasCompletedOnboarding: true,
-      hasSkippedOnboarding: true,
-      currentStep: 'welcome',
-      formData: {
-        name: '',
-      },
-    }
-  }
-
-  // Always use the stored values unless SKIP_ONBOARDING is true
-  return window.onboarding.getState()
-}
-
-export const setHasCompletedOnboarding = (value: boolean) => {
-  if (!IS_PROD_DESKTOP && SKIP_ONBOARDING) return
-  window.onboarding.setCompleted(value)
-}
-
-export const setHasSkippedOnboarding = (value: boolean) => {
-  if (!IS_PROD_DESKTOP && SKIP_ONBOARDING) return
-  window.onboarding.setSkipped(value)
-}
-
-export const setOnboardingStep = (step: OnboardingStep) => {
-  if (!IS_PROD_DESKTOP && SKIP_ONBOARDING) return
-  window.onboarding.setStep(step)
-}
-
-export const setOnboardingFormData = (data: Partial<OnboardingFormData>) => {
-  if (!IS_PROD_DESKTOP && SKIP_ONBOARDING) return
-  window.onboarding.setFormData(data)
-}
-
-export const resetOnboardingState = () => {
-  if (!IS_PROD_DESKTOP && SKIP_ONBOARDING) return
-  window.onboarding.resetState()
 }

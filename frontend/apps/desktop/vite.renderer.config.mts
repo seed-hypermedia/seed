@@ -2,7 +2,7 @@ import {sentryVitePlugin} from '@sentry/vite-plugin'
 import {tamaguiPlugin} from '@tamagui/vite-plugin'
 import react from '@vitejs/plugin-react'
 import path from 'path'
-import {defineConfig, loadEnv} from 'vite'
+import {defineConfig} from 'vite'
 import tsConfigPaths from 'vite-tsconfig-paths'
 
 const extensions = [
@@ -23,7 +23,7 @@ const extensions = [
 export default defineConfig(({command, mode}) => {
   // Load env file based on `mode` in the current working directory.
   // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
-  const env = loadEnv(mode, process.cwd(), '')
+
   const config = {
     build: {
       sourcemap: true,
@@ -72,6 +72,12 @@ export default defineConfig(({command, mode}) => {
       esbuildOptions: {
         resolveExtensions: extensions,
       },
+    },
+    // Define environment variables that will be replaced at build time
+    define: {
+      // This will be replaced with the actual value during build
+      // In development it's true, in production it's false
+      __SHOW_OB_RESET_BTN__: !!process.env.SHOW_OB_RESET_BTN,
     },
   }
 

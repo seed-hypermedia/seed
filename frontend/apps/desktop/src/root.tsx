@@ -22,8 +22,8 @@ import React, {Suspense, useEffect, useMemo, useState} from 'react'
 import ReactDOM from 'react-dom/client'
 import {ErrorBoundary} from 'react-error-boundary'
 import superjson from 'superjson'
-import {SizableText, YStack} from 'tamagui'
-import {getOnboardingState} from './app-onboarding'
+import {Button, SizableText, XStack, YStack} from 'tamagui'
+import {getOnboardingState, resetOnboardingState} from './app-onboarding'
 import {AppErrorContent, RootAppError} from './components/app-error'
 import {AccountWizardDialog} from './components/create-account'
 import {Onboarding} from './components/Onboarding'
@@ -35,7 +35,6 @@ import type {AppInfoType} from './preload'
 import './root.css'
 import {client, trpc} from './trpc'
 
-import {SKIP_ONBOARDING} from '@shm/shared/constants'
 import {
   onQueryCacheError,
   onQueryInvalidation,
@@ -202,12 +201,8 @@ function MainApp({}: {}) {
   const darkMode = useStream<boolean>(window.darkMode)
   const daemonState = useGoDaemonState()
   const windowUtils = useWindowUtils(ipc)
-  const utils = trpc.useContext()
+  const utils = trpc.useUtils
   const [showOnboarding, setShowOnboarding] = useState(() => {
-    // Skip onboarding if the development flag is set
-    if (SKIP_ONBOARDING) {
-      return false
-    }
     const {hasCompletedOnboarding, hasSkippedOnboarding} = getOnboardingState()
     return !hasCompletedOnboarding && !hasSkippedOnboarding
   })
@@ -224,38 +219,69 @@ function MainApp({}: {}) {
       })
   })
 
+  // Check if onboarding state changes during the app's lifecycle
+  useEffect(() => {
+    const checkOnboardingState = () => {
+      const {hasCompletedOnboarding, hasSkippedOnboarding} =
+        getOnboardingState()
+      if (hasCompletedOnboarding || hasSkippedOnboarding) {
+        console.log('Onboarding completed or skipped, showing main app')
+        setShowOnboarding(false)
+      }
+    }
+
+    // Check every second for changes to onboarding state
+    const interval = setInterval(checkOnboardingState, 1000)
+    return () => clearInterval(interval)
+  }, [setShowOnboarding])
+
   useEffect(() => {
     if (showOnboarding) return
+    // @ts-expect-error
     const sub = client.queryInvalidation.subscribe(undefined, {
       // called when invalidation happens in any window (including this one), here we are performing the local invalidation
       onData: (value: unknown[]) => {
         if (!value) return
         if (value[0] === 'trpc.experiments.get') {
+          // @ts-expect-error
           utils.experiments.get.invalidate()
         } else if (value[0] === 'trpc.favorites.get') {
+          // @ts-expect-error
           utils.favorites.get.invalidate()
         } else if (value[0] === 'trpc.recentSigners.get') {
+          // @ts-expect-error
           utils.recentSigners.get.invalidate()
         } else if (value[0] === 'trpc.comments.getCommentDraft') {
+          // @ts-expect-error
           utils.comments.getCommentDraft.invalidate()
         } else if (value[0] === 'trpc.gatewaySettings.getGatewayUrl') {
+          // @ts-expect-error
           utils.gatewaySettings.getGatewayUrl.invalidate()
         } else if (value[0] === 'trpc.gatewaySettings.getPushOnCopy') {
+          // @ts-expect-error
           utils.gatewaySettings.getPushOnCopy.invalidate()
         } else if (value[0] === 'trpc.gatewaySettings.getPushOnPublish') {
+          // @ts-expect-error
           utils.gatewaySettings.getPushOnPublish.invalidate()
         } else if (value[0] === 'trpc.recents.getRecents') {
+          // @ts-expect-error
           utils.recents.getRecents.invalidate()
         } else if (value[0] === 'trpc.appSettings.getAutoUpdatePreference') {
+          // @ts-expect-error
           utils.appSettings.getAutoUpdatePreference.invalidate()
         } else if (value[0] == 'trpc.drafts.get') {
+          // @ts-expect-error
           utils.drafts.get.invalidate(value[1] as string | undefined)
         } else if (value[0] == 'trpc.drafts.list') {
+          // @ts-expect-error
           utils.drafts.list.invalidate()
         } else if (value[0] == 'trpc.drafts.listAccount') {
+          // @ts-expect-error
           utils.drafts.listAccount.invalidate()
         } else if (value[0] == 'trpc.secureStorage.get') {
+          // @ts-expect-error
           utils.secureStorage.invalidate()
+          // @ts-expect-error
           utils.secureStorage.read.invalidate()
         } else {
           queryClient.invalidateQueries(value)
@@ -292,6 +318,7 @@ function MainApp({}: {}) {
         <QueryClientProvider client={queryClient}>
           <StyleProvider darkMode={darkMode!}>
             <Onboarding onComplete={() => setShowOnboarding(false)} />
+            <ResetOnboardingButton />
           </StyleProvider>
         </QueryClientProvider>
       )
@@ -373,6 +400,7 @@ function MainApp({}: {}) {
                     darkMode ? 'seed-app-dark' : 'seed-app-light'
                   }
                 />
+                <ResetOnboardingButton />
               </NavigationContainer>
               <Toaster
               // position="bottom-center"
@@ -458,3 +486,36 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <ElectronApp />
   </React.StrictMode>,
 )
+
+// This component creates a small floating button to reset the onboarding state
+// Only shown when explicitly enabled or in development mode
+function ResetOnboardingButton() {
+  // Show if environment variable is set to 'true' or if in development mode
+  if (!__SHOW_OB_RESET_BTN__) return null
+
+  const handleReset = () => {
+    resetOnboardingState()
+    toast.success('Onboarding state reset! Refresh to see changes.')
+  }
+
+  return (
+    <XStack
+      className="no-window-drag"
+      zIndex="$zIndex.9"
+      position="absolute"
+      bottom={10}
+      right={10}
+    >
+      <Button
+        size="$2"
+        backgroundColor="$red10"
+        color="white"
+        onPress={handleReset}
+        opacity={0.7}
+        hoverStyle={{opacity: 1, bg: '$red11'}}
+      >
+        Reset Onboarding
+      </Button>
+    </XStack>
+  )
+}
