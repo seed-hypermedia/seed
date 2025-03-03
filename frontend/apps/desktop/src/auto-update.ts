@@ -510,96 +510,147 @@ export class AutoUpdater {
             } else if (process.platform === 'linux') {
               try {
                 const {exec} = require('child_process')
+                const util = require('util')
+                const execPromise = util.promisify(exec)
                 const fs = require('fs/promises')
 
                 // Determine package type and commands
                 const isRpm = filePath.endsWith('.rpm')
-                const appName = IS_PROD_DEV ? 'seed-dev' : 'seed'
+                const packageName = IS_PROD_DEV ? 'seed-dev' : 'seed'
                 const removeCmd = isRpm ? 'rpm -e' : 'dpkg -r'
                 const installCmd = isRpm ? 'rpm -U' : 'dpkg -i'
                 const tempPath = path.join(app.getPath('temp'), 'SeedUpdate')
-                const scriptPath = path.join(tempPath, 'update.sh')
+                const backupPath = path.join(tempPath, 'backup')
 
                 log.info(`[AUTO-UPDATE] Variables for Linux update:`)
                 log.info(
                   `[AUTO-UPDATE] - Package type: ${isRpm ? 'RPM' : 'DEB'}`,
                 )
-                log.info(`[AUTO-UPDATE] - App name: ${appName}`)
+                log.info(`[AUTO-UPDATE] - Package name: ${packageName}`)
                 log.info(`[AUTO-UPDATE] - Remove command: ${removeCmd}`)
                 log.info(`[AUTO-UPDATE] - Install command: ${installCmd}`)
                 log.info(`[AUTO-UPDATE] - Temp path: ${tempPath}`)
-                log.info(`[AUTO-UPDATE] - IS_PROD_DEV: ${IS_PROD_DEV}`)
+                log.info(`[AUTO-UPDATE] - Backup path: ${backupPath}`)
                 log.info(`[AUTO-UPDATE] - File path: ${filePath}`)
 
-                const scriptContent = `#!/bin/bash
-                  set -e  # Exit on any error
-                  
-                  echo "[UPDATE] Starting Linux update process..."
-                  
-                  
-                  echo "[UPDATE] Removing existing package..."
-                  # Remove existing package with error handling
-                  if command -v pkexec > /dev/null; then
-                    if ! pkexec ${removeCmd} ${appName}; then
-                      echo "[UPDATE] Warning: Failed to remove old package, continuing anyway..."
-                    fi
-                  else
-                    echo "[UPDATE] Error: pkexec not found, trying with sudo..."
-                    if ! sudo ${removeCmd} ${appName}; then
-                      echo "[UPDATE] Warning: Failed to remove old package, continuing anyway..."
-                    fi
-                  fi
-                  
-                  echo "[UPDATE] Installing new package..."
-                  # Install new package
-                  if command -v pkexec > /dev/null; then
-                    
-                    if ! sudo ${installCmd} "${filePath}"; then
-                      echo "[UPDATE] Error: Failed to install new package"
-                      exit 1
-                    fi
-                  fi
-                  
-                  echo "[UPDATE] Verifying installation..."
-                  # Verify the installation
-                  if ! command -v ${appName} > /dev/null; then
-                    echo "[UPDATE] Error: New version not properly installed"
-                    dpkg -l ${appName} || rpm -q ${appName} || true
-                    exit 1
-                  fi
-                  
-                  echo "[UPDATE] Cleaning up..."
-                  # Clean up
-                  rm -rf "${tempPath}"
-                  rm -f "${filePath}"
-                  echo "[UPDATE] Cleanup completed"
-                  
-                  echo "[UPDATE] Starting new version..."
-                  # Start the new version using nohup to keep it running
-                  ( nohup ${appName} > /dev/null 2>&1 & )
-                  
-                  echo "[UPDATE] Update completed successfully"
-                `
-
-                try {
-                  await fs.writeFile(scriptPath, scriptContent, {mode: 0o755})
-                  log.info('[AUTO-UPDATE] Update script created successfully')
-                } catch (err) {
-                  log.error(
-                    `[AUTO-UPDATE] Error creating update script: ${err}`,
-                  )
-                  throw err
+                const cleanup = async () => {
+                  log.info('[AUTO-UPDATE] Cleaning up...')
+                  try {
+                    await fs
+                      .rm(tempPath, {recursive: true, force: true})
+                      .catch(() => {})
+                    await fs.rm(filePath, {force: true}).catch(() => {})
+                  } catch (error) {
+                    log.error(`[AUTO-UPDATE] Error during cleanup: ${error}`)
+                  }
                 }
 
-                // Execute the update script and quit
-                log.info('[AUTO-UPDATE] Executing update script...')
-                // Remove quotes around scriptPath and use absolute path
-                exec(scriptPath, {detached: true, stdio: 'inherit'})
-                app.quit() // Give the script a chance to start
+                // Create temp directories
+                await fs.mkdir(tempPath, {recursive: true})
+                await fs.mkdir(backupPath, {recursive: true})
+
+                // Save current package version for rollback
+                const currentVersion = await execPromise(
+                  `${
+                    isRpm ? 'rpm -q' : 'dpkg -l'
+                  } ${packageName} | grep ${packageName}`,
+                ).catch(() => '')
+                if (currentVersion) {
+                  log.info(`[AUTO-UPDATE] Current version: ${currentVersion}`)
+                  await fs.writeFile(
+                    path.join(backupPath, 'version.txt'),
+                    currentVersion,
+                  )
+                }
+
+                // Install new package
+                log.info('[AUTO-UPDATE] Installing new package...')
+                try {
+                  // Remove old package first (ignore errors as it might not exist)
+                  await execPromise(`pkexec ${removeCmd} ${packageName}`).catch(
+                    () => {},
+                  )
+
+                  // Install new package
+                  const result = await execPromise(
+                    `pkexec ${installCmd} "${filePath}"`,
+                  )
+                  log.info(
+                    `[AUTO-UPDATE] Installation output: ${result.stdout}`,
+                  )
+
+                  // Verify installation
+                  const verifyCmd = isRpm
+                    ? `rpm -q ${packageName}`
+                    : `dpkg -l ${packageName}`
+                  const verifyResult = await execPromise(verifyCmd)
+                  if (!verifyResult.stdout.includes(packageName)) {
+                    throw new Error('Package verification failed')
+                  }
+
+                  // Clean up
+                  await cleanup()
+
+                  log.info('[AUTO-UPDATE] Update completed successfully')
+
+                  // Start new version and quit current
+                  log.info('[AUTO-UPDATE] Starting new version...')
+                  exec(`${packageName}`, {detached: true})
+                  setTimeout(() => {
+                    log.info('[AUTO-UPDATE] Quitting app...')
+                    app.quit()
+                  }, 1000)
+                } catch (error) {
+                  log.error(`[AUTO-UPDATE] Installation error: ${error}`)
+                  this.status = {
+                    type: 'error',
+                    error:
+                      error instanceof Error ? error.message : 'Unknown error',
+                  }
+                  win?.webContents.send('auto-update:status', this.status)
+
+                  // Attempt rollback if we have previous version info
+                  try {
+                    const versionFile = path.join(backupPath, 'version.txt')
+                    if (
+                      await fs
+                        .access(versionFile)
+                        .then(() => true)
+                        .catch(() => false)
+                    ) {
+                      const oldVersion = await fs.readFile(versionFile, 'utf-8')
+                      log.info(
+                        `[AUTO-UPDATE] Rolling back to version: ${oldVersion}`,
+                      )
+
+                      // Remove failed new version
+                      await execPromise(
+                        `pkexec ${removeCmd} ${packageName}`,
+                      ).catch(() => {})
+
+                      // For DEB packages, we need to force old version installation
+                      if (!isRpm) {
+                        const oldVersionNumber = oldVersion.split(' ')[2] // Extract version from dpkg -l output
+                        await execPromise(
+                          `pkexec apt-get install ${packageName}=${oldVersionNumber}`,
+                        )
+                      }
+                    }
+                  } catch (rollbackError) {
+                    log.error(`[AUTO-UPDATE] Rollback error: ${rollbackError}`)
+                  }
+
+                  // Clean up
+                  await cleanup()
+                }
               } catch (error) {
-                log.error(`[AUTO-UPDATE] Installation error: ${error}`)
-                this.status = {type: 'error', error: 'Installation error'}
-                win.webContents.send('auto-update:status', this.status)
+                log.error(`[AUTO-UPDATE] Error: ${error}`)
+                this.status = {
+                  type: 'error',
+                  error:
+                    error instanceof Error ? error.message : 'Unknown error',
+                }
+                win?.webContents.send('auto-update:status', this.status)
               }
             }
             log.info(`[AUTO-UPDATE] Download failed: ${state}`)

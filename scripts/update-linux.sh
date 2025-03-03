@@ -3,46 +3,117 @@ set -e  # Exit on any error
 
 echo "[UPDATE] Starting Linux update process..."
 
-sleep 2
+# Configuration
+PACKAGE_NAME="seed-dev"  # or "seed" for production
+TEMP_PATH="/tmp/SeedUpdate"
+BACKUP_PATH="${TEMP_PATH}/backup"
+PACKAGE_FILE="$1"  # First argument should be the path to the DEB/RPM file
 
-echo "[UPDATE] Removing existing package..."
-# Remove existing package with error handling
-if command -v pkexec > /dev/null; then
-if ! pkexec dpkg -r seed-dev; then
-	echo "[UPDATE] Warning: Failed to remove old package, continuing anyway..."
-fi
+# Detect package type
+if [[ "${PACKAGE_FILE}" == *.rpm ]]; then
+  IS_RPM=true
+  REMOVE_CMD="rpm -e"
+  INSTALL_CMD="rpm -U"
+  QUERY_CMD="rpm -q"
 else
-echo "[UPDATE] Error: pkexec not found, trying with sudo..."
-if ! sudo dpkg -r seed-dev; then
-	echo "[UPDATE] Warning: Failed to remove old package, continuing anyway..."
-fi
+  IS_RPM=false
+  REMOVE_CMD="dpkg -r"
+  INSTALL_CMD="dpkg -i"
+  QUERY_CMD="dpkg -l"
 fi
 
-echo "[UPDATE] Installing new package..."
+# Function to clean up temporary files
+cleanup() {
+  echo "[UPDATE] Cleaning up..."
+  rm -rf "${TEMP_PATH}" || true
+  rm -f "${PACKAGE_FILE}" || true
+}
+
+# Function to save current version
+save_current_version() {
+  echo "[UPDATE] Saving current version info..."
+  mkdir -p "${BACKUP_PATH}"
+  if ${QUERY_CMD} ${PACKAGE_NAME} > /dev/null 2>&1; then
+    ${QUERY_CMD} ${PACKAGE_NAME} | grep ${PACKAGE_NAME} > "${BACKUP_PATH}/version.txt"
+    echo "[UPDATE] Current version saved"
+  else
+    echo "[UPDATE] No previous version found"
+  fi
+}
+
+# Function to rollback changes
+rollback() {
+  echo "[UPDATE] Rolling back changes..."
+  if [ -f "${BACKUP_PATH}/version.txt" ]; then
+    echo "[UPDATE] Restoring previous version..."
+    
+    # Remove failed new version
+    pkexec ${REMOVE_CMD} ${PACKAGE_NAME} || true
+    
+    if [ "$IS_RPM" = false ]; then
+      # For DEB packages, we need to force old version installation
+      OLD_VERSION=$(awk '{print $3}' "${BACKUP_PATH}/version.txt")
+      if [ -n "$OLD_VERSION" ]; then
+        echo "[UPDATE] Rolling back to version ${OLD_VERSION}"
+        pkexec apt-get install ${PACKAGE_NAME}=${OLD_VERSION} -y
+      fi
+    fi
+    echo "[UPDATE] Rollback completed"
+  else
+    echo "[UPDATE] No backup version found to restore"
+  fi
+}
+
+# Error handler
+handle_error() {
+  echo "[UPDATE] Error occurred during update process"
+  rollback
+  cleanup
+  exit 1
+}
+
+# Set up error handling
+trap 'handle_error' ERR
+
+# Verify arguments
+if [ -z "$PACKAGE_FILE" ]; then
+  echo "Usage: $0 <path-to-package-file>"
+  exit 1
+fi
+
+if [ ! -f "$PACKAGE_FILE" ]; then
+  echo "Error: Package file not found: $PACKAGE_FILE"
+  exit 1
+fi
+
+# Create temp directory
+mkdir -p "${TEMP_PATH}"
+
+# Save current version for potential rollback
+save_current_version
+
+# Remove existing package
+echo "[UPDATE] Removing existing package..."
+pkexec ${REMOVE_CMD} ${PACKAGE_NAME} || true
+
 # Install new package
-if command -v pkexec > /dev/null; then
+echo "[UPDATE] Installing new package..."
+pkexec ${INSTALL_CMD} "${PACKAGE_FILE}"
 
-if ! sudo dpkg -i /home/cooler/Downloads/seed-dev_2025.2.9-dev.12_amd64.deb; then
-	echo "[UPDATE] Error: Failed to install new package"
-	exit 1
-fi
-fi
-
+# Verify installation
 echo "[UPDATE] Verifying installation..."
-# Verify the installation
-if ! command -v seed-dev > /dev/null; then
-echo "[UPDATE] Error: New version not properly installed"
-dpkg -l seed-dev || rpm -q seed-dev || true
-exit 1
+if ! ${QUERY_CMD} ${PACKAGE_NAME} | grep ${PACKAGE_NAME}; then
+  echo "[UPDATE] Error: Package verification failed"
+  handle_error
 fi
 
-echo "[UPDATE] Cleaning up..."
 # Clean up
-# rm -rf "${tempPath}"
-# rm -f "${filePath}"
-
-echo "[UPDATE] Starting new version..."
-# Start the new version using nohup to keep it running
-( nohup seed-dev > /dev/null 2>&1 & )
+cleanup
 
 echo "[UPDATE] Update completed successfully"
+
+# Start new version
+echo "[UPDATE] Starting new version..."
+nohup ${PACKAGE_NAME} > /dev/null 2>&1 &
+
+echo "[UPDATE] Process completed"
