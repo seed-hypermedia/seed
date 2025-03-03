@@ -3,53 +3,87 @@ set -e  # Exit on any error
 
 echo "[UPDATE] Starting macOS update process..."
 
-# Wait for any file operations to complete
-sleep 2
+# Configuration
+APP_NAME="SeedDev"  # or "Seed" for production
+TEMP_PATH="/tmp/SeedUpdate"
+BACKUP_PATH="${TEMP_PATH}/backup"
+UNZIP_PATH="${TEMP_PATH}/unzip"
+APP_PATH="/Applications/${APP_NAME}.app"
+ZIP_FILE="$1"  # First argument should be the path to the ZIP file
 
-# Check if the DMG is properly mounted and find the actual mount point
-MOUNT_POINT=$(hdiutil info | grep "/Volumes/SeedDev" | awk '{print $1}')
-if [ -z "$MOUNT_POINT" ]; then
-echo "[UPDATE] Error: DMG not properly mounted"
-exit 1
+# Function to clean up temporary files
+cleanup() {
+  echo "[UPDATE] Cleaning up..."
+  rm -rf "${TEMP_PATH}" || true
+  rm -f "${ZIP_FILE}" || true
+}
+
+# Function to rollback changes
+rollback() {
+  echo "[UPDATE] Rolling back changes..."
+  if [ -d "${BACKUP_PATH}/${APP_NAME}.app" ]; then
+    echo "[UPDATE] Restoring backup..."
+    rm -rf "${APP_PATH}" || true
+    cp -R "${BACKUP_PATH}/${APP_NAME}.app" "/Applications/"
+    echo "[UPDATE] Backup restored successfully"
+  else
+    echo "[UPDATE] No backup found to restore"
+  fi
+}
+
+# Error handler
+handle_error() {
+  echo "[UPDATE] Error occurred during update process"
+  rollback
+  cleanup
+  exit 1
+}
+
+# Set up error handling
+trap 'handle_error' ERR
+
+# Create temporary directories
+mkdir -p "${TEMP_PATH}" "${BACKUP_PATH}" "${UNZIP_PATH}"
+
+# Backup existing app if it exists
+if [ -d "${APP_PATH}" ]; then
+  echo "[UPDATE] Backing up existing app..."
+  cp -R "${APP_PATH}" "${BACKUP_PATH}/"
 fi
 
-# Check if the new app exists in the DMG
-if [ ! -d "/Volumes/SeedDev" ]; then
-echo "[UPDATE] Error: New app not found in DMG at /Volumes/SeedDev"
-ls -la "/Volumes/SeedDev" || true
-exit 1
+# Unzip new version
+echo "[UPDATE] Unzipping update..."
+unzip -o "${ZIP_FILE}" -d "${UNZIP_PATH}"
+
+# Verify the unzipped app exists
+if [ ! -d "${UNZIP_PATH}/${APP_NAME}.app" ]; then
+  echo "[UPDATE] Error: Unzipped app not found"
+  handle_error
 fi
 
+# Remove existing app
 echo "[UPDATE] Removing existing app..."
-# Remove existing app (with sudo if needed)
-if [ -d "/Applications/SeedDev.app" ]; then
-rm -rf "/Applications/SeedDev.app" || sudo rm -rf "/Applications/SeedDev.app"
-fi
+rm -rf "${APP_PATH}" || true
 
+# Install new version
 echo "[UPDATE] Installing new version..."
-# Copy new app from mounted DMG to Applications
-cp -R "/Volumes/SeedDev/SeedDev.app" "/Applications/" || sudo cp -R "/Volumes/SeedDev/SeedDev.app" "/Applications/"
+cp -R "${UNZIP_PATH}/${APP_NAME}.app" "/Applications/"
 
-# Verify the copy was successful
-if [ ! -d "/Applications/SeedDev.app" ]; then
-echo "[UPDATE] Error: Failed to copy new app to Applications"
-exit 1
+# Verify installation
+if [ ! -d "${APP_PATH}" ]; then
+  echo "[UPDATE] Error: New version not installed correctly"
+  handle_error
 fi
 
+# Set permissions
 echo "[UPDATE] Setting permissions..."
-# Ensure proper permissions
-chmod -R u+rwx "/Applications/SeedDev.app" || sudo chmod -R u+rwx "/Applications/SeedDev.app"
-
-echo "[UPDATE] Cleaning up..."
-echo "$MOUNT_POINT"
-
-# Unmount the DMG
-hdiutil detach "$MOUNT_POINT" -force || true
+chmod -R u+rwx "${APP_PATH}"
 
 # Clean up
-# rm -rf "${tempPath}"
-# rm -f "${filePath}"
+cleanup
 
+echo "[UPDATE] Update completed successfully"
+
+# Start new version
 echo "[UPDATE] Starting new version..."
-# Open the new app
-open "/Applications/SeedDev.app"
+open "${APP_PATH}"
