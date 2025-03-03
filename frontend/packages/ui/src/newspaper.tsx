@@ -77,7 +77,7 @@ function NewspaperCardImage({
       height={height}
       // minHeight={120}
       // maxHeight={200}
-      backgroundColor="$blue6"
+      backgroundColor="$brand11"
     >
       {coverImage ? (
         <img
@@ -169,7 +169,7 @@ export function NewspaperCard({
 }: Omit<YStackProps, 'id'> & {
   id: UnpackedHypermediaId
   entity: HMEntityContent | null | undefined
-  accountsMetadata: AccountsMetadata
+  accountsMetadata: HMAccountsMetadata
   isWeb?: boolean
 }) {
   const linkProps = useRouteLink({key: 'document', id})
