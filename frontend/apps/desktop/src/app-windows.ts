@@ -152,6 +152,9 @@ export function createAppWindow(input: {
     height: number
   }
 }): BrowserWindow {
+  if (!app.isReady()) {
+    throw new Error('Cannot create BrowserWindow before app is ready')
+  }
   const windowId = input.id || `window.${windowIdCount++}.${Date.now()}`
   const win = getAWindow()
   const prevWindowBounds = win?.getBounds()

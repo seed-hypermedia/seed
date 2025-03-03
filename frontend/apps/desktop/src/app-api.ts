@@ -4,6 +4,7 @@ import type {AppWindowEvent} from '@/utils/window-events'
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 
 import {
+  app,
   BrowserWindow,
   dialog,
   ipcMain,
@@ -229,6 +230,11 @@ export const router = t.router({
     )
     .mutation(async ({input}) => {
       log.info(`[MAIN]: will createAppWindow ${JSON.stringify(input.routes)}`)
+      if (!app.isReady()) {
+        await new Promise<void>((resolve) => {
+          app.whenReady().then(() => resolve())
+        })
+      }
       const allWindows = getWindowsState()
       const destRoute = input.routes[input.routeIndex]
       const destRouteKey = getRouteRefocusKey(destRoute)

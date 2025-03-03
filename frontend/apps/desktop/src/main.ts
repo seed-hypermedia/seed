@@ -50,6 +50,22 @@ const OS_REGISTER_SCHEME = 'hm'
 initPaths()
 
 app.whenReady().then(() => {
+  logger.debug('[MAIN]: Seed ready')
+
+  // Check if app was launched after update
+  const isRelaunchAfterUpdate = process.argv.includes('--relaunch-after-update')
+  if (isRelaunchAfterUpdate) {
+    logger.info('[MAIN]: App relaunched after update, ensuring window opens')
+    // Force open a window
+    openInitialWindows()
+    // Remove the flag from argv to prevent issues on subsequent launches
+    process.argv = process.argv.filter(
+      (arg) => arg !== '--relaunch-after-update',
+    )
+  } else {
+    openInitialWindows()
+  }
+
   autoUpdate()
 })
 
