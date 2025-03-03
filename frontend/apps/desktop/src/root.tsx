@@ -35,6 +35,7 @@ import type {AppInfoType} from './preload'
 import './root.css'
 import {client, trpc} from './trpc'
 
+import {useListKeys} from '@/models/daemon'
 import {
   onQueryCacheError,
   onQueryInvalidation,
@@ -202,6 +203,7 @@ function MainApp({}: {}) {
   const daemonState = useGoDaemonState()
   const windowUtils = useWindowUtils(ipc)
   const utils = trpc.useUtils
+  const keys = useListKeys()
   const [showOnboarding, setShowOnboarding] = useState(() => {
     const {hasCompletedOnboarding, hasSkippedOnboarding} = getOnboardingState()
     return !hasCompletedOnboarding && !hasSkippedOnboarding
@@ -219,25 +221,32 @@ function MainApp({}: {}) {
       })
   })
 
-  // Check if onboarding state changes during the app's lifecycle
+  // Check if onboarding state changes or if accounts exist
   useEffect(() => {
     const checkOnboardingState = () => {
       const {hasCompletedOnboarding, hasSkippedOnboarding} =
         getOnboardingState()
-      if (hasCompletedOnboarding || hasSkippedOnboarding) {
-        console.log('Onboarding completed or skipped, showing main app')
+      const hasAccounts = keys?.length > 0
+
+      if (hasCompletedOnboarding || hasSkippedOnboarding || hasAccounts) {
+        console.log(
+          'Onboarding completed, skipped, or accounts exist - showing main app',
+        )
         setShowOnboarding(false)
       }
     }
 
+    // Initial check
+    checkOnboardingState()
+
     // Check every second for changes to onboarding state
     const interval = setInterval(checkOnboardingState, 1000)
     return () => clearInterval(interval)
-  }, [setShowOnboarding])
+  }, [keys, setShowOnboarding])
 
   useEffect(() => {
     if (showOnboarding) return
-    // @ts-expect-error
+
     const sub = client.queryInvalidation.subscribe(undefined, {
       // called when invalidation happens in any window (including this one), here we are performing the local invalidation
       onData: (value: unknown[]) => {

@@ -18,6 +18,7 @@ import {
   useQuery,
   UseQueryOptions,
 } from '@tanstack/react-query'
+import {useEffect, useState} from 'react'
 
 export type NamedKey = {
   name: string
@@ -105,6 +106,33 @@ export function useMyAccountIds() {
 export function useMyAccounts() {
   const {data = []} = useMyAccountIds()
   return useEntities(data?.map((k) => hmId('d', k)))
+}
+
+/**
+ * Returns a list of keys from the daemon.
+ * This is a hook that is used to list keys from the daemon.
+ * It is used to check if the user has any accounts.
+ * If the user has no accounts, it will show the onboarding screen.
+ * If the user has accounts, it will show the main app.
+ *
+ * @returns
+ */
+export function useListKeys() {
+  const [keys, setKeys] = useState<NamedKey[]>([])
+  useEffect(() => {
+    keys()
+
+    async function keys() {
+      try {
+        const q = await grpcClient.daemon.listKeys({})
+        setKeys([...q?.keys])
+      } catch (e) {
+        console.error('Failed to list keys', e)
+      }
+    }
+  }, [])
+
+  return keys
 }
 
 export function useRegisterKey(
