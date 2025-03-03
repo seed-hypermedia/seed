@@ -492,11 +492,44 @@ export class AutoUpdater {
 
                 // Start new version and quit current
                 log.info('[AUTO-UPDATE] Starting new version...')
-                exec(`open "/Applications/${appName}.app"`, {detached: true})
-                setTimeout(() => {
-                  log.info('[AUTO-UPDATE] Quitting app...')
-                  app.quit()
-                }, 1000) // Give more time for the new version to start
+                try {
+                  // Launch the new version with the relaunch flag
+                  exec(
+                    `open -n "/Applications/${appName}.app" --args --relaunch-after-update`,
+                    {
+                      detached: true,
+                      stdio: 'ignore',
+                    },
+                  )
+
+                  // Wait a bit to ensure the new version starts
+                  setTimeout(() => {
+                    log.info('[AUTO-UPDATE] Quitting current version...')
+                    app.quit()
+                  }, 2000)
+                } catch (startError) {
+                  log.error(
+                    `[AUTO-UPDATE] Error starting new version: ${startError}`,
+                  )
+                  // If the first attempt fails, try one more time
+                  try {
+                    exec(
+                      `open "/Applications/${appName}.app" --args --relaunch-after-update`,
+                      {
+                        detached: true,
+                        stdio: 'ignore',
+                      },
+                    )
+                    setTimeout(() => {
+                      app.quit()
+                    }, 2000)
+                  } catch (retryError) {
+                    log.error(
+                      `[AUTO-UPDATE] Retry to start new version failed: ${retryError}`,
+                    )
+                    throw new Error('Failed to start new version after update')
+                  }
+                }
               } catch (error) {
                 log.error(`[AUTO-UPDATE] Installation error: ${error}`)
                 this.status = {type: 'error', error: error.message}
@@ -599,7 +632,7 @@ export class AutoUpdater {
                   setTimeout(() => {
                     log.info('[AUTO-UPDATE] Quitting app...')
                     app.quit()
-                  }, 1000)
+                  }, 100)
                 } catch (error) {
                   log.error(`[AUTO-UPDATE] Installation error: ${error}`)
                   this.status = {
@@ -653,9 +686,9 @@ export class AutoUpdater {
                 win?.webContents.send('auto-update:status', this.status)
               }
             }
-            log.info(`[AUTO-UPDATE] Download failed: ${state}`)
-            this.status = {type: 'error', error: 'Download failed'}
-            win.webContents.send('auto-update:status', this.status)
+            // log.info(`[AUTO-UPDATE] Download failed: ${state}`)
+            // this.status = {type: 'error', error: 'Download failed'}
+            // win.webContents.send('auto-update:status', this.status)
           }
         })
       })
