@@ -162,10 +162,18 @@ export class AutoUpdater {
       log.info('[AUTO-UPDATE] Received download and install request')
       if (this.currentUpdateInfo) {
         const asset = this.getAssetForCurrentPlatform(this.currentUpdateInfo)
-        if (asset?.download_url) {
-          this.downloadAndInstall(asset.download_url)
+        if (process.platform === 'darwin') {
+          if (asset?.zip_url) {
+            this.downloadAndInstall(asset.zip_url)
+          } else {
+            log.error('[AUTO-UPDATE] No compatible update found for download')
+          }
         } else {
-          log.error('[AUTO-UPDATE] No compatible update found for download')
+          if (asset?.download_url) {
+            this.downloadAndInstall(asset.download_url)
+          } else {
+            log.error('[AUTO-UPDATE] No compatible update found for download')
+          }
         }
       } else {
         log.error('[AUTO-UPDATE] No update info available for download')
@@ -361,117 +369,143 @@ export class AutoUpdater {
               const fs = require('fs/promises')
 
               const appName = IS_PROD_DEV ? 'SeedDev' : 'Seed'
-              const volumePath = `/Volumes/${appName}`
               const tempPath = path.join(app.getPath('temp'), 'SeedUpdate')
-              const scriptPath = path.join(tempPath, 'update.sh')
+              const backupPath = path.join(tempPath, 'backup')
+              const unzipPath = path.join(tempPath, 'unzip')
 
               log.info(`[AUTO-UPDATE] Variables for macOS update:`)
-              log.info(`[AUTO-UPDATE] - volumePath: ${volumePath}`)
-              log.info(`[AUTO-UPDATE] - appName: ${appName}`)
-              log.info(`[AUTO-UPDATE] - tempPath: ${tempPath}`)
-              log.info(`[AUTO-UPDATE] - IS_PROD_DEV: ${IS_PROD_DEV}`)
+              log.info(`[AUTO-UPDATE] - App name: ${appName}`)
+              log.info(`[AUTO-UPDATE] - Temp path: ${tempPath}`)
+              log.info(`[AUTO-UPDATE] - Backup path: ${backupPath}`)
+              log.info(`[AUTO-UPDATE] - Unzip path: ${unzipPath}`)
+              log.info(`[AUTO-UPDATE] - File path: ${filePath}`)
+
+              const rollback = async () => {
+                log.info('[AUTO-UPDATE] Rolling back changes...')
+                try {
+                  // If backup exists, restore it
+                  if (
+                    await fs
+                      .access(backupPath)
+                      .then(() => true)
+                      .catch(() => false)
+                  ) {
+                    log.info('[AUTO-UPDATE] Restoring backup...')
+                    // Remove failed new version if it exists
+                    await fs
+                      .rm(`/Applications/${appName}.app`, {
+                        recursive: true,
+                        force: true,
+                      })
+                      .catch(() => {})
+                    // Restore backup
+                    await execPromise(
+                      `cp -R "${backupPath}/${appName}.app" "/Applications/"`,
+                    )
+                    log.info('[AUTO-UPDATE] Backup restored successfully')
+                  }
+                } catch (error) {
+                  log.error(`[AUTO-UPDATE] Error during rollback: ${error}`)
+                }
+              }
+
+              const cleanup = async () => {
+                log.info('[AUTO-UPDATE] Cleaning up...')
+                try {
+                  // Remove temp directories and downloaded file
+                  await fs
+                    .rm(tempPath, {recursive: true, force: true})
+                    .catch(() => {})
+                  await fs.rm(filePath, {force: true}).catch(() => {})
+                } catch (error) {
+                  log.error(`[AUTO-UPDATE] Error during cleanup: ${error}`)
+                }
+              }
 
               try {
-                // Ensure temp directory exists
-                log.info(
-                  `[AUTO-UPDATE] Creating temp directory at: ${tempPath}`,
-                )
-                try {
-                  await fs.mkdir(tempPath, {recursive: true})
-                } catch (err) {
-                  log.error(
-                    `[AUTO-UPDATE] Error creating temp directory: ${err}`,
+                // Create temp directories
+                await fs.mkdir(tempPath, {recursive: true})
+                await fs.mkdir(backupPath, {recursive: true})
+                await fs.mkdir(unzipPath, {recursive: true})
+
+                // Backup existing app if it exists
+                if (
+                  await fs
+                    .access(`/Applications/${appName}.app`)
+                    .then(() => true)
+                    .catch(() => false)
+                ) {
+                  log.info('[AUTO-UPDATE] Backing up existing app...')
+                  await execPromise(
+                    `cp -R "/Applications/${appName}.app" "${backupPath}/"`,
                   )
-                  throw err
                 }
 
-                // Mount the DMG
-                log.info('[AUTO-UPDATE] Mounting DMG...')
-                await execPromise(`hdiutil attach "${filePath}"`)
+                // Unzip new version
+                log.info('[AUTO-UPDATE] Unzipping update...')
+                await execPromise(`unzip -o "${filePath}" -d "${unzipPath}"`)
 
-                // Create update script
-                log.info(
-                  `[AUTO-UPDATE] Creating update script at: ${scriptPath}`,
-                )
-
-                const scriptContent = `#!/bin/bash
-                  set -e  # Exit on any error
-                  
-                  echo "[UPDATE] Starting macOS update process..."
-                  
-                  # Wait for any file operations to complete
-                  sleep 2
-                  
-                  # Check if the DMG is properly mounted and find the actual mount point
-                  MOUNT_POINT=$(hdiutil info | grep "${volumePath}" | awk '{print $1}')
-                  if [ -z "$MOUNT_POINT" ]; then
-                    echo "[UPDATE] Error: DMG not properly mounted"
-                    exit 1
-                  fi
-                  
-                  # Check if the new app exists in the DMG
-                  if [ ! -d "${volumePath}/${appName}.app" ]; then
-                    echo "[UPDATE] Error: New app not found in DMG at ${volumePath}/${appName}.app"
-                    ls -la "${volumePath}" || true
-                    exit 1
-                  fi
-                  
-                  echo "[UPDATE] Removing existing app..."
-                  # Remove existing app (with sudo if needed)
-                  if [ -d "/Applications/${appName}.app" ]; then
-                    rm -rf "/Applications/${appName}.app" || sudo rm -rf "/Applications/${appName}.app"
-                  fi
-                  
-                  echo "[UPDATE] Installing new version..."
-                  # Copy new app from mounted DMG to Applications
-                  cp -R "${volumePath}/${appName}.app" "/Applications/" || sudo cp -R "${volumePath}/${appName}.app" "/Applications/"
-                  
-                  # Verify the copy was successful
-                  if [ ! -d "/Applications/${appName}.app" ]; then
-                    echo "[UPDATE] Error: Failed to copy new app to Applications"
-                    exit 1
-                  fi
-                  
-                  echo "[UPDATE] Cleaning up..."
-                  # Unmount the DMG
-                  hdiutil detach "$MOUNT_POINT" -force || true
-                  
-                  # Clean up
-                  rm -rf "${tempPath}"
-                  rm -f "${filePath}"
-                  
-                  echo "[UPDATE] Starting new version..."
-                  # Open the new app
-                  open "/Applications/${appName}.app"
-                `
-
-                try {
-                  await fs.writeFile(scriptPath, scriptContent, {mode: 0o755})
-                  log.info('[AUTO-UPDATE] Update script created successfully')
-                } catch (err) {
-                  log.error(
-                    `[AUTO-UPDATE] Error creating update script: ${err}`,
-                  )
-                  throw err
+                // Verify the unzipped app exists
+                const unzippedAppPath = path.join(unzipPath, `${appName}.app`)
+                if (
+                  !(await fs
+                    .access(unzippedAppPath)
+                    .then(() => true)
+                    .catch(() => false))
+                ) {
+                  throw new Error('Unzipped app not found')
                 }
 
-                // Execute the update script and quit
-                log.info('[AUTO-UPDATE] Executing update script...')
-                // Remove quotes around scriptPath and use absolute path
-                exec(scriptPath, {detached: true, stdio: 'inherit'})
+                // Remove existing app
+                log.info('[AUTO-UPDATE] Removing existing app...')
+                await fs
+                  .rm(`/Applications/${appName}.app`, {
+                    recursive: true,
+                    force: true,
+                  })
+                  .catch(() => {})
+
+                // Install new version
+                log.info('[AUTO-UPDATE] Installing new version...')
+                await execPromise(`cp -R "${unzippedAppPath}" "/Applications/"`)
+
+                // Verify installation
+                if (
+                  !(await fs
+                    .access(`/Applications/${appName}.app`)
+                    .then(() => true)
+                    .catch(() => false))
+                ) {
+                  throw new Error('New version not installed correctly')
+                }
+
+                // Set permissions
+                log.info('[AUTO-UPDATE] Setting permissions...')
+                await execPromise(
+                  `chmod -R u+rwx "/Applications/${appName}.app"`,
+                )
+
+                // Clean up
+                await cleanup()
+
+                log.info('[AUTO-UPDATE] Update completed successfully')
+
+                // Start new version and quit current
+                log.info('[AUTO-UPDATE] Starting new version...')
+                exec(`open "/Applications/${appName}.app"`, {detached: true})
                 setTimeout(() => {
                   log.info('[AUTO-UPDATE] Quitting app...')
                   app.quit()
-                }, 10) // Give the script a chance to start
+                }, 1000) // Give more time for the new version to start
               } catch (error) {
                 log.error(`[AUTO-UPDATE] Installation error: ${error}`)
-                // Clean up if possible
-                try {
-                  log.info('[AUTO-UPDATE] Detaching DMG...')
-                  await execPromise(`hdiutil detach "${volumePath}" || true`)
-                } catch (cleanupError) {
-                  log.error(`[AUTO-UPDATE] Cleanup error: ${cleanupError}`)
-                }
+                this.status = {type: 'error', error: error.message}
+                win?.webContents.send('auto-update:status', this.status)
+
+                // Attempt rollback
+                await rollback()
+                // Clean up
+                await cleanup()
               }
             } else if (process.platform === 'linux') {
               try {
