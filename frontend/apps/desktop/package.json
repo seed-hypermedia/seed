@@ -17,13 +17,11 @@
   "scripts": {
     "dev": "electron-forge start",
     "dev:debug": "ELECTRON_ENABLE_LOGGING=true electron-forge start -- --remote-debugging-port=9222",
-    "metrics": "electron-forge start -- --metrics",
     "format": "echo TODO",
     "make": "electron-forge make",
     "package": "electron-forge package",
     "publish": "electron-forge publish",
     "devtools": "react-devtools",
-    "desktop:debug": "ELECTRON_ENABLE_LOGGING=true VITE_DESKTOP_APPDATA=Seed-local VITE_LIGHTNING_API_URL=https://ln.testnet.seed.hyper.media electron-forge start -- --remote-debugging-port=9222",
     "test": "NODE_ENV=test yarn package:test && yarn e2e",
     "test:only": "NODE_ENV=test yarn e2e",
     "typecheck": "tsc --noEmit",

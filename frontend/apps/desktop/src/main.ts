@@ -46,7 +46,6 @@ import {
 import {grpcClient} from './app-grpc'
 import {appInvalidateQueries} from './app-invalidation'
 import {createAppMenu} from './app-menu'
-import {startMetricsServer} from './app-metrics'
 import {initPaths} from './app-paths'
 import autoUpdate from './auto-update'
 import {startMainDaemon} from './daemon'
@@ -55,113 +54,13 @@ import {saveCidAsFile} from './save-cid-as-file'
 import {saveMarkdownFile} from './save-markdown-file'
 import {getFocusedWindow} from './window-manager'
 
-import {
-  BIG_INT,
-  IS_PROD_DESKTOP,
-  METRIC_SERVER_HTTP_PORT,
-  VERSION,
-} from '@shm/shared/constants'
+import {BIG_INT, IS_PROD_DESKTOP, VERSION} from '@shm/shared/constants'
 import {defaultRoute} from '@shm/shared/routes'
 import {setupOnboardingHandlers} from './app-onboarding-store'
 
 const OS_REGISTER_SCHEME = 'hm'
 // @ts-ignore
 global.electronTRPC = {}
-
-// Development-only performance monitoring
-let metricsServer: Awaited<ReturnType<typeof startMetricsServer>> | undefined
-let startTime: number | undefined
-
-if (!IS_PROD_DESKTOP) {
-  startTime = performance.now()
-
-  // Start metrics collection if running in metrics mode
-  if (process.argv.includes('--metrics')) {
-    const startTime = Date.now()
-    const timestamp = new Date()
-      .toISOString()
-      .replace(/[-:]/g, '')
-      .split('.')[0]
-    const metricsDir = path.join(
-      __dirname,
-      '..',
-      '..',
-      'front-analytics',
-      'public',
-      'metrics',
-    )
-
-    // Create metrics directory if it doesn't exist
-    if (!fs.existsSync(metricsDir)) {
-      fs.mkdirSync(metricsDir, {recursive: true})
-    }
-
-    const metricsFile = path.join(metricsDir, `results-${timestamp}.log`)
-    console.log(
-      `\nStarting metrics collection. Output will be saved to: ${metricsFile}`,
-    )
-    console.log('Use Ctrl+C to stop the collection when you are done.')
-
-    // Log initial stats
-    const initialMemory = process.memoryUsage()
-    console.log(
-      `[STATS-INITIAL] Memory: ${JSON.stringify({
-        rss: initialMemory.rss,
-        heapTotal: initialMemory.heapTotal,
-        heapUsed: initialMemory.heapUsed,
-        external: initialMemory.external,
-        arrayBuffers: initialMemory.arrayBuffers || 0,
-      })}`,
-    )
-
-    const initialCPU = process.cpuUsage()
-    console.log(
-      `[STATS-INITIAL] CPU: ${JSON.stringify({
-        user: initialCPU.user,
-        system: initialCPU.system,
-      })}`,
-    )
-
-    // Collect metrics every second
-    const metricsInterval = setInterval(() => {
-      const memory = process.memoryUsage()
-      console.log(
-        `[STATS-PERIODIC] Memory: ${JSON.stringify({
-          rss: memory.rss,
-          heapTotal: memory.heapTotal,
-          heapUsed: memory.heapUsed,
-          external: memory.external,
-          arrayBuffers: memory.arrayBuffers || 0,
-        })}`,
-      )
-
-      const cpu = process.cpuUsage()
-      console.log(
-        `[STATS-PERIODIC] CPU: ${JSON.stringify({
-          user: cpu.user,
-          system: cpu.system,
-        })}`,
-      )
-    }, 1000)
-
-    // Clean up on app quit
-    app.on('before-quit', () => {
-      clearInterval(metricsInterval)
-      const runtime = Date.now() - startTime
-      console.log(`[STATS-FINAL] Total runtime: ${runtime}`)
-    })
-  }
-
-  const obs = new PerformanceObserver((list: PerformanceObserverEntryList) => {
-    const entries = list.getEntries()
-    entries.forEach((entry: PerformanceEntry) => {
-      console.log(`[PERF] ${entry.name}: ${entry.duration}ms`)
-    })
-  })
-  obs.observe({entryTypes: ['measure'], buffered: true})
-
-  metricsServer = startMetricsServer(METRIC_SERVER_HTTP_PORT)
-}
 
 // Core initialization
 initPaths()
@@ -190,10 +89,6 @@ contextMenu({
   showInspectElement: !IS_PROD_DESKTOP,
 })
 
-// const metricsServer = startMetricsServer(METRIC_SERVER_HTTP_PORT)
-// app.on('quit', async () => {
-//   await metricsServer.close()
-// })
 Menu.setApplicationMenu(createAppMenu())
 
 if (IS_PROD_DESKTOP) {
@@ -294,18 +189,6 @@ app.on('window-all-closed', () => {
 
 app.on('second-instance', handleSecondInstance)
 app.on('open-url', (_event, url) => handleUrlOpen(url))
-
-app.on('quit', async () => {
-  if (!IS_PROD_DESKTOP) {
-    if (metricsServer) {
-      await metricsServer.close()
-    }
-    if (startTime) {
-      const endTime = performance.now()
-      logger.info(`[STATS-FINAL] Total runtime: ${endTime - startTime}ms`)
-    }
-  }
-})
 
 async function initAccountSubscriptions() {
   logger.info('InitAccountSubscriptions')
