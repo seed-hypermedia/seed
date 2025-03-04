@@ -19,6 +19,7 @@ import {
   ButtonFrame,
   Form,
   Input,
+  ScrollView,
   SizableText,
   Text,
   TextArea,
@@ -138,7 +139,6 @@ export function Onboarding({onComplete}: OnboardingProps) {
 
   return (
     <YStack flex={1} backgroundColor="$background" className="window-drag">
-      <DebugBox />
       {currentStep === 'welcome' && <WelcomeStep onNext={handleNext} />}
       {currentStep === 'profile' && (
         <ProfileStep onSkip={handleSkip} onNext={handleNext} />
@@ -788,7 +788,7 @@ function ReadyStep({onComplete}: {onComplete: () => void}) {
   )
 }
 
-function DebugBox() {
+export function OnboardingDebugBox() {
   const [state, setState] = useState<OnboardingState>(getOnboardingState())
 
   useEffect(() => {
@@ -816,13 +816,17 @@ function DebugBox() {
       elevation={4}
       zIndex={1000}
       className="no-window-drag"
+      width={300}
+      maxHeight={300}
     >
-      <Text fontSize="$3" fontFamily="$mono">
-        Debug: Onboarding State
-      </Text>
-      <Text fontSize="$2" fontFamily="$mono" color="$gray11">
-        {JSON.stringify(state, null, 2)}
-      </Text>
+      <ScrollView>
+        <Text fontSize="$3" fontFamily="$mono">
+          Debug: Onboarding State
+        </Text>
+        <Text fontSize="$2" fontFamily="$mono" color="$gray11">
+          {JSON.stringify(state, null, 2)}
+        </Text>
+      </ScrollView>
     </YStack>
   )
 }

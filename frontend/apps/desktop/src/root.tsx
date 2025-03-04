@@ -26,7 +26,7 @@ import {Button, SizableText, XStack, YStack} from 'tamagui'
 import {getOnboardingState, resetOnboardingState} from './app-onboarding'
 import {AppErrorContent, RootAppError} from './components/app-error'
 import {AccountWizardDialog} from './components/create-account'
-import {Onboarding} from './components/Onboarding'
+import {Onboarding, OnboardingDebugBox} from './components/Onboarding'
 import type {GoDaemonState} from './daemon'
 import {grpcClient} from './grpc-client'
 import {ipc} from './ipc'
@@ -334,6 +334,7 @@ function MainApp({}: {}) {
           <QueryClientProvider client={queryClient}>
             <StyleProvider darkMode={darkMode!}>
               <Onboarding onComplete={() => setShowOnboarding(false)} />
+              <OnboardingDebugBox />
               <ResetOnboardingButton />
             </StyleProvider>
           </QueryClientProvider>
