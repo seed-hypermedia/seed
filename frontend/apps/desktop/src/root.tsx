@@ -36,6 +36,7 @@ import './root.css'
 import {client, trpc} from './trpc'
 
 import {useListKeys} from '@/models/daemon'
+import {UniversalAppProvider} from '@shm/shared'
 import {
   onQueryCacheError,
   onQueryInvalidation,
@@ -324,12 +325,19 @@ function MainApp({}: {}) {
   if (daemonState?.t == 'ready') {
     if (showOnboarding) {
       return (
-        <QueryClientProvider client={queryClient}>
-          <StyleProvider darkMode={darkMode!}>
-            <Onboarding onComplete={() => setShowOnboarding(false)} />
-            <ResetOnboardingButton />
-          </StyleProvider>
-        </QueryClientProvider>
+        <UniversalAppProvider
+          openUrl={async (url: string) => {
+            ipc.send?.('open-external-link', url)
+          }}
+          openRoute={() => {}}
+        >
+          <QueryClientProvider client={queryClient}>
+            <StyleProvider darkMode={darkMode!}>
+              <Onboarding onComplete={() => setShowOnboarding(false)} />
+              <ResetOnboardingButton />
+            </StyleProvider>
+          </QueryClientProvider>
+        </UniversalAppProvider>
       )
     } else {
       return (

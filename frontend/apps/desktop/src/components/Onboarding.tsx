@@ -50,40 +50,6 @@ interface ProfileFormData {
   seedExperimentalLogo?: ImageData
 }
 
-async function fileToImageData(file: File): Promise<ImageData> {
-  // Validate the file first
-  validateImage(file)
-
-  // Convert to base64
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => {
-      resolve({
-        base64: reader.result as string,
-        type: file.type,
-        name: file.name,
-        size: file.size,
-      })
-    }
-    reader.onerror = () => reject(new Error('Failed to read file'))
-    reader.readAsDataURL(file)
-  })
-}
-
-function base64ToFile(imageData: ImageData): File {
-  // Convert base64 to blob
-  const byteString = atob(imageData.base64.split(',')[1])
-  const ab = new ArrayBuffer(byteString.length)
-  const ia = new Uint8Array(ab)
-  for (let i = 0; i < byteString.length; i++) {
-    ia[i] = byteString.charCodeAt(i)
-  }
-  const blob = new Blob([ab], {type: imageData.type})
-
-  // Create File from blob
-  return new File([blob], imageData.name, {type: imageData.type})
-}
-
 export function Onboarding({onComplete}: OnboardingProps) {
   // Check if onboarding has been completed or skipped
   const state = getOnboardingState()
@@ -151,6 +117,25 @@ export function Onboarding({onComplete}: OnboardingProps) {
     console.groupEnd()
   }, [currentStep, onComplete])
 
+  const handlePrev = useCallback(() => {
+    console.group('🚀 Previous Step in Onboarding')
+    const beforeState = getOnboardingState()
+    console.log('Before - Local step:', currentStep)
+    console.log('Before - Store state:', beforeState)
+
+    if (currentStep === 'recovery') {
+      setOnboardingStep('profile')
+      setCurrentStep('profile')
+    } else if (currentStep === 'profile') {
+      setOnboardingStep('welcome')
+      setCurrentStep('welcome')
+    }
+
+    const afterState = getOnboardingState()
+    console.log('After - Store state:', afterState)
+    console.groupEnd()
+  }, [currentStep])
+
   return (
     <YStack flex={1} backgroundColor="$background" className="window-drag">
       <DebugBox />
@@ -158,7 +143,9 @@ export function Onboarding({onComplete}: OnboardingProps) {
       {currentStep === 'profile' && (
         <ProfileStep onSkip={handleSkip} onNext={handleNext} />
       )}
-      {currentStep === 'recovery' && <RecoveryStep onNext={handleNext} />}
+      {currentStep === 'recovery' && (
+        <RecoveryStep onNext={handleNext} onPrev={handlePrev} />
+      )}
       {currentStep === 'ready' && <ReadyStep onComplete={handleNext} />}
     </YStack>
   )
@@ -168,125 +155,96 @@ function WelcomeStep({onNext}: {onNext: () => void}) {
   const openUrl = useOpenUrl()
 
   return (
-    <StepWrapper>
-      <YStack gap="$6" alignItems="center" maxWidth={600}>
-        <FullLogoIcon />
-        <StepTitle>WELCOME TO THE OPEN WEB</StepTitle>
-        <XStack gap="$6" width="100%" paddingHorizontal={0}>
-          <YStack
-            padding="$2"
-            borderRadius="$4"
-            flex={1}
-            gap="$4"
-            alignItems="center"
-            justifyContent="flex-start"
-            width={200}
-          >
-            <YStack flex={1} justifyContent="center">
-              <CollabIcon />
-            </YStack>
-            <YStack height={80} justifyContent="flex-start">
-              <Text fontSize="$5" textAlign="center">
-                Collaborate With Your Peers
-              </Text>
-            </YStack>
+    <StepWrapper currentStep="welcome">
+      <FullLogoIcon />
+      <StepTitle>WELCOME TO THE OPEN WEB</StepTitle>
+      <XStack gap="$6" width="100%" paddingHorizontal={0}>
+        <YStack
+          padding="$2"
+          borderRadius="$4"
+          flex={1}
+          gap="$4"
+          alignItems="center"
+          justifyContent="flex-start"
+          width={200}
+        >
+          <YStack flex={1} justifyContent="center">
+            <CollabIcon />
           </YStack>
-
-          <YStack
-            padding="$2"
-            width={200}
-            borderRadius="$4"
-            flex={1}
-            gap="$4"
-            alignItems="center"
-            justifyContent="flex-start"
-          >
-            <YStack flex={1} justifyContent="center">
-              <PublishIcon />
-            </YStack>
-            <YStack height={80} justifyContent="flex-start">
-              <Text fontSize="$5" textAlign="center">
-                Publish To The Web
-              </Text>
-            </YStack>
+          <YStack height={80} justifyContent="flex-start">
+            <Text fontSize="$5" textAlign="center">
+              Collaborate With Your Peers
+            </Text>
           </YStack>
-
-          <YStack
-            padding="$2"
-            width={200}
-            borderRadius="$4"
-            flex={1}
-            gap="$4"
-            alignItems="center"
-            justifyContent="flex-start"
-          >
-            <YStack flex={1} justifyContent="center">
-              <ArchiveIcon />
-            </YStack>
-            <YStack height={80} justifyContent="flex-start">
-              <Text fontSize="$5" textAlign="center">
-                Archive Content, Available Offline
-              </Text>
-            </YStack>
-          </YStack>
-        </XStack>
-
-        <YStack gap="$4" alignItems="center" className="no-window-drag">
-          <Button
-            variant="outlined"
-            onPress={() => openUrl('https://seed.hyper.media')}
-            icon={ExternalLink}
-            hoverStyle={{
-              backgroundColor: '$brand11',
-              borderColor: 'transparent',
-            }}
-            focusStyle={{
-              backgroundColor: '$brand11',
-              borderColor: 'transparent',
-            }}
-          >
-            Getting Started Guides
-          </Button>
-          <Button
-            onPress={onNext}
-            backgroundColor="$brand2"
-            color="white"
-            size="$4"
-            borderRadius="$2"
-            borderWidth={0}
-            hoverStyle={{backgroundColor: '$brand3'}}
-            focusStyle={{backgroundColor: '$brand3'}}
-          >
-            NEXT
-          </Button>
         </YStack>
 
-        <XStack gap="$2" paddingTop="$4">
-          <YStack
-            width={8}
-            height={8}
-            backgroundColor="$brand5"
-            borderRadius={8}
-          />
-          <YStack
-            width={8}
-            height={8}
-            backgroundColor="$gray8"
-            borderRadius={8}
-          />
-          <YStack
-            width={8}
-            height={8}
-            backgroundColor="$gray8"
-            borderRadius={8}
-          />
-          <YStack
-            width={8}
-            height={8}
-            backgroundColor="$gray8"
-            borderRadius={8}
-          />
-        </XStack>
+        <YStack
+          padding="$2"
+          width={200}
+          borderRadius="$4"
+          flex={1}
+          gap="$4"
+          alignItems="center"
+          justifyContent="flex-start"
+        >
+          <YStack flex={1} justifyContent="center">
+            <PublishIcon />
+          </YStack>
+          <YStack height={80} justifyContent="flex-start">
+            <Text fontSize="$5" textAlign="center">
+              Publish To The Web
+            </Text>
+          </YStack>
+        </YStack>
+
+        <YStack
+          padding="$2"
+          width={200}
+          borderRadius="$4"
+          flex={1}
+          gap="$4"
+          alignItems="center"
+          justifyContent="flex-start"
+        >
+          <YStack flex={1} justifyContent="center">
+            <ArchiveIcon />
+          </YStack>
+          <YStack height={80} justifyContent="flex-start">
+            <Text fontSize="$5" textAlign="center">
+              Archive Content, Available Offline
+            </Text>
+          </YStack>
+        </YStack>
+      </XStack>
+
+      <YStack gap="$4" alignItems="center" className="no-window-drag">
+        <Button
+          variant="outlined"
+          onPress={() => openUrl('https://seed.hyper.media')}
+          icon={ExternalLink}
+          hoverStyle={{
+            backgroundColor: '$brand11',
+            borderColor: 'transparent',
+          }}
+          focusStyle={{
+            backgroundColor: '$brand11',
+            borderColor: 'transparent',
+          }}
+        >
+          Getting Started Guides
+        </Button>
+        <Button
+          onPress={onNext}
+          backgroundColor="$brand2"
+          color="white"
+          size="$4"
+          borderRadius="$2"
+          borderWidth={0}
+          hoverStyle={{backgroundColor: '$brand3'}}
+          focusStyle={{backgroundColor: '$brand3'}}
+        >
+          NEXT
+        </Button>
       </YStack>
     </StepWrapper>
   )
@@ -347,115 +305,119 @@ function ProfileStep({
   }
 
   return (
-    <StepWrapper>
-      <YStack gap="$6" alignItems="center" maxWidth={600}>
-        <StepTitle>CREATE YOUR SITE</StepTitle>
-        <Text fontSize="$5" textAlign="center" color="$gray11">
-          Your site is more than just a collection of pages, it's a reflection
-          of who you are or what your brand stands for. Whether it's personal,
-          professional, or creative, this is your space to shine.
-        </Text>
+    <StepWrapper currentStep="profile">
+      <StepTitle>CREATE YOUR SITE</StepTitle>
+      <Text fontSize="$5" textAlign="center" color="$gray11">
+        Your site is more than just a collection of pages, it's a reflection of
+        who you are or what your brand stands for. Whether it's personal,
+        professional, or creative, this is your space to shine.
+      </Text>
 
-        <Form
-          width="100%"
-          maxWidth={400}
-          onSubmit={onNext}
-          className="no-window-drag"
-        >
-          <YStack gap="$4" width="100%" className="no-window-drag">
-            <Input
-              size="$4"
-              placeholder="Site name"
-              value={formData.name}
-              onChange={(e) => updateFormData({name: e.nativeEvent.text})}
-            />
+      <Form
+        width="100%"
+        maxWidth={400}
+        onSubmit={onNext}
+        className="no-window-drag"
+      >
+        <YStack gap="$4" width="100%" className="no-window-drag">
+          <Input
+            size="$4"
+            placeholder="Site name"
+            value={formData.name}
+            onChange={(e) => updateFormData({name: e.nativeEvent.text})}
+          />
 
-            <XStack gap="$4" width="100%">
-              <YStack
-                gap="$2"
-                flex={0}
-                minWidth={72}
-                minHeight={72}
-                w="100%"
-                maxWidth={72}
-              >
-                <Text fontSize="$2" color="$gray11">
-                  Site Icon
-                </Text>
-                <ImageForm
-                  height={72}
-                  emptyLabel="ADD SITE ICON"
-                  url={formData.icon?.base64}
-                  uploadOnChange={false}
-                  onImageUpload={(file) => {
-                    if (file instanceof File) {
-                      handleImageUpload(file, 'icon')
-                    }
-                  }}
-                  onRemove={() => handleImageRemove('icon')}
-                />
-              </YStack>
-
-              <YStack gap="$2" flex={1} minHeight={72}>
-                <Text fontSize="$2" color="$gray11">
-                  Site Logo
-                </Text>
-                <ImageForm
-                  height={72}
-                  emptyLabel="ADD SITE LOGO"
-                  url={formData.seedExperimentalLogo?.base64}
-                  uploadOnChange={false}
-                  onImageUpload={(file) => {
-                    if (file instanceof File) {
-                      handleImageUpload(file, 'seedExperimentalLogo')
-                    }
-                  }}
-                  onRemove={() => handleImageRemove('seedExperimentalLogo')}
-                />
-              </YStack>
-            </XStack>
-          </YStack>
-
-          <XStack
-            marginTop="$8"
-            gap="$4"
-            className="no-window-drag"
-            alignItems="center"
-            justifyContent="center"
-          >
-            <Button onPress={onSkip} bg="$brand11">
-              SKIP
-            </Button>
-            <Button
-              backgroundColor="$brand2"
-              color="white"
-              disabled={!formData.name.trim()}
-              onPress={onNext}
+          <XStack gap="$4" width="100%">
+            <YStack
+              gap="$2"
+              flex={0}
+              minWidth={72}
+              minHeight={72}
+              w="100%"
+              maxWidth={72}
             >
-              NEXT
-            </Button>
+              <Text fontSize="$2" color="$gray11">
+                Site Icon
+              </Text>
+              <ImageForm
+                height={72}
+                emptyLabel="ADD SITE ICON"
+                url={formData.icon?.base64}
+                uploadOnChange={false}
+                onImageUpload={(file) => {
+                  if (file instanceof File) {
+                    handleImageUpload(file, 'icon')
+                  }
+                }}
+                onRemove={() => handleImageRemove('icon')}
+              />
+            </YStack>
+
+            <YStack gap="$2" flex={1} minHeight={72}>
+              <Text fontSize="$2" color="$gray11">
+                Site Logo
+              </Text>
+              <ImageForm
+                height={72}
+                emptyLabel="ADD SITE LOGO"
+                url={formData.seedExperimentalLogo?.base64}
+                uploadOnChange={false}
+                onImageUpload={(file) => {
+                  if (file instanceof File) {
+                    handleImageUpload(file, 'seedExperimentalLogo')
+                  }
+                }}
+                onRemove={() => handleImageRemove('seedExperimentalLogo')}
+              />
+            </YStack>
           </XStack>
-        </Form>
-        <Button
-          variant="outlined"
-          onPress={() => {}}
-          hoverStyle={{
-            backgroundColor: '$brand11',
-            borderColor: 'transparent',
-          }}
-          focusStyle={{
-            backgroundColor: '$brand11',
-            borderColor: 'transparent',
-          }}
+        </YStack>
+
+        <XStack
+          marginTop="$8"
+          gap="$4"
+          className="no-window-drag"
+          alignItems="center"
+          justifyContent="center"
         >
-          I already have a Site
-        </Button>
-      </YStack>
+          <Button onPress={onSkip} bg="$brand11">
+            SKIP
+          </Button>
+          <Button
+            backgroundColor="$brand2"
+            color="white"
+            disabled={!formData.name.trim()}
+            onPress={onNext}
+          >
+            NEXT
+          </Button>
+        </XStack>
+      </Form>
+      <Button
+        variant="outlined"
+        onPress={() => {}}
+        hoverStyle={{
+          backgroundColor: '$brand11',
+          borderColor: 'transparent',
+        }}
+        focusStyle={{
+          backgroundColor: '$brand11',
+          borderColor: 'transparent',
+        }}
+      >
+        I already have a Site
+      </Button>
     </StepWrapper>
   )
 }
 
-function RecoveryStep({onNext}: {onNext: () => void}) {
+function RecoveryStep({
+  onNext,
+  onPrev,
+}: {
+  onNext: () => void
+  onPrev: () => void
+}) {
   const register = useRegisterKey()
   const mnemonics = useMnemonics()
   const saveWords = trpc.secureStorage.write.useMutation()
@@ -691,7 +653,7 @@ function RecoveryStep({onNext}: {onNext: () => void}) {
   }
 
   return (
-    <StepWrapper>
+    <StepWrapper currentStep="recovery">
       <StepTitle>SAVE YOUR ACCOUNT</StepTitle>
       <Text
         fontSize="$6"
@@ -744,6 +706,9 @@ function RecoveryStep({onNext}: {onNext: () => void}) {
         </CheckboxField>
 
         <XStack marginTop="$4" gap="$4" justifyContent="center">
+          <Button onPress={onPrev} bg="$brand11">
+            PREV
+          </Button>
           <Button
             onPress={handleSubmit}
             backgroundColor="$brand2"
@@ -766,7 +731,7 @@ function ReadyStep({onComplete}: {onComplete: () => void}) {
   const openUrl = useOpenUrl()
 
   return (
-    <StepWrapper>
+    <StepWrapper currentStep="ready">
       <StepTitle>READY TO GO</StepTitle>
       <YStack marginTop="$8" gap="$4" className="no-window-drag" maxWidth={400}>
         <ButtonFrame
@@ -775,6 +740,7 @@ function ReadyStep({onComplete}: {onComplete: () => void}) {
           borderRadius="$4"
           gap="$4"
           bg="rgba(88,101,202,0.2)"
+          onPress={() => openUrl('https://discord.gg/7Y7DrhQZFs')}
         >
           <DiscordIcon />
           <YStack flex={1}>
@@ -1074,7 +1040,13 @@ function StepTitle({children}: {children: React.ReactNode}) {
   )
 }
 
-function StepWrapper({children}: {children: React.ReactNode}) {
+function StepWrapper({
+  children,
+  currentStep,
+}: {
+  children: React.ReactNode
+  currentStep: OnboardingStep
+}) {
   return (
     <YStack
       className="window-drag"
@@ -1086,7 +1058,71 @@ function StepWrapper({children}: {children: React.ReactNode}) {
       backgroundColor="$brand12"
       backgroundImage="linear-gradient(to bottom, $green3, $green4)"
     >
-      {children}
+      <YStack
+        gap="$6"
+        alignItems="center"
+        justifyContent="center"
+        maxWidth={600}
+      >
+        {children}
+      </YStack>
+      <OnboardingProgress currentStep={currentStep} />
     </YStack>
   )
+}
+
+function OnboardingProgress({currentStep}: {currentStep: OnboardingStep}) {
+  return (
+    <XStack gap="$2" paddingTop="$4">
+      <OnboardingProgressStep active={currentStep === 'welcome'} />
+      <OnboardingProgressStep active={currentStep === 'profile'} />
+      <OnboardingProgressStep active={currentStep === 'recovery'} />
+      <OnboardingProgressStep active={currentStep === 'ready'} />
+    </XStack>
+  )
+}
+
+function OnboardingProgressStep({active}: {active: boolean}) {
+  return (
+    <YStack
+      width={8}
+      height={8}
+      backgroundColor={active ? '$brand5' : '$gray8'}
+      borderRadius={8}
+    />
+  )
+}
+
+async function fileToImageData(file: File): Promise<ImageData> {
+  // Validate the file first
+  validateImage(file)
+
+  // Convert to base64
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      resolve({
+        base64: reader.result as string,
+        type: file.type,
+        name: file.name,
+        size: file.size,
+      })
+    }
+    reader.onerror = () => reject(new Error('Failed to read file'))
+    reader.readAsDataURL(file)
+  })
+}
+
+function base64ToFile(imageData: ImageData): File {
+  // Convert base64 to blob
+  const byteString = atob(imageData.base64.split(',')[1])
+  const ab = new ArrayBuffer(byteString.length)
+  const ia = new Uint8Array(ab)
+  for (let i = 0; i < byteString.length; i++) {
+    ia[i] = byteString.charCodeAt(i)
+  }
+  const blob = new Blob([ab], {type: imageData.type})
+
+  // Create File from blob
+  return new File([blob], imageData.name, {type: imageData.type})
 }
