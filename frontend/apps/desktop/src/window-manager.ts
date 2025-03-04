@@ -8,6 +8,7 @@ import {
   app,
   globalShortcut,
   nativeTheme,
+  screen,
 } from 'electron'
 import path from 'node:path'
 import {updateRecentRoute} from './app-recents'
@@ -187,11 +188,19 @@ function calculateWindowBounds(
     }
   }
 
+  // For the first window, center it on the screen
+  const width = windowType.initWidth || windowType.minWidth || 800
+  const height = windowType.initHeight || windowType.minHeight || 600
+
+  // Get the primary display dimensions
+  const {width: screenWidth, height: screenHeight} =
+    screen.getPrimaryDisplay().workAreaSize
+
   return {
-    width: windowType.initWidth || windowType.minWidth || 800,
-    height: windowType.initHeight || windowType.minHeight || 600,
-    x: 0,
-    y: 0,
+    width,
+    height,
+    x: Math.round((screenWidth - width) / 2),
+    y: Math.round((screenHeight - height) / 2),
   }
 }
 
