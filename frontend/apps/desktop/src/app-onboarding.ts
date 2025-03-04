@@ -47,7 +47,12 @@ export const ALLOWED_IMAGE_TYPES = [
   'image/webp',
 ]
 
-export type OnboardingStep = 'welcome' | 'profile' | 'recovery' | 'ready'
+export type OnboardingStep =
+  | 'welcome'
+  | 'profile'
+  | 'recovery'
+  | 'ready'
+  | 'existing'
 
 export interface ImageData {
   base64: string

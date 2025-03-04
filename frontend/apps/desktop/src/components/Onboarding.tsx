@@ -2,6 +2,7 @@ import {grpcClient} from '@/grpc-client'
 import {useMnemonics, useRegisterKey} from '@/models/daemon'
 import {trpc} from '@/trpc'
 import {fileUpload} from '@/utils/file-upload'
+import {extractWords} from '@/utils/onboarding'
 import {useOpenUrl} from '@shm/shared'
 import {DocumentChange} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {IS_PROD_DESKTOP} from '@shm/shared/constants'
@@ -13,7 +14,7 @@ import {toast} from '@shm/ui/toast'
 import {ExternalLink} from '@tamagui/lucide-icons'
 import copyTextToClipboard from 'copy-text-to-clipboard'
 import {nanoid} from 'nanoid'
-import {useCallback, useEffect, useState} from 'react'
+import {useCallback, useEffect, useMemo, useState} from 'react'
 import {
   Button,
   ButtonFrame,
@@ -105,6 +106,10 @@ export function Onboarding({onComplete}: OnboardingProps) {
       console.log('Moving from recovery to ready')
       setOnboardingStep('ready')
       setCurrentStep('ready')
+    } else if (currentStep === 'existing') {
+      console.log('Moving from existing to ready')
+      setOnboardingStep('ready')
+      setCurrentStep('ready')
     } else if (currentStep === 'ready') {
       console.log('Completing onboarding')
       setHasCompletedOnboarding(true)
@@ -118,6 +123,11 @@ export function Onboarding({onComplete}: OnboardingProps) {
     console.groupEnd()
   }, [currentStep, onComplete])
 
+  const handleExistingSite = useCallback(() => {
+    setOnboardingStep('existing')
+    setCurrentStep('existing')
+  }, [])
+
   const handlePrev = useCallback(() => {
     console.group('🚀 Previous Step in Onboarding')
     const beforeState = getOnboardingState()
@@ -130,6 +140,9 @@ export function Onboarding({onComplete}: OnboardingProps) {
     } else if (currentStep === 'profile') {
       setOnboardingStep('welcome')
       setCurrentStep('welcome')
+    } else if (currentStep === 'existing') {
+      setOnboardingStep('profile')
+      setCurrentStep('profile')
     }
 
     const afterState = getOnboardingState()
@@ -141,10 +154,17 @@ export function Onboarding({onComplete}: OnboardingProps) {
     <YStack flex={1} backgroundColor="$background" className="window-drag">
       {currentStep === 'welcome' && <WelcomeStep onNext={handleNext} />}
       {currentStep === 'profile' && (
-        <ProfileStep onSkip={handleSkip} onNext={handleNext} />
+        <ProfileStep
+          onSkip={handleSkip}
+          onNext={handleNext}
+          onExistingSite={handleExistingSite}
+        />
       )}
       {currentStep === 'recovery' && (
         <RecoveryStep onNext={handleNext} onPrev={handlePrev} />
+      )}
+      {currentStep === 'existing' && (
+        <ExistingStep onNext={handleNext} onPrev={handlePrev} />
       )}
       {currentStep === 'ready' && <ReadyStep onComplete={handleNext} />}
     </YStack>
@@ -253,9 +273,11 @@ function WelcomeStep({onNext}: {onNext: () => void}) {
 function ProfileStep({
   onSkip,
   onNext,
+  onExistingSite,
 }: {
   onSkip: () => void
   onNext: () => void
+  onExistingSite: () => void
 }) {
   // Initialize form data from store
   const [formData, setFormData] = useState<ProfileFormData>(() => {
@@ -395,7 +417,7 @@ function ProfileStep({
       </Form>
       <Button
         variant="outlined"
-        onPress={() => {}}
+        onPress={onExistingSite}
         hoverStyle={{
           backgroundColor: '$brand11',
           borderColor: 'transparent',
@@ -407,6 +429,146 @@ function ProfileStep({
       >
         I already have a Site
       </Button>
+    </StepWrapper>
+  )
+}
+
+function ExistingStep({
+  onNext,
+  onPrev,
+}: {
+  onNext: () => void
+  onPrev: () => void
+}) {
+  const [secretWords, setSecretWords] = useState('')
+  const register = useRegisterKey()
+  const saveWords = trpc.secureStorage.write.useMutation()
+  const [shouldSaveWords, setShouldSaveWords] = useState(true)
+
+  const mnemonic = useMemo(() => {
+    return extractWords(secretWords)
+  }, [secretWords])
+
+  const handleSubmit = async () => {
+    // if (!isWordsValid(secretWords)) {
+    //   toast.error('Invalid mnemonic')
+    //   console.log('Invalid mnemonic', mnemonic)
+    //   return
+    // }
+    // Create the Account
+    let createdAccount
+    const name = `temp${nanoid(8)}`
+    try {
+      console.group('👤 Creating Account')
+      if (!secretWords.trim()) {
+        throw new Error('Mnemonics not found')
+      }
+      console.log('Using temporary name:', name)
+
+      createdAccount = await register.mutateAsync({
+        name,
+        mnemonic,
+      })
+      console.log('✅ Account created:', createdAccount)
+      console.groupEnd()
+    } catch (error) {
+      console.error('❌ Failed to create account:', error)
+      throw new Error('Failed to create account: ' + (error as Error).message)
+    }
+
+    // Update account key name
+    let renamedKey
+    try {
+      console.group('🔑 Updating Account Key')
+      console.log('Renaming from', name, 'to', createdAccount.accountId)
+
+      renamedKey = await grpcClient.daemon.updateKey({
+        currentName: name,
+        newName: createdAccount.accountId,
+      })
+      console.log('✅ Account key updated:', renamedKey)
+      console.groupEnd()
+    } catch (error) {
+      console.error('❌ Failed to update account key:', error)
+      throw new Error(
+        'Failed to update account key: ' + (error as Error).message,
+      )
+    }
+
+    // Save mnemonics to secure storage only if checkbox is checked
+    try {
+      console.group('💾 Saving Mnemonics')
+      console.log('Saving to key:', renamedKey.name)
+      console.log('Should save words:', shouldSaveWords)
+
+      if (shouldSaveWords) {
+        saveWords.mutate({key: renamedKey.name, value: secretWords})
+        console.log('✅ Mnemonics saved')
+      } else {
+        console.log('⏭️ Skipping mnemonic save as per user preference')
+      }
+      console.groupEnd()
+    } catch (error) {
+      console.error('❌ Failed to save mnemonics:', error)
+      throw new Error('Failed to save mnemonics: ' + (error as Error).message)
+    }
+
+    onNext()
+  }
+
+  return (
+    <StepWrapper currentStep="existing">
+      <StepTitle>ADD EXISTING KEY</StepTitle>
+      <Text fontSize="$5" textAlign="center" color="$gray11">
+        Add the keys to your existing site.
+      </Text>
+
+      <Form onSubmit={handleSubmit} w={400}>
+        <YStack gap="$4">
+          <YStack gap="$2">
+            <Text fontSize="$2" color="$gray11">
+              Secret Words
+            </Text>
+            <TextArea
+              size="$4"
+              placeholder="Enter or paste your secret words here"
+              value={secretWords}
+              onChange={(e) => setSecretWords(e.nativeEvent.text)}
+              minHeight={120}
+              backgroundColor="white"
+              borderRadius="$4"
+            />
+          </YStack>
+
+          <CheckboxField
+            id="save-existing-wordss"
+            value={shouldSaveWords}
+            onValue={setShouldSaveWords}
+          >
+            Save secret words to this device
+          </CheckboxField>
+        </YStack>
+
+        <XStack
+          marginTop="$8"
+          gap="$4"
+          className="no-window-drag"
+          alignItems="center"
+          justifyContent="center"
+        >
+          <Button onPress={onPrev} bg="$brand11">
+            BACK
+          </Button>
+          <Button
+            backgroundColor="$brand2"
+            color="white"
+            disabled={!secretWords.trim()}
+            onPress={handleSubmit}
+          >
+            NEXT
+          </Button>
+        </XStack>
+      </Form>
     </StepWrapper>
   )
 }
@@ -1007,8 +1169,8 @@ function ContentIcon({size = '52', ...props}: IconProps) {
   return (
     <svg viewBox="0 0 53 45" fill="none" {...props}>
       <path
-        fill-rule="evenodd"
-        clip-rule="evenodd"
+        fillRule="evenodd"
+        clipRule="evenodd"
         d="M19.413 0.806271C16.123 1.22996 13.1137 2.74369 10.721 5.17837C7.90546 8.04319 6.32992 12.2229 6.56471 16.2044L6.62591 17.2426L6.36556 17.4867C6.22239 17.621 5.76907 17.9219 5.35812 18.1555C3.59731 19.1564 2.05581 20.9448 1.21666 22.9605C0.343904 25.0569 0.263694 27.6403 1.00123 29.8969C1.91962 32.7068 4.23377 35.0806 7.07471 36.127L7.49477 36.2817L7.68685 36.0266C7.96294 35.6597 8.78963 34.8796 9.32908 34.4769L9.79256 34.1309L9.44333 33.6194C8.63328 32.4327 8.33861 31.3867 8.39795 29.9091C8.44429 28.7549 8.71897 27.873 9.32297 26.9392C11.6761 23.3016 16.8994 23.2371 19.3549 26.8152C19.6987 27.3161 20.2294 28.5071 20.2294 28.7777C20.2294 28.8547 20.2505 28.9177 20.2762 28.9177C20.3021 28.9177 20.5732 28.7088 20.8789 28.4534C21.1846 28.198 21.5476 27.9082 21.6856 27.8092L21.9366 27.6292L21.6158 27.1826C19.122 23.7114 20.971 18.8366 25.1682 17.8164C25.6475 17.6999 26.0296 17.6745 26.7927 17.7082C27.9133 17.7579 28.7208 17.9866 29.582 18.4983C30.2373 18.8878 31.2561 19.9011 31.6561 20.5616C32.8824 22.5857 32.7845 25.2564 31.4141 27.1638C31.2451 27.3991 31.1068 27.6095 31.1068 27.6313C31.1068 27.6533 31.2958 27.8011 31.5268 27.9597C31.7578 28.1184 32.1169 28.4048 32.3245 28.596C32.5322 28.7872 32.7121 28.9278 32.7242 28.9085C32.7364 28.8892 32.8444 28.5757 32.9643 28.2118C33.4779 26.6534 34.8189 25.2447 36.4011 24.6017C38.8212 23.618 41.7096 24.3634 43.2902 26.3797C44.2362 27.5865 44.558 28.4504 44.6159 29.9396C44.651 30.8399 44.6282 31.1122 44.4693 31.6914C44.2532 32.479 43.954 33.1107 43.5059 33.7254C43.2273 34.1076 43.2088 34.165 43.3406 34.2387C43.9045 34.5543 45.1663 35.7319 45.5359 36.2875C45.5725 36.3426 45.8039 36.2997 46.1549 36.1726C49.4697 34.9722 51.8685 32.0866 52.4216 28.6345C52.5774 27.662 52.4908 25.7104 52.2517 24.8055C51.848 23.2776 51.1656 22.0099 50.057 20.7285C49.1851 19.7208 49.1863 19.7283 49.7064 18.4825C50.1782 17.3526 50.3418 16.4466 50.3375 14.9893C50.3335 13.6329 50.1964 12.8417 49.7607 11.6585C48.9183 9.37094 47.0446 7.36543 44.7669 6.31298C43.6242 5.78503 42.6294 5.55934 41.2136 5.50708C38.9897 5.42483 37.2451 5.90521 35.479 7.08615C34.1661 7.96413 34.076 7.94503 33.098 6.58288C30.9438 3.58222 27.3006 1.41762 23.4357 0.842087C22.4594 0.696701 20.4055 0.678395 19.413 0.806271ZM25.8848 19.3722C24.3442 19.599 23.122 20.5616 22.4482 22.0789C22.2415 22.5444 22.2191 22.7025 22.2191 23.7001V24.8055L22.5912 25.5663C23.3431 27.1038 24.8191 28.0334 26.5082 28.0334C28.1928 28.0334 29.6585 27.117 30.4146 25.591C30.7586 24.8968 30.7847 24.7909 30.8229 23.9317C30.8575 23.1544 30.8339 22.9211 30.6688 22.4064C30.0057 20.338 27.9936 19.0619 25.8848 19.3722ZM13.3114 25.9544C11.9584 26.2974 10.724 27.3955 10.2814 28.6498C9.53186 30.7743 10.4414 33.079 12.4186 34.0656C12.77 34.241 13.3345 34.4326 13.6838 34.4949C15.6861 34.8528 17.8109 33.5833 18.5069 31.6135C18.7357 30.9659 18.7769 29.7975 18.5957 29.0946C18.2379 27.7066 17.1803 26.5533 15.8254 26.0737C15.1655 25.84 13.9836 25.784 13.3114 25.9544ZM37.5932 25.9481C36.4734 26.2197 35.325 27.1058 34.797 28.1054C33.8663 29.8681 34.221 31.979 35.6767 33.3408C36.2874 33.9121 36.5406 34.0671 37.2768 34.3204C39.3079 35.0192 41.5924 34.0566 42.5435 32.1013C44.1619 28.7743 41.1869 25.0764 37.5932 25.9481ZM22.6152 29.1912C21.7001 29.7826 20.7903 30.8201 20.2433 31.896C19.9693 32.4348 19.6103 33.7394 19.6103 34.1963C19.6103 34.5757 19.6384 34.6176 20.3191 35.2581C21.0898 35.9832 21.927 37.1518 22.2546 37.9601L22.4607 38.4686H26.5082H30.5557L30.7618 37.9601C31.086 37.1603 31.9141 36.001 32.6925 35.2574C33.3666 34.6134 33.4061 34.5548 33.4061 34.1989C33.4061 33.7506 33.1384 32.7432 32.8401 32.0686C32.3464 30.9524 31.253 29.6878 30.2779 29.105L29.7774 28.8059L29.0919 29.1193C27.4098 29.8882 25.577 29.8925 23.9682 29.1315C23.617 28.9652 23.2949 28.8293 23.2523 28.8293C23.2099 28.8293 22.9232 28.9922 22.6152 29.1912ZM10.5889 35.6055C9.53203 36.3035 8.53388 37.4658 8.0222 38.5943C7.51131 39.721 7.45569 40.0918 7.45303 42.3892L7.45065 44.4971L7.69879 44.7106L7.94694 44.9243H14.352H20.7572L21.046 44.6659L21.3348 44.4075L21.3297 42.4329C21.3241 40.2704 21.2719 39.9331 20.7491 38.6772C20.4458 37.9485 19.6681 36.8389 19.1087 36.3366C18.9132 36.1612 18.5056 35.8494 18.2029 35.6438L17.6524 35.27L17.0174 35.5834C16.1717 36.0009 15.3315 36.1859 14.3043 36.1811C13.3213 36.1765 12.6447 36.0193 11.7716 35.5932C11.4243 35.4236 11.1253 35.285 11.1071 35.285C11.089 35.285 10.8557 35.4292 10.5889 35.6055ZM34.7326 35.695C33.2707 36.7226 32.3495 38.039 31.8943 39.7509C31.7443 40.3148 31.6971 40.8083 31.6616 42.1828C31.6108 44.1547 31.6708 44.5362 32.069 44.7714C32.308 44.9125 32.8198 44.9243 38.7124 44.9243H45.0969L45.3624 44.6401L45.6278 44.3558L45.5855 42.2745C45.5399 40.0327 45.4812 39.6683 44.9913 38.5879C44.4892 37.4803 43.468 36.2886 42.4568 35.6298L41.8925 35.2621L41.3691 35.541C40.5966 35.9527 39.6204 36.18 38.618 36.1814C37.6215 36.1828 36.8849 36.0152 36.0141 35.5886C35.6732 35.4216 35.3747 35.2863 35.3508 35.2879C35.3269 35.2896 35.0487 35.4727 34.7326 35.695Z"
         fill="#038E7A"
       />
@@ -1067,6 +1229,7 @@ function StepWrapper({
         alignItems="center"
         justifyContent="center"
         maxWidth={600}
+        className="no-window-drag"
       >
         {children}
       </YStack>
@@ -1076,11 +1239,17 @@ function StepWrapper({
 }
 
 function OnboardingProgress({currentStep}: {currentStep: OnboardingStep}) {
+  const showExistingStep = currentStep === 'existing'
+
   return (
     <XStack gap="$2" paddingTop="$4">
       <OnboardingProgressStep active={currentStep === 'welcome'} />
       <OnboardingProgressStep active={currentStep === 'profile'} />
-      <OnboardingProgressStep active={currentStep === 'recovery'} />
+      {showExistingStep ? (
+        <OnboardingProgressStep active={currentStep === 'existing'} />
+      ) : (
+        <OnboardingProgressStep active={currentStep === 'recovery'} />
+      )}
       <OnboardingProgressStep active={currentStep === 'ready'} />
     </XStack>
   )
@@ -1130,3 +1299,5 @@ function base64ToFile(imageData: ImageData): File {
   // Create File from blob
   return new File([blob], imageData.name, {type: imageData.type})
 }
+
+// gift, general, police, ticket, slogan, outdoor, health, hockey, wool, taste, dignity, yard

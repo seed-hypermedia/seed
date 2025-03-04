@@ -338,6 +338,10 @@ function MainApp({}: {}) {
               <ResetOnboardingButton />
             </StyleProvider>
           </QueryClientProvider>
+          <Toaster
+          // position="bottom-center"
+          // toastOptions={{className: 'toaster'}}
+          />
         </UniversalAppProvider>
       )
     } else {
