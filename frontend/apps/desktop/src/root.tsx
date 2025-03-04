@@ -200,15 +200,72 @@ onQueryCacheError((error, query) => {
 })
 
 function MainApp({}: {}) {
+  // Make window visible immediately - this should be the very first thing
+  useEffect(() => {
+    console.log('Making window visible immediately')
+    // @ts-expect-error
+    window.windowIsReady()
+  }, [])
+
   const darkMode = useStream<boolean>(window.darkMode)
   const daemonState = useGoDaemonState()
   const windowUtils = useWindowUtils(ipc)
   const utils = trpc.useUtils
   const keys = useListKeys()
+
+  // Add loading state to prevent flashing onboarding during reload
+  const [isInitializing, setIsInitializing] = useState(true)
+
+  // Initialize showOnboarding state with all checks to avoid flashing
   const [showOnboarding, setShowOnboarding] = useState(() => {
+    // Default to false until we can properly determine state
+    if (keys === undefined) return false
+
     const {hasCompletedOnboarding, hasSkippedOnboarding} = getOnboardingState()
-    return !hasCompletedOnboarding && !hasSkippedOnboarding
+    const hasAccounts = keys?.length > 0
+    // Don't show onboarding if it's already completed, skipped, or if there are accounts
+    const shouldShowOnboarding =
+      !hasCompletedOnboarding && !hasSkippedOnboarding && !hasAccounts
+    console.log('Initial onboarding state:', {
+      hasCompletedOnboarding,
+      hasSkippedOnboarding,
+      hasAccounts,
+      shouldShowOnboarding,
+    })
+    return shouldShowOnboarding
   })
+
+  // Update onboarding state once keys data is available
+  useEffect(() => {
+    if (keys !== undefined && isInitializing) {
+      const {hasCompletedOnboarding, hasSkippedOnboarding} =
+        getOnboardingState()
+      const hasAccounts = keys.length > 0
+      const shouldShowOnboarding =
+        !hasCompletedOnboarding && !hasSkippedOnboarding && !hasAccounts
+      console.log('Updated onboarding state:', {
+        hasCompletedOnboarding,
+        hasSkippedOnboarding,
+        hasAccounts,
+        shouldShowOnboarding,
+      })
+      setShowOnboarding(shouldShowOnboarding)
+    }
+  }, [keys, isInitializing])
+
+  // Handle initial app rendering
+  useEffect(() => {
+    // Only finish initialization when keys data is available
+    if (keys !== undefined) {
+      console.log('Keys data loaded, finishing initialization')
+      // Brief delay to ensure all data is processed
+      const timer = setTimeout(() => {
+        setIsInitializing(false)
+      }, 100)
+
+      return () => clearTimeout(timer)
+    }
+  }, [keys])
 
   useListenAppEvent('trigger_peer_sync', () => {
     grpcClient.daemon
@@ -222,28 +279,31 @@ function MainApp({}: {}) {
       })
   })
 
-  // Check if onboarding state changes or if accounts exist
+  // Check for changes to accounts and onboarding state
   useEffect(() => {
-    const checkOnboardingState = () => {
+    // Skip if we're not showing onboarding or still initializing
+    if (!showOnboarding || isInitializing) return
+
+    const checkForTransition = () => {
       const {hasCompletedOnboarding, hasSkippedOnboarding} =
         getOnboardingState()
       const hasAccounts = keys?.length > 0
 
       if (hasCompletedOnboarding || hasSkippedOnboarding || hasAccounts) {
-        console.log(
-          'Onboarding completed, skipped, or accounts exist - showing main app',
-        )
+        console.log('Transitioning to main app')
         setShowOnboarding(false)
+        return true
       }
+      return false
     }
 
-    // Initial check
-    checkOnboardingState()
+    // Immediately check for transition
+    if (checkForTransition()) return
 
-    // Check every second for changes to onboarding state
-    const interval = setInterval(checkOnboardingState, 1000)
+    // Continue checking periodically if needed
+    const interval = setInterval(checkForTransition, 1000)
     return () => clearInterval(interval)
-  }, [keys, setShowOnboarding])
+  }, [keys, showOnboarding, isInitializing])
 
   useEffect(() => {
     if (showOnboarding) return
@@ -317,12 +377,33 @@ function MainApp({}: {}) {
   //   return window.docImport.readMediaFile(filePath)
   // }
 
-  useEffect(() => {
-    // @ts-expect-error
-    window.windowIsReady()
-  }, [])
-
   if (daemonState?.t == 'ready') {
+    // Show loading state during initialization to prevent flashing
+    if (isInitializing) {
+      return (
+        <UniversalAppProvider
+          openUrl={async (url: string) => {
+            ipc.send?.('open-external-link', url)
+          }}
+          openRoute={() => {}}
+        >
+          <QueryClientProvider client={queryClient}>
+            <StyleProvider darkMode={darkMode!}>
+              <YStack
+                flex={1}
+                alignItems="center"
+                justifyContent="center"
+                backgroundColor="$background"
+              >
+                <SpinnerWithText message="Starting app..." />
+              </YStack>
+            </StyleProvider>
+          </QueryClientProvider>
+          <Toaster />
+        </UniversalAppProvider>
+      )
+    }
+
     if (showOnboarding) {
       return (
         <UniversalAppProvider
