@@ -252,8 +252,7 @@ function _MainDocumentPage({
         >
           {showSidebarOutlineDirectory ? (
             <YStack
-              marginTop={150}
-              $gtSm={{marginTop: 164}}
+              marginTop={entity.data?.document?.metadata.cover ? 152 : 220}
               className="is-desktop document-aside"
             >
               <YStack

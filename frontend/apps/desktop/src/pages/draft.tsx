@@ -365,8 +365,7 @@ function DocumentEditor({
           >
             {showOutline && !isHomeDoc ? (
               <YStack
-                marginTop={200}
-                $gtSm={{marginTop: 164}}
+                marginTop={showCover ? 152 : 220}
                 className="is-desktop document-aside"
                 onPress={(e) => e.stopPropagation()}
               >

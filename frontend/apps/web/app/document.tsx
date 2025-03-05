@@ -207,10 +207,8 @@ export function DocumentPage(props: SiteDocumentPayload) {
           >
             {showSidebarOutlineDirectory ? (
               <YStack
-                marginTop={200}
-                $gtSm={{marginTop: 124}}
+                marginTop={document.metadata?.cover ? 152 : 220}
                 className="document-aside"
-                height="calc(100vh - 150px)"
               >
                 <YStack
                   className="hide-scrollbar"
