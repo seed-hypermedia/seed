@@ -99,7 +99,7 @@ type SearchResult = {
 }
 
 function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
-  const myCapability = useMyCapability(id)
+  const myCapability = useMyCapability(id, 'owner')
   const addCapabilities = useAddCapabilities(id)
   const [selectedCollaborators, setSelectedCollaborators] = useState<
     SearchResult[]
