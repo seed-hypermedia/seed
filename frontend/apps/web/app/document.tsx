@@ -15,7 +15,6 @@ import {
 import {getActivityTime} from '@shm/shared/models/activity'
 import '@shm/shared/styles/document.css'
 import {ChangeGroup, SubDocumentItem} from '@shm/ui/activity'
-import {getRandomColor} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
 import {Container} from '@shm/ui/container'
 import {CommentGroup} from '@shm/ui/discussion'
@@ -299,19 +298,12 @@ function DocumentCover({
   cover: HMMetadata['cover']
   id: UnpackedHypermediaId | null
 }) {
-  const coverBg = useMemo(() => {
-    if (id?.id) {
-      return getRandomColor(id.id)
-    }
-
-    return 'black'
-  }, [id])
   const imageUrl = useImageUrl()
   if (!cover) return null
 
   return (
     <XStack
-      backgroundColor={coverBg}
+      backgroundColor={cover ? '$backgroundTransparent' : 'brand11'}
       height="25vh"
       width="100%"
       position="relative"
