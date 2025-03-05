@@ -632,7 +632,16 @@ function DocumentCover({docId}: {docId: UnpackedHypermediaId}) {
   if (!entity.data.document.metadata.cover) return null
 
   return (
-    <XStack bg="black" height="25vh" width="100%" position="relative">
+    <XStack
+      bg={
+        entity.data.document.metadata.cover
+          ? '$backgroundTransparent'
+          : 'brand11'
+      }
+      height="25vh"
+      width="100%"
+      position="relative"
+    >
       <img
         src={imageUrl(entity.data.document.metadata.cover, 'XL')}
         style={{
