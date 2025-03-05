@@ -82,13 +82,27 @@ export function roleCanWrite(role?: HMRole | undefined) {
   return roleIndex <= writeCapIndex
 }
 
+function isGreaterOrEqualRole(referenceRole: HMRole, role: HMRole) {
+  const referenceRoleIndex = CapabilityInheritance.indexOf(referenceRole)
+  const roleIndex = CapabilityInheritance.indexOf(role)
+  return roleIndex <= referenceRoleIndex
+}
+
+function roleToHMRole(role: Role): HMRole {
+  if (role === Role.WRITER) return 'writer'
+  if (role === Role.ROLE_UNSPECIFIED) return 'none'
+  return 'none'
+}
+
 export function useMyCapability(
   id?: UnpackedHypermediaId,
+  minimumRole: HMRole = 'writer',
 ): HMCapability | null {
   if (!id) return null
   const myAccounts = useMyAccountIds()
   const capabilities = useAllDocumentCapabilities(id)
   if (myAccounts.data?.indexOf(id.uid) !== -1) {
+    // owner is the highest role so we don't need to check for minimumRole
     return {accountUid: id.uid, role: 'owner'}
   }
   const myCapability = [...(capabilities.data || [])]
@@ -96,6 +110,9 @@ export function useMyCapability(
       // sort by capability id for deterministic capability selection
       (a, b) => a.id.localeCompare(b.id),
     )
+    .filter((cap) => {
+      return isGreaterOrEqualRole(minimumRole, roleToHMRole(cap.role))
+    })
     .find((cap) => {
       return !!myAccounts.data?.find(
         (myAccountUid) => myAccountUid === cap.delegate,
