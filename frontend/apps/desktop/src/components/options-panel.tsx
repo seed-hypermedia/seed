@@ -27,110 +27,83 @@ export function OptionsPanel({
   metadata: HMMetadata
   onResetContent: (blockNodes: HMBlockNode[]) => void
 }) {
-  const isHomeDoc = !draftId.path?.length
+  const isHomeDoc = !draftId.path || draftId.path.length === 0
+  const isNewspaperLayout = metadata.layout === 'Seed/Experimental/Newspaper'
+
+  console.log('~~', draftId)
 
   return (
     <AccessoryContainer
       title={isHomeDoc ? 'Home Options' : 'Document Options'}
       onClose={onClose}
     >
-      <OptionsPanelContent
-        draftId={draftId}
-        metadata={metadata}
-        onMetadata={onMetadata}
-        onResetContent={onResetContent}
-      />
-    </AccessoryContainer>
-  )
-}
-
-function OptionsPanelContent({
-  draftId,
-  metadata,
-  onMetadata,
-  onResetContent,
-}: {
-  draftId: UnpackedHypermediaId
-  metadata: HMMetadata
-  onMetadata: (values: Partial<HMMetadata>) => void
-  onResetContent: (blockNodes: HMBlockNode[]) => void
-}) {
-  const isHomeDoc = !draftId.path || draftId.path.length === 0
-  const isNewspaperLayout = metadata.layout === 'Seed/Experimental/Newspaper'
-
-  console.log('~~', draftId)
-  if (isNewspaperLayout) {
-    return (
-      <>
-        <YStack
-          theme="red"
-          gap="$4"
-          padding="$4"
-          backgroundColor="$red3"
-          borderRadius="$4"
-        >
-          <Heading size="$3" fontSize="$4">
-            Document Model Upgrade Required
-          </Heading>
-          <Button
-            onPress={() => {
-              upgradeNewspaperLayoutModel(draftId, onMetadata, onResetContent)
-            }}
+      {isNewspaperLayout ? (
+        <>
+          <YStack
+            theme="red"
+            gap="$4"
+            padding="$4"
+            backgroundColor="$red3"
+            borderRadius="$4"
           >
-            Upgrade Document
-          </Button>
-        </YStack>
-      </>
-    )
-  }
+            <Heading size="$3" fontSize="$4">
+              Document Model Upgrade Required
+            </Heading>
+            <Button
+              onPress={() => {
+                upgradeNewspaperLayoutModel(draftId, onMetadata, onResetContent)
+              }}
+            >
+              Upgrade Document
+            </Button>
+          </YStack>
+        </>
+      ) : isHomeDoc ? (
+        <>
+          <NameInput metadata={metadata} onMetadata={onMetadata} />
+          <DocumentIconForm
+            draftId={draftId}
+            metadata={metadata}
+            onMetadata={onMetadata}
+          />
+          <HeaderLogo
+            draftId={draftId}
+            metadata={metadata}
+            onMetadata={onMetadata}
+          />
+          <HeaderLayout metadata={metadata} onMetadata={onMetadata} />
 
-  if (isHomeDoc) {
-    return (
-      <>
-        <NameInput metadata={metadata} onMetadata={onMetadata} />
-        <DocumentIconForm
-          draftId={draftId}
-          metadata={metadata}
-          onMetadata={onMetadata}
-        />
-        <HeaderLayout metadata={metadata} onMetadata={onMetadata} />
-        <HeaderLogo
-          draftId={draftId}
-          metadata={metadata}
-          onMetadata={onMetadata}
-        />
-        <AccessorySection title="Document Options">
+          <AccessorySection title="Document Options">
+            <CoverImage
+              draftId={draftId}
+              metadata={metadata}
+              onMetadata={onMetadata}
+            />
+            <OriginalPublishDate metadata={metadata} onMetadata={onMetadata} />
+            <ContentWidth metadata={metadata} onMetadata={onMetadata} />
+            <ActivityVisibility metadata={metadata} onMetadata={onMetadata} />
+          </AccessorySection>
+        </>
+      ) : (
+        <>
+          <NameInput metadata={metadata} onMetadata={onMetadata} />
+          <DocumentIconForm
+            draftId={draftId}
+            metadata={metadata}
+            onMetadata={onMetadata}
+          />
           <CoverImage
             draftId={draftId}
             metadata={metadata}
             onMetadata={onMetadata}
           />
           <OriginalPublishDate metadata={metadata} onMetadata={onMetadata} />
+          <OutlineVisibility metadata={metadata} onMetadata={onMetadata} />
           <ActivityVisibility metadata={metadata} onMetadata={onMetadata} />
           <ContentWidth metadata={metadata} onMetadata={onMetadata} />
-        </AccessorySection>
-      </>
-    )
-  }
-
-  return (
-    <>
-      <NameInput metadata={metadata} onMetadata={onMetadata} />
-      <DocumentIconForm
-        draftId={draftId}
-        metadata={metadata}
-        onMetadata={onMetadata}
-      />
-      <CoverImage
-        draftId={draftId}
-        metadata={metadata}
-        onMetadata={onMetadata}
-      />
-      <OriginalPublishDate metadata={metadata} onMetadata={onMetadata} />
-      <OutlineVisibility metadata={metadata} onMetadata={onMetadata} />
-      <ActivityVisibility metadata={metadata} onMetadata={onMetadata} />
-      <ContentWidth metadata={metadata} onMetadata={onMetadata} />
-    </>
+        </>
+      )}
+    </AccessoryContainer>
   )
 }
 
@@ -333,7 +306,7 @@ function OriginalPublishDate({
   const [isAdding, setIsAdding] = useState(false)
   if (!isAdding && !metadata.displayPublishTime) {
     return (
-      <ButtonText size="$1" color="$blue10" onPress={() => setIsAdding(true)}>
+      <ButtonText size="$1" color="$brand5" onPress={() => setIsAdding(true)}>
         Set Publication Display Date
       </ButtonText>
     )
