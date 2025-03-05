@@ -410,7 +410,14 @@ export function usePublishDraft(
           }
         } catch (error) {
           const connectErr = ConnectError.from(error)
-          toast.error(`Publish error: ${connectErr.rawMessage}`)
+          if (connectErr.rawMessage.includes('path already exists')) {
+            toast.error(
+              `Can't publish to this path. You already have a document at this location.`,
+            )
+          } else {
+            toast.error(`Publish error: ${connectErr.rawMessage}`)
+          }
+
           throw Error(connectErr.rawMessage)
         }
       }
