@@ -179,6 +179,7 @@ function CoverImage({
         Cover Image
       </Label>
       <ImageForm
+        maxHeight={100}
         id={`cover-${draftId.id}`}
         label={metadata.cover}
         url={metadata.cover ? getDaemonFileUrl(metadata.cover) : ''}
