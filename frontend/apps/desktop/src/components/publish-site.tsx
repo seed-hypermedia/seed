@@ -10,11 +10,12 @@ import {FormField} from '@shm/ui/forms'
 import {UploadCloud} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
-import {useEffect} from 'react'
+import {ArrowLeft, Cloud} from '@tamagui/lucide-icons'
+import {useEffect, useState} from 'react'
 import {SubmitHandler, useForm} from 'react-hook-form'
-import {AlertDialog, Form, SizableText, XStack, YStack} from 'tamagui'
+import {AlertDialog, Form, Heading, SizableText, XStack, YStack} from 'tamagui'
 import {z} from 'zod'
-import {DialogTitle, useAppDialog} from './dialog'
+import {useAppDialog} from './dialog'
 
 export function usePublishSite() {
   return useAppDialog(PublishSiteDialog)
@@ -79,15 +80,101 @@ function PublishSiteDialog({
   input: UnpackedHypermediaId
   onClose: () => void
 }) {
-  const entity = useEntity(input)
+  const [mode, setMode] = useState<
+    'input-url' | 'self-host' | 'seed-host' | null
+  >(null)
+  if (mode === 'input-url') {
+    return (
+      <PublishWithUrl
+        id={input}
+        onComplete={onClose}
+        onBack={() => setMode(null)}
+      />
+    )
+  }
+  if (mode === 'self-host') {
+    return (
+      <SelfHostContent
+        onSetupUrl={() => setMode('seed-host')}
+        onBack={() => setMode(null)}
+      />
+    )
+  }
+  if (mode === 'seed-host') {
+    return <SeedHostContent onBack={() => setMode(null)} />
+  }
+  return (
+    <>
+      <Heading>Set Up Web Domain</Heading>
+      <Button icon={Cloud} onPress={() => setMode('self-host')}>
+        Self Host
+      </Button>
+      <Button icon={Cloud} onPress={() => setMode('seed-host')}>
+        Seed Host
+      </Button>
+      <Button icon={Cloud} onPress={() => setMode('input-url')}>
+        Paste the Setup URL
+      </Button>
+    </>
+  )
+}
+
+function BackButton({onPress}: {onPress: () => void}) {
+  return <Button onPress={onPress} icon={ArrowLeft} chromeless />
+}
+
+function SeedHostContent({onBack}: {onBack: () => void}) {
+  return (
+    <YStack position="relative">
+      <BackButton onPress={onBack} />
+      <Heading>Seed Host</Heading>
+      <SizableText>HELLO! </SizableText>
+    </YStack>
+  )
+}
+function SelfHostContent({
+  onSetupUrl,
+  onBack,
+}: {
+  onSetupUrl: () => void
+  onBack: () => void
+}) {
+  return (
+    <YStack position="relative">
+      <BackButton onPress={onBack} />
+      <Heading>Self Host</Heading>
+      <SizableText>
+        You will need your own web server and domain. Follow this guide to get
+        started, and return when you have the setup URL.
+      </SizableText>
+      <XStack>
+        <Button onPress={() => {}}>Setup Guide</Button>
+      </XStack>
+      <XStack jc="flex-end">
+        <Button onPress={onSetupUrl}>My Setup URL is Ready</Button>
+      </XStack>
+    </YStack>
+  )
+}
+
+function PublishWithUrl({
+  id,
+  onComplete,
+  onBack,
+}: {
+  id: UnpackedHypermediaId
+  onComplete: () => void
+  onBack: () => void
+}) {
+  const entity = useEntity(id)
   const replace = useNavigate('replace')
-  const register = useSiteRegistration(input.uid)
+  const register = useSiteRegistration(id.uid)
   const onSubmit: SubmitHandler<PublishSiteFields> = (data) => {
     register.mutateAsync({url: data.url}).then((publishedUrl) => {
-      onClose()
+      onComplete()
       toast.success(`Site published to ${publishedUrl}`)
       // make sure the user is seeing the latest version of the site that now includes the url
-      replace({key: 'document', id: {...input, version: null, latest: true}})
+      replace({key: 'document', id: {...id, version: null, latest: true}})
     })
   }
   const {
@@ -108,10 +195,11 @@ function PublishSiteDialog({
   }, [setFocus])
 
   return (
-    <>
-      <DialogTitle>
+    <YStack>
+      <BackButton onPress={onBack} />
+      <Heading>
         Publish "{getDocumentTitle(entity.data?.document)}" to the web
-      </DialogTitle>
+      </Heading>
       {register.error ? (
         <SizableText color="$red11">
           {register.error.message
@@ -137,6 +225,6 @@ function PublishSiteDialog({
           </Form.Trigger>
         </XStack>
       </Form>
-    </>
+    </YStack>
   )
 }
