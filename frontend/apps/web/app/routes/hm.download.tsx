@@ -192,14 +192,14 @@ export default function DownloadPage() {
           origin={origin}
         >
           <YStack
-            height="45vh"
+            minHeight="45vh"
             justifyContent="center"
             // backgroundColor="$brand12"
             alignItems="center"
             paddingVertical="$8"
           >
             <Container gap="$4" paddingHorizontal="$6">
-              <Heading size="$9" textAlign="center" fontWeight="bold">
+              <Heading size="$10" textAlign="center" $gtMd={{size: '$13'}}>
                 Download Seed Hypermedia Today!
               </Heading>
               <SizableText size="$6" textAlign="center">
@@ -327,6 +327,7 @@ function ReleaseEntry({
       href={asset.download_url}
       style={{textDecoration: 'none'}}
       download
+      alignSelf="center"
       icon={Download}
       size={large ? '$6' : '$4'}
       borderRadius="$4"
