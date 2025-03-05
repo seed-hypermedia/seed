@@ -1,15 +1,16 @@
 import {grpcClient} from '@/grpc-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
-import {HMDocument, HMDocumentInfo, HMEntityContent} from '@shm/shared/hm-types'
+import {
+  HMDocument,
+  HMDocumentInfo,
+  HMEntityContent,
+  UnpackedHypermediaId,
+} from '@shm/shared/hm-types'
 import {setEntityQuery, useEntities} from '@shm/shared/models/entity'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {DocumentRoute, DraftRoute, NavRoute} from '@shm/shared/routes'
-import {
-  hmId,
-  UnpackedHypermediaId,
-  unpackHmId,
-} from '@shm/shared/utils/entity-id-url'
+import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {useMutation, UseMutationOptions, useQuery} from '@tanstack/react-query'
 import {useEffect, useMemo} from 'react'

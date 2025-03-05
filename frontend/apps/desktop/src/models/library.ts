@@ -221,11 +221,11 @@ export function useSiteLibrary(siteUid: string, enabled: boolean) {
       })
       return {
         documents: res.documents.map((d) => {
+          const metadataJSON = d.metadata?.toJson({emitDefaultValues: true})
+          documentMetadataParseAdjustments(metadataJSON)
           return {
             ...toPlainMessage(d),
-            metadata: HMDocumentMetadataSchema.parse(
-              d.metadata?.toJson({emitDefaultValues: true}),
-            ),
+            metadata: HMDocumentMetadataSchema.parse(metadataJSON),
           }
         }),
       }

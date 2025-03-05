@@ -32,6 +32,7 @@ import {
   getDiretoryWithClient,
   getQueryResultsWithClient,
 } from '@shm/shared/models/directory'
+import {documentMetadataParseAdjustments} from '@shm/shared/models/entity'
 import {getBlockNodeById} from '@shm/ui/document-content'
 import {queryClient} from './client'
 import {logDebug} from './logger'
@@ -81,8 +82,9 @@ export async function getHMDocument(entityId: UnpackedHypermediaId) {
     path,
     version: !latest && version ? version : '',
   })
-
-  const document = HMDocumentSchema.parse(apiDoc.toJson())
+  const docJSON = apiDoc.toJson() as any
+  documentMetadataParseAdjustments(docJSON.metadata)
+  const document = HMDocumentSchema.parse(docJSON)
   return document
 }
 
@@ -575,7 +577,7 @@ export async function loadSiteDocument<T>(
       headers,
     })
   } catch (e) {
-    console.error('Error Loading Site Document', e)
+    console.error('Error Loading Site Document', id, e)
     // probably document not found. todo, handle other errors
   }
   return wrapJSON(
