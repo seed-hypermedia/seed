@@ -337,16 +337,18 @@ export const blockNoteToMantineTheme = (theme: Theme): MantineThemeOverride => {
         }),
       },
       SideMenu: {
-        styles: () => ({
+        styles: (theme) => ({
           root: _.merge<CSSObject, CSSObject>(
             {
               backgroundColor: 'transparent',
               '.mantine-UnstyledButton-root': {
                 backgroundColor: 'transparent',
-                color: theme.colors.sideMenu,
-              },
-              '.mantine-UnstyledButton-root:hover': {
-                backgroundColor: theme.colors.hovered.background,
+                color: theme.other.sideMenu,
+                // Define hover styles for ActionIcon
+                '&:hover': {
+                  backgroundColor: theme.other.hovered.background,
+                  color: theme.other.hovered.text,
+                },
               },
             },
             theme.componentStyles?.(theme).SideMenu || {},
@@ -358,6 +360,10 @@ export const blockNoteToMantineTheme = (theme: Theme): MantineThemeOverride => {
     other: {
       textColors: textColors,
       backgroundColors: backgroundColors,
+      hovered: theme.colors.hovered,
+      selected: theme.colors.selected,
+      disabled: theme.colors.disabled,
+      sideMenu: theme.colors.sideMenu,
     },
   }
 }

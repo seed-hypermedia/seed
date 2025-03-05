@@ -1,7 +1,7 @@
 import {BlockNoteEditor, BlockSchema, mergeCSSClasses} from '@/blocknote/core'
 import {MantineProvider, createStyles} from '@mantine/core'
 import {EditorContent} from '@tiptap/react'
-import {HTMLAttributes, ReactNode, useMemo} from 'react'
+import {HTMLAttributes, ReactNode, useEffect, useMemo, useState} from 'react'
 import {Theme, blockNoteToMantineTheme} from './BlockNoteTheme'
 import {darkDefaultTheme, lightDefaultTheme} from './defaultThemes'
 import {FormattingToolbarPositioner} from './FormattingToolbar/components/FormattingToolbarPositioner'
@@ -59,7 +59,31 @@ export function BlockNoteView<BSchema extends BlockSchema>(
   const {theme = {light: lightDefaultTheme, dark: darkDefaultTheme}, ...rest} =
     props
 
-  const preferredTheme = 'light'
+  // Use state to track the current system theme
+  const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(() => {
+    // Initialize with the current system preference
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? 'dark'
+      : 'light'
+  })
+
+  // Set up an effect to listen for system theme changes
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+
+    // Update the theme when the system preference changes
+    const handleChange = (e: MediaQueryListEvent) => {
+      setSystemTheme(e.matches ? 'dark' : 'light')
+    }
+
+    // Add the event listener
+    mediaQuery.addEventListener('change', handleChange)
+
+    // Clean up the listener on component unmount
+    return () => {
+      mediaQuery.removeEventListener('change', handleChange)
+    }
+  }, [])
 
   const mantineTheme = useMemo(() => {
     if (theme === 'light') {
@@ -72,12 +96,12 @@ export function BlockNoteView<BSchema extends BlockSchema>(
 
     if ('light' in theme && 'dark' in theme) {
       return blockNoteToMantineTheme(
-        theme[preferredTheme === 'dark' ? 'dark' : 'light'],
+        theme[systemTheme === 'dark' ? 'dark' : 'light'],
       )
     }
 
     return blockNoteToMantineTheme(theme)
-  }, [preferredTheme, theme])
+  }, [systemTheme, theme])
 
   return (
     <MantineProvider theme={mantineTheme}>
