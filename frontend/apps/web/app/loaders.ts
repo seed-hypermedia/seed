@@ -49,11 +49,11 @@ export async function getMetadata(
       path: hmIdPathToEntityQueryPath(id.path),
       version: id.version || undefined,
     })
+    const metadataJSON = rawDoc.metadata?.toJson({emitDefaultValues: true})
+    documentMetadataParseAdjustments(metadataJSON)
     return {
       id,
-      metadata: HMDocumentMetadataSchema.parse(
-        rawDoc.metadata?.toJson({emitDefaultValues: true}),
-      ),
+      metadata: HMDocumentMetadataSchema.parse(metadataJSON),
     }
   } catch (e) {
     return {id, metadata: {}}
