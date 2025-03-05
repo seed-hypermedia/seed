@@ -362,6 +362,9 @@ async function loadDocumentBlock(block: HMBlock): Promise<HMLoadedBlock> {
         type: 'Embed',
         id: block.id,
         link: block.link,
+        authors: {},
+        view: block.attributes.view,
+        updateTime: null,
         metadata: null,
         content: null,
       }
@@ -377,6 +380,9 @@ async function loadDocumentBlock(block: HMBlock): Promise<HMLoadedBlock> {
           type: 'Embed',
           id: block.id,
           link: block.link,
+          authors: await loadAuthors(document.authors),
+          view: block.attributes.view,
+          updateTime: document.updateTime,
           metadata: document.metadata,
           content: null,
         }
@@ -385,6 +391,9 @@ async function loadDocumentBlock(block: HMBlock): Promise<HMLoadedBlock> {
         type: 'Embed',
         id: block.id,
         link: block.link,
+        authors: await loadAuthors(document.authors),
+        view: block.attributes.view,
+        updateTime: document.updateTime,
         metadata: document.metadata,
         content: await loadDocumentContent(selectedContent),
       }
@@ -394,6 +403,9 @@ async function loadDocumentBlock(block: HMBlock): Promise<HMLoadedBlock> {
         type: 'Embed',
         id: block.id,
         link: block.link,
+        authors: {},
+        view: block.attributes.view,
+        updateTime: null,
         metadata: null,
         content: null,
       }

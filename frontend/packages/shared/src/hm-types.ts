@@ -493,6 +493,14 @@ export type HMBlockNode = {
   block: HMBlock
 }
 
+export const HMTimestampSchema = z
+  .object({
+    seconds: z.bigint().or(z.number()),
+    nanos: z.number(),
+  })
+  .strict()
+  .or(z.string())
+
 export const HMBlockNodeSchema: z.ZodType<HMBlockNode> = z.lazy(() =>
   z.object({
     children: z.array(HMBlockNodeSchema).optional(),
@@ -762,6 +770,9 @@ export const HMLoadedEmbedSchema = z
     type: z.literal('Embed'),
     id: z.string(),
     link: z.string(),
+    view: z.union([z.literal('Content'), z.literal('Card')]).optional(),
+    authors: HMAccountsMetadataSchema,
+    updateTime: HMTimestampSchema.nullable(),
     metadata: HMDocumentMetadataSchema.nullable(),
     content: z.array(z.lazy(() => HMLoadedBlockNodeSchema)).nullable(),
   })
@@ -790,13 +801,6 @@ export const HMQuerySchema = z.object({
   limit: z.number().optional(),
 })
 export type HMQuery = z.infer<typeof HMQuerySchema>
-
-export const HMTimestampSchema = z
-  .object({
-    seconds: z.bigint().or(z.number()),
-    nanos: z.number(),
-  })
-  .strict()
 
 export type HMTimestamp = z.infer<typeof HMTimestampSchema>
 
@@ -874,6 +878,9 @@ export type HMLoadedEmbed = {
   type: 'Embed'
   id: string
   link: string
+  view?: 'Content' | 'Card'
+  authors: HMAccountsMetadata
+  updateTime: HMTimestamp | null
   metadata: HMMetadata | null
   content: HMLoadedBlockNode[] | null
 }

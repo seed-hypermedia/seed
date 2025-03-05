@@ -124,7 +124,7 @@ function NewspaperCardFooter({
   accountsMetadata,
 }: {
   entity: HMEntityContent | null | undefined
-  accountsMetadata: AccountsMetadata
+  accountsMetadata: HMAccountsMetadata
 }) {
   return (
     <XStack
