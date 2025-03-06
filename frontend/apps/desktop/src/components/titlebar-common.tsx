@@ -14,6 +14,7 @@ import {
   useNavigationState,
 } from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
+import {hostnameStripProtocol} from '@shm/shared'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {HMBlockNode} from '@shm/shared/hm-types'
@@ -182,7 +183,21 @@ export function DocOptionsButton() {
     })
   }
   if (!route.id.path?.length && canEditDoc) {
-    if (doc.data?.document?.metadata?.siteUrl)
+    if (doc.data?.document?.metadata?.siteUrl) {
+      const siteHost = hostnameStripProtocol(
+        doc.data?.document?.metadata?.siteUrl,
+      )
+      const gwHost = hostnameStripProtocol(gwUrl)
+      if (siteHost.endsWith(gwHost)) {
+        menuItems.push({
+          key: 'publish-custom-domain',
+          label: 'Publish Custom Domain',
+          icon: UploadCloud,
+          onPress: () => {
+            publishSite.open({id: route.id, step: 'seed-host-custom-domain'})
+          },
+        })
+      }
       menuItems.push({
         key: 'publish-site',
         label: 'Remove Site from Publication',
@@ -192,13 +207,13 @@ export function DocOptionsButton() {
           removeSite.open(route.id)
         },
       })
-    else
+    } else
       menuItems.push({
         key: 'publish-site',
         label: 'Publish Site',
         icon: UploadCloud,
         onPress: () => {
-          publishSite.open(route.id)
+          publishSite.open({id: route.id})
         },
       })
   }

@@ -30,6 +30,7 @@ import {recentsApi} from './app-recents'
 
 import {defaultRoute, NavRoute, navRouteSchema} from '@shm/shared/routes'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {hostApi} from './app-host'
 import {secureStorageApi} from './app-secure-storage'
 import {appSettingsApi} from './app-settings'
 import {sitesApi} from './app-sites'
@@ -45,7 +46,6 @@ import {
   getWindowsState,
 } from './app-windows'
 import * as log from './logger'
-
 ipcMain.on('invalidate_queries', (_event, info) => {
   appInvalidateQueries(info)
 })
@@ -199,6 +199,7 @@ export const router = t.router({
       }),
   }),
   favorites: favoritesApi,
+  host: hostApi,
   recentSigners: recentSignersApi,
   comments: commentsApi,
   gatewaySettings: gatewaySettingsApi,
