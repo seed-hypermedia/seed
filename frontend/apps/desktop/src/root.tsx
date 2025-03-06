@@ -335,6 +335,8 @@ function MainApp({}: {}) {
           utils.experiments.get.invalidate()
         } else if (value[0] === 'trpc.favorites.get') {
           utils.favorites.get.invalidate()
+        } else if (value[0] === 'trpc.host.get') {
+          utils.host.get.invalidate()
         } else if (value[0] === 'trpc.recentSigners.get') {
           utils.recentSigners.get.invalidate()
         } else if (value[0] === 'trpc.comments.getCommentDraft') {
