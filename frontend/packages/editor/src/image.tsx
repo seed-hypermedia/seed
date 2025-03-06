@@ -273,7 +273,7 @@ const display = ({
   window.addEventListener('mouseup', windowMouseUpHandler)
 
   // Hides the resize handles when the cursor leaves the image
-  const imageMouseLeaveHandler = () => {
+  const imageMouseLeaveHandler = (event) => {
     if (resizeParams) {
       return
     }
