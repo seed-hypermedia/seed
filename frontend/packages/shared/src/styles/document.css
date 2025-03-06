@@ -20,6 +20,7 @@
   max-width: calc(var(--content-width) + 280px + 1rem);
   /* sidebar width difference is usually 296 because 280px sidebar with 1rem gap */
   margin: 0 auto 120px auto;
+  padding-inline: 1rem;
 }
 
 .document-container.hide-document-aside {
@@ -31,6 +32,7 @@
     display: grid !important;
     grid-template-columns: 280px minmax(0, 1fr);
     gap: 1rem;
+    padding-inline: 0;
   }
 
   .document-container.hide-document-aside {
@@ -44,7 +46,7 @@
   top: 150px !important;
   /* padding-left: 16px; */
   z-index: 30;
-  margin-left: 0;
+  margin-left: -4px;
   display: none !important;
   height: calc(90vh - 150px);
   width: 100%;
@@ -62,6 +64,7 @@
     display: block !important;
     max-width: 100%;
     overflow: auto;
+    margin-left: 0;
   }
 }
 

@@ -257,8 +257,6 @@ function _MainDocumentPage({
             >
               <YStack
                 className="hide-scrollbar"
-                display="none"
-                $gtSm={{display: 'flex'}}
                 overflow="scroll"
                 height="100%"
                 // paddingVertical="$4"
