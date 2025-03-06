@@ -261,7 +261,9 @@ jobs:
               },
               "win32": {
                 "x64": {
-                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/seed-dev-${VERSION}-win32-x64-setup.exe"
+                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/seed-dev-${VERSION}-win32-x64-setup.exe",
+                  "nupkg_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/seed-dev-${VERSION}-full.nupkg",
+                  "release_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/RELEASES"
                 }
               }
             }

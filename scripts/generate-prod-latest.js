@@ -45,6 +45,10 @@ function transformRelease(release) {
           download_url: assets.find((a) =>
             a.name.includes("win32-x64-setup.exe")
           )?.browser_download_url,
+          nupkg_url: assets.find((a) => a.name.includes("-full.nupkg"))
+            ?.browser_download_url,
+          release_url: assets.find((a) => a.name == "RELEASES")
+            ?.browser_download_url,
         },
       },
       linux: {
