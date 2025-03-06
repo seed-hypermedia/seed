@@ -326,12 +326,13 @@ function SeedHostRegisterCustomDomain({
     createDomain.mutateAsync({
       hostname: domain,
       currentSiteUrl: siteUrl,
+      id,
     })
   }
   console.log({siteUrl, id})
   return (
     <YStack>
-      <Heading>Register Custom Domain</Heading>
+      <Heading>Set Up Custom Domain</Heading>
       {siteUrl ? (
         <>
           <SizableText>You can now publish your custom domain.</SizableText>

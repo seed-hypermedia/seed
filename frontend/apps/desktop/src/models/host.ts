@@ -1,5 +1,6 @@
 import {trpc} from '@/trpc'
 import {SEED_HOST_URL} from '@shm/shared/constants'
+import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import z from 'zod'
 
@@ -58,6 +59,7 @@ export type CreateSiteDomainRequest = z.infer<
 
 export const CreateSiteDomainResponseSchema = z.object({
   hostname: z.string(),
+  domainId: z.string(),
 })
 export type CreateSiteDomainResponse = z.infer<
   typeof CreateSiteDomainResponseSchema
@@ -72,7 +74,7 @@ export function useHostSession({
   const {data: hostState} = trpc.host.get.useQuery()
   async function hostAPI(
     path: string,
-    method: 'GET' | 'POST',
+    method: 'GET' | 'POST' | 'DELETE',
     body?: any,
     headers?: Record<string, string>,
   ) {
@@ -150,21 +152,52 @@ export function useHostSession({
     mutationFn: async ({
       hostname,
       currentSiteUrl,
+      id,
     }: {
       hostname: string
       currentSiteUrl: string
+      id: UnpackedHypermediaId
     }) => {
       const respJson = await hostAPI(`domains`, 'POST', {
         currentSiteUrl,
         hostname,
       } satisfies CreateSiteDomainRequest)
       const result = CreateSiteDomainResponseSchema.parse(respJson)
-      return result
+      if (!hostState) throw new Error('No host state')
+      setHostState.mutate({
+        ...hostState,
+        pendingDomains: [
+          ...(hostState?.pendingDomains || []),
+          {
+            hostname: result.hostname,
+            id: result.domainId,
+            siteUid: id.uid,
+            status: 'waiting-dns',
+          },
+        ],
+      })
     },
   })
 
+  function cancelPendingDomain(id: string) {
+    if (!hostState) throw new Error('No host state')
+    hostAPI(`domains/${id}`, 'DELETE')
+      .then(() => {
+        setHostState.mutate({
+          ...hostState,
+          pendingDomains: hostState.pendingDomains?.filter(
+            (domain) => domain.id !== id,
+          ),
+        })
+      })
+      .catch((e) => {
+        console.error('~~ CANCEL PENDING DOMAIN ERROR', e)
+      })
+  }
+
   return {
     email: hostState?.email,
+    pendingDomains: hostState?.pendingDomains,
     loggedIn: !!hostState?.sessionToken,
     login: login.mutate,
     isSendingEmail: login.isLoading,
@@ -180,5 +213,6 @@ export function useHostSession({
     },
     createSite,
     createDomain,
+    cancelPendingDomain,
   }
 }
