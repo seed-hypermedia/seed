@@ -11,9 +11,9 @@ import {
 import {ButtonText} from '@tamagui/button'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
-import React, {useState} from 'react'
+import React, {useMemo, useState} from 'react'
 import {Button} from './button'
-import {Close, Menu} from './icons'
+import {Close, Menu, X} from './icons'
 import {
   DocumentOutline,
   DocumentSmallListItem,
@@ -208,6 +208,8 @@ export function SiteHeader({
   )
   return (
     <>
+      {/* TODO: Eric change this to true when we are */}
+      <GotoLatestBanner isLatest={true} />
       {docId && origin && originHomeId && originHomeId.uid !== docId.uid ? (
         <YStack padding="$2" alignItems="center" backgroundColor="$brand5">
           <SizableText color="white" size="$3">
@@ -347,4 +349,56 @@ export function MobileMenu({
       </YStack>
     </YStack>
   )
+}
+
+function GotoLatestBanner({isLatest = true}: {isLatest: boolean}) {
+  // TODO: Eric change this to true when we are
+  const [showVersionBanner, setShowVersionBanner] = useState(false)
+
+  const show = useMemo(() => {
+    if (!isLatest) return true
+    return showVersionBanner
+  }, [isLatest, showVersionBanner])
+
+  return show ? (
+    <XStack
+      borderColor="black"
+      position="absolute"
+      top={70}
+      left={0}
+      right={0}
+      zIndex="$zIndex.8"
+      h={0}
+      jc="center"
+    >
+      <XStack
+        minHeight={60}
+        bg="$background"
+        elevation="$4"
+        overflow="hidden"
+        borderRadius="$4"
+        maxWidth={600}
+        alignItems="center"
+        width="100%"
+        p="$4"
+        paddingRight="$2"
+        gap="$2"
+      >
+        <SizableText flex={1}>This is not the latest version</SizableText>
+        <Button
+          bg="$brand10"
+          hoverStyle={{bg: '$brand11'}}
+          focusStyle={{bg: '$brand11'}}
+          size="$2"
+        >
+          Go to latest
+        </Button>
+        <Button
+          size="$2"
+          onPress={() => setShowVersionBanner(false)}
+          icon={X}
+        />
+      </XStack>
+    </XStack>
+  ) : null
 }
