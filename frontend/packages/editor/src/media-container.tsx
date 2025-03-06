@@ -158,8 +158,8 @@ export const MediaContainer = ({
       gap="$2"
       group="item"
       maxWidth="100%"
-      width={width}
       alignSelf="center"
+      alignItems="center"
       borderWidth={0}
       draggable="true"
       onDragStart={(e: any) => {
@@ -229,6 +229,7 @@ export const MediaContainer = ({
         className={className ?? block.type}
         group="item"
         maxWidth="100%"
+        width={width}
       >
         {(hover || selected) && mediaType !== 'embed'
           ? editor.isEditable && (

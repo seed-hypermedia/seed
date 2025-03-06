@@ -1301,15 +1301,18 @@ function BlockContentImage({
         <img
           alt={block?.attributes?.name}
           src={imageUrl(block?.link, 'L')}
-          style={{width: '100%'}}
+          style={{
+            width: '100%',
+            maxHeight: '600px',
+            objectFit: 'contain',
+          }}
         />
-
-        {inline.length ? (
-          <Text opacity={0.7} fontFamily="$body">
-            <InlineContentView inline={inline} fontSize={textUnit * 0.85} />
-          </Text>
-        ) : null}
       </YStack>
+      {inline.length ? (
+        <Text opacity={0.7} fontFamily="$body">
+          <InlineContentView inline={inline} fontSize={textUnit * 0.85} />
+        </Text>
+      ) : null}
     </YStack>
   )
 }

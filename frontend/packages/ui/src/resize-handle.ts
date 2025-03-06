@@ -11,8 +11,8 @@ export const ResizeHandle = styled(XStack, {
   borderWidth: 1,
   borderStyle: 'solid',
   borderRadius: '5px',
-  cursor: 'vertical-text',
+  cursor: 'col-resize',
   hoverStyle: {
-    cursor: 'vertical-text',
+    cursor: 'col-resize',
   },
 })
