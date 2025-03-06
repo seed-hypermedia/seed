@@ -70,6 +70,7 @@ import {
   createContext,
   createElement,
   memo,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -2381,6 +2382,10 @@ export function BlockContentMath({
   const {layoutUnit} = useDocContentContext()
   const [tex, setTex] = useState<string>()
   const [error, setError] = useState<string>()
+  const mathRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [isContentSmallerThanContainer, setIsContentSmallerThanContainer] =
+    useState(true)
 
   useEffect(() => {
     try {
@@ -2395,6 +2400,78 @@ export function BlockContentMath({
     }
   }, [block.text])
 
+  // Function to measure content and container widths
+  const measureContentAndContainer = useCallback(() => {
+    if (mathRef.current && containerRef.current) {
+      // Get the actual rendered content width from the first child of mathRef
+      // (KaTeX creates nested elements)
+      const contentElement = mathRef.current.firstElementChild as HTMLElement
+      const contentWidth = contentElement
+        ? contentElement.offsetWidth
+        : mathRef.current.offsetWidth
+      const containerWidth = containerRef.current.offsetWidth
+
+      // Account for padding
+      const paddingValue = layoutUnit / 2
+      const adjustedContainerWidth = containerWidth - paddingValue * 2
+
+      // Update state based on comparison
+      const shouldCenter = contentWidth < adjustedContainerWidth
+      if (shouldCenter !== isContentSmallerThanContainer) {
+        setIsContentSmallerThanContainer(shouldCenter)
+      }
+    }
+  }, [isContentSmallerThanContainer, layoutUnit])
+
+  // Update measurements when tex changes
+  useEffect(() => {
+    if (tex) {
+      // Use a timeout to ensure KaTeX has finished rendering
+      const timerId = setTimeout(() => {
+        measureContentAndContainer()
+      }, 50)
+
+      return () => clearTimeout(timerId)
+    }
+  }, [tex, measureContentAndContainer])
+
+  // Also measure after mathRef updates (when KaTeX rendering is done)
+  useEffect(() => {
+    if (mathRef.current) {
+      // Use MutationObserver to detect when KaTeX finishes rendering
+      const observer = new MutationObserver(() => {
+        measureContentAndContainer()
+      })
+
+      observer.observe(mathRef.current, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+      })
+
+      return () => {
+        observer.disconnect()
+      }
+    }
+  }, [measureContentAndContainer])
+
+  // Add resize observer to handle container size changes
+  useEffect(() => {
+    const container = containerRef.current
+
+    if (container) {
+      const resizeObserver = new ResizeObserver(() => {
+        measureContentAndContainer()
+      })
+
+      resizeObserver.observe(container)
+
+      return () => {
+        resizeObserver.disconnect()
+      }
+    }
+  }, [measureContentAndContainer])
+
   if (error) {
     return <ErrorBlock message={error} />
   }
@@ -2406,7 +2483,7 @@ export function BlockContentMath({
       className="block-content block-katex"
       paddingVertical="$3"
       gap="$2"
-      ai="center"
+      ai={isContentSmallerThanContainer ? 'center' : 'flex-start'}
       width="100%"
       borderColor="$color6"
       backgroundColor="$color4"
@@ -2415,14 +2492,16 @@ export function BlockContentMath({
       data-content-type="math"
       data-content={block.text}
       padding={layoutUnit / 2}
-      overflow="hidden"
+      overflow={isContentSmallerThanContainer ? 'hidden' : 'scroll'}
       marginHorizontal={(-1 * layoutUnit) / 2}
+      ref={containerRef}
     >
       <SizableText
-        ai="center"
-        ac="center"
+        ref={mathRef}
+        ai={isContentSmallerThanContainer ? 'center' : 'flex-start'}
+        ac={isContentSmallerThanContainer ? 'center' : 'flex-start'}
         dangerouslySetInnerHTML={{__html: tex}}
-      ></SizableText>
+      />
     </YStack>
   )
 }

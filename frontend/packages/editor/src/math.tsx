@@ -9,7 +9,6 @@ import {TextArea} from '@tamagui/input'
 import {Separator} from '@tamagui/separator'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
-import {Fragment} from '@tiptap/pm/model'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import {NodeSelection} from 'prosemirror-state'
@@ -20,9 +19,15 @@ export const MathBlock = (type: 'math') =>
     type,
     propSchema: {
       ...defaultProps,
+      text: {
+        default: '',
+      },
+      src: {
+        default: '',
+      },
     },
     containsInlineContent: true,
-    // @ts-ignore
+
     render: ({
       block,
       editor,
@@ -30,25 +35,6 @@ export const MathBlock = (type: 'math') =>
       block: Block<HMBlockSchema>
       editor: BlockNoteEditor<HMBlockSchema>
     }) => Render(block, editor),
-
-    parseHTML: [
-      {
-        tag: 'div[data-content-type=math]',
-        priority: 1000,
-        getContent: (node, schema) => {
-          const element = node instanceof HTMLElement ? node : null
-          const content = element?.getAttribute('data-content')
-
-          if (content) {
-            const textNode = schema.text(content)
-            const fragment = Fragment.from(textNode)
-            return fragment
-          }
-
-          return Fragment.empty
-        },
-      },
-    ],
   })
 
 const Render = (
@@ -57,10 +43,14 @@ const Render = (
 ) => {
   const [selected, setSelected] = useState(false)
   const [opened, setOpened] = useState(false)
-  const mathRef = useRef<HTMLSpanElement>(null)
+  const mathRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const tiptapEditor = editor._tiptapEditor
   const selection = tiptapEditor.state.selection
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [isContentSmallerThanContainer, setIsContentSmallerThanContainer] =
+    useState(true)
+  const [error, setError] = useState<string>()
 
   useEffect(() => {
     const selectedNode = getBlockInfoFromSelection(tiptapEditor.state)
@@ -117,6 +107,78 @@ const Render = (
     }
   }, [opened])
 
+  // Function to measure content and container widths
+  const measureContentAndContainer = useCallback(() => {
+    if (mathRef.current && containerRef.current) {
+      // Get the actual rendered content width from the first child of mathRef
+      // (KaTeX creates nested elements)
+      const contentElement = mathRef.current.firstElementChild as HTMLElement
+      const contentWidth = contentElement
+        ? contentElement.offsetWidth
+        : mathRef.current.offsetWidth
+      const containerWidth = containerRef.current.offsetWidth
+
+      // Account for padding
+      const containerPaddingHorizontal = 24 // $3 in most Tamagui themes is around 12px per side
+      const adjustedContainerWidth = containerWidth - containerPaddingHorizontal
+
+      // Update state based on comparison
+      const shouldCenter = contentWidth < adjustedContainerWidth
+      if (shouldCenter !== isContentSmallerThanContainer) {
+        setIsContentSmallerThanContainer(shouldCenter)
+      }
+    }
+  }, [isContentSmallerThanContainer])
+
+  // Update measurements when content changes
+  useEffect(() => {
+    if (block.content[0] && block.content[0].text) {
+      // Use a timeout to ensure KaTeX has finished rendering
+      const timerId = setTimeout(() => {
+        measureContentAndContainer()
+      }, 50)
+
+      return () => clearTimeout(timerId)
+    }
+  }, [block.content, measureContentAndContainer])
+
+  // Also measure after mathRef updates (when KaTeX rendering is done)
+  useEffect(() => {
+    if (mathRef.current) {
+      // Use MutationObserver to detect when KaTeX finishes rendering
+      const observer = new MutationObserver((mutations) => {
+        measureContentAndContainer()
+      })
+
+      observer.observe(mathRef.current, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+      })
+
+      return () => {
+        observer.disconnect()
+      }
+    }
+  }, [measureContentAndContainer])
+
+  // Add resize observer to handle container size changes
+  useEffect(() => {
+    const container = containerRef.current
+
+    if (container) {
+      const resizeObserver = new ResizeObserver(() => {
+        measureContentAndContainer()
+      })
+
+      resizeObserver.observe(container)
+
+      return () => {
+        resizeObserver.disconnect()
+      }
+    }
+  }, [measureContentAndContainer])
+
   return (
     <YStack
       backgroundColor={selected ? '$color3' : '$color4'}
@@ -135,12 +197,13 @@ const Render = (
     >
       <YStack
         minHeight="$7"
-        ai="center"
-        justifyContent="center"
         paddingVertical="10px"
-        paddingHorizontal="16px"
         position="relative"
         userSelect="none"
+        overflow={isContentSmallerThanContainer ? 'hidden' : 'scroll'}
+        paddingHorizontal="$3"
+        width="100%"
+        ref={containerRef}
         onPress={() => {
           if (selected && !opened) {
             const selectedNode = getBlockInfoFromSelection(tiptapEditor.state)
@@ -155,6 +218,7 @@ const Render = (
             }
           }
         }}
+        ai={isContentSmallerThanContainer ? 'center' : 'flex-start'}
       >
         <SizableText ref={mathRef} userSelect="none" />
       </YStack>
