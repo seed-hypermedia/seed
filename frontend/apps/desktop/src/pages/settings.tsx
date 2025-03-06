@@ -1,25 +1,8 @@
-import {useIPC} from '@/app-context'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {IconForm} from '@/components/icon-form'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
-import {useAutoUpdatePreference} from '@/models/app-settings'
-import {
-  useDaemonInfo,
-  useDeleteKey,
-  useMyAccountIds,
-  useSavedMnemonics,
-} from '@/models/daemon'
+import {useDeleteKey, useMyAccountIds, useSavedMnemonics} from '@/models/daemon'
 import {useExperiments, useWriteExperiments} from '@/models/experiments'
-import {
-  useGatewayUrl,
-  usePushOnCopy,
-  usePushOnPublish,
-  useSetGatewayUrl,
-  useSetPushOnCopy,
-  useSetPushOnPublish,
-} from '@/models/gateway-settings'
-import {usePeerInfo} from '@/models/networking'
-import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
 import {getMetadataName} from '@shm/shared/content'
@@ -39,14 +22,12 @@ import {
   Heading,
   Input,
   Label,
-  ListItem,
+  Paragraph,
   RadioGroup,
   ScrollView,
   Separator,
   SizableText,
   Tabs,
-  TabsContentProps,
-  TabsProps,
   TextArea,
   Tooltip,
   View,
@@ -64,9 +45,10 @@ import {
   Plus,
   RadioTower,
   Trash,
+  UserRoundPlus,
 } from '@tamagui/lucide-icons'
 import copyTextToClipboard from 'copy-text-to-clipboard'
-import React, {useEffect, useId, useMemo, useState} from 'react'
+import {useEffect, useState} from 'react'
 import {dispatchWizardEvent} from 'src/components/create-account'
 
 export default function Settings() {
@@ -218,8 +200,8 @@ export function DeveloperSettings() {
             }}
           >
             {enabledPubContentDevMenu
-              ? 'Disable Publication Debug Panel'
-              : `Enable Publication Debug Panel`}
+              ? 'Disable Publication Debug Panel'
+              : `Enable Publication Debug Panel`}
           </Button>
         </XStack>
       </SettingsSection>
@@ -584,11 +566,39 @@ function AccountKeys() {
       </YStack>
     </XStack>
   ) : (
-    <XStack style={{flex: 1, height: '100%'}} gap="$4" ai="center" jc="center">
-      <Button onPress={() => dispatchWizardEvent(true)}>
+    <YStack
+      style={{flex: 1, height: '100%'}}
+      ai="center"
+      jc="center"
+      gap="$4"
+      p="$6"
+    >
+      <YStack
+        width={80}
+        height={80}
+        borderRadius="$6"
+        backgroundColor="$color4"
+        ai="center"
+        jc="center"
+      >
+        <UserRoundPlus size={50} color="$color11" />
+      </YStack>
+      <Heading>No Accounts Found</Heading>
+      <Paragraph textAlign="center" maxWidth={400} color="$color11">
+        Create a new profile to get started with Seed. You'll need to create a
+        profile to use all the features.
+      </Paragraph>
+      <Button
+        mt="$4"
+        size="$4"
+        theme="brand"
+        icon={Plus}
+        color="white"
+        onPress={() => dispatchWizardEvent(true)}
+      >
         Create a new Profile
       </Button>
-    </XStack>
+    </YStack>
   )
 }
 
