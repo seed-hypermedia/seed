@@ -625,6 +625,9 @@ func BlockFromProto(b *documents.Block) (blob.Block, error) {
 // but it uses int64 instead of float64 when numbers are integers.
 func ProtoStructAsMap(pb *structpb.Struct) map[string]any {
 	f := pb.GetFields()
+	if f == nil {
+		return nil
+	}
 	vs := make(map[string]any, len(f))
 	for k, v := range f {
 		vs[k] = valueAsInterface(v)
