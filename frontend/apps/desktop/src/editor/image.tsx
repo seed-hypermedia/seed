@@ -166,11 +166,17 @@ const display = ({
     : getDaemonFileUrl(block.props.url)
   // Min image width in px.
   const minWidth = 64
+  // Max image height in px.
+  const maxHeight = 600
+
   let width: number =
     parseFloat(block.props.width) ||
     editor.domElement.firstElementChild!.clientWidth
   const [currentWidth, setCurrentWidth] = useState(width)
   const [showHandle, setShowHandle] = useState(false)
+  // Track image natural dimensions for aspect ratio calculation
+  const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null)
+
   let resizeParams:
     | {
         handleUsed: 'left' | 'right'
@@ -185,6 +191,26 @@ const display = ({
       setCurrentWidth(parseFloat(block.props.width))
     }
   }, [block.props.width])
+
+  // Handle image load to get aspect ratio
+  const handleImageLoad = (event: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = event.currentTarget
+    if (img.naturalWidth && img.naturalHeight) {
+      const aspectRatio = img.naturalWidth / img.naturalHeight
+      setImageAspectRatio(aspectRatio)
+
+      // If current width would make height exceed maxHeight, adjust width
+      if (aspectRatio && currentWidth / aspectRatio > maxHeight) {
+        const newWidth = maxHeight * aspectRatio
+        setCurrentWidth(newWidth)
+        assign({
+          props: {
+            width: newWidth.toString(),
+          },
+        })
+      }
+    }
+  }
 
   const windowMouseMoveHandler = (event: MouseEvent) => {
     if (!resizeParams) {
@@ -211,6 +237,15 @@ const display = ({
       width = editor.domElement.firstElementChild!.clientWidth
       setCurrentWidth(editor.domElement.firstElementChild!.clientWidth)
     } else {
+      // Check if new width would make height exceed maxHeight (if we know aspect ratio)
+      if (imageAspectRatio) {
+        const projectedHeight = newWidth / imageAspectRatio
+        if (projectedHeight > maxHeight) {
+          // Limit width based on maxHeight and aspect ratio
+          newWidth = maxHeight * imageAspectRatio
+        }
+      }
+
       width = newWidth
       setCurrentWidth(newWidth)
     }
@@ -313,10 +348,15 @@ const display = ({
       )}
       {imageUrl && (
         <img
-          style={{width: `100%`}}
+          style={{
+            width: `100%`,
+            maxHeight: `${maxHeight}px`,
+            objectFit: 'contain',
+          }}
           src={imageUrl}
           alt={block.props.name || block.props.alt}
           contentEditable={false}
+          onLoad={handleImageLoad}
         />
       )}
     </MediaContainer>
