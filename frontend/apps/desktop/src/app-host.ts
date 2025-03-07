@@ -1,6 +1,9 @@
+import {queryKeys} from '@shm/shared'
+import {DocumentChange} from '@shm/shared/client'
 import {SEED_HOST_URL} from '@shm/shared/constants'
 import fetch from 'node-fetch'
 import z from 'zod'
+import {grpcClient} from './app-grpc'
 import {appInvalidateQueries} from './app-invalidation'
 import {appStore} from './app-store'
 import {t} from './app-trpc'
@@ -20,6 +23,7 @@ const PendingDomainSchema = z
     status: z.enum(['waiting-dns', 'initializing', 'error']),
   })
   .strict()
+export type PendingDomain = z.infer<typeof PendingDomainSchema>
 
 const HostSchema = z.object({
   email: z.string().or(z.null()),
@@ -63,7 +67,70 @@ async function updateSingleDNSStatus(
     },
   })
   const respJson = await resp.json()
+  if (respJson.status === 'WaitingForDNS') {
+    await writeDNSStatus(pendingDomain.id, 'waiting-dns')
+  } else if (respJson.status === 'Error') {
+    await writeDNSStatus(pendingDomain.id, 'error')
+  } else if (respJson.status === 'Initializing') {
+    await writeDNSStatus(pendingDomain.id, 'initializing')
+  } else if (respJson.status === 'Active') {
+    await writeDNSActive(pendingDomain)
+  }
   console.log('~~ UPDATE DNS STATUS RESPONSE', respJson)
+}
+
+async function writeDNSActive(pendingDomain: PendingDomain) {
+  console.log('~~ WRITE DNS ACTIVE', pendingDomain)
+  const doc = await grpcClient.documents.getDocument({
+    account: pendingDomain.siteUid,
+  })
+  if (!doc) {
+    throw new Error('writeDNSActive: no document found')
+  }
+  await grpcClient.documents.createDocumentChange({
+    account: pendingDomain.siteUid,
+    signingKeyName: pendingDomain.siteUid, // this only works if the signer is available.. we haven't confirmed it but it probably is, if the user has gotten here
+    baseVersion: doc.version,
+    changes: [
+      new DocumentChange({
+        op: {
+          case: 'setMetadata',
+          value: {
+            key: 'siteUrl',
+            value: `https://${pendingDomain.hostname}`,
+          },
+        },
+      }),
+    ],
+  })
+  appInvalidateQueries([queryKeys.ENTITY, pendingDomain.siteUid])
+  setTimeout(() => {
+    writeHostState({
+      ...state,
+      pendingDomains: state.pendingDomains?.filter(
+        (pending) => pending.id !== pendingDomain.id,
+      ),
+    })
+  }, 500) // delay for a bit because it takes a moment for the front end to catch up
+}
+
+async function writeDNSStatus(
+  domainId: string,
+  status: PendingDomain['status'],
+) {
+  console.log('~~ WRITE DNS STATUS', domainId, status)
+  if (
+    state.pendingDomains?.find((pending) => {
+      return pending.id === domainId && pending.status !== status
+    })
+  ) {
+    writeHostState({
+      ...state,
+      pendingDomains: state.pendingDomains?.map((pending) => {
+        return pending.id === domainId ? {...pending, status} : pending
+      }),
+    })
+  }
 }
 
 async function updateDNSStatus() {

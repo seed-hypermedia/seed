@@ -2,7 +2,7 @@ import {useHostSession} from '@/models/host'
 import {useRemoveSite, useSiteRegistration} from '@/models/site'
 import {useNavigate} from '@/utils/useNavigate'
 import {zodResolver} from '@hookform/resolvers/zod'
-import {hmId} from '@shm/shared'
+import {hmId, hostnameStripProtocol} from '@shm/shared'
 import {getDocumentTitle} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
@@ -319,17 +319,62 @@ function SeedHostRegisterCustomDomain({
     resolver: zodResolver(RegisterCustomDomainSchema),
   })
   const entity = useEntity(id)
+  const [pendingDomainName, setPendingDomainName] = useState<string | null>(
+    null,
+  )
   const siteUrl = entity.data?.document?.metadata?.siteUrl
   function onSubmit({domain}: RegisterCustomDomainFields) {
     if (!siteUrl) throw new Error('Site URL not found')
     console.log('WILL REGISTER custom domain', domain)
-    createDomain.mutateAsync({
-      hostname: domain,
-      currentSiteUrl: siteUrl,
-      id,
-    })
+    createDomain
+      .mutateAsync({
+        hostname: domain,
+        currentSiteUrl: siteUrl,
+        id,
+      })
+      .then(() => {
+        setPendingDomainName(domain)
+      })
   }
-  console.log({siteUrl, id})
+  const pendingDomain = useHostSession().pendingDomains?.find(
+    (pending) => pending.siteUid === id.uid,
+  )
+  console.log('checking isComplete', siteUrl, `https://${pendingDomainName}`)
+  const isComplete = siteUrl === `https://${pendingDomainName}`
+  if (pendingDomain || createDomain.isLoading) {
+    let pendingStatus = null
+    if (pendingDomain?.status === 'error') {
+      pendingStatus = (
+        <SizableText color="$red11">
+          Something went wrong. Please try domain setup again.
+        </SizableText>
+      )
+    } else if (pendingDomain?.status === 'waiting-dns') {
+      pendingStatus = (
+        <SizableText>
+          Waiting for you to set up DNS. Point it to{' '}
+          {hostnameStripProtocol(siteUrl)} (TODO: instructions here)
+        </SizableText>
+      )
+    } else if (pendingDomain?.status === 'initializing') {
+      pendingStatus = <SizableText>Initializing...</SizableText>
+    }
+    return (
+      <YStack>
+        <Heading>Set Up Custom Domain</Heading>
+        <Spinner />
+        {pendingStatus}
+      </YStack>
+    )
+  }
+  if (isComplete) {
+    return (
+      <YStack>
+        <Heading>Custom Domain Published! Congrats friend.</Heading>
+      </YStack>
+    )
+  }
+  console.log({siteUrl, id, pendingDomain})
   return (
     <YStack>
       <Heading>Set Up Custom Domain</Heading>
