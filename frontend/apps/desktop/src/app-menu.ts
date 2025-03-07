@@ -1,8 +1,7 @@
 // this menu is visible on macOS only
 // the keyboard shortcuts apply to every platform
 
-import {defaultRoute} from '@shm/shared/routes'
-import {Menu, MenuItem} from 'electron'
+import {ipcMain, Menu, MenuItem} from 'electron'
 import {dispatchFocusedWindowAppEvent, openRoute, trpc} from './app-api'
 import {checkForUpdates} from './auto-update'
 
@@ -63,7 +62,7 @@ export function createAppMenu() {
           label: 'New Window',
           accelerator: 'CmdOrCtrl+N',
           click: () => {
-            trpc.createAppWindow({routes: [defaultRoute]})
+            ipcMain.emit('new_window')
           },
         },
         {type: 'separator'},

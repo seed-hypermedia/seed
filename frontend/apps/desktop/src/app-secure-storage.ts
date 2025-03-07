@@ -1,6 +1,6 @@
 import {safeStorage} from 'electron'
 import {z} from 'zod'
-import {secureStore} from './app-store'
+import {secureStore} from './app-store.mts'
 import {t} from './app-trpc'
 
 export const secureStorageApi = t.router({

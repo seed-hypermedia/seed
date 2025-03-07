@@ -1,11 +1,8 @@
-import {DESKTOP_APPDATA} from '@shm/shared/constants'
+import {DESKTOP_APPDATA, IS_TEST} from '@shm/shared/constants'
 import {app} from 'electron'
 import {mkdtempSync} from 'fs'
 import os from 'os'
 import path from 'path'
-
-export const IS_PROD = process.env.NODE_ENV == 'production'
-export const IS_TEST = process.env.NODE_ENV == 'test'
 
 export const userDataPath = IS_TEST
   ? mkdtempSync(path.join(os.tmpdir(), 'hm-'))

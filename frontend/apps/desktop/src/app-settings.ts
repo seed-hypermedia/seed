@@ -1,5 +1,5 @@
 import z from 'zod'
-import {appStore} from './app-store'
+import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
 
 const AutoUpdateTypes = z.literal('true').or(z.literal('false'))

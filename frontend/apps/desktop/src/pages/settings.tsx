@@ -36,6 +36,7 @@ import {
   YStack,
 } from 'tamagui'
 
+import {ListItem} from '@/components/list-item'
 import {
   AtSign,
   Code2,
