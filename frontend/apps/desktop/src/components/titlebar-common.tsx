@@ -6,6 +6,7 @@ import {useDraft} from '@/models/accounts'
 import {useCreateDraft} from '@/models/documents'
 import {useSubscribedEntity} from '@/models/entities'
 import {useGatewayUrl} from '@/models/gateway-settings'
+import {useHostSession} from '@/models/host'
 import {SidebarContext, SidebarWidth} from '@/sidebar-context'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {
@@ -93,6 +94,9 @@ export function DocOptionsButton() {
   const capability = useMyCapability(route.id)
   const canEditDoc = roleCanWrite(capability?.role)
 
+  const pendingDomain = useHostSession().pendingDomains?.find(
+    (pending) => pending.siteUid === route.id.uid,
+  )
   const menuItems: MenuItemType[] = [
     {
       key: 'link',
@@ -188,7 +192,7 @@ export function DocOptionsButton() {
         doc.data?.document?.metadata?.siteUrl,
       )
       const gwHost = hostnameStripProtocol(gwUrl)
-      if (siteHost.endsWith(gwHost)) {
+      if (siteHost.endsWith(gwHost) && !pendingDomain) {
         menuItems.push({
           key: 'publish-custom-domain',
           label: 'Publish Custom Domain',
