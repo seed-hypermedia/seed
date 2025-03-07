@@ -72,7 +72,7 @@ export function updateGoDaemonState(state: GoDaemonState) {
 
 export function startMainDaemon(onStarted?: () => void) {
   if (process.env.SEED_NO_DAEMON_SPAWN) {
-    // log.debug('Go daemon spawn skipped')
+    log.debug('Go daemon spawn skipped')
     updateGoDaemonState({t: 'ready'})
     return {
       httpPort: process.env.VITE_DESKTOP_HTTP_PORT,
@@ -100,7 +100,7 @@ export function startMainDaemon(onStarted?: () => void) {
       updateGoDaemonState({t: 'ready'})
     }
 
-    // log.rawMessage(line)
+    log.rawMessage(line)
 
     const daemonEvent = JSON.parse(line)
 
@@ -112,13 +112,13 @@ export function startMainDaemon(onStarted?: () => void) {
 
   const stdout = readline.createInterface({input: daemonProcess.stdout})
   stdout.on('line', (line: string) => {
-    // console.log('Daemon Stdout:', line)
+    console.log('Daemon Stdout:', line)
   })
 
   let expectingDaemonClose = false
 
   daemonProcess.on('error', (err) => {
-    // log.error('Go daemon spawn error', {error: err})
+    log.error('Go daemon spawn error', {error: err})
   })
 
   daemonProcess.on('close', (code, signal) => {
@@ -132,11 +132,11 @@ export function startMainDaemon(onStarted?: () => void) {
   })
 
   daemonProcess.on('spawn', () => {
-    // log.debug('Go daemon spawned')
+    log.debug('Go daemon spawned')
   })
 
   app.addListener('will-quit', () => {
-    // log.debug('App will quit')
+    log.debug('App will quit')
     expectingDaemonClose = true
     daemonProcess.kill()
   })
