@@ -355,15 +355,20 @@ function PendingDomain({id}: {id: UnpackedHypermediaId}) {
               siteUrl={site.data?.document?.metadata?.siteUrl || ''}
             />
             <XStack jc="center">
-              <Button
-                size="$2"
-                onPress={() => {
-                  hostSession.cancelPendingDomain(pendingDomain.id)
-                }}
-                icon={X}
-              >
-                Cancel Domain Setup
-              </Button>
+              {hostSession.cancelPendingDomain.isLoading ? (
+                <Spinner size="small" />
+              ) : (
+                <Button
+                  size="$2"
+                  theme="red"
+                  onPress={() => {
+                    hostSession.cancelPendingDomain.mutate(pendingDomain.id)
+                  }}
+                  icon={X}
+                >
+                  Cancel Domain Setup
+                </Button>
+              )}
             </XStack>
           </YStack>
         }

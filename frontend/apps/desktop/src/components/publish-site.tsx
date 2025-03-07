@@ -1,26 +1,54 @@
-import {useHostSession} from '@/models/host'
+import {useExperiments} from '@/models/experiments'
+import {HostInfoResponse, useHostSession} from '@/models/host'
 import {useRemoveSite, useSiteRegistration} from '@/models/site'
 import {useNavigate} from '@/utils/useNavigate'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {hmId, hostnameStripProtocol} from '@shm/shared'
+import {SEED_HOST_URL, VERSION} from '@shm/shared/constants'
 import {getDocumentTitle} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useEntity} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
-import {UploadCloud} from '@shm/ui/icons'
+import {HoverCard} from '@shm/ui/hover-card'
+import {
+  IconComponent,
+  PasteSetupUrl,
+  SeedHost,
+  SelfHost,
+  UploadCloud,
+} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
-import {ArrowLeft, Cloud} from '@tamagui/lucide-icons'
+import {ArrowLeft, ArrowRight, Check, ExternalLink} from '@tamagui/lucide-icons'
 import {useEffect, useState} from 'react'
 import {SubmitHandler, useForm} from 'react-hook-form'
-import {AlertDialog, Form, Heading, SizableText, XStack, YStack} from 'tamagui'
+import {
+  AlertDialog,
+  Form,
+  Heading,
+  SizableText,
+  styled,
+  Theme,
+  View,
+  XStack,
+  YStack,
+} from 'tamagui'
 import {z} from 'zod'
 import {useAppDialog} from './dialog'
 
 export function usePublishSite() {
-  return useAppDialog(PublishSiteDialog)
+  return useAppDialog(PublishSiteDialog, {
+    contentProps: {
+      maxWidth: null,
+      maxHeight: null,
+      height: 'content-fit',
+      width: 'content-fit',
+      overflow: 'hidden',
+      padding: 0,
+    },
+  })
 }
 
 export function useRemoveSiteDialog() {
@@ -75,6 +103,67 @@ const publishSiteSchema = z.object({
 })
 type PublishSiteFields = z.infer<typeof publishSiteSchema>
 
+function PublishDialogContainer({
+  children,
+  heading,
+  backButton,
+}: React.PropsWithChildren<{heading?: string; backButton?: React.ReactNode}>) {
+  return (
+    <YStack
+      gap="$4"
+      padding="$4"
+      maxWidth={1000}
+      maxHeight={800}
+      width="80vw"
+      height="80vh"
+      alignItems="center"
+      position="relative"
+    >
+      {heading ? <Heading size="$2">{heading}</Heading> : null}
+      {backButton ? (
+        <View position="absolute" top={'$4'} left={'$4'}>
+          {backButton}
+        </View>
+      ) : null}
+      <YStack f={1} jc="center" ai="center">
+        {children}
+      </YStack>
+    </YStack>
+  )
+}
+
+function SeedHostContainer({
+  children,
+  heading,
+  backButton,
+}: React.PropsWithChildren<{heading?: string; backButton?: React.ReactNode}>) {
+  return (
+    <Theme name="dark_blue">
+      <YStack
+        gap="$4"
+        padding="$4"
+        maxWidth={1000}
+        maxHeight={800}
+        width="80vw"
+        height="80vh"
+        alignItems="center"
+        backgroundColor="$background"
+        position="relative"
+      >
+        {heading ? <Heading size="$2">{heading}</Heading> : null}
+        {backButton ? (
+          <View position="absolute" top={'$4'} left={'$4'}>
+            {backButton}
+          </View>
+        ) : null}
+        <YStack f={1} jc="center" ai="center">
+          {children}
+        </YStack>
+      </YStack>
+    </Theme>
+  )
+}
+
 function PublishSiteDialog({
   input,
   onClose,
@@ -85,10 +174,20 @@ function PublishSiteDialog({
   }
   onClose: () => void
 }) {
+  const experiments = useExperiments()
   const {id, step: initialStep} = input
   const [mode, setMode] = useState<
-    'input-url' | 'self-host' | 'seed-host' | 'seed-host-custom-domain' | null
+    | 'input-url'
+    | 'self-host'
+    | 'seed-host'
+    | 'seed-host-custom-domain'
+    | 'domain-published'
+    | null
   >(initialStep || null)
+  const [host, setHost] = useState<string | null>(null)
+  if (!experiments.data?.hosting) {
+    return <PublishWithUrl id={id} onComplete={onClose} />
+  }
   if (mode === 'input-url') {
     return (
       <PublishWithUrl
@@ -101,32 +200,105 @@ function PublishSiteDialog({
   if (mode === 'self-host') {
     return (
       <SelfHostContent
-        onSetupUrl={() => setMode('seed-host')}
+        onSetupUrl={() => setMode('input-url')}
         onBack={() => setMode(null)}
       />
     )
   }
   if (mode === 'seed-host') {
     return (
-      <SeedHostContent onClose={onClose} onBack={() => setMode(null)} id={id} />
+      <SeedHostContent
+        onClose={onClose}
+        onBack={() => setMode(null)}
+        id={id}
+        onCompletePublish={(host) => {
+          setHost(host)
+          setMode('domain-published')
+        }}
+      />
     )
   }
   if (mode === 'seed-host-custom-domain') {
-    return <SeedHostRegisterCustomDomain onBack={() => setMode(null)} id={id} />
+    return (
+      <SeedHostRegisterCustomDomain
+        id={id}
+        onCompletePublish={(host) => {
+          setHost(host)
+          setMode('domain-published')
+        }}
+      />
+    )
+  }
+  if (mode === 'domain-published' && host) {
+    return <SeedHostDomainPublished host={host} onClose={onClose} id={id} />
   }
   return (
-    <>
-      <Heading>Set Up Web Domain</Heading>
-      <Button icon={Cloud} onPress={() => setMode('self-host')}>
-        Self Host
-      </Button>
-      <Button icon={Cloud} onPress={() => setMode('seed-host')}>
-        Seed Host
-      </Button>
-      <Button icon={Cloud} onPress={() => setMode('input-url')}>
-        Paste the Setup URL
-      </Button>
-    </>
+    <PublishDialogContainer heading="Set Up Web Domain">
+      <YStack f={1} jc="center">
+        <DialogInner>
+          <SizableText>How would you like to publish to the web?</SizableText>
+          <YStack
+            backgroundColor="$color6"
+            borderRadius="$3"
+            padding="$2"
+            gap="$2"
+          >
+            <PublishOptionButton
+              icon={SeedHost}
+              onPress={() => setMode('seed-host')}
+              label="Free Hosting by Seed Hypermedia"
+              color="#0081f1"
+              height={60}
+            />
+            <PublishOptionButton
+              icon={SelfHost}
+              onPress={() => setMode('self-host')}
+              label="Self Host on Your Own Server"
+            />
+            <PublishOptionButton
+              icon={PasteSetupUrl}
+              onPress={() => setMode('input-url')}
+              label="Paste a Hosting Setup URL"
+            />
+          </YStack>
+        </DialogInner>
+      </YStack>
+    </PublishDialogContainer>
+  )
+}
+
+const DialogInner = styled(YStack, {
+  maxWidth: 400,
+  gap: '$2',
+})
+
+const BlueButton = styled(Button, {
+  backgroundColor: '$blue11',
+  hoverStyle: {
+    backgroundColor: '$blue10',
+  },
+})
+
+function PublishOptionButton({
+  icon: Icon,
+  onPress,
+  label,
+  color,
+  height,
+}: {
+  icon: IconComponent
+  onPress: () => void
+  label: string
+  color?: string
+  height?: number
+}) {
+  return (
+    <Button onPress={onPress} height={height}>
+      <XStack f={1} ai="center" gap="$2">
+        <Icon color={color} size={32} />
+        <SizableText color={color}>{label}</SizableText>
+      </XStack>
+    </Button>
   )
 }
 
@@ -134,22 +306,80 @@ function BackButton({onPress}: {onPress: () => void}) {
   return <Button onPress={onPress} icon={ArrowLeft} chromeless />
 }
 
+function SeedHostInfo({
+  info,
+  onSubmit,
+}: {
+  info: HostInfoResponse
+  onSubmit: () => void
+}) {
+  return (
+    <>
+      <SizableText>
+        BASIC GB STORAGE: {info.pricing?.base?.gbStorage}
+      </SizableText>
+      <XStack gap="$3">
+        <Button onPress={onSubmit} backgroundColor="$blue9">
+          Go Next
+        </Button>
+      </XStack>
+    </>
+  )
+}
+
+function versionToInt(version: string): number | null {
+  const parts = version.split('.')
+  if (parts.length !== 3) return null
+  return (
+    parseInt(parts[0]) * 10_000 + parseInt(parts[1]) * 1000 + parseInt(parts[2])
+  )
+}
+
+function isAppVersionEqualOrAbove(version: string) {
+  if (VERSION === '0.0.0.local-dev') return true // for local dev
+  const expectedVersionInt = versionToInt(version)
+  const currentVersionInt = versionToInt(VERSION)
+  if (expectedVersionInt === null || currentVersionInt === null) return false
+  return currentVersionInt >= expectedVersionInt
+}
+
 function SeedHostIntro({
   onSubmit,
   onBack,
+  info,
+  infoError,
+  infoIsLoading,
 }: {
   onSubmit: () => void
   onBack: () => void
+  info?: HostInfoResponse
+  infoError?: unknown
+  infoIsLoading: boolean
 }) {
+  let content = infoIsLoading ? <Spinner /> : null
+  const isInvalidVersion =
+    info?.minimumAppVersion && !isAppVersionEqualOrAbove(info.minimumAppVersion)
+  if (info && !info.serviceErrorMessage && !isInvalidVersion) {
+    content = <SeedHostInfo info={info} onSubmit={onSubmit} />
+  } else if (infoError || info?.serviceErrorMessage || isInvalidVersion) {
+    const invalidVersionMessage = isInvalidVersion
+      ? 'The service has been updated. You must update to the latest version of the app.'
+      : null
+    content = (
+      <SizableText color="$red11">
+        {infoError?.message ||
+          info?.serviceErrorMessage ||
+          invalidVersionMessage}
+      </SizableText>
+    )
+  }
   return (
-    <YStack position="relative">
-      <BackButton onPress={onBack} />
-      <Heading>Seed Host</Heading>
-      <SizableText>blah blah pricing</SizableText>
-      <XStack gap="$3">
-        <Button onPress={onSubmit}>Go Next</Button>
-      </XStack>
-    </YStack>
+    <SeedHostContainer
+      heading="Hosting by Seed Hypermedia"
+      backButton={<BackButton onPress={onBack} />}
+    >
+      {content}
+    </SeedHostContainer>
   )
 }
 
@@ -157,7 +387,13 @@ const LoginSchema = z.object({
   email: z.string(),
 })
 type LoginFields = z.infer<typeof LoginSchema>
-function SeedHostLogin({onAuthenticated}: {onAuthenticated: () => void}) {
+function SeedHostLogin({
+  onAuthenticated,
+  onBack,
+}: {
+  onAuthenticated: () => void
+  onBack: () => void
+}) {
   const {login, email, isSendingEmail, isPendingEmailValidation, error, reset} =
     useHostSession({onAuthenticated})
 
@@ -174,25 +410,35 @@ function SeedHostLogin({onAuthenticated}: {onAuthenticated: () => void}) {
   }
   if (isPendingEmailValidation && email) {
     return (
-      <YStack>
-        <Heading>Waiting for Email Validation</Heading>
-        {error ? (
-          <>
-            <SizableText color="$red11">{error}</SizableText>
-            <Button onPress={reset} />
-          </>
-        ) : (
-          <SizableText>
-            We sent a verification link to {email}. Click on it, and you will be
-            logged in.
-          </SizableText>
-        )}
-      </YStack>
+      <SeedHostContainer
+        heading="Login to Seed Hypermedia Hosting"
+        backButton={<BackButton onPress={onBack} />}
+      >
+        <DialogInner>
+          <Heading>Waiting for Email Validation</Heading>
+          {error ? (
+            <>
+              <SizableText color="$red11">{error}</SizableText>
+              <Button onPress={reset} />
+            </>
+          ) : (
+            <>
+              <SizableText>
+                We sent a verification link to {email}. Click on it, and you
+                will be logged in.
+              </SizableText>
+              <Spinner />
+            </>
+          )}
+        </DialogInner>
+      </SeedHostContainer>
     )
   }
   return (
-    <YStack position="relative">
-      <Heading>Login</Heading>
+    <SeedHostContainer
+      heading="Login to Seed Hypermedia Hosting"
+      backButton={<BackButton onPress={onBack} />}
+    >
       <Form onSubmit={handleSubmit(onSubmit)} gap="$4">
         {isSendingEmail ? (
           <Spinner />
@@ -207,7 +453,7 @@ function SeedHostLogin({onAuthenticated}: {onAuthenticated: () => void}) {
           </Button>
         </Form.Trigger>
       </Form>
-    </YStack>
+    </SeedHostContainer>
   )
 }
 
@@ -217,14 +463,16 @@ const RegisterSubdomainSchema = z.object({
 type RegisterSubdomainFields = z.infer<typeof RegisterSubdomainSchema>
 function SeedHostRegisterSubdomain({
   onBack,
+  info,
   onPublished,
   id,
 }: {
   onBack: () => void
   onPublished: (host: string) => void
   id: UnpackedHypermediaId
+  info?: HostInfoResponse
 }) {
-  const {loggedIn, email, createSite} = useHostSession({})
+  const {loggedIn, email, createSite, logout} = useHostSession({})
   const register = useSiteRegistration(id.uid)
 
   const {
@@ -250,15 +498,43 @@ function SeedHostRegisterSubdomain({
       })
   }
   return (
-    <YStack position="relative">
-      <Heading>Register Subdomain</Heading>
-      <SizableText>Logged in as {email}</SizableText>
+    <SeedHostContainer
+      heading="Register Hyper.Media Subdomain"
+      backButton={<BackButton onPress={onBack} />}
+    >
+      <XStack>
+        <SizableText>Logged in as </SizableText>
+        <HoverCard
+          content={
+            <YStack gap="$2" padding="$2">
+              <SizableText>
+                Logged into {SEED_HOST_URL} as {email}
+              </SizableText>
+              <Button
+                onPress={() => {
+                  onBack()
+                  logout()
+                }}
+              >
+                Log Out
+              </Button>
+            </YStack>
+          }
+        >
+          <SizableText color="$blue11">{email}</SizableText>
+        </HoverCard>
+      </XStack>
       <Form onSubmit={handleSubmit(onSubmit)} gap="$4">
-        <FormField name="subdomain" label="Subdomain" errors={errors}>
+        <FormField
+          name="subdomain"
+          label={`Subdomain on ${info?.hostDomain}`}
+          errors={errors}
+        >
           <FormInput
             control={control}
             name="subdomain"
-            placeholder="Subdomain"
+            placeholder="my-site-name"
+            // appendix={info?.hostDomain}
           />
         </FormField>
         <XStack space="$3" justifyContent="flex-end" gap="$4">
@@ -269,7 +545,7 @@ function SeedHostRegisterSubdomain({
           </Form.Trigger>
         </XStack>
       </Form>
-    </YStack>
+    </SeedHostContainer>
   )
 }
 
@@ -285,28 +561,53 @@ function SeedHostSubdomainPublished({
   onCustomDomain: () => void
 }) {
   return (
-    <YStack>
-      <Heading>Site Published</Heading>
+    <SeedHostContainer heading="Site Published!">
       <SizableText>
         Your site is published to {host}. You can now publish your custom
         domain.
       </SizableText>
-      <XStack>
-        <Button onPress={onClose}>Close</Button>
-        <Button onPress={onCustomDomain}>Publish Custom Domain</Button>
+      <XStack gap="$3">
+        <Button onPress={onClose} iconAfter={Check}>
+          Close
+        </Button>
+        <BlueButton onPress={onCustomDomain} iconAfter={ArrowRight}>
+          Publish Custom Domain
+        </BlueButton>
       </XStack>
-    </YStack>
+    </SeedHostContainer>
   )
 }
+
+function SeedHostDomainPublished({
+  onClose,
+  host,
+  id,
+}: {
+  onClose: () => void
+  host: string
+  id: UnpackedHypermediaId
+}) {
+  return (
+    <SeedHostContainer heading={`Now Published to ${host}!`}>
+      <SizableText>Congrats!</SizableText>
+      <XStack>
+        <Button onPress={onClose}>Close</Button>
+      </XStack>
+    </SeedHostContainer>
+  )
+}
+
 const RegisterCustomDomainSchema = z.object({
   domain: z.string(),
 })
 type RegisterCustomDomainFields = z.infer<typeof RegisterCustomDomainSchema>
 function SeedHostRegisterCustomDomain({
   onBack,
+  onCompletePublish,
   id,
 }: {
-  onBack: () => void
+  onBack?: () => void
+  onCompletePublish: (domain: string) => void
   id: UnpackedHypermediaId
 }) {
   const {createDomain} = useHostSession()
@@ -339,8 +640,11 @@ function SeedHostRegisterCustomDomain({
   const pendingDomain = useHostSession().pendingDomains?.find(
     (pending) => pending.siteUid === id.uid,
   )
-  console.log('checking isComplete', siteUrl, `https://${pendingDomainName}`)
-  const isComplete = siteUrl === `https://${pendingDomainName}`
+  useEffect(() => {
+    if (pendingDomainName && siteUrl === `https://${pendingDomainName}`) {
+      onCompletePublish(pendingDomainName)
+    }
+  }, [siteUrl, pendingDomainName])
   if (pendingDomain || createDomain.isLoading) {
     let pendingStatus = null
     if (pendingDomain?.status === 'error') {
@@ -360,36 +664,39 @@ function SeedHostRegisterCustomDomain({
       pendingStatus = <SizableText>Initializing...</SizableText>
     }
     return (
-      <YStack>
-        <Heading>Set Up Custom Domain</Heading>
+      <SeedHostContainer heading="Set Up Custom Domain">
         <Spinner />
         {pendingStatus}
-      </YStack>
+      </SeedHostContainer>
     )
   }
-  if (isComplete) {
-    return (
-      <YStack>
-        <Heading>Custom Domain Published! Congrats friend.</Heading>
-      </YStack>
-    )
-  }
-  console.log({siteUrl, id, pendingDomain})
   return (
-    <YStack>
-      <Heading>Set Up Custom Domain</Heading>
+    <SeedHostContainer
+      heading="Set Up Custom Domain"
+      backButton={onBack ? <BackButton onPress={onBack} /> : null}
+    >
       {siteUrl ? (
         <>
-          <SizableText>You can now publish your custom domain.</SizableText>
+          <DialogInner>
+            <SizableText>
+              You can now publish to a custom domain that you already own. On
+              the next step you will be asked to update your DNS settings to
+              point to the Seed Host service.
+            </SizableText>
+          </DialogInner>
           <Form onSubmit={handleSubmit(onSubmit)} gap="$4">
             <FormField name="domain" label="Domain" errors={errors}>
-              <FormInput control={control} name="domain" placeholder="Domain" />
+              <FormInput
+                control={control}
+                name="domain"
+                placeholder="example.com"
+              />
             </FormField>
             <XStack space="$3" justifyContent="flex-end" gap="$4">
               <Form.Trigger asChild>
-                <Button icon={UploadCloud} theme="green">
-                  Publish Site
-                </Button>
+                <BlueButton iconAfter={UploadCloud}>
+                  Publish to Domain
+                </BlueButton>
               </Form.Trigger>
             </XStack>
           </Form>
@@ -397,19 +704,21 @@ function SeedHostRegisterCustomDomain({
       ) : (
         <SizableText>You need to publish your site first.</SizableText>
       )}
-    </YStack>
+    </SeedHostContainer>
   )
 }
 function SeedHostContent({
   onBack,
   onClose,
   id,
+  onCompletePublish,
 }: {
   onBack: () => void
   onClose: () => void
   id: UnpackedHypermediaId
+  onCompletePublish: (host: string) => void
 }) {
-  const {loggedIn} = useHostSession({})
+  const {loggedIn, hostInfo} = useHostSession({})
   const [host, setHost] = useState<string | null>(null)
   const [mode, setMode] = useState<
     | 'intro'
@@ -418,28 +727,39 @@ function SeedHostContent({
     | 'subdomain-published'
     | 'register-custom-domain'
   >('intro')
+  console.log('hostInfo', hostInfo.data)
+  console.log('mode', mode)
   if (mode === 'intro') {
     return (
       <SeedHostIntro
         onSubmit={() => setMode(loggedIn ? 'register-subdomain' : 'login')}
         onBack={onBack}
+        info={hostInfo.data}
+        infoError={hostInfo.error}
+        infoIsLoading={hostInfo.isLoading}
       />
     )
   }
   if (mode === 'login') {
     return (
-      <SeedHostLogin onAuthenticated={() => setMode('register-subdomain')} />
+      <SeedHostLogin
+        onAuthenticated={() => setMode('register-subdomain')}
+        onBack={() => {
+          setMode('intro')
+        }}
+      />
     )
   }
   if (mode === 'register-subdomain') {
     return (
       <SeedHostRegisterSubdomain
         id={id}
+        info={hostInfo.data}
         onPublished={(host) => {
           setMode('subdomain-published')
           setHost(host)
         }}
-        onBack={() => setMode('register-custom-domain')}
+        onBack={onBack}
       />
     )
   }
@@ -455,9 +775,17 @@ function SeedHostContent({
   }
   if (mode === 'register-custom-domain') {
     return (
-      <SeedHostRegisterCustomDomain id={id} onBack={() => setMode('intro')} />
+      <SeedHostRegisterCustomDomain
+        id={id}
+        onCompletePublish={onCompletePublish}
+        onBack={() => {
+          if (host) setMode('subdomain-published')
+          else onClose()
+        }}
+      />
     )
   }
+
   return null
 }
 
@@ -470,35 +798,42 @@ function SelfHostContent({
 }) {
   const spawn = useNavigate('spawn')
   return (
-    <YStack position="relative">
-      <BackButton onPress={onBack} />
-      <Heading>Self Host</Heading>
-      <SizableText>
-        You will need your own web server and domain. Follow this guide to get
-        started, and return when you have the setup URL.
-      </SizableText>
-      <XStack>
-        <Button
-          onPress={() => {
-            spawn({
-              key: 'document',
-              id: hmId(
-                'd',
-                'z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS',
-                {
-                  path: ['resources', 'self-host-seed'],
-                },
-              ),
-            })
-          }}
-        >
-          Setup Guide
+    <PublishDialogContainer
+      heading="Host on Your Own Server"
+      backButton={<BackButton onPress={onBack} />}
+    >
+      <DialogInner>
+        <SizableText>
+          You will need your own server and domain. Follow this guide to get
+          started, and return when the setup script has printed the setup URL.
+        </SizableText>
+        <XStack jc="center" marginVertical="$6">
+          <Button
+            backgroundColor="$brand6"
+            hoverStyle={{backgroundColor: '$brand7'}}
+            color="$color1"
+            icon={ExternalLink}
+            onPress={() => {
+              spawn({
+                key: 'document',
+                id: hmId(
+                  'd',
+                  'z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS',
+                  {
+                    path: ['resources', 'self-host-seed'],
+                  },
+                ),
+              })
+            }}
+          >
+            Open Setup Guide
+          </Button>
+        </XStack>
+        <Button onPress={onSetupUrl} iconAfter={ArrowRight} theme="green">
+          My Setup URL is Ready
         </Button>
-      </XStack>
-      <XStack jc="flex-end">
-        <Button onPress={onSetupUrl}>My Setup URL is Ready</Button>
-      </XStack>
-    </YStack>
+      </DialogInner>
+    </PublishDialogContainer>
   )
 }
 
@@ -509,7 +844,7 @@ function PublishWithUrl({
 }: {
   id: UnpackedHypermediaId
   onComplete: () => void
-  onBack: () => void
+  onBack?: () => void
 }) {
   const entity = useEntity(id)
   const replace = useNavigate('replace')
@@ -540,11 +875,12 @@ function PublishWithUrl({
   }, [setFocus])
 
   return (
-    <YStack>
-      <BackButton onPress={onBack} />
-      <Heading>
-        Publish "{getDocumentTitle(entity.data?.document)}" to the web
-      </Heading>
+    <PublishDialogContainer
+      heading={`Publish "${getDocumentTitle(
+        entity.data?.document,
+      )}" with a Hosting Setup URL`}
+      backButton={onBack ? <BackButton onPress={onBack} /> : null}
+    >
       {register.error ? (
         <SizableText color="$red11">
           {register.error.message
@@ -570,6 +906,6 @@ function PublishWithUrl({
           </Form.Trigger>
         </XStack>
       </Form>
-    </YStack>
+    </PublishDialogContainer>
   )
 }

@@ -2,6 +2,7 @@ import {trpc} from '@/trpc'
 import {SEED_HOST_URL} from '@shm/shared/constants'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useMutation, useQuery} from '@tanstack/react-query'
+import {useEffect} from 'react'
 import z from 'zod'
 
 // MANUAL SYNC WITH SEED REPO
@@ -64,6 +65,42 @@ export const CreateSiteDomainResponseSchema = z.object({
 export type CreateSiteDomainResponse = z.infer<
   typeof CreateSiteDomainResponseSchema
 >
+
+export const HostInfoResponseSchema = z.object({
+  serviceErrorMessage: z.string().optional(),
+  minimumAppVersion: z.string().optional(),
+  hostDomain: z.string().optional(),
+  pricing: z
+    .object({
+      free: z
+        .object({
+          gbStorage: z.number(),
+          gbBandwidth: z.number(),
+          siteCount: z.number(),
+        })
+        .or(z.null()),
+      base: z
+        .object({
+          gbStorage: z.number(),
+          gbBandwidth: z.number(),
+          siteCount: z.number(),
+        })
+        .or(z.null()),
+      unlimited: z
+        .object({
+          gbStorage: z.number(),
+          gbBandwidth: z.number(),
+          siteCount: z.number(),
+          gbStorageOverage: z.number(),
+          gbBandwidthOverage: z.number(),
+          siteCountOverage: z.number(),
+        })
+        .or(z.null()),
+    })
+    .optional(),
+})
+export type HostInfoResponse = z.infer<typeof HostInfoResponseSchema>
+
 // END MANUAL SYNC WITH SEED REPO
 
 export function useHostSession({
@@ -116,7 +153,7 @@ export function useHostSession({
       return respJson
     },
   })
-  useQuery({
+  const absorbedSession = useQuery({
     queryKey: ['absorb-session', hostState?.pendingSessionToken],
     queryFn: async () => {
       const respJson = await hostAPI('auth/absorb', 'POST', {
@@ -139,6 +176,11 @@ export function useHostSession({
     refetchInterval: hostState?.pendingSessionToken ? 15000 : false,
     refetchIntervalInBackground: true,
   })
+  useEffect(() => {
+    if (absorbedSession.data?.status === 'success') {
+      onAuthenticated?.()
+    }
+  }, [absorbedSession.data])
   const createSite = useMutation({
     mutationFn: async ({subdomain}: {subdomain: string}) => {
       const respJson = await hostAPI('sites', 'POST', {
@@ -146,6 +188,20 @@ export function useHostSession({
       } satisfies CreateSiteRequest)
       const result = CreateSiteResponseSchema.parse(respJson)
       return result
+    },
+  })
+  const hostInfo = useQuery({
+    queryKey: ['host-info'],
+    queryFn: async () => {
+      const respJson = await hostAPI('info', 'GET')
+      const result = HostInfoResponseSchema.safeParse(respJson)
+      if (!result.success) {
+        return {
+          serviceErrorMessage:
+            'Host API incompatible with this app. Please update to the latest version.',
+        } satisfies HostInfoResponse
+      }
+      return result.data
     },
   })
   const createDomain = useMutation({
@@ -179,21 +235,31 @@ export function useHostSession({
     },
   })
 
-  function cancelPendingDomain(id: string) {
-    if (!hostState) throw new Error('No host state')
-    hostAPI(`domains/${id}`, 'DELETE')
-      .then(() => {
-        setHostState.mutate({
-          ...hostState,
-          pendingDomains: hostState.pendingDomains?.filter(
-            (domain) => domain.id !== id,
-          ),
-        })
-      })
-      .catch((e) => {
-        console.error('~~ CANCEL PENDING DOMAIN ERROR', e)
-      })
+  function logout() {
+    // todo: delete session from server
+    setHostState.mutate({
+      email: null,
+      sessionToken: null,
+      pendingSessionToken: null,
+    })
   }
+  const cancelPendingDomain = useMutation({
+    mutationFn: async (id: string) => {
+      if (!hostState) throw new Error('No host state')
+      await hostAPI(`domains/${id}`, 'DELETE')
+        .then(() => {
+          setHostState.mutate({
+            ...hostState,
+            pendingDomains: hostState.pendingDomains?.filter(
+              (domain) => domain.id !== id,
+            ),
+          })
+        })
+        .catch((e) => {
+          console.error('~~ CANCEL PENDING DOMAIN ERROR', e)
+        })
+    },
+  })
 
   return {
     email: hostState?.email,
@@ -211,8 +277,10 @@ export function useHostSession({
         pendingSessionToken: null,
       })
     },
+    hostInfo,
     createSite,
     createDomain,
     cancelPendingDomain,
+    logout,
   }
 }

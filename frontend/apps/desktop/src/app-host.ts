@@ -104,7 +104,9 @@ async function writeDNSActive(pendingDomain: PendingDomain) {
     ],
   })
   appInvalidateQueries([queryKeys.ENTITY, pendingDomain.siteUid])
+  console.log('INVALIDATE ENTITY', pendingDomain.siteUid)
   setTimeout(() => {
+    console.log('CLEAR PENDING DOMAIN', pendingDomain.siteUid)
     writeHostState({
       ...state,
       pendingDomains: state.pendingDomains?.filter(
