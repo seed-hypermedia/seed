@@ -1,22 +1,26 @@
 import {StyleProvider} from '@/app-context-provider'
-import {useStream} from '@shm/ui/use-stream'
 import '@tamagui/core/reset.css'
 import '@tamagui/font-inter/css/400.css'
 import '@tamagui/font-inter/css/700.css'
-import React from 'react'
+import React, {useEffect, useState} from 'react'
 import ReactDOM from 'react-dom/client'
 import {FindInPage} from './pages/find-in-page'
 
 function FindInPageView() {
-  // @ts-expect-error
-  const darkMode = useStream<boolean>(window.darkMode)
+  const [darkMode, setDarkMode] = useState(false)
+
+  useEffect(() => {
+    // @ts-expect-error
+    const unsubscribe = window.darkMode?.subscribe((value: boolean) => {
+      setDarkMode(value)
+    })
+    return () => unsubscribe?.()
+  }, [])
 
   return (
     <div
-      className={
-        // this is used by editor.css which doesn't know tamagui styles, boooo!
-        darkMode ? 'seed-app-dark' : 'seed-app-light'
-      }
+      className={darkMode ? 'seed-app-dark' : 'seed-app-light'}
+      style={{width: '100%', height: '100%'}}
     >
       <StyleProvider darkMode={darkMode}>
         <FindInPage />
@@ -25,8 +29,12 @@ function FindInPageView() {
   )
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <FindInPageView />
-  </React.StrictMode>,
-)
+// Wait for DOM to be ready
+const root = document.getElementById('root')
+if (root) {
+  ReactDOM.createRoot(root).render(
+    <React.StrictMode>
+      <FindInPageView />
+    </React.StrictMode>,
+  )
+}

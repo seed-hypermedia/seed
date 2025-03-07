@@ -37,7 +37,6 @@ import {
 } from '@tanstack/react-query'
 import {Extension} from '@tiptap/core'
 import {useEffect, useMemo, useRef} from 'react'
-import {useGRPCClient} from '../app-context'
 import {hmBlockSchema} from '../editor'
 import {setGroupTypes} from './editor-utils'
 import {useGatewayUrlStream} from './gateway-settings'
@@ -109,12 +108,10 @@ export function useComment(
   id: UnpackedHypermediaId | null | undefined,
   opts?: UseQueryOptions<HMComment | null>,
 ) {
-  const grpcClient = useGRPCClient()
   return useQuery(queryComment(grpcClient, id?.id, opts))
 }
 
 export function useComments(commentIds: string[] = []) {
-  const grpcClient = useGRPCClient()
   return useQueries({
     queries: commentIds.map((commentId) => queryComment(grpcClient, commentId)),
   })
@@ -123,7 +120,6 @@ export function useComments(commentIds: string[] = []) {
 export function useAllDocumentComments(
   docId: UnpackedHypermediaId | undefined,
 ) {
-  const grpcClient = useGRPCClient()
   return useQuery({
     queryFn: async () => {
       if (!docId) return []
@@ -185,7 +181,7 @@ export function useCommentEditor(
   const [setIsSaved, isSaved] = writeableStateStream<boolean>(true)
   const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>()
   const readyEditor = useRef<BlockNoteEditor>()
-  const grpcClient = useGRPCClient()
+
   const {onMentionsQuery} = useInlineMentions()
   function initDraft() {
     if (!readyEditor.current || !initCommentDraft) return

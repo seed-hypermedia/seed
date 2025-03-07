@@ -5,7 +5,7 @@ import {getRecentsRouteEntityUrl, NavRoute} from '@shm/shared/routes'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {z} from 'zod'
 import {grpcClient} from './app-grpc'
-import {appStore} from './app-store'
+import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
 
 const RECENTS_STORAGE_KEY = 'Recents-v001'

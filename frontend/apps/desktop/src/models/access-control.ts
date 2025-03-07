@@ -1,4 +1,4 @@
-import {useGRPCClient} from '@/app-context'
+import {grpcClient} from '@/grpc-client'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {
   Capability,
@@ -22,7 +22,6 @@ export function useDocumentCollaborators(id: UnpackedHypermediaId) {
 }
 
 export function useAddCapabilities(id: UnpackedHypermediaId) {
-  const grpcClient = useGRPCClient()
   return useMutation({
     mutationFn: async ({
       myCapability,
@@ -150,7 +149,6 @@ export function useMyAccountsWithWriteAccess(
 export function useAllDocumentCapabilities(
   id: UnpackedHypermediaId | undefined,
 ) {
-  const grpcClient = useGRPCClient()
   return useQuery({
     queryKey: [queryKeys.CAPABILITIES, id?.uid, ...(id?.path || [])],
     queryFn: async () => {
