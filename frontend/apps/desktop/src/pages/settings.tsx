@@ -1,6 +1,7 @@
 import {useIPC} from '@/app-context'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {IconForm} from '@/components/icon-form'
+import {ListItem} from '@/components/list-item'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
 import {useAutoUpdatePreference} from '@/models/app-settings'
 import {
@@ -53,7 +54,6 @@ import {
   Heading,
   Input,
   Label,
-  ListItem,
   Paragraph,
   RadioGroup,
   ScrollView,

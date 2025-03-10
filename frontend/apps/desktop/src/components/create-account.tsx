@@ -1,5 +1,7 @@
+import {grpcClient} from '@/grpc-client'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useNavRoute} from '@/utils/navigation'
+import {extractWords} from '@/utils/onboarding'
 import {useNavigate} from '@/utils/useNavigate'
 import {DocumentChange} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {DAEMON_FILE_URL, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
@@ -29,7 +31,6 @@ import {
   XStack,
   YStack,
 } from 'tamagui'
-import {useGRPCClient} from '../app-context'
 import {
   NamedKey,
   useMnemonics,
@@ -68,7 +69,6 @@ export function AccountWizardDialog() {
   const inputWords = useRef<TextInput | null>(null)
 
   const saveWords = trpc.secureStorage.write.useMutation()
-  const grpcClient = useGRPCClient()
 
   const {data: genWords, refetch: refetchWords} = useMnemonics()
 
@@ -142,7 +142,6 @@ export function AccountWizardDialog() {
   }
 
   async function handleDocEdit() {
-    // TODO: horacio create home document with name and icon data
     if (!name) {
       toast.error('Name is required. Please add one')
     } else {
@@ -539,30 +538,6 @@ export function AccountWizardDialog() {
       </Dialog.Portal>
     </Dialog>
   )
-}
-
-function isInputValid(input: string): string | boolean {
-  let res = extractWords(input)
-
-  if (!res.length) {
-    return `Can't extract words from input. malformed input => ${input}`
-  }
-  if (res.length == 12) {
-    return false
-  } else {
-    return `input does not have a valid words amount, please add a 12 mnemonics word. current input is ${res.length}`
-  }
-}
-
-function extractWords(input: string): Array<string> {
-  const delimiters = [',', ' ', '.', ';', ':', '\n', '\t']
-  let wordSplitting = [input]
-  delimiters.forEach((delimiter) => {
-    wordSplitting = wordSplitting.flatMap((word) => word.split(delimiter))
-  })
-  let words = wordSplitting.filter((word) => word.length > 0)
-
-  return words
 }
 
 function MarketingSection() {

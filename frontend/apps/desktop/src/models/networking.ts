@@ -1,4 +1,5 @@
 import appError from '@/errors'
+import {grpcClient} from '@/grpc-client'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
 import {
@@ -14,7 +15,6 @@ import {
   useQuery,
 } from '@tanstack/react-query'
 import {useEffect, useRef, useState} from 'react'
-import {useGRPCClient} from '../app-context'
 import {useGatewayUrl} from './gateway-settings'
 
 export function useIsOnline() {
@@ -85,12 +85,11 @@ export function usePeers(
   filterConnected: boolean,
   options: UseQueryOptions<HMPeerInfo[] | null, ConnectError> = {},
 ) {
-  const client = useGRPCClient()
   return useQuery<HMPeerInfo[] | null, ConnectError>({
     queryKey: [queryKeys.PEERS, filterConnected],
     queryFn: async () => {
       try {
-        const listed = await client.networking.listPeers({
+        const listed = await grpcClient.networking.listPeers({
           pageSize: BIG_INT,
         })
         if (filterConnected)
@@ -138,6 +137,5 @@ function queryPeerInfo(
 }
 
 export function usePeerInfo(deviceId?: string) {
-  const grpcClient = useGRPCClient()
   return useQuery<PeerInfo, ConnectError>(queryPeerInfo(grpcClient, deviceId))
 }

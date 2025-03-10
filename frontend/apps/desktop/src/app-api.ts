@@ -10,6 +10,7 @@ import {
   ipcMain,
   NativeImage,
   nativeTheme,
+  WebContentsView,
 } from 'electron'
 import {createIPCHandler} from 'electron-trpc/main'
 import {writeFile} from 'fs-extra'
@@ -81,7 +82,9 @@ ipcMain.on('find_in_page_query', (_event, _info) => {
 ipcMain.on('find_in_page_cancel', () => {
   let focusedWindow = getFocusedWindow()
   focusedWindow?.webContents?.stopFindInPage('keepSelection')
-  let findInPageView = focusedWindow?.getBrowserView()
+  let findInPageView = focusedWindow?.contentView.children[0] as
+    | WebContentsView
+    | undefined
   if (findInPageView) {
     findInPageView.setBounds({
       ...findInPageView.getBounds(),

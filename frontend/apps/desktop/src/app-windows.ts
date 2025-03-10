@@ -4,8 +4,8 @@ import type {AppWindowEvent} from '@/utils/window-events'
 import {getRouteWindowType} from '@/utils/window-types'
 import {NavRoute, defaultRoute} from '@shm/shared/routes'
 import {
-  BrowserView,
   BrowserWindow,
+  WebContentsView,
   app,
   globalShortcut,
   nativeTheme,
@@ -335,7 +335,11 @@ export function createAppWindow(input: {
     globalShortcut.register('CommandOrControl+F', () => {
       const focusedWindow = getFocusedWindow()
       if (focusedWindow) {
-        let findInPageView = focusedWindow.getBrowserView()
+        let findInPageView = focusedWindow.contentView.children[0] as
+          | WebContentsView
+          | undefined
+
+        info(`== ~ globalShortcut.register ~ findInPageView:`)
 
         if (!findInPageView) {
           info('[CMD+F]: no view present')
@@ -385,7 +389,7 @@ export function createAppWindow(input: {
 
 function updateFindInPageView(win: BrowserWindow) {
   const bounds = win.getBounds()
-  const view = win.getBrowserView()
+  const view = win.contentView.children[0] as WebContentsView | undefined
   if (view) {
     view.setBounds({
       ...view.getBounds(),
@@ -397,13 +401,17 @@ function updateFindInPageView(win: BrowserWindow) {
 function createFindView(win: BrowserWindow) {
   const {width} = win.getBounds()
 
-  const findView = new BrowserView({
+  const findView = new WebContentsView({
     webPreferences: {
       preload: path.join(__dirname, 'preload-find-in-page.js'),
     },
   })
 
-  win.setBrowserView(findView)
+  // Set transparent background
+  findView.setBackgroundColor('#00000000')
+
+  // Add the view to the window's content view
+  win.contentView.addChildView(findView)
 
   findView.setBounds({
     x: width - 320,
@@ -411,8 +419,6 @@ function createFindView(win: BrowserWindow) {
     width: 320,
     height: 100,
   })
-
-  // findView.webContents.loadURL(`https://electronjs.org`)
 
   if (FIND_IN_PAGE_VITE_DEV_SERVER_URL) {
     findView.webContents.loadURL(

@@ -4,7 +4,6 @@ import {UnpackedHypermediaId} from './hm-types'
 import {NavRoute} from './routes'
 import {idToUrl, unpackHmId} from './utils'
 
-console.log('=== import routing.tsx ' + DAEMON_FILE_URL)
 export type OptimizedImageSize = 'S' | 'M' | 'L' | 'XL'
 
 type UniversalAppContextValue = {

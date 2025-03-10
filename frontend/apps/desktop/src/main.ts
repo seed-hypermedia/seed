@@ -1,52 +1,68 @@
+// Type declarations
+declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined
+declare const MAIN_WINDOW_VITE_NAME: string | undefined
+
+// Environment variables type declaration
+declare global {
+  namespace NodeJS {
+    interface ProcessEnv {
+      NODE_ENV: 'development' | 'production' | 'test'
+      SENTRY_DESKTOP_DSN: string
+      SEED_NO_DAEMON_SPAWN?: string
+      VITE_DESKTOP_HTTP_PORT?: string
+      VITE_DESKTOP_GRPC_PORT?: string
+      VITE_DESKTOP_P2P_PORT?: string
+      CI?: string
+    }
+  }
+}
 import * as Sentry from '@sentry/electron/main'
 import {
-  BrowserWindow,
-  Menu,
-  OpenDialogOptions,
   app,
+  BrowserWindow,
   dialog,
   globalShortcut,
   ipcMain,
+  Menu,
   nativeTheme,
-  net,
+  OpenDialogOptions,
   shell,
 } from 'electron'
+import {performance} from 'perf_hooks'
 
 import contextMenu from 'electron-context-menu'
 import squirrelStartup from 'electron-squirrel-startup'
+import fs from 'fs'
+import mime from 'mime'
 import path from 'node:path'
+
 import {
+  dispatchFocusedWindowAppEvent,
   handleSecondInstance,
   handleUrlOpen,
   openInitialWindows,
   trpc,
 } from './app-api'
-import {createAppMenu} from './app-menu'
-import {startMetricsServer} from './app-metrics'
-import {initPaths} from './app-paths'
-import * as logger from './logger'
-
-import {
-  BIG_INT,
-  DAEMON_HTTP_URL,
-  IS_PROD_DESKTOP,
-  METRIC_SERVER_HTTP_PORT,
-  VERSION,
-} from '@shm/shared/constants'
-import {defaultRoute} from '@shm/shared/routes'
-import fs from 'fs'
-import mime from 'mime'
 import {grpcClient} from './app-grpc'
+import {appInvalidateQueries} from './app-invalidation'
+import {createAppMenu} from './app-menu'
+import {initPaths} from './app-paths'
+import {getFocusedWindow} from './app-windows'
 import autoUpdate from './auto-update'
 import {startMainDaemon} from './daemon'
+import * as logger from './logger'
 import {saveCidAsFile} from './save-cid-as-file'
 import {saveMarkdownFile} from './save-markdown-file'
 
+import {BIG_INT, IS_PROD_DESKTOP, VERSION} from '@shm/shared/constants'
+import {defaultRoute} from '@shm/shared/routes'
+import {setupOnboardingHandlers} from './app-onboarding-store'
+
+const OS_REGISTER_SCHEME = 'hm'
 // @ts-ignore
 global.electronTRPC = {}
 
-const OS_REGISTER_SCHEME = 'hm'
-
+// Core initialization
 initPaths()
 
 app.whenReady().then(() => {
@@ -73,10 +89,7 @@ contextMenu({
   showInspectElement: !IS_PROD_DESKTOP,
 })
 
-const metricsServer = startMetricsServer(METRIC_SERVER_HTTP_PORT)
-app.on('quit', async () => {
-  await metricsServer.close()
-})
+Menu.setApplicationMenu(createAppMenu())
 
 if (IS_PROD_DESKTOP) {
   if (squirrelStartup) {
@@ -96,240 +109,86 @@ if (IS_PROD_DESKTOP) {
   Sentry.init({
     debug: false,
     release: VERSION,
-    environment: import.meta.env.MODE,
-    dsn: import.meta.env.SENTRY_DESKTOP_DSN,
+    environment: process.env.NODE_ENV || 'development',
+    dsn: process.env.SENTRY_DESKTOP_DSN,
     transportOptions: {
-      // The maximum number of days to keep an event in the queue.
       maxQueueAgeDays: 30,
-      // The maximum number of events to keep in the queue.
       maxQueueCount: 30,
-      // Called every time the number of requests in the queue changes.
-      queuedLengthChanged: (length) => {
-        logger.debug('[MAIN]: Sentry queue changed', length)
+      queuedLengthChanged: (length: number) => {
+        logger.debug('[MAIN]: Sentry queue changed ' + length)
       },
-      // Called before attempting to send an event to Sentry. Used to override queuing behavior.
-      //
-      // Return 'send' to attempt to send the event.
-      // Return 'queue' to queue and persist the event for sending later.
-      // Return 'drop' to drop the event.
-      // beforeSend: (request) => (isOnline() ? 'send' : 'queue'),
     },
   })
 }
 
-ipcMain.on('open-markdown-directory', async (event, accountId: string) => {
-  const focusedWindow = BrowserWindow.getFocusedWindow()
-  if (!focusedWindow) {
-    console.error('No focused window found.')
-    return
-  }
-
-  const options = {
-    title: 'Select directories containing Markdown files',
-    properties: ['openDirectory', 'multiSelections'],
-  }
-
-  try {
-    const result = await dialog.showOpenDialog(focusedWindow, options)
-    if (!result.canceled && result.filePaths.length > 0) {
-      const directories = result.filePaths
-      const validDocuments = []
-
-      const docMap = new Map<
-        string,
-        {relativePath?: string; name: string; path: string}
-      >()
-
-      for (const dirPath of directories) {
-        const files = fs.readdirSync(dirPath)
-        const isDirectory = fs.lstatSync(dirPath).isDirectory()
-
-        // Import all markdown files in the root of the selected directory
-        const markdownFiles = files.filter((file) => file.endsWith('.md'))
-        if (markdownFiles.length > 0 && isDirectory) {
-          for (const markdownFile of markdownFiles) {
-            const markdownFilePath = path.join(dirPath, markdownFile)
-            const markdownContent = fs.readFileSync(markdownFilePath, 'utf-8')
-
-            const fileName = path.basename(markdownFile, '.md')
-            const title = formatTitle(fileName)
-
-            docMap.set('./' + markdownFile, {
-              name: title,
-              path: path.join(
-                accountId,
-                title.toLowerCase().replace(/\s+/g, '-'),
-              ),
-            })
-
-            validDocuments.push({
-              markdownContent,
-              title,
-              directoryPath: dirPath,
-            })
-          }
-        }
-
-        // // Check subdirectories for markdown files
-        // const subdirectories = files.filter((file) =>
-        //   fs.lstatSync(path.join(dirPath, file)).isDirectory(),
-        // )
-
-        // for (const subDir of subdirectories) {
-        //   const subDirPath = path.join(dirPath, subDir)
-        //   const subDirFiles = fs.readdirSync(subDirPath)
-
-        //   // Get all markdown files in the subdirectory
-        //   const subDirMarkdownFiles = subDirFiles.filter((file) =>
-        //     file.endsWith('.md'),
-        //   )
-
-        //   // Loop through each markdown file in the subdirectory
-        //   for (const subDirMarkdownFile of subDirMarkdownFiles) {
-        //     const markdownFilePath = path.join(subDirPath, subDirMarkdownFile)
-        //     const markdownContent = fs.readFileSync(markdownFilePath, 'utf-8')
-
-        //     const fileName = path.basename(subDirMarkdownFile, '.md')
-        //     const title = formatTitle(fileName)
-
-        //     validDocuments.push({
-        //       markdownContent,
-        //       title,
-        //       directoryPath: subDirPath,
-        //     })
-        //   }
-        // }
-      }
-
-      event.sender.send('directories-content-response', {
-        success: true,
-        result: {
-          documents: validDocuments,
-          docMap: docMap,
-        },
-      })
-    } else {
-      event.sender.send('directories-content-response', {
-        success: false,
-        error: 'Directory selection was canceled',
-      })
-    }
-  } catch (err) {
-    console.error('Error selecting directories:', err)
-    event.sender.send('directories-content-response', {
-      success: false,
-      error: err.message,
-    })
-  }
+contextMenu({
+  showInspectElement: !IS_PROD_DESKTOP,
 })
 
-const formatTitle = (fileName: string) => {
-  return fileName
-    .replace(/\.md$/, '') // Remove .md extension
-    .replace(/([a-z])([A-Z])/g, '$1 $2') // Add space between camel case words
-    .replace(/[-_]/g, ' ') // Replace dashes and underscores with spaces
-    .replace(/\b\w/g, (char) => char.toUpperCase()) // Capitalize each word
+const gotTheLock = app.requestSingleInstanceLock()
+if (!gotTheLock) {
+  logger.debug('[MAIN]: Another Seed already running. Quitting..')
+  app.quit()
 }
 
-ipcMain.on('open-markdown-file', async (event, accountId: string) => {
-  const focusedWindow = BrowserWindow.getFocusedWindow()
-  if (!focusedWindow) {
-    console.error('No focused window found.')
-    return
+app.on('will-finish-launching', () => {
+  logger.info(`[APP-EVENT]: will-finish-launching`)
+})
+
+app.whenReady().then(() => {
+  if (!IS_PROD_DESKTOP) {
+    performance.mark('app-ready-start')
   }
 
-  const options: OpenDialogOptions = {
-    title: 'Select Markdown files',
-    properties: ['openFile', 'multiSelections'],
-    filters: [{name: 'Markdown Files', extensions: ['md']}],
-  }
+  // Register global shortcuts
+  globalShortcut.register('CommandOrControl+N', () => {
+    ipcMain.emit('new_window')
+  })
 
-  try {
-    const result = await dialog.showOpenDialog(focusedWindow, options)
-    if (!result.canceled && result.filePaths.length > 0) {
-      const files = result.filePaths
-      const validDocuments = []
-      const docMap = new Map<
-        string,
-        {relativePath?: string; name: string; path: string}
-      >()
+  autoUpdate()
+  openInitialWindows()
 
-      for (const filePath of files) {
-        const stats = fs.lstatSync(filePath)
-        if (stats.isFile() && filePath.endsWith('.md')) {
-          const markdownContent = fs.readFileSync(filePath, 'utf-8')
-          // Extract and format title from directory name
-          const dirName = path.basename(filePath)
-          const title = formatTitle(dirName)
+  // Initialize IPC handlers after the app is ready
+  initializeIpcHandlers()
 
-          docMap.set('./' + dirName, {
-            name: title,
-            path: path.join(
-              accountId,
-              title.toLowerCase().replace(/\s+/g, '-'),
-            ),
-          })
-
-          validDocuments.push({
-            markdownContent,
-            title,
-            directoryPath: path.dirname(filePath),
-          })
-        }
-      }
-
-      event.sender.send('files-content-response', {
-        success: true,
-        result: {documents: validDocuments, docMap: docMap},
+  startMainDaemon(() => {
+    logger.info('DaemonStarted')
+    initAccountSubscriptions()
+      .then(() => {
+        logger.info('InitAccountSubscriptionsComplete')
       })
-    } else {
-      event.sender.send('files-content-response', {
-        success: false,
-        error: 'File selection was canceled',
+      .catch((e) => {
+        logger.error('InitAccountSubscriptionsError ' + e.message)
       })
-    }
-  } catch (err) {
-    console.error('Error selecting file:', err)
-    event.sender.send('files-content-response', {
-      success: false,
-      error: err.message,
+  })
+
+  if (!IS_PROD_DESKTOP) {
+    performance.mark('app-ready-end')
+    performance.measure('app-ready', 'app-ready-start', 'app-ready-end')
+  }
+})
+
+app.on('activate', () => {
+  logger.debug('[MAIN]: Seed Active (activate)')
+  if (BrowserWindow.getAllWindows().length === 0) {
+    logger.debug('[MAIN]: no windows found. will open the home window')
+    trpc.createAppWindow({
+      routes: [defaultRoute],
     })
   }
 })
 
-ipcMain.on('read-media-file', async (event, filePath) => {
-  try {
-    const absoluteFilePath = path.resolve(filePath)
-
-    const fileContent = fs.readFileSync(absoluteFilePath)
-    const mimeType = mime.getType(filePath)
-    const fileName = path.basename(filePath)
-    event.sender.send('media-file-content', {
-      success: true,
-      filePath,
-      content: Buffer.from(fileContent).toString('base64'),
-      mimeType,
-      fileName,
-    })
-  } catch (error) {
-    console.error('Error reading media file:', error)
-    event.sender.send('media-file-content', {
-      success: false,
-      error: error.message,
-    })
+app.on('window-all-closed', () => {
+  logger.debug('[MAIN]: window-all-closed')
+  globalShortcut.unregisterAll()
+  if (process.platform !== 'darwin') {
+    logger.debug('[MAIN]: will quit the app')
+    app.quit()
   }
 })
 
-startMainDaemon(() => {
-  logger.info('DaemonStarted')
-  initAccountSubscriptions()
-    .then(() => {
-      logger.info('InitAccountSubscriptionsComplete')
-    })
-    .catch((e) => {
-      logger.error('InitAccountSubscriptionsError ' + e.message)
-    })
-})
+app.on('second-instance', handleSecondInstance)
+app.on('open-url', (_event, url) => handleUrlOpen(url))
 
 async function initAccountSubscriptions() {
   logger.info('InitAccountSubscriptions')
@@ -352,7 +211,6 @@ async function initAccountSubscriptions() {
 
   for (const key of keysToSubscribeTo) {
     logger.debug('WillInitAccountSubscriptions')
-
     await grpcClient.subscriptions.subscribe({
       account: key.accountId,
       recursive: true,
@@ -361,258 +219,245 @@ async function initAccountSubscriptions() {
   }
 }
 
-Menu.setApplicationMenu(createAppMenu())
+function initializeIpcHandlers() {
+  setupOnboardingHandlers()
 
-app.on('did-become-active', () => {
-  logger.debug('[MAIN]: Seed active (did-become-active)')
-  if (BrowserWindow.getAllWindows().length === 0) {
-    logger.debug('[MAIN]: will open the home window')
-    trpc.createAppWindow({
-      routes: [defaultRoute],
+  // Window management handlers
+  ipcMain.on('invalidate_queries', (_event, info) => {
+    appInvalidateQueries(info)
+  })
+
+  ipcMain.on('focusedWindowAppEvent', (_event, info) => {
+    dispatchFocusedWindowAppEvent(info)
+  })
+
+  ipcMain.on('new_window', () => {
+    trpc.createAppWindow({routes: [defaultRoute]})
+  })
+
+  ipcMain.on('minimize_window', (_event, _info) => {
+    getFocusedWindow()?.minimize()
+  })
+
+  ipcMain.on('maximize_window', (_event, _info) => {
+    const window = getFocusedWindow()
+    if (window?.isMaximized()) {
+      window.unmaximize()
+    } else {
+      window?.maximize()
+    }
+  })
+
+  ipcMain.on('close_window', (_event, _info) => {
+    getFocusedWindow()?.close()
+  })
+
+  ipcMain.on('find_in_page_query', (_event, _info) => {
+    getFocusedWindow()?.webContents?.findInPage(_info.query, {
+      findNext: _info.findNext,
+      forward: _info.forward,
     })
-  }
-})
-app.on('did-resign-active', () => {
-  // logger.debug('[MAIN]: Seed no longer active')
-})
+  })
 
-// dark mode support: https://www.electronjs.org/docs/latest/tutorial/dark-mode
-ipcMain.handle('dark-mode:toggle', () => {
-  if (nativeTheme.shouldUseDarkColors) {
-    nativeTheme.themeSource = 'light'
-  } else {
-    nativeTheme.themeSource = 'dark'
-  }
-  return nativeTheme.shouldUseDarkColors
-})
+  // Dark mode handlers
+  ipcMain.handle('dark-mode:toggle', () => {
+    if (nativeTheme.shouldUseDarkColors) {
+      nativeTheme.themeSource = 'light'
+    } else {
+      nativeTheme.themeSource = 'dark'
+    }
+    return nativeTheme.shouldUseDarkColors
+  })
 
-ipcMain.handle('dark-mode:system', () => {
-  nativeTheme.themeSource = 'system'
-})
+  ipcMain.handle('dark-mode:system', () => {
+    nativeTheme.themeSource = 'system'
+  })
 
-ipcMain.on('save-file', saveCidAsFile)
-ipcMain.on('export-document', saveMarkdownFile)
+  // File and system operation handlers
+  ipcMain.on('save-file', saveCidAsFile)
+  ipcMain.on('export-document', saveMarkdownFile)
+  ipcMain.on('quit_app', () => app.quit())
+  ipcMain.on('open_path', (event, path) => shell.openPath(path))
+  ipcMain.on('open-external-link', (_event, linkUrl) =>
+    shell.openExternal(linkUrl),
+  )
+  ipcMain.on('open-directory', (_event, directory) => shell.openPath(directory))
 
-ipcMain.on(
-  'export-multiple-documents',
-  async (
-    event,
-    documents: {
-      title: string
-      markdown: {
-        markdownContent: string
-        mediaFiles: {url: string; filename: string; placeholder: string}[]
-      }
-    }[],
-  ) => {
-    const {debug, error} = console
+  // Markdown file handlers
+  ipcMain.on('open-markdown-directory', async (event, accountId: string) => {
+    const focusedWindow = BrowserWindow.getFocusedWindow()
+    if (!focusedWindow) {
+      console.error('No focused window found.')
+      return
+    }
 
-    // Open a dialog to select a directory
-    const {filePaths} = await dialog.showOpenDialog({
-      title: 'Select Export Directory',
-      defaultPath: app.getPath('documents'),
-      properties: ['openDirectory'],
-    })
+    const options: OpenDialogOptions = {
+      title: 'Select directories containing Markdown files',
+      properties: [
+        'openDirectory',
+        'multiSelections',
+      ] as OpenDialogOptions['properties'],
+    }
 
-    if (filePaths && filePaths.length > 0) {
-      const exportDir = path.join(filePaths[0], 'Seed Documents')
-      const mediaDir = path.join(exportDir, 'media')
+    try {
+      const result = await dialog.showOpenDialog(focusedWindow, options)
+      if (!result.canceled && result.filePaths.length > 0) {
+        const directories = result.filePaths
+        const validDocuments = []
 
-      // Create the Seed Documents folder and the shared media folder
-      if (!fs.existsSync(exportDir)) {
-        fs.mkdirSync(exportDir)
-      }
-      if (!fs.existsSync(mediaDir)) {
-        fs.mkdirSync(mediaDir)
-      }
+        const docMap = new Map<
+          string,
+          {relativePath?: string; name: string; path: string}
+        >()
 
-      // Track duplicate titles
-      const titleCounter: {[key: string]: number} = {}
-      let success: {success: boolean; message: string} = {
-        success: true,
-        message: exportDir,
-      }
+        for (const dirPath of directories) {
+          const files = fs.readdirSync(dirPath)
+          const isDirectory = fs.lstatSync(dirPath).isDirectory()
 
-      for (const {title, markdown} of documents) {
-        const {markdownContent, mediaFiles} = markdown
+          const markdownFiles = files.filter((file) => file.endsWith('.md'))
+          if (markdownFiles.length > 0 && isDirectory) {
+            for (const markdownFile of markdownFiles) {
+              const markdownFilePath = path.join(dirPath, markdownFile)
+              const markdownContent = fs.readFileSync(markdownFilePath, 'utf-8')
 
-        // Generate a camelCase filename for the markdown document
-        const camelTitle = title
-          .split(' ')
-          .map(
-            (word) =>
-              word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
-          )
-          .join('')
-          .replace(/[\/\\|]/g, '-') // Remove invalid characters: / \ |
-          .replace(/\s+/g, '') // Remove all whitespace for camel case
+              const fileName = path.basename(markdownFile, '.md')
+              const title = formatTitle(fileName)
 
-        // Initialize counter for the title if not present
-        if (!titleCounter[camelTitle]) {
-          titleCounter[camelTitle] = 0
-        }
-
-        let markdownFilePath = path.join(exportDir, `${camelTitle}.md`)
-
-        // Check if file with the same name already exists and add a counter to the file name
-        while (fs.existsSync(markdownFilePath)) {
-          titleCounter[camelTitle] += 1
-          markdownFilePath = path.join(
-            exportDir,
-            `${camelTitle}-${titleCounter[camelTitle]}.md`,
-          )
-        }
-
-        let updatedMarkdownContent = markdownContent
-
-        const uploadMediaFile = async ({
-          url,
-          filename,
-          placeholder,
-        }: {
-          url: string
-          filename: string
-          placeholder: string
-        }) => {
-          return new Promise<void>((resolve, reject) => {
-            const regex = /ipfs:\/\/(.+)/
-            const match = url.match(regex)
-            if (match) {
-              const cid = match[1]
-              const request = net.request(`${DAEMON_HTTP_URL}/ipfs/${cid}`)
-
-              request.on('response', (response) => {
-                const mimeType = response.headers['content-type']
-                const extension = Array.isArray(mimeType)
-                  ? mime.getExtension(mimeType[0])
-                  : mime.getExtension(mimeType)
-                const filenameWithExt = `${filename}.${extension}`
-
-                if (response.statusCode === 200) {
-                  const chunks: Buffer[] = []
-
-                  response.on('data', (chunk) => {
-                    chunks.push(chunk)
-                  })
-
-                  response.on('end', () => {
-                    const data = Buffer.concat(chunks)
-                    if (!data || data.length === 0) {
-                      reject(`Error: No data received for ${filenameWithExt}`)
-                      return
-                    }
-
-                    const mediaFilePath = path.join(mediaDir, filenameWithExt)
-                    try {
-                      fs.writeFileSync(mediaFilePath, data)
-                      debug(`Media file successfully saved: ${mediaFilePath}`)
-                      // Update the markdown content with the correct file name
-                      updatedMarkdownContent = updatedMarkdownContent.replace(
-                        placeholder,
-                        filenameWithExt,
-                      )
-                      resolve()
-                    } catch (e) {
-                      reject(e)
-                    }
-                  })
-                } else {
-                  reject(`Error: Invalid status code ${response.statusCode}`)
-                }
+              docMap.set('./' + markdownFile, {
+                name: title,
+                path: path.join(
+                  accountId,
+                  title.toLowerCase().replace(/\s+/g, '-'),
+                ),
               })
 
-              request.on('error', (err) => {
-                reject(err.message)
+              validDocuments.push({
+                markdownContent,
+                title,
+                directoryPath: dirPath,
               })
-
-              request.end()
             }
-          })
-        }
-
-        // Handle all media files for the current document
-        await Promise.all(mediaFiles.map(uploadMediaFile))
-
-        // Save the updated markdown file
-        try {
-          fs.writeFileSync(markdownFilePath, updatedMarkdownContent)
-          debug(`Markdown file successfully saved: ${markdownFilePath}`)
-        } catch (e) {
-          error(`Error saving markdown file: ${markdownFilePath}`, e)
-          success = {
-            success: false,
-            message: `Error saving document: ${title}`,
           }
         }
-      }
 
-      if (success.success) {
-        event.sender.send('export-completed', {
+        event.sender.send('directories-content-response', {
           success: true,
-          message: success.message,
+          result: {
+            documents: validDocuments,
+            docMap: docMap,
+          },
         })
       } else {
-        event.sender.send('export-completed', {
+        event.sender.send('directories-content-response', {
           success: false,
-          message: success.message,
+          error: 'Directory selection was canceled',
         })
       }
-    } else {
-      event.sender.send('export-completed', {
+    } catch (err: unknown) {
+      console.error('Error selecting directories:', err)
+      event.sender.send('directories-content-response', {
         success: false,
-        message: 'Export has been cancelled.',
-      })
-    }
-  },
-)
-
-ipcMain.on('open-directory', (_event, directory: string) => {
-  shell.openPath(directory)
-})
-ipcMain.on('open-external-link', (_event, linkUrl) => {
-  shell.openExternal(linkUrl)
-})
-
-ipcMain.on('quit_app', () => {
-  app.quit()
-})
-
-ipcMain.on('open_path', (event, path) => {
-  shell.openPath(path)
-})
-
-const gotTheLock = app.requestSingleInstanceLock()
-
-if (!gotTheLock) {
-  logger.debug('[MAIN]: Another Seed already running. Quitting..')
-  app.quit()
-} else {
-  app.whenReady().then(() => {
-    logger.debug('[MAIN]: Seed ready')
-    openInitialWindows()
-    autoUpdate()
-  })
-
-  app.on('second-instance', handleSecondInstance)
-
-  app.on('window-all-closed', () => {
-    logger.debug('[MAIN]: window-all-closed')
-    globalShortcut.unregisterAll()
-    if (process.platform != 'darwin') {
-      logger.debug('[MAIN]: will quit the app')
-      app.quit()
-    }
-  })
-  app.on('open-url', (_event, url) => {
-    handleUrlOpen(url)
-  })
-  app.on('activate', () => {
-    logger.debug('[MAIN]: Seed Active (activate)')
-    if (BrowserWindow.getAllWindows().length === 0) {
-      logger.debug('[MAIN]: no windows found. will open the home window')
-      trpc.createAppWindow({
-        routes: [defaultRoute],
+        error: err instanceof Error ? err.message : 'Unknown error occurred',
       })
     }
   })
+
+  ipcMain.on('open-markdown-file', async (event, accountId: string) => {
+    const focusedWindow = BrowserWindow.getFocusedWindow()
+    if (!focusedWindow) {
+      console.error('No focused window found.')
+      return
+    }
+
+    const options: OpenDialogOptions = {
+      title: 'Select Markdown files',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{name: 'Markdown Files', extensions: ['md']}],
+    }
+
+    try {
+      const result = await dialog.showOpenDialog(focusedWindow, options)
+      if (!result.canceled && result.filePaths.length > 0) {
+        const files = result.filePaths
+        const validDocuments = []
+        const docMap = new Map<
+          string,
+          {relativePath?: string; name: string; path: string}
+        >()
+
+        for (const filePath of files) {
+          const stats = fs.lstatSync(filePath)
+          if (stats.isFile() && filePath.endsWith('.md')) {
+            const markdownContent = fs.readFileSync(filePath, 'utf-8')
+            const dirName = path.basename(filePath)
+            const title = formatTitle(dirName)
+
+            docMap.set('./' + dirName, {
+              name: title,
+              path: path.join(
+                accountId,
+                title.toLowerCase().replace(/\s+/g, '-'),
+              ),
+            })
+
+            validDocuments.push({
+              markdownContent,
+              title,
+              directoryPath: path.dirname(filePath),
+            })
+          }
+        }
+
+        event.sender.send('files-content-response', {
+          success: true,
+          result: {documents: validDocuments, docMap: docMap},
+        })
+      } else {
+        event.sender.send('files-content-response', {
+          success: false,
+          error: 'File selection was canceled',
+        })
+      }
+    } catch (err: unknown) {
+      console.error('Error selecting file:', err)
+      event.sender.send('files-content-response', {
+        success: false,
+        error: err instanceof Error ? err.message : 'Unknown error occurred',
+      })
+    }
+  })
+
+  ipcMain.on('read-media-file', async (event, filePath) => {
+    try {
+      const absoluteFilePath = path.resolve(filePath)
+
+      const fileContent = fs.readFileSync(absoluteFilePath)
+      const mimeType = mime.getType(filePath)
+      const fileName = path.basename(filePath)
+      event.sender.send('media-file-content', {
+        success: true,
+        filePath,
+        content: Buffer.from(fileContent).toString('base64'),
+        mimeType,
+        fileName,
+      })
+    } catch (error: unknown) {
+      console.error('Error reading media file:', error)
+      event.sender.send('media-file-content', {
+        success: false,
+        error:
+          error instanceof Error ? error.message : 'Unknown error occurred',
+      })
+    }
+  })
+
+  logger.debug('[MAIN]: IPC handlers initialized')
+}
+
+const formatTitle = (fileName: string) => {
+  return fileName
+    .replace(/\.md$/, '')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[-_]/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
 }

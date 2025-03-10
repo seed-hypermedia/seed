@@ -1,5 +1,5 @@
 /bin
-*.log
+# *.log
 .DS_Store
 
 # Local output for hacking.

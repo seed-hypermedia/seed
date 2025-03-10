@@ -1,12 +1,14 @@
 import {ipc} from '@/ipc'
+import type {AppWindowEvent} from '@/utils/window-events'
 import {ChevronDown, ChevronUp, Close} from '@shm/ui/icons'
 import {useEffect, useRef, useState} from 'react'
+import {NativeSyntheticEvent, TextInputKeyPressEventData} from 'react-native'
 import {Button, Input, XGroup, XStack} from 'tamagui'
 
-export function FindInPage({}: {}) {
+export function FindInPage() {
   const size = '$2'
   const [query, setQuery] = useState('')
-  const queryInput = useRef<HTMLInputElement>(null)
+  const queryInput = useRef<any>(null)
 
   function clearFind() {
     setQuery('')
@@ -14,46 +16,53 @@ export function FindInPage({}: {}) {
   }
 
   useEffect(() => {
-    function handleEscape(e) {
-      if (e.key == 'Escape') {
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
         e.preventDefault()
         clearFind()
       }
     }
 
     window.addEventListener('keydown', handleEscape)
-
     return () => {
       window.removeEventListener('keydown', handleEscape)
     }
-  }, [query])
+  }, [])
 
   useEffect(() => {
     if (queryInput.current) {
       queryInput.current?.focus()
       queryInput.current?.select()
     }
-    // @ts-expect-error
-    return window.appWindowEvents?.subscribe((event: AppWindowEvent) => {
-      if (event == 'find_in_page_focus') {
-        setTimeout(() => {
-          queryInput.current?.focus()
-          queryInput.current?.select()
-        }, 10)
-      }
-    })
-  }, [queryInput.current])
 
-  function handleKeyPress(event: KeyboardEvent) {
-    if (event.key === 'Escape') {
+    // @ts-expect-error
+    const unsubscribe = window.appWindowEvents?.subscribe(
+      (event: AppWindowEvent) => {
+        if (event === 'find_in_page') {
+          setTimeout(() => {
+            queryInput.current?.focus()
+            queryInput.current?.select()
+          }, 10)
+        }
+      },
+    )
+
+    return () => unsubscribe?.()
+  }, [])
+
+  function handleKeyPress(
+    event: NativeSyntheticEvent<TextInputKeyPressEventData>,
+  ) {
+    const key = event.nativeEvent.key
+    if (key === 'Escape') {
       event.preventDefault()
       clearFind()
-    } else if (event.key === 'Enter') {
+    } else if (key === 'Enter') {
       event.preventDefault()
       ipc.send('find_in_page_query', {
         query,
         findNext: false,
-        forward: !event.shiftKey,
+        forward: true,
       })
     }
   }
@@ -84,7 +93,7 @@ export function FindInPage({}: {}) {
             size={size}
             placeholder="Find in page..."
             borderWidth={0}
-            outline="none"
+            value={query}
             onChangeText={setQuery}
             onKeyPress={handleKeyPress}
           />
@@ -126,9 +135,7 @@ export function FindInPage({}: {}) {
             bg="$backgroundStrong"
             size={size}
             icon={Close}
-            onPress={() => {
-              clearFind()
-            }}
+            onPress={clearFind}
           />
         </XGroup.Item>
       </XGroup>

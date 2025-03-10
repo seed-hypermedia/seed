@@ -1,4 +1,3 @@
-import {useGRPCClient} from '@/app-context'
 import {grpcClient} from '@/grpc-client'
 import {trpc} from '@/trpc'
 import {hmId} from '@shm/shared'
@@ -83,7 +82,6 @@ export function useSiteRegistration(accountUid: string) {
 }
 
 export function useRemoveSite(id: UnpackedHypermediaId) {
-  const grpcClient = useGRPCClient()
   const entity = useEntity(id)
   return useMutation({
     mutationFn: async () => {
