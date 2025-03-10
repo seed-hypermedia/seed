@@ -105,7 +105,7 @@ def main():
 
         os.environ["VITE_LIGHTNING_API_URL"] = "https://ln.seed.hyper.media"
 
-        run("VITE_DESKTOP_APPDATA=Seed-local yarn desktop:make")
+        run("VITE_DESKTOP_APPDATA=Seed-local SHOW_OB_RESET_BTN=0 yarn desktop:make")
 
     @cmd(cmds, "test-desktop", "Run frontend desktop tests.")
     def test_desktop(args):

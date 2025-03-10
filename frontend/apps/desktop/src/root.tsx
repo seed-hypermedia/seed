@@ -213,6 +213,8 @@ function MainApp({}: {}) {
   const utils = trpc.useUtils()
   const keys = useListKeys()
 
+  console.log(`== ~ MainApp ~ keys:`, keys)
+
   // Add loading state to prevent flashing onboarding during reload
   const [isInitializing, setIsInitializing] = useState(true)
 
@@ -284,25 +286,42 @@ function MainApp({}: {}) {
     // Skip if we're not showing onboarding or still initializing
     if (!showOnboarding || isInitializing) return
 
-    const checkForTransition = () => {
+    // Immediately check for transition
+    console.log(
+      '[Debug] Initial check - keys:',
+      keys,
+      'showOnboarding:',
+      showOnboarding,
+      'isInitializing:',
+      isInitializing,
+    )
+    if (checkForTransition()) return
+
+    // Remove interval checking as it's not needed - transition should happen once at startup
+    console.log('[Debug] Initial check did not trigger transition')
+
+    function checkForTransition() {
       const {hasCompletedOnboarding, hasSkippedOnboarding} =
         getOnboardingState()
       const hasAccounts = keys?.length > 0
+
+      console.log('[Debug] checkForTransition values:', {
+        hasCompletedOnboarding,
+        hasSkippedOnboarding,
+        hasAccounts,
+        keysLength: keys?.length,
+        keysData: keys,
+        showOnboarding,
+      })
 
       if (hasCompletedOnboarding || hasSkippedOnboarding || hasAccounts) {
         console.log('Transitioning to main app')
         setShowOnboarding(false)
         return true
       }
+      console.log('[Debug] Not transitioning to main app, conditions not met')
       return false
     }
-
-    // Immediately check for transition
-    if (checkForTransition()) return
-
-    // Continue checking periodically if needed
-    const interval = setInterval(checkForTransition, 1000)
-    return () => clearInterval(interval)
   }, [keys, showOnboarding, isInitializing])
 
   useEffect(() => {
