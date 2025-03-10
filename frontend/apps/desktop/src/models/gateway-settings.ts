@@ -35,28 +35,56 @@ export function useSetGatewayUrl() {
 }
 
 export function usePushOnCopy() {
-  const pushOnCopy = trpc.gatewaySettings.getPushOnCopy.useQuery()
+  const pushOnCopy = trpc.gatewaySettings.getPushOnCopy.useQuery(undefined, {
+    onError: (error) => {
+      console.error('Error fetching push on copy setting:', error)
+      return 'always'
+    },
+    retry: 3,
+    retryDelay: 1000,
+  })
   return pushOnCopy
 }
 
 export function useSetPushOnCopy() {
+  const utils = trpc.useContext()
+
   const setPushOnCopy = trpc.gatewaySettings.setPushOnCopy.useMutation({
     onSuccess: () => {
-      invalidateQueries(['trpc.gatewaySettings.getPushOnCopy'])
+      utils.gatewaySettings.getPushOnCopy.invalidate()
+    },
+    onError: (error) => {
+      console.error('Error setting push on copy:', error)
     },
   })
   return setPushOnCopy
 }
 
 export function usePushOnPublish() {
-  const pushOnPublish = trpc.gatewaySettings.getPushOnPublish.useQuery()
+  const pushOnPublish = trpc.gatewaySettings.getPushOnPublish.useQuery(
+    undefined,
+    {
+      onError: (error) => {
+        console.error('Error fetching push on publish setting:', error)
+        return 'always'
+      },
+      retry: 3,
+      retryDelay: 1000,
+    },
+  )
+
   return pushOnPublish
 }
 
 export function useSetPushOnPublish() {
+  const utils = trpc.useContext()
+
   const setPushOnPublish = trpc.gatewaySettings.setPushOnPublish.useMutation({
     onSuccess: () => {
-      invalidateQueries(['trpc.gatewaySettings.getPushOnPublish'])
+      utils.gatewaySettings.getPushOnPublish.invalidate()
+    },
+    onError: (error) => {
+      console.error('Error setting push on publish:', error)
     },
   })
   return setPushOnPublish

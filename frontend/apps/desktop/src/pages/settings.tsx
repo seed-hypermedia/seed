@@ -1,7 +1,12 @@
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {IconForm} from '@/components/icon-form'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
-import {useDeleteKey, useMyAccountIds, useSavedMnemonics} from '@/models/daemon'
+import {
+  useDaemonInfo,
+  useDeleteKey,
+  useMyAccountIds,
+  useSavedMnemonics,
+} from '@/models/daemon'
 import {useExperiments, useWriteExperiments} from '@/models/experiments'
 import {trpc} from '@/trpc'
 import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
@@ -22,12 +27,16 @@ import {
   Heading,
   Input,
   Label,
+  ListItem,
   Paragraph,
   RadioGroup,
   ScrollView,
   Separator,
   SizableText,
+  Spinner,
   Tabs,
+  TabsContentProps,
+  TabsProps,
   TextArea,
   Tooltip,
   View,
@@ -36,7 +45,18 @@ import {
   YStack,
 } from 'tamagui'
 
-import {ListItem} from '@/components/list-item'
+import {useIPC} from '@/app-context'
+import {useAutoUpdatePreference} from '@/models/app-settings'
+import {
+  useGatewayUrl,
+  usePushOnCopy,
+  usePushOnPublish,
+  useSetGatewayUrl,
+  useSetPushOnCopy,
+  useSetPushOnPublish,
+} from '@/models/gateway-settings'
+import {usePeerInfo} from '@/models/networking'
+import {useOpenUrl} from '@/open-url'
 import {
   AtSign,
   Code2,
@@ -49,7 +69,7 @@ import {
   UserRoundPlus,
 } from '@tamagui/lucide-icons'
 import copyTextToClipboard from 'copy-text-to-clipboard'
-import {useEffect, useState} from 'react'
+import {useEffect, useId, useMemo, useState} from 'react'
 import {dispatchWizardEvent} from 'src/components/create-account'
 
 export default function Settings() {
@@ -791,16 +811,68 @@ function PushOnCopySetting({}: {}) {
   const pushOnCopy = usePushOnCopy()
   const id = useId()
   const setPushOnCopy = useSetPushOnCopy()
-  if (!pushOnCopy.data) return null
+
+  // Handle loading and error states
+  const isLoading = pushOnCopy.isLoading
+  const hasError = pushOnCopy.isError
+  const currentValue = pushOnCopy.data || 'always' // Default to 'always' if data is undefined
+
+  // Return a loading state instead of null
+  if (isLoading) {
+    return (
+      <TableList>
+        <InfoListHeader title="Push on Copy" />
+        <TableList.Item>
+          <Spinner size="small" />
+        </TableList.Item>
+      </TableList>
+    )
+  }
+
+  // Show error state
+  if (hasError) {
+    return (
+      <TableList>
+        <InfoListHeader title="Push on Copy" />
+        <TableList.Item>
+          <YStack>
+            <Paragraph theme="red">Error loading settings.</Paragraph>
+            <Button theme="red" size="$2" onPress={() => pushOnCopy.refetch()}>
+              Retry
+            </Button>
+          </YStack>
+        </TableList.Item>
+      </TableList>
+    )
+  }
+
   return (
     <TableList>
       <InfoListHeader title="Push on Copy" />
       <TableList.Item>
         <RadioGroup
-          value={pushOnCopy.data}
+          value={currentValue}
           onValueChange={(value) => {
-            setPushOnCopy.mutate(value)
-            toast.success('Push on copy changed!')
+            try {
+              // Type guard to ensure we only pass valid values
+              const validValue =
+                value === 'always' || value === 'never' || value === 'ask'
+                  ? value
+                  : 'always'
+
+              setPushOnCopy.mutate(validValue, {
+                onSuccess: () => {
+                  toast.success('Push on copy changed!')
+                },
+                onError: (error) => {
+                  console.error('Failed to update push on copy setting:', error)
+                  toast.error('Failed to update setting. Please try again.')
+                },
+              })
+            } catch (error) {
+              console.error('Error updating push on copy setting:', error)
+              toast.error('An error occurred while updating the setting.')
+            }
           }}
         >
           {[
@@ -831,18 +903,77 @@ function PushOnCopySetting({}: {}) {
 
 function PushOnPublishSetting({}: {}) {
   const pushOnPublish = usePushOnPublish()
-  const id = React.useId()
+  const id = useId()
   const setPushOnPublish = useSetPushOnPublish()
-  if (!pushOnPublish.data) return null
+
+  // Handle loading and error states
+  const isLoading = pushOnPublish.isLoading
+  const hasError = pushOnPublish.isError
+  const currentValue = pushOnPublish.data || 'always' // Default to 'always' if data is undefined
+
+  // Return a loading state instead of null
+  if (isLoading) {
+    return (
+      <TableList>
+        <InfoListHeader title="Push on Publish" />
+        <TableList.Item>
+          <Spinner size="small" />
+        </TableList.Item>
+      </TableList>
+    )
+  }
+
+  // Show error state
+  if (hasError) {
+    return (
+      <TableList>
+        <InfoListHeader title="Push on Publish" />
+        <TableList.Item>
+          <YStack>
+            <Paragraph theme="red">Error loading settings.</Paragraph>
+            <Button
+              theme="red"
+              size="$2"
+              onPress={() => pushOnPublish.refetch()}
+            >
+              Retry
+            </Button>
+          </YStack>
+        </TableList.Item>
+      </TableList>
+    )
+  }
+
   return (
     <TableList>
       <InfoListHeader title="Push on Publish" />
       <TableList.Item>
         <RadioGroup
-          value={pushOnPublish.data}
+          value={currentValue}
           onValueChange={(value) => {
-            setPushOnPublish.mutate(value)
-            toast.success('Push on publish changed!')
+            try {
+              // Type guard to ensure we only pass valid values
+              const validValue =
+                value === 'always' || value === 'never' || value === 'ask'
+                  ? value
+                  : 'always'
+
+              setPushOnPublish.mutate(validValue, {
+                onSuccess: () => {
+                  toast.success('Push on publish changed!')
+                },
+                onError: (error) => {
+                  console.error(
+                    'Failed to update push on publish setting:',
+                    error,
+                  )
+                  toast.error('Failed to update setting. Please try again.')
+                },
+              })
+            } catch (error) {
+              console.error('Error updating push on publish setting:', error)
+              toast.error('An error occurred while updating the setting.')
+            }
           }}
         >
           {[
@@ -944,6 +1075,7 @@ function DeviceItem({id}: {id: string}) {
 
 function AppSettings() {
   const ipc = useIPC()
+  // @ts-expect-error versions is not typed
   const versions = useMemo(() => ipc.versions(), [ipc])
   const appInfo = trpc.getAppInfo.useQuery().data
   const openUrl = useOpenUrl()
