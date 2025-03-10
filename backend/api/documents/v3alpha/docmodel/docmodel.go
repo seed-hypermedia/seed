@@ -392,11 +392,13 @@ func (dm *Document) cleanupPatch() (out blob.ChangeBody, err error) {
 		out.OpCount += size
 	}
 
-	// TODO(burdiyan): It's important to moves go first,
+	// TODO(burdiyan): It's important for moves to go first,
 	// because I was stupid enough to implement the block tree CRDT in isolation,
 	// so it's not aware of any other possible operations.
 	// Will fix this at some point.
 	if dm.mut != nil {
+		// There's a bit of complexity here implementing "compression",
+		// i.e. contiguous moves are batched to avoid repeating redundant OpIDs.
 		var (
 			deletedBlocks []string
 			seenDeletes   = map[string]struct{}{}
@@ -427,7 +429,11 @@ func (dm *Document) cleanupPatch() (out blob.ChangeBody, err error) {
 			}
 
 			// If we continue the same sequence, just append move to the batch.
-			if move.Parent == curParent && move.OpID.Actor == lastOpID.Actor && move.OpID.Ts == lastOpID.Ts && move.OpID.Idx == lastOpID.Idx+1 {
+			if move.Parent == curParent &&
+				move.OpID.Actor == lastOpID.Actor &&
+				move.OpID.Ts == lastOpID.Ts &&
+				move.OpID.Idx == lastOpID.Idx+1 &&
+				move.Ref == lastOpID {
 				blockSequence = append(blockSequence, move.Block)
 				lastOpID = move.OpID
 				continue

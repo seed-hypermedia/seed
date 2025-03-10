@@ -135,3 +135,114 @@ func TestBug_RedundantReplaces(t *testing.T) {
 		}
 	}
 }
+
+func TestBug_BlockReordering(t *testing.T) {
+	alice := coretest.NewTester("alice").Account
+
+	doc := must.Do2(New("mydoc", cclock.New()))
+
+	must.Do(doc.MoveBlock("mxH", "", ""))
+	must.Do(doc.ReplaceBlock(&documents.Block{
+		Id:   "mxH",
+		Type: "Paragraph",
+		Text: "1",
+	}))
+
+	must.Do(doc.MoveBlock("HLI", "", "mxH"))
+	must.Do(doc.ReplaceBlock(&documents.Block{
+		Id:   "HLI",
+		Type: "Paragraph",
+		Text: "3",
+	}))
+
+	must.Do(doc.MoveBlock("mMa", "", "HLI"))
+	must.Do(doc.ReplaceBlock(&documents.Block{
+		Id:   "mMa",
+		Type: "Paragraph",
+		Text: "2",
+	}))
+
+	must.Do(doc.MoveBlock("ZmN", "", "mMa"))
+	must.Do(doc.ReplaceBlock(&documents.Block{
+		Id:   "ZmN",
+		Type: "Paragraph",
+		Text: "4",
+	}))
+
+	must.Do(doc.MoveBlock("SqI", "", "ZmN"))
+	must.Do(doc.ReplaceBlock(&documents.Block{
+		Id:   "SqI",
+		Type: "Paragraph",
+		Text: "5",
+	}))
+
+	c1, err := doc.SignChange(alice)
+	require.NoError(t, err)
+
+	var c2 blob.Encoded[*blob.Change]
+	{
+		doc := must.Do2(New("mydoc", cclock.New()))
+		must.Do(doc.ApplyChange(c1.CID, c1.Decoded))
+
+		must.Do(doc.ReplaceBlock(&documents.Block{
+			Id:   "mxH",
+			Type: "Paragraph",
+			Text: "1",
+		}))
+
+		must.Do(doc.MoveBlock("OONM", "", "mxH"))
+		must.Do(doc.ReplaceBlock(&documents.Block{
+			Id:   "OONM",
+			Type: "Paragraph",
+			Text: "2",
+		}))
+
+		must.Do(doc.MoveBlock("HLI", "", "OONM"))
+		must.Do(doc.ReplaceBlock(&documents.Block{
+			Id:   "HLI",
+			Type: "Paragraph",
+			Text: "3",
+		}))
+
+		must.Do(doc.MoveBlock("ZmN", "", "HLI"))
+
+		must.Do(doc.ReplaceBlock(&documents.Block{
+			Id:   "ZmN",
+			Type: "Paragraph",
+			Text: "4",
+		}))
+		must.Do(doc.ReplaceBlock(&documents.Block{
+			Id:   "SqI",
+			Type: "Paragraph",
+			Text: "5",
+		}))
+
+		must.Do(doc.DeleteBlock("mMa"))
+
+		c2, err = doc.SignChange(alice)
+		require.NoError(t, err)
+	}
+
+	{
+		doc := must.Do2(New("mydoc", cclock.New()))
+		must.Do(doc.ApplyChange(c1.CID, c1.Decoded))
+		must.Do(doc.ApplyChange(c2.CID, c2.Decoded))
+
+		hdoc, err := doc.Hydrate(t.Context())
+		require.NoError(t, err)
+
+		want := [][2]string{
+			{"mxH", "1"},
+			{"OONM", "2"},
+			{"HLI", "3"},
+			{"ZmN", "4"},
+			{"SqI", "5"},
+		}
+
+		require.Len(t, hdoc.Content, len(want))
+
+		for i, blk := range hdoc.Content {
+			require.Equal(t, want[i], [2]string{blk.Block.Id, blk.Block.Text})
+		}
+	}
+}
