@@ -37,6 +37,7 @@ import {
   Copy,
   ExternalLink,
   Plus,
+  X,
 } from '@tamagui/lucide-icons'
 import {useEffect, useRef, useState} from 'react'
 import {SubmitHandler, useForm} from 'react-hook-form'
@@ -762,17 +763,21 @@ function SeedHostLogin({
     login(data.email)
   }
   if (isPendingEmailValidation && email) {
+    const errorMessage = error?.message || absorbedSession.error?.message
     return (
       <SeedHostContainer
         heading="Waiting for Email Validation"
         backButton={<BackButton onPress={onBack} />}
+        footer={
+          <Button onPress={reset} size="$2" icon={X} alignSelf="center">
+            Cancel Login
+          </Button>
+        }
       >
         <DialogInner gap="$4">
-          {error || absorbedSession.error ? (
+          {errorMessage ? (
             <>
-              <ErrorBox
-                error={error?.message || absorbedSession.error?.message}
-              />
+              <ErrorBox error={errorMessage} />
               <Button onPress={reset}>Try Again</Button>
             </>
           ) : (
@@ -1069,10 +1074,6 @@ export function useSeedHostDialog() {
               pendingDomain.domainId !== watchingDomain.domainId,
           )
         if (activelyWatchedDomainIds.has(watchingDomain.domainId)) {
-          console.log(
-            'Domain is actively watched, skipping',
-            watchingDomain.domainId,
-          )
           return
         }
         loadEntity(hmId('d', watchingDomain.siteUid))
@@ -1184,13 +1185,8 @@ function SeedHostRegisterCustomDomain({
   const pendingDomainId = localPendingDomain?.domainId
   useEffect(() => {
     if (pendingDomainId) {
-      console.log('Adding domain to actively watched domains', pendingDomainId)
       activelyWatchedDomainIds.add(pendingDomainId)
       return () => {
-        console.log(
-          'Removing domain from actively watched domains',
-          pendingDomainId,
-        )
         activelyWatchedDomainIds.delete(pendingDomainId)
       }
     }

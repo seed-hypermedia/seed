@@ -122,9 +122,7 @@ export function useHostSession({
       body: body ? JSON.stringify(body) : undefined,
     })
     if (res.status !== 200) {
-      console.error('~~ HOST API ERROR', res.status)
       const respJson = await res.json()
-      console.error('~~ HOST API ERROR', respJson)
       throw new Error(respJson.message)
     }
     const respJson = await res.json()
@@ -152,7 +150,6 @@ export function useHostSession({
         token: hostState?.pendingSessionToken,
       })
       const response = AbsorbResponseSchema.parse(respJson)
-      console.log('~~ ABSORB SESSION RESPONSE', response)
       if (response.status === 'success') {
         setHostState.mutate({
           email: response.email,
