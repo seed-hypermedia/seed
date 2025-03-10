@@ -2,6 +2,7 @@ import {hmBlockSchema} from '@/full-schema'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared'
 import {DOMParser as ProseMirrorDOMParser} from '@tiptap/pm/model'
 import rehypeStringify from 'rehype-stringify'
+import remarkGfm from 'remark-gfm'
 import remarkParse from 'remark-parse'
 import remarkRehype from 'remark-rehype'
 import {unified} from 'unified'
@@ -243,6 +244,176 @@ export const MarkdownToBlocks = async (
     .use(remarkRehype)
     .use(rehypeStringify)
     .process(markdown)
+
+  const parser = new DOMParser()
+  let doc = parser.parseFromString(file.value.toString(), 'text/html')
+
+  const {view} = editor._tiptapEditor
+  const {state} = view
+
+  doc = unwrapImagesFromParagraphs(doc)
+
+  // Get ProseMirror fragment from parsed HTML
+  const fragment = ProseMirrorDOMParser.fromSchema(state.schema).parse(doc.body)
+
+  fragment.firstChild!.content.forEach((node) => {
+    if (node.type.name !== 'blockContainer') {
+      return false
+    }
+
+    blocks.push(nodeToBlock(node, hmBlockSchema))
+  })
+
+  // Function to determine heading level
+  const getHeadingLevel = (block: Block<BlockSchema>) => {
+    if (block.type.startsWith('heading')) {
+      return parseInt(block.props.level, 10)
+    }
+    return 0
+  }
+
+  // Stack to track heading levels for hierarchy
+  const stack: {level: number; block: Block<BlockSchema>}[] = []
+
+  blocks.forEach((block) => {
+    const headingLevel = getHeadingLevel(block)
+
+    if (headingLevel > 0) {
+      while (stack.length && stack[stack.length - 1].level >= headingLevel) {
+        stack.pop()
+      }
+
+      if (stack.length) {
+        stack[stack.length - 1].block.children.push(block)
+      } else {
+        organizedBlocks.push(block)
+      }
+
+      stack.push({level: headingLevel, block})
+    } else {
+      let blockToInsert = block
+      if (block.type === 'image') {
+        if (block.props.src == 'null') blockToInsert.props = {}
+        else if (block.props.alt) {
+          const contentArray = parseImageCaptionStyles(block.props.alt)
+          block.content = contentArray
+        }
+      }
+      if (block.content.length > 0) {
+        const blockContent =
+          block.content[0].type === 'link'
+            ? block.content[0].content[0].text
+            : // @ts-ignore
+              block.content[0].text
+
+        if (blockContent.startsWith('!')) {
+          const videoMatch = blockContent.match(videoRegex)
+          if (videoMatch) {
+            let videoProps = {}
+            if (
+              videoMatch[2].startsWith('ipfs://') ||
+              videoMatch[2].includes('youtube') ||
+              videoMatch[2].includes('youtu.be') ||
+              videoMatch[2].includes('vimeo')
+            ) {
+              videoProps = {
+                name: videoMatch[1],
+                url: videoMatch[2],
+                width:
+                  videoMatch[3] && videoMatch[3] !== 'undefined'
+                    ? videoMatch[3]
+                    : '',
+              }
+            }
+            blockToInsert = {
+              id: block.id,
+              type: 'video',
+              props: videoProps,
+              content: [],
+              children: [],
+            }
+          }
+        } else if (tweetRegex.test(blockContent)) {
+          const tweetMatch = blockContent.match(tweetRegex)
+          if (tweetMatch) {
+            blockToInsert = {
+              id: block.id,
+              type: 'web-embed',
+              props: {
+                url: tweetMatch[1],
+              },
+              content: [],
+              children: [],
+            }
+          }
+        } else if (blockContent.startsWith('[')) {
+          const fileMatch = blockContent.match(fileRegex)
+          if (fileMatch) {
+            let fileProps = {}
+            if (fileMatch[2].startsWith('ipfs://')) {
+              fileProps = {
+                name: fileMatch[1],
+                url: fileMatch[2],
+                size: fileMatch[3],
+              }
+            }
+            blockToInsert = {
+              id: block.id,
+              type: 'file',
+              props: fileProps,
+              content: [],
+              children: [],
+            }
+          }
+        } else if (mathRegex.test(blockContent)) {
+          const mathMatch = blockContent.match(mathRegex)
+          if (mathMatch) {
+            const mathContent = mathMatch[1]
+            blockToInsert = {
+              id: block.id,
+              type: 'math',
+              content: [
+                {
+                  text: mathContent,
+                  type: 'text',
+                  styles: {},
+                },
+              ],
+              children: [],
+              props: {
+                childrenType: 'Group',
+              },
+            }
+          }
+        }
+      }
+      if (stack.length) {
+        stack[stack.length - 1].block.children.push(blockToInsert)
+      } else {
+        organizedBlocks.push(blockToInsert)
+      }
+    }
+  })
+  return organizedBlocks
+}
+
+export const SyncMarkdownToBlocks = (
+  markdown: string,
+  editor: BlockNoteEditor,
+) => {
+  const blocks: Block<BlockSchema>[] = []
+  const organizedBlocks: Block<BlockSchema>[] = []
+
+  const file = unified()
+    .use(remarkParse)
+    .use(remarkCodeClass)
+    .use(remarkImageWidth)
+    .use(remarkRehype)
+    .use(remarkGfm)
+    .use(rehypeStringify)
+    .processSync(markdown)
+
+  console.log(file.value)
 
   const parser = new DOMParser()
   let doc = parser.parseFromString(file.value.toString(), 'text/html')
