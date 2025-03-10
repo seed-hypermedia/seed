@@ -25,7 +25,6 @@ import {
   parseCustomURL,
   unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
-import {Popover} from '@shm/ui/TamaguiPopover'
 import {BlockContentEmbed, ErrorBlock} from '@shm/ui/document-content'
 import {
   Check,
@@ -35,6 +34,7 @@ import {
 } from '@shm/ui/icons'
 import {toast} from '@shm/ui/toast'
 import {usePopoverState} from '@shm/ui/use-popover-state'
+import {Popover} from '@tamagui/popover'
 import {Fragment} from '@tiptap/pm/model'
 import {useCallback, useEffect, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'

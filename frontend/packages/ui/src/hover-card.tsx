@@ -1,4 +1,4 @@
-import {Popover} from './TamaguiPopover'
+import {Popover} from '@tamagui/popover'
 import {dialogBoxShadow} from './universal-dialog'
 
 export function HoverCard({

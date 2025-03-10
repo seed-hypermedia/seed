@@ -1,12 +1,12 @@
 import {UnpackedHypermediaId, useRouteLink, useSearch} from '@shm/shared'
-import {Popover} from '@shm/ui/TamaguiPopover'
-import {usePopoverState} from '@shm/ui/use-popover-state'
 import {Button} from '@tamagui/button'
 import {Input} from '@tamagui/input'
 import {Search} from '@tamagui/lucide-icons'
+import {Popover} from '@tamagui/popover'
 import {XStack, YStack} from '@tamagui/stacks'
 import {useState} from 'react'
 import {NativeSyntheticEvent, TextInputChangeEventData} from 'react-native'
+import {usePopoverState} from './use-popover-state'
 
 export function MobileSearch({
   originHomeId,

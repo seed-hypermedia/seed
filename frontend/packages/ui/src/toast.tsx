@@ -171,7 +171,7 @@ type ToastOptions = {
 }
 
 type ToastHandler = (
-  message?: string,
+  message: string,
   options?: ToastOptions,
 ) => {close: () => void}
 

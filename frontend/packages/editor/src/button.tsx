@@ -9,11 +9,10 @@ import {HMBlockSchema} from '@/schema'
 import {Button} from '@shm/ui/button'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {AlignCenter, AlignLeft, AlignRight} from '@tamagui/lucide-icons'
+import {Popover} from '@tamagui/popover'
 import {XStack, YStack} from '@tamagui/stacks'
 import {useState} from 'react'
 import {Label, SizableText} from 'tamagui'
-import {Popover} from '../../ui/src/TamaguiPopover'
-
 export const ButtonBlock = createReactBlockSpec({
   type: 'button',
   propSchema: {

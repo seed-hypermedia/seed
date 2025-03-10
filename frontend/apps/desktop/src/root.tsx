@@ -397,9 +397,9 @@ function MainApp({}: {}) {
               >
                 <SpinnerWithText message="Starting app..." />
               </YStack>
+              <Toaster />
             </StyleProvider>
           </QueryClientProvider>
-          <Toaster />
         </UniversalAppProvider>
       )
     }
@@ -417,12 +417,9 @@ function MainApp({}: {}) {
               <Onboarding onComplete={() => setShowOnboarding(false)} />
               <OnboardingDebugBox />
               <ResetOnboardingButton />
+              <Toaster />
             </StyleProvider>
           </QueryClientProvider>
-          <Toaster
-          // position="bottom-center"
-          // toastOptions={{className: 'toaster'}}
-          />
         </UniversalAppProvider>
       )
     } else {
@@ -505,10 +502,9 @@ function MainApp({}: {}) {
                 />
                 <ResetOnboardingButton />
               </NavigationContainer>
-              <Toaster
-              // position="bottom-center"
-              // toastOptions={{className: 'toaster'}}
-              />
+              <StyleProvider darkMode={darkMode!}>
+                <Toaster />
+              </StyleProvider>
             </ErrorBoundary>
           </Suspense>
         </AppContextProvider>

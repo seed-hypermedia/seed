@@ -15,12 +15,12 @@ import {
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
+import {Popover} from '@tamagui/popover'
 import {GestureReponderEvent, useMedia} from '@tamagui/web'
 import {ReactNode, useLayoutEffect, useMemo} from 'react'
 import {XStack, YStack} from 'tamagui'
 import {HMIcon} from './hm-icon'
 import {SmallCollapsableListItem, SmallListItem} from './list-item'
-import {Popover} from './TamaguiPopover'
 import {usePopoverState} from './use-popover-state'
 
 export function DocumentSmallListItem({

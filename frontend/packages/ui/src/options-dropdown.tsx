@@ -1,13 +1,13 @@
 import {Button} from '@tamagui/button'
 import {YGroup} from '@tamagui/group'
 import {MoreHorizontal} from '@tamagui/lucide-icons'
+import {Popover} from '@tamagui/popover'
 import {XStack} from '@tamagui/stacks'
 import {GestureReponderEvent} from '@tamagui/web'
 import {FC} from 'react'
 import {GestureResponderEvent} from 'react-native'
 import {Separator} from 'tamagui'
 import {MenuItem} from './menu-item'
-import {Popover} from './TamaguiPopover'
 import {usePopoverState} from './use-popover-state'
 
 export type MenuItemType = {

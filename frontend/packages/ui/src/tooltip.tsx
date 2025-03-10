@@ -1,6 +1,6 @@
 import {Text, Theme} from '@tamagui/core'
+import {Tooltip as TTooltip, TooltipProps} from '@tamagui/tooltip'
 import React from 'react'
-import {Tooltip as TTooltip, TooltipProps} from './TamaguiTooltip'
 
 export function Tooltip({
   children,
