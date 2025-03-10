@@ -22,7 +22,12 @@ import {
 import {usePeerInfo} from '@/models/networking'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
-import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
+import {
+  COMMIT_HASH,
+  LIGHTNING_API_URL,
+  SEED_HOST_URL,
+  VERSION,
+} from '@shm/shared/constants'
 import {getMetadataName} from '@shm/shared/content'
 import {useEntity} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -1235,6 +1240,10 @@ function AppSettings() {
         />
         <Separator />
         <InfoListItem label="Go Build Info" value={goBuildInfo?.split('\n')} />
+        <Separator />
+        <InfoListItem label="Seed Host URL" value={SEED_HOST_URL} />
+        <Separator />
+        <InfoListItem label="Lightning URL" value={LIGHTNING_API_URL} />
       </TableList>
     </YStack>
   )

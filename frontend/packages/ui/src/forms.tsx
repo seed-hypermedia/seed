@@ -1,4 +1,4 @@
-import {PropsWithChildren} from 'react'
+import {ComponentProps, PropsWithChildren} from 'react'
 import {FieldErrors, FieldValues} from 'react-hook-form'
 import {Fieldset, Label, SizableText, XStack} from 'tamagui'
 
@@ -18,17 +18,22 @@ export function FormField<Fields extends FieldValues>({
   label,
   errors,
   children,
-}: PropsWithChildren<{
-  name: keyof Fields
-  errors: FieldErrors<Fields>
-  label?: string
-}>) {
+  ...props
+}: PropsWithChildren<
+  {
+    name: keyof Fields
+    errors: FieldErrors<Fields>
+    label?: string
+  } & ComponentProps<typeof Fieldset>
+>) {
   return (
-    <Fieldset borderColor="transparent">
+    <Fieldset borderColor="transparent" {...props}>
       <XStack ai="center" justifyContent="space-between">
         {label ? (
           <Label
             htmlFor={String(name)}
+            lineHeight="$4"
+            marginBottom="$2"
             color={errors[name]?.message ? '$red10' : undefined}
           >
             {label}

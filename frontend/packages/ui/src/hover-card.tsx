@@ -4,9 +4,11 @@ import {dialogBoxShadow} from './universal-dialog'
 export function HoverCard({
   children,
   content,
+  contentProps,
 }: {
   children: React.ReactNode
   content: React.ReactNode
+  contentProps?: React.ComponentProps<typeof Popover.Content>
 }) {
   return (
     <Popover hoverable placement="bottom-start">
@@ -23,6 +25,7 @@ export function HoverCard({
         gap="$2"
         padding="$2"
         ai="flex-start"
+        {...contentProps}
       >
         {content}
       </Popover.Content>

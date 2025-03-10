@@ -1,4 +1,4 @@
-import {queryKeys} from '@shm/shared'
+import {hmId, queryKeys} from '@shm/shared'
 import {DocumentChange} from '@shm/shared/client'
 import {SEED_HOST_URL} from '@shm/shared/constants'
 import fetch from 'node-fetch'
@@ -60,7 +60,6 @@ async function updateSingleDNSStatus(
   sessionToken: string,
   pendingDomain: z.infer<typeof PendingDomainSchema>,
 ) {
-  console.log('~~ UPDATE DNS STATUS', pendingDomain)
   const resp = await fetch(`${SEED_HOST_URL}/api/domains/${pendingDomain.id}`, {
     headers: {
       Authorization: `Bearer ${sessionToken}`,
@@ -76,11 +75,9 @@ async function updateSingleDNSStatus(
   } else if (respJson.status === 'Active') {
     await writeDNSActive(pendingDomain)
   }
-  console.log('~~ UPDATE DNS STATUS RESPONSE', respJson)
 }
 
 async function writeDNSActive(pendingDomain: PendingDomain) {
-  console.log('~~ WRITE DNS ACTIVE', pendingDomain)
   const doc = await grpcClient.documents.getDocument({
     account: pendingDomain.siteUid,
   })
@@ -103,24 +100,23 @@ async function writeDNSActive(pendingDomain: PendingDomain) {
       }),
     ],
   })
-  appInvalidateQueries([queryKeys.ENTITY, pendingDomain.siteUid])
-  console.log('INVALIDATE ENTITY', pendingDomain.siteUid)
+  const entityId = hmId('d', pendingDomain.siteUid).id
+  console.log('~~ Invalidating entity', entityId)
+  appInvalidateQueries([queryKeys.ENTITY, entityId])
   setTimeout(() => {
-    console.log('CLEAR PENDING DOMAIN', pendingDomain.siteUid)
     writeHostState({
       ...state,
       pendingDomains: state.pendingDomains?.filter(
         (pending) => pending.id !== pendingDomain.id,
       ),
     })
-  }, 500) // delay for a bit because it takes a moment for the front end to catch up
+  }, 250) // delay for a bit because it takes a moment for the front end to catch up
 }
 
 async function writeDNSStatus(
   domainId: string,
   status: PendingDomain['status'],
 ) {
-  console.log('~~ WRITE DNS STATUS', domainId, status)
   if (
     state.pendingDomains?.find((pending) => {
       return pending.id === domainId && pending.status !== status
@@ -137,7 +133,6 @@ async function writeDNSStatus(
 
 async function updateDNSStatus() {
   if (!state.sessionToken) return null
-  console.log('~~ UPDATE DNS STATUS')
   const pendingDomains = state.pendingDomains || []
   for (const pendingDomain of pendingDomains) {
     await updateSingleDNSStatus(state.sessionToken, pendingDomain)
@@ -147,7 +142,7 @@ async function updateDNSStatus() {
 function loopDNSStatus() {
   updateDNSStatus()
     .catch((e) => {
-      console.error('~~ UPDATE DNS STATUS ERROR', e)
+      console.error('Error updating DNS Status', e)
     })
     .finally(() => {
       setTimeout(loopDNSStatus, 20_000)

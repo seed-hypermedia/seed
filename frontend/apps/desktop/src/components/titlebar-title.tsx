@@ -44,6 +44,7 @@ import {
   Popover,
   Text,
   TextProps,
+  Theme,
   Tooltip,
   View,
   XStack,
@@ -51,6 +52,7 @@ import {
 } from 'tamagui'
 import {CopyReferenceButton} from './copy-reference-button'
 import {FavoriteButton} from './favoriting'
+import {DNSInstructions} from './publish-site'
 
 export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
   const route = useNavRoute()
@@ -322,13 +324,13 @@ function PendingDomainStatus({
 }) {
   if (status === 'waiting-dns') {
     return (
-      <Text color="$color9">
+      <Text color="$color11">
         Waiting for DNS to resolve to {hostnameStripProtocol(siteUrl)}
       </Text>
     )
   }
   if (status === 'initializing') {
-    return <Text color="$color9">Initializing Domain...</Text>
+    return <Text color="$color11">Initializing Domain...</Text>
   }
   return <Text color="$red8">Error</Text>
 }
@@ -344,33 +346,40 @@ function PendingDomain({id}: {id: UnpackedHypermediaId}) {
   return (
     <View className="no-window-drag" padding="$2">
       <HoverCard
+        contentProps={{
+          backgroundColor: '#1c1c1c',
+        }}
         content={
-          <YStack className="no-window-drag" gap="$4" padding="$3">
-            <Text>
-              Setting up domain:{' '}
-              <Text fontWeight="bold">{pendingDomain.hostname}</Text>
-            </Text>
-            <PendingDomainStatus
-              status={pendingDomain.status}
-              siteUrl={site.data?.document?.metadata?.siteUrl || ''}
-            />
-            <XStack jc="center">
-              {hostSession.cancelPendingDomain.isLoading ? (
-                <Spinner size="small" />
-              ) : (
-                <Button
-                  size="$2"
-                  theme="red"
-                  onPress={() => {
-                    hostSession.cancelPendingDomain.mutate(pendingDomain.id)
-                  }}
-                  icon={X}
-                >
-                  Cancel Domain Setup
-                </Button>
-              )}
-            </XStack>
-          </YStack>
+          <Theme name="dark_blue">
+            <YStack className="no-window-drag" gap="$4" padding="$3">
+              {pendingDomain.status === 'waiting-dns' ? (
+                <DNSInstructions
+                  hostname={pendingDomain.hostname}
+                  siteUrl={site.data?.document?.metadata?.siteUrl || ''}
+                />
+              ) : null}
+              <PendingDomainStatus
+                status={pendingDomain.status}
+                siteUrl={site.data?.document?.metadata?.siteUrl || ''}
+              />
+              <XStack jc="center">
+                {hostSession.cancelPendingDomain.isLoading ? (
+                  <Spinner size="small" />
+                ) : (
+                  <Button
+                    size="$2"
+                    theme="red"
+                    onPress={() => {
+                      hostSession.cancelPendingDomain.mutate(pendingDomain.id)
+                    }}
+                    icon={X}
+                  >
+                    Cancel Domain Setup
+                  </Button>
+                )}
+              </XStack>
+            </YStack>
+          </Theme>
         }
       >
         <Spinner size="small" />

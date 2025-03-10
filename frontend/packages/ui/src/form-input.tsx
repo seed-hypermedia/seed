@@ -22,6 +22,7 @@ export function FormInput<Fields extends FieldValues>({
   return (
     <Input
       {...inputProps}
+      id={name}
       onChangeText={(text) => {
         if (transformInput) {
           onChange(transformInput(text))

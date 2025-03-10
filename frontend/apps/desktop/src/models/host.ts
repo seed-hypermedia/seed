@@ -2,7 +2,7 @@ import {trpc} from '@/trpc'
 import {SEED_HOST_URL} from '@shm/shared/constants'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useMutation, useQuery} from '@tanstack/react-query'
-import {useEffect} from 'react'
+import {useEffect, useRef} from 'react'
 import z from 'zod'
 
 // MANUAL SYNC WITH SEED REPO
@@ -79,21 +79,15 @@ export const HostInfoResponseSchema = z.object({
           siteCount: z.number(),
         })
         .or(z.null()),
-      base: z
+      premium: z
         .object({
           gbStorage: z.number(),
           gbBandwidth: z.number(),
           siteCount: z.number(),
-        })
-        .or(z.null()),
-      unlimited: z
-        .object({
-          gbStorage: z.number(),
-          gbBandwidth: z.number(),
-          siteCount: z.number(),
-          gbStorageOverage: z.number(),
-          gbBandwidthOverage: z.number(),
-          siteCountOverage: z.number(),
+          gbStorageOverageUSDCents: z.number(),
+          gbBandwidthOverageUSDCents: z.number(),
+          siteCountOverageUSDCents: z.number(),
+          monthlyPriceUSDCents: z.number(),
         })
         .or(z.null()),
     })
@@ -128,12 +122,10 @@ export function useHostSession({
       body: body ? JSON.stringify(body) : undefined,
     })
     if (res.status !== 200) {
-      try {
-        const respJson = await res.json()
-        throw new Error(respJson.message)
-      } catch (e) {
-        throw new Error(res.statusText)
-      }
+      console.error('~~ HOST API ERROR', res.status)
+      const respJson = await res.json()
+      console.error('~~ HOST API ERROR', respJson)
+      throw new Error(respJson.message)
     }
     const respJson = await res.json()
     return respJson
@@ -160,6 +152,7 @@ export function useHostSession({
         token: hostState?.pendingSessionToken,
       })
       const response = AbsorbResponseSchema.parse(respJson)
+      console.log('~~ ABSORB SESSION RESPONSE', response)
       if (response.status === 'success') {
         setHostState.mutate({
           email: response.email,
@@ -169,18 +162,23 @@ export function useHostSession({
         onAuthenticated?.()
       } else if (response.status === 'pending') {
       } else if (response.status === 'error') {
+        throw new Error(response.message)
       }
       return respJson
     },
     enabled: !!hostState?.pendingSessionToken,
     refetchInterval: hostState?.pendingSessionToken ? 15000 : false,
     refetchIntervalInBackground: true,
+    useErrorBoundary: false,
   })
+  const sessionToken = hostState?.sessionToken
+  const wasAuthenticated = useRef(!!sessionToken)
   useEffect(() => {
-    if (absorbedSession.data?.status === 'success') {
+    if (sessionToken && !wasAuthenticated.current) {
       onAuthenticated?.()
     }
-  }, [absorbedSession.data])
+    wasAuthenticated.current = !!sessionToken
+  }, [sessionToken])
   const createSite = useMutation({
     mutationFn: async ({subdomain}: {subdomain: string}) => {
       const respJson = await hostAPI('sites', 'POST', {
@@ -203,6 +201,7 @@ export function useHostSession({
       }
       return result.data
     },
+    useErrorBoundary: false,
   })
   const createDomain = useMutation({
     mutationFn: async ({
@@ -232,6 +231,7 @@ export function useHostSession({
           },
         ],
       })
+      return result
     },
   })
 
@@ -282,5 +282,6 @@ export function useHostSession({
     createDomain,
     cancelPendingDomain,
     logout,
+    absorbedSession,
   }
 }

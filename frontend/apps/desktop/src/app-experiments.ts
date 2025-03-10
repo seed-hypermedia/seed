@@ -26,7 +26,6 @@ export const experimentsApi = t.router({
     const newExperimentsState = {...(prevExperimentsState || {}), ...input}
     experimentsState = newExperimentsState
     appStore.set(EXPERIMENTS_STORAGE_KEY, newExperimentsState)
-    console.log('~ set to app store', newExperimentsState)
     return undefined
   }),
 })

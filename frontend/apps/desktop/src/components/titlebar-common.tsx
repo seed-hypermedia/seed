@@ -59,7 +59,11 @@ import {useAppDialog} from './dialog'
 import DiscardDraftButton from './discard-draft-button'
 import {useImportDialog, useImporting} from './import-doc-button'
 import PublishDraftButton from './publish-draft-button'
-import {usePublishSite, useRemoveSiteDialog} from './publish-site'
+import {
+  usePublishSite,
+  useRemoveSiteDialog,
+  useSeedHostDialog,
+} from './publish-site'
 import {SubscriptionButton} from './subscription'
 import {TitleBarProps} from './titlebar'
 
@@ -95,6 +99,7 @@ export function DocOptionsButton() {
   const capability = useMyCapability(route.id)
   const canEditDoc = roleCanWrite(capability?.role)
   const experiments = useExperiments()
+  const seedHostDialog = useSeedHostDialog()
 
   const pendingDomain = useHostSession().pendingDomains?.find(
     (pending) => pending.siteUid === route.id.uid,
@@ -259,6 +264,7 @@ export function DocOptionsButton() {
       {removeSite.content}
       {importDialog.content}
       {importing.content}
+      {seedHostDialog.content}
       <OptionsDropdown menuItems={menuItems} />
     </>
   )
