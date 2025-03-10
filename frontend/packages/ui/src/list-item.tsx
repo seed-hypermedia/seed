@@ -138,7 +138,7 @@ export function SmallListItem({
           <View width={18}>
             {createElement(icon, {
               size: 18,
-              color: color || theme.gray12.val,
+              color: color,
             })}
           </View>
         ) : null}

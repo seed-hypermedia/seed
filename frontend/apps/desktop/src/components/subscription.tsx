@@ -88,9 +88,9 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
               }
               icon={
                 subscription.subscription == 'space' ? (
-                  <SubscribeSpace size={20} color={theme.brand5.val} />
+                  <SubscribeSpace size={20} color="red" />
                 ) : subscription.subscription == 'document' ? (
-                  <Subscribe size={20} color={theme.brand5.val} />
+                  <Subscribe size={20} color="red" />
                 ) : undefined
               }
             >
@@ -150,7 +150,7 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
             )}
             {subscription.subscription != 'none' ? (
               <SubscriptionOptionButton
-                color={theme.red9.val}
+                color="red"
                 Icon={CircleOff}
                 title="Unsubscribe"
                 onPress={() => {
@@ -252,9 +252,9 @@ function SubscriptionOptionButton({
   const theme = useTheme()
   let icon = null
   if (active) {
-    icon = <Check size={20} color={theme.brand4.val} />
+    icon = <Check size={20} color="red" />
   } else if (Icon) {
-    icon = <Icon size={20} color={theme.color.val} />
+    icon = <Icon size={20} color="red" />
   }
   return (
     <Button

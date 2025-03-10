@@ -30,7 +30,7 @@ function DiscussionComments({docId}: {docId: UnpackedHypermediaId}) {
   if (comments.data.length == 0) {
     return (
       <YStack padding="$4" jc="center" ai="center" gap="$4">
-        <EmptyDiscussion color={theme.color6.val} />
+        <EmptyDiscussion color="red" />
         <SizableText color="$color7" fontWeight="500" size="$5">
           There are no active discussions
         </SizableText>

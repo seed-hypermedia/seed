@@ -128,7 +128,7 @@ function ActivityList({docId}: {docId: UnpackedHypermediaId}) {
   if (activityWithGroups.length == 0) {
     return (
       <YStack padding="$4" jc="center" ai="center" gap="$4">
-        <EmptyDiscussion color={theme.color6.val} />
+        <EmptyDiscussion color="red" />
         <SizableText color="$color7" fontWeight="500" size="$5">
           There is no activity yet.
         </SizableText>

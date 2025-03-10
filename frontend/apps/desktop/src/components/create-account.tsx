@@ -60,7 +60,7 @@ export function AccountWizardDialog() {
   // const [error, setError] = useState('')
   const navigate = useNavigate('push')
 
-  const onboardingColor = theme.brand5.val
+  const onboardingColor = 'red'
   const [isSaveWords, setSaveWords] = useState<null | boolean>(true)
   const [isUserSavingWords, setUserSaveWords] = useState<null | boolean>(null)
   const [isExistingWordsSave, setExistingWordsSave] = useState<boolean>(false)

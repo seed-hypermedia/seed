@@ -53,7 +53,7 @@ export function NetworkDialog() {
           />
         ) : (
           <YStack padding="$4" jc="center" ai="center" gap="$4" f={1}>
-            <NoConnection color={theme.color7.val} />
+            <NoConnection color="red" />
             <SizableText color="$color7" fontWeight="500" size="$5">
               there are no active connections
             </SizableText>

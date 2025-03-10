@@ -135,11 +135,6 @@ export function AccessoryLayout<
             <Tooltip key={option.key} placement="left" content={option.label}>
               <Button
                 size="$4"
-                // hoverStyle={{
-                //   backgroundColor: isActive
-                //     ? theme.blue10.val
-                //     : theme.color2.val,
-                // }}
                 onPress={() => {
                   if (isActive) onAccessorySelect(undefined)
                   else onAccessorySelect(option.key)
@@ -154,10 +149,7 @@ export function AccessoryLayout<
                 }}
               >
                 {option.icon ? (
-                  <option.icon
-                    size={28}
-                    color={isActive ? theme.brand5.val : theme.color.val}
-                  />
+                  <option.icon size={28} color={isActive ? 'red' : 'gray'} />
                 ) : null}
               </Button>
             </Tooltip>

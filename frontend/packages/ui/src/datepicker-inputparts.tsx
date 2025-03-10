@@ -248,7 +248,7 @@ export const InputContainerFrame = styled(View, {
   variants: {
     size: {
       '...size': (val, {tokens}) => ({
-        gap: tokens.space[val].val * 0.3,
+        gap: 16,
       }),
     },
     color: {
@@ -281,8 +281,8 @@ export const InputInfo = styled(Text, {
     size: {
       '...fontSize': (val, {font}) => {
         if (!font) return
-        const fontSize = font.size[val].val * 0.8
-        const lineHeight = font.lineHeight?.[val].val * 0.8
+        const fontSize = 12
+        const lineHeight = 1
         const fontWeight = font.weight?.['$2']
         const letterSpacing = font.letterSpacing?.[val]
         const textTransform = font.transform?.[val]

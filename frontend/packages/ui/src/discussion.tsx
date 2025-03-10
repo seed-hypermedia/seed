@@ -278,7 +278,7 @@ function Comment({
               <Button
                 chromeless
                 size="$1"
-                icon={<ReplyArrow color={theme.brand5.val} size={16} />}
+                icon={<ReplyArrow color="red" size={16} />}
                 onPress={() => setIsReplying(true)}
                 color="$brand5"
                 borderColor="$colorTransparent"
