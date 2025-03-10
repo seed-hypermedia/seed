@@ -1,4 +1,5 @@
 import {resolveHmIdToAppRoute} from '@/utils/navigation'
+import type {AppWindowEvent} from '@/utils/window-events'
 
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 
@@ -9,7 +10,6 @@ import {
   ipcMain,
   NativeImage,
   nativeTheme,
-  WebContentsView,
 } from 'electron'
 import {createIPCHandler} from 'electron-trpc/main'
 import {writeFile} from 'fs-extra'
@@ -36,18 +36,15 @@ import {sitesApi} from './app-sites'
 import {t} from './app-trpc'
 import {extractMetaTags, uploadFile, webImportingApi} from './app-web-importing'
 import {welcomingApi} from './app-welcoming'
-import * as log from './logger'
 import {
   closeAppWindow,
   createAppWindow,
-  dispatchFocusedWindowAppEvent,
   ensureFocusedWindowVisible,
   getAllWindows,
   getFocusedWindow,
   getWindowsState,
-} from './window-manager'
-
-export {dispatchFocusedWindowAppEvent} from './window-manager'
+} from './app-windows'
+import * as log from './logger'
 
 ipcMain.on('invalidate_queries', (_event, info) => {
   appInvalidateQueries(info)
@@ -84,9 +81,7 @@ ipcMain.on('find_in_page_query', (_event, _info) => {
 ipcMain.on('find_in_page_cancel', () => {
   let focusedWindow = getFocusedWindow()
   focusedWindow?.webContents?.stopFindInPage('keepSelection')
-  let findInPageView = focusedWindow?.contentView.children[0] as
-    | WebContentsView
-    | undefined
+  let findInPageView = focusedWindow?.getBrowserView()
   if (findInPageView) {
     findInPageView.setBounds({
       ...findInPageView.getBounds(),
@@ -133,6 +128,13 @@ export function openInitialWindows() {
     log.error(`[MAIN]: openInitialWindows Error: ${e.message}`)
     trpc.createAppWindow({routes: [defaultRoute]})
     return
+  }
+}
+
+export function dispatchFocusedWindowAppEvent(event: AppWindowEvent) {
+  const focusedWindow = getFocusedWindow()
+  if (focusedWindow) {
+    focusedWindow.webContents.send('appWindowEvent', event)
   }
 }
 
@@ -261,35 +263,13 @@ export const router = t.router({
           return
         }
       }
-      try {
-        log.info(`[MAIN]: will createAppWindow ${JSON.stringify(input.routes)}`)
-        const allWindows = getWindowsState()
-        log.info(`[MAIN]: current windows state: ${JSON.stringify(allWindows)}`)
+      const browserWindow = createAppWindow(input)
 
-        // Create a new window with a unique ID
-        const browserWindow = createAppWindow({
-          ...input,
-          id:
-            input.id ||
-            `window.${Date.now()}.${Math.random().toString(36).slice(2)}`,
-        })
-        log.info(`[MAIN]: window created with id: ${browserWindow.id}`)
-
-        trpcHandlers.attachWindow(browserWindow)
-        browserWindow.on('close', () => {
-          trpcHandlers.detachWindow(browserWindow)
-        })
-
-        // Return success
-        return {success: true, windowId: browserWindow.id}
-      } catch (error) {
-        log.error(
-          `[MAIN]: Error creating window: ${
-            error instanceof Error ? error.message : 'Unknown error'
-          }`,
-        )
-        throw error
-      }
+      log.info(`== ~ .mutation ~ browserWindow: {browserWindow.id}`)
+      trpcHandlers.attachWindow(browserWindow)
+      browserWindow.on('close', () => {
+        trpcHandlers.detachWindow(browserWindow)
+      })
     }),
 
   webQuery: t.procedure

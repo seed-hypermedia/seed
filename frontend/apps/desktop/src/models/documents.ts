@@ -1,4 +1,4 @@
-import {useAppContext} from '@/app-context'
+import {useAppContext, useGRPCClient} from '@/app-context'
 import {dispatchWizardEvent} from '@/components/create-account'
 import {createHypermediaDocLinkPlugin} from '@/editor'
 import {useBlockNote} from '@/editor/useBlockNote'
@@ -318,6 +318,7 @@ export function usePublishDraft(
     }
   >,
 ) {
+  const grpcClient = useGRPCClient()
   const accts = useMyAccountIds()
   const writeRecentSigner = trpc.recentSigners.writeRecentSigner.useMutation()
   return useMutation<
@@ -436,6 +437,7 @@ export function usePublishDraft(
 }
 
 export function useDocumentRead(id: UnpackedHypermediaId | undefined | false) {
+  const grpcClient = useGRPCClient()
   useEffect(() => {
     if (!id) return
     grpcClient.documents
@@ -455,6 +457,7 @@ export function useDocumentRead(id: UnpackedHypermediaId | undefined | false) {
 }
 
 export function useMarkAsRead() {
+  const grpcClient = useGRPCClient()
   return async (ids: UnpackedHypermediaId[]) => {
     await Promise.all(
       ids.map(async (id) => {
@@ -971,6 +974,8 @@ export function createBlocksMap(
 }
 
 function useGetDoc() {
+  const grpcClient = useGRPCClient()
+
   async function getDoc(id: UnpackedHypermediaId) {
     const path = hmIdPathToEntityQueryPath(id.path)
     const apiDoc = await grpcClient.documents.getDocument({
@@ -987,7 +992,7 @@ function useGetDoc() {
 
 export function usePublishToSite() {
   const connectPeer = useConnectPeer()
-
+  const grpcClient = useGRPCClient()
   const getDoc = useGetDoc()
   return async (
     id: UnpackedHypermediaId,
@@ -1195,6 +1200,7 @@ export function useListDirectory(
 }
 
 export function useListSite(id?: UnpackedHypermediaId) {
+  const grpcClient = useGRPCClient()
   return useQuery({
     queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.uid, 'ALL'],
     queryFn: async () => {
@@ -1515,6 +1521,7 @@ function observeBlocks(
 }
 
 export function useAccountDocuments(id?: UnpackedHypermediaId) {
+  const grpcClient = useGRPCClient()
   return useQuery({
     queryKey: [queryKeys.ACCOUNT_DOCUMENTS, id?.uid],
     enabled: !!id?.uid,
@@ -1539,6 +1546,8 @@ export function useAccountDocuments(id?: UnpackedHypermediaId) {
 }
 
 export function useListProfileDocuments() {
+  const grpcClient = useGRPCClient()
+
   return useQuery({
     queryFn: async () => {
       const res = await grpcClient.documents.listRootDocuments({

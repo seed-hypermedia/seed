@@ -1,4 +1,4 @@
-import {grpcClient} from '@/grpc-client'
+import {useGRPCClient} from '@/app-context'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {BIG_INT} from '@shm/shared/constants'
 import {
@@ -185,6 +185,7 @@ export function useLibrary({
 }
 
 function useAllDocuments(enabled: boolean) {
+  const grpcClient = useGRPCClient()
   const allDocuments = useQuery({
     queryKey: [queryKeys.LIBRARY],
     enabled,
@@ -206,6 +207,7 @@ function useAllDocuments(enabled: boolean) {
 }
 
 export function useSiteLibrary(siteUid: string, enabled: boolean) {
+  const grpcClient = useGRPCClient()
   const siteDocuments = useQuery({
     queryKey: [queryKeys.SITE_LIBRARY, siteUid],
     enabled,

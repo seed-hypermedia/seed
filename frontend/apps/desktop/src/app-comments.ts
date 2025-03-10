@@ -1,6 +1,6 @@
 import {HMCommentDraft} from '@shm/shared/hm-types'
 import z from 'zod'
-import {commentDraftStore} from './app-store.mts'
+import {commentDraftStore} from './app-store'
 import {t} from './app-trpc'
 
 function getCommentStoreId(targetDocId: string, replyCommentId?: string) {

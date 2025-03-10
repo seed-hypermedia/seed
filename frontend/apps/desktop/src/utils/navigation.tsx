@@ -1,4 +1,3 @@
-import {grpcClient} from '@/grpc-client'
 import {GRPCClient} from '@shm/shared/grpc-client'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {defaultRoute, NavRoute} from '@shm/shared/routes'
@@ -6,6 +5,7 @@ import {StateStream} from '@shm/shared/utils/stream'
 import {useStream, useStreamSelector} from '@shm/ui/use-stream'
 import {Buffer} from 'buffer'
 import {createContext, useContext} from 'react'
+import {useGRPCClient} from '../app-context'
 
 global.Buffer = global.Buffer || Buffer
 
@@ -197,6 +197,7 @@ export function isHttpUrl(url: string) {
 }
 
 export function useHmIdToAppRouteResolver() {
+  const grpcClient = useGRPCClient()
   return (
     id: UnpackedHypermediaId,
   ): Promise<null | (UnpackedHypermediaId & {navRoute?: NavRoute})> => {

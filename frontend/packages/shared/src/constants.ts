@@ -49,13 +49,11 @@ export const COMMIT_HASH =
   'LOCAL_abcdefghijklmnopqrst0123456789qwertyuiopasdfghjklzxcvbnm'
 
 // this is injected by Vite, so it indicates if we are in the production build of the DESKTOP app
-
 export const IS_PROD_DESKTOP =
   !!(import.meta.env && import.meta.env.PROD) ||
   process.env.NODE_ENV === 'production'
 
-export const IS_PROD_DEV = IS_PROD_DESKTOP && VERSION?.includes('-dev')
-export const IS_TEST = process.env.NODE_ENV == 'test'
+export const IS_PROD_DEV = VERSION?.includes('-dev')
 
 export const DAEMON_HTTP_URL =
   process.env.DAEMON_HTTP_URL ||

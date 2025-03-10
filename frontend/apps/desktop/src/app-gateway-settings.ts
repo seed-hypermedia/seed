@@ -1,6 +1,6 @@
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import z from 'zod'
-import {appStore} from './app-store.mts'
+import {appStore} from './app-store'
 import {t} from './app-trpc'
 
 const GATEWAY_URL_KEY = 'GatewayUrl'

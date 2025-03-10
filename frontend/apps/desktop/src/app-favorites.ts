@@ -1,5 +1,5 @@
 import z from 'zod'
-import {appStore} from './app-store.mts'
+import {appStore} from './app-store'
 import {t} from './app-trpc'
 
 const FAVORITES_STORAGE_KEY = 'Favorites-v001'

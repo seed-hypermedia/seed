@@ -54,7 +54,6 @@ export default function ContactsPage() {
             {accounts.data?.accounts.length ? (
               accounts.data.accounts.map((account) => (
                 <ContactListItem
-                  key={account.id}
                   account={account}
                   accountsMetadata={accounts.data.accountsMetadata}
                 />

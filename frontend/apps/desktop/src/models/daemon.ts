@@ -1,4 +1,4 @@
-import {grpcClient} from '@/grpc-client'
+import {useGRPCClient} from '@/app-context'
 import {trpc} from '@/trpc'
 import {Code, ConnectError} from '@connectrpc/connect'
 import {
@@ -18,7 +18,6 @@ import {
   useQuery,
   UseQueryOptions,
 } from '@tanstack/react-query'
-import {useEffect, useState} from 'react'
 
 export type NamedKey = {
   name: string
@@ -48,12 +47,14 @@ function queryDaemonInfo(
   }
 }
 export function useDaemonInfo(opts: UseQueryOptions<Info | null> = {}) {
+  const grpcClient = useGRPCClient()
   return useQuery(queryDaemonInfo(grpcClient, opts))
 }
 
 export function useMnemonics(
   opts?: UseQueryOptions<GenMnemonicResponse['mnemonic']>,
 ) {
+  const grpcClient = useGRPCClient()
   return useQuery({
     queryKey: [queryKeys.GENERATE_MNEMONIC],
     queryFn: async () => {
@@ -69,6 +70,7 @@ export function useMnemonics(
 export function useAccountRegistration(
   opts?: UseMutationOptions<void, unknown, string[]>,
 ) {
+  const grpcClient = useGRPCClient()
   return useMutation({
     mutationFn: async (words: string[]) => {
       await grpcClient.daemon.registerKey({mnemonic: words})
@@ -78,11 +80,12 @@ export function useAccountRegistration(
 }
 
 export function useMyAccountIds() {
+  const client = useGRPCClient()
   return useQuery({
     queryKey: [queryKeys.LOCAL_ACCOUNT_ID_LIST],
     queryFn: async () => {
       try {
-        const q = await grpcClient.daemon.listKeys({})
+        const q = await client.daemon.listKeys({})
         return [...q?.keys]
           .sort((a, b) => {
             // alphabetical based on public key:
@@ -108,33 +111,6 @@ export function useMyAccounts() {
   return useEntities(data?.map((k) => hmId('d', k)))
 }
 
-/**
- * Returns a list of keys from the daemon.
- * This is a hook that is used to list keys from the daemon.
- * It is used to check if the user has any accounts.
- * If the user has no accounts, it will show the onboarding screen.
- * If the user has accounts, it will show the main app.
- *
- * @returns
- */
-export function useListKeys() {
-  const [keys, setKeys] = useState<NamedKey[]>([])
-  useEffect(() => {
-    keys()
-
-    async function keys() {
-      try {
-        const q = await grpcClient.daemon.listKeys({})
-        setKeys([...q?.keys])
-      } catch (e) {
-        console.error('Failed to list keys', e)
-      }
-    }
-  }, [])
-
-  return keys
-}
-
 export function useRegisterKey(
   opts?: UseMutationOptions<
     NamedKey,
@@ -146,6 +122,7 @@ export function useRegisterKey(
     }
   >,
 ) {
+  const grpcClient = useGRPCClient()
   return useMutation({
     mutationFn: async ({name = 'main', mnemonic, passphrase}) => {
       const registration = await grpcClient.daemon.registerKey({
@@ -174,6 +151,7 @@ export function useRegisterKey(
 export function useDeleteKey(
   opts?: UseMutationOptions<any, unknown, {accountId: string}>,
 ) {
+  const grpcClient = useGRPCClient()
   const deleteWords = trpc.secureStorage.delete.useMutation()
   return useMutation({
     mutationFn: async ({accountId}) => {
@@ -183,7 +161,7 @@ export function useDeleteKey(
       const deletedKey = await grpcClient.daemon.deleteKey({
         name: keyToDelete.name,
       })
-      await deleteWords.mutateAsync(keyToDelete.name)
+      const words = await deleteWords.mutateAsync(keyToDelete.name)
       return deletedKey
     },
     onSuccess: () => {

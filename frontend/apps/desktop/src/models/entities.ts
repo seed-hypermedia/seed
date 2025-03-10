@@ -14,6 +14,7 @@ import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {useMutation, UseMutationOptions, useQuery} from '@tanstack/react-query'
 import {useEffect, useMemo} from 'react'
+import {useGRPCClient} from '../app-context'
 import {queryListDirectory} from './documents'
 import {useDeleteRecent} from './recents'
 
@@ -27,6 +28,7 @@ export function useDeleteEntities(
   opts: UseMutationOptions<void, unknown, DeleteEntitiesInput>,
 ) {
   const deleteRecent = useDeleteRecent()
+  const grpcClient = useGRPCClient()
   return useMutation({
     ...opts,
     mutationFn: async ({
@@ -55,6 +57,7 @@ export function useDeleteEntities(
 }
 
 export function useDeletedContent() {
+  const grpcClient = useGRPCClient()
   return useQuery({
     queryFn: async () => {
       const deleted = (
@@ -70,7 +73,7 @@ export function useUndeleteEntity(
   opts?: UseMutationOptions<void, unknown, {id: string}>,
 ) {
   const deleteRecent = useDeleteRecent()
-
+  const grpcClient = useGRPCClient()
   return useMutation({
     ...opts,
     mutationFn: async ({id}: {id: string}) => {

@@ -1,4 +1,4 @@
-import {grpcClient} from '@/grpc-client'
+import {useGRPCClient} from '@/app-context'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {Subscription} from '@shm/shared/client/.generated/activity/v1alpha/subscriptions_pb'
 import {BIG_INT} from '@shm/shared/constants'
@@ -59,6 +59,7 @@ export function useSubscription(id: UnpackedHypermediaId) {
 }
 
 export function useListSubscriptions() {
+  const grpcClient = useGRPCClient()
   return useQuery({
     queryKey: [queryKeys.SUBSCRIPTIONS],
     queryFn: async () => {
@@ -76,6 +77,7 @@ export function useListSubscriptions() {
 }
 
 export function useSetSubscription() {
+  const grpcClient = useGRPCClient()
   return useMutation({
     mutationFn: async (input: {
       subscribed: boolean

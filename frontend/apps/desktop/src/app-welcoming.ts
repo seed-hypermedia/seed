@@ -1,5 +1,5 @@
+import {appStore} from './app-store'
 import z from 'zod'
-import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
 
 export const welcomingApi = t.router({

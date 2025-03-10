@@ -1,4 +1,4 @@
-import {grpcClient} from '@/grpc-client'
+import {useGRPCClient} from '@/app-context'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {BIG_INT} from '@shm/shared/constants'
 import {
@@ -13,6 +13,7 @@ import {useQuery} from '@tanstack/react-query'
 import {useDraft} from './accounts'
 
 export function useDocumentPublishedChanges(id: UnpackedHypermediaId) {
+  const grpcClient = useGRPCClient()
   const entity = useEntity({...id, version: null})
   const version = entity.data?.document?.version
   const path = hmIdPathToEntityQueryPath(id.path)

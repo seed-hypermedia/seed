@@ -1,14 +1,15 @@
-import {grpcClient} from '@/grpc-client'
 import {GRPCClient} from '@shm/shared/grpc-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {UnpackedHypermediaId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useQuery} from '@tanstack/react-query'
+import {useGRPCClient} from '../app-context'
 
 export type CitationLink = Awaited<
   ReturnType<GRPCClient['entities']['listEntityMentions']>
 >
 
 export function useEntityMentions(entityId?: UnpackedHypermediaId) {
+  const grpcClient = useGRPCClient()
   return useQuery({
     queryFn: async () => {
       return {

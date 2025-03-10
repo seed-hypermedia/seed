@@ -48,12 +48,6 @@ export function NavigationContainer({
     return navigation.state.subscribe(() => {
       const state = navigation.state.get()
       send('windowNavState', state)
-      // Emit route change event to main process
-      send('routeChange', {
-        routes: state.routes,
-        routeIndex: state.routeIndex,
-        sidebarLocked: state.sidebarLocked,
-      })
     })
   }, [navigation, send])
 

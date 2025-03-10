@@ -63,6 +63,13 @@ export function useAppContext() {
   return context
 }
 
+export function useGRPCClient(): GRPCClient {
+  const context = useContext(AppContext)
+  if (!context)
+    throw new Error('useGRPCClient must be used within a AppContextProvider')
+  return context.grpcClient
+}
+
 export function useIPC(): AppIPC {
   const context = useContext(AppContext)
   if (!context)

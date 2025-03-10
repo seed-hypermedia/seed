@@ -1,4 +1,4 @@
-import {grpcClient} from '@/grpc-client'
+import {useGRPCClient} from '@/app-context'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -6,6 +6,7 @@ import {useMutation, useQuery} from '@tanstack/react-query'
 import {useEffect, useRef, useState} from 'react'
 
 export function useCreateWallet() {
+  const grpcClient = useGRPCClient()
   return useMutation({
     mutationFn: async (input: {accountUid: string}) => {
       await grpcClient.wallets.createWallet({
@@ -19,6 +20,7 @@ export function useCreateWallet() {
 }
 
 export function useListWallets(accountUid: string) {
+  const grpcClient = useGRPCClient()
   return useQuery({
     queryKey: [queryKeys.ACCOUNT_WALLETS, accountUid],
     queryFn: async () => {
@@ -32,6 +34,7 @@ export function useListWallets(accountUid: string) {
 }
 
 export function useDeleteWallet() {
+  const grpcClient = useGRPCClient()
   return useMutation({
     mutationFn: async (input: {walletId: string; accountUid: string}) => {
       await grpcClient.wallets.removeWallet({
@@ -45,6 +48,7 @@ export function useDeleteWallet() {
 }
 
 export function useDecodedInvoice(payreq: string) {
+  const grpcClient = useGRPCClient()
   const [invoice, setInvoice] = useState<HMInvoice | null>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   useEffect(() => {
@@ -78,6 +82,7 @@ export function useDecodedInvoice(payreq: string) {
 }
 
 export function useListInvoices(walletId: string) {
+  const grpcClient = useGRPCClient()
   return useQuery({
     queryKey: [queryKeys.INVOICES, walletId],
     useErrorBoundary: false,
@@ -104,6 +109,7 @@ export function useListInvoices(walletId: string) {
 }
 
 export function useExportWallet(walletId: string) {
+  const grpcClient = useGRPCClient()
   return useMutation({
     mutationFn: async () => {
       const result = await grpcClient.wallets.exportWallet({
@@ -116,6 +122,7 @@ export function useExportWallet(walletId: string) {
 }
 
 export function useCreateLocalInvoice() {
+  const grpcClient = useGRPCClient()
   return useMutation({
     mutationFn: async ({
       walletId,
@@ -147,6 +154,7 @@ export function useCreateLocalInvoice() {
 }
 
 export function usePayInvoice() {
+  const grpcClient = useGRPCClient()
   return useMutation({
     mutationFn: async (input: {
       walletId: string
@@ -167,6 +175,7 @@ export function usePayInvoice() {
 }
 
 export function useWallet(walletId: string) {
+  const grpcClient = useGRPCClient()
   return useQuery({
     queryKey: [queryKeys.WALLETS, walletId],
     keepPreviousData: false,

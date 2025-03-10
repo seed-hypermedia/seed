@@ -14,17 +14,13 @@ export function ImageForm({
   onImageUpload,
   onRemove,
   emptyLabel,
-  uploadOnChange = true,
-  height,
   ...props
 }: {
   label?: string
   emptyLabel?: string
   id?: string
   url?: string
-  uploadOnChange?: boolean
-  height?: number
-  onImageUpload?: (avatar: string | File) => Awaited<void>
+  onImageUpload?: (avatar: string) => Awaited<void>
   onRemove?: () => void
 }) {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -33,43 +29,21 @@ export function ImageForm({
     const file = fileList?.[0]
     if (!file) return
     if (!onImageUpload) return
-
-    if (uploadOnChange) {
-      fileUpload(file)
-        .then((data) => {
-          onImageUpload(data)
-        })
-        .catch((error) => {
-          appError(`Failed to upload icon: ${error.message}`, {error})
-        })
-        .finally(() => {
-          event.target.value = ''
-        })
-    } else {
-      // Just call onImageUpload with the file directly to handle it at the parent level
-      onImageUpload(file)
-    }
+    fileUpload(file)
+      .then((data) => {
+        onImageUpload(data)
+      })
+      .catch((error) => {
+        appError(`Failed to upload icon: ${error.message}`, {error})
+      })
+      .finally(() => {
+        event.target.value = ''
+      })
   }
 
   const image = (
-    <View
-      backgroundColor="$color7"
-      borderRadius="$4"
-      flex={1}
-      overflow="hidden"
-    >
-      <img
-        src={url}
-        key={url}
-        style={{
-          width: '100%',
-          height: '100%',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          objectFit: 'cover',
-        }}
-      />
+    <View backgroundColor="$color7" borderRadius="$4" flex={1}>
+      <img src={url} key={url} />
     </View>
   )
   if (!onImageUpload) return image
@@ -80,9 +54,10 @@ export function ImageForm({
         {...props}
         group="icon"
         overflow="hidden"
-        minHeight={height || 60}
+        minHeight={60}
         alignSelf="stretch"
         flex={1}
+        {...props}
       >
         <input
           type="file"
@@ -100,7 +75,7 @@ export function ImageForm({
         />
         {emptyLabel && !url ? (
           <XStack
-            bg="rgba(233,233,233,0.3)"
+            bg="rgba(0,0,0,0.3)"
             position="absolute"
             gap="$2"
             zi="$zIndex.5"
@@ -112,13 +87,13 @@ export function ImageForm({
             jc="center"
             pointerEvents="none"
           >
-            <SizableText textAlign="center" size="$1">
+            <SizableText textAlign="center" size="$1" color="white">
               {emptyLabel}
             </SizableText>
           </XStack>
         ) : null}
         <XStack
-          bg="rgba(233,233,233,0.3)"
+          bg="rgba(0,0,0,0.3)"
           position="absolute"
           gap="$2"
           zi="$zIndex.5"
@@ -140,9 +115,6 @@ export function ImageForm({
       {onRemove && url ? (
         <Tooltip content="Remove Image">
           <Button
-            position="absolute"
-            right={0}
-            top={0}
             opacity={0}
             theme="red"
             $group-icon-hover={{opacity: 1, pointerEvents: 'all'}}

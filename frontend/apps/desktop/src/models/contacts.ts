@@ -1,10 +1,10 @@
-import {grpcClient} from '@/grpc-client'
 import {useAccount_deprecated} from '@/models/accounts'
 import {client} from '@/trpc'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {fullInvalidate, queryKeys} from '@shm/shared/models/query-keys'
 import {UseMutationOptions, useMutation} from '@tanstack/react-query'
 import {decompressFromEncodedURIComponent} from 'lz-string'
+import {useGRPCClient} from '../app-context'
 import {useDaemonInfo} from './daemon'
 import {useConnectedPeers} from './networking'
 
@@ -51,6 +51,7 @@ export function useConnectPeer(
     aggressiveInvalidation?: boolean
   } = {},
 ) {
+  const grpcClient = useGRPCClient()
   return useMutation<undefined, void, string | undefined>({
     mutationFn: async (peer: string | undefined) => {
       if (!peer) return undefined

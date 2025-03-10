@@ -1,5 +1,4 @@
-import {useAppContext} from '@/app-context'
-import {grpcClient} from '@/grpc-client'
+import {useAppContext, useGRPCClient} from '@/app-context'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
@@ -14,6 +13,7 @@ import {SizableText, YStack} from 'tamagui'
 export function useExportDocuments() {
   const {exportDocuments, openDirectory} = useAppContext()
 
+  const grpcClient = useGRPCClient()
   return async (docIds: string[]) => {
     if (docIds.length == 0) {
       toast.error('No documents selected')

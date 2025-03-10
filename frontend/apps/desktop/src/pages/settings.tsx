@@ -1,6 +1,8 @@
+import {useIPC} from '@/app-context'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {IconForm} from '@/components/icon-form'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
+import {useAutoUpdatePreference} from '@/models/app-settings'
 import {
   useDaemonInfo,
   useDeleteKey,
@@ -8,6 +10,16 @@ import {
   useSavedMnemonics,
 } from '@/models/daemon'
 import {useExperiments, useWriteExperiments} from '@/models/experiments'
+import {
+  useGatewayUrl,
+  usePushOnCopy,
+  usePushOnPublish,
+  useSetGatewayUrl,
+  useSetPushOnCopy,
+  useSetPushOnPublish,
+} from '@/models/gateway-settings'
+import {usePeerInfo} from '@/models/networking'
+import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
 import {getMetadataName} from '@shm/shared/content'
@@ -20,6 +32,20 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {Check, Copy, ExternalLink, Pencil} from '@shm/ui/icons'
 import {InfoListHeader, InfoListItem, TableList} from '@shm/ui/table-list'
 import {toast} from '@shm/ui/toast'
+import {
+  AtSign,
+  Code2,
+  Eye,
+  EyeOff,
+  Info,
+  Plus,
+  RadioTower,
+  Trash,
+  UserRoundPlus,
+} from '@tamagui/lucide-icons'
+import copyTextToClipboard from 'copy-text-to-clipboard'
+import {useEffect, useId, useMemo, useState} from 'react'
+import {dispatchWizardEvent} from 'src/components/create-account'
 import {
   AlertDialog,
   Button,
@@ -44,33 +70,6 @@ import {
   XStack,
   YStack,
 } from 'tamagui'
-
-import {useIPC} from '@/app-context'
-import {useAutoUpdatePreference} from '@/models/app-settings'
-import {
-  useGatewayUrl,
-  usePushOnCopy,
-  usePushOnPublish,
-  useSetGatewayUrl,
-  useSetPushOnCopy,
-  useSetPushOnPublish,
-} from '@/models/gateway-settings'
-import {usePeerInfo} from '@/models/networking'
-import {useOpenUrl} from '@/open-url'
-import {
-  AtSign,
-  Code2,
-  Eye,
-  EyeOff,
-  Info,
-  Plus,
-  RadioTower,
-  Trash,
-  UserRoundPlus,
-} from '@tamagui/lucide-icons'
-import copyTextToClipboard from 'copy-text-to-clipboard'
-import {useEffect, useId, useMemo, useState} from 'react'
-import {dispatchWizardEvent} from 'src/components/create-account'
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('accounts')

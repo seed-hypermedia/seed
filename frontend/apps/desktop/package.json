@@ -16,8 +16,8 @@
   "main": ".vite/build/main.js",
   "scripts": {
     "dev": "electron-forge start",
-    "dev:debug": "ELECTRON_ENABLE_LOGGING=true electron-forge start -- --remote-debugging-port=9222",
-    "format": "echo TODO",
+    "format:check": "prettier --check .",
+    "format:write": "prettier --write .",
     "make": "electron-forge make",
     "package": "electron-forge package",
     "publish": "electron-forge publish",
@@ -28,9 +28,7 @@
     "package:test": "NODE_ENV=test VITE_DESKTOP_P2P_PORT=5800 VITE_DESKTOP_HTTP_PORT=58001 VITE_DESKTOP_GRPC_PORT=58002 VITE_DESKTOP_APPDATA=appData.test.local yarn package",
     "e2e": "NODE_ENV=test npx playwright test --project=e2e",
     "e2e:debug": "NODE_ENV=test PWDEBUG=1 yarn e2e",
-    "e2e:report": "NODE_ENV=test npx playwright show-report",
-    "format:check": "prettier --check .",
-    "format:write": "prettier --write ."
+    "e2e:report": "NODE_ENV=test npx playwright show-report"
   },
   "dependencies": {
     "@ariakit/react": "0.3.5",

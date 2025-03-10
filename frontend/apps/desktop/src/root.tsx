@@ -3,7 +3,8 @@ import {AppIPC} from '@/app-ipc'
 import {WindowUtils} from '@/models/window-utils'
 import {NavigationContainer} from '@/utils/navigation-container'
 import {useListenAppEvent} from '@/utils/window-events'
-import {queryClient} from '@shm/shared/models/query-client'
+import type {Interceptor} from '@connectrpc/connect'
+
 import type {StateStream} from '@shm/shared/utils/stream'
 import {Spinner} from '@shm/ui/spinner'
 import {toast, Toaster} from '@shm/ui/toast'
@@ -11,22 +12,16 @@ import {useStream} from '@shm/ui/use-stream'
 import '@tamagui/core/reset.css'
 import '@tamagui/font-inter/css/400.css'
 import '@tamagui/font-inter/css/700.css'
-import {
-  onlineManager,
-  QueryClientProvider,
-  QueryKey,
-} from '@tanstack/react-query'
+import {onlineManager, QueryKey} from '@tanstack/react-query'
 import copyTextToClipboard from 'copy-text-to-clipboard'
 import {ipcLink} from 'electron-trpc/renderer'
 import React, {Suspense, useEffect, useMemo, useState} from 'react'
 import ReactDOM from 'react-dom/client'
 import {ErrorBoundary} from 'react-error-boundary'
 import superjson from 'superjson'
-import {Button, SizableText, XStack, YStack} from 'tamagui'
-import {getOnboardingState, resetOnboardingState} from './app-onboarding'
+import {SizableText, YStack} from 'tamagui'
 import {AppErrorContent, RootAppError} from './components/app-error'
 import {AccountWizardDialog} from './components/create-account'
-import {Onboarding, OnboardingDebugBox} from './components/Onboarding'
 import type {GoDaemonState} from './daemon'
 import {grpcClient} from './grpc-client'
 import {ipc} from './ipc'
@@ -35,11 +30,10 @@ import type {AppInfoType} from './preload'
 import './root.css'
 import {client, trpc} from './trpc'
 
-import {useListKeys} from '@/models/daemon'
-import {UniversalAppProvider} from '@shm/shared'
 import {
   onQueryCacheError,
   onQueryInvalidation,
+  queryClient,
 } from '@shm/shared/models/query-client'
 import {labelOfQueryKey} from '@shm/shared/models/query-keys'
 import * as entities from './models/entities'
@@ -81,36 +75,36 @@ const hiddenLogMessages = new Set<string>([
   'Daemon.GetInfo',
   'Networking.GetPeerInfo',
 ])
-// const loggingInterceptor: Interceptor = (next) => async (req) => {
-//   const serviceLabel = req.service.typeName.split('.').at(-1)
-//   const methodFullname = `${serviceLabel}.${req.method.name}`
-//   const isSensitive = securitySensitiveMethods.has(methodFullname)
-//   try {
-//     const result = await next(req)
-//     if (
-//       enabledLogMessages.has(methodFullname) &&
-//       !hiddenLogMessages.has(methodFullname)
-//     ) {
-//       const request = req.message
-//       const response = result?.message
-//       logger.log(`🔃 to ${methodFullname}`, request, response)
-//     } else if (!hiddenLogMessages.has(methodFullname)) {
-//       logger.log(`🔃 to ${methodFullname}`)
-//     }
-//     return result
-//   } catch (e) {
-//     let error = e
-//     if (e.message.match('stream.getReader is not a function')) {
-//       error = new Error('RPC broken, try running yarn and ./dev gen')
-//     }
-//     if (isSensitive) {
-//       logger.error(`🚨 to ${methodFullname} `, 'HIDDEN FROM LOGS', error)
-//       throw error
-//     }
-//     logger.error(`🚨 to ${methodFullname} `, req.message, error)
-//     throw error
-//   }
-// }
+const loggingInterceptor: Interceptor = (next) => async (req) => {
+  const serviceLabel = req.service.typeName.split('.').at(-1)
+  const methodFullname = `${serviceLabel}.${req.method.name}`
+  const isSensitive = securitySensitiveMethods.has(methodFullname)
+  try {
+    const result = await next(req)
+    if (
+      enabledLogMessages.has(methodFullname) &&
+      !hiddenLogMessages.has(methodFullname)
+    ) {
+      const request = req.message
+      const response = result?.message
+      logger.log(`🔃 to ${methodFullname}`, request, response)
+    } else if (!hiddenLogMessages.has(methodFullname)) {
+      logger.log(`🔃 to ${methodFullname}`)
+    }
+    return result
+  } catch (e) {
+    let error = e
+    if (e.message.match('stream.getReader is not a function')) {
+      error = new Error('RPC broken, try running yarn and ./dev gen')
+    }
+    if (isSensitive) {
+      logger.error(`🚨 to ${methodFullname} `, 'HIDDEN FROM LOGS', error)
+      throw error
+    }
+    logger.error(`🚨 to ${methodFullname} `, req.message, error)
+    throw error
+  }
+}
 
 function useWindowUtils(ipc: AppIPC): WindowUtils {
   // const win = getCurrent()
@@ -200,72 +194,10 @@ onQueryCacheError((error, query) => {
 })
 
 function MainApp({}: {}) {
-  // Make window visible immediately - this should be the very first thing
-  useEffect(() => {
-    console.log('Making window visible immediately')
-    // @ts-expect-error
-    window.windowIsReady()
-  }, [])
-
   const darkMode = useStream<boolean>(window.darkMode)
   const daemonState = useGoDaemonState()
   const windowUtils = useWindowUtils(ipc)
-  const utils = trpc.useUtils
-  const keys = useListKeys()
-
-  // Add loading state to prevent flashing onboarding during reload
-  const [isInitializing, setIsInitializing] = useState(true)
-
-  // Initialize showOnboarding state with all checks to avoid flashing
-  const [showOnboarding, setShowOnboarding] = useState(() => {
-    // Default to false until we can properly determine state
-    if (keys === undefined) return false
-
-    const {hasCompletedOnboarding, hasSkippedOnboarding} = getOnboardingState()
-    const hasAccounts = keys?.length > 0
-    // Don't show onboarding if it's already completed, skipped, or if there are accounts
-    const shouldShowOnboarding =
-      !hasCompletedOnboarding && !hasSkippedOnboarding && !hasAccounts
-    console.log('Initial onboarding state:', {
-      hasCompletedOnboarding,
-      hasSkippedOnboarding,
-      hasAccounts,
-      shouldShowOnboarding,
-    })
-    return shouldShowOnboarding
-  })
-
-  // Update onboarding state once keys data is available
-  useEffect(() => {
-    if (keys !== undefined && isInitializing) {
-      const {hasCompletedOnboarding, hasSkippedOnboarding} =
-        getOnboardingState()
-      const hasAccounts = keys.length > 0
-      const shouldShowOnboarding =
-        !hasCompletedOnboarding && !hasSkippedOnboarding && !hasAccounts
-      console.log('Updated onboarding state:', {
-        hasCompletedOnboarding,
-        hasSkippedOnboarding,
-        hasAccounts,
-        shouldShowOnboarding,
-      })
-      setShowOnboarding(shouldShowOnboarding)
-    }
-  }, [keys, isInitializing])
-
-  // Handle initial app rendering
-  useEffect(() => {
-    // Only finish initialization when keys data is available
-    if (keys !== undefined) {
-      console.log('Keys data loaded, finishing initialization')
-      // Brief delay to ensure all data is processed
-      const timer = setTimeout(() => {
-        setIsInitializing(false)
-      }, 100)
-
-      return () => clearTimeout(timer)
-    }
-  }, [keys])
+  const utils = trpc.useContext()
 
   useListenAppEvent('trigger_peer_sync', () => {
     grpcClient.daemon
@@ -279,79 +211,37 @@ function MainApp({}: {}) {
       })
   })
 
-  // Check for changes to accounts and onboarding state
   useEffect(() => {
-    // Skip if we're not showing onboarding or still initializing
-    if (!showOnboarding || isInitializing) return
-
-    const checkForTransition = () => {
-      const {hasCompletedOnboarding, hasSkippedOnboarding} =
-        getOnboardingState()
-      const hasAccounts = keys?.length > 0
-
-      if (hasCompletedOnboarding || hasSkippedOnboarding || hasAccounts) {
-        console.log('Transitioning to main app')
-        setShowOnboarding(false)
-        return true
-      }
-      return false
-    }
-
-    // Immediately check for transition
-    if (checkForTransition()) return
-
-    // Continue checking periodically if needed
-    const interval = setInterval(checkForTransition, 1000)
-    return () => clearInterval(interval)
-  }, [keys, showOnboarding, isInitializing])
-
-  useEffect(() => {
-    if (showOnboarding) return
-
     const sub = client.queryInvalidation.subscribe(undefined, {
       // called when invalidation happens in any window (including this one), here we are performing the local invalidation
       onData: (value: unknown[]) => {
         if (!value) return
         if (value[0] === 'trpc.experiments.get') {
-          // @ts-expect-error
           utils.experiments.get.invalidate()
         } else if (value[0] === 'trpc.favorites.get') {
-          // @ts-expect-error
           utils.favorites.get.invalidate()
         } else if (value[0] === 'trpc.recentSigners.get') {
-          // @ts-expect-error
           utils.recentSigners.get.invalidate()
         } else if (value[0] === 'trpc.comments.getCommentDraft') {
-          // @ts-expect-error
           utils.comments.getCommentDraft.invalidate()
         } else if (value[0] === 'trpc.gatewaySettings.getGatewayUrl') {
-          // @ts-expect-error
           utils.gatewaySettings.getGatewayUrl.invalidate()
         } else if (value[0] === 'trpc.gatewaySettings.getPushOnCopy') {
-          // @ts-expect-error
           utils.gatewaySettings.getPushOnCopy.invalidate()
         } else if (value[0] === 'trpc.gatewaySettings.getPushOnPublish') {
-          // @ts-expect-error
           utils.gatewaySettings.getPushOnPublish.invalidate()
         } else if (value[0] === 'trpc.recents.getRecents') {
-          // @ts-expect-error
           utils.recents.getRecents.invalidate()
         } else if (value[0] === 'trpc.appSettings.getAutoUpdatePreference') {
-          // @ts-expect-error
           utils.appSettings.getAutoUpdatePreference.invalidate()
         } else if (value[0] == 'trpc.drafts.get') {
-          // @ts-expect-error
           utils.drafts.get.invalidate(value[1] as string | undefined)
         } else if (value[0] == 'trpc.drafts.list') {
-          // @ts-expect-error
           utils.drafts.list.invalidate()
         } else if (value[0] == 'trpc.drafts.listAccount') {
-          // @ts-expect-error
           utils.drafts.listAccount.invalidate()
         } else if (value[0] == 'trpc.secureStorage.get') {
-          // @ts-expect-error
           utils.secureStorage.invalidate()
-          // @ts-expect-error
           utils.secureStorage.read.invalidate()
         } else {
           queryClient.invalidateQueries(value)
@@ -361,7 +251,7 @@ function MainApp({}: {}) {
     return () => {
       sub.unsubscribe()
     }
-  }, [utils, showOnboarding])
+  }, [utils])
 
   // const openMarkdownFiles = () => {
   //   // @ts-ignore
@@ -377,143 +267,98 @@ function MainApp({}: {}) {
   //   return window.docImport.readMediaFile(filePath)
   // }
 
-  if (daemonState?.t == 'ready') {
-    // Show loading state during initialization to prevent flashing
-    if (isInitializing) {
-      return (
-        <UniversalAppProvider
-          openUrl={async (url: string) => {
-            ipc.send?.('open-external-link', url)
-          }}
-          openRoute={() => {}}
-        >
-          <QueryClientProvider client={queryClient}>
-            <StyleProvider darkMode={darkMode!}>
-              <YStack
-                flex={1}
-                alignItems="center"
-                justifyContent="center"
-                backgroundColor="$background"
-              >
-                <SpinnerWithText message="Starting app..." />
-              </YStack>
-            </StyleProvider>
-          </QueryClientProvider>
-          <Toaster />
-        </UniversalAppProvider>
-      )
-    }
+  useEffect(() => {
+    // @ts-expect-error
+    window.windowIsReady()
+  }, [])
 
-    if (showOnboarding) {
-      return (
-        <UniversalAppProvider
-          openUrl={async (url: string) => {
-            ipc.send?.('open-external-link', url)
-          }}
-          openRoute={() => {}}
-        >
-          <QueryClientProvider client={queryClient}>
-            <StyleProvider darkMode={darkMode!}>
-              <Onboarding onComplete={() => setShowOnboarding(false)} />
-              <OnboardingDebugBox />
-              <ResetOnboardingButton />
-            </StyleProvider>
-          </QueryClientProvider>
-          <Toaster
-          // position="bottom-center"
-          // toastOptions={{className: 'toaster'}}
-          />
-        </UniversalAppProvider>
-      )
-    } else {
-      return (
-        <AppContextProvider
-          grpcClient={grpcClient}
-          platform={appInfo.platform()}
-          ipc={ipc}
-          externalOpen={async (url: string) => {
-            ipc.send?.('open-external-link', url)
-          }}
-          openDirectory={async (directory: string) => {
-            ipc.send?.('open-directory', directory)
-          }}
-          saveCidAsFile={async (cid: string, name: string) => {
-            ipc.send?.('save-file', {cid, name})
-          }}
-          openMarkdownFiles={(accountId: string) => {
-            // @ts-ignore
-            return window.docImport.openMarkdownFiles(accountId)
-          }}
-          openMarkdownDirectories={(accountId: string) => {
-            // @ts-ignore
-            return window.docImport.openMarkdownDirectories(accountId)
-          }}
-          readMediaFile={(filePath: string) => {
-            // @ts-ignore
-            return window.docImport.readMediaFile(filePath)
-          }}
-          exportDocument={async (
-            title: string,
-            markdownContent: string,
-            mediaFiles: {url: string; filename: string; placeholder: string}[],
-          ) => {
-            // @ts-ignore
-            return window.docExport.exportDocument(
-              title,
-              markdownContent,
-              mediaFiles,
-            )
-          }}
-          exportDocuments={async (
-            documents: {
-              title: string
-              markdown: {
-                markdownContent: string
-                mediaFiles: {
-                  url: string
-                  filename: string
-                  placeholder: string
-                }[]
+  if (daemonState?.t == 'ready') {
+    return (
+      <AppContextProvider
+        grpcClient={grpcClient}
+        platform={appInfo.platform()}
+        ipc={ipc}
+        externalOpen={async (url: string) => {
+          ipc.send?.('open-external-link', url)
+        }}
+        openDirectory={async (directory: string) => {
+          ipc.send?.('open-directory', directory)
+        }}
+        saveCidAsFile={async (cid: string, name: string) => {
+          ipc.send?.('save-file', {cid, name})
+        }}
+        openMarkdownFiles={(accountId: string) => {
+          // @ts-ignore
+          return window.docImport.openMarkdownFiles(accountId)
+        }}
+        openMarkdownDirectories={(accountId: string) => {
+          // @ts-ignore
+          return window.docImport.openMarkdownDirectories(accountId)
+        }}
+        readMediaFile={(filePath: string) => {
+          // @ts-ignore
+          return window.docImport.readMediaFile(filePath)
+        }}
+        exportDocument={async (
+          title: string,
+          markdownContent: string,
+          mediaFiles: {url: string; filename: string; placeholder: string}[],
+        ) => {
+          // @ts-ignore
+          return window.docExport.exportDocument(
+            title,
+            markdownContent,
+            mediaFiles,
+          )
+        }}
+        exportDocuments={async (
+          documents: {
+            title: string
+            markdown: {
+              markdownContent: string
+              mediaFiles: {
+                url: string
+                filename: string
+                placeholder: string
+              }[]
+            }
+          }[],
+        ) => {
+          // @ts-ignore
+          return window.docExport.exportDocuments(documents)
+        }}
+        windowUtils={windowUtils}
+        darkMode={darkMode!}
+      >
+        <Suspense fallback={<SpinnerWithText message="" />}>
+          <ErrorBoundary
+            FallbackComponent={RootAppError}
+            onReset={() => {
+              window.location.reload()
+            }}
+          >
+            <NavigationContainer
+              initialNav={
+                // @ts-expect-error
+                window.initNavState
               }
-            }[],
-          ) => {
-            // @ts-ignore
-            return window.docExport.exportDocuments(documents)
-          }}
-          windowUtils={windowUtils}
-          darkMode={darkMode!}
-        >
-          <Suspense fallback={<SpinnerWithText message="" />}>
-            <ErrorBoundary
-              FallbackComponent={RootAppError}
-              onReset={() => {
-                window.location.reload()
-              }}
             >
-              <NavigationContainer
-                initialNav={
-                  // @ts-expect-error
-                  window.initNavState
+              <AccountWizardDialog />
+              <Main
+                className={
+                  // this is used by editor.css which doesn't know tamagui styles, boooo!
+                  darkMode ? 'seed-app-dark' : 'seed-app-light'
                 }
-              >
-                <AccountWizardDialog />
-                <Main
-                  className={
-                    // this is used by editor.css which doesn't know tamagui styles, boooo!
-                    darkMode ? 'seed-app-dark' : 'seed-app-light'
-                  }
-                />
-                <ResetOnboardingButton />
-              </NavigationContainer>
-              <Toaster
-              // position="bottom-center"
-              // toastOptions={{className: 'toaster'}}
               />
-            </ErrorBoundary>
-          </Suspense>
-        </AppContextProvider>
-      )
-    }
+            </NavigationContainer>
+            <Toaster
+            // position="bottom-center"
+            // toastOptions={{className: 'toaster'}}
+            />
+          </ErrorBoundary>
+        </Suspense>
+      </AppContextProvider>
+    )
   } else if (daemonState?.t == 'error') {
     console.error('Daemon error', daemonState?.message)
     return (
@@ -589,36 +434,3 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <ElectronApp />
   </React.StrictMode>,
 )
-
-// This component creates a small floating button to reset the onboarding state
-// Only shown when explicitly enabled or in development mode
-function ResetOnboardingButton() {
-  // Show if environment variable is set to 'true' or if in development mode
-  if (!__SHOW_OB_RESET_BTN__) return null
-
-  const handleReset = () => {
-    resetOnboardingState()
-    toast.success('Onboarding state reset! Refresh to see changes.')
-  }
-
-  return (
-    <XStack
-      className="no-window-drag"
-      zIndex="$zIndex.9"
-      position="absolute"
-      bottom={10}
-      right={10}
-    >
-      <Button
-        size="$2"
-        backgroundColor="$red10"
-        color="white"
-        onPress={handleReset}
-        opacity={0.7}
-        hoverStyle={{opacity: 1, bg: '$red11'}}
-      >
-        Reset Onboarding
-      </Button>
-    </XStack>
-  )
-}
