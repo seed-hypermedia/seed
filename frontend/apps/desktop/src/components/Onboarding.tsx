@@ -11,7 +11,7 @@ import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {CheckboxField} from '@shm/ui/checkbox-field'
 import {toast} from '@shm/ui/toast'
-import {ExternalLink} from '@tamagui/lucide-icons'
+import {ArrowLeft, ExternalLink} from '@tamagui/lucide-icons'
 import copyTextToClipboard from 'copy-text-to-clipboard'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useState} from 'react'
@@ -24,6 +24,7 @@ import {
   SizableText,
   Text,
   TextArea,
+  View,
   XStack,
   YStack,
 } from 'tamagui'
@@ -157,6 +158,7 @@ export function Onboarding({onComplete}: OnboardingProps) {
         <ProfileStep
           onSkip={handleSkip}
           onNext={handleNext}
+          onPrev={handlePrev}
           onExistingSite={handleExistingSite}
         />
       )}
@@ -273,10 +275,12 @@ function WelcomeStep({onNext}: {onNext: () => void}) {
 function ProfileStep({
   onSkip,
   onNext,
+  onPrev,
   onExistingSite,
 }: {
   onSkip: () => void
   onNext: () => void
+  onPrev: () => void
   onExistingSite: () => void
 }) {
   // Initialize form data from store
@@ -327,109 +331,114 @@ function ProfileStep({
   }
 
   return (
-    <StepWrapper currentStep="profile">
-      <StepTitle>CREATE YOUR SITE</StepTitle>
-      <Text fontSize="$5" textAlign="center" color="$gray11">
-        Your site is more than just a collection of pages, it's a reflection of
-        who you are or what your brand stands for. Whether it's personal,
-        professional, or creative, this is your space to shine.
-      </Text>
+    <>
+      <View position="absolute" top="$4" left="$4">
+        <Button onPress={onPrev} icon={ArrowLeft} chromeless />
+      </View>
+      <StepWrapper currentStep="profile">
+        <StepTitle>CREATE YOUR SITE</StepTitle>
+        <Text fontSize="$5" textAlign="center" color="$gray11">
+          Your site is more than just a collection of pages, it's a reflection
+          of who you are or what your brand stands for. Whether it's personal,
+          professional, or creative, this is your space to shine.
+        </Text>
 
-      <Form
-        width="100%"
-        maxWidth={400}
-        onSubmit={onNext}
-        className="no-window-drag"
-      >
-        <YStack gap="$4" width="100%" className="no-window-drag">
-          <Input
-            size="$4"
-            placeholder="Site name"
-            value={formData.name}
-            onChange={(e) => updateFormData({name: e.nativeEvent.text})}
-          />
-
-          <XStack gap="$4" width="100%">
-            <YStack
-              gap="$2"
-              flex={0}
-              minWidth={72}
-              minHeight={72}
-              w="100%"
-              maxWidth={72}
-            >
-              <Text fontSize="$2" color="$gray11">
-                Site Icon
-              </Text>
-              <ImageForm
-                height={72}
-                emptyLabel="ADD SITE ICON"
-                url={formData.icon?.base64}
-                uploadOnChange={false}
-                onImageUpload={(file) => {
-                  if (file instanceof File) {
-                    handleImageUpload(file, 'icon')
-                  }
-                }}
-                onRemove={() => handleImageRemove('icon')}
-              />
-            </YStack>
-
-            <YStack gap="$2" flex={1} minHeight={72}>
-              <Text fontSize="$2" color="$gray11">
-                Site Logo
-              </Text>
-              <ImageForm
-                height={72}
-                emptyLabel="ADD SITE LOGO"
-                url={formData.seedExperimentalLogo?.base64}
-                uploadOnChange={false}
-                onImageUpload={(file) => {
-                  if (file instanceof File) {
-                    handleImageUpload(file, 'seedExperimentalLogo')
-                  }
-                }}
-                onRemove={() => handleImageRemove('seedExperimentalLogo')}
-              />
-            </YStack>
-          </XStack>
-        </YStack>
-
-        <XStack
-          marginTop="$8"
-          gap="$4"
+        <Form
+          width="100%"
+          maxWidth={400}
+          onSubmit={onNext}
           className="no-window-drag"
-          alignItems="center"
-          justifyContent="center"
         >
-          <Button onPress={onSkip} bg="$brand11">
-            SKIP
-          </Button>
-          <Button
-            backgroundColor="$brand2"
-            color="white"
-            disabled={!formData.name.trim()}
-            onPress={onNext}
+          <YStack gap="$4" width="100%" className="no-window-drag">
+            <Input
+              size="$4"
+              placeholder="Site name"
+              value={formData.name}
+              onChange={(e) => updateFormData({name: e.nativeEvent.text})}
+            />
+
+            <XStack gap="$4" width="100%">
+              <YStack
+                gap="$2"
+                flex={0}
+                minWidth={72}
+                minHeight={72}
+                w="100%"
+                maxWidth={72}
+              >
+                <Text fontSize="$2" color="$gray11">
+                  Site Icon
+                </Text>
+                <ImageForm
+                  height={72}
+                  emptyLabel="ADD SITE ICON"
+                  url={formData.icon?.base64}
+                  uploadOnChange={false}
+                  onImageUpload={(file) => {
+                    if (file instanceof File) {
+                      handleImageUpload(file, 'icon')
+                    }
+                  }}
+                  onRemove={() => handleImageRemove('icon')}
+                />
+              </YStack>
+
+              <YStack gap="$2" flex={1} minHeight={72}>
+                <Text fontSize="$2" color="$gray11">
+                  Site Logo
+                </Text>
+                <ImageForm
+                  height={72}
+                  emptyLabel="ADD SITE LOGO"
+                  url={formData.seedExperimentalLogo?.base64}
+                  uploadOnChange={false}
+                  onImageUpload={(file) => {
+                    if (file instanceof File) {
+                      handleImageUpload(file, 'seedExperimentalLogo')
+                    }
+                  }}
+                  onRemove={() => handleImageRemove('seedExperimentalLogo')}
+                />
+              </YStack>
+            </XStack>
+          </YStack>
+
+          <XStack
+            marginTop="$8"
+            gap="$4"
+            className="no-window-drag"
+            alignItems="center"
+            justifyContent="center"
           >
-            NEXT
-          </Button>
-        </XStack>
-      </Form>
-      <Button
-        variant="outlined"
-        onPress={onExistingSite}
-        hoverStyle={{
-          backgroundColor: '$brand11',
-          borderColor: 'transparent',
-        }}
-        focusStyle={{
-          backgroundColor: '$brand11',
-          borderColor: 'transparent',
-        }}
-      >
-        I already have a Site
-      </Button>
-    </StepWrapper>
+            <Button onPress={onSkip} bg="$brand11">
+              SKIP
+            </Button>
+            <Button
+              backgroundColor="$brand2"
+              color="white"
+              disabled={!formData.name.trim()}
+              onPress={onNext}
+            >
+              NEXT
+            </Button>
+          </XStack>
+        </Form>
+        <Button
+          variant="outlined"
+          onPress={onExistingSite}
+          hoverStyle={{
+            backgroundColor: '$brand11',
+            borderColor: 'transparent',
+          }}
+          focusStyle={{
+            backgroundColor: '$brand11',
+            borderColor: 'transparent',
+          }}
+        >
+          I already have a Site
+        </Button>
+      </StepWrapper>
+    </>
   )
 }
 
@@ -1676,27 +1685,29 @@ function StepWrapper({
   currentStep: OnboardingStep
 }) {
   return (
-    <YStack
-      className="window-drag"
-      flex={1}
-      padding="$4"
-      gap="$4"
-      alignItems="center"
-      justifyContent="center"
-      backgroundColor="$brand12"
-      backgroundImage="linear-gradient(to bottom, $green3, $green4)"
-    >
+    <>
       <YStack
-        gap="$6"
+        className="window-drag"
+        flex={1}
+        padding="$4"
+        gap="$4"
         alignItems="center"
         justifyContent="center"
-        maxWidth={600}
-        className="no-window-drag"
+        backgroundColor="red"
+        backgroundImage="linear-gradient(to bottom, $green3, $green4)"
       >
-        {children}
+        <YStack
+          gap="$6"
+          alignItems="center"
+          justifyContent="center"
+          maxWidth={600}
+          className="no-window-drag"
+        >
+          {children}
+        </YStack>
       </YStack>
       <OnboardingProgress currentStep={currentStep} />
-    </YStack>
+    </>
   )
 }
 
