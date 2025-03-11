@@ -402,7 +402,6 @@ export const SyncMarkdownToBlocks = (
   editor: BlockNoteEditor,
 ) => {
   const blocks: Block<BlockSchema>[] = []
-  const organizedBlocks: Block<BlockSchema>[] = []
 
   const file = unified()
     .use(remarkParse)
@@ -431,7 +430,11 @@ export const SyncMarkdownToBlocks = (
       return false
     }
 
-    blocks.push(nodeToBlock(node, hmBlockSchema))
+    const block = nodeToBlock(node, hmBlockSchema)
+    if (fragment.firstChild!.attrs.listType !== 'Group') {
+      block.props.childrenType = fragment.firstChild!.attrs.listType
+    }
+    blocks.push(block)
   })
 
   // Function to determine heading level
@@ -442,127 +445,102 @@ export const SyncMarkdownToBlocks = (
     return 0
   }
 
-  // Stack to track heading levels for hierarchy
-  const stack: {level: number; block: Block<BlockSchema>}[] = []
+  let blockToInsert = blocks[0]
 
-  blocks.forEach((block) => {
-    const headingLevel = getHeadingLevel(block)
+  if (blockToInsert.type === 'image') {
+    if (blockToInsert.props.src == 'null') blockToInsert.props = {}
+    else if (blockToInsert.props.alt) {
+      const contentArray = parseImageCaptionStyles(blockToInsert.props.alt)
+      blockToInsert.content = contentArray
+    }
+  }
+  if (blockToInsert.content.length > 0) {
+    const blockContent =
+      blockToInsert.content[0].type === 'link'
+        ? blockToInsert.content[0].content[0].text
+        : // @ts-ignore
+          blockToInsert.content[0].text
 
-    if (headingLevel > 0) {
-      while (stack.length && stack[stack.length - 1].level >= headingLevel) {
-        stack.pop()
-      }
-
-      if (stack.length) {
-        stack[stack.length - 1].block.children.push(block)
-      } else {
-        organizedBlocks.push(block)
-      }
-
-      stack.push({level: headingLevel, block})
-    } else {
-      let blockToInsert = block
-      if (block.type === 'image') {
-        if (block.props.src == 'null') blockToInsert.props = {}
-        else if (block.props.alt) {
-          const contentArray = parseImageCaptionStyles(block.props.alt)
-          block.content = contentArray
-        }
-      }
-      if (block.content.length > 0) {
-        const blockContent =
-          block.content[0].type === 'link'
-            ? block.content[0].content[0].text
-            : // @ts-ignore
-              block.content[0].text
-
-        if (blockContent.startsWith('!')) {
-          const videoMatch = blockContent.match(videoRegex)
-          if (videoMatch) {
-            let videoProps = {}
-            if (
-              videoMatch[2].startsWith('ipfs://') ||
-              videoMatch[2].includes('youtube') ||
-              videoMatch[2].includes('youtu.be') ||
-              videoMatch[2].includes('vimeo')
-            ) {
-              videoProps = {
-                name: videoMatch[1],
-                url: videoMatch[2],
-                width:
-                  videoMatch[3] && videoMatch[3] !== 'undefined'
-                    ? videoMatch[3]
-                    : '',
-              }
-            }
-            blockToInsert = {
-              id: block.id,
-              type: 'video',
-              props: videoProps,
-              content: [],
-              children: [],
-            }
-          }
-        } else if (tweetRegex.test(blockContent)) {
-          const tweetMatch = blockContent.match(tweetRegex)
-          if (tweetMatch) {
-            blockToInsert = {
-              id: block.id,
-              type: 'web-embed',
-              props: {
-                url: tweetMatch[1],
-              },
-              content: [],
-              children: [],
-            }
-          }
-        } else if (blockContent.startsWith('[')) {
-          const fileMatch = blockContent.match(fileRegex)
-          if (fileMatch) {
-            let fileProps = {}
-            if (fileMatch[2].startsWith('ipfs://')) {
-              fileProps = {
-                name: fileMatch[1],
-                url: fileMatch[2],
-                size: fileMatch[3],
-              }
-            }
-            blockToInsert = {
-              id: block.id,
-              type: 'file',
-              props: fileProps,
-              content: [],
-              children: [],
-            }
-          }
-        } else if (mathRegex.test(blockContent)) {
-          const mathMatch = blockContent.match(mathRegex)
-          if (mathMatch) {
-            const mathContent = mathMatch[1]
-            blockToInsert = {
-              id: block.id,
-              type: 'math',
-              content: [
-                {
-                  text: mathContent,
-                  type: 'text',
-                  styles: {},
-                },
-              ],
-              children: [],
-              props: {
-                childrenType: 'Group',
-              },
-            }
+    if (blockContent.startsWith('!')) {
+      const videoMatch = blockContent.match(videoRegex)
+      if (videoMatch) {
+        let videoProps = {}
+        if (
+          videoMatch[2].startsWith('ipfs://') ||
+          videoMatch[2].includes('youtube') ||
+          videoMatch[2].includes('youtu.be') ||
+          videoMatch[2].includes('vimeo')
+        ) {
+          videoProps = {
+            name: videoMatch[1],
+            url: videoMatch[2],
+            width:
+              videoMatch[3] && videoMatch[3] !== 'undefined'
+                ? videoMatch[3]
+                : '',
           }
         }
+        blockToInsert = {
+          id: blockToInsert.id,
+          type: 'video',
+          props: videoProps,
+          content: [],
+          children: [],
+        }
       }
-      if (stack.length) {
-        stack[stack.length - 1].block.children.push(blockToInsert)
-      } else {
-        organizedBlocks.push(blockToInsert)
+    } else if (tweetRegex.test(blockContent)) {
+      const tweetMatch = blockContent.match(tweetRegex)
+      if (tweetMatch) {
+        blockToInsert = {
+          id: blockToInsert.id,
+          type: 'web-embed',
+          props: {
+            url: tweetMatch[1],
+          },
+          content: [],
+          children: [],
+        }
+      }
+    } else if (blockContent.startsWith('[')) {
+      const fileMatch = blockContent.match(fileRegex)
+      if (fileMatch) {
+        let fileProps = {}
+        if (fileMatch[2].startsWith('ipfs://')) {
+          fileProps = {
+            name: fileMatch[1],
+            url: fileMatch[2],
+            size: fileMatch[3],
+          }
+        }
+        blockToInsert = {
+          id: blockToInsert.id,
+          type: 'file',
+          props: fileProps,
+          content: [],
+          children: [],
+        }
+      }
+    } else if (mathRegex.test(blockContent)) {
+      const mathMatch = blockContent.match(mathRegex)
+      if (mathMatch) {
+        const mathContent = mathMatch[1]
+        blockToInsert = {
+          id: blockToInsert.id,
+          type: 'math',
+          content: [
+            {
+              text: mathContent,
+              type: 'text',
+              styles: {},
+            },
+          ],
+          children: [],
+          props: {
+            childrenType: 'Group',
+          },
+        }
       }
     }
-  })
-  return organizedBlocks
+  }
+  return blockToInsert
 }
