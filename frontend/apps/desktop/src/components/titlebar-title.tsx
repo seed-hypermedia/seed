@@ -7,11 +7,17 @@ import {
 } from '@/models/documents'
 import {useRouteBreadcrumbRoutes, useRouteEntities} from '@/models/entities'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
+import {useHostSession} from '@/models/host'
 import {useOpenUrl} from '@/open-url'
 import {NewSubDocumentButton} from '@/pages/document'
 import {useNavRoute} from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
-import {HMMetadata, HMQueryResult, hostnameStripProtocol} from '@shm/shared'
+import {
+  HMMetadata,
+  HMQueryResult,
+  hostnameStripProtocol,
+  UnpackedHypermediaId,
+} from '@shm/shared'
 import {getDocumentTitle} from '@shm/shared/content'
 import {useEntity} from '@shm/shared/models/entity'
 import {DocumentRoute, DraftRoute, NavRoute} from '@shm/shared/routes'
@@ -23,6 +29,7 @@ import {
   Library,
   Sparkles,
   Star,
+  X,
 } from '@shm/ui/icons'
 import {DocumentSmallListItem, getSiteNavDirectory} from '@shm/ui/navigation'
 import {Spinner} from '@shm/ui/spinner'
@@ -37,6 +44,7 @@ import {
   Popover,
   Text,
   TextProps,
+  Theme,
   Tooltip,
   View,
   XStack,
@@ -44,6 +52,7 @@ import {
 } from 'tamagui'
 import {CopyReferenceButton} from './copy-reference-button'
 import {FavoriteButton} from './favoriting'
+import {DNSInstructions} from './publish-site'
 
 export function TitleContent({size = '$4'}: {size?: FontSizeTokens}) {
   const route = useNavRoute()
@@ -292,6 +301,7 @@ function BreadcrumbTitle({
           ]
         })}
         <XStack>
+          <PendingDomain id={route.id} />
           <FavoriteButton id={route.id} />
           <CopyReferenceButton
             docId={route.id}
@@ -302,6 +312,79 @@ function BreadcrumbTitle({
         </XStack>
       </XStack>
     </XStack>
+  )
+}
+
+function PendingDomainStatus({
+  status,
+  siteUrl,
+}: {
+  status: 'waiting-dns' | 'initializing' | 'error'
+  siteUrl: string
+}) {
+  if (status === 'waiting-dns') {
+    return (
+      <Text color="$color11">
+        Waiting for DNS to resolve to {hostnameStripProtocol(siteUrl)}
+      </Text>
+    )
+  }
+  if (status === 'initializing') {
+    return <Text color="$color11">Initializing Domain...</Text>
+  }
+  return <Text color="$red8">Error</Text>
+}
+
+function PendingDomain({id}: {id: UnpackedHypermediaId}) {
+  const hostSession = useHostSession()
+  const site = useEntity(id)
+  if (id.path?.length) return null
+  const pendingDomain = hostSession.pendingDomains?.find(
+    (domain) => domain.siteUid === id.uid,
+  )
+  if (!pendingDomain) return null
+  return (
+    <View className="no-window-drag" padding="$2">
+      <HoverCard
+        contentProps={{
+          backgroundColor: '#1c1c1c',
+        }}
+        content={
+          <Theme name="dark_blue">
+            <YStack className="no-window-drag" gap="$4" padding="$3">
+              {pendingDomain.status === 'waiting-dns' ? (
+                <DNSInstructions
+                  hostname={pendingDomain.hostname}
+                  siteUrl={site.data?.document?.metadata?.siteUrl || ''}
+                />
+              ) : null}
+              <PendingDomainStatus
+                status={pendingDomain.status}
+                siteUrl={site.data?.document?.metadata?.siteUrl || ''}
+              />
+              <XStack jc="center">
+                {hostSession.cancelPendingDomain.isLoading ? (
+                  <Spinner size="small" />
+                ) : (
+                  <Button
+                    size="$2"
+                    theme="red"
+                    onPress={() => {
+                      hostSession.cancelPendingDomain.mutate(pendingDomain.id)
+                    }}
+                    icon={X}
+                  >
+                    Cancel Domain Setup
+                  </Button>
+                )}
+              </XStack>
+            </YStack>
+          </Theme>
+        }
+      >
+        <Spinner size="small" />
+      </HoverCard>
+    </View>
   )
 }
 

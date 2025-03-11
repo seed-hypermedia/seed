@@ -6,6 +6,7 @@ const EXPERIMENTS_STORAGE_KEY = 'Experiments-v001'
 
 const experimentsZ = z
   .object({
+    hosting: z.boolean().optional(),
     webImporting: z.boolean().optional(),
     nostr: z.boolean().optional(),
     developerTools: z.boolean().optional(),
@@ -25,7 +26,6 @@ export const experimentsApi = t.router({
     const newExperimentsState = {...(prevExperimentsState || {}), ...input}
     experimentsState = newExperimentsState
     appStore.set(EXPERIMENTS_STORAGE_KEY, newExperimentsState)
-    console.log('~ set to app store', newExperimentsState)
     return undefined
   }),
 })

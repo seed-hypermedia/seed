@@ -26,6 +26,33 @@ export function documentParseAdjustments(document: any) {
   documentMetadataParseAdjustments(document?.metadata)
 }
 
+export async function loadEntity(
+  id: UnpackedHypermediaId,
+): Promise<HMEntityContent | null> {
+  try {
+    if (!queryEntity) throw new Error('queryEntity not injected')
+
+    const serverDocument = await queryEntity(id)
+
+    documentParseAdjustments(serverDocument)
+
+    const result = HMDocumentSchema.safeParse(serverDocument)
+
+    if (result.success) {
+      const document = result.data
+      return {
+        id: {...id, version: document.version},
+        document,
+      }
+    } else {
+      console.error('Invalid Document!', serverDocument, result.error)
+      return {id, document: undefined}
+    }
+  } catch (e) {
+    return {id, document: undefined}
+  }
+}
+
 export function getEntityQuery(
   id: UnpackedHypermediaId | null | undefined,
   options?: UseQueryOptions<HMEntityContent | null>,
@@ -37,28 +64,7 @@ export function getEntityQuery(
     queryKey: [queryKeys.ENTITY, id?.id, version],
     queryFn: async (): Promise<HMEntityContent | null> => {
       if (!id) return null
-      try {
-        if (!queryEntity) throw new Error('queryEntity not injected')
-
-        const serverDocument = await queryEntity(id)
-
-        documentParseAdjustments(serverDocument)
-
-        const result = HMDocumentSchema.safeParse(serverDocument)
-
-        if (result.success) {
-          const document = result.data
-          return {
-            id: {...id, version: document.version},
-            document,
-          }
-        } else {
-          console.error('Invalid Document!', serverDocument, result.error)
-          return {id, document: undefined}
-        }
-      } catch (e) {
-        return {id, document: undefined}
-      }
+      return await loadEntity(id)
     },
   }
 }

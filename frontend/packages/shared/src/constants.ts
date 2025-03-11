@@ -100,3 +100,8 @@ export const BIG_INT = 2 ** 25 // 2^31 was too big for grpc
 
 export const CONTENT_HIGHLIGHT_COLOR_LIGHT = '$brand8'
 export const CONTENT_HIGHLIGHT_COLOR_DARK = '#054f44'
+
+export const SEED_HOST_URL =
+  process.env.VITE_SEED_HOST_URL ||
+  (import.meta.env && import.meta.env.VITE_SEED_HOST_URL) ||
+  'http://localhost:5555'

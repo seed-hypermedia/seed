@@ -5,7 +5,9 @@ import {roleCanWrite, useMyCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useCreateDraft} from '@/models/documents'
 import {useSubscribedEntity} from '@/models/entities'
+import {useExperiments} from '@/models/experiments'
 import {useGatewayUrl} from '@/models/gateway-settings'
+import {useHostSession} from '@/models/host'
 import {SidebarContext, SidebarWidth} from '@/sidebar-context'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {
@@ -14,6 +16,7 @@ import {
   useNavigationState,
 } from '@/utils/navigation'
 import {useNavigate} from '@/utils/useNavigate'
+import {hostnameStripProtocol} from '@shm/shared'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {HMBlockNode} from '@shm/shared/hm-types'
@@ -56,7 +59,11 @@ import {useAppDialog} from './dialog'
 import DiscardDraftButton from './discard-draft-button'
 import {useImportDialog, useImporting} from './import-doc-button'
 import PublishDraftButton from './publish-draft-button'
-import {usePublishSite, useRemoveSiteDialog} from './publish-site'
+import {
+  usePublishSite,
+  useRemoveSiteDialog,
+  useSeedHostDialog,
+} from './publish-site'
 import {SubscriptionButton} from './subscription'
 import {TitleBarProps} from './titlebar'
 
@@ -91,7 +98,12 @@ export function DocOptionsButton() {
   const publishSite = usePublishSite()
   const capability = useMyCapability(route.id)
   const canEditDoc = roleCanWrite(capability?.role)
+  const experiments = useExperiments()
+  const seedHostDialog = useSeedHostDialog()
 
+  const pendingDomain = useHostSession().pendingDomains?.find(
+    (pending) => pending.siteUid === route.id.uid,
+  )
   const menuItems: MenuItemType[] = [
     {
       key: 'link',
@@ -182,7 +194,25 @@ export function DocOptionsButton() {
     })
   }
   if (!route.id.path?.length && canEditDoc) {
-    if (doc.data?.document?.metadata?.siteUrl)
+    if (doc.data?.document?.metadata?.siteUrl) {
+      const siteHost = hostnameStripProtocol(
+        doc.data?.document?.metadata?.siteUrl,
+      )
+      const gwHost = hostnameStripProtocol(gwUrl)
+      if (
+        siteHost.endsWith(gwHost) &&
+        !pendingDomain &&
+        experiments.data?.hosting
+      ) {
+        menuItems.push({
+          key: 'publish-custom-domain',
+          label: 'Publish Custom Domain',
+          icon: UploadCloud,
+          onPress: () => {
+            publishSite.open({id: route.id, step: 'seed-host-custom-domain'})
+          },
+        })
+      }
       menuItems.push({
         key: 'publish-site',
         label: 'Remove Site from Publication',
@@ -192,13 +222,13 @@ export function DocOptionsButton() {
           removeSite.open(route.id)
         },
       })
-    else
+    } else
       menuItems.push({
         key: 'publish-site',
         label: 'Publish Site',
         icon: UploadCloud,
         onPress: () => {
-          publishSite.open(route.id)
+          publishSite.open({id: route.id})
         },
       })
   }
@@ -234,6 +264,7 @@ export function DocOptionsButton() {
       {removeSite.content}
       {importDialog.content}
       {importing.content}
+      {seedHostDialog.content}
       <OptionsDropdown menuItems={menuItems} />
     </>
   )

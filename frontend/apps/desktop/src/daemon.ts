@@ -100,7 +100,7 @@ export function startMainDaemon(onStarted?: () => void) {
       updateGoDaemonState({t: 'ready'})
     }
 
-    // log.rawMessage(line)
+    log.rawMessage(line)
 
     const daemonEvent = JSON.parse(line)
 

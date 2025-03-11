@@ -144,6 +144,7 @@ jobs:
           VITE_LIGHTNING_API_URL: "https://ln.seed.hyper.media"
           VITE_GATEWAY_URL: "https://hyper.media"
           VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
+          VITE_SEED_HOST_URL: "https://host.seed.hyper.media"
           SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
@@ -170,6 +171,7 @@ jobs:
           VITE_LIGHTNING_API_URL: "https://ln.seed.hyper.media"
           VITE_GATEWAY_URL: "https://hyper.media"
           VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
+          VITE_SEED_HOST_URL: "https://host.seed.hyper.media"
           SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
 
       - name: Upload Artifacts

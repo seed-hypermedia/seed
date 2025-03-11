@@ -22,7 +22,12 @@ import {
 import {usePeerInfo} from '@/models/networking'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
-import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
+import {
+  COMMIT_HASH,
+  LIGHTNING_API_URL,
+  SEED_HOST_URL,
+  VERSION,
+} from '@shm/shared/constants'
 import {getMetadataName} from '@shm/shared/content'
 import {useEntity} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -30,11 +35,12 @@ import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Field} from '@shm/ui/form-fields'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {Check, Copy, ExternalLink, Pencil} from '@shm/ui/icons'
+import {Copy, ExternalLink, Pencil} from '@shm/ui/icons'
 import {InfoListHeader, InfoListItem, TableList} from '@shm/ui/table-list'
 import {toast} from '@shm/ui/toast'
 import {
   AtSign,
+  Check,
   Code2,
   Eye,
   EyeOff,
@@ -70,6 +76,9 @@ import {
   XStack,
   YStack,
 } from 'tamagui'
+
+import {Biohazard} from '@tamagui/lucide-icons'
+import React from 'react'
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('accounts')
@@ -111,12 +120,12 @@ export default function Settings() {
           icon={Info}
           label="App Info"
         />
-        {/* <Tab
+        <Tab
           value="experiments"
           active={activeTab === 'experiments'}
           icon={Biohazard}
           label="Experiments"
-        /> */}
+        />
         <Tab
           value="developer"
           active={activeTab === 'developer'}
@@ -135,9 +144,9 @@ export default function Settings() {
         <AppSettings />
         {/* <DevicesInfo /> */}
       </TabsContent>
-      {/* <TabsContent value="experiments">
+      <TabsContent value="experiments">
         <ExperimentsSettings />
-      </TabsContent> */}
+      </TabsContent>
       <TabsContent value="developer">
         <DeveloperSettings />
       </TabsContent>
@@ -761,10 +770,11 @@ const EXPERIMENTS = //: ExperimentType[]
     //   description: 'Embed Nostr notes into documents for permanent referencing.',
     // },
     {
-      key: 'newLibrary',
-      label: 'New Library',
-      emoji: '🏠',
-      description: 'Use the new library for storing documents.',
+      key: 'hosting',
+      label: 'Seed Hosting Publish Workflow',
+      emoji: '☁️',
+      description:
+        'Test the new publishing workflow with the Seed Hosting service.',
     },
   ] as const
 
@@ -1230,6 +1240,10 @@ function AppSettings() {
         />
         <Separator />
         <InfoListItem label="Go Build Info" value={goBuildInfo?.split('\n')} />
+        <Separator />
+        <InfoListItem label="Seed Host URL" value={SEED_HOST_URL} />
+        <Separator />
+        <InfoListItem label="Lightning URL" value={LIGHTNING_API_URL} />
       </TableList>
     </YStack>
   )
