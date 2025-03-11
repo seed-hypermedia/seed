@@ -267,6 +267,7 @@ function WelcomeStep({onNext}: {onNext: () => void}) {
           backgroundColor="$brand2"
           color="white"
           size="$4"
+          id="welcome-next"
           borderRadius="$2"
           borderWidth={0}
           hoverStyle={{backgroundColor: '$brand4'}}
@@ -415,6 +416,7 @@ function ProfileStep({
         <YStack gap="$4" className="no-window-drag" alignSelf="center">
           <Button
             type="button"
+            id="profile-existing"
             chromeless
             size="$3"
             onPress={onExistingSite}
@@ -437,12 +439,13 @@ function ProfileStep({
             alignItems="center"
             justifyContent="center"
           >
-            <Button onPress={onSkip} bg="$brand11">
+            <Button onPress={onSkip} bg="$brand11" id="profile-skip">
               SKIP
             </Button>
             <Button
               backgroundColor="$brand2"
               color="white"
+              id="profile-next"
               hoverStyle={{
                 backgroundColor: '$brand4',
                 borderColor: 'transparent',

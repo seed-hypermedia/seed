@@ -21,13 +21,16 @@
     "fix": "manypkg fix",
     "build": "yarn ui:build",
     "docs": "yarn workspace @shm/docs start",
-    "ui:build": "yarn workspace @shm/ui generate && yarn workspace @shm/ui build"
+    "ui:build": "yarn workspace @shm/ui generate && yarn workspace @shm/ui build",
+    "performance": "yarn workspace @shm/performance test",
+    "performance:dashboard": "yarn workspace @shm/performance-dashboard copy-results && yarn workspace @shm/performance-dashboard dev"
   },
   "repository": "github:mintterhypermedia/mintter",
   "packageManager": "yarn@3.6.1",
   "workspaces": [
     "frontend/apps/*",
     "frontend/packages/*",
+    "frontend/apps/desktop/test/performance",
     "docs"
   ],
   "dependencies": {
@@ -49,8 +52,11 @@
     "react-dom": "18.2.0"
   },
   "devDependencies": {
+    "@types/glob": "^8.1.0",
+    "asar": "^3.2.0",
     "babel-plugin-react-native-web": "0.19.9",
     "concurrently": "8.2.1",
+    "lighthouse": "^12.4.0",
     "playwright": "1.40.1",
     "ts-node": "10.9.1"
   }

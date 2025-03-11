@@ -104,3 +104,6 @@ scratch.*.*
 
 # sentry
 .sentryclirc
+
+# reference project
+reference-dashboard

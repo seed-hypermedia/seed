@@ -322,6 +322,10 @@ export const deleteApplicationConfig = (platform: string) => {
       fs.unlinkSync(path.join(os.homedir(), tempPath, 'config.json'))
     }
   } catch (error) {
-    log.error(error.message)
+    if (error instanceof Error) {
+      log.error(error.message)
+    } else {
+      log.error('Unknown error occurred while deleting application config')
+    }
   }
 }

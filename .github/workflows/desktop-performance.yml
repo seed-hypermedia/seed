@@ -1,0 +1,184 @@
+name: Desktop Performance Metrics
+
+on:
+  schedule:
+    # Run daily at midnight UTC
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+    # Manual trigger with options
+    inputs:
+      scenarios:
+        description: "Specific scenarios to run (comma-separated, leave empty for all)"
+        required: false
+        default: ""
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - "frontend/apps/desktop/**"
+
+env:
+  AWS_REGION: us-west-1
+  S3_BUCKET_NAME: electron-app-performance-metrics
+
+jobs:
+  performance-tests:
+    name: Run Desktop Performance Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: 16
+          cache: "yarn"
+
+      - name: Install dependencies
+        run: |
+          yarn install --frozen-lockfile
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+
+      - name: Build backend
+        run: |
+          cd backend
+          yarn install --frozen-lockfile
+          yarn build
+
+      - name: Package desktop app
+        run: |
+          cd frontend
+          yarn build:desktop
+
+      - name: Run performance tests
+        run: |
+          # Create output directory
+          mkdir -p performance-results
+
+          # Define scenarios from input or use all
+          SCENARIOS="${{ github.event.inputs.scenarios }}"
+          SCENARIOS_ARG=""
+          if [ ! -z "$SCENARIOS" ]; then
+            SCENARIOS_ARG="--scenarios $SCENARIOS"
+          fi
+
+          # Run performance tests with all features enabled
+          xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" \
+            cd frontend/apps/desktop && yarn test:performance \
+            --output performance-results \
+            --trace \
+            --lighthouse \
+            --url http://localhost:3000 \
+            --best-practices \
+            --budget \
+            $SCENARIOS_ARG
+        env:
+          NODE_ENV: production
+
+      # Set up AWS credentials for S3 uploads
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Upload results to S3
+      - name: Upload performance results to S3
+        id: upload
+        run: |
+          # Generate timestamp folder name
+          TIMESTAMP=$(date +%Y-%m-%d-%H-%M-%S)
+
+          # Set S3 prefix based on event type
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            S3_PREFIX="pr-${{ github.event.pull_request.number }}/$TIMESTAMP"
+            echo "S3_PREFIX=${S3_PREFIX}" >> $GITHUB_ENV
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+            echo "PR_NUMBER=${PR_NUMBER}" >> $GITHUB_ENV
+          else
+            BRANCH="${GITHUB_REF#refs/heads/}"
+            S3_PREFIX="${BRANCH}/$TIMESTAMP"
+            echo "S3_PREFIX=${S3_PREFIX}" >> $GITHUB_ENV
+          fi
+
+          # Upload all results
+          aws s3 sync performance-results s3://${{ env.S3_BUCKET_NAME }}/${S3_PREFIX}/ --acl public-read
+
+          # Save URLs for reports
+          DASHBOARD_URL="https://${{ env.S3_BUCKET_NAME }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${S3_PREFIX}/dashboard.html"
+          BUDGET_URL="https://${{ env.S3_BUCKET_NAME }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${S3_PREFIX}/budget-report.html"
+          BEST_PRACTICES_URL="https://${{ env.S3_BUCKET_NAME }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${S3_PREFIX}/best-practices-report.html"
+
+          echo "DASHBOARD_URL=${DASHBOARD_URL}" >> $GITHUB_ENV
+          echo "BUDGET_URL=${BUDGET_URL}" >> $GITHUB_ENV
+          echo "BEST_PRACTICES_URL=${BEST_PRACTICES_URL}" >> $GITHUB_ENV
+
+          # Output S3 prefix for next steps
+          echo "::set-output name=s3_prefix::${S3_PREFIX}"
+
+      # For PRs, compare with baseline
+      - name: Compare with baseline performance metrics
+        if: github.event_name == 'pull_request'
+        run: |
+          # Download latest main branch metrics for comparison
+          mkdir -p baseline-metrics
+
+          # Get latest main branch metrics
+          aws s3 ls s3://${{ env.S3_BUCKET_NAME }}/main/ --recursive | sort -r | head -n 1 | awk '{print $4}' | xargs -I{} aws s3 cp s3://${{ env.S3_BUCKET_NAME }}/{} baseline-metrics/
+
+          # Generate comparison report
+          cd frontend/apps/desktop && yarn test:performance-compare \
+            --baseline baseline-metrics \
+            --current performance-results \
+            --output performance-results/comparison-report.html \
+            --threshold 3
+
+          # Upload comparison report
+          aws s3 cp performance-results/comparison-report.html s3://${{ env.S3_BUCKET_NAME }}/${S3_PREFIX}/comparison-report.html --acl public-read
+
+          # Save comparison URL
+          COMPARISON_URL="https://${{ env.S3_BUCKET_NAME }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${S3_PREFIX}/comparison-report.html"
+          echo "COMPARISON_URL=${COMPARISON_URL}" >> $GITHUB_ENV
+
+      # Create summary with links to reports
+      - name: Create performance test summary
+        run: |
+          echo "## Desktop Performance Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Performance metrics have been collected for the desktop application." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Reports" >> $GITHUB_STEP_SUMMARY
+          echo "- [Performance Dashboard](${{ env.DASHBOARD_URL }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [Performance Budget Report](${{ env.BUDGET_URL }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [Best Practices Report](${{ env.BEST_PRACTICES_URL }})" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "- [Comparison with baseline](${{ env.COMPARISON_URL }})" >> $GITHUB_STEP_SUMMARY
+            
+            # Add PR comment with links
+            if [ -n "${{ secrets.GITHUB_TOKEN }}" ]; then
+              PR_COMMENT="## Desktop Performance Test Results\n\nPerformance metrics have been collected for this PR.\n\n### Reports\n- [Performance Dashboard](${{ env.DASHBOARD_URL }})\n- [Performance Budget Report](${{ env.BUDGET_URL }})\n- [Best Practices Report](${{ env.BEST_PRACTICES_URL }})\n- [Comparison with baseline](${{ env.COMPARISON_URL }})\n"
+              
+              curl -X POST \
+                -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Content-Type: application/json" \
+                -d "{\"body\": \"$PR_COMMENT\"}" \
+                "https://api.github.com/repos/${{ github.repository }}/issues/${{ env.PR_NUMBER }}/comments"
+            fi
+          fi
+
+      # Upload results as artifacts
+      - name: Upload performance results as artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: desktop-performance-results
+          path: performance-results
+          retention-days: 14

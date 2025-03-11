@@ -78,3 +78,5 @@ sentry.properties
 screenshots/
 playwright-report/
 test-results/
+
+performance-results/

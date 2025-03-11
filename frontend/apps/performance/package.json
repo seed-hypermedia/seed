@@ -1,0 +1,25 @@
+{
+  "name": "@shm/performance",
+  "version": "0.1.0",
+  "description": "Performance testing system for the Electron desktop app",
+  "main": "run-performance-tests.ts",
+  "scripts": {
+    "test": "ts-node --transpile-only run-performance-tests.ts",
+    "test:ci": "ts-node --transpile-only run-performance-tests.ts --ci --dashboard --upload",
+    "test:dashboard": "ts-node --transpile-only run-performance-tests.ts --dashboard",
+    "build": "tsc",
+    "start": "node dist/run-performance-tests.js"
+  },
+  "dependencies": {
+    "@types/glob": "^8.1.0",
+    "@types/node": "^18.16.3",
+    "aws-sdk": "^2.1300.0",
+    "commander": "^11.0.0",
+    "glob": "^10.2.2",
+    "lighthouse": "^12.4.0",
+    "playwright": "^1.36.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.4"
+  },
+  "packageManager": "yarn@3.6.1"
+}
