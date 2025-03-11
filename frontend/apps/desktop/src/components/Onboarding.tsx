@@ -169,6 +169,7 @@ export function Onboarding({onComplete}: OnboardingProps) {
         <ExistingStep onNext={handleNext} onPrev={handlePrev} />
       )}
       {currentStep === 'ready' && <ReadyStep onComplete={handleNext} />}
+      <OnboardingProgress currentStep={currentStep} />
     </YStack>
   )
 }
@@ -177,10 +178,16 @@ function WelcomeStep({onNext}: {onNext: () => void}) {
   const openUrl = useOpenUrl()
 
   return (
-    <StepWrapper currentStep="welcome">
+    <StepWrapper>
       <FullLogoIcon />
       <StepTitle>WELCOME TO THE OPEN WEB</StepTitle>
-      <XStack gap="$6" width="100%" paddingHorizontal={0}>
+      <XStack
+        gap="$6"
+        width="100%"
+        paddingHorizontal={0}
+        flex={1}
+        alignItems="center"
+      >
         <YStack
           padding="$2"
           borderRadius="$4"
@@ -262,8 +269,8 @@ function WelcomeStep({onNext}: {onNext: () => void}) {
           size="$4"
           borderRadius="$2"
           borderWidth={0}
-          hoverStyle={{backgroundColor: '$brand3'}}
-          focusStyle={{backgroundColor: '$brand3'}}
+          hoverStyle={{backgroundColor: '$brand4'}}
+          focusStyle={{backgroundColor: '$brand4'}}
         >
           NEXT
         </Button>
@@ -331,78 +338,98 @@ function ProfileStep({
   }
 
   return (
-    <>
-      <View position="absolute" top="$4" left="$4">
-        <Button onPress={onPrev} icon={ArrowLeft} chromeless />
-      </View>
-      <StepWrapper currentStep="profile">
-        <StepTitle>CREATE YOUR SITE</StepTitle>
-        <Text fontSize="$5" textAlign="center" color="$gray11">
-          Your site is more than just a collection of pages, it's a reflection
-          of who you are or what your brand stands for. Whether it's personal,
-          professional, or creative, this is your space to shine.
-        </Text>
+    <StepWrapper onPrev={onPrev}>
+      <StepTitle>CREATE YOUR SITE</StepTitle>
+      <Text fontSize="$5" textAlign="center" color="$gray11">
+        Your site is more than just a collection of pages, it's a reflection of
+        who you are or what your brand stands for. Whether it's personal,
+        professional, or creative, this is your space to shine.
+      </Text>
 
-        <Form
+      <Form
+        width="100%"
+        maxWidth={400}
+        onSubmit={onNext}
+        className="no-window-drag"
+        flex={1}
+      >
+        <YStack
+          gap="$4"
           width="100%"
-          maxWidth={400}
-          onSubmit={onNext}
           className="no-window-drag"
+          flex={1}
+          paddingTop="$4"
         >
-          <YStack gap="$4" width="100%" className="no-window-drag">
-            <Input
-              size="$4"
-              placeholder="Site name"
-              value={formData.name}
-              onChange={(e) => updateFormData({name: e.nativeEvent.text})}
-            />
+          <Input
+            size="$4"
+            placeholder="Site name"
+            value={formData.name}
+            onChange={(e) => updateFormData({name: e.nativeEvent.text})}
+          />
 
-            <XStack gap="$4" width="100%">
-              <YStack
-                gap="$2"
-                flex={0}
-                minWidth={72}
-                minHeight={72}
-                w="100%"
-                maxWidth={72}
-              >
-                <Text fontSize="$2" color="$gray11">
-                  Site Icon
-                </Text>
-                <ImageForm
-                  height={72}
-                  emptyLabel="ADD SITE ICON"
-                  url={formData.icon?.base64}
-                  uploadOnChange={false}
-                  onImageUpload={(file) => {
-                    if (file instanceof File) {
-                      handleImageUpload(file, 'icon')
-                    }
-                  }}
-                  onRemove={() => handleImageRemove('icon')}
-                />
-              </YStack>
+          <XStack gap="$4" width="100%">
+            <YStack
+              gap="$2"
+              flex={0}
+              minWidth={72}
+              minHeight={72}
+              w="100%"
+              maxWidth={72}
+            >
+              <Text fontSize="$2" color="$gray11">
+                Site Icon
+              </Text>
+              <ImageForm
+                height={72}
+                emptyLabel="ADD SITE ICON"
+                url={formData.icon?.base64}
+                uploadOnChange={false}
+                onImageUpload={(file) => {
+                  if (file instanceof File) {
+                    handleImageUpload(file, 'icon')
+                  }
+                }}
+                onRemove={() => handleImageRemove('icon')}
+              />
+            </YStack>
 
-              <YStack gap="$2" flex={1} minHeight={72}>
-                <Text fontSize="$2" color="$gray11">
-                  Site Logo
-                </Text>
-                <ImageForm
-                  height={72}
-                  emptyLabel="ADD SITE LOGO"
-                  url={formData.seedExperimentalLogo?.base64}
-                  uploadOnChange={false}
-                  onImageUpload={(file) => {
-                    if (file instanceof File) {
-                      handleImageUpload(file, 'seedExperimentalLogo')
-                    }
-                  }}
-                  onRemove={() => handleImageRemove('seedExperimentalLogo')}
-                />
-              </YStack>
-            </XStack>
-          </YStack>
-
+            <YStack gap="$2" flex={1} minHeight={72}>
+              <Text fontSize="$2" color="$gray11">
+                Site Logo
+              </Text>
+              <ImageForm
+                height={72}
+                emptyLabel="ADD SITE LOGO"
+                url={formData.seedExperimentalLogo?.base64}
+                uploadOnChange={false}
+                onImageUpload={(file) => {
+                  if (file instanceof File) {
+                    handleImageUpload(file, 'seedExperimentalLogo')
+                  }
+                }}
+                onRemove={() => handleImageRemove('seedExperimentalLogo')}
+              />
+            </YStack>
+          </XStack>
+        </YStack>
+        <YStack gap="$4" className="no-window-drag" alignSelf="center">
+          <Button
+            type="button"
+            chromeless
+            size="$3"
+            onPress={onExistingSite}
+            hoverStyle={{
+              cursor: 'pointer',
+              backgroundColor: 'transparent',
+              borderColor: 'transparent',
+            }}
+            focusStyle={{
+              backgroundColor: 'transparent',
+              borderColor: 'transparent',
+            }}
+          >
+            I already have a Site
+          </Button>
           <XStack
             marginTop="$8"
             gap="$4"
@@ -416,29 +443,23 @@ function ProfileStep({
             <Button
               backgroundColor="$brand2"
               color="white"
+              hoverStyle={{
+                backgroundColor: '$brand4',
+                borderColor: 'transparent',
+              }}
+              focusStyle={{
+                backgroundColor: '$brand4',
+                borderColor: 'transparent',
+              }}
               disabled={!formData.name.trim()}
               onPress={onNext}
             >
               NEXT
             </Button>
           </XStack>
-        </Form>
-        <Button
-          variant="outlined"
-          onPress={onExistingSite}
-          hoverStyle={{
-            backgroundColor: '$brand11',
-            borderColor: 'transparent',
-          }}
-          focusStyle={{
-            backgroundColor: '$brand11',
-            borderColor: 'transparent',
-          }}
-        >
-          I already have a Site
-        </Button>
-      </StepWrapper>
-    </>
+        </YStack>
+      </Form>
+    </StepWrapper>
   )
 }
 
@@ -526,13 +547,13 @@ function ExistingStep({
   }
 
   return (
-    <StepWrapper currentStep="existing">
+    <StepWrapper onPrev={onPrev}>
       <StepTitle>ADD EXISTING KEY</StepTitle>
       <Text fontSize="$5" textAlign="center" color="$gray11">
         Add the keys to your existing site.
       </Text>
 
-      <Form onSubmit={handleSubmit} w={400}>
+      <Form onSubmit={handleSubmit} w={400} bg="blue" flex={1}>
         <YStack gap="$4">
           <YStack gap="$2">
             <Text fontSize="$2" color="$gray11">
@@ -557,7 +578,7 @@ function ExistingStep({
             Save secret words to this device
           </CheckboxField>
         </YStack>
-
+        <View f={1} />
         <XStack
           marginTop="$8"
           gap="$4"
@@ -565,14 +586,19 @@ function ExistingStep({
           alignItems="center"
           justifyContent="center"
         >
-          <Button onPress={onPrev} bg="$brand11">
-            BACK
-          </Button>
           <Button
             backgroundColor="$brand2"
             color="white"
             disabled={!secretWords.trim()}
             onPress={handleSubmit}
+            hoverStyle={{
+              backgroundColor: '$brand4',
+              borderColor: 'transparent',
+            }}
+            focusStyle={{
+              backgroundColor: '$brand4',
+              borderColor: 'transparent',
+            }}
           >
             NEXT
           </Button>
@@ -824,7 +850,7 @@ function RecoveryStep({
   }
 
   return (
-    <StepWrapper currentStep="recovery">
+    <StepWrapper onPrev={onPrev}>
       <StepTitle>SAVE YOUR ACCOUNT</StepTitle>
       <Text
         fontSize="$6"
@@ -836,7 +862,13 @@ function RecoveryStep({
         account if you lose access.
       </Text>
 
-      <YStack gap="$4" width="100%" maxWidth={500} className="no-window-drag">
+      <YStack
+        gap="$4"
+        width="100%"
+        maxWidth={400}
+        className="no-window-drag"
+        flex={1}
+      >
         <TextArea
           flex={1}
           disabled
@@ -875,11 +907,8 @@ function RecoveryStep({
         >
           Save words on this device
         </CheckboxField>
-
+        <View f={1} />
         <XStack marginTop="$4" gap="$4" justifyContent="center">
-          <Button onPress={onPrev} bg="$brand11">
-            PREV
-          </Button>
           <Button
             onPress={handleSubmit}
             backgroundColor="$brand2"
@@ -902,7 +931,7 @@ function ReadyStep({onComplete}: {onComplete: () => void}) {
   const openUrl = useOpenUrl()
 
   return (
-    <StepWrapper currentStep="ready">
+    <StepWrapper>
       <StepTitle>READY TO GO</StepTitle>
       <YStack marginTop="$8" gap="$4" className="no-window-drag" maxWidth={400}>
         <ButtonFrame
@@ -922,7 +951,7 @@ function ReadyStep({onComplete}: {onComplete: () => void}) {
           </YStack>
         </ButtonFrame>
         <XStack gap="$4" h="auto" padding="$4" borderRadius="$4" bg="$brand11">
-          <ContentIcon width={130} />
+          <ContentIcon size={130} />
           <YStack flex={1}>
             <SizableText>All Content is Public</SizableText>
             <SizableText size="$2" color="$gray11">
@@ -1679,10 +1708,10 @@ function StepTitle({children}: {children: React.ReactNode}) {
 
 function StepWrapper({
   children,
-  currentStep,
+  onPrev,
 }: {
   children: React.ReactNode
-  currentStep: OnboardingStep
+  onPrev?: () => void
 }) {
   return (
     <>
@@ -1693,20 +1722,44 @@ function StepWrapper({
         gap="$4"
         alignItems="center"
         justifyContent="center"
-        backgroundColor="red"
+        backgroundColor="$brand12"
         backgroundImage="linear-gradient(to bottom, $green3, $green4)"
       >
         <YStack
           gap="$6"
           alignItems="center"
           justifyContent="center"
-          maxWidth={600}
+          width={600}
+          height={600}
           className="no-window-drag"
         >
+          {onPrev ? (
+            <View
+              position="absolute"
+              top={-60}
+              left={-100}
+              zIndex="$zIndex.9"
+              className="no-window-drag"
+            >
+              <Button
+                size="$5"
+                onPress={onPrev}
+                icon={ArrowLeft}
+                chromeless
+                hoverStyle={{
+                  backgroundColor: 'transparent',
+                  borderColor: 'transparent',
+                }}
+                focusStyle={{
+                  backgroundColor: 'transparent',
+                  borderColor: 'transparent',
+                }}
+              />
+            </View>
+          ) : null}
           {children}
         </YStack>
       </YStack>
-      <OnboardingProgress currentStep={currentStep} />
     </>
   )
 }
@@ -1715,7 +1768,14 @@ function OnboardingProgress({currentStep}: {currentStep: OnboardingStep}) {
   const showExistingStep = currentStep === 'existing'
 
   return (
-    <XStack gap="$2" paddingTop="$4">
+    <XStack
+      gap="$2"
+      paddingTop="$4"
+      position="absolute"
+      bottom="$4"
+      left="50%"
+      transform="translateX(-50%)"
+    >
       <OnboardingProgressStep active={currentStep === 'welcome'} />
       <OnboardingProgressStep active={currentStep === 'profile'} />
       {showExistingStep ? (
