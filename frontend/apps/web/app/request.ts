@@ -1,3 +1,5 @@
+import {SITE_BASE_URL} from '@shm/shared'
+
 export function parseRequest(request: Request) {
   const url = new URL(request.url)
   const forwardedHost = request.headers.get('x-forwarded-host')
@@ -10,6 +12,12 @@ export function parseRequest(request: Request) {
   if (pathParts.at(-1) === '') {
     pathParts = pathParts.slice(0, -1)
   }
+  console.log('@parseRequest', {
+    protocol,
+    hostname,
+    port: url.port,
+    SITE_BASE_URL,
+  })
   return {
     hostname,
     origin: `${protocol}//${hostname}`,
