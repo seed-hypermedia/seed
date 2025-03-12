@@ -12,6 +12,8 @@ COPY . .
 
 ENV NODE_ENV production
 RUN rm -rf ./frontend/apps/desktop
+RUN rm -rf ./frontend/apps/performance
+RUN rm -rf ./frontend/apps/performance-dashboard
 RUN yarn install
 RUN yarn web:prod
 
