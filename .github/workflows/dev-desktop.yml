@@ -188,8 +188,63 @@ jobs:
           name: artifacts-${{ matrix.config.daemon_name }}
           path: frontend/apps/desktop/out/make/**/*
 
-  notify-on-discord:
+  run-performance-tests:
+    name: Run Performance Tests
+    runs-on: ubuntu-latest
     needs: [build-info, build-binaries]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: |
+          yarn install
+          cd frontend/apps/performance
+          yarn install
+
+      - name: Run performance tests
+        run: |
+          cd frontend/apps/performance
+          # Run performance tests with CI mode and generate dashboard data
+          yarn test:ci
+        env:
+          # Pass through environment variables needed for performance tests
+          VITE_VERSION: "${{ needs.build-info.outputs.version }}"
+          VITE_COMMIT_HASH: "${{ github.sha }}"
+
+      - name: Upload performance results
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-results
+          path: frontend/apps/performance/performance-results
+          retention-days: 90
+
+      - name: Upload performance results to S3
+        if: ${{ github.event_name != 'pull_request' }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_KEY }}
+          AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
+        run: |
+          # Create a timestamped directory for this run
+          TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
+          # Upload to versioned directory
+          aws s3 sync frontend/apps/performance/performance-results s3://seedappdev/performance-results/${{ needs.build-info.outputs.version }} --delete
+          # Also upload to a dated directory for historical records
+          aws s3 sync frontend/apps/performance/performance-results s3://seedappdev/performance-results/history/$TIMESTAMP --delete
+
+  notify-on-discord:
+    needs: [build-info, build-binaries, run-performance-tests]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -216,6 +271,9 @@ jobs:
           # Get the GitHub Action Run URL base
           BASE_URL="https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest"
 
+          # Performance dashboard URL
+          DASHBOARD_URL="https://seedappdev.s3.eu-west-2.amazonaws.com/performance-dashboard/latest/index.html"
+
           # List all artifacts and construct URLs
           MESSAGE="**New dev version: ${VERSION}**"
           for file in $(find artifacts -type f); do
@@ -223,6 +281,10 @@ jobs:
             ARTIFACT_URL="${BASE_URL}/${FILE_NAME}"
             MESSAGE="${MESSAGE}\n - [${FILE_NAME}](${ARTIFACT_URL})"
           done
+
+          # Add performance dashboard link
+          MESSAGE="${MESSAGE}\n\n**[View Performance Dashboard](${DASHBOARD_URL})**"
+          MESSAGE="${MESSAGE}\n(Performance results for this build will be available in the dashboard soon)"
 
           # Send the message to Discord
           echo "Sending Discord Notification..."

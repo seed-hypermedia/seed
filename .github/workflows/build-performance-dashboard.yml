@@ -1,0 +1,158 @@
+name: Build Performance Dashboard
+
+# This workflow is responsible for building and deploying the performance dashboard.
+# It runs in three scenarios:
+# 1. When changes are made to the dashboard code
+# 2. When manually triggered via workflow_dispatch
+# 3. On a daily schedule to pick up any new performance results
+#
+# The desktop app build workflow (dev-desktop.yml) uploads performance results to S3
+# but does not build the dashboard itself. This workflow centralizes all dashboard building.
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run daily at 10:00 UTC to pick up new performance results
+    - cron: "0 10 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "frontend/apps/performance-dashboard/**"
+      - ".github/workflows/build-performance-dashboard.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  build-info:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.set_version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set Version
+        id: set_version
+        run: |
+          VERSION="dashboard-$(date +'%Y%m%d-%H%M%S')"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Display Version
+        run: |
+          echo "Dashboard Version: ${{ steps.set_version.outputs.version }}"
+
+  fetch-performance-results:
+    runs-on: ubuntu-latest
+    needs: build-info
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup AWS CLI
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.S3_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.S3_SECRET_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Download performance results from S3
+        run: |
+          mkdir -p frontend/apps/performance/performance-results
+          aws s3 sync s3://seedappdev/performance-results frontend/apps/performance/performance-results --no-progress
+
+      - name: Upload performance results as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-results
+          path: frontend/apps/performance/performance-results
+          retention-days: 90
+
+  build-dashboard:
+    name: Build Performance Dashboard
+    runs-on: ubuntu-latest
+    needs: [build-info, fetch-performance-results]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Download performance results
+        uses: actions/download-artifact@v4
+        with:
+          name: performance-results
+          path: frontend/apps/performance/performance-results
+
+      - name: Install dependencies
+        run: |
+          yarn install
+          cd frontend/apps/performance-dashboard
+          yarn install
+
+      - name: Build performance dashboard
+        run: |
+          cd frontend/apps/performance-dashboard
+          # Copy results from performance tests directory to dashboard public folder
+          yarn copy-results
+          # Build the dashboard
+          yarn build
+          # Verify performance results were copied to dist
+          if [ ! -d "dist/performance-results" ]; then
+            echo "Warning: Performance results not found in dist folder. Copying them now."
+            mkdir -p dist/performance-results
+            cp -R ../performance/performance-results/* dist/performance-results/
+          fi
+          # List contents to verify
+          ls -la dist/performance-results
+
+      - name: Upload dashboard artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-dashboard-${{ needs.build-info.outputs.version }}
+          path: frontend/apps/performance-dashboard/dist
+          retention-days: 90
+
+      - name: Deploy dashboard to S3
+        run: |
+          # Deploy to S3 bucket with version
+          aws s3 sync frontend/apps/performance-dashboard/dist s3://seedappdev/performance-dashboard/${{ needs.build-info.outputs.version }} --delete
+          # Also deploy to latest directory
+          aws s3 sync frontend/apps/performance-dashboard/dist s3://seedappdev/performance-dashboard/latest --delete
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_KEY }}
+          AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
+
+  notify-on-discord:
+    needs: [build-info, build-dashboard]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Discord Notification
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          VERSION: ${{ needs.build-info.outputs.version }}
+        run: |
+          # Performance dashboard URLs
+          DASHBOARD_URL="https://seedappdev.s3.eu-west-2.amazonaws.com/performance-dashboard/latest/index.html"
+          VERSIONED_DASHBOARD_URL="https://seedappdev.s3.eu-west-2.amazonaws.com/performance-dashboard/${{ needs.build-info.outputs.version }}/index.html"
+
+          # Create message
+          MESSAGE="**New Performance Dashboard Build: ${VERSION}**\n\n"
+          MESSAGE="${MESSAGE}**[View Latest Dashboard](${DASHBOARD_URL})**\n"
+          MESSAGE="${MESSAGE}**[View This Version](${VERSIONED_DASHBOARD_URL})**"
+
+          # Send the message to Discord
+          echo "Sending Discord Notification..."
+          PAYLOAD=$(printf '{"content": "%s"}' "$MESSAGE")
+          curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK_URL"

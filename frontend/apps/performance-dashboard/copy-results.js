@@ -16,6 +16,8 @@ const __dirname = path.dirname(__filename);
 // Source and destination paths
 const sourceDir = path.resolve(__dirname, "../performance/performance-results");
 const destDir = path.resolve(__dirname, "public/performance-results");
+// Also copy to dist directory if it exists (for builds)
+const distDir = path.resolve(__dirname, "dist/performance-results");
 
 // Create destination directory if it doesn't exist
 if (!fs.existsSync(destDir)) {
@@ -58,12 +60,19 @@ try {
     process.exit(0);
   }
 
-  // Copy performance results directory
+  // Copy performance results directory to public
   copyDirRecursive(sourceDir, destDir);
   console.log(`Successfully copied performance results from:`);
   console.log(`  ${sourceDir}`);
   console.log(`to:`);
   console.log(`  ${destDir}`);
+
+  // Also copy to dist directory if it exists (for post-build scenario)
+  if (fs.existsSync(path.resolve(__dirname, "dist"))) {
+    copyDirRecursive(sourceDir, distDir);
+    console.log(`Also copied to:`);
+    console.log(`  ${distDir}`);
+  }
 } catch (error) {
   console.error("Error copying performance results:", error);
   process.exit(1);

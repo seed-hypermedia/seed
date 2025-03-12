@@ -8,6 +8,7 @@
     "predev": "yarn copy-results",
     "dev": "vite",
     "prebuild": "yarn copy-results",
+    "postbuild": "yarn copy-results",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
