@@ -37,11 +37,17 @@ export function AutoUpdater() {
       minWidth={360}
       minHeight={100}
       borderRadius="$2"
-      zIndex={10000}
+      zIndex="$zIndex.9"
       elevation="$4"
       bg="$backgroundStrong"
       padding="$4"
-      x={updateStatus == null || updateStatus?.type == 'idle' ? 500 : 0}
+      x={
+        updateStatus?.type == 'update-available' ||
+        updateStatus?.type == 'downloading' ||
+        updateStatus?.type == 'restarting'
+          ? 0
+          : 500
+      }
       animation={[
         'slow',
         {
