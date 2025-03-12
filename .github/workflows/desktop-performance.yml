@@ -182,3 +182,45 @@ jobs:
           name: desktop-performance-results
           path: performance-results
           retention-days: 14
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Copy artifacts to expected location
+        run: |
+          # Create destination directory if it doesn't exist
+          mkdir -p frontend/apps/desktop/out/make
+
+          # Debug: List all downloaded artifacts
+          echo "Downloaded artifacts:"
+          find artifacts -type f | head -n 20
+
+          # Copy the artifacts into the make directory maintaining structure
+          # Each artifact directory (artifacts-*) should go into the make directory
+          # First try to find platform-specific directories like darwin-x64, win32-x64, etc.
+          for platform_dir in $(find artifacts -type d -name "*-x64" -o -name "*-arm64" -o -name "*darwin*" -o -name "*win32*" -o -name "*linux*"); do
+            echo "Found platform directory: $platform_dir"
+            # Extract just the platform part (e.g., darwin-x64)
+            platform_name=$(basename "$platform_dir")
+            # Create directory if needed
+            mkdir -p frontend/apps/desktop/out/make/$platform_name
+            # Copy contents
+            cp -r $platform_dir/* frontend/apps/desktop/out/make/$platform_name/
+          done
+
+          # If no platform directories found, try a simpler approach
+          if [ ! "$(ls -A frontend/apps/desktop/out/make/)" ]; then
+            echo "No platform directories found, using simpler approach"
+            for artifact_dir in artifacts/artifacts-*; do
+              if [ -d "$artifact_dir" ]; then
+                echo "Copying from $artifact_dir"
+                cp -r $artifact_dir/* frontend/apps/desktop/out/make/
+              fi
+            done
+          fi
+
+          # List files to verify
+          echo "Contents of frontend/apps/desktop/out/make:"
+          find frontend/apps/desktop/out -type d | sort

@@ -18,13 +18,37 @@ export function findLatestBuild(): string {
   // Directory where the builds are stored
   const outDir = path.join(desktopDir, "out");
 
+  // Add debug logging
+  console.log(`Looking for builds in: ${outDir}`);
+
   // Check if directory exists
   if (!fs.existsSync(outDir)) {
     throw new Error(`Desktop app build directory not found: ${outDir}`);
   }
 
-  // List files in the out directory
-  const builds = fs.readdirSync(outDir);
+  // Look in out and out/make directories
+  let searchDirs = [outDir];
+  const makeDir = path.join(outDir, "make");
+  if (fs.existsSync(makeDir)) {
+    searchDirs.push(makeDir);
+    console.log(`Also looking in: ${makeDir}`);
+  }
+
+  let allBuilds = [];
+
+  // Search in all directories
+  for (const dir of searchDirs) {
+    const items = fs.readdirSync(dir);
+    console.log(`Found ${items.length} items in ${dir}`);
+
+    // Add items with full path
+    allBuilds = allBuilds.concat(
+      items.map((item) => ({
+        name: item,
+        fullPath: path.join(dir, item),
+      }))
+    );
+  }
 
   const platforms = [
     "win32",
@@ -38,33 +62,46 @@ export function findLatestBuild(): string {
     "ubuntu",
   ];
 
-  const latestBuild = builds
-    .map((fileName: string) => {
+  // Debug log
+  console.log(`Processing ${allBuilds.length} potential builds`);
+
+  const latestBuild = allBuilds
+    .map((item) => {
       // Make sure it's a directory with platform in its name
-      const stats = fs.statSync(path.join(outDir, fileName));
-      const isBuild = fileName
-        .toLocaleLowerCase()
-        .split("-")
-        .some((part: string) => platforms.includes(part));
+      const stats = fs.statSync(item.fullPath);
+      const nameLower = item.name.toLowerCase();
+      const isBuild = platforms.some((platform) =>
+        nameLower.includes(platform)
+      );
+
       if (stats.isDirectory() && isBuild) {
+        console.log(`Found valid build: ${item.name} at ${item.fullPath}`);
         return {
-          name: fileName,
-          time: fs.statSync(path.join(outDir, fileName)).mtimeMs,
-        } as BuildInfo;
+          name: item.name,
+          fullPath: item.fullPath,
+          time: stats.mtimeMs,
+        };
       }
       return null;
     })
     .filter(Boolean)
-    .sort((a: BuildInfo, b: BuildInfo) => b.time - a.time)
-    .map((file: BuildInfo) => file.name)[0];
+    .sort((a, b) => b.time - a.time)[0];
 
   if (!latestBuild) {
-    throw new Error(
-      `No build found in directory: ${outDir}. Make sure to build the desktop app first.`
-    );
+    // List what was found to help diagnose issues
+    console.log("No valid builds found. Available items:");
+    allBuilds.forEach((item) => {
+      console.log(
+        ` - ${item.name} (${
+          fs.statSync(item.fullPath).isDirectory() ? "dir" : "file"
+        })`
+      );
+    });
+    throw new Error(`No valid builds found in ${outDir} or ${makeDir}`);
   }
 
-  return path.join(outDir, latestBuild);
+  console.log(`Selected build: ${latestBuild.fullPath}`);
+  return latestBuild.fullPath;
 }
 
 // Create a modified startApp function that uses our custom findLatestBuild

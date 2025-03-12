@@ -34,8 +34,8 @@ export const libraryScenario: PerformanceScenario = {
     // Example: await page.click('a[href="/dashboard"]');
 
     // Wait for dashboard to load
-    await page.click("#welcome-next");
-    await page.click("#profile-skip");
+    // await page.click("#welcome-next");
+    // await page.click("#profile-skip");
     await page.waitForLoadState("networkidle");
   },
 };
@@ -227,12 +227,12 @@ export const largeContentScenario: PerformanceScenario = {
 export const allScenarios = [
   appStartupScenario,
   libraryScenario,
-  // navigationScenario,
-  // heavyOperationScenario,
-  // ipcCommunicationScenario,
-  // memoryUsageScenario,
-  // windowManagementScenario,
-  // largeContentScenario,
+  navigationScenario,
+  heavyOperationScenario,
+  ipcCommunicationScenario,
+  memoryUsageScenario,
+  windowManagementScenario,
+  largeContentScenario,
 ];
 
 // Get scenario by name
