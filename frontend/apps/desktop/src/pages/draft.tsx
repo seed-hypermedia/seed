@@ -318,7 +318,7 @@ function DocumentEditor({
     if (!id?.id) return
     return subscribeDraftFocus(id?.id, (blockId: string) => {
       if (editor) {
-        editor._tiptapEditor.commands.focus()
+        editor._tiptapEditor.commands.focus('end', {scrollIntoView: true})
         editor.setTextCursorPosition(blockId, 'end')
       }
     })
@@ -1020,10 +1020,10 @@ function useDraftRebase({
       })
     }
 
-    console.log('performRebase', {
-      draft: draft?.content,
-      document: rebasedData.data?.document,
-    })
+    // console.log('performRebase', {
+    //   draft: draft?.content,
+    //   document: rebasedData.data?.document,
+    // })
   }
 
   return {

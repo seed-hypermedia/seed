@@ -265,7 +265,6 @@ export function DocumentOutline({
           blockRange: null,
         },
       },
-      undefined,
       {
         replace: true,
       },
@@ -347,7 +346,7 @@ function OutlineNode({
         indented={indented}
         onPress={(e: GestureReponderEvent) => {
           e.preventDefault()
-          if (outlineProps.onPress) {
+          if (outlineProps && outlineProps.onPress) {
             outlineProps.onPress(e)
           }
           onPress?.()
@@ -357,20 +356,23 @@ function OutlineNode({
       />
       {node.children?.length
         ? node.children.map((child) => {
-            const childOutlineProps = useRouteLink(
-              {
-                key: 'document',
-                id: {
-                  ...docId,
-                  blockRef: child.id,
-                  blockRange: null,
+            let childOutlineProps
+            if (outlineProps) {
+              childOutlineProps = useRouteLink(
+                {
+                  key: 'document',
+                  id: {
+                    ...docId,
+                    blockRef: child.id,
+                    blockRange: null,
+                  },
                 },
-              },
-              undefined,
-              {
-                replace: true,
-              },
-            )
+                {
+                  replace: true,
+                },
+              )
+            }
+
             return (
               <OutlineNode
                 node={child}
