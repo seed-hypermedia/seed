@@ -44,6 +44,7 @@ function pastedNodesToBlocks(
   const stack: {level: number; block: Block<BlockSchema>}[] = []
   let hasMarkdown = false
   let previousBlock: Block<BlockSchema> | undefined
+  let startedCodeBlock: Block<BlockSchema> | undefined
 
   parent.forEach((node) => {
     let blockToInsert: Block<BlockSchema> | undefined
@@ -140,13 +141,22 @@ function pastedNodesToBlocks(
             blocks.push(previousBlock)
             previousBlock = undefined
           }
-          blocks.push(blockToInsert)
+          if (startedCodeBlock) {
+            startedCodeBlock.content = [
+              (startedCodeBlock.content[0] ? startedCodeBlock.content[0] : '') +
+                blockToInsert.content[0].text,
+            ]
+          } else blocks.push(blockToInsert)
         }
 
         stack.push({level: headingLevel, block: blockToInsert})
       } else {
         // console.log(stack, blockToInsert, blocks)
         if (stack.length) {
+          if (!hasMarkdown && previousBlock) {
+            stack[stack.length - 1].block.children.push(previousBlock)
+            previousBlock = undefined
+          }
           if (
             blockToInsert.props.childrenType &&
             blockToInsert.props.childrenType !== 'Group'
@@ -157,6 +167,20 @@ function pastedNodesToBlocks(
           }
           stack[stack.length - 1].block.children.push(blockToInsert)
         } else {
+          // if (blockToInsert.type === 'code-block') {
+          //   if (previousBlock) {
+          //     blocks.push(previousBlock)
+          //     previousBlock = undefined
+          //   }
+          //   if (startedCodeBlock) {
+          //     startedCodeBlock.content = [
+          //       {type: 'text', text: startedCodeBlock.content, styles: {}},
+          //     ]
+          //     blocks.push(startedCodeBlock)
+          //     startedCodeBlock = undefined
+          //   } else startedCodeBlock = blockToInsert
+          //   console.log(blockToInsert, startedCodeBlock)
+          // } else
           if (
             blockToInsert.props.childrenType &&
             blockToInsert.props.childrenType !== 'Group'
@@ -182,7 +206,13 @@ function pastedNodesToBlocks(
               previousBlock = undefined
             }
 
-            blocks.push(blockToInsert)
+            if (startedCodeBlock) {
+              startedCodeBlock.content = [
+                (startedCodeBlock.content[0]
+                  ? startedCodeBlock.content[0]
+                  : '') + blockToInsert.content[0].text,
+              ]
+            } else blocks.push(blockToInsert)
           }
         }
       }
