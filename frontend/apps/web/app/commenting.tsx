@@ -1,4 +1,4 @@
-import {createComment, postCBOR, SignedComment} from '@/api'
+import {createComment, postCBOR} from '@/api'
 import {useCreateAccount, useLocalKeyPair} from '@/auth'
 import {injectModels} from '@/models'
 import {encode as cborEncode} from '@ipld/dag-cbor'
@@ -6,34 +6,36 @@ import CommentEditor from '@shm/editor/comment-editor'
 import {
   hmId,
   hostnameStripProtocol,
+  idToUrl,
   queryKeys,
   SITE_IDENTITY_DEFAULT_ORIGIN,
   UnpackedHypermediaId,
+  unpackHmId,
+  useUniversalAppContext,
 } from '@shm/shared'
 import {useEntity} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {DocContentProvider} from '@shm/ui/document-content'
-import {Field} from '@shm/ui/form-fields'
-import {FormInput} from '@shm/ui/form-input'
-import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {toast} from '@shm/ui/toast'
 import {DialogTitle, useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
-import {
-  Control,
-  FieldValues,
-  Path,
-  SubmitHandler,
-  useController,
-  useForm,
-} from 'react-hook-form'
-import {Form, SizableText, Stack, XStack, YStack} from 'tamagui'
-import {z} from 'zod'
+import {useEffect, useState} from 'react'
+import {SizableText, Spinner, XStack, YStack} from 'tamagui'
 import {getValidAbility} from './auth-abilities'
-import {useDelegatedAbilities} from './auth-delegation'
+import {
+  createDelegatedComment,
+  delegatedIdentityOriginStore,
+  useDelegatedAbilities,
+} from './auth-delegation'
+import type {AuthFragmentOptions} from './auth-page'
+import {EmailNotificationsForm} from './email-notifications'
+import {useEmailNotifications} from './email-notifications-models'
+import {
+  hasPromptedEmailNotifications,
+  setHasPromptedEmailNotifications,
+} from './local-db'
 import {EmbedDocument, EmbedInline, QueryBlockWeb} from './web-embeds'
-
 injectModels()
 
 export type WebCommentingProps = {
@@ -57,10 +59,13 @@ export default function WebCommenting({
   const delegatedAbilities = useDelegatedAbilities()
   const queryClient = useQueryClient()
   const postComment = useMutation({
-    mutationFn: async (signedComment: SignedComment) => {
+    mutationFn: async (commentPayload: {
+      comment: Uint8Array
+      blobs: {cid: string; data: Uint8Array}[]
+    }) => {
       const result = await postCBOR(
         '/hm/api/comment',
-        cborEncode(signedComment),
+        cborEncode(commentPayload),
       )
     },
     onSuccess: () => {
@@ -117,7 +122,7 @@ export default function WebCommenting({
   if (!docVersion) return null
   return (
     <>
-      <CommentDocContentProvider>
+      <CommentDocContentProvider handleFileAttachment={handleFileAttachment}>
         <CommentEditor
           submitButton={({getContent, reset}) => {
             return (
@@ -222,55 +227,62 @@ export default function WebCommenting({
           onDiscardDraft={onDiscardDraft}
         />
       </CommentDocContentProvider>
-      {createAccountDialog.content}
-    </>
-  )
-}
-const siteMetaSchema = z.object({
-  name: z.string(),
-  icon: z.string().or(z.instanceof(Blob)).nullable(),
-})
-type SiteMetaFields = z.infer<typeof siteMetaSchema>
-function CreateAccountDialog({
-  input,
-  onClose,
-}: {
-  input: {}
-  onClose: () => void
-}) {
-  const {origin} = useUniversalAppContext()
-  const onSubmit: SubmitHandler<SiteMetaFields> = (data) => {
-    createAccount({name: data.name, icon: data.icon}).then(() => onClose())
-  }
-  const siteName = hostnameStripProtocol(origin)
-  return (
-    <>
-      <DialogTitle>Create Account on {siteName}</DialogTitle>
-      <DialogDescription>
-        Your account key will be securely stored in this browser. The identity
-        will be accessible only on this domain, but you can link it to other
-        domains and devices.
-      </DialogDescription>
-      <EditProfileForm
-        onSubmit={onSubmit}
-        submitLabel={`Create ${siteName} Account`}
-      />
+      {createAccountContent}
+      {emailNotificationsPromptContent}
     </>
   )
 }
 
+async function handleFileAttachment(file: File) {
+  const fileBuffer = await file.arrayBuffer()
+  const fileBinary = new Uint8Array(fileBuffer)
+  return {
+    displaySrc: URL.createObjectURL(file),
+    fileBinary,
+  }
+}
+
+export function useOpenUrlWeb() {
+  const {originHomeId} = useUniversalAppContext()
+
+  return (url?: string, newWindow?: boolean) => {
+    if (!url) return
+
+    const unpacked = unpackHmId(url)
+    const newUrl = unpacked ? idToUrl(unpacked, {originHomeId}) : url
+
+    if (!newUrl) {
+      console.error('URL is empty', newUrl)
+      return
+    }
+
+    if (newWindow) {
+      window.open(newUrl, '_blank')
+    } else {
+      window.location.href = newUrl
+    }
+  }
+}
+
 function CommentDocContentProvider({
+  handleFileAttachment,
   children,
+  comment, // originHomeId,
   // id,
-  originHomeId,
-  siteHost, // supportDocuments,
-  // routeParams,
 } // supportQueries,
+// siteHost,
+// supportDocuments,
+// routeParams,
 : {
-  siteHost: string | undefined
-  // id: UnpackedHypermediaId
-  originHomeId: UnpackedHypermediaId
   children: React.ReactNode | JSX.Element
+  // TODO: specify return type
+  handleFileAttachment: (
+    file: File,
+  ) => Promise<{displaySrc: string; fileBinary: Uint8Array}>
+  comment?: boolean
+  // siteHost: string | undefined
+  // id: UnpackedHypermediaId
+  // originHomeId: UnpackedHypermediaId
   // supportDocuments?: HMEntityContent[]
   // supportQueries?: HMQueryResult[]
   // routeParams?: {
@@ -280,6 +292,7 @@ function CommentDocContentProvider({
   //   blockRange?: BlockRange
   // }
 }) {
+  const openUrl = useOpenUrlWeb()
   // const importWebFile = trpc.webImporting.importWebFile.useMutation()
   // const navigate = useNavigate()
   return (
@@ -290,6 +303,7 @@ function CommentDocContentProvider({
         Inline: EmbedInline,
         Query: QueryBlockWeb,
       }}
+      disableEmbedClick={true}
       // entityId={id}
       // supportDocuments={supportDocuments}
       // supportQueries={supportQueries}
@@ -319,273 +333,72 @@ function CommentDocContentProvider({
       // routeParams={routeParams}
       textUnit={18}
       layoutUnit={24}
+      openUrl={openUrl}
+      handleFileAttachment={handleFileAttachment}
       debug={false}
+      comment
     >
       {children}
     </DocContentProvider>
   )
 }
 
-function EditProfileForm({
-  onSubmit,
-  defaultValues,
-  submitLabel,
-}: {
-  onSubmit: (data: SiteMetaFields) => void
-  defaultValues?: SiteMetaFields
-  submitLabel?: string
-}) {
-  const {
-    control,
-    handleSubmit,
-    setFocus,
-    formState: {errors},
-  } = useForm<SiteMetaFields>({
-    resolver: zodResolver(siteMetaSchema),
-    defaultValues: defaultValues || {
-      name: '',
-      icon: null,
-    },
-  })
+function EmailNotificationsPrompt({onClose}: {onClose: () => void}) {
   useEffect(() => {
-    setTimeout(() => {
-      setFocus('name')
-    }, 300) // wait for animation
-  }, [setFocus])
-  return (
-    <Form onSubmit={handleSubmit(onSubmit)}>
-      <YStack gap="$2">
-        <Field id="name" label="Account Name">
-          <FormInput control={control} name="name" placeholder="Account Name" />
-        </Field>
-        <ImageField control={control} name="icon" label="Site Icon" />
-        <XStack jc="center">
-          <Form.Trigger asChild>
-            <Button>{submitLabel || 'Save Account'}</Button>
-          </Form.Trigger>
+    setHasPromptedEmailNotifications(true)
+  }, [])
+  const [mode, setMode] = useState<'prompt' | 'form' | 'success'>('prompt')
+  const {data: emailNotifications, isLoading: isEmailNotificationsLoading} =
+    useEmailNotifications()
+  if (isEmailNotificationsLoading) return <Spinner /> // todo: make it look better
+  if (mode === 'prompt') {
+    return (
+      <YStack gap="$3">
+        <DialogTitle>Email Notifications</DialogTitle>
+        <SizableText>
+          Do you want to receive an email when someone mentions your or replies
+          to your comments?
+        </SizableText>
+        <XStack gap="$3" jc="flex-end">
+          <Button onPress={() => onClose()}>No Thanks</Button>
+          <Button onPress={() => setMode('form')} theme="blue">
+            Yes, Notify Me
+          </Button>
         </XStack>
       </YStack>
-    </Form>
-  )
-}
-
-async function optimizeImage(file: File): Promise<Blob> {
-  const response = await fetch('/hm/api/site-image', {
-    method: 'POST',
-    body: await file.arrayBuffer(),
-  })
-  const signature = response.headers.get('signature')
-  if (!signature) {
-    throw new Error('No signature found')
+    )
   }
-  if (signature !== 'SIG-TODO') {
-    // todo: real signature checking.. not here but at re-upload time
-    throw new Error('Invalid signature')
+  if (mode === 'form') {
+    return (
+      <YStack gap="$3">
+        <DialogTitle>Email Notifications</DialogTitle>
+        <EmailNotificationsForm
+          onClose={onClose}
+          onComplete={() => {
+            setMode('success')
+          }}
+          defaultValues={emailNotifications?.account}
+        />
+      </YStack>
+    )
   }
-  const contentType = response.headers.get('content-type') || 'image/png'
-  const responseBlob = await response.blob()
-  return new Blob([responseBlob], {type: contentType})
-}
-
-function ImageField<Fields extends FieldValues>({
-  control,
-  name,
-  label,
-}: {
-  control: Control<Fields>
-  name: Path<Fields>
-  label: string
-}) {
-  const c = useController({control, name})
-  const currentImgURL = c.field.value
-    ? typeof c.field.value === 'string'
-      ? getDaemonFileUrl(c.field.value)
-      : URL.createObjectURL(c.field.value)
-    : null
-  return (
-    <Stack
-      position="relative"
-      group="icon"
-      overflow="hidden"
-      height={128}
-      width={128}
-      borderRadius="$2"
-      alignSelf="stretch"
-      flex={1}
-    >
-      <input
-        type="file"
-        onChange={(event) => {
-          const file = event.target.files?.[0]
-          if (!file) return
-          optimizeImage(file).then((blob) => {
-            c.field.onChange(blob)
-          })
-        }}
-        style={{
-          opacity: 0,
-          display: 'flex',
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          top: 0,
-          bottom: 0,
-          zIndex: 100,
-        }}
-      />
-      {!c.field.value && (
-        <XStack
-          bg="rgba(0,0,0,0.3)"
-          position="absolute"
-          gap="$2"
-          zi="$zIndex.5"
-          w="100%"
-          $group-icon-hover={{opacity: 0.5}}
-          h="100%"
-          opacity={1}
-          ai="center"
-          jc="center"
-          pointerEvents="none"
-        >
-          <SizableText textAlign="center" size="$1" color="white">
-            Add {label}
+  if (mode === 'success') {
+    return (
+      <YStack gap="$3">
+        <DialogTitle>Email Notifications</DialogTitle>
+        <SizableText>
+          Email notifications have been set for{' '}
+          <SizableText fontWeight="bold">
+            {emailNotifications?.account?.email}
           </SizableText>
-        </XStack>
-      )}
-      {c.field.value && (
-        <img
-          src={currentImgURL}
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            position: 'absolute',
-            left: 0,
-            top: 0,
-          }}
-        />
-      )}
-      {c.field.value && (
-        <XStack
-          bg="rgba(0,0,0,0.3)"
-          position="absolute"
-          gap="$2"
-          zi="$zIndex.5"
-          w="100%"
-          $group-icon-hover={{opacity: 1}}
-          h="100%"
-          opacity={0}
-          ai="center"
-          jc="center"
-          pointerEvents="none"
-        >
-          <SizableText textAlign="center" size="$1" color="white">
-            Edit {label}
-          </SizableText>
-        </XStack>
-      )}
-    </Stack>
-  )
-}
-
-function LogoutDialog({onClose}: {onClose: () => void}) {
-  return (
-    <>
-      <DialogTitle>Really Logout?</DialogTitle>
-      <DialogDescription>
-        This account key is not saved anywhere else. By logging out, you will
-        loose access to this identity forever.
-      </DialogDescription>
-      <Button
-        onPress={() => {
-          logout()
-          onClose()
-        }}
-        theme="red"
-      >
-        Log out Forever
-      </Button>
-    </>
-  )
-}
-
-function EditProfileDialog({
-  onClose,
-  input,
-}: {
-  onClose: () => void
-  input: {accountUid: string}
-}) {
-  const id = hmId('d', input.accountUid)
-  const account = useEntity(id)
-  const queryClient = useQueryClient()
-  const document = account.data?.document
-  const update = useMutation({
-    mutationFn: (updates: SiteMetaFields) => {
-      if (!keyPair) {
-        throw new Error('No key pair found')
-      }
-      if (!document) {
-        throw new Error('No document found')
-      }
-      return updateProfile({keyPair, document, updates})
-    },
-    onSuccess: () => {
-      // invalidate the activity and discussion for all documents because they may be affected by the profile change
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_ACTIVITY],
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_DISCUSSION],
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.ENTITY, id.id],
-      })
-    },
-  })
-  return (
-    <>
-      <DialogTitle>Edit Profile</DialogTitle>
-      {document && (
-        <EditProfileForm
-          defaultValues={{
-            name: account.data?.document?.metadata?.name || '?',
-            icon: account.data?.document?.metadata?.icon || null,
-          }}
-          onSubmit={(newValues) => {
-            update.mutateAsync(newValues).then(() => onClose())
-          }}
-        />
-      )}
-    </>
-  )
-}
-
-export function AccountFooterActions() {
-  const userKeyPair = useKeyPair()
-  const logoutDialog = useAppDialog(LogoutDialog)
-  const editProfileDialog = useAppDialog(EditProfileDialog)
-  if (!userKeyPair) return null
-  return (
-    <XStack gap="$2">
-      <Button
-        size="$2"
-        onPress={() => editProfileDialog.open({accountUid: userKeyPair.id})}
-        backgroundColor="$color4"
-        icon={Pencil}
-      >
-        Edit Profile
-      </Button>
-      <Button
-        size="$2"
-        onPress={() => logoutDialog.open({})}
-        backgroundColor="$color4"
-        icon={LogOut}
-      >
-        Logout
-      </Button>
-      {logoutDialog.content}
-      {editProfileDialog.content}
-    </XStack>
-  )
+          .
+        </SizableText>
+        <SizableText>
+          You can edit your notification preferences by pressing "Notification
+          Settings" in the footer.
+        </SizableText>
+        <Button onPress={() => onClose()}>Done</Button>
+      </YStack>
+    )
+  }
 }

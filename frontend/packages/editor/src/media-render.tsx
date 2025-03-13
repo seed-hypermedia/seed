@@ -318,8 +318,92 @@ function MediaForm({
     },
   }
 
+  // const handleUpload = async (files: File[]) => {
+  //   const largeFileIndex = files.findIndex((file) => file.size > MaxFileSizeB)
+  //   if (largeFileIndex > -1) {
+  //     const largeFile = files[largeFileIndex]
+  //     setFileName({
+  //       name:
+  //         largeFileIndex > 0
+  //           ? `The size of ${
+  //               largeFile.name.length < 36
+  //                 ? largeFile.name
+  //                 : largeFile.name.slice(0, 32) + '...'
+  //             } exceeds ${MaxFileSizeMB} MB.`
+  //           : `The file size exceeds ${MaxFileSizeMB} MB.`,
+  //       color: 'red',
+  //     })
+  //     return
+  //   }
+
+  //   const {name} = files[0]
+  //   const formData = new FormData()
+  //   formData.append('file', files[0])
+
+  //   try {
+  //     const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
+  //       method: 'POST',
+  //       body: formData,
+  //     })
+  //     const data = await response.text()
+  //     assign({
+  //       props: {
+  //         url: data ? `ipfs://${data}` : '',
+  //         name: name,
+  //         size: mediaType === 'file' ? files[0].size.toString() : undefined,
+  //       },
+  //     } as MediaType)
+  //   } catch (error) {
+  //     console.error(`Editor: ${mediaType} upload error (MediaForm): ${error}`)
+  //   }
+  //   for (let i = files.length - 1; i > 0; i--) {
+  //     const {name} = files[i]
+  //     const formData = new FormData()
+  //     formData.append('file', files[i])
+
+  //     try {
+  //       const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
+  //         method: 'POST',
+  //         body: formData,
+  //       })
+  //       const data = await response.text()
+  //       assign({
+  //         props: {
+  //           url: data ? `ipfs://${data}` : '',
+  //           name: name,
+  //           size: mediaType === 'file' ? files[0].size.toString() : undefined,
+  //         },
+  //       } as MediaType)
+  //     } catch (error) {
+  //       console.error(
+  //         `Editor: ${mediaType} upload error (MediaForm forloop): ${error}`,
+  //       )
+  //     }
+  //   }
+  //   const cursorPosition = editor.getTextCursorPosition()
+  //   editor.focus()
+  //   if (cursorPosition.block.id === block.id) {
+  //     if (cursorPosition.nextBlock)
+  //       editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
+  //     else {
+  //       editor.insertBlocks(
+  //         [{type: 'paragraph', content: ''}],
+  //         block.id,
+  //         'after',
+  //       )
+  //       editor.setTextCursorPosition(
+  //         editor.getTextCursorPosition().nextBlock!,
+  //         'start',
+  //       )
+  //     }
+  //   }
+  // }
+
+  const {getFileCID} = useDocContentContext() // Get getFileCID function from context
+
   const handleUpload = async (files: File[]) => {
     const largeFileIndex = files.findIndex((file) => file.size > MaxFileSizeB)
+
     if (largeFileIndex > -1) {
       const largeFile = files[largeFileIndex]
       setFileName({
@@ -336,30 +420,23 @@ function MediaForm({
       return
     }
 
-    const {name} = files[0]
-    const formData = new FormData()
-    formData.append('file', files[0])
+    const {name, size} = files[0]
 
-    try {
-      const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
-        method: 'POST',
-        body: formData,
-      })
-      const data = await response.text()
+    if (getFileCID) {
+      // const fileBuffer = await files[0].arrayBuffer())
+      const {cid, previewUrl} = await getFileCID(files[0])
+
       assign({
         props: {
-          url: data ? `ipfs://${data}` : '',
-          name: name,
-          size: mediaType === 'file' ? files[0].size.toString() : undefined,
+          url: previewUrl, // temporary preview URL
+          name,
+          size: size.toString(),
         },
       } as MediaType)
-    } catch (error) {
-      console.error(`Editor: ${mediaType} upload error (MediaForm): ${error}`)
-    }
-    for (let i = files.length - 1; i > 0; i--) {
-      const {name} = files[i]
+    } else {
+      // upload to IPFS immediately if getFileCID is not available
       const formData = new FormData()
-      formData.append('file', files[i])
+      formData.append('file', files[0])
 
       try {
         const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
@@ -367,34 +444,16 @@ function MediaForm({
           body: formData,
         })
         const data = await response.text()
+
         assign({
           props: {
             url: data ? `ipfs://${data}` : '',
-            name: name,
-            size: mediaType === 'file' ? files[0].size.toString() : undefined,
+            name,
+            size: size.toString(),
           },
         } as MediaType)
       } catch (error) {
-        console.error(
-          `Editor: ${mediaType} upload error (MediaForm forloop): ${error}`,
-        )
-      }
-    }
-    const cursorPosition = editor.getTextCursorPosition()
-    editor.focus()
-    if (cursorPosition.block.id === block.id) {
-      if (cursorPosition.nextBlock)
-        editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
-      else {
-        editor.insertBlocks(
-          [{type: 'paragraph', content: ''}],
-          block.id,
-          'after',
-        )
-        editor.setTextCursorPosition(
-          editor.getTextCursorPosition().nextBlock!,
-          'start',
-        )
+        console.error(`Editor: file upload error: ${error}`)
       }
     }
   }
