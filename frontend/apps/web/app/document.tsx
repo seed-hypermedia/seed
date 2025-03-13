@@ -22,10 +22,14 @@ import {
   BlocksContent,
   DocContent,
   DocContentProvider,
-  documentContainerClassName,
 } from '@shm/ui/document-content'
 import {extractIpfsUrlCid, useImageUrl} from '@shm/ui/get-file-url'
-import {DocDirectory, DocumentOutline} from '@shm/ui/navigation'
+import {useDocumentLayout} from '@shm/ui/layout'
+import {
+  DocDirectory,
+  DocumentOutline,
+  SiteNavigationWrapper,
+} from '@shm/ui/navigation'
 import {ActivitySection} from '@shm/ui/page-components'
 import {ChevronUp} from '@tamagui/lucide-icons'
 import {XStack, YStack} from '@tamagui/stacks'
@@ -182,6 +186,20 @@ export function DocumentPage(props: SiteDocumentPayload) {
     }
   }, [])
 
+  console.log('=== EVERYTHING IS OK ===')
+  const {
+    showSidebars,
+    elementRef,
+    showCollapsed,
+    contentMaxWidth,
+    wrapperProps,
+    sidebarProps,
+    mainContentProps,
+  } = useDocumentLayout({
+    contentWidth: document?.metadata?.contentWidth,
+    showSidebars: showSidebarOutlineDirectory,
+  })
+
   return (
     <WebSiteProvider
       origin={origin}
@@ -199,88 +217,91 @@ export function DocumentPage(props: SiteDocumentPayload) {
           origin={origin}
         >
           <DocumentCover cover={document.metadata.cover} id={id} />
-          <YStack
-            className={documentContainerClassName(
-              showSidebarOutlineDirectory,
-              document.metadata?.contentWidth,
-            )}
-          >
-            {showSidebarOutlineDirectory ? (
-              <YStack
-                marginTop={document.metadata?.cover ? 152 : 220}
-                className="document-aside"
-              >
+          <YStack w="100%" ref={elementRef} f={1}>
+            <XStack {...wrapperProps}>
+              {showSidebars ? (
                 <YStack
-                  className="hide-scrollbar"
-                  overflow="scroll"
-                  height="100%"
-                  // paddingTop={32}
-                  paddingBottom={32}
+                  marginTop={document.metadata?.cover ? 152 : 220}
+                  {...sidebarProps}
                 >
-                  <DocumentOutline
-                    onActivateBlock={onActivateBlock}
-                    document={document}
-                    id={id}
-                    // onCloseNav={() => {}}
-                    supportDocuments={props.supportDocuments}
-                    activeBlockId={id.blockRef}
-                  />
-                  <DocDirectory
-                    // supportDocuments={props.supportDocuments}
-                    supportQueries={props.supportQueries}
-                    // documentMetadata={document.metadata}
-                    id={id}
-                  />
+                  <YStack
+                    className="hide-scrollbar"
+                    overflow="scroll"
+                    height="100%"
+                    // paddingTop={32}
+                    paddingBottom={32}
+                  >
+                    <SiteNavigationWrapper showCollapsed={showCollapsed}>
+                      <DocumentOutline
+                        onActivateBlock={onActivateBlock}
+                        document={document}
+                        id={id}
+                        // onCloseNav={() => {}}
+                        supportDocuments={props.supportDocuments}
+                        activeBlockId={id.blockRef}
+                      />
+                      <DocDirectory
+                        // supportDocuments={props.supportDocuments}
+                        supportQueries={props.supportQueries}
+                        // documentMetadata={document.metadata}
+                        id={id}
+                      />
+                    </SiteNavigationWrapper>
+                  </YStack>
                 </YStack>
-              </YStack>
-            ) : null}
-            <YStack>
-              {isHomeDoc ? null : (
-                <PageHeader
+              ) : null}
+              <YStack {...mainContentProps}>
+                {isHomeDoc ? null : (
+                  <PageHeader
+                    originHomeId={originHomeId}
+                    breadcrumbs={props.breadcrumbs}
+                    docMetadata={document.metadata}
+                    docId={id}
+                    authors={document.authors.map(
+                      (author) => accountsMetadata[author],
+                    )}
+                    updateTime={document.updateTime}
+                  />
+                )}
+                <WebDocContentProvider
                   originHomeId={originHomeId}
-                  breadcrumbs={props.breadcrumbs}
-                  docMetadata={document.metadata}
-                  docId={id}
-                  authors={document.authors.map(
-                    (author) => accountsMetadata[author],
-                  )}
-                  updateTime={document.updateTime}
-                />
-              )}
-              <WebDocContentProvider
-                originHomeId={originHomeId}
-                id={{...id, version: document.version}}
-                siteHost={siteHost}
-                supportDocuments={supportDocuments}
-                supportQueries={supportQueries}
-                routeParams={{
-                  blockRef: blockRef,
-                  blockRange: blockRange,
-                }}
-              >
-                <DocContent
-                  document={document}
-                  handleBlockReplace={() => {
-                    // Replace the URL to not include fragment.
-                    replace(window.location.pathname + window.location.search, {
-                      replace: true,
-                      preventScrollReset: true,
-                    })
-                    return true
-                  }}
-                />
-              </WebDocContentProvider>
-              {document.metadata &&
-              document.metadata.showActivity === false ? null : (
-                <DocumentAppendix
-                  id={id}
-                  document={document}
-                  originHomeId={originHomeId}
+                  id={{...id, version: document.version}}
                   siteHost={siteHost}
-                  enableWebSigning={enableWebSigning}
-                />
-              )}
-            </YStack>
+                  supportDocuments={supportDocuments}
+                  supportQueries={supportQueries}
+                  routeParams={{
+                    blockRef: blockRef,
+                    blockRange: blockRange,
+                  }}
+                >
+                  <DocContent
+                    document={document}
+                    handleBlockReplace={() => {
+                      // Replace the URL to not include fragment.
+                      replace(
+                        window.location.pathname + window.location.search,
+                        {
+                          replace: true,
+                          preventScrollReset: true,
+                        },
+                      )
+                      return true
+                    }}
+                  />
+                </WebDocContentProvider>
+                {document.metadata &&
+                document.metadata.showActivity === false ? null : (
+                  <DocumentAppendix
+                    id={id}
+                    document={document}
+                    originHomeId={originHomeId}
+                    siteHost={siteHost}
+                    enableWebSigning={enableWebSigning}
+                  />
+                )}
+              </YStack>
+              {showSidebars ? <YStack {...sidebarProps} /> : null}
+            </XStack>
           </YStack>
         </WebSiteHeader>
       </YStack>

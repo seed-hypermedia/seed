@@ -34,7 +34,6 @@ import {Button} from '@shm/ui/button'
 import {Container} from '@shm/ui/container'
 import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {
-  documentContainerClassName,
   useDocContentContext,
   useHeadingTextStyles,
 } from '@shm/ui/document-content'
@@ -76,6 +75,7 @@ import {AppDocContentProvider} from './document-content-provider'
 import './draft-page.css'
 
 import {upgradeNewspaperLayoutModel} from '@/models/upgrade-document-model'
+import {useDocumentLayout} from '@shm/ui/layout'
 import {dialogBoxShadow} from '@shm/ui/universal-dialog'
 export default function DraftPage() {
   const route = useNavRoute()
@@ -186,7 +186,7 @@ export default function DraftPage() {
           accessoryOptions={accessoryOptions}
         >
           {isNewspaperLayout ? (
-            <YStack f={1} ai="center" jc="center">
+            <YStack f={1} ai="center" jc="center" h="100%">
               <YStack
                 theme="red"
                 gap="$4"
@@ -307,6 +307,19 @@ function DocumentEditor({
 
   const cover = useSelector(actor, (s) => s.context.metadata.cover)
 
+  const {
+    showSidebars,
+    elementRef,
+    showCollapsed,
+    mainContentProps,
+    sidebarProps,
+    wrapperProps,
+    contentMaxWidth,
+  } = useDocumentLayout({
+    contentWidth: state.context.metadata.contentWidth,
+    showSidebars: showOutline && !isHomeDoc,
+  })
+
   useEffect(() => {
     let val = !!cover
     if (val != showCover) {
@@ -357,52 +370,48 @@ function DocumentEditor({
                 : state.context.metadata.showOutline
             }
           />
-          <YStack
-            className={documentContainerClassName(
-              showOutline && !isHomeDoc,
-              state.context.metadata.contentWidth,
-            )}
-          >
-            {showOutline && !isHomeDoc ? (
-              <YStack
-                marginTop={showCover ? 152 : 220}
-                className="is-desktop document-aside"
-                onPress={(e) => e.stopPropagation()}
-              >
-                <SiteNavigationDraftLoader />
-              </YStack>
-            ) : (
-              <XStack />
-            )}
-            <YStack>
-              {!isHomeDoc ? (
-                <DraftHeader
-                  draftActor={actor}
-                  onEnter={() => {
-                    editor._tiptapEditor.commands.focus()
-                    editor._tiptapEditor.commands.setTextSelection(0)
-                  }}
-                  disabled={!state.matches('ready')}
-                  showCover={showCover}
-                  setShowCover={setShowCover}
-                />
-              ) : null}
-              <EmbedToolbarProvider>
-                <Container
-                  paddingLeft="$4"
-                  marginBottom={300}
-                  onPress={(e: GestureResponderEvent) => {
-                    // this prevents to fire handleFocusAtMousePos on click
-                    e.stopPropagation()
-                    // editor?._tiptapEditor.commands.focus()
-                  }}
+          <YStack ref={elementRef} w="100%" f={1}>
+            <XStack {...wrapperProps}>
+              {showSidebars ? (
+                <YStack
+                  marginTop={showCover ? 152 : 220}
+                  onPress={(e) => e.stopPropagation()}
+                  {...sidebarProps}
                 >
-                  {editor ? (
-                    <HyperMediaEditorView editor={editor} openUrl={openUrl} />
-                  ) : null}
-                </Container>
-              </EmbedToolbarProvider>
-            </YStack>
+                  <SiteNavigationDraftLoader showCollapsed={showCollapsed} />
+                </YStack>
+              ) : null}
+              <YStack {...mainContentProps}>
+                {!isHomeDoc ? (
+                  <DraftHeader
+                    draftActor={actor}
+                    onEnter={() => {
+                      editor._tiptapEditor.commands.focus()
+                      editor._tiptapEditor.commands.setTextSelection(0)
+                    }}
+                    disabled={!state.matches('ready')}
+                    showCover={showCover}
+                    setShowCover={setShowCover}
+                  />
+                ) : null}
+                <EmbedToolbarProvider>
+                  <Container
+                    paddingLeft="$4"
+                    marginBottom={300}
+                    onPress={(e: GestureResponderEvent) => {
+                      // this prevents to fire handleFocusAtMousePos on click
+                      e.stopPropagation()
+                      // editor?._tiptapEditor.commands.focus()
+                    }}
+                  >
+                    {editor ? (
+                      <HyperMediaEditorView editor={editor} openUrl={openUrl} />
+                    ) : null}
+                  </Container>
+                </EmbedToolbarProvider>
+              </YStack>
+              {showSidebars ? <YStack {...sidebarProps} /> : null}
+            </XStack>
           </YStack>
         </AppDocContentProvider>
       </YStack>

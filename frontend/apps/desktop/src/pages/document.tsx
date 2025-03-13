@@ -39,7 +39,7 @@ import {useEntity} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {Button} from '@shm/ui/button'
 import {Container} from '@shm/ui/container'
-import {DocContent, documentContainerClassName} from '@shm/ui/document-content'
+import {DocContent} from '@shm/ui/document-content'
 import {DocumentDate} from '@shm/ui/document-date'
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {SeedHeading} from '@shm/ui/heading'
@@ -50,6 +50,7 @@ import {
   HistoryIcon,
   MoreHorizontal,
 } from '@shm/ui/icons'
+import {useDocumentLayout} from '@shm/ui/layout'
 import {getSiteNavDirectory} from '@shm/ui/navigation'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Plus} from '@tamagui/lucide-icons'
@@ -61,7 +62,9 @@ import {
   Tooltip,
   Separator as TSeparator,
   XStack,
+  XStackProps,
   YStack,
+  YStackProps,
 } from 'tamagui'
 import {EntityCitationsAccessory} from '../components/citations'
 import {AppDocContentProvider} from './document-content-provider'
@@ -184,16 +187,26 @@ export default function DocumentPage() {
   )
 }
 
-function BaseDocContainer({children}: {children: ReactNode}) {
+function BaseDocContainer({
+  children,
+  ...props
+}: XStackProps & {children: ReactNode}) {
   return (
-    <Container clearVerticalSpace padding={0}>
+    <Container clearVerticalSpace padding={0} {...props}>
       {children}
     </Container>
   )
 }
 
-function NewspaperDocContainer({children}: {children: ReactNode}) {
-  return <YStack padding={0}>{children}</YStack>
+function NewspaperDocContainer({
+  children,
+  ...props
+}: YStackProps & {children: ReactNode}) {
+  return (
+    <YStack padding={0} {...props}>
+      {children}
+    </YStack>
+  )
 }
 
 function _MainDocumentPage({
@@ -215,9 +228,10 @@ function _MainDocumentPage({
     id.path?.length ? false : true, // avoiding redundant subscription if the doc is not the home document
   )
 
-  if (entity.isInitialLoading) return null
-
   const metadata = entity.data?.document?.metadata
+  // IMPORTANT: Always call hooks at the top level, before any early returns
+  // This ensures hooks are called in the same order on every render
+
   const docIsNewspaperLayout =
     metadata?.layout === 'Seed/Experimental/Newspaper'
   const isHomeDoc = !id.path?.length
@@ -229,6 +243,22 @@ function _MainDocumentPage({
   const DocContainer = docIsNewspaperLayout
     ? NewspaperDocContainer
     : BaseDocContainer
+
+  const {
+    showSidebars,
+    sidebarProps,
+    mainContentProps,
+    elementRef,
+    showCollapsed,
+    maxWidth,
+
+    wrapperProps,
+  } = useDocumentLayout({
+    contentWidth: metadata?.contentWidth,
+    showSidebars: showSidebarOutlineDirectory,
+  })
+
+  if (entity.isInitialLoading) return null
 
   if (entity.data?.document === undefined) {
     return <DocDiscovery docId={id} />
@@ -244,53 +274,51 @@ function _MainDocumentPage({
       >
         {!docIsNewspaperLayout && <DocumentCover docId={id} />}
 
-        <YStack
-          className={documentContainerClassName(
-            showSidebarOutlineDirectory,
-            metadata?.contentWidth,
-          )}
-        >
-          {showSidebarOutlineDirectory ? (
-            <YStack
-              marginTop={entity.data?.document?.metadata.cover ? 152 : 220}
-              className="is-desktop document-aside"
-            >
+        <YStack w="100%" ref={elementRef} f={1}>
+          <XStack {...wrapperProps}>
+            {showSidebars ? (
               <YStack
-                className="hide-scrollbar"
-                overflow="scroll"
-                height="100%"
-                // paddingVertical="$4"
+                {...sidebarProps}
+                marginTop={entity.data?.document?.metadata.cover ? 152 : 220}
               >
-                <SiteNavigation />
+                <YStack
+                  className="hide-scrollbar"
+                  overflow="scroll"
+                  height="100%"
+                  // paddingVertical="$4"
+                >
+                  <SiteNavigation showCollapsed={showCollapsed} />
+                </YStack>
               </YStack>
-            </YStack>
-          ) : null}
+            ) : null}
 
-          <DocContainer>
-            {isHomeDoc ? null : <DocPageHeader docId={id} />}
-            <YStack flex={1} paddingLeft="$4" $gtSm={{paddingLeft: 0}}>
-              <DocPageContent
-                blockRef={id.blockRef}
-                blockRange={id.blockRange}
-                entity={entity.data}
-                isBlockFocused={isBlockFocused}
+            <DocContainer {...mainContentProps}>
+              {isHomeDoc ? null : <DocPageHeader docId={id} />}
+              <YStack flex={1} paddingLeft="$4" $gtSm={{paddingLeft: 0}}>
+                <DocPageContent
+                  blockRef={id.blockRef}
+                  blockRange={id.blockRange}
+                  entity={entity.data}
+                  isBlockFocused={isBlockFocused}
+                />
+              </YStack>
+
+              <DocPageAppendix
+                centered={metadata?.layout == 'Seed/Experimental/Newspaper'}
+                metadata={metadata}
+                docId={id}
               />
-            </YStack>
-
-            <DocPageAppendix
-              centered={metadata?.layout == 'Seed/Experimental/Newspaper'}
-              metadata={metadata}
-              docId={id}
-            />
-          </DocContainer>
+            </DocContainer>
+            {showSidebars ? <YStack {...sidebarProps} /> : null}
+          </XStack>
         </YStack>
       </AppDocSiteHeader>
     </YStack>
   )
 }
 const MainDocumentPage = React.memo(_MainDocumentPage)
-
 const AppDocSiteHeader = React.memo(_AppDocSiteHeader)
+
 function _AppDocSiteHeader({
   siteHomeEntity,
   docId,

@@ -68,9 +68,6 @@ export function CoverImage({
     <Stack group="cover">
       {show ? (
         <YStack
-          className={`document-container${
-            showOutline ? '' : ' hide-document-aside'
-          }`}
           position="absolute"
           top={0}
           left={0}

@@ -25,9 +25,9 @@ import {ReactNode} from 'react'
 import {XStack} from 'tamagui'
 import {ImportDropdownButton} from './import-doc-button'
 
-export function SiteNavigation() {
+export function SiteNavigation({showCollapsed}: {showCollapsed: boolean}) {
   return (
-    <SiteNavigationWrapper>
+    <SiteNavigationWrapper showCollapsed={showCollapsed}>
       <SiteNavigationLoader />
     </SiteNavigationWrapper>
   )
@@ -114,7 +114,11 @@ export function SiteNavigationLoader({onPress}: {onPress?: () => void}) {
   )
 }
 
-export function SiteNavigationDraftLoader() {
+export function SiteNavigationDraftLoader({
+  showCollapsed,
+}: {
+  showCollapsed: boolean
+}) {
   const route = useNavRoute()
   if (route.key !== 'draft')
     throw new Error('SiteNavigationDraftLoader only supports draft route')
@@ -137,7 +141,7 @@ export function SiteNavigationDraftLoader() {
   if (!siteListQuery || !metadata) return null
 
   return (
-    <SiteNavigationWrapper>
+    <SiteNavigationWrapper showCollapsed={showCollapsed}>
       {draft ? (
         <DraftOutline
           onActivateBlock={(blockId: string) => {

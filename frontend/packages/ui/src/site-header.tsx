@@ -87,6 +87,7 @@ export function SiteHeader({
       position="relative"
       overflowX="hidden"
       $gtSm={{overflowX: 'inherit'}}
+      h="100%"
     >
       <YStack
         borderBottomWidth={1}

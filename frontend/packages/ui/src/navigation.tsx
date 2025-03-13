@@ -392,7 +392,13 @@ function OutlineNode({
   )
 }
 
-export function SiteNavigationWrapper({children}: {children: ReactNode}) {
+export function SiteNavigationWrapper({
+  children,
+  showCollapsed,
+}: {
+  children: ReactNode
+  showCollapsed: boolean
+}) {
   const popoverState = usePopoverState()
   const media = useMedia()
   useLayoutEffect(() => {
@@ -401,53 +407,51 @@ export function SiteNavigationWrapper({children}: {children: ReactNode}) {
     }
   }, [media.gtSm])
 
-  return (
-    <>
-      <YStack $gtSm={{display: 'none'}}>
-        <Popover placement="right" {...popoverState}>
-          <Popover.Trigger
-            opacity={popoverState.open ? 0 : 1}
-            bg="$color6"
-            x={0}
-            paddingVertical="$3"
-            paddingHorizontal={3}
-            borderRadius={100}
-            gap="$3"
-            jc="space-between"
-            w="100%"
-            enterStyle={{opacity: 0}}
-            exitStyle={{opacity: 0}}
-            animation="fast"
-          >
-            <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
-            <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
-            <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
-            <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
-            <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
-          </Popover.Trigger>
-          <Popover.Content
-            y={50}
-            enterStyle={{x: -10, y: 50, opacity: 0}}
-            exitStyle={{x: -10, y: 50, opacity: 0}}
-            animation="fast"
-            elevation="$4"
-          >
-            <YStack height="100%" maxHeight="80vh" overflow="scroll">
-              {children}
-            </YStack>
-          </Popover.Content>
-        </Popover>
-      </YStack>
-      <YStack
-        className="hide-scrollbar"
-        display="none"
-        $gtSm={{display: 'flex'}}
-        overflow="scroll"
-        height="100%"
-        // paddingVertical="$4"
-      >
-        {children}
-      </YStack>
-    </>
+  return showCollapsed ? (
+    <YStack jc="center" ai="center">
+      <Popover placement="right" {...popoverState}>
+        <Popover.Trigger
+          opacity={popoverState.open ? 0 : 1}
+          bg="$color6"
+          x={0}
+          paddingVertical="$3"
+          paddingHorizontal={3}
+          borderRadius={100}
+          gap="$3"
+          jc="space-between"
+          w="100%"
+          enterStyle={{opacity: 0}}
+          exitStyle={{opacity: 0}}
+          animation="fast"
+          maxWidth={12}
+        >
+          <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
+          <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
+          <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
+          <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
+          <XStack bg="$color8" h={2} w="90%" borderRadius="$8" />
+        </Popover.Trigger>
+        <Popover.Content
+          y={50}
+          enterStyle={{x: -10, y: 50, opacity: 0}}
+          exitStyle={{x: -10, y: 50, opacity: 0}}
+          animation="fast"
+          elevation="$4"
+        >
+          <YStack height="100%" maxHeight="80vh" overflow="scroll">
+            {children}
+          </YStack>
+        </Popover.Content>
+      </Popover>
+    </YStack>
+  ) : (
+    <YStack
+      className="hide-scrollbar"
+      overflow="scroll"
+      height="100%"
+      // paddingVertical="$4"
+    >
+      {children}
+    </YStack>
   )
 }

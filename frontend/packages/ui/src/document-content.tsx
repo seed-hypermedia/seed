@@ -276,21 +276,6 @@ function getBlockAttribute(attributes, key): HMBlockChildrenType | undefined {
   return attributes?.fields?.[key]?.kind?.value || undefined
 }
 
-export function documentContainerClassName(
-  showSidebarOutlineDirectory: boolean,
-  contentWidth: undefined | 'S' | 'M' | 'L',
-) {
-  let className = `document-container${
-    showSidebarOutlineDirectory ? '' : ' hide-document-aside'
-  }`
-  if (contentWidth === 'S') {
-    className += ' content-width-small'
-  } else if (contentWidth === 'L') {
-    className += ' content-width-large'
-  }
-  return className
-}
-
 export function DocContent({
   document,
   focusBlockId,
