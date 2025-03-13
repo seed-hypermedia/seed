@@ -134,6 +134,7 @@ export type DocContentContextValue = {
     blockRange?: BlockRange
   }
   importWebFile?: any
+  getFileCID?: any
   supportDocuments?: HMEntityContent[]
   supportQueries?: HMQueryResult[]
 }
