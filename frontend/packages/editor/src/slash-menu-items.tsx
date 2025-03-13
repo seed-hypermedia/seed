@@ -5,7 +5,15 @@ import {
   PartialBlock,
   PropSchema,
 } from '@/blocknote/core'
-import {RiHeading, RiText} from 'react-icons/ri'
+import {
+  RiCodeBoxFill,
+  RiFile2Fill,
+  RiHeading,
+  RiImage2Fill,
+  RiRadioButtonFill,
+  RiText,
+  RiVideoAddFill,
+} from 'react-icons/ri'
 import {HMBlockSchema} from './schema'
 
 export const slashMenuItems = [
@@ -41,95 +49,95 @@ export const slashMenuItems = [
       view.dispatch(state.tr.scrollIntoView())
     },
   },
-  //   {
-  //     name: "Code Block",
-  //     aliases: ["code", "pre", "code-block"],
-  //     group: "Text blocks",
-  //     icon: <RiCodeBoxFill size={18} />,
-  //     hint: "Insert a Code Block",
-  //     execute: (editor: BlockNoteEditor) => {
-  //       insertOrUpdateBlock(editor, {
-  //         type: "code-block",
-  //         props: {
-  //           language: "",
-  //         },
-  //       } as PartialBlock<HMBlockSchema>);
-  //       const {state, view} = editor._tiptapEditor;
-  //       view.dispatch(state.tr.scrollIntoView());
-  //     },
-  //   },
-  //   {
-  //     name: "Image",
-  //     aliases: ["image", "img", "picture"],
-  //     group: "Media blocks",
-  //     icon: <RiImage2Fill size={18} />,
-  //     hint: "Insert an Image",
-  //     execute: (
-  //       editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>
-  //     ) => {
-  //       insertOrUpdateBlock(
-  //         editor,
-  //         {
-  //           type: "image",
-  //           props: {
-  //             url: "",
-  //             defaultOpen: "true",
-  //           },
-  //         } as PartialBlock<HMBlockSchema>,
-  //         true
-  //       );
-  //       const {state, view} = editor._tiptapEditor;
-  //       view.dispatch(state.tr.scrollIntoView());
-  //     },
-  //   },
-  //   {
-  //     name: "Video",
-  //     aliases: ["video", "vid", "media"],
-  //     group: "Media blocks",
-  //     icon: <RiVideoAddFill size={18} />,
-  //     hint: "Insert a Video",
-  //     execute: (
-  //       editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>
-  //     ) => {
-  //       insertOrUpdateBlock(
-  //         editor,
-  //         {
-  //           type: "video",
-  //           props: {
-  //             url: "",
-  //             defaultOpen: "true",
-  //           },
-  //         } as PartialBlock<HMBlockSchema>,
-  //         true
-  //       );
-  //       const {state, view} = editor._tiptapEditor;
-  //       view.dispatch(state.tr.scrollIntoView());
-  //     },
-  //   },
-  //   {
-  //     name: "File",
-  //     aliases: ["file", "folder"],
-  //     group: "Media blocks",
-  //     icon: <RiFile2Fill size={18} />,
-  //     hint: "Insert a File",
-  //     execute: (
-  //       editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>
-  //     ) => {
-  //       insertOrUpdateBlock(
-  //         editor,
-  //         {
-  //           type: "file",
-  //           props: {
-  //             url: "",
-  //             defaultOpen: "true",
-  //           },
-  //         } as PartialBlock<HMBlockSchema>,
-  //         true
-  //       );
-  //       const {state, view} = editor._tiptapEditor;
-  //       view.dispatch(state.tr.scrollIntoView());
-  //     },
-  //   },
+  {
+    name: 'Code Block',
+    aliases: ['code', 'pre', 'code-block'],
+    group: 'Text blocks',
+    icon: <RiCodeBoxFill size={18} />,
+    hint: 'Insert a Code Block',
+    execute: (editor: BlockNoteEditor) => {
+      insertOrUpdateBlock(editor, {
+        type: 'code-block',
+        props: {
+          language: '',
+        },
+      } as PartialBlock<HMBlockSchema>)
+      const {state, view} = editor._tiptapEditor
+      view.dispatch(state.tr.scrollIntoView())
+    },
+  },
+  {
+    name: 'Image',
+    aliases: ['image', 'img', 'picture'],
+    group: 'Media blocks',
+    icon: <RiImage2Fill size={18} />,
+    hint: 'Insert an Image',
+    execute: (
+      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
+    ) => {
+      insertOrUpdateBlock(
+        editor,
+        {
+          type: 'image',
+          props: {
+            url: '',
+            defaultOpen: 'true',
+          },
+        } as PartialBlock<HMBlockSchema>,
+        true,
+      )
+      const {state, view} = editor._tiptapEditor
+      view.dispatch(state.tr.scrollIntoView())
+    },
+  },
+  {
+    name: 'Video',
+    aliases: ['video', 'vid', 'media'],
+    group: 'Media blocks',
+    icon: <RiVideoAddFill size={18} />,
+    hint: 'Insert a Video',
+    execute: (
+      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
+    ) => {
+      insertOrUpdateBlock(
+        editor,
+        {
+          type: 'video',
+          props: {
+            url: '',
+            defaultOpen: 'true',
+          },
+        } as PartialBlock<HMBlockSchema>,
+        true,
+      )
+      const {state, view} = editor._tiptapEditor
+      view.dispatch(state.tr.scrollIntoView())
+    },
+  },
+  {
+    name: 'File',
+    aliases: ['file', 'folder'],
+    group: 'Media blocks',
+    icon: <RiFile2Fill size={18} />,
+    hint: 'Insert a File',
+    execute: (
+      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
+    ) => {
+      insertOrUpdateBlock(
+        editor,
+        {
+          type: 'file',
+          props: {
+            url: '',
+            defaultOpen: 'true',
+          },
+        } as PartialBlock<HMBlockSchema>,
+        true,
+      )
+      const {state, view} = editor._tiptapEditor
+      view.dispatch(state.tr.scrollIntoView())
+    },
+  },
   //   {
   //     name: "Embed",
   //     aliases: ["embed", "card"],
@@ -173,29 +181,29 @@ export const slashMenuItems = [
   //       view.dispatch(state.tr.scrollIntoView());
   //     },
   //   },
-  //   {
-  //     name: "Button",
-  //     aliases: ["button", "click", "press"],
-  //     group: "",
-  //     icon: <RiRadioButtonFill size={18} />,
-  //     hint: "Insert a button block",
-  //     execute: (
-  //       editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>
-  //     ) => {
-  //       insertOrUpdateBlock(
-  //         editor,
-  //         {
-  //           type: "button",
-  //           props: {
-  //             url: "",
-  //           },
-  //         } as PartialBlock<HMBlockSchema>,
-  //         true
-  //       );
-  //       const {state, view} = editor._tiptapEditor;
-  //       view.dispatch(state.tr.scrollIntoView());
-  //     },
-  //   },
+  {
+    name: 'Button',
+    aliases: ['button', 'click', 'press'],
+    group: '',
+    icon: <RiRadioButtonFill size={18} />,
+    hint: 'Insert a button block',
+    execute: (
+      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
+    ) => {
+      insertOrUpdateBlock(
+        editor,
+        {
+          type: 'button',
+          props: {
+            url: '',
+          },
+        } as PartialBlock<HMBlockSchema>,
+        true,
+      )
+      const {state, view} = editor._tiptapEditor
+      view.dispatch(state.tr.scrollIntoView())
+    },
+  },
   //   {
   //     name: "Nostr",
   //     aliases: ["nostr", "note", "event"],
