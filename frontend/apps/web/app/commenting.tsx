@@ -531,6 +531,9 @@ async function createComment({
   replyCommentId?: string
   rootReplyCommentId?: string
 }) {
+  // TODO web editor: parse content for media blocks. change temporary URLs by uploading
+  // files to ipfs and setting new URL. I believe it needs to be done here and not in api endpoint
+  // because we shouldn't modify content after signing the comment?
   const signerKey = await preparePublicKey(keyPair.publicKey)
   const unsignedComment: UnsignedComment = {
     type: 'Comment',
@@ -797,7 +800,7 @@ export default function WebCommenting({
   if (!docVersion) return null
   return (
     <>
-      <CommentDocContentProvider>
+      <CommentDocContentProvider getFileCID={getFileCID}>
         <CommentEditor
           submitButton={({getContent, reset}) => {
             return (
@@ -879,18 +882,33 @@ function CreateAccountDialog({
   )
 }
 
+// TODO web editor: this is code of how I understood it should work. I don't know if that's valid.
+async function getFileCID(file: File) {
+  const fileBuffer = await file.arrayBuffer()
+  const fileBinary = new Uint8Array(fileBuffer)
+  const fileBlock = await encodeBlock(fileBinary, rawCodec)
+  return {
+    cid: fileBlock.cid.toString(), // CID for the file
+    previewUrl: URL.createObjectURL(file), // Temporary URL for preview
+  }
+}
+
 function CommentDocContentProvider({
-  children,
+  getFileCID,
+  children, // supportQueries,
   // id,
-  originHomeId,
-  siteHost, // supportDocuments,
-} // supportQueries,
+} // originHomeId,
+// siteHost,
+// supportDocuments,
 // routeParams,
 : {
-  siteHost: string | undefined
-  // id: UnpackedHypermediaId
-  originHomeId: UnpackedHypermediaId
   children: React.ReactNode | JSX.Element
+  // TODO: specify return type
+  getFileCID: (file: File) => Promise<{cid: string; previewUrl: string}>
+
+  // siteHost: string | undefined
+  // id: UnpackedHypermediaId
+  // originHomeId: UnpackedHypermediaId
   // supportDocuments?: HMEntityContent[]
   // supportQueries?: HMQueryResult[]
   // routeParams?: {
