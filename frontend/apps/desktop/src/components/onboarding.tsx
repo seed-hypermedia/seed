@@ -556,7 +556,7 @@ function ExistingStep({
         Add the keys to your existing site.
       </Text>
 
-      <Form onSubmit={handleSubmit} w={400} bg="blue" flex={1}>
+      <Form onSubmit={handleSubmit} w={400} flex={1}>
         <YStack gap="$4">
           <YStack gap="$2">
             <Text fontSize="$2" color="$gray11">
