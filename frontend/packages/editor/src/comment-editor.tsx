@@ -28,6 +28,7 @@ export default function CommentEditor({
   return (
     <YStack gap="$3">
       <YStack
+        className="comment-editor"
         marginTop="$1"
         borderRadius="$4"
         minHeight={105}
