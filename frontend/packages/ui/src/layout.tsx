@@ -74,23 +74,6 @@ export const useDocumentLayout = (
 
     let element = elementRef.current
 
-    // Set up mutation observer to detect when the element is added to the DOM
-    const observer = new MutationObserver((mutations) => {
-      if (elementRef.current && !element) {
-        element = elementRef.current
-        console.log('MutationObserver: Element detected, updating width')
-        handleResize()
-        // Once we find the element, no need to continue observing
-        observer.disconnect()
-      }
-    })
-
-    // Start observing the document
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-    })
-
     // Always set initial width, even if element isn't available yet
     if (!element) {
       const initialWidth = getContentWidth(config.contentWidth) || 0
@@ -105,31 +88,56 @@ export const useDocumentLayout = (
       setWidthState(width)
     }
 
-    setTimeout(() => {
-      handleResize()
-    }, 0) // Increased timeout to give more time for elements to render
-
-    function handleResize() {
-      if (!elementRef.current) {
-        const fallbackWidth = getContentWidth(config.contentWidth) || 0
-        console.log(
-          'useDocumentLayout resize: no element, using fallback:',
-          fallbackWidth,
-        )
-        setWidthState(fallbackWidth)
-      } else {
-        const newWidth = elementRef.current.getBoundingClientRect().width
-        console.log('useDocumentLayout resize: element found, width:', newWidth)
+    // Create ResizeObserver to track element size changes
+    const resizeObserver = new ResizeObserver((entries) => {
+      const observedElement = entries[0]
+      if (observedElement) {
+        const newWidth = observedElement.contentRect.width
+        console.log('ResizeObserver: element resized, new width:', newWidth)
         setWidthState(newWidth)
       }
-    }
+    })
 
-    window.addEventListener('resize', handleResize)
+    // Set up mutation observer to detect when the element is added to the DOM
+    const mutationObserver = new MutationObserver((mutations) => {
+      if (elementRef.current && !element) {
+        element = elementRef.current
+        console.log(
+          'MutationObserver: Element detected, attaching ResizeObserver',
+        )
+
+        // Observe the newly found element
+        resizeObserver.observe(element)
+
+        // Get initial dimensions
+        const initialWidth = element.getBoundingClientRect().width
+        console.log(
+          'MutationObserver: Initial width after detection:',
+          initialWidth,
+        )
+        setWidthState(initialWidth)
+
+        // Once we find the element, no need to continue observing mutations
+        mutationObserver.disconnect()
+      }
+    })
+
+    // Start observing the document for mutations
+    mutationObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    })
+
+    // If element is already available, start observing it immediately
+    if (element) {
+      resizeObserver.observe(element)
+    }
 
     return () => {
       console.log('useDocumentLayout cleanup running')
-      window.removeEventListener('resize', handleResize)
-      observer.disconnect()
+      // Clean up both observers
+      resizeObserver.disconnect()
+      mutationObserver.disconnect()
     }
   }, [config.contentWidth, config.showSidebars])
 
