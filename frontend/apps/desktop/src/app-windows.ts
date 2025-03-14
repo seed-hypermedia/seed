@@ -8,11 +8,12 @@ import {
   WebContentsView,
   app,
   globalShortcut,
+  ipcMain,
   nativeTheme,
 } from 'electron'
 import path from 'node:path'
 import {updateRecentRoute} from './app-recents'
-import {appStore} from './app-store'
+import {appStore} from './app-store.mjs'
 import {getDaemonState, subscribeDaemonState} from './daemon'
 import {childLogger, debug, info, warn} from './logger'
 
@@ -112,6 +113,20 @@ function setWindowsState(newWindows: Record<string, AppWindow>) {
   appStore.set(WINDOW_STATE_STORAGE_KEY, newWindows)
 }
 
+export function deleteWindowsState() {
+  return new Promise((resolve) => {
+    // Clear all windows from the Map
+    allWindows.forEach((window) => {
+      window.close()
+    })
+    allWindows.clear()
+
+    // Reset windows state in the store
+    setWindowsState({})
+    resolve(void 0)
+  })
+}
+
 function deleteWindowState(windowId: string) {
   const newWindows = {...windowsState}
   delete newWindows[windowId]
@@ -158,7 +173,7 @@ export function createAppWindow(input: {
   const windowId = input.id || `window.${windowIdCount++}.${Date.now()}`
   const win = getAWindow()
   const prevWindowBounds = win?.getBounds()
-  const initRoutes = input?.routes || [{key: 'home'}]
+  const initRoutes = input?.routes || [{key: 'library'}]
   const initRouteIndex = input?.routeIndex || 0
   const initActiveRoute = initRoutes[initRouteIndex]
   const windowType = getRouteWindowType(initActiveRoute)
@@ -332,6 +347,10 @@ export function createAppWindow(input: {
       updateRecentRoute(activeRoute)
     }
 
+    globalShortcut.register('CommandOrControl+N', () => {
+      ipcMain.emit('new_window')
+    })
+
     globalShortcut.register('CommandOrControl+F', () => {
       const focusedWindow = getFocusedWindow()
       if (focusedWindow) {
@@ -371,6 +390,7 @@ export function createAppWindow(input: {
   browserWindow.on('blur', () => {
     windowBlurred(windowId)
     globalShortcut.unregister('CommandOrControl+F')
+    globalShortcut.unregister('CommandOrControl+N')
   })
 
   windowFocused(windowId)
