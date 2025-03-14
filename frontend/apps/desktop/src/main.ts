@@ -47,7 +47,7 @@ import {grpcClient} from './app-grpc'
 import {appInvalidateQueries} from './app-invalidation'
 import {createAppMenu} from './app-menu'
 import {initPaths} from './app-paths'
-import {getFocusedWindow} from './app-windows'
+import {deleteWindowsState, getFocusedWindow} from './app-windows'
 import autoUpdate from './auto-update'
 import {startMainDaemon} from './daemon'
 import * as logger from './logger'
@@ -56,7 +56,10 @@ import {saveMarkdownFile} from './save-markdown-file'
 
 import {BIG_INT, IS_PROD_DESKTOP, VERSION} from '@shm/shared/constants'
 import {defaultRoute} from '@shm/shared/routes'
-import {setupOnboardingHandlers} from './app-onboarding-store'
+import {
+  getOnboardingState,
+  setupOnboardingHandlers,
+} from './app-onboarding-store'
 
 const OS_REGISTER_SCHEME = 'hm'
 // @ts-ignore
@@ -64,26 +67,6 @@ global.electronTRPC = {}
 
 // Core initialization
 initPaths()
-
-app.whenReady().then(() => {
-  logger.debug('[MAIN]: Seed ready')
-
-  // Check if app was launched after update
-  const isRelaunchAfterUpdate = process.argv.includes('--relaunch-after-update')
-  if (isRelaunchAfterUpdate) {
-    logger.info('[MAIN]: App relaunched after update, ensuring window opens')
-    // Force open a window
-    openInitialWindows()
-    // Remove the flag from argv to prevent issues on subsequent launches
-    process.argv = process.argv.filter(
-      (arg) => arg !== '--relaunch-after-update',
-    )
-  } else {
-    openInitialWindows()
-  }
-
-  autoUpdate()
-})
 
 contextMenu({
   showInspectElement: !IS_PROD_DESKTOP,
@@ -136,23 +119,30 @@ app.on('will-finish-launching', () => {
 })
 
 app.whenReady().then(() => {
+  logger.debug('[MAIN]: Seed ready')
+
+  // Check if app was launched after update
+  const isRelaunchAfterUpdate = process.argv.includes('--relaunch-after-update')
+  if (isRelaunchAfterUpdate) {
+    logger.info('[MAIN]: App relaunched after update, ensuring window opens')
+    // Force open a window
+    // Remove the flag from argv to prevent issues on subsequent launches
+    process.argv = process.argv.filter(
+      (arg) => arg !== '--relaunch-after-update',
+    )
+  }
+
   if (!IS_PROD_DESKTOP) {
     performance.mark('app-ready-start')
   }
 
   // Register global shortcuts
-  globalShortcut.register('CommandOrControl+N', () => {
-    ipcMain.emit('new_window')
-  })
-
-  autoUpdate()
-  openInitialWindows()
-
-  // Initialize IPC handlers after the app is ready
-  initializeIpcHandlers()
 
   startMainDaemon(() => {
     logger.info('DaemonStarted')
+
+    // Initialize IPC handlers after the app is ready
+    initializeIpcHandlers()
     initAccountSubscriptions()
       .then(() => {
         logger.info('InitAccountSubscriptionsComplete')
@@ -160,6 +150,25 @@ app.whenReady().then(() => {
       .catch((e) => {
         logger.error('InitAccountSubscriptionsError ' + e.message)
       })
+
+    grpcClient.daemon.listKeys({}).then((response) => {
+      const onboardingState = getOnboardingState()
+      if (
+        response.keys.length === 0 &&
+        !onboardingState.hasCompletedOnboarding &&
+        !onboardingState.hasSkippedOnboarding
+      ) {
+        console.log('========= No keys found')
+        deleteWindowsState().then(() => {
+          trpc.createAppWindow({routes: [defaultRoute]})
+        })
+      } else {
+        console.log('========= Keys found', response.keys)
+        openInitialWindows()
+      }
+    })
+
+    autoUpdate()
   })
 
   if (!IS_PROD_DESKTOP) {

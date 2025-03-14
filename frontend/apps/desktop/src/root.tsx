@@ -11,11 +11,7 @@ import {useStream} from '@shm/ui/use-stream'
 import '@tamagui/core/reset.css'
 import '@tamagui/font-inter/css/400.css'
 import '@tamagui/font-inter/css/700.css'
-import {
-  onlineManager,
-  QueryClientProvider,
-  QueryKey,
-} from '@tanstack/react-query'
+import {onlineManager, QueryKey} from '@tanstack/react-query'
 import copyTextToClipboard from 'copy-text-to-clipboard'
 import {ipcLink} from 'electron-trpc/renderer'
 import React, {Suspense, useEffect, useMemo, useState} from 'react'
@@ -35,8 +31,6 @@ import type {AppInfoType} from './preload'
 import './root.css'
 import {client, trpc} from './trpc'
 
-import {useListKeys} from '@/models/daemon'
-import {UniversalAppProvider} from '@shm/shared'
 import {
   onQueryCacheError,
   onQueryInvalidation,
@@ -211,63 +205,22 @@ function MainApp({}: {}) {
   const daemonState = useGoDaemonState()
   const windowUtils = useWindowUtils(ipc)
   const utils = trpc.useUtils()
-  const keys = useListKeys()
-
-  console.log(`== ~ MainApp ~ keys:`, keys)
-
-  // Add loading state to prevent flashing onboarding during reload
-  const [isInitializing, setIsInitializing] = useState(true)
 
   // Initialize showOnboarding state with all checks to avoid flashing
   const [showOnboarding, setShowOnboarding] = useState(() => {
     // Default to false until we can properly determine state
-    if (keys === undefined) return false
 
     const {hasCompletedOnboarding, hasSkippedOnboarding} = getOnboardingState()
-    const hasAccounts = keys?.length > 0
     // Don't show onboarding if it's already completed, skipped, or if there are accounts
     const shouldShowOnboarding =
-      !hasCompletedOnboarding && !hasSkippedOnboarding && !hasAccounts
+      !hasCompletedOnboarding && !hasSkippedOnboarding
     console.log('Initial onboarding state:', {
       hasCompletedOnboarding,
       hasSkippedOnboarding,
-      hasAccounts,
       shouldShowOnboarding,
     })
     return shouldShowOnboarding
   })
-
-  // Update onboarding state once keys data is available
-  useEffect(() => {
-    if (keys !== undefined && isInitializing) {
-      const {hasCompletedOnboarding, hasSkippedOnboarding} =
-        getOnboardingState()
-      const hasAccounts = keys.length > 0
-      const shouldShowOnboarding =
-        !hasCompletedOnboarding && !hasSkippedOnboarding && !hasAccounts
-      console.log('Updated onboarding state:', {
-        hasCompletedOnboarding,
-        hasSkippedOnboarding,
-        hasAccounts,
-        shouldShowOnboarding,
-      })
-      setShowOnboarding(shouldShowOnboarding)
-    }
-  }, [keys, isInitializing])
-
-  // Handle initial app rendering
-  useEffect(() => {
-    // Only finish initialization when keys data is available
-    if (keys !== undefined) {
-      console.log('Keys data loaded, finishing initialization')
-      // Brief delay to ensure all data is processed
-      const timer = setTimeout(() => {
-        setIsInitializing(false)
-      }, 100)
-
-      return () => clearTimeout(timer)
-    }
-  }, [keys])
 
   useListenAppEvent('trigger_peer_sync', () => {
     grpcClient.daemon
@@ -280,49 +233,6 @@ function MainApp({}: {}) {
         toast.error('Sync failed!')
       })
   })
-
-  // Check for changes to accounts and onboarding state
-  useEffect(() => {
-    // Skip if we're not showing onboarding or still initializing
-    if (!showOnboarding || isInitializing) return
-
-    // Immediately check for transition
-    console.log(
-      '[Debug] Initial check - keys:',
-      keys,
-      'showOnboarding:',
-      showOnboarding,
-      'isInitializing:',
-      isInitializing,
-    )
-    if (checkForTransition()) return
-
-    // Remove interval checking as it's not needed - transition should happen once at startup
-    console.log('[Debug] Initial check did not trigger transition')
-
-    function checkForTransition() {
-      const {hasCompletedOnboarding, hasSkippedOnboarding} =
-        getOnboardingState()
-      const hasAccounts = keys?.length > 0
-
-      console.log('[Debug] checkForTransition values:', {
-        hasCompletedOnboarding,
-        hasSkippedOnboarding,
-        hasAccounts,
-        keysLength: keys?.length,
-        keysData: keys,
-        showOnboarding,
-      })
-
-      if (hasCompletedOnboarding || hasSkippedOnboarding || hasAccounts) {
-        console.log('Transitioning to main app')
-        setShowOnboarding(false)
-        return true
-      }
-      console.log('[Debug] Not transitioning to main app, conditions not met')
-      return false
-    }
-  }, [keys, showOnboarding, isInitializing])
 
   useEffect(() => {
     if (showOnboarding) return
@@ -371,6 +281,23 @@ function MainApp({}: {}) {
     }
   }, [utils, showOnboarding])
 
+  let mainContent = showOnboarding ? (
+    <>
+      <Onboarding onComplete={() => setShowOnboarding(false)} />
+      <OnboardingDebugBox />
+    </>
+  ) : (
+    <>
+      <AccountWizardDialog />
+      <Main
+        className={
+          // this is used by editor.css which doesn't know tamagui styles, boooo!
+          darkMode ? 'seed-app-dark' : 'seed-app-light'
+        }
+      />
+    </>
+  )
+
   // const openMarkdownFiles = () => {
   //   // @ts-ignore
   //   return window.docImport.openMarkdownFiles()
@@ -386,142 +313,87 @@ function MainApp({}: {}) {
   // }
 
   if (daemonState?.t == 'ready') {
-    // Show loading state during initialization to prevent flashing
-    if (isInitializing) {
-      return (
-        <UniversalAppProvider
-          openUrl={async (url: string) => {
-            ipc.send?.('open-external-link', url)
-          }}
-          openRoute={() => {}}
-        >
-          <QueryClientProvider client={queryClient}>
-            <StyleProvider darkMode={darkMode!}>
-              <YStack
-                flex={1}
-                alignItems="center"
-                justifyContent="center"
-                backgroundColor="$background"
-              >
-                <SpinnerWithText message="Starting app..." />
-              </YStack>
-            </StyleProvider>
-          </QueryClientProvider>
-          <Toaster />
-        </UniversalAppProvider>
-      )
-    }
-
-    if (showOnboarding) {
-      return (
-        <UniversalAppProvider
-          openUrl={async (url: string) => {
-            ipc.send?.('open-external-link', url)
-          }}
-          openRoute={() => {}}
-        >
-          <QueryClientProvider client={queryClient}>
-            <StyleProvider darkMode={darkMode!}>
-              <Onboarding onComplete={() => setShowOnboarding(false)} />
-              <OnboardingDebugBox />
-              <ResetOnboardingButton />
-            </StyleProvider>
-          </QueryClientProvider>
-          <Toaster
-          // position="bottom-center"
-          // toastOptions={{className: 'toaster'}}
-          />
-        </UniversalAppProvider>
-      )
-    } else {
-      return (
-        <AppContextProvider
-          grpcClient={grpcClient}
-          platform={appInfo.platform()}
-          ipc={ipc}
-          externalOpen={async (url: string) => {
-            ipc.send?.('open-external-link', url)
-          }}
-          openDirectory={async (directory: string) => {
-            ipc.send?.('open-directory', directory)
-          }}
-          saveCidAsFile={async (cid: string, name: string) => {
-            ipc.send?.('save-file', {cid, name})
-          }}
-          openMarkdownFiles={(accountId: string) => {
-            // @ts-ignore
-            return window.docImport.openMarkdownFiles(accountId)
-          }}
-          openMarkdownDirectories={(accountId: string) => {
-            // @ts-ignore
-            return window.docImport.openMarkdownDirectories(accountId)
-          }}
-          readMediaFile={(filePath: string) => {
-            // @ts-ignore
-            return window.docImport.readMediaFile(filePath)
-          }}
-          exportDocument={async (
-            title: string,
-            markdownContent: string,
-            mediaFiles: {url: string; filename: string; placeholder: string}[],
-          ) => {
-            // @ts-ignore
-            return window.docExport.exportDocument(
-              title,
-              markdownContent,
-              mediaFiles,
-            )
-          }}
-          exportDocuments={async (
-            documents: {
-              title: string
-              markdown: {
-                markdownContent: string
-                mediaFiles: {
-                  url: string
-                  filename: string
-                  placeholder: string
-                }[]
+    return (
+      <AppContextProvider
+        grpcClient={grpcClient}
+        platform={appInfo.platform()}
+        ipc={ipc}
+        externalOpen={async (url: string) => {
+          ipc.send?.('open-external-link', url)
+        }}
+        openDirectory={async (directory: string) => {
+          ipc.send?.('open-directory', directory)
+        }}
+        saveCidAsFile={async (cid: string, name: string) => {
+          ipc.send?.('save-file', {cid, name})
+        }}
+        openMarkdownFiles={(accountId: string) => {
+          // @ts-ignore
+          return window.docImport.openMarkdownFiles(accountId)
+        }}
+        openMarkdownDirectories={(accountId: string) => {
+          // @ts-ignore
+          return window.docImport.openMarkdownDirectories(accountId)
+        }}
+        readMediaFile={(filePath: string) => {
+          // @ts-ignore
+          return window.docImport.readMediaFile(filePath)
+        }}
+        exportDocument={async (
+          title: string,
+          markdownContent: string,
+          mediaFiles: {url: string; filename: string; placeholder: string}[],
+        ) => {
+          // @ts-ignore
+          return window.docExport.exportDocument(
+            title,
+            markdownContent,
+            mediaFiles,
+          )
+        }}
+        exportDocuments={async (
+          documents: {
+            title: string
+            markdown: {
+              markdownContent: string
+              mediaFiles: {
+                url: string
+                filename: string
+                placeholder: string
+              }[]
+            }
+          }[],
+        ) => {
+          // @ts-ignore
+          return window.docExport.exportDocuments(documents)
+        }}
+        windowUtils={windowUtils}
+        darkMode={darkMode!}
+      >
+        <Suspense fallback={<SpinnerWithText message="" />}>
+          <ErrorBoundary
+            FallbackComponent={RootAppError}
+            onReset={() => {
+              window.location.reload()
+            }}
+          >
+            <NavigationContainer
+              initialNav={
+                // @ts-expect-error
+                window.initNavState
               }
-            }[],
-          ) => {
-            // @ts-ignore
-            return window.docExport.exportDocuments(documents)
-          }}
-          windowUtils={windowUtils}
-          darkMode={darkMode!}
-        >
-          <Suspense fallback={<SpinnerWithText message="" />}>
-            <ErrorBoundary
-              FallbackComponent={RootAppError}
-              onReset={() => {
-                window.location.reload()
-              }}
             >
-              <NavigationContainer
-                initialNav={
-                  // @ts-expect-error
-                  window.initNavState
-                }
-              >
-                <AccountWizardDialog />
-                <Main
-                  className={
-                    // this is used by editor.css which doesn't know tamagui styles, boooo!
-                    darkMode ? 'seed-app-dark' : 'seed-app-light'
-                  }
-                />
-                <ResetOnboardingButton />
-              </NavigationContainer>
-              <Toaster
-              // position="bottom-center"
-              // toastOptions={{className: 'toaster'}}
-              />
-            </ErrorBoundary>
-          </Suspense>
-        </AppContextProvider>
-      )
-    }
+              {mainContent}
+              <ResetOnboardingButton />
+            </NavigationContainer>
+            <Toaster
+            // position="bottom-center"
+            // toastOptions={{className: 'toaster'}}
+            />
+          </ErrorBoundary>
+        </Suspense>
+      </AppContextProvider>
+    )
   } else if (daemonState?.t == 'error') {
     console.error('Daemon error', daemonState?.message)
     return (
