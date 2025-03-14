@@ -954,7 +954,7 @@ function ReadyStep({onComplete}: {onComplete: () => void}) {
           </YStack>
         </ButtonFrame>
         <XStack gap="$4" h="auto" padding="$4" borderRadius="$4" bg="$brand11">
-          <ContentIcon size={130} />
+          <ContentIcon />
           <YStack flex={1}>
             <SizableText>All Content is Public</SizableText>
             <SizableText size="$2" color="$gray11">
@@ -1665,7 +1665,7 @@ function AnalyticsIcon({size = '52', ...props}: IconProps) {
 
 function ContentIcon({size = '52', ...props}: IconProps) {
   return (
-    <svg viewBox="0 0 53 45" fill="none" {...props}>
+    <svg viewBox="0 0 53 45" fill="none" width={130} {...props}>
       <path
         fillRule="evenodd"
         clipRule="evenodd"
