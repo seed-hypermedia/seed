@@ -214,6 +214,36 @@ jobs:
 
       - name: Run performance tests
         run: |
+          # Copy artifacts to the expected location
+          mkdir -p frontend/apps/desktop/out/make
+
+          # Debug: List all downloaded artifacts
+          echo "Listing all downloaded artifacts:"
+          find artifacts -type f -name "*.deb" | sort
+
+          # Find the .deb artifact for Ubuntu
+          DEB_FILE=$(find artifacts -type f -name "*.deb" | head -n 1)
+
+          if [ -n "$DEB_FILE" ]; then
+            echo "Found .deb file: $DEB_FILE"
+            # Copy the .deb file to the expected location
+            cp "$DEB_FILE" frontend/apps/desktop/out/make/
+            # Also copy any associated metadata files from the same directory
+            DEB_DIR=$(dirname "$DEB_FILE")
+            cp -r "$DEB_DIR"/* frontend/apps/desktop/out/make/ 2>/dev/null || true
+          else
+            echo "Error: No .deb file found in the artifacts"
+            # List all artifacts to help debug
+            echo "All available artifacts:"
+            find artifacts -type f | sort
+            exit 1
+          fi
+
+          # Debug: List the copied files
+          echo "Contents of frontend/apps/desktop/out/make:"
+          find frontend/apps/desktop/out/make -type f | sort
+
+          # Now run the performance tests
           cd frontend/apps/performance
           # Run performance tests with CI mode and generate dashboard data
           yarn test:ci
