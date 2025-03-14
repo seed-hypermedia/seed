@@ -309,6 +309,24 @@ function MainApp({}: {}) {
   //   // @ts-ignore
   //   return window.docImport.readMediaFile(filePath)
   // }
+  const appContent = showOnboarding ? (
+    <>
+      <Onboarding onComplete={() => setShowOnboarding(false)} />
+      <OnboardingDebugBox />
+      <ResetOnboardingButton />
+    </>
+  ) : (
+    <>
+      <AccountWizardDialog />
+      <Main
+        className={
+          // this is used by editor.css which doesn't know tamagui styles, boooo!
+          darkMode ? 'seed-app-dark' : 'seed-app-light'
+        }
+      />
+      <ResetOnboardingButton />
+    </>
+  )
 
   if (daemonState?.t == 'ready') {
     return (
