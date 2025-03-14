@@ -251,6 +251,7 @@ function WelcomeStep({onNext}: {onNext: () => void}) {
           variant="outlined"
           onPress={() => openUrl('https://seed.hyper.media')}
           icon={ExternalLink}
+          chromeless
           hoverStyle={{
             backgroundColor: '$brand11',
             borderColor: 'transparent',
@@ -264,14 +265,14 @@ function WelcomeStep({onNext}: {onNext: () => void}) {
         </Button>
         <Button
           onPress={onNext}
-          backgroundColor="$brand2"
-          color="white"
           size="$4"
           id="welcome-next"
           borderRadius="$2"
+          backgroundColor="$brand5"
           borderWidth={0}
-          hoverStyle={{backgroundColor: '$brand4'}}
-          focusStyle={{backgroundColor: '$brand4'}}
+          color="white"
+          hoverStyle={{backgroundColor: '$brand6'}}
+          focusStyle={{backgroundColor: '$brand6'}}
         >
           NEXT
         </Button>
@@ -443,17 +444,13 @@ function ProfileStep({
               SKIP
             </Button>
             <Button
-              backgroundColor="$brand2"
-              color="white"
               id="profile-next"
-              hoverStyle={{
-                backgroundColor: '$brand4',
-                borderColor: 'transparent',
-              }}
-              focusStyle={{
-                backgroundColor: '$brand4',
-                borderColor: 'transparent',
-              }}
+              borderRadius="$2"
+              backgroundColor="$brand5"
+              borderWidth={0}
+              color="white"
+              hoverStyle={{backgroundColor: '$brand6'}}
+              focusStyle={{backgroundColor: '$brand6'}}
               disabled={!formData.name.trim()}
               onPress={onNext}
             >
@@ -590,18 +587,14 @@ function ExistingStep({
           justifyContent="center"
         >
           <Button
-            backgroundColor="$brand2"
-            color="white"
             disabled={!secretWords.trim()}
             onPress={handleSubmit}
-            hoverStyle={{
-              backgroundColor: '$brand4',
-              borderColor: 'transparent',
-            }}
-            focusStyle={{
-              backgroundColor: '$brand4',
-              borderColor: 'transparent',
-            }}
+            borderRadius="$2"
+            backgroundColor="$brand5"
+            borderWidth={0}
+            color="white"
+            hoverStyle={{backgroundColor: '$brand6'}}
+            focusStyle={{backgroundColor: '$brand6'}}
           >
             NEXT
           </Button>
@@ -914,13 +907,12 @@ function RecoveryStep({
         <XStack marginTop="$4" gap="$4" justifyContent="center">
           <Button
             onPress={handleSubmit}
-            backgroundColor="$brand2"
-            color="white"
-            size="$4"
             borderRadius="$2"
+            backgroundColor="$brand5"
             borderWidth={0}
-            hoverStyle={{backgroundColor: '$brand3'}}
-            focusStyle={{backgroundColor: '$brand3'}}
+            color="white"
+            hoverStyle={{backgroundColor: '$brand6'}}
+            focusStyle={{backgroundColor: '$brand6'}}
           >
             NEXT
           </Button>
