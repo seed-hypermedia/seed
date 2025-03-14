@@ -186,7 +186,6 @@ export function DocumentPage(props: SiteDocumentPayload) {
     }
   }, [])
 
-  console.log('=== EVERYTHING IS OK ===')
   const {
     showSidebars,
     elementRef,

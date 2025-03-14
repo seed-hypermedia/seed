@@ -250,8 +250,6 @@ function _MainDocumentPage({
     mainContentProps,
     elementRef,
     showCollapsed,
-    maxWidth,
-
     wrapperProps,
   } = useDocumentLayout({
     contentWidth: metadata?.contentWidth,
