@@ -1,3 +1,4 @@
+import {useActivity, useDiscussion} from '@/models'
 import {HeadersFunction, MetaFunction} from '@remix-run/node'
 import {useLocation, useNavigate} from '@remix-run/react'
 import {
@@ -39,7 +40,6 @@ import {WebCommenting} from './client-lazy'
 import {getHref} from './href'
 import type {SiteDocumentPayload} from './loaders'
 import {defaultSiteIcon} from './meta'
-import {useActivity, useDiscussion} from './models'
 import {NewspaperPage} from './newspaper'
 import {NotFoundPage} from './not-found'
 import {PageFooter} from './page-footer'
@@ -121,6 +121,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
     supportQueries,
     accountsMetadata,
     enableWebSigning,
+    enableSiteIdentity,
     origin,
   } = props
   if (!id) return <NotFoundPage {...props} />
@@ -296,6 +297,7 @@ export function DocumentPage(props: SiteDocumentPayload) {
                     originHomeId={originHomeId}
                     siteHost={siteHost}
                     enableWebSigning={enableWebSigning}
+                    enableSiteIdentity={enableSiteIdentity}
                   />
                 )}
               </YStack>
@@ -488,12 +490,14 @@ function DocumentAppendix({
   originHomeId,
   siteHost,
   enableWebSigning,
+  enableSiteIdentity,
 }: {
   id: UnpackedHypermediaId
   document: HMDocument
   originHomeId: UnpackedHypermediaId
   siteHost: string | undefined
   enableWebSigning?: boolean
+  enableSiteIdentity?: boolean
 }) {
   const docIdWithVersion: UnpackedHypermediaId = {
     ...id,
@@ -510,11 +514,12 @@ function DocumentAppendix({
           enableReplies={enableWebSigning}
         />
 
-        {enableWebSigning ? (
+        {enableWebSigning || enableSiteIdentity ? (
           <WebCommenting
             docId={docIdWithVersion}
             replyCommentId={null}
             rootReplyCommentId={null}
+            enableWebSigning={enableWebSigning || false}
           />
         ) : null}
       </ActivitySection>

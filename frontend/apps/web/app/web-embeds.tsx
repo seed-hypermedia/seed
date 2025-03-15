@@ -1,3 +1,4 @@
+import {injectModels} from '@/models'
 import {useNavigate} from '@remix-run/react'
 import {
   createWebHMUrl,
@@ -30,6 +31,8 @@ import {StackProps, Text} from '@tamagui/core'
 import {XStack, YStack} from '@tamagui/stacks'
 import {SizableText} from '@tamagui/text'
 import {useMemo, useState} from 'react'
+
+injectModels()
 
 function EmbedWrapper({
   id,

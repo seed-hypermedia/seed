@@ -1,3 +1,4 @@
+import {useDocumentChanges} from '@/models'
 import {
   formattedDateMedium,
   getMetadataName,
@@ -20,7 +21,6 @@ import {H1, SizableText} from '@tamagui/text'
 import {useMemo} from 'react'
 import {ScrollView} from 'react-native'
 import {getHref} from './href'
-import {useDocumentChanges} from './models'
 import {HMDocumentChangeInfo} from './routes/hm.api.changes'
 
 export function PageHeader({

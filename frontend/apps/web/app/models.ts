@@ -10,24 +10,10 @@ import {setEntityQuery} from '@shm/shared/models/entity'
 import {SearchPayload} from '@shm/shared/models/search'
 import {useQuery, UseQueryOptions} from '@tanstack/react-query'
 import {useEffect} from 'react'
-import {WebBaseDocumentPayload} from './loaders'
 import {ActivityPayload} from './routes/hm.api.activity'
 import {HMDocumentChangeInfo} from './routes/hm.api.changes'
 import {DiscussionPayload} from './routes/hm.api.discussion'
 import {unwrap} from './wrapping'
-
-export function useEntity(id: UnpackedHypermediaId | undefined) {
-  const queryString = new URLSearchParams({
-    v: id?.version || '',
-    l: id?.latest ? 'true' : '',
-  }).toString()
-  const url = `/hm/api/entity/${id?.uid}${
-    id?.path ? `/${id.path.join('/')}` : ''
-  }?${queryString}`
-  return useAPI<WebBaseDocumentPayload>(url, {
-    enabled: !!id?.uid,
-  })
-}
 
 export function useDocumentChanges(id: UnpackedHypermediaId | undefined) {
   const fetcher = useFetcher()
@@ -100,8 +86,6 @@ export function searchQuery(input: string) {
   return queryAPI<SearchPayload>(`/hm/api/search?q=${input}`)
 }
 
-setSearchQuery(searchQuery)
-
 export function entityQuery(id: UnpackedHypermediaId): Promise<HMDocument> {
   const queryString = new URLSearchParams({
     v: id?.version || '',
@@ -113,4 +97,8 @@ export function entityQuery(id: UnpackedHypermediaId): Promise<HMDocument> {
   return queryAPI<HMDocument>(url)
 }
 
-setEntityQuery(entityQuery)
+export function injectModels() {
+  console.log('~! injectModels')
+  setSearchQuery(searchQuery)
+  setEntityQuery(entityQuery)
+}

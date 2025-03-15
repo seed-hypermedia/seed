@@ -55,6 +55,7 @@
     "@tiptap/pm": "2.0.3",
     "@tiptap/react": "2.0.3",
     "better-sqlite3": "^11.8.1",
+    "idb": "^8.0.2",
     "isbot": "4",
     "multiformats": "^13.3.2",
     "prosemirror-state": "1.4.3",
