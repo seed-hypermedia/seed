@@ -208,17 +208,15 @@ function MainApp({}: {}) {
 
   // Initialize showOnboarding state with all checks to avoid flashing
   const [showOnboarding, setShowOnboarding] = useState(() => {
-    // Default to false until we can properly determine state
-
-    const {hasCompletedOnboarding, hasSkippedOnboarding} = getOnboardingState()
-    // Don't show onboarding if it's already completed, skipped, or if there are accounts
-    const shouldShowOnboarding =
-      !hasCompletedOnboarding && !hasSkippedOnboarding
-    console.log('Initial onboarding state:', {
+    const {
       hasCompletedOnboarding,
       hasSkippedOnboarding,
-      shouldShowOnboarding,
-    })
+      initialAccountIdCount,
+    } = getOnboardingState()
+    // Don't show onboarding if it's already completed, skipped, or if there are accounts
+    const hasInitialAccountIds = initialAccountIdCount > 0
+    const shouldShowOnboarding =
+      !hasCompletedOnboarding && !hasSkippedOnboarding && !hasInitialAccountIds
     return shouldShowOnboarding
   })
 

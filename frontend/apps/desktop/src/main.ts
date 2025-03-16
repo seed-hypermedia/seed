@@ -58,6 +58,7 @@ import {BIG_INT, IS_PROD_DESKTOP, VERSION} from '@shm/shared/constants'
 import {defaultRoute} from '@shm/shared/routes'
 import {
   getOnboardingState,
+  setInitialAccountIdCount,
   setupOnboardingHandlers,
 } from './app-onboarding-store'
 
@@ -153,6 +154,7 @@ app.whenReady().then(() => {
 
     grpcClient.daemon.listKeys({}).then((response) => {
       const onboardingState = getOnboardingState()
+      setInitialAccountIdCount(response.keys.length)
       if (
         response.keys.length === 0 &&
         !onboardingState.hasCompletedOnboarding &&

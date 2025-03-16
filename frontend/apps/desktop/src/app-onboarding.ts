@@ -72,6 +72,7 @@ export interface OnboardingState {
   hasSkippedOnboarding: boolean
   currentStep: OnboardingStep
   formData: OnboardingFormData
+  initialAccountIdCount: number
 }
 
 export class ImageValidationError extends Error {

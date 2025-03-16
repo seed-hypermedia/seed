@@ -15,6 +15,7 @@ const ONBOARDING_INITIAL_STATE: OnboardingState = {
   formData: {
     name: '',
   },
+  initialAccountIdCount: 0,
 }
 
 let obState =
@@ -34,6 +35,12 @@ export function setOnboardingState(state: Partial<OnboardingState>) {
     formData: {...obState.formData, ...state.formData},
   }
   appStore.set(ONBOARDING_STORAGE_KEY, obState)
+}
+
+export function setInitialAccountIdCount(count: number) {
+  setOnboardingState({
+    initialAccountIdCount: count,
+  })
 }
 
 export function setupOnboardingHandlers() {
