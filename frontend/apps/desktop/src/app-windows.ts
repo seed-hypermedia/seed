@@ -8,7 +8,6 @@ import {
   WebContentsView,
   app,
   globalShortcut,
-  ipcMain,
   nativeTheme,
 } from 'electron'
 import path from 'node:path'
@@ -347,10 +346,6 @@ export function createAppWindow(input: {
       updateRecentRoute(activeRoute)
     }
 
-    globalShortcut.register('CommandOrControl+N', () => {
-      ipcMain.emit('new_window')
-    })
-
     globalShortcut.register('CommandOrControl+F', () => {
       const focusedWindow = getFocusedWindow()
       if (focusedWindow) {
@@ -390,7 +385,6 @@ export function createAppWindow(input: {
   browserWindow.on('blur', () => {
     windowBlurred(windowId)
     globalShortcut.unregister('CommandOrControl+F')
-    globalShortcut.unregister('CommandOrControl+N')
   })
 
   windowFocused(windowId)
