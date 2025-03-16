@@ -1,4 +1,4 @@
-import {createComment, postCBOR} from '@/api'
+import {createComment, postCBOR, SignedComment} from '@/api'
 import {useCreateAccount, useLocalKeyPair} from '@/auth'
 import {Ability} from '@/local-db'
 import {injectModels} from '@/models'
@@ -17,8 +17,8 @@ import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
 import {
+  createDelegatedComment,
   delegatedIdentityOriginStore,
-  submitDelegatedComment,
   useDelegatedAbilities,
 } from './identity-delegation'
 
@@ -54,25 +54,13 @@ export default function WebCommenting({
   const delegatedAbilities = useDelegatedAbilities()
   const queryClient = useQueryClient()
   const postComment = useMutation({
-    mutationFn: async ({
-      content,
-      docId,
-      docVersion,
-      userKeyPair,
-      replyCommentId,
-      rootReplyCommentId,
-    }: CreateCommentPayload) => {
-      const comment = await createComment({
-        content,
-        docId,
-        docVersion,
-        keyPair: userKeyPair,
-        replyCommentId,
-        rootReplyCommentId,
-      })
-      const result = await postCBOR('/hm/api/comment', cborEncode(comment))
+    mutationFn: async (signedComment: SignedComment) => {
+      const result = await postCBOR(
+        '/hm/api/comment',
+        cborEncode(signedComment),
+      )
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       onReplied?.()
       queryClient.invalidateQueries({
         queryKey: [queryKeys.DOCUMENT_ACTIVITY, docId.id],
@@ -129,15 +117,19 @@ export default function WebCommenting({
                       'WE HAVE THE ABILITY! NOW TIME TO REQUEST SIGNATURE?!',
                       validAbility,
                     )
-                    submitDelegatedComment({
+                    createDelegatedComment({
                       ability: validAbility,
                       content: getContent(),
                       docId,
                       docVersion,
-                    }).then(() => {
-                      reset()
-                      onDiscardDraft?.()
                     })
+                      .then((signedComment) =>
+                        postComment.mutateAsync(signedComment),
+                      )
+                      .then(() => {
+                        reset()
+                        onDiscardDraft?.()
+                      })
                     return
                   }
                   // currently, we only support signing with the default origin
@@ -159,20 +151,26 @@ export default function WebCommenting({
                   createAccount()
                   return
                 }
-                const mutatePayload: CreateCommentPayload = {
+                const createCommentPayload: Parameters<
+                  typeof createComment
+                >[0] = {
                   content,
                   docId,
                   docVersion,
-                  userKeyPair,
+                  keyPair: userKeyPair,
                 }
                 if (replyCommentId && rootReplyCommentId) {
-                  mutatePayload.replyCommentId = replyCommentId
-                  mutatePayload.rootReplyCommentId = rootReplyCommentId
+                  createCommentPayload.replyCommentId = replyCommentId
+                  createCommentPayload.rootReplyCommentId = rootReplyCommentId
                 }
-                postComment.mutateAsync(mutatePayload).then(() => {
-                  reset()
-                  onDiscardDraft?.()
-                })
+                createComment(createCommentPayload)
+                  .then((signedComment) => {
+                    postComment.mutateAsync(signedComment)
+                  })
+                  .then(() => {
+                    reset()
+                    onDiscardDraft?.()
+                  })
               }}
             >
               {userKeyPair

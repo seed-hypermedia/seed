@@ -1,6 +1,6 @@
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared'
 import {useSyncExternalStore} from 'react'
-import {createSignedComment, createUnsignedComment} from './api'
+import {createSignedComment, createUnsignedComment, SignedComment} from './api'
 import {
   Ability,
   addDelegatedIdentityOrigin,
@@ -138,7 +138,7 @@ export function useDelegatedAbilities() {
   )
 }
 
-export async function submitDelegatedComment({
+export async function createDelegatedComment({
   ability,
   content,
   docId,
@@ -148,7 +148,7 @@ export async function submitDelegatedComment({
   content: HMBlockNode[]
   docId: UnpackedHypermediaId
   docVersion: string
-}): Promise<void> {
+}): Promise<SignedComment> {
   console.log('SUBMITTING DELEGATED COMMENT', ability, content, docId)
   const unsignedComment = createUnsignedComment({
     content,
@@ -168,4 +168,5 @@ export async function submitDelegatedComment({
   })
   const signedComment = createSignedComment(unsignedComment, signature)
   console.log('signedComment!', signedComment)
+  return signedComment
 }

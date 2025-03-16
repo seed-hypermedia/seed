@@ -209,7 +209,7 @@ export const unsignedCommentSchema = z.object({
 
 export type UnsignedComment = z.infer<typeof unsignedCommentSchema>
 
-type SignedComment = {
+export type SignedComment = {
   type: 'Comment'
   body: HMPublishableBlock[]
   space: Uint8Array
