@@ -36,6 +36,7 @@ export function SiteHeader({
   onShowMobileMenu,
   supportQueries,
   origin,
+  onScroll,
 }: {
   originHomeId: UnpackedHypermediaId | null
   docId: UnpackedHypermediaId | null
@@ -49,6 +50,7 @@ export function SiteHeader({
   onShowMobileMenu?: (isOpen: boolean) => void
   supportQueries?: HMQueryResult[]
   origin?: string
+  onScroll?: () => void
 }) {
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false)
   function setIsMobileMenuOpen(isOpen: boolean) {
@@ -88,6 +90,7 @@ export function SiteHeader({
       overflowX="hidden"
       $gtSm={{overflowX: 'inherit'}}
       h="100%"
+      onScroll={onScroll}
     >
       <YStack
         borderBottomWidth={1}
