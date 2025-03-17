@@ -1,6 +1,5 @@
 import {createComment, postCBOR, SignedComment} from '@/api'
 import {useCreateAccount, useLocalKeyPair} from '@/auth'
-import type {Ability} from '@/local-db'
 import {injectModels} from '@/models'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import CommentEditor from '@shm/editor/comment-editor'
@@ -16,11 +15,13 @@ import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {toast} from '@shm/ui/toast'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
+import {getValidAbility} from './auth-abilities'
 import {
   createDelegatedComment,
   delegatedIdentityOriginStore,
   useDelegatedAbilities,
-} from './identity-delegation'
+} from './auth-delegation'
+import type {AuthFragmentOptions} from './auth-page'
 
 injectModels()
 
@@ -75,7 +76,12 @@ export default function WebCommenting({
     ? `Comment as ${myName}`
     : 'Submit Comment'
 
-  const validAbility = getValidAbility(delegatedAbilities, docId, 'comment')
+  const validAbility = getValidAbility(
+    delegatedAbilities,
+    docId,
+    'comment',
+    window.location.origin,
+  )
 
   const unauthenticatedActionMessage = enableWebSigning
     ? 'Create Account'
@@ -103,6 +109,7 @@ export default function WebCommenting({
               }
               onPress={() => {
                 if (!enableWebSigning) {
+                  // this origin cannot sign for itself. so we require a valid ability to comment
                   if (validAbility) {
                     console.log(
                       'WE HAVE THE ABILITY! NOW TIME TO REQUEST SIGNATURE?!',
@@ -138,18 +145,23 @@ export default function WebCommenting({
                         )
                       })
                     return
+                  } else {
+                    // we don't have the ability to sign, and origin signing is disabled. so we need to request ability from another origin
+                    // currently, we only support signing with the default origin
+                    delegatedIdentityOriginStore.add(
+                      SITE_IDENTITY_DEFAULT_ORIGIN,
+                    )
+                    const params = {
+                      requestOrigin: window.location.origin,
+                      targetUid: docId.uid,
+                    } satisfies AuthFragmentOptions
+                    const encodedParams = new URLSearchParams(params).toString()
+                    window.open(
+                      `${SITE_IDENTITY_DEFAULT_ORIGIN}/hm/auth#${encodedParams}`,
+                      '_blank',
+                    )
+                    return
                   }
-                  // currently, we only support signing with the default origin
-                  delegatedIdentityOriginStore.add(SITE_IDENTITY_DEFAULT_ORIGIN)
-                  const params = {
-                    requestOrigin: window.location.origin,
-                  }
-                  const encodedParams = new URLSearchParams(params).toString()
-                  window.open(
-                    `${SITE_IDENTITY_DEFAULT_ORIGIN}/hm/auth#${encodedParams}`,
-                    '_blank',
-                  )
-                  return
                 }
                 const content = getContent()
                 if (canCreateAccount || !userKeyPair) {
@@ -184,14 +196,4 @@ export default function WebCommenting({
       {createAccountContent}
     </>
   )
-}
-
-function getValidAbility(
-  abilities: Ability[],
-  docId: UnpackedHypermediaId,
-  abilityType: 'comment',
-) {
-  return abilities.find((ability) => {
-    return true // todo
-  })
 }

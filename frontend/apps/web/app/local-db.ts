@@ -1,5 +1,5 @@
 import {IDBPDatabase, IDBPObjectStore, IDBPTransaction, openDB} from 'idb'
-import {z} from 'zod'
+import {Ability, AbilitySchema} from './auth-abilities'
 
 function upgradeStore(
   db: IDBPDatabase,
@@ -72,21 +72,6 @@ export async function deleteLocalKeys() {
   await store.clear()
 }
 
-export const AbilitySchema = z.object({
-  id: z.string(),
-  accountUid: z.string(),
-  accountPublicKey: z.instanceof(Uint8Array),
-  targetPath: z.array(z.string()),
-  targetUid: z.string().nullable(),
-  mode: z.enum(['comment', 'all']),
-  expiration: z.number().nullable(),
-  recursive: z.boolean(),
-  delegateOrigin: z.string(),
-  identityOrigin: z.string(),
-})
-
-export type Ability = z.infer<typeof AbilitySchema>
-
 export async function addDelegatedIdentityOrigin(
   origin: string,
 ): Promise<void> {
@@ -143,7 +128,10 @@ export async function getAllAbilities(): Promise<Ability[]> {
   const store = (await db)
     .transaction(ABILITIES_STORE_NAME, 'readonly')
     .objectStore(ABILITIES_STORE_NAME)
-  return store.getAll()
+  const abilities = await store.getAll()
+  return abilities.map((ability) => {
+    return AbilitySchema.parse(ability)
+  })
 }
 
 export async function getAllAbilitiesByOrigin(

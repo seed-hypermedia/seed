@@ -46,6 +46,7 @@ import {
 import {preparePublicKey} from './auth-utils'
 import {
   Ability,
+  deleteAbility,
   deleteAllAbilities,
   deleteLocalKeys,
   getAllAbilities,
@@ -616,3 +617,12 @@ function updateAbilities() {
 
 updateAbilities()
 setInterval(updateAbilities, 200)
+
+export function useDeleteAbility() {
+  return useMutation({
+    mutationFn: (id: string) => deleteAbility(id),
+    onSuccess: () => {
+      updateAbilities()
+    },
+  })
+}

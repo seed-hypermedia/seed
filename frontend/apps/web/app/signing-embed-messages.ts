@@ -1,6 +1,6 @@
+import {AbilitySchema} from '@/auth-abilities'
 import {z} from 'zod'
 import {unsignedCommentSchema} from './api'
-import {AbilitySchema} from './local-db'
 
 // delegate messages
 
