@@ -57,7 +57,7 @@ function handleParentMessage(
   if (message.type === 'init') {
     console.log('~~ embed init')
     document
-      .requestStorageAccess({localStorage: true})
+      .requestStorageAccess({localStorage: true, indexedDB: true})
       .then((result) => {
         console.log('~~ requestStorageAccess success', result)
         updateAndBroadcastAbilities(origin)
