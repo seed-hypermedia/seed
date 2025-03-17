@@ -18,7 +18,7 @@ function sendParentMessage(message: EmbedSigningIdentityProviderMessage) {
 let lastSentAbilities: Ability[] | null = null
 let lastSentAbilitiesJson: string | null = null
 
-function broadcastAbilities(origin: string) {
+function updateAndBroadcastAbilities(origin: string) {
   getAllAbilitiesByOrigin(origin).then((abilities) => {
     const abilitiesJson = JSON.stringify(abilities)
     if (lastSentAbilitiesJson !== abilitiesJson) {
@@ -55,8 +55,17 @@ function handleParentMessage(
   origin: string,
 ) {
   if (message.type === 'init') {
-    broadcastAbilities(origin)
-    setInterval(() => broadcastAbilities(origin), 100)
+    console.log('~~ embed init')
+    document
+      .requestStorageAccess({localStorage: true})
+      .then((result) => {
+        console.log('~~ requestStorageAccess success', result)
+        updateAndBroadcastAbilities(origin)
+        setInterval(() => updateAndBroadcastAbilities(origin), 100)
+      })
+      .catch((error) => {
+        console.error('~~ requestStorageAccess error', error)
+      })
     return
   }
   if (message.type === 'requestSignComment') {
@@ -82,6 +91,7 @@ function handleParentMessage(
 
 export default function EmbedSignPage() {
   useEffect(() => {
+    console.log('~~ embed sign page ready')
     sendParentMessage({type: 'ready'})
     const handleMessage = (event: MessageEvent) => {
       const message = embedSigningDelegateMessageSchema.parse(event.data)
