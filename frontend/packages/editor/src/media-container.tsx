@@ -157,7 +157,7 @@ export const MediaContainer = ({
     <YStack
       gap="$2"
       group="item"
-      maxWidth="100%"
+      width="100%"
       alignSelf="center"
       alignItems="center"
       borderWidth={0}
@@ -266,7 +266,9 @@ export const MediaContainer = ({
           : null}
         {children}
       </YStack>
-      {mediaType === 'image' && <InlineContent className="image-caption" />}
+      {mediaType === 'image' && (
+        <InlineContent className="image-caption" contentEditable={true} />
+      )}
     </YStack>
   )
 }
