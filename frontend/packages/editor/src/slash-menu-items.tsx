@@ -8,6 +8,7 @@ import {
 import {
   RiCodeBoxFill,
   RiFile2Fill,
+  RiFunctions,
   RiHeading,
   RiImage2Fill,
   RiRadioButtonFill,
@@ -161,26 +162,26 @@ export const slashMenuItems = [
   //       view.dispatch(state.tr.scrollIntoView());
   //     },
   //   },
-  //   {
-  //     name: "Math",
-  //     aliases: ["math", "mathematics", "equation", "katex", "tex"],
-  //     group: "Media blocks",
-  //     icon: <RiFunctions size={18} />,
-  //     hint: "Insert an Math Block",
-  //     execute: (
-  //       editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>
-  //     ) => {
-  //       insertOrUpdateBlock(
-  //         editor,
-  //         {
-  //           type: "math",
-  //         } as PartialBlock<HMBlockSchema>,
-  //         true
-  //       );
-  //       const {state, view} = editor._tiptapEditor;
-  //       view.dispatch(state.tr.scrollIntoView());
-  //     },
-  //   },
+  {
+    name: 'Math',
+    aliases: ['math', 'mathematics', 'equation', 'katex', 'tex'],
+    group: 'Media blocks',
+    icon: <RiFunctions size={18} />,
+    hint: 'Insert an Math Block',
+    execute: (
+      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
+    ) => {
+      insertOrUpdateBlock(
+        editor,
+        {
+          type: 'math',
+        } as PartialBlock<HMBlockSchema>,
+        true,
+      )
+      const {state, view} = editor._tiptapEditor
+      view.dispatch(state.tr.scrollIntoView())
+    },
+  },
   {
     name: 'Button',
     aliases: ['button', 'click', 'press'],

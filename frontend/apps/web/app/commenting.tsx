@@ -800,7 +800,7 @@ export default function WebCommenting({
   if (!docVersion) return null
   return (
     <>
-      <CommentDocContentProvider getFileCID={getFileCID}>
+      <CommentDocContentProvider getFileCID={getFileCID} comment>
         <CommentEditor
           submitButton={({getContent, reset}) => {
             return (
@@ -895,9 +895,10 @@ async function getFileCID(file: File) {
 
 function CommentDocContentProvider({
   getFileCID,
-  children, // supportQueries,
-  // id,
-} // originHomeId,
+  children,
+  comment, // originHomeId,
+} // supportQueries,
+// id,
 // siteHost,
 // supportDocuments,
 // routeParams,
@@ -905,7 +906,7 @@ function CommentDocContentProvider({
   children: React.ReactNode | JSX.Element
   // TODO: specify return type
   getFileCID: (file: File) => Promise<{cid: string; previewUrl: string}>
-
+  comment?: boolean
   // siteHost: string | undefined
   // id: UnpackedHypermediaId
   // originHomeId: UnpackedHypermediaId
@@ -958,6 +959,7 @@ function CommentDocContentProvider({
       textUnit={18}
       layoutUnit={24}
       debug={false}
+      comment
     >
       {children}
     </DocContentProvider>

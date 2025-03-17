@@ -35,6 +35,12 @@ export default function CommentEditor({
         bg="$color4"
         paddingHorizontal="$4"
         onPress={(e: MouseEvent) => {
+          const target = e.target as HTMLElement
+
+          // Check if the clicked element is not an input, button, or textarea
+          if (target.closest('input, textarea, select, button')) {
+            return // Don't focus the editor in this case
+          }
           e.stopPropagation()
           editor._tiptapEditor.commands.focus()
         }}

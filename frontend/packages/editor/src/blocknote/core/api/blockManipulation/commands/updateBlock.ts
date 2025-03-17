@@ -1,7 +1,7 @@
 import {Fragment, NodeType, Slice} from '@tiptap/pm/model'
 import {ReplaceStep} from '@tiptap/pm/transform'
 import {Node as PMNode} from 'prosemirror-model'
-import {EditorState} from 'prosemirror-state'
+import {EditorState, TextSelection} from 'prosemirror-state'
 import {BlockNoteEditor} from '../../../BlockNoteEditor'
 import {
   Block,
@@ -26,6 +26,7 @@ export const updateBlockCommand =
     // editor: BlockNoteEditor<BSchema>,
     posBeforeBlock: number,
     block: PartialBlock<BSchema>,
+    keepSelection?: boolean,
   ) =>
   ({
     state,
@@ -56,6 +57,7 @@ export const updateBlockCommand =
           oldNodeType,
           newNodeType,
           blockInfo,
+          keepSelection,
         )
       }
 
@@ -82,6 +84,7 @@ function updateBlockContentNode<BSchema extends BlockSchema>(
       | undefined
     blockContent: {node: PMNode; beforePos: number; afterPos: number}
   },
+  keepSelection?: boolean,
 ) {
   let content: PMNode[] | 'keep' = 'keep'
 
@@ -130,8 +133,9 @@ function updateBlockContentNode<BSchema extends BlockSchema>(
       },
     )
   } else {
+    const selectionPos = state.selection.$from
     // use replaceWith to replace the content and the block itself
-    // also  reset the selection since replacing the block content
+    // also reset the selection since replacing the block content
     // sets it to the next block.
     state.tr.replaceWith(
       blockInfo.blockContent.beforePos,
@@ -144,6 +148,10 @@ function updateBlockContentNode<BSchema extends BlockSchema>(
         content,
       ),
     )
+    if (keepSelection)
+      state.tr.setSelection(
+        new TextSelection(state.tr.doc.resolve(selectionPos.pos)),
+      )
   }
 }
 
@@ -184,6 +192,7 @@ export function updateBlock<BSchema extends BlockSchema>(
   editor: BlockNoteEditor<BSchema>,
   blockToUpdate: BlockIdentifier,
   update: PartialBlock<BSchema>,
+  keepSelection?: boolean,
 ): Block<BSchema> {
   const ttEditor = editor._tiptapEditor
 
@@ -196,7 +205,11 @@ export function updateBlock<BSchema extends BlockSchema>(
   }
 
   ttEditor.commands.command(({state, dispatch}) => {
-    updateBlockCommand(posInfo.posBeforeNode, update)({state, dispatch})
+    updateBlockCommand(
+      posInfo.posBeforeNode,
+      update,
+      keepSelection,
+    )({state, dispatch})
     return true
   })
 

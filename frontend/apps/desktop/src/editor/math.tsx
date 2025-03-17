@@ -316,16 +316,24 @@ const Render = (
               value={block.content[0] ? block.content[0].text : ''}
               onChange={(e) => {
                 // @ts-ignore
-                editor.updateBlock(block, {
-                  ...block,
-                  content: [
+                const newText = e.target?.value ?? e.nativeEvent.text ?? ''
+
+                if (newText !== block.content?.[0]?.text)
+                  editor.updateBlock(
+                    block,
+                    // @ts-ignore
                     {
-                      type: 'text',
-                      text: e.nativeEvent.text,
-                      styles: {},
+                      ...block,
+                      content: [
+                        {
+                          type: 'text',
+                          text: newText,
+                          styles: {},
+                        },
+                      ],
                     },
-                  ],
-                })
+                    true,
+                  )
               }}
             />
           </XStack>

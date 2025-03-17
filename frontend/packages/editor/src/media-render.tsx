@@ -399,7 +399,7 @@ function MediaForm({
   //   }
   // }
 
-  const {getFileCID} = useDocContentContext() // Get getFileCID function from context
+  const {getFileCID, comment} = useDocContentContext()
 
   const handleUpload = async (files: File[]) => {
     const largeFileIndex = files.findIndex((file) => file.size > MaxFileSizeB)
@@ -461,11 +461,10 @@ function MediaForm({
   return (
     <YStack
       position="relative"
-      borderColor={
-        drag ? '$color8' : selected ? '$color8' : '$colorTransparent'
-      }
+      borderColor={drag || selected ? '$color8' : '$colorTransparent'}
       borderWidth={3}
-      backgroundColor={selected ? '$color4' : '$color4'}
+      // backgroundColor={selected ? '$color4' : '$color4'}
+      backgroundColor={comment ? '$color5' : '$color4'}
       borderRadius="$2"
       borderStyle={drag ? 'dashed' : 'solid'}
       outlineWidth={0}
@@ -508,6 +507,7 @@ function MediaForm({
               ) : (
                 <Input
                   unstyled
+                  backgroundColor={comment ? '$color5' : '$color4'}
                   borderColor="$color8"
                   borderWidth="$1"
                   borderRadius="$2"
